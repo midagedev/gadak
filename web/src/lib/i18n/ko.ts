@@ -282,7 +282,7 @@ export const ko = {
   'list.clearSearch': '검색 지우기',
   'list.select': '선택',
   'list.deselect': '선택 해제',
-  'list.selectedCount': '{n}개 선택',
+  'list.selectedCount': '{n}건 선택',
   'list.moreCount': '외 {n}개',
   'list.commentCount': '코멘트 {n}개',
   'list.reopenCount': '재오픈 {n}회',
@@ -446,7 +446,7 @@ export const ko = {
   'feed.markAllRead': '모두 읽음',
   'feed.backToList': '목록으로 돌아가기',
   'feed.needCredentials': '먼저 Jira 자격증명을 설정하세요',
-  'feed.loading': '피드 로딩 중…',
+  'feed.loading': '피드 불러오는 중…',
   'feed.empty': '새 활동이 없습니다',
   'feed.filterAll': '전체',
   'feed.filterAssignee': '담당',
@@ -544,12 +544,12 @@ export const ko = {
   'doc.badge': '문서',
   'doc.content': '본문',
   'doc.comments': '코멘트',
-  'doc.commentPlaceholder': '이 페이지에 코멘트 남기기…',
+  'doc.commentPlaceholder': '이 문서에 코멘트 남기기…',
   'doc.commentNeedCredentials': '코멘트를 남기려면 자격증명을 설정하세요',
   'doc.noContent': '내용이 비어 있습니다.',
   'doc.version': 'v{n}',
   'doc.breadcrumb': '문서 경로',
-  'doc.openSource': '원본 페이지 열기',
+  'doc.openSource': '원본 문서 열기',
   'doc.notFound': '문서를 찾을 수 없습니다. 삭제되었을 수 있습니다.',
   'doc.loadFailed': '문서를 불러오지 못했습니다.',
   'doc.issues': '이슈',
@@ -570,12 +570,10 @@ export const ko = {
   'docs.viewedEmpty': '연 문서가 여기에 쌓입니다',
   'docs.viewedEmptyHint': '그전까지는 최근 갱신 탭이 모든 스페이스의 변경을 보여줍니다.',
   'docs.recentEmpty': '미러링된 문서가 아직 없습니다',
-  'docs.backToIssues': '이슈 목록으로',
   /* 입력은 지금 화면을 좁히고, Enter는 미러 전체로 나간다. Enter가 화면을
      바꾸는 일은 발견이 아니라 예고되어야 하므로 placeholder가 둘 다 말한다. */
   'docs.filterPlaceholder': '필터 — Enter로 전체 검색',
   'docs.filterLabel': '문서 필터',
-  'docs.filterClear': '필터 지우기',
   'docs.filterEmpty': '일치하는 문서가 없습니다',
   'docs.filterEmptyHint': 'Enter를 누르면 이슈와 문서 전체에서 검색합니다.',
   /* 행의 라벨 칩은 같은 종류를 계속 보는 길이고, 헤더의 칩은 지금 걸려 있는
@@ -602,9 +600,8 @@ export const ko = {
   'history.empty': '열람하거나 검색한 항목이 없습니다',
   'history.emptyHint': '연 이슈·문서와 실행한 검색이 여기에 모입니다.',
   'history.filterEmpty': '일치하는 항목 없음',
-  'history.filterPlaceholder': '좁히기',
-  'history.filterLabel': '히스토리 좁히기',
-  'history.filterClear': '좁히기 지우기',
+  'history.filterPlaceholder': '필터',
+  'history.filterLabel': '히스토리 필터',
   'history.openAsList': '이슈 목록으로 보기',
   'history.loadMore': '더 보기',
   'history.searchResults': '결과 {n}개',
@@ -761,7 +758,6 @@ export const ko = {
   'settings.aboutX': '@midagedev on X',
   'settings.intro':
     '이 워크스페이스가 미러링할 대상, 동기화 주기, 켤 기능을 정합니다. 저장하면 이 창을 다시 읽습니다.',
-  'settings.loading': '불러오는 중…',
   'settings.loadFailed': '설정을 불러오지 못했습니다. 닫은 뒤 다시 여세요.',
   'settings.saveFailed': '설정 저장에 실패했습니다. 저장을 다시 시도하세요.',
   'settings.savedReload': '설정을 저장했습니다. 새로고침합니다…',
@@ -1022,7 +1018,7 @@ export const ko = {
   'palette.actionSyncStatus': '동기화 상태 보기',
   'palette.actionSyncNow': '지금 동기화',
   'palette.syncToast': '{overall} · 동기화 {when}',
-  'palette.triageSelected': '{n}개 선택',
+  'palette.triageSelected': '{n}건 선택',
   'palette.actionTriageStatus': '상태 변경 · {target}',
   'palette.actionTriageAssignee': '담당자 변경 · {target}',
   'palette.actionTriageLabels': '라벨 변경 · {target}',
@@ -1099,7 +1095,6 @@ export const ko = {
   'onboarding.startSync': '첫 동기화 시작',
   'onboarding.saving': '저장 중…',
   'onboarding.errSaveProjects': '프로젝트 목록을 저장하지 못했습니다: {message}',
-  'onboarding.syncing': '이슈 가져오는 중',
   'onboarding.syncStarting': '시작 중…',
   'onboarding.syncDone': '{n}건 미러 완료.',
   'onboarding.syncServeHint':
@@ -1128,12 +1123,12 @@ export const ko = {
   'onboarding.openSettings': '설정 열기',
   'onboarding.cliHint': '같은 설정을 터미널에서 gadak init으로도 할 수 있습니다.',
   'onboarding.standaloneBlocked':
-    '이 워크스페이스는 독립 워크스페이스이며 여기서만 존재하는 로컬 원본 이슈 또는 페이지가 {n}개 있습니다. 어떤 Jira 사이트에도 사본이 없습니다. 이 워크스페이스를 전환하면 미러에서 그 이슈 또는 페이지들이 즉시 삭제됩니다.',
+    '이 워크스페이스는 독립 워크스페이스이며 여기서만 존재하는 로컬 원본 이슈 또는 문서가 {n}개 있습니다. 어떤 Jira 사이트에도 사본이 없습니다. 이 워크스페이스를 전환하면 미러에서 그 이슈 또는 문서들이 즉시 삭제됩니다.',
   'onboarding.standalonePersist': '원본 persist 파일: {path}',
   'onboarding.standaloneOtherWorkspace':
     '사이트는 별도 워크스페이스에 연결하세요: gadak --workspace <name> init (워크스페이스 목록은 gadak workspaces).',
   'onboarding.standaloneReplaceConfirm':
-    '그래도 이 워크스페이스를 교체합니다. 전환하면 미러에서 이 이슈 또는 페이지들이 즉시 삭제됩니다.',
+    '그래도 이 워크스페이스를 교체합니다. 전환하면 미러에서 이 이슈 또는 문서들이 즉시 삭제됩니다.',
   'onboarding.standaloneReplace': '교체하고 연결',
 
   /* ── 단축키 치트시트(?) ── */

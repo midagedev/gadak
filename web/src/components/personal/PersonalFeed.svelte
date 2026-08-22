@@ -190,7 +190,7 @@
   <div class="min-h-0 flex-1 overflow-y-auto">
     {#if !me.identified}
       <EmptyState
-        icon=""
+        icon="settings"
         title={t('feed.needCredentials')}
         actionLabel={t('common.setCredentials')}
         onAction={() => write.openSettings()}
@@ -202,7 +202,7 @@
         {/each}
       </div>
     {:else if me.feedItems.length === 0}
-      <EmptyState icon="" title={t('feed.empty')} hint={t('personal.feedHint')} />
+      <EmptyState icon="inbox" title={t('feed.empty')} hint={t('personal.feedHint')} />
     {:else}
       {#snippet feedRow(item: FeedItem)}
         {@const unread = !item.read_at}

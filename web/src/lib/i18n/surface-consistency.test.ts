@@ -208,3 +208,107 @@ describe('GDK-651 cheat sheet documents Tab on column views', () => {
     expect(src).toContain("t('shortcuts.closeColumnView')")
   })
 })
+
+function svelteFiles(): string[] {
+  const files: string[] = []
+  const walk = (dir: string): void => {
+    for (const name of readdirSync(dir)) {
+      const p = join(dir, name)
+      if (statSync(p).isDirectory()) walk(p)
+      else if (name.endsWith('.svelte')) files.push(p)
+    }
+  }
+  walk(WEB_SRC)
+  return files
+}
+
+const KBD_CHIP_CLASS = 'rounded border border-border-subtle px-1 text-micro text-text-muted'
+const SEARCH_BOX = join(WEB_SRC, 'components/list/SearchBox.svelte')
+const DOCS_FILTER = join(WEB_SRC, 'components/docs/DocsFilter.svelte')
+const HISTORY_VIEW = join(WEB_SRC, 'components/history/HistoryView.svelte')
+const BULK_BAR = join(WEB_SRC, 'components/list/BulkBar.svelte')
+const KEYMAP = join(WEB_SRC, 'lib/keymap.svelte.ts')
+const SETTINGS = join(WEB_SRC, 'components/settings/SettingsDialog.svelte')
+const COMMENT_FOOTER = join(WEB_SRC, 'components/write/CommentSubmitFooter.svelte')
+
+describe('GDK-652 in-field X: one name, aria-label on SearchBox', () => {
+  test('SearchBox, DocsFilter, and HistoryView clear-X share list.searchClear', () => {
+    const search = readFileSync(SEARCH_BOX, 'utf8')
+    const docs = readFileSync(DOCS_FILTER, 'utf8')
+    const history = readFileSync(HISTORY_VIEW, 'utf8')
+    expect(search).toContain("title={t('list.searchClear')}")
+    expect(search).toContain("aria-label={t('list.searchClear')}")
+    expect(docs).toContain("title={t('list.searchClear')}")
+    expect(docs).toContain("aria-label={t('list.searchClear')}")
+    expect(history).toContain("title={t('list.searchClear')}")
+    expect(history).toContain("aria-label={t('list.searchClear')}")
+    expect(docs).not.toContain("docs.filterClear")
+    expect(history).not.toContain("history.filterClear")
+  })
+})
+
+describe('GDK-652 back-arrow: one key for the arrow-left close', () => {
+  test('every arrow-left back/close button uses feed.backToList', () => {
+    const failures: string[] = []
+    for (const p of svelteFiles()) {
+      const src = readFileSync(p, 'utf8')
+      if (!src.includes('name="arrow-left"')) continue
+      if (src.includes("t('docs.backToIssues')")) {
+        failures.push(`${p} still uses docs.backToIssues`)
+      }
+    }
+    expect(failures, failures.join('\n')).toEqual([])
+    const feed = readFileSync(FEED, 'utf8')
+    expect(feed).toContain("t('feed.backToList')")
+  })
+})
+
+describe('GDK-652 bulk bar kbd chips match palette ∩ keymap', () => {
+  test('BulkBar chips s/a/l/Esc in the comment-shortcut class; no p chip', () => {
+    const footer = readFileSync(COMMENT_FOOTER, 'utf8')
+    expect(footer).toContain(KBD_CHIP_CLASS)
+
+    const bar = readFileSync(BULK_BAR, 'utf8')
+    expect(bar).toContain(KBD_CHIP_CLASS)
+    for (const glyph of ['s', 'a', 'l', 'Esc']) {
+      expect(bar, `missing kbd ${glyph}`).toMatch(
+        new RegExp(`<kbd[^>]*>\\s*${glyph}\\s*</kbd>`),
+      )
+    }
+    expect(bar, 'palette does not teach p on triage items').not.toMatch(/<kbd[^>]*>\s*p\s*<\/kbd>/)
+
+    const keymap = readFileSync(KEYMAP, 'utf8')
+    expect(keymap).toContain("key === 's' || key === 'a' || key === 'l' || key === 'p'")
+    expect(keymap).toContain('if (ctx.bulkActive) return { type: \'clear-bulk\' }')
+
+    const palette = readFileSync(PALETTE, 'utf8')
+    expect(palette).toContain("kbd: 's'")
+    expect(palette).toContain("kbd: 'a'")
+    expect(palette).toContain("kbd: 'l'")
+    expect(palette).toContain("kbd: 'Esc'")
+  })
+})
+
+describe('GDK-652 settings loading uses LoadingState', () => {
+  test('SettingsDialog mounts LoadingState instead of a static paragraph', () => {
+    const src = readFileSync(SETTINGS, 'utf8')
+    expect(src).toContain('LoadingState')
+    expect(src).not.toContain("t('settings.loading')")
+  })
+})
+
+describe('GDK-652 EmptyState icons: omissions filled', () => {
+  test('DocsView, SpaceDocsView, PersonalFeed do not pass icon=""', () => {
+    const files = [
+      join(WEB_SRC, 'components/docs/DocsView.svelte'),
+      join(WEB_SRC, 'components/docs/SpaceDocsView.svelte'),
+      join(WEB_SRC, 'components/personal/PersonalFeed.svelte'),
+    ]
+    const failures: string[] = []
+    for (const p of files) {
+      const src = readFileSync(p, 'utf8')
+      if (/icon=""/.test(src)) failures.push(`${p} still has icon=""`)
+    }
+    expect(failures, failures.join('\n')).toEqual([])
+  })
+})

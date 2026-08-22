@@ -248,6 +248,18 @@
 
 ### 일관되게 정리된 웹 UI
 
+- **위키 객체의 명사는 하나, 그리고 작은 분열 일곱을 닫았습니다**
+  ([GDK-652]). 같은 미러링된 Confluence 객체가 컬럼에서는 문서, 상세
+  카피에서는 "페이지", 설정에서는 "위키 페이지"였습니다 — 이제 세 로케일
+  모두 문서입니다(브라우저 탭의 "페이지"는 다른 객체라 그대로), 로케일별
+  선택을 결정한 다수결 집계는 카탈로그 게이트에 잠겼습니다. 입력 필드의
+  지우기 X는 이름 하나를 공유하고(SearchBox가 드디어 스크린리더에게
+  자기가 뭔지 말합니다), 모든 왼쪽 화살표 뒤로가기가 같은 말을 하고,
+  bulk bar는 팔레트가 이미 가르치던 kbd 칩(`s`/`a`/`l`/`Esc` — `p`는
+  팔레트 배지가 없어 칩도 없음)을 보여주고, 로딩 카피는 로케일당 동사
+  하나를 쓰고, 빈 상태 넷이 아이콘을 얻고, 한국어는 선택된 이슈를 다른
+  이슈 카운트처럼 건으로 세고, 온보딩의 첫 동기화는 신선도 칩과 같은
+  문장을 말합니다.
 - **메인 컬럼 뷰들이 같은 키에 답합니다** ([GDK-651]). Esc가 이제 문서·
   히스토리·피드를 닫습니다 — 화면이 그리는 순서대로 보이는 층부터 —
   이슈 목록의 오버레이에서만 동작하던 것에서. 팔레트에 형제 뷰가
@@ -1929,6 +1941,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-635]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-635
 [GDK-650]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-650
 [GDK-651]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-651
+[GDK-652]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-652
 [GDK-654]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-654
 [GDK-655]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-655
 [GDK-656]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-656

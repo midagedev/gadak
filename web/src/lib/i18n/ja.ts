@@ -366,7 +366,7 @@ export const ja = {
   'sidebar.docsAllTitle': '閲覧したドキュメント、更新、作成者',
   'sidebar.docsSpaces': 'スペース',
   'sidebar.docsSpacesTitle': 'スペースをひとつずつ見る',
-  'sidebar.docsToggleNode': '{title} 配下のページ',
+  'sidebar.docsToggleNode': '{title} 配下のドキュメント',
   'sidebar.workspaces': 'ワークスペース',
   'sidebar.workspaceUnreadable': 'ワークスペース設定を読めませんでした',
   'sidebar.settings': '設定',
@@ -450,7 +450,7 @@ export const ja = {
   'feed.markAllRead': 'すべて既読',
   'feed.backToList': '一覧に戻る',
   'feed.needCredentials': '先に Jira 資格情報を設定してください',
-  'feed.loading': 'フィードを読み込み中',
+  'feed.loading': 'フィードを読み込み中…',
   'feed.empty': '新しいアクティビティはありません',
   'feed.filterAll': 'すべて',
   'feed.filterAssignee': '担当',
@@ -551,17 +551,17 @@ export const ja = {
   'doc.badge': 'ドキュメント',
   'doc.content': '本文',
   'doc.comments': 'コメント',
-  'doc.noContent': 'このページは空です。',
-  'doc.commentPlaceholder': 'このページにコメント…',
+  'doc.noContent': 'このドキュメントは空です。',
+  'doc.commentPlaceholder': 'このドキュメントにコメント…',
   'doc.commentNeedCredentials': 'コメントするには資格情報を設定してください',
   'doc.version': 'v{n}',
   'doc.breadcrumb': 'ドキュメントのパス',
-  'doc.openSource': '元のページを開く',
+  'doc.openSource': '元のドキュメントを開く',
   'doc.notFound': 'このドキュメントは見つかりませんでした。削除された可能性があります。',
   'doc.loadFailed': 'このドキュメントを読み込めませんでした。',
   'doc.issues': '課題',
-  'doc.issueMentions': 'このページに言及',
-  'doc.issueMentioned': 'このページで言及',
+  'doc.issueMentions': 'このドキュメントに言及',
+  'doc.issueMentioned': 'このドキュメントで言及',
 
   /* ── Documents (main column) ── */
   'docs.title': 'ドキュメント',
@@ -577,13 +577,11 @@ export const ja = {
   'docs.viewedEmpty': '開いたドキュメントがここに表示されます',
   'docs.viewedEmptyHint': 'それまでは「更新」がすべてのスペースの変化を表示します。',
   'docs.recentEmpty': 'ミラーされたドキュメントはまだありません',
-  'docs.backToIssues': '課題に戻る',
   /* The field narrows what is on screen; Enter leaves for the whole mirror. The
      placeholder carries both, because Enter changing screens has to be asked
      for, not discovered. */
   'docs.filterPlaceholder': '絞り込み — Enter で全体を検索',
   'docs.filterLabel': 'ドキュメントを絞る',
-  'docs.filterClear': '絞り込みをクリア',
   'docs.filterEmpty': '一致するドキュメントはありません',
   'docs.filterEmptyHint': 'Enter を押すと、すべての課題とドキュメントを検索します。',
   /* Labels: a chip on a row is a way to keep looking; the chip in the header is
@@ -594,8 +592,8 @@ export const ja = {
   'docs.filterEmptyLabelHint':
     'ここには {label} ラベルのドキュメントはありません。解除すると残りが見えます。',
   'docs.labelClear': '{label} ラベルを解除',
-  /* How many pages sit under a collapsed branch of the tree. */
-  'docs.treeChildCount': '配下 {n}件のページ',
+  /* How many documents sit under a collapsed branch of the tree. */
+  'docs.treeChildCount': '配下 {n}件のドキュメント',
 
   /* ── History (visits + searches from local.db) ── */
   'history.title': '履歴',
@@ -614,7 +612,6 @@ export const ja = {
   'history.filterEmpty': '一致なし',
   'history.filterPlaceholder': '絞り込み',
   'history.filterLabel': '履歴を絞る',
-  'history.filterClear': '絞り込みをクリア',
   'history.openAsList': '課題を一覧で表示',
   'history.loadMore': 'さらに読み込む',
   'history.searchResults': '{n}件の結果',
@@ -776,7 +773,6 @@ export const ja = {
   'settings.aboutX': '@midagedev on X',
   'settings.intro':
     'このワークスペースがミラーする対象、同期の頻度、オンにする機能を選びます。保存するとこのウィンドウを再読み込みします。',
-  'settings.loading': '読み込み中…',
   'settings.loadFailed': '設定を読み込めませんでした。閉じて開き直してください。',
   'settings.saveFailed': '設定を保存できませんでした。もう一度保存してください。',
   'settings.savedReload': '設定を保存しました。再読み込みしています…',
@@ -790,8 +786,8 @@ export const ja = {
     '未選択 — このアカウントが見られるすべてのプロジェクトをミラーします。',
   'settings.confluenceTitle': 'Confluence',
   'settings.confluenceOffHint':
-    'このワークスペースではオフです — ウィキページはミラーされません。下でスペースを選ぶか、すべてのチームスペースでオンにしてください。',
-  'settings.confluenceOnHint': 'ウィキページは課題と一緒にミラーされます。',
+    'このワークスペースではオフです — ドキュメントはミラーされません。下でスペースを選ぶか、すべてのチームスペースでオンにしてください。',
+  'settings.confluenceOnHint': 'ドキュメントは課題と一緒にミラーされます。',
   'settings.confluenceTurnOnCount': '{n}件のスペースでオン',
   'settings.confluenceTurnOnAll': 'すべてのチームスペースでオン',
   'settings.confluenceTurnOnAllConfirm': 'もう一度クリックするとすべてのチームスペースをミラーします',
@@ -801,7 +797,7 @@ export const ja = {
   'settings.sourcesSpaces': 'Confluence スペース',
   'settings.sourcesSpacesHint': 'これらのスペースだけをミラーします。',
   'settings.sourcesAllGlobal': '未選択 — すべてのチーム（global）スペースをミラーします。',
-  'settings.sourcesNoSpaces': '未選択 — ページはミラーされません。',
+  'settings.sourcesNoSpaces': '未選択 — ドキュメントはミラーされません。',
   'settings.showPersonalSpaces': '個人スペースを表示',
   'settings.spacesUnavailable': 'Confluence からスペース一覧を読めませんでした。',
   'settings.sourcesApplyHint': '保存するとすぐに全同期が始まります。',
@@ -1141,7 +1137,6 @@ export const ja = {
   'onboarding.startSync': '最初の同期を開始',
   'onboarding.saving': '保存中…',
   'onboarding.errSaveProjects': 'プロジェクト一覧を保存できませんでした: {message}',
-  'onboarding.syncing': '課題を取得中',
   'onboarding.syncStarting': '開始中…',
   'onboarding.syncDone': '{n}件をミラーしました。',
   'onboarding.syncServeHint':
@@ -1174,12 +1169,12 @@ export const ja = {
   // GDK-247: PUT onboarding/connect/ 409 standalone_data_present. Facts match
   // cmd/gadak/init.go's ReplaceRefusedError sentence (via workspace.RefuseReplace).
   'onboarding.standaloneBlocked':
-    'このワークスペースはスタンドアロンで、ここでだけ存在する課題またはページが {n}件あります。どの Jira サイトにもコピーはありません。このワークスペースを変換すると、それらはミラーから削除されます。',
+    'このワークスペースはスタンドアロンで、ここでだけ存在する課題またはドキュメントが {n}件あります。どの Jira サイトにもコピーはありません。このワークスペースを変換すると、それらはミラーから削除されます。',
   'onboarding.standalonePersist': 'origin persist ファイル: {path}',
   'onboarding.standaloneOtherWorkspace':
     'サイトは別のワークスペースで接続してください: gadak --workspace <name> init（一覧は gadak workspaces）。',
   'onboarding.standaloneReplaceConfirm':
-    'それでもこのワークスペースを置き換えます。変換するとこれらの課題またはページはミラーから削除されます。',
+    'それでもこのワークスペースを置き換えます。変換するとこれらの課題またはドキュメントはミラーから削除されます。',
   'onboarding.standaloneReplace': '置き換えて接続',
 
   /* ── Keyboard shortcuts cheat sheet (?) ── */

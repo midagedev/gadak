@@ -259,6 +259,19 @@ the fixes are all here.
 
 ### The web UI, made consistent
 
+- **One noun for the wiki object, and seven smaller splits closed**
+  ([GDK-652]). The same mirrored Confluence object was a Document in the
+  column, a "page" in the detail copy, and "Wiki pages" in settings — now
+  it is a document in all three locales (browser-tab "page" stays, it is a
+  different object), and the majority counts that decided each locale are
+  locked in the catalog gate. The in-field clear-X shares one name (and
+  SearchBox finally tells screen readers what it is), every arrow-left
+  back button says the same thing, the bulk bar shows the kbd chips the
+  palette was already teaching (`s`/`a`/`l`/`Esc` — `p` has no palette
+  badge, so no chip), loading copy uses one verb per locale, four empty
+  states get their icons, Korean counts selected issues in 건 like every
+  other issue count, and onboarding's first sync speaks the same line as
+  the freshness chip.
 - **The main-column views answer the same keys** ([GDK-651]). Esc now
   closes documents, history, and the feed — visible layer first, the order
   the screen paints them — instead of working only on the issue list's
@@ -1973,6 +1986,7 @@ measured numbers instead of adjectives.
 [GDK-635]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-635
 [GDK-650]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-650
 [GDK-651]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-651
+[GDK-652]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-652
 [GDK-654]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-654
 [GDK-655]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-655
 [GDK-656]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-656

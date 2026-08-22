@@ -68,8 +68,8 @@
         value = ''
         inputEl?.focus()
       }}
-      title={t('docs.filterClear')}
-      aria-label={t('docs.filterClear')}
+      title={t('list.searchClear')}
+      aria-label={t('list.searchClear')}
       data-testid="docs-filter-clear"
     >
       <Icon name="x" size={13} />

@@ -469,7 +469,7 @@
     <span class="flex-none text-text-muted">·</span>
 
     <!-- {t('bulk.changeStatus')} -->
-    <div class="relative flex-none">
+    <div class="relative flex flex-none items-center gap-1">
       <button
         type="button"
         onclick={() => toggleMenu('status')}
@@ -478,6 +478,7 @@
       >
         {t('bulk.changeStatus')}
       </button>
+      <kbd aria-hidden="true" class="rounded border border-border-subtle px-1 text-micro text-text-muted">s</kbd>
       {#if menu === 'status'}
         <div
           class="anim-enter absolute left-0 top-full z-30 mt-1 max-h-72 w-56 overflow-y-auto rounded-lg border border-border-strong bg-bg-elevated py-1 shadow-overlay"
@@ -557,7 +558,7 @@
     </div>
 
     <!-- {t('bulk.changeAssignee')} -->
-    <div class="relative flex-none">
+    <div class="relative flex flex-none items-center gap-1">
       <button
         type="button"
         onclick={() => toggleMenu('assignee')}
@@ -566,6 +567,7 @@
       >
         {t('bulk.changeAssignee')}
       </button>
+      <kbd aria-hidden="true" class="rounded border border-border-subtle px-1 text-micro text-text-muted">a</kbd>
       {#if menu === 'assignee'}
         <div
           class="anim-enter absolute left-0 top-full z-30 mt-1 w-64 rounded-lg border border-border-strong bg-bg-elevated shadow-overlay"
@@ -624,7 +626,7 @@
     </div>
 
     <!-- {t('bulk.changeLabels')} -->
-    <div class="relative flex-none">
+    <div class="relative flex flex-none items-center gap-1">
       <button
         type="button"
         onclick={() => toggleMenu('labels')}
@@ -633,6 +635,7 @@
       >
         {t('bulk.changeLabels')}
       </button>
+      <kbd aria-hidden="true" class="rounded border border-border-subtle px-1 text-micro text-text-muted">l</kbd>
       {#if menu === 'labels'}
         <div
           class="anim-enter absolute left-0 top-full z-30 mt-1 w-64 rounded-lg border border-border-strong bg-bg-elevated shadow-overlay"
@@ -701,14 +704,17 @@
       {/if}
     </div>
 
-    <button
-      type="button"
-      onclick={() => bulk.clear()}
-      disabled={running}
-      class="inline-flex h-control-sm flex-none items-center rounded-md px-2 text-text-muted transition-colors hover:text-text-primary disabled:opacity-50"
-    >
-      {t('common.deselect')}
-    </button>
+    <span class="flex flex-none items-center gap-1">
+      <button
+        type="button"
+        onclick={() => bulk.clear()}
+        disabled={running}
+        class="inline-flex h-control-sm flex-none items-center rounded-md px-2 text-text-muted transition-colors hover:text-text-primary disabled:opacity-50"
+      >
+        {t('common.deselect')}
+      </button>
+      <kbd aria-hidden="true" class="rounded border border-border-subtle px-1 text-micro text-text-muted">Esc</kbd>
+    </span>
 
     <!-- Progress (counter — no infinite spinner) -->
     {#if running}

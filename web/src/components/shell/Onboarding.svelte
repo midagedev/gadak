@@ -500,7 +500,7 @@
           <button class={GHOST} type="button" onclick={() => void startSync()}>{t('onboarding.retry')}</button>
         {:else}
           <p class="text-body text-text-primary" data-testid="onboarding-sync-count">
-            {progress ? t('onboarding.syncing') : t('onboarding.syncStarting')}
+            {progress ? t('sync.busyIssues') : t('onboarding.syncStarting')}
             {#if fetched > 0}
               <span class="ml-1 font-mono tabular-nums text-text-secondary">{formatNumber(fetched)}</span>
             {/if}

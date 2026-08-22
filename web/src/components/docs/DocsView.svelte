@@ -214,8 +214,8 @@
       type="button"
       class="flex h-control-sm w-control-sm flex-none items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
       onclick={() => pages.closeDocs()}
-      title={t('docs.backToIssues')}
-      aria-label={t('docs.backToIssues')}
+      title={t('feed.backToList')}
+      aria-label={t('feed.backToList')}
       data-testid="docs-close"
     >
       <Icon name="arrow-left" size={15} />
@@ -235,10 +235,10 @@
             : t('docs.filterEmptyLabelHint', { label: label ?? '' })}
         />
       {:else if tab === 'viewed'}
-        <EmptyState icon="" title={t('docs.viewedEmpty')} hint={t('docs.viewedEmptyHint')} />
+        <EmptyState icon="clock" title={t('docs.viewedEmpty')} hint={t('docs.viewedEmptyHint')} />
       {:else}
         <EmptyState
-          icon=""
+          icon="file"
           title={t('docs.recentEmpty')}
           hint={t('sidebar.docsNoneHint')}
         />

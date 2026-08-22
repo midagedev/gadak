@@ -364,7 +364,7 @@ export const en = {
   'sidebar.docsAllTitle': 'Documents you viewed, what changed, and who wrote it',
   'sidebar.docsSpaces': 'Spaces',
   'sidebar.docsSpacesTitle': 'Browse one space at a time',
-  'sidebar.docsToggleNode': 'Pages under {title}',
+  'sidebar.docsToggleNode': 'Documents under {title}',
   'sidebar.workspaces': 'Workspaces',
   'sidebar.workspaceUnreadable': 'Workspace config could not be read',
   'sidebar.settings': 'Settings',
@@ -445,7 +445,7 @@ export const en = {
   'feed.markAllRead': 'Mark all read',
   'feed.backToList': 'Back to list',
   'feed.needCredentials': 'Set your Jira credentials first',
-  'feed.loading': 'Loading feed',
+  'feed.loading': 'Loading feed…',
   'feed.empty': 'No new activity',
   'feed.filterAll': 'All',
   'feed.filterAssignee': 'Assigned',
@@ -546,17 +546,17 @@ export const en = {
   'doc.badge': 'Doc',
   'doc.content': 'Content',
   'doc.comments': 'Comments',
-  'doc.noContent': 'This page is empty.',
-  'doc.commentPlaceholder': 'Comment on this page…',
+  'doc.noContent': 'This document is empty.',
+  'doc.commentPlaceholder': 'Comment on this document…',
   'doc.commentNeedCredentials': 'Set credentials to leave a comment',
   'doc.version': 'v{n}',
   'doc.breadcrumb': 'Document path',
-  'doc.openSource': 'Open the original page',
+  'doc.openSource': 'Open the original document',
   'doc.notFound': 'Could not find this document. It may have been deleted.',
   'doc.loadFailed': 'Could not load this document.',
   'doc.issues': 'Issues',
-  'doc.issueMentions': 'mentions this page',
-  'doc.issueMentioned': 'mentioned on this page',
+  'doc.issueMentions': 'mentions this document',
+  'doc.issueMentioned': 'mentioned on this document',
 
   /* ── Documents (main column) ── */
   'docs.title': 'Documents',
@@ -572,13 +572,11 @@ export const en = {
   'docs.viewedEmpty': 'Documents you open will appear here',
   'docs.viewedEmptyHint': 'Until then, Updated shows what changed across every space.',
   'docs.recentEmpty': 'No mirrored documents yet',
-  'docs.backToIssues': 'Back to issues',
   /* The field narrows what is on screen; Enter leaves for the whole mirror. The
      placeholder carries both, because Enter changing screens has to be asked
      for, not discovered. */
   'docs.filterPlaceholder': 'Filter — Enter searches everything',
   'docs.filterLabel': 'Filter documents',
-  'docs.filterClear': 'Clear filter',
   'docs.filterEmpty': 'No documents match',
   'docs.filterEmptyHint': 'Press Enter to search every issue and document instead.',
   /* Labels: a chip on a row is a way to keep looking; the chip in the header is
@@ -588,8 +586,8 @@ export const en = {
      label, not the whole mirror. */
   'docs.filterEmptyLabelHint': 'Nothing here carries the {label} label. Clear it to see the rest.',
   'docs.labelClear': 'Clear the {label} label',
-  /* How many pages sit under a collapsed branch of the tree. */
-  'docs.treeChildCount': '{n} pages under this one',
+  /* How many documents sit under a collapsed branch of the tree. */
+  'docs.treeChildCount': '{n} documents under this one',
 
   /* ── History (visits + searches from local.db) ── */
   'history.title': 'History',
@@ -608,7 +606,6 @@ export const en = {
   'history.filterEmpty': 'No matches',
   'history.filterPlaceholder': 'Filter',
   'history.filterLabel': 'Filter history',
-  'history.filterClear': 'Clear filter',
   'history.openAsList': 'Show issues in list',
   'history.loadMore': 'Load more',
   'history.searchResults': '{n} results',
@@ -769,7 +766,6 @@ export const en = {
   'settings.aboutX': '@midagedev on X',
   'settings.intro':
     'Choose what this workspace mirrors, how often it syncs, and which features are on. Saving re-reads this window.',
-  'settings.loading': 'Loading…',
   'settings.loadFailed': 'Could not load settings. Close and reopen.',
   'settings.saveFailed': 'Could not save settings. Try Save again.',
   'settings.savedReload': 'Settings saved. Reloading…',
@@ -783,8 +779,8 @@ export const en = {
     'Nothing selected — every project this account can see is mirrored.',
   'settings.confluenceTitle': 'Confluence',
   'settings.confluenceOffHint':
-    'Off for this workspace — no wiki page is mirrored. Choose spaces below to start, or turn it on for every team space.',
-  'settings.confluenceOnHint': 'Wiki pages are mirrored alongside issues.',
+    'Off for this workspace — no document is mirrored. Choose spaces below to start, or turn it on for every team space.',
+  'settings.confluenceOnHint': 'Documents are mirrored alongside issues.',
   'settings.confluenceTurnOnCount': 'Turn on for {n} spaces',
   'settings.confluenceTurnOnAll': 'Turn on for every team space',
   'settings.confluenceTurnOnAllConfirm': 'Click again to mirror every team space',
@@ -794,7 +790,7 @@ export const en = {
   'settings.sourcesSpaces': 'Confluence spaces',
   'settings.sourcesSpacesHint': 'Only these spaces are mirrored.',
   'settings.sourcesAllGlobal': 'Nothing selected — every team (global) space is mirrored.',
-  'settings.sourcesNoSpaces': 'Nothing selected — no page is mirrored.',
+  'settings.sourcesNoSpaces': 'Nothing selected — no document is mirrored.',
   'settings.showPersonalSpaces': 'Show personal spaces',
   'settings.spacesUnavailable': 'Could not read the space list from Confluence.',
   'settings.sourcesApplyHint': 'Saving starts a full sync immediately.',
@@ -1132,7 +1128,6 @@ export const en = {
   'onboarding.startSync': 'Start first sync',
   'onboarding.saving': 'Saving…',
   'onboarding.errSaveProjects': 'Could not save the project list: {message}',
-  'onboarding.syncing': 'Fetching issues',
   'onboarding.syncStarting': 'Starting…',
   'onboarding.syncDone': 'Mirrored {n} issues.',
   'onboarding.syncServeHint':
@@ -1163,12 +1158,12 @@ export const en = {
   // GDK-247: PUT onboarding/connect/ 409 standalone_data_present. Facts match
   // cmd/gadak/init.go's ReplaceRefusedError sentence (via workspace.RefuseReplace).
   'onboarding.standaloneBlocked':
-    'This workspace is standalone and holds {n} locally originated issues or pages. They exist only here — no Jira site has a copy. Converting this workspace deletes them from the mirror.',
+    'This workspace is standalone and holds {n} locally originated issues or documents. They exist only here — no Jira site has a copy. Converting this workspace deletes them from the mirror.',
   'onboarding.standalonePersist': 'Origin persist file: {path}',
   'onboarding.standaloneOtherWorkspace':
     'Connect the site in a separate workspace: gadak --workspace <name> init (list workspaces with gadak workspaces).',
   'onboarding.standaloneReplaceConfirm':
-    'Replace this workspace anyway. Converting deletes these issues or pages from the mirror.',
+    'Replace this workspace anyway. Converting deletes these issues or documents from the mirror.',
   'onboarding.standaloneReplace': 'Replace and connect',
 
   /* ── Keyboard shortcuts cheat sheet (?) ── */

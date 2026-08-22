@@ -265,8 +265,8 @@
       type="button"
       class="flex h-control-sm w-control-sm flex-none items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
       onclick={() => pages.closeDocs()}
-      title={t('docs.backToIssues')}
-      aria-label={t('docs.backToIssues')}
+      title={t('feed.backToList')}
+      aria-label={t('feed.backToList')}
       data-testid="docs-close"
     >
       <Icon name="arrow-left" size={15} />
@@ -285,7 +285,7 @@
         />
       {:else}
         <EmptyState
-          icon=""
+          icon="file"
           title={t('docs.recentEmpty')}
           hint={t('sidebar.docsNotFetchedHint')}
         />

@@ -73,6 +73,7 @@
   import { trapFocus } from '../../lib/focus-trap'
   import Icon from '../ui/Icon.svelte'
   import DialogShell from '../ui/DialogShell.svelte'
+  import LoadingState from '../ui/LoadingState.svelte'
 
   // `tab` is bindable so the `settings=` URL binding in App can read which tab
   // is open and set one on arrival; the default matches every open before the
@@ -351,7 +352,7 @@
     data-testid="settings-scroll"
   >
       {#if loading}
-        <p class="py-8 text-center text-text-muted">{t('settings.loading')}</p>
+        <LoadingState />
       {:else}
         <!-- The runtime mirror (read-only instance facts) is the Sync tab's
              own footer now, not a block above every tab: repeated on all seven

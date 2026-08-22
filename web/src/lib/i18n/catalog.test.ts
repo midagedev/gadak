@@ -251,3 +251,135 @@ describe('catalog contracts', () => {
     ).toBe(listUnit)
   })
 })
+
+/**
+ * Wiki-object catalog keys (mirrored Confluence pages / documents).
+ * browse.* is a different object (browser tabs) and is excluded on purpose.
+ */
+function isWikiObjectKey(key: string): boolean {
+  return /^(doc\.|docs\.|sidebar\.docs|list\.doc|person\.docs|palette\.sectionDocs|palette\.actionDocs|palette\.docCount|history\.tabDocs|history\.emptyHint|settings\.confluence|settings\.sourcesNoSpaces|settings\.sourcesSpaces|settings\.roleBody|sync\.busyDocuments|sync\.partial|shortcuts\.sectionColumnViews|shortcuts\.tabMoveRows|shortcuts\.closeColumnView|onboarding\.standalone)/.test(
+    key,
+  )
+}
+
+describe('GDK-652 wiki-object noun: one noun per locale', () => {
+  // Counted 2026-08-23 against wiki-object keys (browse.* excluded):
+  //   EN document(s) 35 keys vs page(s) 12 → document
+  //   KO 문서 44 vs 페이지 4 → 문서
+  //   JA ドキュメント 37 vs ページ 12 → ドキュメント
+  test('wiki-object strings do not use the competing page noun', () => {
+    const failures: string[] = []
+    for (const [key, value] of Object.entries(en)) {
+      if (!isWikiObjectKey(key)) continue
+      if (/\bpages?\b/i.test(value)) {
+        failures.push(`en.${key}=${JSON.stringify(value)} uses page/pages (use document/documents)`)
+      }
+    }
+    for (const [key, value] of Object.entries(ko)) {
+      if (!isWikiObjectKey(key)) continue
+      if (value.includes('페이지')) {
+        failures.push(`ko.${key}=${JSON.stringify(value)} uses 페이지 (use 문서)`)
+      }
+    }
+    for (const [key, value] of Object.entries(ja)) {
+      if (!isWikiObjectKey(key)) continue
+      if (value.includes('ページ')) {
+        failures.push(`ja.${key}=${JSON.stringify(value)} uses ページ (use ドキュメント)`)
+      }
+    }
+    expect(failures, failures.join('\n')).toEqual([])
+  })
+
+  test('browse.* page means a web page and stays a page', () => {
+    // The exclusion in the wiki-noun lock: these are browser tabs, not wiki objects.
+    expect(en['browse.tabs']).toMatch(/pages?/i)
+    expect(en['browse.closeTab']).toMatch(/page/i)
+    expect(ko['browse.closeTab']).toContain('페이지')
+    expect(ja['browse.closeTab']).toContain('ページ')
+  })
+})
+
+describe('GDK-652 Korean issue counters share one unit', () => {
+  test('selected-issue counts use the same Korean unit as list.countIssues', () => {
+    // list.countIssues / sidebar.issueCount already lock 건. Selected-issue
+    // copy (bulk bar, palette triage target) counts the same objects.
+    const unitOf = (s: string): 'geon' | 'gae' | 'other' => {
+      if (/\{n\}\s*건/.test(s)) return 'geon'
+      if (/\{n\}\s*개/.test(s)) return 'gae'
+      return 'other'
+    }
+    const list = ko['list.countIssues']
+    const listUnit = unitOf(list)
+    expect(listUnit, `list.countIssues=${JSON.stringify(list)}`).toBe('geon')
+    for (const key of ['list.selectedCount', 'palette.triageSelected'] as const) {
+      expect(
+        unitOf(ko[key]),
+        `${key}=${JSON.stringify(ko[key])} must use the same unit as list.countIssues=${JSON.stringify(list)}`,
+      ).toBe(listUnit)
+    }
+  })
+})
+
+describe('GDK-652 loading verb is one per locale', () => {
+  test('Korean Loading-family strings use 불러오는, never 로딩', () => {
+    const failures: string[] = []
+    for (const key of Object.keys(en) as (keyof typeof en)[]) {
+      if (!/^Loading/.test(en[key])) continue
+      const value = ko[key]
+      if (value.includes('로딩')) {
+        failures.push(`${key}=${JSON.stringify(value)} uses 로딩 (use 불러오는)`)
+      }
+      if (!value.includes('불러오는')) {
+        failures.push(`${key}=${JSON.stringify(value)} has no 불러오는`)
+      }
+    }
+    expect(failures, failures.join('\n')).toEqual([])
+  })
+
+  test('feed.loading uses the same loading verb and ellipsis as common.loading', () => {
+    const failures: string[] = []
+    for (const [locale, table] of [
+      ['en', en],
+      ['ko', ko],
+      ['ja', ja],
+    ] as const) {
+      const common = table['common.loading']
+      const feed = table['feed.loading']
+      const ellipsis = common.includes('…')
+      if (ellipsis && !feed.includes('…')) {
+        failures.push(`${locale} feed.loading=${JSON.stringify(feed)} dropped the ellipsis of common.loading`)
+      }
+      if (locale === 'en' && !/^Loading/.test(feed)) {
+        failures.push(`${locale} feed.loading=${JSON.stringify(feed)} must start with Loading`)
+      }
+      if (locale === 'ko' && !feed.includes('불러오는')) {
+        failures.push(`${locale} feed.loading=${JSON.stringify(feed)} must use 불러오는`)
+      }
+      if (locale === 'ja' && !feed.includes('読み込み')) {
+        failures.push(`${locale} feed.loading=${JSON.stringify(feed)} must use 読み込み`)
+      }
+    }
+    expect(failures, failures.join('\n')).toEqual([])
+  })
+})
+
+describe('GDK-652 Korean history filter uses 필터, not 좁히기', () => {
+  test('history.filterPlaceholder and history.filterLabel share 필터 with docs.filter', () => {
+    expect(ko['history.filterPlaceholder']).toContain('필터')
+    expect(ko['history.filterLabel']).toContain('필터')
+    expect(ko['history.filterPlaceholder']).not.toContain('좁히기')
+    expect(ko['history.filterLabel']).not.toContain('좁히기')
+  })
+})
+
+describe('GDK-652 onboarding first-sync copy matches the running-sync verb', () => {
+  test('onboarding in-progress copy is sync.busyIssues (ellipsis included)', () => {
+    // One owner: the first-sync line is the same event as the freshness chip.
+    expect(en['sync.busyIssues']).toMatch(/…$/)
+    expect(ko['sync.busyIssues']).toMatch(/…$/)
+    expect(ja['sync.busyIssues']).toMatch(/…$/)
+    const onboarding = readFileSync(join(WEB_SRC, 'components/shell/Onboarding.svelte'), 'utf8')
+    expect(onboarding).toContain("t('sync.busyIssues')")
+    expect(onboarding).not.toContain("t('onboarding.syncing')")
+  })
+})

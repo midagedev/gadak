@@ -216,8 +216,8 @@
             type="button"
             class="flex flex-none items-center text-text-muted hover:text-text-primary"
             onclick={() => (history.filterText = '')}
-            title={t('history.filterClear')}
-            aria-label={t('history.filterClear')}
+            title={t('list.searchClear')}
+            aria-label={t('list.searchClear')}
           >
             <Icon name="x" size={13} />
           </button>
@@ -230,8 +230,8 @@
       type="button"
       class="flex h-control-sm w-control-sm flex-none items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
       onclick={() => pages.closeHistory()}
-      title={t('docs.backToIssues')}
-      aria-label={t('docs.backToIssues')}
+      title={t('feed.backToList')}
+      aria-label={t('feed.backToList')}
       data-testid="history-close"
     >
       <Icon name="arrow-left" size={15} />

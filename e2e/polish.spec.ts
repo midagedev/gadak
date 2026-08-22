@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { attachConsoleErrors, gotoApp, searchInput } from './helpers'
+import { en } from '../web/src/lib/i18n/en'
 
 test.describe('keyboard cheat sheet', () => {
   test('? opens it, Esc closes it, and it only documents keys that exist', async ({ page }) => {
@@ -21,7 +22,7 @@ test.describe('keyboard cheat sheet', () => {
       'New issue (when no detail or cursor)',
       'Move cursor down',
       'Open in Jira',
-      'Open the original page',
+      en['doc.openSource'],
       'Open the issue in Jira',
       'Change priority (selection, or the cursor row)',
       'Change priority (when detail is open)',

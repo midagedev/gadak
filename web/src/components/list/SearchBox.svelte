@@ -313,6 +313,7 @@
           inputEl?.focus()
         }}
         title={t('list.searchClear')}
+        aria-label={t('list.searchClear')}
       >
         <Icon name="x" size={13} />
       </button>
