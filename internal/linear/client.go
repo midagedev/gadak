@@ -91,16 +91,15 @@ type Client struct {
 	rate  atomic.Pointer[RateLimit]
 }
 
-// New builds a Client for a personal API key. The HTTP client times out at
-// 60 s; Retries is 5; the first Backoff is 1 s — the same defaults
-// internal/jira ships.
+// New builds a Client for a personal API key. HTTP timeout, Retries, and
+// Backoff come from httppolicy (same owner as jira and confluence New).
 func New(apiKey string) *Client {
 	c := &Client{
 		apiKey:   apiKey,
 		Endpoint: Endpoint,
-		HTTP:     &http.Client{Timeout: 60 * time.Second},
-		Retries:  5,
-		Backoff:  time.Second,
+		HTTP:     &http.Client{Timeout: httppolicy.DefaultTimeout},
+		Retries:  httppolicy.DefaultRetries,
+		Backoff:  httppolicy.DefaultBackoff,
 	}
 	return c
 }

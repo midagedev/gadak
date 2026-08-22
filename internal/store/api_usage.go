@@ -152,7 +152,7 @@ func (db *DB) TableCount(ctx context.Context, table string) (int, error) {
 	switch table {
 	case "issues", "comments", "items", "pages", "spaces":
 	default:
-		return 0, fmt.Errorf("store: TableCount: unknown table %q", table)
+		return 0, fmt.Errorf("store: unknown table %q", table)
 	}
 	var n int
 	err := db.sql.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table).Scan(&n)
@@ -177,7 +177,7 @@ func (db *DB) DistinctCount(ctx context.Context, table, column string) (int, err
 	switch table + "." + column {
 	case "issues.project_key", "issues.status_category", "pages.space_key":
 	default:
-		return 0, fmt.Errorf("store: DistinctCount: unknown %s.%s", table, column)
+		return 0, fmt.Errorf("store: unknown %s.%s", table, column)
 	}
 	var n int
 	// Identifiers are whitelisted above; values never enter the SQL string.

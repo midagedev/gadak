@@ -14,7 +14,7 @@ import (
 type fakeNotifier struct {
 	calls [][2]string
 	err   error
-	// unsupported is the test knob for Notifier.Supported. Default false so
+	// unsupported is the test knob for notifier.Supported. Default false so
 	// existing fakes keep the pre-GDK-349 path (deliver, then advance).
 	unsupported bool
 }
@@ -49,7 +49,7 @@ func TestNotifyAfterSyncBootstrapNoFire(t *testing.T) {
 	cfg := &config.Config{
 		Email: "me@example.com", AccountID: "acc-me", TokenOwner: "Me",
 	}
-	if err := notifyAfterSync(db, cfg, n); err != nil {
+	if err := notifyAfterSync(context.Background(), db, cfg, n); err != nil {
 		t.Fatal(err)
 	}
 	if len(n.calls) != 0 {
@@ -80,7 +80,7 @@ func TestNotifyAfterSyncFiresForNewEvents(t *testing.T) {
 	}
 
 	n := &fakeNotifier{}
-	if err := notifyAfterSync(db, cfg, n); err != nil {
+	if err := notifyAfterSync(context.Background(), db, cfg, n); err != nil {
 		t.Fatal(err)
 	}
 	if len(n.calls) != 1 {
@@ -119,7 +119,7 @@ func TestNotifyDisabled(t *testing.T) {
 	off := false
 	cfg := &config.Config{Notify: &off, Email: "me@example.com", AccountID: "acc-me"}
 	n := &fakeNotifier{}
-	if err := notifyAfterSync(db, cfg, n); err != nil {
+	if err := notifyAfterSync(context.Background(), db, cfg, n); err != nil {
 		t.Fatal(err)
 	}
 	if len(n.calls) != 0 {
@@ -140,7 +140,7 @@ func TestNotifyFailureDoesNotAdvanceWatermark(t *testing.T) {
 	}
 	n := &fakeNotifier{err: errBoom}
 	cfg := &config.Config{Email: "me@example.com", AccountID: "acc-me"}
-	if err := notifyAfterSync(db, cfg, n); err == nil {
+	if err := notifyAfterSync(context.Background(), db, cfg, n); err == nil {
 		t.Fatal("expected error from notifier")
 	}
 	st, _ := db.SyncState(context.Background(), SourceID)
@@ -166,7 +166,7 @@ func TestNotifyAfterSyncUnsupportedDoesNotAdvanceWatermark(t *testing.T) {
 	}
 	n := &fakeNotifier{unsupported: true}
 	cfg := &config.Config{Email: "me@example.com", AccountID: "acc-me"}
-	if err := notifyAfterSync(db, cfg, n); err != nil {
+	if err := notifyAfterSync(context.Background(), db, cfg, n); err != nil {
 		t.Fatal(err)
 	}
 	if len(n.calls) != 0 {
@@ -192,7 +192,7 @@ func TestNotifyAfterSyncUnsupportedStillBootstraps(t *testing.T) {
 	cfg := &config.Config{
 		Email: "me@example.com", AccountID: "acc-me", TokenOwner: "Me",
 	}
-	if err := notifyAfterSync(db, cfg, n); err != nil {
+	if err := notifyAfterSync(context.Background(), db, cfg, n); err != nil {
 		t.Fatal(err)
 	}
 	if len(n.calls) != 0 {

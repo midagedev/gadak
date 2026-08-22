@@ -77,10 +77,10 @@ type IssueUpdate struct {
 // set, so the mirror can commit the row without a refetch.
 func (c *Client) CreateIssue(ctx context.Context, in IssueCreate) (Issue, error) {
 	if in.TeamID == "" {
-		return Issue{}, errors.New("linear: CreateIssue: teamId is required")
+		return Issue{}, errors.New("linear: teamId is required")
 	}
 	if in.Title == "" {
-		return Issue{}, errors.New("linear: CreateIssue: title is required")
+		return Issue{}, errors.New("linear: title is required")
 	}
 	input := map[string]any{
 		"teamId": in.TeamID,
@@ -132,7 +132,7 @@ func (c *Client) CreateIssue(ctx context.Context, in IssueCreate) (Issue, error)
 // issue, the same tolerance jira's EditIssue gives empty maps.
 func (c *Client) UpdateIssue(ctx context.Context, id string, in IssueUpdate) (Issue, error) {
 	if id == "" {
-		return Issue{}, errors.New("linear: UpdateIssue: id is required")
+		return Issue{}, errors.New("linear: id is required")
 	}
 	input := map[string]any{}
 	if in.Title != nil {
@@ -189,7 +189,7 @@ func (c *Client) UpdateIssue(ctx context.Context, id string, in IssueUpdate) (Is
 // client does not invent a rule for it.
 func (c *Client) CreateComment(ctx context.Context, issueID string, body string) (Comment, error) {
 	if issueID == "" {
-		return Comment{}, errors.New("linear: CreateComment: issueId is required")
+		return Comment{}, errors.New("linear: issueId is required")
 	}
 	input := map[string]any{
 		"issueId": issueID,
@@ -255,7 +255,7 @@ type UploadTarget struct {
 // endpoint, and must not carry the API key).
 func (c *Client) UploadFile(ctx context.Context, filename, contentType string, size int) (UploadTarget, error) {
 	if filename == "" || contentType == "" || size <= 0 {
-		return UploadTarget{}, errors.New("linear: UploadFile: filename, contentType and a positive size are required")
+		return UploadTarget{}, errors.New("linear: filename, contentType and a positive size are required")
 	}
 	var res struct {
 		FileUpload struct {
@@ -294,7 +294,7 @@ func (c *Client) UploadFile(ctx context.Context, filename, contentType string, s
 // caller's PUT succeeded.
 func (c *Client) CreateAttachment(ctx context.Context, issueID, url, title string) (Attachment, error) {
 	if issueID == "" || url == "" {
-		return Attachment{}, errors.New("linear: CreateAttachment: issueId and url are required")
+		return Attachment{}, errors.New("linear: issueId and url are required")
 	}
 	input := map[string]any{"issueId": issueID, "url": url}
 	if title != "" {

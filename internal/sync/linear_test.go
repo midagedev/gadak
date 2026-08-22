@@ -287,8 +287,9 @@ func TestRunLinearIncrementalUsesWatermark(t *testing.T) {
 }
 
 // TestSyncIssueRefusesLinearKeys: the write-through path is Jira-only; a key
-// mirrored from Linear gets an explicit read-only refusal, not a Jira lookup
-// that would tombstone the row.
+// mirrored from Linear gets an explicit refusal, not a Jira lookup that would
+// tombstone the row. Linear writes exist (origin.Writer); RefreshIssue routes
+// them to SyncLinearIssue.
 func TestSyncIssueRefusesLinearKeys(t *testing.T) {
 	srv := linearGraphQL(t, map[string]string{"": readFixture(t, "issues_page1.json"),
 		"00000000-0000-4000-8000-000000000000": readFixture(t, "issues_page2.json")})
@@ -299,8 +300,8 @@ func TestSyncIssueRefusesLinearKeys(t *testing.T) {
 		t.Fatal(err)
 	}
 	err := SyncIssue(context.Background(), cfg, db.DB, "FIX-1", Options{})
-	if err == nil || !strings.Contains(err.Error(), "read-only") {
-		t.Fatalf("SyncIssue on a Linear key = %v, want an explicit read-only refusal", err)
+	if err == nil || !strings.Contains(err.Error(), "mirrored from Linear") {
+		t.Fatalf("SyncIssue on a Linear key = %v, want an explicit Linear-source refusal", err)
 	}
 	if _, missing := findLite(t, db, "FIX-1"); missing {
 		t.Fatal("refusal must not tombstone the mirrored row")

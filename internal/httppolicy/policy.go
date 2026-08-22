@@ -27,6 +27,16 @@ const MaxBody int64 = 64 << 20
 // previous atlhttp/linear wait() bodies.
 const MaxWait = 30 * time.Second
 
+// DefaultRetries is the production attempt budget origin clients apply in New.
+const DefaultRetries = 5
+
+// DefaultBackoff is the first retry wait; Wait doubles it per attempt up to
+// MaxWait.
+const DefaultBackoff = time.Second
+
+// DefaultTimeout is the HTTP client timeout origin clients apply in New.
+const DefaultTimeout = 60 * time.Second
+
 // IsRetryable is the read-path retry set: throttle and transient server
 // errors. 501 and 505 are answers, not transients. Writes use
 // IsRetryableWrite — a 500 may mean the mutation applied.
@@ -59,11 +69,13 @@ func Wait(ctx context.Context, backoff time.Duration, attempt int, retryAfter st
 		return ctx.Err()
 	}
 	start := time.Now()
+	timer := time.NewTimer(d)
+	defer timer.Stop()
 	select {
 	case <-ctx.Done():
 		meter.NoteWait(time.Since(start))
 		return ctx.Err()
-	case <-time.After(d):
+	case <-timer.C:
 		meter.NoteWait(time.Since(start))
 		return nil
 	}

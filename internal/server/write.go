@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"slices"
 	"sort"
 	"strings"
 	"unicode/utf8"
@@ -1065,7 +1066,7 @@ func (s *server) handleCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	// An issue filed outside the mirrored projects would never come back from the
 	// re-read, so refuse it here rather than answering with a stale-mirror error.
-	if !contains(cfg.Projects, proj.Value) {
+	if !slices.Contains(cfg.Projects, proj.Value) {
 		fail(w, http.StatusBadRequest, "project_not_mirrored")
 		return
 	}

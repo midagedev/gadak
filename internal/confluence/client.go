@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/midagedev/gadak/internal/atlhttp"
+	"github.com/midagedev/gadak/internal/httppolicy"
 )
 
 // Label is one entry under metadata.labels.results (Confluence REST v1).
@@ -111,9 +112,9 @@ func New(site, email, token string) *Client {
 	return &Client{
 		base:         strings.TrimRight(site, "/") + "/wiki",
 		auth:         "Basic " + base64.StdEncoding.EncodeToString([]byte(email+":"+token)),
-		HTTP:         &http.Client{Timeout: 60 * time.Second},
-		Retries:      5,
-		Backoff:      time.Second,
+		HTTP:         &http.Client{Timeout: httppolicy.DefaultTimeout},
+		Retries:      httppolicy.DefaultRetries,
+		Backoff:      httppolicy.DefaultBackoff,
 		PauseBetween: 100 * time.Millisecond,
 	}
 }

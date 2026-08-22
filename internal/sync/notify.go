@@ -11,14 +11,14 @@ import (
 	"github.com/midagedev/gadak/internal/store"
 )
 
-// Notifier delivers one OS desktop notification. Implementations must never
+// notifier delivers one OS desktop notification. Implementations must never
 // panic; callers treat every error as non-fatal and continue the sync loop.
 //
 // Supported is the delivery capability: false means Notify will not actually
 // alert anyone (Windows and other no-op platforms). notifyAfterSync must not
 // advance last_notified_at in that case — skipped events stay pending for a
 // later implementation (Windows toast).
-type Notifier interface {
+type notifier interface {
 	Notify(title, body string) error
 	Supported() bool
 }
@@ -52,7 +52,7 @@ func (OSNotifier) Supported() bool {
 	return osNotifyCommand(runtime.GOOS, "", "") != nil
 }
 
-// Notify implements Notifier.
+// Notify implements notifier.
 func (OSNotifier) Notify(title, body string) error {
 	cmd := osNotifyCommand(runtime.GOOS, title, body)
 	if cmd == nil {
@@ -80,14 +80,14 @@ func FeedIdentity(cfg *config.Config) store.FeedIdentity {
 //
 // First successful pass with an empty watermark seeds last_notified_at to now
 // without notifying, so a long mirror history does not dump on login.
-func notifyAfterSync(db *store.DB, cfg *config.Config, n Notifier) error {
+func notifyAfterSync(ctx context.Context, db *store.DB, cfg *config.Config, n notifier) error {
 	if cfg == nil || !cfg.NotifyEnabled() {
 		return nil
 	}
 	if n == nil {
 		n = OSNotifier{}
 	}
-	st, err := db.SyncState(context.Background(), SourceID)
+	st, err := db.SyncState(ctx, SourceID)
 	if err != nil {
 		return err
 	}
@@ -100,7 +100,7 @@ func notifyAfterSync(db *store.DB, cfg *config.Config, n Notifier) error {
 		// Runs even when the notifier is unsupported so a later toast
 		// implementation does not dump pre-install history; events after this
 		// seed stay pending until delivery works.
-		return db.SetLastNotifiedAt(context.Background(), SourceID, store.Now())
+		return db.SetLastNotifiedAt(ctx, SourceID, store.Now())
 	}
 	if !n.Supported() {
 		// Do not Notify and do not consume the watermark. A no-op that
@@ -108,7 +108,7 @@ func notifyAfterSync(db *store.DB, cfg *config.Config, n Notifier) error {
 		return nil
 	}
 
-	res, err := db.Feed(context.Background(), store.FeedOpts{
+	res, err := db.Feed(ctx, store.FeedOpts{
 		Focus: store.FeedFocusAll,
 		Limit: store.FeedMaxLimit,
 		Me:    FeedIdentity(cfg),
@@ -140,7 +140,7 @@ func notifyAfterSync(db *store.DB, cfg *config.Config, n Notifier) error {
 		// Still advance the watermark? No — a failed delivery should retry next cycle.
 		return err
 	}
-	return db.SetLastNotifiedAt(context.Background(), SourceID, maxAt)
+	return db.SetLastNotifiedAt(ctx, SourceID, maxAt)
 }
 
 // summarizeFeedNotify builds a single bundled line:

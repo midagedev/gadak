@@ -157,7 +157,7 @@ func decodeBatchObject(raw string, accepted []string) (map[string]json.RawMessag
 	dec := json.NewDecoder(strings.NewReader(raw))
 	var obj map[string]json.RawMessage
 	if err := dec.Decode(&obj); err != nil {
-		return nil, fmt.Errorf("invalid JSON: %v", err)
+		return nil, fmt.Errorf("invalid JSON: %w", err)
 	}
 	if obj == nil {
 		return nil, fmt.Errorf("invalid JSON: not an object")

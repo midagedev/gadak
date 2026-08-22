@@ -914,6 +914,16 @@ func TestWorkspaceSourceFlagEnvDefault(t *testing.T) {
 	}
 }
 
+func TestNoPackageInit(t *testing.T) {
+	b, err := os.ReadFile("config.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(b), "func init()") {
+		t.Fatal("config init() was removed so importing this package does not select a workspace; mains must call ReloadWorkspaceFromEnv")
+	}
+}
+
 func TestGADAKWorkspaceIsRecognised(t *testing.T) {
 	t.Setenv("GADAK_HOME", t.TempDir())
 	t.Setenv("GADAK_WORKSPACE", "oss")
