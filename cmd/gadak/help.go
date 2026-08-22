@@ -40,8 +40,9 @@ const spacesFlagUsage = `Confluence spaces: KEY,KEY… | all (every global space
 const initSummary = "configure a Jira site and credential (projects optional), a standalone workspace (--standalone), or pair to a remote gadak serve (--pairing-code)"
 
 // serveSyncDefault is the serve sync-on-start condition, matching
-// startServeLoops: cfg.HasCredential() is true for a standalone workspace
-// or a connected workspace with site+email+token (internal/config.HasCredential).
+// startServeLoops: cfg.HasCredential() is true for a standalone workspace,
+// a connected workspace with site+email+token, or a Linear apiKey
+// (internal/config.HasCredential).
 const serveSyncDefault = "syncs by default on a standalone workspace, or on a connected workspace with a credential"
 
 // writeThroughOriginPhrase is the single owner of "where CLI writes go"
@@ -49,7 +50,7 @@ const serveSyncDefault = "syncs by default on a standalone workspace, or on a co
 // refuses a connected workspace without site/email/token (errNeedCredential)
 // and admits a standalone workspace with no token. Verb --help first lines
 // name the verb; this sentence lives once in top-level usage.
-const writeThroughOriginPhrase = "Jira on a connected workspace (needs a credential), the embedded origin on a standalone one; the mirror refreshes after the origin accepts"
+const writeThroughOriginPhrase = "Jira on a connected workspace (needs a site credential), Linear when a linear apiKey is configured, the embedded origin on a standalone one; the mirror refreshes after the origin accepts"
 
 // displayNameSQLTrap is the locale trap AGENTS.md and sqlhint already own.
 // Restated in sql / search / recipes help so the command itself says it

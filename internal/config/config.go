@@ -702,11 +702,12 @@ func (c *Config) WorkspaceKind() string {
 	return KindConnected
 }
 
-// HasCredential reports whether writes and the attachment proxy are possible.
-// A standalone workspace has no site token; writes still go through the
-// in-process origin, so it reports true. A connected workspace still
-// requires site+email+token — that gate is not weakened.
-func (c *Config) HasCredential() bool {
+// HasAtlassianCredential reports whether Jira-family origin writes are
+// possible: standalone, site+email+token, or a pairing remote-origin.json.
+// Linear's key is a different origin and is not counted here — callers that
+// mean "can I talk to Jira / Confluence / issuetap" use this, not
+// HasCredential.
+func (c *Config) HasAtlassianCredential() bool {
 	if c == nil {
 		return false
 	}
@@ -726,6 +727,24 @@ func (c *Config) HasCredential() bool {
 	return err == nil && rem != nil
 }
 
+// HasLinearCredential reports whether Linear origin writes are possible: a
+// linear block with an API key. Presence of an empty block is not a
+// credential — origin.Linear still refuses a missing key.
+func (c *Config) HasLinearCredential() bool {
+	return c != nil && c.Linear != nil && strings.TrimSpace(c.Linear.APIKey) != ""
+}
+
+// HasCredential reports whether writes and the attachment proxy are possible.
+// A standalone workspace has no site token; writes still go through the
+// in-process origin, so it reports true. A connected workspace still
+// requires site+email+token — that gate is not weakened. A Linear API key
+// also counts: Linear writes are possible, so the workspace is configured.
+// Jira-only callers that must not treat a Linear key as a site
+// token use HasAtlassianCredential.
+func (c *Config) HasCredential() bool {
+	return c.HasAtlassianCredential() || c.HasLinearCredential()
+}
+
 // SyncFrozen is the only question the sync gate asks. Deliberately separate
 // from HasCredential: a standalone workspace has a credential by definition
 // (see HasCredential), and writes must keep working here.
@@ -736,7 +755,8 @@ func (c *Config) SyncFrozen() bool { return c != nil && c.Frozen }
 // — sync, writes, open, api, pairing list, status stderr, init's missing-
 // values path. Paired workspaces are configured: HasCredential already
 // counts remote-origin.json (GDK-442) and these verbs must not use this
-// sentence for them.
+// sentence for them. A Linear apiKey is a credential too: this
+// sentence must not fire on a Linear-only workspace.
 //
 // origin.errNeedCredential is a different error (Client/Wiki construction
 // when a connected workspace lacks site/email/token) and is quoted by

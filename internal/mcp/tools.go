@@ -460,7 +460,8 @@ func (s *Server) toolStatus(args map[string]any) ([]contentItem, error) {
 	} else {
 		st["custom_fields"] = (*config.Config)(nil).CustomFieldsStatus()
 	}
-	ss, err := s.db.SyncState(context.Background(), "jira")
+	ctx := context.Background()
+	ss, err := s.db.IssueSyncState(ctx)
 	if err != nil {
 		return nil, err
 	}

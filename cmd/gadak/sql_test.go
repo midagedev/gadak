@@ -278,6 +278,52 @@ func TestSQLWarnsOnJiraLastErrorNamesSource(t *testing.T) {
 	}
 }
 
+// GDK-654 FAIL-first: an empty leftover jira sync_state row used to make
+// warnIfStale claim the mirror had never finished a sync while Linear had.
+func TestSQLDoesNotWarnNeverSyncedWhenLinearIsFresh(t *testing.T) {
+	sqlDemoHome(t)
+	path, err := config.DBPath()
+	if err != nil {
+		t.Fatalf("db path: %v", err)
+	}
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("open mirror: %v", err)
+	}
+	if _, err := db.Exec(`UPDATE sources SET synced_at = NULL WHERE id = 'jira'`); err != nil {
+		db.Close()
+		t.Fatalf("clear jira synced_at: %v", err)
+	}
+	if _, err := db.Exec(`INSERT INTO sources (id, kind, synced_at) VALUES ('linear', 'linear', ?)
+		ON CONFLICT(id) DO UPDATE SET kind = excluded.kind, synced_at = excluded.synced_at`,
+		time.Now().UTC().Format(time.RFC3339)); err != nil {
+		db.Close()
+		t.Fatalf("plant linear source: %v", err)
+	}
+	if _, err := db.Exec(`INSERT INTO sync_state (source_id, last_error, schema_version, version)
+		VALUES ('linear', NULL, 0, 0)
+		ON CONFLICT(source_id) DO UPDATE SET last_error = NULL`); err != nil {
+		db.Close()
+		t.Fatalf("plant linear sync_state: %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	out, stderr, err := captureBoth(t, func() error {
+		return cmdSQL([]string{"select key from issues limit 3"})
+	})
+	if err != nil {
+		t.Fatalf("sql with fresh linear: %v\n%s", err, out)
+	}
+	if strings.Contains(stderr, "never finished a sync") {
+		t.Fatalf("empty jira synced_at must not poison a fresh Linear source, got %q", stderr)
+	}
+	if strings.Contains(out, "warning:") {
+		t.Fatalf("warning leaked to stdout: %q", out)
+	}
+}
+
 func TestSQLDisplayNameZeroRowHint(t *testing.T) {
 	sqlDemoHome(t)
 	// demo.db has English "In Progress" rows, so the 0-row case uses the

@@ -68,7 +68,10 @@ pass when a source is older than 15m or its last sync failed. A running
 `gadak serve` keeps the mirror fresh on its own.
 
 `last_error` means the last sync failed. An old `watermark` on a quiet project
-is normal — treat it as "possibly behind", not broken. If `gadak` is missing,
+is normal — treat it as "possibly behind", not broken. `watermark` /
+`sync_count` / `last_error` are the issue-source row (Jira when it has run,
+Linear when Linear is the only issue source that has; `sources.jira` /
+`sources.linear` for per-source rows). If `gadak` is missing,
 say so rather than guessing at answers. If `gadak` is on PATH but there is no
 workspace yet and they asked for a backlog (or have no Jira), create a
 standalone workspace — do not invent a `TODO.md` or a GitHub Issue.

@@ -424,17 +424,44 @@ func (c *Client) commentsAfter(ctx context.Context, issueID, after string) (Comm
 	return res.Issue.Comments, nil
 }
 
+// LooksLikeID reports whether s is a Linear UUID (the shape issues.assignee_id
+// stores). Assign of a mirror id must reach Users() as id.eq, not only as
+// displayName/email contains.
+func LooksLikeID(s string) bool {
+	if len(s) != 36 {
+		return false
+	}
+	for i := 0; i < 36; i++ {
+		c := s[i]
+		switch i {
+		case 8, 13, 18, 23:
+			if c != '-' {
+				return false
+			}
+		default:
+			if (c < '0' || c > '9') && (c < 'a' || c > 'f') && (c < 'A' || c > 'F') {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 // Users searches workspace members by name for assignee pickers. An empty
-// query lists the first page unfiltered.
+// query lists the first page unfiltered. A UUID query also matches id.eq so
+// `gadak assign KEY <issues.assignee_id>` reaches the same user the hint
+// names.
 func (c *Client) Users(ctx context.Context, query string) ([]User, error) {
 	vars := map[string]any{}
 	if query != "" {
-		vars["filter"] = map[string]any{
-			"or": []any{
-				map[string]any{"displayName": map[string]any{"containsIgnoreCase": query}},
-				map[string]any{"email": map[string]any{"containsIgnoreCase": query}},
-			},
+		or := []any{
+			map[string]any{"displayName": map[string]any{"containsIgnoreCase": query}},
+			map[string]any{"email": map[string]any{"containsIgnoreCase": query}},
 		}
+		if LooksLikeID(query) {
+			or = append(or, map[string]any{"id": map[string]any{"eq": query}})
+		}
+		vars["filter"] = map[string]any{"or": or}
 	}
 	var res struct {
 		Users struct {

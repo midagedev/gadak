@@ -35,6 +35,7 @@ import (
 	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/jirafields"
 	"github.com/midagedev/gadak/internal/jql"
+	"github.com/midagedev/gadak/internal/linear"
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/server"
 	"github.com/midagedev/gadak/internal/store"
@@ -85,10 +86,8 @@ func warnIfStale(db interface {
 		}
 	}
 	var oldest *time.Time
-	anyEmpty := false
 	for _, r := range rows {
 		if r.syncedAt == nil || *r.syncedAt == "" {
-			anyEmpty = true
 			continue
 		}
 		t, err := time.Parse(time.RFC3339, *r.syncedAt)
@@ -100,11 +99,14 @@ func warnIfStale(db interface {
 			oldest = &tt
 		}
 	}
-	if anyEmpty {
+	if oldest == nil {
+		// Every source is empty. A leftover never-synced jira row next to
+		// a fresh Linear source must not take this branch: that
+		// is anyEmpty with oldest set from the Linear row.
 		warn("the mirror has never finished a sync — run `gadak sync`")
 		return
 	}
-	if oldest != nil && time.Since(*oldest) > staleAfter {
+	if time.Since(*oldest) > staleAfter {
 		warn("mirror last synced %s ago — run `gadak sync --if-stale 1h`", time.Since(*oldest).Round(time.Minute))
 	}
 }
@@ -1451,9 +1453,10 @@ func (e writeNotMirroredError) Error() string {
 	return fmt.Sprintf("write applied to %s, but it is not in the mirror — is it outside the configured projects?", e.Key)
 }
 
-// withWriteSession loads the credential, opens the store, and hands the caller
-// a Jira client. Shared by mutate and create so the refusal string cannot drift.
-func withWriteSession(fn func(context.Context, *config.Config, *store.DB, *jira.Client) error) error {
+// withCreateSession is create's write session: HasCredential (which counts
+// a Linear apiKey) then WriterFor routed by --project / Linear-only.
+// Mutate uses withKeyWriteSession — it already has a key.
+func withCreateSession(project string, fn func(context.Context, *config.Config, *store.DB, origin.Writer, string) error) error {
 	warnWorkspaceIfEnv()
 	cfg, err := config.Load()
 	if err != nil {
@@ -1468,14 +1471,39 @@ func withWriteSession(fn func(context.Context, *config.Config, *store.DB, *jira.
 	}
 	defer db.Close()
 	warnIfStale(db)
-	c, err := origin.Client(cfg)
+	ctx := context.Background()
+	src, err := resolveCreateSource(ctx, cfg, db, project)
+	if err != nil {
+		return err
+	}
+	c, err := origin.WriterFor(cfg, src)
 	if err != nil {
 		return origin.FoldPairedError(cfg, err)
 	}
-	return origin.FoldPairedError(cfg, fn(context.Background(), cfg, db, c))
+	return origin.FoldPairedError(cfg, fn(ctx, cfg, db, c, src))
 }
 
-// withKeyWriteSession is withWriteSession routed per key: the mirror says
+// resolveCreateSource picks the origin create files to. A project the
+// mirror already knows as Linear routes there (same idea as KeySource).
+// A Linear-only workspace (no Atlassian credential) always routes to
+// Linear, even before the first team is mirrored.
+func resolveCreateSource(ctx context.Context, cfg *config.Config, db *store.DB, project string) (string, error) {
+	if proj := strings.TrimSpace(project); proj != "" && db != nil {
+		src, err := db.ProjectSource(ctx, proj)
+		if err != nil {
+			return "", err
+		}
+		if src == "linear" {
+			return "linear", nil
+		}
+	}
+	if cfg.HasLinearCredential() && !cfg.HasAtlassianCredential() {
+		return "linear", nil
+	}
+	return "", nil
+}
+
+// withKeyWriteSession is create's sibling routed per key: the mirror says
 // which origin owns the row (store.KeySource — a "MID-5" can be Linear or
 // Jira, the shape cannot tell), and the credential gate is that origin's.
 func withKeyWriteSession(key string, fn func(context.Context, *config.Config, *store.DB, origin.Writer, string) error) error {
@@ -1498,7 +1526,7 @@ func withKeyWriteSession(key string, fn func(context.Context, *config.Config, *s
 		}
 		src = ""
 	}
-	if src != "linear" && !cfg.HasCredential() {
+	if src != "linear" && !cfg.HasAtlassianCredential() {
 		return errNoCredential
 	}
 	c, err := origin.WriterFor(cfg, src)
@@ -2360,6 +2388,13 @@ func resolveAccount(ctx context.Context, c origin.Writer, who, source string) (s
 		return users[0].AccountID, nil
 	}
 	if len(users) == 0 {
+		// Linear SearchUsers is name/email contains; a UUID from the
+		// mirror (issues.assignee_id) used to miss, and this hint told
+		// the user to do the thing that just failed. Accept
+		// the UUID as the id so the hint matches the behavior.
+		if source == "linear" && linear.LooksLikeID(who) {
+			return who, nil
+		}
 		return "", fmt.Errorf("no user on this issue's origin matches %q — look up issues.assignee_id in the mirror or `gadak issue KEY --editmeta`", who)
 	}
 	names := make([]string, 0, len(users))

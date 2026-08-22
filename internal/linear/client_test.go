@@ -588,3 +588,36 @@ func TestUsersFilterMatchesDisplayNameOrEmail(t *testing.T) {
 		t.Fatalf("filter or clauses = %#v, want displayName OR email containsIgnoreCase", or)
 	}
 }
+
+// GDK-656 FAIL-first: a UUID query used to send only displayName/email
+// containsIgnoreCase, so Users() never returned the member whose id was
+// the query (Linear assign of issues.assignee_id then missed).
+func TestUsersFilterMatchesUUIDByID(t *testing.T) {
+	const id = "e4c5cfbb-f493-44a4-b3a4-dc17459bb541"
+	var filter map[string]any
+	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Variables struct {
+				Filter map[string]any `json:"filter"`
+			} `json:"variables"`
+		}
+		decode(t, r, &body)
+		filter = body.Variables.Filter
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":{"users":{"nodes":[]}}}`))
+	}))
+	if _, err := c.Users(context.Background(), id); err != nil {
+		t.Fatal(err)
+	}
+	or, _ := filter["or"].([]any)
+	gotID := false
+	for _, raw := range or {
+		clause, _ := raw.(map[string]any)
+		if idc, ok := clause["id"].(map[string]any); ok && idc["eq"] == id {
+			gotID = true
+		}
+	}
+	if !gotID {
+		t.Fatalf("filter or clauses = %#v, want id.eq %s", or, id)
+	}
+}

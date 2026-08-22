@@ -92,3 +92,29 @@ func TestKeySourceRefusesCollision(t *testing.T) {
 		t.Fatalf("missing key = (%q, %v), want empty", src, err)
 	}
 }
+
+func TestProjectSourceMirrorsKeySource(t *testing.T) {
+	db := openTemp(t)
+	ctx := context.Background()
+	if err := db.UpsertSource(ctx, Source{ID: "linear", Kind: "linear"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.UpsertIssues(ctx, Batch{
+		Categories: map[string]string{"1": "new"},
+		Records: []IssueRecord{{
+			Item: Item{ID: "linear:m1", SourceID: "linear", Kind: "issue", ExternalID: "m1",
+				Key: "MID-1", Title: "linear row", CreatedAt: ago(1), UpdatedAt: ago(1)},
+			Issue: Issue{ProjectKey: "MID", IssueType: "Issue", IssueTypeID: "issue",
+				Status: "Todo", StatusID: "1", StatusCategory: "new"},
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	src, err := db.ProjectSource(ctx, "MID")
+	if err != nil || src != "linear" {
+		t.Fatalf("ProjectSource(MID) = (%q, %v), want linear", src, err)
+	}
+	if src, err := db.ProjectSource(ctx, "NOPE"); err != nil || src != "" {
+		t.Fatalf("missing project = (%q, %v), want empty", src, err)
+	}
+}

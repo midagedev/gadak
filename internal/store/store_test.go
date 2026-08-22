@@ -282,6 +282,38 @@ func TestSyncCountAndFirstSyncAt(t *testing.T) {
 	}
 }
 
+func TestIssueSyncStatePrefersLinearWhenJiraIdle(t *testing.T) {
+	db := openTemp(t)
+	ctx := context.Background()
+	if err := db.UpsertSource(ctx, Source{ID: "linear", Kind: "linear", BaseURL: "https://linear.app"}); err != nil {
+		t.Fatal(err)
+	}
+	const wm = "2026-08-22T12:00:00.000Z"
+	if err := db.RecordSync(ctx, "linear", SyncResult{Watermark: wm}); err != nil {
+		t.Fatal(err)
+	}
+	ss, err := db.IssueSyncState(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ss.Watermark != wm || ss.SyncCount < 1 {
+		t.Fatalf("IssueSyncState = %+v, want Linear watermark %q", ss, wm)
+	}
+	if err := db.UpsertSource(ctx, Source{ID: "jira", Kind: "jira"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.RecordSync(ctx, "jira", SyncResult{Watermark: "2026-01-01T00:00:00.000Z"}); err != nil {
+		t.Fatal(err)
+	}
+	ss, err = db.IssueSyncState(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ss.Watermark != "2026-01-01T00:00:00.000Z" {
+		t.Fatalf("dual-source IssueSyncState = %q, want the Jira row", ss.Watermark)
+	}
+}
+
 func TestLastNotifiedAtIndependentOfFeedReads(t *testing.T) {
 	db := openTemp(t)
 	if err := db.SetLastNotifiedAt(context.Background(), "jira", "2026-08-04T12:00:00.000Z"); err != nil {

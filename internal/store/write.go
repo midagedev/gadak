@@ -1032,6 +1032,39 @@ func (db *DB) SyncState(ctx context.Context, sourceID string) (SyncState, error)
 	return s, nil
 }
 
+// syncStateHasIssueActivity is true when this source has actually run (or
+// failed) as an issue origin. An empty jira row on a Linear-only mirror
+// must not win status --json.
+func syncStateHasIssueActivity(s SyncState) bool {
+	if s.Watermark != "" || s.SyncCount > 0 {
+		return true
+	}
+	if s.LastError != nil && *s.LastError != "" {
+		return true
+	}
+	return s.SyncedAt != nil && *s.SyncedAt != ""
+}
+
+// IssueSyncState is the issue-origin freshness row status --json and
+// gadak_status publish as top-level watermark / sync_count / last_error.
+// Jira wins when it has activity so dual-source workspaces keep the
+// historical shape; Linear wins when it is the only issue source that has
+// run.
+func (db *DB) IssueSyncState(ctx context.Context) (SyncState, error) {
+	jira, err := db.SyncState(ctx, "jira")
+	if err != nil {
+		return jira, err
+	}
+	linear, err := db.SyncState(ctx, "linear")
+	if err != nil {
+		return jira, err
+	}
+	if !syncStateHasIssueActivity(jira) && syncStateHasIssueActivity(linear) {
+		return linear, nil
+	}
+	return jira, nil
+}
+
 // SyncResult is what a finished sync run reports.
 type SyncResult struct {
 	Watermark string // ignored when empty or not greater than the stored one

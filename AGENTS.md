@@ -59,8 +59,11 @@ gadak status --json
 
 A `last_error` field means the last sync failed. A quiet project's `watermark`
 stalls on its own, so treat an old watermark as "possibly behind", not "broken".
-`first_sync_at` / `sync_count` are retention instrumentation (successful syncs
-only). A CLI-only session can start with `gadak sync --if-stale 15m`: no-op
+`watermark` / `sync_count` / `last_error` / `first_sync_at` are the issue-source
+row: Jira when that source has run, Linear when Linear is the only issue source
+that has (`status --json` `sources.jira` / `sources.linear` for the per-source
+rows). `first_sync_at` / `sync_count` are retention instrumentation (successful
+syncs only). A CLI-only session can start with `gadak sync --if-stale 15m`: no-op
 when every source is fresh, one incremental pass when a source is older than
 15m or its last sync failed. A running `gadak serve` keeps the mirror fresh.
 An MCP host does not need that opener: `gadak mcp` keeps the mirror fresh

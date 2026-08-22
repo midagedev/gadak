@@ -1610,6 +1610,30 @@ func TestResolveAccountMemberDirectoryByAccountID(t *testing.T) {
 	}
 }
 
+// GDK-656 FAIL-first: Linear SearchUsers is name/email contains, so a
+// UUID assignee_id from the mirror used to miss and the hint ("look up
+// issues.assignee_id") told the user to do the thing that just failed.
+func TestResolveAccountLinearUUIDWhenSearchMisses(t *testing.T) {
+	saveResolveAccountConfig(t, nil)
+	const id = "e4c5cfbb-f493-44a4-b3a4-dc17459bb541"
+	stub := &searchUsersStub{}
+	got, err := resolveAccount(context.Background(), stub, id, "linear")
+	if err != nil {
+		t.Fatalf("Linear UUID must resolve as an assignee id (hint named issues.assignee_id): %v", err)
+	}
+	if got != id {
+		t.Fatalf("id = %q, want the UUID as-is", got)
+	}
+	if stub.query != id {
+		t.Fatalf("SearchUsers query = %q, want the UUID", stub.query)
+	}
+
+	_, err = resolveAccount(context.Background(), stub, id, "jira")
+	if err == nil {
+		t.Fatal("Jira path must not accept a Linear UUID when SearchUsers is empty")
+	}
+}
+
 func TestAssignJoinsTrailingWords(t *testing.T) {
 	f := newFakeJira(t)
 	mirror(t, f.URL)

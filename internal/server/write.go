@@ -232,8 +232,9 @@ func (s *server) keyWriter(w http.ResponseWriter, r *http.Request, key string) (
 		return nil, nil, "", false
 	}
 	// The credential gate is the owning origin's: a Linear row needs the
-	// Linear key, not a Jira token.
-	if src != "linear" && !cfg.HasCredential() {
+	// Linear key (HasCredential counts it), a Jira row needs the Atlassian
+	// credential — a Linear apiKey must not 409-skip that.
+	if src != "linear" && !cfg.HasAtlassianCredential() {
 		fail(w, http.StatusConflict, "credential_required")
 		return nil, nil, "", false
 	}

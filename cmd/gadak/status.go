@@ -34,7 +34,10 @@ func cmdStatus(args []string) error {
 		"workspace":        workspaceJSONName(),
 		"workspace_source": workspaceJSONSource(),
 	}
-	if ss, err := db.SyncState(context.Background(), "jira"); err == nil {
+	ctx := context.Background()
+	jiraSS, jiraErr := db.SyncState(ctx, "jira")
+	linearSS, linearErr := db.SyncState(ctx, "linear")
+	if ss, err := db.IssueSyncState(ctx); err == nil {
 		st["watermark"] = ss.Watermark
 		st["version"] = ss.Version
 		st["schema_version"] = ss.SchemaVersion // live PRAGMA; SyncState is the owner (GDK-526)
@@ -49,16 +52,22 @@ func cmdStatus(args []string) error {
 			st["first_sync_at"] = *ss.FirstSyncAt
 		}
 	}
-	if n, err := db.TableCount(context.Background(), "issues"); err == nil {
+	if jiraErr == nil && linearErr == nil {
+		st["sources"] = map[string]any{
+			"jira":   syncStateJSON(jiraSS),
+			"linear": syncStateJSON(linearSS),
+		}
+	}
+	if n, err := db.TableCount(ctx, "issues"); err == nil {
 		st["issues"] = n
 	}
-	if n, err := db.TableCount(context.Background(), "comments"); err == nil {
+	if n, err := db.TableCount(ctx, "comments"); err == nil {
 		st["comments"] = n
 	}
-	if n, err := db.TableCount(context.Background(), "pages"); err == nil {
+	if n, err := db.TableCount(ctx, "pages"); err == nil {
 		st["pages"] = n
 	}
-	usage, err := db.APIUsageSummary(context.Background())
+	usage, err := db.APIUsageSummary(ctx)
 	if err != nil {
 		usage = store.APIUsageSummary{Today: store.APIUsageDay{Day: time.Now().UTC().Format("2006-01-02")}}
 	}
@@ -113,7 +122,7 @@ func cmdStatus(args []string) error {
 		st["token_expiry"] = tokenExpiry
 	}
 	wiki := wikiPathStatus(cfg)
-	if css, err := db.SyncState(context.Background(), "confluence"); err == nil {
+	if css, err := db.SyncState(ctx, "confluence"); err == nil {
 		if css.LastError != nil && *css.LastError != "" {
 			wiki["last_error"] = *css.LastError
 		}
@@ -174,6 +183,27 @@ func cmdStatus(args []string) error {
 		}
 	}
 	return nil
+}
+
+func syncStateJSON(ss store.SyncState) map[string]any {
+	m := map[string]any{
+		"watermark":  ss.Watermark,
+		"version":    ss.Version,
+		"sync_count": ss.SyncCount,
+	}
+	if ss.SyncedAt != nil && *ss.SyncedAt != "" {
+		m["synced_at"] = *ss.SyncedAt
+	}
+	if ss.LastFullSyncAt != nil && *ss.LastFullSyncAt != "" {
+		m["last_full_sync_at"] = *ss.LastFullSyncAt
+	}
+	if ss.LastError != nil && *ss.LastError != "" {
+		m["last_error"] = *ss.LastError
+	}
+	if ss.FirstSyncAt != nil && *ss.FirstSyncAt != "" {
+		m["first_sync_at"] = *ss.FirstSyncAt
+	}
+	return m
 }
 
 // wikiPathStatus reports whether the wiki sync pass will run for this

@@ -519,6 +519,20 @@ the fixes are all here.
 - **The Linear storage PUT rides the client with the 60-second timeout**
   instead of `http.DefaultClient`, so a stalled storage host can no longer
   hang `gadak attach` forever ([GDK-636]).
+- **A Linear-only workspace is a configured workspace** ([GDK-654],
+  [GDK-655], [GDK-656]). "Is this configured?" now has one owner that counts
+  a Linear API key: status and every verb stop warning `not configured — run
+  gadak init` on a workspace whose writes were succeeding, `status --json`'s
+  top-level `watermark`/`sync_count` follow the issue source that actually
+  ran (per-source rows under `sources.jira` / `sources.linear`), and a
+  leftover never-synced Jira row no longer poisons freshness. `create`
+  routes to Linear — by the mirrored project's source, or always on a
+  Linear-only workspace — instead of demanding a Jira init, and `page
+  create` says the real reason (Linear has no wiki). And the assign hint's
+  own advice works: a UUID from `issues.assignee_id` now reaches Linear's
+  user lookup as an id. The Jira-family gates did not loosen: a Linear key
+  is not a site token anywhere Jira, Confluence or the standalone origin is
+  the one being asked.
 
 ### The public backlog
 
@@ -1900,6 +1914,9 @@ measured numbers instead of adjectives.
 [GDK-634]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-634
 [GDK-636]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-636
 [GDK-637]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-637
+[GDK-654]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-654
+[GDK-655]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-655
+[GDK-656]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-656
 [GDK-633]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-633
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86
 [GDK-598]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-598

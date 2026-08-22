@@ -180,6 +180,40 @@ func (db *DB) KeySource(ctx context.Context, key string) (string, error) {
 	}
 }
 
+// ProjectSource is KeySource for a project key: the source_id owning
+// issues.project_key in the mirror. Create has no issue key yet, so routing
+// a Linear-team create uses this. Empty when the project is not
+// mirrored; ErrKeyAmbiguous when Jira and Linear both mint it.
+func (db *DB) ProjectSource(ctx context.Context, projectKey string) (string, error) {
+	rows, err := db.sql.QueryContext(ctx, `
+		SELECT DISTINCT it.source_id
+		FROM issues i JOIN items it ON it.id = i.item_id
+		WHERE i.project_key = ?`, projectKey)
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+	srcs := []string{}
+	for rows.Next() {
+		var s string
+		if err := rows.Scan(&s); err != nil {
+			return "", err
+		}
+		srcs = append(srcs, s)
+	}
+	if err := rows.Err(); err != nil {
+		return "", err
+	}
+	switch len(srcs) {
+	case 0:
+		return "", nil
+	case 1:
+		return srcs[0], nil
+	default:
+		return "", fmt.Errorf("%s: %w", projectKey, ErrKeyAmbiguous)
+	}
+}
+
 // IssueLites returns the whole mirror, which is what `bootstrap` sends.
 func (db *DB) IssueLites(ctx context.Context) ([]IssueLite, error) {
 	return db.issueLites(ctx, issueLiteSelect+` ORDER BY it.updated_at DESC`)

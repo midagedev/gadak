@@ -52,7 +52,7 @@ func defaultWatchSources() []watchSource {
 			id:      SourceID,
 			phase:   PhaseIssues,
 			failLog: "sync failed: %v",
-			enabled: func(*config.Config) bool { return true },
+			enabled: func(c *config.Config) bool { return c != nil && c.HasAtlassianCredential() },
 			run:     Run,
 			fatal:   true,
 			notify:  true,
@@ -202,9 +202,11 @@ func runSource(
 		_ = db.AppendSyncRun(ctx, src.ID, run)
 	}()
 
-	if cfg == nil || (!cfg.HasCredential() && src.Kind != KindLinear) {
+	if src.Kind != KindLinear && (cfg == nil || !cfg.HasAtlassianCredential()) {
 		// Per-source gate: the Linear pass authenticates with its own key
-		// (checked in its setup); only Jira-family sources need the token.
+		// (checked in its setup); Jira-family sources need the Atlassian
+		// credential, not a Linear API key. HasCredential now
+		// counts Linear, so this check must stay the Jira-family half.
 		return res, errors.New("sync: site, email and token are required")
 	}
 	baseURL, usage, err := setup()

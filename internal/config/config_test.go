@@ -710,6 +710,28 @@ func TestHasCredentialStandaloneVsConnected(t *testing.T) {
 	}
 }
 
+func TestHasCredentialLinear(t *testing.T) {
+	if (*Config)(nil).HasCredential() {
+		t.Fatal("nil config")
+	}
+	if (&Config{Linear: &LinearConfig{}}).HasCredential() {
+		t.Fatal("linear block without apiKey is not a credential")
+	}
+	if !(&Config{Linear: &LinearConfig{APIKey: "linear-test-key-not-a-real-secret"}}).HasCredential() {
+		t.Fatal("linear apiKey must count as a credential — writes go to Linear")
+	}
+	c := &Config{Linear: &LinearConfig{APIKey: "k"}}
+	if !c.HasLinearCredential() {
+		t.Fatal("HasLinearCredential")
+	}
+	if c.HasAtlassianCredential() {
+		t.Fatal("a Linear key must not count as an Atlassian credential")
+	}
+	if !(&Config{Kind: KindStandalone}).HasAtlassianCredential() {
+		t.Fatal("standalone is an Atlassian-family origin")
+	}
+}
+
 func TestKindRoundTripNoMigrationOfExisting(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)

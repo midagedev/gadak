@@ -484,6 +484,19 @@
 - **Linear 스토리지 PUT이 `http.DefaultClient` 대신 60초 타임아웃이 있는
   클라이언트를 탑니다** — 스토리지 호스트가 멈춰도 `gadak attach`가
   무기한 걸리지 않습니다 ([GDK-636]).
+- **Linear 전용 워크스페이스도 구성된 워크스페이스입니다** ([GDK-654],
+  [GDK-655], [GDK-656]). "구성됐는가"의 소유자가 하나가 되어 Linear API
+  키를 셉니다: 쓰기가 성공하던 워크스페이스에 status와 모든 verb가
+  `not configured — run gadak init`을 경고하던 것이 멎고, `status --json`의
+  최상위 `watermark`/`sync_count`는 실제로 돈 이슈 소스를 따르며
+  (소스별 행은 `sources.jira` / `sources.linear`), 남아 있던 미동기화
+  Jira 행이 freshness를 오염시키지 않습니다. `create`는 Jira init을
+  요구하는 대신 Linear로 라우팅되고(미러가 아는 프로젝트의 소스로,
+  Linear 전용이면 항상), `page create`는 진짜 이유(Linear에 위키가
+  없다)를 말합니다. assign 힌트가 시키는 것도 이제 동작합니다:
+  `issues.assignee_id`의 UUID가 Linear 유저 조회에 id로 도달합니다.
+  Jira 계열 게이트는 느슨해지지 않았습니다 — Jira·Confluence·standalone
+  origin이 묻는 자리에서 Linear 키는 사이트 토큰이 아닙니다.
 
 ### 공개 백로그
 
@@ -1862,6 +1875,9 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-634]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-634
 [GDK-636]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-636
 [GDK-637]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-637
+[GDK-654]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-654
+[GDK-655]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-655
+[GDK-656]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-656
 [GDK-633]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-633
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86
 [GDK-598]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-598

@@ -185,8 +185,10 @@ for `GH_TOKEN` / `GADAK_HOME`.
 5. **Is the key present in the mirror?** Enrichments for unknown keys are
    stored but never joined into list/detail until that issue is mirrored.
 
-6. **Stale watermark?** `gadak status --json` → `last_error` means the last Jira
-   sync failed; `watermark` only moves when the tracker changes.
+6. **Stale watermark?** `gadak status --json` → `last_error` means the last
+   issue-source sync failed (Jira, or Linear when that is the only issue
+   source that has run; per-source rows are `sources.jira` / `sources.linear`);
+   `watermark` only moves when the tracker changes.
 
 ---
 

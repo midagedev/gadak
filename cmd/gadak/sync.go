@@ -52,9 +52,9 @@ func cmdSync(args []string) error {
 	if cfg.SyncFrozen() {
 		return frozenSyncError()
 	}
-	// The credential gate is per-source: `sync --source linear` needs the
-	// Linear key, not a Jira token (a Linear-only profile is legitimate).
-	if !cfg.HasCredential() && !(cfg.Linear != nil) {
+	// HasCredential is the single configured-or-not owner and now counts a
+	// Linear apiKey. A Linear-only profile is legitimate.
+	if !cfg.HasCredential() {
 		return config.ErrNotConfigured
 	}
 	db, err := openStore()
@@ -75,9 +75,9 @@ func cmdSync(args []string) error {
 	runJira := *source == "all" || *source == "jira"
 	runLinear := (*source == "all" || *source == "linear") && cfg.Linear != nil
 	runConf := (*source == "all" || *source == "confluence") && cfg.Confluence != nil
-	if !cfg.HasCredential() {
-		// Linear-only profile: the gate above admitted it for its own
-		// source; the Jira/Confluence passes still need the Jira token.
+	if !cfg.HasAtlassianCredential() {
+		// Linear-only profile: HasCredential admitted it; the Jira and
+		// Confluence passes still need the Atlassian credential.
 		runJira, runConf = false, false
 	}
 	if *source == "linear" && cfg.Linear == nil {

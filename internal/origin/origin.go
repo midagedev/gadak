@@ -53,6 +53,11 @@ const (
 // existing sync/init gates so a missing token still reads the same.
 var errNeedCredential = errors.New("origin: site, email and token are required")
 
+// errNoWikiOrigin is Wiki's Linear-only refusal. Linear has no
+// wiki; quoting errNeedCredential sent the user to fill a Jira site that
+// this workspace does not have.
+var errNoWikiOrigin = errors.New("origin: this workspace has no wiki origin — Linear does not provide a wiki")
+
 // InProcessAuthB64 is the base64 payload of the in-process Basic
 // credential the local CLI presents to the origin passthrough. Exported so
 // the server's pairing gate can rewrite a *validated* Bearer into the exact
@@ -346,6 +351,12 @@ func StandaloneHandler(cfg *config.Config) (http.Handler, error) {
 	return s.emb, nil
 }
 
+// LinearEndpoint, when non-empty, is the GraphQL URL Linear() installs on
+// the client. Tests point it at httptest; production leaves it empty so New
+// keeps linear.Endpoint. This is not a config.json field — an install
+// URL must not become a persisted setting.
+var LinearEndpoint string
+
 // Linear is the single owner of "this workspace's Linear client" — the same
 // role Wiki plays for Confluence (GDK-258: a third source beside the Jira
 // client, never a facade behind its Transport). There is no standalone
@@ -361,7 +372,11 @@ func Linear(cfg *config.Config) (*linear.Client, error) {
 	if cfg.Linear.APIKey == "" {
 		return nil, errors.New("origin: linear api key is required")
 	}
-	return linear.New(cfg.Linear.APIKey), nil
+	c := linear.New(cfg.Linear.APIKey)
+	if LinearEndpoint != "" {
+		c.Endpoint = LinearEndpoint
+	}
+	return c, nil
 }
 
 // Wiki is the single owner of "this workspace's Confluence client".
@@ -383,6 +398,9 @@ func Wiki(cfg *config.Config) (*confluence.Client, error) {
 		return standaloneWiki(cfg)
 	}
 	if cfg.Site == "" || cfg.Email == "" || cfg.Token == "" {
+		if cfg.HasLinearCredential() && cfg.Site == "" {
+			return nil, errNoWikiOrigin
+		}
 		return nil, errNeedCredential
 	}
 	return confluence.New(cfg.Site, cfg.Email, cfg.Token), nil

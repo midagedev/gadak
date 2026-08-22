@@ -17,7 +17,6 @@ import (
 	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/store"
-	syncer "github.com/midagedev/gadak/internal/sync"
 )
 
 const createUsage = "usage: gadak create [--] <SUMMARY> | --batch - [--project KEY] [--type NAME-or-id] [--priority NAME-or-id] [--due YYYY-MM-DD] [--parent KEY] [--label L]... [--attach FILE]... [-m <text|->] [--field alias=value]... [--json]"
@@ -117,12 +116,12 @@ func cmdCreate(args []string) error {
 		return err
 	}
 
-	return withWriteSession(func(ctx context.Context, cfg *config.Config, db *store.DB, c *jira.Client) error {
-		key, extra, err := createOne(ctx, cfg, c, *projectFlag, *typeFlag, summary, body, *priorityFlag, *parentFlag, *dueFlag, []string(labels), attachFiles, fieldRaws)
+	return withCreateSession(*projectFlag, func(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src string) error {
+		key, extra, err := createOn(ctx, cfg, c, src, *projectFlag, *typeFlag, summary, body, *priorityFlag, *parentFlag, *dueFlag, []string(labels), attachFiles, fieldRaws)
 		if err != nil {
 			return err
 		}
-		err = emitAfterWrite(ctx, cfg, db, "", key, *asJSON, extra)
+		err = emitAfterWrite(ctx, cfg, db, src, key, *asJSON, extra)
 		var missed writeNotMirroredError
 		if errors.As(err, &missed) {
 			// The write landed; the new key is outside what this mirror lists.
@@ -163,7 +162,7 @@ type createBatchLine struct {
 }
 
 func cmdCreateBatch(projectFlag, typeFlag, defaultBody, defaultPriority, defaultParent, defaultDue string, defaultLabels, defaultAttach []string, defaultFields map[string]json.RawMessage, asJSON bool) error {
-	return withWriteSession(func(ctx context.Context, cfg *config.Config, db *store.DB, c *jira.Client) error {
+	return withCreateSession(projectFlag, func(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src string) error {
 		sc := bufio.NewScanner(os.Stdin)
 		lineNo := 0
 		for sc.Scan() {
@@ -213,11 +212,23 @@ func cmdCreateBatch(projectFlag, typeFlag, defaultBody, defaultPriority, default
 				dueWant = defaultDue
 			}
 			fieldRaws := mergeFieldRaws(defaultFields, rec.Fields)
-			key, extra, err := createOne(ctx, cfg, c, projectWant, typeWant, summary, body, priorityWant, parentWant, dueWant, labels, attach, fieldRaws)
+			w, lineSrc := c, src
+			if want := strings.TrimSpace(projectWant); want != "" {
+				if routed, rerr := resolveCreateSource(ctx, cfg, db, want); rerr != nil {
+					return fmt.Errorf("line %d: %w", lineNo, rerr)
+				} else if routed != src {
+					nw, werr := origin.WriterFor(cfg, routed)
+					if werr != nil {
+						return fmt.Errorf("line %d: %w", lineNo, werr)
+					}
+					w, lineSrc = nw, routed
+				}
+			}
+			key, extra, err := createOn(ctx, cfg, w, lineSrc, projectWant, typeWant, summary, body, priorityWant, parentWant, dueWant, labels, attach, fieldRaws)
 			if err != nil {
 				return fmt.Errorf("line %d: %w", lineNo, err)
 			}
-			if err := emitBatchLine(ctx, cfg, db, c, key, summary, asJSON, extra); err != nil {
+			if err := emitBatchLine(ctx, cfg, db, lineSrc, key, summary, asJSON, extra); err != nil {
 				return fmt.Errorf("line %d: %w", lineNo, err)
 			}
 		}
@@ -238,6 +249,117 @@ func refuseSignedCreateLabels(labels []string) error {
 		}
 	}
 	return nil
+}
+
+func createOn(ctx context.Context, cfg *config.Config, c origin.Writer, src, projectWant, typeWant, summary, body, priorityWant, parentWant, dueWant string, labels, attach []string, fieldRaws map[string]json.RawMessage) (string, map[string]any, error) {
+	if src == "linear" {
+		return createLinearOne(ctx, cfg, c, projectWant, typeWant, summary, body, priorityWant, parentWant, dueWant, labels, attach, fieldRaws)
+	}
+	jc, ok := c.(*jira.Client)
+	if !ok {
+		return "", nil, fmt.Errorf("create: origin writer is not a Jira client")
+	}
+	return createOne(ctx, cfg, jc, projectWant, typeWant, summary, body, priorityWant, parentWant, dueWant, labels, attach, fieldRaws)
+}
+
+func createLinearOne(ctx context.Context, cfg *config.Config, c origin.Writer, projectWant, typeWant, summary, body, priorityWant, parentWant, dueWant string, labels, attach []string, fieldRaws map[string]json.RawMessage) (string, map[string]any, error) {
+	if err := refuseSignedCreateLabels(labels); err != nil {
+		return "", nil, err
+	}
+	if len(labels) > 0 {
+		return "", nil, fmt.Errorf("linear: field %q is not supported on create", "labels")
+	}
+	if len(fieldRaws) > 0 {
+		return "", nil, fmt.Errorf("linear: custom fields are not supported on create")
+	}
+	if len(attach) > 0 {
+		if err := validateAttachPaths(attach); err != nil {
+			return "", nil, err
+		}
+	}
+	parentKey, err := parseParentKey(parentWant, "create")
+	if err != nil {
+		return "", nil, err
+	}
+	if parentKey != "" {
+		return "", nil, fmt.Errorf("linear: field %q is not supported on create", "parent")
+	}
+	due, err := parseDueDate(dueWant, "create")
+	if err != nil {
+		return "", nil, err
+	}
+	projRes, err := create.Project(projectWant, cfg)
+	if err != nil {
+		catalog, cerr := c.CreateMeta(ctx, createMetaScope(cfg))
+		if cerr == nil {
+			err = create.FillNeedProject(err, catalog)
+		}
+		return "", nil, formatCreateError(err)
+	}
+	meta, err := c.CreateMeta(ctx, []string{projRes.Value})
+	if err != nil {
+		return "", nil, err
+	}
+	proj, types, err := create.MetaFor(meta, projRes.Value, cfg)
+	if err != nil && create.FormatProjectKeys(meta) == "" {
+		if catalog, cerr := c.CreateMeta(ctx, nil); cerr == nil && len(catalog) > 0 {
+			proj, types, err = create.MetaFor(catalog, projRes.Value, cfg)
+		}
+	}
+	if err != nil {
+		return "", nil, err
+	}
+	typeRes := create.Resolved{Value: "issue", Source: create.SourceSole}
+	if strings.TrimSpace(typeWant) != "" {
+		typeRes, err = create.Type(typeWant, types, cfg, projRes.Value)
+		if err != nil {
+			return "", nil, formatCreateError(err)
+		}
+	}
+	fields := map[string]any{
+		"project": map[string]any{"key": proj.Key},
+		"summary": summary,
+	}
+	if strings.TrimSpace(body) != "" {
+		fields["description"] = jira.Doc(body, nil)
+	}
+	if p := strings.TrimSpace(priorityWant); p != "" {
+		list, err := c.PriorityCatalog(ctx)
+		if err != nil {
+			return "", nil, err
+		}
+		id, err := create.Priority(p, list)
+		if err != nil {
+			return "", nil, formatCreateError(err)
+		}
+		fields["priority"] = create.PriorityField(id)
+	}
+	if due != "" {
+		fields["duedate"] = due
+	}
+	key, err := c.CreateIssue(ctx, fields)
+	if err != nil {
+		return "", nil, err
+	}
+	extra := map[string]any{
+		"created": map[string]string{"key": key},
+		"resolved": map[string]any{
+			"project":    projRes,
+			"issue_type": typeRes,
+		},
+	}
+	if len(attach) > 0 {
+		attached, err := uploadAttachPaths(ctx, c, key, attach)
+		if err != nil {
+			var p *attachPartialError
+			if errors.As(err, &p) {
+				return key, extra, fmt.Errorf("created %s, but attaching %s failed: %w", key, p.failed, p.err)
+			}
+			return key, extra, fmt.Errorf("created %s, but attaching failed: %w", key, err)
+		}
+		extra["attached"] = attached
+	}
+	return key, extra, nil
 }
 
 func createOne(ctx context.Context, cfg *config.Config, c *jira.Client, projectWant, typeWant, summary, body, priorityWant, parentWant, dueWant string, labels, attach []string, fieldRaws map[string]json.RawMessage) (string, map[string]any, error) {
@@ -404,9 +526,9 @@ func createMetaScope(cfg *config.Config) []string {
 
 // emitBatchLine refreshes the new key the same way emitAfterWrite does.
 // Text is KEY<tab>summary (batch contract); --json reuses emitAfterWrite.
-func emitBatchLine(ctx context.Context, cfg *config.Config, db *store.DB, c *jira.Client, key, summary string, asJSON bool, extra map[string]any) error {
+func emitBatchLine(ctx context.Context, cfg *config.Config, db *store.DB, src, key, summary string, asJSON bool, extra map[string]any) error {
 	if asJSON {
-		err := emitAfterWrite(ctx, cfg, db, "", key, true, extra)
+		err := emitAfterWrite(ctx, cfg, db, src, key, true, extra)
 		var missed writeNotMirroredError
 		if errors.As(err, &missed) {
 			fmt.Fprintf(os.Stderr, "warning: %s\n", missed.Error())
@@ -421,7 +543,7 @@ func emitBatchLine(ctx context.Context, cfg *config.Config, db *store.DB, c *jir
 		}
 		return err
 	}
-	if err := syncer.SyncIssue(ctx, cfg, db, key, syncer.Options{Client: c}); err != nil {
+	if err := refreshAfterWrite(ctx, cfg, db, src, key); err != nil {
 		return fmt.Errorf("write applied to %s, but the mirror did not refresh (run `gadak sync`): %w", key, err)
 	}
 	lites, err := lookup(db, []string{key})

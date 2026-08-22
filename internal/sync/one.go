@@ -21,7 +21,7 @@ var ErrNotFound = errors.New("sync: issue not found upstream")
 // identical to one a scheduled sync produced — same field mapping, same derived
 // fields, no second code path to keep in step.
 func SyncIssue(ctx context.Context, cfg *config.Config, db *store.DB, key string, opts Options) error {
-	if !cfg.HasCredential() {
+	if !cfg.HasAtlassianCredential() {
 		return errors.New("sync: site, email and token are required")
 	}
 	// Write-through is a Jira surface. A key mirrored from Linear (read-only
@@ -116,7 +116,7 @@ func SyncIssue(ctx context.Context, cfg *config.Config, db *store.DB, key string
 // page modified in between. UpsertPages alone is enough: it rewrites the row
 // and bumps version without advancing the watermark.
 func SyncPage(ctx context.Context, cfg *config.Config, db *store.DB, id string) error {
-	if !cfg.HasCredential() {
+	if !cfg.HasAtlassianCredential() {
 		return errors.New("sync: site, email and token are required")
 	}
 	c, err := origin.Wiki(cfg)

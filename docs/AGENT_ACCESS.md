@@ -73,7 +73,7 @@ language and ignores `Accept-Language`. `status_category`, `status_id`, and
 ```bash
 gadak status --json
 # or
-sqlite3 ~/.gadak/gadak.db "select watermark, last_error from sync_state"
+sqlite3 ~/.gadak/gadak.db "select source_id, watermark, last_error from sync_state"
 ```
 
 Confirm `last_error IS NULL` and that the watermark is recent before acting on an
