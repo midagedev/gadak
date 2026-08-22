@@ -1399,9 +1399,6 @@ func (s *searchUsersStub) SearchUsers(_ context.Context, q string) ([]jira.User,
 func (s *searchUsersStub) CreateMeta(context.Context, []string) ([]jira.CreateMetaProject, error) {
 	return nil, errStub
 }
-func (s *searchUsersStub) CreateFields(context.Context, string, string) ([]jira.CreateFieldMeta, error) {
-	return nil, errStub
-}
 func (s *searchUsersStub) CreateIssue(context.Context, map[string]any) (string, error) {
 	return "", errStub
 }
@@ -1425,20 +1422,8 @@ func (s *searchUsersStub) SetAssignee(context.Context, string, string) error { r
 func (s *searchUsersStub) PriorityCatalog(context.Context) ([]jira.NamedID, error) {
 	return nil, errStub
 }
-func (s *searchUsersStub) ProjectVersions(context.Context, string) ([]jira.Version, error) {
-	return nil, errStub
-}
-func (s *searchUsersStub) IssueLinkTypes(context.Context) ([]jira.IssueLinkType, error) {
-	return nil, errStub
-}
-func (s *searchUsersStub) LinkIssues(context.Context, string, string, string) error {
-	return errStub
-}
 func (s *searchUsersStub) Upload(context.Context, string, string, io.Reader) ([]jira.Attachment, error) {
 	return nil, errStub
-}
-func (s *searchUsersStub) MediaRef(context.Context, string) (string, string, error) {
-	return "", "", errStub
 }
 
 var errStub = errStubSentinel("searchUsersStub: unused method")

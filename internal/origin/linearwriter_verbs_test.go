@@ -317,9 +317,49 @@ func TestSearchUsersForwardsQuery(t *testing.T) {
 	}
 }
 
+// GDK-641: linearWriter must not implement the optional faces. FAIL-first
+// on the pre-split source: the five stubs made every type-assert succeed
+// (measured: TestLinearWriterOmitsOptionalFaces, four t.Error lines).
+func TestLinearWriterOmitsOptionalFaces(t *testing.T) {
+	w, rec := testLinearWriter(t)
+	if _, err := AsVersionCatalog(w); err == nil {
+		t.Error("linearWriter satisfies VersionCatalog; optional face must be absent")
+	}
+	if _, err := AsIssueLinker(w); err == nil {
+		t.Error("linearWriter satisfies IssueLinker; optional face must be absent")
+	}
+	if _, err := AsCreateFieldCatalog(w); err == nil {
+		t.Error("linearWriter satisfies CreateFieldCatalog; optional face must be absent")
+	}
+	if _, err := AsMediaRef(w); err == nil {
+		t.Error("linearWriter satisfies MediaRef; optional face must be absent")
+	}
+	if len(rec.queries) != 0 {
+		t.Errorf("optional-face refuse hit GraphQL %d times; refuse must stay local", len(rec.queries))
+	}
+}
+
+func TestOptionalFaceErrorsMatchFormerStubs(t *testing.T) {
+	cases := []struct {
+		name string
+		got  error
+		want string
+	}{
+		{"versions", ErrNoVersionCatalog, "linear: project versions are not supported on this origin"},
+		{"links", ErrNoIssueLinks, "linear: issue links are not supported on this origin"},
+		{"create fields", ErrNoCreateFields, "linear: create-time field metadata is not supported on this origin"},
+		{"media", ErrNoMediaRef, "linear: inline comment media is not supported; the file is attached to the issue"},
+	}
+	for _, tc := range cases {
+		if tc.got == nil || tc.got.Error() != tc.want {
+			t.Errorf("%s: %q, want %q", tc.name, tc.got, tc.want)
+		}
+	}
+}
+
 func TestProjectVersionsUnsupported(t *testing.T) {
 	w, rec := testLinearWriter(t)
-	got, err := w.ProjectVersions(context.Background(), "FIX")
+	got, err := AsVersionCatalog(w)
 	if err == nil {
 		t.Fatal("ProjectVersions succeeded; Linear has no version catalog")
 	}
@@ -336,7 +376,7 @@ func TestProjectVersionsUnsupported(t *testing.T) {
 
 func TestIssueLinksUnsupported(t *testing.T) {
 	w, rec := testLinearWriter(t)
-	got, err := w.IssueLinkTypes(context.Background())
+	got, err := AsIssueLinker(w)
 	if err == nil {
 		t.Fatal("IssueLinkTypes succeeded; Linear relations are out of scope")
 	}
@@ -346,7 +386,12 @@ func TestIssueLinksUnsupported(t *testing.T) {
 	if got != nil {
 		t.Errorf("types %v, want nil on refuse", got)
 	}
-	if err := w.LinkIssues(context.Background(), "10000", "FIX-1", "FIX-2"); err == nil {
+	if got == nil {
+		err = ErrNoIssueLinks
+	} else {
+		err = got.LinkIssues(context.Background(), "10000", "FIX-1", "FIX-2")
+	}
+	if err == nil {
 		t.Fatal("LinkIssues succeeded; Linear relations are out of scope")
 	} else if !strings.Contains(strings.ToLower(err.Error()), "not supported on this origin") {
 		t.Errorf("LinkIssues error %q, want it to say not supported on this origin", err)
@@ -358,7 +403,7 @@ func TestIssueLinksUnsupported(t *testing.T) {
 
 func TestCreateFieldsUnsupported(t *testing.T) {
 	w, rec := testLinearWriter(t)
-	got, err := w.CreateFields(context.Background(), "FIX", "issue")
+	got, err := AsCreateFieldCatalog(w)
 	if err == nil {
 		t.Fatal("CreateFields succeeded; Linear has no create-time field metadata")
 	}
@@ -370,6 +415,23 @@ func TestCreateFieldsUnsupported(t *testing.T) {
 	}
 	if len(rec.queries) != 0 {
 		t.Errorf("CreateFields hit GraphQL %d times; refuse must stay local", len(rec.queries))
+	}
+}
+
+func TestMediaRefUnsupported(t *testing.T) {
+	w, rec := testLinearWriter(t)
+	got, err := AsMediaRef(w)
+	if err == nil {
+		t.Fatal("MediaRef succeeded; Linear has no inline comment media")
+	}
+	if !strings.Contains(strings.ToLower(err.Error()), "not supported") {
+		t.Errorf("error %q, want it to say not supported", err)
+	}
+	if got != nil {
+		t.Errorf("media %v, want nil on refuse", got)
+	}
+	if len(rec.queries) != 0 {
+		t.Errorf("MediaRef hit GraphQL %d times; refuse must stay local", len(rec.queries))
 	}
 }
 

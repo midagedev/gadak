@@ -38,6 +38,13 @@
 
 ### 에이전트가 신뢰할 수 있는 쓰기 동사
 
+- **origin 어댑터는 더 이상 못 하는 일을 스텁으로 채우지 않습니다**
+  ([GDK-641]). `origin.Writer`가 17메서드 생산자 인터페이스여서 Linear
+  어댑터가 다섯 동사를 "미지원" 스텁으로 채웠습니다. 이제 Writer는 모든
+  origin이 실제로 구현하는 열두 동사이고, 버전·링크·생성 필드 메타·
+  인라인 코멘트 미디어는 호출자가 type-assert하는 optional 면입니다 —
+  면이 없으면 스텁이 내던 것과 글자까지 같은 오류를 한 곳에서 소유해
+  반환하고, 코멘트 경로의 열화-후-계속 동작은 그대로입니다.
 - **REST의 parent 거절도 CLI처럼 스스로를 설명합니다** ([GDK-635]).
   CLI는 오래전부터 Jira의 로컬라이즈된 parent 400에 미러의 계층 답을
   덧붙였습니다 — 거절된 부모가 몇 레벨인지, 실제로 무엇을 품을 수
@@ -1939,6 +1946,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-648]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-648
 [GDK-642]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-642
 [GDK-635]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-635
+[GDK-641]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-641
 [GDK-650]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-650
 [GDK-651]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-651
 [GDK-652]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-652

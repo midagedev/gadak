@@ -616,7 +616,12 @@ func (s *server) handleComment(w http.ResponseWriter, r *http.Request) {
 			if id == "" {
 				continue
 			}
-			mediaID, filename, err := c.MediaRef(ctx, id)
+			im, err := origin.AsMediaRef(c)
+			if err != nil {
+				log.Printf("server: comment media ref for attachment %s: %v", id, err)
+				continue
+			}
+			mediaID, filename, err := im.MediaRef(ctx, id)
 			if err != nil {
 				log.Printf("server: comment media ref for attachment %s: %v", id, err)
 				continue

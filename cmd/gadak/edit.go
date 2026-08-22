@@ -488,7 +488,11 @@ func fixVersionUpdateOps(ctx context.Context, c origin.Writer, issueKey string, 
 		if pk == "" {
 			return nil, fmt.Errorf("cannot derive project key from %q", issueKey)
 		}
-		catalog, err = c.ProjectVersions(ctx, pk)
+		vc, err := origin.AsVersionCatalog(c)
+		if err != nil {
+			return nil, err
+		}
+		catalog, err = vc.ProjectVersions(ctx, pk)
 		if err != nil {
 			return nil, err
 		}

@@ -19,9 +19,9 @@ import (
 // GraphQL mutations (GDK-361). The mapping discipline is ids only:
 // stateId/assigneeId are UUIDs, priority is Linear's 0-4 scale carried in
 // NamedID.ID. Capability negotiation stays EditMeta/CreateMeta — what this
-// origin cannot edit is simply absent there, and the one verb Linear has no
-// counterpart for (MediaRef) returns an honest error the comment path
-// already degrades on.
+// origin cannot edit is simply absent there. Optional faces
+// (VersionCatalog, IssueLinker, CreateFieldCatalog, MediaRef) are not
+// implemented; callers type-assert and surface the matching ErrNo* (GDK-641).
 type linearWriter struct {
 	c *linear.Client
 }
@@ -51,25 +51,6 @@ func (w *linearWriter) PriorityCatalog(ctx context.Context) ([]jira.NamedID, err
 		out = append(out, jira.NamedID{ID: strconv.Itoa(p), Name: linearPriorityNames[p]})
 	}
 	return append(out, jira.NamedID{ID: "0", Name: linearPriorityNames[0]}), nil
-}
-
-// ProjectVersions has no Linear counterpart (issues do not carry Jira
-// fix versions). Refuse locally so a CLI --fix-version name never looks
-// like an empty catalog.
-func (w *linearWriter) ProjectVersions(context.Context, string) ([]jira.Version, error) {
-	return nil, fmt.Errorf("linear: project versions are not supported on this origin")
-}
-
-// IssueLinkTypes has a Linear counterpart (relations) that this adapter
-// does not yet map. Refuse locally so a CLI --type token never looks
-// like an empty catalog.
-func (w *linearWriter) IssueLinkTypes(context.Context) ([]jira.IssueLinkType, error) {
-	return nil, fmt.Errorf("linear: issue links are not supported on this origin")
-}
-
-// LinkIssues is refused with the same local error as IssueLinkTypes.
-func (w *linearWriter) LinkIssues(context.Context, string, string, string) error {
-	return fmt.Errorf("linear: issue links are not supported on this origin")
 }
 
 func (w *linearWriter) Transitions(ctx context.Context, key string) ([]jira.Transition, error) {
@@ -254,13 +235,6 @@ func (w *linearWriter) EditIssue(ctx context.Context, key string, fields, update
 	return w.UpdateFields(ctx, key, fields)
 }
 
-// CreateFields has no Linear counterpart: issue types are a Jira concept
-// and Linear does not expose per-team required create fields. Callers
-// degrade; this is not a silent empty list.
-func (w *linearWriter) CreateFields(context.Context, string, string) ([]jira.CreateFieldMeta, error) {
-	return nil, fmt.Errorf("linear: create-time field metadata is not supported on this origin")
-}
-
 func (w *linearWriter) CreateMeta(ctx context.Context, projects []string) ([]jira.CreateMetaProject, error) {
 	teams, err := w.c.Teams(ctx)
 	if err != nil {
@@ -433,13 +407,6 @@ func (w *linearWriter) Upload(ctx context.Context, key, filename string, file io
 		return nil, err
 	}
 	return []jira.Attachment{{ID: att.ID, Filename: filename, MimeType: ct, Size: int64(len(body))}}, nil
-}
-
-// MediaRef has no Linear counterpart: attachments do not render inline in
-// comments by media id. The comment path already degrades on this error —
-// the file stays attached to the issue, only the inline embed is skipped.
-func (w *linearWriter) MediaRef(ctx context.Context, attachmentID string) (string, string, error) {
-	return "", "", fmt.Errorf("linear: inline comment media is not supported; the file is attached to the issue")
 }
 
 var _ Writer = (*linearWriter)(nil)

@@ -38,6 +38,14 @@ the fixes are all here.
 
 ### Write verbs an agent can trust
 
+- **An origin adapter no longer stubs what it cannot do** ([GDK-641]).
+  `origin.Writer` was a 17-method producer interface,
+  so the Linear adapter filled five verbs with "not supported" stubs.
+  Writer is now the twelve verbs every origin actually implements;
+  versions, links, create-field metadata, and inline comment media are
+  optional faces callers type-assert — a missing face returns the exact
+  error string the stubs used to, owned in one place, and the comment
+  path's degrade-and-continue is unchanged.
 - **A REST parent rejection explains itself like the CLI's** ([GDK-635]).
   The CLI has long appended the mirror's hierarchy answer to Jira's
   localized parent 400 — which level the rejected parent sits at, what it
@@ -1984,6 +1992,7 @@ measured numbers instead of adjectives.
 [GDK-648]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-648
 [GDK-642]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-642
 [GDK-635]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-635
+[GDK-641]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-641
 [GDK-650]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-650
 [GDK-651]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-651
 [GDK-652]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-652

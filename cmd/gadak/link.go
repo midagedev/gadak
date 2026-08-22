@@ -41,7 +41,11 @@ func cmdLink(args []string) error {
 	token := strings.TrimSpace(*typ)
 
 	return withKeyWriteSession(a, func(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src string) error {
-		catalog, err := c.IssueLinkTypes(ctx)
+		linker, err := origin.AsIssueLinker(c)
+		if err != nil {
+			return err
+		}
+		catalog, err := linker.IssueLinkTypes(ctx)
 		if err != nil {
 			return err
 		}
@@ -53,7 +57,7 @@ func cmdLink(args []string) error {
 		if reverse {
 			outward, inward = b, a
 		}
-		if err := c.LinkIssues(ctx, lt.ID, outward, inward); err != nil {
+		if err := linker.LinkIssues(ctx, lt.ID, outward, inward); err != nil {
 			return err
 		}
 		srcB, err := db.KeySource(ctx, b)
