@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -372,6 +373,24 @@ func TestHistoryListCursorAndKind(t *testing.T) {
 	}
 	if len(page2.Items) != 2 {
 		t.Fatalf("page2 items = %d, want 2", len(page2.Items))
+	}
+}
+
+// TestHistoryInvalidCursorSentinel is FAIL-first (GDK-609): all three cursor
+// parse failures used to return fresh errors.New("invalid cursor") values, so
+// errors.Is against the sentinel failed. The server's 400 branch keys on this
+// identity; matching the message text there was the fragile old path.
+func TestHistoryInvalidCursorSentinel(t *testing.T) {
+	db := openTemp(t)
+	ctx := context.Background()
+	for _, cur := range []string{
+		"no-pipes",                        // not three fields
+		"2026-08-22T00:00:00Z|visit|oops", // id is not an integer
+		"2026-08-22T00:00:00Z|block|7",    // type is neither visit nor search
+	} {
+		if _, err := db.History(ctx, HistoryOpts{Cursor: cur}); !errors.Is(err, ErrInvalidCursor) {
+			t.Fatalf("cursor %q: err = %v, want ErrInvalidCursor", cur, err)
+		}
 	}
 }
 

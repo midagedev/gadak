@@ -651,14 +651,14 @@ func parseHistoryCursor(s string) (historyCursor, error) {
 	}
 	parts := strings.Split(s, "|")
 	if len(parts) != 3 {
-		return historyCursor{}, errors.New("invalid cursor")
+		return historyCursor{}, ErrInvalidCursor
 	}
 	id, err := strconv.ParseInt(parts[2], 10, 64)
 	if err != nil {
-		return historyCursor{}, errors.New("invalid cursor")
+		return historyCursor{}, ErrInvalidCursor
 	}
 	if parts[1] != "visit" && parts[1] != "search" {
-		return historyCursor{}, errors.New("invalid cursor")
+		return historyCursor{}, ErrInvalidCursor
 	}
 	return historyCursor{at: parts[0], typ: parts[1], id: id, set: true}, nil
 }

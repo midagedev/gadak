@@ -110,6 +110,22 @@ func TestHistoryCursorLimit(t *testing.T) {
 	}
 }
 
+// TestHistoryInvalidCursor pins the 400 mapping: a cursor that does not parse
+// is a client error (store.ErrInvalidCursor, by identity per GDK-609), not a
+// 500. It passed on the old text-matching branch too — the point is that the
+// mapping survives the sentinel switch.
+func TestHistoryInvalidCursor(t *testing.T) {
+	db, cfg := fixture(t)
+	h := New(db, cfg)
+	rec := get(t, h, apiBase+"history/?cursor=not-a-cursor", nil)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("code = %d, want 400 (%s)", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "invalid_cursor") {
+		t.Fatalf("body = %s", rec.Body.String())
+	}
+}
+
 func TestHistoryRejectsBadKind(t *testing.T) {
 	db, cfg := fixture(t)
 	h := New(db, cfg)

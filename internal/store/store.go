@@ -32,6 +32,12 @@ import (
 // sql.ErrNoRows internally and wraps at the package boundary.
 var ErrNotFound = errors.New("not found")
 
+// ErrInvalidCursor means a pagination cursor did not parse. The server's
+// history handler maps it to HTTP 400 by identity — errors.Is against this
+// value, not message text (GDK-609) — so cursor parsing must return this
+// sentinel and never a fresh errors.New with a similar sentence.
+var ErrInvalidCursor = errors.New("invalid cursor")
+
 // SchemaTooNewError means the file was migrated by a gadak that reads a later
 // schema than this build does — the app and the CLI ship as separately
 // versioned formulae, so one build opening the mirror once is enough to lock

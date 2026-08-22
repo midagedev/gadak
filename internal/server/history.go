@@ -132,7 +132,7 @@ func (s *server) handleGetHistory(w http.ResponseWriter, r *http.Request) {
 	}
 	page, err := s.db.History(r.Context(), opts)
 	if err != nil {
-		if strings.Contains(err.Error(), "invalid cursor") {
+		if errors.Is(err, store.ErrInvalidCursor) {
 			fail(w, http.StatusBadRequest, "invalid_cursor")
 			return
 		}
