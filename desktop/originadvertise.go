@@ -30,6 +30,10 @@ import (
 // routing; and once this process holds the lock, a missing advertise file
 // would turn every concurrent CLI write into a hard "workspace busy" error
 // instead of a route, so a failed listener or advertise write aborts too.
+//
+// The desktop caller (run in main.go) invokes this after application.New so
+// wails SingleInstance can os.Exit the second process before persist is
+// taken (GDK-658). Lock-before-advertise inside this function is unchanged.
 func startStandaloneOriginListener(cfg *config.Config, api http.Handler) (func(), error) {
 	nop := func() {}
 	if cfg == nil || !cfg.IsStandalone() || api == nil {

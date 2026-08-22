@@ -213,10 +213,20 @@ func run() error {
 	// Standalone: this process owns persist. Embed (never probe our own
 	// advertise file — self-loop), and advertise a loopback origin-only
 	// listener so a concurrent CLI routes writes here instead of opening a
-	// second embedded graph over the same persist file (GDK-340). LIFO:
-	// the listener stops before api.Close.
+	// second embedded graph over the same persist file (GDK-340).
+	//
+	// Acquisition runs after application.New (GDK-658). wails os.Exits the
+	// second instance inside New() without running defers (ErrorHandler
+	// does not run on that path). Taking persist/listener/advertise first
+	// meant a second launch died on ErrWorkspaceBusy instead of handing
+	// off — the same class as cmd/gadak serve's live-owner check before
+	// the persist lock (GDK-468). Defers are registered here so LIFO with
+	// cancel / api.Close / db.Close is unchanged: listener stop before
+	// flush (GDK-348), api.Close before db.Close (GDK-270).
+	// stopStandalone is filled in after New(), once this process won
+	// SingleInstance.
+	var stopStandalone = func() {}
 	if cfg.IsStandalone() {
-		origin.SetInProcess(true)
 		defer origin.SetInProcess(false)
 		// The CLI flushes the standalone persist on the way out
 		// (cmd/gadak/main.go); the app must too, or quitting inside the
@@ -228,11 +238,7 @@ func run() error {
 				log.Printf("warning: standalone persist flush on exit: %v", err)
 			}
 		}()
-		stopAdvertise, err := startStandaloneOriginListener(cfg, api)
-		if err != nil {
-			return err
-		}
-		defer stopAdvertise()
+		defer func() { stopStandalone() }()
 	}
 
 	ui, ok := gadak.WebUI()
@@ -258,6 +264,11 @@ func run() error {
 	// reason openURL is — the single-instance callback can fire before then.
 	var applyDeepLink func(string)
 
+	if cfg.IsStandalone() {
+		// Second instance prints this then os.Exits inside New(); persist
+		// and advertise are not held yet (GDK-658).
+		log.Printf("gadak-desktop: single-instance check (standalone persist not held)")
+	}
 	app := application.New(application.Options{
 		// Name labels the macOS app menu; Name + Description are what the
 		// About panel shows.
@@ -511,6 +522,15 @@ func run() error {
 			log.Printf("syncing %d workspace mirrors: %s", len(watched), strings.Join(watched, ", "))
 		}
 	})
+
+	if cfg.IsStandalone() {
+		origin.SetInProcess(true)
+		stop, err := startStandaloneOriginListener(cfg, api)
+		if err != nil {
+			return err
+		}
+		stopStandalone = stop
+	}
 
 	return app.Run()
 }

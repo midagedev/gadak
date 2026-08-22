@@ -124,6 +124,14 @@ the fixes are all here.
 
 ### Standalone and issuetap
 
+- **A second desktop launch raises the first window, standalone included**
+  ([GDK-658]). The desktop app used to take the standalone persist lock
+  before wails could check for an already-running instance, so a second
+  launch died on "workspace busy" instead of handing off — the desktop
+  twin of the serve command's live-owner check ([GDK-468] class). The
+  single-instance check now runs first; the persist lock, loopback
+  listener and advertise file are taken only by the instance that won,
+  and a source-order test plus a real two-process test hold the sequence.
 - **A standalone workspace speaks your language** ([GDK-597]). `gadak
   config set locale ko` and the workspace's own tracker localizes status
   and issue-type names — while priority names stay English, which is what
@@ -2020,6 +2028,8 @@ measured numbers instead of adjectives.
 [GDK-643]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-643
 [GDK-648]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-648
 [GDK-649]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-649
+[GDK-658]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-658
+[GDK-468]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-468
 [GDK-645]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-645
 [GDK-642]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-642
 [GDK-635]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-635
