@@ -150,6 +150,9 @@ var originScopedTables = []tableRule{
 	{table: "saved_views", scope: scopeAuthored,
 		why: "authored here (local.db since GDK-105, surviving `rm gadak.db`); data-model.md's named exception to keeping no originals. " +
 			"A view whose query names a retired project is reported by OriginReset, not deleted"},
+	{table: "recipes", scope: scopeAuthored,
+		why: "authored here (local.db, GDK-503); a name for mirror SQL the user wrote. " +
+			"Not origin content. Kept on conversion the same way saved_views are"},
 	{table: "api_usage", scope: scopeLocal,
 		why: "our own outbound HTTP counters per day, not origin content (schemaV6)"},
 	{table: "visits", scope: scopeLocal,

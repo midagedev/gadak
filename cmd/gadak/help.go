@@ -51,6 +51,13 @@ const serveSyncDefault = "syncs by default on a standalone workspace, or on a co
 // name the verb; this sentence lives once in top-level usage.
 const writeThroughOriginPhrase = "Jira on a connected workspace (needs a credential), the embedded origin on a standalone one; the mirror refreshes after the origin accepts"
 
+// displayNameSQLTrap is the locale trap AGENTS.md and sqlhint already own.
+// Restated in sql / search / recipes help so the command itself says it
+// (GDK-503). Verified: issues.status / issue_type / priority are display
+// names; status_category is new|inprogress|done; priority_rank and
+// issue_type_id are the stable keys (specs/000-product/data-model.md).
+const displayNameSQLTrap = "status, priority, and issue type names localize per account — key on status_category (new|inprogress|done), priority_rank, or issue_type_id; status = 'In Progress' can return 0 rows"
+
 // helps is the per-command help table. Summaries recycle the top-level usage
 // constant; positionals and examples match the real cmdXxx implementations.
 var helps = map[string]cmdHelp{
@@ -290,7 +297,7 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak workspace", "gadak profiles", "gadak init"},
 	},
 	"sql": {
-		summary: "run a read-only SQL query against the local mirror",
+		summary: "run a read-only SQL query against the local mirror; " + displayNameSQLTrap,
 		usage: "gadak [--workspace <name>] sql [--json|--csv] [--no-header]\n" +
 			"\"select ...\"",
 		options: []helpOption{
@@ -304,7 +311,7 @@ var helps = map[string]cmdHelp{
 			"gadak sql --csv \"select key from issues where status_category = 'done'\"",
 			"gadak sql --no-header \"select key from issues limit 5\"",
 		},
-		seeAlso: []string{"gadak issue", "gadak search", "gadak status"},
+		seeAlso: []string{"gadak issue", "gadak search", "gadak recipes", "gadak status"},
 	},
 	"api": {
 		summary: "call Atlassian REST with the stored credential (escape hatch for endpoints the mirror does not cover)",
@@ -367,7 +374,7 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak search", "gadak sync"},
 	},
 	"search": {
-		summary: "full-text search, or a JQL / Jira-URL filter against the mirror",
+		summary: "full-text search, or a JQL / Jira-URL filter against the mirror; " + displayNameSQLTrap,
 		usage: "gadak [--workspace <name>] search [--jql] [--emit] [--limit N]\n" +
 			"[--json] [--explain] \"text|JQL|URL\"",
 		examples: []string{
@@ -389,6 +396,44 @@ var helps = map[string]cmdHelp{
 			"gadak recents --json",
 		},
 		seeAlso: []string{"gadak issue", "gadak search"},
+	},
+	"recipes": {
+		summary: "named read-only SQL stored in local.db; " + displayNameSQLTrap,
+		usage: "gadak [--workspace <name>] recipes [list]\n" +
+			"| recipes save NAME [\"sql\" | -m <text|->]\n" +
+			"| recipes run NAME [--json|--csv|--no-header]\n" +
+			"| recipes show NAME | recipes rm NAME",
+		options: []helpOption{
+			{name: "json", desc: "emit one JSON object per row"},
+			{name: "csv", desc: "emit CSV with a header row"},
+			{name: "no-header", desc: "omit the TSV/CSV header row (no-op with --json)"},
+			{name: "m", desc: "recipe SQL; - reads stdin (save)"},
+		},
+		examples: []string{
+			"gadak recipes",
+			`gadak recipes save next "` + nextRecipeSQL + `"`,
+			"gadak recipes run next",
+			"gadak recipes run next --json",
+			"gadak recipes show next",
+			"gadak recipes show next | gadak recipes save next -m -",
+			"gadak recipes rm next",
+		},
+		seeAlso: []string{"gadak next", "gadak sql", "gadak search"},
+	},
+	"next": {
+		summary: "run the recipe named next — a report, not occupancy (claiming is an origin write)",
+		usage:   "gadak [--workspace <name>] next [--json|--csv|--no-header]",
+		options: []helpOption{
+			{name: "json", desc: "emit one JSON object per row"},
+			{name: "csv", desc: "emit CSV with a header row"},
+			{name: "no-header", desc: "omit the TSV/CSV header row (no-op with --json)"},
+		},
+		examples: []string{
+			`gadak recipes save next "` + nextRecipeSQL + `"`,
+			"gadak next",
+			"gadak next --json",
+		},
+		seeAlso: []string{"gadak recipes", "gadak sql", "gadak claim"},
 	},
 	"comment": {
 		summary: "add a comment (@Name resolves to a site user; ambiguous names are refused)",

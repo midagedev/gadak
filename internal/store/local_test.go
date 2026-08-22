@@ -34,6 +34,9 @@ func TestOpenCreatesLocalSchemaAndSelectWorks(t *testing.T) {
 	if err := db.sql.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM local.recents`).Scan(&n); err != nil {
 		t.Fatalf("local.recents after Open: %v", err)
 	}
+	if err := db.sql.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM local.recipes`).Scan(&n); err != nil {
+		t.Fatalf("local.recipes after Open: %v", err)
+	}
 }
 
 // Existing install: mirror only, no local.db. Open must recreate the schema
@@ -914,4 +917,115 @@ func (r *sqlDriverRows) Next(dest []driver.Value) error {
 		ptrs[i] = &dest[i]
 	}
 	return r.rows.Scan(ptrs...)
+}
+
+// TestLocalMigrationV5AddsRecipes is FAIL-first GDK-503: scratch-503-failfirst.log
+// recorded PRAGMA user_version=4 and no recipes table on 6aaaef0 before this
+// migration existed. Open of a v4 local.db must create local.recipes.
+func TestLocalMigrationV5AddsRecipes(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "gadak.db")
+	local := LocalPath(path)
+	raw, err := sql.Open("sqlite", "file:"+local)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, ddl := range []string{localSchemaV1, localSchemaV2, localSchemaV3, localSchemaV4} {
+		if _, err := raw.Exec(ddl); err != nil {
+			t.Fatalf("apply localSchemaV%d: %v", i+1, err)
+		}
+	}
+	if _, err := raw.Exec(`PRAGMA user_version = 4`); err != nil {
+		t.Fatal(err)
+	}
+	var n, uv int
+	if err := raw.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='recipes'`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Fatalf("pre-migration recipes table count = %d, want 0", n)
+	}
+	if err := raw.QueryRow(`PRAGMA user_version`).Scan(&uv); err != nil {
+		t.Fatal(err)
+	}
+	if uv != 4 {
+		t.Fatalf("pre-migration user_version = %d, want 4", uv)
+	}
+	if err := raw.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	db, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+	if err := db.sql.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM local.recipes`).Scan(&n); err != nil {
+		t.Fatalf("recipes after v4→v5: %v", err)
+	}
+	after, err := sql.Open("sqlite", "file:"+local)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer after.Close()
+	if err := after.QueryRow(`PRAGMA user_version`).Scan(&uv); err != nil {
+		t.Fatal(err)
+	}
+	if uv != 5 {
+		t.Fatalf("post-migration user_version = %d, want 5", uv)
+	}
+}
+
+func TestRecipeCRUDOverwriteAndDelete(t *testing.T) {
+	db := openTemp(t)
+	ctx := context.Background()
+	q1 := "select 1 as n"
+	got, err := db.PutRecipe(ctx, "next", q1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Name != "next" || got.SQL != q1 || got.CreatedAt == "" || got.UpdatedAt == "" {
+		t.Fatalf("insert = %+v", got)
+	}
+	created := got.CreatedAt
+	time.Sleep(2 * time.Millisecond)
+	q2 := "select 2 as n"
+	got, err = db.PutRecipe(ctx, "next", q2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.SQL != q2 {
+		t.Fatalf("overwrite sql = %q, want %q", got.SQL, q2)
+	}
+	if got.CreatedAt != created {
+		t.Fatalf("created_at moved on overwrite: %q → %q", created, got.CreatedAt)
+	}
+	if got.UpdatedAt == created {
+		t.Fatal("updated_at did not move on overwrite")
+	}
+	if _, err := db.Recipe(ctx, "next"); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.DeleteRecipe(ctx, "next"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Recipe(ctx, "next"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("after delete: %v, want ErrNotFound", err)
+	}
+	if err := db.DeleteRecipe(ctx, "next"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("second delete: %v, want ErrNotFound", err)
+	}
+}
+
+func TestRecipeNameRejected(t *testing.T) {
+	db := openTemp(t)
+	ctx := context.Background()
+	for _, name := range []string{"", "Next", "has space", "-lead", "under_score", "1num"} {
+		if _, err := db.PutRecipe(ctx, name, "select 1"); err == nil {
+			t.Errorf("name %q accepted", name)
+		}
+	}
+	if _, err := db.PutRecipe(ctx, "ok-name", "   "); err == nil {
+		t.Fatal("empty sql accepted")
+	}
 }

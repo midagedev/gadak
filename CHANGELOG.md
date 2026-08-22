@@ -417,6 +417,18 @@ the fixes are all here.
   alike, the two surfaces that share the core. A named transition that
   does not exist still errors, and
   reopening stays `transition KEY inprogress`; there is no `gadak reopen`.
+- **Picking work is a verb now** ([GDK-503]). The best way to pick the
+  next issue used to be retyping the same `issues_full` query — and its
+  one trap (display names localize; `status = 'In Progress'` can be zero
+  rows) lived only in the docs. `gadak recipes save NAME "select …"`
+  names a read-only mirror query in `local.db` (validated by running it
+  once at save time), `recipes run NAME` prints it through exactly
+  `gadak sql`'s path and formats, `show` round-trips the source, and
+  `gadak next` runs the recipe named `next` — a report, not occupancy.
+  No private ranking engine: rank still comes from `priority_rank` and
+  `status_category`. And the trap now lives where the fingers are: the
+  `sql`, `search`, and `recipes` help all say to key on categories and
+  ranks, not display names.
 - **The no-op holds on self-loop workflows too** ([GDK-632]). Dogfooding
   the batch on a real site found the gap the fakes could not: a workflow
   that keeps a done→done transition available while the issue is already
@@ -2047,6 +2059,7 @@ measured numbers instead of adjectives.
 [GDK-500]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-500
 [GDK-501]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-501
 [GDK-502]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-502
+[GDK-503]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-503
 [GDK-495]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-495
 [GDK-496]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-496
 [GDK-497]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-497

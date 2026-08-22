@@ -67,33 +67,68 @@ func cmdSQL(args []string) error {
 	if query == "" {
 		return usageError("sql", `usage: gadak sql [--json|--csv] [--no-header] "select ..."`)
 	}
+	return runReadOnlySQL(query, sqlOutput{JSON: asJSON, CSV: asCSV, NoHeader: noHeader})
+}
+
+// sqlOutput is the stdout contract `gadak sql` and `gadak recipes run` share.
+type sqlOutput struct {
+	JSON     bool
+	CSV      bool
+	NoHeader bool
+}
+
+// runReadOnlySQL is the single owner of the sql/recipes-run path: openReadOnly
+// (writes are refused by SQLite), warnIfStale, column-suggestion on error,
+// and the --json/--csv/--no-header row format.
+func runReadOnlySQL(query string, out sqlOutput) error {
 	db, err := openReadOnly()
 	if err != nil {
 		return err
 	}
 	defer db.Close()
 	warnIfStale(db)
+	return writeSQLQuery(db, query, out)
+}
 
+func writeSQLQuery(db *sql.DB, query string, out sqlOutput) error {
 	rows, err := db.Query(query)
 	if err != nil {
 		return sqlhint.WithColumnSuggestion(db, err)
 	}
 	defer rows.Close()
+	return formatSQLRows(rows, query, out)
+}
+
+// drainSQLQuery executes query and discards rows. Used by recipes save to
+// refuse a statement that cannot run, without printing it. Zero rows is
+// success — a stale mirror can be empty.
+func drainSQLQuery(db *sql.DB, query string) error {
+	rows, err := db.Query(query)
+	if err != nil {
+		return sqlhint.WithColumnSuggestion(db, err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+	}
+	return rows.Err()
+}
+
+func formatSQLRows(rows *sql.Rows, query string, out sqlOutput) error {
 	cols, err := rows.Columns()
 	if err != nil {
 		return err
 	}
 	var csvOut *csv.Writer
 	switch {
-	case asCSV:
+	case out.CSV:
 		csvOut = csv.NewWriter(os.Stdout)
-		if !noHeader {
+		if !out.NoHeader {
 			if err := csvOut.Write(cols); err != nil {
 				return err
 			}
 		}
-	case !asJSON:
-		if !noHeader {
+	case !out.JSON:
+		if !out.NoHeader {
 			fmt.Println(strings.Join(cols, "\t"))
 		}
 	}
@@ -109,7 +144,7 @@ func cmdSQL(args []string) error {
 		if err := rows.Scan(ptrs...); err != nil {
 			return err
 		}
-		if asJSON {
+		if out.JSON {
 			obj := make(map[string]any, len(cols))
 			for i, c := range cols {
 				obj[c] = cell(vals[i])
@@ -117,17 +152,17 @@ func cmdSQL(args []string) error {
 			_ = enc.Encode(obj)
 			continue
 		}
-		out := make([]string, len(cols))
+		line := make([]string, len(cols))
 		for i := range vals {
-			out[i] = text(vals[i])
+			line[i] = text(vals[i])
 		}
 		if csvOut != nil {
-			if err := csvOut.Write(out); err != nil {
+			if err := csvOut.Write(line); err != nil {
 				return err
 			}
 			continue
 		}
-		fmt.Println(strings.Join(out, "\t"))
+		fmt.Println(strings.Join(line, "\t"))
 	}
 	if err := rows.Err(); err != nil {
 		return err

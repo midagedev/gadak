@@ -201,7 +201,8 @@ FROM issues_full WHERE json_extract(custom, '$.story_points') IS NOT NULL;
 
 Personal state lives in `local.db` beside the mirror (ATTACHed as `local`;
 you do not type ATTACH): `local.saved_views` (`gadak views save`),
-`local.visits`, `local.searches`. It survives deleting `gadak.db`.
+`local.recipes` (`gadak recipes save`), `local.visits`, `local.searches`.
+It survives deleting `gadak.db`.
 
 Some columns exist only here, derived from the changelog while syncing:
 `reopen_count`, `reopened_at`, `reopen_reason`, and `epic_key` (the nearest
@@ -260,6 +261,23 @@ SELECT key, summary, sprint_id, sprint_name
 FROM issues_full
 WHERE sprint_state = 'active' AND status_category != 'done'
 ORDER BY priority_rank, updated_at DESC;
+```
+
+## Named SQL recipes
+
+A recipe is a name for a mirror SQL query, stored in `local.recipes`. It is
+not a ranking engine — order comes from `priority_rank` / `status_category`.
+There is no default recipe; save one before `gadak next`. This is a report,
+not occupancy — claiming still goes through the origin (`gadak claim`).
+
+```bash
+gadak recipes save next "select key, priority_rank, status, summary from issues_full where status_category != 'done' order by priority_rank, updated_at desc limit 10"
+gadak next                          # runs the recipe named next
+gadak recipes run next --json
+gadak recipes show next             # SQL text; pipeable into save
+gadak recipes show next | gadak recipes save next -m -
+gadak recipes                       # name, updated_at, sql preview
+gadak recipes rm next
 ```
 
 `gadak search "…"` is the shortcut when a query is overkill; `--json` includes a

@@ -387,6 +387,18 @@
   않습니다(코멘트조차 — 재시도가 중복 게시할 수 없도록). 코어를 공유하는
   두 표면인 CLI와 REST가 똑같이 얻습니다. 존재하지 않는 전이 이름은 여전히 에러이고, 재개는
   `transition KEY inprogress` 그대로입니다 — `gadak reopen`은 없습니다.
+- **일감 고르기가 동사가 됩니다** ([GDK-503]). 다음 이슈를 고르는 최선이
+  같은 `issues_full` 쿼리를 매번 다시 타이핑하는 것이었고 — 그 함정
+  하나(표시 이름은 계정 언어를 탑니다; `status = 'In Progress'`는 0행일
+  수 있습니다)는 문서에만 살았습니다. `gadak recipes save NAME
+  "select …"`가 read-only 미러 쿼리에 이름을 붙여 `local.db`에 저장하고
+  (저장 시 1회 실행해 검증), `recipes run NAME`은 정확히 `gadak sql`의
+  경로와 포맷으로 찍고, `show`는 원문을 왕복하며, `gadak next`는 `next`
+  라는 이름의 레시피를 실행합니다 — 리포트이지 점유가 아닙니다. 사설
+  순위 엔진은 없습니다: 순위는 여전히 `priority_rank`와
+  `status_category`에서 나옵니다. 그리고 함정은 이제 손가락 옆에
+  삽니다: `sql`·`search`·`recipes`의 help가 표시 이름 대신 카테고리와
+  랭크로 키하라고 말합니다.
 - **no-op이 자기 전이 워크플로에서도 성립합니다** ([GDK-632]). 배치를
   실사이트에 도그푸딩하다 페이크가 못 잡던 격차를 찾았습니다: 이미 done인
   이슈에 done→done 전이가 남아 있는 워크플로에서는 재시도가 전이를 또
@@ -2016,6 +2028,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-500]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-500
 [GDK-501]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-501
 [GDK-502]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-502
+[GDK-503]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-503
 [GDK-495]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-495
 [GDK-496]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-496
 [GDK-497]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-497

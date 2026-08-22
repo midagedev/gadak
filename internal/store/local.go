@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -32,7 +33,7 @@ const LocalRetention = 180 * 24 * time.Hour
 
 // localMigrations is independent of the mirror's migrations slice. Index+1 is
 // PRAGMA user_version on local.db.
-var localMigrations = []string{localSchemaV1, localSchemaV2, localSchemaV3, localSchemaV4}
+var localMigrations = []string{localSchemaV1, localSchemaV2, localSchemaV3, localSchemaV4, localSchemaV5}
 
 const localSchemaV1 = `
 CREATE TABLE visits (
@@ -121,6 +122,19 @@ CREATE TABLE favorites (
 CREATE TABLE feed_reads (
   event_id TEXT PRIMARY KEY,
   read_at  TEXT NOT NULL
+);
+`
+
+// localSchemaV5 is named read-only SQL (GDK-503). Distinct from saved_views:
+// those store ViewConfig JSON that the UI and `gadak views` consume. A recipe
+// is a name for a mirror SELECT; rank still comes from the mirror's
+// priority_rank / status_category, not a private ranking engine.
+const localSchemaV5 = `
+CREATE TABLE recipes (
+  name       TEXT PRIMARY KEY,
+  sql        TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
 );
 `
 
@@ -977,4 +991,122 @@ func trimRecentsKind(ctx context.Context, tx *sql.Tx, kind string) error {
 		}
 	}
 	return nil
+}
+
+// Recipe is a named read-only SQL query in local.recipes (GDK-503).
+type Recipe struct {
+	Name      string `json:"name"`
+	SQL       string `json:"sql"`
+	CreatedAt string `json:"created_at"`
+	UpdatedAt string `json:"updated_at"`
+}
+
+// recipeNameRe is the save-time identifier: start with a letter so a name
+// cannot look like a flag, charset [a-z0-9-] as specified, cap 64 like
+// pairing labels (internal/pairing/store.go). Neighbors searched:
+// config.themeIdentRe (`^[a-z0-9-]{1,32}$`), deeplink actionPattern
+// (`^[a-z][a-z0-9-]{0,31}$`).
+var recipeNameRe = regexp.MustCompile(`^[a-z][a-z0-9-]{0,63}$`)
+
+// ValidateRecipeName is the recipes save NAME rule. Empty and anything
+// outside recipeNameRe are refused.
+func ValidateRecipeName(name string) error {
+	if !recipeNameRe.MatchString(name) {
+		return fmt.Errorf("recipe name must match [a-z][a-z0-9-]{0,63} (got %q)", name)
+	}
+	return nil
+}
+
+// Recipes lists every recipe, newest update first.
+func (db *DB) Recipes(ctx context.Context) ([]Recipe, error) {
+	rows, err := db.sql.QueryContext(ctx, `
+		SELECT name, sql, created_at, updated_at FROM local.recipes
+		ORDER BY updated_at DESC, name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []Recipe{}
+	for rows.Next() {
+		var r Recipe
+		if err := rows.Scan(&r.Name, &r.SQL, &r.CreatedAt, &r.UpdatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
+// RecipeNames is the saved-name list a missing-name error quotes.
+func (db *DB) RecipeNames(ctx context.Context) ([]string, error) {
+	rows, err := db.sql.QueryContext(ctx, `SELECT name FROM local.recipes ORDER BY name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []string{}
+	for rows.Next() {
+		var n string
+		if err := rows.Scan(&n); err != nil {
+			return nil, err
+		}
+		out = append(out, n)
+	}
+	return out, rows.Err()
+}
+
+// Recipe looks up one named recipe. Unknown name is ErrNotFound.
+func (db *DB) Recipe(ctx context.Context, name string) (Recipe, error) {
+	var r Recipe
+	err := db.sql.QueryRowContext(ctx, `
+		SELECT name, sql, created_at, updated_at FROM local.recipes WHERE name = ?`, name).
+		Scan(&r.Name, &r.SQL, &r.CreatedAt, &r.UpdatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return r, ErrNotFound
+	}
+	return r, err
+}
+
+// PutRecipe inserts or overwrites a recipe. Same name keeps created_at and
+// refreshes sql / updated_at. Name and SQL are validated here so every
+// writer shares the rule.
+func (db *DB) PutRecipe(ctx context.Context, name, query string) (Recipe, error) {
+	var zero Recipe
+	if err := ValidateRecipeName(name); err != nil {
+		return zero, err
+	}
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return zero, errors.New("recipe sql is empty")
+	}
+	now := Now()
+	err := db.write(ctx, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, `
+			INSERT INTO local.recipes (name, sql, created_at, updated_at) VALUES (?,?,?,?)
+			ON CONFLICT(name) DO UPDATE SET sql = excluded.sql, updated_at = excluded.updated_at`,
+			name, query, now, now)
+		return err
+	})
+	if err != nil {
+		return zero, err
+	}
+	return db.Recipe(ctx, name)
+}
+
+// DeleteRecipe removes one recipe. Unknown name is ErrNotFound.
+func (db *DB) DeleteRecipe(ctx context.Context, name string) error {
+	return db.write(ctx, func(tx *sql.Tx) error {
+		res, err := tx.ExecContext(ctx, `DELETE FROM local.recipes WHERE name = ?`, name)
+		if err != nil {
+			return err
+		}
+		n, err := res.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if n == 0 {
+			return ErrNotFound
+		}
+		return nil
+	})
 }
