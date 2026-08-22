@@ -16,8 +16,8 @@
   import type { CommentMention, JiraUser, UploadedAttachment } from '../../lib/types'
   import { isHostedDemo } from '../../lib/config'
   import { commentDraftKey } from '../../lib/storage'
-  import { modifierSymbol } from '../../lib/unified-search'
   import Icon from '../ui/Icon.svelte'
+  import CommentSubmitFooter from './CommentSubmitFooter.svelte'
 
   /** onsubmitted fires after a comment commits — the quick-comment dialog closes on it. */
   let { issueKey, onsubmitted }: { issueKey: string; onsubmitted?: () => void } = $props()
@@ -397,38 +397,28 @@
     </div>
   {/if}
 
-  <div class="flex items-center justify-end gap-2">
-    <input
-      bind:this={fileInput}
-      type="file"
-      multiple
-      class="hidden"
-      onchange={(e) => {
-        void handleFiles((e.currentTarget as HTMLInputElement).files)
-        ;(e.currentTarget as HTMLInputElement).value = ''
-      }}
-    />
-    <button
-      type="button"
-      onclick={() => fileInput?.click()}
-      disabled={!me.identified || busy}
-      class="mr-auto inline-flex h-control items-center gap-1.5 rounded-md border border-border-strong px-2 text-body text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary disabled:opacity-40"
-      title={t('write.attachFile')}
-    >
-      <Icon name="paperclip" size={13} />
-      {t('write.attachLabel')}
-    </button>
-    <kbd
-      data-testid="comment-shortcut"
-      class="rounded border border-border-subtle px-1 text-micro text-text-muted"
-    >{t('write.commentShortcut', { mod: modifierSymbol() })}</kbd>
-    <button
-      type="button"
-      onclick={submit}
-      disabled={busy || !canSubmit}
-      class="inline-flex h-control items-center rounded-md bg-accent px-3 text-body font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-40"
-    >
-      {busy ? t('write.commentPosting') : t('write.commentButton')}
-    </button>
-  </div>
+  <CommentSubmitFooter busy={busy} disabled={busy || !canSubmit} onclick={submit}>
+    {#snippet leading()}
+      <input
+        bind:this={fileInput}
+        type="file"
+        multiple
+        class="hidden"
+        onchange={(e) => {
+          void handleFiles((e.currentTarget as HTMLInputElement).files)
+          ;(e.currentTarget as HTMLInputElement).value = ''
+        }}
+      />
+      <button
+        type="button"
+        onclick={() => fileInput?.click()}
+        disabled={!me.identified || busy}
+        class="mr-auto inline-flex h-control items-center gap-1.5 rounded-md border border-border-strong px-2 text-body text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary disabled:opacity-40"
+        title={t('write.attachFile')}
+      >
+        <Icon name="paperclip" size={13} />
+        {t('write.attachLabel')}
+      </button>
+    {/snippet}
+  </CommentSubmitFooter>
 </div>

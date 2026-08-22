@@ -49,6 +49,42 @@ describe('GDK-621 keycap notation: the cheat sheet is the owner', () => {
     }
   })
 
+  test('one owner of comment-shortcut; both composers render it', () => {
+    // GDK-650: the page composer used to omit the chip. The chord is owned
+    // by one component (write.commentShortcut + modifierSymbol); issue and
+    // page composers both render that owner — a second kbd with a local
+    // string is the class this gate closes.
+    const files: string[] = []
+    const walk = (dir: string): void => {
+      for (const name of readdirSync(dir)) {
+        const p = join(dir, name)
+        if (statSync(p).isDirectory()) walk(p)
+        else if (name.endsWith('.svelte')) files.push(p)
+      }
+    }
+    walk(WEB_SRC)
+    const owners = files.filter((p) =>
+      readFileSync(p, 'utf8').includes('data-testid="comment-shortcut"'),
+    )
+    expect(owners, `comment-shortcut owners:\n${owners.join('\n')}`).toHaveLength(1)
+    const ownerSrc = readFileSync(owners[0], 'utf8')
+    expect(ownerSrc).toContain("t('write.commentShortcut'")
+    expect(ownerSrc).toContain('modifierSymbol()')
+
+    const ownerBase = owners[0].slice(owners[0].lastIndexOf('/') + 1)
+    const composers = [
+      join(WEB_SRC, 'components/write/CommentComposer.svelte'),
+      join(WEB_SRC, 'components/detail/DocumentPanel.svelte'),
+    ]
+    for (const c of composers) {
+      if (c === owners[0]) continue
+      const src = readFileSync(c, 'utf8')
+      expect(src, `${c} must render the comment-shortcut owner (${ownerBase})`).toContain(
+        ownerBase,
+      )
+    }
+  })
+
   test('one-line kbd hints use the ↵ glyph, never the word Enter', () => {
     // palette.hintNav (palette footer) and settings.scopeHint (scope
     // picker) are keycap runs in the sheet's grammar. This list is the set

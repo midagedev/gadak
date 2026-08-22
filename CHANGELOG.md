@@ -244,6 +244,12 @@ the fixes are all here.
 
 ### The web UI, made consistent
 
+- **One footer under every comment box** ([GDK-650]). The page comment
+  form had its own submit button and no shortcut chip, so the `{mod} ↵`
+  chord worked there but nothing said so. Both composers now render one
+  shared footer — same chip, same posting state, the issue side keeps its
+  attach button as the footer's leading slot — and a unit gate holds the
+  chip to a single owner so a page-local spelling cannot come back.
 - **Four type sizes, and nothing between them** ([GDK-129]). The screen
   had drifted 198 arbitrary pixel sizes past the declared scale — 190 of
   them `12px`, one pixel off both of its neighbours, which reads as noise
@@ -1938,6 +1944,7 @@ measured numbers instead of adjectives.
 [GDK-639]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-639
 [GDK-643]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-643
 [GDK-648]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-648
+[GDK-650]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-650
 [GDK-654]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-654
 [GDK-655]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-655
 [GDK-656]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-656

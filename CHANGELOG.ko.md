@@ -234,6 +234,12 @@
 
 ### 일관되게 정리된 웹 UI
 
+- **모든 코멘트 상자 아래 같은 푸터** ([GDK-650]). 페이지 코멘트 폼은
+  자체 제출 버튼만 있고 단축키 칩이 없어서, `{mod} ↵` 코드가 거기서도
+  동작하는데 아무것도 그렇다고 말해 주지 않았습니다. 이제 두 컴포저가
+  공유 푸터 하나를 렌더합니다 — 같은 칩, 같은 게시 중 상태, 이슈 쪽
+  첨부 버튼은 푸터의 leading 슬롯으로 — 그리고 유닛 게이트가 칩의
+  소유자를 하나로 묶어 페이지 전용 표기가 돌아올 수 없습니다.
 - **타입 크기는 넷, 그 사이엔 아무것도 없습니다** ([GDK-129]). 화면에
   선언된 스케일 밖 임의 픽셀 크기가 198곳 떠 있었습니다 — 190곳이 `12px`,
   양옆 단과 각각 1px 차이라 위계가 아니라 노이즈로 읽히는 크기. 전부
@@ -1897,6 +1903,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-639]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-639
 [GDK-643]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-643
 [GDK-648]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-648
+[GDK-650]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-650
 [GDK-654]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-654
 [GDK-655]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-655
 [GDK-656]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-656

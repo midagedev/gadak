@@ -24,6 +24,7 @@
   import RelatedIssues from './RelatedIssues.svelte'
   import Section from './Section.svelte'
   import Icon from '../ui/Icon.svelte'
+  import CommentSubmitFooter from '../write/CommentSubmitFooter.svelte'
 
   const key = $derived(pages.selectedKey)
   // Index row for the instant header (a search hit may not be in the index yet).
@@ -315,16 +316,12 @@
                   }
                 }}
               ></textarea>
-              <div class="flex justify-end">
-                <button
-                  type="submit"
-                  disabled={posting || !draft.trim()}
-                  data-testid="doc-comment-submit"
-                  class="inline-flex h-control items-center rounded-md bg-accent px-3 text-body font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-40"
-                >
-                  {posting ? t('write.commentPosting') : t('write.commentButton')}
-                </button>
-              </div>
+              <CommentSubmitFooter
+                busy={posting}
+                disabled={posting || !draft.trim()}
+                buttonType="submit"
+                submitTestId="doc-comment-submit"
+              />
             </form>
           </Section>
         </div>
