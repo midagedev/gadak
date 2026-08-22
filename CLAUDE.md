@@ -56,8 +56,12 @@ hard-won 목록)와 `AGENTS.md`(스키마·쿼리)가 원본이다.
   없어 데스크톱 CI 3개 잡이 빨갛게 됐다 — 로컬 go 전체는 초록이었다.
 - 웹: `make typecheck` (svelte-check). e2e: Playwright, CI 세트는
   `e2e/*.spec.ts`(demo/·hosted/·perf/ 제외 — `e2e/playwright.config.ts`).
-- **브라우저 검증 락은 저장소 전역 파일 하나**(타임아웃 600s).
-  `lock timed out`은 경쟁 신호이지 게이트 실패가 아니다.
+- **e2e 직렬화의 실체는 락 파일이 아니라 포트다** (2026-08-23 실측 교정 —
+  종전의 "저장소 전역 락 파일·600s" 문구는 타 레포 규칙의 오복사): serve가
+  `127.0.0.1:7877` 하드코드 + 단일 `e2e/.tmp/home` + Playwright `workers: 1`.
+  워크트리 두 개가 동시에 e2e를 못 돌리고, 포트 충돌·낡은 서버 재사용이
+  경쟁 신호다(스탬프 불일치는 `assertServedArtifact`가 잡는다). 병렬화는
+  GDK-672(PORT env·홈 격리)가 선행 조건.
 - 게이트 단언 완화는 ①귀속 주석 ②정당한 파생 ③FAIL-first 증거 셋 모두
   있을 때만.
 - 문서 사실성 가드: `tools/doc-checks.sh` (있으면 커밋 전 실행).
