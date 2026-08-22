@@ -12,7 +12,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/midagedev/gadak/internal/attachcache"
@@ -60,9 +59,6 @@ type Registry struct {
 	flights map[string]*openFlight
 	closed  bool
 
-	openInFlight   atomic.Int64
-	opensDiscarded atomic.Uint64
-
 	// Watch ownership (D8): one loop per credentialed non-primary profile.
 	// WatchAll arms these; EnsureWatch / the rescan ticker start loops when
 	// a credential appears later. watching prevents a double start.
@@ -88,24 +84,6 @@ func New() *Registry {
 		entries: make(map[string]*Entry),
 		flights: make(map[string]*openFlight),
 	}
-}
-
-// OpenInFlight is how many Get/open constructions are running outside mu.
-// Same shape as store.WriteBusyRetries: a cheap accessor, no logs.
-func (r *Registry) OpenInFlight() int64 {
-	if r == nil {
-		return 0
-	}
-	return r.openInFlight.Load()
-}
-
-// OpensDiscarded is how many constructed entries lost the publish race
-// (or saw Close) and were closed. Same shape as store.WriteBusyRetries.
-func (r *Registry) OpensDiscarded() uint64 {
-	if r == nil {
-		return 0
-	}
-	return r.opensDiscarded.Load()
 }
 
 // testBeforeConstruct, if set, runs at the start of construction. Tests use
@@ -207,9 +185,7 @@ func (r *Registry) open(name string) (*Entry, error) {
 		testBeforeConstruct(name)
 	}
 
-	r.openInFlight.Add(1)
 	e, err := r.construct(name)
-	r.openInFlight.Add(-1)
 
 	r.mu.Lock()
 	delete(r.flights, name)
@@ -220,7 +196,6 @@ func (r *Registry) open(name string) (*Entry, error) {
 		return nil, err
 	}
 	if r.closed {
-		r.opensDiscarded.Add(1)
 		r.mu.Unlock()
 		closeEntry(e)
 		f.err = errRegistryClosed
@@ -228,7 +203,6 @@ func (r *Registry) open(name string) (*Entry, error) {
 		return nil, errRegistryClosed
 	}
 	if existing, ok := r.entries[name]; ok {
-		r.opensDiscarded.Add(1)
 		r.mu.Unlock()
 		closeEntry(e)
 		f.e = existing

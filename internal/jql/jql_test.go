@@ -362,8 +362,8 @@ func TestKeyInMatchAndEmit(t *testing.T) {
 	if !strings.Contains(h, "ks=NMA-1,NMA-2") {
 		t.Errorf("hash %q", h)
 	}
-	if QueryURL(h) != "#/?"+h || HashURL(res.Filters, Display{}) != "#/?"+h {
-		t.Errorf("HashURL %q", HashURL(res.Filters, Display{}))
+	if QueryURL(h) != "#/?"+h {
+		t.Errorf("QueryURL %q", QueryURL(h))
 	}
 }
 

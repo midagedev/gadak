@@ -59,7 +59,7 @@ export function readThemePreference(): ThemePreference {
   }
 }
 
-export function writeThemePreference(pref: ThemePreference): void {
+function writeThemePreference(pref: ThemePreference): void {
   try {
     localStorage.setItem(themeStorageKey(), pref)
   } catch {

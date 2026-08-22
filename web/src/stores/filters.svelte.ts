@@ -683,7 +683,7 @@ function matchesSelected(selected: string[], values: string[]): boolean {
  * A discovered field's row value: sync flattens to string or string[]; older
  * mirrors may still carry comma-joined strings, which split covers.
  */
-export function rowFieldValues(issue: IssueLite, alias: string): string[] {
+function rowFieldValues(issue: IssueLite, alias: string): string[] {
   const v = (issue as unknown as Record<string, unknown>)[alias]
   if (v == null) return []
   if (Array.isArray(v)) return v.filter((x): x is string => typeof x === 'string')
@@ -1382,7 +1382,7 @@ function facetLabel(
 
 type PersonRole = 'assignee' | 'reporter'
 
-export function personIdentity(issue: IssueLite, role: PersonRole): string | null {
+function personIdentity(issue: IssueLite, role: PersonRole): string | null {
   return issue[`${role}_id`] || issue[`${role}_email`] || null
 }
 

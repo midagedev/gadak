@@ -271,19 +271,9 @@ var (
 	live    = map[string]*session{}
 	flights = map[string]*sessionFlight{}
 
-	sessionInFlight     atomic.Int64
-	sessionsDiscarded   atomic.Uint64
 	sessionsConstructed atomic.Uint64
 	inProcess           atomic.Bool
 )
-
-// SessionInFlight is how many standaloneSession constructions are running
-// outside mu. Same shape as store.WriteBusyRetries: a cheap accessor, no logs.
-func SessionInFlight() int64 { return sessionInFlight.Load() }
-
-// SessionsDiscarded is how many constructed sessions lost the publish race
-// and were closed. Same shape as store.WriteBusyRetries.
-func SessionsDiscarded() uint64 { return sessionsDiscarded.Load() }
 
 // SessionsConstructed is how many times constructStandalone ran. Tests
 // use a delta to prove a routed Client did not open a second persist graph.
@@ -490,7 +480,6 @@ func openStandaloneSession(cfg *config.Config) (*session, error) {
 		testBeforeStandalone(persist)
 	}
 
-	sessionInFlight.Add(1)
 	var projects []string
 	var locale string
 	if cfg != nil {
@@ -501,7 +490,6 @@ func openStandaloneSession(cfg *config.Config) (*session, error) {
 	}
 	actor, _ := config.ResolveActor(cfg)
 	s, err := constructStandalone(persist, projects, actor, locale)
-	sessionInFlight.Add(-1)
 
 	mu.Lock()
 	delete(flights, persist)
@@ -512,7 +500,6 @@ func openStandaloneSession(cfg *config.Config) (*session, error) {
 		return nil, err
 	}
 	if existing, ok := live[persist]; ok {
-		sessionsDiscarded.Add(1)
 		mu.Unlock()
 		closeSession(s)
 		f.s = existing

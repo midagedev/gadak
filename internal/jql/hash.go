@@ -115,8 +115,3 @@ func QueryURL(hash string) string {
 	}
 	return "#/?" + hash
 }
-
-// HashURL is the fragment a gadak window applies: "#/?" + Hash.
-func HashURL(f Filter, d Display) string {
-	return QueryURL(Hash(f, d))
-}

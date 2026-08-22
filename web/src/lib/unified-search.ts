@@ -15,11 +15,11 @@
 import type { PageLite, SearchMatch, SearchResponse } from './types'
 
 /** Matches createUserSearch's default; spec band is 250–300ms. */
-export const UNIFIED_DEBOUNCE_MS = 250
+const UNIFIED_DEBOUNCE_MS = 250
 
 /** Palette preview caps — the list is where the full set is read. */
-export const UNIFIED_ISSUE_LIMIT = 8
-export const UNIFIED_PAGE_LIMIT = 6
+const UNIFIED_ISSUE_LIMIT = 8
+const UNIFIED_PAGE_LIMIT = 6
 
 /** Server Search() uses 50 when the caller sends limit <= 0. */
 export const UNIFIED_FETCH_LIMIT = 50

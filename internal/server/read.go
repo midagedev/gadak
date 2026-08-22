@@ -13,22 +13,12 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/store"
 )
-
-// derivedInFlight is how many derived() rebuilds are running outside s.mu.
-// Package-level so we do not add a field on server (server.go is owned by
-// another round). Same shape as store.WriteBusyRetries.
-var derivedInFlight atomic.Int64
-
-// DerivedInFlight is how many derived() rebuilds are running outside s.mu.
-// Same shape as store.WriteBusyRetries: a cheap accessor, no logs.
-func DerivedInFlight() int64 { return derivedInFlight.Load() }
 
 /* ── response shapes ──
  * Field names follow web/src/lib/types.ts, which is what the client actually
@@ -744,9 +734,6 @@ func (s *server) derived(ctx context.Context, version int64, lites []store.Issue
 	if testBeforeDerived != nil {
 		testBeforeDerived()
 	}
-
-	derivedInFlight.Add(1)
-	defer derivedInFlight.Add(-1)
 
 	if lites == nil {
 		var err error

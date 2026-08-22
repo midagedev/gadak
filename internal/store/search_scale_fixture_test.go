@@ -1,3 +1,5 @@
+//go:build searchscale
+
 package store
 
 import (
@@ -120,58 +122,4 @@ func seedSearchScale(tb testing.TB, n int) *DB {
 		tb.Fatalf("ANALYZE: %v", err)
 	}
 	return db
-}
-
-func TestSearchExplainElapsedMS(t *testing.T) {
-	db := openTemp(t)
-	seed(t, db)
-
-	explained, err := db.SearchExplain(context.Background(), "sandbox", 10)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if explained.ElapsedMS <= 0 {
-		t.Fatalf("SearchExplain elapsed_ms = %g, want > 0", explained.ElapsedMS)
-	}
-	plain, err := db.Search(context.Background(), "sandbox", 10)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if plain.ElapsedMS != 0 {
-		t.Fatalf("Search elapsed_ms = %g, want 0 (omitted from the default contract)", plain.ElapsedMS)
-	}
-}
-
-func TestFTSColumnPrefixHit(t *testing.T) {
-	// Token-start prefix, including Hangul particles (로그인이) and English stems.
-	if !ftsColumnPrefixHit("Payment retries fail", "pay") {
-		t.Fatal("pay vs Payment: want hit")
-	}
-	if !ftsColumnPrefixHit("로그인이 간헐적으로 실패합니다", "로그인") {
-		t.Fatal("로그인 vs 로그인이: want hit")
-	}
-	if !ftsColumnPrefixHit("The payment pipeline dropped", "p") {
-		t.Fatal("p vs payment: want hit")
-	}
-	// Mid-token must not count — EXISTS MATCH 'title : "p"*' would miss these.
-	if ftsColumnPrefixHit("Aperture issue", "p") {
-		t.Fatal("p vs Aperture: mid-token must not hit")
-	}
-	if ftsColumnPrefixHit("retry failed", "p") {
-		t.Fatal("p vs retry: no p-token, must not hit")
-	}
-	// AND of tokens, matching ftsPrefixQuery's space-joined prefixes.
-	if !ftsColumnPrefixHit("로그인 실패 화면", "로그인 실패") {
-		t.Fatal("AND both present: want hit")
-	}
-	if ftsColumnPrefixHit("로그인 화면", "로그인 실패") {
-		t.Fatal("AND missing 실패: must not hit")
-	}
-	// Hyphen splits like unicode61: REL-140 is tokens rel + 140.
-	if !ftsColumnPrefixHit("See REL-140. more", "REL-140") {
-		t.Fatal("REL-140 vs See REL-140: want hit (phrase of two tokens)")
-	}
-	if ftsColumnPrefixHit("Mentions the issue many times 9001", "REL-140") {
-		t.Fatal("REL-140 vs title without the key: must not hit")
-	}
 }

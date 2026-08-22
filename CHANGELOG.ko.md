@@ -38,6 +38,15 @@
 
 ### 에이전트가 신뢰할 수 있는 쓰기 동사
 
+- **3차 죽은 코드 스윕 — 모든 삭제에 미참조 실증** ([GDK-647]). 아무도
+  읽지 않는 stats 게터 다섯(그리고 쓰기만 되던 카운터들), 조용히
+  무시되던 `serve --sync` no-op 별칭(이제 넘기면 오류 — `--no-sync`는
+  그대로), 자기 테스트만 돌리던 dev-scan 헬퍼, 어떤 표면도 렌더하지 않는
+  i18n 키, 미사용 헬퍼 셋, 아무도 import하지 않는 웹 export 26건을
+  지웠습니다. 2만 행 검색 fixture는 `searchscale` 빌드 태그 뒤로 옮겨
+  기본 store 테스트가 더는 컴파일하지 않습니다. 의도적으로 남긴 것:
+  `scry_locale` 읽기 폴백(아직 살아있는 호환 경로)과 push 클라이언트
+  트리(별도 미결 결정).
 - **origin 어댑터는 더 이상 못 하는 일을 스텁으로 채우지 않습니다**
   ([GDK-641]). `origin.Writer`가 17메서드 생산자 인터페이스여서 Linear
   어댑터가 다섯 동사를 "미지원" 스텁으로 채웠습니다. 이제 Writer는 모든
@@ -1947,6 +1956,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-642]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-642
 [GDK-635]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-635
 [GDK-641]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-641
+[GDK-647]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-647
 [GDK-650]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-650
 [GDK-651]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-651
 [GDK-652]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-652

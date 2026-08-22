@@ -360,3 +360,23 @@ func TestSearchExplainReasons(t *testing.T) {
 		t.Errorf("KEY-10 reason = %q, want key-prefix", byKey["KEY-10"])
 	}
 }
+
+func TestSearchExplainElapsedMS(t *testing.T) {
+	db := openTemp(t)
+	seed(t, db)
+
+	explained, err := db.SearchExplain(context.Background(), "sandbox", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if explained.ElapsedMS <= 0 {
+		t.Fatalf("SearchExplain elapsed_ms = %g, want > 0", explained.ElapsedMS)
+	}
+	plain, err := db.Search(context.Background(), "sandbox", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plain.ElapsedMS != 0 {
+		t.Fatalf("Search elapsed_ms = %g, want 0 (omitted from the default contract)", plain.ElapsedMS)
+	}
+}

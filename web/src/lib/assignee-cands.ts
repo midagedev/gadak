@@ -43,7 +43,7 @@ export function candOfMember(m: Member, label?: string): AssigneeCand {
   }
 }
 
-export function candOfUser(u: JiraUser): AssigneeCand {
+function candOfUser(u: JiraUser): AssigneeCand {
   return {
     key: u.account_id,
     account_id: u.account_id,

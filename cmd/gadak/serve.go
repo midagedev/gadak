@@ -30,7 +30,6 @@ type serveOpts struct {
 	addr              string
 	static            string
 	allowRemote       bool
-	withSync          bool
 	noSync            bool
 	importAttachments string
 	noOpen            bool
@@ -50,9 +49,8 @@ func parseServeOpts(args []string) (serveOpts, error) {
 	allowRemote := fs.Bool("allow-remote", false,
 		"permit binding a non-loopback address (the mirror has no auth; do not expose it)")
 	// Sync starts by default when HasCredential is true (standalone, or a
-	// connected workspace with site+email+token). --sync is a deprecated
-	// no-op alias; --no-sync opts out (demo / e2e fixtures).
-	withSync := fs.Bool("sync", false, "deprecated alias ("+serveSyncDefault+")")
+	// connected workspace with site+email+token). --no-sync opts out
+	// (demo / e2e fixtures).
 	noSync := fs.Bool("no-sync", false, "do not run the incremental sync loop")
 	importAttachments := fs.String("import-attachments", "",
 		"seed the attachment cache from a directory holding manifest.json (see examples/attachments)")
@@ -71,7 +69,6 @@ func parseServeOpts(args []string) (serveOpts, error) {
 		addr:              *addr,
 		static:            *static,
 		allowRemote:       *allowRemote,
-		withSync:          *withSync,
 		noSync:            *noSync,
 		importAttachments: *importAttachments,
 		noOpen:            *noOpen,
@@ -165,7 +162,7 @@ func runWatchLoop(ctx context.Context, cfg *config.Config, db *store.DB, opts sy
 // startServeLoops starts the optional update check and the incremental sync
 // loops (primary profile + workspace mounts). Order and log strings match the
 // previous inlined cmdServe body.
-func startServeLoops(ctx context.Context, api *server.Handler, db *store.DB, cfg *config.Config, reg *workspace.Registry, noSync, withSync bool) {
+func startServeLoops(ctx context.Context, api *server.Handler, db *store.DB, cfg *config.Config, reg *workspace.Registry, noSync bool) {
 	// Optional once-a-day GitHub release check (opt-out via updateCheck: false).
 	// Independent of Jira credentials; silent on failure.
 	if dir, err := config.Dir(); err == nil {
@@ -176,12 +173,11 @@ func startServeLoops(ctx context.Context, api *server.Handler, db *store.DB, cfg
 	// (standalone origin, or connected with site+email+token). Empty
 	// projects on a connected workspace means "everything this account can
 	// see"; standalone copy is serveScopeLog (GDK-464). --no-sync opts out
-	// (fixtures with a fake token must pass it). --sync remains a silent alias
-	// when the loop would start anyway; with no credential it still prints the
-	// old guidance line. When serve starts without a credential, register the
-	// same starter so PUT onboarding/connect/ can kick off Watch once after
-	// the first successful save. Mounted workspace profiles with credentials
-	// each get their own Watch loop (WatchAll); --no-sync disables those too.
+	// (fixtures with a fake token must pass it). When serve starts without a
+	// credential, register the same starter so PUT onboarding/connect/ can
+	// kick off Watch once after the first successful save. Mounted workspace
+	// profiles with credentials each get their own Watch loop (WatchAll);
+	// --no-sync disables those too.
 	if noSync {
 		return
 	}
@@ -206,9 +202,6 @@ func startServeLoops(ctx context.Context, api *server.Handler, db *store.DB, cfg
 		startWatch()
 	} else {
 		api.SetSyncStarter(startWatch)
-		if withSync {
-			log.Printf("--sync ignored: run `gadak init` first")
-		}
 	}
 	watched := reg.WatchAll(ctx, config.Profile(), func(s string) { log.Print(s) })
 	if len(watched) > 0 {
@@ -409,7 +402,7 @@ func cmdServe(args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	startServeLoops(ctx, api, db, cfg, reg, opts.noSync, opts.withSync)
+	startServeLoops(ctx, api, db, cfg, reg, opts.noSync)
 	return runServeHTTP(ctx, mux, opts.addr, opts.addrPinned, opts.noOpen, cfg)
 }
 

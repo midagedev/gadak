@@ -18,7 +18,7 @@ import { highlightSegments } from './format'
 import type { SearchMatch } from './types'
 
 /** The title carries the reason by itself when the query is visible in it. */
-export function titleShowsQuery(title: string, q: string): boolean {
+function titleShowsQuery(title: string, q: string): boolean {
   if (!q.trim()) return false
   return highlightSegments(title, q).some((seg) => seg.hit)
 }

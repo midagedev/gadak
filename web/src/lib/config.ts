@@ -171,7 +171,7 @@ export function isDesktop(): boolean {
   return current.desktop
 }
 
-export function parseWindowChrome(raw: unknown): WindowChrome | undefined {
+function parseWindowChrome(raw: unknown): WindowChrome | undefined {
   if (raw === WINDOW_CHROME_TRAFFIC_LIGHTS_INSET || raw === WINDOW_CHROME_NATIVE) {
     return raw
   }
@@ -297,7 +297,7 @@ export function workspaceName(): string {
 }
 
 /** Host of a Jira site URL, or '' when none. Used only as a cache partition. */
-export function siteHost(siteUrl: string): string {
+function siteHost(siteUrl: string): string {
   const raw = siteUrl.trim()
   if (!raw) return ''
   try {

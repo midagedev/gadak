@@ -61,7 +61,7 @@ export const STORAGE_KEYS = {
 export const THEME_STORAGE_KEY = 'gadak:theme'
 
 /** Same path rule as `workspaceName()` — kept here so the boot script can match it. */
-export const THEME_WORKSPACE_PATH_RE = /^\/w\/([A-Za-z0-9_-]+)(\/|$)/
+const THEME_WORKSPACE_PATH_RE = /^\/w\/([A-Za-z0-9_-]+)(\/|$)/
 
 /** Derive the boot-mirror key from a pathname. `/` and `/w/oss` stay distinct. */
 export function themeStorageKeyFromPath(pathname: string): string {

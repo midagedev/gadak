@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -105,26 +104,6 @@ func TestDevScanLimitNotice(t *testing.T) {
 	}
 	if got := devScanHitLimitNotice(199, 200); got != "" {
 		t.Fatalf("under cap must be silent, got %q", got)
-	}
-}
-
-func TestDevScanContinuesOnLinkError(t *testing.T) {
-	var stderr strings.Builder
-	linked, failed := linkScanMatches([]scanLink{{key: "A-1", url: "ok"}, {key: "A-2", url: "fail"}, {key: "A-3", url: "ok2"}},
-		func(m scanLink) error {
-			if m.url == "fail" {
-				return errors.New("boom")
-			}
-			return nil
-		}, &stderr)
-	if linked != 2 {
-		t.Fatalf("linked %d, want 2", linked)
-	}
-	if !failed {
-		t.Fatal("want failed=true")
-	}
-	if !strings.Contains(stderr.String(), "A-2") || !strings.Contains(stderr.String(), "boom") {
-		t.Fatalf("stderr %q", stderr.String())
 	}
 }
 

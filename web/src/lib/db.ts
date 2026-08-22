@@ -14,7 +14,7 @@ import { cacheScopeId } from './config'
 import type { CacheMeta, IssueLite, WriteMetaCache } from './types'
 
 /** IndexedDB name for a cache partition. Empty scope keeps the historic name. */
-export function issueCacheDbName(scope = cacheScopeId()): string {
+function issueCacheDbName(scope = cacheScopeId()): string {
   return scope ? `issue-navigator:${scope}` : 'issue-navigator'
 }
 // v2 invalidates IssueLite rows written before reporter_id joined the row

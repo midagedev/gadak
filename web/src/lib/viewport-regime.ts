@@ -21,16 +21,12 @@
 
 import { trapFocus } from './focus-trap'
 
-export const LAYOUT_SIDEBAR_PX = 272
-export const LAYOUT_LIST_MIN_PX = 390
-export const LAYOUT_DETAIL_MIN_PX = 440
+const LAYOUT_SIDEBAR_PX = 272
+const LAYOUT_LIST_MIN_PX = 390
+const LAYOUT_DETAIL_MIN_PX = 440
 export const VIEWPORT_DOCKED_MIN_PX = 1100
 
 export type ViewportRegime = 'docked' | 'overlay'
-
-export function regimeForWidth(width: number): ViewportRegime {
-  return width >= VIEWPORT_DOCKED_MIN_PX ? 'docked' : 'overlay'
-}
 
 export function readViewportRegime(): ViewportRegime {
   if (typeof window === 'undefined') return 'docked'

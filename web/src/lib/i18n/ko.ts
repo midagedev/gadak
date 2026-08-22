@@ -113,7 +113,6 @@ export const ko = {
   'field.due': '기한',
   'field.parent': '상위 항목',
   'field.development_opinion': '개발 의견',
-  'field.solution_method': '수정 방법',
 
   /* ── Columns ── */
   'column.assignee': '담당자',

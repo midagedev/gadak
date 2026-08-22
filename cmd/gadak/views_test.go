@@ -508,12 +508,12 @@ func TestComposeServeURLAndPrefix(t *testing.T) {
 	if got != want {
 		t.Fatalf("url %q want %q", got, want)
 	}
-	if jql.HashURL(func() jql.Filter {
+	if jql.QueryURL(jql.Hash(func() jql.Filter {
 		f := jql.EmptyFilter()
 		f.Keys = []string{"NMA-1", "NMA-2"}
 		return f
-	}(), jql.Display{}) != "#/?ks=NMA-1,NMA-2" {
-		t.Fatal("HashURL should match QueryURL(Hash)")
+	}(), jql.Display{})) != "#/?ks=NMA-1,NMA-2" {
+		t.Fatal("QueryURL(Hash) should match the fragment views open hands over")
 	}
 }
 

@@ -13,7 +13,7 @@
 import { STORAGE_KEYS } from '../lib/storage'
 
 /** Default top-to-bottom order of SidebarNav-owned sections. */
-export const SECTION_IDS = [
+const SECTION_IDS = [
   'builtin',
   'jira',
   'personal',
@@ -37,7 +37,7 @@ export function isSectionId(value: string): value is SectionId {
  * Saved ids first (skip unknown / duplicates), then any default id not yet
  * present — new sections land at the end in catalog order.
  */
-export function mergeSectionOrder(saved: string[], defaults: readonly SectionId[]): SectionId[] {
+function mergeSectionOrder(saved: string[], defaults: readonly SectionId[]): SectionId[] {
   const seen = new Set<SectionId>()
   const out: SectionId[] = []
   for (const id of saved) {

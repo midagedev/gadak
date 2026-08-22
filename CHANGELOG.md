@@ -38,6 +38,16 @@ the fixes are all here.
 
 ### Write verbs an agent can trust
 
+- **A third dead-code sweep, every deletion proven unreferenced**
+  ([GDK-647]). Five stats getters nothing read (and their write-only
+  counters), the deprecated `serve --sync` no-op alias (passing it now
+  errors instead of silently doing nothing — `--no-sync` is unchanged), a
+  dev-scan helper that only its own test exercised, an i18n key no surface
+  renders, three unused helpers, and 26 web exports nothing imported.
+  The 20k-row search fixture moved behind a `searchscale` build tag, so
+  the default store test run stops compiling it. Kept on purpose: the
+  `scry_locale` read-fallback (still a live compatibility path) and the
+  push client tree (its own open decision).
 - **An origin adapter no longer stubs what it cannot do** ([GDK-641]).
   `origin.Writer` was a 17-method producer interface,
   so the Linear adapter filled five verbs with "not supported" stubs.
@@ -1993,6 +2003,7 @@ measured numbers instead of adjectives.
 [GDK-642]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-642
 [GDK-635]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-635
 [GDK-641]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-641
+[GDK-647]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-647
 [GDK-650]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-650
 [GDK-651]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-651
 [GDK-652]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-652

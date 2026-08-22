@@ -112,7 +112,6 @@ export const en = {
   'field.due': 'Due date',
   'field.parent': 'Parent',
   'field.development_opinion': 'Dev notes',
-  'field.solution_method': 'Resolution',
 
   /* ── Columns ── */
   'column.assignee': 'Assignee',

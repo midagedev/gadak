@@ -4,13 +4,7 @@
  */
 
 import { jiraBrowseUrl } from '../../lib/config'
-import type { StatusCategory } from '../../lib/types'
 import { absTime as i18nAbsTime, relativeTime as i18nRelativeTime } from '../../lib/i18n'
-
-/** Status category → semantic color token name (app.css @theme --color-status-*). */
-export function categoryColor(cat: StatusCategory): string {
-  return cat === 'done' ? 'done' : cat === 'new' ? 'new' : 'inprogress'
-}
 
 /** ISO8601 → relative time (long style: "3m ago"). On parse fail, return raw. */
 export function relativeTime(iso: string | null | undefined): string {

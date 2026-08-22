@@ -15,7 +15,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"regexp"
@@ -589,20 +588,6 @@ func devScanHitLimitNotice(n, limit int) string {
 		return fmt.Sprintf("first %d PRs scanned — raise --limit", limit)
 	}
 	return ""
-}
-
-type scanLink struct{ key, url string }
-
-func linkScanMatches(matches []scanLink, link func(scanLink) error, errOut io.Writer) (linked int, failed bool) {
-	for _, m := range matches {
-		if err := link(m); err != nil {
-			fmt.Fprintf(errOut, "dev scan: %s: %v\n", m.key, err)
-			failed = true
-			continue
-		}
-		linked++
-	}
-	return linked, failed
 }
 
 func devScanHookScript() string {

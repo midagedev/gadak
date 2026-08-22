@@ -113,7 +113,6 @@ export const ja = {
   'field.due': '期限',
   'field.parent': '親',
   'field.development_opinion': '開発メモ',
-  'field.solution_method': '解決方法',
 
   /* ── Columns ── */
   'column.assignee': '担当者',

@@ -62,7 +62,7 @@ export function setLocale(next: Locale): void {
 }
 
 /** BCP 47 tag for Intl APIs. */
-export function localeTag(): string {
+function localeTag(): string {
   if (current === 'ko') return 'ko-KR'
   if (current === 'ja') return 'ja-JP'
   return 'en-US'
@@ -169,7 +169,7 @@ export interface RelativeParts {
  * Structured relative time — FavoritesNav and others must not string-match output.
  * Returns null when iso is missing/invalid.
  */
-export function relativeTimeParts(iso: string | null | undefined): RelativeParts | null {
+function relativeTimeParts(iso: string | null | undefined): RelativeParts | null {
   if (!iso) return null
   const ts = Date.parse(iso)
   if (Number.isNaN(ts)) return null
@@ -187,7 +187,7 @@ export function relativeTimeParts(iso: string | null | undefined): RelativeParts
 export type RelativeStyle = 'compact' | 'long'
 
 /** Format structured parts. compact: "3m"; long: "3m ago" (+ "yesterday" for 1 day). */
-export function formatRelativeParts(
+function formatRelativeParts(
   parts: RelativeParts,
   style: RelativeStyle = 'compact',
 ): string {

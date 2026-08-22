@@ -19,10 +19,10 @@
  */
 
 /** GET the list. */
-export const INTEGRATIONS_PATH = '/desktop/integrations'
+const INTEGRATIONS_PATH = '/desktop/integrations'
 
 /** POST an install for one id. */
-export function installPath(id: string): string {
+function installPath(id: string): string {
   return `${INTEGRATIONS_PATH}/${encodeURIComponent(id)}/install`
 }
 
@@ -372,7 +372,7 @@ export function installBlocked(item: IntegrationItem): boolean {
  * gets a 404 from `gadak serve`, so the tab must not be offered — including
  * via a `settings=integrations` URL somebody pasted out of the desktop app.
  */
-export const DESKTOP_ONLY_SETTINGS_TABS: readonly string[] = ['integrations']
+const DESKTOP_ONLY_SETTINGS_TABS: readonly string[] = ['integrations']
 
 /** The tabs this surface may show, in the given order. */
 export function visibleSettingsTabs<T extends string>(all: readonly T[], desktop: boolean): T[] {

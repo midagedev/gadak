@@ -115,7 +115,7 @@ export type SortDir = 'asc' | 'desc'
  *  Layout is "keep dense rows + field on/off" — only checked columns render on the right.
  *  Column set is part of display, so it serializes into URL and saved views (per-view columns).
  */
-export const COLUMN_KEYS_ALL = [
+const COLUMN_KEYS_ALL = [
   'assignee',
   'updated',
   'labels',
@@ -145,7 +145,7 @@ export interface ColumnDef {
 }
 
 /** Labels computed at call time for the active locale. */
-export function COLUMNS(): ColumnDef[] {
+function COLUMNS(): ColumnDef[] {
   return COLUMN_KEYS_ALL.map((key) => ({ key, label: columnLabel(key) }))
 }
 
@@ -257,7 +257,7 @@ export const NEGATION_BASE = {
 } as const satisfies Record<NegationField, NegatableField>
 
 /** Inverse of NEGATION_BASE — whether an axis offers exclusion. */
-export const FIELD_NEGATION = {
+const FIELD_NEGATION = {
   jira_project: 'jira_project_not',
   source_project: 'source_project_not',
 } as const satisfies Record<NegatableField, NegationField>
