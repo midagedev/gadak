@@ -1081,4 +1081,52 @@ if [[ -n "$dangling" ]]; then
 fi
 ok "every GDK key on a public surface resolves on the public backlog or the private-key allowlist"
 
+# ── 24. Public backlog snapshot keys match tracked detail JSON (GDK-634) ─
+# Class: bootstrap.json listing a key whose detail JSON is not git-tracked
+# publishes a 404 detail page; a tracked detail whose key is absent from
+# bootstrap.json is an orphan the index will not link. Disk presence is not
+# enough — commit 2b9cb60 shipped the index without the 21 new detail files
+# that sat untracked on disk; 439bb8c closed it by eye.
+#
+# Existence is git-tracked state (`git ls-files -- examples/backlog-snapshot/detail/`),
+# not a filesystem glob. Key extraction from bootstrap.json reuses the
+# structural token `"key":"GDK-N"` and the already-non-empty `$published`
+# from check 23 (a missing snapshot or 0 keys already failed there).
+#
+# FAIL-first 2026-08-22 (git state not mutated): drop one published key from
+# the tracked-detail variable → missing; append a fake key → orphan.
+# Recorded in scratch-634-failfirst.log.
+backlog_snapshot_detail_consistency() {
+  local published_keys="$1"
+  local tracked_keys="$2"
+  local missing orphans missing_list orphan_list body
+  missing=$(comm -23 <(printf '%s\n' "$published_keys" | sed '/^$/d' | sort -u) \
+                     <(printf '%s\n' "$tracked_keys" | sed '/^$/d' | sort -u) | sort -t- -k2,2n)
+  orphans=$(comm -13 <(printf '%s\n' "$published_keys" | sed '/^$/d' | sort -u) \
+                     <(printf '%s\n' "$tracked_keys" | sed '/^$/d' | sort -u) | sort -t- -k2,2n)
+  if [[ -n "$missing" || -n "$orphans" ]]; then
+    body="public backlog snapshot index and git-tracked detail JSON are inconsistent (GDK-634):"
+    if [[ -n "$missing" ]]; then
+      missing_list=$(printf '%s\n' "$missing" | tr '\n' ' ')
+      missing_list="${missing_list%" "}"
+      body+=$'\n'"  missing tracked detail: $missing_list"
+    fi
+    if [[ -n "$orphans" ]]; then
+      orphan_list=$(printf '%s\n' "$orphans" | tr '\n' ' ')
+      orphan_list="${orphan_list%" "}"
+      body+=$'\n'"  orphan tracked detail: $orphan_list"
+    fi
+    body+=$'\n'"  re-run bash tools/backlog-snapshot.sh, then git add examples/backlog-snapshot/ (the lead does both)"
+    fail "$body"
+  fi
+  ok "public backlog snapshot keys match git-tracked detail JSON (GDK-634)"
+} # end backlog_snapshot_detail_consistency
+
+tracked_detail=$(
+  git ls-files -- examples/backlog-snapshot/detail/ \
+    | sed -n 's|.*/\(GDK-[0-9][0-9]*\)\.json$|\1|p' \
+    | sort -u
+)
+backlog_snapshot_detail_consistency "$published" "$tracked_detail"
+
 echo "doc-checks: all passed"

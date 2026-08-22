@@ -506,7 +506,16 @@ the fixes are all here.
   cited on any tracked public surface is neither on the published backlog
   nor in a private-key allowlist with a written reason — measured red on 21
   keys before the fix, all 21 published. Rewriting the comments that
-  delegate their *reason* to a key is its own, bigger issue.
+  delegate their *reason* to a key is its own, bigger issue ([GDK-633]).
+- **The snapshot index and its detail pages ship as one set** ([GDK-634]).
+  Publishing that gate found the next gap the same day: a regenerated
+  snapshot writes new per-issue detail JSONs as untracked files, and a
+  commit that carries the index without them publishes keys whose detail
+  is a 404 — which is exactly how the 21 keys above first went out. A
+  second doc-check now compares the index's keys against the
+  *git-tracked* detail files, both directions, and it caught its first
+  real case (these very release notes' issues) before the commit that
+  ships it.
 - **The public backlog publishes what each issue actually says** ([GDK-430]).
   The scrub treated every content surface as one axis and forced descriptions to
   null with the comments and the attachments, so the published page was a list
@@ -1863,6 +1872,8 @@ measured numbers instead of adjectives.
 [GDK-621]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-621
 [GDK-626]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-626
 [GDK-632]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-632
+[GDK-634]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-634
+[GDK-633]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-633
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86
 [GDK-598]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-598
 [GDK-599]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-599

@@ -473,7 +473,15 @@
   독자가 해소할 수 없었습니다. 추적된 공개 표면에 인용된 키가 게시된
   백로그에도, 사유가 적힌 비공개 allowlist에도 없으면 doc-check가
   실패합니다 — 수정 전 21개 키에서 실측 빨강, 21개 전부 공개했습니다.
-  *이유*를 키에 위임하는 주석의 재작성은 별도의 더 큰 이슈입니다.
+  *이유*를 키에 위임하는 주석의 재작성은 별도의 더 큰 이슈입니다
+  ([GDK-633]).
+- **스냅샷 인덱스와 상세 페이지는 한 세트로 나갑니다** ([GDK-634]). 위
+  게이트를 게시하는 과정이 같은 날 다음 구멍을 찾았습니다: 재생성된
+  스냅샷은 새 이슈별 상세 JSON을 untracked 파일로 쓰는데, 인덱스만 담고
+  상세를 빠뜨린 커밋은 상세가 404인 키를 게시합니다 — 위의 21개 키가
+  처음 나갈 때 정확히 그랬습니다. 두 번째 doc-check가 인덱스의 키와
+  *git 추적된* 상세 파일을 양방향으로 대조하고, 자신을 출하하는 커밋
+  전에 첫 실전 사례(바로 이 릴리스 노트의 이슈들)를 잡았습니다.
 - **공개 백로그가 각 이슈가 실제로 말하는 것을 게시합니다** ([GDK-430]).
   스크럽이 모든 콘텐츠 표면을 한 축으로 취급해 설명을 코멘트·첨부와 함께
   null로 만들었고, 그래서 게시된 페이지는 헤드라인 목록이었습니다:
@@ -1829,6 +1837,8 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-621]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-621
 [GDK-626]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-626
 [GDK-632]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-632
+[GDK-634]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-634
+[GDK-633]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-633
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86
 [GDK-598]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-598
 [GDK-599]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-599
