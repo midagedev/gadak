@@ -3,6 +3,7 @@
   import { t } from '../../lib/i18n'
   import { filters } from '../../stores/filters.svelte'
   import { categoryMetaOf } from '../../lib/format'
+  import { onEscape, onOutsideClick } from '../../lib/dom-actions'
   import { groupByEnabled, type GroupBy } from '../../lib/view-config'
   import Icon, { type IconName } from '../ui/Icon.svelte'
 
@@ -26,7 +27,6 @@
   const OPTIONS = ALL_OPTIONS.filter((o) => groupByEnabled(o.key))
 
   let open = $state(false)
-  let rootEl = $state<HTMLDivElement | null>(null)
 
   const currentLabel = $derived(
     OPTIONS.find((option) => option.key === filters.display.group_by)?.label ?? t('group.byStatusCategory'),
@@ -42,9 +42,16 @@
   const shownGroups = $derived(rankedGroups.slice(0, 6))
   const hiddenGroupCount = $derived(Math.max(0, rankedGroups.length - shownGroups.length))
 
-  function onDocClick(e: MouseEvent) {
-    if (!rootEl) return
-    if (!e.composedPath().includes(rootEl)) open = false
+  // Spend Esc so one keystroke cannot also clear the selection below — the
+  // same negotiation as the list-header menus (DisplayMenu): the delegated
+  // onkeydown sees the key first while it walks the focused trigger, and
+  // preventDefault (what the shell keymap honors) plus stopPropagation say
+  // "spent here" to everything above.
+  function onEsc(e: KeyboardEvent) {
+    if (e.key !== 'Escape' || !open) return
+    e.preventDefault()
+    e.stopPropagation()
+    open = false
   }
 
   function select(key: GroupBy) {
@@ -88,12 +95,16 @@
   }
 </script>
 
-<svelte:document onclick={onDocClick} />
-
 <div
   class="flex min-h-11 flex-none items-center gap-3 border-b border-border-subtle bg-bg-panel/55 px-4 py-1.5"
 >
-  <div bind:this={rootEl} class="relative flex-none">
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div
+    class="relative flex-none"
+    onkeydown={onEsc}
+    use:onEscape={onEsc}
+    use:onOutsideClick={{ handler: () => (open = false), enabled: open }}
+  >
     <button
       type="button"
       class="inline-flex h-control items-center gap-1.5 rounded-md border border-border-strong bg-bg-elevated px-2.5 text-body font-medium text-text-secondary transition-colors hover:text-text-primary"

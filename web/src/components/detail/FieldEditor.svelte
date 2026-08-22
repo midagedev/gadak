@@ -50,6 +50,7 @@
   let busy = $state(false)
   let inputEl = $state<HTMLInputElement | null>(null)
   let triggerEl = $state<HTMLButtonElement | null>(null)
+  let menuEl = $state<HTMLDivElement | null>(null)
   let draftText = $state('')
   let menuTop = $state(0)
   let menuLeft = $state(0)
@@ -77,8 +78,11 @@
     function onDown(e: MouseEvent) {
       const path = e.composedPath()
       if (triggerEl && path.includes(triggerEl)) return
-      const menu = document.querySelector('[data-testid="field-editor-menu"]')
-      if (menu && path.includes(menu)) return
+      // The menu is portaled to document.body, so it is not a DOM child of
+      // this component — reach it by reference, never by a global selector:
+      // the same testid mounted twice (two editors open at once) would have
+      // a selector answer for the other one's menu.
+      if (menuEl && path.includes(menuEl)) return
       open = false
     }
     window.addEventListener('mousedown', onDown)
@@ -425,6 +429,7 @@
 
   {#if open}
     <div
+      bind:this={menuEl}
       use:portal
       use:onEscape={(e) => {
         e.preventDefault()

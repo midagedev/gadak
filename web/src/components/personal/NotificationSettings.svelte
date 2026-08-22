@@ -9,6 +9,7 @@
   import { t } from '../../lib/i18n'
   import Icon from '../ui/Icon.svelte'
   import { push } from '../../stores/push.svelte'
+  import { onEscape, onOutsideClick } from '../../lib/dom-actions'
 
   let open = $state(false)
 
@@ -16,11 +17,13 @@
     open = false
   }
 
-  function onKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape' && open) {
-      e.preventDefault()
-      close()
-    }
+  // Spend Esc so one keystroke cannot also reach the shell keymap — same
+  // negotiation as the list-header menus (DisplayMenu).
+  function onEsc(e: KeyboardEvent) {
+    if (e.key !== 'Escape' || !open) return
+    e.preventDefault()
+    e.stopPropagation()
+    close()
   }
 
   async function togglePush() {
@@ -45,13 +48,13 @@
   }
 </script>
 
-<svelte:window onclick={close} onkeydown={onKeydown} />
-
+<!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
   class="relative"
   role="presentation"
-  onclick={(event) => event.stopPropagation()}
-  onkeydown={(event) => event.stopPropagation()}
+  onkeydown={onEsc}
+  use:onEscape={onEsc}
+  use:onOutsideClick={{ handler: close, enabled: open }}
 >
   <button
     type="button"

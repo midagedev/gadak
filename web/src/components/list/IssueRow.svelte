@@ -16,6 +16,7 @@
    *  its uniform 42px assumption still holds. The line is dropped only when the
    *  highlighted summary already says why the row is here — see matchEvidence.
    */
+  import { onMount } from 'svelte'
   import { t } from '../../lib/i18n'
   import type { IssueLite, SearchMatch } from '../../lib/types'
   import { filters } from '../../stores/filters.svelte'
@@ -143,8 +144,21 @@
   const epicKey = $derived(filters.display.group_by === 'epic' ? null : issue.epic_key)
   const epicSummary = $derived(epicKey ? issues.get(epicKey)?.summary : undefined)
 
-  // Recency: updates within 24h pull the time label up to accent.
+  // Recency: updates within 24h pull the time label up to accent. Date.now()
+  // is not a dependency a $derived can see, so without a tick the accent
+  // freezes at mount — a list left open overnight keeps yesterday's "fresh".
+  // The question is already answered repo-wide (FreshnessChip): a tick state
+  // the derivation re-reads. Cadence: this value can only flip once per 24h,
+  // so a minute is already tighter than the chip's 10s-on-minute-text
+  // standard, and the virtual list mounts only its slice, so ticks scale
+  // with what is on screen, not with the rows behind the window.
+  let tick = $state(0)
+  onMount(() => {
+    const id = setInterval(() => (tick += 1), 60_000)
+    return () => clearInterval(id)
+  })
   const isFresh = $derived.by(() => {
+    void tick // re-read the wall clock every tick
     if (!issue.updated_at) return false
     const t = Date.parse(issue.updated_at)
     return Number.isFinite(t) && Date.now() - t < 24 * 60 * 60 * 1000

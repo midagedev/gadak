@@ -32,6 +32,7 @@
   import { busyLabel, fetchingDocuments, mirrorLabel } from '../../lib/mirror-status'
   import { builtinViews } from '../../lib/builtin-views'
   import { configToParams, type ViewConfig } from '../../lib/view-config'
+  import { onEscape, onOutsideClick } from '../../lib/dom-actions'
   import MyIssuesNav from '../personal/MyIssuesNav.svelte'
   import FavoritesNav from '../personal/FavoritesNav.svelte'
   import Icon from '../ui/Icon.svelte'
@@ -165,7 +166,15 @@
   let historyRuns = $state<SyncRun[]>([])
   let historyLastCheckedAt = $state<string | null>(null)
   let historyLoading = $state(false)
-  let historyEl = $state<HTMLDivElement | null>(null)
+
+  // Spend Esc so one keystroke cannot also reach the shell keymap — same
+  // negotiation as the list-header menus (DisplayMenu).
+  function onHistoryEsc(e: KeyboardEvent) {
+    if (e.key !== 'Escape' || !historyOpen) return
+    e.preventDefault()
+    e.stopPropagation()
+    historyOpen = false
+  }
 
   async function toggleHistory() {
     if (historyOpen) {
@@ -192,7 +201,9 @@
   let deleteArmedId = $state<string | null>(null)
 
   function onDocClick(e: MouseEvent) {
-    if (historyOpen && historyEl && !e.composedPath().includes(historyEl)) historyOpen = false
+    // Delete-confirm disarm only. The popover's outside-close lives on the
+    // onOutsideClick boundary below; this one stays a document click because
+    // disarming an armed delete must fire on any click, popover or not.
     const onDelete = e
       .composedPath()
       .some((n) => n instanceof HTMLElement && n.dataset.testid === 'sidebar-view-delete')
@@ -464,7 +475,13 @@
   <div class="flex-none px-3 pb-2 pt-1 text-micro text-text-muted">
     {t('sidebar.issueCount', { n: formatNumber(issues.pool.size) })}
     <span class="ml-1">·</span>
-    <div class="relative inline-block" bind:this={historyEl}>
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="relative inline-block"
+      onkeydown={onHistoryEsc}
+      use:onEscape={onHistoryEsc}
+      use:onOutsideClick={{ handler: () => (historyOpen = false), enabled: historyOpen }}
+    >
       <button
         type="button"
         class="ml-1 inline-flex items-center gap-1 rounded px-0.5 text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
