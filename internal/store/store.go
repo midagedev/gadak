@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/fsperm"
 
 	_ "modernc.org/sqlite" // pure-Go driver: the binary must build with CGO_ENABLED=0
 )
@@ -70,13 +71,18 @@ func Now() string { return time.Now().UTC().Format(config.ISOMilli) }
 // Open opens or creates the mirror at path and migrates it forward. A database
 // written by a newer gadak is refused rather than used.
 //
-// The data directory is created (and existing dirs tightened) to 0700; the DB
-// file and any -wal/-shm sidecars are set to 0600. Chmod failures are logged
-// and ignored so unsupported filesystems (or Windows) still work.
+// The data directory is created (and existing owner-writable dirs tightened)
+// to 0700; an owner-locked directory (0555) is left locked. The DB file and
+// any -wal/-shm sidecars are set to 0600. Chmod failures are logged and
+// ignored so unsupported filesystems (or Windows) still work.
 func Open(path string) (*DB, error) {
 	if dir := filepath.Dir(path); dir != "" && dir != "." {
-		if err := ensurePrivateDir(dir); err != nil {
-			return nil, err
+		if err := fsperm.EnsurePrivateDir(dir); err != nil {
+			if errors.Is(err, fsperm.ErrChmod) {
+				log.Printf("store: %v", err)
+			} else {
+				return nil, err
+			}
 		}
 	}
 	dsn := mirrorDSN(path)
@@ -108,18 +114,6 @@ func Open(path string) (*DB, error) {
 	secureDBFiles(path)
 	secureDBFiles(LocalPath(path))
 	return db, nil
-}
-
-// ensurePrivateDir creates dir at 0700 and chmods an existing one to 0700 so
-// older installs left at 0755 are quietly tightened.
-func ensurePrivateDir(dir string) error {
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return err
-	}
-	if err := os.Chmod(dir, 0o700); err != nil {
-		log.Printf("store: chmod %s: %v", dir, err)
-	}
-	return nil
 }
 
 // secureDBFiles sets the mirror and its WAL/SHM sidecars to 0600 when present.

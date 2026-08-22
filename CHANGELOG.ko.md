@@ -488,7 +488,7 @@
 
 태그 전에 코드베이스 전체를 6축 읽기 전용으로 다시 훑었습니다([GDK-603]);
 발견은 고쳐지는 대로 실립니다. 감사가 잡은 결함 2건은 당일 출고됐고
-([GDK-602], [GDK-604]), 구조 발견 2건이 뒤따랐습니다:
+([GDK-602], [GDK-604]), 구조 발견들이 뒤따랐습니다:
 
 - **SQL 주석 제거의 소유자는 하나** ([GDK-605]). 주석을 벗기고 첫 키워드를
   읽는 로직이 세 벌 있었고, config 그룹쿼리 사본은 드리프트돼 있었습니다 —
@@ -500,6 +500,15 @@
   순수 슬립, 스위트 테스트 시간의 64%, CI race 스텝이 크리티컬 패스였던
   이유. 테스트 소유 재시도 seam(생산 기본값은 자체 테스트로 고정)이 75초의
   잠을 0.1초로 바꿨고, 해당 패키지 벽시계는 52초에서 13초가 됐습니다.
+- **개인 디렉터리 정책은 하나** ([GDK-606]). 같은 이름의 함수 두 벌이
+  사용자가 직접 잠근 디렉터리를 두고 다르게 행동했습니다: config는
+  owner-locked(`0555`) 홈을 존중했지만 store는 조용히 쓰기 가능으로
+  되돌렸습니다 — 한 사본에만 닿은 수정이 남긴 드리프트. 이제 유일한
+  구현이 `internal/fsperm`에 있습니다: 낡은 `0755`는 여전히 `0700`으로
+  조이고, 일부러 잠근 디렉터리는 어느 표면에서든 잠긴 채로 둡니다.
+- **`gofmt`가 CI 게이트가 됐습니다** ([GDK-607]). 파일 4개가 표준
+  포맷에서 벗어나 있어도 아무것도 알아채지 못했습니다; 다시 포맷했고,
+  `gofmt -l`이 빌드를 실패시키는 것이 그 상태를 지킵니다.
 
 ### 태그 전에 닫은 릴리스 감사
 
@@ -1640,6 +1649,8 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-604]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-604
 [GDK-603]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-603
 [GDK-605]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-605
+[GDK-606]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-606
+[GDK-607]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-607
 [GDK-608]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-608
 [GDK-626]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-626
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86

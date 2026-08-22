@@ -503,6 +503,33 @@ func TestOpenTightensExistingDataDir(t *testing.T) {
 	}
 }
 
+func TestOpenLeavesOwnerLockedDataDir(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("file permission bits are not meaningful on Windows")
+	}
+	dir := filepath.Join(t.TempDir(), "locked")
+	if err := os.MkdirAll(dir, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(dir, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
+	if got := fileMode(t, dir); got != 0o555 {
+		t.Fatalf("setup: dir mode %04o, want 0555", got)
+	}
+
+	path := filepath.Join(dir, "gadak.db")
+	db, err := Open(path)
+	if db != nil {
+		db.Close()
+	}
+	_ = err
+	if got := fileMode(t, dir); got != 0o555 {
+		t.Errorf("after Open: dir mode = %04o, want 0555 (owner-locked dir must stay locked)", got)
+	}
+}
+
 // A mirror written by a newer gadak must come back as a recognisable
 // condition, not a string: the app and the CLI are versioned separately, so
 // one build's read locks the other out of that workspace, and every surface

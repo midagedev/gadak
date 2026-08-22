@@ -287,9 +287,11 @@ it and re-sync.
 
 File modes enforce the user boundary: the database and its `-wal`/`-shm`
 sidecars are chmodded to `0600` and every data directory to `0700` on open
-(`internal/store/store.go`), matching the credential file (`0600`) and the
-attachment cache (`0700`). Older installs left at `0644`/`0755` are tightened
-the next time gadak opens them.
+(`internal/fsperm`, called from store and config), matching the credential
+file (`0600`) and the attachment cache (`0700`). Older installs left at
+`0644`/`0755` are tightened the next time gadak opens them; a directory you
+deliberately locked against your own writes (`0555`) is left locked rather
+than silently unlocked.
 
 If your threat model includes other processes in your *own* account reading
 your files, full-disk encryption is the remaining tool — a local password on

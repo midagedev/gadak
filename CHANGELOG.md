@@ -516,7 +516,7 @@ plug in; and the documents an agent actually reads never learned the word
 
 A second six-axis read-only audit swept the whole codebase before the tag
 ([GDK-603]); its findings land as they are fixed. Two defects it caught
-shipped the same day ([GDK-602], [GDK-604]), and two structural ones
+shipped the same day ([GDK-602], [GDK-604]), and the structural ones
 followed:
 
 - **One owner for SQL comment stripping** ([GDK-605]). The strip-and-read
@@ -532,6 +532,16 @@ followed:
   retry seam (production defaults pinned by their own test) turns 75s of
   sleeping into 0.1s; the affected packages' wall clock fell from 52s to
   13s.
+- **One policy for private directories** ([GDK-606]). Two functions with
+  the same name disagreed about a directory you locked yourself: config
+  respected an owner-locked (`0555`) home, store silently chmodded it back
+  to writable — drift from the fix that only reached one copy. The one
+  implementation now lives in `internal/fsperm`: old `0755` dirs are still
+  tightened to `0700`, and a deliberately locked directory stays locked on
+  every surface.
+- **`gofmt` is a CI gate now** ([GDK-607]). Four files had drifted from
+  canonical formatting with nothing to notice; they are reformatted and
+  `gofmt -l` failing the build keeps it that way.
 
 ### The pre-tag audit, closed before the tag
 
@@ -1657,6 +1667,8 @@ measured numbers instead of adjectives.
 [GDK-604]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-604
 [GDK-603]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-603
 [GDK-605]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-605
+[GDK-606]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-606
+[GDK-607]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-607
 [GDK-608]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-608
 [GDK-626]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-626
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86

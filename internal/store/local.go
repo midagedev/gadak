@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/fsperm"
 
 	sqlite "modernc.org/sqlite"
 )
@@ -315,8 +316,12 @@ func (db *DB) localPersonalTablesReady(ctx context.Context) bool {
 
 func ensureLocalDB(path string) error {
 	if dir := filepath.Dir(path); dir != "" && dir != "." {
-		if err := ensurePrivateDir(dir); err != nil {
-			return err
+		if err := fsperm.EnsurePrivateDir(dir); err != nil {
+			if errors.Is(err, fsperm.ErrChmod) {
+				log.Printf("store: %v", err)
+			} else {
+				return err
+			}
 		}
 	}
 	// DELETE journal: this file is small and opened from many short-lived

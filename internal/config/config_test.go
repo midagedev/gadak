@@ -479,6 +479,46 @@ func TestSaveTightensExistingProfileDir(t *testing.T) {
 	}
 }
 
+func TestSaveLeavesOwnerLockedProfileDir(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("file permission bits are not meaningful on Windows")
+	}
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+
+	dir := filepath.Join(home, "profiles", "locked")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(dir, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
+
+	probe := filepath.Join(dir, ".write-probe")
+	if f, err := os.OpenFile(probe, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600); err == nil {
+		_ = f.Close()
+		_ = os.Remove(probe)
+		t.Skip("filesystem still allows write as owner; cannot assert owner-locked dir")
+	}
+
+	c, err := LoadFor("locked")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Site = "https://locked.example.invalid"
+	if err := c.Save(); err == nil {
+		t.Fatal("Save succeeded in owner-locked profile dir")
+	}
+	fi, err := os.Stat(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := fi.Mode().Perm(); got != 0o555 {
+		t.Errorf("after Save: profile dir mode = %04o, want 0555 (owner-locked dir must stay locked)", got)
+	}
+}
+
 func TestRequireExistingProfileMissingListsAvailable(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
