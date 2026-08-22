@@ -223,6 +223,21 @@
   키맵은 모든 키를 무시하고 팔레트 자신은 그 키를 받은 적이 없었습니다 —
   쿼리에 타이핑될 뿐이었죠. 이제 빈 쿼리에서 팔레트가 화면을 시트에
   넘겨주고, 쿼리 중간의 `?`는 검색 문자로 남습니다.
+- **Esc는 겨눈 메뉴만 닫습니다 — 다른 건 건드리지 않고** ([GDK-617]).
+  브레이크다운 메뉴에는 Esc 처리가 아예 없어서, 키가 셸 키맵까지
+  떨어져 메뉴가 열린 채 선택만 풀렸습니다. 이 메뉴와 손으로 재구현돼
+  있던 두 곳(동기화 히스토리 팝오버, 알림 벨)이 공유
+  outside-click/Esc 소유자에 올라타 키를 소비하고, 필드 에디터는
+  포털된 자기 메뉴를 전역 셀렉터 대신 참조로 찾으며(에디터 둘이
+  마운트되면 남의 메뉴가 잡히던 자리), "24시간 내 갱신" 강조는
+  마운트 시점에 얼지 않고 벽시계를 따라 갱신됩니다.
+- **한 키에는 한 표기** ([GDK-621]). 코멘트 제출 화음이 치트 시트에는
+  `⌘ ↵`, 작성기 아래에는 `{mod}Enter`, kbd 힌트 두 줄에는 단어
+  "Enter"로 찍혀 있었습니다 — 이제 모든 키캡 표면이 세 로케일 모두
+  시트의 글리프로 통일됩니다. 닫기 X는 전부 "닫기 (Esc)"라고 말하고
+  (낙오자 둘이 합류, 죽은 카탈로그 키는 삭제), 시트 Detail 섹션은
+  이슈의 `o`를 문서 캡션으로 서술하기를 멈추며, 카탈로그 문자열과
+  시트를 같은 표기법에 묶는 게이트가 세 번째 표기의 재발을 막습니다.
 - **"여기 있음"은 속성이지 페인트 색이 아닙니다** ([GDK-613]). e2e 스펙
   여섯이 활성 사이드바 행과 설정 탭을 배경 유틸리티 클래스로 단언하고
   있어, 팔레트 토큰 이름만 바꿔도 아무것도 안 깨진 채 빨강이 났을
@@ -1733,9 +1748,11 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-612]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-612
 [GDK-615]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-615
 [GDK-616]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-616
+[GDK-617]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-617
 [GDK-618]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-618
 [GDK-619]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-619
 [GDK-620]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-620
+[GDK-621]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-621
 [GDK-626]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-626
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86
 [GDK-598]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-598

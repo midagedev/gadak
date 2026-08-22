@@ -229,6 +229,23 @@ the fixes are all here.
   keys while a modal owns the screen and the palette never claimed the key
   — it just typed into the query. On an empty query the palette now hands
   the screen to the sheet; mid-query `?` stays a search character.
+- **Esc closes the menu it was aimed at — and nothing else** ([GDK-617]).
+  The breakdown menu had no Esc handling at all, so the keystroke fell
+  through to the shell keymap and cleared the selection with the menu
+  still open. It and two more hand-rolled dismissals (the sync-history
+  popover, the notification bell) now ride the shared outside-click/Esc
+  owner and spend the key; a field editor finds its own portaled menu by
+  reference instead of a global selector that answers for the wrong
+  instance once two editors mount; and the "updated within 24h" accent
+  ticks with the wall clock instead of freezing at mount.
+- **One key, one spelling** ([GDK-621]). The submit-comment chord read
+  `⌘ ↵` on the cheat sheet, `{mod}Enter` under the composer, and the word
+  "Enter" in two kbd hint lines — now every keycap surface prints the
+  sheet's glyphs, in all three locales. Every close X says "Close (Esc)"
+  (the two stragglers joined, and the now-dead catalog keys are gone), the
+  sheet's Detail section stops describing the issue-`o` with the
+  document's caption, and a new gate holds catalog strings and the sheet
+  to the same notation so the third spelling cannot come back.
 - **"You are here" is an attribute, not a paint color** ([GDK-613]). Six
   e2e specs asserted the active sidebar row and settings tab by their
   background utility class, so renaming a palette token would have turned
@@ -1758,9 +1775,11 @@ measured numbers instead of adjectives.
 [GDK-612]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-612
 [GDK-615]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-615
 [GDK-616]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-616
+[GDK-617]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-617
 [GDK-618]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-618
 [GDK-619]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-619
 [GDK-620]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-620
+[GDK-621]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-621
 [GDK-626]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-626
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86
 [GDK-598]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-598
