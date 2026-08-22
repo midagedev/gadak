@@ -29,7 +29,9 @@ type desktopPlatform struct {
 var desktopPlatforms = []desktopPlatform{
 	{GOOS: "darwin", PackScript: "build-app.sh", EventOnURLArg: true, ArgvOnURLArg: false},
 	{GOOS: "windows", PackScript: "build-windows.ps1", EventOnURLArg: true, ArgvOnURLArg: false},
-	{GOOS: "linux", PackScript: "build-linux.sh", EventOnURLArg: false, ArgvOnURLArg: true},
+	// linux EventOnURLArg was false under v3.0.0-beta.9 (GTK4 did not emit).
+	// wailsapp/wails#6000 landed in beta.10; this module pins v3.0.0-beta.12.
+	{GOOS: "linux", PackScript: "build-linux.sh", EventOnURLArg: true, ArgvOnURLArg: false},
 }
 
 func TestDesktopPackScriptsExist(t *testing.T) {
@@ -83,8 +85,9 @@ func pinnedWailsVersion(t *testing.T) string {
 func TestPinnedWailsVersionIsNamed(t *testing.T) {
 	ver := pinnedWailsVersion(t)
 	// Every tracked file in desktop/ that states a belief about upstream
-	// behaviour. build-windows.ps1 was left naming beta.6 by the beta.9
-	// bump — the same rot GDK-296 closed, so it is in the list.
+	// behaviour. A bump that left build-windows.ps1 naming an older pin
+	// (beta.6 after the beta.9 bump) is the rot GDK-296 closed, so it is
+	// in the list. Current pin is v3.0.0-beta.12 (#6000 inboard since beta.10).
 	for _, path := range []string{"main.go", "README.md", "build-windows.ps1"} {
 		body, err := os.ReadFile(path)
 		if err != nil {

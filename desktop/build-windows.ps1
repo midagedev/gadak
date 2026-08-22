@@ -28,7 +28,7 @@
 #   hundreds of MB and this pack is a directory, not an installer that
 #   could update it. Windows 11 ships the Evergreen runtime; many Windows 10
 #   machines already have it via Edge.
-#   Missing runtime (from wails v3.0.0-beta.9 source, not launched here):
+#   Missing runtime (from wails v3.0.0-beta.12 source, not launched here):
 #   webviewloader returns "no webview2 found"; Chromium.Embed waits at most
 #   30s for the controller, then Chromium.errorCallback logs and os.Exit(1).
 #   gadak-desktop sets ErrorHandler to handleDesktopFatal

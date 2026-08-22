@@ -519,6 +519,11 @@ the fixes are all here.
 - **The Linear storage PUT rides the client with the 60-second timeout**
   instead of `http.DefaultClient`, so a stalled storage host can no longer
   hang `gadak attach` forever ([GDK-636]).
+- **The desktop pin moves to wails `v3.0.0-beta.12`** ([GDK-639]). Our own
+  #6000 is in the pin now, so a Linux single-argument `gadak://` launch
+  defers to the `ApplicationLaunchedWithUrl` event like Windows instead of
+  hand-applying argv, and the Close Tab menu finds the Window submenu by
+  role, not by its English label.
 - **A Linear-only workspace is a configured workspace** ([GDK-654],
   [GDK-655], [GDK-656]). "Is this configured?" now has one owner that counts
   a Linear API key: status and every verb stop warning `not configured — run
@@ -1914,6 +1919,7 @@ measured numbers instead of adjectives.
 [GDK-634]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-634
 [GDK-636]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-636
 [GDK-637]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-637
+[GDK-639]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-639
 [GDK-654]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-654
 [GDK-655]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-655
 [GDK-656]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-656

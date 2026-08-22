@@ -484,6 +484,11 @@
 - **Linear 스토리지 PUT이 `http.DefaultClient` 대신 60초 타임아웃이 있는
   클라이언트를 탑니다** — 스토리지 호스트가 멈춰도 `gadak attach`가
   무기한 걸리지 않습니다 ([GDK-636]).
+- **데스크톱 핀이 wails `v3.0.0-beta.12`로 올라갑니다** ([GDK-639]).
+  우리가 보낸 #6000이 이제 핀 안에 있어서, Linux의 단일 인자 `gadak://`
+  기동이 argv 수동 적용 대신 Windows처럼 `ApplicationLaunchedWithUrl`
+  이벤트를 기다리고, Close Tab 메뉴는 Window 서브메뉴를 영어 라벨이
+  아니라 역할로 찾습니다.
 - **Linear 전용 워크스페이스도 구성된 워크스페이스입니다** ([GDK-654],
   [GDK-655], [GDK-656]). "구성됐는가"의 소유자가 하나가 되어 Linear API
   키를 셉니다: 쓰기가 성공하던 워크스페이스에 status와 모든 verb가
@@ -1875,6 +1880,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-634]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-634
 [GDK-636]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-636
 [GDK-637]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-637
+[GDK-639]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-639
 [GDK-654]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-654
 [GDK-655]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-655
 [GDK-656]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-656

@@ -80,13 +80,13 @@ type coldStartDecision struct {
 //   - darwin: event only. LaunchServices delivers the URL as an Apple Event;
 //     applying argv as well would navigate twice.
 //   - windows: event when wails will emit ApplicationLaunchedWithUrl — that
-//     is len(args)==2 and args[1] contains "://" (wails v3.0.0-beta.9
+//     is len(args)==2 and args[1] contains "://" (wails v3.0.0-beta.12
 //     pkg/application/application_windows.go:159-162). Every other argv
 //     shape is ignored by wails, so argv is the fallback.
-//   - linux (and anything else): argv. GTK4 run() in the same wails pin
-//     (application_linux.go:89-99) does not emit the event. Fix sent
-//     upstream as wailsapp/wails#6000 (GDK-295); when a pin containing it
-//     lands, Linux can move to DeferToEvent like Windows.
+//   - linux: same as windows. GTK4 run() in this pin
+//     (application_linux.go:91-99) emits the event for that argv shape
+//     (wailsapp/wails#6000, landed in beta.10). Every other argv shape is
+//     the argv fallback. Unknown GOOS stays argv.
 func coldStartDecisionFor(goos string, args []string) coldStartDecision {
 	switch goos {
 	case "darwin":
@@ -96,14 +96,20 @@ func coldStartDecisionFor(goos string, args []string) coldStartDecision {
 			return coldStartDecision{ApplyArgv: false, DeferToEvent: true}
 		}
 		return coldStartDecision{ApplyArgv: true, DeferToEvent: false}
+	case "linux":
+		if wailsEmitsLaunchURL(args) {
+			return coldStartDecision{ApplyArgv: false, DeferToEvent: true}
+		}
+		return coldStartDecision{ApplyArgv: true, DeferToEvent: false}
 	default:
 		return coldStartDecision{ApplyArgv: true, DeferToEvent: false}
 	}
 }
 
-// wailsEmitsLaunchURL is the argv shape wails v3.0.0-beta.9 special-cases
-// on Windows (application_windows.go:159-162). GTK3 has the same check;
-// GTK4, which this pin compiles, does not (upstream fix: wailsapp/wails#6000).
+// wailsEmitsLaunchURL is the argv shape wails v3.0.0-beta.12 special-cases
+// on Windows (application_windows.go:159-162) and on GTK4 Linux
+// (application_linux.go:91-99; wailsapp/wails#6000 landed in beta.10).
+// GTK3 has the same check; this pin compiles GTK4.
 func wailsEmitsLaunchURL(args []string) bool {
 	return len(args) == 2 && strings.Contains(args[1], "://")
 }
@@ -360,7 +366,7 @@ func run() error {
 	// a no-op there, and a Ctrl+W that visibly does nothing was os-audit F-2
 	// (GDK-351). Falling back to closing the window was considered and
 	// rejected — it would discard an open comment draft on a reflex keystroke.
-	if item := appMenu.FindByLabel("Window"); paneSupported && item != nil && item.IsSubmenu() {
+	if item := appMenu.FindByRole(application.WindowMenu); paneSupported && item != nil && item.IsSubmenu() {
 		win := item.GetSubmenu()
 		win.AddSeparator()
 		win.Add("Close Tab").
@@ -421,12 +427,11 @@ func run() error {
 	window.OnWindowEvent(events.Common.WindowRuntimeReady, func(*application.WindowEvent) {
 		log.Print("wails runtime ready — --wails-draggable listeners are attached")
 		// Cold-start URL source is coldStartDecisionFor, not "!= darwin".
-		// Linux always reads argv (GTK4 does not emit ApplicationLaunchedWithUrl;
-		// fix sent upstream as wailsapp/wails#6000).
-		// Windows reads argv only when wails will not emit the event
-		// (len(os.Args) != 2 or the single arg has no "://"). macOS never
-		// reads argv. Nothing is handed to the webview until this event:
-		// an ApplicationLaunchedWithUrl that arrived earlier sits in gate
+		// Linux and Windows read argv only when wails will not emit the event
+		// (len(os.Args) != 2 or the single arg has no "://"; Linux GTK4 emits
+		// since wailsapp/wails#6000, landed in beta.10). macOS never reads
+		// argv. Nothing is handed to the webview until this event: an
+		// ApplicationLaunchedWithUrl that arrived earlier sits in gate
 		// (one slot, first offer wins) and is flushed here. Argv, when this
 		// process owns it, is offered after the flush so it cannot race a
 		// pending event.
@@ -443,10 +448,10 @@ func run() error {
 		raiseWindow(window)
 	})
 	// ApplicationLaunchedWithUrl: macOS Apple Event (first launch and
-	// same-process reopen) and Windows when wails sees a single argument
-	// containing "://". Linux GTK4 never emits it. Offers go through the
-	// ready gate so a URL that arrives before the webview exists is queued,
-	// not applied.
+	// same-process reopen) and Windows/Linux when wails sees a single
+	// argument containing "://" (GTK4 Linux: wailsapp/wails#6000, landed
+	// in beta.10). Offers go through the ready gate so a URL that arrives
+	// before the webview exists is queued, not applied.
 	app.Event.OnApplicationEvent(events.Common.ApplicationLaunchedWithUrl,
 		func(e *application.ApplicationEvent) {
 			if !decision.DeferToEvent {
