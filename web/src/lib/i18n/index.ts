@@ -1,31 +1,33 @@
 /*
  * Thin i18n runtime — no library dependency.
- * Locale: localStorage gadak_locale > navigator.language (ko*) > en.
+ * Locale: localStorage gadak_locale > navigator.language (ko* / ja*) > en.
  * Changing locale reloads the page (see setLocale).
  */
 
 import { formatAbs } from '../calendar'
 import { en, type MessageKey } from './en'
+import { ja } from './ja'
 import { ko } from './ko'
 
-export type Locale = 'en' | 'ko'
+export type Locale = 'en' | 'ko' | 'ja'
 export type { MessageKey }
 
 const STORAGE_KEY = 'gadak_locale'
-const catalogs: Record<Locale, Record<MessageKey, string>> = { en, ko }
+const catalogs: Record<Locale, Record<MessageKey, string>> = { en, ko, ja }
 
 let current: Locale = 'en'
 
 function detectLocale(): Locale {
   try {
     const stored = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem('scry_locale')
-    if (stored === 'en' || stored === 'ko') return stored
+    if (stored === 'en' || stored === 'ko' || stored === 'ja') return stored
   } catch {
     /* private mode / SSR-ish */
   }
   if (typeof navigator !== 'undefined') {
     const lang = (navigator.language || '').toLowerCase()
     if (lang === 'ko' || lang.startsWith('ko-')) return 'ko'
+    if (lang === 'ja' || lang.startsWith('ja-')) return 'ja'
   }
   return 'en'
 }
@@ -61,7 +63,9 @@ export function setLocale(next: Locale): void {
 
 /** BCP 47 tag for Intl APIs. */
 export function localeTag(): string {
-  return current === 'ko' ? 'ko-KR' : 'en-US'
+  if (current === 'ko') return 'ko-KR'
+  if (current === 'ja') return 'ja-JP'
+  return 'en-US'
 }
 
 /** Collator for name sorting. */

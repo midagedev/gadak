@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, test } from 'vitest'
 import { en, WRITE_ERROR_KEYS } from './en'
+import { ja } from './ja'
 import { ko } from './ko'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -44,14 +45,14 @@ function walkSourceFiles(dir: string, acc: string[] = []): string[] {
  * Catalog keys with no quoted mention in the scanned tree.
  *
  * Reads: every `.ts` / `.svelte` / `.js` under `web/src` and `e2e`.
- * Skips: `en.ts` / `ko.ts` (those are the definitions).
+ * Skips: `en.ts` / `ko.ts` / `ja.ts` (those are the definitions).
  * Extra references: `WRITE_ERROR_KEYS` values (looked up at runtime, defined
  *   in `en.ts` after the catalog object).
  * Misses: Go, docs, tools, desktop, contrib, `web/index.html`, `web/public/`,
  *   concatenated keys (`'common' + '.yes'`), unquoted mentions.
  */
 function unusedCatalogKeys(): string[] {
-  const skip = new Set([join(HERE, 'en.ts'), join(HERE, 'ko.ts')])
+  const skip = new Set([join(HERE, 'en.ts'), join(HERE, 'ko.ts'), join(HERE, 'ja.ts')])
   const files = [...walkSourceFiles(WEB_SRC), ...walkSourceFiles(E2E_ROOT)].filter(
     (f) => !skip.has(f),
   )
@@ -97,11 +98,37 @@ describe('catalog contracts', () => {
       const key = WRITE_ERROR_KEYS[code as keyof typeof WRITE_ERROR_KEYS]
       expect(en[key].length, `en ${key}`).toBeGreaterThan(0)
       expect(ko[key].length, `ko ${key}`).toBeGreaterThan(0)
+      expect(ja[key].length, `ja ${key}`).toBeGreaterThan(0)
     }
   })
 
-  test('en and ko catalogs have the same key set', () => {
+  test('en, ko, and ja catalogs have the same key set', () => {
     expect(Object.keys(ko).sort()).toEqual(Object.keys(en).sort())
+    expect(Object.keys(ja).sort()).toEqual(Object.keys(en).sort())
+  })
+
+  test('ko and ja preserve every en placeholder token', () => {
+    // Types force the key set; they cannot see `{n}` vs `{count}` inside a
+    // string. Compare the set of `{…}` tokens so a translation cannot drop,
+    // rename, or invent a placeholder the runtime substitutes.
+    const tokenRe = /\{[^{}]+\}/g
+    const tokens = (s: string): string[] => [...new Set(s.match(tokenRe) ?? [])].sort()
+    const failures: string[] = []
+    for (const key of Object.keys(en) as (keyof typeof en)[]) {
+      const want = tokens(en[key])
+      for (const [locale, table] of [
+        ['ko', ko],
+        ['ja', ja],
+      ] as const) {
+        const got = tokens(table[key])
+        if (got.join('\0') !== want.join('\0')) {
+          failures.push(
+            `${locale}.${key}: en=${JSON.stringify(want)} ${locale}=${JSON.stringify(got)}`,
+          )
+        }
+      }
+    }
+    expect(failures, failures.join('\n')).toEqual([])
   })
 
   test('every catalog key is referenced or sits under a dynamic prefix', () => {
@@ -157,6 +184,50 @@ describe('catalog contracts', () => {
     expect(
       listUnit,
       `list.countIssues=${JSON.stringify(list)} must use 건 or 이슈`,
+    ).not.toBe('other')
+    expect(
+      sideUnit,
+      `sidebar.issueCount=${JSON.stringify(side)} must match list.countIssues=${JSON.stringify(list)} (${listUnit})`,
+    ).toBe(listUnit)
+  })
+
+  test('Japanese catalog has no competing spelling of settled terms', () => {
+    // Canonicals (Japanese Jira Cloud):
+    //   課題     — not イシュー
+    //   進行中   — status category; not 進行 中
+    //   {n}件    — issue/document counter (ko {n}건)
+    // Exclusions:
+    //   qa.inProgress "進行"           — QA run-state glyph, not the category
+    //   settings.runtimeIssues         — "課題 {n}個": noun + generic 個, not {n}件
+    //                                    (so the sidebar pool "{n}件" stays unique on screen)
+    const failures: string[] = []
+    for (const [key, value] of Object.entries(ja)) {
+      if (value.includes('イシュー')) {
+        failures.push(`${key}=${JSON.stringify(value)} contains "イシュー" (use "課題")`)
+      }
+      if (value.includes('進行 中')) {
+        failures.push(`${key}=${JSON.stringify(value)} contains "進行 中" (use "進行中")`)
+      }
+      if (/\{n\}\s*課題/.test(value)) {
+        failures.push(`${key}=${JSON.stringify(value)} uses "{n} 課題" (use "{n}件")`)
+      }
+    }
+    expect(failures, failures.join('\n')).toEqual([])
+  })
+
+  test('list and sidebar issue counts use the same Japanese unit', () => {
+    const unitOf = (s: string): 'ken' | 'kadai' | 'other' => {
+      if (/\{n\}\s*件/.test(s)) return 'ken'
+      if (/\{n\}\s*課題/.test(s)) return 'kadai'
+      return 'other'
+    }
+    const list = ja['list.countIssues']
+    const side = ja['sidebar.issueCount']
+    const listUnit = unitOf(list)
+    const sideUnit = unitOf(side)
+    expect(
+      listUnit,
+      `list.countIssues=${JSON.stringify(list)} must use 件 or 課題`,
     ).not.toBe('other')
     expect(
       sideUnit,

@@ -203,6 +203,13 @@
 
 ### 일관되게 정리된 웹 UI
 
+- **웹 UI가 일본어를 말합니다** ([GDK-626]). `en`/`ko` 옆에 전체 `ja`
+  카탈로그가 붙습니다 — 일본어 Jira Cloud 어휘(課題, 進行中, 担当者), 모든
+  카운트는 `{n}件` — 설정과 팔레트에서 선택할 수 있고 브라우저 언어에서
+  감지됩니다. standalone 트래커는 이미 `locale ja`에 답했으니, 이제 그 위의
+  UI도 답합니다. 세 카탈로그를 지키는 게이트 둘이 새로 섭니다: 플레이스홀더
+  토큰은 번역을 정확히 살아남아야 하고, 확정된 일본어 용어에 경쟁 표기를
+  허용하지 않습니다 — 지난 감사에서 한국어 카탈로그가 얻은 것과 같은 봉쇄.
 - **Esc 한 번은 표면 하나만 닫습니다** ([GDK-604]). 첨부를 확대한 상태의
   Escape가 뷰어와 그 뒤의 상세 패널을 같이 닫았고(벌크 선택도 함께
   풀렸습니다), 사람·문서 패널에도 같은 이중 소비가 있었습니다. 이제
@@ -1634,6 +1641,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-603]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-603
 [GDK-605]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-605
 [GDK-608]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-608
+[GDK-626]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-626
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86
 [GDK-598]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-598
 [GDK-599]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-599

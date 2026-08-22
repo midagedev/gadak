@@ -959,6 +959,7 @@ export const ko = {
   'settings.locale': '언어',
   'settings.localeEn': 'English',
   'settings.localeKo': '한국어',
+  'settings.localeJa': '日本語',
   'settings.standaloneCommandHint': '<name>은 직접 정하는 워크스페이스 이름입니다.',
 
   /* ── Theme (per-browser; settings + palette) ── */

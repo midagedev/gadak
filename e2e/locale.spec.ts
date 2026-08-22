@@ -34,4 +34,31 @@ test.describe('locale', () => {
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
+
+  test('switching to ja reloads with Japanese copy', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    await forceLocale(page, 'en')
+    await page.goto('/')
+    await expect(page.getByText(/534 issues/).first()).toBeVisible({ timeout: 30_000 })
+
+    await openServerSettings(page)
+    const dialog = page.getByRole('dialog', { name: 'Settings' })
+    await expect(dialog.getByText('Language')).toBeVisible()
+
+    await Promise.all([
+      page.waitForEvent('load'),
+      dialog.getByLabel('Language').selectOption('ja'),
+    ])
+
+    // ja.ts: sidebar.issueCount = '{n}件' (pool size; list count may be filtered)
+    await expect(page.getByText('534件')).toBeVisible({ timeout: 30_000 })
+    await expect(page.locator('html')).toHaveAttribute('lang', 'ja-JP')
+    // ja.ts: sidebar.settings
+    await expect(page.getByRole('button', { name: '設定', exact: true })).toBeVisible()
+    // ja.ts: filter.add
+    await expect(page.getByRole('button', { name: '+ フィルター' })).toBeVisible()
+    await expect(page.getByTestId('list-count')).toHaveText(/\d+件/)
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
 })

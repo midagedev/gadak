@@ -969,6 +969,7 @@ export const en = {
   'settings.locale': 'Language',
   'settings.localeEn': 'English',
   'settings.localeKo': '한국어',
+  'settings.localeJa': '日本語',
   'settings.standaloneCommandHint': '<name> is the workspace name you choose.',
 
   /* ── Theme (per-browser; settings + palette) ── */

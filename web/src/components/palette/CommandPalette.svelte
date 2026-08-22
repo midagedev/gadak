@@ -65,6 +65,14 @@
 
   const HOME_LIMIT = 5
 
+  // Every locale the settings select offers; the palette derives its
+  // switch-language actions from the same list.
+  const LOCALE_OPTIONS = [
+    ['en', 'settings.localeEn'],
+    ['ko', 'settings.localeKo'],
+    ['ja', 'settings.localeJa'],
+  ] as const
+
   interface Item {
     id: string
     section: Section
@@ -623,13 +631,13 @@
       { id: 'a:reopened', label: t('palette.actionToggleReopened'), run: () => filters.toggleFlag('reopened') },
       { id: 'a:unassigned', label: t('palette.actionToggleUnassigned'), run: () => filters.toggleFlag('unassigned') },
       { id: 'a:stale', label: t('palette.actionToggleStale'), run: () => filters.toggleFlag('stale') },
-      {
-        id: 'a:locale',
-        label: t('palette.actionLocale', {
-          lang: locale() === 'ko' ? t('settings.localeEn') : t('settings.localeKo'),
-        }),
-        run: () => setLocale(locale() === 'ko' ? 'en' : 'ko'),
-      },
+      // One action per other locale, the THEME_MODES shape below — a
+      // two-way toggle stopped being honest at three locales (GDK-626).
+      ...LOCALE_OPTIONS.filter(([code]) => code !== locale()).map(([code, labelKey]) => ({
+        id: `a:locale-${code}`,
+        label: t('palette.actionLocale', { lang: t(labelKey) }),
+        run: () => setLocale(code),
+      })),
       ...THEME_MODES.map((mode) => ({
         id: `a:theme-${mode.name}`,
         label: t('palette.actionTheme', { mode: t(mode.labelKey) }),

@@ -208,6 +208,14 @@ the fixes are all here.
 
 ### The web UI, made consistent
 
+- **The web UI speaks Japanese** ([GDK-626]). A full `ja` catalog joins
+  `en`/`ko` — Japanese Jira Cloud vocabulary (課題, 進行中, 担当者), every
+  count in `{n}件` — selectable in Settings and the palette, detected from
+  the browser language. The standalone tracker already answered `locale
+  ja`; now the UI above it does too. Two new gates guard all three
+  catalogs: placeholder tokens must survive translation exactly, and
+  settled Japanese terms allow no competing spelling — the same containment
+  the Korean catalog earned in the last audit.
 - **One Esc closes one surface** ([GDK-604]). Escape over an enlarged
   attachment closed the viewer *and* the detail panel behind it (and
   dropped a bulk selection on the way); the person and document panels had
@@ -1650,6 +1658,7 @@ measured numbers instead of adjectives.
 [GDK-603]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-603
 [GDK-605]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-605
 [GDK-608]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-608
+[GDK-626]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-626
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86
 [GDK-598]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-598
 [GDK-599]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-599

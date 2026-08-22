@@ -446,6 +446,7 @@
         >
           <option value="en">{t('settings.localeEn')}</option>
           <option value="ko">{t('settings.localeKo')}</option>
+          <option value="ja">{t('settings.localeJa')}</option>
         </select>
         <Icon name="chevron-right" size={13} class={SELECT_CHEVRON} />
       </span>
