@@ -60,7 +60,8 @@ type doctorReport struct {
 // doctorWorkspace is the one-line consistency view: kind, whether a site
 // token is stored (never the token itself), the origin persist path, and
 // how many locally originated issues LocalData counts. Inconsistent is
-// standalone-with-a-token — the state GDK-247 closes on the write path.
+// standalone-with-a-token — a site token on a standalone workspace is
+// unused and contradicts Kind (GDK-247).
 //
 // HasSiteToken is site-token presence, not config.HasCredential (GDK-470).
 // Standalone writes work with no site token; this field stays false there.

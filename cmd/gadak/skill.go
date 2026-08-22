@@ -192,7 +192,7 @@ func installSkill(w io.Writer, content []byte, dest string, force, printOnly boo
 
 	// verb is what the user is told happened. An upgrade of our own copy is an
 	// "updated:", so the log of a brew upgrade reads differently from a first
-	// install — that difference is the whole point of GDK-92.
+	// install (GDK-92).
 	verb := "installed"
 	switch status {
 	case "identical":
