@@ -46,6 +46,10 @@ import (
 var appVersion = "dev"
 
 func main() {
+	// Importing internal/config no longer selects a workspace (GDK-644);
+	// each main reads GADAK_WORKSPACE/GADAK_PROFILE/SCRY_PROFILE itself —
+	// this is what makes `GADAK_PROFILE=work open -a Gadak` work.
+	config.ReloadWorkspaceFromEnv()
 	if unregisterGadakProtocolIfRequested(os.Args[1:]) {
 		return
 	}

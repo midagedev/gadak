@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/midagedev/gadak/internal/atlhttp"
+	"github.com/midagedev/gadak/internal/httppolicy"
 )
 
 const apiPath = "/rest/api/3"
@@ -47,16 +48,17 @@ type Client struct {
 }
 
 // DefaultRetries is the production retry budget New applies (total attempts).
-// Tests may assign a smaller value and restore it with t.Cleanup.
-var DefaultRetries = 5
+// Tests may assign a smaller value and restore it with t.Cleanup. The value
+// is httppolicy.DefaultRetries; this var exists so tests can override it.
+var DefaultRetries = httppolicy.DefaultRetries
 
 // DefaultBackoff is the first wait New applies, doubling per attempt and
-// capped at 30s. Tests may assign 0 and restore it with t.Cleanup.
-var DefaultBackoff = time.Second
+// capped at httppolicy.MaxWait. Tests may assign 0 and restore it with t.Cleanup.
+var DefaultBackoff = httppolicy.DefaultBackoff
 
 // New builds a Client for site using Basic auth (email:token). The HTTP
-// client times out at 60s; Retries is DefaultRetries (5); the first
-// Backoff is DefaultBackoff (1s).
+// client times out at httppolicy.DefaultTimeout; Retries is DefaultRetries;
+// the first Backoff is DefaultBackoff.
 //
 // origin.Client is the only production construction path for this
 // workspace's Jira client. origin.Connected is the candidate-credential
@@ -67,7 +69,7 @@ func New(site, email, token string) *Client {
 	return &Client{
 		base:    strings.TrimRight(site, "/"),
 		auth:    "Basic " + base64.StdEncoding.EncodeToString([]byte(email+":"+token)),
-		HTTP:    &http.Client{Timeout: 60 * time.Second},
+		HTTP:    &http.Client{Timeout: httppolicy.DefaultTimeout},
 		Retries: DefaultRetries,
 		Backoff: DefaultBackoff,
 	}

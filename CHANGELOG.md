@@ -38,6 +38,16 @@ the fixes are all here.
 
 ### Write verbs an agent can trust
 
+- **A fourth principles sweep, each fix a single owner** ([GDK-644]).
+  The retry defaults every origin client copied (5 attempts, 1s backoff,
+  60s timeout) live in one place now, and a contract test keeps the jira,
+  linear and confluence constructors on it. Importing the config package
+  no longer selects a workspace — each binary reads the environment
+  itself, so a test importing config cannot inherit the shell's profile.
+  Error strings stop repeating their function names, a retry wait stops
+  leaking a timer on cancel, sync notifications ride the watch context,
+  and the Linear refusal message stops claiming the origin is read-only
+  — it has not been since the write verbs landed.
 - **A third dead-code sweep, every deletion proven unreferenced**
   ([GDK-647]). Five stats getters nothing read (and their write-only
   counters), the deprecated `serve --sync` no-op alias (passing it now
@@ -2028,6 +2038,7 @@ measured numbers instead of adjectives.
 [GDK-643]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-643
 [GDK-648]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-648
 [GDK-649]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-649
+[GDK-644]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-644
 [GDK-658]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-658
 [GDK-468]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-468
 [GDK-645]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-645

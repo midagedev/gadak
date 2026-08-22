@@ -38,6 +38,15 @@
 
 ### 에이전트가 신뢰할 수 있는 쓰기 동사
 
+- **원칙 스윕 4차 — 수정마다 단일 소유자** ([GDK-644]). origin 클라이언트
+  마다 복사돼 있던 재시도 기본값(5회·1s 백오프·60s 타임아웃)이 한 곳으로
+  모였고, 계약 테스트가 jira·linear·confluence 생성자를 거기에 묶습니다.
+  config 패키지를 import하는 것만으로 워크스페이스가 선택되던 init()이
+  사라졌습니다 — 각 바이너리가 직접 env를 읽으므로, config를 import한
+  테스트가 셸의 프로필을 물려받을 수 없습니다. 오류 문자열이 함수명을
+  반복하지 않게 됐고, 재시도 대기가 취소 시 타이머를 흘리지 않고, 싱크
+  알림이 watch 컨텍스트를 타고, Linear 거절 메시지가 "읽기 전용"이라는
+  낡은 주장을 멈춥니다 — 쓰기 동사가 들어온 뒤로 사실이 아니었습니다.
 - **3차 죽은 코드 스윕 — 모든 삭제에 미참조 실증** ([GDK-647]). 아무도
   읽지 않는 stats 게터 다섯(그리고 쓰기만 되던 카운터들), 조용히
   무시되던 `serve --sync` no-op 별칭(이제 넘기면 오류 — `--no-sync`는
@@ -1978,6 +1987,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-643]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-643
 [GDK-648]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-648
 [GDK-649]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-649
+[GDK-644]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-644
 [GDK-658]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-658
 [GDK-468]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-468
 [GDK-645]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-645

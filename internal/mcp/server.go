@@ -52,9 +52,6 @@ type Server struct {
 // initialize / tools/list work even when the mirror is missing (the tool then
 // returns a clear isError message).
 func New(dbPath, profile, version string) *Server {
-	if version == "" {
-		version = "dev"
-	}
 	return &Server{DBPath: dbPath, Profile: profile, Version: version}
 }
 
@@ -150,6 +147,10 @@ func (s *Server) dispatch(msg rpcRequest) *rpcResponse {
 
 func (s *Server) handleInitialize(msg rpcRequest) *rpcResponse {
 	// Always speak our version; do not reject a client that asked for another.
+	version := s.Version
+	if version == "" {
+		version = "dev"
+	}
 	result := map[string]any{
 		"protocolVersion": ProtocolVersion,
 		"capabilities": map[string]any{
@@ -157,7 +158,7 @@ func (s *Server) handleInitialize(msg rpcRequest) *rpcResponse {
 		},
 		"serverInfo": map[string]any{
 			"name":    "gadak",
-			"version": s.Version,
+			"version": version,
 		},
 		"instructions": `You are querying a local SQLite mirror of this machine's Jira and Confluence.
 Reads are free and offline. You cannot write to Jira or to this database

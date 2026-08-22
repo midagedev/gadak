@@ -296,10 +296,6 @@ var (
 	workspaceEnvName string
 )
 
-func init() {
-	ReloadWorkspaceFromEnv()
-}
-
 // SetProfile is called by the CLI's --workspace/--profile flag, which wins
 // over the env var. The source becomes SourceFlag even when name is empty.
 func SetProfile(name string) {
@@ -337,8 +333,8 @@ func WorkspaceSource() (kind, envName string) {
 
 // ReloadWorkspaceFromEnv forgets a SetProfile override and reads
 // GADAK_WORKSPACE, then GADAK_PROFILE, then SCRY_PROFILE. Empty values are
-// unset. The CLI calls this at process start (init); tests call it after
-// t.Setenv.
+// unset. Each process main must call this before flags (cmd/gadak does);
+// importing this package does not. Tests call it after t.Setenv.
 func ReloadWorkspaceFromEnv() {
 	if v := os.Getenv("GADAK_WORKSPACE"); v != "" {
 		profile = v

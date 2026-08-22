@@ -50,7 +50,7 @@ var baseFields = []string{
 }
 
 // Options tunes one Run or Watch cycle. A nil Client or ConfluenceClient is
-// built from cfg; a nil Notifier uses OSNotifier and never aborts the loop; a
+// built from cfg; a nil notifier uses OSNotifier and never aborts the loop; a
 // Reload error keeps the previous config so a momentarily unreadable file
 // cannot stop the mirror.
 type Options struct {
@@ -73,9 +73,9 @@ type Options struct {
 	ConfluenceClient *confluence.Client
 	// LinearClient is for tests; nil builds one from cfg when Linear is configured.
 	LinearClient *linear.Client
-	// Notifier delivers OS desktop alerts for new personal-feed events after
+	// notifier delivers OS desktop alerts for new personal-feed events after
 	// each successful Watch cycle. Nil uses OSNotifier. Never aborts the loop.
-	Notifier Notifier
+	notifier notifier
 	// Reload re-reads the config at the top of each watch cycle. Nil keeps the
 	// config Watch was called with. A reload error is logged and the previous
 	// config stays in use: a momentarily unreadable file must not stop the mirror.
@@ -565,7 +565,7 @@ func Watch(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) 
 				o.phasef(src.phase)
 				_, runErr := src.run(ctx, cfg, db, o)
 				if runErr == nil && src.notify {
-					if nerr := notifyAfterSync(db, cfg, o.Notifier); nerr != nil {
+					if nerr := notifyAfterSync(ctx, db, cfg, o.notifier); nerr != nil {
 						// Desktop notify is best-effort: never abort the watch loop.
 						opts.logf("notify: %v", nerr)
 					}

@@ -2,6 +2,7 @@ package httppolicy
 
 import (
 	"context"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -93,5 +94,21 @@ func TestWaitZeroDelayReturnsCtxErr(t *testing.T) {
 	}
 	if err := Wait(context.Background(), 0, 0, "0", nil); err != nil {
 		t.Errorf("Retry-After 0: %v", err)
+	}
+}
+
+func TestDefaultRetryBudget(t *testing.T) {
+	if DefaultRetries != 5 || DefaultBackoff != time.Second || DefaultTimeout != 60*time.Second {
+		t.Fatalf("defaults Retries=%d Backoff=%s Timeout=%s, want 5, 1s, 60s", DefaultRetries, DefaultBackoff, DefaultTimeout)
+	}
+}
+
+func TestWaitDoesNotUseTimeAfter(t *testing.T) {
+	b, err := os.ReadFile("policy.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(b), "time.After") {
+		t.Fatal("Wait must use time.NewTimer so a cancelled ctx Stops the timer")
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -845,7 +846,7 @@ func (s *server) buildView(ctx context.Context, key string, lites []store.IssueL
 		addMember("", &name, &acc)
 		// Per-row index for the same axis: sorted for a stable payload —
 		// the view query's UNION ALL order is an implementation detail.
-		if acc != "" && !contains(v.actorsByIssue[a.IssueKey], acc) {
+		if acc != "" && !slices.Contains(v.actorsByIssue[a.IssueKey], acc) {
 			v.actorsByIssue[a.IssueKey] = append(v.actorsByIssue[a.IssueKey], acc)
 		}
 	}
@@ -1064,7 +1065,7 @@ func (v *derivedView) group(l store.IssueLite) *string {
 // ruleMatches: conditions are ANDed, values inside one condition are ORed, an
 // empty condition is always true.
 func ruleMatches(r config.GroupRule, l store.IssueLite) bool {
-	if len(r.Projects) > 0 && !contains(r.Projects, l.ProjectKey) {
+	if len(r.Projects) > 0 && !slices.Contains(r.Projects, l.ProjectKey) {
 		return false
 	}
 	if len(r.Labels) > 0 && !overlaps(r.Labels, l.Labels) {
@@ -1076,18 +1077,9 @@ func ruleMatches(r config.GroupRule, l store.IssueLite) bool {
 	return true
 }
 
-func contains(list []string, v string) bool {
-	for _, s := range list {
-		if s == v {
-			return true
-		}
-	}
-	return false
-}
-
 func overlaps(want, have []string) bool {
 	for _, v := range have {
-		if contains(want, v) {
+		if slices.Contains(want, v) {
 			return true
 		}
 	}

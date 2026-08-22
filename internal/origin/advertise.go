@@ -252,8 +252,11 @@ func ProbeGadakOnPort(port string, timeout time.Duration) GadakProbe {
 	if err != nil {
 		return GadakProbe{}
 	}
-	// Deliberately no Origin (and no custom User-Agent).
-	res, err := http.DefaultClient.Do(req)
+	// Deliberately no Origin (and no custom User-Agent). Bound the client
+	// as well as the request context so a hang that ignores ctx cannot
+	// outlive timeout (http.DefaultClient has none).
+	client := &http.Client{Timeout: timeout}
+	res, err := client.Do(req)
 	if err != nil {
 		return GadakProbe{}
 	}

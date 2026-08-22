@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/midagedev/gadak/internal/atlhttp"
+	"github.com/midagedev/gadak/internal/httppolicy"
 )
 
 func testClient(t *testing.T, h http.Handler) *Client {
@@ -24,12 +25,19 @@ func testClient(t *testing.T, h http.Handler) *Client {
 }
 
 func TestNewProductionRetryBudget(t *testing.T) {
-	if DefaultRetries != 5 || DefaultBackoff != time.Second {
-		t.Fatalf("defaults Retries=%d Backoff=%s, want 5 and 1s", DefaultRetries, DefaultBackoff)
+	if DefaultRetries != httppolicy.DefaultRetries || DefaultBackoff != httppolicy.DefaultBackoff {
+		t.Fatalf("defaults Retries=%d Backoff=%s, want httppolicy %d and %s", DefaultRetries, DefaultBackoff, httppolicy.DefaultRetries, httppolicy.DefaultBackoff)
 	}
 	c := New("https://example.atlassian.net", "a@b.c", "tok")
-	if c.Retries != 5 || c.Backoff != time.Second {
-		t.Fatalf("New Retries=%d Backoff=%s, want 5 and 1s", c.Retries, c.Backoff)
+	if c.Retries != httppolicy.DefaultRetries || c.Backoff != httppolicy.DefaultBackoff {
+		t.Fatalf("New Retries=%d Backoff=%s, want httppolicy %d and %s", c.Retries, c.Backoff, httppolicy.DefaultRetries, httppolicy.DefaultBackoff)
+	}
+	if c.HTTP == nil || c.HTTP.Timeout != httppolicy.DefaultTimeout {
+		got := time.Duration(0)
+		if c.HTTP != nil {
+			got = c.HTTP.Timeout
+		}
+		t.Fatalf("New HTTP timeout = %s, want httppolicy.DefaultTimeout %s", got, httppolicy.DefaultTimeout)
 	}
 }
 

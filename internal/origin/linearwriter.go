@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strconv"
 
 	"github.com/midagedev/gadak/internal/adf"
@@ -242,7 +243,7 @@ func (w *linearWriter) CreateMeta(ctx context.Context, projects []string) ([]jir
 	}
 	out := make([]jira.CreateMetaProject, 0, len(teams))
 	for _, t := range teams {
-		if len(projects) > 0 && !contains(projects, t.Key) {
+		if len(projects) > 0 && !slices.Contains(projects, t.Key) {
 			continue
 		}
 		out = append(out, jira.CreateMetaProject{
@@ -254,15 +255,6 @@ func (w *linearWriter) CreateMeta(ctx context.Context, projects []string) ([]jir
 		})
 	}
 	return out, nil
-}
-
-func contains(list []string, s string) bool {
-	for _, v := range list {
-		if v == s {
-			return true
-		}
-	}
-	return false
 }
 
 // stringField rejects a non-string so a wrong-typed any cannot become the
