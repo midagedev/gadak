@@ -379,6 +379,11 @@ type Detail struct {
 	// Custom is the issue's full alias→value map. List rows strip body-role
 	// values (they can be document-sized); detail is where they surface.
 	Custom map[string]any `json:"-"`
+	// Created is items.created_at — the origin stamp Durations measures the
+	// wait span from. Internal like Custom: the wire already carries the
+	// lites' created_at, and the detail response exposes only the derived
+	// spans (wait_ms / progress_ms), not this raw input.
+	Created string `json:"-"`
 	// DevLinks are the development-panel links (GDK-497), newest first.
 	DevLinks []DevLink `json:"dev_links"`
 }
@@ -390,11 +395,13 @@ func (db *DB) Detail(ctx context.Context, key string) (*Detail, error) {
 	var adf *string
 	var customJSON string
 	var bodyText string
+	var createdAt string
 	if err := db.sql.QueryRowContext(ctx, `
-		SELECT i.item_id, i.description_adf, COALESCE(i.custom, '{}'), COALESCE(it.body_text, '')
+		SELECT i.item_id, i.description_adf, COALESCE(i.custom, '{}'), COALESCE(it.body_text, ''),
+		       COALESCE(it.created_at, '')
 		FROM issues i JOIN items it ON it.id = i.item_id
 		WHERE i.key = ?`, key).
-		Scan(&itemID, &adf, &customJSON, &bodyText); err != nil {
+		Scan(&itemID, &adf, &customJSON, &bodyText, &createdAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
@@ -408,6 +415,9 @@ func (db *DB) Detail(ctx context.Context, key string) (*Detail, error) {
 		Attachments:     []DetailAttachment{},
 		History:         []DetailChange{},
 		LinkedIssues:    []DetailLink{},
+		// Created feeds Durations (GDK-590/591); json:"-" keeps it out of
+		// the wire shape, which the lites' created_at already covers.
+		Created: createdAt,
 	}
 	_ = json.Unmarshal([]byte(customJSON), &d.Custom)
 

@@ -12,9 +12,11 @@ import {
   categoryFallbackSeen,
   effectiveCategory,
   emptyConfig,
+  filterFields,
   isReopen,
   matchesIdFirst,
   missingStatusCategorySeen,
+  MULTI_FIELDS,
   priorityNameFallbackSeen,
   normalizeKeys,
   orderColumns,
@@ -565,5 +567,33 @@ describe('isReopen (GDK-272)', () => {
     const before = missingStatusCategorySeen()
     isReopen({ field: 'status', from_category: null, to_category: null })
     expect(missingStatusCategorySeen()).toBe(before + 1)
+  })
+})
+
+/* ── Actor axis (GDK-590) ── */
+
+describe('actor axis (GDK-590)', () => {
+  test('round-trips actor filter values and g=actor', () => {
+    const c = normalized((cfg) => {
+      cfg.filters.actor = ['acc-bot', 'acc-hc']
+      cfg.display.group_by = 'actor'
+    })
+    const sp = paramsOf(c)
+    expect(sp.get('ac')).toBe('acc-bot,acc-hc')
+    expect(sp.get('g')).toBe('actor')
+    expect(roundTrip(c)).toEqual(c)
+  })
+
+  test('actor filter serializes to nothing when empty', () => {
+    const sp = paramsOf(normalized(() => {}))
+    expect(sp.get('ac')).toBe(null)
+  })
+
+  test('actor is offered as a filter field and a grouping axis', () => {
+    expect(MULTI_FIELDS).toContain('actor')
+    expect(filterFields()).toContain('actor')
+    // g=actor parses back; unknown axes still fall to the default.
+    const parsed = parseConfig(new URLSearchParams('g=actor'))
+    expect(parsed.display.group_by).toBe('actor')
   })
 })

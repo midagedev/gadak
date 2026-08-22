@@ -106,7 +106,9 @@ On-demand detail. Everything comes from the mirror; no Jira call.
   "development_opinion": null,
   "qa_context": null,
   "deploy": null,
-  "linked_prs": []
+  "linked_prs": [ { "number": 9, "title": "fix(NMB-139): retry budget", "url": "https://github.com/acme/api/pull/9", "state": "open", "repo": "acme/api", "author": null, "linked_by": "Claude (build 1)", "linked_by_id": "acc-bot" } ],
+  "wait_ms": 407822,
+  "progress_ms": 5127000
 }
 ```
 
@@ -136,6 +138,17 @@ is dropped rather than spliced into the response.
 (`new` / `inprogress` / `done`). When present the UI marks reopens from them;
 otherwise it falls back to matching status names, which is language-dependent and
 therefore only a fallback.
+
+`linked_by` / `linked_by_id` on a `linked_prs` entry name who attached the link
+(the dev-panel actor, GDK-589) — a different axis from the PR's own `author`:
+a bot linking a human's PR keeps both. Only dev-panel links carry them; a
+PR-shaped URL attachment has no actor and omits both.
+
+`wait_ms` / `progress_ms` are the lifecycle spans the CLI's durations line
+prints (GDK-591): wait = created → first entry into in-progress, progress =
+latest entry into in-progress → done, or now while still in progress. Both are
+omitted when the changelog cannot answer — the detail chip renders nothing
+rather than a zero. Nothing is stored; both are computed per request.
 
 ### `GET search/?q=<text>&limit=<n>` — R
 
@@ -248,6 +261,12 @@ A third group comes from plugin enrichments: `deploy_status` from kind `deploy`,
 and `qa_impact_state` / `qa_impact_label` / `qa_runs` / `qa_suites` from kind
 `qa` (`docs/PLUGINS.md`). Enrichment keys are serialized before the stored ones
 too, so a plugin can add to a row but never shadow what the tracker said.
+
+A fourth group is the actor axis (GDK-590): `actor_ids`, the account ids that
+touched the issue — comment, changelog entry, or dev-panel link, from the
+`issue_actors` view. Omitted when nobody did, which every pre-v36 mirror row is.
+The client's actor filter and actor grouping narrow on these ids and never on
+display names.
 
 Fields that stay absent until something populates them:
 `development_test_result`, `source_project`. The UI reads them defensively; the

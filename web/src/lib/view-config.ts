@@ -26,6 +26,12 @@ export interface ViewFilters {
   assignee_email: string[]
   /** Compatibility name: values are Jira account IDs when available, legacy emails otherwise. */
   reporter_email: string[]
+  /**
+   * Who touched the issue — comment, changelog entry, or dev-panel link
+   * (row's actor_ids, the server's issue_actors view). Values are Jira
+   * account IDs, never display names. URL `ac`.
+   */
+  actor: string[]
   team_group: string[]
   labels: string[]
   priority: string[]
@@ -89,6 +95,7 @@ export type GroupBy =
   | 'status_category'
   | 'status'
   | 'assignee'
+  | 'actor'
   | 'priority'
   | 'severity'
   | 'team_group'
@@ -205,6 +212,7 @@ export const MULTI_FIELDS = [
   'status',
   'assignee_email',
   'reporter_email',
+  'actor',
   'team_group',
   'labels',
   'priority',
@@ -341,6 +349,7 @@ export function emptyFilters(): ViewFilters {
     status: [],
     assignee_email: [],
     reporter_email: [],
+    actor: [],
     team_group: [],
     labels: [],
     priority: [],
@@ -489,6 +498,7 @@ const MULTI_KEY = {
   status: 'st',
   assignee_email: 'as',
   reporter_email: 'rp',
+  actor: 'ac',
   team_group: 'gr',
   labels: 'lb',
   priority: 'pr',
@@ -641,6 +651,7 @@ function isGroupBy(v: string): v is GroupBy {
       'status_category',
       'status',
       'assignee',
+      'actor',
       'priority',
       'severity',
       'team_group',

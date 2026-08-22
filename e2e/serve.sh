@@ -127,6 +127,47 @@ ON CONFLICT(day) DO UPDATE SET
   last_throttled_at = excluded.last_throttled_at;
 SQL
 
+# GDK-590: one agent worker with real touches. The demo snapshot predates the
+# bot surface entirely (no users rows, no dev_links, every comment human), so
+# the badge / actor filter / linked-by / duration chip specs have nothing to
+# see without this. Touches land on NMB-112 and NMB-139 — keys no other spec
+# references, and both already have in-progress history so NMB-139's duration
+# chip has a deterministic wait ("6m": created 14:56:24.755Z → first
+# in-progress 15:03:12.577Z on 2026-07-20).
+echo "[e2e] injecting agent worker (acc-e2e-bot) touching NMB-112 / NMB-139…"
+sqlite3 "$DB" <<'SQL'
+INSERT INTO users (source_id, account_id, name, email, account_type)
+VALUES ('jira', 'acc-e2e-bot', 'Claude (build 1)', '', 'agent')
+ON CONFLICT(source_id, account_id) DO UPDATE SET
+  name = excluded.name,
+  account_type = excluded.account_type;
+
+INSERT INTO comments (id, item_id, external_id, author, author_id, body_text, created_at)
+VALUES
+  ('jira:c-e2e-bot-1', 'jira:10317', 'c-e2e-bot-1', 'Claude (build 1)', 'acc-e2e-bot',
+   'claimed from the triage queue; reproducing on staging now', '2026-07-16T02:10:00.000Z'),
+  ('jira:c-e2e-bot-2', 'jira:10344', 'c-e2e-bot-2', 'Claude (build 1)', 'acc-e2e-bot',
+   'fix up — PR linked from the dev panel', '2026-07-20T15:05:00.000Z')
+ON CONFLICT(id) DO UPDATE SET
+  body_text = excluded.body_text;
+
+-- comments rows ride the detail payload; the list column is stored, so the
+-- row count and the badge it implies have to agree.
+UPDATE issues SET comment_count = comment_count + 1 WHERE key IN ('NMB-112', 'NMB-139');
+
+-- A dev-panel link the bot attached to a human's PR (GDK-589's two axes):
+-- author is the PR author, actor is who linked it.
+INSERT INTO dev_links (item_id, kind, external_id, url, title, status, author, actor, actor_name, branch, updated_at)
+VALUES ('jira:10344', 'pullrequest', 'e2e-pr-9',
+        'https://github.com/acme/api/pull/9', 'fix(NMB-139): retry budget for upload', 'open',
+        'human-dev', 'acc-e2e-bot', 'Claude (build 1)', 'fix/nmb-139-retry', '2026-07-20T15:04:00.000Z')
+ON CONFLICT(item_id, url) DO UPDATE SET
+  actor = excluded.actor,
+  actor_name = excluded.actor_name;
+
+UPDATE sync_state SET version = version + 1;
+SQL
+
 export GADAK_HOME="$HOME_DIR"
 WORKTREE="$(git rev-parse --show-toplevel)"
 DIGEST="$(bash "$ROOT/e2e/served-digest.sh")"

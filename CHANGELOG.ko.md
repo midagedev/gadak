@@ -87,6 +87,10 @@
   인수인계이고, connected Jira는 두 호출이 끼어들 수 있다는 사실을 소리
   내어 알립니다. `gadak issue`는 이슈가 얼마나 기다렸고 얼마나 진행
   중인지 보여줍니다 — 저장이 아니라 changelog에서 계산합니다.
+- **웹이 어느 작업자가 봇인지 보여줍니다** ([GDK-590]). 배지 하나가
+  코멘트·히스토리·PR 링크에서 봇을 표시합니다 — 판정은 계정 타입이고
+  이름이 아닙니다. 목록을 actor로 묶거나 걸러 한 에이전트가 건드린 것을
+  보고, 이슈 상세는 얼마나 기다렸고 얼마나 진행 중인지 알려줍니다.
 - **패널이 배포와 빌드를 나릅니다** ([GDK-592]). `gadak dev deploy KEY
   --env production --state successful`과 `gadak dev build KEY --state
   failed --number 592`가 나머지 두 종류의 개발 링크를 씁니다. `gadak

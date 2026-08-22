@@ -1,9 +1,12 @@
 <script lang="ts">
   /*
    * Linked PRs ([detail]). State chip (open/merged/closed) + repo#number + title + new-tab.
+   * A dev link also names who attached it (linked_by) — a different person from
+   * the PR's own author, and a bot's claim trail (GDK-590).
    */
   import { t } from '../../lib/i18n'
   import type { LinkedPr } from '../../lib/types'
+  import BotBadge from '../list/BotBadge.svelte'
 
   let { prs }: { prs: LinkedPr[] } = $props()
 
@@ -43,6 +46,12 @@
           <span class="block truncate text-[12px] text-text-secondary group-hover:text-text-primary">
             {pr.title}
           </span>
+          {#if pr.linked_by}
+            <span class="block text-micro text-text-muted">
+              {t('detail.prLinkedBy', { name: pr.linked_by })}
+              <BotBadge accountId={pr.linked_by_id} />
+            </span>
+          {/if}
         </span>
       </a>
     </li>

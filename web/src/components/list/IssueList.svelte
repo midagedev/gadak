@@ -23,7 +23,10 @@
 
   type RowItem =
     | { type: 'header'; group: IssueGroup }
-    | { type: 'issue'; issue: IssueLite }
+    // gk: the group the row sits in — only set when grouped. The actor axis is
+    // multi-membership (one issue in several buckets), so the each-key needs
+    // group+issue to stay unique; every other axis simply carries it unused.
+    | { type: 'issue'; issue: IssueLite; gk?: string }
 
   const grouped = $derived(filters.display.group_by !== 'none')
 
@@ -32,16 +35,19 @@
     const out: RowItem[] = []
     for (const g of filters.groups) {
       if (grouped) out.push({ type: 'header', group: g })
-      for (const it of g.items) out.push({ type: 'issue', issue: it })
+      for (const it of g.items)
+        out.push(grouped ? { type: 'issue', issue: it, gk: g.key } : { type: 'issue', issue: it })
     }
     return out
   })
 
   // Row-index map for the cursor's scroll follow (visual order incl. headers).
+  // First occurrence wins: under multi-membership grouping the same issue is
+  // on screen more than once, and the cursor should land on the first.
   const issueRowIndex = $derived.by(() => {
     const m = new Map<string, number>()
     rows.forEach((r, i) => {
-      if (r.type === 'issue') m.set(r.issue.issue_key, i)
+      if (r.type === 'issue' && !m.has(r.issue.issue_key)) m.set(r.issue.issue_key, i)
     })
     return m
   })
@@ -189,7 +195,7 @@
       style:height="{total}px"
       style:margin-bottom={browse.pillVisible ? '56px' : ''}
     >
-      {#each slice as row, i (row.type === 'issue' ? row.issue.issue_key : 'h' + row.group.key)}
+      {#each slice as row, i (row.type === 'issue' ? (row.gk !== undefined ? row.gk + '::' + row.issue.issue_key : row.issue.issue_key) : 'h' + row.group.key)}
         <div class="absolute inset-x-0" style:top="{(start + i) * ROW_H}px" style:height="{ROW_H}px">
           {#if row.type === 'header'}
             <GroupHeader

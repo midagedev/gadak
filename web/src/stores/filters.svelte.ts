@@ -736,6 +736,9 @@ export function filterIssues(
       continue
     if (f.reporter_email.length && !f.reporter_email.some((v) => issueMatchesPerson(it, 'reporter', v)))
       continue
+    // Actor: account ids from the row's actor_ids (server's issue_actors view)
+    // — comment, changelog entry, or dev-panel link. Never display names.
+    if (f.actor.length && !(it.actor_ids ?? []).some((id) => f.actor.includes(id))) continue
     if (f.team_group.length && !(it.team_group && f.team_group.includes(it.team_group))) continue
     if (f.priority.length && !matchesIdFirst(f.priority, it.priority_id, it.priority, true)) continue
     if (f.severity.length && !(it.severity && f.severity.includes(it.severity))) continue
@@ -1042,6 +1045,22 @@ function accCounts(counts: GroupCounts, issue: IssueLite): void {
   if (issue.severity) counts.severity[issue.severity] = (counts.severity[issue.severity] ?? 0) + 1
 }
 
+/**
+ * Actor group keys — the one multi-membership axis (GDK-590). An issue a bot
+ * and a human both touched lands in both buckets: "throughput per bot this
+ * sprint" must not silently pick a winner. Keys are account ids; labels come
+ * from the member catalog, with the id itself as the fallback so an
+ * email-hidden actor still gets a readable (if blunt) header.
+ */
+function actorGroupKeys(issue: IssueLite): { key: string; label: string; prefix?: string }[] {
+  const ids = issue.actor_ids ?? []
+  if (ids.length === 0) return [{ key: '', label: t('group.noActor') }]
+  return ids.map((id) => {
+    const m = issues.memberOfAccountId(id)
+    return { key: id, label: m?.name ?? id }
+  })
+}
+
 export function buildGroups(list: IssueLite[], by: GroupBy): IssueGroup[] {
   if (by === 'none') {
     const counts = emptyCounts()
@@ -1050,14 +1069,16 @@ export function buildGroups(list: IssueLite[], by: GroupBy): IssueGroup[] {
   }
   const map = new Map<string, IssueGroup>()
   for (const it of list) {
-    const { key, label, prefix } = groupKeyOf(it, by)
-    let g = map.get(key)
-    if (!g) {
-      g = { key, label, prefix, items: [], counts: emptyCounts() }
-      map.set(key, g)
+    const entries = by === 'actor' ? actorGroupKeys(it) : [groupKeyOf(it, by)]
+    for (const { key, label, prefix } of entries) {
+      let g = map.get(key)
+      if (!g) {
+        g = { key, label, prefix, items: [], counts: emptyCounts() }
+        map.set(key, g)
+      }
+      g.items.push(it)
+      accCounts(g.counts, it)
     }
-    g.items.push(it)
-    accCounts(g.counts, it)
   }
   const groups = [...map.values()]
   // Group sort: empty keys last; status/priority/severity by work order; else by name.
@@ -1153,7 +1174,7 @@ function buildChips(
     for (const value of f[field]) {
       let label = value
       if (field === 'status_category') label = CATEGORY_LABEL(value)
-      else if (field === 'assignee_email' || field === 'reporter_email')
+      else if (field === 'assignee_email' || field === 'reporter_email' || field === 'actor')
         label = facetLabel(field, value, all, members)
       else if (
         field === 'qa_run' ||
@@ -1239,6 +1260,9 @@ function buildFacets(
     const reporter = personIdentity(it, 'reporter')
     bump(counters.assignee_email, assignee)
     bump(counters.reporter_email, reporter)
+    // Actor counts are per touch, not per issue — one row with a bot comment
+    // and a human comment bumps both, matching the grouping's membership rule.
+    for (const id of it.actor_ids ?? []) bump(counters.actor, id)
     if (assignee && !assigneeLabels.has(assignee))
       assigneeLabels.set(assignee, it.assignee || it.assignee_email || assignee)
     if (reporter && !reporterLabels.has(reporter))
@@ -1309,6 +1333,13 @@ function facetLabel(
   members: Map<string, Member>,
 ): string {
   if (field === 'status_category') return CATEGORY_LABEL(value)
+  if (field === 'actor') {
+    // Value is an account id; the member directory is what turns it into a
+    // name — the same resolution avatars use, so the two never disagree.
+    const direct = members.get(value)
+    if (direct?.name) return direct.name
+    return issues.memberOfAccountId(value)?.name ?? value
+  }
   if (field === 'assignee_email' || field === 'reporter_email') {
     const role = field === 'assignee_email' ? 'assignee' : 'reporter'
     for (const issue of all) {

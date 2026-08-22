@@ -1,6 +1,7 @@
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
 import {
   colorIndex,
+  formatSpan,
   highlightSegments,
   initials,
   mergeAdjacentHits,
@@ -155,5 +156,24 @@ describe('relativeTime (en catalog, pinned clock)', () => {
     expect(relativeTime('2026-08-15T11:57:00.000Z')).toBe('3m')
     expect(relativeTime('2026-08-15T10:00:00.000Z')).toBe('2h')
     expect(relativeTime('2026-08-13T12:00:00.000Z')).toBe('2d')
+  })
+})
+
+describe('formatSpan', () => {
+  test('absent span is empty, so the chip can render nothing', () => {
+    expect(formatSpan(null)).toBe('')
+    expect(formatSpan(undefined)).toBe('')
+  })
+  test('largest single unit, mirroring the CLI durations line', () => {
+    expect(formatSpan(407_822)).toBe('6m') // NMB-139's measured wait
+    expect(formatSpan(45 * 60_000)).toBe('45m')
+    expect(formatSpan((5 * 60 + 4) * 60_000)).toBe('5h')
+    expect(formatSpan((23 * 60 + 5) * 60_000)).toBe('23h') // largest unit below a day
+    expect(formatSpan(3 * 86_400_000 + 5 * 60_000)).toBe('3d') // 3d5m still reads 3d
+    expect(formatSpan(42_000)).toBe('42s')
+  })
+  test('zero and negative clamp to 0s, never a negative chip', () => {
+    expect(formatSpan(0)).toBe('0s')
+    expect(formatSpan(-5)).toBe('0s')
   })
 })

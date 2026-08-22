@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/jira"
@@ -360,6 +361,12 @@ type detailResponse struct {
 	QaContext          json.RawMessage `json:"qa_context"`
 	Deploy             json.RawMessage `json:"deploy"`
 	LinkedPRs          json.RawMessage `json:"linked_prs"`
+	// WaitMs / ProgressMs are the lifecycle spans the CLI's durations line
+	// prints (store.Durations, GDK-591) — wait since created, progress since
+	// the latest entry into in-progress. Absent when the changelog cannot
+	// answer: the detail chip renders nothing, never a 0.
+	WaitMs     *int64 `json:"wait_ms,omitempty"`
+	ProgressMs *int64 `json:"progress_ms,omitempty"`
 	// Bodies carries the body-role custom field values (ADF documents), keyed
 	// by alias. List rows strip these; the detail panel renders them as blocks.
 	Bodies map[string]json.RawMessage `json:"bodies"`
@@ -391,6 +398,11 @@ type LinkedPR struct {
 	State  string  `json:"state"`
 	Repo   *string `json:"repo"`
 	Author *string `json:"author"`
+	// LinkedBy / LinkedByID name who attached the link (dev_links actor,
+	// GDK-589) — a different axis from Author: a bot linking a human's PR
+	// keeps both. Absent for URL attachments, which carry no actor.
+	LinkedBy   *string `json:"linked_by,omitempty"`
+	LinkedByID *string `json:"linked_by_id,omitempty"`
 }
 
 // ListLinkedPRs merges the two mirrored PR sources: dev_links (the origin's
@@ -400,7 +412,7 @@ type LinkedPR struct {
 func ListLinkedPRs(devLinks []store.DevLink, attachments []store.DetailAttachment) []LinkedPR {
 	var prs []LinkedPR
 	seen := map[string]bool{}
-	add := func(url, title, state string) {
+	add := func(url, title, state, linkedBy, linkedByID string) {
 		var repo *string
 		number := 0
 		if m := githubPRURL.FindStringSubmatch(url); m != nil {
@@ -410,20 +422,23 @@ func ListLinkedPRs(devLinks []store.DevLink, attachments []store.DetailAttachmen
 			r := m[1]
 			repo = &r
 		}
-		prs = append(prs, LinkedPR{Number: number, Title: title, URL: url, State: state, Repo: repo})
+		prs = append(prs, LinkedPR{
+			Number: number, Title: title, URL: url, State: state, Repo: repo,
+			LinkedBy: nilIfEmpty(linkedBy), LinkedByID: nilIfEmpty(linkedByID),
+		})
 		seen[url] = true
 	}
 	for _, l := range devLinks {
 		if l.Kind != "pullrequest" || seen[l.URL] {
 			continue
 		}
-		add(l.URL, l.Title, jira.DevPRStatus(l.Status).Stored())
+		add(l.URL, l.Title, jira.DevPRStatus(l.Status).Stored(), l.ActorName, l.Actor)
 	}
 	for _, a := range attachments {
 		if seen[a.URL] || githubPRURL.FindStringSubmatch(a.URL) == nil {
 			continue
 		}
-		add(a.URL, a.Filename, "")
+		add(a.URL, a.Filename, "", "", "")
 	}
 	return prs
 }
@@ -467,6 +482,20 @@ func (s *server) handleDetail(w http.ResponseWriter, r *http.Request) {
 		serverError(w, r, err)
 		return
 	}
+	// Lifecycle spans, the same computation `gadak issue` prints (GDK-591):
+	// Durations wants the id→category catalog, not the view's slice of it —
+	// a changelog may pass through statuses no current issue holds.
+	cats, err := s.db.StatusCategories(r.Context())
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
+	spans := store.Durations(store.DurationsInput{
+		Created:    d.Created,
+		Changelog:  d.History,
+		Categories: cats,
+		Now:        time.Now(),
+	})
 
 	res := detailResponse{
 		IssueKey:        d.IssueKey,
@@ -480,6 +509,14 @@ func (s *server) handleDetail(w http.ResponseWriter, r *http.Request) {
 		BacklinkPages:   d.BacklinkPages,
 		LinkedPRs:       json.RawMessage("[]"),
 		Bodies:          map[string]json.RawMessage{},
+	}
+	if spans.Wait != nil {
+		ms := spans.Wait.Milliseconds()
+		res.WaitMs = &ms
+	}
+	if spans.Progress != nil {
+		ms := spans.Progress.Milliseconds()
+		res.ProgressMs = &ms
 	}
 	for alias := range view.bodyAliases {
 		val, ok := d.Custom[alias]
@@ -662,7 +699,12 @@ type derivedView struct {
 	// what detail comments label their authors with, and what marks bots on
 	// the people axis. Empty for a pre-v36 mirror, which simply labels nobody.
 	accountTypeByAccount map[string]string
-	categories           map[string]string
+	// actorsByIssue is the per-row half of the people axis above (GDK-590):
+	// which account ids touched each issue — comment, changelog entry, or
+	// dev-panel link. Rows serialize it as `actor_ids`; the client's actor
+	// filter narrows on it with no extra round trip.
+	actorsByIssue map[string][]string
+	categories    map[string]string
 	groupByEmail         map[string]string
 	groupByAccount       map[string]string
 	rules                []config.GroupRule
@@ -740,6 +782,7 @@ func (s *server) buildView(ctx context.Context, key string, lites []store.IssueL
 		key:                  key,
 		emailByAccount:       map[string]string{},
 		accountTypeByAccount: map[string]string{},
+		actorsByIssue:        map[string][]string{},
 		categories:           map[string]string{},
 		groupByEmail:         map[string]string{},
 		groupByAccount:       map[string]string{},
@@ -817,6 +860,14 @@ func (s *server) buildView(ctx context.Context, key string, lites []store.IssueL
 		name := a.ActorName
 		acc := a.ActorID
 		addMember("", &name, &acc)
+		// Per-row index for the same axis: sorted for a stable payload —
+		// the view query's UNION ALL order is an implementation detail.
+		if acc != "" && !contains(v.actorsByIssue[a.IssueKey], acc) {
+			v.actorsByIssue[a.IssueKey] = append(v.actorsByIssue[a.IssueKey], acc)
+		}
+	}
+	for key := range v.actorsByIssue {
+		sort.Strings(v.actorsByIssue[key])
 	}
 	// The account catalog labels every member the two passes above produced.
 	catalog, err := s.db.UserCatalog(ctx)
@@ -958,9 +1009,6 @@ func (v *derivedView) issues(lites []store.IssueLite) []issueLite {
 // serialized before the stored ones, so the stored value is what survives
 // JSON.parse.
 func (v *derivedView) enrichRow(key string) map[string]any {
-	if len(v.deploy) == 0 && len(v.qa) == 0 {
-		return nil
-	}
 	extra := map[string]any{}
 	if p := payload(v.deploy[key]); p != nil {
 		extra["deploy_status"] = pick(p, "status")
@@ -972,6 +1020,12 @@ func (v *derivedView) enrichRow(key string) map[string]any {
 				extra[k] = val
 			}
 		}
+	}
+	// The people axis's per-row half (GDK-590): which accounts touched this
+	// issue. Same slot the plugins use — serialized ahead of stored fields,
+	// and `actor_ids` is not a stored name, so nothing can be shadowed.
+	if len(v.actorsByIssue[key]) > 0 {
+		extra["actor_ids"] = v.actorsByIssue[key]
 	}
 	if len(extra) == 0 {
 		return nil

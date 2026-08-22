@@ -20,6 +20,9 @@ export const ko = {
   'common.none': '없음',
   'common.defaultParen': '(기본)',
   'common.unknown': '알 수 없음',
+  // GDK-590: 서버가 내린 한 단어 판정(account_type agent/app)을 사람 이름이
+  // 보이는 곳곳(코멘트·히스토리·개발 링크)에 함께 보여준다.
+  'common.bot': '봇',
   'common.me': '나',
   'common.all': '전체',
   'common.setCredentials': '자격증명 설정',
@@ -81,6 +84,7 @@ export const ko = {
   'field.status': '상태',
   'field.assignee_email': '담당자',
   'field.reporter_email': '보고자',
+  'field.actor': '작업자',
   'field.team_group': '파트',
   'field.labels': '라벨',
   'field.priority': '우선순위',
@@ -175,6 +179,8 @@ export const ko = {
   'group.byProduct': '제품',
   'group.byTeam': '파트',
   'group.byAssignee': '담당자',
+  'group.byActor': '작업자',
+  'group.noActor': '작업자 없음',
   'group.byPriority': '우선순위',
   'group.bySeverity': '심각도',
   'group.byType': '유형',
@@ -510,6 +516,8 @@ export const ko = {
   'detail.noPrs': '연결된 PR 없음',
   'detail.prsNotMirrored':
     'PR은 devStatus로 미러됩니다. 쓰기는 Jira의 GitHub 앱을 통합니다',
+  // 누가 링크를 걸었는지(개발 패널의 actor) — PR 작성자와는 다른 축이다.
+  'detail.prLinkedBy': '연결: {name}',
   'detail.notFound': '이 이슈를 찾을 수 없습니다. 삭제되었을 수 있습니다.',
   'detail.loadFailed': '상세를 불러오지 못했습니다.',
   'detail.openJira': 'Jira 원본 열기',
@@ -518,6 +526,10 @@ export const ko = {
   'clipboard.copyFailed': '복사하지 못했습니다 — 클립보드가 쓰기를 거부했습니다.',
   'detail.reopened': '재오픈됨',
   'detail.reopenTimes': '재오픈 ×{n}',
+  // GDK-590 시간 칩 — CLI의 durations 줄과 같은 숫자. 체인지로그가 답할 수
+  // 있을 때만 렌더된다. 값이 없는 span은 해당 부분을 뺀다.
+  'detail.waitSpan': '대기 {span}',
+  'detail.progressSpan': '진행 {span}',
   'detail.priorityShort': '우선 {p}',
   'detail.severityShort': '심각도 {s}',
   'detail.linked': '연결됨',

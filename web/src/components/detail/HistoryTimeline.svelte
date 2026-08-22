@@ -8,6 +8,7 @@
   import type { HistoryEntry } from '../../lib/types'
   import { isReopen } from '../../lib/view-config'
   import { relativeTime, absoluteTime } from './format'
+  import BotBadge from '../list/BotBadge.svelte'
 
   let { history }: { history: HistoryEntry[] } = $props()
 
@@ -47,7 +48,9 @@
           </span>
         </div>
         <div class="text-micro text-text-muted">
-          {#if e.by}{e.by} · {/if}<span title={absoluteTime(e.at)}>{relativeTime(e.at)}</span>
+          {#if e.by}{e.by} <BotBadge accountId={e.author_id} /> · {/if}<span title={absoluteTime(e.at)}
+            >{relativeTime(e.at)}</span
+          >
         </div>
       </li>
     {/each}

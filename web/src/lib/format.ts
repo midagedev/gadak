@@ -24,6 +24,27 @@ export function absTime(iso: string | null): string {
   return i18nAbsTime(iso)
 }
 
+/* ── Lifecycle spans (detail duration chip) ── */
+
+/**
+ * One span of the durations line — largest single unit, mirroring the CLI's
+ * `wait 3d · progress 5h` (store.FormatDuration) so both surfaces say the
+ * same number for the same changelog. Absent/invalid is '' so the caller
+ * renders no chip, never a "0d".
+ */
+export function formatSpan(ms: number | null | undefined): string {
+  if (typeof ms !== 'number' || !Number.isFinite(ms)) return ''
+  // Negative clamps to zero, same as the server's span(): a jittered stamp
+  // reads "now", not "-1s".
+  const s = ms <= 0 ? 0 : Math.floor(ms / 1000)
+  if (s < 60) return `${s}s`
+  const m = Math.floor(s / 60)
+  if (m < 60) return `${m}m`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h`
+  return `${Math.floor(h / 24)}d`
+}
+
 /* ── Search-term highlighting ── */
 
 /** Case-insensitive substring split, one span per query word. Key-shortcut

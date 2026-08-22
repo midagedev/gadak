@@ -89,6 +89,11 @@ the fixes are all here.
   connected Jira says out loud that its two calls could interleave.
   `gadak issue` shows how long an issue waited and how long it has been in
   progress, computed from the changelog rather than stored.
+- **The web shows which worker was a bot** ([GDK-590]). One badge marks a
+  bot on comments, history and PR links — keyed on the account type, never
+  a name. Group or filter a list by actor to see what one agent touched,
+  and an issue's detail says how long it waited and how long it has been in
+  progress.
 - **The panel carries deployments and builds** ([GDK-592]). `gadak dev
   deploy KEY --env production --state successful` and `gadak dev build KEY
   --state failed --number 592` write the other two kinds of development

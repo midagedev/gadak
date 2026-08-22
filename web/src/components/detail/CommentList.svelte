@@ -16,6 +16,7 @@
   // The list's Avatar, not a detail-local one: a person must wear the same
   // name-derived color here that they wear in every row behind this panel.
   import Avatar from '../list/Avatar.svelte'
+  import BotBadge from '../list/BotBadge.svelte'
   import AdfContent from './AdfContent.svelte'
 
   function reply(c: DetailComment) {
@@ -110,6 +111,7 @@
             <span class="text-[12px] font-medium text-text-primary">
               {c.author ?? c.author_email ?? t('detail.unknownAuthor')}
             </span>
+            <BotBadge accountId={c.author_account_id} accountType={c.author_account_type} />
             <span class="text-micro text-text-muted" title={absoluteTime(c.created_at)}>
               {relativeTime(c.created_at)}
             </span>

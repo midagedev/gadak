@@ -120,6 +120,10 @@ export interface IssueLite {
 
   /** Deploy stage (precomputed). Older servers omit (undefined); empty object may arrive as default. */
   deploy_status?: DeployStatus
+  /** Account ids that touched this issue — comment, changelog entry, or
+   *  dev-panel link (server's issue_actors view). Older servers omit.
+   *  The actor filter and grouping narrow on this, never on display names. */
+  actor_ids?: string[]
 }
 
 /** Team member (name/avatar/group). Bundled with bootstrap. */
@@ -134,6 +138,11 @@ export interface Member {
   status: string | null
   /** Jira accountId — used for assignee writes (local pick, no server round-trip). Backend fills. */
   jira_account_id?: string | null
+  /** Origin account type: 'agent' (standalone) or 'app' (Cloud). Older servers omit. */
+  account_type?: string | null
+  /** Server's judgement that this account is a bot (account_type agent/app).
+   *  The badge renders on this flag alone — the client never re-derives it. */
+  is_bot?: boolean
 }
 
 export type SyncSourceStatus =
@@ -188,6 +197,8 @@ export interface DetailComment {
   author: string | null
   author_email: string | null
   author_account_id?: string | null // For reply (mention) targeting
+  /** Origin account type of the author ('agent'|'app'). Older servers omit. */
+  author_account_type?: string | null
   body: string // plain text
   raw_body: AdfNode | null // Raw ADF
   created_at: string | null
@@ -200,6 +211,8 @@ export interface HistoryEntry {
   from: string | null
   to: string | null
   by: string | null
+  /** Author's account id — attribution without display names. Older servers omit. */
+  author_id?: string | null
   /** Pre/post category of a status transition (new|inprogress|done). Prefer over names for reopen. */
   from_category?: string | null
   to_category?: string | null
@@ -221,6 +234,10 @@ export interface LinkedPr {
   state: string
   repo: string | null
   author: string | null
+  /** Who attached the link (dev-panel actor) — a different axis from the
+   *  PR's own author: a bot linking a human's PR keeps both. Older servers omit. */
+  linked_by?: string | null
+  linked_by_id?: string | null
 }
 
 /** Jira attachment plus private S3 replay-cache metadata. */
@@ -326,6 +343,10 @@ export interface DetailResponse {
   /** Pages whose text names this issue — the other direction of the same
    *  derivation. Omitted when empty. */
   backlink_pages?: PageLite[]
+  /** Lifecycle spans (server's store.Durations, same numbers the CLI prints).
+   *  Absent when the changelog cannot answer — the chip renders nothing. */
+  wait_ms?: number | null
+  progress_ms?: number | null
 }
 
 /** GET `bootstrap/` response. */

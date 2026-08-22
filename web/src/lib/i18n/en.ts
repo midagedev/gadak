@@ -19,6 +19,9 @@ export const en = {
   'common.none': 'None',
   'common.defaultParen': '(default)',
   'common.unknown': 'Unknown',
+  // GDK-590: the server's one-word judgement (account_type agent/app) shown
+  // wherever a person's name is shown — comments, history, dev links.
+  'common.bot': 'Bot',
   'common.me': 'Me',
   'common.all': 'All',
   'common.setCredentials': 'Set credentials',
@@ -80,6 +83,7 @@ export const en = {
   'field.status': 'Status',
   'field.assignee_email': 'Assignee',
   'field.reporter_email': 'Reporter',
+  'field.actor': 'Actor',
   'field.team_group': 'Team',
   'field.labels': 'Labels',
   'field.priority': 'Priority',
@@ -174,6 +178,8 @@ export const en = {
   'group.byProduct': 'Product',
   'group.byTeam': 'Team',
   'group.byAssignee': 'Assignee',
+  'group.byActor': 'Actor',
+  'group.noActor': 'No actors',
   'group.byPriority': 'Priority',
   'group.bySeverity': 'Severity',
   'group.byType': 'Type',
@@ -512,6 +518,8 @@ export const en = {
   // cmd/gadak/dev.go names both halves of this sentence.
   'detail.prsNotMirrored':
     'PRs are mirrored via devStatus; writes go through Jira\'s GitHub app',
+  // Who attached the link (dev-panel actor) — distinct from the PR's author.
+  'detail.prLinkedBy': 'Linked by {name}',
   'detail.notFound': 'Could not find this issue. It may have been deleted.',
   'detail.loadFailed': 'Could not load details.',
   'detail.openJira': 'Open in Jira',
@@ -520,6 +528,10 @@ export const en = {
   'clipboard.copyFailed': 'Could not copy — the clipboard refused the write.',
   'detail.reopened': 'Reopened',
   'detail.reopenTimes': 'Reopened ×{n}',
+  // GDK-590 durations chip — the same spans the CLI's durations line prints.
+  // Rendered only when the changelog can answer; absent spans drop their part.
+  'detail.waitSpan': 'Waited {span}',
+  'detail.progressSpan': 'In progress {span}',
   'detail.priorityShort': 'Prio {p}',
   'detail.severityShort': 'Sev {s}',
   'detail.linked': 'Linked',

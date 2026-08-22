@@ -15,6 +15,8 @@ import { defineConfig } from 'vitest/config'
 // from pages.svelte.ts, which uses runes and pulls the store graph. The
 // default unit project has no svelte plugin on purpose (HistoryView /
 // SearchBox tests parse .svelte source with svelte/compiler instead).
+// filters-actor.test.ts joins it for the same reason: filterIssues and
+// buildGroups live in filters.svelte.ts.
 //
 // Use test.env, not vite `define`. Vitest's deleteDefineConfig copies
 // import.meta.env.* defines onto process.env, so a hosted-project define
@@ -28,7 +30,11 @@ export default defineConfig({
         test: {
           name: 'unit',
           include: ['web/src/**/*.test.ts'],
-          exclude: ['web/src/lib/hosted-fetch.test.ts', 'web/src/stores/pages.test.ts'],
+          exclude: [
+            'web/src/lib/hosted-fetch.test.ts',
+            'web/src/stores/pages.test.ts',
+            'web/src/stores/filters-actor.test.ts',
+          ],
           // Pin empty so a leftover VITE_HOSTED_DEMO=1 in the shell cannot
           // turn the adapter on for the production-default suite.
           env: { VITE_HOSTED_DEMO: '' },
@@ -47,7 +53,7 @@ export default defineConfig({
         test: {
           name: 'pages-store',
           environment: 'node',
-          include: ['web/src/stores/pages.test.ts'],
+          include: ['web/src/stores/pages.test.ts', 'web/src/stores/filters-actor.test.ts'],
           env: { VITE_HOSTED_DEMO: '' },
         },
       },

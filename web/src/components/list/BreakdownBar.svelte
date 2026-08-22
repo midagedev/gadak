@@ -11,6 +11,7 @@
     { key: 'product', label: t('group.byProduct') },
     { key: 'team_group', label: t('group.byTeam') },
     { key: 'assignee', label: t('group.byAssignee') },
+    { key: 'actor', label: t('group.byActor') },
     { key: 'priority', label: t('group.byPriority') },
     { key: 'severity', label: t('group.bySeverity') },
     { key: 'issue_type', label: t('group.byType') },

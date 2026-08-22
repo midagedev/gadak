@@ -14,6 +14,7 @@
   import { write } from '../../stores/write.svelte'
   import { openIssueOrigin } from '../../lib/desktop-links'
   import { jiraUrl } from './format'
+  import { formatSpan } from '../../lib/format'
   import IssueBreadcrumb from './IssueBreadcrumb.svelte'
   import WatchButton from '../personal/WatchButton.svelte'
   import StatusTransition from '../write/StatusTransition.svelte'
@@ -23,9 +24,31 @@
   import TitleEditor from '../write/TitleEditor.svelte'
   import Icon from '../ui/Icon.svelte'
 
-  let { issue, overlay = false }: { issue: IssueLite; overlay?: boolean } = $props()
+  let {
+    issue,
+    overlay = false,
+    waitMs = null,
+    progressMs = null,
+  }: {
+    issue: IssueLite
+    overlay?: boolean
+    /** Lifecycle spans from the detail response (server's Durations). Absent → no chip. */
+    waitMs?: number | null
+    progressMs?: number | null
+  } = $props()
 
   const isFavorite = $derived(favorites.keys.has(issue.issue_key))
+
+  // "Waited 3d · In progress 5h" — the CLI durations line's numbers. Parts a
+  // span cannot answer drop out; with none, the chip does not render.
+  const durationsLabel = $derived(
+    [
+      formatSpan(waitMs) && t('detail.waitSpan', { span: formatSpan(waitMs) }),
+      formatSpan(progressMs) && t('detail.progressSpan', { span: formatSpan(progressMs) }),
+    ]
+      .filter(Boolean)
+      .join(' · '),
+  )
 
   // Same hash the CLI's deepLinkURL / composeServeURL pass through:
   // "issue=KEY" with no leading ? or #. /w/<profile> only for a named
@@ -176,6 +199,16 @@
         title={issue.reopen_reason ?? t('detail.reopened')}
       >
         {t('detail.reopenTimes', { n: issue.reopen_count })}
+      </span>
+    {/if}
+
+    <!-- Lifecycle spans (GDK-590): waited / in-progress, from the changelog -->
+    {#if durationsLabel}
+      <span
+        class="rounded-md bg-bg-elevated px-2 py-0.5 text-text-secondary"
+        data-testid="duration-chip"
+      >
+        {durationsLabel}
       </span>
     {/if}
   </div>

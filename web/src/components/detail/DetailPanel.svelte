@@ -149,7 +149,12 @@
     <!-- Header — outside the scroll, so it is pinned by structure. -->
     <div class="relative z-10 flex-none bg-bg-panel">
       {#if lite}
-        <DetailHeader issue={lite} {overlay} />
+        <DetailHeader
+          issue={lite}
+          {overlay}
+          waitMs={detailForKey?.wait_ms ?? null}
+          progressMs={detailForKey?.progress_ms ?? null}
+        />
         {#if isHostedDemo() && write.demoEdits.has(key)}
           <!-- The banner counts demo edits; this says which issue is one, so a
                changed status here is never mistaken for the snapshot's own. -->
