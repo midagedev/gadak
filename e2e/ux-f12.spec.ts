@@ -88,16 +88,11 @@ test.describe('F12 detail / settings / server-down', () => {
     page,
   }) => {
     const errors = attachConsoleErrors(page)
-    await page.route(`${API}projects/available/`, async (route) => {
-      await new Promise((r) => setTimeout(r, 60_000))
-      await route.abort()
-    })
-    await page.route(`${API}settings/spaces/`, async (route) => {
-      await new Promise((r) => setTimeout(r, 60_000))
-      await route.abort()
-    })
-
     await gotoApp(page)
+    // Abort the site lists so teardown is not pinned on a 60s fulfill.
+    // Register after boot: the same URLs must not stall gotoApp.
+    await page.route('**/projects/available/**', (route) => route.abort())
+    await page.route('**/settings/spaces/**', (route) => route.abort())
     await openServerSettings(page)
     const dialog = page.getByRole('dialog', { name: 'Settings' })
     await dialog.getByRole('button', { name: 'Sources', exact: true }).click()
@@ -116,7 +111,12 @@ test.describe('F12 detail / settings / server-down', () => {
     await expect(page.getByTestId('offline-banner')).toHaveCount(0)
 
     await page.screenshot({ path: '/tmp/f12-shots/476-sources-error.png' })
-    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+    // route.abort() logs net::ERR_FAILED; that is the hung-list signal, same
+    // as the GDK-477 down path in this file.
+    expect(
+      errors.filter((e) => !e.includes('ERR_FAILED') && !e.includes('Failed to load resource')),
+      `console errors:\n${errors.join('\n')}`,
+    ).toEqual([])
   })
 
   test('GDK-476: turning Confluence on for every space needs a second click', async ({

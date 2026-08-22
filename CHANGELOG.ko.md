@@ -249,6 +249,14 @@
   목록을 자기 자신과 비교하고 있었습니다 — 행 없는 일곱 번째 다이얼로그가
   초록으로 남는 구조. 이제 소스 트리를 걸어 셸을 import하는 컴포넌트
   전수에 행 하나씩을 요구합니다.
+- **테스트 스위트가 재지도 않는 프로브에 값을 치르지 않습니다**
+  ([GDK-648]). Linux 카탈로그 테스트 하나가 실제 `claude mcp get`을
+  조용히 돌리고 있었습니다(런당 2초) — 파일이 이미 명시한 규칙(카탈로그
+  테스트는 프로브를 스텁)을 이제 패키지 `TestMain`이 강제해서, 다음
+  누락은 벽시계를 잡아먹는 대신 panic으로 드러납니다. SQLite
+  blocked-BEGIN 탐지기는 프로덕션 예산 1초 대신 50ms 테스트 예산에서
+  80ms를 기다리고, hung-sources e2e는 60초 fulfill에 테어다운을 묶는
+  대신 라우트를 abort합니다.
 - **팔레트가 광고한 `?`가 이제 작동합니다** ([GDK-618]). 푸터는 줄곧
   `?`가 단축키 시트를 연다고 말해 왔지만, 모달이 화면을 잡는 동안 전역
   키맵은 모든 키를 무시하고 팔레트 자신은 그 키를 받은 적이 없었습니다 —
@@ -1881,6 +1889,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-636]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-636
 [GDK-637]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-637
 [GDK-639]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-639
+[GDK-648]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-648
 [GDK-654]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-654
 [GDK-655]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-655
 [GDK-656]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-656

@@ -28,6 +28,20 @@ func stubNoClaude(t *testing.T) {
 	t.Cleanup(func() { lookPath = prev })
 }
 
+// Catalogue tests that call List/ListFor without stubNoClaude used to hit a
+// real `claude mcp get gadak` (Linux Raycast row, 2s). Probe tests replace
+// lookPath themselves; anyone else resolving "claude" is a missed stub.
+func TestMain(m *testing.M) {
+	orig := lookPath
+	lookPath = func(name string) (string, error) {
+		if name == "claude" {
+			panic("List/ListFor resolved claude without stubNoClaude; TestMCPProbe* must install their own lookPath")
+		}
+		return orig(name)
+	}
+	os.Exit(m.Run())
+}
+
 func TestListOrderAndDetectFlip(t *testing.T) {
 	stubNoClaude(t)
 	home := t.TempDir()
@@ -445,6 +459,7 @@ func TestInstallArgsForWindowsRejectsRaycast(t *testing.T) {
 // refuses every non-darwin GOOS — so the catalog must not offer a row whose
 // Install button is guaranteed to fail. Same reasoning as GDK-244 on Windows.
 func TestInstallArgsForLinuxRejectsRaycast(t *testing.T) {
+	stubNoClaude(t)
 	if args, ok := InstallArgsFor(IDRaycast, "linux"); ok {
 		t.Fatalf("linux must not install raycast, args=%v", args)
 	}
@@ -490,6 +505,7 @@ func TestCataloguePathDoesNotExecClaude(t *testing.T) {
 	_ = List()
 	_ = ListFor("darwin")
 	_ = ListFor("windows")
+	_ = ListFor("linux")
 
 	if _, err := os.Stat(marker); err == nil {
 		t.Fatal("catalogue List/ListFor must not exec claude")

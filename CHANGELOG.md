@@ -260,6 +260,14 @@ the fixes are all here.
   The dialog-registry test compared a list against itself — a seventh
   dialog without a row stayed green; it now walks the source tree for
   every component that imports the shell and demands a row for each.
+- **The test suite stops paying for probes it does not measure**
+  ([GDK-648]). One Linux catalog test was quietly running a real `claude
+  mcp get` (two seconds a run); the rule the file already stated — catalog
+  tests stub the probe — is now enforced by the package's `TestMain`, so
+  the next missed stub panics instead of costing wall-clock. The SQLite
+  blocked-BEGIN detector waits 80ms on a 50ms test budget instead of a
+  second on production's, and the hung-sources e2e aborts its routes
+  instead of pinning teardown on a 60-second fulfill.
 - **The palette's advertised `?` works now** ([GDK-618]). The footer has
   always said `?` opens the shortcuts sheet, but the global keymap ignores
   keys while a modal owns the screen and the palette never claimed the key
@@ -1920,6 +1928,7 @@ measured numbers instead of adjectives.
 [GDK-636]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-636
 [GDK-637]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-637
 [GDK-639]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-639
+[GDK-648]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-648
 [GDK-654]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-654
 [GDK-655]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-655
 [GDK-656]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-656

@@ -28,6 +28,12 @@ func TestWriteReadThenWriteAgainstHeldTxn(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { challenger.Close() })
+	// Production DSN is busy_timeout(5000). Pin the pool so this PRAGMA is
+	// the connection BeginTx uses (same SetMaxOpenConns(1) as local_test.go).
+	challenger.sql.SetMaxOpenConns(1)
+	if _, err := challenger.sql.Exec(`PRAGMA busy_timeout = 50`); err != nil {
+		t.Fatal(err)
+	}
 
 	ctx := context.Background()
 	holdTx, err := holder.sql.BeginTx(ctx, nil)
@@ -67,7 +73,7 @@ func TestWriteReadThenWriteAgainstHeldTxn(t *testing.T) {
 		t.Fatalf("write callback ran under held lock: %v", err)
 	case err := <-done:
 		t.Fatalf("write returned before callback: %v", err)
-	case <-time.After(time.Second):
+	case <-time.After(80 * time.Millisecond):
 		// BEGIN is waiting in busy_timeout. Drop the holder so it can proceed.
 		// This case is a blocked-BEGIN detector, not a duration assertion.
 		if err := holdTx.Rollback(); err != nil {
