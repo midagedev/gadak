@@ -139,7 +139,10 @@ test.describe('F11 search / filter / empty state', () => {
     await expect(page.getByText(en['list.noMatchTitle'], { exact: true })).toHaveCount(0)
     await expect(page.getByTestId('issue-list-scroller').locator('[role="button"]').first()).toBeVisible()
     // Boot default is the Epics breakdown since GDK-100; clearing returns to it.
-    await expect(page.getByRole('button', { name: /Epics/ })).toHaveClass(/bg-bg-active/)
+    await expect(page.getByRole('button', { name: /Epics/ })).toHaveAttribute(
+      'aria-current',
+      'true',
+    )
     await expect(page.getByTestId('list-count')).not.toHaveText('534 issues')
 
     await page.screenshot({ path: '/tmp/f11-shots/478-after-clear-search.png' })
@@ -169,7 +172,10 @@ test.describe('F11 search / filter / empty state', () => {
     await gotoApp(page)
 
     // Boot default is the Epics breakdown since GDK-100; clearing returns to it.
-    await expect(page.getByRole('button', { name: /Epics/ })).toHaveClass(/bg-bg-active/)
+    await expect(page.getByRole('button', { name: /Epics/ })).toHaveAttribute(
+      'aria-current',
+      'true',
+    )
     await expect(page.getByTestId('filter-chip')).toHaveCount(0)
     await expect(page.getByTestId('filter-clear')).toHaveCount(0)
 
@@ -181,7 +187,10 @@ test.describe('F11 search / filter / empty state', () => {
     await page.getByTestId('filter-clear').click()
     await expect(page.getByTestId('filter-chip')).toHaveCount(0)
     // Boot default is the Epics breakdown since GDK-100; clearing returns to it.
-    await expect(page.getByRole('button', { name: /Epics/ })).toHaveClass(/bg-bg-active/)
+    await expect(page.getByRole('button', { name: /Epics/ })).toHaveAttribute(
+      'aria-current',
+      'true',
+    )
     await expect(page.getByTestId('list-count')).not.toHaveText('534 issues')
     await expect(page.getByText(/Done \d+/)).toHaveCount(0)
 

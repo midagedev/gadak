@@ -72,12 +72,16 @@
     </button>
 
     {#if feedOn}
+    <!-- The two feed rows carry aria-current while the feed holds the main
+         column — same condition as their paint, and the semantic axis e2e
+         reads instead of the bg token (GDK-613). -->
     <button
       type="button"
       class="flex h-control w-full items-center gap-2 rounded-md px-3 text-left text-body transition-colors {me.feedOpen &&
       me.feedFocus === 'reporter'
         ? 'bg-bg-active text-text-primary'
         : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
+      aria-current={me.feedOpen && me.feedFocus === 'reporter' ? 'true' : undefined}
       onclick={() => me.openFeed('reporter')}
     >
       <Icon name="pen" size={15} class="text-text-muted" />
@@ -91,6 +95,7 @@
       me.feedFocus !== 'reporter'
         ? 'bg-bg-active text-text-primary'
         : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
+      aria-current={me.feedOpen && me.feedFocus !== 'reporter' ? 'true' : undefined}
       onclick={() => me.openFeed('all')}
       title={t('personal.feedHint')}
     >

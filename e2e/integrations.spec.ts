@@ -94,7 +94,10 @@ test.describe('integrations tab is desktop-only', () => {
     await forceLocale(page, 'en')
     await page.goto('/#/?settings=integrations')
     await expect(dialog(page)).toBeVisible()
-    await expect(tabButton(page, en['settings.tabSync'])).toHaveClass(/border-accent/)
+    await expect(tabButton(page, en['settings.tabSync'])).toHaveAttribute(
+      'aria-current',
+      'true',
+    )
     await expect(page).toHaveURL(/settings=sync/)
     await expect(page.getByTestId('integrations-tab')).toHaveCount(0)
 

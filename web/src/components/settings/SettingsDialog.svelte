@@ -329,11 +329,14 @@
     </p>
     <div class="flex gap-1">
       {#each TABS as [id, label] (id)}
+        <!-- aria-current on the same condition as the accent border: the
+             active tab is exposed semantically, not only as paint (GDK-613). -->
         <button
           type="button"
           class="-mb-px flex h-control items-center border-b-2 px-2.5 text-body transition-colors {tab === id
             ? 'border-accent text-text-primary'
             : 'border-transparent text-text-secondary hover:text-text-primary'}"
+          aria-current={tab === id ? 'true' : undefined}
           onclick={() => (tab = id)}
         >
           {label}

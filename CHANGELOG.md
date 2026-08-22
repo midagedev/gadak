@@ -216,6 +216,12 @@ the fixes are all here.
   headings at the top step, the wordmark gets one owner instead of two
   sizes, and the theme gate now fails on any `text-[Npx]` utility so the
   fifth size cannot come back.
+- **"You are here" is an attribute, not a paint color** ([GDK-613]). Six
+  e2e specs asserted the active sidebar row and settings tab by their
+  background utility class, so renaming a palette token would have turned
+  them red with nothing broken. The active rows and tabs now carry
+  `aria-current` on the same condition that paints them — screen readers
+  gain the same signal the tests read.
 - **Empty is a state, not a blank** ([GDK-130]). The settings tables for
   members, groups, products, and rules used to render their column headers
   over nothing; each now says what's missing and what to do next, with the
@@ -1726,6 +1732,7 @@ measured numbers instead of adjectives.
 [GDK-609]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-609
 [GDK-610]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-610
 [GDK-611]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-611
+[GDK-613]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-613
 [GDK-612]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-612
 [GDK-615]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-615
 [GDK-619]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-619

@@ -578,12 +578,16 @@
         {#if id === 'builtin'}
           <SidebarSection id="builtin" label={t('sidebar.builtinViews')} {visibleIds}>
             {#each builtins as v (v.id)}
+              <!-- aria-current rides the same condition as the paint: the class
+                   is decoration, the attribute is the contract e2e and screen
+                   readers read (GDK-613). -->
               <button
                 type="button"
                 class="flex h-control w-full items-center gap-2 rounded-md px-3 text-left text-body transition-colors {activeBuiltin ===
                 v.id
                   ? 'bg-bg-active text-text-primary'
                   : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
+                aria-current={activeBuiltin === v.id ? 'true' : undefined}
                 title={v.hint}
                 onclick={() => applyView(v.config)}
               >

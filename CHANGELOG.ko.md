@@ -210,6 +210,11 @@
   body). 다이얼로그 제목은 패널 제목과 같은 최상단으로 올라가고, 워드마크는
   두 크기 대신 소유자 하나를 얻고, 테마 게이트가 이제 `text-[Npx]`
   유틸리티에 실패하므로 다섯 번째 크기는 돌아올 수 없습니다.
+- **"여기 있음"은 속성이지 페인트 색이 아닙니다** ([GDK-613]). e2e 스펙
+  여섯이 활성 사이드바 행과 설정 탭을 배경 유틸리티 클래스로 단언하고
+  있어, 팔레트 토큰 이름만 바꿔도 아무것도 안 깨진 채 빨강이 났을
+  것입니다. 이제 활성 행과 탭이 페인트와 같은 조건으로 `aria-current`를
+  달고, 테스트가 읽는 그 신호를 스크린 리더도 얻습니다.
 - **비어 있음은 상태이지 공백이 아닙니다** ([GDK-130]). 설정의 멤버·그룹·
   제품·규칙 표가 아무것도 없는 위에 컬럼 헤더만 그리고 있었습니다; 이제
   각 표가 무엇이 없고 다음에 뭘 하면 되는지 한 줄로 말하고, 추가 버튼이
@@ -1704,6 +1709,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-609]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-609
 [GDK-610]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-610
 [GDK-611]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-611
+[GDK-613]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-613
 [GDK-612]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-612
 [GDK-615]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-615
 [GDK-619]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-619

@@ -24,14 +24,19 @@ async function gotoParams(page: Page, query: string): Promise<void> {
 /**
  * The saved-view rows the sidebar is marking as active, by their label.
  *
- * The DOCS section is excluded by testid rather than by position: those rows
- * mark the document screen someone is standing on, which is exactly what a
- * restored `space=` is now supposed to light up (2026-08-07) — a legitimate
- * highlight that has nothing to do with the view-config match this measures.
- * Every row that does come from a view config is a plain button with no testid.
+ * Read by `aria-current="true"`, which rides the same condition as the row's
+ * paint — a palette-token rename cannot turn this red (GDK-613). The DOCS
+ * section is excluded by testid rather than by position: those rows mark the
+ * document screen someone is standing on (aria-pressed, no aria-current),
+ * which is exactly what a restored `space=` is now supposed to light up
+ * (2026-08-07) — a legitimate highlight that has nothing to do with the
+ * view-config match this measures. Every row that does come from a view
+ * config is a plain button with no testid.
  */
 async function activeSidebarView(page: Page): Promise<string[]> {
-  return page.locator('aside nav button.bg-bg-active:not([data-testid^="docs-"])').allInnerTexts()
+  return page
+    .locator('aside nav button[aria-current="true"]:not([data-testid^="docs-"])')
+    .allInnerTexts()
 }
 
 test.describe('document screens survive a reload and a link', () => {

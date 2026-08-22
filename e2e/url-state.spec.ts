@@ -27,17 +27,19 @@ async function gotoParams(page: Page, query: string): Promise<void> {
 /**
  * The saved-view rows the sidebar is marking as active, by their label.
  *
- * Copied from docs-deeplink.spec.ts: the DOCS section is excluded by testid
- * because those rows mark the document screen someone is standing on — a
- * legitimate highlight that has nothing to do with the view-config match this
- * measures. The personal feed's two rows light up for the same reason when
- * `feed=` opens that screen, and MyIssuesNav carries no testids, so they are
- * excluded by their labels instead. Every row that does come from a view
- * config is a plain button with no testid.
+ * Read by `aria-current="true"`, which rides the same condition as the row's
+ * paint — a palette-token rename cannot turn this red (GDK-613). Copied from
+ * docs-deeplink.spec.ts: the DOCS section is excluded by testid because those
+ * rows mark the document screen someone is standing on (aria-pressed, no
+ * aria-current) — a legitimate highlight that has nothing to do with the
+ * view-config match this measures. The personal feed's two rows light up for
+ * the same reason when `feed=` opens that screen, and MyIssuesNav carries no
+ * testids, so they are excluded by their labels instead. Every row that does
+ * come from a view config is a plain button with no testid.
  */
 async function activeSidebarView(page: Page): Promise<string[]> {
   const rows = await page
-    .locator('aside nav button.bg-bg-active:not([data-testid^="docs-"])')
+    .locator('aside nav button[aria-current="true"]:not([data-testid^="docs-"])')
     .allInnerTexts()
   // Anchor at the label so a view one day named "Feed…" is not swept out too.
   return rows.filter(
@@ -120,15 +122,16 @@ test.describe('place params', () => {
     const dialog = page.getByTestId('settings-dialog')
     await expect(dialog).toBeVisible()
     const tab = (label: string) => dialog.getByRole('button', { name: label, exact: true })
-    // Active tab styling is the only signal the dialog exposes (no aria-current).
-    await expect(tab(en['settings.tabMembers'])).toHaveClass(/border-accent/)
+    // The active tab is exposed as aria-current on the same condition as its
+    // accent border — the semantic axis, not the palette token (GDK-613).
+    await expect(tab(en['settings.tabMembers'])).toHaveAttribute('aria-current', 'true')
 
     // A tab this build does not know (a link from before a rename, a typo)
     // must land on the default rather than a blank dialog — the tab list will
     // grow, and old links have to keep opening something real.
     await gotoParams(page, 'settings=nonsense')
     await expect(dialog).toBeVisible()
-    await expect(tab(en['settings.tabSync'])).toHaveClass(/border-accent/)
+    await expect(tab(en['settings.tabSync'])).toHaveAttribute('aria-current', 'true')
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
@@ -140,7 +143,7 @@ test.describe('place params', () => {
     const dialog = page.getByTestId('settings-dialog')
     await expect(dialog).toBeVisible()
     const tab = (label: string) => dialog.getByRole('button', { name: label, exact: true })
-    await expect(tab(en['settings.tabAbout'])).toHaveClass(/border-accent/)
+    await expect(tab(en['settings.tabAbout'])).toHaveAttribute('aria-current', 'true')
     await expect(page.getByTestId('settings-about')).toBeVisible()
     await expect(page).toHaveURL(/settings=about/)
 
