@@ -701,6 +701,46 @@ func historySQL(kind string, cur historyCursor, limit int) (string, []any) {
 	return q, args
 }
 
+// RecentVisit is one (kind, key) pair folded to its newest visit — the row
+// `gadak recents` prints. Unlike Visit there is no ID: dedup happened in SQL.
+type RecentVisit struct {
+	Kind     string `json:"kind"`
+	Key      string `json:"key"`
+	ViewedAt string `json:"viewed_at"`
+}
+
+// RecentVisits lists the distinct (kind, key) pairs newest-first, at most
+// limit: AGENTS.md's "recently viewed" recipe (MAX(viewed_at) GROUP BY key)
+// as a typed accessor, both kinds at once. It carries History's epoch clause
+// for the same reason History does: after a workspace changes origin, a
+// retired pair names a key the new origin can mint (GDK-418), and this list
+// exists precisely so its reader goes on to open those keys.
+func (db *DB) RecentVisits(ctx context.Context, limit int) ([]RecentVisit, error) {
+	if limit <= 0 {
+		return nil, errors.New("limit must be > 0")
+	}
+	rows, err := db.sql.QueryContext(ctx, `
+		SELECT kind, key, MAX(viewed_at) AS viewed_at
+		FROM local.visits
+		WHERE origin_epoch = `+currentEpochSQL+`
+		GROUP BY kind, key
+		ORDER BY viewed_at DESC, MAX(id) DESC
+		LIMIT ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []RecentVisit{}
+	for rows.Next() {
+		var r RecentVisit
+		if err := rows.Scan(&r.Kind, &r.Key, &r.ViewedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
 // PruneLocalHistory deletes visit/search rows older than LocalRetention.
 // Called from the same pass as tombstone expiry (DeleteItems).
 func (db *DB) PruneLocalHistory(ctx context.Context) error {

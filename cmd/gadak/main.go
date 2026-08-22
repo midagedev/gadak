@@ -161,6 +161,7 @@ Reading the mirror (no network; see AGENTS.md):
                    <KEY> [KEY...] [--keys -] [--json] [--derive] [--link] [--editmeta]
   open       open the issue on your Jira site in the browser  <KEY>
   search     full-text or JQL            [--jql] [--emit] [--limit N] [--json] "text|JQL|URL"
+  recents    keys read recently, newest first   [--limit N] [--json]
   views      list/open Jira filters      [list|show|open|save]  (alias: view)
   sql        read-only SQL               [--json|--csv] [--no-header] "select ..."
   snapshot   shareable copy of the mirror <out.db> [--from db] [--spread 90d] [--scale N]
@@ -361,6 +362,7 @@ var commands = map[string]func([]string) error{
 	"profiles":        cmdProfiles,
 	"project":         cmdProject,
 	"raycast":         cmdRaycast,
+	"recents":         cmdRecents,
 	"search":          cmdSearch,
 	"serve":           cmdServe,
 	"skill":           cmdSkill,

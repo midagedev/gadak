@@ -278,6 +278,25 @@ func cmdIssue(args []string) error {
 	return nil
 }
 
+// recordVisitBestEffort and recordSearchBestEffort append the personal-history
+// row for one read, the same row the UI's POST /history/visits|searches would
+// append (internal/server/history.go). Reading is the command; history is a
+// side effect, so a local.db that cannot take the row must not fail the read:
+// one stderr line, stdout untouched. Neither warning echoes its payload — the
+// search rule that governs the server ("Search query text is not written to
+// the process log") governs the CLI too.
+func recordVisitBestEffort(db *store.DB, kind, key string) {
+	if _, err := db.RecordVisit(context.Background(), kind, key); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: could not record this visit in local history: %v\n", err)
+	}
+}
+
+func recordSearchBestEffort(db *store.DB, query string, resultCount int) {
+	if _, err := db.RecordSearch(context.Background(), query, resultCount, "", ""); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: could not record this search in local history: %v\n", err)
+	}
+}
+
 func loadIssueDocs(db *store.DB, keys []string) ([]issueDoc, []string, error) {
 	lites, err := lookup(db, keys)
 	if err != nil {
@@ -319,6 +338,11 @@ func loadIssueDocs(db *store.DB, keys []string) ([]issueDoc, []string, error) {
 				Now:        time.Now(),
 			}),
 		})
+		// Personal history rides at the load point, not on cmdIssue's surface:
+		// every caller that gets a doc (default, --json, --derive, multi-key)
+		// records, and the notFound keys above never reach here. (--link and
+		// --editmeta never call loadIssueDocs — no detail load, no visit.)
+		recordVisitBestEffort(db, store.VisitKindIssue, key)
 	}
 	return docs, notFound, nil
 }
@@ -1136,6 +1160,10 @@ func cmdSearch(args []string) error {
 	if err != nil {
 		return err
 	}
+	// res.Total is the count this command's own --json reports and the one
+	// the web client posts (filters.svelte.ts passes res.total) — same input,
+	// same row on both surfaces.
+	recordSearchBestEffort(db, query, res.Total)
 	// Best match first: lookup preserves the order Search ranked the keys in.
 	lites, err := lookup(db, res.Keys)
 	if err != nil {
@@ -1300,6 +1328,9 @@ func searchJQL(query string, limit int, asJSON, emitOnly, force bool) error {
 	if limit > 0 && len(matched) > limit {
 		matched = matched[:limit]
 	}
+	// len(matched) is the total this path's own --json reports, post-cap —
+	// record the same number. --emit returned above before any matching ran.
+	recordSearchBestEffort(db, query, len(matched))
 	warnJQL(parsed)
 
 	if asJSON {

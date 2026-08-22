@@ -380,6 +380,16 @@ var helps = map[string]cmdHelp{
 		},
 		seeAlso: []string{"gadak issue", "gadak sql"},
 	},
+	"recents": {
+		summary: "list the keys this workspace read recently, newest first — the first command after a context compaction or session restart (issue and search reads record themselves)",
+		usage:   "gadak [--workspace <name>] recents [--limit N] [--json]",
+		examples: []string{
+			"gadak recents",
+			"gadak recents --limit 5",
+			"gadak recents --json",
+		},
+		seeAlso: []string{"gadak issue", "gadak search"},
+	},
 	"comment": {
 		summary: "add a comment (@Name resolves to a site user; ambiguous names are refused)",
 		usage: "gadak [--workspace <name>] comment <KEY> [<text> | -m <text|->]\n" +

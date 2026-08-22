@@ -393,6 +393,15 @@ the fixes are all here.
 
 ### MCP and the CLI surface
 
+- **CLI reads leave a trail, and `gadak recents` walks it back**
+  ([GDK-502]). `gadak issue` and `gadak search` now append the same
+  visit/search rows the UI has always written to `local.db` — best-effort,
+  so a history that cannot take the row never fails the read — and the new
+  `recents` verb lists the keys this workspace touched, newest first,
+  deduped. For an agent whose context was just compacted, it is the one
+  command that says which keys were in play; the skill teaches it as the
+  first command after a compaction. Visits stay local: nothing here goes
+  to the origin.
 - **MCP reaches read parity**: `status` shows frozen, `issue` carries
   `description_text` and dev links ([GDK-568], [GDK-569], [GDK-552]).
 - **`gadak sql` warns on a display-name zero-row** like MCP already does
@@ -2001,6 +2010,7 @@ measured numbers instead of adjectives.
 [GDK-486]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-486
 [GDK-489]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-489
 [GDK-490]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-490
+[GDK-502]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-502
 [GDK-495]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-495
 [GDK-496]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-496
 [GDK-497]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-497

@@ -73,6 +73,17 @@ say so rather than guessing at answers. If `gadak` is on PATH but there is no
 workspace yet and they asked for a backlog (or have no Jira), create a
 standalone workspace — do not invent a `TODO.md` or a GitHub Issue.
 
+After a context compaction, or when resuming someone else's session on an
+existing workspace, the first command is `gadak recents`: the keys this
+workspace read most recently, newest first. Reads record themselves —
+`gadak issue` and `gadak search` append the visit/search rows to `local.db`
+as they run, so the list is already there when you need it.
+
+```bash
+gadak recents                    # kind, key, viewed_at — TSV with a header
+gadak recents --json --limit 50
+```
+
 ## Which origin you are talking to
 
 Two kinds. Same CLI verbs. Different record.

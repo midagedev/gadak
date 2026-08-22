@@ -394,6 +394,71 @@ func TestHistoryInvalidCursorSentinel(t *testing.T) {
 	}
 }
 
+func TestRecentVisits(t *testing.T) {
+	db := openTemp(t)
+	ctx := context.Background()
+	visit := func(kind, key string) {
+		t.Helper()
+		if _, err := db.RecordVisit(ctx, kind, key); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(2 * time.Millisecond) // distinct viewed_at, as in the History test
+	}
+	visit("issue", "NMB-1")
+	visit("page", "622723")
+	visit("issue", "NMB-1") // same pair again: still one row, at the newer time
+
+	rows, err := db.RecentVisits(ctx, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("rows = %d, want 2 (the repeated pair folds to one)", len(rows))
+	}
+	if rows[0].Key != "NMB-1" || rows[0].ViewedAt == "" {
+		t.Fatalf("newest = %+v, want NMB-1 at its second visit's time", rows[0])
+	}
+	if rows[1].Kind != "page" || rows[1].Key != "622723" {
+		t.Fatalf("second = %+v, want the page visit", rows[1])
+	}
+
+	one, err := db.RecentVisits(ctx, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(one) != 1 || one[0].Key != "NMB-1" {
+		t.Fatalf("limit 1 = %+v", one)
+	}
+	if _, err := db.RecentVisits(ctx, 0); err == nil {
+		t.Fatal("limit 0: want an error, got none")
+	}
+}
+
+// TestRecentVisitsSkipsRetiredEpoch pins the GDK-418 defence RecentVisits
+// shares with History: a visit row from before an origin replacement names a
+// key the new origin can mint, and this list exists so its reader opens keys.
+func TestRecentVisitsSkipsRetiredEpoch(t *testing.T) {
+	db := openTemp(t)
+	ctx := context.Background()
+	if _, err := db.sql.ExecContext(ctx, `INSERT INTO local.local_meta (k, v) VALUES ('origin_epoch', '1')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.sql.ExecContext(ctx, `INSERT INTO local.visits (kind, key, viewed_at, origin_epoch)
+		VALUES ('issue', 'OLD-1', '2026-08-22T00:00:00.000Z', 0)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.RecordVisit(ctx, "issue", "NEW-1"); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := db.RecentVisits(ctx, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0].Key != "NEW-1" {
+		t.Fatalf("rows = %+v, want only the current-epoch visit", rows)
+	}
+}
+
 func TestRecordVisitRejectsBadKind(t *testing.T) {
 	db := openTemp(t)
 	_, err := db.RecordVisit(context.Background(), "ticket", "NMB-1")

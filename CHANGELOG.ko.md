@@ -366,6 +366,14 @@
 
 ### MCP와 CLI 표면
 
+- **CLI 읽기가 흔적을 남기고, `gadak recents`가 그 길을 되짚습니다**
+  ([GDK-502]). `gadak issue`와 `gadak search`가 UI가 줄곧 쓰던 것과 같은
+  방문·검색 행을 `local.db`에 남깁니다 — best-effort라서 기록이 안 되는
+  상황이 읽기를 실패시키지는 않습니다 — 그리고 신설 `recents` 동사가 이
+  워크스페이스가 만진 키를 최신순·중복 접기로 보여 줍니다. 컨텍스트가
+  방금 압축된 에이전트에게는 어떤 키들이 진행 중이었는지 말해 주는 단 하나의
+  명령이고, 스킬이 압축 직후 첫 명령으로 가르칩니다. 방문 기록은 로컬에
+  머뭅니다: 여기서 origin으로 가는 것은 없습니다.
 - **MCP가 읽기 패리티에 도달합니다**: `status`가 frozen을 보여 주고,
   `issue`가 `description_text`와 dev 링크를 나릅니다 ([GDK-568],
   [GDK-569], [GDK-552]).
@@ -1974,6 +1982,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-486]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-486
 [GDK-489]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-489
 [GDK-490]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-490
+[GDK-502]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-502
 [GDK-495]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-495
 [GDK-496]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-496
 [GDK-497]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-497
