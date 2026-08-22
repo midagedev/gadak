@@ -510,6 +510,9 @@ the fixes are all here.
   one ([GDK-314]), skill detection resolves home the way the installer does
   ([GDK-352]), and `ci-status` counts only default-branch push runs as the
   verdict ([GDK-432]).
+- **The Linear storage PUT rides the client with the 60-second timeout**
+  instead of `http.DefaultClient`, so a stalled storage host can no longer
+  hang `gadak attach` forever ([GDK-636]).
 
 ### The public backlog
 
@@ -1889,6 +1892,7 @@ measured numbers instead of adjectives.
 [GDK-626]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-626
 [GDK-632]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-632
 [GDK-634]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-634
+[GDK-636]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-636
 [GDK-633]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-633
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86
 [GDK-598]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-598

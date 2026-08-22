@@ -475,6 +475,9 @@
   ([GDK-314]), 스킬 감지는 설치기와 같은 방식으로 home을 해석하며
   ([GDK-352]), `ci-status`는 기본 브랜치 push 런만 평결로 칩니다
   ([GDK-432]).
+- **Linear 스토리지 PUT이 `http.DefaultClient` 대신 60초 타임아웃이 있는
+  클라이언트를 탑니다** — 스토리지 호스트가 멈춰도 `gadak attach`가
+  무기한 걸리지 않습니다 ([GDK-636]).
 
 ### 공개 백로그
 
@@ -1851,6 +1854,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-626]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-626
 [GDK-632]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-632
 [GDK-634]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-634
+[GDK-636]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-636
 [GDK-633]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-633
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86
 [GDK-598]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-598

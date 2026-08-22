@@ -379,7 +379,7 @@ func (w *linearWriter) Upload(ctx context.Context, key, filename string, file io
 	for k, v := range target.Headers {
 		req.Header.Set(k, v)
 	}
-	res, err := http.DefaultClient.Do(req)
+	res, err := w.c.HTTP.Do(req)
 	if err != nil {
 		return nil, err
 	}

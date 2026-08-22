@@ -392,3 +392,86 @@ func TestCreateIssueKeepsSupportedFields(t *testing.T) {
 		t.Errorf("creates = %d, want 1", rec.creates)
 	}
 }
+
+// carrierTransport records every request the owning http.Client carries.
+// A request that goes out on http.DefaultClient never passes through it.
+type carrierTransport struct {
+	inner http.RoundTripper
+	seen  *[]string
+}
+
+func (ct carrierTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	*ct.seen = append(*ct.seen, r.Method+" "+r.URL.String())
+	return ct.inner.RoundTrip(r)
+}
+
+// GDK-636: the storage PUT must ride w.c.HTTP (60s timeout), not
+// http.DefaultClient (no timeout). FAIL-first: on the pre-fix source the PUT
+// bypasses the recording transport and this test fails.
+func TestUploadStoragePutUsesClientHTTP(t *testing.T) {
+	var putSeen bool
+	var putSig string
+	storage := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPut {
+			putSeen = true
+			putSig = r.Header.Get("x-sig")
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(storage.Close)
+
+	issue := issueQueryFixture(t)
+	gql := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Query string `json:"query"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Errorf("decode graphql: %v", err)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.Contains(body.Query, "query Issue("):
+			_, _ = w.Write(issue)
+		case strings.Contains(body.Query, "mutation FileUpload"):
+			_, _ = w.Write([]byte(`{"data":{"fileUpload":{"success":true,"uploadFile":{"uploadUrl":"` + storage.URL + `/put","assetUrl":"https://uploads.example/asset","headers":[{"key":"x-sig","value":"signed"}]}}}}`))
+		case strings.Contains(body.Query, "mutation AttachmentCreate"):
+			_, _ = w.Write([]byte(`{"data":{"attachmentCreate":{"success":true,"attachment":{"id":"att-1","title":"a.txt","url":"https://uploads.example/asset"}}}}`))
+		default:
+			t.Errorf("unexpected graphql document: %s", truncate(body.Query, 80))
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+	}))
+	t.Cleanup(gql.Close)
+
+	c := linear.New("linear-test-key-not-a-real-secret")
+	c.Endpoint = gql.URL
+	c.Retries, c.Backoff = 1, 0
+	var carried []string
+	c.HTTP = &http.Client{Transport: carrierTransport{inner: http.DefaultTransport, seen: &carried}, Timeout: c.HTTP.Timeout}
+	w := &linearWriter{c: c}
+
+	atts, err := w.Upload(context.Background(), "FIX-1", "a.txt", strings.NewReader("hello"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(atts) != 1 || atts[0].ID != "att-1" {
+		t.Fatalf("attachments = %+v, want the fixture attachment", atts)
+	}
+	if !putSeen {
+		t.Fatal("storage PUT never reached the storage server")
+	}
+	if putSig != "signed" {
+		t.Errorf("PUT x-sig = %q, want the fileUpload header sent verbatim", putSig)
+	}
+	put := false
+	for _, u := range carried {
+		if strings.HasPrefix(u, http.MethodPut+" ") {
+			put = true
+		}
+	}
+	if !put {
+		t.Fatalf("storage PUT bypassed w.c.HTTP (http.DefaultClient?); client carried: %v", carried)
+	}
+}
