@@ -16,6 +16,7 @@ import (
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/selfupdate"
+	"github.com/midagedev/gadak/internal/store"
 	syncer "github.com/midagedev/gadak/internal/sync"
 )
 
@@ -124,7 +125,7 @@ func cmdSync(args []string) error {
 		if err != nil {
 			// GDK-485: the stored last_error is already folded (sync.record);
 			// the printed line gets the same first sentence.
-			return translateFrozen(origin.FoldPairedError(cfg, err))
+			return translateFrozen(origin.FoldPairedError(cfg, store.WithBusyHint(err)))
 		}
 		kind := "incremental"
 		if res.Full {
@@ -139,7 +140,7 @@ func cmdSync(args []string) error {
 			if runJira {
 				log.Printf("linear sync failed: %v", err)
 			}
-			return translateFrozen(err)
+			return translateFrozen(store.WithBusyHint(err))
 		}
 		kind := "incremental"
 		if lres.Full {
@@ -155,7 +156,7 @@ func cmdSync(args []string) error {
 				// Jira already succeeded; log confluence failure but still exit non-zero.
 				log.Printf("confluence sync failed: %v", err)
 			}
-			return translateFrozen(err)
+			return translateFrozen(store.WithBusyHint(err))
 		}
 		kind := "incremental"
 		if cres.Full {

@@ -18,6 +18,49 @@ import (
 	"github.com/midagedev/gadak/internal/store"
 )
 
+func TestParseLsofHoldersDropsSelfAndDedups(t *testing.T) {
+	const self = 99
+	out := []byte("p99\ncgadak\np42\ncGadak\np42\ncGadak\np7\ncgadak\n")
+	got := parseLsofHolders(out, self)
+	if len(got) != 2 {
+		t.Fatalf("got %d holders, want 2 (self excluded, pid 42 deduped): %+v", len(got), got)
+	}
+	if got[0].PID != 7 || got[0].Command != "gadak" {
+		t.Errorf("first = %+v, want pid 7 gadak", got[0])
+	}
+	if got[1].PID != 42 || got[1].Command != "Gadak" {
+		t.Errorf("second = %+v, want pid 42 Gadak", got[1])
+	}
+	if n := len(parseLsofHolders(nil, self)); n != 0 {
+		t.Fatalf("empty lsof output: %d holders, want 0", n)
+	}
+}
+
+func TestDoctorMirrorHoldersSurface(t *testing.T) {
+	held := formatDoctorText(doctorReport{
+		MirrorHolders: &doctorMirrorHolders{
+			Count: 2,
+			Processes: []doctorMirrorProcess{
+				{PID: 11, Command: "gadak"},
+				{PID: 22, Command: "Gadak"},
+			},
+		},
+	})
+	if !strings.Contains(held, "mirror_holders:") {
+		t.Fatalf("populated holders missing section:\n%s", held)
+	}
+	empty := formatDoctorText(doctorReport{
+		MirrorHolders: &doctorMirrorHolders{Count: 0},
+	})
+	if !strings.Contains(empty, "mirror_holders:") {
+		t.Fatalf("count-0 holders missing section:\n%s", empty)
+	}
+	omitted := formatDoctorText(doctorReport{})
+	if strings.Contains(omitted, "mirror_holders:") {
+		t.Fatalf("nil holders (scan skipped) must omit the section:\n%s", omitted)
+	}
+}
+
 func TestDoctorNoMirrorSucceeds(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)

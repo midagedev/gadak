@@ -186,6 +186,13 @@ func runSource(
 		if err == nil && !res.Full && res.Changed == 0 && res.Deleted == 0 {
 			return
 		}
+		if err != nil && store.IsBusy(err) {
+			// GDK-754: AppendSyncRun is another write(). A holder that
+			// just failed the pass will fail this too, stacking a third
+			// busy_timeout cycle onto pass + last_error. Skip; the CLI
+			// error already carries the holder hint.
+			return
+		}
 		kind := syncRunKind(res.Full, supportsReconcile && (opts.Reconcile || res.Full))
 		run := store.SyncRun{
 			Kind:       kind,
@@ -231,8 +238,32 @@ func runSource(
 	// floor to start from.
 	res.Full = opts.Full || state.Watermark == ""
 
-	if err := pass(state, &res); err != nil {
-		return res, err
+	err = pass(state, &res)
+	if err != nil && store.IsBusy(err) {
+		// One pass-level retry after a short backoff. write() already
+		// waited up to writeBusyAttempts × busy_timeout (~10s). last_error
+		// and AppendSyncRun writes are skipped on BUSY, so a persistent
+		// holder costs at most two write() cycles plus this backoff
+		// (~20.05s) — it does not exceed the previous ~20s double-pay
+		// (pass + last_error). A holder that drops during the backoff
+		// succeeds on the retry.
+		if werr := sleepSyncBusyBackoff(ctx); werr != nil {
+			return res, err
+		}
+		err = pass(state, &res)
+	}
+	if err != nil {
+		return res, store.WithBusyHint(err)
+	}
+	if res.Full && src.Kind != KindConfluence {
+		// GDK-755: per-page upserts recompute only the batch and its
+		// dependents. One full-table sweep at the end of a full issue
+		// sync covers anything a page-scoped walk could miss (the v11
+		// migration SQL is the other remaining full sweep). Confluence
+		// has no issues.epic_key.
+		if err = db.RecomputeEpicKeys(ctx); err != nil {
+			return res, err
+		}
 	}
 
 	elapsed := time.Since(started).Round(time.Second)
@@ -260,8 +291,32 @@ func syncRunKind(full, reconcile bool) string {
 // before the store so a paired failure's first line is the pairing sentence
 // (GDK-485); connected/standalone errors pass through.
 func record(ctx context.Context, cfg *config.Config, db *store.DB, sourceID string, err error) error {
+	if store.IsBusy(err) {
+		// GDK-754: last_error is itself a write(). A holder that just
+		// failed the pass will fail this too, stacking a second
+		// busy_timeout cycle. RecordSync also refuses BUSY last_error
+		// writes; skip the call so we do not wait it out. The returned
+		// error already names the holder (write() → WithBusyHint).
+		return store.WithBusyHint(err)
+	}
 	_ = db.RecordSync(ctx, sourceID, store.SyncResult{Err: origin.FoldPairedError(cfg, err)})
 	return err
+}
+
+// syncBusyPassBackoff is 1% of production busy_timeout(5000), matching
+// store.writeBusyBackoff. Combined with one pass retry the persistent-holder
+// failure is bounded by ~20s (see runSource).
+const syncBusyPassBackoff = 50 * time.Millisecond
+
+func sleepSyncBusyBackoff(ctx context.Context) error {
+	timer := time.NewTimer(syncBusyPassBackoff)
+	select {
+	case <-ctx.Done():
+		timer.Stop()
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 // FlushAPIUsage takes the client's process-local counters and accumulates them

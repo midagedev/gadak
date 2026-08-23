@@ -263,7 +263,10 @@ func retryBusy(ctx context.Context, retries *atomic.Uint64, fn func() error) err
 		}
 		last = fn()
 		if last == nil || !sqliteBusy(last) || attempt == writeBusyAttempts {
-			return last
+			// GDK-754: every busy write() result names the holder, so
+			// sync's death path and the mirror-stale warning share one
+			// sentence without each caller wrapping on its own.
+			return WithBusyHint(last)
 		}
 		if err := ctx.Err(); err != nil {
 			return err
@@ -277,7 +280,7 @@ func retryBusy(ctx context.Context, retries *atomic.Uint64, fn func() error) err
 		case <-timer.C:
 		}
 	}
-	return last
+	return WithBusyHint(last)
 }
 
 // write runs fn in a transaction. db.mu serialises writers in this process.

@@ -255,7 +255,7 @@ func TestEpicKeyRecomputeBenchmark(t *testing.T) {
 	// Time a second full recompute in isolation (same SQL as post-upsert).
 	start := time.Now()
 	err := db.write(context.Background(), func(tx *sql.Tx) error {
-		return recomputeEpicKeys(tx)
+		return recomputeEpicKeys(tx, nil)
 	})
 	elapsed := time.Since(start)
 	if err != nil {
@@ -300,6 +300,206 @@ func assertEpic(t *testing.T, db *DB, key, wantParent string, wantEpic *string) 
 	}
 }
 
+// TestAffectedEpicKeysIncludesChildren asserts the scope a single-epic upsert
+// would recompute: the epic plus its already-mirrored children and grandchildren,
+// not the rest of the table.
+func TestAffectedEpicKeysIncludesChildren(t *testing.T) {
+	db := openTemp(t)
+	if err := db.UpsertSource(context.Background(), Source{ID: "jira", Kind: "jira", BaseURL: "https://example.invalid"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.UpsertIssues(context.Background(), Batch{Records: []IssueRecord{
+		epicIssue("2", "ST-ARR", "story", "EP-ARR", 0),
+		epicIssue("3", "SB-ARR", "subtask", "ST-ARR", -1),
+		epicIssue("9", "OR-UNREL", "unrelated", "", 0),
+	}, Force: true}); err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	err := db.write(context.Background(), func(tx *sql.Tx) error {
+		var err error
+		got, err = affectedEpicKeys(tx, []string{"EP-ARR"})
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]bool{"EP-ARR": true, "ST-ARR": true, "SB-ARR": true}
+	if len(got) != len(want) {
+		t.Fatalf("affected=%v want %v", got, want)
+	}
+	for _, k := range got {
+		if !want[k] {
+			t.Errorf("affected includes %q, which is outside the batch parent chain", k)
+		}
+	}
+}
+
 func strPtr(s string) *string { return &s }
 
 func itoa(i int) string { return strconv.Itoa(i) }
+
+func epicKeyMap(t *testing.T, db *DB) map[string]string {
+	t.Helper()
+	rows, err := db.sql.QueryContext(context.Background(), `SELECT key, COALESCE(epic_key, '') FROM issues ORDER BY key`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	out := map[string]string{}
+	for rows.Next() {
+		var key, epic string
+		if err := rows.Scan(&key, &epic); err != nil {
+			t.Fatal(err)
+		}
+		out[key] = epic
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
+func fullRecomputeEpicKeys(t *testing.T, db *DB) {
+	t.Helper()
+	err := db.write(context.Background(), func(tx *sql.Tx) error {
+		return recomputeEpicKeys(tx, nil)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestUpsertIssuesDoesNotFullTableEpicUpdate is FAIL-first for GDK-755: a
+// single-issue upsert must not run the table-wide epic_key UPDATE. sqlite
+// total_changes() counts every row the full UPDATE touches.
+func TestUpsertIssuesDoesNotFullTableEpicUpdate(t *testing.T) {
+	db := openTemp(t)
+	if err := db.UpsertSource(context.Background(), Source{ID: "jira", Kind: "jira", BaseURL: "https://example.invalid"}); err != nil {
+		t.Fatal(err)
+	}
+	const n = 20
+	recs := make([]IssueRecord, 0, n)
+	recs = append(recs, epicIssue("e", "EP-SCOPE", "scope epic", "", 1))
+	for i := 0; i < n-1; i++ {
+		recs = append(recs, epicIssue("s"+itoa(i), "ST-S"+itoa(i), "story", "EP-SCOPE", 0))
+	}
+	if _, err := db.UpsertIssues(context.Background(), Batch{Records: recs, Force: true}); err != nil {
+		t.Fatal(err)
+	}
+	var before int
+	if err := db.sql.QueryRow(`SELECT total_changes()`).Scan(&before); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.UpsertIssues(context.Background(), Batch{Records: []IssueRecord{
+		epicIssue("orphan", "OR-SCOPE", "unrelated", "", 0),
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	var after int
+	if err := db.sql.QueryRow(`SELECT total_changes()`).Scan(&after); err != nil {
+		t.Fatal(err)
+	}
+	var issues int
+	if err := db.sql.QueryRow(`SELECT COUNT(*) FROM issues`).Scan(&issues); err != nil {
+		t.Fatal(err)
+	}
+	delta := after - before
+	if delta >= issues {
+		t.Fatalf("UpsertIssues of 1 issue applied %d sqlite changes with %d issues in the table; scoped epic_key recompute must not UPDATE the whole table", delta, issues)
+	}
+}
+
+// TestEpicKeyDeleteMatchesFullRecompute: deleting an epic must leave the same
+// epic_key column as a full-table recompute (children/grandchildren go NULL).
+func TestEpicKeyDeleteMatchesFullRecompute(t *testing.T) {
+	db := openTemp(t)
+	if err := db.UpsertSource(context.Background(), Source{ID: "jira", Kind: "jira", BaseURL: "https://example.invalid"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.UpsertIssues(context.Background(), Batch{Records: []IssueRecord{
+		epicIssue("1", "EP-DEL", "epic", "", 1),
+		epicIssue("2", "ST-DEL", "story", "EP-DEL", 0),
+		epicIssue("3", "SB-DEL", "subtask", "ST-DEL", -1),
+	}, Force: true}); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := db.DeleteItems(context.Background(), "jira", []string{"EP-DEL"}); err != nil || n != 1 {
+		t.Fatalf("DeleteItems EP-DEL: n=%d err=%v", n, err)
+	}
+	got := epicKeyMap(t, db)
+	fullRecomputeEpicKeys(t, db)
+	want := epicKeyMap(t, db)
+	if len(got) != len(want) {
+		t.Fatalf("issue count %d vs full recompute %d", len(got), len(want))
+	}
+	for k, v := range want {
+		if got[k] != v {
+			t.Errorf("%s epic_key=%q after delete, full recompute wants %q", k, got[k], v)
+		}
+	}
+}
+
+// TestEpicKeyParentChangeMatchesFullRecompute: moving a story to another epic
+// (and its subtask via the two-hop walk) must match a full-table recompute.
+func TestEpicKeyParentChangeMatchesFullRecompute(t *testing.T) {
+	db := openTemp(t)
+	if err := db.UpsertSource(context.Background(), Source{ID: "jira", Kind: "jira", BaseURL: "https://example.invalid"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.UpsertIssues(context.Background(), Batch{Records: []IssueRecord{
+		epicIssue("1", "EP-A", "epic A", "", 1),
+		epicIssue("2", "EP-B", "epic B", "", 1),
+		epicIssue("3", "ST-M", "story", "EP-A", 0),
+		epicIssue("4", "SB-M", "subtask", "ST-M", -1),
+	}, Force: true}); err != nil {
+		t.Fatal(err)
+	}
+	moved := epicIssue("3", "ST-M", "story", "EP-B", 0)
+	moved.Item.UpdatedAt = ago(0)
+	if _, err := db.UpsertIssues(context.Background(), Batch{Records: []IssueRecord{moved}}); err != nil {
+		t.Fatal(err)
+	}
+	got := epicKeyMap(t, db)
+	fullRecomputeEpicKeys(t, db)
+	want := epicKeyMap(t, db)
+	for k, v := range want {
+		if got[k] != v {
+			t.Errorf("%s epic_key=%q after parent change, full recompute wants %q", k, got[k], v)
+		}
+	}
+	if want["ST-M"] != "EP-B" || want["SB-M"] != "EP-B" {
+		t.Fatalf("full recompute ST-M=%q SB-M=%q want EP-B", want["ST-M"], want["SB-M"])
+	}
+}
+
+// TestEpicKeyEpicMoveMatchesFullRecompute: upserting an epic that already has
+// children (the reverse-arrival / "epic last" case) must match full recompute.
+func TestEpicKeyEpicMoveMatchesFullRecompute(t *testing.T) {
+	db := openTemp(t)
+	if err := db.UpsertSource(context.Background(), Source{ID: "jira", Kind: "jira", BaseURL: "https://example.invalid"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.UpsertIssues(context.Background(), Batch{Records: []IssueRecord{
+		epicIssue("2", "ST-ARR", "story", "EP-ARR", 0),
+		epicIssue("3", "SB-ARR", "subtask", "ST-ARR", -1),
+	}, Force: true}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.UpsertIssues(context.Background(), Batch{Records: []IssueRecord{
+		epicIssue("1", "EP-ARR", "epic", "", 1),
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	got := epicKeyMap(t, db)
+	fullRecomputeEpicKeys(t, db)
+	want := epicKeyMap(t, db)
+	for k, v := range want {
+		if got[k] != v {
+			t.Errorf("%s epic_key=%q after epic arrival, full recompute wants %q", k, got[k], v)
+		}
+	}
+	if want["ST-ARR"] != "EP-ARR" || want["SB-ARR"] != "EP-ARR" {
+		t.Fatalf("full recompute ST-ARR=%q SB-ARR=%q want EP-ARR", want["ST-ARR"], want["SB-ARR"])
+	}
+}

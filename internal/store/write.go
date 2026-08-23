@@ -65,9 +65,17 @@ func (db *DB) UpsertIssues(ctx context.Context, b Batch) (int, error) {
 				}
 			}
 		}
-		// Parent chains can resolve only after later pages arrive, so recompute
-		// epic_key for the whole table after every batch (cheap two-hop join).
-		if err := recomputeEpicKeys(tx); err != nil {
+		// Parent chains can resolve only after later pages arrive. Recompute
+		// epic_key for the batch plus children/grandchildren whose parent
+		// chain this page may have completed (GDK-755). A full-table UPDATE
+		// still runs once at the end of a full sync (RecomputeEpicKeys).
+		batchKeys := make([]string, 0, len(b.Records))
+		for _, r := range b.Records {
+			if r.Item.Key != "" {
+				batchKeys = append(batchKeys, r.Item.Key)
+			}
+		}
+		if err := recomputeEpicKeys(tx, batchKeys); err != nil {
 			return nil, err
 		}
 		if err := cacheStatusCatalog(tx, b); err != nil {
@@ -84,13 +92,10 @@ func (db *DB) UpsertIssues(ctx context.Context, b Batch) (int, error) {
 	return changed, nil
 }
 
-// recomputeEpicKeys sets issues.epic_key to the nearest hierarchy_level==1
-// ancestor via parent_key (direct parent, else grandparent). NULL when none.
-// Full-table UPDATE is intentional: reverse batch order and children of
-// unchanged parents both need a second look, and the join is two hops.
-func recomputeEpicKeys(tx *sql.Tx) error {
-	_, err := tx.Exec(`
-		UPDATE issues SET epic_key = (
+// epicKeySelect is the two-hop parent walk: parent if it is hierarchy_level
+// 1, else grandparent, else NULL. Shared by the scoped UPDATE and the
+// full-table sweep so the two paths cannot drift.
+const epicKeySelect = `
 			SELECT CASE
 				WHEN p.hierarchy_level = 1 THEN p.key
 				WHEN gp.hierarchy_level = 1 THEN gp.key
@@ -98,8 +103,82 @@ func recomputeEpicKeys(tx *sql.Tx) error {
 			FROM issues p
 			LEFT JOIN issues gp ON gp.key = p.parent_key
 			WHERE p.key = issues.parent_key
-		)`)
+`
+
+// recomputeEpicKeys sets issues.epic_key to the nearest hierarchy_level==1
+// ancestor via parent_key (direct parent, else grandparent). NULL when none.
+//
+// keys, when non-empty, limits the UPDATE to those keys plus issues whose
+// parent or grandparent is in that set — the reverse-arriving child and the
+// children of a parent that just landed. An empty/nil keys recomputes the
+// whole table: full-sync final pass (RecomputeEpicKeys) and the v11
+// backfill shape in schema.go.
+func recomputeEpicKeys(tx *sql.Tx, keys []string) error {
+	if len(keys) == 0 {
+		_, err := tx.Exec(`UPDATE issues SET epic_key = (` + epicKeySelect + `)`)
+		return err
+	}
+	affected, err := affectedEpicKeys(tx, keys)
+	if err != nil {
+		return err
+	}
+	if len(affected) == 0 {
+		return nil
+	}
+	payload, err := json.Marshal(affected)
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(`
+		UPDATE issues SET epic_key = (`+epicKeySelect+`)
+		WHERE key IN (SELECT value FROM json_each(?))`, string(payload))
 	return err
+}
+
+// affectedEpicKeys is the batch plus its children and grandchildren. The
+// batch keys themselves come from json_each so a just-deleted epic still
+// selects the rows that pointed at it.
+func affectedEpicKeys(tx *sql.Tx, batchKeys []string) ([]string, error) {
+	if len(batchKeys) == 0 {
+		return nil, nil
+	}
+	payload, err := json.Marshal(batchKeys)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := tx.Query(`
+		WITH batch AS (SELECT value AS k FROM json_each(?))
+		SELECT k FROM batch
+		UNION
+		SELECT key FROM issues WHERE parent_key IN (SELECT k FROM batch)
+		UNION
+		SELECT key FROM issues WHERE parent_key IN (
+			SELECT key FROM issues WHERE parent_key IN (SELECT k FROM batch)
+		)`, string(payload))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var key string
+		if err := rows.Scan(&key); err != nil {
+			return nil, err
+		}
+		if key != "" {
+			out = append(out, key)
+		}
+	}
+	return out, rows.Err()
+}
+
+// RecomputeEpicKeys rewrites issues.epic_key for the whole table. Full sync
+// calls this once after every page has been upserted; per-batch upserts
+// only recompute the batch and its parent-chain dependents (GDK-755).
+func (db *DB) RecomputeEpicKeys(ctx context.Context) error {
+	return db.write(ctx, func(tx *sql.Tx) error {
+		return recomputeEpicKeys(tx, nil)
+	})
 }
 
 // cacheStatusCatalog persists the batch's id -> category map (the origin's
@@ -833,6 +912,11 @@ func (db *DB) DeleteItems(ctx context.Context, sourceID string, keys []string) (
 		if _, err := tx.Exec(`DELETE FROM deleted_items WHERE deleted_at < datetime('now', '-90 days')`); err != nil {
 			return nil, err
 		}
+		// Children still carry parent_key of a deleted epic; scoped
+		// recompute walks those keys (json_each, not the missing row).
+		if err := recomputeEpicKeys(tx, keys); err != nil {
+			return nil, err
+		}
 		return []string{sourceID}, nil
 	})
 	if err != nil {
@@ -1080,6 +1164,14 @@ type SyncResult struct {
 // that changed no rows must leave the ETag alone. A successful run advances
 // first_sync_at (once) and sync_count.
 func (db *DB) RecordSync(ctx context.Context, sourceID string, r SyncResult) error {
+	if sqliteBusy(r.Err) {
+		// GDK-754: last_error is itself a write(). A holder that just
+		// failed the caller will fail this too, stacking a second
+		// busy_timeout cycle (~10s with two attempts at 5s). Skip; the
+		// returned error already carries the holder hint from write() /
+		// WithBusyHint. Production busy_timeout stays 5000ms.
+		return nil
+	}
 	var errText, fullAt, firstAt any
 	inc := 0
 	if r.Err != nil {

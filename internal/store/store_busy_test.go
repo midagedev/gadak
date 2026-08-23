@@ -186,6 +186,129 @@ func TestWriteBusyRetryHonoursCancel(t *testing.T) {
 	}
 }
 
+func TestWriteBusyErrorIncludesHolderHint(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "gadak.db")
+	holder := openTemp(t, path)
+	if err := holder.UpsertSource(context.Background(), Source{ID: "jira", Kind: "jira"}); err != nil {
+		t.Fatal(err)
+	}
+	challenger, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { challenger.Close() })
+	challenger.sql.SetMaxOpenConns(1)
+	if _, err := challenger.sql.Exec(`PRAGMA busy_timeout = 50`); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx := context.Background()
+	holdTx, err := holder.sql.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer holdTx.Rollback()
+	if _, err := holdTx.Exec(`INSERT INTO items (id, source_id, kind, key, updated_at)
+		VALUES ('jira:hold', 'jira', 'issue', 'NMB-HOLD', '2026-08-04T00:00:00Z')`); err != nil {
+		t.Fatal(err)
+	}
+
+	start := time.Now()
+	err = challenger.write(ctx, func(tx *sql.Tx) error {
+		_, err := tx.Exec(`INSERT INTO items (id, source_id, kind, key, updated_at)
+			VALUES ('jira:up', 'jira', 'issue', 'NMB-UP', '2026-08-04T00:00:00Z')`)
+		return err
+	})
+	elapsed := time.Since(start)
+	if err == nil {
+		t.Fatal("write against holder succeeded")
+	}
+	if !sqliteBusy(err) {
+		t.Fatalf("want busy, got %v", err)
+	}
+	if !strings.Contains(err.Error(), BusyHolderHint) {
+		t.Fatalf("write busy missing holder hint: %v", err)
+	}
+	// Two attempts × 50ms plus 50ms backoff, not a second write() cycle.
+	if elapsed > 400*time.Millisecond {
+		t.Fatalf("write() against holder took %s, want one busy_timeout cycle", elapsed)
+	}
+}
+
+func TestWithBusyHintPreservesCodeAndIsIdempotent(t *testing.T) {
+	t.Parallel()
+	busy := codeErr{code: 5, msg: "database is locked (5) (SQLITE_BUSY)"}
+	got := WithBusyHint(busy)
+	if !strings.Contains(got.Error(), BusyHolderHint) {
+		t.Fatalf("hint missing: %v", got)
+	}
+	if !sqliteBusy(got) {
+		t.Fatalf("hinted error must still classify as busy: %v", got)
+	}
+	var se sqliteCodeError
+	if !errors.As(got, &se) || se.Code() != 5 {
+		t.Fatalf("Code() not reachable through hint wrap: %v", got)
+	}
+	again := WithBusyHint(got)
+	if again != got {
+		t.Fatal("WithBusyHint must not double-wrap")
+	}
+	other := errors.New("network down")
+	if WithBusyHint(other) != other {
+		t.Fatal("non-busy errors must pass through")
+	}
+	if WithBusyHint(nil) != nil {
+		t.Fatal("nil must pass through")
+	}
+}
+
+func TestRecordSyncSkipsWriteWhenErrIsBusy(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "gadak.db")
+	holder := openTemp(t, path)
+	if err := holder.UpsertSource(context.Background(), Source{ID: "jira", Kind: "jira"}); err != nil {
+		t.Fatal(err)
+	}
+	challenger, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { challenger.Close() })
+	challenger.sql.SetMaxOpenConns(1)
+	if _, err := challenger.sql.Exec(`PRAGMA busy_timeout = 50`); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx := context.Background()
+	holdTx, err := holder.sql.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer holdTx.Rollback()
+	if _, err := holdTx.Exec(`INSERT INTO items (id, source_id, kind, key, updated_at)
+		VALUES ('jira:hold', 'jira', 'issue', 'NMB-HOLD', '2026-08-04T00:00:00Z')`); err != nil {
+		t.Fatal(err)
+	}
+
+	busy := codeErr{code: 5, msg: "database is locked (5) (SQLITE_BUSY)"}
+	start := time.Now()
+	err = challenger.RecordSync(ctx, "jira", SyncResult{Err: busy})
+	elapsed := time.Since(start)
+	if err != nil {
+		t.Fatalf("RecordSync(BUSY) = %v, want skip (nil)", err)
+	}
+	// One write() cycle at 50ms timeout is ~100ms. Skipping must not wait.
+	if elapsed > 80*time.Millisecond {
+		t.Fatalf("RecordSync(BUSY) waited %s; last_error write must not stack a busy_timeout cycle", elapsed)
+	}
+	st, err := challenger.SyncState(ctx, "jira")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.LastError != nil && *st.LastError != "" {
+		t.Fatalf("last_error written on BUSY: %q", *st.LastError)
+	}
+}
+
 func TestWriteBusyRetryDoesNotRetryForever(t *testing.T) {
 	db := openTemp(t)
 	calls := 0

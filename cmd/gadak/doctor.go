@@ -6,9 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -40,6 +42,7 @@ type doctorReport struct {
 	OriginOwner     string                `json:"origin_owner,omitempty"`
 	MirrorPath      string                `json:"mirror_path"`
 	Mirror          doctorMirror          `json:"mirror"`
+	MirrorHolders   *doctorMirrorHolders  `json:"mirror_holders,omitempty"`
 	SchemaVersion   *int                  `json:"schema_version"`
 	SchemaSinceSync string                `json:"schema_since_sync,omitempty"`
 	SchemaAudit     *doctorSchemaAudit    `json:"schema_audit,omitempty"`
@@ -111,6 +114,20 @@ type doctorMirror struct {
 	Status string `json:"status"`           // present | not_found | open_error | schema_too_new
 	Bytes  *int64 `json:"bytes,omitempty"`  // set when the file exists
 	Detail string `json:"detail,omitempty"` // redacted path / short reason
+}
+
+// doctorMirrorHolders is the best-effort list of other processes that have
+// this profile's mirror open (GDK-740). Nil means the scan was skipped
+// (non-darwin/linux, lsof missing, or it failed). Count 0 is a successful
+// scan that found nobody but us.
+type doctorMirrorHolders struct {
+	Count     int                   `json:"count"`
+	Processes []doctorMirrorProcess `json:"processes,omitempty"`
+}
+
+type doctorMirrorProcess struct {
+	PID     int    `json:"pid"`
+	Command string `json:"command"`
 }
 
 // doctorSchemaAudit is the user_version-vs-DDL check (GDK-180). Status is
@@ -282,6 +299,7 @@ func collectDoctor() doctorReport {
 	}
 	size := info.Size()
 	rep.Mirror = doctorMirror{Status: "present", Bytes: &size}
+	rep.MirrorHolders = listMirrorHolders(path)
 
 	db, err := store.Open(path)
 	if err != nil {
@@ -610,6 +628,9 @@ func formatDoctorText(r doctorReport) string {
 	}
 	line("workspace", formatDoctorWorkspace(r.Workspace))
 	line("mirror_path", r.MirrorPath)
+	if r.MirrorHolders != nil {
+		line("mirror_holders", formatDoctorMirrorHolders(*r.MirrorHolders))
+	}
 
 	switch r.Mirror.Status {
 	case "present":
@@ -715,6 +736,94 @@ func formatDoctorCustomFields(cf doctorCustomFields) string {
 		return "none mapped (none seen in raw)"
 	}
 	return "none mapped"
+}
+
+func formatDoctorMirrorHolders(h doctorMirrorHolders) string {
+	if h.Count == 0 {
+		return "none"
+	}
+	parts := make([]string, 0, len(h.Processes))
+	for _, p := range h.Processes {
+		cmd := p.Command
+		if cmd == "" {
+			cmd = "?"
+		}
+		parts = append(parts, fmt.Sprintf("pid %d %s", p.PID, cmd))
+	}
+	if len(parts) == 0 {
+		return strconv.Itoa(h.Count)
+	}
+	return fmt.Sprintf("%d (%s)", h.Count, strings.Join(parts, ", "))
+}
+
+// listMirrorHolders is best-effort: darwin and linux run lsof on the mirror
+// and its WAL/SHM sidecars, drop this process, and return count+pid/command.
+// A missing binary, timeout, or other failure returns nil so doctor omits
+// the section rather than guessing.
+func listMirrorHolders(mirrorPath string) *doctorMirrorHolders {
+	if runtime.GOOS != "darwin" && runtime.GOOS != "linux" {
+		return nil
+	}
+	if mirrorPath == "" {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	args := []string{"-F", "pc", "--", mirrorPath, mirrorPath + "-wal", mirrorPath + "-shm"}
+	cmd := exec.CommandContext(ctx, "lsof", args...)
+	out, err := cmd.Output()
+	if ctx.Err() != nil {
+		return nil
+	}
+	if err != nil {
+		var ee *exec.ExitError
+		if !errors.As(err, &ee) {
+			return nil
+		}
+	}
+	procs := parseLsofHolders(out, os.Getpid())
+	return &doctorMirrorHolders{Count: len(procs), Processes: procs}
+}
+
+// parseLsofHolders reads `lsof -F pc` output: one process per pid, command
+// name only, self excluded, no paths. Empty input is a successful empty scan.
+func parseLsofHolders(out []byte, selfPID int) []doctorMirrorProcess {
+	byPID := map[int]string{}
+	var curPID int
+	var curCmd string
+	flush := func() {
+		if curPID != 0 && curPID != selfPID && curCmd != "" {
+			byPID[curPID] = curCmd
+		}
+	}
+	for _, line := range strings.Split(string(out), "\n") {
+		if line == "" {
+			continue
+		}
+		switch line[0] {
+		case 'p':
+			flush()
+			n, convErr := strconv.Atoi(line[1:])
+			if convErr != nil {
+				curPID, curCmd = 0, ""
+				continue
+			}
+			curPID, curCmd = n, ""
+		case 'c':
+			curCmd = line[1:]
+		}
+	}
+	flush()
+	pids := make([]int, 0, len(byPID))
+	for pid := range byPID {
+		pids = append(pids, pid)
+	}
+	sort.Ints(pids)
+	procs := make([]doctorMirrorProcess, 0, len(pids))
+	for _, pid := range pids {
+		procs = append(procs, doctorMirrorProcess{PID: pid, Command: byPID[pid]})
+	}
+	return procs
 }
 
 func formatDoctorWorkspace(w doctorWorkspace) string {
