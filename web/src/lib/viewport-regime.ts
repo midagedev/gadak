@@ -14,17 +14,20 @@
  * Docked floor, derived not chosen:
  *   sidebar            272px  (`--layout-sidebar`; 208px below 760, independent)
  *   list min           390px  (key ~70 + status ~80 + ~30ch summary ~195 + gaps ~45)
- *   detail min         440px  (13px body × ~60ch × ~6.5px ≈ 390 + 24×2 padding)
- *   272 + 390 + 440 = 1102 → contract 1100px
- * Replaces the GDK-127 1440px split. 1100–1439 is now docked, not a fake modal.
+ *   detail min         438px  (13px body × ~60ch × ~6.5px ≈ 390 + 24×2 padding)
+ *   272 + 390 + 438 = 1100
+ * The 440 rounding (GDK-201) made the grid 1102 wide at the 1100 contract and
+ * clipped the list seam (GDK-766). VIEWPORT_DOCKED_MIN_PX is the sum, so the
+ * two cannot drift. Replaces the GDK-127 1440px split. 1100–1439 is docked.
  */
 
 import { trapFocus } from './focus-trap'
 
-const LAYOUT_SIDEBAR_PX = 272
-const LAYOUT_LIST_MIN_PX = 390
-const LAYOUT_DETAIL_MIN_PX = 440
-export const VIEWPORT_DOCKED_MIN_PX = 1100
+export const LAYOUT_SIDEBAR_PX = 272
+export const LAYOUT_LIST_MIN_PX = 390
+export const LAYOUT_DETAIL_MIN_PX = 438
+export const VIEWPORT_DOCKED_MIN_PX =
+  LAYOUT_SIDEBAR_PX + LAYOUT_LIST_MIN_PX + LAYOUT_DETAIL_MIN_PX
 
 export type ViewportRegime = 'docked' | 'overlay'
 

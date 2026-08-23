@@ -610,15 +610,15 @@
     {#if isHostedDemo()}
       <!-- First thing on the page on purpose. Without it this reads as a real
            Jira client someone left signed in, which is how a visitor ends up
-           looking for the credential box. HostedLinks is absolute in this
-           wrapper so it occupies the banner's empty right edge without
-           shifting the centered copy (GDK-335). -->
-      <div class="relative flex-none">
-        <div
-          class="flex flex-none flex-wrap items-center justify-center gap-x-2 gap-y-0.5 border-b border-accent-strong/40 bg-accent-strong/10 px-3 py-1.5 text-body text-text-secondary"
-          role="status"
-          data-testid="demo-banner"
-        >
+           looking for the credential box. HostedLinks is a flex item of this
+           banner (GDK-766): absolute right-3 top-0 sat on the CTA at 800px.
+           Copy takes leftover space and wraps; the links keep their width. -->
+      <div
+        class="flex flex-none flex-wrap items-center gap-x-2 gap-y-0.5 border-b border-accent-strong/40 bg-accent-strong/10 px-3 py-1.5 text-body text-text-secondary"
+        role="status"
+        data-testid="demo-banner"
+      >
+        <span class="flex min-w-0 flex-1 flex-wrap items-center justify-center gap-x-2 gap-y-0.5">
           <span class="font-semibold text-accent-text">{t('app.demoBadge')}</span>
           <span>{t('app.demoBanner')}</span>
           {#if write.demoEdits.size}
@@ -634,10 +634,8 @@
             rel="noopener noreferrer"
             class="text-accent-text hover:underline">{t('app.demoBannerLink')}</a
           >
-        </div>
-        {#if import.meta.env.VITE_HOSTED_DEMO === '1'}
-          <HostedLinks />
-        {/if}
+        </span>
+        <HostedLinks />
       </div>
     {/if}
     {#if reachability.offline}

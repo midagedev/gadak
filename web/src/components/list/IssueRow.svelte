@@ -295,11 +295,14 @@
   <!-- Trailing scan columns. Fixed-width flex slots, not inline flow: an on
        column occupies its width even when this row has no value, so the field
        shares an x. An off column is not rendered (no hole). Breakpoint classes
-       live on the slot so a hide drops the column instead of leaving a gap. -->
+       live on the slot so a hide drops the column instead of leaving a gap.
+       Container-query folds (trail-fold-*) hide whole slots in designed order
+       when the row cannot fit them — overflow:hidden on the list column is not
+       a fold (GDK-766). Keep last: stale, then reopen, then deploy. -->
   <div class="flex min-w-0 shrink items-center gap-2.5" data-testid="issue-row-trail">
   <!-- Badges: reopen / stale -->
   {#if cols.has('reopen')}
-    <div class="flex w-9 flex-none items-center justify-start overflow-hidden" data-col="reopen">
+    <div class="trail-fold-3 flex w-9 flex-none items-center justify-start overflow-hidden" data-col="reopen">
       {#if issue.reopen_count > 0}
         <button
           type="button"
@@ -316,10 +319,10 @@
     </div>
   {/if}
   {#if cols.has('stale')}
-    <!-- 56px, not 44: the chip measures 48px in English and ~51 in Korean, so
-         the narrower slot clipped "13일" through its 받침 — the same way the
-         scroll edge did before GDK-131. Three-digit day counts still overflow
-         and need their own answer. -->
+    <!-- 56px with the glyph (English 48, Korean ~51). At issuerow ≤1100 the
+         glyph hides and the slot is 44px — enough for three-digit "35일"
+         (~38px without the glyph). Do not put a Tailwind display utility on
+         .stale-glyph: components-layer display:none lost to `flex` (GDK-766). -->
     <div class="stale-slot flex flex-none items-center justify-start overflow-hidden" data-col="stale">
       {#if stale}
         <span
@@ -329,8 +332,9 @@
         >
           <!-- The mark the string used to carry as an emoji. Same treatment as the
                reopen badge beside it: currentColor, so it stays inside the badge's
-               amber instead of arriving in whatever colors the platform's ⏳ ships. -->
-          <span class="stale-glyph flex"><Icon name="hourglass" size={11} /></span>
+               amber instead of arriving in whatever colors the platform's ⏳ ships.
+               Parent is already flex; this wrapper must not be. -->
+          <span class="stale-glyph"><Icon name="hourglass" size={11} /></span>
           {t('list.staleDaysShort', { n: staleDays })}
         </span>
       {/if}
@@ -354,7 +358,7 @@
 
   <!-- Deploy-stage badge (qa=teal emphasis / others muted) -->
   {#if cols.has('deploy')}
-    <div class="flex w-10 flex-none items-center overflow-hidden" data-col="deploy">
+    <div class="trail-fold-3 flex w-10 flex-none items-center overflow-hidden" data-col="deploy">
       {#if deployMeta}
         <button
           type="button"
@@ -580,7 +584,7 @@
        down. `min-w-[3rem]` is the last line of that rule. -->
   {#if cols.has('labels')}
     <span
-      class="chipfold-labels flex shrink items-center gap-1 overflow-hidden"
+      class="trail-fold-2 chipfold-labels flex shrink items-center gap-1 overflow-hidden"
       data-col="labels"
     >
       {#if shownLabels.length}
@@ -613,7 +617,7 @@
 
   <!-- Assignee -->
   {#if cols.has('assignee')}
-    <div class="flex h-5 w-5 flex-none items-center justify-center" data-col="assignee">
+    <div class="trail-fold-1 flex h-5 w-5 flex-none items-center justify-center" data-col="assignee">
       <Avatar
         email={issue.assignee_email}
         accountId={issue.assignee_id}
@@ -632,7 +636,7 @@
        yours or actionable — your issues, watches, links. -->
   {#if cols.has('updated')}
     <span
-      class="w-10 flex-none text-right text-micro {isFresh
+      class="trail-fold-1 w-10 flex-none text-right text-micro {isFresh
         ? 'font-medium text-text-secondary'
         : 'text-text-muted'}"
       data-col="updated"

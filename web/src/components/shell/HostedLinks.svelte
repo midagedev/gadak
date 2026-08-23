@@ -1,7 +1,8 @@
 <script lang="ts">
   /*
    * Hosted-demo-only GitHub / About surface (GDK-335). App mounts this when
-   * VITE_HOSTED_DEMO=1 && isHostedDemo(); gadak serve never takes that branch.
+   * isHostedDemo() — the banner that already wraps it. In-flow, not stacked:
+   * an absolutely positioned root painted over the banner CTA at 800px (GDK-766).
    * Copy stays English — the public demo has no i18n.
    */
   import { onEscape, onOutsideClick } from '../../lib/dom-actions'
@@ -35,7 +36,7 @@
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
-  class="absolute right-3 top-0 z-20 flex items-center gap-2 py-1.5"
+  class="relative z-20 flex flex-none items-center gap-2"
   data-testid="hosted-links"
   onkeydown={onEsc}
   use:onEscape={onEsc}

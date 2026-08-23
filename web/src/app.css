@@ -513,7 +513,7 @@
   /*
     GDK-201 (2026-08-18): docked three-track when the panel is open.
     Track mins come from --layout-* tokens owned by viewport-regime.ts
-    (sidebar 272 + list 390 + detail 440 = 1102 → contract 1100). Overlay
+    (sidebar 272 + list 390 + detail 438 = 1100). Overlay
     geometry is NOT decided here — see [data-viewport-regime="overlay"].
   */
   .issue-layout.detail-open {
@@ -806,6 +806,13 @@
     ellipsize inside its own box (GDK-127's rule). The hourglass is
     decoration — the number and the tooltip carry the meaning — so it is what
     goes, not a column.
+
+    display:none for .stale-glyph is NOT here: this is the components layer,
+    and Tailwind `flex` on the glyph (utilities) won, so the hourglass stayed
+    and 44px clipped "13일"/"35일" (GDK-766). The hide lives in @layer
+    utilities with the trail-fold rules. Three-digit "35일" without the glyph
+    is ~38px, so 44px is enough; the slot stays fixed so later columns share
+    an x (GDK-128).
   */
   @container issuerow (max-width: 1100px) {
     .chipfold-labels {
@@ -813,9 +820,6 @@
     }
     .stale-slot {
       width: 44px;
-    }
-    .stale-glyph {
-      display: none;
     }
   }
 
@@ -933,6 +937,41 @@
   Enter 0s, exit ≤150ms. Shared via utility classes.
 */
 @layer utilities {
+  /*
+    GDK-766: container-query display:none that must beat a Tailwind display
+    utility (flex/hidden/block) has to live here, not in @layer components.
+    The stale-glyph hide was in components and lost to `class="stale-glyph flex"`.
+
+    Trail folds — measured row widths from the 2026-08-24 audit JSON:
+      800 viewport → row 528; 740 → 468; 1100 docked → 390.
+    list-row-columns.spec.ts at 900 (row ~628) still needs `updated` visible,
+    so fold-1 starts below that. Information order (what to keep last):
+      stale (stuck?) → reopen (actionable) → deploy → labels → assignee → updated.
+  */
+  @container issuerow (max-width: 1100px) {
+    .stale-glyph {
+      display: none;
+    }
+  }
+
+  @container issuerow (max-width: 540px) {
+    .trail-fold-1 {
+      display: none;
+    }
+  }
+
+  @container issuerow (max-width: 480px) {
+    .trail-fold-2 {
+      display: none;
+    }
+  }
+
+  @container issuerow (max-width: 400px) {
+    .trail-fold-3 {
+      display: none;
+    }
+  }
+
   .anim-enter {
     animation: in-fade 0.12s ease-out;
   }
