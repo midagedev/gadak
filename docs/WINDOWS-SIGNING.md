@@ -39,9 +39,28 @@ virus scan result:
   ([Smart App Control FAQ](https://support.microsoft.com/en-us/windows/smart-app-control-frequently-asked-questions-285ea03d-fa88-4d56-882e-6698afdb7003)).
   Do **not** turn Smart App Control off to run gadak.
 
-The wording of the SmartScreen dialog has **not** been captured on a Windows
-machine in this repository (`desktop/README.md`). Treat it as the usual
-unsigned-download prompt, not as a measured screenshot.
+### What the Smart App Control block actually looks like
+
+Measured on Windows 11 Home with Smart App Control enforcing, against
+v0.16.1's `gadak-desktop.exe` carrying its download mark (2026-08-23):
+
+| How it was launched | What the user sees |
+| --- | --- |
+| Explorer double-click | Two windows: the **Smart App Control blocked an app that may be unsafe** notice, plus a message box titled with the exe's full path reading *An Application Control policy has blocked this file*. The only button is **OK** — no *Run anyway*. |
+| `Start-Process` / `Invoke-Item` from PowerShell or `cmd` | **No dialog.** The caller receives `An Application Control policy has blocked this file` as an error and the process never starts. |
+
+Both paths log Code Integrity 3033 and 3077 with *did not meet the Enterprise
+signing level requirements*. The difference is only which process asked: a
+dialog exists because Explorer draws it, so a scripted launch is silently
+refused. **Measuring only the scripted path is how this page briefly came to
+claim there was no dialog at all** — the FAQ's "no bypass" is what the dialog
+confirms, not something it contradicts.
+
+The wording of the **SmartScreen** dialog has still **not** been captured on a
+Windows machine in this repository (`desktop/README.md`): a host with Smart
+App Control enforcing never gets that far, because Smart App Control blocks
+first. Treat it as the usual unsigned-download prompt, not as a measured
+screenshot.
 
 A signature would give every release one stable publisher identity.
 Microsoft’s reputation for that identity still builds over subsequent

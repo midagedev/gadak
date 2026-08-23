@@ -215,6 +215,44 @@ Get-Process gadak-desktop | Select-Object Id,Path       # want the same single I
 & $env:USERPROFILE\gdk-verify\<ver>\gadak.exe --version
 ```
 
+### If the exe is blocked, measure the path a user takes
+
+`Start-Process` and `Invoke-Item` are **not** the user's launch path, and on a
+host with Smart App Control enforcing they answer a different question. SAC
+refuses the `CreateProcess` and the *calling* process gets
+`An Application Control policy has blocked this file` as an exception — so a
+scripted probe sees no dialog, because the shell that draws the dialog was
+never involved. Measured 2026-08-23: a round that only launched
+programmatically concluded "no dialog appears" and that went into a Highest
+bug and a docs correction before it was caught ([GDK-745]).
+
+The instrument that settles it is the Code Integrity log's own **caller**
+field:
+
+```powershell
+Get-WinEvent -LogName 'Microsoft-Windows-CodeIntegrity/Operational' -MaxEvents 2000 |
+  Where-Object { $_.Id -in 3033,3077,3118 } |
+  ForEach-Object { if ($_.Message -match 'process \(([^)]+)\)') { Split-Path $matches[1] -Leaf } } |
+  Group-Object | Select-Object Count,Name
+```
+
+If `explorer.exe` is absent from that table, the user's path has not been
+tested at all, whatever else the round measured. To test it, hand the exe to
+Explorer so Explorer performs the shell verb, from a task running in the
+**interactive** session (`-LogonType Interactive`, `-UserId <bare-name>`; on a
+workgroup machine `$env:USERDOMAIN\$env:USERNAME` fails to map to a SID):
+
+```powershell
+Start-Process explorer.exe -ArgumentList "`"$exe`""
+```
+
+Read the dialog's words instead of screenshotting it — cheaper, and it gives
+text you can paste into a doc. `GetWindowTextW` over top-level windows catches
+the SAC notice (`Shell_SystemDialogProxy`); the message box is XAML-hosted, so
+its body needs UI Automation (`UIAutomationClient`, walk
+`ControlType.Text` descendants). Close what you opened: a modal left on the
+host's desktop blocks the next round.
+
 ### What this does not verify on Windows, headlessly
 
 The **menu bar** and anything else that is pixels. A window's menu is not
@@ -297,3 +335,4 @@ one of the few places where the install is observed at all.
 
 [GDK-211]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-211
 [GDK-700]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-700
+[GDK-745]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-745

@@ -150,10 +150,20 @@ Windows may show one of two dialogs. Neither is a virus finding:
 - **Microsoft Defender SmartScreen:** **Windows protected your PC**, then
   **More info** / **Run anyway**. SmartScreen has a per-file override.
 - **Smart App Control:** **Smart App Control blocked an app that may be
-  unsafe.** Microsoft's FAQ says there is currently **no way to bypass
+  unsafe.** Measured on Windows 11 Home with Smart App Control enforcing
+  (v0.16.1, 2026-08-23): double-clicking `gadak-desktop.exe` in Explorer
+  produces that notice **and** a message box titled with the exe's full path
+  saying *An Application Control policy has blocked this file*, whose only
+  button is **OK**. Microsoft's FAQ says there is currently **no way to bypass
   Smart App Control for one app**
-  ([Smart App Control FAQ](https://support.microsoft.com/en-us/windows/smart-app-control-frequently-asked-questions-285ea03d-fa88-4d56-882e-6698afdb7003)).
-  Do **not** turn Smart App Control off.
+  ([Smart App Control FAQ](https://support.microsoft.com/en-us/windows/smart-app-control-frequently-asked-questions-285ea03d-fa88-4d56-882e-6698afdb7003)),
+  and the dialog matches: there is no *Run anyway*. Do **not** turn Smart App
+  Control off. Use the CLI route below instead.
+
+Launching the exe from a script rather than Explorer shows **no dialog at
+all** — PowerShell or `cmd` gets `An Application Control policy has blocked
+this file` as an error and the process never starts. Same block, no UI,
+because the shell that draws the dialog is never involved.
 
 If the desktop exe is blocked, use the CLI path that has been shipping on
 every release: download `gadak_<version>_windows_amd64.zip` (or
