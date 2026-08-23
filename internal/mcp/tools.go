@@ -2,7 +2,6 @@ package mcp
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -621,7 +620,7 @@ func (s *Server) hashFromJQL(text string) (hash string, applied, unsupported []s
 }
 
 func countQuery(dbPath, q string, n *int) error {
-	db, err := sql.Open("sqlite", "file:"+dbPath+"?mode=ro")
+	db, err := openReadOnly(dbPath)
 	if err != nil {
 		return err
 	}

@@ -143,6 +143,12 @@ func init() {
 	// opens (store.Open, gadak sql, MCP gadak_query, raw tests) goes through
 	// here. Creation/migration of the file is EnsureLocal; this hook only
 	// attaches an existing sibling and never fails the connection.
+	//
+	// BEGIN IMMEDIATE takes RESERVED on every attached rw database (SQLite
+	// lang_transaction), so a mirror writer also write-locks local.db.
+	// History inserts therefore use a dedicated local.db connection
+	// (GDK-753) and do not take the *mirror* lock. The ATTACH stays rw:
+	// saved_views / feed_reads / v26 still write local.* on this handle.
 	sqlite.RegisterConnectionHook(attachLocalHook)
 }
 
@@ -328,6 +334,18 @@ func (db *DB) localPersonalTablesReady(ctx context.Context) bool {
 		`SELECT 1 FROM local.sqlite_master WHERE type = 'table' AND name = 'saved_views'`).Scan(&one) == nil
 }
 
+// localDSN opens local.db as the main database (no mirror ATTACH). Same
+// pragmas as the ensure path: busy_timeout(5000), DELETE journal, NORMAL
+// sync. attachLocalHook skips basename local.db, so this connection never
+// waits on the mirror write lock (GDK-753).
+func localDSN(path string) string {
+	return "file:" + path + "?" + strings.Join([]string{
+		"_pragma=busy_timeout(5000)",
+		"_pragma=journal_mode(DELETE)",
+		"_pragma=synchronous(NORMAL)",
+	}, "&")
+}
+
 func ensureLocalDB(path string) error {
 	if dir := filepath.Dir(path); dir != "" && dir != "." {
 		if err := fsperm.EnsurePrivateDir(dir); err != nil {
@@ -341,12 +359,7 @@ func ensureLocalDB(path string) error {
 	// DELETE journal: this file is small and opened from many short-lived
 	// connections (sql, MCP). WAL sidecars next to a test TempDir have been
 	// seen to survive Close and fail cleanup; the mirror stays WAL.
-	dsn := "file:" + path + "?" + strings.Join([]string{
-		"_pragma=busy_timeout(5000)",
-		"_pragma=journal_mode(DELETE)",
-		"_pragma=synchronous(NORMAL)",
-	}, "&")
-	sqlDB, err := sql.Open("sqlite", dsn)
+	sqlDB, err := sql.Open("sqlite", localDSN(path))
 	if err != nil {
 		return err
 	}
@@ -435,7 +448,59 @@ type Search struct {
 	OpenedKey   *string `json:"opened_key"`
 }
 
+// currentEpochSQLOnLocal is currentEpochSQL when local.db is the main
+// database (no `local.` schema prefix). Keep in lockstep with origin_scope.go.
+const currentEpochSQLOnLocal = `COALESCE((SELECT CAST(v AS INTEGER) FROM local_meta WHERE k = 'origin_epoch'), 0)`
+
+// openLocalWriter opens local.db as a main database so history inserts do
+// not take the mirror's BEGIN IMMEDIATE lock. MaxOpenConns(1) pins the
+// PRAGMA to the connection BeginTx uses.
+func openLocalWriter(mirrorPath string) (*sql.DB, error) {
+	path := LocalPath(mirrorPath)
+	if err := ensureLocalDB(path); err != nil {
+		return nil, err
+	}
+	sqlDB, err := sql.Open("sqlite", localDSN(path))
+	if err != nil {
+		return nil, err
+	}
+	sqlDB.SetMaxOpenConns(1)
+	return sqlDB, nil
+}
+
+// withLocalWrite runs fn in a transaction on a dedicated local.db connection.
+// Failures name local.db so CLI best-effort warnings identify the file
+// (GDK-753 debug layer). ErrNotFound is left unwrapped for errors.Is.
+func (db *DB) withLocalWrite(ctx context.Context, fn func(*sql.Tx) error) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	sqlDB, err := openLocalWriter(db.path)
+	if err != nil {
+		return fmt.Errorf("local.db: %w", err)
+	}
+	defer sqlDB.Close()
+	tx, err := sqlDB.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("local.db: %w", err)
+	}
+	defer tx.Rollback()
+	if err := fn(tx); err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return err
+		}
+		return fmt.Errorf("local.db: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("local.db: %w", err)
+	}
+	return nil
+}
+
 // RecordVisit appends one view. Same (kind, key) twice is two rows.
+// The insert uses a dedicated local.db connection so a writer holding the
+// mirror (BEGIN IMMEDIATE / _txlock=immediate) does not block recording
+// (GDK-753). Reads that join visits to the mirror stay on the ATTACH path.
 func (db *DB) RecordVisit(ctx context.Context, kind, key string) (Visit, error) {
 	var zero Visit
 	if !validVisitKind(kind) {
@@ -447,9 +512,9 @@ func (db *DB) RecordVisit(ctx context.Context, kind, key string) (Visit, error) 
 	}
 	at := Now()
 	var id int64
-	err := db.write(ctx, func(tx *sql.Tx) error {
-		res, err := tx.ExecContext(ctx, `INSERT INTO local.visits (kind, key, viewed_at, origin_epoch)
-			VALUES (?,?,?,`+currentEpochSQL+`)`, kind, key, at)
+	err := db.withLocalWrite(ctx, func(tx *sql.Tx) error {
+		res, err := tx.ExecContext(ctx, `INSERT INTO visits (kind, key, viewed_at, origin_epoch)
+			VALUES (?,?,?,`+currentEpochSQLOnLocal+`)`, kind, key, at)
 		if err != nil {
 			return err
 		}
@@ -479,10 +544,10 @@ func (db *DB) RecordSearch(ctx context.Context, query string, resultCount int, o
 	}
 	at := Now()
 	var id int64
-	err := db.write(ctx, func(tx *sql.Tx) error {
+	err := db.withLocalWrite(ctx, func(tx *sql.Tx) error {
 		res, err := tx.ExecContext(ctx, `
-			INSERT INTO local.searches (query, searched_at, result_count, opened_kind, opened_key, origin_epoch)
-			VALUES (?,?,?,?,?,`+currentEpochSQL+`)`,
+			INSERT INTO searches (query, searched_at, result_count, opened_kind, opened_key, origin_epoch)
+			VALUES (?,?,?,?,?,`+currentEpochSQLOnLocal+`)`,
 			query, at, resultCount, nz(openedKind), nz(openedKey))
 		if err != nil {
 			return err
@@ -511,8 +576,8 @@ func (db *DB) SetSearchOpened(ctx context.Context, id int64, kind, key string) (
 	if key == "" {
 		return zero, errors.New("opened_key required")
 	}
-	err := db.write(ctx, func(tx *sql.Tx) error {
-		res, err := tx.ExecContext(ctx, `UPDATE local.searches SET opened_kind = ?, opened_key = ? WHERE id = ?`, kind, key, id)
+	err := db.withLocalWrite(ctx, func(tx *sql.Tx) error {
+		res, err := tx.ExecContext(ctx, `UPDATE searches SET opened_kind = ?, opened_key = ? WHERE id = ?`, kind, key, id)
 		if err != nil {
 			return err
 		}

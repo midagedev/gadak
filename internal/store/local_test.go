@@ -1029,3 +1029,125 @@ func TestRecipeNameRejected(t *testing.T) {
 		t.Fatal("empty sql accepted")
 	}
 }
+
+// TestHistoryWritesIndependentOfMirrorWriteLock is FAIL-first for GDK-753:
+// RecordVisit/RecordSearch used db.write() on the mirror connection, so a
+// process holding BEGIN IMMEDIATE on gadak.db made visit recording wait
+// busy_timeout × writeBusyAttempts (~10s) even though the row goes in
+// local.db. The dedicated local.db writer no longer takes the mirror lock.
+//
+// SQLite BEGIN IMMEDIATE takes RESERVED on every attached rw database, so
+// a holder that still has local.db ATTACHed also write-locks that file.
+// The holder DETACHes first: this test pins independence from the *mirror*
+// write lock (the 10s gadak issue / gadak search path). Write connections
+// keep the ATTACH so saved_views / v26 / feed_reads still work (those
+// writers live outside this round's whitelist).
+func TestHistoryWritesIndependentOfMirrorWriteLock(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "gadak.db")
+	holder := openTemp(t, path)
+	if err := holder.UpsertSource(context.Background(), Source{ID: "jira", Kind: "jira"}); err != nil {
+		t.Fatal(err)
+	}
+	db := openTemp(t, path)
+
+	ctx := context.Background()
+	holder.sql.SetMaxOpenConns(1)
+	if _, err := holder.sql.Exec(`DETACH DATABASE local`); err != nil {
+		t.Fatal(err)
+	}
+	holdTx, err := holder.sql.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = holdTx.Rollback() })
+	if _, err := holdTx.Exec(`INSERT INTO items (id, source_id, kind, key, updated_at)
+		VALUES ('jira:hold', 'jira', 'issue', 'NMB-HOLD', '2026-08-04T00:00:00Z')`); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, tc := range []struct {
+		name  string
+		write func() error
+		check func() error
+	}{
+		{
+			name: "visit",
+			write: func() error {
+				_, err := db.RecordVisit(ctx, VisitKindIssue, "NMB-1")
+				return err
+			},
+			check: func() error {
+				var n int
+				if err := db.sql.QueryRowContext(ctx, `SELECT COUNT(*) FROM local.visits WHERE key = 'NMB-1'`).Scan(&n); err != nil {
+					return err
+				}
+				if n != 1 {
+					return fmt.Errorf("visits recorded = %d, want 1", n)
+				}
+				return nil
+			},
+		},
+		{
+			name: "search",
+			write: func() error {
+				_, err := db.RecordSearch(ctx, "flaky upload", 3, "", "")
+				return err
+			},
+			check: func() error {
+				var n int
+				if err := db.sql.QueryRowContext(ctx, `SELECT COUNT(*) FROM local.searches WHERE query = 'flaky upload'`).Scan(&n); err != nil {
+					return err
+				}
+				if n != 1 {
+					return fmt.Errorf("searches recorded = %d, want 1", n)
+				}
+				return nil
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			start := time.Now()
+			done := make(chan error, 1)
+			go func() { done <- tc.write() }()
+			select {
+			case err := <-done:
+				elapsed := time.Since(start)
+				if elapsed > time.Second {
+					t.Fatalf("%s took %v under held mirror lock, want <1s", tc.name, elapsed)
+				}
+				if err != nil {
+					t.Fatalf("%s: %v (elapsed %v)", tc.name, err, elapsed)
+				}
+			case <-time.After(time.Second):
+				t.Fatalf("%s still blocked after 1s under held mirror write lock", tc.name)
+			}
+			if err := tc.check(); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+// TestRecordVisitErrorNamesLocalDB is the debug-layer pin for GDK-753: a
+// failed history write must name local.db in the error so the CLI warning
+// (`could not record this visit in local history: %v`) identifies which
+// file, not just SQLITE_BUSY.
+func TestRecordVisitErrorNamesLocalDB(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "gadak.db")
+	db := openTemp(t, path)
+	raw, err := sql.Open("sqlite", "file:"+LocalPath(path))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := raw.Exec(`DROP TABLE visits`); err != nil {
+		raw.Close()
+		t.Fatal(err)
+	}
+	if err := raw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	_, err = db.RecordVisit(context.Background(), VisitKindIssue, "NMB-1")
+	if err == nil || !strings.Contains(err.Error(), "local.db") {
+		t.Fatalf("got %v, want error naming local.db", err)
+	}
+}

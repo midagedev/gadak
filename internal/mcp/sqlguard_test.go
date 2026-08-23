@@ -1,9 +1,12 @@
 package mcp
 
 import (
+	"database/sql"
 	"encoding/json"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // The agent-facing contract is the JSON wire shape, so these tests assert on
@@ -97,5 +100,78 @@ func TestQueryNoWarningWhenRowsExist(t *testing.T) {
 	}
 	if strings.Contains(b, `"warning"`) {
 		t.Fatalf("rows exist, so the display-name filter must not warn, got %s", b)
+	}
+}
+
+// TestOpenReadOnlySetsBusyTimeout is FAIL-first for GDK-757: sqlguard's
+// mode=ro DSN had no busy_timeout, so PRAGMA busy_timeout was 0 while
+// store.Open / OpenReadOnly / EnsureLocal all pin 5000.
+func TestOpenReadOnlySetsBusyTimeout(t *testing.T) {
+	path := demoDB(t)
+	db, err := openReadOnly(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+	var got string
+	if err := db.QueryRow(`PRAGMA busy_timeout`).Scan(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got != "5000" {
+		t.Fatalf("sqlguard busy_timeout = %s, want 5000", got)
+	}
+}
+
+// TestRunQueryWaitsForWriterThenSucceeds is FAIL-first for GDK-757: a
+// connection holding a write lock on a DELETE-journal file makes SELECT
+// wait. Without busy_timeout the reader fails immediately with SQLITE_BUSY;
+// with 5000ms it waits for the holder to commit (80ms here) and succeeds.
+// WAL readers are a different path (store.TestWALReaderNotBlockedByWriter);
+// busy_timeout covers checkpoint, attached DELETE local.db, and non-WAL files.
+func TestRunQueryWaitsForWriterThenSucceeds(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "gadak.db")
+	// DELETE journal (the default) + _txlock=exclusive: BEGIN takes EXCLUSIVE
+	// and blocks readers. BEGIN IMMEDIATE only takes RESERVED, which still
+	// allows SELECT — that path cannot demonstrate a missing busy_timeout.
+	w, err := sql.Open("sqlite", "file:"+path+"?_pragma=busy_timeout(5000)&_txlock=exclusive")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { w.Close() })
+	w.SetMaxOpenConns(1)
+	if _, err := w.Exec(`CREATE TABLE issues (key TEXT)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.Exec(`INSERT INTO issues VALUES ('NMB-1')`); err != nil {
+		t.Fatal(err)
+	}
+	tx, err := w.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.Exec(`INSERT INTO issues VALUES ('HOLD')`); err != nil {
+		t.Fatal(err)
+	}
+
+	committed := make(chan error, 1)
+	go func() {
+		time.Sleep(80 * time.Millisecond)
+		committed <- tx.Commit()
+	}()
+
+	start := time.Now()
+	res, err := runQuery(path, `SELECT key FROM issues`, 10)
+	elapsed := time.Since(start)
+	if cerr := <-committed; cerr != nil {
+		t.Fatalf("holder commit: %v", cerr)
+	}
+	if err != nil {
+		t.Fatalf("runQuery under held writer: %v (elapsed %v)", err, elapsed)
+	}
+	if res.Count < 1 {
+		t.Fatalf("count=%d, want rows after holder committed", res.Count)
+	}
+	if elapsed < 50*time.Millisecond {
+		t.Fatalf("runQuery returned in %v; expected to wait for the holder (~80ms)", elapsed)
 	}
 }

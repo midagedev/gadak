@@ -78,7 +78,7 @@ func runQuery(dbPath string, query string, limit int) (*queryResult, error) {
 	}
 	limit = clampLimit(limit)
 
-	db, err := sql.Open("sqlite", "file:"+dbPath+"?mode=ro")
+	db, err := openReadOnly(dbPath)
 	if err != nil {
 		return nil, err
 	}
@@ -127,6 +127,14 @@ func runQuery(dbPath string, query string, limit int) (*queryResult, error) {
 	out.Count = len(out.Rows)
 	out.Warning = sqlhint.ZeroRowDisplayNameWarning(query, out.Count)
 	return out, nil
+}
+
+// openReadOnly is the single DSN for agent-facing mirror reads. busy_timeout
+// matches store.Open / OpenReadOnly (5000ms) so a writer that drops the lock
+// inside that window does not fail gadak_query with SQLITE_BUSY (GDK-757).
+// Callers must not copy this string; countQuery and runQuery share it.
+func openReadOnly(dbPath string) (*sql.DB, error) {
+	return sql.Open("sqlite", "file:"+dbPath+"?mode=ro&_pragma=busy_timeout(5000)")
 }
 
 func cellValue(v any) any {
