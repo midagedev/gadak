@@ -43,6 +43,10 @@
       : spaceOptions.filter((o) => o.hint !== 'personal' || draft.spaces.includes(o.value)),
   )
 
+  // Same two-input rule as toSettings: picking a space is the request to
+  // mirror it. The off control clears both, so "off" stays off.
+  const confluenceEffective = $derived(draft.confluenceOn || draft.spaces.length > 0)
+
   // GDK-476: empty scope = every team space. Same two-click arm as the
   // credential delete button (JiraKeySettings.deleteArmed) — no new dialog.
   let turnOnArmed = $state(false)
@@ -106,7 +110,11 @@
     "the whole wiki" and that must be a sentence someone read, not the
     side effect of a generic Turn on.
   -->
-  <div class="border-t border-border-subtle pt-4" data-testid="sources-confluence">
+  <div
+    class="border-t border-border-subtle pt-4"
+    data-testid="sources-confluence"
+    data-confluence-effective={confluenceEffective}
+  >
     <div class="mb-2.5 flex items-start justify-between gap-3">
       <div class="min-w-0">
         <!-- Same weight as the Jira projects label above: they are two
@@ -124,16 +132,16 @@
           earned.
         -->
         <p
-          class="mt-0.5 text-micro leading-relaxed {draft.confluenceOn && draft.spaces.length === 0
+          class="mt-0.5 text-micro leading-relaxed {confluenceEffective && draft.spaces.length === 0
             ? 'text-status-stale'
             : 'text-text-muted'}"
-          data-testid={draft.confluenceOn && draft.spaces.length === 0
+          data-testid={confluenceEffective && draft.spaces.length === 0
             ? 'confluence-all-warning'
             : undefined}
         >
-          {#if draft.confluenceOn && draft.spaces.length === 0}
+          {#if confluenceEffective && draft.spaces.length === 0}
             {t('settings.confluenceAllWarning')}
-          {:else if draft.confluenceOn}
+          {:else if confluenceEffective}
             {t('settings.confluenceOnHint')}
           {:else}
             {t('settings.confluenceOffHint')}
@@ -144,7 +152,7 @@
            accent belongs to Save alone: this control changes a pending
            value like every other field here, and a second primary made
            it look like it committed on click. -->
-      {#if draft.confluenceOn}
+      {#if confluenceEffective}
         <button
           type="button"
           class="{ADD_BTN} flex-none self-start"
@@ -152,7 +160,8 @@
             draft.confluenceOn = false
             // Scope goes with it: a stored selection under an off
             // source is a promise nothing keeps, and leaving it would
-            // make the dialog's effect switch the source straight back on.
+            // make the save path treat the source as on
+            // (confluenceOn || spaces.length > 0).
             draft.spaces = []
           }}
           data-testid="confluence-turn-off"
@@ -192,7 +201,7 @@
         options={visibleSpaceOptions}
         bind:selected={draft.spaces}
         placeholder={t('settings.scopeSpacePlaceholder')}
-        emptyLabel={draft.confluenceOn
+        emptyLabel={confluenceEffective
           ? t('settings.sourcesAllGlobal')
           : t('settings.sourcesNoSpaces')}
         testid="scope-spaces"

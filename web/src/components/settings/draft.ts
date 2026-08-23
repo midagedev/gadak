@@ -235,7 +235,15 @@ export function toSettings(d: SettingsDraft, projectsPickerReady: boolean): Gada
     // `enabled` is what lets the Sources tab turn the source on at all; the
     // server rejects a bare `spaces` while it is off. Sent whenever the section
     // was reachable, so switching it off is a save like any other.
-    confluence: { enabled: d.confluenceOn, spaces: d.confluenceOn ? [...d.spaces] : [] },
+    //
+    // Picking a space is the request to mirror it — same rule the dialog used
+    // to enforce with an $effect that wrote confluenceOn (GDK-692). Spaces
+    // ride along: enabled-from-spaces with spaces:[] would mean "every team
+    // space", which is the silent-discard's opposite foot-gun.
+    confluence: {
+      enabled: d.confluenceOn || d.spaces.length > 0,
+      spaces: d.confluenceOn || d.spaces.length > 0 ? [...d.spaces] : [],
+    },
     staleThresholdHours: Number.isFinite(hours) && hours > 0 ? hours : 72,
     syncIntervalSec: resolveInterval(d.syncPreset, d.syncCustomText),
     reconcileIntervalSec: resolveInterval(d.reconcilePreset, d.reconcileCustomText),

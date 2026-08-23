@@ -44,9 +44,9 @@
   let keyQuery = $state('')
   let busy = $state(false)
 
-  const typeOptions = $derived.by(() => {
+  function linkTypeOptions(rows: IssueLinkType[]): { value: string; label: string }[] {
     const out: { value: string; label: string }[] = []
-    for (const row of types) {
+    for (const row of rows) {
       const outward = (row.outward || row.name || row.id).trim()
       const inward = (row.inward || '').trim()
       if (outward) out.push({ value: outward, label: outward })
@@ -55,32 +55,37 @@
       }
     }
     return out
-  })
+  }
 
+  const typeOptions = $derived(linkTypeOptions(types))
+
+  // Catalog fetch is I/O. Writes live in loadTypes (GDK-692).
   $effect(() => {
     const k = issueKey
     if (!k || linear) return
     if (k === catalogFor) return
-    catalogFor = k
-    types = []
-    selectedType = ''
     void loadTypes(k)
   })
 
-  $effect(() => {
-    if (!selectedType && typeOptions.length) selectedType = typeOptions[0].value
-  })
+  function setTypes(rows: IssueLinkType[]) {
+    types = rows
+    // Same turn as types so bind:value={selectedType} matches an option.
+    if (!selectedType) selectedType = linkTypeOptions(rows)[0]?.value ?? ''
+  }
 
   async function loadTypes(k: string) {
+    catalogFor = k
+    types = []
+    selectedType = ''
     if (isHostedDemo()) {
-      types = [{ id: '10000', name: 'Blocks', inward: 'is blocked by', outward: 'blocks' }]
+      setTypes([{ id: '10000', name: 'Blocks', inward: 'is blocked by', outward: 'blocks' }])
       return
     }
     try {
       const res = await getIssueLinkTypes(k)
-      types = res.link_types ?? []
+      setTypes(res.link_types ?? [])
     } catch {
-      types = []
+      setTypes([])
     }
   }
 

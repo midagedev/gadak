@@ -118,23 +118,6 @@
   let spacesError = $state<string | null>(null)
   let showPersonalSpaces = $state(false)
 
-  /*
-   * Choosing a space is the request to mirror it. Without this, picking one
-   * while the source was off and pressing Save sent {enabled:false, spaces:[]}
-   * — the chip sat on screen and the save discarded it silently, which is the
-   * failure this whole screen exists to remove.
-   *
-   * The button is left to carry the one case that genuinely needs a decision:
-   * turning the source on with *no* scope, which mirrors every team space.
-   * Turning it off clears the scope, so this can never fight that click.
-   *
-   * It stays in the dialog, not in the Sources tab: it must hold whether or not
-   * that tab is on screen.
-   */
-  $effect(() => {
-    if (draft.spaces.length > 0 && !draft.confluenceOn) draft.confluenceOn = true
-  })
-
   let jsonText = $state('')
   let jsonError = $state<string | null>(null)
 

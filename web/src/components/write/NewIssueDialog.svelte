@@ -107,6 +107,43 @@
   const selectedProject = $derived(projects.find((p) => p.key === projectKey))
   const issueTypes = $derived(selectedProject?.issue_types ?? [])
 
+  function inferProject(): string {
+    const keys = projects.map((p) => p.key)
+    for (const r of recentOf('create-project')) if (keys.includes(r)) return r
+    const fromFilter = filters.filters.jira_project?.[0]
+    if (fromFilter && keys.includes(fromFilter)) return fromFilter
+    const sel = selection.selectedKey ? issues.get(selection.selectedKey) : undefined
+    if (sel) {
+      const p = write.projectOf(sel)
+      if (keys.includes(p)) return p
+    }
+    return keys[0] ?? ''
+  }
+
+  function inferType(pk: string): string {
+    const p = projects.find((x) => x.key === pk)
+    if (!p) return ''
+    const types = p.issue_types
+    // Last-used type id for this project, else create-meta order (never a localized name).
+    for (const r of recentOf(`create-type:${pk}`)) if (types.some((t) => t.id === r)) return r
+    return types[0]?.id ?? ''
+  }
+
+  // The type this dialog will actually create: the picked one while it belongs
+  // to the picked project, else the inferred one. Everything reads this —
+  // submit, create-fields, and the <select> itself.
+  //
+  // The <select> cannot `bind:` a $derived, so it takes value= plus onchange.
+  // Binding `issueTypeId` instead would put the old project's type id on a
+  // select that has no such option: the field renders blank while submit sends
+  // the inferred type. One frame of that was the $effect this replaced
+  // (GDK-692); a blank field that creates something is worse than a flicker.
+  const effectiveTypeId = $derived(
+    selectedProject && issueTypes.some((t) => t.id === issueTypeId)
+      ? issueTypeId
+      : inferType(projectKey),
+  )
+
   // Create-fields cache lives for this dialog instance only (GDK-254).
   // Failed fetches are remembered so a 404/409 does not retry in a loop.
   let createFieldsByKey = $state<Record<string, CreateFieldMeta[]>>({})
@@ -118,8 +155,8 @@
   }
 
   const currentCreateFields = $derived.by((): CreateFieldMeta[] => {
-    if (!projectKey || !issueTypeId) return []
-    return createFieldsByKey[createFieldsKey(projectKey, issueTypeId)] ?? []
+    if (!projectKey || !effectiveTypeId) return []
+    return createFieldsByKey[createFieldsKey(projectKey, effectiveTypeId)] ?? []
   })
 
   const sentCreateFieldIds = $derived.by(() => {
@@ -167,10 +204,15 @@
 
   // Required-field list is advisory. A miss (404, no credential, origin
   // error) must leave the form as it is today — create is never blocked.
+  // I/O stays an $effect; writes live in beginCreateFieldsLoad (GDK-692).
   $effect(() => {
     const pk = projectKey
-    const typeId = issueTypeId
+    const typeId = effectiveTypeId
     if (writeState !== 'form' || !pk || !typeId) return
+    return beginCreateFieldsLoad(pk, typeId)
+  })
+
+  function beginCreateFieldsLoad(pk: string, typeId: string): (() => void) | void {
     const key = createFieldsKey(pk, typeId)
     if (key in createFieldsByKey || key in createFieldsFailed || createFieldsInflight.has(key)) {
       return
@@ -192,7 +234,7 @@
       }
     })()
     return () => ac.abort()
-  })
+  }
 
   async function loadFallback() {
     fetchingMeta = true
@@ -227,35 +269,6 @@
     issueTypeId = inferType(projectKey)
     queueMicrotask(() => summaryEl?.focus())
   }
-
-  function inferProject(): string {
-    const keys = projects.map((p) => p.key)
-    for (const r of recentOf('create-project')) if (keys.includes(r)) return r
-    const fromFilter = filters.filters.jira_project?.[0]
-    if (fromFilter && keys.includes(fromFilter)) return fromFilter
-    const sel = selection.selectedKey ? issues.get(selection.selectedKey) : undefined
-    if (sel) {
-      const p = write.projectOf(sel)
-      if (keys.includes(p)) return p
-    }
-    return keys[0] ?? ''
-  }
-
-  function inferType(pk: string): string {
-    const p = projects.find((x) => x.key === pk)
-    if (!p) return ''
-    const types = p.issue_types
-    // Last-used type id for this project, else create-meta order (never a localized name).
-    for (const r of recentOf(`create-type:${pk}`)) if (types.some((t) => t.id === r)) return r
-    return types[0]?.id ?? ''
-  }
-
-  // On project change, if type is invalid, switch to the inferred type for that project.
-  $effect(() => {
-    if (selectedProject && !issueTypes.some((t) => t.id === issueTypeId)) {
-      issueTypeId = inferType(projectKey)
-    }
-  })
 
   function pickUser(u: JiraUser) {
     assignee = u
@@ -318,7 +331,7 @@
     e.preventDefault()
     if (submitting) return
     const s = summary.trim()
-    if (!projectKey || !issueTypeId || !s) {
+    if (!projectKey || !effectiveTypeId || !s) {
       submitError = t('write.requiredFields')
       return
     }
@@ -326,7 +339,7 @@
     submitError = null
     const res = await write.createIssue({
       project_key: projectKey,
-      issue_type: issueTypeId,
+      issue_type: effectiveTypeId,
       summary: s,
       description_text: description.trim() || undefined,
       assignee_account_id: assignee?.account_id ?? undefined,
@@ -440,7 +453,11 @@
                 {' '}<span class="text-status-reopen">*</span>{/if}</span
             >
             <span class="relative flex">
-              <select bind:value={issueTypeId} class={SELECT}>
+              <select
+                value={effectiveTypeId}
+                onchange={(e) => (issueTypeId = e.currentTarget.value)}
+                class={SELECT}
+              >
                 {#each issueTypes as t (t.id)}
                   <option value={t.id}>{t.name}</option>
                 {/each}
