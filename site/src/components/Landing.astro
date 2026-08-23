@@ -21,8 +21,7 @@ const installHref = lang === 'en' ? '/install/' : '/ko/install/'
     <h1>{t.hero.heading}</h1>
     <p class="lede">{t.hero.lede}</p>
     <div class="doors">
-      <Door primary href="/demo/" title={t.hero.doors.demoTitle} sub={t.hero.doors.demoSub} />
-      <Door href={installHref} title={t.hero.doors.installTitle} sub={t.hero.doors.installSub} />
+      <Door primary href={installHref} title={t.hero.doors.installTitle} sub={t.hero.doors.installSub} />
     </div>
     <figure class="flagship">
       <MediaSlot
@@ -38,20 +37,42 @@ const installHref = lang === 'en' ? '/install/' : '/ko/install/'
   <Thread label={t.speed.label} />
 
   {/* Measurements right under the hero: the video says "fast", the table
-      says how much, and every number is checkable. */}
+      says how much, against the thing people wait on today. The REST
+      comparison is the claim — same question, two runtimes. */}
   <section class="speed">
     <h2>{t.speed.heading}</h2>
-    <dl>
-      {
-        t.speed.rows.map((row) => (
-          <div class="row">
-            <dt>{row.what}</dt>
-            <dd>{row.value}</dd>
-          </div>
-        ))
-      }
-    </dl>
+    <table>
+      <thead>
+        <tr>
+          <th></th>
+          <th>{t.speed.colRest}</th>
+          <th>{t.speed.colGadak}</th>
+          <th aria-hidden="true"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {
+          t.speed.rows.map((row) => (
+            <tr>
+              <td class="what">{row.what}</td>
+              <td class="rest">{row.value}</td>
+              <td class="gadak">{row.alt}</td>
+              <td class="ratio">{row.ratio}</td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
     <p class="note">{t.speed.note}</p>
+    <p class="note strong">{t.speed.localHeading} — {t.speed.localNote}</p>
+  </section>
+
+  {/* The live demo, one scroll below the numbers: the door is here for the
+      reader who wants to touch it, not the one skimming the fold. */}
+  <section class="demo">
+    <h2>{t.demo.heading}</h2>
+    <p>{t.demo.body}</p>
+    <a class="demo-cta" href="/demo/">{t.demo.cta}</a>
   </section>
 
   <Thread label={t.ux.label} />
@@ -186,33 +207,71 @@ gadak init && gadak sync && gadak serve`}</code></pre>
     margin-top: 0.6rem;
   }
 
-  .speed dl {
-    margin: 0;
+  .speed table {
+    width: 100%;
+    border-collapse: collapse;
     border-top: 1px solid var(--border);
   }
-  .speed .row {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    gap: 1.5rem;
-    padding: 0.7rem 0;
+  .speed th {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-align: right;
+    color: var(--ink-3);
+    padding: 0.5rem 0 0.35rem;
+  }
+  .speed th:first-child {
+    text-align: left;
+  }
+  .speed td {
+    padding: 0.6rem 0;
     border-bottom: 1px solid var(--border);
-  }
-  .speed dt {
-    font-size: 0.9688rem;
-    color: var(--ink-2);
-  }
-  .speed dd {
-    margin: 0;
+    font-size: 0.9375rem;
+    text-align: right;
     font-family: var(--font-mono);
-    font-size: 1rem;
-    color: var(--ink);
     white-space: nowrap;
+  }
+  .speed td.what {
+    text-align: left;
+    font-family: var(--font-sans);
+    color: var(--ink-2);
+    white-space: normal;
+    padding-right: 1rem;
+  }
+  .speed td.rest {
+    color: var(--ink-3);
+  }
+  .speed td.gadak {
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .speed td.ratio {
+    color: var(--accent);
+    font-weight: 700;
   }
   .speed .note {
     font-size: 0.875rem;
     color: var(--ink-3);
     margin: 0.9rem 0 0;
+  }
+  .speed .note.strong {
+    color: var(--ink-2);
+  }
+  .demo {
+    text-align: center;
+  }
+  .demo-cta {
+    display: inline-block;
+    margin: 0.5rem 0 0;
+    padding: 0.65rem 1.4rem;
+    border: 1px solid var(--accent);
+    border-radius: var(--radius);
+    color: var(--accent);
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .demo-cta:hover {
+    background: var(--accent-subtle);
   }
 
   .exhibit {

@@ -26,7 +26,7 @@ TRIM_HEAD=2.4
 
 ffmpeg -y -ss "$TRIM_HEAD" -i "$WEBM" \
   -an \
-  -c:v libx264 -pix_fmt yuv420p -preset medium -crf 26 \
+  -c:v libx264 -pix_fmt yuv420p -preset medium -crf 23 \
   -movflags +faststart \
   "$OUT_DIR/scale.mp4"
 
@@ -48,28 +48,17 @@ make_gif() {
     "$OUT_DIR/scale.gif"
 }
 
-# The zoom beats add full-frame motion; the ladder goes deeper than
-# export-groupby's (record-time zoom = more pixel change per second).
-# This clip's ceiling is 8 MB, not the groupby 4 MB: a ~30 s take with five
-# zoom transitions does not reach 4 MB at readable quality (measured
-# 2026-08-23: 5 fps / 640 px / 64 colors still ~7 MB). The site ships the
-# mp4; the gif is README-scale reference.
+# Same budget ladder as export-groupby.sh: fps/colors before width.
+# Ceiling is 4 MB (site hero slot).
 make_gif "$FPS" "$WIDTH" 128
 SIZE="$(stat -f %z "$OUT_DIR/scale.gif")"
-if [[ "$SIZE" -gt 8388608 ]]; then
+if [[ "$SIZE" -gt 4194304 ]]; then
   make_gif 8 "$WIDTH" 96
 fi
 SIZE="$(stat -f %z "$OUT_DIR/scale.gif")"
-if [[ "$SIZE" -gt 8388608 ]]; then
+if [[ "$SIZE" -gt 4194304 ]]; then
   make_gif 7 800 96
 fi
-SIZE="$(stat -f %z "$OUT_DIR/scale.gif")"
-if [[ "$SIZE" -gt 8388608 ]]; then
-  make_gif 6 720 64
-fi
-SIZE="$(stat -f %z "$OUT_DIR/scale.gif")"
-if [[ "$SIZE" -gt 8388608 ]]; then
-  make_gif 5 640 64
-fi
+
 
 ls -lh "$OUT_DIR/scale.gif" "$OUT_DIR/scale.mp4"

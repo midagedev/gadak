@@ -29,39 +29,6 @@ async function beat(page: Page, ms = 700): Promise<void> {
   await page.waitForTimeout(ms)
 }
 
-/**
- * Screen-Studio-style focus, baked into the recording: a smooth CSS zoom
- * around a viewport point (GDK-746's record-time approach — trace-based
- * reconstruction lost the paced beats, this preserves them; the DOM
- * re-renders under scale so text stays crisp at deviceScaleFactor 2).
- * Zoomed only during read-only holds; always reset before the next
- * interaction so the flow stays honest.
- */
-async function zoomTo(
-  page: Page,
-  x: number,
-  y: number,
-  level = 1.45,
-  holdMs = 1500,
-): Promise<void> {
-  await page.evaluate(
-    ([x, y, level]) => {
-      const html = document.documentElement
-      html.style.transition = 'transform 0.55s cubic-bezier(0.4, 0, 0.2, 1)'
-      html.style.transformOrigin = `${x}px ${y}px`
-      html.style.transform = `scale(${level})`
-    },
-    [x, y, level],
-  )
-  await page.waitForTimeout(650 + holdMs)
-}
-
-async function zoomReset(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    document.documentElement.style.transform = 'scale(1)'
-  })
-  await page.waitForTimeout(750)
-}
 
 test.describe('scale demo', () => {
   test.skip(!isMedia, 'GADAK_MEDIA=1 only — media pipeline recording')
@@ -91,10 +58,7 @@ test.describe('scale demo', () => {
     const unified = palette.getByTestId('palette-unified-issue').first()
     await expect(unified).toBeVisible({ timeout: 10_000 })
     await expect(unified).toContainText(/retry/i)
-    await beat(page, 400)
-    // Focus: the palette with its hits — doc row + issue rows + highlights.
-    await zoomTo(page, 640, 305, 1.45, 1600)
-    await zoomReset(page)
+    await beat(page, 1200)
 
     await page.keyboard.press('Enter')
     await expect(palette).toBeHidden()
@@ -119,11 +83,7 @@ test.describe('scale demo', () => {
     await option.click()
     await expect(page).toHaveURL(/[?&#]g=assignee(?:&|$)/)
     await expect(page.getByTestId('group-header').first()).toBeVisible()
-    await beat(page, 400)
-    // Focus: the bar segments and group headers carry live counts
-    // (Unassigned 559 · Marco Reyes 149 · …) — the per-option answer.
-    await zoomTo(page, 640, 300, 1.35, 1600)
-    await zoomReset(page)
+    await beat(page, 1500)
 
     // ── Beat 3: three filters stack, and the facet counts react live ──
     // Same 2-step menu as triage.spec.ts (axis pick → value), but chained
@@ -142,9 +102,6 @@ test.describe('scale demo', () => {
     const nmb = menuP.getByRole('button', { name: /^NMB\b/ })
     await expect(nmb).toBeVisible()
     await beat(page, 400)
-    // Focus: facet counts per project, over the whole 20k mirror.
-    await zoomTo(page, 340, 330, 1.45, 1400)
-    await zoomReset(page)
     await nmb.click()
     await page.keyboard.press('Escape')
     await expect(page.getByTestId('filter-chip').filter({ hasText: /not/i })).toBeVisible()
@@ -158,11 +115,7 @@ test.describe('scale demo', () => {
     await expect(menuH).toBeVisible()
     const high = menuH.getByRole('button', { name: /^High\b/ })
     await expect(high).toBeVisible()
-    await beat(page, 400)
-    // Focus: these counts are computed over the already-filtered slice —
-    // the menu itself proves filters compose.
-    await zoomTo(page, 340, 330, 1.45, 1400)
-    await zoomReset(page)
+    await beat(page, 600)
     await high.click()
     await page.keyboard.press('Escape')
     await expect(page.getByTestId('filter-chip').filter({ hasText: 'High' })).toBeVisible()
@@ -189,10 +142,8 @@ test.describe('scale demo', () => {
     const listCount = page.getByTestId('list-count')
     await expect(listCount).not.toHaveText(/20[,.]?000/, { timeout: 30_000 })
     // Hold: three chips + the narrowed count together.
+    await beat(page, 1800)
     await beat(page, 500)
-    await zoomTo(page, 640, 160, 1.35, 1800)
-    await zoomReset(page)
-    await beat(page, 400)
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
