@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# Find the Playwright video from the history take and emit
+# docs/media/history.gif + docs/media/history.mp4.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+OUT_DIR="$ROOT/docs/media"
+RESULTS="$ROOT/e2e/demo/test-results-history"
+mkdir -p "$OUT_DIR"
+
+WEBM="$(find "$RESULTS" -type f -name 'video.webm' | head -n 1 || true)"
+if [[ -z "${WEBM}" ]]; then
+  echo "export-history: no video.webm under $RESULTS" >&2
+  echo "  run: make media-history" >&2
+  exit 1
+fi
+
+echo "export-history: source $WEBM"
+
+# Trim the boot skeleton: the recording starts at page load, but the clip
+# should open on the settled list (the "20,000 issues" count already up),
+# not on gray placeholders. The spec's first beat waits for the count, so
+# 2.4s of head is skeleton + settle; the trim lands just after settle.
+# Measured on the take of 2026-08-23; re-measure if boot pacing changes.
+TRIM_HEAD=2.4
+
+ffmpeg -y -ss "$TRIM_HEAD" -i "$WEBM" \
+  -an \
+  -c:v libx264 -pix_fmt yuv420p -preset medium -crf 23 \
+  -movflags +faststart \
+  "$OUT_DIR/history.mp4"
+
+# Same budget ladder as export-groupby.sh: fps/colors before width.
+# Ceiling is 4 MB (site hero slot).
+FPS=9
+WIDTH=960
+PALETTE="$(mktemp "${TMPDIR:-/tmp}/gadak-history-palette.XXXXXX").png"
+trap 'rm -f "$PALETTE"' EXIT
+
+make_gif() {
+  local fps="$1" width="$2" colors="${3:-128}"
+  echo "export-history: palette 2-pass gif fps=${fps} width=${width} colors=${colors}" >&2
+  ffmpeg -y -ss "$TRIM_HEAD" -i "$WEBM" \
+    -vf "fps=${fps},scale=${width}:-1:flags=lanczos,palettegen=max_colors=${colors}:stats_mode=diff" \
+    "$PALETTE"
+  ffmpeg -y -ss "$TRIM_HEAD" -i "$WEBM" -i "$PALETTE" \
+    -lavfi "fps=${fps},scale=${width}:-1:flags=lanczos[x];[x][1:v]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle" \
+    "$OUT_DIR/history.gif"
+}
+
+# Same budget ladder as export-groupby.sh: fps/colors before width.
+# Ceiling is 4 MB (site hero slot).
+make_gif "$FPS" "$WIDTH" 128
+SIZE="$(stat -f %z "$OUT_DIR/history.gif")"
+if [[ "$SIZE" -gt 4194304 ]]; then
+  make_gif 8 "$WIDTH" 96
+fi
+SIZE="$(stat -f %z "$OUT_DIR/history.gif")"
+if [[ "$SIZE" -gt 4194304 ]]; then
+  make_gif 7 800 96
+fi
+
+
+ls -lh "$OUT_DIR/history.gif" "$OUT_DIR/history.mp4"

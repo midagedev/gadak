@@ -108,7 +108,11 @@ const installHref = lang === 'en' ? '/install/' : '/ko/install/'
       <h2>{t.ux.history.heading}</h2>
       <p>{t.ux.history.body}</p>
     </div>
-    <MediaSlot slot={lang === 'en' ? 'F2 · history' : 'F2 · 히스토리'} />
+    <MediaSlot
+      slot={lang === 'en' ? 'history' : '히스토리'}
+      src="/media/history.mp4"
+      poster="/media/history-poster.png"
+    />
   </section>
 
   <Thread label={t.agent.label} />

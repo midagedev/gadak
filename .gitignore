@@ -74,3 +74,4 @@ site/public/media
 site/dist/
 site/.astro/
 e2e/demo/test-results-scale/
+e2e/demo/test-results-history/

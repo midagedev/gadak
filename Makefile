@@ -90,7 +90,7 @@ brand:
 
 # media-mcp is deliberately not here: it needs vhs and a Claude Code login,
 # and every run spends the operator's own model quota. Re-take it on purpose.
-media: media-web media-search media-agent media-groupby
+media: media-web media-search media-agent media-groupby media-history
 	@echo "media: done → $(MEDIA_DIR)/  (mcp.gif: make media-mcp)"
 	@ls -lh $(MEDIA_DIR)/web-demo.gif $(MEDIA_DIR)/web-demo.mp4 \
 		$(MEDIA_DIR)/search.gif $(MEDIA_DIR)/search.mp4 \
@@ -138,6 +138,14 @@ media-groupby: media-deps
 	rm -rf e2e/demo/test-results-groupby
 	GADAK_MEDIA=1 ./node_modules/.bin/playwright test --config e2e/demo/groupby.config.ts
 	bash e2e/demo/export-groupby.sh
+
+# History clip (F2): one issue thread read end to end (committed fixture).
+media-history: media-deps
+	@mkdir -p $(MEDIA_DIR)
+	@echo "media-history: recording history demo…"
+	rm -rf e2e/demo/test-results-history
+	GADAK_MEDIA=1 ./node_modules/.bin/playwright test --config e2e/demo/history.config.ts
+	bash e2e/demo/export-history.sh
 
 # Scale flagship: the 20k-issue mirror (site hero). Deterministic — the
 # snapshot is regenerated from examples/demo.db (seed 1) each take, never
