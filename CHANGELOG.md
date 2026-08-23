@@ -357,6 +357,26 @@ the fixes are all here.
 
 ### The web UI, made consistent
 
+- **One command registry instead of three surfaces that had to agree**
+  ([GDK-674]). A keyboard command lived in three places — the keymap that
+  dispatches it, the palette row that runs it, the cheat-sheet row that
+  documents it — with no shared source, so keeping them in step was a review
+  habit and drift was invisible until someone noticed a key the sheet promised
+  and nothing handled (that is [GDK-652], and it was found by eye). All 55
+  commands are now declared once in `web/src/lib/commands.ts` with their
+  chords, their phase, their scope, their dispatch, their palette row and
+  their help caption; the keymap still owns DOM dispatch and the palette still
+  wires its own hosts, but neither invents the list any more.
+  `npx vitest run web/src/lib/commands.test.ts -t dumpKey` prints the whole
+  surface as text, which is the debugging tool this did not have.
+  **Nothing on screen moved.** Unifying the source surfaced nine
+  cross-surface disagreements (a palette row that never taught `p`, help-only
+  rows that are local handlers, two different captions for "open in Jira",
+  Esc's real cascade against the sheet's single line) and every one of them
+  was resolved by adopting what the keymap actually dispatches and leaving the
+  display exactly as it was — a refactor that changes the pixels is not a
+  refactor.
+
 - **A UI string is one object with every locale in it** ([GDK-668]). The
   catalog was three hand-kept files — 1048 keys × en/ko/ja — so every copy
   change meant editing three places and hoping, and a locale left behind
@@ -2548,6 +2568,7 @@ measured numbers instead of adjectives.
 [GDK-669]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-669
 [GDK-676]: https://gadak.dev/backlog/#/?ks=GDK-676
 [GDK-8]: https://gadak.dev/backlog/#/?ks=GDK-8
+[GDK-674]: https://gadak.dev/backlog/#/?ks=GDK-674
 [GDK-85]: https://gadak.dev/backlog/#/?ks=GDK-85
 [GDK-680]: https://gadak.dev/backlog/#/?ks=GDK-680
 [GDK-665]: https://gadak.dev/backlog/#/?ks=GDK-665

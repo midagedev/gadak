@@ -1,97 +1,21 @@
 <script lang="ts">
   /*
-   * Keyboard cheat sheet (`?`). Every row below maps to a handler that actually
-   * exists — App.svelte owns the whole list/detail set (⌘K / , / ? / j / k / ↵ / o / x /
-   * s / a / l / p / c / Esc), SearchBox (/), CommandPalette (↑↓/↵/Esc),
-   * CommentComposer (⌘↵). Do not document a key that no handler listens for.
+   * Keyboard cheat sheet (`?`). Rows come from lib/commands.ts — the same
+   * registry keymap dispatches and the palette lists. Help-only rows
+   * (Tab, search/palette arrows, ⌘↵) document local handlers.
    */
   import { t } from '../../lib/i18n'
   import { trapFocus } from '../../lib/focus-trap'
+  import { helpSections } from '../../lib/commands'
+  import { modifierSymbol } from '../../lib/unified-search'
   import DialogShell from '../ui/DialogShell.svelte'
 
   let { onclose }: { onclose: () => void } = $props()
 
-  const mod = typeof navigator !== 'undefined' && /Mac|iP(hone|ad)/.test(navigator.platform)
-    ? '⌘'
-    : 'Ctrl'
-
-  const sections: { title: string; rows: [string, string][] }[] = [
-    {
-      title: t('shortcuts.sectionGlobal'),
-      rows: [
-        [`${mod} K`, t('shortcuts.palette')],
-        [',', t('shortcuts.settings')],
-        // `c` resolves three ways in keymap.svelte.ts (detail open → focus
-        // comment, list cursor → comment, otherwise new issue) — the caption
-        // keeps this row honest about being the fallback case.
-        ['c', t('shortcuts.newIssueContext')],
-        ['?', t('shortcuts.help')],
-        ['Esc', t('browse.back')],
-      ],
-    },
-    {
-      title: t('shortcuts.sectionList'),
-      rows: [
-        ['j', t('shortcuts.moveDown')],
-        ['k', t('shortcuts.moveUp')],
-        ['↵', t('shortcuts.openIssue')],
-        ['o', t('detail.openJira')],
-        ['x', t('shortcuts.selectRow')],
-        ['s', t('shortcuts.listStatus')],
-        ['p', t('shortcuts.listPriority')],
-        ['a', t('shortcuts.listAssignee')],
-        ['l', t('shortcuts.listLabels')],
-        ['c', t('shortcuts.listComment')],
-        ['Esc', t('shortcuts.clearSelection')],
-      ],
-    },
-    {
-      // Tab is the browser's own focus walk — these views have no j/k cursor
-      // (GDK-651). Esc is a keymap handler (close-feed / close-history / close-docs).
-      title: t('shortcuts.sectionColumnViews'),
-      rows: [
-        ['Tab', t('shortcuts.tabMoveRows')],
-        ['Esc', t('shortcuts.closeColumnView')],
-      ],
-    },
-    {
-      title: t('shortcuts.sectionDetail'),
-      rows: [
-        // `o` resolves by what is open (keymap.svelte.ts open-origin): an
-        // issue goes to Jira, a page goes to its source. One caption cannot
-        // cover both surfaces honestly — two rows, the same grammar as `c`
-        // wearing a caption per context.
-        ['o', t('shortcuts.detailOpenJira')],
-        ['o', t('doc.openSource')],
-        ['s', t('shortcuts.focusStatus')],
-        ['p', t('shortcuts.focusPriority')],
-        ['a', t('shortcuts.focusAssignee')],
-        ['l', t('shortcuts.focusLabels')],
-        ['c', t('shortcuts.focusComment')],
-      ],
-    },
-    {
-      title: t('shortcuts.sectionSearch'),
-      rows: [
-        ['/', t('shortcuts.focusSearch')],
-        ['↑ ↓', t('shortcuts.suggestions')],
-        ['↵', t('shortcuts.applySearch')],
-        ['Esc', t('shortcuts.clearSearch')],
-      ],
-    },
-    {
-      title: t('shortcuts.sectionPalette'),
-      rows: [
-        ['↑ ↓', t('shortcuts.paletteMove')],
-        ['↵', t('shortcuts.paletteRun')],
-        ['Esc', t('shortcuts.paletteClose')],
-      ],
-    },
-    {
-      title: t('shortcuts.sectionCompose'),
-      rows: [[`${mod} ↵`, t('shortcuts.submitComment')]],
-    },
-  ]
+  const sections = helpSections(modifierSymbol()).map((section) => ({
+    title: t(section.titleKey),
+    rows: section.rows.map((row) => [row.kbd, t(row.labelKey)] as [string, string]),
+  }))
 
   function onKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') {

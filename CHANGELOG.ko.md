@@ -340,6 +340,23 @@
 
 ### 일관되게 정리된 웹 UI
 
+- **서로 합의해야 했던 세 표면 대신 커맨드 레지스트리 하나** ([GDK-674]).
+  키보드 명령 하나가 세 곳에 살았습니다 — 디스패치하는 keymap, 실행하는
+  팔레트 행, 문서화하는 치트시트 행 — 공유 원본 없이. 그래서 셋을 맞춰 두는
+  일이 리뷰 습관이었고 드리프트는 누가 눈으로 볼 때까지 보이지 않았습니다
+  (시트가 약속했는데 아무도 처리하지 않던 키가 [GDK-652]이고, 그것도 눈으로
+  찾았습니다). 이제 55개 명령 전부가 `web/src/lib/commands.ts`에서 한 번
+  선언됩니다 — 코드, phase, scope, 디스패치, 팔레트 행, 도움말 캡션까지.
+  keymap은 여전히 DOM 디스패치를 소유하고 팔레트는 여전히 자기 호스트를
+  연결하지만, 어느 쪽도 목록을 스스로 발명하지 않습니다.
+  `npx vitest run web/src/lib/commands.test.ts -t dumpKey`가 표면 전체를
+  텍스트로 찍습니다 — 지금까지 없던 디버깅 도구입니다.
+  **화면에서 움직인 것은 없습니다.** 원본을 합치자 표면 간 불일치 아홉 개가
+  드러났고(`p`를 가르친 적 없는 팔레트, 로컬 핸들러인 도움말 전용 행,
+  "Jira에서 열기"의 캡션 두 벌, 시트의 한 줄과 실제 Esc 캐스케이드), 전부
+  **keymap이 실제로 디스패치하는 것**을 사실로 채택하고 표시는 그대로 둬서
+  닫았습니다 — 픽셀이 바뀌는 리팩토링은 리팩토링이 아닙니다.
+
 - **UI 문자열 하나가 모든 로케일을 담은 객체 하나입니다** ([GDK-668]).
   카탈로그는 손으로 관리하는 파일 셋 — 1048키 × en/ko/ja — 이었고, 그래서
   카피 하나를 고치려면 세 곳을 편집하고 기도해야 했으며, 뒤에 남겨진
@@ -2491,6 +2508,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-669]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-669
 [GDK-676]: https://gadak.dev/backlog/#/?ks=GDK-676
 [GDK-8]: https://gadak.dev/backlog/#/?ks=GDK-8
+[GDK-674]: https://gadak.dev/backlog/#/?ks=GDK-674
 [GDK-85]: https://gadak.dev/backlog/#/?ks=GDK-85
 [GDK-680]: https://gadak.dev/backlog/#/?ks=GDK-680
 [GDK-665]: https://gadak.dev/backlog/#/?ks=GDK-665

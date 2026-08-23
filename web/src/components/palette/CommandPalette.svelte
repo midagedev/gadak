@@ -14,8 +14,6 @@
   import {
     formatNumber,
     formatTimeOfDay,
-    locale,
-    setLocale,
     t,
   } from '../../lib/i18n'
   import { rankPages } from '../../lib/doc-search'
@@ -54,7 +52,7 @@
   import { feature, isHostedDemo } from '../../lib/config'
   import { runSyncNow } from '../../lib/sync-now'
   import { openIssueOrigin, openOriginUrl } from '../../lib/desktop-links'
-  import { THEME_MODES, persistThemePreference } from '../../lib/theme'
+  import { paletteActionItems } from '../../lib/command-palette'
   import type { IssueLite, Member, PageLite, SearchMatch } from '../../lib/types'
   import Icon, { type IconName } from '../ui/Icon.svelte'
   import Marks from '../ui/Marks.svelte'
@@ -68,14 +66,6 @@
   type Section = 'person' | 'recent' | 'updated' | 'doc' | 'issue' | 'view' | 'action' | 'unified'
 
   const HOME_LIMIT = 5
-
-  // Every locale the settings select offers; the palette derives its
-  // switch-language actions from the same list.
-  const LOCALE_OPTIONS = [
-    ['en', 'settings.localeEn'],
-    ['ko', 'settings.localeKo'],
-    ['ja', 'settings.localeJa'],
-  ] as const
 
   interface Item {
     id: string
@@ -497,112 +487,6 @@
     write.toast(t('palette.syncToast', { overall: label, when }), overall === 'failed' ? 'error' : 'info')
   }
 
-  /**
-   * Triage commands carry their target in the label — "Change status · 3
-   * selected" vs "· NMB-110" — because the palette covers the list while it is
-   * open, and a bare "Change status" would not say what it is about to change.
-   * They only appear when there is something to act on.
-   */
-  const triageItems = $derived.by<Omit<Item, 'section'>[]>(() => {
-    const count = bulk.count
-    const cursor = triage.listActive ? triage.cursorKey : null
-    if (!count && !cursor) return []
-    const target = count ? t('palette.triageSelected', { n: count }) : (cursor as string)
-    const out: Omit<Item, 'section'>[] = [
-      {
-        id: 'a:triage-status',
-        label: t('palette.actionTriageStatus', { target }),
-        kbd: 's',
-        run: () => triage.requestMenu('status'),
-      },
-      {
-        id: 'a:triage-assignee',
-        label: t('palette.actionTriageAssignee', { target }),
-        kbd: 'a',
-        run: () => triage.requestMenu('assignee'),
-      },
-      {
-        id: 'a:triage-labels',
-        label: t('palette.actionTriageLabels', { target }),
-        kbd: 'l',
-        run: () => triage.requestMenu('labels'),
-      },
-    ]
-    if (cursor) {
-      out.push({
-        id: 'a:triage-comment',
-        label: t('palette.actionTriageComment', { key: cursor }),
-        kbd: 'c',
-        run: () => triage.openComment(cursor),
-      })
-      out.push({
-        id: 'a:triage-select',
-        label: bulk.has(cursor)
-          ? t('palette.actionTriageDeselect', { key: cursor })
-          : t('palette.actionTriageSelect', { key: cursor }),
-        kbd: 'x',
-        run: () => bulk.toggle(cursor),
-      })
-      out.push({
-        id: 'a:favorite',
-        label: favorites.has(cursor)
-          ? t('palette.actionUnfavorite', { key: cursor })
-          : t('palette.actionFavorite', { key: cursor }),
-        testid: 'palette-action-favorite',
-        run: () => void favorites.toggle(cursor),
-      })
-      if (me.identified && !isHostedDemo()) {
-        out.push({
-          id: 'a:watch',
-          label: watches.has(cursor)
-            ? t('palette.actionUnwatch', { key: cursor })
-            : t('palette.actionWatch', { key: cursor }),
-          testid: 'palette-action-watch',
-          run: () => void watches.toggle(cursor),
-        })
-      }
-    }
-    if (count) {
-      out.push({
-        id: 'a:triage-clear',
-        label: t('palette.actionTriageClear', { n: count }),
-        kbd: 'Esc',
-        run: () => bulk.clear(),
-      })
-    }
-    return out
-  })
-
-  /**
-   * GDK-81: same header escape hatch as the `o` key. Only listed when there
-   * is a page, a list cursor, or an open issue — the cases `o` itself acts.
-   */
-  const originItem = $derived.by<Omit<Item, 'section'> | null>(() => {
-    const pageKey = pages.selectedKey
-    if (pageKey) {
-      return {
-        id: 'a:open-origin',
-        label: t('doc.openSource'),
-        kbd: 'o',
-        run: () => {
-          const row = pages.lite(pageKey) ?? pages.searchHits.find((p) => p.key === pageKey)
-          openOriginUrl(row?.url)
-        },
-      }
-    }
-    const cursor = triage.listActive ? triage.cursorKey : null
-    const issueKey = cursor ?? selection.selectedKey
-    if (!issueKey) return null
-    return {
-      id: 'a:open-origin',
-      label: t('detail.openJira'),
-      kbd: 'o',
-      run: () => {
-        openIssueOrigin(issueKey)
-      },
-    }
-  })
-
   let createBusy = $state(false)
 
   async function createFromPalette(summary: string) {
@@ -626,78 +510,58 @@
   }
 
   const actionItems = $derived.by<Item[]>(() => {
-    // `c` belongs to the cursor row while there is one, so the badge moves with
-    // it — two rows both claiming `c` would be a lie about one of them.
-    const cIsComment = triageItems.some((d) => d.id === 'a:triage-comment')
-    const newIssue: Omit<Item, 'section'> = {
-      id: 'a:new',
-      label: t('palette.actionNewIssue'),
-      kbd: cIsComment ? undefined : 'c',
-      testid: 'palette-new-issue',
-      run: () => void write.openNewIssue(),
-    }
-    const defs: Omit<Item, 'section'>[] = [
-      ...triageItems,
-      ...(originItem ? [originItem] : []),
-      newIssue,
-      { id: 'a:settings', label: t('palette.actionSettings'), kbd: ',', run: onOpenSettings },
-      {
-        id: 'a:history',
-        label: t('palette.actionHistory'),
-        run: () => {
+    const cursor = triage.listActive ? triage.cursorKey : null
+    const pageKey = pages.selectedKey
+    const defs = paletteActionItems({
+      bulkCount: bulk.count,
+      bulkHasCursor: Boolean(cursor && bulk.has(cursor)),
+      cursor,
+      pageKey,
+      issueKey: cursor ?? selection.selectedKey,
+      identified: me.identified,
+      hostedDemo: isHostedDemo(),
+      feedEnabled: feature('feed'),
+      query: raw,
+      favoriteHas: (key) => favorites.has(key),
+      watchHas: (key) => watches.has(key),
+      host: {
+        requestMenu: (menu) => triage.requestMenu(menu),
+        openComment: (key) => triage.openComment(key),
+        toggleBulk: (key) => bulk.toggle(key),
+        clearBulk: () => bulk.clear(),
+        toggleFavorite: (key) => void favorites.toggle(key),
+        toggleWatch: (key) => void watches.toggle(key),
+        openPageOrigin: () => {
+          if (!pageKey) return
+          const row = pages.lite(pageKey) ?? pages.searchHits.find((p) => p.key === pageKey)
+          openOriginUrl(row?.url)
+        },
+        openIssueOrigin: (key) => openIssueOrigin(key),
+        openNewIssue: () => void write.openNewIssue(),
+        openSettings: onOpenSettings,
+        openHistory: () => {
           me.closeFeed()
           pages.openHistory()
         },
-      },
-      {
-        id: 'a:docs',
-        label: t('palette.actionDocs'),
-        testid: 'palette-action-docs',
-        run: () => {
+        openDocs: () => {
           me.closeFeed()
           if (pages.docsView && pages.spaceView === null) return
           pages.toggleDocs()
         },
+        openFeed: () => {
+          pages.closeDocs()
+          me.openFeed()
+        },
+        clearUserFilters: () => filters.clearUserFilters(),
+        toggleFlag: (flag) => filters.toggleFlag(flag),
+        syncStatus: syncStatusToast,
+        syncNow: () => void runSyncNow('incremental'),
+        createNow: (summary) => void createFromPalette(summary),
       },
-      ...(feature('feed')
-        ? [
-            {
-              id: 'a:feed',
-              label: t('palette.actionFeed'),
-              testid: 'palette-action-feed',
-              run: () => {
-                pages.closeDocs()
-                me.openFeed()
-              },
-            },
-          ]
-        : []),
-      { id: 'a:reset', label: t('palette.actionResetFilters'), run: () => filters.clearUserFilters() },
-      { id: 'a:reopened', label: t('palette.actionToggleReopened'), run: () => filters.toggleFlag('reopened') },
-      { id: 'a:unassigned', label: t('palette.actionToggleUnassigned'), run: () => filters.toggleFlag('unassigned') },
-      { id: 'a:stale', label: t('palette.actionToggleStale'), run: () => filters.toggleFlag('stale') },
-      // One action per other locale, the THEME_MODES shape below — a
-      // two-way toggle stopped being honest at three locales (GDK-626).
-      ...LOCALE_OPTIONS.filter(([code]) => code !== locale()).map(([code, labelKey]) => ({
-        id: `a:locale-${code}`,
-        label: t('palette.actionLocale', { lang: t(labelKey) }),
-        run: () => setLocale(code),
-      })),
-      ...THEME_MODES.map((mode) => ({
-        id: `a:theme-${mode.name}`,
-        label: t('palette.actionTheme', { mode: t(mode.labelKey) }),
-        run: () => void persistThemePreference(mode.name),
-      })),
-      { id: 'a:sync', label: t('palette.actionSyncStatus'), run: syncStatusToast },
-      {
-        id: 'a:sync-now',
-        label: t('palette.actionSyncNow'),
-        run: () => void runSyncNow('incremental'),
-      },
-    ]
-    const out: Item[] = defs
-      .filter((d) => matches(d.label))
-      .map((d) => ({ ...d, section: 'action' as const }))
+    })
+    const createNow = defs.find((d) => d.id === 'a:create-now')
+    const rest = defs.filter((d) => d.id !== 'a:create-now' && matches(d.label))
+    const out: Item[] = rest.map((d) => ({ ...d, section: 'action' as const }))
     if (!raw) return out
     // Instant-create is the typed text — it is not filtered by the action name.
     // It goes AFTER every matched action: create writes to Jira, so it must
@@ -707,17 +571,7 @@
     // the row still appears, unselected, and Enter does nothing until the
     // user arrows or points at it. New issue is not force-appended beside it
     // — that was a second write entry on a zero-match list.
-    const createNow: Item = {
-      id: 'a:create-now',
-      section: 'action',
-      label: t('palette.actionCreateIssue', { summary: raw }),
-      testid: 'palette-create-now',
-      stayOpen: true,
-      run: () => {
-        void createFromPalette(raw)
-      },
-    }
-    out.push(createNow)
+    if (createNow) out.push({ ...createNow, section: 'action' })
     return out
   })
 

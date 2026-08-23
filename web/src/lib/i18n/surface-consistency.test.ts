@@ -10,10 +10,11 @@ import { ko } from './ko'
  * GDK-621: one fact, one on-screen spelling — across surfaces that print
  * the same thing from different places. Two contracts live here:
  *
- *   keycap notation — the cheat sheet (ShortcutsDialog.svelte) owns the
- *     glyphs: `↵` for Enter, the chord rendered in code as `${mod} ↵`.
- *     Catalog strings that print keycaps (the composer's kbd chip, the
- *     one-line kbd hints) must use those glyphs, not the word "Enter".
+ *   keycap notation — the command registry (lib/commands.ts) owns the
+ *     glyphs: `↵` for Enter, the chord rendered as `{mod} ↵`. The sheet
+ *     renders those rows; catalog strings that print keycaps (the
+ *     composer's kbd chip, the one-line kbd hints) must use those glyphs,
+ *     not the word "Enter".
  *
  *   close affordances — an X button's accessible name (aria-label) and its
  *     hover tooltip (title) must be the same string, or a screen reader and
@@ -26,6 +27,7 @@ import { ko } from './ko'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const SHEET = join(HERE, '../../components/shell/ShortcutsDialog.svelte')
+const COMMANDS = join(HERE, '../commands.ts')
 const WEB_SRC = join(HERE, '../..')
 
 const CATALOGS = [
@@ -36,14 +38,14 @@ const CATALOGS = [
 
 describe('GDK-621 keycap notation: the cheat sheet is the owner', () => {
   test('every locale prints the submit-comment chord as the sheet does', () => {
-    // The sheet renders the chord in code (`${mod} ↵`); the composer's kbd
-    // chip renders it from write.commentShortcut. If either side drifts,
-    // the same physical key wears two notations on two screens.
-    const src = readFileSync(SHEET, 'utf8')
-    expect(
-      src,
-      'ShortcutsDialog must keep the compose row as `[`${mod} ↵`, t(...)]`',
-    ).toContain("[`${mod} ↵`, t('shortcuts.submitComment')]")
+    // GDK-674: the registry owns the compose row (`{mod} ↵`); the sheet
+    // renders helpSections(). The composer's kbd chip still renders
+    // write.commentShortcut. If either side drifts, the same physical key
+    // wears two notations on two screens.
+    const src = readFileSync(COMMANDS, 'utf8')
+    expect(src, 'registry must keep the compose chord as `{mod} ↵`').toContain("kbd: '{mod} ↵'")
+    expect(src).toContain("'shortcuts.submitComment'")
+    expect(readFileSync(SHEET, 'utf8')).toContain('helpSections')
     for (const [locale, table] of CATALOGS) {
       expect(table['write.commentShortcut'], locale).toBe('{mod} ↵')
     }
@@ -155,14 +157,17 @@ const NEED_CREDENTIAL_KEYS = [
 
 describe('GDK-651 palette registers sibling views and cursor issue actions', () => {
   test('CommandPalette owns a:docs, a:feed, a:favorite, a:watch', () => {
-    const src = readFileSync(PALETTE, 'utf8')
+    // GDK-674: ids and label keys live on the registry; the palette still
+    // wires favorites/watches/feed through the host it passes in.
+    const registry = readFileSync(COMMANDS, 'utf8')
     for (const id of ["id: 'a:docs'", "id: 'a:feed'", "id: 'a:favorite'", "id: 'a:watch'"]) {
-      expect(src, `missing ${id}`).toContain(id)
+      expect(registry, `missing ${id}`).toContain(id)
     }
-    expect(src).toContain("t('palette.actionDocs')")
-    expect(src).toContain("t('palette.actionFeed')")
-    expect(src).toContain("t('palette.actionFavorite'")
-    expect(src).toContain("t('palette.actionWatch'")
+    expect(registry).toContain("'palette.actionDocs'")
+    expect(registry).toContain("'palette.actionFeed'")
+    expect(registry).toContain("'palette.actionFavorite'")
+    expect(registry).toContain("'palette.actionWatch'")
+    const src = readFileSync(PALETTE, 'utf8')
     expect(src).toContain('favorites.toggle')
     expect(src).toContain('watches.toggle')
     expect(src).toContain('me.openFeed')
@@ -202,10 +207,11 @@ describe('GDK-651 credentials affordance: one noun, one settings action', () => 
 
 describe('GDK-651 cheat sheet documents Tab on column views', () => {
   test('ShortcutsDialog names Tab and Esc for documents, history, and feed', () => {
-    const src = readFileSync(SHEET, 'utf8')
-    expect(src).toContain("t('shortcuts.sectionColumnViews')")
-    expect(src).toContain("t('shortcuts.tabMoveRows')")
-    expect(src).toContain("t('shortcuts.closeColumnView')")
+    const src = readFileSync(COMMANDS, 'utf8')
+    expect(src).toContain("'shortcuts.sectionColumnViews'")
+    expect(src).toContain("'shortcuts.tabMoveRows'")
+    expect(src).toContain("'shortcuts.closeColumnView'")
+    expect(readFileSync(SHEET, 'utf8')).toContain('helpSections')
   })
 })
 
@@ -277,15 +283,17 @@ describe('GDK-652 bulk bar kbd chips match palette ∩ keymap', () => {
     }
     expect(bar, 'palette does not teach p on triage items').not.toMatch(/<kbd[^>]*>\s*p\s*<\/kbd>/)
 
-    const keymap = readFileSync(KEYMAP, 'utf8')
-    expect(keymap).toContain("key === 's' || key === 'a' || key === 'l' || key === 'p'")
-    expect(keymap).toContain('if (ctx.bulkActive) return { type: \'clear-bulk\' }')
-
-    const palette = readFileSync(PALETTE, 'utf8')
-    expect(palette).toContain("kbd: 's'")
-    expect(palette).toContain("kbd: 'a'")
-    expect(palette).toContain("kbd: 'l'")
-    expect(palette).toContain("kbd: 'Esc'")
+    const registry = readFileSync(COMMANDS, 'utf8')
+    expect(registry).toContain("type: 'clear-bulk'")
+    expect(registry).toContain("chords: [{ key: 's' }]")
+    expect(registry).toContain("chords: [{ key: 'a' }]")
+    expect(registry).toContain("chords: [{ key: 'l' }]")
+    expect(registry).toContain("chords: [{ key: 'p' }]")
+    expect(registry).toContain("kbd: 's'")
+    expect(registry).toContain("kbd: 'a'")
+    expect(registry).toContain("kbd: 'l'")
+    expect(registry).toContain("kbd: 'Esc'")
+    expect(readFileSync(KEYMAP, 'utf8')).toContain("from './commands'")
   })
 })
 
