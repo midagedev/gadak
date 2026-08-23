@@ -22,11 +22,6 @@ export const personal = {
     ko: '최근 본 항목',
     ja: '最近閲覧',
   },
-  'personal.recentHistory': {
-    en: 'Browse history',
-    ko: '이전 조회 기록',
-    ja: '履歴を見る',
-  },
   'personal.myAssignee': {
     en: 'Assigned to me',
     ko: '내 담당',

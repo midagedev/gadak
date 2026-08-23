@@ -71,7 +71,7 @@
 
   function viewedLabel(viewedAt: string | null | undefined): string {
     now
-    if (!viewedAt) return t('personal.recentHistory')
+    if (!viewedAt) return ''
     return relativeSeenLabel(viewedAt)
   }
 
@@ -148,6 +148,7 @@
       <div
         data-testid={`favorite-issue-${item.issue.issue_key}`}
         data-favorite-key={item.issue.issue_key}
+        data-viewed={item.visit?.viewed_at ? 'yes' : 'never'}
         class="group relative flex min-h-[48px] touch-none cursor-grab items-center rounded-md px-2.5 py-1.5 transition-colors active:cursor-grabbing {selection.selectedKey ===
         item.issue.issue_key
           ? 'bg-bg-active'
@@ -217,7 +218,7 @@
         pages.openHistory()
       }}
     >
-      {t('history.openAll')}
+      {t('history.title')}
     </button>
   </div>
   {#each recentItems as item (item.page ? `d:${item.page.key}` : `i:${item.issue!.issue_key}`)}

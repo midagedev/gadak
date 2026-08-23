@@ -439,11 +439,6 @@ export const detail = {
     ko: '히스토리',
     ja: '履歴',
   },
-  'history.openAll': {
-    en: 'All',
-    ko: '전체',
-    ja: 'すべて',
-  },
   'history.tabAll': {
     en: 'All',
     ko: '전체',
