@@ -1,18 +1,18 @@
-# Labels allowed to appear in the public backlog snapshot (GDK-389).
+#
+#
 #
 # A whitelist, and the direction is the point. A label is uncontrolled
-# vocabulary: whatever anyone types in Jira ships to the public site with the
-# issue. This file is the review step. Adding a label here is a decision that
-# the word itself is publishable — the summary already got that decision via
-# the `public` label, the label vocabulary gets it here.
-#
-# Why it exists (2026-08-20): seven labels in this project were real people's
 # handles, attached to roadmap items derived from a simulated advisory panel.
+# issue. This file is the review step. Adding a label here is a decision that
+# Labels allowed to appear in the public backlog snapshot (GDK-389).
+# One label per line, `#` comments and blank lines ignored.
 # Publishing them would have asserted that identifiable people advised this
 # roadmap. They are now `lens-*` — the axis, not the person — and the mapping
 # stays private. A denylist would not have caught the next name; this does.
-#
-# One label per line, `#` comments and blank lines ignored.
+# the `public` label, the label vocabulary gets it here.
+# the word itself is publishable — the summary already got that decision via
+# vocabulary: whatever anyone types in Jira ships to the public site with the
+# Why it exists (2026-08-20): seven labels in this project were real people's
 a11y
 agent
 agent-first
@@ -71,6 +71,7 @@ hosted-demo
 i18n
 in-app
 inbound
+inbound-persona
 invariant
 issuetap
 jira-gap
@@ -89,6 +90,7 @@ locale
 look
 marketing
 mcp
+media
 mentor-roadmap
 multi-origin
 non-goal
@@ -134,9 +136,9 @@ v0.15
 viral
 web
 web-ui
+website
 wiki
 windows
 workspace
 write-gap
 xplat
-media
