@@ -21,6 +21,12 @@ agent-surface
 agent-tasklist
 agent-ux
 architecture
+audit-go
+audit-simplify
+audit-svelte
+audit-tests
+audit-ux
+audit-wails
 auth
 autoupdate
 backlog-migration
