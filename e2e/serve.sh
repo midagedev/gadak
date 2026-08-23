@@ -36,6 +36,14 @@ echo "[e2e] seeding home from examples/demo.db…"
 cp -f "$ROOT/examples/demo.db" "$DB"
 # Drop any leftover WAL/SHM from a previous run so sqlite opens cleanly.
 rm -f "${DB}-wal" "${DB}-shm"
+# GDK-105 moved personal state (saved views, visits, search history) out of the
+# mirror into local.db, and this reseed did not follow it: a spec that saves a
+# server-side view left it in place, so the next local run started with an extra
+# saved view. Measured — palette.spec.ts saw three "Saved view" rows because a
+# previous run's `Shot triage <ts>` (view-delete.spec.ts) was still there. CI
+# never saw it: a fresh runner has no previous run. A fixture is fresh or it is
+# not, so local.db is seeded here too — by deletion, since the app creates it.
+rm -f "$HOME_DIR/local.db" "$HOME_DIR/local.db-wal" "$HOME_DIR/local.db-shm"
 
 # Demo projects + deploy/teamGroups surfaces. The credential is fake — nothing
 # in the suite talks to Jira — but its presence must unlock the write UI
