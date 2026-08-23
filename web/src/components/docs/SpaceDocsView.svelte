@@ -13,6 +13,7 @@
   import { t, formatNumber } from '../../lib/i18n'
   import { highlightSegments, mergeAdjacentHits } from '../../lib/format'
   import { pages, type PageNode } from '../../stores/pages.svelte'
+  import { docsEmpty } from '../../stores/docs-empty.svelte'
   import { pageMatches } from '../../lib/doc-search'
   import EmptyState from '../list/EmptyState.svelte'
   import DocsFilter from './DocsFilter.svelte'
@@ -21,6 +22,8 @@
   import { rowMetrics } from '../../lib/row-metrics'
 
   let { space }: { space: string } = $props()
+
+  docsEmpty.bind()
 
   const all = $derived(pages.inSpace(space))
   const tree = $derived(pages.treeBySpace.find((group) => group.space === space))
@@ -274,7 +277,10 @@
   </header>
 
   {#if docs.length === 0}
-    <div class="min-h-0 flex-1 overflow-y-auto">
+    <div
+      class="min-h-0 flex-1 overflow-y-auto"
+      data-docs-empty-state={filtering ? undefined : docsEmpty.state}
+    >
       {#if filtering}
         <EmptyState
           icon="search-x"
@@ -287,7 +293,7 @@
         <EmptyState
           icon="file"
           title={t('docs.recentEmpty')}
-          hint={t('sidebar.docsNotFetchedHint')}
+          hint={docsEmpty.copy.hintKey ? t(docsEmpty.copy.hintKey) : ''}
         />
       {/if}
     </div>

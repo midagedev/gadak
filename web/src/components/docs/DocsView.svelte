@@ -15,6 +15,7 @@
   import Icon from '../ui/Icon.svelte'
   import { t, formatNumber } from '../../lib/i18n'
   import { pages, type DocsTab } from '../../stores/pages.svelte'
+  import { docsEmpty } from '../../stores/docs-empty.svelte'
   import { pageMatches } from '../../lib/doc-search'
   import { docsListEmptyKind } from '../../lib/docs-empty'
   import type { PageLite } from '../../lib/types'
@@ -23,6 +24,8 @@
   import DocRow from './DocRow.svelte'
   import VirtualRows from '../ui/VirtualRows.svelte'
   import { rowMetrics } from '../../lib/row-metrics'
+
+  docsEmpty.bind()
 
   const TABS: { key: DocsTab; label: string }[] = [
     { key: 'viewed', label: t('docs.tabViewed') },
@@ -233,7 +236,10 @@
   </header>
 
   {#if emptyKind}
-    <div class="min-h-0 flex-1 overflow-y-auto">
+    <div
+      class="min-h-0 flex-1 overflow-y-auto"
+      data-docs-empty-state={emptyKind === 'recent' ? docsEmpty.state : undefined}
+    >
       {#if emptyKind === 'filter-text' || emptyKind === 'filter-label'}
         <!-- Nothing here matched, but the mirror is bigger than this tab —
              Enter is the way to the rest of it. -->
@@ -250,7 +256,7 @@
         <EmptyState
           icon="file"
           title={t('docs.recentEmpty')}
-          hint={t('sidebar.docsNoneHint')}
+          hint={docsEmpty.copy.hintKey ? t(docsEmpty.copy.hintKey) : ''}
         />
       {/if}
     </div>

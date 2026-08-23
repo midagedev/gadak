@@ -30,13 +30,9 @@
     workspaceName,
   } from '../../lib/config'
   import { isStandalone, STANDALONE_INIT_COMMAND } from '../../lib/workspace'
-  import { busyLabel, fetchingDocuments, mirrorLabel } from '../../lib/mirror-status'
-  import {
-    docsEmptyClickAction,
-    docsEmptyCopy,
-    docsEmptyGlyph,
-    docsEmptyState as resolveDocsEmpty,
-  } from '../../lib/docs-empty'
+  import { mirrorLabel } from '../../lib/mirror-status'
+  import { docsEmptyClickAction, docsEmptyGlyph } from '../../lib/docs-empty'
+  import { docsEmpty } from '../../stores/docs-empty.svelte'
   import { builtinViews } from '../../lib/builtin-views'
   import { configToParams, type ViewConfig } from '../../lib/view-config'
   import { onEscape, onOutsideClick } from '../../lib/dom-actions'
@@ -48,6 +44,7 @@
   import { sidebarSections, type SectionDrag, type SectionId } from '../../stores/sidebar-sections.svelte'
 
   sidebarSections.hydrate()
+  docsEmpty.bind()
 
   /** Open server settings dialog — App.svelte mounts the dialog itself. */
   let { onOpenSettings }: { onOpenSettings: () => void } = $props()
@@ -300,44 +297,13 @@
   })
 
   /*
-   * An empty DOCS section has six causes, and telling someone to go connect a
-   * source is right for exactly one of them. It was wrong for the user who had
-   * just chosen a space and saved: the app kept asking for what it already had.
-   *
-   * unavailable — this deployment has no docs server at all (static snapshot).
-   * off      — Confluence is not configured. The CTA belongs here and only here.
-   * syncing  — a pull is running. Status, not an errand.
-   * failed   — the last Confluence pass errored. Say so; the reason is in the title.
-   * never    — configured, nothing fetched yet. The one state with an action here.
-   * empty    — fetched fine, and the chosen spaces hold nothing. Blame the selection.
+   * Empty-docs cause, copy, and the Confluence run fetch live in
+   * stores/docs-empty.svelte.ts — this row only renders them. The table
+   * itself is lib/docs-empty.ts.
    */
-  let confluenceRuns = $state<SyncRun[] | null>(null)
-  const docsConfigured = $derived(config().confluenceEnabled)
-
-  // Only ask when the answer changes what the section says: configured, holding
-  // no pages, and nothing in flight. Re-runs after a pull because mirrorSyncing
-  // is read here, which is what refreshes a failure into a success.
-  $effect(() => {
-    if (!docsConfigured || pages.bySpace.length > 0 || fetchingDocuments()) return
-    void getSyncRuns('confluence').then((doc) => (confluenceRuns = doc.runs))
-  })
-
-  const docsEmptyState = $derived(
-    resolveDocsEmpty({
-      hasDocsServer: hasServerVerb('docs'),
-      confluenceEnabled: docsConfigured,
-      fetchingDocuments: fetchingDocuments(),
-      confluenceRuns,
-    }),
-  )
-
-  const docsEmptyText = $derived.by(() => {
-    const copy = docsEmptyCopy(docsEmptyState)
-    return {
-      title: copy.titlePrefersBusy ? (busyLabel() ?? t(copy.titleKey)) : t(copy.titleKey),
-      hint: copy.hintKey ? t(copy.hintKey) : '',
-    }
-  })
+  const docsEmptyState = $derived(docsEmpty.state)
+  const docsEmptyText = $derived(docsEmpty.text)
+  const confluenceRuns = $derived(docsEmpty.confluenceRuns)
 
   /** 'never' is the one state the user can act on without leaving the sidebar. */
   function onDocsEmptyClick() {
