@@ -37,11 +37,6 @@ type serveOpts struct {
 	addrPinned bool
 }
 
-// watchRestartPause is how long the serve Watch loop idles after a return
-// (fatal auth, unexpected error) before re-entering. Frozen workspaces skip
-// inside Watch itself (GDK-541). Tests may shrink this.
-var watchRestartPause = 30 * time.Second
-
 func parseServeOpts(args []string) (serveOpts, error) {
 	fs := newFlagSet("serve")
 	addr := fs.String("addr", "127.0.0.1:7777", "listen address")
@@ -131,34 +126,6 @@ func serveSPAHandler(static string) http.Handler {
 	return spaHandlerFS(ui)
 }
 
-// runWatchLoop re-enters Watch until ctx is done. A rejected credential
-// still ends Watch (no hot-loop on 401); this wait is what spaces retries
-// until Reload sees a new credential (GDK-541).
-func runWatchLoop(ctx context.Context, cfg *config.Config, db *store.DB, opts syncer.Options) {
-	for ctx.Err() == nil {
-		err := syncer.Watch(ctx, cfg, db, opts)
-		if ctx.Err() != nil {
-			return
-		}
-		if err != nil {
-			log.Printf("sync loop stopped: %v", err)
-		}
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(watchRestartPause):
-		}
-		if opts.Reload != nil {
-			next, rerr := opts.Reload()
-			if rerr != nil {
-				log.Printf("sync loop: load config: %v", rerr)
-			} else if next != nil {
-				cfg = next
-			}
-		}
-	}
-}
-
 // startServeLoops starts the optional update check and the incremental sync
 // loops (primary profile + workspace mounts). Order and log strings match the
 // previous inlined cmdServe body.
@@ -190,7 +157,7 @@ func startServeLoops(ctx context.Context, api *server.Handler, db *store.DB, cfg
 				return
 			}
 			phase, progress := api.SyncActivityHooks()
-			runWatchLoop(ctx, cur, db, syncer.Options{
+			syncer.WatchLoop(ctx, cur, db, syncer.Options{
 				Log:      func(s string) { log.Print(s) },
 				Reload:   config.Load,
 				Phase:    phase,

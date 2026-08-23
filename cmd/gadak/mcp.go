@@ -101,9 +101,10 @@ func mcpWatchLog(s string) {
 	mcp.Logf("%s", s)
 }
 
-// startMCPSyncLoop starts runWatchLoop when the gate allows it and the mirror
-// file exists. A missing mirror still serves the protocol; the loop is not
-// forced on that path. The returned DB is owned by the caller (close after Wait).
+// startMCPSyncLoop starts syncer.WatchLoop when the gate allows it and the
+// mirror file exists. A missing mirror still serves the protocol; the loop
+// is not forced on that path. The returned DB is owned by the caller (close
+// after Wait).
 func startMCPSyncLoop(ctx context.Context, wg *sync.WaitGroup, path string, noSync bool) *store.DB {
 	cfg, err := config.Load()
 	if err != nil {
@@ -126,7 +127,7 @@ func startMCPSyncLoop(ctx context.Context, wg *sync.WaitGroup, path string, noSy
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		runWatchLoop(ctx, cfg, db, syncer.Options{
+		syncer.WatchLoop(ctx, cfg, db, syncer.Options{
 			Log:    mcpWatchLog,
 			Reload: config.Load,
 		})

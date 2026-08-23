@@ -574,6 +574,13 @@
   거절합니다** ([GDK-563], [GDK-574], [GDK-561]); next-tick 데드라인은
   바쁜 러너와의 경주를 멈추고 ([GDK-534]), 종료한 Watch는 플래그를 지워
   되살릴 수 있습니다 ([GDK-541]).
+- **데스크톱 앱의 sync가 자격증명 오류를 견딥니다** ([GDK-663]). Watch는
+  fatal auth에서 의도적으로 리턴하는데(401 핫루프 방지), serve·MCP·
+  워크스페이스 마운트는 각자 재시작 루프로 감쌌지만 데스크톱만 맨몸으로
+  호출했습니다 — 거절된 자격증명 하나가 프로세스 생존 내내 sync를
+  조용히 멈췄습니다. 재진입 정책의 소유자는 이제 `syncer.WatchLoop`
+  하나이고, 네 호출자 전부가 그것을 쓰며, AST 테스트가 데스크톱을 루프에
+  고정합니다.
 - `warnIfStale`은 두 번째 연결을 열지 않고 호출자의 연결을 읽고
   ([GDK-314]), 스킬 감지는 설치기와 같은 방식으로 home을 해석하며
   ([GDK-352]), `ci-status`는 기본 브랜치 push 런만 평결로 칩니다
@@ -2020,6 +2027,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-654]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-654
 [GDK-655]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-655
 [GDK-656]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-656
+[GDK-663]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-663
 [GDK-675]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-675
 [GDK-633]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-633
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86

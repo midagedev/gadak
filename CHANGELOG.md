@@ -619,6 +619,13 @@ the fixes are all here.
   refuses a rebind** ([GDK-563], [GDK-574], [GDK-561]); the next-tick
   deadline stops racing loaded runners ([GDK-534]), and a Watch that exits
   clears its flag so it can be revived ([GDK-541]).
+- **The desktop app's sync survives a credential error** ([GDK-663]). Watch
+  deliberately returns on fatal auth (no hot-loop on a 401), and serve, MCP
+  and workspace mounts each wrapped it in their own restart loop — the
+  desktop app alone called it bare, so one rejected credential silently
+  stopped sync for the life of the process. The re-entry policy now has one
+  owner, `syncer.WatchLoop`, all four callers use it, and an AST test pins
+  the desktop to the loop.
 - `warnIfStale` reads the caller's connection instead of opening a second
   one ([GDK-314]), skill detection resolves home the way the installer does
   ([GDK-352]), and `ci-status` counts only default-branch push runs as the
@@ -2072,6 +2079,7 @@ measured numbers instead of adjectives.
 [GDK-654]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-654
 [GDK-655]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-655
 [GDK-656]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-656
+[GDK-663]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-663
 [GDK-675]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-675
 [GDK-633]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-633
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86

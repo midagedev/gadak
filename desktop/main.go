@@ -504,14 +504,12 @@ func run() error {
 					return
 				}
 				phase, progress := api.SyncActivityHooks()
-				if err := syncer.Watch(ctx, cur, db, syncer.Options{
+				syncer.WatchLoop(ctx, cur, db, syncer.Options{
 					Log:      func(s string) { log.Print(s) },
 					Reload:   config.Load,
 					Phase:    phase,
 					Progress: progress,
-				}); err != nil && ctx.Err() == nil {
-					log.Printf("sync loop stopped: %v", err)
-				}
+				})
 			}()
 		}
 		if cfg.HasCredential() {

@@ -515,25 +515,9 @@ func (r *Registry) EnsureWatch(name string) bool {
 		if next, err := config.LoadFor(profileName); err == nil && next != nil {
 			cur = next
 		}
-		// Restart loop matches cmdServe: Watch returning on fatal auth
-		// must not leave watching[name] stuck, and must not hot-loop.
-		for ctx.Err() == nil {
-			err := syncer.Watch(ctx, cur, db, opts)
-			if ctx.Err() != nil {
-				return
-			}
-			if err != nil && logf != nil {
-				logf("workspace " + profileName + ": sync loop stopped: " + err.Error())
-			}
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(30 * time.Second):
-			}
-			if next, err := config.LoadFor(profileName); err == nil && next != nil {
-				cur = next
-			}
-		}
+		// WatchLoop owns re-entry: Watch returning on fatal auth must not
+		// leave watching[name] stuck, and must not hot-loop (GDK-541).
+		syncer.WatchLoop(ctx, cur, db, opts)
 	}()
 	if logf != nil {
 		logf("workspace " + profileName + ": watch started")
