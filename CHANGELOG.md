@@ -698,6 +698,18 @@ the fixes are all here.
   serves `GET /project/{key}/versions` and `/components` from the derived
   catalog (sorted, missing project 404s, `/roles` stays 501), so the same
   client code that works against Cloud works against standalone.
+- **On standalone, `--fix-version +name` creates the version it names**
+  ([GDK-678]). Fixing the catalog exposed the next step: a name that is
+  not in the catalog yet was still a refusal, and since the catalog is
+  derived from the issues, a brand-new version is *always* not in it — so
+  planning a release on a fresh workspace meant a REST detour for the first
+  one and, once one existed, a `400 unknown fixVersions` for the second.
+  Whether a name may be minted is now the origin's capability, not a
+  guess: `CreatesVersionsByName` sits on the version-catalog face, true for
+  issuetap (in-process, routed through a live serve, or paired) and false
+  for Cloud Jira — where refusing is correct, because creating a version
+  there is a separate project-admin permission. An id that misses still
+  refuses everywhere: an id is a pointer, not a request.
 - **Linear's rate limit is a retry, not a death** ([GDK-263]). Linear
   reports a drained bucket as HTTP 400 or 200 with a GraphQL `RATELIMITED`
   code — not a 429 — and the client used to die on the first one. One
@@ -2487,3 +2499,4 @@ measured numbers instead of adjectives.
 [GDK-8]: https://gadak.dev/backlog/#/?ks=GDK-8
 [GDK-668]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-668
 [GDK-671]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-671
+[GDK-678]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-678

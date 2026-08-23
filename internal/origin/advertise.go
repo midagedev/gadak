@@ -135,12 +135,7 @@ func routedJira(cfg *config.Config) (*jira.Client, bool) {
 	if !ok {
 		return nil, false
 	}
-	c := Connected("", inProcessUser, inProcessSecret)
-	if c.HTTP == nil {
-		c.HTTP = &http.Client{}
-	}
-	c.HTTP.Transport = tr
-	return c, true
+	return transportJira(tr), true
 }
 
 func routedWiki(cfg *config.Config) (*confluence.Client, bool) {

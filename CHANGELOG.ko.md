@@ -647,6 +647,17 @@
   `GET /project/{key}/versions`와 `/components`를 파생 카탈로그로
   서빙합니다(정렬, 없는 프로젝트 404, `/roles`는 501 유지) — Cloud 대상
   클라이언트 코드가 standalone에서 그대로 동작합니다.
+- **standalone에서 `--fix-version +이름`이 그 이름의 버전을 만듭니다**
+  ([GDK-678]). 카탈로그를 고치자 다음 단계가 드러났습니다: 카탈로그에
+  아직 없는 이름은 여전히 거절이었고, 카탈로그가 이슈들에서 파생되므로
+  갓 만든 버전은 *항상* 거기에 없습니다 — 새 워크스페이스에서 릴리스를
+  계획하려면 첫 버전은 REST 우회가 필요했고, 하나가 생긴 뒤에는 두 번째가
+  `400 unknown fixVersions`였습니다. 이름을 만들어도 되는지는 이제 추측이
+  아니라 origin의 능력입니다: `CreatesVersionsByName`이 버전 카탈로그 면에
+  얹혀 issuetap(인프로세스·라이브 serve 라우팅·페어링)은 true, Cloud
+  Jira는 false입니다 — 거기서는 거절이 옳습니다. 버전 생성이 별도의
+  프로젝트 관리 권한이니까요. id 미스는 어디서든 여전히 거절입니다 — id는
+  요청이 아니라 포인터입니다.
 - **Linear의 레이트리밋은 죽음이 아니라 재시도입니다** ([GDK-263]).
   Linear는 버킷 소진을 429가 아니라 HTTP 400 또는 200에 GraphQL
   `RATELIMITED` 코드로 알리는데, 클라이언트는 첫 응답에서 죽었습니다.
@@ -2432,3 +2443,4 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-8]: https://gadak.dev/backlog/#/?ks=GDK-8
 [GDK-668]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-668
 [GDK-671]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-671
+[GDK-678]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-678

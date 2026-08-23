@@ -41,8 +41,16 @@ type Writer interface {
 
 // VersionCatalog is GET /rest/api/3/project/{key}/versions. Linear has no
 // counterpart (GDK-516): AsVersionCatalog returns ErrNoVersionCatalog.
+//
+// CreatesVersionsByName is the issuetap mint-by-name capability (GDK-678):
+// a fixVersions add {"name": token} creates the version when it is missing
+// from the catalog. Cloud Jira is false — unknown names 400, and creating a
+// version is a separate project-admin permission. Same shape as
+// sync.OSNotifier.Supported: a boolean on the face that already owns the
+// verb, not a workspace-kind string.
 type VersionCatalog interface {
 	ProjectVersions(ctx context.Context, projectKey string) ([]jira.Version, error)
+	CreatesVersionsByName() bool
 }
 
 // IssueLinker is GET /rest/api/3/issueLinkType plus POST /rest/api/3/issueLink.
@@ -85,6 +93,17 @@ func AsVersionCatalog(w Writer) (VersionCatalog, error) {
 		return nil, ErrNoVersionCatalog
 	}
 	return v, nil
+}
+
+// CreatesVersionsByName reports whether w mints a project version from a
+// fixVersions add {"name": token}. True for issuetap (standalone in-process,
+// routed serve, paired home). False for Cloud Jira and Linear (GDK-678).
+func CreatesVersionsByName(w Writer) bool {
+	vc, err := AsVersionCatalog(w)
+	if err != nil {
+		return false
+	}
+	return vc.CreatesVersionsByName()
 }
 
 // AsIssueLinker returns w as IssueLinker, or ErrNoIssueLinks.

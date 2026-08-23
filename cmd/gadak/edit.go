@@ -468,6 +468,8 @@ type signedToken struct {
 // fixVersionUpdateOps turns --fix-version +v2.5 / --fix-version -10012 into
 // Jira update verbs keyed by version id. All-digit tokens are ids and skip
 // the catalog; names resolve against GET /project/{key}/versions once.
+// An unmatched +name becomes {"name": token} when the origin mints versions
+// by name (issuetap); Cloud Jira still refuses (GDK-678).
 func fixVersionUpdateOps(ctx context.Context, c origin.Writer, issueKey string, values []string) ([]any, error) {
 	parsed, err := signedUpdateOps("--fix-version", values, func(op, name string) any {
 		return signedToken{op: op, token: name}
@@ -497,14 +499,15 @@ func fixVersionUpdateOps(ctx context.Context, c origin.Writer, issueKey string, 
 			return nil, err
 		}
 	}
+	createByName := origin.CreatesVersionsByName(c)
 	ops := make([]any, 0, len(parsed))
 	for _, p := range parsed {
 		tok := p.(signedToken)
-		id, err := resolveFixVersionID(tok.token, catalog)
+		ref, err := resolveFixVersionRef(tok.op, tok.token, catalog, createByName)
 		if err != nil {
 			return nil, err
 		}
-		ops = append(ops, map[string]any{tok.op: map[string]string{"id": id}})
+		ops = append(ops, map[string]any{tok.op: ref})
 	}
 	return ops, nil
 }
@@ -517,9 +520,12 @@ func projectKeyFromIssueKey(key string) string {
 	return key[:i]
 }
 
-func resolveFixVersionID(token string, catalog []jira.Version) (string, error) {
+// resolveFixVersionRef turns one +/- token into the Jira update value.
+// Catalog hits and all-digit ids stay {"id": …}. An unmatched add becomes
+// {"name": token} only when createByName is true (GDK-678).
+func resolveFixVersionRef(op, token string, catalog []jira.Version, createByName bool) (map[string]string, error) {
 	if transition.AllASCIIDigits(token) {
-		return token, nil
+		return map[string]string{"id": token}, nil
 	}
 	var hits []jira.Version
 	for _, v := range catalog {
@@ -529,15 +535,18 @@ func resolveFixVersionID(token string, catalog []jira.Version) (string, error) {
 	}
 	switch len(hits) {
 	case 1:
-		return hits[0].ID, nil
+		return map[string]string{"id": hits[0].ID}, nil
 	case 0:
-		return "", fmt.Errorf("no fix version matching %q — available: %s", token, formatVersionCatalog(catalog))
+		if createByName && op == "add" {
+			return map[string]string{"name": token}, nil
+		}
+		return nil, fmt.Errorf("no fix version matching %q — available: %s; creates versions by name: %t", token, formatVersionCatalog(catalog), createByName)
 	default:
 		ids := make([]string, 0, len(hits))
 		for _, h := range hits {
 			ids = append(ids, h.ID)
 		}
-		return "", fmt.Errorf("fix version %q is ambiguous — matches: %s", token, strings.Join(ids, ", "))
+		return nil, fmt.Errorf("fix version %q is ambiguous — matches: %s", token, strings.Join(ids, ", "))
 	}
 }
 

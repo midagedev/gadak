@@ -10,6 +10,7 @@ import (
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/fields"
+	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/store"
 )
 
@@ -77,6 +78,15 @@ import (
 //     TestEditWithoutFixVersionOmitsFixVersionsKey
 // 26. Duplicate catalog names refuse as ambiguous (ids listed); no PUT
 //     TestEditFixVersionAmbiguousListsIDs
+//
+// --fix-version mint-by-name (GDK-678):
+// 27. Origin CreatesVersionsByName + empty catalog + +v0.18 → PUT {"name":"v0.18"}
+//     TestEditFixVersionUnknownNameCreatesWhenOriginAllows
+// 28. Connected (capability false) still refuses +unknown (existing 23)
+//     TestEditFixVersionUnknownNameListsCatalog
+//     TestEditFixVersionUnknownNameRejectedOnEmptyCatalogWhenOriginDoesNotCreate
+// 29. -unknown still refuses when the origin would mint on add
+//     TestEditFixVersionRemoveUnknownNameRejectedWhenOriginCreates
 
 func TestEditSummaryAlone(t *testing.T) {
 	f := newFakeJira(t)
@@ -1040,6 +1050,103 @@ func TestEditFixVersionNameIsCaseInsensitive(t *testing.T) {
 	got := string(putUpdateField(t, f.bodies["PUT /issue/NMB-1"], "fixVersions"))
 	if got != `[{"add":{"id":"10012"}}]` {
 		t.Fatalf("case-insensitive name: %s", got)
+	}
+}
+
+func enableNameCreatedVersions(t *testing.T) {
+	t.Helper()
+	prev := jira.DefaultCreatesVersionsByName
+	jira.DefaultCreatesVersionsByName = true
+	t.Cleanup(func() { jira.DefaultCreatesVersionsByName = prev })
+}
+
+func TestEditFixVersionCatalogHitStillSendsIDWhenOriginCreates(t *testing.T) {
+	enableNameCreatedVersions(t)
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "--fix-version", "+v2.5"})
+	})
+	if err != nil {
+		t.Fatalf("edit --fix-version +v2.5 with CreatesVersionsByName: %v", err)
+	}
+	got := string(putUpdateField(t, f.bodies["PUT /issue/NMB-1"], "fixVersions"))
+	if got != `[{"add":{"id":"10012"}}]` {
+		t.Fatalf("catalog hit must still send id, got %s", got)
+	}
+}
+
+func TestEditFixVersionUnknownNameCreatesWhenOriginAllows(t *testing.T) {
+	enableNameCreatedVersions(t)
+	f := newFakeJira(t)
+	f.versionsJSON = `[]`
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "--fix-version", "+v0.18"})
+	})
+	if err != nil {
+		t.Fatalf("edit --fix-version +v0.18 with CreatesVersionsByName: %v", err)
+	}
+	body := f.bodies["PUT /issue/NMB-1"]
+	got := string(putUpdateField(t, body, "fixVersions"))
+	want := `[{"add":{"name":"v0.18"}}]`
+	if got != want {
+		t.Fatalf("update.fixVersions = %s, want %s (body %s)", got, want, body)
+	}
+}
+
+func TestEditFixVersionUnknownNameRejectedOnEmptyCatalogWhenOriginDoesNotCreate(t *testing.T) {
+	f := newFakeJira(t)
+	f.versionsJSON = `[]`
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "--fix-version", "+v0.18"})
+	})
+	if err == nil {
+		t.Fatal("expected unmatched fix-version error on connected empty catalog")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, `no fix version matching "v0.18"`) {
+		t.Errorf("wording: %q", msg)
+	}
+	if !strings.Contains(msg, "available: (none)") {
+		t.Errorf("error must keep available: (none): %q", msg)
+	}
+	if !strings.Contains(msg, "creates versions by name: false") {
+		t.Errorf("error must show capability false: %q", msg)
+	}
+	if f.called("PUT /issue/NMB-1") {
+		t.Fatalf("unmatched name reached Jira: %v", f.calls)
+	}
+}
+
+func TestEditFixVersionRemoveUnknownNameRejectedWhenOriginCreates(t *testing.T) {
+	enableNameCreatedVersions(t)
+	f := newFakeJira(t)
+	f.versionsJSON = `[]`
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "--fix-version", "-v0.18"})
+	})
+	if err == nil {
+		t.Fatal("expected unmatched fix-version error on remove")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, `no fix version matching "v0.18"`) {
+		t.Errorf("wording: %q", msg)
+	}
+	if !strings.Contains(msg, "available: (none)") {
+		t.Errorf("error must keep available: (none): %q", msg)
+	}
+	if !strings.Contains(msg, "creates versions by name: true") {
+		t.Errorf("error must show capability true: %q", msg)
+	}
+	if f.called("PUT /issue/NMB-1") {
+		t.Fatalf("remove of unknown name reached Jira: %v", f.calls)
 	}
 }
 
