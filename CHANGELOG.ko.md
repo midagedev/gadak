@@ -622,6 +622,13 @@
   `issues.assignee_id`의 UUID가 Linear 유저 조회에 id로 도달합니다.
   Jira 계열 게이트는 느슨해지지 않았습니다 — Jira·Confluence·standalone
   origin이 묻는 자리에서 Linear 키는 사이트 토큰이 아닙니다.
+- **standalone 워크스페이스에서 `edit --fix-version <이름>`이 동작합니다**
+  ([GDK-662]). 이름 해석은 origin에 프로젝트 버전 카탈로그를 묻는데
+  issuetap이 정직한 501 — 하드 에러 — 로 답했습니다. 스토어는 이미
+  이슈들에서 정확히 그 카탈로그를 도출하고 있었으므로, 이제 issuetap이
+  `GET /project/{key}/versions`와 `/components`를 파생 카탈로그로
+  서빙합니다(정렬, 없는 프로젝트 404, `/roles`는 501 유지) — Cloud 대상
+  클라이언트 코드가 standalone에서 그대로 동작합니다.
 - **Linear의 레이트리밋은 죽음이 아니라 재시도입니다** ([GDK-263]).
   Linear는 버킷 소진을 429가 아니라 HTTP 400 또는 200에 GraphQL
   `RATELIMITED` 코드로 알리는데, 클라이언트는 첫 응답에서 죽었습니다.
@@ -2037,6 +2044,7 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-654]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-654
 [GDK-655]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-655
 [GDK-656]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-656
+[GDK-662]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-662
 [GDK-663]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-663
 [GDK-677]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-677
 [#52]: https://github.com/midagedev/gadak/issues/52

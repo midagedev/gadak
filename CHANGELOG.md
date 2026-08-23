@@ -671,6 +671,13 @@ the fixes are all here.
   user lookup as an id. The Jira-family gates did not loosen: a Linear key
   is not a site token anywhere Jira, Confluence or the standalone origin is
   the one being asked.
+- **`edit --fix-version <name>` works on standalone workspaces**
+  ([GDK-662]). Name resolution asks the origin for the project's version
+  catalog, and issuetap answered its honest 501 — a hard error — while its
+  store already derived exactly that catalog from the issues. issuetap now
+  serves `GET /project/{key}/versions` and `/components` from the derived
+  catalog (sorted, missing project 404s, `/roles` stays 501), so the same
+  client code that works against Cloud works against standalone.
 - **Linear's rate limit is a retry, not a death** ([GDK-263]). Linear
   reports a drained bucket as HTTP 400 or 200 with a GraphQL `RATELIMITED`
   code — not a 429 — and the client used to die on the first one. One
@@ -2090,6 +2097,7 @@ measured numbers instead of adjectives.
 [GDK-654]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-654
 [GDK-655]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-655
 [GDK-656]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-656
+[GDK-662]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-662
 [GDK-663]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-663
 [GDK-677]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-677
 [#52]: https://github.com/midagedev/gadak/issues/52
