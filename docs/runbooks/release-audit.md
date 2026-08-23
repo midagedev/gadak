@@ -67,6 +67,16 @@ or the test proves nothing about what ships.
 The same rule generalizes: for any capability the OS or another app consumes
 (scheme, file type, service), the release audit tests the installed artifact.
 
+The step-by-step version of that, for all three platforms and with the traps
+named, is [`install-verification.md`](install-verification.md). Two things it
+adds that this paragraph does not: the check runs **twice** — once before the
+tag on the previous release's artifacts, and once on the new artifacts after
+the release publishes and before announcing, because signing happens in CI and
+a locally built bundle proves nothing about Gatekeeper — and on macOS the
+install *method* is part of the test, since a quarantined bundle runs from a
+randomized App Translocation path where nothing that depends on the bundle's
+location holds.
+
 ### 4. Simplify
 
 The standing bias for every axis: the best refactor deletes code. Count
