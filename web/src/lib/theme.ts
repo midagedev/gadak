@@ -3,7 +3,7 @@
  *
  * Adding a palette: a token block in app.css (both the :root[data-theme] rule
  * and the color-scheme rule outside @layer), an entry in THEMES, a label in
- * en.ts/ko.ts, and the name + --boot-* shell in index.html's boot script.
+ * the i18n catalog (messages/), and the name + --boot-* shell in index.html's boot script.
  * boot-theme.test.ts and tools/theme-check.mjs hold every one of those; the
  * picker iterates THEME_MODES and must not be edited for a new theme.
  *

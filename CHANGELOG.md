@@ -306,6 +306,26 @@ the fixes are all here.
 
 ### The web UI, made consistent
 
+- **A UI string is one object with every locale in it** ([GDK-668]). The
+  catalog was three hand-kept files — 1048 keys × en/ko/ja — so every copy
+  change meant editing three places and hoping, and a locale left behind
+  was invisible until someone browsing in that language found it. A key is
+  now one `{en, ko, ja}` object, grouped by domain rather than by language;
+  omitting a locale is a type error at build time. `t()` is unchanged (the
+  per-locale tables are derived once at load), and the copy itself did not
+  move: a `(key, locale, string)` dump of all 3144 rows is byte-identical
+  across the migration.
+- **The demo fixture cannot silently lag the schema again** ([GDK-671]).
+  `examples/demo.db` was five migrations behind the code, and nothing was
+  red: the e2e runner opened its own copy, which migrated it at runtime and
+  hid the gap, while the Makefile comment claimed the file was current. The
+  committed fixture is rebaselined (534 issues, 634 comments, 71 pages and
+  every derived row count unchanged — this is a migrate, not a
+  regeneration), a store test compares the committed file's schema version
+  against this binary's migration level without opening it, and the e2e
+  runner now refuses a stale fixture instead of papering over it. It still
+  opens the copy for one honest reason: the portable snapshot needs its FTS
+  index made writable.
 - **One noun for the wiki object, and seven smaller splits closed**
   ([GDK-652]). The same mirrored Confluence object was a Document in the
   column, a "page" in the detail copy, and "Wiki pages" in settings — now
@@ -2433,3 +2453,5 @@ measured numbers instead of adjectives.
 [GDK-588]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-588
 [GDK-211]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-211
 [GDK-669]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-669
+[GDK-668]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-668
+[GDK-671]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-671

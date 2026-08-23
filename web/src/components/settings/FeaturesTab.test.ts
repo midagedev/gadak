@@ -11,7 +11,7 @@
  * case cannot be driven in Playwright without a wails surface. What this
  * file can prove is the hide condition in the source the compiler emits.
  */
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, test } from 'vitest'
@@ -19,8 +19,15 @@ import { describe, expect, test } from 'vitest'
 const HERE = dirname(fileURLToPath(import.meta.url))
 const FEATURES_TAB = join(HERE, 'FeaturesTab.svelte')
 const SETTINGS_DIALOG = join(HERE, 'SettingsDialog.svelte')
-const EN = join(HERE, '../../lib/i18n/en.ts')
-const KO = join(HERE, '../../lib/i18n/ko.ts')
+const MESSAGES = join(HERE, '../../lib/i18n/messages')
+
+function catalogSource(): string {
+  // Copy lives in messages/*.ts ({en,ko,ja} per key), not en.ts/ko.ts/ja.ts.
+  return readdirSync(MESSAGES)
+    .filter((n) => n.endsWith('.ts'))
+    .map((n) => readFileSync(join(MESSAGES, n), 'utf8'))
+    .join('\n')
+}
 
 describe('GDK-349 browser notify visibility', () => {
   const features = readFileSync(FEATURES_TAB, 'utf8')
@@ -36,18 +43,15 @@ describe('GDK-349 browser notify visibility', () => {
   })
 
   test('en/ko feed-desktop copy does not claim system notifications always run', () => {
-    const en = readFileSync(EN, 'utf8')
-    const ko = readFileSync(KO, 'utf8')
-    expect(en).not.toMatch(/always run/)
-    expect(ko).not.toMatch(/항상 동작/)
+    const src = catalogSource()
+    expect(src).not.toMatch(/always run/)
+    expect(src).not.toMatch(/항상 동작/)
   })
 })
 
 describe('GDK-188 / settings-audit: Features does not render a web-push toggle', () => {
   const features = readFileSync(FEATURES_TAB, 'utf8')
-  const en = readFileSync(EN, 'utf8')
-  const ko = readFileSync(KO, 'utf8')
-  const ja = readFileSync(join(HERE, '../../lib/i18n/ja.ts'), 'utf8')
+  const catalog = catalogSource()
 
   test('push is excluded from the visible feature list, not drawn as a checkbox', () => {
     expect(features).toMatch(/Exclude<keyof GadakFeatures, 'push'>/)
@@ -57,9 +61,7 @@ describe('GDK-188 / settings-audit: Features does not render a web-push toggle',
   })
 
   test('catalogs have no web-push toggle label', () => {
-    expect(en).not.toMatch(/'settings\.featurePush'/)
-    expect(ko).not.toMatch(/'settings\.featurePush'/)
-    expect(ja).not.toMatch(/'settings\.featurePush'/)
-    expect(en).not.toMatch(/'Web push'/)
+    expect(catalog).not.toMatch(/'settings\.featurePush'/)
+    expect(catalog).not.toMatch(/'Web push'/)
   })
 })

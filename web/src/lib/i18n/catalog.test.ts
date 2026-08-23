@@ -2,9 +2,16 @@ import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, test } from 'vitest'
-import { en, WRITE_ERROR_KEYS } from './en'
-import { ja } from './ja'
-import { ko } from './ko'
+import { en, ja, ko, messages, type MessageKey } from './catalog'
+import { WRITE_ERROR_KEYS } from './errors'
+import { detail } from './messages/detail'
+import { common } from './messages/common'
+import { fields } from './messages/fields'
+import { list } from './messages/list'
+import { personal } from './messages/personal'
+import { settings } from './messages/settings'
+import { shell } from './messages/shell'
+import { write } from './messages/write'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const WRITE_GO = join(HERE, '../../../../internal/server/write.go')
@@ -45,16 +52,23 @@ function walkSourceFiles(dir: string, acc: string[] = []): string[] {
  * Catalog keys with no quoted mention in the scanned tree.
  *
  * Reads: every `.ts` / `.svelte` / `.js` under `web/src` and `e2e`.
- * Skips: `en.ts` / `ko.ts` / `ja.ts` (those are the definitions).
+ * Skips: `messages/*.ts` (definitions) and the derived `en.ts` / `ko.ts` /
+ *   `ja.ts` re-exports. Keys live once under messages/, not in three
+ *   locale files.
  * Extra references: `WRITE_ERROR_KEYS` values (looked up at runtime, defined
- *   in `en.ts` after the catalog object).
+ *   in `errors.ts`).
  * Misses: Go, docs, tools, desktop, contrib, `web/index.html`, `web/public/`,
  *   concatenated keys (`'common' + '.yes'`), unquoted mentions.
  */
+function isCatalogDefinition(p: string): boolean {
+  const n = p.replaceAll('\\', '/')
+  if (n.includes('/i18n/messages/')) return true
+  return /\/i18n\/(en|ko|ja)\.ts$/.test(n)
+}
+
 function unusedCatalogKeys(): string[] {
-  const skip = new Set([join(HERE, 'en.ts'), join(HERE, 'ko.ts'), join(HERE, 'ja.ts')])
   const files = [...walkSourceFiles(WEB_SRC), ...walkSourceFiles(E2E_ROOT)].filter(
-    (f) => !skip.has(f),
+    (f) => !isCatalogDefinition(f),
   )
   const blobs = files.map((f) => readFileSync(f, 'utf8'))
   const extra = new Set<string>(Object.values(WRITE_ERROR_KEYS))
@@ -84,6 +98,42 @@ function failCreateCodes(src: string): string[] {
 }
 
 describe('catalog contracts', () => {
+  test('derived locale tables match the per-key catalog', () => {
+    // t() reads the derived tables; a mismatch here is copy that the UI
+    // never shows.
+    const failures: string[] = []
+    for (const key of Object.keys(messages) as MessageKey[]) {
+      if (en[key] !== messages[key].en) failures.push(`en.${key}`)
+      if (ko[key] !== messages[key].ko) failures.push(`ko.${key}`)
+      if (ja[key] !== messages[key].ja) failures.push(`ja.${key}`)
+    }
+    expect(failures, failures.join('\n')).toEqual([])
+  })
+
+  test('domain catalogs do not share keys', () => {
+    const parts: Record<string, object> = {
+      common,
+      fields,
+      list,
+      shell,
+      personal,
+      detail,
+      write,
+      settings,
+    }
+    const seen = new Map<string, string>()
+    const dups: string[] = []
+    for (const [name, part] of Object.entries(parts)) {
+      for (const key of Object.keys(part)) {
+        const prev = seen.get(key)
+        if (prev) dups.push(`${key} in ${prev} and ${name}`)
+        else seen.set(key, name)
+      }
+    }
+    expect(dups, dups.join('\n')).toEqual([])
+    expect(seen.size, `keys=${seen.size} locales=3`).toBe(Object.keys(en).length)
+  })
+
   test('empty-project label says every project (en/ko catalogs)', () => {
     expect(en['settings.sourcesNoProjects']).toMatch(/every project/)
     expect(ko['settings.sourcesNoProjects']).toContain('모든 프로젝트')
@@ -104,9 +154,11 @@ describe('catalog contracts', () => {
 
   test('no catalog value is empty or whitespace-only', () => {
     // GDK-620: the same-key test this replaces re-proved at runtime what
-    // `satisfies Record<keyof typeof en, string>` in ko.ts/ja.ts already
-    // enforces at typecheck. The type clause cannot see '' — a blank value
-    // ships missing UI copy in exactly one locale. That axis stays here.
+    // the type clause already enforces. That clause is now `satisfies
+    // Record<string, Message>` on each messages/*.ts object (a missing
+    // locale is a type error). The type clause still cannot see '' — a
+    // blank value ships missing UI copy in exactly one locale. That axis
+    // stays here.
     const failures: string[] = []
     for (const [locale, table] of [
       ['en', en],

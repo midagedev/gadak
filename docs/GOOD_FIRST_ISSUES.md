@@ -22,7 +22,8 @@ English (or locale-aware) for an English-primary open-source audience.
 - `web/src/stores/me.svelte.ts` — `'워치 로드 실패'`, `'피드 로드 실패'`, …
 
 Source comments are English throughout; this item is the `console.*` text that
-was left behind. Korean strings that are *data* — the `i18n/ko.ts` catalog, and
+was left behind. Korean strings that are *data* — the `ko` field of each
+`web/src/lib/i18n/messages/` catalog entry, and
 the localized status and person names in test fixtures — are deliberate and must
 stay: those fixtures are what keep the display-name trap from coming back.
 

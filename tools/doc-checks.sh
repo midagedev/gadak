@@ -223,18 +223,25 @@ ok "PROMISES.md outbound list matches SECURITY.md"
 # Each surface carries its own copy — TS and Go share no string table — so the
 # invariant is pinned here instead: whoever edits one is told about the other.
 token_copy_missing=""
-for f in web/src/lib/i18n/en.ts web/src/lib/i18n/ko.ts cmd/gadak/init.go; do
-  # The hint on the credential prompt, not the error shown after a rejection:
-  # a warning that arrives after the failure it describes is the bug (GDK-98).
-  case "$f" in
-    *init.go) hint="$(sed -n '/tokenTrapHint/,/^$/p' "$f")" ;;
-    *)        hint="$(sed -n "/'onboarding.tokenHint'/,/^  '/p" "$f")" ;;
-  esac
+# Web copy is one {en,ko,ja} object in messages/write.ts, not en.ts/ko.ts.
+# Still require the English and Korean lines separately so a locale cannot
+# drop a trap while another locale's substring keeps the grep green.
+hint_ts="$(sed -n "/'onboarding.tokenHint'/,/^  },$/p" web/src/lib/i18n/messages/write.ts)"
+for loc in en ko; do
+  line="$(printf '%s\n' "$hint_ts" | grep -E "^    ${loc}: ")"
+  if [[ -z "$line" ]]; then
+    token_copy_missing+="  messages/write.ts: missing ${loc} for onboarding.tokenHint"$'\n'
+    continue
+  fi
   # ATATT/ATCTT are Atlassian's own prefixes and read the same in every
   # locale; the scoped-token trap is prose, so the Korean copy says 스코프.
   for trap in 'ATATT' 'ATCTT' 'scope|스코프'; do
-    grep -Eqi -- "$trap" <<<"$hint" || token_copy_missing+="  $f: token hint does not name ${trap%%|*}"$'\n'
+    grep -Eqi -- "$trap" <<<"$line" || token_copy_missing+="  messages/write.ts ${loc}: token hint does not name ${trap%%|*}"$'\n'
   done
+done
+hint_go="$(sed -n '/tokenTrapHint/,/^$/p' cmd/gadak/init.go)"
+for trap in 'ATATT' 'ATCTT' 'scope|스코프'; do
+  grep -Eqi -- "$trap" <<<"$hint_go" || token_copy_missing+="  cmd/gadak/init.go: token hint does not name ${trap%%|*}"$'\n'
 done
 if [[ -n "$token_copy_missing" ]]; then
   fail "an onboarding surface asks for a token without naming every trap (GDK-98):"$'\n'"$token_copy_missing"

@@ -5,12 +5,10 @@
  */
 
 import { formatAbs } from '../calendar'
-import { en, type MessageKey } from './en'
-import { ja } from './ja'
-import { ko } from './ko'
+import { en, ja, ko, type MessageKey } from './catalog'
+import type { Locale } from './types'
 
-export type Locale = 'en' | 'ko' | 'ja'
-export type { MessageKey }
+export type { Locale, MessageKey }
 
 const STORAGE_KEY = 'gadak_locale'
 const catalogs: Record<Locale, Record<MessageKey, string>> = { en, ko, ja }

@@ -71,11 +71,19 @@ if [ -n "${GADAK_FRESHEN:-}" ]; then
                  UPDATE sources SET synced_at = strftime('%Y-%m-%dT%H:%M:%S.000Z','now');"
 fi
 
-# The committed snapshot is at an older schema level, so open it once with the
-# binary to run migrations before injecting rows — otherwise a table added by a
-# later migration (api_usage) does not exist yet and sqlite3 aborts.
-echo "[e2e] migrating fixture mirror to the current schema…"
+# Open the copy so repairItemsFTS rebuilds the portable snapshot's items_fts
+# (Datasette Lite drops contentless_delete; the inject SQL below writes).
+# Schema lag is a hard fail: Open on this copy used to hide a stale
+# examples/demo.db and keep e2e green (GDK-671).
+echo "[e2e] opening fixture copy (FTS repair for writable e2e home)…"
 GADAK_HOME="$HOME_DIR" "$BIN" status >/dev/null
+have="$(sqlite3 "$ROOT/examples/demo.db" "PRAGMA user_version")"
+want="$(sqlite3 "$DB" "PRAGMA user_version")"
+if [ "$have" != "$want" ]; then
+  echo "[e2e] examples/demo.db PRAGMA user_version=${have}; this binary's mirror is ${want}." >&2
+  echo "[e2e] Rebaseline the committed fixture (Open-migrate a copy, then scripts/scrub-demo-db.py). serve.sh does not migrate over a stale file." >&2
+  exit 1
+fi
 
 echo "[e2e] injecting deploy enrichment on NMB-110…"
 sqlite3 "$DB" <<'SQL'

@@ -17,10 +17,19 @@ typecheck:
 theme-check:
 	node tools/theme-check.mjs
 
-# Regenerate the demo fixture at the current schema with dates re-spread
-# over the trailing 90 days (GDK-114). Content comes from the existing
-# fixture, so the issue count (doc-checks #3) stays put; run this when a
-# schema bump or date staleness makes the fixture drift from the code.
+# demo-fixture is circular: snapshot --from examples/demo.db writes
+# examples/demo.db. Content is the committed file, not a seed; --spread
+# redistributes timestamps so this is not a schema-only migrate. A schema
+# bump that must keep issue/comment bytes stable should Open-migrate a copy
+# (`GADAK_HOME=<tmp> gadak status` after copying the file to <tmp>/gadak.db)
+# and run scripts/scrub-demo-db.py onto examples/demo.db — do not use this
+# target for that (GDK-671; seed→synthesis is a later round).
+#
+# The committed file's PRAGMA user_version must equal this binary's
+# migration level. That gate is
+# `go test ./internal/store -run TestCommittedDemoDBMatchesCurrentSchema`;
+# this target does not claim to land "the current schema" by itself.
+# `bash scripts/demo-schema.sh` prints the stamp + row counts.
 demo-fixture:
 	go run ./cmd/gadak snapshot examples/demo.db.new --from examples/demo.db --spread 90d --seed 1
 	# The committed fixture is opened raw by Datasette Lite (GDK-101): the
@@ -29,6 +38,7 @@ demo-fixture:
 	# (2026-08-21: Lite gate + empty FTS).
 	python3 scripts/scrub-demo-db.py examples/demo.db.new examples/demo.db
 	rm examples/demo.db.new
+	bash scripts/demo-schema.sh examples/demo.db
 	bash scripts/scan-internal.sh
 	bash tools/doc-checks.sh
 
