@@ -1,6 +1,6 @@
 pkgbase = gadak-bin
 	pkgdesc = Local SQLite mirror of Jira and Confluence — web UI and agent SQL
-	pkgver = 0.16.1
+	pkgver = 0.17.0
 	pkgrel = 1
 	url = https://github.com/midagedev/gadak
 	arch = x86_64
@@ -10,9 +10,9 @@ pkgbase = gadak-bin
 	conflicts = gadak
 	options = !strip
 	options = !debug
-	source_x86_64 = https://github.com/midagedev/gadak/releases/download/v0.16.1/gadak_0.16.1_linux_amd64.tar.gz
-	sha256sums_x86_64 = 89a361e489a147e71d6a6da17c7a938d143ba900f0a89cefb1f000738ccc61cb
-	source_aarch64 = https://github.com/midagedev/gadak/releases/download/v0.16.1/gadak_0.16.1_linux_arm64.tar.gz
-	sha256sums_aarch64 = b28bbc1f816b72cf30b9599bd2bbf3ab0b913756c640136bb635438b638eee53
+	source_x86_64 = https://github.com/midagedev/gadak/releases/download/v0.17.0/gadak_0.17.0_linux_amd64.tar.gz
+	sha256sums_x86_64 = 383ac89c600c00a570e98292856ba4f1177e462981fb53960bde0bc25b27c375
+	source_aarch64 = https://github.com/midagedev/gadak/releases/download/v0.17.0/gadak_0.17.0_linux_arm64.tar.gz
+	sha256sums_aarch64 = 66342c2c6e720b5e50b03820f6a8b9c2c6a3a0bbe272d17fa66df9d3aa8bd7bf
 
 pkgname = gadak-bin
