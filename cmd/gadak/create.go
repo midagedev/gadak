@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/midagedev/gadak/internal/config"
@@ -253,10 +254,30 @@ func refuseSignedCreateLabels(labels []string) error {
 }
 
 func createOn(ctx context.Context, cfg *config.Config, c origin.Writer, src, projectWant, typeWant, summary, body, priorityWant, parentWant, dueWant string, labels, attach []string, fieldRaws map[string]json.RawMessage) (string, map[string]any, error) {
+	if projRes, err := create.Project(projectWant, cfg); err == nil {
+		if err := refuseUnmirroredProject(cfg, projRes.Value); err != nil {
+			return "", nil, err
+		}
+	}
 	if src == "linear" {
 		return createLinearOne(ctx, cfg, c, projectWant, typeWant, summary, body, priorityWant, parentWant, dueWant, labels, attach, fieldRaws)
 	}
 	return createOne(ctx, cfg, c, projectWant, typeWant, summary, body, priorityWant, parentWant, dueWant, labels, attach, fieldRaws)
+}
+
+// refuseUnmirroredProject is the CLI pre-check matching REST's
+// project_not_mirrored gate (internal/server/write.go handleCreate uses
+// slices.Contains on cfg.Projects). An empty list is not a deny-all: paired
+// workspaces have no local Projects copy (GDK-467). The post-write
+// writeNotMirroredError path stays as the race fallback.
+func refuseUnmirroredProject(cfg *config.Config, project string) error {
+	if cfg == nil || len(cfg.Projects) == 0 {
+		return nil
+	}
+	if slices.Contains(cfg.Projects, project) {
+		return nil
+	}
+	return fmt.Errorf("project %q is not mirrored — available: %s", project, strings.Join(cfg.Projects, ", "))
 }
 
 func createLinearOne(ctx context.Context, cfg *config.Config, c origin.Writer, projectWant, typeWant, summary, body, priorityWant, parentWant, dueWant string, labels, attach []string, fieldRaws map[string]json.RawMessage) (string, map[string]any, error) {

@@ -48,3 +48,32 @@ func TestPlainTextEdgeCases(t *testing.T) {
 		t.Errorf("garbage: %q", got)
 	}
 }
+
+func TestIsSimpleEmptyAndParagraphs(t *testing.T) {
+	if !IsSimple("") || !IsSimple("   ") {
+		t.Fatal("empty/whitespace must be simple")
+	}
+	simple := `{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"plain"}]}]}`
+	if !IsSimple(simple) {
+		t.Fatal("paragraph-only doc must be simple")
+	}
+	hardBreak := `{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"a"},{"type":"hardBreak"},{"type":"text","text":"b"}]}]}`
+	if !IsSimple(hardBreak) {
+		t.Fatal("hardBreak inside a paragraph must be simple")
+	}
+}
+
+func TestIsSimpleRejectsMarksListsHeadings(t *testing.T) {
+	cases := map[string]string{
+		"strong":  `{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"bold","marks":[{"type":"strong"}]}]}]}`,
+		"heading": `{"type":"doc","version":1,"content":[{"type":"heading","attrs":{"level":2},"content":[{"type":"text","text":"Steps"}]}]}`,
+		"list":    `{"type":"doc","content":[{"type":"bulletList","content":[{"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","text":"item"}]}]}]}]}`,
+		"mention": `{"type":"doc","content":[{"type":"paragraph","content":[{"type":"mention","attrs":{"id":"acc-1","text":"@Dana"}}]}]}`,
+		"garbage": `not json`,
+	}
+	for name, raw := range cases {
+		if IsSimple(raw) {
+			t.Errorf("%s: want not simple", name)
+		}
+	}
+}

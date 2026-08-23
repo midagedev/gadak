@@ -503,11 +503,11 @@ var helps = map[string]cmdHelp{
 		summary: "wiki page writes through the origin (page create, edit, comment; connected Confluence or standalone issuetap)",
 		usage: "gadak [--workspace <name>] page create|edit|comment [<ID>]\n" +
 			"[--space K] [--title T] [-m <text|->] [--adf-file F]\n" +
-			"[--parent ID] [--version N] [--json]",
+			"[--parent ID] [--version N] [--force] [--json]",
 		examples: []string{
 			"gadak page create --space ENG --title \"Retention notes\" -m \"first draft\"",
 			"gadak page edit 12345 --title \"Renamed page\"",
-			"gadak page edit 12345 -m \"whole new body (plain text; replaces formatting)\"",
+			"gadak page edit 12345 -m \"whole new body\" --force",
 			"gadak page edit 12345 --adf-file body.adf.json",
 			"gadak page comment 12345 -m \"question on the retention section\"",
 		},

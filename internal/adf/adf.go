@@ -1,8 +1,10 @@
-// Package adf flattens Atlassian Document Format (ADF) JSON to plain text.
+// Package adf inspects Atlassian Document Format (ADF) JSON without importing
+// Jira types, so store, origin, and CLI can share it without crossing the
+// store/jira firewall (docs/ARCHITECTURE.md).
 //
-// The functions operate on json.RawMessage and do not import Jira types, so
-// both the store (FTS body) and the Jira client can share them without
-// crossing the store/jira firewall (docs/ARCHITECTURE.md).
+// PlainText flattens a document for FTS. IsSimple is the format-loss gate
+// (doc / paragraph / text / hardBreak, no marks) ported from
+// web/src/lib/adf.ts isSimpleAdf.
 package adf
 
 import (
@@ -66,4 +68,44 @@ func flatten(b *strings.Builder, node any) {
 			b.WriteString("\n")
 		}
 	}
+}
+
+// simpleNode is the walk shape for IsSimple. Mirrors web/src/lib/adf.ts
+// SIMPLE_ADF_TYPES + walkSimple (doc / paragraph / text / hardBreak, no marks).
+type simpleNode struct {
+	Type    string            `json:"type"`
+	Marks   []json.RawMessage `json:"marks"`
+	Content []simpleNode      `json:"content"`
+}
+
+// IsSimple is the Go port of web/src/lib/adf.ts isSimpleAdf: empty/null is
+// simple; otherwise only doc/paragraph/text/hardBreak with no marks. A
+// plain-text replace of a non-simple document would drop formatting, so
+// callers refuse unless the user passed force.
+func IsSimple(raw string) bool {
+	if strings.TrimSpace(raw) == "" {
+		return true
+	}
+	var n simpleNode
+	if err := json.Unmarshal([]byte(raw), &n); err != nil {
+		return false
+	}
+	return walkSimple(n)
+}
+
+func walkSimple(n simpleNode) bool {
+	switch n.Type {
+	case "doc", "paragraph", "text", "hardBreak":
+	default:
+		return false
+	}
+	if len(n.Marks) > 0 {
+		return false
+	}
+	for _, c := range n.Content {
+		if !walkSimple(c) {
+			return false
+		}
+	}
+	return true
 }

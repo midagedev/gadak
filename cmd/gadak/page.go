@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/midagedev/gadak/internal/adf"
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/confluence"
 	"github.com/midagedev/gadak/internal/jira"
@@ -220,9 +221,10 @@ func cmdPageComment(args []string) error {
 func cmdPageEdit(args []string) error {
 	fs := newFlagSet("page edit")
 	title := fs.String("title", "", "new page title (omitted = keep)")
-	text := fs.String("m", "", "new body as plain text; `-` reads stdin. REPLACES the whole body — rich pages lose formatting, use --adf-file for those")
+	text := fs.String("m", "", "new body as plain text; `-` reads stdin. REPLACES the whole body; refused on a rich page unless --force (use --adf-file to keep formatting)")
 	adfFile := fs.String("adf-file", "", "new body as an ADF JSON document file; wins over -m")
 	version := fs.Int("version", 0, "base version for optimistic lock (the mirror's pages.version); omit to last-write-wins from origin HEAD")
+	force := fs.Bool("force", false, "replace a rich page with -m anyway")
 	asJSON := fs.Bool("json", false, "emit JSON")
 	if wantsHelp(args) {
 		fmt.Fprint(os.Stdout, formatHelp("page", fs))
@@ -233,7 +235,7 @@ func cmdPageEdit(args []string) error {
 		return err
 	}
 	if len(rest) != 1 {
-		return fmt.Errorf("page edit: exactly one page id (usage: gadak page edit <ID> [--title T] [-m <text|->|--adf-file F] [--version N])")
+		return fmt.Errorf("page edit: exactly one page id (usage: gadak page edit <ID> [--title T] [-m <text|->|--adf-file F] [--version N] [--force])")
 	}
 	id := rest[0]
 	body := *text
@@ -244,7 +246,7 @@ func cmdPageEdit(args []string) error {
 		}
 		body = string(buf)
 	}
-	var adf string
+	var fileADF string
 	if *adfFile != "" {
 		b, err := os.ReadFile(*adfFile)
 		if err != nil {
@@ -253,9 +255,9 @@ func cmdPageEdit(args []string) error {
 		if !json.Valid(b) {
 			return fmt.Errorf("page edit: %s is not valid JSON (an ADF document)", *adfFile)
 		}
-		adf = string(b)
+		fileADF = string(b)
 	}
-	if *title == "" && body == "" && adf == "" {
+	if *title == "" && body == "" && fileADF == "" {
 		return fmt.Errorf("page edit: nothing to change — pass --title, -m, or --adf-file")
 	}
 
@@ -281,9 +283,12 @@ func cmdPageEdit(args []string) error {
 		newADF = cur.Body.AtlasDocFormat.Value
 	}
 	switch {
-	case adf != "":
-		newADF = adf
+	case fileADF != "":
+		newADF = fileADF
 	case body != "":
+		if !*force && !adf.IsSimple(newADF) {
+			return fmt.Errorf("page edit: -m replaces the whole body and would drop this page's formatting; pass --adf-file to keep it, or --force to replace it")
+		}
 		newADF = string(jira.Doc(body, nil))
 	}
 	next := cur.Version.Number + 1

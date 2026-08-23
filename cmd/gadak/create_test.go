@@ -41,7 +41,8 @@ import (
 //     TestCreateJSONIncludesIssueAndCreatedKey,
 //     TestCreateRefreshFailureKeepsWriteAppliedWording,
 //     TestCreateOutsideMirrorPrintsKeyAndExitsZero,
-//     TestCreateIntoUnconfiguredProjectStillPrintsRow
+//     TestCreateUnmirroredProjectRefusesBeforeOrigin,
+//     TestCreateEmptyProjectsDoesNotRefuse
 //  8. No credential → mutate's init error
 //     TestWritesRefuseToRunWithoutACredential (agent_test.go),
 //     TestCreateRefusesWithoutCredential
@@ -378,7 +379,13 @@ func TestCreateTypeUnmatchedListsAvailable(t *testing.T) {
 
 func TestCreateProjectNotInCreateMeta(t *testing.T) {
 	f := newFakeJira(t)
-	mirror(t, f.URL)
+	cfg := mirror(t, f.URL)
+	// Mirrored so the GDK-682 pre-check does not fire; this test is the
+	// createmeta miss, not project_not_mirrored.
+	cfg.Projects = []string{"NMB", "ZZZ"}
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
 
 	_, err := capture(t, func() error {
 		return cmdCreate([]string{"cannot file here", "--project", "ZZZ", "--type", "Task"})
@@ -535,19 +542,56 @@ func TestCreateOutsideMirrorPrintsKeyAndExitsZero(t *testing.T) {
 }
 
 func TestCreateIntoUnconfiguredProjectStillPrintsRow(t *testing.T) {
-	// Spec correction: SyncIssue fetches by exact key, so a create in GDK
-	// (not in cfg.Projects) still lands in the mirror after refresh.
+	// GDK-682 inverted this: a create in GDK when cfg.Projects is [NMB] is
+	// refused before origin (REST already did). Refresh-by-key for a
+	// successful write is TestCreateHappyPath / TestCreateOutsideMirrorPrintsKeyAndExitsZero.
+	TestCreateUnmirroredProjectRefusesBeforeOrigin(t)
+}
+
+// TestCreateUnmirroredProjectRefusesBeforeOrigin is FAIL-first for GDK-682:
+// REST refuses project_not_mirrored before CreateIssue; CLI currently writes
+// then warns. The pre-check must not call origin at all.
+func TestCreateUnmirroredProjectRefusesBeforeOrigin(t *testing.T) {
 	f := newFakeJira(t)
 	mirror(t, f.URL) // Projects: [NMB]
 
-	out, err := capture(t, func() error {
+	_, err := capture(t, func() error {
 		return cmdCreate([]string{"filed in GDK", "--project", "GDK", "--type", "Task"})
 	})
-	if err != nil {
-		t.Fatalf("create into GDK: %v", err)
+	if err == nil {
+		t.Fatal("create into a project outside cfg.Projects must refuse")
 	}
-	if !strings.HasPrefix(strings.TrimSpace(out), "GDK-42\t") {
-		t.Fatalf("expected re-read row for GDK-42, got %q", out)
+	msg := err.Error()
+	if !strings.Contains(msg, "GDK") {
+		t.Errorf("must name the refused project: %v", err)
+	}
+	if !strings.Contains(msg, "NMB") {
+		t.Errorf("must list mirrored projects: %v", err)
+	}
+	if len(f.calls) != 0 {
+		t.Fatalf("origin called before refuse: %v", f.calls)
+	}
+	t.Log(msg)
+}
+
+// TestCreateEmptyProjectsDoesNotRefuse pins GDK-467: paired workspaces have
+// no local Projects copy. An empty list is not "allow 0 projects".
+func TestCreateEmptyProjectsDoesNotRefuse(t *testing.T) {
+	f := newFakeJira(t)
+	cfg := mirror(t, f.URL)
+	cfg.Projects = nil
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := capture(t, func() error {
+		return cmdCreate([]string{"paired workspace create", "--project", "GDK", "--type", "Task"})
+	})
+	if err != nil {
+		t.Fatalf("empty cfg.Projects must not refuse create: %v", err)
+	}
+	if !f.called("POST /issue") {
+		t.Fatalf("CreateIssue not called: %v", f.calls)
 	}
 	if sent := f.bodies["POST /issue"]; !strings.Contains(sent, `"key":"GDK"`) {
 		t.Fatalf("GDK not sent: %s", sent)
@@ -803,7 +847,11 @@ func TestCreateBatchHappyPathPreservesOrder(t *testing.T) {
 
 func TestCreateBatchLineOverridesFlagDefaults(t *testing.T) {
 	f := newFakeJira(t)
-	mirror(t, f.URL)
+	cfg := mirror(t, f.URL)
+	cfg.Projects = []string{"NMB", "GDK"}
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
 	withStdin(t, ""+
 		"{\"summary\":\"from flags\"}\n"+
 		"{\"summary\":\"from line\",\"project\":\"GDK\",\"type\":\"Task\",\"labels\":[\"fromline\"],\"description\":\"line body\"}\n")
@@ -1922,7 +1970,11 @@ func TestCreateUsesDefaultProjectWhenAmbiguous(t *testing.T) {
 
 func TestCreateSoleTypeWhenProjectHasOne(t *testing.T) {
 	f := newFakeJira(t)
-	mirror(t, f.URL)
+	cfg := mirror(t, f.URL)
+	cfg.Projects = []string{"NMB", "GDK"}
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
 
 	out, err := capture(t, func() error {
 		return cmdCreate([]string{"sole type", "--project", "GDK", "--json"})
