@@ -12,6 +12,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/midagedev/gadak/internal/adf"
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/confluence"
 	"github.com/midagedev/gadak/internal/create"
@@ -36,10 +37,15 @@ import (
 // this process is willing to hold either way.
 const maxUpload = 64 << 20
 
-// client returns the Jira client for this request. A connected workspace
-// without a token answers 409 credential_required so the UI opens its
-// credential dialog. Standalone origin failures are mapped by
-// failOriginClient — they are not a missing token.
+// client returns the unrouted Jira client for this request. Issue write
+// handlers must not call it (GDK-681: TestWriteHandlersDoNotCallClient) —
+// origin.Client is Jira-only, and a Linear apiKey still passes HasCredential.
+// Catalog GETs that are Jira-shaped by contract remain; each is named on
+// that test's allowlist with a reason.
+//
+// A connected workspace without a token answers 409 credential_required so
+// the UI opens its credential dialog. Standalone origin failures are mapped
+// by failOriginClient — they are not a missing token.
 func (s *server) client(w http.ResponseWriter) (*jira.Client, *config.Config, bool) {
 	cfg := s.config()
 	// HasCredential is true for standalone (no site token) and for a
@@ -175,44 +181,6 @@ func validADF(adf string) bool {
 	return top.Type == "doc"
 }
 
-// adfNode is the walk shape for isSimpleADF. Mirrors web/src/lib/adf.ts
-// SIMPLE_ADF_TYPES + walkSimple (doc / paragraph / text / hardBreak, no marks).
-type adfNode struct {
-	Type    string            `json:"type"`
-	Marks   []json.RawMessage `json:"marks"`
-	Content []adfNode         `json:"content"`
-}
-
-// isSimpleADF is the Go port of web/src/lib/adf.ts isSimpleAdf: empty/null is
-// simple; otherwise only doc/paragraph/text/hardBreak with no marks.
-func isSimpleADF(raw string) bool {
-	if strings.TrimSpace(raw) == "" {
-		return true
-	}
-	var n adfNode
-	if err := json.Unmarshal([]byte(raw), &n); err != nil {
-		return false
-	}
-	return walkSimpleADF(n)
-}
-
-func walkSimpleADF(n adfNode) bool {
-	switch n.Type {
-	case "doc", "paragraph", "text", "hardBreak":
-	default:
-		return false
-	}
-	if len(n.Marks) > 0 {
-		return false
-	}
-	for _, c := range n.Content {
-		if !walkSimpleADF(c) {
-			return false
-		}
-	}
-	return true
-}
-
 // keySource reads which origin owns a key. A key the mirror does not know
 // (or a read error) answers "" — the default origin — because refusing the
 // write would break the one case that matters there: a row that has not
@@ -230,10 +198,29 @@ func (s *server) keySource(ctx context.Context, key string) (string, error) {
 	return src, nil
 }
 
-// keyWriter is client() routed per key: the Jira client for jira/standalone
+// writerFor is the single mint for an issue write: origin.WriterFor plus
+// the owning origin's credential gate. keyWriter and createWriter both
+// end here so a Linear apiKey cannot 409-skip a Jira row (or the reverse).
+func (s *server) writerFor(w http.ResponseWriter, src string) (origin.Writer, *config.Config, bool) {
+	cfg := s.config()
+	// The credential gate is the owning origin's: a Linear row needs the
+	// Linear key (HasCredential counts it), a Jira row needs the Atlassian
+	// credential — a Linear apiKey must not 409-skip that.
+	if src != "linear" && !cfg.HasAtlassianCredential() {
+		fail(w, http.StatusConflict, "credential_required")
+		return nil, nil, false
+	}
+	c, err := origin.WriterFor(cfg, src)
+	if err != nil {
+		failOriginClient(w, err)
+		return nil, nil, false
+	}
+	return c, cfg, true
+}
+
+// keyWriter is writerFor routed per key: the Jira client for jira/standalone
 // rows, the Linear adapter for linear rows (GDK-361).
 func (s *server) keyWriter(w http.ResponseWriter, r *http.Request, key string) (origin.Writer, *config.Config, string, bool) {
-	cfg := s.config()
 	src, err := s.keySource(r.Context(), key)
 	if err != nil {
 		writeJSON(w, http.StatusConflict, map[string]string{
@@ -242,19 +229,58 @@ func (s *server) keyWriter(w http.ResponseWriter, r *http.Request, key string) (
 		})
 		return nil, nil, "", false
 	}
-	// The credential gate is the owning origin's: a Linear row needs the
-	// Linear key (HasCredential counts it), a Jira row needs the Atlassian
-	// credential — a Linear apiKey must not 409-skip that.
-	if src != "linear" && !cfg.HasAtlassianCredential() {
-		fail(w, http.StatusConflict, "credential_required")
-		return nil, nil, "", false
-	}
-	c, err := origin.WriterFor(cfg, src)
+	c, cfg, ok := s.writerFor(w, src)
+	return c, cfg, src, ok
+}
+
+// createWriter is writerFor routed the way CLI withCreateSession is: a
+// project the mirror already knows as Linear goes there; a Linear-only
+// workspace (no Atlassian credential) always routes to Linear. Copy of
+// cmd/gadak resolveCreateSource — that file is owned by a parallel round.
+func (s *server) createWriter(w http.ResponseWriter, r *http.Request, project string) (origin.Writer, *config.Config, string, bool) {
+	src, err := s.resolveCreateSource(r.Context(), s.config(), project)
 	if err != nil {
-		failOriginClient(w, err)
+		if errors.Is(err, store.ErrKeyAmbiguous) {
+			writeJSON(w, http.StatusConflict, map[string]string{
+				"error":   "key_ambiguous",
+				"message": err.Error(),
+			})
+			return nil, nil, "", false
+		}
+		serverError(w, r, err)
 		return nil, nil, "", false
 	}
-	return c, cfg, src, true
+	c, cfg, ok := s.writerFor(w, src)
+	return c, cfg, src, ok
+}
+
+// resolveCreateSource picks the origin create files to. A project the
+// mirror already knows as Linear routes there (same idea as KeySource).
+// A Linear-only workspace (no Atlassian credential) always routes to
+// Linear, even before the first team is mirrored.
+func (s *server) resolveCreateSource(ctx context.Context, cfg *config.Config, project string) (string, error) {
+	if proj := strings.TrimSpace(project); proj != "" && s.db != nil {
+		src, err := s.db.ProjectSource(ctx, proj)
+		if err != nil {
+			return "", err
+		}
+		if src == "linear" {
+			return "linear", nil
+		}
+	}
+	if cfg.HasLinearCredential() && !cfg.HasAtlassianCredential() {
+		return "linear", nil
+	}
+	return "", nil
+}
+
+// writeOriginLabel is the source id the write actually used. Empty is
+// WriterFor's default Jira-family origin (connected Jira or standalone).
+func writeOriginLabel(src string) string {
+	if src == "" {
+		return sync.SourceID
+	}
+	return src
 }
 
 // mutate is the whole write-through shape: call the origin that owns the
@@ -278,6 +304,11 @@ func (s *server) mutate(w http.ResponseWriter, r *http.Request, key string,
 		fail(w, http.StatusBadGateway, "write_applied_mirror_stale")
 		return
 	}
+	if extra == nil {
+		extra = map[string]any{}
+	}
+	extra["origin"] = writeOriginLabel(src)
+	log.Printf("server: write %s origin=%s", key, extra["origin"])
 	s.respondIssue(w, r, key, extra)
 }
 
@@ -681,7 +712,9 @@ func (s *server) handleUpload(w http.ResponseWriter, r *http.Request) {
 			"content_url": attachmentURL(key, a.ID),
 		})
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"attachments": out})
+	label := writeOriginLabel(src)
+	log.Printf("server: write %s origin=%s", key, label)
+	writeJSON(w, http.StatusOK, map[string]any{"attachments": out, "origin": label})
 }
 
 /* ── priority ── */
@@ -953,7 +986,8 @@ func (s *server) handleFields(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, "invalid_body")
 		return
 	}
-	c, cfg, ok := s.client(w)
+	key := r.PathValue("key")
+	c, cfg, _, ok := s.keyWriter(w, r, key)
 	if !ok {
 		return
 	}
@@ -965,7 +999,6 @@ func (s *server) handleFields(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusForbidden, "field_not_editable")
 		return
 	}
-	key := r.PathValue("key")
 	meta, err := c.EditMeta(r.Context(), key)
 	if err != nil {
 		failJira(w, r, s.config(), err)
@@ -1011,19 +1044,20 @@ func failCreate(w http.ResponseWriter, err error) {
 // failCreateOrPairing is handleCreate's Need* path. NeedProject/NeedType are
 // local config ambiguity; probe the origin so a pairing/dial failure is not
 // relabeled as project_required / issue_type_required (CLI createOne, GDK-453).
-// failCreate stays a pure mapping function.
-func failCreateOrPairing(w http.ResponseWriter, r *http.Request, c *jira.Client, cfg *config.Config, err error) {
+// failCreate stays a pure mapping function. The probe is CreateMeta (on
+// origin.Writer) rather than Jira Projects: Writer has no Projects verb,
+// and a pairing/dial failure surfaces on either call.
+func failCreateOrPairing(w http.ResponseWriter, r *http.Request, wr origin.Writer, cfg *config.Config, err error) {
 	var np *create.NeedProjectError
 	var nt *create.NeedTypeError
-	if (errors.As(err, &np) || errors.As(err, &nt)) && c != nil {
-		if _, _, perr := c.Projects(r.Context(), 1); perr != nil && origin.IsPairingFailure(perr) {
+	if (errors.As(err, &np) || errors.As(err, &nt)) && wr != nil {
+		catalog, perr := wr.CreateMeta(r.Context(), cfg.Projects)
+		if perr != nil && origin.IsPairingFailure(perr) {
 			failJira(w, r, cfg, perr)
 			return
 		}
-		if errors.As(err, &np) && len(np.Configured) == 0 {
-			if catalog, cerr := c.CreateMeta(r.Context(), cfg.Projects); cerr == nil {
-				err = create.FillNeedProject(err, catalog)
-			}
+		if errors.As(err, &np) && len(np.Configured) == 0 && perr == nil {
+			err = create.FillNeedProject(err, catalog)
 		}
 	}
 	failCreate(w, err)
@@ -1055,7 +1089,7 @@ func (s *server) handleCreate(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, "project_issue_type_and_summary_required")
 		return
 	}
-	c, cfg, ok := s.client(w)
+	c, cfg, src, ok := s.createWriter(w, r, p.ProjectKey)
 	if !ok {
 		return
 	}
@@ -1105,9 +1139,14 @@ func (s *server) handleCreate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fields := map[string]any{
-		"project":   map[string]string{"key": metaProj.Key},
-		"issuetype": map[string]string{"id": typ.Value},
-		"summary":   p.Summary,
+		// map[string]any so Linear CreateIssue can read project.key
+		// (map[string]string fails that type assert).
+		"project": map[string]any{"key": metaProj.Key},
+		"summary": p.Summary,
+	}
+	// Linear CreateIssue refuses issuetype; CLI createLinearOne omits it.
+	if src != "linear" {
+		fields["issuetype"] = map[string]string{"id": typ.Value}
 	}
 	// Optional fields are omitted, never sent as "". Empty string is "no
 	// value" (resolve / skip), not "set this field to empty".
@@ -1135,12 +1174,15 @@ func (s *server) handleCreate(w http.ResponseWriter, r *http.Request) {
 		failJira(w, r, s.config(), parenthint.Wrap(err, parentKey, s.db))
 		return
 	}
-	if err := sync.SyncIssue(r.Context(), cfg, s.db, key, sync.Options{Client: c}); err != nil {
+	if err := sync.RefreshIssue(r.Context(), cfg, s.db, key, src); err != nil {
 		log.Printf("server: mirror refresh after creating %s: %v", key, err)
 		fail(w, http.StatusBadGateway, "write_applied_mirror_stale")
 		return
 	}
+	label := writeOriginLabel(src)
+	log.Printf("server: write %s origin=%s", key, label)
 	s.respondIssue(w, r, key, map[string]any{
+		"origin": label,
 		"resolved": map[string]any{
 			"project":    proj,
 			"issue_type": typ,
@@ -1344,25 +1386,27 @@ func (s *server) handlePageEdit(w http.ResponseWriter, r *http.Request) {
 	if body.Title != "" {
 		title = body.Title
 	}
-	adf := ""
+	// doc, not adf: the package name is adf, and shadowing it here is what
+	// kept the richness judgment a private copy in this file (GDK-682).
+	doc := ""
 	if cur.Body.AtlasDocFormat != nil {
-		adf = cur.Body.AtlasDocFormat.Value
+		doc = cur.Body.AtlasDocFormat.Value
 	}
 	switch {
 	case body.ADF != "":
-		adf = body.ADF
+		doc = body.ADF
 	case body.Text != nil:
-		if !body.Force && !isSimpleADF(adf) {
+		if !body.Force && !adf.IsSimple(doc) {
 			fail(w, http.StatusConflict, "format_loss")
 			return
 		}
-		adf = string(jira.Doc(*body.Text, nil))
+		doc = string(jira.Doc(*body.Text, nil))
 	}
 	next := cur.Version.Number + 1
 	if body.Version != nil {
 		next = *body.Version + 1
 	}
-	if _, err := wc.UpdatePage(r.Context(), id, title, adf, next); err != nil {
+	if _, err := wc.UpdatePage(r.Context(), id, title, doc, next); err != nil {
 		failJira(w, r, s.config(), err)
 		return
 	}

@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"io"
 	"log"
 	"mime/multipart"
@@ -12,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -2917,5 +2921,321 @@ func TestWikiWritesRequireCredential(t *testing.T) {
 		if got := wikiErrorCode(t, rec); got != "credential_required" {
 			t.Errorf("%s %s error %q, want credential_required", tc.method, tc.path, got)
 		}
+	}
+}
+
+// clientCallAllowlist is the only remaining s.client() callers in write.go.
+// Each entry must say why that call is not an issue-origin write. A new
+// write handler that mints origin.Client this way fails
+// TestWriteHandlersDoNotCallClient (GDK-681).
+var clientCallAllowlist = map[string]string{
+	"handlePageResync":   "wiki page re-read; credential gate only — issue writes must not share this Jira mint",
+	"handlePriorities":   "GET workspace-wide Jira priority catalog; Linear rows use handleKeyPriorities / keyWriter",
+	"handleCreateMeta":   "GET creatable project/type catalog; not a write",
+	"handleCreateFields": "GET create-time field catalog for one project+type; not a write (Linear has no CreateFieldCatalog face)",
+	"handleUsers":        "GET user search catalog; per-key users use handleKeyUsers / keyWriter",
+}
+
+// TestWriteHandlersDoNotCallClient is the GDK-681 lock: issue write handlers
+// in write.go must route through writerFor / keyWriter / createWriter, not
+// s.client() (origin.Client is Jira-only; a Linear apiKey still passes
+// HasCredential). Catalog GETs stay on the allowlist above with a reason.
+func TestWriteHandlersDoNotCallClient(t *testing.T) {
+	_, thisFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller failed")
+	}
+	src := filepath.Join(filepath.Dir(thisFile), "write.go")
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, src, nil, 0)
+	if err != nil {
+		t.Fatalf("parse write.go: %v", err)
+	}
+
+	var hits []string
+	seen := map[string]bool{}
+	for _, decl := range f.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Name == nil || fn.Body == nil {
+			continue
+		}
+		name := fn.Name.Name
+		ast.Inspect(fn.Body, func(n ast.Node) bool {
+			call, ok := n.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			sel, ok := call.Fun.(*ast.SelectorExpr)
+			if !ok || sel.Sel == nil || sel.Sel.Name != "client" {
+				return true
+			}
+			id, ok := sel.X.(*ast.Ident)
+			if !ok || id.Name != "s" {
+				return true
+			}
+			seen[name] = true
+			if _, allowed := clientCallAllowlist[name]; allowed {
+				return true
+			}
+			pos := fset.Position(sel.Pos())
+			hits = append(hits, fmt.Sprintf("%s:%d %s", filepath.Base(pos.Filename), pos.Line, name))
+			return true
+		})
+	}
+	if len(hits) > 0 {
+		t.Fatalf("issue write handlers must not call s.client() (use writerFor / keyWriter / createWriter); allowlisted catalog GETs need a reason in clientCallAllowlist:\n  %s", strings.Join(hits, "\n  "))
+	}
+	for name, reason := range clientCallAllowlist {
+		if strings.TrimSpace(reason) == "" {
+			t.Errorf("clientCallAllowlist[%q] has no reason", name)
+		}
+		if !seen[name] {
+			t.Errorf("clientCallAllowlist[%q] is stale — %s no longer calls s.client()", name, name)
+		}
+	}
+}
+
+// TestOriginClientLinearOnlyNeedsAtlassian is GDK-681 task ①: measure what
+// origin.Client returns when the workspace has a Linear key and no Atlassian
+// site. HasCredential is true (the Linear key counts), so s.client() does
+// not 409 — the mint itself is what happens next.
+func TestOriginClientLinearOnlyNeedsAtlassian(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	config.SetProfile("")
+	t.Cleanup(func() { config.SetProfile("") })
+
+	cfg := &config.Config{Linear: &config.LinearConfig{APIKey: "linear-test-key-not-a-real-secret"}}
+	if !cfg.HasCredential() {
+		t.Fatal("Linear-only HasCredential is false; s.client() would 409 before origin.Client")
+	}
+	if cfg.HasAtlassianCredential() {
+		t.Fatal("Linear-only HasAtlassianCredential is true")
+	}
+	c, err := origin.Client(cfg)
+	if c != nil {
+		t.Fatalf("origin.Client returned a Jira client BaseURL=%q (would send requests somewhere)", c.BaseURL())
+	}
+	if err == nil {
+		t.Fatal("origin.Client succeeded with no Atlassian site")
+	}
+	const want = "origin: site, email and token are required"
+	if err.Error() != want {
+		t.Fatalf("origin.Client error = %q, want %q", err.Error(), want)
+	}
+}
+
+func linearTestdataFile(t *testing.T, name string) []byte {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join("..", "linear", "testdata", name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
+
+func linearIssueFromPage(t *testing.T) json.RawMessage {
+	t.Helper()
+	var wrap struct {
+		Data struct {
+			Issues struct {
+				Nodes []json.RawMessage `json:"nodes"`
+			} `json:"issues"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(linearTestdataFile(t, "issues_page1.json"), &wrap); err != nil {
+		t.Fatal(err)
+	}
+	if len(wrap.Data.Issues.Nodes) == 0 {
+		t.Fatal("issues_page1.json has no nodes")
+	}
+	return wrap.Data.Issues.Nodes[0]
+}
+
+func linearIssueFromCreate(t *testing.T) json.RawMessage {
+	t.Helper()
+	var wrap struct {
+		Data struct {
+			IssueCreate struct {
+				Issue json.RawMessage `json:"issue"`
+			} `json:"issueCreate"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(linearTestdataFile(t, "issue_create.json"), &wrap); err != nil {
+		t.Fatal(err)
+	}
+	if len(wrap.Data.IssueCreate.Issue) == 0 {
+		t.Fatal("issue_create.json has no issue")
+	}
+	return wrap.Data.IssueCreate.Issue
+}
+
+type linearFake struct {
+	creates int
+	updates int
+}
+
+func startLinearFake(t *testing.T, issue json.RawMessage) *linearFake {
+	t.Helper()
+	f := &linearFake{}
+	issueDoc, err := json.Marshal(map[string]any{
+		"data": map[string]json.RawMessage{"issue": issue},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, _ := io.ReadAll(r.Body)
+		q := string(raw)
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.Contains(q, "query Teams"):
+			_, _ = w.Write(linearTestdataFile(t, "teams.json"))
+		case strings.Contains(q, "mutation IssueCreate"):
+			f.creates++
+			_, _ = w.Write(linearTestdataFile(t, "issue_create.json"))
+		case strings.Contains(q, "mutation IssueUpdate"):
+			f.updates++
+			_, _ = w.Write(linearTestdataFile(t, "issue_update.json"))
+		case strings.Contains(q, "query Issue("):
+			_, _ = w.Write(issueDoc)
+		default:
+			_, _ = w.Write([]byte(`{"data":{}}`))
+		}
+	}))
+	t.Cleanup(srv.Close)
+	origin.LinearEndpoint = srv.URL
+	t.Cleanup(func() { origin.LinearEndpoint = "" })
+	return f
+}
+
+func isolateHome(t *testing.T) {
+	t.Helper()
+	t.Setenv("GADAK_HOME", t.TempDir())
+	config.SetProfile("")
+	t.Cleanup(func() { config.SetProfile("") })
+}
+
+func ensureLinearSource(t *testing.T, db *store.DB) {
+	t.Helper()
+	if err := db.UpsertSource(context.Background(), store.Source{ID: "linear", Kind: "linear", BaseURL: "https://linear.app"}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func seedLinearIssueFromJSON(t *testing.T, db *store.DB, issue json.RawMessage) {
+	t.Helper()
+	ensureLinearSource(t, db)
+	var iss struct {
+		ID         string `json:"id"`
+		Identifier string `json:"identifier"`
+	}
+	if err := json.Unmarshal(issue, &iss); err != nil {
+		t.Fatal(err)
+	}
+	if iss.ID == "" || iss.Identifier == "" {
+		t.Fatalf("linear issue json missing id/identifier: %s", issue)
+	}
+	if _, err := db.UpsertIssues(context.Background(), store.Batch{
+		Records: []store.IssueRecord{{
+			Item: store.Item{
+				ID: "linear:" + iss.ID, SourceID: "linear", ExternalID: iss.ID, Key: iss.Identifier,
+				Title: "linear row", CreatedAt: "2026-08-01T00:00:00.000Z", UpdatedAt: "2026-08-01T00:00:00.000Z",
+			},
+			Issue: store.Issue{ProjectKey: "FIX", StatusCategory: "new"},
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// GDK-681: PATCH {key}/fields/ on a Linear-only workspace used to mint
+// origin.Client and 500 "site, email and token are required".
+func TestLinearOnlyFieldEditRoutesToLinear(t *testing.T) {
+	isolateHome(t)
+	lin := startLinearFake(t, linearIssueFromPage(t))
+	db, cfg := fixture(t)
+	cfg.Site, cfg.Email, cfg.Token = "", "", ""
+	cfg.Linear = &config.LinearConfig{APIKey: "linear-test-key-not-a-real-secret"}
+	cfg.EditableFields = map[string]string{"summary": "summary"}
+	seedLinearIssueFromJSON(t, db, linearIssueFromPage(t))
+	h := New(db, cfg)
+
+	rec := send(t, h, http.MethodPatch, apiBase+"FIX-1/fields/", `{"field":"summary","value":"renamed"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("Linear-only PATCH fields → %d: %s", rec.Code, rec.Body.String())
+	}
+	if lin.updates != 1 {
+		t.Fatalf("IssueUpdate mutations = %d, want 1; body %s", lin.updates, rec.Body.String())
+	}
+	if got := decode[map[string]any](t, rec)["origin"]; got != "linear" {
+		t.Fatalf("origin = %v, want linear; body %s", got, rec.Body.String())
+	}
+}
+
+// GDK-681: POST create/ on a Linear-only workspace used to mint origin.Client
+// (Jira) instead of WriterFor("linear").
+func TestLinearOnlyCreateRoutesToLinear(t *testing.T) {
+	isolateHome(t)
+	lin := startLinearFake(t, linearIssueFromCreate(t))
+	db, cfg := fixture(t)
+	cfg.Site, cfg.Email, cfg.Token = "", "", ""
+	cfg.Linear = &config.LinearConfig{APIKey: "linear-test-key-not-a-real-secret"}
+	cfg.Projects = []string{"FIX"}
+	ensureLinearSource(t, db)
+	h := New(db, cfg)
+
+	rec := send(t, h, http.MethodPost, apiBase+"create/",
+		`{"project_key":"FIX","summary":"a summary"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("Linear-only POST create → %d: %s", rec.Code, rec.Body.String())
+	}
+	if lin.creates != 1 {
+		t.Fatalf("IssueCreate mutations = %d, want 1; body %s", lin.creates, rec.Body.String())
+	}
+	got := decode[map[string]any](t, rec)
+	if got["origin"] != "linear" {
+		t.Fatalf("origin = %v, want linear; body %s", got["origin"], rec.Body.String())
+	}
+}
+
+// GDK-681: in a jira+linear workspace the project key decides — a mirrored
+// Linear team must not POST /issue on Jira.
+func TestCreateRoutesLinearTeamInMixedWorkspace(t *testing.T) {
+	isolateHome(t)
+	jiraFake := newFakeJira(t)
+	lin := startLinearFake(t, linearIssueFromCreate(t))
+	db, cfg := fixture(t)
+	cfg.Site = jiraFake.URL
+	cfg.Linear = &config.LinearConfig{APIKey: "linear-test-key-not-a-real-secret"}
+	cfg.Projects = append(append([]string{}, cfg.Projects...), "FIX")
+	seedLinearIssue(t, db, "FIX-1")
+	h := New(db, cfg)
+
+	rec := send(t, h, http.MethodPost, apiBase+"create/",
+		`{"project_key":"FIX","summary":"a summary"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("mixed POST create FIX → %d: %s", rec.Code, rec.Body.String())
+	}
+	if lin.creates != 1 {
+		t.Fatalf("IssueCreate mutations = %d, want 1; body %s", lin.creates, rec.Body.String())
+	}
+	if jiraFake.called("POST /issue") {
+		t.Fatalf("Linear team create reached Jira: %v", jiraFake.calls)
+	}
+	if got := decode[map[string]any](t, rec)["origin"]; got != "linear" {
+		t.Fatalf("origin = %v, want linear; body %s", got, rec.Body.String())
+	}
+}
+
+func TestCreateIssueReportsOrigin(t *testing.T) {
+	_, h, _ := writable(t)
+	rec := send(t, h, http.MethodPost, apiBase+"create/",
+		`{"project_key":"NMB","issue_type":"10004","summary":"새 버그"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create → %d: %s", rec.Code, rec.Body.String())
+	}
+	if got := decode[map[string]any](t, rec)["origin"]; got != "jira" {
+		t.Fatalf("origin = %v, want jira; body %s", got, rec.Body.String())
 	}
 }
