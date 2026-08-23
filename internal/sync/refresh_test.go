@@ -212,6 +212,24 @@ func TestRefreshIssuePublicWiresRealPaths(t *testing.T) {
 	}
 }
 
+func TestRefreshIssuePublicWrapsMirrorStale(t *testing.T) {
+	ctx := context.Background()
+	err := RefreshIssue(ctx, &config.Config{}, nil, "LIN-1", LinearSourceID)
+	if !errors.Is(err, ErrMirrorStale) {
+		t.Fatalf("linear factory err must be ErrMirrorStale: %v", err)
+	}
+	if err.Error() != "origin: linear is not configured" {
+		t.Fatalf("Error() must stay the inner sentence: %v", err)
+	}
+	err = RefreshIssue(ctx, &config.Config{}, nil, "NMB-1", "")
+	if !errors.Is(err, ErrMirrorStale) {
+		t.Fatalf("syncIssue err must be ErrMirrorStale: %v", err)
+	}
+	if err.Error() != "sync: site, email and token are required" {
+		t.Fatalf("Error() must stay the inner sentence: %v", err)
+	}
+}
+
 func allowedRefreshOwnerFile(rel string) bool {
 	return rel == "internal/sync/refresh.go"
 }

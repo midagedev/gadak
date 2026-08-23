@@ -7,6 +7,7 @@ import (
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/store"
 )
 
 // Contract ↔ assertion (GDK-161; clause numbers match the task spec):
@@ -540,6 +541,64 @@ func TestTransitionAlreadyDoneJSON(t *testing.T) {
 	if wrap.Changed {
 		t.Fatalf("want changed=false: %s", out)
 	}
+}
+
+func TestTransitionRefreshFailureExitsZeroMirrorStale(t *testing.T) {
+	t.Run("text", func(t *testing.T) {
+		f := newFakeJira(t)
+		mirror(t, f.URL)
+		f.rereadStatus = 422
+
+		stdout, stderr, err := captureBoth(t, func() error {
+			return cmdTransition([]string{"NMB-1", "done"})
+		})
+		if err != nil {
+			t.Fatalf("transition must exit 0 after a landed write: %v", err)
+		}
+		if postedTransitionID(t, f, "NMB-1") != "31" {
+			t.Fatal("write must have reached Jira before the refresh warning")
+		}
+		if !strings.Contains(stderr, "write applied to NMB-1, but the mirror did not refresh") {
+			t.Fatalf("stderr missing write-applied warning: %q", stderr)
+		}
+		want := "NMB-1\t진행 중\tDana Whitfield\tbatch worker drops the last page"
+		if strings.TrimSpace(stdout) != want {
+			t.Fatalf("stdout %q, want the pre-write mirror row %q", stdout, want)
+		}
+	})
+
+	t.Run("json", func(t *testing.T) {
+		f := newFakeJira(t)
+		mirror(t, f.URL)
+		f.rereadStatus = 422
+
+		stdout, stderr, err := captureBoth(t, func() error {
+			return cmdTransition([]string{"NMB-1", "done", "--json"})
+		})
+		if err != nil {
+			t.Fatalf("transition --json must exit 0 after a landed write: %v", err)
+		}
+		if postedTransitionID(t, f, "NMB-1") != "31" {
+			t.Fatal("write must have reached Jira before the refresh warning")
+		}
+		if !strings.Contains(stderr, "write applied to NMB-1, but the mirror did not refresh") {
+			t.Fatalf("stderr missing write-applied warning: %q", stderr)
+		}
+		var body struct {
+			Issue       store.IssueLite `json:"issue"`
+			Changed     bool            `json:"changed"`
+			MirrorStale bool            `json:"mirror_stale"`
+		}
+		if err := json.Unmarshal([]byte(stdout), &body); err != nil {
+			t.Fatalf("decode %q: %v", stdout, err)
+		}
+		if !body.Changed || !body.MirrorStale {
+			t.Fatalf("json %+v (raw %q)", body, stdout)
+		}
+		if body.Issue.IssueKey != "NMB-1" || body.Issue.Status != "진행 중" {
+			t.Fatalf("json must carry the pre-write row, got %+v", body.Issue)
+		}
+	})
 }
 
 func TestTransitionWriteJSONReportsChanged(t *testing.T) {

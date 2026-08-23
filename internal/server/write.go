@@ -309,10 +309,7 @@ func (s *server) mutate(w http.ResponseWriter, r *http.Request, key string,
 		return
 	}
 	if err := sync.RefreshIssue(r.Context(), cfg, s.db, key, src); err != nil {
-		// The write landed; only the re-read failed. Say so rather than reporting a
-		// failure the user would retry.
-		log.Printf("server: mirror refresh after write to %s: %v", key, err)
-		fail(w, http.StatusBadGateway, "write_applied_mirror_stale")
+		failMirrorStale(w, key, err)
 		return
 	}
 	if extra == nil {
@@ -349,6 +346,17 @@ func (s *server) respondIssue(w http.ResponseWriter, r *http.Request, key string
 		}
 		writeJSON(w, http.StatusOK, body)
 		return
+	}
+	failMirrorStale(w, key, nil)
+}
+
+// failMirrorStale is the one REST owner of 502 write_applied_mirror_stale.
+// Status and wire code stay byte-identical to contracts/api.md; call sites
+// classify a landed write whose re-read failed rather than each deciding
+// the code. handleResync / handlePageResync stay on failJira (re-read only).
+func failMirrorStale(w http.ResponseWriter, key string, err error) {
+	if err != nil {
+		log.Printf("server: mirror refresh after write to %s: %v", key, err)
 	}
 	fail(w, http.StatusBadGateway, "write_applied_mirror_stale")
 }
@@ -704,8 +712,7 @@ func (s *server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	// detail panel re-renders. Jira already accepted the upload: a re-read
 	// failure is 502 write_applied_mirror_stale (contracts/api.md), not 200.
 	if err := sync.RefreshIssue(r.Context(), cfg, s.db, key, src); err != nil {
-		log.Printf("server: mirror refresh after upload to %s: %v", key, err)
-		fail(w, http.StatusBadGateway, "write_applied_mirror_stale")
+		failMirrorStale(w, key, err)
 		return
 	}
 	out := make([]map[string]any, 0, len(uploaded))
@@ -1181,8 +1188,7 @@ func (s *server) handleCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := sync.RefreshIssue(r.Context(), cfg, s.db, key, src); err != nil {
-		log.Printf("server: mirror refresh after creating %s: %v", key, err)
-		fail(w, http.StatusBadGateway, "write_applied_mirror_stale")
+		failMirrorStale(w, key, err)
 		return
 	}
 	label := writeOriginLabel(src)
@@ -1416,14 +1422,13 @@ func (s *server) handlePageEdit(w http.ResponseWriter, r *http.Request) {
 		failJira(w, r, s.config(), err)
 		return
 	}
-	if err := sync.SyncPage(r.Context(), cfg, s.db, id); err != nil {
-		log.Printf("server: mirror refresh after page edit %s: %v", id, err)
-		fail(w, http.StatusBadGateway, "write_applied_mirror_stale")
+	if err := sync.RefreshPage(r.Context(), cfg, s.db, id); err != nil {
+		failMirrorStale(w, id, err)
 		return
 	}
 	detail, err := s.db.PageDetail(r.Context(), id)
 	if err != nil || detail == nil {
-		fail(w, http.StatusBadGateway, "write_applied_mirror_stale")
+		failMirrorStale(w, id, nil)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"page": detail})
@@ -1464,14 +1469,13 @@ func (s *server) handlePageCreate(w http.ResponseWriter, r *http.Request) {
 		failJira(w, r, s.config(), err)
 		return
 	}
-	if err := sync.SyncPage(r.Context(), cfg, s.db, created.ID); err != nil {
-		log.Printf("server: mirror refresh after page create %s: %v", created.ID, err)
-		fail(w, http.StatusBadGateway, "write_applied_mirror_stale")
+	if err := sync.RefreshPage(r.Context(), cfg, s.db, created.ID); err != nil {
+		failMirrorStale(w, created.ID, err)
 		return
 	}
 	detail, err := s.db.PageDetail(r.Context(), created.ID)
 	if err != nil || detail == nil {
-		fail(w, http.StatusBadGateway, "write_applied_mirror_stale")
+		failMirrorStale(w, created.ID, nil)
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{"page": detail})
@@ -1508,14 +1512,13 @@ func (s *server) handlePageComment(w http.ResponseWriter, r *http.Request) {
 		failJira(w, r, s.config(), err)
 		return
 	}
-	if err := sync.SyncPage(r.Context(), cfg, s.db, id); err != nil {
-		log.Printf("server: mirror refresh after page comment %s: %v", id, err)
-		fail(w, http.StatusBadGateway, "write_applied_mirror_stale")
+	if err := sync.RefreshPage(r.Context(), cfg, s.db, id); err != nil {
+		failMirrorStale(w, id, err)
 		return
 	}
 	detail, err := s.db.PageDetail(r.Context(), id)
 	if err != nil || detail == nil {
-		fail(w, http.StatusBadGateway, "write_applied_mirror_stale")
+		failMirrorStale(w, id, nil)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"page": detail})

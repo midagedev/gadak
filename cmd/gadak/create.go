@@ -567,7 +567,9 @@ func emitBatchLine(ctx context.Context, cfg *config.Config, db *store.DB, src, k
 		return err
 	}
 	if err := syncer.RefreshIssue(ctx, cfg, db, key, src); err != nil {
-		return fmt.Errorf("write applied to %s, but the mirror did not refresh (run `gadak sync`): %w", key, err)
+		warnWriteAppliedMirrorStale(key, err)
+		fmt.Printf("%s\t%s\n", key, summary)
+		return nil
 	}
 	lites, err := lookup(db, []string{key})
 	if err != nil {

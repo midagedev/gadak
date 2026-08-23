@@ -1538,11 +1538,10 @@ func withKeyWriteSession(key string, fn func(context.Context, *config.Config, *s
 
 // emitAfterWrite is the write-through tail: re-read the issue into the mirror
 // and print the refreshed row. A failure between the write and the re-read is
-// reported as such, because retrying it would repeat the write Jira already
-// accepted.
+// a stale cache, not a failed write: the origin already accepted it.
 func emitAfterWrite(ctx context.Context, cfg *config.Config, db *store.DB, src, key string, asJSON bool, extra map[string]any) error {
 	if err := syncer.RefreshIssue(ctx, cfg, db, key, src); err != nil {
-		return fmt.Errorf("write applied to %s, but the mirror did not refresh (run `gadak sync`): %w", key, err)
+		return emitWriteAppliedMirrorStale(db, key, asJSON, extra, err)
 	}
 	lites, err := lookup(db, []string{key})
 	if err != nil {
@@ -1560,6 +1559,53 @@ func emitAfterWrite(ctx context.Context, cfg *config.Config, db *store.DB, src, 
 	}
 	fmt.Println(summaryLine(lites[0]))
 	return nil
+}
+
+// writeAppliedMirrorStaleMessage is the one author of the CLI warning for a
+// landed write whose re-read failed. Call sites classify with errors.Is;
+// they do not hand-write this sentence.
+func writeAppliedMirrorStaleMessage(key string, err error) string {
+	return fmt.Sprintf("write applied to %s, but the mirror did not refresh (run `gadak sync`): %v", key, err)
+}
+
+func warnWriteAppliedMirrorStale(key string, err error) {
+	fmt.Fprintln(os.Stderr, writeAppliedMirrorStaleMessage(key, err))
+}
+
+func emitWriteAppliedMirrorStale(db *store.DB, key string, asJSON bool, extra map[string]any, err error) error {
+	return emitWriteAppliedMirrorStaleFor(db, key, key, asJSON, extra, err)
+}
+
+func emitWriteAppliedMirrorStaleFor(db *store.DB, warnKey, rowKey string, asJSON bool, extra map[string]any, err error) error {
+	warnWriteAppliedMirrorStale(warnKey, err)
+	lites, _ := lookup(db, []string{rowKey})
+	if asJSON {
+		body := map[string]any{"mirror_stale": true}
+		if len(lites) > 0 {
+			body["issue"] = lites[0]
+		}
+		for k, v := range extra {
+			body[k] = v
+		}
+		return json.NewEncoder(os.Stdout).Encode(body)
+	}
+	if len(lites) == 0 {
+		fmt.Println(rowKey)
+		return nil
+	}
+	fmt.Println(summaryLine(lites[0]))
+	return nil
+}
+
+func batchAfterWrite(key string, changed bool, err error) batchResult {
+	if err == nil {
+		return batchOK(key, changed)
+	}
+	if errors.Is(err, syncer.ErrMirrorStale) {
+		warnWriteAppliedMirrorStale(key, err)
+		return batchStale(key, changed)
+	}
+	return batchErr(key, changed, err)
 }
 
 // mutate is the whole write-through shape: call the origin that owns the
@@ -1884,10 +1930,7 @@ func runCommentBatch(asJSON, internalDefault bool, visDefault *jira.CommentVisib
 			wrote = true
 			return syncer.RefreshIssue(ctx, cfg, db, key, src)
 		})
-		if err != nil {
-			return batchErr(key, wrote, err)
-		}
-		return batchOK(key, true)
+		return batchAfterWrite(key, wrote, err)
 	})
 }
 
@@ -2104,10 +2147,7 @@ func runTransitionBatch(asJSON, dryRun bool, resolutionDefault string, fieldsDef
 			changed = res.Changed
 			return syncer.RefreshIssue(ctx, cfg, db, key, src)
 		})
-		if err != nil {
-			return batchErr(key, changed, err)
-		}
-		return batchOK(key, changed)
+		return batchAfterWrite(key, changed, err)
 	})
 }
 
@@ -2122,7 +2162,7 @@ func emitTransitionResult(ctx context.Context, cfg *config.Config, db *store.DB,
 	}
 	if asJSON {
 		if err := syncer.RefreshIssue(ctx, cfg, db, key, src); err != nil {
-			return fmt.Errorf("already %s — nothing to do, but the mirror did not refresh (run `gadak sync`): %w", token, err)
+			return emitWriteAppliedMirrorStale(db, key, true, extra, err)
 		}
 		lites, err := lookup(db, []string{key})
 		if err != nil {
@@ -2273,10 +2313,7 @@ func runAssignBatch(asJSON bool) error {
 			wrote = true
 			return syncer.RefreshIssue(ctx, cfg, db, key, src)
 		})
-		if err != nil {
-			return batchErr(key, wrote, err)
-		}
-		return batchOK(key, true)
+		return batchAfterWrite(key, wrote, err)
 	})
 }
 

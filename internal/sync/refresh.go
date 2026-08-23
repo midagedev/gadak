@@ -15,16 +15,24 @@ import (
 // LinearSourceID goes to origin.Linear + SyncLinearIssue; every other src,
 // including empty, goes to SyncIssue with default Options.
 //
-// Errors pass through unchanged. The CLI wraps them as "write applied, but
-// the mirror did not refresh"; REST maps them to write_applied_mirror_stale
-// (or failJira on resync, which is re-read only). This function does not
-// wrap, log, or name those surfaces.
+// A failure is wrapped with ErrMirrorStale so every surface classifies the
+// same class with errors.Is. Error() stays the inner re-read sentence
+// verbatim (SQLITE_BUSY remains recoverable). handleResync still maps the
+// wrapped error through failJira — that path is re-read only, not a landed
+// write. CLI/REST write-through sites name the class; this function does
+// not log or emit surface copy.
 func RefreshIssue(ctx context.Context, cfg *config.Config, db *store.DB, key, src string) error {
-	return refreshIssue(ctx, cfg, db, key, src, refreshPaths{
+	return MirrorStale(refreshIssue(ctx, cfg, db, key, src, refreshPaths{
 		linear:     origin.Linear,
 		syncLinear: SyncLinearIssue,
 		syncIssue:  SyncIssue,
-	})
+	}))
+}
+
+// RefreshPage is the wiki write-through tail: SyncPage, then ErrMirrorStale.
+// handlePageResync stays on SyncPage + failJira (re-read only).
+func RefreshPage(ctx context.Context, cfg *config.Config, db *store.DB, id string) error {
+	return MirrorStale(SyncPage(ctx, cfg, db, id))
 }
 
 // refreshPaths are the two origin re-read paths RefreshIssue routes

@@ -39,7 +39,7 @@ import (
 //  7. Write-through tail: re-read row / JSON created; refresh fail; not-in-mirror
 //     TestCreateHappyPathSendsFieldsAndPrintsReread,
 //     TestCreateJSONIncludesIssueAndCreatedKey,
-//     TestCreateRefreshFailureKeepsWriteAppliedWording,
+//     TestCreateRefreshFailureExitsZeroMirrorStale,
 //     TestCreateOutsideMirrorPrintsKeyAndExitsZero,
 //     TestCreateUnmirroredProjectRefusesBeforeOrigin,
 //     TestCreateEmptyProjectsDoesNotRefuse
@@ -484,20 +484,60 @@ func TestCreateReadsDescriptionFromStdin(t *testing.T) {
 	}
 }
 
-func TestCreateRefreshFailureKeepsWriteAppliedWording(t *testing.T) {
-	f := newFakeJira(t)
-	mirror(t, f.URL)
-	f.rereadStatus = 422
+func TestCreateRefreshFailureExitsZeroMirrorStale(t *testing.T) {
+	t.Run("text", func(t *testing.T) {
+		f := newFakeJira(t)
+		mirror(t, f.URL)
+		f.rereadStatus = 422
 
-	_, err := capture(t, func() error {
-		return cmdCreate([]string{"refresh will fail", "--project", "NMB", "--type", "Task"})
+		stdout, stderr, err := captureBoth(t, func() error {
+			return cmdCreate([]string{"refresh will fail", "--project", "NMB", "--type", "Task"})
+		})
+		if err != nil {
+			t.Fatalf("create must exit 0 after a landed write: %v", err)
+		}
+		if !strings.Contains(stderr, "write applied to NMB-42, but the mirror did not refresh") {
+			t.Fatalf("stderr missing write-applied warning: %q", stderr)
+		}
+		if strings.TrimSpace(stdout) != "NMB-42" {
+			t.Fatalf("stdout %q, want the new key (no mirror row)", stdout)
+		}
+		if !f.called("POST /issue") {
+			t.Fatal("write must have reached Jira before the refresh warning")
+		}
 	})
-	if err == nil || !strings.Contains(err.Error(), "write applied to NMB-42, but the mirror did not refresh") {
-		t.Fatalf("refresh fail: %v", err)
-	}
-	if !f.called("POST /issue") {
-		t.Fatal("write must have reached Jira before the refresh error")
-	}
+
+	t.Run("json", func(t *testing.T) {
+		f := newFakeJira(t)
+		mirror(t, f.URL)
+		f.rereadStatus = 422
+
+		stdout, stderr, err := captureBoth(t, func() error {
+			return cmdCreate([]string{"refresh json", "--project", "NMB", "--type", "Task", "--json"})
+		})
+		if err != nil {
+			t.Fatalf("create --json must exit 0 after a landed write: %v", err)
+		}
+		if !strings.Contains(stderr, "write applied to NMB-42, but the mirror did not refresh") {
+			t.Fatalf("stderr missing write-applied warning: %q", stderr)
+		}
+		var body struct {
+			Created struct {
+				Key string `json:"key"`
+			} `json:"created"`
+			Issue       *store.IssueLite `json:"issue"`
+			MirrorStale bool             `json:"mirror_stale"`
+		}
+		if err := json.Unmarshal([]byte(stdout), &body); err != nil {
+			t.Fatalf("decode %q: %v", stdout, err)
+		}
+		if body.Created.Key != "NMB-42" || body.Issue != nil || !body.MirrorStale {
+			t.Fatalf("json %+v (raw %q)", body, stdout)
+		}
+		if !f.called("POST /issue") {
+			t.Fatal("write must have reached Jira before the refresh warning")
+		}
+	})
 }
 
 func TestCreateOutsideMirrorPrintsKeyAndExitsZero(t *testing.T) {

@@ -3,7 +3,6 @@ package server
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 
@@ -116,13 +115,11 @@ func (s *server) handleLink(w http.ResponseWriter, r *http.Request) {
 	// cmd/gadak/link.go. A refresh failure after a landed write is not a
 	// retryable 404 — the origin already accepted the link.
 	if err := sync.RefreshIssue(r.Context(), cfg, s.db, b, srcB); err != nil {
-		log.Printf("server: mirror refresh after link to %s: %v", b, err)
-		fail(w, http.StatusBadGateway, "write_applied_mirror_stale")
+		failMirrorStale(w, b, err)
 		return
 	}
 	if err := sync.RefreshIssue(r.Context(), cfg, s.db, key, src); err != nil {
-		log.Printf("server: mirror refresh after link to %s: %v", key, err)
-		fail(w, http.StatusBadGateway, "write_applied_mirror_stale")
+		failMirrorStale(w, key, err)
 		return
 	}
 	s.respondIssue(w, r, key, map[string]any{

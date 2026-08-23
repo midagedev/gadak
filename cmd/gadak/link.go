@@ -62,11 +62,6 @@ func cmdLink(args []string) error {
 		if err != nil {
 			return err
 		}
-		// B first so emitAfterWrite's single-key refresh covers A: two
-		// RefreshIssue calls, then the A summary line (or JSON).
-		if err := syncer.RefreshIssue(ctx, cfg, db, b, srcB); err != nil {
-			return fmt.Errorf("write applied to %s, but the mirror did not refresh (run `gadak sync`): %w", b, err)
-		}
 		extra := map[string]any{
 			"keys": []string{a, b},
 			"type": map[string]string{
@@ -75,6 +70,11 @@ func cmdLink(args []string) error {
 				"outward": lt.Outward,
 				"inward":  lt.Inward,
 			},
+		}
+		// B first so emitAfterWrite's single-key refresh covers A: two
+		// RefreshIssue calls, then the A summary line (or JSON).
+		if err := syncer.RefreshIssue(ctx, cfg, db, b, srcB); err != nil {
+			return emitWriteAppliedMirrorStaleFor(db, b, a, *asJSON, extra, err)
 		}
 		return emitAfterWrite(ctx, cfg, db, src, a, *asJSON, extra)
 	})

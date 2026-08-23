@@ -18,12 +18,19 @@ const batchLineLimit = 50
 // batchResult is one envelope row. TSV columns are key, ok, changed, error
 // (header on the first line). --json is one object per line with the same
 // fields. transition_id is dry-run only (resolved id; omitted otherwise).
+//
+// mirror_stale rides along for the same reason the single-key JSON carries
+// it (GDK-740): the write landed and only the re-read failed, so ok is
+// true, and a machine reader should not have to parse stderr to learn the
+// row it will read back is the pre-write one. Omitted when false, so the
+// common envelope is unchanged.
 type batchResult struct {
 	Key          string `json:"key"`
 	OK           bool   `json:"ok"`
 	Changed      bool   `json:"changed"`
 	Error        string `json:"error"`
 	TransitionID string `json:"transition_id,omitempty"`
+	MirrorStale  bool   `json:"mirror_stale,omitempty"`
 }
 
 // rejectBatchFlag is the create.go --batch idiom: only `-` (stdin JSON
@@ -120,6 +127,11 @@ func emitBatchResults(asJSON bool, results []batchResult) error {
 
 func batchOK(key string, changed bool) batchResult {
 	return batchResult{Key: key, OK: true, Changed: changed}
+}
+
+// batchStale is batchOK for a landed write whose mirror re-read failed.
+func batchStale(key string, changed bool) batchResult {
+	return batchResult{Key: key, OK: true, Changed: changed, MirrorStale: true}
 }
 
 func batchDryRun(key, transitionID string, changed bool) batchResult {

@@ -1419,6 +1419,85 @@ func TestUploadMirrorRereadFailureIs502(t *testing.T) {
 	}
 }
 
+// GDK-740: routing refresh failures through failMirrorStale must keep the
+// emitted status and write_applied_mirror_stale wire code byte-identical.
+func TestWriteAppliedMirrorStaleStatusUnchanged(t *testing.T) {
+	cases := []struct {
+		name  string
+		run   func(t *testing.T, f *fakeJira, h http.Handler) *httptest.ResponseRecorder
+		wrote func(t *testing.T, f *fakeJira)
+	}{
+		{
+			name: "mutate comment",
+			run: func(t *testing.T, f *fakeJira, h http.Handler) *httptest.ResponseRecorder {
+				return send(t, h, http.MethodPost, apiBase+"NMB-1/comment/", `{"text":"hi"}`)
+			},
+			wrote: func(t *testing.T, f *fakeJira) {
+				if !f.called("POST /issue/NMB-1/comment") {
+					t.Fatalf("comment never reached Jira: %v", f.calls)
+				}
+			},
+		},
+		{
+			name: "create",
+			run: func(t *testing.T, f *fakeJira, h http.Handler) *httptest.ResponseRecorder {
+				return send(t, h, http.MethodPost, apiBase+"create/",
+					`{"project_key":"NMB","issue_type":"10004","summary":"stale reread"}`)
+			},
+			wrote: func(t *testing.T, f *fakeJira) {
+				if !f.called("POST /issue") {
+					t.Fatalf("create never reached Jira: %v", f.calls)
+				}
+			},
+		},
+		{
+			name: "upload",
+			run: func(t *testing.T, f *fakeJira, h http.Handler) *httptest.ResponseRecorder {
+				var buf bytes.Buffer
+				mw := multipart.NewWriter(&buf)
+				part, _ := mw.CreateFormFile("file", "shot.png")
+				_, _ = part.Write([]byte("PNGBYTES"))
+				_ = mw.Close()
+				req := testRequest(http.MethodPost, apiBase+"NMB-1/attachments/", &buf)
+				req.Header.Set("Content-Type", mw.FormDataContentType())
+				rec := httptest.NewRecorder()
+				h.ServeHTTP(rec, req)
+				return rec
+			},
+			wrote: func(t *testing.T, f *fakeJira) {
+				if !f.called("POST /issue/NMB-1/attachments") {
+					t.Fatalf("upload never reached Jira: %v", f.calls)
+				}
+			},
+		},
+		{
+			name: "link",
+			run: func(t *testing.T, f *fakeJira, h http.Handler) *httptest.ResponseRecorder {
+				return send(t, h, http.MethodPost, apiBase+"NMB-1/link/", `{"type":"blocks","key":"NMB-2"}`)
+			},
+			wrote: func(t *testing.T, f *fakeJira) {
+				if !f.called("POST /issueLink") {
+					t.Fatalf("link never reached Jira: %v", f.calls)
+				}
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f, h, _ := writable(t)
+			f.rereadStatus = http.StatusUnprocessableEntity
+			rec := tc.run(t, f, h)
+			if rec.Code != http.StatusBadGateway {
+				t.Fatalf("status %d %s, want 502", rec.Code, rec.Body.String())
+			}
+			if got := decode[map[string]string](t, rec)["error"]; got != "write_applied_mirror_stale" {
+				t.Fatalf("error %q, want write_applied_mirror_stale", got)
+			}
+			tc.wrote(t, f)
+		})
+	}
+}
+
 func TestTransitionsAndUsersAndCreateMeta(t *testing.T) {
 	_, h, _ := writable(t)
 

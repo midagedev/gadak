@@ -101,8 +101,16 @@ func cmdPageCreate(args []string) error {
 		return err
 	}
 	defer db.Close()
-	if err := syncer.SyncPage(ctx, cfg, db, created.ID); err != nil {
-		return fmt.Errorf("page %s created, but the mirror did not refresh (run `gadak sync`): %w", created.ID, err)
+	if err := syncer.RefreshPage(ctx, cfg, db, created.ID); err != nil {
+		warnWriteAppliedMirrorStale(created.ID, err)
+		if *asJSON {
+			return json.NewEncoder(os.Stdout).Encode(map[string]any{
+				"id":           created.ID,
+				"mirror_stale": true,
+			})
+		}
+		fmt.Printf("%s\t%s\n", created.ID, created.Title)
+		return nil
 	}
 	if *asJSON {
 		detail, err := db.PageDetail(ctx, created.ID)
@@ -208,8 +216,16 @@ func cmdPageComment(args []string) error {
 		return err
 	}
 	defer db.Close()
-	if err := syncer.SyncPage(ctx, cfg, db, id); err != nil {
-		return fmt.Errorf("comment landed on page %s, but the mirror did not refresh (run `gadak sync`): %w", id, err)
+	if err := syncer.RefreshPage(ctx, cfg, db, id); err != nil {
+		warnWriteAppliedMirrorStale(id, err)
+		if *asJSON {
+			return json.NewEncoder(os.Stdout).Encode(map[string]any{
+				"comment":      cm,
+				"mirror_stale": true,
+			})
+		}
+		fmt.Printf("%s\tcomment %s added\n", id, cm.ID)
+		return nil
 	}
 	if *asJSON {
 		return json.NewEncoder(os.Stdout).Encode(map[string]any{"comment": cm})
@@ -304,8 +320,22 @@ func cmdPageEdit(args []string) error {
 		return err
 	}
 	defer db.Close()
-	if err := syncer.SyncPage(ctx, cfg, db, id); err != nil {
-		return fmt.Errorf("edit applied to page %s, but the mirror did not refresh (run `gadak sync`): %w", id, err)
+	if err := syncer.RefreshPage(ctx, cfg, db, id); err != nil {
+		warnWriteAppliedMirrorStale(id, err)
+		detail, _ := db.PageDetail(ctx, id)
+		if *asJSON {
+			body := map[string]any{"id": id, "mirror_stale": true}
+			if detail != nil {
+				body["page"] = detail
+			}
+			return json.NewEncoder(os.Stdout).Encode(body)
+		}
+		if detail != nil {
+			fmt.Printf("%s\t%s\n", id, detail.Title)
+		} else {
+			fmt.Printf("%s edited (row not in the mirrored spaces)\n", id)
+		}
+		return nil
 	}
 	detail, err := db.PageDetail(ctx, id)
 	if err != nil {
