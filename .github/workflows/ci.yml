@@ -403,6 +403,16 @@ jobs:
           cache-dependency-path: desktop/go.sum
           cache: true
 
+      # GDK-667 / GDK-635: a third-party import added under the root module
+      # does not update desktop/go.sum (nested go.mod, not in ./...). Local
+      # `go test ./...` stays green; the three desktop jobs then fail on a
+      # missing sum. One check, on the cheapest desktop runner (ubuntu),
+      # before GTK. Not path-scoped: any root import can require a desktop
+      # tidy. The command lives in tools/check-desktop-tidy.sh so local and
+      # CI cannot drift.
+      - name: Desktop go.mod/go.sum match tidy
+        run: bash tools/check-desktop-tidy.sh
+
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
