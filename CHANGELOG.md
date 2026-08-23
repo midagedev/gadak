@@ -34,7 +34,23 @@ the fixes are all here.
   the mirror has instead of deleting it, writing links bumps the mirror
   version so a running UI sees them, and issuetap moves the issue's
   `updated` stamp so a paired remote's incremental sync picks the link up.
-- **`gadak link A B --type blocks` writes an issue link** ([GDK-19]).
+- **`gadak link A B --type blocks` writes an issue link** ([GDK-19]), and the
+  detail panel writes one too ([GDK-85]). Linked issues was a read-only list,
+  which made linking — one of the most frequent things anyone does in Jira —
+  the reason to leave the app. The panel now carries a type select and a key
+  field over the same route the CLI uses: origin first
+  (`POST /api/v1/issues/{key}/link/`), then both issues re-read into the
+  mirror, then the list renders server truth rather than the typed guess, so a
+  link the origin reshaped shows up reshaped. `GET …/linktypes/` serves the
+  catalog, a frozen workspace refuses the POST, and a missing credential is
+  the same 409 `credential_required` the comment and transition routes give.
+  The link-type resolver — id, name, outward or inward description, with the
+  symmetric-type and ambiguity guards — moved to
+  `internal/origin/linkresolve.go`: it used to live in `package main` where
+  the HTTP handler could not import it, so the REST route arrived as a copy
+  with a parity test holding the two in step. One owner needs no parity test.
+  Deleting a link is [GDK-680]: the block is that `origin.IssueLinker` has no
+  unlink verb, and adding one is a promise to all three origins.
 
 ### Write verbs an agent can trust
 
@@ -2532,6 +2548,8 @@ measured numbers instead of adjectives.
 [GDK-669]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-669
 [GDK-676]: https://gadak.dev/backlog/#/?ks=GDK-676
 [GDK-8]: https://gadak.dev/backlog/#/?ks=GDK-8
+[GDK-85]: https://gadak.dev/backlog/#/?ks=GDK-85
+[GDK-680]: https://gadak.dev/backlog/#/?ks=GDK-680
 [GDK-665]: https://gadak.dev/backlog/#/?ks=GDK-665
 [GDK-679]: https://gadak.dev/backlog/#/?ks=GDK-679
 [GDK-668]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-668

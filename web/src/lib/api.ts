@@ -649,6 +649,33 @@ export function doTransition(
   })
 }
 
+/* ── Issue links (GDK-85) — origin write, then mirror refresh ── */
+
+export type IssueLinkType = {
+  id: string
+  name: string
+  inward: string
+  outward: string
+}
+
+/** GET <key>/linktypes/ — site catalog for this issue's origin. */
+export function getIssueLinkTypes(issueKey: string): Promise<{ link_types: IssueLinkType[] }> {
+  return jsonW<{ link_types: IssueLinkType[] }>(`${encodeURIComponent(issueKey)}/linktypes/`)
+}
+
+/** POST <key>/link/ — `type` is name, inward/outward description, or id. */
+export function createIssueLink(
+  issueKey: string,
+  type: string,
+  otherKey: string,
+): Promise<IssueWriteResponse> {
+  return jsonW<IssueWriteResponse>(`${encodeURIComponent(issueKey)}/link/`, {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ type, key: otherKey }),
+  })
+}
+
 /* ── Comments ── */
 
 export function postComment(

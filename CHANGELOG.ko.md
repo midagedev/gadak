@@ -34,7 +34,22 @@
   가진 것을 지우는 대신 보존하며, 링크 쓰기는 미러 버전을 올려 실행 중인
   UI가 즉시 보게 하고, issuetap은 이슈의 `updated` 스탬프를 옮겨 paired
   원격의 증분 sync가 링크를 집어 갑니다.
-- **`gadak link A B --type blocks`가 이슈 링크를 씁니다** ([GDK-19]).
+- **`gadak link A B --type blocks`가 이슈 링크를 씁니다** ([GDK-19]), 그리고
+  디테일 패널도 하나 씁니다 ([GDK-85]). Linked issues는 읽기 전용 목록이었고,
+  그래서 Jira에서 가장 자주 하는 행위 중 하나인 링크 걸기가 앱을 떠나는
+  이유였습니다. 이제 패널에 타입 select과 키 입력이 있고, CLI와 같은 경로를
+  씁니다: origin 먼저(`POST /api/v1/issues/{key}/link/`), 그다음 두 이슈를
+  미러로 다시 읽고, 목록은 입력한 추측이 아니라 서버의 사실을 그립니다 —
+  origin이 모양을 바꾼 링크는 바뀐 모양으로 나타납니다. `GET …/linktypes/`가
+  카탈로그를 주고, frozen 워크스페이스는 POST를 거절하며, 자격증명 부재는
+  코멘트·전이 경로와 같은 409 `credential_required`입니다. 링크 타입
+  리졸버 — id·이름·outward·inward 서술에 대칭 타입과 중의성 가드까지 — 는
+  `internal/origin/linkresolve.go`로 옮겼습니다. 원래 `package main`에 있어
+  HTTP 핸들러가 import할 수 없었고, 그래서 REST 경로는 복사본으로 도착해
+  둘을 맞춰 두는 패리티 테스트가 붙었습니다. 소유자가 하나면 패리티 테스트가
+  필요 없습니다. 링크 삭제는 [GDK-680]입니다 — 막힌 곳은
+  `origin.IssueLinker`에 unlink 동사가 없다는 것이고, 그것을 얹는 것은 세
+  origin 전부에 대한 약속입니다.
 
 ### 에이전트가 신뢰할 수 있는 쓰기 동사
 
@@ -2476,6 +2491,8 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-669]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-669
 [GDK-676]: https://gadak.dev/backlog/#/?ks=GDK-676
 [GDK-8]: https://gadak.dev/backlog/#/?ks=GDK-8
+[GDK-85]: https://gadak.dev/backlog/#/?ks=GDK-85
+[GDK-680]: https://gadak.dev/backlog/#/?ks=GDK-680
 [GDK-665]: https://gadak.dev/backlog/#/?ks=GDK-665
 [GDK-679]: https://gadak.dev/backlog/#/?ks=GDK-679
 [GDK-668]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-668

@@ -239,6 +239,8 @@ func newServer(db *store.DB, cfg *config.Config, cache *attachcache.Cache, profi
 			s.handleKeyPriorities(w, r)
 		case action == "users":
 			s.handleKeyUsers(w, r)
+		case action == "linktypes":
+			s.handleLinkTypes(w, r)
 		default:
 			handleNotFound(w, r)
 		}
@@ -265,6 +267,7 @@ func newServer(db *store.DB, cfg *config.Config, cache *attachcache.Cache, profi
 	mux.HandleFunc("GET "+apiBase+"priorities/{$}", s.handlePriorities)
 	mux.HandleFunc("POST "+apiBase+"{key}/transition/{$}", s.handleTransition)
 	mux.HandleFunc("POST "+apiBase+"{key}/comment/{$}", s.handleComment)
+	mux.HandleFunc("POST "+apiBase+"{key}/link/{$}", s.handleLink)
 	mux.HandleFunc("POST "+apiBase+"{key}/attachments/{$}", s.handleUpload)
 	mux.HandleFunc("PUT "+apiBase+"{key}/assignee/{$}", s.handleAssignee)
 	mux.HandleFunc("PUT "+apiBase+"{key}/labels/{$}", s.handleLabels)

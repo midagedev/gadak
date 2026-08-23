@@ -305,12 +305,10 @@
             </Section>
           {/if}
 
-          <!-- Linked issues -->
-          {#if detailForKey.linked_issues.length > 0}
-            <Section title={t('detail.links')} count={detailForKey.linked_issues.length}>
-              <LinkedIssues linked={detailForKey.linked_issues} />
-            </Section>
-          {/if}
+          <!-- Linked issues. Always shown so a first link can be added (GDK-85). -->
+          <Section title={t('detail.links')} count={detailForKey.linked_issues.length}>
+            <LinkedIssues linked={detailForKey.linked_issues} />
+          </Section>
 
           <!-- Documents that name this issue, or that it names. Derived from
                text, so it is next to Linked issues rather than inside it: one

@@ -118,6 +118,7 @@ func TestFrozenWorkspaceRefusesWrites(t *testing.T) {
 	for _, tc := range []struct{ path, body string }{
 		{apiBase + "NMB-1/comment/", `{"text":"hi"}`},
 		{apiBase + "NMB-1/transition/", `{"transition_id":"31"}`},
+		{apiBase + "NMB-1/link/", `{"type":"blocks","key":"NMB-2"}`},
 	} {
 		rec := send(t, h, http.MethodPost, tc.path, tc.body)
 		if rec.Code != http.StatusConflict {

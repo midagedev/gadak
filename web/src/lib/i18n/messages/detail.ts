@@ -197,6 +197,31 @@ export const detail = {
     ko: '로컬 풀에 있음',
     ja: 'ローカルプール内',
   },
+  'detail.linkAdd': {
+    en: 'Add link',
+    ko: '링크 추가',
+    ja: 'リンクを追加',
+  },
+  'detail.linkType': {
+    en: 'Link type',
+    ko: '링크 유형',
+    ja: 'リンクタイプ',
+  },
+  'detail.linkKey': {
+    en: 'Issue key',
+    ko: '이슈 키',
+    ja: '課題キー',
+  },
+  'detail.linkAddFailed': {
+    en: 'Could not add this link.',
+    ko: '링크를 추가하지 못했습니다.',
+    ja: 'このリンクを追加できませんでした。',
+  },
+  'detail.linkSelf': {
+    en: 'An issue cannot be linked to itself.',
+    ko: '이슈를 자기 자신과 연결할 수 없습니다.',
+    ja: '課題を自分自身にリンクできません。',
+  },
   'detail.emptyComment': {
     en: '(empty comment)',
     ko: '(빈 코멘트)',

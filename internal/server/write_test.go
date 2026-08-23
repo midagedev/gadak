@@ -52,6 +52,9 @@ type fakeJira struct {
 	// issueStatusJSON overrides GET /issue/{key}?fields=status,assignee —
 	// the category no-op's origin read. Empty keeps NMB-1 in progress.
 	issueStatusJSON string
+	// linkTypesJSON overrides GET /issueLinkType. Empty keeps the Blocks
+	// catalog the CLI link tests use (GDK-19 / GDK-85).
+	linkTypesJSON string
 }
 
 func newFakeJira(t *testing.T) *fakeJira {
@@ -103,8 +106,10 @@ func (f *fakeJira) route(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// The re-read. Status differs from the fixture on purpose.
-		// Only answer for keys this fake knows (NMB-1 / newKey); anything else
-		// is an empty hit so SyncIssue can surface ErrNotFound → 404.
+		// Only answer for keys this fake knows (NMB-1 / NMB-2 / newKey);
+		// anything else is an empty hit so SyncIssue can surface ErrNotFound → 404.
+		// NMB-2 keeps fixture id 1002 so a two-key refresh (GDK-85 link) does
+		// not collide with NMB-1's item id.
 		jql := ""
 		if raw := f.bodies[tag]; len(raw) > 0 {
 			var body struct {
@@ -113,7 +118,7 @@ func (f *fakeJira) route(w http.ResponseWriter, r *http.Request) {
 			_ = json.Unmarshal(raw, &body)
 			jql = body.JQL
 		}
-		wantKeys := []string{`"NMB-1"`, `"` + f.newKey + `"`}
+		wantKeys := []string{`"NMB-1"`, `"NMB-2"`, `"` + f.newKey + `"`}
 		known := false
 		for _, k := range wantKeys {
 			if strings.Contains(jql, k) {
@@ -124,11 +129,14 @@ func (f *fakeJira) route(w http.ResponseWriter, r *http.Request) {
 		// empty jql (body not recorded yet on some paths) → treat as known for
 		// backward compatibility with tests that only assert the response shape.
 		if jql == "" || known {
-			key := "NMB-1"
-			if f.newKey != "" && strings.Contains(jql, `"`+f.newKey+`"`) {
+			key, id := "NMB-1", "1001"
+			switch {
+			case strings.Contains(jql, `"NMB-2"`):
+				key, id = "NMB-2", "1002"
+			case f.newKey != "" && f.newKey != "NMB-1" && strings.Contains(jql, `"`+f.newKey+`"`):
 				key = f.newKey
 			}
-			_, _ = w.Write([]byte(`{"issues":[{"id":"1001","key":"` + key + `","fields":{
+			_, _ = w.Write([]byte(`{"issues":[{"id":"` + id + `","key":"` + key + `","fields":{
 			"summary":"batch worker drops the last page",
 			"status":{"id":"10001","name":"완료","statusCategory":{"key":"done"}},
 			"project":{"key":"NMB"},"issuetype":{"id":"10004","name":"Bug"},
@@ -184,6 +192,12 @@ func (f *fakeJira) route(w http.ResponseWriter, r *http.Request) {
 	case path == "/user/search":
 		_, _ = w.Write([]byte(`[{"accountId":"acc-cl","displayName":"이클라","emailAddress":"cl@example.com",
 			"avatarUrls":{"48x48":"https://a/48.png"},"active":true}]`))
+	case path == "/issueLinkType":
+		raw := f.linkTypesJSON
+		if raw == "" {
+			raw = `{"issueLinkTypes":[{"id":"10000","name":"Blocks","outward":"blocks","inward":"is blocked by"}]}`
+		}
+		_, _ = w.Write([]byte(raw))
 	case strings.HasPrefix(path, "/issue/") && r.Method == http.MethodGet && !strings.Contains(strings.TrimPrefix(path, "/issue/"), "/"):
 		raw := f.issueStatusJSON
 		if raw == "" {
@@ -1530,6 +1544,8 @@ func TestWritesRequireACredential(t *testing.T) {
 		{http.MethodGet, apiBase + "NMB-1/transitions/", ""},
 		{http.MethodPost, apiBase + "NMB-1/transition/", `{"transition_id":"31"}`},
 		{http.MethodPost, apiBase + "NMB-1/comment/", `{"text":"hi"}`},
+		{http.MethodGet, apiBase + "NMB-1/linktypes/", ""},
+		{http.MethodPost, apiBase + "NMB-1/link/", `{"type":"blocks","key":"NMB-2"}`},
 		{http.MethodPut, apiBase + "NMB-1/assignee/", `{"account_id":null}`},
 		{http.MethodPut, apiBase + "NMB-1/labels/", `{"labels":["x"]}`},
 		{http.MethodPut, apiBase + "NMB-1/priority/", `{"priority_id":"2"}`},
