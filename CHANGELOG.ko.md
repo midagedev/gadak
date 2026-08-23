@@ -2,7 +2,7 @@
 
 <sub><a href="CHANGELOG.md">English</a> · 한국어 — 영문이 원본이며, 번역은 영문과 함께 갱신됩니다(마지막 동기화 2026-08-23).</sub>
 
-## Unreleased
+## v0.17.0 — 2026-08-23
 
 에이전트의 쓰기가 성숙해진 사이클입니다. 이제 이슈가 자신을 구현하는 PR과
 커밋을 보여주고, 쓰기 동사들이 코딩 에이전트가 실제로 보내는 어휘를 배웠고,
@@ -33,6 +33,7 @@ MCP 표면·웹 UI를 훑는 릴리스 전 감사로 닫았습니다.
 - `transition`이 `--resolution`·`--field`·`-m`을 싣고, `edit`가 fix version과
   컴포넌트를 이름으로 쓰면서 id를 지킵니다 ([GDK-509], [GDK-516], [GDK-517]).
 - `assign`이 이메일 외에 이름·accountId도 받습니다 ([GDK-515]).
+- origin에 도달한 쓰기는 직후 미러 재독이 실패해도 성공입니다 ([GDK-740]).
 - 이슈 대량 읽기가 다중 키와 `--keys -`를 받고 조용히 빠뜨리지 않으며, REST가
   CLI에 이미 있던 parent 쌍을 갖게 됐습니다 ([GDK-425], [GDK-328]).
 - 거절된 parent가 고를 수 있었던 에픽 이름을 댑니다 — 두 표면 모두
@@ -111,6 +112,10 @@ MCP 표면·웹 UI를 훑는 릴리스 전 감사로 닫았습니다.
   ([GDK-710]).
 - 좁히는 세 칸에서 Enter의 뜻이 하나입니다 — 내가 쓴 것을 더 넓은 검색으로
   가져간다 — 그리고 그 넓히기의 소유자는 하나입니다 ([GDK-727]).
+- 문구마다 키가 하나, 개념마다 단어가 하나입니다. 같은 버튼이 어디서 그려져도
+  같게 읽힙니다 ([GDK-730], [GDK-731], [GDK-735], [GDK-736]).
+- 빨리 끝난 읽기는 스켈레톤을 아예 그리지 않습니다. 깜빡임 방지 지연의 소유자가
+  하나가 되고 여섯 읽기 경로가 모두 그것을 씁니다 ([GDK-737]).
 
 ### MCP와 CLI 표면
 
@@ -129,6 +134,7 @@ MCP 표면·웹 UI를 훑는 릴리스 전 감사로 닫았습니다.
   Ctrl+W가 못 하는 것을 약속하지 않고, Windows가 알림을 보냈다고 거짓말하지
   않습니다 ([GDK-350], [GDK-353], [GDK-351], [GDK-349]).
 - wails 핀이 `v3.0.0-beta.12`로 올라갔습니다 ([GDK-639]).
+- Windows 창이 앱이 만든 앱 메뉴를 달고 나옵니다 ([GDK-700]).
 
 ### 감사한 네트워크 이음새
 
@@ -1001,4 +1007,11 @@ HTTP·sync·에이전트 계약.
 [GDK-727]: https://gadak.dev/backlog/#/?ks=GDK-727
 [GDK-738]: https://gadak.dev/backlog/#/?ks=GDK-738
 [GDK-739]: https://gadak.dev/backlog/#/?ks=GDK-739
+[GDK-740]: https://gadak.dev/backlog/#/?ks=GDK-740
+[GDK-737]: https://gadak.dev/backlog/#/?ks=GDK-737
+[GDK-736]: https://gadak.dev/backlog/#/?ks=GDK-736
+[GDK-735]: https://gadak.dev/backlog/#/?ks=GDK-735
+[GDK-731]: https://gadak.dev/backlog/#/?ks=GDK-731
+[GDK-730]: https://gadak.dev/backlog/#/?ks=GDK-730
+[GDK-700]: https://gadak.dev/backlog/#/?ks=GDK-700
 [GDK-742]: https://gadak.dev/backlog/#/?ks=GDK-742

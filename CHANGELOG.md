@@ -2,7 +2,7 @@
 
 <sub>English · <a href="CHANGELOG.ko.md">한국어</a></sub>
 
-## Unreleased
+## v0.17.0 — 2026-08-23
 
 The cycle where an agent's writes grew up. An issue now shows the PRs and
 commits that implement it, the write verbs learned the vocabulary a coding
@@ -36,6 +36,8 @@ seams, the MCP surface and the web UI.
   versions and components by name, keeping their ids ([GDK-509], [GDK-516],
   [GDK-517]).
 - `assign` accepts a name or accountId beside an email ([GDK-515]).
+- A write that reached the origin is a success even when the mirror could not
+  be re-read right after ([GDK-740]).
 - Bulk issue reads take many keys and `--keys -` with no silent drop, and
   REST gained the parent pair the CLI already had ([GDK-425], [GDK-328]).
 - A rejected parent names the epics you could have picked, on both surfaces
@@ -118,6 +120,10 @@ seams, the MCP surface and the web UI.
   the next load erases ([GDK-710]).
 - Enter means one thing in all three narrowing fields — take what I typed to
   the fuller search — and the widen has one owner ([GDK-727]).
+- Every phrase has one key and every concept one word, so a button reads the
+  same wherever it is drawn ([GDK-730], [GDK-731], [GDK-735], [GDK-736]).
+- A read that finishes quickly paints no skeleton at all: the anti-flash delay
+  has one owner and all six read paths use it ([GDK-737]).
 
 ### MCP and the CLI surface
 
@@ -136,6 +142,7 @@ seams, the MCP surface and the web UI.
   stops promising what it cannot do, and Windows no longer claims it notified
   you ([GDK-350], [GDK-353], [GDK-351], [GDK-349]).
 - The wails pin moves to `v3.0.0-beta.12` ([GDK-639]).
+- The Windows window carries the app menu the app builds ([GDK-700]).
 
 ### Network seams, audited
 
@@ -1044,4 +1051,11 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-727]: https://gadak.dev/backlog/#/?ks=GDK-727
 [GDK-738]: https://gadak.dev/backlog/#/?ks=GDK-738
 [GDK-739]: https://gadak.dev/backlog/#/?ks=GDK-739
+[GDK-740]: https://gadak.dev/backlog/#/?ks=GDK-740
+[GDK-737]: https://gadak.dev/backlog/#/?ks=GDK-737
+[GDK-736]: https://gadak.dev/backlog/#/?ks=GDK-736
+[GDK-735]: https://gadak.dev/backlog/#/?ks=GDK-735
+[GDK-731]: https://gadak.dev/backlog/#/?ks=GDK-731
+[GDK-730]: https://gadak.dev/backlog/#/?ks=GDK-730
+[GDK-700]: https://gadak.dev/backlog/#/?ks=GDK-700
 [GDK-742]: https://gadak.dev/backlog/#/?ks=GDK-742

@@ -97,7 +97,7 @@ gadak init && gadak sync    # Jira (and Confluence) -> ~/.gadak/gadak.db
 gadak serve                # http://gadak.localhost:7777
 ```
 
-> **Status: 0.16, still 0.x.** Sync, read API, write-through, desktop, web, CLI, and MCP are verified against a live site. Honest inventory: [`docs/STATE_OF_PLAY.md`](docs/STATE_OF_PLAY.md).
+> **Status: 0.17, still 0.x.** Sync, read API, write-through, desktop, web, CLI, and MCP are verified against a live site. Honest inventory: [`docs/STATE_OF_PLAY.md`](docs/STATE_OF_PLAY.md).
 
 ## Why
 
