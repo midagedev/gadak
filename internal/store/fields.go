@@ -298,26 +298,34 @@ func (db *DB) ComputeFieldUsage(ctx context.Context, aliases []string) ([]FieldU
 
 // HasCustomFieldKeysInRaw reports whether any stored raw document contains a
 // customfield_ key under fields. Used by `gadak fields --apply` to refuse when
-// the mirror was never synced with custom fields.
+// the mirror was never synced with custom fields. The substring probe runs in
+// SQL and stops at the first hit — the previous Go-side parse of every raw
+// document cost ~1.5 s of JSON unmarshal at 20k issues (measured 2026-08-23,
+// GDK-749). On a corpus with no custom fields the probe still walks every
+// document (~12 KB each), which is the price of an exact no.
 func (db *DB) HasCustomFieldKeysInRaw(ctx context.Context) (bool, error) {
-	found := false
-	err := db.ScanFieldFill(ctx, func(_ string, fieldVals map[string]json.RawMessage) error {
-		for id := range fieldVals {
-			if strings.HasPrefix(id, "customfield_") {
-				found = true
-				return errStopScan
-			}
-		}
-		return nil
-	})
-	if err == errStopScan {
-		return true, nil
+	const q = `SELECT EXISTS(SELECT 1 FROM issues WHERE instr(raw, 'customfield_') > 0 LIMIT 1)`
+	var found bool
+	if err := db.sql.QueryRowContext(ctx, q).Scan(&found); err != nil {
+		return false, err
 	}
-	return found, err
+	return found, nil
 }
 
-// errStopScan is a private sentinel to short-circuit ScanFieldFill.
-var errStopScan = fmt.Errorf("stop scan")
+// HasCustomFieldKeysInRawSampled is the doctor-hint twin of the probe above:
+// it looks at at most limit documents and reports whether any carried a
+// customfield_ key. A miss is not proof of absence — the hint it feeds says
+// "none seen", not "none exist" — but it keeps `gadak doctor` off the
+// whole-mirror path (GDK-749: the exact probe measured 600-860 ms on a
+// custom-field-free 20k mirror; fields --apply keeps the exact one).
+func (db *DB) HasCustomFieldKeysInRawSampled(ctx context.Context, limit int) (bool, error) {
+	const q = `SELECT EXISTS(SELECT 1 FROM (SELECT raw FROM issues LIMIT ?) WHERE instr(raw, 'customfield_') > 0)`
+	var found bool
+	if err := db.sql.QueryRowContext(ctx, q, limit).Scan(&found); err != nil {
+		return false, err
+	}
+	return found, nil
+}
 
 /* ── sync run history ── */
 

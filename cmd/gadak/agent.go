@@ -1288,11 +1288,25 @@ func searchJQL(query string, limit int, asJSON, emitOnly, force bool) error {
 	defer db.Close()
 	warnIfStale(db)
 
-	lites, err := db.IssueLites(context.Background())
+	// People first, from the narrow projection: the emit-only path (and a
+	// JQL that resolves to nothing) never needs the full row set this way
+	// (GDK-748).
+	peopleRows, err := db.QueryActorPeople(context.Background())
 	if err != nil {
 		return err
 	}
-	people := jql.PeopleFromIssues(jqlIssues(lites))
+	peopleIssues := make([]jql.Issue, len(peopleRows))
+	for i, p := range peopleRows {
+		peopleIssues[i] = jql.Issue{
+			Assignee:      p.AssigneeName,
+			AssigneeEmail: p.AssigneeEmail,
+			AssigneeID:    p.AssigneeID,
+			Reporter:      p.ReporterName,
+			ReporterEmail: p.ReporterEmail,
+			ReporterID:    p.ReporterID,
+		}
+	}
+	people := jql.PeopleFromIssues(peopleIssues)
 	jql.ResolvePeople(&parsed, people, opts.Email)
 
 	if emitOnly {
@@ -1309,6 +1323,12 @@ func searchJQL(query string, limit int, asJSON, emitOnly, force bool) error {
 		return fmt.Errorf("cannot apply JQL — %s", strings.Join(parsed.Unsupported, "; "))
 	}
 
+	// Matching does need the full rows, but only after the cheap exits above
+	// have passed.
+	lites, err := db.IssueLites(context.Background())
+	if err != nil {
+		return err
+	}
 	matched := make([]store.IssueLite, 0)
 	for _, l := range lites {
 		if jql.Match(jqlIssue(l), parsed.Filters) {

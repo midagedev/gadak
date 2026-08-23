@@ -357,9 +357,16 @@ func collectDoctor() doctorReport {
 	if rows, err := db.FieldUsage(ctx); err == nil {
 		rep.CustomFields.UsageRows = len(rows)
 	}
-	if has, err := db.HasCustomFieldKeysInRaw(ctx); err == nil {
-		rep.CustomFields.RawHasCustom = has
-		rep.CustomFields.rawScanned = true
+	// The raw probe reads whole documents (~12 KB each; 230 MB at 20k issues
+	// when no custom field exists — the exact-no case GDK-749). doctor's hint
+	// samples instead: a hit is actionable advice either way, and a miss says
+	// "none seen", which is all the hint ever claimed. `fields --apply` keeps
+	// the exact probe, where a false no would wrongly refuse a sync.
+	if rep.CustomFields.Mapped == 0 {
+		if has, err := db.HasCustomFieldKeysInRawSampled(ctx, doctorRawSampleLimit); err == nil {
+			rep.CustomFields.RawHasCustom = has
+			rep.CustomFields.rawScanned = true
+		}
 	}
 
 	return rep
@@ -470,6 +477,9 @@ func readClaudeMCPConfig(path string) (claudeMCPConfig, bool) {
 }
 
 const schemaAuditSampleCap = 3
+
+// doctorRawSampleLimit bounds doctor's raw customfield probe (GDK-749).
+const doctorRawSampleLimit = 500
 
 func collectSchemaAudit(db *store.DB) *doctorSchemaAudit {
 	got, err := db.SchemaAudit(context.Background())

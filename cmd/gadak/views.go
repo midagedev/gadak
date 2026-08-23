@@ -414,20 +414,20 @@ func peopleFromStore(db *store.DB) []jql.Person {
 	if db == nil {
 		return nil
 	}
-	lites, err := db.IssueLites(context.Background())
+	// Six narrow columns, not the whole IssueLite set (GDK-748).
+	people, err := db.QueryActorPeople(context.Background())
 	if err != nil {
 		return nil
 	}
-	issues := make([]jql.Issue, len(lites))
-	for i, l := range lites {
+	issues := make([]jql.Issue, len(people))
+	for i, p := range people {
 		issues[i] = jql.Issue{
-			ParentKey:     deref(l.ParentKey, ""),
-			Assignee:      deref(l.Assignee, ""),
-			AssigneeEmail: deref(l.AssigneeEmail, ""),
-			AssigneeID:    deref(l.AssigneeID, ""),
-			Reporter:      deref(l.Reporter, ""),
-			ReporterEmail: deref(l.ReporterEmail, ""),
-			ReporterID:    deref(l.ReporterID, ""),
+			Assignee:      p.AssigneeName,
+			AssigneeEmail: p.AssigneeEmail,
+			AssigneeID:    p.AssigneeID,
+			Reporter:      p.ReporterName,
+			ReporterEmail: p.ReporterEmail,
+			ReporterID:    p.ReporterID,
 		}
 	}
 	return jql.PeopleFromIssues(issues)

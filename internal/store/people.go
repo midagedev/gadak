@@ -143,6 +143,43 @@ type IssueActor struct {
 	Via       string // "comment" | "changelog" | "dev_link"
 }
 
+// ActorPerson is the assignee/reporter triple JQL people resolution needs —
+// the narrow projection PeopleFromIssues consumes, without IssueLite's
+// twenty-odd columns (GDK-748: loading full lites made every --jql path
+// pay a whole-mirror row scan).
+type ActorPerson struct {
+	AssigneeName  string
+	AssigneeEmail string
+	AssigneeID    string
+	ReporterName  string
+	ReporterEmail string
+	ReporterID    string
+}
+
+// QueryActorPeople streams the assignee/reporter columns across all issues.
+// It reads six narrow columns instead of the full IssueLite row set; the
+// JQL resolver deduplicates in memory (people count ≪ issue count).
+func (db *DB) QueryActorPeople(ctx context.Context) ([]ActorPerson, error) {
+	rows, err := db.sql.QueryContext(ctx, `
+		SELECT COALESCE(assignee, ''), COALESCE(assignee_email, ''), COALESCE(assignee_id, ''),
+		       COALESCE(reporter, ''), COALESCE(reporter_email, ''), COALESCE(reporter_id, '')
+		FROM issues`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []ActorPerson{}
+	for rows.Next() {
+		var p ActorPerson
+		if err := rows.Scan(&p.AssigneeName, &p.AssigneeEmail, &p.AssigneeID,
+			&p.ReporterName, &p.ReporterEmail, &p.ReporterID); err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
 // QueryIssueActors returns every (issue, actor) touch, unordered. The set is
 // small — bounded by comments + changelog + dev_links rows — and the caller
 // (buildView) only folds it into a map, so no LIMIT.
