@@ -281,7 +281,7 @@ gadak fields --apply                  # map in-use custom fields, then edit --fi
 
 # Custom-field writes: fields --apply → issue KEY --editmeta → edit --field alias=value
 
-gadak team export --out gadak-team.json   # share views, fieldMap, group rules (no credentials)
+gadak team export --out gadak-team.json   # share views, fields, group rules (no credentials)
 gadak team import gadak-team.json         # merge into this workspace; try --dry-run first
 
 gadak page create --space LOC --title "Retention notes" -m "first draft"

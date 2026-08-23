@@ -25,9 +25,8 @@ Full reference (defaults, floors, apply timing, hand-edit-only list):
 
 | Key | Purpose |
 | --- | --- |
-| `fieldMap` | Alias → Jira custom field id (e.g. `"severity": "customfield_10042"`). Synced into list rows under the alias. |
+| `fields` | FieldSpec[] (`alias`, `ids`, `role`, `kind`). Synced into list rows under the alias. Empty `kind` is display-only; a set `kind` enters the inline-edit allowlist. Auto-filled by `gadak fields --apply` / first full sync. |
 | `bodyFields` | Extra ADF custom field ids folded into FTS body text. |
-| `editableFields` | Alias → field id allowlist for inline edit UI. Empty → edit surfaces hidden. |
 | `groupRules` | Ordered rules (`projects` / `labels` / `components`) → group id for team views. |
 | `groupQuery` | Optional `SELECT`/`WITH` returning `(issue key, group)` for classification that does not fit those three lists. Runs when the derived view is rebuilt, not on a keystroke. Empty group = unclassified; NULL / missing key falls through to `groupRules`, then the assignee's member group. Site-specific `CASE` belongs here. |
 | `groupLabels` / `groupColors` / `productByGroup` | Display names and colors for those groups. |
@@ -72,10 +71,10 @@ like watches/favorites via the API).
 
 | We want… | Axis | How |
 | --- | --- | --- |
-| A custom field on the list / filters | **Config** | Map it in `fieldMap` (Settings → field map). |
+| A custom field on the list / filters | **Config** | Pin it in `fields` (Settings → Fields) or run `gadak fields --apply`. |
 | “My team’s board” without Jira boards | **Config** | `groupRules` + `features.teamGroups`. |
 | Classification that needs regex, exclusions, custom fields | **Config** | `groupQuery` — one SQL statement over `issues_full` / `json_each`. Do not grow `groupRules`. |
-| Inline edit of a few fields | **Config** | `editableFields` allowlist + stored credential. |
+| Inline edit of a few fields | **Config** | Set `kind` on the spec in `fields` + stored credential. Empty `kind` is display-only. |
 | Deploy badge / “is it in prod?” | **Enrichment** | `kind=deploy` — start from [deploy-status](../examples/plugins/deploy-status/). |
 | PR links on the issue | **Core / Enrichment** | Core: `dev_links` / `gadak dev`. Plugin `kind=prs` is extra metadata — [github-prs](../examples/plugins/github-prs/). |
 | QA impact column | **Enrichment** | `kind=qa` + `features.qa` (shape in [`PLUGINS.md`](PLUGINS.md)). |

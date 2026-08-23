@@ -2,7 +2,6 @@
   /* Custom fields: what discovery found, and the hand-written aliases. */
   import { t } from '../../lib/i18n'
   import Icon from '../ui/Icon.svelte'
-  import KeyValueRows from './KeyValueRows.svelte'
   import { INPUT, SELECT, SELECT_CHEVRON } from './controls'
   import type { SettingsDraft } from './draft'
 
@@ -81,30 +80,6 @@
       {/if}
     </div>
   {/if}
-  <div class="flex flex-col gap-1.5">
-    <div class="text-micro font-medium uppercase tracking-wide text-text-muted">
-      {t('settings.fieldMap')}
-    </div>
-    <KeyValueRows
-      bind:rows={draft.fieldMap}
-      keyLabel={t('settings.alias')}
-      valueLabel={t('settings.jiraFieldId')}
-      keyPlaceholder="severity"
-      valuePlaceholder="customfield_10050"
-    />
-  </div>
-  <div class="flex flex-col gap-1.5">
-    <div class="text-micro font-medium uppercase tracking-wide text-text-muted">
-      {t('settings.editableFields')}
-    </div>
-    <KeyValueRows
-      bind:rows={draft.editableFields}
-      keyLabel={t('settings.alias')}
-      valueLabel={t('settings.jiraFieldId')}
-      keyPlaceholder="solution"
-      valuePlaceholder="customfield_10092"
-    />
-  </div>
   <label class="flex flex-col gap-1">
     <span class="text-micro text-text-secondary">
       {t('settings.adfSearchFields')}

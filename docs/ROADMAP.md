@@ -76,7 +76,7 @@ keeps an installed mirror alive or removes a reason not to try one.
   **our process's call volume**, not Jira's remaining shared point budget —
   the site still does not expose that.
 - ✅ **Field-bloat report** (`gadak fields`). Not a single SQL query: the mirror
-  only stores custom fields listed in `fieldMap`, so the command lists fields
+  only stores custom fields listed in `fields`, so the command lists fields
   from Jira (`GET /field`) and probes a stratified sample of mirrored issue
   keys with `fields=*all`. Rates are sample-based, not a site census.
 - ✅ **Custom-field auto-discovery** (v0.3.0). The first full sync fetches

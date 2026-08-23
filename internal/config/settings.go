@@ -547,15 +547,10 @@ func buildSettings() []Setting {
 		{
 			Path:        "fieldMap",
 			Root:        "fieldMap",
-			Description: "legacy alias→custom-field id map (synthesized into fields when fields is empty)",
+			Description: "legacy alias→custom-field id map; LoadFor synthesizes into fields and clears it (set refuses — use fields)",
 			Get:         func(c *Config) any { return stringMapOrEmpty(c.FieldMap) },
-			Set: func(c *Config, raw json.RawMessage) error {
-				v, err := decodeStringMap(raw, "fieldMap")
-				if err != nil {
-					return err
-				}
-				c.FieldMap = v
-				return nil
+			Set: func(*Config, json.RawMessage) error {
+				return fmt.Errorf(`use "fields" instead — fieldMap is a legacy shape that is migrated away on the next load`)
 			},
 		},
 		{
@@ -575,15 +570,10 @@ func buildSettings() []Setting {
 		{
 			Path:        "editableFields",
 			Root:        "editableFields",
-			Description: "legacy alias→field id write allowlist",
+			Description: "legacy alias→field id write allowlist; LoadFor overlays onto fields and clears it (set refuses — use fields)",
 			Get:         func(c *Config) any { return stringMapOrEmpty(c.EditableFields) },
-			Set: func(c *Config, raw json.RawMessage) error {
-				v, err := decodeStringMap(raw, "editableFields")
-				if err != nil {
-					return err
-				}
-				c.EditableFields = v
-				return nil
+			Set: func(*Config, json.RawMessage) error {
+				return fmt.Errorf(`use "fields" instead — editableFields is a legacy shape that is migrated away on the next load`)
 			},
 		},
 		{

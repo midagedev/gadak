@@ -18,10 +18,6 @@ import type { GadakSettings, SettingsFieldSpec } from '../../lib/api'
 import type { GadakFeatures } from '../../lib/config'
 import type { MessageKey } from '../../lib/i18n'
 
-export interface Kv {
-  k: string
-  v: string
-}
 export interface GroupRow {
   key: string
   label: string
@@ -77,8 +73,6 @@ export interface SettingsDraft {
   rules: RuleRow[]
   groupQuery: string
   members: MemberRow[]
-  fieldMap: Kv[]
-  editableFields: Kv[]
   bodyFieldsText: string
   /** Discovered field specs. */
   specs: SettingsFieldSpec[]
@@ -117,17 +111,6 @@ const NO_FEATURES: FeatureFlags = {
 
 const splitCsv = (s: string): string[] => s.split(',').map((v) => v.trim()).filter(Boolean)
 const joinCsv = (a: string[] | undefined): string => (a ?? []).join(', ')
-const kvRows = (r: Record<string, string> | undefined): Kv[] =>
-  Object.entries(r ?? {}).map(([k, v]) => ({ k, v }))
-
-function rec(rows: Kv[]): Record<string, string> {
-  const out: Record<string, string> = {}
-  for (const row of rows) {
-    const k = row.k.trim()
-    if (k) out[k] = row.v.trim()
-  }
-  return out
-}
 
 function pickPreset(sec: number, presets: { value: number }[]): number {
   if (!sec || sec <= 0) return 0
@@ -195,8 +178,6 @@ export function toDraft(s: GadakSettings, features: FeatureFlags = NO_FEATURES):
       jira_account_id: m.jira_account_id ?? '',
       avatar_url: m.avatar_url ?? '',
     })),
-    fieldMap: kvRows(s.fieldMap),
-    editableFields: kvRows(s.editableFields),
     bodyFieldsText: joinCsv(s.bodyFields),
     specs: (s.fieldSpecs ?? []).map((sp) => ({ ...sp, ids: [...sp.ids] })),
     specsTouched: false,
@@ -264,8 +245,6 @@ export function toSettings(d: SettingsDraft, projectsPickerReady: boolean): Gada
     members: d.members
       .filter((m) => m.email.trim())
       .map((m) => ({ ...m, email: m.email.trim() })),
-    fieldMap: rec(d.fieldMap),
-    editableFields: rec(d.editableFields),
     bodyFields: splitCsv(d.bodyFieldsText),
     // Only when touched: the server treats absence as "keep discovery output".
     ...(d.specsTouched && d.specsSupported

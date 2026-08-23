@@ -907,26 +907,6 @@ export const settings = {
     ko: '제거',
     ja: '削除',
   },
-  'settings.fieldMap': {
-    en: 'Field map (sync ingest)',
-    ko: '필드 맵 (동기화 적재)',
-    ja: 'フィールドマップ（同期取り込み）',
-  },
-  'settings.alias': {
-    en: 'Alias',
-    ko: '별칭',
-    ja: 'エイリアス',
-  },
-  'settings.jiraFieldId': {
-    en: 'Jira field id',
-    ko: 'Jira 필드 id',
-    ja: 'Jira フィールド id',
-  },
-  'settings.editableFields': {
-    en: 'Inline-editable fields',
-    ko: '인라인 편집 허용 필드',
-    ja: 'インライン編集できるフィールド',
-  },
   'settings.adfSearchFields': {
     en: 'ADF custom field ids to include in body search (comma-separated)',
     ko: '본문 검색에 합칠 ADF 커스텀필드 id (콤마 구분)',

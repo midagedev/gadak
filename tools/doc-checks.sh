@@ -1382,4 +1382,72 @@ if [[ -n "$changelog_keys" ]]; then
 fi
 ok "CHANGELOG.md and CHANGELOG.ko.md cite the same keys per section; every citation has a gadak.dev tail"
 
+# ── 28. Docs do not teach leftover fieldMap / editableFields as current ──
+# Class: compatibility path whose old *editing* surface no longer exists.
+# LoadFor.NormalizeLegacyFields folds leftover fieldMap/editableFields into
+# fields and clears them, so Settings editors and `gadak config set fieldMap`
+# plant a value the next load erases. Migration prose may still name the keys.
+#
+# Allowed: the words fieldMap / editableFields next to legacy / migrat /
+# leftover / unmarshal (LoadFor, team-import of old files, "when fields is
+# empty, leftover maps are synthesized").
+#
+# Forbidden — method-teaching, the incident:
+#   1. `gadak config set fieldMap` / `gadak config set editableFields`
+#   2. a markdown table row whose first cell is fieldMap or editableFields
+#      without legacy/migrat/leftover on that row (EXTENDING.md's config-key
+#      table listed them as current keys)
+#   3. that leftover-key row still naming Settings as where to edit it
+#      (the Fields tab no longer draws those editors)
+#   4. "Map it in `fieldMap`" / "`editableFields` allowlist" as a how-to
+#   5. a team-export example or shared-keys cell that lists fieldMap as
+#      something export writes (export copies Fields; FieldMap is
+#      unmarshal-only on old team files)
+#
+# FAIL-first 2026-08-23 against the unmodified tree: docs/EXTENDING.md:28,30,75,78
+# docs/MIRROR.md:284 docs/CONFIGURATION.md:124,126,289.
+legacy_fieldmap=$(
+  python3 - <<'GDK710PY'
+from pathlib import Path
+import re
+
+set_re = re.compile(r"gadak config set (?:fieldMap|editableFields)\b")
+map_it_re = re.compile(r"Map it in `fieldMap`")
+allowlist_re = re.compile(r"`editableFields` allowlist")
+export_re = re.compile(r"team export.*fieldMap")
+shared_re = re.compile(r"`fields`,\s*`fieldMap`")
+row_re = re.compile(r"^\|\s*`?(fieldMap|editableFields)`?\s*\|")
+legacy_ok = re.compile(r"legacy|migrat|leftover|unmarshal", re.I)
+settings_edit = re.compile(r"Settings\s*→")
+
+fails = []
+for path in sorted(Path("docs").rglob("*.md")):
+    for i, line in enumerate(path.read_text().splitlines(), 1):
+        loc = f"{path}:{i}"
+        if set_re.search(line):
+            fails.append(f"{loc}: teaches `gadak config set` of a leftover key")
+        if map_it_re.search(line):
+            fails.append(f"{loc}: recipe still says Map it in fieldMap")
+        if allowlist_re.search(line):
+            fails.append(f"{loc}: recipe still names editableFields allowlist as the method")
+        if export_re.search(line):
+            fails.append(f"{loc}: team export example names fieldMap as a shared setting (export writes Fields)")
+        if shared_re.search(line) and not legacy_ok.search(line):
+            fails.append(f"{loc}: shared-keys list still includes fieldMap as currently exported")
+        m = row_re.match(line)
+        if m:
+            if not legacy_ok.search(line):
+                fails.append(f"{loc}: table lists `{m.group(1)}` as a current config key")
+            elif settings_edit.search(line):
+                fails.append(f"{loc}: leftover key still lists Settings as where to edit it")
+
+if fails:
+    print("\n".join(fails))
+GDK710PY
+)
+if [[ -n "$legacy_fieldmap" ]]; then
+  fail "docs still teach leftover fieldMap/editableFields as the current method:"$'\n'"$legacy_fieldmap"
+fi
+ok "docs do not teach leftover fieldMap/editableFields as the current field-mapping method"
+
 echo "doc-checks: all passed"

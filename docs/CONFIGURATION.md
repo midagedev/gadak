@@ -36,7 +36,7 @@ style. Existing names stay; do not rename a field to "fix" the mix.
 
 | Layer | Where | Convention | Examples |
 | --- | --- | --- | --- |
-| On-disk config | `~/.gadak/config.json` (`internal/config/config.go`) | New keys follow the file's existing camelCase. A few keys are already snake_case; leave them. | camelCase: `tokenVerifiedAt`, `fieldMap`. Existing snake_case: `account_id`, `display_name`. |
+| On-disk config | `~/.gadak/config.json` (`internal/config/config.go`) | New keys follow the file's existing camelCase. A few keys are already snake_case; leave them. | camelCase: `tokenVerifiedAt`, `fields`. Existing snake_case: `account_id`, `display_name`. |
 | Issue/read HTTP | `specs/000-product/contracts/api.md` (`IssueLite`, detail, feed) | New fields are snake_case. | Wire `issue_key`; the SQL column is `key`. |
 | SQL | `gadak.db` (`specs/000-product/data-model.md`) | Documented column names. | `issues.key`, `items.key` |
 
@@ -121,9 +121,9 @@ and `hasCredential` on the body are ignored.
 | `appearance.theme` | string | empty → **system** | Settings theme picker / `gadak config set appearance.theme` | Immediate after reload; shape `[a-z0-9-]{1,32}` (see above) |
 | `projects` | string[] | `[]` (empty = every project this account can see) | Settings → Sources / `gadak init` / `gadak config set projects` | Next sync / list scope; UI reload after save |
 | `fields` | FieldSpec[] | `[]` | Auto on first full sync / `gadak fields --apply` / `gadak config set fields` (read-only on Settings GET as `fieldSpecs`) | Next sync ingest; `fieldUsage` on Settings is project→alias fill counts |
-| `fieldMap` | map alias→field id | `{}` | Settings → Field mapping / `gadak config` (legacy; synthesized into `fields` when `fields` is empty) | Next sync ingest |
-| `bodyFields` | string[] (field ids) | `[]` | Settings → Field mapping / `gadak config` | Next sync (FTS body); additive with role=body specs |
-| `editableFields` | map alias→field id | `{}` | Settings → Field mapping / `gadak config` (legacy; Kind-bearing specs also enable inline edit) | Immediate |
+| `fieldMap` | map alias→field id | `{}` | leftover; LoadFor migrates into `fields` and clears it. Not settable. | migrated on load |
+| `bodyFields` | string[] (field ids) | `[]` | Settings → Fields / `gadak config` | Next sync (FTS body); additive with role=body specs |
+| `editableFields` | map alias→field id | `{}` | leftover; LoadFor overlays onto `fields` (legacy wins per alias) and clears it. Not settable. | migrated on load |
 | `members` | Member[] | `[]` | Settings → Members / `gadak config` | Immediate (cached projection invalidated) |
 | `groupRules` | GroupRule[] | `[]` | Settings → Teams / `gadak config` | Immediate |
 | `groupQuery` | string (SQL) | `""` | Settings → Teams / `gadak config set groupQuery` | Immediate (derived view rebuild) |
@@ -279,14 +279,14 @@ a ready-to-paste `sqlite3 <dbPath>`).
 
 Teams can commit a single file (for example `gadak-team.json` in a repo) so a new
 member runs `gadak init` then `gadak team import gadak-team.json` and gets the same
-views, field map, and group rules. Export is **whitelist-only**: new `Config`
+views, fields, and group rules. Export is **whitelist-only**: new `Config`
 fields never leave the machine until someone explicitly adds them to the share
 list. Credentials and per-machine prefs are never included.
 
 | Shared (export / import) | Not shared |
 | --- | --- |
 | `projects` | `site`, `email`, `token` |
-| `fields`, `fieldMap`, `bodyFields`, `editableFields` | `account_id`, `tokenOwner`, `tokenVerifiedAt` |
+| `fields`, `bodyFields` | `account_id`, `tokenOwner`, `tokenVerifiedAt` |
 | `groupRules`, `groupQuery`, `groupLabels`, `groupColors`, `productByGroup` | `syncIntervalSec`, `reconcileIntervalSec` |
 | `features`, `qaDashboardUrl`, `staleThresholdHours` | `notify`, `updateCheck`, `attachmentCacheMB` |
 | `members` only with `export --with-members` (emails; stderr warns) | personal machine intervals / notification prefs |
@@ -296,6 +296,8 @@ Import **merges** by default (fill empty settings keys; add views only when the
 name is new). `--overwrite` replaces conflicts. Prefer
 `gadak team import FILE --dry-run` first. A file that contains credential keys
 (`site` / `token` / …) is rejected — do not hand-edit secrets into a share file.
+Import still converts leftover `fieldMap` / `editableFields` in old team files
+into `fields`.
 
 ---
 
