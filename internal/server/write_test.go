@@ -31,6 +31,7 @@ import (
 	"github.com/midagedev/gadak/internal/pairing"
 	"github.com/midagedev/gadak/internal/store"
 	"github.com/midagedev/gadak/internal/sync"
+	"github.com/midagedev/gadak/internal/transition"
 )
 
 // fakeJira is enough of Jira Cloud to drive the write-through paths, and it
@@ -2646,6 +2647,65 @@ func TestFailJiraMapsOriginHTTP(t *testing.T) {
 				if !strings.Contains(msg, "stale version") {
 					t.Fatalf("message %q, want the origin snippet", msg)
 				}
+			}
+		})
+	}
+}
+
+// GDK-685: capability refusals and transition.IsRefused must 400 with the
+// origin/resolver sentence, not 502 jira_unavailable. Transport stays 502.
+func TestFailJiraMapsUnsupportedAndRefused(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, apiBase+"ISSUE-1/edit/", nil)
+	unsupportedSentence := `linear: field "labels" is not editable on this origin`
+	refusedSentence := "no transition matching nonsense"
+	cases := []struct {
+		name       string
+		err        error
+		wantStatus int
+		wantError  string
+		contains   string
+	}{
+		{
+			name:       "ErrUnsupported keeps the origin sentence",
+			err:        fmt.Errorf("%s: %w", unsupportedSentence, origin.ErrUnsupported),
+			wantStatus: http.StatusBadRequest,
+			contains:   unsupportedSentence,
+		},
+		{
+			name:       "ErrNoIssueLinks is ErrUnsupported",
+			err:        origin.ErrNoIssueLinks,
+			wantStatus: http.StatusBadRequest,
+			wantError:  "linear: issue links are not supported on this origin",
+		},
+		{
+			name:       "transition.IsRefused without jira.APIError wrap",
+			err:        &transition.Refused{Msg: refusedSentence},
+			wantStatus: http.StatusBadRequest,
+			contains:   refusedSentence,
+		},
+		{
+			name:       "transport stays 502 jira_unavailable",
+			err:        fmt.Errorf("connection refused"),
+			wantStatus: http.StatusBadGateway,
+			wantError:  "jira_unavailable",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			failJira(rec, req, nil, tc.err)
+			if rec.Code != tc.wantStatus {
+				t.Fatalf("status %d, want %d; body %s", rec.Code, tc.wantStatus, rec.Body.String())
+			}
+			got := wikiErrorCode(t, rec)
+			if tc.wantError != "" && got != tc.wantError {
+				t.Fatalf("error %q, want %q; body %s", got, tc.wantError, rec.Body.String())
+			}
+			if tc.contains != "" && !strings.Contains(got, tc.contains) {
+				t.Fatalf("error %q, want it to contain %q; body %s", got, tc.contains, rec.Body.String())
+			}
+			if tc.wantStatus == http.StatusBadRequest && got == "jira_unavailable" {
+				t.Fatalf("capability/refusal collapsed to jira_unavailable: %s", rec.Body.String())
 			}
 		})
 	}

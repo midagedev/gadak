@@ -142,6 +142,17 @@ func failJira(w http.ResponseWriter, r *http.Request, cfg *config.Config, err er
 			"error":   "origin_rejected",
 			"message": msg,
 		})
+	case errors.Is(err, origin.ErrUnsupported):
+		// Origin is up and answered "I cannot do that". Not 502, and not
+		// a code that says the origin is down — the sentence stays in
+		// `error` (same shape as link.go).
+		log.Printf("server: write refused origin capability: %v", err)
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+	case transition.IsRefused(err):
+		// Caller-side refusal (bad identifier, missing required screen
+		// field, unknown resolution). Origin was not written. Same 400
+		// shape handleTransition used to forge as jira.APIError.
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 	default:
 		log.Printf("server: %s %s: %v", r.Method, r.URL.Path, err)
 		fail(w, http.StatusBadGateway, "jira_unavailable")
@@ -581,11 +592,6 @@ func (s *server) handleTransition(w http.ResponseWriter, r *http.Request) {
 			Fields:     body.Fields,
 			Comment:    body.Comment,
 		})
-		if err != nil && transition.IsRefused(err) {
-			// Same 400 shape failJira gives Jira's rejections: identifier
-			// miss, required screen field, unknown resolution name.
-			return nil, &jira.APIError{Status: http.StatusBadRequest, Messages: []string{err.Error()}}
-		}
 		if err != nil {
 			return nil, err
 		}

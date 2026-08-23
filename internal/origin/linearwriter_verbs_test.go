@@ -3,6 +3,8 @@ package origin
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -616,5 +618,123 @@ func TestUploadStoragePutUsesClientHTTP(t *testing.T) {
 	}
 	if !put {
 		t.Fatalf("storage PUT bypassed w.c.HTTP (http.DefaultClient?); client carried: %v", carried)
+	}
+}
+
+// GDK-685: every Linear capability refusal wraps ErrUnsupported so failJira
+// can 400 with the origin's sentence instead of 502 jira_unavailable.
+func TestLinearCapabilityRefusalsWrapErrUnsupported(t *testing.T) {
+	w, rec := testLinearWriter(t)
+	ctx := context.Background()
+	adf := json.RawMessage(`{"type":"doc","version":1,"content":[]}`)
+	vis := &jira.CommentVisibility{Type: "role", Value: "Administrators"}
+	base := map[string]any{"project": map[string]any{"key": "FIX"}, "summary": "probe"}
+
+	cases := []struct {
+		name string
+		call func() error
+		want string
+	}{
+		{"transition-screen-fields", func() error {
+			return w.Transition(ctx, "FIX-1", "state-1", map[string]any{"resolution": map[string]string{"id": "1"}}, nil)
+		}, "linear transitions do not carry screen fields"},
+		{"transition-comment", func() error {
+			return w.Transition(ctx, "FIX-1", "state-1", nil, adf)
+		}, "linear transitions do not carry screen fields"},
+		{"comment-visibility", func() error {
+			_, err := w.AddComment(ctx, "FIX-1", adf, vis, false)
+			return err
+		}, "linear comments do not support visibility or internal"},
+		{"comment-internal", func() error {
+			_, err := w.AddComment(ctx, "FIX-1", adf, nil, true)
+			return err
+		}, "linear comments do not support visibility or internal"},
+		{"due-date-clear", func() error {
+			return w.UpdateFields(ctx, "FIX-1", map[string]any{"duedate": nil})
+		}, "linear: clearing a due date is not supported yet"},
+		{"field-not-editable", func() error {
+			return w.UpdateFields(ctx, "FIX-1", map[string]any{"labels": []string{"bug"}})
+		}, `linear: field "labels" is not editable on this origin`},
+		{"label-add-remove", func() error {
+			return w.EditIssue(ctx, "FIX-1", map[string]any{"summary": "x"}, map[string]any{"labels": []any{map[string]any{"add": "bug"}}})
+		}, "linear: label add/remove operations are not supported on this origin yet"},
+		{"create-assignee", func() error {
+			_, err := w.CreateIssue(ctx, map[string]any{"project": base["project"], "summary": base["summary"], "assignee": "x"})
+			return err
+		}, `linear: field "assignee" is not supported on create`},
+		{"create-labels", func() error {
+			_, err := w.CreateIssue(ctx, map[string]any{"project": base["project"], "summary": base["summary"], "labels": "x"})
+			return err
+		}, `linear: field "labels" is not supported on create`},
+		{"create-parent", func() error {
+			_, err := w.CreateIssue(ctx, map[string]any{"project": base["project"], "summary": base["summary"], "parent": "x"})
+			return err
+		}, `linear: field "parent" is not supported on create`},
+		{"create-issuetype", func() error {
+			_, err := w.CreateIssue(ctx, map[string]any{"project": base["project"], "summary": base["summary"], "issuetype": "x"})
+			return err
+		}, `linear: field "issuetype" is not supported on create`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.call()
+			if err == nil {
+				t.Fatal("want a capability refusal")
+			}
+			if err.Error() != tc.want {
+				t.Errorf("sentence %q, want %q", err.Error(), tc.want)
+			}
+			if !errors.Is(err, ErrUnsupported) {
+				t.Errorf("errors.Is(err, ErrUnsupported)=false; %v", err)
+			}
+		})
+	}
+	if rec.creates != 0 || rec.updates != 0 || rec.comments != 0 {
+		t.Errorf("capability refuse must stay local; creates=%d updates=%d comments=%d", rec.creates, rec.updates, rec.comments)
+	}
+}
+
+// GDK-685: wrapping ErrNo* with ErrUnsupported must not break errors.Is on
+// the face sentinels themselves, and Error() stays the original sentence.
+func TestErrNoSentinelsWrapErrUnsupported(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{"versions", ErrNoVersionCatalog, "linear: project versions are not supported on this origin"},
+		{"links", ErrNoIssueLinks, "linear: issue links are not supported on this origin"},
+		{"create fields", ErrNoCreateFields, "linear: create-time field metadata is not supported on this origin"},
+		{"media", ErrNoMediaRef, "linear: inline comment media is not supported; the file is attached to the issue"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.err.Error() != tc.want {
+				t.Errorf("Error() %q, want %q", tc.err.Error(), tc.want)
+			}
+			if !errors.Is(tc.err, tc.err) {
+				t.Errorf("%v does not match itself via errors.Is", tc.err)
+			}
+			if !errors.Is(tc.err, ErrUnsupported) {
+				t.Errorf("%v does not wrap ErrUnsupported", tc.err)
+			}
+			wrapped := fmt.Errorf("as: %w", tc.err)
+			if !errors.Is(wrapped, tc.err) {
+				t.Errorf("wrapped %v no longer matches itself", tc.err)
+			}
+			if !errors.Is(wrapped, ErrUnsupported) {
+				t.Errorf("wrapped %v does not wrap ErrUnsupported", tc.err)
+			}
+			if !strings.Contains(wrapped.Error(), tc.want) {
+				t.Errorf("wrapped Error() %q lost the original sentence", wrapped.Error())
+			}
+		})
+	}
+
+	w, _ := testLinearWriter(t)
+	if _, err := AsIssueLinker(w); !errors.Is(err, ErrNoIssueLinks) {
+		t.Errorf("AsIssueLinker err %v, want errors.Is ErrNoIssueLinks", err)
+	} else if !errors.Is(err, ErrUnsupported) {
+		t.Errorf("AsIssueLinker err %v, want errors.Is ErrUnsupported", err)
 	}
 }

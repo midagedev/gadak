@@ -70,7 +70,7 @@ func (w *linearWriter) Transitions(ctx context.Context, key string) ([]Transitio
 
 func (w *linearWriter) Transition(ctx context.Context, key, transitionID string, fields map[string]any, comment json.RawMessage) error {
 	if len(fields) > 0 || len(comment) > 0 {
-		return fmt.Errorf("linear transitions do not carry screen fields")
+		return unsupported("linear transitions do not carry screen fields")
 	}
 	iss, err := w.resolve(ctx, key)
 	if err != nil {
@@ -82,7 +82,7 @@ func (w *linearWriter) Transition(ctx context.Context, key, transitionID string,
 
 func (w *linearWriter) AddComment(ctx context.Context, key string, body json.RawMessage, visibility *CommentVisibility, internal bool) (Comment, error) {
 	if visibility != nil || internal {
-		return Comment{}, fmt.Errorf("linear comments do not support visibility or internal")
+		return Comment{}, unsupported("linear comments do not support visibility or internal")
 	}
 	iss, err := w.resolve(ctx, key)
 	if err != nil {
@@ -168,7 +168,7 @@ func (w *linearWriter) UpdateFields(ctx context.Context, key string, fields map[
 			upd.Priority = &p
 		case "duedate":
 			if v == nil {
-				return fmt.Errorf("linear: clearing a due date is not supported yet")
+				return unsupported("linear: clearing a due date is not supported yet")
 			}
 			s, err := stringField("duedate", v)
 			if err != nil {
@@ -176,7 +176,7 @@ func (w *linearWriter) UpdateFields(ctx context.Context, key string, fields map[
 			}
 			upd.DueDate = &s
 		default:
-			return fmt.Errorf("linear: field %q is not editable on this origin", name)
+			return unsupportedf("linear: field %q is not editable on this origin", name)
 		}
 	}
 	_, err = w.c.UpdateIssue(ctx, iss.ID, upd)
@@ -189,7 +189,7 @@ func (w *linearWriter) UpdateFields(ctx context.Context, key string, fields map[
 // half-applied.
 func (w *linearWriter) EditIssue(ctx context.Context, key string, fields, update map[string]any) error {
 	if len(update) > 0 {
-		return fmt.Errorf("linear: label add/remove operations are not supported on this origin yet")
+		return unsupported("linear: label add/remove operations are not supported on this origin yet")
 	}
 	return w.UpdateFields(ctx, key, fields)
 }
@@ -247,7 +247,7 @@ func priorityID(v any) (int, error) {
 func (w *linearWriter) CreateIssue(ctx context.Context, fields map[string]any) (string, error) {
 	for _, name := range []string{"assignee", "labels", "parent", "issuetype"} {
 		if _, ok := fields[name]; ok {
-			return "", fmt.Errorf("linear: field %q is not supported on create", name)
+			return "", unsupportedf("linear: field %q is not supported on create", name)
 		}
 	}
 	teamKey := ""

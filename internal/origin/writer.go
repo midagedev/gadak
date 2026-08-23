@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 
 	"github.com/midagedev/gadak/internal/config"
@@ -81,12 +82,39 @@ type MediaRef interface {
 
 // These strings were the linearWriter stubs' Error() values. Callers that
 // type-assert a missing face must return the same text (GDK-641).
+//
+// ErrUnsupported is the cause of that whole class: a permanent "this origin
+// cannot do that", distinct from a transport failure. failJira branches on
+// it. The four ErrNo* wrap it so errors.Is(err, ErrUnsupported) is true
+// while errors.Is(err, ErrNoIssueLinks) (and the other three) keep matching
+// and Error() stays the original sentence (GDK-685).
 var (
-	ErrNoVersionCatalog = errors.New("linear: project versions are not supported on this origin")
-	ErrNoIssueLinks     = errors.New("linear: issue links are not supported on this origin")
-	ErrNoCreateFields   = errors.New("linear: create-time field metadata is not supported on this origin")
-	ErrNoMediaRef       = errors.New("linear: inline comment media is not supported; the file is attached to the issue")
+	ErrUnsupported      = errors.New("this origin does not support that")
+	ErrNoVersionCatalog = unsupported("linear: project versions are not supported on this origin")
+	ErrNoIssueLinks     = unsupported("linear: issue links are not supported on this origin")
+	ErrNoCreateFields   = unsupported("linear: create-time field metadata is not supported on this origin")
+	ErrNoMediaRef       = unsupported("linear: inline comment media is not supported; the file is attached to the issue")
 )
+
+// unsupportedError is a capability refusal whose Error() is the origin's
+// sentence and whose cause is ErrUnsupported. fmt.Errorf("%w: …",
+// ErrUnsupported) would prefix the sentinel's text onto the sentence;
+// this type keeps Error() verbatim so existing errors.Is(err, ErrNo*)
+// and string matches stay true (GDK-685).
+type unsupportedError struct {
+	msg string
+}
+
+func (e *unsupportedError) Error() string { return e.msg }
+func (e *unsupportedError) Unwrap() error { return ErrUnsupported }
+
+func unsupported(msg string) error {
+	return &unsupportedError{msg: msg}
+}
+
+func unsupportedf(format string, args ...any) error {
+	return unsupported(fmt.Sprintf(format, args...))
+}
 
 // AsVersionCatalog returns w as VersionCatalog, or ErrNoVersionCatalog.
 func AsVersionCatalog(w Writer) (VersionCatalog, error) {
