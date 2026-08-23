@@ -1,5 +1,5 @@
 .PHONY: build test vet typecheck theme-check bench scan docker plugins-test \
-	media media-web media-search media-agent media-mcp media-prep media-deps brand \
+	media media-web media-search media-agent media-groupby media-mcp media-prep media-deps brand \
 	hosted-demo hosted-demo-test
 
 build:
@@ -80,11 +80,12 @@ brand:
 
 # media-mcp is deliberately not here: it needs vhs and a Claude Code login,
 # and every run spends the operator's own model quota. Re-take it on purpose.
-media: media-web media-search media-agent
+media: media-web media-search media-agent media-groupby
 	@echo "media: done → $(MEDIA_DIR)/  (mcp.gif: make media-mcp)"
 	@ls -lh $(MEDIA_DIR)/web-demo.gif $(MEDIA_DIR)/web-demo.mp4 \
 		$(MEDIA_DIR)/search.gif $(MEDIA_DIR)/search.mp4 \
-		$(MEDIA_DIR)/agent.gif $(MEDIA_DIR)/agent.mp4
+		$(MEDIA_DIR)/agent.gif $(MEDIA_DIR)/agent.mp4 \
+		$(MEDIA_DIR)/groupby.gif $(MEDIA_DIR)/groupby.mp4
 
 media-deps:
 	@command -v ffmpeg >/dev/null || { echo "media: ffmpeg required" >&2; exit 1; }
@@ -120,6 +121,13 @@ media-agent: media-deps
 	rm -rf e2e/demo/test-results-agent
 	GADAK_MEDIA=1 ./node_modules/.bin/playwright test --config e2e/demo/agent.config.ts
 	bash e2e/demo/export-agent.sh
+
+media-groupby: media-deps
+	@mkdir -p $(MEDIA_DIR)
+	@echo "media-groupby: recording group-by demo…"
+	rm -rf e2e/demo/test-results-groupby
+	GADAK_MEDIA=1 ./node_modules/.bin/playwright test --config e2e/demo/groupby.config.ts
+	bash e2e/demo/export-groupby.sh
 
 # Live Claude Code + gadak MCP (VHS). Requires vhs and a Claude Code login;
 # prepare-agent.sh copies credentials into /private/tmp/gadak-demo.
