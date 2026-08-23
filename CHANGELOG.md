@@ -116,6 +116,8 @@ seams, the MCP surface and the web UI.
 - The Fields tab stopped drawing a field-mapping editor that could never hold
   anything, and `gadak config set fieldMap` refuses instead of planting a key
   the next load erases ([GDK-710]).
+- Enter means one thing in all three narrowing fields — take what I typed to
+  the fuller search — and the widen has one owner ([GDK-727]).
 
 ### MCP and the CLI surface
 
@@ -145,6 +147,9 @@ seams, the MCP surface and the web UI.
   app ([GDK-664]).
 - A Linear-only workspace is a configured workspace, and Linear's rate limit
   is a retry rather than a death ([GDK-654], [GDK-263]).
+- The Web Push client is gone: it called endpoints the server pins at 404,
+  and vendor push services are outbound traffic this project does not make
+  ([GDK-711]).
 
 ### The public backlog, and a front door at gadak.dev
 
@@ -1035,6 +1040,8 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-685]: https://gadak.dev/backlog/#/?ks=GDK-685
 [GDK-692]: https://gadak.dev/backlog/#/?ks=GDK-692
 [GDK-710]: https://gadak.dev/backlog/#/?ks=GDK-710
+[GDK-711]: https://gadak.dev/backlog/#/?ks=GDK-711
+[GDK-727]: https://gadak.dev/backlog/#/?ks=GDK-727
 [GDK-738]: https://gadak.dev/backlog/#/?ks=GDK-738
 [GDK-739]: https://gadak.dev/backlog/#/?ks=GDK-739
 [GDK-742]: https://gadak.dev/backlog/#/?ks=GDK-742

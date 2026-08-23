@@ -109,6 +109,8 @@ MCP 표면·웹 UI를 훑는 릴리스 전 감사로 닫았습니다.
 - Fields 탭이 아무것도 담을 수 없던 필드 매핑 편집기를 그리지 않고,
   `gadak config set fieldMap`은 다음 로드가 지울 키를 심는 대신 거절합니다
   ([GDK-710]).
+- 좁히는 세 칸에서 Enter의 뜻이 하나입니다 — 내가 쓴 것을 더 넓은 검색으로
+  가져간다 — 그리고 그 넓히기의 소유자는 하나입니다 ([GDK-727]).
 
 ### MCP와 CLI 표면
 
@@ -138,6 +140,9 @@ MCP 표면·웹 UI를 훑는 릴리스 전 감사로 닫았습니다.
   공유합니다 ([GDK-664]).
 - Linear 전용 워크스페이스도 설정된 워크스페이스이고, Linear의 rate limit은
   죽음이 아니라 재시도입니다 ([GDK-654], [GDK-263]).
+- Web Push 클라이언트를 없앴습니다: 서버가 404로 고정한 엔드포인트를 치고
+  있었고, 벤더 푸시 서비스는 이 제품이 하지 않는 아웃바운드입니다
+  ([GDK-711]).
 
 ### 공개 백로그, 그리고 gadak.dev의 현관
 
@@ -992,6 +997,8 @@ HTTP·sync·에이전트 계약.
 [GDK-685]: https://gadak.dev/backlog/#/?ks=GDK-685
 [GDK-692]: https://gadak.dev/backlog/#/?ks=GDK-692
 [GDK-710]: https://gadak.dev/backlog/#/?ks=GDK-710
+[GDK-711]: https://gadak.dev/backlog/#/?ks=GDK-711
+[GDK-727]: https://gadak.dev/backlog/#/?ks=GDK-727
 [GDK-738]: https://gadak.dev/backlog/#/?ks=GDK-738
 [GDK-739]: https://gadak.dev/backlog/#/?ks=GDK-739
 [GDK-742]: https://gadak.dev/backlog/#/?ks=GDK-742
