@@ -676,6 +676,17 @@
   조용히 멈췄습니다. 재진입 정책의 소유자는 이제 `syncer.WatchLoop`
   하나이고, 네 호출자 전부가 그것을 쓰며, AST 테스트가 데스크톱을 루프에
   고정합니다.
+- **부팅 시퀀스에 소유자가 하나 생겼습니다** ([GDK-664]). `gadak serve`와
+  데스크톱 앱은 같은 시작 절차 — config, store, 첨부 캐시, standalone
+  persist, advertise, watch 루프, 버전 스탬프 — 를 각자 복사해 들고
+  있었고, 그 사본들은 사고 하나마다 조금씩 어긋났습니다([GDK-644],
+  [GDK-658], [GDK-663]이 전부 두-사본 버그였습니다). 시퀀스는 이제
+  `internal/apprun`에 살고, 의도된 순서 차이 둘은 병합된 순서가 아니라
+  옵션으로 남습니다 — serve의 라이브 소유자 확인은 여전히 persist 락보다
+  먼저 돌고([GDK-468]), 데스크톱은 여전히 wails 단일 인스턴스가 두 번째
+  실행을 persist 획득 전에 종료시킵니다([GDK-658]). 시퀀스 계약은 main별
+  AST 테스트에서 apprun 자체 테스트로 옮겨졌고, 데스크톱 테스트는 호출자가
+  호출해 들어온다는 것만 고정합니다.
 - `warnIfStale`은 두 번째 연결을 열지 않고 호출자의 연결을 읽고
   ([GDK-314]), 스킬 감지는 설치기와 같은 방식으로 home을 해석하며
   ([GDK-352]), `ci-status`는 기본 브랜치 push 런만 평결로 칩니다
@@ -2516,3 +2527,5 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-668]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-668
 [GDK-671]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-671
 [GDK-678]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-678
+
+[GDK-664]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-664

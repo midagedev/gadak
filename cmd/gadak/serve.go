@@ -15,13 +15,9 @@ import (
 	"time"
 
 	gadak "github.com/midagedev/gadak"
-	"github.com/midagedev/gadak/internal/attachcache"
+	"github.com/midagedev/gadak/internal/apprun"
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/origin"
-	"github.com/midagedev/gadak/internal/server"
-	"github.com/midagedev/gadak/internal/store"
-	syncer "github.com/midagedev/gadak/internal/sync"
-	"github.com/midagedev/gadak/internal/workspace"
 )
 
 // serveOpts is the parsed serve CLI surface. cmdServe only parses flags and
@@ -95,21 +91,6 @@ func isLoopback(host string) bool {
 	return ip != nil && ip.IsLoopback()
 }
 
-// newServeAPI builds the primary API handler. Attachment bytes live on disk
-// next to the mirror: the first view fetches them from Jira, every later one
-// is local, and a cached image still renders with no credential at all.
-func newServeAPI(db *store.DB, cfg *config.Config) *server.Handler {
-	if dir, err := config.AttachmentDir(); err != nil {
-		log.Printf("warning: attachment cache disabled: %v", err)
-		return server.New(db, cfg)
-	} else if cache, err := attachcache.New(dir, int64(cfg.AttachmentCacheMB)<<20); err != nil {
-		log.Printf("warning: attachment cache disabled: %v", err)
-		return server.New(db, cfg)
-	} else {
-		return server.NewWithCache(db, cfg, cache)
-	}
-}
-
 // serveSPAHandler picks the embedded UI or a --static directory for development
 // (`npm run build` output) without rebuilding the binary.
 func serveSPAHandler(static string) http.Handler {
@@ -124,56 +105,6 @@ func serveSPAHandler(static string) http.Handler {
 		log.Printf("warning: no web UI embedded in this binary — build with `npm run build` before `go build`, or pass --static")
 	}
 	return spaHandlerFS(ui)
-}
-
-// startServeLoops starts the optional update check and the incremental sync
-// loops (primary profile + workspace mounts). Order and log strings match the
-// previous inlined cmdServe body.
-func startServeLoops(ctx context.Context, api *server.Handler, db *store.DB, cfg *config.Config, reg *workspace.Registry, noSync bool) {
-	// Optional once-a-day GitHub release check (opt-out via updateCheck: false).
-	// Independent of Jira credentials; silent on failure.
-	if dir, err := config.Dir(); err == nil {
-		api.StartUpdateCheck(ctx, dir)
-	}
-
-	// Default: keep the mirror fresh whenever HasCredential is true
-	// (standalone origin, or connected with site+email+token). Empty
-	// projects on a connected workspace means "everything this account can
-	// see"; standalone copy is serveScopeLog (GDK-464). --no-sync opts out
-	// (fixtures with a fake token must pass it). When serve starts without a
-	// credential, register the same starter so PUT onboarding/connect/ can
-	// kick off Watch once after the first successful save. Mounted workspace
-	// profiles with credentials each get their own Watch loop (WatchAll);
-	// --no-sync disables those too.
-	if noSync {
-		return
-	}
-	startWatch := func() {
-		go func() {
-			// Reload so a late setup does not capture a stale empty config.
-			cur, err := config.Load()
-			if err != nil {
-				log.Printf("sync loop: load config: %v", err)
-				return
-			}
-			phase, progress := api.SyncActivityHooks()
-			syncer.WatchLoop(ctx, cur, db, syncer.Options{
-				Log:      func(s string) { log.Print(s) },
-				Reload:   config.Load,
-				Phase:    phase,
-				Progress: progress,
-			})
-		}()
-	}
-	if cfg.HasCredential() {
-		startWatch()
-	} else {
-		api.SetSyncStarter(startWatch)
-	}
-	watched := reg.WatchAll(ctx, config.Profile(), func(s string) { log.Print(s) })
-	if len(watched) > 0 {
-		log.Printf("syncing %d workspace mirrors: %s", len(watched), strings.Join(watched, ", "))
-	}
 }
 
 // runServeHTTP binds the listener (with port-busy rules), serves mux until
@@ -300,6 +231,12 @@ func serveScopeLog(cfg *config.Config) string {
 	return ""
 }
 
+// serveAlreadyUp is the GDK-468 handoff: AfterConfig saw a live same-profile
+// serve. cmdServe must not treat this as a boot failure.
+type serveAlreadyUp struct{ URL string }
+
+func (e serveAlreadyUp) Error() string { return "already serving at " + e.URL }
+
 func cmdServe(args []string) error {
 	opts, err := parseServeOpts(args)
 	if err != nil {
@@ -309,95 +246,63 @@ func cmdServe(args []string) error {
 		return err
 	}
 
-	cfg, err := config.Load()
+	rt, err := apprun.Open(apprun.Options{
+		Version:   version,
+		OpenStore: openStore,
+		AfterConfig: func(cfg *config.Config) error {
+			// Living-serve detection is the single owner of "this profile is
+			// already up" (GDK-468). It must run before the persist lock: a
+			// same-profile serve holds that lock, so lock-first turned a
+			// re-serve into "persist is locked" instead of open-existing.
+			if url := liveServeURL(cfg); url != "" {
+				return serveAlreadyUp{URL: url}
+			}
+			return nil
+		},
+	})
 	if err != nil {
-		return err
-	}
-	// Living-serve detection is the single owner of "this profile is
-	// already up" (GDK-468). It must run before the persist lock: a
-	// same-profile serve holds that lock, so lock-first turned a
-	// re-serve into "persist is locked" instead of open-existing.
-	if url := liveServeURL(cfg); url != "" {
-		return handoffExistingServe(url, opts.noOpen)
-	}
-	// Persist owner is this process: origin.Client must embed, never
-	// proxy to the advertise file we are about to write (self-loop).
-	if cfg.IsStandalone() {
-		origin.SetInProcess(true)
-		defer origin.SetInProcess(false)
-		// Take the persist lock now (GDK-343): a second owner must fail at
-		// startup — before its advertise write could steal routing from the
-		// live owner — not at the first write.
-		if _, err := origin.StandaloneHandler(cfg); err != nil {
-			if errors.Is(err, origin.ErrWorkspaceBusy) {
+		var up serveAlreadyUp
+		if errors.As(err, &up) {
+			return handoffExistingServe(up.URL, opts.noOpen)
+		}
+		if errors.Is(err, origin.ErrWorkspaceBusy) {
+			if cfg, loadErr := config.Load(); loadErr == nil {
 				if url := liveServeURL(cfg); url != "" {
 					return handoffExistingServe(url, opts.noOpen)
 				}
 			}
-			return err
 		}
-	}
-	db, err := openStore()
-	if err != nil {
 		return err
 	}
-	defer db.Close()
+	defer rt.Close()
 
 	if opts.importAttachments != "" {
 		dbPath, err := config.DBPath()
 		if err != nil {
 			log.Printf("warning: could not import attachments from %q: %v", opts.importAttachments, err)
-		} else if err := importAttachmentDir(opts.importAttachments, cfg.Site, config.Profile(), dbPath); err != nil {
+		} else if err := importAttachmentDir(opts.importAttachments, rt.Cfg.Site, config.Profile(), dbPath); err != nil {
 			log.Printf("warning: could not import attachments from %q: %v", opts.importAttachments, err)
 		}
 	}
 
-	api := newServeAPI(db, cfg)
-	// Registered after db.Close and before reg.Close, so the LIFO order is
-	// workspaces, then this handler, then the mirror: a background sync must
-	// stop before the database it writes to closes (GDK-270).
-	defer api.Close()
 	spa := serveSPAHandler(opts.static)
 
 	// Workspace mounts share this process's listener; each profile opens lazily.
 	// Update checks stay on the primary handler; workspace mirrors get their own
-	// sync loops (see WatchAll in startServeLoops) when they have credentials.
-	reg := workspace.New()
-	defer reg.Close()
-	mux := buildServeMux(api, spa, reg)
+	// sync loops (see WatchAll in apprun.StartWatch) when they have credentials.
+	mux := buildServeMux(rt.API, spa, rt.Reg)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	startServeLoops(ctx, api, db, cfg, reg, opts.noSync)
-	return runServeHTTP(ctx, mux, opts.addr, opts.addrPinned, opts.noOpen, cfg)
+	rt.StartWatch(ctx, opts.noSync)
+	return runServeHTTP(ctx, mux, opts.addr, opts.addrPinned, opts.noOpen, rt.Cfg)
 }
 
-// publishStandaloneOrigin writes serve-origin.json for a standalone
-// workspace and returns a cleanup that removes it. Connected workspaces
-// and a missing profile dir are no-ops.
-//
-// A write failure is fatal (GDK-343 / F6): this process holds the persist
-// lock, so without the advertise file every concurrent CLI write becomes a
-// hard "workspace busy" error instead of routing here. Failing loud at
-// startup beats a warning nobody reads.
+// publishStandaloneOrigin writes serve-origin.json for a standalone workspace.
+// Implementation lives in apprun.PublishAdvertise (single owner with desktop).
 func publishStandaloneOrigin(cfg *config.Config, bound string) (func(), error) {
-	nop := func() {}
-	if cfg == nil || !cfg.IsStandalone() || bound == "" {
-		return nop, nil
-	}
-	dir := cfg.Directory()
-	if dir == "" {
-		var err error
-		dir, err = config.Dir()
-		if err != nil || dir == "" {
-			return nop, nil
-		}
-	}
-	if err := origin.WriteAdvertise(dir, bound); err != nil {
-		return nop, fmt.Errorf("could not advertise origin owner: %w", err)
-	}
-	return func() { _ = origin.RemoveAdvertise(dir) }, nil
+	return apprun.PublishAdvertise(cfg, bound)
 }
 
 // openOnceUp opens the browser as soon as the server answers /healthz, so the

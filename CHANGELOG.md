@@ -728,6 +728,18 @@ the fixes are all here.
   stopped sync for the life of the process. The re-entry policy now has one
   owner, `syncer.WatchLoop`, all four callers use it, and an AST test pins
   the desktop to the loop.
+- **The boot sequence has one owner** ([GDK-664]). `gadak serve` and the
+  desktop app each carried their own copy of the same startup — config,
+  store, attachment cache, standalone persist, advertise, watch loops,
+  version stamp — and the copies kept drifting apart one incident at a
+  time ([GDK-644], [GDK-658], [GDK-663] were all two-copies bugs). The
+  sequence now lives in `internal/apprun`, and the two intentional order
+  differences survive as options rather than a merged order: serve's
+  live-owner check still runs before the persist lock ([GDK-468]), and the
+  desktop still lets wails single-instance exit a second launch before
+  persist is taken ([GDK-658]). Sequence contracts moved from per-main AST
+  tests into apprun's own tests; the desktop tests now pin only that the
+  caller calls in.
 - `warnIfStale` reads the caller's connection instead of opening a second
   one ([GDK-314]), skill detection resolves home the way the installer does
   ([GDK-352]), and `ci-status` counts only default-branch push runs as the
@@ -2576,3 +2588,5 @@ measured numbers instead of adjectives.
 [GDK-668]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-668
 [GDK-671]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-671
 [GDK-678]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-678
+
+[GDK-664]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-664

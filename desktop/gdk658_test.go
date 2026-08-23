@@ -17,12 +17,13 @@ import (
 )
 
 // TestGDK658StandaloneOriginAfterApplicationNew is the GDK-658 contract:
-// startStandaloneOriginListener must run after application.New inside run().
+// StartOriginPassthrough must run after application.New inside run().
 // wails os.Exits a second instance inside New() without running defers
 // (v3/pkg/application/application.go alreadyRunningError path), so persist
 // taken first is abandoned — and a second launch dies on ErrWorkspaceBusy
 // instead of handing off to the first window.
 //
+// The sequence owner is internal/apprun; this file pins the desktop caller.
 // FAIL-first: with the call still above New() this fails at the index check.
 func TestGDK658StandaloneOriginAfterApplicationNew(t *testing.T) {
 	fset := token.NewFileSet()
@@ -45,12 +46,12 @@ func TestGDK658StandaloneOriginAfterApplicationNew(t *testing.T) {
 	calls := topLevelCallNames(run.Body)
 	appAt, standAt := -1, -1
 	for i, name := range calls {
-		switch name {
-		case "application.New":
+		switch {
+		case name == "application.New":
 			if appAt < 0 {
 				appAt = i
 			}
-		case "startStandaloneOriginListener":
+		case strings.HasSuffix(name, "StartOriginPassthrough"):
 			if standAt < 0 {
 				standAt = i
 			}
@@ -60,10 +61,10 @@ func TestGDK658StandaloneOriginAfterApplicationNew(t *testing.T) {
 		t.Fatal("application.New not called from run()")
 	}
 	if standAt < 0 {
-		t.Fatal("startStandaloneOriginListener not called from run()")
+		t.Fatal("StartOriginPassthrough not called from run()")
 	}
 	if standAt < appAt {
-		t.Fatalf("GDK-658: startStandaloneOriginListener (call %d) is before application.New (call %d) in run() — second instance takes persist then os.Exit skips defers; sequence=%v",
+		t.Fatalf("GDK-658: StartOriginPassthrough (call %d) is before application.New (call %d) in run() — second instance takes persist then os.Exit skips defers; sequence=%v",
 			standAt, appAt, calls)
 	}
 }
