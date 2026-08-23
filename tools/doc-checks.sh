@@ -1504,10 +1504,20 @@ else
     fi
   fi
 
+  # .SRCINFO is generated from PKGBUILD by makepkg, which is not on a mac,
+  # so contrib/aur/gadak-bin/update.sh prints a hint and exits 0 with it
+  # stale. Measured 2026-08-23: the 0.16.1 bump landed on main with a stale
+  # .SRCINFO and only the AUR workflow's own diff check caught it — after
+  # the push. Comparing its pkgver here moves that catch before the commit.
+  srcinfo_ver="$(grep -E '^[[:space:]]*pkgver[[:space:]]*=' contrib/aur/gadak-bin/.SRCINFO | head -1 | sed -E 's/.*=[[:space:]]*//')"
+  if [[ "$srcinfo_ver" != "$want" ]]; then
+    packaging_drift+="  contrib/aur/gadak-bin/.SRCINFO pkgver=${srcinfo_ver:-<missing>} does not match latest tag ${tag} (want ${want}) — regenerate with contrib/aur/gadak-bin/verify.sh"$'\n'
+  fi
+
   if [[ -n "$packaging_drift" ]]; then
     fail "packaging manifests disagree with latest tag ${tag}:"$'\n'"${packaging_drift%$'\n'}"
   fi
-  ok "scoop manifest and AUR PKGBUILD pkgver agree with ${tag}"
+  ok "scoop manifest, AUR PKGBUILD and .SRCINFO agree with ${tag}"
 fi
 
 echo "doc-checks: all passed"
