@@ -115,25 +115,13 @@ func warnIfStale(db interface {
 func normalizeKey(s string) string { return strings.ToUpper(strings.TrimSpace(s)) }
 
 // lookup returns the IssueLite rows for the given keys, in the order asked, and
-// skips keys the mirror does not have. The store exposes no single-key read, so
-// this filters the full list — which is what the server's write path does too,
-// and cheap enough at mirror scale.
+// skips keys the mirror does not have. A keyed read: search/issue pay this per
+// invocation, and filtering the full IssueLites() list here made every CLI read
+// cost a whole-mirror scan (~240 ms fixed at 7k-20k issues, measured
+// 2026-08-23 — the benchmark CLI rows had been inflated by it). The keyed
+// store read preserves the caller's key order, which is Search's rank order.
 func lookup(db *store.DB, keys []string) ([]store.IssueLite, error) {
-	all, err := db.IssueLites(context.Background())
-	if err != nil {
-		return nil, err
-	}
-	byKey := make(map[string]store.IssueLite, len(all))
-	for _, l := range all {
-		byKey[l.IssueKey] = l
-	}
-	out := make([]store.IssueLite, 0, len(keys))
-	for _, k := range keys {
-		if l, ok := byKey[k]; ok {
-			out = append(out, l)
-		}
-	}
-	return out, nil
+	return db.IssueLitesByKeys(context.Background(), keys)
 }
 
 // summaryLine is the one-line rendering shared by search results and the
