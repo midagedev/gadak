@@ -26,8 +26,6 @@ import type {
   IssueWriteResponse,
   JiraCredential,
   PrioritiesResponse,
-  NotificationConfig,
-  NotificationPreferences,
   PageDetail,
   PagesResponse,
   SavedView,
@@ -340,47 +338,6 @@ export function markFeedRead(payload: {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
-  })
-}
-
-/* ── Web Push ── */
-
-export function getNotificationConfig(): Promise<NotificationConfig> {
-  return json<NotificationConfig>('notifications/config/')
-}
-
-export function updateNotificationPreferences(
-  preferences: Partial<NotificationPreferences>,
-): Promise<NotificationConfig> {
-  return json<NotificationConfig>('notifications/config/', {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(preferences),
-  })
-}
-
-export interface PushSubscriptionPayload {
-  endpoint: string
-  keys: { p256dh: string; auth: string }
-}
-
-export function savePushSubscription(
-  subscription: PushSubscriptionPayload,
-): Promise<{ subscribed: true; id: string }> {
-  return json('notifications/subscription/', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(subscription),
-  })
-}
-
-export function deletePushSubscription(
-  endpoint: string,
-): Promise<{ subscribed: false }> {
-  return json('notifications/subscription/', {
-    method: 'DELETE',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ endpoint }),
   })
 }
 

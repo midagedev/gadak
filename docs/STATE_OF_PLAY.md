@@ -165,7 +165,7 @@ list is not gated on `features.deploy`. Payload shapes:
 | --- | --- | --- |
 | Live-site assignee display names | T6.8 | The committed snapshot is clean (fictional personas); the live site shows placeholder handles until each invitation is accepted. Affects live-site screenshots only |
 | Zero-install hosted demo | v0.3 | Live at https://gadak.dev/demo/ (the apex is a static landing page, GDK-676) — static JSON + an in-page fetch adapter (not sqlite-wasm; the former demo-sw.js was retired for in-app browsers, decision 0004 addendum). `make hosted-demo` → `dist/hosted/`; Pages workflow deploys on `main` |
-| Web push (VAPID) | v0.2 | Still deferred; `features.push` stays false; in-tab Notification only |
+| Web push (VAPID) | v0.2 | Removed ([GDK-711]): vendor push services are outbound traffic `SECURITY.md` does not list; the server already 404s the endpoints; desktop native notifications cover the need |
 | Bootstrap payload cost at 10k | G5 | ≈61 ms/op on an M4 Pro — over the 50 ms product target, but it is a once-per-boot cost and the client caches it in IndexedDB. Streaming or a columnar payload is the lever if it matters |
 
 Everything else on the original launch list is done: benchmarks (T6.7), the CI
@@ -252,3 +252,4 @@ secret scan (T7.4), Docker and the release pipeline (T7.5/T7.6), the MCP server
 [GDK-333]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-333
 [GDK-340]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-340
 [GDK-342]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-342
+[GDK-711]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-711

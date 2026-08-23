@@ -103,7 +103,6 @@ export const RECONCILE_PRESETS: { value: number; labelKey: MessageKey }[] = [
 
 const NO_FEATURES: FeatureFlags = {
   feed: false,
-  push: false,
   deploy: false,
   qa: false,
   teamGroups: false,

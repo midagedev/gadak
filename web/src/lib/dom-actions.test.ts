@@ -1,11 +1,10 @@
 /*
  * GDK-617(b,c): outside-close has one owner — the onOutsideClick / onEscape
- * actions in dom-actions.ts. BreakdownBar, SidebarNav's sync-history popover
- * and NotificationSettings had re-implemented it by hand (BreakdownBar
- * without any Esc handling at all, so an open menu leaked the keystroke to
- * the shell keymap and cleared the selection), and FieldEditor reached its
- * own portaled menu through a global testid selector, which answers for the
- * wrong instance once two editors mount.
+ * actions in dom-actions.ts. BreakdownBar and SidebarNav's sync-history popover
+ * had re-implemented it by hand (BreakdownBar without any Esc handling at all,
+ * so an open menu leaked the keystroke to the shell keymap and cleared the
+ * selection), and FieldEditor reached its own portaled menu through a global
+ * testid selector, which answers for the wrong instance once two editors mount.
  *
  * Wiring assertions on the components' real AST (SearchBox.test.ts idiom):
  * this repo's vitest runs node-environment with no mount harness, and the
@@ -160,22 +159,6 @@ describe('outside-close has one owner (GDK-617c)', () => {
       boundaryOf(nodes, (n) => n === trigger || n === popover),
       'no element in SidebarNav.svelte hosts use:onOutsideClick + use:onEscape around trigger and popover',
     ).toBeDefined()
-  })
-
-  test('NotificationSettings: the bell popover is an onOutsideClick boundary that spends Esc', () => {
-    const { source, nodes } = load('components/personal/NotificationSettings.svelte')
-    const trigger = nodes.find(
-      (n) => n.type === 'RegularElement' && n.name === 'button' && attribute(n, 'aria-expanded'),
-    )
-    expect(trigger, 'no aria-expanded trigger button in NotificationSettings.svelte').toBeDefined()
-    expect(
-      boundaryOf(nodes, (n) => n === trigger),
-      'no element in NotificationSettings.svelte hosts use:onOutsideClick + use:onEscape around the trigger',
-    ).toBeDefined()
-    expect(
-      source.includes('svelte:window'),
-      'NotificationSettings still closes its popover from svelte:window handlers',
-    ).toBe(false)
   })
 })
 

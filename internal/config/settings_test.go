@@ -71,15 +71,16 @@ func TestSettingsCatalogHasRequiredPaths(t *testing.T) {
 		}
 		paths[s.Path] = true
 	}
+	for _, name := range FeatureNames {
+		want := "features." + name
+		if !paths[want] {
+			t.Errorf("catalog missing %q", want)
+		}
+	}
 	for _, want := range []string{
 		"appearance.theme",
 		"syncIntervalSec",
 		"reconcileIntervalSec",
-		"features.feed",
-		"features.push",
-		"features.deploy",
-		"features.qa",
-		"features.teamGroups",
 		"staleThresholdHours",
 		"projects",
 		"notify",

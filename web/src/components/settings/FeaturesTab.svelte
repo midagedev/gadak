@@ -11,16 +11,12 @@
     osNotifySupported = true,
   }: { draft: SettingsDraft; osNotifySupported?: boolean } = $props()
 
-  // features.push stays on the draft and is written back unchanged. VAPID is
-  // unimplemented (endpoints 404), so the toggle is not drawn — turning it on
-  // only spawned the feed bell (audit #28).
-  type VisibleFeature = Exclude<keyof GadakFeatures, 'push'>
   const onDesktop = surface() === 'desktop'
   // Hide the in-tab browser Notification toggle only when this host already
   // fires a real OS notification (macOS osascript / Linux notify-send).
   // Windows desktop is onDesktop but not osNotifySupported — the toggle stays.
   const hideBrowserNotify = $derived(onDesktop && osNotifySupported)
-  const FEATURES: [VisibleFeature, string, string][] = $derived([
+  const FEATURES: [keyof GadakFeatures, string, string][] = $derived([
     [
       'feed',
       t('settings.featureFeed'),

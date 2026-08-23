@@ -35,8 +35,6 @@ export type WindowChrome =
 export interface GadakFeatures {
   /** Personal activity feed (mentions, watched issues, assignment changes). */
   feed: boolean
-  /** Web Push notifications for feed events. */
-  push: boolean
   /** Deployment state per issue, sourced from an external CI/CD index. */
   deploy: boolean
   /** Test-management context per issue, sourced from an external QA tool. */
@@ -139,7 +137,6 @@ const DEFAULTS: GadakConfig = {
   workspaceKind: '',
   features: {
     feed: false,
-    push: false,
     deploy: false,
     qa: false,
     teamGroups: false,

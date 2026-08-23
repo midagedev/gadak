@@ -9,7 +9,7 @@ import (
 
 // FeatureNames is every optional-surface flag PUT / gadak config accept.
 // Unknown keys in a features map are dropped.
-var FeatureNames = []string{"feed", "push", "deploy", "qa", "teamGroups"}
+var FeatureNames = []string{"feed", "deploy", "qa", "teamGroups"}
 
 // themeIdentRe is the only shape a theme id may have. Palette names belong to
 // the web; the server checks form so a new palette does not need a server
@@ -390,7 +390,7 @@ func buildSettings() []Setting {
 		{
 			Path:        "features",
 			Root:        "features",
-			Description: "optional-surface flags (feed, push, deploy, qa, teamGroups)",
+			Description: "optional-surface flags (feed, deploy, qa, teamGroups)",
 			Get:         func(c *Config) any { return NormalizeFeatures(c.Features) },
 			Set: func(c *Config, raw json.RawMessage) error {
 				var m map[string]bool
@@ -402,7 +402,6 @@ func buildSettings() []Setting {
 			},
 		},
 		featureLeaf("feed", "personal activity feed"),
-		featureLeaf("push", "web push notifications (stored; no VAPID yet)"),
 		featureLeaf("deploy", "deploy column and filters"),
 		featureLeaf("qa", "QA column, filters, and inline field edit"),
 		featureLeaf("teamGroups", "team/group taxonomy surfaces"),

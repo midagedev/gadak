@@ -53,8 +53,7 @@ describe('GDK-188 / settings-audit: Features does not render a web-push toggle',
   const features = readFileSync(FEATURES_TAB, 'utf8')
   const catalog = catalogSource()
 
-  test('push is excluded from the visible feature list, not drawn as a checkbox', () => {
-    expect(features).toMatch(/Exclude<keyof GadakFeatures, 'push'>/)
+  test('push is not drawn as a checkbox', () => {
     expect(features).not.toMatch(/['"]Web push['"]/)
     expect(features).not.toMatch(/settings\.featurePush/)
     expect(features).not.toMatch(/draft\.features\.push/)

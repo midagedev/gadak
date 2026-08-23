@@ -8,8 +8,8 @@
  *    `gadak:recent`, max 30).
  *  - Derived group (part) for smart default views.
  *
- * Watches, web push, and favorites live in their own stores
- * (`watches.svelte`, `push.svelte`, `favorites.svelte`).
+ * Watches and favorites live in their own stores
+ * (`watches.svelte`, `favorites.svelte`).
  *
  * Read-only features work with no credential. Personalization and writes need
  * a configured credential (`identified` === email !== null).
@@ -26,7 +26,6 @@ import type { HistoryVisitKind } from '../lib/types'
 import { history } from './history.svelte'
 import { issues } from './issues.svelte'
 import { watches } from './watches.svelte'
-import { push } from './push.svelte'
 import { favorites } from './favorites.svelte'
 import type {
   FeedFocus,
@@ -234,7 +233,7 @@ class MeStore {
       const wasIdentified = this.email !== null
       this.#setUser(data.email, data.account_id ?? null, data.name ?? null, data.department ?? null)
       if (opts.loadPersonal && !wasIdentified) {
-        await Promise.all([watches.load(), this.loadFeed(), push.load()])
+        await Promise.all([watches.load(), this.loadFeed()])
         this.#startFeedPolling()
       }
     } else if (this.email !== null) {
@@ -266,7 +265,6 @@ class MeStore {
     this.feedLoaded = false
     this.#feedBaselineReady = false
     this.#prevUnreadAll = 0
-    push.clear()
     this.#syncAppBadge()
   }
 
@@ -294,7 +292,7 @@ class MeStore {
   /**
    * When unread_counts.all grows and the user has granted Notification permission,
    * fire a single in-tab Notification summarizing the newest unread item.
-   * No VAPID / service-worker push — that stays behind features.push.
+   * Web Push was removed (GDK-711).
    */
   #maybeNotifyNewUnread(prevAll: number, items: FeedItem[], nextAll: number): void {
     if (!this.#feedBaselineReady) {

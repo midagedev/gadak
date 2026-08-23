@@ -6,9 +6,7 @@
   import { me } from '../../stores/me.svelte'
   import { write } from '../../stores/write.svelte'
   import { relativeTime, absTime } from '../../lib/format'
-  import { feature } from '../../lib/config'
   import EmptyState from '../list/EmptyState.svelte'
-  import NotificationSettings from './NotificationSettings.svelte'
 
   const TABS: { key: FeedFocus; label: string }[] = [
     { key: 'all', label: t('feed.filterAll') },
@@ -167,14 +165,6 @@
         <Icon name="check-check" size={14} />
         <span class="max-[760px]:hidden">{t('feed.markAllRead')}</span>
       </button>
-    {/if}
-    <!--
-      Still gated on feature('push'). Features no longer draws a push toggle,
-      so this only mounts when config.json / Advanced JSON already has the
-      flag on. Closes the "turn the toggle on → bell appears → 404" path.
-    -->
-    {#if feature('push')}
-      <NotificationSettings />
     {/if}
     <button
       type="button"
