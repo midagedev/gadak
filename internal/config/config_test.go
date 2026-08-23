@@ -861,6 +861,7 @@ func TestWarnUnknownGADAKEmptyIsUnset(t *testing.T) {
 }
 
 func TestWorkspaceSourceFlagEnvDefault(t *testing.T) {
+	t.Setenv("GADAK_HOME", t.TempDir())
 	t.Cleanup(func() { SetProfile("") })
 
 	t.Setenv("GADAK_WORKSPACE", "")
@@ -944,5 +945,105 @@ func TestGADAKWorkspaceIsRecognised(t *testing.T) {
 	}
 	if strings.Contains(stderr, "unrecognised") {
 		t.Fatalf("known env must not warn, got %q", stderr)
+	}
+}
+
+// writeStoredWorkspaceFile writes the home-root stored-default file Profile()
+// is specified to read (GDK-490). Tests write it directly so FAIL-first does
+// not need a setter the pre-change source does not have.
+func writeStoredWorkspaceFile(t *testing.T, home, name string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(home, "default-workspace"), []byte(name+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestProfileResolutionFourLevels(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	t.Cleanup(func() { SetProfile("") })
+	t.Setenv("GADAK_WORKSPACE", "")
+	t.Setenv("GADAK_PROFILE", "")
+	t.Setenv("SCRY_PROFILE", "")
+
+	ReloadWorkspaceFromEnv()
+	if Profile() != "" {
+		t.Fatalf("root: Profile() = %q", Profile())
+	}
+	kind, envName := WorkspaceSource()
+	if kind != SourceDefault || envName != "" {
+		t.Fatalf("root source = %q %q", kind, envName)
+	}
+
+	writeStoredWorkspaceFile(t, home, "oss")
+	ReloadWorkspaceFromEnv()
+	if Profile() != "oss" {
+		t.Fatalf("stored: Profile() = %q, want oss", Profile())
+	}
+	kind, envName = WorkspaceSource()
+	if kind != SourceStored || envName != "" {
+		t.Fatalf("stored source = %q %q, want stored", kind, envName)
+	}
+
+	t.Setenv("GADAK_WORKSPACE", "work")
+	ReloadWorkspaceFromEnv()
+	if Profile() != "work" {
+		t.Fatalf("env: Profile() = %q, want work (env over stored)", Profile())
+	}
+	kind, envName = WorkspaceSource()
+	if kind != SourceEnv || envName != "GADAK_WORKSPACE" {
+		t.Fatalf("env source = %q %q", kind, envName)
+	}
+
+	SetProfile("demo")
+	if Profile() != "demo" {
+		t.Fatalf("flag: Profile() = %q, want demo (flag over env)", Profile())
+	}
+	kind, envName = WorkspaceSource()
+	if kind != SourceFlag || envName != "" {
+		t.Fatalf("flag source = %q %q", kind, envName)
+	}
+
+	SetProfile("")
+	if Profile() != "" {
+		t.Fatalf("flag empty: Profile() = %q, want root (flag over stored)", Profile())
+	}
+	kind, envName = WorkspaceSource()
+	if kind != SourceFlag {
+		t.Fatalf("flag empty source = %q, want flag", kind)
+	}
+}
+
+func TestStoredDefaultMissingDoesNotFallBack(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	t.Cleanup(func() { SetProfile("") })
+	t.Setenv("GADAK_WORKSPACE", "")
+	t.Setenv("GADAK_PROFILE", "")
+	t.Setenv("SCRY_PROFILE", "")
+	if err := os.MkdirAll(filepath.Join(home, "profiles", "demo"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	writeStoredWorkspaceFile(t, home, "nosuch")
+	ReloadWorkspaceFromEnv()
+	if Profile() != "nosuch" {
+		t.Fatalf("Profile() = %q, want nosuch (must not fall back to root)", Profile())
+	}
+	err := RequireExistingProfile()
+	if err == nil {
+		t.Fatal("missing stored default must error, not succeed as root")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, `workspace "nosuch" not found`) {
+		t.Fatalf("error %q, want existing not-found format", msg)
+	}
+	if !strings.Contains(msg, `gadak --workspace "nosuch" init`) {
+		t.Fatalf("error %q, want pasteable init hint", msg)
+	}
+	if !strings.Contains(msg, "available: demo") {
+		t.Fatalf("error %q, want available: demo", msg)
+	}
+	if Profile() != "nosuch" {
+		t.Fatalf("after error Profile() = %q, want nosuch (still not fallen back)", Profile())
 	}
 }

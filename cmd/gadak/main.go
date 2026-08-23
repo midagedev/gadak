@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/midagedev/gadak/internal/config"
@@ -152,7 +153,7 @@ Commands:
   demo             serve the bundled snapshot, no Jira account needed
   export-static    freeze demo.db into static JSON for hosted demo  <outdir>
   profiles         list workspaces (same as workspaces)  [--json]
-  workspace        show the active workspace and what selected it  [--json]
+  workspace        show the active workspace and what selected it; use NAME stores a default  [--json]
   workspaces       list workspaces  [--json]
   version          print version
 
@@ -287,7 +288,30 @@ func checkProfileForCommand(cmd string, rest []string) error {
 		allowProfileCreate = true
 		return nil
 	}
+	// use NAME / use --clear must run even when the current stored default
+	// names a missing directory — otherwise there is no way to clear it.
+	if cmd == "workspace" && isWorkspaceUse(rest) {
+		return nil
+	}
 	return config.RequireExistingProfile()
+}
+
+// isWorkspaceUse reports the `workspace use …` subcommand. Leading flags are
+// skipped so `workspace --json use oss` still matches.
+func isWorkspaceUse(args []string) bool {
+	for _, a := range args {
+		if a == "--" {
+			break
+		}
+		if a == "-h" || a == "--help" {
+			continue
+		}
+		if strings.HasPrefix(a, "-") {
+			continue
+		}
+		return a == "use"
+	}
+	return false
 }
 
 // parseGlobalWorkspace consumes leading --workspace/-w/--profile/-p pairs.

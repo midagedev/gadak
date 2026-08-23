@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -169,6 +171,7 @@ func TestProfilesJSONWorkspaceAndSource(t *testing.T) {
 }
 
 func TestParseGlobalWorkspaceFlagParity(t *testing.T) {
+	t.Setenv("GADAK_HOME", t.TempDir())
 	t.Cleanup(func() { config.SetProfile("") })
 	clearWorkspaceEnv(t)
 	config.ReloadWorkspaceFromEnv()
@@ -198,6 +201,7 @@ func TestParseGlobalWorkspaceFlagParity(t *testing.T) {
 }
 
 func TestParseGlobalWorkspaceConflict(t *testing.T) {
+	t.Setenv("GADAK_HOME", t.TempDir())
 	t.Cleanup(func() { config.SetProfile("") })
 	clearWorkspaceEnv(t)
 	config.ReloadWorkspaceFromEnv()
@@ -215,6 +219,7 @@ func TestParseGlobalWorkspaceConflict(t *testing.T) {
 }
 
 func TestWorkspaceEnvPrecedence(t *testing.T) {
+	t.Setenv("GADAK_HOME", t.TempDir())
 	t.Cleanup(func() { config.SetProfile("") })
 	t.Setenv("GADAK_WORKSPACE", "ws")
 	t.Setenv("GADAK_PROFILE", "pf")
@@ -382,17 +387,102 @@ func TestCmdWorkspaceShowsSelection(t *testing.T) {
 	}
 }
 
-func TestCmdWorkspaceRejectsUse(t *testing.T) {
+func TestCmdWorkspaceUseStoresDefault(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
-	config.SetProfile("")
+	t.Setenv("HOME", home)
 	t.Cleanup(func() { config.SetProfile("") })
-	err := cmdWorkspace([]string{"use", "oss"})
-	if err == nil {
-		t.Fatal("workspace use must not be a subcommand")
+	clearWorkspaceEnv(t)
+	config.SetProfile("")
+	config.ReloadWorkspaceFromEnv()
+
+	seedNamedProfile(t, "", &config.Config{Kind: config.KindStandalone}, 0, 0, false)
+	seedNamedProfile(t, "oss", &config.Config{Kind: config.KindStandalone}, 0, 0, false)
+
+	out, err := capture(t, func() error { return cmdWorkspace([]string{"use", "oss"}) })
+	if err != nil {
+		t.Fatalf("workspace use oss: %v\n%s", err, out)
 	}
-	if strings.Contains(err.Error(), "switched") || strings.Contains(err.Error(), "now using") {
-		t.Fatalf("must not claim to switch, got %v", err)
+	config.ReloadWorkspaceFromEnv()
+	if config.Profile() != "oss" {
+		t.Fatalf("after use, Profile() = %q, want oss", config.Profile())
+	}
+	kind, envName := config.WorkspaceSource()
+	if kind != config.SourceStored || envName != "" {
+		t.Fatalf("after use, source = %q %q, want stored", kind, envName)
+	}
+
+	out, err = capture(t, func() error { return cmdWorkspace(nil) })
+	if err != nil {
+		t.Fatalf("workspace: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "oss") {
+		t.Fatalf("no-arg workspace missing name oss:\n%s", out)
+	}
+	if !strings.Contains(out, "stored") {
+		t.Fatalf("no-arg workspace missing stored source:\n%s", out)
+	}
+
+	out, err = capture(t, func() error { return cmdWorkspace([]string{"use", "--clear"}) })
+	if err != nil {
+		t.Fatalf("workspace use --clear: %v\n%s", err, out)
+	}
+	config.ReloadWorkspaceFromEnv()
+	if config.Profile() != "" {
+		t.Fatalf("after --clear, Profile() = %q, want root", config.Profile())
+	}
+	kind, envName = config.WorkspaceSource()
+	if kind != config.SourceDefault {
+		t.Fatalf("after --clear, source = %q, want default", kind)
+	}
+}
+
+func TestCmdWorkspaceUseMissingErrors(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	t.Setenv("HOME", home)
+	t.Cleanup(func() { config.SetProfile("") })
+	clearWorkspaceEnv(t)
+	config.SetProfile("")
+	config.ReloadWorkspaceFromEnv()
+	seedNamedProfile(t, "demo", &config.Config{Kind: config.KindStandalone}, 0, 0, false)
+
+	err := cmdWorkspace([]string{"use", "nosuch"})
+	if err == nil {
+		t.Fatal("workspace use nosuch must error")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, `workspace "nosuch" not found`) {
+		t.Fatalf("error %q, want existing not-found format", msg)
+	}
+	if !strings.Contains(msg, "available: demo") {
+		t.Fatalf("error %q, want available: demo", msg)
+	}
+	config.ReloadWorkspaceFromEnv()
+	if config.Profile() != "" {
+		t.Fatalf("failed use must not store, Profile() = %q", config.Profile())
+	}
+	if _, statErr := os.Stat(filepath.Join(home, "profiles", "nosuch")); !os.IsNotExist(statErr) {
+		t.Fatalf("use must not create the dir; stat=%v", statErr)
+	}
+}
+
+func TestWorkspaceUseClearWhenStoredMissing(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	t.Cleanup(func() { config.SetProfile("") })
+	clearWorkspaceEnv(t)
+	if err := os.WriteFile(filepath.Join(home, "default-workspace"), []byte("gone\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	config.ReloadWorkspaceFromEnv()
+	if err := checkProfileForCommand("workspace", nil); err == nil {
+		t.Fatal("no-arg workspace must error when stored default is missing")
+	} else if !strings.Contains(err.Error(), `workspace "gone" not found`) {
+		t.Fatalf("no-arg error %q, want not-found", err)
+	}
+	if err := checkProfileForCommand("workspace", []string{"use", "--clear"}); err != nil {
+		t.Fatalf("use --clear must be reachable with a missing stored default: %v", err)
 	}
 }
 

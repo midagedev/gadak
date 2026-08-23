@@ -284,8 +284,16 @@ func (c *Config) EffectiveReconcileIntervalSec() int {
 const (
 	SourceFlag    = "flag"
 	SourceEnv     = "env"
+	SourceStored  = "stored"
 	SourceDefault = "default"
 )
+
+// storedWorkspaceFile is the home-root file that holds the stored default
+// workspace name (GDK-490). It is not config.json: that file is the root
+// profile's credential document, rewritten by Config.Save, and lives at the
+// same path as the default profile. The stored default is above profile
+// selection, so it sits next to profiles/ as its own 0600 file.
+const storedWorkspaceFile = "default-workspace"
 
 // profile comes from SetProfile (the --workspace/--profile flag) or, if no
 // flag was given, GADAK_WORKSPACE, else GADAK_PROFILE (SCRY_PROFILE still
@@ -300,19 +308,45 @@ var (
 )
 
 // SetProfile is called by the CLI's --workspace/--profile flag, which wins
-// over the env var. The source becomes SourceFlag even when name is empty.
+// over the env var and the stored default. The source becomes SourceFlag even
+// when name is empty.
 func SetProfile(name string) {
 	profile = name
 	workspaceSource = SourceFlag
 	workspaceEnvName = ""
 }
 
-// Profile returns the active profile name ("" for the default one).
+// Profile is the single owner of workspace resolution: flag > env > stored
+// default > root. "" is the root profile. "default" normalizes to "".
 func Profile() string {
-	if profile == "default" {
+	name, _, _ := resolveProfile()
+	return name
+}
+
+// resolveProfile is the body of Profile() / WorkspaceSource(). It is not a
+// second owner — both exports project this one decision.
+func resolveProfile() (name, kind, envName string) {
+	switch workspaceSource {
+	case SourceFlag:
+		return canonProfile(profile), SourceFlag, ""
+	case SourceEnv:
+		return canonProfile(profile), SourceEnv, workspaceEnvName
+	}
+	if stored := readStoredWorkspace(); stored != "" {
+		return canonProfile(stored), SourceStored, ""
+	}
+	kind = workspaceSource
+	if kind == "" {
+		kind = SourceDefault
+	}
+	return canonProfile(profile), kind, ""
+}
+
+func canonProfile(name string) string {
+	if name == "default" {
 		return ""
 	}
-	return profile
+	return name
 }
 
 // NormalizeProfile is the display name of a profile: the empty string and
@@ -327,17 +361,20 @@ func NormalizeProfile(name string) string {
 	return name
 }
 
-// WorkspaceSource is the single owner of "what selected this workspace".
-// kind is SourceFlag, SourceEnv, or SourceDefault. envName is the variable
-// that supplied the value when kind is SourceEnv, otherwise "".
+// WorkspaceSource names what Profile() used: SourceFlag, SourceEnv,
+// SourceStored, or SourceDefault. envName is the variable that supplied the
+// value when kind is SourceEnv, otherwise "".
 func WorkspaceSource() (kind, envName string) {
-	return workspaceSource, workspaceEnvName
+	_, kind, envName = resolveProfile()
+	return
 }
 
 // ReloadWorkspaceFromEnv forgets a SetProfile override and reads
 // GADAK_WORKSPACE, then GADAK_PROFILE, then SCRY_PROFILE. Empty values are
-// unset. Each process main must call this before flags (cmd/gadak does);
-// importing this package does not. Tests call it after t.Setenv.
+// unset. When none of those are set, Profile() still applies the stored
+// default (then the root). Each process main must call this before flags
+// (cmd/gadak does); importing this package does not. Tests call it after
+// t.Setenv.
 func ReloadWorkspaceFromEnv() {
 	if v := os.Getenv("GADAK_WORKSPACE"); v != "" {
 		profile = v
@@ -520,8 +557,11 @@ func AttachmentDir() (string, error) {
 // directory does not exist is an error; names that do exist are listed so
 // a typo is obvious.
 func RequireExistingProfile() error {
-	name := Profile()
-	if name == "" {
+	return requireExistingProfile(Profile())
+}
+
+func requireExistingProfile(name string) error {
+	if name == "" || name == "default" {
 		return nil
 	}
 	d, err := DirFor(name)
@@ -551,6 +591,86 @@ func RequireExistingProfile() error {
 		msg += fmt.Sprintf(" (available: %s)", strings.Join(names, ", "))
 	}
 	return fmt.Errorf("%s", msg)
+}
+
+func storedWorkspacePath() (string, error) {
+	base, err := homeRoot()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(base, storedWorkspaceFile), nil
+}
+
+func readStoredWorkspace() string {
+	p, err := storedWorkspacePath()
+	if err != nil {
+		return ""
+	}
+	data, err := os.ReadFile(p)
+	if err != nil {
+		return ""
+	}
+	name := strings.TrimSpace(string(data))
+	if name == "" || name == "default" {
+		return ""
+	}
+	return name
+}
+
+func writeStoredWorkspace(name string) error {
+	p, err := storedWorkspacePath()
+	if err != nil {
+		return err
+	}
+	if err := fsperm.EnsurePrivateDir(filepath.Dir(p)); err != nil {
+		if errors.Is(err, fsperm.ErrChmod) {
+			log.Printf("config: %v", err)
+		} else {
+			return err
+		}
+	}
+	tmp := p + ".tmp"
+	if err := os.WriteFile(tmp, []byte(name+"\n"), 0o600); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	if err := os.Rename(tmp, p); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	return nil
+}
+
+// SetStoredWorkspace writes the home-root stored default used by Profile()
+// when no flag or env selected a workspace. Empty and "default" clear it.
+// A name whose directory does not exist is refused with the same error
+// RequireExistingProfile prints — Profile() must not be pointed at a
+// missing workspace that then silently becomes the root.
+func SetStoredWorkspace(name string) error {
+	name = strings.TrimSpace(name)
+	if name == "" || name == "default" {
+		return ClearStoredWorkspace()
+	}
+	if err := validProfileName(name); err != nil {
+		return err
+	}
+	if err := requireExistingProfile(name); err != nil {
+		return err
+	}
+	return writeStoredWorkspace(name)
+}
+
+// ClearStoredWorkspace removes the stored default so Profile() falls through
+// to the root. Missing file is success.
+func ClearStoredWorkspace() error {
+	p, err := storedWorkspacePath()
+	if err != nil {
+		return err
+	}
+	if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
 }
 
 // Profiles lists the configured profile names, excluding the default one.

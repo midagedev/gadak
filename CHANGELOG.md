@@ -197,6 +197,22 @@ the fixes are all here.
 
 ### Workspaces and pairing
 
+- **`gadak workspace use <name>` stores a default, and one function decides
+  which workspace you are in** ([GDK-490]). `--workspace`/`-w` is the
+  canonical selector with `--profile`/`-p` as a permanent alias (no removal
+  planned), `GADAK_WORKSPACE` is canonical with `GADAK_PROFILE` and
+  `SCRY_PROFILE` as aliases — and the resolution order is now four deep:
+  flag, env, stored default, root. The stored layer lives inside `Profile()`
+  rather than beside it, because a second owner of "which workspace" is how a
+  surface starts disagreeing with the one next to it. It is a 0600
+  `default-workspace` file at the home root, not a field in `config.json`
+  (that file is the root profile's own credential document) and not a row in
+  the mirror (the mirror is a disposable cache). A stored name whose
+  workspace does not exist is refused with the available names instead of
+  falling back to the root — silently reading a different tracker is the
+  failure this product does not get to have — and `workspace use --clear`
+  still runs in that state, so the refusal is recoverable. Bare
+  `gadak workspace` answers "why this workspace" by naming what selected it.
 - **A mounted standalone workspace can create issues again** ([GDK-677],
   reported as [#52]). The origin routing decision compared a probe answer
   against the process-global profile, so a standalone profile mounted under

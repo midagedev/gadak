@@ -11,6 +11,9 @@ import (
 	"github.com/midagedev/gadak/internal/origin"
 )
 
+// workspaceUsage is the forms cmdWorkspace accepts (GDK-490).
+const workspaceUsage = "usage: gadak workspace [--json] | gadak workspace use <name> | gadak workspace use --clear"
+
 // workspaceView is the `gadak workspace --json` document.
 type workspaceView struct {
 	Workspace       string   `json:"workspace"`
@@ -23,6 +26,7 @@ type workspaceView struct {
 func cmdWorkspace(args []string) error {
 	fs := newFlagSet("workspace")
 	asJSON := fs.Bool("json", false, "emit JSON")
+	clear := fs.Bool("clear", false, "with use: unset the stored default workspace")
 	if wantsHelp(args) {
 		fmt.Fprint(os.Stdout, formatHelp("workspace", fs))
 		return nil
@@ -31,14 +35,39 @@ func cmdWorkspace(args []string) error {
 	if err != nil {
 		return err
 	}
-	if len(pos) > 0 {
-		return fmt.Errorf("workspace takes no arguments (to select a workspace in this shell: export GADAK_WORKSPACE=<name>)")
+	if len(pos) == 0 {
+		if *clear {
+			return usageError("workspace", workspaceUsage)
+		}
+		return emitWorkspace(*asJSON)
 	}
+	if pos[0] != "use" {
+		return usageError("workspace", workspaceUsage)
+	}
+	if *clear {
+		if len(pos) != 1 {
+			return usageError("workspace use", workspaceUsage)
+		}
+		if err := config.ClearStoredWorkspace(); err != nil {
+			return err
+		}
+		return emitWorkspace(*asJSON)
+	}
+	if len(pos) != 2 {
+		return usageError("workspace use", workspaceUsage)
+	}
+	if err := config.SetStoredWorkspace(pos[1]); err != nil {
+		return err
+	}
+	return emitWorkspace(*asJSON)
+}
+
+func emitWorkspace(asJSON bool) error {
 	doc, err := collectWorkspace()
 	if err != nil {
 		return err
 	}
-	if *asJSON {
+	if asJSON {
 		return json.NewEncoder(os.Stdout).Encode(doc)
 	}
 	printWorkspaceText(doc)
@@ -98,7 +127,7 @@ func printWorkspaceText(v workspaceView) {
 
 func formatWorkspaceSource(src string) string {
 	switch src {
-	case config.SourceFlag, config.SourceDefault:
+	case config.SourceFlag, config.SourceDefault, config.SourceStored:
 		return src
 	default:
 		return "env (" + src + ")"

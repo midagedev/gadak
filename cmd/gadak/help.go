@@ -278,13 +278,17 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak init", "gadak workspace", "gadak workspaces"},
 	},
 	"workspace": {
-		summary: "show the active workspace, what selected it, origin kind, persist path, and other workspaces",
-		usage:   "gadak workspace [--json]",
+		summary: "show the active workspace and what selected it; use NAME stores a default for later commands with no flag or env",
+		usage: "gadak workspace [--json]\n" +
+			"| workspace use <name>\n" +
+			"| workspace use --clear",
 		examples: []string{
 			"gadak workspace",
 			"gadak --workspace oss workspace",
 			"GADAK_WORKSPACE=oss gadak workspace",
 			"gadak workspace --json",
+			"gadak workspace use oss",
+			"gadak workspace use --clear",
 		},
 		seeAlso: []string{"gadak workspaces", "gadak profiles", "gadak status"},
 	},
