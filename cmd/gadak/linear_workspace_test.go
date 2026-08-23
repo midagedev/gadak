@@ -83,8 +83,11 @@ func TestStatusLinearOnlyIsConfiguredAndShowsLinearWatermark(t *testing.T) {
 // user to `gadak init` instead of naming the real cause (or routing).
 func TestCreateLinearOnlyDoesNotAskForInit(t *testing.T) {
 	linearOnlyHome(t)
+	// 400 is not httppolicy.IsRetryable (429/500/502/503/504). A 500 here
+	// sleeps 1+2+4+8s: origin.Linear() builds linear.New at production
+	// Retries=5, Backoff=1s, and LinearEndpoint only overrides the URL.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(http.StatusBadRequest)
 	}))
 	t.Cleanup(srv.Close)
 	origin.LinearEndpoint = srv.URL
