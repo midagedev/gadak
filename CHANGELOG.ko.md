@@ -726,6 +726,24 @@
   검색 기록도 기록된 세대 스탬프와 함께 살아남습니다: 타임라인은 현재
   세대를 보여 주고, 은퇴한 행은 `gadak sql`로 계속 읽을 수 있습니다.
 
+### gadak.dev, 앞문이 생겼습니다
+
+- **사이트에 정점이 생기고, 그 뒤로 문이 셋입니다** ([GDK-676]). 공개된
+  것은 전부 `midagedev.github.io/gadak/…`로만 닿을 수 있었습니다 —
+  프로젝트가 인쇄하는 모든 URL 안에 계정 이름이 들어 있었고, 도메인을
+  그냥 가리키게 하는 것으로는 되지 않았습니다: GitHub은 프로젝트 경로를
+  커스텀 도메인으로 리다이렉트하면서 **레포 세그먼트를 떨어뜨립니다.**
+  그래서 `gadak.dev`는 에셋이 전부 `/gadak/` 기준으로 빌드된 앱의
+  `index.html`을 받았고, 제품의 첫 페이지가 깨진 페이지였습니다. 이제
+  발행 트리의 뿌리는 `/`입니다: 정점에 랜딩 페이지, `/demo/`에 라이브
+  데모, `/backlog/`에 공개 백로그. 각 앱은 자기 base path로 따로
+  빌드됩니다 — `basePath()`는 빌드 시점에 확정되고 그 뒤로는 돌릴 수
+  없기 때문입니다. 랜딩 페이지는 불러오는 것이 없습니다 — 스크립트도,
+  웹폰트도, 애널리틱스도 없고 제품 자신의 종이·쪽빛 토큰만 인라인으로
+  들어 있습니다 — 그리고 그 마크업이 두 앱을 링크하지 않게 되면 빌드
+  게이트가 사이트를 실패시킵니다: 어느 쪽에도 닿지 않는 앞문은 앞문이
+  없는 것보다 나쁩니다.
+
 ### Windows, 무서명이지만 검증 가능하게
 
 - **Windows 경고에 페이지가 생겼습니다** ([GDK-211]).
@@ -2398,5 +2416,6 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-588]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-588
 [GDK-211]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-211
 [GDK-669]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-669
+[GDK-676]: https://gadak.dev/backlog/#/?ks=GDK-676
 [GDK-668]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-668
 [GDK-671]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-671

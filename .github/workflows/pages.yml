@@ -3,8 +3,11 @@
 # Workflow is ready to run; Pages must be enabled once by a human:
 #   Repo → Settings → Pages → Build and deployment → Source: GitHub Actions
 #
-# After the first successful run the demo is at:
-#   https://<owner>.github.io/gadak/
+# The published tree is rooted at the apex (GDK-676): / is a static landing
+# page, /demo/ the live demo, /backlog/ the public backlog. A project-path URL
+# such as https://<owner>.github.io/gadak/demo/ redirects to the custom domain
+# with the repo segment dropped, which is why the apps are not built for
+# /gadak/ any more.
 #
 # Only examples/demo.db + examples/attachments (already scrubbed public fixtures)
 # are baked into the artifact. Never point export-static at a personal mirror.

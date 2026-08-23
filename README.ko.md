@@ -28,10 +28,10 @@ gadak은 Jira *그리고* Confluence를 로컬 SQLite 파일 하나로 미러링
 원본은 Jira입니다.
 
 <p align="center">
-  <a href="https://midagedev.github.io/gadak/"><b>▶&nbsp; 라이브 데모 열기</b></a>
+  <a href="https://gadak.dev/demo/"><b>▶&nbsp; 라이브 데모 열기</b></a>
   &nbsp;—&nbsp; 이슈 534개, 지금 바로 브라우저에서.
   <br>
-  <a href="https://midagedev.github.io/gadak/backlog/">공개 백로그</a>
+  <a href="https://gadak.dev/backlog/">공개 백로그</a>
   &nbsp;—&nbsp; gadak 자신의 로드맵을 gadak으로 봅니다. 커밋 메시지의
   <code>GDK-nnn</code> 키가 여기로 이어집니다. 등록은
   <a href="https://github.com/midagedev/gadak/issues">GitHub 이슈</a>로 —

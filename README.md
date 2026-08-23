@@ -27,10 +27,10 @@ project stops tomorrow, you delete a directory and have lost nothing: Jira
 stays the source of truth.
 
 <p align="center">
-  <a href="https://midagedev.github.io/gadak/"><b>▶&nbsp; Open the live demo</b></a>
+  <a href="https://gadak.dev/demo/"><b>▶&nbsp; Open the live demo</b></a>
   &nbsp;—&nbsp; 534 issues, in your browser, right now.
   <br>
-  <a href="https://midagedev.github.io/gadak/backlog/">Public backlog</a>
+  <a href="https://gadak.dev/backlog/">Public backlog</a>
   &nbsp;—&nbsp; gadak's own roadmap, browsed in gadak. The <code>GDK-nnn</code>
   keys in commit messages resolve here. To file something, open a
   <a href="https://github.com/midagedev/gadak/issues">GitHub issue</a> — the

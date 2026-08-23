@@ -1,7 +1,7 @@
 blank_issues_enabled: false
 contact_links:
   - name: Public backlog
-    url: https://midagedev.github.io/gadak/backlog/
+    url: https://gadak.dev/backlog/
     about: What is planned and in flight — the GDK-nnn keys in commit messages live here. New issues filed here are mirrored into it by the maintainer.
   - name: Discussions
     url: https://github.com/midagedev/gadak/discussions

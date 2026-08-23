@@ -9,7 +9,7 @@ import { dismissHostedFirstFrame } from './helpers'
  * full-screen "unsupported" notice) is what paints.
  */
 
-const DEMO = '/gadak/'
+const DEMO = '/demo/'
 
 const UNSUPPORTED_HEADING = '이 브라우저에서는 데모를 열 수 없어요'
 
@@ -130,7 +130,7 @@ test.describe('hosted demo in an in-app browser', () => {
     await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 60_000 })
 
     const delta = await page.evaluate(async () => {
-      const req = new Request('/gadak/api/v1/issues/delta/?since=2026-01-01T00:00:00.000Z')
+      const req = new Request('/demo/api/v1/issues/delta/?since=2026-01-01T00:00:00.000Z')
       const res = await fetch(req)
       return { status: res.status, body: (await res.json()) as Record<string, unknown> }
     })
@@ -139,7 +139,7 @@ test.describe('hosted demo in an in-app browser', () => {
     expect(delta.body).toEqual({ error: 'not_found' })
 
     const write = await page.evaluate(async () => {
-      const res = await fetch('/gadak/api/v1/issues/NMB-110/comment/', {
+      const res = await fetch('/demo/api/v1/issues/NMB-110/comment/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: 'should-not-reach-a-server' }),
@@ -150,7 +150,7 @@ test.describe('hosted demo in an in-app browser', () => {
     expect(write.body.error).toBe('demo_read_only')
 
     const detail = await page.evaluate(async () => {
-      const res = await fetch(new Request('/gadak/api/v1/issues/NMB-110/detail/'))
+      const res = await fetch(new Request('/demo/api/v1/issues/NMB-110/detail/'))
       const body = (await res.json()) as {
         attachments?: { content_url?: string }[]
       }

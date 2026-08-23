@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # Static server for the hosted-demo Playwright checks.
 #
-# Stages the built demo (dist/hosted) under dist/pages/gadak/ so the /gadak/
-# base path resolves, then serves dist/pages on 127.0.0.1:4173.
+# Serves the built site (dist/hosted) on 127.0.0.1:4173. The site is served at
+# the apex of gadak.dev, so dist/hosted IS the document root: / is the landing
+# page, /demo/ the app, /backlog/ the backlog viewer (GDK-676). It used to be
+# staged under dist/pages/gadak/ for the /gadak/ base path.
 #
 # This lives in a file rather than inline in playwright.config.ts for one
 # measured reason: Playwright hands `webServer.command` to `/bin/sh`, which is
@@ -21,8 +23,4 @@ test -f "$ROOT/dist/hosted/index.html" || {
   exit 1
 }
 
-rm -rf "$ROOT/dist/pages"
-mkdir -p "$ROOT/dist/pages/gadak"
-cp -R "$ROOT/dist/hosted/." "$ROOT/dist/pages/gadak/"
-
-exec npx --yes serve "$ROOT/dist/pages" -l 4173 --no-port-switching
+exec npx --yes serve "$ROOT/dist/hosted" -l 4173 --no-port-switching

@@ -8,7 +8,7 @@ import { dismissHostedFirstFrame } from './helpers'
  * binary and no Jira account.
  */
 
-const DEMO = '/gadak/'
+const DEMO = '/demo/'
 
 /** Placeholder copy is not the contract (see e2e/helpers.ts searchInput). */
 function searchInput(page: Page) {

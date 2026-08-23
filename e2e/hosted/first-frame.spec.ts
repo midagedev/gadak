@@ -7,7 +7,7 @@ import { test, expect, type Page } from '@playwright/test'
  * Hosted-config only — not part of the CI e2e set.
  */
 
-const DEMO = '/gadak/'
+const DEMO = '/demo/'
 
 test.use({
   viewport: { width: 1280, height: 900 },

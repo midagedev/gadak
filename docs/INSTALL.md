@@ -327,7 +327,7 @@ it on a network you trust. Config and `gadak.db` live under `/data`.
 
 ## Try it without installing anything
 
-The [hosted demo](https://midagedev.github.io/gadak/) is a static build of the
+The [hosted demo](https://gadak.dev/demo/) is a static build of the
 web UI plus a frozen copy of the demo snapshot. No binary, no Jira account, no
 trust decision.
 

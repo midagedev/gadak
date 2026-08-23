@@ -1,15 +1,21 @@
 #!/usr/bin/env node
 /**
- * Build the zero-install hosted demo into dist/hosted.
+ * Build the public site into dist/hosted.
  *
- * 1. Vite build with VITE_HOSTED_DEMO=1 and base /gadak/ (GitHub Pages project site)
- * 2. Copy demo video/poster/og assets (About popover links to web-demo.mp4)
- * 3. gadak export-static freezes examples/demo.db → bootstrap/detail/attachments
+ *   /         landing page (static, authored here)
+ *   /demo/    the zero-install live demo (Vite build + frozen examples/demo.db)
+ *   /backlog/ the public backlog viewer (Vite build + committed snapshot)
+ *
+ * The site is served at the apex of gadak.dev, so the base path is `/`
+ * (GDK-676). It used to be `/gadak/` for midagedev.github.io/gadak/; that
+ * host now 301s to the domain with the repo segment dropped, which is why
+ * the demo had to leave the root and the base had to lose its prefix.
+ * GADAK_BASE_PATH still overrides for a subpath deployment.
  *
  * Usage (from repo root):
  *   node tools/hosted-demo/build.mjs
  *   make hosted-demo
- *   ./tools/hosted-demo/preview.sh   # serve dist/hosted at :4173/gadak/
+ *   ./tools/hosted-demo/preview.sh   # serve dist/hosted at :4173/
  */
 import { spawnSync } from 'node:child_process'
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
@@ -19,13 +25,16 @@ import { fileURLToPath } from 'node:url'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const outDir = join(root, 'dist', 'hosted')
-const basePath = process.env.GADAK_BASE_PATH || '/gadak/'
-const apiBase = basePath.endsWith('/')
-  ? `${basePath}api/v1/issues/`
-  : `${basePath}/api/v1/issues/`
-const authBase = basePath.endsWith('/')
-  ? `${basePath}api/v1/auth/`
-  : `${basePath}/api/v1/auth/`
+const basePath = process.env.GADAK_BASE_PATH || '/'
+const withSlash = basePath.endsWith('/') ? basePath : `${basePath}/`
+// Each app owns a subpath because basePath() is a compile-time BASE_URL: two
+// bundles under one base would fetch each other's config.json.
+const demoBase = `${withSlash}demo/`
+const backlogBase = `${withSlash}backlog/`
+const demoOut = join(outDir, 'demo')
+const apiBase = `${demoBase}api/v1/issues/`
+const authBase = `${demoBase}api/v1/auth/`
+const siteOrigin = process.env.GADAK_SITE_ORIGIN || 'https://gadak.dev'
 
 function run(cmd, args, env = {}) {
   console.log(`+ ${cmd} ${args.join(' ')}`)
@@ -70,11 +79,11 @@ if (!existsSync(viteBin)) {
 }
 run(viteBin, ['build'], {
   VITE_HOSTED_DEMO: '1',
-  GADAK_BASE_PATH: basePath,
-  HOSTED_OUT: outDir,
+  GADAK_BASE_PATH: demoBase,
+  HOSTED_OUT: demoOut,
 })
 
-const indexPath = join(outDir, 'index.html')
+const indexPath = join(demoOut, 'index.html')
 if (!existsSync(indexPath)) {
   console.error('hosted-demo: index.html missing from build output')
   process.exit(1)
@@ -94,8 +103,8 @@ const socialMeta = `
     <meta property="og:site_name" content="gadak">
     <meta property="og:title" content="gadak — Follow the thread.">
     <meta property="og:description" content="Jira and Confluence in one local SQLite file — search it, query it, point your agent at it. This is the live demo.">
-    <meta property="og:url" content="https://midagedev.github.io/gadak/">
-    <meta property="og:image" content="https://midagedev.github.io/gadak/og.png">
+    <meta property="og:url" content="${siteOrigin}/demo/">
+    <meta property="og:image" content="${siteOrigin}/og.png">
     <meta property="og:image:width" content="1280">
     <meta property="og:image:height" content="640">
     <meta name="twitter:card" content="summary_large_image">
@@ -117,25 +126,28 @@ if (!existsSync(mp4Src)) {
   console.error('hosted-demo: docs/media/web-demo.mp4 missing')
   process.exit(1)
 }
-copyFileSync(mp4Src, join(outDir, 'web-demo.mp4'))
+copyFileSync(mp4Src, join(demoOut, 'web-demo.mp4'))
 
 const ogSrc = join(root, 'docs', 'media', 'og.png')
 if (!existsSync(ogSrc)) {
   console.error('hosted-demo: docs/media/og.png missing')
   process.exit(1)
 }
+copyFileSync(ogSrc, join(demoOut, 'og.png'))
+// The landing page's own social card and the favicon set it shares with the
+// apps live at the site root, where a crawler that only reads / can find them.
 copyFileSync(ogSrc, join(outDir, 'og.png'))
 
 // Poster is a still, not the 1.1MB mp4. ffmpeg is optional: Pages CI may
 // not have it. Fall back to the OG card copied above.
-const posterOut = join(outDir, 'web-demo-poster.jpg')
+const posterOut = join(demoOut, 'web-demo-poster.jpg')
 const ff = spawnSync(
   'ffmpeg',
   ['-y', '-ss', '00:00:02', '-i', mp4Src, '-frames:v', '1', '-q:v', '5', posterOut],
   { cwd: root, stdio: 'pipe' },
 )
 if (ff.status !== 0 || !existsSync(posterOut)) {
-  copyFileSync(join(outDir, 'og.png'), posterOut)
+  copyFileSync(join(demoOut, 'og.png'), posterOut)
   console.log('hosted-demo: ffmpeg poster skipped — using og.png')
 }
 
@@ -151,11 +163,11 @@ run(bin, [
   apiBase,
   '--auth-base',
   authBase,
-  outDir,
+  demoOut,
 ])
 // ── 3b. Public backlog (GDK-389) — committed scrubbed snapshot, own bundle ──
-// A second Vite build because basePath() is compile-time BASE_URL: the same
-// bundle under /gadak/backlog/ would fetch /gadak/config.json (the demo's).
+// A third Vite build because basePath() is compile-time BASE_URL: the same
+// bundle under /backlog/ would fetch /demo/config.json.
 // Git tracks examples/backlog-snapshot.tar.gz. The viewer still fetches
 // detail/<KEY>.json, so unpack to a temp tree and copy as before.
 let backlogSnapshot = join(root, 'examples', 'backlog-snapshot')
@@ -165,7 +177,6 @@ if (!existsSync(join(backlogSnapshot, 'bootstrap.json')) && existsSync(backlogAr
   run('bash', ['tools/backlog-snapshot.sh', '--unpack', backlogSnapshot])
 }
 if (existsSync(join(backlogSnapshot, 'bootstrap.json'))) {
-  const backlogBase = basePath.endsWith('/') ? `${basePath}backlog/` : `${basePath}/backlog/`
   const backlogOut = join(outDir, 'backlog')
   run(viteBin, ['build'], {
     VITE_HOSTED_DEMO: '1',
@@ -197,16 +208,207 @@ if (existsSync(join(backlogSnapshot, 'bootstrap.json'))) {
   console.log('hosted-demo: public backlog snapshot missing — skipping backlog page')
 }
 
+// ── 3c. Landing page ────────────────────────────────────────────────────────
+// The apex is a door, not an app: one sentence about what gadak is and the
+// three places a visitor can go. Static HTML on purpose — it must paint with
+// no bundle, and it is the page a shared link lands on.
+writeFileSync(join(outDir, 'index.html'), landingHtml())
+
+// Favicons and the manifest are emitted per app by Vite; the landing page
+// shares them, so copy the demo's set up to the root.
+for (const f of ['icon-16.png', 'icon-32.png', 'icon-512.png', 'apple-touch-icon.png']) {
+  const src = join(demoOut, f)
+  if (existsSync(src)) copyFileSync(src, join(outDir, f))
+}
+
+// A Pages deployment made by an Action replaces the published tree wholesale,
+// so the custom domain has to be part of the artifact — the repo setting alone
+// has been observed to drop out from under an Actions deploy. Derived from the
+// site origin so there is one place that knows the domain.
+const siteHost = new URL(siteOrigin).host
+if (basePath === '/' && siteHost && !siteHost.endsWith('.github.io')) {
+  writeFileSync(join(outDir, 'CNAME'), `${siteHost}\n`)
+}
+
 // ── 4. Sanity ───────────────────────────────────────────────────────────────
-const boot = join(outDir, 'bootstrap.json')
-const detail = join(outDir, 'detail')
+const boot = join(demoOut, 'bootstrap.json')
+const detail = join(demoOut, 'detail')
 if (!existsSync(boot) || !existsSync(detail)) {
   console.error('hosted-demo: export-static did not produce bootstrap/detail')
   process.exit(1)
 }
+const landing = readFileSync(join(outDir, 'index.html'), 'utf8')
+for (const href of [`${demoBase}`, `${backlogBase}`]) {
+  if (!landing.includes(`href="${href}"`)) {
+    console.error(`hosted-demo: landing page does not link ${href} — the site's front door must reach both apps`)
+    process.exit(1)
+  }
+}
 const bootSize = statSync(boot).size
 console.log(`hosted-demo: ready at ${outDir} (bootstrap ${bootSize} bytes, base ${basePath})`)
-console.log(`hosted-demo: serve with  npx serve dist -p 4173  then open http://127.0.0.1:4173${basePath}`)
-console.log('              (files live at dist/hosted; serve parent with a /gadak rewrite, or:')
-console.log('               mkdir -p dist/pages/gadak && cp -R dist/hosted/. dist/pages/gadak/')
-console.log('               npx serve dist/pages -p 4173)')
+console.log(`hosted-demo: landing ${withSlash} · demo ${demoBase} · backlog ${backlogBase}`)
+console.log(`hosted-demo: preview with  npx serve dist/hosted -l 4173  then open http://127.0.0.1:4173${withSlash}`)
+
+function landingHtml() {
+  // Palette is the app's own (web/src/app.css @theme): paper grounds, ink
+  // text, one 쪽빛 indigo thread. Dark mode mirrors the app's tokens.
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f4efe4" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0f1013" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" type="image/png" sizes="32x32" href="${withSlash}icon-32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="${withSlash}icon-16.png" />
+    <link rel="apple-touch-icon" href="${withSlash}apple-touch-icon.png" />
+    <title>gadak — Follow the thread.</title>
+    <meta name="description" content="Jira and Confluence in one local SQLite file. Search it, query it in SQL, point your coding agent at it. Reads never touch the network." />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="gadak" />
+    <meta property="og:title" content="gadak — Follow the thread." />
+    <meta property="og:description" content="Jira and Confluence in one local SQLite file. Search it, query it in SQL, point your coding agent at it." />
+    <meta property="og:url" content="${siteOrigin}/" />
+    <meta property="og:image" content="${siteOrigin}/og.png" />
+    <meta property="og:image:width" content="1280" />
+    <meta property="og:image:height" content="640" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="gadak — Follow the thread." />
+    <meta name="twitter:description" content="Jira and Confluence in one local SQLite file. Search it, query it in SQL, point your coding agent at it." />
+    <style>
+      :root {
+        --bg: #f4efe4;
+        --panel: #ebe3d2;
+        --elevated: #e4d9c4;
+        --border: #d5c9b2;
+        --border-strong: #b9ab92;
+        --ink: #1c1812;
+        --ink-2: #534c42;
+        --ink-3: #635a4f;
+        --accent: #2e4560;
+        --accent-hover: #24384e;
+        --on-accent: #f4efe4;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0f1013;
+          --panel: #131417;
+          --elevated: #1a1c20;
+          --border: #2a2d33;
+          --border-strong: #3a3e46;
+          --ink: #e8e4dc;
+          --ink-2: #b3aea4;
+          --ink-3: #8d887e;
+          --accent: #9db4d0;
+          --accent-hover: #b6c8de;
+          --on-accent: #0f1013;
+        }
+      }
+      * { box-sizing: border-box; }
+      html { -webkit-text-size-adjust: 100%; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font: 16px/1.6 ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      main { max-width: 46rem; margin: 0 auto; padding: 4.5rem 1.5rem 5rem; }
+      .mark {
+        font-size: 2.75rem;
+        font-weight: 650;
+        letter-spacing: -0.02em;
+        margin: 0 0 0.35rem;
+      }
+      .tagline { margin: 0 0 2rem; color: var(--ink-2); font-size: 1.0625rem; }
+      .lede { margin: 0 0 2.5rem; font-size: 1.0625rem; color: var(--ink); }
+      .lede code {
+        font: 0.9375rem/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        background: var(--elevated);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 0.1rem 0.3rem;
+      }
+      .doors { display: grid; gap: 0.75rem; margin: 0 0 3rem; }
+      a.door {
+        display: block;
+        padding: 1.05rem 1.25rem;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        color: inherit;
+        text-decoration: none;
+        transition: border-color 120ms ease, background 120ms ease;
+      }
+      a.door:hover, a.door:focus-visible {
+        background: var(--elevated);
+        border-color: var(--border-strong);
+      }
+      a.door:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+      a.door.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+      a.door.primary:hover, a.door.primary:focus-visible { background: var(--accent-hover); border-color: var(--accent-hover); }
+      a.door.primary .sub { color: var(--on-accent); opacity: 0.82; }
+      .door .title { font-weight: 620; font-size: 1.0625rem; }
+      .door .sub { display: block; margin-top: 0.2rem; color: var(--ink-3); font-size: 0.9375rem; }
+      h2 { font-size: 0.8125rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-3); margin: 0 0 0.75rem; font-weight: 600; }
+      pre {
+        margin: 0 0 2.5rem;
+        padding: 1rem 1.25rem;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        overflow-x: auto;
+        font: 0.875rem/1.7 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        color: var(--ink);
+      }
+      footer { border-top: 1px solid var(--border); padding-top: 1.25rem; color: var(--ink-3); font-size: 0.875rem; }
+      footer a { color: var(--accent); text-decoration: none; }
+      footer a:hover { text-decoration: underline; }
+      @media (max-width: 30rem) {
+        main { padding: 3rem 1.15rem 4rem; }
+        .mark { font-size: 2.25rem; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1 class="mark">gadak</h1>
+      <p class="tagline">Follow the thread.</p>
+
+      <p class="lede">
+        Your Jira and Confluence, mirrored into one local SQLite file. Search it,
+        query it in <code>SQL</code>, point your coding agent at it. Reads never
+        touch the network, and nothing about your tracker leaves this machine.
+      </p>
+
+      <div class="doors">
+        <a class="door primary" href="${demoBase}">
+          <span class="title">▶&nbsp; Open the live demo</span>
+          <span class="sub">The real UI over a scrubbed sample mirror. No install, no account.</span>
+        </a>
+        <a class="door" href="${backlogBase}">
+          <span class="title">Public backlog</span>
+          <span class="sub">gadak's own issues, published from gadak — every commit cites one.</span>
+        </a>
+        <a class="door" href="https://github.com/midagedev/gadak">
+          <span class="title">Source and releases</span>
+          <span class="sub">Apache-2.0 on GitHub. macOS app, and a CLI for Linux and Windows.</span>
+        </a>
+      </div>
+
+      <h2>Install</h2>
+      <pre>brew install --cask midagedev/tap/gadak   # macOS app (CLI included)
+brew install midagedev/tap/gadak-cli     # CLI only (macOS, Linux)
+
+gadak init &amp;&amp; gadak sync &amp;&amp; gadak serve</pre>
+
+      <footer>
+        Built by <a href="https://github.com/midagedev">midagedev</a> ·
+        <a href="https://github.com/midagedev/gadak">GitHub</a> ·
+        <a href="https://github.com/midagedev/gadak/blob/main/SECURITY.md">Where the bytes go</a>
+      </footer>
+    </main>
+  </body>
+</html>
+`
+}

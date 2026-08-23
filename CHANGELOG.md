@@ -783,6 +783,23 @@ the fixes are all here.
   generation it was recorded in: the timeline shows the current one, and the
   retired rows stay readable with `gadak sql`
 
+### A front door at gadak.dev
+
+- **The site has an apex, and three doors behind it** ([GDK-676]). Everything
+  public was reachable only as `midagedev.github.io/gadak/…`, so an account
+  name sat inside every URL the project printed — and pointing a domain at it
+  did not just work: GitHub redirects a project path to the custom domain with
+  the *repo segment dropped*, so `gadak.dev` was served the `index.html` of an
+  app whose assets were all built for `/gadak/`, and the front page of the
+  product was a broken page. The published tree is rooted at `/` now: a
+  landing page at the apex, the live demo at `/demo/`, the public backlog at
+  `/backlog/`. Each app is built against its own base path, because
+  `basePath()` resolves at build time and cannot be re-pointed afterwards.
+  The landing page has nothing to load — no script, no web font, no
+  analytics, the product's own paper-and-indigo tokens inlined — and a
+  build-time gate fails the site when its markup stops linking both apps: a
+  front door that reaches neither is worse than no front door at all.
+
 ### Windows, unsigned but verifiable
 
 - **The Windows warning has a page now** ([GDK-211]).
@@ -2453,5 +2470,6 @@ measured numbers instead of adjectives.
 [GDK-588]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-588
 [GDK-211]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-211
 [GDK-669]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-669
+[GDK-676]: https://gadak.dev/backlog/#/?ks=GDK-676
 [GDK-668]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-668
 [GDK-671]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-671

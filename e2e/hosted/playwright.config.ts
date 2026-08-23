@@ -3,15 +3,15 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 /**
- * Browser checks against the static hosted-demo output (dist/hosted under /gadak/).
+ * Browser checks against the static site output (dist/hosted, served at /).
  * Runs in CI (pages.yml, before the artifact is uploaded) and locally via
  * `make hosted-demo` (builds + tests) or
  * `npx playwright test --config e2e/hosted/playwright.config.ts` after a build.
  * first-frame.spec.ts is the GDK-55 390×844 readability gate; hosted.spec.ts
  * carries the GDK-52 "no verb it cannot answer" gate.
  *
- * Layout: dist/pages/gadak/ holds the built demo; `npx serve dist/pages` makes
- * http://127.0.0.1:4173/gadak/ resolve correctly with GADAK_BASE_PATH=/gadak/.
+ * Layout: dist/hosted is the document root — / is the landing page, /demo/ the
+ * app, /backlog/ the backlog viewer (GDK-676, the gadak.dev apex).
  */
 const root = join(dirname(fileURLToPath(import.meta.url)), '../..')
 
@@ -31,13 +31,13 @@ export default defineConfig({
     locale: 'en-US',
   },
   webServer: {
-    // Stage dist/hosted under dist/pages/gadak so the /gadak/ base path works,
-    // then serve dist/pages on :4173. The script names its own interpreter:
+    // Serve dist/hosted on :4173 as the document root. The script names its
+    // own interpreter:
     // Playwright runs this string through /bin/sh, which is bash locally and
     // dash on the CI runner, and the inline version's `set -euo pipefail` died
     // there ("Illegal option -o pipefail") after passing every local run.
     command: 'bash e2e/hosted/serve.sh',
-    url: 'http://127.0.0.1:4173/gadak/',
+    url: 'http://127.0.0.1:4173/demo/',
     reuseExistingServer: !process.env.CI,
     timeout: 60_000,
     cwd: root,

@@ -10,7 +10,7 @@ import { dismissHostedFirstFrame } from './helpers'
  * server_time=now. A republished bootstrap.json never reached the pool.
  */
 
-const DEMO = '/gadak/'
+const DEMO = '/demo/'
 const NEW_KEY = 'SNAP-440'
 const NEW_SUMMARY = 'Returning visitor must see this snapshot row'
 const SNAPSHOT_TIME = '2099-01-15T12:00:00.000Z'
@@ -93,7 +93,7 @@ test.describe('hosted demo returning visitor', () => {
     await searchInput(page).fill(NEW_KEY)
     await expect(page.getByText(NEW_KEY)).toHaveCount(0)
 
-    await page.route('**/gadak/bootstrap.json', async (route) => {
+    await page.route('**/demo/bootstrap.json', async (route) => {
       const res = await route.fetch()
       const body = (await res.json()) as {
         server_time?: string
