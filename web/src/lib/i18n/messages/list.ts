@@ -26,27 +26,6 @@ export const list = {
     ko: '뷰로 저장',
     ja: 'ビューとして保存',
   },
-  'filter.savePersonal': {
-    en: 'Save personal',
-    ko: '개인 저장',
-    ja: '個人に保存',
-  },
-  'filter.saveTeam': {
-    en: 'Share with team',
-    ko: '팀 공유',
-    ja: 'チームと共有',
-  },
-  // GDK-437 scope hints — one line per save button, saying where it lands.
-  'filter.saveServerHint': {
-    en: 'Visible on all your devices',
-    ko: '모든 기기에서 보임',
-    ja: 'すべてのデバイスで表示',
-  },
-  'filter.saveLocalHint': {
-    en: 'This browser only',
-    ko: '이 브라우저에만 저장',
-    ja: 'このブラウザのみ',
-  },
   'filter.saveServerFailed': {
     en: 'Server save failed — saved in this browser instead',
     ko: '서버 저장에 실패해 이 브라우저에 저장했습니다',

@@ -19,7 +19,7 @@ test.describe('view delete arm', () => {
 
     await page.getByRole('button', { name: en['filter.saveAsView'] }).click()
     await page.getByPlaceholder(en['filter.viewName']).fill(VIEW)
-    await page.getByRole('button', { name: en['filter.savePersonal'] }).click()
+    await page.getByTestId('filter-save-view').click()
     await expect(page.getByPlaceholder(en['filter.viewName'])).toBeHidden()
 
     const row = page.locator('[data-testid="sidebar-view-row"]').filter({ hasText: VIEW })

@@ -121,9 +121,9 @@ test.describe('command palette', () => {
     // A personal view lives in localStorage; the fixture ships the Jira filter
     // ("Open in NMA", NMA + statusCategory). The team layer has none, so this
     // adds one to the real response rather than replacing it.
-    // The GDK-437 one-shot would absorb this fixture's localStorage view into
-    // the server on boot — the personal row would come back as a server row
-    // and pollute the shared local.db. A failed absorb keeps it personal (the
+    // GDK-437 absorb would move this fixture's localStorage view onto the
+    // server on boot — the personal row would come back as a server row and
+    // pollute the shared local.db. A failed absorb keeps it personal (the
     // store retries next boot), which is the shape this spec is about. The
     // failure is an unparseable 200, not an error status: the browser logs
     // every non-ok response to the console, and this spec asserts none.
@@ -186,22 +186,26 @@ test.describe('command palette', () => {
 
     // Empty query: the saved kinds take the section (builtin-views.ts keeps its
     // own glyph, so the built-in row is asserted with a query below).
+    // GDK-437: both saved stores render as one kind, so the two saved rows
+    // share a label and a glyph and are told apart by their own names.
     const rows = {
-      personal: palette.getByRole('option', { name: /My view/ }),
-      team: palette.getByRole('option', { name: /Team view/ }),
+      saved: palette.getByRole('option', { name: /Saved view/ }),
+      local: palette.getByRole('option', { name: /Nimbus blocked/ }),
+      server: palette.getByRole('option', { name: /Release triage/ }),
       source: palette.getByRole('option', { name: /Jira filter/ }),
     }
-    for (const [kind, row] of Object.entries(rows)) {
-      await expect(row, `${kind} row`).toHaveCount(1)
-      await expect(row.locator('svg'), `${kind} row icon`).toHaveCount(1)
+    await expect(rows.saved, 'saved rows').toHaveCount(2)
+    for (const kind of ['local', 'server', 'source'] as const) {
+      await expect(rows[kind], `${kind} row`).toHaveCount(1)
+      await expect(rows[kind].locator('svg'), `${kind} row icon`).toHaveCount(1)
     }
 
     // The clue is what the view opens, off the config the row already holds.
-    await expect(rows.personal).toContainText('NMB')
-    await expect(rows.personal).toContainText('2 filters')
+    await expect(rows.local).toContainText('NMB')
+    await expect(rows.local).toContainText('2 filters')
     // Three keys stop being a clue and become a list, so they collapse to a count.
-    await expect(rows.team).toContainText('3 projects')
-    await expect(rows.team).toContainText('1 filter')
+    await expect(rows.server).toContainText('3 projects')
+    await expect(rows.server).toContainText('1 filter')
     await expect(rows.source).toContainText('NMA')
 
     // A built-in answers with its written hint instead of a filter count.

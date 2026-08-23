@@ -147,18 +147,16 @@
     }
   }
 
-  // GDK-437: with a server behind this bundle the default save is the server
-  // (Enter included) — that is what makes a view follow the user across
-  // devices. The hosted demo has no server to write to, so it keeps the
-  // browser-local default and hides the server choice entirely.
+  // GDK-437: the product picks the store. A server behind this bundle is
+  // where a view belongs (it follows the user across devices). The hosted
+  // demo has no server to write to, so it stays in this browser and says so.
   const saveToServer = hasServerVerb('settings')
-  const defaultScope: 'personal' | 'team' = saveToServer ? 'team' : 'personal'
 
-  async function doSave(scope: 'personal' | 'team') {
+  async function doSave() {
     const name = saveName.trim()
     if (!name) return
     const config = filters.currentConfig()
-    if (scope === 'team' && saveToServer) {
+    if (saveToServer) {
       try {
         await views.addTeam(name, config)
       } catch (e) {
@@ -397,51 +395,30 @@
       {#if saveOpen}
         <div
           class="anim-enter absolute left-0 top-full z-30 mt-1 w-80 rounded-lg border border-border-strong bg-bg-elevated p-2 shadow-overlay"
+          data-testid="filter-save-popover"
         >
           <input
             type="text"
             bind:value={saveName}
             placeholder={t('filter.viewName')}
             class="mb-2 h-control-sm w-full rounded bg-bg-base px-2 text-body text-text-primary placeholder:text-text-muted focus:outline-none"
-            onkeydown={(e) => e.key === 'Enter' && doSave(defaultScope)}
+            onkeydown={(e) => e.key === 'Enter' && doSave()}
           />
-          {#if saveToServer}
-            <!-- Server first (GDK-437): one hint line per button says where
-                 each save lands. Full renaming of the scopes is round C. -->
-            <div class="mb-1 flex gap-1.5 text-micro text-text-muted">
-              <span class="flex-1">{t('filter.saveServerHint')}</span>
-              <span class="flex-1">{t('filter.saveLocalHint')}</span>
+          <button
+            type="button"
+            class="h-control-sm w-full rounded bg-accent px-2 text-body font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-40"
+            disabled={!saveName.trim()}
+            data-testid="filter-save-view"
+            onclick={() => doSave()}
+          >
+            {t('filter.saveAsView')}
+          </button>
+          {#if !saveToServer}
+            <!-- Hosted demo: every non-GET is a 501 here, so the save stays
+                 browser-local and the popover says so. -->
+            <div class="mt-1.5 text-micro text-text-muted" data-testid="filter-save-local-hint">
+              {t('filter.saveDemoLocal')}
             </div>
-            <div class="flex gap-1.5">
-              <button
-                type="button"
-                class="h-control-sm flex-1 rounded bg-accent px-2 text-body font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-40"
-                disabled={!saveName.trim()}
-                onclick={() => doSave('team')}
-              >
-                {t('filter.saveTeam')}
-              </button>
-              <button
-                type="button"
-                class="h-control-sm flex-1 rounded border border-border-strong px-2 text-body font-medium text-text-secondary transition-colors hover:bg-bg-hover disabled:opacity-40"
-                disabled={!saveName.trim()}
-                onclick={() => doSave('personal')}
-              >
-                {t('filter.savePersonal')}
-              </button>
-            </div>
-          {:else}
-            <!-- Hosted demo: every non-GET is a 501 here, so the server save is
-                 not offered at all and the save stays browser-local. -->
-            <button
-              type="button"
-              class="h-control-sm w-full rounded bg-accent px-2 text-body font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-40"
-              disabled={!saveName.trim()}
-              onclick={() => doSave('personal')}
-            >
-              {t('filter.savePersonal')}
-            </button>
-            <div class="mt-1.5 text-micro text-text-muted">{t('filter.saveDemoLocal')}</div>
           {/if}
         </div>
       {/if}

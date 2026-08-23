@@ -346,13 +346,15 @@
    * built-in views in this very section.
    */
   const VIEW_KIND_ICON = {
-    /** Saved by me, like a starred issue is kept by me. */
-    personal: 'star',
-    /** A shared board of work, owned by more than one person. */
-    team: 'layout-dashboard',
+    /**
+     * Saved by me, like a starred issue is kept by me. Both stores get this
+     * glyph: GDK-437 made a saved view one kind, so whether the row came from
+     * the server or from this browser is not a distinction to draw here.
+     */
+    saved: 'star',
     /** Mirrored from the site — the same glyph the browse pane uses for "out there". */
     source: 'globe',
-  } as const satisfies Record<'personal' | 'team' | 'source', IconName>
+  } as const satisfies Record<'saved' | 'source', IconName>
 
   /**
    * Active filter axes, minus the two the clue names outright. Counting axes and
@@ -437,18 +439,18 @@
       push(
         `vp:${v.id}`,
         v.name,
-        viewSub(t('palette.viewPersonal'), viewClue(v.config)),
+        viewSub(t('palette.viewSaved'), viewClue(v.config)),
         v.config,
-        VIEW_KIND_ICON.personal,
+        VIEW_KIND_ICON.saved,
       )
     }
     for (const v of views.team) {
       push(
         `vt:${v.id}`,
         v.name,
-        viewSub(t('palette.viewTeam'), viewClue(v.config)),
+        viewSub(t('palette.viewSaved'), viewClue(v.config)),
         v.config,
-        VIEW_KIND_ICON.team,
+        VIEW_KIND_ICON.saved,
       )
     }
     for (const v of views.source) {

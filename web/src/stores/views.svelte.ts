@@ -1,17 +1,16 @@
 /*
  * Issue Navigator — saved views store ([explore])
  *
- * Two layers (plan §5.3):
- *  - Personal views: localStorage (instant, no server) — not shared across devices
- *  - Team-shared views: server api(views/) — shows author; only owner can delete
+ * Two layers, one product choice:
+ *  - Server api(views/) when a server is behind the app — follows the user
+ *  - localStorage when there is no server (hosted demo) or as a fallback
  *
  * config is explore's ViewConfig serialization (opaque JSON). Server does not interpret it.
  *
  * GDK-437: with a server behind the app, the server layer is where a view
- * belongs (it follows the user across devices). A one-shot absorb moves this
- * browser's localStorage rows onto the server at boot — recency.ts's flag
- * convention. localStorage is never cleared on success (rollback safety);
- * the absorbed ids only stop the same view listing twice.
+ * belongs. Every boot hands leftover localStorage rows (ids not yet in the
+ * absorb set) to the server. localStorage is never cleared on success
+ * (rollback safety); the absorbed ids only stop the same view listing twice.
  */
 
 import { t } from '../lib/i18n'
@@ -25,12 +24,12 @@ function personalViewsKey(): string {
   return STORAGE_KEYS.personalViews
 }
 
-/** Absorb flag (recency.ts convention): ids already handed to the server. */
+/** Absorb flag: ids already handed to the server. */
 function absorbedIdsKey(): string {
   return `${personalViewsKey()}-absorbed`
 }
 
-/** null = the one-shot has not run here yet; otherwise the absorbed id list. */
+/** null = never written here; otherwise the absorbed id list (may be empty). */
 function readAbsorbedIds(): string[] | null {
   try {
     const raw = localStorage.getItem(absorbedIdsKey())
@@ -46,7 +45,7 @@ function writeAbsorbedIds(ids: string[]): void {
   try {
     localStorage.setItem(absorbedIdsKey(), JSON.stringify(ids))
   } catch {
-    /* private mode — the one-shot retries next boot */
+    /* private mode — leftover rows retry next boot */
   }
 }
 
@@ -104,7 +103,7 @@ class ViewsStore {
       let res: ViewsResponse = await api.getViews()
       // The hosted demo has no server to write to — never try to absorb there.
       if (!isHostedDemo()) {
-        const merged = await this.#absorbOnce()
+        const merged = await this.#absorbPending()
         if (merged) res = merged
       }
       this.team = res.views
@@ -116,23 +115,21 @@ class ViewsStore {
     }
   }
 
-  /** One-shot (GDK-437): on the first boot with a server, hand this browser's
-   *  localStorage views over, then record their ids. A failed POST leaves the
-   *  flag unset so the next boot retries. Returns the merged document when an
-   *  absorb happened (the GET above predates it), null otherwise. */
-  async #absorbOnce(): Promise<ViewsResponse | null> {
-    if (readAbsorbedIds() !== null) return null
-    if (this.#raw.length === 0) {
-      writeAbsorbedIds([])
-      return null
-    }
+  /** Every boot (GDK-437): hand leftover localStorage views (ids not yet in
+   *  the absorb set) to the server. A failed POST leaves those ids unrecorded
+   *  so the next boot retries. localStorage is never cleared. Returns the
+   *  merged document when an absorb happened (the GET above predates it),
+   *  null otherwise. */
+  async #absorbPending(): Promise<ViewsResponse | null> {
+    const pending = this.#raw.filter((v) => !this.#absorbed.has(v.id))
+    if (pending.length === 0) return null
     let res: ViewsResponse
     try {
-      res = await api.absorbViews(this.#raw)
+      res = await api.absorbViews(pending)
     } catch {
       return null // server refused/unreachable — retry next boot
     }
-    this.#absorbed = new Set(this.#raw.map((v) => v.id))
+    for (const v of pending) this.#absorbed.add(v.id)
     writeAbsorbedIds([...this.#absorbed])
     this.personal = this.#visible()
     return res

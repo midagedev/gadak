@@ -26,11 +26,6 @@ export const shell = {
     ko: '내 뷰',
     ja: 'マイビュー',
   },
-  'sidebar.teamViews': {
-    en: 'Shared team views',
-    ko: '팀 공유 뷰',
-    ja: '共有チームビュー',
-  },
   'sidebar.jiraFilters': {
     en: 'Jira filters',
     ko: 'Jira 필터',
@@ -157,11 +152,6 @@ export const shell = {
     en: 'Jira API token not set — configure to write',
     ko: 'Jira API 토큰 미설정 — 쓰기하려면 설정하세요',
     ja: 'Jira API token が未設定です — 書き込むには設定してください',
-  },
-  'sidebar.viewOwner': {
-    en: 'Owner: {name}',
-    ko: '작성자: {name}',
-    ja: '所有者: {name}',
   },
   'sidebar.viewDeleteFail': {
     en: 'Could not delete view. Try again.',

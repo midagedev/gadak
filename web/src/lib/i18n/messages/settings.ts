@@ -1111,15 +1111,13 @@ export const settings = {
     ko: '기본 뷰',
     ja: '組み込みビュー',
   },
-  'palette.viewPersonal': {
-    en: 'My view',
-    ko: '내 뷰',
-    ja: 'マイビュー',
-  },
-  'palette.viewTeam': {
-    en: 'Team view',
-    ko: '팀 뷰',
-    ja: 'チームビュー',
+  // GDK-437: one kind of saved view, so one label. The palette used to split
+  // "My view" from "Team view" by which store the row came from, and the
+  // second half of that was never true — a server view is yours too.
+  'palette.viewSaved': {
+    en: 'Saved view',
+    ko: '저장 뷰',
+    ja: '保存ビュー',
   },
   'palette.viewSource': {
     en: 'Jira filter',

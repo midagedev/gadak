@@ -1,8 +1,9 @@
 <script lang="ts">
   /*
-   * Sidebar nav ([explore]). Sections: built-in views / personal (localStorage) /
-   * team shared (api). Top: issue totals + last sync. Personalization (Wave 3)
-   * sits above built-ins. View click = filters.applyConfig; active when it matches.
+   * Sidebar nav ([explore]). Sections: built-in views / saved views (server, with
+   * leftover localStorage rows until absorb) / Jira filters. Top: issue totals +
+   * last sync. Personalization (Wave 3) sits above built-ins. View click =
+   * filters.applyConfig; active when it matches.
    */
   import { onMount } from 'svelte'
   import { t, formatNumber, relativeTime } from '../../lib/i18n'
@@ -254,8 +255,10 @@
   const visibleIds = $derived.by((): SectionId[] => {
     const present = new Set<SectionId>(['builtin', 'docs'])
     if (views.source.length && !onboarding.needsOnboarding) present.add('jira')
-    if (views.personal.length) present.add('personal')
-    if (views.team.length) present.add('team')
+    // One saved-views section (GDK-437). The persisted section id stays
+    // `personal` so collapse/order for that slot survive; `team` remains in
+    // SECTION_IDS for stored-order parse but is never present here.
+    if (views.personal.length || views.team.length) present.add('personal')
     if (workspaceList.length > 1) present.add('workspaces')
     return sidebarSections.order.filter((id) => present.has(id))
   })
@@ -361,22 +364,17 @@
 
 <svelte:document onclick={onDocClick} />
 
-<!-- A saved view's row. A personal view and a team view are the same row: the
-     team one only adds who shared it (in the label and the tooltip) and asks
-     who is allowed to delete it, so both render through here rather than
-     through two copies that drift apart.
-
-     `{' '}` rather than a newline before the owner suffix — the space has to
-     belong to the branch that draws the suffix, or a personal row would carry a
-     trailing one it never had. -->
+<!-- A saved view's row. Local leftover and server rows share this snippet so
+     the list stays one kind. Delete permission still keys on owner_email
+     (server rows) vs always-allowed (local leftovers); the email itself is
+     not drawn. data-view-storage is how e2e reads where the row sat. -->
 {#snippet viewRow(row: {
   id: string
   name: string
   active: boolean
   apply: () => void
-  /** Team views only: who shared it. Absent draws no suffix and no tooltip. */
-  owner?: string | null
-  /** Null when this viewer may not delete it — a team view that is not theirs. */
+  storage: 'local' | 'server'
+  /** Null when this viewer may not delete it — a server view that is not theirs. */
   remove: (() => void) | null
 })}
   {@const armed = deleteArmedId === row.id}
@@ -386,6 +384,7 @@
       : 'hover:bg-bg-hover'}"
     data-testid="sidebar-view-row"
     data-view-id={row.id}
+    data-view-storage={row.storage}
   >
     <button
       type="button"
@@ -393,10 +392,7 @@
         ? 'text-text-primary'
         : 'text-text-secondary group-hover:text-text-primary'}"
       onclick={row.apply}
-      title={row.owner ? t('sidebar.viewOwner', { name: row.owner }) : undefined}
-      >{row.name}{#if row.owner}{' '}<span class="ml-1 text-micro text-text-muted"
-          >· {row.owner}</span
-        >{/if}</button
+      >{row.name}</button
     >
     {#if row.remove}
       <button
@@ -688,19 +684,17 @@
                 name: v.name,
                 active: activePersonal === v.id,
                 apply: () => applyView(v.config),
+                storage: 'local',
                 remove: () => views.removePersonal(v.id),
               })}
             {/each}
-          </SidebarSection>
-        {:else if id === 'team'}
-          <SidebarSection id="team" label={t('sidebar.teamViews')} {visibleIds} {drag}>
             {#each views.team as v (v.id)}
               {@render viewRow({
                 id: v.id,
                 name: v.name,
                 active: activeTeam === v.id,
                 apply: () => applyView(v.config),
-                owner: v.owner_name,
+                storage: 'server',
                 remove:
                   me.email && v.owner_email === me.email
                     ? () =>
