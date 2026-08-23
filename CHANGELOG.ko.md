@@ -9,8 +9,6 @@
 워크스페이스를 매 명령마다 다시 고르지 않아도 됩니다. 마지막은 네트워크 이음새·
 MCP 표면·웹 UI를 훑는 릴리스 전 감사로 닫았습니다.
 
-각 항목의 전체 근거: [docs/changelog-detail.ko.md](docs/changelog-detail.ko.md#unreleased).
-
 ### 개발 패널
 
 - 이슈가 자신의 PR·커밋·배포·빌드와 그 사람들을 압니다 — connected

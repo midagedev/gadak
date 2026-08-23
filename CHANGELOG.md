@@ -10,8 +10,6 @@ agent actually sends, and a workspace stopped being something you re-select
 on every command. It closed with a pre-release audit across the network
 seams, the MCP surface and the web UI.
 
-Every entry in full detail, with the reasoning: [docs/changelog-detail.md](docs/changelog-detail.md#unreleased).
-
 ### The development panel
 
 - An issue knows its PRs, commits, deployments, builds and the people on
