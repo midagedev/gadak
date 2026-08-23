@@ -111,6 +111,11 @@ seams, the MCP surface and the web UI.
 - A favourite's time column holds a time or nothing, and "All" is a tab filter
   rather than also a verb ([GDK-739]).
 - The demo fixture can no longer silently lag the schema ([GDK-671]).
+- A derivation is derived rather than repaired by an effect, in the link
+  dialog, the create dialog and the sources tab ([GDK-692]).
+- The Fields tab stopped drawing a field-mapping editor that could never hold
+  anything, and `gadak config set fieldMap` refuses instead of planting a key
+  the next load erases ([GDK-710]).
 
 ### MCP and the CLI surface
 
@@ -163,6 +168,9 @@ seams, the MCP surface and the web UI.
   mirror, so a saved view stops surviving into the next run ([GDK-742]).
 - Agent onboarding is skill-first, and the repository is a Claude Code plugin
   marketplace ([GDK-8], [GDK-93]).
+- An origin's "I cannot do that" is a value: a capability refusal is a 400
+  with the origin's own sentence, not 502 `jira_unavailable`, and a transition
+  refusal no longer forges a Jira HTTP error to get there ([GDK-685]).
 
 ## v0.16.1 — 2026-08-20
 
@@ -1024,6 +1032,9 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-681]: https://gadak.dev/backlog/#/?ks=GDK-681
 [GDK-682]: https://gadak.dev/backlog/#/?ks=GDK-682
 [GDK-683]: https://gadak.dev/backlog/#/?ks=GDK-683
+[GDK-685]: https://gadak.dev/backlog/#/?ks=GDK-685
+[GDK-692]: https://gadak.dev/backlog/#/?ks=GDK-692
+[GDK-710]: https://gadak.dev/backlog/#/?ks=GDK-710
 [GDK-738]: https://gadak.dev/backlog/#/?ks=GDK-738
 [GDK-739]: https://gadak.dev/backlog/#/?ks=GDK-739
 [GDK-742]: https://gadak.dev/backlog/#/?ks=GDK-742

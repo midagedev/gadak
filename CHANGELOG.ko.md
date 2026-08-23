@@ -104,6 +104,11 @@ MCP 표면·웹 UI를 훑는 릴리스 전 감사로 닫았습니다.
 - 즐겨찾기의 시각 칸에는 시각이 있거나 비어 있고, "All"은 동사가 아니라 탭
   필터입니다 ([GDK-739]).
 - 데모 fixture가 스키마보다 조용히 뒤처질 수 없습니다 ([GDK-671]).
+- 파생은 effect가 고치는 것이 아니라 파생됩니다 — 링크 다이얼로그·생성
+  다이얼로그·소스 탭 ([GDK-692]).
+- Fields 탭이 아무것도 담을 수 없던 필드 매핑 편집기를 그리지 않고,
+  `gadak config set fieldMap`은 다음 로드가 지울 키를 심는 대신 거절합니다
+  ([GDK-710]).
 
 ### MCP와 CLI 표면
 
@@ -155,6 +160,9 @@ MCP 표면·웹 UI를 훑는 릴리스 전 감사로 닫았습니다.
   저장 뷰가 다음 런까지 살아남지 않습니다 ([GDK-742]).
 - 에이전트 온보딩은 skill-first이고, 이 저장소는 Claude Code 플러그인
   마켓플레이스입니다 ([GDK-8], [GDK-93]).
+- origin의 "그건 못 한다"가 값이 됐습니다: 능력 거절은 502 `jira_unavailable`이
+  아니라 origin 자신의 문장을 실은 400이고, transition 거절은 그것을 얻으려
+  Jira HTTP 에러를 위조하지 않습니다 ([GDK-685]).
 
 ## v0.16.1 — 2026-08-20
 
@@ -981,6 +989,9 @@ HTTP·sync·에이전트 계약.
 [GDK-681]: https://gadak.dev/backlog/#/?ks=GDK-681
 [GDK-682]: https://gadak.dev/backlog/#/?ks=GDK-682
 [GDK-683]: https://gadak.dev/backlog/#/?ks=GDK-683
+[GDK-685]: https://gadak.dev/backlog/#/?ks=GDK-685
+[GDK-692]: https://gadak.dev/backlog/#/?ks=GDK-692
+[GDK-710]: https://gadak.dev/backlog/#/?ks=GDK-710
 [GDK-738]: https://gadak.dev/backlog/#/?ks=GDK-738
 [GDK-739]: https://gadak.dev/backlog/#/?ks=GDK-739
 [GDK-742]: https://gadak.dev/backlog/#/?ks=GDK-742
