@@ -28,10 +28,20 @@ func MatchIn(it Issue, f Filter, z calendar.Zone) bool {
 	if len(f.Parent) > 0 && !containsFold(f.Parent, it.ParentKey) {
 		return false
 	}
+	// Negation twins (GDK-771): include narrows first, exclude subtracts —
+	// exclude wins on overlap. Only the JQL-reachable axes appear here; the
+	// mirror-only twins (team_group/severity/qa/deploy) cannot come out of
+	// Compile, and Issue does not carry those fields.
 	if len(f.StatusCategory) > 0 && !containsFold(f.StatusCategory, effectiveCategory(it.StatusCategory)) {
 		return false
 	}
+	if len(f.StatusCategoryNot) > 0 && containsFold(f.StatusCategoryNot, effectiveCategory(it.StatusCategory)) {
+		return false
+	}
 	if len(f.Status) > 0 && !containsFold(f.Status, it.Status) {
+		return false
+	}
+	if len(f.StatusNot) > 0 && containsFold(f.StatusNot, it.Status) {
 		return false
 	}
 	if f.Unassigned && hasAssignee(it) {
@@ -40,22 +50,43 @@ func MatchIn(it Issue, f Filter, z calendar.Zone) bool {
 	if len(f.AssigneeEmail) > 0 && !matchPerson(f.AssigneeEmail, it.AssigneeEmail, it.Assignee, it.AssigneeID) {
 		return false
 	}
+	if len(f.AssigneeEmailNot) > 0 && matchPerson(f.AssigneeEmailNot, it.AssigneeEmail, it.Assignee, it.AssigneeID) {
+		return false
+	}
 	if len(f.ReporterEmail) > 0 && !matchPerson(f.ReporterEmail, it.ReporterEmail, it.Reporter, it.ReporterID) {
+		return false
+	}
+	if len(f.ReporterEmailNot) > 0 && matchPerson(f.ReporterEmailNot, it.ReporterEmail, it.Reporter, it.ReporterID) {
 		return false
 	}
 	if len(f.IssueType) > 0 && !containsFold(f.IssueType, it.Type) {
 		return false
 	}
+	if len(f.IssueTypeNot) > 0 && containsFold(f.IssueTypeNot, it.Type) {
+		return false
+	}
 	if len(f.Priority) > 0 && !containsFold(f.Priority, it.Priority) {
+		return false
+	}
+	if len(f.PriorityNot) > 0 && containsFold(f.PriorityNot, it.Priority) {
 		return false
 	}
 	if len(f.Labels) > 0 && !anyContains(f.Labels, it.Labels) {
 		return false
 	}
+	if len(f.LabelsNot) > 0 && anyContains(f.LabelsNot, it.Labels) {
+		return false
+	}
 	if len(f.Components) > 0 && !anyContains(f.Components, it.Components) {
 		return false
 	}
+	if len(f.ComponentsNot) > 0 && anyContains(f.ComponentsNot, it.Components) {
+		return false
+	}
 	if len(f.FixVersions) > 0 && !anyContains(f.FixVersions, it.FixVersions) {
+		return false
+	}
+	if len(f.FixVersionsNot) > 0 && anyContains(f.FixVersionsNot, it.FixVersions) {
 		return false
 	}
 	if len(f.SprintIDs) > 0 && !containsFold(f.SprintIDs, it.SprintID) {

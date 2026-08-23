@@ -85,7 +85,12 @@ test.describe('F11 search / filter / empty state', () => {
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 
-  test('GDK-474: exclude is a toggle; include-only axes say so in the menu', async ({
+  // Contract rewrite (GDK-771, 2026-08-24): the GDK-474 version of this test
+  // pinned the half-adoption UI — a modal Exclude toggle on the two project
+  // axes and a "No exclude" caption everywhere else (the label users read as
+  // noise). It was green on the pre-change source. Every visible axis now
+  // excludes through a per-value ⊘, and no axis carries a capability caption.
+  test('GDK-771: every axis excludes per value; the caption noise is gone', async ({
     page,
   }) => {
     const errors = attachConsoleErrors(page)
@@ -96,26 +101,30 @@ test.describe('F11 search / filter / empty state', () => {
     await expect(menu).toBeVisible()
 
     const statusRow = page.getByTestId('filter-axis-status')
-    const projectRow = page.getByTestId('filter-axis-jira_project')
     await expect(statusRow).toBeVisible()
-    await expect(projectRow).toBeVisible()
-    await expect(statusRow).toContainText(en['filter.includeOnly'])
-    await expect(projectRow).toContainText(en['filter.excludeMode'])
+    // The old per-axis captions are gone from the field list.
+    await expect(statusRow).not.toContainText('No exclude')
+    await expect(statusRow).not.toContainText('Exclude')
 
-    await projectRow.click()
-    const exclude = page.getByTestId('filter-exclude-mode')
-    await expect(exclude).toBeVisible()
-    await expect(exclude).toHaveText(en['filter.excludeMode'])
-    await expect(exclude.locator('svg')).toHaveCount(0)
-
-    await page.screenshot({ path: '/tmp/f11-shots/474-project-exclude.png' })
-
-    await page.getByLabel(en['onboarding.back']).click()
+    // Status — an axis that was include-only — now excludes per value.
     await statusRow.click()
     await expect(page.getByTestId('filter-exclude-mode')).toHaveCount(0)
-    await expect(page.getByTestId('filter-include-only')).toBeVisible()
+    await expect(page.getByTestId('filter-include-only')).toHaveCount(0)
+    const firstRow = page.getByTestId('filter-value-row').first()
+    await expect(firstRow).toBeVisible()
+    const excludeBtn = page.getByTestId('filter-value-exclude').first()
+    await excludeBtn.click()
+    await expect(firstRow).toHaveAttribute('data-state', 'excluded')
 
-    await page.screenshot({ path: '/tmp/f11-shots/474-status-include-only.png' })
+    await page.screenshot({ path: '/tmp/f11-shots/771-status-excluded.png' })
+
+    // The chip renders the negated form; clicking ⊘ again clears it.
+    await page.keyboard.press('Escape')
+    await expect(page.getByTestId('filter-chip').filter({ hasText: /not/i })).toBeVisible()
+    await page.getByTestId('filter-add').click()
+    await statusRow.click()
+    await page.getByTestId('filter-value-exclude').first().click()
+    await expect(page.getByTestId('filter-value-row').first()).toHaveAttribute('data-state', 'off')
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 

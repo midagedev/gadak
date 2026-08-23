@@ -91,18 +91,18 @@ test.describe('scale demo', () => {
     // the clip shows filters composing — each new menu already reflects
     // the filters before it in its facet counts.
     //
-    // 1) Project ≠ NMB (exclude mode)
+    // 1) Project ≠ NMB (per-value ⊘ — GDK-771 replaced the mode toggle)
     await page.getByTestId('filter-add').click()
     await page.getByTestId('filter-axis-jira_project').click()
-    const excludeToggle = page.getByTestId('filter-exclude-mode')
-    await expect(excludeToggle).toBeVisible()
-    await excludeToggle.click()
     const menuP = page.locator('.anim-enter').first()
     await expect(menuP).toBeVisible()
-    const nmb = menuP.getByRole('button', { name: /^NMB\b/ })
-    await expect(nmb).toBeVisible()
+    const nmbRow = menuP
+      .locator('[data-testid="filter-value-row"][data-filter-value="NMB"]')
+      .locator('..')
+    await expect(nmbRow).toBeVisible()
+    await nmbRow.hover()
     await beat(page, 400)
-    await nmb.click()
+    await nmbRow.getByTestId('filter-value-exclude').click()
     await page.keyboard.press('Escape')
     await expect(page.getByTestId('filter-chip').filter({ hasText: /not/i })).toBeVisible()
     await beat(page, 900)

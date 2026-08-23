@@ -254,13 +254,7 @@ func (c *compiler) compileClause(cl *clause) {
 	field := canonicalField(cl.field)
 	switch field {
 	case "project":
-		if cl.op == opNotIn {
-			vs := c.plainValues(cl)
-			if vs == nil {
-				return
-			}
-			c.f.JiraProjectNot = mergeUnique(c.f.JiraProjectNot, vs)
-			c.mark("project")
+		if c.notInto("project", cl, &c.f.JiraProjectNot) {
 			return
 		}
 		c.eqOrIn("project", cl, func(vs []string) {
@@ -268,6 +262,9 @@ func (c *compiler) compileClause(cl *clause) {
 			c.mark("project")
 		})
 	case "status":
+		if c.notInto("status", cl, &c.f.StatusNot) {
+			return
+		}
 		c.eqOrIn("status", cl, func(vs []string) {
 			c.f.Status = mergeUnique(c.f.Status, vs)
 			c.mark("status")
@@ -279,20 +276,35 @@ func (c *compiler) compileClause(cl *clause) {
 	case "reporter":
 		c.compileReporter(cl)
 	case "labels":
+		if c.notInto("labels", cl, &c.f.LabelsNot) {
+			return
+		}
 		c.multiValued("labels", cl, &c.f.Labels)
 	case "priority":
+		if c.notInto("priority", cl, &c.f.PriorityNot) {
+			return
+		}
 		c.eqOrIn("priority", cl, func(vs []string) {
 			c.f.Priority = mergeUnique(c.f.Priority, vs)
 			c.mark("priority")
 		})
 	case "type":
+		if c.notInto("type", cl, &c.f.IssueTypeNot) {
+			return
+		}
 		c.eqOrIn("type", cl, func(vs []string) {
 			c.f.IssueType = mergeUnique(c.f.IssueType, vs)
 			c.mark("type")
 		})
 	case "component":
+		if c.notInto("component", cl, &c.f.ComponentsNot) {
+			return
+		}
 		c.multiValued("component", cl, &c.f.Components)
 	case "fixversion":
+		if c.notInto("fixVersion", cl, &c.f.FixVersionsNot) {
+			return
+		}
 		c.multiValued("fixVersion", cl, &c.f.FixVersions)
 	case "created":
 		c.compileDate("created", cl, &c.f.CreatedFrom, &c.f.CreatedTo)
@@ -356,6 +368,22 @@ func (c *compiler) multiValued(name string, cl *clause, dest *[]string) {
 	}
 }
 
+// notInto consumes an exclusion clause (NOT IN or !=) into dest and reports
+// whether it did. False means the clause is not an exclusion — the caller's
+// include path decides. GDK-771: every multi axis has a negation twin.
+func (c *compiler) notInto(name string, cl *clause, dest *[]string) bool {
+	if cl.op != opNotIn && cl.op != opNeq {
+		return false
+	}
+	vs := c.plainValues(cl)
+	if vs == nil {
+		return true // refused inside plainValues (already skipped)
+	}
+	*dest = mergeUnique(*dest, vs)
+	c.mark(name)
+	return true
+}
+
 func (c *compiler) unmark(name string) {
 	out := c.applied[:0]
 	for _, a := range c.applied {
@@ -387,8 +415,9 @@ func (c *compiler) plainValues(cl *clause) []string {
 }
 
 func (c *compiler) compileStatusCategory(cl *clause) {
-	if cl.op != opEq && cl.op != opIn {
-		c.skip(cl.render() + " (only = and IN)")
+	neg := cl.op == opNotIn || cl.op == opNeq
+	if !neg && cl.op != opEq && cl.op != opIn {
+		c.skip(cl.render() + " (only =, !=, IN, NOT IN)")
 		return
 	}
 	var cats []string
@@ -400,7 +429,11 @@ func (c *compiler) compileStatusCategory(cl *clause) {
 		}
 		cats = append(cats, mapped)
 	}
-	c.f.StatusCategory = mergeUnique(c.f.StatusCategory, cats)
+	if neg {
+		c.f.StatusCategoryNot = mergeUnique(c.f.StatusCategoryNot, cats)
+	} else {
+		c.f.StatusCategory = mergeUnique(c.f.StatusCategory, cats)
+	}
 	c.mark("statusCategory")
 }
 
@@ -432,8 +465,15 @@ func (c *compiler) compileAssignee(cl *clause) {
 		}
 		c.f.AssigneeEmail = mergeUnique(c.f.AssigneeEmail, vs)
 		c.mark("assignee")
+	case opNotIn, opNeq:
+		vs := c.plainValues(cl)
+		if vs == nil {
+			return
+		}
+		c.f.AssigneeEmailNot = mergeUnique(c.f.AssigneeEmailNot, vs)
+		c.mark("assignee")
 	default:
-		c.skip(cl.render() + " (only =, IN, IS EMPTY)")
+		c.skip(cl.render() + " (only =, !=, IN, NOT IN, IS EMPTY)")
 	}
 }
 
@@ -446,8 +486,15 @@ func (c *compiler) compileReporter(cl *clause) {
 		}
 		c.f.ReporterEmail = mergeUnique(c.f.ReporterEmail, vs)
 		c.mark("reporter")
+	case opNotIn, opNeq:
+		vs := c.plainValues(cl)
+		if vs == nil {
+			return
+		}
+		c.f.ReporterEmailNot = mergeUnique(c.f.ReporterEmailNot, vs)
+		c.mark("reporter")
 	default:
-		c.skip(cl.render() + " (only = and IN)")
+		c.skip(cl.render() + " (only =, !=, IN, NOT IN)")
 	}
 }
 

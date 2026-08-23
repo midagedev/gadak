@@ -39,23 +39,24 @@
   let field = $state<Axis | null>(null)
   let dateField = $state<RangeField | null>(null)
   let valueQuery = $state('')
-  // Exclude mode (GDK-438): picks land in the axis's negation list instead of
-  // its include list. Only offered on negatable axes (jira_project / source_project).
-  let excludeMode = $state(false)
   let saveOpen = $state(false)
   let saveName = $state('')
 
-  /** Whether the open axis has a negation twin (drives the exclude toggle). */
+  /** Whether the open axis has a negation twin (drives the per-value ⊘). */
   const negatable = $derived(!!field && !field.dynamic && !!negationOf(field.key as MultiField))
 
-  const activeSet = $derived.by(() => {
-    // Selected values for the open field (for checkmarks) — in exclude mode,
-    // checkmarks reflect the negation list, so a value already excluded shows
-    // as checked and clicking it un-excludes.
+  // Per-value tri-state (GDK-771): a row is neutral, included (check), or
+  // excluded (⊘). The old modal "Exclude" toggle made picks land differently
+  // depending on invisible state; both lists now show at once.
+  const includeSet = $derived.by(() => {
     if (!field) return new Set<string>()
     if (field.dynamic) return new Set(filters.filters.fields[field.key] ?? [])
-    const neg = excludeMode ? negationOf(field.key as MultiField) : null
-    return new Set(filters.filters[neg ?? (field.key as MultiField)] as string[])
+    return new Set(filters.filters[field.key as MultiField] as string[])
+  })
+  const excludeSet = $derived.by(() => {
+    if (!field || field.dynamic) return new Set<string>()
+    const neg = negationOf(field.key as MultiField)
+    return neg ? new Set((filters.filters[neg] ?? []) as string[]) : new Set<string>()
   })
 
   const values = $derived.by<FacetValue[]>(() => {
@@ -72,13 +73,11 @@
     field = null
     dateField = null
     valueQuery = ''
-    excludeMode = false
   }
   function pickField(f: Axis) {
     field = f
     dateField = null
     valueQuery = ''
-    excludeMode = false
   }
   function pickDate(k: RangeField) {
     field = null
@@ -93,14 +92,34 @@
     const to = bound === 'to' ? value || null : rangeBound(axis, 'to') || null
     filters.setRange(axis, from, to)
   }
-  function toggle(axis: Axis, value: string) {
+  function toggle(axis: Axis, value: string, e?: MouseEvent) {
     if (axis.dynamic) {
       filters.toggleFieldValue(axis.key, value)
       return
     }
-    // Exclude mode moves the pick into the axis's negation list (GDK-438).
-    const neg = excludeMode ? negationOf(axis.key as MultiField) : null
-    filters.toggleValue(neg ?? (axis.key as MultiField), value)
+    const key = axis.key as MultiField
+    // Alt-click is the exclude shortcut; a plain click on an excluded value
+    // clears the exclusion (back to neutral) instead of double-listing it.
+    if (e?.altKey) {
+      toggleExclude(axis, value)
+      return
+    }
+    const neg = negationOf(key)
+    if (neg && excludeSet.has(value)) {
+      filters.toggleValue(neg, value)
+      return
+    }
+    filters.toggleValue(key, value)
+  }
+  function toggleExclude(axis: Axis, value: string) {
+    if (axis.dynamic) return
+    const key = axis.key as MultiField
+    const neg = negationOf(key)
+    if (!neg) return
+    // Moving to the exclude side leaves the include side first — one value
+    // never sits on both lists (exclude would win and the chip pair lies).
+    if (includeSet.has(value)) filters.toggleValue(key, value)
+    filters.toggleValue(neg, value)
   }
   function closeAll() {
     open = false
@@ -231,21 +250,17 @@
           <!-- Step 1: field pick + date axes + flags -->
           <div class="px-2 py-1 text-micro font-medium text-text-muted">{t('filter.properties')}</div>
           {#each axes as f (f.key)}
-            {@const canExclude = !f.dynamic && !!negationOf(f.key as MultiField)}
+            <!-- No per-axis capability caption here (GDK-771): every visible
+                 axis excludes now, so the old "No exclude" note was pure
+                 noise — the ⊘ affordance lives on the value rows. -->
             <button
               type="button"
               data-testid={`filter-axis-${f.key}`}
               class="flex min-h-control-sm w-full items-center justify-between rounded px-2 py-1 text-left text-body text-text-secondary hover:bg-bg-hover hover:text-text-primary"
               onclick={() => pickField(f)}
-              title={canExclude ? t('filter.excludeModeHelp') : t('filter.includeOnlyHelp')}
             >
               <span>{f.label}</span>
-              <span class="flex items-center gap-1">
-                <span class="text-micro text-text-muted"
-                  >{canExclude ? t('filter.excludeMode') : t('filter.includeOnly')}</span
-                >
-                <Icon name="chevron-right" size={13} class="text-text-muted" />
-              </span>
+              <Icon name="chevron-right" size={13} class="text-text-muted" />
             </button>
           {/each}
           {#each DATE_AXES as d (d.key)}
@@ -322,51 +337,58 @@
               placeholder={t('filter.searchField', { field: field!.label })}
               class="h-control-sm min-w-0 flex-1 rounded bg-bg-base px-2 text-body text-text-primary placeholder:text-text-muted focus:outline-none"
             />
-            {#if negatable}
-              <button
-                type="button"
-                data-testid="filter-exclude-mode"
-                class="flex h-control-sm flex-none items-center gap-1 rounded px-1.5 text-micro transition-colors {excludeMode
-                  ? 'bg-accent-subtle/40 text-accent-text'
-                  : 'text-text-muted hover:bg-bg-hover hover:text-text-primary'}"
-                onclick={() => (excludeMode = !excludeMode)}
-                title={t('filter.excludeModeHelp')}
-              >
-                {#if excludeMode}
-                  <Icon name="check" size={12} />
-                {/if}
-                {t('filter.excludeMode')}
-              </button>
-            {:else}
-              <span
-                class="flex-none px-1.5 text-micro text-text-muted"
-                data-testid="filter-include-only"
-                title={t('filter.includeOnlyHelp')}>{t('filter.includeOnly')}</span
-              >
-            {/if}
           </div>
           <div class="max-h-64 overflow-y-auto">
             {#if values.length === 0}
               <div class="px-2 py-3 text-center text-micro text-text-muted">{t('common.noValues')}</div>
             {/if}
             {#each values as v (v.value)}
-              <button
-                type="button"
-                class="flex h-control-sm w-full items-center gap-2 rounded px-2 text-left text-body text-text-secondary hover:bg-bg-hover hover:text-text-primary"
-                onclick={() => toggle(field!, v.value)}
-              >
-                <span
-                  class="flex h-3.5 w-3.5 flex-none items-center justify-center rounded border {activeSet.has(
-                    v.value,
-                  )
-                    ? 'border-accent bg-accent text-white'
-                    : 'border-border-strong'}"
+              {@const excluded = excludeSet.has(v.value)}
+              <!-- Tri-state row (GDK-771): click = include, ⊘ (or Alt-click)
+                   = exclude, click again = clear. The ⊘ stays visible on an
+                   excluded row and appears on hover elsewhere. -->
+              <div class="group/vrow flex h-control-sm w-full items-center gap-2 rounded px-2 hover:bg-bg-hover">
+                <button
+                  type="button"
+                  class="flex min-w-0 flex-1 items-center gap-2 text-left text-body text-text-secondary hover:text-text-primary"
+                  data-testid="filter-value-row"
+                  data-filter-value={v.value}
+                  data-state={excluded ? 'excluded' : includeSet.has(v.value) ? 'included' : 'off'}
+                  onclick={(e) => toggle(field!, v.value, e)}
                 >
-                  {#if activeSet.has(v.value)}<Icon name="check" size={10} />{/if}
-                </span>
-                <span class="min-w-0 flex-1 truncate">{v.label}</span>
-                <span class="flex-none text-micro text-text-muted">{v.count}</span>
-              </button>
+                  <span
+                    class="flex h-3.5 w-3.5 flex-none items-center justify-center rounded border {excluded
+                      ? 'border-status-reopen/70 text-status-reopen'
+                      : includeSet.has(v.value)
+                        ? 'border-accent bg-accent text-white'
+                        : 'border-border-strong'}"
+                  >
+                    {#if excluded}<Icon name="x" size={10} />{:else if includeSet.has(v.value)}<Icon
+                        name="check"
+                        size={10}
+                      />{/if}
+                  </span>
+                  <span class="min-w-0 flex-1 truncate {excluded ? 'text-text-muted line-through' : ''}"
+                    >{v.label}</span
+                  >
+                  <span class="flex-none text-micro text-text-muted">{v.count}</span>
+                </button>
+                {#if negatable}
+                  <button
+                    type="button"
+                    data-testid="filter-value-exclude"
+                    class="flex h-4 w-4 flex-none items-center justify-center rounded text-micro transition-colors {excluded
+                      ? 'text-status-reopen'
+                      : 'text-text-muted opacity-0 hover:text-status-reopen group-hover/vrow:opacity-100'}"
+                    title={t('filter.excludeValue', { value: v.label })}
+                    aria-label={t('filter.excludeValue', { value: v.label })}
+                    aria-pressed={excluded}
+                    onclick={() => toggleExclude(field!, v.value)}
+                  >
+                    <Icon name="ban" size={12} />
+                  </button>
+                {/if}
+              </div>
             {/each}
           </div>
         {/if}

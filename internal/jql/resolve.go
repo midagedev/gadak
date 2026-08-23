@@ -21,6 +21,10 @@ func ResolveIdentity(res *Result, people []Person, me Identity) {
 	}
 	res.Filters.AssigneeEmail = resolveList(res.Filters.AssigneeEmail, people, me, "assignee", &res.Unsupported)
 	res.Filters.ReporterEmail = resolveList(res.Filters.ReporterEmail, people, me, "reporter", &res.Unsupported)
+	// Negation twins resolve identically (GDK-771): "assignee not in
+	// (currentUser())" must exclude the same person the include form selects.
+	res.Filters.AssigneeEmailNot = resolveList(res.Filters.AssigneeEmailNot, people, me, "assignee", &res.Unsupported)
+	res.Filters.ReporterEmailNot = resolveList(res.Filters.ReporterEmailNot, people, me, "reporter", &res.Unsupported)
 }
 
 func resolveList(vals []string, people []Person, me Identity, field string, unsupported *[]string) []string {

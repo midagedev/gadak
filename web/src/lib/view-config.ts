@@ -52,6 +52,23 @@ export interface ViewFilters {
    */
   jira_project_not: string[]
   source_project_not: string[]
+  /** GDK-771: every visible multi axis has a negation twin. */
+  status_category_not: string[]
+  status_not: string[]
+  assignee_email_not: string[]
+  reporter_email_not: string[]
+  actor_not: string[]
+  team_group_not: string[]
+  labels_not: string[]
+  priority_not: string[]
+  severity_not: string[]
+  issue_type_not: string[]
+  components_not: string[]
+  fix_versions_not: string[]
+  qa_run_not: string[]
+  qa_suite_not: string[]
+  qa_impact_not: string[]
+  deploy_state_not: string[]
   /**
    * Exact issue keys, given order. URL `ks` (comma-joined, uppercased).
    * Empty = no constraint. Agent ranking when no explicit sort is set.
@@ -241,15 +258,20 @@ export type MultiField = (typeof MULTI_FIELDS)[number]
 /** Serialized as a multi-value param but not offered as a facet picker. */
 const HIDDEN_MULTI: ReadonlySet<MultiField> = new Set(['keys', 'parent'])
 
-/* ── Multi-value negation axes (GDK-438) ──
+/* ── Multi-value negation axes (GDK-438, extended to every visible axis by
+ *  GDK-771) ──
  *  `<field>_not` excludes values after the include list has narrowed
  *  (intersection minus difference; exclude wins on overlap). These are NOT
  *  part of MULTI_FIELDS — that list drives the filter menu / facets / chips
  *  as include axes. The negation twins ride along in the same components
- *  via negationOf(). Extending negation to another axis = entries in the
- *  three maps below + one matchesMulti call in filterIssues.
+ *  via negationOf(). Every visible multi axis is negatable; keys/parent are
+ *  hidden (not facet pickers) and dynamic `f.*` axes have no twin — the
+ *  half-adoption era's "No exclude" label is gone with the halves.
+ *  The base/twin/URL-key maps are all derived from this one list.
  */
-export const NEGATABLE_MULTI = ['jira_project', 'source_project'] as const
+export const NEGATABLE_MULTI = MULTI_FIELDS.filter(
+  (f): f is Exclude<MultiField, 'keys' | 'parent'> => !HIDDEN_MULTI.has(f),
+)
 export type NegatableField = (typeof NEGATABLE_MULTI)[number]
 export type NegationField = `${NegatableField}_not`
 
@@ -258,22 +280,13 @@ export const NEGATION_FIELDS: readonly NegationField[] = NEGATABLE_MULTI.map(
 )
 
 /** Which include field a negation field subtracts from. */
-export const NEGATION_BASE = {
-  jira_project_not: 'jira_project',
-  source_project_not: 'source_project',
-} as const satisfies Record<NegationField, NegatableField>
-
-/** Inverse of NEGATION_BASE — whether an axis offers exclusion. */
-const FIELD_NEGATION = {
-  jira_project: 'jira_project_not',
-  source_project: 'source_project_not',
-} as const satisfies Record<NegatableField, NegationField>
+export const NEGATION_BASE = Object.fromEntries(
+  NEGATABLE_MULTI.map((f) => [`${f}_not`, f]),
+) as Record<NegationField, NegatableField>
 
 /** The negation twin of a multi field, or null when the axis is include-only. */
 export function negationOf(field: MultiField): NegationField | null {
-  return (NEGATABLE_MULTI as readonly string[]).includes(field)
-    ? FIELD_NEGATION[field as NegatableField]
-    : null
+  return HIDDEN_MULTI.has(field) ? null : (`${field}_not` as NegationField)
 }
 
 /**
@@ -372,6 +385,22 @@ export function emptyFilters(): ViewFilters {
     source_project: [],
     jira_project_not: [],
     source_project_not: [],
+    status_category_not: [],
+    status_not: [],
+    assignee_email_not: [],
+    reporter_email_not: [],
+    actor_not: [],
+    team_group_not: [],
+    labels_not: [],
+    priority_not: [],
+    severity_not: [],
+    issue_type_not: [],
+    components_not: [],
+    fix_versions_not: [],
+    qa_run_not: [],
+    qa_suite_not: [],
+    qa_impact_not: [],
+    deploy_state_not: [],
     keys: [],
     parent: [],
     fields: {},
@@ -523,11 +552,14 @@ const MULTI_KEY = {
   parent: 'pk',
 } as const satisfies Record<MultiField, string>
 
-/** Negation twins serialize with an n-suffixed short key (pjn / spjn). */
-export const NEGATION_KEY = {
-  jira_project_not: 'pjn',
-  source_project_not: 'spjn',
-} as const satisfies Record<NegationField, string>
+/**
+ * Negation twins serialize with an n-suffixed short key (pjn / spjn / stn …),
+ * derived from the include key so the two cannot drift. view-config.test.ts
+ * asserts all view param keys stay unique.
+ */
+export const NEGATION_KEY = Object.fromEntries(
+  NEGATABLE_MULTI.map((f) => [`${f}_not`, `${MULTI_KEY[f]}n`]),
+) as Record<NegationField, string>
 
 /**
  * Discovered-field axes serialize as `f.<alias>` params. The alias is the

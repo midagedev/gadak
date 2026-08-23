@@ -35,17 +35,22 @@ func Emit(f Filter, d Display, opts EmitOpts) (string, []string) {
 		parts = append(parts, inClause("parent", f.Parent))
 	}
 	if len(f.StatusCategory) > 0 {
-		names := make([]string, len(f.StatusCategory))
-		for i, c := range f.StatusCategory {
-			names[i] = statusCategoryJira(c)
-		}
-		parts = append(parts, inClause("statusCategory", names))
+		parts = append(parts, inClause("statusCategory", statusCategoryJiraAll(f.StatusCategory)))
+	}
+	if len(f.StatusCategoryNot) > 0 {
+		parts = append(parts, notInClause("statusCategory", statusCategoryJiraAll(f.StatusCategoryNot)))
 	}
 	if len(f.Status) > 0 {
 		parts = append(parts, inClause("status", f.Status))
 	}
+	if len(f.StatusNot) > 0 {
+		parts = append(parts, notInClause("status", f.StatusNot))
+	}
 	if len(f.IssueType) > 0 {
 		parts = append(parts, inClause("type", f.IssueType))
+	}
+	if len(f.IssueTypeNot) > 0 {
+		parts = append(parts, notInClause("type", f.IssueTypeNot))
 	}
 	if f.Unassigned {
 		parts = append(parts, "assignee is EMPTY")
@@ -67,20 +72,47 @@ func Emit(f Filter, d Display, opts EmitOpts) (string, []string) {
 			parts = append(parts, "assignee in ("+strings.Join(vals, ", ")+")")
 		}
 	}
+	if len(f.AssigneeEmailNot) > 0 {
+		// Excludes keep the currentUser() rewrite: "not mine" round-trips.
+		vals := make([]string, 0, len(f.AssigneeEmailNot))
+		for _, e := range f.AssigneeEmailNot {
+			if isConfiguredMe(e, opts) {
+				vals = append(vals, "currentUser()")
+			} else {
+				vals = append(vals, quote(e))
+			}
+		}
+		parts = append(parts, "assignee not in ("+strings.Join(vals, ", ")+")")
+	}
 	if len(f.ReporterEmail) > 0 {
 		parts = append(parts, inClause("reporter", f.ReporterEmail))
+	}
+	if len(f.ReporterEmailNot) > 0 {
+		parts = append(parts, notInClause("reporter", f.ReporterEmailNot))
 	}
 	if len(f.Labels) > 0 {
 		parts = append(parts, inClause("labels", f.Labels))
 	}
+	if len(f.LabelsNot) > 0 {
+		parts = append(parts, notInClause("labels", f.LabelsNot))
+	}
 	if len(f.Priority) > 0 {
 		parts = append(parts, inClause("priority", f.Priority))
+	}
+	if len(f.PriorityNot) > 0 {
+		parts = append(parts, notInClause("priority", f.PriorityNot))
 	}
 	if len(f.Components) > 0 {
 		parts = append(parts, inClause("component", f.Components))
 	}
+	if len(f.ComponentsNot) > 0 {
+		parts = append(parts, notInClause("component", f.ComponentsNot))
+	}
 	if len(f.FixVersions) > 0 {
 		parts = append(parts, inClause("fixVersion", f.FixVersions))
+	}
+	if len(f.FixVersionsNot) > 0 {
+		parts = append(parts, notInClause("fixVersion", f.FixVersionsNot))
 	}
 	if len(f.SprintIDs) > 0 {
 		parts = append(parts, inClause("sprint", f.SprintIDs))
@@ -102,16 +134,19 @@ func Emit(f Filter, d Display, opts EmitOpts) (string, []string) {
 	if f.Stale {
 		omitted = append(omitted, "stale")
 	}
-	if len(f.TeamGroup) > 0 {
+	// Mirror-only axes (include or exclude) have no JQL words — listed, never
+	// silently dropped (GDK-438's completion contract, extended by GDK-771).
+	if len(f.TeamGroup) > 0 || len(f.TeamGroupNot) > 0 {
 		omitted = append(omitted, "team_group")
 	}
-	if len(f.Severity) > 0 {
+	if len(f.Severity) > 0 || len(f.SeverityNot) > 0 {
 		omitted = append(omitted, "severity")
 	}
-	if len(f.QARun) > 0 || len(f.QASuite) > 0 || len(f.QAImpact) > 0 {
+	if len(f.QARun) > 0 || len(f.QASuite) > 0 || len(f.QAImpact) > 0 ||
+		len(f.QARunNot) > 0 || len(f.QASuiteNot) > 0 || len(f.QAImpactNot) > 0 {
 		omitted = append(omitted, "qa")
 	}
-	if len(f.DeployState) > 0 {
+	if len(f.DeployState) > 0 || len(f.DeployStateNot) > 0 {
 		omitted = append(omitted, "deploy")
 	}
 	if len(f.SourceProject) > 0 {
@@ -155,6 +190,14 @@ func isConfiguredMe(v string, opts EmitOpts) bool {
 		return true
 	}
 	return false
+}
+
+func statusCategoryJiraAll(cats []string) []string {
+	names := make([]string, len(cats))
+	for i, c := range cats {
+		names[i] = statusCategoryJira(c)
+	}
+	return names
 }
 
 func statusCategoryJira(cat string) string {

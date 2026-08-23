@@ -142,28 +142,13 @@ export const list = {
     ko: '키 목록에 값이 {given}개입니다. 한도는 {limit}개입니다. {shown}개 키를 표시합니다.',
     ja: 'キー一覧は {given} 件です。上限は {limit} 件です。{shown} 件のキーを表示しています。',
   },
-  // GDK-438 exclude toggle in the value picker (project axes).
-  'filter.excludeMode': {
-    en: 'Exclude',
-    ko: '제외',
-    ja: '除外',
-  },
-  'filter.excludeModeHelp': {
-    en: 'Pick values to exclude instead of include',
-    ko: '고른 값을 포함 대신 제외로 지정',
-    ja: '含める代わりに、除外する値を選びます',
-  },
-  // GDK-474: include-only axes (status, etc.) have no negation twin —
-  // view-config.ts NEGATABLE_MULTI is only jira_project / source_project.
-  'filter.includeOnly': {
-    en: 'No exclude',
-    ko: '제외 없음',
-    ja: '除外なし',
-  },
-  'filter.includeOnlyHelp': {
-    en: 'Exclude is only on Project and Source project',
-    ko: '제외는 프로젝트와 복제 원본 프로젝트만 됩니다',
-    ja: '除外はプロジェクトとソースプロジェクトだけです',
+  // GDK-771: every visible axis excludes via the per-value ⊘ (tri-state
+  // rows replaced the GDK-438 modal toggle and the GDK-474 "No exclude"
+  // caption — that label was noise once negation stopped being project-only).
+  'filter.excludeValue': {
+    en: 'Exclude {value} (Alt-click)',
+    ko: '{value} 제외 (Alt+클릭)',
+    ja: '{value} を除外 (Alt+クリック)',
   },
   'filter.chipCreatedRange': {
     en: 'Created {from}–{to}',

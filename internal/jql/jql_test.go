@@ -150,7 +150,6 @@ func TestUnsupportedAreListed(t *testing.T) {
 		{`project = NMA AND sprint = "Sprint 41"`, "sprint"},
 		{`status = A OR assignee = B`, "OR across"},
 		{`labels = a AND labels = b`, "has-all"},
-		{`status != Done`, "only ="},
 		{`status WAS Done`, "parse"},
 		{`assignee in membersOf("x")`, "membersOf"},
 		{`https://x.atlassian.net/issues/?filter=99`, "filter"},
@@ -1031,25 +1030,108 @@ func TestRoundTripProjectNotIn(t *testing.T) {
 	}
 }
 
-func TestParseProjectNeqStaysUnsupported(t *testing.T) {
+// Contract rewrite (GDK-771, 2026-08-24): these two cases pinned the old
+// half-adoption — negation existed on project only, so `project !=` and
+// `status not in` were refused. Every multi axis now has a negation twin;
+// the old red-path tests were green on the pre-change source, which is the
+// FAIL-first evidence that the behavior actually changed.
+func TestParseProjectNeqExcludes(t *testing.T) {
 	res := Parse(`project != XYZ`, fixedOpts())
-	blob := res.Error + " " + res.Message + " " + strings.Join(res.Unsupported, " | ")
-	if !strings.Contains(blob, "only =") {
-		t.Fatalf("want != listed as unsupported, got %q", blob)
+	if res.Error != "" {
+		t.Fatalf("error %q %q", res.Error, res.Message)
 	}
-	if len(res.Filters.JiraProject) != 0 || len(res.Filters.JiraProjectNot) != 0 {
-		t.Fatalf("!= must not apply: include=%+v not=%+v", res.Filters.JiraProject, res.Filters.JiraProjectNot)
+	if got := res.Filters.JiraProjectNot; len(got) != 1 || got[0] != "XYZ" {
+		t.Fatalf("JiraProjectNot %+v", got)
+	}
+	if len(res.Filters.JiraProject) != 0 {
+		t.Fatalf("!= must not apply as include: %+v", res.Filters.JiraProject)
 	}
 }
 
-func TestParseStatusNotInStaysUnsupported(t *testing.T) {
-	res := Parse(`status not in (X)`, fixedOpts())
-	blob := res.Error + " " + res.Message + " " + strings.Join(res.Unsupported, " | ")
-	if !strings.Contains(strings.ToLower(blob), "only =") && !strings.Contains(strings.ToLower(blob), "not in") {
-		t.Fatalf("want status not in listed as unsupported, got %q", blob)
+func TestParseNotInPerAxis(t *testing.T) {
+	res := Parse(
+		`status not in (Done) AND statusCategory != Done AND assignee not in ("a@x.com") AND `+
+			`reporter != "r@x.com" AND labels not in (noise) AND priority not in (Low) AND `+
+			`type != Sub-task AND component not in (infra) AND fixVersion not in ("1.0")`,
+		fixedOpts(),
+	)
+	if res.Error != "" {
+		t.Fatalf("error %q %q", res.Error, res.Message)
 	}
-	if len(res.Filters.Status) != 0 {
-		t.Fatalf("status not in must not apply as include: %+v", res.Filters.Status)
+	if len(res.Unsupported) != 0 {
+		t.Fatalf("unsupported %+v", res.Unsupported)
+	}
+	f := res.Filters
+	checks := []struct {
+		name string
+		got  []string
+		want string
+	}{
+		{"StatusNot", f.StatusNot, "Done"},
+		{"StatusCategoryNot", f.StatusCategoryNot, "done"},
+		{"AssigneeEmailNot", f.AssigneeEmailNot, "a@x.com"},
+		{"ReporterEmailNot", f.ReporterEmailNot, "r@x.com"},
+		{"LabelsNot", f.LabelsNot, "noise"},
+		{"PriorityNot", f.PriorityNot, "Low"},
+		{"IssueTypeNot", f.IssueTypeNot, "Sub-task"},
+		{"ComponentsNot", f.ComponentsNot, "infra"},
+		{"FixVersionsNot", f.FixVersionsNot, "1.0"},
+	}
+	for _, c := range checks {
+		if len(c.got) != 1 || c.got[0] != c.want {
+			t.Errorf("%s = %+v, want [%s]", c.name, c.got, c.want)
+		}
+	}
+}
+
+func TestNotInRoundTripAndMatch(t *testing.T) {
+	res := Parse(`status not in (Done) AND labels not in (noise)`, fixedOpts())
+	if res.Error != "" {
+		t.Fatalf("parse error %q", res.Error)
+	}
+	jql, omitted := Emit(res.Filters, Display{}, EmitOpts{})
+	if len(omitted) != 0 {
+		t.Fatalf("omitted %+v", omitted)
+	}
+	for _, want := range []string{"status not in (Done)", "labels not in (noise)"} {
+		if !strings.Contains(jql, want) {
+			t.Errorf("emit %q missing %q", jql, want)
+		}
+	}
+	// Exclude wins: a Done issue and a noise-labeled issue are both out.
+	if MatchIn(Issue{Status: "Done"}, res.Filters, calendar.UTC()) {
+		t.Errorf("Done issue must be excluded")
+	}
+	if MatchIn(Issue{Status: "Open", Labels: []string{"noise", "keep"}}, res.Filters, calendar.UTC()) {
+		t.Errorf("noise-labeled issue must be excluded")
+	}
+	if !MatchIn(Issue{Status: "Open", Labels: []string{"keep"}}, res.Filters, calendar.UTC()) {
+		t.Errorf("clean issue must pass")
+	}
+}
+
+// Mirror-only negation twins have no JQL words — Emit lists them in omitted
+// instead of silently dropping them (GDK-438 completion contract).
+func TestEmitMirrorOnlyNegationsOmitted(t *testing.T) {
+	f := EmptyFilter()
+	f.SeverityNot = []string{"S1"}
+	f.TeamGroupNot = []string{"core"}
+	f.DeployStateNot = []string{"prod"}
+	f.QARunNot = []string{"QR-1"}
+	jql, omitted := Emit(f, Display{}, EmitOpts{})
+	if strings.Contains(jql, "severity") || strings.Contains(jql, "team") {
+		t.Fatalf("mirror-only axes leaked into JQL: %q", jql)
+	}
+	want := map[string]bool{"severity": false, "team_group": false, "deploy": false, "qa": false}
+	for _, o := range omitted {
+		if _, ok := want[o]; ok {
+			want[o] = true
+		}
+	}
+	for k, seen := range want {
+		if !seen {
+			t.Errorf("omitted missing %q (got %+v)", k, omitted)
+		}
 	}
 }
 

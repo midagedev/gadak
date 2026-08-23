@@ -730,41 +730,73 @@ export function filterIssues(
   const needle = raw.toLowerCase()
   const out: IssueLite[] = []
   for (const it of all) {
+    // Include narrows, the `_not` twin subtracts (GDK-771: every visible
+    // axis). Each exclusion reuses its include's predicate so id-first,
+    // person, and multi-token semantics stay identical in both directions;
+    // `?? []` covers saved views serialized before an axis had its twin.
     if (f.status_category.length && !f.status_category.includes(effectiveCategory(it))) continue
+    if ((f.status_category_not ?? []).length && f.status_category_not.includes(effectiveCategory(it)))
+      continue
     if (f.status.length && !matchesIdFirst(f.status, it.status_id, it.status)) continue
+    if ((f.status_not ?? []).length && matchesIdFirst(f.status_not, it.status_id, it.status)) continue
     if (f.assignee_email.length && !f.assignee_email.some((v) => issueMatchesPerson(it, 'assignee', v)))
       continue
+    if ((f.assignee_email_not ?? []).length && f.assignee_email_not.some((v) => issueMatchesPerson(it, 'assignee', v)))
+      continue
     if (f.reporter_email.length && !f.reporter_email.some((v) => issueMatchesPerson(it, 'reporter', v)))
+      continue
+    if ((f.reporter_email_not ?? []).length && f.reporter_email_not.some((v) => issueMatchesPerson(it, 'reporter', v)))
       continue
     // Actor: account ids from the row's actor_ids (server's issue_actors view)
     // — comment, changelog entry, or dev-panel link. Never display names.
     if (f.actor.length && !(it.actor_ids ?? []).some((id) => f.actor.includes(id))) continue
+    if ((f.actor_not ?? []).length && (it.actor_ids ?? []).some((id) => f.actor_not.includes(id)))
+      continue
     if (f.team_group.length && !(it.team_group && f.team_group.includes(it.team_group))) continue
+    if ((f.team_group_not ?? []).length && it.team_group && f.team_group_not.includes(it.team_group))
+      continue
     if (f.priority.length && !matchesIdFirst(f.priority, it.priority_id, it.priority, true)) continue
+    if ((f.priority_not ?? []).length && matchesIdFirst(f.priority_not, it.priority_id, it.priority, true))
+      continue
     if (f.severity.length && !(it.severity && f.severity.includes(it.severity))) continue
+    if ((f.severity_not ?? []).length && it.severity && f.severity_not.includes(it.severity)) continue
     if (f.issue_type.length && !matchesIdFirst(f.issue_type, it.issue_type_id, it.issue_type)) continue
+    if ((f.issue_type_not ?? []).length && matchesIdFirst(f.issue_type_not, it.issue_type_id, it.issue_type))
+      continue
     if (!matchesSelected(f.components, it.components)) continue
+    if ((f.components_not ?? []).length && it.components.some((c) => f.components_not.includes(c)))
+      continue
     if (!matchesSelected(f.fix_versions, it.fix_versions)) continue
+    if ((f.fix_versions_not ?? []).length && it.fix_versions.some((v) => f.fix_versions_not.includes(v)))
+      continue
     if (!matchesDynamicFields(f.fields, it)) continue
     if (
       f.qa_run.length &&
       !(it.qa_runs ?? []).some((run) => f.qa_run.includes(run.key))
     )
       continue
+    if ((f.qa_run_not ?? []).length && (it.qa_runs ?? []).some((run) => f.qa_run_not.includes(run.key)))
+      continue
     if (
       f.qa_suite.length &&
       !(it.qa_suites ?? []).some((suite) => f.qa_suite.includes(suite.key))
     )
+      continue
+    if ((f.qa_suite_not ?? []).length && (it.qa_suites ?? []).some((suite) => f.qa_suite_not.includes(suite.key)))
       continue
     if (
       f.qa_impact.length &&
       !(it.qa_impact_state && f.qa_impact.includes(it.qa_impact_state))
     )
       continue
+    if ((f.qa_impact_not ?? []).length && it.qa_impact_state && f.qa_impact_not.includes(it.qa_impact_state))
+      continue
     if (f.deploy_state.length && !f.deploy_state.includes(deployStateOf(it))) continue
+    if ((f.deploy_state_not ?? []).length && f.deploy_state_not.includes(deployStateOf(it))) continue
     if (!matchesMulti(f.jira_project, f.jira_project_not, jiraProjectOf(it))) continue
     if (!matchesMulti(f.source_project, f.source_project_not, it.source_project ?? '')) continue
     if (f.labels.length && !it.labels.some((l) => f.labels.includes(l))) continue
+    if ((f.labels_not ?? []).length && it.labels.some((l) => f.labels_not.includes(l))) continue
 
     if (f.keys.length) {
       const want = new Set(f.keys.map((k) => k.toUpperCase()))
@@ -1169,25 +1201,33 @@ function buildChips(
       label: t('filter.chipKeys', { n: f.keys.length }),
     })
   }
+  // One label resolution for a multi value, include or exclude side — the
+  // negation chip must never fall back to a raw id its include twin resolves.
+  const multiValueLabel = (field: MultiField, value: string): string => {
+    if (field === 'status_category') return CATEGORY_LABEL(value)
+    if (field === 'assignee_email' || field === 'reporter_email' || field === 'actor')
+      return facetLabel(field, value, all, members)
+    if (field === 'qa_run' || field === 'qa_suite' || field === 'qa_impact' || field === 'deploy_state')
+      return facetLabel(field, value, all, members)
+    // Id-first axes store ids in the filter (never display names — the
+    // display-name trap); the chip resolves the name from the rows the same
+    // way the picker's facet list does. A value that already is a name (a
+    // JQL paste) just falls through.
+    if (field === 'status') return all.find((it) => it.status_id === value)?.status ?? value
+    if (field === 'priority') return all.find((it) => it.priority_id === value)?.priority ?? value
+    if (field === 'issue_type')
+      return all.find((it) => it.issue_type_id === value)?.issue_type ?? value
+    return value
+  }
   for (const field of MULTI_FIELDS) {
     if (field === 'keys') continue
     for (const value of f[field]) {
-      let label = value
-      if (field === 'status_category') label = CATEGORY_LABEL(value)
-      else if (field === 'assignee_email' || field === 'reporter_email' || field === 'actor')
-        label = facetLabel(field, value, all, members)
-      else if (
-        field === 'qa_run' ||
-        field === 'qa_suite' ||
-        field === 'qa_impact' ||
-        field === 'deploy_state'
-      )
-        label = facetLabel(field, value, all, members)
+      const label = multiValueLabel(field, value)
       chips.push({ kind: 'multi', field, value, label: t('filter.chipFieldValue', { field: FIELD_LABEL(field), value: label }) })
     }
   }
-  // Negation chips (GDK-438): labeled with the base axis's name — a negation
-  // field has no fieldLabel entry of its own and should not grow one.
+  // Negation chips (GDK-438, all axes since GDK-771): labeled with the base
+  // axis's name — a negation field has no fieldLabel entry of its own.
   for (const field of NEGATION_FIELDS) {
     for (const value of f[field] ?? []) {
       // Split the label around the negation word via a sentinel: the word's
@@ -1195,7 +1235,7 @@ function buildChips(
       const negWord = t('filter.chipNegWord')
       const raw = t('filter.chipFieldValueNot', {
         field: FIELD_LABEL(NEGATION_BASE[field]),
-        value,
+        value: multiValueLabel(NEGATION_BASE[field], value),
         neg: '\u0000',
       })
       const [before, after] = raw.split('\u0000')

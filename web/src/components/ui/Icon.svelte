@@ -27,6 +27,7 @@
   import {
     ArrowLeft,
     ArrowUpRight,
+    Ban,
     Bell,
     BellOff,
     Check,
@@ -67,6 +68,7 @@
   const ICONS = {
     'arrow-left': ArrowLeft,
     'arrow-up-right': ArrowUpRight,
+    ban: Ban,
     bell: Bell,
     'bell-off': BellOff,
     check: Check,

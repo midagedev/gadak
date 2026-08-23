@@ -14,9 +14,12 @@
  */
 import { describe, expect, test } from 'vitest'
 import {
+  MULTI_FIELDS,
   NEGATABLE_MULTI,
+  NEGATION_BASE,
   NEGATION_FIELDS,
   NEGATION_KEY,
+  VIEW_PARAM_KEYS,
   configToParams,
   emptyConfig,
   hasAnyFilter,
@@ -90,15 +93,42 @@ describe('GDK-438 serialization round-trip', () => {
     expect(hasAnyFilter(c.filters)).toBe(true)
   })
 
-  test('negation registry: every negatable field has a twin, key, and base', () => {
-    expect(NEGATABLE_MULTI).toEqual(['jira_project', 'source_project'])
-    expect(NEGATION_FIELDS).toEqual(['jira_project_not', 'source_project_not'])
-    expect(NEGATION_KEY).toEqual({ jira_project_not: 'pjn', source_project_not: 'spjn' })
-    expect(negationOf('jira_project')).toBe('jira_project_not')
-    expect(negationOf('source_project')).toBe('source_project_not')
-    // Axes without negation answer null — the UI hides the exclude toggle there.
-    expect(negationOf('status')).toBeNull()
-    expect(negationOf('labels')).toBeNull()
+  // Contract rewrite (GDK-771, 2026-08-24): the previous assertion pinned
+  // negation to the two project axes — the half-adoption GDK-438 itself
+  // warned about ("why here and not there"). It was green on the pre-change
+  // source; every visible multi axis now has a twin.
+  test('negation registry: every visible multi field has a twin, key, and base', () => {
+    expect(NEGATABLE_MULTI).toEqual(MULTI_FIELDS.filter((f) => f !== 'keys' && f !== 'parent'))
+    expect(NEGATION_FIELDS).toEqual(NEGATABLE_MULTI.map((f) => `${f}_not`))
+    // Derived URL keys: include key + 'n', the two originals unchanged.
+    expect(NEGATION_KEY.jira_project_not).toBe('pjn')
+    expect(NEGATION_KEY.source_project_not).toBe('spjn')
+    expect(NEGATION_KEY.status_not).toBe('stn')
+    expect(NEGATION_KEY.labels_not).toBe('lbn')
+    for (const f of NEGATABLE_MULTI) {
+      expect(negationOf(f)).toBe(`${f}_not`)
+      expect(NEGATION_BASE[`${f}_not` as keyof typeof NEGATION_BASE]).toBe(f)
+    }
+    // Hidden (non-picker) axes stay include-only.
+    expect(negationOf('keys')).toBeNull()
+    expect(negationOf('parent')).toBeNull()
+  })
+
+  test('all view param keys stay unique after the twin expansion', () => {
+    const keys = VIEW_PARAM_KEYS as readonly string[]
+    expect(new Set(keys).size).toBe(keys.length)
+  })
+
+  test('a new-axis exclusion round-trips through the URL', () => {
+    const c = emptyConfig()
+    c.filters.status_not = ['10001']
+    c.filters.labels_not = ['noise']
+    const p = configToParams(c)
+    expect(p.stn).toBe('10001')
+    expect(p.lbn).toBe('noise')
+    const parsed = roundTrip(c)
+    expect(parsed.filters.status_not).toEqual(['10001'])
+    expect(parsed.filters.labels_not).toEqual(['noise'])
   })
 })
 

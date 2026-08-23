@@ -892,10 +892,14 @@ func TestSearchJQLKeysReturnsThoseIssues(t *testing.T) {
 	}
 }
 
+// Fixture rewrite (GDK-771, 2026-08-24): `statusCategory != Done` was the
+// canonical unsupported clause here — negation now compiles on every axis,
+// so the all-unsupported fixture moved to sprint equality, which stays
+// outside the subset.
 func TestViewsSaveAllUnsupportedFails(t *testing.T) {
 	mirror(t, "https://unused.example.com")
 	out, err := capture(t, func() error {
-		return cmdViews([]string{"save", "Night triage", "--jql", `statusCategory != Done`})
+		return cmdViews([]string{"save", "Night triage", "--jql", `sprint = "Sprint 41"`})
 	})
 	if err == nil {
 		t.Fatalf("all-unsupported JQL saved as success; stdout %q", out)
@@ -921,8 +925,11 @@ func TestViewsSaveAllUnsupportedFails(t *testing.T) {
 
 func TestViewsSavePartialPrintsAppliedAndFillsHash(t *testing.T) {
 	mirror(t, "https://unused.example.com")
+	// GDK-771: the unsupported half is sprint equality now — the old
+	// `statusCategory != Done` compiles (scn=done) and no longer keeps this
+	// fixture partial.
 	out, err := capture(t, func() error {
-		return cmdViews([]string{"save", "Not STD", "--jql", `project NOT IN (STD) AND statusCategory != Done`})
+		return cmdViews([]string{"save", "Not STD", "--jql", `project NOT IN (STD) AND sprint = "Sprint 41"`})
 	})
 	if err != nil {
 		t.Fatalf("partial save: %v\n%s", err, out)
