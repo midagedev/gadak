@@ -103,9 +103,9 @@ const jobs = [
         </svg>
         <div class="copy">
           <div class="name">gadak</div>
-          <h1>Follow the thread.</h1>
-          <p>Jira and Confluence in one local SQLite file —
-          one query answers what the API cannot.</p>
+          <h1>Same Jira. No waiting.</h1>
+          <p>Your team’s Jira — and its Confluence wiki —
+          mirrored into one local SQLite file.</p>
           <div class="proof">
             <span>17 ms reads</span>
             <span>GROUP BY in one query</span>
@@ -116,7 +116,7 @@ const jobs = [
       `
       body { background:${DESK}; color:${INK};
              font:16px/1.45 -apple-system,'Segoe UI',Roboto,sans-serif; }
-      .copy { position:absolute; left:88px; top:148px; max-width:760px; }
+      .copy { position:absolute; left:88px; top:178px; max-width:760px; }
       .name { font:600 28px/1 ui-serif,'Iowan Old Style',Palatino,Georgia,serif;
               letter-spacing:-0.03em; color:${STRAND}; }
       h1 { font:600 72px/1.05 ui-serif,'Iowan Old Style',Palatino,Georgia,serif;

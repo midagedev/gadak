@@ -10,6 +10,11 @@ interface Props {
 const { lang, title, description } = Astro.props
 const t = strings[lang]
 const origin = Astro.site ? Astro.site.href.replace(/\/$/, '') : ''
+// The mirror page in the other language. en '/' ↔ ko '/ko/', en '/install/' ↔ ko '/ko/install/'.
+const altLang: Locale = lang === 'en' ? 'ko' : 'en'
+const ta = strings[altLang]
+const enPath = lang === 'en' ? Astro.url.pathname : Astro.url.pathname.replace(/^\/ko/, '') || '/'
+const altPath = lang === 'en' ? `/ko${Astro.url.pathname === '/' ? '/' : Astro.url.pathname}` : enPath
 ---
 
 <!doctype html>
@@ -23,16 +28,33 @@ const origin = Astro.site ? Astro.site.href.replace(/\/$/, '') : ''
     <meta property="og:site_name" content="gadak" />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
+    <meta property="og:url" content={`${origin}${Astro.url.pathname}`} />
+    <meta property="og:locale" content={lang === 'en' ? 'en_US' : 'ko_KR'} />
+    <meta property="og:locale:alternate" content={lang === 'en' ? 'ko_KR' : 'en_US'} />
     <meta property="og:image" content={`${origin}/og.png`} />
+    <meta property="og:image:width" content="1280" />
+    <meta property="og:image:height" content="640" />
+    <meta property="og:image:alt" content={t.ogImageAlt} />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="alternate" hreflang={lang} href={Astro.url} />
-    <link rel="alternate" hreflang={lang === 'en' ? 'ko' : 'en'} href={`${origin}${lang === 'en' ? '/ko' : ''}${Astro.url.pathname === '/' ? '/' : Astro.url.pathname.replace(/^\/ko/, '')}`} />
+    <link rel="alternate" hreflang={altLang} href={`${origin}${altPath}`} />
+    <link rel="alternate" hreflang="x-default" href={`${origin}${enPath}`} />
     <link rel="icon" type="image/png" sizes="32x32" href="/icon-32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/icon-16.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="theme-color" content="#f4efe4" />
   </head>
   <body>
+    {/* Locale suggestion, never a forced redirect: static and hidden; the
+        inline script below reveals it only when the browser's primary
+        language matches the other page and no explicit choice is stored. */}
+    <div class="lang-banner" id="lang-banner" hidden>
+      <div class="lang-banner-inner">
+        <span>{ta.langBanner.offer}</span>
+        <a data-lang-choice={altLang} href={altPath}>{ta.langBanner.cta}</a>
+        <button type="button" id="lang-banner-dismiss" aria-label={ta.langBanner.dismiss}>×</button>
+      </div>
+    </div>
     <header>
       <nav>
         <a class="wordmark" href={lang === 'en' ? '/' : '/ko/'}>gadak</a>
@@ -41,6 +63,7 @@ const origin = Astro.site ? Astro.site.href.replace(/\/$/, '') : ''
           <a href="/backlog/">{t.nav.backlog}</a>
           <a href={lang === 'en' ? '/install/' : '/ko/install/'}>{t.nav.install}</a>
           <a href="https://github.com/midagedev/gadak">{t.nav.github}</a>
+          <a data-lang-choice={altLang} href={altPath}>{ta.langName}</a>
         </div>
       </nav>
     </header>
@@ -55,10 +78,80 @@ const origin = Astro.site ? Astro.site.href.replace(/\/$/, '') : ''
         <a href="https://github.com/midagedev/gadak/blob/main/SECURITY.md">{t.footer.whereBytes}</a>
       </div>
     </footer>
+    <script is:inline define:vars={{ pageLang: lang, altLang }}>
+      // Language memory: any [data-lang-choice] click (nav switcher, banner
+      // CTA) records an explicit choice; the banner shows only before one
+      // exists, so detection never overrides the user.
+      ;(function () {
+        var KEY = 'gadak-lang'
+        var read = function () {
+          try {
+            return localStorage.getItem(KEY)
+          } catch (e) {
+            return null
+          }
+        }
+        var write = function (v) {
+          try {
+            localStorage.setItem(KEY, v)
+          } catch (e) {}
+        }
+        document.addEventListener('click', function (e) {
+          var el = e.target && e.target.closest ? e.target.closest('[data-lang-choice]') : null
+          if (el) write(el.getAttribute('data-lang-choice'))
+        })
+        if (read()) return
+        var primary = ((navigator.languages && navigator.languages[0]) || navigator.language || '').toLowerCase()
+        var wants = primary.indexOf('ko') === 0 ? 'ko' : 'en'
+        if (wants !== altLang) return
+        var banner = document.getElementById('lang-banner')
+        var dismiss = document.getElementById('lang-banner-dismiss')
+        if (!banner) return
+        banner.hidden = false
+        if (dismiss)
+          dismiss.addEventListener('click', function () {
+            banner.hidden = true
+            write(pageLang)
+          })
+      })()
+    </script>
   </body>
 </html>
 
 <style>
+  .lang-banner {
+    border-bottom: 1px solid var(--border);
+    background: var(--code-bg);
+  }
+  .lang-banner-inner {
+    max-width: var(--measure);
+    margin: 0 auto;
+    padding: 0.5rem 1.5rem;
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    font-size: 0.875rem;
+    color: var(--ink-2);
+  }
+  .lang-banner a {
+    color: var(--accent);
+    font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .lang-banner button {
+    margin-left: auto;
+    background: none;
+    border: none;
+    color: var(--ink-3);
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 0.25rem;
+  }
+  .lang-banner button:hover {
+    color: var(--ink);
+  }
   header {
     border-bottom: 1px solid var(--border);
     background: var(--bg);

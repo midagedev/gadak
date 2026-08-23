@@ -7,6 +7,14 @@ export const strings = {
     description:
       'The Jira your company already runs — issues and the Confluence wiki — mirrored into one local SQLite file. Search lands in milliseconds on 20,000 issues. Reads never touch the network.',
     nav: { demo: 'Live demo', backlog: 'Backlog', install: 'Install', github: 'GitHub' },
+    ogImageAlt:
+      'gadak — Same Jira. No waiting. Your team’s Jira and its Confluence wiki, mirrored into one local SQLite file.',
+    langName: 'English',
+    langBanner: {
+      offer: 'This page is also available in English.',
+      cta: 'View in English →',
+      dismiss: 'Dismiss',
+    },
     hero: {
       eyebrow: 'gadak',
       heading: 'Same Jira. No waiting.',
@@ -27,6 +35,7 @@ export const strings = {
         { what: 'One issue + full changelog', value: '687 ms', alt: '29 ms', ratio: '24×' },
         { what: 'Free-text search', value: '504 ms', alt: '22 ms', ratio: '23×' },
         { what: 'A count over the change history', value: 'not expressible', alt: '14 ms', ratio: '—' },
+        { what: 'Rate limit', value: '429 + Retry-After', alt: 'none — your own disk', ratio: '—' },
       ],
       localHeading: 'On the local mirror',
       localNote: 'The same SQLite file the demo uses, 20,000 issues: palette search (HTTP round trip included) 0.5–2 ms, full sync of a 534-issue site ~5 s, incremental re-run with nothing changed 0 writes.',
@@ -102,6 +111,13 @@ export const strings = {
     description:
       '회사가 쓰는 그 Jira를 — 이슈도 Confluence 위키도 — 로컬 SQLite 파일 하나로 미러링합니다. 2만 건에서도 검색은 밀리초 단위. 읽기는 네트워크를 건드리지 않습니다.',
     nav: { demo: '라이브 데모', backlog: '공개 백로그', install: '설치', github: 'GitHub' },
+    ogImageAlt: 'gadak — 같은 Jira, 기다림 없이. 팀의 Jira와 Confluence 위키를 로컬 SQLite 파일 하나로 미러링.',
+    langName: '한국어',
+    langBanner: {
+      offer: '이 페이지는 한국어로도 제공됩니다.',
+      cta: '한국어로 보기 →',
+      dismiss: '닫기',
+    },
     hero: {
       eyebrow: 'gadak',
       heading: '같은 지라, 기다림 없이.',
@@ -122,6 +138,7 @@ export const strings = {
         { what: '이슈 1건 + 체인지로그 전체', value: '687 ms', alt: '29 ms', ratio: '24×' },
         { what: '전문 검색', value: '504 ms', alt: '22 ms', ratio: '23×' },
         { what: '변경 이력에 대한 집계', value: '표현 불가', alt: '14 ms', ratio: '—' },
+        { what: '레이트 리밋', value: '429 + Retry-After', alt: '없음 — 내 디스크니까', ratio: '—' },
       ],
       localHeading: '로컬 미러에서는',
       localNote: '데모가 쓰는 것과 같은 SQLite 파일, 2만 건: 팔레트 검색(HTTP 왕복 포함) 0.5~2ms, 534건 사이트 풀 싱크 약 5초, 변화 없는 증분 재실행 쓰기 0건.',

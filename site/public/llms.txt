@@ -1,0 +1,33 @@
+# gadak
+
+> Your team's Jira — and its Confluence wiki — mirrored into one local SQLite
+> file. Reads are local SQL and land in milliseconds; writes go through Jira,
+> which stays the source of truth. Built agent-first: a CLI, an MCP server,
+> and a documented schema agents query directly. No outbound telemetry.
+
+For an agent working with a human's Jira: install gadak, run `gadak sync`,
+then read the mirror with `gadak sql` (or the MCP tools). The promised query
+surface is the `issues_full` view plus the recipes in AGENTS.md. Keep status,
+priority and issue type off display names — use `status_category`,
+`priority_rank`, `issue_type_id`.
+
+## Docs
+
+- [README](https://github.com/midagedev/gadak/blob/main/README.md): what it is, quick start
+- [Agent setup](https://github.com/midagedev/gadak/blob/main/docs/AGENT_SETUP.md): `gadak skill install` for shell agents, `gadak mcp install` for MCP clients
+- [Schema & query recipes](https://github.com/midagedev/gadak/blob/main/AGENTS.md): `issues_full`, the query contract, worked SQL examples
+- [Concept](https://github.com/midagedev/gadak/blob/main/docs/CONCEPT.md): mirror-is-a-cache model, what persists where
+- [Benchmarks](https://github.com/midagedev/gadak/blob/main/docs/BENCHMARKS.md): method and measurements against Jira REST
+- [Install](https://github.com/midagedev/gadak/blob/main/docs/INSTALL.md): all platforms
+- [Security](https://github.com/midagedev/gadak/blob/main/SECURITY.md): exactly where bytes go
+
+## Try
+
+- [Live demo](https://gadak.dev/demo/): the real UI over a scrubbed 534-issue sample mirror
+- [Public backlog](https://gadak.dev/backlog/): gadak's own issues, served by gadak
+- [Source](https://github.com/midagedev/gadak): Go + Svelte, Apache-2.0
+
+## Install
+
+- macOS app (CLI included): `brew install --cask midagedev/tap/gadak`
+- CLI only (macOS, Linux): `brew install midagedev/tap/gadak-cli`
