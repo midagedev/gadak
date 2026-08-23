@@ -81,6 +81,12 @@ hard-won 목록)와 `AGENTS.md`(스키마·쿼리)가 원본이다.
   (Desktop Windows build는 `windows-latest`, Desktop Linux build는 GTK4·
   WebKitGTK·AppImage). **그 외에는 로컬 게이트가 전부 초록이면 main에 직접
   푸시**하고 `tools/ci-status.sh`로 확인한다. 기본값은 직접이다.
+- **PR 두 개 이상이 동시에 열려 있으면 리베이스는 손으로 하지 않는다** —
+  `tools/rebase-pr.sh <branch>`. main에 뭘 올릴 때마다 열린 PR 전부가 뒤로
+  밀리고, 충돌은 매번 같은 두 곳이다: CHANGELOG 참조 링크 꼬리(양쪽이 다
+  맞으니 둘 다 유지)와 `examples/backlog-snapshot.tar.gz`(바이트는 머지하지
+  않고 재생성). 그 둘 밖의 충돌은 진짜 충돌이라 스크립트가 exit 2로 멈춘다.
+  푸시는 스크립트가 하지 않는다.
 - 로컬 Node는 CI와 같아야 한다 — 버전의 단일 소유자는 `.nvmrc`(`nvm use`).
   로컬 24/CI 20 격차가 결함 하나를 여러 푸시 동안 숨긴 적이 있다(GDK-57).
 - 데모 fixture는 `examples/demo.db`(이슈 534). 수치를 문서에 박을 때는
