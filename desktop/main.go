@@ -364,13 +364,15 @@ func run() error {
 	app.Menu.Set(appMenu)
 
 	decision := coldStartDecisionFor(runtime.GOOS, os.Args)
-	// One line answers "which wails, and does this process defer to the
-	// launch event" without opening go.mod or upstream source.
+	// One line answers "which wails, does this process defer to the
+	// launch event, and is the window opted into the application menu"
+	// without opening go.mod or upstream source.
 	coldStart := "argv"
 	if decision.DeferToEvent {
 		coldStart = "event"
 	}
-	log.Printf("gadak-desktop version=%s wails=%s cold_start=%s", appVersion, wailsModuleVersion(), coldStart)
+	windowOpts := mainWindowOptions()
+	log.Printf("gadak-desktop version=%s wails=%s cold_start=%s use_application_menu=%t", appVersion, wailsModuleVersion(), coldStart, windowOpts.UseApplicationMenu)
 	if protocolRegistersFor(runtime.GOOS) {
 		exe, err := os.Executable()
 		if err != nil {
@@ -390,7 +392,7 @@ func run() error {
 		applyDeepLink(raw)
 	}
 
-	window = app.Window.NewWithOptions(mainWindowOptions())
+	window = app.Window.NewWithOptions(windowOpts)
 	window.OnWindowEvent(events.Common.WindowRuntimeReady, func(*application.WindowEvent) {
 		log.Print("wails runtime ready — --wails-draggable listeners are attached")
 		// Cold-start URL source is coldStartDecisionFor, not "!= darwin".
@@ -596,6 +598,15 @@ func mainWindowOptions() application.WebviewWindowOptions {
 		// No JS: option. /wails/runtime.js is injected once by
 		// serveDesktopIndex so a navigation does not load the module twice
 		// (the option ran on every navigation, on top of the <script> tag).
+
+		// Windows creates the HWND with an empty HMENU unless this is set
+		// or a per-window Windows.Menu is supplied
+		// (wails v3.0.0-beta.12, webview_window_windows.go:447-464), so
+		// without it the app menu we build above never reaches the window.
+		// Linux is documented the same way and already falls back on its
+		// own; darwin ignores the flag, since its app menu is always
+		// global (application.go applies it at Run(), by GOOS).
+		UseApplicationMenu: true,
 	}
 	applyWindowChrome(&opts, windowChrome())
 	return opts
