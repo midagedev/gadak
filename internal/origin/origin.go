@@ -587,6 +587,20 @@ func profileDir(cfg *config.Config) (string, error) {
 	return config.Dir()
 }
 
+// profileNameOf is profileDir's identity twin: the profile the cfg belongs
+// to, falling back to the active profile only when the cfg was never loaded
+// (same condition profileDir falls back on). Routing decisions must compare
+// a probe answer against THIS, not config.Profile(): a Config loaded for a
+// mounted workspace carries its own name, and comparing against the
+// process-global one approved routing a mount's origin calls onto the
+// primary profile's route (GDK-677, GitHub #52).
+func profileNameOf(cfg *config.Config) string {
+	if cfg != nil && cfg.Directory() != "" {
+		return cfg.ProfileName()
+	}
+	return config.Profile()
+}
+
 // Close flushes every live standalone origin and drops the sessions.
 // Safe to call more than once. The process owner (cmd/gadak main) calls
 // this on the way out so the last PersistDebounce window is not lost.

@@ -189,17 +189,78 @@ func TestClientFallsBackWhenProbeFails(t *testing.T) {
 	}
 }
 
+// GDK-677 (GitHub #52): the routing decision compared the probe answer
+// against the process-global profile, so a Config loaded for a mounted
+// workspace — whose stale advertise pointed at the primary's serve — was
+// approved for routing and its origin calls landed on the PRIMARY profile's
+// origin route (not_found). The comparison now uses the profile the Config
+// belongs to: the probe answers the primary's name, the cfg says the
+// mount's, mismatch, no routing — the mount constructs its own embedded
+// session (its persist has no live owner) and create metadata works.
+func TestMountedWorkspaceIgnoresPrimaryOwnersAdvertise(t *testing.T) {
+	_, _, _, ts := liveStandaloneServe(t)
+
+	jt, err := config.LoadFor("jt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	jt.Kind = config.KindStandalone
+	if err := jt.Save(); err != nil {
+		t.Fatal(err)
+	}
+	jt, err = config.LoadFor("jt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The reporter's residue: serving jt as primary once (their workaround)
+	// leaves jt's advertise pointing at the same default port the primary
+	// serve now listens on.
+	if err := origin.WriteAdvertise(jt.Directory(), ts.Listener.Addr().String()); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = origin.RemoveAdvertise(jt.Directory()) })
+
+	before := origin.SessionsConstructed()
+	c, err := origin.Client(jt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if origin.TransportIsServe(c.HTTP.Transport) {
+		t.Fatal("mounted workspace routed to the primary's serve — its origin calls land on the wrong profile's route (GDK-677)")
+	}
+	if !origin.TransportIsEmbedded(c.HTTP.Transport) {
+		t.Fatalf("Transport type %T, want the mount's own embedded session", c.HTTP.Transport)
+	}
+	if got := origin.SessionsConstructed(); got != before+1 {
+		t.Fatalf("SessionsConstructed %d → %d, want +1 (jt's own graph)", before, got)
+	}
+}
+
 // Pre-GDK-343 this fell back to a second embedded graph over the live
-// owner's persist (the F5 double-write hazard). The persist lock now makes
+// owner's persist (the F5 double-write hazard) and the persist lock made
 // that fallback fail loud instead: the owner is alive, so busy.
-func TestClientFailsBusyOnProfileMismatch(t *testing.T) {
+//
+// Revised 2026-08-23 (GDK-677): the routing decision now compares the probe
+// answer against the profile the Config BELONGS TO, not the process-global
+// one. This cfg is the root profile and the live serve owns the root
+// profile, so the mismatch that used to force the busy refusal is gone —
+// the client routes to the legitimate owner. The double-write hazard stays
+// closed the stronger way: no embedded graph is constructed at all.
+func TestClientRoutesToOwnerOnGlobalProfileMismatch(t *testing.T) {
 	cfg, _, _, _ := liveStandaloneServe(t)
 	config.SetProfile("other")
 	t.Cleanup(func() { config.SetProfile("") })
 
-	_, err := origin.Client(cfg)
-	if !errors.Is(err, origin.ErrWorkspaceBusy) {
-		t.Fatalf("profile mismatch with a live owner: err = %v, want ErrWorkspaceBusy (embedding would double-write the persist)", err)
+	before := origin.SessionsConstructed()
+	c, err := origin.Client(cfg)
+	if err != nil {
+		t.Fatalf("cfg with a live owner: err = %v, want a routed client", err)
+	}
+	if !origin.TransportIsServe(c.HTTP.Transport) {
+		t.Fatalf("Transport type %T, want the live owner's serve passthrough", c.HTTP.Transport)
+	}
+	if got := origin.SessionsConstructed(); got != before {
+		t.Fatalf("SessionsConstructed %d → %d; routing must not construct a second graph over the live persist", before, got)
 	}
 }
 
@@ -211,8 +272,14 @@ func TestClientFailsBusyOnProfileMismatch(t *testing.T) {
 // before ForgetLive learned to keep forgotten sessions reachable.
 func TestForgetLiveKeepsPersistLockAcrossGC(t *testing.T) {
 	cfg, _, _, _ := liveStandaloneServe(t)
-	config.SetProfile("other")
-	t.Cleanup(func() { config.SetProfile("") })
+	// Force the embedded path by removing the advertise file. This test used
+	// to force it with a global-profile mismatch, but since GDK-677 a
+	// mismatch with the cfg's own profile no longer exists here (the cfg
+	// carries its identity), so routing would succeed and never touch the
+	// lock this test exists to check.
+	if err := origin.RemoveAdvertise(cfg.Directory()); err != nil {
+		t.Fatal(err)
+	}
 
 	for i := 0; i < 3; i++ {
 		runtime.GC()

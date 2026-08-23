@@ -186,6 +186,16 @@
 
 ### 워크스페이스와 페어링
 
+- **마운트된 standalone 워크스페이스가 다시 이슈를 만들 수 있습니다**
+  ([GDK-677], 제보 [#52]). origin 라우팅 판정이 프로브 응답을 프로세스
+  전역 프로필과 대조해서, `/w/<name>/`로 마운트된 standalone 프로필이 —
+  한때 프라이머리로 serve한 잔재인 advertise 파일이 같은 기본 포트를
+  가리키면 — 라우팅 승인을 받아 생성 메타 호출이 프라이머리 프로필의
+  origin 라우트에 떨어졌습니다: `not_found`. 이제 Config가 자신이 로드된
+  프로필을 갖고 다니고 라우팅은 그것과 대조하므로, 마운트는 자기 embedded
+  세션을 만듭니다. 같은 변경이 교차 프로필 거절 하나를 승격합니다: 다른
+  라이브 serve가 소유한 워크스페이스를 요청하면 busy로 죽는 대신 그
+  소유자에게 라우팅됩니다.
 - **`--workspace`가 이름이고 `--profile`은 별칭이며**, 쓰기는 어느 쪽을
   썼는지 말합니다 ([GDK-490]).
 - **페어링 토큰이 origin 패스스루를 지키고** ([GDK-433]), 페어링 자격
@@ -2028,6 +2038,8 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-655]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-655
 [GDK-656]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-656
 [GDK-663]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-663
+[GDK-677]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-677
+[#52]: https://github.com/midagedev/gadak/issues/52
 [GDK-675]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-675
 [GDK-633]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-633
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86

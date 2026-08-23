@@ -197,6 +197,17 @@ the fixes are all here.
 
 ### Workspaces and pairing
 
+- **A mounted standalone workspace can create issues again** ([GDK-677],
+  reported as [#52]). The origin routing decision compared a probe answer
+  against the process-global profile, so a standalone profile mounted under
+  `/w/<name>/` — with a stale advertise file left by once serving it as the
+  primary, on the same default port — was approved for routing and its
+  create-metadata calls landed on the primary profile's origin route:
+  `not_found`. A Config now carries the profile it was loaded for and the
+  routing compares against that, so the mount builds its own embedded
+  session. The same change upgrades a cross-profile refusal: asking for a
+  workspace another live serve owns now routes to that owner instead of
+  failing busy.
 - **`--workspace` is the name, `--profile` is the alias**, and writes say
   which one they used ([GDK-490]).
 - **Pairing tokens gate the origin passthrough** ([GDK-433]), a pairing
@@ -2080,6 +2091,8 @@ measured numbers instead of adjectives.
 [GDK-655]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-655
 [GDK-656]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-656
 [GDK-663]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-663
+[GDK-677]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-677
+[#52]: https://github.com/midagedev/gadak/issues/52
 [GDK-675]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-675
 [GDK-633]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-633
 [GDK-86]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-86

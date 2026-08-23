@@ -209,6 +209,9 @@ type Config struct {
 	// dir is the profile directory this Config was loaded from (or will save to).
 	// Unexported so it never appears in JSON; set by LoadFor.
 	dir string
+	// profile is the profile name this Config was loaded for ("" = root).
+	// Unexported so it never appears in JSON; set by LoadFor (GDK-677).
+	profile string
 }
 
 // Workspace kinds. Empty Kind on disk is connected — existing configs keep
@@ -594,10 +597,15 @@ func LoadFor(profile string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	if profile == "default" {
+		// DirFor aliases "default" to the root; the identity follows ("" is
+		// the root everywhere Profile() and the serve probe answer it).
+		profile = ""
+	}
 	p := filepath.Join(d, "config.json")
 	data, err := os.ReadFile(p)
 	if os.IsNotExist(err) {
-		return &Config{dir: d}, nil
+		return &Config{dir: d, profile: profile}, nil
 	}
 	if err != nil {
 		return nil, err
@@ -607,6 +615,7 @@ func LoadFor(profile string) (*Config, error) {
 		return nil, fmt.Errorf("%s: %w", p, err)
 	}
 	c.dir = d
+	c.profile = profile
 	if changed, shape := c.NormalizeLegacyFields(); changed {
 		if err := c.Save(); err != nil {
 			fmt.Fprintf(os.Stderr, "gadak: %s: migrate field mapping: %v (running with in-memory fields; will retry rewrite on next load)\n", p, err)
@@ -681,6 +690,20 @@ func (c *Config) Directory() string {
 		return ""
 	}
 	return c.dir
+}
+
+// ProfileName is the profile this Config was loaded for (LoadFor); "" is the
+// root profile. A Config that was never loaded also answers "" — callers that
+// need the active profile as a fallback must check Directory() first, the way
+// origin's profileDir does. This exists so a Config loaded for a mounted
+// workspace carries its own identity: comparing a probe answer against the
+// process-global Profile() routed a mounted workspace's origin calls to the
+// primary profile's route (GDK-677).
+func (c *Config) ProfileName() string {
+	if c == nil {
+		return ""
+	}
+	return c.profile
 }
 
 // IsStandalone reports a workspace whose origin is the in-process issuetap

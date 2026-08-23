@@ -105,7 +105,7 @@ func OwnerStatus(cfg *config.Config) string {
 	if !ok {
 		return "embedded (no live serve)"
 	}
-	if !probeMatches(adv, config.Profile()) {
+	if !probeMatches(adv, profileNameOf(cfg)) {
 		return "embedded (no live serve)"
 	}
 	return fmt.Sprintf("serve pid=%d addr=%s", adv.PID, adv.Addr)
@@ -164,7 +164,7 @@ func routedTransport(cfg *config.Config) (*serveOriginTransport, bool) {
 	if !ok {
 		return nil, false
 	}
-	if !probeMatches(adv, config.Profile()) {
+	if !probeMatches(adv, profileNameOf(cfg)) {
 		return nil, false
 	}
 	host, ok := loopbackHost(adv.Addr)
@@ -199,7 +199,7 @@ func AdvertisedAddr(cfg *config.Config) string {
 	if !ok {
 		return ""
 	}
-	if !probeMatches(adv, config.Profile()) {
+	if !probeMatches(adv, profileNameOf(cfg)) {
 		return ""
 	}
 	return adv.Addr
