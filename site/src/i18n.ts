@@ -39,9 +39,9 @@ export const strings = {
           'One palette over everything — titles, bodies, comments, even the wiki. Prefix matches land locally before you finish the word; full-text lands right behind them. No spinner, no round trip.',
       },
       group: {
-        heading: 'Any axis, one menu',
+        heading: 'Any axis, one menu — with the counts on it',
         body:
-          'Regroup by assignee, priority, or epic and the breakdown bar follows. Saved views are one URL — share the exact slice, not a screenshot.',
+          'Regroup by assignee, priority, or epic and the breakdown bar carries a live count per segment. Filter menus count every option against the current view, so the next pick is informed before you make it: 13,786 → 8,646 → 1,532 → 712, in the menu. Saved views stay one URL away.',
       },
       history: {
         heading: 'History reads like a document',
@@ -118,9 +118,9 @@ export const strings = {
           '하나의 팔레트가 전부를 덮습니다 — 제목, 본문, 코멘트, 위키까지. 접두 매치는 단어를 끝내기 전에 로컬에서 뜨고, 전문 검색이 바로 뒤따릅니다. 스피너도 왕복도 없습니다.',
       },
       group: {
-        heading: '어떤 축이든, 메뉴 하나',
+        heading: '어떤 축이든, 메뉴 하나 — 숫자까지 붙어서',
         body:
-          '담당자·우선순위·에픽으로 다시 묶으면 분포 막대가 따라옵니다. 저장된 뷰는 URL 하나 — 스크린샷 대신 정확한 조각을 공유하세요.',
+          '담당자·우선순위·에픽으로 다시 묶으면 분포 막대가 구간별 개수를 실시간으로 셉니다. 필터 메뉴의 모든 옵션도 현재 뷰 기준으로 카운트되어, 고르기 전에 이미 답을 압니다: 13,786 → 8,646 → 1,532 → 712. 저장된 뷰는 URL 하나.',
       },
       history: {
         heading: '히스토리가 문서처럼 읽힌다',
