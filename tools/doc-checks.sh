@@ -1079,12 +1079,26 @@ while IFS= read -r line || [[ -n "$line" ]]; do
   private+="$key"$'\n'
 done < "$BACKLOG_PRIVATE"
 
+# GDK-683: `git ls-files` alone made this gate report green on a file it had
+# never opened. A new doc citing an unpublished key sat untracked while the
+# gate passed three times, and went red only after `git add` — in CI, on a
+# commit already pushed. Untracked-but-not-ignored files are part of the
+# working surface, so they are scanned here too: --exclude-standard keeps
+# dist/, node_modules/ and the local runtime data out.
+scanned_surface_files() {
+  git ls-files
+  git ls-files --others --exclude-standard
+}
 cited=$(
-  git ls-files \
+  scanned_surface_files \
     | grep -vE '_test\.go$|\.spec\.ts$|^e2e/|^examples/backlog-snapshot|^tools/backlog-private-keys\.txt$' \
     | xargs grep -oEhI -E '\bGDK-[0-9]+\b' -- \
     | sort -u
 ) || true
+untracked_scanned=$(git ls-files --others --exclude-standard | wc -l | tr -d ' ')
+if [[ "$untracked_scanned" != "0" ]]; then
+  ok "$untracked_scanned untracked file(s) are in this check's surface — committing them cannot change its verdict"
+fi
 
 resolved=$(printf '%s\n%s' "$published" "$private" | sed '/^$/d' | sort -u)
 dangling=$(comm -23 <(printf '%s\n' "$cited" | sed '/^$/d') <(printf '%s\n' "$resolved") | sort -t- -k2,2n)
