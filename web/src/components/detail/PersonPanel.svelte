@@ -27,6 +27,7 @@
   import { emptyConfig, type ViewConfig } from '../../lib/view-config'
   import type { AuthorComment, IssueLite } from '../../lib/types'
   import { onEscape } from '../../lib/dom-actions'
+  import { createSkeletonGrace } from '../../lib/skeleton-grace.svelte'
   // The list's Avatar, not detail/'s: the panel owner must wear the same
   // name-derived color the rows repeat, or the identity link breaks.
   import Avatar from '../list/Avatar.svelte'
@@ -93,6 +94,11 @@
     person.clear()
   }
 
+  const skeleton = createSkeletonGrace(
+    () => !person.error && person.loading && person.comments.length === 0,
+    () => email,
+  )
+
 </script>
 
 {#if email}
@@ -100,6 +106,7 @@
   <div
     class="flex h-full flex-col text-text-primary"
     data-testid="person-panel"
+    data-skeleton={skeleton.attr}
     use:onEscape={onEscapeKey}
   >
     <!-- Header — outside the scroll (see DetailPanel). -->
@@ -189,13 +196,15 @@
             </button>
           </div>
         {:else if person.loading && person.comments.length === 0}
-          <!-- Same skeleton as the document body: the header is already on
-               screen, only the list is still in flight. -->
-          <div class="flex flex-col gap-2" aria-hidden="true">
-            <div class="h-3 w-3/4 animate-pulse rounded bg-bg-elevated"></div>
-            <div class="h-3 w-full animate-pulse rounded bg-bg-elevated"></div>
-            <div class="h-3 w-5/6 animate-pulse rounded bg-bg-elevated"></div>
-          </div>
+          {#if skeleton.visible}
+            <!-- Same skeleton as the document body: the header is already on
+                 screen, only the list is still in flight. -->
+            <div class="flex flex-col gap-2" aria-hidden="true">
+              <div class="h-3 w-3/4 animate-pulse rounded bg-bg-elevated"></div>
+              <div class="h-3 w-full animate-pulse rounded bg-bg-elevated"></div>
+              <div class="h-3 w-5/6 animate-pulse rounded bg-bg-elevated"></div>
+            </div>
+          {/if}
         {:else if person.comments.length === 0}
           <p class="text-micro text-text-muted">{t('person.noComments')}</p>
         {:else}

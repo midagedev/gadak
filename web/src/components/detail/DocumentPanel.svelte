@@ -18,6 +18,7 @@
   import { isHostedDemo } from '../../lib/config'
   import { openOriginUrl } from '../../lib/desktop-links'
   import { createResource } from '../../lib/resource.svelte'
+  import { createSkeletonGrace } from '../../lib/skeleton-grace.svelte'
   import { onEscape } from '../../lib/dom-actions'
   import type { PageDetail } from '../../lib/types'
   import AdfContent from './AdfContent.svelte'
@@ -114,6 +115,11 @@
     return keys.size
   })
 
+  const skeleton = createSkeletonGrace(
+    () => !!key && !errorKind && !detailForKey,
+    () => key,
+  )
+
   // Same negotiation as DetailPanel: decline an already-spent Esc, then
   // spend this one so a later surface does not close with us.
   function onEscapeKey(e: KeyboardEvent): void {
@@ -128,6 +134,7 @@
   <div
     class="flex h-full flex-col text-text-primary"
     data-testid="doc-panel"
+    data-skeleton={skeleton.attr}
     use:onEscape={onEscapeKey}
   >
     <!-- Header — outside the scroll (see DetailPanel). -->
@@ -241,14 +248,16 @@
           {/if}
         </div>
       {:else if !detailForKey}
-        <!-- Skeleton (body loading) -->
-        <div class="flex flex-col gap-2 px-5 py-4" aria-hidden="true">
-          <div class="h-3 w-3/4 animate-pulse rounded bg-bg-elevated"></div>
-          <div class="h-3 w-full animate-pulse rounded bg-bg-elevated"></div>
-          <div class="h-3 w-5/6 animate-pulse rounded bg-bg-elevated"></div>
-          <div class="mt-4 h-3 w-1/2 animate-pulse rounded bg-bg-elevated"></div>
-          <div class="h-3 w-full animate-pulse rounded bg-bg-elevated"></div>
-        </div>
+        {#if skeleton.visible}
+          <!-- Skeleton (body loading) -->
+          <div class="flex flex-col gap-2 px-5 py-4" aria-hidden="true">
+            <div class="h-3 w-3/4 animate-pulse rounded bg-bg-elevated"></div>
+            <div class="h-3 w-full animate-pulse rounded bg-bg-elevated"></div>
+            <div class="h-3 w-5/6 animate-pulse rounded bg-bg-elevated"></div>
+            <div class="mt-4 h-3 w-1/2 animate-pulse rounded bg-bg-elevated"></div>
+            <div class="h-3 w-full animate-pulse rounded bg-bg-elevated"></div>
+          </div>
+        {/if}
       {:else}
         <div class="anim-enter divide-y divide-border-subtle">
           <Section title={t('doc.content')}>

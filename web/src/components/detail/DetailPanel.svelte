@@ -30,6 +30,7 @@
   import type { AdfNode } from '../../lib/types'
   import { cacheEpoch, getDetailCached, invalidate } from '../../lib/detail-cache.svelte'
   import { createResource } from '../../lib/resource.svelte'
+  import { createSkeletonGrace } from '../../lib/skeleton-grace.svelte'
   import { onEscape } from '../../lib/dom-actions'
   import { jiraUrl } from './format'
   import DetailHeader from './DetailHeader.svelte'
@@ -116,6 +117,11 @@
   // detail must match the current key (avoid showing previous detail mid-switch)
   const detailForKey = $derived(detail && key === detail.issue_key ? detail : null)
 
+  const skeleton = createSkeletonGrace(
+    () => !!key && !errorKind && !detailForKey,
+    () => key,
+  )
+
   // Body-role custom fields, in spec order, only when this issue carries them.
   const bodySections = $derived.by(() => {
     const bodies = detailForKey?.bodies
@@ -146,7 +152,7 @@
 </script>
 
 {#if key}
-  <div class="flex h-full flex-col text-text-primary" use:onEscape={onEscapeKey}>
+  <div class="flex h-full flex-col text-text-primary" use:onEscape={onEscapeKey} data-skeleton={skeleton.attr}>
     <!-- Header — outside the scroll, so it is pinned by structure. -->
     <div class="relative z-10 flex-none bg-bg-panel">
       {#if lite}
@@ -229,14 +235,16 @@
           {/if}
         </div>
       {:else if !detailForKey}
-        <!-- Skeleton (body loading) -->
-        <div class="flex flex-col gap-2 px-5 py-4" aria-hidden="true">
-          <div class="h-3 w-3/4 animate-pulse rounded bg-bg-elevated"></div>
-          <div class="h-3 w-full animate-pulse rounded bg-bg-elevated"></div>
-          <div class="h-3 w-5/6 animate-pulse rounded bg-bg-elevated"></div>
-          <div class="mt-4 h-3 w-1/2 animate-pulse rounded bg-bg-elevated"></div>
-          <div class="h-3 w-full animate-pulse rounded bg-bg-elevated"></div>
-        </div>
+        {#if skeleton.visible}
+          <!-- Skeleton (body loading) -->
+          <div class="flex flex-col gap-2 px-5 py-4" aria-hidden="true">
+            <div class="h-3 w-3/4 animate-pulse rounded bg-bg-elevated"></div>
+            <div class="h-3 w-full animate-pulse rounded bg-bg-elevated"></div>
+            <div class="h-3 w-5/6 animate-pulse rounded bg-bg-elevated"></div>
+            <div class="mt-4 h-3 w-1/2 animate-pulse rounded bg-bg-elevated"></div>
+            <div class="h-3 w-full animate-pulse rounded bg-bg-elevated"></div>
+          </div>
+        {/if}
       {:else}
         <!-- Detail body -->
         <div class="anim-enter divide-y divide-border-subtle">

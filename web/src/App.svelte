@@ -27,6 +27,7 @@
   import { adoptRunningSync } from './lib/sync-now'
   import { installDesktopLinkOpener, openIssueOrigin, openOriginUrl } from './lib/desktop-links'
   import { browse, installBrowseSessions } from './lib/browse.svelte'
+  import { createSkeletonGrace } from './lib/skeleton-grace.svelte'
 
   /** Where the demo banner sends people who want the real thing. */
   const REPO_URL = 'https://github.com/midagedev/gadak'
@@ -90,11 +91,15 @@
   /** Shortcut cheat sheet (?). */
   let shortcutsOpen = $state(false)
   /**
-   * Delayed skeleton. IndexedDB cache hits usually finish within ~100ms, so skip
-   * the skeleton then (avoids flash). index.html's inline boot shell already
-   * fills the background in that gap.
+   * Delayed skeleton via the shared grace owner. IndexedDB cache hits usually
+   * finish inside the window, so skip the skeleton then (avoids flash).
+   * index.html's inline boot shell already fills the background in that gap.
+   * Auth / network errors paint immediately — they are not a load still in
+   * flight.
    */
-  let showSkeleton = $state(false)
+  const bootSkeleton = createSkeletonGrace(
+    () => !issues.ready && issues.error !== 'auth' && issues.error !== 'network',
+  )
 
   // Restore deep-linked issue (share / dashboard / push) before first render.
   // Otherwise the selection→URL effect can clear `issue` while selection is empty.
@@ -199,7 +204,6 @@
     void write.loadWriteMeta() // Prefetch write meta (parallel with issues.init)
     views.init()
 
-    const skeletonTimer = setTimeout(() => (showSkeleton = true), 120)
     // Desktop only: external links + in-app browse session tracking.
     const uninstallLinks = installDesktopLinkOpener()
     const uninstallBrowse = installBrowseSessions()
@@ -262,7 +266,6 @@
     return () => {
       unbindPalette()
       unbindShortcuts()
-      clearTimeout(skeletonTimer)
       stopFocusPoll()
       document.removeEventListener('visibilitychange', onVis)
       uninstallLinks()
@@ -572,6 +575,14 @@
     document.documentElement.dataset.browseYield = s.chromeYields ? 'on' : 'off'
     document.documentElement.dataset.browseToastReserve = s.reserveToast ? 'on' : 'off'
   })
+
+  // Boot has no persistent host during the grace (index.html already fills
+  // the gap). Same inspectable-dataset idiom as uiFocusPoll / browseNative.
+  $effect(() => {
+    const a = bootSkeleton.attr
+    if (a === undefined) delete document.documentElement.dataset.skeleton
+    else document.documentElement.dataset.skeleton = a
+  })
 </script>
 
 <svelte:window onkeydown={onGlobalKey} />
@@ -591,7 +602,7 @@
         {t('common.retry')}
       </button>
     </div>
-  {:else if showSkeleton}
+  {:else if bootSkeleton.visible}
     <LoadingShell />
   {/if}
 {:else}

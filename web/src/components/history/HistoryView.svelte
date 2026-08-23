@@ -27,6 +27,7 @@
   import EmptyState from '../list/EmptyState.svelte'
   import LoadingState from '../ui/LoadingState.svelte'
   import VirtualRows from '../ui/VirtualRows.svelte'
+  import { createSkeletonGrace } from '../../lib/skeleton-grace.svelte'
 
   const TABS: { key: HistoryKindFilter; label: string }[] = [
     { key: '', label: t('history.tabAll') },
@@ -46,6 +47,11 @@
     if (!pages.historyView) return
     untrack(() => void history.load())
   })
+
+  const skeleton = createSkeletonGrace(
+    () => !history.loaded && history.loading,
+    () => history.kind,
+  )
 
   const filterText = $derived(history.filterText)
   const raw = $derived(filterText.trim())
@@ -163,7 +169,7 @@
   }
 </script>
 
-<section class="flex h-full min-h-0 flex-col bg-bg-base" data-testid="history-view">
+<section class="flex h-full min-h-0 flex-col bg-bg-base" data-testid="history-view" data-skeleton={skeleton.attr}>
   <header class="flex flex-none flex-wrap items-center gap-2 border-b border-border-subtle px-4 py-2">
     <h2 class="whitespace-nowrap text-body font-semibold text-text-primary">{t('history.title')}</h2>
     <span class="flex-none text-micro tabular-nums text-text-muted" data-testid="history-count">
@@ -245,9 +251,11 @@
   </header>
 
   {#if !history.loaded && history.loading}
-    <div class="min-h-0 flex-1">
-      <LoadingState label={t('common.loading')} />
-    </div>
+    {#if skeleton.visible}
+      <div class="min-h-0 flex-1">
+        <LoadingState label={t('common.loading')} />
+      </div>
+    {/if}
   {:else if rows.length === 0}
     <div class="min-h-0 flex-1 overflow-y-auto">
       {#if filtering}

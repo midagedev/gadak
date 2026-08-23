@@ -7,6 +7,13 @@
   import { write } from '../../stores/write.svelte'
   import { relativeTime, absTime } from '../../lib/format'
   import EmptyState from '../list/EmptyState.svelte'
+  import LoadingState from '../ui/LoadingState.svelte'
+  import { createSkeletonGrace } from '../../lib/skeleton-grace.svelte'
+
+  const skeleton = createSkeletonGrace(
+    () => me.feedLoading && !me.feedLoaded,
+    () => me.feedFocus,
+  )
 
   const TABS: { key: FeedFocus; label: string }[] = [
     { key: 'all', label: t('feed.filterAll') },
@@ -122,7 +129,7 @@
   }
 </script>
 
-<div class="flex h-full flex-col">
+<div class="flex h-full flex-col" data-skeleton={skeleton.attr}>
   <header
     class="flex flex-none flex-wrap items-center gap-2 border-b border-border-subtle px-3 py-2"
   >
@@ -186,11 +193,9 @@
         onAction={() => write.openSettings()}
       />
     {:else if me.feedLoading && !me.feedLoaded}
-      <div class="space-y-px p-2" aria-label={t('feed.loading')}>
-        {#each Array(6) as _}
-          <div class="h-[58px] animate-pulse rounded-md bg-bg-elevated"></div>
-        {/each}
-      </div>
+      {#if skeleton.visible}
+        <LoadingState label={t('common.loading')} />
+      {/if}
     {:else if me.feedItems.length === 0}
       <EmptyState icon="inbox" title={t('feed.empty')} hint={t('personal.feedHint')} />
     {:else}
