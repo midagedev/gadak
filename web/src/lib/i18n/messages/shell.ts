@@ -553,9 +553,9 @@ export const shell = {
     ja: '候補を移動',
   },
   'shortcuts.applySearch': {
-    en: 'Apply the search',
-    ko: '검색 실행',
-    ja: '検索を適用',
+    en: 'Search every issue and document',
+    ko: '이슈와 문서 전체에서 검색',
+    ja: 'すべての課題とドキュメントを検索',
   },
   'shortcuts.clearSearch': {
     en: 'Clear the search box',

@@ -283,6 +283,7 @@
       onkeydown={onKeydown}
       type="text"
       data-testid="search-input"
+      data-enter="widen"
       placeholder={t(narrowPlaceholder ? 'list.searchPlaceholderShort' : 'list.searchPlaceholder')}
       title={t('list.searchHelp', { shortcut: paletteShortcutLabel() })}
       class="min-w-0 flex-1 bg-transparent text-body text-text-primary placeholder:text-text-muted focus:outline-none"

@@ -21,9 +21,8 @@
   import { pages } from '../../stores/pages.svelte'
   import { issues } from '../../stores/issues.svelte'
   import { selection } from '../../stores/selection.svelte'
-  import { applyServerSearchOutcome } from '../../lib/server-search'
+  import { widenToServerSearch } from '../../lib/server-search'
   import { showIssueList } from '../../lib/show-issue-list'
-  import { filters } from '../../stores/filters.svelte'
   import { me } from '../../stores/me.svelte'
   import EmptyState from '../list/EmptyState.svelte'
   import LoadingState from '../ui/LoadingState.svelte'
@@ -122,10 +121,10 @@
 
   function openEntry(entry: TimelineEntry): void {
     if (entry.type === 'search') {
-      me.closeFeed()
-      pages.closeDocs()
-      filters.setQuery(entry.query)
-      void filters.runServerSearch().then(applyServerSearchOutcome)
+      widenToServerSearch(entry.query, () => {
+        me.closeFeed()
+        pages.closeDocs()
+      })
       return
     }
     if (entry.kind === 'page') pages.select(entry.key)
@@ -151,10 +150,16 @@
   }
 
   function onFilterKey(e: KeyboardEvent): void {
-    if (e.key !== 'Escape') return
-    e.preventDefault()
-    if (filterText) history.filterText = ''
-    else (e.target as HTMLElement).blur()
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      // closeHistory is this screen's leave (the close button); showIssueList
+      // would also apply a ViewConfig, which widen does not want.
+      widenToServerSearch(filterText, () => pages.closeHistory())
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      if (filterText) history.filterText = ''
+      else (e.target as HTMLElement).blur()
+    }
   }
 </script>
 
@@ -205,6 +210,7 @@
           onkeydown={onFilterKey}
           type="text"
           data-testid="history-filter-input"
+          data-enter="widen"
           placeholder={t('history.filterPlaceholder')}
           aria-label={t('history.filterLabel')}
           class="min-w-0 flex-1 bg-transparent text-body text-text-primary placeholder:text-text-muted focus:outline-none"

@@ -499,10 +499,12 @@ export const detail = {
     ko: '일치하는 항목 없음',
     ja: '一致なし',
   },
+  /* Same shape as docs.filterPlaceholder: the field narrows this screen;
+     Enter leaves for the whole mirror, and the placeholder has to say so. */
   'history.filterPlaceholder': {
-    en: 'Filter',
-    ko: '필터',
-    ja: '絞り込み',
+    en: 'Filter — Enter searches everything',
+    ko: '필터 — Enter로 전체 검색',
+    ja: '絞り込み — Enter で全体を検索',
   },
   'history.filterLabel': {
     en: 'Filter history',

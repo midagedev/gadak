@@ -12,21 +12,16 @@
    */
   import Icon from '../ui/Icon.svelte'
   import { t } from '../../lib/i18n'
-  import { applyServerSearchOutcome } from '../../lib/server-search'
-  import { filters } from '../../stores/filters.svelte'
+  import { widenToServerSearch } from '../../lib/server-search'
   import { pages } from '../../stores/pages.svelte'
 
   let { value = $bindable('') }: { value?: string } = $props()
 
   let inputEl = $state<HTMLInputElement | null>(null)
 
-  /** Hand the query to the list's server search and go where its results live. */
+  /** Leave this screen, then hand the query to the shared widen. */
   function searchEverything() {
-    const q = value.trim()
-    if (!q) return
-    pages.closeDocs()
-    filters.setQuery(q)
-    void filters.runServerSearch().then(applyServerSearchOutcome)
+    widenToServerSearch(value, () => pages.closeDocs())
   }
 
   // Esc is SearchBox's contract: clear what is typed, and give the keyboard back
@@ -54,6 +49,7 @@
     onkeydown={onKeydown}
     type="text"
     data-testid="docs-filter-input"
+    data-enter="widen"
     placeholder={t('docs.filterPlaceholder')}
     aria-label={t('docs.filterLabel')}
     class="min-w-0 flex-1 bg-transparent text-body text-text-primary placeholder:text-text-muted focus:outline-none"
