@@ -16,6 +16,9 @@ func TestMainWindowOptionsOmitRuntimeJS(t *testing.T) {
 	if strings.Contains(opts.JS, "/wails/runtime.js") {
 		t.Fatalf("JS option references /wails/runtime.js: %q", opts.JS)
 	}
+	if !opts.UseApplicationMenu {
+		t.Fatal("UseApplicationMenu is unset; Windows creates the window with an empty HMENU")
+	}
 }
 
 func TestInjectWailsRuntimeOnce(t *testing.T) {
