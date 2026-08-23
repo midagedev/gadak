@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/midagedev/gadak/internal/apprun"
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/server"
@@ -215,7 +216,7 @@ Workspaces keep separate credentials and mirrors (e.g. work and demo):
 
 func main() {
 	log.SetFlags(0)
-	config.ReloadWorkspaceFromEnv()
+	apprun.SelectWorkspace()
 	// origin.Close flushes a standalone issuetap PersistPath. os.Exit
 	// below skips defers, so Close is also called on the error path. A
 	// flush failure must not exit 0 alongside a success line (GDK-342).

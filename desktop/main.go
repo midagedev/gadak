@@ -29,13 +29,11 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/events"
 
 	gadak "github.com/midagedev/gadak"
-	"github.com/midagedev/gadak/internal/attachcache"
+	"github.com/midagedev/gadak/internal/apprun"
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/integrations"
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/server"
-	"github.com/midagedev/gadak/internal/store"
-	syncer "github.com/midagedev/gadak/internal/sync"
 	"github.com/midagedev/gadak/internal/workspace"
 )
 
@@ -49,7 +47,7 @@ func main() {
 	// Importing internal/config no longer selects a workspace (GDK-644);
 	// each main reads GADAK_WORKSPACE/GADAK_PROFILE/SCRY_PROFILE itself —
 	// this is what makes `GADAK_PROFILE=work open -a Gadak` work.
-	config.ReloadWorkspaceFromEnv()
+	apprun.SelectWorkspace()
 	if unregisterGadakProtocolIfRequested(os.Args[1:]) {
 		return
 	}
@@ -187,63 +185,18 @@ func (g *coldStartGate) markReady() {
 }
 
 func run() error {
-	cfg, err := config.Load()
+	rt, err := apprun.Open(apprun.Options{
+		Version:         server.Version,
+		DeferStandalone: true, // GDK-658: persist after application.New
+		FlushOnClose:    true, // GDK-342/348: desktop has no cmd/gadak main flush
+	})
 	if err != nil {
 		return err
 	}
-	dbPath, err := config.DBPath()
-	if err != nil {
-		return err
-	}
-	db, err := store.Open(dbPath)
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-
-	var api *server.Handler
-	if dir, err := config.AttachmentDir(); err != nil {
-		log.Printf("warning: attachment cache disabled: %v", err)
-		api = server.New(db, cfg)
-	} else if cache, err := attachcache.New(dir, int64(cfg.AttachmentCacheMB)<<20); err != nil {
-		log.Printf("warning: attachment cache disabled: %v", err)
-		api = server.New(db, cfg)
-	} else {
-		api = server.NewWithCache(db, cfg, cache)
-	}
-	// After db.Close above, so LIFO stops the background sync first (GDK-270).
-	defer api.Close()
-
-	// Standalone: this process owns persist. Embed (never probe our own
-	// advertise file — self-loop), and advertise a loopback origin-only
-	// listener so a concurrent CLI routes writes here instead of opening a
-	// second embedded graph over the same persist file (GDK-340).
-	//
-	// Acquisition runs after application.New (GDK-658). wails os.Exits the
-	// second instance inside New() without running defers (ErrorHandler
-	// does not run on that path). Taking persist/listener/advertise first
-	// meant a second launch died on ErrWorkspaceBusy instead of handing
-	// off — the same class as cmd/gadak serve's live-owner check before
-	// the persist lock (GDK-468). Defers are registered here so LIFO with
-	// cancel / api.Close / db.Close is unchanged: listener stop before
-	// flush (GDK-348), api.Close before db.Close (GDK-270).
-	// stopStandalone is filled in after New(), once this process won
-	// SingleInstance.
-	var stopStandalone = func() {}
-	if cfg.IsStandalone() {
-		defer origin.SetInProcess(false)
-		// The CLI flushes the standalone persist on the way out
-		// (cmd/gadak/main.go); the app must too, or quitting inside the
-		// debounce window silently drops the last write (GDK-342).
-		// Registered before the listener's defer so LIFO stops the
-		// listener first — nothing new arrives mid-flush (GDK-348).
-		defer func() {
-			if err := origin.Close(); err != nil {
-				log.Printf("warning: standalone persist flush on exit: %v", err)
-			}
-		}()
-		defer func() { stopStandalone() }()
-	}
+	// LIFO with cancel below: cancel Watch, then Close (origin listener
+	// stop before persist flush, API before DB).
+	defer rt.Close()
+	cfg, api := rt.Cfg, rt.API
 
 	ui, ok := gadak.WebUI()
 	if !ok {
@@ -253,8 +206,7 @@ func run() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	reg := workspace.New()
-	defer reg.Close()
+	reg := rt.Reg
 
 	// window and openURL are filled in below; the single-instance callback and
 	// the /desktop/open route read them once the app exists. browse drives real
@@ -488,50 +440,18 @@ func run() error {
 		// Sidebar banner only (internal/selfupdate). updateCheck: false
 		// silences it; StartUpdateCheck also no-ops internally when disabled.
 		// Installing an update is brew cask / a new dmg — no in-app swap.
-		if cfg.UpdateCheckEnabled() {
-			if dir, err := config.Dir(); err == nil {
-				api.StartUpdateCheck(ctx, dir)
-			}
-		}
-		// Same delayed-start seam as cmd/gadak serve: with a credential the
-		// watch loop starts now; without one, in-app onboarding fires it.
-		startWatch := func() {
-			go func() {
-				// Reload so onboarding's save is what the loop runs with.
-				cur, err := config.Load()
-				if err != nil {
-					log.Printf("sync loop: load config: %v", err)
-					return
-				}
-				phase, progress := api.SyncActivityHooks()
-				syncer.WatchLoop(ctx, cur, db, syncer.Options{
-					Log:      func(s string) { log.Print(s) },
-					Reload:   config.Load,
-					Phase:    phase,
-					Progress: progress,
-				})
-			}()
-		}
-		if cfg.HasCredential() {
-			startWatch()
-		} else {
-			api.SetSyncStarter(startWatch)
-		}
-		// Workspace loops start immediately — those profiles already carry
-		// their own credentials (primary may still be waiting on onboarding).
-		watched := reg.WatchAll(ctx, config.Profile(), func(s string) { log.Print(s) })
-		if len(watched) > 0 {
-			log.Printf("syncing %d workspace mirrors: %s", len(watched), strings.Join(watched, ", "))
-		}
+		// WatchLoop re-entry and the onboarding starter live in apprun
+		// (GDK-663); this event is when desktop starts them — serve starts
+		// immediately after mux construction.
+		rt.StartWatch(ctx, false)
 	})
 
 	if cfg.IsStandalone() {
-		origin.SetInProcess(true)
-		stop, err := startStandaloneOriginListener(cfg, api)
-		if err != nil {
+		// After application.New so wails SingleInstance can os.Exit the
+		// second process before persist is taken (GDK-658).
+		if _, err := rt.StartOriginPassthrough(); err != nil {
 			return err
 		}
-		stopStandalone = stop
 	}
 
 	return app.Run()
