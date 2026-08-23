@@ -64,9 +64,10 @@ a gadak standalone workspace, file the first tickets, and show them to me.
    Init seeds project STD and wiki space LOC and records the default
    type, so a summary is enough.
 4. gadak views open <KEY>
-5. The durable record is origin/issuetap.yaml under the workspace
-   directory (`gadak doctor --json` → workspace.persist). gadak.db is
-   still a disposable cache.
+5. The durable record is origin/issuetap.db under the workspace
+   directory (`gadak doctor --json` → workspace.persist). Copy it while
+   gadak is not running, or sqlite3 origin/issuetap.db ".backup dest.db".
+   gadak.db is still a disposable cache.
 6. Add the gadak usage block from docs/AGENT_SETUP.md to my agent config
    so future sessions query the mirror.
 ```

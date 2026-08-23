@@ -166,8 +166,10 @@ open-by-key half.
 Connected talks to Atlassian Cloud. Standalone (from 0.16) is a workspace
 with no Atlassian account — a minimal Jira origin that travels with the
 app. The mirror is a cache either way; every write goes through the origin.
-On standalone the durable file is the origin's persist file — issuetap.yaml
-in the workspace's origin folder; back up that one file.
+On standalone the durable file is the origin's persist file — issuetap.db
+in the workspace's origin folder (SQLite, WAL). Copy it while gadak is not
+running (include the `-wal`/`-shm` sidecars), or
+`sqlite3 origin/issuetap.db ".backup dest.db"`.
 
 | | Connected (Atlassian Cloud) | Standalone (from 0.16) |
 | --- | :---: | :---: |

@@ -19,7 +19,7 @@ import (
 // the assertion is that B fails with ErrWorkspaceBusy instead of opening
 // an invisible sibling graph.
 func TestGDK333FailFirstTwoSessionsInvisible(t *testing.T) {
-	persist := filepath.Join(t.TempDir(), "origin", "issuetap.yaml")
+	persist := filepath.Join(t.TempDir(), filepath.FromSlash(PersistRel))
 	a, err := constructStandalone(persist, nil, config.ResolvedActor{}, "en")
 	if err != nil {
 		t.Fatal(err)

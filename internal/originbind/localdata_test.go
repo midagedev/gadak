@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -133,6 +134,41 @@ func TestRefuseReplaceOptIn(t *testing.T) {
 	seedMirrorPages(t, 1)
 	if err := RefuseReplace(cfg, true); err != nil {
 		t.Fatalf("opt-in: %v", err)
+	}
+}
+
+func TestLocalDataCountsLegacyYAMLOrigin(t *testing.T) {
+	cfg := standaloneHome(t)
+	home := cfg.Directory()
+	yamlPath := origin.LegacyYAMLPath(home)
+	if err := os.MkdirAll(filepath.Dir(yamlPath), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	body := []byte(`projects:
+  - id: "10000"
+    key: STD
+    name: Standalone
+    type: software
+    style: classic
+issues:
+  - key: STD-1
+    summary: from legacy yaml
+`)
+	if err := os.WriteFile(yamlPath, body, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	n, persist, err := LocalData(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if persist != origin.PersistPath(home) {
+		t.Fatalf("persist = %q, want %s", persist, origin.PersistPath(home))
+	}
+	if n < 1 {
+		t.Fatalf("LocalData = %d, want yaml-origin issue counted", n)
+	}
+	if err := RefuseReplace(cfg, false); err == nil {
+		t.Fatal("yaml-only standalone with issues must refuse a connected init")
 	}
 }
 

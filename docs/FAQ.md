@@ -39,7 +39,7 @@ accurately.
 On a connected workspace (one pointed at an Atlassian site), offboarding is
 `rm -rf ~/.gadak` (PowerShell: `Remove-Item -Recurse -Force $HOME\.gadak`) —
 that directory is a cache of the site. On a standalone
-workspace, `origin/issuetap.yaml` in the workspace directory is the original:
+workspace, `origin/issuetap.db` in the workspace directory is the original:
 moving or deleting that file is deleting the data. The SQLite mirror
 (`gadak.db`) is still a cache either way.
 
@@ -49,13 +49,14 @@ One person, at the moment. You should weigh that — and here is why it is
 less risky than it sounds: the mirror is a **disposable artifact of the
 origin**, not a database you migrate into. On a connected workspace, delete
 gadak and you have lost nothing but a cache of your Jira. On standalone, the
-record is `origin/issuetap.yaml` in the workspace directory — plain YAML,
-readable in any editor, without gadak. The storage schema is documented, and
-the part of it you can build on is promised across versions
-(`specs/000-product/data-model.md`); the code is Apache-2.0, and the mirror
-is plain SQLite readable by anything. There is no gadak account and no gadak
-server. If the project stops tomorrow, a connected workspace's data was
-never in it; a standalone workspace's data is that YAML file.
+record is `origin/issuetap.db` in the workspace directory — a SQLite
+database (WAL). Copy it while gadak is not running (include the `-wal`/`-shm`
+sidecars), or `sqlite3 origin/issuetap.db ".backup dest.db"`. The storage
+schema is documented, and the part of it you can build on is promised across
+versions (`specs/000-product/data-model.md`); the code is Apache-2.0, and the
+mirror is plain SQLite readable by anything. There is no gadak account and
+no gadak server. If the project stops tomorrow, a connected workspace's data
+was never in it; a standalone workspace's data is that SQLite file.
 
 ## Several things open the same SQLite file — is that safe?
 
@@ -108,7 +109,7 @@ gadak talking to itself on loopback.
   keeps Jira: it gives you Linear-ish speed and keyboard flow without asking
   anyone for permission — it is a mirror, not a migration. A standalone
   workspace (from 0.16) is the other door: no Atlassian account, same mirror
-  and same writes, with `origin/issuetap.yaml` as the record.
+  and same writes, with `origin/issuetap.db` as the record.
 - **Atlassian's Rovo MCP server** gives agents official, hosted access to the
   same data — worth using if it fits, and for "find me the page about X" it
   often does: it searches Jira and Confluence together. The architectural

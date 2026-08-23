@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -198,7 +199,8 @@ func ClearStandalone(next *config.Config) {
 //   - mirror: SELECT COUNT(*) FROM issues / pages, only if gadak.db exists
 //     (store.Open would create it)
 //   - origin issues: Search on the in-process origin, only if the persist
-//     file already exists (origin.Client would create it)
+//     file or a sibling legacy YAML already exists (origin.Client would
+//     create an empty persist)
 //   - origin pages: wiki SearchPages, best-effort (a SearchPages miss is
 //     0, not a LocalData failure — issuetap may not implement CQL)
 //
@@ -259,15 +261,42 @@ func mirrorTableCount(table string) (int, error) {
 	return db.TableCount(context.Background(), table)
 }
 
-func originIssueCount(cfg *config.Config, persist string) (int, error) {
+// originPersistPresent is true when the SQLite persist exists or a sibling
+// legacy YAML does. Either is enough for origin.Client to have a graph
+// (YAML seeds the db on first open). Absent both, Client would create an
+// empty persist — LocalData must not do that.
+func originPersistPresent(persist string) (bool, error) {
 	if persist == "" {
-		return 0, nil
+		return false, nil
 	}
-	if _, err := os.Stat(persist); err != nil {
-		if os.IsNotExist(err) {
-			return 0, nil
+	paths := []string{persist}
+	if dir := filepath.Dir(persist); dir != "." && dir != "" {
+		paths = append(paths, filepath.Join(dir, filepath.Base(filepath.FromSlash(origin.LegacyYAMLRel))))
+	}
+	seen := map[string]bool{}
+	for _, p := range paths {
+		if p == "" || seen[p] {
+			continue
 		}
+		seen[p] = true
+		_, err := os.Stat(p)
+		if err == nil {
+			return true, nil
+		}
+		if !os.IsNotExist(err) {
+			return false, err
+		}
+	}
+	return false, nil
+}
+
+func originIssueCount(cfg *config.Config, persist string) (int, error) {
+	present, err := originPersistPresent(persist)
+	if err != nil {
 		return 0, err
+	}
+	if !present {
+		return 0, nil
 	}
 	c, err := origin.Client(cfg)
 	if err != nil {
@@ -284,14 +313,12 @@ func originIssueCount(cfg *config.Config, persist string) (int, error) {
 }
 
 func originPageCount(cfg *config.Config, persist string) (int, error) {
-	if persist == "" {
-		return 0, nil
-	}
-	if _, err := os.Stat(persist); err != nil {
-		if os.IsNotExist(err) {
-			return 0, nil
-		}
+	present, err := originPersistPresent(persist)
+	if err != nil {
 		return 0, err
+	}
+	if !present {
+		return 0, nil
 	}
 	w, err := origin.Wiki(cfg)
 	if err != nil {

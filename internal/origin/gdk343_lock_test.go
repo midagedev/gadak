@@ -62,7 +62,7 @@ func TestGDK343SecondProcessCannotEmbed(t *testing.T) {
 // TestGDK343LockReleasedOnClose: Close releases the persist lock, so the
 // process is allowed to come back (origin.Close contract).
 func TestGDK343LockReleasedOnClose(t *testing.T) {
-	persist := filepath.Join(t.TempDir(), "origin", "issuetap.yaml")
+	persist := filepath.Join(t.TempDir(), filepath.FromSlash(PersistRel))
 	a, err := constructStandalone(persist, nil, config.ResolvedActor{}, "en")
 	if err != nil {
 		t.Fatal(err)
@@ -79,7 +79,7 @@ func TestGDK343LockReleasedOnClose(t *testing.T) {
 // busy verdict names who to close (GDK-421). FAIL-first: pre-fix the error
 // was the bare sentinel with no pid.
 func TestBusyErrorNamesHolderPID(t *testing.T) {
-	persist := filepath.Join(t.TempDir(), "origin", "issuetap.yaml")
+	persist := filepath.Join(t.TempDir(), filepath.FromSlash(PersistRel))
 	a, err := constructStandalone(persist, nil, config.ResolvedActor{}, "en")
 	if err != nil {
 		t.Fatal(err)

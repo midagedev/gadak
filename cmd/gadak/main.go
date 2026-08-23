@@ -217,9 +217,10 @@ Workspaces keep separate credentials and mirrors (e.g. work and demo):
 func main() {
 	log.SetFlags(0)
 	apprun.SelectWorkspace()
-	// origin.Close flushes a standalone issuetap PersistPath. os.Exit
+	// origin.Close checkpoints a standalone issuetap PersistPath (WAL).
+	// Writes commit before ACK; Close is not a debounce flush. os.Exit
 	// below skips defers, so Close is also called on the error path. A
-	// flush failure must not exit 0 alongside a success line (GDK-342).
+	// checkpoint failure must not exit 0 alongside a success line (GDK-342).
 	defer func() {
 		if err := origin.Close(); err != nil {
 			fmt.Fprintf(os.Stderr, "gadak: standalone persist flush on exit: %v\n", err)

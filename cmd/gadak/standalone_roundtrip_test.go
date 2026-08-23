@@ -88,7 +88,7 @@ func TestStandaloneCreateSyncSQL(t *testing.T) {
 		t.Fatalf("mirror missing created issue:\n%s", sqlOut)
 	}
 
-	// Origin snapshot is debounced; Close flushes it into the workspace dir.
+	// Writes commit before ACK; Close checkpoints WAL into the workspace dir.
 	if err := origin.Close(); err != nil {
 		t.Fatalf("origin.Close: %v", err)
 	}

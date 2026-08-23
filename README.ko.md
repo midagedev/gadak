@@ -172,7 +172,8 @@ Connected는 Atlassian Cloud와 대화합니다. Standalone(0.16부터)은 Atlas
 계정이 없는 워크스페이스입니다 — 앱과 함께 다니는 미니멀한 Jira origin.
 어느 쪽이든 미러는 캐시이고, 모든 쓰기는 origin을 통과합니다.
 Standalone에서 영속 파일은 origin의 persist 파일입니다 — 워크스페이스
-origin 폴더의 issuetap.yaml; 백업은 그 파일 하나입니다.
+origin 폴더의 issuetap.db(SQLite, WAL). gadak이 꺼져 있을 때 복사하거나
+(`-wal`/`-shm` 사이드카 포함), `sqlite3 origin/issuetap.db ".backup dest.db"`.
 
 | | Connected (Atlassian Cloud) | Standalone (0.16부터) |
 | --- | :---: | :---: |

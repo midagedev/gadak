@@ -20,9 +20,14 @@ import (
 )
 
 // PersistRel is the workspace-relative path of the issuetap write-through
-// snapshot. The file is the origin; the SQLite mirror remains a disposable
-// cache filled by sync.
-const PersistRel = "origin/issuetap.yaml"
+// SQLite state file (WAL). The file is the origin; gadak.db remains a
+// disposable cache filled by sync.
+const PersistRel = "origin/issuetap.db"
+
+// LegacyYAMLRel is the pre-SQLite persist path. When PersistRel is absent
+// and this file exists, NewEmbedded seeds from it as FixturePath once.
+// The YAML is left in place as a rollback asset.
+const LegacyYAMLRel = "origin/issuetap.yaml"
 
 // DefaultProjectKey is the project seeded into a new standalone origin so
 // create/createmeta have somewhere to file. Issuetap also creates a project
@@ -74,12 +79,22 @@ func InProcessAuthB64() string {
 // loss), so the caller gets this instead.
 var ErrWorkspaceBusy = errors.New("origin: another process is using this workspace (persist is locked); write through its serve, or close it and retry")
 
-// PersistPath is the absolute issuetap snapshot path inside a profile directory.
+// PersistPath is the absolute issuetap SQLite state path inside a profile directory.
 func PersistPath(dir string) string {
+	return joinRel(dir, PersistRel)
+}
+
+// LegacyYAMLPath is the absolute pre-SQLite persist path inside a profile
+// directory. Empty dir yields empty path.
+func LegacyYAMLPath(dir string) string {
+	return joinRel(dir, LegacyYAMLRel)
+}
+
+func joinRel(dir, rel string) string {
 	if dir == "" {
 		return ""
 	}
-	return filepath.Join(dir, filepath.FromSlash(PersistRel))
+	return filepath.Join(dir, filepath.FromSlash(rel))
 }
 
 // ErrWorkspaceFrozen: frozen means no request leaves for the origin — pulls
@@ -538,14 +553,11 @@ func constructStandalone(persist string, projects []string, actor config.Resolve
 		return nil, err
 	}
 
+	fixturePath, fixtureBytes := selectStandaloneSeed(persist, projects)
 	emb, err := issuetap.NewEmbedded(issuetap.EmbeddedConfig{
 		PersistPath:  persist,
-		FixtureBytes: standaloneFixture(projects),
-		// The persist file is the origin — a write we acknowledged must be
-		// on disk before the response, not a debounce window later. A
-		// negative debounce is issuetap's durable-before-return mode
-		// (GDK-342); the mirror keeps its own transactionality either way.
-		PersistDebounce: -1,
+		FixturePath:  fixturePath,
+		FixtureBytes: fixtureBytes,
 		// A standalone workspace is a real tracker: records carry wall
 		// time, not issuetap's deterministic seed clock (GDK-369 — a
 		// January created_at read as a sync bug).
@@ -602,9 +614,10 @@ func profileNameOf(cfg *config.Config) string {
 	return config.Profile()
 }
 
-// Close flushes every live standalone origin and drops the sessions.
-// Safe to call more than once. The process owner (cmd/gadak main) calls
-// this on the way out so the last PersistDebounce window is not lost.
+// Close checkpoints every live standalone origin (WAL) and drops the
+// sessions. Safe to call more than once. The process owner (cmd/gadak
+// main) calls this on the way out. Writes commit before ACK; Close is a
+// checkpoint, not a debounce flush.
 //
 // In-flight constructors are waited on (they publish, then this snapshots)
 // so Close never closes a half-built Embedded. There is no permanent
@@ -641,11 +654,30 @@ func Close() error {
 	return first
 }
 
-// standaloneFixture is applied only when PersistPath does not yet exist.
-// It names the requested projects (or DefaultProjectKey when the list is
-// empty) so createmeta/create have a target, and one space so page create
-// has a target; it does not seed issues or pages. When the persist file is
-// present, issuetap skips this.
+// selectStandaloneSeed follows issuetap's load order: an existing SQLite
+// persist is the graph (no fixture); else a sibling legacy YAML is
+// FixturePath (one-shot seed, file left in place); else FixtureBytes from
+// standaloneFixture.
+func selectStandaloneSeed(persist string, projects []string) (fixturePath string, fixtureBytes []byte) {
+	if persist != "" {
+		if _, err := os.Stat(persist); err == nil {
+			return "", nil
+		}
+	}
+	if persist != "" {
+		yamlPath := filepath.Join(filepath.Dir(persist), filepath.Base(filepath.FromSlash(LegacyYAMLRel)))
+		if _, err := os.Stat(yamlPath); err == nil {
+			return yamlPath, nil
+		}
+	}
+	return "", standaloneFixture(projects)
+}
+
+// standaloneFixture is applied only when PersistPath does not yet exist
+// and there is no sibling legacy YAML. It names the requested projects
+// (or DefaultProjectKey when the list is empty) so createmeta/create have
+// a target, and one space so page create has a target; it does not seed
+// issues or pages. When the persist file is present, issuetap skips this.
 //
 // Keys come from DefaultProjectKey / DefaultSpaceKey so the literals are
 // not scattered.

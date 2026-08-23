@@ -54,9 +54,12 @@ A workspace is bound to one origin.
   a cache.
 - **Standalone** (from 0.16) — the origin is an in-process minimal Jira
   (`issuetap`). There is no Atlassian account. The durable file is
-  `origin/issuetap.yaml` in the profile directory (`internal/origin/origin.go`
-  `PersistRel`): plain YAML, readable without gadak. That is the file to back
-  up. `gadak.db` is still a cache; the next sync rebuilds it from the persist
+  `origin/issuetap.db` in the profile directory (`internal/origin/origin.go`
+  `PersistRel`): a SQLite database (WAL). That is the file to back up —
+  copy it while gadak is not running (include the `-wal`/`-shm` sidecars),
+  or `sqlite3 origin/issuetap.db ".backup dest.db"`. A sibling
+  `origin/issuetap.yaml`, if present, is a one-shot seed, not the record.
+  `gadak.db` is still a cache; the next sync rebuilds it from the persist
   file.
 
 ## The browser it replaces
@@ -172,7 +175,7 @@ Not a Jira replacement — we do not reimplement boards, dashboards, or the rest
 of Jira's UI; we contain those pages so the window can hold what the mirror
 refuses to model. Not a sync engine. Not an archive. Not multi-user. On a
 connected workspace, not a place to put anything you cannot afford to lose
-(the Atlassian site holds the record). On standalone, `origin/issuetap.yaml`
+(the Atlassian site holds the record). On standalone, `origin/issuetap.db`
 *is* the record — losing that file loses the work.
 
 ## Good fit / bad fit

@@ -230,6 +230,9 @@ func TestInitStandaloneJSONPersistAndFillsMirror(t *testing.T) {
 	if _, err := os.Stat(doc.Persist); err != nil {
 		t.Fatalf("persist file missing at named path: %v", err)
 	}
+	if _, err := os.Stat(origin.LegacyYAMLPath(home)); !os.IsNotExist(err) {
+		t.Fatalf("init --standalone must not write %s: %v", origin.LegacyYAMLPath(home), err)
+	}
 
 	created, stderr, err := captureBoth(t, func() error {
 		return cmdCreate([]string{"after standalone init"})

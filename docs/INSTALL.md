@@ -227,9 +227,11 @@ gadak serve                    # http://gadak.localhost:7777
 ```
 
 `gadak init --standalone` writes `config.json` in the workspace directory
-(`~/.gadak/` by default, or `$GADAK_HOME`) and creates `origin/issuetap.yaml`
-there — plain YAML, the origin, the file to back up
-(`internal/origin/origin.go` `PersistRel`). It seeds project `STD` and wiki
+(`~/.gadak/` by default, or `$GADAK_HOME`) and creates `origin/issuetap.db`
+there — a SQLite database (WAL), the origin, the file to back up
+(`internal/origin/origin.go` `PersistRel`). Copy it while gadak is not
+running (include the `-wal`/`-shm` sidecars), or
+`sqlite3 origin/issuetap.db ".backup dest.db"`. It seeds project `STD` and wiki
 space `LOC`, and records a default issue type so `gadak create` takes only a
 summary (`cmd/gadak/init.go` `initStandalone`). The SQLite file `gadak.db` is
 still a cache. The first `gadak sync` against that origin finishes in 0s

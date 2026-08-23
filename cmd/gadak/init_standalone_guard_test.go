@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -357,14 +358,25 @@ func TestInitStandaloneProjectsSeedsOrigin(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("init --standalone --projects: %v", err)
 	}
-	raw, err := os.ReadFile(origin.PersistPath(home))
+	cfg, err := config.Load()
 	if err != nil {
-		t.Fatalf("read persist: %v", err)
+		t.Fatal(err)
 	}
-	body := string(raw)
+	c, err := origin.Client(cfg)
+	if err != nil {
+		t.Fatalf("origin.Client: %v", err)
+	}
+	list, _, err := c.Projects(context.Background(), 50)
+	if err != nil {
+		t.Fatalf("Projects: %v", err)
+	}
+	have := map[string]bool{}
+	for _, p := range list {
+		have[p.Key] = true
+	}
 	for _, key := range []string{"IDEA", "FOO"} {
-		if !strings.Contains(body, "key: "+key) && !strings.Contains(body, `key: "`+key+`"`) {
-			t.Fatalf("persist missing project %s:\n%s", key, body)
+		if !have[key] {
+			t.Fatalf("origin missing project %s (have %v)", key, have)
 		}
 	}
 	out, err := capture(t, func() error {
