@@ -720,6 +720,18 @@ the fixes are all here.
   the gate names the assertion instead of tripping over it, and doc-checks
   runs the scrub gate on the *committed* snapshot, so a red snapshot can no
   longer ride a green commit.
+- **The published snapshot is one file now** ([GDK-669]). The public
+  backlog rode in git as 613 exploded JSON files, and every feature commit
+  carried two to four of them as freight — the "forgot to `git add` the new
+  detail files" class needed three separate doc-checks to police. The
+  tracked form is a single `examples/backlog-snapshot.tar.gz` (380 KB for
+  what was 1.48 MB), packed from the exact bytes the viewer will fetch, with
+  a one-line `MANIFEST` (`tar -xOf … MANIFEST` answers "what's in it"
+  without jq). Pages and the local hosted build unpack it at build time;
+  the viewer's `detail/<KEY>.json` URLs are unchanged. The three gates —
+  no dangling cited key ([GDK-269]), index/detail consistency ([GDK-634]),
+  the scrub on the committed snapshot ([GDK-675]) — all read the archive
+  now, each measured red on an injected violation before going green.
 - **The public backlog publishes what each issue actually says** ([GDK-430]).
   The scrub treated every content surface as one axis and forced descriptions to
   null with the comments and the attachments, so the published page was a list
@@ -2420,3 +2432,4 @@ measured numbers instead of adjectives.
 [GDK-586]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-586
 [GDK-588]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-588
 [GDK-211]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-211
+[GDK-669]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-669
