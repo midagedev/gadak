@@ -103,8 +103,13 @@ seams, the MCP surface and the web UI.
   [GDK-613], [GDK-130]).
 - A transition that needs a screen asks inline, components and parent edit in
   place, and a story shows its children ([GDK-83], [GDK-86], [GDK-121]).
-- Saved views live on the server by default, and views already in a browser
-  move there once ([GDK-437]).
+- There is one kind of saved view, because there is no team: Enter saves, the
+  server owns it when there is one, and views already in a browser move there
+  ([GDK-437]).
+- The empty Documents body reads the same six causes the sidebar reads, so it
+  stops prescribing a switch that is already on ([GDK-738]).
+- A favourite's time column holds a time or nothing, and "All" is a tab filter
+  rather than also a verb ([GDK-739]).
 - The demo fixture can no longer silently lag the schema ([GDK-671]).
 
 ### MCP and the CLI surface
@@ -151,6 +156,11 @@ seams, the MCP surface and the web UI.
 
 - The e2e listen port has one owner, so two worktrees can run the browser
   suite at once ([GDK-672]).
+- The hosted site builds the SPA once: `basePath()` reads its mount at
+  runtime instead of a compile-time constant, and the gate hashes both asset
+  trees ([GDK-673]).
+- The e2e fixture is fresh or it is not — `local.db` is seeded with the
+  mirror, so a saved view stops surviving into the next run ([GDK-742]).
 - Agent onboarding is skill-first, and the repository is a Claude Code plugin
   marketplace ([GDK-8], [GDK-93]).
 
@@ -1005,6 +1015,7 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-669]: https://gadak.dev/backlog/#/?ks=GDK-669
 [GDK-671]: https://gadak.dev/backlog/#/?ks=GDK-671
 [GDK-672]: https://gadak.dev/backlog/#/?ks=GDK-672
+[GDK-673]: https://gadak.dev/backlog/#/?ks=GDK-673
 [GDK-674]: https://gadak.dev/backlog/#/?ks=GDK-674
 [GDK-675]: https://gadak.dev/backlog/#/?ks=GDK-675
 [GDK-676]: https://gadak.dev/backlog/#/?ks=GDK-676
@@ -1013,3 +1024,6 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-681]: https://gadak.dev/backlog/#/?ks=GDK-681
 [GDK-682]: https://gadak.dev/backlog/#/?ks=GDK-682
 [GDK-683]: https://gadak.dev/backlog/#/?ks=GDK-683
+[GDK-738]: https://gadak.dev/backlog/#/?ks=GDK-738
+[GDK-739]: https://gadak.dev/backlog/#/?ks=GDK-739
+[GDK-742]: https://gadak.dev/backlog/#/?ks=GDK-742

@@ -97,8 +97,12 @@ MCP 표면·웹 UI를 훑는 릴리스 전 감사로 닫았습니다.
   [GDK-130]).
 - 화면이 필요한 transition은 그 자리에서 묻고, 컴포넌트와 parent는 인라인으로
   편집되고, 스토리가 자식 이슈를 보여줍니다 ([GDK-83], [GDK-86], [GDK-121]).
-- 저장 뷰가 기본적으로 서버에 살고, 이미 브라우저에 있던 뷰는 한 번 옮겨갑니다
-  ([GDK-437]).
+- 저장 뷰는 한 종류입니다 — 팀이 없으니까요. Enter가 저장이고, 서버가 있으면
+  서버가 소유하고, 이미 브라우저에 있던 뷰는 거기로 옮겨갑니다 ([GDK-437]).
+- 빈 Documents 본문이 사이드바와 같은 여섯 원인을 읽어, 이미 켜져 있는 스위치를
+  켜라고 하지 않습니다 ([GDK-738]).
+- 즐겨찾기의 시각 칸에는 시각이 있거나 비어 있고, "All"은 동사가 아니라 탭
+  필터입니다 ([GDK-739]).
 - 데모 fixture가 스키마보다 조용히 뒤처질 수 없습니다 ([GDK-671]).
 
 ### MCP와 CLI 표면
@@ -144,6 +148,11 @@ MCP 표면·웹 UI를 훑는 릴리스 전 감사로 닫았습니다.
 
 - e2e 리스닝 포트의 소유자가 하나가 되어, 워크트리 두 개가 브라우저 스위트를
   동시에 돌릴 수 있습니다 ([GDK-672]).
+- hosted 사이트가 SPA를 한 번만 빌드합니다: `basePath()`가 컴파일타임 상수가
+  아니라 런타임 마운트를 읽고, 게이트가 양쪽 에셋 트리를 해시합니다
+  ([GDK-673]).
+- e2e fixture는 신선하거나 아니거나입니다 — `local.db`도 미러와 함께 시드되어,
+  저장 뷰가 다음 런까지 살아남지 않습니다 ([GDK-742]).
 - 에이전트 온보딩은 skill-first이고, 이 저장소는 Claude Code 플러그인
   마켓플레이스입니다 ([GDK-8], [GDK-93]).
 
@@ -963,6 +972,7 @@ HTTP·sync·에이전트 계약.
 [GDK-669]: https://gadak.dev/backlog/#/?ks=GDK-669
 [GDK-671]: https://gadak.dev/backlog/#/?ks=GDK-671
 [GDK-672]: https://gadak.dev/backlog/#/?ks=GDK-672
+[GDK-673]: https://gadak.dev/backlog/#/?ks=GDK-673
 [GDK-674]: https://gadak.dev/backlog/#/?ks=GDK-674
 [GDK-675]: https://gadak.dev/backlog/#/?ks=GDK-675
 [GDK-676]: https://gadak.dev/backlog/#/?ks=GDK-676
@@ -971,3 +981,6 @@ HTTP·sync·에이전트 계약.
 [GDK-681]: https://gadak.dev/backlog/#/?ks=GDK-681
 [GDK-682]: https://gadak.dev/backlog/#/?ks=GDK-682
 [GDK-683]: https://gadak.dev/backlog/#/?ks=GDK-683
+[GDK-738]: https://gadak.dev/backlog/#/?ks=GDK-738
+[GDK-739]: https://gadak.dev/backlog/#/?ks=GDK-739
+[GDK-742]: https://gadak.dev/backlog/#/?ks=GDK-742
