@@ -32,7 +32,9 @@ export default defineConfig({
     launchOptions: { slowMo: 30 },
     actionTimeout: 30_000,
     navigationTimeout: 60_000,
-    trace: 'off',
+    // Trace on: playwright-recast renders the auto-zoom cut from it
+    // (GDK-746). The webm video stays the flat-record source of truth.
+    trace: 'on',
   },
   webServer: {
     // GADAK_SEED_DB is exported by `make media-scale`; a bare config run
