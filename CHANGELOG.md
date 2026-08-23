@@ -2,6 +2,64 @@
 
 <sub>English · <a href="CHANGELOG.ko.md">한국어</a></sub>
 
+## v0.17.1 — 2026-08-24
+
+The patch where the mirror learned to share. A day of dogfooding on a
+20,000-issue mirror surfaced every way two gadak processes could wait on
+one file, and the standalone record stopped being a YAML rewrite.
+
+### The standalone record is a SQLite file
+
+- The embedded tracker persists to `origin/issuetap.db` — real WAL SQLite,
+  transactional per write — instead of rewriting the whole YAML on a
+  debounce ([GDK-202]). An existing YAML seeds the database once and stays
+  untouched as the rollback asset; export still speaks YAML.
+- Backup is that file now: stop the app and copy it, or use
+  `sqlite3 .backup` while it runs.
+
+### Busy is a neighbor with a name
+
+- A write that reached the origin no longer exits nonzero because the
+  mirror re-read hit SQLITE_BUSY ([GDK-740]), and a busy refusal says who
+  holds the profile — another gadak app, serve or CLI — instead of a bare
+  error code; `gadak doctor` lists the holders ([GDK-754]).
+- Visit and search history take their own local.db connection, so browsing
+  no longer queues ten seconds behind a mirror writer ([GDK-753]), and MCP
+  reads wait politely instead of failing instantly when a writer exists
+  ([GDK-757]).
+- Epic key recomputation scopes to the batch it touched instead of
+  UPDATE-ing the whole table inside every upsert transaction — the
+  ~140–850 ms per-page lock hold at 20k is gone; a full sync still sweeps
+  once at the end ([GDK-755]).
+
+### Hot paths, measured at 20k
+
+- `gadak issue KEY` reads by key instead of loading the whole mirror
+  ([GDK-747]); `search --jql` people resolution went narrow on the CLI and
+  then on the server, which had kept the old path ([GDK-748], [GDK-756]);
+  `doctor`'s raw customfield probe samples instead of scanning every
+  document ([GDK-749]).
+
+### The web at narrow widths
+
+- An audit of every seam below 1100px ([GDK-758]) closed three clips: the
+  stale-days chip (a Tailwind layer conflict — the hide now lives where it
+  can win), trailing row columns that now fold in designed order instead
+  of being cut mid-glyph by overflow, and a docked minimum that is the sum
+  of its own tracks so the grid and the contract cannot drift ([GDK-766]).
+  A CI probe keeps all three closed.
+
+### The site
+
+- Landing media stopped being uniform full-screen video: two claims became
+  core-region stills at recorded glyph scale, search plays cropped, and
+  the flagship gained camera work as an ffmpeg post-process — the
+  recording's pacing untouched ([GDK-751], [GDK-752]).
+- A Korean browser is offered the Korean page — a suggestion strip, never
+  a forced redirect, and it remembers your answer ([GDK-770]). Alongside:
+  `llms.txt` for agents reading the site, an OG card that says what the
+  page says, and a rate-limit row in the comparison table.
+
 ## v0.17.0 — 2026-08-23
 
 The cycle where an agent's writes grew up. An issue now shows the PRs and
@@ -1059,3 +1117,17 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-730]: https://gadak.dev/backlog/#/?ks=GDK-730
 [GDK-700]: https://gadak.dev/backlog/#/?ks=GDK-700
 [GDK-742]: https://gadak.dev/backlog/#/?ks=GDK-742
+[GDK-202]: https://gadak.dev/backlog/#/?ks=GDK-202
+[GDK-747]: https://gadak.dev/backlog/#/?ks=GDK-747
+[GDK-748]: https://gadak.dev/backlog/#/?ks=GDK-748
+[GDK-749]: https://gadak.dev/backlog/#/?ks=GDK-749
+[GDK-751]: https://gadak.dev/backlog/#/?ks=GDK-751
+[GDK-752]: https://gadak.dev/backlog/#/?ks=GDK-752
+[GDK-753]: https://gadak.dev/backlog/#/?ks=GDK-753
+[GDK-754]: https://gadak.dev/backlog/#/?ks=GDK-754
+[GDK-755]: https://gadak.dev/backlog/#/?ks=GDK-755
+[GDK-756]: https://gadak.dev/backlog/#/?ks=GDK-756
+[GDK-757]: https://gadak.dev/backlog/#/?ks=GDK-757
+[GDK-758]: https://gadak.dev/backlog/#/?ks=GDK-758
+[GDK-766]: https://gadak.dev/backlog/#/?ks=GDK-766
+[GDK-770]: https://gadak.dev/backlog/#/?ks=GDK-770

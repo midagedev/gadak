@@ -1,6 +1,60 @@
 # Changelog
 
-<sub><a href="CHANGELOG.md">English</a> · 한국어 — 영문이 원본이며, 번역은 영문과 함께 갱신됩니다(마지막 동기화 2026-08-23).</sub>
+<sub><a href="CHANGELOG.md">English</a> · 한국어 — 영문이 원본이며, 번역은 영문과 함께 갱신됩니다(마지막 동기화 2026-08-24).</sub>
+
+## v0.17.1 — 2026-08-24
+
+미러가 나눠 쓰는 법을 배운 패치입니다. 2만 건 미러 위에서 하루 도그푸딩하며
+두 gadak 프로세스가 한 파일을 두고 기다릴 수 있는 모든 방식이 드러났고,
+스탠드얼론 레코드는 더 이상 YAML 통째 재기록이 아닙니다.
+
+### 스탠드얼론 레코드는 SQLite 파일
+
+- 내장 트래커의 영속이 `origin/issuetap.db` — 쓰기마다 트랜잭션인 진짜 WAL
+  SQLite — 로 바뀌었습니다. 디바운스마다 YAML 전체를 다시 쓰던 방식의 끝입니다
+  ([GDK-202]). 기존 YAML은 데이터베이스를 한 번 시드한 뒤 롤백 자산으로 그대로
+  남고, export는 여전히 YAML로 말합니다.
+- 이제 백업 대상은 그 파일입니다: 앱을 멈추고 복사하거나, 실행 중이면
+  `sqlite3 .backup`.
+
+### busy는 이름 있는 이웃
+
+- origin에 도달한 쓰기가 미러 재읽기의 SQLITE_BUSY 때문에 실패 코드로 끝나지
+  않고 ([GDK-740]), busy 거절은 맨 에러 코드 대신 누가 이 프로필을 잡고
+  있는지 — 다른 gadak 앱·serve·CLI — 를 말합니다. `gadak doctor`가 홀더를
+  나열합니다 ([GDK-754]).
+- 방문·검색 기록은 전용 local.db 연결을 타므로, 브라우징이 미러 라이터 뒤에서
+  10초를 기다리지 않습니다 ([GDK-753]). 라이터가 있을 때 MCP 읽기는 즉시
+  실패하는 대신 정중히 기다립니다 ([GDK-757]).
+- 에픽 키 재계산이 모든 upsert 트랜잭션 안에서 전체 테이블을 UPDATE하는 대신
+  건드린 배치로 범위를 좁혔습니다 — 2만 건에서 페이지당 ~140–850ms 락 보유가
+  사라졌고, 풀 싱크는 여전히 마지막에 한 번 전체를 훑습니다 ([GDK-755]).
+
+### 핫패스, 2만 건에서 실측
+
+- `gadak issue KEY`가 미러 전체를 로드하는 대신 키로 읽습니다 ([GDK-747]).
+  `search --jql`의 people 해석은 CLI에 이어 옛 경로가 남아 있던 서버까지
+  좁아졌습니다 ([GDK-748], [GDK-756]). `doctor`의 raw customfield 프로브는
+  모든 문서를 스캔하는 대신 샘플링합니다 ([GDK-749]).
+
+### 좁은 폭의 웹
+
+- 1100px 아래 모든 이음새를 훑은 감사([GDK-758])가 잘림 세 건을 닫았습니다:
+  정체 일수 칩(Tailwind 레이어 충돌 — 숨김이 이길 수 있는 층으로 이사),
+  overflow가 글자 중간을 자르는 대신 설계된 순서로 접히는 행 trailing 열,
+  그리고 그리드와 계약이 어긋날 수 없도록 자기 트랙의 합이 된 도킹 최소 폭
+  ([GDK-766]). CI 프로브가 세 건을 계속 닫아 둡니다.
+
+### 사이트
+
+- 랜딩 미디어가 일률적인 전체 화면 비디오이기를 멈췄습니다: 두 주장은 녹화
+  글리프 크기 그대로의 핵심영역 스틸이 되었고, 검색은 크롭으로 재생되고,
+  플래그십은 ffmpeg 후처리 카메라 워크를 얻었습니다 — 녹화의 페이싱은
+  그대로입니다 ([GDK-751], [GDK-752]).
+- 한국어 브라우저에는 한국어 페이지를 제안합니다 — 강제 리다이렉트가 아니라
+  제안 스트립이고, 답을 기억합니다 ([GDK-770]). 함께: 사이트를 읽는
+  에이전트를 위한 `llms.txt`, 페이지가 말하는 것을 그대로 말하는 OG 카드,
+  비교 표의 레이트 리밋 행.
 
 ## v0.17.0 — 2026-08-23
 
@@ -1015,3 +1069,17 @@ HTTP·sync·에이전트 계약.
 [GDK-730]: https://gadak.dev/backlog/#/?ks=GDK-730
 [GDK-700]: https://gadak.dev/backlog/#/?ks=GDK-700
 [GDK-742]: https://gadak.dev/backlog/#/?ks=GDK-742
+[GDK-202]: https://gadak.dev/backlog/#/?ks=GDK-202
+[GDK-747]: https://gadak.dev/backlog/#/?ks=GDK-747
+[GDK-748]: https://gadak.dev/backlog/#/?ks=GDK-748
+[GDK-749]: https://gadak.dev/backlog/#/?ks=GDK-749
+[GDK-751]: https://gadak.dev/backlog/#/?ks=GDK-751
+[GDK-752]: https://gadak.dev/backlog/#/?ks=GDK-752
+[GDK-753]: https://gadak.dev/backlog/#/?ks=GDK-753
+[GDK-754]: https://gadak.dev/backlog/#/?ks=GDK-754
+[GDK-755]: https://gadak.dev/backlog/#/?ks=GDK-755
+[GDK-756]: https://gadak.dev/backlog/#/?ks=GDK-756
+[GDK-757]: https://gadak.dev/backlog/#/?ks=GDK-757
+[GDK-758]: https://gadak.dev/backlog/#/?ks=GDK-758
+[GDK-766]: https://gadak.dev/backlog/#/?ks=GDK-766
+[GDK-770]: https://gadak.dev/backlog/#/?ks=GDK-770
