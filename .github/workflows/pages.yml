@@ -60,12 +60,15 @@ jobs:
       # fetches detail/<KEY>.json, so the exploded tree must exist at deploy.
       # build.mjs unpacks too (local hosted-demo); this step is the Pages
       # source of truth and overwrites JSON onto the Vite backlog bundle.
+      # The snapshot still carries a pre-GDK-676 /gadak/ apiBase; rewrite it
+      # onto the runtime mount so hosted-fetch and config().apiBase agree.
       - name: Materialize public backlog snapshot
         run: |
           set -euo pipefail
           mkdir -p dist/hosted/backlog
           bash tools/backlog-snapshot.sh --unpack dist/hosted/backlog
           rm -f dist/hosted/backlog/MANIFEST
+          node tools/hosted-demo/build.mjs --rewrite-backlog-config dist/hosted/backlog/config.json /backlog/
 
       # GDK-52: the hosted browser gate runs in CI now, not only locally — a
       # false-state regression on the snapshot (feature entry points that 404)

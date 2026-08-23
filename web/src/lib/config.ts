@@ -279,10 +279,85 @@ export function jiraFilterUrl(filterId: string, jql?: string): string | null {
   return null
 }
 
-/** Vite `base` at runtime, always with a trailing slash. */
+/**
+ * App URL prefix, always with a trailing slash.
+ *
+ * Hosted /demo/ and /backlog/ share one Vite bundle (GDK-673), so this cannot
+ * be compile-time `import.meta.env.BASE_URL` — that value is only the asset
+ * emit (often `./`). The prefix is, in order:
+ *   1. the document `<base href>` (injected per mount by the hosted build)
+ *   2. this module's own URL, when Vite emitted a relative base — the JS
+ *      lives at `{prefix}assets/…`, which is not `/w/<name>/` (gadak serve
+ *      still ships assets at `/assets/` even on a workspace mount)
+ *   3. compile-time BASE_URL for `gadak serve` / desktop (`/`)
+ *
+ * `/w/<name>/` is workspaceName(), not a base. Both read the page URL, but
+ * this function never inspects `location.pathname`.
+ */
 export function basePath(): string {
-  const base = import.meta.env.BASE_URL || '/'
-  return base.endsWith('/') ? base : `${base}/`
+  // Resolved once: hosted-fetch asks on every intercepted request, and the
+  // mount cannot change without a navigation. Doing the DOM lookup and the
+  // data-base-path write per call would put both on the request path.
+  if (resolvedBase !== null) return resolvedBase
+  resolvedBase = resolveBasePath()
+  if (typeof document !== 'undefined' && document.documentElement) {
+    document.documentElement.dataset.basePath = resolvedBase
+  }
+  return resolvedBase
+}
+
+let resolvedBase: string | null = null
+
+function withTrailingSlash(path: string): string {
+  return path.endsWith('/') ? path : `${path}/`
+}
+
+function isRelativeViteBase(base: string): boolean {
+  return base === './' || base === '.' || base === ''
+}
+
+function resolveBasePath(): string {
+  const fromTag = baseHrefFromDocument()
+  if (fromTag) return fromTag
+  const compiled = import.meta.env.BASE_URL || '/'
+  if (isRelativeViteBase(compiled)) {
+    return baseFromModuleUrl() ?? '/'
+  }
+  return withTrailingSlash(compiled)
+}
+
+function baseHrefFromDocument(): string | null {
+  if (typeof document === 'undefined') return null
+  const el = document.querySelector('base[href]')
+  if (!el) return null
+  const raw = el.getAttribute('href')
+  if (raw == null || isRelativeViteBase(raw)) return null
+  try {
+    return withTrailingSlash(new URL(raw, 'http://gadak.invalid/').pathname)
+  } catch {
+    return raw.startsWith('/') ? withTrailingSlash(raw) : null
+  }
+}
+
+/** `{origin}{prefix}assets/{file}` → `{prefix}`. `file:` is vitest; ignore it. */
+function baseFromModuleUrl(): string | null {
+  let href: string
+  try {
+    href = import.meta.url
+  } catch {
+    return null
+  }
+  if (!href || href.startsWith('file:')) return null
+  try {
+    const path = new URL(href).pathname
+    const marker = '/assets/'
+    const i = path.lastIndexOf(marker)
+    if (i < 0) return null
+    const prefix = path.slice(0, i + 1)
+    return prefix === '' ? '/' : prefix
+  } catch {
+    return null
+  }
 }
 
 /**
