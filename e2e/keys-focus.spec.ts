@@ -1,9 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 
 import { test, expect, type Page } from '@playwright/test'
-import { appConsoleErrors, attachConsoleErrors, forceLocale, gotoApp, DEMO_ISSUE_COUNT } from './helpers'
+import { apiURL, appConsoleErrors, attachConsoleErrors, e2eHomeDir, forceLocale, gotoApp, DEMO_ISSUE_COUNT } from './helpers'
 
 /*
  * keys axis + ui-focus handoff + the hidden-tab poll pause.
@@ -12,8 +11,7 @@ import { appConsoleErrors, attachConsoleErrors, forceLocale, gotoApp, DEMO_ISSUE
  * look at document.hidden, so a backgrounded tab keeps GET-ing.
  */
 
-const here = path.dirname(fileURLToPath(import.meta.url))
-const focusFile = path.join(here, '.tmp/home/ui-focus.json')
+const focusFile = path.join(e2eHomeDir(), 'ui-focus.json')
 
 function writeFocus(hash: string): void {
   fs.writeFileSync(
@@ -137,7 +135,7 @@ test.describe('keys view and ui-focus', () => {
 
   test('sidebar recents include a document visit in the mixed list', async ({ page, request }) => {
     const errors = attachConsoleErrors(page)
-    const list = (await (await request.get('http://127.0.0.1:7877/api/v1/issues/pages/')).json()) as {
+    const list = (await (await request.get(apiURL('/api/v1/issues/pages/'))).json()) as {
       pages: { key: string; title: string }[]
     }
     const doc = list.pages[0]

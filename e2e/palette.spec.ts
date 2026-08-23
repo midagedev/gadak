@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { attachConsoleErrors, gotoApp, searchInput, DEMO_ISSUE_COUNT_EN_RE } from './helpers'
+import { apiURL, attachConsoleErrors, gotoApp, searchInput, DEMO_ISSUE_COUNT_EN_RE } from './helpers'
 
 test.describe('command palette', () => {
   test('Cmd+K opens it, typing stays local, Enter opens the issue detail', async ({ page }) => {
@@ -116,7 +116,7 @@ test.describe('command palette', () => {
    */
   test('every view row carries a kind icon and a clue from its own config', async ({ page }) => {
     const errors = attachConsoleErrors(page)
-    const API = 'http://127.0.0.1:7877/api/v1/issues/'
+    const API = apiURL('/api/v1/issues/')
 
     // A personal view lives in localStorage; the fixture ships the Jira filter
     // ("Open in NMA", NMA + statusCategory). The team layer has none, so this

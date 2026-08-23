@@ -1,10 +1,12 @@
 import { execFileSync } from 'node:child_process'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { expect, type ConsoleMessage, type Locator, type Page } from '@playwright/test'
 
 const E2E_DIR = dirname(fileURLToPath(import.meta.url))
+const DEFAULT_E2E_PORT = '7877'
+const HARDCODED_E2E_HOST = '127.0.0.1:7877'
 
 /**
  * Issue count in examples/demo.db. Single owner: a fixture regen that
@@ -25,14 +27,49 @@ export type AssertServedArtifactOpts = {
   root?: string
 }
 
-/** PORT is owned by e2e/serve.sh; helpers reads that assignment so the stamp moves with the port. */
+/**
+ * Single owner for the e2e listen port. Playwright config, serve.sh, the
+ * served-artifact stamp, and apiURL() all read GADAK_E2E_PORT (default 7877).
+ */
 export function e2eServePort(): string {
-  const text = readFileSync(join(E2E_DIR, 'serve.sh'), 'utf8')
-  const m = text.match(/^PORT=(\d+)\s*$/m)
-  if (!m) {
-    throw new Error('e2e/serve.sh: missing PORT=<digits> assignment (stamp path is keyed on it)')
+  const raw = process.env.GADAK_E2E_PORT
+  if (raw === undefined || raw === '') return DEFAULT_E2E_PORT
+  if (!/^[1-9][0-9]*$/.test(raw)) {
+    throw new Error(`GADAK_E2E_PORT must be an integer 1-65535, got ${JSON.stringify(raw)}`)
   }
-  return m[1]
+  const n = Number(raw)
+  if (n > 65535) {
+    throw new Error(`GADAK_E2E_PORT out of range: ${raw}`)
+  }
+  return raw
+}
+
+/** Absolute URL on the e2e server. Empty path is origin with no trailing slash. */
+export function apiURL(path = ''): string {
+  const p = !path ? '' : path.startsWith('/') ? path : `/${path}`
+  return `http://127.0.0.1:${e2eServePort()}${p}`
+}
+
+/** GADAK_HOME for this suite: e2e/.tmp/home-<port>, so two ports do not share a db. */
+export function e2eHomeDir(): string {
+  return join(E2E_DIR, '.tmp', `home-${e2eServePort()}`)
+}
+
+/**
+ * GDK-672: a literal 127.0.0.1:7877 in e2e/*.spec.ts pins the suite to one
+ * port and two worktrees cannot run at once. Use apiURL() from this file.
+ */
+export function hardcodedE2EHosts(root = E2E_DIR): string[] {
+  const hits: string[] = []
+  for (const name of readdirSync(root)) {
+    if (!name.endsWith('.spec.ts')) continue
+    const lines = readFileSync(join(root, name), 'utf8').split('\n')
+    for (let i = 0; i < lines.length; i++) {
+      if (!lines[i].includes(HARDCODED_E2E_HOST)) continue
+      hits.push(`${name}:${i + 1}: ${lines[i].trim()}`)
+    }
+  }
+  return hits
 }
 
 /** Port-keyed stamp outside any worktree. Matches e2e/serve.sh. */
@@ -103,6 +140,12 @@ export function assertServedArtifact(opts: AssertServedArtifactOpts = {}): void 
 }
 
 export default function globalSetup(): void {
+  const hits = hardcodedE2EHosts()
+  if (hits.length) {
+    throw new Error(
+      `hardcoded ${HARDCODED_E2E_HOST} in e2e/*.spec.ts — use apiURL() from e2e/helpers.ts:\n${hits.join('\n')}`,
+    )
+  }
   assertServedArtifact()
 }
 

@@ -1,8 +1,8 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
-import { gotoApp, openServerSettings, DEMO_ISSUE_COUNT_EN_RE } from './helpers'
+import { apiURL, gotoApp, openServerSettings, DEMO_ISSUE_COUNT_EN_RE } from './helpers'
 import { THEMES } from '../web/src/lib/theme'
 
-const SETTINGS_URL = 'http://127.0.0.1:7877/api/v1/issues/settings/'
+const SETTINGS_URL = apiURL('/api/v1/issues/settings/')
 
 async function waitServerTheme(request: APIRequestContext, theme: string): Promise<void> {
   await expect

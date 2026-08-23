@@ -1,9 +1,13 @@
 import { defineConfig, devices } from '@playwright/test'
+import { apiURL, e2eHomeDir, e2eServePort } from './helpers'
 
 /**
  * Browser E2E against the committed demo.db mirror.
- * webServer runs e2e/serve.sh (build binary + UI, seed home, serve :7877).
+ * webServer runs e2e/serve.sh (build binary + UI, seed home, serve GADAK_E2E_PORT).
  */
+const e2ePort = e2eServePort()
+console.log(`[e2e] GADAK_E2E_PORT=${e2ePort} home=${e2eHomeDir()}`)
+
 export default defineConfig({
   testDir: '.',
   globalSetup: './helpers.ts',
@@ -18,7 +22,7 @@ export default defineConfig({
   timeout: 60_000,
   expect: { timeout: 15_000 },
   use: {
-    baseURL: 'http://127.0.0.1:7877',
+    baseURL: apiURL(),
     // Local retries are 0, so on-first-retry produced no trace for the
     // GDK-39 flake. retain-on-failure + a screenshot keep the key sequence
     // and the URL/list-count in the artifact without retrying the test.
@@ -27,8 +31,8 @@ export default defineConfig({
     locale: 'en-US',
   },
   webServer: {
-    command: 'bash e2e/serve.sh',
-    url: 'http://127.0.0.1:7877/healthz',
+    command: `GADAK_E2E_PORT=${e2ePort} bash e2e/serve.sh`,
+    url: apiURL('/healthz'),
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,
     cwd: '..',

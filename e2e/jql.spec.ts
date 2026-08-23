@@ -3,11 +3,11 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { test, expect } from '@playwright/test'
-import { attachConsoleErrors, gotoApp, DEMO_ISSUE_COUNT_RE } from './helpers'
+import { attachConsoleErrors, e2eHomeDir, gotoApp, DEMO_ISSUE_COUNT_RE } from './helpers'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const gadakBin = path.join(here, '.tmp/gadak')
-const gadakHome = path.join(here, '.tmp/home')
+const gadakHome = e2eHomeDir()
 
 test.describe('JQL paste', () => {
   test('Enter on navigator JQL applies chips and Copy JQL emits them back', async ({

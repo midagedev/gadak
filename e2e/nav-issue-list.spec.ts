@@ -1,9 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 
 import { test, expect, type Page } from '@playwright/test'
-import { attachConsoleErrors, gotoApp } from './helpers'
+import { attachConsoleErrors, e2eHomeDir, gotoApp } from './helpers'
 
 /*
  * Main-column occupancy: "show the issue list" must drop docs / space / feed.
@@ -16,8 +15,7 @@ import { attachConsoleErrors, gotoApp } from './helpers'
  *  5. DOCS → palette issue pick → panel opens, docs-view stays (selection contract)
  */
 
-const here = path.dirname(fileURLToPath(import.meta.url))
-const focusFile = path.join(here, '.tmp/home/ui-focus.json')
+const focusFile = path.join(e2eHomeDir(), 'ui-focus.json')
 
 function writeFocus(hash: string): void {
   fs.writeFileSync(

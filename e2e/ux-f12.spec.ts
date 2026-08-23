@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { attachConsoleErrors, gotoApp, openServerSettings, searchInput } from './helpers'
+import { apiURL, attachConsoleErrors, gotoApp, openServerSettings, searchInput } from './helpers'
 import { en } from '../web/src/lib/i18n/en'
 import { ko } from '../web/src/lib/i18n/ko'
 
@@ -10,7 +10,7 @@ import { ko } from '../web/src/lib/i18n/ko'
  * visual pass land in /tmp/f12-shots/ after the assertions hold.
  */
 
-const API = 'http://127.0.0.1:7877/api/v1/issues/'
+const API = apiURL('/api/v1/issues/')
 
 async function openIssue(page: Page, key: string) {
   const input = searchInput(page)
@@ -88,22 +88,66 @@ test.describe('F12 detail / settings / server-down', () => {
     page,
   }) => {
     const errors = attachConsoleErrors(page)
+    /*
+     * The two numbers below are the contract, not tuning. The site lists are
+     * held for HOLD_MS while the client gives up after TIMEOUT_MS, and the
+     * error UI has to arrive inside that gap. The eventual 5xx renders the
+     * same UI, so the gap is measured (below) rather than left to an expect
+     * budget — assertion order decides when a budget starts, and a budget
+     * that starts after HOLD_MS has already elapsed proves nothing.
+     */
+    const TIMEOUT_MS = 250
+    const HOLD_MS = 3_000
+    // Test-only: production SCOPE_LIST_MS is 8_000 (SettingsDialog.svelte).
+    await page.addInitScript((ms) => {
+      ;(window as unknown as { __gadakTestFetchTimeoutMs?: number }).__gadakTestFetchTimeoutMs = ms
+    }, TIMEOUT_MS)
+    // Fixture Jira is fake — GET meta/write/ otherwise holds teardown on a
+    // createmeta DNS miss (~15s). Same fulfill shape as duedate.spec.ts.
+    await page.route('**/api/v1/issues/meta/write/', async (route) => {
+      if (route.request().method() !== 'GET') return route.continue()
+      await route.fulfill({
+        json: {
+          transitions: {},
+          create_meta: { projects: [] },
+          updated_at: '2026-08-18T00:00:00.000Z',
+        },
+      })
+    })
     await gotoApp(page)
-    // Abort the site lists so teardown is not pinned on a 60s fulfill.
-    // Register after boot: the same URLs must not stall gotoApp.
-    await page.route('**/projects/available/**', (route) => route.abort())
-    await page.route('**/settings/spaces/**', (route) => route.abort())
+    // Hang the two site lists, then answer — that is the GDK-476 shape, and
+    // the only way scopeListSignal() actually fires. Not route.abort(): a
+    // network throw is what GDK-477 reads as "gadak serve is gone", which
+    // raises offline-banner and pins teardown ~15s waiting for it to clear.
+    // The hold is longer than the 250ms hook above and short enough that
+    // teardown does not wait on it.
+    await page.route(
+      (url) =>
+        url.pathname.includes('/projects/available') || url.pathname.includes('/settings/spaces'),
+      async (route) => {
+        await new Promise((r) => setTimeout(r, HOLD_MS))
+        await route.fulfill({ status: 500, json: { error: 'unavailable' } })
+      },
+    )
     await openServerSettings(page)
     const dialog = page.getByRole('dialog', { name: 'Settings' })
-    await dialog.getByRole('button', { name: 'Sources', exact: true }).click()
-
     const sources = dialog.getByTestId('settings-sources')
+    const clickedAt = Date.now()
+    await dialog.getByRole('button', { name: 'Sources', exact: true }).click()
+    await expect(sources.getByTestId('scope-spaces-error')).toBeVisible()
+    const errorAfterMs = Date.now() - clickedAt
+
     await expect(sources.getByTestId('scope-projects-fallback')).toBeVisible()
     await expect(sources.getByText(en['settings.projectsManual'])).toBeVisible({
       timeout: 12_000,
     })
+    // GDK-476 itself: "Loading the list…" has to go away without the site.
     await expect(sources.getByText(en['settings.scopeLoading'])).toHaveCount(0)
-    await expect(sources.getByTestId('scope-spaces-error')).toBeVisible()
+    // The client timeout is what cleared it, not the request finally answering.
+    expect(
+      errorAfterMs,
+      `sources error took ${errorAfterMs}ms; the lists were held ${HOLD_MS}ms, so anything at or past that is the response, not the ${TIMEOUT_MS}ms client timeout`,
+    ).toBeLessThan(HOLD_MS)
     await expect(sources.getByTestId('scope-spaces-error')).toHaveText(
       en['settings.spacesUnavailable'],
     )
@@ -111,8 +155,6 @@ test.describe('F12 detail / settings / server-down', () => {
     await expect(page.getByTestId('offline-banner')).toHaveCount(0)
 
     await page.screenshot({ path: '/tmp/f12-shots/476-sources-error.png' })
-    // route.abort() logs net::ERR_FAILED; that is the hung-list signal, same
-    // as the GDK-477 down path in this file.
     expect(
       errors.filter((e) => !e.includes('ERR_FAILED') && !e.includes('Failed to load resource')),
       `console errors:\n${errors.join('\n')}`,

@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { appConsoleErrors, attachConsoleErrors, forceLocale, gotoApp } from './helpers'
+import { apiURL, appConsoleErrors, attachConsoleErrors, forceLocale, gotoApp } from './helpers'
 
 /*
  * Dedicated-browser address bar: a pasted Atlassian URL is never silently
@@ -11,7 +11,7 @@ import { appConsoleErrors, attachConsoleErrors, forceLocale, gotoApp } from './h
  */
 
 const SITE = 'https://nimbus.example.com'
-const PAGES_URL = 'http://127.0.0.1:7877/api/v1/issues/pages/'
+const PAGES_URL = apiURL('/api/v1/issues/pages/')
 
 async function pasteIntoSearch(page: Page, text: string): Promise<void> {
   const box = page.getByTestId('search-input')

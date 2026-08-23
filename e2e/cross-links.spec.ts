@@ -13,10 +13,10 @@
  * it.
  */
 import { test, expect, type Page } from '@playwright/test'
-import { attachConsoleErrors, forceLocale, DEMO_ISSUE_COUNT_EN_RE } from './helpers'
+import { apiURL, attachConsoleErrors, forceLocale, DEMO_ISSUE_COUNT_EN_RE } from './helpers'
 
-const BASE = 'http://127.0.0.1:7877'
-const PAGES_URL = `${BASE}/api/v1/issues/pages/`
+const BASE = apiURL()
+const PAGES_URL = apiURL('/api/v1/issues/pages/')
 
 interface PageRow {
   key: string

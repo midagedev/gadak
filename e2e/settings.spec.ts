@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
-import { attachConsoleErrors, gotoApp, openServerSettings, DEMO_ISSUE_COUNT_EN_RE } from './helpers'
+import { apiURL, attachConsoleErrors, gotoApp, openServerSettings, DEMO_ISSUE_COUNT_EN_RE } from './helpers'
 
-const SETTINGS_URL = 'http://127.0.0.1:7877/api/v1/issues/settings/'
+const SETTINGS_URL = apiURL('/api/v1/issues/settings/')
 
 test.describe('settings dialog', () => {
   test('changes staleThresholdHours, saves, and API reflects the value', async ({ page, request }) => {
@@ -104,7 +104,7 @@ test.describe('settings dialog', () => {
  */
 test.describe('settings copy contracts', () => {
   test('empty project picker label includes every project', async ({ page }) => {
-    const API = 'http://127.0.0.1:7877/api/v1/issues/'
+    const API = apiURL('/api/v1/issues/')
     await page.route(`${API}settings/`, (route) =>
       route.fulfill({
         json: { projects: [], staleThresholdHours: 72 },

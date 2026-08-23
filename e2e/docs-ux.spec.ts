@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test'
-import { attachConsoleErrors, gotoApp, openServerSettings, walkRows } from './helpers'
+import { apiURL, attachConsoleErrors, gotoApp, openServerSettings, walkRows } from './helpers'
 
-const PAGES_URL = 'http://127.0.0.1:7877/api/v1/issues/pages/'
+const PAGES_URL = apiURL('/api/v1/issues/pages/')
 
 /** Open PROD's space screen → Tree → Feature Specs → the named page. */
 async function openDocFromTree(page: Page, title: string): Promise<void> {
@@ -422,7 +422,7 @@ test.describe('documents in the daily loop', () => {
     // The fixture credential cannot reach Jira or Confluence, so the two source
     // lists are stubbed here. Nothing is saved: this covers the picker itself,
     // not the write path.
-    const API = 'http://127.0.0.1:7877/api/v1/issues/'
+    const API = apiURL('/api/v1/issues/')
     await page.route(`${API}settings/`, (route) =>
       route.fulfill({
         json: {
@@ -508,7 +508,7 @@ test.describe('documents in the daily loop', () => {
      * Save sent {enabled:false, spaces:[]}, discarding it without a word. The
      * assertion is the PUT body, because the screen looked correct throughout.
      */
-    const API = 'http://127.0.0.1:7877/api/v1/issues/'
+    const API = apiURL('/api/v1/issues/')
     await page.route(`${API}settings/`, async (route) => {
       if (route.request().method() !== 'PUT') {
         // Confluence off: no `confluence` key at all.
@@ -823,7 +823,7 @@ test.describe('docs empty states', () => {
  * that every surface renders the same string, and that the count is in it.
  */
 test.describe('sync status is one sentence', () => {
-  const API = 'http://127.0.0.1:7877/api/v1/issues/'
+  const API = apiURL('/api/v1/issues/')
 
   /**
    * Stub the process-wide activity slot. `agoMs` ages the pass.

@@ -1,18 +1,25 @@
 #!/usr/bin/env bash
 # Idempotent fixture + server for Playwright E2E.
-# Builds the binary and UI, seeds e2e/.tmp/home from examples/demo.db, injects
+# Builds the binary and UI, seeds e2e/.tmp/home-${PORT} from examples/demo.db, injects
 # one deploy enrichment, then serves on 127.0.0.1:${PORT}.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-# Repository-global listener. The served-artifact stamp is keyed on this
-# value so a port change moves the stamp with the process.
-PORT=7877
+# Single owner with e2e/helpers.ts e2eServePort(): GADAK_E2E_PORT, default 7877.
+# The served-artifact stamp is keyed on this value so a port change moves the
+# stamp with the process. Home is port-suffixed so two listeners do not share a db.
+PORT="${GADAK_E2E_PORT:-7877}"
+if ! [[ "$PORT" =~ ^[1-9][0-9]*$ ]] || [ "$PORT" -gt 65535 ]; then
+  echo "[e2e] GADAK_E2E_PORT must be an integer 1-65535, got ${PORT}" >&2
+  exit 1
+fi
+# Already consumed as PORT. gadak serve/status log unknown GADAK_* names.
+unset GADAK_E2E_PORT
 
 TMP="$ROOT/e2e/.tmp"
-HOME_DIR="$TMP/home"
+HOME_DIR="$TMP/home-${PORT}"
 BIN="$TMP/gadak"
 DB="$HOME_DIR/gadak.db"
 CFG="$HOME_DIR/config.json"

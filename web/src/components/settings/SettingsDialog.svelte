@@ -171,10 +171,20 @@
    */
   const SCOPE_LIST_MS = 8_000
 
+  function scopeListTimeoutMs(): number {
+    if (typeof window !== 'undefined') {
+      const v = (window as unknown as { __gadakTestFetchTimeoutMs?: unknown })
+        .__gadakTestFetchTimeoutMs
+      if (typeof v === 'number' && Number.isFinite(v) && v > 0) return v
+    }
+    return SCOPE_LIST_MS
+  }
+
   function scopeListSignal(): AbortSignal {
-    if (typeof AbortSignal.timeout === 'function') return AbortSignal.timeout(SCOPE_LIST_MS)
+    const ms = scopeListTimeoutMs()
+    if (typeof AbortSignal.timeout === 'function') return AbortSignal.timeout(ms)
     const c = new AbortController()
-    setTimeout(() => c.abort(), SCOPE_LIST_MS)
+    setTimeout(() => c.abort(), ms)
     return c.signal
   }
 

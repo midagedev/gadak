@@ -59,10 +59,11 @@ describe('served-digest.sh', () => {
 })
 
 describe('servedStampPath', () => {
-  test('is keyed on the PORT assignment in e2e/serve.sh', () => {
+  test('is keyed on GADAK_E2E_PORT (default 7877)', () => {
     const serve = readFileSync(join(E2E_DIR, 'serve.sh'), 'utf8')
     const port = e2eServePort()
-    expect(serve).toMatch(new RegExp(`^PORT=${port}$`, 'm'))
+    expect(serve).toMatch(/PORT="\$\{GADAK_E2E_PORT:-7877\}"/)
+    expect(port).toBe(process.env.GADAK_E2E_PORT || '7877')
     expect(servedStampPath()).toBe(join(process.env.TMPDIR || '/tmp', `gadak-e2e-served-${port}.json`))
   })
 
