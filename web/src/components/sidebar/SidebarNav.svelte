@@ -403,7 +403,7 @@
       title={isHostedDemo() ? t('app.demoWriteDisabled') : t('sidebar.newIssueTitle')}
     >
       <Icon name="plus" size={13} />
-      {t('sidebar.newIssue')}
+      {t('write.newIssue')}
     </button>
   </div>
   {/if}

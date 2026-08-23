@@ -226,7 +226,7 @@
       role="listbox"
     >
       {#if loading}
-        <div class="px-3 py-2 text-micro text-text-muted">{t('write.loadingTransitions')}</div>
+        <div class="px-3 py-2 text-micro text-text-muted">{t('common.loading')}</div>
       {:else if loadError}
         <div class="px-3 py-2 text-body text-status-reopen">{loadError}</div>
       {:else if collecting}

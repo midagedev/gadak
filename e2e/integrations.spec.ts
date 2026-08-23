@@ -181,7 +181,7 @@ test.describe('integrations tab in the app', () => {
     )
     await expect(page.getByTestId('integration-row-raycast')).toContainText('code 13')
     await expect(page.getByTestId('integration-install-raycast')).toHaveText(
-      en['settings.integrationRetry'],
+      en['common.retry'],
     )
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])

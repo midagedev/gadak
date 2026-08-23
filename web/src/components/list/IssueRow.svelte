@@ -239,7 +239,7 @@
       {selected ? 'border-accent bg-accent text-white' : 'border-border-strong'}"
     onclick={onCheckClick}
     aria-pressed={selected}
-    aria-label={selected ? t('list.deselect') : t('list.select')}
+    aria-label={selected ? t('common.deselect') : t('list.select')}
     title={t('list.select')}
   >
     {#if selected}<Icon name="check" size={11} />{/if}

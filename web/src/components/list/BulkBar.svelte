@@ -524,7 +524,7 @@
           data-testid="bulk-priority-menu"
         >
           {#if !write.prioritiesLoaded}
-            <div class="px-3 py-2 text-micro text-text-muted">{t('write.loadingPriorities')}</div>
+            <div class="px-3 py-2 text-micro text-text-muted">{t('common.loading')}</div>
           {:else}
             <button
               type="button"
@@ -572,7 +572,7 @@
         <div
           class="anim-enter absolute left-0 top-full z-30 mt-1 w-64 rounded-lg border border-border-strong bg-bg-elevated shadow-overlay"
           role="dialog"
-          aria-label={t('bulk.pickAssignee')}
+          aria-label={t('write.pickAssignee')}
           data-testid="bulk-assignee-menu"
           data-cand-source={assigneeSearching ? 'search' : 'local'}
         >
@@ -581,7 +581,7 @@
             <input
               bind:value={assigneeQuery}
               type="text"
-              placeholder={t('bulk.searchPerson')}
+              placeholder={t('write.searchNameEmail')}
               autofocus
               class="h-control-sm w-full rounded border border-border-strong bg-bg-base px-2 text-body text-text-primary outline-none focus:border-accent"
             />

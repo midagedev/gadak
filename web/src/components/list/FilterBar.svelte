@@ -143,7 +143,7 @@
         write.toast(t('filter.jqlCopied'), 'success')
       }
     } catch {
-      write.toast(t('filter.jqlNotAvailable'), 'error')
+      write.toast(t('filter.jqlFailed'), 'error')
     }
   }
 

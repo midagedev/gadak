@@ -153,6 +153,9 @@ const NEED_CREDENTIAL_KEYS = [
   'feed.needCredentials',
   'write.commentNeedCredentials',
   'doc.commentNeedCredentials',
+  // GDK-731: the write-gate recovery used "token" on two surfaces.
+  'write.needToken',
+  'sidebar.jiraCredsMissing',
 ] as const
 
 describe('GDK-651 palette registers sibling views and cursor issue actions', () => {
@@ -177,7 +180,7 @@ describe('GDK-651 palette registers sibling views and cursor issue actions', () 
 })
 
 describe('GDK-651 credentials affordance: one noun, one settings action', () => {
-  test('the four need-credentials surfaces use the credentials noun, not token', () => {
+  test('need-credentials surfaces use the credentials noun, not token', () => {
     const noun = /credential|자격증명|資格情報/i
     const token = /token|토큰|トークン/i
     const failures: string[] = []

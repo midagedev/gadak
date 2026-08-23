@@ -24,7 +24,7 @@
         onclick={onRetry}
         class="rounded-md border border-border-strong px-3 py-1.5 text-body font-medium text-text-secondary transition-colors hover:bg-bg-hover"
       >
-        {t('app.authRetry')}
+        {t('common.retry')}
       </button>
     {/if}
   </div>

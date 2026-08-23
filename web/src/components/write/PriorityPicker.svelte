@@ -105,7 +105,7 @@
       aria-label={t('common.priority')}
     >
       {#if loading}
-        <div class="px-3 py-2 text-micro text-text-muted">{t('write.loadingPriorities')}</div>
+        <div class="px-3 py-2 text-micro text-text-muted">{t('common.loading')}</div>
       {:else}
         <button
           type="button"

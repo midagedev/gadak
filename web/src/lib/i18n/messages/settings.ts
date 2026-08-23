@@ -568,12 +568,12 @@ export const settings = {
   },
   'settings.featureTeams': {
     en: 'Team grouping',
-    ko: '파트 분류',
+    ko: '팀 분류',
     ja: 'チームグループ',
   },
   'settings.featureTeamsDesc': {
     en: 'Group members into teams for filters and grouping — configure rules in the Teams / groups tab',
-    ko: '멤버를 파트로 묶어 필터·그룹핑 — 팀/그룹 탭에서 규칙 설정',
+    ko: '멤버를 팀으로 묶어 필터·그룹핑 — 팀/그룹 탭에서 규칙 설정',
     ja: 'メンバーをチームにまとめてフィルターとグループ化に使います — チーム / グループタブで規則を設定',
   },
   'settings.qaDashboardUrl': {
@@ -651,11 +651,6 @@ export const settings = {
     en: 'Update',
     ko: '업데이트',
     ja: '更新',
-  },
-  'settings.integrationRetry': {
-    en: 'Retry',
-    ko: '다시 시도',
-    ja: '再試行',
   },
   'settings.integrationRecheck': {
     en: 'Re-check',
@@ -806,11 +801,6 @@ export const settings = {
     en: 'Components',
     ko: '컴포넌트',
     ja: 'コンポーネント',
-  },
-  'settings.cloudPart': {
-    en: 'Cloud part',
-    ko: 'Cloud 파트',
-    ja: 'Cloud パート',
   },
   'settings.memberEmail': {
     en: 'Email',
@@ -1133,11 +1123,6 @@ export const settings = {
     ko: '필터 {n}개',
     ja: '{n}件のフィルター',
   },
-  'palette.actionNewIssue': {
-    en: 'New issue',
-    ko: '새 이슈',
-    ja: '課題を作成',
-  },
   'palette.actionCreateIssue': {
     en: 'Create "{summary}"',
     ko: '"{summary}" 이슈 만들기',
@@ -1182,11 +1167,6 @@ export const settings = {
     en: 'Unwatch · {key}',
     ko: '워치 해제 · {key}',
     ja: 'ウォッチを解除 · {key}',
-  },
-  'palette.actionResetFilters': {
-    en: 'Clear filters',
-    ko: '필터 초기화',
-    ja: 'フィルターをクリア',
   },
   'palette.actionToggleReopened': {
     en: 'Toggle reopened filter',

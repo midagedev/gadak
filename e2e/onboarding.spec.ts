@@ -183,7 +183,7 @@ async function assertOnboardingChromeQuiet(
 ): Promise<void> {
   const wizard = page.getByTestId('onboarding')
   await expect(wizard).toBeVisible()
-  await expect(page.getByRole('button', { name: en['sidebar.newIssue'] })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: en['write.newIssue'] })).toHaveCount(0)
   await expect(page.getByRole('button', { name: en['common.setCredentials'], exact: true })).toHaveCount(0)
   await expect(page.getByRole('button', { name: en['settings.standaloneHow'] })).toHaveCount(0)
   await expect(page.getByTestId('search-input')).toHaveCount(0)

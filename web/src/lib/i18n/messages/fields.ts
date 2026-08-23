@@ -33,7 +33,7 @@ export const fields = {
   },
   'field.team_group': {
     en: 'Team',
-    ko: '파트',
+    ko: '팀',
     ja: 'チーム',
   },
   'field.labels': {
@@ -264,7 +264,7 @@ export const fields = {
   },
   'column.team_group': {
     en: 'Team',
-    ko: '파트',
+    ko: '팀',
     ja: 'チーム',
   },
   'column.dev_test_result': {
@@ -447,7 +447,7 @@ export const fields = {
   },
   'group.byTeam': {
     en: 'Team',
-    ko: '파트',
+    ko: '팀',
     ja: 'チーム',
   },
   'group.byAssignee': {

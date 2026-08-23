@@ -9,7 +9,7 @@ export const write = {
   'write.newIssue': {
     en: 'New issue',
     ko: '새 이슈',
-    ja: '課題を作成',
+    ja: '新しい課題',
   },
   'write.issueTitle': {
     en: 'Issue title',
@@ -77,9 +77,9 @@ export const write = {
     ja: '{key} · {type} · {project} を作成しました',
   },
   'write.needToken': {
-    en: 'Set your personal Jira API token first.',
-    ko: '먼저 개인 Jira API 토큰을 설정하세요.',
-    ja: '先に個人の Jira API token を設定してください。',
+    en: 'Set your personal Jira credentials first.',
+    ko: '먼저 개인 Jira 자격증명을 설정하세요.',
+    ja: '先に個人の Jira 資格情報を設定してください。',
   },
   'write.tokenRejected': {
     en: 'Your Jira API token was rejected — replace it with a new personal token.',
@@ -151,11 +151,6 @@ export const write = {
     en: 'Change priority',
     ko: '우선순위 변경',
     ja: '優先度を変更',
-  },
-  'write.loadingPriorities': {
-    en: 'Loading…',
-    ko: '불러오는 중…',
-    ja: '読み込み中…',
   },
   'write.noPriorities': {
     en: 'No priorities on this site.',
@@ -311,11 +306,6 @@ export const write = {
     en: 'Change status',
     ko: '상태 변경',
     ja: 'ステータスを変更',
-  },
-  'write.loadingTransitions': {
-    en: 'Loading…',
-    ko: '불러오는 중…',
-    ja: '読み込み中…',
   },
   'write.noTransitions': {
     en: 'No transitions available.',
@@ -539,11 +529,6 @@ export const write = {
     ko: '연결',
     ja: '接続',
   },
-  'onboarding.connecting': {
-    en: 'Verifying…',
-    ko: '검증 중…',
-    ja: '検証中…',
-  },
   'onboarding.connectedAs': {
     en: 'Connected as {name}',
     ko: '{name}으로 연결됨',
@@ -643,11 +628,6 @@ export const write = {
     ko: '첫 동기화 시작',
     ja: '最初の同期を開始',
   },
-  'onboarding.saving': {
-    en: 'Saving…',
-    ko: '저장 중…',
-    ja: '保存中…',
-  },
   'onboarding.errSaveProjects': {
     en: 'Could not save the project list: {message}',
     ko: '프로젝트 목록을 저장하지 못했습니다: {message}',
@@ -738,11 +718,6 @@ export const write = {
     en: 'Sync failed: {message}',
     ko: '동기화 실패: {message}',
     ja: '同期失敗: {message}',
-  },
-  'onboarding.retry': {
-    en: 'Retry',
-    ko: '다시 시도',
-    ja: '再試行',
   },
   'onboarding.back': {
     en: 'Back',

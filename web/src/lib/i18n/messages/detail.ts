@@ -654,11 +654,6 @@ export const detail = {
     ko: '버전 검색',
     ja: 'バージョンを検索',
   },
-  'qaEditor.searchPerson': {
-    en: 'Search name or email',
-    ko: '이름·이메일 검색',
-    ja: '名前またはメールで検索',
-  },
   'qaEditor.clearAssignee': {
     en: 'Clear assignee',
     ko: '담당자 해제',

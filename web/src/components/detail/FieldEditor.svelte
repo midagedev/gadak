@@ -534,7 +534,7 @@
             bind:this={inputEl}
             bind:value={query}
             type="text"
-            placeholder={t('qaEditor.searchPerson')}
+            placeholder={t('write.searchNameEmail')}
             class="w-full rounded border border-border-subtle bg-bg-base px-2 py-1 text-body text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
         </div>

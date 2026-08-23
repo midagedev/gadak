@@ -132,7 +132,7 @@ test.describe('F11 search / filter / empty state', () => {
 
     const action = page.getByTestId('empty-state-action')
     await expect(action).toHaveText(en['list.clearSearch'])
-    await expect(page.getByRole('button', { name: en['list.clearFilters'] })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: en['filter.clear'] })).toHaveCount(0)
 
     await action.click()
     await expect(input).toHaveValue('')

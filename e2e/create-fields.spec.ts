@@ -66,7 +66,7 @@ async function boot(page: Page): Promise<IssueRow> {
 }
 
 async function openNewIssue(page: Page) {
-  await page.getByRole('button', { name: en['sidebar.newIssue'], exact: true }).click()
+  await page.getByRole('button', { name: en['write.newIssue'], exact: true }).click()
   const dialog = page.getByRole('dialog', { name: en['write.newIssue'] })
   await expect(dialog).toBeVisible()
   await expect(dialog.getByPlaceholder(en['write.issueTitle'])).toBeVisible()

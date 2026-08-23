@@ -225,7 +225,7 @@
               ? t('list.noMatchBodyHint')
               : t('list.noMatchQueryHint')
             : t('list.noMatchHint')}
-          actionLabel={q ? t('list.clearSearch') : filters.hasUserChips ? t('list.clearFilters') : ''}
+          actionLabel={q ? t('list.clearSearch') : filters.hasUserChips ? t('filter.clear') : ''}
           onAction={() => {
             if (q) {
               filters.setQuery('')

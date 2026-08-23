@@ -91,7 +91,7 @@
   const ACTION_LABEL = {
     install: 'settings.integrationInstall',
     update: 'settings.integrationUpdate',
-    retry: 'settings.integrationRetry',
+    retry: 'common.retry',
   } as const satisfies Record<string, MessageKey>
 
   const NOTE_LABEL = {

@@ -6,15 +6,10 @@ import type { Message } from '../types'
 
 export const shell = {
   /* ── Sidebar ── */
-  'sidebar.newIssue': {
-    en: 'New issue',
-    ko: '새 이슈',
-    ja: '課題を作成',
-  },
   'sidebar.newIssueTitle': {
     en: 'New issue (c)',
     ko: '새 이슈 (c)',
-    ja: '課題を作成 (c)',
+    ja: '新しい課題 (c)',
   },
   'sidebar.builtinViews': {
     en: 'Built-in views',
@@ -149,9 +144,9 @@ export const shell = {
     ja: 'Jira 資格情報',
   },
   'sidebar.jiraCredsMissing': {
-    en: 'Jira API token not set — configure to write',
-    ko: 'Jira API 토큰 미설정 — 쓰기하려면 설정하세요',
-    ja: 'Jira API token が未設定です — 書き込むには設定してください',
+    en: 'Jira credentials not set — configure to write',
+    ko: 'Jira 자격증명 미설정 — 쓰기하려면 설정하세요',
+    ja: 'Jira 資格情報が未設定です — 書き込むには設定してください',
   },
   'sidebar.viewDeleteFail': {
     en: 'Could not delete view. Try again.',
@@ -445,7 +440,7 @@ export const shell = {
   'shortcuts.newIssueContext': {
     en: 'New issue (when no detail or cursor)',
     ko: '새 이슈 (상세·커서가 없을 때)',
-    ja: '課題を作成（詳細もカーソルもないとき）',
+    ja: '新しい課題（詳細もカーソルもないとき）',
   },
   'shortcuts.help': {
     en: 'Show this cheat sheet',
@@ -643,11 +638,6 @@ export const shell = {
     en: 'Make sure it is running.',
     ko: '가 실행 중인지 확인하세요.',
     ja: '起動していることを確認してください。',
-  },
-  'app.authRetry': {
-    en: 'Retry',
-    ko: '다시 시도',
-    ja: '再試行',
   },
   'app.offlineBanner': {
     en: 'Offline — showing cached data',

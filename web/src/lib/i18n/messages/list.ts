@@ -86,6 +86,19 @@ export const list = {
     ko: 'JQL은 앱 또는 gadak serve가 필요합니다',
     ja: 'JQL にはアプリまたは gadak serve が必要です',
   },
+  // Catch of emitJql/parseJql: json() throws ApiError on 4xx/5xx, fetch throws
+  // on a dead connection. Patterned on write.jiraUnavailable.
+  'filter.jqlFailed': {
+    en: 'Could not reach JQL. Check the connection and try again.',
+    ko: 'JQL에 연결하지 못했습니다. 연결을 확인한 뒤 다시 시도하세요.',
+    ja: 'JQL に到達できませんでした。接続を確認して再試行してください。',
+  },
+  // internal/jql/compile.go ErrNotJQL: URL has no jql= parameter.
+  'filter.notJql': {
+    en: 'URL has no jql= parameter',
+    ko: 'URL에 jql= 파라미터가 없습니다',
+    ja: 'URL に jql= パラメータがありません',
+  },
   'filter.remove': {
     en: 'Remove filter',
     ko: '필터 제거',
@@ -311,7 +324,7 @@ export const list = {
   },
   'list.bodyMatchCount': {
     en: '{n} body matches · "{q}"',
-    ko: '본문 매칭 {n}건 · "{q}"',
+    ko: '본문 매치 {n}건 · "{q}"',
     ja: '本文一致 {n}件 · "{q}"',
   },
   'list.emptyTitle': {
@@ -336,12 +349,12 @@ export const list = {
   },
   'list.bodyOnlyTitle': {
     en: 'No local matches — found in body',
-    ko: '로컬 매칭은 없지만 본문에서 찾았습니다',
+    ko: '로컬 매치는 없지만 본문에서 찾았습니다',
     ja: 'ローカル一致はありません — 本文で見つかりました',
   },
   'list.bodyOnlyHint': {
     en: "See the 'Body matches' section above.",
-    ko: "위 '본문 매칭' 섹션을 확인하세요.",
+    ko: "위 '본문 매치' 섹션을 확인하세요.",
     ja: '上の「本文一致」セクションを見てください。',
   },
   'list.noMatchTitle': {
@@ -365,11 +378,6 @@ export const list = {
     ko: '본문·코멘트에서도 0건입니다.',
     ja: '本文・コメントにも一致はありません。',
   },
-  'list.clearFilters': {
-    en: 'Clear filters',
-    ko: '필터 초기화',
-    ja: 'フィルターをクリア',
-  },
   'list.clearSearch': {
     en: 'Clear search',
     ko: '검색 지우기',
@@ -379,11 +387,6 @@ export const list = {
     en: 'Select',
     ko: '선택',
     ja: '選択',
-  },
-  'list.deselect': {
-    en: 'Deselect',
-    ko: '선택 해제',
-    ja: '選択を解除',
   },
   'list.selectedCount': {
     en: '{n} selected',
@@ -515,11 +518,6 @@ export const list = {
     ko: '미러에 {key}가 없습니다',
     ja: '{key} はミラーにありません',
   },
-  'list.searching': {
-    en: 'Searching…',
-    ko: '검색 중…',
-    ja: '検索中…',
-  },
   'list.searchFailed': {
     en: 'Could not search body text. Check the connection and try again.',
     ko: '본문 검색에 실패했습니다. 연결을 확인한 뒤 다시 시도하세요.',
@@ -549,7 +547,7 @@ export const list = {
   },
   'list.docOnlyTitle': {
     en: 'No issues matched — found in documents',
-    ko: '이슈 매칭은 없지만 문서에서 찾았습니다',
+    ko: '이슈 매치는 없지만 문서에서 찾았습니다',
     ja: '課題の一致はありません — ドキュメントで見つかりました',
   },
   'list.docOnlyHint': {
@@ -597,16 +595,6 @@ export const list = {
     en: '{n} skipped',
     ko: '건너뜀 {n}',
     ja: '{n}件スキップ',
-  },
-  'bulk.pickAssignee': {
-    en: 'Choose assignee',
-    ko: '담당자 선택',
-    ja: '担当者を選ぶ',
-  },
-  'bulk.searchPerson': {
-    en: 'Search name or email',
-    ko: '이름 또는 이메일 검색',
-    ja: '名前またはメールで検索',
   },
   'bulk.pickLabel': {
     en: 'Choose a label',

@@ -27,7 +27,7 @@
       {#each draft.groups as row, i (i)}
         <div class="flex items-center gap-1.5">
           <input class="{INPUT} flex-1 font-mono" bind:value={row.key} placeholder="cloud" />
-          <input class="{INPUT} flex-1" bind:value={row.label} placeholder={t('settings.cloudPart')} />
+          <input class="{INPUT} flex-1" bind:value={row.label} placeholder={t('settings.label')} />
           <input
             type="color"
             class="h-control w-16 flex-none rounded-md border border-border-strong bg-bg-base"

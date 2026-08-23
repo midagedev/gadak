@@ -79,7 +79,7 @@ async function bootWithCreateMeta(page: Page): Promise<IssueRow> {
 }
 
 async function openNewIssue(page: Page) {
-  await page.getByRole('button', { name: en['sidebar.newIssue'], exact: true }).click()
+  await page.getByRole('button', { name: en['write.newIssue'], exact: true }).click()
   const dialog = page.getByRole('dialog', { name: en['write.newIssue'] })
   await expect(dialog).toBeVisible()
   await expect(dialog.getByPlaceholder(en['write.issueTitle'])).toBeVisible()
@@ -315,7 +315,7 @@ test.describe('create dialog unwritable (GDK-302)', () => {
       await new Promise<never>(() => {})
     })
     await gotoApp(page)
-    await page.getByRole('button', { name: en['sidebar.newIssue'], exact: true }).click()
+    await page.getByRole('button', { name: en['write.newIssue'], exact: true }).click()
     const dialog = page.getByRole('dialog', { name: en['write.newIssue'] })
     await expect(dialog).toBeVisible()
     // Fixture credential is present; write-meta settled empty → meta-failed.

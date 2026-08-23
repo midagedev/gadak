@@ -420,7 +420,7 @@
             disabled={connecting || (!!standaloneBlock && !replaceStandalone)}
           >
             {connecting
-              ? t('onboarding.connecting')
+              ? t('common.verifying')
               : standaloneBlock
                 ? t('onboarding.standaloneReplace')
                 : t('onboarding.connect')}
@@ -439,7 +439,7 @@
           <p class="text-micro text-text-muted">{t('onboarding.loadingProjects')}</p>
         {:else if projectsError}
           <p class="text-body text-status-reopen" role="alert" data-testid="onboarding-error">{projectsError}</p>
-          <button class={GHOST} type="button" onclick={() => void loadProjects()}>{t('onboarding.retry')}</button>
+          <button class={GHOST} type="button" onclick={() => void loadProjects()}>{t('common.retry')}</button>
         {:else if projects.length === 0}
           <div class="flex flex-col gap-1.5" data-testid="onboarding-no-projects">
             <p class="text-micro text-text-secondary">{t('onboarding.noProjects')}</p>
@@ -484,7 +484,7 @@
 
         <div class="flex flex-wrap items-center gap-2">
           <button class={PRIMARY} type="button" disabled={!canContinue} onclick={() => void saveProjectsAndSync()}>
-            {saving ? t('onboarding.saving') : t('onboarding.startSync')}
+            {saving ? t('common.saving') : t('onboarding.startSync')}
           </button>
           <button class={GHOST} type="button" onclick={goBackToConnect}>{t('onboarding.back')}</button>
           <button class={GHOST} type="button" onclick={goBackToConnect}>{t('onboarding.switchAccount')}</button>
@@ -497,7 +497,7 @@
       <div class="mt-5 flex flex-col gap-3" data-testid="onboarding-sync">
         {#if syncError}
           <p class="text-body text-status-reopen" role="alert" data-testid="onboarding-error">{syncError}</p>
-          <button class={GHOST} type="button" onclick={() => void startSync()}>{t('onboarding.retry')}</button>
+          <button class={GHOST} type="button" onclick={() => void startSync()}>{t('common.retry')}</button>
         {:else}
           <p class="text-body text-text-primary" data-testid="onboarding-sync-count">
             {progress ? t('sync.busyIssues') : t('onboarding.syncStarting')}

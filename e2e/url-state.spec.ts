@@ -231,7 +231,7 @@ test.describe('place params', () => {
     await gotoApp(page)
     const before = page.url()
 
-    await page.getByRole('button', { name: en['sidebar.newIssue'], exact: true }).click()
+    await page.getByRole('button', { name: en['write.newIssue'], exact: true }).click()
     await expect(page.getByRole('dialog', { name: en['write.newIssue'] })).toBeVisible()
     expect(page.url()).toBe(before)
 

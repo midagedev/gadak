@@ -954,7 +954,7 @@
         </div>
         {#if unifiedBusy}
           <p class="px-2 py-2 text-micro text-text-muted" data-testid="palette-unified-loading">
-            {t('list.searching')}
+            {t('common.searching')}
           </p>
         {:else if serverView.status === 'error'}
           <div class="flex flex-col gap-1 px-2 py-2" data-testid="palette-unified-error">

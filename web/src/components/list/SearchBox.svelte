@@ -12,6 +12,7 @@
   import { onMount } from 'svelte'
   import { t } from '../../lib/i18n'
   import { parseJql } from '../../lib/api'
+  import { isHostedDemo } from '../../lib/config'
   import { applyOmniboxAction, classifyOmnibox } from '../../lib/omnibox'
   import { applyServerSearchOutcome } from '../../lib/server-search'
   import { filters } from '../../stores/filters.svelte'
@@ -169,7 +170,7 @@
     try {
       const res = await parseJql(raw, me.email)
       if (res.error === 'not_jql') {
-        write.toast(res.message || t('filter.jqlParseFailed'), 'info')
+        write.toast(t('filter.notJql'), 'info')
         return true
       }
       if (res.error) {
@@ -185,7 +186,8 @@
       }
       return true
     } catch {
-      write.toast(t('filter.jqlNotAvailable'), 'error')
+      if (isHostedDemo()) write.toast(t('filter.jqlNotAvailable'), 'info')
+      else write.toast(t('filter.jqlFailed'), 'error')
       return true
     } finally {
       applyingJql = false
@@ -302,7 +304,7 @@
       ?
     </button>
     {#if filters.searching}
-      <span class="flex-none text-micro text-text-muted">{t('list.searching')}</span>
+      <span class="flex-none text-micro text-text-muted">{t('common.searching')}</span>
     {:else if text}
       <button
         type="button"

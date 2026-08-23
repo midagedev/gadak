@@ -582,7 +582,7 @@ export const COMMANDS: readonly CommandDef[] = [
       sort: 100,
       kbd: 'c',
       testid: 'palette-new-issue',
-      labelKey: 'palette.actionNewIssue',
+      labelKey: 'write.newIssue',
     },
     help: { group: 'global', kbd: 'c', labelKey: 'shortcuts.newIssueContext', sort: 30 },
   },
@@ -651,7 +651,7 @@ export const COMMANDS: readonly CommandDef[] = [
       id: 'a:reset',
       kind: 'always',
       sort: 150,
-      labelKey: 'palette.actionResetFilters',
+      labelKey: 'filter.clear',
     },
   },
   {

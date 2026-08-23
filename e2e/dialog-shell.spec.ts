@@ -261,7 +261,7 @@ const DIALOGS: DialogRow[] = [
     open: async (page) => {
       await stubCreateMeta(page)
       await gotoApp(page)
-      await page.getByRole('button', { name: en['sidebar.newIssue'], exact: true }).click()
+      await page.getByRole('button', { name: en['write.newIssue'], exact: true }).click()
       const dialog = page.getByTestId('new-issue-dialog')
       await expect(dialog).toBeVisible()
       await expect(dialog.getByPlaceholder(en['write.issueTitle'])).toBeVisible()
