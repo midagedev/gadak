@@ -84,22 +84,64 @@ test.describe('scale demo', () => {
     await expect(page.getByTestId('group-header').first()).toBeVisible()
     await beat(page, 1500)
 
-    // ── Beat 3: narrow by project (Add filter, same 2-step menu as
-    // triage.spec.ts: axis pick, then value) ──
+    // ── Beat 3: three filters stack, and the facet counts react live ──
+    // Same 2-step menu as triage.spec.ts (axis pick → value), but chained
+    // three times with the exclude mode once (GDK-438: project NOT), so
+    // the clip shows filters composing — each new menu already reflects
+    // the filters before it in its facet counts.
+    //
+    // 1) Project ≠ NMB (exclude mode)
     await page.getByTestId('filter-add').click()
     await page.getByTestId('filter-axis-jira_project').click()
-    const nmb = page.getByRole('button', { name: /^NMB\b/ })
+    const excludeToggle = page.getByTestId('filter-exclude-mode')
+    await expect(excludeToggle).toBeVisible()
+    await excludeToggle.click()
+    const menuP = page.locator('.anim-enter').first()
+    await expect(menuP).toBeVisible()
+    const nmb = menuP.getByRole('button', { name: /^NMB\b/ })
     await expect(nmb).toBeVisible()
-    await beat(page, 500)
+    await beat(page, 400)
     await nmb.click()
     await page.keyboard.press('Escape')
-    await expect(page.getByTestId('filter-chip').filter({ hasText: 'NMB' })).toBeVisible()
-    // The list count is the filtered slice now — the sidebar keeps the
-    // mirror total ("20,000 issues"), which is exactly the story: the
-    // whole mirror stays local, the view narrows.
+    await expect(page.getByTestId('filter-chip').filter({ hasText: /not/i })).toBeVisible()
+    await beat(page, 900)
+
+    // 2) Priority = High — the menu's facet counts are now computed over
+    // the NMB-excluded slice, and picking High narrows again.
+    await page.getByTestId('filter-add').click()
+    await page.getByTestId('filter-axis-priority').click()
+    const menuH = page.locator('.anim-enter').first()
+    await expect(menuH).toBeVisible()
+    const high = menuH.getByRole('button', { name: /^High\b/ })
+    await expect(high).toBeVisible()
+    await beat(page, 600)
+    await high.click()
+    await page.keyboard.press('Escape')
+    await expect(page.getByTestId('filter-chip').filter({ hasText: 'High' })).toBeVisible()
+    await beat(page, 900)
+
+    // 3) Status = In Progress on top of both. The axis is `status` (the
+    // concrete one), not status_category: on the all-open view the category
+    // picks are the view highlight, not chips (GDK-479), so a category pick
+    // would not read on camera. The value buttons carry no
+    // testid, so scope to the open menu (the anim-enter popover) before
+    // the role lookup — otherwise a list row with matching aria wins.
+    await page.getByTestId('filter-add').click()
+    await page.getByTestId('filter-axis-status').click()
+    const menu = page.locator('.anim-enter').first()
+    await expect(menu).toBeVisible()
+    const progressOption = menu.getByRole('button', { name: /^In Progress/ }).first()
+    await expect(progressOption).toBeVisible()
+    await beat(page, 600)
+    await progressOption.click()
+    await page.keyboard.press('Escape')
+    // Multi-picks summarize as "Status: 3" (count, not value list), so match
+    // the axis label, not the value.
+    await expect(page.getByTestId('filter-chip').filter({ hasText: /^Status:/ })).toBeVisible()
     const listCount = page.getByTestId('list-count')
     await expect(listCount).not.toHaveText(/20[,.]?000/, { timeout: 30_000 })
-    await beat(page, 1600)
+    // Hold: three chips + the narrowed count together.
+    await beat(page, 1800)
     await beat(page, 500)
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
