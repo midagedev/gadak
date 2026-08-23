@@ -174,12 +174,23 @@ const altPath = lang === 'en' ? `/ko${Astro.url.pathname === '/' ? '/' : Astro.u
   }
   .links {
     display: flex;
-    gap: 1.25rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    column-gap: 1.25rem;
+    row-gap: 0.2rem;
   }
   .links a {
     color: var(--ink-2);
     text-decoration: none;
     font-size: 0.9375rem;
+    /* An item never wraps inside itself ("Live demo", "라이브 데모");
+       the row wraps between items instead. */
+    white-space: nowrap;
+  }
+  @media (max-width: 40rem) {
+    .links {
+      column-gap: 0.9rem;
+    }
   }
   .links a:hover {
     color: var(--accent);

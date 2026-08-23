@@ -268,6 +268,22 @@ gadak init && gadak sync && gadak serve`}</code></pre>
   .speed td.ratio {
     color: var(--accent);
     font-weight: 700;
+    padding-left: 0.75rem;
+  }
+  /* Phone widths: value cells may wrap (numbers hold together via nbsp in
+     the strings), otherwise the qualitative rows squeeze the first column
+     down to one glyph per line. */
+  @media (max-width: 40rem) {
+    .speed td,
+    .speed th {
+      white-space: normal;
+    }
+    .speed td {
+      font-size: 0.875rem;
+    }
+    .speed td.what {
+      padding-right: 0.6rem;
+    }
   }
   .speed .note {
     font-size: 0.875rem;

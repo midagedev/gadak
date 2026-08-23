@@ -77,6 +77,14 @@ p {
   max-width: 68ch;
 }
 
+/* Korean breaks at word boundaries, never inside a word (기다림 was
+   splitting as 기/다림 in the hero on phone widths). break-word stays as
+   the emergency exit for anything too long to fit at all. */
+:lang(ko) {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
 a {
   color: var(--accent);
 }
