@@ -17,7 +17,14 @@ fi
 
 echo "export-scale: source $WEBM"
 
-ffmpeg -y -i "$WEBM" \
+# Trim the boot skeleton: the recording starts at page load, but the clip
+# should open on the settled list (the "20,000 issues" count already up),
+# not on gray placeholders. The spec's first beat waits for the count, so
+# 2.4s of head is skeleton + settle; the trim lands just after settle.
+# Measured on the take of 2026-08-23; re-measure if boot pacing changes.
+TRIM_HEAD=2.4
+
+ffmpeg -y -ss "$TRIM_HEAD" -i "$WEBM" \
   -an \
   -c:v libx264 -pix_fmt yuv420p -preset medium -crf 23 \
   -movflags +faststart \
@@ -33,10 +40,10 @@ trap 'rm -f "$PALETTE"' EXIT
 make_gif() {
   local fps="$1" width="$2" colors="${3:-128}"
   echo "export-scale: palette 2-pass gif fps=${fps} width=${width} colors=${colors}" >&2
-  ffmpeg -y -i "$WEBM" \
+  ffmpeg -y -ss "$TRIM_HEAD" -i "$WEBM" \
     -vf "fps=${fps},scale=${width}:-1:flags=lanczos,palettegen=max_colors=${colors}:stats_mode=diff" \
     "$PALETTE"
-  ffmpeg -y -i "$WEBM" -i "$PALETTE" \
+  ffmpeg -y -ss "$TRIM_HEAD" -i "$WEBM" -i "$PALETTE" \
     -lavfi "fps=${fps},scale=${width}:-1:flags=lanczos[x];[x][1:v]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle" \
     "$OUT_DIR/scale.gif"
 }
