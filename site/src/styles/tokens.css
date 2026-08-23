@@ -2,7 +2,8 @@
   gadak site tokens — carried from web/src/app.css (contract §3) so the site
   and the product read as the same object side by side.
   Paper, not a dark dashboard. Ink text tiers. One 쪽빛 indigo thread.
-  Dark mode mirrors the app's measured dark tokens (tools/hosted-demo/build.mjs).
+  Light-only by decision: the site keeps the app's measured light tokens and
+  never switches to dark, so screenshots and prose stay on one paper.
 */
 @import 'pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css';
 
@@ -32,23 +33,10 @@
   --radius: 8px; /* cards top out here; full-pill only for chips/buttons */
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0f1013;
-    --panel: #131417;
-    --elevated: #1a1c20;
-    --hover: #22252b;
-    --border: #2a2d33;
-    --border-strong: #3a3e46;
-    --ink: #e8e4dc;
-    --ink-2: #b3aea4;
-    --ink-3: #8d887e;
-    --accent: #9db4d0;
-    --accent-hover: #b6c8de;
-    --accent-subtle: #26303c;
-    --on-accent: #0f1013;
-    --code-bg: var(--panel);
-  }
+/* Light-only: dark-mode users still get paper. color-scheme keeps form
+   controls and scrollbars on the light side too. */
+:root {
+  color-scheme: light;
 }
 
 * {
