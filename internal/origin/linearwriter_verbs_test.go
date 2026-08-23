@@ -325,6 +325,9 @@ func TestLinearWriterOmitsOptionalFaces(t *testing.T) {
 	if _, err := AsVersionCatalog(w); err == nil {
 		t.Error("linearWriter satisfies VersionCatalog; optional face must be absent")
 	}
+	if CreatesVersionsByName(w) {
+		t.Error("linearWriter CreatesVersionsByName = true; Linear has no version catalog")
+	}
 	if _, err := AsIssueLinker(w); err == nil {
 		t.Error("linearWriter satisfies IssueLinker; optional face must be absent")
 	}

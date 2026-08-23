@@ -45,6 +45,11 @@ type Client struct {
 	// usage is process-local call volume; see Usage / TakeUsage. Never blocks
 	// a request on instrumentation failure (counters are atomic).
 	usage atlhttp.Meter
+
+	// nameCreatedVersions is true when this origin mints a project version
+	// from a fixVersions add {"name": token} (issuetap). Cloud Jira rejects
+	// unknown names with 400; origin.transportJira enables it. GDK-678.
+	nameCreatedVersions bool
 }
 
 // DefaultRetries is the production retry budget New applies (total attempts).
@@ -55,6 +60,13 @@ var DefaultRetries = httppolicy.DefaultRetries
 // DefaultBackoff is the first wait New applies, doubling per attempt and
 // capped at httppolicy.MaxWait. Tests may assign 0 and restore it with t.Cleanup.
 var DefaultBackoff = httppolicy.DefaultBackoff
+
+// DefaultCreatesVersionsByName is copied onto Client at New. Production is
+// false (Cloud Jira). Tests that drive the issuetap mint-by-name path through
+// a Connected httptest client set this and restore with t.Cleanup (same
+// seam as DefaultRetries). origin.transportJira then enables it for real
+// issuetap clients regardless of this default.
+var DefaultCreatesVersionsByName = false
 
 // New builds a Client for site using Basic auth (email:token). The HTTP
 // client times out at httppolicy.DefaultTimeout; Retries is DefaultRetries;
@@ -67,11 +79,12 @@ var DefaultBackoff = httppolicy.DefaultBackoff
 // fails if a new production call site appears outside that package.
 func New(site, email, token string) *Client {
 	return &Client{
-		base:    strings.TrimRight(site, "/"),
-		auth:    "Basic " + base64.StdEncoding.EncodeToString([]byte(email+":"+token)),
-		HTTP:    &http.Client{Timeout: httppolicy.DefaultTimeout},
-		Retries: DefaultRetries,
-		Backoff: DefaultBackoff,
+		base:                strings.TrimRight(site, "/"),
+		auth:                "Basic " + base64.StdEncoding.EncodeToString([]byte(email+":"+token)),
+		HTTP:                &http.Client{Timeout: httppolicy.DefaultTimeout},
+		Retries:             DefaultRetries,
+		Backoff:             DefaultBackoff,
+		nameCreatedVersions: DefaultCreatesVersionsByName,
 	}
 }
 

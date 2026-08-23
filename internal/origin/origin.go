@@ -174,6 +174,7 @@ func pairedRemote(cfg *config.Config) (*pairing.Remote, error) {
 func transportJira(tr http.RoundTripper) *jira.Client {
 	c := Connected("", inProcessUser, inProcessSecret)
 	c.HTTP.Transport = tr
+	c.EnableNameCreatedVersions()
 	return c
 }
 

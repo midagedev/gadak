@@ -184,6 +184,21 @@ func (c *Client) ProjectVersions(ctx context.Context, projectKey string) ([]Vers
 	return list, c.do(ctx, http.MethodGet, p, nil, &list)
 }
 
+// CreatesVersionsByName is true when a fixVersions add {"name": token} mints
+// the version on this origin (issuetap). Cloud Jira is false: unknown names
+// 400, and creating a version is a separate project-admin permission (GDK-678).
+func (c *Client) CreatesVersionsByName() bool {
+	return c.nameCreatedVersions
+}
+
+// EnableNameCreatedVersions marks this client as talking to an origin that
+// mints a project version from {"name": token} on a fixVersions add.
+// origin.transportJira is the production caller (issuetap in-process, routed
+// serve, and paired home).
+func (c *Client) EnableNameCreatedVersions() {
+	c.nameCreatedVersions = true
+}
+
 // IssueLinkType is one row of GET /rest/api/3/issueLinkType. Names and
 // inward/outward descriptions can be renamed and localized; writes send the id.
 type IssueLinkType struct {

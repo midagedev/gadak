@@ -21,6 +21,45 @@ func TestConnectedMatchesJiraNew(t *testing.T) {
 	}
 }
 
+// TestCreatesVersionsByName is GDK-678: the mint-by-name capability lives on
+// the origin client, not on workspace.kind. Connected Cloud is false;
+// issuetap (standalone Client via transportJira) is true.
+func TestCreatesVersionsByName(t *testing.T) {
+	connected := Connected("https://example.atlassian.net/", "a@b.c", "tok")
+	if CreatesVersionsByName(connected) {
+		t.Fatal("connected Jira CreatesVersionsByName = true, want false")
+	}
+
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	config.SetProfile("")
+	t.Cleanup(func() {
+		_ = Close()
+		config.SetProfile("")
+	})
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Kind = config.KindStandalone
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err = config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	c, err := Client(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !CreatesVersionsByName(c) {
+		t.Fatal("standalone issuetap CreatesVersionsByName = false, want true")
+	}
+}
+
 func TestClientNilAndConnectedMissingCreds(t *testing.T) {
 	if _, err := Client(nil); err == nil {
 		t.Fatal("Client(nil) succeeded")
