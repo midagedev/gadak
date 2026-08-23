@@ -3,8 +3,8 @@
  * Build the public site into dist/hosted.
  *
  *   /         landing page (static, authored here)
- *   /demo/    the zero-install live demo (Vite build + frozen examples/demo.db)
- *   /backlog/ the public backlog viewer (Vite build + committed snapshot)
+ *   /demo/    the zero-install live demo (one Vite build + frozen examples/demo.db)
+ *   /backlog/ the public backlog viewer (same bundle + committed snapshot)
  *
  * The site is served at the apex of gadak.dev, so the base path is `/`
  * (GDK-676). It used to be `/gadak/` for midagedev.github.io/gadak/; that
@@ -18,7 +18,7 @@
  *   ./tools/hosted-demo/preview.sh   # serve dist/hosted at :4173/
  */
 import { spawnSync } from 'node:child_process'
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -27,14 +27,98 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const outDir = join(root, 'dist', 'hosted')
 const basePath = process.env.GADAK_BASE_PATH || '/'
 const withSlash = basePath.endsWith('/') ? basePath : `${basePath}/`
-// Each app owns a subpath because basePath() is a compile-time BASE_URL: two
-// bundles under one base would fetch each other's config.json.
+// Site layout: /demo/ and /backlog/. One Vite bundle (relative `./` assets);
+// each index.html gets a <base href> so basePath() can read the mount at
+// runtime (GDK-673). GADAK_BASE_PATH still prefixes a subpath deployment.
 const demoBase = `${withSlash}demo/`
 const backlogBase = `${withSlash}backlog/`
 const demoOut = join(outDir, 'demo')
 const apiBase = `${demoBase}api/v1/issues/`
 const authBase = `${demoBase}api/v1/auth/`
 const siteOrigin = process.env.GADAK_SITE_ORIGIN || 'https://gadak.dev'
+
+function withTrailingSlash(p) {
+  return p.endsWith('/') ? p : `${p}/`
+}
+
+function injectBaseHref(html, href) {
+  const tag = `    <base href="${href}" />\n`
+  if (/<base\b/i.test(html)) {
+    return html.replace(/<base\b[^>]*>\s*/i, tag)
+  }
+  if (!html.includes('<head>')) {
+    console.error('hosted-demo: no <head> in index.html — cannot inject <base>')
+    process.exit(1)
+  }
+  const next = html.replace('<head>', `<head>\n${tag}`)
+  if (next === html) {
+    console.error('hosted-demo: could not inject <base> — <head> tag changed shape')
+    process.exit(1)
+  }
+  return next
+}
+
+function copyViteShell(src, dest) {
+  mkdirSync(dest, { recursive: true })
+  for (const name of readdirSync(src)) {
+    cpSync(join(src, name), join(dest, name), { recursive: true })
+  }
+}
+
+function rewriteSnapshotConfig(configPath, appBase) {
+  if (!existsSync(configPath)) {
+    console.error(`hosted-demo: missing ${configPath}`)
+    process.exit(1)
+  }
+  const doc = JSON.parse(readFileSync(configPath, 'utf8'))
+  const base = withTrailingSlash(appBase)
+  doc.apiBase = `${base}api/v1/issues/`
+  doc.authBase = `${base}api/v1/auth/`
+  writeFileSync(configPath, `${JSON.stringify(doc, null, 2)}\n`)
+}
+
+function assertSharedBundle(demoDir, backlogDir) {
+  const demoAssetsDir = join(demoDir, 'assets')
+  const backlogAssetsDir = join(backlogDir, 'assets')
+  const demoAssets = readdirSync(demoAssetsDir).sort()
+  const backlogAssets = readdirSync(backlogAssetsDir).sort()
+  if (JSON.stringify(demoAssets) !== JSON.stringify(backlogAssets)) {
+    console.error(
+      `hosted-demo: demo/assets [${demoAssets}] != backlog/assets [${backlogAssets}] — the SPA was built twice`,
+    )
+    process.exit(1)
+  }
+  for (const name of demoAssets) {
+    const a = readFileSync(join(demoAssetsDir, name))
+    const b = readFileSync(join(backlogAssetsDir, name))
+    if (!a.equals(b)) {
+      console.error(`hosted-demo: ${name} bytes differ between demo and backlog — the SPA was built twice`)
+      process.exit(1)
+    }
+  }
+  for (const [dir, href] of [
+    [demoDir, demoBase],
+    [backlogDir, backlogBase],
+  ]) {
+    const html = readFileSync(join(dir, 'index.html'), 'utf8')
+    if (!html.includes(`<base href="${href}"`)) {
+      console.error(`hosted-demo: ${dir}/index.html missing <base href="${href}">`)
+      process.exit(1)
+    }
+    if (!html.includes('src="./assets/')) {
+      console.error(`hosted-demo: ${dir}/index.html does not use relative Vite assets`)
+      process.exit(1)
+    }
+  }
+}
+
+if (process.argv[2] === '--rewrite-backlog-config') {
+  const configPath = process.argv[3] || join(root, 'dist/hosted/backlog/config.json')
+  const appBase = process.argv[4] || '/backlog/'
+  rewriteSnapshotConfig(configPath, appBase)
+  console.log(`hosted-demo: rewrote apiBase/authBase on ${configPath} for ${withTrailingSlash(appBase)}`)
+  process.exit(0)
+}
 
 function run(cmd, args, env = {}) {
   console.log(`+ ${cmd} ${args.join(' ')}`)
@@ -79,7 +163,9 @@ if (!existsSync(viteBin)) {
 }
 run(viteBin, ['build'], {
   VITE_HOSTED_DEMO: '1',
-  GADAK_BASE_PATH: demoBase,
+  // Relative emit so one HTML works under /demo/ and /backlog/ (GDK-673).
+  // Do not pass demoBase here: that is the site mount, not Vite's asset base.
+  GADAK_BASE_PATH: './',
   HOSTED_OUT: demoOut,
 })
 
@@ -89,10 +175,14 @@ if (!existsSync(indexPath)) {
   process.exit(1)
 }
 
+const backlogOut = join(outDir, 'backlog')
+// Copy the Vite shell before export-static pollutes demo/ with snapshot JSON.
+copyViteShell(demoOut, backlogOut)
+
 // The tab title is the one label a visitor sees before the app paints, and it
 // follows a bookmark or a shared link anywhere. Say "demo" there too.
 // Social meta is hosted-only: injected here, never in web/index.html.
-const indexHtml = readFileSync(indexPath, 'utf8')
+const indexHtml = injectBaseHref(readFileSync(indexPath, 'utf8'), demoBase)
 const titled = indexHtml.replace('<title>gadak</title>', '<title>gadak — live demo</title>')
 if (titled === indexHtml) {
   console.error('hosted-demo: could not retitle index.html — the <title> tag changed shape')
@@ -165,9 +255,7 @@ run(bin, [
   authBase,
   demoOut,
 ])
-// ── 3b. Public backlog (GDK-389) — committed scrubbed snapshot, own bundle ──
-// A third Vite build because basePath() is compile-time BASE_URL: the same
-// bundle under /backlog/ would fetch /demo/config.json.
+// ── 3b. Public backlog (GDK-389) — same Vite shell, committed snapshot ──
 // Git tracks examples/backlog-snapshot.tar.gz. The viewer still fetches
 // detail/<KEY>.json, so unpack to a temp tree and copy as before.
 let backlogSnapshot = join(root, 'examples', 'backlog-snapshot')
@@ -177,14 +265,8 @@ if (!existsSync(join(backlogSnapshot, 'bootstrap.json')) && existsSync(backlogAr
   run('bash', ['tools/backlog-snapshot.sh', '--unpack', backlogSnapshot])
 }
 if (existsSync(join(backlogSnapshot, 'bootstrap.json'))) {
-  const backlogOut = join(outDir, 'backlog')
-  run(viteBin, ['build'], {
-    VITE_HOSTED_DEMO: '1',
-    GADAK_BASE_PATH: backlogBase,
-    HOSTED_OUT: backlogOut,
-  })
   const backlogIndex = join(backlogOut, 'index.html')
-  const backlogHtml = readFileSync(backlogIndex, 'utf8')
+  const backlogHtml = injectBaseHref(readFileSync(backlogIndex, 'utf8'), backlogBase)
   const backlogTitled = backlogHtml.replace('<title>gadak</title>', '<title>gadak — public backlog</title>')
   if (backlogTitled === backlogHtml) {
     console.error('hosted-demo: could not retitle backlog index.html')
@@ -203,8 +285,11 @@ if (existsSync(join(backlogSnapshot, 'bootstrap.json'))) {
   for (const f of readdirSync(detailSrc)) {
     copyFileSync(join(detailSrc, f), join(backlogOut, 'detail', f))
   }
+  rewriteSnapshotConfig(join(backlogOut, 'config.json'), backlogBase)
+  assertSharedBundle(demoOut, backlogOut)
   console.log(`hosted-demo: public backlog at ${backlogOut} (base ${backlogBase})`)
 } else {
+  rmSync(backlogOut, { recursive: true, force: true })
   console.log('hosted-demo: public backlog snapshot missing — skipping backlog page')
 }
 
