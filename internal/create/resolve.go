@@ -13,7 +13,7 @@ import (
 	"strings"
 
 	"github.com/midagedev/gadak/internal/config"
-	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/origin"
 )
 
 // Source names recorded on --json / the REST create response so a caller
@@ -67,7 +67,7 @@ func Project(want string, cfg *config.Config) (Resolved, error) {
 // types[0] because the person can see and change it before submit. A
 // headless CLI or REST caller never sees that value, so the same
 // fallback would silently file as the wrong type.
-func Type(want string, types []jira.NamedID, cfg *config.Config, project string) (Resolved, error) {
+func Type(want string, types []origin.NamedID, cfg *config.Config, project string) (Resolved, error) {
 	if w := strings.TrimSpace(want); w != "" {
 		id, err := matchType(w, types)
 		if err != nil {
@@ -95,7 +95,7 @@ func Type(want string, types []jira.NamedID, cfg *config.Config, project string)
 	return Resolved{}, &NeedTypeError{Available: copyNamed(types)}
 }
 
-func matchType(want string, types []jira.NamedID) (string, error) {
+func matchType(want string, types []origin.NamedID) (string, error) {
 	for _, t := range types {
 		if t.ID == want || strings.EqualFold(t.Name, want) {
 			return t.ID, nil
@@ -106,7 +106,7 @@ func matchType(want string, types []jira.NamedID) (string, error) {
 
 // MetaFor picks the createmeta project (case-insensitive key) and its types.
 // A miss lists the keys in meta the same way Type lists the issue-type catalog.
-func MetaFor(meta []jira.CreateMetaProject, project string, cfg *config.Config) (jira.CreateMetaProject, []jira.NamedID, error) {
+func MetaFor(meta []origin.CreateMetaProject, project string, cfg *config.Config) (origin.CreateMetaProject, []origin.NamedID, error) {
 	for _, p := range meta {
 		if strings.EqualFold(p.Key, project) {
 			return p, p.NamedTypes(), nil
@@ -114,9 +114,15 @@ func MetaFor(meta []jira.CreateMetaProject, project string, cfg *config.Config) 
 	}
 	suffix := availableProjectsSuffix(meta)
 	if cfg != nil && cfg.IsStandalone() {
-		return jira.CreateMetaProject{}, nil, fmt.Errorf("project %s does not exist in this workspace%s", project, suffix)
+		return origin.CreateMetaProject{}, nil, fmt.Errorf("project %s does not exist in this workspace%s", project, suffix)
 	}
-	return jira.CreateMetaProject{}, nil, fmt.Errorf("this credential cannot create issues in %s%s", project, suffix)
+	return origin.CreateMetaProject{}, nil, fmt.Errorf("this credential cannot create issues in %s%s", project, suffix)
+}
+
+// CreateMetaSource is the origin verb MetaForWithCatalog uses on the
+// empty-filter fallback. origin.Writer and *jira.Client both satisfy it.
+type CreateMetaSource interface {
+	CreateMeta(ctx context.Context, projects []string) ([]origin.CreateMetaProject, error)
 }
 
 // MetaForWithCatalog is MetaFor, then the site catalog when the first
@@ -124,7 +130,7 @@ func MetaFor(meta []jira.CreateMetaProject, project string, cfg *config.Config) 
 // is empty). The catalog is fetched only on that fallback path, scoped to
 // the profile's projects. CLI and REST both route here so they print the
 // same available list.
-func MetaForWithCatalog(ctx context.Context, c *jira.Client, meta []jira.CreateMetaProject, project string, cfg *config.Config) (jira.CreateMetaProject, []jira.NamedID, error) {
+func MetaForWithCatalog(ctx context.Context, c CreateMetaSource, meta []origin.CreateMetaProject, project string, cfg *config.Config) (origin.CreateMetaProject, []origin.NamedID, error) {
 	p, types, err := MetaFor(meta, project, cfg)
 	if err == nil || FormatProjectKeys(meta) != "" {
 		return p, types, err
@@ -141,7 +147,7 @@ func MetaForWithCatalog(ctx context.Context, c *jira.Client, meta []jira.CreateM
 }
 
 // ProjectKeys is the createable project-key list from a createmeta payload.
-func ProjectKeys(meta []jira.CreateMetaProject) []string {
+func ProjectKeys(meta []origin.CreateMetaProject) []string {
 	out := make([]string, 0, len(meta))
 	seen := map[string]bool{}
 	for _, p := range meta {
@@ -156,11 +162,11 @@ func ProjectKeys(meta []jira.CreateMetaProject) []string {
 }
 
 // FormatProjectKeys is the "KEY, KEY" list used in project-resolution errors.
-func FormatProjectKeys(meta []jira.CreateMetaProject) string {
+func FormatProjectKeys(meta []origin.CreateMetaProject) string {
 	return strings.Join(ProjectKeys(meta), ", ")
 }
 
-func availableProjectsSuffix(meta []jira.CreateMetaProject) string {
+func availableProjectsSuffix(meta []origin.CreateMetaProject) string {
 	keys := FormatProjectKeys(meta)
 	if keys == "" {
 		return ""
@@ -171,7 +177,7 @@ func availableProjectsSuffix(meta []jira.CreateMetaProject) string {
 // FillNeedProject copies origin-known keys onto an empty NeedProjectError
 // so a paired workspace (no local DefaultProject / Projects) can still
 // print `configured: STD, IDEA`. Catalog empty leaves the error unchanged.
-func FillNeedProject(err error, catalog []jira.CreateMetaProject) error {
+func FillNeedProject(err error, catalog []origin.CreateMetaProject) error {
 	var np *NeedProjectError
 	if !errors.As(err, &np) || np == nil || len(np.Configured) > 0 {
 		return err
@@ -184,7 +190,7 @@ func FillNeedProject(err error, catalog []jira.CreateMetaProject) error {
 }
 
 // FormatTypes is the "Name (id N); …" list used in type-resolution errors.
-func FormatTypes(types []jira.NamedID) string {
+func FormatTypes(types []origin.NamedID) string {
 	parts := make([]string, 0, len(types))
 	for _, t := range types {
 		parts = append(parts, fmt.Sprintf("%s (id %s)", t.Name, t.ID))
@@ -194,7 +200,7 @@ func FormatTypes(types []jira.NamedID) string {
 
 // Priority resolves a user-supplied name or id against the site catalog.
 // Names follow the account language; the return is always the catalog id.
-func Priority(want string, list []jira.NamedID) (id string, err error) {
+func Priority(want string, list []origin.NamedID) (id string, err error) {
 	want = strings.TrimSpace(want)
 	if want == "" {
 		return "", &NeedPriorityError{Available: copyNamed(list)}
@@ -229,7 +235,7 @@ func (e *NeedProjectError) Error() string {
 // NeedTypeError is returned when create cannot resolve an issue type.
 // Available is the createmeta catalog. Surfaces format this.
 type NeedTypeError struct {
-	Available []jira.NamedID
+	Available []origin.NamedID
 }
 
 func (e *NeedTypeError) Error() string {
@@ -242,7 +248,7 @@ func (e *NeedTypeError) Error() string {
 // NeedPriorityError is returned when a priority name or id was required but empty.
 // Available is the site catalog. Surfaces format this.
 type NeedPriorityError struct {
-	Available []jira.NamedID
+	Available []origin.NamedID
 }
 
 func (e *NeedPriorityError) Error() string {
@@ -261,11 +267,11 @@ func copyStrings(in []string) []string {
 	return out
 }
 
-func copyNamed(in []jira.NamedID) []jira.NamedID {
+func copyNamed(in []origin.NamedID) []origin.NamedID {
 	if in == nil {
 		return nil
 	}
-	out := make([]jira.NamedID, len(in))
+	out := make([]origin.NamedID, len(in))
 	copy(out, in)
 	return out
 }

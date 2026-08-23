@@ -16,13 +16,14 @@ import (
 	"github.com/midagedev/gadak/internal/linear"
 )
 
-// linearWriter adapts the Jira-shaped Writer vocabulary onto Linear's
-// GraphQL mutations (GDK-361). The mapping discipline is ids only:
-// stateId/assigneeId are UUIDs, priority is Linear's 0-4 scale carried in
-// NamedID.ID. Capability negotiation stays EditMeta/CreateMeta — what this
-// origin cannot edit is simply absent there. Optional faces
-// (VersionCatalog, IssueLinker, CreateFieldCatalog, MediaRef) are not
-// implemented; callers type-assert and surface the matching ErrNo* (GDK-641).
+// linearWriter adapts the origin.Writer verbs onto Linear's GraphQL
+// mutations (GDK-361). It produces origin DTOs (GDK-665), not jira types.
+// The mapping discipline is ids only: stateId/assigneeId are UUIDs,
+// priority is Linear's 0-4 scale carried in NamedID.ID. Capability
+// negotiation stays EditMeta/CreateMeta — what this origin cannot edit is
+// simply absent there. Optional faces (VersionCatalog, IssueLinker,
+// CreateFieldCatalog, MediaRef) are not implemented; callers type-assert
+// and surface the matching ErrNo* (GDK-641).
 type linearWriter struct {
 	c *linear.Client
 }
@@ -44,17 +45,11 @@ func (w *linearWriter) resolve(ctx context.Context, key string) (linear.Issue, e
 	return w.c.Issue(ctx, key)
 }
 
-func (w *linearWriter) PriorityCatalog(ctx context.Context) ([]jira.NamedID, error) {
-	out := make([]jira.NamedID, 0, len(linearPriorityNames))
-	// Urgent..Low first, "No priority" last — pickers list most urgent first,
-	// the same order the mirror's priority_rank encodes.
-	for p := 1; p <= 4; p++ {
-		out = append(out, jira.NamedID{ID: strconv.Itoa(p), Name: linearPriorityNames[p]})
-	}
-	return append(out, jira.NamedID{ID: "0", Name: linearPriorityNames[0]}), nil
+func (w *linearWriter) PriorityCatalog(ctx context.Context) ([]NamedID, error) {
+	return namedIDsFromLinearPriorities(), nil
 }
 
-func (w *linearWriter) Transitions(ctx context.Context, key string) ([]jira.Transition, error) {
+func (w *linearWriter) Transitions(ctx context.Context, key string) ([]Transition, error) {
 	iss, err := w.resolve(ctx, key)
 	if err != nil {
 		return nil, err
@@ -63,33 +58,14 @@ func (w *linearWriter) Transitions(ctx context.Context, key string) ([]jira.Tran
 	if err != nil {
 		return nil, err
 	}
-	out := make([]jira.Transition, 0, len(states))
+	out := make([]Transition, 0, len(states))
 	for _, s := range states {
 		if s.ID == iss.State.ID {
 			continue // Linear has no self-transition; offering one is noise
 		}
-		t := jira.Transition{ID: s.ID, Name: s.Name}
-		t.To.ID = s.ID
-		t.To.Name = s.Name
-		t.To.StatusCategory.Key = jiraCategoryKey(s.Type)
-		out = append(out, t)
+		out = append(out, transitionFromLinearState(s))
 	}
 	return out, nil
-}
-
-// jiraCategoryKey maps a Linear workflow-state type onto Jira's status
-// category keys (new/indeterminate/done), which is what the web keys its
-// transition buttons on. Unknown types read as new — open, never silently
-// done (same collapse rule as the sync's linearCategory).
-func jiraCategoryKey(stateType string) string {
-	switch stateType {
-	case "started":
-		return jira.CategoryKey("inprogress")
-	case "completed", "canceled", "duplicate":
-		return jira.CategoryKey("done")
-	default:
-		return jira.CategoryKey("new")
-	}
 }
 
 func (w *linearWriter) Transition(ctx context.Context, key, transitionID string, fields map[string]any, comment json.RawMessage) error {
@@ -104,24 +80,22 @@ func (w *linearWriter) Transition(ctx context.Context, key, transitionID string,
 	return err
 }
 
-func (w *linearWriter) AddComment(ctx context.Context, key string, body json.RawMessage, visibility *jira.CommentVisibility, internal bool) (jira.Comment, error) {
+func (w *linearWriter) AddComment(ctx context.Context, key string, body json.RawMessage, visibility *CommentVisibility, internal bool) (Comment, error) {
 	if visibility != nil || internal {
-		return jira.Comment{}, fmt.Errorf("linear comments do not support visibility or internal")
+		return Comment{}, fmt.Errorf("linear comments do not support visibility or internal")
 	}
 	iss, err := w.resolve(ctx, key)
 	if err != nil {
-		return jira.Comment{}, err
+		return Comment{}, err
 	}
 	// The server builds the ADF from user text; Linear speaks markdown, so
 	// the text is lifted back out. Mentions and inline media degrade to
 	// their text — the files are attached to the issue either way.
 	cm, err := w.c.CreateComment(ctx, iss.ID, adf.PlainText(body))
 	if err != nil {
-		return jira.Comment{}, err
+		return Comment{}, err
 	}
-	out := jira.Comment{ID: cm.ID, Created: cm.CreatedAt}
-	out.Body = body
-	return out, nil
+	return commentFromLinear(cm, body), nil
 }
 
 func (w *linearWriter) SetAssignee(ctx context.Context, key, accountID string) error {
@@ -134,18 +108,14 @@ func (w *linearWriter) SetAssignee(ctx context.Context, key, accountID string) e
 	return err
 }
 
-func (w *linearWriter) SearchUsers(ctx context.Context, query string) ([]jira.User, error) {
+func (w *linearWriter) SearchUsers(ctx context.Context, query string) ([]User, error) {
 	users, err := w.c.Users(ctx, query)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]jira.User, 0, len(users))
+	out := make([]User, 0, len(users))
 	for _, u := range users {
-		name := u.DisplayName
-		if name == "" {
-			name = u.Name
-		}
-		out = append(out, jira.User{AccountID: u.ID, DisplayName: name, Email: u.Email, Active: true})
+		out = append(out, userFromLinear(u))
 	}
 	return out, nil
 }
@@ -155,23 +125,11 @@ func (w *linearWriter) SearchUsers(ctx context.Context, query string) ([]jira.Us
 // exposes, so the catalog is static. Labels are absent deliberately — the
 // Writer vocabulary carries label names, Linear wants label UUIDs, and a
 // name→id mapping is a separate decision (GDK-362 note), not a silent guess.
-func (w *linearWriter) EditMeta(ctx context.Context, key string) (map[string]jira.FieldMeta, error) {
+func (w *linearWriter) EditMeta(ctx context.Context, key string) (map[string]FieldMeta, error) {
 	if _, err := w.resolve(ctx, key); err != nil {
 		return nil, err
 	}
-	set := func(typ string) jira.FieldMeta {
-		var m jira.FieldMeta
-		m.Operations = []string{"set"}
-		m.Schema.Type = typ
-		return m
-	}
-	return map[string]jira.FieldMeta{
-		"summary":     set("string"),
-		"description": set("string"),
-		"priority":    set("priority"),
-		"duedate":     set("date"),
-		"assignee":    set("user"),
-	}, nil
+	return fieldMetaFromLinearEditable(), nil
 }
 
 func (w *linearWriter) UpdateFields(ctx context.Context, key string, fields map[string]any) error {
@@ -236,23 +194,17 @@ func (w *linearWriter) EditIssue(ctx context.Context, key string, fields, update
 	return w.UpdateFields(ctx, key, fields)
 }
 
-func (w *linearWriter) CreateMeta(ctx context.Context, projects []string) ([]jira.CreateMetaProject, error) {
+func (w *linearWriter) CreateMeta(ctx context.Context, projects []string) ([]CreateMetaProject, error) {
 	teams, err := w.c.Teams(ctx)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]jira.CreateMetaProject, 0, len(teams))
+	out := make([]CreateMetaProject, 0, len(teams))
 	for _, t := range teams {
 		if len(projects) > 0 && !slices.Contains(projects, t.Key) {
 			continue
 		}
-		out = append(out, jira.CreateMetaProject{
-			Key:  t.Key,
-			Name: t.Name,
-			// Linear issues have no type; one entry keeps every picker
-			// rendering without a special case.
-			IssueTypes: []jira.CreateMetaIssueType{{ID: "issue", Name: "Issue"}},
-		})
+		out = append(out, createMetaFromLinearTeam(t))
 	}
 	return out, nil
 }
@@ -359,7 +311,7 @@ func (w *linearWriter) CreateIssue(ctx context.Context, fields map[string]any) (
 	return iss.Identifier, nil
 }
 
-func (w *linearWriter) Upload(ctx context.Context, key, filename string, file io.Reader) ([]jira.Attachment, error) {
+func (w *linearWriter) Upload(ctx context.Context, key, filename string, file io.Reader) ([]Attachment, error) {
 	iss, err := w.resolve(ctx, key)
 	if err != nil {
 		return nil, err
@@ -398,7 +350,76 @@ func (w *linearWriter) Upload(ctx context.Context, key, filename string, file io
 	if err != nil {
 		return nil, err
 	}
-	return []jira.Attachment{{ID: att.ID, Filename: filename, MimeType: ct, Size: int64(len(body))}}, nil
+	return []Attachment{attachmentFromLinear(att.ID, filename, ct, int64(len(body)))}, nil
+}
+
+// Linear→DTO constructors. The names are the adapter frame: a stack that
+// stops here is Linear failing to produce that DTO, not the Jira origin.
+
+func namedIDsFromLinearPriorities() []NamedID {
+	out := make([]NamedID, 0, len(linearPriorityNames))
+	// Urgent..Low first, "No priority" last — pickers list most urgent first,
+	// the same order the mirror's priority_rank encodes.
+	for p := 1; p <= 4; p++ {
+		out = append(out, NamedID{ID: strconv.Itoa(p), Name: linearPriorityNames[p]})
+	}
+	return append(out, NamedID{ID: "0", Name: linearPriorityNames[0]})
+}
+
+func transitionFromLinearState(s linear.WorkflowState) Transition {
+	cat, _ := linear.StatusCategory(s.Type)
+	t := Transition{ID: s.ID, Name: s.Name}
+	t.To.ID = s.ID
+	t.To.Name = s.Name
+	// Transition.To carries the Jira REST statusCategory key (new /
+	// indeterminate / done) because that is what jira.Client unmarshals
+	// and handleTransitions already runs through jira.Category.
+	t.To.StatusCategory.Key = jira.CategoryKey(cat)
+	return t
+}
+
+func commentFromLinear(cm linear.Comment, body json.RawMessage) Comment {
+	out := Comment{ID: cm.ID, Created: cm.CreatedAt}
+	out.Body = body
+	return out
+}
+
+func userFromLinear(u linear.User) User {
+	name := u.DisplayName
+	if name == "" {
+		name = u.Name
+	}
+	return User{AccountID: u.ID, DisplayName: name, Email: u.Email, Active: true}
+}
+
+func fieldMetaFromLinearEditable() map[string]FieldMeta {
+	set := func(typ string) FieldMeta {
+		var m FieldMeta
+		m.Operations = []string{"set"}
+		m.Schema.Type = typ
+		return m
+	}
+	return map[string]FieldMeta{
+		"summary":     set("string"),
+		"description": set("string"),
+		"priority":    set("priority"),
+		"duedate":     set("date"),
+		"assignee":    set("user"),
+	}
+}
+
+func createMetaFromLinearTeam(t linear.Team) CreateMetaProject {
+	return CreateMetaProject{
+		Key:  t.Key,
+		Name: t.Name,
+		// Linear issues have no type; one entry keeps every picker
+		// rendering without a special case.
+		IssueTypes: []CreateMetaIssueType{{ID: "issue", Name: "Issue"}},
+	}
+}
+
+func attachmentFromLinear(id, filename, mime string, size int64) Attachment {
+	return Attachment{ID: id, Filename: filename, MimeType: mime, Size: size}
 }
 
 var _ Writer = (*linearWriter)(nil)

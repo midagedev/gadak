@@ -195,6 +195,25 @@ the fixes are all here.
   fixture stays scrubbed ([GDK-181]), and **a mirror written by a newer
   gadak is a cache to rebuild, not a dead end** ([GDK-498]).
 
+### One vocabulary for origin writes
+
+- **`origin.Writer` stopped speaking Jira in its own signatures** ([GDK-665]).
+  Every write verb named `jira.Transition`, `jira.User`, `jira.FieldMeta` and
+  six more, so a second tracker had to import the first one's HTTP package to
+  implement the interface — and Linear's writer did, 28 times. The Writer now
+  names `origin.` DTOs, adapters convert at the boundary, `cmd/gadak/create.go`
+  no longer type-asserts `*jira.Client`, and Linear's `WorkflowState.type` →
+  `status_category` collapse has one owner in `internal/linear/status.go`
+  instead of being restated per call site. An AST test locks the interface's
+  vocabulary (measured red on the previous source: eight `jira.` selectors).
+  Being honest about the shape of the win: those DTOs are type *aliases* of
+  the Jira payload structs, because distinct types would make
+  `internal/server` and three more packages name origin types and the HTTP
+  JSON is a contract. A new origin no longer writes `jira.` anywhere; the
+  struct layout is still inherited. Promoting the aliases to real types is
+  weighed in [GDK-679], which also records that the vocabulary gate passes on
+  an alias.
+
 ### Workspaces and pairing
 
 - **`gadak workspace use <name>` stores a default, and one function decides
@@ -2513,6 +2532,8 @@ measured numbers instead of adjectives.
 [GDK-669]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-669
 [GDK-676]: https://gadak.dev/backlog/#/?ks=GDK-676
 [GDK-8]: https://gadak.dev/backlog/#/?ks=GDK-8
+[GDK-665]: https://gadak.dev/backlog/#/?ks=GDK-665
+[GDK-679]: https://gadak.dev/backlog/#/?ks=GDK-679
 [GDK-668]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-668
 [GDK-671]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-671
 [GDK-678]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-678

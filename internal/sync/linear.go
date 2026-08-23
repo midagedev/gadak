@@ -36,22 +36,10 @@ func linearRankList(id int, label string) []string {
 	return out
 }
 
-// linearCategory collapses a WorkflowState.type onto the mirror's
-// status_category contract (new | inprogress | done). The enum is open —
-// Linear added "duplicate" after the original six — so ok reports whether the
-// type was known; unknown collapses to new (an issue can only be misread as
-// open, never as silently done) and the caller reports it loudly.
-// Never key on state names: they are display text ("진행 중").
+// linearCategory is the sync-side name for linear.StatusCategory, the
+// single owner of WorkflowState.type → status_category (GDK-665).
 func linearCategory(stateType string) (cat string, ok bool) {
-	switch stateType {
-	case "started":
-		return "inprogress", true
-	case "unstarted", "backlog", "triage":
-		return "new", true
-	case "completed", "canceled", "duplicate":
-		return "done", true
-	}
-	return "new", false
+	return linear.StatusCategory(stateType)
 }
 
 // RunLinear does one Linear mirror pass: full or incremental. Read-only by

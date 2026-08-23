@@ -12,31 +12,33 @@ import (
 
 // Writer is the write surface of an origin: the verbs every origin implements
 // and the server and CLI call when writing through. Jira (connected) and
-// standalone (issuetap speaks the Jira API) both satisfy it via *jira.Client;
-// a Linear adapter implements the same verbs over GraphQL (GDK-358).
+// standalone (issuetap speaks the Jira API) satisfy it via jiraWriter
+// wrapping *jira.Client; a Linear adapter implements the same verbs over
+// GraphQL (GDK-358). The method vocabulary is Jira-shaped (EditMeta,
+// Transitions) so existing callers keep working; the types are origin DTOs
+// (GDK-665), not internal/jira names.
 //
-// The vocabulary is deliberately Jira-shaped — including the types — because
-// two of the three origins already speak it natively. Capability negotiation
-// stays EditMeta/CreateMeta: an origin that cannot edit a field omits it
-// there, and the existing UI already turns fields on and off from that
-// answer. An unsupported verb returns an honest error, never a silent no-op.
+// Capability negotiation stays EditMeta/CreateMeta: an origin that cannot
+// edit a field omits it there, and the existing UI already turns fields on
+// and off from that answer. An unsupported verb returns an honest error,
+// never a silent no-op.
 //
 // Optional faces (VersionCatalog, IssueLinker, CreateFieldCatalog, MediaRef)
 // are not part of Writer. Callers type-assert via As*; a missing face
 // returns the matching ErrNo* string, never a silent no-op (GDK-641).
 type Writer interface {
-	CreateMeta(ctx context.Context, projects []string) ([]jira.CreateMetaProject, error)
+	CreateMeta(ctx context.Context, projects []string) ([]CreateMetaProject, error)
 	CreateIssue(ctx context.Context, fields map[string]any) (string, error)
-	EditMeta(ctx context.Context, key string) (map[string]jira.FieldMeta, error)
+	EditMeta(ctx context.Context, key string) (map[string]FieldMeta, error)
 	UpdateFields(ctx context.Context, key string, fields map[string]any) error
 	EditIssue(ctx context.Context, key string, fields, update map[string]any) error
-	Transitions(ctx context.Context, key string) ([]jira.Transition, error)
+	Transitions(ctx context.Context, key string) ([]Transition, error)
 	Transition(ctx context.Context, key, transitionID string, fields map[string]any, comment json.RawMessage) error
-	AddComment(ctx context.Context, key string, adf json.RawMessage, visibility *jira.CommentVisibility, internal bool) (jira.Comment, error)
+	AddComment(ctx context.Context, key string, adf json.RawMessage, visibility *CommentVisibility, internal bool) (Comment, error)
 	SetAssignee(ctx context.Context, key, accountID string) error
-	SearchUsers(ctx context.Context, query string) ([]jira.User, error)
-	PriorityCatalog(ctx context.Context) ([]jira.NamedID, error)
-	Upload(ctx context.Context, key, filename string, file io.Reader) ([]jira.Attachment, error)
+	SearchUsers(ctx context.Context, query string) ([]User, error)
+	PriorityCatalog(ctx context.Context) ([]NamedID, error)
+	Upload(ctx context.Context, key, filename string, file io.Reader) ([]Attachment, error)
 }
 
 // VersionCatalog is GET /rest/api/3/project/{key}/versions. Linear has no
@@ -133,8 +135,9 @@ func AsMediaRef(w Writer) (MediaRef, error) {
 	return v, nil
 }
 
-// *jira.Client is the Writer for connected and standalone workspaces, and
-// it implements every optional face.
+// *jira.Client still matches Writer's method set (the DTO names alias the
+// HTTP payload types) and implements every optional face. WriterFor wraps
+// it in jiraWriter so callers cannot punch through to the HTTP client.
 var _ Writer = (*jira.Client)(nil)
 var _ VersionCatalog = (*jira.Client)(nil)
 var _ IssueLinker = (*jira.Client)(nil)
@@ -144,12 +147,16 @@ var _ MediaRef = (*jira.Client)(nil)
 // WriterFor picks the write path for one issue's source — the caller reads
 // it from the mirror (store.KeySource), because a key's shape cannot tell a
 // Linear "MID-5" from a Jira "MID-5". Jira and standalone rows share the
-// Jira client; "linear" routes to the GraphQL adapter (GDK-361). An empty
-// source (a key the mirror does not know yet, or a create) routes to the
-// default origin.
+// Jira client (wrapped); "linear" routes to the GraphQL adapter (GDK-361).
+// An empty source (a key the mirror does not know yet, or a create) routes
+// to the default origin.
 func WriterFor(cfg *config.Config, source string) (Writer, error) {
 	if source == "linear" {
 		return newLinearWriter(cfg)
 	}
-	return Client(cfg)
+	c, err := Client(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return newJiraWriter(c), nil
 }

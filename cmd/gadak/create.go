@@ -256,11 +256,7 @@ func createOn(ctx context.Context, cfg *config.Config, c origin.Writer, src, pro
 	if src == "linear" {
 		return createLinearOne(ctx, cfg, c, projectWant, typeWant, summary, body, priorityWant, parentWant, dueWant, labels, attach, fieldRaws)
 	}
-	jc, ok := c.(*jira.Client)
-	if !ok {
-		return "", nil, fmt.Errorf("create: origin writer is not a Jira client")
-	}
-	return createOne(ctx, cfg, jc, projectWant, typeWant, summary, body, priorityWant, parentWant, dueWant, labels, attach, fieldRaws)
+	return createOne(ctx, cfg, c, projectWant, typeWant, summary, body, priorityWant, parentWant, dueWant, labels, attach, fieldRaws)
 }
 
 func createLinearOne(ctx context.Context, cfg *config.Config, c origin.Writer, projectWant, typeWant, summary, body, priorityWant, parentWant, dueWant string, labels, attach []string, fieldRaws map[string]json.RawMessage) (string, map[string]any, error) {
@@ -363,7 +359,7 @@ func createLinearOne(ctx context.Context, cfg *config.Config, c origin.Writer, p
 	return key, extra, nil
 }
 
-func createOne(ctx context.Context, cfg *config.Config, c *jira.Client, projectWant, typeWant, summary, body, priorityWant, parentWant, dueWant string, labels, attach []string, fieldRaws map[string]json.RawMessage) (string, map[string]any, error) {
+func createOne(ctx context.Context, cfg *config.Config, c origin.Writer, projectWant, typeWant, summary, body, priorityWant, parentWant, dueWant string, labels, attach []string, fieldRaws map[string]json.RawMessage) (string, map[string]any, error) {
 	if err := refuseSignedCreateLabels(labels); err != nil {
 		return "", nil, err
 	}
@@ -382,16 +378,17 @@ func createOne(ctx context.Context, cfg *config.Config, c *jira.Client, projectW
 	}
 	projRes, err := create.Project(projectWant, cfg)
 	if err != nil {
-		// NeedProjectError is local config ambiguity. Probe the origin so a
-		// pairing/dial failure is not relabeled as a missing --project
-		// (GDK-453). A reachable origin that still cannot resolve a project
-		// keeps the flag sentence, and an empty configured list is filled
-		// from createmeta so a paired workspace can print origin keys
-		// (GDK-467) without copying home defaults into this profile.
-		if _, _, perr := c.Projects(ctx, 1); perr != nil && origin.IsPairingFailure(perr) {
-			return "", nil, perr
-		}
+		// NeedProjectError is local config ambiguity. CreateMeta is the
+		// origin probe so a pairing/dial failure is not relabeled as a
+		// missing --project (GDK-453). A reachable origin that still cannot
+		// resolve a project keeps the flag sentence, and an empty configured
+		// list is filled from createmeta so a paired workspace can print
+		// origin keys (GDK-467) without copying home defaults into this
+		// profile.
 		catalog, cerr := c.CreateMeta(ctx, createMetaScope(cfg))
+		if cerr != nil && origin.IsPairingFailure(cerr) {
+			return "", nil, cerr
+		}
 		if cerr == nil {
 			err = create.FillNeedProject(err, catalog)
 		}
@@ -442,7 +439,11 @@ func createOne(ctx context.Context, cfg *config.Config, c *jira.Client, projectW
 		if err := checkConfiguredAliases(cfg, fieldRaws); err != nil {
 			return "", nil, err
 		}
-		list, err := c.CreateFields(ctx, proj.Key, typeRes.Value)
+		cf, err := origin.AsCreateFieldCatalog(c)
+		if err != nil {
+			return "", nil, err
+		}
+		list, err := cf.CreateFields(ctx, proj.Key, typeRes.Value)
 		if err != nil {
 			return "", nil, err
 		}

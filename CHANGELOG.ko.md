@@ -184,6 +184,25 @@
   남으며 ([GDK-181]), **더 새로운 gadak이 쓴 미러는 막다른 길이 아니라
   다시 만들 캐시입니다** ([GDK-498]).
 
+### origin 쓰기의 어휘 하나
+
+- **`origin.Writer`가 자기 시그니처에서 Jira를 말하기를 멈췄습니다**
+  ([GDK-665]). 쓰기 동사 전부가 `jira.Transition`·`jira.User`·`jira.FieldMeta`
+  등 아홉 개 타입을 이름으로 불렀고, 그래서 두 번째 트래커는 인터페이스를
+  구현하려고 첫 번째 트래커의 HTTP 패키지를 import해야 했습니다 — Linear
+  writer가 실제로 28번 그랬습니다. 이제 Writer는 `origin.` DTO를 부르고,
+  변환은 어댑터 경계에서 일어나고, `cmd/gadak/create.go`는 `*jira.Client`로
+  타입 단언하지 않으며, Linear의 `WorkflowState.type` → `status_category`
+  붕괴는 호출처마다 다시 쓰이는 대신 `internal/linear/status.go` 한 곳이
+  소유합니다. AST 테스트가 인터페이스의 어휘를 잠급니다(수정 전 소스에서
+  `jira.` 셀렉터 8개로 빨강 실측). 이 승리의 모양을 정직하게 말하면: 그 DTO는
+  Jira 페이로드 구조체의 **타입 별칭**입니다. 실체를 분리하면
+  `internal/server`와 세 패키지가 origin 타입을 말하기 시작하고, HTTP JSON은
+  계약이기 때문입니다. 새 origin이 `jira.`를 쓰지 않게 된 것은 사실이고,
+  구조체 레이아웃은 여전히 상속받고 있습니다. 별칭을 실체로 승격할지는
+  [GDK-679]에서 따집니다 — 어휘 게이트가 별칭으로도 초록이 된다는 사실도
+  그 이슈가 기록합니다.
+
 ### 워크스페이스와 페어링
 
 - **`gadak workspace use <name>`가 기본값을 저장하고, 어느 워크스페이스인지는
@@ -2457,6 +2476,8 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-669]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-669
 [GDK-676]: https://gadak.dev/backlog/#/?ks=GDK-676
 [GDK-8]: https://gadak.dev/backlog/#/?ks=GDK-8
+[GDK-665]: https://gadak.dev/backlog/#/?ks=GDK-665
+[GDK-679]: https://gadak.dev/backlog/#/?ks=GDK-679
 [GDK-668]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-668
 [GDK-671]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-671
 [GDK-678]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-678
