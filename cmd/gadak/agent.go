@@ -1199,7 +1199,7 @@ func cmdSearch(args []string) error {
 }
 
 // stdoutIsTerminal reports whether stdout is a character device. Search uses
-// this so a pipe stays empty on 0 matches (AGENTS.md TSV contract) while a
+// this so a pipe stays empty on 0 matches (docs/MIRROR.md TSV contract) while a
 // TTY gets "0 matches" on stderr (GDK-466).
 func stdoutIsTerminal() bool {
 	fi, err := os.Stdout.Stat()

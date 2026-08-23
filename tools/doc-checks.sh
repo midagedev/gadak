@@ -660,7 +660,9 @@ ok "doc claims about how MCP / gadak sql open the mirror match store.Open*"
 # Documented set — live prose an agent or human follows:
 #   docs/ except docs/decisions/ (append-only records of past states)
 #   specs/
-#   AGENTS.md (the agent cookbook; same inclusion as checks 5 and 12)
+#   AGENTS.md (repo development contract; the product cookbook is
+#              docs/MIRROR.md, already covered by the docs/ walk;
+#              same inclusion as checks 5 and 12)
 # Deliberately not scanned:
 #   CHANGELOG.md          — history; a removed var stays in old entries
 #   docs/decisions/       — addendum-only; naming a since-removed var is a record
@@ -1005,14 +1007,16 @@ fi
 # ── 22. Pairing named on the install/agent front door (GDK-457 / GDK-458) ─
 # Class: a third way to bind a workspace (home serve + mint + remote
 # `init --pairing-code-stdin`) shipped in the binary, but README / INSTALL /
-# AGENTS / SKILL said nothing, so a reader following the front door could
-# not pair. Analogous to check 20 (`init --standalone`). The flag name is
-# the pin: `cmd/gadak/init.go` registers `--pairing-code-stdin`.
+# the agent cookbook / SKILL said nothing, so a reader following the front
+# door could not pair. Analogous to check 20 (`init --standalone`). The flag
+# name is the pin: `cmd/gadak/init.go` registers `--pairing-code-stdin`.
+# The agent cookbook moved from AGENTS.md to docs/MIRROR.md (GDK-8); this
+# check follows the file, not the old name.
 # FAIL-first 2026-08-21 against the unmodified f6-docs tree: all five files
 # below had 0 hits for pairing-code-stdin; SKILL.md line 221 said
 # `views save` kept a named view "in the mirror" and named local.db 0 times.
 pairing_missing=""
-for f in README.md README.ko.md docs/INSTALL.md AGENTS.md skills/gadak/SKILL.md; do
+for f in README.md README.ko.md docs/INSTALL.md docs/MIRROR.md skills/gadak/SKILL.md; do
   if ! grep -q 'pairing-code-stdin' "$f"; then
     pairing_missing+="  $f: no --pairing-code-stdin"$'\n'
   fi
@@ -1020,7 +1024,7 @@ done
 if [[ -n "$pairing_missing" ]]; then
   fail "install/agent front door does not name --pairing-code-stdin (GDK-457):"$'\n'"$pairing_missing"
 fi
-ok "README, INSTALL, AGENTS, SKILL name --pairing-code-stdin"
+ok "README, INSTALL, docs/MIRROR.md, SKILL name --pairing-code-stdin"
 
 if grep -n 'views save' skills/gadak/SKILL.md | grep -q 'in the mirror'; then
   fail "skills/gadak/SKILL.md still says views save lives in the mirror (GDK-458) — they live in local.db"
@@ -1159,5 +1163,56 @@ if [[ -f "$BACKLOG_ARCHIVE" ]] && command -v jq >/dev/null; then
     fail "committed backlog snapshot fails its scrub gate: $scrub_out"
   fi
 fi
+
+# ── 25. AGENTS.md is the repo development contract, not the product cookbook (GDK-8) ──
+# Class: AGENTS.md is the filename coding agents look for at the repo root.
+# The product cookbook (how to query the mirror) lives in docs/MIRROR.md.
+# Recurrence is pasting the SQL cookbook / CLI reference back into AGENTS.md
+# under those headings. Length is not the tell — a long development note is
+# fine; those headings are the product-manual identity.
+#
+# Structural markers (not a line-count):
+#   AGENTS.md must not have ## Using the mirror / ### SQL cookbook /
+#   ### CLI reference (those three were the product half).
+#   AGENTS.md must have ## Developing gadak (this file's remaining job).
+#
+# FAIL-first 2026-08-23: injecting `### SQL cookbook` into post-split
+# AGENTS.md fails this check; removing it is green.
+if grep -qE '^## Using the mirror$' AGENTS.md; then
+  fail "AGENTS.md has heading \"## Using the mirror\" — that product section lives in docs/MIRROR.md (GDK-8)"
+fi
+if grep -qE '^### SQL cookbook$' AGENTS.md; then
+  fail "AGENTS.md has heading \"### SQL cookbook\" — the query recipes live in docs/MIRROR.md (GDK-8)"
+fi
+if grep -qE '^### CLI reference$' AGENTS.md; then
+  fail "AGENTS.md has heading \"### CLI reference\" — the CLI cookbook lives in docs/MIRROR.md (GDK-8)"
+fi
+if ! grep -qE '^## Developing gadak$' AGENTS.md; then
+  fail "AGENTS.md is missing heading \"## Developing gadak\" — that is this file's remaining job (GDK-8)"
+fi
+ok "AGENTS.md is the development contract (no product-cookbook headings)"
+
+# ── 26. AGENTS.md ↔ docs/MIRROR.md pointers are live (GDK-8) ──
+# Same shape as check 20 (`grep -q 'init --standalone'`) and check 22
+# (`grep -q 'pairing-code-stdin'`): a path token that must appear in the
+# counterpart file. This repo's doc-checks do not have a markdown-link
+# resolver; presence of the path is the existing contract.
+#
+# FAIL-first 2026-08-23: deleting the docs/MIRROR.md token from AGENTS.md
+# fails; deleting the AGENTS.md token from docs/MIRROR.md fails; restoring
+# both is green.
+if [[ ! -f docs/MIRROR.md ]]; then
+  fail "docs/MIRROR.md is missing — it is the product cookbook AGENTS.md must point at (GDK-8)"
+fi
+if ! grep -q 'docs/MIRROR.md' AGENTS.md; then
+  fail "AGENTS.md does not point at docs/MIRROR.md (GDK-8)"
+fi
+if ! grep -q 'AGENTS.md' docs/MIRROR.md; then
+  fail "docs/MIRROR.md does not point at AGENTS.md (GDK-8)"
+fi
+if ! grep -qE '^# Using the mirror$' docs/MIRROR.md; then
+  fail "docs/MIRROR.md is missing heading \"# Using the mirror\" (GDK-8; the #using-the-mirror anchor)"
+fi
+ok "AGENTS.md and docs/MIRROR.md point at each other"
 
 echo "doc-checks: all passed"

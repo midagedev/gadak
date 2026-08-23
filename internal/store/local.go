@@ -724,7 +724,7 @@ type RecentVisit struct {
 }
 
 // RecentVisits lists the distinct (kind, key) pairs newest-first, at most
-// limit: AGENTS.md's "recently viewed" recipe (MAX(viewed_at) GROUP BY key)
+// limit: docs/MIRROR.md's "recently viewed" recipe (MAX(viewed_at) GROUP BY key)
 // as a typed accessor, both kinds at once. It carries History's epoch clause
 // for the same reason History does: after a workspace changes origin, a
 // retired pair names a key the new origin can mint (GDK-418), and this list

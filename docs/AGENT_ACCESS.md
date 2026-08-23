@@ -1,7 +1,7 @@
 # Agent Access
 
 **The cookbook, the CLI reference, and the REST examples live in
-[`../AGENTS.md`](../AGENTS.md).** This page is the map: which of the three access
+[`MIRROR.md`](MIRROR.md).** This page is the map: which of the three access
 layers to reach for, and what each one costs. The contract behind them is
 `../specs/000-product/contracts/agent.md`.
 

@@ -209,7 +209,7 @@ origin 폴더의 issuetap.yaml; 백업은 그 파일 하나입니다.
 
 ## 에이전트를 위해
 
-gadak이 존재하는 이유의 절반입니다. 레퍼런스: **[AGENTS.md](AGENTS.md)**.
+gadak이 존재하는 이유의 절반입니다. 레퍼런스: **[docs/MIRROR.md](docs/MIRROR.md)**.
 호스트별 붙여넣기 한 번: [`docs/AGENT_SETUP.md`](docs/AGENT_SETUP.md).
 
 ```bash
@@ -411,7 +411,7 @@ Forge 앱이 아닌가: [`docs/decisions/0003-local-process.md`](docs/decisions/
 ## 문서
 
 - [`docs/INSTALL.md`](docs/INSTALL.md) · [`docs/DESKTOP.md`](docs/DESKTOP.md) — 설치, 첫 실행, 데스크톱 앱
-- [`AGENTS.md`](AGENTS.md) · [`docs/MCP.md`](docs/MCP.md) · [`docs/AGENT_SETUP.md`](docs/AGENT_SETUP.md) — SQL, CLI, REST, MCP, 호스트별 붙여넣기 한 번
+- [`docs/MIRROR.md`](docs/MIRROR.md) · [`docs/MCP.md`](docs/MCP.md) · [`docs/AGENT_SETUP.md`](docs/AGENT_SETUP.md) — SQL, CLI, REST, MCP, 호스트별 붙여넣기 한 번
 - [`docs/RECIPES.md`](docs/RECIPES.md) — JQL이 못 묻는 질문들, SQL로
 - [`SECURITY.md`](SECURITY.md) · [`docs/FAQ.md`](docs/FAQ.md) · [`MAINTENANCE.md`](MAINTENANCE.md) — 위협 모델, 사이트 부하, 누가 유지하는가
 - [`docs/EXTENDING.md`](docs/EXTENDING.md) · [`docs/PLUGINS.md`](docs/PLUGINS.md) — 팀에 맞추기

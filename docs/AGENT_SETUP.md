@@ -2,7 +2,7 @@
 
 One paste per tool. Each block teaches the agent that the mirror exists, how to
 query it, and the one mistake that silently returns nothing. The full reference
-is [`AGENTS.md`](../AGENTS.md).
+is [`docs/MIRROR.md`](MIRROR.md).
 
 ## Let the agent set gadak up for you
 

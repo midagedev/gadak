@@ -1330,7 +1330,7 @@ func TestIssueLinkPrintsWebWhenServeFound(t *testing.T) {
 }
 
 // A query that starts with a `--` comment is what an agent pastes out of
-// AGENTS.md, and flag.Parse would read that leading `--` as an undefined flag.
+// docs/MIRROR.md, and flag.Parse would read that leading `--` as an undefined flag.
 func TestSQLTakesACommentedQueryAndEmitsCSV(t *testing.T) {
 	mirror(t, "https://unused.example.com")
 

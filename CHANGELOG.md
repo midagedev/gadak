@@ -896,6 +896,19 @@ plug in; and the documents an agent actually reads never learned the word
 
 ### Documents that stop contradicting the product
 
+- **`AGENTS.md` is the repository's development contract now, not a product
+  manual** ([GDK-8]). The filename is a convention every coding agent looks
+  for at a repo root, and this one had grown into 513 lines of which 439 were
+  the mirror cookbook — so an agent sent to change gadak read a SQL reference
+  first, and an agent sent to *use* gadak had to be pointed at a file named
+  for contributors. The cookbook moved verbatim to `docs/MIRROR.md` (same
+  `#using-the-mirror` anchor, so existing links resolve), `AGENTS.md` keeps
+  the two-audience dispatcher and `## Developing gadak`, and the prose that
+  introduced `AGENTS.md` as the home of SQL/CLI/REST — in both READMEs,
+  `AGENT_SETUP.md`, `AGENT_ACCESS.md`, `EXTENDING.md` and the CLI's own usage
+  line — names the new page. Two doc-checks hold it: one fails when a
+  product-manual heading reappears in `AGENTS.md`, the other when the two
+  files stop pointing at each other.
 - **The network gets its own page** ([GDK-601]): `docs/NETWORK.md` — every
   outbound connection with its trigger and off switch, the four surfaces
   that keep a mirror fresh without an agent managing sync, and the
@@ -2471,5 +2484,6 @@ measured numbers instead of adjectives.
 [GDK-211]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-211
 [GDK-669]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-669
 [GDK-676]: https://gadak.dev/backlog/#/?ks=GDK-676
+[GDK-8]: https://gadak.dev/backlog/#/?ks=GDK-8
 [GDK-668]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-668
 [GDK-671]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-671

@@ -52,7 +52,7 @@ const serveSyncDefault = "syncs by default on a standalone workspace, or on a co
 // name the verb; this sentence lives once in top-level usage.
 const writeThroughOriginPhrase = "Jira on a connected workspace (needs a site credential), Linear when a linear apiKey is configured, the embedded origin on a standalone one; the mirror refreshes after the origin accepts"
 
-// displayNameSQLTrap is the locale trap AGENTS.md and sqlhint already own.
+// displayNameSQLTrap is the locale trap docs/MIRROR.md and sqlhint already own.
 // Restated in sql / search / recipes help so the command itself says it
 // (GDK-503). Verified: issues.status / issue_type / priority are display
 // names; status_category is new|inprogress|done; priority_rank and

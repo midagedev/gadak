@@ -37,7 +37,7 @@ func cmdSQL(args []string) error {
 	// Flags are matched by name wherever they appear instead of with
 	// flag.Parse, because a query legitimately starts with `--` — a SQL comment,
 	// which flag.Parse reads as an undefined flag and refuses. That is exactly what
-	// happens when an agent pastes a commented query out of AGENTS.md.
+	// happens when an agent pastes a commented query out of docs/MIRROR.md.
 	if wantsHelp(args) {
 		printHelp("sql")
 		return nil

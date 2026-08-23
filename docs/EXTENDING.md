@@ -59,8 +59,8 @@ payload tables: [`PLUGINS.md`](PLUGINS.md). Runnable examples:
 ### Direct SQL
 
 The mirror is a normal SQLite file. Agents and humans query it with
-`gadak sql` (read-only). Cookbook queries live in the root
-[`AGENTS.md`](../AGENTS.md) and [`docs/AGENT_ACCESS.md`](AGENT_ACCESS.md).
+`gadak sql` (read-only). Cookbook queries live in
+[`docs/MIRROR.md`](MIRROR.md) and [`docs/AGENT_ACCESS.md`](AGENT_ACCESS.md).
 
 **Never write mirrored issue fields by hand** — the next sync overwrites them.
 The only supported external write table is `enrichments` (plus personal tables

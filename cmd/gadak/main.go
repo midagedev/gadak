@@ -4,7 +4,7 @@
 // do not maintain a second inventory here. See specs/000-product/tasks.md for
 // the current state of each command.
 //
-// The agent-facing commands live in agent.go; AGENTS.md is their reference.
+// The agent-facing commands live in agent.go; docs/MIRROR.md is their reference.
 package main
 
 import (
@@ -156,7 +156,7 @@ Commands:
   workspaces       list workspaces  [--json]
   version          print version
 
-Reading the mirror (no network; see AGENTS.md):
+Reading the mirror (no network; see docs/MIRROR.md):
   issue      full detail for one or more issues
                    <KEY> [KEY...] [--keys -] [--json] [--derive] [--link] [--editmeta]
   open       open the issue on your Jira site in the browser  <KEY>

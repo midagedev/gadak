@@ -837,6 +837,18 @@
 
 ### 제품과 모순되기를 멈춘 문서
 
+- **`AGENTS.md`는 이제 이 저장소의 개발 계약이고, 제품 매뉴얼이 아닙니다**
+  ([GDK-8]). 그 파일 이름은 코딩 에이전트가 레포 루트에서 찾는 관례이고,
+  이 레포의 것은 513줄까지 자라 그중 439줄이 미러 쿡북이었습니다 — gadak을
+  고치러 온 에이전트가 SQL 레퍼런스를 먼저 읽고, gadak을 *쓰러* 온
+  에이전트는 기여자용 이름의 파일로 안내받아야 했습니다. 쿡북은 그대로
+  `docs/MIRROR.md`로 옮겼고(`#using-the-mirror` 앵커가 같아 기존 링크가
+  그대로 해석됩니다), `AGENTS.md`는 두 독자 분기와 `## Developing gadak`을
+  지킵니다. `AGENTS.md`를 SQL·CLI·REST의 자리로 소개하던 산문 — 두 README,
+  `AGENT_SETUP.md`, `AGENT_ACCESS.md`, `EXTENDING.md`, 그리고 CLI 자신의
+  usage 줄 — 은 새 페이지를 가리킵니다. doc-check 둘이 이것을 붙잡습니다:
+  하나는 제품 매뉴얼 제목이 `AGENTS.md`에 다시 나타나면 실패하고, 다른
+  하나는 두 파일이 서로를 가리키기를 멈추면 실패합니다.
 - **네트워크가 자기 페이지를 얻었습니다** ([GDK-601]): `docs/NETWORK.md` —
   나가는 연결 전부를 트리거·끄는 법과 함께, 에이전트가 싱크를 관리하지
   않아도 미러를 신선하게 유지하는 네 표면, 그리고 의도적인 방향: 테일넷
@@ -2417,5 +2429,6 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-211]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-211
 [GDK-669]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-669
 [GDK-676]: https://gadak.dev/backlog/#/?ks=GDK-676
+[GDK-8]: https://gadak.dev/backlog/#/?ks=GDK-8
 [GDK-668]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-668
 [GDK-671]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-671

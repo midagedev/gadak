@@ -206,7 +206,7 @@ drops only the body embed. Field mapping:
 
 ## For agents
 
-This is half the reason gadak exists. Reference: **[AGENTS.md](AGENTS.md)**.
+This is half the reason gadak exists. Reference: **[docs/MIRROR.md](docs/MIRROR.md)**.
 One paste per host: [`docs/AGENT_SETUP.md`](docs/AGENT_SETUP.md).
 
 ```bash
@@ -406,7 +406,7 @@ ranked by demand: [`docs/ROADMAP.md`](docs/ROADMAP.md#more-sources-later).
 ## Documentation
 
 - [`docs/INSTALL.md`](docs/INSTALL.md) · [`docs/DESKTOP.md`](docs/DESKTOP.md) — install, first run, the desktop app
-- [`AGENTS.md`](AGENTS.md) · [`docs/MCP.md`](docs/MCP.md) · [`docs/AGENT_SETUP.md`](docs/AGENT_SETUP.md) — SQL, CLI, REST, MCP, one paste per host
+- [`docs/MIRROR.md`](docs/MIRROR.md) · [`docs/MCP.md`](docs/MCP.md) · [`docs/AGENT_SETUP.md`](docs/AGENT_SETUP.md) — SQL, CLI, REST, MCP, one paste per host
 - [`docs/RECIPES.md`](docs/RECIPES.md) — questions JQL cannot ask, as SQL
 - [`SECURITY.md`](SECURITY.md) · [`docs/FAQ.md`](docs/FAQ.md) · [`MAINTENANCE.md`](MAINTENANCE.md) — threat model, site load, who maintains this
 - [`docs/EXTENDING.md`](docs/EXTENDING.md) · [`docs/PLUGINS.md`](docs/PLUGINS.md) — fitting gadak to your team

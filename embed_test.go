@@ -28,7 +28,7 @@ func TestSkillMarkdownMatchesRepo(t *testing.T) {
 // describes. A session that loaded this file and then answered "gadak cannot
 // create issues" — or invented a REST call — is worse than one with no skill
 // at all, because the first failed write costs the trust the reads earned
-// (GDK-91). AGENTS.md is the source these verbs come from.
+// (GDK-91). docs/MIRROR.md is the source these verbs come from.
 //
 // The check is per-verb rather than a byte hash: the skill is prose and will
 // keep being edited, and a hash would fail on every wording change while
