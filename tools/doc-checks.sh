@@ -87,7 +87,16 @@ ok "docs/STATE_OF_PLAY.md has no \"enables GitHub Pages\""
 
 # ── 5. No leftover 519 inventory literal ─────────────────────────────────
 # CHANGELOG is history and is not under these paths.
-hits="$(grep -rn "519" docs specs AGENTS.md || true)"
+#
+# 2026-08-23: narrowed to ignore GDK-519 and the grep prefix. The literal this
+# guards is a demo inventory count; an issue key that happens to contain those
+# three digits is not it, and neither is a match that lives only in the
+# file:line grep prints. docs/changelog-detail.md cites GDK-519 and tripped
+# the check on both counts. The bare-count case is unchanged and still fails
+# (FAIL-first re-run on this edit: a line reading "519 issues" under docs/).
+hits="$(grep -rn "519" docs specs AGENTS.md \
+  | awk -F: '{ rest = substr($0, index($0, ":") + 1); rest = substr(rest, index(rest, ":") + 1);
+               gsub(/GDK-[0-9]+/, "", rest); if (rest ~ /519/) print $0 }' || true)"
 if [[ -n "$hits" ]]; then
   fail "stale 519 remnant:"$'\n'"$hits"
 fi
