@@ -696,6 +696,19 @@
   검색 기록도 기록된 세대 스탬프와 함께 살아남습니다: 타임라인은 현재
   세대를 보여 주고, 은퇴한 행은 `gadak sql`로 계속 읽을 수 있습니다.
 
+### Windows, 무서명이지만 검증 가능하게
+
+- **Windows 경고에 페이지가 생겼습니다** ([GDK-211]).
+  `docs/WINDOWS-SIGNING.md`는 릴리스의 실제 상태를 말합니다 — 두 Windows
+  zip 모두 Authenticode 서명이 없고, SmartScreen과 Smart App Control은
+  정확히 설계대로 동작하는 것이라고요. 그리고 받은 파일을 검증하는 법을
+  보여 줍니다: CLI zip은 `checksums.txt`로, 데스크톱 zip은 GitHub Releases
+  API의 자산별 digest로(둘 다 존재하는 파일에서 checksums와 일치함을
+  실측). 무서명 zip이 안전하다고 주장하지 않습니다 — 어떤 바이트를 갖고
+  있는지를 보여 줍니다. 서명 계획은 SignPath Foundation이고, 요건 갭 표를
+  담은 신청 초안은 `docs/runbooks/signpath-application.md`에 있습니다 —
+  갭 하나(PE `VERSIONINFO` 메타데이터)는 첫 서명 태그 전에 먼저 들어와야
+  합니다.
 
 ## v0.16.1 — 2026-08-20
 
@@ -2353,3 +2366,4 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-593]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-593
 [GDK-586]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-586
 [GDK-588]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-588
+[GDK-211]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-211

@@ -751,6 +751,19 @@ the fixes are all here.
   generation it was recorded in: the timeline shows the current one, and the
   retired rows stay readable with `gadak sql`
 
+### Windows, unsigned but verifiable
+
+- **The Windows warning has a page now** ([GDK-211]).
+  `docs/WINDOWS-SIGNING.md` says what the release actually is — no
+  Authenticode signature on either Windows zip, SmartScreen and Smart App
+  Control behaving exactly as they should — and shows how to verify the file
+  you downloaded: the CLI zip against `checksums.txt`, the desktop zip
+  against the GitHub Releases API's per-asset digest (measured to match the
+  checksums file where both exist). It does not claim the unsigned zip is
+  safe; it shows which bytes you have. The signing plan is SignPath
+  Foundation, and the application draft with its requirements-gap table
+  lives in `docs/runbooks/signpath-application.md` — one gap (PE
+  `VERSIONINFO` metadata) must land before the first signed tag.
 
 ## v0.16.1 — 2026-08-20
 
@@ -2406,3 +2419,4 @@ measured numbers instead of adjectives.
 [GDK-593]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-593
 [GDK-586]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-586
 [GDK-588]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-588
+[GDK-211]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-211

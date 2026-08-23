@@ -82,8 +82,10 @@ and open the window.
 
 Windows (from 0.16): download [`Gadak-<version>-windows-x64.zip`](https://github.com/midagedev/gadak/releases/latest)
 (or `windows-arm64`), unzip, run `gadak-desktop.exe`. The build is unsigned —
-if Windows blocks it, use the CLI path below. Details:
-[`docs/INSTALL.md`](docs/INSTALL.md#desktop-app-windows).
+if Windows blocks it, use the CLI path below. Install:
+[`docs/INSTALL.md`](docs/INSTALL.md#desktop-app-windows). Why the warning,
+and how to verify the zip (code signing policy):
+[`docs/WINDOWS-SIGNING.md`](docs/WINDOWS-SIGNING.md).
 
 Or, from a terminal:
 
@@ -292,7 +294,9 @@ Windows (from 0.16): download `Gadak-<version>-windows-x64.zip` (or
 Unsigned (signing is [GDK-211]). If Windows shows **Windows protected your PC**
 or **Smart App Control blocked an app that may be unsafe**, that is not a
 virus finding — use the CLI path below. Do not turn Smart App Control off.
-[`docs/INSTALL.md`](docs/INSTALL.md#desktop-app-windows).
+Install: [`docs/INSTALL.md`](docs/INSTALL.md#desktop-app-windows).
+Code signing policy (why the warning, SHA256):
+[`docs/WINDOWS-SIGNING.md`](docs/WINDOWS-SIGNING.md).
 
 **2. The CLI**, on Linux, Windows, or for the same UI in a browser tab.
 
@@ -330,7 +334,8 @@ Windows without Homebrew: from the
 `gadak_<version>_windows_amd64.zip` (or `windows_arm64`) and `checksums.txt`.
 Unzip, put `gadak.exe` on `PATH`, then `gadak init && gadak sync && gadak serve`.
 This is the reliable Windows route in 0.16 if the unsigned desktop exe is
-blocked.
+blocked. How to check the sha256:
+[`docs/WINDOWS-SIGNING.md`](docs/WINDOWS-SIGNING.md).
 
 A Scoop manifest lives in [`contrib/scoop`](contrib/scoop). The bucket
 is not published and `scoop install` has not been run on a Windows machine

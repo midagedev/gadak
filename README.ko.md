@@ -84,8 +84,10 @@ macOS: [`Gadak-<version>-arm64.dmg`](https://github.com/midagedev/gadak/releases
 Windows (0.16부터): [`Gadak-<version>-windows-x64.zip`](https://github.com/midagedev/gadak/releases/latest)
 (또는 `windows-arm64`)을 받아 압축을 풀고 `gadak-desktop.exe`를 실행합니다.
 이 빌드는 서명되어 있지 않습니다 — Windows가 막으면 아래 CLI 경로를
-쓰세요. 자세한 내용:
-[`docs/INSTALL.md`](docs/INSTALL.md#desktop-app-windows).
+쓰세요. 설치:
+[`docs/INSTALL.md`](docs/INSTALL.md#desktop-app-windows). 경고가 뜨는 이유와
+zip 검증(code signing policy):
+[`docs/WINDOWS-SIGNING.md`](docs/WINDOWS-SIGNING.md).
 
 또는 터미널에서:
 
@@ -297,7 +299,9 @@ Windows (0.16부터): 같은 릴리스에서 `Gadak-<version>-windows-x64.zip`(�
 PC** 또는 **Smart App Control blocked an app that may be unsafe**를 보여
 주면 바이러스 탐지가 아닙니다 — 아래 CLI 경로를 쓰세요. Smart App Control을
 끄지 마세요.
-[`docs/INSTALL.md`](docs/INSTALL.md#desktop-app-windows).
+설치: [`docs/INSTALL.md`](docs/INSTALL.md#desktop-app-windows).
+Code signing policy (경고 이유, SHA256):
+[`docs/WINDOWS-SIGNING.md`](docs/WINDOWS-SIGNING.md).
 
 **2. CLI** — 리눅스, Windows, 또는 같은 UI를 브라우저 탭으로:
 
@@ -335,7 +339,8 @@ Homebrew 없이 Windows에 설치하려면
 `gadak_<version>_windows_amd64.zip`(또는 `windows_arm64`)과 `checksums.txt`를
 받으세요. 압축을 풀고 `gadak.exe`를 `PATH`에 둔 뒤
 `gadak init && gadak sync && gadak serve`. 서명되지 않은 데스크톱 exe가
-막히면 0.16에서 믿을 수 있는 Windows 경로입니다.
+막히면 0.16에서 믿을 수 있는 Windows 경로입니다. sha256 확인:
+[`docs/WINDOWS-SIGNING.md`](docs/WINDOWS-SIGNING.md).
 
 Scoop 매니페스트는 [`contrib/scoop`](contrib/scoop)에 있습니다. 버킷은
 아직 게시되지 않았고, Windows 머신에서 `scoop install`을 돌린 적도 없습니다
