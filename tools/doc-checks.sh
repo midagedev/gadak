@@ -1450,13 +1450,16 @@ if [[ -n "$legacy_fieldmap" ]]; then
 fi
 ok "docs do not teach leftover fieldMap/editableFields as the current field-mapping method"
 
-# ── 29. Packaging manifests pin the tagged version ───────────────────────
+# ── 29. Packaging manifests pin the tagged version (GDK-744) ─────────────
 # Same version owner as check 6 (`$tag` from `git describe --tags --abbrev=0`,
 # already computed; do not describe again). Tagless checkout skips, same as
 # check 6: this is drift between files, not tagging policy.
-# The originating issue key is omitted on purpose: it is not yet on the
-# public backlog or tools/backlog-private-keys.txt, and naming it here
-# would trip check 23 before this assertion can run.
+#
+# Why this check exists at all: the on-change guards were correct and never
+# ran. scoop.yml and aur.yml are `paths:`-scoped to the very files they
+# guard, and the only event that can invalidate those files is a *new tag*,
+# which touches neither path. So 0.16.0 and 0.16.1 both shipped with the
+# manifests pinned at 0.15.2 and every gate green.
 #
 # Check 6 compares the truncated minor because the README status line says
 # `0.16`. These manifests pin a full patch, so they must equal `0.16.1`,
