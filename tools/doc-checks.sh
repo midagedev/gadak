@@ -1238,4 +1238,148 @@ if ! grep -qE '^# Using the mirror$' docs/MIRROR.md; then
 fi
 ok "AGENTS.md and docs/MIRROR.md point at each other"
 
+# ── 27. CHANGELOG en/ko key tails stay a closed, matching set ────────────
+# Class: compressing a release section by memory-attaching the wrong GDK key
+# (measured 2026-08-23 on an Unreleased draft: 10 keys were wrong until the
+# original paragraphs were re-read). Recurrence is (a) a citation with no
+# tail definition, (b) en and ko quoting different keys in the same release
+# heading, (c) a tail URL that is not the public backlog form.
+#
+# Failure names the section and the key — "mismatch" alone is not a tool.
+#
+# FAIL-first 2026-08-23 against this compressed tree (each restored):
+#   1. deleting [GDK-186] from CHANGELOG.md's v0.15.2 section:
+#      "CHANGELOG.md:N defines GDK-186 but no section cites it"
+#      "section 'v0.15.2 — 2026-08-17': en/ko key sets differ (ko-only GDK-186)"
+#   2. deleting the [GDK-182] tail line from CHANGELOG.md:
+#      "CHANGELOG.md section 'v0.15.1 — 2026-08-17': cites GDK-182 with no
+#      tail definition"
+#   3. rewriting the GDK-8 tail URL to midagedev.github.io:
+#      "CHANGELOG.md:N GDK-8 URL is 'https://midagedev.github.io/…', want
+#      'https://gadak.dev/backlog/#/?ks=GDK-8'"
+changelog_keys=$(
+  python3 - <<'CHANGELOGKEYSPY'
+import re
+from pathlib import Path
+
+CITE = re.compile(r"\[(GDK-\d+)\]")
+DEF = re.compile(r"^\[(GDK-\d+)\]:\s+(\S+)\s*$")
+TAIL_START = re.compile(r"^\[(?:GDK-\d+|#\d+)\]:")
+WANT = "https://gadak.dev/backlog/#/?ks={}"
+
+
+def parse(path):
+    text = Path(path).read_text()
+    lines = text.splitlines()
+    def_start = next(
+        (i for i, line in enumerate(lines) if TAIL_START.match(line)),
+        None,
+    )
+    if def_start is None:
+        print("%s: no reference-link tail (no [GDK-nnn]: line)" % path)
+        return None
+    body = lines[:def_start]
+    defs = {}
+    dupes = []
+    for i, line in enumerate(lines[def_start:], def_start + 1):
+        m = DEF.match(line)
+        if not m:
+            continue
+        key, url = m.group(1), m.group(2)
+        if key in defs:
+            dupes.append((key, i))
+        defs[key] = (url, i)
+    sections = []
+    heads = [(i, line[3:]) for i, line in enumerate(body) if line.startswith("## ")]
+    for idx, (i, title) in enumerate(heads):
+        end = heads[idx + 1][0] if idx + 1 < len(heads) else len(body)
+        chunk = "\n".join(body[i:end])
+        keys = set(CITE.findall(chunk))
+        sections.append((title, keys, i + 1))
+    stale = [
+        (i, line)
+        for i, line in enumerate(lines, 1)
+        if "midagedev.github.io" in line
+    ]
+    return {
+        "path": path,
+        "sections": sections,
+        "defs": defs,
+        "dupes": dupes,
+        "stale": stale,
+    }
+
+
+def keynum(k):
+    return int(k.split("-")[1])
+
+
+fails = []
+parsed = {}
+for path in ("CHANGELOG.md", "CHANGELOG.ko.md"):
+    got = parse(path)
+    if got is None:
+        raise SystemExit(0)
+    parsed[path] = got
+    cited = set()
+    for title, keys, _start in got["sections"]:
+        cited |= keys
+        for key in sorted(keys, key=keynum):
+            if key not in got["defs"]:
+                fails.append(
+                    "%s section %r: cites %s with no tail definition"
+                    % (path, title, key)
+                )
+    for key, (url, line) in sorted(got["defs"].items(), key=lambda kv: keynum(kv[0])):
+        if key not in cited:
+            fails.append(
+                "%s:%d defines %s but no section cites it" % (path, line, key)
+            )
+        want = WANT.format(key)
+        if url != want:
+            fails.append(
+                "%s:%d %s URL is %r, want %r" % (path, line, key, url, want)
+            )
+    for key, line in got["dupes"]:
+        fails.append("%s:%d duplicate tail definition for %s" % (path, line, key))
+    for line, text in got["stale"]:
+        fails.append(
+            "%s:%d tail URL still uses midagedev.github.io — %s"
+            % (path, line, text.strip())
+        )
+
+en_titles = [t for t, _, _ in parsed["CHANGELOG.md"]["sections"]]
+ko_titles = [t for t, _, _ in parsed["CHANGELOG.ko.md"]["sections"]]
+if en_titles != ko_titles:
+    fails.append(
+        "section headings differ between CHANGELOG.md and CHANGELOG.ko.md: %s vs %s"
+        % (en_titles, ko_titles)
+    )
+else:
+    en_map = {t: k for t, k, _ in parsed["CHANGELOG.md"]["sections"]}
+    ko_map = {t: k for t, k, _ in parsed["CHANGELOG.ko.md"]["sections"]}
+    for title in en_titles:
+        e, k = en_map[title], ko_map[title]
+        if e == k:
+            continue
+        only_en = ", ".join(sorted(e - k, key=keynum))
+        only_ko = ", ".join(sorted(k - e, key=keynum))
+        bits = []
+        if only_en:
+            bits.append("en-only " + only_en)
+        if only_ko:
+            bits.append("ko-only " + only_ko)
+        fails.append(
+            "section %r: en/ko key sets differ (%s)" % (title, "; ".join(bits))
+        )
+
+if fails:
+    print("\n".join(fails))
+CHANGELOGKEYSPY
+)
+if [[ -n "$changelog_keys" ]]; then
+  fail "CHANGELOG key/tail contract broken:"$'\n'"$changelog_keys"
+fi
+ok "CHANGELOG.md and CHANGELOG.ko.md cite the same keys per section; every citation has a gadak.dev tail"
+
 echo "doc-checks: all passed"
