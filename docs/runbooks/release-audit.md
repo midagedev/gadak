@@ -137,6 +137,37 @@ different people.
    closed, parent closed with a one-paragraph summary of what got simpler.
    Update this runbook with anything the cycle taught.
 
+## Version pins at tag time
+
+The version owner is `git describe --tags --abbrev=0`. After a tag,
+`tools/doc-checks.sh` check 6 (README status lines, `Last tagged:`) and
+check 29 (Scoop / AUR) compare these files to it. Scoop and AUR also
+carry hashes from that tag's `checksums.txt`, which does not exist until
+the GitHub release is published — bump them with
+`contrib/scoop/update.sh <tag>` and
+`contrib/aur/gadak-bin/update.sh <tag>`, not by editing the version
+alone.
+
+In-repo pins to bump:
+
+- `README.md` — status line, **minor** only (`v0.16.1` → `0.16`)
+- `README.ko.md` — same minor
+- `docs/STATE_OF_PLAY.md` — `Last tagged:` is the tag itself (`v0.16.1`)
+- `contrib/scoop/gadak.json` — top-level `"version"`, full patch (`0.16.1`)
+- `contrib/aur/gadak-bin/PKGBUILD` — `pkgver=`, full patch (`0.16.1`)
+
+Not in-repo pins (the tag is the source; do not hand-edit):
+
+- Homebrew `gadak-cli` — `.goreleaser.yaml` `brews` pushes
+  `midagedev/homebrew-tap`
+- Homebrew `gadak` cask — `.github/workflows/desktop-release.yml`
+  renders from the tag
+- `desktop/build-app.sh` — `CFBundleShortVersionString` from
+  `git describe --tags --always`
+- `contrib/omarchy/gadak/manifest.json` `"version"` — widget schema
+  (`0.1.0`), not the product tag
+- `contrib/raycast/` — no product-version field
+
 ## What this runbook is not
 
 Not a substitute for continuous quality (bugs ship immediately; reviews

@@ -1450,4 +1450,61 @@ if [[ -n "$legacy_fieldmap" ]]; then
 fi
 ok "docs do not teach leftover fieldMap/editableFields as the current field-mapping method"
 
+# ── 29. Packaging manifests pin the tagged version ───────────────────────
+# Same version owner as check 6 (`$tag` from `git describe --tags --abbrev=0`,
+# already computed; do not describe again). Tagless checkout skips, same as
+# check 6: this is drift between files, not tagging policy.
+# The originating issue key is omitted on purpose: it is not yet on the
+# public backlog or tools/backlog-private-keys.txt, and naming it here
+# would trip check 23 before this assertion can run.
+#
+# Check 6 compares the truncated minor because the README status line says
+# `0.16`. These manifests pin a full patch, so they must equal `0.16.1`,
+# not `0.16`. Do not reuse `$minor` here.
+#
+# Own numbered check rather than folding into 6: fail() exits on the first
+# FAIL, and putting this last is what makes a FAIL-first run still print
+# every pre-existing ok line. The comparison (full patch vs minor) is also
+# a different contract than the front-door docs.
+#
+# The on-change guards (contrib/scoop/verify.sh, contrib/aur/gadak-bin/
+# check-pkgver.sh) stay; they also check hashes and packaging rules. This
+# is the always-on half that a tag can actually trip.
+#
+# FAIL-first 2026-08-23 on this tree: both manifests still say 0.15.2
+# against latest tag v0.16.1. That red is by design — the pins move at
+# tag time with checksums.txt, which does not exist until the release is
+# published.
+if [[ -z "$tag" ]]; then
+  ok "no tag reachable — packaging version guard skipped"
+else
+  want="${tag#v}"
+  packaging_drift=""
+
+  scoop_ver="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' contrib/scoop/gadak.json)"
+  if [[ "$scoop_ver" != "$want" ]]; then
+    packaging_drift+="  contrib/scoop/gadak.json version=${scoop_ver} does not match latest tag ${tag} (want ${want})"$'\n'
+  fi
+
+  pkgver_line="$(grep -E '^pkgver=' contrib/aur/gadak-bin/PKGBUILD || true)"
+  if [[ -z "$pkgver_line" ]]; then
+    packaging_drift+="  contrib/aur/gadak-bin/PKGBUILD has no pkgver= line (latest tag ${tag}, want ${want})"$'\n'
+  else
+    pkgver="${pkgver_line#pkgver=}"
+    pkgver="${pkgver%%$'\n'*}"
+    pkgver="${pkgver#\'}"
+    pkgver="${pkgver%\'}"
+    pkgver="${pkgver#\"}"
+    pkgver="${pkgver%\"}"
+    if [[ "$pkgver" != "$want" ]]; then
+      packaging_drift+="  contrib/aur/gadak-bin/PKGBUILD pkgver=${pkgver} does not match latest tag ${tag} (want ${want})"$'\n'
+    fi
+  fi
+
+  if [[ -n "$packaging_drift" ]]; then
+    fail "packaging manifests disagree with latest tag ${tag}:"$'\n'"${packaging_drift%$'\n'}"
+  fi
+  ok "scoop manifest and AUR PKGBUILD pkgver agree with ${tag}"
+fi
+
 echo "doc-checks: all passed"
