@@ -73,3 +73,4 @@ site/public/media
 # Astro build output (site/)
 site/dist/
 site/.astro/
+e2e/demo/test-results-scale/

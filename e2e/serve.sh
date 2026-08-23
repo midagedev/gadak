@@ -23,6 +23,10 @@ HOME_DIR="$TMP/home-${PORT}"
 BIN="$TMP/gadak"
 DB="$HOME_DIR/gadak.db"
 CFG="$HOME_DIR/config.json"
+# Media recordings can scale the fixture up (e2e/demo/scale-demo.spec.ts
+# records the 20k-issue flagship over a `gadak snapshot --scale` copy).
+# The e2e suite never sets this, so its seed stays the committed fixture.
+SEED_DB="${GADAK_SEED_DB:-$ROOT/examples/demo.db}"
 
 mkdir -p "$TMP" "$HOME_DIR"
 
@@ -32,8 +36,8 @@ CGO_ENABLED=0 go build -o "$BIN" ./cmd/gadak
 echo "[e2e] building web UI…"
 npm run build
 
-echo "[e2e] seeding home from examples/demo.db…"
-cp -f "$ROOT/examples/demo.db" "$DB"
+echo "[e2e] seeding home from ${SEED_DB}…"
+cp -f "$SEED_DB" "$DB"
 # Drop any leftover WAL/SHM from a previous run so sqlite opens cleanly.
 rm -f "${DB}-wal" "${DB}-shm"
 # GDK-105 moved personal state (saved views, visits, search history) out of the

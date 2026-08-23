@@ -1,5 +1,5 @@
 .PHONY: build test vet typecheck theme-check bench scan docker plugins-test \
-	media media-web media-search media-agent media-groupby media-mcp media-prep media-deps brand \
+	media media-web media-search media-agent media-groupby media-scale media-mcp media-prep media-deps brand \
 	hosted-demo hosted-demo-test
 
 build:
@@ -138,6 +138,21 @@ media-groupby: media-deps
 	rm -rf e2e/demo/test-results-groupby
 	GADAK_MEDIA=1 ./node_modules/.bin/playwright test --config e2e/demo/groupby.config.ts
 	bash e2e/demo/export-groupby.sh
+
+# Scale flagship: the 20k-issue mirror (site hero). Deterministic — the
+# snapshot is regenerated from examples/demo.db (seed 1) each take, never
+# committed (300+ MB). Not in the `media` aggregate for the same size reason;
+# the committed artifacts (scale.gif/mp4) are what the site ships.
+media-scale: media-deps
+	@mkdir -p $(MEDIA_DIR) e2e/.tmp
+	@echo "media-scale: generating 20k snapshot from examples/demo.db…"
+	GADAK_HOME=e2e/.tmp/home ./e2e/.tmp/gadak snapshot e2e/.tmp/demo-scale.db \
+		--from examples/demo.db --scale 20000 --spread 180d --force >/dev/null
+	@echo "media-scale: recording scale flagship…"
+	rm -rf e2e/demo/test-results-scale
+	GADAK_MEDIA=1 GADAK_SEED_DB="$$(pwd)/e2e/.tmp/demo-scale.db" \
+		./node_modules/.bin/playwright test --config e2e/demo/scale.config.ts
+	bash e2e/demo/export-scale.sh
 
 # Live Claude Code + gadak MCP (VHS). Requires vhs and a Claude Code login;
 # prepare-agent.sh copies credentials into /private/tmp/gadak-demo.

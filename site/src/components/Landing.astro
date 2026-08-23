@@ -10,80 +10,117 @@ interface Props {
 }
 const { lang } = Astro.props
 const t = strings[lang]
+const installHref = lang === 'en' ? '/install/' : '/ko/install/'
 ---
 
 <Base lang={lang} title={t.title} description={t.description}>
+  {/* Hero: the promise first. Speed is the product; prove it in the same
+      viewport with the recorded flagship, not a rendered mockup. */}
   <section class="hero">
-    <h1>gadak</h1>
-    <p class="tagline">{t.heroTagline}</p>
-    <p class="lede">{t.heroLede}</p>
+    <p class="eyebrow">{t.hero.eyebrow}</p>
+    <h1>{t.hero.heading}</h1>
+    <p class="lede">{t.hero.lede}</p>
     <div class="doors">
-      <Door primary href="/demo/" title={t.doors.demoTitle} sub={t.doors.demoSub} />
-      <div class="door-row">
-        <Door href="/backlog/" title={t.doors.backlogTitle} sub={t.doors.backlogSub} />
-        <Door href="https://github.com/midagedev/gadak" title={t.doors.sourceTitle} sub={t.doors.sourceSub} />
-      </div>
+      <Door primary href="/demo/" title={t.hero.doors.demoTitle} sub={t.hero.doors.demoSub} />
+      <Door href={installHref} title={t.hero.doors.installTitle} sub={t.hero.doors.installSub} />
     </div>
-  </section>
-
-  <Thread label={t.audiences.label} />
-
-  <section class="audiences">
-    <article>
-      <h2>{t.audiences.teamTitle}</h2>
-      <p class="lede-small">{t.audiences.teamLede}</p>
-      <ul>
-        {t.audiences.teamPoints.map((point) => <li set:html={point} />)}
-      </ul>
+    <figure class="flagship">
       <MediaSlot
-        slot={lang === 'en' ? 'C1 · group-by' : 'C1 · 묶기 전환'}
-        src="/media/groupby.mp4"
-        poster="/media/groupby-poster.png"
+        slot={lang === 'en' ? 'flagship · 20k mirror' : '플래그십 · 2만 건 미러'}
+        src="/media/scale.mp4"
+        poster="/media/scale-poster.png"
+        autoplay
       />
-    </article>
-    <article>
-      <h2>{t.audiences.agentTitle}</h2>
-      <p class="lede-small">{t.audiences.agentLede}</p>
-      <ul>
-        {t.audiences.agentPoints.map((point) => <li set:html={point} />)}
-      </ul>
-      <MediaSlot slot={lang === 'en' ? 'H1 · one round with an agent' : 'H1 · 에이전트 한 판'} />
-    </article>
+      <figcaption>{t.hero.videoCaption}</figcaption>
+    </figure>
   </section>
 
-  <Thread />
+  <Thread label={t.speed.label} />
 
+  {/* Measurements right under the hero: the video says "fast", the table
+      says how much, and every number is checkable. */}
   <section class="speed">
     <h2>{t.speed.heading}</h2>
-    <table>
-      <tbody>
-        {
-          t.speed.rows.map((row) => (
-            <tr>
-              <td>{row.what}</td>
-              <td class="value">{row.value}</td>
-            </tr>
-          ))
-        }
-      </tbody>
-    </table>
+    <dl>
+      {
+        t.speed.rows.map((row) => (
+          <div class="row">
+            <dt>{row.what}</dt>
+            <dd>{row.value}</dd>
+          </div>
+        ))
+      }
+    </dl>
     <p class="note">{t.speed.note}</p>
   </section>
 
-  <Thread />
+  <Thread label={t.ux.label} />
+
+  {/* The daily loop: three exhibits, each a real recording or an honest
+      placeholder until its take lands. Alternating text/media, no card grid. */}
+  <section class="exhibit">
+    <div class="text">
+      <h2>{t.ux.search.heading}</h2>
+      <p>{t.ux.search.body}</p>
+    </div>
+    <MediaSlot
+      slot={lang === 'en' ? 'search' : '검색'}
+      src="/media/search.mp4"
+      poster="/media/search-poster.png"
+    />
+  </section>
+
+  <section class="exhibit flip">
+    <div class="text">
+      <h2>{t.ux.group.heading}</h2>
+      <p>{t.ux.group.body}</p>
+    </div>
+    <MediaSlot
+      slot={lang === 'en' ? 'group-by' : '묶기'}
+      src="/media/groupby.mp4"
+      poster="/media/groupby-poster.png"
+    />
+  </section>
+
+  <section class="exhibit">
+    <div class="text">
+      <h2>{t.ux.history.heading}</h2>
+      <p>{t.ux.history.body}</p>
+    </div>
+    <MediaSlot slot={lang === 'en' ? 'F2 · history' : 'F2 · 히스토리'} />
+  </section>
+
+  <Thread label={t.agent.label} />
 
   <section class="agent">
-    <h2>{t.agentSection.heading}</h2>
-    <p>{t.agentSection.body}</p>
+    <h2>{t.agent.heading}</h2>
+    <p>{t.agent.body}</p>
+    <figure class="media-pair">
+      <MediaSlot
+        slot={lang === 'en' ? 'agent round' : '에이전트 한 판'}
+        src="/media/agent.mp4"
+        poster="/media/agent-poster.png"
+      />
+      <figcaption>{t.agent.videoCaption}</figcaption>
+    </figure>
     <pre><code>{`gadak create NMB "Ship the export" --field team=platform
 gadak claim NMB-1042
 gadak transition NMB-1042 done -m "shipped"`}</code></pre>
-    <p class="caption">{t.agentSection.snippetCaption}</p>
+    <p class="caption">{t.agent.snippetCaption}</p>
     <pre><code>{`{
   "mcpServers": {
     "gadak": { "command": "gadak", "args": ["mcp"] }
   }
 }`}</code></pre>
+  </section>
+
+  <Thread label={t.origin.label} />
+
+  <section class="origin">
+    <h2>{t.origin.heading}</h2>
+    <ul>
+      {t.origin.points.map((point) => <li>{point}</li>)}
+    </ul>
   </section>
 
   <Thread />
@@ -101,79 +138,105 @@ gadak transition NMB-1042 done -m "shipped"`}</code></pre>
 brew install midagedev/tap/gadak-cli     # CLI only (macOS, Linux)
 
 gadak init && gadak sync && gadak serve`}</code></pre>
-    <p class="note"><a href={lang === 'en' ? '/install/' : '/ko/install/'}>{lang === 'en' ? 'All platforms →' : '모든 플랫폼 →'}</a></p>
+    <p class="note"><a href={installHref}>{lang === 'en' ? 'All platforms →' : '모든 플랫폼 →'}</a></p>
   </section>
 </Base>
 
 <style>
+  .hero {
+    padding-top: 3.5rem;
+  }
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    letter-spacing: 0.14em;
+    color: var(--accent);
+    margin: 0 0 0.6rem;
+  }
   .hero h1 {
-    font-size: 3rem;
+    font-size: 2.75rem;
     font-weight: 700;
     letter-spacing: -0.02em;
-    margin: 4rem 0 0.35rem;
-  }
-  .tagline {
-    color: var(--accent);
-    font-size: 1.1875rem;
-    font-weight: 560;
-    margin: 0 0 1.75rem;
+    line-height: 1.12;
+    margin: 0 0 1.1rem;
+    max-width: 22ch;
   }
   .lede {
     font-size: 1.0625rem;
+    color: var(--ink-2);
     margin: 0 0 2rem;
+    max-width: 58ch;
   }
   .doors {
     display: grid;
     gap: 0.75rem;
-  }
-  .door-row {
-    display: grid;
-    gap: 0.75rem;
+    margin-bottom: 2.5rem;
   }
   @media (min-width: 40rem) {
-    .door-row {
-      grid-template-columns: 1fr 1fr;
+    .doors {
+      grid-template-columns: 1.4fr 1fr;
     }
+  }
+  .flagship {
+    margin: 0;
+  }
+  figcaption {
+    font-size: 0.8125rem;
+    color: var(--ink-3);
+    margin-top: 0.6rem;
   }
 
-  .audiences {
+  .speed dl {
+    margin: 0;
+    border-top: 1px solid var(--border);
+  }
+  .speed .row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 1.5rem;
+    padding: 0.7rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .speed dt {
+    font-size: 0.9688rem;
+    color: var(--ink-2);
+  }
+  .speed dd {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: 1rem;
+    color: var(--ink);
+    white-space: nowrap;
+  }
+  .speed .note {
+    font-size: 0.875rem;
+    color: var(--ink-3);
+    margin: 0.9rem 0 0;
+  }
+
+  .exhibit {
     display: grid;
-    gap: 2.5rem;
+    gap: 1.75rem;
+    margin-bottom: 3.5rem;
+    align-items: start;
   }
   @media (min-width: 46rem) {
-    .audiences {
-      grid-template-columns: 1fr 1fr;
-      gap: 2rem;
+    .exhibit {
+      grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    }
+    .exhibit.flip .text {
+      order: 2;
     }
   }
-  .audiences h2 {
+  .exhibit h2 {
     font-size: 1.25rem;
-    margin: 0 0 0.5rem;
+    margin: 0 0 0.6rem;
   }
-  .lede-small {
+  .exhibit p {
+    margin: 0;
     color: var(--ink-2);
     font-size: 0.9688rem;
-    margin: 0 0 0.9rem;
-  }
-  ul {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-  li {
-    padding: 0.45rem 0 0.45rem 1.1rem;
-    border-bottom: 1px solid var(--border);
-    font-size: 0.9375rem;
-    position: relative;
-  }
-  li::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 50%;
-    width: 0.55rem;
-    height: 1px;
-    background: var(--accent);
   }
 
   section h2 {
@@ -200,24 +263,29 @@ gadak init && gadak sync && gadak serve`}</code></pre>
     color: var(--ink-3) !important;
     margin-top: 1.25rem !important;
   }
-  table {
-    border-collapse: collapse;
-    width: 100%;
-    max-width: 34rem;
+  .media-pair {
+    margin: 1.5rem 0;
   }
-  td {
-    padding: 0.6rem 0;
+
+  .origin ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .origin li {
+    padding: 0.55rem 0 0.55rem 1.1rem;
     border-bottom: 1px solid var(--border);
     font-size: 0.9375rem;
+    position: relative;
+    color: var(--ink-2);
   }
-  td.value {
-    font-family: var(--font-mono);
-    text-align: right;
-    color: var(--accent);
-    white-space: nowrap;
-  }
-  .note {
-    font-size: 0.8438rem;
-    color: var(--ink-3) !important;
+  .origin li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 1.15rem;
+    width: 0.55rem;
+    height: 1px;
+    background: var(--accent);
   }
 </style>

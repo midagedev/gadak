@@ -7,14 +7,23 @@ interface Props {
   note?: string
   src?: string
   poster?: string
+  autoplay?: boolean
 }
-const { slot, note, src, poster } = Astro.props
+const { slot, note, src, poster, autoplay } = Astro.props
 ---
 
 <figure class="slot">
   {
     src ? (
-      <video controls muted loop playsinline poster={poster} src={src} />
+      <video
+        controls={!autoplay}
+        muted
+        loop
+        playsinline
+        autoplay={autoplay}
+        poster={poster}
+        src={src}
+      />
     ) : (
       <div class="empty">
         <span class="name">{slot}</span>
