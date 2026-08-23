@@ -4,9 +4,23 @@
 # tools/backlog-snapshot.sh locally and by pages.yml on the artifact.
 #
 #   tools/backlog-scrub-check.sh <snapshot-dir>
+#   tools/backlog-scrub-check.sh <snapshot.tar.gz>
+#
+# A .tar.gz is unpacked to a temp dir (the committed form is one archive;
+# Pages still checks the exploded tree).
 set -euo pipefail
 
-DIR="${1:?usage: backlog-scrub-check.sh <snapshot-dir>}"
+DIR="${1:?usage: backlog-scrub-check.sh <snapshot-dir-or-archive>}"
+if [[ -f "$DIR" ]]; then
+  case "$DIR" in
+    *.tar.gz) ;;
+    *) echo "backlog-scrub-check: snapshot file must be a .tar.gz (got $DIR)" >&2; exit 1 ;;
+  esac
+  _unpack="$(mktemp -d "${TMPDIR:-/tmp}/gadak-scrub-XXXXXX")"
+  tar -xzf "$DIR" -C "$_unpack"
+  DIR="$_unpack"
+  trap 'rm -rf "$_unpack"' EXIT
+fi
 BOOT="$DIR/bootstrap.json"
 [ -f "$BOOT" ] || { echo "missing $BOOT" >&2; exit 1; }
 

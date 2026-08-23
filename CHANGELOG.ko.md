@@ -668,6 +668,18 @@
   필드만 — 게이트는 그 단언을 이름으로 갖고, doc-checks가 **커밋된**
   스냅샷에 스크럽 게이트를 돌려 빨간 스냅샷이 초록 커밋에 실릴 수
   없습니다.
+- **게시 스냅샷이 이제 파일 하나입니다** ([GDK-669]). 공개 백로그는 git에
+  613개의 펼쳐진 JSON 파일로 실려 다녔고, 기능 커밋마다 그중 2~4개가
+  화물로 따라왔습니다 — "새 detail 파일 `git add`를 잊었다" 클래스를
+  단속하는 데 doc-checks 셋이 필요했습니다. 추적되는 형태는 단일
+  `examples/backlog-snapshot.tar.gz`(1.48 MB였던 것이 380 KB)로, 뷰어가
+  실제로 fetch할 바이트 그대로를 담고, 한 줄짜리 `MANIFEST`가 함께
+  들어갑니다(`tar -xOf … MANIFEST`가 jq 없이 "안에 뭐가 있나"에
+  답합니다). Pages와 로컬 hosted 빌드가 빌드 시점에 풀어내며, 뷰어의
+  `detail/<KEY>.json` URL은 불변입니다. 세 게이트 — 인용 키 댕글링 금지
+  ([GDK-269]), index/detail 정합([GDK-634]), 커밋된 스냅샷의 scrub
+  ([GDK-675]) — 는 전부 아카이브를 읽고, 각각 위반을 주입해 빨강을
+  실측한 뒤 초록이 됐습니다.
 - **공개 백로그가 각 이슈가 실제로 말하는 것을 게시합니다** ([GDK-430]).
   스크럽이 모든 콘텐츠 표면을 한 축으로 취급해 설명을 코멘트·첨부와 함께
   null로 만들었고, 그래서 게시된 페이지는 헤드라인 목록이었습니다:
@@ -2367,3 +2379,4 @@ gadak의 백로그를 gadak으로 하루 도그푸딩하고, 착륙하는 대로
 [GDK-586]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-586
 [GDK-588]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-588
 [GDK-211]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-211
+[GDK-669]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-669

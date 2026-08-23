@@ -12,7 +12,8 @@
  *   ./tools/hosted-demo/preview.sh   # serve dist/hosted at :4173/gadak/
  */
 import { spawnSync } from 'node:child_process'
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -155,7 +156,14 @@ run(bin, [
 // ── 3b. Public backlog (GDK-389) — committed scrubbed snapshot, own bundle ──
 // A second Vite build because basePath() is compile-time BASE_URL: the same
 // bundle under /gadak/backlog/ would fetch /gadak/config.json (the demo's).
-const backlogSnapshot = join(root, 'examples', 'backlog-snapshot')
+// Git tracks examples/backlog-snapshot.tar.gz. The viewer still fetches
+// detail/<KEY>.json, so unpack to a temp tree and copy as before.
+let backlogSnapshot = join(root, 'examples', 'backlog-snapshot')
+const backlogArchive = join(root, 'examples', 'backlog-snapshot.tar.gz')
+if (!existsSync(join(backlogSnapshot, 'bootstrap.json')) && existsSync(backlogArchive)) {
+  backlogSnapshot = mkdtempSync(join(tmpdir(), 'gadak-backlog-'))
+  run('bash', ['tools/backlog-snapshot.sh', '--unpack', backlogSnapshot])
+}
 if (existsSync(join(backlogSnapshot, 'bootstrap.json'))) {
   const backlogBase = basePath.endsWith('/') ? `${basePath}backlog/` : `${basePath}/backlog/`
   const backlogOut = join(outDir, 'backlog')
@@ -186,7 +194,7 @@ if (existsSync(join(backlogSnapshot, 'bootstrap.json'))) {
   }
   console.log(`hosted-demo: public backlog at ${backlogOut} (base ${backlogBase})`)
 } else {
-  console.log('hosted-demo: examples/backlog-snapshot missing — skipping backlog page')
+  console.log('hosted-demo: public backlog snapshot missing — skipping backlog page')
 }
 
 // ── 4. Sanity ───────────────────────────────────────────────────────────────

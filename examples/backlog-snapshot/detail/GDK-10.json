@@ -1,1 +1,0 @@
-{"attachments":[],"bodies":{},"comments":[],"deploy":null,"description_adf":{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"MCP gadak_search가 IssueLites를 O(n) 스캔한다. 미러 규모가 크면 체감 — 인덱스 경로로."}]}]},"development_opinion":null,"history":[],"issue_key":"GDK-10","key":"GDK-10","linked_issues":[],"linked_prs":[],"qa_context":null}

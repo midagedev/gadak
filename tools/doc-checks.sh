@@ -979,12 +979,12 @@ ok "docs/INSTALL.md and README.md name init --standalone"
 # Skipped deliberately: CLAUDE.md, AGENTS.md, skills/**, docs/decisions/**,
 # specs/**, internal/**. Agent-instruction files pay context for every link and
 # have no reader to advertise to; decisions are append-only by their own rule.
-BACKLOG_SNAPSHOT="examples/backlog-snapshot/bootstrap.json"
+BACKLOG_ARCHIVE="examples/backlog-snapshot.tar.gz"
 READER_DOCS=(CHANGELOG.md CHANGELOG.ko.md README.md README.ko.md
   docs/ARCHITECTURE.md docs/DERIVE.md docs/DESKTOP.md docs/INSTALL.md
   docs/ROADMAP.md docs/STATE_OF_PLAY.md desktop/README.md)
-if [[ -f "$BACKLOG_SNAPSHOT" ]] && command -v jq >/dev/null; then
-  published=$(jq -r '.issues[].issue_key' "$BACKLOG_SNAPSHOT" | sort -u)
+if [[ -f "$BACKLOG_ARCHIVE" ]] && command -v jq >/dev/null; then
+  published=$(tar -xOf "$BACKLOG_ARCHIVE" bootstrap.json | jq -r '.issues[].issue_key' | sort -u)
   cited=$(grep -ohE 'GDK-[0-9]+' "${READER_DOCS[@]}" 2>/dev/null | sort -u)
   dangling=$(comm -23 <(printf '%s\n' "$cited") <(printf '%s\n' "$published") | tr '\n' ' ')
   if [[ -n "${dangling// /}" ]]; then
@@ -1029,11 +1029,11 @@ ok "SKILL.md does not put saved views in the mirror; names local.db"
 # reference for an external reader. Tests, e2e, the snapshot itself, and the
 # allowlist are not public surfaces for this purpose.
 #
-# The snapshot is one-line JSON (a line-oriented grep of bootstrap.json has
-# already gone vacuous twice — tools/backlog-scrub-check.sh). Keys are
-# extracted as structural tokens `"key":"GDK-N"`, not by scanning the line.
-# An absent snapshot or a snapshot with 0 keys is a fail: that is the
-# published set vanishing, not a clean tree.
+# The snapshot is one-line JSON inside the archive (a line-oriented grep of
+# bootstrap.json has already gone vacuous twice — tools/backlog-scrub-check.sh).
+# Keys are extracted as structural tokens `"key":"GDK-N"` from the packed
+# bootstrap.json, not by scanning the gzip. An absent snapshot or a snapshot
+# with 0 keys is a fail: that is the published set vanishing, not a clean tree.
 #
 # FAIL-first 2026-08-22 against this worktree's unmodified sources + snapshot:
 # 21 distinct keys cited on tracked public surfaces, absent from
@@ -1041,7 +1041,10 @@ ok "SKILL.md does not put saved views in the mirror; names local.db"
 #   GDK-461 GDK-462 GDK-463 GDK-464 GDK-465 GDK-466 GDK-467 GDK-468
 #   GDK-469 GDK-470 GDK-474 GDK-476 GDK-477 GDK-478 GDK-479 GDK-481
 #   GDK-482 GDK-507 GDK-579 GDK-580 GDK-600
-BACKLOG_SNAP="examples/backlog-snapshot/bootstrap.json"
+# FAIL-first 2026-08-23 (packed medium): the same extraction against
+# `tar -xOf examples/backlog-snapshot.tar.gz bootstrap.json` plus a cited
+# key not in that set fails; dropping the extra key is green.
+BACKLOG_SNAP="$BACKLOG_ARCHIVE"
 BACKLOG_PRIVATE="tools/backlog-private-keys.txt"
 
 if [[ ! -f "$BACKLOG_SNAP" ]]; then
@@ -1051,7 +1054,7 @@ if [[ ! -f "$BACKLOG_PRIVATE" ]]; then
   fail "$BACKLOG_PRIVATE is missing — it is the private-key allowlist for this check (GDK-269)"
 fi
 
-published=$(grep -oE '"key":"GDK-[0-9]+"' "$BACKLOG_SNAP" | grep -oE 'GDK-[0-9]+' | sort -u) || true
+published=$(tar -xOf "$BACKLOG_SNAP" bootstrap.json | grep -oE '"key":"GDK-[0-9]+"' | grep -oE 'GDK-[0-9]+' | sort -u) || true
 if [[ -z "$published" ]]; then
   fail "public backlog snapshot has 0 issue keys ($BACKLOG_SNAP) — refusing to treat an empty snapshot as clean"
 fi
@@ -1067,7 +1070,7 @@ done < "$BACKLOG_PRIVATE"
 
 cited=$(
   git ls-files \
-    | grep -vE '_test\.go$|\.spec\.ts$|^e2e/|^examples/backlog-snapshot/|^tools/backlog-private-keys\.txt$' \
+    | grep -vE '_test\.go$|\.spec\.ts$|^e2e/|^examples/backlog-snapshot|^tools/backlog-private-keys\.txt$' \
     | xargs grep -oEhI -E '\bGDK-[0-9]+\b' -- \
     | sort -u
 ) || true
@@ -1081,21 +1084,23 @@ if [[ -n "$dangling" ]]; then
 fi
 ok "every GDK key on a public surface resolves on the public backlog or the private-key allowlist"
 
-# ── 24. Public backlog snapshot keys match tracked detail JSON (GDK-634) ─
-# Class: bootstrap.json listing a key whose detail JSON is not git-tracked
-# publishes a 404 detail page; a tracked detail whose key is absent from
-# bootstrap.json is an orphan the index will not link. Disk presence is not
-# enough — commit 2b9cb60 shipped the index without the 21 new detail files
-# that sat untracked on disk; 439bb8c closed it by eye.
+# ── 24. Public backlog snapshot keys match packed detail JSON (GDK-634) ─
+# Class: bootstrap.json listing a key whose detail JSON is not in the archive
+# publishes a 404 detail page; a packed detail whose key is absent from
+# bootstrap.json is an orphan the index will not link.
 #
-# Existence is git-tracked state (`git ls-files -- examples/backlog-snapshot/detail/`),
-# not a filesystem glob. Key extraction from bootstrap.json reuses the
-# structural token `"key":"GDK-N"` and the already-non-empty `$published`
-# from check 23 (a missing snapshot or 0 keys already failed there).
+# Before the packed medium the tree was 613 git-tracked JSON files, and existence was
+# `git ls-files -- examples/backlog-snapshot/detail/` because commit 2b9cb60
+# shipped the index without 21 new detail files that sat untracked on disk.
+# One archive is atomic, so that class cannot recur. The remaining hole is
+# an internally inconsistent archive (bootstrap keys ≠ detail/ members).
+# Members come from `tar -tzf`, not a filesystem glob of an unpacked tree.
+# Key extraction from bootstrap.json reuses the structural token `"key":"GDK-N"`
+# and the already-non-empty `$published` from check 23.
 #
 # FAIL-first 2026-08-22 (git state not mutated): drop one published key from
 # the tracked-detail variable → missing; append a fake key → orphan.
-# Recorded in scratch-634-failfirst.log.
+# FAIL-first 2026-08-23 (packed medium): same injection against tar members.
 backlog_snapshot_detail_consistency() {
   local published_keys="$1"
   local tracked_keys="$2"
@@ -1105,26 +1110,26 @@ backlog_snapshot_detail_consistency() {
   orphans=$(comm -13 <(printf '%s\n' "$published_keys" | sed '/^$/d' | sort -u) \
                      <(printf '%s\n' "$tracked_keys" | sed '/^$/d' | sort -u) | sort -t- -k2,2n)
   if [[ -n "$missing" || -n "$orphans" ]]; then
-    body="public backlog snapshot index and git-tracked detail JSON are inconsistent (GDK-634):"
+    body="public backlog snapshot index and packed detail JSON are inconsistent (GDK-634):"
     if [[ -n "$missing" ]]; then
       missing_list=$(printf '%s\n' "$missing" | tr '\n' ' ')
       missing_list="${missing_list%" "}"
-      body+=$'\n'"  missing tracked detail: $missing_list"
+      body+=$'\n'"  missing packed detail: $missing_list"
     fi
     if [[ -n "$orphans" ]]; then
       orphan_list=$(printf '%s\n' "$orphans" | tr '\n' ' ')
       orphan_list="${orphan_list%" "}"
-      body+=$'\n'"  orphan tracked detail: $orphan_list"
+      body+=$'\n'"  orphan packed detail: $orphan_list"
     fi
-    body+=$'\n'"  re-run bash tools/backlog-snapshot.sh, then git add examples/backlog-snapshot/ (the lead does both)"
+    body+=$'\n'"  re-run bash tools/backlog-snapshot.sh, then git add examples/backlog-snapshot.tar.gz (the lead does both)"
     fail "$body"
   fi
-  ok "public backlog snapshot keys match git-tracked detail JSON (GDK-634)"
+  ok "public backlog snapshot keys match packed detail JSON (GDK-634)"
 } # end backlog_snapshot_detail_consistency
 
 tracked_detail=$(
-  git ls-files -- examples/backlog-snapshot/detail/ \
-    | sed -n 's|.*/\(GDK-[0-9][0-9]*\)\.json$|\1|p' \
+  tar -tzf "$BACKLOG_ARCHIVE" \
+    | sed -n 's|^detail/\(GDK-[0-9][0-9]*\)\.json$|\1|p' \
     | sort -u
 )
 backlog_snapshot_detail_consistency "$published" "$tracked_detail"
@@ -1135,12 +1140,15 @@ backlog_snapshot_detail_consistency "$published" "$tracked_detail"
 # a snapshot that failed the gate was committed and pushed anyway (the failure
 # was read through a pipe), and main went red on the Pages build (GDK-675).
 # Running the same gate here means "doc-checks green" implies "the tracked
-# snapshot is publishable".
-if [[ -f examples/backlog-snapshot/bootstrap.json ]] && command -v jq >/dev/null; then
-  if bash tools/backlog-scrub-check.sh examples/backlog-snapshot >/dev/null 2>&1; then
+# snapshot is publishable". The argument is the packed archive;
+# backlog-scrub-check.sh unpacks it.
+# FAIL-first 2026-08-23: unpack, set bootstrap.issues[0].assignee, repack → red;
+# unmodified archive → green.
+if [[ -f "$BACKLOG_ARCHIVE" ]] && command -v jq >/dev/null; then
+  if bash tools/backlog-scrub-check.sh "$BACKLOG_ARCHIVE" >/dev/null 2>&1; then
     ok "committed backlog snapshot passes the scrub gate (GDK-675)"
   else
-    scrub_out=$(bash tools/backlog-scrub-check.sh examples/backlog-snapshot 2>&1 || true)
+    scrub_out=$(bash tools/backlog-scrub-check.sh "$BACKLOG_ARCHIVE" 2>&1 || true)
     fail "committed backlog snapshot fails its scrub gate: $scrub_out"
   fi
 fi
