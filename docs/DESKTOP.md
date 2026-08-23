@@ -28,7 +28,8 @@ Gadak.app to Applications. The dmg is Developer ID-signed and notarized
 
 **Windows (from 0.16).** Download `Gadak-<version>-windows-x64.zip` or
 `Gadak-<version>-windows-arm64.zip` from the same release, unzip, run
-`gadak-desktop.exe`. Unsigned — signing is [GDK-211]. If Windows blocks the
+`gadak-desktop.exe`. Unsigned by decision, not by omission — [GDK-211], reasoning in
+[WINDOWS-SIGNING.md](WINDOWS-SIGNING.md). If Windows blocks the
 exe, use the CLI zip and `gadak serve`. Do not turn Smart App Control off.
 The wording and the CLI fallback live in
 [INSTALL.md](INSTALL.md#desktop-app-windows).

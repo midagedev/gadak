@@ -139,8 +139,11 @@ Windows 10 machines already have it via Edge). If the window never appears,
 install the runtime from
 <https://developer.microsoft.com/en-us/microsoft-edge/webview2/>.
 
-The build is **unsigned**. Signing is planned ([GDK-211]); this page does not
-name a date.
+The build is **unsigned**, and that is a decision rather than a gap
+([GDK-211], reasoning in [WINDOWS-SIGNING.md](WINDOWS-SIGNING.md)): a fresh
+certificate would not silence SmartScreen straight away, and Smart App Control
+cannot be bypassed per app at all. So the compensation is documentation plus
+the CLI route below, both of which work today.
 
 Windows may show one of two dialogs. Neither is a virus finding:
 

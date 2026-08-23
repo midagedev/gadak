@@ -3,7 +3,20 @@
 **Status (measured 2026-08-23 against [v0.16.1](https://github.com/midagedev/gadak/releases/tag/v0.16.1)):**
 Windows release binaries are **not Authenticode-signed**. macOS is
 Developer ID-signed and notarized ([SECURITY.md](../SECURITY.md#release-artifacts)).
-Signing the Windows files is [GDK-211]; this page does not name a date.
+
+**The decision (2026-08-23, [GDK-211]): Windows stays unsigned, and this page
+is the compensation.** Not a deferral — a choice, with a reason. A certificate
+would not buy what it looks like it buys: SmartScreen reputation accrues to a
+publisher over downloads, so a fresh certificate still shows the warning for a
+while, and Smart App Control cannot be bypassed per app at all — so the one
+dialog with no user-side override is the one signing would not immediately
+silence either. Against that, the CLI zip already gives every blocked user a
+working route, and it is the route the docs point at.
+
+What would reopen this: a free OSS certificate we actually qualify for, or
+enough download volume that publisher reputation would carry. Until then, the
+honest thing is a page that says which file you have and what the warning is,
+rather than a roadmap line promising a date.
 
 This page is the place to check when Windows shows a warning. It is not a
 claim that the unsigned zip is “safe”. It is how to see **which file you

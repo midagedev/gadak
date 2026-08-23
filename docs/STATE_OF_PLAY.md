@@ -183,7 +183,8 @@ secret scan (T7.4), Docker and the release pipeline (T7.5/T7.6), the MCP server
   see [SECURITY.md](../SECURITY.md).
 - From this tree, `.github/workflows/desktop-release.yml` attaches an unsigned
   Windows portable zip (`Gadak-<ver>-windows-<x64|arm64>.zip`) on `v*` tags,
-  next to the macOS dmg. Signing is [GDK-211]. The first release that carries
+  next to the macOS dmg. Staying unsigned is the decision ([GDK-211]; why, in
+  `WINDOWS-SIGNING.md`). The first release that carries
   the zip is 0.16. `tools/winsmoke.ps1` is the real-machine startup gate;
   it is not a CI job (`windows-latest` has no interactive desktop).
 
