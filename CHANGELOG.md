@@ -49,6 +49,16 @@ one file, and the standalone record stopped being a YAML rewrite.
   of its own tracks so the grid and the contract cannot drift ([GDK-766]).
   A CI probe keeps all three closed.
 
+### Exclude is everywhere now
+
+- Every visible filter axis takes NOT IN: a per-value ⊘ in the picker
+  (Alt-click works too) replaced the modal Exclude toggle and the
+  "No exclude" caption that had spread to every menu — the half-adoption
+  [GDK-438] itself warned about ([GDK-771]). Copy JQL writes `not in` for
+  the axes JQL can say and lists the mirror-only ones as omitted;
+  `search --jql` compiles, resolves and matches the same negations, and
+  `!=` now works wherever `not in` does.
+
 ### The site
 
 - Landing media stopped being uniform full-screen video: two claims became
@@ -1117,6 +1127,8 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-730]: https://gadak.dev/backlog/#/?ks=GDK-730
 [GDK-700]: https://gadak.dev/backlog/#/?ks=GDK-700
 [GDK-742]: https://gadak.dev/backlog/#/?ks=GDK-742
+[GDK-438]: https://gadak.dev/backlog/#/?ks=GDK-438
+[GDK-771]: https://gadak.dev/backlog/#/?ks=GDK-771
 [GDK-202]: https://gadak.dev/backlog/#/?ks=GDK-202
 [GDK-747]: https://gadak.dev/backlog/#/?ks=GDK-747
 [GDK-748]: https://gadak.dev/backlog/#/?ks=GDK-748

@@ -45,6 +45,15 @@
   그리고 그리드와 계약이 어긋날 수 없도록 자기 트랙의 합이 된 도킹 최소 폭
   ([GDK-766]). CI 프로브가 세 건을 계속 닫아 둡니다.
 
+### 이제 어디서나 제외가 됩니다
+
+- 모든 가시 필터 축이 NOT IN을 받습니다: 값 선택기의 값별 ⊘(Alt+클릭도
+  동작)가 모달 '제외' 토글과, 모든 메뉴에 번져 있던 '제외 없음' 안내문을
+  대체했습니다 — 반쪽 도입의 부작용은 [GDK-438] 스스로 경고했던
+  것입니다 ([GDK-771]). Copy JQL은 JQL이 말할 수 있는 축은 `not in`으로
+  쓰고 미러 전용 축은 생략 목록으로 알리며, `search --jql`은 같은 부정을
+  컴파일·해석·매칭합니다. `not in`이 되는 곳이면 `!=`도 됩니다.
+
 ### 사이트
 
 - 랜딩 미디어가 일률적인 전체 화면 비디오이기를 멈췄습니다: 두 주장은 녹화
@@ -1069,6 +1078,8 @@ HTTP·sync·에이전트 계약.
 [GDK-730]: https://gadak.dev/backlog/#/?ks=GDK-730
 [GDK-700]: https://gadak.dev/backlog/#/?ks=GDK-700
 [GDK-742]: https://gadak.dev/backlog/#/?ks=GDK-742
+[GDK-438]: https://gadak.dev/backlog/#/?ks=GDK-438
+[GDK-771]: https://gadak.dev/backlog/#/?ks=GDK-771
 [GDK-202]: https://gadak.dev/backlog/#/?ks=GDK-202
 [GDK-747]: https://gadak.dev/backlog/#/?ks=GDK-747
 [GDK-748]: https://gadak.dev/backlog/#/?ks=GDK-748
