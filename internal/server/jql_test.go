@@ -1,9 +1,11 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 
@@ -96,6 +98,21 @@ func TestJqlCurrentUserResolvesToAccountID(t *testing.T) {
 	}
 	if len(got.Filters.AssigneeEmail) != 1 || got.Filters.AssigneeEmail[0] != "acc-hc" {
 		t.Fatalf("assignee_email %+v (want acc-hc)", got.Filters.AssigneeEmail)
+	}
+}
+
+func TestJqlDoesNotFullScanIssueLites(t *testing.T) {
+	// GDK-756: /jql/ used to load every IssueLite to resolve assignee/reporter
+	// names. QueryActorPeople is the six-column projection CLI adopted in GDK-748.
+	src, err := os.ReadFile("jql.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(src, []byte(".IssueLites(")) {
+		t.Fatal("jql.go still calls IssueLites (full mirror scan); use QueryActorPeople")
+	}
+	if !bytes.Contains(src, []byte(".QueryActorPeople(")) {
+		t.Fatal("jql.go never calls QueryActorPeople")
 	}
 }
 

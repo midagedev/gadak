@@ -46,8 +46,9 @@ func (s *server) handleJql(w http.ResponseWriter, r *http.Request) {
 
 	res := jql.Parse(input, jql.Opts{Now: time.Now(), Email: me.Email, AccountID: me.AccountID})
 	if res.Error == "" {
-		if lites, err := s.db.IssueLites(r.Context()); err == nil {
-			jql.ResolveIdentity(&res, peopleFromLites(lites), me)
+		// Six narrow columns, not the whole IssueLite set (GDK-756; CLI GDK-748).
+		if people, err := s.db.QueryActorPeople(r.Context()); err == nil {
+			jql.ResolveIdentity(&res, peopleFromActors(people), me)
 			res.JQL, res.Omitted = jql.Emit(res.Filters, res.Display, jql.EmitOpts{Email: me.Email, AccountID: me.AccountID})
 		}
 	}
@@ -83,17 +84,16 @@ func configuredIdentity(s *server, email string) jql.Identity {
 	return me
 }
 
-func peopleFromLites(lites []store.IssueLite) []jql.Person {
-	issues := make([]jql.Issue, len(lites))
-	for i, l := range lites {
+func peopleFromActors(people []store.ActorPerson) []jql.Person {
+	issues := make([]jql.Issue, len(people))
+	for i, p := range people {
 		issues[i] = jql.Issue{
-			ParentKey:     deref(l.ParentKey),
-			Assignee:      deref(l.Assignee),
-			AssigneeEmail: deref(l.AssigneeEmail),
-			AssigneeID:    deref(l.AssigneeID),
-			Reporter:      deref(l.Reporter),
-			ReporterEmail: deref(l.ReporterEmail),
-			ReporterID:    deref(l.ReporterID),
+			Assignee:      p.AssigneeName,
+			AssigneeEmail: p.AssigneeEmail,
+			AssigneeID:    p.AssigneeID,
+			Reporter:      p.ReporterName,
+			ReporterEmail: p.ReporterEmail,
+			ReporterID:    p.ReporterID,
 		}
 	}
 	return jql.PeopleFromIssues(issues)
