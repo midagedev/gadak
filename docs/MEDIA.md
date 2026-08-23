@@ -41,6 +41,47 @@ each run with a fake credential.)
 | `docs/media/raycast.gif` | scripted live take `tools/record-raycast.sh` | README — Raycast searches the mirror per keystroke, Enter opens the hit via `gadak://` |
 | `docs/media/raycast.mp4` | same take, h264 | Twitter / LinkedIn / anywhere GIF is too heavy |
 
+## Landing media policy (gadak.dev, GDK-751)
+
+The landing keeps a **video only where motion is the claim** (typing-speed
+search, a command changing the visible view); every claim that reads from a
+single frame ships a **core-region crop still** instead of a full-screen clip.
+Kept videos are framed to the action region, not the whole window — the
+landing's exhibit column is narrow, and full-frame 1280 px recordings render
+glyphs unreadably small there.
+
+Current state:
+
+| Landing slot | Asset | Policy |
+| --- | --- | --- |
+| flagship (hero) | `scale.mp4` (+`scale-poster.png`) | video kept, with **post-process camera work** (`export-scale.sh`): smoothstep push-in to the palette for the typing beats, out for the regroup, in to the counts band for the chip narrowing, back to full frame at the loop point. Source pacing untouched — only the crop moves |
+| search exhibit | `search.mp4` (+`search-poster.png`) | video kept, mp4 cropped to the palette+detail region (`export-search.sh`); the README `search.gif` stays full-frame |
+| group-by exhibit | `groupby-still.png` | still — assignee filter submenu with live counts over the epic-grouped list (2x, 1240×1110) |
+| history exhibit | `history-still.png` | still — NMB-139 header badges + bot comment + changelog with the Reopened marker (2x, 880×1540) |
+| agent exhibit | `agent.mp4` | video kept as recorded — the command→view causality is the claim |
+| agent proof | `mcp-still.png` | still — final answer frame of `mcp.mp4`, bottom status line cropped off (1080×450) |
+
+Regenerate the two app stills against the standard e2e fixture (the history
+still needs serve.sh's NMB-139 enrichment):
+
+```bash
+GADAK_FRESHEN=1 bash e2e/serve.sh &        # :7877 fixture
+node e2e/demo/site-stills.mjs              # → docs/media/{groupby,history}-still.png
+```
+
+The MCP still is a frame of the committed clip (re-pick the timestamp after a
+re-record so the answer is fully printed; the crop drops the personal
+usage-limit status line):
+
+```bash
+ffmpeg -y -ss 23.5 -i docs/media/mcp.mp4 -frames:v 1 -vf "crop=1080:450:0:0" \
+  docs/media/mcp-still.png
+```
+
+`site/public/media` is a symlink to `docs/media` — stills land on the site by
+existing there. The landing references them via `MediaSlot still=…` with a
+`displayWidth` equal to the crop's CSS-pixel width (half the PNG width).
+
 ## Size budget
 
 | Asset | Budget | Notes |

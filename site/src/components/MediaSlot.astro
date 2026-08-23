@@ -1,20 +1,36 @@
 ---
 // Slot for media produced by the recording rounds (e2e/demo specs → docs/media).
 // Honest scaffolding: a labelled placeholder until the artifact lands, then the
-// poster/video replaces it. No fake imagery in the meantime.
+// poster/video (or a cropped still) replaces it. No fake imagery in the meantime.
+//
+// Stills (GDK-751): features whose claim reads from a single frame ship a
+// core-region crop instead of a full-screen video. `displayWidth` caps the
+// rendered CSS width at the crop's native 1x size so 2x captures stay sharp
+// and glyphs stay at recorded scale.
 interface Props {
   slot: string
   note?: string
   src?: string
   poster?: string
   autoplay?: boolean
+  still?: string
+  alt?: string
+  displayWidth?: number
 }
-const { slot, note, src, poster, autoplay } = Astro.props
+const { slot, note, src, poster, autoplay, still, alt, displayWidth } = Astro.props
 ---
 
 <figure class="slot">
   {
-    src ? (
+    still ? (
+      <img
+        src={still}
+        alt={alt ?? slot}
+        loading="lazy"
+        decoding="async"
+        style={displayWidth ? `max-width: min(100%, ${displayWidth}px)` : undefined}
+      />
+    ) : src ? (
       <video
         controls={!autoplay}
         muted
@@ -43,6 +59,15 @@ const { slot, note, src, poster, autoplay } = Astro.props
     border-radius: var(--radius);
     background: var(--panel);
     display: block;
+  }
+  .slot img {
+    width: 100%;
+    height: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--panel);
+    display: block;
+    margin: 0 auto;
   }
   .empty {
     aspect-ratio: 16 / 9;

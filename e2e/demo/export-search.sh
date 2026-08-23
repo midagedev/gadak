@@ -17,9 +17,14 @@ fi
 
 echo "export-search: source $WEBM"
 
+# GDK-751 (2026-08-24): the landing shows this mp4 in a narrow column, so the
+# mp4 is cropped to the action region (palette + detail; the sidebar carries no
+# beat in this take). The README gif below stays full-frame. Source is
+# 1024×640; crop keeps x∈[224,1024).
 ffmpeg -y -i "$WEBM" \
   -an \
-  -c:v libx264 -pix_fmt yuv420p -preset medium -crf 23 \
+  -vf "crop=800:640:224:0" \
+  -c:v libx264 -pix_fmt yuv420p -preset medium -crf 21 \
   -movflags +faststart \
   "$OUT_DIR/search.mp4"
 

@@ -91,27 +91,32 @@ const installHref = lang === 'en' ? '/install/' : '/ko/install/'
     />
   </section>
 
-  <section class="exhibit flip">
+  {/* Stills, not videos (GDK-751): these two claims read from one frame, so
+      each ships a core-region crop at recorded glyph scale instead of a
+      full-screen clip. */}
+  <section class="exhibit stacked">
     <div class="text">
       <h2>{t.ux.group.heading}</h2>
       <p>{t.ux.group.body}</p>
     </div>
     <MediaSlot
       slot={lang === 'en' ? 'group-by' : '묶기'}
-      src="/media/groupby.mp4"
-      poster="/media/groupby-poster.png"
+      still="/media/groupby-still.png"
+      alt={t.ux.group.alt}
+      displayWidth={594}
     />
   </section>
 
-  <section class="exhibit">
+  <section class="exhibit stacked">
     <div class="text">
       <h2>{t.ux.history.heading}</h2>
       <p>{t.ux.history.body}</p>
     </div>
     <MediaSlot
       slot={lang === 'en' ? 'history' : '히스토리'}
-      src="/media/history.mp4"
-      poster="/media/history-poster.png"
+      still="/media/history-still.png"
+      alt={t.ux.history.alt}
+      displayWidth={440}
     />
   </section>
 
@@ -131,12 +136,21 @@ const installHref = lang === 'en' ? '/install/' : '/ko/install/'
     <pre><code>{`gadak create NMB "Ship the export" --field team=platform
 gadak claim NMB-1042
 gadak transition NMB-1042 done -m "shipped"`}</code></pre>
+    <figure class="media-pair">
+      <MediaSlot
+        slot={lang === 'en' ? 'live MCP session' : '라이브 MCP 세션'}
+        still="/media/mcp-still.png"
+        alt={t.agent.mcpAlt}
+        displayWidth={640}
+      />
+      <figcaption>{t.agent.mcpCaption}</figcaption>
+    </figure>
     <p class="caption">{t.agent.snippetCaption}</p>
-    <pre><code>{`{
-  "mcpServers": {
-    "gadak": { "command": "gadak", "args": ["mcp"] }
-  }
-}`}</code></pre>
+    <pre><code>{`gadak skill install                  # shell agents (Claude Code, Codex…)
+claude mcp add gadak -- gadak mcp    # MCP clients`}</code></pre>
+    <p class="note">
+      <a href="https://github.com/midagedev/gadak/blob/main/docs/AGENT_SETUP.md">{t.agent.setupLink}</a>
+    </p>
   </section>
 
   <Thread label={t.origin.label} />
@@ -153,6 +167,8 @@ gadak transition NMB-1042 done -m "shipped"`}</code></pre>
   <section class="workspace">
     <h2>{t.workspace.heading}</h2>
     <p>{t.workspace.body}</p>
+    <pre><code>{`gadak init --standalone      # no tracker at all — issues live on this machine
+gadak --workspace side init  # a second workspace: separate file, separate credentials`}</code></pre>
   </section>
 
   <Thread />
@@ -285,12 +301,17 @@ gadak init && gadak sync && gadak serve`}</code></pre>
     align-items: start;
   }
   @media (min-width: 46rem) {
-    .exhibit {
+    .exhibit:not(.stacked) {
       grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
     }
-    .exhibit.flip .text {
-      order: 2;
-    }
+  }
+  /* Stills stack: the crop renders at its native 1x width (MediaSlot
+     displayWidth), centered, so recorded glyphs keep their size. */
+  .exhibit.stacked {
+    gap: 0.5rem;
+  }
+  .exhibit.stacked .text {
+    max-width: 58ch;
   }
   .exhibit h2 {
     font-size: 1.25rem;
