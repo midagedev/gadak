@@ -1,0 +1,58 @@
+---
+// A door — the one card shape this site repeats. One primitive, no variants
+// beyond primary. Carried from the current landing door.
+interface Props {
+  href: string
+  title: string
+  sub?: string
+  primary?: boolean
+}
+const { href, title, sub, primary = false } = Astro.props
+---
+
+<a class:list={['door', { primary }]} href={href}>
+  <span class="title">{title}</span>
+  {sub && <span class="sub">{sub}</span>}
+</a>
+
+<style>
+  .door {
+    display: block;
+    padding: 1.05rem 1.25rem;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: inherit;
+    text-decoration: none;
+    transition:
+      border-color 120ms ease,
+      background 120ms ease;
+  }
+  .door:hover {
+    background: var(--elevated);
+    border-color: var(--border-strong);
+  }
+  .door .title {
+    font-weight: 620;
+    font-size: 1.0625rem;
+  }
+  .door .sub {
+    display: block;
+    margin-top: 0.2rem;
+    color: var(--ink-3);
+    font-size: 0.9375rem;
+  }
+  .door.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--on-accent);
+  }
+  .door.primary:hover {
+    background: var(--accent-hover);
+    border-color: var(--accent-hover);
+  }
+  .door.primary .sub {
+    color: var(--on-accent);
+    opacity: 0.82;
+  }
+</style>

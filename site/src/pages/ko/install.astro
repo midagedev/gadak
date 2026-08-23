@@ -1,0 +1,56 @@
+---
+import Base from '../../layouts/Base.astro'
+import { strings } from '../../i18n'
+const t = strings.ko
+---
+
+<Base
+  lang="ko"
+  title="설치 — gadak"
+  description="gadak 설치: Homebrew(macOS·Linux), Windows 릴리즈 zip."
+>
+  <h1>{t.install.heading}</h1>
+
+  <h2>macOS</h2>
+  <pre><code>{`brew install --cask midagedev/tap/gadak   # 앱 (CLI 포함)
+brew install midagedev/tap/gadak-cli     # CLI만`}</code></pre>
+
+  <h2>Linux</h2>
+  <pre><code>{`brew install midagedev/tap/gadak-cli     # Homebrew 리눅스 경로
+
+# 또는 아키텍처별 릴리즈 타볼:
+# https://github.com/midagedev/gadak/releases`}</code></pre>
+
+  <h2>Windows</h2>
+  <pre><code>{`# 릴리즈 zip (포터블):
+# https://github.com/midagedev/gadak/releases`}</code></pre>
+
+  <h2>처음 실행</h2>
+  <pre><code>{`# 회사 워크스페이스에 연결
+gadak init && gadak sync && gadak serve
+
+# 또는 트래커 없이 시작
+gadak init --standalone
+gadak create "방금 생각난 일"
+gadak serve`}</code></pre>
+</Base>
+
+<style>
+  h1 {
+    font-size: 2rem;
+    margin: 4rem 0 1.5rem;
+  }
+  h2 {
+    font-size: 1.125rem;
+    margin: 2.25rem 0 0.75rem;
+  }
+  pre {
+    padding: 1rem 1.25rem;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow-x: auto;
+    font-size: 0.875rem;
+    line-height: 1.7;
+  }
+</style>

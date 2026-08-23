@@ -54,7 +54,22 @@ jobs:
         run: CGO_ENABLED=0 go build -trimpath -o bin/gadak ./cmd/gadak
 
       - name: Build hosted demo (UI + static snapshot)
+        env:
+          # The Astro site below owns the apex now; keep the demo's static
+          # door out of dist/hosted so the site's index.html survives.
+          GADAK_LANDING: skip
         run: node tools/hosted-demo/build.mjs
+
+      # The Astro site (site/) is the document root around the apps: / and
+      # /install/ come from it, /demo/ and /backlog/ stay owned by the
+      # hosted-demo build below.
+      - name: Build apex site (Astro)
+        run: |
+          set -euo pipefail
+          mkdir -p site/public && ln -sfn ../../docs/media site/public/media
+          npm ci --prefix site
+          npm run build --prefix site
+          cp -R site/dist/. dist/hosted/
 
       # The committed public backlog is one tar.gz; the viewer still
       # fetches detail/<KEY>.json, so the exploded tree must exist at deploy.

@@ -66,3 +66,10 @@ e2e/demo/test-results-groupby/
 # a bare symlink named node_modules (worktree lanes) must never be tracked
 node_modules
 web/node_modules
+
+# site: public/media is a symlink to the tracked docs/media (one source of media bytes)
+site/public/media
+
+# Astro build output (site/)
+site/dist/
+site/.astro/

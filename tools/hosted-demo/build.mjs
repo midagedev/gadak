@@ -297,7 +297,14 @@ if (existsSync(join(backlogSnapshot, 'bootstrap.json'))) {
 // The apex is a door, not an app: one sentence about what gadak is and the
 // three places a visitor can go. Static HTML on purpose — it must paint with
 // no bundle, and it is the page a shared link lands on.
-writeFileSync(join(outDir, 'index.html'), landingHtml())
+//
+// GADAK_LANDING=skip leaves the apex to the Astro site (site/): its build
+// runs after this one in pages.yml and copies dist over the root. The
+// standalone hosted-demo target keeps the static door so `make hosted-demo`
+// still produces a self-sufficient tree.
+if (process.env.GADAK_LANDING !== 'skip') {
+  writeFileSync(join(outDir, 'index.html'), landingHtml())
+}
 
 // Favicons and the manifest are emitted per app by Vite; the landing page
 // shares them, so copy the demo's set up to the root.
@@ -322,11 +329,16 @@ if (!existsSync(boot) || !existsSync(detail)) {
   console.error('hosted-demo: export-static did not produce bootstrap/detail')
   process.exit(1)
 }
-const landing = readFileSync(join(outDir, 'index.html'), 'utf8')
-for (const href of [`${demoBase}`, `${backlogBase}`]) {
-  if (!landing.includes(`href="${href}"`)) {
-    console.error(`hosted-demo: landing page does not link ${href} — the site's front door must reach both apps`)
-    process.exit(1)
+// The front-door gate only applies to the static door; when the Astro site
+// owns the apex (GADAK_LANDING=skip), its Landing.astro carries the links.
+const landingPath = join(outDir, 'index.html')
+if (existsSync(landingPath)) {
+  const landing = readFileSync(landingPath, 'utf8')
+  for (const href of [`${demoBase}`, `${backlogBase}`]) {
+    if (!landing.includes(`href="${href}"`)) {
+      console.error(`hosted-demo: landing page does not link ${href} — the site's front door must reach both apps`)
+      process.exit(1)
+    }
   }
 }
 const bootSize = statSync(boot).size

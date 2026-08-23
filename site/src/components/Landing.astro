@@ -1,0 +1,223 @@
+---
+import Base from '../layouts/Base.astro'
+import Door from '../components/Door.astro'
+import Thread from '../components/Thread.astro'
+import MediaSlot from '../components/MediaSlot.astro'
+import { strings, type Locale } from '../i18n'
+
+interface Props {
+  lang: Locale
+}
+const { lang } = Astro.props
+const t = strings[lang]
+---
+
+<Base lang={lang} title={t.title} description={t.description}>
+  <section class="hero">
+    <h1>gadak</h1>
+    <p class="tagline">{t.heroTagline}</p>
+    <p class="lede">{t.heroLede}</p>
+    <div class="doors">
+      <Door primary href="/demo/" title={t.doors.demoTitle} sub={t.doors.demoSub} />
+      <div class="door-row">
+        <Door href="/backlog/" title={t.doors.backlogTitle} sub={t.doors.backlogSub} />
+        <Door href="https://github.com/midagedev/gadak" title={t.doors.sourceTitle} sub={t.doors.sourceSub} />
+      </div>
+    </div>
+  </section>
+
+  <Thread label={t.audiences.label} />
+
+  <section class="audiences">
+    <article>
+      <h2>{t.audiences.teamTitle}</h2>
+      <p class="lede-small">{t.audiences.teamLede}</p>
+      <ul>
+        {t.audiences.teamPoints.map((point) => <li set:html={point} />)}
+      </ul>
+      <MediaSlot
+        slot={lang === 'en' ? 'C1 · group-by' : 'C1 · 묶기 전환'}
+        src="/media/groupby.mp4"
+        poster="/media/groupby-poster.png"
+      />
+    </article>
+    <article>
+      <h2>{t.audiences.agentTitle}</h2>
+      <p class="lede-small">{t.audiences.agentLede}</p>
+      <ul>
+        {t.audiences.agentPoints.map((point) => <li set:html={point} />)}
+      </ul>
+      <MediaSlot slot={lang === 'en' ? 'H1 · one round with an agent' : 'H1 · 에이전트 한 판'} />
+    </article>
+  </section>
+
+  <Thread />
+
+  <section class="speed">
+    <h2>{t.speed.heading}</h2>
+    <table>
+      <tbody>
+        {
+          t.speed.rows.map((row) => (
+            <tr>
+              <td>{row.what}</td>
+              <td class="value">{row.value}</td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+    <p class="note">{t.speed.note}</p>
+  </section>
+
+  <Thread />
+
+  <section class="agent">
+    <h2>{t.agentSection.heading}</h2>
+    <p>{t.agentSection.body}</p>
+    <pre><code>{`gadak create NMB "Ship the export" --field team=platform
+gadak claim NMB-1042
+gadak transition NMB-1042 done -m "shipped"`}</code></pre>
+    <p class="caption">{t.agentSection.snippetCaption}</p>
+    <pre><code>{`{
+  "mcpServers": {
+    "gadak": { "command": "gadak", "args": ["mcp"] }
+  }
+}`}</code></pre>
+  </section>
+
+  <Thread />
+
+  <section class="workspace">
+    <h2>{t.workspace.heading}</h2>
+    <p>{t.workspace.body}</p>
+  </section>
+
+  <Thread />
+
+  <section class="install">
+    <h2>{t.install.heading}</h2>
+    <pre><code>{`brew install --cask midagedev/tap/gadak   # macOS app (CLI included)
+brew install midagedev/tap/gadak-cli     # CLI only (macOS, Linux)
+
+gadak init && gadak sync && gadak serve`}</code></pre>
+    <p class="note"><a href={lang === 'en' ? '/install/' : '/ko/install/'}>{lang === 'en' ? 'All platforms →' : '모든 플랫폼 →'}</a></p>
+  </section>
+</Base>
+
+<style>
+  .hero h1 {
+    font-size: 3rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin: 4rem 0 0.35rem;
+  }
+  .tagline {
+    color: var(--accent);
+    font-size: 1.1875rem;
+    font-weight: 560;
+    margin: 0 0 1.75rem;
+  }
+  .lede {
+    font-size: 1.0625rem;
+    margin: 0 0 2rem;
+  }
+  .doors {
+    display: grid;
+    gap: 0.75rem;
+  }
+  .door-row {
+    display: grid;
+    gap: 0.75rem;
+  }
+  @media (min-width: 40rem) {
+    .door-row {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+
+  .audiences {
+    display: grid;
+    gap: 2.5rem;
+  }
+  @media (min-width: 46rem) {
+    .audiences {
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+    }
+  }
+  .audiences h2 {
+    font-size: 1.25rem;
+    margin: 0 0 0.5rem;
+  }
+  .lede-small {
+    color: var(--ink-2);
+    font-size: 0.9688rem;
+    margin: 0 0 0.9rem;
+  }
+  ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  li {
+    padding: 0.45rem 0 0.45rem 1.1rem;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.9375rem;
+    position: relative;
+  }
+  li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    width: 0.55rem;
+    height: 1px;
+    background: var(--accent);
+  }
+
+  section h2 {
+    font-size: 1.375rem;
+    margin: 0 0 0.75rem;
+  }
+  section > p {
+    margin: 0 0 1rem;
+    color: var(--ink-2);
+    font-size: 1rem;
+  }
+  pre {
+    margin: 0 0 1rem;
+    padding: 1rem 1.25rem;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow-x: auto;
+    font-size: 0.875rem;
+    line-height: 1.7;
+  }
+  .caption {
+    font-size: 0.875rem !important;
+    color: var(--ink-3) !important;
+    margin-top: 1.25rem !important;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    max-width: 34rem;
+  }
+  td {
+    padding: 0.6rem 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.9375rem;
+  }
+  td.value {
+    font-family: var(--font-mono);
+    text-align: right;
+    color: var(--accent);
+    white-space: nowrap;
+  }
+  .note {
+    font-size: 0.8438rem;
+    color: var(--ink-3) !important;
+  }
+</style>

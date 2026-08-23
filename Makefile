@@ -47,6 +47,16 @@ demo-fixture:
 hosted-demo: build
 	node tools/hosted-demo/build.mjs
 
+# Apex site (site/, Astro) over the hosted tree: / and /install/ come from
+# the site, /demo/ and /backlog/ stay owned by hosted-demo above.
+# Output: dist/hosted/ with the Astro dist merged at the root.
+site: hosted-demo
+	GADAK_LANDING=skip node tools/hosted-demo/build.mjs
+	mkdir -p site/public && ln -sfn ../../docs/media site/public/media
+	npm ci --prefix site
+	npm run build --prefix site
+	cp -R site/dist/. dist/hosted/
+
 # Playwright smoke against dist/hosted (not in CI). Requires hosted-demo first.
 hosted-demo-test: hosted-demo
 	./node_modules/.bin/playwright install chromium

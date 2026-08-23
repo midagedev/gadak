@@ -1,0 +1,41 @@
+---
+// The thread, restrained: a hairline seam with one short indigo stitch.
+// Structural use only — between sections, never as free decoration.
+interface Props {
+  label?: string
+}
+const { label } = Astro.props
+---
+
+<div class="thread" role="separator">
+  <span class="stitch" aria-hidden="true"></span>
+  {label && <span class="label">{label}</span>}
+</div>
+
+<style>
+  .thread {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 3.5rem 0;
+  }
+  .stitch {
+    width: 2.25rem;
+    height: 1px;
+    background: var(--accent);
+    flex: none;
+  }
+  .thread::after {
+    content: '';
+    order: 2;
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+  .label {
+    order: 1;
+    font-size: 0.8125rem;
+    color: var(--ink-3);
+    letter-spacing: 0.02em;
+  }
+</style>

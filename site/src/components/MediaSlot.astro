@@ -1,0 +1,57 @@
+---
+// Slot for media produced by the recording rounds (e2e/demo specs → docs/media).
+// Honest scaffolding: a labelled placeholder until the artifact lands, then the
+// poster/video replaces it. No fake imagery in the meantime.
+interface Props {
+  slot: string
+  note?: string
+  src?: string
+  poster?: string
+}
+const { slot, note, src, poster } = Astro.props
+---
+
+<figure class="slot">
+  {
+    src ? (
+      <video controls muted loop playsinline poster={poster} src={src} />
+    ) : (
+      <div class="empty">
+        <span class="name">{slot}</span>
+        {note && <span class="note">{note}</span>}
+      </div>
+    )
+  }
+</figure>
+
+<style>
+  .slot {
+    margin: 1.25rem 0 0;
+  }
+  .slot :global(video) {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--panel);
+    display: block;
+  }
+  .empty {
+    aspect-ratio: 16 / 9;
+    display: grid;
+    place-content: center;
+    gap: 0.25rem;
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--radius);
+    background: var(--panel);
+    text-align: center;
+  }
+  .name {
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    color: var(--ink-2);
+  }
+  .note {
+    font-size: 0.8125rem;
+    color: var(--ink-3);
+  }
+</style>

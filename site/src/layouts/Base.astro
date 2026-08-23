@@ -1,0 +1,113 @@
+---
+import '../styles/tokens.css'
+import { strings, type Locale } from '../i18n'
+
+interface Props {
+  lang: Locale
+  title: string
+  description: string
+}
+const { lang, title, description } = Astro.props
+const t = strings[lang]
+const origin = Astro.site ? Astro.site.href.replace(/\/$/, '') : ''
+---
+
+<!doctype html>
+<html lang={t.htmlLang}>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="gadak" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={`${origin}/og.png`} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="alternate" hreflang={lang} href={Astro.url} />
+    <link rel="alternate" hreflang={lang === 'en' ? 'ko' : 'en'} href={`${origin}${lang === 'en' ? '/ko' : ''}${Astro.url.pathname === '/' ? '/' : Astro.url.pathname.replace(/^\/ko/, '')}`} />
+    <link rel="icon" type="image/png" sizes="32x32" href="/icon-32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/icon-16.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f4efe4" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0f1013" media="(prefers-color-scheme: dark)" />
+  </head>
+  <body>
+    <header>
+      <nav>
+        <a class="wordmark" href={lang === 'en' ? '/' : '/ko/'}>gadak</a>
+        <div class="links">
+          <a href="/demo/">{t.nav.demo}</a>
+          <a href="/backlog/">{t.nav.backlog}</a>
+          <a href={lang === 'en' ? '/install/' : '/ko/install/'}>{t.nav.install}</a>
+          <a href="https://github.com/midagedev/gadak">{t.nav.github}</a>
+        </div>
+      </nav>
+    </header>
+    <main>
+      <slot />
+    </main>
+    <footer>
+      <div class="inner">
+        {t.footer.builtBy}
+        <a href="https://github.com/midagedev">midagedev</a> ·
+        <a href="https://github.com/midagedev/gadak">GitHub</a> ·
+        <a href="https://github.com/midagedev/gadak/blob/main/SECURITY.md">{t.footer.whereBytes}</a>
+      </div>
+    </footer>
+  </body>
+</html>
+
+<style>
+  header {
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+  }
+  nav {
+    max-width: var(--measure);
+    margin: 0 auto;
+    padding: 1rem 1.5rem;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+  .wordmark {
+    font-weight: 700;
+    font-size: 1.125rem;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+    text-decoration: none;
+  }
+  .links {
+    display: flex;
+    gap: 1.25rem;
+  }
+  .links a {
+    color: var(--ink-2);
+    text-decoration: none;
+    font-size: 0.9375rem;
+  }
+  .links a:hover {
+    color: var(--accent);
+  }
+  footer {
+    border-top: 1px solid var(--border);
+    margin-top: 5rem;
+  }
+  footer .inner {
+    max-width: var(--measure);
+    margin: 0 auto;
+    padding: 1.5rem;
+    color: var(--ink-3);
+    font-size: 0.875rem;
+  }
+  footer a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+  footer a:hover {
+    text-decoration: underline;
+  }
+</style>
