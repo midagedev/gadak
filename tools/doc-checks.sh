@@ -1595,4 +1595,123 @@ if [[ -n "$readme_bench" ]]; then
 fi
 ok "README (en+ko) benchmark table matches the current measurement in docs/BENCHMARKS.md"
 
+# ── 31. Copy units in the entry docs (GDK-772 wave) ──────────────────────
+# The class these close: a fenced block that a reader copies whole, but which
+# holds two *alternatives* or an instruction hidden in a `#` comment, so the
+# paste does something other than what the reader picked. Measured 2026-08-24,
+# each from a real block in the tree at 2c00756:
+#   a) README.md:92 was one fence with `brew install …/gadak` AND
+#      `brew install …/gadak-cli` — pasting installed the app cask and the CLI
+#      formula. Same shape in docs/INSTALL.md:51.
+#   b) docs/MCP.md:60 stacked eight `gadak mcp install …` lines, and the first
+#      of them execs `claude mcp add`, so the paste registered a server.
+#      docs/AGENT_SETUP.md:162 stacked `skill install` with `--force`.
+#   c) docs/INSTALL.md documents Scoop honestly but must never *instruct*
+#      `scoop install`: contrib/scoop/README.md says the bucket is unpublished
+#      and `scoop install` has never been run on a Windows host.
+# Sequences the reader runs in order (init && sync && serve, verify then untar)
+# are fine — the test is two lines the reader chooses *between*.
+copy_units=$(
+  python3 - <<'COPYPY'
+import re
+from pathlib import Path
+
+fails = []
+FENCE = re.compile(r"^```[^\n]*\n(.*?)^```", re.S | re.M)
+
+
+def fences(text):
+    return FENCE.findall(text)
+
+
+def code_lines(body):
+    return [ln for ln in body.splitlines() if ln.strip() and not ln.lstrip().startswith("#")]
+
+
+# (a) one fence must not offer two installs of the same kind.
+for name in ("README.md", "README.ko.md", "docs/INSTALL.md"):
+    text = Path(name).read_text()
+    for i, body in enumerate(fences(text), 1):
+        n = sum(1 for ln in code_lines(body) if re.search(r"\bbrew\s+install\b", ln))
+        if n > 1:
+            fails.append(f"{name}: fence {i} offers {n} brew install lines — split the alternatives")
+
+# (b) one fence must not stack two registration verbs. These change state:
+# `mcp install claude` execs `claude mcp add`, `skill install` writes SKILL.md.
+VERB = re.compile(
+    r"^\s*(?:\S*/)?gadak(?:\s+--(?:workspace|profile)\s+\S+)?\s+"
+    r"(?:mcp\s+install|skill\s+install|install-cli)\b"
+)
+targets = sorted(Path("docs").glob("*.md")) + [Path("README.md"), Path("README.ko.md")]
+for path in targets:
+    text = path.read_text()
+    for i, body in enumerate(fences(text), 1):
+        hits = [ln.strip() for ln in code_lines(body) if VERB.search(ln)]
+        if len(hits) > 1:
+            fails.append(f"{path.as_posix()}: fence {i} stacks install verbs {hits} — one per fence")
+
+# (c) Scoop may be described, never instructed. HTML comments are the
+# publish-time draft and do not render on GitHub, so strip them first.
+install = re.sub(r"<!--.*?-->", "", Path("docs/INSTALL.md").read_text(), flags=re.S)
+for lineno, line in enumerate(install.splitlines(), 1):
+    if re.match(r"\s*scoop\s+install\b", line):
+        fails.append(
+            f"docs/INSTALL.md:{lineno} instructs `scoop install` — the bucket is "
+            "unpublished (contrib/scoop/README.md)"
+        )
+
+if fails:
+    print("\n".join(fails))
+COPYPY
+)
+if [[ -n "$copy_units" ]]; then
+  fail "entry docs mix copy units:"$'\n'"$copy_units"
+fi
+ok "entry docs keep one copy unit per fence, and Scoop is described not instructed"
+
+# ── 32. The docs index resolves and covers docs/ (GDK-777) ───────────────
+# Measured 2026-08-24 against the tree at 2c00756: docs/README.md's "Start
+# here" opened with the contributor reading list, INSTALL.md, DESKTOP.md,
+# WINDOWS-SIGNING.md and BENCHMARKS.md were not in the index at all, and the
+# entries that were there named files in backticks rather than links — so
+# nothing in the documentation index was clickable and the install docs were
+# not reachable from it. Both halves are asserted here: every relative link
+# resolves, and every docs/*.md is actually linked (a backticked filename does
+# not count, which is what made the old index look complete).
+docs_index=$(
+  python3 - <<'INDEXPY'
+import re
+from pathlib import Path
+
+index = Path("docs/README.md")
+text = index.read_text()
+targets = []
+for raw in re.findall(r"\]\(([^)]+)\)", text):
+    t = raw.split("#", 1)[0].strip()
+    if not t or re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*:", t):
+        continue
+    targets.append(t)
+
+broken = [t for t in targets if not (index.parent / t).exists()]
+listed = {(index.parent / t).resolve() for t in targets if (index.parent / t).exists()}
+unlisted = [
+    p.as_posix()
+    for p in sorted(Path("docs").glob("*.md"))
+    if p.name != "README.md" and p.resolve() not in listed
+]
+
+out = []
+if broken:
+    out.append("broken relative links in docs/README.md: " + ", ".join(broken))
+if unlisted:
+    out.append("docs/*.md not linked from the index: " + ", ".join(unlisted))
+if out:
+    print("\n".join(out))
+INDEXPY
+)
+if [[ -n "$docs_index" ]]; then
+  fail "docs/README.md is not a complete index:"$'\n'"$docs_index"
+fi
+ok "docs/README.md links resolve and every docs/*.md is indexed"
+
 echo "doc-checks: all passed"
