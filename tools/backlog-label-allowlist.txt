@@ -45,6 +45,7 @@ cli
 community
 contract
 contributor
+dashboards
 datacenter
 dates
 debuggability
@@ -92,6 +93,7 @@ marketing
 mcp
 media
 mentor-roadmap
+mobile
 multi-origin
 non-goal
 omarchy
