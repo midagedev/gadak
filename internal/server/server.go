@@ -192,8 +192,14 @@ func newServer(db *store.DB, cfg *config.Config, cache *attachcache.Cache, profi
 	mux.HandleFunc("POST "+dashBase+"{$}", s.handleSaveDashboard)
 	mux.HandleFunc("POST "+dashBase+"absorb/{$}", s.handleAbsorbDashboards)
 	mux.HandleFunc("DELETE "+dashBase+"{id}/{$}", s.handleDeleteDashboard)
+	mux.HandleFunc("GET "+dashBase+"{id}/{$}", s.handleGetDashboard)
 	mux.HandleFunc("GET "+dashBase+"{id}/render/{$}", s.handleRenderDashboard)
 	mux.HandleFunc("GET "+dashBase+"{id}/data/{name}/{$}", s.handleDashboardData)
+	// Vendor assets (GDK-792): the "vendor" literal beats {id}/ patterns.
+	// Only the exact no-slash form — a trailing-slash variant would be
+	// ambiguous with {id}/render/{$} (ServeMux panics), and documents embed
+	// the exact URL anyway.
+	mux.HandleFunc("GET "+dashBase+"vendor/{file}", handleDashboardVendor)
 	mux.HandleFunc("GET "+apiBase+"watches/{$}", s.handleGetWatches)
 	mux.HandleFunc("DELETE "+apiBase+"watches/{key}/{$}", s.handleDeleteWatch)
 	mux.HandleFunc("GET "+apiBase+"favorites/{$}", s.handleGetFavorites)

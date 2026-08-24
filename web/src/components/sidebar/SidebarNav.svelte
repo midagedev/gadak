@@ -33,6 +33,7 @@
   import { mirrorLabel } from '../../lib/mirror-status'
   import { docsEmptyClickAction, docsEmptyGlyph } from '../../lib/docs-empty'
   import { docsEmpty } from '../../stores/docs-empty.svelte'
+  import { dashboards } from '../../stores/dashboards.svelte'
   import { builtinViews } from '../../lib/builtin-views'
   import { configToParams, type ViewConfig } from '../../lib/view-config'
   import { onEscape, onOutsideClick } from '../../lib/dom-actions'
@@ -256,6 +257,9 @@
     // `personal` so collapse/order for that slot survive; `team` remains in
     // SECTION_IDS for stored-order parse but is never present here.
     if (views.personal.length || views.team.length) present.add('personal')
+    // Agent dashboards (GDK-782): server rows only — nothing to list without
+    // a serve, and the section's whole lifecycle is CLI-authored anyway.
+    if (dashboards.list.length) present.add('dashboards')
     if (workspaceList.length > 1) present.add('workspaces')
     return sidebarSections.order.filter((id) => present.has(id))
   })
@@ -325,6 +329,12 @@
   function openSpace(space: string) {
     me.closeFeed()
     pages.openSpace(space)
+  }
+
+  /** A dashboard takes the main column the same way a docs screen does. */
+  function openDash(id: string) {
+    me.closeFeed()
+    dashboards.open(id)
   }
 </script>
 
@@ -669,6 +679,37 @@
                           .catch(() => write.toast(t('sidebar.viewDeleteFail'), 'error'))
                     : null,
               })}
+            {/each}
+          </SidebarSection>
+        {:else if id === 'dashboards'}
+          <!--
+            Agent dashboards (GDK-782): saved like views, opened like the feed —
+            the row hands the main column to a sandboxed iframe. No delete
+            affordance: rows come and go through `gadak dashboards` verbs, and a
+            half of that lifecycle (save) is not in this UI either — a delete
+            button here would be the one editing verb on a read-only surface.
+          -->
+          <SidebarSection id="dashboards" label={t('sidebar.dashboards')} {visibleIds} {drag}>
+            {#each dashboards.list as d (d.id)}
+              <button
+                type="button"
+                class="flex h-control w-full items-center gap-2 rounded-md px-3 text-left text-body transition-colors {dashboards.openId ===
+                d.id
+                  ? 'bg-bg-active text-text-primary'
+                  : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
+                aria-current={dashboards.openId === d.id ? 'true' : undefined}
+                title={d.name}
+                data-testid="sidebar-dashboard-row"
+                data-dashboard-id={d.id}
+                onclick={() => openDash(d.id)}
+              >
+                <Icon
+                  name="layout-dashboard"
+                  size={15}
+                  class={dashboards.openId === d.id ? 'text-text-secondary' : 'text-text-muted'}
+                />
+                <span class="min-w-0 flex-1 truncate">{d.name}</span>
+              </button>
             {/each}
           </SidebarSection>
         {:else if id === 'docs'}

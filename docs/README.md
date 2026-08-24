@@ -17,6 +17,7 @@ document answers.
 
 - [MIRROR.md](MIRROR.md): SQL, CLI, REST, and MCP against the local mirror — the cookbook
 - [AGENT_ACCESS.md](AGENT_ACCESS.md): which access layer to reach for, and what each costs
+- [DASHBOARDS.md](DASHBOARDS.md): agent-authored dashboards — the frame contract, datasources, vendored charts, and the two residual leak channels
 - [RECIPES.md](RECIPES.md): questions JQL cannot ask, as ready-to-run SQL
 - [CONFIGURATION.md](CONFIGURATION.md): `config.json` keys, defaults, floors
 - [NETWORK.md](NETWORK.md): what gadak does with the network — mirror reads stay local; writes go to the origin you configured

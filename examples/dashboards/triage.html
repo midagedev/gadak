@@ -1,24 +1,34 @@
 <!doctype html>
 <!--
-  gadak triage dashboard (GDK-781 example).
+  gadak triage dashboard (GDK-781 example, upgraded GDK-792/793).
 
   Register it:
 
     gadak dashboards save triage --html examples/dashboards/triage.html \
       --datasource by_status=sql:select\ status_category,\ count(*)\ as\ n\ from\ issues_full\ group\ by\ 1\ order\ by\ 1 \
       --datasource top_open=sql:select\ key,\ priority_rank,\ summary\ from\ issues_full\ where\ status_category\ !=\ 'done'\ order\ by\ priority_rank,\ updated_at\ desc\ limit\ 8 \
+      --datasource monthly_opened=sql:select\ strftime('%s',\ substr(created_at,\ 1,\ 7)\ ||\ '-01')\ as\ t,\ count(*)\ as\ n\ from\ issues_full\ where\ created_at\ >=\ date('now',\ '-11\ months')\ group\ by\ 1\ order\ by\ 1 \
       --datasource mine=jql:assignee\ =\ currentUser()\ AND\ resolution\ is\ EMPTY
 
   Open it:
 
     gadak dashboards open triage
 
-  Contract: this document never fetches. The serving page runs the
-  datasources (GET /api/v1/dashboards/{id}/data/{name}/) and posts each
+  Contract: this document runs no queries of its own. The serving page runs
+  the datasources (GET /api/v1/dashboards/{id}/data/{name}/) and posts each
   result in as
 
     {type: 'data', name: '<datasource name>', columns: [...], rows: [[...]],
      truncated: bool, warning?: string}
+
+  and re-pushes them when the mirror moves (15s poll) or when this document
+  asks — the Refresh button posts {type: 'refresh'}, the one frame→parent
+  verb there is.
+
+  The chart library is vendored, not fetched from a CDN: uPlot is served by
+  the same origin at /api/v1/dashboards/vendor/ (GDK-792). Leading slash on
+  purpose — this document's base URL is /api/v1/dashboards/<id>/render/, so
+  a relative URL would misresolve.
 
   Column lookup is by name, never by position. Mirror text (summaries,
   statuses) is inserted via textContent only — this page builds no markup
@@ -32,6 +42,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Triage</title>
+<link rel="stylesheet" href="/api/v1/dashboards/vendor/uPlot.min.css">
+<script src="/api/v1/dashboards/vendor/uPlot.iife.min.js"></script>
 <style>
   :root { color-scheme: dark; }
   * { box-sizing: border-box; margin: 0; }
@@ -73,6 +85,16 @@
   .warn { color: #e0af68; }
   .empty { color: #8b94a7; font-style: italic; }
   svg text { fill: #8b94a7; font-size: 11px; }
+  /* The chart panel spans both columns: a trend reads across time, and the
+     two-column area above it is about right now. */
+  .chart-panel { grid-column: 1 / -1; }
+  .chart-panel .u-legend { display: none; }
+  .chart-panel .u-axis text { fill: #8b94a7; font-size: 11px; }
+  #refresh {
+    margin-left: auto; background: #161b26; color: #e8ecf4; border: 1px solid #232a3a;
+    border-radius: 7px; padding: 4px 12px; font: inherit; font-size: 12.5px; cursor: pointer;
+  }
+  #refresh:hover { border-color: #7aa2f7; }
   @media (max-width: 720px) { main { grid-template-columns: 1fr; } .cards { grid-template-columns: repeat(2, 1fr); } }
 </style>
 </head>
@@ -80,6 +102,10 @@
   <header>
     <h1>Triage</h1>
     <span class="sub" id="stamp">waiting for data…</span>
+    <!-- The one frame→parent verb: ask the host to re-run the datasources.
+         No URL, no navigation, no payload — the whitelist in the serving
+         page accepts exactly this and nothing else. -->
+    <button id="refresh" type="button">Refresh</button>
   </header>
 
   <section class="cards" aria-label="counts">
@@ -99,6 +125,10 @@
       <div id="bars"><div class="empty">no rows</div></div>
       <h2 style="margin-top:16px">Mine (open)</h2>
       <div id="mine" class="mine"><div class="empty">no rows</div></div>
+    </div>
+    <div class="panel chart-panel">
+      <h2>Opened per month (12 months)</h2>
+      <div id="monthly"><div class="empty">no rows</div></div>
     </div>
   </main>
 
@@ -215,6 +245,73 @@ function renderMine(res) {
   }
 }
 
+// uPlot chart from the monthly_opened datasource (GDK-792 vendor recipe).
+// x values are unix seconds straight out of strftime('%s', …) — uPlot's
+// default x scale is seconds, so no client-side parsing happens. One
+// instance per document; later pushes go through setData, not re-init.
+//
+// The singleton is the whole discipline: render() re-runs on every message
+// (any datasource landing), so clearing the host unconditionally would
+// destroy the live chart's DOM and leave `chart` pointing at it — the next
+// push would setData into a dead chart and silently blank the panel. DOM is
+// cleared only on paths that rebuild, and the empty-rows path destroys the
+// instance so a later real push re-creates it.
+var chart = null;
+function renderMonthly(res) {
+  var host = document.getElementById('monthly');
+  var cT = col(res, 't'), cN = col(res, 'n');
+  var empty = function (msg) {
+    if (chart) { chart.destroy(); chart = null; }
+    host.textContent = '';
+    host.appendChild(el('div', 'empty', msg));
+  };
+  if (typeof uPlot === 'undefined') {
+    empty('uPlot did not load from the vendor route');
+    return;
+  }
+  if (cT === null || cN === null || res.rows.length === 0) {
+    empty('no rows');
+    return;
+  }
+  var x = [], y = [];
+  for (var i = 0; i < res.rows.length; i++) {
+    x.push(Number(res.rows[i][cT]));
+    y.push(Number(res.rows[i][cN]) || 0);
+  }
+  var data = [x, y];
+  if (chart) { chart.setData(data); return; }
+  host.textContent = '';
+  chart = new uPlot({
+    width: Math.max(280, host.clientWidth - 2 || 560),
+    height: 150,
+    cursor: { show: false },
+    legend: { show: false },
+    grid: { stroke: '#1d2331' },
+    axes: [
+      { stroke: '#8b94a7', grid: { show: false } },
+      { stroke: '#8b94a7', grid: { show: true, stroke: '#1d2331' } },
+    ],
+    series: [
+      {},
+      {
+        stroke: '#7aa2f7', width: 2,
+        points: { show: true, size: 4, stroke: '#7aa2f7', fill: '#0d1017' },
+        fill: 'rgba(122, 162, 247, 0.12)',
+      },
+    ],
+  }, data, host);
+}
+
+var resizeTimer = null;
+window.addEventListener('resize', function () {
+  if (!chart || resizeTimer) return;
+  resizeTimer = setTimeout(function () {
+    resizeTimer = null;
+    var host = document.getElementById('monthly');
+    if (host && host.clientWidth) chart.setSize({ width: Math.max(280, host.clientWidth - 2), height: 150 });
+  }, 100);
+});
+
 function el(tag, cls, text) {
   var e = document.createElement(tag);
   if (cls) e.className = cls;
@@ -227,9 +324,10 @@ function render() {
   if (results.by_status) renderBars(results.by_status);
   if (results.top_open) renderTop(results.top_open);
   if (results.mine) renderMine(results.mine);
+  if (results.monthly_opened) renderMonthly(results.monthly_opened);
 
   var stamp = [], foot = [];
-  var names = ['by_status', 'top_open', 'mine'];
+  var names = ['by_status', 'top_open', 'mine', 'monthly_opened'];
   for (var i = 0; i < names.length; i++) {
     var r = results[names[i]];
     if (!r) continue;
@@ -251,6 +349,13 @@ window.addEventListener('message', function (ev) {
   if (!d || d.type !== 'data' || typeof d.name !== 'string') return;
   results[d.name] = { columns: d.columns || [], rows: d.rows || [], truncated: !!d.truncated, warning: d.warning || '' };
   render();
+});
+
+// Refresh (GDK-793): the one frame→parent verb. '*' because this document is
+// sandboxed to an opaque origin and cannot name the parent — the payload is
+// a bare verb, and the parent filters by message source anyway.
+document.getElementById('refresh').addEventListener('click', function () {
+  parent.postMessage({ type: 'refresh' }, '*');
 });
 
 render();

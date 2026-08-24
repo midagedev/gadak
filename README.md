@@ -294,6 +294,10 @@ gadak views open --jql 'project = NMA AND resolution is EMPTY'
   <sub><code>gadak views open</code> writes a one-shot hash; the running app or serve tab applies it. The recording adds a priority clause — in <code>--jql</code> a priority or status name is matched as the literal string your Jira stores, which is localized, so the example above leaves it out. Generated from <a href="e2e/demo/agent-demo.spec.ts">e2e/demo/agent-demo.spec.ts</a>.</sub>
 </p>
 
+When the answer is a wall rather than a list, author a dashboard — one HTML
+document plus registered datasources, rendered sandboxed in the web tab:
+**[docs/DASHBOARDS.md](docs/DASHBOARDS.md)**.
+
 For hosts without a shell (Claude Desktop), the same mirror is an MCP
 server. Ask the thing Jira cannot answer at all, because the wiki is a
 second search: "what do we know about X?" One index holds both, so the

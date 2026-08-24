@@ -12,6 +12,15 @@
   right key kind, live reflection in an open tab with no reload, and a boot
   cache that kills the palette flash ([GDK-786], [GDK-791]).
 
+- An agent-authored dashboard is one HTML document plus registered
+  datasources, saved like a view and rendered in the web tab inside a
+  sandboxed frame. The host runs the queries (arbitrary SQL over a
+  read-only mirror connection, or JQL) and pushes results in by
+  postMessage; the frame's only verb back is `refresh`. Saves re-render an
+  open tab in ≤1s and mirror deltas re-push data in ≤2s; uPlot and three
+  ship embedded behind a fixed same-origin whitelist, so charts mean no
+  CDN and no CSP widening ([GDK-781], [GDK-782], [GDK-792], [GDK-793]).
+
 ## v0.17.1 — 2026-08-24
 
 The patch where the mirror learned to share. A day of dogfooding on a
@@ -79,6 +88,9 @@ one file, and the standalone record stopped being a YAML rewrite.
   a forced redirect, and it remembers your answer ([GDK-770]). Alongside:
   `llms.txt` for agents reading the site, an OG card that says what the
   page says, and a rate-limit row in the comparison table.
+
+### Dashboards for agents
+
 
 ## v0.17.0 — 2026-08-23
 
@@ -1157,3 +1169,7 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-786]: https://gadak.dev/backlog/#/?ks=GDK-786
 [GDK-787]: https://gadak.dev/backlog/#/?ks=GDK-787
 [GDK-791]: https://gadak.dev/backlog/#/?ks=GDK-791
+[GDK-781]: https://gadak.dev/backlog/#/?ks=GDK-781
+[GDK-782]: https://gadak.dev/backlog/#/?ks=GDK-782
+[GDK-792]: https://gadak.dev/backlog/#/?ks=GDK-792
+[GDK-793]: https://gadak.dev/backlog/#/?ks=GDK-793
