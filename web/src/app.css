@@ -935,8 +935,11 @@
       before: the 208px literal this replaced was already out-ranked by the
       data-viewport-regime overlay rules above (measured in Chromium at
       740px: grid 272px 452px, sidebar 208px — identical before/after).
-      Handing the step to JS is chunk 3's move (viewport-regime.ts owns the
-      token).
+      GDK-849 (2026-08-25): the step value now channels the user's
+      --layout-sidebar-narrow dim override (UIDimensionVars injects it
+      overrides-only, so with no override this 208px fallback paints —
+      unchanged). The step stays CSS-owned; viewport-regime's docked floor
+      is narrow-independent.
     */
     .issue-layout,
     .issue-layout.detail-open {
@@ -944,17 +947,17 @@
     }
 
     .issue-sidebar {
-      --layout-sidebar: 208px;
+      --layout-sidebar: var(--layout-sidebar-narrow, 208px);
       width: var(--layout-sidebar, 272px);
     }
 
     .browse-pane {
-      --layout-sidebar: 208px;
+      --layout-sidebar: var(--layout-sidebar-narrow, 208px);
       left: var(--layout-sidebar, 272px);
     }
 
     .browse-reentry {
-      --layout-sidebar: 208px;
+      --layout-sidebar: var(--layout-sidebar-narrow, 208px);
       left: calc(var(--layout-sidebar, 272px) + 1rem);
     }
 

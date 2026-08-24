@@ -164,9 +164,10 @@ function refreshLayoutTokenInstall(): void {
  * --layout-sidebar (208px) is also the minimum any user sidebar override may
  * take, so narrow = min(208, sidebar) is 208 for every legal override and
  * the CSS-owned step keeps painting exactly what it painted.
- * --layout-sidebar-narrow is accepted into ui.dims but not consumed by this
- * runtime yet (paint consumption needs app.css's narrow block, out of this
- * round's file list).
+ * --layout-sidebar-narrow is accepted into ui.dims; this runtime still does
+ * not read it (the docked floor is narrow-independent) — since GDK-849 its
+ * paint consumption lives in app.css's 760px block, which steps the sidebar
+ * through var(--layout-sidebar-narrow, 208px).
  */
 export function applyLayoutDimOverrides(
   dims: Record<string, string> | null | undefined,

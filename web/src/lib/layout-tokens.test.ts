@@ -30,6 +30,11 @@ import {
  * CSS-owned maxima are defined exactly once in :root, and every converted
  * declaration resolves to the exact pre-conversion geometry (the visual
  * no-op contract).
+ *
+ * GDK-849 (2026-08-25): the 760px narrow step stopped being a literal — it
+ * now channels the user's --layout-sidebar-narrow dim override, so a bare
+ * 208px redefinition in that block is an offender again and only the
+ * var(--layout-sidebar-narrow, 208px) fallback form may appear.
  */
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -101,10 +106,11 @@ test('layout dimension literals live only in definitions and var() fallbacks', (
    * grid, .browse-reentry) while the detail-open/overlay grids consumed
    * var(--layout-sidebar) — a token change would have split the layout in
    * half. Every consumption now goes through var(); a raw px may only
-   * appear where a value is declared: the :root maxima, the 760px narrow
-   * step, or a var() fallback.
+   * appear where a value is declared: the :root maxima or a var() fallback.
+   * GDK-849 removed the 760px narrow step from this allowlist — its 208px
+   * now lives inside the var(--layout-sidebar-narrow, 208px) fallback (the
+   * override channel), so a bare literal redefinition there fails again.
    */
-  const narrow = mediaBody('@media (max-width: 760px)')
   const offenders: string[] = []
   for (const m of CSS_CODE.matchAll(/(?:^|[^\w.-])(272|208|560|720|2200)px/g)) {
     const idx = m.index ?? 0
@@ -120,9 +126,6 @@ test('layout dimension literals live only in definitions and var() fallbacks', (
         name === '--layout-shell-max'
       ) {
         continue // :root base of a CSS-owned maximum
-      }
-      if (name === '--layout-sidebar' && m[1] === '208' && idx > narrow.start && idx < narrow.end) {
-        continue // the 760px narrow step
       }
     }
     offenders.push(`line ${lineOf(idx)}: …${before.trim().split('\n').pop()} ${m[0]}`)
@@ -220,14 +223,33 @@ test('converted declarations resolve to the exact pre-conversion geometry', () =
   // redeclaration this block could place there — so on .issue-layout itself
   // the grid still resolves the inline 272px, exactly what painted before
   // the conversion, where the literal 208px declaration was already
-  // out-ranked by the data-viewport-regime overlay rules. Handing the step
-  // to JS is chunk 3's move (viewport-regime.ts owns the token).
+  // out-ranked by the data-viewport-regime overlay rules. The step stays
+  // CSS-owned (viewport-regime's docked floor is narrow-independent);
+  // GDK-849 turned its value into the override channel asserted below.
   expect(resolve(declOf(narrow, '.issue-layout', 'grid-template-columns'))).toBe(
     '272px minmax(0, 1fr)',
   )
   expect(resolve(declOf(narrow, '.issue-sidebar', 'width'), narrowVars)).toBe('208px')
   expect(resolve(declOf(narrow, '.browse-pane', 'left'), narrowVars)).toBe('208px')
   expect(resolve(declOf(narrow, '.browse-reentry', 'left'), narrowVars)).toBe('calc(208px + 1rem)')
+
+  // GDK-849: the step redefinition is the user-override channel. Absent an
+  // override the fallback paints the shipped 208px (narrowVars above);
+  // present, it wins — and sidebar-narrow ≤ sidebar (dim-catalog relation,
+  // internal/config/tokencheck/dimcheck.go:204) is the only guard against
+  // paint inversion: nothing in the CSS re-clamps the step.
+  const step = declOf(narrow, '.issue-sidebar', '--layout-sidebar')
+  expect(step, 'the narrow step channels the override token with a 208px fallback').toBe(
+    'var(--layout-sidebar-narrow, 208px)',
+  )
+  const overridden = { ...narrowVars, '--layout-sidebar-narrow': '180px' }
+  expect(resolve(step, overridden)).toBe('180px')
+  expect(
+    resolve(declOf(narrow, '.issue-sidebar', 'width'), {
+      ...narrowVars,
+      '--layout-sidebar': resolve(step, overridden),
+    }),
+  ).toBe('180px')
 })
 
 test('app.css consumes the tokens and never restates their px', () => {
@@ -249,16 +271,26 @@ test('app.css consumes the tokens and never restates their px', () => {
    * (which by design sits on the consuming elements — the inline install on
    * .issue-layout out-ranks anything placed there). The CSS-owned maxima
    * are pinned by their own test above.
+   *
+   * GDK-849 (2026-08-25) closed that last exception: the narrow step is
+   * var()-valued now, so the px ban holds across the whole file and the
+   * block's three step redefinitions must all be the override-channel
+   * form.
    */
   const narrow = mediaBody('@media (max-width: 760px)')
-  expect(narrow.body, 'the narrow step redefines the sidebar token in place').toContain(
+  const steps = [
+    ...narrow.body.matchAll(/--layout-sidebar:\s*var\(--layout-sidebar-narrow, 208px\)/g),
+  ]
+  expect(
+    steps.length,
+    'every narrow-step redefinition channels --layout-sidebar-narrow (GDK-849)',
+  ).toBe(3)
+  expect(narrow.body, 'no bare literal narrow step survives').not.toContain(
     '--layout-sidebar: 208px',
   )
-  const outsideNarrow =
-    CSS_CODE.slice(0, narrow.start) + ' '.repeat(narrow.end - narrow.start) + CSS_CODE.slice(narrow.end)
   expect(
-    outsideNarrow,
-    'the four JS-owned track tokens are never defined outside the narrow step',
+    CSS_CODE,
+    'the four JS-owned track tokens are never defined as px anywhere (GDK-849 closed the narrow exception)',
   ).not.toMatch(/--layout-(sidebar|list-min|detail-min|docked-min):\s*[\d.]/)
 })
 
