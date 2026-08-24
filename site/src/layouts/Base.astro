@@ -43,6 +43,15 @@ const altPath = lang === 'en' ? `/ko${Astro.url.pathname === '/' ? '/' : Astro.u
     <link rel="icon" type="image/png" sizes="16x16" href="/icon-16.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="theme-color" content="#f4efe4" />
+    {/* Cloudflare Web Analytics — cookieless, marketing pages only. The
+        demo/backlog apps stay beacon-free on purpose: they are the product,
+        and the product's promise is no outbound. */}
+    <script
+      is:inline
+      type="module"
+      src="https://static.cloudflareinsights.com/beacon.min.js"
+      data-cf-beacon={'{"token": "abaadb0b53564824861e279a693d3fc8"}'}
+    ></script>
   </head>
   <body>
     {/* Locale suggestion, never a forced redirect: static and hidden; the
