@@ -554,6 +554,38 @@ gadak config set ui.dataColors '{"label":{"urgent":"#c03030"},"type":{"10007":"#
 - Changes reach an already-open web tab within ~1s (the ui-focus poll carries
   `configVersion`); no reload, no server restart.
 
+## Dashboards (agent-authored walls)
+
+You can author a live dashboard yourself: one HTML document plus named
+queries, saved like a view and rendered full-tab in the running web UI.
+Write the HTML to a temp file, register it with its datasources, open it —
+an already-open tab follows within ~1s, and every later `save` under the
+same name live-replaces the frame:
+
+```bash
+gadak dashboards save triage --html /tmp/triage.html \
+  --datasource "by_status=sql:select status_category, count(*) as n from issues_full group by 1 order by 1" \
+  --datasource "mine=jql:assignee = currentUser() AND resolution is EMPTY"
+gadak dashboards open triage        # focuses the running web tab
+gadak dashboards list / show / rm   # lifecycle; same name on save = update
+```
+
+- **Your HTML never fetches.** It runs sandboxed (opaque origin, CSP closes
+  the network); the host executes each registered datasource and pushes rows
+  in as `postMessage` events `{type:'data', name, columns, rows}`. Listen
+  for those and paint. The only message you may send back is
+  `{type:'refresh'}` (throttled).
+- **SQL datasources are arbitrary read-only SELECTs** over `issues_full` —
+  CTEs and window functions included. Key on computed columns, never display
+  names: `status_category` / `priority_rank` / `issue_type_id`.
+- **Charts: use the vendored libraries, not a CDN** (CSP refuses external
+  hosts). `<script src="/api/v1/dashboards/vendor/uPlot.iife.min.js">` (+ its
+  CSS) — leading slash required. The frame inherits no app styling: set your
+  own explicit palette.
+- `examples/dashboards/triage.html` in the repo is the working norm — cards,
+  a bar breakdown, and a uPlot line chart wired to the postMessage contract.
+  Full contract: `docs/DASHBOARDS.md`.
+
 ## Rules that come with the file
 
 - **Never write to the database.** Writes go through the origin (Jira on
