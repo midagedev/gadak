@@ -1,56 +1,120 @@
 ---
 import Base from '../../layouts/Base.astro'
+import Snippet from '../../components/Snippet.astro'
 import { strings } from '../../i18n'
 const t = strings.ko
+const releases = 'https://github.com/midagedev/gadak/releases/latest'
 ---
 
 <Base
   lang="ko"
   title="설치 — gadak"
-  description="gadak 설치: Homebrew(macOS·Linux), Windows 릴리즈 zip."
+  description="gadak 설치: Homebrew(macOS·Linux), Windows 릴리즈 zip, 첫 실행과 에이전트 연결까지."
 >
   <h1>{t.install.heading}</h1>
+  <p class="lede">
+    플랫폼 골라 한 줄 실행하고, <a href="#first-run">처음 실행</a>으로 넘어가면 됩니다. Atlassian
+    사이트에 연결하려면
+    <a href="https://id.atlassian.com/manage-profile/security/api-tokens">API 토큰</a> 하나면 되고
+    (같은 사이트의 Jira·Confluence를 함께 커버합니다), 스탠드얼론 모드는 계정 자체가 필요
+    없습니다.
+  </p>
 
-  <h2>macOS</h2>
-  <pre><code>{`brew install --cask midagedev/tap/gadak   # 앱 (CLI 포함)
-brew install midagedev/tap/gadak-cli     # CLI만`}</code></pre>
+  <h2 id="macos">macOS</h2>
+  <p>데스크톱 앱, CLI 포함:</p>
+  <Snippet code="brew install --cask midagedev/tap/gadak" copyLabel="복사" copiedLabel="복사됨" />
+  <p>
+    CLI만 — 같은 UI를 브라우저 탭에서 <code>gadak serve</code>로:
+  </p>
+  <Snippet code="brew install midagedev/tap/gadak-cli" copyLabel="복사" copiedLabel="복사됨" />
+  <p class="note">
+    Homebrew가 없다면 <a href={releases}>최신 릴리즈</a>의
+    <code>Gadak-&lt;version&gt;-arm64.dmg</code>(서명·공증 완료)를 받으면 됩니다.
+  </p>
 
-  <h2>Linux</h2>
-  <pre><code>{`brew install midagedev/tap/gadak-cli     # Homebrew 리눅스 경로
+  <h2 id="linux">Linux</h2>
+  <Snippet code="brew install midagedev/tap/gadak-cli" copyLabel="복사" copiedLabel="복사됨" />
+  <p class="note">
+    Homebrew 없이: <a href={releases}>최신 릴리즈</a>에서 아키텍처에 맞는 타볼을 받아
+    <code>gadak</code>을 <code>PATH</code>에 두면 됩니다.
+  </p>
 
-# 또는 아키텍처별 릴리즈 타볼:
-# https://github.com/midagedev/gadak/releases`}</code></pre>
+  <h2 id="windows">Windows</h2>
+  <p>
+    <a href={releases}>최신 릴리즈</a>에서
+    <code>gadak_&lt;version&gt;_windows_amd64.zip</code>(또는 <code>windows_arm64</code>)을 받아
+    풀고 <code>gadak.exe</code>를 <code>PATH</code>에 두세요. 이 경로가 가장 확실합니다.
+  </p>
+  <p class="note">
+    데스크톱 zip(<code>Gadak-&lt;version&gt;-windows-x64.zip</code>)은 아직 미서명이라
+    SmartScreen이나 Smart App Control이 막을 수 있습니다 — 바이러스 검출이 아니라 서명 부재
+    경고이니, 그 경우 위의 CLI zip을 쓰세요. 자세한 내용과 sha256 확인 방법:
+    <a href="https://github.com/midagedev/gadak/blob/main/docs/WINDOWS-SIGNING.md"
+      >WINDOWS-SIGNING.md</a
+    >.
+  </p>
 
-  <h2>Windows</h2>
-  <pre><code>{`# 릴리즈 zip (포터블):
-# https://github.com/midagedev/gadak/releases`}</code></pre>
-
-  <h2>처음 실행</h2>
-  <pre><code>{`# 회사 워크스페이스에 연결
-gadak init && gadak sync && gadak serve
-
-# 또는 트래커 없이 시작
-gadak init --standalone
+  <h2 id="first-run">처음 실행</h2>
+  <p>회사 Jira에 연결 (사이트·이메일·토큰·프로젝트를 차례로 묻습니다):</p>
+  <Snippet
+    code={`gadak init && gadak sync && gadak serve`}
+    copyLabel="복사"
+    copiedLabel="복사됨"
+  />
+  <p>또는 트래커 없이 시작:</p>
+  <Snippet
+    code={`gadak init --standalone
 gadak create "방금 생각난 일"
-gadak serve`}</code></pre>
+gadak serve`}
+    copyLabel="복사"
+    copiedLabel="복사됨"
+  />
+  <p class="note">
+    어느 쪽이든 <code>gadak serve</code>가 주소를 출력합니다 —
+    <code>http://gadak.localhost:7777</code>을 열어 이슈가 보이면 설치 검증 끝입니다.
+  </p>
+
+  <h2 id="agents">에이전트 연결</h2>
+  <p>같은 미러를 코딩 에이전트에게 넘기려면:</p>
+  <Snippet code="gadak skill install" copyLabel="복사" copiedLabel="복사됨" />
+  <p>셸이 없는 MCP 클라이언트(Claude Desktop)에는:</p>
+  <Snippet code="claude mcp add gadak -- gadak mcp" copyLabel="복사" copiedLabel="복사됨" />
+  <p class="note">
+    연결 후 에이전트가 할 수 있는 일:
+    <a href="https://github.com/midagedev/gadak/blob/main/docs/AGENT_SETUP.md">AGENT_SETUP.md</a>.
+  </p>
 </Base>
 
 <style>
   h1 {
     font-size: 2rem;
-    margin: 4rem 0 1.5rem;
+    margin: 4rem 0 1rem;
   }
   h2 {
     font-size: 1.125rem;
-    margin: 2.25rem 0 0.75rem;
+    margin: 2.5rem 0 0.25rem;
   }
-  pre {
-    padding: 1rem 1.25rem;
+  p {
+    margin: 0.75rem 0 0;
+    color: var(--ink-2);
+    max-width: 44rem;
+  }
+  p.lede {
+    margin-top: 0;
+  }
+  p.note {
+    font-size: 0.875rem;
+    color: var(--ink-3);
+  }
+  a {
+    color: var(--accent);
+  }
+  code {
+    font-family: var(--font-mono);
+    font-size: 0.875em;
     background: var(--code-bg);
     border: 1px solid var(--border);
-    border-radius: var(--radius);
-    overflow-x: auto;
-    font-size: 0.875rem;
-    line-height: 1.7;
+    border-radius: 4px;
+    padding: 0.05rem 0.3rem;
   }
 </style>

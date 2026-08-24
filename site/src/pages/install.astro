@@ -1,7 +1,9 @@
 ---
 import Base from '../layouts/Base.astro'
+import Snippet from '../components/Snippet.astro'
 import { strings } from '../i18n'
 const t = strings.en
+const releases = 'https://github.com/midagedev/gadak/releases/latest'
 ---
 
 <Base
@@ -10,47 +12,105 @@ const t = strings.en
   description="Install gadak: the macOS app and CLI via Homebrew, a Linux CLI via Homebrew or a release tarball, and Windows release zips."
 >
   <h1>{t.install.heading}</h1>
+  <p class="lede">
+    Pick your platform, run one line, then <a href="#first-run">first run</a>. Connecting to an
+    Atlassian site needs one
+    <a href="https://id.atlassian.com/manage-profile/security/api-tokens">API token</a> (it covers
+    Jira and Confluence on the same site) — standalone mode needs no account at all.
+  </p>
 
-  <h2>macOS</h2>
-  <pre><code>{`brew install --cask midagedev/tap/gadak   # app (CLI included)
-brew install midagedev/tap/gadak-cli     # CLI only`}</code></pre>
+  <h2 id="macos">macOS</h2>
+  <p>The desktop app, CLI included:</p>
+  <Snippet code="brew install --cask midagedev/tap/gadak" copyLabel="Copy" copiedLabel="Copied" />
+  <p>
+    CLI only — same UI in a browser tab via <code>gadak serve</code>:
+  </p>
+  <Snippet code="brew install midagedev/tap/gadak-cli" copyLabel="Copy" copiedLabel="Copied" />
+  <p class="note">
+    No Homebrew? The <a href={releases}>latest release</a> has a signed, notarized
+    <code>Gadak-&lt;version&gt;-arm64.dmg</code>.
+  </p>
 
-  <h2>Linux</h2>
-  <pre><code>{`brew install midagedev/tap/gadak-cli     # Homebrew on Linux
+  <h2 id="linux">Linux</h2>
+  <Snippet code="brew install midagedev/tap/gadak-cli" copyLabel="Copy" copiedLabel="Copied" />
+  <p class="note">
+    Without Homebrew: grab the tarball for your arch from the
+    <a href={releases}>latest release</a> and put <code>gadak</code> on <code>PATH</code>.
+  </p>
 
-# or the tarball for your arch:
-# https://github.com/midagedev/gadak/releases`}</code></pre>
+  <h2 id="windows">Windows</h2>
+  <p>
+    From the <a href={releases}>latest release</a>, download
+    <code>gadak_&lt;version&gt;_windows_amd64.zip</code> (or <code>windows_arm64</code>), unzip,
+    put <code>gadak.exe</code> on <code>PATH</code>. This is the reliable route.
+  </p>
+  <p class="note">
+    The desktop zip (<code>Gadak-&lt;version&gt;-windows-x64.zip</code>) is currently unsigned — if
+    SmartScreen or Smart App Control blocks it, that is the missing signature, not a virus finding;
+    use the CLI zip above. Details and how to check the sha256:
+    <a href="https://github.com/midagedev/gadak/blob/main/docs/WINDOWS-SIGNING.md"
+      >WINDOWS-SIGNING.md</a
+    >.
+  </p>
 
-  <h2>Windows</h2>
-  <pre><code>{`# portable zip per release:
-# https://github.com/midagedev/gadak/releases`}</code></pre>
-
-  <h2>First run</h2>
-  <pre><code>{`# connect to your team's workspace
-gadak init && gadak sync && gadak serve
-
-# or start with no tracker at all
-gadak init --standalone
+  <h2 id="first-run">First run</h2>
+  <p>Connect to your team's Jira (asks for site, email, token, projects):</p>
+  <Snippet code={`gadak init && gadak sync && gadak serve`} copyLabel="Copy" copiedLabel="Copied" />
+  <p>Or start with no tracker at all:</p>
+  <Snippet
+    code={`gadak init --standalone
 gadak create "the thing I just noticed"
-gadak serve`}</code></pre>
+gadak serve`}
+    copyLabel="Copy"
+    copiedLabel="Copied"
+  />
+  <p class="note">
+    Either way, <code>gadak serve</code> prints the address — open
+    <code>http://gadak.localhost:7777</code> and you should see your issues. That is the whole
+    verification.
+  </p>
+
+  <h2 id="agents">For agents</h2>
+  <p>Hand the same mirror to your coding agent:</p>
+  <Snippet code="gadak skill install" copyLabel="Copy" copiedLabel="Copied" />
+  <p>For MCP clients without a shell (Claude Desktop):</p>
+  <Snippet code="claude mcp add gadak -- gadak mcp" copyLabel="Copy" copiedLabel="Copied" />
+  <p class="note">
+    What the agent can do from there:
+    <a href="https://github.com/midagedev/gadak/blob/main/docs/AGENT_SETUP.md">AGENT_SETUP.md</a>.
+  </p>
 </Base>
 
 <style>
   h1 {
     font-size: 2rem;
-    margin: 4rem 0 1.5rem;
+    margin: 4rem 0 1rem;
   }
   h2 {
     font-size: 1.125rem;
-    margin: 2.25rem 0 0.75rem;
+    margin: 2.5rem 0 0.25rem;
   }
-  pre {
-    padding: 1rem 1.25rem;
+  p {
+    margin: 0.75rem 0 0;
+    color: var(--ink-2);
+    max-width: 44rem;
+  }
+  p.lede {
+    margin-top: 0;
+  }
+  p.note {
+    font-size: 0.875rem;
+    color: var(--ink-3);
+  }
+  a {
+    color: var(--accent);
+  }
+  code {
+    font-family: var(--font-mono);
+    font-size: 0.875em;
     background: var(--code-bg);
     border: 1px solid var(--border);
-    border-radius: var(--radius);
-    overflow-x: auto;
-    font-size: 0.875rem;
-    line-height: 1.7;
+    border-radius: 4px;
+    padding: 0.05rem 0.3rem;
   }
 </style>

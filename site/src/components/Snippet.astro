@@ -1,0 +1,106 @@
+---
+// A copyable command block. One copy unit per snippet: alternatives get
+// their own snippet each, and explanations live in surrounding prose, not
+// in-block comments — what lands in the clipboard is exactly what runs.
+interface Props {
+  code: string
+  copyLabel: string
+  copiedLabel: string
+}
+const { code, copyLabel, copiedLabel } = Astro.props
+---
+
+<div class="snippet">
+  <pre><code>{code}</code></pre>
+  <button
+    type="button"
+    class="copy"
+    data-copy
+    data-label={copyLabel}
+    data-copied={copiedLabel}
+    aria-label={copyLabel}>{copyLabel}</button
+  >
+</div>
+
+<script>
+  // One document-level handler (Astro dedupes this module across instances).
+  document.addEventListener('click', (e) => {
+    const target = e.target instanceof Element ? e.target : null
+    const btn = target?.closest('[data-copy]')
+    if (!(btn instanceof HTMLButtonElement)) return
+    const code = btn.parentElement?.querySelector('code')
+    if (!code) return
+    const text = (code.textContent ?? '').replace(/\s+$/, '')
+    const done = () => {
+      btn.textContent = btn.dataset.copied ?? 'Copied'
+      btn.classList.add('done')
+      window.setTimeout(() => {
+        btn.textContent = btn.dataset.label ?? 'Copy'
+        btn.classList.remove('done')
+      }, 1600)
+    }
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).then(done, () => fallbackCopy(text, done))
+    } else {
+      fallbackCopy(text, done)
+    }
+  })
+  function fallbackCopy(text: string, done: () => void) {
+    const ta = document.createElement('textarea')
+    ta.value = text
+    ta.setAttribute('readonly', '')
+    ta.style.position = 'fixed'
+    ta.style.opacity = '0'
+    document.body.appendChild(ta)
+    ta.select()
+    try {
+      document.execCommand('copy')
+      done()
+    } finally {
+      ta.remove()
+    }
+  }
+</script>
+
+<style>
+  .snippet {
+    position: relative;
+    margin: 0.75rem 0 0;
+  }
+  pre {
+    padding: 0.875rem 5.5rem 0.875rem 1.25rem;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow-x: auto;
+    font-size: 0.875rem;
+    line-height: 1.7;
+    margin: 0;
+  }
+  .copy {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--ink-3);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: calc(var(--radius) - 2px);
+    padding: 0.2rem 0.55rem;
+    cursor: pointer;
+  }
+  .copy:hover {
+    color: var(--accent);
+    border-color: var(--border-strong);
+  }
+  .copy.done {
+    color: var(--accent);
+  }
+  @media (max-width: 40rem) {
+    pre {
+      padding-right: 1.25rem;
+      padding-top: 2.4rem;
+    }
+  }
+</style>
