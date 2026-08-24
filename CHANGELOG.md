@@ -2,7 +2,7 @@
 
 <sub>English · <a href="CHANGELOG.ko.md">한국어</a></sub>
 
-## Unreleased
+## v0.17.2 — 2026-08-25
 
 - The color wave: a runtime token validator ported from theme-check with
   the app.css catalog as its single source ([GDK-785], [GDK-787]), and user
