@@ -1,14 +1,23 @@
 #!/usr/bin/env bash
-# Unattended flagship take: VHS (Claude Code) + Playwright (serve tab) →
+# Unattended live-Claude-Code take: VHS (terminal) + Playwright (serve tab) →
 # docs/media/claude-drive.{mp4,gif} (landscape) or
 # docs/media/claude-drive-vertical.mp4 (GADAK_PROMO_LAYOUT=vertical).
+# The same pipeline drives the split vertical-only clips:
+#   claude-dashboards → docs/media/claude-dashboards-vertical.mp4 (no retint)
+#   claude-tokens     → docs/media/claude-tokens-vertical.mp4 (look + dims)
 #
 # Live model. Requires vhs, ffmpeg, Playwright chromium, and a Claude Code
 # login. Not part of `make media` (same reason as media-mcp).
 #
 # Usage:
-#   bash e2e/demo/record-claude-drive.sh              # landscape
-#   bash e2e/demo/record-claude-drive.sh vertical      # 1080×1350 first
+#   bash e2e/demo/record-claude-drive.sh              # landscape flagship
+#   bash e2e/demo/record-claude-drive.sh vertical      # 1080×1350 flagship
+#   bash e2e/demo/record-claude-drive.sh vertical claude-dashboards
+#   bash e2e/demo/record-claude-drive.sh vertical claude-tokens
+#
+# Clips share the claude-drive[-vertical] workdir, port defaults, and the
+# clip-agnostic web recorder (e2e/demo/claude-drive-web.spec.ts) — run them
+# sequentially, never two at once.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -31,6 +40,20 @@ else
   LAYOUT=landscape
 fi
 
+# Clip selects the tape + result contract; the workdir stays claude-drive's.
+CLIP="${2:-claude-drive}"
+case "$CLIP" in
+  claude-drive|claude-dashboards|claude-tokens) ;;
+  *)
+    echo "record-claude-drive: usage: $0 [landscape|vertical] [claude-drive|claude-dashboards|claude-tokens]" >&2
+    exit 2
+    ;;
+esac
+if [[ "$CLIP" != "claude-drive" && "$LAYOUT" != "vertical" ]]; then
+  echo "record-claude-drive: clip ${CLIP} is vertical-only — usage: $0 vertical ${CLIP}" >&2
+  exit 2
+fi
+
 if [[ -z "${SKIP_NVM:-}" ]]; then
   export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
   if [[ -s "$NVM_DIR/nvm.sh" ]]; then
@@ -51,6 +74,10 @@ fi
 
 if [[ "$LAYOUT" == "vertical" ]]; then
   PORT="${GADAK_E2E_PORT:-7891}"
+  # OUT is the claude-drive[-vertical] workdir for EVERY clip: the web
+  # recorder (claude-drive-web.spec.ts / claude-drive.config.ts) hardcodes
+  # it and is clip-agnostic. Sequential clips overwrite each other's
+  # scratch here by design.
   OUT="$ROOT/e2e/.tmp/claude-drive-vertical"
   RESULTS="$ROOT/e2e/.tmp/test-results-claude-drive-vertical"
 else
@@ -82,14 +109,16 @@ if lsof -nP -iTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "record-claude-drive: layout=${LAYOUT} GADAK_E2E_PORT=${PORT} node=$(node -v) claude=$(command -v claude)"
+echo "record-claude-drive: layout=${LAYOUT} clip=${CLIP} GADAK_E2E_PORT=${PORT} node=$(node -v) claude=$(command -v claude)"
 
 write_tape() {
-  local src="$ROOT/tools/tapes/claude-drive.tape"
+  local src="$ROOT/tools/tapes/${CLIP}.tape"
   local dst="$OUT/drive.tape"
-  if [[ "$LAYOUT" == "vertical" ]]; then
+  if [[ "$LAYOUT" == "vertical" && "$CLIP" == "claude-drive" ]]; then
     # 1080×520 @ font 18 — same ~60 columns as landscape 720 @ 14, taller
     # than tokens' 340 px band because the TUI fills the pane.
+    # claude-dashboards/claude-tokens tapes are vertical-native (the
+    # geometry above lives in those files; no rewrite).
     sed -e 's/^Set Width 720$/Set Width 1080/' \
         -e 's/^Set Height 688$/Set Height 520/' \
         -e 's/^Set FontSize 14$/Set FontSize 18/' \
@@ -152,7 +181,7 @@ trap cleanup EXIT
 validate_take() {
   local take="$1"
   local reason=""
-  local tokens colors list html_has_chart web_accent web_label web_dash color_sets
+  local tokens colors list html_has_chart web_accent web_label web_dash color_sets dim_sets
 
   tokens="$(GADAK_HOME="$GADAK_HOME_DIR" "$BIN" config get ui.tokens --json 2>/dev/null || true)"
   colors="$(GADAK_HOME="$GADAK_HOME_DIR" "$BIN" config get ui.dataColors --json 2>/dev/null || true)"
@@ -164,6 +193,14 @@ validate_take() {
   fi
   if printf '%s' "$colors" | grep -Eq '"label"|"type"|"status"|#[0-9a-fA-F]{3,8}'; then
     color_sets=$((color_sets + 1))
+  fi
+
+  # Dimension overrides ride in ui.tokens (spacing/layout/type axes —
+  # ui.tokensByTheme refuses them), so the same query proves them. The seed
+  # config.json sets no ui.tokens, so any axis key here is Claude's write.
+  dim_sets=0
+  if printf '%s' "$tokens" | grep -Eq '"(spacing|layout|type)":'; then
+    dim_sets=$((dim_sets + 1))
   fi
 
   html_has_chart=0
@@ -183,14 +220,33 @@ validate_take() {
   fi
 
   local web_color_events=$((web_accent + web_label))
-  if [[ "$color_sets" -lt 2 && "$web_color_events" -lt 2 ]]; then
-    reason="colour changes < 2 (config_sets=${color_sets} web_events=${web_color_events})"
-  elif ! printf '%s' "$list" | grep -Eq '[[:alnum:]]'; then
-    reason="no dashboard saved (dashboards list empty)"
-  elif [[ "$html_has_chart" -eq 0 ]]; then
-    reason="saved dashboard HTML has no uPlot/canvas chart"
-  elif [[ "$web_dash" -eq 0 ]]; then
-    reason="serve tab never opened a dashboard frame"
+  # Result contract per clip. claude-drive keeps the flagship chain exactly;
+  # the split clips drop the other half's job from the requirement.
+  case "$CLIP" in
+    claude-drive)
+      if [[ "$color_sets" -lt 2 && "$web_color_events" -lt 2 ]]; then
+        reason="colour changes < 2 (config_sets=${color_sets} web_events=${web_color_events})"
+      fi
+      ;;
+    claude-dashboards)
+      # Dashboards-only cut: colour changes are claude-tokens' contract.
+      ;;
+    claude-tokens)
+      if [[ "$color_sets" -lt 1 && "$web_color_events" -lt 1 ]]; then
+        reason="colour changes < 1 (config_sets=${color_sets} web_events=${web_color_events})"
+      elif [[ "$dim_sets" -lt 1 ]]; then
+        reason="no dimension override set (ui.tokens has no spacing/layout/type axis)"
+      fi
+      ;;
+  esac
+  if [[ -z "$reason" && "$CLIP" != "claude-tokens" ]]; then
+    if ! printf '%s' "$list" | grep -Eq '[[:alnum:]]'; then
+      reason="no dashboard saved (dashboards list empty)"
+    elif [[ "$html_has_chart" -eq 0 ]]; then
+      reason="saved dashboard HTML has no uPlot/canvas chart"
+    elif [[ "$web_dash" -eq 0 ]]; then
+      reason="serve tab never opened a dashboard frame"
+    fi
   fi
 
   python3 -c '
@@ -198,6 +254,7 @@ import json, sys
 rec = {
     "take": int(sys.argv[1]),
     "layout": sys.argv[12],
+    "clip": sys.argv[13],
     "ok": sys.argv[2] == "",
     "reason": sys.argv[2] or None,
     "tokens": sys.argv[3][:500],
@@ -211,7 +268,7 @@ rec = {
 }
 open(sys.argv[11], "a").write(json.dumps(rec) + "\n")
 print(json.dumps(rec, indent=2))
-' "$take" "$reason" "$tokens" "$colors" "$list" "$web_accent" "$web_label" "$web_dash" "$html_has_chart" "$color_sets" "$TAKE_LOG" "$LAYOUT"
+' "$take" "$reason" "$tokens" "$colors" "$list" "$web_accent" "$web_label" "$web_dash" "$html_has_chart" "$color_sets" "$TAKE_LOG" "$LAYOUT" "$CLIP"
   if [[ -n "$reason" ]]; then
     echo "record-claude-drive: take ${take} FAIL: $reason" >&2
     return 1
@@ -240,7 +297,7 @@ chosen=""
 take="$TAKE_START"
 TAKE_END=$((TAKE_START + MAX_TAKES - 1))
 while [[ "$take" -le "$TAKE_END" ]]; do
-  echo "record-claude-drive: ===== take ${take} layout=${LAYOUT} (start=${TAKE_START} end=${TAKE_END}) ====="
+  echo "record-claude-drive: ===== take ${take} layout=${LAYOUT} clip=${CLIP} (start=${TAKE_START} end=${TAKE_END}) ====="
   rm -rf "$RESULTS"
   rm -f "$OUT/web-stop" "$OUT/web-ready-epoch" "$OUT/vhs-show-epoch" "$OUT/term.mp4"
   mkdir -p "$OUT"
@@ -343,6 +400,9 @@ if [[ -f "$OUT/take-${chosen}/web-timeline.jsonl" ]]; then
   cp -f "$OUT/take-${chosen}/web-timeline.jsonl" "$OUT/web-timeline.jsonl"
 fi
 
-GADAK_PROMO_LAYOUT="$LAYOUT" bash "$ROOT/e2e/demo/export-claude-drive.sh"
+# GADAK_CLAUDE_DRIVE_CLIP is passed here only (not exported): the tape's
+# shell must not carry unknown GADAK_* vars — the CLI warns about them.
+GADAK_PROMO_LAYOUT="$LAYOUT" GADAK_CLAUDE_DRIVE_CLIP="$CLIP" \
+  bash "$ROOT/e2e/demo/export-claude-drive.sh"
 
-echo "record-claude-drive: done (take ${chosen} layout=${LAYOUT})"
+echo "record-claude-drive: done (take ${chosen} layout=${LAYOUT} clip=${CLIP})"

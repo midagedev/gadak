@@ -7,16 +7,31 @@
 # Vertical (GADAK_PROMO_LAYOUT=vertical): 1080×1350 vstack. Bar 48 +
 #   flagship terminal 520 + web 782. tokens/dashboards use term 340;
 #   Claude TUI fills the pane so the band is taller (must match
-#   FLAGSHIP_V_TERM_H in claude-drive-web.spec.ts).
+#   FLAGSHIP_V_TERM_H in claude-drive-web.spec.ts). The split clips
+#   (GADAK_CLAUDE_DRIVE_CLIP=claude-dashboards|claude-tokens, vertical
+#   only) reuse this exact geometry and the claude-drive-vertical workdir —
+#   the web recorder is clip-agnostic — and write their own mp4 names.
 #
 # Idle waits are compressed by e2e/demo/static-cut.py, not jump-cut.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 LAYOUT="${GADAK_PROMO_LAYOUT:-landscape}"
+CLIP="${GADAK_CLAUDE_DRIVE_CLIP:-claude-drive}"
+case "$CLIP" in
+  claude-drive|claude-dashboards|claude-tokens) ;;
+  *)
+    echo "export-claude-drive: unknown clip '${CLIP}' (GADAK_CLAUDE_DRIVE_CLIP)" >&2
+    exit 2
+    ;;
+esac
+if [[ "$CLIP" != "claude-drive" && "$LAYOUT" != "vertical" ]]; then
+  echo "export-claude-drive: clip ${CLIP} is vertical-only (GADAK_PROMO_LAYOUT=vertical)" >&2
+  exit 2
+fi
 if [[ "$LAYOUT" == "vertical" ]]; then
   WORK="$ROOT/e2e/.tmp/claude-drive-vertical"
-  FINAL_MP4="$ROOT/docs/media/claude-drive-vertical.mp4"
+  FINAL_MP4="$ROOT/docs/media/${CLIP}-vertical.mp4"
   FINAL_GIF=""
   RESULTS="$ROOT/e2e/.tmp/test-results-claude-drive-vertical"
   FRAME_W=1080
@@ -64,7 +79,7 @@ if [[ ! -s "$WEB_WEBM" ]]; then
   cp -f "$WEBM" "$WEB_WEBM"
 fi
 
-echo "export-claude-drive: layout=${LAYOUT} frame=${FRAME_W}x${FRAME_H} term=${TERM_W}x${TERM_H} web=${WEB_W}x${WEB_H}"
+echo "export-claude-drive: layout=${LAYOUT} clip=${CLIP} frame=${FRAME_W}x${FRAME_H} term=${TERM_W}x${TERM_H} web=${WEB_W}x${WEB_H}"
 
 # Re-composite only when term/web are newer than raw. A leftover raw from a
 # previous take is older than the new term.mp4, so a reshoot still composites.
@@ -135,13 +150,31 @@ echo "export-claude-drive: raw duration=${RAW_DUR}s"
 python3 "$ROOT/e2e/demo/edit-claude-drive.py" "$WORK" "$RAW_DUR"
 
 echo "export-claude-drive: static-cut"
-python3 "$ROOT/e2e/demo/static-cut.py" \
-  --input "$RAW" \
-  --output "$CUT" \
-  --protect-json "$WORK/edit-protect.json" \
-  --log "$WORK/static-cut.json" \
-  --fps 25 \
-  --threshold 0.50
+# claude-tokens: the dimension repaint (ui.tokens spacing/type axes) emits
+# no web-timeline beat — claude-drive-web.spec.ts watches colours and
+# dashboards only — so edit-claude-drive.py's event-based trim_end can cut
+# the densify payoff when it lands after the last colour change. Trim at
+# the raw duration instead (CLI --trim-end overrides the protect JSON);
+# static-cut still compresses the idle tail and --end-hold keeps the final
+# hold. Other clips keep the event-based trim.
+if [[ "$CLIP" == "claude-tokens" ]]; then
+  python3 "$ROOT/e2e/demo/static-cut.py" \
+    --input "$RAW" \
+    --output "$CUT" \
+    --protect-json "$WORK/edit-protect.json" \
+    --log "$WORK/static-cut.json" \
+    --fps 25 \
+    --threshold 0.50 \
+    --trim-end "$RAW_DUR"
+else
+  python3 "$ROOT/e2e/demo/static-cut.py" \
+    --input "$RAW" \
+    --output "$CUT" \
+    --protect-json "$WORK/edit-protect.json" \
+    --log "$WORK/static-cut.json" \
+    --fps 25 \
+    --threshold 0.50
+fi
 
 # Even width/height for yuv420p.
 # fps=25 matches the Playwright half (VHS is 8).
