@@ -98,7 +98,7 @@ func TestSettingsUIRoundtripAndRefusal(t *testing.T) {
 	h := New(db, cfg)
 
 	put := func(ui string) *httptest.ResponseRecorder {
-		body := `{"projects":` + mustJSON(t, cfg.Projects) + `,"staleThresholdHours":72,"syncIntervalSec":0,"reconcileIntervalSec":0,"ui":` + ui + `}`
+		body := `{"projects":` + mustJSON(cfg.Projects) + `,"staleThresholdHours":72,"syncIntervalSec":0,"reconcileIntervalSec":0,"ui":` + ui + `}`
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, testRequest(http.MethodPut, apiBase+"settings/", strings.NewReader(body)))
 		return rec
@@ -186,13 +186,4 @@ func TestUIFocusAlwaysCarriesConfigVersion(t *testing.T) {
 	if next.ConfigVersion == got.ConfigVersion {
 		t.Fatalf("configVersion did not move after save: %q", next.ConfigVersion)
 	}
-}
-
-func mustJSON(t *testing.T, v any) string {
-	t.Helper()
-	b, err := json.Marshal(v)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return string(b)
 }
