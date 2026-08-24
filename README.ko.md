@@ -31,12 +31,49 @@ gadak은 Jira *그리고* Confluence를 로컬 SQLite 파일 하나로 미러링
   <a href="https://gadak.dev/demo/"><b>▶&nbsp; 라이브 데모 열기</b></a>
   &nbsp;—&nbsp; 이슈 534개, 지금 바로 브라우저에서.
   <br>
-  <a href="https://gadak.dev/backlog/">공개 백로그</a>
-  &nbsp;—&nbsp; gadak 자신의 로드맵을 gadak으로 봅니다. 커밋 메시지의
-  <code>GDK-nnn</code> 키가 여기로 이어집니다. 등록은
-  <a href="https://github.com/midagedev/gadak/issues">GitHub 이슈</a>로 —
-  메인테이너가 백로그로 미러합니다.
+  <a href="CHANGELOG.ko.md">체인지로그</a>
+  &nbsp;—&nbsp; 무엇이 나왔는지.
 </p>
+
+연결된 사이트에는 [API 토큰](https://id.atlassian.com/manage-profile/security/api-tokens)
+하나가 필요합니다 — 같은 사이트의 Jira와 Confluence를 모두 커버합니다.
+Standalone 워크스페이스는 Atlassian 계정 자체가 필요 없습니다.
+
+macOS 앱, CLI 포함:
+
+```bash
+brew install --cask midagedev/tap/gadak
+```
+
+CLI만 — 같은 UI를 브라우저 탭에서 `gadak serve`로:
+
+```bash
+brew install midagedev/tap/gadak-cli
+```
+
+Windows: [최신 릴리스](https://github.com/midagedev/gadak/releases/latest)에서
+`gadak_<version>_windows_amd64.zip`(또는 `windows_arm64`)을 받아 풀고
+`gadak.exe`를 `PATH`에 두세요. 데스크톱 zip(`Gadak-<version>-windows-x64.zip`)은
+미서명입니다 — SmartScreen이나 Smart App Control이 막으면 바이러스 검출이
+아니라 서명 부재이니, CLI zip을 쓰세요. Smart App Control을 끄지 마세요.
+
+Jira에 연결:
+
+```bash
+gadak init && gadak sync && gadak serve
+```
+
+또는 트래커 없이 시작:
+
+```bash
+gadak init --standalone
+gadak create "the thing I just noticed"
+gadak serve
+```
+
+`gadak serve`가 주소를 출력합니다 — `http://gadak.localhost:7777`을 열어
+이슈가 보이면 됩니다. 리눅스 타볼, 페어링, 서명된 macOS dmg:
+[설치](#설치).
 
 ```bash
 gadak sql "select epic_key, count(*) from issues_full where resolved_at is null
@@ -85,30 +122,9 @@ CLI 기동 포함 — [방법론과 재측정 이력, gadak이 지는 행](docs/
 
 </details>
 
-macOS: [`Gadak-<version>-arm64.dmg`](https://github.com/midagedev/gadak/releases/latest)를
-받아 창을 엽니다.
-
-Windows (0.16부터): [`Gadak-<version>-windows-x64.zip`](https://github.com/midagedev/gadak/releases/latest)
-(또는 `windows-arm64`)을 받아 압축을 풀고 `gadak-desktop.exe`를 실행합니다.
-이 빌드는 서명되어 있지 않습니다 — Windows가 막으면 아래 CLI 경로를
-쓰세요. 설치:
-[`docs/INSTALL.md`](docs/INSTALL.md#desktop-app-windows). 경고가 뜨는 이유와
-zip 검증(code signing policy):
-[`docs/WINDOWS-SIGNING.md`](docs/WINDOWS-SIGNING.md).
-
-또는 터미널에서:
-
-```bash
-brew install midagedev/tap/gadak        # macOS 앱 — 번들된 CLI도 PATH에 올라갑니다
-# CLI만 (macOS + Linux는 brew; Windows는 릴리스 zip):
-brew install midagedev/tap/gadak-cli
-gadak init && gadak sync    # Jira (그리고 Confluence) -> ~/.gadak/gadak.db
-gadak serve                # http://gadak.localhost:7777
-```
-
 > **상태: 0.17, 아직 0.x입니다.** 동기화, 읽기 API, 쓰기 통과(write-through),
-> 데스크톱, 웹, CLI, MCP가 실제 사이트에 대해 검증되어 있습니다. 숨김 없는
-> 현황은 [`docs/STATE_OF_PLAY.md`](docs/STATE_OF_PLAY.md)에.
+> 데스크톱, 웹, CLI, MCP가 실제 사이트에 대해 검증되어 있습니다.
+> [`CHANGELOG.ko.md`](CHANGELOG.ko.md).
 
 ## 왜 만들었나
 
@@ -221,10 +237,16 @@ gadak이 존재하는 이유의 절반입니다. 레퍼런스: **[docs/MIRROR.md
 호스트별 붙여넣기 한 번: [`docs/AGENT_SETUP.md`](docs/AGENT_SETUP.md).
 
 ```bash
-gadak skill install         # 스키마 + 쿼리 패턴, 별도 프로세스 없음
-# 또는, 셸이 없는 호스트(Claude Desktop)라면:
-gadak mcp install claude    # 이 바이너리와 워크스페이스를 등록에 고정
+gadak skill install
 ```
+
+스키마와 쿼리 패턴, 별도 프로세스 없음. 셸이 없는 호스트(Claude Desktop)라면:
+
+```bash
+gadak mcp install claude
+```
+
+이 바이너리와 워크스페이스를 등록에 고정합니다.
 
 `gadak init`과 `gadak install-cli`는 `~/.claude`가 이미 있으면 그 스킬을
 자동으로 설치합니다. gadak이 쓰지 않은 파일은 그대로 둡니다.
@@ -236,23 +258,40 @@ gadak mcp install claude    # 이 바이너리와 워크스페이스를 등록�
 편집하는 모든 필드가 같은 검증을 지나는 CLI 동사입니다:
 
 ```bash
-gadak config list                          # 편집 가능한 전체 경로와 현재값
-gadak config set appearance.theme ink      # 워크스페이스별, 즉시 적용
+gadak config list
 ```
 
-SQL이 답하고, 창이 보여 줍니다. 이미 JQL이 있다면 SQL을 건너뛰세요 —
-절이 그대로 칩이 됩니다:
+편집 가능한 전체 경로와 현재값.
+
+```bash
+gadak config set appearance.theme ink
+```
+
+워크스페이스별, 즉시 적용.
+
+SQL이 답하고, 창이 보여 줍니다. 필터는 `status_category` /
+`priority_rank`(1 = 가장 긴급, 0 = 미설정)로 걸고, display name으로는
+키하지 마세요 — Jira는 계정 언어마다 그 이름을 번역하므로
+`priority = High`는 한국어 계정에서 소리 없이 0행입니다. `--jql`은
+Jira 자신의 언어라 입력한 문자 그대로 남습니다. 순위나 카테고리로
+거를 때는 `gadak sql`을 쓰세요:
 
 ```bash
 gadak sql --no-header "select key from issues_full where status_category = 'inprogress'
                        order by status_changed_at asc limit 5" | gadak views open --keys -
-gadak views open --jql 'project = NMA AND priority = High AND resolution is EMPTY'
+```
+
+이미 JQL이 있다면 절이 그대로 칩이 됩니다. 아래는 프로젝트 키와
+비어 있음만 걸고, 로케일 이름에는 키하지 않습니다:
+
+```bash
+gadak views open --jql 'project = NMA AND resolution is EMPTY'
 ```
 
 <p align="center">
   <img src="docs/media/agent.gif" alt="터미널이 gadak sql을 gadak views open --keys - 로 파이프하자 실행 중인 앱이 그 다섯 키로 즉시 이동하고, 이어서 gadak views open --jql이 같은 창을 프로젝트·우선순위·미해결 칩 위에 내려놓는다" width="800">
   <br>
-  <sub><code>gadak views open</code>은 일회성 해시를 쓰고, 실행 중인 앱 또는 serve 탭이 그것을 적용합니다. <a href="e2e/demo/agent-demo.spec.ts">e2e/demo/agent-demo.spec.ts</a>가 생성.</sub>
+  <sub><code>gadak views open</code>은 일회성 해시를 쓰고, 실행 중인 앱 또는 serve 탭이 그것을 적용합니다. 녹화본에는 우선순위 절이 하나 더 있습니다 — <code>--jql</code>에서 우선순위·상태 이름은 내 Jira가 저장한 문자열 그대로 매칭되고 그 이름은 로케일마다 다르므로, 위 예시에서는 뺐습니다. <a href="e2e/demo/agent-demo.spec.ts">e2e/demo/agent-demo.spec.ts</a>가 생성.</sub>
 </p>
 
 셸이 없는 호스트(Claude Desktop)에서는 같은 미러가 MCP 서버가 됩니다.
@@ -301,54 +340,67 @@ macOS: [최신 릴리스](https://github.com/midagedev/gadak/releases/latest)에
 /Applications/Gadak.app/Contents/Resources/bin/gadak install-cli
 ```
 
-Windows (0.16부터): 같은 릴리스에서 `Gadak-<version>-windows-x64.zip`(또는
-`windows-arm64`)을 받아 압축을 풀고 `gadak-desktop.exe`를 실행하세요. 서명은
-없습니다([GDK-211]). Windows가 **Windows protected your
-PC** 또는 **Smart App Control blocked an app that may be unsafe**를 보여
-주면 바이러스 탐지가 아닙니다 — 아래 CLI 경로를 쓰세요. Smart App Control을
-끄지 마세요.
+**2. CLI** — 리눅스, Windows, 또는 같은 UI를 브라우저 탭으로:
+
+macOS + Linux:
+
+```bash
+brew install midagedev/tap/gadak-cli
+```
+
+Windows: [최신 릴리스](https://github.com/midagedev/gadak/releases/latest)에서
+`gadak_<version>_windows_amd64.zip`(또는 `windows_arm64`)과 `checksums.txt`를
+받으세요. 압축을 풀고 `gadak.exe`를 `PATH`에 두세요. 이 경로가 가장
+확실합니다. sha256 확인:
+[`docs/WINDOWS-SIGNING.md`](docs/WINDOWS-SIGNING.md).
+
+데스크톱 zip(`Gadak-<version>-windows-x64.zip`, 또는 `windows-arm64`)은
+미서명입니다([GDK-211]). Windows가 **Windows protected your PC** 또는
+**Smart App Control blocked an app that may be unsafe**를 보여 주면
+바이러스 탐지가 아니라 서명 부재입니다 — 위의 CLI zip을 쓰세요.
+Smart App Control을 끄지 마세요.
 설치: [`docs/INSTALL.md`](docs/INSTALL.md#desktop-app-windows).
 Code signing policy (경고 이유, SHA256):
 [`docs/WINDOWS-SIGNING.md`](docs/WINDOWS-SIGNING.md).
 
-**2. CLI** — 리눅스, Windows, 또는 같은 UI를 브라우저 탭으로:
-
 Atlassian 계정 없음:
 
 ```bash
-brew install midagedev/tap/gadak-cli     # macOS + Linux
 gadak init --standalone
 gadak create "the thing I just noticed"
-gadak serve      # http://gadak.localhost:7777
+gadak serve
 ```
 
-**다른 머신과 페어링.** 홈의 `gadak serve`가 origin입니다. 오퍼를 만들어 원격에 붙여넣습니다:
-
-```bash
-gadak pairing mint --label laptop                 # 홈: stdout이 오퍼 한 줄
-gadak --workspace laptop init --pairing-code-stdin  # 원격: 오퍼를 붙여넣기
-gadak --workspace laptop status                     # 확인: paired with "laptop"
-gadak pairing list                                # 홈: 토큰 표; 원격: 상태 한 줄
-gadak pairing revoke laptop                       # 홈에서만
-```
-
-`_home`은 이 머신의 라우팅 토큰이지 디바이스가 아닙니다(`revoke`는 거절하고, `mint --label _home`이 회전합니다). 원격에서도 동사는 같고, `pairing:`으로 시작하는 오류는 그 문장 전체가 메시지입니다. `--profile`은 `--workspace`의 별칭입니다. 게이트는 [`SECURITY.md`](SECURITY.md).
+`gadak serve`가 주소를 출력합니다 — `http://gadak.localhost:7777`을 열어
+이슈가 보이면 됩니다.
 
 이미 Jira가 있으면:
 
 ```bash
-brew install midagedev/tap/gadak-cli     # macOS + Linux
-gadak init && gadak sync
-gadak serve      # http://gadak.localhost:7777
+gadak init && gadak sync && gadak serve
 ```
 
-Homebrew 없이 Windows에 설치하려면
-[최신 릴리스](https://github.com/midagedev/gadak/releases/latest)에서
-`gadak_<version>_windows_amd64.zip`(또는 `windows_arm64`)과 `checksums.txt`를
-받으세요. 압축을 풀고 `gadak.exe`를 `PATH`에 둔 뒤
-`gadak init && gadak sync && gadak serve`. 서명되지 않은 데스크톱 exe가
-막히면 0.16에서 믿을 수 있는 Windows 경로입니다. sha256 확인:
-[`docs/WINDOWS-SIGNING.md`](docs/WINDOWS-SIGNING.md).
+`gadak serve`가 주소를 출력합니다 — `http://gadak.localhost:7777`을 열어
+이슈가 보이면 됩니다.
+
+**다른 머신과 페어링.** 홈의 `gadak serve`가 origin입니다. 홈에서 오퍼를
+만듭니다(stdout이 오퍼 한 줄):
+
+```bash
+gadak pairing mint --label laptop
+```
+
+원격에서 오퍼를 붙여넣습니다:
+
+```bash
+gadak --workspace laptop init --pairing-code-stdin
+```
+
+확인은 `gadak --workspace laptop status`(paired with "laptop").
+`gadak pairing list`는 홈에서 토큰 표, 원격에서 상태 한 줄입니다.
+`gadak pairing revoke laptop`은 홈에서만.
+
+`_home`은 이 머신의 라우팅 토큰이지 디바이스가 아닙니다(`revoke`는 거절하고, `mint --label _home`이 회전합니다). 원격에서도 동사는 같고, `pairing:`으로 시작하는 오류는 그 문장 전체가 메시지입니다. `--profile`은 `--workspace`의 별칭입니다. 게이트는 [`SECURITY.md`](SECURITY.md).
 
 Scoop 매니페스트는 [`contrib/scoop`](contrib/scoop)에 있습니다. 버킷은
 아직 게시되지 않았고, Windows 머신에서 `scoop install`을 돌린 적도 없습니다
@@ -358,13 +410,24 @@ Homebrew 없이 리눅스에 설치하려면
 [최신 릴리스](https://github.com/midagedev/gadak/releases/latest)에서
 `gadak_<version>_linux_amd64.tar.gz`(또는 `linux_arm64`)와 `checksums.txt`를
 받으세요. 아카이브 하나가 설치 전부입니다 — 웹 UI는 바이너리 안에 있습니다.
+검증하고 푼 뒤 `gadak`을 `PATH`에 두세요:
 
 ```bash
 sha256sum --ignore-missing -c checksums.txt
 tar -xzf gadak_<version>_linux_amd64.tar.gz
-# `gadak`을 PATH에 두세요
-gadak serve             # http://gadak.localhost:7777
-gadak install-service   # 선택: systemd --user, 재부팅 후에도 serve 유지
+```
+
+```bash
+gadak serve
+```
+
+`gadak serve`가 주소를 출력합니다 — `http://gadak.localhost:7777`을 열어
+이슈가 보이면 됩니다.
+
+선택, 재부팅 후에도 유지(`systemd --user`):
+
+```bash
+gadak install-service
 ```
 
 Arch 리눅스: 검증된 `PKGBUILD`가
@@ -418,6 +481,7 @@ Forge 앱이 아닌가: [`docs/decisions/0003-local-process.md`](docs/decisions/
 
 ## 문서
 
+- [`CHANGELOG.ko.md`](CHANGELOG.ko.md) — 무엇이 나왔는지
 - [`docs/INSTALL.md`](docs/INSTALL.md) · [`docs/DESKTOP.md`](docs/DESKTOP.md) — 설치, 첫 실행, 데스크톱 앱
 - [`docs/MIRROR.md`](docs/MIRROR.md) · [`docs/MCP.md`](docs/MCP.md) · [`docs/AGENT_SETUP.md`](docs/AGENT_SETUP.md) — SQL, CLI, REST, MCP, 호스트별 붙여넣기 한 번
 - [`docs/RECIPES.md`](docs/RECIPES.md) — JQL이 못 묻는 질문들, SQL로
@@ -425,7 +489,7 @@ Forge 앱이 아닌가: [`docs/decisions/0003-local-process.md`](docs/decisions/
 - [`docs/EXTENDING.md`](docs/EXTENDING.md) · [`docs/PLUGINS.md`](docs/PLUGINS.md) — 팀에 맞추기
 - [`docs/STATE_OF_PLAY.md`](docs/STATE_OF_PLAY.md) · [`docs/CONCEPT.md`](docs/CONCEPT.md) · [`docs/PAIN_POINTS.md`](docs/PAIN_POINTS.md)
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) · [`docs/UX_PRINCIPLES.md`](docs/UX_PRINCIPLES.md)
-- [`docs/decisions/`](docs/decisions/) · [`specs/000-product/`](specs/000-product/) — 왜 그런가, 그리고 계약들
+- [`docs/README.md`](docs/README.md) — 나머지 문서
 
 ## 누가 만드나
 
@@ -444,9 +508,13 @@ RECIPES 쿼리들, `gadak sql`의 stdout, `gadak views open --keys -`)뿐이며,
 Jira 배포 유형(Cloud), gadak 커밋, 실행한 명령이 필요합니다. 실제 이슈
 데이터, 토큰, 사이트 URL은 공개 이슈에 절대 붙여넣지 마세요.
 
+커밋의 `GDK-nnn` 키는 [공개 백로그](https://gadak.dev/backlog/)로
+이어집니다. 등록은
+[GitHub 이슈](https://github.com/midagedev/gadak/issues)로 — 메인테이너가
+백로그로 미러합니다.
+
 에이전트와 함께 gadak을 쓰다 걸리는 게 있나요?
-[이슈를 열고](https://github.com/midagedev/gadak/issues) 무엇을 물었고
-에이전트가 무엇을 했는지 적어 주세요.
+이슈를 열고 무엇을 물었고 에이전트가 무엇을 했는지 적어 주세요.
 
 ## 라이선스
 

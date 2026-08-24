@@ -30,12 +30,50 @@ stays the source of truth.
   <a href="https://gadak.dev/demo/"><b>▶&nbsp; Open the live demo</b></a>
   &nbsp;—&nbsp; 534 issues, in your browser, right now.
   <br>
-  <a href="https://gadak.dev/backlog/">Public backlog</a>
-  &nbsp;—&nbsp; gadak's own roadmap, browsed in gadak. The <code>GDK-nnn</code>
-  keys in commit messages resolve here. To file something, open a
-  <a href="https://github.com/midagedev/gadak/issues">GitHub issue</a> — the
-  maintainer mirrors it into the backlog.
+  <a href="CHANGELOG.md">Changelog</a>
+  &nbsp;—&nbsp; what shipped.
 </p>
+
+A connected site needs one [API token](https://id.atlassian.com/manage-profile/security/api-tokens)
+— it covers Jira and Confluence on the same site. A standalone workspace
+needs no Atlassian account at all.
+
+macOS app, CLI included:
+
+```bash
+brew install --cask midagedev/tap/gadak
+```
+
+CLI only — same UI in a browser tab via `gadak serve`:
+
+```bash
+brew install midagedev/tap/gadak-cli
+```
+
+Windows: from the [latest release](https://github.com/midagedev/gadak/releases/latest),
+download `gadak_<version>_windows_amd64.zip` (or `windows_arm64`), unzip, put
+`gadak.exe` on `PATH`. The desktop zip (`Gadak-<version>-windows-x64.zip`) is
+unsigned — if SmartScreen or Smart App Control blocks it, that is a missing
+signature, not a virus finding; use the CLI zip. Do not turn Smart App Control
+off.
+
+Connect to Jira:
+
+```bash
+gadak init && gadak sync && gadak serve
+```
+
+Or start with no tracker:
+
+```bash
+gadak init --standalone
+gadak create "the thing I just noticed"
+gadak serve
+```
+
+`gadak serve` prints the address — open `http://gadak.localhost:7777` and you
+should see your issues. Linux tarball, pairing, the signed macOS dmg:
+[Install](#install).
 
 ```bash
 gadak sql "select epic_key, count(*) from issues_full where resolved_at is null
@@ -84,27 +122,7 @@ mirror trails Jira by one sync interval.
 
 </details>
 
-macOS: download [`Gadak-<version>-arm64.dmg`](https://github.com/midagedev/gadak/releases/latest)
-and open the window.
-
-Windows (from 0.16): download [`Gadak-<version>-windows-x64.zip`](https://github.com/midagedev/gadak/releases/latest)
-(or `windows-arm64`), unzip, run `gadak-desktop.exe`. The build is unsigned —
-if Windows blocks it, use the CLI path below. Install:
-[`docs/INSTALL.md`](docs/INSTALL.md#desktop-app-windows). Why the warning,
-and how to verify the zip (code signing policy):
-[`docs/WINDOWS-SIGNING.md`](docs/WINDOWS-SIGNING.md).
-
-Or, from a terminal:
-
-```bash
-brew install midagedev/tap/gadak        # the macOS app — the bundled CLI lands on PATH too
-# CLI only (macOS + Linux via brew; Windows from the release zip):
-brew install midagedev/tap/gadak-cli
-gadak init && gadak sync    # Jira (and Confluence) -> ~/.gadak/gadak.db
-gadak serve                # http://gadak.localhost:7777
-```
-
-> **Status: 0.17, still 0.x.** Sync, read API, write-through, desktop, web, CLI, and MCP are verified against a live site. Honest inventory: [`docs/STATE_OF_PLAY.md`](docs/STATE_OF_PLAY.md).
+> **Status: 0.17, still 0.x.** Sync, read API, write-through, desktop, web, CLI, and MCP are verified against a live site. [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Why
 
@@ -219,10 +237,17 @@ This is half the reason gadak exists. Reference: **[docs/MIRROR.md](docs/MIRROR.
 One paste per host: [`docs/AGENT_SETUP.md`](docs/AGENT_SETUP.md).
 
 ```bash
-gadak skill install         # schema + query patterns, no extra process
-# or, for hosts without a shell (Claude Desktop):
-gadak mcp install claude    # pins this binary and workspace into the registration
+gadak skill install
 ```
+
+Schema and query patterns, no extra process. For hosts without a shell
+(Claude Desktop):
+
+```bash
+gadak mcp install claude
+```
+
+Pins this binary and workspace into the registration.
 
 `gadak init` and `gadak install-cli` install that skill automatically when
 `~/.claude` already exists. A file gadak did not write is left in place.
@@ -234,23 +259,39 @@ Setup is not a screen an agent has to click, either. Every field the
 settings dialog edits is a CLI verb over the same validation:
 
 ```bash
-gadak config list                          # every editable path + its value
-gadak config set appearance.theme ink      # per workspace, applied live
+gadak config list
 ```
 
-SQL answers; the window presents. And if you already have the JQL, skip the
-SQL — the clauses land as chips:
+Every editable path and its value.
+
+```bash
+gadak config set appearance.theme ink
+```
+
+Per workspace, applied live.
+
+SQL answers; the window presents. Filter on `status_category` /
+`priority_rank` (1 = most urgent, 0 = unset), never on a display name —
+Jira translates those per account, so `priority = High` is silently zero
+rows on a Korean-language site. `--jql` is Jira's own language and stores
+the literal, so prefer `gadak sql` when the filter is a rank or category:
 
 ```bash
 gadak sql --no-header "select key from issues_full where status_category = 'inprogress'
                        order by status_changed_at asc limit 5" | gadak views open --keys -
-gadak views open --jql 'project = NMA AND priority = High AND resolution is EMPTY'
+```
+
+If you already have JQL, the clauses land as chips. This one keys on a
+project key and emptiness, not a localized name:
+
+```bash
+gadak views open --jql 'project = NMA AND resolution is EMPTY'
 ```
 
 <p align="center">
   <img src="docs/media/agent.gif" alt="A terminal pipes gadak sql into gadak views open --keys - and the running app snaps to those five keys; then gadak views open --jql lands the same window on project, priority and unresolved chips" width="800">
   <br>
-  <sub><code>gadak views open</code> writes a one-shot hash; the running app or serve tab applies it. Generated from <a href="e2e/demo/agent-demo.spec.ts">e2e/demo/agent-demo.spec.ts</a>.</sub>
+  <sub><code>gadak views open</code> writes a one-shot hash; the running app or serve tab applies it. The recording adds a priority clause — in <code>--jql</code> a priority or status name is matched as the literal string your Jira stores, which is localized, so the example above leaves it out. Generated from <a href="e2e/demo/agent-demo.spec.ts">e2e/demo/agent-demo.spec.ts</a>.</sub>
 </p>
 
 For hosts without a shell (Claude Desktop), the same mirror is an MCP
@@ -298,53 +339,67 @@ on your `PATH`:
 /Applications/Gadak.app/Contents/Resources/bin/gadak install-cli
 ```
 
-Windows (from 0.16): download `Gadak-<version>-windows-x64.zip` (or
-`windows-arm64`) from the same release, unzip, run `gadak-desktop.exe`.
-Unsigned (signing is [GDK-211]). If Windows shows **Windows protected your PC**
-or **Smart App Control blocked an app that may be unsafe**, that is not a
-virus finding — use the CLI path below. Do not turn Smart App Control off.
+**2. The CLI**, on Linux, Windows, or for the same UI in a browser tab.
+
+macOS + Linux:
+
+```bash
+brew install midagedev/tap/gadak-cli
+```
+
+Windows: from the [latest release](https://github.com/midagedev/gadak/releases/latest),
+download `gadak_<version>_windows_amd64.zip` (or `windows_arm64`) and
+`checksums.txt`. Unzip, put `gadak.exe` on `PATH`. This is the reliable
+Windows route. How to check the sha256:
+[`docs/WINDOWS-SIGNING.md`](docs/WINDOWS-SIGNING.md).
+
+The desktop zip (`Gadak-<version>-windows-x64.zip`, or `windows-arm64`) is
+unsigned (signing is [GDK-211]). If Windows shows **Windows protected your PC**
+or **Smart App Control blocked an app that may be unsafe**, that is a missing
+signature, not a virus finding — use the CLI zip above. Do not turn Smart App
+Control off.
 Install: [`docs/INSTALL.md`](docs/INSTALL.md#desktop-app-windows).
 Code signing policy (why the warning, SHA256):
 [`docs/WINDOWS-SIGNING.md`](docs/WINDOWS-SIGNING.md).
 
-**2. The CLI**, on Linux, Windows, or for the same UI in a browser tab.
-
 No Atlassian account:
 
 ```bash
-brew install midagedev/tap/gadak-cli     # macOS + Linux
 gadak init --standalone
 gadak create "the thing I just noticed"
-gadak serve      # http://gadak.localhost:7777
+gadak serve
 ```
 
-**Pair another machine.** Home `gadak serve` is the origin. Mint an offer, paste it on the remote:
-
-```bash
-gadak pairing mint --label laptop                 # home: stdout is one offer line
-gadak --workspace laptop init --pairing-code-stdin  # remote: paste the offer
-gadak --workspace laptop status                     # confirm: paired with "laptop"
-gadak pairing list                                # home: token table; remote: one status line
-gadak pairing revoke laptop                       # home only
-```
-
-`_home` is this machine's routing token, not a device (`revoke` refuses it; `mint --label _home` rotates). Same verbs on the remote; a `pairing:` error is the whole message. `--profile` is an alias of `--workspace`. The gate is in [`SECURITY.md`](SECURITY.md).
+`gadak serve` prints the address — open `http://gadak.localhost:7777` and you
+should see your issues.
 
 Already have Jira:
 
 ```bash
-brew install midagedev/tap/gadak-cli     # macOS + Linux
-gadak init && gadak sync
-gadak serve      # http://gadak.localhost:7777
+gadak init && gadak sync && gadak serve
 ```
 
-Windows without Homebrew: from the
-[latest release](https://github.com/midagedev/gadak/releases/latest), download
-`gadak_<version>_windows_amd64.zip` (or `windows_arm64`) and `checksums.txt`.
-Unzip, put `gadak.exe` on `PATH`, then `gadak init && gadak sync && gadak serve`.
-This is the reliable Windows route in 0.16 if the unsigned desktop exe is
-blocked. How to check the sha256:
-[`docs/WINDOWS-SIGNING.md`](docs/WINDOWS-SIGNING.md).
+`gadak serve` prints the address — open `http://gadak.localhost:7777` and you
+should see your issues.
+
+**Pair another machine.** Home `gadak serve` is the origin. On the home
+machine, mint an offer (stdout is one offer line):
+
+```bash
+gadak pairing mint --label laptop
+```
+
+On the remote, paste the offer:
+
+```bash
+gadak --workspace laptop init --pairing-code-stdin
+```
+
+Confirm with `gadak --workspace laptop status` (paired with "laptop").
+`gadak pairing list` is the token table on home and one status line on the
+remote. `gadak pairing revoke laptop` is home only.
+
+`_home` is this machine's routing token, not a device (`revoke` refuses it; `mint --label _home` rotates). Same verbs on the remote; a `pairing:` error is the whole message. `--profile` is an alias of `--workspace`. The gate is in [`SECURITY.md`](SECURITY.md).
 
 A Scoop manifest lives in [`contrib/scoop`](contrib/scoop). The bucket
 is not published and `scoop install` has not been run on a Windows machine
@@ -354,14 +409,24 @@ Linux without Homebrew: from the
 [latest release](https://github.com/midagedev/gadak/releases/latest),
 download `gadak_<version>_linux_amd64.tar.gz` (or `linux_arm64`) and
 `checksums.txt`. One archive is the whole install — the web UI is inside
-the binary.
+the binary. Verify, unpack, and put `gadak` on `PATH`:
 
 ```bash
 sha256sum --ignore-missing -c checksums.txt
 tar -xzf gadak_<version>_linux_amd64.tar.gz
-# put `gadak` on PATH
-gadak serve             # http://gadak.localhost:7777
-gadak install-service   # optional: systemd --user, survives reboot
+```
+
+```bash
+gadak serve
+```
+
+`gadak serve` prints the address — open `http://gadak.localhost:7777` and you
+should see your issues.
+
+Optional, to survive reboot (`systemd --user`):
+
+```bash
+gadak install-service
 ```
 
 Arch Linux: a checked `PKGBUILD` lives in
@@ -414,6 +479,7 @@ ranked by demand: [`docs/ROADMAP.md`](docs/ROADMAP.md#more-sources-later).
 
 ## Documentation
 
+- [`CHANGELOG.md`](CHANGELOG.md) — what shipped
 - [`docs/INSTALL.md`](docs/INSTALL.md) · [`docs/DESKTOP.md`](docs/DESKTOP.md) — install, first run, the desktop app
 - [`docs/MIRROR.md`](docs/MIRROR.md) · [`docs/MCP.md`](docs/MCP.md) · [`docs/AGENT_SETUP.md`](docs/AGENT_SETUP.md) — SQL, CLI, REST, MCP, one paste per host
 - [`docs/RECIPES.md`](docs/RECIPES.md) — questions JQL cannot ask, as SQL
@@ -421,7 +487,7 @@ ranked by demand: [`docs/ROADMAP.md`](docs/ROADMAP.md#more-sources-later).
 - [`docs/EXTENDING.md`](docs/EXTENDING.md) · [`docs/PLUGINS.md`](docs/PLUGINS.md) — fitting gadak to your team
 - [`docs/STATE_OF_PLAY.md`](docs/STATE_OF_PLAY.md) · [`docs/CONCEPT.md`](docs/CONCEPT.md) · [`docs/PAIN_POINTS.md`](docs/PAIN_POINTS.md)
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) · [`docs/UX_PRINCIPLES.md`](docs/UX_PRINCIPLES.md)
-- [`docs/decisions/`](docs/decisions/) · [`specs/000-product/`](specs/000-product/) — why, and the contracts
+- [`docs/README.md`](docs/README.md) — the rest of the docs
 
 ## Who makes this
 
@@ -440,7 +506,11 @@ the command that checks it: [`PROMISES.md`](PROMISES.md).
 need your Jira deployment type (Cloud), the gadak commit, and the command you
 ran. Never paste real issue data, tokens, or site URLs into a public issue.
 
-Using gadak with an agent and hitting friction? [Open an issue](https://github.com/midagedev/gadak/issues)
+Commit `GDK-nnn` keys resolve on the [public backlog](https://gadak.dev/backlog/).
+To file something, open a [GitHub issue](https://github.com/midagedev/gadak/issues)
+— the maintainer mirrors it into the backlog.
+
+Using gadak with an agent and hitting friction? Open an issue
 with the question you asked and what the agent did.
 
 ## License
