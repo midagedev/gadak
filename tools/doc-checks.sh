@@ -195,7 +195,7 @@ outbound_diff="$(python3 - <<'PY'
 import re
 from pathlib import Path
 
-words = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5}
+words = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9}
 norm = lambda s: re.sub(r"\W+", " ", s).strip().lower()
 
 sec = Path("SECURITY.md").read_text()

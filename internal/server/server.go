@@ -200,6 +200,14 @@ func newServer(db *store.DB, cfg *config.Config, cache *attachcache.Cache, profi
 	// ambiguous with {id}/render/{$} (ServeMux panics), and documents embed
 	// the exact URL anyway.
 	mux.HandleFunc("GET "+dashBase+"vendor/{file}", handleDashboardVendor)
+	// Lib cache (GDK-808): `lib add`-ed libraries served locally, hash-checked
+	// at serve time. Same no-slash-single-segment shape as the vendor route
+	// directly above — a trailing-slash "libs/{id}/{$}" variant would be
+	// ambiguous with {id}/render/{$} and panic the mux (measured; that is
+	// why vendor/{file} has no {$} either). The CSP path scope
+	// dashLibsPath keeps its trailing slash: CSP directory sources are
+	// prefixes, and this route lives under it.
+	mux.HandleFunc("GET "+dashBase+"libs/{file}", s.handleDashboardLib)
 	mux.HandleFunc("GET "+apiBase+"watches/{$}", s.handleGetWatches)
 	mux.HandleFunc("DELETE "+apiBase+"watches/{key}/{$}", s.handleDeleteWatch)
 	mux.HandleFunc("GET "+apiBase+"favorites/{$}", s.handleGetFavorites)

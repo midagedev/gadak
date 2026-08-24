@@ -443,18 +443,23 @@ var helps = map[string]cmdHelp{
 	"dashboards": {
 		summary: "agent dashboards — an HTML wall plus named sql/jql datasources, saved in local.db like a view; " + displayNameSQLTrap,
 		usage: "gadak [--workspace <name>] dashboards [list|show <name>|open <name>|rm <name>]\n" +
-			"dashboards save <name> --html <file|-> [--datasource name=sql:…]… [--datasource name=jql:…]… [--json]",
+			"dashboards save <name> --html <file|-> [--datasource name=sql:…]… [--datasource name=jql:…]… [--lib <id>]… [--json]\n" +
+			"dashboards lib add <url> [--replace] | lib list [--json] | lib rm <id>",
 		options: []helpOption{
 			{name: "html", desc: "HTML document file; - reads stdin (save)"},
 			{name: "datasource", desc: "named datasource name=sql:QUERY or name=jql:QUERY (repeatable)"},
+			{name: "lib", desc: "cached library id to declare (repeatable; ids come from `dashboards lib add`)"},
 			{name: "json", desc: "emit JSON"},
 			{name: "no-open", desc: "write the focus hash only; do not open a window (open)"},
+			{name: "replace", desc: "accept an upstream change when the same url now serves different bytes (lib add)"},
 		},
 		examples: []string{
 			"gadak dashboards",
 			"gadak dashboards save triage --html examples/dashboards/triage.html \\",
 			"  --datasource open_by_status='sql:select status_category, count(*) from issues_full where status_category != ''done'' group by 1'",
 			"gadak dashboards save mine --html wall.html --datasource mine=\"jql:assignee = currentUser() AND resolution is EMPTY\"",
+			"gadak dashboards lib add https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js",
+			"gadak dashboards save model --html model.html --lib <id-from-lib-add>",
 			"gadak dashboards show triage",
 			"gadak dashboards open triage",
 			"gadak dashboards rm triage",

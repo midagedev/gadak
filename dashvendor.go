@@ -1,12 +1,19 @@
 // Vendor assets for agent-authored dashboards (GDK-792): the pinned chart
-// and 3D libraries a dashboard may load from /api/v1/dashboards/vendor/
-// instead of a CDN. Embedding them keeps the dashboards CSP free of external
-// hosts (no outbound rule change — the bytes ship inside the binary), and
-// pinning the versions once means every dashboard sees the same library
-// instead of whatever a CDN serves that day.
+// library a dashboard may load from /api/v1/dashboards/vendor/ instead of a
+// CDN. Embedding it keeps the dashboards CSP free of external hosts (no
+// outbound rule change — the bytes ship inside the binary), and pinning the
+// version once means every dashboard sees the same library instead of
+// whatever a CDN serves that day.
+//
+// [GDK-808] three.js no longer ships embedded (−750 KB): anything bigger or
+// less universal than uPlot belongs in the user-managed lib cache
+// (`gadak dashboards lib add <url>` — sha384-pinned at download, re-hashed
+// at serve, see internal/dashboards/libs.go), not in every binary gadak
+// ships. uPlot stays embedded: one chart library is the norm the example
+// dashboard sets.
 //
 // The HTTP whitelist is DashVendorFile's table, not the directory: the
-// licenses are embedded for NOTICE/NPB purposes but are not served.
+// license is embedded for NOTICE/NPB purposes but is not served.
 package gadak
 
 import (
@@ -23,10 +30,8 @@ const dashVendorDir = "dashvendor/"
 // deliberately exhaustive — adding a file to dashvendor/ without adding it
 // here serves nothing (the route 404s), which is the fail-closed direction.
 var dashVendorFiles = map[string]string{
-	"uPlot.iife.min.js":   "text/javascript; charset=utf-8",
-	"three.module.min.js": "text/javascript; charset=utf-8",
-	"three.core.min.js":   "text/javascript; charset=utf-8",
-	"uPlot.min.css":       "text/css; charset=utf-8",
+	"uPlot.iife.min.js": "text/javascript; charset=utf-8",
+	"uPlot.min.css":     "text/css; charset=utf-8",
 }
 
 // DashVendorFile returns the embedded bytes and content type for a whitelisted

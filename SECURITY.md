@@ -91,7 +91,7 @@ flowchart LR
   Serve -.->|"1 anonymous GET/day"| GH
 ```
 
-Outbound traffic is exactly five destinations:
+Outbound traffic is exactly six destinations:
 
 1. **Your own Atlassian site**, authenticated with your API token, for sync
    and write-through. Attachment bytes are proxied on demand and may be
@@ -118,6 +118,14 @@ Outbound traffic is exactly five destinations:
    execs `gh pr list --json …` (`cmd/gadak/dev.go`). gadak does not call
    GitHub's HTTP API itself; `gh` uses whatever host and credential the user
    already configured. `dev link` does not exec `gh`.
+6. **User-invoked library download**, only when you run
+   `gadak dashboards lib add <url>`: one GET to the exact URL typed
+   (`internal/dashboards/libs.go`), https only — plain http is refused
+   unless the host is localhost or an IP literal — at most 3 redirects with
+   every hop re-checked, ≤8 MiB, no retries. The bytes land in
+   `<profile>/dashboards/libs/` sha384-pinned and are re-hashed before every
+   serve; dashboards render them from that local cache, never from the
+   network. Nothing fetches on a schedule, at render, or on save.
 
 There is no gadak account, no gadak server, no telemetry, and no multi-user
 model — no roles, no audit log.
@@ -131,7 +139,8 @@ Don't take our word for it — the claim is one grep:
 ```bash
 grep -rn 'http.NewRequest\|http.Get\|http.Post' --include='*.go' internal/ cmd/ desktop/
 # every hit is your Atlassian site, Linear (api.linear.app / signed upload PUT),
-# a pairing home serve, the GitHub Releases check, or gadak talking to itself
+# a pairing home serve, the GitHub Releases check, the one-shot `dashboards
+# lib add` download to the URL you typed, or gadak talking to itself
 # on loopback (port probe, health check, cache warming). `gh` is exec, not
 # net/http.
 ```
