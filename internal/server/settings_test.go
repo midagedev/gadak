@@ -696,6 +696,66 @@ func TestWebConfigWorkspaceKindFromDescribe(t *testing.T) {
 	}
 }
 
+func TestWebConfigUIDimensionVars(t *testing.T) {
+	// GDK-842 chunk 4: the config document's `ui` block carries the merged
+	// dimension overrides as a sibling of `vars` — one palette-agnostic map,
+	// cssVar → CSS length. Decoded through an anonymous struct on purpose:
+	// the pinned contract is the JSON wire shape (what index.html's boot
+	// script and user-tokens.ts parse), not this package's Go struct.
+	cfg := &config.Config{UI: &config.UIConfig{Tokens: &config.UITokens{
+		Spacing: map[string]string{"row": "44px"},
+		Layout:  map[string]string{"sidebar": "300px", "docked-min": "900px"},
+		Type:    map[string]string{"body": "14px", "body-line-height": "1.45"},
+	}}}
+	doc, err := WebConfig(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got struct {
+		UI struct {
+			Vars map[string]map[string]string `json:"vars"`
+			Dims map[string]string            `json:"dims"`
+		} `json:"ui"`
+	}
+	if err := json.Unmarshal(doc, &got); err != nil {
+		t.Fatal(err)
+	}
+	for cssVar, want := range map[string]string{
+		"--spacing-row":            "44px",
+		"--layout-sidebar":         "300px",
+		"--text-body":              "14px",
+		"--text-body--line-height": "1.45",
+	} {
+		if got.UI.Dims[cssVar] != want {
+			t.Errorf("ui.dims[%s] = %q, want %q", cssVar, got.UI.Dims[cssVar], want)
+		}
+	}
+	// docked-min is the derived dock floor: locked at expansion, so a stored
+	// (hand-edited) value must degrade to an advisory, never a var.
+	if _, ok := got.UI.Dims["--layout-docked-min"]; ok {
+		t.Errorf("ui.dims carries locked --layout-docked-min; want advisory-only")
+	}
+
+	// Nil UI still yields a present, empty dims map — the web binds to it
+	// the same way it binds to vars. Fresh decode target: Unmarshal does not
+	// clear absent keys, so reusing `got` would keep the first doc's dims.
+	doc, err = WebConfig(&config.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var gotEmpty struct {
+		UI struct {
+			Dims map[string]string `json:"dims"`
+		} `json:"ui"`
+	}
+	if err := json.Unmarshal(doc, &gotEmpty); err != nil {
+		t.Fatal(err)
+	}
+	if gotEmpty.UI.Dims == nil || len(gotEmpty.UI.Dims) != 0 {
+		t.Errorf("nil-ui dims = %v, want present empty map", gotEmpty.UI.Dims)
+	}
+}
+
 func TestHumanBytes(t *testing.T) {
 	cases := []struct {
 		n    int64

@@ -261,3 +261,35 @@ test('app.css consumes the tokens and never restates their px', () => {
     'the four JS-owned track tokens are never defined outside the narrow step',
   ).not.toMatch(/--layout-(sidebar|list-min|detail-min|docked-min):\s*[\d.]/)
 })
+
+test('the boot shell consumes the same tokens the app does (GDK-842 chunk 3)', () => {
+  /*
+   * index.html paints a sidebar and list rows before the bundle arrives.
+   * Those two literals were the last geometry a token change could not
+   * reach: a user with --layout-sidebar 300px saw a 272px flash, and a
+   * --spacing-row override moved every row except the boot ones. The boot
+   * style block now consumes var() with the shipped defaults as fallbacks —
+   * byte-identical paint for everyone without overrides (the boot script's
+   * user-token :root rule is unlayered, so it reaches this block), and a
+   * cached override repaints the skeleton before first paint.
+   */
+  const html = readFileSync(join(HERE, '../../index.html'), 'utf8')
+  const start = html.indexOf('.boot-sidebar')
+  const end = html.indexOf('@keyframes')
+  expect(start, 'index.html must keep a .boot-sidebar rule').toBeGreaterThan(-1)
+  expect(end, 'index.html must keep the boot keyframes after the shell rules').toBeGreaterThan(
+    start,
+  )
+  const boot = html.slice(start, end)
+
+  const sidebarVar = `var(--layout-sidebar, ${LAYOUT_SIDEBAR_PX}px)`
+  expect(boot, 'sidebar width consumes the token').toContain(`width: ${sidebarVar}`)
+  expect(boot, 'flex-basis consumes the token too (it wins for flex items)').toContain(
+    `flex: 0 0 ${sidebarVar}`,
+  )
+  expect(boot, 'boot rows consume the spacing token').toContain('height: var(--spacing-row, 42px)')
+
+  const stripped = boot.replaceAll(sidebarVar, '').replaceAll('var(--spacing-row, 42px)', '')
+  expect(stripped, 'no raw 272px survives outside the var() fallbacks').not.toContain('272px')
+  expect(stripped, 'no raw 42px survives outside the var() fallbacks').not.toContain('42px')
+})

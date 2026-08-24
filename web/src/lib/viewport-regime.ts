@@ -19,6 +19,12 @@
  * The 440 rounding (GDK-201) made the grid 1102 wide at the 1100 contract and
  * clipped the list seam (GDK-766). VIEWPORT_DOCKED_MIN_PX is the sum, so the
  * two cannot drift. Replaces the GDK-127 1440px split. 1100–1439 is docked.
+ *
+ * GDK-842 (dim wave): the three track values are user-overridable
+ * (`ui.tokens.layout` in config.json). effectiveLayout() holds the values in
+ * force — defaults, or the overrides applyLayoutDimOverrides() installed from
+ * the config document's ui.dims — and the floor stays the sum of whatever is
+ * in force, so the invariant survives a user sidebar of 300px (floor 1128).
  */
 
 import { trapFocus } from './focus-trap'
@@ -31,9 +37,41 @@ export const VIEWPORT_DOCKED_MIN_PX =
 
 export type ViewportRegime = 'docked' | 'overlay'
 
+/** The track values in force: shipped defaults, or the user's ui.tokens layout overrides. */
+export interface EffectiveLayout {
+  sidebar: number
+  listMin: number
+  detailMin: number
+  /** sidebar + listMin + detailMin — the matchMedia floor, kept a sum so the grid and the regime cannot drift (GDK-201/766/842). */
+  dockedMin: number
+}
+
+// User layout dimension overrides (GDK-842): parsed from the config doc's
+// ui.dims by applyLayoutDimOverrides. Missing/invalid → default.
+let layoutOverrides: {
+  sidebar?: number
+  listMin?: number
+  detailMin?: number
+} = {}
+
+export function effectiveLayout(): EffectiveLayout {
+  const sidebar = layoutOverrides.sidebar ?? LAYOUT_SIDEBAR_PX
+  const listMin = layoutOverrides.listMin ?? LAYOUT_LIST_MIN_PX
+  const detailMin = layoutOverrides.detailMin ?? LAYOUT_DETAIL_MIN_PX
+  return { sidebar, listMin, detailMin, dockedMin: sidebar + listMin + detailMin }
+}
+
+/** A positive one-decimal px string, or undefined. Mirrors the server's dim length gate. */
+function dimPx(dims: Record<string, string> | null | undefined, cssVar: string): number | undefined {
+  const m = /^([0-9]+(?:\.[0-9])?)px$/.exec(dims?.[cssVar] ?? '')
+  if (!m) return undefined
+  const n = Number.parseFloat(m[1])
+  return n > 0 ? n : undefined
+}
+
 export function readViewportRegime(): ViewportRegime {
   if (typeof window === 'undefined') return 'docked'
-  return window.matchMedia(`(min-width: ${VIEWPORT_DOCKED_MIN_PX}px)`).matches
+  return window.matchMedia(`(min-width: ${effectiveLayout().dockedMin}px)`).matches
     ? 'docked'
     : 'overlay'
 }
@@ -46,6 +84,12 @@ let media: {
   apply: () => void
 } | null = null
 
+function teardownMedia(): void {
+  if (!media) return
+  media.mq.removeEventListener('change', media.apply)
+  media = null
+}
+
 /**
  * One matchMedia for every subscriber (App + DetailPanel). Two MediaQueryList
  * objects could theoretically disagree across a resize if they were created
@@ -54,7 +98,7 @@ let media: {
 export function subscribeViewportRegime(onChange: RegimeListener): () => void {
   if (typeof window === 'undefined') return () => {}
   if (!media) {
-    const mq = window.matchMedia(`(min-width: ${VIEWPORT_DOCKED_MIN_PX}px)`)
+    const mq = window.matchMedia(`(min-width: ${effectiveLayout().dockedMin}px)`)
     const listeners = new Set<RegimeListener>()
     const apply = () => {
       const regime: ViewportRegime = mq.matches ? 'docked' : 'overlay'
@@ -68,10 +112,7 @@ export function subscribeViewportRegime(onChange: RegimeListener): () => void {
   return () => {
     if (!media) return
     media.listeners.delete(onChange)
-    if (media.listeners.size === 0) {
-      media.mq.removeEventListener('change', media.apply)
-      media = null
-    }
+    if (media.listeners.size === 0) teardownMedia()
   }
 }
 
@@ -81,12 +122,84 @@ export function isOverlayModal(regime: ViewportRegime, panelOpen: boolean): bool
 
 /** Inline style installing the token set on `.issue-layout`. CSS must not restate the px. */
 export function layoutTokenStyle(): string {
+  const eff = effectiveLayout()
   return [
-    `--layout-sidebar:${LAYOUT_SIDEBAR_PX}px`,
-    `--layout-list-min:${LAYOUT_LIST_MIN_PX}px`,
-    `--layout-detail-min:${LAYOUT_DETAIL_MIN_PX}px`,
-    `--layout-docked-min:${VIEWPORT_DOCKED_MIN_PX}px`,
+    `--layout-sidebar:${eff.sidebar}px`,
+    `--layout-list-min:${eff.listMin}px`,
+    `--layout-detail-min:${eff.detailMin}px`,
+    `--layout-docked-min:${eff.dockedMin}px`,
   ].join(';')
+}
+
+/**
+ * Rewrite the four inline token vars on the mounted layout element. App
+ * mounts the style once from layoutTokenStyle(); a live override change
+ * happens outside Svelte's reactivity (the template has no reactive refs to
+ * re-run it), and an inline declaration out-ranks the user-token
+ * stylesheet's :root rule — so the install must be rewritten by the code
+ * that owns the values. setProperty only: the element's other inline styles
+ * are not ours to touch, and a future Svelte re-render would re-derive the
+ * same values from layoutTokenStyle().
+ */
+function refreshLayoutTokenInstall(): void {
+  if (typeof document === 'undefined') return
+  const el = document.querySelector<HTMLElement>('[data-testid="issue-layout"]')
+  if (!el) return
+  const eff = effectiveLayout()
+  el.style.setProperty('--layout-sidebar', `${eff.sidebar}px`)
+  el.style.setProperty('--layout-list-min', `${eff.listMin}px`)
+  el.style.setProperty('--layout-detail-min', `${eff.detailMin}px`)
+  el.style.setProperty('--layout-docked-min', `${eff.dockedMin}px`)
+}
+
+/**
+ * Install the user's layout dimension overrides (the --layout-* entries of
+ * the config document's ui.dims) and rebuild everything derived from them:
+ * the docked floor (still the sum of the three tracks in force), the
+ * matchMedia subscription (a new threshold needs a new MediaQueryList), and
+ * the inline token install on .issue-layout. Called by applyUserTokens with
+ * the sanitized dims map, and with null/empty to restore the defaults.
+ *
+ * The ≤760px narrow step is deliberately not rescaled: the catalog floor for
+ * --layout-sidebar (208px) is also the minimum any user sidebar override may
+ * take, so narrow = min(208, sidebar) is 208 for every legal override and
+ * the CSS-owned step keeps painting exactly what it painted.
+ * --layout-sidebar-narrow is accepted into ui.dims but not consumed by this
+ * runtime yet (paint consumption needs app.css's narrow block, out of this
+ * round's file list).
+ */
+export function applyLayoutDimOverrides(
+  dims: Record<string, string> | null | undefined,
+): void {
+  const next = {
+    sidebar: dimPx(dims, '--layout-sidebar'),
+    listMin: dimPx(dims, '--layout-list-min'),
+    detailMin: dimPx(dims, '--layout-detail-min'),
+  }
+  const cur = effectiveLayout()
+  const nextEff = {
+    sidebar: next.sidebar ?? LAYOUT_SIDEBAR_PX,
+    listMin: next.listMin ?? LAYOUT_LIST_MIN_PX,
+    detailMin: next.detailMin ?? LAYOUT_DETAIL_MIN_PX,
+  }
+  if (
+    cur.sidebar === nextEff.sidebar &&
+    cur.listMin === nextEff.listMin &&
+    cur.detailMin === nextEff.detailMin
+  ) {
+    return
+  }
+  layoutOverrides = next
+  if (media) {
+    // Re-subscribe under the new floor. The old MediaQueryList is pinned to
+    // the old threshold; subscribeViewportRegime() also fires each listener
+    // once immediately, so subscribers land on the regime the new floor
+    // implies instead of waiting for a resize.
+    const listeners = [...media.listeners]
+    teardownMedia()
+    for (const fn of listeners) subscribeViewportRegime(fn)
+  }
+  refreshLayoutTokenInstall()
 }
 
 /**

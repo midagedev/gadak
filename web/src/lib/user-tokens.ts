@@ -16,13 +16,22 @@
  *     boot script in index.html so a customized user never sees the default
  *     palette flash before the bundle lands.
  *
- * The server already refuses non-hex values at write time; the hex/var
+ * GDK-842 (dim wave) adds the dimension axis: the server also merges a
+ * palette-agnostic `dims` map (--spacing-row → 44px) that lands in ONE :root
+ * rule after the palette cascade — lengths have no palette variants. The
+ * same apply also recouples the JS geometry owners (rowMetrics cache,
+ * viewport-regime's docked floor) so a dims change repaints and re-windows
+ * in the same tick, not just the next reload.
+ *
+ * The server already refuses bad values at write time; the hex/var and dim
  * filters here are the client-side belt for hand-edited config.json files
  * and downgrades (a newer config naming tokens this build locks or renamed).
  * Those degrade to advisories, never a broken boot.
  */
 
+import { invalidateRowMetrics } from './row-metrics'
 import { THEME_STORAGE_KEY, themeStorageKeyFromPath } from './storage'
+import { applyLayoutDimOverrides } from './viewport-regime'
 
 /** Boot-mirror prefix, workspace-scoped exactly like THEME_STORAGE_KEY. */
 export const USER_TOKENS_STORAGE_KEY = 'gadak:user-tokens'
@@ -45,6 +54,11 @@ export interface UiTokenDoc {
   /** family → key → hex. label.* is the label text, type.* an issue_type_id,
    * status.* a status_category (new|inprogress|done). */
   dataColors: Partial<Record<UiDataFamily, Record<string, string>>>
+  /** CSS variable → length/line-height. Palette-agnostic (--spacing-row →
+   * "44px"); the server's UIDimensionVars already filtered unknown/locked
+   * tokens. Optional because documents predate the dim wave; parseUiDoc
+   * always sets it (empty when the user overrides nothing). */
+  dims?: Record<string, string>
   /** Load-time advisories (unknown token after a downgrade, …). */
   warnings?: UiTokenWarning[]
 }
@@ -52,10 +66,30 @@ export interface UiTokenDoc {
 const HEX_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/
 const CSS_VAR_RE = /^--color-[a-z0-9-]+$/i
 const PALETTE_RE = /^[a-z0-9-]{1,32}$/
+// Dim names: the three overridable axes' prefixes. Deliberately a separate
+// branch from CSS_VAR_RE — a --color-* name inside dims is dropped, and a
+// --spacing-* name inside vars is dropped, so the two maps can't launder
+// each other's shapes past the value filters.
+const DIM_NAME_RE = /^--(?:spacing|layout|text)-[a-z0-9-]+$/i
+// Dim values, mirroring the server's dimcheck.ParseValue exactly: px is a
+// positive integer-or-one-decimal length; a *--line-height name instead takes
+// a unitless one-or-two-decimal value. The name owns the unit — a bare "42"
+// can never pass as a spacing, and "14px" never as a line-height.
+const DIM_PX_RE = /^[0-9]+(\.[0-9])?px$/
+const DIM_UNITLESS_RE = /^[0-9]+\.[0-9]{1,2}$/
 
 /** #rgb/#rrggbb only — same rule the server's write gate applies. */
 export function isHexColor(v: unknown): v is string {
   return typeof v === 'string' && HEX_RE.test(v)
+}
+
+/** A dim value for this name — the unit is owned by the name (see DIM_*_RE). */
+export function isDimValue(name: string, value: unknown): value is string {
+  if (typeof value !== 'string') return false
+  if (/--line-height$/.test(name)) {
+    return DIM_UNITLESS_RE.test(value) && Number.parseFloat(value) > 0
+  }
+  return DIM_PX_RE.test(value) && Number.parseFloat(value) > 0
 }
 
 /** Derive the boot-mirror key from a pathname. `/` and `/w/oss` stay distinct. */
@@ -79,25 +113,41 @@ function declarations(map: unknown): string {
   return out
 }
 
+function dimDeclarations(map: unknown): string {
+  if (!map || typeof map !== 'object') return ''
+  let out = ''
+  for (const [name, value] of Object.entries(map as Record<string, unknown>)) {
+    if (DIM_NAME_RE.test(name) && isDimValue(name, value)) out += `${name}:${value};`
+  }
+  return out
+}
+
 /**
  * The CSS text for one vars map, mirroring app.css's cascade: light at :root,
  * every other palette behind its data-theme attribute (dark included — an
  * explicit dark preference must not depend on the media query), and dark again
  * inside prefers-color-scheme for system users. Empty input → '' (no style).
+ *
+ * The dims map (GDK-842) appends ONE palette-agnostic :root rule after the
+ * cascade — lengths have no palette variants, and it must not sit inside a
+ * data-theme block or a user with an explicit theme would lose the override.
  */
-export function buildUserTokenStyles(vars: unknown): string {
-  if (!vars || typeof vars !== 'object') return ''
-  const map = vars as Record<string, unknown>
+export function buildUserTokenStyles(vars: unknown, dims?: unknown): string {
   let css = ''
-  const light = declarations(map.light)
-  if (light) css += `:root{${light}}`
-  for (const palette of Object.keys(map).sort()) {
-    if (palette === 'light' || !PALETTE_RE.test(palette)) continue
-    const d = declarations(map[palette])
-    if (d) css += `:root[data-theme='${palette}']{${d}}`
+  if (vars && typeof vars === 'object') {
+    const map = vars as Record<string, unknown>
+    const light = declarations(map.light)
+    if (light) css += `:root{${light}}`
+    for (const palette of Object.keys(map).sort()) {
+      if (palette === 'light' || !PALETTE_RE.test(palette)) continue
+      const d = declarations(map[palette])
+      if (d) css += `:root[data-theme='${palette}']{${d}}`
+    }
+    const dark = declarations(map.dark)
+    if (dark) css += `@media (prefers-color-scheme: dark){:root:not([data-theme='light']){${dark}}}`
   }
-  const dark = declarations(map.dark)
-  if (dark) css += `@media (prefers-color-scheme: dark){:root:not([data-theme='light']){${dark}}}`
+  const dim = dimDeclarations(dims)
+  if (dim) css += `:root{${dim}}`
   return css
 }
 
@@ -116,12 +166,23 @@ function parseDataColors(raw: unknown): UiTokenDoc['dataColors'] {
   return out
 }
 
+/** Dim map, sanitized with the same name/value filters the CSS build applies. */
+function parseDims(raw: unknown): UiTokenDoc['dims'] {
+  const clean: Record<string, string> = {}
+  if (!raw || typeof raw !== 'object') return clean
+  for (const [name, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (DIM_NAME_RE.test(name) && isDimValue(name, value)) clean[name] = value
+  }
+  return clean
+}
+
 /** Defensive read of an untrusted `ui` document (cache, older servers). */
 export function parseUiDoc(raw: unknown): UiTokenDoc | null {
   if (!raw || typeof raw !== 'object') return null
   const doc: UiTokenDoc = {
     vars: {},
     dataColors: parseDataColors((raw as Record<string, unknown>).dataColors),
+    dims: parseDims((raw as Record<string, unknown>).dims),
   }
   const vars = (raw as Record<string, unknown>).vars
   if (vars && typeof vars === 'object') {
@@ -157,7 +218,7 @@ export function readCachedUserTokens(): UiTokenDoc | null {
 
 function writeUserTokensCache(doc: UiTokenDoc | null): void {
   try {
-    if (doc && Object.keys(doc.vars).length > 0) {
+    if (doc && (Object.keys(doc.vars).length > 0 || Object.keys(doc.dims ?? {}).length > 0)) {
       localStorage.setItem(userTokensStorageKey(), JSON.stringify(doc))
     } else {
       localStorage.removeItem(userTokensStorageKey())
@@ -192,8 +253,16 @@ export function applyUserTokens(doc: UiTokenDoc | null | undefined): void {
   listener?.(clean)
   writeUserTokensCache(clean)
   for (const w of clean?.warnings ?? []) console.warn(`gadak: ui: ${w.message}`)
+  // GDK-842: the geometry owners must see the change in the same call —
+  // rowMetrics caches heights for every scroll frame, and the docked floor
+  // lives inside a matchMedia threshold. Both re-derive from the dims map
+  // here, before the style install, so a synchronous reader right after
+  // this call sees the new geometry. (Runs for color-only changes too: one
+  // extra computed-style read is cheaper than tracking which axis moved.)
+  invalidateRowMetrics()
+  applyLayoutDimOverrides(clean?.dims ?? {})
   if (typeof document === 'undefined') return
-  const css = clean ? buildUserTokenStyles(clean.vars) : ''
+  const css = clean ? buildUserTokenStyles(clean.vars, clean.dims) : ''
   let el = document.querySelector<HTMLStyleElement>(`style[${USER_TOKENS_STYLE_ATTR}]`)
   if (!el) {
     el = document.createElement('style')

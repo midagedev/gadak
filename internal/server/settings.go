@@ -68,8 +68,9 @@ type webConfigDoc struct {
 	// Always sent. The UI must not infer this from an empty site URL — a
 	// hosted demo and an older document also have no site.
 	WorkspaceKind string `json:"workspaceKind"`
-	// UI is the server-merged color-override block (GDK-786/791): the final
-	// per-palette CSS variable map plus data inks, already validated and
+	// UI is the server-merged color/dimension override block (GDK-786/791,
+	// GDK-842): the final per-palette CSS variable map, data inks, and the
+	// palette-agnostic dimension overrides, all already validated and
 	// filtered, so the web needs no catalog knowledge of its own. Warnings
 	// are load-time advisories (a downgrade met a renamed token), not errors.
 	UI *uiDoc `json:"ui"`
@@ -83,9 +84,12 @@ type webConfigDoc struct {
 
 // uiDoc is the ui slice of config.json. Vars is palette → cssVar → hex with
 // tokensByTheme already merged in (theme wins); only overrides appear — base
-// values keep coming from app.css.
+// values keep coming from app.css. Dims is cssVar → length/line-height
+// (GDK-842): palette-agnostic, overrides only, unknown/locked/invalid tokens
+// already filtered by UIDimensionVars.
 type uiDoc struct {
 	Vars       map[string]map[string]string `json:"vars"`
+	Dims       map[string]string            `json:"dims"`
 	DataColors map[string]map[string]string `json:"dataColors"`
 	Warnings   []tokencheck.Violation       `json:"warnings,omitempty"`
 }
@@ -108,7 +112,9 @@ func webConfig(cfg *config.Config) webConfigDoc {
 	if dir == "" {
 		dir, _ = config.DirFor(config.Profile())
 	}
-	vars, warns := config.UITokenVars(cfg.UI)
+	vars, colorWarns := config.UITokenVars(cfg.UI)
+	dims, dimWarns := config.UIDimensionVars(cfg.UI)
+	warns := append(colorWarns, dimWarns...)
 	return webConfigDoc{
 		APIBase:             apiBase,
 		AuthBase:            authBase,
@@ -126,6 +132,7 @@ func webConfig(cfg *config.Config) webConfigDoc {
 		WorkspaceKind:       kind,
 		UI: &uiDoc{
 			Vars:       vars,
+			Dims:       dims,
 			DataColors: config.UIDataColors(cfg.UI),
 			Warnings:   warns,
 		},

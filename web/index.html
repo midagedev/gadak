@@ -3,7 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <!-- Not a mobile app: phones get the desktop layout scaled to fit instead
-         of a squeezed column. 1100 matches the layout's comfortable minimum. -->
+         of a squeezed column. 1100 matches the layout's comfortable minimum.
+         Deliberately a literal, not var(--layout-docked-min): this is the
+         phone viewport scale basis, while the docked floor is the desktop
+         dock/overlay branch — they only coincide at the defaults (GDK-842). -->
     <meta name="viewport" content="width=1100" />
     <meta name="theme-color" content="#ebe3d2" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#131417" media="(prefers-color-scheme: dark)" />
@@ -33,19 +36,28 @@
       }
     </script>
     <!--
-      사용자 색 오버라이드도 같은 창을 닫는다(GDK-786). 모듈 번들이 도착한
-      뒤 applyUserTokens()가 서버 문서로 교정하지만, 그 전 몇 프레임은
-      이 캐시가 그린다. 키/정규식은 web/src/lib/user-tokens.ts의 상수와
-      손 철자로 일치해야 하고(테마와 같은 /w/<name> 파생 규칙),
-      user-tokens.test.ts가 갈라지면 실패한다. 값은 이미 서버가 hex로
-      걸렀지만 여기서도 var/hex를 재검사한다 — 손으로 고친 config.json과
-      다운그레이드가 부팅을 깨지 않는 벨트다.
+      사용자 색·치수 오버라이드도 같은 창을 닫는다(GDK-786, GDK-842).
+      모듈 번들이 도착한 뒤 applyUserTokens()가 서버 문서로 교정하지만,
+      그 전 몇 프레임은 이 캐시가 그린다. 키/정규식은
+      web/src/lib/user-tokens.ts의 상수와 손 철자로 일치해야 하고(테마와
+      같은 /w/<name> 파생 규칙), user-tokens.test.ts가 갈라지면 실패한다.
+      값은 이미 서버가 걸었지만 여기서도 var/hex/길이를 재검사한다 —
+      손으로 고친 config.json과 다운그레이드가 부팅을 깨지 않는 벨트다.
+      치수(dims)는 팔레트가 없는 하나의 :root 규칙으로만 들어가며, 아래
+      부트 셸의 var(--layout-sidebar/--spacing-row) 폴백이 그 지오메트리를
+      즉시 소비한다.
     -->
     <script>
       try {
         var mu = location.pathname.match(/^\/w\/([A-Za-z0-9_-]+)(\/|$)/)
         var ukey = mu ? 'gadak:user-tokens:' + mu[1] : 'gadak:user-tokens'
         var udoc = JSON.parse(localStorage.getItem(ukey) || 'null')
+        var ucss = ''
+        var dimok = function (k, v) {
+          if (typeof v !== 'string') return false
+          if (/--line-height$/.test(k)) return /^[0-9]+\.[0-9]{1,2}$/.test(v)
+          return /^[0-9]+(\.[0-9])?px$/.test(v) && parseFloat(v) > 0
+        }
         var vars = udoc && udoc.vars
         if (vars && typeof vars === 'object') {
           var decl = function (m) {
@@ -58,7 +70,6 @@
             }
             return out.join('')
           }
-          var ucss = ''
           var ulight = decl(vars.light)
           if (ulight) ucss += ':root{' + ulight + '}'
           for (var pal in vars) {
@@ -68,12 +79,22 @@
           }
           var udark = decl(vars.dark)
           if (udark) ucss += "@media (prefers-color-scheme: dark){:root:not([data-theme='light']){" + udark + '}}'
-          if (ucss) {
-            var us = document.createElement('style')
-            us.setAttribute('data-gadak-user-tokens', '')
-            us.textContent = ucss
-            document.head.appendChild(us)
+        }
+        var dims = udoc && udoc.dims
+        if (dims && typeof dims === 'object') {
+          var ddecl = ''
+          for (var dk in dims) {
+            if (/^--(?:spacing|layout|text)-[a-z0-9-]+$/i.test(dk) && dimok(dk, dims[dk])) {
+              ddecl += dk + ':' + dims[dk] + ';'
+            }
           }
+          if (ddecl) ucss += ':root{' + ddecl + '}'
+        }
+        if (ucss) {
+          var us = document.createElement('style')
+          us.setAttribute('data-gadak-user-tokens', '')
+          us.textContent = ucss
+          document.head.appendChild(us)
         }
       } catch (e) {
         /* private mode / 손상된 캐시: app.css 기본 팔레트 */
@@ -143,14 +164,16 @@
       #app {
         height: 100%;
       }
-      /* 셸 골격: 사이드바 + 메인. 번들 로드 전 뼈대만 먼저 그린다. */
+      /* 셸 골격: 사이드바 + 메인. 번들 로드 전 뼈대만 먼저 그린다.
+         사이드바 폭과 행 높이는 위 부트 스크립트가 심은 사용자 치수
+         오버라이드를 즉시 소비한다(var 폴백 = 출하 기본값). */
       .boot-shell {
         display: flex;
         height: 100%;
       }
       .boot-sidebar {
-        width: 272px;
-        flex: 0 0 272px;
+        width: var(--layout-sidebar, 272px);
+        flex: 0 0 var(--layout-sidebar, 272px);
         border-right: 1px solid var(--color-border-subtle, var(--boot-line));
         background: var(--color-bg-panel, var(--boot-panel));
         padding: 16px 12px;
@@ -177,7 +200,7 @@
         margin: 10px 0;
       }
       .boot-row {
-        height: 42px;
+        height: var(--spacing-row, 42px);
       }
       @keyframes boot-pulse {
         0%,

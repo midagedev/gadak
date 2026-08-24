@@ -1,8 +1,11 @@
 <script lang="ts">
   /*
    * Virtual issue list ([explore]) — in-house.
-   *  - Fixed 42px row height (header/issue same) → uniform virtualization
-   *    (DOM nodes = viewport rows).
+   *  - Row heights come from the CSS tokens via rowMetrics() (headers and
+   *    plain rows --spacing-row, an issue row with a match/excerpt line
+   *    --spacing-row-excerpt); the window is offset-based, so a token change
+   *    or a taller row mode repaints true without a second height constant
+   *    to drift (GDK-842). DOM nodes = viewport rows.
    *  - Group headers float sticky + next header push effect.
    *  - Keys live in App.svelte (one window handler for the whole triage flow);
    *    this file owns the cursor's scroll follow and paints the cursor row.
@@ -15,10 +18,17 @@
   import { triage } from '../../stores/triage.svelte'
   import { browse } from '../../lib/browse.svelte'
   import type { IssueLite } from '../../lib/types'
+  import {
+    type RowMode,
+    onRowMetricsInvalidated,
+    rowMetrics,
+    rowOffsets,
+    rowIndexAt,
+    rowWindow,
+  } from '../../lib/row-metrics'
   import IssueRow from './IssueRow.svelte'
   import GroupHeader from './GroupHeader.svelte'
 
-  const ROW_H = 42
   const OVERSCAN = 8
 
   type RowItem =
@@ -26,9 +36,17 @@
     // gk: the group the row sits in — only set when grouped. The actor axis is
     // multi-membership (one issue in several buckets), so the each-key needs
     // group+issue to stay unique; every other axis simply carries it unused.
-    | { type: 'issue'; issue: IssueLite; gk?: string }
+    // mode: the paint mode IssueRow will use for this row — 'row' is the
+    // dense 42px paint, 'row-excerpt' adds the match line at 59px. This list
+    // never passes a match line today, so every row is 'row'; the field keeps
+    // the window honest the day one does (GDK-842 closes the 42/59 drift).
+    | { type: 'issue'; issue: IssueLite; gk?: string; mode: RowMode }
 
   const grouped = $derived(filters.display.group_by !== 'none')
+
+  // Token-sourced heights, re-read when a user dims override lands
+  // (applyUserTokens → invalidateRowMetrics fires the subscription below).
+  let metrics = $state(rowMetrics())
 
   // Flatten visual order: (header) + group items. group_by=none → one group, no header.
   const rows = $derived.by(() => {
@@ -36,10 +54,22 @@
     for (const g of filters.groups) {
       if (grouped) out.push({ type: 'header', group: g })
       for (const it of g.items)
-        out.push(grouped ? { type: 'issue', issue: it, gk: g.key } : { type: 'issue', issue: it })
+        out.push(
+          grouped
+            ? { type: 'issue', issue: it, gk: g.key, mode: 'row' }
+            : { type: 'issue', issue: it, mode: 'row' },
+        )
     }
     return out
   })
+
+  // Per-row height: headers and dense issue rows share --spacing-row; an
+  // issue row carrying a match/excerpt line is --spacing-row-excerpt
+  // (DocsView's rowHeight rule, mirrored).
+  function rowHeightOf(r: RowItem): number {
+    if (r.type === 'issue' && r.mode === 'row-excerpt') return metrics.rowExcerpt
+    return metrics.row
+  }
 
   // Row-index map for the cursor's scroll follow (visual order incl. headers).
   // First occurrence wins: under multi-membership grouping the same issue is
@@ -59,15 +89,16 @@
   let lastHandledViewKey = ''
   const cursorKey = $derived(triage.cursorKey)
 
-  const total = $derived(rows.length * ROW_H)
-  const start = $derived(Math.max(0, Math.floor(scrollTop / ROW_H) - OVERSCAN))
-  const end = $derived(
-    Math.min(rows.length, Math.ceil((scrollTop + viewportH) / ROW_H) + OVERSCAN),
-  )
-  const slice = $derived(rows.slice(start, end))
+  // Offset sheet: offsets[i] is row i's top, offsets[n] the total height.
+  // The window/anchor math mirrors VirtualRows.svelte (row-metrics owns it).
+  const heights = $derived(rows.map(rowHeightOf))
+  const offsets = $derived(rowOffsets(heights))
+  const total = $derived(offsets[rows.length])
+  const win = $derived(rowWindow(offsets, scrollTop, viewportH, OVERSCAN))
+  const slice = $derived(rows.slice(win.start, win.end))
 
   // ── Floating group header (top group + push effect) ──
-  const firstRow = $derived(Math.floor(scrollTop / ROW_H))
+  const firstRow = $derived(rowIndexAt(offsets, scrollTop))
   const floatingGroup = $derived.by(() => {
     if (!grouped || rows.length === 0) return null
     for (let i = Math.min(firstRow, rows.length - 1); i >= 0; i--) {
@@ -81,9 +112,9 @@
     if (!floatingGroup) return 0
     for (let i = floatingGroup.headerIndex + 1; i < rows.length; i++) {
       if (rows[i].type === 'header') {
-        const nextTop = i * ROW_H
+        const nextTop = offsets[i]
         const delta = nextTop - scrollTop
-        return delta < ROW_H ? delta - ROW_H : 0
+        return delta < metrics.row ? delta - metrics.row : 0
       }
     }
     return 0
@@ -95,10 +126,10 @@
 
   function scrollToRow(rowIndex: number) {
     if (!scroller) return
-    const top = rowIndex * ROW_H
-    const bottom = top + ROW_H
+    const top = offsets[rowIndex]
+    const bottom = top + heights[rowIndex]
     // In group mode, leave room for the sticky header (1 row)
-    const pad = grouped ? ROW_H : 0
+    const pad = grouped ? metrics.row : 0
     if (top - pad < scroller.scrollTop) scroller.scrollTop = top - pad
     else if (bottom > scroller.scrollTop + viewportH) scroller.scrollTop = bottom - viewportH
   }
@@ -123,7 +154,7 @@
     void req.nonce
     untrack(() => {
       const idx = rows.findIndex((r) => r.type === 'header' && r.group.key === req.key)
-      if (idx >= 0 && scroller) scroller.scrollTop = idx * ROW_H
+      if (idx >= 0 && scroller) scroller.scrollTop = offsets[idx]
     })
   })
 
@@ -154,9 +185,16 @@
 
   // Tell the shell the triage keys have a list to act on. Feed / onboarding /
   // empty states render instead of this component, and there they do nothing.
+  // The metrics subscription re-snapshots the token-sourced heights when a
+  // user dims override lands at runtime (GDK-842) — the offsets deriveds
+  // cascade and the window re-renders at the new geometry.
   onMount(() => {
     triage.listActive = true
+    const offMetrics = onRowMetricsInvalidated(() => {
+      metrics = rowMetrics()
+    })
     return () => {
+      offMetrics()
       triage.listActive = false
       triage.resetCursor()
     }
@@ -196,7 +234,8 @@
       style:margin-bottom={browse.pillVisible ? '56px' : ''}
     >
       {#each slice as row, i (row.type === 'issue' ? (row.gk !== undefined ? row.gk + '::' + row.issue.issue_key : row.issue.issue_key) : 'h' + row.group.key)}
-        <div class="absolute inset-x-0" style:top="{(start + i) * ROW_H}px" style:height="{ROW_H}px">
+        {@const idx = win.start + i}
+        <div class="absolute inset-x-0" style:top="{offsets[idx]}px" style:height="{heights[idx]}px">
           {#if row.type === 'header'}
             <GroupHeader
               group={row.group}
