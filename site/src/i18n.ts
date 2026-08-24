@@ -7,6 +7,7 @@ export const strings = {
     description:
       'The Jira your company already runs — issues and the Confluence wiki — mirrored into one local SQLite file. Search lands in milliseconds on 20,000 issues. Reads never touch the network.',
     nav: { demo: 'Live demo', changelog: 'Changelog', install: 'Install', github: 'GitHub' },
+    copy: { label: 'Copy', copied: 'Copied' },
     ogImageAlt:
       'gadak — Same Jira. No waiting. Your team’s Jira and its Confluence wiki, mirrored into one local SQLite file.',
     langName: 'English',
@@ -74,7 +75,8 @@ export const strings = {
       heading: 'One vocabulary between you and the agent',
       body:
         'The CLI doubles as the agent interface: create, claim, transition — verbs an agent can run while you watch the same board. An MCP server covers clients without a shell. Writes go through to the origin; reads come off the local mirror. And every agent write is attributed: its comments and linked PRs carry the bot’s name in the same thread your team reads.',
-      snippetCaption: 'Onboarding is one line — a skill for shell agents, MCP for the rest:',
+      skillLead: 'Hand the same mirror to your coding agent:',
+      mcpLead: 'For MCP clients without a shell (Claude Desktop):',
       setupLink: 'Pasteable setup blocks for every tool → docs/AGENT_SETUP.md',
       videoCaption: 'A question JQL cannot ask, answered from the local mirror.',
       mcpCaption:
@@ -94,9 +96,14 @@ export const strings = {
       heading: 'Work and your own work, side by side',
       body:
         'A second workspace keeps private tasks off the company tracker — same machine, separate file, separate credentials. Standalone needs no tracker at all.',
+      standaloneLead: 'No tracker at all — issues live on this machine:',
+      secondLead: 'A second workspace: separate file, separate credentials:',
     },
     install: {
       heading: 'Install',
+      macosApp: 'The desktop app, CLI included:',
+      cliOnly: 'CLI only:',
+      firstRun: 'Connect to your team\'s Jira (asks for site, email, token, projects):',
     },
     footer: {
       builtBy: 'Built by',
@@ -109,6 +116,7 @@ export const strings = {
     description:
       '회사가 쓰는 그 Jira를 — 이슈도 Confluence 위키도 — 로컬 SQLite 파일 하나로 미러링합니다. 2만 건에서도 검색은 밀리초 단위. 읽기는 네트워크를 건드리지 않습니다.',
     nav: { demo: '라이브 데모', changelog: '체인지로그', install: '설치', github: 'GitHub' },
+    copy: { label: '복사', copied: '복사됨' },
     ogImageAlt: 'gadak — 같은 Jira, 기다림 없이. 팀의 Jira와 Confluence 위키를 로컬 SQLite 파일 하나로 미러링.',
     langName: '한국어',
     langBanner: {
@@ -175,7 +183,8 @@ export const strings = {
       heading: '나와 에이전트가 나누는 하나의 어휘',
       body:
         'CLI가 곧 에이전트 인터페이스입니다 — create, claim, transition, 보드는 눈앞에서 같이 움직입니다. MCP 서버가 셸 없는 클라이언트를 맡습니다. 쓰기는 origin까지 통과하고, 읽기는 로컬 미러에서 나옵니다. 그리고 에이전트의 모든 쓰기에는 이름이 남습니다 — 코멘트와 연결된 PR에 봇의 이름이, 팀이 읽는 그 스레드에 그대로 붙습니다.',
-      snippetCaption: '온보딩은 한 줄 — 셸 에이전트는 스킬, 나머지는 MCP:',
+      skillLead: '같은 미러를 코딩 에이전트에게 넘기려면:',
+      mcpLead: '셸이 없는 MCP 클라이언트(Claude Desktop)에는:',
       setupLink: '도구별 붙여넣기 블록 → docs/AGENT_SETUP.md',
       videoCaption: 'JQL이 표현 못 하는 질문 하나를, 로컬 미러에서 답하기.',
       mcpCaption:
@@ -195,9 +204,14 @@ export const strings = {
       heading: '회사 일과 내 일, 나란히',
       body:
         '두 번째 워크스페이스가 개인 작업을 회사 트래커 밖에 둡니다 — 같은 머신, 다른 파일, 다른 자격증명. 스탠드얼론은 트래커 없이도 시작합니다.',
+      standaloneLead: '스탠드얼론은 트래커 없이도 시작합니다:',
+      secondLead: '두 번째 워크스페이스: 같은 머신, 다른 파일, 다른 자격증명:',
     },
     install: {
       heading: '설치',
+      macosApp: '데스크톱 앱, CLI 포함:',
+      cliOnly: 'CLI만:',
+      firstRun: '회사 Jira에 연결 (사이트·이메일·토큰·프로젝트를 차례로 묻습니다):',
     },
     footer: {
       builtBy: '만든 사람',

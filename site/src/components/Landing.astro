@@ -3,6 +3,7 @@ import Base from '../layouts/Base.astro'
 import Door from '../components/Door.astro'
 import Thread from '../components/Thread.astro'
 import MediaSlot from '../components/MediaSlot.astro'
+import Snippet from '../components/Snippet.astro'
 import { strings, type Locale } from '../i18n'
 
 interface Props {
@@ -10,6 +11,8 @@ interface Props {
 }
 const { lang } = Astro.props
 const t = strings[lang]
+const copyLabel = t.copy.label
+const copiedLabel = t.copy.copied
 const installHref = lang === 'en' ? '/install/' : '/ko/install/'
 ---
 
@@ -133,9 +136,13 @@ const installHref = lang === 'en' ? '/install/' : '/ko/install/'
       />
       <figcaption>{t.agent.videoCaption}</figcaption>
     </figure>
-    <pre><code>{`gadak create NMB "Ship the export" --field team=platform
+    <Snippet
+      code={`gadak create NMB "Ship the export" --field team=platform
 gadak claim NMB-1042
-gadak transition NMB-1042 done -m "shipped"`}</code></pre>
+gadak transition NMB-1042 done -m "shipped"`}
+      copyLabel={copyLabel}
+      copiedLabel={copiedLabel}
+    />
     <figure class="media-pair">
       {/* The recorded Claude Code tape from the README (user call 2026-08-24):
           the claim here is a conversation flow, not a single frame, so this
@@ -147,9 +154,10 @@ gadak transition NMB-1042 done -m "shipped"`}</code></pre>
       />
       <figcaption>{t.agent.mcpCaption}</figcaption>
     </figure>
-    <p class="caption">{t.agent.snippetCaption}</p>
-    <pre><code>{`gadak skill install                  # shell agents (Claude Code, Codex…)
-claude mcp add gadak -- gadak mcp    # MCP clients`}</code></pre>
+    <p>{t.agent.skillLead}</p>
+    <Snippet code="gadak skill install" copyLabel={copyLabel} copiedLabel={copiedLabel} />
+    <p>{t.agent.mcpLead}</p>
+    <Snippet code="claude mcp add gadak -- gadak mcp" copyLabel={copyLabel} copiedLabel={copiedLabel} />
     <p class="note">
       <a href="https://github.com/midagedev/gadak/blob/main/docs/AGENT_SETUP.md">{t.agent.setupLink}</a>
     </p>
@@ -169,18 +177,22 @@ claude mcp add gadak -- gadak mcp    # MCP clients`}</code></pre>
   <section class="workspace">
     <h2>{t.workspace.heading}</h2>
     <p>{t.workspace.body}</p>
-    <pre><code>{`gadak init --standalone      # no tracker at all — issues live on this machine
-gadak --workspace side init  # a second workspace: separate file, separate credentials`}</code></pre>
+    <p>{t.workspace.standaloneLead}</p>
+    <Snippet code="gadak init --standalone" copyLabel={copyLabel} copiedLabel={copiedLabel} />
+    <p>{t.workspace.secondLead}</p>
+    <Snippet code="gadak --workspace side init" copyLabel={copyLabel} copiedLabel={copiedLabel} />
   </section>
 
   <Thread />
 
   <section class="install">
     <h2>{t.install.heading}</h2>
-    <pre><code>{`brew install --cask midagedev/tap/gadak   # macOS app (CLI included)
-brew install midagedev/tap/gadak-cli     # CLI only (macOS, Linux)
-
-gadak init && gadak sync && gadak serve`}</code></pre>
+    <p>{t.install.macosApp}</p>
+    <Snippet code="brew install --cask midagedev/tap/gadak" copyLabel={copyLabel} copiedLabel={copiedLabel} />
+    <p>{t.install.cliOnly}</p>
+    <Snippet code="brew install midagedev/tap/gadak-cli" copyLabel={copyLabel} copiedLabel={copiedLabel} />
+    <p>{t.install.firstRun}</p>
+    <Snippet code="gadak init && gadak sync && gadak serve" copyLabel={copyLabel} copiedLabel={copiedLabel} />
     <p class="note"><a href={installHref}>{lang === 'en' ? 'All platforms →' : '모든 플랫폼 →'}</a></p>
   </section>
 </Base>
