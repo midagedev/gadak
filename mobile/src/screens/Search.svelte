@@ -13,6 +13,7 @@
    * internal/jql/extract.go.
    */
   import type { QueueRow } from '../lib/api'
+  import type { QueueRowFull } from '../lib/queue-rows'
 
   /** Rung ① — the whole trimmed input is an issue key (`[A-Z]+-\d+`). */
   export function looksLikeKey(raw: string): string | null {
@@ -76,6 +77,135 @@
     const byKey = new Map(rows.map((r) => [r.issue_key, r]))
     return keys.map((key) => ({ key, row: byKey.get(key) ?? null }))
   }
+
+  /* ── Saved views (A-nav): which filter axes the phone may evaluate ──
+   *
+   * A saved view's config is the web ViewConfig document (web/src/lib/
+   * view-config.ts) — the server stores it opaque and so does the phone.
+   * Chips apply a view to the LOCAL pool only when every non-empty filter
+   * axis is one the pool can key on ids/categories (CLAUDE.md schema
+   * rules): status_category (+_not), jira_project (the issue_key prefix,
+   * +_not), assignee_email (account id / email identity, +_not — never
+   * the assignee display name), keys, and the unassigned flag. Any other
+   * non-empty axis — status/priority value lists, labels, dates, text,
+   * custom fields — makes the chip web-only ("웹에서 보기"): a half-read
+   * filter would answer a question the view never asked. Semantics are
+   * copied from web/src/stores/filters.svelte.ts (matchesMulti fold,
+   * effectiveCategory aliases, sameIdentity).
+   */
+
+  /** What tapping a saved-view chip does. */
+  export type ViewChipPlan =
+    | { kind: 'local'; rows: QueueRow[] }
+    | { kind: 'web' }
+
+  /** The interpretable axes; everything else in `filters` must be unset. */
+  const INTERPRETED_AXES: ReadonlySet<string> = new Set([
+    'status_category',
+    'status_category_not',
+    'jira_project',
+    'jira_project_not',
+    'assignee_email',
+    'assignee_email_not',
+    'keys',
+    'unassigned',
+  ])
+
+  function readFilters(config: unknown): Record<string, unknown> | null {
+    if (typeof config !== 'object' || config === null) return null
+    const f = (config as { filters?: unknown }).filters
+    if (typeof f !== 'object' || f === null) return null
+    return f as Record<string, unknown>
+  }
+
+  /** "Set" per axis shape: arrays by length, flags by true, ranges/fields by content. */
+  function axisIsSet(v: unknown): boolean {
+    if (Array.isArray(v)) return v.length > 0
+    if (typeof v === 'boolean') return v
+    if (typeof v === 'string') return v !== ''
+    if (typeof v === 'object' && v !== null) return Object.keys(v).length > 0
+    return false
+  }
+
+  function strArr(v: unknown): string[] {
+    return Array.isArray(v) ? v.filter((s): s is string => typeof s === 'string') : []
+  }
+
+  /** web effectiveCategory (string arm): alias folding, never a status name. */
+  function categoryAlias(raw: string): string {
+    const sc = raw.toLowerCase()
+    if (sc === 'new' || sc === 'todo') return 'new'
+    if (sc === 'inprogress' || sc === 'indeterminate') return 'inprogress'
+    if (sc === 'done' || sc === 'complete' || sc === 'completed') return 'done'
+    return 'inprogress'
+  }
+
+  function categoryOf(row: QueueRow): string {
+    return categoryAlias(row.status_category ?? '')
+  }
+
+  /** web jiraProjectOf: the issue_key prefix before '-'. */
+  function projectOf(row: QueueRow): string {
+    const sep = row.issue_key.indexOf('-')
+    return sep > 0 ? row.issue_key.slice(0, sep) : ''
+  }
+
+  /** web sameIdentity: exact, or case-insensitive when both sides are emails. */
+  function sameIdentity(a: string, b: string): boolean {
+    return a === b || (a.includes('@') && b.includes('@') && a.toLowerCase() === b.toLowerCase())
+  }
+
+  function assigneeIdentity(row: QueueRowFull): { id: string; email: string } {
+    return {
+      id: typeof row.assignee_id === 'string' ? row.assignee_id : '',
+      email: typeof row.assignee_email === 'string' ? row.assignee_email : '',
+    }
+  }
+
+  function personMatches(row: QueueRowFull, value: string): boolean {
+    if (value === '') return false
+    const { id, email } = assigneeIdentity(row)
+    return value === id || sameIdentity(value, email)
+  }
+
+  /**
+   * The chip plan: interpret the view against the pool, or declare it
+   * web-only. `pool` is the queue's open-issue pool — a view that keeps
+   * done rows simply matches fewer of them, the honest local answer.
+   */
+  export function viewChipPlan(config: unknown, pool: QueueRowFull[]): ViewChipPlan {
+    const f = readFilters(config)
+    if (f === null) return { kind: 'web' }
+    for (const [axis, v] of Object.entries(f)) {
+      if (INTERPRETED_AXES.has(axis)) continue
+      if (axisIsSet(v)) return { kind: 'web' }
+    }
+    const sc = strArr(f.status_category).map(categoryAlias)
+    const scn = strArr(f.status_category_not).map(categoryAlias)
+    const pj = strArr(f.jira_project)
+    const pjn = strArr(f.jira_project_not)
+    const as = strArr(f.assignee_email)
+    const asn = strArr(f.assignee_email_not)
+    const keys = strArr(f.keys).map((k) => k.trim().toUpperCase())
+    const unassigned = f.unassigned === true
+    const rows = pool.filter((r) => {
+      const cat = categoryOf(r)
+      if (sc.length && !sc.includes(cat)) return false
+      if (scn.length && scn.includes(cat)) return false
+      const proj = projectOf(r)
+      if (pj.length && !pj.includes(proj)) return false
+      if (pjn.length && pjn.includes(proj)) return false
+      if (unassigned) {
+        const { id, email } = assigneeIdentity(r)
+        if (id !== '' || email !== '') return false
+      }
+      if (as.length && !as.some((v) => personMatches(r, v))) return false
+      if (asn.length && asn.some((v) => personMatches(r, v))) return false
+      if (keys.length && !keys.includes(r.issue_key.toUpperCase())) return false
+      return true
+    })
+    return { kind: 'local', rows }
+  }
 </script>
 
 <script lang="ts">
@@ -83,17 +213,21 @@
     ApiError,
     categoryInk,
     search as searchIssues,
+    views as fetchViews,
     type ApiContext,
+    type SavedView,
     type SearchResult,
   } from '../lib/api'
   import { readPairing, readToken } from '../lib/settings'
   import { t, type MessageKey } from '../lib/i18n'
   import { readRecentSearches, recordRecentSearch } from '../lib/recent-searches'
 
+  // rows is the Queue's open pool (App mirrors it down); QueueRowFull keeps
+  // assignee_id/email so saved-view chips can key people on identity, not name.
   let {
     rows = [],
     onopen,
-  }: { rows?: QueueRow[]; onopen?: (issue_key: string) => void } = $props()
+  }: { rows?: QueueRowFull[]; onopen?: (issue_key: string) => void } = $props()
 
   let q = $state('')
   let submitted = $state<string | null>(null)
@@ -170,12 +304,74 @@
     void runSearch(text)
   }
 
+  /* ── Saved views (A-nav) ──
+   * Fetched once per mount; null (never loaded, unpaired, or failed) keeps
+   * the section hidden — views are an addition to the empty screen, never
+   * a banner-worthy failure (ux-report Q4's empty screen stays quiet). */
+  let savedViews = $state<SavedView[] | null>(null)
+  let activeViewId = $state<string | null>(null)
+
+  const activeView = $derived.by(() => {
+    const id = activeViewId
+    if (id === null || savedViews === null) return null
+    const v = savedViews.find((s) => s.id === id) ?? null
+    if (v === null) return null
+    return { name: v.name, plan: viewChipPlan(v.config, rows) }
+  })
+
+  $effect(() => {
+    const pairing = readPairing()
+    const endpoint = pairing?.endpoint ?? (import.meta.env.DEV ? 'http://127.0.0.1:7899' : '')
+    if (endpoint === '') return
+    let stale = false
+    readToken().then((token) => {
+      if (stale) return
+      return fetchViews({ endpoint, token }).then(
+        (res) => {
+          if (!stale) savedViews = res.views
+        },
+        () => {
+          // Section simply stays hidden — nothing here is worth a banner.
+        },
+      )
+    })
+    return () => {
+      stale = true
+    }
+  })
+
+  function runView(v: SavedView): void {
+    activeViewId = activeViewId === v.id ? null : v.id
+  }
+
   $effect(() => {
     inputEl?.focus()
   })
 </script>
 
 <section class="m-main scroll-region" data-testid="search-screen">
+  <!-- One row-button shape for the pool-backed lists (locals, view rows) —
+       the FTS hits list stays separate: it carries snippets and key-only
+       rows the pool does not know. -->
+  {#snippet rowButton(row: QueueRowFull, testid: string)}
+    <button
+      class="s-row"
+      type="button"
+      onclick={() => onopen?.(row.issue_key)}
+      data-testid={testid}
+      data-key={row.issue_key}
+    >
+      <span class="s-row-main">
+        <span class="s-dot" style:background={categoryInk(row.status_category)} aria-hidden="true"></span>
+        <span class="m-row-key">{row.issue_key}</span>
+        <span class="s-summary">{row.summary}</span>
+        <span class="s-row-status" style:color={categoryInk(row.status_category)}>
+          {row.status}
+        </span>
+      </span>
+    </button>
+  {/snippet}
+
   <form class="s-form" onsubmit={onsubmit}>
     <input
       bind:this={inputEl}
@@ -284,22 +480,7 @@
       <ul class="s-rows" data-testid="search-locals">
         {#each locals as row (row.issue_key)}
           <li>
-            <button
-              class="s-row"
-              type="button"
-              onclick={() => onopen?.(row.issue_key)}
-              data-testid="search-local"
-              data-key={row.issue_key}
-            >
-              <span class="s-row-main">
-                <span class="s-dot" style:background={categoryInk(row.status_category)} aria-hidden="true"></span>
-                <span class="m-row-key">{row.issue_key}</span>
-                <span class="s-summary">{row.summary}</span>
-                <span class="s-row-status" style:color={categoryInk(row.status_category)}>
-                  {row.status}
-                </span>
-              </span>
-            </button>
+            {@render rowButton(row, 'search-local')}
           </li>
         {/each}
       </ul>
@@ -314,6 +495,45 @@
       </div>
     {:else}
       <p class="s-none" data-testid="search-recent-empty">{t('search.recent.empty')}</p>
+    {/if}
+
+    <!-- Saved views (A-nav): chips over the local pool. Names only; the
+         interpretation is viewChipPlan's — web-only axes say so instead of
+         half-answering. -->
+    {#if savedViews !== null && savedViews.length > 0}
+      <p class="s-section">{t('search.views')}</p>
+      <div class="s-chips" data-testid="search-views">
+        {#each savedViews as v (v.id)}
+          <button
+            class="s-chip"
+            class:s-chip-on={activeViewId === v.id}
+            type="button"
+            aria-pressed={activeViewId === v.id}
+            onclick={() => runView(v)}
+            data-testid="search-view-chip"
+          >
+            {v.name}
+          </button>
+        {/each}
+      </div>
+      {#if activeView !== null}
+        {#if activeView.plan.kind === 'local'}
+          <p class="s-count" data-testid="search-view-count">
+            {t('search.view.count', { n: activeView.plan.rows.length })}
+          </p>
+          {#if activeView.plan.rows.length > 0}
+            <ul class="s-rows" data-testid="search-view-rows">
+              {#each activeView.plan.rows as row (row.issue_key)}
+                <li>{@render rowButton(row, 'search-view-row')}</li>
+              {/each}
+            </ul>
+          {:else}
+            <p class="s-none" data-testid="search-view-empty">{t('search.view.empty')}</p>
+          {/if}
+        {:else}
+          <p class="s-none" data-testid="search-view-web">{t('search.view.webOnly')}</p>
+        {/if}
+      {/if}
     {/if}
   {/if}
 </section>
@@ -476,5 +696,11 @@
     color: var(--color-text-primary);
     font-size: var(--text-body);
     font-family: var(--font-sans);
+  }
+
+  /* The tapped saved-view chip — tokens only (accent family, as s-jump). */
+  .s-chip-on {
+    border-color: var(--color-accent);
+    color: var(--color-accent-text);
   }
 </style>

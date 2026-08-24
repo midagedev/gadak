@@ -14,6 +14,7 @@
  *   POST /api/v1/issues/{key}/transition/         {"transition_id": …}
  *   GET  /api/v1/issues/feed/?focus=&limit=
  *   POST /api/v1/issues/feed/read/                {event_ids|issue_keys|all}
+ *   GET  /api/v1/issues/views/
  *
  * Transport: the packaged app rides @tauri-apps/plugin-http (Rust reqwest —
  * no Origin header, no CORS preflight; docs/decisions/0003). The serve gate
@@ -430,6 +431,39 @@ export async function markFeedRead(
   if (!res.ok) throw await toApiError(res)
   return parseJson<FeedReadResult>(res, (b) => {
     expectField(b, 'unread_counts')
+  })
+}
+
+/**
+ * One saved view as the server stores it. Fields measured against a live
+ * `gadak demo` serve (2026-08-25): id/name/owner_email/owner_name/config/
+ * created_at/updated_at. `config` is the web ViewConfig document (web/src/
+ * lib/view-config.ts) — opaque here by design; interpretation (the phone
+ * only reads id/category filter axes) lives with the Search screen, which
+ * is the only consumer. The response also carries a `source` array (Jira-
+ * mirrored named queries, internal/server/personal.go sourceView) — the
+ * phone renders chips from `views` only, so it is not typed here.
+ */
+export interface SavedView {
+  id: string
+  name: string
+  owner_email: string | null
+  owner_name: string | null
+  config: unknown
+  created_at: string | null
+  updated_at: string | null
+}
+
+export interface Views {
+  views: SavedView[]
+}
+
+/** GET issues/views/ — the saved views the desktop web saves (read-only). */
+export async function views(ctx: ApiContext, signal?: AbortSignal): Promise<Views> {
+  const res = await request(ctx, 'issues/views/', { signal })
+  if (!res.ok) throw await toApiError(res)
+  return parseJson<Views>(res, (b) => {
+    expectArray(b, 'views')
   })
 }
 

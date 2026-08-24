@@ -17,13 +17,18 @@
  * (CLAUDE.md schema rules; flow-report Q3: bootstrap carries assignee_id).
  * api.ts's QueueRow view omits assignee_id because the queue never needed
  * it; the payload carries it (store.IssueLite), so this module widens the
- * view locally instead of touching the transport owner.
+ * view locally instead of touching the transport owner. A-nav adds the
+ * email twin the same way: saved-view person filters (web stores them as
+ * account ids or emails, never display names) need the identity pair.
  */
 import { categoryInk, priorityInk, queueRows, type QueueRow } from './api'
 import { t, type Locale } from './i18n'
 
-/** QueueRow plus the account-id axis bootstrap already ships. */
-export type QueueRowFull = QueueRow & { assignee_id?: string | null }
+/** QueueRow plus the identity axes bootstrap already ships (id, email). */
+export type QueueRowFull = QueueRow & {
+  assignee_id?: string | null
+  assignee_email?: string | null
+}
 
 /** The bootstrap issue itself may lack the field (older caches) — read it null-safely. */
 function assigneeIdOf(row: QueueRowFull): string {

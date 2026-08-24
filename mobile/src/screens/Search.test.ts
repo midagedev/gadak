@@ -15,12 +15,14 @@ const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }))
 vi.mock('@tauri-apps/api/core', () => ({ invoke }))
 
 import type { QueueRow } from '../lib/api'
+import type { QueueRowFull } from '../lib/queue-rows'
 import {
   joinSearchKeys,
   localTitleMatches,
   looksLikeJql,
   looksLikeKey,
   titleShowsQuery,
+  viewChipPlan,
 } from './Search.svelte'
 
 const row = (issue_key: string, summary: string): QueueRow => ({
@@ -144,5 +146,103 @@ describe('titleShowsQuery (web matchEvidence mirror)', () => {
   it('is false for a blank query or empty title', () => {
     expect(titleShowsQuery('anything', '  ')).toBe(false)
     expect(titleShowsQuery('', 'query')).toBe(false)
+  })
+})
+
+/* ── Saved-view chips (A-nav) ──
+ * viewChipPlan decides local vs web-only. The axes and semantics mirror
+ * web/src/stores/filters.svelte.ts; the "anything else set → web" rule is
+ * the fail-safe half — a half-read filter must never answer locally. */
+describe('viewChipPlan (saved-view chips)', () => {
+  const full = (
+    issue_key: string,
+    summary: string,
+    over: Partial<QueueRowFull> = {},
+  ): QueueRowFull => ({ ...row(issue_key, summary), ...over })
+
+  const pool: QueueRowFull[] = [
+    full('GDK-1', 'New thing', { status: 'Open', status_category: 'new', assignee_id: null, assignee_email: null }),
+    full('WEB-2', 'Wired up', { assignee_id: 'acc:5', assignee_email: 'dev@home.lan' }),
+    full('WEB-3', 'Done elsewhere', { status_category: 'done', assignee_id: 'acc:7', assignee_email: 'sev@Home.Lan' }),
+    full('GDK-4', 'Assigned here', { assignee_id: 'acc:5', assignee_email: null }),
+  ]
+
+  const keys = (plan: ReturnType<typeof viewChipPlan>): string[] | null =>
+    plan.kind === 'local' ? plan.rows.map((r) => r.issue_key) : null
+
+  it('applies status_category over the folded category axis (aliases included)', () => {
+    const plan = viewChipPlan({ filters: { status_category: ['new'] } }, pool)
+    expect(keys(plan)).toEqual(['GDK-1'])
+    // 'todo' is the same axis value as 'new' (web effectiveCategory fold).
+    expect(keys(viewChipPlan({ filters: { status_category: ['todo'] } }, pool))).toEqual(['GDK-1'])
+  })
+
+  it('subtracts via the _not twin', () => {
+    const plan = viewChipPlan(
+      { filters: { jira_project: ['GDK', 'WEB'], jira_project_not: ['WEB'] } },
+      pool,
+    )
+    expect(keys(plan)).toEqual(['GDK-1', 'GDK-4'])
+  })
+
+  it('keys projects on the issue_key prefix', () => {
+    expect(keys(viewChipPlan({ filters: { jira_project: ['WEB'] } }, pool))).toEqual(['WEB-2', 'WEB-3'])
+    expect(keys(viewChipPlan({ filters: { status_category_not: ['done'], jira_project: ['WEB'] } }, pool))).toEqual(['WEB-2'])
+  })
+
+  it('matches people on account id or email identity — never a display name', () => {
+    expect(keys(viewChipPlan({ filters: { assignee_email: ['acc:5'] } }, pool))).toEqual(['WEB-2', 'GDK-4'])
+    // Case-insensitive only when both sides are emails (web sameIdentity).
+    expect(keys(viewChipPlan({ filters: { assignee_email: ['sev@home.lan'] } }, pool))).toEqual(['WEB-3'])
+    expect(keys(viewChipPlan({ filters: { assignee_email: ['acc:7'] } }, pool))).toEqual(['WEB-3'])
+    expect(keys(viewChipPlan({ filters: { assignee_email: ['Dev'] } }, pool))).toEqual([])
+    expect(keys(viewChipPlan({ filters: { assignee_email_not: ['acc:5'] } }, pool))).toEqual(['GDK-1', 'WEB-3'])
+  })
+
+  it('drops assigned rows on the unassigned flag', () => {
+    expect(keys(viewChipPlan({ filters: { unassigned: true } }, pool))).toEqual(['GDK-1'])
+  })
+
+  it('matches keys case-insensitively after trimming', () => {
+    expect(keys(viewChipPlan({ filters: { keys: [' gdk-4 '] } }, pool))).toEqual(['GDK-4'])
+  })
+
+  it('is web-only when any axis outside the interpreted set is set', () => {
+    // The axes the phone cannot key on ids for — priority display names,
+    // status display names, labels, dates, text, custom fields record.
+    const uninterpretable = [
+      { priority: ['High'] },
+      { status: ['In Progress'] },
+      { labels: ['infra'] },
+      { updated_after: '2026-01-01' },
+      { q: 'camera' },
+      { fields: { customfield_1: ['x'] } },
+    ]
+    for (const filters of uninterpretable) {
+      expect(viewChipPlan({ filters: { ...filters, status_category: ['new'] } }, pool)).toEqual({ kind: 'web' })
+    }
+  })
+
+  it('stays local over unset extras (empty arrays, false flags, empty strings)', () => {
+    const plan = viewChipPlan(
+      { filters: { status_category: ['new'], labels: [], priority: [], unassigned: false, q: '' } },
+      pool,
+    )
+    expect(keys(plan)).toEqual(['GDK-1'])
+  })
+
+  it('is web-only for a malformed or missing config', () => {
+    expect(viewChipPlan(null, pool)).toEqual({ kind: 'web' })
+    expect(viewChipPlan('not an object', pool)).toEqual({ kind: 'web' })
+    expect(viewChipPlan({ display: { columns: [] } }, pool)).toEqual({ kind: 'web' })
+    expect(viewChipPlan({ filters: null }, pool)).toEqual({ kind: 'web' })
+  })
+
+  it('answers the local pool honestly — done rows are outside it, so such views match fewer', () => {
+    // A "done + WEB" view over the open pool: WEB-3 exists in the pool
+    // here, so it matches; the point is the filter runs, not that every
+    // saved row is present.
+    const plan = viewChipPlan({ filters: { status_category: ['done'], jira_project: ['WEB'] } }, pool)
+    expect(keys(plan)).toEqual(['WEB-3'])
   })
 })

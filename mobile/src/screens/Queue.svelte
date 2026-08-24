@@ -15,6 +15,7 @@
    * the dot's color only) · compact age. The mine/all filter keys on
    * assignee_id — account ids, never display names (CLAUDE.md).
    */
+  import { untrack } from 'svelte'
   import { bootstrap, me, type ApiContext } from '../lib/api'
   import { readPairing, readQueueCache, readToken, writeQueueCache } from '../lib/settings'
   import { t } from '../lib/i18n'
@@ -30,7 +31,16 @@
   let {
     onpair,
     onopen,
-  }: { onpair?: () => void; onopen?: (issueKey: string) => void } = $props()
+    onpool,
+    feedTick = 0,
+  }: {
+    onpair?: () => void
+    onopen?: (issueKey: string) => void
+    /** Reports the open pool upward — App feeds Search rows and Detail's row from it. */
+    onpool?: (rows: QueueRowFull[]) => void
+    /** Bumped by the app's feed poll; each successful poll revalidates here (feed.ts onfeed). */
+    feedTick?: number
+  } = $props()
 
   // The open pool straight from bootstrap — rows derive from it so the
   // mine/all toggle recomputes without a refetch.
@@ -148,7 +158,12 @@
       syncedAt = cache.syncedAt
       cacheDrawn = true
     }
-    void load()
+    // untrack: load()'s synchronous reads (the revalidating guard) must
+    // not become this effect's dependencies — tracked, every completion
+    // (revalidating → false) would re-fire the effect and re-fetch in a
+    // loop (measured: ~55 bootstrap+me pairs/sec at HEAD). The effect's
+    // contract is the cache draw and the listeners, not load's internals.
+    untrack(() => void load())
     const onVisible = (): void => {
       if (document.visibilityState === 'visible') void load()
     }
@@ -167,6 +182,24 @@
       el?.removeEventListener('touchend', onTouchEnd)
       el?.removeEventListener('touchcancel', onTouchEnd)
     }
+  })
+
+  // The pool stays this screen's data; App only mirrors it (Search rows,
+  // Detail's row lookup) — every change reports upward, [] included.
+  $effect(() => {
+    onpool?.(pool)
+  })
+
+  // The feed poll's freshness nudge. The mount run is skipped (the
+  // cold-start effect above already loads) — only later ticks count, and
+  // feedTick is what the effect tracks (it only ever increments).
+  let firstTickRun = true
+  $effect(() => {
+    if (firstTickRun) {
+      firstTickRun = false
+      return
+    }
+    if (feedTick > 0) untrack(() => void load())
   })
 </script>
 

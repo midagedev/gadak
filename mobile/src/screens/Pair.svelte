@@ -27,7 +27,13 @@
   // onsaved is App.svelte's tab-switch (A-nav renames it); onpaired is
   // this chunk's name for the same moment. Both fire only on a proven
   // pair — a saved-but-unconnected pairing keeps the user here to read why.
-  let { onpaired, onsaved } = $props<{ onpaired?: () => void; onsaved?: () => void }>()
+  // onunpaired fires after clearPairing() so the app can stop what only a
+  // pairing may run (the feed poll — A-nav).
+  let {
+    onpaired,
+    onsaved,
+    onunpaired,
+  } = $props<{ onpaired?: () => void; onsaved?: () => void; onunpaired?: () => void }>()
 
   // 16KiB paste cap: the decoder handles more (tested), but the paste
   // surface bounds what a hostile paste can make the UI carry around.
@@ -168,6 +174,7 @@
     failedConnect = null
     failedConnectRaw = null
     lastConnectedAt = null
+    onunpaired?.()
   }
 
   function expiresLabel(o: Offer): string {
