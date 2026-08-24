@@ -1,5 +1,10 @@
 # Install
 
+A connected workspace needs one [API token](https://id.atlassian.com/manage-profile/security/api-tokens)
+(it covers Jira and Confluence on the same site). A standalone workspace
+needs no Atlassian account at all. Pick an install under [The ways in](#the-ways-in),
+then [First run](#first-run).
+
 No Atlassian account:
 
 ```bash
@@ -9,8 +14,9 @@ gadak create "the thing I just noticed"
 gadak serve
 ```
 
-**Already have Jira?** One [API token](https://id.atlassian.com/manage-profile/security/api-tokens)
-covers both Jira and Confluence on the same site. Then `gadak init && gadak sync`,
+`gadak serve` prints the address — open `http://gadak.localhost:7777` and you should see your issues.
+
+**Already have Jira?** Then `gadak init && gadak sync`,
 or the walkthrough in [First run](#first-run).
 
 **Glossary.** A *workspace* is one credential and mirror (`--workspace <name>`,
@@ -48,19 +54,136 @@ coexist; just avoid leaving a stale binary earlier in `PATH` (see
 
 ### Homebrew
 
+Want the signed macOS app (it ships the CLI too):
+
 ```bash
-brew install midagedev/tap/gadak        # the macOS app (ships the CLI too)
-brew install midagedev/tap/gadak-cli    # CLI only — also the Linux path
+brew install --cask midagedev/tap/gadak
+```
+
+Want only the command — every Linux install with Homebrew, and any Mac where
+you do not want the app:
+
+```bash
+brew install midagedev/tap/gadak-cli
 ```
 
 From [`midagedev/homebrew-tap`][tap]. `gadak` is a cask: it installs the
 signed, notarized macOS app and puts the same `gadak` binary on your PATH.
-`gadak-cli` is the formula for a machine that wants only the command — every
-Linux install, and any Mac where you do not want the app. macOS release
+`gadak-cli` is the formula for a machine that wants only the command. macOS release
 binaries are signed with a Developer ID certificate and notarized by Apple —
 [`SECURITY.md`](../SECURITY.md) shows how to verify one yourself.
 
 [tap]: https://github.com/midagedev/homebrew-tap
+
+### Linux
+
+```bash
+brew install midagedev/tap/gadak-cli
+```
+
+Without Homebrew: from the
+[latest release](https://github.com/midagedev/gadak/releases/latest),
+download `gadak_<version>_linux_amd64.tar.gz` (or `linux_arm64`) and
+`checksums.txt`, verify, unpack, and put `gadak` on your `PATH`. Then
+[First run](#first-run). Arch Linux is the PKGBUILD path under
+[Arch Linux](#arch-linux).
+
+### Windows CLI
+
+From the [latest release](https://github.com/midagedev/gadak/releases/latest),
+download `gadak_<version>_windows_amd64.zip` (or `windows_arm64`) and
+`checksums.txt`. Unzip, put `gadak.exe` on `PATH`. This is the reliable
+Windows route for 0.16.
+
+```powershell
+gadak init
+gadak sync
+gadak serve
+```
+
+`gadak serve` prints the address — open `http://gadak.localhost:7777` and you should see your issues.
+
+The measured unsigned CLI (`gadak.exe`) has run without the Smart App Control
+block that hits the desktop exe. How to check the sha256:
+[WINDOWS-SIGNING.md](WINDOWS-SIGNING.md). The desktop zip
+(`Gadak-<version>-windows-x64.zip`) is currently unsigned — a SmartScreen /
+Smart App Control warning is a missing signature, not a virus finding; details
+under [Desktop app (Windows)](#desktop-app-windows). For a workspace with no
+Atlassian account, use [First run](#first-run) (`gadak init --standalone`)
+instead of `gadak init` / `gadak sync` above.
+
+### Desktop app (Windows)
+
+From 0.16, the same GitHub Release attaches a Windows portable zip:
+`Gadak-<version>-windows-x64.zip` or `Gadak-<version>-windows-arm64.zip`.
+Unzip and run `gadak-desktop.exe`. The pack is a directory (the two exes at
+the root), not an installer — 0.16 has no Authenticode certificate, and an
+unsigned installer is more friction than a zip.
+
+It is the same web UI in a native Windows window with **no local server**:
+no port, no address, nothing new listening (`desktop/main.go`). First launch
+walks through setup in the window. The window needs the Evergreen WebView2
+runtime (Microsoft documents that Windows 11 includes it, and that many
+Windows 10 machines already have it via Edge). If the window never appears,
+install the runtime from
+<https://developer.microsoft.com/en-us/microsoft-edge/webview2/>.
+
+The build is **unsigned**, and that is a decision rather than a gap
+([GDK-211], reasoning in [WINDOWS-SIGNING.md](WINDOWS-SIGNING.md)): a fresh
+certificate would not silence SmartScreen straight away, and Smart App Control
+cannot be bypassed per app at all. So the compensation is documentation plus
+the [Windows CLI](#windows-cli) zip above, both of which work today.
+
+Windows may show one of two dialogs. Neither is a virus finding:
+
+- **Microsoft Defender SmartScreen:** **Windows protected your PC**, then
+  **More info** / **Run anyway**. SmartScreen has a per-file override.
+- **Smart App Control:** **Smart App Control blocked an app that may be
+  unsafe.** Measured on Windows 11 Home with Smart App Control enforcing
+  (v0.16.1, 2026-08-23): double-clicking `gadak-desktop.exe` in Explorer
+  produces that notice **and** a message box titled with the exe's full path
+  saying *An Application Control policy has blocked this file*, whose only
+  button is **OK**. Microsoft's FAQ says there is currently **no way to bypass
+  Smart App Control for one app**
+  ([Smart App Control FAQ](https://support.microsoft.com/en-us/windows/smart-app-control-frequently-asked-questions-285ea03d-fa88-4d56-882e-6698afdb7003)),
+  and the dialog matches: there is no *Run anyway*. Do **not** turn Smart App
+  Control off. Use the [Windows CLI](#windows-cli) zip instead.
+
+Launching the exe from a script rather than Explorer shows **no dialog at
+all** — PowerShell or `cmd` gets `An Application Control policy has blocked
+this file` as an error and the process never starts. Same block, no UI,
+because the shell that draws the dialog is never involved.
+
+[`DESKTOP.md`](DESKTOP.md) has the rest of the window.
+
+### Scoop (Windows CLI)
+
+Status: **not in a published bucket; `scoop install` has not been run on a Windows machine.**
+<!-- PUBLISH: replace the Status line with:
+scoop bucket add gadak https://github.com/midagedev/scoop-gadak
+scoop install gadak
+-->
+
+The in-repo manifest is [`contrib/scoop/gadak.json`](../contrib/scoop/gadak.json).
+It is checked offline (Scoop's schema, sha256 against that tag's
+`checksums.txt`, zip members). It is the Windows CLI (`gadak.exe`) — the
+same file as `gadak_<version>_windows_amd64.zip` / `windows_arm64` — not
+the desktop zip `Gadak-<version>-windows-x64.zip`. Scoop's app name is
+`gadak` (Windows-only, that is the command on `PATH`). Homebrew uses
+`gadak` for the macOS app cask and `gadak-cli` for this same CLI.
+
+Until the bucket exists, install from the zip under
+[Windows CLI](#windows-cli) or
+[Release binary](#release-binary).
+
+### Desktop app (macOS)
+
+Download `Gadak-<version>-arm64.dmg` from the
+[latest release](https://github.com/midagedev/gadak/releases/latest) and drag it
+to Applications — signed and notarized, Apple Silicon. It is the same web UI in
+its own window with **no local server at all**: no port, no address, nothing
+new listening. First launch walks through setup in the window.
+[`DESKTOP.md`](DESKTOP.md) has the details.
 
 ### Arch Linux
 
@@ -93,93 +216,6 @@ package pacman did not get from a repository, so pull and run `makepkg -si`
 again. Gadak notices a new release on its own and shows the notes in Settings —
 it will not print an upgrade command there on Arch, because there is not an
 honest one to print yet.
-
-### Scoop (Windows CLI)
-
-Status: **not in a published bucket; `scoop install` has not been run on a Windows machine.**
-<!-- PUBLISH: replace the Status line with:
-scoop bucket add gadak https://github.com/midagedev/scoop-gadak
-scoop install gadak
--->
-
-The in-repo manifest is [`contrib/scoop/gadak.json`](../contrib/scoop/gadak.json).
-It is checked offline (Scoop's schema, sha256 against that tag's
-`checksums.txt`, zip members). It is the Windows CLI (`gadak.exe`) — the
-same file as `gadak_<version>_windows_amd64.zip` / `windows_arm64` — not
-the desktop zip `Gadak-<version>-windows-x64.zip`. Scoop's app name is
-`gadak` (Windows-only, that is the command on `PATH`). Homebrew uses
-`gadak` for the macOS app cask and `gadak-cli` for this same CLI.
-
-Until the bucket exists, install from the zip under
-[Desktop app (Windows)](#desktop-app-windows) or
-[Release binary](#release-binary).
-
-### Desktop app (macOS)
-
-Download `Gadak-<version>-arm64.dmg` from the
-[latest release](https://github.com/midagedev/gadak/releases/latest) and drag it
-to Applications — signed and notarized, Apple Silicon. It is the same web UI in
-its own window with **no local server at all**: no port, no address, nothing
-new listening. First launch walks through setup in the window.
-[`DESKTOP.md`](DESKTOP.md) has the details.
-
-### Desktop app (Windows)
-
-From 0.16, the same GitHub Release attaches a Windows portable zip:
-`Gadak-<version>-windows-x64.zip` or `Gadak-<version>-windows-arm64.zip`.
-Unzip and run `gadak-desktop.exe`. The pack is a directory (the two exes at
-the root), not an installer — 0.16 has no Authenticode certificate, and an
-unsigned installer is more friction than a zip.
-
-It is the same web UI in a native Windows window with **no local server**:
-no port, no address, nothing new listening (`desktop/main.go`). First launch
-walks through setup in the window. The window needs the Evergreen WebView2
-runtime (Microsoft documents that Windows 11 includes it, and that many
-Windows 10 machines already have it via Edge). If the window never appears,
-install the runtime from
-<https://developer.microsoft.com/en-us/microsoft-edge/webview2/>.
-
-The build is **unsigned**, and that is a decision rather than a gap
-([GDK-211], reasoning in [WINDOWS-SIGNING.md](WINDOWS-SIGNING.md)): a fresh
-certificate would not silence SmartScreen straight away, and Smart App Control
-cannot be bypassed per app at all. So the compensation is documentation plus
-the CLI route below, both of which work today.
-
-Windows may show one of two dialogs. Neither is a virus finding:
-
-- **Microsoft Defender SmartScreen:** **Windows protected your PC**, then
-  **More info** / **Run anyway**. SmartScreen has a per-file override.
-- **Smart App Control:** **Smart App Control blocked an app that may be
-  unsafe.** Measured on Windows 11 Home with Smart App Control enforcing
-  (v0.16.1, 2026-08-23): double-clicking `gadak-desktop.exe` in Explorer
-  produces that notice **and** a message box titled with the exe's full path
-  saying *An Application Control policy has blocked this file*, whose only
-  button is **OK**. Microsoft's FAQ says there is currently **no way to bypass
-  Smart App Control for one app**
-  ([Smart App Control FAQ](https://support.microsoft.com/en-us/windows/smart-app-control-frequently-asked-questions-285ea03d-fa88-4d56-882e-6698afdb7003)),
-  and the dialog matches: there is no *Run anyway*. Do **not** turn Smart App
-  Control off. Use the CLI route below instead.
-
-Launching the exe from a script rather than Explorer shows **no dialog at
-all** — PowerShell or `cmd` gets `An Application Control policy has blocked
-this file` as an error and the process never starts. Same block, no UI,
-because the shell that draws the dialog is never involved.
-
-If the desktop exe is blocked, use the CLI path that has been shipping on
-every release: download `gadak_<version>_windows_amd64.zip` (or
-`windows_arm64`) and `checksums.txt` from the same release, unzip, put
-`gadak.exe` on `PATH`, then:
-
-```powershell
-gadak init
-gadak sync
-gadak serve      # http://gadak.localhost:7777
-```
-
-That CLI zip is the reliable Windows route for 0.16. The measured unsigned
-CLI (`gadak.exe`) has run without this block.
-
-[`DESKTOP.md`](DESKTOP.md) has the rest of the window.
 
 ### Install script
 
@@ -223,8 +259,10 @@ demo needs none of it.
 ```bash
 gadak init --standalone
 gadak create "the thing I just noticed"
-gadak serve                    # http://gadak.localhost:7777
+gadak serve
 ```
+
+`gadak serve` prints the address — open `http://gadak.localhost:7777` and you should see your issues.
 
 `gadak init --standalone` writes `config.json` in the workspace directory
 (`~/.gadak/` by default, or `$GADAK_HOME`) and creates `origin/issuetap.db`
@@ -240,15 +278,23 @@ gadak processes route writes through it so the persist file has one owner.
 
 ### Pair another machine
 
-Home `gadak serve` is the origin. Mint an offer, paste it on the remote:
+Home `gadak serve` is the origin. Mint an offer on the **home** machine
+(stdout is one offer line):
 
 ```bash
-gadak pairing mint --label laptop                 # home: stdout is one offer line
-gadak --workspace laptop init --pairing-code-stdin  # remote: paste the offer
-gadak --workspace laptop status                     # confirm: paired with "laptop"
-gadak pairing list                                # home: token table; remote: one status line
-gadak pairing revoke laptop                       # home only
+gadak pairing mint --label laptop
 ```
+
+On the **remote** machine, paste the offer:
+
+```bash
+gadak --workspace laptop init --pairing-code-stdin
+gadak --workspace laptop status
+```
+
+`gadak --workspace laptop status` prints `paired with "laptop"`. `gadak pairing list`
+is a token table on the home machine and one status line on the remote.
+`gadak pairing revoke laptop` is home only.
 
 `gadak pairing mint` needs a live serve (or `--endpoint URL`). Loopback draws a
 warning — a machine that is not this one needs a URL it can reach. `_home` is
@@ -260,8 +306,10 @@ token. The gate is in [SECURITY.md](../SECURITY.md).
 ### Already have Jira
 
 ```bash
-gadak serve                    # http://gadak.localhost:7777
+gadak serve
 ```
+
+`gadak serve` prints the address — open `http://gadak.localhost:7777` and you should see your issues.
 
 The first run walks you through it in the browser: paste your site, email, and
 token, pick projects from your site's own list, and watch the first sync fill
