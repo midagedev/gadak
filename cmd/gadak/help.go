@@ -440,6 +440,27 @@ var helps = map[string]cmdHelp{
 		},
 		seeAlso: []string{"gadak recipes", "gadak sql", "gadak claim"},
 	},
+	"dashboards": {
+		summary: "agent dashboards — an HTML wall plus named sql/jql datasources, saved in local.db like a view; " + displayNameSQLTrap,
+		usage: "gadak [--workspace <name>] dashboards [list|show <name>|open <name>|rm <name>]\n" +
+			"dashboards save <name> --html <file|-> [--datasource name=sql:…]… [--datasource name=jql:…]… [--json]",
+		options: []helpOption{
+			{name: "html", desc: "HTML document file; - reads stdin (save)"},
+			{name: "datasource", desc: "named datasource name=sql:QUERY or name=jql:QUERY (repeatable)"},
+			{name: "json", desc: "emit JSON"},
+			{name: "no-open", desc: "write the focus hash only; do not open a window (open)"},
+		},
+		examples: []string{
+			"gadak dashboards",
+			"gadak dashboards save triage --html examples/dashboards/triage.html \\",
+			"  --datasource open_by_status='sql:select status_category, count(*) from issues_full where status_category != ''done'' group by 1'",
+			"gadak dashboards save mine --html wall.html --datasource mine=\"jql:assignee = currentUser() AND resolution is EMPTY\"",
+			"gadak dashboards show triage",
+			"gadak dashboards open triage",
+			"gadak dashboards rm triage",
+		},
+		seeAlso: []string{"gadak recipes", "gadak sql", "gadak views"},
+	},
 	"comment": {
 		summary: "add a comment (@Name resolves to a site user; ambiguous names are refused)",
 		usage: "gadak [--workspace <name>] comment <KEY> [<text> | -m <text|->]\n" +

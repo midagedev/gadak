@@ -1,0 +1,259 @@
+<!doctype html>
+<!--
+  gadak triage dashboard (GDK-781 example).
+
+  Register it:
+
+    gadak dashboards save triage --html examples/dashboards/triage.html \
+      --datasource by_status=sql:select\ status_category,\ count(*)\ as\ n\ from\ issues_full\ group\ by\ 1\ order\ by\ 1 \
+      --datasource top_open=sql:select\ key,\ priority_rank,\ summary\ from\ issues_full\ where\ status_category\ !=\ 'done'\ order\ by\ priority_rank,\ updated_at\ desc\ limit\ 8 \
+      --datasource mine=jql:assignee\ =\ currentUser()\ AND\ resolution\ is\ EMPTY
+
+  Open it:
+
+    gadak dashboards open triage
+
+  Contract: this document never fetches. The serving page runs the
+  datasources (GET /api/v1/dashboards/{id}/data/{name}/) and posts each
+  result in as
+
+    {type: 'data', name: '<datasource name>', columns: [...], rows: [[...]],
+     truncated: bool, warning?: string}
+
+  Column lookup is by name, never by position. Mirror text (summaries,
+  statuses) is inserted via textContent only — this page builds no markup
+  out of row data.
+
+  Colors are explicit on every element class; nothing is inherited from the
+  host page, so the wall reads the same in a light or dark app shell.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Triage</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; }
+  body {
+    background: #0d1017;
+    color: #e8ecf4;
+    font: 14px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    padding: 20px 22px 26px;
+  }
+  header { display: flex; align-items: baseline; gap: 14px; margin-bottom: 16px; }
+  h1 { font-size: 19px; font-weight: 650; letter-spacing: 0.2px; color: #e8ecf4; }
+  .sub { color: #8b94a7; font-size: 12.5px; }
+  .cards { display: grid; grid-template-columns: repeat(4, minmax(120px, 1fr)); gap: 12px; margin-bottom: 18px; }
+  .card {
+    background: #161b26; border: 1px solid #232a3a; border-radius: 10px;
+    padding: 12px 14px 10px;
+  }
+  .card .n { font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .card .label { color: #8b94a7; font-size: 12px; margin-top: 2px; letter-spacing: 0.4px; text-transform: uppercase; }
+  .card.new .n { color: #7aa2f7; }
+  .card.inprogress .n { color: #e0af68; }
+  .card.done .n { color: #9ece6a; }
+  .card.total .n { color: #e8ecf4; }
+  main { display: grid; grid-template-columns: 1.5fr 1fr; gap: 12px; align-items: start; }
+  .panel { background: #161b26; border: 1px solid #232a3a; border-radius: 10px; padding: 14px 16px; }
+  .panel h2 { font-size: 12px; font-weight: 600; color: #8b94a7; letter-spacing: 0.6px; text-transform: uppercase; margin-bottom: 10px; }
+  .row { display: flex; gap: 10px; align-items: baseline; padding: 5px 0; border-top: 1px solid #1d2331; }
+  .row:first-of-type { border-top: 0; }
+  .key { color: #7aa2f7; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; white-space: nowrap; }
+  .summary { color: #e8ecf4; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rank {
+    color: #f7768e; font-size: 11px; font-weight: 700; border: 1px solid #3a2a33;
+    border-radius: 5px; padding: 0 5px; white-space: nowrap;
+  }
+  .rank.r4, .rank.r5 { color: #8b94a7; border-color: #232a3a; }
+  .mine .key { color: #e0af68; }
+  .foot { color: #8b94a7; font-size: 12px; margin-top: 14px; }
+  .warn { color: #e0af68; }
+  .empty { color: #8b94a7; font-style: italic; }
+  svg text { fill: #8b94a7; font-size: 11px; }
+  @media (max-width: 720px) { main { grid-template-columns: 1fr; } .cards { grid-template-columns: repeat(2, 1fr); } }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Triage</h1>
+    <span class="sub" id="stamp">waiting for data…</span>
+  </header>
+
+  <section class="cards" aria-label="counts">
+    <div class="card new"><div class="n" id="n-new">–</div><div class="label">to do</div></div>
+    <div class="card inprogress"><div class="n" id="n-inprogress">–</div><div class="label">in progress</div></div>
+    <div class="card done"><div class="n" id="n-done">–</div><div class="label">done</div></div>
+    <div class="card total"><div class="n" id="n-open">–</div><div class="label">open (to do + in progress)</div></div>
+  </section>
+
+  <main>
+    <div class="panel">
+      <h2>Top open by priority</h2>
+      <div id="top"><div class="empty">no rows</div></div>
+    </div>
+    <div class="panel">
+      <h2>Open by status</h2>
+      <div id="bars"><div class="empty">no rows</div></div>
+      <h2 style="margin-top:16px">Mine (open)</h2>
+      <div id="mine" class="mine"><div class="empty">no rows</div></div>
+    </div>
+  </main>
+
+  <div class="foot" id="foot"></div>
+
+<script>
+'use strict';
+// Datasource results by name, as posted by the serving page.
+var results = {};
+
+function col(res, name) {
+  var i = res.columns.indexOf(name);
+  return i < 0 ? null : i;
+}
+
+function setText(id, text) {
+  var el = document.getElementById(id);
+  if (el) el.textContent = text;
+}
+
+function renderCounts(res) {
+  var cCat = col(res, 'status_category'), cN = col(res, 'n');
+  if (cCat === null || cN === null) return;
+  var counts = {};
+  for (var i = 0; i < res.rows.length; i++) {
+    counts[res.rows[i][cCat]] = Number(res.rows[i][cN]) || 0;
+  }
+  setText('n-new', String(counts['new'] || 0));
+  setText('n-inprogress', String(counts['inprogress'] || 0));
+  setText('n-done', String(counts['done'] || 0));
+  setText('n-open', String((counts['new'] || 0) + (counts['inprogress'] || 0)));
+}
+
+function renderTop(res) {
+  var host = document.getElementById('top');
+  host.textContent = '';
+  var cKey = col(res, 'key'), cRank = col(res, 'priority_rank'), cSum = col(res, 'summary');
+  if (cKey === null || cRank === null || cSum === null || res.rows.length === 0) {
+    host.appendChild(el('div', 'empty', 'no rows'));
+    return;
+  }
+  for (var i = 0; i < res.rows.length; i++) {
+    var r = res.rows[i];
+    var row = el('div', 'row');
+    row.appendChild(el('span', 'key', String(r[cKey])));
+    var rank = el('span', 'rank r' + r[cRank], 'P' + r[cRank]);
+    row.appendChild(rank);
+    row.appendChild(el('span', 'summary', String(r[cSum])));
+    host.appendChild(row);
+  }
+}
+
+// Hand-rolled horizontal bars: three rects with width proportional to count,
+// labels set as SVG text — no chart library, no image, no fetch.
+function renderBars(res) {
+  var host = document.getElementById('bars');
+  host.textContent = '';
+  var cCat = col(res, 'status_category'), cN = col(res, 'n');
+  if (cCat === null || cN === null || res.rows.length === 0) {
+    host.appendChild(el('div', 'empty', 'no rows'));
+    return;
+  }
+  var NS = 'http://www.w3.org/2000/svg';
+  var W = 320, rowH = 26, pad = 74;
+  var max = 1;
+  var cats = ['new', 'inprogress', 'done'];
+  var counts = {};
+  for (var i = 0; i < res.rows.length; i++) counts[res.rows[i][cCat]] = Number(res.rows[i][cN]) || 0;
+  for (i = 0; i < cats.length; i++) max = Math.max(max, counts[cats[i]] || 0);
+  var svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('width', '100%');
+  svg.setAttribute('viewBox', '0 0 ' + W + ' ' + (cats.length * rowH));
+  svg.setAttribute('role', 'img');
+  svg.setAttribute('aria-label', 'open issues by status category');
+  var fills = { new: '#7aa2f7', inprogress: '#e0af68', done: '#9ece6a' };
+  var names = { new: 'to do', inprogress: 'in progress', done: 'done' };
+  for (i = 0; i < cats.length; i++) {
+    var cat = cats[i], n = counts[cat] || 0, y = i * rowH;
+    var label = document.createElementNS(NS, 'text');
+    label.setAttribute('x', 0); label.setAttribute('y', y + 16);
+    label.textContent = names[cat];
+    svg.appendChild(label);
+    var rect = document.createElementNS(NS, 'rect');
+    rect.setAttribute('x', pad); rect.setAttribute('y', y + 4);
+    rect.setAttribute('width', Math.round((W - pad) * n / max));
+    rect.setAttribute('height', 14); rect.setAttribute('rx', 3);
+    rect.setAttribute('fill', fills[cat]);
+    svg.appendChild(rect);
+    var val = document.createElementNS(NS, 'text');
+    val.setAttribute('x', pad + Math.round((W - pad) * n / max) + 6);
+    val.setAttribute('y', y + 16);
+    val.setAttribute('fill', '#e8ecf4');
+    val.textContent = String(n);
+    svg.appendChild(val);
+  }
+  host.appendChild(svg);
+}
+
+function renderMine(res) {
+  var host = document.getElementById('mine');
+  host.textContent = '';
+  var cKey = col(res, 'issue_key'), cSum = col(res, 'summary'), cStatus = col(res, 'status');
+  if (cKey === null || cSum === null || res.rows.length === 0) {
+    host.appendChild(el('div', 'empty', 'no rows'));
+    return;
+  }
+  for (var i = 0; i < res.rows.length; i++) {
+    var r = res.rows[i];
+    var row = el('div', 'row');
+    row.appendChild(el('span', 'key', String(r[cKey])));
+    var what = r[cSum] + (cStatus === null ? '' : ' · ' + r[cStatus]);
+    row.appendChild(el('span', 'summary', what));
+    host.appendChild(row);
+  }
+}
+
+function el(tag, cls, text) {
+  var e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+function render() {
+  if (results.by_status) renderCounts(results.by_status);
+  if (results.by_status) renderBars(results.by_status);
+  if (results.top_open) renderTop(results.top_open);
+  if (results.mine) renderMine(results.mine);
+
+  var stamp = [], foot = [];
+  var names = ['by_status', 'top_open', 'mine'];
+  for (var i = 0; i < names.length; i++) {
+    var r = results[names[i]];
+    if (!r) continue;
+    if (r.warning) foot.push(names[i] + ': ' + r.warning);
+    if (r.truncated) foot.push(names[i] + ': result truncated');
+  }
+  var got = names.filter(function (n) { return results[n]; }).length;
+  setText('stamp', got === 0 ? 'waiting for data…' : got + '/' + names.length + ' datasources');
+  var footEl = document.getElementById('foot');
+  footEl.textContent = '';
+  for (i = 0; i < foot.length; i++) {
+    var line = el('div', 'warn', foot[i]);
+    footEl.appendChild(line);
+  }
+}
+
+window.addEventListener('message', function (ev) {
+  var d = ev.data;
+  if (!d || d.type !== 'data' || typeof d.name !== 'string') return;
+  results[d.name] = { columns: d.columns || [], rows: d.rows || [], truncated: !!d.truncated, warning: d.warning || '' };
+  render();
+});
+
+render();
+</script>
+</body>
+</html>

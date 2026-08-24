@@ -168,6 +168,8 @@ Reading the mirror (no network; see docs/MIRROR.md):
   sql        read-only SQL               [--json|--csv] [--no-header] "select ..."
   recipes    named read-only SQL         [list|save|run|show|rm]
   next       run the recipe named next   [--json|--csv|--no-header]
+  dashboards agent dashboards (HTML+SQL/JQL datasources) saved in local.db
+                                       [list|show|open|save|rm]
   snapshot   shareable copy of the mirror <out.db> [--from db] [--spread 90d] [--scale N]
   export     dump saved views, watches, favorites as JSON  [--out FILE]
   import     restore them from a gadak export file         <FILE>
@@ -374,6 +376,7 @@ var commands = map[string]func([]string) error{
 	"comment":         cmdComment,
 	"config":          cmdConfig,
 	"create":          cmdCreate,
+	"dashboards":      cmdDashboards,
 	"dev":             cmdDev,
 	"demo":            cmdDemo,
 	"doctor":          cmdDoctor,
