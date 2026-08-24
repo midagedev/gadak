@@ -7,6 +7,7 @@
  *   1. accent → #7a4bd0 (~1 s)
  *   2. dataColors label quick-win → #2e7d32
  *   3. locked bg-base refused with the measured error; the tab is untouched
+ *   4. spacing row → 50px — rows repaint taller in place (dimensions, GDK-842)
  *
  * Gated by GADAK_MEDIA=1. Viewport must stay FRAME_W×FRAME_H (promo-split.ts)
  * or Playwright letterboxes the capture.
@@ -37,13 +38,19 @@ const isMedia = !!process.env.GADAK_MEDIA
 const ACCENT_CMD = `gadak config set ui.tokens '{"colors":{"accent":"#7a4bd0"}}'`
 const LABEL_CMD = `gadak config set ui.dataColors '{"label":{"quick-win":"#2e7d32"}}'`
 const LOCKED_CMD = `gadak config set ui.tokens '{"colors":{"bg-base":"#000000"}}'`
+// Scene 4 (dimension axis). The colors ride along because `config set
+// ui.tokens` replaces the whole token object — a spacing-only write would
+// revert scene 1's accent mid-take. Row is 50px, not more, because the
+// relation row-excerpt ≥ row + 8px judges the effective set: the default
+// row-excerpt of 59px caps row at 51px, and 52px is refused outright.
+const DIMS_CMD = `gadak config set ui.tokens '{"colors":{"accent":"#7a4bd0"},"spacing":{"row":"50px"}}'`
 
 const APP_SRC = `${promoAppOrigin()}/#/?lb=quick-win&sc=new%2Cinprogress`
 
 test.describe('tokens promo', () => {
   test.skip(!isMedia, 'GADAK_MEDIA=1 only — media pipeline recording')
 
-  test('accent, label chip, locked refusal — open tab follows the CLI', async ({ page }) => {
+  test('accent, label chip, locked refusal, row height — open tab follows the CLI', async ({ page }) => {
     writeFileSync(timelinePath('tokens'), '')
     const t0 = Date.now()
     freezePromoHome()
@@ -128,5 +135,48 @@ test.describe('tokens promo', () => {
     ).toBe('#7a4bd0')
     beat('tokens', 'locked_shown', { port: PROMO_PORT })
     await page.waitForTimeout(3200)
+
+    // Scene 4 — dimension axis (GDK-842): spacing.row 50px. The CSS var
+    // moves AND the row box itself grows — the virtual list reads the row
+    // tokens (rowMetrics), so paint and scroll geometry move together.
+    const issueRow = app.locator('[data-testid="issue-list-scroller"] [role="button"]').first()
+    await expect(issueRow).toBeVisible()
+    expect(
+      await frame.evaluate(() =>
+        getComputedStyle(document.documentElement).getPropertyValue('--spacing-row').trim(),
+      ),
+    ).toBe('42px')
+    expect(Math.round(await issueRow.evaluate((el) => el.getBoundingClientRect().height))).toBe(42)
+
+    await clearTerminal(page)
+    await page.waitForTimeout(280)
+    await typeCommand(page, DIMS_CMD, 36)
+    await page.locator('#cursor').evaluate((el) => el.classList.add('off'))
+    await page.waitForTimeout(180)
+    beat('tokens', 'enter_dims')
+    const dimsRan = runTyped(DIMS_CMD)
+    if (dimsRan.status !== 0) {
+      throw new Error(`dims set failed: ${dimsRan.stderr || dimsRan.stdout}`)
+    }
+    await showCli(page, dimsRan.stdout, dimsRan.stderr)
+
+    await expect
+      .poll(
+        async () =>
+          frame.evaluate(() =>
+            getComputedStyle(document.documentElement).getPropertyValue('--spacing-row').trim(),
+          ),
+        { timeout: 2_500 },
+      )
+      .toBe('50px')
+    await expect
+      .poll(
+        async () =>
+          Math.round(await issueRow.evaluate((el) => el.getBoundingClientRect().height)),
+        { timeout: 2_500 },
+      )
+      .toBe(50)
+    beat('tokens', 'dims_reflected')
+    await page.waitForTimeout(2000)
   })
 })

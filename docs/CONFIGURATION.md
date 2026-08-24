@@ -95,23 +95,26 @@ web so a new palette does not need a server deploy. The picker today
 iterates `system`, `light`, `dark`, `ink`, `ember`
 (`web/src/lib/theme.ts`).
 
-### `ui.*` — user color overrides
+### `ui.*` — user token overrides (colors + dimensions)
 
 Three catalog paths under one `ui` block in `config.json`. They re-skin the
 web/desktop UI without touching `app.css`: the server merges them into the
 final CSS-variable map, the browser injects one unlayered `<style>` whose
 rules mirror the palette cascade, and a blocking boot script replays a
 localStorage cache so a customized user never sees the default palette
-flash. Everything is hex-only (`#rgb` or `#rrggbb`).
+flash. Colors are hex-only (`#rgb` or `#rrggbb`); dimension axes are CSS
+lengths — see [Dimension axes](#dimension-axes-spacing-layout-type)
+below.
 
 | Path | Shape | Meaning |
 | --- | --- | --- |
-| `ui.tokens` | `{\"colors\": {\"accent\": \"#7a4bd0\"}}` (or the flat `{\"accent\": …}`) | Overrides for **every** palette. |
-| `ui.tokensByTheme` | `{\"dark\": {\"colors\": {\"accent\": \"#9a6be0\"}}}` | Overlay for one palette only (theme wins over `ui.tokens`). |
+| `ui.tokens` | `{\"colors\": {\"accent\": \"#7a4bd0\"}, \"spacing\": {\"row\": \"44px\"}, \"layout\": {\"sidebar\": \"280px\"}, \"type\": {\"body\": \"14px\"}}` (colors also accept the flat `{\"accent\": …}`) | Overrides for **every** palette. Colors and the three dimension axes (`spacing`, `layout`, `type`) coexist here. |
+| `ui.tokensByTheme` | `{\"dark\": {\"colors\": {\"accent\": \"#9a6be0\"}}}` | Overlay for one palette only (theme wins over `ui.tokens`). **Colors only** — dimension axes are refused here (see below). |
 | `ui.dataColors` | `{\"label\": {\"urgent\": \"#c03030\"}, \"type\": {\"10007\": \"#d07020\"}, \"status\": {\"inprogress\": \"#7e5904\"}}` | Per-data inks: label chips, issue-type chips, status dots. |
 
-Token tiers (the catalog is the single source — `gadak config get
-ui.tokens.catalog` lists all 44 with per-palette values):
+Token tiers for **colors** (the color catalog is the single source — `gadak
+config get ui.tokens.catalog` lists all 44 with per-palette values; the
+dimension axes have their own table below):
 
 | Tier | Count | Rule on write |
 | --- | --- | --- |
@@ -168,6 +171,83 @@ place. One honest limit: a scrim override would be hex-only and therefore
 opaque — the shipped scrims are `rgb(...)` strings, so they stay locked to
 palette authoring.
 
+### Dimension axes (`spacing`, `layout`, `type`)
+
+The `ui.tokens` wrapper carries three further axes (GDK-842): **CSS
+lengths, not colors** — palette-agnostic by construction, so one value
+renders in every palette and they never live under `ui.tokensByTheme`.
+Nineteen tokens are recordable; one is locked (below). Values are px
+lengths (`"44px"`, integer or one decimal) or, for the `*-line-height`
+pairs, unitless one-or-two-decimal numbers (`"1.4"`).
+
+| Axis | Tokens (default) | CSS var |
+| --- | --- | --- |
+| `spacing` | `row` (42px), `row-excerpt` (59px), `control` (32px), `control-sm` (24px) | `--spacing-*` |
+| `layout` | `sidebar` (272px), `sidebar-narrow` (208px), `list-min` (390px), `detail-min` (438px), `detail-max` (720px), `overlay-max` (560px), `shell-max` (2200px) | `--layout-*` |
+| `type` | `micro` (11px), `body` (13px), `title` (15px), `heading` (22px), each with a matching `…-line-height` (1.3 / 1.4 / 1.35 / 1.22) | `--text-*` |
+
+```console
+$ gadak config set ui.tokens '{"spacing":{"row":"44px"}}'
+{"spacing":{"row":"44px"}}
+```
+
+A write **replaces the whole `ui.tokens` object** — include your colors in
+the same write (`{\"colors\":{\"accent\":\"#7a4bd0\"},\"spacing\":{…}}`) or
+they are dropped. That was already true for colors; with four axes it bites
+more often.
+
+**Validation: range + relations.** Every recordable token carries an
+inclusive min/max, and cross-token relations judge the **effective** set
+(defaults fill whatever you did not override) — `control-sm ≤ control`,
+`row-excerpt ≥ row + 8px`, `detail-max ≥ detail-min`, `sidebar-narrow ≤
+sidebar`, and the type steps (neighboring sizes ≥ 2px apart). Refusals
+carry the measured value and the bound, like the color rules:
+
+```console
+$ gadak config set ui.tokens '{"spacing":{"row":"90px"}}'
+gadak: ui tokens (dimensions): --spacing-row: 90px is outside its range 36px–56px
+
+$ gadak config set ui.tokens '{"spacing":{"control":"28px","control-sm":"30px"}}'
+gadak: ui tokens (dimensions): --spacing-control-sm 30px must be ≤ 28px (the small
+control rides inside the regular one)
+```
+
+**`layout.docked-min` is derived and locked.** It is the dock floor
+`sidebar + list-min + detail-min`. Writes are refused, and the runtime
+recomputes it whenever any of the three track tokens is overridden — the
+grid and the dock/overlay regime switch stay one sum, so they cannot drift
+apart:
+
+```console
+$ gadak config set ui.tokens '{"layout":{"docked-min":"1200px"}}'
+gadak: ui tokens (dimensions): --layout-docked-min is locked (derived: sidebar +
+list-min + detail-min): a derived sum, not a runtime override — set those
+three and it is recomputed
+```
+
+**Not per palette.** Dimension axes under `ui.tokensByTheme` are refused
+at the same command — a per-palette copy of a palette-free value could
+never render:
+
+```console
+$ gadak config set ui.tokensByTheme '{"dark":{"spacing":{"row":"44px"}}}'
+gadak: ui.tokensByTheme.dark: dimension axes (spacing/layout/type) apply to every
+palette — set them under ui.tokens, not per theme
+```
+
+Unknown **axes** are refused up front (`axes are colors, spacing, layout,
+type`); unknown token **names** are carried with a warning, never a refused
+save — same contract as colors.
+
+**Live reflection** rides the same 500 ms ui-focus poll as colors, and the
+dimensions recouple the JS geometry that used to own them as constants:
+the virtual list reads the row tokens, so a new `spacing.row` moves the
+rows and the scroll window together, without a reload.
+
+The mobile app does **not** inherit the dimension tokens — its touch
+targets deliberately keep their own 44pt floor instead of the web row
+heights.
+
 ### `PUT /api/v1/issues/settings/` is a replace
 
 The path is `/api/v1/issues/settings/` (`apiBase` + `settings/`), not
@@ -194,8 +274,8 @@ overrides). `runtime`, `site`, and `hasCredential` on the body are ignored.
 | `tokenVerifiedAt` | string (RFC3339) | _(empty)_ | Set by successful credential verify | Read-only side effect |
 | `tokenOwner` | string | _(empty)_ | Set by successful credential verify | Read-only side effect |
 | `appearance.theme` | string | empty → **system** | Settings theme picker / `gadak config set appearance.theme` | Immediate after reload; shape `[a-z0-9-]{1,32}` (see above) |
-| `ui.tokens` | `{colors: {token: hex}}` | _(absent)_ | `gadak config set ui.tokens` / Settings PUT `ui` (no form editor yet) | Live, no reload — color-token overrides for every palette; locked refused, validated contrast-checked (see above) |
-| `ui.tokensByTheme` | `{palette: {colors: {token: hex}}}` | _(absent)_ | `gadak config set ui.tokensByTheme` / Settings PUT `ui` | Live, no reload — per-palette overlay, judged in that palette |
+| `ui.tokens` | `{colors: {token: hex}, spacing\|layout\|type: {token: length}}` | _(absent)_ | `gadak config set ui.tokens` / Settings PUT `ui` (no form editor yet) | Live, no reload — color-token overrides for every palette (locked refused, validated contrast-checked) plus the palette-agnostic dimension axes (see above) |
+| `ui.tokensByTheme` | `{palette: {colors: {token: hex}}}` | _(absent)_ | `gadak config set ui.tokensByTheme` / Settings PUT `ui` | Live, no reload — per-palette overlay, judged in that palette; colors only (dimension axes are refused) |
 | `ui.dataColors` | `{label\|type\|status: {key: hex}}` | _(absent)_ | `gadak config set ui.dataColors` / Settings PUT `ui` | Live, no reload — per-data inks; `type` keys are issue type ids, `status` keys are status categories |
 | `projects` | string[] | `[]` (empty = every project this account can see) | Settings → Sources / `gadak init` / `gadak config set projects` | Next sync / list scope; UI reload after save |
 | `fields` | FieldSpec[] | `[]` | Auto on first full sync / `gadak fields --apply` / `gadak config set fields` (read-only on Settings GET as `fieldSpecs`) | Next sync ingest; `fieldUsage` on Settings is project→alias fill counts |
