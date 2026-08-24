@@ -483,6 +483,23 @@
 
 @layer components {
   /*
+    CSS-owned layout maxima (GDK-842, dim wave chunk 2, 2026-08-25). The four
+    track tokens are the opposite ownership: viewport-regime.ts owns
+    --layout-sidebar / --list-min / --detail-min / --docked-min and installs
+    them inline on .issue-layout — app.css must never define those
+    (layout-tokens.test.ts bans it). These caps have no JS coupling, so CSS
+    is their single owner: defined here once, consumed everywhere with the
+    shipped value as the var() fallback. Layered, so an unlayered user-token
+    style can still override the way it overrides the color tokens. Defaults
+    match the chunk-1 dim catalog (tokencheck/dim-catalog.json).
+  */
+  :root {
+    --layout-detail-max: 720px;
+    --layout-overlay-max: 560px;
+    --layout-shell-max: 2200px;
+  }
+
+  /*
     브랜드 마크 — 타입 스케일 밖, 여기가 단일 소유자
   */
   .wordmark {
@@ -499,9 +516,9 @@
 
   .issue-layout {
     display: grid;
-    grid-template-columns: 272px minmax(0, 1360px) minmax(0, 1fr);
+    grid-template-columns: var(--layout-sidebar, 272px) minmax(0, 1360px) minmax(0, 1fr);
     width: 100%;
-    max-width: 2200px;
+    max-width: var(--layout-shell-max, 2200px);
     flex: 1 1 auto;
     min-height: 0;
     height: 100%;
@@ -519,7 +536,7 @@
   .issue-layout.detail-open {
     grid-template-columns:
       var(--layout-sidebar) minmax(var(--layout-list-min), 1fr)
-      clamp(var(--layout-detail-min), 34vw, 720px);
+      clamp(var(--layout-detail-min), 34vw, var(--layout-detail-max, 720px));
   }
 
   /*
@@ -530,7 +547,7 @@
   .issue-sidebar {
     grid-column: 1;
     grid-row: 1;
-    width: 272px;
+    width: var(--layout-sidebar, 272px);
     min-height: 0;
     overflow: hidden;
   }
@@ -567,7 +584,7 @@
   */
   .browse-pane {
     position: fixed;
-    inset: 0 0 0 272px;
+    inset: 0 0 0 var(--layout-sidebar, 272px);
     z-index: 55;
     min-width: 0;
     min-height: 0;
@@ -581,7 +598,7 @@
     /* The list keeps a working width; everything past it goes to the page. */
     .issue-layout.browse-open,
     .issue-layout.detail-open.browse-open {
-      grid-template-columns: 272px clamp(640px, 40vw, 800px) minmax(0, 1fr);
+      grid-template-columns: var(--layout-sidebar, 272px) clamp(640px, 40vw, 800px) minmax(0, 1fr);
     }
 
     .browse-pane {
@@ -600,7 +617,7 @@
   .browse-reentry {
     position: fixed;
     bottom: 1rem;
-    left: calc(272px + 1rem);
+    left: calc(var(--layout-sidebar, 272px) + 1rem);
     z-index: 40;
   }
 
@@ -889,7 +906,7 @@
     position: fixed;
     inset: 0 0 0 auto;
     z-index: 50;
-    width: min(560px, calc(100vw - var(--layout-sidebar)));
+    width: min(var(--layout-overlay-max, 560px), calc(100vw - var(--layout-sidebar)));
     transform: translateX(100%);
     box-shadow: -20px 0 48px rgb(40 28 12 / 0.16);
     transition:
@@ -898,7 +915,7 @@
   }
 
   .issue-layout[data-viewport-regime='overlay'] .issue-detail-panel.is-open {
-    width: min(560px, calc(100vw - var(--layout-sidebar)));
+    width: min(var(--layout-overlay-max, 560px), calc(100vw - var(--layout-sidebar)));
     transform: translateX(0);
   }
 
@@ -908,21 +925,37 @@
   }
 
   @media (max-width: 760px) {
+    /*
+      Narrow sidebar step (GDK-842). --layout-sidebar's base comes inline
+      from layoutTokenStyle() on .issue-layout, and an inline declaration
+      out-ranks anything this block could say on that element — so the step
+      is redefined on each consuming element, where the element's own rule
+      beats the inherited value. On .issue-layout itself the var therefore
+      still resolves the inline 272px here, which is also what painted
+      before: the 208px literal this replaced was already out-ranked by the
+      data-viewport-regime overlay rules above (measured in Chromium at
+      740px: grid 272px 452px, sidebar 208px — identical before/after).
+      Handing the step to JS is chunk 3's move (viewport-regime.ts owns the
+      token).
+    */
     .issue-layout,
     .issue-layout.detail-open {
-      grid-template-columns: 208px minmax(0, 1fr);
+      grid-template-columns: var(--layout-sidebar, 272px) minmax(0, 1fr);
     }
 
     .issue-sidebar {
-      width: 208px;
+      --layout-sidebar: 208px;
+      width: var(--layout-sidebar, 272px);
     }
 
     .browse-pane {
-      left: 208px;
+      --layout-sidebar: 208px;
+      left: var(--layout-sidebar, 272px);
     }
 
     .browse-reentry {
-      left: calc(208px + 1rem);
+      --layout-sidebar: 208px;
+      left: calc(var(--layout-sidebar, 272px) + 1rem);
     }
 
     .issue-detail-panel,
