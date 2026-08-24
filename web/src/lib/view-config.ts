@@ -107,25 +107,44 @@ export interface ViewFilters {
 /** Date-range axes (URL cf/ct, uf/ut, df/dt, rf/rt). */
 export type RangeField = 'created' | 'updated' | 'due' | 'resolved'
 
-export type GroupBy =
-  | 'none'
-  | 'status_category'
-  | 'status'
-  | 'assignee'
-  | 'actor'
-  | 'priority'
-  | 'severity'
-  | 'team_group'
-  | 'product'
-  | 'issue_type'
-  | 'development_test_result'
-  | 'qa_impact'
-  | 'source_project'
-  | 'epic'
+/*
+ * Grouping and sort are URL-facing closed sets: the `as const` array owns the
+ * union AND the runtime guard (isGroupBy / isSortKey below read the same
+ * array), the PLACE_PARAM_KEYS pattern from url-state.ts. Before GDK-825 the
+ * union and the guard were two hand lists — an axis added to the type
+ * compiled green while the URL parser silently dropped it.
+ */
+export const GROUP_BY_VALUES = [
+  'none',
+  'status_category',
+  'status',
+  'assignee',
+  'actor',
+  'priority',
+  'severity',
+  'team_group',
+  'product',
+  'issue_type',
+  'development_test_result',
+  'qa_impact',
+  'source_project',
+  'epic',
+] as const
+export type GroupBy = (typeof GROUP_BY_VALUES)[number]
+
 // 'relevance' = rank by search relevance when a query is present. Auto-promoted from
 // the default sort (updated); only serialized into the URL when explicitly chosen
 // (older URLs do not know relevance — keep backward compatible).
-export type SortKey = 'updated' | 'created' | 'due' | 'priority' | 'reopen_count' | 'relevance' | 'keys'
+export const SORT_KEY_VALUES = [
+  'updated',
+  'created',
+  'due',
+  'priority',
+  'reopen_count',
+  'relevance',
+  'keys',
+] as const
+export type SortKey = (typeof SORT_KEY_VALUES)[number]
 export type SortDir = 'asc' | 'desc'
 
 /* ── List columns (trailing fields shown on a row) ──
@@ -685,28 +704,13 @@ export function parseConfig(params: URLSearchParams): ViewConfig {
   return parseView(params).config
 }
 
+/* Both guards read the owning arrays above — never a restated list (GDK-825). */
 function isGroupBy(v: string): v is GroupBy {
-  return (
-    [
-      'none',
-      'status_category',
-      'status',
-      'assignee',
-      'actor',
-      'priority',
-      'severity',
-      'team_group',
-      'product',
-      'issue_type',
-      'development_test_result',
-      'qa_impact',
-      'source_project',
-      'epic',
-    ].includes(v) && groupByEnabled(v as GroupBy)
-  )
+  const hit = GROUP_BY_VALUES.find((g) => g === v)
+  return hit !== undefined && groupByEnabled(hit)
 }
 function isSortKey(v: string): v is SortKey {
-  return ['updated', 'created', 'due', 'priority', 'reopen_count', 'relevance', 'keys'].includes(v)
+  return (SORT_KEY_VALUES as readonly string[]).includes(v)
 }
 
 /* ── Serialize: ViewConfig → URL param delta ──

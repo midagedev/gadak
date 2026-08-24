@@ -1,6 +1,3 @@
-import { readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { test, expect, type Page } from '@playwright/test'
 import {
   attachConsoleErrors,
@@ -27,10 +24,13 @@ import { VIEWPORT_DOCKED_MIN_PX } from '../web/src/lib/viewport-regime'
  * Geometry only — no screenshot comparison. Container ≤1100 is produced
  * by an 800px viewport (list ~528px, audit JSON); 740 is the trailing
  * case; 1100 with the panel open is the docked seam.
+ *
+ * GDK-826: the two tests that never needed this browser moved to vitest —
+ * the HostedLinks source walk (web/src/lib/hosted-banner.test.ts) and the
+ * --layout-* token sum (web/src/lib/layout-tokens.test.ts; the tokens are
+ * an inline style generated from the TS constants, so the unit owns the
+ * whole chain). What stays here is painted geometry.
  */
-
-const HERE = dirname(fileURLToPath(import.meta.url))
-const REPO = join(HERE, '..')
 
 type TrailOverflow = {
   key: string
@@ -123,52 +123,6 @@ function boxesOverlap(
     b.y + b.height <= a.y
   )
 }
-
-test.describe('GDK-766 narrow clip', () => {
-  test('HostedLinks is in-flow (source: not absolute-stacked on the banner)', () => {
-    /*
-     * Geometric overlap needs VITE_HOSTED_DEMO=1 (hosted suite). The CI set
-     * is gadak serve, so this assertion is the FAIL-first that can run here:
-     * `absolute right-3 top-0` is exactly the stacking the 800-banner crop
-     * photographed. After the fix the root is relative/in-flow.
-     */
-    const src = readFileSync(join(REPO, 'web/src/components/shell/HostedLinks.svelte'), 'utf8')
-    expect(
-      src,
-      'HostedLinks root must not be position:absolute at the banner corner (GDK-766 banner overlap)',
-    ).not.toMatch(/class="absolute right-3 top-0/)
-    const app = readFileSync(join(REPO, 'web/src/App.svelte'), 'utf8')
-    const bannerIdx = app.indexOf('data-testid="demo-banner"')
-    const linksIdx = app.indexOf('<HostedLinks')
-    expect(bannerIdx, 'demo-banner must exist').toBeGreaterThan(-1)
-    expect(linksIdx, 'HostedLinks must be mounted').toBeGreaterThan(-1)
-    expect(
-      linksIdx > bannerIdx,
-      'HostedLinks must sit inside the banner markup, not as an absolute sibling in front of it',
-    ).toBe(true)
-  })
-
-  test('docked track mins sum to VIEWPORT_DOCKED_MIN_PX (±0)', async ({ page }) => {
-    const errors = attachConsoleErrors(page)
-    await gotoApp(page)
-    const tokens = await page.locator('[data-testid="issue-layout"]').evaluate((el) => {
-      const s = getComputedStyle(el)
-      const sidebar = parseFloat(s.getPropertyValue('--layout-sidebar'))
-      const list = parseFloat(s.getPropertyValue('--layout-list-min'))
-      const detail = parseFloat(s.getPropertyValue('--layout-detail-min'))
-      const docked = parseFloat(s.getPropertyValue('--layout-docked-min'))
-      return { sidebar, list, detail, docked, sum: sidebar + list + detail }
-    })
-    expect(tokens.docked, 'CSS --layout-docked-min follows VIEWPORT_DOCKED_MIN_PX').toBe(
-      VIEWPORT_DOCKED_MIN_PX,
-    )
-    expect(
-      tokens.sum,
-      `sidebar ${tokens.sidebar} + list ${tokens.list} + detail ${tokens.detail} must equal docked ${tokens.docked} (was 272+390+440=1102 vs 1100)`,
-    ).toBe(tokens.docked)
-    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
-  })
-})
 
 test.describe('stale chip at container ≤1100', () => {
   test.use({ viewport: { width: 800, height: 900 } })

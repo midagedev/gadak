@@ -2,42 +2,17 @@ import { expect, test } from '@playwright/test'
 import { gotoApp, searchInput } from './helpers'
 
 /**
- * B-identity-web: C6 / C7 / I5 wiring (the app actually calls the functions).
+ * B-identity-web: C7 / I5 wiring (the app actually calls the functions).
  * I8 is asserted in web/src/stores/pages.test.ts — PageLite carries author_id since 1988d2b.
  * I9 / L1 live in web/src/lib/view-config.test.ts (moved from this file).
- * C5 unit: web/src/lib/config-scope.test.ts; html attribute: e2e/tail-audit.spec.ts.
- * C6 unit cases live in web/src/lib/storage.test.ts.
- * GDK-649: C6/C7 stay here — they are wiring (composer writes the key;
- * a delta upsert actually drops the open detail), not the pure helpers.
+ * C5 unit: web/src/lib/config-scope.test.ts.
+ * C6 lives in web/src/lib/storage.test.ts (composeCommentDraftKey) — the e2e
+ * copy re-asserted that unit's exact key string, so it moved down (GDK-826).
+ * C7/I5 stay: a delta upsert actually dropping the open detail and the
+ * palette opening an email-less member are wiring, not pure helpers.
  */
 
 test.describe('identity-web e2e', () => {
-  test('C6: comment draft key includes the site partition', async ({ page }) => {
-    await gotoApp(page)
-    const input = searchInput(page)
-    await input.fill('NMB-110')
-    await page
-      .locator('[data-testid="issue-list-scroller"] [role="button"]')
-      .filter({ hasText: 'NMB-110' })
-      .first()
-      .click()
-    const composer = page.getByTestId('comment-composer')
-    await expect(composer).toBeVisible()
-    await composer.fill('draft-scope-probe')
-    await expect
-      .poll(async () =>
-        page.evaluate(() => {
-          const keys: string[] = []
-          for (let i = 0; i < localStorage.length; i++) {
-            const k = localStorage.key(i)
-            if (k?.includes('comment-draft')) keys.push(k)
-          }
-          return keys
-        }),
-      )
-      .toEqual(['gadak:comment-draft:site:nimbus.example.com:NMB-110'])
-  })
-
   test('C7: a delta upsert drops the open issue from the detail cache', async ({ page }) => {
     let nmb110: Record<string, unknown> | null = null
     await page.route('**/api/v1/issues/bootstrap/', async (route) => {

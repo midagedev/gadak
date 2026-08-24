@@ -1,7 +1,6 @@
 import { test, expect, type Page } from '@playwright/test'
 import { apiURL, attachConsoleErrors, gotoApp, openServerSettings, searchInput } from './helpers'
 import { en } from '../web/src/lib/i18n/en'
-import { ko } from '../web/src/lib/i18n/ko'
 
 /*
  * F12 UX defects (GDK-475, GDK-476, GDK-477).
@@ -53,9 +52,9 @@ test.describe('F12 detail / settings / server-down', () => {
     // GDK-354 / F-1: kbd is the platform modifier + the ↵ glyph the cheat
     // sheet prints (GDK-621) — not a catalog string hard-coding ⌘Enter on
     // every OS. Same platform test as modifierSymbol() in
-    // web/src/lib/unified-search.ts.
-    expect(en['write.commentShortcut']).not.toMatch(/⌘/)
-    expect(ko['write.commentShortcut']).not.toMatch(/⌘/)
+    // web/src/lib/unified-search.ts. GDK-826: the catalog equality (every
+    // locale '{mod} ↵', never a literal ⌘) is owned by
+    // surface-consistency.test.ts, not re-asserted here.
     const mod = await page.evaluate(() =>
       /Mac|iP(hone|ad)/.test(navigator.platform) ? '⌘' : 'Ctrl',
     )

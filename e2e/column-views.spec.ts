@@ -151,15 +151,9 @@ test.describe('column-view interaction parity (GDK-651)', () => {
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 
-  test('cheat sheet documents Tab and Esc on documents, history, and feed', async ({ page }) => {
-    const errors = attachConsoleErrors(page)
-    await gotoApp(page)
-    await page.keyboard.press('?')
-    const sheet = page.getByTestId('shortcuts-dialog')
-    await expect(sheet).toBeVisible()
-    await expect(sheet.getByText(en['shortcuts.tabMoveRows'], { exact: true })).toBeVisible()
-    await expect(sheet.getByText(en['shortcuts.closeColumnView'], { exact: true })).toBeVisible()
-
-    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
-  })
+  // GDK-826: the cheat-sheet content test that lived here (Tab / Esc labels
+  // re-asserted through an open sheet) moved down — surface-consistency.test.ts
+  // owns the registry keys and commands.test.ts owns "the sheet renders
+  // helpSections()". polish.spec.ts remains the one browser path: ? opens,
+  // Esc closes, and every documented key has a live handler.
 })

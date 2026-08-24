@@ -6,7 +6,7 @@
 
 import { formatAbs } from '../calendar'
 import { en, ja, ko, type MessageKey } from './catalog'
-import type { Locale } from './types'
+import { LOCALES, type Locale } from './types'
 
 export type { Locale, MessageKey }
 
@@ -18,7 +18,11 @@ let current: Locale = 'en'
 function detectLocale(): Locale {
   try {
     const stored = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem('scry_locale')
-    if (stored === 'en' || stored === 'ko' || stored === 'ja') return stored
+    // GDK-825: the allowlist is LOCALES — the registry that owns the Locale
+    // type. This used to restate 'en'||'ko'||'ja' by hand, so a fourth entry
+    // in LOCALES was silently ignored here.
+    const hit = LOCALES.find((l) => l === stored)
+    if (hit) return hit
   } catch {
     /* private mode / SSR-ish */
   }

@@ -43,10 +43,10 @@ test.describe('GDK-650 page comment shortcut', () => {
     await expect(chip).toBeVisible()
     await expect(chip).toHaveCount(1)
 
-    // Same platform test as modifierSymbol() / ux-f12: the catalog does not
-    // hard-code ⌘; the chip interpolates {mod}.
-    expect(en['write.commentShortcut']).toBe('{mod} ↵')
-    expect(en['write.commentShortcut']).not.toMatch(/⌘/)
+    // GDK-826: the catalog equality (every locale '{mod} ↵', never a
+    // literal ⌘) is owned by surface-consistency.test.ts. The browser half
+    // kept here is the wiring: the chip interpolates the catalog's {mod}
+    // with the platform modifier, same as modifierSymbol() / ux-f12.
     const mod = await page.evaluate(() =>
       /Mac|iP(hone|ad)/.test(navigator.platform) ? '⌘' : 'Ctrl',
     )

@@ -202,23 +202,11 @@ test.describe('keyboard triage', () => {
     await expect(page.getByTestId('bulk-status-menu')).toBeVisible()
   })
 
-  test('the cheat sheet documents the triage keys', async ({ page }) => {
-    await gotoApp(page)
-
-    await page.keyboard.press('?')
-    const sheet = page.getByTestId('shortcuts-dialog')
-    await expect(sheet).toBeVisible()
-    for (const label of [
-      'Select the row under the cursor',
-      'Change status (selection, or the cursor row)',
-      'Change assignee (selection, or the cursor row)',
-      'Change labels (selection, or the cursor row)',
-      'Comment on the row under the cursor',
-      'Clear the selection, then close the detail panel',
-    ]) {
-      await expect(sheet.getByText(label, { exact: true })).toBeVisible()
-    }
-  })
+  // GDK-826: the cheat-sheet content test that lived here (the six triage
+  // labels re-asserted through an open sheet) moved down — commands.test.ts
+  // owns "ShortcutsDialog renders helpSections()" and pins the list-section
+  // rows (j k ↵ o x s p a l c Esc). polish.spec.ts remains the one browser
+  // path through the sheet.
 })
 
 /*

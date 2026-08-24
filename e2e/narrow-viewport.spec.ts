@@ -107,9 +107,17 @@ async function openPanelBesideMigrateRows(page: Page): Promise<void> {
     page.locator('[data-testid="issue-layout"][data-detail-open="true"]'),
   ).toBeVisible()
   await expect(page.getByTestId('issue-detail-panel')).toHaveClass(/is-open/)
-  // The panel slides in over 150ms; measure the resting state, not the frame
-  // mid-transition.
-  await page.waitForTimeout(350)
+  // Panel width is locked immediately; opacity/transform slide after it.
+  // Wait on the resting width (narrow-clip.spec.ts idiom, GDK-826), not a
+  // duration — 350ms was a proxy for "slide finished", and the contract is
+  // resting geometry.
+  await expect
+    .poll(async () =>
+      page.locator('[data-testid="issue-detail-panel"]').evaluate((el) =>
+        Math.round(el.getBoundingClientRect().width),
+      ),
+    )
+    .toBeGreaterThan(400)
 }
 
 function expectRuleOne(m: { titles: TitleMetric[] }): void {
