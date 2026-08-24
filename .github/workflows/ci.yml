@@ -124,6 +124,34 @@ jobs:
           fi
 
 
+  mobile:
+    name: Mobile (TypeScript)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - run: npm ci
+        working-directory: mobile
+
+      # The offer decoder is half of a contract whose other half is Go
+      # (internal/pairing). Both suites read internal/pairing/testdata/
+      # offer-vectors.json, so this job is what makes a one-sided change
+      # red — without it the Go side alone would stay green.
+      - run: npm test
+        working-directory: mobile
+
+      - run: npm run check
+        working-directory: mobile
+
   scan:
     name: Secret and internal-string scan
     runs-on: ubuntu-latest
