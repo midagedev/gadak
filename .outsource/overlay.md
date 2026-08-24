@@ -15,7 +15,7 @@
 
 | 대상 | 명령 |
 |---|---|
-| Go | `go build ./... && go vet ./... && go test ./... -count=1` |
+| Go | `go build ./... && go vet ./... && go test ./... -count=1` && `gofmt -l`(빈 출력 — CI에 gofmt 잡) |
 | 웹 타입체크 | `make typecheck` (svelte-check) |
 | 웹 유닛 | `npx vitest run` |
 | e2e (CI 세트) | `npx playwright test --config e2e/playwright.config.ts` — **web/·e2e/·i18n 카탈로그를 건드렸으면 선택이 아니다** |

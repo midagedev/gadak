@@ -49,7 +49,9 @@ hard-won 목록)와 `AGENTS.md`(스키마·쿼리)가 원본이다.
 
 ## 빌드·게이트
 
-- Go: `go build ./...` · `go test ./... -count=1` · `go vet ./...`
+- Go: `go build ./...` · `go test ./... -count=1` · `go vet ./...` ·
+  **`gofmt -l` 빈 출력**(CI에 gofmt 잡이 있다 — 2026-08-24 tokencheck 정렬로
+  로컬 전부 초록인데 CI만 빨간 사고. 신규 .go 파일이 있는 커밋은 필수)
 - **루트 Go 코드에 서드파티 import가 새로 생기면 `desktop/`(별도 go.mod)도
   게이트다**: `cd desktop && go mod tidy && go build ./...`. 2026-08-23
   GDK-635에서 internal/ 신규 패키지의 runewidth import가 desktop go.sum에
