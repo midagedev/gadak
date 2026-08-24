@@ -2,6 +2,10 @@
 import type { Messages } from './en'
 
 export const ko: Messages = {
+  'feed.banner.assigned.title': '{actor}님이 {key}를 당신에게 할당했습니다',
+  'feed.banner.comment.title': '{actor}님이 {key}에 코멘트했습니다',
+  'feed.banner.mention.title': '{actor}님이 {key}에서 당신을 언급했습니다',
+  'feed.banner.reopened.title': '{actor}님이 {key}를 다시 열었습니다',
   'nav.queue': '큐',
   'nav.pair': '페어링',
   'queue.title': '큐',

@@ -1,5 +1,9 @@
 /* English catalog — mobile-owned, web catalog format (flat dotted keys). */
 export const en = {
+  'feed.banner.assigned.title': '{actor} assigned {key} to you',
+  'feed.banner.comment.title': '{actor} commented on {key}',
+  'feed.banner.mention.title': '{actor} mentioned you on {key}',
+  'feed.banner.reopened.title': '{actor} reopened {key}',
   'nav.queue': 'Queue',
   'nav.pair': 'Pair',
   'queue.title': 'Queue',
