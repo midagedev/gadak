@@ -130,8 +130,22 @@ func TestUIFocusTakeIsOneShot(t *testing.T) {
 		t.Fatalf("hash %q", got.Hash)
 	}
 	rec := get(t, h, apiBase+"ui-focus/", nil)
-	if rec.Code != http.StatusNoContent {
+	// GDK-791 (2026-08-24): the idle poll is 200 + configVersion, not 204 —
+	// the body carries the settings-change signal. One-shot semantics are
+	// unchanged: hash appears once, never again. FAIL-first: this assertion
+	// failed against the pre-791 handler's 204.
+	if rec.Code != http.StatusOK {
 		t.Fatalf("second take %d", rec.Code)
+	}
+	idle := decode[struct {
+		Hash          string `json:"hash"`
+		ConfigVersion string `json:"configVersion"`
+	}](t, rec)
+	if idle.Hash != "" {
+		t.Fatalf("hash must be one-shot, got %q", idle.Hash)
+	}
+	if idle.ConfigVersion == "" {
+		t.Fatal("idle poll must carry configVersion")
 	}
 }
 

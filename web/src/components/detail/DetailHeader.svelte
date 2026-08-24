@@ -15,6 +15,7 @@
   import { openIssueOrigin } from '../../lib/desktop-links'
   import { jiraUrl } from './format'
   import { formatSpan } from '../../lib/format'
+  import { typeChipTint } from '../../stores/ui-tokens.svelte'
   import IssueBreadcrumb from './IssueBreadcrumb.svelte'
   import WatchButton from '../personal/WatchButton.svelte'
   import StatusTransition from '../write/StatusTransition.svelte'
@@ -182,7 +183,7 @@
     <StatusTransition {issue} />
 
     {#if issue.issue_type}
-      <span class="rounded-md bg-bg-elevated px-2 py-0.5 text-text-secondary">{issue.issue_type}</span>
+      <span class="rounded-md bg-bg-elevated px-2 py-0.5 text-text-secondary" style:background={typeChipTint(issue.issue_type_id)}>{issue.issue_type}</span>
     {/if}
     <PriorityPicker {issue} />
     {#if issue.severity}

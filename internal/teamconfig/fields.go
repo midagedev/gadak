@@ -78,6 +78,10 @@ var neverExportConfigFields = []string{
 	// setting describes is not part of a team file, and language is the
 	// importer's own preference. A connected workspace ignores it anyway.
 	"Locale",
+	// UI is this machine's color overrides (GDK-786): personal aesthetics in
+	// the same seat as Appearance, and its dataColors.type keys are site-bound
+	// issue_type ids — another account would tint the wrong types.
+	"UI",
 }
 
 // credentialJSONKeys are JSON object keys that mean "this file carries

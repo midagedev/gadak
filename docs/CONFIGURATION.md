@@ -80,10 +80,12 @@ need JSON. A value of `-` reads stdin.
 An unknown path exits **64** and prints every valid path. Credentials
 (`site`, `email`, `token`) are not catalog paths — use `gadak init`.
 
-`gadak config list` is the live catalog (28 paths). Three of them are not
+`gadak config list` is the live catalog (39 paths). Four of them are not
 on the Settings PUT document and are not on the Settings form:
-`notify`, `updateCheck`, `attachmentCacheMB`. PUT leaves those three
-untouched (it copies the live file, then overwrites the fields it knows).
+`notify`, `updateCheck`, `attachmentCacheMB`, and the read-only
+`ui.tokens.catalog` (the discovery surface for `ui.tokens` keys — see
+below). PUT leaves those untouched (it copies the live file, then
+overwrites the fields it knows).
 
 ### `appearance.theme`
 
@@ -92,6 +94,79 @@ or a lowercase identifier `[a-z0-9-]{1,32}`. Palette names belong to the
 web so a new palette does not need a server deploy. The picker today
 iterates `system`, `light`, `dark`, `ink`, `ember`
 (`web/src/lib/theme.ts`).
+
+### `ui.*` — user color overrides
+
+Three catalog paths under one `ui` block in `config.json`. They re-skin the
+web/desktop UI without touching `app.css`: the server merges them into the
+final CSS-variable map, the browser injects one unlayered `<style>` whose
+rules mirror the palette cascade, and a blocking boot script replays a
+localStorage cache so a customized user never sees the default palette
+flash. Everything is hex-only (`#rgb` or `#rrggbb`).
+
+| Path | Shape | Meaning |
+| --- | --- | --- |
+| `ui.tokens` | `{\"colors\": {\"accent\": \"#7a4bd0\"}}` (or the flat `{\"accent\": …}`) | Overrides for **every** palette. |
+| `ui.tokensByTheme` | `{\"dark\": {\"colors\": {\"accent\": \"#9a6be0\"}}}` | Overlay for one palette only (theme wins over `ui.tokens`). |
+| `ui.dataColors` | `{\"label\": {\"urgent\": \"#c03030\"}, \"type\": {\"10007\": \"#d07020\"}, \"status\": {\"inprogress\": \"#7e5904\"}}` | Per-data inks: label chips, issue-type chips, status dots. |
+
+Token tiers (the catalog is the single source — `gadak config get
+ui.tokens.catalog` lists all 44 with per-palette values):
+
+| Tier | Count | Rule on write |
+| --- | --- | --- |
+| locked | 10 | Refused outright. Grounds and shell structure are palette authoring (GDK-789), not runtime overrides. |
+| validated | 12 | Must pass the contrast/separation rules in **every palette the value can render in** — a `tokensByTheme` overlay is judged in its own palette only. |
+| free | 22 | Hex shape only (lozenges, avatars, departments). |
+
+`dataColors` keys follow the repo-wide display-name ban, and the refusals
+teach the right key kind: `label.*` is the label text itself, `type.*` is a
+Jira **issue type id** (digits), `status.*` is a **status_category**
+(`new` \| `inprogress` \| `done`).
+
+```console
+$ gadak config set ui.tokens '{"colors":{"bg-base":"#000000"}}'
+gadak: ui tokens (palette dark): --color-bg-base is locked (page ground (lightest
+surface of the paper ladder); light orange family (#f4efe4)): palette authoring,
+not a runtime override — see the custom-palette scope (GDK-789)
+$ echo $?
+1
+
+$ gadak config set ui.tokensByTheme '{"light":{"colors":{"status-reopen":"#f4efe4"}}}'
+gadak: ui tokens (palette light): status-reopen #f4efe4 as text on bg-base #f4efe4:
+contrast 1.00 < 4.5 — pick a darker (text) or higher-chroma ink
+
+$ gadak config set ui.dataColors '{"status":{"In Progress":"#7e5904"}}'
+gadak: ui.dataColors.status keys must be a status_category: new, inprogress, or done
+(got "In Progress") — status display names localize per account
+```
+
+Validated refusals carry the measured number and the floor, so the fix does
+not need a round trip. A **valid** write echoes the stored value:
+
+```console
+$ gadak config set ui.dataColors '{"label":{"urgent":"#c03030"}}'
+{"label":{"urgent":"#c03030"}}
+```
+
+Unknown token names (and unknown `tokensByTheme` palettes) are **carried
+with a warning, never refused** — a config written by a newer gadak must
+keep loading, and on this build the entry is simply not rendered:
+
+```console
+$ gadak config set ui.tokens '{"colors":{"accent":"#7a4bd0","future-name":"#111111"}}'
+gadak: ui: --color-future-name is not in the color catalog; ignored (a newer
+catalog may have renamed it)
+{"colors":{"accent":"#7a4bd0","future-name":"#111111"}}
+```
+
+**Live reflection (no reload).** Every settings write — CLI `config set`,
+the Settings dialog, another tab — moves `configVersion` (the disk identity
+of `config.json`). The web's 500 ms ui-focus poll carries it; when it
+moves, an open tab refetches `config.json` and re-applies the colors in
+place. One honest limit: a scrim override would be hex-only and therefore
+opaque — the shipped scrims are `rgb(...)` strings, so they stay locked to
+palette authoring.
 
 ### `PUT /api/v1/issues/settings/` is a replace
 
@@ -103,9 +178,9 @@ normalized (`feed` defaults on; the other flags default off). Partial
 edits are GET then PUT — the dialog's `save` and the theme picker both do
 that.
 
-Three keys are omit-to-preserve, so an older client cannot wipe them:
-`fields` (discovery output), `confluence`, `appearance`. `runtime`, `site`,
-and `hasCredential` on the body are ignored.
+Four keys are omit-to-preserve, so an older client cannot wipe them:
+`fields` (discovery output), `confluence`, `appearance`, `ui` (color
+overrides). `runtime`, `site`, and `hasCredential` on the body are ignored.
 
 ---
 
@@ -119,6 +194,9 @@ and `hasCredential` on the body are ignored.
 | `tokenVerifiedAt` | string (RFC3339) | _(empty)_ | Set by successful credential verify | Read-only side effect |
 | `tokenOwner` | string | _(empty)_ | Set by successful credential verify | Read-only side effect |
 | `appearance.theme` | string | empty → **system** | Settings theme picker / `gadak config set appearance.theme` | Immediate after reload; shape `[a-z0-9-]{1,32}` (see above) |
+| `ui.tokens` | `{colors: {token: hex}}` | _(absent)_ | `gadak config set ui.tokens` / Settings PUT `ui` (no form editor yet) | Live, no reload — color-token overrides for every palette; locked refused, validated contrast-checked (see above) |
+| `ui.tokensByTheme` | `{palette: {colors: {token: hex}}}` | _(absent)_ | `gadak config set ui.tokensByTheme` / Settings PUT `ui` | Live, no reload — per-palette overlay, judged in that palette |
+| `ui.dataColors` | `{label\|type\|status: {key: hex}}` | _(absent)_ | `gadak config set ui.dataColors` / Settings PUT `ui` | Live, no reload — per-data inks; `type` keys are issue type ids, `status` keys are status categories |
 | `projects` | string[] | `[]` (empty = every project this account can see) | Settings → Sources / `gadak init` / `gadak config set projects` | Next sync / list scope; UI reload after save |
 | `fields` | FieldSpec[] | `[]` | Auto on first full sync / `gadak fields --apply` / `gadak config set fields` (read-only on Settings GET as `fieldSpecs`) | Next sync ingest; `fieldUsage` on Settings is project→alias fill counts |
 | `fieldMap` | map alias→field id | `{}` | leftover; LoadFor migrates into `fields` and clears it. Not settable. | migrated on load |

@@ -2,6 +2,16 @@
 
 <sub>English · <a href="CHANGELOG.ko.md">한국어</a></sub>
 
+## Unreleased
+
+- The color wave: a runtime token validator ported from theme-check with
+  the app.css catalog as its single source ([GDK-785], [GDK-787]), and user
+  color overrides end to end — `ui.tokens` / `ui.tokensByTheme` /
+  `ui.dataColors` with catalog discovery (`ui.tokens.catalog`), write gates
+  that refuse what the palettes themselves could not ship and teach the
+  right key kind, live reflection in an open tab with no reload, and a boot
+  cache that kills the palette flash ([GDK-786], [GDK-791]).
+
 ## v0.17.1 — 2026-08-24
 
 The patch where the mirror learned to share. A day of dogfooding on a
@@ -1143,3 +1153,7 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-758]: https://gadak.dev/backlog/#/?ks=GDK-758
 [GDK-766]: https://gadak.dev/backlog/#/?ks=GDK-766
 [GDK-770]: https://gadak.dev/backlog/#/?ks=GDK-770
+[GDK-785]: https://gadak.dev/backlog/#/?ks=GDK-785
+[GDK-786]: https://gadak.dev/backlog/#/?ks=GDK-786
+[GDK-787]: https://gadak.dev/backlog/#/?ks=GDK-787
+[GDK-791]: https://gadak.dev/backlog/#/?ks=GDK-791

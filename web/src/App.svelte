@@ -21,8 +21,9 @@
   import { bindParam, bindParams } from './lib/url-sync.svelte'
   import { createGlobalKeyHandler } from './lib/keymap.svelte'
   import { applyStartupView, readLastViewKey } from './lib/startup-view'
-  import { feature, hasServerVerb, isHostedDemo } from './lib/config'
+  import { feature, hasServerVerb, isHostedDemo, loadConfig } from './lib/config'
   import { takeUIFocus } from './lib/api'
+  import { applyUserTokens } from './lib/user-tokens'
   import { showIssueList } from './lib/show-issue-list'
   import { adoptRunningSync } from './lib/sync-now'
   import { installDesktopLinkOpener, openIssueOrigin, openOriginUrl } from './lib/desktop-links'
@@ -213,7 +214,19 @@
     const applyFocus = async () => {
       if (isHostedDemo()) return
       try {
-        const hash = await takeUIFocus()
+        const poll = await takeUIFocus()
+        // GDK-791: settings written elsewhere (CLI `config set`, another tab)
+        // reach this open tab through configVersion on the same 500ms poll —
+        // refetch config.json and re-apply colors, never a reload. The first
+        // sighting is this boot's baseline, not a change.
+        if (poll.configVersion && poll.configVersion !== lastConfigVersion) {
+          if (lastConfigVersion !== null) {
+            const doc = await loadConfig()
+            applyUserTokens(doc.ui)
+          }
+          lastConfigVersion = poll.configVersion
+        }
+        const hash = poll.hash
         if (!hash) return
         const q = hash.startsWith('#/?')
           ? hash.slice(3)
@@ -233,6 +246,8 @@
         /* serve without the endpoint, or offline */
       }
     }
+    // configVersion this tab last saw (null = no baseline yet). See applyFocus.
+    let lastConfigVersion: string | null = null
     let focusTimer: ReturnType<typeof setInterval> | null = null
     const markFocusPoll = (on: boolean) => {
       document.documentElement.dataset.uiFocusPoll = on ? 'on' : 'off'

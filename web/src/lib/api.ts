@@ -238,13 +238,34 @@ export function parseJql(input: string, email?: string | null): Promise<JqlParse
   })
 }
 
-/** One-shot view hash left by `gadak views open`. null when nothing is pending. */
-export async function takeUIFocus(): Promise<string | null> {
-  const res = await raw('ui-focus/')
-  if (res.status === 204 || res.status === 404) return null
-  if (!res.ok) return null
-  const body = (await res.json()) as { hash?: string }
-  return body.hash?.trim() ? body.hash : null
+/** What the 500ms ui-focus poll carries back (GDK-791). */
+export interface UIFocusPoll {
+  /** One-shot view hash left by `gadak views open`. null when nothing pending. */
+  hash: string | null
+  /**
+   * Disk identity of config.json — always present on current servers, empty
+   * on older ones (204 era) and on fetch failure. When it moves, settings
+   * were written elsewhere (CLI `config set`, another tab) and the app
+   * refetches config.json instead of reloading.
+   */
+  configVersion: string
+}
+
+export async function takeUIFocus(): Promise<UIFocusPoll> {
+  try {
+    const res = await raw('ui-focus/')
+    // 404 = serve without the endpoint. 204 = an older server with nothing
+    // pending (no body to decode); either way only the focus half is dead.
+    if (res.status === 404 || res.status === 204) return { hash: null, configVersion: '' }
+    if (!res.ok) return { hash: null, configVersion: '' }
+    const body = (await res.json()) as { hash?: string; configVersion?: string }
+    return {
+      hash: body.hash?.trim() ? body.hash : null,
+      configVersion: typeof body.configVersion === 'string' ? body.configVersion : '',
+    }
+  } catch {
+    return { hash: null, configVersion: '' }
+  }
 }
 
 export function emitJql(
@@ -926,6 +947,16 @@ export interface GadakSettings {
    * to keep the stored value — the document is otherwise a full replace.
    */
   appearance?: { theme?: string }
+  /**
+   * User color overrides (GDK-786). Same omit-to-preserve rule: GET always
+   * sends it, an older PUT that omits the key keeps the stored overrides.
+   * Refusals (locked token, bad key kind) answer 400 with the reason.
+   */
+  ui?: {
+    tokens?: { colors?: Record<string, string> }
+    tokensByTheme?: Record<string, { colors?: Record<string, string> }>
+    dataColors?: Record<string, Record<string, string>>
+  }
 }
 
 /** One recorded sync pass (meaningful runs only: changed something, full, or failed). */

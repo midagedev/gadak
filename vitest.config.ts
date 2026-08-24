@@ -36,6 +36,10 @@ export default defineConfig({
             'web/src/stores/pages.test.ts',
             'web/src/stores/filters-actor.test.ts',
             'web/src/stores/docs-empty.test.ts',
+            // format.ts routes status ink through the ui-tokens runes store,
+            // so these suites need the svelte plugin too (GDK-786).
+            'web/src/lib/format.test.ts',
+            'web/src/stores/ui-tokens.test.ts',
           ],
           // Pin empty so a leftover VITE_HOSTED_DEMO=1 in the shell cannot
           // turn the adapter on for the production-default suite.
@@ -59,6 +63,8 @@ export default defineConfig({
             'web/src/stores/pages.test.ts',
             'web/src/stores/filters-actor.test.ts',
             'web/src/stores/docs-empty.test.ts',
+            'web/src/lib/format.test.ts',
+            'web/src/stores/ui-tokens.test.ts',
           ],
           env: { VITE_HOSTED_DEMO: '' },
         },

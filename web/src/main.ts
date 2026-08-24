@@ -1,11 +1,12 @@
 import { mount } from 'svelte'
 import './app.css'
 import App from './App.svelte'
-import { applyCacheScopeDebug, loadConfig } from './lib/config'
+import { applyCacheScopeDebug, config, loadConfig } from './lib/config'
 import { installHostedFetch } from './lib/hosted-fetch'
 import { applySearchPromotion } from './lib/promote-search'
 import { migrateStorageKeys } from './lib/storage'
 import { applyThemeAtBoot } from './lib/theme'
+import { applyUserTokens } from './lib/user-tokens'
 
 // Before the async config load — index.html ships data-theme="light" so the
 // boot shell has a theme; strip or replace it now so the first real paint
@@ -28,6 +29,10 @@ void (async () => {
   applySearchPromotion()
   installHostedFetch()
   await loadConfig()
+  // Server colors over the boot cache (GDK-786): the boot script already
+  // painted from localStorage; this reconciles with what the server says now
+  // and refreshes that cache. Empty/absent ui → overrides removed cleanly.
+  applyUserTokens(config().ui)
   applyCacheScopeDebug()
   // One-shot migrate issue-nav:* → gadak:*. Before store onMount.
   migrateStorageKeys()
