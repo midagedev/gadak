@@ -54,41 +54,41 @@ describe('row render contract — status is the origin name, category is ink onl
   it('status_text is the raw status name, even when the category word differs', () => {
     // Discriminating fixture: a Korean-account status name. The scaffold's
     // mistake (categoryLabel text) would render '진행 중' here.
-    const r = row({ issue_key: 'GDK-1', status: 'QA 검증 중', status_category: 'inprogress' })
+    const r = row({ issue_key: 'STD-1', status: 'QA 검증 중', status_category: 'inprogress' })
     expect(rowView(r, NOW).status_text).toBe('QA 검증 중')
   })
 
   it('status_ink maps the category to the dot color, never to text', () => {
-    expect(rowView(row({ issue_key: 'GDK-1', status_category: 'new' }), NOW).status_ink).toBe(
+    expect(rowView(row({ issue_key: 'STD-1', status_category: 'new' }), NOW).status_ink).toBe(
       'var(--color-status-new)',
     )
-    expect(rowView(row({ issue_key: 'GDK-2', status_category: 'inprogress' }), NOW).status_ink).toBe(
+    expect(rowView(row({ issue_key: 'STD-2', status_category: 'inprogress' }), NOW).status_ink).toBe(
       'var(--color-status-inprogress)',
     )
-    expect(rowView(row({ issue_key: 'GDK-3', status_category: 'weird' }), NOW).status_ink).toBe(
+    expect(rowView(row({ issue_key: 'STD-3', status_category: 'weird' }), NOW).status_ink).toBe(
       'var(--color-text-muted)',
     )
     // The view-model carries no category-word field at all: whatever the
     // category, the only strings a row can render are the origin's own.
-    const view = rowView(row({ issue_key: 'GDK-4', status: 'Reopened', status_category: 'new' }), NOW)
+    const view = rowView(row({ issue_key: 'STD-4', status: 'Reopened', status_category: 'new' }), NOW)
     expect(view.status_text).toBe('Reopened')
   })
 
   it('priority_ink follows the priorityInk ladder by rank', () => {
-    expect(rowView(row({ issue_key: 'GDK-1', priority_rank: 1 }), NOW).priority_ink).toBe(
+    expect(rowView(row({ issue_key: 'STD-1', priority_rank: 1 }), NOW).priority_ink).toBe(
       'var(--color-status-reopen)',
     )
-    expect(rowView(row({ issue_key: 'GDK-2', priority_rank: 0 }), NOW).priority_ink).toBe(
+    expect(rowView(row({ issue_key: 'STD-2', priority_rank: 0 }), NOW).priority_ink).toBe(
       'var(--color-border-strong)',
     )
   })
 
   it('age is the web compact grammar against a pinned clock (en)', () => {
-    expect(rowView(row({ issue_key: 'GDK-1', updated_at: '2026-08-25T11:59:30.000Z' }), NOW, 'en').age).toBe('just now')
-    expect(rowView(row({ issue_key: 'GDK-2', updated_at: '2026-08-25T11:57:00.000Z' }), NOW, 'en').age).toBe('3m')
-    expect(rowView(row({ issue_key: 'GDK-3', updated_at: '2026-08-25T10:00:00.000Z' }), NOW, 'en').age).toBe('2h')
-    expect(rowView(row({ issue_key: 'GDK-4', updated_at: '2026-08-23T12:00:00.000Z' }), NOW, 'en').age).toBe('2d')
-    expect(rowView(row({ issue_key: 'GDK-5', updated_at: null }), NOW, 'en').age).toBe('')
+    expect(rowView(row({ issue_key: 'STD-1', updated_at: '2026-08-25T11:59:30.000Z' }), NOW, 'en').age).toBe('just now')
+    expect(rowView(row({ issue_key: 'STD-2', updated_at: '2026-08-25T11:57:00.000Z' }), NOW, 'en').age).toBe('3m')
+    expect(rowView(row({ issue_key: 'STD-3', updated_at: '2026-08-25T10:00:00.000Z' }), NOW, 'en').age).toBe('2h')
+    expect(rowView(row({ issue_key: 'STD-4', updated_at: '2026-08-23T12:00:00.000Z' }), NOW, 'en').age).toBe('2d')
+    expect(rowView(row({ issue_key: 'STD-5', updated_at: null }), NOW, 'en').age).toBe('')
   })
 })
 
