@@ -23,7 +23,7 @@
 
 - Beyond uPlot, a dashboard can use any JavaScript library the *user*
   downloaded once: `gadak dashboards lib add <url>` fetches it (https
-  only, ≤3 redirects each re-checked, ≤8 MiB), pins its sha384, and serves
+  only, ≤3 redirects each re-checked, ≤50 MiB), pins its sha384, and serves
   it from a local route that re-hashes the bytes on every request — a
   cache file modified after the add answers 500, never executes. Saves
   declare libs by id (`--lib`, ≤8); render injects them as deferred
@@ -32,6 +32,16 @@
   the pre-808 policy byte for byte. three.js no longer ships embedded
   (−750 KB per binary); it is the documented `lib add` example instead
   ([GDK-808]).
+
+- The phone app starts as a skeleton: Tauri v2 + Svelte in `mobile/`,
+  sharing `web/src/app.css` so one token change retints both surfaces.
+  Pairing and the queue screen are here; the server side is not — `pairing
+  mint` still refuses a connected workspace and the pairing gate opens
+  origin passthrough rather than the mirror REST the app reads
+  ([GDK-797], [GDK-798] are the prerequisites). What is already load
+  bearing is the offer decoder: Go and TypeScript read the same golden
+  vectors, error strings included, so a one-sided change to the contract
+  turns both suites red ([GDK-800]).
 
 ## v0.17.1 — 2026-08-24
 
@@ -1186,3 +1196,6 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-792]: https://gadak.dev/backlog/#/?ks=GDK-792
 [GDK-793]: https://gadak.dev/backlog/#/?ks=GDK-793
 [GDK-808]: https://gadak.dev/backlog/#/?ks=GDK-808
+[GDK-797]: https://gadak.dev/backlog/#/?ks=GDK-797
+[GDK-798]: https://gadak.dev/backlog/#/?ks=GDK-798
+[GDK-800]: https://gadak.dev/backlog/#/?ks=GDK-800

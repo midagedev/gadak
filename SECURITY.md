@@ -122,7 +122,7 @@ Outbound traffic is exactly six destinations:
    `gadak dashboards lib add <url>`: one GET to the exact URL typed
    (`internal/dashboards/libs.go`), https only — plain http is refused
    unless the host is localhost or an IP literal — at most 3 redirects with
-   every hop re-checked, ≤8 MiB, no retries. The bytes land in
+   every hop re-checked, ≤50 MiB, no retries. The bytes land in
    `<profile>/dashboards/libs/` sha384-pinned and are re-hashed before every
    serve; dashboards render them from that local cache, never from the
    network. Nothing fetches on a schedule, at render, or on save.

@@ -22,7 +22,7 @@
 
 - uPlot을 넘선 라이브러리는 *사용자가* 한 번 내려받은 것이면 무엇이든
   쓸 수 있습니다. `gadak dashboards lib add <url>`이 한 번 가져오고
-  (https만, 리다이렉트는 3홉까지 매 홉 재검사, 8 MiB까지) sha384로
+  (https만, 리다이렉트는 3홉까지 매 홉 재검사, 50 MiB까지) sha384로
   고정하면, 그 뒤로는 로컬 라우트가 매 요청마다 바이트를 다시 해싱해
   서빙합니다 — add 이후에 변조된 캐시 파일은 500으로 거부되고 절대
   실행되지 않습니다. 저장은 id로 선언하고(`--lib`, 최대 8개), 렌더는
@@ -31,6 +31,16 @@
   808 이전 정책을 바이트 단위로 유지합니다. three.js는 더 이상
   임베드되지 않고(바이너리당 −750 KB) `lib add`의 문서화된 예시가
   됩니다 ([GDK-808]).
+
+- 아이폰 앱이 골격으로 시작합니다. `mobile/`의 Tauri v2 + Svelte이며
+  `web/src/app.css`를 공유하므로 토큰 하나를 바꾸면 두 표면이 같이
+  물듭니다. 페어링과 큐 화면이 들어 있고 서버 쪽은 아직입니다 —
+  `pairing mint`는 여전히 connected 워크스페이스를 거절하고, 페어링
+  게이트는 앱이 읽는 미러 REST가 아니라 origin passthrough만 엽니다
+  ([GDK-797], [GDK-798]이 선행 조건). 지금 실하중을 받는 것은 오퍼
+  디코더입니다: Go와 TypeScript가 같은 골든 벡터를 오류 문구까지 함께
+  읽으므로, 계약을 한쪽만 바꾸면 두 스위트가 같이 빨개집니다
+  ([GDK-800]).
 
 ## v0.17.1 — 2026-08-24
 
@@ -1136,3 +1146,6 @@ HTTP·sync·에이전트 계약.
 [GDK-792]: https://gadak.dev/backlog/#/?ks=GDK-792
 [GDK-793]: https://gadak.dev/backlog/#/?ks=GDK-793
 [GDK-808]: https://gadak.dev/backlog/#/?ks=GDK-808
+[GDK-797]: https://gadak.dev/backlog/#/?ks=GDK-797
+[GDK-798]: https://gadak.dev/backlog/#/?ks=GDK-798
+[GDK-800]: https://gadak.dev/backlog/#/?ks=GDK-800
