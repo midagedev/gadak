@@ -33,6 +33,7 @@ export const en = {
   'pair.currentFallback': 'Paired',
   'pair.unpair': 'Unpair',
   'pair.error.invalid': 'Not a valid pairing code. Mint a new one on the desktop with `gadak pairing mint` and paste the whole line.',
+  'pair.error.save': 'Could not save the pairing — secure storage is unavailable. Try again.',
 } as const
 
 /** Keys are the contract (a missing key fails on both locales); values are plain strings. */

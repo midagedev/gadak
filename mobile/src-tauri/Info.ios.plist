@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Source-managed iOS plist additions — tauri merges this into the
+     generated gen/apple Info.plist at bundle time, so the keys survive
+     project regeneration. Local notifications need no plist key (runtime
+     permission prompt); the camera string is required before any QR scan
+     (tauri-plugin-barcode-scanner, A-pair). -->
+<plist version="1.0">
+<dict>
+	<key>NSCameraUsageDescription</key>
+	<string>Scans the gadak pairing code shown on your computer.</string>
+</dict>
+</plist>

@@ -6,8 +6,8 @@
    * mode, never ours. Returning to the foreground revalidates immediately
    * (orca #5049: a session that only looks alive).
    */
-  import { fetchBootstrap, categoryInk, priorityInk, queueRows, type QueueRow } from '../lib/api'
-  import { readPairing, readQueueCache, writeQueueCache } from '../lib/settings'
+  import { bootstrap, categoryInk, priorityInk, queueRows, type ApiContext, type QueueRow } from '../lib/api'
+  import { readPairing, readQueueCache, readToken, writeQueueCache } from '../lib/settings'
   import { categoryLabel, t } from '../lib/i18n'
 
   let { onpair } = $props<{ onpair?: () => void }>()
@@ -39,8 +39,16 @@
       offline = false
       return
     }
+    const ctx: ApiContext = { endpoint, token: await readToken() }
     try {
-      const boot = await fetchBootstrap(endpoint, pairing?.token ?? '')
+      const res = await bootstrap(ctx)
+      // Without a prior etag the server never answers 304; the branch
+      // exists so the caching round can land without touching this screen.
+      if (res.status === 'not_modified') {
+        offline = false
+        return
+      }
+      const boot = res.data
       const all = queueRows(boot.issues)
       openCount = boot.issues.filter((i) => i.status_category !== 'done').length
       rows = all

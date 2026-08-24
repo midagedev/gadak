@@ -35,4 +35,5 @@ export const ko: Messages = {
   'pair.currentFallback': '페어링됨',
   'pair.unpair': '페어링 해제',
   'pair.error.invalid': '올바른 페어링 코드가 아닙니다. 데스크톱에서 `gadak pairing mint`로 새 코드를 만들어 한 줄 전체를 붙여넣으세요.',
+  'pair.error.save': '페어링을 저장하지 못했습니다 — 보안 저장소를 사용할 수 없습니다. 다시 시도해 주세요.',
 }

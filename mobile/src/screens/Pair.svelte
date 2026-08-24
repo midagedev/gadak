@@ -41,16 +41,25 @@
     }
   }
 
-  function onsave(): void {
+  async function onsave(): Promise<void> {
     if (!decoded) return
-    savePairing({ endpoint: decoded.endpoint, token: decoded.token, label: decoded.label })
-    current = readPairing()
-    saved = true
-    onsaved?.()
+    try {
+      await savePairing({ endpoint: decoded.endpoint, token: decoded.token, label: decoded.label })
+      current = readPairing()
+      saved = true
+      onsaved?.()
+    } catch {
+      // The secure-store write failed (settings.ts rejects) — the pairing
+      // is NOT saved even though the meta half may be; tell the user
+      // instead of claiming success.
+      saved = false
+      error = t('pair.error.save')
+      errorReason = null
+    }
   }
 
-  function onunpair(): void {
-    clearPairing()
+  async function onunpair(): Promise<void> {
+    await clearPairing()
     current = null
     saved = false
   }

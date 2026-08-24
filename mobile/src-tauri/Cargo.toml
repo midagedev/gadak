@@ -5,9 +5,10 @@ description = "gadak mobile companion (GDK-796)"
 edition = "2021"
 
 # Default create-tauri-app v2 shape: the lib target is what iOS/Android build,
-# main.rs is the desktop entry. No plugins are pulled in — the app makes
-# exactly one kind of network request (the configured serve endpoint), from
-# the webview, so no Rust-side HTTP dependency is needed in this round.
+# main.rs is the desktop entry. Plugins (GDK-800 A-native): http is the
+# packaged app's transport (webview fetch dies at the serve gate); secure-
+# storage backs the token commands; barcode-scanner and notification are
+# registered for their later UI chunks.
 [lib]
 name = "gadak_mobile_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
@@ -19,3 +20,7 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+tauri-plugin-http = "2"
+tauri-plugin-secure-storage = "1.5"
+tauri-plugin-barcode-scanner = "2"
+tauri-plugin-notification = "2"

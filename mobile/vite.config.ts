@@ -18,7 +18,7 @@ const host = process.env.TAURI_DEV_HOST
 // The mirror sends no CORS headers by design (docs/ARCHITECTURE.md), so the
 // browser-facing dev origins (vite dev server, and the tauri dev window which
 // loads from it) reach serve same-origin through this proxy. The packaged app
-// talks to the configured endpoint directly — see lib/api.ts.
+// rides tauri-plugin-http instead of this proxy — see lib/api.ts.
 const SERVE_DEV_ORIGIN = 'http://127.0.0.1:7899'
 
 export default defineConfig({
