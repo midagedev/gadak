@@ -186,6 +186,28 @@ pairs, unitless one-or-two-decimal numbers (`"1.4"`).
 | `layout` | `sidebar` (272px), `sidebar-narrow` (208px), `list-min` (390px), `detail-min` (438px), `detail-max` (720px), `overlay-max` (560px), `shell-max` (2200px) | `--layout-*` |
 | `type` | `micro` (11px), `body` (13px), `title` (15px), `heading` (22px), each with a matching `…-line-height` (1.3 / 1.4 / 1.35 / 1.22) | `--text-*` |
 
+The dim catalog is the single source — `gadak config get
+ui.tokens.dim-catalog` lists all 20 with tier, default, range and
+relations as JSON (`gadak config list` carries the same pointer on the
+`ui.tokens` row):
+
+```console
+$ gadak config get ui.tokens.dim-catalog | jq . | head -13
+[
+  {
+    "axis": "spacing",
+    "name": "control",
+    "cssVar": "--spacing-control",
+    "tier": "validated-range",
+    "unit": "px",
+    "default": "32px",
+    "min": 28,
+    "max": 40,
+    "relations": [
+      "--spacing-control-sm must stay ≤ --spacing-control (the small control rides inside the regular one)"
+    ]
+```
+
 ```console
 $ gadak config set ui.tokens '{"spacing":{"row":"44px"}}'
 {"spacing":{"row":"44px"}}

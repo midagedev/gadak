@@ -1,10 +1,12 @@
 package config
 
 import (
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/midagedev/gadak/internal/config/tokencheck"
@@ -291,7 +293,8 @@ func buildSettings() []Setting {
 				"dimensions {\"spacing\": {\"row\": \"44px\"}, \"layout\": {\"sidebar\": \"280px\"}, " +
 				"\"type\": {\"body\": \"14px\"}} apply to every palette (locked tokens refused; " +
 				"validated tokens must pass the contrast or length-range rules; discover color " +
-				"names with `gadak config get ui.tokens.catalog`)",
+				"names with `gadak config get ui.tokens.catalog`, dimension names with " +
+				"`gadak config get ui.tokens.dim-catalog`)",
 			Get: func(c *Config) any {
 				if c.UI == nil || c.UI.Tokens == nil {
 					return UITokens{}
@@ -382,6 +385,16 @@ func buildSettings() []Setting {
 			Get: func(c *Config) any { return tokencheck.CatalogTokens() },
 			Set: func(*Config, json.RawMessage) error {
 				return fmt.Errorf("ui.tokens.catalog is read-only — it ships with the binary; set ui.tokens instead")
+			},
+		},
+		{
+			Path: "ui.tokens.dim-catalog",
+			Root: "ui",
+			Description: "read-only dimension-token catalog (axis, name, cssVar, tier, default, range, " +
+				"relations) — the discovery path for ui.tokens spacing/layout/type keys",
+			Get: func(c *Config) any { return dimCatalogEntries() },
+			Set: func(*Config, json.RawMessage) error {
+				return fmt.Errorf("ui.tokens.dim-catalog is read-only — it ships with the binary; set ui.tokens instead")
 			},
 		},
 		intSetting("syncIntervalSec", "syncIntervalSec",
@@ -988,4 +1001,151 @@ func productsOrEmpty(v map[string]Product) map[string]Product {
 		return map[string]Product{}
 	}
 	return v
+}
+
+// ── ui.tokens.dim-catalog (read-only dimension-token discovery, GDK-852) ──
+
+// tokencheck owns the dimension catalog but exports lookup (DimAxes,
+// DimTokenOf), not enumeration — and the discovery path must list every
+// name without a second hand-maintained table. The same generated file
+// tokencheck embeds is embedded here once more and parsed for the name
+// list only: every field served to the user comes from tokencheck, and
+// settings_dimcatalog_test.go pins the two reads of the one file together
+// (it reads it off disk, so an embed/parse drift fails the test build).
+//
+//go:embed tokencheck/dim-catalog.json
+var dimDiscoveryNamesJSON []byte
+
+// dimDiscoveryNames parses the embedded file into axis → sorted token
+// names. A parse failure is a build defect (the file is generated and
+// committed); the zero result lists nothing, which the enumeration test
+// fails loudly — the same stance as tokencheck's own embed.
+func dimDiscoveryNames() map[string][]string {
+	var file struct {
+		Axes []struct {
+			ID     string              `json:"id"`
+			Tokens map[string]struct{} `json:"tokens"`
+		} `json:"axes"`
+	}
+	out := map[string][]string{}
+	if err := json.Unmarshal(dimDiscoveryNamesJSON, &file); err != nil {
+		return out
+	}
+	for _, ax := range file.Axes {
+		names := make([]string, 0, len(ax.Tokens))
+		for name := range ax.Tokens {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		out[ax.ID] = names
+	}
+	return out
+}
+
+// DimCatalogEntry is one row of the read-only dimension-token discovery
+// catalog — the sibling of tokencheck.CatalogToken on the color side.
+// Min/Max read null where a relation owns the bound (row-excerpt,
+// detail-max) or the token is locked, mirroring the embedded DimToken;
+// Relations is always present, [] when the token stands alone, like the
+// color catalog's rules field. Locked tokens (docked-min) stay in the
+// same list, tier-marked — the color catalog's locked notation.
+type DimCatalogEntry struct {
+	Axis      string   `json:"axis"`
+	Name      string   `json:"name"`
+	CSSVar    string   `json:"cssVar"`
+	Tier      string   `json:"tier"`
+	Unit      string   `json:"unit"`
+	Default   string   `json:"default"`
+	Min       *float64 `json:"min"`
+	Max       *float64 `json:"max"`
+	Relations []string `json:"relations"`
+}
+
+// dimRelationSpec mirrors tokencheck's unexported dimRelations so the
+// discovery output can state each cross-token rule as a sentence — the
+// prose lives here because tokencheck never exports it. The sync is
+// behavioral, not textual: TestDimCatalogRelationsMatchValidation fires
+// every rule valid input can violate against ValidateDimensions, so the
+// two tables cannot drift apart silently (overlay-max ≤ shell-max is
+// pinned here but structurally unfirable — its ranges never overlap).
+var dimRelationSpecs = []struct {
+	axis    string
+	a, b    string
+	kind    string // "le" | "ge" | "ge_add"
+	add     float64
+	because string
+}{
+	{"spacing", "control-sm", "control", "le", 0, "the small control rides inside the regular one"},
+	{"spacing", "row-excerpt", "row", "ge_add", 8, "a row carrying a preview line needs headroom"},
+	{"layout", "detail-max", "detail-min", "ge", 0, "the docked panel cannot be narrower than its floor"},
+	{"layout", "overlay-max", "shell-max", "le", 0, "the overlay panel cannot outgrow the shell"},
+	{"layout", "sidebar-narrow", "sidebar", "le", 0, "the narrow sidebar step must not exceed the default"},
+	{"type", "body", "micro", "ge_add", 2, "type steps closer than 2px read as noise, not hierarchy"},
+	{"type", "title", "body", "ge_add", 2, "type steps closer than 2px read as noise, not hierarchy"},
+	{"type", "heading", "title", "ge_add", 2, "type steps closer than 2px read as noise, not hierarchy"},
+}
+
+// dimRelationSentence renders one rule the way a refusal would state it,
+// so the discovery output and the write-time error read the same.
+func dimRelationSentence(axis, a, b, kind string, add float64, because string) string {
+	tokA, _ := tokencheck.DimTokenOf(axis, a)
+	tokB, _ := tokencheck.DimTokenOf(axis, b)
+	switch kind {
+	case "le":
+		return fmt.Sprintf("%s must stay ≤ %s (%s)", tokA.CSSVar, tokB.CSSVar, because)
+	case "ge_add":
+		return fmt.Sprintf("%s must be ≥ %s + %s (%s)", tokA.CSSVar, tokB.CSSVar, dimNumber(tokB.Unit, add), because)
+	default: // "ge"
+		return fmt.Sprintf("%s must be ≥ %s (%s)", tokA.CSSVar, tokB.CSSVar, because)
+	}
+}
+
+// dimNumber renders a bound in the token's unit (line-heights are unitless).
+func dimNumber(unit string, v float64) string {
+	s := strconv.FormatFloat(v, 'f', -1, 64)
+	if unit == "none" {
+		return s
+	}
+	return s + "px"
+}
+
+// dimCatalogEntries builds the discovery output: axes in DimAxes() order,
+// names sorted within an axis, every field from tokencheck.DimTokenOf —
+// the embedded name list contributes names only. Each relation sentence
+// rides on both participants: overriding either side can break the pair.
+func dimCatalogEntries() []DimCatalogEntry {
+	relations := map[string][]string{}
+	for _, r := range dimRelationSpecs {
+		s := dimRelationSentence(r.axis, r.a, r.b, r.kind, r.add, r.because)
+		relations[r.axis+"\x00"+r.a] = append(relations[r.axis+"\x00"+r.a], s)
+		relations[r.axis+"\x00"+r.b] = append(relations[r.axis+"\x00"+r.b], s)
+	}
+	names := dimDiscoveryNames()
+	out := []DimCatalogEntry{}
+	for _, axis := range tokencheck.DimAxes() {
+		for _, name := range names[axis] {
+			tok, ok := tokencheck.DimTokenOf(axis, name)
+			if !ok {
+				// Same file, same build; the enumeration test fails
+				// loudly long before this could read as a short list.
+				continue
+			}
+			rel := relations[axis+"\x00"+name]
+			if rel == nil {
+				rel = []string{}
+			}
+			out = append(out, DimCatalogEntry{
+				Axis:      axis,
+				Name:      name,
+				CSSVar:    tok.CSSVar,
+				Tier:      tok.Tier,
+				Unit:      tok.Unit,
+				Default:   tok.Default,
+				Min:       tok.Min,
+				Max:       tok.Max,
+				Relations: rel,
+			})
+		}
+	}
+	return out
 }

@@ -266,7 +266,7 @@ func TestValidateDataColorsKeys(t *testing.T) {
 }
 
 func TestUISettingsPaths(t *testing.T) {
-	for _, path := range []string{"ui.tokens", "ui.tokensByTheme", "ui.dataColors", "ui.tokens.catalog"} {
+	for _, path := range []string{"ui.tokens", "ui.tokensByTheme", "ui.dataColors", "ui.tokens.catalog", "ui.tokens.dim-catalog"} {
 		s, ok := SettingByPath(path)
 		if !ok {
 			t.Errorf("catalog path %q missing", path)
