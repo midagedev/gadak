@@ -51,20 +51,27 @@ snapshot in this
 tab](<https://lite.datasette.io/?url=https%3A%2F%2Fraw.githubusercontent.com%2Fmidagedev%2Fgadak%2Fmain%2Fexamples%2Fdemo.db#/demo?sql=select+epic_key%2C+count(*)+from+issues_full+where+resolved_at+is+null+and+epic_key+%3C%3E+''+group+by+epic_key+order+by+2+desc>)
 and the SQL runs client-side.
 
-Measured against a live Cloud site (2,853 issues; medians, CLI startup
-included — [method and the losing rows](docs/BENCHMARKS.md)):
+Measured 2026-08-23 against a live Cloud site (7,166 issues; medians, CLI
+startup included — [method, the re-measurement history, and the losing
+rows](docs/BENCHMARKS.md)):
 
 | Question | REST API | `gadak` | |
 | --- | ---: | ---: | ---: |
-| Simple filter, 100 issues | 706 ms | 17 ms | 42× |
-| One issue with its full history | 1,055 ms | 54 ms | 20× |
-| Open issues per epic (`GROUP BY`) | 3,924 ms · 7 API pages | 24 ms · one query | 162× |
-| Anything over the change history | ≈ 20 min (crawl every changelog) | one query | — |
+| Simple filter, 100 issues | 374 ms | 17 ms | 23× |
+| One issue with its full history | 687 ms | 29 ms | 24× |
+| Free-text search | 504 ms | 22 ms | 23× |
+| A count over the change history | not expressible — ≈ 109 min of crawling | 14 ms | — |
+
+The last row is the point: past a page size, JQL answers stop being slow and
+start being unaskable. `GROUP BY` is the same story — on the 2026-08-15 corpus
+the epic rollup measured 3,924 ms across 7 API pages against one 24 ms query;
+this run the REST aggregation matched no rows at all, because the project's
+epic shape had changed, so that comparison stands on the August 15 numbers.
 
 And the other side: the first full sync measured 26.4 s for 534 issues and
 7.2 min for 2,865 ([method and the losing rows](docs/BENCHMARKS.md)), every
-watch tick costs ~6.7 s on a quiet site, and the mirror trails Jira by one
-sync interval.
+watch tick costs ~4.7 s on a quiet site even when nothing changed, and the
+mirror trails Jira by one sync interval.
 
 <details>
 <summary>▶ 90-second tour of the paper list (GIF, 7 MB)</summary>

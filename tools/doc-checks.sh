@@ -1520,4 +1520,79 @@ else
   ok "scoop manifest, AUR PKGBUILD and .SRCINFO agree with ${tag}"
 fi
 
+# ── 30. README's benchmark table carries the CURRENT measurement (GDK-773) ─
+# The class this closes: a re-measurement lands on one surface and the others
+# keep publishing the old numbers. Measured 2026-08-24 — docs/BENCHMARKS.md
+# and site/src/i18n.ts carried the 2026-08-23 re-run (7,166 issues, 23×)
+# while README.md and README.ko.md still published the 2026-08-15 table
+# (2,853 issues, 42×/162×) with no date on it, and every gate was green.
+# One of those README rows (162× GROUP BY) could not be reproduced on the
+# current corpus at all, so the front door was advertising a number the
+# authority no longer supports.
+#
+# BENCHMARKS.md is the authority. Its LAST measurement section is current;
+# the README caption must name that section's date and corpus, and every
+# ms/× figure in the README table must appear in it. A future re-measurement
+# therefore cannot be published to one surface only.
+readme_bench=$(
+  python3 - <<'BENCHPY'
+import re
+from pathlib import Path
+
+bench = Path("docs/BENCHMARKS.md").read_text()
+fails = []
+
+# The authority's current section: the last "Measured"/"Re-measured" block.
+heads = [m.start() for m in re.finditer(r"^#{1,2} .*?[Mm]easured", bench, re.M)]
+# The opening paragraph counts as a section even without its own heading.
+starts = heads or [0]
+latest = bench[starts[-1]:]
+nxt = re.search(r"^## (?!Re-measured)", latest[1:], re.M)
+if nxt:
+    latest = latest[: nxt.start() + 1]
+
+date = re.search(r"(20\d\d-\d\d-\d\d)", latest)
+corpus = re.search(r"([\d,]{3,})\s+issues", latest)
+if not date or not corpus:
+    fails.append("docs/BENCHMARKS.md: latest measurement section names no date or no corpus size")
+else:
+    figures = set(re.findall(r"\d[\d,]*(?:\.\d+)?\s*ms", latest))
+    figures |= set(re.findall(r"\d[\d,]*×", latest))
+    figures = {f.replace(" ", "") for f in figures}
+    for path in ("README.md", "README.ko.md"):
+        text = Path(path).read_text()
+        rows = [
+            ln
+            for ln in text.splitlines()
+            if ln.startswith("|") and re.search(r"\d\s*ms|\d×", ln)
+        ]
+        if not rows:
+            fails.append(f"{path}: no benchmark table rows found (expected the REST-vs-gadak table)")
+            continue
+        if date.group(1) not in text:
+            fails.append(
+                f"{path}: does not name the current measurement date {date.group(1)} "
+                "(docs/BENCHMARKS.md's latest section)"
+            )
+        if corpus.group(1) not in text:
+            fails.append(
+                f"{path}: does not name the current corpus size {corpus.group(1)} issues"
+            )
+        for ln in rows:
+            for fig in re.findall(r"\d[\d,]*(?:\.\d+)?\s*ms|\d[\d,]*×", ln):
+                if fig.replace(" ", "") not in figures:
+                    fails.append(
+                        f"{path}: benchmark figure {fig.strip()} is not in "
+                        "docs/BENCHMARKS.md's latest measurement section"
+                    )
+
+if fails:
+    print("\n".join(dict.fromkeys(fails)))
+BENCHPY
+)
+if [[ -n "$readme_bench" ]]; then
+  fail "README benchmark table disagrees with docs/BENCHMARKS.md's current measurement:"$'\n'"$readme_bench"
+fi
+ok "README (en+ko) benchmark table matches the current measurement in docs/BENCHMARKS.md"
+
 echo "doc-checks: all passed"

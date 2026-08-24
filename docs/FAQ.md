@@ -15,8 +15,9 @@ is on the order of a hundred-plus requests, once. After that the watch loop
 runs **incremental** syncs: one watermark-scoped search per source. That is
 not "one empty call": on the measured quiet site a tick fetched 16 issues
 and 1 page that matched the window — 0 of them changed — and cost 6.7 s of
-wall clock; what a tick costs tracks what the watermark window matches, not
-what changed ([`docs/BENCHMARKS.md`](BENCHMARKS.md#where-gadak-loses)).
+wall clock (4.7 s when the row was re-measured on 2026-08-23); what a tick
+costs tracks what the watermark window matches, not what changed
+([`docs/BENCHMARKS.md`](BENCHMARKS.md#where-gadak-loses)).
 
 The client respects `Retry-After` on 429/503 with backoff, and counts its own
 call volume per UTC day — visible in `gadak status` and the settings runtime
