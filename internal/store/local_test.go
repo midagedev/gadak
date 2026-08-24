@@ -971,8 +971,58 @@ func TestLocalMigrationV5AddsRecipes(t *testing.T) {
 	if err := after.QueryRow(`PRAGMA user_version`).Scan(&uv); err != nil {
 		t.Fatal(err)
 	}
-	if uv != 5 {
-		t.Fatalf("post-migration user_version = %d, want 5", uv)
+	// Open migrates a v4 local.db all the way to this build's latest
+	// (V6 = dashboards as of GDK-781), not to the migration this test was
+	// born with — hence the count, not a literal.
+	if uv != len(localMigrations) {
+		t.Fatalf("post-migration user_version = %d, want %d", uv, len(localMigrations))
+	}
+}
+
+// TestLocalMigrationV6AddsDashboards is the V5 test's shape for GDK-781: a
+// local.db left at v5 by the previous build gains local.dashboards on open,
+// and the local_meta change counter starts at 0 (no rows, nothing to poll).
+func TestLocalMigrationV6AddsDashboards(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "gadak.db")
+	local := LocalPath(path)
+	raw, err := sql.Open("sqlite", "file:"+local)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, ddl := range []string{localSchemaV1, localSchemaV2, localSchemaV3, localSchemaV4, localSchemaV5} {
+		if _, err := raw.Exec(ddl); err != nil {
+			t.Fatalf("apply localSchemaV%d: %v", i+1, err)
+		}
+	}
+	if _, err := raw.Exec(`PRAGMA user_version = 5`); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := raw.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='dashboards'`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Fatalf("pre-migration dashboards table count = %d, want 0", n)
+	}
+	if err := raw.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	db, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+	if err := db.sql.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM local.dashboards`).Scan(&n); err != nil {
+		t.Fatalf("dashboards after v5→v6: %v", err)
+	}
+	if n != 0 {
+		t.Fatalf("migrated dashboards rows = %d, want 0", n)
+	}
+	v, err := db.DashboardVersion(context.Background())
+	if err != nil || v != 0 {
+		t.Fatalf("fresh dashboards version = %d, %v; want 0", v, err)
 	}
 }
 

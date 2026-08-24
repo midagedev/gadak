@@ -153,6 +153,10 @@ var originScopedTables = []tableRule{
 	{table: "recipes", scope: scopeAuthored,
 		why: "authored here (local.db, GDK-503); a name for mirror SQL the user wrote. " +
 			"Not origin content. Kept on conversion the same way saved_views are"},
+	{table: "dashboards", scope: scopeAuthored,
+		why: "authored here (local.db, GDK-781); an HTML wall plus datasource " +
+			"queries the user wrote. Not origin content — a dashboard's SQL names " +
+			"the schema, not an origin. Kept on conversion the same way saved_views are"},
 	{table: "api_usage", scope: scopeLocal,
 		why: "our own outbound HTTP counters per day, not origin content (schemaV6)"},
 	{table: "visits", scope: scopeLocal,

@@ -38,6 +38,7 @@ const sourceID = "jira"
 const (
 	apiBase  = "/api/v1/issues/"
 	authBase = "/api/v1/auth/"
+	dashBase = "/api/v1/dashboards/"
 )
 
 type server struct {
@@ -185,6 +186,14 @@ func newServer(db *store.DB, cfg *config.Config, cache *attachcache.Cache, profi
 	// One-shot localStorage→server absorb (GDK-437). Literal beats views/{id}/.
 	mux.HandleFunc("POST "+apiBase+"views/absorb/{$}", s.handleAbsorbViews)
 	mux.HandleFunc("DELETE "+apiBase+"views/{id}/{$}", s.handleDeleteView)
+	// Agent dashboards (GDK-781): saved like views (local.db), rendered as
+	// CSP-sandboxed HTML with datasource results. Literals beat {id}/.
+	mux.HandleFunc("GET "+dashBase+"{$}", s.dashboardList)
+	mux.HandleFunc("POST "+dashBase+"{$}", s.handleSaveDashboard)
+	mux.HandleFunc("POST "+dashBase+"absorb/{$}", s.handleAbsorbDashboards)
+	mux.HandleFunc("DELETE "+dashBase+"{id}/{$}", s.handleDeleteDashboard)
+	mux.HandleFunc("GET "+dashBase+"{id}/render/{$}", s.handleRenderDashboard)
+	mux.HandleFunc("GET "+dashBase+"{id}/data/{name}/{$}", s.handleDashboardData)
 	mux.HandleFunc("GET "+apiBase+"watches/{$}", s.handleGetWatches)
 	mux.HandleFunc("DELETE "+apiBase+"watches/{key}/{$}", s.handleDeleteWatch)
 	mux.HandleFunc("GET "+apiBase+"favorites/{$}", s.handleGetFavorites)

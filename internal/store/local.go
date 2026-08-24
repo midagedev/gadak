@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -33,7 +34,7 @@ const LocalRetention = 180 * 24 * time.Hour
 
 // localMigrations is independent of the mirror's migrations slice. Index+1 is
 // PRAGMA user_version on local.db.
-var localMigrations = []string{localSchemaV1, localSchemaV2, localSchemaV3, localSchemaV4, localSchemaV5}
+var localMigrations = []string{localSchemaV1, localSchemaV2, localSchemaV3, localSchemaV4, localSchemaV5, localSchemaV6}
 
 const localSchemaV1 = `
 CREATE TABLE visits (
@@ -135,6 +136,21 @@ CREATE TABLE recipes (
   sql        TEXT NOT NULL,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
+);
+`
+
+// localSchemaV6 is agent-authored dashboards (GDK-780/781): an HTML document
+// plus named datasources, stored the same shape as saved_views so the same
+// personal-state rules apply (survives `rm gadak.db`, exportable). config is
+// validated by internal/dashboards at every writer; the store only owns rows
+// and the change counter open tabs poll (local_meta dashboards_version).
+const localSchemaV6 = `
+CREATE TABLE dashboards (
+  id         TEXT PRIMARY KEY,
+  name       TEXT NOT NULL,
+  config     TEXT NOT NULL,
+  created_at TEXT,
+  updated_at TEXT
 );
 `
 
@@ -1173,5 +1189,214 @@ func (db *DB) DeleteRecipe(ctx context.Context, name string) error {
 			return ErrNotFound
 		}
 		return nil
+	})
+}
+
+// ReadOnly opens this DB's mirror with OpenReadOnly — mode=ro, local.db
+// attached — for executing untrusted SQL (dashboard datasources). The single
+// purpose is that a datasource statement cannot take the mirror's write lock
+// or mutate a row no matter what the config contains: the "writes pass
+// through origin" invariant's integrity axis for arbitrary SQL.
+func (db *DB) ReadOnly() (*sql.DB, error) {
+	return OpenReadOnly(db.path)
+}
+
+// Dashboard is one row of local.dashboards (GDK-781). Config is the
+// {html, datasources} document internal/dashboards owns; the store keeps it
+// as raw bytes so a newer config shape round-trips through an older binary.
+type Dashboard struct {
+	ID        string          `json:"id"`
+	Name      string          `json:"name"`
+	Config    json.RawMessage `json:"config"`
+	CreatedAt string          `json:"created_at,omitempty"`
+	UpdatedAt string          `json:"updated_at,omitempty"`
+}
+
+// dashboardsVersionKey is the local_meta row every dashboard write bumps.
+// The GET list response exposes it so an open tab can poll "did anything
+// change" with one integer instead of diffing the list.
+const dashboardsVersionKey = "dashboards_version"
+
+// bumpDashboardsVersion advances the change counter inside the caller's
+// transaction, so the row and the version land together or not at all.
+func bumpDashboardsVersion(ctx context.Context, tx *sql.Tx) error {
+	_, err := tx.ExecContext(ctx, `
+		INSERT INTO local.local_meta (k, v) VALUES (?, '1')
+		ON CONFLICT(k) DO UPDATE SET v = CAST(CAST(v AS INTEGER) + 1 AS TEXT)`,
+		dashboardsVersionKey)
+	return err
+}
+
+// SaveDashboard inserts a dashboard, or updates the row that already owns
+// name (keeping its id and created_at). The id is minted here so the CLI and
+// the API cannot disagree about who owns id generation. Config is stored
+// verbatim; validation of the document is internal/dashboards' job, at every
+// writer that accepts one from a user.
+func (db *DB) SaveDashboard(ctx context.Context, name, config string) (Dashboard, error) {
+	var zero Dashboard
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return zero, errors.New("dashboard name required")
+	}
+	now := Now()
+	var out Dashboard
+	err := db.write(ctx, func(tx *sql.Tx) error {
+		var id, createdAt string
+		err := tx.QueryRowContext(ctx,
+			`SELECT id, COALESCE(created_at, '') FROM local.dashboards WHERE name = ?`, name).
+			Scan(&id, &createdAt)
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			id = freshViewID()
+			if _, err := tx.ExecContext(ctx, `
+				INSERT INTO local.dashboards (id, name, config, created_at, updated_at) VALUES (?,?,?,?,?)`,
+				id, name, config, now, now); err != nil {
+				return err
+			}
+		case err != nil:
+			return err
+		default:
+			if createdAt == "" {
+				createdAt = now
+			}
+			if _, err := tx.ExecContext(ctx, `
+				UPDATE local.dashboards SET config = ?, updated_at = ? WHERE id = ?`,
+				config, now, id); err != nil {
+				return err
+			}
+		}
+		out = Dashboard{ID: id, Name: name, Config: json.RawMessage(config), CreatedAt: createdAt, UpdatedAt: now}
+		return bumpDashboardsVersion(ctx, tx)
+	})
+	if err != nil {
+		return zero, err
+	}
+	return out, nil
+}
+
+// Dashboards lists every dashboard by name.
+func (db *DB) Dashboards(ctx context.Context) ([]Dashboard, error) {
+	rows, err := db.sql.QueryContext(ctx, `
+		SELECT id, name, config, created_at, updated_at FROM local.dashboards
+		ORDER BY name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []Dashboard{}
+	for rows.Next() {
+		var d Dashboard
+		var cfg string
+		var created, updated sql.NullString
+		if err := rows.Scan(&d.ID, &d.Name, &cfg, &created, &updated); err != nil {
+			return nil, err
+		}
+		d.Config = json.RawMessage(cfg)
+		d.CreatedAt, d.UpdatedAt = created.String, updated.String
+		out = append(out, d)
+	}
+	return out, rows.Err()
+}
+
+// Dashboard looks up one row by id. Unknown id is ErrNotFound.
+func (db *DB) Dashboard(ctx context.Context, id string) (Dashboard, error) {
+	var d Dashboard
+	var cfg string
+	var created, updated sql.NullString
+	err := db.sql.QueryRowContext(ctx, `
+		SELECT id, name, config, created_at, updated_at FROM local.dashboards WHERE id = ?`, id).
+		Scan(&d.ID, &d.Name, &cfg, &created, &updated)
+	if errors.Is(err, sql.ErrNoRows) {
+		return d, ErrNotFound
+	}
+	if err != nil {
+		return d, err
+	}
+	d.Config = json.RawMessage(cfg)
+	d.CreatedAt, d.UpdatedAt = created.String, updated.String
+	return d, nil
+}
+
+// DeleteDashboard removes one row by id and bumps the change counter. Unknown
+// id is ErrNotFound.
+func (db *DB) DeleteDashboard(ctx context.Context, id string) error {
+	return db.write(ctx, func(tx *sql.Tx) error {
+		res, err := tx.ExecContext(ctx, `DELETE FROM local.dashboards WHERE id = ?`, id)
+		if err != nil {
+			return err
+		}
+		n, err := res.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if n == 0 {
+			return ErrNotFound
+		}
+		return bumpDashboardsVersion(ctx, tx)
+	})
+}
+
+// DashboardVersion is the monotonic change counter for dashboard writes
+// (0 before the first save). It moves on save and delete — the two events an
+// open tab must reflect.
+func (db *DB) DashboardVersion(ctx context.Context) (int64, error) {
+	var v sql.NullString
+	err := db.sql.QueryRowContext(ctx,
+		`SELECT v FROM local.local_meta WHERE k = ?`, dashboardsVersionKey).Scan(&v)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	n, err := strconv.ParseInt(strings.TrimSpace(v.String), 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("local.dashboards version counter: %w", err)
+	}
+	return n, nil
+}
+
+// AbsorbDashboards merges incoming rows (an export file, another machine)
+// into local.dashboards — AbsorbViews, for dashboards. Same rules: a name
+// the server already owns wins (incoming row dropped), an id that collides
+// gets a fresh one so an insert can never overwrite a stored row.
+func (db *DB) AbsorbDashboards(ctx context.Context, incoming []Dashboard) error {
+	if len(incoming) == 0 {
+		return nil
+	}
+	return db.write(ctx, func(tx *sql.Tx) error {
+		for _, d := range incoming {
+			d.Name = strings.TrimSpace(d.Name)
+			if d.ID == "" || d.Name == "" || len(d.Config) == 0 {
+				continue
+			}
+			var one int
+			err := tx.QueryRowContext(ctx,
+				`SELECT 1 FROM local.dashboards WHERE name = ? LIMIT 1`, d.Name).Scan(&one)
+			if err == nil {
+				continue // a stored row already owns this name
+			}
+			if !errors.Is(err, sql.ErrNoRows) {
+				return err
+			}
+			id := d.ID
+			err = tx.QueryRowContext(ctx,
+				`SELECT 1 FROM local.dashboards WHERE id = ? LIMIT 1`, id).Scan(&one)
+			if err == nil {
+				id = freshViewID()
+			} else if !errors.Is(err, sql.ErrNoRows) {
+				return err
+			}
+			at := Now()
+			if d.CreatedAt == "" {
+				d.CreatedAt = at
+			}
+			if _, err := tx.ExecContext(ctx, `
+				INSERT INTO local.dashboards (id, name, config, created_at, updated_at) VALUES (?,?,?,?,?)`,
+				id, d.Name, string(d.Config), d.CreatedAt, at); err != nil {
+				return err
+			}
+		}
+		return bumpDashboardsVersion(ctx, tx)
 	})
 }
