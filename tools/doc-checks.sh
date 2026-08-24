@@ -1714,4 +1714,49 @@ if [[ -n "$docs_index" ]]; then
 fi
 ok "docs/README.md links resolve and every docs/*.md is indexed"
 
+# ── 33. Copyable examples carry <version>, not a literal tag (GDK-778) ────
+# Same axis as check 31, one step further: a fence a reader copies must not
+# name a specific release archive, because the copy outlives the tag.
+# Measured 2026-08-24: docs/WINDOWS-SIGNING.md hashed
+# gadak_0.16.1_windows_amd64.zip in two copyable PowerShell blocks on a
+# v0.17.1 tree, with the "replace 0.16.1" instruction *below* the fence — so
+# the reader pasted a filename that no longer exists in the release they had.
+# Prose may name a measured release (that is history); a fence may not.
+version_pins=$(
+  python3 - <<'PINPY'
+import re
+from pathlib import Path
+
+FENCE = re.compile(r"```[^\n]*\n(.*?)```", re.S)
+ARCHIVE = re.compile(r"(?:gadak_|Gadak-)\d+\.\d+\.\d+[_-]")
+
+fails = []
+targets = [Path("README.md"), Path("README.ko.md")] + sorted(Path("docs").rglob("*.md"))
+for path in targets:
+    for block in FENCE.findall(path.read_text()):
+        for m in ARCHIVE.finditer(block):
+            fails.append(
+                f"{path.as_posix()}: fenced example pins {m.group(0)!r} — use <version> "
+                "and say what to substitute above the fence"
+            )
+if fails:
+    print("\n".join(dict.fromkeys(fails)))
+PINPY
+)
+if [[ -n "$version_pins" ]]; then
+  fail "copyable examples pin a release version:"$'\n'"$version_pins"
+fi
+ok "copyable examples in the READMEs and docs/ use <version>, not a literal tag"
+
+# ── 34. The site has one copyable-block component (GDK-779) ──────────────
+# site/src/components/Snippet.astro is the copy button. A raw <pre><code>
+# elsewhere is a block a reader cannot copy from — measured 2026-08-24: the
+# install page was rewritten around Snippet in b1de734 while the landing kept
+# four raw blocks, three of which stacked alternatives behind # comments.
+raw_pre=$(grep -rln '<pre><code>' site/src --include='*.astro' | grep -v 'components/Snippet.astro' || true)
+if [[ -n "$raw_pre" ]]; then
+  fail "site pages hold raw <pre><code> instead of the Snippet component:"$'\n'"$raw_pre"
+fi
+ok "site copyable blocks all go through Snippet.astro"
+
 echo "doc-checks: all passed"
