@@ -17,9 +17,21 @@
   sandboxed frame. The host runs the queries (arbitrary SQL over a
   read-only mirror connection, or JQL) and pushes results in by
   postMessage; the frame's only verb back is `refresh`. Saves re-render an
-  open tab in ≤1s and mirror deltas re-push data in ≤2s; uPlot and three
-  ship embedded behind a fixed same-origin whitelist, so charts mean no
-  CDN and no CSP widening ([GDK-781], [GDK-782], [GDK-792], [GDK-793]).
+  open tab in ≤1s and mirror deltas re-push data in ≤2s; uPlot ships
+  embedded behind a fixed same-origin whitelist, so charts mean no CDN and
+  no CSP widening ([GDK-781], [GDK-782], [GDK-792], [GDK-793]).
+
+- Beyond uPlot, a dashboard can use any JavaScript library the *user*
+  downloaded once: `gadak dashboards lib add <url>` fetches it (https
+  only, ≤3 redirects each re-checked, ≤8 MiB), pins its sha384, and serves
+  it from a local route that re-hashes the bytes on every request — a
+  cache file modified after the add answers 500, never executes. Saves
+  declare libs by id (`--lib`, ≤8); render injects them as deferred
+  scripts and widens script-src with the local libs path only — the CSP
+  still never names an external host, and an undeclared dashboard keeps
+  the pre-808 policy byte for byte. three.js no longer ships embedded
+  (−750 KB per binary); it is the documented `lib add` example instead
+  ([GDK-808]).
 
 ## v0.17.1 — 2026-08-24
 
@@ -1173,3 +1185,4 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-782]: https://gadak.dev/backlog/#/?ks=GDK-782
 [GDK-792]: https://gadak.dev/backlog/#/?ks=GDK-792
 [GDK-793]: https://gadak.dev/backlog/#/?ks=GDK-793
+[GDK-808]: https://gadak.dev/backlog/#/?ks=GDK-808

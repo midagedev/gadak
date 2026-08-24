@@ -38,10 +38,14 @@ type Source struct {
 }
 
 // Config is the document a dashboard row stores. Datasources may be empty —
-// a static HTML dashboard is valid — but never nil after ParseConfig.
+// a static HTML dashboard is valid — but never nil after ParseConfig. Libs
+// (GDK-808) names cache entries from `gadak dashboards lib add`; existence is
+// checked by the save paths (CLI and API), not here — ParseConfig owns the
+// shape, callers own the world.
 type Config struct {
 	HTML        string            `json:"html"`
 	Datasources map[string]Source `json:"datasources,omitempty"`
+	Libs        []string          `json:"libs,omitempty"`
 }
 
 // NamePattern is the datasource-name rule, quoted verbatim in every
@@ -66,9 +70,9 @@ func ParseConfig(raw []byte) (Config, error) {
 	var cfg Config
 	for key := range top {
 		switch key {
-		case "html", "datasources":
+		case "html", "datasources", "libs":
 		default:
-			return Config{}, fmt.Errorf("dashboard config: unknown field %q (expected html, datasources)", key)
+			return Config{}, fmt.Errorf("dashboard config: unknown field %q (expected html, datasources, libs)", key)
 		}
 	}
 	if rawHTML, ok := top["html"]; ok {
@@ -94,6 +98,24 @@ func ParseConfig(raw []byte) (Config, error) {
 				return Config{}, fmt.Errorf("datasource %q: %w", name, err)
 			}
 			cfg.Datasources[name] = src
+		}
+	}
+	if rawLibs, ok := top["libs"]; ok {
+		if err := json.Unmarshal(rawLibs, &cfg.Libs); err != nil {
+			return Config{}, fmt.Errorf("dashboard config: libs must be an array of lib ids: %w", err)
+		}
+		if len(cfg.Libs) > MaxLibs {
+			return Config{}, fmt.Errorf("dashboard config: libs lists %d entries, at most %d (chart libraries load in order; more than that is a config accident)", len(cfg.Libs), MaxLibs)
+		}
+		seen := make(map[string]bool, len(cfg.Libs))
+		for _, id := range cfg.Libs {
+			if !ValidLibID(id) {
+				return Config{}, fmt.Errorf("dashboard config: lib id %q must match %s (the id `gadak dashboards lib list` prints)", id, LibIDPattern)
+			}
+			if seen[id] {
+				return Config{}, fmt.Errorf("dashboard config: lib id %q is listed twice", id)
+			}
+			seen[id] = true
 		}
 	}
 	return cfg, nil

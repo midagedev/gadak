@@ -25,7 +25,7 @@ Your HTML runs in an iframe with `sandbox="allow-scripts"` and nothing else —
 no `allow-same-origin`, so the document's origin is *opaque*: it cannot read
 gadak's cookies, storage, or DOM. The response carries a CSP that closes the
 network to everything except inline script/style, `data:` images, and the
-vendored chart libraries:
+vendored chart library:
 
 ```
 default-src 'none';
@@ -36,6 +36,11 @@ img-src data:
 
 (The vendor source names the actual host the dashboard was served from; the
 frame's origin is opaque, so CSP `'self'` matches nothing there.)
+
+A dashboard that declares cached libraries (below) gets exactly one more
+script source — `…/api/v1/dashboards/libs/` joined to script-src, never
+style-src — and a dashboard that declares nothing keeps this policy byte for
+byte. There is no variant of this header that names an external host.
 
 Your document **never runs queries and never fetches**. There is no
 `fetch()`, no `XMLHttpRequest`, no external script, no font, no image URL —
@@ -114,10 +119,10 @@ web UI uses; `assignee = currentUser()` and `resolution is EMPTY` behave as
 in Jira. Full column reference: [`AGENTS.md`](../AGENTS.md) and
 [`RECIPES.md`](RECIPES.md).
 
-## Chart libraries (vendored)
+## Chart library (vendored: uPlot)
 
 Don't reach for a CDN — outbound script hosts are not allowed, by policy and
-by CSP. Pinned builds ship inside gadak and are served from the same origin:
+by CSP. uPlot ships pinned inside gadak and is served from the same origin:
 
 ```html
 <link rel="stylesheet" href="/api/v1/dashboards/vendor/uPlot.min.css">
@@ -126,30 +131,77 @@ by CSP. Pinned builds ship inside gadak and are served from the same origin:
 
 Use the **leading slash**. The document's base URL is
 `/api/v1/dashboards/<id>/render/`; a relative `src` would misresolve. The
-whitelist is fixed — `uPlot.iife.min.js`, `uPlot.min.css`,
-`three.module.min.js`, `three.core.min.js` — anything else on that path is a
-404.
+whitelist is fixed — `uPlot.iife.min.js`, `uPlot.min.css` — anything else on
+that path is a 404.
 
-uPlot loads as a classic script (`uPlot` global). three is an ES module and
-pulls its core build via a relative import, which the route serves:
+uPlot loads as a classic script (the `uPlot` global). The example dashboard
+(`examples/dashboards/triage.html`) charts with uPlot this way — the example
+*is* the norm. Colors are explicit on every element: the frame inherits
+nothing from the app shell, so set your own palette and test it against your
+own background, not the host's.
 
-```html
-<script type="module">
-  import * as THREE from '/api/v1/dashboards/vendor/three.module.min.js';
-  // three.core.min.js resolves automatically; no import map needed
-</script>
+## Other libraries (the lib cache)
+
+Anything beyond uPlot — three for 3D, D3, date-fns — is **not** embedded.
+Embedding it would ship ~750 KB to every user for a dashboard most never
+write, and CSP would still never name an external host. Instead the user
+downloads it once, on purpose, and from then on dashboards load it from
+gadak's own disk:
+
+```
+gadak dashboards lib add https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js
 ```
 
-The example dashboard (`examples/dashboards/triage.html`) charts with uPlot
-this way — the example *is* the norm. Colors are explicit on every element:
-the frame inherits nothing from the app shell, so set your own palette and
-test it against your own background, not the host's.
+That is the only outbound request in this feature — one `GET`, user-invoked,
+to the exact URL typed. https only (plain http is refused unless the host is
+localhost or an IP literal); at most 3 redirects, every hop re-checked
+against the same rule; bodies over 50 MiB refused. The command prints the
+evidence — url, sha384, size, and the cache path — so you can compare the
+hash against an independent source before trusting the file:
+
+```
+curl -s <url> | openssl dgst -sha384 -r   # must equal the printed sha384
+```
+
+No expected hash is printed here on purpose: the procedure is the contract,
+and a hash pasted into this document would rot with every upstream release.
+
+Declare the lib when saving (the id is what `lib add` printed; repeat
+`--lib` for several, order = load order, at most 8):
+
+```
+gadak dashboards save model --html model.html --lib <id>
+```
+
+Render injects `<script src="/api/v1/dashboards/libs/<id>" defer>` into the
+document head for each declared lib, in order, and widens script-src with
+the local libs path — nothing else. The document itself has no script tag
+for the library and never names a CDN.
+
+**One file per lib.** The cache stores one self-contained file per id;
+`three@0.149.0/build/three.min.js` above is the single-file classic (UMD)
+build on purpose. Modern three ships split ES-module builds
+(`three.module.min.js` importing `./three.core.min.js` relatively) — a
+relative import cannot resolve inside a hash-named one-file cache, so pin a
+single-file build or bundle the module graph yourself before `lib add`.
+
+The cache is disposable, like the mirror: `<profile>/dashboards/libs/` can
+be deleted wholesale and repopulated with `lib add`. Re-adding the same url
+with unchanged bytes is a no-op; if upstream changed, the add is refused
+until `--replace` (the old id keeps serving until you re-save). `lib list`
+shows the cache, `lib rm <id>` drops an entry. Before serving cached bytes,
+gadak re-hashes them against the pin recorded at add time — a file modified
+afterward fails that check (HTTP 500) instead of executing, and the injected
+tag marks the failure on the document element
+(`data-gadak-lib-error="<id>"`), which a defensive dashboard can show as a
+broken card rather than a silent gap.
 
 ## Residual channels (read this before trusting the wall)
 
 The sandbox plus CSP close script, style, image, font, frame, fetch, and
-XHR traffic to every origin but the vendor path. Two channels remain, and
-calling them "blocked" would be the one fatal flaw of this document:
+XHR traffic to every origin but the same-origin vendor and lib paths. Two
+channels remain, and calling them "blocked" would be the one fatal flaw of
+this document:
 
 1. **Self-navigation URL loading.** A link or script inside the document can
    navigate the iframe *itself* to an external URL (`<a href>`,
@@ -176,5 +228,6 @@ who runs the serve. The threat model is not "untrusted third party crafts
 HTML" — it is "an agent generates HTML on my behalf and I want the blast
 radius of a mistake to be a broken wall, not an exfiltrated session." Every
 choice above — opaque origin, query execution outside the frame, the
-one-verb whitelist, vendor-from-same-origin — shrinks what a generated
-document can do without shrinking what it can show.
+one-verb whitelist, vendor-and-libs-from-same-origin, libraries hashed at
+download and re-hashed at serve — shrinks what a generated document can do
+without shrinking what it can show.

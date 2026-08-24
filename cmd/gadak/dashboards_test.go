@@ -10,15 +10,25 @@ package main
 //	config validation before any write | TestDashboardsSaveFlagErrors (empty html saves nothing)
 //	open writes hash dash=<id>         | TestDashboardsOpenWritesFocusHash (--no-open, one-shot file)
 //	help registered, dispatches        | TestDashboardsHelp (parity with commands map is a separate standing test)
+//	lib add prints the evidence        | TestDashboardsLibCLI (url/sha384/size/path, sha384 verified)
+//	lib add loopback http only         | TestDashboardsLibCLI (external http refused, nothing cached)
+//	save --lib: unknown id refused     | TestDashboardsLibCLI (recipe in the error, row not written)
+//	lib list/rm round trip             | TestDashboardsLibCLI (manifest row in, rm drops it)
 
 import (
+	"crypto/sha512"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/dashboards"
 	"github.com/midagedev/gadak/internal/uifocus"
 )
 
@@ -205,5 +215,99 @@ func TestDashboardsHelp(t *testing.T) {
 	}
 	if !strings.Contains(out, "dashboards save <name>") {
 		t.Fatalf("help output missing usage: %q", out)
+	}
+}
+
+// TestDashboardsLibCLI (GDK-808): the lib cache's front door. `lib add`
+// prints the evidence (url, sha384, size, path) so the run that fetched the
+// bytes and the config that pins them can be compared by eye; a save naming
+// an uncached id is refused with the recipe; list/rm manage the manifest.
+// The "CDN" is a loopback httptest server — http to 127.0.0.1 is exactly the
+// self-hosting case the url rule allows, and no test leaves the machine.
+func TestDashboardsLibCLI(t *testing.T) {
+	sqlDemoHome(t)
+	body := "window.demoLib = {version: 1};\n"
+	cdn := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, body)
+	}))
+	t.Cleanup(cdn.Close)
+
+	out, err := capture(t, func() error {
+		return cmdDashboards([]string{"lib", "add", cdn.URL + "/demo-lib.iife.js"})
+	})
+	if err != nil {
+		t.Fatalf("lib add: %v\n%s", err, out)
+	}
+	id := field(t, out, "added")
+	sum := sha512.Sum384([]byte(body))
+	if got := field(t, out, "sha384"); got != hex.EncodeToString(sum[:]) {
+		t.Errorf("sha384 = %s, want the hash of the fetched bytes", got)
+	}
+	if got := field(t, out, "url"); got != cdn.URL+"/demo-lib.iife.js" {
+		t.Errorf("url = %s", got)
+	}
+	if got := field(t, out, "size"); got != fmt.Sprint(len(body)) {
+		t.Errorf("size = %s", got)
+	}
+	// The printed path is a real file inside this profile's cache dir.
+	p := field(t, out, "path")
+	if filepath.Base(p) != id || !strings.Contains(p, "dashboards"+string(filepath.Separator)+"libs"+string(filepath.Separator)) {
+		t.Errorf("path %q must be <profile>/dashboards/libs/%s", p, id)
+	}
+	if _, err := os.Stat(p); err != nil {
+		t.Fatalf("printed path does not exist: %v", err)
+	}
+
+	// list carries the row; save --lib pins the id into the config.
+	if out, err = capture(t, func() error { return cmdDashboards([]string{"lib", "list"}) }); err != nil {
+		t.Fatalf("lib list: %v\n%s", err, out)
+	}
+	if !strings.HasPrefix(out, id+"\t") {
+		t.Fatalf("lib list row = %q", out)
+	}
+	html := writeHTML(t, "<p>wall</p>")
+	if out, err = capture(t, func() error {
+		return cmdDashboards([]string{"save", "WithLib", "--html", html, "--lib", id})
+	}); err != nil {
+		t.Fatalf("save --lib: %v\n%s", err, out)
+	}
+	if out, err = capture(t, func() error { return cmdDashboards([]string{"show", "withlib"}) }); err != nil || !strings.Contains(out, "lib\t"+id) {
+		t.Fatalf("show after save --lib = %q (%v)", out, err)
+	}
+
+	// rm: the manifest row and the bytes go; a save naming the removed id is
+	// refused with the recipe, and nothing is written.
+	if out, err = capture(t, func() error { return cmdDashboards([]string{"lib", "rm", id}) }); err != nil || !strings.HasPrefix(out, "deleted\t"+id) {
+		t.Fatalf("lib rm = %q (%v)", out, err)
+	}
+	if _, err := os.Stat(p); !os.IsNotExist(err) {
+		t.Fatalf("cache file survived lib rm")
+	}
+	_, _, err = captureErr(t, func() error {
+		return cmdDashboards([]string{"save", "AfterRm", "--html", html, "--lib", id})
+	})
+	if err == nil || !strings.Contains(err.Error(), "gadak dashboards lib add") {
+		t.Fatalf("save with removed lib = %v, want the lib add recipe", err)
+	}
+	if out, err := capture(t, func() error { return cmdDashboards([]string{"show", "afterrm"}) }); err == nil {
+		t.Fatalf("refused save still wrote a row: %q", out)
+	}
+
+	// The url rule, at the front door: an external http url is refused
+	// before any dial, and the cache is unchanged by the refusal.
+	_, stderr, err := captureErr(t, func() error {
+		return cmdDashboards([]string{"lib", "add", "http://cdn.example.com/evil.js"})
+	})
+	if err == nil || !strings.Contains(err.Error(), "https") && !strings.Contains(stderr, "https") {
+		t.Fatalf("external http accepted: %v / %s", err, stderr)
+	}
+	if out, err = capture(t, func() error { return cmdDashboards([]string{"lib", "list", "--json"}) }); err != nil {
+		t.Fatalf("lib list --json: %v\n%s", err, out)
+	}
+	var m struct {
+		Libs []dashboards.Lib `json:"libs"`
+	}
+	if err := json.Unmarshal([]byte(out), &m); err != nil || len(m.Libs) != 0 {
+		t.Fatalf("cache after refused add = %s (%v)", out, err)
 	}
 }

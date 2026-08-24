@@ -1,13 +1,14 @@
-import { readFileSync } from 'node:fs'
+import { spawn } from 'node:child_process'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { createServer, type Server } from 'node:http'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { expect, test, type APIRequestContext } from '@playwright/test'
-import { gotoApp } from './helpers'
+import { e2eHomeDir, gotoApp } from './helpers'
 
 /*
- * Agent dashboards, web host half (GDK-782/793; vendor GDK-792) — against the
- * real serve binary. The four contracts this file pins:
+ * Agent dashboards, web host half (GDK-782/793; vendor GDK-792; libs
+ * GDK-808) — against the real serve binary. The contracts this file pins:
  *
  *  1. opening from the sidebar renders the example dashboard inside the
  *     sandboxed frame and every datasource's data arrives (postMessage).
@@ -15,21 +16,28 @@ import { gotoApp } from './helpers'
  *     reloading the page — the GDK-793 p95 ≤ 1s authoring contract.
  *  3. the frame's own outbound attempts never reach the network: CSP refuses
  *     img/script/style/fetch to an external host before a request is made.
- *  4. the vendored chart libraries load inside the opaque-origin frame:
- *     uPlot draws a canvas (test 1's dashboard), three's ESM import chain
- *     with its relative core import resolves (test 5).
+ *  4. libraries beyond uPlot come from the local lib cache (GDK-808):
+ *     `lib add` downloads once (loopback mock CDN below — no real internet
+ *     in any test), render executes the cached script (test 5) with zero
+ *     render-time requests back to the host it was fetched from, and cache
+ *     bytes tampered after the add refuse to serve — no execution, and the
+ *     injected tag's onerror marker is visible to the document (test 6).
  *
  * Fixture hygiene: dashboard rows live in local.db, which serve.sh seeds
  * fresh per server start — but reuseExistingServer keeps one server alive
  * across local runs, so every test names its rows with PREFIX and the sweep
  * in beforeAll/afterAll deletes them (a crashed run is cleaned by the next
- * run's beforeAll).
+ * run's beforeAll). Lib cache entries are `lib rm`-ed by the tests that
+ * added them; a crashed run leaves bytes that the next run's identical-mock
+ * re-add turns into an idempotent `present`.
  */
 
 const E2E_DIR = dirname(fileURLToPath(import.meta.url))
 const RUN = Date.now().toString(36)
 const PREFIX = 'E2E Dash'
 const FRAME_SEL = 'iframe[data-testid="dashboard-frame"]'
+const GADAK_BIN = join(E2E_DIR, '.tmp', 'gadak')
+const GADAK_HOME = e2eHomeDir()
 
 /** The example's own registration comment is the source of truth for these. */
 const TRIAGE_DS = {
@@ -54,9 +62,10 @@ async function saveDash(
   name: string,
   html: string,
   datasources: Record<string, { sql?: string; jql?: string }>,
+  libs?: string[],
 ): Promise<SavedRow> {
   const res = await request.post('/api/v1/dashboards/', {
-    data: { name, config: { html, datasources } },
+    data: { name, config: { html, datasources, ...(libs ? { libs } : {}) } },
   })
   expect(res.status(), `save ${name} failed: ${await res.text()}`).toBe(201)
   return (await res.json()) as SavedRow
@@ -269,20 +278,141 @@ window.addEventListener('message', function (ev) {
   sink.close()
 })
 
-test("three's ESM chain resolves from the vendor route inside the frame", async ({ page }) => {
-  const html = `<!doctype html><html><body style="font: 14px sans-serif">
-<div id="three-ok">pending</div>
-<script type="module">
-import * as THREE from '/api/v1/dashboards/vendor/three.module.min.js';
-document.getElementById('three-ok').textContent = 'THREE r' + THREE.REVISION;
+/*
+ * The lib cache, end to end (GDK-808). "CDN" below is a loopback mock —
+ * no test in this file talks to the internet — and it doubles as the TCP
+ * sink: it counts every request that ever reaches it, so "the library was
+ * downloaded once, at add time, and never again" is a socket-level claim,
+ * not a devtools-panel one (same discipline as the blockednet test above).
+ */
+
+/** Mock CDN serving one fixed library body, counting every request. */
+async function mockCDN(body: string): Promise<{
+  server: Server
+  url: (p: string) => string
+  received: string[]
+}> {
+  const received: string[] = []
+  const server = createServer((req, res) => {
+    received.push(`${req.method} ${req.url}`)
+    res.writeHead(200, { 'content-type': 'application/javascript' })
+    res.end(body)
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const port = (server.address() as { port: number }).port
+  return { server, url: (p: string) => `http://127.0.0.1:${port}/${p}`, received }
+}
+
+/**
+ * Run the e2e CLI binary against the e2e home (the serve's own home).
+ * Async spawn, not spawnSync: the mock CDN lives in this same worker
+ * process, and a sync spawn freezes the event loop that must answer the
+ * child's HTTP request (measured: spawnSync deadlocks lib add into its
+ * own timeout).
+ */
+function runGadak(args: string[]): Promise<{ status: number; stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(GADAK_BIN, args, { env: { ...process.env, GADAK_HOME: GADAK_HOME } })
+    let stdout = ''
+    let stderr = ''
+    child.stdout.on('data', (d) => (stdout += d))
+    child.stderr.on('data', (d) => (stderr += d))
+    child.on('error', reject)
+    child.on('close', (status) => resolve({ status: status ?? -1, stdout, stderr }))
+  })
+}
+
+/** Pick the value of one `key\tvalue` line out of a TSV stdout. */
+function tsvField(out: string, key: string): string {
+  const line = out.split('\n').find((l) => l.startsWith(`${key}\t`))
+  return line ? line.slice(key.length + 1).trim() : ''
+}
+
+/** A document that reports whether the cached lib ran, defensively. */
+const libHtml = `<!doctype html><html><head></head><body style="font: 14px sans-serif">
+<div id="lib-ran">pending</div>
+<div id="lib-error">none</div>
+<script>
+// Inline registers first; defer scripts (the injected lib tag) run after
+// parse but before DOMContentLoaded — so DCL is the first moment that can
+// judge both "the lib executed" and "the injected tag errored".
+document.addEventListener('DOMContentLoaded', function () {
+  document.getElementById('lib-ran').textContent =
+    window.__e2eDemoLib ? 'loaded' : 'missing';
+  var bad = document.documentElement.getAttribute('data-gadak-lib-error');
+  if (bad) document.getElementById('lib-error').textContent = 'lib failed: ' + bad;
+});
 </script>
 </body></html>`
-  const saved = await saveDash(page.request, `${PREFIX} ${RUN} vendor3`, html, {})
-  // module {} — static HTML dashboard is valid (ParseConfig allows empty datasources)
 
-  await gotoApp(page)
-  await page.locator(`[data-dashboard-id="${saved.id}"]`).click()
-  // three.module.min.js imports ./three.core.min.js relatively; if the route
-  // did not serve the core file, this stays "pending" and the test times out.
-  await expect(page.frameLocator(FRAME_SEL).locator('#three-ok')).toHaveText(/^THREE r[\w.]+$/)
+test('lib add caches once and render executes it with zero requests back to its origin', async ({
+  page,
+}) => {
+  const cdn = await mockCDN('window.__e2eDemoLib = {ran: true};\n')
+  const url = cdn.url('demo-lib.iife.js')
+
+  // The one user-invoked download. Same bytes on a crashed earlier run →
+  // `present` with the same id; both verbs carry the id on line 1.
+  const ran = await runGadak(['dashboards', 'lib', 'add', url])
+  expect(ran.status, ran.stderr || ran.stdout).toBe(0)
+  const id = tsvField(ran.stdout, 'added') || tsvField(ran.stdout, 'present')
+  expect(id, `lib add stdout:\n${ran.stdout}`).toMatch(/^[0-9a-f]{16}-demo-lib\.iife\.js$/)
+  expect(tsvField(ran.stdout, 'url')).toBe(url)
+  expect(tsvField(ran.stdout, 'sha384')).toMatch(/^[0-9a-f]{96}$/)
+  // The add-time download is the only request so far.
+  expect(cdn.received, `mock CDN saw: ${cdn.received.join(', ')}`).toEqual(['GET /demo-lib.iife.js'])
+
+  try {
+    const saved = await saveDash(page.request, `${PREFIX} ${RUN} libok`, libHtml, {}, [id])
+    await gotoApp(page)
+    await page.locator(`[data-dashboard-id="${saved.id}"]`).click()
+    const fl = page.frameLocator(FRAME_SEL)
+    // The cached script executed inside the frame: the lib global exists.
+    await expect(fl.locator('#lib-ran')).toHaveText('loaded')
+    await expect(fl.locator('#lib-error')).toHaveText('none')
+    // GDK-808's network claim, at the socket: rendering fetched the lib from
+    // the local route, and nothing re-contacted the host it came from. The
+    // window is the assertion (a deferred or retrying fetch would land in it).
+    await page.waitForTimeout(800)
+    expect(
+      cdn.received,
+      `render-time request(s) reached the lib's origin: ${cdn.received.join(', ')}`,
+    ).toEqual(['GET /demo-lib.iife.js'])
+  } finally {
+    cdn.server.close()
+    await runGadak(['dashboards', 'lib', 'rm', id])
+  }
+})
+
+test('cache bytes tampered after lib add refuse to serve — no execution, visible failure', async ({
+  page,
+}) => {
+  const cdn = await mockCDN('window.__e2eDemoLib = {ran: true};\n')
+  const ran = await runGadak(['dashboards', 'lib', 'add', cdn.url('demo-lib.iife.js')])
+  expect(ran.status, ran.stderr || ran.stdout).toBe(0)
+  const id = tsvField(ran.stdout, 'added') || tsvField(ran.stdout, 'present')
+  const path = tsvField(ran.stdout, 'path')
+  expect(Boolean(id && path), `lib add stdout:\n${ran.stdout}`).toBeTruthy()
+
+  // Tamper the cached bytes on disk, after the pin was written. The restore
+  // in finally is not politeness: a tampered file left behind would make the
+  // next run's same-url add refuse ("changed since cached") forever.
+  const pinned = readFileSync(path, 'utf8')
+  writeFileSync(path, 'window.__e2eDemoLib = {ran: true, evil: true}; // tampered\n')
+  try {
+    const saved = await saveDash(page.request, `${PREFIX} ${RUN} libtamper`, libHtml, {}, [id])
+    await gotoApp(page)
+    await page.locator(`[data-dashboard-id="${saved.id}"]`).click()
+    const fl = page.frameLocator(FRAME_SEL)
+    // The serve route re-hashed the bytes against the pin, answered 500, and
+    // the script never executed — the tampered global is absent.
+    await expect(fl.locator('#lib-ran')).toHaveText('missing')
+    // The injected tag's onerror marker is on the document element, and the
+    // defensive dashboard showed it as a broken card instead of a silent gap.
+    await expect(fl.locator('#lib-error')).toHaveText(`lib failed: ${id}`)
+  } finally {
+    writeFileSync(path, pinned) // leave the cache as the add left it
+    cdn.server.close()
+    await runGadak(['dashboards', 'lib', 'rm', id])
+  }
 })

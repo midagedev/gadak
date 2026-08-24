@@ -6,11 +6,14 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/dashboards"
+	"github.com/midagedev/gadak/internal/fsperm"
 	"github.com/midagedev/gadak/internal/uifocus"
 )
 
@@ -27,7 +30,7 @@ func cmdDashboards(args []string) error {
 	sub, rest := "list", args
 	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
 		switch args[0] {
-		case "list", "show", "open", "save", "rm":
+		case "list", "show", "open", "save", "rm", "lib":
 			sub, rest = args[0], args[1:]
 		default:
 			sub, rest = "show", args
@@ -44,9 +47,131 @@ func cmdDashboards(args []string) error {
 		return dashboardsSave(rest)
 	case "rm":
 		return dashboardsRm(rest)
+	case "lib":
+		return dashboardsLib(rest)
 	default:
-		return usageError("dashboards", `usage: gadak dashboards [list|show|open|save|rm]`)
+		return usageError("dashboards", `usage: gadak dashboards [list|show|open|save|rm|lib add|lib list|lib rm]`)
 	}
+}
+
+// dashboardsLib is the library-cache verb set (GDK-808): `lib add <url>`
+// performs the one user-invoked download that ever fetches a dashboard
+// library, `lib list` prints the ids configs reference, `lib rm <id>` drops
+// an entry. The cache lives under the profile directory, not local.db — it
+// is re-fetchable state, like the mirror.
+func dashboardsLib(args []string) error {
+	sub, rest := "list", args
+	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+		switch args[0] {
+		case "add", "list", "rm":
+			sub, rest = args[0], args[1:]
+		default:
+			return usageError("dashboards lib", `usage: gadak dashboards lib [add <url> [--replace]|list|rm <id>]`)
+		}
+	}
+	switch sub {
+	case "add":
+		return dashboardsLibAdd(rest)
+	case "list":
+		return dashboardsLibList(rest)
+	case "rm":
+		return dashboardsLibRm(rest)
+	default:
+		return usageError("dashboards lib", `usage: gadak dashboards lib [add <url> [--replace]|list|rm <id>]`)
+	}
+}
+
+// dashboardsLibAdd downloads one library into the cache and prints the
+// evidence — url, hash, size, path — so the run that fetched the bytes and
+// the config that pins them can be checked against each other by eye.
+func dashboardsLibAdd(args []string) error {
+	fs := newFlagSet("dashboards lib add")
+	replace := fs.Bool("replace", false, "accept an upstream change when the same url now serves different bytes")
+	pos, err := parseAround(fs, args)
+	if err != nil {
+		return err
+	}
+	rawURL := strings.TrimSpace(strings.Join(pos, " "))
+	if rawURL == "" {
+		return usageError("dashboards lib add", `usage: gadak dashboards lib add <url> [--replace]`)
+	}
+	dir, err := libCacheDir()
+	if err != nil {
+		return err
+	}
+	lib, added, err := dashboards.LibAdd(context.Background(), dir, rawURL, *replace, time.Now())
+	if err != nil {
+		return err
+	}
+	verb := "present"
+	if added {
+		verb = "added"
+	}
+	fmt.Printf("%s\t%s\n", verb, lib.ID)
+	fmt.Printf("url\t%s\n", lib.URL)
+	fmt.Printf("sha384\t%s\n", lib.SHA384)
+	fmt.Printf("size\t%d\n", lib.Size)
+	fmt.Printf("fetched_at\t%s\n", lib.FetchedAt)
+	fmt.Printf("path\t%s\n", filepath.Join(dir, lib.ID))
+	return nil
+}
+
+func dashboardsLibList(args []string) error {
+	fs := newFlagSet("dashboards lib list")
+	asJSON := fs.Bool("json", false, "emit the cache manifest as JSON")
+	if _, err := parseAround(fs, args); err != nil {
+		return err
+	}
+	dir, err := libCacheDir()
+	if err != nil {
+		return err
+	}
+	libs, err := dashboards.LibList(dir)
+	if err != nil {
+		return err
+	}
+	if *asJSON {
+		return json.NewEncoder(os.Stdout).Encode(map[string]any{"libs": libs})
+	}
+	for _, l := range libs {
+		fmt.Printf("%s\t%d\t%s\t%s\n", l.ID, l.Size, l.FetchedAt, l.URL)
+	}
+	return nil
+}
+
+func dashboardsLibRm(args []string) error {
+	fs := newFlagSet("dashboards lib rm")
+	pos, err := parseAround(fs, args)
+	if err != nil {
+		return err
+	}
+	id := strings.TrimSpace(strings.Join(pos, " "))
+	if id == "" {
+		return usageError("dashboards lib rm", `usage: gadak dashboards lib rm <id>`)
+	}
+	dir, err := libCacheDir()
+	if err != nil {
+		return err
+	}
+	if err := dashboards.LibRemove(dir, id); err != nil {
+		return err
+	}
+	fmt.Printf("deleted\t%s\n", id)
+	return nil
+}
+
+// libCacheDir resolves this profile's dashboards/libs directory, creating it
+// on demand (fsperm-private). Empty ids listed by `lib list` mean no cache.
+func libCacheDir() (string, error) {
+	d, err := config.Dir()
+	if err != nil {
+		return "", err
+	}
+	dir := dashboards.LibsDir(d)
+	if err := fsperm.EnsurePrivateDir(dir); err != nil {
+		return "", err
+	}
+	return dir, nil
 }
 
 func dashboardsList(args []string) error {
@@ -109,6 +234,9 @@ func dashboardsShow(args []string) error {
 	fmt.Printf("created_at\t%s\n", d.CreatedAt)
 	fmt.Printf("updated_at\t%s\n", d.UpdatedAt)
 	fmt.Printf("html_bytes\t%d\n", len(cfg.HTML))
+	for _, id := range cfg.Libs {
+		fmt.Printf("lib\t%s\n", id)
+	}
 	// Datasource names print sorted so repeated runs diff clean.
 	names := make([]string, 0, len(cfg.Datasources))
 	for n := range cfg.Datasources {
@@ -134,6 +262,8 @@ func dashboardsSave(args []string) error {
 	htmlFlag := fs.String("html", "", "HTML document file; - reads stdin")
 	var sources labelFlags
 	fs.Var(&sources, "datasource", "named datasource: name=sql:QUERY or name=jql:QUERY (repeatable)")
+	var libIDs labelFlags
+	fs.Var(&libIDs, "lib", "cached library id to declare (repeatable; ids from `gadak dashboards lib list`)")
 	asJSON := fs.Bool("json", false, "emit the saved row as JSON")
 	pos, err := parseAround(fs, args)
 	if err != nil {
@@ -141,13 +271,13 @@ func dashboardsSave(args []string) error {
 	}
 	name := strings.TrimSpace(strings.Join(pos, " "))
 	if name == "" || strings.TrimSpace(*htmlFlag) == "" {
-		return usageError("dashboards", `usage: gadak dashboards save <name> --html <file|-> [--datasource name=sql:…]…`)
+		return usageError("dashboards", `usage: gadak dashboards save <name> --html <file|-> [--datasource name=sql:…]… [--lib <id>]…`)
 	}
 	html, err := readHTMLFlag(*htmlFlag)
 	if err != nil {
 		return err
 	}
-	cfg := dashboards.Config{HTML: html, Datasources: map[string]dashboards.Source{}}
+	cfg := dashboards.Config{HTML: html, Datasources: map[string]dashboards.Source{}, Libs: libIDs}
 	for _, spec := range sources {
 		src, err := parseDatasourceFlag(spec)
 		if err != nil {
@@ -161,6 +291,21 @@ func dashboardsSave(args []string) error {
 	}
 	if _, err := dashboards.ParseConfig(body); err != nil {
 		return err
+	}
+	// Declared libs must already be cached (GDK-808) — same rule the server
+	// enforces on POST, so a config cannot pin an id the cache never held.
+	if len(libIDs) > 0 {
+		dir, err := libCacheDir()
+		if err != nil {
+			return err
+		}
+		missing, err := dashboards.LibsExist(dir, libIDs)
+		if err != nil {
+			return err
+		}
+		if len(missing) > 0 {
+			return fmt.Errorf("lib %s is not in the cache — run `gadak dashboards lib add <url>` and re-save with the id it prints (see `gadak dashboards lib list`)", missing[0])
+		}
 	}
 	db, err := openStore()
 	if err != nil {

@@ -16,12 +16,13 @@ grep -rniE 'telemetry|analytics|mixpanel|amplitude|posthog|sentry\.io|google-ana
 # → 0
 ```
 
-**2. Outbound traffic is the five destinations in SECURITY.md.**
-<!-- outbound: Your own Atlassian site | GitHub Releases | Linear | Pairing home serve | User-invoked gh -->
+**2. Outbound traffic is the six destinations in SECURITY.md.**
+<!-- outbound: Your own Atlassian site | GitHub Releases | Linear | Pairing home serve | User-invoked gh | User-invoked library download -->
 Your own Atlassian site; GitHub's release API
 (`api.github.com/repos/midagedev/gadak/releases/latest`); Linear
 (`api.linear.app` GraphQL and a signed PUT to `uploads.linear.app`); a
-pairing home serve; user-invoked `gh`. The `atlassian.net` strings below
+pairing home serve; user-invoked `gh`; a one-shot, user-invoked
+`gadak dashboards lib add <url>` download to the URL the user typed. The `atlassian.net` strings below
 are placeholders in help text and comments. `developer.microsoft.com`,
 `x.com`, and `github.com` are desktop Help-menu / help-text strings, not
 hosts the HTTP client calls; `https://github` is the regex literal

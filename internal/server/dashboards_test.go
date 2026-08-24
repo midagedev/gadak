@@ -10,9 +10,15 @@ package server
 //	POST validation failure → 400+reason| TestDashboardSaveValidation (empty html, both sql+jql, name, body, size)
 //	DELETE unknown id → 404             | TestDashboardSaveListDelete, TestDashboardDataErrors
 //	render: html bytes + exact CSP      | TestDashboardRenderCSP (headers, body bytes; [GDK-792] vendor
-//	                                    |  source per-host, only-host assertion, fail-closed on bad Host)
+//	                                    |  source per-host, only-host assertion, fail-closed on bad Host;
+//	                                    |  [GDK-808] undeclared libs keep the policy byte-identical)
 //	GET {id}/ → row with config         | TestDashboardGetRow (web host's datasource map read)
-//	vendor/{file}: embed whitelist      | TestDashboardVendorRoute (4 assets + types + CORS; rest 404)
+//	vendor/{file}: embed whitelist      | TestDashboardVendorRoute (uPlot assets + types + CORS; rest 404)
+//	libs/{file}: local cache, hash-pinned| TestDashboardLibRoute (200+fixed type+CORS; unknown 404; tampered
+//	                                    |  bytes 500 — re-hashed at serve time; traversal ids miss)
+//	save: libs must exist in the cache  | TestDashboardSaveLibs (unknown id 400 + lib add recipe; known 201)
+//	render: declared libs injected      | TestDashboardRenderLibs (order, headless fallback, CSP widening
+//	                                    |  script-src-only; undeclared = no injection, old policy)
 //	render: corrupt stored row → 500    | TestDashboardRenderCorruptConfig
 //	data sql → read-only execution      | TestDashboardDataSQL (+ display-name warning axis)
 //	data jql → same shape, fixed cols   | TestDashboardDataJQL
@@ -25,11 +31,16 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/midagedev/gadak/internal/dashboards"
 	"github.com/midagedev/gadak/internal/store"
 )
 
@@ -260,7 +271,7 @@ func TestDashboardRenderCSP(t *testing.T) {
 	if got := vendorCSPSource("localhost", true); got != "https://localhost"+dashVendorPath {
 		t.Errorf("tls vendor source = %q", got)
 	}
-	if got := dashboardCSP(""); got != `default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:` {
+	if got := dashboardCSP("", ""); got != `default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:` {
 		t.Errorf("fail-closed CSP drifted: %q", got)
 	}
 }
@@ -271,10 +282,8 @@ func TestDashboardRenderCSP(t *testing.T) {
 func TestDashboardVendorRoute(t *testing.T) {
 	h := dashHandler(t)
 	for name, ctype := range map[string]string{
-		"uPlot.iife.min.js":   "text/javascript; charset=utf-8",
-		"uPlot.min.css":       "text/css; charset=utf-8",
-		"three.module.min.js": "text/javascript; charset=utf-8",
-		"three.core.min.js":   "text/javascript; charset=utf-8",
+		"uPlot.iife.min.js": "text/javascript; charset=utf-8",
+		"uPlot.min.css":     "text/css; charset=utf-8",
 	} {
 		rec := send(t, h, http.MethodGet, dashBase+"vendor/"+name, "")
 		if rec.Code != http.StatusOK {
@@ -294,13 +303,15 @@ func TestDashboardVendorRoute(t *testing.T) {
 			t.Errorf("%s: body %d bytes, want the real asset", name, rec.Body.Len())
 		}
 	}
-	// Whitelist boundary: unlisted names, traversal shapes, and the license
-	// files (embedded for NOTICE, not HTTP-served) never serve vendor bytes.
+	// Whitelist boundary: unlisted names, traversal shapes, the removed
+	// three builds ([GDK-808] — now lib-cache business), and the license
+	// file (embedded for NOTICE, not HTTP-served) never serve vendor bytes.
 	// ../-shapes answer with ServeMux's clean-path redirect (307 + its small
 	// boilerplate body), not 404 — what matters (same as the traversal case
 	// in TestDashboardDataErrors) is that no asset body comes back.
 	for _, name := range []string{
-		"evil.js", "uPlot.iife.min.css", "LICENSE-uplot", "LICENSE-three",
+		"evil.js", "uPlot.iife.min.css", "LICENSE-uplot",
+		"three.module.min.js", "three.core.min.js",
 		"sub/dir/uPlot.iife.min.js", "uPlot.iife.min.js%00",
 	} {
 		if rec := send(t, h, http.MethodGet, dashBase+"vendor/"+name, ""); rec.Code != http.StatusNotFound {
@@ -553,5 +564,179 @@ func TestDashboardAbsorb(t *testing.T) {
 	}
 	if !strings.Contains(string(stored.Config), "stored") {
 		t.Fatalf("stored config replaced by incoming: %s", stored.Config)
+	}
+}
+
+// dashLibsHandler is dashHandler plus the two things lib tests need: a
+// GADAK_HOME (the serve route reads the cache from this server's profile
+// dir) and that home's lib cache directory, so a test can seed or tamper
+// with the exact bytes the route serves.
+func dashLibsHandler(t *testing.T) (http.Handler, string) {
+	t.Helper()
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	db, cfg := fixture(t)
+	return New(db, cfg), dashboards.LibsDir(home)
+}
+
+// seedLib adds one library through the real LibAdd (loopback mock CDN) and
+// returns its manifest entry.
+func seedLib(t *testing.T, libsDir, body, name string) dashboards.Lib {
+	t.Helper()
+	cdn := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, body)
+	}))
+	t.Cleanup(cdn.Close)
+	lib, _, err := dashboards.LibAdd(context.Background(), libsDir, cdn.URL+"/"+name, false, time.Unix(0, 0).UTC())
+	if err != nil {
+		t.Fatalf("seed lib add: %v", err)
+	}
+	return lib
+}
+
+// TestDashboardLibRoute (GDK-808): the libs route serves cache bytes with a
+// fixed content type, CORS for the sandbox frame, and — the whole point of
+// the pin — re-hashes the bytes before they leave. A cache file modified
+// after lib add answers 500, never executes. Unknown and path-shaped ids
+// miss like the vendor route. (The route is the vendor route's no-slash
+// single-segment shape: a trailing-slash variant would be ambiguous with
+// {id}/render/ and panic the mux.)
+func TestDashboardLibRoute(t *testing.T) {
+	h, libsDir := dashLibsHandler(t)
+	lib := seedLib(t, libsDir, "marker=1;", "demo.iife.js")
+
+	rec := send(t, h, http.MethodGet, dashBase+"libs/"+lib.ID, "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("serve lib: %d %s", rec.Code, rec.Body.String())
+	}
+	if got := rec.Header().Get("Content-Type"); got != "application/javascript" {
+		t.Errorf("Content-Type = %q, want application/javascript (fixed — the cache stores bytes, not claims)", got)
+	}
+	if got := rec.Header().Get("X-Content-Type-Options"); got != "nosniff" {
+		t.Errorf("nosniff = %q", got)
+	}
+	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "*" {
+		t.Errorf("ACAO = %q, want * (module imports from the sandboxed frame)", got)
+	}
+	if rec.Body.String() != "marker=1;" {
+		t.Errorf("body = %q", rec.Body.String())
+	}
+
+	// Unknown id and traversal shapes never reach a file. ../-shapes answer
+	// with ServeMux's clean-path redirect — what matters (vendor route
+	// convention) is that no cache body comes back.
+	for _, id := range []string{"nosuch.js", "..%2f..%2fetc%2fpasswd", "sub/dir"} {
+		if rec := send(t, h, http.MethodGet, dashBase+"libs/"+id, ""); rec.Code != http.StatusNotFound {
+			t.Errorf("libs/%s: %d, want 404", id, rec.Code)
+		}
+	}
+	if rec := send(t, h, http.MethodGet, dashBase+"libs/../"+lib.ID, ""); rec.Code == http.StatusOK || strings.Contains(rec.Body.String(), "marker=1;") {
+		t.Errorf("libs traversal: status %d, body %q — must not serve cache bytes", rec.Code, rec.Body.String())
+	}
+
+	// THE pin: tampered bytes are refused at serve time (500), not executed.
+	tampered := filepath.Join(libsDir, lib.ID)
+	if err := os.WriteFile(tampered, []byte("marker=2; // evil"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if rec := send(t, h, http.MethodGet, dashBase+"libs/"+lib.ID, ""); rec.Code != http.StatusInternalServerError {
+		t.Fatalf("tampered cache served: status %d body %q, want 500 (sha384 re-verification)", rec.Code, rec.Body.String())
+	}
+	// A missing cache file is the same class: operator problem, 500.
+	if err := os.Remove(tampered); err != nil {
+		t.Fatal(err)
+	}
+	if rec := send(t, h, http.MethodGet, dashBase+"libs/"+lib.ID, ""); rec.Code != http.StatusInternalServerError {
+		t.Fatalf("missing cache file served: %d, want 500", rec.Code)
+	}
+}
+
+// TestDashboardSaveLibs (GDK-808): a config may only reference libs the
+// cache actually holds. An unknown id is a 400 whose message carries the
+// recipe, because this endpoint's caller is an agent that can act on it.
+func TestDashboardSaveLibs(t *testing.T) {
+	h, libsDir := dashLibsHandler(t)
+	lib := seedLib(t, libsDir, "ok=1;", "ok.iife.js")
+
+	rec := send(t, h, http.MethodPost, dashBase,
+		`{"name":"badlib","config":{"html":"<p/>","libs":["ffffffffffffffff-nosuch.js"]}}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("unknown lib save: %d %s, want 400", rec.Code, rec.Body.String())
+	}
+	var e struct {
+		Error   string `json:"error"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &e); err != nil || e.Error != "unknown_lib" {
+		t.Fatalf("body %s, want error unknown_lib", rec.Body.String())
+	}
+	if !strings.Contains(e.Message, "ffffffffffffffff-nosuch.js") || !strings.Contains(e.Message, "gadak dashboards lib add") {
+		t.Fatalf("message %q must name the id and the lib add recipe", e.Message)
+	}
+
+	// A declared id that exists saves fine, and the row round-trips it.
+	id := saveDash(t, h, "withlib", `{"html":"<p/>","libs":["`+lib.ID+`"]}`)
+	rec = send(t, h, http.MethodGet, dashBase+*id+"/", "")
+	if !strings.Contains(rec.Body.String(), lib.ID) {
+		t.Fatalf("saved row lost the libs declaration: %s", rec.Body.String())
+	}
+}
+
+// TestDashboardRenderLibs (GDK-808): declared libs are injected as deferred
+// scripts in declaration order (head, or prepended for headless documents)
+// and widen only script-src with the libs path — style stays vendor-only,
+// and a dashboard that declares nothing renders byte-identical to pre-808.
+func TestDashboardRenderLibs(t *testing.T) {
+	h, libsDir := dashLibsHandler(t)
+	first := seedLib(t, libsDir, "one=1;", "one.iife.js")
+	second := seedLib(t, libsDir, "two=2;", "two.iife.js")
+
+	id := saveDash(t, h, "W", `{"html":"<!doctype html><html><head><title>t</title></head><body><p/></body></html>","libs":["`+first.ID+`","`+second.ID+`"]}`)
+	req := testRequest(http.MethodGet, dashBase+*id+"/render/", nil)
+	req.Host = "127.0.0.1:7877"
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("render: %d %s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	tag1 := `<script src="/api/v1/dashboards/libs/` + first.ID + `" defer onerror="document.documentElement.setAttribute('data-gadak-lib-error','` + first.ID + `')"></script>`
+	tag2 := `<script src="/api/v1/dashboards/libs/` + second.ID + `" defer onerror="document.documentElement.setAttribute('data-gadak-lib-error','` + second.ID + `')"></script>`
+	// Injection point: right after <head>, in declaration order.
+	headAt := strings.Index(strings.ToLower(body), "<head>")
+	if i1, i2 := strings.Index(body, tag1), strings.Index(body, tag2); headAt < 0 || i1 < headAt || i2 < i1 {
+		t.Fatalf("libs not injected after <head> in order:\n%s", body)
+	}
+	// CSP: libs path joins script-src only.
+	csp := rec.Header().Get("Content-Security-Policy")
+	wantLibs := "http://127.0.0.1:7877/api/v1/dashboards/libs/"
+	if !strings.Contains(csp, "script-src 'unsafe-inline' http://127.0.0.1:7877"+dashVendorPath+" "+wantLibs+";") {
+		t.Errorf("script-src with libs = %q", csp)
+	}
+	if strings.Contains(strings.SplitN(csp, "style-src ", 2)[1], "libs/") {
+		t.Errorf("style-src widened with the libs path: %q", csp)
+	}
+
+	// Headless document: tags prepend (the browser synthesizes that head).
+	id2 := saveDash(t, h, "H", `{"html":"<p>no head</p>","libs":["`+first.ID+`"]}`)
+	rec = httptest.NewRecorder()
+	req = testRequest(http.MethodGet, dashBase+*id2+"/render/", nil)
+	req.Host = "127.0.0.1:7877"
+	h.ServeHTTP(rec, req)
+	if !strings.HasPrefix(rec.Body.String(), `<script src="/api/v1/dashboards/libs/`) {
+		t.Fatalf("headless injection = %q", rec.Body.String())
+	}
+
+	// No declaration: policy and body unchanged — least privilege default.
+	plain := saveDash(t, h, "P", `{"html":"<p>plain</p>"}`)
+	req = testRequest(http.MethodGet, dashBase+*plain+"/render/", nil)
+	req.Host = "127.0.0.1:7877"
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Body.String() != "<p>plain</p>" {
+		t.Errorf("undeclared render body changed: %q", rec.Body.String())
+	}
+	if csp := rec.Header().Get("Content-Security-Policy"); strings.Contains(csp, "libs/") {
+		t.Errorf("undeclared render CSP widened: %q", csp)
 	}
 }
