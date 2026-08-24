@@ -1,0 +1,319 @@
+/*
+ * gadak mobile stylesheet.
+ *
+ * Token sharing is by reference, not copy: the line below imports the web
+ * app stylesheet wholesale, which brings the Tailwind v4 @theme block (the
+ * only thing that turns --color-* into real CSS variables), the dark/ink/
+ * ember theme mechanism, the base typography, and the shared component
+ * classes (.type-subject, .wordmark, .scroll-region, …). web/src/app.css is
+ * the single owner of every color and spacing value; this file may only
+ * consume var(--…) tokens — no new hex, ever.
+ *
+ * The import path leaves mobile/, so vite.config.ts sets server.fs.allow to
+ * the repo root for the dev server; the production build resolves the
+ * relative file directly.
+ */
+@import '../../web/src/app.css';
+
+/* ── mobile shell ──
+   The web base sets body overflow hidden; the app scrolls in .m-main
+   instead. 100dvh keeps the tab bar glued to the bottom under mobile
+   browser/toolbars. */
+.m-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  background: var(--color-bg-base);
+}
+
+.m-header {
+  display: flex;
+  align-items: center;
+  min-height: var(--spacing-control);
+  padding: 0 1rem;
+  background: var(--color-bg-panel);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.m-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 0 0.75rem;
+}
+
+/* ── tab bar (bottom navigation, phone posture) ── */
+.m-tabbar {
+  display: flex;
+  border-top: 1px solid var(--color-border-subtle);
+  background: var(--color-bg-panel);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.m-tab {
+  flex: 1 1 0;
+  height: var(--spacing-control);
+  border: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: var(--text-micro);
+  font-family: var(--font-sans);
+  cursor: pointer;
+}
+
+.m-tab-active {
+  color: var(--color-accent-text);
+  font-weight: 600;
+  box-shadow: inset 0 2px 0 var(--color-accent);
+}
+
+/* ── queue ── */
+.m-queue-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.5rem 0.25rem 0.25rem;
+}
+
+.m-queue-title {
+  font-size: var(--text-heading);
+  margin: 0;
+}
+
+.m-count {
+  flex: 1 1 auto;
+  color: var(--color-text-muted);
+  font-size: var(--text-micro);
+}
+
+.m-refresh {
+  height: var(--spacing-control-sm);
+  padding: 0 0.75rem;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 6px; /* rounded-md: a control in the page */
+  background: var(--color-bg-elevated);
+  color: var(--color-text-secondary);
+  font-size: var(--text-micro);
+  font-family: var(--font-sans);
+}
+
+.m-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Row height and rhythm come from the density tokens; the priority tick is
+   a 3px ink bar (web draws priority as color only — same ladder, see
+   lib/api.ts priorityInk). */
+.m-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: var(--spacing-row);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.m-row-priority {
+  flex: 0 0 auto;
+  width: 3px;
+  height: calc(var(--spacing-row) - 14px);
+  border-radius: 2px;
+  background: currentColor;
+}
+
+.m-row-key {
+  flex: none;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+}
+
+.m-row-summary {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text-primary);
+  font-size: var(--text-body);
+}
+
+.m-row-status {
+  flex: none;
+  font-size: var(--text-micro);
+  font-weight: 500;
+}
+
+.m-row-prio-label {
+  flex: none;
+  color: var(--color-text-muted);
+  font-size: var(--text-micro);
+  max-width: 6ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Offline/failure banner — the #5049 lesson: keep the last synced data and
+   say what happened; never hand back an empty screen. */
+.m-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0.5rem 0 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-status-reopen);
+  border-radius: 6px;
+  background: var(--color-bg-elevated);
+  color: var(--color-status-reopen);
+  font-size: var(--text-micro);
+}
+
+.m-banner p {
+  margin: 0;
+}
+
+.m-banner-time {
+  color: var(--color-text-muted);
+}
+
+.m-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 3rem 1rem;
+  color: var(--color-text-secondary);
+  font-size: var(--text-body);
+  text-align: center;
+}
+
+.m-empty p {
+  margin: 0;
+}
+
+/* ── pair ── */
+.m-pair-current {
+  margin: 0.5rem 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 6px;
+  background: var(--color-bg-elevated);
+  font-size: var(--text-body);
+}
+
+.m-pair-current p {
+  margin: 0 0 0.25rem;
+}
+
+.m-pair-endpoint {
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  word-break: break-all;
+}
+
+.m-pair-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+}
+
+.m-label {
+  color: var(--color-text-secondary);
+  font-size: var(--text-body);
+}
+
+.m-textarea {
+  height: auto;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 6px;
+  background: var(--color-bg-base);
+  color: var(--color-text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  resize: vertical;
+}
+
+.m-button {
+  height: var(--spacing-control);
+  padding: 0 1rem;
+  border: 0;
+  border-radius: 6px;
+  background: var(--color-accent);
+  color: var(--color-bg-base);
+  font-size: var(--text-body);
+  font-family: var(--font-sans);
+  cursor: pointer;
+}
+
+.m-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.m-button-quiet {
+  height: var(--spacing-control-sm);
+  background: transparent;
+  border: 1px solid var(--color-border-strong);
+  color: var(--color-text-secondary);
+  font-size: var(--text-micro);
+  align-self: flex-start;
+}
+
+.m-pair-preview {
+  margin: 0.75rem 0;
+  padding: 0.75rem;
+  border: 1px solid var(--color-accent-subtle);
+  border-radius: 6px;
+  background: var(--color-bg-elevated);
+}
+
+.m-pair-preview dl {
+  margin: 0 0 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.m-pair-preview dt {
+  color: var(--color-text-muted);
+  font-size: var(--text-micro);
+}
+
+.m-pair-preview dd {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--text-body);
+  word-break: break-all;
+}
+
+.m-expired {
+  margin-left: 0.5rem;
+  padding: 0 0.375rem;
+  border-radius: 4px; /* rounded: nested inside the preview card */
+  background: var(--color-status-reopen);
+  color: var(--color-bg-base);
+  font-size: var(--text-micro);
+}
+
+.m-error {
+  margin: 0.5rem 0;
+  color: var(--color-status-reopen);
+  font-size: var(--text-body);
+}
+
+.m-error-reason {
+  display: block;
+  color: var(--color-text-muted);
+  font-size: var(--text-micro);
+}
+
+.m-saved {
+  margin: 0.5rem 0 0;
+  color: var(--color-status-done);
+  font-size: var(--text-micro);
+}
