@@ -50,7 +50,15 @@ PAT_HOST='atlassian\.net'
 # Added when a runbook for the Omarchy verification VM (docs/runbooks/
 # omarchy-vm.md) arrived carrying a tailnet hostname, its IP, and two
 # account names. That runbook now reads them from the environment.
-PAT_TAILNET='[A-Za-z0-9-]+\.[A-Za-z0-9-]+\.ts\.net|\b100\.(6[4-9]|[7-9][0-9]|1[0-1][0-9]|12[0-7])\.[0-9]{1,3}\.[0-9]{1,3}\b'
+#
+# Split in two (2026-08-24) so the MagicDNS half can carry the same
+# placeholder exemption the other host checks already have: the pairing
+# golden vectors document an offer endpoint, and a documented stand-in is
+# not somebody's device. The CGNAT half keeps no exemption — an address in
+# 100.64/10 is always a real allocation.
+PAT_TAILNET_HOST='[A-Za-z0-9-]+\.[A-Za-z0-9-]+\.ts\.net'
+PAT_TAILNET_CGNAT='\b100\.(6[4-9]|[7-9][0-9]|1[0-1][0-9]|12[0-7])\.[0-9]{1,3}\.[0-9]{1,3}\b'
+PAT_TAILNET="$PAT_TAILNET_HOST|$PAT_TAILNET_CGNAT"
 # One author's home directory. It carries the account name, and it is also a
 # file path nobody else has: a `/Users/<name>/...` output path inside an e2e
 # spec passed every local gate and failed CI with ENOENT (GDK-254). Documented
@@ -83,6 +91,37 @@ is_allowed_host() {
       return 1
       ;;
   esac
+}
+
+# A tailnet a doc or test may stand up as an example. The tailnet label is
+# the one that identifies whose network it is, so that is what this reads:
+# a name under `example` names nobody, while <device>.<real-tailnet>.ts.net
+# names a device on someone's network even when the host label is generic.
+# (Spelling a counter-example out in full here would itself be a hit — this
+# comment was one until it was rewritten.)
+is_placeholder_tailnet() {
+  case "$1" in
+    *.example.ts.net) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# Print lines that carry a real MagicDNS name, skipping placeholder tailnets.
+# A filter and not a bare grep for the same reason as the host check below it:
+# one line can hold a documented stand-in and nothing else, and reporting that
+# line is the false positive that teaches people to ignore the gate.
+filter_real_tailnets() {
+  while IFS= read -r line; do
+    hosts="$(printf '%s\n' "$line" | grep -oE "$PAT_TAILNET_HOST" || true)"
+    [[ -z "$hosts" ]] && continue
+    while IFS= read -r host; do
+      [[ -z "$host" ]] && continue
+      if ! is_placeholder_tailnet "$(printf '%s' "$host" | tr '[:upper:]' '[:lower:]')"; then
+        printf '%s\n' "$line"
+        break
+      fi
+    done <<<"$hosts"
+  done
 }
 
 # Names a doc or test may stand a home directory up under. Anything else is
@@ -188,7 +227,10 @@ fi
 
 if [[ -s "$text_list" ]]; then
   # shellcheck disable=SC2046
-  grep -nHE "$PAT_TOKEN|$PAT_LINEAR|$PAT_TAILNET" -- $(cat "$text_list") 2>/dev/null >>"$hits_file" || true
+  grep -nHE "$PAT_TOKEN|$PAT_LINEAR|$PAT_TAILNET_CGNAT" -- $(cat "$text_list") 2>/dev/null >>"$hits_file" || true
+  # shellcheck disable=SC2046
+  grep -nHE "$PAT_TAILNET_HOST" -- $(cat "$text_list") 2>/dev/null \
+      | filter_real_tailnets >>"$hits_file" || true
   if [[ -n "$PAT_COMPANY" ]]; then
     # shellcheck disable=SC2046
     grep -niHE "$PAT_COMPANY" -- $(cat "$text_list") 2>/dev/null >>"$hits_file" || true
