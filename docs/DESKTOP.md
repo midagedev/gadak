@@ -62,14 +62,24 @@ your shell rc. When it succeeds, the next step is `gadak skill install`
 
 ```bash
 /Applications/Gadak.app/Contents/Resources/bin/gadak install-cli
-gadak skill install
-gadak mcp install claude   # shell-less hosts only
 ```
 
 `install-cli` (and the menu item) prefer a directory already on PATH —
 `~/.local/bin` when it exists there, else `/usr/local/bin` when writable,
 else `~/.local/bin` (created; PATH hint printed). Pass `--dir` to override.
 No sudo is required for the default locations.
+
+For a coding agent that has a shell (Claude Code):
+
+```bash
+gadak skill install
+```
+
+For hosts without a shell (Claude Desktop):
+
+```bash
+gadak mcp install claude
+```
 
 **3. Manual link (last resort):**
 

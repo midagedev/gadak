@@ -31,7 +31,11 @@ want schema/query knowledge without a server process, prefer
 
 ```bash
 gadak mcp
-# or a named workspace:
+```
+
+For a named workspace:
+
+```bash
 gadak --workspace demo mcp
 ```
 
@@ -58,21 +62,34 @@ current workspace (`--workspace` / `GADAK_WORKSPACE`; `--profile` /
 path into the registration. The argv it writes still uses `--profile`.
 
 ```bash
-gadak mcp install claude              # exec: claude mcp add gadak -- <abs> mcp
-gadak --workspace demo mcp install claude
-gadak mcp install claude --dry-run    # print the command only
-gadak mcp install cursor              # paste block for .cursor/mcp.json
-gadak mcp install codex               # paste block for ~/.codex/config.toml
-gadak mcp install raycast             # form values for Raycast's Install New Server
-gadak mcp install json                # mcpServers JSON snippet
-gadak mcp install                     # list clients
+gadak mcp install claude
 ```
 
 `claude` runs `claude mcp add` when the binary is on `PATH`; if it is missing,
 the error prints the manual command. If the server name is already registered,
 gadak shows claude's message, prints `already registered`, and exits 0.
-`cursor` / `codex` / `json` never exec — they only print. `raycast` prints the
-values for its Install New Server form (see below).
+
+To pin a named workspace:
+
+```bash
+gadak --workspace demo mcp install claude
+```
+
+| Flag | Effect |
+| --- | --- |
+| `--dry-run` | print the command (claude) or config without registering |
+
+Other clients never exec — they only print (`raycast` prints form values; see
+[Raycast](#raycast) below):
+
+| Client | Command | What it prints |
+| --- | --- | --- |
+| cursor | `gadak mcp install cursor` | Cursor MCP config to paste (`.cursor/mcp.json`) |
+| codex | `gadak mcp install codex` | Codex MCP config to paste (`~/.codex/config.toml`) |
+| raycast | `gadak mcp install raycast` | values to fill into Raycast's Install New Server form |
+| json | `gadak mcp install json` | `mcpServers` JSON snippet only |
+
+With no client, `gadak mcp install` lists those clients.
 
 ## Claude Desktop
 

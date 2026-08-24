@@ -148,8 +148,10 @@ tool surface. Two install paths:
 | What you get | One folder of docs, loaded only when relevant | A stdio server + always-on tool schemas in context |
 | Cost | Cheap on context; agent runs `gadak sql` / `gadak issue` itself | Tool definitions occupy context every turn |
 
-**Use both if you want** — they do not conflict. The skill teaches SQL/CLI;
-MCP is a separate read-only tool surface for hosts that cannot spawn processes.
+If the agent has a shell, `gadak skill install` is the path. MCP
+(`gadak mcp install claude`) is for hosts without a shell (Claude Desktop).
+They do not conflict — the skill teaches SQL/CLI; MCP is a separate
+read-only tool surface — but a shell agent does not need MCP.
 
 ## Claude Code skill (preferred when the agent has a shell)
 
@@ -160,11 +162,17 @@ is absent, those commands skip the skill and (for `install-cli`) still print
 `gadak skill install` as the next step.
 
 ```bash
-gadak skill install                 # → ~/.claude/skills/gadak/SKILL.md
-gadak skill install --project       # → ./.claude/skills/gadak/SKILL.md
-gadak skill install --print         # plan only
-gadak skill install --force         # overwrite a file gadak did not write
+gadak skill install
 ```
+
+That writes `~/.claude/skills/gadak/SKILL.md`. Flags:
+
+| Flag | Effect |
+| --- | --- |
+| `--project` | install into `./.claude/skills/gadak/` (current working directory) |
+| `--dir PATH` | install into `PATH/gadak/SKILL.md` (overrides default and `--project`) |
+| `--print` | print the install plan without writing |
+| `--force` | overwrite a SKILL.md gadak did not write (hand-edited or your own) |
 
 Restart the agent or open a new session so it picks up the skill. The skill
 body is embedded in the binary (same as `skills/gadak/SKILL.md` in the repo),
@@ -195,14 +203,27 @@ cannot silently attach to the default mirror:
 
 ```bash
 gadak mcp install claude
-# or: gadak --workspace demo mcp install claude
+```
+
+To pin a named workspace:
+
+```bash
+gadak --workspace demo mcp install claude
 ```
 
 That runs the same registration the manual line below does (absolute binary
-path + optional `--workspace`; `--profile` is an alias). Other hosts: `gadak mcp install cursor|codex|json`
-prints a paste block; `gadak mcp install raycast` prints the values for
-Raycast's *Install New Server* form (Raycast has no MCP config file to paste
-into, and its AI/MCP features may require a paid plan).
+path + optional `--workspace`; `--profile` is an alias). Other clients print
+rather than register:
+
+| Client | Command | What it prints |
+| --- | --- | --- |
+| cursor | `gadak mcp install cursor` | Cursor MCP config to paste (`.cursor/mcp.json`) |
+| codex | `gadak mcp install codex` | Codex MCP config to paste (`~/.codex/config.toml`) |
+| raycast | `gadak mcp install raycast` | values to fill into Raycast's Install New Server form |
+| json | `gadak mcp install json` | `mcpServers` JSON snippet only |
+
+Raycast has no MCP config file to paste into, and its AI/MCP features may
+require a paid plan.
 
 The shortest manual path, verified end to end (this is the line in the README GIF):
 
