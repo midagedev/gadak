@@ -393,7 +393,7 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak issue", "gadak sql"},
 	},
 	"recents": {
-		summary: "list the keys this workspace read recently, newest first — the first command after a context compaction or session restart (issue and search reads record themselves)",
+		summary: "list the keys this workspace read recently, newest first — the first command after a context compaction or session restart (issue reads record themselves; searches go to search history, not this list)",
 		usage:   "gadak [--workspace <name>] recents [--limit N] [--json]",
 		examples: []string{
 			"gadak recents",

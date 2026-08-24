@@ -51,7 +51,9 @@ Schema essentials:
 - pages: Confluence projection joined on pages.item_id = items.id — space_key,
   parent_id (page tree), version, labels (JSON array), body_adf, excerpt
   (≤200-rune body preview). Page title and body_text live on items
-  (items.kind = 'page'; issues are kind 'issue').
+  (items.kind = 'page'; issues are kind 'issue'), and items.key on a page row
+  is the numeric origin page id — the identifier page reads and writes key on
+  (pages.item_id is an internal join id, not that).
 - comments, attachments, changelog, links, dev_links: hang off items.id
 - versions: project catalog (id, project_key, name, released, archived, release_date);
   join issues on fix_version_ids, never on the name array.
@@ -89,8 +91,9 @@ Examples:
   WHERE reopen_count > 0 AND epic_key IS NOT NULL
   GROUP BY epic_key ORDER BY reopened DESC LIMIT 5;
 
-4) Wiki pages about an area (join pages through items):
-  SELECT it.title, p.space_key FROM items_fts f
+4) Wiki pages about an area (join pages through items; it.key is the numeric
+  origin page id — the id gadak page edit takes):
+  SELECT it.key, it.title, p.space_key FROM items_fts f
   JOIN items it ON it.rowid = f.rowid
   JOIN pages p ON p.item_id = it.id
   WHERE items_fts MATCH 'billing' LIMIT 10;`
@@ -108,7 +111,10 @@ Do NOT use this for counts, grouping, "who is loaded", "what is stuck",
 "what was reopened", time windows, or epic rollups. Those are gadak_query.
 
 Returns {total, issues:[{key,summary,status}], pages, matches}.
-Then hydrate one key with gadak_issue, or present keys with gadak_show.`
+Hydrate an issue key with gadak_issue, or present issue keys with gadak_show.
+A pages[].key is a numeric wiki page id, not an issue key: gadak_issue and
+gadak_show reject it and gadak sync will not help — read the page back with
+gadak_query (SELECT it.title, it.body_text FROM items WHERE kind = 'page' AND key = '<id>').`
 
 const toolIssueDescription = `Fetch one or more issues by key with full detail: list fields plus
 description_text (plain text), description ADF, comments, attachments,
@@ -381,10 +387,19 @@ func (s *Server) toolIssue(args map[string]any) ([]contentItem, error) {
 		docs = append(docs, body)
 	}
 	if len(docs) == 0 {
-		if len(missing) == 1 {
-			return nil, fmt.Errorf("%s is not in the mirror — check the key, or run `gadak sync`", missing[0])
+		// A page id pasted as an issue key is the search-surface write-gap:
+		// neither checking the key nor syncing can fix it, so say what it is.
+		hint := ""
+		for _, k := range missing {
+			if h := pageIDHint(k); h != "" {
+				hint = h
+				break
+			}
 		}
-		return nil, fmt.Errorf("none of the keys are in the mirror: %s — check the keys, or run `gadak sync`", strings.Join(missing, ", "))
+		if len(missing) == 1 {
+			return nil, fmt.Errorf("%s is not in the mirror — check the key, or run `gadak sync`%s", missing[0], hint)
+		}
+		return nil, fmt.Errorf("none of the keys are in the mirror: %s — check the keys, or run `gadak sync`%s", strings.Join(missing, ", "), hint)
 	}
 	if len(keys) == 1 {
 		return s.marshalIssueResult(docs[0])
@@ -682,6 +697,23 @@ func issueKeysArg(args map[string]any) ([]string, error) {
 		return nil, errors.New("gadak_issue requires {key: string} or {keys: string[]}")
 	}
 	return []string{key}, nil
+}
+
+// pageIDHint teaches the other identifier a read surface can hand out: a
+// purely numeric key is a wiki page id (items.key where kind='page'), never
+// an issue key, so the sync advice cannot make gadak_issue find it. Keys
+// arrive uppercased from issueKeysArg; issue-key shapes and any other
+// non-numeric text get no hint.
+func pageIDHint(key string) string {
+	if key == "" || fields.IssueKeyLiteral(key) {
+		return ""
+	}
+	for i := 0; i < len(key); i++ {
+		if key[i] < '0' || key[i] > '9' {
+			return ""
+		}
+	}
+	return " — a numeric id is a wiki page id, not an issue key; read it with gadak_query (items.kind = 'page' AND items.key = the id)"
 }
 
 func stringArg(args map[string]any, key string) (string, bool) {

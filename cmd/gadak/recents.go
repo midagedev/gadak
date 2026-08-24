@@ -1,12 +1,13 @@
 package main
 
 // gadak recents — the keys this workspace was reading, newest first, from
-// local.visits. `gadak issue` and `gadak search` append those rows as they
-// run (recordVisitBestEffort / recordSearchBestEffort in agent.go), so after
-// a context compaction or a fresh session on an old workspace this is the one
-// command that says which keys were in play. Same data domain as `gadak
-// export`: openStore, no staleness warning — the answer comes from local.db,
-// not from the mirror.
+// local.visits. `gadak issue` appends those rows as it runs
+// (recordVisitBestEffort in agent.go); `gadak search` records into
+// local.searches (recordSearchBestEffort), which RecentVisits does not read —
+// search history and read history are two lists. After a context compaction
+// or a fresh session on an old workspace this is the one command that says
+// which keys were in play. Same data domain as `gadak export`: openStore, no
+// staleness warning — the answer comes from local.db, not from the mirror.
 
 import (
 	"context"

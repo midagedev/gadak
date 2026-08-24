@@ -235,7 +235,9 @@ SELECT key, status, ROUND(julianday('now') - julianday(status_changed_at), 1) AS
 FROM issues WHERE status_category = 'inprogress' ORDER BY days DESC LIMIT 20;
 
 -- Has anyone hit this before? (descriptions, comments AND wiki pages, one index)
-SELECT it.kind, COALESCE(i.key, p.item_id) AS ref, it.title
+-- ref is the issue key, or for kind='page' the origin page id (items.key —
+-- the id `gadak page edit` takes; NOT pages.item_id, an internal join id).
+SELECT it.kind, COALESCE(i.key, it.key) AS ref, it.title, p.space_key
 FROM items_fts f JOIN items it ON it.rowid = f.rowid
 LEFT JOIN issues i ON i.item_id = it.id
 LEFT JOIN pages  p ON p.item_id = it.id

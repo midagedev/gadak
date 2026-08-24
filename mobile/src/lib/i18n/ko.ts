@@ -34,5 +34,5 @@ export const ko: Messages = {
   'pair.current': '{label}과(와) 페어링됨',
   'pair.currentFallback': '페어링됨',
   'pair.unpair': '페어링 해제',
-  'pair.error.invalid': '올바른 페어링 코드가 아닙니다.',
+  'pair.error.invalid': '올바른 페어링 코드가 아닙니다. 데스크톱에서 `gadak pairing mint`로 새 코드를 만들어 한 줄 전체를 붙여넣으세요.',
 }

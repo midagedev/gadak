@@ -32,7 +32,7 @@ export const en = {
   'pair.current': 'Paired with {label}',
   'pair.currentFallback': 'Paired',
   'pair.unpair': 'Unpair',
-  'pair.error.invalid': 'Not a valid pairing code.',
+  'pair.error.invalid': 'Not a valid pairing code. Mint a new one on the desktop with `gadak pairing mint` and paste the whole line.',
 } as const
 
 /** Keys are the contract (a missing key fails on both locales); values are plain strings. */

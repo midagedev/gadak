@@ -1161,7 +1161,7 @@ func cmdSearch(args []string) error {
 	// FlagSet alone swallows a trailing --json into the JQL.
 	fs := newFlagSet("search")
 	limit := fs.Int("limit", 20, "maximum matches")
-	asJSON := fs.Bool("json", false, "emit matching IssueLite rows as JSON")
+	asJSON := fs.Bool("json", false, "emit matching issues and pages as JSON")
 	forceJQL := fs.Bool("jql", false, "treat the query as JQL (or a Jira URL with jql=)")
 	emitOnly := fs.Bool("emit", false, "print the canonical JQL and exit (no search)")
 	explain := fs.Bool("explain", false, "print why each hit ranked: key-exact, key-prefix, or fts with bm25 score and column; --json adds elapsed_ms")
@@ -1276,8 +1276,13 @@ func printSearchText(lites []store.IssueLite, pages []store.PageLite, matches ma
 		}
 		fmt.Println(line)
 	}
+	// Page rows keep the TSV contract the issue rows set (docs/MIRROR.md:
+	// cut -f1 gives keys): field 1 is PageLite.Key — items.key, the origin
+	// page id `gadak page edit <ID>` takes (pages.item_id is a different,
+	// internal id) — and field 2 is the literal kind marker so a pipe can
+	// tell issues from pages without guessing from the key's shape.
 	for _, p := range pages {
-		line := fmt.Sprintf("page  %s/%s  %s", p.SpaceKey, p.Title, p.URL)
+		line := fmt.Sprintf("%s\tpage\t%s/%s\t%s", p.Key, p.SpaceKey, p.Title, p.URL)
 		if m, ok := matches[p.Key]; ok && (m.Field == "comment" || m.Field == "body") {
 			line += fmt.Sprintf(" (%s: %s)", m.Field, m.Snippet)
 		}
