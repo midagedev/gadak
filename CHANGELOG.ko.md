@@ -79,6 +79,14 @@
   소유한 as-const 배열이 런타임 가드도 소유하고([GDK-825]), e2e 스펙
   여섯 개가 같은 단언을 든 유닛 테스트가 됐습니다([GDK-826]).
 
+- 감사의 단순화 청크가 아무도 부르지 않는 프로덕션 123줄을
+  지웠습니다 — og-image 렌더러, 안 쓰는 아이콘 import, 테스트 전용
+  래퍼 — 테스트는 버리는 대신 전부 실경로 위로 다시
+  썼습니다([GDK-822], [GDK-712]). 스키마 v38은 v26 복사가 얼려 둔 미러
+  쪽 saved_views/watches/favorites/feed_reads를 떨굽니다: `gadak sql`의
+  접두 없는 테이블 이름이 이제 조용히 틀리게 답하던 이전 시점
+  스냅숏이 아니라 ATTACH된 local.db의 진실로 떨어집니다([GDK-824]).
+
 - CLI가 오타를 받아 그대로 진행하던 두 곳. `gadak create GDK "…"`는 프로젝트
   키를 그저 요약의 한 단어로 읽어 키로 시작하는 이슈를 만들었습니다. 이제
   `--project` 철자를 알려 주며 거절합니다 — 단 첫 단어가 이 워크스페이스가
@@ -1208,6 +1216,9 @@ HTTP·sync·에이전트 계약.
 [GDK-594]: https://gadak.dev/backlog/#/?ks=GDK-594
 [GDK-809]: https://gadak.dev/backlog/#/?ks=GDK-809
 [GDK-810]: https://gadak.dev/backlog/#/?ks=GDK-810
+[GDK-822]: https://gadak.dev/backlog/#/?ks=GDK-822
+[GDK-824]: https://gadak.dev/backlog/#/?ks=GDK-824
+[GDK-712]: https://gadak.dev/backlog/#/?ks=GDK-712
 [GDK-814]: https://gadak.dev/backlog/#/?ks=GDK-814
 [GDK-815]: https://gadak.dev/backlog/#/?ks=GDK-815
 [GDK-816]: https://gadak.dev/backlog/#/?ks=GDK-816
