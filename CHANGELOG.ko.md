@@ -42,6 +42,43 @@
   읽으므로, 계약을 한쪽만 바꾸면 두 스위트가 같이 빨개집니다
   ([GDK-800]).
 
+- 이번 릴리스 전에 6축 품질 감사를 돌렸고, 수정은 병렬 청크로
+  랜딩했습니다. Go 쪽: ADF를 텍스트로 펴는 소유자가 하나가 되어 목록의
+  발췌와 FTS 색인이 더는 어긋날 수 없습니다([GDK-814]); 상태 카테고리는
+  전용 패키지로 옮겨 JQL 레이어가 net/http를 링크하지 않습니다
+  ([GDK-686]); 쓰기 어휘 락이 손 목록 대신 모든 origin 인터페이스를
+  순회합니다([GDK-687]); parent 힌트 거절은 문자열 스캔이 아니라 오류
+  타입으로 감지합니다([GDK-819]); create 소스 결정은 CLI와 REST가
+  공유하는 단일 라우터가 맡습니다([GDK-820]).
+
+- 메인 칼럼이 이제 하나의 값입니다 — 이슈 목록, 문서, 스페이스, 히스토리,
+  대시보드, 피드 — 오른쪽 패널이 먼저 한 식별 유니온 이사와 같은
+  것이라서, 어떤 표면이 형제를 닫는 것을 잊고 대시보드 뒤에 목록을
+  그리는 일이 더는 불가능합니다([GDK-815], [GDK-821]). 접어 둔 문서
+  트리는 동기화 재적재를 건너도 접힌 채입니다: 확장 상태가 절대
+  집합(이펙트가 계속 "고치던")이 아니라 구조적 기본값에 대한 델타가
+  됐습니다([GDK-817]). 대시보드는 키보드 문법에 합류했습니다 — Esc가
+  닫고, 단축키 시트가 그렇게 말하고, 로딩은 형제들과 같은 스켈레톤
+  유예를 받습니다([GDK-827]). 의도된 변화 하나가 함께 갑니다: 피드가
+  문서 화면 위에 덮이는 대신 칼럼을 차지하므로, 피드에서 Esc는 목록에
+  내립니다.
+
+- 읽기가 준 page id를 쓰기가 받습니다: TTY 검색이 page 행의 key 칼럼에
+  키를 찍고, `--json` 도움말이 pages의 존재를 인정하고, 스킬 레시피가
+  origin page id를 내고, MCP 검색이 page 히트에 막다른 동사 대신
+  `gadak_query`를 가르칩니다([GDK-816]). recents 도움말은 기록하지 않는
+  것을 기록한다고 말하지 않습니다([GDK-828]).
+
+- 세 로케일의 오류 문구 14개가 다음 행동을 말하고, 모바일 페어링 오류가
+  `gadak pairing mint`를 가르치고, Esc가 편집기·미디어 뷰어의 키를
+  빼앗지 않으면서 맨 위 토스트를 닫습니다([GDK-828], [GDK-829]). ko/ja
+  카탈로그는 각 로케일의 나머지가 이미 쓰는 어휘로 수렴합니다
+  ([GDK-831]).
+
+- 테스트 무게가 사다리를 내려갔습니다: 그룹핑·정렬·피드 포커스 union을
+  소유한 as-const 배열이 런타임 가드도 소유하고([GDK-825]), e2e 스펙
+  여섯 개가 같은 단언을 든 유닛 테스트가 됐습니다([GDK-826]).
+
 - CLI가 오타를 받아 그대로 진행하던 두 곳. `gadak create GDK "…"`는 프로젝트
   키를 그저 요약의 한 단어로 읽어 키로 시작하는 이슈를 만들었습니다. 이제
   `--project` 철자를 알려 주며 거절합니다 — 단 첫 단어가 이 워크스페이스가
@@ -1171,3 +1208,18 @@ HTTP·sync·에이전트 계약.
 [GDK-594]: https://gadak.dev/backlog/#/?ks=GDK-594
 [GDK-809]: https://gadak.dev/backlog/#/?ks=GDK-809
 [GDK-810]: https://gadak.dev/backlog/#/?ks=GDK-810
+[GDK-814]: https://gadak.dev/backlog/#/?ks=GDK-814
+[GDK-815]: https://gadak.dev/backlog/#/?ks=GDK-815
+[GDK-816]: https://gadak.dev/backlog/#/?ks=GDK-816
+[GDK-817]: https://gadak.dev/backlog/#/?ks=GDK-817
+[GDK-819]: https://gadak.dev/backlog/#/?ks=GDK-819
+[GDK-820]: https://gadak.dev/backlog/#/?ks=GDK-820
+[GDK-821]: https://gadak.dev/backlog/#/?ks=GDK-821
+[GDK-825]: https://gadak.dev/backlog/#/?ks=GDK-825
+[GDK-826]: https://gadak.dev/backlog/#/?ks=GDK-826
+[GDK-827]: https://gadak.dev/backlog/#/?ks=GDK-827
+[GDK-828]: https://gadak.dev/backlog/#/?ks=GDK-828
+[GDK-829]: https://gadak.dev/backlog/#/?ks=GDK-829
+[GDK-831]: https://gadak.dev/backlog/#/?ks=GDK-831
+[GDK-686]: https://gadak.dev/backlog/#/?ks=GDK-686
+[GDK-687]: https://gadak.dev/backlog/#/?ks=GDK-687

@@ -43,6 +43,47 @@
   vectors, error strings included, so a one-sided change to the contract
   turns both suites red ([GDK-800]).
 
+- A six-axis quality audit ran before this release, and the fixes landed
+  in parallel chunks. In Go: flattening ADF to text has one owner, so the
+  excerpt a list shows and the text FTS indexes can no longer drift
+  ([GDK-814]); status categories live in their own package and the JQL
+  layer stopped linking net/http ([GDK-686]); the write-vocabulary lock
+  walks every origin interface instead of a hand-kept list ([GDK-687]); a
+  parent-hint rejection is detected by error type, not by scanning the
+  message ([GDK-819]); and create-source resolution has a single router
+  shared by CLI and REST ([GDK-820]).
+
+- The main column is one value now — the issue list, documents, a space,
+  history, a dashboard or the feed — the same discriminated-union move
+  the right panel made, so a surface can no longer forget to close a
+  sibling and paint the list behind a dashboard ([GDK-815], [GDK-821]).
+  A collapsed documents tree stays collapsed across sync reloads:
+  expansion became deltas against a structural default instead of an
+  absolute set an effect kept "fixing" ([GDK-817]). The dashboard joined
+  the keyboard grammar — Esc closes it, the shortcut sheet says so, and
+  loading gets the same skeleton grace as its siblings ([GDK-827]). One
+  deliberate change rides along: the feed now takes the column instead
+  of overlaying the document screen, so Esc from the feed lands on the
+  list.
+
+- The page id a read hands out is now the id a write accepts: TTY search
+  prints the page key in the key column, `--json` help admits pages
+  exist, the skill recipe emits the origin page id, and MCP search
+  teaches `gadak_query` for page hits instead of a verb that dead-ends
+  ([GDK-816]). The recents help stops overclaiming what it records
+  ([GDK-828]).
+
+- Fourteen error strings across three locales now name the next move,
+  the mobile pairing error teaches `gadak pairing mint`, and Esc
+  dismisses the top toast without stealing keys from editors or the
+  media viewer ([GDK-828], [GDK-829]). The ko/ja catalogs converge on
+  the vocabulary the rest of each locale already uses ([GDK-831]).
+
+- Test weight moved down the ladder: the as-const arrays that own the
+  grouping, sort and feed-focus unions also own their runtime guards
+  ([GDK-825]), and six e2e specs became unit tests holding the same
+  assertions ([GDK-826]).
+
 - Two places where the CLI took a typo and kept going. `gadak create GDK
   "…"` used to file an issue whose summary began with the project key,
   because the key was just another summary word; it is now refused with the
@@ -1223,3 +1264,18 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-594]: https://gadak.dev/backlog/#/?ks=GDK-594
 [GDK-809]: https://gadak.dev/backlog/#/?ks=GDK-809
 [GDK-810]: https://gadak.dev/backlog/#/?ks=GDK-810
+[GDK-814]: https://gadak.dev/backlog/#/?ks=GDK-814
+[GDK-815]: https://gadak.dev/backlog/#/?ks=GDK-815
+[GDK-816]: https://gadak.dev/backlog/#/?ks=GDK-816
+[GDK-817]: https://gadak.dev/backlog/#/?ks=GDK-817
+[GDK-819]: https://gadak.dev/backlog/#/?ks=GDK-819
+[GDK-820]: https://gadak.dev/backlog/#/?ks=GDK-820
+[GDK-821]: https://gadak.dev/backlog/#/?ks=GDK-821
+[GDK-825]: https://gadak.dev/backlog/#/?ks=GDK-825
+[GDK-826]: https://gadak.dev/backlog/#/?ks=GDK-826
+[GDK-827]: https://gadak.dev/backlog/#/?ks=GDK-827
+[GDK-828]: https://gadak.dev/backlog/#/?ks=GDK-828
+[GDK-829]: https://gadak.dev/backlog/#/?ks=GDK-829
+[GDK-831]: https://gadak.dev/backlog/#/?ks=GDK-831
+[GDK-686]: https://gadak.dev/backlog/#/?ks=GDK-686
+[GDK-687]: https://gadak.dev/backlog/#/?ks=GDK-687
