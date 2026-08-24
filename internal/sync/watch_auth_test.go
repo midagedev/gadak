@@ -983,20 +983,25 @@ func TestWatchConfluenceResumesAfterCredentialReload(t *testing.T) {
 	}
 }
 
-func TestSourceLastErrorsAnswersWhichCredential(t *testing.T) {
+// The "why did watch stop, and which credential was it?" answer is
+// sync_state.last_error per source — the same column `gadak doctor`
+// classifies and `gadak sql --json "select source_id, last_error from
+// sync_state where last_error is not null"` prints.
+func TestSyncStateLastErrorAnswersWhichCredential(t *testing.T) {
 	_, _, db, cancel, done, _, _ := watchBoth(t, 0, http.StatusUnauthorized)
 	defer cancel()
-	_ = waitConfluenceLastError(t, db, done)
+	conf := waitConfluenceLastError(t, db, done)
 
-	got, err := sourceLastErrors(context.Background(), db.DB)
+	ctx := context.Background()
+	jira, err := db.SyncState(ctx, SourceID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := got[SourceID]; ok {
-		t.Fatalf("sourceLastErrors includes jira = %q; only Confluence died", got[SourceID])
+	if jira.LastError != nil && *jira.LastError != "" {
+		t.Fatalf("jira last_error = %q; only Confluence died", *jira.LastError)
 	}
-	if !strings.Contains(got[ConfluenceSourceID], "confluence:") || !strings.Contains(got[ConfluenceSourceID], "credential rejected") {
-		t.Fatalf("sourceLastErrors = %v, want confluence credential rejected", got)
+	if !strings.Contains(conf, "confluence:") || !strings.Contains(conf, "credential rejected") {
+		t.Fatalf("confluence last_error = %q, want credential rejected", conf)
 	}
 	cancel()
 	<-done

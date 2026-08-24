@@ -670,13 +670,9 @@ func parseParentKey(raw, cmd string) (string, error) {
 	return normalizeKey(raw), nil
 }
 
-// parentRejection / withParentHint / parentHierarchyHint are CLI adapters
-// over internal/parenthint, the single owner shared with REST. The CLI
-// still opens its own read-only handle (gadak sql's openReadOnly); REST
-// passes the server's existing *store.DB. Tests in parent_hint_test.go
-// keep calling these names so the wording contract stays in cmd/gadak.
-func parentRejection(err error) bool { return parenthint.Rejection(err) }
-
+// withParentHint is the CLI adapter over internal/parenthint, the single
+// owner shared with REST. The CLI opens its own read-only handle (gadak
+// sql's openReadOnly); REST passes the server's existing *store.DB.
 func withParentHint(_ context.Context, err error, parentKey string) error {
 	if err == nil || parentKey == "" || !parenthint.Rejection(err) {
 		return err
@@ -687,13 +683,4 @@ func withParentHint(_ context.Context, err error, parentKey string) error {
 	}
 	defer db.Close()
 	return parenthint.Wrap(err, parentKey, db)
-}
-
-func parentHierarchyHint(_ context.Context, parentKey string) string {
-	db, err := openReadOnly()
-	if err != nil {
-		return ""
-	}
-	defer db.Close()
-	return parenthint.Hint(db, parentKey)
 }

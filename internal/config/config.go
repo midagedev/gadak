@@ -153,7 +153,7 @@ type Config struct {
 	GroupLabels    map[string]string  `json:"groupLabels,omitempty"`
 	GroupColors    map[string]string  `json:"groupColors,omitempty"`
 	ProductByGroup map[string]Product `json:"productByGroup,omitempty"`
-	Features       map[string]bool    `json:"features,omitempty"` // feed/push/deploy/qa/teamGroups
+	Features       map[string]bool    `json:"features,omitempty"` // feed/deploy/qa/teamGroups
 	QaDashboardURL string             `json:"qaDashboardUrl,omitempty"`
 
 	StaleThresholdHours int `json:"staleThresholdHours,omitempty"` // 0 = the client default (72)

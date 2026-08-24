@@ -389,23 +389,14 @@ func parseUITokens(path string, raw json.RawMessage) (*UITokens, error) {
 	return &UITokens{Colors: wrapped.Colors}, nil
 }
 
-// ConfigVersion is the disk identity of a profile's config.json. Every writer
-// (CLI `config set`, PUT settings/, LoadFor's legacy-field rewrite) goes
-// through the same atomic temp+rename, so mtime+size changes exactly when the
-// content does. The ui-focus poll carries it; the web refetches config.json
-// when it moves. A monotonic counter was rejected because it needed a second
-// owner (local_meta) and a CLI↔SQLite coupling on a path that already had a
-// single owner: the file.
-func ConfigVersion(profile string) string {
-	d, err := DirFor(profile)
-	if err != nil {
-		return "0"
-	}
-	return configFileVersion(filepath.Join(d, "config.json"))
-}
-
-// ConfigVersionOfDir is ConfigVersion for a directory already in hand
-// (webConfig gets the loaded Config's Directory()).
+// ConfigVersionOfDir is the disk identity of a profile's config.json, for a
+// directory already in hand (webConfig gets the loaded Config's Directory()).
+// Every writer (CLI `config set`, PUT settings/, LoadFor's legacy-field
+// rewrite) goes through the same atomic temp+rename, so mtime+size changes
+// exactly when the content does. The ui-focus poll carries it; the web
+// refetches config.json when it moves. A monotonic counter was rejected
+// because it needed a second owner (local_meta) and a CLI↔SQLite coupling on
+// a path that already had a single owner: the file.
 func ConfigVersionOfDir(dir string) string {
 	if dir == "" {
 		return ""

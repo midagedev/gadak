@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -364,7 +365,7 @@ func TestWatchingClearedWhenWatchReturns(t *testing.T) {
 		cancel()
 		t.Fatalf("started %v", started)
 	}
-	if !watchingHas(reg.Watching(), "loop") {
+	if !watchingHas(watchingNames(reg), "loop") {
 		cancel()
 		t.Fatal("watching missing immediately after start")
 	}
@@ -372,12 +373,12 @@ func TestWatchingClearedWhenWatchReturns(t *testing.T) {
 
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		if !watchingHas(reg.Watching(), "loop") {
+		if !watchingHas(watchingNames(reg), "loop") {
 			return
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	t.Fatalf("watching still set after Watch returned: %v", reg.Watching())
+	t.Fatalf("watching still set after Watch returned: %v", watchingNames(reg))
 }
 
 func TestSameProfile(t *testing.T) {
@@ -390,6 +391,22 @@ func TestSameProfile(t *testing.T) {
 	if sameProfile("work", "side") {
 		t.Fatal("different names")
 	}
+}
+
+// watchingNames is the test-side view of Registry.watching — the production
+// Watching() method was removed with this audit round (tests were its only
+// callers). Sorted, like the method it replaces.
+func watchingNames(r *Registry) []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]string, 0, len(r.watching))
+	for name, on := range r.watching {
+		if on {
+			out = append(out, name)
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 func watchingHas(names []string, want string) bool {
@@ -425,10 +442,10 @@ func TestWatchStartsWhenCredentialAppearsAfterBoot(t *testing.T) {
 	})
 	got := reg.EnsureWatches()
 	if !watchingHas(got, "late") {
-		t.Fatalf("EnsureWatches after credential appeared: started %v, watching %v", got, reg.Watching())
+		t.Fatalf("EnsureWatches after credential appeared: started %v, watching %v", got, watchingNames(reg))
 	}
-	if !watchingHas(reg.Watching(), "late") {
-		t.Fatalf("Watching() missing late after EnsureWatches: %v", reg.Watching())
+	if !watchingHas(watchingNames(reg), "late") {
+		t.Fatalf("watching missing late after EnsureWatches: %v", watchingNames(reg))
 	}
 	// Second scan must not start another loop.
 	if again := reg.EnsureWatches(); len(again) != 0 {
@@ -470,8 +487,8 @@ func TestWorkspaceConnectStartsWatch(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("connect → %d %s", rec.Code, rec.Body.String())
 	}
-	if !watchingHas(reg.Watching(), "late") {
-		t.Fatalf("workspace connect did not start Watch: watching %v", reg.Watching())
+	if !watchingHas(watchingNames(reg), "late") {
+		t.Fatalf("workspace connect did not start Watch: watching %v", watchingNames(reg))
 	}
 }
 

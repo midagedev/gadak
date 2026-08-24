@@ -759,3 +759,91 @@ func TestMigrateV32ToV33DevLinkAuthorActorBranch(t *testing.T) {
 			author, actor, actorName, branch)
 	}
 }
+
+// TestMigrateV37ToV38DropsMirrorPersonalTables is FAIL-first for GDK-824:
+// the frozen mirror-side leftovers of the v26 copy (saved_views, watches,
+// favorites, feed_reads) are dropped by v38. Audit D2, corrected by
+// measurement: the mirror connection has local.db ATTACHed, and an
+// unqualified name resolves main first — so while the leftover existed,
+// `SELECT * FROM saved_views` silently answered with the frozen
+// migration-time snapshot (or an empty table), shadowing local.db's truth.
+// After the drop the unqualified name falls through to local.*, the
+// current truth. local.db itself is not touched: a watch written there
+// after the upgrade reads back through the production path.
+func TestMigrateV37ToV38DropsMirrorPersonalTables(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "v37.db")
+	raw, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// v1–v25 then v27–v37 (schemaV26 is the personal-state copy and is
+	// skipped like the other vN fixtures); user_version = 37 so Open
+	// applies only v38.
+	for i := 0; i < personalStateCopyVersion-1; i++ {
+		if _, err := raw.Exec(migrations[i]); err != nil {
+			raw.Close()
+			t.Fatalf("apply v%d: %v", i+1, err)
+		}
+	}
+	for _, m := range migrations[personalStateCopyVersion:37] {
+		if _, err := raw.Exec(m); err != nil {
+			raw.Close()
+			t.Fatalf("apply v27-v37: %v", err)
+		}
+	}
+	for _, q := range []string{
+		`INSERT INTO saved_views (id, name, config, created_at, updated_at) VALUES ('stale','Frozen','{}','2026-01-01T00:00:00.000Z','2026-01-01T00:00:00.000Z')`,
+		`INSERT INTO watches (key, created_at) VALUES ('STALE-1','2026-01-01T00:00:00.000Z')`,
+		`INSERT INTO favorites (key, created_at) VALUES ('STALE-2','2026-01-01T00:00:00.000Z')`,
+		`INSERT INTO feed_reads (event_id, read_at) VALUES ('cl:stale','2026-01-01T00:00:00.000Z')`,
+	} {
+		if _, err := raw.Exec(q); err != nil {
+			raw.Close()
+			t.Fatalf("seed leftover: %v", err)
+		}
+	}
+	if _, err := raw.Exec(`PRAGMA user_version = 37`); err != nil {
+		raw.Close()
+		t.Fatal(err)
+	}
+	raw.Close()
+
+	db, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open after v37: %v", err)
+	}
+	t.Cleanup(func() { db.Close() })
+	ctx := context.Background()
+
+	if got := db.SchemaVersion(); got != len(migrations) {
+		t.Errorf("schema version %d, want %d", got, len(migrations))
+	}
+	var n int
+	if err := db.sql.QueryRowContext(ctx,
+		`SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name IN ('saved_views','watches','favorites','feed_reads')`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Errorf("mirror-side personal tables after v38 = %d, want 0 (dropped)", n)
+	}
+	// Audit D2: with the shadowing leftover gone, an unqualified read
+	// resolves through to local.db — the current truth, not a stale
+	// snapshot and not the frozen STALE-1 row.
+	if err := db.SetWatch(ctx, "LIVE-1", true); err != nil {
+		t.Fatalf("SetWatch after v38: %v", err)
+	}
+	var key string
+	if err := db.sql.QueryRowContext(ctx, `SELECT key FROM watches`).Scan(&key); err != nil {
+		t.Fatalf("unqualified watches read after v38: %v", err)
+	}
+	if key != "LIVE-1" {
+		t.Errorf("unqualified watches = %q, want LIVE-1 (resolved through to local.db; the frozen STALE-1 snapshot is gone)", key)
+	}
+	watches, err := db.Watches(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(watches) != 1 || watches[0] != "LIVE-1" {
+		t.Errorf("Watches after v38 = %v, want [LIVE-1]", watches)
+	}
+}
