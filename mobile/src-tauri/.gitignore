@@ -1,0 +1,3 @@
+# Generated targets and CLI-regenerated schemas stay out of the repo.
+/target/
+/gen/schemas/

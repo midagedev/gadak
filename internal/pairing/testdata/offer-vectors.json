@@ -1,0 +1,73 @@
+{
+  "comment": "Golden vectors for the pairing offer line, shared by internal/pairing (Go) and mobile/src/lib/offer.ts (TypeScript). Regenerate with: go test ./internal/pairing/ -run TestRegenerateOfferVectors -update",
+  "valid": [
+    {
+      "name": "full",
+      "offer": "eyJ2IjoxLCJlbmRwb2ludCI6Imh0dHBzOi8vaG9tZS5leGFtcGxlLnRzLm5ldCIsInRva2VuIjoib2ZmZXItdmVjdG9yLXRva2VuLWZ1bGwiLCJleHBpcmVzX2F0IjoiMjAyNy0wNi0zMFQwOTowMDowMFoiLCJsYWJlbCI6ImxhcHRvcCJ9",
+      "want": {
+        "v": 1,
+        "endpoint": "https://home.example.ts.net",
+        "token": "offer-vector-token-full",
+        "expires_at": "2027-06-30T09:00:00Z",
+        "label": "laptop"
+      },
+      "note": "all five fields round-trip"
+    },
+    {
+      "name": "minimal",
+      "offer": "eyJ2IjoxLCJlbmRwb2ludCI6Imh0dHA6Ly8xMjcuMC4wLjE6Nzg5OSIsInRva2VuIjoib2ZmZXItdmVjdG9yLXRva2VuLW1pbmltYWwiLCJleHBpcmVzX2F0IjoiIiwibGFiZWwiOiIifQ",
+      "want": {
+        "v": 1,
+        "endpoint": "http://127.0.0.1:7899",
+        "token": "offer-vector-token-minimal",
+        "expires_at": "",
+        "label": ""
+      },
+      "note": "expires_at and label are empty strings"
+    },
+    {
+      "name": "aging_unknown_fields",
+      "offer": "eyJ2IjoxLCJlbmRwb2ludCI6Imh0dHBzOi8vaG9tZS5leGFtcGxlLnRzLm5ldCIsInRva2VuIjoib2ZmZXItdmVjdG9yLXRva2VuLWFnaW5nIiwiZXhwaXJlc19hdCI6IiIsImxhYmVsIjoiIiwic2NvcGUiOiJzZXJ2ZSIsImZ1dHVyZSI6dHJ1ZX0",
+      "want": {
+        "v": 1,
+        "endpoint": "https://home.example.ts.net",
+        "token": "offer-vector-token-aging",
+        "expires_at": "",
+        "label": ""
+      },
+      "note": "aging: unknown keys from a newer minter are ignored"
+    }
+  ],
+  "invalid": [
+    {
+      "name": "whitespace_only",
+      "offer": "  \n\t ",
+      "error_contains": "pairing offer: empty",
+      "note": "hostile: blank paste"
+    },
+    {
+      "name": "forged_base64",
+      "offer": "### not base64 at all ###",
+      "error_contains": "pairing offer: not base64url",
+      "note": "hostile: characters outside the base64url alphabet"
+    },
+    {
+      "name": "truncated_document",
+      "offer": "eyJ2IjoxLCJlbmRwb2ludCI6Imh0dHBzOi8vaG9tZS5leGFtcGxlLnRzLm5ldCIsInRva2VuIjoib2ZmZXItdmVj",
+      "error_contains": "pairing offer: malformed document",
+      "note": "corruption: the line was cut mid-document"
+    },
+    {
+      "name": "version_2",
+      "offer": "eyJ2IjoyLCJlbmRwb2ludCI6Imh0dHBzOi8vaG9tZS5leGFtcGxlLnRzLm5ldCIsInRva2VuIjoib2ZmZXItdmVjdG9yLXRva2VuLXYyIn0",
+      "error_contains": "pairing offer: version 2 is not supported",
+      "note": "hostile: explicit refusal naming the version, never a best-effort parse"
+    },
+    {
+      "name": "missing_endpoint",
+      "offer": "eyJ2IjoxLCJ0b2tlbiI6Im9mZmVyLXZlY3Rvci10b2tlbi1ub2VwIn0",
+      "error_contains": "pairing offer: no endpoint",
+      "note": "corruption: required field absent"
+    }
+  ]
+}
