@@ -1,13 +1,18 @@
 package config
 
-// User color overrides for the web/desktop UI (GDK-786/791 wave). The schema
-// lives here; the color math and the tier catalog live in
-// internal/config/tokencheck (GDK-785/787) and this file is its only caller.
+// User token overrides for the web/desktop UI — colors (GDK-786/791 wave)
+// and dimensions (the dim-token wave). The schema lives here; the color
+// math, both tier catalogs and the length/range/relation rules live in
+// internal/config/tokencheck (GDK-785/787) and this file is its only
+// caller.
 //
 // Three blocks under `ui` in config.json:
 //
-//	ui.tokens         {colors: {accent: "#7a4bd0", …}}        every palette
-//	ui.tokensByTheme  {dark: {colors: {accent: "#9a6be0"}}}   one palette only
+//	ui.tokens         {colors: {accent: "#7a4bd0", …},        every palette
+//	                   spacing: {row: "44px"},
+//	                   layout: {sidebar: "280px"},
+//	                   type: {body: "14px"}}                   dims: any palette
+//	ui.tokensByTheme  {dark: {colors: {accent: "#9a6be0"}}}   colors only
 //	ui.dataColors     {label: {urgent: "#c03030"},            per-data-key inks
 //	                   type: {10007: "#d07020"},
 //	                   status: {inprogress: "#7e5904"}}
@@ -16,6 +21,12 @@ package config
 //   - locked tokens are refused; validated tokens must pass
 //     tokencheck.ValidateTokens in every palette they can render in;
 //     free tokens need a valid #rgb/#rrggbb only.
+//   - dimension axes (spacing/layout/type) are palette-agnostic CSS lengths
+//     judged by tokencheck.ValidateDimensions: tier, length format, min/max
+//     range and cross-token relations. They are refused inside
+//     ui.tokensByTheme at the settings layer — a per-palette copy of a
+//     palette-free value is dead weight, and docked-min (the derived dock
+//     floor) is locked everywhere.
 //   - dataColors keys: `label.*` is the label text itself (labels are their
 //     own identifiers), `type.*` is a Jira issue_type_id (digits — display
 //     names localize per account and are refused), `status.*` is a
@@ -39,12 +50,16 @@ import (
 	"github.com/midagedev/gadak/internal/config/tokencheck"
 )
 
-// UITokens is one palette-scoped token override set. `colors` is the only
-// axis today; the wrapping object exists so a future axis (spacing, radius)
-// does not need a schema break. Values are bare token names ("accent") or
-// CSS variable names ("--color-accent") — tokencheck normalizes both.
+// UITokens is one token override set. Colors are palette-scoped hex
+// overrides; the dimension axes (spacing, layout, type) are palette-agnostic
+// CSS lengths that ride the same wrapper but never the per-theme overlay.
+// Values are bare token names ("accent", "row") or CSS variable names
+// ("--color-accent", "--spacing-row") — tokencheck normalizes both.
 type UITokens struct {
-	Colors map[string]string `json:"colors,omitempty"`
+	Colors  map[string]string `json:"colors,omitempty"`
+	Spacing map[string]string `json:"spacing,omitempty"`
+	Layout  map[string]string `json:"layout,omitempty"`
+	Type    map[string]string `json:"type,omitempty"`
 }
 
 // UIConfig is the `ui` block of config.json. Nil means "nothing overridden"
@@ -180,6 +195,42 @@ func ValidateUIConfig(u *UIConfig) (warns []tokencheck.Violation, err error) {
 		}
 		warned[k] = true
 		warns = append(warns, v)
+	}
+	// Dimension axes are palette-agnostic: validate the one stored copy
+	// before the per-palette color loop (a refused dimension stops the save
+	// before any palette judgment runs).
+	if u.Tokens != nil {
+		for _, v := range tokencheck.ValidateDimensions(map[string]map[string]string{
+			"spacing": u.Tokens.Spacing,
+			"layout":  u.Tokens.Layout,
+			"type":    u.Tokens.Type,
+		}) {
+			if v.Severity == tokencheck.SeverityReject {
+				return warns, fmt.Errorf("ui tokens (dimensions): %s", v.Message)
+			}
+			addWarn(v)
+		}
+	}
+	// A hand-edited or newer-build config can park dimension axes inside a
+	// theme overlay (the struct has the fields); say so instead of
+	// pretending they render.
+	themeKeys := make([]string, 0, len(u.TokensByTheme))
+	for p := range u.TokensByTheme {
+		themeKeys = append(themeKeys, p)
+	}
+	sort.Strings(themeKeys)
+	for _, palette := range themeKeys {
+		t := u.TokensByTheme[palette]
+		if t == nil || len(t.Spacing)+len(t.Layout)+len(t.Type) == 0 {
+			continue
+		}
+		addWarn(tokencheck.Violation{
+			Token:    palette,
+			Rule:     "dimensions-not-per-theme",
+			Severity: tokencheck.SeverityWarn,
+			Message: fmt.Sprintf("ui.tokensByTheme[%q] carries dimension axes (spacing/layout/type); dimensions apply to every palette — kept for forward compatibility but not rendered; set them under ui.tokens",
+				palette),
+		})
 	}
 	for _, palette := range u.knownPalettes() {
 		overrides := u.EffectiveTokenColors(palette)
@@ -330,6 +381,60 @@ func UITokenVars(u *UIConfig) (vars map[string]map[string]string, warns []tokenc
 	return vars, warns
 }
 
+// UIDimensionVars expands the stored dimension overrides into the single
+// palette-agnostic CSS variable map the web consumes: cssVar ("--spacing-row")
+// → value ("44px"). It is the sibling of UITokenVars with the palette axis
+// removed — dimensions do not vary by theme. Mirrors its filter exactly:
+// only names the dim catalog knows, tiers that may render, and values that
+// parse are injected; everything else degrades to a load-time advisory
+// (GDK-769 axis 3) so a config written by a newer build never blocks a boot.
+// The map is overrides-only: base values keep coming from app.css and the JS
+// layout constants.
+func UIDimensionVars(u *UIConfig) (vars map[string]string, warns []tokencheck.Violation) {
+	vars = map[string]string{}
+	if u == nil || u.Tokens == nil {
+		return vars, nil
+	}
+	axes := map[string]map[string]string{
+		"spacing": u.Tokens.Spacing,
+		"layout":  u.Tokens.Layout,
+		"type":    u.Tokens.Type,
+	}
+	for _, axis := range tokencheck.DimAxes() {
+		names := make([]string, 0, len(axes[axis]))
+		for name := range axes[axis] {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		for _, name := range names {
+			key := strings.TrimSpace(name)
+			value := strings.TrimSpace(axes[axis][name])
+			tok, known := tokencheck.DimTokenOf(axis, key)
+			_, valueOK := tok.ParseValue(value) // false for the zero token too
+			switch {
+			case !known:
+				warns = append(warns, tokencheck.Violation{
+					Token: key, Rule: "unknown-token", Severity: tokencheck.SeverityWarn,
+					Message: fmt.Sprintf("%s is not in the dimension catalog; ignored (a newer catalog may have renamed it)", key),
+				})
+			case tok.Tier == "locked":
+				warns = append(warns, tokencheck.Violation{
+					Token: key, Rule: "locked", Severity: tokencheck.SeverityWarn,
+					Message: fmt.Sprintf("%s is locked in this build; override ignored (derived: sidebar + list-min + detail-min — set those three)", tok.CSSVar),
+				})
+			case !valueOK:
+				warns = append(warns, tokencheck.Violation{
+					Token: key, Rule: "length", Severity: tokencheck.SeverityWarn,
+					Message: fmt.Sprintf("%s: %q is not a valid dimension value; ignored", tok.CSSVar, value),
+				})
+			default:
+				vars[tok.CSSVar] = value
+			}
+		}
+	}
+	return vars, warns
+}
+
 // UIDataColors passes the stored data inks through the same value gate and
 // returns what may render. Keys were validated at write time; this is the
 // stale-schema defense for values that reached disk anyway.
@@ -366,9 +471,12 @@ func cloneUIConfig(u *UIConfig) *UIConfig {
 	}
 }
 
-// parseUITokens accepts both shapes a CLI user would type for one palette's
-// tokens: the schema object {"colors": {…}} and the flat map {"accent": …}
-// (unambiguous: a string value is a color, an object value is the wrapper).
+// parseUITokens accepts the shapes a CLI user would type for the token
+// block: the flat colors map {"accent": …} (string values are colors — the
+// flat form stays colors-only, as before) and the axis wrapper
+// {"colors": {…}, "spacing": {…}, "layout": {…}, "type": {…}}. Unknown
+// wrapper axes refuse with the valid list so a typo cannot silently drop
+// the payload.
 func parseUITokens(path string, raw json.RawMessage) (*UITokens, error) {
 	if len(raw) == 0 || string(raw) == "null" {
 		return nil, nil
@@ -377,16 +485,46 @@ func parseUITokens(path string, raw json.RawMessage) (*UITokens, error) {
 	if err := json.Unmarshal(raw, &flat); err == nil {
 		return &UITokens{Colors: flat}, nil
 	}
+	var probe map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &probe); err != nil {
+		return nil, fmt.Errorf("%s must be an object of token→value, or {\"colors\": {…}, \"spacing\": {…}, \"layout\": {…}, \"type\": {…}}", path)
+	}
+	for k := range probe {
+		switch k {
+		case "colors", "spacing", "layout", "type":
+		default:
+			return nil, fmt.Errorf("%s: unknown axis %q — axes are colors, spacing, layout, type", path, k)
+		}
+	}
 	var wrapped struct {
-		Colors map[string]string `json:"colors"`
+		Colors  map[string]string `json:"colors"`
+		Spacing map[string]string `json:"spacing"`
+		Layout  map[string]string `json:"layout"`
+		Type    map[string]string `json:"type"`
 	}
 	if err := json.Unmarshal(raw, &wrapped); err != nil {
-		return nil, fmt.Errorf("%s must be an object of token→hex, or {\"colors\": {…}}", path)
+		return nil, fmt.Errorf("%s axes must map token names to values", path)
 	}
 	if wrapped.Colors == nil {
 		wrapped.Colors = map[string]string{}
 	}
-	return &UITokens{Colors: wrapped.Colors}, nil
+	return &UITokens{Colors: wrapped.Colors, Spacing: wrapped.Spacing, Layout: wrapped.Layout, Type: wrapped.Type}, nil
+}
+
+// parseThemeTokenOverlay parses one ui.tokensByTheme entry: colors only.
+// Dimension axes are palette-agnostic, so a per-theme copy could never
+// render; refusing here keeps the mistake next to the command that made it.
+// (The write gate still warns for such axes that reach config.json by other
+// roads — hand edits and newer builds.)
+func parseThemeTokenOverlay(path string, raw json.RawMessage) (*UITokens, error) {
+	t, err := parseUITokens(path, raw)
+	if err != nil {
+		return nil, err
+	}
+	if t != nil && len(t.Spacing)+len(t.Layout)+len(t.Type) > 0 {
+		return nil, fmt.Errorf("%s: dimension axes (spacing/layout/type) apply to every palette — set them under ui.tokens, not per theme", path)
+	}
+	return t, nil
 }
 
 // ConfigVersionOfDir is the disk identity of a profile's config.json, for a

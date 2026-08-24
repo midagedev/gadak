@@ -287,9 +287,11 @@ func buildSettings() []Setting {
 		{
 			Path: "ui.tokens",
 			Root: "ui",
-			Description: "color-token overrides for every palette: {\"accent\": \"#7a4bd0\", …} " +
-				"(locked tokens refused; validated tokens must pass the contrast rules; " +
-				"discover names with `gadak config get ui.tokens.catalog`)",
+			Description: "token overrides: colors {\"accent\": \"#7a4bd0\"} for every palette; " +
+				"dimensions {\"spacing\": {\"row\": \"44px\"}, \"layout\": {\"sidebar\": \"280px\"}, " +
+				"\"type\": {\"body\": \"14px\"}} apply to every palette (locked tokens refused; " +
+				"validated tokens must pass the contrast or length-range rules; discover color " +
+				"names with `gadak config get ui.tokens.catalog`)",
 			Get: func(c *Config) any {
 				if c.UI == nil || c.UI.Tokens == nil {
 					return UITokens{}
@@ -334,7 +336,7 @@ func buildSettings() []Setting {
 				}
 				sort.Strings(palettes)
 				for _, p := range palettes {
-					t, err := parseUITokens("ui.tokensByTheme."+p, in[p])
+					t, err := parseThemeTokenOverlay("ui.tokensByTheme."+p, in[p])
 					if err != nil {
 						return err
 					}
