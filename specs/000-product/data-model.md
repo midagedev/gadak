@@ -543,10 +543,13 @@ database were deleted, so `gadak export` dumps the first three and `gadak
 import` restores them (name or key conflict: the file wins). Since v26 they
 live in `local.db` — the sibling file ATTACHed as schema `local` — not in the
 mirror, so `rm gadak.db` can no longer delete them (GDK-105). Reach them
-through the `local.` prefix (`SELECT * FROM local.saved_views`). On databases
-upgraded from v25 the mirror-side tables of the same names still exist as
-frozen leftovers of the v26 copy — nothing reads or writes them, and dropping
-them is deferred to a later release.
+through the `local.` prefix (`SELECT * FROM local.saved_views`) — that is the
+documented spelling. Databases upgraded from v25 carried mirror-side tables of
+the same names as frozen leftovers of the v26 copy; schema v38 (GDK-824)
+dropped them. While they existed an unprefixed `saved_views` resolved to
+main's frozen snapshot and shadowed the local truth; after the drop an
+unprefixed name falls through to `local.*`, so a missing `local.` prefix is
+no longer silently wrong, but write it anyway — the prefix is the contract.
 
 | Table | Columns |
 | --- | --- |

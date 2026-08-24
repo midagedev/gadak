@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/parenthint"
 	"github.com/midagedev/gadak/internal/store"
 )
 
@@ -40,6 +41,18 @@ func editParent400() error {
 	})
 }
 
+// hierarchyHint is the test-side shape of what `gadak create` does around
+// parenthint.Hint: open the read-only mirror, ask, close. The cmd adapter
+// moved here when the audit round removed the unused production wrapper.
+func hierarchyHint(parentKey string) string {
+	db, err := openReadOnly()
+	if err != nil {
+		return ""
+	}
+	defer db.Close()
+	return parenthint.Hint(db, parentKey)
+}
+
 func TestParentRejectionKnowsBothVerbShapes(t *testing.T) {
 	cases := []struct {
 		name string
@@ -60,8 +73,8 @@ func TestParentRejectionKnowsBothVerbShapes(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := parentRejection(tc.err); got != tc.want {
-				t.Fatalf("parentRejection(%q) = %v, want %v", tc.err, got, tc.want)
+			if got := parenthint.Rejection(tc.err); got != tc.want {
+				t.Fatalf("parenthint.Rejection(%q) = %v, want %v", tc.err, got, tc.want)
 			}
 		})
 	}
@@ -145,7 +158,7 @@ func TestParentHierarchyHintCoversEpicParent(t *testing.T) {
 	}
 	db.Close()
 
-	hint := parentHierarchyHint(context.Background(), "NMB-900")
+	hint := hierarchyHint("NMB-900")
 	if strings.TrimSpace(hint) == "" {
 		t.Fatal("epic parent got no hint; want the one-level-above rule")
 	}
@@ -156,7 +169,7 @@ func TestParentHierarchyHintCoversEpicParent(t *testing.T) {
 	}
 
 	// The level-0 sentence must not have been replaced by the new branch.
-	low := parentHierarchyHint(context.Background(), "NMB-1")
+	low := hierarchyHint("NMB-1")
 	if !strings.Contains(low, "level-1 parent (an epic)") {
 		t.Fatalf("level-0 hint changed: %q", low)
 	}
@@ -166,7 +179,7 @@ func TestParentHierarchyHintCoversEpicParent(t *testing.T) {
 // is best-effort context, never a second guess at the cause.
 func TestParentHierarchyHintUnknownParentIsSilent(t *testing.T) {
 	mirror(t, "https://nimbus.example.com")
-	if got := parentHierarchyHint(context.Background(), "NMB-4242"); got != "" {
+	if got := hierarchyHint("NMB-4242"); got != "" {
 		t.Fatalf("unknown parent produced a hint: %q", got)
 	}
 }
@@ -219,7 +232,7 @@ func TestParentHierarchyHintNamesSameProjectOpenEpics(t *testing.T) {
 		epicRec("3015", "NMB-15", "NMB", "standard issue not an epic", "2026-08-23T00:00:00.000Z", "3", "inprogress", 0),
 	})
 
-	hint := parentHierarchyHint(context.Background(), "NMB-1")
+	hint := hierarchyHint("NMB-1")
 	if !strings.Contains(hint, "Pick an epic as --parent") {
 		t.Fatalf("level-0 sentence missing: %q", hint)
 	}
@@ -255,7 +268,7 @@ func TestParentHierarchyHintOmitsEpicLineWhenNone(t *testing.T) {
 		epicRec("4010", "GDK-1", "GDK", "open but other project", "2026-08-22T00:00:00.000Z", "3", "inprogress", 1),
 	})
 
-	hint := parentHierarchyHint(context.Background(), "NMB-1")
+	hint := hierarchyHint("NMB-1")
 	if !strings.Contains(hint, "Pick an epic as --parent") {
 		t.Fatalf("level-0 sentence missing: %q", hint)
 	}
@@ -293,7 +306,7 @@ func TestParentHierarchyHintDoesNotSuggestEpicsForEpicParent(t *testing.T) {
 	}
 	db.Close()
 
-	hint := parentHierarchyHint(context.Background(), "NMB-900")
+	hint := hierarchyHint("NMB-900")
 	if !strings.Contains(hint, "one level above") {
 		t.Fatalf("epic-parent rule missing: %q", hint)
 	}

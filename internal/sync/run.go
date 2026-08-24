@@ -113,28 +113,6 @@ func applyWatchErr(ctx context.Context, cfg *config.Config, db *store.DB, src wa
 	return nil
 }
 
-// sourceLastErrors is the one-call answer to "why did watch stop, and which
-// credential was it?". It reads last_error for every Watch source. Same
-// columns `gadak doctor` classifies as sync.<id>.last_error and
-// `gadak sql --json "select source_id, last_error from sync_state where last_error is not null"`
-// prints.
-func sourceLastErrors(ctx context.Context, db *store.DB) (map[string]string, error) {
-	out := map[string]string{}
-	if db == nil {
-		return out, nil
-	}
-	for _, src := range defaultWatchSources() {
-		st, err := db.SyncState(ctx, src.id)
-		if err != nil {
-			return nil, err
-		}
-		if st.LastError != nil && *st.LastError != "" {
-			out[src.id] = *st.LastError
-		}
-	}
-	return out, nil
-}
-
 // Source kinds — the Kind column of sources / sync_state rows, one value per
 // connector. Single owner (GDK-619): every writer of the column and every
 // comparison against it goes through these, never a bare literal.

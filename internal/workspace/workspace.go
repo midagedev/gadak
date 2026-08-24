@@ -9,7 +9,6 @@ import (
 	"log"
 	"net/http"
 	"regexp"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -523,24 +522,6 @@ func (r *Registry) EnsureWatch(name string) bool {
 		logf("workspace " + profileName + ": watch started")
 	}
 	return true
-}
-
-// Watching returns the profile names whose Watch loop has been started.
-// Debug surface for D8 (settings / tests); order is sorted.
-func (r *Registry) Watching() []string {
-	if r == nil {
-		return nil
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	out := make([]string, 0, len(r.watching))
-	for name, on := range r.watching {
-		if on {
-			out = append(out, name)
-		}
-	}
-	sort.Strings(out)
-	return out
 }
 
 func (r *Registry) rescanLoop(ctx context.Context) {

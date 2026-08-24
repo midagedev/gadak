@@ -374,7 +374,11 @@ func TestUITokenVarsDegradesToAdvisory(t *testing.T) {
 
 func TestConfigVersionMoves(t *testing.T) {
 	t.Setenv("GADAK_HOME", t.TempDir())
-	before := ConfigVersion("")
+	d, err := DirFor("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := ConfigVersionOfDir(d)
 	if before == "" {
 		t.Fatal("version must be non-empty even before the file exists")
 	}
@@ -382,24 +386,17 @@ func TestConfigVersionMoves(t *testing.T) {
 	if err := ApplyUIConfig(c, &UIConfig{Tokens: &UITokens{Colors: map[string]string{"accent": "#7a4bd0"}}}); err != nil {
 		t.Fatal(err)
 	}
-	d, err := DirFor("")
-	if err != nil {
-		t.Fatal(err)
-	}
 	c.dir = d
 	if err := c.Save(); err != nil {
 		t.Fatal(err)
 	}
-	after := ConfigVersion("")
+	after := ConfigVersionOfDir(d)
 	if after == before {
 		t.Fatalf("configVersion did not move on save: %q", after)
 	}
 	// Same file, same answer — the poll compares for equality.
-	if ConfigVersion("") != after {
-		t.Fatal("configVersion not stable across reads of the same file")
-	}
 	if ConfigVersionOfDir(d) != after {
-		t.Fatal("ConfigVersionOfDir must agree with ConfigVersion")
+		t.Fatal("configVersion not stable across reads of the same file")
 	}
 	if ConfigVersionOfDir("") != "" {
 		t.Fatal("empty dir must yield empty version")

@@ -3,7 +3,7 @@ package store
 // migrations are applied in order and the index+1 is the schema version. A
 // released migration is never edited; a schema change is a new entry at the end
 // plus a documented row in specs/000-product/data-model.md.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38}
 
 // itemsFTSCreate is the canonical items_fts DDL, spliced into schemaV1 so a
 // fresh database is born matching it (GDK-444: an inline copy in V1 lagged at
@@ -487,7 +487,8 @@ const schemaV25 = `SELECT 1`
 // a column, since ALTER TABLE ADD COLUMN is not re-runnable), and the source rows staying
 // behind means that crash window loses nothing. From this version on the
 // mirror-side tables are frozen leftovers that no code path reads or writes;
-// dropping them belongs to a later release, once every install has migrated.
+// schemaV38 (GDK-824) is the later release that drops them, now that every
+// install has migrated.
 const schemaV26 = `
 INSERT OR IGNORE INTO local.saved_views (id, name, config, created_at, updated_at)
   SELECT id, name, config, created_at, updated_at FROM saved_views;
@@ -710,6 +711,25 @@ SELECT i.key, i.source_id, d.actor, d.actor_name, 'dev_link'
 // dev_links is selected by no view, so no view rebuild.
 const schemaV37 = `
 ALTER TABLE dev_links ADD COLUMN environment TEXT NOT NULL DEFAULT '';
+`
+
+// schemaV38 (GDK-824) drops the frozen mirror-side leftovers of the v26 copy:
+// saved_views, watches, favorites, feed_reads. v26 kept them so a crash
+// between the two file commits of the copy could re-run it; every install
+// has since migrated, and the leftovers now answer `gadak sql` queries that
+// should have used the local. prefix with a migration-time snapshot or empty
+// silence instead of the local.db truth — SQLite resolves an unprefixed name
+// against main first, so the leftover shadowed the ATTACHed local.db tables.
+// After the drop the unprefixed name falls through to local.*, the current
+// truth. Accepted loss window: an install whose v26 copy was lost to that
+// cross-file crash keeps nothing here; personal state is watches/views/
+// read-marks and the mirror is a cache by contract. IF EXISTS because a
+// manually cleaned file must not fail the migration.
+const schemaV38 = `
+DROP TABLE IF EXISTS saved_views;
+DROP TABLE IF EXISTS watches;
+DROP TABLE IF EXISTS favorites;
+DROP TABLE IF EXISTS feed_reads;
 `
 
 // personalStateCopyVersion is the migration level schemaV26 lands on. migrate

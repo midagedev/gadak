@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/midagedev/gadak/internal/apprun"
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/server"
@@ -55,7 +56,7 @@ func TestGDK340StandaloneAppAdvertisesOrigin(t *testing.T) {
 	cfg, api := standaloneApp(t)
 	origin.SetInProcess(true)
 
-	stop, err := startStandaloneOriginListener(cfg, api)
+	stop, err := apprun.StartOriginPassthrough(cfg, api)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,7 +118,7 @@ func TestGDK340ListenerServesOnlyOriginPaths(t *testing.T) {
 	cfg, api := standaloneApp(t)
 	origin.SetInProcess(true)
 
-	stop, err := startStandaloneOriginListener(cfg, api)
+	stop, err := apprun.StartOriginPassthrough(cfg, api)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -161,7 +162,7 @@ func TestGDK340ConnectedAppNoListener(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stop, err := startStandaloneOriginListener(cfg, http.NotFoundHandler())
+	stop, err := apprun.StartOriginPassthrough(cfg, http.NotFoundHandler())
 	if err != nil {
 		t.Fatal(err)
 	}

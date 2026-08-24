@@ -1466,14 +1466,6 @@ func sprintIDString(id *int64) string {
 	return fmt.Sprintf("%d", *id)
 }
 
-func jqlIssues(lites []store.IssueLite) []jql.Issue {
-	out := make([]jql.Issue, len(lites))
-	for i, l := range lites {
-		out[i] = jqlIssue(l)
-	}
-	return out
-}
-
 func sortJQL(list []store.IssueLite, d jql.Display) {
 	dir := 1
 	if d.Dir != "asc" {

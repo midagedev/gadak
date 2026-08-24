@@ -143,10 +143,13 @@ func TestMirrorDeleteKeepsPersonalState(t *testing.T) {
 }
 
 // An upgrade from the last released schema must carry the four tables' rows
-// across the file boundary, and the copy migration must be idempotent — it
-// re-runs if a crash landed PRAGMA user_version without the copy (the mirror
-// is WAL, so a cross-file transaction has no inter-file atomicity to lean on;
-// that is also why this round does not drop the mirror-side tables).
+// across the file boundary. The copy migration is idempotent — it re-runs
+// if a crash landed PRAGMA user_version without the copy (the mirror is
+// WAL, so a cross-file transaction has no inter-file atomicity to lean on).
+// schemaV38 (GDK-824) drops the mirror-side leftovers after the copy; the
+// crash-replay order is migrate()'s pending list (the v26 copy lands before
+// the v38 drop), and the "local unavailable" hold is pinned by
+// TestCopyMigrationWaitsForLocal.
 func TestUpgradeCopiesMirrorPersonalToLocal(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "gadak.db")
 	prev := personalStateCopyVersion - 1 // v25: last level before the copy
@@ -205,17 +208,19 @@ func TestUpgradeCopiesMirrorPersonalToLocal(t *testing.T) {
 		t.Errorf("SavedViews after upgrade = %+v, want [Mine]", views)
 	}
 
-	// schemaV26 is INSERT OR IGNORE so a crash that landed user_version
-	// without the copy can re-run. Later migrations after v26 (ALTER ADD
-	// COLUMN) are not re-runnable; replaying them by rewinding
-	// user_version is not this test's contract.
-	if _, err := db.sql.Exec(schemaV26); err != nil {
+	// Post-upgrade the mirror-side leftovers are gone (schemaV38, GDK-824).
+	// Re-running schemaV26 by hand was the old idempotence pin; after the
+	// drop it would be a local→local self-copy through SQLite's attach name
+	// resolution — a dead path. Replay itself lives in migrate()'s pending
+	// list: the v26 copy is applied before the v38 drop, so a crash that
+	// landed user_version without the copy still re-runs it on next Open.
+	var leftover int
+	if err := db.sql.QueryRowContext(ctx,
+		`SELECT count(*) FROM sqlite_master WHERE type='table' AND name IN ('saved_views','watches','favorites','feed_reads')`).Scan(&leftover); err != nil {
 		t.Fatal(err)
 	}
-	for table, want := range map[string]int{"saved_views": 1, "watches": 1, "favorites": 1, "feed_reads": 1} {
-		if n := countLocal(t, db, table); n != want {
-			t.Errorf("after a second copy pass local.%s = %d rows, want %d (INSERT OR IGNORE must keep the migration idempotent)", table, n, want)
-		}
+	if leftover != 0 {
+		t.Errorf("mirror-side personal tables after upgrade = %d, want 0 (dropped by schemaV38)", leftover)
 	}
 	if err := db.Close(); err != nil {
 		t.Fatal(err)

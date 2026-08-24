@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/midagedev/gadak/internal/apprun"
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/origin"
 )
@@ -103,7 +104,7 @@ func exprCallName(fun ast.Expr) string {
 }
 
 // TestGDK658SecondProcessStandaloneListenerBusy is Q1 as a real second
-// process: with the parent holding the persist lock, startStandaloneOriginListener
+// process: with the parent holding the persist lock, the origin passthrough
 // must return ErrWorkspaceBusy and must not write advertise. This is why a
 // second desktop launch never reached application.New before GDK-658.
 func TestGDK658SecondProcessStandaloneListenerBusy(t *testing.T) {
@@ -113,7 +114,7 @@ func TestGDK658SecondProcessStandaloneListenerBusy(t *testing.T) {
 			fmt.Fprintf(os.Stderr, "load: %v\n", err)
 			os.Exit(1)
 		}
-		_, err = startStandaloneOriginListener(cfg, http.NotFoundHandler())
+		_, err = apprun.StartOriginPassthrough(cfg, http.NotFoundHandler())
 		if err == nil {
 			fmt.Fprintln(os.Stderr, "GDK658_ACQUIRED")
 			os.Exit(0)
@@ -128,7 +129,7 @@ func TestGDK658SecondProcessStandaloneListenerBusy(t *testing.T) {
 
 	cfg, api := standaloneApp(t)
 	origin.SetInProcess(true)
-	stop, err := startStandaloneOriginListener(cfg, api)
+	stop, err := apprun.StartOriginPassthrough(cfg, api)
 	if err != nil {
 		t.Fatal(err)
 	}
