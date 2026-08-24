@@ -2,6 +2,29 @@
 
 <sub><a href="CHANGELOG.md">English</a> · 한국어 — 영문이 원본이며, 번역은 영문과 함께 갱신됩니다(마지막 동기화 2026-08-24).</sub>
 
+## Unreleased
+
+- 폰 앱이 골격에서 MVP 루프 전체로 자랐습니다 — 리서치 두 편(공식 Jira
+  모바일 앱의 실패 지도, 폰이 실제로 닿을 수 있는 것의 실측 게이트 표)
+  위에서. 서버가 먼저: 페어된 DNS 호스트가 이제 새 `serve` pairing scope
+  뒤의 정확히 13경로 미러 allowlist를 읽습니다 — 단방향 문이라 serve
+  토큰은 origin passthrough를 못 타고 origin 토큰은 미러를 못 덤프합니다
+  — 그리고 `pairing mint`가 connected 워크스페이스에서 동작합니다
+  ([GDK-796], [GDK-797], [GDK-798]).
+- 폰 쪽: 단일 native 전송(Origin 없음, CORS 없음)과 iOS Keychain의 토큰
+  (Rust 명령 3개가 유일한 문); 첫 화면인 조용한 큐 — 상태 원문명과
+  카테고리 잉크, 44pt 행, stale-while-revalidate, 계정 id로 좁히는
+  Mine/All; 주장한 연결을 증명하는 페어링(QR 스캔, 만료 오퍼는 저장 거부,
+  실패마다 제 다음 행동을 가르침); 빈 화면이 이미 답인 검색(최근 검색,
+  id 축만 로컬 해석하는 저장 뷰 칩); 전송 실패를 살아남는 코멘트 초안과
+  `transition_id`로 말하는 전환 시트를 갖춘 이슈 상세; assigned/멘션/
+  reopened만 로컬 알림으로 승격하는 포그라운드 피드 폴링 — 앱이 보이면
+  침묵, 뱃지 없음 ([GDK-800], [GDK-801], [GDK-802], [GDK-799] 앱 절반).
+- 내비게이션 union 하나가 전부를 배선합니다(탭 3개, Pair는 온보딩, 알림
+  탭은 이슈에 착지하고 큐로 빠져나옴) — 그리고 배선 라운드가 마운트
+  이펙트가 자기 완료를 추적해 초당 ~55회 재요청하는 것을 실측으로 잡아
+  `untrack`으로 클래스를 닫았습니다 ([GDK-837]).
+
 ## v0.17.2 — 2026-08-25
 
 - 색 물결: theme-check에서 포팅한 런타임 토큰 검증기와 app.css 카탈로그
@@ -1216,6 +1239,11 @@ HTTP·sync·에이전트 계약.
 [GDK-594]: https://gadak.dev/backlog/#/?ks=GDK-594
 [GDK-809]: https://gadak.dev/backlog/#/?ks=GDK-809
 [GDK-810]: https://gadak.dev/backlog/#/?ks=GDK-810
+[GDK-796]: https://gadak.dev/backlog/#/?ks=GDK-796
+[GDK-799]: https://gadak.dev/backlog/#/?ks=GDK-799
+[GDK-801]: https://gadak.dev/backlog/#/?ks=GDK-801
+[GDK-802]: https://gadak.dev/backlog/#/?ks=GDK-802
+[GDK-837]: https://gadak.dev/backlog/#/?ks=GDK-837
 [GDK-822]: https://gadak.dev/backlog/#/?ks=GDK-822
 [GDK-824]: https://gadak.dev/backlog/#/?ks=GDK-824
 [GDK-712]: https://gadak.dev/backlog/#/?ks=GDK-712

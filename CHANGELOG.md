@@ -2,6 +2,34 @@
 
 <sub>English · <a href="CHANGELOG.ko.md">한국어</a></sub>
 
+## Unreleased
+
+- The phone app grew from a skeleton into the whole MVP loop, built on
+  two research rounds (market failure map of the official Jira mobile
+  apps, and a measured gate table of what a phone could actually reach).
+  The server side first: a paired DNS-named host now reads exactly a
+  13-path mirror allowlist behind a new `serve` pairing scope — a one-way
+  door, so a serve token cannot ride the origin passthrough and an origin
+  token cannot dump the mirror — and `pairing mint` works on a connected
+  workspace ([GDK-796], [GDK-797], [GDK-798]).
+- On the phone itself: one native transport (no Origin, no CORS) with the
+  token in the iOS Keychain behind three Rust commands; a quiet queue as
+  the first screen — original status names with category ink, 44pt rows,
+  stale-while-revalidate, Mine/All keyed on assignee ids; pairing that
+  proves the connection it claims (QR scan, expired offers refuse to
+  save, each failure teaches its own next move); search whose empty
+  screen already answers (recent searches, saved-view chips that
+  interpret only id axes locally); issue detail with a comment draft that
+  outlives failure and a transition sheet speaking `transition_id`; and
+  foreground feed polling promoted to local notifications only for
+  assigned/mention/reopened — silent while the app is visible, badge off
+  ([GDK-800], [GDK-801], [GDK-802], [GDK-799] app half).
+- One navigation union wires it all (three tabs, Pair as onboarding, a
+  notification tap lands on the issue and backs out to the queue) — and
+  the wiring round measured a mount effect tracking its own completion,
+  re-fetching ~55 times a second; `untrack` closed the class and the
+  incident is on the backlog ([GDK-837]).
+
 ## v0.17.2 — 2026-08-25
 
 - The color wave: a runtime token validator ported from theme-check with
@@ -1273,6 +1301,11 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-594]: https://gadak.dev/backlog/#/?ks=GDK-594
 [GDK-809]: https://gadak.dev/backlog/#/?ks=GDK-809
 [GDK-810]: https://gadak.dev/backlog/#/?ks=GDK-810
+[GDK-796]: https://gadak.dev/backlog/#/?ks=GDK-796
+[GDK-799]: https://gadak.dev/backlog/#/?ks=GDK-799
+[GDK-801]: https://gadak.dev/backlog/#/?ks=GDK-801
+[GDK-802]: https://gadak.dev/backlog/#/?ks=GDK-802
+[GDK-837]: https://gadak.dev/backlog/#/?ks=GDK-837
 [GDK-822]: https://gadak.dev/backlog/#/?ks=GDK-822
 [GDK-824]: https://gadak.dev/backlog/#/?ks=GDK-824
 [GDK-712]: https://gadak.dev/backlog/#/?ks=GDK-712
