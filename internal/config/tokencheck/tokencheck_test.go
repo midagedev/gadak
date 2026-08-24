@@ -95,10 +95,10 @@ type vectorsFile struct {
 		Contrast float64 `json:"contrast"`
 	} `json:"contrast"`
 	DeltaEok []struct {
-		A                      string  `json:"a"`
-		B                      string  `json:"b"`
-		DeltaEok               float64 `json:"deltaEok"`
-		DeltaEokDeuteranopia   float64 `json:"deltaEokDeuteranopia"`
+		A                    string  `json:"a"`
+		B                    string  `json:"b"`
+		DeltaEok             float64 `json:"deltaEok"`
+		DeltaEokDeuteranopia float64 `json:"deltaEokDeuteranopia"`
 	} `json:"deltaEok"`
 	Oklab []struct {
 		Hex string  `json:"hex"`
@@ -307,18 +307,18 @@ func TestFreeTierStillChecksHex(t *testing.T) {
 func TestHexDefense(t *testing.T) {
 	base := lightBase(t)
 	hostile := []string{
-		"",            // empty
-		"#12",         // truncated
-		"#1234",       // 4 digits
-		"#12345",      // 5 digits
-		"#1234567",    // 7 digits
-		"#12345678",   // 8 digits (alpha — runtime takes none yet)
-		"#GGGGGG",     // hex letters out of range
-		"#12 456",     // inner space
-		"123456",      // missing #
-		"javascript:alert(1)", // scheme payload
-		"rgb(1 2 3)",  // functional form
-		"#١٢٣٤٥٦",     // arabic-indic digits
+		"",                          // empty
+		"#12",                       // truncated
+		"#1234",                     // 4 digits
+		"#12345",                    // 5 digits
+		"#1234567",                  // 7 digits
+		"#12345678",                 // 8 digits (alpha — runtime takes none yet)
+		"#GGGGGG",                   // hex letters out of range
+		"#12 456",                   // inner space
+		"123456",                    // missing #
+		"javascript:alert(1)",       // scheme payload
+		"rgb(1 2 3)",                // functional form
+		"#١٢٣٤٥٦",                   // arabic-indic digits
 		strings.Repeat("#ff", 4000), // giant string
 	}
 	for _, val := range hostile {
@@ -514,7 +514,7 @@ func TestDeterminism(t *testing.T) {
 	overrides := map[string]string{
 		"status-done": "#8f3530",
 		"accent-text": "#734701",
-		"dept-2":  "#ff0000",
+		"dept-2":      "#ff0000",
 	}
 	a := ValidateTokens(overrides, base)
 	b := ValidateTokens(overrides, base)

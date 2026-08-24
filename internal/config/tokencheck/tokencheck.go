@@ -318,11 +318,11 @@ var (
 // asserts the catalog never references one outside it (catalog drift check,
 // Go side — token-catalog.mjs --check covers the app.css side).
 var implementedRules = map[string]bool{
-	"hex":                     true,
-	"status-pair":             true,
+	"hex":                      true,
+	"status-pair":              true,
 	"status-pair-deuteranopia": true,
-	"status-role-floor":       true,
-	"accent-text-contrast":    true,
+	"status-role-floor":        true,
+	"accent-text-contrast":     true,
 }
 
 const tokenPrefix = "--color-"
@@ -396,7 +396,7 @@ func ValidateTokens(overrides, base map[string]string) []Violation {
 				Rule:     "unknown-token",
 				Severity: SeverityWarn,
 				Measured: quote(value),
-				Message: fmt.Sprintf("--color-%s is not in the color catalog; ignored (a newer catalog may have renamed it)", name),
+				Message:  fmt.Sprintf("--color-%s is not in the color catalog; ignored (a newer catalog may have renamed it)", name),
 			})
 			continue
 		}
@@ -407,7 +407,7 @@ func ValidateTokens(overrides, base map[string]string) []Violation {
 				Severity: SeverityReject,
 				Measured: quote(value),
 				Floor:    "no override",
-				Message: fmt.Sprintf("--color-%s is locked (%s): palette authoring, not a runtime override — see the custom-palette scope (GDK-789)", name, tok.Description),
+				Message:  fmt.Sprintf("--color-%s is locked (%s): palette authoring, not a runtime override — see the custom-palette scope (GDK-789)", name, tok.Description),
 			})
 			continue
 		}
