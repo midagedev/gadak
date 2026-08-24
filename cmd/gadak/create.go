@@ -90,6 +90,9 @@ func cmdCreate(args []string) error {
 	if summary == "" {
 		return usageError("create", createUsage)
 	}
+	if err := refuseProjectKeyedSummary(pos, *projectFlag); err != nil {
+		return err
+	}
 	if err := refuseSignedCreateLabels(labels); err != nil {
 		return err
 	}
@@ -239,6 +242,64 @@ func cmdCreateBatch(projectFlag, typeFlag, defaultBody, defaultPriority, default
 		}
 		return nil
 	})
+}
+
+// refuseProjectKeyedSummary is the GDK-594 choke: `gadak create GDK title`
+// used to join the project key into the summary. Unquoted multi-word
+// summaries ("Fix the flaky gate") stay valid because "Fix" is not the
+// uppercase key shape. A quoted summary is one positional. --project set
+// means the first word is intentional summary text.
+//
+// The shape alone is not enough to refuse on (lead 2026-08-24, GDK-594):
+// "API timeout on sync", "CLI help is wrong", "SQL join drops rows" all wear
+// it, and turning a legitimate filing away costs the user more than filing a
+// summary they can edit. So only a key this workspace actually knows is
+// refused, and an unreadable workspace fails open.
+func refuseProjectKeyedSummary(pos []string, projectFlag string) error {
+	if strings.TrimSpace(projectFlag) != "" || len(pos) < 2 {
+		return nil
+	}
+	first := strings.TrimSpace(pos[0])
+	if !config.LooksLikeProjectKey(first) {
+		return nil
+	}
+	known := knownProjectKeys()
+	if !known[first] {
+		return nil
+	}
+	msg := fmt.Sprintf("gadak create takes a summary, not a project key — %q is a project key here; pass --project %s (or quote the whole summary)", first, first)
+	if cfg, err := config.Load(); err == nil && len(cfg.Projects) > 0 {
+		msg += "; this workspace: " + strings.Join(cfg.Projects, ", ")
+	}
+	return fmt.Errorf("%s", msg)
+}
+
+// knownProjectKeys is this workspace's own key vocabulary: the configured
+// scope, the default project, and whatever the mirror already holds. Opened
+// lazily — an argv that is not already key-shaped never pays for it, so
+// `gadak create Fix the flaky gate` still touches no database.
+func knownProjectKeys() map[string]bool {
+	out := map[string]bool{}
+	add := func(s string) {
+		if k := strings.ToUpper(strings.TrimSpace(s)); k != "" {
+			out[k] = true
+		}
+	}
+	if cfg, err := config.Load(); err == nil && cfg != nil {
+		for _, p := range cfg.Projects {
+			add(p)
+		}
+		add(cfg.DefaultProject)
+	}
+	if db, err := openStore(); err == nil {
+		defer db.Close()
+		if keys, err := mirrorProjectKeys(db); err == nil {
+			for _, k := range keys {
+				add(k)
+			}
+		}
+	}
+	return out
 }
 
 // createOne resolves project/type/priority/parent, POSTs the issue, and uploads

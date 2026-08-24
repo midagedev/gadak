@@ -21,6 +21,15 @@ import (
 //
 //  1. Summary: positional words joined; empty / whitespace → usage
 //     TestCreateJoinsSummaryWords, TestCreateRejectsEmptySummary
+//  1b. GDK-594: first positional that is a project key this workspace knows,
+//     with more words and no --project, is refused (not joined into the
+//     summary). Unquoted multi-word help example ("Fix the flaky gate") and an
+//     unknown uppercase acronym ("API timeout on sync") still file.
+//     TestCreateRejectsProjectKeyShapedFirstArg
+//     TestCreateJoinsSummaryWords
+//     TestCreateAcronymSummaryStillFiles
+//     TestCreateQuotedSummaryMayStartWithProjectKey
+//     TestCreateProjectKeyPrefixAllowedWhenProjectFlagSet
 //  2. --project: sole configured default; 2+ lists keys
 //     TestCreateUsesSoleConfiguredProject, TestCreateRequiresProjectWhenAmbiguous
 //  3. --type: omitted lists name (id N); case-insensitive name; exact id;
@@ -210,6 +219,80 @@ func TestCreateJoinsSummaryWords(t *testing.T) {
 	}
 	if sent := f.bodies["POST /issue"]; !strings.Contains(sent, `"summary":"Fix the flaky gate"`) {
 		t.Fatalf("joined summary not sent: %s", sent)
+	}
+}
+
+func TestCreateRejectsProjectKeyShapedFirstArg(t *testing.T) {
+	// GDK-594: `gadak create NMB "이름 없는…"` joined the project key into the
+	// summary. Title-case help example "Fix the flaky gate" must keep working
+	// (TestCreateJoinsSummaryWords); only a key this workspace knows, with
+	// more positionals and no --project, is refused. NMB is in the mirror.
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdCreate([]string{"NMB", "이름 없는 agent slug에", "--type", "작업"})
+	})
+	if err == nil {
+		t.Fatal("expected project-key-shaped first arg to be refused")
+	}
+	msg := err.Error()
+	for _, want := range []string{"--project", "NMB"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("error %q missing %q", msg, want)
+		}
+	}
+	if f.called("POST /issue") {
+		t.Fatalf("misparsed create reached Jira: %v", f.calls)
+	}
+}
+
+func TestCreateAcronymSummaryStillFiles(t *testing.T) {
+	// The shape rule alone refused "API timeout on sync" — an uppercase word
+	// that is not a project key anywhere in this workspace (lead 2026-08-24).
+	// Turning away a legitimate filing is the worse failure, so only known
+	// keys are refused.
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdCreate([]string{"API", "timeout", "on", "sync", "--type", "Task"})
+	})
+	if err != nil {
+		t.Fatalf("acronym-led summary: %v", err)
+	}
+	if sent := f.bodies["POST /issue"]; !strings.Contains(sent, `"summary":"API timeout on sync"`) {
+		t.Fatalf("summary: %s", sent)
+	}
+}
+
+func TestCreateQuotedSummaryMayStartWithProjectKey(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdCreate([]string{"GDK is missing from the picker", "--project", "NMB", "--type", "Task"})
+	})
+	if err != nil {
+		t.Fatalf("quoted summary starting with a key: %v", err)
+	}
+	if sent := f.bodies["POST /issue"]; !strings.Contains(sent, `"summary":"GDK is missing from the picker"`) {
+		t.Fatalf("summary: %s", sent)
+	}
+}
+
+func TestCreateProjectKeyPrefixAllowedWhenProjectFlagSet(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdCreate([]string{"GDK", "is a word", "--project", "NMB", "--type", "Task"})
+	})
+	if err != nil {
+		t.Fatalf("prefix with --project set: %v", err)
+	}
+	if sent := f.bodies["POST /issue"]; !strings.Contains(sent, `"summary":"GDK is a word"`) {
+		t.Fatalf("summary: %s", sent)
 	}
 }
 

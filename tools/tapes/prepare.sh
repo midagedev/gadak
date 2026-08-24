@@ -22,8 +22,9 @@ cp -f "$ROOT/examples/demo.db" "$DB"
 rm -f "${DB}-wal" "${DB}-shm"
 
 # Freshen the sync clock. The committed snapshot ages, and a recording that
-# opens with "mirror last synced 2h ago — run `gadak sync`" reads as a defect
-# rather than as the freshness guard it is.
+# opens with "confluence last synced 2h ago — run `gadak sync --if-stale 1h`"
+# reads as a defect rather than as the freshness guard it is. The warning
+# reads sources.synced_at (GDK-810), which is why that table is updated too.
 sqlite3 "$DB" "UPDATE sync_state SET watermark = strftime('%Y-%m-%dT%H:%M:%S.000Z','now'),
                                      last_full_sync_at = strftime('%Y-%m-%dT%H:%M:%S.000Z','now'),
                                      last_error = NULL;

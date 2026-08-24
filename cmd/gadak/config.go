@@ -4,13 +4,17 @@ package main
 // PUT /api/settings uses. Credentials stay on gadak init.
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/origin"
 )
 
 const configUsage = "usage: gadak config [list|get <path>|set <path> <value>] [--json]"
@@ -133,10 +137,113 @@ func configSet(args []string) error {
 	if err := s.Set(cfg, parseConfigValue(rawText)); err != nil {
 		return err
 	}
+	if s.Path == "projects" {
+		if err := checkProjectsOnSet(cfg); err != nil {
+			return err
+		}
+	}
 	if err := cfg.Save(); err != nil {
 		return err
 	}
 	return writeConfigValue(*asJSON, s.Path, s.Get(cfg))
+}
+
+// checkProjectsOnSet is the GDK-809 site-membership choke for `config set
+// projects`. Shape is already validated by config.ValidateProjectKeys.
+// Origin reachable → unknown keys are refused with the catalog. Origin
+// unreachable → warn against the mirror and still save (config set must
+// work offline). Load of an existing file never calls this.
+func checkProjectsOnSet(cfg *config.Config) error {
+	if cfg == nil || len(cfg.Projects) == 0 {
+		return nil
+	}
+	if !cfg.HasAtlassianCredential() {
+		warnProjectsAgainstMirror(cfg, nil)
+		return nil
+	}
+	keys, truncated, err := fetchSiteProjectKeys(cfg)
+	if err != nil {
+		warnProjectsAgainstMirror(cfg, err)
+		return nil
+	}
+	have := make(map[string]bool, len(keys))
+	for _, k := range keys {
+		have[k] = true
+	}
+	var unknown []string
+	for _, p := range cfg.Projects {
+		if !have[p] {
+			unknown = append(unknown, p)
+		}
+	}
+	if len(unknown) == 0 {
+		return nil
+	}
+	if truncated {
+		fmt.Fprintf(os.Stderr, "warning: project catalog was truncated; could not confirm %s is on the site (available sample: %s)\n", strings.Join(unknown, ", "), strings.Join(keys, ", "))
+		return nil
+	}
+	if len(keys) == 0 {
+		return fmt.Errorf("unknown project key %s — not on this site; origin returned no projects", strings.Join(unknown, ", "))
+	}
+	return fmt.Errorf("unknown project key %s — not on this site; available: %s", strings.Join(unknown, ", "), strings.Join(keys, ", "))
+}
+
+func fetchSiteProjectKeys(cfg *config.Config) ([]string, bool, error) {
+	c, err := origin.Client(cfg)
+	if err != nil {
+		return nil, false, err
+	}
+	c.Retries = 1
+	c.Backoff = 0
+	if c.HTTP != nil {
+		c.HTTP.Timeout = 4 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	list, truncated, err := c.Projects(ctx, 500)
+	if err != nil {
+		return nil, false, err
+	}
+	out := make([]string, 0, len(list))
+	seen := map[string]bool{}
+	for _, p := range list {
+		k := strings.ToUpper(strings.TrimSpace(p.Key))
+		if k == "" || seen[k] {
+			continue
+		}
+		seen[k] = true
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out, truncated, nil
+}
+
+func warnProjectsAgainstMirror(cfg *config.Config, originErr error) {
+	db, err := openStore()
+	if err != nil {
+		if originErr != nil {
+			fmt.Fprintf(os.Stderr, "warning: could not verify project keys against the site (%v); gadak status will report mismatches after sync\n", originErr)
+		}
+		return
+	}
+	defer db.Close()
+	mirrored, merr := mirrorProjectKeys(db)
+	if merr != nil || len(mirrored) == 0 {
+		if originErr != nil {
+			fmt.Fprintf(os.Stderr, "warning: could not verify project keys against the site (%v); gadak status will report mismatches after sync\n", originErr)
+		}
+		return
+	}
+	notMirrored, _ := projectScopeMismatch(cfg, db)
+	if len(notMirrored) == 0 {
+		return
+	}
+	msg := fmt.Sprintf("warning: configured, not in the mirror: %s (mirror has %s)", strings.Join(notMirrored, ", "), strings.Join(mirrored, ", "))
+	if originErr != nil {
+		msg += fmt.Sprintf(" — origin unreachable (%v)", originErr)
+	}
+	fmt.Fprintln(os.Stderr, msg)
 }
 
 func collectConfigRows(cfg *config.Config) []configListRow {

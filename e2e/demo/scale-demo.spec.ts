@@ -51,7 +51,9 @@ test.describe('scale demo', () => {
     await beat(page, 600)
 
     // 'retry' exists across titles, bodies and comments of the cloned rows
-    // (source: NMB-139 "retry budget for upload" and its thread). On the
+    // (source: the PR row e2e/serve.sh injects on NMB-139, titled
+    // "fix(NMB-139): retry budget for upload", and that thread — not the
+    // issue's own summary, which is about notification digests). On the
     // scaled mirror the first unified hit is usually a local title match,
     // so the snippet element is optional — the hit must carry the token.
     await page.keyboard.type('retry', { delay: 70 })

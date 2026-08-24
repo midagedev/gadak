@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/midagedev/gadak/internal/config"
@@ -37,6 +38,7 @@ func cmdStatus(args []string) error {
 	ctx := context.Background()
 	jiraSS, jiraErr := db.SyncState(ctx, "jira")
 	linearSS, linearErr := db.SyncState(ctx, "linear")
+	confSS, confErr := db.SyncState(ctx, "confluence")
 	if ss, err := db.IssueSyncState(ctx); err == nil {
 		st["watermark"] = ss.Watermark
 		st["version"] = ss.Version
@@ -53,10 +55,17 @@ func cmdStatus(args []string) error {
 		}
 	}
 	if jiraErr == nil && linearErr == nil {
-		st["sources"] = map[string]any{
+		sources := map[string]any{
 			"jira":   syncStateJSON(jiraSS),
 			"linear": syncStateJSON(linearSS),
 		}
+		// GDK-810: confluence is the source warnIfStale most often names
+		// when watermark is fresh; keep it on the same JSON map so
+		// `status --json` `.sources.<id>.synced_at` matches the sql warning.
+		if confErr == nil {
+			sources["confluence"] = syncStateJSON(confSS)
+		}
+		st["sources"] = sources
 	}
 	if n, err := db.TableCount(ctx, "issues"); err == nil {
 		st["issues"] = n
@@ -116,16 +125,17 @@ func cmdStatus(args []string) error {
 		st["locale"] = cfg.EffectiveLocale()
 	}
 	st["custom_fields"] = cfg.CustomFieldsStatus()
+	notMirrored, notConfigured := projectScopeMismatch(cfg, db)
+	st["projects_configured_not_in_mirror"] = notMirrored
+	st["projects_in_mirror_not_configured"] = notConfigured
 	var tokenExpiry config.TokenExpiry
 	if cfg != nil {
 		tokenExpiry = cfg.TokenExpiryAt(time.Now().UTC())
 		st["token_expiry"] = tokenExpiry
 	}
 	wiki := wikiPathStatus(cfg)
-	if css, err := db.SyncState(ctx, "confluence"); err == nil {
-		if css.LastError != nil && *css.LastError != "" {
-			wiki["last_error"] = *css.LastError
-		}
+	if confErr == nil && confSS.LastError != nil && *confSS.LastError != "" {
+		wiki["last_error"] = *confSS.LastError
 	}
 	st["wiki"] = wiki
 	var updateInfo selfupdate.Info
@@ -150,6 +160,11 @@ func cmdStatus(args []string) error {
 			fmt.Printf("%-18s %v\n", k, v)
 		}
 	}
+	// GDK-810: the same sources.synced_at strings warnIfStale prints.
+	// Compare `<id>.synced_at` here with `(synced_at …)` on the sql warning.
+	printSourceSyncedAt("jira", jiraSS, jiraErr)
+	printSourceSyncedAt("linear", linearSS, linearErr)
+	printSourceSyncedAt("confluence", confSS, confErr)
 	if frozen, ok := st["frozen"].(bool); ok && frozen {
 		fmt.Printf("%-18s %v\n", "frozen", true)
 	}
@@ -182,7 +197,91 @@ func cmdStatus(args []string) error {
 			fmt.Println(updateInfo.URL)
 		}
 	}
+	if len(notMirrored) > 0 {
+		fmt.Printf("%-18s %s\n", "configured, not in the mirror", strings.Join(notMirrored, ", "))
+	}
+	if len(notConfigured) > 0 {
+		fmt.Printf("%-18s %s\n", "in the mirror, not configured", strings.Join(notConfigured, ", "))
+	}
 	return nil
+}
+
+// printSourceSyncedAt writes one text-mode row for a source that has a
+// stored sources.synced_at. The key is `<id>.synced_at` so it lines up
+// with the other 18-column status labels and with the sql warning's
+// `(synced_at …)` (GDK-810). Empty / missing / fetch error: skip.
+func printSourceSyncedAt(id string, ss store.SyncState, err error) {
+	if err != nil {
+		return
+	}
+	if ss.SyncedAt == nil || *ss.SyncedAt == "" {
+		return
+	}
+	fmt.Printf("%-18s %s\n", id+".synced_at", *ss.SyncedAt)
+}
+
+// projectScopeMismatch compares config.Projects with distinct project_key
+// values already in the mirror (GDK-809). Empty Projects means "every
+// project" — that is not a mismatch. Does not call the origin.
+func projectScopeMismatch(cfg *config.Config, db *store.DB) (notMirrored, notConfigured []string) {
+	notMirrored, notConfigured = []string{}, []string{}
+	if cfg == nil || db == nil || len(cfg.Projects) == 0 {
+		return notMirrored, notConfigured
+	}
+	mirrored, err := mirrorProjectKeys(db)
+	if err != nil {
+		return notMirrored, notConfigured
+	}
+	inMirror := make(map[string]bool, len(mirrored))
+	for _, k := range mirrored {
+		inMirror[k] = true
+	}
+	inCfg := make(map[string]bool, len(cfg.Projects))
+	for _, p := range cfg.Projects {
+		inCfg[p] = true
+		if !inMirror[p] {
+			notMirrored = append(notMirrored, p)
+		}
+	}
+	for _, k := range mirrored {
+		if !inCfg[k] {
+			notConfigured = append(notConfigured, k)
+		}
+	}
+	return notMirrored, notConfigured
+}
+
+func mirrorProjectKeys(db *store.DB) ([]string, error) {
+	if db == nil {
+		return nil, fmt.Errorf("nil db")
+	}
+	rows, err := db.Query(`SELECT DISTINCT project_key FROM issues WHERE project_key IS NOT NULL AND project_key != '' ORDER BY 1`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var k string
+		if err := rows.Scan(&k); err != nil {
+			return nil, err
+		}
+		k = strings.TrimSpace(k)
+		if k != "" {
+			out = append(out, k)
+		}
+	}
+	return out, rows.Err()
+}
+
+func printProjectScopeWarnings(cfg *config.Config, db *store.DB) {
+	notMirrored, notConfigured := projectScopeMismatch(cfg, db)
+	if len(notMirrored) > 0 {
+		fmt.Fprintf(os.Stderr, "warning: configured, not in the mirror: %s\n", strings.Join(notMirrored, ", "))
+	}
+	if len(notConfigured) > 0 {
+		fmt.Fprintf(os.Stderr, "warning: in the mirror, not configured: %s\n", strings.Join(notConfigured, ", "))
+	}
 }
 
 func syncStateJSON(ss store.SyncState) map[string]any {

@@ -81,22 +81,25 @@ func warnIfStale(db interface {
 	}
 	for _, r := range rows {
 		if r.lastError != nil && *r.lastError != "" {
-			warn("last sync failed (%s): %s", r.id, *r.lastError)
+			warn("last sync failed (%s): %s", formatSourceID(r.id), *r.lastError)
 			return
 		}
 	}
 	var oldest *time.Time
+	var oldestID, oldestRaw string
 	for _, r := range rows {
 		if r.syncedAt == nil || *r.syncedAt == "" {
 			continue
 		}
-		t, err := time.Parse(time.RFC3339, *r.syncedAt)
-		if err != nil {
+		t, ok := parseSyncedAt(*r.syncedAt)
+		if !ok {
 			continue
 		}
 		if oldest == nil || t.Before(*oldest) {
 			tt := t
 			oldest = &tt
+			oldestID = r.id
+			oldestRaw = *r.syncedAt
 		}
 	}
 	if oldest == nil {
@@ -107,8 +110,60 @@ func warnIfStale(db interface {
 		return
 	}
 	if time.Since(*oldest) > staleAfter {
-		warn("mirror last synced %s ago — run `gadak sync --if-stale 1h`", time.Since(*oldest).Round(time.Minute))
+		// GDK-810: name the source and echo its stored synced_at. "mirror
+		// last synced" made a stale confluence row look like the whole
+		// mirror (and its watermark) was that old.
+		warn("%s", staleSourceWarning(oldestID, oldestRaw, time.Since(*oldest)))
 	}
+}
+
+// parseSyncedAt is the same RFC3339-then-ISOMilli ladder syncStale uses
+// (cmd/gadak/sync.go). Copied rather than shared: that file is outside this
+// round's whitelist. Unparseable values are skipped by the caller so a
+// corrupt row cannot crash a read, and cannot take the never-synced branch
+// while a sibling parsed.
+func parseSyncedAt(s string) (time.Time, bool) {
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		t, err = time.Parse(config.ISOMilli, s)
+	}
+	if err != nil {
+		return time.Time{}, false
+	}
+	return t, true
+}
+
+// sourceIDDisplayCols is the stderr budget for a sync_state.source_id.
+// jira / linear / confluence fit; a planted multi-kilobyte or control-laden
+// id must not wrap the one-line warning (GDK-810).
+const sourceIDDisplayCols = 32
+
+// formatSourceID makes a source_id safe to interpolate into one stderr line.
+// Control runes become a space; clip (already this file's width authority)
+// collapses remaining whitespace and truncates.
+func formatSourceID(id string) string {
+	var b strings.Builder
+	for _, r := range id {
+		if unicode.IsControl(r) {
+			b.WriteRune(' ')
+			continue
+		}
+		b.WriteRune(r)
+	}
+	s := clip(b.String(), sourceIDDisplayCols)
+	if s == "" {
+		return "?"
+	}
+	return s
+}
+
+// staleSourceWarning is the one-line age warning. Source, stored synced_at,
+// and age are all on the line so `gadak status` text (`<id>.synced_at`) and
+// this warning can be compared by the same string. GDK-598's
+// `sync --if-stale 1h` teaching stays.
+func staleSourceWarning(id, syncedAt string, age time.Duration) string {
+	return formatSourceID(id) + " last synced " + age.Round(time.Minute).String() +
+		" ago (synced_at " + syncedAt + ") — run `gadak sync --if-stale 1h`"
 }
 
 // normalizeKey accepts a key in any case; Jira's are uppercase.

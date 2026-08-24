@@ -492,6 +492,42 @@ func TestStatusJSONCustomFieldsUnmappedNoStderrNudge(t *testing.T) {
 	}
 }
 
+func TestStatusReportsProjectScopeMismatch(t *testing.T) {
+	// GDK-809: config listed DI, mirror has D1. status must name both
+	// sides so "sync is stuck" is not the diagnosis.
+	cfg := mirror(t, "https://example.invalid")
+	cfg.Projects = []string{"DI"}
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := capture(t, func() error { return cmdStatus(nil) })
+	if err != nil {
+		t.Fatalf("status: %v", err)
+	}
+	if !strings.Contains(out, "configured, not in the mirror") || !strings.Contains(out, "DI") {
+		t.Fatalf("missing configured-not-mirrored line:\n%s", out)
+	}
+	if !strings.Contains(out, "in the mirror, not configured") || !strings.Contains(out, "NMB") {
+		t.Fatalf("missing mirrored-not-configured line:\n%s", out)
+	}
+	js, err := capture(t, func() error { return cmdStatus([]string{"--json"}) })
+	if err != nil {
+		t.Fatalf("status --json: %v", err)
+	}
+	doc := decodeStatusJSON(t, js)
+	missing, _ := doc["projects_configured_not_in_mirror"].([]any)
+	found := false
+	for _, v := range missing {
+		if v == "DI" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("json missing DI in projects_configured_not_in_mirror: %s", js)
+	}
+}
+
 func decodeStatusJSON(t *testing.T, out string) map[string]any {
 	t.Helper()
 	var doc map[string]any

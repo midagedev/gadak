@@ -3,12 +3,15 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
 
 	gadak "github.com/midagedev/gadak"
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/jira"
 )
 
 func configHome(t *testing.T) {
@@ -257,4 +260,125 @@ func mustConfigPath(t *testing.T) string {
 		t.Fatal(err)
 	}
 	return p
+}
+
+func projectSearchServer(t *testing.T, keys []string) *httptest.Server {
+	t.Helper()
+	values := make([]map[string]string, 0, len(keys))
+	for _, k := range keys {
+		values = append(values, map[string]string{"key": k, "name": k, "projectTypeKey": "software"})
+	}
+	body, err := json.Marshal(map[string]any{"values": values, "isLast": true, "total": len(keys)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if strings.Contains(r.URL.Path, "/project/search") {
+			_, _ = w.Write(body)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+func TestConfigSetProjectsRejectsUnknownOnSite(t *testing.T) {
+	// GDK-809: online catalog is the reject path. DI (uppercase i) is a
+	// well-shaped key that is not on the site; D1 is.
+	prevR, prevB := jira.DefaultRetries, jira.DefaultBackoff
+	jira.DefaultRetries, jira.DefaultBackoff = 1, 0
+	t.Cleanup(func() { jira.DefaultRetries, jira.DefaultBackoff = prevR, prevB })
+
+	srv := projectSearchServer(t, []string{"D1", "CRWN", "DEN"})
+	configHome(t)
+	cfg := &config.Config{Site: srv.URL, Email: "a@b.c", Token: "secret-token"}
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := capture(t, func() error {
+		return cmdConfig([]string{"set", "projects", `["DI","DEN"]`})
+	})
+	if err == nil {
+		t.Fatal("unknown site key DI accepted")
+	}
+	msg := err.Error()
+	for _, want := range []string{"DI", "D1", "CRWN", "DEN"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("error %q missing %q", msg, want)
+		}
+	}
+	saved, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(saved.Projects) != 0 {
+		t.Fatalf("rejected set still wrote %v", saved.Projects)
+	}
+}
+
+func TestConfigSetProjectsAcceptsSiteKeys(t *testing.T) {
+	prevR, prevB := jira.DefaultRetries, jira.DefaultBackoff
+	jira.DefaultRetries, jira.DefaultBackoff = 1, 0
+	t.Cleanup(func() { jira.DefaultRetries, jira.DefaultBackoff = prevR, prevB })
+
+	srv := projectSearchServer(t, []string{"D1", "CRWN", "DEN"})
+	configHome(t)
+	cfg := &config.Config{Site: srv.URL, Email: "a@b.c", Token: "secret-token"}
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := capture(t, func() error {
+		return cmdConfig([]string{"set", "projects", `["d1","DEN"]`})
+	})
+	if err != nil {
+		t.Fatalf("known keys: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, `"D1"`) || !strings.Contains(out, `"DEN"`) {
+		t.Fatalf("stdout %q", out)
+	}
+	saved, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(saved.Projects, ","); got != "D1,DEN" {
+		t.Fatalf("stored %v", saved.Projects)
+	}
+}
+
+func TestConfigSetProjectsWarnsOfflineAgainstMirror(t *testing.T) {
+	prevR, prevB := jira.DefaultRetries, jira.DefaultBackoff
+	jira.DefaultRetries, jira.DefaultBackoff = 1, 0
+	t.Cleanup(func() { jira.DefaultRetries, jira.DefaultBackoff = prevR, prevB })
+
+	// Closed server: origin lookup fails. Mirror has D1; config asks for DI.
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	url := srv.URL
+	srv.Close()
+
+	cfg := mirror(t, url)
+	cfg.Projects = nil
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	stdout, stderr, err := captureBoth(t, func() error {
+		return cmdConfig([]string{"set", "projects", `["DI"]`})
+	})
+	if err != nil {
+		t.Fatalf("offline set must still save: %v\nstdout=%s\nstderr=%s", err, stdout, stderr)
+	}
+	if !strings.Contains(stderr, "DI") || !strings.Contains(stderr, "NMB") {
+		t.Fatalf("offline warning missing DI vs mirror NMB:\n%s", stderr)
+	}
+	saved, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(saved.Projects, ","); got != "DI" {
+		t.Fatalf("stored %v", saved.Projects)
+	}
 }

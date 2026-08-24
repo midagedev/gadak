@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mattn/go-runewidth"
 	_ "modernc.org/sqlite"
 
 	"github.com/midagedev/gadak/internal/config"
@@ -154,6 +155,27 @@ func setSourcesSyncedAt(t *testing.T, at time.Time) {
 	}
 }
 
+func setOneSourceSyncedAt(t *testing.T, id string, at time.Time) {
+	t.Helper()
+	execOnMirror(t, `UPDATE sources SET synced_at = ? WHERE id = ?`, at.UTC().Format(time.RFC3339), id)
+}
+
+func execOnMirror(t *testing.T, query string, args ...any) {
+	t.Helper()
+	path, err := config.DBPath()
+	if err != nil {
+		t.Fatalf("db path: %v", err)
+	}
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("open mirror writable: %v", err)
+	}
+	defer db.Close()
+	if _, err := db.Exec(query, args...); err != nil {
+		t.Fatalf("mirror exec %q: %v", query, err)
+	}
+}
+
 func TestSQLWarnsOnStaleMirror(t *testing.T) {
 	sqlDemoHome(t)
 	setSourcesSyncedAt(t, time.Now().Add(-2*time.Hour))
@@ -164,13 +186,17 @@ func TestSQLWarnsOnStaleMirror(t *testing.T) {
 		t.Fatalf("sql on stale mirror: %v\n%s", err, staleOut)
 	}
 	lines := strings.Split(strings.TrimSuffix(staleErr, "\n"), "\n")
-	if len(lines) != 1 || !strings.HasPrefix(lines[0], "warning: mirror last synced") {
-		t.Fatalf("stale mirror must warn exactly once on stderr, got %q", staleErr)
+	// GDK-810 (2026-08-24): the age warning names the oldest source
+	// (demo.db tie-break: ORDER BY source_id → confluence) instead of
+	// "mirror last synced". GDK-598's `sync --if-stale 1h` teaching stays.
+	if len(lines) != 1 || !strings.HasPrefix(lines[0], "warning: confluence last synced") {
+		t.Fatalf("stale mirror must warn exactly once naming the oldest source, got %q", staleErr)
 	}
-	// GDK-598: the age warning teaches `sync --if-stale 1h` instead of a bare
-	// `gadak sync` (original pin was the prefix only).
 	if !strings.Contains(lines[0], "gadak sync --if-stale 1h") {
 		t.Fatalf("stale warning must recommend `gadak sync --if-stale 1h`, got %q", staleErr)
+	}
+	if !strings.Contains(lines[0], "synced_at ") {
+		t.Fatalf("stale warning must echo the stored synced_at, got %q", staleErr)
 	}
 
 	setSourcesSyncedAt(t, time.Now())
@@ -192,6 +218,181 @@ func TestSQLWarnsOnStaleMirror(t *testing.T) {
 	}
 	if !looksLikeIssueKey(strings.Split(strings.TrimSuffix(freshOut, "\n"), "\n")[1]) {
 		t.Fatalf("stdout must still carry data rows, got %q", freshOut)
+	}
+}
+
+// GDK-810 FAIL-first: warnIfStale used to say "mirror last synced" from the
+// oldest sources.synced_at, so a stale confluence row next to a fresh jira
+// watermark read as "the whole mirror is 154h behind". The warning must name
+// the stale source and echo its stored synced_at so `gadak status` can
+// corroborate the same string.
+func TestSQLWarnsNamesOldestSource(t *testing.T) {
+	sqlDemoHome(t)
+	fresh := time.Now().UTC().Truncate(time.Second)
+	stale := fresh.Add(-2 * time.Hour)
+	staleRaw := stale.Format(time.RFC3339)
+	setSourcesSyncedAt(t, fresh)
+	setOneSourceSyncedAt(t, "confluence", stale)
+
+	out, stderr, err := captureBoth(t, func() error {
+		return cmdSQL([]string{"select key from issues limit 1"})
+	})
+	if err != nil {
+		t.Fatalf("sql with stale confluence: %v\n%s", err, out)
+	}
+	if strings.Contains(stderr, "mirror last synced") {
+		t.Fatalf("warning must name the source, not the whole mirror, got %q", stderr)
+	}
+	if !strings.Contains(stderr, "confluence last synced") {
+		t.Fatalf("warning must name confluence, got %q", stderr)
+	}
+	if !strings.Contains(stderr, "synced_at "+staleRaw) {
+		t.Fatalf("warning must echo confluence synced_at %s, got %q", staleRaw, stderr)
+	}
+	if !strings.Contains(stderr, "gadak sync --if-stale 1h") {
+		t.Fatalf("GDK-598 teaching must stay, got %q", stderr)
+	}
+	if strings.Count(stderr, "\n") != 1 {
+		t.Fatalf("stale warning must be one stderr line, got %q", stderr)
+	}
+	if strings.Contains(out, "warning:") {
+		t.Fatalf("warning leaked to stdout: %q", out)
+	}
+}
+
+func TestFormatSourceIDStripsControlAndClips(t *testing.T) {
+	if got := formatSourceID("jira"); got != "jira" {
+		t.Fatalf("plain id: got %q", got)
+	}
+	if got := formatSourceID("confluence"); got != "confluence" {
+		t.Fatalf("known id: got %q", got)
+	}
+	got := formatSourceID("jira\nWARNING: pwned")
+	if strings.Contains(got, "\n") {
+		t.Fatalf("control rune leaked: %q", got)
+	}
+	if !strings.Contains(got, "jira") {
+		t.Fatalf("kept printable runes, got %q", got)
+	}
+	long := strings.Repeat("W", 200)
+	got = formatSourceID(long)
+	if runewidth.StringWidth(got) > sourceIDDisplayCols {
+		t.Fatalf("clipped width %d > %d: %q", runewidth.StringWidth(got), sourceIDDisplayCols, got)
+	}
+	if got := formatSourceID("\x00\x07\n"); got != "?" {
+		t.Fatalf("control-only id: got %q, want ?", got)
+	}
+}
+
+// GDK-810 손상: unparseable synced_at is skipped (same as empty), so a
+// corrupt confluence row next to a fresh jira must not crash and must not
+// claim the mirror never synced.
+func TestSQLSkipsUnparseableSyncedAt(t *testing.T) {
+	sqlDemoHome(t)
+	setSourcesSyncedAt(t, time.Now())
+	execOnMirror(t, `UPDATE sources SET synced_at = ? WHERE id = ?`, "not-a-clock", "confluence")
+
+	out, stderr, err := captureBoth(t, func() error {
+		return cmdSQL([]string{"select key from issues limit 1"})
+	})
+	if err != nil {
+		t.Fatalf("sql with corrupt confluence synced_at: %v\n%s", err, out)
+	}
+	if strings.Contains(stderr, "never finished a sync") {
+		t.Fatalf("unparseable sibling must not take the never-synced branch, got %q", stderr)
+	}
+	if strings.Contains(stderr, "last synced") {
+		t.Fatalf("fresh jira must keep the warning quiet, got %q", stderr)
+	}
+	if strings.Contains(out, "warning:") {
+		t.Fatalf("warning leaked to stdout: %q", out)
+	}
+}
+
+// GDK-810 손상: a leftover sync_state row whose sources join is missing
+// (LEFT JOIN → NULL synced_at) is the same skip as empty. Fresh jira wins.
+func TestSQLMissingSourcesRowDoesNotPoisonFresh(t *testing.T) {
+	sqlDemoHome(t)
+	setSourcesSyncedAt(t, time.Now())
+	execOnMirror(t, `DELETE FROM sources WHERE id = 'confluence'`)
+
+	out, stderr, err := captureBoth(t, func() error {
+		return cmdSQL([]string{"select key from issues limit 1"})
+	})
+	if err != nil {
+		t.Fatalf("sql with missing confluence sources row: %v\n%s", err, out)
+	}
+	if strings.Contains(stderr, "never finished a sync") {
+		t.Fatalf("missing sources row must not take the never-synced branch, got %q", stderr)
+	}
+	if strings.Contains(stderr, "last synced") {
+		t.Fatalf("fresh jira must keep the warning quiet, got %q", stderr)
+	}
+}
+
+// GDK-810 악의: a planted source_id with a newline and a very long name
+// must stay on one stderr line and still teach --if-stale 1h.
+func TestSQLStaleWarningSanitizesSourceID(t *testing.T) {
+	sqlDemoHome(t)
+	setSourcesSyncedAt(t, time.Now())
+	evil := "jira\n" + strings.Repeat("W", 200)
+	stale := time.Now().UTC().Add(-3 * time.Hour).Truncate(time.Second)
+	execOnMirror(t, `INSERT INTO sources (id, kind, synced_at) VALUES (?, 'jira', ?)`,
+		evil, stale.Format(time.RFC3339))
+	execOnMirror(t, `INSERT INTO sync_state (source_id, last_error, schema_version, version)
+		VALUES (?, NULL, 0, 0)`, evil)
+
+	out, stderr, err := captureBoth(t, func() error {
+		return cmdSQL([]string{"select key from issues limit 1"})
+	})
+	if err != nil {
+		t.Fatalf("sql with evil source_id: %v\n%s", err, out)
+	}
+	if strings.Count(stderr, "\n") != 1 {
+		t.Fatalf("evil source_id must not wrap the warning, got %q", stderr)
+	}
+	if !strings.Contains(stderr, "gadak sync --if-stale 1h") {
+		t.Fatalf("GDK-598 teaching must stay, got %q", stderr)
+	}
+	if strings.Contains(stderr, strings.Repeat("W", 50)) {
+		t.Fatalf("long source_id must be clipped, got %q", stderr)
+	}
+	if !strings.Contains(stderr, "synced_at "+stale.Format(time.RFC3339)) {
+		t.Fatalf("warning must still echo stored synced_at, got %q", stderr)
+	}
+}
+
+// GDK-810: sql warning and status text quote the same sources.synced_at
+// string for the named source.
+func TestSQLStaleWarningMatchesStatusSyncedAt(t *testing.T) {
+	sqlDemoHome(t)
+	fresh := time.Now().UTC().Truncate(time.Second)
+	stale := fresh.Add(-4 * time.Hour)
+	staleRaw := stale.Format(time.RFC3339)
+	setSourcesSyncedAt(t, fresh)
+	setOneSourceSyncedAt(t, "confluence", stale)
+
+	_, sqlErr, err := captureBoth(t, func() error {
+		return cmdSQL([]string{"select key from issues limit 1"})
+	})
+	if err != nil {
+		t.Fatalf("sql: %v", err)
+	}
+	statusOut, err := capture(t, func() error { return cmdStatus(nil) })
+	if err != nil {
+		t.Fatalf("status: %v\n%s", err, statusOut)
+	}
+	if !strings.Contains(sqlErr, "confluence last synced") {
+		t.Fatalf("sql warning must name confluence, got %q", sqlErr)
+	}
+	if !strings.Contains(sqlErr, "synced_at "+staleRaw) {
+		t.Fatalf("sql warning missing synced_at %s: %q", staleRaw, sqlErr)
+	}
+	if !strings.Contains(statusOut, "confluence.synced_at") {
+		t.Fatalf("status text must print confluence.synced_at, got %q", statusOut)
+	}
+	if !strings.Contains(statusOut, staleRaw) {
+		t.Fatalf("status text must print the same synced_at %s, got %q", staleRaw, statusOut)
 	}
 }
 

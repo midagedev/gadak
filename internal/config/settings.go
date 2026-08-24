@@ -55,6 +55,61 @@ func ValidateDefaultProject(s string) (string, error) {
 	return s, nil
 }
 
+// projectKeyRe is the Jira Cloud project-key shape: 2–10 uppercase
+// alphanumeric characters, starting with a letter. IssueKeyLiteral uses the
+// same prefix for ABC-123; the length cap is so a multi-kilobyte all-caps
+// string is not stored as a "key" (GDK-809).
+var projectKeyRe = regexp.MustCompile(`^[A-Z][A-Z0-9]{1,9}$`)
+
+// LooksLikeProjectKey reports that shape without case-folding. "Fix" (the
+// create --help example) is a summary word; "FIX" / "GDK" look like keys.
+func LooksLikeProjectKey(s string) bool {
+	return projectKeyRe.MatchString(s)
+}
+
+// ValidateProjectKeys is the single choke for the `projects` setting (GDK-809).
+// Empty means "every project this account can see". Entries are trimmed and
+// upper-cased (same as gadak init). Mixed-case values are refused as display
+// names. Load does not call this — a file that already contains an unknown
+// key keeps working until the next Set.
+func ValidateProjectKeys(keys []string) ([]string, error) {
+	if keys == nil {
+		return []string{}, nil
+	}
+	out := make([]string, 0, len(keys))
+	seen := map[string]bool{}
+	var bad []string
+	for _, raw := range keys {
+		if strings.IndexFunc(raw, func(r rune) bool { return r < 32 || r == 127 }) >= 0 {
+			bad = append(bad, fmt.Sprintf("%q", raw))
+			continue
+		}
+		trimmed := strings.TrimSpace(raw)
+		if trimmed == "" {
+			bad = append(bad, `""`)
+			continue
+		}
+		upper, lower := strings.ToUpper(trimmed), strings.ToLower(trimmed)
+		if trimmed != upper && trimmed != lower {
+			bad = append(bad, fmt.Sprintf("%q", raw))
+			continue
+		}
+		if !LooksLikeProjectKey(upper) {
+			bad = append(bad, fmt.Sprintf("%q", raw))
+			continue
+		}
+		if seen[upper] {
+			continue
+		}
+		seen[upper] = true
+		out = append(out, upper)
+	}
+	if len(bad) > 0 {
+		return nil, fmt.Errorf("projects: %s is not a Jira project key (want 2–10 chars A–Z then A–Z0–9, e.g. NMB); empty list mirrors every project", strings.Join(bad, ", "))
+	}
+	return out, nil
+}
+
 // ValidateTheme accepts empty/"system" (stored as "") and any lowercase
 // identifier. "system", "light", and "dark" are always valid.
 func ValidateTheme(s string) (string, error) {
@@ -513,6 +568,10 @@ func buildSettings() []Setting {
 			Get:         func(c *Config) any { return strsOrEmpty(c.Projects) },
 			Set: func(c *Config, raw json.RawMessage) error {
 				v, err := decodeStrings(raw, "projects")
+				if err != nil {
+					return err
+				}
+				v, err = ValidateProjectKeys(v)
 				if err != nil {
 					return err
 				}

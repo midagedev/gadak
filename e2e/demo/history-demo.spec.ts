@@ -2,11 +2,12 @@
  * History-focus promo for docs/media/history.{gif,mp4} (F2).
  *
  * The changelog is the interface: the clip opens the one issue whose
- * thread tells the whole story — NMB-139 "retry budget for upload" has
- * status transitions, an agent comment, a linked PR (fixture-injected,
- * e2e/serve.sh), and a duration chip. Palette → Enter (the same affordance
- * as the flagship), then a slow scroll of the activity thread, then a hold
- * on the PR row.
+ * thread tells the whole story — NMB-139 "Notification digests duplicate
+ * events that occurred near the midnight boundary" has status transitions,
+ * an agent comment, a linked PR (fixture-injected, e2e/serve.sh — title
+ * `fix(NMB-139): retry budget for upload`), and a duration chip. Palette →
+ * Enter (the same affordance as the flagship), then a slow scroll of the
+ * activity thread, then a hold on the PR row.
  *
  * Gated by GADAK_MEDIA=1. Viewport and video size must stay 1280×800
  * (see history.config.ts) or Playwright letterboxes the capture.
@@ -45,8 +46,11 @@ test.describe('history demo', () => {
 
     const panel = page.getByTestId('issue-detail-panel')
     await expect(panel).toBeVisible()
-    // The title names the issue; the thread below is the exhibit.
-    await expect(panel.getByText(/retry budget for upload/i).first()).toBeVisible()
+    // GDK-763: identity is the issue title on title-editor. The old
+    // getByText(/retry budget for upload/) matched the fixture-injected PR
+    // title (e2e/serve.sh) while NMB-139's summary is Notification digests…
+    const title = panel.getByTestId('title-editor')
+    await expect(title).toHaveText(/Notification digests duplicate events/i)
     await beat(page, 1200)
 
     // Scroll the activity thread top-to-bottom: status changes, the agent

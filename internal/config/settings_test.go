@@ -185,3 +185,105 @@ func TestValidateIntervalsMoved(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestSettingSetProjectsRejectsInvalidKeys(t *testing.T) {
+	// GDK-809: the projects setter is the single choke for key shape.
+	// Site membership is CLI-only (needs an origin); this rejects garbage
+	// that would otherwise be stored from config set and PUT settings/.
+	s, ok := SettingByPath("projects")
+	if !ok {
+		t.Fatal("projects not in catalog")
+	}
+	cases := []struct {
+		name string
+		raw  string
+		want string
+	}{
+		{"empty entry", `[""]`, "project key"},
+		{"whitespace", `["  "]`, "project key"},
+		{"display-name words", `["Numbers"]`, "project key"},
+		{"control char", string(mustJSONStrings(t, "NMB\n")), "project key"},
+		{"too long", `["` + strings.Repeat("A", 11) + `"]`, "project key"},
+		{"punctuation", `["DI!"]`, "project key"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c := &Config{}
+			err := s.Set(c, json.RawMessage(tc.raw))
+			if err == nil {
+				t.Fatalf("accepted %s", tc.raw)
+			}
+			if !strings.Contains(err.Error(), tc.want) {
+				t.Errorf("error %q missing %q", err, tc.want)
+			}
+			if len(c.Projects) != 0 {
+				t.Errorf("stored %v after rejection", c.Projects)
+			}
+		})
+	}
+}
+
+func TestSettingSetProjectsNormalizesAndAcceptsEmpty(t *testing.T) {
+	s, ok := SettingByPath("projects")
+	if !ok {
+		t.Fatal("projects not in catalog")
+	}
+	c := &Config{}
+	if err := s.Set(c, json.RawMessage(`[]`)); err != nil {
+		t.Fatalf("empty list: %v", err)
+	}
+	if c.Projects == nil || len(c.Projects) != 0 {
+		t.Fatalf("empty list stored %+v", c.Projects)
+	}
+	if err := s.Set(c, json.RawMessage(`["nmb","NMB","d1"]`)); err != nil {
+		t.Fatalf("valid keys: %v", err)
+	}
+	if got := strings.Join(c.Projects, ","); got != "NMB,D1" {
+		t.Fatalf("normalized %v", c.Projects)
+	}
+}
+
+func mustJSONStrings(t *testing.T, keys ...string) []byte {
+	t.Helper()
+	b, err := json.Marshal(keys)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
+
+func TestExistingUnknownProjectsSurviveDecode(t *testing.T) {
+	// GDK-809 "손상": a config.json that already contains a site-unknown or
+	// ill-shaped key must still Load. Validation is Set-only.
+	var c Config
+	if err := json.Unmarshal([]byte(`{"projects":["DI","Numbers"]}`), &c); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(c.Projects, ","); got != "DI,Numbers" {
+		t.Fatalf("Load-equivalent decode rewrote stored projects: %v", c.Projects)
+	}
+}
+
+func TestLooksLikeProjectKey(t *testing.T) {
+	cases := []struct {
+		in   string
+		want bool
+	}{
+		{"GDK", true},
+		{"D1", true},
+		{"NMB", true},
+		{"CRWN", true},
+		{"Fix", false}, // help example first word; do not case-fold
+		{"FIX", true},
+		{"A", false},
+		{"", false},
+		{strings.Repeat("A", 11), false},
+		{"GDK-1", false},
+		{"nmb", false},
+	}
+	for _, tc := range cases {
+		if got := LooksLikeProjectKey(tc.in); got != tc.want {
+			t.Errorf("LooksLikeProjectKey(%q)=%v want %v", tc.in, got, tc.want)
+		}
+	}
+}

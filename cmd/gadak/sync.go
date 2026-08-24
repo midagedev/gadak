@@ -168,6 +168,7 @@ func cmdSync(args []string) error {
 		fmt.Printf("confluence %s sync: fetched %d pages (%d bodies read, %d unchanged), changed %d, watermark %s\n",
 			kind, cres.Fetched, cres.PageBodies, cres.PageSkips, cres.Changed, cres.Watermark)
 	}
+	printProjectScopeWarnings(cfg, db)
 	printUpdateNotice(cfg, false)
 	return nil
 }

@@ -42,6 +42,25 @@
   읽으므로, 계약을 한쪽만 바꾸면 두 스위트가 같이 빨개집니다
   ([GDK-800]).
 
+- CLI가 오타를 받아 그대로 진행하던 두 곳. `gadak create GDK "…"`는 프로젝트
+  키를 그저 요약의 한 단어로 읽어 키로 시작하는 이슈를 만들었습니다. 이제
+  `--project` 철자를 알려 주며 거절합니다 — 단 첫 단어가 이 워크스페이스가
+  실제로 아는 키일 때만이라, `create API timeout on sync`는 그대로
+  등록됩니다([GDK-594]). 그리고 `config set projects`는 아무 문자열이나
+  받았습니다: 이제 CLI와 설정 엔드포인트가 함께 지나는 단일 setter에서 형태를
+  검사하고 대문자로 정규화하며, `config set`은 사이트에 물어 없는 키를
+  거절합니다(오프라인이면 미러와 대조해 경고하고 저장은 합니다). 스코프가
+  어긋나면 `status`·`sync`가 양쪽을 모두 이름으로 알려 줍니다([GDK-809]).
+
+- stale 경고가 어느 소스가 묵었는지 이름을 밝힙니다. `warning: mirror last
+  synced 154h ago`는 동기화된 모든 소스 중 **가장 오래된** 행에서 나온
+  것이라, 조용한 Confluence 스페이스 하나 때문에 미러 전체가 6일 묵은 것처럼
+  읽혔습니다 — 같은 시각 `status`의 watermark는 10분 전이었고, 두 표면이
+  반대되는 이야기를 하는데 어느 쪽을 믿을지 알 방법이 없었습니다. 이제
+  `warning: confluence last synced 154h0m0s ago (synced_at
+  2026-08-18T03:13:21Z)`로 읽히고, `status`도 텍스트·JSON 양쪽에 같은
+  `<소스>.synced_at` 문자열을 찍어 한눈에 대조됩니다([GDK-810]).
+
 ## v0.17.1 — 2026-08-24
 
 미러가 나눠 쓰는 법을 배운 패치입니다. 2만 건 미러 위에서 하루 도그푸딩하며
@@ -1149,3 +1168,6 @@ HTTP·sync·에이전트 계약.
 [GDK-797]: https://gadak.dev/backlog/#/?ks=GDK-797
 [GDK-798]: https://gadak.dev/backlog/#/?ks=GDK-798
 [GDK-800]: https://gadak.dev/backlog/#/?ks=GDK-800
+[GDK-594]: https://gadak.dev/backlog/#/?ks=GDK-594
+[GDK-809]: https://gadak.dev/backlog/#/?ks=GDK-809
+[GDK-810]: https://gadak.dev/backlog/#/?ks=GDK-810

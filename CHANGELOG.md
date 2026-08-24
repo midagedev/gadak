@@ -43,6 +43,27 @@
   vectors, error strings included, so a one-sided change to the contract
   turns both suites red ([GDK-800]).
 
+- Two places where the CLI took a typo and kept going. `gadak create GDK
+  "…"` used to file an issue whose summary began with the project key,
+  because the key was just another summary word; it is now refused with the
+  `--project` spelling — but only when the first word is a key this
+  workspace actually knows, so `create API timeout on sync` still files
+  ([GDK-594]). And `config set projects` accepted any string: keys are now
+  shape-checked and upper-cased at the one setter both the CLI and the
+  settings endpoint pass through, `config set` asks the site and refuses a
+  key that is not there (offline, it warns against the mirror and still
+  saves), and `status` / `sync` name both sides of a scope that has drifted
+  ([GDK-809]).
+
+- The staleness warning names which source is stale. `warning: mirror last
+  synced 154h ago` came from the *oldest* row across every synced source, so
+  a quiet Confluence space made the whole mirror read as six days old while
+  `status` showed a watermark ten minutes back — two surfaces, opposite
+  stories, and no way to tell which to believe. It now reads `warning:
+  confluence last synced 154h0m0s ago (synced_at 2026-08-18T03:13:21Z)`, and
+  `status` prints the same `<source>.synced_at` strings in both text and
+  JSON, so the two can be compared in one glance ([GDK-810]).
+
 ## v0.17.1 — 2026-08-24
 
 The patch where the mirror learned to share. A day of dogfooding on a
@@ -1199,3 +1220,6 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-797]: https://gadak.dev/backlog/#/?ks=GDK-797
 [GDK-798]: https://gadak.dev/backlog/#/?ks=GDK-798
 [GDK-800]: https://gadak.dev/backlog/#/?ks=GDK-800
+[GDK-594]: https://gadak.dev/backlog/#/?ks=GDK-594
+[GDK-809]: https://gadak.dev/backlog/#/?ks=GDK-809
+[GDK-810]: https://gadak.dev/backlog/#/?ks=GDK-810
