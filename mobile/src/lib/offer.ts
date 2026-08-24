@@ -23,6 +23,8 @@
  * enforcement belongs to the server gate, which judges from its store.
  */
 
+import type { MessageKey } from './i18n'
+
 export interface Offer {
   v: number
   endpoint: string
@@ -124,4 +126,83 @@ function decodeBase64url(s: string): Uint8Array | null {
     }
   }
   return out
+}
+
+/*
+ * ── Scan/paste line → offer string (GDK-799 QR consumption) ──
+ *
+ * The desktop mints the offer as one bare base64url line (`gadak pairing
+ * mint`); a QR wraps the same line as `gadak://pair?code=<offer>` — the
+ * deeplink grammar's action-as-host shape (internal/deeplink), host folded
+ * case-insensitively like Parse does. Nothing here invents a format: a
+ * line carrying no scheme is a bare offer passed through verbatim for
+ * decodeOffer to judge (the base64url alphabet cannot contain "://"), and
+ * a line that claims a scheme must be exactly the pair link with a
+ * non-empty code. Errors quote no payload, same rule as the decoder.
+ */
+const SCHEME_RE = /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//
+
+/** The offer string carried by one scanned or pasted line. */
+export function offerFromLine(line: string): string {
+  const s = line.trim()
+  if (!SCHEME_RE.test(s)) return s
+  let u: URL
+  try {
+    u = new URL(s)
+  } catch {
+    throw new OfferError('pairing link: malformed URL')
+  }
+  if (u.protocol.toLowerCase() !== 'gadak:') throw new OfferError('pairing link: not a gadak:// link')
+  if (u.host.toLowerCase() !== 'pair') throw new OfferError('pairing link: not a pair link')
+  const code = u.searchParams.get('code')
+  if (code === null || code.trim() === '') throw new OfferError('pairing link: no code')
+  return code
+}
+
+/*
+ * ── Connect-proof verdicts (GDK-800 save→bootstrap) ──
+ *
+ * Pure mapping for the pair screen's one-bootstrap proof. It lives beside
+ * the codec — not inside Pair.svelte — because vitest runs node-only
+ * (vite.config test.environment) and this mapping is the branch axis the
+ * spec tests. Structural on ApiError ({status, code, message}); offer.ts
+ * imports nothing at runtime so codec consumers do not gain the transport
+ * graph.
+ */
+export type ConnectFailureKind = 'timeout' | 'network' | 'rejected' | 'http'
+
+export interface ConnectFailure {
+  kind: ConnectFailureKind
+  /** HTTP status when a response arrived — 'http' is the catch-all bucket. */
+  status: number | undefined
+}
+
+/**
+ * Classifies a failed proof bootstrap. Timeout is the 25s door closing
+ * (AbortSignal.timeout rejects as TimeoutError, a manual abort as
+ * AbortError); pairing_rejected teaches re-pair; forbidden_host and a
+ * thrown fetch teach network (api.ts code doc: forbidden_host = "wrong
+ * network"); everything else — any HTTP status, a bad body shape — is the
+ * generic bucket.
+ */
+export function connectFailure(err: unknown): ConnectFailure {
+  const name = (err as { name?: unknown } | null | undefined)?.name
+  if (name === 'AbortError' || name === 'TimeoutError') {
+    return { kind: 'timeout', status: undefined }
+  }
+  const e = err as { message?: unknown; code?: unknown; status?: unknown }
+  const message = typeof e?.message === 'string' ? e.message : ''
+  const code = typeof e?.code === 'string' ? e.code : ''
+  const status = typeof e?.status === 'number' ? e.status : undefined
+  if (code === 'pairing_rejected') return { kind: 'rejected', status }
+  if (code === 'forbidden_host' || message === 'network') return { kind: 'network', status }
+  return { kind: 'http', status }
+}
+
+/** The message key a verdict renders as (no params — the reason line carries detail). */
+export function connectFailureMessage(f: ConnectFailure): MessageKey {
+  if (f.kind === 'timeout') return 'pair.connect.timeout'
+  if (f.kind === 'network') return 'pair.connect.network'
+  if (f.kind === 'rejected') return 'pair.connect.rejected'
+  return 'pair.connect.http'
 }
