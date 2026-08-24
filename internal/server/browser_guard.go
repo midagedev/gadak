@@ -14,7 +14,8 @@ import (
 //
 // hostExempts widen only the Host check, for requests a later gate
 // authenticates by credential instead of by name — today that is the paired
-// origin passthrough (PairedOriginHostExempt), whose Bearer requirement makes
+// origin passthrough (PairedOriginHostExempt) and the paired mirror
+// allowlist (PairedMirrorHostExempt), whose Bearer requirements make
 // the DNS-rebinding vector this check exists for unmountable (a browser
 // cannot attach Authorization cross-origin without a preflight this server
 // never answers). The Origin check is not exempted.

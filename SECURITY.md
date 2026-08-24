@@ -175,18 +175,40 @@ refuses any other address unless you pass `--allow-remote`
 a multi-user mode: exposing the port publishes every issue the mirror holds
 to anyone who can reach it.
 
-`gadak pairing` (standalone workspaces, GDK-433) is the answer when you want
-that reach anyway — put the serve behind `tailscale serve` and mint one token
-per device. Once **any active pairing token exists**, every request under
-`/api/v1/origin` — the passthrough that write commands and paired devices
-use — must carry it as `Authorization: Bearer <token>` (`internal/server/
-origin_rest.go`). There is no loopback exemption, because a tunnel arrives
-as loopback; while no active token exists the passthrough behaves exactly as
-before. Be clear about the boundary: the gate covers the passthrough, not
-the mirror — exposing the port still publishes every issue the mirror holds,
-exactly as the previous paragraph says. The serve stores SHA-256 hashes only
-(`<profile>/pairing.json`, mode `0600`, same temp-file-and-rename discipline
-as `config.json`, `internal/pairing/store.go`); the plaintext token appears
+`gadak pairing` (GDK-433, GDK-797) is the answer when you want that reach
+anyway — put the serve behind `tailscale serve` and mint one token per
+device. A DNS-named Host — the shape `tailscale serve` forwards — is
+rejected by the rebinding guard unless the request is bound for a surface a
+token authenticates, and there are exactly two of those:
+
+- **The origin passthrough** (`/api/v1/origin`, standalone workspaces): raw
+  REST for paired gadak machines and this machine's own routed writes
+  (`internal/server/origin_rest.go`).
+- **The mirror REST allowlist** (any workspace kind): the reads a phone
+  companion needs — `auth/me`, `bootstrap`, `delta`, `search`, `jql`,
+  `feed`, `views`, `{key}/detail`, `{key}/transitions` — plus the `comment`
+  and `transition` writes, which ride the same write-through path as the
+  web UI; no new write API opens (`internal/server/mirror_gate.go`).
+
+Each surface takes only its own scope: `gadak pairing mint --scope origin`
+(the default) rides the passthrough and is refused on the allowlist;
+`--scope serve` opens the allowlist and is refused on the passthrough
+(`403 scope_rejected` both ways). A leaked serve token cannot reach raw
+REST; a paired laptop cannot dump the mirror. Minting works on any
+workspace kind (GDK-798) — a connected home mints phone tokens for its
+allowlist, while its passthrough stays closed (404) regardless.
+
+Once **any active pairing token exists**, both surfaces demand
+`Authorization: Bearer <token>`. There is no loopback exemption on the
+passthrough, because a tunnel arrives as loopback; while no active token
+exists, DNS-named Hosts stay behind the rebinding guard entirely
+(`403 forbidden_host`) and loopback behaves exactly as before. The
+allowlist gate speaks only for DNS-named Hosts: an `--allow-remote` bind
+still publishes every issue the mirror holds to anyone who can reach the
+IP, exactly as the previous paragraph says. The serve stores SHA-256
+hashes only (`<profile>/pairing.json`, mode `0600`, same
+temp-file-and-rename discipline as `config.json`,
+`internal/pairing/store.go`); the plaintext token appears
 once, in the `gadak pairing mint` output, and the consuming device keeps it
 in `<profile>/remote-origin.json` under the same rules. `gadak init
 --pairing-code` verifies the token against the serve before writing anything
@@ -209,7 +231,10 @@ methods reject any `Origin` that does not match the request host — a
 malicious page cannot post comments or transitions through your browser
 (CSRF) — and every request rejects `Host` values that are neither
 `localhost`, `*.localhost`, nor an IP literal, so a DNS name rebound to
-127.0.0.1 cannot read the mirror. CLI and MCP clients send no
+127.0.0.1 cannot read the mirror. The two token-gated surfaces above are
+the only Host exemptions, and each stands with its Bearer gate right
+behind it; a browser cannot attach that cross-origin without a preflight
+this server never answers. CLI and MCP clients send no
 Origin header and are unaffected.
 
 ## The in-app page session (desktop only)

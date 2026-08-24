@@ -75,8 +75,14 @@ func (s *server) handleOriginREST(w http.ResponseWriter, r *http.Request) {
 // so the embedded issuetap graph sees the Authorization shape it has always
 // seen — the gate authenticates the caller, then speaks to the origin as
 // the in-process user. The token itself never reaches the origin process.
+//
+// Since GDK-797 the accept is scope-checked: a token must carry a scope
+// that admits the passthrough (origin, local-routing, or the empty scope
+// of tokens minted before scopes mattered). A serve token — minted for the
+// mirror allowlist — is refused with scope_rejected, so a leaked phone
+// token cannot reach raw REST even though it authenticates.
 func (s *server) pairingGate(w http.ResponseWriter, r *http.Request, cfg *config.Config) bool {
-	verdict, err := pairing.Authorize(cfg.Directory(), bearerToken(r), time.Now())
+	verdict, meta, err := pairing.AuthorizeMeta(cfg.Directory(), bearerToken(r), time.Now())
 	if err != nil {
 		// Unreadable/corrupt store fails closed: tokens may exist.
 		log.Printf("server: pairing gate: %s %s: %v", r.Method, r.URL.Path, err)
@@ -89,6 +95,12 @@ func (s *server) pairingGate(w http.ResponseWriter, r *http.Request, cfg *config
 		failPairing(w, reason)
 		return false
 	case pairing.VerdictAccept:
+		if !pairing.AdmitsOrigin(meta.Scope) {
+			log.Printf("server: pairing gate: label %q scope %q denied on %s %s",
+				meta.Label, meta.Scope, r.Method, r.URL.Path)
+			fail(w, http.StatusForbidden, "scope_rejected")
+			return false
+		}
 		r.Header.Set("Authorization", "Basic "+origin.InProcessAuthB64())
 	}
 	return true

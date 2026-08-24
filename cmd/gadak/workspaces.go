@@ -42,14 +42,16 @@ func buildServeMux(primaryAPI http.Handler, spa http.Handler, reg *workspace.Reg
 		mux.HandleFunc("/w/", reg.Handler(spa, version))
 	}
 	mux.Handle("/", spa)
-	// The outer guard needs the same paired-origin Host exemption as the
-	// Handler's own (GDK-443): both run on a passthrough request, and either
-	// one rejecting a tailnet MagicDNS Host kills the pairing path.
-	return server.GuardBrowser(mux, server.PairedOriginHostExempt(func() string {
+	// The outer guard needs the same Host exemptions as the Handler's own
+	// (GDK-443, GDK-797): both run on a paired request, and either one
+	// rejecting a tailnet MagicDNS Host kills the path — passthrough or
+	// mirror allowlist alike.
+	dirFn := func() string {
 		cfg, err := config.Load()
 		if err != nil || cfg == nil {
 			return ""
 		}
 		return cfg.Directory()
-	}))
+	}
+	return server.GuardBrowser(mux, server.PairedOriginHostExempt(dirFn), server.PairedMirrorHostExempt(dirFn))
 }

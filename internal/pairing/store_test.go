@@ -80,6 +80,102 @@ func TestMintListRevokeRoundTrip(t *testing.T) {
 	}
 }
 
+func TestMintScopedServeScope(t *testing.T) {
+	dir := t.TempDir()
+	now := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
+	token, meta, err := MintScoped(dir, "phone", ScopeServe, 24*time.Hour, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta.Scope != ScopeServe {
+		t.Fatalf("scope %q, want %q", meta.Scope, ScopeServe)
+	}
+	v, m, err := AuthorizeMeta(dir, token, now.Add(time.Minute))
+	if err != nil || v != VerdictAccept {
+		t.Fatalf("authorize serve token: %v, %v", v, err)
+	}
+	if m.Scope != ScopeServe || m.Label != "phone" {
+		t.Fatalf("matched meta %+v — the gate cannot read the scope it must enforce", m)
+	}
+	// Mint (the origin default) keeps its meaning.
+	_, meta, err = MintScoped(dir, "laptop", ScopeOrigin, time.Hour, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta.Scope != ScopeOrigin {
+		t.Fatalf("origin mint scope %q", meta.Scope)
+	}
+}
+
+func TestMintScopedRejectsUnknownScope(t *testing.T) {
+	dir := t.TempDir()
+	for _, bad := range []string{"wiki", "read-only", "admin"} {
+		if _, _, err := MintScoped(dir, "x", bad, time.Hour, time.Now()); err == nil {
+			t.Fatalf("scope %q must be refused", bad)
+		}
+	}
+	// Nothing was minted.
+	toks, err := List(dir)
+	if err != nil || len(toks) != 0 {
+		t.Fatalf("refused mint left tokens: %+v (%v)", toks, err)
+	}
+}
+
+// The reserved `_home` label keeps local-routing even when a scope is
+// named: a stray `--label _home --scope serve` must not manufacture a
+// routing token that reads the mirror.
+func TestMintScopedHomeForcesLocalRouting(t *testing.T) {
+	dir := t.TempDir()
+	_, meta, err := MintScoped(dir, HomeLabel, ScopeServe, time.Hour, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta.Scope != ScopeLocalRouting {
+		t.Fatalf("home scope %q, want %q", meta.Scope, ScopeLocalRouting)
+	}
+}
+
+func TestAuthorizeMetaScopeOfMatchedToken(t *testing.T) {
+	dir := t.TempDir()
+	now := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
+	serve, _, err := MintScoped(dir, "phone", ScopeServe, time.Hour, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	laptop, _, err := MintScoped(dir, "laptop", ScopeOrigin, time.Hour, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for bearer, want := range map[string]string{
+		serve:  ScopeServe,
+		laptop: ScopeOrigin,
+	} {
+		v, m, err := AuthorizeMeta(dir, bearer, now.Add(time.Minute))
+		if err != nil || v != VerdictAccept || m.Scope != want {
+			t.Fatalf("bearer of %s: verdict %v meta %+v err %v", want, v, m, err)
+		}
+	}
+	// Rejections still carry a zero Meta — no matched token to describe.
+	v, m, err := AuthorizeMeta(dir, "no-such-token", now.Add(time.Minute))
+	if err != nil || v != VerdictReject || m.Scope != "" || m.Label != "" {
+		t.Fatalf("unknown bearer: verdict %v meta %+v err %v", v, m, err)
+	}
+}
+
+func TestAdmitsOrigin(t *testing.T) {
+	for scope, want := range map[string]bool{
+		"":                true, // minted before scopes mattered
+		ScopeOrigin:       true,
+		ScopeLocalRouting: true,
+		ScopeServe:        false,
+		"anything-else":   false,
+	} {
+		if got := AdmitsOrigin(scope); got != want {
+			t.Fatalf("AdmitsOrigin(%q) = %v, want %v", scope, got, want)
+		}
+	}
+}
+
 func TestRevokeByHashPrefix(t *testing.T) {
 	dir := t.TempDir()
 	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)

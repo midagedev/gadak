@@ -214,11 +214,24 @@ func TestPairedHostExemptLetsTailnetNameThrough(t *testing.T) {
 		t.Fatalf("tokens, valid bearer: %d %s; want 200", rec.Code, rec.Body.String())
 	}
 
-	// The exemption is passthrough-only: any other path keeps the guard even
-	// with tokens minted — the tailnet name never opens the UI or the API.
+	// The exemption is passthrough-or-allowlist, never the wider API. An
+	// allowlisted mirror path with tokens minted defers to the mirror gate
+	// (GDK-797): no Bearer is a pairing rejection, and this origin-scope
+	// token is the wrong scope for the mirror — one-way doors.
 	rec = getWithHost(t, h, "/api/v1/issues/views/", nil, tsHost["Host"])
+	if rec.Code != http.StatusUnauthorized || !strings.Contains(rec.Body.String(), "pairing_rejected") {
+		t.Fatalf("allowlisted path, no bearer: %d %s; want 401 pairing_rejected", rec.Code, rec.Body.String())
+	}
+	rec = getWithHost(t, h, "/api/v1/issues/views/",
+		map[string]string{"Authorization": "Bearer " + token}, tsHost["Host"])
+	if rec.Code != http.StatusForbidden || !strings.Contains(rec.Body.String(), "scope_rejected") {
+		t.Fatalf("allowlisted path, origin token: %d %s; want 403 scope_rejected", rec.Code, rec.Body.String())
+	}
+	// Everything off both surfaces keeps the guard even with tokens minted —
+	// the tailnet name never opens the credential API or the UI.
+	rec = getWithHost(t, h, "/api/v1/issues/credential/", nil, tsHost["Host"])
 	if rec.Code != http.StatusForbidden || !strings.Contains(rec.Body.String(), "forbidden_host") {
-		t.Fatalf("non-passthrough path: %d %s; want 403 forbidden_host", rec.Code, rec.Body.String())
+		t.Fatalf("non-exempt path: %d %s; want 403 forbidden_host", rec.Code, rec.Body.String())
 	}
 }
 

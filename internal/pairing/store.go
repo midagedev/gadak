@@ -1,23 +1,28 @@
 // Package pairing owns the device tokens that gate a serve's origin
-// passthrough once it is exposed beyond loopback (GDK-433).
+// passthrough once it is exposed beyond loopback (GDK-433), and — since
+// GDK-797 — the mirror REST allowlist a paired phone companion reads.
 //
 // Model: each paired device — a remote gadak binding this serve as its
-// workspace origin — gets an opaque random token, presented as
-// `Authorization: Bearer <token>` (the Jira DC PAT shape; the Cloud
-// email:token Basic shape is deliberately not reused). The server stores
-// only the SHA-256 hash plus metadata, in `pairing.json` inside the profile
-// directory: next to config.json and its 0600 atomic-write convention, and
-// never inside the mirror (gadak.db is a disposable cache of the origin,
-// not a place for originals) or any export. The plaintext exists once, in
-// `gadak pairing mint` output, inside a one-line offer.
+// workspace origin, or a phone app reading this serve's mirror — gets an
+// opaque random token, presented as `Authorization: Bearer <token>` (the
+// Jira DC PAT shape; the Cloud email:token Basic shape is deliberately
+// not reused). The server stores only the SHA-256 hash plus metadata, in
+// `pairing.json` inside the profile directory: next to config.json and
+// its 0600 atomic-write convention, and never inside the mirror
+// (gadak.db is a disposable cache of the origin, not a place for
+// originals) or any export. The plaintext exists once, in `gadak pairing
+// mint` output, inside a one-line offer.
 //
-// Gate semantics (single owner: server.handleOriginREST): while at least
-// one active — unrevoked, unexpired — token exists, every request under
-// origin.RESTPrefix must present a valid Bearer token. With no active
-// token the passthrough behaves exactly as before (implicit loopback
-// trust, decision 0003). There is no loopback bypass: a tailnet proxy
-// reaches the serve as loopback, so the token is the only identity the
-// server can distinguish.
+// Gate semantics: while at least one active — unrevoked, unexpired —
+// token exists, every request under origin.RESTPrefix must present a
+// valid Bearer token whose scope admits the passthrough (ScopeOrigin or
+// the home machine's ScopeLocalRouting), and a DNS-named Host inside the
+// server's mirror allowlist must present a ScopeServe one. With no active
+// token both surfaces behave exactly as before (implicit loopback trust,
+// decision 0003; DNS Hosts stay behind the rebinding guard). There is no
+// loopback bypass on the passthrough: a tailnet proxy reaches the serve
+// as loopback, so the token is the only identity the server can
+// distinguish.
 package pairing
 
 import (
@@ -42,6 +47,15 @@ import (
 // wiki-only, local-routing) can be told apart from tokens minted before
 // scopes mattered.
 const ScopeOrigin = "origin"
+
+// ScopeServe is the phone-companion scope (GDK-797): the mirror REST
+// allowlist on this serve — bootstrap, detail, search, feed, and the
+// comment/transition writes — and nothing else. It deliberately cannot
+// ride the origin passthrough: a leaked serve token must not reach raw
+// issuetap/Jira REST, and a minted origin token must not dump the
+// mirror. The scopes are one-way doors by construction, not by caller
+// discipline.
+const ScopeServe = "serve"
 
 // ScopeLocalRouting is the home machine's own routing token. pairing list
 // uses this so the `_home` row is not mistaken for a paired device.
@@ -116,12 +130,20 @@ const (
 	ReasonUnknown Reason = "unknown"
 )
 
-// Mint creates a token for label, persists its hash, and returns the
-// plaintext. The plaintext appears exactly here; callers print it once (as
-// an offer) and never store it. A duplicate *active* label is refused so
-// `pairing revoke <label>` stays unambiguous; a revoked label may be reused.
+// Mint creates an origin-scope device token — every pre-serve caller's
+// meaning (a paired laptop riding the passthrough). Scope choice lives in
+// MintScoped; this stays so those call sites keep saying exactly that.
 func Mint(dir, label string, ttl time.Duration, now time.Time) (string, Meta, error) {
-	token, meta, err := prepareMint(label, ttl, now)
+	return MintScoped(dir, label, ScopeOrigin, ttl, now)
+}
+
+// MintScoped is Mint with the scope named. scope is ScopeOrigin or
+// ScopeServe; anything else is refused — minting a token whose scope no
+// gate reads would be a silent lie. The reserved `_home` label keeps its
+// ScopeLocalRouting regardless, so a stray `--label _home --scope serve`
+// cannot manufacture a mirror-reading routing token.
+func MintScoped(dir, label, scope string, ttl time.Duration, now time.Time) (string, Meta, error) {
+	token, meta, err := prepareMint(label, scope, ttl, now)
 	if err != nil {
 		return "", Meta{}, err
 	}
@@ -145,7 +167,9 @@ func Mint(dir, label string, ttl time.Duration, now time.Time) (string, Meta, er
 // same name. Used for the home routing token: mint + revoke of the previous
 // `_home` must not be two verbs a crash can split.
 func Rotate(dir, label string, ttl time.Duration, now time.Time) (string, Meta, error) {
-	token, meta, err := prepareMint(label, ttl, now)
+	// ScopeOrigin here is inert — Rotate's only caller is the `_home`
+	// label, and scopeForLabel forces ScopeLocalRouting for it.
+	token, meta, err := prepareMint(label, ScopeOrigin, ttl, now)
 	if err != nil {
 		return "", Meta{}, err
 	}
@@ -165,13 +189,20 @@ func Rotate(dir, label string, ttl time.Duration, now time.Time) (string, Meta, 
 	return token, meta, nil
 }
 
-func prepareMint(label string, ttl time.Duration, now time.Time) (string, Meta, error) {
+func prepareMint(label, scope string, ttl time.Duration, now time.Time) (string, Meta, error) {
 	label = strings.TrimSpace(label)
 	if label == "" {
 		return "", Meta{}, errors.New("pairing: label is required")
 	}
 	if len(label) > 64 {
 		return "", Meta{}, errors.New("pairing: label is longer than 64 characters")
+	}
+	switch scope {
+	case "", ScopeOrigin:
+		scope = ScopeOrigin
+	case ScopeServe:
+	default:
+		return "", Meta{}, fmt.Errorf("pairing: unknown scope %q (want %s or %s)", scope, ScopeOrigin, ScopeServe)
 	}
 	if ttl <= 0 {
 		return "", Meta{}, errors.New("pairing: ttl must be positive")
@@ -183,7 +214,7 @@ func prepareMint(label string, ttl time.Duration, now time.Time) (string, Meta, 
 	token := encodeToken(raw)
 	meta := Meta{
 		Label:     label,
-		Scope:     scopeForLabel(label),
+		Scope:     scopeForLabel(label, scope),
 		Hash:      hashToken(token),
 		CreatedAt: now.UTC(),
 		ExpiresAt: now.UTC().Add(ttl),
@@ -191,11 +222,11 @@ func prepareMint(label string, ttl time.Duration, now time.Time) (string, Meta, 
 	return token, meta, nil
 }
 
-func scopeForLabel(label string) string {
+func scopeForLabel(label, scope string) string {
 	if label == HomeLabel {
 		return ScopeLocalRouting
 	}
-	return ScopeOrigin
+	return scope
 }
 
 // List returns every stored token, earliest created first, including
@@ -282,13 +313,25 @@ const minPrefix = 8
 // closed: a store that cannot be read rejects, because tokens may exist;
 // only a proven-absent store is VerdictOff. On accept it records
 // last_used_at (throttled to one disk write per token per interval).
+// Callers that must also know *which* token answered — the scope-aware
+// gates (GDK-797) — use AuthorizeMeta.
 func Authorize(dir, bearer string, now time.Time) (Verdict, error) {
+	v, _, err := AuthorizeMeta(dir, bearer, now)
+	return v, err
+}
+
+// AuthorizeMeta is Authorize returning the matched token on accept. The
+// scope on that Meta is what lets a gate refuse a valid token minted for
+// another surface: a serve token must not ride the origin passthrough,
+// an origin token must not read the mirror allowlist. Meta is zero on
+// every non-accept verdict.
+func AuthorizeMeta(dir, bearer string, now time.Time) (Verdict, Meta, error) {
 	doc, err := loadCached(dir)
 	if err != nil {
-		return VerdictReject, err
+		return VerdictReject, Meta{}, err
 	}
 	if doc == nil {
-		return VerdictOff, nil
+		return VerdictOff, Meta{}, nil
 	}
 	digest, _ := digestOf(bearer)
 	anyActive := false
@@ -299,13 +342,27 @@ func Authorize(dir, bearer string, now time.Time) (Verdict, error) {
 		anyActive = true
 		if digest != nil && digestMatches(m.Hash, digest) {
 			touchLastUsed(dir, m.Hash, now)
-			return VerdictAccept, nil
+			return VerdictAccept, m, nil
 		}
 	}
 	if !anyActive {
-		return VerdictOff, nil
+		return VerdictOff, Meta{}, nil
 	}
-	return VerdictReject, nil
+	return VerdictReject, Meta{}, nil
+}
+
+// AdmitsOrigin reports whether a token scope may ride the origin
+// passthrough: origin (the device scope), local-routing (the home
+// machine's own writes), and the empty scope of tokens minted before
+// scopes mattered — those were origin tokens and must keep working.
+// serve is the deliberate exclusion: the phone scope opens the mirror
+// allowlist, not raw REST.
+func AdmitsOrigin(scope string) bool {
+	switch scope {
+	case "", ScopeOrigin, ScopeLocalRouting:
+		return true
+	}
+	return false
 }
 
 // Explain classifies a rejected bearer. Authorize remains the gate

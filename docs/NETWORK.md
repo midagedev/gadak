@@ -122,6 +122,15 @@ routes every write through the home serve with a per-device bearer token.
 Revocation is per device: `gadak pairing revoke laptop` cuts one machine off
 without touching the others.
 
+A **phone companion** (GDK-797) is not a second workspace — it is a REST
+client of a home serve's mirror. `gadak pairing mint --label phone --scope
+serve` works on any workspace kind (a connected home included, GDK-798; its
+origin passthrough stays closed regardless): the token opens the mirror
+REST allowlist — the reads a board needs plus the comment/transition
+writes, which ride the same write-through path as the web UI — and is
+refused on the origin passthrough, exactly as an origin token is refused on
+the allowlist.
+
 ### Tailscale is the intended transport
 
 `gadak serve` binds loopback and refuses anything else unless you pass
@@ -141,12 +150,16 @@ as loopback — and the serve stores only SHA-256 hashes of tokens.
 What a tailnet device can and cannot reach through that tunnel is worth
 stating precisely:
 
-- **Through `tailscale serve`, the mirror's own read API and UI stay
-  closed.** Requests arrive with the tailnet hostname, and the serve's host
-  guard rejects DNS hostnames that are not `localhost` — only the pairing
-  passthrough is exempt, and only with a valid token. A tailnet device that
-  is not paired gets nothing; a paired one gets the origin passthrough, not
-  the mirror.
+- **Through `tailscale serve`, a DNS hostname reaches exactly the
+  token-gated surfaces.** Requests arrive with the tailnet hostname, and the
+  serve's host guard rejects DNS hostnames that are not `localhost` unless
+  a later gate authenticates the request. There are two such gates: the
+  origin passthrough (an origin-scope token, for paired gadak machines) and
+  the mirror REST allowlist (a serve-scope token, for a phone companion).
+  A tailnet device with no token gets nothing; a paired laptop gets the
+  passthrough, not the mirror; a phone token gets the allowlist, not the
+  passthrough. The web UI and every other route stay closed behind the
+  host guard.
 - **`--allow-remote` is the sharp edge.** Binding a non-loopback address
   opens the mirror's read and write API to whoever can reach the port, with
   no login in front of it — gadak deliberately has no account model

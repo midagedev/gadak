@@ -1,10 +1,12 @@
 package main
 
-// gadak pairing — device tokens for the serve's origin passthrough gate
-// (GDK-433). The home machine mints one token per device; while any active
-// token exists, everything under /api/v1/origin requires it as a Bearer.
-// The remote side consumes the mint output with `gadak init
-// --pairing-code`.
+// gadak pairing — device tokens for the home serve's gated surfaces. An
+// origin-scope token rides the origin passthrough (GDK-433): the remote
+// side consumes the mint output with `gadak init --pairing-code`. A
+// serve-scope token (GDK-797) opens the mirror REST allowlist a phone
+// companion reads — bootstrap, detail, search, feed, and the
+// comment/transition writes — and nothing else. While any active token
+// exists, both surfaces require their Bearer.
 
 import (
 	"context"
@@ -26,7 +28,7 @@ import (
 	"github.com/midagedev/gadak/internal/store"
 )
 
-const pairingUsage = "usage: gadak pairing mint --label NAME [--ttl 90d] [--endpoint URL] [--json] | pairing list | pairing revoke <label|hash-prefix>"
+const pairingUsage = "usage: gadak pairing mint --label NAME [--scope origin|serve] [--ttl 90d] [--endpoint URL] [--json] | pairing list | pairing revoke <label|hash-prefix>"
 
 // pairingRevokeUsage is the revoke selector: exact label, or a hash prefix
 // of at least minPrefix (8) hex characters — pairing list prints 8, longer
@@ -92,10 +94,13 @@ func parseTTL(s string) (time.Duration, error) {
 	}
 }
 
-// pairingDir is the profile directory the token store lives in, with the
-// workspace-kind gate: pairing protects a standalone serve's passthrough;
-// on a connected workspace the passthrough is a 404 and a minted token
-// would be a lie the user cannot see through.
+// pairingDir is the profile directory the token store lives in. Pairing
+// protects both gated surfaces of a home serve — the origin passthrough
+// (standalone, GDK-433) and the mirror REST allowlist a phone companion
+// reads (GDK-797) — so both workspace kinds may mint; what stays closed
+// for a connected workspace is the passthrough itself (origin_rest.go
+// 404s it). A workspace that is itself paired away cannot mint: its home
+// is another machine.
 func pairingDir() (string, error) {
 	cfg, err := config.Load()
 	if err != nil {
@@ -108,9 +113,6 @@ func pairingDir() (string, error) {
 	}
 	if !cfg.HasCredential() {
 		return "", config.ErrNotConfigured
-	}
-	if !cfg.IsStandalone() {
-		return "", errors.New("pairing is for standalone workspaces — the gate sits on the serve's origin passthrough, which a connected workspace does not serve")
 	}
 	dir := cfg.Directory()
 	if dir == "" {
@@ -136,6 +138,7 @@ func pairingMint(args []string) error {
 	// the 90-day default has one owner.
 	ttlDefault := fmt.Sprintf("%dd", int(defaultPairingTTL/(24*time.Hour)))
 	label := fs.String("label", "", "device name shown in `gadak pairing list` (required)")
+	scope := fs.String("scope", "origin", "what the token opens: origin = origin passthrough for a paired gadak (default), serve = mirror REST allowlist for a phone companion")
 	ttlFlag := fs.String("ttl", ttlDefault, "token lifetime: <N><d|h|m|s>, e.g. 90d or 12h")
 	endpoint := fs.String("endpoint", "", "URL remote devices reach this serve at (default: this machine's live serve address)")
 	asJSON := fs.Bool("json", false, "emit JSON")
@@ -144,6 +147,11 @@ func pairingMint(args []string) error {
 	}
 	if strings.TrimSpace(*label) == "" {
 		return errors.New("pairing mint requires --label NAME")
+	}
+	switch strings.TrimSpace(*scope) {
+	case pairing.ScopeOrigin, pairing.ScopeServe:
+	default:
+		return fmt.Errorf("unknown --scope %q: want origin (a paired gadak riding the passthrough) or serve (a phone companion reading the mirror allowlist)", strings.TrimSpace(*scope))
 	}
 	ttl, err := parseTTL(*ttlFlag)
 	if err != nil {
@@ -179,7 +187,7 @@ func pairingMint(args []string) error {
 	if host := u.Hostname(); isLoopbackHost(host) {
 		fmt.Fprintf(os.Stderr, "warning: endpoint %s is loopback — remote devices cannot reach it; pass --endpoint with your tailnet URL (e.g. https://<machine>.<tailnet>.ts.net)\n", ep)
 	}
-	token, meta, err := pairing.Mint(dir, *label, ttl, time.Now())
+	token, meta, err := pairing.MintScoped(dir, *label, strings.TrimSpace(*scope), ttl, time.Now())
 	if err != nil {
 		return err
 	}
@@ -193,21 +201,29 @@ func pairingMint(args []string) error {
 	if err != nil {
 		return err
 	}
-	if err := writePairingMintOutput(*asJSON, offer, *label, ep, meta); err != nil {
+	if err := writePairingMintOutput(*asJSON, offer, *label, ep, strings.TrimSpace(*scope), meta); err != nil {
 		return err
 	}
-	if err := ensureHomeRoutingToken(dir, cfg, ep); err != nil {
-		return err
+	// The _home routing token is a standalone home's concern: its local
+	// writes ride the passthrough this serve fronts. A connected
+	// workspace's writes go straight to its site, and the routing file
+	// (remote-origin.json) would make origin.pairedRemote read this
+	// workspace as paired with its own serve — never written here.
+	if cfg.IsStandalone() {
+		if err := ensureHomeRoutingToken(dir, cfg, ep); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
 // writePairingMintOutput is the device-mint output contract (GDK-456).
 // Default: stdout is exactly the offer line (pipe target). --json: one
-// JSON object on stdout with the same offer plus label/endpoint/expires_at.
-// Human stderr says what to do on the other machine; the offer is reusable
-// until expiry (not "shown once").
-func writePairingMintOutput(asJSON bool, offer, label, endpoint string, meta pairing.Meta) error {
+// JSON object on stdout with the same offer plus label/scope/endpoint/
+// expires_at. Human stderr says what the token is for — which machine
+// consumes it depends on the scope; the offer is reusable until expiry
+// (not "shown once").
+func writePairingMintOutput(asJSON bool, offer, label, endpoint, scope string, meta pairing.Meta) error {
 	expiry := pairing.FormatExpiry(meta.ExpiresAt)
 	if asJSON {
 		enc := json.NewEncoder(os.Stdout)
@@ -215,27 +231,39 @@ func writePairingMintOutput(asJSON bool, offer, label, endpoint string, meta pai
 		return enc.Encode(struct {
 			Offer     string `json:"offer"`
 			Label     string `json:"label"`
+			Scope     string `json:"scope"`
 			Endpoint  string `json:"endpoint"`
 			ExpiresAt string `json:"expires_at"`
-		}{offer, label, endpoint, expiry})
+		}{offer, label, scope, endpoint, expiry})
 	}
 	fmt.Println(offer)
-	fmt.Fprintln(os.Stderr, pairingMintRemoteHint(label))
+	if scope == pairing.ScopeServe {
+		fmt.Fprintln(os.Stderr, pairingMintServeHint())
+	} else {
+		fmt.Fprintln(os.Stderr, pairingMintRemoteHint(label))
+	}
 	fmt.Fprintf(os.Stderr, "paired device %q — offer reusable until %s; revoke with: gadak pairing revoke %s\n",
 		label, expiry, meta.Hash[:8])
 	return nil
 }
 
-// pairingMintRemoteHint is the one thing device mint must say: how to
-// consume the offer on the other machine. The suggested profile name is
-// the device label — the remote picks its own profile, and the home's
-// profile name means nothing over there; the label is the one name both
-// sides already share.
+// pairingMintRemoteHint is the one thing an origin-scope mint must say:
+// how to consume the offer on the other machine. The suggested profile
+// name is the device label — the remote picks its own profile, and the
+// home's profile name means nothing over there; the label is the one name
+// both sides already share.
 func pairingMintRemoteHint(label string) string {
 	if label == "" {
 		label = "<name>"
 	}
 	return fmt.Sprintf("on the other machine: gadak --workspace %s init --pairing-code-stdin  (paste the line above)", label)
+}
+
+// pairingMintServeHint names the surface a serve token opens, so the offer
+// line is not pasted where an origin-scope offer belongs: a phone
+// companion is a REST client, not a second gadak workspace.
+func pairingMintServeHint() string {
+	return "this is a serve token: in the phone app it opens this serve's mirror API (reads + comment/transition writes) and nothing else"
 }
 
 // ensureHomeRoutingToken is the single owner of "_home is valid". Once one
@@ -290,8 +318,13 @@ func ensureHomeRoutingToken(dir string, cfg *config.Config, mintEndpoint string)
 
 // pairingMintHome is `pairing mint --label _home`: routing-token rotation,
 // not a device offer. stdout stays empty so the line cannot be piped into
-// `init --pairing-code`.
+// `init --pairing-code`. Standalone only — a connected workspace's writes
+// go straight to its site, and the routing file here would make
+// origin.pairedRemote read this workspace as paired with its own serve.
 func pairingMintHome(dir string, cfg *config.Config, endpoint string) error {
+	if !cfg.IsStandalone() {
+		return errors.New("_home is a standalone workspace's routing token — this workspace's writes go to its site directly, and a routing file here would misread this workspace as paired")
+	}
 	ep, err := resolveHomeEndpoint(cfg, dir, endpoint)
 	if err != nil {
 		return err

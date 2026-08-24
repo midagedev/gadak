@@ -99,11 +99,12 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak sync", "gadak profiles", "gadak pairing", "gadak config"},
 	},
 	"pairing": {
-		summary: "manage the device tokens that gate a standalone serve's origin passthrough; a paired remote machine binds with `gadak init --pairing-code`",
-		usage: "gadak [--workspace <name>] pairing mint --label NAME [--ttl 90d] [--endpoint URL] [--json]\n" +
+		summary: "manage the device tokens that gate a home serve's origin passthrough (origin scope) and mirror REST allowlist (serve scope); a paired remote machine binds with `gadak init --pairing-code`",
+		usage: "gadak [--workspace <name>] pairing mint --label NAME [--scope origin|serve] [--ttl 90d] [--endpoint URL] [--json]\n" +
 			"| pairing list | pairing revoke <label|hash-prefix>",
 		options: []helpOption{
 			{name: "label", desc: "device name shown in `gadak pairing list` (required, unique among active tokens)"},
+			{name: "scope", desc: "what the token opens: origin (default) rides the origin passthrough for a paired gadak; serve opens the mirror REST allowlist for a phone companion (reads + comment/transition) — each scope is refused on the other surface"},
 			{name: "ttl", desc: "token lifetime: <N><d|h|m|s>, e.g. 90d (default) or 12h"},
 			{name: "endpoint", desc: "URL remote devices reach this serve at; default is this machine's live serve address (loopback draws a warning — pass your tailnet URL)"},
 			{name: "json", desc: "emit JSON"},
@@ -111,6 +112,7 @@ var helps = map[string]cmdHelp{
 		examples: []string{
 			"gadak pairing mint --label laptop",
 			"gadak pairing mint --label agent --ttl 12h --endpoint https://<machine>.<tailnet>.ts.net",
+			"gadak pairing mint --label phone --scope serve --endpoint https://<machine>.<tailnet>.ts.net",
 			"gadak pairing mint --label laptop --json",
 			"gadak pairing list",
 			"gadak pairing revoke laptop",

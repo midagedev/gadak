@@ -315,12 +315,16 @@ func newServer(db *store.DB, cfg *config.Config, cache *attachcache.Cache, profi
 	// a clean 404 and only breaks on a 500.
 	mux.HandleFunc("/", handleNotFound)
 	h := &Handler{mux: mux, s: s}
-	h.guarded = GuardBrowser(mux, PairedOriginHostExempt(func() string {
+	dirFn := func() string {
 		if cfg := s.config(); cfg != nil {
 			return cfg.Directory()
 		}
 		return ""
-	}))
+	}
+	// The mirror gate sits inside the guard: the guard vouches for the Host
+	// (exemptions only where a later gate authenticates), the gate vouches
+	// for the token (GDK-797).
+	h.guarded = GuardBrowser(s.mirrorGate(mux), PairedOriginHostExempt(dirFn), PairedMirrorHostExempt(dirFn))
 	if testRegisterHandler != nil {
 		testRegisterHandler(h)
 	}

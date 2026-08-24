@@ -193,7 +193,11 @@ func TestPairingMintNeedsEndpointOrLiveServe(t *testing.T) {
 	}
 }
 
-func TestPairingRefusesConnectedWorkspace(t *testing.T) {
+// An unconfigured home still refuses — pairing needs an origin to protect.
+// (Was TestPairingRefusesConnectedWorkspace; since GDK-798 a *configured*
+// connected workspace may mint, so the refusal that remains is
+// "not configured", not "not standalone".)
+func TestPairingMintNeedsConfiguredWorkspace(t *testing.T) {
 	clearCredentialEnv(t)
 	t.Setenv("GADAK_HOME", t.TempDir())
 	config.SetProfile("")
@@ -201,8 +205,154 @@ func TestPairingRefusesConnectedWorkspace(t *testing.T) {
 	_, _, err := captureErr(t, func() error {
 		return cmdPairing([]string{"mint", "--label", "x", "--endpoint", "http://127.0.0.1:9"})
 	})
+	if err == nil || !strings.Contains(err.Error(), "not configured") {
+		t.Fatalf("mint on an unconfigured workspace must refuse with not-configured, got %v", err)
+	}
+}
+
+// connectedHome stands up a temp GADAK_HOME with a site-credential
+// workspace — the connected home a phone wants to read (GDK-798).
+func connectedHome(t *testing.T) *config.Config {
+	t.Helper()
+	clearCredentialEnv(t)
+	t.Setenv("GADAK_HOME", t.TempDir())
+	config.SetProfile("")
+	t.Cleanup(func() { config.SetProfile("") })
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Kind = config.KindConnected
+	cfg.Site = "https://example.atlassian.net"
+	cfg.Email = "hc@example.com"
+	cfg.Token = "site-token"
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+	return cfg
+}
+
+// GDK-798: a connected workspace can mint. The phone is not a second
+// gadak workspace — it is a REST client of this home's mirror — so the
+// standalone-only refusal is gone. What stays closed is the origin
+// passthrough itself (404 on connected, origin_rest.go).
+func TestPairingMintServeScopeOnConnectedWorkspace(t *testing.T) {
+	cfg := connectedHome(t)
+	out, errout, err := captureErr(t, func() error {
+		return cmdPairing([]string{"mint", "--label", "phone", "--scope", "serve", "--endpoint", "http://127.0.0.1:9"})
+	})
+	if err != nil {
+		t.Fatalf("connected serve mint must succeed: %v; stderr: %s", err, errout)
+	}
+	// stdout is exactly the offer line (the pipe target contract).
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	if len(lines) != 1 {
+		t.Fatalf("mint stdout must be exactly the offer line, got %q", out)
+	}
+	offer, err := pairing.DecodeOffer(lines[0])
+	if err != nil || offer.Label != "phone" || offer.Token == "" {
+		t.Fatalf("offer = %+v (%v)", offer, err)
+	}
+	toks, err := pairing.List(configDirOrFatal(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, m := range toks {
+		if m.Label == "phone" {
+			found = true
+			// literal "serve": this test must compile and FAIL before the
+			// ScopeServe constant exists (FAIL-first for GDK-797/798).
+			if m.Scope != "serve" {
+				t.Fatalf("scope %q, want serve", m.Scope)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("phone token missing from store: %+v", toks)
+	}
+	// Structural guard: a connected workspace's writes go straight to its
+	// site, so minting must not leave a routing credential behind —
+	// pairedRemote would read remote-origin.json as "this workspace is
+	// paired" and rewire the origin to this machine's own serve.
+	if rem, err := pairing.LoadRemote(configDirOrFatal(t)); err != nil || rem != nil {
+		t.Fatalf("connected mint must not write remote-origin.json: %+v (%v)", rem, err)
+	}
+	if st, err := origin.PairedStatus(cfg); err != nil || st != nil {
+		t.Fatalf("connected workspace misread as paired: %+v (%v)", st, err)
+	}
+}
+
+// The default scope is origin, minted exactly as before GDK-797 (a paired
+// laptop's token still rides the passthrough).
+func TestPairingMintDefaultsToOriginScope(t *testing.T) {
+	pairingHome(t)
+	if _, _, err := captureErr(t, func() error {
+		return cmdPairing([]string{"mint", "--label", "laptop", "--ttl", "1h", "--endpoint", "http://127.0.0.1:9"})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	toks, err := pairing.List(configDirOrFatal(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range toks {
+		if m.Label == "laptop" && m.Scope != "origin" {
+			t.Fatalf("default scope = %q, want origin", m.Scope)
+		}
+	}
+}
+
+// A serve-scope offer is consumed by the phone companion, not by
+// `init --pairing-code` — that consumes origin-scope offers, and a serve
+// token cannot ride the passthrough. The stderr hint must not send the
+// user to init.
+func TestPairingMintServeHintNamesItsSurface(t *testing.T) {
+	pairingHome(t)
+	_, errout, err := captureErr(t, func() error {
+		return cmdPairing([]string{"mint", "--label", "phone", "--scope", "serve", "--endpoint", "http://127.0.0.1:9"})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(errout, "--pairing-code") {
+		t.Fatalf("serve mint must not point at init --pairing-code: %q", errout)
+	}
+	if !strings.Contains(errout, "mirror") {
+		t.Fatalf("serve mint stderr should name what the token opens: %q", errout)
+	}
+}
+
+// Unknown scopes are refused up front — minting a token whose scope no
+// gate reads would be a silent lie.
+func TestPairingMintScopeFlagValidates(t *testing.T) {
+	pairingHome(t)
+	_, _, err := captureErr(t, func() error {
+		return cmdPairing([]string{"mint", "--label", "x", "--scope", "wiki", "--endpoint", "http://127.0.0.1:9"})
+	})
+	if err == nil || !strings.Contains(err.Error(), "scope") {
+		t.Fatalf("unknown scope must be refused naming scope, got %v", err)
+	}
+	toks, err := pairing.List(configDirOrFatal(t))
+	if err != nil || len(toks) != 0 {
+		t.Fatalf("refused mint left tokens: %+v (%v)", toks, err)
+	}
+}
+
+// `--label _home` rotates the routing token a standalone home's own writes
+// present. A connected workspace has no such token — its writes go
+// straight to the site — and minting one would write remote-origin.json
+// and poison PairedStatus, so it is refused, naming why.
+func TestPairingMintHomeRefusedOnConnected(t *testing.T) {
+	connectedHome(t)
+	_, _, err := captureErr(t, func() error {
+		return cmdPairing([]string{"mint", "--label", "_home", "--endpoint", "http://127.0.0.1:9"})
+	})
 	if err == nil || !strings.Contains(err.Error(), "standalone") {
-		t.Fatalf("mint on connected workspace must be refused, got %v", err)
+		t.Fatalf("connected _home mint must be refused naming standalone routing, got %v", err)
+	}
+	if rem, rerr := pairing.LoadRemote(configDirOrFatal(t)); rerr != nil || rem != nil {
+		t.Fatalf("refused _home mint still wrote a routing credential: %+v (%v)", rem, rerr)
 	}
 }
 
