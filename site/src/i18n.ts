@@ -79,8 +79,6 @@ export const strings = {
       videoCaption: 'A question JQL cannot ask, answered from the local mirror.',
       mcpCaption:
         'A live Claude Code session on the mirror: issues and wiki pages in one index — the join Jira and Confluence never make for you.',
-      mcpAlt:
-        'A terminal where Claude Code is asked to search Jira and the wiki for idempotency; it calls the gadak MCP tool once and answers citing an issue key and a Confluence page together.',
     },
     origin: {
       label: 'Why this is safe to try',
@@ -182,8 +180,6 @@ export const strings = {
       videoCaption: 'JQL이 표현 못 하는 질문 하나를, 로컬 미러에서 답하기.',
       mcpCaption:
         '미러 위의 실제 Claude Code 세션: 이슈와 위키 페이지가 하나의 인덱스 — Jira와 Confluence가 대신 만들어 주지 않는 조인.',
-      mcpAlt:
-        'Claude Code에 Jira와 위키에서 idempotency를 찾으라고 묻는 터미널; gadak MCP 툴을 한 번 호출해 이슈 키와 Confluence 페이지를 한 문장으로 답합니다.',
     },
     origin: {
       label: '왜 안심하고 써도 되는가',

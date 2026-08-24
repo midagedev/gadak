@@ -137,11 +137,13 @@ const installHref = lang === 'en' ? '/install/' : '/ko/install/'
 gadak claim NMB-1042
 gadak transition NMB-1042 done -m "shipped"`}</code></pre>
     <figure class="media-pair">
+      {/* The recorded Claude Code tape from the README (user call 2026-08-24):
+          the claim here is a conversation flow, not a single frame, so this
+          exhibit plays the tape rather than a still. */}
       <MediaSlot
         slot={lang === 'en' ? 'live MCP session' : '라이브 MCP 세션'}
-        still="/media/mcp-still.png"
-        alt={t.agent.mcpAlt}
-        displayWidth={640}
+        src="/media/mcp.mp4"
+        poster="/media/mcp-poster.png"
       />
       <figcaption>{t.agent.mcpCaption}</figcaption>
     </figure>
