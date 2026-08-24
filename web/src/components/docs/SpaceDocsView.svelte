@@ -7,6 +7,7 @@
    * the question really is "what lives under what". The sidebar carries neither
    * — it must not grow with content volume.
    */
+  import { onMount } from 'svelte'
   import Icon from '../ui/Icon.svelte'
   import Marks from '../ui/Marks.svelte'
   import { t, formatNumber } from '../../lib/i18n'
@@ -18,7 +19,7 @@
   import DocsFilter from './DocsFilter.svelte'
   import DocRow from './DocRow.svelte'
   import VirtualRows from '../ui/VirtualRows.svelte'
-  import { rowMetrics } from '../../lib/row-metrics'
+  import { onRowMetricsInvalidated, rowMetrics } from '../../lib/row-metrics'
 
   let { space }: { space: string } = $props()
 
@@ -141,6 +142,23 @@
     }
     walk(tree?.roots ?? [])
     return out
+  })
+
+  // Token-sourced heights (row for the flat list, control for the tree),
+  // re-read when a user dims override lands (applyUserTokens →
+  // invalidateRowMetrics fires the subscription below) — the issue list's
+  // pattern: the snapshot is a signal, so the height props' reads inside
+  // VirtualRows' deriveds recompute the window at the new geometry instead
+  // of waiting for a remount (GDK-850).
+  let metrics = $state(rowMetrics())
+
+  onMount(() => {
+    const offMetrics = onRowMetricsInvalidated(() => {
+      metrics = rowMetrics()
+    })
+    return () => {
+      offMetrics()
+    }
   })
 </script>
 
@@ -317,7 +335,7 @@
            list, so the header's rule is the top edge. -->
       <VirtualRows
         rows={treeRows}
-        height={() => rowMetrics().control}
+        height={() => metrics.control}
         key={(node) => node.page.key}
         innerClass="max-w-[720px] px-3"
         testid="space-tree-scroll"
@@ -331,7 +349,7 @@
     <!-- The space is the screen, so every row would repeat it — dropped. -->
     <VirtualRows
       rows={docs}
-      height={() => rowMetrics().row}
+      height={() => metrics.row}
       key={(page) => page.key}
       testid="space-list-scroll"
     >

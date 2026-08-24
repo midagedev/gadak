@@ -16,6 +16,7 @@
    * which is the part that was never the problem.
    */
   import type { Snippet } from 'svelte'
+  import { rowOffsets, rowWindow } from '../../lib/row-metrics'
 
   let {
     rows,
@@ -44,30 +45,18 @@
   let scrollTop = $state(0)
   let viewportH = $state(0)
 
-  /** offsets[i] = top of row i; offsets[n] = total height. */
-  const offsets = $derived.by(() => {
-    const out = new Float64Array(rows.length + 1)
-    for (let i = 0; i < rows.length; i++) out[i + 1] = out[i] + height(rows[i])
-    return out
-  })
+  // Offset sheet: offsets[i] is row i's top, offsets[n] the total height.
+  // The formulas live in row-metrics (GDK-842 extracted them from this
+  // component; GDK-850 makes this the consumer, not a second copy) so every
+  // virtualized surface agrees by construction. The height prop's reads are
+  // tracked signals — a caller that snapshots rowMetrics() in $state
+  // re-runs these deriveds when user dimension overrides land at runtime.
+  const offsets = $derived(rowOffsets(rows.map(height)))
   const total = $derived(rows.length ? offsets[rows.length] : 0)
 
-  /** First row whose bottom is past y. */
-  function indexAt(y: number): number {
-    let lo = 0
-    let hi = rows.length
-    while (lo < hi) {
-      const mid = (lo + hi) >> 1
-      if (offsets[mid + 1] <= y) lo = mid + 1
-      else hi = mid
-    }
-    return lo
-  }
-
-  const start = $derived(Math.max(0, indexAt(scrollTop) - overscan))
-  const end = $derived(Math.min(rows.length, indexAt(scrollTop + viewportH) + 1 + overscan))
-  const slice = $derived(rows.slice(start, end))
-  const offsetTop = $derived(offsets[start] ?? 0)
+  const win = $derived(rowWindow(offsets, scrollTop, viewportH, overscan))
+  const slice = $derived(rows.slice(win.start, win.end))
+  const offsetTop = $derived(offsets[win.start] ?? 0)
 
   /**
    * Put a row at the top of the viewport. Replaces scrollIntoView, which needs
@@ -90,8 +79,8 @@
   <!-- Full height so the scrollbar reflects the whole list, not the window. -->
   <div style="height: {total}px" class="relative">
     <div style="transform: translateY({offsetTop}px)" class={innerClass}>
-      {#each slice as item, i (key(item, start + i))}
-        {@render row(item, start + i)}
+      {#each slice as item, i (key(item, win.start + i))}
+        {@render row(item, win.start + i)}
       {/each}
     </div>
   </div>

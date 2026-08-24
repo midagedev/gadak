@@ -12,6 +12,7 @@
    * list keeps its place, which is how someone skims several edits in one pass.
    * Everything is client-side over the page index — no request of its own.
    */
+  import { onMount } from 'svelte'
   import Icon from '../ui/Icon.svelte'
   import { t, formatNumber } from '../../lib/i18n'
   import { pages, type DocsTab } from '../../stores/pages.svelte'
@@ -23,7 +24,7 @@
   import DocsFilter from './DocsFilter.svelte'
   import DocRow from './DocRow.svelte'
   import VirtualRows from '../ui/VirtualRows.svelte'
-  import { rowMetrics } from '../../lib/row-metrics'
+  import { onRowMetricsInvalidated, rowMetrics } from '../../lib/row-metrics'
 
   docsEmpty.bind()
 
@@ -137,12 +138,18 @@
     }),
   )
 
+  // Token-sourced heights, re-read when a user dims override lands
+  // (applyUserTokens → invalidateRowMetrics fires the subscription below) —
+  // the issue list's pattern: the snapshot is a signal, so the height prop's
+  // reads inside VirtualRows' deriveds recompute the window at the new
+  // geometry instead of waiting for a remount (GDK-850).
+  let metrics = $state(rowMetrics())
+
   // Mirrors DocRow's own rule: the taller row exists only when there is a body
   // line to put in it, so a page with an empty excerpt stays 42px.
   function rowHeight(item: Row): number {
-    const m = rowMetrics()
-    if (item.kind === 'header') return m.row
-    return item.showExcerpt && (item.page.excerpt ?? '').trim() ? m.rowExcerpt : m.row
+    if (item.kind === 'header') return metrics.row
+    return item.showExcerpt && (item.page.excerpt ?? '').trim() ? metrics.rowExcerpt : metrics.row
   }
 
   function rowKey(item: Row): string {
@@ -163,6 +170,18 @@
     const index = rows.findIndex((r) => r.kind === 'header' && r.author === author)
     if (index >= 0) list.scrollToIndex(index)
     pages.focusAuthor = null
+  })
+
+  // Re-snapshot the token-sourced heights on invalidation; tear the
+  // subscription down with the view so a later token change cannot write to
+  // a destroyed component's state.
+  onMount(() => {
+    const offMetrics = onRowMetricsInvalidated(() => {
+      metrics = rowMetrics()
+    })
+    return () => {
+      offMetrics()
+    }
   })
 </script>
 

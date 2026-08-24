@@ -59,3 +59,38 @@ describe('GDK-738 docs empty wiring', () => {
     expect(hits).toEqual([STORE])
   })
 })
+
+/*
+ * GDK-850: both docs body views must re-snapshot rowMetrics on invalidation
+ * — the same defect class HistoryView.test.ts records. Untracked cache
+ * reads inside the VirtualRows height prop keep the old row heights until a
+ * remount, so a runtime spacing override never reaches the window. The fix
+ * is the issue list's c34 pattern: a $state snapshot plus an
+ * onRowMetricsInvalidated subscription.
+ */
+describe('GDK-850 docs views re-snapshot rowMetrics on invalidation', () => {
+  // The GDK-738 block reads these inside its own describe; read them again
+  // here rather than reaching into that closure.
+  const docsView = readFileSync(DOCS_VIEW, 'utf8')
+  const spaceDocsView = readFileSync(SPACE_DOCS_VIEW, 'utf8')
+  const docsRowHeight = /function rowHeight\([\s\S]*?\n  \}/.exec(docsView)?.[0] ?? ''
+
+  test('DocsView reads heights from a subscribed $state snapshot', () => {
+    expect(docsView).toContain('let metrics = $state(rowMetrics())')
+    expect(docsView).toContain('onRowMetricsInvalidated(() => {')
+    expect(docsView).toContain('metrics = rowMetrics()')
+    expect(
+      docsRowHeight,
+      'rowHeight must read the snapshot — a direct rowMetrics() call inside the height prop is the untracked read',
+    ).not.toContain('rowMetrics()')
+    expect(docsRowHeight).toContain('metrics.rowExcerpt')
+  })
+
+  test('SpaceDocsView reads heights from a subscribed $state snapshot', () => {
+    expect(spaceDocsView).toContain('let metrics = $state(rowMetrics())')
+    expect(spaceDocsView).toContain('onRowMetricsInvalidated(() => {')
+    expect(spaceDocsView).toContain('metrics = rowMetrics()')
+    // The height props ride the snapshot, not fresh cache reads.
+    expect(spaceDocsView).not.toContain('height={() => rowMetrics()')
+  })
+})

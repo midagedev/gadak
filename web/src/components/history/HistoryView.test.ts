@@ -165,3 +165,37 @@ describe('HistoryView openAsList (GDK-26)', () => {
     expect(assigned.end).toBeLessThan(applied)
   })
 })
+
+/*
+ * GDK-850: the history pane's virtualization must re-snapshot rowMetrics
+ * when user dimension overrides land at runtime (applyUserTokens →
+ * invalidateRowMetrics). The defect: rowHeight read the module cache
+ * directly, and a plain function read carries no signal dependency, so
+ * VirtualRows' offsets derived kept the old heights until a remount. The
+ * fix is the issue list's c34 pattern — a $state snapshot the height prop
+ * reads, reassigned by an invalidation subscription (IssueList.svelte).
+ */
+const rowHeightFn = /function rowHeight\([\s\S]*?\n  \}/.exec(source)?.[0] ?? ''
+
+describe('HistoryView rowMetrics invalidation (GDK-850)', () => {
+  test('heights come from a $state snapshot, not untracked cache reads', () => {
+    expect(source).toContain('let metrics = $state(rowMetrics())')
+    expect(
+      rowHeightFn,
+      'rowHeight must read the snapshot — a direct rowMetrics() call inside the height prop is the untracked read that kept stale geometry',
+    ).not.toContain('rowMetrics()')
+    expect(rowHeightFn).toContain('metrics.row')
+    expect(rowHeightFn).toContain('metrics.rowExcerpt')
+  })
+
+  test('subscribes to invalidation and re-snapshots (IssueList pattern)', () => {
+    expect(source).toContain('onRowMetricsInvalidated(() => {')
+    expect(source).toContain('metrics = rowMetrics()')
+  })
+
+  test('the subscription is torn down with the view', () => {
+    // Without the unsubscribe the callback outlives the pane and writes to
+    // a destroyed component's $state on every later token change.
+    expect(source).toMatch(/offMetrics\(\)/)
+  })
+})

@@ -4,7 +4,7 @@
    * and searched for. Visual language follows DocsView: header, segmented
    * kind filter, local narrow, grouped rows. No new tokens.
    */
-  import { untrack } from 'svelte'
+  import { onMount, untrack } from 'svelte'
   import Icon from '../ui/Icon.svelte'
   import { t, formatNumber, relativeSeenLabel, absTime } from '../../lib/i18n'
   import {
@@ -16,7 +16,7 @@
     type TimelineEntry,
   } from '../../lib/history'
   import { emptyConfig } from '../../lib/view-config'
-  import { rowMetrics } from '../../lib/row-metrics'
+  import { onRowMetricsInvalidated, rowMetrics } from '../../lib/row-metrics'
   import { history } from '../../stores/history.svelte'
   import { column } from '../../stores/column.svelte'
   import { pages } from '../../stores/pages.svelte'
@@ -111,11 +111,17 @@
     return out
   })
 
+  // Token-sourced heights, re-read when a user dims override lands
+  // (applyUserTokens → invalidateRowMetrics fires the subscription below) —
+  // the issue list's pattern: the snapshot is a signal, so the height prop's
+  // reads inside VirtualRows' deriveds recompute the window at the new
+  // geometry instead of waiting for a remount (GDK-850).
+  let metrics = $state(rowMetrics())
+
   function rowHeight(item: Row): number {
-    const m = rowMetrics()
-    if (item.kind === 'group' || item.kind === 'more') return m.row
-    if (item.entry.type === 'visit' && item.entry.kind === 'issue') return m.row
-    return m.rowExcerpt
+    if (item.kind === 'group' || item.kind === 'more') return metrics.row
+    if (item.entry.type === 'visit' && item.entry.kind === 'issue') return metrics.row
+    return metrics.rowExcerpt
   }
 
   function rowKey(item: Row, index: number): string {
@@ -170,6 +176,18 @@
       else (e.target as HTMLElement).blur()
     }
   }
+
+  // Re-snapshot the token-sourced heights on invalidation; tear the
+  // subscription down with the pane so a later token change cannot write to
+  // a destroyed component's state.
+  onMount(() => {
+    const offMetrics = onRowMetricsInvalidated(() => {
+      metrics = rowMetrics()
+    })
+    return () => {
+      offMetrics()
+    }
+  })
 </script>
 
 <section class="flex h-full min-h-0 flex-col bg-bg-base" data-testid="history-view" data-skeleton={skeleton.attr}>
