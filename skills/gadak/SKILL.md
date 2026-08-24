@@ -528,6 +528,32 @@ Credentials (site, email, token) stay on `gadak init` — they are not
 `dark`, or a lowercase palette id (`[a-z0-9-]{1,32}`). Palette names
 belong to the web; the CLI only checks the shape.
 
+## UI colors (`ui.*`)
+
+The user's color overrides are three `config set` paths. Discover the valid
+token names first — the catalog ships with the binary:
+
+```bash
+gadak config get ui.tokens.catalog --json   # name, cssVar, tier, rules, per-palette values
+gadak config set ui.tokens '{"colors":{"accent":"#7a4bd0"}}'
+gadak config set ui.tokensByTheme '{"dark":{"colors":{"accent":"#9a6be0"}}}'
+gadak config set ui.dataColors '{"label":{"urgent":"#c03030"},"type":{"10007":"#d07020"},"status":{"inprogress":"#7e5904"}}'
+```
+
+- **Tiers:** `locked` tokens are refused outright (grounds, shell); `validated`
+  tokens must pass the contrast/separation rules in every palette they render
+  in (refusals print the measured number and the floor — fix the color, do not
+  retry); `free` tokens need hex only. Values are `#rgb` or `#rrggbb`, nothing
+  else.
+- **`dataColors` keys are ids, never display names**: `label.*` is the label
+  text itself, `type.*` is the Jira issue type id (digits — names localize per
+  account), `status.*` is the status category `new` / `inprogress` / `done`.
+  A display name is refused with the correct key kind in the message.
+- **Unknown token names warn and are carried**, not refused — a newer gadak's
+  config still loads. Do not "clean" them out on sight.
+- Changes reach an already-open web tab within ~1s (the ui-focus poll carries
+  `configVersion`); no reload, no server restart.
+
 ## Rules that come with the file
 
 - **Never write to the database.** Writes go through the origin (Jira on

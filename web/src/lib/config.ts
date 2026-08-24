@@ -15,6 +15,7 @@ import {
   parseWorkspaceKind,
   type WorkspaceKind,
 } from './workspace'
+import type { UiTokenDoc } from './user-tokens'
 
 export {
   isStandalone,
@@ -111,6 +112,19 @@ export interface GadakConfig {
    */
   workspaceKind: WorkspaceKind
   features: GadakFeatures
+  /**
+   * Server-merged color overrides (GDK-786/791): final per-palette CSS
+   * variable map + data inks, already validated. Absent on an older server
+   * or static export means "nothing overridden" — app.css defaults rule.
+   */
+  ui?: UiTokenDoc
+  /**
+   * Disk identity (mtime.size) of this profile's config.json. The ui-focus
+   * poll carries it; when it moves, another surface wrote settings (CLI
+   * `config set`, another tab) and the app refetches this document instead
+   * of reloading. Absent on older servers disables that signal.
+   */
+  configVersion?: string
 }
 
 /** True only when the server said standalone. Unknown and connected are false. */

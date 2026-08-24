@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/config/tokencheck"
 	"github.com/midagedev/gadak/internal/confluence"
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/store"
@@ -67,6 +68,26 @@ type webConfigDoc struct {
 	// Always sent. The UI must not infer this from an empty site URL — a
 	// hosted demo and an older document also have no site.
 	WorkspaceKind string `json:"workspaceKind"`
+	// UI is the server-merged color-override block (GDK-786/791): the final
+	// per-palette CSS variable map plus data inks, already validated and
+	// filtered, so the web needs no catalog knowledge of its own. Warnings
+	// are load-time advisories (a downgrade met a renamed token), not errors.
+	UI *uiDoc `json:"ui"`
+	// ConfigVersion is the disk identity (mtime.size) of this profile's
+	// config.json. The ui-focus poll carries it too; the web refetches
+	// config.json when it moves, which is how a CLI `config set` reaches an
+	// already-open tab with no reload. Empty only when the serving process
+	// has no directory to stat.
+	ConfigVersion string `json:"configVersion,omitempty"`
+}
+
+// uiDoc is the ui slice of config.json. Vars is palette → cssVar → hex with
+// tokensByTheme already merged in (theme wins); only overrides appear — base
+// values keep coming from app.css.
+type uiDoc struct {
+	Vars       map[string]map[string]string `json:"vars"`
+	DataColors map[string]map[string]string `json:"dataColors"`
+	Warnings   []tokencheck.Violation       `json:"warnings,omitempty"`
 }
 
 // webConfig is the credential-free projection of the configuration. Site is the
@@ -80,6 +101,14 @@ func webConfig(cfg *config.Config) webConfigDoc {
 		stale = defaultStaleHours
 	}
 	kind, _ := origin.Describe(cfg)
+	// An in-memory Config (tests, embedded docs) has no directory; fall back
+	// to the active profile the way origin's profileDir does — Save() writes
+	// there too, so the version still tracks the file.
+	dir := cfg.Directory()
+	if dir == "" {
+		dir, _ = config.DirFor(config.Profile())
+	}
+	vars, warns := config.UITokenVars(cfg.UI)
 	return webConfigDoc{
 		APIBase:             apiBase,
 		AuthBase:            authBase,
@@ -95,6 +124,12 @@ func webConfig(cfg *config.Config) webConfigDoc {
 		Profile:             profileDisplay(config.Profile()),
 		OS:                  runtime.GOOS,
 		WorkspaceKind:       kind,
+		UI: &uiDoc{
+			Vars:       vars,
+			DataColors: config.UIDataColors(cfg.UI),
+			Warnings:   warns,
+		},
+		ConfigVersion: config.ConfigVersionOfDir(dir),
 	}
 }
 
@@ -174,6 +209,12 @@ type settingsDoc struct {
 	// on PUT cannot wipe a stored theme. GET always populates it (empty
 	// stored theme → "system").
 	Appearance *config.Appearance `json:"appearance,omitempty"`
+
+	// UI is the user color-override block (GDK-786): tokens, per-palette
+	// overlays, data inks. Pointer for the same reason as Appearance — an
+	// older PUT that omits the key must not wipe stored overrides. GET
+	// always populates it (empty object = nothing overridden).
+	UI *config.UIConfig `json:"ui,omitempty"`
 
 	// Read-only context for the UI. Ignored on PUT — the site and the token are
 	// the credential endpoint's business (T4). runtime is assembled per request.
@@ -307,6 +348,15 @@ func (s *server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	// Same omit-to-preserve contract: ui absent leaves stored overrides
+	// alone; present means full replacement of the block (the UI edits the
+	// whole object it GETs). Refusals carry the validator's reason.
+	if in.UI != nil {
+		if err := config.ApplyUIConfig(&next, in.UI); err != nil {
+			fail(w, http.StatusBadRequest, err.Error())
+			return
+		}
+	}
 	next.BodyFields = in.BodyFields
 	next.EditableFields = in.EditableFields
 	next.Members = in.Members
@@ -411,6 +461,7 @@ func settings(cfg *config.Config) settingsDoc {
 		Site:                 cfg.Site,
 		HasCredential:        cfg.HasCredential(),
 		Appearance:           &config.Appearance{Theme: cfg.EffectiveTheme()},
+		UI:                   uiOrEmpty(cfg.UI),
 	}
 	if cfg.Confluence != nil {
 		doc.Confluence = &settingsConfluenceDoc{Spaces: strs(cfg.Confluence.Spaces)}
@@ -498,6 +549,16 @@ func (s *server) runtimeInfo(ctx context.Context) *runtimeInfo {
 // profileDisplay returns the UI name for a profile ("" / "default" → "default").
 func profileDisplay(profile string) string {
 	return config.NormalizeProfile(profile)
+}
+
+// uiOrEmpty keeps the settings GET bindable when nothing is overridden — the
+// UI edits and PUTs back the object it read, so an absent key must mean "old
+// client", never "empty".
+func uiOrEmpty(u *config.UIConfig) *config.UIConfig {
+	if u == nil {
+		return &config.UIConfig{}
+	}
+	return u
 }
 
 func humanBytes(n int64) string {

@@ -5,6 +5,7 @@
 
 import type { IssueLite } from './types'
 import { effectiveCategory, type StatusCategory } from './view-config'
+import { statusCategoryColor } from '../stores/ui-tokens.svelte'
 import {
   absTime as i18nAbsTime,
   categoryLabel,
@@ -188,12 +189,15 @@ export function priorityMeta(
 /* ── Status category meta ── */
 
 export function categoryMetaOf(cat: StatusCategory): { label: string; color: string } {
+  // User status ink first (GDK-786, keyed by status_category — never a
+  // display name); reads the $state snapshot so dots re-tint live.
   const color =
-    cat === 'new'
+    statusCategoryColor(cat) ??
+    (cat === 'new'
       ? 'var(--color-status-new)'
       : cat === 'inprogress'
         ? 'var(--color-status-inprogress)'
-        : 'var(--color-status-done)'
+        : 'var(--color-status-done)')
   return { label: categoryLabel(cat), color }
 }
 

@@ -183,6 +183,11 @@ type Config struct {
 	// encoding/json omitempty can drop the block; a zero struct would write {}.
 	Appearance *Appearance `json:"appearance,omitempty"`
 
+	// UI is the user color-override block (GDK-786/791): token overrides,
+	// per-palette overlays, and per-data-key inks. Nil means nothing is
+	// overridden and is not written. See uitokens.go for the write contract.
+	UI *UIConfig `json:"ui,omitempty"`
+
 	// Actor is the workspace-default acting identity for agent writes to an
 	// issuetap origin (GDK-586): the X-Issuetap-Actor slug (the origin
 	// accountId, verbatim) plus an optional display name. Nil or empty slug

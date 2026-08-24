@@ -2,6 +2,15 @@
 
 <sub><a href="CHANGELOG.md">English</a> · 한국어 — 영문이 원본이며, 번역은 영문과 함께 갱신됩니다(마지막 동기화 2026-08-24).</sub>
 
+## Unreleased
+
+- 색 물결: theme-check에서 포팅한 런타임 토큰 검증기와 app.css 카탈로그
+  단일 소스([GDK-785], [GDK-787]), 그리고 사용자 색 오버라이드 전 구간 —
+  `ui.tokens` / `ui.tokensByTheme` / `ui.dataColors`와 카탈로그 탐색
+  (`ui.tokens.catalog`), 팔레트 자신도 통과해야 하는 게이트를 그대로 걸고
+  올바른 키 종류를 가르쳐 주는 쓰기 검증, 열려 있는 탭의 리로드 없는 라이브
+  반영, 팔레트 플래시를 없애는 부트 캐시([GDK-786], [GDK-791]).
+
 ## v0.17.1 — 2026-08-24
 
 미러가 나눠 쓰는 법을 배운 패치입니다. 2만 건 미러 위에서 하루 도그푸딩하며
@@ -1094,3 +1103,7 @@ HTTP·sync·에이전트 계약.
 [GDK-758]: https://gadak.dev/backlog/#/?ks=GDK-758
 [GDK-766]: https://gadak.dev/backlog/#/?ks=GDK-766
 [GDK-770]: https://gadak.dev/backlog/#/?ks=GDK-770
+[GDK-785]: https://gadak.dev/backlog/#/?ks=GDK-785
+[GDK-786]: https://gadak.dev/backlog/#/?ks=GDK-786
+[GDK-787]: https://gadak.dev/backlog/#/?ks=GDK-787
+[GDK-791]: https://gadak.dev/backlog/#/?ks=GDK-791

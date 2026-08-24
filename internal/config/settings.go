@@ -4,7 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
+
+	"github.com/midagedev/gadak/internal/config/tokencheck"
 )
 
 // FeatureNames is every optional-surface flag PUT / gadak config accept.
@@ -224,6 +227,104 @@ func buildSettings() []Setting {
 					return err
 				}
 				return ApplyAppearance(c, Appearance{Theme: s})
+			},
+		},
+		{
+			Path: "ui.tokens",
+			Root: "ui",
+			Description: "color-token overrides for every palette: {\"accent\": \"#7a4bd0\", …} " +
+				"(locked tokens refused; validated tokens must pass the contrast rules; " +
+				"discover names with `gadak config get ui.tokens.catalog`)",
+			Get: func(c *Config) any {
+				if c.UI == nil || c.UI.Tokens == nil {
+					return UITokens{}
+				}
+				return *c.UI.Tokens
+			},
+			Set: func(c *Config, raw json.RawMessage) error {
+				tokens, err := parseUITokens("ui.tokens", raw)
+				if err != nil {
+					return err
+				}
+				next := cloneUIConfig(c.UI)
+				next.Tokens = tokens
+				return ApplyUIConfig(c, next)
+			},
+		},
+		{
+			Path: "ui.tokensByTheme",
+			Root: "ui",
+			Description: "per-palette token overlays: {\"dark\": {\"accent\": \"#9a6be0\"}} — " +
+				"each named palette is validated against that palette's rules",
+			Get: func(c *Config) any {
+				out := map[string]UITokens{}
+				if c.UI != nil {
+					for p, t := range c.UI.TokensByTheme {
+						if t != nil {
+							out[p] = *t
+						}
+					}
+				}
+				return out
+			},
+			Set: func(c *Config, raw json.RawMessage) error {
+				var in map[string]json.RawMessage
+				if err := json.Unmarshal(raw, &in); err != nil {
+					return fmt.Errorf("ui.tokensByTheme must be an object of palette→token map")
+				}
+				byTheme := map[string]*UITokens{}
+				palettes := make([]string, 0, len(in))
+				for p := range in {
+					palettes = append(palettes, p)
+				}
+				sort.Strings(palettes)
+				for _, p := range palettes {
+					t, err := parseUITokens("ui.tokensByTheme."+p, in[p])
+					if err != nil {
+						return err
+					}
+					byTheme[p] = t
+				}
+				next := cloneUIConfig(c.UI)
+				next.TokensByTheme = byTheme
+				return ApplyUIConfig(c, next)
+			},
+		},
+		{
+			Path: "ui.dataColors",
+			Root: "ui",
+			Description: "per-data inks: {\"label\": {\"urgent\": \"#c03030\"}, \"type\": {\"10007\": \"#d07020\"}, " +
+				"\"status\": {\"inprogress\": \"#7e5904\"}} — type keys are issue type ids, status keys are " +
+				"status categories (new|inprogress|done); display names are refused",
+			Get: func(c *Config) any {
+				out := map[string]map[string]string{}
+				if c.UI != nil {
+					for _, family := range uiDataFamilies {
+						if len(c.UI.DataColors[family]) > 0 {
+							out[family] = c.UI.DataColors[family]
+						}
+					}
+				}
+				return out
+			},
+			Set: func(c *Config, raw json.RawMessage) error {
+				var in map[string]map[string]string
+				if err := json.Unmarshal(raw, &in); err != nil {
+					return fmt.Errorf("ui.dataColors must be an object of family→key→hex")
+				}
+				next := cloneUIConfig(c.UI)
+				next.DataColors = in
+				return ApplyUIConfig(c, next)
+			},
+		},
+		{
+			Path: "ui.tokens.catalog",
+			Root: "ui",
+			Description: "read-only color-token catalog (name, cssVar, tier, rules, per-palette values) — " +
+				"the discovery path for ui.tokens keys",
+			Get: func(c *Config) any { return tokencheck.CatalogTokens() },
+			Set: func(*Config, json.RawMessage) error {
+				return fmt.Errorf("ui.tokens.catalog is read-only — it ships with the binary; set ui.tokens instead")
 			},
 		},
 		intSetting("syncIntervalSec", "syncIntervalSec",

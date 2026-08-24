@@ -82,6 +82,19 @@ sort order, theme details — decide it)?*
 The same trade applies to extension surfaces (`docs/PLUGINS.md`,
 `docs/EXTENDING.md`): fixed components over arbitrary UI.
 
+**Revision 2026-08-24 (GDK-786/791, user color overrides).** Colors tested
+this gate and passed it — not as a settings surface, but as an escape hatch
+with the opinion kept. The defaults still have opinions: the four shipped
+palettes are the design, grounds and shell structure are locked outright,
+and validated inks must clear the same contrast and color-vision floors the
+palettes themselves are held to (a user override that fails them is
+refused with the measured number). What a user may move is the accent, the
+free decorative inks, and per-data tints — through a catalog
+(`ui.tokens.catalog`) plus a write gate, never free CSS. The principle
+gains its enforcement clause: *a setting is admissible when the default
+stays opinionated and the override is validated against the same contract
+the default had to meet.*
+
 ## 5. Density stays; chrome recedes
 
 Linear's design-refresh principles: "Don't compete for attention you haven't

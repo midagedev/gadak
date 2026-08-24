@@ -67,6 +67,41 @@ func TestWithDesktopFlagCarriesOwnerChrome(t *testing.T) {
 	}
 }
 
+// GDK-786/791: the stamp must round-trip the ui block and configVersion the
+// registry's WebConfigBase emits — the /w/<name>/config.json path goes
+// through this remarshal, and dropping the block here would make workspace
+// tabs the only surface without color overrides. FAIL-first: withDesktopFlag
+// predates the ui field, so this pins the structural-preservation property.
+func TestWithDesktopFlagCarriesUIBlock(t *testing.T) {
+	in := []byte(`{"apiBase":"/w/work/api/v1/","configVersion":"123.456",` +
+		`"ui":{"vars":{"light":{"--color-accent":"#7a4bd0"}},` +
+		`"dataColors":{"label":{"urgent":"#c03030"}}}}`)
+	doc, err := withDesktopFlag(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m struct {
+		Desktop       bool   `json:"desktop"`
+		ConfigVersion string `json:"configVersion"`
+		UI            struct {
+			Vars       map[string]map[string]string `json:"vars"`
+			DataColors map[string]map[string]string `json:"dataColors"`
+		} `json:"ui"`
+	}
+	if err := json.Unmarshal(doc, &m); err != nil {
+		t.Fatal(err)
+	}
+	if !m.Desktop {
+		t.Fatal("desktop flag lost")
+	}
+	if m.ConfigVersion != "123.456" {
+		t.Fatalf("configVersion lost: %s", doc)
+	}
+	if m.UI.Vars["light"]["--color-accent"] != "#7a4bd0" || m.UI.DataColors["label"]["urgent"] != "#c03030" {
+		t.Fatalf("ui block lost: %s", doc)
+	}
+}
+
 func TestPrintWindowChromeFlag(t *testing.T) {
 	if printWindowChromeIfRequested(nil) {
 		t.Fatal("empty args should not print")

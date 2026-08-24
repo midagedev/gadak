@@ -33,6 +33,53 @@
       }
     </script>
     <!--
+      사용자 색 오버라이드도 같은 창을 닫는다(GDK-786). 모듈 번들이 도착한
+      뒤 applyUserTokens()가 서버 문서로 교정하지만, 그 전 몇 프레임은
+      이 캐시가 그린다. 키/정규식은 web/src/lib/user-tokens.ts의 상수와
+      손 철자로 일치해야 하고(테마와 같은 /w/<name> 파생 규칙),
+      user-tokens.test.ts가 갈라지면 실패한다. 값은 이미 서버가 hex로
+      걸렀지만 여기서도 var/hex를 재검사한다 — 손으로 고친 config.json과
+      다운그레이드가 부팅을 깨지 않는 벨트다.
+    -->
+    <script>
+      try {
+        var mu = location.pathname.match(/^\/w\/([A-Za-z0-9_-]+)(\/|$)/)
+        var ukey = mu ? 'gadak:user-tokens:' + mu[1] : 'gadak:user-tokens'
+        var udoc = JSON.parse(localStorage.getItem(ukey) || 'null')
+        var vars = udoc && udoc.vars
+        if (vars && typeof vars === 'object') {
+          var decl = function (m) {
+            if (!m || typeof m !== 'object') return ''
+            var out = []
+            for (var k in m) {
+              if (/^--color-[a-z0-9-]+$/i.test(k) && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(m[k])) {
+                out.push(k + ':' + m[k] + ';')
+              }
+            }
+            return out.join('')
+          }
+          var ucss = ''
+          var ulight = decl(vars.light)
+          if (ulight) ucss += ':root{' + ulight + '}'
+          for (var pal in vars) {
+            if (pal === 'light' || !/^[a-z0-9-]{1,32}$/.test(pal)) continue
+            var pd = decl(vars[pal])
+            if (pd) ucss += ":root[data-theme='" + pal + "']{" + pd + '}'
+          }
+          var udark = decl(vars.dark)
+          if (udark) ucss += "@media (prefers-color-scheme: dark){:root:not([data-theme='light']){" + udark + '}}'
+          if (ucss) {
+            var us = document.createElement('style')
+            us.setAttribute('data-gadak-user-tokens', '')
+            us.textContent = ucss
+            document.head.appendChild(us)
+          }
+        }
+      } catch (e) {
+        /* private mode / 손상된 캐시: app.css 기본 팔레트 */
+      }
+    </script>
+    <!--
       인라인 크리티컬 CSS (Linear 식 inlined app shell).
       번들/스타일 로드 전에도 지면과 스켈레톤이 즉시 페인트되어
       플래시(FOUC) 없이 부팅한다. 색의 단일 소유자는 app.css의 토큰이다 —

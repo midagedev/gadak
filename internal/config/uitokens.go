@@ -1,0 +1,422 @@
+package config
+
+// User color overrides for the web/desktop UI (GDK-786/791 wave). The schema
+// lives here; the color math and the tier catalog live in
+// internal/config/tokencheck (GDK-785/787) and this file is its only caller.
+//
+// Three blocks under `ui` in config.json:
+//
+//	ui.tokens         {colors: {accent: "#7a4bd0", …}}        every palette
+//	ui.tokensByTheme  {dark: {colors: {accent: "#9a6be0"}}}   one palette only
+//	ui.dataColors     {label: {urgent: "#c03030"},            per-data-key inks
+//	                   type: {10007: "#d07020"},
+//	                   status: {inprogress: "#7e5904"}}
+//
+// Write-time contract (CLI `config set` and PUT settings/ share it):
+//   - locked tokens are refused; validated tokens must pass
+//     tokencheck.ValidateTokens in every palette they can render in;
+//     free tokens need a valid #rgb/#rrggbb only.
+//   - dataColors keys: `label.*` is the label text itself (labels are their
+//     own identifiers), `type.*` is a Jira issue_type_id (digits — display
+//     names localize per account and are refused), `status.*` is a
+//     status_category (new|inprogress|done — never a status display name).
+//   - unknown token names and unknown tokensByTheme palettes are CARRIED with
+//     a warning, never a panic and never a refused save: a config written by a
+//     newer gadak must keep loading (GDK-769 axis 3). The load path
+//     (json.Unmarshal into UIConfig) drops nothing it does not understand at
+//     the block level; the expansion re-validates and turns drift into
+//     advisories instead of a broken boot.
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+
+	"github.com/midagedev/gadak/internal/config/tokencheck"
+)
+
+// UITokens is one palette-scoped token override set. `colors` is the only
+// axis today; the wrapping object exists so a future axis (spacing, radius)
+// does not need a schema break. Values are bare token names ("accent") or
+// CSS variable names ("--color-accent") — tokencheck normalizes both.
+type UITokens struct {
+	Colors map[string]string `json:"colors,omitempty"`
+}
+
+// UIConfig is the `ui` block of config.json. Nil means "nothing overridden"
+// and is not written.
+type UIConfig struct {
+	Tokens *UITokens `json:"tokens,omitempty"`
+	// TokensByTheme overlays Tokens for one palette. Keys are palette ids;
+	// ids outside today's catalog are carried with a warning (theme ids are
+	// an open set by design — ValidateTheme accepts any [a-z0-9-]+).
+	TokensByTheme map[string]*UITokens `json:"tokensByTheme,omitempty"`
+	// DataColors is family → key → hex. Families: label, type, status.
+	DataColors map[string]map[string]string `json:"dataColors,omitempty"`
+}
+
+// Data-color families and the fixed key rule per family. This is the
+// enforcement point of the repo-wide "never key on display names" trap: the
+// error strings teach the caller the right key kind.
+const (
+	uiDataFamilyLabel  = "label"
+	uiDataFamilyType   = "type"
+	uiDataFamilyStatus = "status"
+)
+
+var uiDataFamilies = []string{uiDataFamilyLabel, uiDataFamilyType, uiDataFamilyStatus}
+
+// statusCategoryValues is the closed key set of dataColors.status.
+var statusCategoryValues = map[string]bool{"new": true, "inprogress": true, "done": true}
+
+// maxDataColorKeyLen bounds one dataColors key. Labels are free strings, so
+// the bound is the only defense against a pasted document turning config.json
+// into a dump site; 256 is far above any real label.
+const maxDataColorKeyLen = 256
+
+// EffectiveTokenColors merges the palette-agnostic and palette-scoped
+// overrides for one palette (theme wins). Nil maps are fine.
+func (u *UIConfig) EffectiveTokenColors(palette string) map[string]string {
+	if u == nil {
+		return nil
+	}
+	var out map[string]string
+	if u.Tokens != nil {
+		for k, v := range u.Tokens.Colors {
+			if out == nil {
+				out = map[string]string{}
+			}
+			out[k] = v
+		}
+	}
+	if byTheme := u.TokensByTheme[palette]; byTheme != nil {
+		for k, v := range byTheme.Colors {
+			if out == nil {
+				out = map[string]string{}
+			}
+			out[k] = v
+		}
+	}
+	return out
+}
+
+// knownPalettes returns the catalog palettes plus any palette named in
+// TokensByTheme, sorted — the validation loop covers everything that could
+// render.
+func (u *UIConfig) knownPalettes() []string {
+	set := map[string]bool{}
+	for _, p := range tokencheck.CatalogPalettes() {
+		set[p] = true
+	}
+	if u != nil {
+		for p := range u.TokensByTheme {
+			set[p] = true
+		}
+	}
+	out := make([]string, 0, len(set))
+	for p := range set {
+		out = append(out, p)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// catalogBase is the catalog value set of one palette, shaped as the `base`
+// ValidateTokens reads. A palette outside the catalog yields nil and the
+// caller warns instead of validating.
+func catalogBase(palette string) map[string]string {
+	var out map[string]string
+	for _, tok := range tokencheck.CatalogTokens() {
+		v, ok := tokencheck.CatalogValue(tok.Name, palette)
+		if !ok {
+			return nil
+		}
+		if out == nil {
+			out = map[string]string{}
+		}
+		out[tok.Name] = v
+	}
+	return out
+}
+
+// validateTokenColors judges one palette's effective overrides against that
+// palette's catalog base. Rejects come back as error; warns (unknown token
+// names, incomplete base) as violations for the caller to surface.
+func validateTokenColors(palette string, overrides, base map[string]string) (warns []tokencheck.Violation, err error) {
+	for _, v := range tokencheck.ValidateTokens(overrides, base) {
+		if v.Severity == tokencheck.SeverityReject {
+			return warns, fmt.Errorf("ui tokens (palette %s): %s", palette, v.Message)
+		}
+		warns = append(warns, v)
+	}
+	return warns, nil
+}
+
+// ValidateUIConfig is the write gate for the whole `ui` block. It returns the
+// carry-along warnings (unknown names, unknown palettes) and an error that
+// refuses the save. A nil config is valid and clears nothing.
+func ValidateUIConfig(u *UIConfig) (warns []tokencheck.Violation, err error) {
+	if u == nil {
+		return nil, nil
+	}
+	if err := ValidateDataColors(u.DataColors); err != nil {
+		return warns, err
+	}
+	catalogued := map[string]bool{}
+	for _, p := range tokencheck.CatalogPalettes() {
+		catalogued[p] = true
+	}
+	// Palette-agnostic warnings repeat once per palette the token renders in;
+	// a CLI user should read one line, not four.
+	warned := map[string]bool{}
+	addWarn := func(v tokencheck.Violation) {
+		k := v.Rule + "\x00" + v.Token
+		if warned[k] {
+			return
+		}
+		warned[k] = true
+		warns = append(warns, v)
+	}
+	for _, palette := range u.knownPalettes() {
+		overrides := u.EffectiveTokenColors(palette)
+		if len(overrides) == 0 {
+			continue
+		}
+		if !catalogued[palette] {
+			addWarn(tokencheck.Violation{
+				Token:    palette,
+				Rule:     "unknown-palette",
+				Severity: tokencheck.SeverityWarn,
+				Message: fmt.Sprintf("ui.tokensByTheme[%q] is not a palette this build ships (%s); kept for forward compatibility but not rendered",
+					palette, strings.Join(tokencheck.CatalogPalettes(), ", ")),
+			})
+			continue
+		}
+		pw, err := validateTokenColors(palette, overrides, catalogBase(palette))
+		if err != nil {
+			return warns, err
+		}
+		for _, v := range pw {
+			addWarn(v)
+		}
+	}
+	return warns, nil
+}
+
+// ValidateDataColors enforces the family/key/value rules. The value rule is
+// hex only — data inks are decorative (dots, chip text), not grounds, so no
+// contrast floor applies; the token tiers carry the legibility contract.
+func ValidateDataColors(dc map[string]map[string]string) error {
+	if len(dc) == 0 {
+		return nil
+	}
+	families := map[string]bool{}
+	for _, f := range uiDataFamilies {
+		families[f] = true
+	}
+	keys := make([]string, 0, len(dc))
+	for f := range dc {
+		keys = append(keys, f)
+	}
+	sort.Strings(keys)
+	for _, family := range keys {
+		if !families[family] {
+			return fmt.Errorf("ui.dataColors: unknown family %q — valid families are %s", family, strings.Join(uiDataFamilies, ", "))
+		}
+		sub := make([]string, 0, len(dc[family]))
+		for k := range dc[family] {
+			sub = append(sub, k)
+		}
+		sort.Strings(sub)
+		for _, k := range sub {
+			key := strings.TrimSpace(k)
+			if key == "" {
+				return fmt.Errorf("ui.dataColors.%s: key must not be empty", family)
+			}
+			if len(key) > maxDataColorKeyLen {
+				return fmt.Errorf("ui.dataColors.%s: key longer than %d characters", family, maxDataColorKeyLen)
+			}
+			switch family {
+			case uiDataFamilyType:
+				// Same rule as defaultIssueTypeId: ids, never display names.
+				if !issueTypeIDRe.MatchString(key) {
+					return fmt.Errorf("ui.dataColors.type keys must be Jira issue type ids (digits), not display names (got %q) — names localize per account", key)
+				}
+			case uiDataFamilyStatus:
+				if !statusCategoryValues[key] {
+					return fmt.Errorf("ui.dataColors.status keys must be a status_category: new, inprogress, or done (got %q) — status display names localize per account", key)
+				}
+			}
+			v := dc[family][k]
+			if !tokencheck.ValidHex(v) {
+				return fmt.Errorf("ui.dataColors.%s[%q]: %q is not a #rgb or #rrggbb hex color", family, key, truncate(v, 40))
+			}
+		}
+	}
+	return nil
+}
+
+// truncate echoes a user value in an error, bounded (tokencheck.quote is the
+// same rule; repeated here so the error strings stay self-contained).
+func truncate(v string, max int) string {
+	if max > 0 && len(v) > max {
+		return v[:max] + "…"
+	}
+	return v
+}
+
+// ApplyUIConfig validates next and installs it on c. Warnings are printed to
+// stderr here (LoadFor's migration notices set the precedent: the write
+// succeeded and the warning is part of its output, not an API result).
+func ApplyUIConfig(c *Config, next *UIConfig) error {
+	if c == nil {
+		return errors.New("nil config")
+	}
+	warns, err := ValidateUIConfig(next)
+	if err != nil {
+		return err
+	}
+	for _, w := range warns {
+		fmt.Fprintf(os.Stderr, "gadak: ui: %s\n", w.Message)
+	}
+	c.UI = next
+	return nil
+}
+
+// UITokenVars expands the stored overrides into the final CSS variable maps
+// the web consumes: palette → cssVar ("--color-accent") → hex. Only names the
+// catalog knows, tiers that may render, and valid hex values are injected —
+// anything else is reported as a load-time advisory so a config written by a
+// newer build (renamed token, newly locked token) degrades to "override
+// ignored" instead of an unbootable UI. The map is overrides-only: base
+// values keep coming from app.css.
+func UITokenVars(u *UIConfig) (vars map[string]map[string]string, warns []tokencheck.Violation) {
+	vars = map[string]map[string]string{}
+	if u == nil {
+		return vars, nil
+	}
+	for _, palette := range tokencheck.CatalogPalettes() {
+		for name, value := range u.EffectiveTokenColors(palette) {
+			tier, known := tokencheck.TierOf(name)
+			cssVar := "--color-" + strings.TrimPrefix(strings.TrimSpace(name), "--color-")
+			switch {
+			case !known:
+				warns = append(warns, tokencheck.Violation{
+					Token: name, Rule: "unknown-token", Severity: tokencheck.SeverityWarn,
+					Message: fmt.Sprintf("%s is not in the color catalog; ignored (a newer catalog may have renamed it)", cssVar),
+				})
+			case tier == "locked":
+				warns = append(warns, tokencheck.Violation{
+					Token: name, Rule: "locked", Severity: tokencheck.SeverityWarn,
+					Message: fmt.Sprintf("%s is locked in this build; override ignored (palette authoring, GDK-789)", cssVar),
+				})
+			case !tokencheck.ValidHex(value):
+				warns = append(warns, tokencheck.Violation{
+					Token: name, Rule: "hex", Severity: tokencheck.SeverityWarn,
+					Message: fmt.Sprintf("%s: %q is not a hex color; ignored", cssVar, value),
+				})
+			default:
+				if vars[palette] == nil {
+					vars[palette] = map[string]string{}
+				}
+				vars[palette][cssVar] = value
+			}
+		}
+	}
+	return vars, warns
+}
+
+// UIDataColors passes the stored data inks through the same value gate and
+// returns what may render. Keys were validated at write time; this is the
+// stale-schema defense for values that reached disk anyway.
+func UIDataColors(u *UIConfig) map[string]map[string]string {
+	out := map[string]map[string]string{}
+	if u == nil {
+		return out
+	}
+	for _, family := range uiDataFamilies {
+		for k, v := range u.DataColors[family] {
+			if !tokencheck.ValidHex(v) {
+				continue
+			}
+			if out[family] == nil {
+				out[family] = map[string]string{}
+			}
+			out[family][strings.TrimSpace(k)] = v
+		}
+	}
+	return out
+}
+
+// cloneUIConfig copies the block header so a Set function can stage a mutation
+// without aliasing the live config: a refused write must leave c.UI exactly as
+// it was (the same guarantee ApplyAppearance gives appearance).
+func cloneUIConfig(u *UIConfig) *UIConfig {
+	if u == nil {
+		return &UIConfig{}
+	}
+	return &UIConfig{
+		Tokens:        u.Tokens,
+		TokensByTheme: u.TokensByTheme,
+		DataColors:    u.DataColors,
+	}
+}
+
+// parseUITokens accepts both shapes a CLI user would type for one palette's
+// tokens: the schema object {"colors": {…}} and the flat map {"accent": …}
+// (unambiguous: a string value is a color, an object value is the wrapper).
+func parseUITokens(path string, raw json.RawMessage) (*UITokens, error) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil, nil
+	}
+	var flat map[string]string
+	if err := json.Unmarshal(raw, &flat); err == nil {
+		return &UITokens{Colors: flat}, nil
+	}
+	var wrapped struct {
+		Colors map[string]string `json:"colors"`
+	}
+	if err := json.Unmarshal(raw, &wrapped); err != nil {
+		return nil, fmt.Errorf("%s must be an object of token→hex, or {\"colors\": {…}}", path)
+	}
+	if wrapped.Colors == nil {
+		wrapped.Colors = map[string]string{}
+	}
+	return &UITokens{Colors: wrapped.Colors}, nil
+}
+
+// ConfigVersion is the disk identity of a profile's config.json. Every writer
+// (CLI `config set`, PUT settings/, LoadFor's legacy-field rewrite) goes
+// through the same atomic temp+rename, so mtime+size changes exactly when the
+// content does. The ui-focus poll carries it; the web refetches config.json
+// when it moves. A monotonic counter was rejected because it needed a second
+// owner (local_meta) and a CLI↔SQLite coupling on a path that already had a
+// single owner: the file.
+func ConfigVersion(profile string) string {
+	d, err := DirFor(profile)
+	if err != nil {
+		return "0"
+	}
+	return configFileVersion(filepath.Join(d, "config.json"))
+}
+
+// ConfigVersionOfDir is ConfigVersion for a directory already in hand
+// (webConfig gets the loaded Config's Directory()).
+func ConfigVersionOfDir(dir string) string {
+	if dir == "" {
+		return ""
+	}
+	return configFileVersion(filepath.Join(dir, "config.json"))
+}
+
+func configFileVersion(path string) string {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return "0"
+	}
+	return fmt.Sprintf("%d.%d", fi.ModTime().UnixNano(), fi.Size())
+}

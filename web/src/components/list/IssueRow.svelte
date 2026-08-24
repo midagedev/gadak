@@ -30,6 +30,7 @@
   import Marks from '../ui/Marks.svelte'
   import { matchEvidence } from '../../lib/search-match'
   import { config } from '../../lib/config'
+  import { labelChipTint, typeChipTint } from '../../stores/ui-tokens.svelte'
   import { isStale, statusAgeHours } from '../../lib/view-config'
   import PriorityIcon from './PriorityIcon.svelte'
   import Avatar from './Avatar.svelte'
@@ -406,6 +407,7 @@
         <button
           type="button"
           class="max-w-full truncate rounded px-1.5 py-0.5 text-micro text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary"
+          style:background={typeChipTint(issue.issue_type_id)}
           title={t('list.fieldValue', { field: t('common.type'), value: issue.issue_type })}
           onclick={stop(() => filters.addValue('issue_type', issue.issue_type_id || issue.issue_type))}
         >
@@ -593,6 +595,7 @@
             type="button"
             class="min-w-[3rem] max-w-[110px] truncate rounded bg-bg-elevated px-1.5 py-0.5 text-micro text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary
               {i === 0 ? 'chipfold-first' : 'chipfold-rest'}"
+            style:background={labelChipTint(label)}
             onclick={stop(() => filters.addValue('labels', label))}
             title={t('list.fieldValue', { field: t('common.labels'), value: label })}
           >
