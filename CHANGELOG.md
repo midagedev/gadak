@@ -70,6 +70,17 @@ one file, and the standalone record stopped being a YAML rewrite.
   `llms.txt` for agents reading the site, an OG card that says what the
   page says, and a rate-limit row in the comparison table.
 
+### Dashboards for agents
+
+- An agent-authored dashboard is one HTML document plus registered
+  datasources, saved like a view and rendered in the web tab inside a
+  sandboxed frame. The host runs the queries (arbitrary SQL over a
+  read-only mirror connection, or JQL) and pushes results in by
+  postMessage; the frame's only verb back is `refresh`. Saves re-render an
+  open tab in ≤1s and mirror deltas re-push data in ≤2s; uPlot and three
+  ship embedded behind a fixed same-origin whitelist, so charts mean no
+  CDN and no CSP widening ([GDK-781], [GDK-782], [GDK-792], [GDK-793]).
+
 ## v0.17.0 — 2026-08-23
 
 The cycle where an agent's writes grew up. An issue now shows the PRs and
@@ -1143,3 +1154,7 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-758]: https://gadak.dev/backlog/#/?ks=GDK-758
 [GDK-766]: https://gadak.dev/backlog/#/?ks=GDK-766
 [GDK-770]: https://gadak.dev/backlog/#/?ks=GDK-770
+[GDK-781]: https://gadak.dev/backlog/#/?ks=GDK-781
+[GDK-782]: https://gadak.dev/backlog/#/?ks=GDK-782
+[GDK-792]: https://gadak.dev/backlog/#/?ks=GDK-792
+[GDK-793]: https://gadak.dev/backlog/#/?ks=GDK-793

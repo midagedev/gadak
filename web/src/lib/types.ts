@@ -633,6 +633,39 @@ export interface SourceView<C = import('./view-config').ViewConfig> {
   unsupported: string[]
 }
 
+/* ── Agent dashboards (GDK-781 web host) ─────────────────────────────────── */
+
+/**
+ * One dashboard config as saved. `config` is the authored document verbatim:
+ * html plus a datasources map. Kept opaque (`unknown`) here on purpose — the
+ * parent host only needs the datasource NAMES to know which data routes to
+ * run; interpretation is the frame's (html) and the server's (execution).
+ */
+export interface DashboardRow {
+  id: string
+  name: string
+  config: {
+    html: string
+    datasources: Record<string, { sql?: string; jql?: string }>
+  }
+  created_at?: string
+  updated_at?: string
+}
+
+export interface DashboardsResponse {
+  /** Bumped on every save/update/delete — the live-update poll's signal. */
+  version: number
+  dashboards: Pick<DashboardRow, 'id' | 'name' | 'updated_at'>[]
+}
+
+/** GET {id}/data/{name}/ result — same document the frame receives via postMessage. */
+export interface DashboardDataDoc {
+  columns: string[]
+  rows: unknown[][]
+  truncated: boolean
+  warning?: string
+}
+
 /** Watch list response. */
 export interface WatchesResponse {
   keys: string[]

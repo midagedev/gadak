@@ -380,6 +380,65 @@ export async function deleteView(id: string): Promise<void> {
   }
 }
 
+/* ── Agent dashboards (GDK-781) — served next to issues under /api/v1/dashboards/ ── */
+
+/**
+ * Dashboards live under /api/v1/dashboards/, a sibling of the issues API base
+ * (/api/v1/issues/). Deriving it from apiBase keeps workspace mounts
+ * (/w/<name>/) working: their apiBase is /w/<name>/api/v1/issues/, so that
+ * workspace's dashboards follow automatically.
+ */
+export function dashboardsBase(): string {
+  return config().apiBase.replace(/issues\/$/, 'dashboards/')
+}
+
+/** GET/parse on the dashboards base (same contract as `json`, different prefix). */
+async function dashJSON<T>(path: string): Promise<T> {
+  const url = dashboardsBase() + path
+  let res: Response
+  try {
+    res = await fetch(url, { credentials: 'same-origin' })
+  } catch (err) {
+    noteNetworkFailure(err)
+    throw err
+  }
+  if (!res.ok) {
+    let code: string | null = null
+    let message = `GET ${url} → ${res.status}`
+    try {
+      const body = (await res.json()) as { error?: string; message?: string }
+      if (body.error) {
+        code = body.error
+        message = body.message ? `${body.error}: ${body.message}` : body.error
+      }
+    } catch {
+      /* No body / non-JSON — keep default message */
+    }
+    throw new ApiError(res.status, message, code)
+  }
+  return (await res.json()) as T
+}
+
+/** GET dashboards/ — rows without configs, plus the change counter. */
+export function getDashboards(): Promise<import('./types').DashboardsResponse> {
+  return dashJSON<import('./types').DashboardsResponse>('')
+}
+
+/** GET dashboards/{id}/ — the row with its config (the host's datasource map). */
+export function getDashboard(id: string): Promise<import('./types').DashboardRow> {
+  return dashJSON<import('./types').DashboardRow>(`${encodeURIComponent(id)}/`)
+}
+
+/** GET dashboards/{id}/data/{name}/ — one datasource execution (host-side). */
+export function getDashboardData(
+  id: string,
+  name: string,
+): Promise<import('./types').DashboardDataDoc> {
+  return dashJSON<import('./types').DashboardDataDoc>(
+    `${encodeURIComponent(id)}/data/${encodeURIComponent(name)}/`,
+  )
+}
+
 /* ── Watches ── */
 
 export function getWatches(): Promise<WatchesResponse> {

@@ -88,6 +88,23 @@ export const shell = {
     ko: '문서',
     ja: 'ドキュメント',
   },
+  'sidebar.dashboards': {
+    en: 'Dashboards',
+    ko: '대시보드',
+    ja: 'ダッシュボード',
+  },
+  // The dashboard surface (GDK-782). notFound: the id arrived (link, uifocus)
+  // but the row is gone — `gadak dashboards rm` or another workspace.
+  'dash.notFound': {
+    en: 'This dashboard no longer exists.',
+    ko: '이 대시보드는 더 이상 없습니다.',
+    ja: 'このダッシュボードはもう存在しません。',
+  },
+  'dash.loadError': {
+    en: 'Could not load this dashboard.',
+    ko: '이 대시보드를 불러올 수 없습니다.',
+    ja: 'このダッシュボードを読み込めませんでした。',
+  },
   'sidebar.docsSpaceTitle': {
     en: '{space} · {n} documents',
     ko: '{space} · 문서 {n}건',

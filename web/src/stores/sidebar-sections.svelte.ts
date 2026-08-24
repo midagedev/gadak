@@ -18,6 +18,7 @@ const SECTION_IDS = [
   'jira',
   'personal',
   'team',
+  'dashboards',
   'docs',
   'workspaces',
 ] as const

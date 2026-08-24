@@ -65,6 +65,17 @@
   에이전트를 위한 `llms.txt`, 페이지가 말하는 것을 그대로 말하는 OG 카드,
   비교 표의 레이트 리밋 행.
 
+### 에이전트를 위한 대시보드
+
+- 에이전트가 저작하는 대시보드는 HTML 문서 하나와 등록된 데이터소스들로
+  구성되고, 뷰처럼 저장되어 웹 탭의 샌드박스 프레임 안에 렌더링됩니다.
+  쿼리는 호스트가 실행하고(읽기 전용 미러 연결 위 임의 SQL 또는 JQL)
+  결과를 postMessage로 밀어 넣습니다; 프레임이 되돌릴 수 있는 동사는
+  `refresh` 하나뿐입니다. 저장하면 열린 탭이 1초 안에 다시 그려지고
+  미러 변경은 2초 안에 데이터를 다시 밀며, uPlot과 three는 고정된
+  같은-오리진 화이트리스트로 임베디되어 차트가 CDN도 CSP 확장도
+  필요로 하지 않습니다 ([GDK-781], [GDK-782], [GDK-792], [GDK-793]).
+
 ## v0.17.0 — 2026-08-23
 
 에이전트의 쓰기가 성숙해진 사이클입니다. 이제 이슈가 자신을 구현하는 PR과
@@ -1094,3 +1105,7 @@ HTTP·sync·에이전트 계약.
 [GDK-758]: https://gadak.dev/backlog/#/?ks=GDK-758
 [GDK-766]: https://gadak.dev/backlog/#/?ks=GDK-766
 [GDK-770]: https://gadak.dev/backlog/#/?ks=GDK-770
+[GDK-781]: https://gadak.dev/backlog/#/?ks=GDK-781
+[GDK-782]: https://gadak.dev/backlog/#/?ks=GDK-782
+[GDK-792]: https://gadak.dev/backlog/#/?ks=GDK-792
+[GDK-793]: https://gadak.dev/backlog/#/?ks=GDK-793

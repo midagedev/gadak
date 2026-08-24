@@ -54,6 +54,7 @@ export const PLACE_PARAM_KEYS = [
   'hist',
   'feed',
   'settings',
+  'dash',
 ] as const
 export type PlaceParamKey = (typeof PLACE_PARAM_KEYS)[number]
 

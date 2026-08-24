@@ -5,7 +5,9 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strings"
 
+	"github.com/midagedev/gadak"
 	"github.com/midagedev/gadak/internal/dashboards"
 	"github.com/midagedev/gadak/internal/store"
 )
@@ -22,13 +24,118 @@ import (
 // data: images (inline SVG/charts). In the desktop shell the browser guard's
 // Origin check cannot see dashboards (desktop strips Origin on /api/ before
 // this server runs), so this header is the only network-blocking layer
-// there — no host may ever be added to it.
-const dashboardCSP = `default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:`
+// there — no host may ever be added to it beyond the request's own.
+//
+// [GDK-792] vendorSrc is the one sanctioned widening: a path-scoped source
+// for the embedded vendor libraries, so a dashboard can chart with uPlot or
+// three without a CDN (the no-outbound rule moves, not bends). The render
+// document is sandboxed without allow-same-origin, so its origin is opaque
+// and CSP 'self' matches nothing there — the source must name the host the
+// frame's own URLs came from, which is why this composes per request.
+func dashboardCSP(vendorSrc string) string {
+	scriptSrc, styleSrc := "'unsafe-inline'", "'unsafe-inline'"
+	if vendorSrc != "" {
+		scriptSrc += " " + vendorSrc
+		styleSrc += " " + vendorSrc
+	}
+	return "default-src 'none'; script-src " + scriptSrc + "; style-src " + styleSrc + "; img-src data:"
+}
+
+// vendorCSPSource turns a request Host into the vendor path's CSP source
+// expression (scheme://host[:port]/api/v1/dashboards/vendor/). Anything that
+// is not a plain hostname, an IPv6 literal, or either of those with a numeric
+// port yields "" — the caller then omits the vendor source entirely (fail
+// closed: a hostile Host may narrow the policy, never widen it). GuardBrowser
+// already confines real traffic to loopback Hosts; this does not assume it ran.
+func vendorCSPSource(host string, tls bool) string {
+	scheme := "http"
+	if tls {
+		scheme = "https"
+	}
+	authority := host
+	if strings.HasPrefix(authority, "[") {
+		end := strings.Index(authority, "]")
+		if end < 0 || !isIPv6Literal(authority[1:end]) {
+			return ""
+		}
+		if rest := authority[end+1:]; rest != "" && (rest[0] != ':' || !isPort(rest[1:])) {
+			return ""
+		}
+	} else if i := strings.LastIndex(authority, ":"); i >= 0 {
+		if !isPort(authority[i+1:]) {
+			return ""
+		}
+		authority = authority[:i]
+		if !isHostname(authority) {
+			return ""
+		}
+		authority = host // keep the port: sources are host[:port]
+	} else if !isHostname(authority) {
+		return ""
+	}
+	if len(authority) == 0 || len(authority) > 253 {
+		return ""
+	}
+	return scheme + "://" + authority + dashVendorPath
+}
+
+// isHostname reports a dotted hostname without a single CSP-breaking byte:
+// alnum and '-' per label, no empty or hyphen-edge label. (No wildcards — a
+// Host header has no business being "*.com".)
+func isHostname(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, label := range strings.Split(s, ".") {
+		if label == "" || len(label) > 63 || label[0] == '-' || label[len(label)-1] == '-' {
+			return false
+		}
+		for i := 0; i < len(label); i++ {
+			c := label[i]
+			if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-') {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// isIPv6Literal accepts only the bytes an IPv6 text form can contain.
+func isIPv6Literal(s string) bool {
+	if s == "" || !strings.Contains(s, ":") {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F' || c == ':' || c == '.') {
+			return false
+		}
+	}
+	return true
+}
+
+func isPort(s string) bool {
+	if s == "" || len(s) > 5 {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		if s[i] < '0' || s[i] > '9' {
+			return false
+		}
+	}
+	return true
+}
 
 // dashboardBodyLimit bounds one save. 8 MiB is ~40× the largest dashboard
 // anyone should write; it exists so a runaway generator fails with a named
 // error instead of an OOM.
 const dashboardBodyLimit = 8 << 20
+
+// dashVendorPath is the vendor-asset prefix served inside the dashboards API
+// (GDK-792): pinned chart/3D libraries an authored dashboard may load instead
+// of a CDN. It is also the path scope of the render response's script-src and
+// style-src vendor source, so the CSP and the route cannot drift apart.
+const dashVendorPath = "/api/v1/dashboards/vendor/"
 
 // listedDashboard is one row of the list response: identity fields only.
 // The full config travels on `show`/render, not on every poll.
@@ -117,10 +224,53 @@ func (s *server) handleRenderDashboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Header().Set("Content-Security-Policy", dashboardCSP)
+	// The vendor source names the host this very response came from: the
+	// sandboxed frame cannot state its own origin ('self' is null there), so
+	// it needs the explicit host+path to load vendor libraries. Fail closed
+	// on a Host that does not parse (vendorCSPSource returns "").
+	w.Header().Set("Content-Security-Policy", dashboardCSP(vendorCSPSource(r.Host, r.TLS != nil)))
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Write([]byte(cfg.HTML))
+}
+
+// handleGetDashboard is GET {id}/ — the row itself, config included. The web
+// host reads it to learn the datasources map (which data routes to execute
+// for the frame); updated_at and config ride along so the live-update poll
+// (GDK-793) can detect a change in this one fetch.
+func (s *server) handleGetDashboard(w http.ResponseWriter, r *http.Request) {
+	d, err := s.db.Dashboard(r.Context(), r.PathValue("id"))
+	if errors.Is(err, store.ErrNotFound) {
+		fail(w, http.StatusNotFound, "not_found")
+		return
+	}
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, d)
+}
+
+// handleDashboardVendor (GDK-792) serves one embedded vendor asset from the
+// fixed whitelist in DashVendorFile. Everything not on the table 404s — the
+// whitelist is the table, not the directory, so licenses embedded for NOTICE
+// never serve and neither does anything a future file drop adds.
+func handleDashboardVendor(w http.ResponseWriter, r *http.Request) {
+	body, contentType, ok := gadak.DashVendorFile(r.PathValue("file"))
+	if !ok {
+		fail(w, http.StatusNotFound, "not_found")
+		return
+	}
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Cache-Control", "no-store")
+	// The frame loading this is sandboxed without allow-same-origin, so its
+	// subresource fetches (and three.module.min.js's import of three.core)
+	// are CORS-mode requests from an opaque origin. Without ACAO the module
+	// fails to evaluate even with CSP permission — this header is what makes
+	// the vendor recipe usable, not a politeness.
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Write(body)
 }
 
 // handleDashboardData executes one named datasource and answers the

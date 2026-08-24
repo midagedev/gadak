@@ -17,6 +17,7 @@
   import { write } from './stores/write.svelte'
   import { bulk } from './stores/bulk.svelte'
   import { triage } from './stores/triage.svelte'
+  import { dashboards } from './stores/dashboards.svelte'
   import { router } from './lib/router.svelte'
   import { bindParam, bindParams } from './lib/url-sync.svelte'
   import { createGlobalKeyHandler } from './lib/keymap.svelte'
@@ -47,6 +48,7 @@
   import PersonPanel from './components/detail/PersonPanel.svelte'
   import PersonalFeed from './components/personal/PersonalFeed.svelte'
   import DocsView from './components/docs/DocsView.svelte'
+  import DashboardView from './components/dashboard/DashboardView.svelte'
   import SpaceDocsView from './components/docs/SpaceDocsView.svelte'
   import HistoryView from './components/history/HistoryView.svelte'
   import NewIssueDialog from './components/write/NewIssueDialog.svelte'
@@ -165,6 +167,12 @@
   const initialPerson = router.params.get('person')
   if (initialPerson) person.select(initialPerson)
 
+  // Agent dashboards (GDK-782) — same restore-before-bind rule: the binding's
+  // first pass would otherwise read the un-opened store as "no dash param" and
+  // erase it before the first render.
+  const initialDash = router.params.get('dash')
+  if (initialDash) dashboards.open(initialDash)
+
   /** The feed's focus slices (FeedFocus), for validating an incoming `feed=`
    *  value. PersonalFeed keeps its own labelled copy for its tabs; only this
    *  binding needs the bare closed list. */
@@ -200,6 +208,7 @@
     void issues.init()
     void me.init()
     void pages.init() // Sidebar DOCS section; hides itself when the mirror has none
+    dashboards.init() // Sidebar dashboards section; empty list hides it
     void adoptRunningSync() // A sync the server started (settings write, CLI) is still ours to show
     void write.loadWriteMeta() // Prefetch write meta (parallel with issues.init)
     views.init()
@@ -220,6 +229,18 @@
           : hash.startsWith('?')
             ? hash.slice(1)
             : hash
+        // A dash= focus opens the dashboard and stops there: parseView on a
+        // dash-only query would hand the list a default config nobody chose,
+        // and `dashboards open` has no opinion about the issue list at all.
+        const focusParams = new URLSearchParams(q)
+        const dashId = focusParams.get('dash')
+        if (dashId) {
+          me.closeFeed()
+          dashboards.open(dashId)
+          const nextDash = q ? `#/?${q}` : '#/'
+          if (location.hash !== nextDash) location.hash = nextDash
+          return
+        }
         // Column latches first (showIssueList → applyConfig replaceState).
         // Then the CLI's literal hash, so ks=A,B stays unescaped. Do not
         // replaceState+hashchange here: that re-parses location.hash before
@@ -239,7 +260,13 @@
     }
     const startFocusPoll = () => {
       if (focusTimer !== null) return
-      focusTimer = setInterval(() => void applyFocus(), 500)
+      focusTimer = setInterval(() => {
+        void applyFocus()
+        // Live authoring updates (GDK-793): the same 500ms tick that serves
+        // `views open` also watches the dashboards change counter — only
+        // while one is open, so a closed dashboard costs nothing.
+        void dashboards.checkVersion()
+      }, 500)
       markFocusPoll(true)
     }
     const stopFocusPoll = () => {
@@ -537,6 +564,16 @@
     })
   }
 
+  // The open dashboard (GDK-782): value is the id, absence is the list. A
+  // `dash=` link must work wherever the sidebar row would — same restore-
+  // before-bind treatment as `doc`/`person` above (the initial open runs
+  // before this binding first reads).
+  bindParam({
+    param: 'dash',
+    read: () => dashboards.openId,
+    write: (id) => (id ? dashboards.open(id) : dashboards.close()),
+  })
+
   /*
    * ── The in-app browser pane (desktop app only) ──
    *
@@ -667,9 +704,15 @@
       <MainColumn>
         {#snippet children()}
           <!-- The feed wins on purpose: opening it is an explicit request for
-               this column, so it never has to close the docs view first. -->
+               this column, so it never has to close the docs view first. A
+               dashboard sits between the feed and the docs screens: it is a
+               full-column surface like they are, but one the feed must give
+               up for (applyFocus closes it), because `dashboards open` asks
+               for this column by name. -->
           {#if me.feedOpen && feature('feed')}
             <PersonalFeed />
+          {:else if dashboards.openId !== null}
+            <DashboardView />
           {:else if pages.historyView}
             <HistoryView />
           {:else if pages.spaceView !== null}

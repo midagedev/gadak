@@ -9,7 +9,10 @@ package server
 //	POST save = upsert by name          | TestDashboardSaveListDelete (same name keeps id, 1 row)
 //	POST validation failure → 400+reason| TestDashboardSaveValidation (empty html, both sql+jql, name, body, size)
 //	DELETE unknown id → 404             | TestDashboardSaveListDelete, TestDashboardDataErrors
-//	render: html bytes + exact CSP      | TestDashboardRenderCSP (all four headers, body bytes)
+//	render: html bytes + exact CSP      | TestDashboardRenderCSP (headers, body bytes; [GDK-792] vendor
+//	                                    |  source per-host, only-host assertion, fail-closed on bad Host)
+//	GET {id}/ → row with config         | TestDashboardGetRow (web host's datasource map read)
+//	vendor/{file}: embed whitelist      | TestDashboardVendorRoute (4 assets + types + CORS; rest 404)
 //	render: corrupt stored row → 500    | TestDashboardRenderCorruptConfig
 //	data sql → read-only execution      | TestDashboardDataSQL (+ display-name warning axis)
 //	data jql → same shape, fixed cols   | TestDashboardDataJQL
@@ -23,6 +26,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -187,15 +191,15 @@ func lastID(t *testing.T, h http.Handler) string {
 func TestDashboardRenderCSP(t *testing.T) {
 	h := dashHandler(t)
 	id := saveDash(t, h, "Wall", `{"html":"<!doctype html><html><body><h1>triage</h1></body></html>"}`)
-	rec := send(t, h, http.MethodGet, dashBase+*id+"/render/", "")
+	req := testRequest(http.MethodGet, dashBase+*id+"/render/", nil)
+	req.Host = "127.0.0.1:7877"
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("render: %d %s", rec.Code, rec.Body.String())
 	}
 	if got := rec.Header().Get("Content-Type"); got != "text/html; charset=utf-8" {
 		t.Errorf("Content-Type = %q", got)
-	}
-	if got := rec.Header().Get("Content-Security-Policy"); got != dashboardCSP {
-		t.Errorf("CSP = %q, want %q", got, dashboardCSP)
 	}
 	if got := rec.Header().Get("X-Content-Type-Options"); got != "nosniff" {
 		t.Errorf("X-Content-Type-Options = %q", got)
@@ -206,9 +210,134 @@ func TestDashboardRenderCSP(t *testing.T) {
 	if rec.Body.String() != `<!doctype html><html><body><h1>triage</h1></body></html>` {
 		t.Errorf("body = %q", rec.Body.String())
 	}
-	// The CSP constant itself is the contract — no host may ever join it.
-	if dashboardCSP != `default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:` {
-		t.Errorf("dashboardCSP drifted: %q", dashboardCSP)
+	csp := rec.Header().Get("Content-Security-Policy")
+	// [GDK-792, 2026-08-24] The exact-match constant became a per-request
+	// composition: the vendor path joined script-src/style-src so dashboards
+	// can load uPlot/three from the same server instead of a CDN. The source
+	// expression is path-scoped and composed from the request's own host
+	// because the render document is sandboxed without allow-same-origin —
+	// its origin is opaque, where 'self' matches nothing (verified in
+	// Playwright: e2e/dashboards.spec.ts loads vendor scripts inside the
+	// frame). The unchanged half of the contract is asserted below: default-src
+	// stays 'none', inline-only script/style stay, and the ONLY host in the
+	// policy is the request's own — no external host may ever join.
+	wantSrc := "http://127.0.0.1:7877" + dashVendorPath
+	if !strings.HasPrefix(csp, "default-src 'none'; ") {
+		t.Errorf("CSP lost default-src 'none': %q", csp)
+	}
+	if !strings.Contains(csp, "script-src 'unsafe-inline' "+wantSrc+";") {
+		t.Errorf("script-src vendor source missing: %q", csp)
+	}
+	if !strings.Contains(csp, "style-src 'unsafe-inline' "+wantSrc+";") {
+		t.Errorf("style-src vendor source missing: %q", csp)
+	}
+	if !strings.HasSuffix(csp, "img-src data:") {
+		t.Errorf("img-src changed: %q", csp)
+	}
+	// No host beyond the request's own appears anywhere in the policy: every
+	// scheme://host[:port] token must be the vendor source above. This is the
+	// "external hosts stay zero" assertion the pre-792 constant carried.
+	for _, tok := range strings.FieldsFunc(csp, func(r rune) bool { return r == ' ' || r == ';' }) {
+		if i := strings.Index(tok, "://"); i >= 0 {
+			if tok != wantSrc {
+				t.Errorf("unexpected host in CSP: %q (want only %q)", tok, wantSrc)
+			}
+		}
+	}
+	// A hostile/invalid Host never widens the policy: vendor sources are
+	// omitted (fail closed) rather than echoed. GuardBrowser confines the
+	// requests that reach the handler to loopback shapes already, so the
+	// fail-closed edge is asserted on the composer itself — it must not
+	// assume the guard ran (tests, future mounts).
+	for _, host := range []string{"", "evil.com/../x", "host with spaces", "host;injection"} {
+		if got := vendorCSPSource(host, false); got != "" {
+			t.Errorf("vendorCSPSource(%q) = %q, want empty (fail closed)", host, got)
+		}
+	}
+	if got := vendorCSPSource("[::1]:7877", false); got != "http://[::1]:7877"+dashVendorPath {
+		t.Errorf("ipv6 vendor source = %q", got)
+	}
+	if got := vendorCSPSource("localhost", true); got != "https://localhost"+dashVendorPath {
+		t.Errorf("tls vendor source = %q", got)
+	}
+	if got := dashboardCSP(""); got != `default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:` {
+		t.Errorf("fail-closed CSP drifted: %q", got)
+	}
+}
+
+// TestDashboardVendorRoute (GDK-792): vendor assets are served from an embed
+// whitelist — exact filenames only, correct content types, CORS-open for ES
+// module imports from the opaque-origin sandbox frame. Everything else 404s.
+func TestDashboardVendorRoute(t *testing.T) {
+	h := dashHandler(t)
+	for name, ctype := range map[string]string{
+		"uPlot.iife.min.js":   "text/javascript; charset=utf-8",
+		"uPlot.min.css":       "text/css; charset=utf-8",
+		"three.module.min.js": "text/javascript; charset=utf-8",
+		"three.core.min.js":   "text/javascript; charset=utf-8",
+	} {
+		rec := send(t, h, http.MethodGet, dashBase+"vendor/"+name, "")
+		if rec.Code != http.StatusOK {
+			t.Errorf("%s: status %d, want 200", name, rec.Code)
+			continue
+		}
+		if got := rec.Header().Get("Content-Type"); got != ctype {
+			t.Errorf("%s: Content-Type %q, want %q", name, got, ctype)
+		}
+		if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "*" {
+			t.Errorf("%s: ACAO %q, want * (module imports from the sandboxed frame)", name, got)
+		}
+		if got := rec.Header().Get("X-Content-Type-Options"); got != "nosniff" {
+			t.Errorf("%s: nosniff %q", name, got)
+		}
+		if rec.Body.Len() < 1000 {
+			t.Errorf("%s: body %d bytes, want the real asset", name, rec.Body.Len())
+		}
+	}
+	// Whitelist boundary: unlisted names, traversal shapes, and the license
+	// files (embedded for NOTICE, not HTTP-served) never serve vendor bytes.
+	// ../-shapes answer with ServeMux's clean-path redirect (307 + its small
+	// boilerplate body), not 404 — what matters (same as the traversal case
+	// in TestDashboardDataErrors) is that no asset body comes back.
+	for _, name := range []string{
+		"evil.js", "uPlot.iife.min.css", "LICENSE-uplot", "LICENSE-three",
+		"sub/dir/uPlot.iife.min.js", "uPlot.iife.min.js%00",
+	} {
+		if rec := send(t, h, http.MethodGet, dashBase+"vendor/"+name, ""); rec.Code != http.StatusNotFound {
+			t.Errorf("vendor/%s: status %d, want 404", name, rec.Code)
+		}
+	}
+	if rec := send(t, h, http.MethodGet, dashBase+"vendor/../uPlot.iife.min.js", ""); rec.Code == http.StatusOK || rec.Body.Len() >= 1000 {
+		t.Errorf("vendor traversal: status %d, body %d bytes — must not serve", rec.Code, rec.Body.Len())
+	}
+}
+
+// TestDashboardGetRow (GDK-782): GET {id}/ is the web host's config read —
+// the parent page needs the datasources map to know which data routes to run.
+func TestDashboardGetRow(t *testing.T) {
+	h := dashHandler(t)
+	id := saveDash(t, h, "Triage", `{"html":"<p/>","datasources":{"by_status":{"sql":"select 1"}}}`)
+	rec := send(t, h, http.MethodGet, dashBase+*id+"/", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get row: %d %s", rec.Code, rec.Body.String())
+	}
+	var row struct {
+		ID        string          `json:"id"`
+		Name      string          `json:"name"`
+		Config    json.RawMessage `json:"config"`
+		UpdatedAt string          `json:"updated_at"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &row); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if row.ID != *id || row.Name != "Triage" || row.UpdatedAt == "" {
+		t.Fatalf("row = %+v", row)
+	}
+	if !strings.Contains(string(row.Config), "by_status") {
+		t.Fatalf("config missing datasources: %s", row.Config)
+	}
+	if rec := send(t, h, http.MethodGet, dashBase+"nosuch/", ""); rec.Code != http.StatusNotFound {
+		t.Errorf("unknown id: %d, want 404", rec.Code)
 	}
 }
 
