@@ -16,6 +16,7 @@ typecheck:
 
 theme-check:
 	node tools/theme-check.mjs
+	node tools/token-catalog.mjs --check
 
 # demo-fixture is circular: snapshot --from examples/demo.db writes
 # examples/demo.db. Content is the committed file, not a seed; --spread

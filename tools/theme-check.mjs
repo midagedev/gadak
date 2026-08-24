@@ -31,10 +31,25 @@
  * Size lives on the four type-scale tokens (and the .wordmark owner).
  *
  * Usage: node tools/theme-check.mjs
+ *        node tools/theme-check.mjs --emit-vectors
+ *          All assertions run either way; --emit-vectors additionally writes
+ *          the golden-vector JSON consumed by internal/config/tokencheck
+ *          (GDK-785). Deterministic output: same app.css in, same bytes out.
  */
-import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import {
+  alphaOver,
+  contrast,
+  dEok,
+  deut,
+  hex2hsl,
+  hex2oklab,
+  hex2oklch,
+  hexOf,
+  parseAppCss,
+} from './lib/theme-parse.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const CSS_PATH = join(ROOT, 'web/src/app.css')
@@ -46,178 +61,15 @@ const fail = (m) => {
   console.log('  FAIL  ' + m)
 }
 
-const hex2rgb = (h) => {
-  const s = h.replace('#', '')
-  const full = s.length === 3 ? [...s].map((c) => c + c).join('') : s
-  return [0, 2, 4].map((i) => parseInt(full.slice(i, i + 2), 16) / 255)
-}
-const lin = (c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)
-const luminance = (hex) => {
-  const [r, g, b] = hex2rgb(hex).map(lin)
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b
-}
-const contrast = (a, b) => {
-  const [l1, l2] = [luminance(a), luminance(b)].sort((x, y) => y - x)
-  return (l1 + 0.05) / (l2 + 0.05)
-}
 const cr = (a, b) => Math.round(contrast(a, b) * 100) / 100
 
-const hex2oklab = (hex) => {
-  const [r, g, b] = hex2rgb(hex).map(lin)
-  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b)
-  const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b)
-  const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b)
-  return [
-    0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s,
-    1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s,
-    0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s,
-  ]
-}
-const dEok = (a, b) => {
-  const A = hex2oklab(a)
-  const B = hex2oklab(b)
-  return Math.hypot(A[0] - B[0], A[1] - B[1], A[2] - B[2])
-}
-const rgb2hex = (rgb) =>
-  '#' +
-  rgb
-    .map((v) => Math.round(Math.min(1, Math.max(0, v)) * 255).toString(16).padStart(2, '0'))
-    .join('')
-// Machado 2009 deuteranopia, severity 1.0. Same matrix as the GDK-157
-// design scripts (analyse.mjs / verify.mjs). Do not substitute another.
-const DEUT_M = [
-  [0.367322, 0.860646, -0.227968],
-  [0.280085, 0.672501, 0.047413],
-  [-0.01182, 0.04294, 0.968881],
-]
-const deut = (hex) => {
-  const [r, g, b] = hex2rgb(hex)
-  return rgb2hex(DEUT_M.map((row) => row[0] * r + row[1] * g + row[2] * b))
-}
-const alphaOver = (fg, bg, a) => {
-  const f = hex2rgb(fg)
-  const b = hex2rgb(bg)
-  return rgb2hex([0, 1, 2].map((i) => f[i] * a + b[i] * (1 - a)))
-}
-const hex2oklch = (hex) => {
-  const [L, a, b] = hex2oklab(hex)
-  const C = Math.hypot(a, b)
-  let H = (Math.atan2(b, a) * 180) / Math.PI
-  if (H < 0) H += 360
-  return [L, C, H]
-}
-// HSL, because the GDK-190 ground contract is written in HSL hue/saturation:
-// at ground lightness oklch chroma is a three-decimal number nobody can aim at,
-// while "hue 220, S 10%" is a value a designer can read off the token.
-const hex2hsl = (hex) => {
-  const [r, g, b] = hex2rgb(hex)
-  const max = Math.max(r, g, b)
-  const min = Math.min(r, g, b)
-  const L = (max + min) / 2
-  const d = max - min
-  if (d === 0) return [0, 0, L * 100]
-  const S = d / (1 - Math.abs(2 * L - 1))
-  let H
-  if (max === r) H = 60 * (((g - b) / d) % 6)
-  else if (max === g) H = 60 * ((b - r) / d + 2)
-  else H = 60 * ((r - g) / d + 4)
-  if (H < 0) H += 360
-  return [H, S * 100, L * 100]
-}
+// Pure color math and the app.css palette parser live in ./lib/theme-parse.mjs
+// since GDK-787 (shared with tools/token-catalog.mjs so the catalog and this
+// gate can never disagree about what a palette is). Everything below is the
+// assertion body and is unchanged by that extraction.
 
-function extractBraceBlock(source, openBraceIndex) {
-  let depth = 0
-  for (let i = openBraceIndex; i < source.length; i++) {
-    const ch = source[i]
-    if (ch === '{') depth++
-    else if (ch === '}') {
-      depth--
-      if (depth === 0) return source.slice(openBraceIndex + 1, i)
-    }
-  }
-  return null
-}
-
-function parseColorDecls(block) {
-  const out = {}
-  if (!block) return out
-  const re = /--color-([a-z0-9-]+)\s*:\s*([^;]+);/gi
-  let m
-  while ((m = re.exec(block))) {
-    out[m[1]] = m[2].trim()
-  }
-  return out
-}
-
-function findAtTheme(source) {
-  const idx = source.search(/@theme\b/)
-  if (idx < 0) return null
-  const brace = source.indexOf('{', idx)
-  return brace < 0 ? null : extractBraceBlock(source, brace)
-}
-
-function findSelectorBlocks(source, selectorRe) {
-  const blocks = []
-  const re = new RegExp(selectorRe.source, selectorRe.flags.includes('g') ? selectorRe.flags : `${selectorRe.flags}g`)
-  let m
-  while ((m = re.exec(source))) {
-    const brace = source.indexOf('{', m.index + m[0].length - 1)
-    if (brace < 0) continue
-    const body = extractBraceBlock(source, brace)
-    if (body) blocks.push(body)
-  }
-  return blocks
-}
-
-function richestColorDecls(blocks) {
-  let best = {}
-  for (const block of blocks) {
-    const decls = parseColorDecls(block)
-    if (Object.keys(decls).length > Object.keys(best).length) best = decls
-  }
-  return best
-}
-
-const light = parseColorDecls(findAtTheme(css))
-
-/*
- * Every palette declares itself with one :root[data-theme='NAME'] block, so the
- * gate discovers them instead of being told. A palette added to app.css and
- * THEMES but forgotten here would ship unmeasured — that is the failure this
- * enumeration closes.
- */
-function discoverThemeNames(source) {
-  const names = new Set()
-  const re = /:root\[data-theme=['"]([a-z0-9-]+)['"]\]/gi
-  let m
-  while ((m = re.exec(source))) {
-    if (m[1] !== 'light') names.add(m[1])
-  }
-  return [...names].sort()
-}
-const THEME_NAMES = discoverThemeNames(css)
-const paletteOf = (name) =>
-  richestColorDecls(
-    findSelectorBlocks(css, new RegExp(`:root\\[data-theme=['"]${name}['"]\\]`)),
-  )
-const PALETTES = Object.fromEntries(THEME_NAMES.map((n) => [n, paletteOf(n)]))
-const darkExplicit = PALETTES.dark ?? {}
-const darkMediaInner = (() => {
-  // Skip the unlayered color-scheme-only media query; take the richest
-  // token block under any prefers-color-scheme: dark section.
-  const mediaRe = /@media\s*\(\s*prefers-color-scheme\s*:\s*dark\s*\)/g
-  const inner = []
-  let media
-  while ((media = mediaRe.exec(css))) {
-    const mediaBrace = css.indexOf('{', media.index)
-    const mediaBody = extractBraceBlock(css, mediaBrace)
-    if (!mediaBody) continue
-    inner.push(
-      ...findSelectorBlocks(mediaBody, /:root:not\(\s*\[data-theme=['"]light['"]\]\s*\)/),
-    )
-  }
-  return richestColorDecls(inner)
-})()
+const { light, themeNames: THEME_NAMES, palettes: PALETTES, darkExplicit, darkMediaInner } =
+  parseAppCss(css)
 
 console.log('=== theme-check: parse ===')
 console.log('  light --color-*', Object.keys(light).length)
@@ -250,13 +102,6 @@ for (const n of THEME_NAMES) {
   }
 }
 if (fails === 0) console.log('  token parity: ok')
-
-const hexOf = (pal, name) => {
-  const v = pal[name]
-  if (!v) return null
-  const m = v.match(/#([0-9a-fA-F]{3,8})\b/)
-  return m ? (m[0].length === 4 ? null : m[0].toLowerCase()) : null
-}
 
 const dark = darkExplicit
 const GROUNDS = ['bg-base', 'bg-panel', 'bg-elevated', 'bg-hover', 'bg-active']
@@ -665,6 +510,115 @@ for (const file of srcFiles) {
   }
 }
 if (arbHits === 0) console.log('  no text-[Npx] utilities: ok')
+
+// ── GDK-785: golden vectors ───────────────────────────────────────────
+/*
+ * --emit-vectors writes the measured color math this gate runs on — same
+ * formulas, same shipped palette values — as the JSON the Go port
+ * (internal/config/tokencheck) must reproduce to 4 decimal places. Two
+ * implementations, one definition: the vectors are generated here because
+ * this file is the original instrument. Every status-ink pair and every
+ * (ink, ground) pair of every palette is included, so "the shipped palettes
+ * pass the shipped floors" is itself recorded as data, not asserted.
+ *
+ * All numbers are rounded to 6 decimals and there is no timestamp: identical
+ * app.css in, identical bytes out.
+ */
+const VECTORS_PATH = join(ROOT, 'internal/config/tokencheck/testdata/token-vectors.json')
+const r6 = (x) => Math.round(x * 1e6) / 1e6
+
+function emitGoldenVectors() {
+  const contrastPairs = []
+  const deltaPairs = []
+  const oklab = []
+  const deuts = []
+  const pushContrast = (fg, bg) => contrastPairs.push({ fg, bg, contrast: r6(contrast(fg, bg)) })
+  const pushDelta = (a, b) =>
+    deltaPairs.push({
+      a,
+      b,
+      deltaEok: r6(dEok(a, b)),
+      deltaEokDeuteranopia: r6(dEok(deut(a), deut(b))),
+    })
+  const vectorPalettes = [{ name: 'light', pal: light }].concat(
+    THEME_NAMES.map((n) => ({ name: n, pal: PALETTES[n] })),
+  )
+  for (const { pal } of vectorPalettes) {
+    // Exactly the pairs the runtime validator can measure (GDK-785 rules),
+    // plus the text tiers for range coverage.
+    for (const s of STATS) {
+      for (const g of GROUNDS) pushContrast(hexOf(pal, s), hexOf(pal, g))
+    }
+    const at = hexOf(pal, 'accent-text')
+    pushContrast(at, hexOf(pal, 'accent-subtle'))
+    for (const g of GROUNDS) pushContrast(at, hexOf(pal, g))
+    for (const fg of Object.keys(FLOOR)) {
+      for (const g of GROUNDS) pushContrast(hexOf(pal, fg), hexOf(pal, g))
+    }
+    for (let i = 0; i < STATS.length; i++) {
+      for (let j = i + 1; j < STATS.length; j++) {
+        pushDelta(hexOf(pal, STATS[i]), hexOf(pal, STATS[j]))
+      }
+    }
+    for (const t of ['bg-base', 'text-primary', 'accent-text', 'status-new', 'status-stale', 'search-match']) {
+      const hex = hexOf(pal, t)
+      const [L, A, B] = hex2oklab(hex)
+      oklab.push({ hex, L: r6(L), a: r6(A), b: r6(B) })
+      deuts.push({ hex, deuteranopia: deut(hex) })
+    }
+  }
+  // Boundary witnesses: values sitting at or near the floors the runtime
+  // validator enforces (4.5:1, ΔEok 0.05/0.04), so a formula drift that
+  // matters at the boundary cannot hide in the middle of the range.
+  const SYNTH_CONTRAST = [
+    ['#000000', '#ffffff'], // 21 — the ceiling
+    ['#767676', '#ffffff'], // ≈4.54 — the classic AA boundary
+    ['#777777', '#ffffff'], // just under 4.5
+    ['#1c1812', '#1c1812'], // 1 — fg === bg
+    ['#ffffff', '#767676'], // order must not matter (luminance is sorted)
+    ['#734701', '#f4efe4'], // the historical stale ink on the light page ground
+    ['#ffc579', '#cfc0a4'], // search-match on the most saturated light ground
+  ]
+  for (const [fg, bg] of SYNTH_CONTRAST) pushContrast(fg, bg)
+  const SYNTH_DELTA = [
+    ['#1c4c31', '#1c4c31'], // 0 — identical colors
+    ['#734701', '#7e5904'], // the P3 near-collision the stale token comment records
+    ['#7e5904', '#7f5a04'], // one 8-bit step above it
+    ['#8f3530', '#1c4c31'], // red vs green — the deuteranopia collapse axis
+    ['#000000', '#ffffff'],
+    ['#d19b5a', '#b28a44'], // dark-family stale vs inprogress
+  ]
+  for (const [a, b] of SYNTH_DELTA) pushDelta(a, b)
+  for (const hex of ['#000000', '#ffffff', '#777777', '#7e5904', '#8f3530', '#1c4c31']) {
+    const [L, A, B] = hex2oklab(hex)
+    oklab.push({ hex, L: r6(L), a: r6(A), b: r6(B) })
+    deuts.push({ hex, deuteranopia: deut(hex) })
+  }
+  const doc = {
+    meta: {
+      generator: 'tools/theme-check.mjs --emit-vectors',
+      source: 'web/src/app.css',
+      rounding: 6,
+      note: 'Golden vectors pinning the color math shared with internal/config/tokencheck (GDK-785). Compare to 4 decimals.',
+      counts: {
+        contrast: contrastPairs.length,
+        deltaEok: deltaPairs.length,
+        oklab: oklab.length,
+        deut: deuts.length,
+      },
+    },
+    contrast: contrastPairs,
+    deltaEok: deltaPairs,
+    oklab,
+    deut: deuts,
+  }
+  writeFileSync(VECTORS_PATH, JSON.stringify(doc, null, 2) + '\n')
+  console.log(
+    `  wrote ${VECTORS_PATH} (${contrastPairs.length} contrast, ${deltaPairs.length} ΔEok, ${oklab.length} oklab, ${deuts.length} deuteranopia vectors)`,
+  )
+}
+
+if (process.argv.includes('--emit-vectors')) emitGoldenVectors()
 
 console.log(`\n=== ${fails === 0 ? 'ALL CHECKS PASS' : fails + ' FAILURES'} ===`)
 process.exit(fails === 0 ? 0 : 1)
