@@ -163,6 +163,12 @@ Jira 검색은 네트워크 왕복이고, 위키는 두 번째 검색입니다. 
 브라우저가 아니라 **워크스페이스**에 속합니다:
 `gadak config set appearance.theme ink`.
 
+<p align="center">
+  <img src="docs/media/tokens.gif" alt="터미널이 ui.tokens와 ui.dataColors를 설정하자 열린 탭이 리로드 없이 그 자리에서 다시 물든다 — 액센트·칩·분해 색이 바뀌고, 잠긴 bg-base에 쓰려는 시도는 이유와 함께 거절된다" width="900">
+  <br>
+  <sub>색도 설정입니다: <code>ui.tokens</code> / <code>ui.dataColors</code>가 CLI에서 열린 탭으로 리로드 없이 흘러가고, 팔레트가 소유한 키는 종이를 조용히 깨는 대신 오버라이드를 거절합니다. <a href="e2e/demo/tokens-demo.spec.ts">e2e/demo/tokens-demo.spec.ts</a>가 생성.</sub>
+</p>
+
 그리고 두 표면은 닫힌 목록이 아닙니다. 미러를 읽는 것은 바이너리 호출
 하나(`gadak search --json`, ~20ms)이고, 앱에서 무언가를 여는 것은 URL
 하나(`gadak://view?issue=…` — [스킴](docs/DESKTOP.md))입니다. 그 둘을 할
@@ -251,6 +257,12 @@ gadak mcp install claude
 `gadak init`과 `gadak install-cli`는 `~/.claude`가 이미 있으면 그 스킬을
 자동으로 설치합니다. gadak이 쓰지 않은 파일은 그대로 둡니다.
 
+<p align="center">
+  <img src="docs/media/claude-drive.gif" alt="앱 옆의 라이브 Claude Code 세션: 워크스페이스를 다시 물들이고 차트 대시보드를 만들어 달라는 요청에 gadak config와 dashboards save를 실행하자, 열린 탭이 새 색을 입고 대시보드를 렌더한다" width="900">
+  <br>
+  <sub>스킬이 사 주는 것: 라이브 Claude Code 세션이 지금 보고 있는 그 워크스페이스를 직접 몰아서, 색과 차트 대시보드가 리로드 없이 열린 탭에 내려앉습니다. <a href="tools/tapes/claude-drive.tape">tools/tapes/claude-drive.tape</a>로 녹화.</sub>
+</p>
+
 두 설치(그리고 Raycast까지)는 macOS 앱에서는 버튼이기도 합니다 — 설치
 상태를 정직하게 보여주는 **설정 → 연동**.
 
@@ -292,6 +304,16 @@ gadak views open --jql 'project = NMA AND resolution is EMPTY'
   <img src="docs/media/agent.gif" alt="터미널이 gadak sql을 gadak views open --keys - 로 파이프하자 실행 중인 앱이 그 다섯 키로 즉시 이동하고, 이어서 gadak views open --jql이 같은 창을 프로젝트·우선순위·미해결 칩 위에 내려놓는다" width="800">
   <br>
   <sub><code>gadak views open</code>은 일회성 해시를 쓰고, 실행 중인 앱 또는 serve 탭이 그것을 적용합니다. 녹화본에는 우선순위 절이 하나 더 있습니다 — <code>--jql</code>에서 우선순위·상태 이름은 내 Jira가 저장한 문자열 그대로 매칭되고 그 이름은 로케일마다 다르므로, 위 예시에서는 뺐습니다. <a href="e2e/demo/agent-demo.spec.ts">e2e/demo/agent-demo.spec.ts</a>가 생성.</sub>
+</p>
+
+답이 목록이 아니라 벽이라면 대시보드를 저작하세요 — HTML 문서 한 장과
+등록된 데이터소스가 웹 탭 안에서 샌드박스로 렌더됩니다:
+**[docs/DASHBOARDS.md](docs/DASHBOARDS.md)**.
+
+<p align="center">
+  <img src="docs/media/dashboards.gif" alt="터미널이 대시보드를 저장한다 — HTML 파일 하나와 미러 위의 데이터소스 넷 — 그러자 웹 탭이 트리아지 월을 렌더한다: 상태 카운터와 우선순위 상위 미해결 목록. 두 번째 저장은 열린 프레임을 그 자리에서 교체한다" width="900">
+  <br>
+  <sub><code>gadak dashboards save</code>가 문서와 데이터소스를 등록하면 호스트가 쿼리를 실행해 행을 밀어 넣고, 재저장은 열린 프레임을 1초 안에 교체합니다. 차트는 로컬에서 서빙되는 uPlot — CDN도, CSP 확장도 없습니다. <a href="e2e/demo/dashboards-demo.spec.ts">e2e/demo/dashboards-demo.spec.ts</a>가 생성.</sub>
 </p>
 
 셸이 없는 호스트(Claude Desktop)에서는 같은 미러가 MCP 서버가 됩니다.

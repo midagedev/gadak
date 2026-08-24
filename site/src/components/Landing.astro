@@ -156,6 +156,17 @@ gadak transition NMB-1042 done -m "shipped"`}
     </figure>
     <p>{t.agent.skillLead}</p>
     <Snippet code="gadak skill install" copyLabel={copyLabel} copiedLabel={copiedLabel} />
+    <figure class="media-pair">
+      {/* v0.17.2 flagship (user call 2026-08-25): the claim is a command
+          changing the visible view — colors and a dashboard landing in an
+          open tab — so this exhibit plays the tape (GDK-751 motion rule). */}
+      <MediaSlot
+        slot={lang === 'en' ? 'skill drive' : '스킬 드라이브'}
+        src="/media/claude-drive.mp4"
+        poster="/media/claude-drive-poster.png"
+      />
+      <figcaption>{t.agent.driveCaption}</figcaption>
+    </figure>
     <p>{t.agent.mcpLead}</p>
     <Snippet code="claude mcp add gadak -- gadak mcp" copyLabel={copyLabel} copiedLabel={copiedLabel} />
     <p class="note">

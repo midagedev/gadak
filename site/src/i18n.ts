@@ -81,6 +81,8 @@ export const strings = {
       videoCaption: 'A question JQL cannot ask, answered from the local mirror.',
       mcpCaption:
         'A live Claude Code session on the mirror: issues and wiki pages in one index — the join Jira and Confluence never make for you.',
+      driveCaption:
+        'The skill in motion: asked for new colors and a chart dashboard, the agent runs gadak and both land in the open tab — no reload.',
     },
     origin: {
       label: 'Why this is safe to try',
@@ -189,6 +191,8 @@ export const strings = {
       videoCaption: 'JQL이 표현 못 하는 질문 하나를, 로컬 미러에서 답하기.',
       mcpCaption:
         '미러 위의 실제 Claude Code 세션: 이슈와 위키 페이지가 하나의 인덱스 — Jira와 Confluence가 대신 만들어 주지 않는 조인.',
+      driveCaption:
+        '스킬이 움직이는 모습: 새 색과 차트 대시보드를 부탁하자 에이전트가 gadak을 실행하고, 둘 다 리로드 없이 열린 탭에 내려앉습니다.',
     },
     origin: {
       label: '왜 안심하고 써도 되는가',

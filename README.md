@@ -159,6 +159,12 @@ neutral-cool `dark`, blue-black `ink`, and warm `ember`. The theme follows
 the system unless you pick one, and it belongs to the workspace, not the
 browser: `gadak config set appearance.theme ink`.
 
+<p align="center">
+  <img src="docs/media/tokens.gif" alt="A terminal sets ui.tokens and ui.dataColors and the open tab retints live — accent, chips and breakdown colors change with no reload; a write to the locked bg-base is refused with the reason" width="900">
+  <br>
+  <sub>Colors are config: <code>ui.tokens</code> / <code>ui.dataColors</code> flow from the CLI into an open tab with no reload, and the keys a palette owns refuse an override instead of silently breaking the paper. Generated from <a href="e2e/demo/tokens-demo.spec.ts">e2e/demo/tokens-demo.spec.ts</a>.</sub>
+</p>
+
 And two surfaces is not a closed list. Reading the mirror is one binary
 call (`gadak search --json`, ~20 ms), and opening anything in the app is
 one URL (`gadak://view?issue=…` — [the scheme](docs/DESKTOP.md)), so
@@ -252,6 +258,12 @@ Pins this binary and workspace into the registration.
 `gadak init` and `gadak install-cli` install that skill automatically when
 `~/.claude` already exists. A file gadak did not write is left in place.
 
+<p align="center">
+  <img src="docs/media/claude-drive.gif" alt="A live Claude Code session beside the app: asked to retint the workspace and build a chart dashboard, it runs gadak config and dashboards save, and the open tab picks up the new colors and renders the dashboard" width="900">
+  <br>
+  <sub>What the skill buys: a live Claude Code session drives the same workspace you are looking at — colors and a chart dashboard land in the open tab, no reload. Recorded from <a href="tools/tapes/claude-drive.tape">tools/tapes/claude-drive.tape</a>.</sub>
+</p>
+
 Both installs (and the Raycast one) are also buttons in the macOS app,
 with install state shown honestly: **Settings → Integrations**.
 
@@ -297,6 +309,12 @@ gadak views open --jql 'project = NMA AND resolution is EMPTY'
 When the answer is a wall rather than a list, author a dashboard — one HTML
 document plus registered datasources, rendered sandboxed in the web tab:
 **[docs/DASHBOARDS.md](docs/DASHBOARDS.md)**.
+
+<p align="center">
+  <img src="docs/media/dashboards.gif" alt="A terminal saves a dashboard — one HTML file plus four datasources over the mirror — and the web tab renders the triage wall: status counters and the top open issues by priority; a second save swaps the open frame in place" width="900">
+  <br>
+  <sub><code>gadak dashboards save</code> registers the document and its datasources; the host runs the queries and pushes rows in, and a re-save swaps an open frame in about a second. Charts come from a locally served uPlot — no CDN, no CSP widening. Generated from <a href="e2e/demo/dashboards-demo.spec.ts">e2e/demo/dashboards-demo.spec.ts</a>.</sub>
+</p>
 
 For hosts without a shell (Claude Desktop), the same mirror is an MCP
 server. Ask the thing Jira cannot answer at all, because the wiki is a
