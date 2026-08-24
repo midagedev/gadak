@@ -84,6 +84,15 @@
   ([GDK-825]), and six e2e specs became unit tests holding the same
   assertions ([GDK-826]).
 
+- The audit's simplify chunk deleted 123 production lines nobody called —
+  the og-image renderer, unused icon imports, test-only wrappers — with
+  every test rewritten onto the real path instead of dropped ([GDK-822],
+  [GDK-712]). Schema v38 drops the mirror-side saved_views/watches/
+  favorites/feed_reads frozen by the v26 copy: an unprefixed table name
+  in `gadak sql` now falls through to the ATTACHed local.db truth
+  instead of a migration-time snapshot that answered quietly and wrong
+  ([GDK-824]).
+
 - Two places where the CLI took a typo and kept going. `gadak create GDK
   "…"` used to file an issue whose summary began with the project key,
   because the key was just another summary word; it is now refused with the
@@ -1264,6 +1273,9 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-594]: https://gadak.dev/backlog/#/?ks=GDK-594
 [GDK-809]: https://gadak.dev/backlog/#/?ks=GDK-809
 [GDK-810]: https://gadak.dev/backlog/#/?ks=GDK-810
+[GDK-822]: https://gadak.dev/backlog/#/?ks=GDK-822
+[GDK-824]: https://gadak.dev/backlog/#/?ks=GDK-824
+[GDK-712]: https://gadak.dev/backlog/#/?ks=GDK-712
 [GDK-814]: https://gadak.dev/backlog/#/?ks=GDK-814
 [GDK-815]: https://gadak.dev/backlog/#/?ks=GDK-815
 [GDK-816]: https://gadak.dev/backlog/#/?ks=GDK-816
