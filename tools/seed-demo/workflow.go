@@ -7,7 +7,7 @@ import (
 	"os"
 	"sort"
 
-	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/statuscat"
 )
 
 // projectTypeStatus holds per-project workflow metadata used while seeding.
@@ -208,7 +208,7 @@ func (c *Client) walkWorkflow(issueKey string, rng *rand.Rand) int {
 		}
 		var forward []apiTransition
 		for _, t := range opts {
-			if cat, ok := jira.KnownCategory(t.To.StatusCategory.Key); !ok || cat != "new" {
+			if cat, ok := statuscat.KnownCategory(t.To.StatusCategory.Key); !ok || cat != "new" {
 				forward = append(forward, t)
 			}
 		}
@@ -225,7 +225,7 @@ func (c *Client) walkWorkflow(issueKey string, rng *rand.Rand) int {
 		opts := c.listTransitions(issueKey)
 		var back []apiTransition
 		for _, t := range opts {
-			if cat, ok := jira.KnownCategory(t.To.StatusCategory.Key); ok && cat == "new" {
+			if cat, ok := statuscat.KnownCategory(t.To.StatusCategory.Key); ok && cat == "new" {
 				back = append(back, t)
 			}
 		}

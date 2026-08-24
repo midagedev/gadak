@@ -22,6 +22,7 @@ import (
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/fields"
 	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/statuscat"
 )
 
 // Origin is the origin verbs Apply needs. origin.Writer satisfies it.
@@ -193,7 +194,7 @@ func alreadyInCategory(ctx context.Context, o Origin, key, target string) (bool,
 	if err != nil {
 		return false, err
 	}
-	cat, ok := jira.KnownCategory(st.StatusCategory.Key)
+	cat, ok := statuscat.KnownCategory(st.StatusCategory.Key)
 	if !ok || cat != token {
 		return false, nil
 	}

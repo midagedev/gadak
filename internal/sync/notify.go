@@ -62,18 +62,6 @@ func (OSNotifier) Notify(title, body string) error {
 	return cmd.Run()
 }
 
-// FeedIdentity builds the personal-feed identity the same way the HTTP server does.
-func FeedIdentity(cfg *config.Config) store.FeedIdentity {
-	if cfg == nil {
-		return store.FeedIdentity{}
-	}
-	return store.FeedIdentity{
-		AccountID:   cfg.AccountID,
-		Email:       cfg.Email,
-		DisplayName: cfg.TokenOwner,
-	}
-}
-
 // notifyAfterSync fires one bundled OS notification for feed events newer than
 // the last_notified_at watermark. Never marks feed_reads. Failures are returned
 // for logging only — the caller must not abort the watch loop.
@@ -111,7 +99,7 @@ func notifyAfterSync(ctx context.Context, db *store.DB, cfg *config.Config, n no
 	res, err := db.Feed(ctx, store.FeedOpts{
 		Focus: store.FeedFocusAll,
 		Limit: store.FeedMaxLimit,
-		Me:    FeedIdentity(cfg),
+		Me:    store.FeedIdentityOf(cfg),
 	})
 	if err != nil {
 		return err

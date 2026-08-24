@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"unicode/utf8"
+
+	"github.com/midagedev/gadak/internal/adf"
 )
 
 func adfDoc(texts ...string) json.RawMessage {
@@ -245,5 +247,40 @@ func TestNormalizeWhitespace(t *testing.T) {
 	got := normalizeWhitespace("  a \n\t  b\r\nc  ")
 	if got != "a b c" {
 		t.Errorf("normalizeWhitespace = %q", got)
+	}
+}
+
+// TestExcerptFlatteningMatchesFTS is the GDK-814 contract: both excerpt
+// paths (pages.excerpt via pageExcerptFromADF, the feed/people last resort
+// via plainExcerptFromADF) must flatten ADF with the same walker FTS indexes
+// (adf.PlainText). The store once carried a guard-less local copy: wiki-markup
+// string bodies flattened to "" and mention labels vanished from excerpts
+// while FTS kept indexing both.
+func TestExcerptFlatteningMatchesFTS(t *testing.T) {
+	mention := `{"type":"doc","version":1,"content":[{"type":"paragraph","content":[` +
+		`{"type":"text","text":"리뷰 부탁 "},` +
+		`{"type":"mention","attrs":{"id":"1","text":"@다나"}},` +
+		`{"type":"text","text":" 입니다"}]}]}`
+	hardBreak := `{"type":"paragraph","content":[{"type":"text","text":"line one"},` +
+		`{"type":"hardBreak"},{"type":"text","text":"line two"}]}`
+	cases := []struct{ name, raw, want string }{
+		// The older wiki-markup shape: a bare JSON string, not an object.
+		{"wiki-markup string body", `"h1. legacy wiki-markup body"`, "h1. legacy wiki-markup body"},
+		{"mention label survives", mention, "리뷰 부탁 @다나 입니다"},
+		{"hardBreak becomes a break", hardBreak, "line one line two"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fts := adf.PlainText(json.RawMessage(tc.raw))
+			if got := plainExcerptFromADF(tc.raw); got != fts {
+				t.Errorf("plainExcerptFromADF drifted from FTS: got %q, adf.PlainText %q", got, fts)
+			}
+			if got := pageExcerptFromADF(tc.raw); got != pageExcerptFromPlain(fts) {
+				t.Errorf("pageExcerptFromADF drifted from FTS: got %q, adf.PlainText %q", got, fts)
+			}
+			if got := pageExcerptFromADF(tc.raw); got != tc.want {
+				t.Errorf("pageExcerptFromADF = %q, want %q", got, tc.want)
+			}
+		})
 	}
 }

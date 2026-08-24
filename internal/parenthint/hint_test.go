@@ -8,18 +8,35 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/store"
 )
 
-// The two error strings below are what a real Jira Cloud site answered on
-// 2026-08-21 for the same illegal parent, one per verb. They are verbatim on
-// purpose: the field key is the only stable part (the sentence is localized
-// per account), and GDK-525 existed because the create path tested for
-// "parent" — a substring the edit answer does not contain.
-const (
-	cloudCreateParent400 = `POST /rest/api/3/issue: jira: 400: parent: 유효한 상위 업무를 선택하세요.; parentId: 유효한 상위 업무를 선택하세요.`
-	cloudEditParent400   = `PUT /rest/api/3/issue/NMB-2: jira: 400: pid: 이 이슈 유형의 이슈는 상위 이슈와 같은 프로젝트에 만들어야 합니다.`
-)
+// The two errors below are what a real Jira Cloud site answered on
+// 2026-08-21 for the same illegal parent, one per verb — rebuilt as the
+// *jira.APIError the client actually returns (wrapped with the method and
+// path, exactly like jira.write). The sentences are verbatim on purpose,
+// but only the Errors keys are load-bearing: the sentence is localized per
+// account, and GDK-525 existed because the create path tested for "parent"
+// — a substring the edit answer does not contain.
+func createParent400() error {
+	return fmt.Errorf("POST /rest/api/3/issue: %w", &jira.APIError{
+		Status: 400,
+		Errors: map[string]string{
+			"parent":   "유효한 상위 업무를 선택하세요.",
+			"parentId": "유효한 상위 업무를 선택하세요.",
+		},
+	})
+}
+
+func editParent400() error {
+	return fmt.Errorf("PUT /rest/api/3/issue/NMB-2: %w", &jira.APIError{
+		Status: 400,
+		Errors: map[string]string{
+			"pid": "이 이슈 유형의 이슈는 상위 이슈와 같은 프로젝트에 만들어야 합니다.",
+		},
+	})
+}
 
 func TestRejectionKnowsBothVerbShapes(t *testing.T) {
 	cases := []struct {
@@ -27,11 +44,22 @@ func TestRejectionKnowsBothVerbShapes(t *testing.T) {
 		err  error
 		want bool
 	}{
-		{"create shape", errors.New(cloudCreateParent400), true},
-		{"edit shape", errors.New(cloudEditParent400), true},
+		{"create shape", createParent400(), true},
+		{"edit shape", editParent400(), true},
 		{"nil", nil, false},
-		{"unrelated 400", errors.New(`PUT /rest/api/3/issue/NMB-2: jira: 400: summary: You must specify a summary.`), false},
-		{"word containing pid", errors.New(`GET /rest/api/3/issue/NMB-2: rapid retries exhausted`), false},
+		{"unrelated field 400", fmt.Errorf("PUT /rest/api/3/issue/NMB-2: %w", &jira.APIError{
+			Status: 400,
+			Errors: map[string]string{"summary": "You must specify a summary."},
+		}), false},
+		// GDK-819: the printed sentence is not evidence. A message that
+		// merely mentions parent — or an untyped error that does — must not
+		// classify; only the Errors keys parent/parentId/pid are the rejection.
+		{"message mentioning parent", fmt.Errorf("POST /rest/api/3/issue: %w", &jira.APIError{
+			Status:   400,
+			Messages: []string{"parent picker input was malformed"},
+		}), false},
+		{"linear refusal naming parent", fmt.Errorf(`linear: field "parent" is not supported on create`), false},
+		{"word containing pid", fmt.Errorf("GET /rest/api/3/issue/NMB-2: rapid retries exhausted"), false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -45,20 +73,27 @@ func TestRejectionKnowsBothVerbShapes(t *testing.T) {
 func TestWrapAttachesForBothVerbs(t *testing.T) {
 	db := seedDB(t, nil)
 
-	for _, raw := range []string{cloudCreateParent400, cloudEditParent400} {
-		got := Wrap(errors.New(raw), "NMB-1", db)
+	for _, tc := range []struct {
+		name string
+		err  error
+	}{
+		{"create shape", createParent400()},
+		{"edit shape", editParent400()},
+	} {
+		got := Wrap(tc.err, "NMB-1", db)
 		if !strings.Contains(got.Error(), "hint:") {
-			t.Fatalf("no hint attached to %q; got %q", raw, got)
+			t.Fatalf("no hint attached to %s; got %q", tc.name, got)
 		}
 		if !strings.Contains(got.Error(), "NMB-1") {
 			t.Fatalf("hint does not name the parent; got %q", got)
 		}
-		if !strings.Contains(got.Error(), raw) {
-			t.Fatalf("origin error was replaced instead of wrapped; got %q", got)
+		var apiErr *jira.APIError
+		if !errors.As(got, &apiErr) {
+			t.Fatalf("origin error was replaced instead of wrapped: %v", got)
 		}
 	}
 
-	base := fmt.Errorf("wrapped: %w", errors.New(cloudEditParent400))
+	base := fmt.Errorf("wrapped: %w", editParent400())
 	if wrapped := Wrap(base, "NMB-1", db); !errors.Is(wrapped, base) {
 		t.Fatalf("errors.Is lost the origin error: %v", wrapped)
 	}
@@ -67,17 +102,26 @@ func TestWrapAttachesForBothVerbs(t *testing.T) {
 func TestWrapLeavesOtherErrorsAlone(t *testing.T) {
 	db := seedDB(t, nil)
 
-	other := errors.New(`PUT /rest/api/3/issue/NMB-2: jira: 400: summary: You must specify a summary.`)
-	if got := Wrap(other, "NMB-1", db); got.Error() != other.Error() {
+	other := fmt.Errorf("PUT /rest/api/3/issue/NMB-2: %w", &jira.APIError{
+		Status: 400,
+		Errors: map[string]string{"summary": "You must specify a summary."},
+	})
+	if got := Wrap(other, "NMB-1", db); got != other {
 		t.Fatalf("unrelated error was decorated: %q", got)
 	}
-	if got := Wrap(errors.New(cloudEditParent400), "", db); strings.Contains(got.Error(), "hint:") {
+	// The Linear adapter refuses parent locally; its sentence names the field,
+	// but it is a capability refusal, not an origin parent rejection (GDK-819).
+	linear := fmt.Errorf(`linear: field "parent" is not supported on create`)
+	if got := Wrap(linear, "NMB-1", db); got.Error() != linear.Error() {
+		t.Fatalf("linear parent refusal was decorated: %q", got)
+	}
+	if got := Wrap(editParent400(), "", db); strings.Contains(got.Error(), "hint:") {
 		t.Fatalf("hint attached with no parent key: %q", got)
 	}
 	if got := Wrap(nil, "NMB-1", db); got != nil {
 		t.Fatalf("nil error became %v", got)
 	}
-	if got := Wrap(errors.New(cloudEditParent400), "NMB-1", nil); strings.Contains(got.Error(), "hint:") {
+	if got := Wrap(editParent400(), "NMB-1", nil); strings.Contains(got.Error(), "hint:") {
 		t.Fatalf("nil querier attached a hint: %q", got)
 	}
 }

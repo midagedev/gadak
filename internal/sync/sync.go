@@ -21,6 +21,7 @@ import (
 	"github.com/midagedev/gadak/internal/jirafields"
 	"github.com/midagedev/gadak/internal/linear"
 	"github.com/midagedev/gadak/internal/origin"
+	"github.com/midagedev/gadak/internal/statuscat"
 	"github.com/midagedev/gadak/internal/store"
 )
 
@@ -250,7 +251,7 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 			// itself, and a missing category can only lose a reopen.
 			if id := iss.Fields.Status.ID; id != "" {
 				if _, ok := cats[id]; !ok {
-					cats[id] = jira.Category(iss.Fields.Status.StatusCategory.Key)
+					cats[id] = statuscat.Category(iss.Fields.Status.StatusCategory.Key)
 				}
 			}
 			r, err := build(ctx, c, cfg, iss, sprintFieldID)
@@ -775,7 +776,7 @@ func build(ctx context.Context, c *jira.Client, cfg *config.Config, iss jira.Iss
 		IssueTypeID:     f.IssueType.ID,
 		Status:          f.Status.Name,
 		StatusID:        f.Status.ID,
-		StatusCategory:  jira.Category(f.Status.StatusCategory.Key),
+		StatusCategory:  statuscat.Category(f.Status.StatusCategory.Key),
 		Labels:          f.Labels,
 		Components:      names(f.Components),
 		FixVersions:     names(f.FixVersions),

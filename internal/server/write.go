@@ -22,6 +22,7 @@ import (
 	"github.com/midagedev/gadak/internal/linear"
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/parenthint"
+	"github.com/midagedev/gadak/internal/statuscat"
 	"github.com/midagedev/gadak/internal/store"
 	"github.com/midagedev/gadak/internal/sync"
 	"github.com/midagedev/gadak/internal/transition"
@@ -246,10 +247,10 @@ func (s *server) keyWriter(w http.ResponseWriter, r *http.Request, key string) (
 
 // createWriter is writerFor routed the way CLI withCreateSession is: a
 // project the mirror already knows as Linear goes there; a Linear-only
-// workspace (no Atlassian credential) always routes to Linear. Copy of
-// cmd/gadak resolveCreateSource — that file is owned by a parallel round.
+// workspace (no Atlassian credential) always routes to Linear. The routing
+// rule itself is origin.ResolveCreateSource, shared with the CLI (GDK-820).
 func (s *server) createWriter(w http.ResponseWriter, r *http.Request, project string) (origin.Writer, *config.Config, string, bool) {
-	src, err := s.resolveCreateSource(r.Context(), s.config(), project)
+	src, err := origin.ResolveCreateSource(r.Context(), s.config(), s.db, project)
 	if err != nil {
 		if errors.Is(err, store.ErrKeyAmbiguous) {
 			writeJSON(w, http.StatusConflict, map[string]string{
@@ -263,26 +264,6 @@ func (s *server) createWriter(w http.ResponseWriter, r *http.Request, project st
 	}
 	c, cfg, ok := s.writerFor(w, src)
 	return c, cfg, src, ok
-}
-
-// resolveCreateSource picks the origin create files to. A project the
-// mirror already knows as Linear routes there (same idea as KeySource).
-// A Linear-only workspace (no Atlassian credential) always routes to
-// Linear, even before the first team is mirrored.
-func (s *server) resolveCreateSource(ctx context.Context, cfg *config.Config, project string) (string, error) {
-	if proj := strings.TrimSpace(project); proj != "" && s.db != nil {
-		src, err := s.db.ProjectSource(ctx, proj)
-		if err != nil {
-			return "", err
-		}
-		if src == "linear" {
-			return "linear", nil
-		}
-	}
-	if cfg.HasLinearCredential() && !cfg.HasAtlassianCredential() {
-		return "linear", nil
-	}
-	return "", nil
 }
 
 // writeOriginLabel is the source id the write actually used. Empty is
@@ -573,7 +554,7 @@ func (s *server) handleTransitions(w http.ResponseWriter, r *http.Request) {
 			// The mapped token (new|inprogress|done) the write resolver
 			// accepts — not Jira's raw key, which includes "indeterminate"
 			// and would be rejected on the round trip (GDK-564).
-			ToCategory: jira.Category(t.To.StatusCategory.Key),
+			ToCategory: statuscat.Category(t.To.StatusCategory.Key),
 			Fields:     requiredTransitionFields(t.Fields),
 		})
 	}

@@ -418,7 +418,7 @@ func TestTransitionRejectsMaliciousTarget(t *testing.T) {
 }
 
 func TestTransitionEmptyOrUnknownCategoryKeyDoesNotMatchNew(t *testing.T) {
-	// jira.Category("") and Category("undefined") both fold to "new". Matching
+	// statuscat.Category("") and Category("undefined") both fold to "new". Matching
 	// that fold would move the issue on damaged payloads.
 	f := withTransitions(t, `{"transitions":[
 		{"id":"11","name":"Triage","to":{"id":"1","name":"해야 할 일","statusCategory":{"key":""}}},

@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/midagedev/gadak/internal/calendar"
-	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/statuscat"
 )
 
 // Parse turns a JQL string or a Jira navigator URL into a Filter. Unsupported
@@ -448,7 +448,7 @@ func mapStatusCategory(raw string) (string, bool) {
 	case "3":
 		return "done", true
 	}
-	return jira.KnownCategory(s)
+	return statuscat.KnownCategory(s)
 }
 
 func (c *compiler) compileAssignee(cl *clause) {

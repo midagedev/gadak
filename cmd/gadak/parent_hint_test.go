@@ -9,18 +9,36 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/store"
 )
 
-// The two error strings below are what a real Jira Cloud site answered on
-// 2026-08-21 for the same illegal parent, one per verb. They are verbatim on
-// purpose: the field key is the only stable part (the sentence is localized
-// per account), and GDK-525 existed because the create path tested for
-// "parent" — a substring the edit answer does not contain.
-const (
-	cloudCreateParent400 = `POST /rest/api/3/issue: jira: 400: parent: 유효한 상위 업무를 선택하세요.; parentId: 유효한 상위 업무를 선택하세요.`
-	cloudEditParent400   = `PUT /rest/api/3/issue/NMB-2: jira: 400: pid: 이 이슈 유형의 이슈는 상위 이슈와 같은 프로젝트에 만들어야 합니다.`
-)
+// The two errors below are what a real Jira Cloud site answered on
+// 2026-08-21 for the same illegal parent, one per verb — rebuilt as the
+// *jira.APIError the client actually returns (wrapped with the method and
+// path, the way jira.write does). The sentences are verbatim on purpose,
+// but only the Errors keys are load-bearing: the sentence is localized per
+// account, and GDK-525 existed because the create path tested for "parent"
+// — a substring the edit answer does not contain. GDK-819 moved detection
+// onto the typed keys; these fixtures keep the CLI wording contract tests.
+func createParent400() error {
+	return fmt.Errorf("POST /rest/api/3/issue: %w", &jira.APIError{
+		Status: 400,
+		Errors: map[string]string{
+			"parent":   "유효한 상위 업무를 선택하세요.",
+			"parentId": "유효한 상위 업무를 선택하세요.",
+		},
+	})
+}
+
+func editParent400() error {
+	return fmt.Errorf("PUT /rest/api/3/issue/NMB-2: %w", &jira.APIError{
+		Status: 400,
+		Errors: map[string]string{
+			"pid": "이 이슈 유형의 이슈는 상위 이슈와 같은 프로젝트에 만들어야 합니다.",
+		},
+	})
+}
 
 func TestParentRejectionKnowsBothVerbShapes(t *testing.T) {
 	cases := []struct {
@@ -28,13 +46,17 @@ func TestParentRejectionKnowsBothVerbShapes(t *testing.T) {
 		err  error
 		want bool
 	}{
-		{"create shape", errors.New(cloudCreateParent400), true},
-		{"edit shape", errors.New(cloudEditParent400), true},
+		{"create shape", createParent400(), true},
+		{"edit shape", editParent400(), true},
 		{"nil", nil, false},
-		{"unrelated 400", errors.New(`PUT /rest/api/3/issue/NMB-2: jira: 400: summary: You must specify a summary.`), false},
-		// "pid" is only this rejection with its colon; a word that merely
-		// contains those letters must not claim the hint.
-		{"word containing pid", errors.New(`GET /rest/api/3/issue/NMB-2: rapid retries exhausted`), false},
+		{"unrelated 400", fmt.Errorf("PUT /rest/api/3/issue/NMB-2: %w", &jira.APIError{
+			Status: 400, Errors: map[string]string{"summary": "You must specify a summary."},
+		}), false},
+		// GDK-819: the printed sentence is not evidence. An untyped error
+		// naming the field, or a message that merely contains those letters,
+		// must not claim the hint.
+		{"word containing pid", fmt.Errorf("GET /rest/api/3/issue/NMB-2: rapid retries exhausted"), false},
+		{"linear refusal naming parent", fmt.Errorf(`linear: field "parent" is not supported on create`), false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -50,22 +72,29 @@ func TestWithParentHintAttachesForBothVerbs(t *testing.T) {
 	ctx := context.Background()
 
 	// NMB-1 is a Bug at hierarchy level 0 — it cannot parent a standard issue.
-	for _, raw := range []string{cloudCreateParent400, cloudEditParent400} {
-		got := withParentHint(ctx, errors.New(raw), "NMB-1")
+	for _, tc := range []struct {
+		name string
+		err  error
+	}{
+		{"create shape", createParent400()},
+		{"edit shape", editParent400()},
+	} {
+		got := withParentHint(ctx, tc.err, "NMB-1")
 		if !strings.Contains(got.Error(), "hint:") {
-			t.Fatalf("no hint attached to %q; got %q", raw, got)
+			t.Fatalf("no hint attached to %s; got %q", tc.name, got)
 		}
 		if !strings.Contains(got.Error(), "NMB-1") {
 			t.Fatalf("hint does not name the parent; got %q", got)
 		}
-		if !strings.Contains(got.Error(), raw) {
-			t.Fatalf("origin error was replaced instead of wrapped; got %q", got)
+		var apiErr *jira.APIError
+		if !errors.As(got, &apiErr) {
+			t.Fatalf("origin error was replaced instead of wrapped: %v", got)
 		}
 	}
 
 	// The wrap must stay unwrappable so callers can still match on the origin
 	// error rather than on our sentence.
-	base := fmt.Errorf("wrapped: %w", errors.New(cloudEditParent400))
+	base := fmt.Errorf("wrapped: %w", editParent400())
 	if wrapped := withParentHint(ctx, base, "NMB-1"); !errors.Is(wrapped, base) {
 		t.Fatalf("errors.Is lost the origin error: %v", wrapped)
 	}
@@ -75,12 +104,14 @@ func TestWithParentHintLeavesOtherErrorsAlone(t *testing.T) {
 	mirror(t, "https://nimbus.example.com")
 	ctx := context.Background()
 
-	other := errors.New(`PUT /rest/api/3/issue/NMB-2: jira: 400: summary: You must specify a summary.`)
-	if got := withParentHint(ctx, other, "NMB-1"); got.Error() != other.Error() {
+	other := fmt.Errorf("PUT /rest/api/3/issue/NMB-2: %w", &jira.APIError{
+		Status: 400, Errors: map[string]string{"summary": "You must specify a summary."},
+	})
+	if got := withParentHint(ctx, other, "NMB-1"); got != other {
 		t.Fatalf("unrelated error was decorated: %q", got)
 	}
 	// No --parent was sent, so nothing about the parent can be the cause.
-	if got := withParentHint(ctx, errors.New(cloudEditParent400), ""); strings.Contains(got.Error(), "hint:") {
+	if got := withParentHint(ctx, editParent400(), ""); strings.Contains(got.Error(), "hint:") {
 		t.Fatalf("hint attached with no parent key: %q", got)
 	}
 	if got := withParentHint(ctx, nil, "NMB-1"); got != nil {

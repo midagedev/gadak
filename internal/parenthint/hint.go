@@ -10,6 +10,13 @@
 // GDK-424 tested `parent` inline in the create path, which could never
 // have matched the edit path (GDK-525).
 //
+// Detection is typed, not textual: every Jira-family origin (connected,
+// standalone issuetap, paired) rides *jira.Client, so the 400 arrives as
+// *jira.APIError and Rejection reads its field keys. The old err.Error()
+// scan matched any sentence containing "parent" — including the Linear
+// adapter's local refusal, which is not an origin parent rejection at all
+// (GDK-819).
+//
 // The hint names CLI --parent because that wording is the existing
 // contract (GDK-330); REST appends the same sentence rather than a
 // second copy. This package does not compose HTTP status.
@@ -17,10 +24,12 @@ package parenthint
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/mattn/go-runewidth"
+	"github.com/midagedev/gadak/internal/jira"
 )
 
 // Querier is the mirror read the hint needs. *sql.DB (CLI openReadOnly)
@@ -60,14 +69,23 @@ func (h *Hinted) Unwrap() error {
 }
 
 // Rejection reports whether err is the origin refusing the parent we sent.
+// The answer is read off the typed *jira.APIError the whole Jira REST
+// family returns (connected, standalone issuetap, paired — one client),
+// never off the message text: `parent`/`parentId` answer POST /issue,
+// `pid` answers PUT /issue/{key}. The Linear adapter never reaches here
+// with a parent rejection; it refuses the field locally, and that
+// refusal's sentence is not scanned (GDK-819).
 func Rejection(err error) bool {
-	if err == nil {
+	var api *jira.APIError
+	if !errors.As(err, &api) {
 		return false
 	}
-	s := err.Error()
-	// "pid:" keeps the colon so ordinary words containing "pid" (rapid,
-	// insipid) in an unrelated message cannot claim to be this rejection.
-	return strings.Contains(s, "parent") || strings.Contains(s, "pid:")
+	for _, key := range []string{"parent", "parentId", "pid"} {
+		if _, ok := api.Errors[key]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 // Wrap appends the mirror's hierarchy answer to a parent rejection and

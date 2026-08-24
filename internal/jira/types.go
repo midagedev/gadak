@@ -189,47 +189,6 @@ func (i *Issue) UnmarshalJSON(b []byte) error {
 	return json.Unmarshal(shell.Fields, &i.Extra)
 }
 
-// KnownCategory maps a Jira statusCategory key or a gadak token onto the
-// three values data-model.md documents. Unlike Category, unknown keys are
-// not folded to "new": write resolvers refuse those so a damaged payload
-// cannot move an issue (see transitionCategory).
-func KnownCategory(key string) (string, bool) {
-	switch key {
-	case "done":
-		return "done", true
-	case "indeterminate", "inprogress":
-		return "inprogress", true
-	case "new":
-		return "new", true
-	default:
-		return "", false
-	}
-}
-
-// Category maps Jira's statusCategory key onto the three values data-model.md
-// documents. An unknown key becomes "new", which can only ever miss a reopen,
-// never invent one.
-func Category(key string) string {
-	if cat, ok := KnownCategory(key); ok {
-		return cat
-	}
-	return "new"
-}
-
-// CategoryKey is the reverse of Category: a gadak token (or a Jira key
-// Category would accept) onto Jira's REST statusCategory key. inprogress
-// becomes indeterminate, the key Cloud actually stores.
-func CategoryKey(token string) string {
-	switch Category(token) {
-	case "inprogress":
-		return "indeterminate"
-	case "done":
-		return "done"
-	default:
-		return "new"
-	}
-}
-
 // Layout is how Jira stamps timestamps: ISO-8601 with a numeric offset and no
 // colon in it, which is why time.RFC3339 does not parse them.
 const Layout = "2006-01-02T15:04:05.000-0700"

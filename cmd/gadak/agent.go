@@ -1535,7 +1535,7 @@ func withCreateSession(project string, fn func(context.Context, *config.Config, 
 	defer db.Close()
 	warnIfStale(db)
 	ctx := context.Background()
-	src, err := resolveCreateSource(ctx, cfg, db, project)
+	src, err := origin.ResolveCreateSource(ctx, cfg, db, project)
 	if err != nil {
 		return err
 	}
@@ -1544,26 +1544,6 @@ func withCreateSession(project string, fn func(context.Context, *config.Config, 
 		return origin.FoldPairedError(cfg, err)
 	}
 	return origin.FoldPairedError(cfg, fn(ctx, cfg, db, c, src))
-}
-
-// resolveCreateSource picks the origin create files to. A project the
-// mirror already knows as Linear routes there (same idea as KeySource).
-// A Linear-only workspace (no Atlassian credential) always routes to
-// Linear, even before the first team is mirrored.
-func resolveCreateSource(ctx context.Context, cfg *config.Config, db *store.DB, project string) (string, error) {
-	if proj := strings.TrimSpace(project); proj != "" && db != nil {
-		src, err := db.ProjectSource(ctx, proj)
-		if err != nil {
-			return "", err
-		}
-		if src == "linear" {
-			return "linear", nil
-		}
-	}
-	if cfg.HasLinearCredential() && !cfg.HasAtlassianCredential() {
-		return "linear", nil
-	}
-	return "", nil
 }
 
 // withKeyWriteSession is create's sibling routed per key: the mirror says

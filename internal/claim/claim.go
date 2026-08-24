@@ -20,6 +20,7 @@ import (
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/statuscat"
 	"github.com/midagedev/gadak/internal/transition"
 )
 
@@ -124,7 +125,7 @@ func cloudFallback(ctx context.Context, o Origin, cfg *config.Config, req Reques
 	if err != nil {
 		return Result{}, err
 	}
-	inProgress := jira.Category(st.StatusCategory.Key) == categoryInProgress
+	inProgress := statuscat.Category(st.StatusCategory.Key) == categoryInProgress
 	if inProgress && holder != nil && holder.AccountID != "" && holder.AccountID != me.AccountID && !req.TakeOver {
 		name := holder.DisplayName
 		if name == "" {
@@ -155,7 +156,7 @@ func cloudFallback(ctx context.Context, o Origin, cfg *config.Config, req Reques
 		Assignee:       who.DisplayName,
 		StatusID:       st.ID,
 		Status:         st.Name,
-		StatusCategory: jira.Category(st.StatusCategory.Key),
+		StatusCategory: statuscat.Category(st.StatusCategory.Key),
 		// No origin stamp exists for "when the claim happened" here —
 		// claimed_at is the atomic route's answer and stays empty on it.
 		Atomic: false,
@@ -169,7 +170,7 @@ func fromOrigin(res jira.ClaimResult, atomic bool) Result {
 		Assignee:       res.Assignee.DisplayName,
 		StatusID:       res.Status.ID,
 		Status:         res.Status.Name,
-		StatusCategory: jira.Category(res.Status.StatusCategory.Key),
+		StatusCategory: statuscat.Category(res.Status.StatusCategory.Key),
 		ClaimedAt:      res.ClaimedAt,
 		Atomic:         atomic,
 	}

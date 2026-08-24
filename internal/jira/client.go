@@ -18,6 +18,7 @@ import (
 
 	"github.com/midagedev/gadak/internal/atlhttp"
 	"github.com/midagedev/gadak/internal/httppolicy"
+	"github.com/midagedev/gadak/internal/statuscat"
 )
 
 const apiPath = "/rest/api/3"
@@ -267,7 +268,7 @@ func (c *Client) Statuses(ctx context.Context) (map[string]string, error) {
 	}
 	out := make(map[string]string, len(list))
 	for _, s := range list {
-		out[s.ID] = Category(s.StatusCategory.Key)
+		out[s.ID] = statuscat.Category(s.StatusCategory.Key)
 	}
 	return out, nil
 }

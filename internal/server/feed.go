@@ -25,7 +25,7 @@ func (s *server) handleGetFeed(w http.ResponseWriter, r *http.Request) {
 	res, err := s.db.Feed(r.Context(), store.FeedOpts{
 		Focus: focus,
 		Limit: limit,
-		Me:    s.feedIdentity(),
+		Me:    store.FeedIdentityOf(s.config()),
 	})
 	if err != nil {
 		serverError(w, r, err)
@@ -57,20 +57,11 @@ func (s *server) handleMarkFeedRead(w http.ResponseWriter, r *http.Request) {
 		EventIDs:  body.EventIDs,
 		IssueKeys: body.IssueKeys,
 		All:       body.All,
-		Me:        s.feedIdentity(),
+		Me:        store.FeedIdentityOf(s.config()),
 	})
 	if err != nil {
 		serverError(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, res)
-}
-
-func (s *server) feedIdentity() store.FeedIdentity {
-	cfg := s.config()
-	return store.FeedIdentity{
-		AccountID:   cfg.AccountID,
-		Email:       cfg.Email,
-		DisplayName: cfg.TokenOwner,
-	}
 }

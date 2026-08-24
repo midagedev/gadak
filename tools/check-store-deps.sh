@@ -1,11 +1,16 @@
 #!/usr/bin/env bash
-# Enforce the store/source firewall on a package's transitive import graph.
+# Enforce the source firewall on packages' transitive import graphs.
 #
-# Default: fail if ./internal/store depends on internal/jira, internal/atlhttp,
-# or net/http. The rule lives in docs/ARCHITECTURE.md:79 (Constitution Article 6).
+# Gated packages, each must not depend on internal/jira, internal/atlhttp,
+# or net/http:
+#   ./internal/store — the store is source-neutral; Jira-shaped types belong
+#     behind a connector (docs/ARCHITECTURE.md:79, Constitution Article 6).
+#   ./internal/jql — the package doc promises it "does not talk to Jira";
+#     the dialect (and views/dashboards behind it) must not link the REST
+#     client (GDK-686 — status-category tokens live in internal/statuscat).
 #
 # Usage:
-#   tools/check-store-deps.sh                 # gate ./internal/store
+#   tools/check-store-deps.sh                 # gate every package above
 #   tools/check-store-deps.sh --graph [pkg]   # print module + checked deps
 #
 # Exit 0 = clean (or graph printed), 1 = forbidden dep, 2 = usage error.
@@ -15,6 +20,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 MODULE="github.com/midagedev/gadak"
+GATED_PKGS=("./internal/store" "./internal/jql")
 DEFAULT_PKG="./internal/store"
 
 usage() {
@@ -81,7 +87,7 @@ check_pkg() {
     echo "FAIL: $pkg depends on forbidden packages:" >&2
     printf '  %s\n' "${bad[@]}" >&2
     echo >&2
-    echo "docs/ARCHITECTURE.md:79 — internal/store must not import internal/jira (the store is source-neutral; Jira-shaped types belong behind a connector). The same gate also refuses internal/atlhttp and net/http on this graph." >&2
+    echo "docs/ARCHITECTURE.md:79 — internal/store must not import internal/jira (the store is source-neutral; Jira-shaped types belong behind a connector). internal/jql must not either: its package doc says it does not talk to Jira, and the status-category tokens it needs live in internal/statuscat (GDK-686). The same gate refuses internal/atlhttp and net/http on both graphs." >&2
     return 1
   fi
   echo "OK: $pkg does not depend on internal/jira, internal/atlhttp, or net/http"
@@ -110,5 +116,7 @@ fi
 if [[ "$MODE" == "graph" ]]; then
   print_graph "$PKG"
 else
-  check_pkg "$PKG"
+  for pkg in "${GATED_PKGS[@]}"; do
+    check_pkg "$pkg"
+  done
 fi

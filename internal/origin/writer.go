@@ -6,9 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/store"
 )
 
 // Writer is the write surface of an origin: the verbs every origin implements
@@ -52,7 +54,7 @@ type Writer interface {
 // sync.OSNotifier.Supported: a boolean on the face that already owns the
 // verb, not a workspace-kind string.
 type VersionCatalog interface {
-	ProjectVersions(ctx context.Context, projectKey string) ([]jira.Version, error)
+	ProjectVersions(ctx context.Context, projectKey string) ([]Version, error)
 	CreatesVersionsByName() bool
 }
 
@@ -61,7 +63,7 @@ type VersionCatalog interface {
 // Linear has relations but no counterpart in this adapter yet (GDK-19):
 // AsIssueLinker returns ErrNoIssueLinks.
 type IssueLinker interface {
-	IssueLinkTypes(ctx context.Context) ([]jira.IssueLinkType, error)
+	IssueLinkTypes(ctx context.Context) ([]IssueLinkType, error)
 	LinkIssues(ctx context.Context, typeID, outwardKey, inwardKey string) error
 }
 
@@ -70,7 +72,7 @@ type IssueLinker interface {
 // cannot answer is missing the face; callers degrade, they do not block.
 // Linear: AsCreateFieldCatalog returns ErrNoCreateFields.
 type CreateFieldCatalog interface {
-	CreateFields(ctx context.Context, projectIDOrKey, issueTypeID string) ([]jira.CreateFieldMeta, error)
+	CreateFields(ctx context.Context, projectIDOrKey, issueTypeID string) ([]CreateFieldMeta, error)
 }
 
 // MediaRef resolves an attachment id to the media UUID Jira needs in an ADF
@@ -171,6 +173,30 @@ var _ VersionCatalog = (*jira.Client)(nil)
 var _ IssueLinker = (*jira.Client)(nil)
 var _ CreateFieldCatalog = (*jira.Client)(nil)
 var _ MediaRef = (*jira.Client)(nil)
+
+// ResolveCreateSource picks the origin a create files to — the create-side
+// sibling of WriterFor's per-key routing. A project the mirror already
+// knows as Linear routes there (same idea as store.KeySource; create has
+// no issue key yet, so the project key is the only routing fact); a
+// Linear-only workspace (no Atlassian credential) always routes to Linear,
+// even before the first team is mirrored. CLI withCreateSession and REST
+// createWriter both call this — one routing rule, not two copies that can
+// drift (GDK-820).
+func ResolveCreateSource(ctx context.Context, cfg *config.Config, db *store.DB, project string) (string, error) {
+	if proj := strings.TrimSpace(project); proj != "" && db != nil {
+		src, err := db.ProjectSource(ctx, proj)
+		if err != nil {
+			return "", err
+		}
+		if src == "linear" {
+			return "linear", nil
+		}
+	}
+	if cfg.HasLinearCredential() && !cfg.HasAtlassianCredential() {
+		return "linear", nil
+	}
+	return "", nil
+}
 
 // WriterFor picks the write path for one issue's source — the caller reads
 // it from the mirror (store.KeySource), because a key's shape cannot tell a

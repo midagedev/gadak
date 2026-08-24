@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/statuscat"
 )
 
 // EmitOpts controls how identity is written back (currentUser vs email/id).
@@ -202,7 +202,7 @@ func statusCategoryJiraAll(cats []string) []string {
 
 func statusCategoryJira(cat string) string {
 	mapped := strings.ToLower(cat)
-	if c, ok := jira.KnownCategory(mapped); ok {
+	if c, ok := statuscat.KnownCategory(mapped); ok {
 		mapped = c
 	}
 	switch mapped {

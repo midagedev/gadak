@@ -219,7 +219,7 @@ func cmdCreateBatch(projectFlag, typeFlag, defaultBody, defaultPriority, default
 			fieldRaws := mergeFieldRaws(defaultFields, rec.Fields)
 			w, lineSrc := c, src
 			if want := strings.TrimSpace(projectWant); want != "" {
-				if routed, rerr := resolveCreateSource(ctx, cfg, db, want); rerr != nil {
+				if routed, rerr := origin.ResolveCreateSource(ctx, cfg, db, want); rerr != nil {
 					return fmt.Errorf("line %d: %w", lineNo, rerr)
 				} else if routed != src {
 					nw, werr := origin.WriterFor(cfg, routed)

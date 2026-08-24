@@ -11,13 +11,16 @@ import (
 	"github.com/midagedev/gadak/internal/jira"
 )
 
-// TestWriterInterfaceOmitsJiraTypes is the GDK-665 vocabulary lock: origin.Writer
-// must not name internal/jira types in its signatures. Adapters produce origin
-// DTOs; jira stays the HTTP payload package.
+// TestWriterInterfaceOmitsJiraTypes is the GDK-665 vocabulary lock: no
+// interface in writer.go — Writer or the optional faces — may name
+// internal/jira types in its signatures. Adapters produce origin DTOs; jira
+// stays the HTTP payload package.
 //
-// FAIL-first on the pre-change writer.go (measured 2026-08-23): eight
-// jira. selectors on the interface (CreateMetaProject, FieldMeta, Transition,
-// CommentVisibility, Comment, User, NamedID, Attachment).
+// FAIL-first history: the original lock inspected only `type Writer
+// interface` and went green while the optional faces named jira (GDK-687,
+// measured 2026-08-24: VersionCatalog.ProjectVersions []jira.Version,
+// IssueLinker.IssueLinkTypes []jira.IssueLinkType,
+// CreateFieldCatalog.CreateFields []jira.CreateFieldMeta).
 func TestWriterInterfaceOmitsJiraTypes(t *testing.T) {
 	_, thisFile, _, ok := runtime.Caller(0)
 	if !ok {
@@ -34,12 +37,12 @@ func TestWriterInterfaceOmitsJiraTypes(t *testing.T) {
 	var hits []string
 	ast.Inspect(f, func(n ast.Node) bool {
 		ts, ok := n.(*ast.TypeSpec)
-		if !ok || ts.Name == nil || ts.Name.Name != "Writer" {
+		if !ok || ts.Name == nil {
 			return true
 		}
 		iface, ok := ts.Type.(*ast.InterfaceType)
 		if !ok || iface.Methods == nil {
-			return false
+			return true
 		}
 		for _, m := range iface.Methods.List {
 			ast.Inspect(m, func(n ast.Node) bool {
@@ -56,14 +59,14 @@ func TestWriterInterfaceOmitsJiraTypes(t *testing.T) {
 				if len(m.Names) > 0 {
 					name = m.Names[0].Name
 				}
-				hits = append(hits, filepath.Base(pos.Filename)+":"+itoa(pos.Line)+" "+name+" jira."+sel.Sel.Name)
+				hits = append(hits, filepath.Base(pos.Filename)+":"+itoa(pos.Line)+" "+ts.Name.Name+"."+name+" jira."+sel.Sel.Name)
 				return true
 			})
 		}
-		return false
+		return true
 	})
 	if len(hits) > 0 {
-		t.Fatalf("origin.Writer signatures must not name jira types:\n  %s", joinLines(hits))
+		t.Fatalf("origin interface signatures must not name jira types:\n  %s", joinLines(hits))
 	}
 }
 

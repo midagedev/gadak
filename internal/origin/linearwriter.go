@@ -12,8 +12,8 @@ import (
 
 	"github.com/midagedev/gadak/internal/adf"
 	"github.com/midagedev/gadak/internal/config"
-	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/linear"
+	"github.com/midagedev/gadak/internal/statuscat"
 )
 
 // linearWriter adapts the origin.Writer verbs onto Linear's GraphQL
@@ -373,8 +373,8 @@ func transitionFromLinearState(s linear.WorkflowState) Transition {
 	t.To.Name = s.Name
 	// Transition.To carries the Jira REST statusCategory key (new /
 	// indeterminate / done) because that is what jira.Client unmarshals
-	// and handleTransitions already runs through jira.Category.
-	t.To.StatusCategory.Key = jira.CategoryKey(cat)
+	// and handleTransitions already runs through statuscat.Category.
+	t.To.StatusCategory.Key = statuscat.CategoryKey(cat)
 	return t
 }
 

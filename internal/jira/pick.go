@@ -9,6 +9,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/midagedev/gadak/internal/statuscat"
 )
 
 // PickTransition resolves want against the issue's available transitions.
@@ -93,7 +95,7 @@ func StatusCategoryToken(s string) (string, bool) {
 // three documented tokens. Empty and unknown keys are refused: Category
 // folds those to "new", which would move the issue on a damaged payload.
 func transitionCategory(t Transition) (string, bool) {
-	return KnownCategory(t.To.StatusCategory.Key)
+	return statuscat.KnownCategory(t.To.StatusCategory.Key)
 }
 
 func FormatTransition(t Transition) string {

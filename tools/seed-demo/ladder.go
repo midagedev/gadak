@@ -1,12 +1,12 @@
 package main
 
-import "github.com/midagedev/gadak/internal/jira"
+import "github.com/midagedev/gadak/internal/statuscat"
 
 // Category ladder used for multi-entry changelog history.
 // Default Jira workflows offer Backlog→Done; taking it leaves a single
 // changelog entry. Walking one rung at a time produces real history.
 // Rungs are gadak tokens (new|inprogress|done); Jira's REST key
-// "indeterminate" is folded by jira.KnownCategory.
+// "indeterminate" is folded by statuscat.KnownCategory.
 var categoryLadder = []string{"new", "inprogress", "done"}
 
 // stateCategory maps dataset state names onto gadak status_category tokens.
@@ -94,7 +94,7 @@ func PickLadderStep(currentID, currentCategory, targetID, targetCategory string,
 }
 
 func canonicalCategory(c string) string {
-	if mapped, ok := jira.KnownCategory(c); ok {
+	if mapped, ok := statuscat.KnownCategory(c); ok {
 		return mapped
 	}
 	return c

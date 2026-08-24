@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"testing"
 	"time"
+
+	"github.com/midagedev/gadak/internal/config"
 )
 
 // frozenNow is inside the 30-day window of the seeded timestamps below.
@@ -15,6 +17,20 @@ func feedMe() FeedIdentity {
 		AccountID:   "acc-me",
 		Email:       "me@example.com",
 		DisplayName: "Me User",
+	}
+}
+
+// FeedIdentityOf is the one place a credential becomes the feed identity —
+// the sync notifier and the HTTP feed handler both call it instead of each
+// restating the field mapping (GDK-820). TokenOwner is the display name.
+func TestFeedIdentityOf(t *testing.T) {
+	if got := FeedIdentityOf(nil); got != (FeedIdentity{}) {
+		t.Fatalf("FeedIdentityOf(nil) = %+v, want zero identity", got)
+	}
+	want := FeedIdentity{AccountID: "acc-me", Email: "me@example.com", DisplayName: "Me User"}
+	got := FeedIdentityOf(&config.Config{AccountID: "acc-me", Email: "me@example.com", TokenOwner: "Me User"})
+	if got != want {
+		t.Fatalf("FeedIdentityOf = %+v, want %+v", got, want)
 	}
 }
 

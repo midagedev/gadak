@@ -6,51 +6,21 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/midagedev/gadak/internal/adf"
 )
 
 // pageExcerptRunes is the max length of pages.excerpt (rune-safe for CJK).
 const pageExcerptRunes = 200
 
-// plainTextFromADF walks an Atlas Document Format JSON tree and concatenates
-// every text node. Invalid JSON yields "". No length limit — callers truncate.
-func plainTextFromADF(raw string) string {
-	if raw == "" {
-		return ""
-	}
-	var doc any
-	if json.Unmarshal([]byte(raw), &doc) != nil {
-		return ""
-	}
-	var b strings.Builder
-	var walk func(any)
-	walk = func(node any) {
-		switch v := node.(type) {
-		case []any:
-			for _, c := range v {
-				walk(c)
-			}
-		case map[string]any:
-			if kind, _ := v["type"].(string); kind == "text" {
-				if s, ok := v["text"].(string); ok {
-					b.WriteString(s)
-				}
-			}
-			walk(v["content"])
-			// Block boundaries must not fuse ("Why nowIntegrators"): a space
-			// after every container node; text leaves stay contiguous, and the
-			// whitespace normalizer collapses the extras.
-			b.WriteByte(' ')
-		}
-	}
-	walk(doc)
-	return strings.TrimSpace(b.String())
-}
-
 // pageExcerptFromADF builds the stored pages.excerpt value: ADF plain text,
 // whitespace collapsed to single spaces, at most pageExcerptRunes runes, cut at
 // a word boundary when one exists in the window (CJK has no spaces — rune cut).
+// Flattening is adf.PlainText — the same walker FTS indexes (GDK-814 closed a
+// guard-less local copy that dropped wiki-markup string bodies and mention
+// labels from excerpts while FTS kept them).
 func pageExcerptFromADF(raw string) string {
-	return pageExcerptFromPlain(plainTextFromADF(raw))
+	return pageExcerptFromPlain(adf.PlainText(json.RawMessage(raw)))
 }
 
 // pageExcerptFromPlain applies the same normalize + truncate rules to already-

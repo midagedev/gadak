@@ -24,4 +24,7 @@ type (
 	Comment             = jira.Comment
 	CommentVisibility   = jira.CommentVisibility
 	Attachment          = jira.Attachment
+	Version             = jira.Version
+	IssueLinkType       = jira.IssueLinkType
+	CreateFieldMeta     = jira.CreateFieldMeta
 )

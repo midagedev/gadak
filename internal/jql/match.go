@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/midagedev/gadak/internal/calendar"
-	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/statuscat"
 )
 
 // Match reports whether an issue satisfies the Filter. Semantics match the
@@ -117,7 +117,7 @@ func MatchIn(it Issue, f Filter, z calendar.Zone) bool {
 
 func effectiveCategory(sc string) string {
 	s := strings.ToLower(strings.TrimSpace(sc))
-	if cat, ok := jira.KnownCategory(s); ok {
+	if cat, ok := statuscat.KnownCategory(s); ok {
 		return cat
 	}
 	return s

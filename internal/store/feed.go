@@ -10,6 +10,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/midagedev/gadak/internal/adf"
 	"github.com/midagedev/gadak/internal/config"
 )
 
@@ -40,6 +41,22 @@ type FeedIdentity struct {
 	AccountID   string
 	Email       string
 	DisplayName string // TokenOwner / display name for author matching
+}
+
+// FeedIdentityOf maps the configured credential onto the feed identity.
+// The sync notifier and the HTTP feed handler both build this — one owner,
+// not two copies that can drift when the credential shape grows (GDK-820).
+// A nil config reads as the zero identity, which the notifier's degraded
+// path already treats as "no focus".
+func FeedIdentityOf(cfg *config.Config) FeedIdentity {
+	if cfg == nil {
+		return FeedIdentity{}
+	}
+	return FeedIdentity{
+		AccountID:   cfg.AccountID,
+		Email:       cfg.Email,
+		DisplayName: cfg.TokenOwner,
+	}
 }
 
 // FeedOpts configures a personal-feed query.
@@ -664,10 +681,10 @@ func walkMentions(node any, accountID string) bool {
 }
 
 // plainExcerptFromADF is a last-resort excerpt when body_text is empty.
-// Full flattened text; callers apply truncateRunes. Shared ADF walker lives in
-// excerpt.go (pageExcerptFromADF uses the same extraction).
+// Full flattened text; callers apply truncateRunes. The flattener is
+// adf.PlainText — the same walker FTS and pages.excerpt use (GDK-814).
 func plainExcerptFromADF(raw string) string {
-	return plainTextFromADF(raw)
+	return adf.PlainText(json.RawMessage(raw))
 }
 
 func truncateRunes(s string, n int) string {

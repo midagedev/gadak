@@ -9,6 +9,7 @@ import (
 	"github.com/midagedev/gadak/internal/confluence"
 	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/origin"
+	"github.com/midagedev/gadak/internal/statuscat"
 	"github.com/midagedev/gadak/internal/store"
 )
 
@@ -80,7 +81,7 @@ func SyncIssue(ctx context.Context, cfg *config.Config, db *store.DB, key string
 		for _, iss := range issues {
 			if id := iss.Fields.Status.ID; id != "" {
 				if _, ok := cats[id]; !ok {
-					cats[id] = jira.Category(iss.Fields.Status.StatusCategory.Key)
+					cats[id] = statuscat.Category(iss.Fields.Status.StatusCategory.Key)
 				}
 			}
 			r, err := build(ctx, c, cfg, iss, sprintFieldID)

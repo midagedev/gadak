@@ -10,9 +10,9 @@ package linear
 // This is the single owner of the Linear type→category collapse (GDK-665).
 // The read path (internal/sync) and the write path (origin.linearWriter)
 // both call it. The write path then maps the gadak token through
-// jira.CategoryKey onto the Jira REST statusCategory key that
+// statuscat.CategoryKey onto the Jira REST statusCategory key that
 // origin.Transition.To carries, because that is the shape jira.Client
-// unmarshals and the HTTP handler already runs through jira.Category.
+// unmarshals and the HTTP handler already runs through statuscat.Category.
 func StatusCategory(stateType string) (cat string, ok bool) {
 	switch stateType {
 	case "started":
