@@ -8,10 +8,15 @@
    * Toast host (write). Bottom-right stack over write.toasts.
    *  Each kind carries a registry glyph so success and error stay
    *  distinguishable when the done/reopen tokens collapse under
-   *  deuteranopia. Click dismisses immediately.
+   *  deuteranopia. Click dismisses immediately; Esc dismisses the
+   *  top toast and spends the key there (GDK-829), so the surface
+   *  underneath keeps its own Esc.
    */
+  import { onMount } from 'svelte'
   import { write, type ToastKind } from '../../stores/write.svelte'
+  import { mediaViewer } from '../../stores/media-viewer.svelte'
   import { openIssueOrigin } from '../../lib/desktop-links'
+  import { isEditableTarget } from '../../lib/keymap.svelte'
   import Icon, { type IconName } from '../ui/Icon.svelte'
 
   const TOAST_ICON: Record<ToastKind, IconName> = {
@@ -26,6 +31,29 @@
     return () => {
       if (toastHostSlot.el === hostEl) toastHostSlot.el = null
     }
+  })
+
+  // Capture, and stopPropagation, for the same reasons MediaViewer does (it
+  // mounts after App's keymap, this host after App's window template): the
+  // dialogs' <svelte:window> Esc handlers do not check defaultPrevented, so
+  // only stopping the event keeps one Esc from closing a toast *and* the
+  // dialog under it. Declines: an already-spent key, an Esc typed into a
+  // field (the keymap's own convention), the media viewer (z-70 sits above
+  // this stack and registers its capture listener later), and an empty
+  // stack — then the Esc flows through the existing chain untouched.
+  onMount(() => {
+    function onWin(e: KeyboardEvent) {
+      if (e.key !== 'Escape' || e.defaultPrevented) return
+      if (isEditableTarget(e.target)) return
+      if (mediaViewer.attachment) return
+      const top = write.toasts[write.toasts.length - 1]
+      if (!top) return
+      e.preventDefault()
+      e.stopPropagation()
+      write.dismissToast(top.id)
+    }
+    window.addEventListener('keydown', onWin, true)
+    return () => window.removeEventListener('keydown', onWin, true)
   })
 </script>
 

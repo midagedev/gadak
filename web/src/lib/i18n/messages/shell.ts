@@ -68,10 +68,12 @@ export const shell = {
     ko: '문서를 가져오지 못했습니다',
     ja: 'ドキュメントを取得できませんでした',
   },
+  // GDK-831: same recovery as the locked need-credentials family, so the same
+  // noun — credentials/자격증명/資格情報, never the secret's wire name.
   'sidebar.docsFetchFailedHint': {
-    en: 'Check the spaces and your token in Sources.',
-    ko: '소스 설정에서 스페이스와 토큰을 확인하세요.',
-    ja: 'ソースでスペースとトークンを確認してください。',
+    en: 'Check the spaces and your credentials in Sources.',
+    ko: '소스 설정에서 스페이스와 자격증명을 확인하세요.',
+    ja: 'ソースでスペースと資格情報を確認してください。',
   },
   'sidebar.docsEmptySpaces': {
     en: 'No documents in these spaces',

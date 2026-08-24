@@ -6,9 +6,11 @@ import type { Message } from '../types'
 
 export const fields = {
   /* ── Fields (filter / form labels) ── */
+  // GDK-831: 분류 is the team-grouping word (settings.featureTeams); the
+  // status axis is 카테고리, matching en Category / ja カテゴリ.
   'field.status_category': {
     en: 'Category',
-    ko: '분류',
+    ko: '카테고리',
     ja: 'カテゴリ',
   },
   'field.status': {

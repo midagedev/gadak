@@ -592,10 +592,13 @@ export const settings = {
     ko: '설치 상태를 읽는 중…',
     ja: 'インストール状況を読み取り中…',
   },
+  // GDK-828: the route lives on the desktop app's mux — reaching this error
+  // means the app side is older or broken (IntegrationsTab.load), so the
+  // next action names the app, not just the retry.
   'settings.integrationsLoadFailed': {
-    en: 'Could not read the integration list from the app.',
-    ko: '앱에서 연동 목록을 읽지 못했습니다.',
-    ja: 'アプリから連携一覧を読めませんでした。',
+    en: 'Could not read the integration list from the app. Try again, or check the desktop app.',
+    ko: '앱에서 연동 목록을 읽지 못했습니다. 다시 시도하거나 데스크톱 앱을 확인하세요.',
+    ja: 'アプリから連携一覧を読めませんでした。再試行するか、デスクトップアプリを確認してください。',
   },
   'settings.integrationsEmpty': {
     en: 'This build offers no integrations.',
@@ -683,9 +686,9 @@ export const settings = {
     ja: 'このアプリはその連携を知りません。',
   },
   'settings.integrationStartFailed': {
-    en: 'Could not start the install.',
-    ko: '설치를 시작하지 못했습니다.',
-    ja: 'インストールを開始できませんでした。',
+    en: 'Could not start the install. Try again.',
+    ko: '설치를 시작하지 못했습니다. 다시 시도하세요.',
+    ja: 'インストールを開始できませんでした。再試行してください。',
   },
   'settings.integrationNoExit': {
     en: 'The output stopped before the command reported a status, so whether it worked is unknown. Re-check to ask again.',

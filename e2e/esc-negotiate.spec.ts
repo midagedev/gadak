@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test'
 import { appConsoleErrors, attachConsoleErrors, forceLocale, gotoApp } from './helpers'
+import { en } from '../web/src/lib/i18n/en'
 
 /*
  * GDK-604: one Esc closes only the topmost surface.
@@ -98,6 +99,67 @@ test.describe('Esc negotiation (GDK-604)', () => {
     await page.keyboard.press('Escape')
     await expect(bar).toBeHidden()
     await expect(person).toBeVisible()
+
+    expect(appConsoleErrors(errors), `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  test('one Esc dismisses the top toast and leaves the column view open', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    // GDK-829: a toast is a surface too. The cheapest deterministic toast in
+    // the demo app is docs.spec's page-comment 409 — the refused POST toasts
+    // the catalog sentence instead of the wire error.
+    await page.route('**/api/v1/issues/pages/*/comment/', async (route) => {
+      if (route.request().method() !== 'POST') return route.continue()
+      await route.fulfill({
+        status: 409,
+        contentType: 'application/json',
+        json: { error: 'credential_required' },
+      })
+    })
+    await gotoApp(page)
+    await page.getByTestId('docs-documents').click()
+    await expect(page.getByTestId('docs-view')).toBeVisible()
+    // The default tab is Viewed, which a fresh profile has none of — Updated
+    // lists the mirrored pages, so the row to open is always there.
+    await page.locator('[data-testid="docs-tab"][data-tab="updated"]').click()
+    await page.getByTestId('doc-row').first().click()
+    const panel = page.getByTestId('doc-panel')
+    await expect(panel.getByTestId('doc-comment-composer')).toBeVisible()
+    await panel.getByTestId('doc-comment-composer').fill('wt-e2e esc toast')
+    await panel.getByTestId('doc-comment-submit').click()
+
+    const toast = page.getByTestId('toast')
+    await expect(toast).toBeVisible()
+    await expect(toast).toContainText(en['write.needToken'])
+    // Focus may rest on the submit button; either way the next Esc must be
+    // the toast's, not the field's or the panel's.
+    await page.evaluate(() => {
+      const active = document.activeElement
+      if (active instanceof HTMLElement) active.blur()
+    })
+
+    await page.keyboard.press('Escape')
+    await expect(toast).toHaveCount(0)
+    await expect(panel).toBeVisible()
+    await expect(page.getByTestId('docs-view')).toBeVisible()
+
+    // The refused POST leaves the draft in the composer, and an unfocused
+    // non-empty draft spends an Esc of its own (GDK-462) — clear it (and
+    // drop the focus fill() left there) so the next Escs walk the real
+    // chain this test pins: panel first, then the column view.
+    await panel.getByTestId('doc-comment-composer').fill('')
+    await page.evaluate(() => {
+      const active = document.activeElement
+      if (active instanceof HTMLElement) active.blur()
+    })
+    await page.keyboard.press('Escape')
+    await expect(page.getByTestId('doc-panel')).toHaveCount(0)
+    await expect(page.getByTestId('docs-view')).toBeVisible()
+
+    await page.keyboard.press('Escape')
+    await expect(page.getByTestId('docs-view')).toHaveCount(0)
+    await expect(page.getByTestId('issue-list-scroller')).toBeVisible()
+    expect(await lastKeyCmd(page)).toBe('close-docs')
 
     expect(appConsoleErrors(errors), `console errors:\n${errors.join('\n')}`).toEqual([])
   })

@@ -62,9 +62,9 @@ export const write = {
     ja: '課題を作成できませんでした。再試行してください。',
   },
   'write.metaFailed': {
-    en: 'Could not load create metadata.',
-    ko: '생성 메타를 불러오지 못했습니다.',
-    ja: '作成メタデータを読み込めませんでした。',
+    en: 'Could not load create metadata. Check the connection and try again.',
+    ko: '생성 메타를 불러오지 못했습니다. 연결을 확인한 뒤 다시 시도하세요.',
+    ja: '作成メタデータを読み込めませんでした。接続を確認して再試行してください。',
   },
   'write.issueCreated': {
     en: 'Created {key}.',
@@ -102,25 +102,35 @@ export const write = {
     ko: '변경은 Jira에 저장됐지만 로컬 사본을 갱신하지 못했습니다. 다시 시도하지 마세요.',
     ja: '変更は Jira に保存されましたが、ローカルコピーを更新できませんでした。再試行しないでください。',
   },
+  // GDK-828: the CLI sibling carries the recovery ("check the key, or run
+  // `gadak sync`" — cmd/gadak/agent.go); the web write path owes the same
+  // next action, in the web's own verb (the freshness chip's sync).
   'write.notFound': {
-    en: 'That issue was not found.',
-    ko: '이슈를 찾을 수 없습니다.',
-    ja: 'その課題は見つかりませんでした。',
+    en: 'That issue was not found. Check the key, or sync now.',
+    ko: '이슈를 찾을 수 없습니다. 키를 확인하거나 지금 동기화하세요.',
+    ja: 'その課題は見つかりませんでした。キーを確認するか、今すぐ同期してください。',
   },
   'write.summaryTooLong': {
     en: 'Title cannot be longer than 255 characters.',
     ko: '제목은 255자를 넘을 수 없습니다.',
     ja: 'タイトルは 255 文字を超えられません。',
   },
+  // GDK-828: the create dialog refuses a project the mirror does not carry
+  // (write.go: project_not_mirrored) — the recovery is another project, or
+  // widening the mirror in the Sources tab.
   'write.projectNotMirrored': {
-    en: 'That project is not in this mirror.',
-    ko: '이 미러에 없는 프로젝트입니다.',
-    ja: 'そのプロジェクトはこのミラーにありません。',
+    en: 'That project is not in this mirror. Pick a mirrored project, or add it in Settings → Sources.',
+    ko: '이 미러에 없는 프로젝트입니다. 미러된 프로젝트를 고르거나 설정 → 소스에서 추가하세요.',
+    ja: 'そのプロジェクトはこのミラーにありません。ミラー済みのプロジェクトを選ぶか、設定 → ソースで追加してください。',
   },
+  // GDK-828: editmeta decides per issue (write.go: field_not_editable fires
+  // when the field is absent from this issue's editmeta), so the sentence
+  // scopes the refusal to this issue and points at the surfaces that still
+  // can change it.
   'write.fieldNotEditable': {
-    en: 'That field cannot be edited.',
-    ko: '그 필드는 편집할 수 없습니다.',
-    ja: 'そのフィールドは編集できません。',
+    en: 'That field cannot be edited on this issue. Try another field, or change it in Jira.',
+    ko: '이 이슈에서 그 필드는 편집할 수 없습니다. 다른 필드를 쓰거나 Jira에서 변경하세요.',
+    ja: 'この課題ではそのフィールドを編集できません。別のフィールドを使うか、Jira で変更してください。',
   },
   'write.siteRequired': {
     en: 'Set the Jira site in settings first.',
@@ -138,14 +148,14 @@ export const write = {
     ja: '担当者を変更できませんでした。再試行してください。',
   },
   'write.priorityFailed': {
-    en: 'Could not change priority.',
-    ko: '우선순위 변경에 실패했습니다.',
-    ja: '優先度を変更できませんでした。',
+    en: 'Could not change priority. Try again.',
+    ko: '우선순위 변경에 실패했습니다. 다시 시도하세요.',
+    ja: '優先度を変更できませんでした。再試行してください。',
   },
   'write.prioritiesFailed': {
-    en: 'Could not load priorities.',
-    ko: '우선순위를 불러오지 못했습니다.',
-    ja: '優先度を読み込めませんでした。',
+    en: 'Could not load priorities. Check the connection and try again.',
+    ko: '우선순위를 불러오지 못했습니다. 연결을 확인한 뒤 다시 시도하세요.',
+    ja: '優先度を読み込めませんでした。接続を確認して再試行してください。',
   },
   'write.changePriority': {
     en: 'Change priority',
@@ -158,9 +168,9 @@ export const write = {
     ja: 'このサイトに優先度はありません。',
   },
   'write.summaryFailed': {
-    en: 'Could not rename issue.',
-    ko: '제목 변경에 실패했습니다.',
-    ja: '課題のタイトルを変更できませんでした。',
+    en: 'Could not rename issue. Try again.',
+    ko: '제목 변경에 실패했습니다. 다시 시도하세요.',
+    ja: '課題のタイトルを変更できませんでした。再試行してください。',
   },
   'write.editTitle': {
     en: 'Edit title',
@@ -173,9 +183,9 @@ export const write = {
     ja: '説明を編集',
   },
   'write.descriptionFailed': {
-    en: 'Could not update description.',
-    ko: '설명 변경에 실패했습니다.',
-    ja: '説明を更新できませんでした。',
+    en: 'Could not update description. Try again.',
+    ko: '설명 변경에 실패했습니다. 다시 시도하세요.',
+    ja: '説明を更新できませんでした。再試行してください。',
   },
   'write.descriptionFormatWarn': {
     en: 'Saving will remove formatting and embeds.',
@@ -193,9 +203,9 @@ export const write = {
     ja: 'タイトルを空にはできません。',
   },
   'write.labelsFailed': {
-    en: 'Could not update labels.',
-    ko: '라벨 변경에 실패했습니다.',
-    ja: 'ラベルを更新できませんでした。',
+    en: 'Could not update labels. Try again.',
+    ko: '라벨 변경에 실패했습니다. 다시 시도하세요.',
+    ja: 'ラベルを更新できませんでした。再試行してください。',
   },
   'write.addLabel': {
     en: 'Add a label',
@@ -213,14 +223,14 @@ export const write = {
     ja: '{label} を削除',
   },
   'write.editMetaFailed': {
-    en: 'Could not load editable fields.',
-    ko: '편집 항목을 불러오지 못했습니다.',
-    ja: '編集可能なフィールドを読み込めませんでした。',
+    en: 'Could not load editable fields. Check the connection and try again.',
+    ko: '편집 항목을 불러오지 못했습니다. 연결을 확인한 뒤 다시 시도하세요.',
+    ja: '編集可能なフィールドを読み込めませんでした。接続を確認して再試行してください。',
   },
   'write.fieldFailed': {
-    en: 'Could not update field.',
-    ko: '필드 변경에 실패했습니다.',
-    ja: 'フィールドを更新できませんでした。',
+    en: 'Could not update field. Try again.',
+    ko: '필드 변경에 실패했습니다. 다시 시도하세요.',
+    ja: 'フィールドを更新できませんでした。再試行してください。',
   },
   'write.commentFailed': {
     en: 'Could not post comment. Try again.',

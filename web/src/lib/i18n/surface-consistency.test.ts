@@ -156,6 +156,9 @@ const NEED_CREDENTIAL_KEYS = [
   // GDK-731: the write-gate recovery used "token" on two surfaces.
   'write.needToken',
   'sidebar.jiraCredsMissing',
+  // GDK-831: the docs-fetch recovery is the same credentials check, and the
+  // hint predated the lock — it still said token/토큰/トークン.
+  'sidebar.docsFetchFailedHint',
 ] as const
 
 describe('GDK-651 palette registers sibling views and cursor issue actions', () => {

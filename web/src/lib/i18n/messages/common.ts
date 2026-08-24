@@ -188,10 +188,13 @@ export const common = {
     ko: '심각도',
     ja: '重大度',
   },
+  // GDK-831: one label for the issue-type field. JA keeps 課題タイプ (the
+  // catalog's 課題 canon — write.issueTypeRequired already uses it); this key
+  // labels the same field in the create dialog and the type column.
   'common.type': {
     en: 'Type',
     ko: '유형',
-    ja: 'タイプ',
+    ja: '課題タイプ',
   },
   'common.epic': {
     en: 'Epic',

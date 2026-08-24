@@ -304,9 +304,9 @@ export const detail = {
     ja: 'このドキュメントは見つかりませんでした。削除された可能性があります。',
   },
   'doc.loadFailed': {
-    en: 'Could not load this document.',
-    ko: '문서를 불러오지 못했습니다.',
-    ja: 'このドキュメントを読み込めませんでした。',
+    en: 'Could not load this document. Try again.',
+    ko: '문서를 불러오지 못했습니다. 다시 시도하세요.',
+    ja: 'このドキュメントを読み込めませんでした。再試行してください。',
   },
   'doc.issues': {
     en: 'Issues',
