@@ -7,7 +7,6 @@
    * the question really is "what lives under what". The sidebar carries neither
    * — it must not grow with content volume.
    */
-  import { untrack } from 'svelte'
   import Icon from '../ui/Icon.svelte'
   import Marks from '../ui/Marks.svelte'
   import { t, formatNumber } from '../../lib/i18n'
@@ -58,36 +57,44 @@
   /** Tree mode lives in the store because the URL restores it (`dview=tree`)
    *  and this component is remounted per space. */
   const treeMode = $derived(pages.spaceTree)
-  /** Expanded page nodes, by key. */
-  let openDocs = $state(new Set<string>())
+
+  /**
+   * Expansion as overrides, not an absolute set (GDK-817).
+   *
+   * The default is structural — roots open, deeper levels shut — and a
+   * person's clicks are recorded as deltas against it. An absolute set had
+   * to be reconciled with every new index (`pages.reload` swaps the array
+   * after each sync), and the reconciler, an effect re-adding "missing"
+   * roots, is what re-opened every root that had been collapsed. Against
+   * the defaults a reload needs no reconciliation: roots are open by
+   * construction, a collapsed root is an override that still says so, and a
+   * brand-new root from the sync arrives open — the same welcome the first
+   * render gave its siblings. Keys from another space are inert: nothing
+   * default mentions them and toggles are only written while this space is
+   * up. The `{#key}` below makes each arrival (space, or tree mode back on)
+   * start from the defaults again.
+   */
+  let overrides = $state(new Map<string, boolean>())
+
+  /** What the tree draws as expanded: the defaults, plus this visit's toggles. */
+  const expandedKeys = $derived.by(() => {
+    const open = new Set<string>()
+    for (const root of tree?.roots ?? []) open.add(root.page.key)
+    for (const [key, expanded] of overrides) {
+      if (expanded) open.add(key)
+      else open.delete(key)
+    }
+    return open
+  })
 
   function toggleDoc(key: string) {
-    const next = new Set(openDocs)
-    if (!next.delete(key)) next.add(key)
-    openDocs = next
+    overrides = new Map(overrides).set(key, !expandedKeys.has(key))
   }
-
-  /** A space normally has one root page, so opening onto a single collapsed row
-   *  reads as a broken toggle. Roots open with the tree; deeper levels stay shut.
-   *  An effect rather than a click handler: the tree is also entered from a
-   *  restored URL, which never passes through the toggle. */
-  $effect(() => {
-    if (!treeMode) return
-    const roots = tree?.roots ?? []
-    if (!roots.length) return
-    untrack(() => {
-      const missing = roots.filter((root) => !openDocs.has(root.page.key))
-      if (!missing.length) return
-      const next = new Set(openDocs)
-      for (const root of missing) next.add(root.page.key)
-      openDocs = next
-    })
-  })
 
   /** Open a page; a parent also expands, so one click never looks inert. */
   function openDoc(node: PageNode) {
     pages.select(node.page.key)
-    if (node.children.length && !openDocs.has(node.page.key)) toggleDoc(node.page.key)
+    if (node.children.length && !expandedKeys.has(node.page.key)) toggleDoc(node.page.key)
   }
 
   /*
@@ -129,7 +136,7 @@
           continue
         }
         out.push(node)
-        if (openDocs.has(node.page.key)) walk(node.children)
+        if (expandedKeys.has(node.page.key)) walk(node.children)
       }
     }
     walk(tree?.roots ?? [])
@@ -148,7 +155,7 @@
 {#snippet docNode(node: PageNode)}
   {@const expanded = treeKeep
     ? node.children.some((child) => treeKeep.has(child.page.key))
-    : openDocs.has(node.page.key)}
+    : expandedKeys.has(node.page.key)}
   {@const selected = pages.selectedKey === node.page.key}
   <!-- While filtering, a row is either an answer or the path to one. The path
        stays legible but recedes, so "where does this live" and "what did I ask
@@ -298,22 +305,28 @@
       {/if}
     </div>
   {:else if treeMode}
-    <!-- Capped width: a hierarchy read left-to-right gains nothing from a
-         1300px column, and unbounded rows lose the parent–child alignment.
-         The cap rides on the windowed slice, where horizontal padding is safe;
-         vertical padding there would scroll with the window instead of the
-         list, so the header's rule is the top edge. -->
-    <VirtualRows
-      rows={treeRows}
-      height={() => rowMetrics().control}
-      key={(node) => node.page.key}
-      innerClass="max-w-[720px] px-3"
-      testid="space-tree-scroll"
-    >
-      {#snippet row(node)}
-        {@render docNode(node)}
-      {/snippet}
-    </VirtualRows>
+    <!-- {#key} on the arrival, not on the data: entering a space or switching
+         the tree back on starts from the defaults (roots open), while a sync
+         that swaps the index underneath keeps every override — the split the
+         GDK-817 fix is (a reload is not an arrival). -->
+    {#key space + ':' + treeMode}
+      <!-- Capped width: a hierarchy read left-to-right gains nothing from a
+           1300px column, and unbounded rows lose the parent–child alignment.
+           The cap rides on the windowed slice, where horizontal padding is safe;
+           vertical padding there would scroll with the window instead of the
+           list, so the header's rule is the top edge. -->
+      <VirtualRows
+        rows={treeRows}
+        height={() => rowMetrics().control}
+        key={(node) => node.page.key}
+        innerClass="max-w-[720px] px-3"
+        testid="space-tree-scroll"
+      >
+        {#snippet row(node)}
+          {@render docNode(node)}
+        {/snippet}
+      </VirtualRows>
+    {/key}
   {:else}
     <!-- The space is the screen, so every row would repeat it — dropped. -->
     <VirtualRows

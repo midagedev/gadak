@@ -18,6 +18,7 @@
 import * as api from '../lib/api'
 import { STORAGE_KEYS } from '../lib/storage'
 import type { PageDetail, PageLite } from '../lib/types'
+import { column } from './column.svelte'
 import { me } from './me.svelte'
 import { panel } from './panel.svelte'
 
@@ -98,15 +99,26 @@ class PagesStore {
   loaded = $state(false)
   /** Page hits from the last server search. Cleared with the query. */
   searchHits = $state<PageLite[]>([])
-  /** The tabbed document view owns the main column instead of the issue list. */
-  docsView = $state(false)
+  /** The tabbed document view owns the main column instead of the issue list.
+   *  A view onto the column union (GDK-821), not a latch of its own: one
+   *  value already decides who holds the column. */
+  get docsView(): boolean {
+    return column.is('docs')
+  }
+
   /** One space's document list owns the main column; the space key, or null. */
-  spaceView = $state<string | null>(null)
+  get spaceView(): string | null {
+    return column.keyOf('space')
+  }
+
   /**
    * History view owns the main column. Same exclusive layer as docsView /
-   * spaceView — feed still overlays without closing it.
+   * spaceView — all three are the column union now, so a fourth surface
+   * (feed, dashboard) cannot hold the column beside them.
    */
-  historyView = $state(false)
+  get historyView(): boolean {
+    return column.is('history')
+  }
   /** Which axis the document view is showing. */
   docsTab = $state<DocsTab>(loadDocsTab())
   /** Author group the By-author tab should scroll to once, set by an arrival
@@ -358,54 +370,64 @@ class PagesStore {
 
   /* ── Main-column document views (tabbed list, or one space) ── */
 
-  /** Either document surface holds the main column. */
+  /** Any of this store's screens (tabbed docs, one space, history) holds
+   *  the main column. The column union makes the membership list structural
+   *  — a screen cannot own the column while reading "not open" (GDK-815
+   *  was that hole: a getter that forgot a member). */
   get open(): boolean {
-    return this.docsView || this.spaceView !== null
+    return column.is('docs') || column.is('space') || column.is('history')
   }
 
+  /** The tabbed view takes the column. Deliberately bare: boot `docs=1` and
+   *  the URL binding restore an address, and an address has no opinion about
+   *  the tab or a narrowing — those are this browser's, kept from the last
+   *  visit the way the tab itself is. */
+  openDocs(): void {
+    column.show({ view: 'docs' })
+  }
+
+  /** Sidebar DOCS row. Toggle-off keeps the tab and any label narrowing —
+   *  the next open lands where this one left off. */
   toggleDocs(): void {
     const wasOnlyDocs = this.docsView && this.spaceView === null
-    this.spaceView = null
-    this.historyView = false
-    this.docsView = !wasOnlyDocs
+    if (wasOnlyDocs) column.show({ view: 'list' })
+    else column.show({ view: 'docs' })
   }
 
   /** A space row: its flat document list takes the column from the tabbed view. */
   openSpace(spaceKey: string): void {
-    this.docsView = false
-    this.historyView = false
-    this.spaceView = spaceKey
     // The flat list is how a page is found (UX_PRINCIPLES §6); arriving at a
-    // space is not the request for a hierarchy, so each arrival starts flat.
+    // space is not the request for a hierarchy, so each arrival starts flat —
+    // including re-arriving at the space already up (a same-view show would
+    // change nothing on its own).
     this.spaceTree = false
+    column.show({ view: 'space', key: spaceKey })
   }
 
   /**
-   * Leave every exclusive main-column surface (docs, one space, history).
-   * Call sites that mean "back to the issue list" go through here so a new
-   * surface cannot stick the way docs once did.
+   * Leave this store's screens (docs, one space, history). Call sites that
+   * mean "back to the issue list" go through here so a new surface cannot
+   * stick the way docs once did. The resets are the leaving-screen's own —
+   * they run even when another surface (feed, dashboard) holds the column,
+   * because those screens are gone either way once they release it.
    */
   closeDocs(): void {
-    this.docsView = false
-    this.spaceView = null
-    this.historyView = false
     this.focusAuthor = null
     this.spaceTree = false
     // The narrowing belongs to the screen that was left, not to the next one.
     this.docsLabel = null
+    if (this.open) column.show({ view: 'list' })
   }
 
   openHistory(): void {
-    this.docsView = false
-    this.spaceView = null
     this.spaceTree = false
     this.docsLabel = null
     this.focusAuthor = null
-    this.historyView = true
+    column.show({ view: 'history' })
   }
 
   closeHistory(): void {
-    this.historyView = false
+    if (this.historyView) column.show({ view: 'list' })
   }
 
   /** Narrow every document screen to one label, or clear it (null). */
@@ -428,9 +450,7 @@ class PagesStore {
    *  to where the answer is, since author groups run in recency order and the
    *  one that was asked for can sit well down the page. */
   openDocsByAuthor(author: string): void {
-    this.spaceView = null
-    this.historyView = false
-    this.docsView = true
+    column.show({ view: 'docs' })
     this.selectTab('author')
     this.focusAuthor = author
   }

@@ -23,6 +23,7 @@ import { config, feature } from '../lib/config'
 import { SEARCH_DEDUPE_MS, VISIT_DEBOUNCE_MS } from '../lib/history'
 import { STORAGE_KEYS } from '../lib/storage'
 import type { HistoryVisitKind } from '../lib/types'
+import { column } from './column.svelte'
 import { history } from './history.svelte'
 import { issues } from './issues.svelte'
 import { watches } from './watches.svelte'
@@ -140,10 +141,23 @@ class MeStore {
   /** The issue slice — for anything that resolves a key against the issue pool. */
   recentIssues = $derived(this.recent.filter((visit) => visit.kind === 'issue'))
 
-  /** Personal feed main-area toggle. */
-  feedOpen = $state(false)
-  /** Feed focus tab (all / assignee / reporter / mention). */
-  feedFocus = $state<FeedFocus>('all')
+  /** Personal feed main-area toggle. A view onto the column union (GDK-821):
+   *  the feed is one more full-column surface, so taking the column is what
+   *  opens it and releasing it is what closes it — no separate latch. */
+  get feedOpen(): boolean {
+    return column.is('feed')
+  }
+
+  /** Last focus the feed was opened with / switched to. Survives the feed
+   *  closing so re-opening lands on the same tab. */
+  #lastFocus: FeedFocus = 'all'
+
+  /** Feed focus tab (all / assignee / reporter / mention). While the feed
+   *  holds the column this is the union's own focus; closed, the last one. */
+  get feedFocus(): FeedFocus {
+    const v = column.view
+    return v.view === 'feed' ? v.focus : this.#lastFocus
+  }
   /** Browser Notification.permission snapshot for the settings toggle. */
   browserNotifyPermission = $state<NotificationPermission | 'unsupported'>(
     typeof Notification === 'undefined' ? 'unsupported' : Notification.permission,
@@ -433,17 +447,18 @@ class MeStore {
 
   openFeed(focus: FeedFocus = 'all'): void {
     if (!feature('feed')) return
-    this.feedFocus = focus
-    this.feedOpen = true
+    this.#lastFocus = focus
+    column.show({ view: 'feed', focus })
     void this.loadFeed(focus)
   }
 
   closeFeed(): void {
-    this.feedOpen = false
+    column.close('feed')
   }
 
   toggleFeed(): void {
-    this.feedOpen = !this.feedOpen
+    if (this.feedOpen) this.closeFeed()
+    else this.openFeed(this.#lastFocus)
   }
 
   /* ── Recent issues and documents (local + server visit) ── */

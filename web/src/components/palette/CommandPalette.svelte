@@ -39,6 +39,7 @@
     type RelevanceContext,
   } from '../../stores/filters.svelte'
   import { issues } from '../../stores/issues.svelte'
+  import { column } from '../../stores/column.svelte'
   import { me } from '../../stores/me.svelte'
   import { person } from '../../stores/person.svelte'
   import { selection } from '../../stores/selection.svelte'
@@ -542,16 +543,15 @@
         openNewIssue: () => void write.openNewIssue(),
         openSettings: onOpenSettings,
         openHistory: () => {
-          me.closeFeed()
+          // One show onto the column union (GDK-821) — whatever held the
+          // column, feed included, is released by the same move.
           pages.openHistory()
         },
         openDocs: () => {
-          me.closeFeed()
           if (pages.docsView && pages.spaceView === null) return
-          pages.toggleDocs()
+          pages.openDocs()
         },
         openFeed: () => {
-          pages.closeDocs()
           me.openFeed()
         },
         clearUserFilters: () => filters.clearUserFilters(),
@@ -658,7 +658,10 @@
           flushPaletteSearch()
           const c = filters.currentConfig()
           c.filters.q = raw
-          me.closeFeed()
+          // Back to the list for the widened search: one show releases
+          // whatever held the column (GDK-821), closeDocs drops the docs
+          // screens' narrowing on the way out.
+          column.show({ view: 'list' })
           pages.closeDocs()
           filters.applyConfig(c)
           void filters.runServerSearch().then(applyServerSearchOutcome)

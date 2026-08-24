@@ -36,6 +36,13 @@ const READ_PATH: { name: string; file: string; comment: string }[] = [
     comment: 'GET feed/ is a local mirror read; sibling column of history',
   },
   {
+    // GDK-827: the dashboard row fetch joined the column's read-path family
+    // (loopback serve read; the frame paints the instant the row lands).
+    name: 'dashboard',
+    file: join(WEB_SRC, 'components/dashboard/DashboardView.svelte'),
+    comment: 'GET dashboards/{id} is a loopback read; sibling column of history/feed',
+  },
+  {
     name: 'issue detail body',
     file: join(WEB_SRC, 'components/detail/DetailPanel.svelte'),
     comment: 'GET detail is loopback; header already paints from the pool',

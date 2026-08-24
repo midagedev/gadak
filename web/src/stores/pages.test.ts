@@ -1,9 +1,11 @@
 import { describe, expect, test } from 'vitest'
 import type { IssueLite } from '../lib/types'
-import { emptyFilters } from '../lib/view-config'
+import { emptyConfig, emptyFilters } from '../lib/view-config'
 import { zoneNamed } from '../lib/calendar'
 import { filterIssues, sortIssues, type RelevanceContext } from './filters.svelte'
-import { pageAuthorGroupKey } from './pages.svelte'
+import { dashboards } from './dashboards.svelte'
+import { pages, pageAuthorGroupKey } from './pages.svelte'
+import { showIssueList } from '../lib/show-issue-list'
 
 describe('pageAuthorGroupKey', () => {
   test('I8: group key is author_id, then display name', () => {
@@ -249,5 +251,38 @@ describe('parent filter (GDK-521)', () => {
     const miss = issue({ issue_key: 'GDK-3', summary: 'other', parent_key: 'GDK-1' })
     const none = issue({ issue_key: 'GDK-4', summary: 'none', parent_key: null })
     expect(filterIssues([hit, fold, miss, none], f).map((r) => r.issue_key)).toEqual(['GDK-1', 'GDK-2'])
+  })
+})
+
+/*
+ * GDK-815: a dashboard that holds the main column must give it up like any
+ * other full-column surface. showIssueList closed feed/docs/history but not
+ * `dashboards`, so applying a view painted the list behind the dashboard and
+ * the URL said one thing while the screen said another. Store-level red:
+ * the sidebar tint hole is pinned in e2e (dashboards.spec.ts), where the
+ * row rendering lives.
+ */
+describe('GDK-815 the dashboard releases the main column', () => {
+  test('showIssueList closes a dashboard that holds the column', () => {
+    // applyConfig writes the applied view into the hash; node has no history
+    // API. Only that URL write is stubbed — the assertion is about the
+    // store, not the hash.
+    ;(globalThis as { history?: Partial<History> }).history ??= { replaceState: () => {} }
+    dashboards.open('e2e-gdk815')
+    expect(dashboards.openId).toBe('e2e-gdk815')
+    showIssueList(emptyConfig())
+    // Red before the fix: openId keeps the id, and the applied view renders
+    // behind the dashboard.
+    expect(dashboards.openId).toBeNull()
+  })
+
+  test('pages.open counts the history view', () => {
+    // `open` feeds the keymap's docsOpen; history owning the column without
+    // `open` knowing is the same hole one layer down.
+    pages.openHistory()
+    expect(pages.historyView).toBe(true)
+    // Red before the fix: open = docsView || spaceView — history invisible.
+    expect(pages.open).toBe(true)
+    pages.closeHistory()
   })
 })

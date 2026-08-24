@@ -132,6 +132,7 @@ export interface GlobalKeyHost {
   bulk: { active: boolean; clear: () => void; toggle: (key: string) => void }
   browse: { paneOpen: boolean; hidePane: () => void }
   me: { feedOpen: boolean; closeFeed: () => void }
+  dashboards: { openId: string | null; close: () => void }
   feature: (name: 'feed') => boolean
   openOrigin: (target: 'issue' | 'page') => void
 }
@@ -152,6 +153,7 @@ function contextFromEvent(e: KeyboardEvent, host: GlobalKeyHost): KeyContext {
     shortcutsOpen: host.shortcutsOpen,
     mediaViewerOpen: host.mediaViewerOpen,
     feedBlocksNarrow: host.me.feedOpen && host.feature('feed'),
+    dashboardOpen: host.dashboards.openId !== null,
     historyView: host.pages.historyView,
     docsOpen: host.pages.open,
     listActive: host.triage.listActive,
@@ -229,6 +231,10 @@ function dispatchKeyCommand(e: KeyboardEvent, cmd: KeyCommand, host: GlobalKeyHo
     case 'close-history':
       e.preventDefault()
       host.pages.closeHistory()
+      return
+    case 'close-dashboard':
+      e.preventDefault()
+      host.dashboards.close()
       return
     case 'close-feed':
       e.preventDefault()

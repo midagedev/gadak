@@ -17,16 +17,32 @@
 
 import { getDashboard, getDashboards } from '../lib/api'
 import type { DashboardRow } from '../lib/types'
+import { column } from './column.svelte'
 
 class DashboardsStore {
+  constructor() {
+    // The row/error belong to the dashboard currently holding the column —
+    // released with it, not on a close that landed after something else took
+    // over. Registered here (not called from column) so column stays
+    // runtime-import-free.
+    column.onLeave('dashboard', () => {
+      this.row = null
+      this.error = null
+    })
+  }
+
   /** Rows without configs, as the sidebar lists them. */
   list = $state<Pick<DashboardRow, 'id' | 'name' | 'updated_at'>[]>([])
   loaded = $state(false)
   /** Server change counter last seen. -1 = not fetched yet. */
   version = $state(-1)
 
-  /** Dashboard currently open (null = list screen). */
-  openId = $state<string | null>(null)
+  /** Dashboard currently open (null = list screen). A view onto the column
+   *  union (GDK-821): showing any other full-column surface is what closes
+   *  this — there is no separate latch to forget (GDK-815). */
+  get openId(): string | null {
+    return column.keyOf('dashboard')
+  }
   /** Full row of the open dashboard (config included). null while loading. */
   row = $state<DashboardRow | null>(null)
   /** 'not_found' when the open id vanished between list and open. */
@@ -65,20 +81,22 @@ class DashboardsStore {
     }
   }
 
-  /** Open one dashboard (sidebar row, `dash=` URL param, uifocus hash). */
+  /** Open one dashboard (sidebar row, `dash=` URL param, uifocus hash).
+   *  Taking the column is what this is: whatever full-column surface was up
+   *  is released by the same assignment (GDK-821). */
   open(id: string): void {
     if (this.openId === id) return
-    this.openId = id
     this.error = null
     this.row = null
+    column.show({ view: 'dashboard', id })
     void this.loadRow()
     if (!this.loaded) void this.loadList()
   }
 
   close(): void {
-    this.openId = null
-    this.row = null
-    this.error = null
+    if (this.openId === null) return
+    // onLeave clears the row; the column lands on the list.
+    column.close('dashboard')
   }
 
   async loadRow(force = false): Promise<void> {

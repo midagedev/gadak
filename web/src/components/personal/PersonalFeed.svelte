@@ -85,8 +85,9 @@
   }
 
   function selectFocus(focus: FeedFocus) {
-    me.feedFocus = focus
-    void me.loadFeed(focus)
+    // Re-show with the new focus: same surface, payload swap — and openFeed
+    // reloads with it.
+    me.openFeed(focus)
   }
 
   function openItem(item: FeedItem) {

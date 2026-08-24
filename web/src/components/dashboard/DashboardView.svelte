@@ -29,6 +29,8 @@
   import { issues } from '../../stores/issues.svelte'
   import { t } from '../../lib/i18n'
   import Icon from '../ui/Icon.svelte'
+  import LoadingState from '../ui/LoadingState.svelte'
+  import { createSkeletonGrace } from '../../lib/skeleton-grace.svelte'
 
   let frame = $state<HTMLIFrameElement | null>(null)
   /** Set once the frame's load event fired — pushing before it silently drops. */
@@ -38,6 +40,14 @@
   const row = $derived(dashboards.row)
   /** Full document swap on authoring change (GDK-793): the key re-creates the frame. */
   const renderGen = $derived(dashboards.renderGen)
+  /** Same 120ms grace the other full-column surfaces give a fast fetch: a row
+   *  that lands instantly should not flash a spinner between click and frame
+   *  (GDK-827 — this surface loads like the rest of the column now). The
+   *  identity is the dashboard id: switching dashboards re-arms the grace. */
+  const loadingGrace = createSkeletonGrace(
+    () => row === null && dashboards.error === null,
+    () => id ?? '',
+  )
   const src = $derived(id ? `${dashboardsBase()}${encodeURIComponent(id)}/render/` : '')
   /** What identifies "the frame has everything it needs for a fresh push":
    *  which dashboard + which generation of it (a save swaps the document),
@@ -180,8 +190,14 @@
       ></iframe>
     {/key}
   {:else}
-    <div class="flex flex-1 items-center justify-center" data-testid="dashboard-loading">
-      <p class="text-body text-text-muted">…</p>
+    <!-- data-skeleton keeps e2e able to see the grace decision (visible or
+         not) without waiting out the 120ms to observe its absence. -->
+    <div
+      class="flex flex-1 items-center justify-center"
+      data-testid="dashboard-loading"
+      data-skeleton={loadingGrace.attr}
+    >
+      {#if loadingGrace.visible}<LoadingState label={t('common.loading')} />{/if}
     </div>
   {/if}
 </section>

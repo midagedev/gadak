@@ -4,7 +4,7 @@ import { createServer, type Server } from 'node:http'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { expect, test, type APIRequestContext } from '@playwright/test'
-import { e2eHomeDir, gotoApp } from './helpers'
+import { attachConsoleErrors, e2eHomeDir, gotoApp } from './helpers'
 
 /*
  * Agent dashboards, web host half (GDK-782/793; vendor GDK-792; libs
@@ -415,4 +415,97 @@ test('cache bytes tampered after lib add refuse to serve — no execution, visib
     cdn.server.close()
     await runGadak(['dashboards', 'lib', 'rm', id])
   }
+})
+
+/*
+ * GDK-815: a dashboard holds the whole main column, so the two contracts
+ * every other full-column surface keeps must hold for it too.
+ *
+ *  1. Applying a view releases the column (showIssueList closed feed/docs/
+ *     history but not the dashboard — the list painted behind it).
+ *  2. While the dashboard holds the column, no view row claims "you are
+ *     here" (mainColumnIsList did not look at dashboards.openId, so the
+ *     built-in rows stayed tinted beside a screen that was not the list).
+ *
+ * The row locator is the one sidebar-active.spec.ts reads — aria-current
+ * rides the same condition that paints the row, so a token rename cannot
+ * turn this green or red.
+ */
+test('GDK-815: applying a view releases the column from a dashboard, and the view row re-tints', async ({
+  page,
+}) => {
+  const errors = attachConsoleErrors(page)
+  const saved = await saveDash(page.request, `${PREFIX} ${RUN} release`, markerHtml('release'), TOTAL_DS)
+
+  await gotoApp(page)
+  await page.locator(`[data-dashboard-id="${saved.id}"]`).click()
+  await expect(page.getByTestId('dashboard-view')).toBeVisible()
+  await expect(page.locator(FRAME_SEL)).toBeVisible()
+
+  // Hole 2: the dashboard owns the column, so the view tint is not any
+  // view's to claim. The dashboard's own row is a place-row like the docs
+  // rows and stays excluded: it marks where the person is, not a list.
+  const activeViewRows = page.locator(
+    'aside nav button[aria-current="true"]:not([data-testid^="docs-"]):not([data-testid="sidebar-dashboard-row"])',
+  )
+  await expect(activeViewRows).toHaveCount(0)
+
+  // Hole 1: a view row click hands the column to the list. 'All open' is the
+  // builtin row nav-issue.spec.ts uses for the same DOCS→list gesture — a
+  // fresh home has no saved views for sidebar-view-row to point at.
+  await page.getByRole('button', { name: 'All open' }).click()
+  await expect(page.getByTestId('dashboard-view')).toHaveCount(0)
+  await expect(page.getByTestId('issue-list-scroller')).toBeVisible()
+  await expect(activeViewRows.first()).toHaveAttribute('aria-current', 'true')
+
+  expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+})
+
+/*
+ * GDK-827: Esc closes the dashboard — the feed's slot in the chain, i.e.
+ * only after browse/menu/bulk/detail had their turn. And the honest edge of
+ * this surface: clicking into the sandboxed frame moves key events into the
+ * frame's own document, so the parent's Esc cannot reach the dashboard while
+ * the frame holds focus. The probe pins that observed fact (so a browser
+ * change to it turns this red) and the recovery — any click outside the
+ * frame returns keys to the parent document and Esc closes.
+ */
+test('GDK-827: Esc closes the dashboard; a focused frame swallows the key and a click outside recovers', async ({
+  page,
+}) => {
+  const errors = attachConsoleErrors(page)
+  const saved = await saveDash(page.request, `${PREFIX} ${RUN} esc`, markerHtml('esc'), TOTAL_DS)
+
+  await gotoApp(page)
+  await page.locator(`[data-dashboard-id="${saved.id}"]`).click()
+  await expect(page.getByTestId('dashboard-view')).toBeVisible()
+  await expect(page.locator(FRAME_SEL)).toBeVisible()
+
+  // Focus outside the frame: the main contract.
+  await page.keyboard.press('Escape')
+  await expect(page.getByTestId('dashboard-view')).toHaveCount(0)
+  await expect(page.getByTestId('issue-list-scroller')).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.dataset.lastKeyCmd)).toBe(
+    'close-dashboard',
+  )
+
+  // Probe: click into the frame, then Esc. The marker is cleared first —
+  // dataset.lastKeyCmd is a sticky high-water mark, so without the reset a
+  // swallowed key would read as "close-dashboard ran" off the earlier press.
+  await page.locator(`[data-dashboard-id="${saved.id}"]`).click()
+  await expect(page.getByTestId('dashboard-view')).toBeVisible()
+  await page.evaluate(() => delete document.documentElement.dataset.lastKeyCmd)
+  await page.locator(FRAME_SEL).click()
+  await page.keyboard.press('Escape')
+  // The parent handler never ran — the dashboard is still up and no command
+  // was recorded for this press.
+  await expect(page.getByTestId('dashboard-view')).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.dataset.lastKeyCmd)).toBeUndefined()
+
+  // Recovery: a click outside the frame, then Esc closes.
+  await page.getByTestId('dashboard-view').locator('header').click()
+  await page.keyboard.press('Escape')
+  await expect(page.getByTestId('dashboard-view')).toHaveCount(0)
+
+  expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
 })

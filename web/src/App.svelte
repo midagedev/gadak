@@ -26,6 +26,7 @@
   import { takeUIFocus } from './lib/api'
   import { applyUserTokens } from './lib/user-tokens'
   import { showIssueList } from './lib/show-issue-list'
+  import { FEED_FOCUSES } from './lib/types'
   import { adoptRunningSync } from './lib/sync-now'
   import { installDesktopLinkOpener, openIssueOrigin, openOriginUrl } from './lib/desktop-links'
   import { browse, installBrowseSessions } from './lib/browse.svelte'
@@ -133,9 +134,9 @@
     pages.openSpace(initialSpace)
     if (router.params.get('dview') === 'tree') pages.spaceTree = true
   } else if (router.params.get('docs') === '1') {
-    pages.docsView = true
+    pages.openDocs()
   } else if (router.params.get('hist') === '1') {
-    pages.historyView = true
+    pages.openHistory()
   } else if (initialDocKey) {
     /*
      * A link to a page with nothing behind it lands on the document screen, not
@@ -150,7 +151,7 @@
      * That flow writes `doc` alone; this one is what a `doc` alone means when
      * it is all the app was given.
      */
-    pages.docsView = true
+    pages.openDocs()
   }
   // The promotion above is a change the *store* made, and the bindings below
   // are what carry it out to the URL — they seed themselves from the URL for
@@ -175,9 +176,8 @@
   if (initialDash) dashboards.open(initialDash)
 
   /** The feed's focus slices (FeedFocus), for validating an incoming `feed=`
-   *  value. PersonalFeed keeps its own labelled copy for its tabs; only this
-   *  binding needs the bare closed list. */
-  const FEED_FOCUSES: readonly FeedFocus[] = ['all', 'assignee', 'reporter', 'mention']
+   *  value — the closed list in lib/types is the owner (GDK-825); PersonalFeed
+   *  keeps its own labelled copy for its tabs. */
   const isFeedFocus = (v: string): v is FeedFocus => (FEED_FOCUSES as readonly string[]).includes(v)
 
   // The feed and the settings dialog are registered only where the surface
@@ -248,7 +248,8 @@
         const focusParams = new URLSearchParams(q)
         const dashId = focusParams.get('dash')
         if (dashId) {
-          me.closeFeed()
+          // Taking the column is dashboards.open's own move (GDK-821 union) —
+          // whatever full-column surface was up, feed included, is released.
           dashboards.open(dashId)
           const nextDash = q ? `#/?${q}` : '#/'
           if (location.hash !== nextDash) location.hash = nextDash
@@ -378,6 +379,7 @@
     bulk,
     browse,
     me,
+    dashboards,
     feature,
     openOrigin(target) {
       if (target === 'page') {
@@ -494,19 +496,16 @@
       hist: pages.historyView ? '1' : null,
     }),
     write: ({ space, docs, dview, hist }) => {
+      // One address, one column: each branch is a show onto the union, so
+      // the URL can never stack two screens (GDK-821) — the direct-flag
+      // writes this used to make are the writes the union took over.
       if (space) {
         pages.openSpace(space)
         pages.spaceTree = dview === 'tree'
       } else if (docs === '1') {
-        pages.spaceView = null
-        pages.spaceTree = false
-        pages.historyView = false
-        pages.docsView = true
+        pages.openDocs()
       } else if (hist === '1') {
-        pages.spaceView = null
-        pages.spaceTree = false
-        pages.docsView = false
-        pages.historyView = true
+        pages.openHistory()
       } else {
         pages.closeDocs()
       }
@@ -718,12 +717,11 @@
 
       <MainColumn>
         {#snippet children()}
-          <!-- The feed wins on purpose: opening it is an explicit request for
-               this column, so it never has to close the docs view first. A
-               dashboard sits between the feed and the docs screens: it is a
-               full-column surface like they are, but one the feed must give
-               up for (applyFocus closes it), because `dashboards open` asks
-               for this column by name. -->
+          <!-- Exactly one of these can be up: the column is one value
+               (stores/column, GDK-821), and each condition reads a view onto
+               it — the order below only decides which branch is checked
+               first, never which screen wins. ListView is the column's
+               resting state. -->
           {#if me.feedOpen && feature('feed')}
             <PersonalFeed />
           {:else if dashboards.openId !== null}

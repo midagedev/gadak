@@ -8,12 +8,14 @@
  * source: collect let/const names bound to $state / $derived, then fail
  * if an $effect body assigns to one of those names.
  *
- * Scoped to the three files this round owns. A repo-wide run is a backlog
- * report, not this gate — pre-existing violations elsewhere would go red
- * for reasons this round does not fix.
+ * Scoped to the files the owning rounds left clean. A repo-wide run is a
+ * backlog report, not this gate — pre-existing violations elsewhere would
+ * go red for reasons a round does not fix. GDK-817 added SpaceDocsView:
+ * its root-reopening $effect (writing openDocs) was exactly this shape, and
+ * the scan is what keeps it from growing back.
  *
- * Lives under web/src/lib/ because the scan covers three component
- * directories (detail/, write/, settings/) and lib/ is the shared owner.
+ * Lives under web/src/lib/ because the scan covers component directories
+ * (detail/, write/, settings/, docs/) and lib/ is the shared owner.
  */
 import { readFileSync } from 'node:fs'
 import { dirname, join, relative } from 'node:path'
@@ -29,6 +31,7 @@ const SCANNED = [
   join(WEB_SRC, 'components/detail/LinkedIssues.svelte'),
   join(WEB_SRC, 'components/write/NewIssueDialog.svelte'),
   join(WEB_SRC, 'components/settings/SettingsDialog.svelte'),
+  join(WEB_SRC, 'components/docs/SpaceDocsView.svelte'),
 ]
 
 const RUNE_NAME =

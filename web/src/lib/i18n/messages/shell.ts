@@ -96,16 +96,19 @@ export const shell = {
     ja: 'ダッシュボード',
   },
   // The dashboard surface (GDK-782). notFound: the id arrived (link, uifocus)
-  // but the row is gone — `gadak dashboards rm` or another workspace.
+  // but the row is gone — `gadak dashboards rm` or another workspace. Both
+  // states name the next action (GDK-827): a dead end that only states
+  // itself leaves the person on a screen whose only working control is the
+  // one they have to hunt for.
   'dash.notFound': {
-    en: 'This dashboard no longer exists.',
-    ko: '이 대시보드는 더 이상 없습니다.',
-    ja: 'このダッシュボードはもう存在しません。',
+    en: 'This dashboard no longer exists. Pick another one in the sidebar, or list them with `gadak dashboards list`.',
+    ko: '이 대시보드는 더 이상 없습니다. 사이드바에서 다른 대시보드를 고르거나 `gadak dashboards list`로 목록을 확인하세요.',
+    ja: 'このダッシュボードはもう存在しません。サイドバーで別のものを選ぶか、`gadak dashboards list` で一覧を確認してください。',
   },
   'dash.loadError': {
-    en: 'Could not load this dashboard.',
-    ko: '이 대시보드를 불러올 수 없습니다.',
-    ja: 'このダッシュボードを読み込めませんでした。',
+    en: 'Could not load this dashboard. Press Esc or the back arrow to return to the list, then open it again.',
+    ko: '이 대시보드를 불러올 수 없습니다. Esc 또는 뒤로 화살표로 목록으로 돌아간 뒤 다시 열어보세요.',
+    ja: 'このダッシュボードを読み込めませんでした。Esc または戻る矢印で一覧に戻り、もう一度開いてください。',
   },
   'sidebar.docsSpaceTitle': {
     en: '{space} · {n} documents',
@@ -522,9 +525,9 @@ export const shell = {
     ja: 'ドキュメント・履歴・フィードの行を移動',
   },
   'shortcuts.closeColumnView': {
-    en: 'Close documents, history, or feed',
-    ko: '문서·히스토리·피드 닫기',
-    ja: 'ドキュメント・履歴・フィードを閉じる',
+    en: 'Close documents, history, feed, or dashboard',
+    ko: '문서·히스토리·피드·대시보드 닫기',
+    ja: 'ドキュメント・履歴・フィード・ダッシュボードを閉じる',
   },
   'shortcuts.detailOpenJira': {
     en: 'Open the issue in Jira',

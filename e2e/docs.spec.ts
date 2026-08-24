@@ -277,4 +277,87 @@ test.describe('mirrored wiki documents', () => {
     await expect(panel.getByTestId('doc-comment-error')).toHaveCount(0)
     await expect(panel.getByTestId('doc-comment-composer')).toHaveValue(TYPED_COMMENT)
   })
+
+  /*
+   * GDK-817: a sync that settles re-reads the page index (`pages.reload`
+   * swaps the array), and the tree used to reopen every root the person
+   * had collapsed — an $effect re-added "missing" roots on each new index.
+   * The sync here is intercepted the ux-p1 way (POST answered 202, two
+   * progress polls, then done) so the run settles fast and deterministically;
+   * the pages fetch is counted through the real serve to prove the reload
+   * actually ran — a green without that proof could just be "nothing happened".
+   */
+  test('GDK-817: a collapsed tree root stays collapsed across a sync', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    await gotoApp(page)
+    // Single-flight: a run already in progress would swallow the Sync now
+    // click. The chip lives in the list's toolbar, so this wait belongs to
+    // the list — before the space screen takes the column.
+    await expect(page.getByTestId('freshness-chip')).not.toHaveAttribute('data-state', 'syncing', {
+      timeout: 30_000,
+    })
+
+    await openSpaceTree(page, 'PROD')
+    const nodes = page.getByTestId('doc-tree-node')
+    await expect(nodes).toHaveCount(7)
+    // Collapse the root — its six sections fold under it.
+    await nodes.first().getByTestId('doc-tree-toggle').click()
+    await expect(nodes).toHaveCount(1)
+
+    let pagesFetches = 0
+    await page.route('**/api/v1/issues/pages/', (route) => {
+      pagesFetches += 1
+      return route.continue()
+    })
+    await page.route('**/api/v1/issues/sync/', (route) => {
+      if (route.request().method() !== 'POST') return route.continue()
+      return route.fulfill({
+        status: 202,
+        json: {
+          running: true,
+          phase: 'syncing',
+          fetched: 0,
+          changed: 0,
+          deleted: 0,
+          done: false,
+          error: '',
+          started_at: 'now',
+          finished_at: '',
+        },
+      })
+    })
+    let polls = 0
+    await page.route('**/api/v1/issues/sync/progress/', (route) => {
+      polls += 1
+      const running = polls < 2
+      return route.fulfill({
+        json: {
+          running,
+          phase: running ? 'syncing' : 'done',
+          fetched: running ? 0 : 1,
+          changed: 0,
+          deleted: 0,
+          done: !running,
+          error: '',
+          started_at: 'now',
+          finished_at: running ? '' : 'now',
+        },
+      })
+    })
+
+    await page.keyboard.press('ControlOrMeta+k')
+    const palette = page.getByRole('dialog', { name: 'Command palette' })
+    await expect(palette).toBeVisible()
+    await page.keyboard.type('Sync now', { delay: 15 })
+    await palette.getByRole('option', { name: 'Sync now', exact: true }).click()
+
+    // The reload really re-read the index…
+    await expect
+      .poll(() => pagesFetches, { timeout: 15_000 })
+      .toBeGreaterThanOrEqual(1)
+    // …and the choice made on screen survived it.
+    await expect(nodes).toHaveCount(1)
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
 })

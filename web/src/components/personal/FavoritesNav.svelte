@@ -214,7 +214,8 @@
       data-testid="history-open"
       aria-current={pages.historyView ? 'page' : undefined}
       onclick={() => {
-        me.closeFeed()
+        // Taking the column is openHistory's own move (GDK-821) — no
+        // hand-closed feed to forget.
         pages.openHistory()
       }}
     >

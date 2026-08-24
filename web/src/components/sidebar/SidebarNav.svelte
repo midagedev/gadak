@@ -130,12 +130,17 @@
     for (const v of views) if (canon(v.config) === currentCanon) return v.id
     return null
   }
-  // View-row tint means "this is the list you are on". Docs, history, and
-  // the feed (when that surface exists) take the column; space is selection
-  // on top of the still-current view, so its place-row lights without
-  // clearing this match. Feed is gated the same way App.svelte renders it.
+  // View-row tint means "this is the list you are on". Docs, history, a
+  // dashboard, and the feed (when that surface exists) take the column;
+  // space is selection on top of the still-current view, so its place-row
+  // lights without clearing this match. Feed is gated the same way
+  // App.svelte renders it. A dashboard was missing once (GDK-815) — the
+  // tinted row beside a dashboard screen claimed a list nobody was on.
   const mainColumnIsList = $derived(
-    !(feature('feed') && me.feedOpen) && !pages.historyView && !pages.docsView,
+    !(feature('feed') && me.feedOpen) &&
+      !pages.historyView &&
+      !pages.docsView &&
+      dashboards.openId === null,
   )
   const activeBuiltin = $derived(mainColumnIsList ? activeId(builtins) : null)
   const activePersonal = $derived(mainColumnIsList ? activeId(views.personal) : null)
@@ -320,20 +325,18 @@
     onOpenSettings()
   }
 
-  /** A docs surface takes over the main column, so the feed must give it up. */
+  /** Each of these is one show onto the column union (GDK-821): taking the
+   *  column releases whatever held it — the feed included — so none of them
+   *  needs to close the others by hand anymore. */
   function openDocuments() {
-    me.closeFeed()
     pages.toggleDocs()
   }
 
   function openSpace(space: string) {
-    me.closeFeed()
     pages.openSpace(space)
   }
 
-  /** A dashboard takes the main column the same way a docs screen does. */
   function openDash(id: string) {
-    me.closeFeed()
     dashboards.open(id)
   }
 </script>

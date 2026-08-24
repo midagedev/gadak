@@ -18,12 +18,12 @@
   import { emptyConfig } from '../../lib/view-config'
   import { rowMetrics } from '../../lib/row-metrics'
   import { history } from '../../stores/history.svelte'
+  import { column } from '../../stores/column.svelte'
   import { pages } from '../../stores/pages.svelte'
   import { issues } from '../../stores/issues.svelte'
   import { selection } from '../../stores/selection.svelte'
   import { widenToServerSearch } from '../../lib/server-search'
   import { showIssueList } from '../../lib/show-issue-list'
-  import { me } from '../../stores/me.svelte'
   import EmptyState from '../list/EmptyState.svelte'
   import LoadingState from '../ui/LoadingState.svelte'
   import VirtualRows from '../ui/VirtualRows.svelte'
@@ -128,7 +128,10 @@
   function openEntry(entry: TimelineEntry): void {
     if (entry.type === 'search') {
       widenToServerSearch(entry.query, () => {
-        me.closeFeed()
+        // The widened search runs in the list: one show onto the column union
+        // (GDK-821) releases whatever held it, closeDocs drops the docs
+        // narrowing on the way out.
+        column.show({ view: 'list' })
         pages.closeDocs()
       })
       return

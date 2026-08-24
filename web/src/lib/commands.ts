@@ -51,6 +51,8 @@ export interface KeyContext {
   shortcutsOpen: boolean
   mediaViewerOpen: boolean
   feedBlocksNarrow: boolean
+  /** A dashboard holds the main column (GDK-827). */
+  dashboardOpen: boolean
   historyView: boolean
   docsOpen: boolean
   listActive: boolean
@@ -82,6 +84,7 @@ export type KeyCommand =
   | { type: 'clear-selection' }
   | { type: 'close-docs' }
   | { type: 'close-history' }
+  | { type: 'close-dashboard' }
   | { type: 'close-feed' }
   | { type: 'clear-page' }
   | { type: 'clear-person' }
@@ -111,6 +114,7 @@ export function keyContext(over: Partial<KeyContext> = {}): KeyContext {
     shortcutsOpen: false,
     mediaViewerOpen: false,
     feedBlocksNarrow: false,
+    dashboardOpen: false,
     historyView: false,
     docsOpen: false,
     listActive: false,
@@ -131,13 +135,15 @@ export function listCursor(ctx: KeyContext): string | null {
   return ctx.listActive ? ctx.cursorKey : null
 }
 
-/** Which main-column field `/` should focus, or null when the feed owns the column. */
+/** Which main-column field `/` should focus, or null when a full-column
+ *  surface without one (feed, dashboard) owns the column. */
 export function narrowFieldTestId(ctx: {
   feedBlocksNarrow: boolean
+  dashboardOpen: boolean
   historyView: boolean
   docsOpen: boolean
 }): string | null {
-  if (ctx.feedBlocksNarrow) return null
+  if (ctx.feedBlocksNarrow || ctx.dashboardOpen) return null
   if (ctx.historyView) return NARROW_FIELD_TESTID.history
   if (ctx.docsOpen) return NARROW_FIELD_TESTID.docs
   return NARROW_FIELD_TESTID.issues
@@ -161,6 +167,7 @@ export type KeyScope =
   | 'person'
   | 'browse'
   | 'overlay-feed'
+  | 'overlay-dashboard'
   | 'overlay-history'
   | 'overlay-docs'
 
@@ -395,6 +402,26 @@ export const COMMANDS: readonly CommandDef[] = [
       escFreeOfBrowseMenu(ctx) && !ctx.bulkActive && !ctx.detailOpen && ctx.feedBlocksNarrow,
     dispatch: () => ({ type: 'close-feed' }),
   },
+  /*
+   * The dashboard's slot is the feed's: a full-column surface, so Esc gives
+   * the column back to the list — but only after bulk/detail had their turn
+   * (an open detail panel closes first; that order predates this entry and
+   * stays). The column union keeps the flags one-of-many, and the guards
+   * below still spell the chain out because the registry's order is the
+   * chain's documentation (GDK-827).
+   */
+  {
+    id: 'close-dashboard',
+    scope: 'overlay-dashboard',
+    chords: [{ key: 'Escape' }],
+    when: (ctx) =>
+      escFreeOfBrowseMenu(ctx) &&
+      !ctx.bulkActive &&
+      !ctx.detailOpen &&
+      !ctx.feedBlocksNarrow &&
+      ctx.dashboardOpen,
+    dispatch: () => ({ type: 'close-dashboard' }),
+  },
   {
     id: 'close-history',
     scope: 'overlay-history',
@@ -404,6 +431,7 @@ export const COMMANDS: readonly CommandDef[] = [
       !ctx.bulkActive &&
       !ctx.detailOpen &&
       !ctx.feedBlocksNarrow &&
+      !ctx.dashboardOpen &&
       ctx.historyView,
     dispatch: () => ({ type: 'close-history' }),
   },
@@ -416,6 +444,7 @@ export const COMMANDS: readonly CommandDef[] = [
       !ctx.bulkActive &&
       !ctx.detailOpen &&
       !ctx.feedBlocksNarrow &&
+      !ctx.dashboardOpen &&
       !ctx.historyView &&
       ctx.docsOpen,
     dispatch: () => ({ type: 'close-docs' }),

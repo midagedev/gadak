@@ -118,18 +118,31 @@ const ENTER_TARGET_CASES: {
 ]
 
 describe('narrow field / detail testid map', () => {
-  test('narrowFieldTestId: feed blocks; else history, docs, issues', () => {
+  test('narrowFieldTestId: feed and dashboard block; else history, docs, issues', () => {
     expect(
-      narrowFieldTestId({ feedBlocksNarrow: true, historyView: true, docsOpen: true }),
+      narrowFieldTestId({
+        feedBlocksNarrow: true,
+        dashboardOpen: false,
+        historyView: true,
+        docsOpen: true,
+      }),
     ).toBeNull()
     expect(
-      narrowFieldTestId({ feedBlocksNarrow: false, historyView: true, docsOpen: false }),
+      narrowFieldTestId({
+        feedBlocksNarrow: false,
+        dashboardOpen: true,
+        historyView: true,
+        docsOpen: true,
+      }),
+    ).toBeNull()
+    expect(
+      narrowFieldTestId({ feedBlocksNarrow: false, dashboardOpen: false, historyView: true, docsOpen: false }),
     ).toBe('history-filter-input')
     expect(
-      narrowFieldTestId({ feedBlocksNarrow: false, historyView: false, docsOpen: true }),
+      narrowFieldTestId({ feedBlocksNarrow: false, dashboardOpen: false, historyView: false, docsOpen: true }),
     ).toBe('docs-filter-input')
     expect(
-      narrowFieldTestId({ feedBlocksNarrow: false, historyView: false, docsOpen: false }),
+      narrowFieldTestId({ feedBlocksNarrow: false, dashboardOpen: false, historyView: false, docsOpen: false }),
     ).toBe('search-input')
   })
 })
@@ -353,6 +366,31 @@ describe('resolveGlobalKey', () => {
     expect(
       resolveGlobalKey(keyContext({ key: 'Escape', historyView: true, docsOpen: true })).type,
     ).toBe('close-history')
+  })
+
+  /*
+   * GDK-827: a dashboard holds the whole column, so it takes the feed's Esc
+   * slot — cleared only after browse/menu/bulk/detail have had their turn,
+   * and ahead of history/docs. The order between feed and dashboard cannot
+   * be observed (the two cannot hold the column at once); the guards below
+   * pin the layers around it.
+   */
+  test('Escape: a dashboard closes after detail/bulk, before history/docs (GDK-827)', () => {
+    expect(resolveGlobalKey(keyContext({ key: 'Escape', dashboardOpen: true })).type).toBe(
+      'close-dashboard',
+    )
+    expect(
+      resolveGlobalKey(keyContext({ key: 'Escape', dashboardOpen: true, historyView: true })).type,
+    ).toBe('close-dashboard')
+    expect(
+      resolveGlobalKey(keyContext({ key: 'Escape', dashboardOpen: true, docsOpen: true })).type,
+    ).toBe('close-dashboard')
+    expect(
+      resolveGlobalKey(keyContext({ key: 'Escape', dashboardOpen: true, detailOpen: true })).type,
+    ).toBe('clear-selection')
+    expect(
+      resolveGlobalKey(keyContext({ key: 'Escape', dashboardOpen: true, bulkActive: true })).type,
+    ).toBe('clear-bulk')
   })
 
   test('x: page, then person, then cursor, then detail', () => {

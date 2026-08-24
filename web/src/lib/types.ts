@@ -543,7 +543,13 @@ export interface CommentsByAuthorResponse {
   comments: AuthorComment[]
 }
 
-export type FeedFocus = 'all' | 'assignee' | 'reporter' | 'mention'
+/** The feed's focus slices, in tab order. The list is the owner of the type
+ *  (GDK-825): a second hand copy in App used to be the one an incoming `feed=`
+ *  value was validated against — the copy could accept a focus the feed has
+ *  no tab for, or reject one it does, and nothing would say so. */
+export const FEED_FOCUSES = ['all', 'assignee', 'reporter', 'mention'] as const
+
+export type FeedFocus = (typeof FEED_FOCUSES)[number]
 
 export type FeedEventType =
   | 'created'
