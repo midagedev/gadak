@@ -31,8 +31,43 @@ if [[ "${1:-}" == "--clean" ]]; then
   exit 0
 fi
 
-if [[ ! -f "$REAL_HOME/.claude/.credentials.json" ]]; then
-  echo "prepare-claude-drive: no Claude Code credentials at $REAL_HOME/.claude/.credentials.json" >&2
+# Claude Code 2.1+ stores oauth in the macOS keychain (service
+# "Claude Code-credentials") and no longer writes ~/.claude/.credentials.json.
+# Isolated HOME cannot see the operator keychain under a different HOME, so
+# export the same JSON the old file held. Never write back into ~/.claude.
+copy_claude_credentials() {
+  local dest="$1"
+  local src="$REAL_HOME/.claude/.credentials.json"
+  mkdir -p "$(dirname "$dest")"
+  if [[ -f "$src" ]]; then
+    echo "[claude-drive] copying $src → isolated HOME"
+    install -m 600 "$src" "$dest"
+    return 0
+  fi
+  echo "[claude-drive] no $src — exporting Keychain 'Claude Code-credentials'"
+  python3 - "$dest" <<'PY'
+import json, os, subprocess, sys
+dest = sys.argv[1]
+try:
+    raw = subprocess.check_output(
+        ["security", "find-generic-password", "-s", "Claude Code-credentials", "-w"],
+        text=True,
+    )
+except subprocess.CalledProcessError as e:
+    sys.stderr.write("prepare-claude-drive: Keychain 'Claude Code-credentials' missing\n")
+    sys.exit(1)
+data = json.loads(raw)
+if not isinstance(data, dict) or "claudeAiOauth" not in data:
+    sys.stderr.write("prepare-claude-drive: keychain item is not a Claude oauth blob\n")
+    sys.exit(1)
+fd = os.open(dest, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+with os.fdopen(fd, "w") as f:
+    json.dump(data, f)
+PY
+}
+
+if ! { [[ -f "$REAL_HOME/.claude/.credentials.json" ]] || security find-generic-password -s "Claude Code-credentials" >/dev/null 2>&1; }; then
+  echo "prepare-claude-drive: not logged in (no ~/.claude/.credentials.json and no Keychain item)" >&2
   echo "  log in with \`claude\` first — this take cannot run without it." >&2
   exit 1
 fi
@@ -93,7 +128,14 @@ if ! printf '%s\n' "$status_out" | grep -Ei '^frozen[[:space:]]+true\b' >/dev/nu
 fi
 echo "[claude-drive] frozen confirmed"
 
-install -m 600 "$REAL_HOME/.claude/.credentials.json" "$AGENT_HOME/.claude/.credentials.json"
+copy_claude_credentials "$AGENT_HOME/.claude/.credentials.json"
+auth_json="$(HOME="$AGENT_HOME" claude auth status 2>/dev/null || true)"
+if ! printf '%s' "$auth_json" | grep -q '"loggedIn": true'; then
+  echo "prepare-claude-drive: isolated HOME is not logged in after credential copy" >&2
+  echo "  claude login/plan failure — aborting (no workaround)" >&2
+  exit 1
+fi
+echo "[claude-drive] isolated HOME logged in"
 
 python3 - "$REAL_HOME" "$AGENT_HOME" "$WORKSPACE" <<'PY'
 import json, sys, os

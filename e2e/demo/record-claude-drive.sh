@@ -1,15 +1,35 @@
 #!/usr/bin/env bash
 # Unattended flagship take: VHS (Claude Code) + Playwright (serve tab) →
-# docs/media/claude-drive.{mp4,gif}.
+# docs/media/claude-drive.{mp4,gif} (landscape) or
+# docs/media/claude-drive-vertical.mp4 (GADAK_PROMO_LAYOUT=vertical).
 #
 # Live model. Requires vhs, ffmpeg, Playwright chromium, and a Claude Code
 # login. Not part of `make media` (same reason as media-mcp).
 #
-# Usage: bash e2e/demo/record-claude-drive.sh
+# Usage:
+#   bash e2e/demo/record-claude-drive.sh              # landscape
+#   bash e2e/demo/record-claude-drive.sh vertical      # 1080×1350 first
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
+
+LAYOUT="${1:-${GADAK_PROMO_LAYOUT:-landscape}}"
+case "$LAYOUT" in
+  vertical|landscape) ;;
+  *)
+    echo "record-claude-drive: usage: $0 [landscape|vertical]" >&2
+    exit 2
+    ;;
+esac
+export GADAK_PROMO_LAYOUT="$LAYOUT"
+if [[ "$LAYOUT" == "vertical" ]]; then
+  export GADAK_PROMO_LAYOUT=vertical
+else
+  unset GADAK_PROMO_LAYOUT || true
+  export GADAK_PROMO_LAYOUT=""
+  LAYOUT=landscape
+fi
 
 if [[ -z "${SKIP_NVM:-}" ]]; then
   export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
@@ -29,7 +49,15 @@ if [[ ! -x node_modules/.bin/playwright ]]; then
   exit 1
 fi
 
-PORT="${GADAK_E2E_PORT:-7889}"
+if [[ "$LAYOUT" == "vertical" ]]; then
+  PORT="${GADAK_E2E_PORT:-7891}"
+  OUT="$ROOT/e2e/.tmp/claude-drive-vertical"
+  RESULTS="$ROOT/e2e/.tmp/test-results-claude-drive-vertical"
+else
+  PORT="${GADAK_E2E_PORT:-7889}"
+  OUT="$ROOT/e2e/.tmp/claude-drive"
+  RESULTS="$ROOT/e2e/.tmp/test-results-claude-drive"
+fi
 if ! [[ "$PORT" =~ ^[1-9][0-9]*$ ]] || [ "$PORT" -gt 65535 ]; then
   echo "record-claude-drive: GADAK_E2E_PORT must be 1-65535, got ${PORT}" >&2
   exit 1
@@ -39,9 +67,8 @@ export GADAK_E2E_PORT="$PORT"
 DRIVE_ROOT="/private/tmp/gadak-claude-drive"
 GADAK_HOME_DIR="$DRIVE_ROOT/gadak-home"
 BIN="$DRIVE_ROOT/bin/gadak"
-OUT="$ROOT/e2e/.tmp/claude-drive"
 TAKE_LOG="$OUT/takes.jsonl"
-MAX_TAKES="${CLAUDE_DRIVE_MAX_TAKES:-4}"
+MAX_TAKES="${CLAUDE_DRIVE_MAX_TAKES:-3}"
 TAKE_START="${CLAUDE_DRIVE_TAKE_START:-1}"
 
 mkdir -p "$OUT"
@@ -55,7 +82,24 @@ if lsof -nP -iTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "record-claude-drive: GADAK_E2E_PORT=${PORT} node=$(node -v) claude=$(command -v claude)"
+echo "record-claude-drive: layout=${LAYOUT} GADAK_E2E_PORT=${PORT} node=$(node -v) claude=$(command -v claude)"
+
+write_tape() {
+  local src="$ROOT/tools/tapes/claude-drive.tape"
+  local dst="$OUT/drive.tape"
+  if [[ "$LAYOUT" == "vertical" ]]; then
+    # 1080×520 @ font 18 — same ~60 columns as landscape 720 @ 14, taller
+    # than tokens' 340 px band because the TUI fills the pane.
+    sed -e 's/^Set Width 720$/Set Width 1080/' \
+        -e 's/^Set Height 688$/Set Height 520/' \
+        -e 's/^Set FontSize 14$/Set FontSize 18/' \
+        -e 's/^Set Padding 14$/Set Padding 16/' \
+        -e 's|^Output e2e/.tmp/claude-drive/term.mp4$|Output e2e/.tmp/claude-drive-vertical/term.mp4|' \
+        "$src" >"$dst"
+  else
+    cp -f "$src" "$dst"
+  fi
+}
 
 free_port() {
   local pids
@@ -153,6 +197,7 @@ validate_take() {
 import json, sys
 rec = {
     "take": int(sys.argv[1]),
+    "layout": sys.argv[12],
     "ok": sys.argv[2] == "",
     "reason": sys.argv[2] or None,
     "tokens": sys.argv[3][:500],
@@ -166,7 +211,7 @@ rec = {
 }
 open(sys.argv[11], "a").write(json.dumps(rec) + "\n")
 print(json.dumps(rec, indent=2))
-' "$take" "$reason" "$tokens" "$colors" "$list" "$web_accent" "$web_label" "$web_dash" "$html_has_chart" "$color_sets" "$TAKE_LOG"
+' "$take" "$reason" "$tokens" "$colors" "$list" "$web_accent" "$web_label" "$web_dash" "$html_has_chart" "$color_sets" "$TAKE_LOG" "$LAYOUT"
   if [[ -n "$reason" ]]; then
     echo "record-claude-drive: take ${take} FAIL: $reason" >&2
     return 1
@@ -189,15 +234,18 @@ if ! HOME="$DRIVE_ROOT/agent" claude --version >/dev/null 2>&1; then
   exit 1
 fi
 
+write_tape
+
 chosen=""
 take="$TAKE_START"
 TAKE_END=$((TAKE_START + MAX_TAKES - 1))
 while [[ "$take" -le "$TAKE_END" ]]; do
-  echo "record-claude-drive: ===== take ${take} (start=${TAKE_START} end=${TAKE_END}) ====="
-  rm -rf "$ROOT/e2e/.tmp/test-results-claude-drive"
+  echo "record-claude-drive: ===== take ${take} layout=${LAYOUT} (start=${TAKE_START} end=${TAKE_END}) ====="
+  rm -rf "$RESULTS"
   rm -f "$OUT/web-stop" "$OUT/web-ready-epoch" "$OUT/vhs-show-epoch" "$OUT/term.mp4"
   mkdir -p "$OUT"
   : >"$OUT/web-timeline.jsonl"
+  write_tape
 
   if [[ "$take" -gt 1 ]]; then
     echo "record-claude-drive: reseeding for take ${take}"
@@ -207,7 +255,7 @@ while [[ "$take" -le "$TAKE_END" ]]; do
   start_serve
 
   echo "record-claude-drive: starting Playwright web recorder"
-  GADAK_MEDIA=1 GADAK_E2E_PORT="$PORT" \
+  GADAK_MEDIA=1 GADAK_E2E_PORT="$PORT" GADAK_PROMO_LAYOUT="$LAYOUT" \
     ./node_modules/.bin/playwright test --config e2e/demo/claude-drive.config.ts \
     >"$OUT/web-playwright.log" 2>&1 &
   WEB_PID=$!
@@ -227,7 +275,7 @@ while [[ "$take" -le "$TAKE_END" ]]; do
   done
   if [[ "$ready" -ne 1 ]]; then
     echo "record-claude-drive: web never became ready (take ${take})" >&2
-    python3 -c "import json; open('$TAKE_LOG','a').write(json.dumps({'take':$take,'ok':False,'reason':'web never ready'})+'\n')"
+    python3 -c "import json; open('$TAKE_LOG','a').write(json.dumps({'take':$take,'layout':'$LAYOUT','ok':False,'reason':'web never ready'})+'\n')"
     touch "$OUT/web-stop" || true
     kill "$WEB_PID" 2>/dev/null || true
     wait "$WEB_PID" 2>/dev/null || true
@@ -241,7 +289,7 @@ while [[ "$take" -le "$TAKE_END" ]]; do
   echo "record-claude-drive: recording VHS tape (live Claude Code)…"
   date +%s.%N >"$OUT/vhs-process-epoch"
   set +e
-  vhs "$ROOT/tools/tapes/claude-drive.tape" >"$OUT/vhs.log" 2>&1
+  vhs "$OUT/drive.tape" >"$OUT/vhs.log" 2>&1
   vhs_st=$?
   set -e
   echo "record-claude-drive: vhs exit=$vhs_st"
@@ -250,10 +298,10 @@ while [[ "$take" -le "$TAKE_END" ]]; do
   fi
   if [[ "$vhs_st" -ne 0 ]]; then
     echo "record-claude-drive: vhs failed (take ${take})" >&2
-    tail -n 80 "$OUT/vhs.log" >&2 || true
+    # Do not pipe vhs.log — pipeline exit would hide the status. File is the record.
     if grep -Ei 'not logged in|unauthorized|login|subscription|out of extra usage|credit' "$OUT/vhs.log" >/dev/null 2>&1; then
       echo "record-claude-drive: claude login/plan failure — aborting (no workaround)" >&2
-      python3 -c "import json; open('$TAKE_LOG','a').write(json.dumps({'take':$take,'ok':False,'reason':'claude login/plan failure; see vhs.log'})+'\n')"
+      python3 -c "import json; open('$TAKE_LOG','a').write(json.dumps({'take':$take,'layout':'$LAYOUT','ok':False,'reason':'claude login/plan failure; see vhs.log'})+'\n')"
       exit 1
     fi
   fi
@@ -268,7 +316,7 @@ while [[ "$take" -le "$TAKE_END" ]]; do
   cp -f "$OUT/term.mp4" "$OUT/take-${take}/term.mp4" 2>/dev/null || true
   cp -f "$OUT/web-timeline.jsonl" "$OUT/take-${take}/web-timeline.jsonl" 2>/dev/null || true
   cp -f "$OUT/vhs.log" "$OUT/take-${take}/vhs.log" 2>/dev/null || true
-  find "$ROOT/e2e/.tmp/test-results-claude-drive" -name 'video.webm' -exec cp {} "$OUT/take-${take}/web.webm" \; 2>/dev/null || true
+  find "$RESULTS" -name 'video.webm' -exec cp {} "$OUT/take-${take}/web.webm" \; 2>/dev/null || true
 
   if validate_take "$take"; then
     chosen="$take"
@@ -285,7 +333,6 @@ fi
 
 echo "record-claude-drive: using take ${chosen}"
 echo "$chosen" >"$OUT/chosen-take"
-# Point export at the chosen take's sources.
 if [[ -f "$OUT/take-${chosen}/term.mp4" ]]; then
   cp -f "$OUT/take-${chosen}/term.mp4" "$OUT/term.mp4"
 fi
@@ -296,6 +343,6 @@ if [[ -f "$OUT/take-${chosen}/web-timeline.jsonl" ]]; then
   cp -f "$OUT/take-${chosen}/web-timeline.jsonl" "$OUT/web-timeline.jsonl"
 fi
 
-bash "$ROOT/e2e/demo/export-claude-drive.sh"
+GADAK_PROMO_LAYOUT="$LAYOUT" bash "$ROOT/e2e/demo/export-claude-drive.sh"
 
-echo "record-claude-drive: done (take ${chosen})"
+echo "record-claude-drive: done (take ${chosen} layout=${LAYOUT})"

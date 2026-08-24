@@ -33,6 +33,18 @@ export const FRAME_W = TERM_W + WEB_W
 export const FRAME_H = BAR_H + WEB_H
 
 /**
+ * Flagship landscape (claude-drive) only. tokens/dashboards keep WEB_W/WEB_H
+ * so they still record 1744×672. 1160 and 688 are even (h264 yuv420p) and
+ * sit at the top of the crop-fix range 1100–1160 / 670–690: last x-tick,
+ * card corner, page margin, and legend padding were clipped at 1024×640.
+ * Frame = (TERM_W + FLAGSHIP_L_WEB_W) × (BAR_H + FLAGSHIP_L_WEB_H) = 1880×720.
+ */
+export const FLAGSHIP_L_WEB_W = 1160
+export const FLAGSHIP_L_WEB_H = 688
+export const FLAGSHIP_L_FRAME_W = TERM_W + FLAGSHIP_L_WEB_W
+export const FLAGSHIP_L_FRAME_H = BAR_H + FLAGSHIP_L_WEB_H
+
+/**
  * Vertical (4:5) social cut. Same paper chrome, stacked: mac bar, terminal
  * band, web panel. 48+340+962 = 1350. GADAK_PROMO_LAYOUT=vertical selects
  * this; unset keeps the landscape path byte-identical.
@@ -66,8 +78,15 @@ export function promoAppOrigin(): string {
   return `http://127.0.0.1:${PROMO_PORT}`
 }
 
-export function promoFrameHtml(appSrc: string): string {
+export function promoFrameHtml(
+  appSrc: string,
+  landscape?: { webW: number; webH: number },
+): string {
   if (isPromoVertical()) return promoFrameHtmlVertical(appSrc)
+  const webW = landscape?.webW ?? WEB_W
+  const webH = landscape?.webH ?? WEB_H
+  const frameW = TERM_W + webW
+  const frameH = BAR_H + webH
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -75,7 +94,7 @@ export function promoFrameHtml(appSrc: string): string {
   <style>
     html, body { margin: 0; padding: 0; background: #f4efe4; }
     body {
-      width: ${FRAME_W}px; height: ${FRAME_H}px; overflow: hidden;
+      width: ${frameW}px; height: ${frameH}px; overflow: hidden;
       font-family: "D2Coding", Menlo, Monaco, ui-monospace, monospace;
     }
     #bar {
@@ -88,9 +107,9 @@ export function promoFrameHtml(appSrc: string): string {
     #bar i:nth-child(2) { background: #e0b040; }
     #bar i:nth-child(3) { background: #5aa05a; }
     #bar span { margin-left: 8px; font-size: 12px; color: #635a4f; letter-spacing: 0.01em; }
-    #split { display: flex; height: ${WEB_H}px; }
+    #split { display: flex; height: ${webH}px; }
     #term {
-      width: ${TERM_W}px; height: ${WEB_H}px; box-sizing: border-box;
+      width: ${TERM_W}px; height: ${webH}px; box-sizing: border-box;
       padding: 14px 16px 12px;
       color: #1c1812; font-size: 15px; line-height: 1.4;
       background: #f4efe4; border-right: 1px solid #d5cbb8;
@@ -111,7 +130,7 @@ export function promoFrameHtml(appSrc: string): string {
     #out.err { color: #8f3530; }
     @keyframes blink { 50% { opacity: 0; } }
     iframe#app {
-      width: ${WEB_W}px; height: ${WEB_H}px; border: 0; display: block;
+      width: ${webW}px; height: ${webH}px; border: 0; display: block;
       background: #f4efe4;
     }
   </style>

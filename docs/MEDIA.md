@@ -48,6 +48,7 @@ each run with a fake credential.)
 | `docs/media/dashboards-vertical.mp4` | Playwright stacked `e2e/demo/dashboards-demo.spec.ts` via `dashboards-vertical.config.ts` | social/vertical, 4:5 for X feeds — README uses the landscape cut |
 | `docs/media/claude-drive.gif` | VHS `tools/tapes/claude-drive.tape` + Playwright serve tab | README — live Claude Code session (skill) retints an open tab and opens a chart dashboard |
 | `docs/media/claude-drive.mp4` | same take, h264 | Twitter / LinkedIn / anywhere GIF is too heavy |
+| `docs/media/claude-drive-vertical.mp4` | same tape + stacked chrome (`record-claude-drive.sh vertical`) | social/vertical, 4:5 — README uses the landscape cut |
 
 ## Landing media policy (gadak.dev, GDK-751)
 
@@ -110,8 +111,9 @@ existing there. The landing references them via `MediaSlot still=…` with a
 | `dashboards.mp4` | soft ≤ 8 MB | h264 `yuv420p` + `faststart` |
 | `tokens-vertical.mp4` | soft ≤ 8 MB | 1080×1350 h264 `yuv420p` + `faststart`; no GIF (1080-wide GIF would miss the 8 MiB budget) |
 | `dashboards-vertical.mp4` | soft ≤ 8 MB | same 4:5 stack as tokens-vertical; no GIF |
-| `claude-drive.gif` | **≤ 8 MB** (prefer ≤ 5 MB) | split 1744×672 scaled to 1280 @ 9 fps, then `gifsicle -O3 --colors 64` |
+| `claude-drive.gif` | **≤ 8 MB** (prefer ≤ 5 MB) | split 1880×720 scaled to 1280 @ 9 fps, then `gifsicle -O3 --colors 64` |
 | `claude-drive.mp4` | soft ≤ 8 MB | h264 `yuv420p` + `faststart` |
+| `claude-drive-vertical.mp4` | soft ≤ 8 MB | 1080×1350 h264 `yuv420p` + `faststart`; no GIF |
 
 ### Current committed sizes (re-measure after regen)
 
@@ -135,8 +137,9 @@ Measured 2026-08-14 via `ls -la docs/media/` (decimal MB = bytes/1e6):
 | `dashboards.mp4` | 0.80 MB | 803739 | 28.4 s | 1744×672 h264 (measured 2026-08-24) |
 | `tokens-vertical.mp4` | 1.1 MB | 1099309 | 20.7 s | 1080×1350 h264 (measured 2026-08-24) |
 | `dashboards-vertical.mp4` | 2.1 MB | 2122855 | 41.0 s | 1080×1350 h264 (measured 2026-08-24) |
-| `claude-drive.gif` | 7.4 MB | 7433497 | 68.4 s | 1280×493 @ 9 fps, 64 colors (gifsicle; measured 2026-08-24) |
-| `claude-drive.mp4` | 3.4 MB | 3430968 | 68.4 s | 1744×672 h264 25 fps (measured 2026-08-24) |
+| `claude-drive.gif` | 4.0 MB | 3958051 | 26.6 s | 1280×490 @ 9 fps, 64 colors (gifsicle; measured 2026-08-24) |
+| `claude-drive.mp4` | 2.0 MB | 1999568 | 26.6 s | 1880×720 h264 25 fps (measured 2026-08-24) |
+| `claude-drive-vertical.mp4` | 2.1 MB | 2076793 | 30.9 s | 1080×1350 h264 (measured 2026-08-24) |
 
 ## Readability comes first, and it costs bytes
 
@@ -191,6 +194,7 @@ make media-prep    # build gadak + seed tools/tapes/.tmp from demo.db
 bash e2e/demo/record-promo.sh  # tokens + dashboards split (not in `make media`)
 bash e2e/demo/record-vertical.sh  # tokens + dashboards 1080×1350 (not in `make media`; README stays landscape)
 bash e2e/demo/record-claude-drive.sh  # flagship: live Claude Code × serve tab (not in `make media`; needs vhs + Claude login)
+bash e2e/demo/record-claude-drive.sh vertical  # same take, 1080×1350 (mp4 only)
 tools/record-raycast.sh  # scripted LIVE take (not in make media): Raycast → gadak:// — needs Raycast + installed app
 make brand         # logo, wordmarks, favicons, OG card
 ```
@@ -347,28 +351,39 @@ uPlot chart in frame. `examples/dashboards/triage.html` is not edited.
 
 ### Claude drive (`claude-drive.gif`)
 
-~68 s, same split viewport as tokens (**1744×672**, 720 px VHS terminal |
-1024×640 serve tab, paper chrome from `promo-split.ts`). Regen:
-`bash e2e/demo/record-claude-drive.sh`. Not in `make media` — it needs `vhs`
-and a Claude Code login, same reason as `make media-mcp`. The capture home is
-a throwaway directory (`/private/tmp/gadak-claude-drive/gadak-home`), seeded
-from `examples/demo.db`, with `gadak config set frozen true` (`tools/tapes/prepare-claude-drive.sh`).
-`gadak skill install` writes the embedded skill into that isolated `HOME`
-(not `~/.claude`). Run `bash tools/tapes/prepare-claude-drive.sh --clean`
-afterwards — the isolated HOME holds a 0600 copy of this machine's credentials.
+26.6 s, flagship landscape split (**1880×720**, 720 px VHS terminal |
+1160×688 serve tab; tokens/dashboards stay 1744×672). Paper chrome from
+`promo-split.ts` (`FLAGSHIP_L_*`). Vertical sibling
+`claude-drive-vertical.mp4` is **1080×1350** (bar 48 + Claude TUI band 520 +
+web 782), 30.9 s. Regen: `bash e2e/demo/record-claude-drive.sh` (landscape) or
+`bash e2e/demo/record-claude-drive.sh vertical`. Not in `make media` — it
+needs `vhs` and a Claude Code login, same reason as `make media-mcp`. The
+capture home is a throwaway directory (`/private/tmp/gadak-claude-drive/gadak-home`),
+seeded from `examples/demo.db`, with `gadak config set frozen true`
+(`tools/tapes/prepare-claude-drive.sh`). `gadak skill install` writes the
+embedded skill into that isolated `HOME` (not `~/.claude`). Run
+`bash tools/tapes/prepare-claude-drive.sh --clean` afterwards — the isolated
+HOME holds a 0600 copy of this machine's credentials (from
+`~/.claude/.credentials.json` when present, otherwise the macOS keychain
+service `Claude Code-credentials`).
 
 Nothing on the left is scripted output: VHS types `claude`, then one English
 prompt, and Sleeps while the model works. Commands and the HTML it writes are
-the model's. The orchestrator re-runs up to 4 takes until the result contract
+the model's. The orchestrator re-runs up to 3 takes until the result contract
 holds (two colour changes reflected in the open tab, plus a saved dashboard
-whose HTML contains uPlot/canvas and whose frame actually opened). This clip's
-accepted take used `ui.dataColors` for `quick-win` / Bug type id `10029` and
-`ui.tokensByTheme` for a purple accent; the dashboard name was `triage`.
+whose HTML contains uPlot/canvas and whose frame actually opened). After the
+wall opens, Playwright sends a mouse-wheel into the dashboard iframe until a
+chart canvas is in view (camera work, not an edit of Claude's HTML).
 
-Left/right start epochs are logged and hstacked (`e2e/demo/export-claude-drive.sh`).
-Idle token-streaming is cut; command→web pairs stay 1× (`e2e/demo/edit-claude-drive.py`).
+Left/right start epochs are logged and stacked (`e2e/demo/export-claude-drive.sh`).
+Static holds ≥ 0.6 s are sped to 0.5 s (`e2e/demo/static-cut.py`). The head
+does not blanket-protect 0–18 s: `$ claude` (~1.2 s) and the measured
+prompt-typing window stay 1×, as do colour changes and `dashboard_open`
+± 1.2 s (`e2e/demo/edit-claude-drive.py`); the TUI boot freeze between
+them uses the same static-run rule.
 A paper-coloured drawbox covers the Claude TUI footer (`manual mode on`) so a
-parent-session harness leak does not land in the public frame.
+parent-session harness leak does not land in the public frame. Claude's own
+usage-limit banner is left in the conversation.
 
 ### MCP (`mcp.gif`)
 
@@ -531,11 +546,12 @@ e2e/demo/
   record-vertical.sh     # unattended vertical regen (mp4 only)
   export-vertical.sh     # webm → *-vertical.mp4, no GIF
   promo-split.ts         # paper terminal + iframe chrome (landscape + vertical)
-  claude-drive.config.ts # 1744×672 serve-tab half, port 7889
+  claude-drive.config.ts # 1880×720 flagship landscape, port 7889 (vertical 1080×1350)
   claude-drive-web.spec.ts
-  record-claude-drive.sh # VHS + Playwright, up to 4 live takes
-  export-claude-drive.sh # epoch offset hstack + palette gif
-  edit-claude-drive.py   # 60–90 s keep-windows from the web timeline
+  record-claude-drive.sh # VHS + Playwright, up to 3 live takes
+  export-claude-drive.sh # epoch offset stack + palette gif
+  edit-claude-drive.py   # protect timestamps + tail trim for static-cut
+  static-cut.py          # clip-agnostic: compress static runs ≥0.6s to 0.5s
 tools/tapes/
   prepare.sh             # build binary, seed GADAK_HOME from demo.db
   prepare-promo.sh       # `gadak config set frozen true` on a capture home

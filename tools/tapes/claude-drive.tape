@@ -12,10 +12,14 @@
 # the result contract holds (two colour changes + a chart dashboard opened).
 # Everything visible comes from examples/demo.db. The capture home is frozen.
 #
-# Left pane is 720×640 so the hstack with the 1024×640 serve tab matches the
-# tokens/dashboards promo split (promo-split.ts TERM_W × WEB_H). No WindowBar:
-# the paper chrome bar is taken from the Playwright half at composite time.
-# Font 14 so ~80 columns still fit at 720 px (mcp.tape is 20/1080).
+# Left pane is 720×688 so the hstack with the 1160×688 serve tab matches
+# FLAGSHIP_L_* in promo-split.ts (tokens/dashboards stay 720×640 | 1024×640).
+# No WindowBar: the paper chrome bar is taken from the Playwright half at
+# composite time. Font 14 so ~80 columns still fit at 720 px (mcp.tape is
+# 20/1080). Vertical (record-claude-drive.sh vertical) rewrites Width/
+# Height/FontSize/Padding/Output to 1080×520 @ 18 px — do not put those
+# numbers here; this file stays the landscape original. Prompt text is
+# not substituted.
 #
 # Theme: gadak-paper, same identity as mcp.tape / agent.tape.
 #
@@ -31,7 +35,7 @@ Set Shell "bash"
 Set FontSize 14
 Set FontFamily "D2Coding, Menlo, Monaco, monospace"
 Set Width 720
-Set Height 640
+Set Height 688
 Set Theme {"name":"gadak-paper","background":"#f4efe4","foreground":"#1c1812","cursor":"#2e4560","selection_background":"#d5dde8","black":"#1c1812","red":"#8f3530","green":"#2f5e42","yellow":"#8a6418","blue":"#2f5d8c","magenta":"#2e4560","cyan":"#2a4159","white":"#e4d9c4","brightBlack":"#635a4f","brightRed":"#8f3530","brightGreen":"#2f5e42","brightYellow":"#8a6418","brightBlue":"#2e4560","brightMagenta":"#2e4560","brightCyan":"#2a4159","brightWhite":"#f4efe4"}
 Set Padding 14
 Set Framerate 8
