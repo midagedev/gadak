@@ -1,8 +1,10 @@
 # Windows signing
 
-**Status (measured 2026-08-23 against [v0.16.1](https://github.com/midagedev/gadak/releases/tag/v0.16.1)):**
-Windows release binaries are **not Authenticode-signed**. macOS is
-Developer ID-signed and notarized ([SECURITY.md](../SECURITY.md#release-artifacts)).
+**Status (checked 2026-08-24 against [v0.17.1](https://github.com/midagedev/gadak/releases/tag/v0.17.1), the current tag):**
+Windows release binaries are **not Authenticode-signed** — that is the
+settled decision below, not a pending task, and the v0.17.1 release notes
+claim no signature. macOS is Developer ID-signed and notarized
+([SECURITY.md](../SECURITY.md#release-artifacts)).
 
 **The decision (2026-08-23, [GDK-211]): Windows stays unsigned, and this page
 is the compensation.** Not a deferral — a choice, with a reason. A certificate
@@ -72,7 +74,7 @@ Two Windows products, two files, two integrity stories. Do not mix them up.
 
 | Asset | Built by | Signed? | In `checksums.txt`? |
 | --- | --- | --- | --- |
-| `gadak_<version>_windows_amd64.zip` / `windows_arm64.zip` — CLI `gadak.exe` | GoReleaser on `ubuntu-latest` ([`.github/workflows/release.yml`](../.github/workflows/release.yml), [`.goreleaser.yaml`](../.goreleaser.yaml)) | No | **Yes** (sha256). Measured on v0.16.1: the file lists the six CLI archives only. |
+| `gadak_<version>_windows_amd64.zip` / `windows_arm64.zip` — CLI `gadak.exe` | GoReleaser on `ubuntu-latest` ([`.github/workflows/release.yml`](../.github/workflows/release.yml), [`.goreleaser.yaml`](../.goreleaser.yaml)) | No | **Yes** (sha256). Measured on v0.17.1: the file lists the six CLI archives only (same as v0.16.1). |
 | `Gadak-<version>-windows-x64.zip` / `windows-arm64.zip` — portable directory with `gadak-desktop.exe` and `gadak.exe` at the root | `desktop/build-windows.ps1 --archive` on `windows-latest` ([`.github/workflows/desktop-release.yml`](../.github/workflows/desktop-release.yml) job `desktop-windows`) | No. The job comment says it never looks for a certificate. | **No** (same as the macOS `.dmg`). [INSTALL.md](INSTALL.md#release-binary) already says this. |
 
 There is no MSI or setup.exe. An unsigned installer is more Windows friction
@@ -93,18 +95,19 @@ mirror.
 ### CLI zip (`gadak_<version>_windows_*.zip`)
 
 This is the path with a published digest in `checksums.txt`. PowerShell
-(built-in `Get-FileHash`):
+(built-in `Get-FileHash`). Replace `<version>` with the tag you fetched,
+without the leading `v`, and `amd64` with the arch of the zip you actually
+downloaded. The two lines assume the zip and `checksums.txt` from that
+release are in the current folder:
 
 ```powershell
-# Same folder as the zip and checksums.txt from that release.
-Get-FileHash -Algorithm SHA256 .\gadak_0.16.1_windows_amd64.zip
-Select-String -Path .\checksums.txt -Pattern 'gadak_0.16.1_windows_amd64.zip$'
+Get-FileHash -Algorithm SHA256 .\gadak_<version>_windows_amd64.zip
+Select-String -Path .\checksums.txt -Pattern 'gadak_<version>_windows_amd64.zip$'
 ```
 
 The 64-hex `Hash` from `Get-FileHash` must equal the first field on the
 matching `checksums.txt` line (GoReleaser format: `<hash>  <filename>`, two
-spaces). Replace `0.16.1` and `amd64` with the tag and arch you actually
-fetched. A mismatch means the bytes are not the release archive — delete the
+spaces). A mismatch means the bytes are not the release archive — delete the
 zip.
 
 `scripts/install.sh` does the same comparison on macOS/Linux before it
@@ -117,17 +120,19 @@ non-linux/darwin `uname`).
 digest to paste into a README that would stay true across tags.
 
 GitHub’s Releases API does attach a `digest` field (`sha256:…`) to every
-asset, including this zip. Measured on v0.16.1, that field matched
-`checksums.txt` for every CLI archive that appears in both. Use it as a
-cross-check against accidental corruption, not as a second independent
-publisher:
+asset, including this zip. Measured on v0.17.1 (and previously on v0.16.1),
+that field matched `checksums.txt` for every CLI archive that appears in
+both. Use it as a cross-check against accidental corruption, not as a
+second independent publisher. Replace `<version>` with the tag you fetched,
+without the leading `v`, and `x64` with the arch of the zip you actually
+downloaded:
 
 ```powershell
 $rel = Invoke-RestMethod https://api.github.com/repos/midagedev/gadak/releases/latest
 $rel.assets |
   Where-Object { $_.name -like 'Gadak-*-windows-*.zip' } |
   Select-Object name, digest, size
-Get-FileHash -Algorithm SHA256 .\Gadak-0.16.1-windows-x64.zip
+Get-FileHash -Algorithm SHA256 .\Gadak-<version>-windows-x64.zip
 ```
 
 `digest` is `sha256:` plus the hex. `Get-FileHash` prints the hex only. They
@@ -138,7 +143,7 @@ must match. If you cannot reach the API, you do not have a digest to compare
 
 Use the CLI zip from the same release (the row that *is* in `checksums.txt`),
 put `gadak.exe` on `PATH`, then `gadak init && gadak sync && gadak serve`.
-That is the documented 0.16 fallback
+That is the documented CLI fallback on every release since 0.16
 ([INSTALL.md](INSTALL.md#desktop-app-windows)). Do not disable Smart App
 Control.
 

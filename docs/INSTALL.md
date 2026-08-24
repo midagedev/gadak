@@ -93,7 +93,7 @@ download `gadak_<version>_linux_amd64.tar.gz` (or `linux_arm64`) and
 From the [latest release](https://github.com/midagedev/gadak/releases/latest),
 download `gadak_<version>_windows_amd64.zip` (or `windows_arm64`) and
 `checksums.txt`. Unzip, put `gadak.exe` on `PATH`. This is the reliable
-Windows route for 0.16.
+Windows route on every release since 0.16.
 
 ```powershell
 gadak init
@@ -114,11 +114,11 @@ instead of `gadak init` / `gadak sync` above.
 
 ### Desktop app (Windows)
 
-From 0.16, the same GitHub Release attaches a Windows portable zip:
+Every release since 0.16 attaches a Windows portable zip:
 `Gadak-<version>-windows-x64.zip` or `Gadak-<version>-windows-arm64.zip`.
 Unzip and run `gadak-desktop.exe`. The pack is a directory (the two exes at
-the root), not an installer — 0.16 has no Authenticode certificate, and an
-unsigned installer is more friction than a zip.
+the root), not an installer — every release since 0.16 has shipped with no
+Authenticode certificate, and an unsigned installer is more friction than a zip.
 
 It is the same web UI in a native Windows window with **no local server**:
 no port, no address, nothing new listening (`desktop/main.go`). First launch

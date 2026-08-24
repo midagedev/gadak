@@ -410,6 +410,7 @@ Homebrew 없이 리눅스에 설치하려면
 [최신 릴리스](https://github.com/midagedev/gadak/releases/latest)에서
 `gadak_<version>_linux_amd64.tar.gz`(또는 `linux_arm64`)와 `checksums.txt`를
 받으세요. 아카이브 하나가 설치 전부입니다 — 웹 UI는 바이너리 안에 있습니다.
+`<version>`은 그 릴리스 태그에서 앞의 `v`를 뺀 값으로 바꾸세요.
 검증하고 푼 뒤 `gadak`을 `PATH`에 두세요:
 
 ```bash

@@ -26,7 +26,7 @@ instead — which is also where you grab the window to move it.
 Gadak.app to Applications. The dmg is Developer ID-signed and notarized
 (Apple Silicon).
 
-**Windows (from 0.16).** Download `Gadak-<version>-windows-x64.zip` or
+**Windows (every release since 0.16).** Download `Gadak-<version>-windows-x64.zip` or
 `Gadak-<version>-windows-arm64.zip` from the same release, unzip, run
 `gadak-desktop.exe`. Unsigned by decision, not by omission — [GDK-211], reasoning in
 [WINDOWS-SIGNING.md](WINDOWS-SIGNING.md). If Windows blocks the

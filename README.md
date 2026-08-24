@@ -409,7 +409,8 @@ Linux without Homebrew: from the
 [latest release](https://github.com/midagedev/gadak/releases/latest),
 download `gadak_<version>_linux_amd64.tar.gz` (or `linux_arm64`) and
 `checksums.txt`. One archive is the whole install — the web UI is inside
-the binary. Verify, unpack, and put `gadak` on `PATH`:
+the binary. Replace `<version>` with the tag from that release, without
+the leading `v`. Verify, unpack, and put `gadak` on `PATH`:
 
 ```bash
 sha256sum --ignore-missing -c checksums.txt
