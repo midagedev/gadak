@@ -13,7 +13,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-MAIN_SKILL="/Users/hckim/repo/gadak/skills/gadak/SKILL.md"
+MAIN_SKILL="$ROOT/skills/gadak/SKILL.md"
 DRIVE_ROOT="/private/tmp/gadak-claude-drive"
 AGENT_HOME="$DRIVE_ROOT/agent"
 WORKSPACE="$AGENT_HOME/workspace"
