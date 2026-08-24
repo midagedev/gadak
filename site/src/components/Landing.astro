@@ -156,14 +156,16 @@ gadak transition NMB-1042 done -m "shipped"`}
     </figure>
     <p>{t.agent.skillLead}</p>
     <Snippet code="gadak skill install" copyLabel={copyLabel} copiedLabel={copiedLabel} />
-    <figure class="media-pair">
+    <figure class="media-pair vertical">
       {/* v0.17.2 flagship (user call 2026-08-25): the claim is a command
           changing the visible view — colors and a dashboard landing in an
-          open tab — so this exhibit plays the tape (GDK-751 motion rule). */}
+          open tab — so this exhibit plays the tape (GDK-751 motion rule).
+          The vertical 4:5 cut (user call, same day): terminal stacked over
+          the app reads better in a column than the wide split. */}
       <MediaSlot
         slot={lang === 'en' ? 'skill drive' : '스킬 드라이브'}
-        src="/media/claude-drive.mp4"
-        poster="/media/claude-drive-poster.png"
+        src="/media/claude-drive-vertical.mp4"
+        poster="/media/claude-drive-vertical-poster.png"
       />
       <figcaption>{t.agent.driveCaption}</figcaption>
     </figure>
@@ -391,6 +393,13 @@ gadak transition NMB-1042 done -m "shipped"`}
   }
   .media-pair {
     margin: 1.5rem 0;
+  }
+
+  /* A 4:5 tape at column width would tower over the text — cap it and
+     center; 540px keeps the recorded glyphs at roughly 1x. */
+  .media-pair.vertical {
+    max-width: 540px;
+    margin-inline: auto;
   }
 
   .origin ul {

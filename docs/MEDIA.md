@@ -69,7 +69,7 @@ Current state:
 | history exhibit | `history-still.png` | still — NMB-139 header badges + bot comment + changelog with the Reopened marker (2x, 880×1540) |
 | agent exhibit | `agent.mp4` | video kept as recorded — the command→view causality is the claim |
 | agent proof | `mcp.mp4` (+`mcp-poster.png`) | video — the claim is a conversation flow, so the exhibit plays the tape (was `mcp-still.png` until the user call of 2026-08-24) |
-| skill drive | `claude-drive.mp4` (+`claude-drive-poster.png`) | video — a command changing the visible view (retint + dashboard landing in an open tab) is the motion rule's own example; added for v0.17.2 (user call 2026-08-25) |
+| skill drive | `claude-drive-vertical.mp4` (+`claude-drive-vertical-poster.png`) | video — a command changing the visible view (retint + dashboard landing in an open tab) is the motion rule's own example; added for v0.17.2, vertical 4:5 cut capped at 540px in the column (user calls 2026-08-25) |
 
 Regenerate the two app stills against the standard e2e fixture (the history
 still needs serve.sh's NMB-139 enrichment):
