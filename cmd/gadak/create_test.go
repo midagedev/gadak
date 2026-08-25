@@ -450,7 +450,13 @@ func TestCreateTypeUnmatchedListsAvailable(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected unmatched type error")
 	}
-	for _, want := range []string{`no issue type matching "Epic"`, "Task (id 10001)", "작업 (id 10002)"} {
+	for _, want := range []string{
+		`no issue type matching "Epic"`,
+		"type names follow the site's own language",
+		"an id always works",
+		"Task (id 10001)",
+		"작업 (id 10002)",
+	} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("error %q missing %q", err, want)
 		}
@@ -1990,18 +1996,18 @@ func TestCreateOmitsTypeUsesConfigDefault(t *testing.T) {
 }
 
 func TestCreateResolveTypeTable(t *testing.T) {
-	many := []jira.NamedID{
+	many := []jira.CreateMetaIssueType{
 		{ID: "10001", Name: "Task"},
 		{ID: "10002", Name: "작업"},
 		{ID: "10004", Name: "Bug"},
 	}
-	one := []jira.NamedID{{ID: "10001", Name: "Task"}}
+	one := []jira.CreateMetaIssueType{{ID: "10001", Name: "Task"}}
 	cfg := func(id string) *config.Config {
 		return &config.Config{DefaultIssueTypeID: id}
 	}
 	cases := []struct {
 		name, want, project string
-		types               []jira.NamedID
+		types               []jira.CreateMetaIssueType
 		cfg                 *config.Config
 		value, source, err  string
 	}{

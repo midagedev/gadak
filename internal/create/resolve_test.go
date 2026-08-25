@@ -20,6 +20,14 @@ func priList() []jira.NamedID {
 	}
 }
 
+func typeCatalog() []jira.CreateMetaIssueType {
+	return []jira.CreateMetaIssueType{
+		{ID: "1", Name: "Highest"},
+		{ID: "2", Name: "High"},
+		{ID: "3", Name: "Medium"},
+	}
+}
+
 func TestPriorityMatchesNameAndID(t *testing.T) {
 	list := priList()
 	cases := []struct {
@@ -70,7 +78,7 @@ func TestNeedErrorsDoNotNameCLIFlags(t *testing.T) {
 	errs := []error{
 		func() error { _, e := Project("", &config.Config{}); return e }(),
 		func() error { _, e := Project("", &config.Config{Projects: []string{"NMA", "NMB"}}); return e }(),
-		func() error { _, e := Type("", priList(), nil, "NMB"); return e }(),
+		func() error { _, e := Type("", typeCatalog(), nil, "NMB"); return e }(),
 		func() error { _, e := Priority("", priList()); return e }(),
 	}
 	for i, err := range errs {
@@ -87,7 +95,7 @@ func TestNeedErrorsDoNotNameCLIFlags(t *testing.T) {
 		t.Fatalf("NeedProjectError: %v", err)
 	}
 	var nt *NeedTypeError
-	if _, err := Type("", priList(), nil, "NMB"); !errors.As(err, &nt) || len(nt.Available) != 3 {
+	if _, err := Type("", typeCatalog(), nil, "NMB"); !errors.As(err, &nt) || len(nt.Available) != 3 {
 		t.Fatalf("NeedTypeError: %v", err)
 	}
 }
@@ -219,5 +227,211 @@ func TestMetaForWithCatalogFetchesOnlyOnFallback(t *testing.T) {
 	}
 	if fetches != 1 {
 		t.Fatalf("catalog fetches = %d, want 1", fetches)
+	}
+}
+
+// koreanSiteTypes is the createmeta catalog measured 2026-08-26 against the
+// live GDK site (gadak --profile oss api GET /rest/api/3/issue/createmeta
+// --query projectKeys=GDK). Names were authored in Korean, so name equals
+// untranslatedName; 기능 and 요청 are site inventions, not Jira built-ins.
+func koreanSiteTypes() []jira.CreateMetaIssueType {
+	return []jira.CreateMetaIssueType{
+		{ID: "10001", Name: "에픽", UntranslatedName: "에픽", HierarchyLevel: 1},
+		{ID: "10002", Name: "하위 작업", UntranslatedName: "하위 작업", Subtask: true, HierarchyLevel: -1},
+		{ID: "10003", Name: "작업", UntranslatedName: "작업"},
+		{ID: "10004", Name: "스토리", UntranslatedName: "스토리"},
+		{ID: "10005", Name: "기능", UntranslatedName: "기능"},
+		{ID: "10006", Name: "요청", UntranslatedName: "요청"},
+		{ID: "10007", Name: "버그", UntranslatedName: "버그"},
+	}
+}
+
+// TestTypeEnglishBugMatchesKoreanCatalog is GDK-741: --type Bug on a site
+// whose types are named in Korean must resolve to id 10007, not a round-trip.
+//
+// FAIL-first (unmodified matchType):
+// Type(Bug) on Korean catalog: no issue type matching "Bug" — available: 에픽 (id 10001); 하위 작업 (id 10002); 작업 (id 10003); 스토리 (id 10004); 기능 (id 10005); 요청 (id 10006); 버그 (id 10007)
+func TestTypeEnglishBugMatchesKoreanCatalog(t *testing.T) {
+	got, err := Type("Bug", koreanSiteTypes(), nil, "STD")
+	if err != nil {
+		t.Fatalf("Type(Bug) on Korean catalog: %v", err)
+	}
+	if got.Value != "10007" {
+		t.Fatalf("issuetype id = %q, want 10007 (resolved %+v)", got.Value, got)
+	}
+	if got.Source != SourceAlias {
+		t.Fatalf("source = %q, want %s", got.Source, SourceAlias)
+	}
+}
+
+// TestTypeAliasAmbiguousRefuses is GDK-741: two catalog types that both
+// match one alias must error naming both, not pick the first.
+//
+// FAIL-first (unmodified matchType): must refuse as a collision, not a miss:
+// "no issue type matching \"Bug\" — available: 버그 (id 10007); 버그 (id 10017)"
+func TestTypeAliasAmbiguousRefuses(t *testing.T) {
+	types := []jira.CreateMetaIssueType{
+		{ID: "10007", Name: "버그"},
+		{ID: "10017", Name: "버그"},
+	}
+	_, err := Type("Bug", types, nil, "STD")
+	if err == nil {
+		t.Fatal("two 버그 types matching Bug must not pick one")
+	}
+	msg := err.Error()
+	for _, want := range []string{"10007", "10017", "버그", "more than one", "an id settles it"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("ambiguous error %q missing %q", msg, want)
+		}
+	}
+	if strings.Contains(msg, "no issue type matching") {
+		t.Errorf("must refuse as a collision, not a miss: %q", msg)
+	}
+	if strings.Contains(msg, "--") {
+		t.Errorf("shared error named a flag: %v", err)
+	}
+}
+
+func TestTypeStructuralEpicAndSubtask(t *testing.T) {
+	cat := koreanSiteTypes()
+	cases := []struct {
+		want, id string
+	}{
+		{"epic", "10001"},
+		{"Epic", "10001"},
+		{"subtask", "10002"},
+		{"sub-task", "10002"},
+		{"sub task", "10002"},
+		{"Sub-Task", "10002"},
+	}
+	for _, tc := range cases {
+		got, err := Type(tc.want, cat, nil, "STD")
+		if err != nil {
+			t.Fatalf("Type(%q): %v", tc.want, err)
+		}
+		if got.Value != tc.id || got.Source != SourceAlias {
+			t.Fatalf("Type(%q) = %+v, want id=%s source=%s", tc.want, got, tc.id, SourceAlias)
+		}
+	}
+}
+
+func TestTypeDoesNotInventSiteTypes(t *testing.T) {
+	cat := koreanSiteTypes()
+	for _, want := range []string{"Request", "Feature", "요청아님"} {
+		_, err := Type(want, cat, nil, "STD")
+		if err == nil {
+			t.Errorf("%q must not invent a site type", want)
+			continue
+		}
+		if !strings.Contains(err.Error(), "no issue type matching") {
+			t.Errorf("%q: %v", want, err)
+		}
+	}
+	// Display names still match at step 2.
+	got, err := Type("기능", cat, nil, "STD")
+	if err != nil || got.Value != "10005" || got.Source != SourceFlag {
+		t.Fatalf("local name 기능: %+v %v", got, err)
+	}
+}
+
+func TestTypeUntranslatedNameWhenDifferent(t *testing.T) {
+	types := []jira.CreateMetaIssueType{
+		{ID: "10007", Name: "버그", UntranslatedName: "Bug"},
+	}
+	got, err := Type("Bug", types, nil, "STD")
+	if err != nil || got.Value != "10007" || got.Source != SourceAlias {
+		t.Fatalf("untranslatedName: %+v %v", got, err)
+	}
+	// Equal to name: step 3 does not fire; step 2 already matched, source is flag.
+	same := []jira.CreateMetaIssueType{
+		{ID: "10007", Name: "버그", UntranslatedName: "버그"},
+	}
+	got, err = Type("버그", same, nil, "STD")
+	if err != nil || got.Value != "10007" || got.Source != SourceFlag {
+		t.Fatalf("name==untranslatedName must stay flag: %+v %v", got, err)
+	}
+}
+
+func TestTypeNameAndIDStayFlagNotAlias(t *testing.T) {
+	cat := koreanSiteTypes()
+	got, err := Type("10007", cat, nil, "STD")
+	if err != nil || got.Value != "10007" || got.Source != SourceFlag {
+		t.Fatalf("id: %+v %v", got, err)
+	}
+	got, err = Type("버그", cat, nil, "STD")
+	if err != nil || got.Value != "10007" || got.Source != SourceFlag {
+		t.Fatalf("name: %+v %v", got, err)
+	}
+	// A catalog that already has English Bug must keep resolving "Bug" to
+	// that type (step 2), not to a later locale alias.
+	mixed := []jira.CreateMetaIssueType{
+		{ID: "10004", Name: "Bug"},
+		{ID: "10007", Name: "버그"},
+	}
+	got, err = Type("Bug", mixed, nil, "STD")
+	if err != nil || got.Value != "10004" || got.Source != SourceFlag {
+		t.Fatalf("existing English name must not move to alias: %+v %v", got, err)
+	}
+}
+
+func TestTypeUnmatchedMentionsLocalisedAndID(t *testing.T) {
+	_, err := Type("Nope", koreanSiteTypes(), nil, "STD")
+	if err == nil {
+		t.Fatal("expected unmatched")
+	}
+	msg := err.Error()
+	for _, want := range []string{
+		`no issue type matching "Nope"`,
+		"type names follow the site's own language",
+		"an id always works",
+		"에픽 (id 10001)",
+		"버그 (id 10007)",
+	} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("missing %q in %v", want, err)
+		}
+	}
+	if strings.Contains(msg, "--") {
+		t.Errorf("shared error named a flag: %v", err)
+	}
+}
+
+func TestTypeStructuralAmbiguousRefuses(t *testing.T) {
+	types := []jira.CreateMetaIssueType{
+		{ID: "10001", Name: "에픽", HierarchyLevel: 1},
+		{ID: "10011", Name: "이니셔티브", HierarchyLevel: 2},
+	}
+	_, err := Type("epic", types, nil, "STD")
+	if err == nil {
+		t.Fatal("two hierarchyLevel>=1 types must not pick one")
+	}
+	msg := err.Error()
+	for _, want := range []string{"10001", "10011", "에픽", "이니셔티브", "more than one"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("missing %q in %q", want, msg)
+		}
+	}
+}
+
+func TestTypeLocaleAliasWhenNoHierarchy(t *testing.T) {
+	// 에픽 at level 0: step 4 misses, step 5 still maps Epic.
+	types := []jira.CreateMetaIssueType{
+		{ID: "10001", Name: "에픽"},
+		{ID: "10003", Name: "작업"},
+	}
+	got, err := Type("Epic", types, nil, "STD")
+	if err != nil || got.Value != "10001" || got.Source != SourceAlias {
+		t.Fatalf("step-5 epic: %+v %v", got, err)
+	}
+	got, err = Type("Task", types, nil, "STD")
+	if err != nil || got.Value != "10003" || got.Source != SourceAlias {
+		t.Fatalf("step-5 task: %+v %v", got, err)
+	}
+}
+
+func TestTypeStoryAlias(t *testing.T) {
+	got, err := Type("story", koreanSiteTypes(), nil, "STD")
+	if err != nil || got.Value != "10004" || got.Source != SourceAlias {
+		t.Fatalf("%+v %v", got, err)
 	}
 }

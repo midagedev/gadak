@@ -318,19 +318,23 @@ func (c *Client) CreateIssue(ctx context.Context, fields map[string]any) (string
 
 // CreateMetaIssueType is one creatable issue type. Distinct from NamedID:
 // priorities, resolutions, components, and versions share {id,name} but have
-// no hierarchy, and putting subtask/hierarchyLevel on NamedID would leak
-// meaningless fields onto those catalogs. JSON names match Jira's createmeta
-// object (id, name, subtask, hierarchyLevel). omitempty keeps a standard
-// type (false, 0) looking the way it did before these fields existed.
+// no hierarchy, and putting subtask/hierarchyLevel/untranslatedName on NamedID
+// would leak meaningless fields onto those catalogs. JSON names match Jira's
+// createmeta object (id, name, untranslatedName, subtask, hierarchyLevel).
+// omitempty keeps a standard type (false, 0, empty untranslatedName) looking
+// the way it did before these fields existed.
 type CreateMetaIssueType struct {
-	ID             string `json:"id"`
-	Name           string `json:"name"`
-	Subtask        bool   `json:"subtask,omitempty"`
-	HierarchyLevel int    `json:"hierarchyLevel,omitempty"`
+	ID               string `json:"id"`
+	Name             string `json:"name"`
+	UntranslatedName string `json:"untranslatedName,omitempty"`
+	Subtask          bool   `json:"subtask,omitempty"`
+	HierarchyLevel   int    `json:"hierarchyLevel,omitempty"`
 }
 
-// NamedID is the id/name pair create.Type matching uses. Hierarchy is
-// dropped on purpose: matching keys on id or name, never on rank.
+// NamedID is the id/name pair FormatTypes, NeedTypeError, and Priority
+// matching use. Hierarchy is dropped on purpose: those catalogs share
+// {id,name} and have no rank. create.Type matches CreateMetaIssueType
+// directly so it can see subtask, hierarchyLevel, and untranslatedName.
 func (t CreateMetaIssueType) NamedID() NamedID {
 	return NamedID{ID: t.ID, Name: t.Name}
 }
@@ -342,7 +346,7 @@ type CreateMetaProject struct {
 	IssueTypes []CreateMetaIssueType `json:"issuetypes"`
 }
 
-// NamedTypes is the id/name catalog create.Type / FormatTypes consume.
+// NamedTypes is the id/name catalog FormatTypes and NeedTypeError consume.
 func (p CreateMetaProject) NamedTypes() []NamedID {
 	out := make([]NamedID, len(p.IssueTypes))
 	for i, t := range p.IssueTypes {

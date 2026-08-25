@@ -17,11 +17,14 @@ import (
 )
 
 // Source names recorded on --json / the REST create response so a caller
-// can see why a project or type was chosen.
+// can see why a project or type was chosen. Alias is a match that was not
+// the catalog id or display name — untranslatedName, a hierarchy-derived
+// epic/subtask token, or the small standard-name locale table.
 const (
 	SourceFlag   = "flag"
 	SourceConfig = "config"
 	SourceSole   = "sole"
+	SourceAlias  = "alias"
 )
 
 // Resolved is one filled create field and where it came from.
@@ -58,7 +61,7 @@ func Project(want string, cfg *config.Config) (Resolved, error) {
 }
 
 // Type resolves the create issue type:
-//  1. explicit flag / request field (name or id, same as today's CLI)
+//  1. explicit flag / request field (matchType: id, name, then aliases)
 //  2. profile DefaultIssueTypeID, matched by id only
 //  3. the project has exactly one createmeta type
 //  4. otherwise fail
@@ -67,13 +70,14 @@ func Project(want string, cfg *config.Config) (Resolved, error) {
 // types[0] because the person can see and change it before submit. A
 // headless CLI or REST caller never sees that value, so the same
 // fallback would silently file as the wrong type.
-func Type(want string, types []origin.NamedID, cfg *config.Config, project string) (Resolved, error) {
+func Type(want string, types []origin.CreateMetaIssueType, cfg *config.Config, project string) (Resolved, error) {
+	named := namedTypes(types)
 	if w := strings.TrimSpace(want); w != "" {
-		id, err := matchType(w, types)
+		id, src, err := matchType(w, types)
 		if err != nil {
 			return Resolved{}, err
 		}
-		return Resolved{Value: id, Source: SourceFlag}, nil
+		return Resolved{Value: id, Source: src}, nil
 	}
 	if cfg != nil {
 		if id := strings.TrimSpace(cfg.DefaultIssueTypeID); id != "" {
@@ -86,30 +90,140 @@ func Type(want string, types []origin.NamedID, cfg *config.Config, project strin
 			if p := strings.TrimSpace(project); p != "" {
 				where = p
 			}
-			return Resolved{}, fmt.Errorf("configured default issue type id %s is not available in %s — available: %s", id, where, FormatTypes(types))
+			return Resolved{}, fmt.Errorf("configured default issue type id %s is not available in %s — available: %s", id, where, FormatTypes(named))
 		}
 	}
 	if len(types) == 1 && strings.TrimSpace(types[0].ID) != "" {
 		return Resolved{Value: types[0].ID, Source: SourceSole}, nil
 	}
-	return Resolved{}, &NeedTypeError{Available: copyNamed(types)}
+	return Resolved{}, &NeedTypeError{Available: named}
 }
 
-func matchType(want string, types []origin.NamedID) (string, error) {
+// matchType is the single owner of --type / issue_type matching (GDK-741).
+// Steps are exclusive: a later step runs only when every earlier step
+// produced zero hits. Two or more hits at the same step is a hard error —
+// filing under the wrong type is worse than asking for an id.
+//
+//  1. exact id (today's id match; SourceFlag)
+//  2. name, case-insensitive (today's name match; SourceFlag)
+//  3. untranslatedName, case-insensitive, only when it differs from name
+//  4. structural aliases from the catalog: "epic" → hierarchyLevel >= 1;
+//     "subtask" / "sub-task" / "sub task" → subtask == true
+//  5. the small standard-name locale table (Bug/Task/Story/Epic/Subtask)
+func matchType(want string, types []origin.CreateMetaIssueType) (id, source string, err error) {
+	if hits := typesMatching(types, func(t origin.CreateMetaIssueType) bool { return t.ID == want }); len(hits) > 0 {
+		return settleType(want, SourceFlag, hits)
+	}
+	if hits := typesMatching(types, func(t origin.CreateMetaIssueType) bool { return strings.EqualFold(t.Name, want) }); len(hits) > 0 {
+		return settleType(want, SourceFlag, hits)
+	}
+	if hits := typesMatching(types, untranslatedNameMatch(want)); len(hits) > 0 {
+		return settleType(want, SourceAlias, hits)
+	}
+	if hits := structuralMatches(want, types); len(hits) > 0 {
+		return settleType(want, SourceAlias, hits)
+	}
+	if hits := localeAliasMatches(want, types); len(hits) > 0 {
+		return settleType(want, SourceAlias, hits)
+	}
+	// The hint is phrased as a fact about the catalog, not about the site:
+	// on an English Jira "names on this site are localised" would be wrong,
+	// and a hint that is sometimes false is worse than none.
+	return "", "", fmt.Errorf("no issue type matching %q — type names follow the site's own language; an id always works — available: %s", want, FormatTypes(namedTypes(types)))
+}
+
+func settleType(want, source string, hits []origin.CreateMetaIssueType) (string, string, error) {
+	if len(hits) == 1 {
+		return hits[0].ID, source, nil
+	}
+	return "", "", fmt.Errorf("issue type %q matches more than one catalog type: %s — an id settles it", want, FormatTypes(namedTypes(hits)))
+}
+
+func typesMatching(types []origin.CreateMetaIssueType, ok func(origin.CreateMetaIssueType) bool) []origin.CreateMetaIssueType {
+	var hits []origin.CreateMetaIssueType
 	for _, t := range types {
-		if t.ID == want || strings.EqualFold(t.Name, want) {
-			return t.ID, nil
+		if ok(t) {
+			hits = append(hits, t)
 		}
 	}
-	return "", fmt.Errorf("no issue type matching %q — available: %s", want, FormatTypes(types))
+	return hits
+}
+
+func untranslatedNameMatch(want string) func(origin.CreateMetaIssueType) bool {
+	return func(t origin.CreateMetaIssueType) bool {
+		u := strings.TrimSpace(t.UntranslatedName)
+		if u == "" || strings.EqualFold(u, t.Name) {
+			return false
+		}
+		return strings.EqualFold(u, want)
+	}
+}
+
+func structuralMatches(want string, types []origin.CreateMetaIssueType) []origin.CreateMetaIssueType {
+	var hits []origin.CreateMetaIssueType
+	switch strings.ToLower(want) {
+	case "epic":
+		for _, t := range types {
+			if t.HierarchyLevel >= 1 {
+				hits = append(hits, t)
+			}
+		}
+	case "subtask", "sub-task", "sub task":
+		for _, t := range types {
+			if t.Subtask {
+				hits = append(hits, t)
+			}
+		}
+	}
+	return hits
+}
+
+// standardTypeLocales maps the five issue-type names Jira ships onto
+// display names this repository has actually measured. Incomplete on
+// purpose: a name we have not seen must not invent a site convention
+// (기능 and 요청 on the reporting site are that site's own types).
+//
+// Korean: live createmeta for GDK on 2026-08-26
+// (`GET /rest/api/3/issue/createmeta?projectKeys=GDK`). On that site
+// untranslatedName equals name because the types were authored in Korean,
+// so this table — not untranslatedName — is what closes `--type Bug`.
+var standardTypeLocales = map[string][]string{
+	"bug":     {"버그"},
+	"task":    {"작업"},
+	"story":   {"스토리"},
+	"epic":    {"에픽"},
+	"subtask": {"하위 작업"},
+}
+
+func localeAliasMatches(want string, types []origin.CreateMetaIssueType) []origin.CreateMetaIssueType {
+	locales := standardTypeLocales[strings.ToLower(want)]
+	if len(locales) == 0 {
+		return nil
+	}
+	var hits []origin.CreateMetaIssueType
+	for _, t := range types {
+		for _, loc := range locales {
+			if strings.EqualFold(t.Name, loc) {
+				hits = append(hits, t)
+				break
+			}
+		}
+	}
+	return hits
+}
+
+func namedTypes(types []origin.CreateMetaIssueType) []origin.NamedID {
+	return origin.CreateMetaProject{IssueTypes: types}.NamedTypes()
 }
 
 // MetaFor picks the createmeta project (case-insensitive key) and its types.
 // A miss lists the keys in meta the same way Type lists the issue-type catalog.
-func MetaFor(meta []origin.CreateMetaProject, project string, cfg *config.Config) (origin.CreateMetaProject, []origin.NamedID, error) {
+// Types stay as CreateMetaIssueType so Type can see hierarchy and
+// untranslatedName; NamedID flattening is FormatTypes / NeedTypeError only.
+func MetaFor(meta []origin.CreateMetaProject, project string, cfg *config.Config) (origin.CreateMetaProject, []origin.CreateMetaIssueType, error) {
 	for _, p := range meta {
 		if strings.EqualFold(p.Key, project) {
-			return p, p.NamedTypes(), nil
+			return p, p.IssueTypes, nil
 		}
 	}
 	suffix := availableProjectsSuffix(meta)
@@ -130,7 +244,7 @@ type CreateMetaSource interface {
 // is empty). The catalog is fetched only on that fallback path, scoped to
 // the profile's projects. CLI and REST both route here so they print the
 // same available list.
-func MetaForWithCatalog(ctx context.Context, c CreateMetaSource, meta []origin.CreateMetaProject, project string, cfg *config.Config) (origin.CreateMetaProject, []origin.NamedID, error) {
+func MetaForWithCatalog(ctx context.Context, c CreateMetaSource, meta []origin.CreateMetaProject, project string, cfg *config.Config) (origin.CreateMetaProject, []origin.CreateMetaIssueType, error) {
 	p, types, err := MetaFor(meta, project, cfg)
 	if err == nil || FormatProjectKeys(meta) != "" {
 		return p, types, err

@@ -345,3 +345,46 @@ func TestCreateMetaParsesSubtaskAndHierarchyLevel(t *testing.T) {
 		}
 	}
 }
+
+func TestCreateMetaParsesUntranslatedName(t *testing.T) {
+	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"projects":[{"key":"STD","name":"Std","issuetypes":[
+			{"id":"10007","name":"버그","untranslatedName":"Bug"},
+			{"id":"10003","name":"작업","untranslatedName":"작업"}
+		]}]}`))
+	}))
+	got, err := c.CreateMeta(context.Background(), []string{"STD"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || len(got[0].IssueTypes) != 2 {
+		t.Fatalf("%+v", got)
+	}
+	byID := map[string]CreateMetaIssueType{}
+	for _, it := range got[0].IssueTypes {
+		byID[it.ID] = it
+	}
+	if byID["10007"].UntranslatedName != "Bug" {
+		t.Errorf("differing untranslatedName: %+v", byID["10007"])
+	}
+	if byID["10003"].UntranslatedName != "작업" {
+		t.Errorf("same untranslatedName: %+v", byID["10003"])
+	}
+
+	raw, err := json.Marshal(got[0].IssueTypes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wired []map[string]any
+	if err := json.Unmarshal(raw, &wired); err != nil {
+		t.Fatal(err)
+	}
+	for _, it := range wired {
+		if it["id"] == "10003" {
+			continue
+		}
+		if it["untranslatedName"] != "Bug" {
+			t.Errorf("wire %v", it)
+		}
+	}
+}
