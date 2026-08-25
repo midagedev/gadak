@@ -16,7 +16,7 @@
 import { existsSync, mkdirSync, writeFileSync, appendFileSync } from 'node:fs'
 import path from 'node:path'
 
-import { test, expect, type Page, type Locator } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 
 import { forceLocale, DEMO_ISSUE_COUNT_EN_RE } from '../helpers'
 import {
@@ -73,7 +73,10 @@ async function applyFlagshipVerticalSplit(page: Page): Promise<void> {
   )
 }
 
-async function chartInView(dash: Locator): Promise<boolean> {
+// Takes a FrameLocator: the wall lives in the dashboard iframe. (The
+// annotation said Locator until 2026-08-25; Playwright transpiles specs
+// without typechecking, so the mismatch never surfaced.)
+async function chartInView(dash: ReturnType<Page['frameLocator']>): Promise<boolean> {
   const canvas = dash.locator('canvas').first()
   if (await canvas.count()) {
     try {
@@ -101,10 +104,40 @@ async function chartInView(dash: Locator): Promise<boolean> {
   return false
 }
 
+/**
+ * Wait until the wall actually carries numbers, not just structure.
+ *
+ * The host pushes datasource results after the frame loads, so a take can
+ * open a dashboard whose cards still read 0 — measured 2026-08-25: a
+ * claude-dashboards take passed the old contract (chart heading present)
+ * on a wall showing 0/0/0/0 and an empty plot, because "a canvas exists"
+ * says nothing about data. `dashboard_data` is the beat that means the
+ * push landed; the take contract requires it.
+ */
+async function waitForWallData(dash: ReturnType<Page['frameLocator']>): Promise<boolean> {
+  for (let i = 0; i < 30; i++) {
+    try {
+      const text = await dash.locator('body').innerText({ timeout: 2_000 })
+      // Two or more digits with a non-zero lead: a real count, never a 0
+      // placeholder and never a stray single digit from a label.
+      if (/(?:^|\D)[1-9]\d+(?:\D|$)/.test(text)) {
+        beat('dashboard_data', { waitedMs: i * 400 })
+        return true
+      }
+    } catch {
+      /* frame still settling */
+    }
+    await new Promise((r) => setTimeout(r, 400))
+  }
+  beat('dashboard_data_missing')
+  return false
+}
+
 /** Mouse-wheel camera work. Does not edit Claude's document. */
 async function revealChart(page: Page, app: ReturnType<Page['frameLocator']>): Promise<void> {
   const dashFrame = app.locator(FRAME_SEL)
   await dashFrame.waitFor({ state: 'visible', timeout: 15_000 })
+  await waitForWallData(app.frameLocator(FRAME_SEL))
   if (vertical) {
     try {
       await applyVerticalDashboardLayout(page)

@@ -213,10 +213,12 @@ validate_take() {
   web_accent=0
   web_label=0
   web_dash=0
+  web_data=0
   if [[ -f "$OUT/web-timeline.jsonl" ]]; then
     grep -q '"accent_changed"' "$OUT/web-timeline.jsonl" && web_accent=1 || true
     grep -q '"label_changed"' "$OUT/web-timeline.jsonl" && web_label=1 || true
     grep -q '"dashboard_open"' "$OUT/web-timeline.jsonl" && web_dash=1 || true
+    grep -q '"dashboard_data"' "$OUT/web-timeline.jsonl" && web_data=1 || true
   fi
 
   local web_color_events=$((web_accent + web_label))
@@ -246,6 +248,12 @@ validate_take() {
       reason="saved dashboard HTML has no uPlot/canvas chart"
     elif [[ "$web_dash" -eq 0 ]]; then
       reason="serve tab never opened a dashboard frame"
+    elif [[ "$web_data" -eq 0 ]]; then
+      # A wall whose cards still read 0 films as a broken product. The web
+      # recorder emits dashboard_data once the pushed rows actually paint
+      # (2026-08-25: a take shipped 0/0/0/0 under the old structure-only
+      # contract).
+      reason="dashboard opened but never painted data (cards still empty)"
     fi
   fi
 
@@ -265,10 +273,11 @@ rec = {
     "web_dash": sys.argv[8] == "1",
     "html_has_chart": sys.argv[9] == "1",
     "color_sets": int(sys.argv[10]),
+    "web_data": sys.argv[14] == "1",
 }
 open(sys.argv[11], "a").write(json.dumps(rec) + "\n")
 print(json.dumps(rec, indent=2))
-' "$take" "$reason" "$tokens" "$colors" "$list" "$web_accent" "$web_label" "$web_dash" "$html_has_chart" "$color_sets" "$TAKE_LOG" "$LAYOUT" "$CLIP"
+' "$take" "$reason" "$tokens" "$colors" "$list" "$web_accent" "$web_label" "$web_dash" "$html_has_chart" "$color_sets" "$TAKE_LOG" "$LAYOUT" "$CLIP" "$web_data"
   if [[ -n "$reason" ]]; then
     echo "record-claude-drive: take ${take} FAIL: $reason" >&2
     return 1
