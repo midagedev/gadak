@@ -4,6 +4,21 @@
 
 ## Unreleased
 
+- The phone ships to TestFlight in one command: `cd mobile &&
+  scripts/testflight-upload.sh --bump`. The interesting part is not the
+  upload but the eight checks that run before it, each one there because
+  Apple would only tell you after a full build and upload — or would not
+  tell you at all. A duplicate build number is refused by asking the API
+  first rather than by wasting an archive. `ITSAppUsesNonExemptEncryption`
+  is declared in the source-managed plist, because without it a build parks
+  in "Missing Compliance" and never reaches a tester. And the shipped
+  binary is grepped for the DEV capture tour, which drives the store and
+  the DOM with no user input: Vite is *expected* to drop it behind
+  `import.meta.env.DEV`, and expected is not verified. Internal testing
+  needs no review, so this path is open while the app is still being
+  reshaped; the public store remains a separate decision, blocked on a
+  problem no script solves — a reviewer cannot reach a tailnet-only
+  `gadak serve` ([GDK-805]).
 - The phone reaches that terminal too. It pairs a **second** token — a
   `terminal`-scope one, scanned separately, because a token that reads the
   mirror must not also open a shell on the machine — and the app probes the
@@ -1450,3 +1465,4 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-892]: https://gadak.dev/backlog/#/?ks=GDK-892
 [GDK-895]: https://gadak.dev/backlog/#/?ks=GDK-895
 [GDK-865]: https://gadak.dev/backlog/#/?ks=GDK-865
+[GDK-805]: https://gadak.dev/backlog/#/?ks=GDK-805

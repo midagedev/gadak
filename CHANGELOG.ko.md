@@ -1,9 +1,23 @@
 # Changelog
 
-<sub><a href="CHANGELOG.md">English</a> · 한국어 — 영문이 원본이며, 번역은 영문과 함께 갱신됩니다(마지막 동기화 2026-08-25).</sub>
+<sub><a href="CHANGELOG.md">English</a> · 한국어 — 영문이 원본이며, 번역은 영문과 함께 갱신됩니다(마지막 동기화 2026-08-26).</sub>
 
 ## Unreleased
 
+- 폰이 명령 한 줄로 TestFlight에 올라갑니다: `cd mobile &&
+  scripts/testflight-upload.sh --bump`. 흥미로운 쪽은 업로드가 아니라 그
+  앞에 도는 여덟 개의 검사입니다. 하나하나가, Apple이 빌드와 업로드를 다
+  끝낸 뒤에야 알려 주거나 — 아예 알려 주지 않는 항목입니다. 중복된 빌드
+  번호는 아카이브를 낭비하는 대신 API에 먼저 물어 거절합니다.
+  `ITSAppUsesNonExemptEncryption`은 소스가 관리하는 plist에 선언합니다.
+  없으면 빌드가 "Missing Compliance"에 갇혀 테스터에게 영영 닿지 않기
+  때문입니다. 그리고 출시 바이너리를 DEV 캡처 투어의 이름으로 grep합니다 —
+  사용자 입력 없이 스토어와 DOM을 조작하는 코드이고, Vite가
+  `import.meta.env.DEV` 뒤의 그것을 떨궈 줄 "예정"이지만, 예정은 검증이
+  아니기 때문입니다. 내부 테스팅에는 심사가 없으므로 앱이 아직 다시
+  빚어지는 중에도 이 길은 열려 있습니다. 공개 스토어는 여전히 별개의
+  판단이고, 어떤 스크립트로도 풀리지 않는 문제에 막혀 있습니다 — 리뷰어는
+  테일넷 안의 `gadak serve`에 닿을 수 없습니다 ([GDK-805]).
 - 폰에서도 그 터미널에 닿습니다. **두 번째** 토큰을 페어링합니다 —
   `terminal` 스코프를 따로 스캔합니다. 미러를 읽는 토큰이 그 기계의 셸까지
   열어서는 안 되기 때문입니다. 저장하기 전에 게이트에 먼저 물어보므로,
@@ -1373,3 +1387,4 @@ HTTP·sync·에이전트 계약.
 [GDK-892]: https://gadak.dev/backlog/#/?ks=GDK-892
 [GDK-895]: https://gadak.dev/backlog/#/?ks=GDK-895
 [GDK-865]: https://gadak.dev/backlog/#/?ks=GDK-865
+[GDK-805]: https://gadak.dev/backlog/#/?ks=GDK-805
