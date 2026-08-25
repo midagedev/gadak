@@ -150,6 +150,11 @@ export const shell = {
     ko: 'Enter 키로 새 셸을 시작합니다',
     ja: 'Enter で新しいシェルを起動します',
   },
+  'terminal.close': {
+    en: 'Close the terminal',
+    ko: '터미널 닫기',
+    ja: 'ターミナルを閉じる',
+  },
   'terminal.shortcut': {
     en: 'Ctrl+`',
     ko: 'Ctrl+`',

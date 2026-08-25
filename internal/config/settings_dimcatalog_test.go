@@ -110,11 +110,18 @@ func TestDimCatalogEnumeration(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &got); err != nil {
 		t.Fatalf("output is not a JSON array of entries: %v", err)
 	}
-	// 19 recordable + 1 locked, pinned per axis — a catalog that grows
-	// must update these counts consciously (and the doc table).
-	wantAxisCounts := map[string]int{"spacing": 4, "layout": 8, "type": 8}
-	if len(got) != 20 {
-		t.Fatalf("catalog lists %d tokens, want 20 (19 recordable + locked docked-min)", len(got))
+	// 20 recordable + 1 locked, pinned per axis — a catalog that grows must
+	// update these counts consciously (and the doc table).
+	//
+	// 2026-08-25 — GDK-864: type 8 → 9 and the total 20 → 21, for
+	// type.terminal. The terminal's text size is personal and independent of
+	// the app's type ladder, and putting it here is what makes it settable by
+	// an agent (`gadak config set ui.tokens.type.terminal`) with no new
+	// surface. FAIL-first: this line read "catalog lists 21 tokens, want 20"
+	// before it moved.
+	wantAxisCounts := map[string]int{"spacing": 4, "layout": 8, "type": 9}
+	if len(got) != 21 {
+		t.Fatalf("catalog lists %d tokens, want 21 (20 recordable + locked docked-min)", len(got))
 	}
 	// The two embeds read one file: the disk axes are tokencheck's axes.
 	if strings.Join(diskAxes, ",") != strings.Join(tokencheck.DimAxes(), ",") {

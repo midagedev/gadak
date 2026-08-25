@@ -10,6 +10,7 @@
    */
   import { onMount } from 'svelte'
   import { t } from '../../lib/i18n'
+  import Icon from '../ui/Icon.svelte'
   import { createRenderer, type TerminalRenderer } from '../../lib/terminal/renderer'
   import {
     createSession,
@@ -295,13 +296,35 @@
   class:select-none={dragging}
   style={overlay
     ? `left: var(--layout-sidebar, 272px); z-index: 48; min-width: ${TERMINAL_MIN_WIDTH_PX}px`
-    : `width: ${widthPx}px; min-width: ${TERMINAL_MIN_WIDTH_PX}px; max-width: ${TERMINAL_SPLIT_MAX_PCT}%`}
+    : `width: ${widthPx}px; min-width: ${TERMINAL_MIN_WIDTH_PX}px; max-width: min(${TERMINAL_SPLIT_MAX_PCT}%, calc(100% - var(--layout-list-min, 390px)))`}
   role="region"
   aria-label={t('terminal.title')}
   data-testid="terminal-pane"
   data-attached={attached ? 'true' : 'false'}
   data-overlay={overlay ? 'true' : undefined}
 >
+  <!--
+    A rail, not a title bar: the same strip the status line already is, at
+    the other end. It exists because the pane swallows every keystroke on
+    purpose, so the key that closes it cannot also be the only way out —
+    someone who opened this with a shortcut they half-remember needs
+    something to click. Micro-caps and hairline, the app's own idiom.
+  -->
+  <div
+    class="flex flex-none items-center justify-between gap-2 border-b border-border-subtle bg-bg-panel py-1 pr-1 pl-3"
+  >
+    <span class="text-micro tracking-wide text-text-muted uppercase">{t('terminal.title')}</span>
+    <button
+      type="button"
+      class="flex h-6 w-6 flex-none items-center justify-center rounded text-text-muted hover:bg-bg-hover hover:text-text-primary"
+      aria-label={t('terminal.close')}
+      title="{t('terminal.close')} ({t('terminal.shortcut')})"
+      data-testid="terminal-close"
+      onclick={() => terminalChrome.toggle()}
+    >
+      <Icon name="x" size={14} />
+    </button>
+  </div>
   {#if status.kind === 'unavailable'}
     <div
       class="flex h-full items-center justify-center px-4 text-center text-body text-text-secondary"

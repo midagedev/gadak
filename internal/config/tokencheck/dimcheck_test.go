@@ -109,8 +109,14 @@ func TestDimCatalogShape(t *testing.T) {
 	if locked != 1 {
 		t.Errorf("locked dimension tokens = %d, want 1 (docked-min)", locked)
 	}
-	if len(have) != 19 {
-		t.Errorf("writable dimension tokens = %d, want 19 (have %v)", len(have), have)
+	// 2026-08-25 — GDK-864: 19 → 20, type.terminal. Not a loosened bound:
+	// this census exists so the override surface grows on purpose, and the
+	// growth is one token that lets a person or an agent set the terminal's
+	// text size (`ui.tokens.type.terminal`) without dragging the app's body
+	// scale with it. FAIL-first: adding the token to the catalog made this
+	// line read "writable dimension tokens = 20, want 19" before it moved.
+	if len(have) != 20 {
+		t.Errorf("writable dimension tokens = %d, want 20 (have %v)", len(have), have)
 	}
 	tok, ok := DimTokenOf("layout", "docked-min")
 	if !ok {

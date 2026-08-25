@@ -201,10 +201,70 @@ test.describe('terminal shots', () => {
     expect(trackBox!.width - paneBox!.width).toBeGreaterThan(400)
   })
 
+  /*
+   * 2026-08-25 — GDK-864 (lead, entry-point pass). ⌘K is this app's answer to
+   * "how do I do anything", so a surface reachable only by a chord is
+   * reachable only by someone who already knows the chord. The row carries
+   * Ctrl+` so the palette is also where you learn it.
+   */
+  test('the command palette opens the terminal, and shows its chord', async ({ page }) => {
+    await boot(page, 'xterm')
+    await page.keyboard.press('ControlOrMeta+k')
+    const palette = page.getByRole('dialog', { name: 'Command palette' })
+    await expect(palette).toBeVisible()
+    await palette.getByRole('combobox').fill('terminal')
+    const row = palette.getByTestId('palette-action-terminal')
+    await expect(row).toBeVisible()
+    await expect(row).toContainText('Ctrl+`')
+    await row.click()
+    await expect(palette).toBeHidden()
+    await expect(page.getByTestId('terminal-pane')).toBeVisible()
+    await expect(page.getByTestId('terminal-pane')).toHaveAttribute('data-attached', 'true', {
+      timeout: 20_000,
+    })
+    // And the pane can be closed from inside itself: the chord that opens it
+    // is swallowed by the VT on purpose, so a visible way out has to exist.
+    await page.getByTestId('terminal-close').click()
+    await expect(page.getByTestId('terminal-pane')).toHaveCount(0)
+  })
+
+  /*
+   * 2026-08-25 — GDK-864 (lead). Four surfaces want this row: sidebar, list,
+   * terminal, detail panel. Below the sum of their minimums the split stops
+   * being a split. FAIL-first, measured: with the rule disabled the pane
+   * stayed a split and this assertion read `Expected: "true", Received: ""` —
+   * a 1100px row where the pane's 320px min-width beat the percentage cap and
+   * the list was left 70px of its own 390px floor.
+   */
+  test('a docked detail panel pushes the terminal to overlay when the row is too narrow', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1100, height: 900 })
+    await boot(page, 'xterm')
+    await openPane(page)
+    await expect(page.getByTestId('terminal-pane')).not.toHaveAttribute('data-overlay', 'true')
+    // Open an issue: the detail panel docks at 1100px (VIEWPORT_DOCKED_MIN_PX).
+    await page
+      .locator('[data-testid="issue-list-scroller"] [role="button"]')
+      .first()
+      .click()
+    await expect(page.getByTestId('issue-detail-panel')).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByTestId('terminal-pane')).toHaveAttribute('data-overlay', 'true')
+  })
+
   test('capture split, exited, overlay, dark', async ({ page }) => {
     test.setTimeout(90_000)
     mkdirSync(SHOT_DIR, { recursive: true })
     const hash = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
+    /*
+     * A commit hash alone is a claim the captures cannot keep: a round shoots
+     * from the working tree, and a working tree with edits in it is not that
+     * commit. A judge reading MANIFEST.md has no other way to know, and a
+     * verdict on pixels that were never the named source is the expensive
+     * failure here. Name the dirt.
+     */
+    const dirty = execFileSync('git', ['status', '--porcelain'], { encoding: 'utf8' }).trim()
+    const source = dirty ? `${hash} + uncommitted edits (${dirty.split('\n').length} files)` : hash
 
     const shoot = async (name: string) => {
       await page.screenshot({
@@ -258,7 +318,7 @@ test.describe('terminal shots', () => {
       [
         '# terminal pane captures (GDK-864)',
         '',
-        `- source: \`${hash}\``,
+        `- source: \`${source}\``,
         `- viewport: 1440×900, deviceScaleFactor 2 (04 is 820×900)`,
         '',
         '| file | renderer | notes |',

@@ -3,22 +3,18 @@
  * Session bytes live in session.ts; this file is the pane's geometry.
  */
 
-export const TERMINAL_WIDTH_KEY = 'gadak.terminal.width'
-export const TERMINAL_MIN_WIDTH_PX = 320
-export const TERMINAL_DEFAULT_RATIO = 0.44
-/*
- * The split's ceiling, as a percentage of the *track it lives in* — not of
- * the window (2026-08-25, GDK-864 lead review). The pane is a flex child of
- * the layout's main track, which is capped at 1360px, while the default
- * width is 44% of the window. On a wide display those two disagree: 44% of
- * 2560px is 1126px inside a 1360px track, leaving the issue list ~230px.
- * A percentage max-width resolves against the parent, so the list keeps its
- * share no matter how wide the display is, and dragging past the cap simply
- * saturates.
- */
-export const TERMINAL_SPLIT_MAX_PCT = 60
-/** Below 900px the pane is a full-width overlay instead of a split. */
-export const TERMINAL_OVERLAY_MAX_PX = 899
+import {
+  TERMINAL_DEFAULT_RATIO,
+  TERMINAL_MIN_WIDTH_PX,
+  TERMINAL_OVERLAY_MAX_PX,
+  TERMINAL_SPLIT_WITH_DETAIL_MIN_PX,
+  TERMINAL_WIDTH_KEY,
+  terminalIsNarrow,
+} from './layout'
+
+// Geometry constants live in ./layout (no runes there); re-exported because
+// the pane and its tests already look here.
+export * from './layout'
 
 function readStoredWidth(): number {
   try {
@@ -41,16 +37,33 @@ function defaultWidth(): number {
 
 class TerminalChrome {
   open = $state(false)
-  /** Viewport ≤ 899px: overlay, not a split. Independent of the detail-panel
-   *  docked floor (1100). */
+  /** Overlay rather than split — see terminalIsNarrow for the two reasons. */
   narrow = $state(false)
   /** 0 means "use 44% of the window on next read". */
   #widthPx = $state(0)
+  /** A docked detail panel is the fourth surface competing for the row. */
+  #detailDocked = $state(false)
 
   constructor() {
     if (typeof window === 'undefined') return
-    this.narrow = window.innerWidth <= TERMINAL_OVERLAY_MAX_PX
+    this.narrow = terminalIsNarrow(window.innerWidth, false)
     this.#widthPx = readStoredWidth()
+  }
+
+  /**
+   * App.svelte tells the pane when the detail panel is docked beside it. The
+   * pane cannot read that itself: whether the panel is docked or overlaid is
+   * the viewport regime's call, and there is one owner of that question.
+   */
+  setDetailDocked(docked: boolean): void {
+    if (this.#detailDocked === docked) return
+    this.#detailDocked = docked
+    this.#applyNarrow()
+  }
+
+  #applyNarrow(): void {
+    if (typeof window === 'undefined') return
+    this.narrow = terminalIsNarrow(window.innerWidth, this.#detailDocked)
   }
 
   get widthPx(): number {
@@ -73,16 +86,25 @@ class TerminalChrome {
     this.open = !this.open
   }
 
-  /** Subscribe to the 900px overlay breakpoint. Call from App onMount. */
+  /**
+   * Watch both overlay thresholds. Call from App onMount.
+   *
+   * Two media queries rather than a resize listener, because both edges are
+   * width thresholds and the browser already owns them; the upper one only
+   * matters while the detail panel is docked, which #applyNarrow reads.
+   */
   start(): () => void {
     if (typeof window === 'undefined') return () => {}
-    const mq = window.matchMedia(`(max-width: ${TERMINAL_OVERLAY_MAX_PX}px)`)
-    const apply = () => {
-      this.narrow = mq.matches
-    }
-    mq.addEventListener('change', apply)
+    const queries = [
+      window.matchMedia(`(max-width: ${TERMINAL_OVERLAY_MAX_PX}px)`),
+      window.matchMedia(`(max-width: ${TERMINAL_SPLIT_WITH_DETAIL_MIN_PX - 1}px)`),
+    ]
+    const apply = () => this.#applyNarrow()
+    for (const mq of queries) mq.addEventListener('change', apply)
     apply()
-    return () => mq.removeEventListener('change', apply)
+    return () => {
+      for (const mq of queries) mq.removeEventListener('change', apply)
+    }
   }
 }
 

@@ -46,6 +46,7 @@
   import { bulk } from '../../stores/bulk.svelte'
   import { triage } from '../../stores/triage.svelte'
   import { pages } from '../../stores/pages.svelte'
+  import { terminalChrome } from '../../lib/terminal/pane.svelte'
   import { views } from '../../stores/views.svelte'
   import { write } from '../../stores/write.svelte'
   import { favorites } from '../../stores/favorites.svelte'
@@ -554,6 +555,9 @@
         openFeed: () => {
           me.openFeed()
         },
+        // Not a column view: the terminal sits beside whatever is up, so it
+        // toggles rather than taking the column the way Docs or History do.
+        toggleTerminal: () => terminalChrome.toggle(),
         clearUserFilters: () => filters.clearUserFilters(),
         toggleFlag: (flag) => filters.toggleFlag(flag),
         syncStatus: syncStatusToast,

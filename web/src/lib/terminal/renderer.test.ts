@@ -4,7 +4,15 @@ import {
   createUtf8StreamDecoder,
   RENDERER_STORAGE_KEY,
   resolveRendererKind,
+  terminalFontSize,
 } from './renderer'
+import {
+  TERMINAL_MIN_WIDTH_PX,
+  TERMINAL_SPLIT_WITH_DETAIL_MIN_PX,
+  terminalIsNarrow,
+} from './layout'
+import { VIEWPORT_DOCKED_MIN_PX } from '../viewport-regime'
+import { COMMANDS } from '../commands'
 
 describe('resolveRendererKind owner', () => {
   test('query beats localStorage beats default', () => {
@@ -139,5 +147,74 @@ describe('defaultPrevented is read by origin, not by command', () => {
 
   test('no target at all does not', () => {
     expect(fromTerminalHost(null)).toBe(false)
+  })
+})
+
+describe('overlay thresholds', () => {
+  /*
+   * 2026-08-25 — GDK-864 (lead, entry-point/layout pass). Two reasons the
+   * split becomes an overlay, and neither number is invented: 899 is the
+   * pane's own breakpoint, and the upper one is
+   * VIEWPORT_DOCKED_MIN_PX + the pane's min-width — the width at which
+   * sidebar, list, detail and terminal can no longer all stand at their
+   * documented minimums. FAIL-first: before this rule, 1100px with the detail
+   * panel docked kept the split, and the list was left 70px of a 390px track
+   * because the pane's min-width beat the percentage cap.
+   */
+  test('a small viewport is an overlay whatever the detail panel is doing', () => {
+    expect(terminalIsNarrow(820, false)).toBe(true)
+    expect(terminalIsNarrow(820, true)).toBe(true)
+  })
+
+  test('with no docked detail panel a wide-enough viewport stays a split', () => {
+    expect(terminalIsNarrow(900, false)).toBe(false)
+    expect(terminalIsNarrow(1100, false)).toBe(false)
+    expect(terminalIsNarrow(1440, false)).toBe(false)
+  })
+
+  test('a docked detail panel raises the floor to the four minimums', () => {
+    expect(TERMINAL_SPLIT_WITH_DETAIL_MIN_PX).toBe(
+      VIEWPORT_DOCKED_MIN_PX + TERMINAL_MIN_WIDTH_PX,
+    )
+    expect(terminalIsNarrow(TERMINAL_SPLIT_WITH_DETAIL_MIN_PX - 1, true)).toBe(true)
+    expect(terminalIsNarrow(TERMINAL_SPLIT_WITH_DETAIL_MIN_PX, true)).toBe(false)
+    // The 1100px case that used to leave the list 70px.
+    expect(terminalIsNarrow(1100, true)).toBe(true)
+  })
+})
+
+describe('the terminal has a palette door, not only a chord', () => {
+  /*
+   * A surface reachable only by a shortcut is reachable only by someone who
+   * already knows the shortcut. ⌘K is this app's "how do I do anything", so
+   * the row must exist there — carrying the chord, which is how the palette
+   * teaches it.
+   */
+  test('COMMANDS carries a palette spec for the terminal, with its chord', () => {
+    const cmd = COMMANDS.find((c) => c.id === 'toggle-terminal')
+    expect(cmd?.palette?.id).toBe('a:terminal')
+    expect(cmd?.palette?.kind).toBe('always')
+    expect(cmd?.palette?.kbd).toBe('Ctrl+`')
+  })
+})
+
+describe('the terminal size is a token, not a literal', () => {
+  /*
+   * 2026-08-25 — GDK-864 (lead). A terminal is personal: everyone who uses
+   * one sets its size. Rather than a settings field of its own, it is a
+   * dimension token on the same path as every other dimension in this app,
+   * which is what makes it settable by an agent —
+   * `gadak config set ui.tokens.type.terminal 15px` — with no new surface.
+   * Catalog parity is pinned on the Go side (tokencheck); this pins the reader.
+   */
+  test('the token wins', () => {
+    expect(terminalFontSize(() => '17px')).toBe(17)
+    expect(terminalFontSize(() => '9px')).toBe(9)
+  })
+
+  test('a missing or unusable token falls back rather than rendering nothing', () => {
+    expect(terminalFontSize(() => '')).toBe(13)
+    expect(terminalFontSize(() => 'inherit')).toBe(13)
+    expect(terminalFontSize(() => '0px')).toBe(13)
   })
 })

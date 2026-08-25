@@ -536,6 +536,17 @@
   const overlayModal = $derived(isOverlayModal(viewportRegime, panelOpen))
   let layoutEl = $state<HTMLElement | null>(null)
 
+  /*
+   * The terminal is the fourth surface wanting a share of this row, and it is
+   * the one that can be asked to step aside. Whether the detail panel is
+   * docked or overlaid belongs to the viewport regime, so the pane is told
+   * rather than left to work it out — one owner for that question
+   * (viewport-regime.ts), one consumer here.
+   */
+  $effect(() => {
+    terminalChrome.setDetailDocked(panelOpen && viewportRegime === 'docked')
+  })
+
   $effect(() => {
     const el = layoutEl
     const modal = overlayModal

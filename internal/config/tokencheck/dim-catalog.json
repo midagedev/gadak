@@ -173,6 +173,14 @@
           "unit": "none",
           "min": 1.15,
           "max": 1.6
+        },
+        "terminal": {
+          "cssVar": "--text-terminal",
+          "default": "13px",
+          "tier": "validated-range",
+          "unit": "px",
+          "min": 9,
+          "max": 24
         }
       }
     }

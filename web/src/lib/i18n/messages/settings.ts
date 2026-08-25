@@ -1146,6 +1146,13 @@ export const settings = {
     ko: '문서 열기',
     ja: 'ドキュメントを開く',
   },
+  // The terminal is a panel, not a column view, so this reads as a toggle
+  // rather than "Open …" the way the view rows above it do.
+  'palette.actionTerminal': {
+    en: 'Terminal',
+    ko: '터미널',
+    ja: 'ターミナル',
+  },
   'palette.actionFeed': {
     en: 'Open feed',
     ko: '피드 열기',

@@ -115,6 +115,16 @@
   --text-title--line-height: 1.35;
   --text-heading: 22px;
   --text-heading--line-height: 1.22;
+  /*
+    The terminal's own size (GDK-864). Not a rung on the ladder above — a
+    shell is read at whatever size the person reading it wants, the way
+    every terminal emulator lets you set one, and it should not drag the
+    issue list along when they change it. It answers to body by default so
+    an untouched install has one text size, and it rides the same
+    ui.tokens.type.* path everything else here does, which is what makes it
+    settable by a person or an agent without a new surface.
+  */
+  --text-terminal: 13px;
 
   /*
     Overlay elevation. On paper, depth is a warm umber shadow plus a hairline

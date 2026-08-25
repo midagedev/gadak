@@ -132,11 +132,39 @@ function logGhosttyFallback(err: unknown): void {
   console.warn('gadak: ghostty-web failed to load, using xterm', err)
 }
 
-const TERM_OPTIONS = {
-  fontSize: 13,
-  allowTransparency: false,
-  scrollback: 5000,
-  cursorBlink: false,
+/**
+ * The terminal's text size, from the token so a person or an agent can set
+ * it the way they set every other dimension in this app
+ * (`gadak config set ui.tokens.type.terminal 15px`). It defaults to the body
+ * baseline, so an untouched install has one text size.
+ *
+ * Read at renderer creation: a token change lands on the next open, not
+ * mid-session. Live re-fit is a follow-up, not a promise made here.
+ */
+export function terminalFontSize(read: (name: string) => string = readCssVar): number {
+  const px = Number.parseFloat(read('--text-terminal'))
+  return Number.isFinite(px) && px > 0 ? px : TERMINAL_FONT_SIZE_FALLBACK
+}
+
+/** The injectable half, so a node test can ask without a document — the same
+ *  seam shape resolveRendererKind uses for its storage. */
+function readCssVar(name: string): string {
+  return cssVar(name, '')
+}
+
+/** Only reached when the stylesheet has not loaded; the token owns the value. */
+const TERMINAL_FONT_SIZE_FALLBACK = 13
+
+function termOptions() {
+  return {
+    fontSize: terminalFontSize(),
+    allowTransparency: false,
+    // Client-side history, distinct from the serve's 256 KiB reconnect ring:
+    // that ring is what a *reattaching* client replays, this is what the
+    // person can scroll back through in one session.
+    scrollback: 5000,
+    cursorBlink: false,
+  }
 }
 
 async function createGhosttyRenderer(): Promise<TerminalRenderer> {
@@ -144,7 +172,7 @@ async function createGhosttyRenderer(): Promise<TerminalRenderer> {
   await init()
   const theme = chromeTheme()
   const term = new Terminal({
-    ...TERM_OPTIONS,
+    ...termOptions(),
     fontFamily: fontFamily(),
     theme,
     cols: 80,
@@ -213,7 +241,7 @@ async function createXtermRenderer(): Promise<TerminalRenderer> {
   ])
   const theme = chromeTheme()
   const term = new Terminal({
-    ...TERM_OPTIONS,
+    ...termOptions(),
     fontFamily: fontFamily(),
     theme,
     cols: 80,

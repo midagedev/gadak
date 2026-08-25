@@ -279,6 +279,18 @@ export const COMMANDS: readonly CommandDef[] = [
     chords: [{ key: '`', mod: true }],
     when: (ctx) => ctx.ctrlKey && !ctx.metaKey && !ctx.altKey,
     dispatch: () => ({ type: 'toggle-terminal' }),
+    // In the palette as well as on a chord: ⌘K is this app's answer to "how
+    // do I do anything", and a surface that is only reachable by a shortcut
+    // is reachable only by someone who already knows it. The row carries the
+    // chord so the palette is where you learn it.
+    palette: {
+      id: 'a:terminal',
+      kind: 'always',
+      sort: 125,
+      kbd: 'Ctrl+`',
+      testid: 'palette-action-terminal',
+      labelKey: 'palette.actionTerminal',
+    },
     help: { group: 'global', kbd: 'Ctrl+`', labelKey: 'shortcuts.terminal', sort: 15 },
   },
   {

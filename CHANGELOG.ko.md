@@ -4,6 +4,20 @@
 
 ## Unreleased
 
+- Gadak.app 안에서 터미널이 동작합니다. WebSocket은 커스텀 URL 스킴을 탈
+  수 없고 데스크톱은 일부러 TCP 포트를 열지 않으므로, 같은 PTY 바이트가
+  wails GoStream을 타고 흐릅니다 — 렌더러 하나, 세션 코어 하나, `isDesktop()`
+  으로 고르는 전송 이음새 하나. 앱 자신을 거절하던 게이트도 함께 고쳤습니다:
+  웹뷰가 합성 피어 주소를 찍는데 터미널의 loopback 규칙이 피어를 읽기 때문에,
+  Gadak.app이 바로 그 규칙이 막으려던 원격 클라이언트처럼 보였습니다
+  ([GDK-892], [GDK-895]).
+- 터미널의 진입점과 배치: 커맨드 팔레트에 자리를 잡았고(`Ctrl+\`` 를 함께
+  보여 줘 팔레트가 단축키를 가르칩니다), 페인 안에 보이는 출구가 생겼으며
+  (모든 키를 일부러 삼키는 표면이라 닫는 키가 유일한 출구여선 안 됩니다),
+  사이드바·리스트·상세 패널·터미널이 모두 최소 너비로도 설 수 없게 되면
+  분할이 오버레이로 물러납니다. 글자 크기는 치수 토큰
+  `ui.tokens.type.terminal` 이라, 사람이든 에이전트든 이 앱의 다른 치수를
+  바꾸던 방식 그대로 바꿉니다 ([GDK-864]).
 - 필수 배열 필드(`labels`, `fix_versions`, `components`)보다 먼저 캐시된
   이슈 행 하나가 더 이상 UI 전체를 무너뜨리지 않습니다: 하이드레이션이 캐시
   입구에서 그 배열을 채우고, 버린 행은 콘솔 한 줄로 세며, 리스트 렌더
@@ -1343,3 +1357,5 @@ HTTP·sync·에이전트 계약.
 [GDK-883]: https://gadak.dev/backlog/#/?ks=GDK-883
 [GDK-864]: https://gadak.dev/backlog/#/?ks=GDK-864
 [GDK-835]: https://gadak.dev/backlog/#/?ks=GDK-835
+[GDK-892]: https://gadak.dev/backlog/#/?ks=GDK-892
+[GDK-895]: https://gadak.dev/backlog/#/?ks=GDK-895

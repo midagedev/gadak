@@ -4,6 +4,22 @@
 
 ## Unreleased
 
+- The terminal works inside Gadak.app. A WebSocket cannot ride a custom URL
+  scheme, and the desktop opens no TCP port on purpose, so the same PTY
+  bytes travel over a wails GoStream instead — one renderer, one session
+  core, one transport seam picked on `isDesktop()`. It also fixes a gate
+  that was refusing the app itself: the webview stamps a synthetic peer
+  address, and the terminal's loopback rule reads the peer, so Gadak.app
+  looked exactly like the remote client that rule exists to refuse
+  ([GDK-892], [GDK-895]).
+- Terminal entry points and geometry: the command palette carries it (with
+  its `Ctrl+\``, so the palette is where you learn the chord), the pane has
+  a visible way out — it swallows every keystroke on purpose, so the key
+  that closes it cannot be the only one — and the split steps aside for an
+  overlay when the sidebar, list, detail panel and terminal can no longer
+  all stand at their minimums. Its text size is a dimension token,
+  `ui.tokens.type.terminal`, so a person or an agent sets it the way they
+  set every other dimension here ([GDK-864]).
 - A cached issue row that predates a required array field (`labels`,
   `fix_versions`, `components`) no longer collapses the whole UI: hydration
   coerces those arrays at the cache door, a dropped row is counted in one
@@ -1413,3 +1429,5 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-883]: https://gadak.dev/backlog/#/?ks=GDK-883
 [GDK-864]: https://gadak.dev/backlog/#/?ks=GDK-864
 [GDK-835]: https://gadak.dev/backlog/#/?ks=GDK-835
+[GDK-892]: https://gadak.dev/backlog/#/?ks=GDK-892
+[GDK-895]: https://gadak.dev/backlog/#/?ks=GDK-895

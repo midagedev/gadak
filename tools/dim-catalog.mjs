@@ -66,6 +66,9 @@ const RANGE = {
   'type.body': { min: 12, max: 16 },
   'type.title': { min: 14, max: 18 },
   'type.heading': { min: 18, max: 28 },
+  // Wider than the ladder on purpose: a terminal is read at sizes the app's
+  // own type scale never goes to, in both directions.
+  'type.terminal': { min: 9, max: 24 },
   'type.micro-line-height': { min: 1.15, max: 1.6 },
   'type.body-line-height': { min: 1.15, max: 1.6 },
   'type.title-line-height': { min: 1.15, max: 1.6 },

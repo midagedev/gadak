@@ -23,6 +23,7 @@ export interface PaletteActionHost {
   openSettings: () => void
   openHistory: () => void
   openDocs: () => void
+  toggleTerminal: () => void
   openFeed: () => void
   clearUserFilters: () => void
   toggleFlag: (flag: 'reopened' | 'unassigned' | 'stale') => void
@@ -73,6 +74,8 @@ function runAlways(id: string, host: PaletteActionHost): () => void {
       return host.openHistory
     case 'a:docs':
       return host.openDocs
+    case 'a:terminal':
+      return host.toggleTerminal
     case 'a:reset':
       return host.clearUserFilters
     case 'a:sync':
