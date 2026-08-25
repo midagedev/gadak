@@ -1,8 +1,8 @@
 # Changelog
 
-<sub><a href="CHANGELOG.md">English</a> · 한국어 — 영문이 원본이며, 번역은 영문과 함께 갱신됩니다(마지막 동기화 2026-08-24).</sub>
+<sub><a href="CHANGELOG.md">English</a> · 한국어 — 영문이 원본이며, 번역은 영문과 함께 갱신됩니다(마지막 동기화 2026-08-25).</sub>
 
-## Unreleased
+## v0.17.3 — 2026-08-25
 
 - 폰 앱이 골격에서 MVP 루프 전체로 자랐습니다 — 리서치 두 편(공식 Jira
   모바일 앱의 실패 지도, 폰이 실제로 닿을 수 있는 것의 실측 게이트 표)
@@ -24,6 +24,38 @@
   탭은 이슈에 착지하고 큐로 빠져나옴) — 그리고 배선 라운드가 마운트
   이펙트가 자기 완료를 추적해 초당 ~55회 재요청하는 것을 실측으로 잡아
   `untrack`으로 클래스를 닫았습니다 ([GDK-837]).
+- 치수 토큰 파도: `ui.tokens`가 colors 옆에 팔레트 무관 세 축 —
+  `spacing`·`layout`·`type` — 을 얻습니다. 대비 수식 대신 범위와 토큰 간
+  관계로 검증하고, 자체 생성 카탈로그가 theme-check 체인에 연결됩니다.
+  app.css에 남아 있던 px 포크는 `var()` 소비로 수렴(실측 시각 no-op),
+  사용자 오버라이드는 라이브로 페인트되고(팔레트 캐스케이드 뒤 `:root`
+  규칙 하나 + 부트 캐시로 기본 기하 플래시 차단), JS 기하 소유자들이 같은
+  틱에 토큰을 다시 읽습니다: 이슈 리스트가 42px 상수를 버리고 오프셋
+  윈도잉으로(42/59 excerpt 드리프트 폐쇄), 모든 가상화 표면이 재마운트
+  없이 재윈도잉, 도킹 플로어는 재합산 후 matchMedia 재구독
+  ([GDK-842], [GDK-849], [GDK-850]).
+- 토큰 하나를 설정하다 나머지를 잃는 일이 없어집니다: `ui.tokens.colors` /
+  `.spacing` / `.layout` / `.type`이 키 단위 merge 서브패스가 되고(`null`은
+  그 키 삭제, 거절된 쓰기는 config 무변경), 전체 객체 set은 호환을 위해 교체
+  시맨틱을 유지합니다 — 그리고 치수 이름들은 자기 발견 경로를 얻었습니다:
+  `gadak config get ui.tokens.dim-catalog`가 토큰마다 티어·기본값·범위·
+  관계 문장을 나열합니다 ([GDK-852], [GDK-853]).
+- 대시보드 링크가 벽을 파괴하지 않게 됩니다: frame→parent 화이트리스트에
+  두 번째 버브 — `{type:'open', hash:'#/…'}`가 앱 자신의 라우트(이슈 상세,
+  저장된 뷰, 필터된 리스트, 검색)로 앱을 항해시키고, same-document
+  fragment로 검증되므로 외부 URL을 지목할 수 없습니다 — 그리고 sandbox가
+  `target="_blank" rel="noopener"`를 허용해 외부 링크는 프레임을 잃는 대신
+  새 탭으로 열립니다; triage 예시와 에이전트 스킬이 두 형태를 가르칩니다
+  ([GDK-854]).
+- 룩은 사용자의 것입니다: 토큰 검증이 거절 대신 **경고하고 저장**합니다. 대비·
+  ΔEok·색각·범위·토큰 간 관계·locked 티어는 전부 적용되고, 어떻게 보일지를
+  말해 줍니다 — 기계가 지킬 수 없는 것만 여전히 거절합니다(hex도 길이도 아닌
+  값, 잘못된 형태, 그리고 세 항의 합으로 재계산되는 `layout.docked-min`).
+  경고는 진단에 더해 다음 수를 갖게 됐습니다: 대비 경고는 실패한 팔레트를
+  이름으로 짚고 `ui.tokensByTheme.<palette>`를 가리키며, 타입 스텝 경고는 함께
+  옮겨야 하는 사다리 전체를 찍습니다. 웹 쓰기도 같은 평결을 `uiWarnings`로
+  돌려받고, 어떤 룩에서든 빠져나오는 길은 언제나 CLI 한 줄입니다
+  ([GDK-856], [GDK-857], [GDK-858]).
 
 ## v0.17.2 — 2026-08-25
 
@@ -1262,3 +1294,12 @@ HTTP·sync·에이전트 계약.
 [GDK-831]: https://gadak.dev/backlog/#/?ks=GDK-831
 [GDK-686]: https://gadak.dev/backlog/#/?ks=GDK-686
 [GDK-687]: https://gadak.dev/backlog/#/?ks=GDK-687
+[GDK-842]: https://gadak.dev/backlog/#/?ks=GDK-842
+[GDK-849]: https://gadak.dev/backlog/#/?ks=GDK-849
+[GDK-850]: https://gadak.dev/backlog/#/?ks=GDK-850
+[GDK-852]: https://gadak.dev/backlog/#/?ks=GDK-852
+[GDK-853]: https://gadak.dev/backlog/#/?ks=GDK-853
+[GDK-854]: https://gadak.dev/backlog/#/?ks=GDK-854
+[GDK-856]: https://gadak.dev/backlog/#/?ks=GDK-856
+[GDK-857]: https://gadak.dev/backlog/#/?ks=GDK-857
+[GDK-858]: https://gadak.dev/backlog/#/?ks=GDK-858

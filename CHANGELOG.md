@@ -2,7 +2,7 @@
 
 <sub>English · <a href="CHANGELOG.ko.md">한국어</a></sub>
 
-## Unreleased
+## v0.17.3 — 2026-08-25
 
 - The phone app grew from a skeleton into the whole MVP loop, built on
   two research rounds (market failure map of the official Jira mobile
@@ -29,6 +29,43 @@
   the wiring round measured a mount effect tracking its own completion,
   re-fetching ~55 times a second; `untrack` closed the class and the
   incident is on the backlog ([GDK-837]).
+- The dimension-token wave: `ui.tokens` grows three palette-agnostic axes
+  beside colors — `spacing`, `layout`, `type` — validated by ranges and
+  cross-token relations instead of contrast math, with their own generated
+  catalog chained into theme-check. app.css's leftover px forks converged
+  onto `var()` consumption (a measured visual no-op), user overrides paint
+  live — one `:root` rule after the palette cascade, a boot cache so a
+  customized user never sees default geometry flash — and the JS geometry
+  owners re-read the tokens in the same tick: the issue list dropped its
+  42px constant for offset windowing (closing a 42/59 excerpt drift), every
+  virtualized surface re-windows without a remount, and the docked floor
+  recomputes and re-subscribes matchMedia ([GDK-842], [GDK-849], [GDK-850]).
+- Setting one token no longer risks the rest: `ui.tokens.colors` /
+  `.spacing` / `.layout` / `.type` are key-wise merge subpaths (a `null`
+  deletes one key, a refused write leaves the config untouched), while the
+  whole-object set keeps its replace semantics for compatibility — and the
+  dimension names got their own discovery path,
+  `gadak config get ui.tokens.dim-catalog`, listing tier, default, range
+  and the relation sentences beside every token ([GDK-852], [GDK-853]).
+- Dashboard links stopped destroying the wall: the frame→parent whitelist
+  gains a second verb — `{type:'open', hash:'#/…'}` navigates the app
+  itself to any of its own routes (issue detail, saved views, filtered
+  lists, search), validated as a same-document fragment so it can never
+  name an outside URL — and the sandbox now allows `target="_blank"
+  rel="noopener"` so an external link opens a tab instead of navigating
+  the frame away; the triage example and the agent skill teach both
+  shapes ([GDK-854]).
+- Your look is yours: token validation now **warns and saves** instead of
+  refusing. Contrast, ΔEok, deuteranopia, ranges, cross-token relations
+  and the locked tier all apply and say what they will look like — only
+  what the machine cannot honor still refuses (a value that is not a hex
+  or a length, a malformed shape, and `layout.docked-min`, which is
+  recomputed from its three parts). The warnings gained the next move
+  besides the diagnosis: a contrast line names the palettes that fail and
+  points at `ui.tokensByTheme.<palette>`, and a type-step line prints the
+  whole ladder that has to move together. Web writes carry the same
+  verdicts back as `uiWarnings`, and the way out of any look is always one
+  CLI line ([GDK-856], [GDK-857], [GDK-858]).
 
 ## v0.17.2 — 2026-08-25
 
@@ -1324,3 +1361,12 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-831]: https://gadak.dev/backlog/#/?ks=GDK-831
 [GDK-686]: https://gadak.dev/backlog/#/?ks=GDK-686
 [GDK-687]: https://gadak.dev/backlog/#/?ks=GDK-687
+[GDK-842]: https://gadak.dev/backlog/#/?ks=GDK-842
+[GDK-849]: https://gadak.dev/backlog/#/?ks=GDK-849
+[GDK-850]: https://gadak.dev/backlog/#/?ks=GDK-850
+[GDK-852]: https://gadak.dev/backlog/#/?ks=GDK-852
+[GDK-853]: https://gadak.dev/backlog/#/?ks=GDK-853
+[GDK-854]: https://gadak.dev/backlog/#/?ks=GDK-854
+[GDK-856]: https://gadak.dev/backlog/#/?ks=GDK-856
+[GDK-857]: https://gadak.dev/backlog/#/?ks=GDK-857
+[GDK-858]: https://gadak.dev/backlog/#/?ks=GDK-858
