@@ -93,13 +93,17 @@ test('walk', async ({ page }) => {
   }).catch(() => {})
   await shoot(page, 'detail-bottom', 'issue detail scrolled to the end')
 
+  // This used to shoot the transition picker. `gadak demo` is a serve with no
+  // origin credential, so the transitions GET answers 409 and — since GDK-906
+  // — the control refuses at the control instead of opening a sheet it cannot
+  // fill. The frame worth having on this fixture is that refusal, which is a
+  // real state a reviewer should look at. The picker itself is unreachable
+  // here; GDK-911 tracks the fixture that would bring it back.
   const chip = page.locator('button.status').first()
   if ((await chip.count()) > 0) {
     await chip.click()
-    await page.locator('button.cancel').waitFor()
-    await shoot(page, 'status-sheet', 'transition picker')
-    await page.getByRole('button', { name: /cancel/i }).first().click()
-    await page.locator('button.cancel').waitFor({ state: 'hidden' })
+    await chip.and(page.locator(':disabled')).waitFor()
+    await shoot(page, 'detail-writes-off', 'status control refused: serve has no origin credential')
   }
   await page.locator('button.back').first().click()
   await page.locator('.pane:not(.off) button.row').first().waitFor()
@@ -145,9 +149,13 @@ test('walk', async ({ page }) => {
   await shoot(page, 'shell', 'terminal attached, first prompt')
   // Give the reviewer something to read: a command with wrapping output at
   // this width is where the 40-column question (GDK-900) is decided.
-  const sink = page.locator('[data-testid="terminal-pane"] textarea').first()
-  await sink.focus()
-  await sink.type('echo hello from the phone; ls -la', { delay: 20 })
+  // Focus and type exactly the way e2e/shell.spec.ts does. `locator.type()`
+  // on the sink dispatches at the element and the line never reached the PTY;
+  // the pane keys off the host click plus real keyboard events.
+  const host = page.locator('[data-gadak-editable]')
+  if ((await host.count()) > 0) await host.first().click({ position: { x: 24, y: 24 } })
+  await page.getByTestId('shell-ime').focus()
+  await page.keyboard.type('echo hello from the phone; ls -la', { delay: 15 })
   await page.keyboard.press('Enter')
   // Assert the output arrived rather than trusting a timeout: a frame of a
   // prompt with nothing under it is indistinguishable from a broken sink.

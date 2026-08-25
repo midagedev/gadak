@@ -23,7 +23,8 @@
     "@tauri-apps/plugin-notification": "^2.0.0",
     "@tauri-apps/plugin-websocket": "^2.0.0",
     "@xterm/addon-fit": "0.11.0",
-    "@xterm/xterm": "6.0.0"
+    "@xterm/xterm": "6.0.0",
+    "touch-remote-input": "github:midagedev/touch-remote-input#47afca257dd3257c9292391cc3b7f0180e6efc6a"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^5.0.3",
