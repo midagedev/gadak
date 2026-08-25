@@ -278,6 +278,14 @@ func TestMirrorAllowlistTable(t *testing.T) {
 		{"GET", origin.RESTPrefix + "/rest/api/3/myself", "", http.StatusNotFound, "not_found"},
 		{"GET", "/", "", http.StatusForbidden, "forbidden_host"},
 		{"GET", "/config.json", "", http.StatusForbidden, "forbidden_host"},
+		// 2026-08-25 — GDK-863 (product owner): a serve-scope token can
+		// never open a shell. The terminal route sits outside apiBase, so
+		// serveScopeAdmits is false for it by construction, and
+		// PairedTerminalHostExempt declines a bearer minted for another
+		// surface — a leaked phone token dies at the guard without being
+		// told the shell endpoint exists.
+		{"GET", "/api/v1/terminal/sessions/", "", http.StatusForbidden, "forbidden_host"},
+		{"POST", "/api/v1/terminal/sessions/", "", http.StatusForbidden, "forbidden_host"},
 	}
 	for _, row := range forbidden {
 		rec := sendWithHost(t, h, row.method, row.path, row.body, bearer(token), mirrorHost)

@@ -57,6 +57,15 @@ const ScopeOrigin = "origin"
 // discipline.
 const ScopeServe = "serve"
 
+// ScopeTerminal is the shell scope (GDK-863): the PTY sessions
+// `gadak serve` runs, and nothing else. It is the third one-way door and
+// the sharpest one — a leaked serve token leaks the data in the mirror, a
+// leaked terminal token leaks the machine. So no other scope opens it and
+// it opens no other surface: not the mirror REST, not the origin
+// passthrough. It is never a default, and `pairing mint` will not produce
+// one without --scope terminal being typed.
+const ScopeTerminal = "terminal"
+
 // ScopeLocalRouting is the home machine's own routing token. pairing list
 // uses this so the `_home` row is not mistaken for a paired device.
 const ScopeLocalRouting = "local-routing"
@@ -200,9 +209,9 @@ func prepareMint(label, scope string, ttl time.Duration, now time.Time) (string,
 	switch scope {
 	case "", ScopeOrigin:
 		scope = ScopeOrigin
-	case ScopeServe:
+	case ScopeServe, ScopeTerminal:
 	default:
-		return "", Meta{}, fmt.Errorf("pairing: unknown scope %q (want %s or %s)", scope, ScopeOrigin, ScopeServe)
+		return "", Meta{}, fmt.Errorf("pairing: unknown scope %q (want %s, %s, or %s)", scope, ScopeOrigin, ScopeServe, ScopeTerminal)
 	}
 	if ttl <= 0 {
 		return "", Meta{}, errors.New("pairing: ttl must be positive")
@@ -355,12 +364,44 @@ func AuthorizeMeta(dir, bearer string, now time.Time) (Verdict, Meta, error) {
 // passthrough: origin (the device scope), local-routing (the home
 // machine's own writes), and the empty scope of tokens minted before
 // scopes mattered — those were origin tokens and must keep working.
-// serve is the deliberate exclusion: the phone scope opens the mirror
-// mirror REST, not raw REST.
+// serve and terminal are the deliberate exclusions: the phone scope opens
+// the mirror REST and the shell scope opens a PTY, neither opens raw REST.
 func AdmitsOrigin(scope string) bool {
 	switch scope {
 	case "", ScopeOrigin, ScopeLocalRouting:
 		return true
+	}
+	return false
+}
+
+// AdmitsTerminal reports whether a token scope may open a shell. Only
+// ScopeTerminal does — not the empty scope of pre-scope tokens (they were
+// minted when no terminal existed and must not silently acquire one), not
+// local-routing, and above all not serve: a leaked phone token leaks the
+// mirror's data, and it must never become a leak of the machine.
+func AdmitsTerminal(scope string) bool {
+	return scope == ScopeTerminal
+}
+
+// TokenActive reports whether the stored token with this hash id is
+// active right now. It is the revoke watchdog's question (GDK-862): a live
+// PTY session records the id of the token that opened it, and asking this
+// on an interval is how `gadak pairing revoke` — which runs in a different
+// process and can only edit the file — reaches a shell that is already
+// open. Fails closed like Authorize: an unreadable store answers false, so
+// a store that has gone missing cuts sessions rather than keeping them.
+func TokenActive(dir, hash string, now time.Time) bool {
+	if hash == "" {
+		return false
+	}
+	doc, err := loadCached(dir)
+	if err != nil || doc == nil {
+		return false
+	}
+	for _, m := range doc.Tokens {
+		if strings.EqualFold(m.Hash, hash) {
+			return m.Active(now)
+		}
 	}
 	return false
 }

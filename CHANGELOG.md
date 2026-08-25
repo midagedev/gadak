@@ -9,6 +9,24 @@
   passthrough stays origin-scope, and non-API paths stay behind the host
   guard. A leaked serve token cannot reach raw REST; a paired laptop cannot
   dump the mirror ([GDK-883]).
+- `gadak serve` grew a terminal: one PTY session core behind
+  `/api/v1/terminal/`, shared by the web pane, the desktop app, and a
+  phone over the paired network — only renderers differ. Go owns the shell
+  and the byte pump (a session is its own process group, so closing one
+  takes its grandchildren with it), a 256 KiB ring replays scrollback to a
+  client that reconnects inside a 60-second grace, and a slow client is
+  dropped rather than allowed to stall the PTY or anyone else attached to
+  it. Windows says so honestly — `ErrUnsupportedPlatform`, naming the
+  ConPTY spike — instead of opening something that behaves unlike every
+  other platform ([GDK-862]).
+- A third pairing scope, and the sharpest one: `gadak pairing mint --scope
+  terminal` opens a shell and nothing else, while a serve or origin token
+  opens no shell at all — a leaked serve token leaks this workspace's
+  data, a leaked terminal token leaks the machine. It is never a default,
+  loopback still needs no token (an `--allow-remote` address does), and
+  revoking it does not wait for the next request: the serve notices within
+  a couple of seconds and closes the shells that token opened, telling the
+  socket why ([GDK-863]).
 
 ## v0.17.3 — 2026-08-25
 
@@ -1378,4 +1396,6 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-856]: https://gadak.dev/backlog/#/?ks=GDK-856
 [GDK-857]: https://gadak.dev/backlog/#/?ks=GDK-857
 [GDK-858]: https://gadak.dev/backlog/#/?ks=GDK-858
+[GDK-862]: https://gadak.dev/backlog/#/?ks=GDK-862
+[GDK-863]: https://gadak.dev/backlog/#/?ks=GDK-863
 [GDK-883]: https://gadak.dev/backlog/#/?ks=GDK-883

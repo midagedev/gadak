@@ -9,6 +9,23 @@
   스코프 전용으로 남고, API가 아닌 경로는 호스트 가드 뒤에 그대로 있습니다.
   유출된 serve 토큰은 날 REST에 닿을 수 없고, 페어링된 노트북은 미러를
   덤프할 수 없습니다 ([GDK-883]).
+- `gadak serve`에 터미널이 생겼습니다: `/api/v1/terminal/` 뒤의 PTY 세션
+  코어 하나를 웹 페인·데스크톱 앱·페어링된 네트워크 너머의 폰이 함께
+  씁니다 — 다른 것은 렌더러뿐입니다. 셸의 수명과 바이트 펌프는 Go가
+  소유하고(세션이 자기 프로세스 그룹이라 하나를 닫으면 손자 프로세스까지
+  함께 갑니다), 256 KiB 링이 60초 유예 안에 재접속한 클라이언트에게
+  스크롤백을 재생하며, 느린 클라이언트는 PTY나 다른 접속자를 막는 대신
+  끊어집니다. Windows는 정직하게 거절합니다 — ConPTY 스파이크를 지목하는
+  `ErrUnsupportedPlatform`이지, 다른 플랫폼과 다르게 동작하는 조용한
+  스텁이 아닙니다 ([GDK-862]).
+- 세 번째 페어링 스코프이자 가장 날카로운 스코프: `gadak pairing mint
+  --scope terminal`은 셸만 열고, serve·origin 토큰은 셸을 전혀 열지
+  못합니다 — 유출된 serve 토큰은 이 워크스페이스의 데이터를 유출하지만,
+  유출된 terminal 토큰은 기계를 유출합니다. 기본값이 되는 일은 없고,
+  loopback은 여전히 토큰이 필요 없으며(`--allow-remote` 주소는
+  필요합니다), 폐기(revoke)는 다음 요청을 기다리지 않습니다: serve가 몇
+  초 안에 알아채고 그 토큰이 연 셸들을 닫으면서 소켓에 이유를 알려
+  줍니다 ([GDK-863]).
 
 ## v0.17.3 — 2026-08-25
 
@@ -1311,4 +1328,6 @@ HTTP·sync·에이전트 계약.
 [GDK-856]: https://gadak.dev/backlog/#/?ks=GDK-856
 [GDK-857]: https://gadak.dev/backlog/#/?ks=GDK-857
 [GDK-858]: https://gadak.dev/backlog/#/?ks=GDK-858
+[GDK-862]: https://gadak.dev/backlog/#/?ks=GDK-862
+[GDK-863]: https://gadak.dev/backlog/#/?ks=GDK-863
 [GDK-883]: https://gadak.dev/backlog/#/?ks=GDK-883

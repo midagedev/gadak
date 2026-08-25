@@ -3,6 +3,8 @@ module github.com/midagedev/gadak
 go 1.26.1
 
 require (
+	github.com/coder/websocket v1.8.14
+	github.com/creack/pty v1.1.24
 	github.com/mattn/go-runewidth v0.0.19
 	github.com/midagedev/issuetap v0.0.0-20260823220829-e46d5c1547db
 	golang.org/x/sys v0.47.0

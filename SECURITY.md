@@ -175,11 +175,11 @@ refuses any other address unless you pass `--allow-remote`
 a multi-user mode: exposing the port publishes every issue the mirror holds
 to anyone who can reach it.
 
-`gadak pairing` (GDK-433, GDK-797) is the answer when you want that reach
-anyway — put the serve behind `tailscale serve` and mint one token per
+`gadak pairing` (GDK-433, GDK-797, GDK-863) is the answer when you want that
+reach anyway — put the serve behind `tailscale serve` and mint one token per
 device. A DNS-named Host — the shape `tailscale serve` forwards — is
 rejected by the rebinding guard unless the request is bound for a surface a
-token authenticates, and there are exactly two of those:
+token authenticates, and there are exactly three of those:
 
 - **The origin passthrough** (`/api/v1/origin`, standalone workspaces): raw
   REST for paired gadak machines and this machine's own routed writes
@@ -189,16 +189,43 @@ token authenticates, and there are exactly two of those:
   path-by-path allowlist (`internal/server/mirror_gate.go`). Only the
   origin passthrough stays origin-scope; non-API paths stay behind the
   host guard.
+- **The terminal** (`/api/v1/terminal`, GDK-862/GDK-863): the PTY sessions
+  the terminal pane runs, behind a `terminal`-scope token
+  (`internal/server/terminal.go`). This is the sharpest scope gadak has,
+  and the threat model is stated plainly: **a leaked serve token leaks
+  this workspace's data; a leaked terminal token leaks the machine** —
+  the shell runs as your OS user, with your files and your credentials.
+  So it is never a default (`--scope terminal` has to be typed), it is
+  worth a short `--ttl`, and revoking it does not merely refuse the next
+  request: the serve re-reads the token store every two seconds while a
+  token-bound shell is open and closes those sessions — the socket is
+  told `{"t":"dropped","reason":"token_revoked"}` and the shell's whole
+  process group is signalled.
 
 Each surface takes only its own scope: `gadak pairing mint --scope origin`
 (the default) rides the passthrough and is refused on the mirror REST;
 `--scope serve` opens the mirror REST and is refused on the passthrough
-(`403 scope_rejected` both ways). A leaked serve token cannot reach raw
-REST; a paired laptop cannot dump the mirror. Minting works on any
-workspace kind (GDK-798) — a connected home mints phone tokens for its
-mirror REST, while its passthrough stays closed (404) regardless.
+and on the terminal; `--scope terminal` opens a shell and is refused on
+both of the others (`403 scope_rejected`, or `403 forbidden_host` where a
+wrong-scope token is not even told the terminal route exists). A leaked
+serve token cannot reach raw REST or a shell; a paired laptop cannot dump
+the mirror. Minting works on any workspace kind (GDK-798) — a connected
+home mints phone tokens for its mirror REST, while its passthrough stays
+closed (404) regardless.
 
-Once **any active pairing token exists**, both surfaces demand
+The terminal's loopback rule is decision 0003 applied once more, and
+narrower than the mirror's: a request whose Host is `localhost`,
+`*.localhost`, or a **loopback** IP literal — **and whose connection
+arrives from a loopback peer** (the Host header is whatever the client
+typed; the peer address is not) — needs no Bearer, because that
+caller is the same person as the CLI user, and the browser guard's Origin
+check on the WebSocket upgrade (GDK-855) is what stands between that
+surface and a hostile tab. Every other address — including the LAN or
+tailnet IP an `--allow-remote` bind answers on — needs a terminal token.
+`--allow-remote` publishes the mirror's data by design; it does not
+publish a shell.
+
+Once **any active pairing token exists**, all three surfaces demand
 `Authorization: Bearer <token>`. There is no loopback exemption on the
 passthrough, because a tunnel arrives as loopback; while no active token
 exists, DNS-named Hosts stay behind the rebinding guard entirely

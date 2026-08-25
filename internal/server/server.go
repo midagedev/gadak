@@ -25,6 +25,7 @@ import (
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/selfupdate"
 	"github.com/midagedev/gadak/internal/store"
+	"github.com/midagedev/gadak/internal/term"
 )
 
 // sourceID is the only connector v0.1 configures. Both the ETag and the sync
@@ -112,6 +113,14 @@ type server struct {
 	// after origin.live is evicted (cross-process simulation).
 	originOnce sync.Once
 	originH    http.Handler
+
+	// termMgr owns the PTY sessions of the terminal surface (GDK-862).
+	// Built on first use — a serve that never opens a terminal never
+	// constructs one — and reaped by Shutdown. termWatchOnce starts the
+	// pairing-revoke watchdog, from the first token-bound session.
+	termMu        sync.Mutex
+	termMgr       *term.Manager
+	termWatchOnce sync.Once
 }
 
 // Handler is the HTTP API plus optional update-check control. It implements
@@ -310,6 +319,9 @@ func newServer(db *store.DB, cfg *config.Config, cache *attachcache.Cache, profi
 	// Origin passthrough: CLI writes on a standalone workspace go through
 	// the live serve's issuetap so persist has one owner (GDK-333).
 	mux.Handle(origin.RESTPrefix+"/", http.HandlerFunc(s.handleOriginREST))
+	// The terminal (GDK-862): PTY sessions and their WebSocket. Outside
+	// apiBase/authBase/dashBase on purpose — see termBase in terminal.go.
+	s.registerTerminal(mux)
 	// Deferred and cut endpoints (notifications, presence, mentions,
 	// data-quality, login/logout) fall through to here. The UI hides a surface on
 	// a clean 404 and only breaks on a 500.
@@ -324,7 +336,8 @@ func newServer(db *store.DB, cfg *config.Config, cache *attachcache.Cache, profi
 	// The mirror gate sits inside the guard: the guard vouches for the Host
 	// (exemptions only where a later gate authenticates), the gate vouches
 	// for the token (GDK-797).
-	h.guarded = GuardBrowser(s.mirrorGate(mux), PairedOriginHostExempt(dirFn), PairedMirrorHostExempt(dirFn))
+	h.guarded = GuardBrowser(s.mirrorGate(mux),
+		PairedOriginHostExempt(dirFn), PairedMirrorHostExempt(dirFn), PairedTerminalHostExempt(dirFn))
 	if testRegisterHandler != nil {
 		testRegisterHandler(h)
 	}
@@ -356,6 +369,10 @@ func (h *Handler) Shutdown(ctx context.Context) error {
 	if h == nil || h.s == nil {
 		return nil
 	}
+	// Shells first: they are the only thing here that outlives the
+	// process if nobody signals it (internal/term reaps the process
+	// group), and reaping them lets the watchdog goroutine below finish.
+	h.s.closeTerminals()
 	if h.s.jobsCancel != nil {
 		h.s.jobsCancel()
 	}

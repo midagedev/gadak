@@ -5,8 +5,11 @@ package main
 // side consumes the mint output with `gadak init --pairing-code`. A
 // serve-scope token (GDK-797) opens the mirror REST a phone
 // companion reads — bootstrap, detail, search, feed, and the
-// comment/transition writes — and nothing else. While any active token
-// exists, both surfaces require their Bearer.
+// comment/transition writes — and nothing else. A terminal-scope token
+// (GDK-863) opens a shell on this machine — the terminal pane — and
+// nothing else; it is never a default, and revoking it closes the shells
+// it opened. While any active token exists, all three surfaces require
+// their Bearer.
 
 import (
 	"context"
@@ -28,7 +31,7 @@ import (
 	"github.com/midagedev/gadak/internal/store"
 )
 
-const pairingUsage = "usage: gadak pairing mint --label NAME [--scope origin|serve] [--ttl 90d] [--endpoint URL] [--json] | pairing list | pairing revoke <label|hash-prefix>"
+const pairingUsage = "usage: gadak pairing mint --label NAME [--scope origin|serve|terminal] [--ttl 90d] [--endpoint URL] [--json] | pairing list | pairing revoke <label|hash-prefix>"
 
 // pairingRevokeUsage is the revoke selector: exact label, or a hash prefix
 // of at least minPrefix (8) hex characters — pairing list prints 8, longer
@@ -138,7 +141,7 @@ func pairingMint(args []string) error {
 	// the 90-day default has one owner.
 	ttlDefault := fmt.Sprintf("%dd", int(defaultPairingTTL/(24*time.Hour)))
 	label := fs.String("label", "", "device name shown in `gadak pairing list` (required)")
-	scope := fs.String("scope", "origin", "what the token opens: origin = origin passthrough for a paired gadak (default), serve = the mirror REST for a paired client (a phone companion)")
+	scope := fs.String("scope", "origin", "what the token opens: origin = origin passthrough for a paired gadak (default), serve = the mirror REST for a paired client (a phone companion), terminal = a shell on this machine (never a default — see `gadak help pairing`)")
 	ttlFlag := fs.String("ttl", ttlDefault, "token lifetime: <N><d|h|m|s>, e.g. 90d or 12h")
 	endpoint := fs.String("endpoint", "", "URL remote devices reach this serve at (default: this machine's live serve address)")
 	asJSON := fs.Bool("json", false, "emit JSON")
@@ -149,9 +152,9 @@ func pairingMint(args []string) error {
 		return errors.New("pairing mint requires --label NAME")
 	}
 	switch strings.TrimSpace(*scope) {
-	case pairing.ScopeOrigin, pairing.ScopeServe:
+	case pairing.ScopeOrigin, pairing.ScopeServe, pairing.ScopeTerminal:
 	default:
-		return fmt.Errorf("unknown --scope %q: want origin (a paired gadak riding the passthrough) or serve (a paired client reading the mirror REST)", strings.TrimSpace(*scope))
+		return fmt.Errorf("unknown --scope %q: want origin (a paired gadak riding the passthrough), serve (a paired client reading the mirror REST), or terminal (a shell on this machine)", strings.TrimSpace(*scope))
 	}
 	ttl, err := parseTTL(*ttlFlag)
 	if err != nil {
@@ -237,9 +240,12 @@ func writePairingMintOutput(asJSON bool, offer, label, endpoint, scope string, m
 		}{offer, label, scope, endpoint, expiry})
 	}
 	fmt.Println(offer)
-	if scope == pairing.ScopeServe {
+	switch scope {
+	case pairing.ScopeServe:
 		fmt.Fprintln(os.Stderr, pairingMintServeHint())
-	} else {
+	case pairing.ScopeTerminal:
+		fmt.Fprintln(os.Stderr, pairingMintTerminalHint())
+	default:
 		fmt.Fprintln(os.Stderr, pairingMintRemoteHint(label))
 	}
 	fmt.Fprintf(os.Stderr, "paired device %q — offer reusable until %s; revoke with: gadak pairing revoke %s\n",
@@ -264,6 +270,17 @@ func pairingMintRemoteHint(label string) string {
 // companion is a REST client, not a second gadak workspace.
 func pairingMintServeHint() string {
 	return "this is a serve token: in the phone app it opens this serve's mirror API (reads + comment/transition writes) and nothing else"
+}
+
+// pairingMintTerminalHint names what a terminal token opens, and says the
+// thing that makes it different from the other two: the other scopes leak
+// data if they leak, this one leaks the machine. It is never a default —
+// `--scope terminal` has to be typed — and it is the one scope worth
+// giving a short --ttl.
+func pairingMintTerminalHint() string {
+	return "this is a terminal token: it opens a shell on this machine (the gadak terminal pane) and nothing else — not the mirror, not the origin passthrough.\n" +
+		"treat it like an SSH key: a leaked serve token leaks this workspace's data, a leaked terminal token leaks this machine.\n" +
+		"revoking it closes the shells it opened, within a couple of seconds, without stopping the serve."
 }
 
 // ensureHomeRoutingToken is the single owner of "_home is valid". Once one

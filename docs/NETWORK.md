@@ -130,6 +130,13 @@ mirror REST — everything the local web UI can call — and is refused on the
 origin passthrough, exactly as an origin token is refused on the mirror.
 Non-API paths stay behind the host guard.
 
+The **terminal** (GDK-862/GDK-863) is the third scope: `gadak pairing mint
+--label phone-shell --scope terminal` opens the PTY sessions of the
+terminal pane and nothing else — never the mirror, never the passthrough —
+and because a leaked terminal token leaks the machine rather than a copy of
+its data, it is never a default and revoking it closes the shells it
+already opened ([`SECURITY.md`](../SECURITY.md#the-local-server)).
+
 ### Tailscale is the intended transport
 
 `gadak serve` binds loopback and refuses anything else unless you pass
@@ -152,17 +159,20 @@ stating precisely:
 - **Through `tailscale serve`, a DNS hostname reaches exactly the
   token-gated surfaces.** Requests arrive with the tailnet hostname, and the
   serve's host guard rejects DNS hostnames that are not `localhost` unless
-  a later gate authenticates the request. There are two such gates: the
-  origin passthrough (an origin-scope token, for paired gadak machines) and
+  a later gate authenticates the request. There are three such gates: the
+  origin passthrough (an origin-scope token, for paired gadak machines),
   the mirror REST (a serve-scope token, for a phone companion — the whole
-  surface the local web UI can call). A tailnet device with no token gets
-  nothing; a paired laptop gets the passthrough, not the mirror; a phone
-  token gets the mirror REST, not the passthrough. The web UI and every
-  other non-API route stay closed behind the host guard.
+  surface the local web UI can call), and the terminal (a terminal-scope
+  token, for a shell). A tailnet device with no token gets nothing; a
+  paired laptop gets the passthrough, not the mirror; a phone token gets
+  the mirror REST, not the passthrough and not a shell. The web UI and
+  every other non-API route stay closed behind the host guard.
 - **`--allow-remote` is the sharp edge.** Binding a non-loopback address
   opens the mirror's read and write API to whoever can reach the port, with
   no login in front of it — gadak deliberately has no account model
-  ([`SECURITY.md`](../SECURITY.md#data-flow)). Reach for it only when the
+  ([`SECURITY.md`](../SECURITY.md#data-flow)). The terminal is the one
+  surface it does *not* open: a shell needs a terminal-scope token at any
+  address but loopback. Reach for it only when the
   network boundary itself (a firewalled host, a tailnet ACL) is the access
   control you mean.
 
