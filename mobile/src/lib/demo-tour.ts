@@ -6,10 +6,14 @@
 // trusted across takes. This drives the same journey from inside instead:
 // store calls and DOM clicks, deterministic timings, no coordinates.
 //
-// Arming: create `mobile/public/__demo-tour__` (served at /__demo-tour__ by
-// vite, absent in a packaged build) and relaunch the app. Delete the file to
-// disarm. The module is imported from main.ts in DEV builds only and does
-// nothing when the flag file is missing.
+// Arming: open the DEV origin with `?demo-tour` (any value) and reload.
+// A HEAD/file probe at /__demo-tour__ was abandoned: mobile/public/ does
+// not exist, and vite's SPA fallback serves index.html with 200 for every
+// unmatched path, so r.ok was always true and the tour drove every
+// `npm run dev` boot with no way to disarm. A query parameter cannot be
+// forged by a route. Omit the param to disarm. Packaged builds never run
+// this (`import.meta.env.DEV` below). The module is imported from main.ts
+// in DEV builds only.
 //
 // The dark-mode flip stays outside (xcrun simctl ui booted appearance dark)
 // — the app follows the system appearance; the tour leaves a steady beat
@@ -73,11 +77,16 @@ async function tour(): Promise<void> {
   glide(560)
 }
 
+/** True only in DEV when the page URL carries `?demo-tour`. */
+export function isDemoTourArmed(): boolean {
+  if (!import.meta.env.DEV) return false
+  if (typeof location === 'undefined') return false
+  return new URLSearchParams(location.search).has('demo-tour')
+}
+
 export function armDemoTourInDev(): void {
   if (!import.meta.env.DEV) return
-  void fetch('/__demo-tour__', { method: 'HEAD' })
-    .then((r) => {
-      if (r.ok) void tour()
-    })
-    .catch(() => {})
+  if (!isDemoTourArmed()) return
+  console.info('gadak demo tour: driving the app (armed by ?demo-tour)')
+  void tour()
 }

@@ -127,18 +127,32 @@ jobs:
   mobile:
     name: Mobile (TypeScript)
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Viewport gate (GDK-868) adds a Go build + Playwright Chromium on
+    # 5182/7899. 10m was enough for vitest + svelte-check alone.
+    timeout-minutes: 20
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
 
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
           cache: npm
-          cache-dependency-path: mobile/package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            mobile/package-lock.json
 
+      # Root install is Playwright for the viewport gate; mobile/ is the
+      # app under test. Two lockfiles, two ci runs — Playwright already
+      # lives at the repo root (mobile/package.json is scripts-only).
+      - run: npm ci
       - run: npm ci
         working-directory: mobile
 
@@ -150,6 +164,17 @@ jobs:
         working-directory: mobile
 
       - run: npm run check
+        working-directory: mobile
+
+      # GDK-868 layer 1: DESIGN.md §4.1 / §4.2. Cheap, no browser.
+      - run: npm run lint:ios
+        working-directory: mobile
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      # GDK-868 layer 2: 402×874 walk on :5182 / demo :7899. Not e2e :7877.
+      - run: npm run viewport-gate
         working-directory: mobile
 
   scan:

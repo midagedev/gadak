@@ -247,3 +247,25 @@ English, product voice, sentence case, verbs on buttons ("Pair", "Send",
 priority, comment, transition — no invented nouns. Errors say what to do
 next ("Pairing was refused — mint a new offer on your desktop and pair
 again."), never apologize, never quote server internals.
+
+## 9. Gates
+
+- **Dev demo tour** is opt-in. Open the DEV origin with `?demo-tour` (any
+  value). A file probe at `/__demo-tour__` was abandoned: `mobile/public/`
+  does not exist, and vite's SPA fallback answers every unmatched path with
+  `index.html` and 200, so the tour ran on every `npm run dev` boot. Packaged
+  builds never run it (`import.meta.env.DEV` in `lib/demo-tour.ts`). `npm test`
+  covers the disarmed path; the viewport gate walks a boot with nothing armed.
+- **iOS contract (§4.1–4.2)** — `npm run lint:ios`. Only `src/app.css` may
+  mention `env(safe-area-inset-*)`. No CSS `vh` / `dvh` / `svh` / `lvh` units
+  under `src/` (a comment that names the ban is not a unit).
+- **Viewport geometry** — `npm run viewport-gate` (from `mobile/`; also
+  `bash mobile/scripts/viewport-gate.sh` from the repo root). Playwright at
+  402×874 against `gadak demo --addr 127.0.0.1:7899` (vite's hardcoded `/api`
+  proxy) and vite on `127.0.0.1:5182`. Not `e2e/`'s `127.0.0.1:7877` and not
+  `e2e/.tmp/home` — demo makes its own temp home. Asserts horizontal overflow
+  0, `nav.safe-bottom` flush to the viewport bottom, no input/textarea under
+  16px, ≥12 queue rows per screen, and a visible escape (tab bar, `button.back`,
+  or sheet Cancel). The 44pt tap-target assertion is written at the real
+  contract and skipped until GDK-867 (32pt `.fresh` / `.status` / `.cancel` /
+  `.act`).

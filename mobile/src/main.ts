@@ -22,8 +22,8 @@ const app = mount(App, {
   target: document.getElementById('app')!,
 })
 
-// Self-driving capture tour — armed only when /__demo-tour__ exists (DEV;
-// see lib/demo-tour.ts). Static import keeps main.ts free of async top-level.
+// Self-driving capture tour — armed only when the DEV URL has ?demo-tour
+// (see lib/demo-tour.ts). Static import keeps main.ts free of async top-level.
 if (import.meta.env.DEV) {
   void import('./lib/demo-tour').then((m) => m.armDemoTourInDev())
 }
