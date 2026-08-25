@@ -13,6 +13,7 @@
     "test": "vitest run",
     "lint:ios": "bash scripts/ios-contract.sh",
     "viewport-gate": "bash scripts/viewport-gate.sh",
+    "shots": "../node_modules/.bin/playwright test --config ./shots.config.ts",
     "tauri": "tauri"
   },
   "dependencies": {
