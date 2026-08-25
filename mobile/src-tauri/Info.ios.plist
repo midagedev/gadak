@@ -9,5 +9,13 @@
 <dict>
 	<key>NSCameraUsageDescription</key>
 	<string>Scans the gadak pairing code shown on your computer.</string>
+	<!-- Export compliance. The app carries no cryptography of its own: it
+	     talks to a paired `gadak serve` over HTTPS/WSS and nothing else
+	     (grep for crypto/hmac/aes under mobile/src and src-tauri/src comes
+	     back empty). That is the standard exemption, so the answer is
+	     false. Without this key every upload parks in "Missing Compliance"
+	     and never reaches a tester until someone answers by hand. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 </dict>
 </plist>

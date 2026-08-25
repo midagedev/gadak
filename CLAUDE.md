@@ -106,6 +106,13 @@ hard-won 목록)와 `AGENTS.md`(스키마·쿼리)가 원본이다.
 - brew: `gadak` = **macOS 앱 cask**(CLI 포함, v0.14부터 tap에 게시),
   `gadak-cli` = CLI formula(리눅스 포함). 문서의 설치 명령은 태그와 동시
   교체.
+- **폰 앱(mobile/)의 TestFlight 내부 배포는 한 줄이다**:
+  `cd mobile && scripts/testflight-upload.sh --bump` — 게이트 → `tauri ios
+  build` → **`.ipa` 계약 검증 8항목** → `altool` 업로드 → 처리 대기 →
+  `artifacts/app-store/`에 영수증. 계정 소유자 웹 단계(그룹 배정·계약 갱신
+  동의)와 rust 툴체인 함정은 `docs/runbooks/testflight-release.md`가 정본.
+  자격증명은 `~/.appstoreconnect`(레포 밖). 공개 스토어 제출은 여전히 별개
+  판단이고 리뷰어 데모 경로가 선행 조건이다(GDK-805).
 - 에이전트 온보딩은 **skill-first**: 셸 있는 호스트는 `gadak skill install`,
   MCP(`gadak mcp install claude`)는 셸 없는 호스트(Claude Desktop)용.
 - `make media`는 `media-mcp`를 포함하지 않는다 — mcp 클립은 Claude 로그인과
