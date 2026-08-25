@@ -23,7 +23,7 @@ BIN="$BIN_DIR/gadak"
 TMP="$ROOT/tools/tapes/.tmp"
 ENV_SH="$TMP/env-claude-drive.sh"
 REAL_HOME="${REAL_HOME:-$HOME}"
-PORT="${GADAK_E2E_PORT:-7889}"
+PORT="${GADAK_E2E_PORT:-7796}"   # matches record-claude-drive.sh's landscape default
 
 if [[ "${1:-}" == "--clean" ]]; then
   rm -rf "$DRIVE_ROOT"
@@ -244,6 +244,11 @@ export DISABLE_AUTOUPDATER=1
 unset HISTFILE
 unset FORCE_COLOR
 unset NO_COLOR
+# The recorder exports these for its own serve and Playwright halves; gadak
+# does not read them, so every command the agent runs would otherwise print
+# "ignoring unrecognised GADAK_E2E_PORT, GADAK_PROMO_LAYOUT" into the frame.
+unset GADAK_E2E_PORT
+unset GADAK_PROMO_LAYOUT
 for v in \$(env | sed -n 's/^\(CLAUDE[A-Z_]*\)=.*/\1/p'); do unset "\$v"; done
 cd '$WORKSPACE'
 EOF

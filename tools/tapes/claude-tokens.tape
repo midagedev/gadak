@@ -16,8 +16,11 @@
 # the open tab). Everything visible comes from examples/demo.db.
 #
 # 44px rows: spacing.row's range is 36–56 and row-excerpt must stay ≥ row+8
-# (docs/CONFIGURATION.md, dimension axes) — 44 clears both, 52+ would not.
-# Ask for one axis pair at a time; the relation validator refuses the rest.
+# (docs/CONFIGURATION.md, dimension axes) — 44 clears both, so the take shows
+# a clean pass with nothing to talk back to. Since GDK-858 an out-of-band
+# value would be applied with a warning rather than refused, and since
+# GDK-853 the ui.tokens.<axis> subpaths merge key-wise, so the whole look can
+# land in one pass — the clip no longer has to walk one axis pair at a time.
 #
 # Vertical-native: unlike claude-drive.tape (which stores the landscape
 # original and is rewritten by record-claude-drive.sh), this clip only ever

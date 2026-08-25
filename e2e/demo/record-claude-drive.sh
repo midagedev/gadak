@@ -73,7 +73,12 @@ if [[ ! -x node_modules/.bin/playwright ]]; then
 fi
 
 if [[ "$LAYOUT" == "vertical" ]]; then
-  PORT="${GADAK_E2E_PORT:-7891}"
+  # Inside serveProbePorts()' 7777–7797 sweep (cmd/gadak/views.go) on purpose:
+  # a take on an out-of-range port records `dashboards open` finding no serve
+  # and the agent hunting the port by hand — a rig artifact, not what a user
+  # on a default port sees. (The custom-port discovery gap itself is real and
+  # filed separately; GADAK_NO_OPEN=1 still keeps a browser from popping.)
+  PORT="${GADAK_E2E_PORT:-7795}"
   # OUT is the claude-drive[-vertical] workdir for EVERY clip: the web
   # recorder (claude-drive-web.spec.ts / claude-drive.config.ts) hardcodes
   # it and is clip-agnostic. Sequential clips overwrite each other's
@@ -81,7 +86,7 @@ if [[ "$LAYOUT" == "vertical" ]]; then
   OUT="$ROOT/e2e/.tmp/claude-drive-vertical"
   RESULTS="$ROOT/e2e/.tmp/test-results-claude-drive-vertical"
 else
-  PORT="${GADAK_E2E_PORT:-7889}"
+  PORT="${GADAK_E2E_PORT:-7796}"   # same probe-range reason as vertical above
   OUT="$ROOT/e2e/.tmp/claude-drive"
   RESULTS="$ROOT/e2e/.tmp/test-results-claude-drive"
 fi

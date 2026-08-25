@@ -27,14 +27,14 @@ if [[ ! -x node_modules/.bin/playwright ]]; then
   exit 1
 fi
 
-# 7890: landscape promo is 7888, claude-drive is 7889.
+# 7890: landscape promo is 7888; claude-drive took 7796/7795 (probe range).
 PORT="${GADAK_E2E_PORT:-7890}"
 if ! [[ "$PORT" =~ ^[1-9][0-9]*$ ]] || [ "$PORT" -gt 65535 ]; then
   echo "record-vertical: GADAK_E2E_PORT must be 1-65535, got ${PORT}" >&2
   exit 1
 fi
-if [[ "$PORT" == "7888" || "$PORT" == "7889" ]]; then
-  echo "record-vertical: port ${PORT} is reserved (landscape promo 7888 / claude-drive 7889)" >&2
+if [[ "$PORT" == "7888" || "$PORT" == "7795" || "$PORT" == "7796" ]]; then
+  echo "record-vertical: port ${PORT} is reserved (landscape promo 7888 / claude-drive 7796·7795)" >&2
   exit 1
 fi
 if lsof -nP -iTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then

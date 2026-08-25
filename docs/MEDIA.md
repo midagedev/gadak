@@ -49,6 +49,8 @@ each run with a fake credential.)
 | `docs/media/claude-drive.gif` | VHS `tools/tapes/claude-drive.tape` + Playwright serve tab | README — live Claude Code session (skill) retints an open tab and opens a chart dashboard |
 | `docs/media/claude-drive.mp4` | same take, h264 | Twitter / LinkedIn / anywhere GIF is too heavy |
 | `docs/media/claude-drive-vertical.mp4` | same tape + stacked chrome (`record-claude-drive.sh vertical`) | social/vertical, 4:5 — README uses the landscape cut |
+| `docs/media/claude-dashboards-vertical.mp4` | VHS `tools/tapes/claude-dashboards.tape` + the same serve tab (`record-claude-drive.sh vertical claude-dashboards`) | social/vertical, 4:5 — the dashboards half of the flagship, ending on a key clicked off the wall that opens the issue in the app (the `open` verb, GDK-854) |
+| `docs/media/claude-tokens-vertical.mp4` | VHS `tools/tapes/claude-tokens.tape` + the same serve tab (`record-claude-drive.sh vertical claude-tokens`) | social/vertical, 4:5 — the team-look half: colours plus the dimension axes, including a token saved with a warning the agent then acts on (GDK-858) |
 
 ## Landing media policy (gadak.dev, GDK-751)
 
@@ -115,6 +117,8 @@ existing there. The landing references them via `MediaSlot still=…` with a
 | `claude-drive.gif` | **≤ 8 MB** (prefer ≤ 5 MB) | split 1880×720 scaled to 1280 @ 9 fps, then `gifsicle -O3 --colors 64` |
 | `claude-drive.mp4` | soft ≤ 8 MB | h264 `yuv420p` + `faststart` |
 | `claude-drive-vertical.mp4` | soft ≤ 8 MB | 1080×1350 h264 `yuv420p` + `faststart`; no GIF |
+| `claude-dashboards-vertical.mp4` | soft ≤ 8 MB | same 4:5 stack as claude-drive-vertical; no GIF |
+| `claude-tokens-vertical.mp4` | soft ≤ 8 MB | same 4:5 stack as claude-drive-vertical; no GIF |
 
 ### Current committed sizes (re-measure after regen)
 
@@ -141,6 +145,8 @@ Measured 2026-08-14 via `ls -la docs/media/` (decimal MB = bytes/1e6):
 | `claude-drive.gif` | 4.0 MB | 3958051 | 26.6 s | 1280×490 @ 9 fps, 64 colors (gifsicle; measured 2026-08-24) |
 | `claude-drive.mp4` | 2.0 MB | 1999568 | 26.6 s | 1880×720 h264 25 fps (measured 2026-08-24) |
 | `claude-drive-vertical.mp4` | 2.1 MB | 2076793 | 30.9 s | 1080×1350 h264 (measured 2026-08-24) |
+| `claude-dashboards-vertical.mp4` | 1.7 MB | 1659163 | 25.6 s | 1080×1350 h264 (measured 2026-08-25) |
+| `claude-tokens-vertical.mp4` | 1.2 MB | 1166774 | 18.2 s | 1080×1350 h264 (measured 2026-08-25) |
 
 ## Readability comes first, and it costs bytes
 
@@ -386,6 +392,31 @@ A paper-coloured drawbox covers the Claude TUI footer (`manual mode on`) so a
 parent-session harness leak does not land in the public frame. Claude's own
 usage-limit banner is left in the conversation.
 
+#### Split cuts (`claude-dashboards-vertical.mp4`, `claude-tokens-vertical.mp4`)
+
+The flagship asks for the whole job in one take; the two split clips ask for
+half each, so a social-length cut can hold on one thing. Same rig, same
+geometry, one argument:
+
+```bash
+bash e2e/demo/record-claude-drive.sh vertical claude-dashboards
+bash e2e/demo/record-claude-drive.sh vertical claude-tokens
+```
+
+Each clip carries its own result contract, because "a take finished" is not
+"a take is shippable" — measured 2026-08-25, a dashboards take passed the old
+chart-exists contract on a wall whose cards all read 0. The dashboards
+contract now requires the `dashboard_data` beat (the wall painted real
+numbers) **and** `dashboard_link_nav` (a key on the wall was clicked and the
+app opened that issue); the tokens contract requires a colour change plus a
+dimension override in the reopened tab.
+
+The recorder's serve deliberately listens inside `serveProbePorts()`' sweep
+(7796 landscape, 7795 vertical). On an out-of-range port `dashboards open`
+finds no serve and the take records the agent hunting the port by hand — a
+rig artifact standing in for a product failure. The discovery gap itself is
+real and filed as GDK-859; the port choice only keeps it out of the frame.
+
 ### MCP (`mcp.gif`)
 
 Two scenes, both real, VHS tape `tools/tapes/mcp.tape`, **1080×620**,
@@ -547,7 +578,7 @@ e2e/demo/
   record-vertical.sh     # unattended vertical regen (mp4 only)
   export-vertical.sh     # webm → *-vertical.mp4, no GIF
   promo-split.ts         # paper terminal + iframe chrome (landscape + vertical)
-  claude-drive.config.ts # 1880×720 flagship landscape, port 7889 (vertical 1080×1350)
+  claude-drive.config.ts # 1880×720 flagship landscape, port 7796 (vertical 1080×1350 on 7795)
   claude-drive-web.spec.ts
   record-claude-drive.sh # VHS + Playwright, up to 3 live takes
   export-claude-drive.sh # epoch offset stack + palette gif
