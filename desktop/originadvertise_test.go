@@ -22,7 +22,7 @@ func standaloneApp(t *testing.T) (*config.Config, *server.Handler) {
 	config.SetProfile("")
 	t.Cleanup(func() {
 		_ = origin.Close()
-		origin.SetInProcess(false)
+		origin.ResetInProcess()
 		config.SetProfile("")
 	})
 	cfg, err := config.Load()
@@ -54,7 +54,7 @@ func standaloneApp(t *testing.T) (*config.Config, *server.Handler) {
 // pre-fix no-op wiring this fails at "advertise file missing".
 func TestGDK340StandaloneAppAdvertisesOrigin(t *testing.T) {
 	cfg, api := standaloneApp(t)
-	origin.SetInProcess(true)
+	origin.SetInProcess(cfg, true)
 
 	stop, err := apprun.StartOriginPassthrough(cfg, api)
 	if err != nil {
@@ -116,7 +116,7 @@ func TestGDK340StandaloneAppAdvertisesOrigin(t *testing.T) {
 // loopback UI/API surface ("no forced server/port" invariant).
 func TestGDK340ListenerServesOnlyOriginPaths(t *testing.T) {
 	cfg, api := standaloneApp(t)
-	origin.SetInProcess(true)
+	origin.SetInProcess(cfg, true)
 
 	stop, err := apprun.StartOriginPassthrough(cfg, api)
 	if err != nil {

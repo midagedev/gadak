@@ -1,11 +1,18 @@
 package main
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"testing/fstest"
+
+	"github.com/midagedev/gadak/internal/apprun"
+	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/origin"
+	"github.com/midagedev/gadak/internal/workspace"
 )
 
 func TestMainWindowOptionsOmitRuntimeJS(t *testing.T) {
@@ -53,4 +60,68 @@ func TestServedIndexHasOneRuntimeJS(t *testing.T) {
 
 func TestRaiseWindowNil(t *testing.T) {
 	raiseWindow(nil)
+}
+
+func TestShutdownOnceCancelsBeforeClosing(t *testing.T) {
+	ctx, cancelContext := context.WithCancel(context.Background())
+	var calls []string
+	shutdown := shutdownOnce(func() {
+		calls = append(calls, "cancel")
+		cancelContext()
+	}, func() error {
+		if ctx.Err() == nil {
+			t.Error("close ran before watch context cancellation")
+		}
+		calls = append(calls, "close")
+		return nil
+	})
+
+	shutdown()
+	shutdown()
+
+	if got, want := strings.Join(calls, ","), "cancel,close"; got != want {
+		t.Fatalf("shutdown calls = %q, want %q", got, want)
+	}
+}
+
+func TestShutdownOnceClosesMountedStandaloneRegistry(t *testing.T) {
+	t.Setenv("GADAK_HOME", t.TempDir())
+	config.SetProfile("")
+	t.Cleanup(func() {
+		config.SetProfile("")
+		_ = origin.Close()
+		origin.ResetInProcess()
+	})
+
+	cfg, err := config.LoadFor("mounted")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Kind = config.KindStandalone
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	reg := workspace.New()
+	t.Cleanup(reg.Close)
+	if _, err := reg.Get("mounted"); err != nil {
+		t.Fatal(err)
+	}
+	advertise := origin.AdvertisePath(cfg.Directory())
+	if _, err := os.Stat(advertise); err != nil {
+		t.Fatalf("mounted standalone did not advertise its origin: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	shutdown := shutdownOnce(cancel, (&apprun.Runtime{Reg: reg}).Close)
+	shutdown()
+
+	select {
+	case <-ctx.Done():
+	default:
+		t.Fatal("shutdown did not cancel the watch context")
+	}
+	if _, err := os.Stat(advertise); !os.IsNotExist(err) {
+		t.Fatalf("mounted advertise remains after desktop shutdown: %v", err)
+	}
 }

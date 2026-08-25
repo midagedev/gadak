@@ -3,7 +3,6 @@ package apprun
 import (
 	"fmt"
 	"log"
-	"net"
 	"net/http"
 
 	"github.com/midagedev/gadak/internal/config"
@@ -17,9 +16,9 @@ func (rt *Runtime) acquireStandalone() error {
 	if rt == nil || rt.Cfg == nil || !rt.Cfg.IsStandalone() {
 		return nil
 	}
-	origin.SetInProcess(true)
+	origin.SetInProcess(rt.Cfg, true)
 	if _, err := origin.StandaloneHandler(rt.Cfg); err != nil {
-		origin.SetInProcess(false)
+		origin.SetInProcess(rt.Cfg, false)
 		return err
 	}
 	rt.acquiredStandalone = true
@@ -86,37 +85,20 @@ func StartOriginPassthrough(cfg *config.Config, api http.Handler) (func(), error
 	if dir == "" {
 		return nopStop, nil
 	}
-	origin.SetInProcess(true)
+	origin.SetInProcess(cfg, true)
 	if _, err := origin.StandaloneHandler(cfg); err != nil {
-		origin.SetInProcess(false)
+		origin.SetInProcess(cfg, false)
 		return nopStop, err
 	}
 	note("standalone-persist")
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	stop, err := origin.ServeOriginPassthrough(dir, api)
 	if err != nil {
-		origin.SetInProcess(false)
-		return nopStop, fmt.Errorf("could not open origin passthrough listener: %w", err)
-	}
-	mux := http.NewServeMux()
-	mux.Handle("GET "+origin.ProbePath+"{$}", api)
-	mux.Handle(origin.RESTPrefix+"/", api)
-	srv := &http.Server{Handler: mux}
-	go func() {
-		if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
-			log.Printf("warning: origin passthrough listener: %v", err)
-		}
-	}()
-	if err := origin.WriteAdvertise(dir, ln.Addr().String()); err != nil {
-		_ = srv.Close()
-		origin.SetInProcess(false)
-		return nopStop, fmt.Errorf("could not advertise origin owner: %w", err)
+		origin.SetInProcess(cfg, false)
+		return nopStop, err
 	}
 	note("advertise")
 	log.Print("apprun: origin advertised")
-	return func() {
-		_ = origin.RemoveAdvertise(dir)
-		_ = srv.Close()
-	}, nil
+	return stop, nil
 }
 
 // StartOriginPassthrough takes persist (if not already held) and advertises

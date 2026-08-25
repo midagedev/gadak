@@ -184,6 +184,20 @@ func (g *coldStartGate) markReady() {
 	}
 }
 
+// shutdownOnce owns native application shutdown because Wails can invoke
+// OnShutdown without returning from app.Run, which would bypass run's defer.
+func shutdownOnce(cancel context.CancelFunc, close func() error) func() {
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			cancel()
+			if err := close(); err != nil {
+				log.Printf("gadak-desktop: close: %v", err)
+			}
+		})
+	}
+}
+
 func run() error {
 	rt, err := apprun.Open(apprun.Options{
 		Version:         server.Version,
@@ -193,9 +207,6 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	// LIFO with cancel below: cancel Watch, then Close (origin listener
-	// stop before persist flush, API before DB).
-	defer rt.Close()
 	cfg, api := rt.Cfg, rt.API
 
 	ui, ok := gadak.WebUI()
@@ -204,7 +215,8 @@ func run() error {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	shutdown := shutdownOnce(cancel, rt.Close)
+	defer shutdown()
 
 	reg := rt.Reg
 
@@ -266,7 +278,7 @@ func run() error {
 				}
 			},
 		},
-		OnShutdown: cancel,
+		OnShutdown: shutdown,
 	})
 
 	openURL = app.Browser.OpenURL
