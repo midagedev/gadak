@@ -222,7 +222,15 @@ test.describe('shell tab', () => {
       timeout: 20_000,
     })
     await expect(page.getByTestId('terminal-status')).toContainText('Press Enter to start a new shell')
-    await expect(page.locator('[role="status"]')).toHaveCount(1)
+    // One line, and it is the control. This used to assert role="status"
+    // count 1; GDK-908 made the ended state a real <button> because tapping
+    // it is what starts the next shell, and role="status" is an announcement,
+    // not a control. The live-region roles now belong to connecting and
+    // reconnecting — states with nothing to tap — so an ended pane having
+    // none is the contract, not a regression.
+    await expect(page.getByTestId('terminal-status')).toHaveCount(1)
+    await expect(page.getByTestId('terminal-status')).toHaveJSProperty('tagName', 'BUTTON')
+    await expect(page.locator('[role="status"]')).toHaveCount(0)
 
     mkdirSync(SHOT_DIR, { recursive: true })
     await page.screenshot({ path: `${SHOT_DIR}/shell-ended.png`, fullPage: true })

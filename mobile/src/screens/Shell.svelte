@@ -5,7 +5,7 @@
 </script>
 
 <script lang="ts">
-  import { onMount } from 'svelte'
+  import { onMount, untrack } from 'svelte'
   import Screen from '../ui/Screen.svelte'
   import KeyBar from '../ui/KeyBar.svelte'
   import { t } from '../lib/i18n'
@@ -32,6 +32,7 @@
 
   type Status =
     | { kind: 'none' }
+    | { kind: 'connecting' }
     | { kind: 'reconnecting' }
     | { kind: 'exited'; code: number }
     | { kind: 'dropped'; reason: DroppedReason }
@@ -47,7 +48,7 @@
 
   let hostEl = $state<HTMLElement | null>(null)
   let imeEl = $state<HTMLTextAreaElement | null>(null)
-  let status = $state<Status>({ kind: 'none' })
+  let status = $state<Status>({ kind: 'connecting' })
   let attached = $state(false)
   let mods = $state<StickyMods>({ ctrl: false, alt: false })
 
@@ -119,14 +120,16 @@
   }
 
   function sendBytes(bytes: Uint8Array) {
-    if (phase === 'ended') {
+    // ended *and* unavailable: the session is gone; Enter/tap starts a new
+    // one (DESIGN.md §10.4 — the desktop pane's ended-state contract).
+    if (phase === 'ended' || phase === 'unavailable') {
       const enter = bytes.length === 1 && (bytes[0] === 13 || bytes[0] === 10)
       if (enter) {
-        status = { kind: 'none' }
+        status = { kind: 'connecting' }
         phase = 'live'
         reconnectSince = 0
         reconnectAttempt = 0
-        void startNew()
+        void startNew().catch(onCreateFail)
       }
       return
     }
@@ -142,6 +145,12 @@
   }
 
   function onBarKey(key: BarKey) {
+    // Flush barrier: commit an open composition, then the bar key. Esc
+    // mid-syllable otherwise reaches the PTY while 자모 are still held
+    // (naru-remote; long-term home is the ime module — GDK-898).
+    if (ime.composing) {
+      flushIme({ kind: 'compositionend', data: imeEl?.value ?? '' })
+    }
     const bytes = bytesForBarKey(key, mods)
     mods = applyStickyPress(mods, key)
     sendBytes(bytes)
@@ -222,7 +231,9 @@
           attached = true
           reconnectAttempt = 0
           reconnectSince = 0
-          if (status.kind === 'reconnecting') status = { kind: 'none' }
+          if (status.kind === 'reconnecting' || status.kind === 'connecting') {
+            status = { kind: 'none' }
+          }
           renderer?.reset()
           const { cols, rows } = fittedSize()
           lastCols = cols
@@ -330,6 +341,20 @@
 
   async function activate(): Promise<void> {
     const seq = ++actSeq
+    // untrack, and not by taste: activate() is called from the $effect below,
+    // so any $state it *reads* becomes that effect's dependency. Reading
+    // `status` here subscribed the attach effect to the very field attaching
+    // updates — onOpen sets status to 'none', the effect re-runs, actSeq bumps,
+    // and attachSocket() detaches the socket that had just opened. The pane sat
+    // at connecting → reconnecting forever (shell.spec.ts, 5 tests). Writing a
+    // fresh {kind:'connecting'} on each pass made the same cycle synchronous
+    // and fatal: effect_update_depth_exceeded killed the whole pane on the
+    // first tap of the Terminal tab.
+    untrack(() => {
+      if (status.kind !== 'reconnecting' && status.kind !== 'connecting') {
+        status = { kind: 'connecting' }
+      }
+    })
     if (!(await ensureRenderer())) return
     if (seq !== actSeq || cancelled) return
     try {
@@ -364,7 +389,7 @@
   }
 
   function onStatusActivate(): void {
-    if (status.kind === 'exited' || status.kind === 'dropped') {
+    if (status.kind === 'exited' || status.kind === 'dropped' || status.kind === 'unavailable') {
       sendBytes(new Uint8Array([13]))
     }
   }
@@ -408,39 +433,47 @@
     class="body"
     data-testid="terminal-pane"
     data-attached={attached ? 'true' : 'false'}
+    data-status={status.kind}
     role="region"
     aria-label={t('terminal.title')}
+    aria-busy={status.kind === 'connecting' || status.kind === 'reconnecting'}
   >
-    {#if status.kind === 'unavailable'}
-      <div class="ended" data-testid="terminal-status">
-        {t('terminal.unavailable')}
-      </div>
-    {:else}
-      <!-- svelte-ignore a11y_click_events_have_key_events -->
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div class="host" bind:this={hostEl} onpointerdown={focusIme}></div>
-      {#if status.kind !== 'none'}
-        <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-        <div
-          class="status"
-          data-testid="terminal-status"
-          role="status"
-          onclick={onStatusActivate}
-          onkeydown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') onStatusActivate()
-          }}
-        >
-          {#if status.kind === 'reconnecting'}
-            {t('terminal.reconnecting')}
-          {:else if status.kind === 'exited'}
-            {t('terminal.exited', { code: status.code })}
-            <span class="hint"> · {t('terminal.restartHint')}</span>
-          {:else if status.kind === 'dropped'}
-            {t(DROPPED_KEYS[status.reason])}
-            <span class="hint"> · {t('terminal.restartHint')}</span>
-          {/if}
+    <div class="host-wrap">
+      <div
+        class="host"
+        bind:this={hostEl}
+        role="textbox"
+        aria-multiline="true"
+        aria-label={t('terminal.title')}
+        tabindex="0"
+        onpointerdown={focusIme}
+        onfocus={focusIme}
+      ></div>
+      {#if status.kind === 'connecting'}
+        <div class="connecting" data-testid="terminal-status" role="status">
+          <span class="paper"></span>
+          <span class="paper short"></span>
+          <span class="paper"></span>
         </div>
       {/if}
+    </div>
+    {#if status.kind === 'reconnecting'}
+      <div class="status" data-testid="terminal-status" role="status">
+        {t('terminal.reconnecting')}
+      </div>
+    {:else if status.kind === 'exited' || status.kind === 'dropped' || status.kind === 'unavailable'}
+      <button type="button" class="status" data-testid="terminal-status" onclick={onStatusActivate}>
+        {#if status.kind === 'exited'}
+          {t('terminal.exited', { code: status.code })}
+          <span class="hint"> · {t('terminal.restartHint')}</span>
+        {:else if status.kind === 'dropped'}
+          {t(DROPPED_KEYS[status.reason])}
+          <span class="hint"> · {t('terminal.restartHint')}</span>
+        {:else}
+          {t('terminal.unavailable')}
+          <span class="hint"> · {t('terminal.restartHint')}</span>
+        {/if}
+      </button>
     {/if}
   </div>
 
@@ -494,12 +527,38 @@
     min-width: 0;
     overflow: hidden;
   }
-  .host {
+  .host-wrap {
     flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+    position: relative;
+    overflow: hidden;
+  }
+  .host {
+    height: 100%;
     min-height: 0;
     min-width: 0;
     overflow: hidden;
     background: var(--color-bg-base);
+  }
+  .connecting {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 16px;
+    background: var(--color-bg-base);
+    pointer-events: none;
+  }
+  .paper {
+    height: 12px;
+    width: 56%;
+    border-radius: 4px;
+    background: var(--color-bg-elevated);
+  }
+  .paper.short {
+    width: 32%;
   }
   .host :global(.xterm),
   .host :global(.xterm-viewport),
@@ -511,12 +570,12 @@
   .host :global(.xterm-viewport) {
     overflow-x: hidden;
   }
-  .ended,
   .status {
     flex: none;
     width: 100%;
     text-align: left;
     border-top: 1px solid var(--color-border-subtle);
+    border-radius: 0;
     background: var(--color-bg-panel);
     padding: 12px 16px;
     font-size: var(--text-body);

@@ -199,7 +199,7 @@
         {#if app.terminal}
           <p class="big">{app.terminal.label || host(app.terminal.endpoint)}</p>
           <p class="sub mono">{host(app.terminal.endpoint)}</p>
-          <button class="unpair" class:armed={termArmed} onclick={onUnpairTerminal}>
+          <button class="unpair-shell" class:armed={termArmed} onclick={onUnpairTerminal}>
             {termArmed ? 'Tap again to unpair' : 'Unpair the shell'}
           </button>
         {:else}
@@ -237,13 +237,13 @@
         <button class="unpair" class:armed onclick={onUnpair}>
           {armed ? 'Tap again to unpair' : 'Unpair this phone'}
         </button>
-        <p class="sub center">Unpairing forgets the server and deletes the token from the Keychain.</p>
+        <p class="sub center">Unpairing forgets the server and deletes its pairing token from the Keychain. The shell pairing stays until you unpair the shell.</p>
       </section>
     {/if}
 
     <p class="ver">gadak mobile 0.1.0</p>
     {#if DEV}
-      <p class="probe">DEV {viewportProbe}</p>
+      <p class="probe" data-testid="viewport-probe" hidden>DEV {viewportProbe}</p>
     {/if}
   </div>
 </Screen>
@@ -260,6 +260,7 @@
     line-height: var(--text-heading--line-height);
   }
   .page {
+    position: relative;
     padding: 4px 16px 24px;
     display: flex;
     flex-direction: column;
@@ -346,6 +347,20 @@
     font-size: var(--text-micro);
     color: var(--color-status-reopen);
   }
+  .unpair-shell {
+    width: 100%;
+    margin-top: 8px;
+    border-radius: 6px;
+    border: 1px solid var(--color-border-subtle);
+    color: var(--color-text-secondary);
+    font-weight: 500;
+    background: transparent;
+  }
+  .unpair-shell.armed {
+    background: var(--color-text-secondary);
+    border-color: var(--color-text-secondary);
+    color: var(--color-bg-base);
+  }
   .unpair {
     width: 100%;
     margin-top: 8px;
@@ -372,13 +387,10 @@
     font-family: var(--font-mono);
   }
   .probe {
-    margin: 12px 0 0;
-    padding-top: 10px;
-    border-top: 1px solid var(--color-border-subtle);
-    text-align: left;
-    font-size: var(--text-micro);
-    font-family: var(--font-mono);
-    color: var(--color-text-muted);
-    overflow-wrap: anywhere;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
   }
 </style>
