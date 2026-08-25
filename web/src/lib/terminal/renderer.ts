@@ -119,7 +119,8 @@ function logGhosttyFallback(err: unknown): void {
 /**
  * The terminal's text size, from the token so a person or an agent can set
  * it the way they set every other dimension in this app
- * (`gadak config set ui.tokens.type.terminal 15px`). It defaults to the body
+ * (`gadak config set ui.tokens.type.terminal 15px` — GDK-853; it merges that
+ * one key, so the rest of the ladder survives). It defaults to the body
  * baseline, so an untouched install has one text size.
  *
  * Read at renderer creation: a token change lands on the next open, not

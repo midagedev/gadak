@@ -29,8 +29,10 @@
   that closes it cannot be the only one — and the split steps aside for an
   overlay when the sidebar, list, detail panel and terminal can no longer
   all stand at their minimums. Its text size is a dimension token,
-  `ui.tokens.type.terminal`, so a person or an agent sets it the way they
-  set every other dimension here ([GDK-864]).
+  on the `ui.tokens.type` axis, so a person or an agent sets it the way they
+  set every other dimension here — `gadak config set ui.tokens.type.terminal
+  15px`, which merges that one key and leaves the rest of the ladder alone
+  ([GDK-864], [GDK-853]).
 - A cached issue row that predates a required array field (`labels`,
   `fix_versions`, `components`) no longer collapses the whole UI: hydration
   coerces those arrays at the cache door, a dropped row is counted in one
@@ -111,7 +113,12 @@
   whole-object set keeps its replace semantics for compatibility — and the
   dimension names got their own discovery path,
   `gadak config get ui.tokens.dim-catalog`, listing tier, default, range
-  and the relation sentences beside every token ([GDK-852], [GDK-853]).
+  and the relation sentences beside every token. One token is now a scalar
+  path of its own — `gadak config set ui.tokens.type.terminal 15px`, no JSON
+  and no quoting — resolved from the catalogs so the valid-path listing gains
+  four `ui.tokens.<axis>.<name>` rows rather than one per token, with an
+  unknown name refused by the discovery command instead of stored as a typo
+  ([GDK-852], [GDK-853]).
 - Dashboard links stopped destroying the wall: the frame→parent whitelist
   gains a second verb — `{type:'open', hash:'#/…'}` navigates the app
   itself to any of its own routes (issue detail, saved views, filtered

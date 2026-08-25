@@ -204,7 +204,8 @@ describe('the terminal size is a token, not a literal', () => {
    * one sets its size. Rather than a settings field of its own, it is a
    * dimension token on the same path as every other dimension in this app,
    * which is what makes it settable by an agent —
-   * `gadak config set ui.tokens.type.terminal 15px` — with no new surface.
+   * `gadak config set ui.tokens.type.terminal 15px` — with no new surface
+   * (the scalar leaf path landed in GDK-853).
    * Catalog parity is pinned on the Go side (tokencheck); this pins the reader.
    */
   test('the token wins', () => {

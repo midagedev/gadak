@@ -238,12 +238,18 @@ func Settings() []Setting {
 	return buildSettings()
 }
 
-// SettingByPath looks up one catalog entry.
+// SettingByPath looks up one catalog entry. Concrete ui.tokens.<axis>.<name>
+// leaves are not enumerated in the catalog listing (that would add one row
+// per token and bury the rest of the table); they resolve here from the
+// four ui.tokens.<axis>.<name> templates.
 func SettingByPath(path string) (Setting, bool) {
 	for _, s := range buildSettings() {
 		if s.Path == path {
 			return s, true
 		}
+	}
+	if axis, name, ok := parseUITokenLeafPath(path); ok {
+		return uiTokenLeafSetting(axis, name), true
 	}
 	return Setting{}, false
 }
@@ -293,7 +299,8 @@ func buildSettings() []Setting {
 				"dimensions {\"spacing\": {\"row\": \"44px\"}, \"layout\": {\"sidebar\": \"280px\"}, " +
 				"\"type\": {\"heading\": \"24px\"}} apply to every palette — a set replaces the " +
 				"whole object; to update one axis only, set ui.tokens.colors / ui.tokens.spacing / " +
-				"ui.tokens.layout / ui.tokens.type (key-wise merge) (unparseable values and the " +
+				"ui.tokens.layout / ui.tokens.type (key-wise merge); to update one token, set " +
+				"ui.tokens.<axis>.<name> to a scalar (unparseable values and the " +
 				"derived layout.docked-min refuse; locked tiers and contrast/range/relation " +
 				"judgments warn and save; discover color " +
 				"names with `gadak config get ui.tokens.catalog`, dimension names with " +
@@ -315,9 +322,13 @@ func buildSettings() []Setting {
 			},
 		},
 		uiTokenAxisSetting("colors"),
+		uiTokenLeafTemplate("colors"),
 		uiTokenAxisSetting("spacing"),
+		uiTokenLeafTemplate("spacing"),
 		uiTokenAxisSetting("layout"),
+		uiTokenLeafTemplate("layout"),
 		uiTokenAxisSetting("type"),
+		uiTokenLeafTemplate("type"),
 		{
 			Path: "ui.tokensByTheme",
 			Root: "ui",
@@ -905,7 +916,7 @@ func boolDefaultTrue(path, root, desc string, get func(*Config) bool, set func(*
 	}
 }
 
-// ── ui.tokens.<axis> subpaths (GDK-853) ──
+// ── ui.tokens.<axis> subpaths and ui.tokens.<axis>.<name> leaves (GDK-853) ──
 
 // uiTokenAxisExamples is the example body each axis subpath's description
 // teaches. Every value is one a real set accepts alone (body "14px" is not:
@@ -927,19 +938,16 @@ var uiTokenAxisExamples = map[string]string{
 // leaves the config untouched exactly like every other set.
 func uiTokenAxisSetting(axis string) Setting {
 	path := "ui.tokens." + axis
-	discovery := "`gadak config get ui.tokens.catalog`"
-	rules := "unparseable values refuse; locked tiers and contrast/ΔEok judgments warn and save"
-	if axis != "colors" {
-		discovery = "`gadak config get ui.tokens.dim-catalog`"
-		rules = "unparseable lengths and the derived docked-min refuse; range and relation judgments warn and save"
-	}
+	discovery := uiTokenDiscovery(axis)
+	rules := uiTokenRules(axis)
 	return Setting{
 		Path: path,
 		Root: "ui",
 		Description: fmt.Sprintf("the %s axis of ui.tokens as a key-wise merge: %s updates the named "+
 			"keys only — other keys, the other axes and ui.tokensByTheme are preserved; "+
-			"a null value deletes its key, {} is a no-op (token names: %s; %s)",
-			axis, uiTokenAxisExamples[axis], discovery, rules),
+			"a null value deletes its key, {} is a no-op; one token: ui.tokens.%s.<name> with a scalar "+
+			"(token names: %s; %s)",
+			axis, uiTokenAxisExamples[axis], axis, discovery, rules),
 		Get: func(c *Config) any {
 			return stringMapOrEmpty(uiTokenAxisMap(uiTokensOf(c), axis))
 		},
@@ -1037,6 +1045,137 @@ func mergeUITokenAxis(cur *UITokens, axis string, patch map[string]*string) *UIT
 		return nil
 	}
 	return next
+}
+
+// uiTokenAxisNames is the closed set of ui.tokens.<axis> keys. Leaf paths
+// ui.tokens.<axis>.<name> resolve against this list so the catalog listing
+// stays four template rows instead of one row per token (GDK-853).
+var uiTokenAxisNames = []string{"colors", "spacing", "layout", "type"}
+
+// uiTokenLeafExamples is the scalar body each axis leaf template teaches.
+// Values are ones a real set accepts alone (same source as uiTokenAxisExamples,
+// plus type.terminal — the GDK-853 motivating path, independent of the type ladder).
+var uiTokenLeafExamples = map[string]struct{ name, value string }{
+	"colors":  {"accent", "#7a4bd0"},
+	"spacing": {"row", "44px"},
+	"layout":  {"sidebar", "280px"},
+	"type":    {"terminal", "15px"},
+}
+
+func uiTokenLeafTemplate(axis string) Setting {
+	return uiTokenLeafSetting(axis, "<name>")
+}
+
+// parseUITokenLeafPath splits ui.tokens.<axis>.<name>. Exact catalog paths
+// (ui.tokens.type, ui.tokens.catalog) do not match: they have no name segment.
+func parseUITokenLeafPath(path string) (axis, name string, ok bool) {
+	const prefix = "ui.tokens."
+	if !strings.HasPrefix(path, prefix) {
+		return "", "", false
+	}
+	rest := path[len(prefix):]
+	for _, ax := range uiTokenAxisNames {
+		p := ax + "."
+		if strings.HasPrefix(rest, p) {
+			name = rest[len(p):]
+			if name == "" {
+				return "", "", false
+			}
+			return ax, name, true
+		}
+	}
+	return "", "", false
+}
+
+func uiTokenDiscovery(axis string) string {
+	if axis == "colors" {
+		return "`gadak config get ui.tokens.catalog`"
+	}
+	return "`gadak config get ui.tokens.dim-catalog`"
+}
+
+func uiTokenRules(axis string) string {
+	if axis == "colors" {
+		return "unparseable values refuse; locked tiers and contrast/ΔEok judgments warn and save"
+	}
+	return "unparseable lengths and the derived docked-min refuse; range and relation judgments warn and save"
+}
+
+// knownUITokenName reports the catalog's bare name for a leaf segment.
+// Bare names ("terminal", "accent") and CSS-variable spellings
+// ("--text-terminal", "--color-accent") both resolve; the stored key is the
+// bare name so a leaf set matches an axis JSON set of the same token.
+func knownUITokenName(axis, name string) (string, bool) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return "", false
+	}
+	if axis == "colors" {
+		if _, ok := tokencheck.TierOf(name); !ok {
+			return "", false
+		}
+		return strings.TrimPrefix(name, "--color-"), true
+	}
+	want, ok := tokencheck.DimTokenOf(axis, name)
+	if !ok {
+		return "", false
+	}
+	for _, n := range dimDiscoveryNames()[axis] {
+		tok, _ := tokencheck.DimTokenOf(axis, n)
+		if n == name || tok.CSSVar == want.CSSVar {
+			return n, true
+		}
+	}
+	return "", false
+}
+
+// uiTokenLeafSetting is one ui.tokens.<axis>.<name> entry. The axis subpath
+// merges a JSON object; this merges a single scalar the same way
+// `gadak config set locale ko` does — no quotes, no one-key wrapper.
+// Validation still judges the merged whole through ApplyUIConfig.
+func uiTokenLeafSetting(axis, name string) Setting {
+	path := "ui.tokens." + axis + "." + name
+	ex := uiTokenLeafExamples[axis]
+	discovery := uiTokenDiscovery(axis)
+	rules := uiTokenRules(axis)
+	return Setting{
+		Path: path,
+		Root: "ui",
+		Description: fmt.Sprintf("one %s token as a scalar: ui.tokens.%s.%s %s merges that key — "+
+			"other keys, the other axes and ui.tokensByTheme are preserved; "+
+			"null deletes it (token names: %s; %s)",
+			axis, axis, ex.name, ex.value, discovery, rules),
+		Get: func(c *Config) any {
+			canonical, ok := knownUITokenName(axis, name)
+			if !ok {
+				return nil
+			}
+			m := uiTokenAxisMap(uiTokensOf(c), axis)
+			if v, ok := m[canonical]; ok {
+				return v
+			}
+			return nil
+		},
+		Set: func(c *Config, raw json.RawMessage) error {
+			canonical, ok := knownUITokenName(axis, name)
+			if !ok {
+				return fmt.Errorf("%s is not a %s token — discover names with %s", path, axis, discovery)
+			}
+			var patch map[string]*string
+			if string(raw) == "null" {
+				patch = map[string]*string{canonical: nil}
+			} else {
+				s, err := decodeString(raw, path)
+				if err != nil {
+					return err
+				}
+				patch = map[string]*string{canonical: &s}
+			}
+			next := cloneUIConfig(c.UI)
+			next.Tokens = mergeUITokenAxis(uiTokensOf(c), axis, patch)
+			return ApplyUIConfig(c, next)
+		},
+	}
 }
 
 type confluenceValue struct {

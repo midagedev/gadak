@@ -121,8 +121,9 @@
     every terminal emulator lets you set one, and it should not drag the
     issue list along when they change it. It answers to body by default so
     an untouched install has one text size, and it rides the same
-    ui.tokens.type.* path everything else here does, which is what makes it
-    settable by a person or an agent without a new surface.
+    ui.tokens.type axis everything else here does — `gadak config set
+    ui.tokens.type.terminal 15px` — which is what makes it settable by a
+    person or an agent without a new surface.
   */
   --text-terminal: 13px;
 

@@ -80,13 +80,15 @@ need JSON. A value of `-` reads stdin.
 An unknown path exits **64** and prints every valid path. Credentials
 (`site`, `email`, `token`) are not catalog paths — use `gadak init`.
 
-`gadak config list` is the live catalog (44 paths). Five of them are not
+`gadak config list` is the live catalog (48 paths). Five of them are not
 on the Settings PUT document and are not on the Settings form: `notify`,
 `updateCheck`, `attachmentCacheMB`, and the read-only discovery surfaces
 `ui.tokens.catalog` / `ui.tokens.dim-catalog` (see below). PUT leaves
 those untouched (it copies the live file, then overwrites the fields it
-knows). The `ui.tokens.<axis>` paths are also CLI-only — PUT's `ui` key
-is a whole-block replace with no per-axis merge.
+knows). The `ui.tokens.<axis>` and `ui.tokens.<axis>.<name>` paths are
+also CLI-only — PUT's `ui` key is a whole-block replace with no per-axis
+or per-token merge. The listing carries one `ui.tokens.<axis>.<name>`
+row per axis, not one row per token.
 
 ### `appearance.theme`
 
@@ -99,7 +101,8 @@ iterates `system`, `light`, `dark`, `ink`, `ember`
 ### `ui.*` — user token overrides (colors + dimensions)
 
 Catalog paths under one `ui` block in `config.json` — the three whole
-blocks plus one merge path per axis. They re-skin the
+blocks plus one merge path per axis and one scalar leaf
+(`ui.tokens.<axis>.<name>`) per axis. They re-skin the
 web/desktop UI without touching `app.css`: the server merges them into the
 final CSS-variable map, the browser injects one unlayered `<style>` whose
 rules mirror the palette cascade, and a blocking boot script replays a
@@ -115,6 +118,7 @@ below.
 | `ui.tokens.spacing` | `{\"row\": \"44px\"}` | The spacing axis alone, key-wise merge (rules judge the merged set). |
 | `ui.tokens.layout` | `{\"sidebar\": \"280px\"}` | The layout axis alone, key-wise merge. |
 | `ui.tokens.type` | `{\"heading\": \"24px\"}` | The type axis alone, key-wise merge. |
+| `ui.tokens.<axis>.<name>` | `15px` / `#7a4bd0` / `44px` | One token as a **bare scalar** — the same key-wise merge as the axis path with a one-key object. `null` deletes that key. Unknown names are refused (discover them with `ui.tokens.catalog` / `ui.tokens.dim-catalog`). |
 | `ui.tokensByTheme` | `{\"dark\": {\"colors\": {\"accent\": \"#9a6be0\"}}}` | Overlay for one palette only (theme wins over `ui.tokens`). **Colors only** — dimension axes are refused here (see below). |
 | `ui.dataColors` | `{\"label\": {\"urgent\": \"#c03030\"}, \"type\": {\"10007\": \"#d07020\"}, \"status\": {\"inprogress\": \"#7e5904\"}}` | Per-data inks: label chips, issue-type chips, status dots. |
 
@@ -173,11 +177,17 @@ gadak: ui.dataColors.status keys must be a status_category: new, inprogress, or 
 **Recovery.** A saved-but-regretted override is one command away:
 `gadak config set ui.tokens '{}'` clears the whole block, and a `null`
 value on an axis subpath deletes one key (`gadak config set
-ui.tokens.colors '{"accent":null}'`). Both always work from the CLI.
+ui.tokens.colors '{"accent":null}'`). The leaf spelling of that delete is
+`gadak config set ui.tokens.colors.accent null`. All three always work
+from the CLI.
 
 Unknown token names (and unknown `tokensByTheme` palettes) are **carried
-with a warning, never refused** — a config written by a newer gadak must
-keep loading, and on this build the entry is simply not rendered:
+with a warning, never refused** on the object paths (`ui.tokens`,
+`ui.tokens.<axis>`, `ui.tokensByTheme`) — a config written by a newer
+gadak must keep loading, and on this build the entry is simply not
+rendered. A **leaf** path is the other way around: an unknown
+`ui.tokens.<axis>.<name>` is refused and names the discovery command, so
+a typo is not stored as a silent extra key.
 
 ```console
 $ gadak config set ui.tokens '{"colors":{"accent":"#7a4bd0","future-name":"#111111"}}'
@@ -241,7 +251,9 @@ recipe. A subpath write is a **key-wise merge**: it updates the named keys
 only and preserves every other key, the other axes (colors included), and
 `ui.tokensByTheme`; a `null` value deletes its key, and `{}` changes
 nothing. Validation judges the merged object, so a refused write (parse,
-shape, docked-min) leaves the config exactly as it was:
+shape, docked-min) leaves the config exactly as it was. One token is that
+merge as a scalar: `gadak config set ui.tokens.type.terminal 15px`
+(hex values usually need shell quotes: `ui.tokens.colors.accent '#7a4bd0'`).
 
 ```console
 $ gadak config set ui.tokens '{"colors":{"accent":"#7a4bd0"}}'
@@ -257,6 +269,25 @@ $ gadak config get ui.tokens
 $ gadak config set ui.tokens.spacing '{"row":"wide"}'
 gadak: ui tokens (dimensions): --spacing-row: "wide" is not a px length (integer or
 one decimal, e.g. "44px")
+```
+
+The one-token spelling of that merge is the leaf path — a bare scalar, no
+JSON object. `get` prints that one override, or `null` when there is none
+(it does not invent the catalog default):
+
+```console
+$ gadak config set ui.tokens.type.terminal 15px
+"15px"
+$ gadak config set ui.tokens.spacing.row 44px
+"44px"
+$ gadak config get ui.tokens
+{"spacing":{"row":"44px"},"type":{"terminal":"15px"}}
+$ gadak config get ui.tokens.type.terminal
+"15px"
+$ gadak config set ui.tokens.type.terminal null
+null
+$ gadak config set ui.tokens.type.not-a-token 15px
+gadak: ui.tokens.type.not-a-token is not a type token — discover names with `gadak config get ui.tokens.dim-catalog`
 ```
 
 A write to `ui.tokens` itself **still replaces the whole object** — include
@@ -331,8 +362,9 @@ palette — set them under ui.tokens, not per theme
 ```
 
 Unknown **axes** are refused up front (`axes are colors, spacing, layout,
-type`); unknown token **names** are carried with a warning, never a refused
-save — same contract as colors.
+type`); unknown token **names** on the object paths are carried with a
+warning, never a refused save — same contract as colors. An unknown name
+on a **leaf** path is refused (see above).
 
 **Live reflection** rides the same 500 ms ui-focus poll as colors, and the
 dimensions recouple the JS geometry that used to own them as constants:
@@ -357,7 +389,8 @@ Four keys are omit-to-preserve, so an older client cannot wipe them:
 `fields` (discovery output), `confluence`, `appearance`, `ui` (color
 overrides). `runtime`, `site`, and `hasCredential` on the body are ignored.
 A present `ui` is still a whole-block replace — the per-axis merge paths
-(`ui.tokens.<axis>`) are CLI-only. Because judgment violations save
+(`ui.tokens.<axis>`) and the scalar leaves (`ui.tokens.<axis>.<name>`) are
+CLI-only. Because judgment violations save
 (see above), a PUT carrying a `ui` block answers with the write-time
 warnings of **that** write as a response-only `uiWarnings` array (same
 violation objects: `token`, `rule`, `severity`, `measured`, `floor`,
@@ -379,6 +412,7 @@ is nothing to say, and a client-supplied value is ignored.
 | `appearance.theme` | string | empty → **system** | Settings theme picker / `gadak config set appearance.theme` | Immediate after reload; shape `[a-z0-9-]{1,32}` (see above) |
 | `ui.tokens` | `{colors: {token: hex}, spacing\|layout\|type: {token: length}}` | _(absent)_ | `gadak config set ui.tokens` / Settings PUT `ui` (no form editor yet) | Live, no reload — color-token overrides for every palette plus the palette-agnostic dimension axes (see above). Only parse/shape/derived refuse; tiers, contrast, ranges and relations warn and save. A set replaces the whole object |
 | `ui.tokens.<axis>` | `{token: hex or length}` (axis = `colors`, `spacing`, `layout`, `type`) | _(absent)_ | `gadak config set ui.tokens.<axis>` (CLI only) | Live, no reload — key-wise merge into one axis: named keys update, other keys/axes survive; `null` deletes a key, `{}` is a no-op |
+| `ui.tokens.<axis>.<name>` | hex or length scalar | _(absent)_ | `gadak config set ui.tokens.<axis>.<name>` (CLI only) | Live, no reload — one token into its axis as a bare scalar (`15px`, `#7a4bd0`); `null` deletes that key; unknown names are refused |
 | `ui.tokensByTheme` | `{palette: {colors: {token: hex}}}` | _(absent)_ | `gadak config set ui.tokensByTheme` / Settings PUT `ui` | Live, no reload — per-palette overlay, judged in that palette; colors only (dimension axes are refused) |
 | `ui.dataColors` | `{label\|type\|status: {key: hex}}` | _(absent)_ | `gadak config set ui.dataColors` / Settings PUT `ui` | Live, no reload — per-data inks; `type` keys are issue type ids, `status` keys are status categories |
 | `projects` | string[] | `[]` (empty = every project this account can see) | Settings → Sources / `gadak init` / `gadak config set projects` | Next sync / list scope; UI reload after save |
