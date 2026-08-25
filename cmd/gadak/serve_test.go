@@ -1,14 +1,19 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/origin"
+	"github.com/midagedev/gadak/internal/serveaddr"
 )
 
 func TestServeScopeLogStandaloneOmitsAccount(t *testing.T) {
@@ -195,5 +200,98 @@ func TestPublishStandaloneOriginSkipsConnected(t *testing.T) {
 	unpublish()
 	if _, err := os.Stat(filepath.Join(home, origin.AdvertiseRel)); !os.IsNotExist(err) {
 		t.Fatal("connected workspace must not write serve-origin.json")
+	}
+}
+
+func TestPublishServeAddrWritesAndRemoves(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	config.SetProfile("oss")
+	t.Cleanup(func() { config.SetProfile("") })
+
+	unpublish := publishServeAddr("127.0.0.1:7891")
+	dir, err := serveaddr.Dir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	recs := serveaddr.List(dir)
+	if len(recs) != 1 || recs[0].Addr != "127.0.0.1:7891" || recs[0].Profile != "oss" {
+		t.Fatalf("run file = %+v", recs)
+	}
+	unpublish()
+	if recs := serveaddr.List(dir); len(recs) != 0 {
+		t.Fatalf("run file still present: %+v", recs)
+	}
+}
+
+func TestPublishServeAddrWriteFailureIsNonFatal(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	config.SetProfile("")
+	t.Cleanup(func() { config.SetProfile("") })
+	if err := os.WriteFile(filepath.Join(home, serveaddr.Rel), []byte("not-a-dir"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	stop := publishServeAddr("127.0.0.1:9")
+	stop()
+}
+
+func TestRunServeHTTPRecordsBoundAddress(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	config.SetProfile("")
+	t.Cleanup(func() { config.SetProfile("") })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- runServeHTTP(ctx, mux, "127.0.0.1:0", true, true, &config.Config{})
+	}()
+
+	dir, err := serveaddr.Dir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	var recs []serveaddr.Record
+	for time.Now().Before(deadline) {
+		recs = serveaddr.List(dir)
+		if len(recs) > 0 {
+			break
+		}
+		select {
+		case err := <-errCh:
+			t.Fatalf("runServeHTTP exited before advertising: %v", err)
+		default:
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if len(recs) != 1 {
+		t.Fatalf("run files = %d, want 1", len(recs))
+	}
+	_, port, err := net.SplitHostPort(recs[0].Addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if port == "0" {
+		t.Fatalf("recorded preferred :0 rather than the bound port: %s", recs[0].Addr)
+	}
+
+	cancel()
+	select {
+	case err := <-errCh:
+		if err != nil {
+			t.Fatalf("runServeHTTP: %v", err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("runServeHTTP did not stop")
+	}
+	if recs := serveaddr.List(dir); len(recs) != 0 {
+		t.Fatalf("run file still present after shutdown: %+v", recs)
 	}
 }

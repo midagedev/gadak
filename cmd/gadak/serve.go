@@ -18,6 +18,7 @@ import (
 	"github.com/midagedev/gadak/internal/apprun"
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/origin"
+	"github.com/midagedev/gadak/internal/serveaddr"
 )
 
 // serveOpts is the parsed serve CLI surface. cmdServe only parses flags and
@@ -137,6 +138,15 @@ func runServeHTTP(ctx context.Context, mux http.Handler, preferred string, addrP
 		return err
 	}
 	defer unpublish()
+	// ln.Addr is the kernel bind, which differs from preferred on port
+	// fallback and when the listen port is 0. Recording preferred would
+	// reintroduce the same "guessed the wrong port" bug this file exists
+	// to close.
+	recordAddr := bound
+	if actual := ln.Addr().String(); actual != "" {
+		recordAddr = actual
+	}
+	defer publishServeAddr(recordAddr)()
 
 	srv := &http.Server{
 		Addr:              bound,
@@ -303,6 +313,19 @@ func cmdServe(args []string) error {
 // Implementation lives in apprun.PublishAdvertise (single owner with desktop).
 func publishStandaloneOrigin(cfg *config.Config, bound string) (func(), error) {
 	return apprun.PublishAdvertise(cfg, bound)
+}
+
+// publishServeAddr records the bound listen address in the home-root run
+// directory so views/dashboards open can find this serve on any port. A
+// write failure is not fatal: the port sweep still works, so this is a
+// degraded path. bound is the address after port fallback, not preferred.
+func publishServeAddr(bound string) func() {
+	stop, err := serveaddr.Publish(bound, config.Profile())
+	if err != nil {
+		log.Printf("warning: could not record serve address %s: %v", bound, err)
+		return func() {}
+	}
+	return stop
 }
 
 // openOnceUp opens the browser as soon as the server answers /healthz, so the

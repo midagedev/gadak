@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -13,6 +16,8 @@ import (
 	"github.com/midagedev/gadak/internal/clitool"
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/jql"
+	"github.com/midagedev/gadak/internal/origin"
+	"github.com/midagedev/gadak/internal/serveaddr"
 	"github.com/midagedev/gadak/internal/store"
 	"github.com/midagedev/gadak/internal/views"
 	"github.com/midagedev/gadak/internal/workspace"
@@ -994,5 +999,226 @@ func TestViewsSaveCurrentUserWithoutIdentityFails(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "nothing in this JQL can be applied") {
 		t.Fatalf("want applied-nothing error, got %v", err)
+	}
+}
+
+// startGadakProbe is a loopback listener that answers origin.ProbePath the
+// way a live gadak serve does (X-Gadak + X-Gadak-Profile). The port is
+// outside 7777–7797 / 7878 so a sweep-only discoverServes cannot find it.
+func startGadakProbe(t *testing.T, profile string) (addr, port string) {
+	t.Helper()
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != origin.ProbePath {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("X-Gadak", "1")
+		w.Header().Set("X-Gadak-Profile", profile)
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(ts.Close)
+	addr = ts.Listener.Addr().String()
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if host != "127.0.0.1" {
+		t.Skipf("httptest host %q not 127.0.0.1", host)
+	}
+	n, err := strconv.Atoi(port)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if (n >= 7777 && n <= 7797) || port == "7878" {
+		t.Skipf("httptest port %s landed inside the sweep range", port)
+	}
+	return addr, port
+}
+
+func isolateGadakHome(t *testing.T) {
+	t.Helper()
+	t.Setenv("GADAK_HOME", t.TempDir())
+	config.SetProfile("")
+	t.Cleanup(func() { config.SetProfile("") })
+}
+
+// GDK-859: views/dashboards open must find a serve advertised in the run
+// directory even when its port is outside 7777–7797. Does not inject
+// discoverServes — that would not exercise the production path.
+func TestFindServeTargetUsesRunDirOutsideSweep(t *testing.T) {
+	isolateGadakHome(t)
+	addr, port := startGadakProbe(t, "")
+	dir, err := serveaddr.Dir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := serveaddr.Write(dir, addr, "from-file"); err != nil {
+		t.Fatal(err)
+	}
+
+	target, dbg := findServeTarget()
+	if target.base == "" {
+		t.Fatalf("no serve found; run-dir file advertised %s (port %s)", addr, port)
+	}
+	if dbg.Port != port {
+		t.Fatalf("serve.port = %q, want %q (base=%q)", dbg.Port, port, dbg.Base)
+	}
+	if !strings.Contains(dbg.Base, port) {
+		t.Fatalf("serve.base %q does not name port %s", dbg.Base, port)
+	}
+	if dbg.Source != serveSourceRun {
+		t.Fatalf("serve.source = %q, want %q", dbg.Source, serveSourceRun)
+	}
+	if got, want := strings.Join(dbg.Ports, ","), strings.Join(serveProbePorts(), ","); got != want {
+		t.Fatalf("serve.ports changed meaning: %q vs sweep %q", got, want)
+	}
+}
+
+func TestViewsOpenJSONFindsServeOutsideSweep(t *testing.T) {
+	isolateGadakHome(t)
+	addr, port := startGadakProbe(t, "")
+	dir, err := serveaddr.Dir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := serveaddr.Write(dir, addr, ""); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := capture(t, func() error {
+		return cmdViews([]string{"open", "--no-open", "--json", "--keys", "NMA-1"})
+	})
+	if err != nil {
+		t.Fatalf("open: %v\n%s", err, out)
+	}
+	var body struct {
+		Web   string `json:"web"`
+		Serve struct {
+			Port   string   `json:"port"`
+			Base   string   `json:"base"`
+			Ports  []string `json:"ports"`
+			Source string   `json:"source"`
+		} `json:"serve"`
+	}
+	if err := json.Unmarshal([]byte(out), &body); err != nil {
+		t.Fatalf("decode %s: %v", out, err)
+	}
+	if body.Web == "" {
+		t.Fatalf("web empty; serve on port %s was advertised in run dir\n%s", port, out)
+	}
+	if body.Serve.Port != port {
+		t.Fatalf("serve.port = %q, want %q\n%s", body.Serve.Port, port, out)
+	}
+	if !strings.Contains(body.Web, port) {
+		t.Fatalf("web %q does not name port %s", body.Web, port)
+	}
+	if body.Serve.Source != serveSourceRun {
+		t.Fatalf("serve.source = %q, want %q\n%s", body.Serve.Source, serveSourceRun, out)
+	}
+}
+
+func TestDiscoverServesRemovesStaleRunFile(t *testing.T) {
+	isolateGadakHome(t)
+	dir, err := serveaddr.Dir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := serveaddr.Write(dir, "127.0.0.1:1", ""); err != nil {
+		t.Fatal(err)
+	}
+	for _, h := range discoverServes() {
+		if h.port == "1" {
+			t.Fatalf("stale port 1 in hits: %+v", h)
+		}
+	}
+	if _, err := os.Stat(serveaddr.Path(dir, "1")); !os.IsNotExist(err) {
+		t.Fatalf("stale file not removed: %v", err)
+	}
+}
+
+func TestDiscoverServesUsesProbeProfileNotFile(t *testing.T) {
+	isolateGadakHome(t)
+	addr, port := startGadakProbe(t, "from-probe")
+	dir, err := serveaddr.Dir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := serveaddr.Write(dir, addr, "from-file"); err != nil {
+		t.Fatal(err)
+	}
+	var found serveHit
+	for _, h := range discoverServes() {
+		if h.port == port {
+			found = h
+		}
+	}
+	if found.port == "" {
+		t.Fatal("missing run-dir hit")
+	}
+	if found.profile != "from-probe" {
+		t.Fatalf("profile = %q, want probe value from-probe (not file)", found.profile)
+	}
+	if found.source != serveSourceRun {
+		t.Fatalf("source = %q, want run", found.source)
+	}
+}
+
+func listenGadakOnSweepPort(t *testing.T, port, profile string) {
+	t.Helper()
+	ln, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", port))
+	if err != nil {
+		t.Skipf("port %s busy: %v", port, err)
+	}
+	mux := http.NewServeMux()
+	mux.HandleFunc(origin.ProbePath, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Gadak", "1")
+		w.Header().Set("X-Gadak-Profile", profile)
+		w.WriteHeader(http.StatusOK)
+	})
+	srv := &http.Server{Handler: mux}
+	go func() { _ = srv.Serve(ln) }()
+	t.Cleanup(func() { _ = srv.Close() })
+}
+
+func TestDiscoverServesSweepFindsUnadvertised(t *testing.T) {
+	isolateGadakHome(t)
+	listenGadakOnSweepPort(t, "7878", "")
+	var found serveHit
+	for _, h := range discoverServes() {
+		if h.port == "7878" {
+			found = h
+		}
+	}
+	if found.port == "" {
+		t.Fatal("sweep missed unadvertised serve on 7878")
+	}
+	if found.source != serveSourceSweep {
+		t.Fatalf("source = %q, want sweep", found.source)
+	}
+}
+
+func TestDiscoverServesDedupsRunDirAndSweep(t *testing.T) {
+	isolateGadakHome(t)
+	listenGadakOnSweepPort(t, "7878", "")
+	dir, err := serveaddr.Dir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := serveaddr.Write(dir, "127.0.0.1:7878", ""); err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	var src string
+	for _, h := range discoverServes() {
+		if h.port == "7878" {
+			n++
+			src = h.source
+		}
+	}
+	if n != 1 {
+		t.Fatalf("port 7878 appeared %d times, want 1", n)
+	}
+	if src != serveSourceRun {
+		t.Fatalf("deduped hit source = %q, want run (run dir is first)", src)
 	}
 }

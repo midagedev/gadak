@@ -16,6 +16,7 @@ import (
 	"github.com/midagedev/gadak/internal/deeplink"
 	"github.com/midagedev/gadak/internal/fields"
 	"github.com/midagedev/gadak/internal/jql"
+	"github.com/midagedev/gadak/internal/serveaddr"
 	"github.com/midagedev/gadak/internal/store"
 	"github.com/midagedev/gadak/internal/sync"
 	"github.com/midagedev/gadak/internal/uifocus"
@@ -452,7 +453,13 @@ type serveHit struct {
 	base    string
 	profile string
 	port    string
+	source  string
 }
+
+const (
+	serveSourceRun   = "run"
+	serveSourceSweep = "sweep"
+)
 
 // serveDebug is the --json explanation of how a serve base was chosen.
 // Added as a new object (existing keys stay stable).
@@ -461,6 +468,7 @@ type serveDebug struct {
 	Base    string   `json:"base,omitempty"`
 	Profile string   `json:"profile,omitempty"`
 	Port    string   `json:"port,omitempty"`
+	Source  string   `json:"source,omitempty"`
 }
 
 // openFocusURL is the browser-launch seam for views open. Production calls
@@ -470,20 +478,55 @@ var openFocusURL = openBrowser
 
 // discoverServes is the single serve-discovery seam. serveFocusURL and
 // (production) listServes both go through it. Tests replace it.
+//
+// The home-root run directory is consulted first (a serve on an arbitrary
+// --addr writes one file there). Each file is confirmed with
+// probeGadakOnPort so a leftover from a killed process is not a hit; the
+// probe's profile wins over the file. Ports the directory did not cover
+// still go through serveProbePorts so an older binary is found. The same
+// port is never returned twice.
 var discoverServes = func() []serveHit {
 	var out []serveHit
+	seen := map[string]bool{}
+	if dir, err := serveaddr.Dir(); err == nil {
+		for _, rec := range serveaddr.List(dir) {
+			port := rec.Port
+			if port == "" {
+				continue
+			}
+			got := probeGadakOnPort(port, 0)
+			if !got.IsGadak {
+				_ = serveaddr.Remove(dir, port)
+				continue
+			}
+			if seen[port] {
+				continue
+			}
+			seen[port] = true
+			out = append(out, serveHitFromProbe(port, serveSourceRun, got))
+		}
+	}
 	for _, port := range serveProbePorts() {
+		if seen[port] {
+			continue
+		}
 		got := probeGadakOnPort(port, 0)
 		if !got.IsGadak {
 			continue
 		}
-		out = append(out, serveHit{
-			base:    prettyOpenURL("127.0.0.1", port, nil),
-			profile: got.Profile,
-			port:    port,
-		})
+		seen[port] = true
+		out = append(out, serveHitFromProbe(port, serveSourceSweep, got))
 	}
 	return out
+}
+
+func serveHitFromProbe(port, source string, got gadakProbe) serveHit {
+	return serveHit{
+		base:    prettyOpenURL("127.0.0.1", port, nil),
+		profile: got.Profile,
+		port:    port,
+		source:  source,
+	}
 }
 
 // serveFocusURL is the URL a tab should open, including /w/<profile>/ when
@@ -529,24 +572,27 @@ func findServeTarget() (serveTarget, serveDebug) {
 	want := config.Profile()
 	dbg := serveDebug{Ports: serveProbePorts()}
 	var any serveTarget
-	var anyPort string
+	var anyPort, anySource string
 	for _, hit := range discoverServes() {
 		t := serveTarget{base: hit.base, profile: hit.profile}
 		if workspace.ProfileEq(hit.profile, want) {
 			dbg.Base = hit.base
 			dbg.Profile = hit.profile
 			dbg.Port = hit.port
+			dbg.Source = hit.source
 			return t, dbg
 		}
 		if any.base == "" {
 			any = t
 			anyPort = hit.port
+			anySource = hit.source
 		}
 	}
 	if any.base != "" {
 		dbg.Base = any.base
 		dbg.Profile = any.profile
 		dbg.Port = anyPort
+		dbg.Source = anySource
 	}
 	return any, dbg
 }
