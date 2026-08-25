@@ -4,6 +4,10 @@
 
 ## Unreleased
 
+- 필수 배열 필드(`labels`, `fix_versions`, `components`)보다 먼저 캐시된
+  이슈 행 하나가 더 이상 UI 전체를 무너뜨리지 않습니다: 하이드레이션이 캐시
+  입구에서 그 배열을 채우고, 버린 행은 콘솔 한 줄로 세며, 리스트 렌더
+  크래시는 스켈레톤에 멈추는 대신 재시도를 보여 줍니다 ([GDK-835]).
 - 웹 UI에 터미널 페인이 생겼습니다: 기본은 ghostty-web(libghostty-vt WASM),
   같은 렌더러 이음새 뒤의 폴백은 xterm.js, 리스트 왼쪽에 창 너비의 44%로
   붙되 넓은 화면에서도 리스트가 제 몫을 지키도록 상한을 둡니다(Ctrl+`,
@@ -1338,3 +1342,4 @@ HTTP·sync·에이전트 계약.
 [GDK-863]: https://gadak.dev/backlog/#/?ks=GDK-863
 [GDK-883]: https://gadak.dev/backlog/#/?ks=GDK-883
 [GDK-864]: https://gadak.dev/backlog/#/?ks=GDK-864
+[GDK-835]: https://gadak.dev/backlog/#/?ks=GDK-835

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { openDB } from 'idb'
 import {
   ISSUE_CACHE_DB_VERSION,
+  getAllIssues,
   issueCacheDbName,
   resetIssueCacheConnection,
   upgradeIssueCache,
@@ -119,6 +120,35 @@ describe('issue cache upgrade (v1 → v2)', () => {
       db2.close()
       await deleteDb(name)
     }
+  })
+})
+
+describe('getAllIssues row contract (v2, wipe does not run)', () => {
+  test('a legacy v2 row missing labels hydrates with empty arrays', async () => {
+    const name = issueCacheDbName()
+    await deleteDb(name)
+    const conn = await openDB(name, ISSUE_CACHE_DB_VERSION, { upgrade: upgradeIssueCache })
+    try {
+      expect(conn.version).toBe(2)
+      await conn.put(
+        'issues',
+        { issue_key: 'LEGACY-2', summary: 'cached v2 row' } as import('./types').IssueLite,
+      )
+    } finally {
+      conn.close()
+    }
+    resetIssueCacheConnection()
+
+    const rows = await getAllIssues()
+    expect(rows).toHaveLength(1)
+    expect(rows[0].issue_key).toBe('LEGACY-2')
+    expect(rows[0].summary).toBe('cached v2 row')
+    expect(rows[0].labels).toEqual([])
+    expect(rows[0].fix_versions).toEqual([])
+    expect(rows[0].components).toEqual([])
+
+    resetIssueCacheConnection()
+    await deleteDb(name)
   })
 })
 

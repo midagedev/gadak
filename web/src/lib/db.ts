@@ -10,6 +10,7 @@
  */
 
 import { openDB, type DBSchema, type IDBPDatabase, type OpenDBCallbacks } from 'idb'
+import { normalizeCachedIssue } from './cache-row'
 import { cacheScopeId } from './config'
 import type { CacheMeta, IssueLite, WriteMetaCache } from './types'
 
@@ -111,9 +112,32 @@ function db(): Promise<IDBPDatabase<IssueDB>> {
   return dbPromise
 }
 
+function droppedRowKey(row: unknown): string {
+  if (typeof row !== 'object' || row === null) return '(not an object)'
+  const key = (row as { issue_key?: unknown }).issue_key
+  if (typeof key === 'string' && key !== '') return key
+  return '(missing issue_key)'
+}
+
 /** Load all cached issues (for hydration). */
 export async function getAllIssues(): Promise<IssueLite[]> {
-  return (await db()).getAll('issues')
+  const raw = await (await db()).getAll('issues')
+  const out: IssueLite[] = []
+  let dropped = 0
+  let firstDroppedKey: string | undefined
+  for (const row of raw) {
+    const next = normalizeCachedIssue(row)
+    if (next) {
+      out.push(next)
+      continue
+    }
+    dropped += 1
+    if (dropped === 1) firstDroppedKey = droppedRowKey(row)
+  }
+  if (dropped > 0) {
+    console.warn(`[cache] dropped ${dropped} cached row(s); first key ${firstDroppedKey}`)
+  }
+  return out
 }
 
 /** Bulk issue upsert (full bootstrap or delta upserted). One transaction. */

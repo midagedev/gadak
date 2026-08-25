@@ -4,6 +4,11 @@
 
 ## Unreleased
 
+- A cached issue row that predates a required array field (`labels`,
+  `fix_versions`, `components`) no longer collapses the whole UI: hydration
+  coerces those arrays at the cache door, a dropped row is counted in one
+  console line, and a list render crash shows a retry instead of hanging on
+  the skeleton ([GDK-835]).
 - The web UI grew a terminal pane: ghostty-web (libghostty-vt WASM) by
   default, xterm.js as the fallback behind the same renderer seam, docked
   left of the list at 44% of the window — capped so the list keeps its share
@@ -1407,3 +1412,4 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-863]: https://gadak.dev/backlog/#/?ks=GDK-863
 [GDK-883]: https://gadak.dev/backlog/#/?ks=GDK-883
 [GDK-864]: https://gadak.dev/backlog/#/?ks=GDK-864
+[GDK-835]: https://gadak.dev/backlog/#/?ks=GDK-835

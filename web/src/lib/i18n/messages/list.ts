@@ -332,6 +332,18 @@ export const list = {
     ko: '자동 갱신이 필요하면 gadak serve로 서버를 실행하세요.',
     ja: '自動更新には gadak serve でサーバーを起動してください。',
   },
+  // GDK-835: list-body render crash. Names the next action the way the
+  // other list dead ends do — not "Something went wrong".
+  'list.renderFailedTitle': {
+    en: 'Could not show this list. Retry to load it again.',
+    ko: '이 목록을 표시하지 못했습니다. 다시 불러오려면 재시도하세요.',
+    ja: 'この一覧を表示できませんでした。再試行して読み込み直してください。',
+  },
+  'list.renderFailedRetry': {
+    en: 'Retry',
+    ko: '다시 시도',
+    ja: '再試行',
+  },
   'list.bodyOnlyTitle': {
     en: 'No local matches — found in body',
     ko: '로컬 매치는 없지만 본문에서 찾았습니다',

@@ -67,6 +67,14 @@
     const keys = untrack(() => filters.visibleIssues.map((i) => i.issue_key))
     bulk.retain(keys)
   })
+
+  function onListError(error: unknown): void {
+    console.error('[list] render failed', error)
+  }
+
+  function retryListLoad(reset: () => void): void {
+    void issues.refresh().finally(reset)
+  }
 </script>
 
 <div class="flex h-full flex-col">
@@ -237,7 +245,17 @@
         />
       {/if}
     {:else}
-      <IssueList />
+      <svelte:boundary onerror={onListError}>
+        {#snippet failed(_error, reset)}
+          <EmptyState
+            icon="warning"
+            title={t('list.renderFailedTitle')}
+            actionLabel={t('list.renderFailedRetry')}
+            onAction={() => retryListLoad(reset)}
+          />
+        {/snippet}
+        <IssueList />
+      </svelte:boundary>
     {/if}
   </div>
 </div>
