@@ -583,7 +583,11 @@ gadak dashboards list / show / rm   # lifecycle; same name on save = update
 - **Your HTML never fetches.** It runs sandboxed (opaque origin, CSP closes
   the network); the host executes each registered datasource and pushes rows
   in as `postMessage` events `{type:'data', name, columns, rows}`. Listen
-  for those and paint. You may send back exactly two verbs, both throttled:
+  for those and paint. **`rows` are positional arrays, not objects** —
+  `columns` is `["label","n"]` and `rows` is `[["api",12], …]`, so read
+  `row[columns.indexOf('n')]`. Reaching for `row.n` is `undefined` in every
+  cell and throws nothing; a wall of `undefined`/`NaN` over correct SQL is
+  always this. You may send back exactly two verbs, both throttled:
   `{type:'refresh'}` (re-run datasources) and
   `{type:'open', hash:'#/?issue=GDK-1'}` — navigate the app itself to one
   of its own hashes (issue detail `#/?issue=KEY`, filtered list
