@@ -105,6 +105,20 @@ export const shell = {
     ko: '터미널',
     ja: 'ターミナル',
   },
+  // The terminal ships behind a beta mark (GDK-956): it is real and useful,
+  // and it still has edges a person meets on the first day — IME composition
+  // is the one we know by name. The badge is the honest version of "we know";
+  // it comes off when the known edges are closed, not when we get tired of it.
+  'terminal.beta': {
+    en: 'Beta',
+    ko: '베타',
+    ja: 'ベータ',
+  },
+  'terminal.betaHint': {
+    en: 'The terminal is in beta — IME composition and some keys are still rough.',
+    ko: '터미널은 베타입니다 — 조합 입력(IME)과 일부 키가 아직 거칩니다.',
+    ja: 'ターミナルはベータ版です — IME の変換や一部のキーはまだ粗いです。',
+  },
   'terminal.reconnecting': {
     en: 'Reconnecting…',
     ko: '다시 연결 중',

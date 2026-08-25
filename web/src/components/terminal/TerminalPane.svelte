@@ -313,7 +313,17 @@
   <div
     class="flex flex-none items-center justify-between gap-2 border-b border-border-subtle bg-bg-panel py-1 pr-1 pl-3"
   >
-    <span class="text-micro tracking-wide text-text-muted uppercase">{t('terminal.title')}</span>
+    <span class="flex min-w-0 items-center gap-1.5">
+      <Icon name="terminal" size={13} class="flex-none text-text-muted" />
+      <span class="truncate text-micro tracking-wide text-text-muted uppercase"
+        >{t('terminal.title')}</span
+      >
+      <span
+        class="flex-none rounded-full border border-border-subtle px-1.5 text-micro font-medium tracking-wide text-text-muted uppercase"
+        title={t('terminal.betaHint')}
+        data-testid="terminal-beta">{t('terminal.beta')}</span
+      >
+    </span>
     <button
       type="button"
       class="flex h-6 w-6 flex-none items-center justify-center rounded text-text-muted hover:bg-bg-hover hover:text-text-primary"
