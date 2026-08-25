@@ -91,9 +91,10 @@
     border: 1px solid var(--color-border-subtle);
     border-radius: 6px;
     padding: 2px;
+    /* 44pt tap box, 32pt layout: the extra sits in .head's existing padding. */
+    margin-block: calc((var(--spacing-control-sm) - var(--spacing-control)) / 2);
   }
   .scope button {
-    min-height: 28px;
     padding: 0 10px;
     border-radius: 4px;
     font-size: var(--text-micro);
@@ -109,8 +110,9 @@
     display: flex;
     align-items: center;
     gap: 4px;
-    min-height: var(--spacing-control-sm);
     padding: 0 4px;
+    /* 44pt bounding box without growing the header (keeps ≥12 rows). */
+    margin-block: calc((var(--spacing-control-sm) - var(--spacing-control)) / 2);
     color: var(--color-text-muted);
     font-size: var(--text-micro);
     font-variant-numeric: tabular-nums;

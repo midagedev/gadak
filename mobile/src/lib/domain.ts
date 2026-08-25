@@ -2,7 +2,7 @@
 // unit-tested. Repo contract: logic keys on status_category and
 // priority_rank, never on display names (display names are labels only).
 
-import type { IssueLite, Me } from './types'
+import type { DetailComment, IssueLite, Me } from './types'
 
 /** Open = not in the done category. Resolution text is not consulted. */
 export function openIssues(issues: IssueLite[]): IssueLite[] {
@@ -136,4 +136,33 @@ export function relTime(iso: string | null | undefined, now: Date = new Date()):
 export function spineToken(issue: IssueLite): string {
   if (issue.reopen_count > 0 && issue.status_category !== 'done') return 'reopen'
   return issue.status_category || 'new'
+}
+
+/**
+ * RAM overlay on a comment thread (DESIGN.md §5). Does not mutate `comments`.
+ * The pending row is dropped when the origin reply already carries its id.
+ */
+export function overlayComments(
+  comments: DetailComment[],
+  pending: DetailComment | null,
+): DetailComment[] {
+  if (!pending) return comments
+  if (comments.some((c) => c.comment_id === pending.comment_id)) return comments
+  return [...comments, pending]
+}
+
+/** Temp comment for the overlay. The id is not an origin id and must not be persisted. */
+export function pendingComment(
+  text: string,
+  me: Me | null,
+  now: Date = new Date(),
+  id = `temp-${now.getTime()}`,
+): DetailComment {
+  const author = me?.name || me?.email || null
+  return {
+    comment_id: id,
+    author: author === '' ? null : author,
+    created_at: now.toISOString(),
+    body: text,
+  }
 }

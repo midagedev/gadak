@@ -152,8 +152,7 @@
   }
   .clear {
     flex: none;
-    width: 28px;
-    height: 28px;
+    min-width: var(--spacing-control);
     display: flex;
     align-items: center;
     justify-content: center;

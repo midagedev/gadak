@@ -23,8 +23,8 @@
   --text-heading--line-height: 1.2;
 
   --spacing-row: 56px; /* queue row: ≥44pt target, 12+ rows per screen */
-  --spacing-control: 44px; /* iOS touch floor — not the web's 32px */
-  --spacing-control-sm: 32px;
+  --spacing-control: 44px; /* iOS touch floor on every control — not the web's 32px */
+  --spacing-control-sm: 32px; /* visual chip only; buttons must not use this as a tap size */
 }
 
 /*
@@ -79,6 +79,24 @@ body {
   /* Read-only telemetry for the dev viewport probe (PairingTab). */
   --probe-safe-top: env(safe-area-inset-top);
   --probe-safe-bottom: env(safe-area-inset-bottom);
+  /*
+    Ink spine for status_category=new (GDK-879). --color-status-new on cream
+    is a whisper (#2f5d8c on #f4efe4); --color-accent is the same 쪽빛
+    thread, darker, still a shared token. Dark already paints a lighter
+    --color-status-new — keep that (the visual verdict said new reads
+    better on ink).
+  */
+  --color-spine-new: var(--color-accent);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --color-spine-new: var(--color-status-new);
+  }
+}
+:root[data-theme='dark'],
+:root[data-theme='ink'],
+:root[data-theme='ember'] {
+  --color-spine-new: var(--color-status-new);
 }
 .safe-top {
   padding-top: var(--safe-top);
@@ -100,6 +118,10 @@ button {
   background: none;
   border: none;
   padding: 0;
+  /* GDK-867: one owner for the 44pt floor. Visual chips stay 32 via
+     --spacing-control-sm on non-buttons; a class min-height below this
+     is a defect (the four 32pt chips were that). */
+  min-height: var(--spacing-control);
 }
 
 @media (prefers-reduced-motion: reduce) {

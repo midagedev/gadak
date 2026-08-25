@@ -71,7 +71,6 @@
     letter-spacing: -0.01em;
   }
   .cancel {
-    min-height: var(--spacing-control-sm);
     padding: 0 8px;
     color: var(--color-accent-text);
     font-size: var(--text-body);

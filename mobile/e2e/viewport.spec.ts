@@ -152,13 +152,11 @@ test('viewport geometry at 402×874', async ({ page }) => {
 })
 
 test('no visible button is under 44pt', async ({ page }) => {
-  // GDK-867 (2026-08-25): four controls measure 32pt today (.fresh 32×49,
-  // .status 32×120, .cancel 32×66, .act 32×83). FAIL-first on unmodified
-  // source: this assertion failed at queue with buttonsUnder44pt=1
-  // [{h:32, cls:"fresh"}] (first screen; the rest were not reached). Unskip
-  // when those four land at 44pt. Do not weaken the 44pt floor to match
-  // today's 32pt controls.
-  test.skip(true, 'GDK-867: 32pt .fresh/.status/.cancel/.act; unskip when they hit 44pt')
+  // GDK-867: 44pt floor on every visible button. FAIL-first on unmodified
+  // source (2026-08-25): failed at queue with buttonsUnder44pt=1
+  // [{h:32, cls:"fresh"}] (first screen; the rest were not reached). The
+  // four 32pt chips shared --spacing-control-sm as a tap size; the owner
+  // is now button { min-height: var(--spacing-control) } in app.css.
   const report = await walkAll(page)
   for (const row of report) {
     expect(row.buttonsUnder44pt, `${row.label} buttons under 44pt: ${JSON.stringify(row.under44)}`).toBe(0)

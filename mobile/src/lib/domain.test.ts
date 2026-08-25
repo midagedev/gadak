@@ -6,11 +6,13 @@ import {
   matchLocal,
   mergeSearch,
   openIssues,
+  overlayComments,
+  pendingComment,
   relTime,
   sortQueue,
   spineToken,
 } from './domain'
-import type { IssueLite, Me } from './types'
+import type { DetailComment, IssueLite, Me } from './types'
 
 // Fixture keys use STD-* (never GDK-*: repo doc-checks scans test files).
 function issue(over: Partial<IssueLite> & { issue_key: string }): IssueLite {
@@ -159,5 +161,35 @@ describe('spineToken', () => {
     expect(spineToken(issue({ issue_key: 'STD-50', reopen_count: 2, status_category: 'inprogress' }))).toBe('reopen')
     expect(spineToken(issue({ issue_key: 'STD-51', reopen_count: 2, status_category: 'done' }))).toBe('done')
     expect(spineToken(issue({ issue_key: 'STD-52', status_category: '' }))).toBe('new')
+  })
+})
+
+describe('overlayComments', () => {
+  const origin: DetailComment = {
+    comment_id: 'c-1',
+    author: 'Dev',
+    created_at: '2026-08-25T11:00:00Z',
+    body: 'already there',
+  }
+
+  it('appends a pending row without mutating origin', () => {
+    const comments = [origin]
+    const pending = pendingComment('hello', me, new Date('2026-08-25T12:00:00Z'), 'temp-1')
+    const next = overlayComments(comments, pending)
+    expect(next).toEqual([origin, pending])
+    expect(next).not.toBe(comments)
+    expect(comments).toEqual([origin])
+  })
+
+  it('is a no-op when pending is null or already in the thread', () => {
+    const comments = [origin]
+    expect(overlayComments(comments, null)).toBe(comments)
+    expect(overlayComments(comments, { ...origin })).toEqual([origin])
+  })
+
+  it('does not invent an author when the serve has no identity', () => {
+    const row = pendingComment('x', null, new Date('2026-08-25T12:00:00Z'), 'temp-2')
+    expect(row.author).toBeNull()
+    expect(row.comment_id.startsWith('temp-')).toBe(true)
   })
 })

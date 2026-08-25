@@ -102,7 +102,10 @@ cards, no shadows in lists; hairline `border-subtle` separators only.
 ### 3.4 The signature: ink spine
 Every issue row carries a 3px left spine in its `status_category` color
 (new / inprogress / done tokens; reopened rows use the reopen token when
-`reopen_count > 0`). In Detail the same spine runs down the left of the
+`reopen_count > 0`). On cream, `new` uses `--color-accent` (same 쪽빛
+thread, darker than `--color-status-new`) via `--color-spine-new` so the
+mark photographs as a column, not a whisper; dark mode keeps
+`--color-status-new`. In Detail the same spine runs down the left of the
 header block — the row visually *is* the page you landed on. This is the one
 memorable mark; everything else stays quiet.
 
@@ -140,10 +143,17 @@ itself ("Sending…" in the send button, progress dot in the transition row).
    control that acted, cached read state untouched).
 7. **Dark mode** is the same code path — token flip only, verified with
    light/dark captures of every screen.
+8. **44pt tap floor (GDK-867).** Every control — not only the back button —
+   measures at least 44pt on its bounding box. `--spacing-control` (44px) is
+   the single owner (`button { min-height }` in `app.css`). `--spacing-control-sm`
+   (32px) is the visual chip only and must not set a button's tap size.
+   Growing the hit area without growing a filled chip is the move that keeps
+   §3.3 (12+ rows) and this floor both true.
 
 Thumb zone: the three write actions (compose, send, transition) and the tab
 bar all live in the bottom third. The top third holds only reading and the
-back button.
+back button. Status is *visible* in the header as data (spine + chip dot);
+the transition *action* lives with compose and send.
 
 ## 5. Data & protocol decisions
 
@@ -238,7 +248,13 @@ Consequences and the division of labor:
   generic failure, and reads stay fully usable.
 - **Debuggability kept.** The phone has no console: dev builds ship an
   on-screen error overlay (main.ts) and a viewport telemetry line on the
-  Pairing tab. Both are `import.meta.env.DEV`-gated.
+  Pairing tab. Both are `import.meta.env.DEV`-gated. The probe is prefixed
+  `DEV` and sits under a hairline so it reads as instrumentation, not as
+  product chrome (GDK-879).
+- **Pairing is a ledger, not grouped fills (GDK-879).** Same hairline
+  separators and section labels as Queue/Search; no panel-fill cards.
+  Unpair keeps the two-step arm and expresses danger with ink weight/shape
+  (`--color-text-primary`), never a status token.
 
 ## 8. Copy
 
@@ -265,7 +281,5 @@ again."), never apologize, never quote server internals.
   proxy) and vite on `127.0.0.1:5182`. Not `e2e/`'s `127.0.0.1:7877` and not
   `e2e/.tmp/home` — demo makes its own temp home. Asserts horizontal overflow
   0, `nav.safe-bottom` flush to the viewport bottom, no input/textarea under
-  16px, ≥12 queue rows per screen, and a visible escape (tab bar, `button.back`,
-  or sheet Cancel). The 44pt tap-target assertion is written at the real
-  contract and skipped until GDK-867 (32pt `.fresh` / `.status` / `.cancel` /
-  `.act`).
+  16px, ≥12 queue rows per screen, a visible escape (tab bar, `button.back`,
+  or sheet Cancel), and no visible button under 44pt (GDK-867).

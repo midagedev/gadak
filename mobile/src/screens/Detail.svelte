@@ -2,10 +2,10 @@
   import Screen from '../ui/Screen.svelte'
   import Sheet from '../ui/Sheet.svelte'
   import { app, closeIssue, openIssue, sync } from '../lib/store.svelte'
-  import { relTime, spineToken } from '../lib/domain'
+  import { overlayComments, pendingComment, relTime, spineToken } from '../lib/domain'
   import { request, errorMessage } from '../lib/api'
   import { keyboardInset } from '../lib/keyboard'
-  import type { DetailResponse, IssueLite, TransitionDoc } from '../lib/types'
+  import type { DetailComment, DetailResponse, IssueLite, TransitionDoc } from '../lib/types'
 
   let { issueKey }: { issueKey: string } = $props()
 
@@ -22,6 +22,10 @@
   let comment = $state('')
   let sending = $state(false)
   let sendError = $state<string | null>(null)
+  /** RAM-only overlay (DESIGN.md §5). Never written to the snapshot cache. */
+  let pending = $state<DetailComment | null>(null)
+
+  const thread = $derived(overlayComments(detail?.comments ?? [], pending))
 
   $effect(() => {
     const key = issueKey
@@ -30,6 +34,7 @@
     sheetOpen = false
     comment = ''
     sendError = null
+    pending = null
     void (async () => {
       try {
         const res = await request<DetailResponse>(`issues/${key}/detail/`)
@@ -75,13 +80,18 @@
     if (text === '' || sending) return
     sending = true
     sendError = null
+    const overlay = pendingComment(text, app.me, new Date())
+    pending = overlay
+    comment = ''
     try {
       await request(`issues/${issueKey}/comment/`, { method: 'POST', body: { text } })
-      comment = ''
+      pending = null
       const res = await request<DetailResponse>(`issues/${issueKey}/detail/`)
       detail = res.body
       void sync()
     } catch (err) {
+      pending = null
+      if (comment.trim() === '') comment = text
       sendError = errorMessage(err)
     } finally {
       sending = false
@@ -107,13 +117,10 @@
     {#if lite}
       <article class="spined spine-{spineToken(lite)}">
         <div class="chips">
-          <button class="status" onclick={openTransitions}>
+          <span class="chip">
             <span class="dot dot-{spineToken(lite)}" aria-hidden="true"></span>
             <span>{lite.status}</span>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="m6 9 6 6 6-6" />
-            </svg>
-          </button>
+          </span>
           {#if lite.priority}
             <span class="chip">{lite.priority}</span>
           {/if}
@@ -142,6 +149,21 @@
           <span class="g w1"></span><span class="g w2"></span><span class="g w3"></span>
         </div>
       {:else}
+        <h3>Comments <span class="h-n">{thread.length}</span></h3>
+        {#if thread.length === 0}
+          <p class="none">No comments yet — yours starts the thread.</p>
+        {/if}
+        {#each thread as c (c.comment_id)}
+          <div class="comment">
+            <p class="c-head">
+              <span class="c-author">{c.author ?? 'Unknown'}</span>
+              <span class="c-when">{relTime(c.created_at, app.now)}</span>
+            </p>
+            <p class="c-body">{c.body}</p>
+          </div>
+        {/each}
+
+        <h3>Description</h3>
         {#if detail.description_text}
           <p class="desc">{detail.description_text}</p>
         {:else}
@@ -158,20 +180,6 @@
             </button>
           {/each}
         {/if}
-
-        <h3>Comments <span class="h-n">{detail.comments.length}</span></h3>
-        {#if detail.comments.length === 0}
-          <p class="none">No comments yet — yours starts the thread.</p>
-        {/if}
-        {#each detail.comments as c (c.comment_id)}
-          <div class="comment">
-            <p class="c-head">
-              <span class="c-author">{c.author ?? 'Unknown'}</span>
-              <span class="c-when">{relTime(c.created_at, app.now)}</span>
-            </p>
-            <p class="c-body">{c.body}</p>
-          </div>
-        {/each}
       {/if}
       <div class="tail" aria-hidden="true"></div>
     </section>
@@ -180,6 +188,15 @@
       <div class="composer-slab" use:keyboardInset>
         {#if sendError}
           <p class="send-error">{sendError}</p>
+        {/if}
+        {#if lite}
+          <button class="status" onclick={openTransitions}>
+            <span class="dot dot-{spineToken(lite)}" aria-hidden="true"></span>
+            <span>{lite.status}</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </button>
         {/if}
         <div class="composer safe-bottom">
           <input
@@ -269,7 +286,7 @@
     padding: 4px 16px 12px 13px;
   }
   .spine-new {
-    border-left-color: var(--color-status-new);
+    border-left-color: var(--color-spine-new);
   }
   .spine-inprogress {
     border-left-color: var(--color-status-inprogress);
@@ -289,24 +306,26 @@
   }
   .status {
     display: flex;
+    width: 100%;
     align-items: center;
     gap: 6px;
-    min-height: var(--spacing-control-sm);
-    padding: 0 10px;
-    background: var(--color-bg-elevated);
-    border-radius: 6px;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--color-border-subtle);
     font-size: var(--text-micro);
     font-weight: 600;
     color: var(--color-text-primary);
+    text-align: left;
   }
   .status svg {
     width: 13px;
     height: 13px;
+    margin-left: auto;
     color: var(--color-text-muted);
   }
   .chip {
     display: flex;
     align-items: center;
+    gap: 6px;
     min-height: var(--spacing-control-sm);
     padding: 0 10px;
     border: 1px solid var(--color-border-subtle);
@@ -372,6 +391,9 @@
     letter-spacing: 0.04em;
     color: var(--color-text-muted);
   }
+  .body > h3:first-of-type {
+    margin-top: 8px;
+  }
   .h-n {
     font-family: var(--font-mono);
     font-weight: 400;
@@ -382,7 +404,6 @@
     width: 100%;
     align-items: baseline;
     gap: 8px;
-    min-height: var(--spacing-control-sm);
     padding: 6px 0;
     text-align: left;
     border-bottom: 1px solid var(--color-border-subtle);

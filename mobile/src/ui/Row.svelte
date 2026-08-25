@@ -56,7 +56,7 @@
     width: 3px;
   }
   .spine-new {
-    background: var(--color-status-new);
+    background: var(--color-spine-new);
   }
   .spine-inprogress {
     background: var(--color-status-inprogress);

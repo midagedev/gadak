@@ -69,49 +69,43 @@
     {#if app.meta}
       <section>
         <h3>Paired server</h3>
-        <div class="card">
-          <p class="big">{app.meta.label || host(app.meta.endpoint)}</p>
-          <p class="sub mono">{host(app.meta.endpoint)}</p>
-          {#if expiry(app.meta.expires_at)}
-            <p class="sub">Offer expires {expiry(app.meta.expires_at)}</p>
-          {/if}
-        </div>
+        <p class="big">{app.meta.label || host(app.meta.endpoint)}</p>
+        <p class="sub mono">{host(app.meta.endpoint)}</p>
+        {#if expiry(app.meta.expires_at)}
+          <p class="sub">Offer expires {expiry(app.meta.expires_at)}</p>
+        {/if}
       </section>
 
       <section>
         <h3>Mirror</h3>
-        <div class="card">
-          <p class="line">
-            <span>{app.issues.length} issues</span>
-            <span class="quiet">
-              {#if app.offline}
-                offline — last sync {app.lastSyncAt ? relTime(app.lastSyncAt.toISOString(), app.now) : 'never'}
-              {:else if app.syncing}
-                syncing…
-              {:else if app.lastSyncAt}
-                synced {relTime(app.lastSyncAt.toISOString(), app.now)}
-              {:else}
-                not synced yet
-              {/if}
-            </span>
-          </p>
-          <button class="act" onclick={() => void sync()} disabled={app.syncing}>Sync now</button>
-        </div>
+        <p class="line">
+          <span>{app.issues.length} issues</span>
+          <span class="quiet">
+            {#if app.offline}
+              offline — last sync {app.lastSyncAt ? relTime(app.lastSyncAt.toISOString(), app.now) : 'never'}
+            {:else if app.syncing}
+              syncing…
+            {:else if app.lastSyncAt}
+              synced {relTime(app.lastSyncAt.toISOString(), app.now)}
+            {:else}
+              not synced yet
+            {/if}
+          </span>
+        </p>
+        <button class="act" onclick={() => void sync()} disabled={app.syncing}>Sync now</button>
       </section>
 
       <section>
         <h3>Identity</h3>
-        <div class="card">
-          {#if hasIdentity(app.me)}
-            <p class="big">{app.me?.name || app.me?.email}</p>
-            {#if app.me?.email && app.me?.name}
-              <p class="sub">{app.me.email}</p>
-            {/if}
-            <p class="sub">"Mine" in the queue filters to this identity.</p>
-          {:else}
-            <p class="line"><span class="quiet">No identity — the serve runs standalone, so the queue shows all open issues.</span></p>
+        {#if hasIdentity(app.me)}
+          <p class="big">{app.me?.name || app.me?.email}</p>
+          {#if app.me?.email && app.me?.name}
+            <p class="sub">{app.me.email}</p>
           {/if}
-        </div>
+          <p class="sub">"Mine" in the queue filters to this identity.</p>
+        {:else}
+          <p class="line"><span class="quiet">No identity — the serve runs standalone, so the queue shows all open issues.</span></p>
+        {/if}
       </section>
 
       <section>
@@ -124,7 +118,7 @@
 
     <p class="ver">gadak mobile 0.1.0</p>
     {#if DEV}
-      <p class="ver">{viewportProbe}</p>
+      <p class="probe">DEV {viewportProbe}</p>
     {/if}
   </div>
 </Screen>
@@ -144,24 +138,19 @@
     padding: 4px 16px 24px;
     display: flex;
     flex-direction: column;
-    gap: 20px;
+  }
+  section {
+    padding: 4px 0 12px;
+    border-bottom: 1px solid var(--color-border-subtle);
   }
   h3 {
     margin: 0 0 6px;
+    padding: 10px 0 4px;
     font-size: var(--text-micro);
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.04em;
     color: var(--color-text-muted);
-  }
-  .card {
-    background: var(--color-bg-panel);
-    border: 1px solid var(--color-border-subtle);
-    border-radius: 8px;
-    padding: 12px 14px;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
   }
   .big {
     margin: 0;
@@ -189,11 +178,9 @@
   }
   .act {
     align-self: flex-start;
-    margin-top: 6px;
-    min-height: var(--spacing-control-sm);
-    padding: 0 12px;
-    border-radius: 6px;
-    border: 1px solid var(--color-border-strong);
+    margin-top: 4px;
+    margin-left: -4px;
+    padding: 0 4px;
     color: var(--color-accent-text);
     font-size: var(--text-micro);
     font-weight: 600;
@@ -203,16 +190,16 @@
   }
   .unpair {
     width: 100%;
-    min-height: var(--spacing-control);
+    margin-top: 8px;
     border-radius: 6px;
-    border: 1px solid var(--color-border-subtle);
-    color: var(--color-status-reopen);
+    border: 1px solid var(--color-border-strong);
+    color: var(--color-text-primary);
     font-weight: 600;
-    background: var(--color-bg-panel);
+    background: transparent;
   }
   .unpair.armed {
-    background: var(--color-status-reopen);
-    border-color: var(--color-status-reopen);
+    background: var(--color-text-primary);
+    border-color: var(--color-text-primary);
     color: var(--color-bg-base);
   }
   .center {
@@ -220,10 +207,20 @@
     margin-top: 6px;
   }
   .ver {
-    margin: 8px 0 0;
+    margin: 16px 0 0;
     text-align: center;
     font-size: var(--text-micro);
     color: var(--color-text-muted);
     font-family: var(--font-mono);
+  }
+  .probe {
+    margin: 12px 0 0;
+    padding-top: 10px;
+    border-top: 1px solid var(--color-border-subtle);
+    text-align: left;
+    font-size: var(--text-micro);
+    font-family: var(--font-mono);
+    color: var(--color-text-muted);
+    overflow-wrap: anywhere;
   }
 </style>
