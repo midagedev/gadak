@@ -77,10 +77,15 @@ if [[ ! -f "$MAIN_SKILL" ]]; then
   exit 1
 fi
 
-# Worktree SKILL.md is the 4d56754 copy and lacks Dashboards. skill install
-# embeds whatever is in this tree at go-build time, so copy first.
-echo "[claude-drive] copying $MAIN_SKILL → $ROOT/skills/gadak/SKILL.md"
-cp -f "$MAIN_SKILL" "$ROOT/skills/gadak/SKILL.md"
+# Originally this ran from a capture worktree whose SKILL.md was a stale
+# copy without Dashboards, so the main tree's file was copied in first.
+# From the main tree itself src and dst are the same file — cp errors on the
+# self-copy (and set -e killed the whole prepare, 2026-08-25) — so only copy
+# when they differ. The Dashboards grep below is the actual contract.
+if [[ "$(cd "$(dirname "$MAIN_SKILL")" && pwd)/SKILL.md" != "$(cd "$ROOT/skills/gadak" && pwd)/SKILL.md" ]]; then
+  echo "[claude-drive] copying $MAIN_SKILL → $ROOT/skills/gadak/SKILL.md"
+  cp -f "$MAIN_SKILL" "$ROOT/skills/gadak/SKILL.md"
+fi
 if ! grep -q '## Dashboards (agent-authored walls)' "$ROOT/skills/gadak/SKILL.md"; then
   echo "prepare-claude-drive: copied skill has no Dashboards section" >&2
   exit 1
