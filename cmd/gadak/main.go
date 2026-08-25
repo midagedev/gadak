@@ -203,13 +203,15 @@ Writing through to the workspace origin — ` + writeThroughOriginPhrase + `:
   page       wiki page create/edit/comment  create|edit|comment [<ID>]
                    [--space K] [--title T] [-m <text|->] [--adf-file F] [--json]
   project    grow a standalone workspace by a project  create <KEY> [--name N] [--json]
-  dev        record PRs on issues (standalone)  link <KEY> --pr <url> [--status ...] | scan [--dry-run] [--install-hook]
+  dev        record PRs, deployments, and builds on issues (standalone)
+                   link <KEY> --pr <url> [--status ...] | scan [--dry-run] [--install-hook]
+                   | deploy <KEY> --env <name> --state <state> | build <KEY> --state <state>
   fields     custom-field usage report  [--sample N] [--json] [--all] [--project KEY] [--apply]
   team       share team settings/views  export [--out] [--with-members]
                                         import <FILE|-> [--dry-run] [--overwrite]
 
 Pairing other machines onto this serve (standalone):
-  pairing    device tokens gating the origin passthrough  mint --label NAME [--ttl 90d] [--endpoint URL] [--json] | list | revoke <label|hash-prefix>
+  pairing    device tokens gating the origin passthrough  mint --label NAME [--ttl 90d] [--endpoint URL] [--json] | list [--json] | revoke <label|hash-prefix>
 
 Workspaces keep separate credentials and mirrors (e.g. work and demo):
   gadak --workspace demo init && gadak --workspace demo serve --addr 127.0.0.1:7778

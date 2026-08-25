@@ -30,7 +30,9 @@ import (
 )
 
 func cmdDev(args []string) error {
-	if len(args) == 0 || wantsHelp(args) {
+	// Parent --help only when there is no verb, matching team.go: otherwise
+	// `dev deploy --help` never reaches cmdDevDeploy's FlagSet (env/state).
+	if len(args) == 0 || wantsHelp(args) && (len(args) == 1 || args[0] == "-h" || args[0] == "--help") {
 		fmt.Fprint(os.Stdout, formatHelp("dev", nil))
 		return nil
 	}

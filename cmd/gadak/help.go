@@ -101,13 +101,13 @@ var helps = map[string]cmdHelp{
 	"pairing": {
 		summary: "manage the device tokens that gate a home serve's origin passthrough (origin scope), mirror REST (serve scope), and terminal (terminal scope); a paired remote machine binds with `gadak init --pairing-code`",
 		usage: "gadak [--workspace <name>] pairing mint --label NAME [--scope origin|serve|terminal] [--ttl 90d] [--endpoint URL] [--json]\n" +
-			"| pairing list | pairing revoke <label|hash-prefix>",
+			"| pairing list [--json] | pairing revoke <label|hash-prefix>",
 		options: []helpOption{
 			{name: "label", desc: "device name shown in `gadak pairing list` (required, unique among active tokens)"},
 			{name: "scope", desc: "what the token opens: origin (default) rides the origin passthrough for a paired gadak; serve opens the whole mirror REST for a paired client such as a phone companion; terminal opens a shell on this machine (the terminal pane) and nothing else — never a default, you have to type it. Each scope is refused on the other two surfaces. A leaked serve token leaks this workspace's data; a leaked terminal token leaks the machine, so give it a short --ttl and revoke it when the device is done — revoking closes the shells it opened"},
 			{name: "ttl", desc: "token lifetime: <N><d|h|m|s>, e.g. 90d (default) or 12h"},
 			{name: "endpoint", desc: "URL remote devices reach this serve at; default is this machine's live serve address (loopback draws a warning — pass your tailnet URL)"},
-			{name: "json", desc: "emit JSON"},
+			{name: "json", desc: "emit JSON (mint and list)"},
 		},
 		examples: []string{
 			"gadak pairing mint --label laptop",
@@ -116,6 +116,7 @@ var helps = map[string]cmdHelp{
 			"gadak pairing mint --label phone-shell --scope terminal --ttl 12h --endpoint https://<machine>.<tailnet>.ts.net",
 			"gadak pairing mint --label laptop --json",
 			"gadak pairing list",
+			"gadak pairing list --json",
 			"gadak pairing revoke laptop",
 			"gadak pairing revoke a1b2c3d4  # hash prefix, 8 or more hex chars from pairing list",
 			"# on the remote machine:",
@@ -237,10 +238,12 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak export", "gadak team import"},
 	},
 	"dev": {
-		summary: "development-panel links: record PRs on issues (standalone origin)",
+		summary: "development-panel links: record PRs, deployments, and builds on issues (standalone origin)",
 		usage: "gadak dev link <KEY> --pr <url>\n" +
 			"[--status open|merged|declined] [--name N] [--author LOGIN] [--branch REF] [--json]\n" +
-			"gadak dev scan [--dry-run] [--install-hook]",
+			"gadak dev scan [--dry-run] [--install-hook]\n" +
+			"gadak dev deploy <KEY> --env <name> --state <state> [--url <run url>] [--json]\n" +
+			"gadak dev build <KEY> --state successful|failed|unknown (--number N | --url <build url>) [--json]",
 		options: []helpOption{
 			{name: "pr", desc: "pull request URL (required for link)"},
 			{name: "status", desc: "open (default), merged, or declined"},
@@ -249,10 +252,17 @@ var helps = map[string]cmdHelp{
 			{name: "branch", desc: "link: head ref (omitted = the current git branch)"},
 			{name: "dry-run", desc: "scan: list matched PRs without writing"},
 			{name: "install-hook", desc: "scan: add a pre-push hook that runs `gadak dev scan`"},
+			{name: "env", desc: "deploy: target environment, e.g. production (required)"},
+			{name: "state", desc: "deploy: deployment state, e.g. successful (required); build: successful | failed | unknown (required)"},
+			{name: "url", desc: "deploy: run URL (omitted = the origin keys the row by its environment); build: build URL (required when --number is omitted)"},
+			{name: "number", desc: "build: build number (required when --url is omitted)"},
+			{name: "json", desc: "emit JSON (link, deploy, build)"},
 		},
 		examples: []string{
 			"gadak dev link STD-3 --pr https://github.com/org/app/pull/7 --status merged",
 			"gadak dev scan            # match issue keys in `gh pr list` titles/branches, link them all",
+			"gadak dev deploy STD-3 --env production --state successful",
+			"gadak dev build STD-3 --state successful --number 12",
 		},
 		seeAlso: []string{"gadak issue", "gadak sync"},
 	},

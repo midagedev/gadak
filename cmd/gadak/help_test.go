@@ -218,3 +218,27 @@ func TestUsageListsEveryCommand(t *testing.T) {
 		}
 	}
 }
+
+// TestDevHelpMentionsDeployAndBuild is GDK-946: `gadak dev --help` (and the
+// top-level usage line that enumerates its verbs) named only link and scan
+// while cmdDev already dispatched deploy and build.
+func TestDevHelpMentionsDeployAndBuild(t *testing.T) {
+	out := formatHelp("dev", nil)
+	for _, want := range []string{"deploy", "build"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("dev help missing %q:\n%s", want, out)
+		}
+	}
+	got, err := capture(t, func() error { return cmdDev([]string{"--help"}) })
+	if err != nil {
+		t.Fatalf("dev --help: %v", err)
+	}
+	for _, want := range []string{"deploy", "build"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("cmdDev --help missing %q:\n%s", want, got)
+		}
+	}
+	if !strings.Contains(usage, "deploy") || !strings.Contains(usage, "build") {
+		t.Errorf("top-level usage enumerates dev verbs but omitted deploy/build:\n%s", usage)
+	}
+}

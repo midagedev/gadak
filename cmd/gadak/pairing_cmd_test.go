@@ -643,6 +643,45 @@ func TestPairingListOnPairedAnswersSelfStatus(t *testing.T) {
 	}
 }
 
+func TestPairingListJSONOnPairedStaysJSON(t *testing.T) {
+	// The self-status branch returns before the token listing, and it used
+	// to print an English sentence on stdout whatever --json said. A verb
+	// whose JSON is machine-readable on one branch and prose on another is
+	// not a JSON verb, so this workspace answers with the pairing it is a
+	// client of — and an empty `tokens`, so a reader takes one path.
+	seedPairedProfile(t)
+
+	out, _, err := captureErr(t, func() error {
+		return cmdPairing([]string{"list", "--json"})
+	})
+	if err != nil {
+		t.Fatalf("pairing list --json on paired workspace: %v\n%s", err, out)
+	}
+	var got struct {
+		Paired struct {
+			Endpoint string `json:"endpoint"`
+			Label    string `json:"label"`
+			Owner    string `json:"owner"`
+		} `json:"paired"`
+		Tokens []map[string]any `json:"tokens"`
+	}
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("stdout is not JSON: %v\n%s", err, out)
+	}
+	if got.Paired.Endpoint != "https://home.ts.net:8443" || got.Paired.Label != "laptop" {
+		t.Fatalf("paired block: %+v", got.Paired)
+	}
+	if got.Paired.Owner != "Home User" {
+		t.Fatalf("owner: %q", got.Paired.Owner)
+	}
+	if got.Tokens == nil || len(got.Tokens) != 0 {
+		t.Fatalf("tokens must be present and empty, got %#v", got.Tokens)
+	}
+	if strings.Contains(out, "this workspace is paired with") {
+		t.Fatalf("--json still printed the human sentence: %q", out)
+	}
+}
+
 func TestPairingMintRevokeOnPairedRefusedWithSelfStatus(t *testing.T) {
 	seedPairedProfile(t)
 
@@ -1175,5 +1214,155 @@ func TestPairingHelpNamesJSONAndHashPrefixFloor(t *testing.T) {
 	}
 	if !strings.Contains(out, "8") || !strings.Contains(strings.ToLower(out), "hash") {
 		t.Fatalf("pairing help must say revoke matches a hash prefix of 8+ chars:\n%s", out)
+	}
+}
+
+// pairingListJSONRow is the --json shape of one pairing-list table row
+// (GDK-947). Keys match the table columns, not pairing.Meta's json tags
+// (those include the full hash).
+type pairingListJSONRow struct {
+	Hash     string `json:"hash"`
+	Label    string `json:"label"`
+	Scope    string `json:"scope"`
+	Created  string `json:"created"`
+	Expires  string `json:"expires"`
+	LastUsed string `json:"last_used"`
+	State    string `json:"state"`
+}
+
+// TestPairingNoArgsLists is GDK-947: bare `gadak pairing` is list, like
+// views/dashboards/recipes, not a usage error.
+func TestPairingNoArgsLists(t *testing.T) {
+	pairingHome(t)
+	out, _, err := captureErr(t, func() error {
+		return cmdPairing(nil)
+	})
+	if err != nil {
+		t.Fatalf("pairing with no args must list (exit 0), got %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "no pairing tokens") {
+		t.Fatalf("empty pairing list stdout = %q", out)
+	}
+
+	mintLaptop(t)
+	out, _, err = captureErr(t, func() error {
+		return cmdPairing(nil)
+	})
+	if err != nil {
+		t.Fatalf("pairing with no args after mint: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "laptop") {
+		t.Fatalf("no-args list missing minted label:\n%s", out)
+	}
+}
+
+// TestPairingListJSON is GDK-947: `pairing list --json` is a JSON document
+// whose tokens array carries the table columns, never the plaintext token,
+// and the empty list is [] not the human sentence.
+func TestPairingListJSON(t *testing.T) {
+	pairingHome(t)
+
+	out, stderr, err := captureErr(t, func() error {
+		return cmdPairing([]string{"list", "--json"})
+	})
+	if err != nil {
+		t.Fatalf("empty pairing list --json: %v\nstdout=%q stderr=%q", err, out, stderr)
+	}
+	var empty struct {
+		Tokens []pairingListJSONRow `json:"tokens"`
+	}
+	if err := json.Unmarshal([]byte(out), &empty); err != nil {
+		t.Fatalf("empty list --json must parse as JSON, got %q: %v", out, err)
+	}
+	if empty.Tokens == nil {
+		t.Fatalf("empty tokens must be [], not null: %s", out)
+	}
+	if len(empty.Tokens) != 0 {
+		t.Fatalf("empty tokens = %+v", empty.Tokens)
+	}
+	if strings.Contains(out, "no pairing tokens") {
+		t.Fatalf("JSON stdout must not carry the human empty-list sentence: %q", out)
+	}
+
+	mintOut, _, err := captureErr(t, func() error {
+		return cmdPairing([]string{"mint", "--label", "laptop", "--ttl", "1h", "--endpoint", "http://127.0.0.1:9"})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	offer, err := pairing.DecodeOffer(strings.TrimSpace(mintOut))
+	if err != nil {
+		t.Fatalf("mint offer: %v", err)
+	}
+	if offer.Token == "" {
+		t.Fatal("fixture token is empty")
+	}
+
+	out, stderr, err = captureErr(t, func() error {
+		return cmdPairing([]string{"list", "--json"})
+	})
+	if err != nil {
+		t.Fatalf("pairing list --json: %v\n%s", err, out)
+	}
+	combined := out + stderr
+	if strings.Contains(combined, offer.Token) {
+		t.Fatalf("list --json leaked the fixture token value")
+	}
+
+	var doc struct {
+		Tokens []pairingListJSONRow `json:"tokens"`
+	}
+	if err := json.Unmarshal([]byte(out), &doc); err != nil {
+		t.Fatalf("list --json: %v\n%s", err, out)
+	}
+	wantKeys := []string{"hash", "label", "scope", "created", "expires", "last_used", "state"}
+	var raw map[string]any
+	if err := json.Unmarshal([]byte(out), &raw); err != nil {
+		t.Fatal(err)
+	}
+	arr, _ := raw["tokens"].([]any)
+	if len(arr) == 0 {
+		t.Fatalf("list --json has no rows: %s", out)
+	}
+	row0, _ := arr[0].(map[string]any)
+	for _, k := range wantKeys {
+		if _, ok := row0[k]; !ok {
+			t.Errorf("list --json row missing key %q: %s", k, out)
+		}
+	}
+
+	var laptop *pairingListJSONRow
+	for i := range doc.Tokens {
+		if doc.Tokens[i].Label == "laptop" {
+			laptop = &doc.Tokens[i]
+		}
+	}
+	if laptop == nil {
+		t.Fatalf("list --json missing laptop row: %s", out)
+	}
+	if len(laptop.Hash) != 8 {
+		t.Errorf("hash prefix = %q, want 8 hex chars", laptop.Hash)
+	}
+	if laptop.Scope != "origin" {
+		t.Errorf("laptop scope = %q, want origin", laptop.Scope)
+	}
+	if laptop.State != "active" {
+		t.Errorf("laptop state = %q, want active", laptop.State)
+	}
+	if laptop.Created == "" || laptop.Expires == "" {
+		t.Errorf("laptop timestamps empty: %+v", laptop)
+	}
+	if laptop.LastUsed != "-" {
+		t.Errorf("unused last_used = %q, want the table's dash", laptop.LastUsed)
+	}
+
+	bare, bareErrOut, err := captureErr(t, func() error {
+		return cmdPairing(nil)
+	})
+	if err != nil {
+		t.Fatalf("pairing no-args after mint: %v", err)
+	}
+	if strings.Contains(bare+bareErrOut, offer.Token) {
+		t.Fatal("pairing no-args leaked the fixture token value")
 	}
 }

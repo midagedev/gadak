@@ -31,7 +31,7 @@ import (
 	"github.com/midagedev/gadak/internal/store"
 )
 
-const pairingUsage = "usage: gadak pairing mint --label NAME [--scope origin|serve|terminal] [--ttl 90d] [--endpoint URL] [--json] | pairing list | pairing revoke <label|hash-prefix>"
+const pairingUsage = "usage: gadak pairing mint --label NAME [--scope origin|serve|terminal] [--ttl 90d] [--endpoint URL] [--json] | pairing list [--json] | pairing revoke <label|hash-prefix>"
 
 // pairingRevokeUsage is the revoke selector: exact label, or a hash prefix
 // of at least minPrefix (8) hex characters — pairing list prints 8, longer
@@ -53,10 +53,17 @@ func cmdPairing(args []string) error {
 		printHelp("pairing")
 		return nil
 	}
-	if len(args) == 0 {
-		return usageError("pairing", pairingUsage)
+	// No args (and bare flags like --json) default to list, matching
+	// views.go / dashboards.go / recipes.go / config.go.
+	sub, rest := "list", args
+	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+		switch args[0] {
+		case "mint", "list", "revoke":
+			sub, rest = args[0], args[1:]
+		default:
+			return usageError("pairing", pairingUsage)
+		}
 	}
-	sub, rest := args[0], args[1:]
 	switch sub {
 	case "mint":
 		return pairingMint(rest)
@@ -426,8 +433,51 @@ func endpointFromAdvertise(addr string) string {
 	return addr
 }
 
+// pairingListTime is the table/JSON timestamp for pairing list columns.
+const pairingListTime = "2006-01-02T15:04Z"
+
+// pairingListRow is one pairing-list table row. JSON tags are the same
+// columns the human table prints — never the plaintext token, never the
+// full hash (only the 8-char prefix pairing list already showed).
+type pairingListRow struct {
+	Hash     string `json:"hash"`
+	Label    string `json:"label"`
+	Scope    string `json:"scope"`
+	Created  string `json:"created"`
+	Expires  string `json:"expires"`
+	LastUsed string `json:"last_used"`
+	State    string `json:"state"`
+}
+
+func pairingListRowFrom(m pairing.Meta, now time.Time) pairingListRow {
+	last := "-"
+	if m.LastUsedAt != nil {
+		last = m.LastUsedAt.UTC().Format(pairingListTime)
+	}
+	state := "active"
+	if m.RevokedAt != nil {
+		state = "revoked " + m.RevokedAt.UTC().Format(pairingListTime)
+	} else if now.After(m.ExpiresAt) {
+		state = "expired"
+	}
+	scope := m.Scope
+	if m.Label == pairing.HomeLabel {
+		scope = pairing.ScopeLocalRouting
+	}
+	return pairingListRow{
+		Hash:     m.Hash[:8],
+		Label:    m.Label,
+		Scope:    scope,
+		Created:  m.CreatedAt.UTC().Format(pairingListTime),
+		Expires:  m.ExpiresAt.UTC().Format(pairingListTime),
+		LastUsed: last,
+		State:    state,
+	}
+}
+
 func pairingList(args []string) error {
 	fs := newFlagSet("pairing list")
+	asJSON := fs.Bool("json", false, "emit JSON")
 	if _, err := parseAround(fs, args); err != nil {
 		return err
 	}
@@ -438,6 +488,25 @@ func pairingList(args []string) error {
 	if rem, err := origin.PairedStatus(cfg); err != nil {
 		return err
 	} else if rem != nil {
+		// This workspace holds no tokens of its own — it is a client of
+		// someone else's serve. --json still has to answer in JSON here:
+		// the whole point of the flag is that stdout is machine-readable,
+		// and a consumer that has to parse an English sentence on one
+		// branch does not have a JSON verb. `tokens` stays present and
+		// empty so a reader can take the same path on both branches.
+		if *asJSON {
+			paired := map[string]any{"endpoint": rem.Endpoint, "label": rem.Label}
+			// Same nil guard pairedStatusLine uses.
+			if cfg != nil {
+				if owner := strings.TrimSpace(cfg.TokenOwner); owner != "" {
+					paired["owner"] = owner
+				}
+			}
+			return json.NewEncoder(os.Stdout).Encode(map[string]any{
+				"paired": paired,
+				"tokens": jsonList([]pairingListRow{}),
+			})
+		}
 		fmt.Println(pairedStatusLine(cfg, rem))
 		return nil
 	}
@@ -449,35 +518,29 @@ func pairingList(args []string) error {
 	if err != nil {
 		return err
 	}
-	if len(toks) == 0 {
+	now := time.Now()
+	if *asJSON {
+		// Empty --json is {"tokens":[]} (jsonList), never the human
+		// sentence and never null: a JSON consumer that gets English on
+		// stdout is a bug. pairingGateOpenLine stays on stderr.
+		rows := make([]pairingListRow, 0, len(toks))
+		for _, m := range toks {
+			rows = append(rows, pairingListRowFrom(m, now))
+		}
+		if err := json.NewEncoder(os.Stdout).Encode(map[string]any{"tokens": jsonList(rows)}); err != nil {
+			return err
+		}
+	} else if len(toks) == 0 {
 		fmt.Println("no pairing tokens — the origin passthrough is open to loopback (implicit trust)")
-		if line := pairingGateOpenLine(dir); line != "" {
-			fmt.Fprintln(os.Stderr, line)
-		}
-		return nil
-	}
-	fmt.Printf("%-8s  %-20s  %-14s  %-20s  %-20s  %-20s  %s\n",
-		"HASH", "LABEL", "SCOPE", "CREATED", "EXPIRES", "LAST-USED", "STATE")
-	for _, m := range toks {
-		last := "-"
-		if m.LastUsedAt != nil {
-			last = m.LastUsedAt.UTC().Format("2006-01-02T15:04Z")
-		}
-		state := "active"
-		if m.RevokedAt != nil {
-			state = "revoked " + m.RevokedAt.UTC().Format("2006-01-02T15:04Z")
-		} else if time.Now().After(m.ExpiresAt) {
-			state = "expired"
-		}
-		scope := m.Scope
-		if m.Label == pairing.HomeLabel {
-			scope = pairing.ScopeLocalRouting
-		}
+	} else {
 		fmt.Printf("%-8s  %-20s  %-14s  %-20s  %-20s  %-20s  %s\n",
-			m.Hash[:8], truncate([]byte(m.Label), 20), scope,
-			m.CreatedAt.UTC().Format("2006-01-02T15:04Z"),
-			m.ExpiresAt.UTC().Format("2006-01-02T15:04Z"),
-			last, state)
+			"HASH", "LABEL", "SCOPE", "CREATED", "EXPIRES", "LAST-USED", "STATE")
+		for _, m := range toks {
+			row := pairingListRowFrom(m, now)
+			fmt.Printf("%-8s  %-20s  %-14s  %-20s  %-20s  %-20s  %s\n",
+				row.Hash, truncate([]byte(row.Label), 20), row.Scope,
+				row.Created, row.Expires, row.LastUsed, row.State)
+		}
 	}
 	if line := pairingGateOpenLine(dir); line != "" {
 		fmt.Fprintln(os.Stderr, line)
