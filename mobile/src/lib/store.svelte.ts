@@ -5,6 +5,7 @@
 import { configureApi, request, isPairingDead, ApiError } from './api'
 import { SCOPE_ME } from './domain'
 import { tokenGet, tokenSet, tokenDel } from './secure'
+import { probeShellPairing } from './terminal/api'
 import type {
   BootstrapResponse,
   IssueLite,
@@ -18,6 +19,7 @@ import type {
 } from './types'
 
 const META_KEY = 'gadak.pairing.meta'
+const TERM_META_KEY = 'gadak.pairing.meta.terminal'
 const UNPAIRED_KEY = 'gadak.pairing.unpaired'
 const CACHE_KEY = 'gadak.snapshot'
 const VIEWS_KEY = 'gadak.views'
@@ -25,7 +27,7 @@ const PAGES_KEY = 'gadak.pages'
 const SCOPE_KEY = 'gadak.issues.scope'
 const RECENTS_KEY = 'gadak.search.recents'
 
-export type Tab = 'issues' | 'search' | 'pairing'
+export type Tab = 'issues' | 'search' | 'pairing' | 'shell'
 export type Phase = 'boot' | 'unpaired' | 'paired'
 export type DetailRef = { kind: 'issue'; key: string } | { kind: 'page'; key: string }
 
@@ -64,12 +66,16 @@ export const app = $state({
 
   tab: 'issues' as Tab,
   detail: null as DetailRef | null,
+  /** Terminal pairing metadata — never the token. Null → no Shell tab. */
+  terminal: null as PairMeta | null,
   /** Ticks every 30s so relative times stay honest while the app is open. */
   now: new Date(),
 })
 
 let etag: string | null = null
 let syncTimer: ReturnType<typeof setInterval> | null = null
+/** Terminal Bearer. Lives next to the serve session token, not on `app`. */
+let terminalToken: string | null = null
 
 /* ── storage helpers (all guarded: storage can be unavailable or full) ── */
 
@@ -167,6 +173,7 @@ async function enterPaired(meta: PairMeta, token: string): Promise<void> {
   const scope = readJSON<string>(SCOPE_KEY)
   if (typeof scope === 'string' && scope !== '') app.scopeId = scope
   app.phase = 'paired'
+  await loadTerminal()
   void sync()
   if (syncTimer) clearInterval(syncTimer)
   syncTimer = setInterval(() => void sync(), 60_000)
@@ -288,6 +295,59 @@ export async function unpair(): Promise<void> {
   app.detail = null
   app.tab = 'issues'
   app.phase = 'unpaired'
+}
+
+/* ── terminal pairing (own token, own meta — DESIGN.md §10.1) ── */
+
+async function loadTerminal(): Promise<void> {
+  const token = await tokenGet('terminal')
+  const meta = readJSON<PairMeta>(TERM_META_KEY)
+  if (token && meta) {
+    terminalToken = token
+    app.terminal = meta
+    return
+  }
+  terminalToken = null
+  app.terminal = null
+}
+
+/**
+ * Probe the scanned offer against the terminal gate, then store. A serve
+ * token is 403 scope_rejected here and must not land in the Keychain.
+ */
+export async function pairTerminal(offer: {
+  endpoint: string
+  token: string
+  expires_at: string
+  label: string
+}): Promise<void> {
+  await probeShellPairing(offer.endpoint, offer.token)
+  await tokenSet(offer.token, 'terminal')
+  const meta: PairMeta = {
+    endpoint: offer.endpoint,
+    label: offer.label,
+    expires_at: offer.expires_at,
+  }
+  writeJSON(TERM_META_KEY, meta)
+  terminalToken = offer.token
+  app.terminal = meta
+}
+
+export async function unpairTerminal(): Promise<void> {
+  try {
+    await tokenDel('terminal')
+  } catch {
+    /* meta is gone either way */
+  }
+  drop(TERM_META_KEY)
+  terminalToken = null
+  app.terminal = null
+  if (app.tab === 'shell') app.tab = 'issues'
+}
+
+/** Session the shell REST calls use — terminal token, never the serve one. */
+export function terminalSession(): { endpoint: string; token: string | null } {
+  return { endpoint: app.terminal?.endpoint ?? '', token: terminalToken }
 }
 
 /* ── navigation ── */

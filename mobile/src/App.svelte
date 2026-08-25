@@ -6,6 +6,7 @@
   import Issues from './screens/Issues.svelte'
   import Search from './screens/Search.svelte'
   import PairingTab from './screens/PairingTab.svelte'
+  import Shell from './screens/Shell.svelte'
   import Detail from './screens/Detail.svelte'
   import PageDetail from './screens/PageDetail.svelte'
   import TabBar from './ui/TabBar.svelte'
@@ -14,8 +15,10 @@
   // the first render, so every t() below reads the same catalog table.
   initLocale()
 
-  // Navigation shell (DESIGN.md §2): three always-mounted tabs (their query
-  // and scroll state survive switches), one Detail push layer above them.
+  // Navigation shell (DESIGN.md §2): Issues/Search/Pairing always-mounted
+  // (query and scroll survive switches). The Shell tab mounts only once a
+  // terminal pairing is stored (DESIGN.md §10) and boots a PTY on first
+  // activation, not at app boot. One Detail push layer above them.
   $effect(() => {
     void boot()
     return startClock()
@@ -44,6 +47,9 @@
   <div class="tabs">
     <div class="pane" class:off={app.tab !== 'issues'}><Issues /></div>
     <div class="pane" class:off={app.tab !== 'search'}><Search /></div>
+    {#if app.terminal}
+      <div class="pane" class:off={app.tab !== 'shell'}><Shell /></div>
+    {/if}
     <div class="pane" class:off={app.tab !== 'pairing'}><PairingTab /></div>
   </div>
   <TabBar />

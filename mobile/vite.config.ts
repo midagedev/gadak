@@ -30,7 +30,23 @@ export default defineConfig({
     host: host || false,
     fs: { allow: [repoRoot] },
     proxy: {
-      '/api': { target: SERVE_DEV_ORIGIN, changeOrigin: true },
+      '/api': {
+        target: SERVE_DEV_ORIGIN,
+        changeOrigin: true,
+        ws: true,
+        // Browser POST/WS send Origin: the vite page (:5182). The serve's
+        // browser guard requires Origin to match Host exactly, and allows
+        // a missing Origin (CLI/curl). The proxy is the trust boundary
+        // (DESIGN.md §7), so it strips Origin the way a loopback client
+        // would — otherwise create-session and the PTY upgrade 403.
+        configure(proxy) {
+          const stripOrigin = (proxyReq: { removeHeader(name: string): void }) => {
+            proxyReq.removeHeader('origin')
+          }
+          proxy.on('proxyReq', stripOrigin)
+          proxy.on('proxyReqWs', stripOrigin)
+        },
+      },
     },
     watch: { ignored: ['**/src-tauri/**'] },
   },

@@ -4,6 +4,15 @@
 
 ## Unreleased
 
+- 폰에서도 그 터미널에 닿습니다. **두 번째** 토큰을 페어링합니다 —
+  `terminal` 스코프를 따로 스캔합니다. 미러를 읽는 토큰이 그 기계의 셸까지
+  열어서는 안 되기 때문입니다. 저장하기 전에 게이트에 먼저 물어보므로,
+  미러용 QR을 잘못 스캔하면 "열리지 않는 셸"이 아니라 어떤 종류의 코드였는지가
+  돌아옵니다. 소켓은 웹뷰의 것이 아니라 네이티브입니다: 웹뷰는 `Authorization`
+  헤더를 붙일 수 없고 커스텀 스킴 origin은 업그레이드에서 거절되는데, 이제
+  그것이 주석이 아니라 테스트입니다. 한글 조합은 완성된 음절 하나로 셸에
+  도착하고 반쪽 자모로는 도착하지 않으며, 폰 키보드에 없는 키들 — Esc·Tab·
+  Ctrl·화살표 — 은 키보드 위의 바가 가집니다 ([GDK-865]).
 - Gadak.app 안에서 터미널이 동작합니다. WebSocket은 커스텀 URL 스킴을 탈
   수 없고 데스크톱은 일부러 TCP 포트를 열지 않으므로, 같은 PTY 바이트가
   wails GoStream을 타고 흐릅니다 — 렌더러 하나, 세션 코어 하나, `isDesktop()`
@@ -1359,3 +1368,4 @@ HTTP·sync·에이전트 계약.
 [GDK-835]: https://gadak.dev/backlog/#/?ks=GDK-835
 [GDK-892]: https://gadak.dev/backlog/#/?ks=GDK-892
 [GDK-895]: https://gadak.dev/backlog/#/?ks=GDK-895
+[GDK-865]: https://gadak.dev/backlog/#/?ks=GDK-865

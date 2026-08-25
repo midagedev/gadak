@@ -4,6 +4,17 @@
 
 ## Unreleased
 
+- The phone reaches that terminal too. It pairs a **second** token — a
+  `terminal`-scope one, scanned separately, because a token that reads the
+  mirror must not also open a shell on the machine — and the app probes the
+  gate before it stores anything, so a mis-scanned mirror QR says which kind
+  of code it was instead of failing later as a shell that never opens. The
+  socket is native rather than the webview's: a webview cannot set an
+  `Authorization` header and its custom-scheme origin is refused on the
+  upgrade, which is now a test rather than a comment. Korean composition
+  reaches the shell as one syllable at the end and never as half-assembled
+  jamo, and the keys a phone keyboard does not have — Esc, Tab, Ctrl,
+  arrows — ride a bar above it ([GDK-865]).
 - The terminal works inside Gadak.app. A WebSocket cannot ride a custom URL
   scheme, and the desktop opens no TCP port on purpose, so the same PTY
   bytes travel over a wails GoStream instead — one renderer, one session
@@ -1431,3 +1442,4 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-835]: https://gadak.dev/backlog/#/?ks=GDK-835
 [GDK-892]: https://gadak.dev/backlog/#/?ks=GDK-892
 [GDK-895]: https://gadak.dev/backlog/#/?ks=GDK-895
+[GDK-865]: https://gadak.dev/backlog/#/?ks=GDK-865

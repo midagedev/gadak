@@ -4,7 +4,11 @@
 // (reqwest — no Origin header, no CORS preflight). The serve gate answers
 // webview fetch with forbidden_origin and serves no CORS headers, so native
 // HTTP is the only packaged-app path (docs/decisions/0003). Its URL scope
-// lives in capabilities/default.json.
+// lives in capabilities/default.json. tauri-plugin-websocket is the same
+// split for PTY bytes: a webview WebSocket cannot set Authorization and
+// its origin is not the serve's. The plugin has no URL allowlist, and
+// src/lib/terminal/transport.ts only restates one in JS — a correctness
+// guard, not a boundary, because the grant is process-wide (GDK-897).
 //
 // Secure storage: tauri-plugin-secure-storage (community — iOS Keychain /
 // Android Keystore / desktop keyring). The app does not use the plugin's
@@ -17,15 +21,29 @@
 // yet. The camera usage string rides in Info.ios.plist.
 use tauri_plugin_secure_storage::{OptionsRequest, SecureStorageExt};
 
-/// Secure-store entry for the pairing token. endpoint/label are not
+/// Secure-store entry for the serve-scope pairing token. Frozen: renaming
+/// it silently unpairs every already-paired phone. endpoint/label are not
 /// secrets and stay in localStorage (mobile/src/lib/settings.ts).
-const TOKEN_KEY: &str = "pairing-token";
+const TOKEN_KEY_SERVE: &str = "pairing-token";
+/// Second slot: a Bearer whose pairing scope is exactly `terminal`.
+const TOKEN_KEY_TERMINAL: &str = "pairing-token-terminal";
+
+/// Resolves the Keychain key for a token kind. Missing kind is serve so
+/// existing `invoke('token_get')` call sites keep working. Unknown kind
+/// is an error, not a silent default.
+fn token_key(kind: Option<&str>) -> Result<&'static str, String> {
+    match kind {
+        None | Some("serve") => Ok(TOKEN_KEY_SERVE),
+        Some("terminal") => Ok(TOKEN_KEY_TERMINAL),
+        Some(_) => Err("unknown token kind".into()),
+    }
+}
 
 /// Built through serde so this compiles regardless of the plugin's field
 /// visibility; keys are the camelCase wire names of its OptionsRequest.
-fn token_options() -> OptionsRequest {
+fn token_options(key: &str) -> OptionsRequest {
     serde_json::from_value(serde_json::json!({
-        "prefixedKey": TOKEN_KEY,
+        "prefixedKey": key,
         "sync": false,
         // 1 = whenUnlockedThisDeviceOnly (the plugin's KeychainAccess enum):
         // readable only while unlocked, never synced through iCloud
@@ -35,20 +53,26 @@ fn token_options() -> OptionsRequest {
     .expect("static token options must deserialize")
 }
 
-/// Reads the pairing token; None when never paired.
+/// Reads a pairing token; None when that slot was never written.
 #[tauri::command]
-async fn token_get(app: tauri::AppHandle) -> Result<Option<String>, String> {
+async fn token_get(app: tauri::AppHandle, kind: Option<String>) -> Result<Option<String>, String> {
+    let key = token_key(kind.as_deref())?;
     app.secure_storage()
-        .get_item(app.clone(), token_options())
+        .get_item(app.clone(), token_options(key))
         .map(|r| r.data)
         .map_err(|e| e.to_string())
 }
 
-/// Stores the pairing token (Keychain grade on device).
+/// Stores a pairing token (Keychain grade on device).
 #[tauri::command]
-async fn token_set(app: tauri::AppHandle, token: String) -> Result<(), String> {
+async fn token_set(
+    app: tauri::AppHandle,
+    token: String,
+    kind: Option<String>,
+) -> Result<(), String> {
+    let key = token_key(kind.as_deref())?;
     let opts = serde_json::from_value(serde_json::json!({
-        "prefixedKey": TOKEN_KEY,
+        "prefixedKey": key,
         "sync": false,
         "keychainAccess": 1,
         "data": token,
@@ -60,11 +84,12 @@ async fn token_set(app: tauri::AppHandle, token: String) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
-/// Deletes the pairing token (unpair).
+/// Deletes a pairing token (unpair).
 #[tauri::command]
-async fn token_del(app: tauri::AppHandle) -> Result<(), String> {
+async fn token_del(app: tauri::AppHandle, kind: Option<String>) -> Result<(), String> {
+    let key = token_key(kind.as_deref())?;
     app.secure_storage()
-        .remove_item(app.clone(), token_options())
+        .remove_item(app.clone(), token_options(key))
         .map(|_| ())
         .map_err(|e| e.to_string())
 }
@@ -73,6 +98,7 @@ async fn token_del(app: tauri::AppHandle) -> Result<(), String> {
 pub fn run() {
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_http::init())
+        .plugin(tauri_plugin_websocket::init())
         .plugin(tauri_plugin_secure_storage::init())
         .plugin(tauri_plugin_notification::init())
         .invoke_handler(tauri::generate_handler![token_get, token_set, token_del]);

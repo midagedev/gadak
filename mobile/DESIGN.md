@@ -37,6 +37,16 @@ never `POST`s one (iOS Mail does not author smart mailboxes either).
 
 Three tabs + one push layer. No hamburger, no drawer, no nested stacks.
 
+> **This section is being replaced — GDK-902.** The tab model below is what
+> the code does today and is described here honestly for that reason, but it
+> has been decided against: tabs are a *fixed* set of column owners, and
+> gadak's owners are ones the user makes (saved views, Jira filters, spaces,
+> dashboards, a shell). The replacement is the desktop's own model — one
+> column, one owner at a time, the palette changes the owner
+> (`web/src/lib/commands.ts:140`) — with the palette as the list's head
+> rather than a separate screen. Do not extend the tab model; do not write
+> new copy against it.
+
 **The tab is the object, the heading is the scope.** The desktop has no name
 for its list screen — its main column is titled by the current view's name.
 The phone adopts that model exactly: the tab says *Issues*, and the `<h1>`
@@ -51,9 +61,9 @@ invented, and the heading tells the truth without either.
 │ PairGate (only when        │  not a tab — replaces the app
 │ unpaired / token rejected) │  until pairing succeeds
 └────────────────────────────┘
-┌─────────┬─────────┬────────┐
-│ Issues  │ Search  │ Pairing│  tab bar, bottom, always visible
-└────┬────┴────┬────┴────────┘
+┌─────────┬─────────┬────────┬────────┐
+│ Issues  │ Search  │ Shell  │ Pairing│  tab bar, bottom, always visible
+└────┬────┴────┬────┴────────┴────────┘  (Shell only once paired, §10)
      ├─► Scope picker (bottom sheet, opened by the heading)
      │     My issues · Built-in · My views · Jira filters · Documents
      └────► Detail (push, slides over tabs) — issue or page
@@ -70,6 +80,7 @@ out; system back = the same edge):
 | Issues | tab · boot default | tab bar |
 | Search | tab | tab bar |
 | Pairing | tab | tab bar |
+| Shell | tab (present only once a terminal pairing is stored, §10) | tab bar |
 | Scope picker | the Issues heading (44pt) | scrim tap · Cancel · picking a name |
 | Detail | issue-row tap (Issues/Search) · linked-issue tap | ← back button (top-left, 44pt) → the tab that opened it |
 | Page detail | doc-row tap (Issues/Search) · search page hit | ← back button (top-left, 44pt) → the tab that opened it |
@@ -402,3 +413,87 @@ and pair again."), never apologize, never quote server internals.
   same check must exclude that file, which necessarily spells the banned words:
   `grep -rn --exclude=vocabulary.test.ts "Queue\|'Mine'\|>Mine<\|>All<" src e2e`
   → no hits.
+
+## 10. Shell — the terminal tab (GDK-865)
+
+The phone attaches to a PTY session running on the paired `gadak serve`.
+Not a new capability on the phone: the same shell the desktop pane opens
+(`internal/term`), reached from the couch. There is no relay and never will
+be — the phone dials the endpoint it paired with, directly, over whatever
+network already carries the mirror (a tailnet, usually).
+
+**Where it lives is being decided — GDK-902.** It ships today as a tab that
+is **absent until a terminal pairing is stored** (absence, not a greyed-out
+tab, matching how PairGate replaces the app rather than disabling it). That
+was reasoned from §2's "the tab is the object", and a shell is an object.
+The tab model itself is what is being replaced: the shell becomes one of the
+things that can *own the column*, entered from the palette, full-screen —
+which is what the keyboard forces anyway, and therefore not a compromise but
+the model. Everything below this line is independent of that choice and
+survives it.
+
+### 10.1 Its own token, and why
+
+The terminal gate (`internal/server/terminal.go`) admits a Bearer whose
+pairing scope is exactly `terminal`. The phone's existing token is `serve`
+scope, and reusing it was explicitly ruled out: a token that reads the
+mirror must not also be able to open a shell on the machine.
+
+So the phone holds **two** tokens in the Keychain, in two slots. Pairing the
+shell is its own scan of its own QR, minted at the desk with
+`gadak pairing mint --scope terminal --label "<phone>"`.
+
+An offer does not carry its scope, so a mis-scanned QR is indistinguishable
+until it is used. The phone therefore **probes before storing**:
+`GET /api/v1/terminal/sessions/` with the scanned token. The gate answers
+`scope_rejected` for a serve token, `pairing_rejected` for a revoked one —
+both honest, both shown as copy. A token is written to the Keychain only
+after the probe passes.
+
+### 10.2 Transport — two branches, one seam
+
+| Build | Socket | Why |
+|---|---|---|
+| dev | plain `WebSocket` through vite's `/api` proxy | the proxy makes the serve loopback and same-origin, and a loopback peer needs no Bearer at all (`terminalGate`) |
+| packaged | native WebSocket (`tauri-plugin-websocket`) | a webview `WebSocket` cannot set `Authorization`, and its `tauri://localhost` origin is not the serve's — `browser_guard.go` origin-checks upgrades. A native client sends no `Origin`, which the guard allows, and can set the header. |
+
+The same split, for the same reason, as `lib/api.ts`'s `fetch`. The wire
+vocabulary is not re-spelled here: `web/src/lib/terminal/protocol.ts` is
+imported, the way `app.css` imports the web tokens.
+
+**The endpoint check is ours, not the platform's.** `http:default` in
+`capabilities/default.json` is URL-scoped to `https://*.ts.net` and
+loopback; the websocket permission has no such allowlist. The replacement is
+`assertPairedWsUrl(endpoint, url)` in `lib/terminal/transport.ts` — scheme,
+host and port must equal the stored pairing endpoint, so a shell can be
+opened only on the machine this phone paired with. It is a tested pure
+function rather than an inline `if` because it is the only thing standing
+where a platform allowlist would otherwise stand.
+
+### 10.3 Input — the part that is phone-only
+
+- **IME.** Nothing reaches the PTY between `compositionstart` and
+  `compositionend`; the composed string is sent once, as UTF-8, on
+  `compositionend`. A shell that receives half-assembled 자모 is receiving
+  garbage, and no amount of terminal-side cleverness fixes it afterwards.
+  The gate is a pure state machine with a Korean event sequence in its tests
+  — not a screenshot.
+- **The phone keyboard has no Esc, no Ctrl, no arrows.** A key bar sits
+  above the keyboard carrying them, riding the existing `keyboardInset`
+  action (§4.2) — the VisualViewport measurement is already solved here and
+  is not solved twice. Ctrl is *sticky*: tap it, then a letter, and the
+  control byte goes out (`Ctrl`+`c` → `0x03`). Sticky state, control-byte
+  mapping and the arrow/Esc/Tab sequences are pure functions with tests.
+- **Autocorrect is off** on whatever element takes the keystrokes.
+  Smart quotes in a shell command are a defect, not a nicety.
+
+### 10.4 Reconnect is the normal case here
+
+On the desktop a dropped socket is an event; on a phone it is what happens
+every time the screen locks. iOS freezes the webview when the app
+backgrounds, so the socket dies and the 60 s server-side grace starts. The
+phone therefore reattaches on `visibilitychange → visible` **immediately**,
+without waiting out the backoff schedule, and the ring replay is the first
+binary frame. Past the grace the session is gone and the phone says so and
+offers a new one — the same ended-state contract the desktop pane has, just
+reached far more often.

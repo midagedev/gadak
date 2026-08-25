@@ -4,12 +4,19 @@
 
   // The tab is the object, not a metaphor: the desktop's word for what this
   // list holds is `doc.issues` (DESIGN.md §3.6). Search and Pairing have no
-  // catalog equivalent yet and stay phone-only copy.
-  const tabs: { id: Tab; label: string }[] = [
-    { id: 'issues', label: t('doc.issues') },
-    { id: 'search', label: 'Search' },
-    { id: 'pairing', label: 'Pairing' },
-  ]
+  // catalog equivalent yet and stay phone-only copy. The Shell tab is absent
+  // until a terminal pairing is stored (DESIGN.md §10); its label is the
+  // catalog's word for the same object (`sidebar.terminal`).
+  const tabs = $derived(
+    (
+      [
+        { id: 'issues' as Tab, label: t('doc.issues') },
+        { id: 'search' as Tab, label: 'Search' },
+        ...(app.terminal ? [{ id: 'shell' as Tab, label: t('sidebar.terminal') }] : []),
+        { id: 'pairing' as Tab, label: 'Pairing' },
+      ]
+    ),
+  )
 </script>
 
 <nav class="safe-bottom" aria-label="Tabs">
@@ -25,6 +32,9 @@
           <path d="M4 6h16M4 12h16M4 18h10" />
         {:else if item.id === 'search'}
           <circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" />
+        {:else if item.id === 'shell'}
+          <path d="M4 8l5 4-5 4" />
+          <path d="M12 16h8" />
         {:else}
           <path d="M10 13.5a5 5 0 0 0 7.1 0l2.4-2.4a5 5 0 0 0-7.1-7.1l-1.3 1.3" />
           <path d="M14 10.5a5 5 0 0 0-7.1 0l-2.4 2.4a5 5 0 0 0 7.1 7.1l1.3-1.3" />
