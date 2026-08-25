@@ -6,8 +6,12 @@ interface Props {
   lang: Locale
   title: string
   description: string
+  /** og:type. 'website' for the landing pages; 'article' for dated writing. */
+  ogType?: 'website' | 'article'
+  /** JSON-LD, already stringified by the page. Emitted verbatim in <head>. */
+  jsonLd?: string
 }
-const { lang, title, description } = Astro.props
+const { lang, title, description, ogType = 'website', jsonLd } = Astro.props
 const t = strings[lang]
 const origin = Astro.site ? Astro.site.href.replace(/\/$/, '') : ''
 // The mirror page in the other language. en '/' ↔ ko '/ko/', en '/install/' ↔ ko '/ko/install/'.
@@ -24,7 +28,7 @@ const altPath = lang === 'en' ? `/ko${Astro.url.pathname === '/' ? '/' : Astro.u
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title}</title>
     <meta name="description" content={description} />
-    <meta property="og:type" content="website" />
+    <meta property="og:type" content={ogType} />
     <meta property="og:site_name" content="gadak" />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
@@ -36,6 +40,10 @@ const altPath = lang === 'en' ? `/ko${Astro.url.pathname === '/' ? '/' : Astro.u
     <meta property="og:image:height" content="640" />
     <meta property="og:image:alt" content={t.ogImageAlt} />
     <meta name="twitter:card" content="summary_large_image" />
+    {/* Canonical on the page's own URL. Without it the same document is
+        reachable at more than one address (trailing slash, query, the
+        preview host) and search engines pick a winner for us. */}
+    <link rel="canonical" href={`${origin}${Astro.url.pathname}`} />
     <link rel="alternate" hreflang={lang} href={Astro.url} />
     <link rel="alternate" hreflang={altLang} href={`${origin}${altPath}`} />
     <link rel="alternate" hreflang="x-default" href={`${origin}${enPath}`} />
@@ -52,6 +60,7 @@ const altPath = lang === 'en' ? `/ko${Astro.url.pathname === '/' ? '/' : Astro.u
       src="https://static.cloudflareinsights.com/beacon.min.js"
       data-cf-beacon={'{"token": "abaadb0b53564824861e279a693d3fc8"}'}
     ></script>
+    {jsonLd && <script type="application/ld+json" is:inline set:html={jsonLd} />}
   </head>
   <body>
     {/* Locale suggestion, never a forced redirect: static and hidden; the
@@ -71,13 +80,11 @@ const altPath = lang === 'en' ? `/ko${Astro.url.pathname === '/' ? '/' : Astro.u
           <a href="/demo/">{t.nav.demo}</a>
           {/* The raw backlog app stays deployed (CHANGELOG issue links point
               into it) but is not advertised here — the curated story is the
-              changelog (user call 2026-08-24). */}
-          <a
-            href={lang === 'en'
-              ? 'https://github.com/midagedev/gadak/blob/main/CHANGELOG.md'
-              : 'https://github.com/midagedev/gadak/blob/main/CHANGELOG.ko.md'}
-            >{t.nav.changelog}</a
-          >
+              changelog (user call 2026-08-24). It is served here rather than
+              on GitHub: the releases are the strongest evidence this site has
+              that the thing is alive, and sending that traffic away spends it
+              somewhere else. */}
+          <a href={lang === 'en' ? '/changelog/' : '/ko/changelog/'}>{t.nav.changelog}</a>
           <a href={lang === 'en' ? '/install/' : '/ko/install/'}>{t.nav.install}</a>
           <a href="https://github.com/midagedev/gadak">{t.nav.github}</a>
           <a data-lang-choice={altLang} href={altPath}>{ta.langName}</a>

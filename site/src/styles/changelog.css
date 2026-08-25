@@ -1,0 +1,38 @@
+/*
+ * Reading rules for the rendered CHANGELOG (src/pages/changelog.astro and its
+ * ko sibling). Its own file rather than a per-page <style>: Astro bundles page
+ * styles per page, so a copy in each would be two things to keep in step.
+ *
+ * The changelog is long-form prose written for a reader, not a table of
+ * versions. All these rules do is make a wall of released text scannable — a
+ * rule above each version so the eye finds the boundary, and room between
+ * entries.
+ */
+.changelog h2 {
+  margin-top: 3.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+  /* The jump list lands on the heading, not just above it. */
+  scroll-margin-top: 1.5rem;
+}
+.changelog h2:first-of-type {
+  margin-top: 2rem;
+}
+.changelog li {
+  margin-bottom: 0.85rem;
+}
+
+.versions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  align-items: baseline;
+  margin: 1.75rem 0 0;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.versions-label {
+  font-size: 0.85rem;
+  opacity: 0.7;
+}

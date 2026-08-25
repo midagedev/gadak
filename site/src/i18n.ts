@@ -105,6 +105,14 @@ export const strings = {
       standaloneLead: 'No tracker at all — issues live on this machine:',
       secondLead: 'A second workspace: separate file, separate credentials:',
     },
+    changelog: {
+      heading: 'Changelog',
+      lede:
+        'Every release, in the words of the person who shipped it. Issue keys link into the ' +
+        'public backlog, so a line here can be read all the way back to what asked for it.',
+      source: 'Rendered from CHANGELOG.md in the repository.',
+      jumpLabel: 'Jump to a version',
+    },
     install: {
       heading: 'Install',
       macosApp: 'The desktop app, CLI included:',
@@ -218,6 +226,14 @@ export const strings = {
         '두 번째 워크스페이스가 개인 작업을 회사 트래커 밖에 둡니다 — 같은 머신, 다른 파일, 다른 자격증명. 스탠드얼론은 트래커 없이도 시작합니다.',
       standaloneLead: '스탠드얼론은 트래커 없이도 시작합니다:',
       secondLead: '두 번째 워크스페이스: 같은 머신, 다른 파일, 다른 자격증명:',
+    },
+    changelog: {
+      heading: '체인지로그',
+      lede:
+        '릴리스마다, 그것을 내보낸 사람의 말로. 이슈 키는 공개 백로그로 이어지므로 ' +
+        '여기 한 줄에서 그것을 요청한 자리까지 되짚어 읽을 수 있습니다.',
+      source: '저장소의 CHANGELOG.ko.md를 그대로 렌더링합니다. 영문이 원본입니다.',
+      jumpLabel: '버전으로 이동',
     },
     install: {
       heading: '설치',

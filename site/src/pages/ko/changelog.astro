@@ -1,0 +1,71 @@
+---
+import Base from '../../layouts/Base.astro'
+import { renderChangelog } from '../../lib/changelog'
+import { strings } from '../../i18n'
+import '../../styles/changelog.css'
+
+const t = strings.ko
+const { html, releases } = await renderChangelog('ko')
+const dated = releases.filter((r) => r.date)
+
+// Same two objects as the English page (src/pages/changelog.astro), pointed
+// at the Korean URLs. inLanguage is what keeps the two from reading as
+// duplicates of one another.
+const jsonLd = JSON.stringify([
+  {
+    '@context': 'https://schema.org',
+    '@type': 'SoftwareApplication',
+    name: 'gadak',
+    applicationCategory: 'DeveloperApplication',
+    operatingSystem: 'macOS, Linux, Windows, iOS',
+    inLanguage: 'ko',
+    url: 'https://gadak.dev/ko/',
+    downloadUrl: 'https://gadak.dev/ko/install/',
+    softwareVersion: dated[0]?.label.replace(/^v/, ''),
+    releaseNotes: 'https://gadak.dev/ko/changelog/',
+    sameAs: 'https://github.com/midagedev/gadak',
+    offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'ItemList',
+    name: 'gadak releases',
+    itemListElement: dated.slice(0, 20).map((r, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      name: r.label,
+      url: `https://gadak.dev/ko/changelog/#${r.id}`,
+    })),
+  },
+])
+---
+
+<Base
+  lang="ko"
+  title="체인지로그 — gadak 릴리스 노트"
+  description="gadak의 모든 릴리스를, 그것을 내보낸 사람의 말로. 저장소의 CHANGELOG.ko.md를 그대로 렌더링하며 이슈 키는 공개 백로그로 이어집니다."
+  ogType="article"
+  jsonLd={jsonLd}
+>
+  <article class="changelog">
+    <h1>{t.changelog.heading}</h1>
+    <p class="lede">{t.changelog.lede}</p>
+    <p class="note">
+      {t.changelog.source}{' '}
+      <a href="https://github.com/midagedev/gadak/blob/main/CHANGELOG.ko.md">GitHub에서 보기</a>
+    </p>
+
+    {
+      dated.length > 0 && (
+        <nav class="versions" aria-label={t.changelog.jumpLabel}>
+          <span class="versions-label">{t.changelog.jumpLabel}</span>
+          {dated.slice(0, 12).map((r) => (
+            <a href={`#${r.id}`}>{r.label}</a>
+          ))}
+        </nav>
+      )
+    }
+
+    <Fragment set:html={html} />
+  </article>
+</Base>

@@ -1,0 +1,9 @@
+# gadak.dev. Everything here is meant to be found.
+#
+# /demo/ and /backlog/ are the hosted-demo build's, not this site's; they are
+# real destinations and stay crawlable, but they are apps behind a hash router
+# so there is nothing under the entry URL for a crawler to walk.
+User-agent: *
+Allow: /
+
+Sitemap: https://gadak.dev/sitemap.xml

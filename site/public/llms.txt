@@ -24,6 +24,7 @@ priority and issue type off display names — use `status_category`,
 ## Try
 
 - [Live demo](https://gadak.dev/demo/): the real UI over a scrubbed 534-issue sample mirror
+- [Changelog](https://gadak.dev/changelog/): every release, with issue keys linking into the backlog
 - [Public backlog](https://gadak.dev/backlog/): gadak's own issues, served by gadak
 - [Source](https://github.com/midagedev/gadak): Go + Svelte, Apache-2.0
 
