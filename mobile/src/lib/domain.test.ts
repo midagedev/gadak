@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import {
   applyFilters,
+  bodyParagraphs,
   buildList,
   buildScopes,
+  docsSpaceScopeId,
   effectiveCategory,
   groupByPriority,
   isMine,
@@ -14,15 +16,19 @@ import {
   relTime,
   resolveScope,
   scopeCount,
+  scopePages,
   SCOPE_ALL_OPEN,
+  SCOPE_DOCS_UPDATED,
   SCOPE_ME,
   sortIssues,
+  sortPages,
+  spaceLabel,
   spineToken,
   unsupportedAxes,
   type Scope,
 } from './domain'
 import { t } from './i18n'
-import type { DetailComment, IssueLite, Me, SavedViewDoc, SourceViewDoc } from './types'
+import type { DetailComment, IssueLite, Me, PageLite, SavedViewDoc, SourceViewDoc } from './types'
 
 // Fixture keys use STD-* (never GDK-*: repo doc-checks scans test files).
 function issue(over: Partial<IssueLite> & { issue_key: string }): IssueLite {
@@ -424,5 +430,83 @@ describe('overlayComments', () => {
     const row = pendingComment('x', null, new Date('2026-08-25T12:00:00Z'), 'temp-2')
     expect(row.author).toBeNull()
     expect(row.comment_id.startsWith('temp-')).toBe(true)
+  })
+})
+
+function page(over: Partial<PageLite> & { key: string }): PageLite {
+  return {
+    title: 'a page',
+    space_key: 'ENG',
+    space_name: 'Engineering',
+    parent_id: '',
+    author: 'Dana',
+    updated_at: '2026-08-10T00:00:00Z',
+    version: 1,
+    url: '',
+    excerpt: '',
+    ...over,
+  }
+}
+
+describe('documents scopes (GDK-887)', () => {
+  const pages = [
+    page({ key: '2', space_key: 'PROD', space_name: 'Product', updated_at: '2026-08-12T00:00:00Z' }),
+    page({ key: '1', space_key: 'ENG', space_name: 'Engineering', updated_at: '2026-08-20T00:00:00Z' }),
+    page({ key: '3', space_key: 'ENG', space_name: 'Engineering', updated_at: '2026-08-01T00:00:00Z' }),
+  ]
+
+  it('omits the Documents section when the page list is empty', () => {
+    expect(buildScopes([], [], me).some((s) => s.section === 'docs')).toBe(false)
+  })
+
+  it('names the whole-mirror plate from the catalog and keys spaces on space_key', () => {
+    const list = buildScopes([], [], me, pages)
+    const docs = list.filter((s) => s.section === 'docs')
+    expect(docs[0].id).toBe(SCOPE_DOCS_UPDATED)
+    expect(docs[0].name).toBe(t('docs.tabUpdated'))
+    expect(docs[0].name).toBe('Updated')
+    expect(docs[0].kind).toBe('pages')
+    expect(docs[0].spaceKey).toBeNull()
+    expect(docs.slice(1).map((s) => [s.id, s.spaceKey, s.name])).toEqual([
+      [docsSpaceScopeId('ENG'), 'ENG', 'Engineering'],
+      [docsSpaceScopeId('PROD'), 'PROD', 'Product'],
+    ])
+  })
+
+  it('falls back to space_key when space_name is empty', () => {
+    const list = buildScopes([], [], me, [page({ key: '9', space_key: 'OPS', space_name: '' })])
+    expect(scopeOf(list, docsSpaceScopeId('OPS')).name).toBe('OPS')
+    expect(spaceLabel(page({ key: '9', space_key: 'OPS', space_name: '  ' }))).toBe('OPS')
+  })
+
+  it('places Documents after Jira filters', () => {
+    const list = buildScopes(
+      [savedView('v1', 'Stale bugs', { status_category: ['new'] })],
+      [jiraFilter('s1', 'Sprint board', { jira_project: ['STD'] })],
+      me,
+      pages,
+    )
+    expect(list.map((s) => s.section)).toEqual(['me', 'builtin', 'views', 'filters', 'docs', 'docs', 'docs'])
+  })
+
+  it('counts pages in memory, keyed on space_key', () => {
+    const list = buildScopes([], [], me, pages)
+    expect(scopeCount([], me, scopeOf(list, SCOPE_DOCS_UPDATED), pages)).toBe(3)
+    expect(scopeCount([], me, scopeOf(list, docsSpaceScopeId('ENG')), pages)).toBe(2)
+    expect(scopeCount([], me, scopeOf(list, docsSpaceScopeId('PROD')), pages)).toBe(1)
+  })
+
+  it('sorts a documents plate by updated_at desc', () => {
+    const list = buildScopes([], [], me, pages)
+    expect(scopePages(pages, scopeOf(list, SCOPE_DOCS_UPDATED)).map((p) => p.key)).toEqual(['1', '2', '3'])
+    expect(sortPages(pages).map((p) => p.key)).toEqual(['1', '2', '3'])
+  })
+})
+
+describe('bodyParagraphs', () => {
+  it('splits on blank lines and yields nothing for empty body', () => {
+    expect(bodyParagraphs('')).toEqual([])
+    expect(bodyParagraphs('  \n\n  ')).toEqual([])
+    expect(bodyParagraphs('one\n\ntwo\nthree')).toEqual(['one', 'two\nthree'])
   })
 })

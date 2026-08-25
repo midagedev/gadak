@@ -174,6 +174,10 @@ when more than one column hits). `snippet` is plain text only — no HTML and no
 highlight markers; clients highlight against their own query. Always present
 (empty object when there are no hits).
 
+### `GET pages/{id}/` — R
+
+Page detail: PageLite plus `body_adf`, `comments[]`, and `body_text` (the ADF body flattened by the same walker FTS indexes). Optional `ref_issue_keys` / `backlink_issue_keys`.
+
 ### `GET|POST jql/` — R
 
 Parse a JQL string or a Jira navigator URL into the same filter object the UI

@@ -18,15 +18,18 @@ edge that follows an issue from its row into its detail page.
 |---|---|---|
 | "What's on my plate?" | Issues (default tab), scope **Assigned to me** | glance — no taps |
 | "Show me the view I named at the desk" | Issues, scope picker on the heading | 1 tap |
-| "Where was that issue about X?" | Search | 2 taps + typing |
+| "What's in this space / what changed in the wiki?" | Issues, Documents section of the same picker | 1 tap |
+| "Where was that issue or page about X?" | Search | 2 taps + typing |
 | "What happened here?" | Detail (comments-first) | 1 tap from any row |
+| "What does this page say?" | Page detail (body, then comments) | 1 tap from a doc row or a search hit |
 | "One-line reply / push the status" | Detail composer · transition sheet | thumb only |
 | "Is this thing still connected?" | Pairing tab | rarely visited, always honest |
 
 Non-jobs (deliberately absent in v1): creating issues, editing fields,
-attachments, wiki, feed/notifications, JQL. The desktop owns those.
-History timeline and plugin enrichments are read on the desktop too — the
-phone shows description, comments, linked issues. **Authoring** a view is a
+attachments, **wiki writes** (create / edit / comment on a page),
+feed/notifications, JQL. The desktop owns those. History timeline and plugin
+enrichments are read on the desktop too — the phone shows description,
+comments, linked issues, and a page's plain-text body. **Authoring** a view is a
 non-job in the same sense: the phone consumes the names the desk wrote and
 never `POST`s one (iOS Mail does not author smart mailboxes either).
 
@@ -52,9 +55,10 @@ invented, and the heading tells the truth without either.
 │ Issues  │ Search  │ Pairing│  tab bar, bottom, always visible
 └────┬────┴────┬────┴────────┘
      ├─► Scope picker (bottom sheet, opened by the heading)
-     └────► Detail (push, slides over tabs)
-                └─► Transition sheet (bottom sheet)
-                └─► Detail of a linked issue (replaces, back returns to list)
+     │     My issues · Built-in · My views · Jira filters · Documents
+     └────► Detail (push, slides over tabs) — issue or page
+                └─► Transition sheet (issues only)
+                └─► linked issue / mentioned issue (replaces, back → list)
 ```
 
 **Entry / exit contract** (dead-end rule: every screen has an explicit way
@@ -67,13 +71,18 @@ out; system back = the same edge):
 | Search | tab | tab bar |
 | Pairing | tab | tab bar |
 | Scope picker | the Issues heading (44pt) | scrim tap · Cancel · picking a name |
-| Detail | row tap (Issues/Search) · linked-issue tap | ← back button (top-left, 44pt) → the tab that opened it |
+| Detail | issue-row tap (Issues/Search) · linked-issue tap | ← back button (top-left, 44pt) → the tab that opened it |
+| Page detail | doc-row tap (Issues/Search) · search page hit | ← back button (top-left, 44pt) → the tab that opened it |
 | Transition sheet | status chip in Detail | scrim tap · Cancel · apply |
 
 The picker's sections are the desk's own, in the desk's order: My issues
-(Assigned to me) · Built-in views (All open) · My views · Jira filters.
-Documents will be a further section here when they land (GDK-887) — a
-section in this same sheet, never a fourth tab.
+(Assigned to me) · Built-in views (All open) · My views · Jira filters ·
+Documents. Documents is a section in this same sheet, never a fourth tab:
+the whole-mirror plate is named **Updated** (`docs.tabUpdated`) — the desk's
+all-documents surface is tabbed Viewed / Updated / Authors, and the phone
+plate is `updated_at` desc, so that word is the honest name, not a second
+"Documents" under the Documents heading. Then one row per `space_key`
+(`space_name`, falling back to the key).
 
 Tabs keep their scroll/query state across switches. Detail is a single layer:
 opening a linked issue swaps the key in place (back still returns to the
@@ -150,7 +159,9 @@ thing *is* the defect, not a style preference.
 The consequence is concrete: the tab is `doc.issues`, the default heading is
 `personal.myAssignee`, the fallback heading is `view.allOpen.name`, the picker
 sections are `personal.myIssues` / `sidebar.builtinViews` / `sidebar.myViews` /
-`sidebar.jiraFilters`, sync is `sidebar.syncNow`, and every sheet's dismiss is
+`sidebar.jiraFilters` / `sidebar.docs`, the whole-mirror documents plate is
+`docs.tabUpdated` (desk structure → phone row: Updated, not an invented "All
+documents"), sync is `sidebar.syncNow`, and every sheet's dismiss is
 `common.cancel`. Korean and Japanese therefore come free, exactly as dark mode
 comes free from §3.1.
 
@@ -238,9 +249,20 @@ the transition *action* lives with compose and send.
   sheet opens — never on the list's scroll path. A view matching zero issues
   shows `0` and stays selectable; a disabled row shows no count. The endpoint
   returns no counts and must not be extended to.
+- **Pages.** `GET issues/pages/` runs in `sync()` beside the view list,
+  cached as `gadak.pages`, dropped on unpair. No `If-None-Match` (the desk's
+  `getPages()` does not send one). An empty list or a fetch error hides the
+  Documents section — no error chrome, no empty section. Applying a documents
+  scope is in-memory over that list, sorted `updated_at` desc. Page detail is
+  `GET issues/pages/{key}/`; the phone paints `body_text` (plain text, filled
+  from ADF by the same walker FTS indexes) and never ADF. A page is read for
+  its body, so comments follow the body here (issue Detail stays comments-first).
+  No composer, no page writes.
 - **Search** is local-first: instant key/summary substring over the snapshot
   while typing, merged with debounced server `issues/search/` results (body
-  and comment matches the snapshot cannot see).
+  and comment matches the snapshot cannot see). Page hits arrive with that
+  reply in `pages[]` and paint a Documents section below the issue rows;
+  they are not merged into one undifferentiated list.
 - **Writes** (`comment`, `transition`) go through origin and re-sync after —
   the app never mutates the snapshot except as an optimistic overlay that a
   failed write rolls back. Frequent writes get no confirm dialog (§7 of

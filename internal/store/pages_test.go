@@ -170,6 +170,25 @@ func TestPageDetailBodyADFAndComments(t *testing.T) {
 	}
 }
 
+func TestPageDetailBodyTextFromADF(t *testing.T) {
+	db := openTemp(t)
+	seedPagesWithIssues(t, db)
+
+	d, err := db.PageDetail(context.Background(), "100")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d == nil {
+		t.Fatal("PageDetail(100) = nil, want detail")
+	}
+	if d.BodyText == "" {
+		t.Fatalf("body_text empty, ADF was %s", d.BodyADF)
+	}
+	if d.BodyText != "로그인 가이드" {
+		t.Errorf("body_text = %q, want the ADF paragraph", d.BodyText)
+	}
+}
+
 func TestPageBodyADFColumnRoundTrip(t *testing.T) {
 	db := openTemp(t)
 	// Schema must be at least v10 (body_adf on pages).

@@ -1,6 +1,7 @@
 <script lang="ts">
   import Screen from '../ui/Screen.svelte'
   import Row from '../ui/Row.svelte'
+  import DocRow from '../ui/DocRow.svelte'
   import EmptyState from '../ui/EmptyState.svelte'
   import Skeleton from '../ui/Skeleton.svelte'
   import ScopeSheet from '../ui/ScopeSheet.svelte'
@@ -13,7 +14,9 @@
     relTime,
     resolveScope,
     scopeCount,
+    scopePages,
     SCOPE_ALL_OPEN,
+    SCOPE_DOCS_UPDATED,
     SCOPE_ME,
     type Scope,
   } from '../lib/domain'
@@ -24,17 +27,22 @@
   // control that changes it (DESIGN.md §2, GDK-885).
   let pickerOpen = $state(false)
 
-  const scopes = $derived(buildScopes(app.views, app.sources, app.me))
+  const scopes = $derived(buildScopes(app.views, app.sources, app.me, app.pages))
   const scope = $derived<Scope>(
     resolveScope(scopes, app.scopeId) ?? {
       id: SCOPE_ALL_OPEN,
       section: 'builtin',
+      kind: 'issues',
       name: t('view.allOpen.name'),
       filters: null,
       unsupported: [],
     },
   )
-  const view = $derived(buildList(app.issues, app.me, scope))
+  const isDocs = $derived(scope.kind === 'pages')
+  const docRows = $derived(isDocs ? scopePages(app.pages, scope) : [])
+  const view = $derived(isDocs
+    ? { sections: [], total: docRows.length, scopeId: scope.id, fellBack: false }
+    : buildList(app.issues, app.me, scope))
   // The heading must never wear a name the list is not showing: when the
   // fallback fires it says All open, and the note below says why.
   const heading = $derived(view.fellBack ? t('view.allOpen.name') : scope.name)
@@ -43,7 +51,7 @@
   // on the list's scroll path.
   let counts = $state(new Map<string, number | null>())
   function openPicker(): void {
-    counts = new Map(scopes.map((s) => [s.id, scopeCount(app.issues, app.me, s)]))
+    counts = new Map(scopes.map((s) => [s.id, scopeCount(app.issues, app.me, s, app.pages)]))
     pickerOpen = true
   }
   function pick(id: string): void {
@@ -87,6 +95,19 @@
 
   {#if !app.loaded}
     <Skeleton />
+  {:else if isDocs}
+    {#if docRows.length === 0}
+      <EmptyState title={t('docs.recentEmpty')} />
+    {:else}
+      {#each docRows as page (page.key)}
+        <DocRow
+          {page}
+          showSpace={!scope.spaceKey}
+          showExcerpt={scope.id === SCOPE_DOCS_UPDATED}
+        />
+      {/each}
+      <div class="foot" aria-hidden="true"></div>
+    {/if}
   {:else if view.total === 0}
     <EmptyState title="Nothing here" body="No issues on this mirror match this scope.">
       <button class="link" onclick={() => switchTab('search')}>Search everything</button>

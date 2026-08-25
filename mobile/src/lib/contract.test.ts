@@ -15,6 +15,14 @@ function read(rel: string): string {
   return readFileSync(join(src, rel), 'utf8')
 }
 
+/** Markup only — comments that name a ban are not the ban. */
+function markup(rel: string): string {
+  return read(rel)
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '')
+}
+
 describe('GDK-870 Detail contracts', () => {
   const detail = read('screens/Detail.svelte')
 
@@ -56,6 +64,33 @@ describe('GDK-879 pairing / spine contracts', () => {
   })
 })
 
+describe('GDK-887 document rows and page detail', () => {
+  it('paints document rows without an ink spine', () => {
+    const row = markup('ui/DocRow.svelte')
+    expect(row).not.toMatch(/class="spine/)
+    expect(row).not.toMatch(/\.spine/)
+    expect(row).not.toMatch(/status_category/)
+  })
+
+  it('puts comments after the page body and has no composer', () => {
+    const page = markup('screens/PageDetail.svelte')
+    const body = page.indexOf('paragraphs')
+    const comments = page.indexOf("t('doc.comments')")
+    expect(body).toBeGreaterThan(-1)
+    expect(comments).toBeGreaterThan(body)
+    expect(page).not.toMatch(/composer/)
+    expect(page).not.toMatch(/<input/)
+    expect(page).not.toMatch(/method:\s*['"]POST/)
+  })
+
+  it('search paints pages in a Documents section below issues', () => {
+    const search = read('screens/Search.svelte')
+    expect(search).toContain('serverPages')
+    expect(search).toContain("t('sidebar.docs')")
+    expect(search).toContain('DocRow')
+  })
+})
+
 describe('GDK-867 tap floor owner', () => {
   it('sets the 44pt floor on button in app.css', () => {
     expect(read('app.css')).toMatch(/button\s*\{[^}]*min-height:\s*var\(--spacing-control\)/s)
@@ -66,9 +101,11 @@ describe('GDK-867 tap floor owner', () => {
       'screens/Issues.svelte',
       'screens/Search.svelte',
       'screens/Detail.svelte',
+      'screens/PageDetail.svelte',
       'screens/PairingTab.svelte',
       'ui/Sheet.svelte',
       'ui/ScopeSheet.svelte',
+      'ui/DocRow.svelte',
     ]
     for (const rel of files) {
       const text = read(rel)

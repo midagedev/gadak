@@ -1,25 +1,32 @@
 <script lang="ts">
   import Screen from '../ui/Screen.svelte'
   import Row from '../ui/Row.svelte'
+  import DocRow from '../ui/DocRow.svelte'
   import EmptyState from '../ui/EmptyState.svelte'
   import { app, recentSearches, rememberSearch } from '../lib/store.svelte'
   import { matchLocal, mergeSearch } from '../lib/domain'
   import { request } from '../lib/api'
-  import type { SearchResponse, IssueLite } from '../lib/types'
+  import { t } from '../lib/i18n'
+  import type { SearchResponse, IssueLite, PageLite, SearchMatch } from '../lib/types'
 
   let query = $state('')
   let serverKeys = $state<string[]>([])
+  let serverPages = $state<PageLite[]>([])
+  let serverMatches = $state<Record<string, SearchMatch>>({})
   let recents = $state(recentSearches())
   let debounce: ReturnType<typeof setTimeout> | null = null
   let inputEl = $state<HTMLInputElement | null>(null)
 
   // Local-first: the snapshot answers instantly while typing; the server
   // adds body/comment matches the lite rows cannot see (DESIGN.md §5).
+  // Page hits arrive only with the server reply — they are not in the issue snapshot.
   const local = $derived(matchLocal(app.issues, query))
   const results = $derived<IssueLite[]>(mergeSearch(local, serverKeys, app.issues))
 
   function onInput() {
     serverKeys = []
+    serverPages = []
+    serverMatches = {}
     if (debounce) clearTimeout(debounce)
     const q = query.trim()
     if (q.length < 2) return
@@ -31,6 +38,8 @@
         // Ignore a reply that raced a newer query.
         if (q === query.trim() && res.body) {
           serverKeys = res.body.keys
+          serverPages = res.body.pages ?? []
+          serverMatches = res.body.matches ?? {}
           rememberSearch(q)
           recents = recentSearches()
         }
@@ -49,6 +58,8 @@
   function clear() {
     query = ''
     serverKeys = []
+    serverPages = []
+    serverMatches = {}
     inputEl?.focus()
   }
 </script>
@@ -96,12 +107,21 @@
         />
       {/if}
     </div>
-  {:else if results.length === 0}
+  {:else if results.length === 0 && serverPages.length === 0}
     <EmptyState title="No matches" body="Nothing on this mirror matches that. Comment text needs at least 2 characters." />
   {:else}
     {#each results as issue (issue.issue_key)}
       <Row {issue} showAssignee={true} />
     {/each}
+    {#if serverPages.length > 0}
+      <div class="section">
+        <span class="label">{t('sidebar.docs')}</span>
+        <span class="n">{serverPages.length}</span>
+      </div>
+      {#each serverPages as page (page.key)}
+        <DocRow {page} showSpace={true} showExcerpt={false} snippet={serverMatches[page.key]?.snippet ?? ''} />
+      {/each}
+    {/if}
   {/if}
 </Screen>
 
@@ -188,5 +208,21 @@
   .r-go {
     color: var(--color-text-muted);
     transform: rotate(45deg);
+  }
+  .section {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 10px 16px 4px;
+    font-size: var(--text-micro);
+    color: var(--color-text-muted);
+  }
+  .label {
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .n {
+    font-family: var(--font-mono);
   }
 </style>

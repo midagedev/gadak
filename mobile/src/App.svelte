@@ -7,6 +7,7 @@
   import Search from './screens/Search.svelte'
   import PairingTab from './screens/PairingTab.svelte'
   import Detail from './screens/Detail.svelte'
+  import PageDetail from './screens/PageDetail.svelte'
   import TabBar from './ui/TabBar.svelte'
 
   // Vocabulary has one owner (DESIGN.md §3.6): pick the locale once, before
@@ -46,13 +47,17 @@
     <div class="pane" class:off={app.tab !== 'pairing'}><PairingTab /></div>
   </div>
   <TabBar />
-  {#if app.detailKey}
+  {#if app.detail}
     <div
       class="detail-layer"
       transition:fly={{ x: reduceMotion ? 0 : 80, duration: reduceMotion ? 0 : 200, opacity: 0.4 }}
     >
-      {#key app.detailKey}
-        <Detail issueKey={app.detailKey} />
+      {#key `${app.detail.kind}:${app.detail.key}`}
+        {#if app.detail.kind === 'issue'}
+          <Detail issueKey={app.detail.key} />
+        {:else}
+          <PageDetail pageKey={app.detail.key} />
+        {/if}
       {/key}
     </div>
   {/if}

@@ -70,12 +70,27 @@ describe('GDK-884 the phone does not invent nouns', () => {
     })
     vi.resetModules()
     try {
-      const { locale } = await import('./i18n')
-      const { buildScopes, SCOPE_ALL_OPEN, SCOPE_ME } = await import('./domain')
+      const { locale, t } = await import('./i18n')
+      const { buildScopes, SCOPE_ALL_OPEN, SCOPE_DOCS_UPDATED, SCOPE_ME } = await import('./domain')
       expect(locale()).toBe('ko')
-      const scopes = buildScopes([], [], { email: 'dev@example.com', account_id: 'acct-1', name: 'Dev' })
+      const pages = [
+        {
+          key: '1',
+          title: 'Guide',
+          space_key: 'ENG',
+          space_name: 'Engineering',
+          parent_id: '',
+          author: 'Dana',
+          updated_at: '2026-08-01T00:00:00Z',
+          version: 1,
+          url: '',
+        },
+      ]
+      const scopes = buildScopes([], [], { email: 'dev@example.com', account_id: 'acct-1', name: 'Dev' }, pages)
       expect(scopes.find((s) => s.id === SCOPE_ME)?.name).toBe('내 담당')
       expect(scopes.find((s) => s.id === SCOPE_ALL_OPEN)?.name).toBe('전체 미해결')
+      expect(t('sidebar.docs')).toBe('문서')
+      expect(scopes.find((s) => s.id === SCOPE_DOCS_UPDATED)?.name).toBe('최근 갱신')
     } finally {
       vi.unstubAllGlobals()
       vi.resetModules()
@@ -92,6 +107,7 @@ describe('GDK-885 the picker wears the desktop section headings', () => {
       'sidebar.builtinViews',
       'sidebar.myViews',
       'sidebar.jiraFilters',
+      'sidebar.docs',
     ]) {
       expect(sheet, `ScopeSheet is missing ${key}`).toContain(key)
     }

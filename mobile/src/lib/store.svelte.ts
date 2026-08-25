@@ -9,6 +9,8 @@ import type {
   BootstrapResponse,
   IssueLite,
   Me,
+  PageLite,
+  PagesResponse,
   PairMeta,
   SavedViewDoc,
   SourceViewDoc,
@@ -19,11 +21,13 @@ const META_KEY = 'gadak.pairing.meta'
 const UNPAIRED_KEY = 'gadak.pairing.unpaired'
 const CACHE_KEY = 'gadak.snapshot'
 const VIEWS_KEY = 'gadak.views'
+const PAGES_KEY = 'gadak.pages'
 const SCOPE_KEY = 'gadak.issues.scope'
 const RECENTS_KEY = 'gadak.search.recents'
 
 export type Tab = 'issues' | 'search' | 'pairing'
 export type Phase = 'boot' | 'unpaired' | 'paired'
+export type DetailRef = { kind: 'issue'; key: string } | { kind: 'page'; key: string }
 
 interface Snapshot {
   etag: string | null
@@ -48,6 +52,8 @@ export const app = $state({
   views: [] as SavedViewDoc[],
   /** Jira filters imported at the desk (same response → `source`). */
   sources: [] as SourceViewDoc[],
+  /** Mirrored wiki pages (GET issues/pages/). Empty → no Documents section. */
+  pages: [] as PageLite[],
   /** Last scope the user picked; the heading is this scope's name. */
   scopeId: SCOPE_ME as string,
   /** True once any snapshot (cache or network) has painted. */
@@ -57,7 +63,7 @@ export const app = $state({
   lastSyncAt: null as Date | null,
 
   tab: 'issues' as Tab,
-  detailKey: null as string | null,
+  detail: null as DetailRef | null,
   /** Ticks every 30s so relative times stay honest while the app is open. */
   now: new Date(),
 })
@@ -154,6 +160,10 @@ async function enterPaired(meta: PairMeta, token: string): Promise<void> {
     app.views = cachedViews.views ?? []
     app.sources = cachedViews.sources ?? []
   }
+  const cachedPages = readJSON<{ pages: PageLite[] }>(PAGES_KEY)
+  if (cachedPages) {
+    app.pages = cachedPages.pages ?? []
+  }
   const scope = readJSON<string>(SCOPE_KEY)
   if (typeof scope === 'string' && scope !== '') app.scopeId = scope
   app.phase = 'paired'
@@ -197,6 +207,18 @@ export async function sync(): Promise<void> {
       // A serve that refuses the view list still lists issues under the two
       // hardcoded scopes — a picker with fewer names, not a dead screen.
     }
+    try {
+      // Same cache shape as views, no If-None-Match: the desktop's getPages()
+      // does not send one either (web/src/lib/api.ts). An empty list or a
+      // refusal hides the Documents section — no error chrome.
+      const res = await request<PagesResponse>('issues/pages/')
+      if (res.body) {
+        app.pages = res.body.pages ?? []
+        writeJSON(PAGES_KEY, { pages: app.pages })
+      }
+    } catch {
+      // Keep whatever we already painted (offline). No pages → no section.
+    }
     app.loaded = true
     app.offline = false
     app.lastSyncAt = new Date()
@@ -238,6 +260,7 @@ export async function unpair(): Promise<void> {
   drop(META_KEY)
   drop(CACHE_KEY)
   drop(VIEWS_KEY)
+  drop(PAGES_KEY)
   drop(SCOPE_KEY)
   // Packaged: unpairing must stick across launches. Dev: the proxy is the
   // trust boundary, so the next launch may re-adopt it — the gate still
@@ -258,10 +281,11 @@ export async function unpair(): Promise<void> {
   app.me = null
   app.views = []
   app.sources = []
+  app.pages = []
   app.scopeId = SCOPE_ME
   app.loaded = false
   app.rejected = false
-  app.detailKey = null
+  app.detail = null
   app.tab = 'issues'
   app.phase = 'unpaired'
 }
@@ -269,11 +293,15 @@ export async function unpair(): Promise<void> {
 /* ── navigation ── */
 
 export function openIssue(key: string): void {
-  app.detailKey = key
+  app.detail = { kind: 'issue', key }
+}
+
+export function openPage(key: string): void {
+  app.detail = { kind: 'page', key }
 }
 
 export function closeIssue(): void {
-  app.detailKey = null
+  app.detail = null
 }
 
 export function switchTab(tab: Tab): void {

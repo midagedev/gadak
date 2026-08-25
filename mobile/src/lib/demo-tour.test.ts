@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 // The tour module imports the store only so tour() can call openIssue /
 // switchTab. This suite asserts arming, not the walk, so the store is a stub.
 vi.mock('./store.svelte', () => ({
-  app: { tab: 'issues', detailKey: null },
+  app: { tab: 'issues', detail: null },
   openIssue: vi.fn(),
   closeIssue: vi.fn(),
   switchTab: vi.fn(),
@@ -48,14 +48,14 @@ describe('demo-tour arming', () => {
     expect(isDemoTourArmed()).toBe(true)
   })
 
-  it('leaves tab and detailKey unchanged when nothing is armed', () => {
+  it('leaves tab and detail unchanged when nothing is armed', () => {
     vi.stubGlobal('location', { search: '' })
     const info = vi.spyOn(console, 'info').mockImplementation(() => {})
     const tab = app.tab
-    const detailKey = app.detailKey
+    const detail = app.detail
     armDemoTourInDev()
     expect(app.tab).toBe(tab)
-    expect(app.detailKey).toBe(detailKey)
+    expect(app.detail).toBe(detail)
     expect(info).not.toHaveBeenCalled()
   })
 })

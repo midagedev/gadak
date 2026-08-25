@@ -118,6 +118,22 @@ async function walkAll(page: Page): Promise<Measure[]> {
   await page.locator('button.back').first().click()
   await page.locator('.pane:not(.off) button.row').first().waitFor()
 
+  // GDK-887: Updated (whole-mirror) documents plate, then one page detail.
+  await page.locator('.pane:not(.off) h1 button.scope').click()
+  await page.locator('button.cancel').waitFor()
+  await settleSheet(page)
+  await page.locator('.sheet .section', { hasText: 'Documents' }).waitFor()
+  await page.locator('.sheet button.row', { hasText: 'Updated' }).click()
+  await page.locator('button.cancel').waitFor({ state: 'hidden' })
+  await page.locator('.pane:not(.off) button.row[data-testid="doc-row"]').first().waitFor()
+  report.push(await measure(page, 'docs'))
+
+  await page.locator('.pane:not(.off) button.row[data-testid="doc-row"]').first().click()
+  await page.locator('.page-detail button.back').waitFor()
+  report.push(await measure(page, 'page-detail'))
+  await page.locator('.page-detail button.back').first().click()
+  await page.locator('.pane:not(.off) button.row[data-testid="doc-row"]').first().waitFor()
+
   const tabs = page.locator('nav.safe-bottom button.tab')
   await tabs.nth(1).click()
   await page.locator('.pane:not(.off) input').first().waitFor()
@@ -161,6 +177,8 @@ test('viewport geometry at 402×874', async ({ page }) => {
     'scope-sheet',
     'detail',
     'sheet',
+    'docs',
+    'page-detail',
     'search-empty',
     'search-results',
     'pairing',
@@ -175,9 +193,14 @@ test('viewport geometry at 402×874', async ({ page }) => {
   const issues = report.find((r) => r.label === 'issues')
   expect(issues, 'issues measurement').toBeTruthy()
   expect(issues!.rowsPerScreen, 'issues rows per screen').toBeGreaterThanOrEqual(12)
+  const docs = report.find((r) => r.label === 'docs')
+  expect(docs, 'docs measurement').toBeTruthy()
+  expect(docs!.rowsPerScreen, 'docs rows per screen').toBeGreaterThanOrEqual(12)
   // GDK-885: opening the picker must not cost the list its density.
   const afterSheet = report.find((r) => r.label === 'issues-dark')
   expect(afterSheet!.rowsPerScreen, 'rows per screen after the picker closed').toBeGreaterThanOrEqual(12)
+  // Recurrence: a page row has no status spine (DESIGN.md §3.4).
+  expect(await page.locator('[data-testid="doc-row"] .spine').count()).toBe(0)
 })
 
 test('no visible button is under 44pt', async ({ page }) => {

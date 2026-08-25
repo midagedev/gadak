@@ -10,6 +10,8 @@ import (
 	"time"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/midagedev/gadak/internal/adf"
 )
 
 // IssueLite is the row shape the read API hydrates the client with. Field names
@@ -719,11 +721,15 @@ type PageComment struct {
 	BodyText  string          `json:"body_text"`
 }
 
-// PageDetail is PageLite plus the raw ADF body and comments.
+// PageDetail is PageLite plus the raw ADF body, its plain-text form, and comments.
 type PageDetail struct {
 	PageLite
-	BodyADF  json.RawMessage `json:"body_adf"`
-	Comments []PageComment   `json:"comments"`
+	BodyADF json.RawMessage `json:"body_adf"`
+	// BodyText is BodyADF flattened by adf.PlainText — the same walker FTS
+	// indexes. Always present (empty when the body is empty) so a text client
+	// does not have to parse ADF.
+	BodyText string        `json:"body_text"`
+	Comments []PageComment `json:"comments"`
 	// RefIssueKeys are issue keys this page's body mentions (item_refs). Only
 	// issues present in the mirror, sorted ascending. Empty omitted.
 	RefIssueKeys []string `json:"ref_issue_keys,omitempty"`
@@ -827,6 +833,7 @@ func (db *DB) PageDetail(ctx context.Context, key string) (*PageDetail, error) {
 	}
 	d.Labels = parseArray(&labels)
 	d.BodyADF = rawOrNull(bodyADF)
+	d.BodyText = adf.PlainText(d.BodyADF)
 	d.Comments = []PageComment{}
 	if err := each(ctx, db.sql, `
 		SELECT COALESCE(author, ''), COALESCE(created_at, ''),

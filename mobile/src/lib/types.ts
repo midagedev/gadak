@@ -87,8 +87,56 @@ export interface TransitionDoc {
   fields?: { id: string; name: string }[]
 }
 
+export interface SearchMatch {
+  field: string
+  snippet: string
+}
+
 export interface SearchResponse {
   keys: string[]
+  total: number
+  pages?: PageLite[]
+  matches?: Record<string, SearchMatch>
+}
+
+/* ── GET issues/pages/ (internal/store/read.go PageLite / PageDetail) ── */
+
+/** One mirrored wiki page, without body. Picker rows and search hits use this. */
+export interface PageLite {
+  key: string
+  title: string
+  space_key: string
+  /** Empty until the space is mirrored; fall back to space_key for display. */
+  space_name?: string
+  space_homepage_id?: string
+  parent_id: string
+  author: string
+  author_id?: string
+  updated_at: string
+  version: number
+  url: string
+  excerpt?: string
+  labels?: string[]
+}
+
+export interface PageComment {
+  author: string
+  created_at: string
+  /** Plain-text body — the phone renders text, never raw ADF. */
+  body_text: string
+}
+
+/** GET `pages/{key}/` — PageLite plus flattened body and comments. */
+export interface PageDetail extends PageLite {
+  /** ADF flattened by the same walker FTS indexes. Empty when the body is empty. */
+  body_text: string
+  comments: PageComment[]
+  ref_issue_keys?: string[]
+  backlink_issue_keys?: string[]
+}
+
+export interface PagesResponse {
+  pages: PageLite[]
   total: number
 }
 

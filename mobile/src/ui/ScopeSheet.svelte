@@ -23,12 +23,13 @@
     onclose: () => void
   } = $props()
 
-  const ORDER: ScopeSection[] = ['me', 'builtin', 'views', 'filters']
+  const ORDER: ScopeSection[] = ['me', 'builtin', 'views', 'filters', 'docs']
   const HEADING: Record<ScopeSection, string> = {
     me: 'personal.myIssues',
     builtin: 'sidebar.builtinViews',
     views: 'sidebar.myViews',
     filters: 'sidebar.jiraFilters',
+    docs: 'sidebar.docs',
   }
 
   // UX_PRINCIPLES §6: a list in a sheet is capped, not infinite. A desk with

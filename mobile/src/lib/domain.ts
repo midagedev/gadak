@@ -2,11 +2,12 @@
 // unit-tested. Repo contract: logic keys on status_category and
 // priority_rank, never on display names (display names are labels only).
 
-import { t } from './i18n'
+import { collator, t } from './i18n'
 import type {
   DetailComment,
   IssueLite,
   Me,
+  PageLite,
   SavedViewDoc,
   SourceViewDoc,
   ViewFilters,
@@ -101,22 +102,34 @@ export function groupByPriority(sorted: IssueLite[]): PrioritySection[] {
 /* ── Scopes: the heading is the current scope's name (DESIGN.md §2) ── */
 
 /** Which picker section a scope belongs to; also the order they render in. */
-export type ScopeSection = 'me' | 'builtin' | 'views' | 'filters'
+export type ScopeSection = 'me' | 'builtin' | 'views' | 'filters' | 'docs'
 
 /** The desktop's hardcoded "Assigned to me" — not a saved view (personal.go sends none). */
 export const SCOPE_ME = 'me'
 /** The desktop builtin `all-open`, which the phone already ran as its "All". */
 export const SCOPE_ALL_OPEN = 'builtin:all-open'
+/**
+ * Whole-mirror documents plate. Named `docs.tabUpdated` ("Updated"), not a
+ * second "Documents" under the Documents heading: the desk's all-documents
+ * surface is Viewed / Updated / Authors, and this plate is `updated_at` desc.
+ */
+export const SCOPE_DOCS_UPDATED = 'docs:updated'
+
+export function docsSpaceScopeId(spaceKey: string): string {
+  return `docs:space:${spaceKey}`
+}
 
 export interface Scope {
   id: string
   section: ScopeSection
+  /** One discriminator: issue plates vs document plates. */
+  kind: 'issues' | 'pages'
   /**
    * Display name. Catalog-owned for the two hardcoded scopes; for saved views
    * and imported filters it is the name the developer typed at the desk.
    */
   name: string
-  /** Stored desktop filters. null for the two hardcoded scopes. */
+  /** Stored desktop filters. null for the two hardcoded scopes and for pages. */
   filters: Partial<ViewFilters> | null
   /**
    * Axes the phone cannot evaluate on an `IssueLite`. Non-empty means the row
@@ -124,6 +137,11 @@ export interface Scope {
    * would be a lie (docs/decisions/0007 — refuse unsupported out loud).
    */
   unsupported: string[]
+  /**
+   * Space this page-scope selects. Null on the whole-mirror Updated plate.
+   * Keyed on `space_key`, never on the display name.
+   */
+  spaceKey?: string | null
 }
 
 /**
@@ -249,12 +267,14 @@ export function buildScopes(
   views: SavedViewDoc[],
   sources: SourceViewDoc[],
   me: Me | null,
+  pages: PageLite[] = [],
 ): Scope[] {
   const out: Scope[] = []
   if (hasIdentity(me)) {
     out.push({
       id: SCOPE_ME,
       section: 'me',
+      kind: 'issues',
       name: t('personal.myAssignee'),
       filters: null,
       unsupported: [],
@@ -263,6 +283,7 @@ export function buildScopes(
   out.push({
     id: SCOPE_ALL_OPEN,
     section: 'builtin',
+    kind: 'issues',
     name: t('view.allOpen.name'),
     filters: null,
     unsupported: [],
@@ -272,6 +293,7 @@ export function buildScopes(
     out.push({
       id: `view:${v.id}`,
       section: 'views',
+      kind: 'issues',
       name: v.name,
       filters,
       unsupported: unsupportedAxes(filters),
@@ -282,7 +304,45 @@ export function buildScopes(
     // A clause the desktop's JQL importer could not compile is unsupported
     // here too — the compiled config simply does not carry it (decision 0007).
     const unsupported = [...new Set([...(s.unsupported ?? []), ...unsupportedAxes(filters)])].sort()
-    out.push({ id: `source:${s.id}`, section: 'filters', name: s.name, filters, unsupported })
+    out.push({
+      id: `source:${s.id}`,
+      section: 'filters',
+      kind: 'issues',
+      name: s.name,
+      filters,
+      unsupported,
+    })
+  }
+  if (pages.length > 0) {
+    out.push({
+      id: SCOPE_DOCS_UPDATED,
+      section: 'docs',
+      kind: 'pages',
+      name: t('docs.tabUpdated'),
+      filters: null,
+      unsupported: [],
+      spaceKey: null,
+    })
+    const names = new Map<string, string>()
+    for (const p of pages) {
+      if (!p.space_key || names.has(p.space_key)) continue
+      names.set(p.space_key, spaceLabel(p))
+    }
+    const keys = [...names.keys()].sort((a, b) => {
+      const byName = collator().compare(names.get(a)!, names.get(b)!)
+      return byName !== 0 ? byName : a.localeCompare(b)
+    })
+    for (const key of keys) {
+      out.push({
+        id: docsSpaceScopeId(key),
+        section: 'docs',
+        kind: 'pages',
+        name: names.get(key)!,
+        filters: null,
+        unsupported: [],
+        spaceKey: key,
+      })
+    }
   }
   return out
 }
@@ -297,6 +357,7 @@ export function resolveScope(scopes: Scope[], wantId: string | null): Scope | nu
 
 /** Rows a scope selects, before sorting. Null for a scope the phone refuses. */
 export function scopeIssues(issues: IssueLite[], me: Me | null, scope: Scope): IssueLite[] | null {
+  if (scope.kind === 'pages') return null
   if (scope.unsupported.length > 0) return null
   if (scope.id === SCOPE_ME) {
     if (!hasIdentity(me)) return null
@@ -307,9 +368,47 @@ export function scopeIssues(issues: IssueLite[], me: Me | null, scope: Scope): I
 }
 
 /** Match count for a picker row (GDK-886). Null = the row is disabled. */
-export function scopeCount(issues: IssueLite[], me: Me | null, scope: Scope): number | null {
+export function scopeCount(
+  issues: IssueLite[],
+  me: Me | null,
+  scope: Scope,
+  pages: PageLite[] = [],
+): number | null {
+  if (scope.kind === 'pages') return scopePages(pages, scope).length
   const rows = scopeIssues(issues, me, scope)
   return rows === null ? null : rows.length
+}
+
+/** Display label for a page's space: `space_name`, else `space_key`. */
+export function spaceLabel(page: PageLite): string {
+  const name = (page.space_name ?? '').trim()
+  return name || page.space_key
+}
+
+/** `updated_at` desc, then key for stability. */
+export function sortPages(pages: PageLite[]): PageLite[] {
+  return [...pages].sort((a, b) => {
+    const u = (b.updated_at ?? '').localeCompare(a.updated_at ?? '')
+    if (u !== 0) return u
+    return a.key.localeCompare(b.key)
+  })
+}
+
+/** Pages a documents scope selects, already sorted. */
+export function scopePages(pages: PageLite[], scope: Scope): PageLite[] {
+  if (scope.kind !== 'pages') return []
+  const rows = scope.spaceKey ? pages.filter((p) => p.space_key === scope.spaceKey) : pages
+  return sortPages(rows)
+}
+
+/**
+ * Split `body_text` on blank lines. Single newlines stay inside a paragraph
+ * (the renderer uses `white-space: pre-wrap`). Empty input → no paragraphs.
+ */
+export function bodyParagraphs(text: string): string[] {
+  const trimmed = text.replace(/\r\n/g, '\n').trim()
+  if (trimmed === '') return []
+  return trimmed.split(/\n{2,}/)
 }
 
 export interface IssueListView {
@@ -323,6 +422,9 @@ export interface IssueListView {
 
 /** The list in one call: select by scope (with honest fallback), sort, group. */
 export function buildList(issues: IssueLite[], me: Me | null, scope: Scope): IssueListView {
+  if (scope.kind === 'pages') {
+    return { sections: [], total: 0, scopeId: scope.id, fellBack: false }
+  }
   const rows = scopeIssues(issues, me, scope)
   if (scope.id === SCOPE_ME && rows !== null && rows.length > 0) {
     const sorted = sortIssues(rows)
