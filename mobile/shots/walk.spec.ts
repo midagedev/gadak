@@ -25,7 +25,16 @@ const shots: { label: string; file: string; note: string }[] = []
 async function shoot(page: Page, label: string, note: string): Promise<void> {
   // Settle any transition first: a fly() caught mid-flight photographs a
   // screen the person never sees, and the reviewer will report its
-  // half-offset layout as a defect.
+  // half-offset layout as a defect. Measured in cycle 1: awaiting
+  // getAnimations() alone was not enough — the page-detail frame came back
+  // as a translucent overlay on the live list and was reported as a
+  // high-severity layout defect that does not exist in the code (both
+  // pushes are `background: var(--color-bg-base)`). The extra settle is
+  // what makes the picture the screen.
+  await page.evaluate(async () => {
+    await Promise.all(document.getAnimations().map((a) => a.finished.catch(() => {})))
+  })
+  await page.waitForTimeout(400)
   await page.evaluate(async () => {
     await Promise.all(document.getAnimations().map((a) => a.finished.catch(() => {})))
   })
@@ -124,15 +133,30 @@ test('walk', async ({ page }) => {
   // identically to a pane that failed.
   await page.locator('[data-testid="terminal-pane"][data-attached="true"]').waitFor({ timeout: 30_000 })
   await page.locator('.xterm-rows').waitFor()
-  await page.waitForTimeout(1200) // first prompt paints
+  // Wait for the shell to have *said* something. `data-attached` is the
+  // socket; the first prompt is a byte the PTY still has to send, and
+  // cycle 1 photographed the gap between them as an empty pane — reported,
+  // reasonably, as "a live shell that does not admit it is live".
+  await page
+    .locator('.xterm-rows')
+    .filter({ hasText: /\S/ })
+    .first()
+    .waitFor({ timeout: 20_000 })
   await shoot(page, 'shell', 'terminal attached, first prompt')
   // Give the reviewer something to read: a command with wrapping output at
   // this width is where the 40-column question (GDK-900) is decided.
   const sink = page.locator('[data-testid="terminal-pane"] textarea').first()
   await sink.focus()
-  await sink.type('echo hello from the phone; ls', { delay: 12 })
+  await sink.type('echo hello from the phone; ls -la', { delay: 20 })
   await page.keyboard.press('Enter')
-  await page.waitForTimeout(1500)
+  // Assert the output arrived rather than trusting a timeout: a frame of a
+  // prompt with nothing under it is indistinguishable from a broken sink.
+  await page
+    .locator('.xterm-rows')
+    .filter({ hasText: /hello from the phone/ })
+    .first()
+    .waitFor({ timeout: 20_000 })
+  await page.waitForTimeout(600)
   await shoot(page, 'shell-output', 'a command run and its output at 402pt')
   const bar = page.locator('button', { hasText: /^ctrl$/i }).first()
   if ((await bar.count()) > 0) {
@@ -146,7 +170,15 @@ test('walk', async ({ page }) => {
   await shoot(page, 'pairing', 'pairing tab — two pairings, one screen')
 
   await tabs.first().click()
-  await page.locator('.pane:not(.off) button.row').first().waitFor()
+  // Put the scope back. The Documents pick above is sticky, so without this
+  // the two dark frames photograph the *docs* list and its page detail —
+  // cycle 1 shipped exactly that, and the reviewer correctly reported that
+  // the light landing had no dark pair at all.
+  await page.locator('.pane:not(.off) h1 button.scope').click()
+  await page.locator('button.cancel').waitFor()
+  await page.locator('.sheet button.row', { hasText: 'All open' }).click()
+  await page.locator('button.cancel').waitFor({ state: 'hidden' })
+  await page.locator('.pane:not(.off) button.row:not([data-testid="doc-row"])').first().waitFor()
   await page.emulateMedia({ colorScheme: 'dark' })
   await shoot(page, 'issues-dark', 'the same landing, dark')
   await page.locator('.pane:not(.off) button.row').first().click()
