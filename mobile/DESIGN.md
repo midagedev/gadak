@@ -491,7 +491,7 @@ where a platform allowlist would otherwise stand.
   state you cannot see is worse than no modifier at all.
 - **The decisions are shared; the bytes are ours.** Sticky slots, the
   composition gate, the key-repeat cadence and the flush barrier live in
-  `touch-remote-input`, which naru-remote runs the same golden vectors
+  `glasskeys`, which naru-remote runs the same golden vectors
   against. What stays here is the encoder — control bytes, CSI sequences,
   UTF-8 — because naru wraps the same decision in an X11 keysym over VNC and
   there is no shared encoding of "Ctrl-C". `src/lib/terminal/keys.ts` is the

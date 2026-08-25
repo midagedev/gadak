@@ -9,7 +9,7 @@
 // (dropping the keystroke would be worse than ignoring the modifier).
 //
 // Sticky slots, the composition gate, and the flush barrier live in
-// `touch-remote-input` (GDK-898). This file is the adapter that turns
+// `glasskeys` (GDK-898). This file is the adapter that turns
 // `activeModifiers()` into the `{ctrl, alt}` the encoder takes, and the
 // PTY's permanent `pending: 'not-needed'` answer for the barrier. The
 // encoder itself stays ours: naru-remote wraps the same decisions in X11
@@ -21,10 +21,10 @@ import {
   type ModifierId,
   type SlotState,
   type StickyModifiers,
-} from 'touch-remote-input'
+} from 'glasskeys'
 
-export { LOCK_WINDOW_MS, StickyModifiers } from 'touch-remote-input'
-export type { Intent, ModifierId, SlotState } from 'touch-remote-input'
+export { LOCK_WINDOW_MS, StickyModifiers } from 'glasskeys'
+export type { Intent, ModifierId, SlotState } from 'glasskeys'
 
 export type StickyMods = { ctrl: boolean; alt: boolean }
 export type StickySlots = { ctrl: SlotState; alt: SlotState }

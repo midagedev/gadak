@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { LOCK_WINDOW_MS, StickyModifiers } from 'touch-remote-input'
+import { LOCK_WINDOW_MS, StickyModifiers } from 'glasskeys'
 import {
   encoderMods,
   modifierIdForBarKey,
@@ -12,7 +12,7 @@ import {
 
 /*
  * Recurrence layer for GDK-898: the phone key bar runs the shared
- * touch-remote-input machines. The library's vectors are the specification
+ * glasskeys machines. The library's vectors are the specification
  * for the machines themselves; these tests pin the adapter this app owns —
  * ModifierId → {ctrl,alt} for the encoder, PTY pending: 'not-needed' on the
  * flush barrier, and KeyBar showing idle/armed/locked as three states.

@@ -13,7 +13,7 @@
 // reducer therefore owns a different contract and does not import that file
 // (mobile vocabulary: only lib/i18n.ts may reach into web/).
 
-import { CompositionGate, type CompositionEvent, type Intent, type ModifierId } from 'touch-remote-input'
+import { CompositionGate, type CompositionEvent, type Intent, type ModifierId } from 'glasskeys'
 
 export type ImeEvent =
   | { kind: 'compositionstart' }
