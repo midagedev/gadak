@@ -158,6 +158,34 @@ no file is written.
 
 `.github/workflows/stats.yml` runs this weekly (Monday 06:00 UTC) and on
 `workflow_dispatch`, and commits `stats/<stamp>.json` on the `stats` branch.
+The files live only on that branch — they are not on `main`.
+
+**How to read.** `downloads_total` is asset hits, not unique people.
+`checksums.txt` / `SHA256SUMS` are a large share. Homebrew cask/formula
+installs fetch release assets, so they are already in the count; the tap
+has no analytics of its own. Clone uniques are inflated by Actions
+runners. Prefer stars and 14-day view uniques as a people-shaped ceiling.
+Do not put these numbers in the README lead.
+
+```bash
+git fetch origin stats
+git show origin/stats:stats/2026-08-25.json \
+  | jq '{stamp, downloads_total, clones:.traffic.clones|{count,uniques}, views:.traffic.views|{count,uniques}, errors}'
+
+# per-release cumulative (includes checksums)
+git show origin/stats:stats/2026-08-25.json \
+  | jq -r '.releases[] | "\(.tag)\t\(.downloads_total)"'
+
+# binaries only
+git show origin/stats:stats/2026-08-25.json \
+  | jq '[.releases[].assets[] | select(.name | test("checksum|SHA256SUMS") | not) | .download_count] | add'
+```
+
+The weekly job's `GITHUB_TOKEN` 403s `traffic/*`. A human `gh` with
+push access still reads those endpoints — run the script locally and
+commit onto `stats` so the 14-day window is not lost. Stars, referrers,
+and popular paths are not in the JSON yet; `errors[]` is the signal
+that a window was dropped.
 
 ## `winsmoke.ps1`
 
@@ -177,10 +205,4 @@ as the system ANSI page).
 ```powershell
 # After desktop/build-windows.ps1 has written the portable directory:
 tools/winsmoke.ps1 -BundleDir desktop\\build\\Gadak-<ver>-x64 -OutDir $env:TEMP\\gadak-winsmoke\\out
-```
-
-Per-release cumulative downloads:
-
-```bash
-jq -r '.releases[] | "\(.tag)\t\(.downloads_total)"' stats/2026-08-18.json
 ```
