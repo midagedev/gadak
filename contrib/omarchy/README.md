@@ -21,6 +21,12 @@ the first-poll placeholder, and tooltip text. **It is not a CI path** — the
 gate below is still the offline one (manifest, grep contracts, the real query
 against `examples/demo.db`), and a guest run stays manual.
 
+<p align="center">
+  <img src="../../docs/media/omarchy-widget.png" alt="An Omarchy desktop: the Waybar badge reads 368·201, the terminal below shows gadak sql --json returning open 368 and stuck 201 for the same mirror, and the gadak web app is open after clicking the badge" width="900">
+  <br>
+  <sub>That guest run. The bar badge is <code>gadak sql</code>'s own numbers. This capture used to sit in the top-level README; it lives here now, beside the thing it shows.</sub>
+</p>
+
 ## What the widget shows
 
 Two numbers in a short bar label, `open·stuck`:

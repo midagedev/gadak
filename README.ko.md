@@ -453,18 +453,6 @@ Arch 리눅스: 검증된 `PKGBUILD`가
 `makepkg -si`. 아직 AUR에는 없습니다. 업스트림 등록이 닫혀 있습니다
 ([`docs/INSTALL.md`](docs/INSTALL.md#arch-linux)).
 
-[Omarchy](https://omarchy.org)에서는, 어떤 클라우드 플러그인도 답할 수
-없는 질문 하나를 바가 답합니다 — *내* 미러에서 무엇이 바뀌었나.
-[`contrib/omarchy`](contrib/omarchy)의 셸 플러그인 위젯이 로컬 미러에서
-바로 `open·stuck`을 보여 주고(토큰 없음, 네트워크 없음), 클릭하면 앱이
-열립니다. 실제 게스트에서 한 번 실행해 검증했습니다.
-
-<p align="center">
-  <img src="docs/media/omarchy-widget.png" alt="Omarchy 데스크톱: Waybar 배지가 368·201을 표시하고, 아래 터미널에서 gadak sql --json이 같은 미러의 open 368, stuck 201을 반환하며, 배지를 클릭해 gadak 웹 앱이 열려 있다" width="900">
-  <br>
-  <sub>바 배지는 <code>gadak sql</code> 자신의 숫자입니다. Arch + Hyprland 검증 게스트에서 캡처 (<a href="contrib/omarchy/README.md">contrib/omarchy/README.md</a>).</sub>
-</p>
-
 설치 스크립트, 릴리스 아카이브, 소스 빌드, Docker, 위키 미러링, 워크스페이스,
 업그레이드: **[`docs/INSTALL.md`](docs/INSTALL.md)**.
 

@@ -435,17 +435,6 @@ Linux: a checked `PKGBUILD` in [`contrib/aur/gadak-bin`](contrib/aur/gadak-bin)
 — `makepkg -si` there; not in the AUR yet. A Scoop manifest lives in
 [`contrib/scoop`](contrib/scoop), bucket unpublished.
 
-On [Omarchy](https://omarchy.org), the bar can answer the one question no
-cloud plugin can — what changed in *your* mirror. A shell-plugin widget in
-[`contrib/omarchy`](contrib/omarchy) shows `open·stuck` straight from the
-local mirror (no token, no network) and click-opens the app:
-
-<p align="center">
-  <img src="docs/media/omarchy-widget.png" alt="An Omarchy desktop: the Waybar badge reads 368·201, the terminal below shows gadak sql --json returning open 368 and stuck 201 for the same mirror, and the gadak web app is open after clicking the badge" width="900">
-  <br>
-  <sub>The bar badge is <code>gadak sql</code>'s own numbers, captured on the Arch + Hyprland verification guest (<a href="contrib/omarchy/README.md">contrib/omarchy/README.md</a>).</sub>
-</p>
-
 Install script, source build, Docker, wiki mirroring, workspaces, upgrades:
 **[`docs/INSTALL.md`](docs/INSTALL.md)**.
 
