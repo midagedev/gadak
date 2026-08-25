@@ -27,7 +27,8 @@
     parseFrameMessage,
     type DataMessage,
   } from '../../lib/dashboard-protocol'
-  import { navigate, parseHash } from '../../lib/router.svelte'
+  import { navigate, parseHash, router } from '../../lib/router.svelte'
+  import { resolveOpen } from '../../lib/place-dimension'
   import { dashboards } from '../../stores/dashboards.svelte'
   import { issues } from '../../stores/issues.svelte'
   import { t } from '../../lib/i18n'
@@ -118,12 +119,16 @@
     } else if (msg.type === 'open') {
       // The wall asks; the app navigates. parseHash is total (pure string
       // slicing, hash.ts) and navigate re-serializes through the app's own
-      // grammar — the frame's string never reaches location directly. A
-      // navigation drops the `dash` param, which is what releases this
-      // column back to the list (GDK-815's union, working for free).
+      // grammar — the frame's string never reaches location directly.
+      // Which dimension of the screen moves is resolveOpen's decision
+      // (GDK-880, place-dimension): a panel-only hash keeps the column
+      // (`dash` stays), a column hash takes it, anything else hands it to
+      // the list. lastDashOpen on <html> names the rule that fired.
       openThrottle.run(() => {
         const route = parseHash(msg.hash)
-        navigate(route.path, route.params)
+        const { rule, params } = resolveOpen(router.params, route.params)
+        document.documentElement.dataset.lastDashOpen = rule
+        navigate(route.path, params)
       })
     }
   }

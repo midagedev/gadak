@@ -35,6 +35,7 @@
   /** Where the demo banner sends people who want the real thing. */
   const REPO_URL = 'https://github.com/midagedev/gadak'
   import { parseView, VIEW_PARAM_KEYS } from './lib/view-config'
+  import { COLUMN_PARAM, OTHER_PARAM, PANEL_PARAM } from './lib/place-dimension'
   import { builtinViews } from './lib/builtin-views'
   import { STORAGE_KEYS } from './lib/storage'
   import { hydrateThemeFromServer } from './lib/theme'
@@ -108,7 +109,7 @@
   // Restore deep-linked issue (share / dashboard / push) before first render.
   // Otherwise the selection→URL effect can clear `issue` while selection is empty.
 
-  const initialIssueKey = router.params.get('issue')
+  const initialIssueKey = router.params.get(PANEL_PARAM.issue)
   if (initialIssueKey) selection.select(initialIssueKey)
 
   /*
@@ -126,16 +127,16 @@
    * deliberately not here either: it is a return path this browser remembers
    * (localStorage), not something a link should impose on the person opening it.
    */
-  const initialDocKey = router.params.get('doc')
+  const initialDocKey = router.params.get(PANEL_PARAM.doc)
   if (initialDocKey) pages.select(initialDocKey)
 
-  const initialSpace = router.params.get('space')
+  const initialSpace = router.params.get(COLUMN_PARAM.space)
   if (initialSpace) {
     pages.openSpace(initialSpace)
-    if (router.params.get('dview') === 'tree') pages.spaceTree = true
-  } else if (router.params.get('docs') === '1') {
+    if (router.params.get(OTHER_PARAM.dview) === 'tree') pages.spaceTree = true
+  } else if (router.params.get(COLUMN_PARAM.docs) === '1') {
     pages.openDocs()
-  } else if (router.params.get('hist') === '1') {
+  } else if (router.params.get(COLUMN_PARAM.hist) === '1') {
     pages.openHistory()
   } else if (initialDocKey) {
     /*
@@ -166,13 +167,15 @@
    * same reason: a binding's first pass would otherwise read the un-opened
    * state as "the URL dropped the param" and erase it.
    */
-  const initialPerson = router.params.get('person')
+  const initialPerson = router.params.get(PANEL_PARAM.person)
   if (initialPerson) person.select(initialPerson)
 
   // Agent dashboards (GDK-782) — same restore-before-bind rule: the binding's
   // first pass would otherwise read the un-opened store as "no dash param" and
-  // erase it before the first render.
-  const initialDash = router.params.get('dash')
+  // erase it before the first render. COLUMN_PARAM.dash is the classification
+  // the dashboard `open` handler consults (GDK-880) — a panel-only hash must
+  // not drop this restore the way wholesale navigate used to.
+  const initialDash = router.params.get(COLUMN_PARAM.dash)
   if (initialDash) dashboards.open(initialDash)
 
   /** The feed's focus slices (FeedFocus), for validating an incoming `feed=`
@@ -186,12 +189,12 @@
   // no feed screen; the hosted snapshot has no settings server to edit, the
   // same rule the render guard on the dialog already keeps).
   if (feature('feed')) {
-    const focus = router.params.get('feed')
+    const focus = router.params.get(COLUMN_PARAM.feed)
     if (focus !== null) me.openFeed(isFeedFocus(focus) ? focus : 'all')
   }
 
   if (hasServerVerb('settings')) {
-    const settingsTab = router.params.get('settings')
+    const settingsTab = router.params.get(OTHER_PARAM.settings)
     if (settingsTab !== null) {
       serverSettingsOpen = true
       serverSettingsTab = isSettingsTab(settingsTab) ? settingsTab : 'sync'
@@ -246,7 +249,7 @@
         // dash-only query would hand the list a default config nobody chose,
         // and `dashboards open` has no opinion about the issue list at all.
         const focusParams = new URLSearchParams(q)
-        const dashId = focusParams.get('dash')
+        const dashId = focusParams.get(COLUMN_PARAM.dash)
         if (dashId) {
           // Taking the column is dashboards.open's own move (GDK-821 union) —
           // whatever full-column surface was up, feed included, is released.

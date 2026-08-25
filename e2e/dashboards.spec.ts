@@ -511,14 +511,27 @@ test('GDK-827: Esc closes the dashboard; a focused frame swallows the key and a 
 })
 
 /*
- * GDK-854: links out of the wall. Two channels, each pinned at the point
- * where it could silently regress:
+ * GDK-854 / GDK-880: links out of the wall. Two channels, each pinned at
+ * the point where it could silently regress — and the `open` verb's column
+ * decision is now three rules, not one:
  *
  *  1. `open` — the frame→parent navigation verb. The wall posts
- *     {type:'open', hash:'#/?issue=<key>'}; the app itself navigates (its
- *     own router, its own grammar), the dashboard releases the column, and
- *     the issue's detail opens. A dropped/ignored verb shows up as "the URL
- *     never moved".
+ *     {type:'open', hash:'#/…'}; the app classifies the hash and navigates
+ *     through its own router (never the frame's string onto location).
+ *     2026-08-25 — GDK-880 (product owner): dropping `dash` on every open
+ *     was convenience (GDK-815's union "working for free"), not a
+ *     requirement. The incoming params decide the column:
+ *       - only panel params (`issue` / `doc` / `person`) → the wall stays
+ *         and the right panel opens (the hash grammar already expresses
+ *         `#/?dash=X&issue=K`; App boot honours both independently);
+ *       - a column param (`docs` is the cheapest) → that view takes the
+ *         column;
+ *       - anything else (filters, mixed panel+filter, unknown, empty) →
+ *         the list takes the column.
+ *     A dropped/ignored verb still shows up as "the URL never moved".
+ *     `document.documentElement.dataset.lastDashOpen` names the rule that
+ *     fired (`panel` / `column` / `list`) so a developer can see why a
+ *     link took the column without reading the source.
  *  2. an external `<a target="_blank" rel="noopener">` — allowed by the
  *     sandbox's allow-popups (without it Chromium blocks the auxiliary
  *     navigation outright). The popup event IS the new tab; the loopback
@@ -528,7 +541,7 @@ test('GDK-827: Esc closes the dashboard; a focused frame swallows the key and a 
  *     against is the anchor navigating the *frame* to the URL (residual
  *     channel #1), which replaces the authored document with the sink's.
  */
-test('links out of the wall: open navigates in-app, an external link opens a new tab, the frame stays put', async ({
+test('links out of the wall: open classifies the column, an external link opens a new tab, the frame stays put', async ({
   page,
 }) => {
   const errors = attachConsoleErrors(page)
@@ -554,11 +567,19 @@ test('links out of the wall: open navigates in-app, an external link opens a new
   const html = `<!doctype html><html><body style="font: 14px sans-serif">
 <div data-testid="dash-version">links</div>
 <button id="go-issue" type="button">open ${key}</button>
+<button id="go-filters" type="button">open filters</button>
+<button id="go-docs" type="button">open docs</button>
 <a id="ext" href="http://127.0.0.1:${sinkPort}/ext-link" target="_blank" rel="noopener">external</a>
 <div id="pushed">waiting</div>
 <script>
 document.getElementById('go-issue').addEventListener('click', function () {
   parent.postMessage({ type: 'open', hash: '#/?issue=${key}' }, '*');
+});
+document.getElementById('go-filters').addEventListener('click', function () {
+  parent.postMessage({ type: 'open', hash: '#/?sc=new' }, '*');
+});
+document.getElementById('go-docs').addEventListener('click', function () {
+  parent.postMessage({ type: 'open', hash: '#/?docs=1' }, '*');
 });
 window.addEventListener('message', function (ev) {
   var d = ev.data;
@@ -600,12 +621,44 @@ window.addEventListener('message', function (ev) {
   await expect(fl.getByTestId('dash-version')).toHaveText('links')
   await expect(page.locator(FRAME_SEL)).toHaveAttribute('src', /\/render\/$/)
 
-  // 1. In-app link: the app navigates itself, the column leaves the wall.
-  await fl.locator('#go-issue').click()
   const keyRe = key!.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const dashRe = saved.id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+  // 1a. Panel-only `open` (issue): the wall stays, the detail opens.
+  // 2026-08-25 — GDK-880 (product owner): this used to assert
+  // `dashboard-view` count 0 because wholesale navigate dropped `dash`.
+  // Legitimate derivation: `#/?dash=X&issue=K` is already a valid screen
+  // (App boot restores both independently; RightPanel is a sibling of the
+  // column, not a child of the list). FAIL-first: this `toBeVisible()` was
+  // red on unmodified DashboardView.svelte before the classifier landed.
+  await fl.locator('#go-issue').click()
+  // Wait on the URL moving first — that is the open firing — then assert
+  // the wall is still the column. Checking visibility before the hash
+  // changes races the old wholesale navigate (FAIL-first retry #1).
   await expect(page).toHaveURL(new RegExp(`[?&]issue=${keyRe}([&#]|$)`))
-  await expect(page.getByTestId('dashboard-view')).toHaveCount(0)
+  await expect(page).toHaveURL(new RegExp(`[?&]dash=${dashRe}([&#]|$)`))
+  await expect(page.getByTestId('dashboard-view')).toBeVisible()
   await expect(page.getByTestId('issue-detail-panel')).toBeVisible()
+  await expect(page.getByTestId('issue-breadcrumb').getByText(key!, { exact: true })).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.dataset.lastDashOpen)).toBe('panel')
+
+  // 1b. Filter `open`: the wall yields the column to the list.
+  await fl.locator('#go-filters').click()
+  await expect(page).toHaveURL(/[?&]sc=new([&#]|$)/)
+  await expect(page.getByTestId('dashboard-view')).toHaveCount(0)
+  await expect(page.getByTestId('issue-list-scroller')).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.dataset.lastDashOpen)).toBe('list')
+
+  // 1c. Column-view `open` (`docs=1`): that view holds the column.
+  await page.goto(`/#/?dash=${saved.id}`)
+  await expect(page.getByTestId('dashboard-view')).toBeVisible()
+  const flDocs = page.frameLocator(FRAME_SEL)
+  await expect(flDocs.getByTestId('dash-version')).toHaveText('links')
+  await flDocs.locator('#go-docs').click()
+  await expect(page).toHaveURL(/[?&]docs=1([&#]|$)/)
+  await expect(page.getByTestId('dashboard-view')).toHaveCount(0)
+  await expect(page.getByTestId('docs-view')).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.dataset.lastDashOpen)).toBe('column')
 
   expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   sink.close()
