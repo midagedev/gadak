@@ -3,8 +3,9 @@
   import Sheet from '../ui/Sheet.svelte'
   import { app, closeIssue, openIssue, sync } from '../lib/store.svelte'
   import { overlayComments, pendingComment, relTime, spineToken } from '../lib/domain'
-  import { request, errorMessage } from '../lib/api'
+  import { request, errorMessage, ApiError } from '../lib/api'
   import { keyboardInset } from '../lib/keyboard'
+  import { t } from '../lib/i18n'
   import type { DetailComment, DetailResponse, IssueLite, TransitionDoc } from '../lib/types'
 
   let { issueKey }: { issueKey: string } = $props()
@@ -18,6 +19,9 @@
   let transitions = $state<TransitionDoc[] | null>(null)
   let transitionError = $state<string | null>(null)
   let applying = $state<string | null>(null)
+  /** Serve-level: GET/POST origin writes 409 credential_required. Sticky for this screen. */
+  let writesOff = $state(false)
+  let failedId = $state<string | null>(null)
 
   let comment = $state('')
   let sending = $state(false)
@@ -27,6 +31,10 @@
 
   const thread = $derived(overlayComments(detail?.comments ?? [], pending))
 
+  function isCredentialRequired(err: unknown): boolean {
+    return err instanceof ApiError && err.code === 'credential_required'
+  }
+
   $effect(() => {
     const key = issueKey
     detail = null
@@ -35,41 +43,68 @@
     comment = ''
     sendError = null
     pending = null
+    transitions = null
+    applying = null
+    failedId = null
+    if (!writesOff) transitionError = null
     void (async () => {
       try {
         const res = await request<DetailResponse>(`issues/${key}/detail/`)
         if (key === issueKey) detail = res.body
       } catch (err) {
-        if (key === issueKey) detailError = errorMessage(err)
+        if (key !== issueKey) return
+        detailError =
+          err instanceof ApiError && err.code === 'not_found'
+            ? t('detail.notFound')
+            : errorMessage(err)
       }
     })()
   })
 
+  // One owner (GDK-906): header chip is data (DESIGN.md §4); this is the control.
   async function openTransitions() {
-    sheetOpen = true
-    transitions = null
+    if (writesOff) return
+    if (transitions !== null) {
+      sheetOpen = true
+      return
+    }
     transitionError = null
+    failedId = null
     try {
       const res = await request<{ transitions: TransitionDoc[] }>(`issues/${issueKey}/transitions/`)
       transitions = res.body?.transitions ?? []
+      if (writesOff) return
+      sheetOpen = true
     } catch (err) {
       transitionError = errorMessage(err)
+      if (isCredentialRequired(err)) {
+        writesOff = true
+        return
+      }
+      sheetOpen = true
     }
   }
 
-  async function applyTransition(t: TransitionDoc) {
-    if (applying) return
-    applying = t.id
+  async function applyTransition(doc: TransitionDoc) {
+    if (applying || writesOff) return
+    applying = doc.id
     transitionError = null
+    failedId = null
     try {
       await request(`issues/${issueKey}/transition/`, {
         method: 'POST',
-        body: { transition_id: t.id },
+        body: { transition_id: doc.id },
       })
       sheetOpen = false
+      transitions = null
       void sync()
     } catch (err) {
       transitionError = errorMessage(err)
+      failedId = doc.id
+      if (isCredentialRequired(err)) {
+        writesOff = true
+        sheetOpen = false
+      }
     } finally {
       applying = null
     }
@@ -93,6 +128,10 @@
       pending = null
       if (comment.trim() === '') comment = text
       sendError = errorMessage(err)
+      if (isCredentialRequired(err)) {
+        writesOff = true
+        transitionError = sendError
+      }
     } finally {
       sending = false
     }
@@ -121,16 +160,18 @@
             <span class="dot dot-{spineToken(lite)}" aria-hidden="true"></span>
             <span>{lite.status}</span>
           </span>
-          {#if lite.priority}
-            <span class="chip">{lite.priority}</span>
-          {/if}
-          {#if lite.assignee}
-            <span class="chip">{lite.assignee}</span>
-          {/if}
         </div>
         <h1 class="type-subject">{lite.summary}</h1>
         <p class="meta">
           {lite.issue_type}
+          {#if lite.priority}
+            <span aria-hidden="true">·</span>
+            {lite.priority}
+          {/if}
+          {#if lite.assignee}
+            <span aria-hidden="true">·</span>
+            {lite.assignee}
+          {/if}
           <span aria-hidden="true">·</span>
           updated {relTime(lite.updated_at, app.now)}
           {#if lite.reporter}
@@ -149,29 +190,29 @@
           <span class="g w1"></span><span class="g w2"></span><span class="g w3"></span>
         </div>
       {:else}
-        <h3>Comments <span class="h-n">{thread.length}</span></h3>
+        <h3>{t('detail.comments')} <span class="h-n">{thread.length}</span></h3>
         {#if thread.length === 0}
           <p class="none">No comments yet — yours starts the thread.</p>
         {/if}
         {#each thread as c (c.comment_id)}
           <div class="comment">
             <p class="c-head">
-              <span class="c-author">{c.author ?? 'Unknown'}</span>
+              <span class="c-author">{c.author ?? t('detail.unknownAuthor')}</span>
               <span class="c-when">{relTime(c.created_at, app.now)}</span>
             </p>
             <p class="c-body">{c.body}</p>
           </div>
         {/each}
 
-        <h3>Description</h3>
+        <h3>{t('detail.description')}</h3>
         {#if detail.description_text}
           <p class="desc">{detail.description_text}</p>
         {:else}
-          <p class="none">No description.</p>
+          <p class="none">{t('detail.noDescription')}</p>
         {/if}
 
         {#if detail.linked_issues.length > 0}
-          <h3>Linked</h3>
+          <h3>{t('detail.linked')}</h3>
           {#each detail.linked_issues as l (l.key + l.direction + l.type)}
             <button class="linked" onclick={() => openIssue(l.key)}>
               <span class="l-key">{l.key}</span>
@@ -186,16 +227,20 @@
 
     {#snippet footer()}
       <div class="composer-slab" use:keyboardInset>
-        {#if sendError}
-          <p class="send-error">{sendError}</p>
-        {/if}
         {#if lite}
-          <button class="status" onclick={openTransitions}>
-            <span class="dot dot-{spineToken(lite)}" aria-hidden="true"></span>
-            <span>{lite.status}</span>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="m6 9 6 6 6-6" />
-            </svg>
+          <button class="status" disabled={writesOff} onclick={openTransitions}>
+            <span class="status-line">
+              <span class="dot dot-{spineToken(lite)}" aria-hidden="true"></span>
+              <span>{lite.status}</span>
+              {#if !writesOff}
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              {/if}
+            </span>
+            {#if writesOff && transitionError}
+              <span class="status-err">{transitionError}</span>
+            {/if}
           </button>
         {/if}
         <div class="composer safe-bottom">
@@ -210,6 +255,9 @@
           <button class="send" disabled={comment.trim() === '' || sending} onclick={() => void send()}>
             {sending ? 'Sending…' : 'Send'}
           </button>
+          {#if sendError}
+            <p class="send-error">{sendError}</p>
+          {/if}
         </div>
       </div>
     {/snippet}
@@ -218,25 +266,27 @@
   {#if sheetOpen}
     <Sheet title="Move status" onclose={() => (sheetOpen = false)}>
       <div class="t-list">
-        {#if transitionError}
-          <p class="error">{transitionError}</p>
-        {/if}
         {#if !transitions && !transitionError}
           <p class="none">Asking the server…</p>
         {:else if transitions}
-          {#each transitions as t (t.id)}
-            {@const blocked = (t.fields?.length ?? 0) > 0}
-            <button class="t-row" disabled={blocked || applying !== null} onclick={() => void applyTransition(t)}>
-              <span class="dot dot-{t.to_category}" aria-hidden="true"></span>
+          {#each transitions as tr (tr.id)}
+            {@const blocked = (tr.fields?.length ?? 0) > 0}
+            <button class="t-row" disabled={blocked || applying !== null} onclick={() => void applyTransition(tr)}>
+              <span class="dot dot-{tr.to_category}" aria-hidden="true"></span>
               <span class="t-text">
-                <span class="t-name">{applying === t.id ? 'Applying…' : t.name}</span>
-                <span class="t-to">→ {t.to_status}{blocked ? ' · needs fields — use desktop' : ''}</span>
+                <span class="t-name">{applying === tr.id ? 'Applying…' : tr.name}</span>
+                <span class="t-to">→ {tr.to_status}{blocked ? ' · needs fields — use desktop' : ''}</span>
+                {#if failedId === tr.id && transitionError}
+                  <span class="t-err">{transitionError}</span>
+                {/if}
               </span>
             </button>
           {/each}
           {#if transitions.length === 0}
             <p class="none">No transitions available from this status.</p>
           {/if}
+        {:else if transitionError}
+          <p class="error">{transitionError}</p>
         {/if}
       </div>
     </Sheet>
@@ -307,8 +357,8 @@
   .status {
     display: flex;
     width: 100%;
-    align-items: center;
-    gap: 6px;
+    flex-direction: column;
+    align-items: stretch;
     padding: 0 16px;
     border-bottom: 1px solid var(--color-border-subtle);
     font-size: var(--text-micro);
@@ -316,11 +366,26 @@
     color: var(--color-text-primary);
     text-align: left;
   }
-  .status svg {
+  .status:disabled {
+    opacity: 0.45;
+  }
+  .status-line {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 6px;
+  }
+  .status-line svg {
     width: 13px;
     height: 13px;
     margin-left: auto;
     color: var(--color-text-muted);
+  }
+  .status-err {
+    padding: 0 0 8px;
+    font-size: var(--text-micro);
+    font-weight: 400;
+    color: var(--color-status-reopen);
   }
   .chip {
     display: flex;
@@ -488,6 +553,7 @@
   }
   .composer {
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     padding: 8px 16px;
   }
@@ -516,8 +582,9 @@
     opacity: 0.45;
   }
   .send-error {
+    flex: 1 0 100%;
     margin: 0;
-    padding: 6px 16px 0;
+    padding: 0;
     font-size: var(--text-micro);
     color: var(--color-status-reopen);
   }
@@ -554,5 +621,10 @@
   .t-to {
     font-size: var(--text-micro);
     color: var(--color-text-muted);
+  }
+  .t-err {
+    font-size: var(--text-micro);
+    font-weight: 400;
+    color: var(--color-status-reopen);
   }
 </style>

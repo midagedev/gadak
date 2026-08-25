@@ -90,9 +90,13 @@
           <span class="g w1"></span><span class="g w2"></span><span class="g w3"></span>
         </div>
       {:else}
-        {#each paragraphs as p, i (i)}
-          <p class="para">{p}</p>
-        {/each}
+        {#if paragraphs.length > 0}
+          {#each paragraphs as p, i (i)}
+            <p class="para">{p}</p>
+          {/each}
+        {:else}
+          <p class="none">{t('doc.noContent')}</p>
+        {/if}
 
         {#if comments.length > 0}
           <h3>{t('doc.comments')} <span class="h-n">{comments.length}</span></h3>
@@ -181,6 +185,11 @@
     color: var(--color-text-secondary);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
+  }
+  .none {
+    margin: 4px 0 0;
+    font-size: var(--text-micro);
+    color: var(--color-text-muted);
   }
   .error {
     margin: 8px 0;

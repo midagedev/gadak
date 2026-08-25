@@ -26,9 +26,12 @@ function markup(rel: string): string {
 describe('GDK-870 Detail contracts', () => {
   const detail = read('screens/Detail.svelte')
 
-  it('renders Comments before Description', () => {
-    const comments = detail.indexOf('<h3>Comments')
-    const desc = detail.indexOf('<h3>Description')
+  it('renders comments before description', () => {
+    // Order, not language: DESIGN.md §3.6. Was pinned to English markup
+    // (`<h3>Comments` / `<h3>Description`); a Korean catalog then made the
+    // contract unenforceable. Keys survive translation.
+    const comments = detail.indexOf("t('detail.comments')")
+    const desc = detail.indexOf("t('detail.description')")
     expect(comments).toBeGreaterThan(-1)
     expect(desc).toBeGreaterThan(-1)
     expect(comments).toBeLessThan(desc)
@@ -41,6 +44,96 @@ describe('GDK-870 Detail contracts', () => {
     expect(chips).toBeGreaterThan(-1)
     expect(composer).toBeGreaterThan(chips)
     expect(statusBtn).toBeGreaterThan(composer)
+  })
+})
+
+describe('GDK-906 Detail F2 — one control, catalog copy, honest empty', () => {
+  const detail = read('screens/Detail.svelte')
+  const detailMarkup = markup('screens/Detail.svelte')
+  const page = markup('screens/PageDetail.svelte')
+
+  it('keeps the header status chip as data and demotes priority/assignee to meta', () => {
+    const chipsAt = detailMarkup.indexOf('class="chips"')
+    expect(chipsAt).toBeGreaterThan(-1)
+    const chipsEnd = detailMarkup.indexOf('</div>', chipsAt)
+    const chips = detailMarkup.slice(chipsAt, chipsEnd)
+    expect(chips).toMatch(/lite\.status/)
+    expect(chips).not.toMatch(/<button/)
+    expect(chips).not.toMatch(/openTransitions/)
+    expect(chips).not.toMatch(/lite\.priority/)
+    expect(chips).not.toMatch(/lite\.assignee/)
+    const metaAt = detailMarkup.indexOf('class="meta"')
+    expect(metaAt).toBeGreaterThan(chipsAt)
+    const meta = detailMarkup.slice(metaAt, detailMarkup.indexOf('</p>', metaAt))
+    expect(meta).toMatch(/lite\.priority/)
+    expect(meta).toMatch(/lite\.assignee/)
+  })
+
+  it('makes the composer status button the only transition control', () => {
+    const composer = detailMarkup.indexOf('composer-slab')
+    const click = detailMarkup.indexOf('onclick={openTransitions}')
+    expect(composer).toBeGreaterThan(-1)
+    expect(click).toBeGreaterThan(composer)
+    expect(detailMarkup.indexOf('onclick={openTransitions}', click + 1)).toBe(-1)
+  })
+
+  it('does not open the transition sheet when the serve has no origin credential', () => {
+    expect(detail).toMatch(/credential_required/)
+    expect(detail).toMatch(/writesOff/)
+    expect(detail).toMatch(/disabled=\{writesOff\}/)
+    const openFn = detail.slice(
+      detail.indexOf('async function openTransitions'),
+      detail.indexOf('async function applyTransition'),
+    )
+    expect(openFn).toMatch(/if \(writesOff\) return/)
+  })
+
+  it('uses catalog keys on the issue detail sections, not English literals', () => {
+    expect(detailMarkup).toContain("t('detail.comments')")
+    expect(detailMarkup).toContain("t('detail.description')")
+    expect(detailMarkup).toContain("t('detail.noDescription')")
+    expect(detailMarkup).toContain("t('detail.linked')")
+    expect(detailMarkup).toContain("t('detail.unknownAuthor')")
+    expect(detailMarkup).not.toMatch(/<h3>Comments/)
+    expect(detailMarkup).not.toMatch(/<h3>Description/)
+    expect(detailMarkup).not.toMatch(/<h3>Linked/)
+    expect(detailMarkup).not.toMatch(/>No description\.</)
+    expect(detailMarkup).not.toMatch(/c\.author \?\? 'Unknown'/)
+  })
+
+  it('maps a missing issue to detail.notFound on this side of api.ts', () => {
+    expect(detail).toContain("t('detail.notFound')")
+    expect(detail).toMatch(/code === 'not_found'/)
+  })
+
+  it('reports a refused comment inside the composer control, not above the slab', () => {
+    const slab = detail.indexOf('composer-slab')
+    const composer = detail.indexOf('class="composer', slab)
+    const sendErr = detail.indexOf('{sendError}', slab)
+    const statusBtn = detail.indexOf('class="status"', slab)
+    expect(composer).toBeGreaterThan(slab)
+    expect(sendErr).toBeGreaterThan(composer)
+    expect(statusBtn).toBeGreaterThan(slab)
+    expect(statusBtn).toBeLessThan(composer)
+    expect(sendErr).toBeGreaterThan(statusBtn)
+  })
+
+  it('reports a refused transition on the row that acted', () => {
+    const row = detail.indexOf('class="t-row"')
+    expect(row).toBeGreaterThan(-1)
+    const after = detail.slice(row)
+    const rowEnd = after.indexOf('</button>')
+    expect(after.slice(0, rowEnd)).toMatch(/transitionError/)
+  })
+
+  it('paints an empty page body with doc.noContent instead of a hole', () => {
+    expect(page).toContain("t('doc.noContent')")
+    const body = page.indexOf('paragraphs')
+    const empty = page.indexOf("t('doc.noContent')")
+    const comments = page.indexOf("t('doc.comments')")
+    expect(body).toBeGreaterThan(-1)
+    expect(empty).toBeGreaterThan(body)
+    expect(comments).toBeGreaterThan(empty)
   })
 })
 
