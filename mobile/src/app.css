@@ -85,11 +85,11 @@ body {
 */
 :root {
   /*
-    Defaults assume a full-bleed webview (packaged builds). When the native
-    shell instead lays the webview out INSIDE the safe area — measured on
-    the current dev shell: innerHeight 778 vs screen 874, while env() still
-    reports bottom 34px — App.svelte collapses these to 0px so the insets
-    are not paid twice. Single owners: this file + that one effect.
+    The app always honors env() (DESIGN.md §4.1). App.svelte does not
+    collapse these. When a shell lays the webview out inside the safe
+    area while still reporting env(), the inset is paid twice — cosmetic,
+    and the native fix is contentInsetAdjustmentBehavior = .never, not a
+    second owner in JS.
   */
   --safe-top: env(safe-area-inset-top);
   --safe-bottom: env(safe-area-inset-bottom);
@@ -118,8 +118,23 @@ body {
 .safe-top {
   padding-top: var(--safe-top);
 }
-.safe-bottom {
+.safe-bottom,
+.detail-layer .sheet {
+  /* A sheet inside .detail-layer is the bottom-most painted layer and
+     owes the same inset. A sheet inside .tabs already ends at the tab
+     bar — it does not compose this. */
   padding-bottom: max(var(--safe-bottom), 12px);
+}
+/*
+  Composer (Detail.svelte) composes .safe-bottom and also rides
+  keyboardInset. While a field inside is focused the keys cover the
+  home indicator, so that padding is a dead strip between Send and the
+  keyboard. TabBar is not a .composer. KeyBar.svelte never composes
+  this class (the precedent). The cleaner fix is dropping the class
+  from the composer; this rule covers the class until that lands.
+*/
+.composer.safe-bottom:focus-within {
+  padding-bottom: 0;
 }
 
 button,

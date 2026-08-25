@@ -9,7 +9,7 @@ if (import.meta.env.DEV) {
   const show = (msg: string) => {
     const el = document.createElement('pre')
     el.style.cssText =
-      'position:fixed;left:8px;right:8px;bottom:8px;z-index:9999;background:#8f3530;color:#fff;' +
+      'position:fixed;left:8px;right:8px;bottom:8px;z-index:9999;background:var(--color-status-reopen);color:var(--color-bg-base);' +
       'padding:12px;border-radius:6px;font-size:11px;white-space:pre-wrap;max-height:40%;overflow:auto'
     el.textContent = msg
     document.body.appendChild(el)

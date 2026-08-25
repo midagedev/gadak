@@ -2,19 +2,31 @@
   import type { Snippet } from 'svelte'
   import { fly, fade } from 'svelte/transition'
   import { t } from '../lib/i18n'
+  import { systemBack } from '../lib/back'
 
-  // Bottom sheet: scrim + rising panel, thumb territory. Owns its
-  // safe-bottom inset (one of the sanctioned owners, DESIGN.md §4.1).
+  // Bottom sheet: scrim + rising panel, thumb territory. The bottom inset
+  // is a property of where the sheet sits (app.css: .detail-layer .sheet),
+  // not a class the caller remembers to pass.
   let {
     title,
     onclose,
     children,
   }: { title: string; onclose: () => void; children: Snippet } = $props()
+
+  $effect(() => {
+    return systemBack.registerSheet(onclose)
+  })
 </script>
 
-<div class="scrim" transition:fade={{ duration: 150 }} onclick={onclose} aria-hidden="true"></div>
+<button
+  type="button"
+  class="scrim"
+  transition:fade={{ duration: 150 }}
+  onclick={onclose}
+  aria-label={t('common.cancel')}
+></button>
 <div
-  class="sheet safe-bottom"
+  class="sheet"
   role="dialog"
   aria-modal="true"
   aria-label={title}
@@ -32,8 +44,13 @@
   .scrim {
     position: absolute;
     inset: 0;
+    display: block;
+    width: 100%;
     background: var(--color-scrim);
     z-index: 30;
+    border-radius: 0;
+    appearance: none;
+    -webkit-appearance: none;
   }
   .sheet {
     position: absolute;

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { t } from '../lib/i18n'
+  import { systemBack } from '../lib/back'
   import { app, switchTab, type Tab } from '../lib/store.svelte'
 
   // The tab is the object, not a metaphor: the desktop's word for what this
@@ -25,7 +26,10 @@
       class="tab"
       class:active={app.tab === item.id}
       aria-current={app.tab === item.id ? 'page' : undefined}
-      onclick={() => switchTab(item.id)}
+      onclick={() => {
+        if (app.tab !== item.id) systemBack.dismissSheets()
+        switchTab(item.id)
+      }}
     >
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         {#if item.id === 'issues'}
@@ -68,6 +72,10 @@
   }
   .tab.active {
     color: var(--color-accent-text);
+    font-weight: 600;
+  }
+  .tab.active svg {
+    stroke-width: 2.4;
   }
   svg {
     width: 23px;
@@ -83,7 +91,19 @@
     right: calc(50% - 18px);
     width: 7px;
     height: 7px;
-    border-radius: 9999px;
+    border-radius: 1px;
     background: var(--color-status-stale);
+    box-shadow: 0 0 0 1px var(--color-text-primary);
+  }
+  .dot::after {
+    content: '';
+    position: absolute;
+    left: -1px;
+    right: -1px;
+    top: 50%;
+    height: 1.5px;
+    margin-top: -0.75px;
+    background: var(--color-text-primary);
+    transform: rotate(-45deg);
   }
 </style>

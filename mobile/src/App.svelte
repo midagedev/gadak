@@ -1,7 +1,8 @@
 <script lang="ts">
   import { fly } from 'svelte/transition'
   import { initLocale } from './lib/i18n'
-  import { app, boot, startClock } from './lib/store.svelte'
+  import { systemBack } from './lib/back'
+  import { app, boot, closeIssue, startClock } from './lib/store.svelte'
   import PairGate from './screens/PairGate.svelte'
   import Issues from './screens/Issues.svelte'
   import Search from './screens/Search.svelte'
@@ -22,6 +23,17 @@
   $effect(() => {
     void boot()
     return startClock()
+  })
+
+  // One owner for system back (DESIGN.md §2). Sheets register themselves;
+  // this bind is the only history listener in the app.
+  $effect(() => {
+    return systemBack.bind(
+      window.history,
+      window,
+      () => app.detail !== null,
+      closeIssue,
+    )
   })
 
   // Safe-area policy (measured 2026-08-25 on the dev shell): the shell's
