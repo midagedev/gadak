@@ -4,7 +4,7 @@
 // that read from one frame (group-by counts, history-as-document, the live
 // MCP answer). This script reproduces the two app stills against the running
 // e2e serve fixture; the MCP still is an ffmpeg frame of docs/media/mcp.mp4
-// (see docs/MEDIA.md → "Landing stills").
+// (see docs/project/MEDIA.md → "Landing stills").
 //
 // Usage:
 //   GADAK_FRESHEN=1 bash e2e/serve.sh &      # the standard :7877 fixture

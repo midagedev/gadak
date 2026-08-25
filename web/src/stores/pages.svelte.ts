@@ -8,7 +8,7 @@
  *
  * The index is sliced four ways — viewed, updated, author, one space — because
  * those are the axes that survive for a single-user local mirror
- * (docs/UX_PRINCIPLES.md §6). The tree is one of them, not the entry point.
+ * (docs/project/UX_PRINCIPLES.md §6). The tree is one of them, not the entry point.
  *
  * Bodies are never persisted — the index is small and memory-only, and detail
  * is fetched per page and cached for the tab's lifetime. Nothing goes to

@@ -1,7 +1,7 @@
 # gadak — 세션·에이전트 공통 계약
 
 현재 유효한 규칙만 담는다. 히스토리·결정 경위는 `docs/decisions/`와
-CHANGELOG의 몫. 여기 없는 도메인 지식은 `docs/STATE_OF_PLAY.md`(현황·
+CHANGELOG의 몫. 여기 없는 도메인 지식은 `docs/project/STATE_OF_PLAY.md`(현황·
 hard-won 목록)와 `AGENTS.md`(스키마·쿼리)가 원본이다.
 
 ## 제품 불변 조건 (깨면 제품이 아니다)
@@ -103,7 +103,7 @@ hard-won 목록)와 `AGENTS.md`(스키마·쿼리)가 원본이다.
 - 에이전트 온보딩은 **skill-first**: 셸 있는 호스트는 `gadak skill install`,
   MCP(`gadak mcp install claude`)는 셸 없는 호스트(Claude Desktop)용.
 - `make media`는 `media-mcp`를 포함하지 않는다 — mcp 클립은 Claude 로그인과
-  실모델 호출이 필요해서 기여자에게 강제하지 않는다 (`docs/MEDIA.md`).
+  실모델 호출이 필요해서 기여자에게 강제하지 않는다 (`docs/project/MEDIA.md`).
 - **업스트림 PR은 `docs/runbooks/upstream-pr.md`의 파이프라인을 통과한 뒤에만 제출한다**
   — 사전조사(중복·분류·머지 선례) → 실측 FAIL-first(코드 리딩만으로 확정한
   결함은 가설이다) → 형제 구현 패리티 패치 → 제출 전 적대적 리뷰(예상 지적을

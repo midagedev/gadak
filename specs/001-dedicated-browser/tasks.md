@@ -18,7 +18,7 @@ Status: `[ ]` open · `[x]` done+evidence · `[-]` dropped (say why).
       Evidence: §11–§13 name tab strip + re-entry pill.
 - [x] D3. ROADMAP.md: v0.13 wave section; amend "Next" per spec.md
       (PR #1 = first arrival signal; parallel, not displaced).
-      Evidence: `docs/ROADMAP.md` v0.13 + rewritten Next.
+      Evidence: `docs/project/ROADMAP.md` v0.13 + rewritten Next.
 - [x] D4. SECURITY.md: WKWebView cookie session = second credential
       surface, desktop-only, distinct from the API token.
       Evidence: new "The in-app page session (desktop only)" section.

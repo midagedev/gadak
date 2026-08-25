@@ -180,7 +180,7 @@ secret scan (T7.4), Docker and the release pipeline (T7.5/T7.6), the MCP server
   fictional.
 - Live-site verification uses a throwaway Atlassian site through a named profile
   (`gadak --profile demo …`). Credentials live outside the repo by construction —
-  see [SECURITY.md](../SECURITY.md).
+  see [SECURITY.md](../../SECURITY.md).
 - From this tree, `.github/workflows/desktop-release.yml` attaches an unsigned
   Windows portable zip (`Gadak-<ver>-windows-<x64|arm64>.zip`) on `v*` tags,
   next to the macOS dmg. Staying unsigned is the decision ([GDK-211]; why, in

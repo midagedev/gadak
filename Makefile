@@ -82,7 +82,7 @@ plugins-test:
 	bash examples/plugins/csv-import/test.sh
 
 # ── Demo media (docs/media/*) ──────────────────────────────────────────────
-# Regenerates GIF/MP4 assets for README and social posts. See docs/MEDIA.md.
+# Regenerates GIF/MP4 assets for README and social posts. See docs/project/MEDIA.md.
 # Requires: ffmpeg, vhs (charmbracelet), Node 20+, Playwright chromium, Go.
 MEDIA_DIR := docs/media
 

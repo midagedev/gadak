@@ -1043,7 +1043,7 @@
     extends scrollHeight. Scale with --scroll-pad-bottom (default 12px).
     Padding, not a fade: the three surfaces do not share one fill
     (panel / inset cards / active row), so a gradient would smear, and
-    chrome recedes (docs/UX_PRINCIPLES.md §5).
+    chrome recedes (docs/project/UX_PRINCIPLES.md §5).
   */
   .scroll-region {
     --scroll-pad-bottom: 0.75rem;

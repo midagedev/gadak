@@ -500,7 +500,7 @@ Forge 앱이 아닌가: [`docs/decisions/0003-local-process.md`](docs/decisions/
 [`docs/FAQ.md`](docs/FAQ.md#how-it-compares).
 
 **다음 소스.** Confluence가 뼈대가 소스 중립임을 증명했습니다. 다음
-소스는 수요 순으로: [`docs/ROADMAP.md`](docs/ROADMAP.md#more-sources-later).
+소스는 수요 순으로: [`docs/project/ROADMAP.md`](docs/project/ROADMAP.md#more-sources-later).
 
 ## 문서
 
@@ -508,10 +508,10 @@ Forge 앱이 아닌가: [`docs/decisions/0003-local-process.md`](docs/decisions/
 - [`docs/INSTALL.md`](docs/INSTALL.md) · [`docs/DESKTOP.md`](docs/DESKTOP.md) — 설치, 첫 실행, 데스크톱 앱
 - [`docs/MIRROR.md`](docs/MIRROR.md) · [`docs/MCP.md`](docs/MCP.md) · [`docs/AGENT_SETUP.md`](docs/AGENT_SETUP.md) — SQL, CLI, REST, MCP, 호스트별 붙여넣기 한 번
 - [`docs/RECIPES.md`](docs/RECIPES.md) — JQL이 못 묻는 질문들, SQL로
-- [`SECURITY.md`](SECURITY.md) · [`docs/FAQ.md`](docs/FAQ.md) · [`MAINTENANCE.md`](MAINTENANCE.md) — 위협 모델, 사이트 부하, 누가 유지하는가
+- [`SECURITY.md`](SECURITY.md) · [`docs/FAQ.md`](docs/FAQ.md) · [`MAINTENANCE.md`](docs/MAINTENANCE.md) — 위협 모델, 사이트 부하, 누가 유지하는가
 - [`docs/EXTENDING.md`](docs/EXTENDING.md) · [`docs/PLUGINS.md`](docs/PLUGINS.md) — 팀에 맞추기
-- [`docs/STATE_OF_PLAY.md`](docs/STATE_OF_PLAY.md) · [`docs/CONCEPT.md`](docs/CONCEPT.md) · [`docs/PAIN_POINTS.md`](docs/PAIN_POINTS.md)
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) · [`docs/UX_PRINCIPLES.md`](docs/UX_PRINCIPLES.md)
+- [`docs/project/STATE_OF_PLAY.md`](docs/project/STATE_OF_PLAY.md) · [`docs/CONCEPT.md`](docs/CONCEPT.md) · [`docs/PAIN_POINTS.md`](docs/PAIN_POINTS.md)
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) · [`docs/project/UX_PRINCIPLES.md`](docs/project/UX_PRINCIPLES.md)
 - [`docs/README.md`](docs/README.md) — 나머지 문서
 
 ## 누가 만드나
@@ -522,12 +522,12 @@ Forge 앱이 아닌가: [`docs/decisions/0003-local-process.md`](docs/decisions/
 RECIPES 쿼리들, `gadak sql`의 stdout, `gadak views open --keys -`)뿐이며,
 라이선스는 Apache-2.0이고, 파일은 무엇으로든 읽히는 평범한 SQLite입니다.
 어려운 질문들: [`docs/FAQ.md`](docs/FAQ.md). 믿지 않아도 되는 것들, 각
-항목마다 확인 명령과 함께: [`PROMISES.md`](PROMISES.md).
+항목마다 확인 명령과 함께: [`PROMISES.md`](docs/PROMISES.md).
 
 ## 기여와 피드백
 
-[`CONTRIBUTING.md`](CONTRIBUTING.md) — 시작은
-[`docs/GOOD_FIRST_ISSUES.md`](docs/GOOD_FIRST_ISSUES.md)에서. 버그 리포트에는
+[`CONTRIBUTING.md`](.github/CONTRIBUTING.md) — 시작은
+[`docs/project/GOOD_FIRST_ISSUES.md`](docs/project/GOOD_FIRST_ISSUES.md)에서. 버그 리포트에는
 Jira 배포 유형(Cloud), gadak 커밋, 실행한 명령이 필요합니다. 실제 이슈
 데이터, 토큰, 사이트 URL은 공개 이슈에 절대 붙여넣지 마세요.
 

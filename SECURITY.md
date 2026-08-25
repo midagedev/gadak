@@ -5,7 +5,7 @@ mirror to tools you run yourself. That sentence is the whole threat model, so
 this document walks it end to end: what moves where, what never moves, and
 where in the code each claim is enforced — check the source, not our word.
 
-In a hurry: [`PROMISES.md`](PROMISES.md) is eight of those claims with the
+In a hurry: [`PROMISES.md`](docs/PROMISES.md) is eight of those claims with the
 command that checks each one.
 
 ## Reporting a vulnerability

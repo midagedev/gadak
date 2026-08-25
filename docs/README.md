@@ -13,6 +13,12 @@ document answers.
 - [FAQ.md](FAQ.md): what should I ask before pointing this at a company Jira?
 - [BENCHMARKS.md](BENCHMARKS.md): how does the local mirror compare to the live REST API?
 
+## Before you depend on it
+
+- [PROMISES.md](PROMISES.md): nine claims, each with one command you can run in a clone to check it
+- [MAINTENANCE.md](MAINTENANCE.md): how this project is run — response times, what gets merged, what happens if it stops
+- [../SECURITY.md](../SECURITY.md): the threat model, every outbound destination, and how to report a hole
+
 ## Using gadak
 
 - [MIRROR.md](MIRROR.md): SQL, CLI, REST, and MCP against the local mirror — the cookbook
@@ -28,17 +34,19 @@ document answers.
 
 ## Developing gadak
 
-If you are changing this repository, not if you are using it.
+If you are changing this repository, not if you are using it. Everything
+under `project/` is that half — it is there so a reader looking for how to
+*use* gadak never has to step over a session handoff or a recording rig.
 
-- [STATE_OF_PLAY.md](STATE_OF_PLAY.md): what actually exists right now, the next task, and hard-won Jira behaviors
-- [ROADMAP.md](ROADMAP.md): ordering and reasoning
+- [STATE_OF_PLAY.md](project/STATE_OF_PLAY.md): what actually exists right now, the next task, and hard-won Jira behaviors
+- [ROADMAP.md](project/ROADMAP.md): ordering and reasoning
 - [ARCHITECTURE.md](ARCHITECTURE.md): components, module boundaries, data flow
 - [CONCEPT.md](CONCEPT.md): the idea, the two surfaces, and good-fit / bad-fit
-- [EXTRACTION.md](EXTRACTION.md): where this code came from, what was cut at extraction time
+- [EXTRACTION.md](project/EXTRACTION.md): where this code came from, what was cut at extraction time
 - [DERIVE.md](DERIVE.md): columns gadak computes at sync (reopens, resolution dates, priority rank, epic keys) — not source fields
-- [UX_PRINCIPLES.md](UX_PRINCIPLES.md): the standard every UI wave is measured against
-- [GOOD_FIRST_ISSUES.md](GOOD_FIRST_ISSUES.md): concrete starter work with code evidence
-- [MEDIA.md](MEDIA.md): regenerating demo GIFs/MP4
+- [UX_PRINCIPLES.md](project/UX_PRINCIPLES.md): the standard every UI wave is measured against
+- [GOOD_FIRST_ISSUES.md](project/GOOD_FIRST_ISSUES.md): concrete starter work with code evidence
+- [MEDIA.md](project/MEDIA.md): regenerating demo GIFs/MP4
 - [../AGENTS.md](../AGENTS.md): contributor contract — required reading order, SQL/CLI/REST/MCP pointers
 
 ### Specs and contracts

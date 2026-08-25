@@ -7,7 +7,7 @@
 #   2. docs/MCP.md and contracts/agent.md do not list {text} as gadak_search's
 #      primary argument (query is primary; text/q are aliases)
 #   3. README.md and docs/INSTALL.md say "N issues" matching examples/demo.db
-#   4. docs/STATE_OF_PLAY.md has no leftover "enables GitHub Pages"
+#   4. docs/project/STATE_OF_PLAY.md has no leftover "enables GitHub Pages"
 #   5. docs/, specs/, AGENTS.md carry no literal 519 (demo issue count moved)
 #   6. The version a reader sees first matches the latest tag: the README
 #      status lines (en + ko) and STATE_OF_PLAY's "Last tagged" (2026-08-15:
@@ -17,9 +17,9 @@
 #      display name (GDK-28/29). FAIL-first: the pre-fix format.ts table
 #      `/highest|긴급|가장 높음|blocker/` (and friends) is kept at
 #      /tmp/gadak-priority-gdk28/format.ts and fails this grep.
-#   8. PROMISES.md names the same outbound destinations SECURITY.md
+#   8. docs/PROMISES.md names the same outbound destinations SECURITY.md
 #      enumerates (GDK-104). FAIL-first 2026-08-15: adding "| plausible.io"
-#      to the PROMISES.md marker made this check fail before it was reverted.
+#      to the docs/PROMISES.md marker made this check fail before it was reverted.
 #
 # Usage: tools/doc-checks.sh
 # Exit 0 = clean, 1 = a check failed.
@@ -80,10 +80,10 @@ done
 ok "README.md and docs/INSTALL.md say ${n} issues"
 
 # ── 4. Hosted demo is live; no "enables GitHub Pages" leftover ───────────
-if grep -n "enables GitHub Pages" docs/STATE_OF_PLAY.md; then
-  fail "docs/STATE_OF_PLAY.md still says \"enables GitHub Pages\""
+if grep -n "enables GitHub Pages" docs/project/STATE_OF_PLAY.md; then
+  fail "docs/project/STATE_OF_PLAY.md still says \"enables GitHub Pages\""
 fi
-ok "docs/STATE_OF_PLAY.md has no \"enables GitHub Pages\""
+ok "docs/project/STATE_OF_PLAY.md has no \"enables GitHub Pages\""
 
 # ── 5. No leftover 519 inventory literal ─────────────────────────────────
 # CHANGELOG is history and is not under these paths.
@@ -115,8 +115,8 @@ else
       fail "$f status line does not say ${minor} (latest tag ${tag})"
     fi
   done
-  if ! grep -q "Last tagged: ${tag}" docs/STATE_OF_PLAY.md; then
-    fail "docs/STATE_OF_PLAY.md does not say \"Last tagged: ${tag}\""
+  if ! grep -q "Last tagged: ${tag}" docs/project/STATE_OF_PLAY.md; then
+    fail "docs/project/STATE_OF_PLAY.md does not say \"Last tagged: ${tag}\""
   fi
   ok "README (en+ko) and STATE_OF_PLAY agree with ${tag}"
 fi
@@ -186,9 +186,9 @@ if [[ -n "$go_name_hits" ]]; then
 fi
 ok "Go writes do not send priority/status/issuetype by display name"
 
-# ── 8. PROMISES.md outbound list agrees with SECURITY.md ────────────────
+# ── 8. PROMISES outbound list agrees with SECURITY.md ──────────────────
 # SECURITY.md enumerates outbound destinations as a numbered list under
-# "Outbound traffic is exactly N destinations:"; PROMISES.md repeats that set
+# "Outbound traffic is exactly N destinations:"; docs/PROMISES.md repeats that set
 # in an <!-- outbound: A | B --> marker beside its own outbound promise. A
 # destination added to one file must not leave the other claiming fewer.
 outbound_diff="$(python3 - <<'PY'
@@ -210,20 +210,20 @@ if words.get(m.group(1)) != len(declared):
     print(f'SECURITY.md says "{m.group(1)}" destinations but lists {len(declared)}')
     raise SystemExit
 
-pm = re.search(r"<!--\s*outbound:(.+?)-->", Path("PROMISES.md").read_text())
+pm = re.search(r"<!--\s*outbound:(.+?)-->", Path("docs/PROMISES.md").read_text())
 if not pm:
-    print("PROMISES.md: no <!-- outbound: … --> marker")
+    print("docs/PROMISES.md: no <!-- outbound: … --> marker")
     raise SystemExit
 listed = {norm(x) for x in pm.group(1).split("|")}
 if listed != {norm(x) for x in declared}:
-    print(f"PROMISES.md lists {sorted(listed)}; SECURITY.md declares "
+    print(f"docs/PROMISES.md lists {sorted(listed)}; SECURITY.md declares "
           f"{sorted(norm(x) for x in declared)}")
 PY
 )"
 if [[ -n "$outbound_diff" ]]; then
-  fail "PROMISES.md outbound list disagrees with SECURITY.md:"$'\n'"$outbound_diff"
+  fail "docs/PROMISES.md outbound list disagrees with SECURITY.md:"$'\n'"$outbound_diff"
 fi
-ok "PROMISES.md outbound list matches SECURITY.md"
+ok "docs/PROMISES.md outbound list matches SECURITY.md"
 
 # ── 9. Both onboarding paths warn about the token traps before the 401 ──
 # The web form and `gadak init` ask for the same token, and Atlassian's page
@@ -1000,7 +1000,7 @@ ok "docs/INSTALL.md and README.md name init --standalone"
 BACKLOG_ARCHIVE="examples/backlog-snapshot.tar.gz"
 READER_DOCS=(CHANGELOG.md CHANGELOG.ko.md README.md README.ko.md
   docs/ARCHITECTURE.md docs/DERIVE.md docs/DESKTOP.md docs/INSTALL.md
-  docs/ROADMAP.md docs/STATE_OF_PLAY.md desktop/README.md)
+  docs/project/ROADMAP.md docs/project/STATE_OF_PLAY.md desktop/README.md)
 if [[ -f "$BACKLOG_ARCHIVE" ]] && command -v jq >/dev/null; then
   published=$(tar -xOf "$BACKLOG_ARCHIVE" bootstrap.json | jq -r '.issues[].issue_key' | sort -u)
   cited=$(grep -ohE 'GDK-[0-9]+' "${READER_DOCS[@]}" 2>/dev/null | sort -u)

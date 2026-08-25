@@ -264,4 +264,4 @@ Secondary (interviews; quote as spoken views, not documented rules):
 [Ivan Zhao interviews](https://nesslabs.com/notion-featured-tool)
 
 Owner decisions (§11–§13):
-[`specs/001-dedicated-browser/spec.md`](../specs/001-dedicated-browser/spec.md) (2026-08-14)
+[`specs/001-dedicated-browser/spec.md`](../../specs/001-dedicated-browser/spec.md) (2026-08-14)

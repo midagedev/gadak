@@ -4,7 +4,7 @@ Objective bars for calling a phase done. A gate is passed by evidence — a comm
 and its output — not by judgment. Work may proceed past a failed gate only for
 independent research.
 
-Ordering and task detail live in `tasks.md` and `../../docs/ROADMAP.md`.
+Ordering and task detail live in `tasks.md` and `../../docs/project/ROADMAP.md`.
 
 ## G0 — Extraction Readiness
 

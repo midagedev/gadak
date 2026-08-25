@@ -498,7 +498,7 @@ aggregate, no offline, and every call spends tokens.
 [`docs/FAQ.md`](docs/FAQ.md#how-it-compares).
 
 **More sources later.** Confluence proved the spine is neutral. Next source,
-ranked by demand: [`docs/ROADMAP.md`](docs/ROADMAP.md#more-sources-later).
+ranked by demand: [`docs/project/ROADMAP.md`](docs/project/ROADMAP.md#more-sources-later).
 
 ## Documentation
 
@@ -506,10 +506,10 @@ ranked by demand: [`docs/ROADMAP.md`](docs/ROADMAP.md#more-sources-later).
 - [`docs/INSTALL.md`](docs/INSTALL.md) · [`docs/DESKTOP.md`](docs/DESKTOP.md) — install, first run, the desktop app
 - [`docs/MIRROR.md`](docs/MIRROR.md) · [`docs/MCP.md`](docs/MCP.md) · [`docs/AGENT_SETUP.md`](docs/AGENT_SETUP.md) — SQL, CLI, REST, MCP, one paste per host
 - [`docs/RECIPES.md`](docs/RECIPES.md) — questions JQL cannot ask, as SQL
-- [`SECURITY.md`](SECURITY.md) · [`docs/FAQ.md`](docs/FAQ.md) · [`MAINTENANCE.md`](MAINTENANCE.md) — threat model, site load, who maintains this
+- [`SECURITY.md`](SECURITY.md) · [`docs/FAQ.md`](docs/FAQ.md) · [`MAINTENANCE.md`](docs/MAINTENANCE.md) — threat model, site load, who maintains this
 - [`docs/EXTENDING.md`](docs/EXTENDING.md) · [`docs/PLUGINS.md`](docs/PLUGINS.md) — fitting gadak to your team
-- [`docs/STATE_OF_PLAY.md`](docs/STATE_OF_PLAY.md) · [`docs/CONCEPT.md`](docs/CONCEPT.md) · [`docs/PAIN_POINTS.md`](docs/PAIN_POINTS.md)
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) · [`docs/UX_PRINCIPLES.md`](docs/UX_PRINCIPLES.md)
+- [`docs/project/STATE_OF_PLAY.md`](docs/project/STATE_OF_PLAY.md) · [`docs/CONCEPT.md`](docs/CONCEPT.md) · [`docs/PAIN_POINTS.md`](docs/PAIN_POINTS.md)
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) · [`docs/project/UX_PRINCIPLES.md`](docs/project/UX_PRINCIPLES.md)
 - [`docs/README.md`](docs/README.md) — the rest of the docs
 
 ## Who makes this
@@ -520,12 +520,12 @@ in [data-model.md](specs/000-product/data-model.md) (`issues_full` and the
 RECIPES queries, `gadak sql` stdout, and `gadak views open --keys -`), the
 license is Apache-2.0, and the file is plain SQLite. Hard questions:
 [`docs/FAQ.md`](docs/FAQ.md). What you do not have to take on trust, each with
-the command that checks it: [`PROMISES.md`](PROMISES.md).
+the command that checks it: [`PROMISES.md`](docs/PROMISES.md).
 
 ## Contributing and feedback
 
-[`CONTRIBUTING.md`](CONTRIBUTING.md) — and
-[`docs/GOOD_FIRST_ISSUES.md`](docs/GOOD_FIRST_ISSUES.md) to start. Bug reports
+[`CONTRIBUTING.md`](.github/CONTRIBUTING.md) — and
+[`docs/project/GOOD_FIRST_ISSUES.md`](docs/project/GOOD_FIRST_ISSUES.md) to start. Bug reports
 need your Jira deployment type (Cloud), the gadak commit, and the command you
 ran. Never paste real issue data, tokens, or site URLs into a public issue.
 

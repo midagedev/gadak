@@ -64,7 +64,7 @@ func Build(opts Options) (Result, error) {
 	// free, but it also freezes the snapshot in the past: sources.synced_at
 	// would land back when the mirror was last synced, and the sync-health
 	// badge reads that field, so a fresh snapshot would show as permanently
-	// delayed (docs/STATE_OF_PLAY.md, hard-won knowledge #13). Reproducible
+	// delayed (docs/project/STATE_OF_PLAY.md, hard-won knowledge #13). Reproducible
 	// builds pass --now instead.
 	if opts.Now.IsZero() {
 		opts.Now = time.Now().UTC()

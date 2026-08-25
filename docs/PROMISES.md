@@ -5,7 +5,7 @@ command you can run in a clone of this repository — a Go toolchain for six of
 them, `sqlite3` for one, `grep` for the rest. Every command was run on this tree
 and produced the output shown; if one stops doing so, the promise is broken and
 that is a bug worth reporting. Only what is true and checkable today, no roadmap.
-The threat model and the reasoning live in [`SECURITY.md`](SECURITY.md).
+The threat model and the reasoning live in [`SECURITY.md`](../SECURITY.md).
 
 **1. There is no telemetry, no analytics, and no gadak account or server.**
 Nothing anywhere reports what you searched, opened, or synced.

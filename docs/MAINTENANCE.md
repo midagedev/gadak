@@ -71,11 +71,11 @@ refusal is about arithmetic rather than the quality of the code.
 
 - **Windows desktop zip** — unsigned portable pack
   (`Gadak-<version>-windows-x64.zip` / `windows-arm64`) on the GitHub Release.
-  Details: [`docs/INSTALL.md`](docs/INSTALL.md#desktop-app-windows).
+  Details: [`docs/INSTALL.md`](INSTALL.md#desktop-app-windows).
 
 ## Not planned
 
-Beyond the list in [`docs/ROADMAP.md`](docs/ROADMAP.md):
+Beyond the list in [`docs/ROADMAP.md`](project/ROADMAP.md):
 
 - **Linux desktop shell** — 0.16 ships the Windows zip above; Linux stays
   `gadak serve` in a browser tab (or `install-service`). A native Linux window

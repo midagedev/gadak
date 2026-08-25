@@ -132,7 +132,7 @@ func (s *server) handleConnect(w http.ResponseWriter, r *http.Request) {
 
 // orgKeyPrefix is the organization API key Atlassian issues from
 // admin.atlassian.com. Those keys authenticate against organization admin APIs
-// only and 401 against every product endpoint (docs/STATE_OF_PLAY.md,
+// only and 401 against every product endpoint (docs/project/STATE_OF_PLAY.md,
 // "hard-won knowledge" #1); the same prefix is what internal/secretscan keys on.
 const orgKeyPrefix = "ATCTT"
 

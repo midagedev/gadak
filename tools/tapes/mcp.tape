@@ -16,10 +16,10 @@
 #
 # Theme: try gadak-paper first (same identity as search.gif / agent.gif). If
 # Claude Code's own ANSI is unreadable on paper, fall back to a dark theme
-# and record why in the take notes (docs/MEDIA.md).
+# and record why in the take notes (docs/project/MEDIA.md).
 #
 # Size: the committed asset is this tape's output run through
-# `gifsicle -O3 --colors 64` (see docs/MEDIA.md). If still over 3.5 MB, cut
+# `gifsicle -O3 --colors 64` (see docs/project/MEDIA.md). If still over 3.5 MB, cut
 # the idle tail (frame range is picked per take).
 
 Output docs/media/mcp.gif

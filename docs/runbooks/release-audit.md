@@ -152,7 +152,7 @@ In-repo pins to bump:
 
 - `README.md` — status line, **minor** only (`v0.16.1` → `0.16`)
 - `README.ko.md` — same minor
-- `docs/STATE_OF_PLAY.md` — `Last tagged:` is the tag itself (`v0.16.1`)
+- `docs/project/STATE_OF_PLAY.md` — `Last tagged:` is the tag itself (`v0.16.1`)
 - `contrib/scoop/gadak.json` — top-level `"version"`, full patch (`0.16.1`)
 - `contrib/aur/gadak-bin/PKGBUILD` — `pkgver=`, full patch (`0.16.1`)
 

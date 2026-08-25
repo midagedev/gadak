@@ -11,7 +11,7 @@
 #
 # Prerequisites, all checked below:
 #   - Raycast with the gadak search extension in dev mode (`ray develop` in
-#     the extension dir; see docs/MEDIA.md for where that lives)
+#     the extension dir; see docs/project/MEDIA.md for where that lives)
 #   - Gadak.app installed in /Applications and owning the gadak: scheme
 #   - a `demo` profile whose gadak.db is a PRISTINE copy of examples/demo.db
 #     — this script reseeds it, because a dirty copy leaks whatever writes
@@ -110,7 +110,7 @@ EOF
 until [ -f "$tmp/take.mov" ] && ! pgrep -x screencapture >/dev/null; do sleep 1; done
 
 # 5. Encode. delogo covers the signed-in account line, bottom of the sidebar
-#    (region in 2x source pixels). Budgets per docs/MEDIA.md.
+#    (region in 2x source pixels). Budgets per docs/project/MEDIA.md.
 filt="trim=start=0.3:end=13.5,setpts=PTS-STARTPTS,delogo=x=70:y=1558:w=290:h=34"
 ffmpeg -v error -i "$tmp/take.mov" \
   -vf "$filt,fps=10,scale=960:-1:flags=lanczos,palettegen=max_colors=128:stats_mode=diff" -y "$tmp/pal.png"
