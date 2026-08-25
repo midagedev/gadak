@@ -291,7 +291,9 @@ func buildSettings() []Setting {
 			Root: "ui",
 			Description: "token overrides: colors {\"accent\": \"#7a4bd0\"} for every palette; " +
 				"dimensions {\"spacing\": {\"row\": \"44px\"}, \"layout\": {\"sidebar\": \"280px\"}, " +
-				"\"type\": {\"body\": \"14px\"}} apply to every palette (locked tokens refused; " +
+				"\"type\": {\"heading\": \"24px\"}} apply to every palette — a set replaces the " +
+				"whole object; to update one axis only, set ui.tokens.colors / ui.tokens.spacing / " +
+				"ui.tokens.layout / ui.tokens.type (key-wise merge) (locked tokens refused; " +
 				"validated tokens must pass the contrast or length-range rules; discover color " +
 				"names with `gadak config get ui.tokens.catalog`, dimension names with " +
 				"`gadak config get ui.tokens.dim-catalog`)",
@@ -311,6 +313,10 @@ func buildSettings() []Setting {
 				return ApplyUIConfig(c, next)
 			},
 		},
+		uiTokenAxisSetting("colors"),
+		uiTokenAxisSetting("spacing"),
+		uiTokenAxisSetting("layout"),
+		uiTokenAxisSetting("type"),
 		{
 			Path: "ui.tokensByTheme",
 			Root: "ui",
@@ -896,6 +902,140 @@ func boolDefaultTrue(path, root, desc string, get func(*Config) bool, set func(*
 			return nil
 		},
 	}
+}
+
+// ── ui.tokens.<axis> subpaths (GDK-853) ──
+
+// uiTokenAxisExamples is the example body each axis subpath's description
+// teaches. Every value is one a real set accepts alone (body "14px" is not:
+// the type-step relation holds title at its default 15px, which is < 14+2).
+var uiTokenAxisExamples = map[string]string{
+	"colors":  `{"accent": "#7a4bd0"}`,
+	"spacing": `{"row": "44px"}`,
+	"layout":  `{"sidebar": "280px"}`,
+	"type":    `{"heading": "24px"}`,
+}
+
+// uiTokenAxisSetting builds one ui.tokens.<axis> entry. The whole-object
+// ui.tokens set replaces — an agent that stores colors and then sets
+// spacing used to drop colors on the second write (the GDK-853 friction).
+// The subpath merges key-wise instead: named keys update, everything else
+// (other keys of the axis, other axes, tokensByTheme, dataColors) survives,
+// a null value deletes its key, and {} (or null) is a no-op. Validation
+// still judges the merged whole through ApplyUIConfig, so a refused write
+// leaves the config untouched exactly like every other set.
+func uiTokenAxisSetting(axis string) Setting {
+	path := "ui.tokens." + axis
+	discovery := "`gadak config get ui.tokens.catalog`"
+	rules := "locked tokens refused, validated tokens judged in every palette"
+	if axis != "colors" {
+		discovery = "`gadak config get ui.tokens.dim-catalog`"
+		rules = "locked tokens refused, range and relation rules judge the merged set"
+	}
+	return Setting{
+		Path: path,
+		Root: "ui",
+		Description: fmt.Sprintf("the %s axis of ui.tokens as a key-wise merge: %s updates the named "+
+			"keys only — other keys, the other axes and ui.tokensByTheme are preserved; "+
+			"a null value deletes its key, {} is a no-op (token names: %s; %s)",
+			axis, uiTokenAxisExamples[axis], discovery, rules),
+		Get: func(c *Config) any {
+			return stringMapOrEmpty(uiTokenAxisMap(uiTokensOf(c), axis))
+		},
+		Set: func(c *Config, raw json.RawMessage) error {
+			patch, err := parseUITokenAxisPatch(path, raw)
+			if err != nil {
+				return err
+			}
+			if len(patch) == 0 {
+				return nil // {} (and null): merge nothing, touch nothing
+			}
+			next := cloneUIConfig(c.UI)
+			next.Tokens = mergeUITokenAxis(uiTokensOf(c), axis, patch)
+			return ApplyUIConfig(c, next)
+		},
+	}
+}
+
+// uiTokensOf reads the token block nil-safely (a catalog Get runs on configs
+// that have no ui block at all).
+func uiTokensOf(c *Config) *UITokens {
+	if c == nil || c.UI == nil {
+		return nil
+	}
+	return c.UI.Tokens
+}
+
+// uiTokenAxisMap reads one axis off a UITokens; nil-safe like the Get that
+// calls it.
+func uiTokenAxisMap(t *UITokens, axis string) map[string]string {
+	if t == nil {
+		return nil
+	}
+	switch axis {
+	case "colors":
+		return t.Colors
+	case "spacing":
+		return t.Spacing
+	case "layout":
+		return t.Layout
+	default: // "type"
+		return t.Type
+	}
+}
+
+// parseUITokenAxisPatch decodes one axis-set body: token name → value, where
+// a JSON null deletes that key. Values must be strings (or null) — an object
+// under a key means the caller sent the ui.tokens wrapper shape to a
+// one-axis path.
+func parseUITokenAxisPatch(path string, raw json.RawMessage) (map[string]*string, error) {
+	var in map[string]*string
+	if err := json.Unmarshal(raw, &in); err != nil {
+		return nil, fmt.Errorf("%s must be a JSON object of token→value with string values (null deletes the key) — the {\"colors\": …} wrapper shape is ui.tokens itself", path)
+	}
+	return in, nil
+}
+
+// mergeUITokenAxis stages the post-merge token block: cur copied, one axis
+// rebuilt from a fresh map with the patch applied. Only the patched axis is
+// rebuilt — a refused write must leave every live map untouched (the
+// cloneUIConfig guarantee), so the other axes ride as shared read-only maps
+// exactly like the parsed replacements the whole-object setters install.
+// Deleting the last token anywhere clears the block, matching what
+// `ui.tokens null` does.
+func mergeUITokenAxis(cur *UITokens, axis string, patch map[string]*string) *UITokens {
+	next := &UITokens{}
+	if cur != nil {
+		*next = *cur
+	}
+	merged := map[string]string{}
+	for k, v := range uiTokenAxisMap(next, axis) {
+		merged[k] = v
+	}
+	for k, v := range patch {
+		if v == nil {
+			delete(merged, k)
+			continue
+		}
+		merged[k] = *v
+	}
+	if len(merged) == 0 {
+		merged = nil
+	}
+	switch axis {
+	case "colors":
+		next.Colors = merged
+	case "spacing":
+		next.Spacing = merged
+	case "layout":
+		next.Layout = merged
+	default:
+		next.Type = merged
+	}
+	if len(next.Colors)+len(next.Spacing)+len(next.Layout)+len(next.Type) == 0 {
+		return nil
+	}
+	return next
 }
 
 type confluenceValue struct {
