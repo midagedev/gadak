@@ -17,7 +17,7 @@
 //
 // The dark-mode flip stays outside (xcrun simctl ui booted appearance dark)
 // — the app follows the system appearance; the tour leaves a steady beat
-// for it between the search and the final queue scroll.
+// for it between the search and the final Issues scroll.
 
 import { app, openIssue, closeIssue, switchTab } from './store.svelte'
 
@@ -45,9 +45,9 @@ function scrollableIn(root: HTMLElement): HTMLElement | null {
 }
 
 async function tour(): Promise<void> {
-  await wait(2200) // hold: light queue, top
+  await wait(2200) // hold: light Issues list, top
 
-  glide(560) // queue scroll, two beats
+  glide(560) // list scroll, two beats
   await wait(1400)
   glide(560)
   await wait(1400)
@@ -69,7 +69,7 @@ async function tour(): Promise<void> {
   await wait(2000)
   switchTab('pairing')
   await wait(2200)
-  switchTab('queue')
+  switchTab('issues')
   // beat for the external dark flip (t≈21.5s from tour start)
   await wait(3000)
   glide(560) // one scroll in the dark

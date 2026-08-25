@@ -1,12 +1,17 @@
 <script lang="ts">
   import { fly } from 'svelte/transition'
+  import { initLocale } from './lib/i18n'
   import { app, boot, startClock } from './lib/store.svelte'
   import PairGate from './screens/PairGate.svelte'
-  import Queue from './screens/Queue.svelte'
+  import Issues from './screens/Issues.svelte'
   import Search from './screens/Search.svelte'
   import PairingTab from './screens/PairingTab.svelte'
   import Detail from './screens/Detail.svelte'
   import TabBar from './ui/TabBar.svelte'
+
+  // Vocabulary has one owner (DESIGN.md §3.6): pick the locale once, before
+  // the first render, so every t() below reads the same catalog table.
+  initLocale()
 
   // Navigation shell (DESIGN.md §2): three always-mounted tabs (their query
   // and scroll state survive switches), one Detail push layer above them.
@@ -36,7 +41,7 @@
   <PairGate />
 {:else}
   <div class="tabs">
-    <div class="pane" class:off={app.tab !== 'queue'}><Queue /></div>
+    <div class="pane" class:off={app.tab !== 'issues'}><Issues /></div>
     <div class="pane" class:off={app.tab !== 'search'}><Search /></div>
     <div class="pane" class:off={app.tab !== 'pairing'}><PairingTab /></div>
   </div>

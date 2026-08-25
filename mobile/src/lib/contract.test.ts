@@ -63,11 +63,12 @@ describe('GDK-867 tap floor owner', () => {
 
   it('does not use --spacing-control-sm as a button tap size', () => {
     const files = [
-      'screens/Queue.svelte',
+      'screens/Issues.svelte',
       'screens/Search.svelte',
       'screens/Detail.svelte',
       'screens/PairingTab.svelte',
       'ui/Sheet.svelte',
+      'ui/ScopeSheet.svelte',
     ]
     for (const rel of files) {
       const text = read(rel)

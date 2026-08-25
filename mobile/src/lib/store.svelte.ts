@@ -3,21 +3,37 @@
 // exported functions.
 
 import { configureApi, request, isPairingDead, ApiError } from './api'
+import { SCOPE_ME } from './domain'
 import { tokenGet, tokenSet, tokenDel } from './secure'
-import type { BootstrapResponse, IssueLite, Me, PairMeta } from './types'
+import type {
+  BootstrapResponse,
+  IssueLite,
+  Me,
+  PairMeta,
+  SavedViewDoc,
+  SourceViewDoc,
+  ViewsResponse,
+} from './types'
 
 const META_KEY = 'gadak.pairing.meta'
 const UNPAIRED_KEY = 'gadak.pairing.unpaired'
 const CACHE_KEY = 'gadak.snapshot'
+const VIEWS_KEY = 'gadak.views'
+const SCOPE_KEY = 'gadak.issues.scope'
 const RECENTS_KEY = 'gadak.search.recents'
 
-export type Tab = 'queue' | 'search' | 'pairing'
+export type Tab = 'issues' | 'search' | 'pairing'
 export type Phase = 'boot' | 'unpaired' | 'paired'
 
 interface Snapshot {
   etag: string | null
   issues: IssueLite[]
   serverTime: string
+}
+
+interface ViewsCache {
+  views: SavedViewDoc[]
+  sources: SourceViewDoc[]
 }
 
 export const app = $state({
@@ -28,13 +44,19 @@ export const app = $state({
 
   issues: [] as IssueLite[],
   me: null as Me | null,
+  /** Views the developer saved at the desk (GET issues/views/ → `views`). */
+  views: [] as SavedViewDoc[],
+  /** Jira filters imported at the desk (same response → `source`). */
+  sources: [] as SourceViewDoc[],
+  /** Last scope the user picked; the heading is this scope's name. */
+  scopeId: SCOPE_ME as string,
   /** True once any snapshot (cache or network) has painted. */
   loaded: false,
   syncing: false,
   offline: false,
   lastSyncAt: null as Date | null,
 
-  tab: 'queue' as Tab,
+  tab: 'issues' as Tab,
   detailKey: null as string | null,
   /** Ticks every 30s so relative times stay honest while the app is open. */
   now: new Date(),
@@ -125,6 +147,15 @@ async function enterPaired(meta: PairMeta, token: string): Promise<void> {
     etag = cached.etag
     app.loaded = true
   }
+  // Views are cached too, so a restored scope paints its own name on the
+  // first frame instead of flashing the default until sync answers.
+  const cachedViews = readJSON<ViewsCache>(VIEWS_KEY)
+  if (cachedViews) {
+    app.views = cachedViews.views ?? []
+    app.sources = cachedViews.sources ?? []
+  }
+  const scope = readJSON<string>(SCOPE_KEY)
+  if (typeof scope === 'string' && scope !== '') app.scopeId = scope
   app.phase = 'paired'
   void sync()
   if (syncTimer) clearInterval(syncTimer)
@@ -151,7 +182,20 @@ export async function sync(): Promise<void> {
       const me = await request<Me>('auth/me/')
       app.me = me.body
     } catch {
-      // Identity is optional (standalone serves have none); the queue falls back.
+      // Identity is optional (standalone serves have none); the list falls back.
+    }
+    try {
+      // The names the scope picker wears. Read-only: the phone consumes the
+      // desk's view list and never POSTs one (DESIGN.md §5).
+      const res = await request<ViewsResponse>('issues/views/')
+      if (res.body) {
+        app.views = res.body.views ?? []
+        app.sources = res.body.source ?? []
+        writeJSON(VIEWS_KEY, { views: app.views, sources: app.sources } satisfies ViewsCache)
+      }
+    } catch {
+      // A serve that refuses the view list still lists issues under the two
+      // hardcoded scopes — a picker with fewer names, not a dead screen.
     }
     app.loaded = true
     app.offline = false
@@ -193,6 +237,8 @@ export async function unpair(): Promise<void> {
   }
   drop(META_KEY)
   drop(CACHE_KEY)
+  drop(VIEWS_KEY)
+  drop(SCOPE_KEY)
   // Packaged: unpairing must stick across launches. Dev: the proxy is the
   // trust boundary, so the next launch may re-adopt it — the gate still
   // shows for this session, which is what unpair-state verification needs.
@@ -210,10 +256,13 @@ export async function unpair(): Promise<void> {
   app.meta = null
   app.issues = []
   app.me = null
+  app.views = []
+  app.sources = []
+  app.scopeId = SCOPE_ME
   app.loaded = false
   app.rejected = false
   app.detailKey = null
-  app.tab = 'queue'
+  app.tab = 'issues'
   app.phase = 'unpaired'
 }
 
@@ -229,6 +278,12 @@ export function closeIssue(): void {
 
 export function switchTab(tab: Tab): void {
   app.tab = tab
+}
+
+/** Picks a scope and remembers it — boot restores the last one used. */
+export function setScope(id: string): void {
+  app.scopeId = id
+  writeJSON(SCOPE_KEY, id)
 }
 
 /* ── search recents ── */

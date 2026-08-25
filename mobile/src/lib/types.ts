@@ -2,16 +2,32 @@
 // (internal/server/read.go, internal/store/read.go) — a subset: the phone
 // only parses what it paints. Adding fields is safe, renaming is not.
 
+/**
+ * The desktop's saved-view schema, imported as a type so there is exactly one
+ * definition of what a stored view means (web/src/lib/view-config.ts). This is
+ * an `import type`: it is erased at build time, so the phone bundle does not
+ * pull in the desktop's config/feature-flag modules.
+ */
+export type { ViewConfig, ViewFilters } from '../../../web/src/lib/view-config'
+
 export interface IssueLite {
   issue_key: string
   summary: string
   project_key: string
   issue_type: string
+  /**
+   * Stable Jira issue-type id. Empty on rows a sync has not rewritten since
+   * the column was added; view filters fall back to the stored name then,
+   * exactly as the desktop's matchesIdFirst does.
+   */
+  issue_type_id: string
   status: string
   status_id: string
   /** new | inprogress | done — the only status axis logic may key on. */
   status_category: string
   priority: string | null
+  /** Stable Jira priority id; same empty-on-old-rows contract as issue_type_id. */
+  priority_id: string
   /** Stable sort axis; display names never drive logic. 0 = unranked. */
   priority_rank: number
   assignee: string | null
@@ -74,6 +90,50 @@ export interface TransitionDoc {
 export interface SearchResponse {
   keys: string[]
   total: number
+}
+
+/* ── GET issues/views/ (internal/server/personal.go handleGetViews) ── */
+
+/** A view the developer saved at the desk. `config` is an opaque ViewConfig. */
+export interface SavedViewDoc {
+  id: string
+  name: string
+  owner_email: string | null
+  owner_name: string | null
+  config: ViewConfigDoc | null
+  created_at: string | null
+  updated_at: string | null
+}
+
+/** A Jira filter imported at the desk, already compiled into a ViewConfig. */
+export interface SourceViewDoc {
+  id: string
+  name: string
+  config: ViewConfigDoc | null
+  jql: string
+  external_id?: string
+  favourite: boolean
+  owner?: string
+  /** JQL clauses the desktop's importer could honor. */
+  applied: string[]
+  /** JQL clauses it could not — a non-empty list means "open on the desktop". */
+  unsupported: string[]
+}
+
+/**
+ * A stored config as it arrives on the wire: the desktop writes a full
+ * ViewConfig, but older rows (and hand-written ones) may be missing axes, so
+ * every field is optional here and the filter code treats absent as empty.
+ */
+export interface ViewConfigDoc {
+  filters?: Partial<import('../../../web/src/lib/view-config').ViewFilters>
+  /** Grouping and sort. The phone keeps its own (priority sections) — DESIGN.md §5. */
+  display?: unknown
+}
+
+export interface ViewsResponse {
+  views: SavedViewDoc[]
+  source: SourceViewDoc[]
 }
 
 /** Pairing metadata — never the token (that lives in the Keychain). */

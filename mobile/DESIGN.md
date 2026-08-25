@@ -16,7 +16,8 @@ edge that follows an issue from its row into its detail page.
 
 | Job | Screen | Budget |
 |---|---|---|
-| "What's on my plate?" | Queue (default tab) | glance — no taps |
+| "What's on my plate?" | Issues (default tab), scope **Assigned to me** | glance — no taps |
+| "Show me the view I named at the desk" | Issues, scope picker on the heading | 1 tap |
 | "Where was that issue about X?" | Search | 2 taps + typing |
 | "What happened here?" | Detail (comments-first) | 1 tap from any row |
 | "One-line reply / push the status" | Detail composer · transition sheet | thumb only |
@@ -25,11 +26,22 @@ edge that follows an issue from its row into its detail page.
 Non-jobs (deliberately absent in v1): creating issues, editing fields,
 attachments, wiki, feed/notifications, JQL. The desktop owns those.
 History timeline and plugin enrichments are read on the desktop too — the
-phone shows description, comments, linked issues.
+phone shows description, comments, linked issues. **Authoring** a view is a
+non-job in the same sense: the phone consumes the names the desk wrote and
+never `POST`s one (iOS Mail does not author smart mailboxes either).
 
 ## 2. Screen map & navigation model
 
 Three tabs + one push layer. No hamburger, no drawer, no nested stacks.
+
+**The tab is the object, the heading is the scope.** The desktop has no name
+for its list screen — its main column is titled by the current view's name.
+The phone adopts that model exactly: the tab says *Issues*, and the `<h1>`
+says whichever scope is showing (Assigned to me, All open, or a name the
+developer typed at the desk). Linear, Gmail and Apple Mail all title the list
+with the current scope; none of them names it after a metaphor. That is why
+there is no "Queue" and no Mine/All toggle: both were words the phone
+invented, and the heading tells the truth without either.
 
 ```
 ┌────────────────────────────┐
@@ -37,8 +49,9 @@ Three tabs + one push layer. No hamburger, no drawer, no nested stacks.
 │ unpaired / token rejected) │  until pairing succeeds
 └────────────────────────────┘
 ┌─────────┬─────────┬────────┐
-│ Queue   │ Search  │ Pairing│  tab bar, bottom, always visible
+│ Issues  │ Search  │ Pairing│  tab bar, bottom, always visible
 └────┬────┴────┬────┴────────┘
+     ├─► Scope picker (bottom sheet, opened by the heading)
      └────► Detail (push, slides over tabs)
                 └─► Transition sheet (bottom sheet)
                 └─► Detail of a linked issue (replaces, back returns to list)
@@ -49,12 +62,18 @@ out; system back = the same edge):
 
 | Screen | Enter from | Exit |
 |---|---|---|
-| PairGate | boot (no pairing) · token rejected | successful pair → Queue |
-| Queue | tab · boot default | tab bar |
+| PairGate | boot (no pairing) · token rejected | successful pair → Issues |
+| Issues | tab · boot default | tab bar |
 | Search | tab | tab bar |
 | Pairing | tab | tab bar |
-| Detail | row tap (Queue/Search) · linked-issue tap | ← back button (top-left, 44pt) → the tab that opened it |
+| Scope picker | the Issues heading (44pt) | scrim tap · Cancel · picking a name |
+| Detail | row tap (Issues/Search) · linked-issue tap | ← back button (top-left, 44pt) → the tab that opened it |
 | Transition sheet | status chip in Detail | scrim tap · Cancel · apply |
+
+The picker's sections are the desk's own, in the desk's order: My issues
+(Assigned to me) · Built-in views (All open) · My views · Jira filters.
+Documents will be a further section here when they land (GDK-887) — a
+section in this same sheet, never a fourth tab.
 
 Tabs keep their scroll/query state across switches. Detail is a single layer:
 opening a linked issue swaps the key in place (back still returns to the
@@ -89,15 +108,20 @@ Dimensions are mobile-owned (`@theme` override after the import):
   `.type-subject`; `--font-mono` for issue keys and counts (identifiers look
   like identifiers); `--font-sans` for everything else.
 - The aesthetic risk, named: a serif ledger heading with a mono folio count
-  ("Queue ·23") on a *phone tool*. It is what makes a capture of this app
-  unmistakably gadak and not a Tailwind template; if it reads as a newspaper
-  gimmick in captures, the fallback is `.type-subject` on Detail titles only.
+  ("Assigned to me ·42") on a *phone tool*. It is what makes a capture of this
+  app unmistakably gadak and not a Tailwind template; if it reads as a
+  newspaper gimmick in captures, the fallback is `.type-subject` on Detail
+  titles only. The heading is also a control, so it carries a muted chevron
+  after the count and measures 44pt — the padding that used to give the header
+  its height now lives inside the button, and the row count below is unchanged.
 
 ### 3.3 Space & density
-4pt grid (4/8/12/16/24/32), 16px screen gutter. Queue rows are **56px**
+4pt grid (4/8/12/16/24/32), 16px screen gutter. Issue rows are **56px**
 (≥44pt target, two lines: summary + meta). On the iPhone 17 Pro viewport that
 yields 12–13 rows per screen — a two-digit ledger, not a card feed. No
-cards, no shadows in lists; hairline `border-subtle` separators only.
+cards, no shadows in lists; hairline `border-subtle` separators only. The
+scope picker is the same dialect: section labels in the list's micro caps,
+44pt rows, counts right-aligned in mono, no panel fills.
 
 ### 3.4 The signature: ink spine
 Every issue row carries a 3px left spine in its `status_category` color
@@ -115,6 +139,26 @@ Detail slides in from the right (200ms ease-out), sheets rise from the bottom
 (240ms cubic). Nothing on the scroll path animates. No spinners — loading is
 skeleton rows (paper rectangles), writes show state in the pressed control
 itself ("Sending…" in the send button, progress dot in the transition row).
+
+### 3.6 Vocabulary — the desktop catalog is the single owner
+The same rule as §3.1, applied to words. `mobile/src/lib/i18n.ts` re-exports
+`web/src/lib/i18n` and is the **only** file in the phone that reaches across
+the tree; every screen calls `t(key)`. If the desk already has a word for a
+thing, the phone does not author a second one — a different word for the same
+thing *is* the defect, not a style preference.
+
+The consequence is concrete: the tab is `doc.issues`, the default heading is
+`personal.myAssignee`, the fallback heading is `view.allOpen.name`, the picker
+sections are `personal.myIssues` / `sidebar.builtinViews` / `sidebar.myViews` /
+`sidebar.jiraFilters`, sync is `sidebar.syncNow`, and every sheet's dismiss is
+`common.cancel`. Korean and Japanese therefore come free, exactly as dark mode
+comes free from §3.1.
+
+Strings with **no** catalog equivalent stay phone-authored and are listed as
+such: the Search and Pairing tab labels, the offline and fallback notes, the
+empty state, the picker's "Open on the desktop" refusal, and the pairing copy.
+Adding a key is the desktop's edit, not the phone's — the phone never writes
+into `web/src/lib/i18n/messages/`.
 
 ## 4. iOS contract (the §4 requirements, structurally closed)
 
@@ -138,9 +182,11 @@ itself ("Sending…" in the send button, progress dot in the transition row).
 6. **Every state designed.** Unpaired (PairGate with paste-first flow),
    syncing-first-time (skeleton rows), offline (banner with last-sync age,
    cached data stays usable), token-rejected (PairGate with explanation),
-   empty queue ("Nothing assigned to you" + one-tap scope switch), empty
-   search (recent searches, never blank), write failure (inline in the
-   control that acted, cached read state untouched).
+   empty plate (falls back to All open and says why, one tap to any other
+   scope), a view the phone cannot honor (offered disabled, never silently
+   painted as the full list), empty search (recent searches, never blank),
+   write failure (inline in the control that acted, cached read state
+   untouched).
 7. **Dark mode** is the same code path — token flip only, verified with
    light/dark captures of every screen.
 8. **44pt tap floor (GDK-867).** Every control — not only the back button —
@@ -161,14 +207,37 @@ the transition *action* lives with compose and send.
   read path; the full lite snapshot is the phone's mirror. Cached in
   `localStorage` (guarded try/catch — over-quota mirrors simply skip the
   cache and refetch). Sync on boot, on foreground (`visibilitychange`), and
-  on freshness-chip tap. `issues/delta/` is a v2 optimization once a mirror
+  on freshness-chip tap. The view list is cached the same way and under the
+  same guard, so a restored scope paints its own name on the first frame
+  instead of flashing the default. `issues/delta/` is a v2 optimization once a mirror
   large enough to hurt is measured.
-- **Queue** = `status_category !== 'done'`, sorted `priority_rank` asc
-  (unset ranks last), then `updated_at` desc, grouped by priority with the
-  display name as the section label (display-only; logic never keys on it).
-  Scope: **Mine** (assignee_id = me.account_id, else email match) with an
-  **All** toggle; when the server has no identity (standalone) or Mine is
-  empty, the queue auto-falls to All and says so.
+- **Issues** is one list under one scope, sorted `priority_rank` asc (unset
+  ranks last), then `updated_at` desc, grouped by priority with the display
+  name as the section label (display-only; logic never keys on it). Scopes:
+  *Assigned to me* (assignee_id = me.account_id, else email match, open only)
+  · *All open* · the desk's saved views · the desk's imported Jira filters,
+  read from `GET issues/views/` alongside bootstrap. The last-used scope id
+  lives in `localStorage`; a scope that has since been deleted falls back
+  silently, and an empty *Assigned to me* — or no identity at all — falls back
+  to *All open* **and says why**.
+- **Applying a view is in-memory over the snapshot.** The phone honors only
+  the axes an `IssueLite` can answer: `status_category` (+`_not`),
+  `assignee_email` (+`_not`, account id first then email), `unassigned`,
+  `issue_type`, `priority`, `jira_project` (+`_not`). `issue_type` and
+  `priority` compare against the stored id first and the stored name second —
+  the desk's own `matchesIdFirst` contract, which is consuming a stored value,
+  not keying logic on a display name. Any other axis a view sets — labels,
+  actor, reporter, components, fix_versions, team_group, severity, qa_*,
+  deploy_*, source_project, date ranges, the text query, dynamic fields — and
+  any Jira clause the desk's importer left in `unsupported[]` means the phone
+  **cannot** honor that view: the row is offered disabled with a reason,
+  never painted as the full list under someone else's name (decision 0007).
+  Sort and grouping stay the phone's priority sections in this round; a view's
+  `display` block is deliberately ignored.
+- **Picker counts** (GDK-886) are one in-memory pass per row, taken when the
+  sheet opens — never on the list's scroll path. A view matching zero issues
+  shows `0` and stays selectable; a disabled row shows no count. The endpoint
+  returns no counts and must not be extended to.
 - **Search** is local-first: instant key/summary substring over the snapshot
   while typing, merged with debounced server `issues/search/` results (body
   and comment matches the snapshot cannot see).
@@ -256,17 +325,26 @@ Consequences and the division of labor:
   `DEV` and sits under a hairline so it reads as instrumentation, not as
   product chrome (GDK-879).
 - **Pairing is a ledger, not grouped fills (GDK-879).** Same hairline
-  separators and section labels as Queue/Search; no panel-fill cards.
+  separators and section labels as Issues/Search; no panel-fill cards.
   Unpair keeps the two-step arm and expresses danger with ink weight/shape
   (`--color-text-primary`), never a status token.
 
 ## 8. Copy
 
-English, product voice, sentence case, verbs on buttons ("Pair", "Send",
-"Sync now", "Unpair"). Jira vocabulary only (§8 UX_PRINCIPLES): status,
-priority, comment, transition — no invented nouns. Errors say what to do
-next ("Pairing was refused — mint a new offer on your desktop and pair
-again."), never apologize, never quote server internals.
+Product voice, sentence case, verbs on buttons ("Pair", "Send", "Unpair").
+Jira vocabulary only (§8 UX_PRINCIPLES): status, priority, comment,
+transition — no invented nouns. **Names come from the catalog, not from
+here** (§3.6): "Issues", "Assigned to me", "All open", "Sync now", "Cancel"
+and the picker's section labels are `t()` calls and are Korean and Japanese
+without further work. What is still authored here is the connective prose,
+in English: the Search and Pairing tab labels, "Offline — showing the last
+synced snapshot.", "Nothing open is assigned to you.", "This serve has no
+identity to filter by.", "Nothing here" / "No issues on this mirror match
+this scope.", "Open on the desktop", "Show all N", and the pairing screen.
+Those are the candidates for the next catalog keys — "Open on the desktop"
+first, since it is the one refusal a Korean reader meets in English. Errors
+say what to do next ("Pairing was refused — mint a new offer on your desktop
+and pair again."), never apologize, never quote server internals.
 
 ## 9. Gates
 
@@ -285,5 +363,20 @@ again."), never apologize, never quote server internals.
   proxy) and vite on `127.0.0.1:5182`. Not `e2e/`'s `127.0.0.1:7877` and not
   `e2e/.tmp/home` — demo makes its own temp home. Asserts horizontal overflow
   0, `nav.safe-bottom` flush to the viewport bottom, no input/textarea under
-  16px, ≥12 queue rows per screen, a visible escape (tab bar, `button.back`,
-  or sheet Cancel), and no visible button under 44pt (GDK-867).
+  16px, ≥12 issue rows per screen (before **and** after the scope picker has
+  been opened), a visible escape (tab bar, `button.back`, or sheet Cancel),
+  and no visible button under 44pt (GDK-867). Sheets are measured after their
+  rise finishes: a rect read off a mid-transform composited layer at DPR 3
+  comes back a hair under the laid-out size (a 44px control read 43.99994),
+  which is an artifact of when we looked, not of what shipped.
+- **Vocabulary (§3.6)** — `src/lib/vocabulary.test.ts` in `npm test`. Fails if
+  "Queue" / "Mine" / "All" reappear in shipped source, if any file other than
+  `lib/i18n.ts` reaches into `web/src/lib/i18n`, if the picker stops using the
+  `sidebar.*` section keys, if a `POST`/`DELETE` is aimed at `issues/views/`,
+  or — the one that catches a hardcoded English string an English eye would
+  pass — if the scope names are not 내 담당 / 전체 미해결 under `gadak_locale=ko`.
+  A parity case also re-reads the desktop's `effectiveCategory` and fails if
+  the phone's status-category folding drifts from it. The by-hand form of the
+  same check must exclude that file, which necessarily spells the banned words:
+  `grep -rn --exclude=vocabulary.test.ts "Queue\|'Mine'\|>Mine<\|>All<" src e2e`
+  → no hits.

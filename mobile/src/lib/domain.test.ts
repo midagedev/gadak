@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import {
-  buildQueue,
+  applyFilters,
+  buildList,
+  buildScopes,
+  effectiveCategory,
   groupByPriority,
   isMine,
   matchLocal,
@@ -9,10 +12,17 @@ import {
   overlayComments,
   pendingComment,
   relTime,
-  sortQueue,
+  resolveScope,
+  scopeCount,
+  SCOPE_ALL_OPEN,
+  SCOPE_ME,
+  sortIssues,
   spineToken,
+  unsupportedAxes,
+  type Scope,
 } from './domain'
-import type { DetailComment, IssueLite, Me } from './types'
+import { t } from './i18n'
+import type { DetailComment, IssueLite, Me, SavedViewDoc, SourceViewDoc } from './types'
 
 // Fixture keys use STD-* (never GDK-*: repo doc-checks scans test files).
 function issue(over: Partial<IssueLite> & { issue_key: string }): IssueLite {
@@ -20,10 +30,12 @@ function issue(over: Partial<IssueLite> & { issue_key: string }): IssueLite {
     summary: 'a summary',
     project_key: 'STD',
     issue_type: 'Task',
+    issue_type_id: '10001',
     status: 'Open',
     status_id: '1',
     status_category: 'new',
     priority: 'Medium',
+    priority_id: '3',
     priority_rank: 3,
     assignee: null,
     assignee_id: null,
@@ -64,7 +76,7 @@ describe('isMine', () => {
   })
 })
 
-describe('sortQueue', () => {
+describe('sortIssues', () => {
   it('sorts rank asc, then updated desc, rank 0 last', () => {
     const rows = [
       issue({ issue_key: 'STD-10', priority_rank: 0, updated_at: '2026-08-20T00:00:00Z' }),
@@ -72,13 +84,13 @@ describe('sortQueue', () => {
       issue({ issue_key: 'STD-12', priority_rank: 1, updated_at: '2026-08-05T00:00:00Z' }),
       issue({ issue_key: 'STD-13', priority_rank: 2, updated_at: '2026-08-15T00:00:00Z' }),
     ]
-    expect(sortQueue(rows).map((i) => i.issue_key)).toEqual(['STD-12', 'STD-13', 'STD-11', 'STD-10'])
+    expect(sortIssues(rows).map((i) => i.issue_key)).toEqual(['STD-12', 'STD-13', 'STD-11', 'STD-10'])
   })
 })
 
 describe('groupByPriority', () => {
-  it('sections a sorted queue in rank order with display labels', () => {
-    const sorted = sortQueue([
+  it('sections a sorted list in rank order with display labels', () => {
+    const sorted = sortIssues([
       issue({ issue_key: 'STD-20', priority_rank: 1, priority: 'Highest' }),
       issue({ issue_key: 'STD-21', priority_rank: 2, priority: 'High' }),
       issue({ issue_key: 'STD-22', priority_rank: 2, priority: 'High' }),
@@ -93,34 +105,255 @@ describe('groupByPriority', () => {
   })
 })
 
-describe('buildQueue', () => {
+/* ── scopes: the heading is the current scope's name (GDK-885) ── */
+
+function savedView(id: string, name: string, filters: Record<string, unknown>): SavedViewDoc {
+  return {
+    id,
+    name,
+    owner_email: null,
+    owner_name: null,
+    config: { filters } as SavedViewDoc['config'],
+    created_at: null,
+    updated_at: null,
+  }
+}
+
+function jiraFilter(
+  id: string,
+  name: string,
+  filters: Record<string, unknown>,
+  unsupported: string[] = [],
+): SourceViewDoc {
+  return {
+    id,
+    name,
+    config: { filters } as SourceViewDoc['config'],
+    jql: 'project = STD',
+    favourite: false,
+    applied: [],
+    unsupported,
+  }
+}
+
+const scopeOf = (list: Scope[], id: string): Scope => {
+  const hit = list.find((s) => s.id === id)
+  if (!hit) throw new Error(`no scope ${id}`)
+  return hit
+}
+
+describe('effectiveCategory', () => {
+  it('folds the desk aliases, unknown reads as inprogress', () => {
+    expect(effectiveCategory(issue({ issue_key: 'STD-60', status_category: 'todo' }))).toBe('new')
+    expect(effectiveCategory(issue({ issue_key: 'STD-61', status_category: 'indeterminate' }))).toBe('inprogress')
+    expect(effectiveCategory(issue({ issue_key: 'STD-62', status_category: 'completed' }))).toBe('done')
+    expect(effectiveCategory(issue({ issue_key: 'STD-63', status_category: 'weird' }))).toBe('inprogress')
+  })
+})
+
+describe('buildScopes', () => {
+  it('names the two hardcoded scopes from the desktop catalog, never its own words', () => {
+    const list = buildScopes([], [], me)
+    expect(scopeOf(list, SCOPE_ME).name).toBe(t('personal.myAssignee'))
+    expect(scopeOf(list, SCOPE_ME).name).toBe('Assigned to me')
+    expect(scopeOf(list, SCOPE_ALL_OPEN).name).toBe(t('view.allOpen.name'))
+    expect(scopeOf(list, SCOPE_ALL_OPEN).name).toBe('All open')
+  })
+
+  it('offers Assigned to me only when the serve has an identity', () => {
+    expect(buildScopes([], [], null).map((s) => s.id)).toEqual([SCOPE_ALL_OPEN])
+  })
+
+  it('sections saved views and imported Jira filters apart', () => {
+    const list = buildScopes(
+      [savedView('v1', 'Stale bugs', { status_category: ['new'] })],
+      [jiraFilter('s1', 'Sprint board', { jira_project: ['STD'] })],
+      me,
+    )
+    expect(list.map((s) => [s.section, s.name])).toEqual([
+      ['me', 'Assigned to me'],
+      ['builtin', 'All open'],
+      ['views', 'Stale bugs'],
+      ['filters', 'Sprint board'],
+    ])
+  })
+
+  it('disables a view whose axes the phone cannot evaluate', () => {
+    const list = buildScopes([savedView('v2', 'By label', { labels: ['infra'] })], [], me)
+    expect(scopeOf(list, 'view:v2').unsupported).toEqual(['labels'])
+  })
+
+  it('disables an imported filter the desktop could not compile', () => {
+    const list = buildScopes([], [jiraFilter('s2', 'Watched', {}, ['watcher'])], me)
+    expect(scopeOf(list, 'source:s2').unsupported).toEqual(['watcher'])
+  })
+})
+
+describe('unsupportedAxes', () => {
+  it('accepts exactly the axes an IssueLite can answer', () => {
+    expect(
+      unsupportedAxes({
+        status_category: ['new'],
+        status_category_not: ['done'],
+        assignee_email: ['acct-1'],
+        assignee_email_not: ['acct-2'],
+        unassigned: false,
+        issue_type: ['Bug'],
+        priority: ['Highest'],
+        jira_project: ['STD'],
+        jira_project_not: ['OTH'],
+        labels: [],
+        q: '',
+      }),
+    ).toEqual([])
+  })
+
+  it('names every axis it cannot honor, dynamic fields included', () => {
+    expect(
+      unsupportedAxes({
+        reporter_email: ['x'],
+        stale: true,
+        updated_from: '2026-01-01',
+        q: 'ledger',
+        fields: { severity: ['S1'], area: [] },
+      }),
+    ).toEqual(['fields.severity', 'q', 'reporter_email', 'stale', 'updated_from'])
+  })
+
+  it('treats a missing config as unhonorable rather than as no filter', () => {
+    expect(unsupportedAxes(null)).toEqual(['config'])
+  })
+})
+
+describe('applyFilters', () => {
+  const rows = [
+    issue({ issue_key: 'STD-70', assignee_id: 'acct-1', issue_type: 'Bug', issue_type_id: '10004' }),
+    issue({ issue_key: 'OTH-71', status_category: 'done', priority: 'Highest', priority_id: '1' }),
+    issue({ issue_key: 'STD-72', assignee_email: 'DEV@example.com' }),
+  ]
+
+  it('keys status on the effective category, not the display name', () => {
+    expect(applyFilters(rows, { status_category: ['done'] }).map((i) => i.issue_key)).toEqual(['OTH-71'])
+    expect(applyFilters(rows, { status_category_not: ['done'] }).map((i) => i.issue_key)).toEqual([
+      'STD-70',
+      'STD-72',
+    ])
+  })
+
+  it('matches an assignee by account id first, then by email case-insensitively', () => {
+    expect(applyFilters(rows, { assignee_email: ['acct-1'] }).map((i) => i.issue_key)).toEqual(['STD-70'])
+    expect(applyFilters(rows, { assignee_email: ['dev@example.com'] }).map((i) => i.issue_key)).toEqual([
+      'STD-72',
+    ])
+    expect(applyFilters(rows, { assignee_email_not: ['acct-1'] }).map((i) => i.issue_key)).toEqual([
+      'OTH-71',
+      'STD-72',
+    ])
+  })
+
+  it('honors unassigned', () => {
+    expect(applyFilters(rows, { unassigned: true }).map((i) => i.issue_key)).toEqual(['OTH-71'])
+  })
+
+  it('honors the stored id first and the stored name as the fallback', () => {
+    expect(applyFilters(rows, { issue_type: ['10004'] }).map((i) => i.issue_key)).toEqual(['STD-70'])
+    expect(applyFilters(rows, { issue_type: ['Bug'] }).map((i) => i.issue_key)).toEqual(['STD-70'])
+    expect(applyFilters(rows, { priority: ['1'] }).map((i) => i.issue_key)).toEqual(['OTH-71'])
+  })
+
+  it('keys jira_project on the issue-key prefix', () => {
+    expect(applyFilters(rows, { jira_project: ['STD'] }).map((i) => i.issue_key)).toEqual([
+      'STD-70',
+      'STD-72',
+    ])
+    expect(applyFilters(rows, { jira_project_not: ['STD'] }).map((i) => i.issue_key)).toEqual(['OTH-71'])
+  })
+})
+
+describe('buildList', () => {
   const rows = [
     issue({ issue_key: 'STD-30', assignee_id: 'acct-1', priority_rank: 2 }),
     issue({ issue_key: 'STD-31', priority_rank: 1 }),
     issue({ issue_key: 'STD-32', status_category: 'done', assignee_id: 'acct-1' }),
   ]
+  const scopes = (who: Me | null) => buildScopes([savedView('v1', 'Done work', { status_category: ['done'] })], [], who)
 
-  it('mine scope filters to my open issues', () => {
-    const v = buildQueue(rows, me, 'mine')
-    expect(v.scope).toBe('mine')
+  it('Assigned to me filters to my open issues', () => {
+    const v = buildList(rows, me, scopeOf(scopes(me), SCOPE_ME))
+    expect(v.scopeId).toBe(SCOPE_ME)
     expect(v.fellBack).toBe(false)
     expect(v.total).toBe(1)
     expect(v.sections[0].issues[0].issue_key).toBe('STD-30')
   })
 
-  it('falls back to all, honestly flagged, when nothing is mine', () => {
+  it('falls back to All open, honestly flagged, when nothing is mine', () => {
     const stranger: Me = { email: 'other@example.com', account_id: 'acct-9', name: null }
-    const v = buildQueue(rows, stranger, 'mine')
-    expect(v.scope).toBe('all')
+    const v = buildList(rows, stranger, scopeOf(scopes(stranger), SCOPE_ME))
+    expect(v.scopeId).toBe(SCOPE_ALL_OPEN)
     expect(v.fellBack).toBe(true)
     expect(v.total).toBe(2)
   })
 
-  it('falls back to all when the serve has no identity (standalone)', () => {
+  it('falls back to All open when the serve has no identity (standalone)', () => {
     const anon: Me = { email: '', account_id: null, name: '' }
-    const v = buildQueue(rows, anon, 'mine')
-    expect(v.scope).toBe('all')
-    expect(v.fellBack).toBe(true)
+    const v = buildList(rows, anon, scopeOf(scopes(anon), SCOPE_ALL_OPEN))
+    expect(v.scopeId).toBe(SCOPE_ALL_OPEN)
+    expect(v.fellBack).toBe(false)
+  })
+
+  it('a saved view paints exactly what it selects, done rows included', () => {
+    const v = buildList(rows, me, scopeOf(scopes(me), 'view:v1'))
+    expect(v.scopeId).toBe('view:v1')
+    expect(v.total).toBe(1)
+    expect(v.sections[0].issues[0].issue_key).toBe('STD-32')
+  })
+})
+
+describe('resolveScope', () => {
+  const list = buildScopes(
+    [savedView('v1', 'Mine only', { assignee_email: ['acct-1'] }), savedView('v2', 'By label', { labels: ['x'] })],
+    [],
+    me,
+  )
+
+  it('restores the persisted scope', () => {
+    expect(resolveScope(list, 'view:v1')?.id).toBe('view:v1')
+  })
+
+  it('falls back silently when the saved view is gone', () => {
+    expect(resolveScope(list, 'view:deleted')?.id).toBe(SCOPE_ME)
+  })
+
+  it('never restores a scope the phone refuses', () => {
+    expect(resolveScope(list, 'view:v2')?.id).toBe(SCOPE_ME)
+  })
+})
+
+describe('scopeCount (GDK-886)', () => {
+  const rows = [
+    issue({ issue_key: 'STD-80', assignee_id: 'acct-1' }),
+    issue({ issue_key: 'STD-81', assignee_id: 'acct-1' }),
+    issue({ issue_key: 'STD-82' }),
+  ]
+  const list = buildScopes(
+    [savedView('v1', 'Nobody', { assignee_email: ['acct-none'] }), savedView('v2', 'By label', { labels: ['x'] })],
+    [],
+    me,
+  )
+
+  it('counts each scope in memory', () => {
+    expect(scopeCount(rows, me, scopeOf(list, SCOPE_ME))).toBe(2)
+    expect(scopeCount(rows, me, scopeOf(list, SCOPE_ALL_OPEN))).toBe(3)
+  })
+
+  it('a view matching nothing shows 0 and stays selectable', () => {
+    const empty = scopeOf(list, 'view:v1')
+    expect(scopeCount(rows, me, empty)).toBe(0)
+    expect(empty.unsupported).toEqual([])
+  })
+
+  it('a disabled view has no count', () => {
+    expect(scopeCount(rows, me, scopeOf(list, 'view:v2'))).toBeNull()
   })
 })
 

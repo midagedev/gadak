@@ -1,5 +1,6 @@
 <script lang="ts">
   import Screen from '../ui/Screen.svelte'
+  import { t } from '../lib/i18n'
   import { app, sync, unpair } from '../lib/store.svelte'
   import { relTime, hasIdentity } from '../lib/domain'
 
@@ -92,7 +93,7 @@
             {/if}
           </span>
         </p>
-        <button class="act" onclick={() => void sync()} disabled={app.syncing}>Sync now</button>
+        <button class="act" onclick={() => void sync()} disabled={app.syncing}>{t('sidebar.syncNow')}</button>
       </section>
 
       <section>
@@ -102,9 +103,9 @@
           {#if app.me?.email && app.me?.name}
             <p class="sub">{app.me.email}</p>
           {/if}
-          <p class="sub">"Mine" in the queue filters to this identity.</p>
+          <p class="sub">{t('personal.myAssignee')} filters to this identity.</p>
         {:else}
-          <p class="line"><span class="quiet">No identity — the serve runs standalone, so the queue shows all open issues.</span></p>
+          <p class="line"><span class="quiet">No identity — the serve runs standalone, so {t('doc.issues')} opens on {t('view.allOpen.name')}.</span></p>
         {/if}
       </section>
 

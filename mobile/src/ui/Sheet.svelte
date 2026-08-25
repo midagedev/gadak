@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte'
   import { fly, fade } from 'svelte/transition'
+  import { t } from '../lib/i18n'
 
   // Bottom sheet: scrim + rising panel, thumb territory. Owns its
   // safe-bottom inset (one of the sanctioned owners, DESIGN.md §4.1).
@@ -22,7 +23,7 @@
   <div class="grab" aria-hidden="true"></div>
   <div class="head">
     <h2>{title}</h2>
-    <button class="cancel" onclick={onclose}>Cancel</button>
+    <button class="cancel" onclick={onclose}>{t('common.cancel')}</button>
   </div>
   {@render children()}
 </div>

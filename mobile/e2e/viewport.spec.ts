@@ -62,6 +62,20 @@ async function measure(page: Page, label: string): Promise<Measure> {
   }, label)
 }
 
+/**
+ * Wait for a sheet's rise to finish before measuring it. Svelte's `fly` runs
+ * as a CSS animation on a composited layer, and a rect read mid-transform at
+ * deviceScaleFactor 3 comes back a hair under the laid-out size — a 44px
+ * control measured 43.99993896484375 and failed the floor for a reason that
+ * was never on screen. Measuring a settled sheet is the honest reading; the
+ * 44pt assertion itself is untouched.
+ */
+async function settleSheet(page: Page): Promise<void> {
+  await page.locator('.sheet').first().evaluate(async (el) => {
+    await Promise.all(el.getAnimations().map((a) => a.finished.catch(() => {})))
+  })
+}
+
 async function waitPaired(page: Page): Promise<void> {
   await page.locator('nav.safe-bottom').waitFor()
   await page.locator('.pane:not(.off) button.row').first().waitFor()
@@ -73,7 +87,17 @@ async function walkAll(page: Page): Promise<Measure[]> {
   await waitPaired(page)
 
   const report: Measure[] = []
-  report.push(await measure(page, 'queue'))
+  report.push(await measure(page, 'issues'))
+
+  // GDK-885: the heading is the scope control. Open it, measure the sheet,
+  // and leave by Cancel — the picker is not a stack and must not be a dead
+  // end (DESIGN.md §2).
+  await page.locator('.pane:not(.off) h1 button.scope').click()
+  await page.locator('button.cancel').waitFor()
+  await settleSheet(page)
+  report.push(await measure(page, 'scope-sheet'))
+  await page.getByRole('button', { name: /cancel/i }).first().click()
+  await page.locator('button.cancel').waitFor({ state: 'hidden' })
 
   await page.locator('.pane:not(.off) button.row').first().click()
   await page.locator('button.back').waitFor()
@@ -83,6 +107,7 @@ async function walkAll(page: Page): Promise<Measure[]> {
   if ((await chip.count()) > 0) {
     await chip.click()
     await page.locator('button.cancel').waitFor()
+    await settleSheet(page)
     report.push(await measure(page, 'sheet'))
     // A phone has no Escape key; DESIGN.md §2 gives scrim tap and Cancel.
     // Clicking button.back while the sheet is open times out (covered).
@@ -109,7 +134,7 @@ async function walkAll(page: Page): Promise<Measure[]> {
   await tabs.nth(0).click()
   await page.locator('.pane:not(.off) button.row').first().waitFor()
   await page.emulateMedia({ colorScheme: 'dark' })
-  report.push(await measure(page, 'queue-dark'))
+  report.push(await measure(page, 'issues-dark'))
 
   return report
 }
@@ -118,13 +143,13 @@ test('disarmed boot does not change tab or detail on its own', async ({ page }) 
   await page.goto('/', { waitUntil: 'domcontentloaded' })
   await waitPaired(page)
   const tab = page.locator('nav.safe-bottom button.tab[aria-current="page"]')
-  await expect(tab).toHaveText('Queue')
+  await expect(tab).toHaveText('Issues')
   expect(await page.locator('.detail-layer, button.back').count()).toBe(0)
   const scroller = page.locator('.pane:not(.off) main')
   const y0 = await scroller.evaluate((el) => el.scrollTop)
   // Tour's first move is await wait(2200) then a scroll. Stay past that.
   await page.waitForTimeout(3500)
-  await expect(tab).toHaveText('Queue')
+  await expect(tab).toHaveText('Issues')
   expect(await page.locator('.detail-layer, button.back').count()).toBe(0)
   expect(await scroller.evaluate((el) => el.scrollTop)).toBe(y0)
 })
@@ -132,13 +157,14 @@ test('disarmed boot does not change tab or detail on its own', async ({ page }) 
 test('viewport geometry at 402×874', async ({ page }) => {
   const report = await walkAll(page)
   expect(report.map((r) => r.label)).toEqual([
-    'queue',
+    'issues',
+    'scope-sheet',
     'detail',
     'sheet',
     'search-empty',
     'search-results',
     'pairing',
-    'queue-dark',
+    'issues-dark',
   ])
   for (const row of report) {
     expect(row.hOverflow, `${row.label} horizontal overflow`).toBe(0)
@@ -146,14 +172,17 @@ test('viewport geometry at 402×874', async ({ page }) => {
     expect(row.inputsUnder16, `${row.label} inputs under 16px`).toEqual([])
     expect(row.hasEscape, `${row.label} visible escape`).toBe(true)
   }
-  const queue = report.find((r) => r.label === 'queue')
-  expect(queue, 'queue measurement').toBeTruthy()
-  expect(queue!.rowsPerScreen, 'queue rows per screen').toBeGreaterThanOrEqual(12)
+  const issues = report.find((r) => r.label === 'issues')
+  expect(issues, 'issues measurement').toBeTruthy()
+  expect(issues!.rowsPerScreen, 'issues rows per screen').toBeGreaterThanOrEqual(12)
+  // GDK-885: opening the picker must not cost the list its density.
+  const afterSheet = report.find((r) => r.label === 'issues-dark')
+  expect(afterSheet!.rowsPerScreen, 'rows per screen after the picker closed').toBeGreaterThanOrEqual(12)
 })
 
 test('no visible button is under 44pt', async ({ page }) => {
   // GDK-867: 44pt floor on every visible button. FAIL-first on unmodified
-  // source (2026-08-25): failed at queue with buttonsUnder44pt=1
+  // source (2026-08-25): failed at the list screen with buttonsUnder44pt=1
   // [{h:32, cls:"fresh"}] (first screen; the rest were not reached). The
   // four 32pt chips shared --spacing-control-sm as a tap size; the owner
   // is now button { min-height: var(--spacing-control) } in app.css.
