@@ -1,0 +1,1190 @@
+{
+  "stamp": "2026-08-25",
+  "captured_at": "2026-08-25T06:57:34Z",
+  "repo": "midagedev/gadak",
+  "releases": [
+    {
+      "tag": "v0.17.3",
+      "published_at": "2026-08-25T02:15:49Z",
+      "assets": [
+        {
+          "name": "checksums.txt",
+          "download_count": 3
+        },
+        {
+          "name": "Gadak-0.17.3-arm64.dmg",
+          "download_count": 2
+        },
+        {
+          "name": "Gadak-0.17.3-windows-arm64.zip",
+          "download_count": 0
+        },
+        {
+          "name": "Gadak-0.17.3-windows-x64.zip",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.17.3_darwin_amd64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.17.3_darwin_arm64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.17.3_linux_amd64.tar.gz",
+          "download_count": 2
+        },
+        {
+          "name": "gadak_0.17.3_linux_arm64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.17.3_windows_amd64.zip",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.17.3_windows_arm64.zip",
+          "download_count": 0
+        }
+      ],
+      "downloads_total": 7
+    },
+    {
+      "tag": "v0.17.2",
+      "published_at": "2026-08-24T16:06:54Z",
+      "assets": [
+        {
+          "name": "checksums.txt",
+          "download_count": 3
+        },
+        {
+          "name": "Gadak-0.17.2-arm64.dmg",
+          "download_count": 0
+        },
+        {
+          "name": "Gadak-0.17.2-windows-arm64.zip",
+          "download_count": 0
+        },
+        {
+          "name": "Gadak-0.17.2-windows-x64.zip",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.17.2_darwin_amd64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.17.2_darwin_arm64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.17.2_linux_amd64.tar.gz",
+          "download_count": 2
+        },
+        {
+          "name": "gadak_0.17.2_linux_arm64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.17.2_windows_amd64.zip",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.17.2_windows_arm64.zip",
+          "download_count": 0
+        }
+      ],
+      "downloads_total": 5
+    },
+    {
+      "tag": "v0.17.1",
+      "published_at": "2026-08-23T23:46:18Z",
+      "assets": [
+        {
+          "name": "checksums.txt",
+          "download_count": 5
+        },
+        {
+          "name": "Gadak-0.17.1-arm64.dmg",
+          "download_count": 6
+        },
+        {
+          "name": "Gadak-0.17.1-windows-arm64.zip",
+          "download_count": 0
+        },
+        {
+          "name": "Gadak-0.17.1-windows-x64.zip",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.17.1_darwin_amd64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.17.1_darwin_arm64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.17.1_linux_amd64.tar.gz",
+          "download_count": 4
+        },
+        {
+          "name": "gadak_0.17.1_linux_arm64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.17.1_windows_amd64.zip",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.17.1_windows_arm64.zip",
+          "download_count": 0
+        }
+      ],
+      "downloads_total": 15
+    },
+    {
+      "tag": "v0.17.0",
+      "published_at": "2026-08-23T09:00:05Z",
+      "assets": [
+        {
+          "name": "checksums.txt",
+          "download_count": 7
+        },
+        {
+          "name": "Gadak-0.17.0-arm64.dmg",
+          "download_count": 2
+        },
+        {
+          "name": "Gadak-0.17.0-windows-arm64.zip",
+          "download_count": 0
+        },
+        {
+          "name": "Gadak-0.17.0-windows-x64.zip",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.17.0_darwin_amd64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.17.0_darwin_arm64.tar.gz",
+          "download_count": 2
+        },
+        {
+          "name": "gadak_0.17.0_linux_amd64.tar.gz",
+          "download_count": 4
+        },
+        {
+          "name": "gadak_0.17.0_linux_arm64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.17.0_windows_amd64.zip",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.17.0_windows_arm64.zip",
+          "download_count": 0
+        }
+      ],
+      "downloads_total": 15
+    },
+    {
+      "tag": "v0.16.1",
+      "published_at": "2026-08-20T04:45:49Z",
+      "assets": [
+        {
+          "name": "checksums.txt",
+          "download_count": 7
+        },
+        {
+          "name": "Gadak-0.16.1-arm64.dmg",
+          "download_count": 3
+        },
+        {
+          "name": "Gadak-0.16.1-windows-arm64.zip",
+          "download_count": 0
+        },
+        {
+          "name": "Gadak-0.16.1-windows-x64.zip",
+          "download_count": 1
+        },
+        {
+          "name": "gadak_0.16.1_darwin_amd64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.16.1_darwin_arm64.tar.gz",
+          "download_count": 1
+        },
+        {
+          "name": "gadak_0.16.1_linux_amd64.tar.gz",
+          "download_count": 4
+        },
+        {
+          "name": "gadak_0.16.1_linux_arm64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.16.1_windows_amd64.zip",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.16.1_windows_arm64.zip",
+          "download_count": 0
+        }
+      ],
+      "downloads_total": 16
+    },
+    {
+      "tag": "v0.16.0",
+      "published_at": "2026-08-19T13:50:53Z",
+      "assets": [
+        {
+          "name": "checksums.txt",
+          "download_count": 4
+        },
+        {
+          "name": "Gadak-0.16.0-arm64.dmg",
+          "download_count": 2
+        },
+        {
+          "name": "Gadak-0.16.0-windows-arm64.zip",
+          "download_count": 1
+        },
+        {
+          "name": "Gadak-0.16.0-windows-x64.zip",
+          "download_count": 4
+        },
+        {
+          "name": "gadak_0.16.0_darwin_amd64.tar.gz",
+          "download_count": 1
+        },
+        {
+          "name": "gadak_0.16.0_darwin_arm64.tar.gz",
+          "download_count": 1
+        },
+        {
+          "name": "gadak_0.16.0_linux_amd64.tar.gz",
+          "download_count": 3
+        },
+        {
+          "name": "gadak_0.16.0_linux_arm64.tar.gz",
+          "download_count": 1
+        },
+        {
+          "name": "gadak_0.16.0_windows_amd64.zip",
+          "download_count": 1
+        },
+        {
+          "name": "gadak_0.16.0_windows_arm64.zip",
+          "download_count": 1
+        }
+      ],
+      "downloads_total": 19
+    },
+    {
+      "tag": "v0.15.2",
+      "published_at": "2026-08-17T14:55:24Z",
+      "assets": [
+        {
+          "name": "checksums.txt",
+          "download_count": 22
+        },
+        {
+          "name": "Gadak-0.15.2-arm64.dmg",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.15.2_darwin_amd64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.15.2_darwin_arm64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.15.2_linux_amd64.tar.gz",
+          "download_count": 13
+        },
+        {
+          "name": "gadak_0.15.2_linux_arm64.tar.gz",
+          "download_count": 2
+        },
+        {
+          "name": "gadak_0.15.2_windows_amd64.zip",
+          "download_count": 2
+        },
+        {
+          "name": "gadak_0.15.2_windows_arm64.zip",
+          "download_count": 1
+        }
+      ],
+      "downloads_total": 40
+    },
+    {
+      "tag": "v0.15.1",
+      "published_at": "2026-08-17T13:03:29Z",
+      "assets": [
+        {
+          "name": "checksums.txt",
+          "download_count": 0
+        },
+        {
+          "name": "Gadak-0.15.1-arm64.dmg",
+          "download_count": 2
+        },
+        {
+          "name": "gadak_0.15.1_darwin_amd64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.15.1_darwin_arm64.tar.gz",
+          "download_count": 1
+        },
+        {
+          "name": "gadak_0.15.1_linux_amd64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.15.1_linux_arm64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.15.1_windows_amd64.zip",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.15.1_windows_arm64.zip",
+          "download_count": 0
+        }
+      ],
+      "downloads_total": 3
+    },
+    {
+      "tag": "v0.15.0",
+      "published_at": "2026-08-17T07:43:23Z",
+      "assets": [
+        {
+          "name": "checksums.txt",
+          "download_count": 0
+        },
+        {
+          "name": "Gadak-0.15.0-arm64.dmg",
+          "download_count": 2
+        },
+        {
+          "name": "gadak_0.15.0_darwin_amd64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.15.0_darwin_arm64.tar.gz",
+          "download_count": 1
+        },
+        {
+          "name": "gadak_0.15.0_linux_amd64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.15.0_linux_arm64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.15.0_windows_amd64.zip",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.15.0_windows_arm64.zip",
+          "download_count": 0
+        }
+      ],
+      "downloads_total": 3
+    },
+    {
+      "tag": "v0.14.2",
+      "published_at": "2026-08-16T03:35:18Z",
+      "assets": [
+        {
+          "name": "checksums.txt",
+          "download_count": 0
+        },
+        {
+          "name": "Gadak-0.14.2-arm64.dmg",
+          "download_count": 1
+        },
+        {
+          "name": "gadak_0.14.2_darwin_amd64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.14.2_darwin_arm64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.14.2_linux_amd64.tar.gz",
+          "download_count": 1
+        },
+        {
+          "name": "gadak_0.14.2_linux_arm64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.14.2_windows_amd64.zip",
+          "download_count": 5
+        },
+        {
+          "name": "gadak_0.14.2_windows_arm64.zip",
+          "download_count": 0
+        }
+      ],
+      "downloads_total": 7
+    },
+    {
+      "tag": "v0.14.1",
+      "published_at": "2026-08-15T09:14:02Z",
+      "assets": [
+        {
+          "name": "checksums.txt",
+          "download_count": 0
+        },
+        {
+          "name": "Gadak-0.14.1-arm64.dmg",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.14.1_darwin_amd64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.14.1_darwin_arm64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.14.1_linux_amd64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.14.1_linux_arm64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.14.1_windows_amd64.zip",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.14.1_windows_arm64.zip",
+          "download_count": 0
+        }
+      ],
+      "downloads_total": 0
+    },
+    {
+      "tag": "v0.14.0",
+      "published_at": "2026-08-14T16:05:01Z",
+      "assets": [
+        {
+          "name": "checksums.txt",
+          "download_count": 0
+        },
+        {
+          "name": "Gadak-0.14.0-arm64.dmg",
+          "download_count": 1
+        },
+        {
+          "name": "gadak-desktop-darwin-arm64.zip",
+          "download_count": 1
+        },
+        {
+          "name": "gadak_0.14.0_darwin_amd64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.14.0_darwin_arm64.tar.gz",
+          "download_count": 1
+        },
+        {
+          "name": "gadak_0.14.0_linux_amd64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.14.0_linux_arm64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.14.0_windows_amd64.zip",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.14.0_windows_arm64.zip",
+          "download_count": 0
+        },
+        {
+          "name": "SHA256SUMS",
+          "download_count": 2
+        }
+      ],
+      "downloads_total": 5
+    },
+    {
+      "tag": "v0.13.0",
+      "published_at": "2026-08-14T13:57:54Z",
+      "assets": [
+        {
+          "name": "checksums.txt",
+          "download_count": 1
+        },
+        {
+          "name": "Gadak-0.13.0-arm64.dmg",
+          "download_count": 0
+        },
+        {
+          "name": "gadak-desktop-darwin-arm64.zip",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.13.0_darwin_amd64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.13.0_darwin_arm64.tar.gz",
+          "download_count": 2
+        },
+        {
+          "name": "gadak_0.13.0_linux_amd64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.13.0_linux_arm64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.13.0_windows_amd64.zip",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.13.0_windows_arm64.zip",
+          "download_count": 0
+        },
+        {
+          "name": "SHA256SUMS",
+          "download_count": 0
+        }
+      ],
+      "downloads_total": 3
+    },
+    {
+      "tag": "v0.12.0",
+      "published_at": "2026-08-13T11:02:32Z",
+      "assets": [
+        {
+          "name": "checksums.txt",
+          "download_count": 0
+        },
+        {
+          "name": "Gadak-0.12.0-arm64.dmg",
+          "download_count": 2
+        },
+        {
+          "name": "gadak-desktop-darwin-arm64.zip",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.12.0_darwin_amd64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.12.0_darwin_arm64.tar.gz",
+          "download_count": 1
+        },
+        {
+          "name": "gadak_0.12.0_linux_amd64.tar.gz",
+          "download_count": 1
+        },
+        {
+          "name": "gadak_0.12.0_linux_arm64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.12.0_windows_amd64.zip",
+          "download_count": 0
+        },
+        {
+          "name": "gadak_0.12.0_windows_arm64.zip",
+          "download_count": 0
+        },
+        {
+          "name": "SHA256SUMS",
+          "download_count": 0
+        }
+      ],
+      "downloads_total": 4
+    },
+    {
+      "tag": "v0.11.0",
+      "published_at": "2026-08-12T10:03:27Z",
+      "assets": [
+        {
+          "name": "checksums.txt",
+          "download_count": 0
+        },
+        {
+          "name": "Scry-0.11.0-arm64.dmg",
+          "download_count": 0
+        },
+        {
+          "name": "scry-desktop-darwin-arm64.zip",
+          "download_count": 1
+        },
+        {
+          "name": "scry_0.11.0_darwin_amd64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.11.0_darwin_arm64.tar.gz",
+          "download_count": 2
+        },
+        {
+          "name": "scry_0.11.0_linux_amd64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.11.0_linux_arm64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.11.0_windows_amd64.zip",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.11.0_windows_arm64.zip",
+          "download_count": 0
+        },
+        {
+          "name": "SHA256SUMS",
+          "download_count": 1
+        }
+      ],
+      "downloads_total": 4
+    },
+    {
+      "tag": "v0.10.0",
+      "published_at": "2026-08-07T12:35:59Z",
+      "assets": [
+        {
+          "name": "checksums.txt",
+          "download_count": 2
+        },
+        {
+          "name": "Scry-0.10.0-arm64.dmg",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.10.0_darwin_amd64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.10.0_darwin_arm64.tar.gz",
+          "download_count": 1
+        },
+        {
+          "name": "scry_0.10.0_linux_amd64.tar.gz",
+          "download_count": 2
+        },
+        {
+          "name": "scry_0.10.0_linux_arm64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.10.0_windows_amd64.zip",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.10.0_windows_arm64.zip",
+          "download_count": 0
+        }
+      ],
+      "downloads_total": 5
+    },
+    {
+      "tag": "v0.9.0",
+      "published_at": "2026-08-06T14:21:42Z",
+      "assets": [
+        {
+          "name": "checksums.txt",
+          "download_count": 0
+        },
+        {
+          "name": "Scry-0.9.0-arm64.dmg",
+          "download_count": 2
+        },
+        {
+          "name": "scry_0.9.0_darwin_amd64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.9.0_darwin_arm64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.9.0_linux_amd64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.9.0_linux_arm64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.9.0_windows_amd64.zip",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.9.0_windows_arm64.zip",
+          "download_count": 0
+        }
+      ],
+      "downloads_total": 2
+    },
+    {
+      "tag": "v0.8.0",
+      "published_at": "2026-08-06T09:08:22Z",
+      "assets": [
+        {
+          "name": "checksums.txt",
+          "download_count": 0
+        },
+        {
+          "name": "Scry-0.8.0-arm64.dmg",
+          "download_count": 1
+        },
+        {
+          "name": "scry_0.8.0_darwin_amd64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.8.0_darwin_arm64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.8.0_linux_amd64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.8.0_linux_arm64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.8.0_windows_amd64.zip",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.8.0_windows_arm64.zip",
+          "download_count": 0
+        }
+      ],
+      "downloads_total": 1
+    },
+    {
+      "tag": "v0.7.0",
+      "published_at": "2026-08-06T08:10:47Z",
+      "assets": [
+        {
+          "name": "checksums.txt",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.7.0_darwin_amd64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.7.0_darwin_arm64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.7.0_linux_amd64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.7.0_linux_arm64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.7.0_windows_amd64.zip",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.7.0_windows_arm64.zip",
+          "download_count": 0
+        }
+      ],
+      "downloads_total": 0
+    },
+    {
+      "tag": "v0.6.0",
+      "published_at": "2026-08-05T23:29:44Z",
+      "assets": [
+        {
+          "name": "checksums.txt",
+          "download_count": 1
+        },
+        {
+          "name": "scry_0.6.0_darwin_amd64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.6.0_darwin_arm64.tar.gz",
+          "download_count": 3
+        },
+        {
+          "name": "scry_0.6.0_linux_amd64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.6.0_linux_arm64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.6.0_windows_amd64.zip",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.6.0_windows_arm64.zip",
+          "download_count": 0
+        }
+      ],
+      "downloads_total": 4
+    },
+    {
+      "tag": "v0.5.0",
+      "published_at": "2026-08-05T10:43:06Z",
+      "assets": [
+        {
+          "name": "checksums.txt",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.5.0_darwin_amd64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.5.0_darwin_arm64.tar.gz",
+          "download_count": 1
+        },
+        {
+          "name": "scry_0.5.0_linux_amd64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.5.0_linux_arm64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.5.0_windows_amd64.zip",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.5.0_windows_arm64.zip",
+          "download_count": 0
+        }
+      ],
+      "downloads_total": 1
+    },
+    {
+      "tag": "v0.4.0",
+      "published_at": "2026-08-05T09:48:23Z",
+      "assets": [
+        {
+          "name": "checksums.txt",
+          "download_count": 1
+        },
+        {
+          "name": "scry_0.4.0_darwin_amd64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.4.0_darwin_arm64.tar.gz",
+          "download_count": 1
+        },
+        {
+          "name": "scry_0.4.0_linux_amd64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.4.0_linux_arm64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.4.0_windows_amd64.zip",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.4.0_windows_arm64.zip",
+          "download_count": 0
+        }
+      ],
+      "downloads_total": 2
+    },
+    {
+      "tag": "v0.3.0",
+      "published_at": "2026-08-05T08:38:14Z",
+      "assets": [
+        {
+          "name": "checksums.txt",
+          "download_count": 1
+        },
+        {
+          "name": "scry_0.3.0_darwin_amd64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.3.0_darwin_arm64.tar.gz",
+          "download_count": 1
+        },
+        {
+          "name": "scry_0.3.0_linux_amd64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.3.0_linux_arm64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.3.0_windows_amd64.zip",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.3.0_windows_arm64.zip",
+          "download_count": 0
+        }
+      ],
+      "downloads_total": 2
+    },
+    {
+      "tag": "v0.2.1",
+      "published_at": "2026-08-05T06:55:23Z",
+      "assets": [
+        {
+          "name": "checksums.txt",
+          "download_count": 1
+        },
+        {
+          "name": "scry_0.2.1_darwin_amd64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.2.1_darwin_arm64.tar.gz",
+          "download_count": 3
+        },
+        {
+          "name": "scry_0.2.1_linux_amd64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.2.1_linux_arm64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.2.1_windows_amd64.zip",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.2.1_windows_arm64.zip",
+          "download_count": 0
+        }
+      ],
+      "downloads_total": 4
+    },
+    {
+      "tag": "v0.2.0",
+      "published_at": "2026-08-05T05:15:00Z",
+      "assets": [
+        {
+          "name": "checksums.txt",
+          "download_count": 2
+        },
+        {
+          "name": "scry_0.2.0_darwin_amd64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.2.0_darwin_arm64.tar.gz",
+          "download_count": 2
+        },
+        {
+          "name": "scry_0.2.0_linux_amd64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.2.0_linux_arm64.tar.gz",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.2.0_windows_amd64.zip",
+          "download_count": 0
+        },
+        {
+          "name": "scry_0.2.0_windows_arm64.zip",
+          "download_count": 0
+        }
+      ],
+      "downloads_total": 4
+    }
+  ],
+  "downloads_total": 171,
+  "traffic": {
+    "clones": {
+      "count": 4632,
+      "uniques": 417,
+      "days": [
+        {
+          "timestamp": "2026-08-10T00:00:00Z",
+          "count": 11,
+          "uniques": 11
+        },
+        {
+          "timestamp": "2026-08-11T00:00:00Z",
+          "count": 14,
+          "uniques": 8
+        },
+        {
+          "timestamp": "2026-08-12T00:00:00Z",
+          "count": 9,
+          "uniques": 3
+        },
+        {
+          "timestamp": "2026-08-13T00:00:00Z",
+          "count": 27,
+          "uniques": 16
+        },
+        {
+          "timestamp": "2026-08-14T00:00:00Z",
+          "count": 338,
+          "uniques": 67
+        },
+        {
+          "timestamp": "2026-08-15T00:00:00Z",
+          "count": 154,
+          "uniques": 33
+        },
+        {
+          "timestamp": "2026-08-16T00:00:00Z",
+          "count": 129,
+          "uniques": 19
+        },
+        {
+          "timestamp": "2026-08-17T00:00:00Z",
+          "count": 239,
+          "uniques": 34
+        },
+        {
+          "timestamp": "2026-08-18T00:00:00Z",
+          "count": 436,
+          "uniques": 48
+        },
+        {
+          "timestamp": "2026-08-19T00:00:00Z",
+          "count": 783,
+          "uniques": 66
+        },
+        {
+          "timestamp": "2026-08-20T00:00:00Z",
+          "count": 569,
+          "uniques": 73
+        },
+        {
+          "timestamp": "2026-08-21T00:00:00Z",
+          "count": 668,
+          "uniques": 60
+        },
+        {
+          "timestamp": "2026-08-22T00:00:00Z",
+          "count": 569,
+          "uniques": 67
+        },
+        {
+          "timestamp": "2026-08-23T00:00:00Z",
+          "count": 686,
+          "uniques": 79
+        }
+      ]
+    },
+    "views": {
+      "count": 765,
+      "uniques": 144,
+      "days": [
+        {
+          "timestamp": "2026-08-10T00:00:00Z",
+          "count": 54,
+          "uniques": 5
+        },
+        {
+          "timestamp": "2026-08-11T00:00:00Z",
+          "count": 7,
+          "uniques": 3
+        },
+        {
+          "timestamp": "2026-08-12T00:00:00Z",
+          "count": 10,
+          "uniques": 6
+        },
+        {
+          "timestamp": "2026-08-13T00:00:00Z",
+          "count": 9,
+          "uniques": 2
+        },
+        {
+          "timestamp": "2026-08-14T00:00:00Z",
+          "count": 234,
+          "uniques": 76
+        },
+        {
+          "timestamp": "2026-08-15T00:00:00Z",
+          "count": 24,
+          "uniques": 9
+        },
+        {
+          "timestamp": "2026-08-16T00:00:00Z",
+          "count": 45,
+          "uniques": 5
+        },
+        {
+          "timestamp": "2026-08-17T00:00:00Z",
+          "count": 60,
+          "uniques": 16
+        },
+        {
+          "timestamp": "2026-08-18T00:00:00Z",
+          "count": 21,
+          "uniques": 11
+        },
+        {
+          "timestamp": "2026-08-19T00:00:00Z",
+          "count": 61,
+          "uniques": 20
+        },
+        {
+          "timestamp": "2026-08-20T00:00:00Z",
+          "count": 94,
+          "uniques": 8
+        },
+        {
+          "timestamp": "2026-08-21T00:00:00Z",
+          "count": 10,
+          "uniques": 7
+        },
+        {
+          "timestamp": "2026-08-22T00:00:00Z",
+          "count": 46,
+          "uniques": 11
+        },
+        {
+          "timestamp": "2026-08-23T00:00:00Z",
+          "count": 90,
+          "uniques": 12
+        }
+      ]
+    }
+  },
+  "errors": []
+}
