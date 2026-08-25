@@ -3,7 +3,7 @@ package main
 // gadak pairing — device tokens for the home serve's gated surfaces. An
 // origin-scope token rides the origin passthrough (GDK-433): the remote
 // side consumes the mint output with `gadak init --pairing-code`. A
-// serve-scope token (GDK-797) opens the mirror REST allowlist a phone
+// serve-scope token (GDK-797) opens the mirror REST a phone
 // companion reads — bootstrap, detail, search, feed, and the
 // comment/transition writes — and nothing else. While any active token
 // exists, both surfaces require their Bearer.
@@ -96,7 +96,7 @@ func parseTTL(s string) (time.Duration, error) {
 
 // pairingDir is the profile directory the token store lives in. Pairing
 // protects both gated surfaces of a home serve — the origin passthrough
-// (standalone, GDK-433) and the mirror REST allowlist a phone companion
+// (standalone, GDK-433) and the mirror REST a phone companion
 // reads (GDK-797) — so both workspace kinds may mint; what stays closed
 // for a connected workspace is the passthrough itself (origin_rest.go
 // 404s it). A workspace that is itself paired away cannot mint: its home
@@ -138,7 +138,7 @@ func pairingMint(args []string) error {
 	// the 90-day default has one owner.
 	ttlDefault := fmt.Sprintf("%dd", int(defaultPairingTTL/(24*time.Hour)))
 	label := fs.String("label", "", "device name shown in `gadak pairing list` (required)")
-	scope := fs.String("scope", "origin", "what the token opens: origin = origin passthrough for a paired gadak (default), serve = mirror REST allowlist for a phone companion")
+	scope := fs.String("scope", "origin", "what the token opens: origin = origin passthrough for a paired gadak (default), serve = the mirror REST for a paired client (a phone companion)")
 	ttlFlag := fs.String("ttl", ttlDefault, "token lifetime: <N><d|h|m|s>, e.g. 90d or 12h")
 	endpoint := fs.String("endpoint", "", "URL remote devices reach this serve at (default: this machine's live serve address)")
 	asJSON := fs.Bool("json", false, "emit JSON")
@@ -151,7 +151,7 @@ func pairingMint(args []string) error {
 	switch strings.TrimSpace(*scope) {
 	case pairing.ScopeOrigin, pairing.ScopeServe:
 	default:
-		return fmt.Errorf("unknown --scope %q: want origin (a paired gadak riding the passthrough) or serve (a phone companion reading the mirror allowlist)", strings.TrimSpace(*scope))
+		return fmt.Errorf("unknown --scope %q: want origin (a paired gadak riding the passthrough) or serve (a paired client reading the mirror REST)", strings.TrimSpace(*scope))
 	}
 	ttl, err := parseTTL(*ttlFlag)
 	if err != nil {

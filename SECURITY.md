@@ -184,26 +184,26 @@ token authenticates, and there are exactly two of those:
 - **The origin passthrough** (`/api/v1/origin`, standalone workspaces): raw
   REST for paired gadak machines and this machine's own routed writes
   (`internal/server/origin_rest.go`).
-- **The mirror REST allowlist** (any workspace kind): the reads a phone
-  companion needs — `auth/me`, `bootstrap`, `delta`, `search`, `jql`,
-  `feed`, `views`, `{key}/detail`, `{key}/transitions` — plus the `comment`
-  and `transition` writes, which ride the same write-through path as the
-  web UI; no new write API opens (`internal/server/mirror_gate.go`).
+- **The mirror REST** (any workspace kind): everything the local web UI
+  can call — a serve-scope token opens the whole surface, not a
+  path-by-path allowlist (`internal/server/mirror_gate.go`). Only the
+  origin passthrough stays origin-scope; non-API paths stay behind the
+  host guard.
 
 Each surface takes only its own scope: `gadak pairing mint --scope origin`
-(the default) rides the passthrough and is refused on the allowlist;
-`--scope serve` opens the allowlist and is refused on the passthrough
+(the default) rides the passthrough and is refused on the mirror REST;
+`--scope serve` opens the mirror REST and is refused on the passthrough
 (`403 scope_rejected` both ways). A leaked serve token cannot reach raw
 REST; a paired laptop cannot dump the mirror. Minting works on any
 workspace kind (GDK-798) — a connected home mints phone tokens for its
-allowlist, while its passthrough stays closed (404) regardless.
+mirror REST, while its passthrough stays closed (404) regardless.
 
 Once **any active pairing token exists**, both surfaces demand
 `Authorization: Bearer <token>`. There is no loopback exemption on the
 passthrough, because a tunnel arrives as loopback; while no active token
 exists, DNS-named Hosts stay behind the rebinding guard entirely
 (`403 forbidden_host`) and loopback behaves exactly as before. The
-allowlist gate speaks only for DNS-named Hosts: an `--allow-remote` bind
+mirror REST gate speaks only for DNS-named Hosts: an `--allow-remote` bind
 still publishes every issue the mirror holds to anyone who can reach the
 IP, exactly as the previous paragraph says. The serve stores SHA-256
 hashes only (`<profile>/pairing.json`, mode `0600`, same

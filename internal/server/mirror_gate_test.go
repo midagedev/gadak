@@ -17,12 +17,13 @@ import (
 	"github.com/midagedev/gadak/internal/pairing"
 )
 
-// The mirror REST allowlist gate (GDK-797). A DNS-named Host — the shape
-// `tailscale serve` forwards — may reach a fixed allowlist of mirror reads
-// plus the comment/transition writes, but only with a serve-scope Bearer.
-// Everything else about DNS hosts is unchanged: unpaired stays
-// forbidden_host, loopback and IP literals stay unauthenticated, and paths
-// outside the allowlist never leave the rebinding guard.
+// The mirror REST gate (GDK-883). A DNS-named Host — the shape
+// `tailscale serve` forwards — may reach the whole mirror REST (everything
+// the loopback web UI can call under issues/, auth/, dashboards/), but only
+// with a serve-scope Bearer. Everything else about DNS hosts is unchanged:
+// unpaired stays forbidden_host, loopback and IP literals stay
+// unauthenticated, the origin passthrough stays origin-scope, and non-API
+// paths never leave the rebinding guard.
 //
 // These tests seed the token store by writing pairing.json directly. In
 // production that file is always written by another process (the
@@ -84,19 +85,31 @@ func TestMirrorGateServeBearerOpensBootstrap(t *testing.T) {
 	}
 }
 
-// ② credential/ stays behind the rebinding guard even with a valid serve
-// token: the allowlist is the whole exemption (regression pin — 403 today
-// too, back when nothing was exempt).
-func TestMirrorGateKeepsCredentialForbidden(t *testing.T) {
-	h, cfg := standaloneServer(t)
+// ② GET credential/ is mirror REST: a serve Bearer returns the hinted
+// document, never the stored token.
+// 2026-08-25 — GDK-883 (product owner): serve scope opens the whole mirror
+// REST; only the passthrough and non-API paths stay closed.
+func TestMirrorGateCredentialHintedNoToken(t *testing.T) {
+	_, h, cfg := mirrorWritableServer(t)
+	stored := cfg.Token
+	if stored == "" {
+		t.Fatal("fixture credential empty")
+	}
 	token := seedStore(t, cfg.Directory(), seedToken{"phone", "serve"})[0]
 	rec := getWithHost(t, h, "/api/v1/issues/credential/", bearer(token), mirrorHost)
-	if rec.Code != http.StatusForbidden || !strings.Contains(rec.Body.String(), "forbidden_host") {
-		t.Fatalf("credential via DNS host: %d %s; want 403 forbidden_host", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusOK {
+		t.Fatalf("serve bearer, DNS host, credential: %d; want 200", rec.Code)
+	}
+	got := decode[credentialDoc](t, rec)
+	if !got.Configured || got.TokenHint == "" {
+		t.Fatalf("hinted document missing: configured=%v hint_empty=%v", got.Configured, got.TokenHint == "")
+	}
+	if strings.Contains(rec.Body.String(), stored) {
+		t.Fatal("GET credential body contained the stored token")
 	}
 }
 
-// ③ An allowlist path on a DNS Host with no Bearer is a pairing rejection,
+// ③ A mirror-REST path on a DNS Host with no Bearer is a pairing rejection,
 // not a silent pass: the guard stepped aside, so the gate must speak.
 func TestMirrorGateDemandsBearer(t *testing.T) {
 	h, cfg := standaloneServer(t)
@@ -122,7 +135,7 @@ func TestMirrorGateLoopbackUnchanged(t *testing.T) {
 	}
 }
 
-// ⑤ No active tokens: a DNS Host gets nothing, allowlist or not. The
+// ⑤ No active tokens: a DNS Host gets nothing, mirror REST or not. The
 // exemption exists only while the gate can speak (regression pin — today's
 // answer for every DNS-named Host).
 func TestMirrorGateUnpairedDNSHostStaysForbidden(t *testing.T) {
@@ -146,10 +159,10 @@ func TestMirrorGateScopeBoundaries(t *testing.T) {
 	toks := seedStore(t, cfg.Directory(), seedToken{"phone", "serve"}, seedToken{"laptop", "origin"})
 	serve, laptop := toks[0], toks[1]
 
-	// origin-scope on the mirror allowlist: authenticated, not authorized.
+	// origin-scope on the mirror REST: authenticated, not authorized.
 	rec := getWithHost(t, h, "/api/v1/issues/bootstrap/", bearer(laptop), mirrorHost)
 	if rec.Code != http.StatusForbidden || !strings.Contains(rec.Body.String(), "scope_rejected") {
-		t.Fatalf("origin token on mirror allowlist: %d %s; want 403 scope_rejected", rec.Code, rec.Body.String())
+		t.Fatalf("origin token on mirror REST: %d %s; want 403 scope_rejected", rec.Code, rec.Body.String())
 	}
 
 	// serve-scope on the origin passthrough (loopback — that gate has never
@@ -213,10 +226,12 @@ func sendWithHost(t *testing.T, h http.Handler, method, path, body string, heade
 	return rec
 }
 
-// ⑦ The allowlist itself, as a table: every row a paired phone needs, and
-// the surfaces that must stay behind forbidden_host. On the connected
-// write fixture so comment and transition complete a real origin round
-// trip, not just a routing pass.
+// ⑦ The open surface, as a table: the whole mirror REST a serve token
+// reaches, and the two things that stay closed. On the connected write
+// fixture so comment and transition complete a real origin round trip,
+// not just a routing pass.
+// 2026-08-25 — GDK-883 (product owner): serve scope opens the whole mirror
+// REST; only the passthrough and non-API paths stay closed.
 func TestMirrorAllowlistTable(t *testing.T) {
 	_, h, cfg := mirrorWritableServer(t)
 	token := seedStore(t, cfg.Directory(), seedToken{"phone", "serve"})[0]
@@ -235,6 +250,12 @@ func TestMirrorAllowlistTable(t *testing.T) {
 		{"GET", "/api/v1/issues/NMB-1/transitions/", ""},
 		{"POST", "/api/v1/issues/NMB-1/comment/", `{"text":"from the phone"}`},
 		{"POST", "/api/v1/issues/NMB-1/transition/", `{"transition_id":"31"}`},
+		{"GET", "/api/v1/issues/pages/", ""},
+		{"GET", "/api/v1/dashboards/", ""},
+		{"GET", "/api/v1/issues/history/", ""},
+		{"GET", "/api/v1/issues/NMB-1/editmeta/", ""},
+		{"GET", "/api/v1/issues/credential/", ""},
+		{"GET", "/api/v1/issues/settings/", ""},
 	}
 	for _, row := range allowed {
 		rec := sendWithHost(t, h, row.method, row.path, row.body, bearer(token), mirrorHost)
@@ -243,24 +264,25 @@ func TestMirrorAllowlistTable(t *testing.T) {
 		}
 	}
 
-	forbidden := []struct{ method, path, body string }{
-		{"GET", "/api/v1/issues/credential/", ""},
-		{"PUT", "/api/v1/issues/credential/", `{"email":"x@y","token":"t"}`},
-		{"GET", "/api/v1/issues/settings/", ""},
-		{"PUT", "/api/v1/issues/onboarding/connect/", `{"site":"https://x","email":"x@y","token":"t"}`},
-		{"POST", "/api/v1/issues/sync/", ""},
-		{"POST", "/api/v1/issues/create/", `{}`},
-		{"GET", "/api/v1/dashboards/", ""},
-		{"POST", "/api/v1/issues/jql/emit/", `{"filters":{}}`},
-		{"GET", "/api/v1/issues/NMB-1/attachments/a-1/content/", ""},
-		{"GET", "/api/v1/issues/history/", ""},
-		{"GET", "/api/v1/issues/NMB-1/editmeta/", ""},
-		{"PUT", "/api/v1/issues/NMB-1/assignee/", `{"account_id":"acc-hc"}`},
+	// Closed surface: the origin passthrough (never serve-scope) and
+	// non-API paths (SPA, root config.json). Measured on this connected
+	// fixture: the passthrough 404s before pairingGate (same as
+	// TestOriginRESTConnectedIs404); PairedOriginHostExempt already
+	// stepped aside, so the answer is not forbidden_host. A standalone
+	// serve answers 403 scope_rejected (TestMirrorGateScopeBoundaries).
+	forbidden := []struct {
+		method, path, body string
+		code               int
+		err                string
+	}{
+		{"GET", origin.RESTPrefix + "/rest/api/3/myself", "", http.StatusNotFound, "not_found"},
+		{"GET", "/", "", http.StatusForbidden, "forbidden_host"},
+		{"GET", "/config.json", "", http.StatusForbidden, "forbidden_host"},
 	}
 	for _, row := range forbidden {
 		rec := sendWithHost(t, h, row.method, row.path, row.body, bearer(token), mirrorHost)
-		if rec.Code != http.StatusForbidden || !strings.Contains(rec.Body.String(), "forbidden_host") {
-			t.Errorf("%s %s: %d %s; want 403 forbidden_host", row.method, row.path, rec.Code, rec.Body.String())
+		if rec.Code != row.code || !strings.Contains(rec.Body.String(), row.err) {
+			t.Errorf("%s %s: %d %s; want %d %s", row.method, row.path, rec.Code, rec.Body.String(), row.code, row.err)
 		}
 	}
 }

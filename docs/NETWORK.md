@@ -125,11 +125,10 @@ without touching the others.
 A **phone companion** (GDK-797) is not a second workspace — it is a REST
 client of a home serve's mirror. `gadak pairing mint --label phone --scope
 serve` works on any workspace kind (a connected home included, GDK-798; its
-origin passthrough stays closed regardless): the token opens the mirror
-REST allowlist — the reads a board needs plus the comment/transition
-writes, which ride the same write-through path as the web UI — and is
-refused on the origin passthrough, exactly as an origin token is refused on
-the allowlist.
+origin passthrough stays closed regardless): the token opens the whole
+mirror REST — everything the local web UI can call — and is refused on the
+origin passthrough, exactly as an origin token is refused on the mirror.
+Non-API paths stay behind the host guard.
 
 ### Tailscale is the intended transport
 
@@ -155,11 +154,11 @@ stating precisely:
   serve's host guard rejects DNS hostnames that are not `localhost` unless
   a later gate authenticates the request. There are two such gates: the
   origin passthrough (an origin-scope token, for paired gadak machines) and
-  the mirror REST allowlist (a serve-scope token, for a phone companion).
-  A tailnet device with no token gets nothing; a paired laptop gets the
-  passthrough, not the mirror; a phone token gets the allowlist, not the
-  passthrough. The web UI and every other route stay closed behind the
-  host guard.
+  the mirror REST (a serve-scope token, for a phone companion — the whole
+  surface the local web UI can call). A tailnet device with no token gets
+  nothing; a paired laptop gets the passthrough, not the mirror; a phone
+  token gets the mirror REST, not the passthrough. The web UI and every
+  other non-API route stay closed behind the host guard.
 - **`--allow-remote` is the sharp edge.** Binding a non-loopback address
   opens the mirror's read and write API to whoever can reach the port, with
   no login in front of it — gadak deliberately has no account model

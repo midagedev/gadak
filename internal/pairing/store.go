@@ -1,6 +1,6 @@
 // Package pairing owns the device tokens that gate a serve's origin
 // passthrough once it is exposed beyond loopback (GDK-433), and — since
-// GDK-797 — the mirror REST allowlist a paired phone companion reads.
+// GDK-797/GDK-883 — the mirror REST a paired phone companion reads.
 //
 // Model: each paired device — a remote gadak binding this serve as its
 // workspace origin, or a phone app reading this serve's mirror — gets an
@@ -17,7 +17,7 @@
 // token exists, every request under origin.RESTPrefix must present a
 // valid Bearer token whose scope admits the passthrough (ScopeOrigin or
 // the home machine's ScopeLocalRouting), and a DNS-named Host inside the
-// server's mirror allowlist must present a ScopeServe one. With no active
+// server's mirror REST must present a ScopeServe one. With no active
 // token both surfaces behave exactly as before (implicit loopback trust,
 // decision 0003; DNS Hosts stay behind the rebinding guard). There is no
 // loopback bypass on the passthrough: a tailnet proxy reaches the serve
@@ -48,9 +48,9 @@ import (
 // scopes mattered.
 const ScopeOrigin = "origin"
 
-// ScopeServe is the phone-companion scope (GDK-797): the mirror REST
-// allowlist on this serve — bootstrap, detail, search, feed, and the
-// comment/transition writes — and nothing else. It deliberately cannot
+// ScopeServe is the paired-client scope (GDK-797, widened by GDK-883): the
+// whole mirror REST on this serve — everything the loopback web UI can
+// call — and nothing outside it. It deliberately cannot
 // ride the origin passthrough: a leaked serve token must not reach raw
 // issuetap/Jira REST, and a minted origin token must not dump the
 // mirror. The scopes are one-way doors by construction, not by caller
@@ -323,7 +323,7 @@ func Authorize(dir, bearer string, now time.Time) (Verdict, error) {
 // AuthorizeMeta is Authorize returning the matched token on accept. The
 // scope on that Meta is what lets a gate refuse a valid token minted for
 // another surface: a serve token must not ride the origin passthrough,
-// an origin token must not read the mirror allowlist. Meta is zero on
+// an origin token must not read the mirror REST. Meta is zero on
 // every non-accept verdict.
 func AuthorizeMeta(dir, bearer string, now time.Time) (Verdict, Meta, error) {
 	doc, err := loadCached(dir)
@@ -356,7 +356,7 @@ func AuthorizeMeta(dir, bearer string, now time.Time) (Verdict, Meta, error) {
 // machine's own writes), and the empty scope of tokens minted before
 // scopes mattered — those were origin tokens and must keep working.
 // serve is the deliberate exclusion: the phone scope opens the mirror
-// allowlist, not raw REST.
+// mirror REST, not raw REST.
 func AdmitsOrigin(scope string) bool {
 	switch scope {
 	case "", ScopeOrigin, ScopeLocalRouting:

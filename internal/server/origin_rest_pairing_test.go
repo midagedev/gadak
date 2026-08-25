@@ -228,8 +228,9 @@ func TestPairedHostExemptLetsTailnetNameThrough(t *testing.T) {
 		t.Fatalf("allowlisted path, origin token: %d %s; want 403 scope_rejected", rec.Code, rec.Body.String())
 	}
 	// Everything off both surfaces keeps the guard even with tokens minted —
-	// the tailnet name never opens the credential API or the UI.
-	rec = getWithHost(t, h, "/api/v1/issues/credential/", nil, tsHost["Host"])
+	// the tailnet name never opens the SPA. 2026-08-25 — GDK-883: credential/
+	// is now mirror REST; the closed pin is a non-API path.
+	rec = getWithHost(t, h, "/", nil, tsHost["Host"])
 	if rec.Code != http.StatusForbidden || !strings.Contains(rec.Body.String(), "forbidden_host") {
 		t.Fatalf("non-exempt path: %d %s; want 403 forbidden_host", rec.Code, rec.Body.String())
 	}

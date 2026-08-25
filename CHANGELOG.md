@@ -2,6 +2,14 @@
 
 <sub>English · <a href="CHANGELOG.ko.md">한국어</a></sub>
 
+## Unreleased
+
+- A serve-scope pairing token now opens the whole mirror REST — everything
+  the local web UI can call — instead of a 13-path allowlist. The origin
+  passthrough stays origin-scope, and non-API paths stay behind the host
+  guard. A leaked serve token cannot reach raw REST; a paired laptop cannot
+  dump the mirror ([GDK-883]).
+
 ## v0.17.3 — 2026-08-25
 
 - The phone app grew from a skeleton into the whole MVP loop, built on
@@ -1370,3 +1378,4 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-856]: https://gadak.dev/backlog/#/?ks=GDK-856
 [GDK-857]: https://gadak.dev/backlog/#/?ks=GDK-857
 [GDK-858]: https://gadak.dev/backlog/#/?ks=GDK-858
+[GDK-883]: https://gadak.dev/backlog/#/?ks=GDK-883

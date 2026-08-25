@@ -2,6 +2,14 @@
 
 <sub><a href="CHANGELOG.md">English</a> · 한국어 — 영문이 원본이며, 번역은 영문과 함께 갱신됩니다(마지막 동기화 2026-08-25).</sub>
 
+## Unreleased
+
+- serve 스코프 페어링 토큰이 이제 13개 경로 allowlist 대신 미러 REST 전체 —
+  로컬 웹 UI가 호출할 수 있는 모든 것 — 를 엽니다. origin 패스스루는 origin
+  스코프 전용으로 남고, API가 아닌 경로는 호스트 가드 뒤에 그대로 있습니다.
+  유출된 serve 토큰은 날 REST에 닿을 수 없고, 페어링된 노트북은 미러를
+  덤프할 수 없습니다 ([GDK-883]).
+
 ## v0.17.3 — 2026-08-25
 
 - 폰 앱이 골격에서 MVP 루프 전체로 자랐습니다 — 리서치 두 편(공식 Jira
@@ -1303,3 +1311,4 @@ HTTP·sync·에이전트 계약.
 [GDK-856]: https://gadak.dev/backlog/#/?ks=GDK-856
 [GDK-857]: https://gadak.dev/backlog/#/?ks=GDK-857
 [GDK-858]: https://gadak.dev/backlog/#/?ks=GDK-858
+[GDK-883]: https://gadak.dev/backlog/#/?ks=GDK-883

@@ -45,7 +45,7 @@ func buildServeMux(primaryAPI http.Handler, spa http.Handler, reg *workspace.Reg
 	// The outer guard needs the same Host exemptions as the Handler's own
 	// (GDK-443, GDK-797): both run on a paired request, and either one
 	// rejecting a tailnet MagicDNS Host kills the path — passthrough or
-	// mirror allowlist alike.
+	// mirror REST alike.
 	dirFn := func() string {
 		cfg, err := config.Load()
 		if err != nil || cfg == nil {

@@ -177,6 +177,10 @@ the transition *action* lives with compose and send.
   failed write rolls back. Frequent writes get no confirm dialog (§7 of
   UX_PRINCIPLES); the one destructive rarity, Unpair, uses the house two-step
   arm (tap → armed red "Tap again" → 3s auto-disarm).
+- **Serve-scope pairing.** A serve-scope token opens the whole mirror REST
+  (everything the local web UI can call); only the origin passthrough stays
+  origin-scope, and non-API paths stay behind the host guard. A leaked
+  serve token cannot reach raw REST; a paired laptop cannot dump the mirror.
 - **Transitions with required fields** are listed but disabled, labeled
   "needs fields — use desktop": honest states over silent omission.
 - **Errors** are `{"error": code}` → mapped copy; the body is never echoed.
