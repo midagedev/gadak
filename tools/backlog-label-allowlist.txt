@@ -66,12 +66,14 @@ fixture
 flake
 follow-up
 gate
+ghostty
 github
 go
 hierarchy
 hosted
 hosted-demo
 i18n
+ime
 in-app
 inbound
 inbound-persona
@@ -126,6 +128,7 @@ standalone
 storage
 sync
 target-0.16
+terminal
 test
 tests
 theme
