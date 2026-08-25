@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { IssueLite } from '../lib/types'
-  import { relTime, spineToken } from '../lib/domain'
-  import { app, openIssue } from '../lib/store.svelte'
+  import { folioDate, spineToken } from '../lib/domain'
+  import { openIssue } from '../lib/store.svelte'
 
   // One ledger row (DESIGN.md §3.4): the ink spine carries the status, the
   // summary is the sentence, the meta line is one truncating breath.
@@ -22,7 +22,7 @@
   <span class="text">
     <span class="line1">
       <span class="summary">{issue.summary}</span>
-      <span class="when">{relTime(issue.updated_at, app.now)}</span>
+      <span class="when">{folioDate(issue.updated_at)}</span>
     </span>
     <span class="line2">
       <span class="key">{issue.issue_key}</span>

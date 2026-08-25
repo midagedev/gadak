@@ -474,6 +474,22 @@ export function mergeSearch(local: IssueLite[], serverKeys: string[], all: Issue
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
+function calendarLabel(d: Date): string {
+  return `${MONTHS[d.getMonth()]} ${d.getDate()}`
+}
+
+/**
+ * Right-hand folio on a ledger row: calendar only (`Aug 12`).
+ * `relTime` stays the recency chip (sync age, comments); a list of mixed
+ * ages must not switch grammar at the 7-day step.
+ */
+export function folioDate(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const t = new Date(iso)
+  if (isNaN(t.getTime())) return ''
+  return calendarLabel(t)
+}
+
 /** Compact relative time: now / 5m / 3h / 2d / Aug 12. Bad input → ''. */
 export function relTime(iso: string | null | undefined, now: Date = new Date()): string {
   if (!iso) return ''
@@ -484,7 +500,7 @@ export function relTime(iso: string | null | undefined, now: Date = new Date()):
   if (sec < 3600) return `${Math.floor(sec / 60)}m`
   if (sec < 86400) return `${Math.floor(sec / 3600)}h`
   if (sec < 7 * 86400) return `${Math.floor(sec / 86400)}d`
-  return `${MONTHS[t.getMonth()]} ${t.getDate()}`
+  return calendarLabel(t)
 }
 
 /** Status token for the ink spine: reopened rows override their category. */

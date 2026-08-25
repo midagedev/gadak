@@ -211,3 +211,61 @@ describe('GDK-867 tap floor owner', () => {
     }
   })
 })
+
+describe('GDK-933 writes-off is one surface', () => {
+  const detail = read('screens/Detail.svelte')
+  const styles = detail.slice(detail.indexOf('<style>'))
+
+  it('disables the comment field when writes are off', () => {
+    const input = detail.slice(detail.indexOf('<input'), detail.indexOf('placeholder="Comment…"'))
+    expect(input).toMatch(/disabled=\{writesOff\}/)
+  })
+
+  it('disables Send when writes are off, not only when the field is empty', () => {
+    const send = detail.slice(detail.indexOf('class="send"'), detail.indexOf('class="send"') + 280)
+    expect(send).toMatch(/disabled=\{[^}]*writesOff/)
+  })
+
+  it('fades the composer with the same opacity the status row already uses', () => {
+    expect(detail).toMatch(/class:off=\{writesOff\}/)
+    expect(styles).toMatch(/\.status:disabled\s*\{[^}]*opacity:\s*0\.45/)
+    expect(styles).toMatch(/\.composer\.off\s*\{[^}]*opacity:\s*0\.45/)
+  })
+
+  it('keeps the one writes-off sentence on the status row — Send does not repeat it', () => {
+    const sendHead = detail.slice(detail.indexOf('async function send()'), detail.indexOf('sending = true'))
+    expect(sendHead).toMatch(/writesOff/)
+    const slab = detail.indexOf('composer-slab')
+    const sendErrAt = detail.indexOf('{#if sendError', slab)
+    expect(sendErrAt).toBeGreaterThan(slab)
+    expect(detail.slice(sendErrAt, sendErrAt + 80)).toMatch(/sendError && !writesOff/)
+  })
+})
+
+describe('GDK-934 resting Send is not the accent thread', () => {
+  const detail = read('screens/Detail.svelte')
+  const styles = detail.slice(detail.indexOf('<style>'))
+
+  it('wears the accent fill only when Send is armed, not while disabled', () => {
+    expect(detail).toMatch(/class:armed=\{sendArmed\}/)
+    const sendBlock = styles.match(/\.send\s*\{[^}]+\}/)?.[0]
+    expect(sendBlock).toBeTruthy()
+    expect(sendBlock).not.toMatch(/--color-accent/)
+    const armed = styles.match(/\.send\.armed\s*\{[^}]+\}/)?.[0]
+    expect(armed).toBeTruthy()
+    expect(armed).toMatch(/background:\s*var\(--color-accent\)/)
+  })
+
+  it('does not recede a disabled Send by fading the accent fill', () => {
+    const disabled = styles.match(/\.send:disabled\s*\{[^}]+\}/)?.[0] ?? ''
+    expect(disabled).not.toMatch(/opacity/)
+  })
+})
+
+describe('GDK-935 row folio is one grammar', () => {
+  it('dates the right-hand folio with folioDate, not relTime', () => {
+    const row = read('ui/Row.svelte')
+    expect(row).toMatch(/folioDate\(issue\.updated_at/)
+    expect(row).not.toMatch(/relTime\(issue\.updated_at/)
+  })
+})

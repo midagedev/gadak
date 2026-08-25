@@ -13,6 +13,7 @@ import {
   openIssues,
   overlayComments,
   pendingComment,
+  folioDate,
   relTime,
   resolveScope,
   scopeCount,
@@ -392,6 +393,51 @@ describe('relTime', () => {
   it('answers empty for missing or junk input', () => {
     expect(relTime(null, now)).toBe('')
     expect(relTime('not-a-date', now)).toBe('')
+  })
+})
+
+describe('folioDate (GDK-935)', () => {
+  const now = new Date('2026-08-25T12:00:00Z')
+
+  it('is calendar even when relTime would say Nd', () => {
+    // The 7-day step is recency, not a second date field: a 4-day-old
+    // snapshot row is `4d` from relTime and `Aug 21` from the folio.
+    expect(relTime('2026-08-21T12:00:00Z', now)).toBe('4d')
+    expect(folioDate('2026-08-21T12:00:00Z')).toBe('Aug 21')
+    expect(folioDate('2026-08-17T12:00:00Z')).toBe('Aug 17')
+    expect(folioDate('2026-07-01T12:00:00Z')).toBe('Jul 1')
+  })
+
+  it('answers empty for missing or junk input', () => {
+    expect(folioDate(null)).toBe('')
+    expect(folioDate('not-a-date')).toBe('')
+  })
+
+  it('keeps the snapshot updated_at on a server-only search hit', () => {
+    // Premise check: mergeSearch does not populate a different date field.
+    // Local hit (summary match) and server-only hit (body/comment match)
+    // are the same IssueLite rows the issues list already holds.
+    const snap = [
+      issue({
+        issue_key: 'STD-1',
+        summary: 'tenant workspace flash',
+        updated_at: '2026-08-17T12:00:00Z',
+        priority_rank: 1,
+      }),
+      issue({
+        issue_key: 'STD-2',
+        summary: 'rate limiting',
+        updated_at: '2026-08-21T12:00:00Z',
+        priority_rank: 3,
+      }),
+    ]
+    const merged = mergeSearch(matchLocal(snap, 'tenant'), ['STD-1', 'STD-2'], snap)
+    expect(merged.map((i) => i.issue_key)).toEqual(['STD-1', 'STD-2'])
+    expect(merged.map((i) => i.updated_at)).toEqual([
+      '2026-08-17T12:00:00Z',
+      '2026-08-21T12:00:00Z',
+    ])
+    expect(merged.map((i) => folioDate(i.updated_at))).toEqual(['Aug 17', 'Aug 21'])
   })
 })
 

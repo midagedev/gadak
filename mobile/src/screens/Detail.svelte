@@ -30,6 +30,8 @@
   let pending = $state<DetailComment | null>(null)
 
   const thread = $derived(overlayComments(detail?.comments ?? [], pending))
+  /** Accent fill only when this control can send (GDK-934). Empty or writes-off recedes. */
+  const sendArmed = $derived(!writesOff && (comment.trim() !== '' || sending))
 
   function isCredentialRequired(err: unknown): boolean {
     return err instanceof ApiError && err.code === 'credential_required'
@@ -112,7 +114,7 @@
 
   async function send() {
     const text = comment.trim()
-    if (text === '' || sending) return
+    if (writesOff || text === '' || sending) return
     sending = true
     sendError = null
     const overlay = pendingComment(text, app.me, new Date())
@@ -243,19 +245,25 @@
             {/if}
           </button>
         {/if}
-        <div class="composer safe-bottom">
+        <div class="composer safe-bottom" class:off={writesOff}>
           <input
             bind:value={comment}
+            disabled={writesOff}
             placeholder="Comment…"
             enterkeyhint="send"
             onkeydown={(e) => {
               if (e.key === 'Enter') void send()
             }}
           />
-          <button class="send" disabled={comment.trim() === '' || sending} onclick={() => void send()}>
+          <button
+            class="send"
+            class:armed={sendArmed}
+            disabled={writesOff || comment.trim() === '' || sending}
+            onclick={() => void send()}
+          >
             {sending ? 'Sending…' : 'Send'}
           </button>
-          {#if sendError}
+          {#if sendError && !writesOff}
             <p class="send-error">{sendError}</p>
           {/if}
         </div>
@@ -557,6 +565,9 @@
     gap: 8px;
     padding: 8px 16px;
   }
+  .composer.off {
+    opacity: 0.45;
+  }
   .composer input {
     flex: 1 1 auto;
     min-width: 0;
@@ -566,6 +577,9 @@
     border: 1px solid var(--color-border-subtle);
     border-radius: 6px;
   }
+  .composer.off input:disabled {
+    opacity: 1;
+  }
   .composer input::placeholder {
     color: var(--color-text-muted);
   }
@@ -574,12 +588,13 @@
     min-height: var(--spacing-control);
     padding: 0 16px;
     border-radius: 6px;
+    font-weight: 600;
+    background: var(--color-bg-elevated);
+    color: var(--color-text-muted);
+  }
+  .send.armed {
     background: var(--color-accent);
     color: var(--color-bg-base);
-    font-weight: 600;
-  }
-  .send:disabled {
-    opacity: 0.45;
   }
   .send-error {
     flex: 1 0 100%;
