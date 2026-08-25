@@ -148,6 +148,18 @@ media-history: media-deps
 	GADAK_MEDIA=1 ./node_modules/.bin/playwright test --config e2e/demo/history.config.ts
 	bash e2e/demo/export-history.sh
 
+# Terminal hero (0.18): the shell inside the window. Retires the composite
+# the agent/tokens clips use — those draw a paper terminal beside an app
+# iframe because gadak had no terminal of its own.
+# Output is scratch/terminal-hero.mp4, not $(MEDIA_DIR): the pane ships Beta
+# in 0.18 and is not announced on the site or in the README, and docs/media is
+# symlinked into the website's public root. See e2e/demo/export-terminal.sh.
+media-terminal: media-deps
+	@echo "media-terminal: recording terminal-pane hero…"
+	rm -rf e2e/demo/test-results-terminal
+	GADAK_MEDIA=1 ./node_modules/.bin/playwright test --config e2e/demo/terminal.config.ts
+	bash e2e/demo/export-terminal.sh
+
 # Scale flagship: the 20k-issue mirror (site hero). Deterministic — the
 # snapshot is regenerated from examples/demo.db (seed 1) each take, never
 # committed (300+ MB). Not in the `media` aggregate for the same size reason;
