@@ -214,11 +214,13 @@ validate_take() {
   web_label=0
   web_dash=0
   web_data=0
+  web_link=0
   if [[ -f "$OUT/web-timeline.jsonl" ]]; then
     grep -q '"accent_changed"' "$OUT/web-timeline.jsonl" && web_accent=1 || true
     grep -q '"label_changed"' "$OUT/web-timeline.jsonl" && web_label=1 || true
     grep -q '"dashboard_open"' "$OUT/web-timeline.jsonl" && web_dash=1 || true
     grep -q '"dashboard_data"' "$OUT/web-timeline.jsonl" && web_data=1 || true
+    grep -q '"dashboard_link_nav"' "$OUT/web-timeline.jsonl" && web_link=1 || true
   fi
 
   local web_color_events=$((web_accent + web_label))
@@ -254,6 +256,12 @@ validate_take() {
       # (2026-08-25: a take shipped 0/0/0/0 under the old structure-only
       # contract).
       reason="dashboard opened but never painted data (cards still empty)"
+    elif [[ "$CLIP" == "claude-dashboards" && "$web_link" -eq 0 ]]; then
+      # The dashboards cut closes on a key clicked off the wall (GDK-854's
+      # open verb). No clickable issue key, or a click that never reached
+      # the detail panel, means the wall Claude wrote is not the one this
+      # clip is about — the tape asks for the links.
+      reason="no issue-key link followed from the wall into the app"
     fi
   fi
 
@@ -274,10 +282,11 @@ rec = {
     "html_has_chart": sys.argv[9] == "1",
     "color_sets": int(sys.argv[10]),
     "web_data": sys.argv[14] == "1",
+    "web_link": sys.argv[15] == "1",
 }
 open(sys.argv[11], "a").write(json.dumps(rec) + "\n")
 print(json.dumps(rec, indent=2))
-' "$take" "$reason" "$tokens" "$colors" "$list" "$web_accent" "$web_label" "$web_dash" "$html_has_chart" "$color_sets" "$TAKE_LOG" "$LAYOUT" "$CLIP" "$web_data"
+' "$take" "$reason" "$tokens" "$colors" "$list" "$web_accent" "$web_label" "$web_dash" "$html_has_chart" "$color_sets" "$TAKE_LOG" "$LAYOUT" "$CLIP" "$web_data" "$web_link"
   if [[ -n "$reason" ]]; then
     echo "record-claude-drive: take ${take} FAIL: $reason" >&2
     return 1
@@ -321,7 +330,10 @@ while [[ "$take" -le "$TAKE_END" ]]; do
   start_serve
 
   echo "record-claude-drive: starting Playwright web recorder"
+  # The recorder needs the clip to know whether the closing beat is the
+  # link click-through (claude-dashboards) or nothing (flagship, tokens).
   GADAK_MEDIA=1 GADAK_E2E_PORT="$PORT" GADAK_PROMO_LAYOUT="$LAYOUT" \
+    GADAK_CLAUDE_DRIVE_CLIP="$CLIP" \
     ./node_modules/.bin/playwright test --config e2e/demo/claude-drive.config.ts \
     >"$OUT/web-playwright.log" 2>&1 &
   WEB_PID=$!

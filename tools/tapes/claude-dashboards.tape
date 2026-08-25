@@ -66,9 +66,11 @@ Sleep 7s
 
 # User prompt (English, README audience). One job: author + open. The
 # "per month" wording also feeds the web recorder's chart-in-view fallback
-# (heading /per month/i in claude-drive-web.spec.ts). Claude's command
-# wording is not scripted.
-Type "Build a triage dashboard for this workspace — status count cards plus a line chart of issues opened per month — and open it."
+# (heading /per month/i in claude-drive-web.spec.ts). The clickable keys
+# ask for GDK-854's `open` verb — the recorder closes the clip by clicking
+# one and the take contract requires that navigation. Claude's command
+# wording is not scripted; the skill teaches the verb.
+Type "Build a triage dashboard for this workspace — status count cards, a line chart of issues opened per month, and a list of the oldest open issues whose keys I can click to open the issue in gadak — then open it."
 Sleep 600ms
 Enter
 

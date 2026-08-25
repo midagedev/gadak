@@ -33,6 +33,9 @@ import {
 
 const isMedia = !!process.env.GADAK_MEDIA
 const vertical = isPromoVertical()
+// Which cut is recording: the flagship, or one of the split vertical clips.
+// Only claude-dashboards ends by following a key off the wall (GDK-854).
+const CLIP = process.env.GADAK_CLAUDE_DRIVE_CLIP || 'claude-drive'
 
 const DIR = path.join(E2E_DIR, '.tmp', vertical ? 'claude-drive-vertical' : 'claude-drive')
 const STOP = path.join(DIR, 'web-stop')
@@ -133,6 +136,57 @@ async function waitForWallData(dash: ReturnType<Page['frameLocator']>): Promise<
   return false
 }
 
+/**
+ * Click an issue key on the wall and let the app follow it (GDK-854).
+ *
+ * This is camera work — a viewer's click on a real link, not Claude
+ * intervention and not an edit to Claude's document. The frame posts
+ * `{type:'open', hash:'#/?issue=KEY'}`, the host validates it and
+ * navigates, so the clip ends on the issue the wall pointed at.
+ *
+ * The key element is whatever Claude authored; it is found by text shape
+ * (PROJ-123) among clickable nodes rather than by a class name, and the
+ * take is rejected when the wall has no such link — the tape asks for one.
+ */
+async function clickThroughToIssue(
+  page: Page,
+  app: ReturnType<Page['frameLocator']>,
+): Promise<boolean> {
+  const dash = app.frameLocator(FRAME_SEL)
+  const KEY_RE = /^[A-Z][A-Z0-9]{1,9}-\d+$/
+  const clickable = dash.locator('button, a, [role="button"], [data-key]')
+  const n = Math.min(await clickable.count(), 60)
+  for (let i = 0; i < n; i++) {
+    const el = clickable.nth(i)
+    let label = ''
+    try {
+      label = ((await el.innerText({ timeout: 1_000 })) || '').trim()
+    } catch {
+      continue
+    }
+    if (!KEY_RE.test(label)) continue
+    try {
+      await el.scrollIntoViewIfNeeded({ timeout: 2_000 })
+      await page.waitForTimeout(500)
+      await el.click({ timeout: 3_000 })
+    } catch {
+      continue
+    }
+    const detail = app.getByTestId('issue-detail-panel')
+    try {
+      await detail.waitFor({ state: 'visible', timeout: 8_000 })
+      beat('dashboard_link_nav', { key: label })
+      await page.waitForTimeout(2_600) // hold on the issue the wall pointed at
+      return true
+    } catch {
+      beat('dashboard_link_no_detail', { key: label })
+      return false
+    }
+  }
+  beat('dashboard_link_missing', { clickables: n })
+  return false
+}
+
 /** Mouse-wheel camera work. Does not edit Claude's document. */
 async function revealChart(page: Page, app: ReturnType<Page['frameLocator']>): Promise<void> {
   const dashFrame = app.locator(FRAME_SEL)
@@ -155,6 +209,7 @@ async function revealChart(page: Page, app: ReturnType<Page['frameLocator']>): P
   for (let i = 0; i < 14; i++) {
     if (await chartInView(dash)) {
       beat('dashboard_chart_visible', { wheels: i })
+      await afterChart(page, app)
       return
     }
     if (box) {
@@ -165,6 +220,18 @@ async function revealChart(page: Page, app: ReturnType<Page['frameLocator']>): P
     }
   }
   beat('dashboard_chart_visible', { wheels: 14, fallback: true })
+  await afterChart(page, app)
+}
+
+/**
+ * The closing beat of the dashboards cut: hold on the chart, then follow a
+ * key off the wall into the issue. Only that clip asks Claude for links, so
+ * the flagship take is left exactly as it was.
+ */
+async function afterChart(page: Page, app: ReturnType<Page['frameLocator']>): Promise<void> {
+  if (CLIP !== 'claude-dashboards') return
+  await page.waitForTimeout(1_400)
+  await clickThroughToIssue(page, app)
 }
 
 test.describe('claude-drive web', () => {
