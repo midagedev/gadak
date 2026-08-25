@@ -237,7 +237,7 @@
         <button class="unpair" class:armed onclick={onUnpair}>
           {armed ? 'Tap again to unpair' : 'Unpair this phone'}
         </button>
-        <p class="sub center">Unpairing forgets the server and deletes its pairing token from the Keychain. The shell pairing stays until you unpair the shell.</p>
+        <p class="sub center">Unpairing forgets the server and deletes both its pairing token and the shell's from the Keychain.</p>
       </section>
     {/if}
 

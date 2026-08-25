@@ -136,12 +136,19 @@ describe('GDK-908 pairing: probe off the product surface', () => {
 })
 
 describe('GDK-908 unpair copy matches store.unpair()', () => {
-  it('does not claim the Keychain token as a singular that includes the shell', () => {
+  // F4 found the copy and the store disagreeing and pinned the copy to what
+  // the store did: "the shell pairing stays until you unpair the shell". At
+  // review the store was made the source of truth instead — unpair() now
+  // drops both slots — so this contract is the same claim with the arrow
+  // reversed. The behavioural half lives in store.test.ts; this half is only
+  // here to keep the sentence from drifting away from it again.
+  it('does not claim the Keychain token as a singular of ambiguous scope', () => {
     expect(pairing).not.toMatch(/deletes the token from the Keychain/)
   })
 
-  it('says the shell pairing is separate', () => {
-    expect(pairing).toMatch(/shell pairing/i)
+  it('says both tokens go', () => {
+    expect(pairing).toMatch(/both/i)
+    expect(pairing).not.toMatch(/shell pairing stays/i)
   })
 })
 

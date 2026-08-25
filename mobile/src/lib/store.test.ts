@@ -14,6 +14,7 @@ vi.mock('./api', async (importOriginal) => {
 })
 
 import { request } from './api'
+import { tokenGet, tokenSet } from './secure'
 import { app, issuesBootKind, searchPaint, showOfflineBanner, sync, unpair } from './store.svelte'
 
 const mem = new Map<string, string>()
@@ -185,6 +186,30 @@ describe('showOfflineBanner — must not claim a snapshot that does not exist', 
     expect(showOfflineBanner({ offline: false, issueCount: 2, pageCount: 0, lastSyncAt: null })).toBe(
       false,
     )
+  })
+})
+
+describe('unpair() — forgetting the server forgets the shell too', () => {
+  // Both tokens are issued by the same serve. Dropping only the serve slot
+  // left a live shell Bearer in the Keychain and a TERM_META_KEY that
+  // loadTerminal() re-adopts on the next launch, so the phone came back with
+  // a Shell tab pointed at a server the user had unpaired from.
+  // Assertions are presence-only: a token value never reaches a log or a test.
+  it('deletes the terminal token and its meta', async () => {
+    await tokenSet('placeholder-not-a-real-token', 'terminal')
+    localStorage.setItem(
+      'gadak.pairing.meta.terminal',
+      JSON.stringify({ endpoint: 'http://127.0.0.1:7877', label: 'desk', expires_at: '' }),
+    )
+    app.terminal = { endpoint: 'http://127.0.0.1:7877', label: 'desk', expires_at: '' }
+    expect(await tokenGet('terminal')).not.toBeNull()
+
+    app.phase = 'paired'
+    await unpair()
+
+    expect(await tokenGet('terminal')).toBeNull()
+    expect(mem.get('gadak.pairing.meta.terminal')).toBeUndefined()
+    expect(app.terminal).toBeNull()
   })
 })
 

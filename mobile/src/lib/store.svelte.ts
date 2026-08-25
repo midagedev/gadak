@@ -321,6 +321,11 @@ export async function unpair(): Promise<void> {
     // The meta is gone either way; a stale Keychain entry cannot re-pair by
     // itself because the unpaired flag blocks dev re-adoption.
   }
+  // The shell is a second token issued by the same serve, so forgetting the
+  // server means forgetting both. Leaving it behind kept a live Bearer in the
+  // Keychain and let loadTerminal() revive a Shell tab pointed at a server the
+  // user had already unpaired from.
+  await unpairTerminal()
   drop(META_KEY)
   drop(CACHE_KEY)
   drop(VIEWS_KEY)
