@@ -843,6 +843,28 @@ func TestWarnUnknownGADAKSilentWhenOnlyKnown(t *testing.T) {
 	}
 }
 
+// GADAK_TERMINAL is set by gadak's own PTY (internal/term/session_unix.go)
+// for the shell behind the terminal pane, the way an emulator sets
+// TERM_PROGRAM. Warning about it means every `gadak` command run inside
+// gadak's own terminal opens by telling the user gadak does not recognise
+// gadak — seen on camera while recording the 0.18 terminal clip (GDK-961).
+func TestWarnUnknownGADAKSilentForItsOwnTerminalMarker(t *testing.T) {
+	t.Setenv("GADAK_HOME", t.TempDir())
+	t.Setenv("GADAK_TERMINAL", "1")
+	for _, extra := range []string{"GADAK_DB", "GADAK_MEDIA", "GADAK_FRESHEN", "GADAK_PERF"} {
+		t.Setenv(extra, "")
+	}
+	unknownEnvWarnOnce = sync.Once{}
+	stderr := captureStderr(t, func() {
+		if _, err := DBPath(); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if strings.Contains(stderr, "GADAK_TERMINAL") {
+		t.Fatalf("gadak must not warn about the marker it sets itself, got %q", stderr)
+	}
+}
+
 func TestWarnUnknownGADAKEmptyIsUnset(t *testing.T) {
 	t.Setenv("GADAK_HOME", t.TempDir())
 	t.Setenv("GADAK_DB", "")

@@ -61,6 +61,21 @@ var envHarness = map[string]struct{}{
 	"GADAK_BASE_PATH": {},
 }
 
+// envPublished are names gadak *sets* for a process it starts, rather than
+// names it reads. GADAK_TERMINAL marks the shell behind the terminal pane
+// (internal/term/session_unix.go), the way a terminal emulator sets
+// TERM_PROGRAM — a prompt or an rc file is meant to see it.
+//
+// They belong here because the warning is about ghosts: a GADAK_* name that
+// looks like it configures something and does not. A marker this binary
+// published itself is the opposite of a ghost, and warning about it means
+// every `gadak` command run inside gadak's own terminal opens with a line
+// telling the user that gadak does not recognise gadak (found on camera
+// while recording the 0.18 terminal clip, GDK-961).
+var envPublished = map[string]struct{}{
+	"GADAK_TERMINAL": {},
+}
+
 // Env returns GADAK_<suffix>, then SCRY_<suffix> if the new name is unset
 // or empty. An empty GADAK_* value is treated as unset so a blank export
 // cannot hide a real SCRY_* fallback (decision 0007: read SCRY_* when
@@ -83,6 +98,9 @@ func knownGADAK(name string) bool {
 		return true
 	}
 	if _, ok := envLiterals[name]; ok {
+		return true
+	}
+	if _, ok := envPublished[name]; ok {
 		return true
 	}
 	_, ok := envHarness[name]
