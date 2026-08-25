@@ -128,7 +128,7 @@ func TestGDK658SecondProcessStandaloneListenerBusy(t *testing.T) {
 	}
 
 	cfg, api := standaloneApp(t)
-	origin.SetInProcess(true)
+	origin.SetInProcess(cfg, true)
 	stop, err := apprun.StartOriginPassthrough(cfg, api)
 	if err != nil {
 		t.Fatal(err)

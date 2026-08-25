@@ -152,7 +152,7 @@ func routedWiki(cfg *config.Config) (*confluence.Client, bool) {
 }
 
 func routedTransport(cfg *config.Config) (*serveOriginTransport, bool) {
-	if inProcess.Load() {
+	if IsInProcess(cfg) {
 		return nil, false
 	}
 	adv, ok := readAdvertise(cfg)

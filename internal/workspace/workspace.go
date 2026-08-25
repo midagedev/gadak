@@ -15,6 +15,7 @@ import (
 
 	"github.com/midagedev/gadak/internal/attachcache"
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/server"
 	"github.com/midagedev/gadak/internal/store"
 	syncer "github.com/midagedev/gadak/internal/sync"
@@ -41,22 +42,35 @@ type Entry struct {
 	Handler *server.Handler
 	DB      *store.DB
 	Cfg     *config.Config
+	// stopOrigin withdraws this mount's advertise file and closes its
+	// passthrough listener. nil when this process does not own the persist.
+	// Written under Registry.mu; closeEntry reads it after the registry
+	// snapshot (happens-before via mu).
+	stopOrigin func()
+	// ownsOrigin: closeEntry must release the persist session and the
+	// in-process mark on the way out.
+	ownsOrigin bool
 }
 
 // Registry lazy-opens profile mirrors on first /w/<name>/ request and closes
 // them when the process exits.
 type Registry struct {
-	// mu guards entries, flights, watching, closed, and the watch-owner
-	// fields. Contract: no IO under this lock. The critical section is a
-	// map lookup or insert; construction (config.LoadFor, store.Open,
-	// attachcache.New, server.NewWorkspace) and Close of discarded or
-	// snapshotted entries run with the lock released. Holding it across
-	// disk IO serialises every other profile's Get/EnsureWatch/Close
-	// behind one migration.
+	// mu guards entries, flights, owningOrigin, watching, closed, and the
+	// watch-owner fields, as well as Entry.stopOrigin and Entry.ownsOrigin.
+	// Contract: no IO under this lock. The critical section is a map lookup
+	// or insert; construction (config.LoadFor, store.Open, attachcache.New,
+	// server.NewWorkspace) and Close of discarded or snapshotted entries run
+	// with the lock released. Holding it across disk IO serialises every
+	// other profile's Get/EnsureWatch/Close behind one migration.
 	mu      sync.Mutex
 	entries map[string]*Entry
 	flights map[string]*openFlight
 	closed  bool
+
+	// owningOrigin records in-flight standalone-origin acquisition. Close waits
+	// for these before snapshotting entries, so a late acquisition cannot leave
+	// an advertise file or listener behind after shutdown returns.
+	owningOrigin map[string]*originFlight
 
 	// Watch ownership (D8): one loop per credentialed non-primary profile.
 	// WatchAll arms these; EnsureWatch / the rescan ticker start loops when
@@ -77,11 +91,18 @@ type openFlight struct {
 	err  error
 }
 
+// originFlight is one in-flight origin ownership attempt. Registry.Close waits
+// for it before it snapshots entries for teardown.
+type originFlight struct {
+	done chan struct{}
+}
+
 // New returns an empty workspace registry.
 func New() *Registry {
 	return &Registry{
-		entries: make(map[string]*Entry),
-		flights: make(map[string]*openFlight),
+		entries:      make(map[string]*Entry),
+		flights:      make(map[string]*openFlight),
+		owningOrigin: make(map[string]*originFlight),
 	}
 }
 
@@ -99,8 +120,11 @@ func (r *Registry) Close() {
 	}
 	r.mu.Lock()
 	r.closed = true
-	wait := make([]chan struct{}, 0, len(r.flights))
+	wait := make([]chan struct{}, 0, len(r.flights)+len(r.owningOrigin))
 	for _, f := range r.flights {
+		wait = append(wait, f.done)
+	}
+	for _, f := range r.owningOrigin {
 		wait = append(wait, f.done)
 	}
 	r.mu.Unlock()
@@ -120,6 +144,11 @@ func closeEntry(e *Entry) {
 	if e == nil {
 		return
 	}
+	// Withdraw the advertise and stop the listener first so no new routed
+	// request lands while sync/handler shut down.
+	if e.stopOrigin != nil {
+		e.stopOrigin()
+	}
 	// Stop this workspace's background sync before closing the mirror
 	// it writes to; a job that outlives the DB holds a WAL connection
 	// (GDK-270).
@@ -129,9 +158,14 @@ func closeEntry(e *Entry) {
 	if e.DB != nil {
 		_ = e.DB.Close()
 	}
+	// Release the persist session and the ownership mark last: the sync
+	// loop above may have been mid-write through the embedded session.
+	if e.ownsOrigin {
+		_ = origin.CloseStandalone(e.Cfg)
+		origin.SetInProcess(e.Cfg, false)
+	}
 }
 
-// Get returns a cached workspace entry, opening the profile on first use.
 func (r *Registry) Get(name string) (*Entry, error) {
 	if r == nil {
 		return nil, errRegistryClosed
@@ -143,6 +177,7 @@ func (r *Registry) Get(name string) (*Entry, error) {
 	}
 	if e, ok := r.entries[name]; ok {
 		r.mu.Unlock()
+		r.ensureOrigin(name, e)
 		return e, nil
 	}
 	r.mu.Unlock()
@@ -166,11 +201,15 @@ func (r *Registry) open(name string) (*Entry, error) {
 	}
 	if e, ok := r.entries[name]; ok {
 		r.mu.Unlock()
+		r.ensureOrigin(name, e)
 		return e, nil
 	}
 	if f, ok := r.flights[name]; ok {
 		r.mu.Unlock()
 		<-f.done
+		if f.e != nil && f.err == nil {
+			r.ensureOrigin(name, f.e)
+		}
 		return f.e, f.err
 	}
 	f := &openFlight{done: make(chan struct{})}
@@ -206,12 +245,14 @@ func (r *Registry) open(name string) (*Entry, error) {
 		closeEntry(e)
 		f.e = existing
 		close(f.done)
+		r.ensureOrigin(name, existing)
 		return existing, nil
 	}
 	r.entries[name] = e
 	f.e = e
 	close(f.done)
 	r.mu.Unlock()
+	r.ensureOrigin(name, e)
 	return e, nil
 }
 
@@ -533,6 +574,7 @@ func (r *Registry) rescanLoop(ctx context.Context) {
 			return
 		case <-tick.C:
 			_ = r.EnsureWatches()
+			r.EnsureOrigins()
 		}
 	}
 }

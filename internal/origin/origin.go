@@ -277,29 +277,60 @@ type sessionFlight struct {
 }
 
 var (
-	// mu guards live and flights. Contract: no IO under this lock. The
-	// critical section is a map lookup or insert; MkdirAll,
+	// mu guards live, flights, and inProcessPersist. Contract: no IO under
+	// this lock. The critical section is a map lookup or insert; MkdirAll,
 	// issuetap.NewEmbedded (persist read/write), and Embedded.Close run
 	// with the lock released. This mutex is process-global and keyed by
 	// persist path — holding it across persist IO queues every standalone
 	// workspace behind one disk.
-	mu      sync.Mutex
-	live    = map[string]*session{}
-	flights = map[string]*sessionFlight{}
+	mu               sync.Mutex
+	live             = map[string]*session{}
+	flights          = map[string]*sessionFlight{}
+	inProcessPersist = map[string]bool{}
 
 	sessionsConstructed atomic.Uint64
-	inProcess           atomic.Bool
 )
 
 // SessionsConstructed is how many times constructStandalone ran. Tests
 // use a delta to prove a routed Client did not open a second persist graph.
 func SessionsConstructed() uint64 { return sessionsConstructed.Load() }
 
-// SetInProcess marks this process as the persist owner (`gadak serve` on
-// a standalone workspace). Client and Wiki then always use the embedded
-// session and never proxy to the advertise file — that would loop back
-// onto this same listener.
-func SetInProcess(v bool) { inProcess.Store(v) }
+// SetInProcess marks/unmarks this process as the persist owner of cfg's
+// workspace. Keyed by persist path — the same key as live — so owning one
+// workspace's persist does not disable routing for any other (STD-3).
+func SetInProcess(cfg *config.Config, v bool) {
+	p := persistKeyOf(cfg)
+	if p == "" {
+		return
+	}
+	mu.Lock()
+	if v {
+		inProcessPersist[p] = true
+	} else {
+		delete(inProcessPersist, p)
+	}
+	mu.Unlock()
+}
+
+// IsInProcess reports whether this process owns cfg's persist.
+func IsInProcess(cfg *config.Config) bool {
+	p := persistKeyOf(cfg)
+	if p == "" {
+		return false
+	}
+	mu.Lock()
+	owned := inProcessPersist[p]
+	mu.Unlock()
+	return owned
+}
+
+// ResetInProcess clears every ownership mark. Tests only — production
+// unmarks per workspace (Runtime.Close / closeEntry).
+func ResetInProcess() {
+	mu.Lock()
+	inProcessPersist = map[string]bool{}
+	mu.Unlock()
+}
 
 // ForgetLive drops cached embedded sessions without closing them. Tests
 // use this to simulate a second process: the serve handler still holds
@@ -600,6 +631,14 @@ func profileDir(cfg *config.Config) (string, error) {
 	return config.Dir()
 }
 
+func persistKeyOf(cfg *config.Config) string {
+	dir, err := profileDir(cfg)
+	if err != nil || dir == "" {
+		return ""
+	}
+	return PersistPath(dir)
+}
+
 // profileNameOf is profileDir's identity twin: the profile the cfg belongs
 // to, falling back to the active profile only when the cfg was never loaded
 // (same condition profileDir falls back on). Routing decisions must compare
@@ -652,6 +691,39 @@ func Close() error {
 		}
 	}
 	return first
+}
+
+// CloseStandalone checkpoints and drops the live session for cfg's persist
+// and releases its lock. Waits an in-flight constructor for the same key.
+// No-op when nothing is live. Callers that marked SetInProcess unmark it
+// themselves — this only owns the session.
+func CloseStandalone(cfg *config.Config) error {
+	p := persistKeyOf(cfg)
+	if p == "" {
+		return nil
+	}
+	for {
+		mu.Lock()
+		if f, ok := flights[p]; ok {
+			mu.Unlock()
+			<-f.done
+			continue
+		}
+		s := live[p]
+		delete(live, p)
+		mu.Unlock()
+		if s == nil {
+			return nil
+		}
+		var first error
+		if s.emb != nil {
+			first = s.emb.Close()
+		}
+		if s.unlock != nil {
+			s.unlock()
+		}
+		return first
+	}
 }
 
 // selectStandaloneSeed follows issuetap's load order: an existing SQLite

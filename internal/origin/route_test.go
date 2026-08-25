@@ -28,7 +28,7 @@ func standaloneHome(t *testing.T) (*config.Config, string) {
 	config.SetProfile("")
 	t.Cleanup(func() {
 		_ = origin.Close()
-		origin.SetInProcess(false)
+		origin.ResetInProcess()
 		config.SetProfile("")
 	})
 	cfg, err := config.Load()
@@ -70,7 +70,7 @@ func searchKey(t *testing.T, c *jira.Client, key string) bool {
 func liveStandaloneServe(t *testing.T) (cfg *config.Config, serveClient *jira.Client, h *server.Handler, ts *httptest.Server) {
 	t.Helper()
 	cfg, _ = standaloneHome(t)
-	origin.SetInProcess(true)
+	origin.SetInProcess(cfg, true)
 
 	dir := t.TempDir()
 	db, err := store.Open(filepath.Join(dir, "mirror.db"))
@@ -101,7 +101,7 @@ func liveStandaloneServe(t *testing.T) (cfg *config.Config, serveClient *jira.Cl
 	t.Cleanup(ts.Close)
 
 	origin.ForgetLive()
-	origin.SetInProcess(false)
+	origin.SetInProcess(cfg, false)
 
 	if err := origin.WriteAdvertise(cfg.Directory(), ts.Listener.Addr().String()); err != nil {
 		t.Fatal(err)
@@ -171,7 +171,7 @@ func TestClientRoutesToLiveServe(t *testing.T) {
 
 func TestClientFallsBackWhenProbeFails(t *testing.T) {
 	cfg, home := standaloneHome(t)
-	origin.SetInProcess(false)
+	origin.SetInProcess(cfg, false)
 
 	if err := origin.WriteAdvertise(home, "127.0.0.1:1"); err != nil {
 		t.Fatal(err)
@@ -297,12 +297,75 @@ func TestForgetLiveKeepsPersistLockAcrossGC(t *testing.T) {
 // transport, and embedding would have opened a second graph (GDK-343).
 func TestSetInProcessSkipsRouting(t *testing.T) {
 	cfg, _, _, _ := liveStandaloneServe(t)
-	origin.SetInProcess(true)
-	t.Cleanup(func() { origin.SetInProcess(false) })
+	origin.SetInProcess(cfg, true)
+	t.Cleanup(func() { origin.SetInProcess(cfg, false) })
 
 	_, err := origin.Client(cfg)
 	if !errors.Is(err, origin.ErrWorkspaceBusy) {
 		t.Fatalf("in-process Client err = %v, want ErrWorkspaceBusy (routing to self is the bug this guards)", err)
+	}
+}
+
+func TestSetInProcessDoesNotSkipOtherWorkspaceRouting(t *testing.T) {
+	cfgA, _, _, _ := liveStandaloneServe(t)
+
+	cfgB, err := config.LoadFor("other")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfgB.Kind = config.KindStandalone
+	if err := cfgB.Save(); err != nil {
+		t.Fatal(err)
+	}
+	cfgB, err = config.LoadFor("other")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	origin.SetInProcess(cfgB, true)
+	t.Cleanup(func() { origin.SetInProcess(cfgB, false) })
+	hOrigin, err := origin.StandaloneHandler(cfgB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	db, err := store.Open(filepath.Join(dir, "mirror.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	h := server.NewWorkspace(db, cfgB, nil, "other")
+	h.BindOriginHandler(hOrigin)
+	t.Cleanup(func() { _ = h.Close() })
+	ts := httptest.NewServer(h)
+	t.Cleanup(ts.Close)
+
+	origin.ForgetLive()
+	origin.SetInProcess(cfgB, false)
+	if err := origin.WriteAdvertise(cfgB.Directory(), ts.Listener.Addr().String()); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = origin.RemoveAdvertise(cfgB.Directory()) })
+
+	origin.SetInProcess(cfgA, true)
+	t.Cleanup(func() { origin.SetInProcess(cfgA, false) })
+	if _, err := origin.Client(cfgA); !errors.Is(err, origin.ErrWorkspaceBusy) {
+		t.Fatalf("owned workspace Client err = %v, want ErrWorkspaceBusy (routing to self is the bug this guards)", err)
+	}
+
+	c, err := origin.Client(cfgB)
+	if err != nil {
+		t.Fatalf("other workspace Client: %v", err)
+	}
+	if !origin.TransportIsServe(c.HTTP.Transport) {
+		t.Fatalf("other workspace transport %T, want serve passthrough", c.HTTP.Transport)
+	}
+	if _, err := c.CreateIssue(context.Background(), map[string]any{
+		"project":   map[string]any{"key": origin.DefaultProjectKey},
+		"summary":   "in-process key isolation",
+		"issuetype": map[string]any{"name": "Task"},
+	}); err != nil {
+		t.Fatalf("other workspace routed CreateIssue: %v", err)
 	}
 }
 

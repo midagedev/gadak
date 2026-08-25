@@ -214,7 +214,7 @@ func (rt *Runtime) Close() error {
 			}
 		}
 		if rt.acquiredStandalone {
-			origin.SetInProcess(false)
+			origin.SetInProcess(rt.Cfg, false)
 			rt.acquiredStandalone = false
 		}
 	}

@@ -17,7 +17,7 @@ func testHome(t *testing.T) {
 	config.SetProfile("")
 	t.Cleanup(func() {
 		_ = origin.Close()
-		origin.SetInProcess(false)
+		origin.ResetInProcess()
 		config.SetProfile("")
 	})
 }

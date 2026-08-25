@@ -132,13 +132,7 @@ func bearerToken(r *http.Request) string {
 }
 
 func (s *server) standaloneOrigin() http.Handler {
-	if s.originH != nil {
-		return s.originH
-	}
 	s.originOnce.Do(func() {
-		if s.originH != nil {
-			return
-		}
 		h, err := origin.StandaloneHandler(s.config())
 		if err != nil {
 			log.Printf("server: origin passthrough: %v", err)
@@ -149,12 +143,14 @@ func (s *server) standaloneOrigin() http.Handler {
 	return s.originH
 }
 
-// BindOriginHandler pins the passthrough target. Tests use it so they can
-// evict origin.live (simulating a second process) without reconstructing
-// a second issuetap graph on the next request.
+// BindOriginHandler pins the passthrough target before the first request.
+// originOnce also serializes concurrent lazy construction and reads, so callers
+// can bind a workspace-owned handler without racing standaloneOrigin.
 func (h *Handler) BindOriginHandler(next http.Handler) {
-	if h == nil || h.s == nil {
+	if h == nil || h.s == nil || next == nil {
 		return
 	}
-	h.s.originH = next
+	h.s.originOnce.Do(func() {
+		h.s.originH = next
+	})
 }

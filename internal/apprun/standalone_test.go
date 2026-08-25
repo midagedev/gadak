@@ -42,7 +42,7 @@ func standaloneRuntime(t *testing.T) (*Runtime, *config.Config) {
 
 func TestStartOriginPassthroughAdvertisesAndProbes(t *testing.T) {
 	rt, cfg := standaloneRuntime(t)
-	origin.SetInProcess(true)
+	origin.SetInProcess(cfg, true)
 	stop, err := StartOriginPassthrough(cfg, rt.API)
 	if err != nil {
 		t.Fatal(err)
@@ -93,7 +93,7 @@ func TestStartOriginPassthroughAdvertisesAndProbes(t *testing.T) {
 
 func TestStartOriginPassthroughServesOnlyOriginPaths(t *testing.T) {
 	rt, cfg := standaloneRuntime(t)
-	origin.SetInProcess(true)
+	origin.SetInProcess(cfg, true)
 	stop, err := StartOriginPassthrough(cfg, rt.API)
 	if err != nil {
 		t.Fatal(err)
@@ -165,7 +165,7 @@ func TestSecondProcessStandaloneListenerBusy(t *testing.T) {
 	}
 
 	rt, cfg := standaloneRuntime(t)
-	origin.SetInProcess(true)
+	origin.SetInProcess(cfg, true)
 	stop, err := StartOriginPassthrough(cfg, rt.API)
 	if err != nil {
 		t.Fatal(err)
