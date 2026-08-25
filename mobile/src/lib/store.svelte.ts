@@ -58,7 +58,11 @@ export const app = $state({
   pages: [] as PageLite[],
   /** Last scope the user picked; the heading is this scope's name. */
   scopeId: SCOPE_ME as string,
-  /** True once any snapshot (cache or network) has painted. */
+  /**
+   * True once the first bootstrap attempt has settled — cache restore,
+   * successful sync, or a failed sync that is not pairing-dead. Distinct
+   * from "a snapshot exists": that is `showOfflineBanner` / `issuesBootKind`.
+   */
   loaded: false,
   syncing: false,
   offline: false,
@@ -71,6 +75,56 @@ export const app = $state({
   /** Ticks every 30s so relative times stay honest while the app is open. */
   now: new Date(),
 })
+
+/**
+ * Issues list plate. `loaded` used to mean both "stop the skeleton" and
+ * "a snapshot exists", so a failed first sync painted an infinite skeleton
+ * under a banner that claimed cached data. One owner, three values.
+ */
+export type IssuesBootKind = 'skeleton' | 'failed' | 'ready'
+
+export function showOfflineBanner(s: {
+  offline: boolean
+  issueCount: number
+  pageCount: number
+  lastSyncAt: Date | null
+}): boolean {
+  if (!s.offline) return false
+  return s.issueCount > 0 || s.pageCount > 0 || s.lastSyncAt !== null
+}
+
+export function issuesBootKind(s: {
+  loaded: boolean
+  offline: boolean
+  issueCount: number
+  pageCount: number
+  lastSyncAt: Date | null
+}): IssuesBootKind {
+  if (!s.loaded) return 'skeleton'
+  if (s.offline && !showOfflineBanner(s)) return 'failed'
+  return 'ready'
+}
+
+/**
+ * Search body plate. Empty, in-flight, and failed must not be the same
+ * picture (DESIGN.md §3.5 / §4.6 / §5). Hits always win so local-only
+ * degradation stays visible.
+ */
+export type SearchPaint = 'idle' | 'searching' | 'failed' | 'empty' | 'results'
+
+export function searchPaint(s: {
+  query: string
+  resultCount: number
+  pageCount: number
+  searching: boolean
+  failed: boolean
+}): SearchPaint {
+  if (s.query.trim() === '') return 'idle'
+  if (s.resultCount > 0 || s.pageCount > 0) return 'results'
+  if (s.searching) return 'searching'
+  if (s.failed) return 'failed'
+  return 'empty'
+}
 
 let etag: string | null = null
 let syncTimer: ReturnType<typeof setInterval> | null = null
@@ -235,6 +289,9 @@ export async function sync(): Promise<void> {
       app.phase = 'unpaired'
     } else {
       app.offline = true
+      // Settled: Issues must leave the skeleton. Do not write the snapshot —
+      // a failed request never mutates cached issues (DESIGN.md §5).
+      app.loaded = true
     }
   } finally {
     app.syncing = false

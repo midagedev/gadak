@@ -6,7 +6,7 @@
   import Skeleton from '../ui/Skeleton.svelte'
   import ScopeSheet from '../ui/ScopeSheet.svelte'
   import { t } from '../lib/i18n'
-  import { app, setScope, sync, switchTab } from '../lib/store.svelte'
+  import { app, issuesBootKind, setScope, showOfflineBanner, sync, switchTab } from '../lib/store.svelte'
   import {
     buildList,
     buildScopes,
@@ -62,6 +62,23 @@
   const syncLabel = $derived(
     app.syncing ? 'syncing' : app.lastSyncAt ? relTime(app.lastSyncAt.toISOString(), app.now) : '—',
   )
+  const bootKind = $derived(
+    issuesBootKind({
+      loaded: app.loaded,
+      offline: app.offline,
+      issueCount: app.issues.length,
+      pageCount: app.pages.length,
+      lastSyncAt: app.lastSyncAt,
+    }),
+  )
+  const offlineBanner = $derived(
+    showOfflineBanner({
+      offline: app.offline,
+      issueCount: app.issues.length,
+      pageCount: app.pages.length,
+      lastSyncAt: app.lastSyncAt,
+    }),
+  )
 </script>
 
 <Screen>
@@ -84,8 +101,8 @@
         <span>{syncLabel}</span>
       </button>
     </div>
-    {#if app.offline}
-      <p class="offline">Offline — showing the last synced snapshot.</p>
+    {#if offlineBanner}
+      <p class="offline">{t('app.offlineBanner')}</p>
     {:else if view.fellBack && hasIdentity(app.me) && scope.id === SCOPE_ME}
       <p class="note">Nothing open is assigned to you.</p>
     {:else if view.fellBack}
@@ -93,8 +110,12 @@
     {/if}
   {/snippet}
 
-  {#if !app.loaded}
+  {#if bootKind === 'skeleton'}
     <Skeleton />
+  {:else if bootKind === 'failed'}
+    <EmptyState title={t('list.renderFailedTitle')}>
+      <button class="link" onclick={() => void sync()}>{t('list.renderFailedRetry')}</button>
+    </EmptyState>
   {:else if isDocs}
     {#if docRows.length === 0}
       <EmptyState title={t('docs.recentEmpty')} />
@@ -109,7 +130,10 @@
       <div class="foot" aria-hidden="true"></div>
     {/if}
   {:else if view.total === 0}
-    <EmptyState title="Nothing here" body="No issues on this mirror match this scope.">
+    <EmptyState
+      title={app.issues.length === 0 ? t('list.emptyTitle') : t('list.noMatchTitle')}
+      body={app.issues.length === 0 ? t('list.emptyHint') : t('list.noMatchHint')}
+    >
       <button class="link" onclick={() => switchTab('search')}>Search everything</button>
     </EmptyState>
   {:else}

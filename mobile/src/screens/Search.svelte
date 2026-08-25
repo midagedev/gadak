@@ -3,7 +3,7 @@
   import Row from '../ui/Row.svelte'
   import DocRow from '../ui/DocRow.svelte'
   import EmptyState from '../ui/EmptyState.svelte'
-  import { app, recentSearches, rememberSearch } from '../lib/store.svelte'
+  import { app, recentSearches, rememberSearch, searchPaint } from '../lib/store.svelte'
   import { matchLocal, mergeSearch } from '../lib/domain'
   import { request } from '../lib/api'
   import { t } from '../lib/i18n'
@@ -16,12 +16,24 @@
   let recents = $state(recentSearches())
   let debounce: ReturnType<typeof setTimeout> | null = null
   let inputEl = $state<HTMLInputElement | null>(null)
+  let searching = $state(false)
+  let searchFailed = $state(false)
+  let searchGen = 0
 
   // Local-first: the snapshot answers instantly while typing; the server
   // adds body/comment matches the lite rows cannot see (DESIGN.md §5).
   // Page hits arrive only with the server reply — they are not in the issue snapshot.
   const local = $derived(matchLocal(app.issues, query))
   const results = $derived<IssueLite[]>(mergeSearch(local, serverKeys, app.issues))
+  const plate = $derived(
+    searchPaint({
+      query,
+      resultCount: results.length,
+      pageCount: serverPages.length,
+      searching,
+      failed: searchFailed,
+    }),
+  )
 
   function onInput() {
     serverKeys = []
@@ -29,14 +41,23 @@
     serverMatches = {}
     if (debounce) clearTimeout(debounce)
     const q = query.trim()
-    if (q.length < 2) return
+    searchGen += 1
+    const gen = searchGen
+    if (q.length < 2) {
+      searching = false
+      searchFailed = false
+      return
+    }
+    searching = true
+    searchFailed = false
     debounce = setTimeout(async () => {
+      if (gen !== searchGen) return
       try {
         const res = await request<SearchResponse>(
           `issues/search/?q=${encodeURIComponent(q)}&limit=50`,
         )
-        // Ignore a reply that raced a newer query.
-        if (q === query.trim() && res.body) {
+        if (gen !== searchGen) return
+        if (res.body) {
           serverKeys = res.body.keys
           serverPages = res.body.pages ?? []
           serverMatches = res.body.matches ?? {}
@@ -44,7 +65,10 @@
           recents = recentSearches()
         }
       } catch {
-        // Search degrades to local-only offline; the snapshot already answered.
+        if (gen !== searchGen) return
+        searchFailed = true
+      } finally {
+        if (gen === searchGen) searching = false
       }
     }, 250)
   }
@@ -60,6 +84,13 @@
     serverKeys = []
     serverPages = []
     serverMatches = {}
+    searching = false
+    searchFailed = false
+    searchGen += 1
+    if (debounce) {
+      clearTimeout(debounce)
+      debounce = null
+    }
     inputEl?.focus()
   }
 </script>
@@ -85,12 +116,12 @@
         enterkeyhint="search"
       />
       {#if query}
-        <button class="clear" onclick={clear} aria-label="Clear search">×</button>
+        <button class="clear" onclick={clear} aria-label={t('list.clearSearch')}>×</button>
       {/if}
     </div>
   {/snippet}
 
-  {#if query.trim() === ''}
+  {#if plate === 'idle'}
     <div class="idle">
       {#if recents.length > 0}
         <p class="idle-label">Recent</p>
@@ -101,15 +132,10 @@
           </button>
         {/each}
       {:else}
-        <EmptyState
-          title="Search the mirror"
-          body={`Keys and summaries answer instantly from the ${app.issues.length}-issue snapshot; the server adds comment matches.`}
-        />
+        <p class="idle-hint">Keys and summaries answer instantly from the {app.issues.length}-issue snapshot; the server adds comment matches.</p>
       {/if}
     </div>
-  {:else if results.length === 0 && serverPages.length === 0}
-    <EmptyState title="No matches" body="Nothing on this mirror matches that. Comment text needs at least 2 characters." />
-  {:else}
+  {:else if plate === 'results'}
     {#each results as issue (issue.issue_key)}
       <Row {issue} showAssignee={true} />
     {/each}
@@ -122,6 +148,14 @@
         <DocRow {page} showSpace={true} showExcerpt={false} snippet={serverMatches[page.key]?.snippet ?? ''} />
       {/each}
     {/if}
+  {:else if plate === 'searching'}
+    <p class="idle-hint">{t('common.searching')}</p>
+  {:else if plate === 'failed'}
+    <EmptyState title={t('list.searchFailed')}>
+      <button class="link" onclick={onInput}>{t('list.searchRetry')}</button>
+    </EmptyState>
+  {:else}
+    <EmptyState title={t('common.noResults')} />
   {/if}
 </Screen>
 
@@ -191,6 +225,18 @@
     text-transform: uppercase;
     letter-spacing: 0.04em;
     color: var(--color-text-muted);
+  }
+  .idle-hint {
+    margin: 0;
+    padding: 8px 16px;
+    font-size: var(--text-micro);
+    color: var(--color-text-muted);
+  }
+  .link {
+    color: var(--color-accent-text);
+    font-size: var(--text-body);
+    min-height: var(--spacing-control);
+    padding: 0 16px;
   }
   .recent {
     display: flex;
