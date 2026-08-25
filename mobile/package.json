@@ -11,6 +11,8 @@
     "build": "vite build",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "test": "vitest run",
+    "lint:ios": "bash scripts/ios-contract.sh",
+    "viewport-gate": "bash scripts/viewport-gate.sh",
     "tauri": "tauri"
   },
   "dependencies": {
