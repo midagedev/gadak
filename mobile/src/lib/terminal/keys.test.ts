@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyStickyPress, bytesForBarKey, bytesForText, type BarKey, type StickyMods } from './keys'
+import { bytesForBarKey, bytesForText, type BarKey, type StickyMods } from './keys'
 
 const NONE: StickyMods = { ctrl: false, alt: false }
 const CTRL: StickyMods = { ctrl: true, alt: false }
@@ -119,31 +119,4 @@ describe('bytesForText', () => {
   })
 })
 
-describe('applyStickyPress', () => {
-  it('a sticky modifier survives a modifier press and dies on a letter', () => {
-    let mods = applyStickyPress(NONE, 'ctrl')
-    expect(mods).toEqual({ ctrl: true, alt: false })
-    mods = applyStickyPress(mods, 'alt')
-    expect(mods).toEqual({ ctrl: true, alt: true })
-    // Survived the second modifier: the letter still sees both.
-    expect(bytesOf(bytesForText('c', mods))).toEqual([0x1b, 0x03])
-    mods = applyStickyPress(mods, 'c')
-    expect(mods).toEqual({ ctrl: false, alt: false })
-  })
 
-  it('a modifier press toggles; a non-modifier bar key consumes both', () => {
-    let mods = applyStickyPress(NONE, 'ctrl')
-    mods = applyStickyPress(mods, 'ctrl')
-    expect(mods).toEqual({ ctrl: false, alt: false })
-    mods = applyStickyPress(NONE, 'alt')
-    expect(mods).toEqual({ ctrl: false, alt: true })
-    mods = applyStickyPress(mods, 'esc')
-    expect(mods).toEqual({ ctrl: false, alt: false })
-  })
-
-  it('does not mutate the input', () => {
-    const mods: StickyMods = { ctrl: false, alt: false }
-    applyStickyPress(mods, 'ctrl')
-    expect(mods).toEqual({ ctrl: false, alt: false })
-  })
-})

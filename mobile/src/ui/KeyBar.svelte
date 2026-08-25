@@ -1,15 +1,16 @@
 <script lang="ts">
   import { keyboardInset } from '../lib/keyboard'
-  import { type BarKey, type StickyMods } from '../lib/terminal/keys'
+  import { type BarKey, type StickySlots } from '../lib/terminal/keys'
 
   // Strip above the keyboard (DESIGN.md §10.3). Every control is a 44pt
-  // target (`--spacing-control`); Ctrl/Alt look armed because a modifier
-  // whose state you cannot see is worse than no modifier.
+  // target (`--spacing-control`). Ctrl/Alt show idle / armed / locked as
+  // three states: colour plus a shape (inset ring vs bottom rule), because
+  // a colour-only state was a defect in this review cycle.
   let {
     mods,
     onkey,
   }: {
-    mods: StickyMods
+    mods: StickySlots
     onkey: (key: BarKey) => void
   } = $props()
 
@@ -30,6 +31,12 @@
     { key: 'tilde', label: '~' },
   ]
 
+  function slotOf(key: BarKey): StickySlots['ctrl'] | undefined {
+    if (key === 'ctrl') return mods.ctrl
+    if (key === 'alt') return mods.alt
+    return undefined
+  }
+
   function press(e: PointerEvent, key: BarKey) {
     // Keep the IME field focused so the keyboard does not dismiss.
     e.preventDefault()
@@ -39,13 +46,14 @@
 
 <div class="bar" use:keyboardInset data-testid="key-bar">
   {#each KEYS as item (item.key)}
-    {@const armed =
-      (item.key === 'ctrl' && mods.ctrl) || (item.key === 'alt' && mods.alt)}
+    {@const slot = slotOf(item.key)}
     <button
       type="button"
       class="key"
-      class:armed
-      aria-pressed={item.key === 'ctrl' || item.key === 'alt' ? armed : undefined}
+      class:armed={slot === 'armed'}
+      class:locked={slot === 'locked'}
+      aria-pressed={slot === undefined ? undefined : slot !== 'idle'}
+      data-slot={slot}
       aria-label={item.label}
       onpointerdown={(e) => press(e, item.key)}
     >
@@ -74,5 +82,12 @@
   .key.armed {
     color: var(--color-accent-text);
     background: var(--color-accent-subtle);
+    box-shadow: inset 0 0 0 1px var(--color-accent);
+  }
+  .key.locked {
+    color: var(--color-accent-text);
+    background: var(--color-accent-subtle);
+    font-weight: 600;
+    box-shadow: inset 0 -2px 0 var(--color-accent);
   }
 </style>

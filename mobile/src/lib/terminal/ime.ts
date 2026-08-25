@@ -13,6 +13,8 @@
 // reducer therefore owns a different contract and does not import that file
 // (mobile vocabulary: only lib/i18n.ts may reach into web/).
 
+import { CompositionGate, type CompositionEvent, type Intent, type ModifierId } from 'touch-remote-input'
+
 export type ImeEvent =
   | { kind: 'compositionstart' }
   | { kind: 'compositionupdate'; data: string }
@@ -21,27 +23,45 @@ export type ImeEvent =
 
 export type ImeState = { composing: boolean }
 
-export function imeReduce(state: ImeState, ev: ImeEvent): { state: ImeState; emit: string } {
+function toCompositionEvent(ev: ImeEvent): CompositionEvent {
   switch (ev.kind) {
     case 'compositionstart':
-      return { state: { composing: true }, emit: '' }
+      return { type: 'compose-start' }
     case 'compositionupdate':
-      // Updates are the half-assembled syllables. Never emit; do not touch
-      // `composing` — start/end own that flag, so a stray update cannot
-      // latch it true with no matching end.
-      return { state: { composing: state.composing }, emit: '' }
+      return { type: 'compose-update', text: ev.data }
     case 'compositionend':
-      // Always clear, even with no matching start (defensive: must not leave
-      // composing stuck true). Empty data is a dismissed candidate.
-      return { state: { composing: false }, emit: ev.data }
+      return { type: 'compose-end', text: ev.data }
     case 'input':
-      // Browsers fire input *and* composition events for the same syllable.
-      // Either flag means we are inside a composition; emit nothing.
-      if (state.composing || ev.isComposing) {
-        return { state: { composing: state.composing }, emit: '' }
-      }
-      return { state: { composing: false }, emit: ev.data }
+      // `isComposing` without a start is a platform that skipped the
+      // start event. Map it to an update so it withholds and does not
+      // latch the gate — the same rule the library's update has.
+      return ev.isComposing
+        ? { type: 'compose-update', text: ev.data }
+        : { type: 'plain', text: ev.data }
   }
+}
+
+function emitOf(intents: Intent[]): string {
+  for (const intent of intents) {
+    if (intent.op === 'emit-text') return intent.text
+  }
+  return ''
+}
+
+/**
+ * DOM-shaped events in, the library gate underneath. `{state, emit}` stays
+ * so the screen's call sites stay readable; `intents` is the gate's own
+ * answer (withhold vs empty vs emit-text), which the seam tests pin.
+ */
+export function imeReduce(
+  state: ImeState,
+  ev: ImeEvent,
+  mods: readonly ModifierId[] = [],
+): { state: ImeState; emit: string; intents: Intent[] } {
+  const gate = new CompositionGate()
+  if (state.composing) gate.next({ type: 'compose-start' })
+  const intents = gate.next(toCompositionEvent(ev), [...mods])
+  return { state: { composing: gate.composing }, emit: emitOf(intents), intents }
 }
 
 /** Attributes the keystroke-taking element must carry so iOS does not

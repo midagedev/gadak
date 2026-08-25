@@ -1,27 +1,33 @@
 // What a key-bar press means in bytes (DESIGN.md §10.3). A phone keyboard
 // has no Esc, Ctrl, or arrows, so a bar above it carries them. This module
-// owns the mapping — CSI sequences, sticky Ctrl/Alt, control bytes — and
-// none of the DOM. The screen is a thin adapter from taps to these calls.
+// owns the mapping — CSI sequences, control bytes — and none of the DOM.
 // Defects here are invisible in a screenshot and obvious in a table of
-// inputs, which is why the whole thing is a pure function over plain data.
+// inputs, which is why the encoder is a pure function over plain data.
 //
 // The control-byte table is explicit, not `code & 0x1f`: that bitmask would
 // also map `@ { | } ~`, which have no control byte and must go out unchanged
-// (dropping the keystroke would be worse than ignoring the modifier). Sticky
-// state lives here rather than as two booleans in a component so a modifier
-// press toggles and every other press — bar key or typed letter — consumes.
+// (dropping the keystroke would be worse than ignoring the modifier).
 //
-// Deliberately a subset, and not the final contract. ~/repo/naru-remote has
-// a matured version of the same UX — sticky slots are idle/armed/**locked**
-// with a 400 ms double-tap window, held keys repeat at 400 ms then 45 ms,
-// and a control key waits behind a flush barrier so it cannot overtake
-// in-flight IME composition — all measured against a real terminal
-// (`docs/research/orca-mobile-input-reference.md` there). Its wire is X11
-// keysyms over VNC, so the *encoder* below stays ours; the state machines do
-// not, and GDK-898 lifts them out into a repo both apps run the same golden
-// vectors against. Add behaviour here only if it also belongs there.
+// Sticky slots, the composition gate, and the flush barrier live in
+// `touch-remote-input` (GDK-898). This file is the adapter that turns
+// `activeModifiers()` into the `{ctrl, alt}` the encoder takes, and the
+// PTY's permanent `pending: 'not-needed'` answer for the barrier. The
+// encoder itself stays ours: naru-remote wraps the same decisions in X11
+// keysyms over VNC, and there is no shared encoding of "Ctrl-C".
+
+import {
+  barrierSteps,
+  type Intent,
+  type ModifierId,
+  type SlotState,
+  type StickyModifiers,
+} from 'touch-remote-input'
+
+export { LOCK_WINDOW_MS, StickyModifiers } from 'touch-remote-input'
+export type { Intent, ModifierId, SlotState } from 'touch-remote-input'
 
 export type StickyMods = { ctrl: boolean; alt: boolean }
+export type StickySlots = { ctrl: SlotState; alt: SlotState }
 
 export type BarKey =
   | 'esc'
@@ -132,13 +138,41 @@ export function bytesForText(text: string, mods: StickyMods): Uint8Array {
   return withMods(utf8.encode(text), mods, text)
 }
 
+/** `control`/`alt` become the encoder's booleans; `shift`/`meta` do not. */
+export function encoderMods(ids: readonly ModifierId[]): StickyMods {
+  let ctrl = false
+  let alt = false
+  for (const id of ids) {
+    if (id === 'control') ctrl = true
+    else if (id === 'alt') alt = true
+  }
+  return { ctrl, alt }
+}
+
+export function stickySlots(sticky: StickyModifiers): StickySlots {
+  return { ctrl: sticky.slot('control'), alt: sticky.slot('alt') }
+}
+
+export function modifierIdForBarKey(key: BarKey): ModifierId | null {
+  if (key === 'ctrl') return 'control'
+  if (key === 'alt') return 'alt'
+  return null
+}
+
 /**
- * A modifier press toggles that modifier; any other press (bar key or typed
- * letter) consumes every sticky back to false. `key` is `string` so a letter
- * from the OS keyboard can consume without inventing a dummy bar key.
+ * Ordered steps for a non-modifier bar key. A PTY write cannot fail, so
+ * `pending` is always `'not-needed'` and the failure rows of the barrier
+ * table never appear. Modifier taps do not go through here — they `tap()`.
  */
-export function applyStickyPress(mods: StickyMods, key: string): StickyMods {
-  if (key === 'ctrl') return { ctrl: !mods.ctrl, alt: mods.alt }
-  if (key === 'alt') return { ctrl: mods.ctrl, alt: !mods.alt }
-  return { ctrl: false, alt: false }
+export function stepsForBarKey(
+  key: BarKey,
+  hasMarked: boolean,
+  mods: readonly ModifierId[] = [],
+): Intent[] {
+  return barrierSteps({
+    key,
+    mods: [...mods],
+    hasMarked,
+    pending: 'not-needed',
+  })
 }

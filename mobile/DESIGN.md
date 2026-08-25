@@ -482,8 +482,22 @@ where a platform allowlist would otherwise stand.
   above the keyboard carrying them, riding the existing `keyboardInset`
   action (§4.2) — the VisualViewport measurement is already solved here and
   is not solved twice. Ctrl is *sticky*: tap it, then a letter, and the
-  control byte goes out (`Ctrl`+`c` → `0x03`). Sticky state, control-byte
-  mapping and the arrow/Esc/Tab sequences are pure functions with tests.
+  control byte goes out (`Ctrl`+`c` → `0x03`).
+- **A sticky modifier has three states, not two** (GDK-898). idle, *armed*
+  for the next key, and *locked* until you tap it again — a second tap
+  within 400 ms promotes armed to locked. A toggle cannot hold Ctrl across
+  several keys, and it cannot tell "armed for one" apart from "held". The
+  bar shows all three with shape as well as colour, because a modifier whose
+  state you cannot see is worse than no modifier at all.
+- **The decisions are shared; the bytes are ours.** Sticky slots, the
+  composition gate, the key-repeat cadence and the flush barrier live in
+  `touch-remote-input`, which naru-remote runs the same golden vectors
+  against. What stays here is the encoder — control bytes, CSI sequences,
+  UTF-8 — because naru wraps the same decision in an X11 keysym over VNC and
+  there is no shared encoding of "Ctrl-C". `src/lib/terminal/keys.ts` is the
+  adapter between the two, and it is still a pure function over plain data.
+  New input *behaviour* belongs in the library, where both apps get it; new
+  *encoding* belongs here.
 - **Autocorrect is off** on whatever element takes the keystrokes.
   Smart quotes in a shell command are a defect, not a nicety.
 

@@ -96,3 +96,47 @@ describe('IME_INPUT_ATTRS', () => {
     expect(IME_INPUT_ATTRS.spellcheck).toBe('false')
   })
 })
+
+describe('imeReduce — CompositionGate intents (vectors/composition)', () => {
+  it('compose-start withholds (a-hangul-syllable-arrives-once)', () => {
+    const out = imeReduce({ composing: false }, { kind: 'compositionstart' })
+    expect(out.intents).toEqual([{ op: 'withhold' }])
+    expect(out.emit).toBe('')
+    expect(out.state.composing).toBe(true)
+  })
+
+  it('a dismissed candidate yields no intents, not a withhold (a-dismissed-candidate-emits-nothing)', () => {
+    const started = imeReduce({ composing: false }, { kind: 'compositionstart' })
+    const out = imeReduce(started.state, { kind: 'compositionend', data: '' })
+    expect(out.intents).toEqual([])
+    expect(out.emit).toBe('')
+    expect(out.state.composing).toBe(false)
+  })
+
+  it('a stray commit still lands and an update does not latch (a-stray-commit-still-lands)', () => {
+    const stray = imeReduce({ composing: false }, { kind: 'compositionend', data: 'x' })
+    expect(stray.intents).toEqual([{ op: 'emit-text', text: 'x', mods: [] }])
+    expect(stray.emit).toBe('x')
+    const update = imeReduce(stray.state, { kind: 'compositionupdate', data: 'ㅎ' })
+    expect(update.state.composing).toBe(false)
+    expect(update.intents).toEqual([{ op: 'withhold' }])
+  })
+
+  it('sticky modifiers ride committed text (sticky-modifiers-ride-committed-text)', () => {
+    const out = imeReduce(
+      { composing: false },
+      { kind: 'input', data: 'c', isComposing: false },
+      ['control'],
+    )
+    expect(out.intents).toEqual([{ op: 'emit-text', text: 'c', mods: ['control'] }])
+    expect(out.emit).toBe('c')
+  })
+
+  it('input with isComposing true and no start withholds and does not latch', () => {
+    const out = imeReduce({ composing: false }, { kind: 'input', data: 'ㅎ', isComposing: true })
+    expect(out.state.composing).toBe(false)
+    expect(out.emit).toBe('')
+    expect(out.intents).toEqual([{ op: 'withhold' }])
+  })
+})
+

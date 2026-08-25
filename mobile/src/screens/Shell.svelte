@@ -13,11 +13,16 @@
   import { createShellSession } from '../lib/terminal/api'
   import { openShellSocket } from '../lib/terminal/transport'
   import {
-    applyStickyPress,
+    StickyModifiers,
     bytesForBarKey,
     bytesForText,
+    encoderMods,
+    modifierIdForBarKey,
+    stepsForBarKey,
+    stickySlots,
     type BarKey,
-    type StickyMods,
+    type ModifierId,
+    type StickySlots,
   } from '../lib/terminal/keys'
   import { imeReduce, IME_INPUT_ATTRS, type ImeState } from '../lib/terminal/ime'
   import { createRenderer, type PhoneTerminalRenderer } from '../lib/terminal/renderer'
@@ -50,7 +55,12 @@
   let imeEl = $state<HTMLTextAreaElement | null>(null)
   let status = $state<Status>({ kind: 'connecting' })
   let attached = $state(false)
-  let mods = $state<StickyMods>({ ctrl: false, alt: false })
+  const sticky = new StickyModifiers()
+  let mods = $state<StickySlots>(stickySlots(sticky))
+
+  function syncMods() {
+    mods = stickySlots(sticky)
+  }
 
   const heading = $derived(machineName())
 
@@ -139,21 +149,31 @@
   }
 
   function sendText(text: string) {
-    const bytes = bytesForText(text, mods)
-    mods = applyStickyPress(mods, text)
-    sendBytes(bytes)
+    sendBytes(bytesForText(text, encoderMods(sticky.activeModifiers())))
+    sticky.consume()
+    syncMods()
   }
 
   function onBarKey(key: BarKey) {
-    // Flush barrier: commit an open composition, then the bar key. Esc
-    // mid-syllable otherwise reaches the PTY while 자모 are still held
-    // (naru-remote; long-term home is the ime module — GDK-898).
-    if (ime.composing) {
-      flushIme({ kind: 'compositionend', data: imeEl?.value ?? '' })
+    const mod = modifierIdForBarKey(key)
+    if (mod) {
+      sticky.tap(mod, Date.now())
+      syncMods()
+      imeEl?.focus()
+      return
     }
-    const bytes = bytesForBarKey(key, mods)
-    mods = applyStickyPress(mods, key)
-    sendBytes(bytes)
+    const steps = stepsForBarKey(key, ime.composing, sticky.activeModifiers())
+    for (const step of steps) {
+      if (step.op === 'commit-marked') {
+        // Composition flush only: the bar key is the emission that spends
+        // an armed slot. Marked text goes out with no modifiers.
+        flushIme({ kind: 'compositionend', data: imeEl?.value ?? '' }, { spend: false, mods: [] })
+      } else if (step.op === 'emit-key') {
+        sendBytes(bytesForBarKey(key, encoderMods(step.mods)))
+        sticky.consume()
+        syncMods()
+      }
+    }
     imeEl?.focus()
   }
 
@@ -163,12 +183,21 @@
       | { kind: 'compositionupdate'; data: string }
       | { kind: 'compositionend'; data: string }
       | { kind: 'input'; data: string; isComposing: boolean },
+    opts?: { spend?: boolean; mods?: readonly ModifierId[] },
   ) {
-    const out = imeReduce(ime, ev)
+    const active = opts?.mods ?? sticky.activeModifiers()
+    const spend = opts?.spend ?? true
+    const out = imeReduce(ime, ev, active)
     ime = out.state
     if (ev.kind === 'compositionend') {
       lastComposeEmit = out.emit
-      if (out.emit) sendText(out.emit)
+      if (out.emit) {
+        sendBytes(bytesForText(out.emit, encoderMods(active)))
+        if (spend) {
+          sticky.consume()
+          syncMods()
+        }
+      }
       if (imeEl) imeEl.value = ''
       return
     }
@@ -180,7 +209,11 @@
     }
     lastComposeEmit = ''
     if (out.emit) {
-      sendText(out.emit)
+      sendBytes(bytesForText(out.emit, encoderMods(active)))
+      if (spend) {
+        sticky.consume()
+        syncMods()
+      }
       if (imeEl) imeEl.value = ''
     }
   }
@@ -196,7 +229,8 @@
     if (e.key === 'Backspace') {
       e.preventDefault()
       sendBytes(new Uint8Array([0x7f]))
-      mods = applyStickyPress(mods, 'backspace')
+      sticky.consume()
+      syncMods()
       return
     }
     if (e.key === 'Tab') {
