@@ -15,33 +15,17 @@ export type RendererKind = 'ghostty' | 'xterm'
 
 export const RENDERER_STORAGE_KEY = 'gadak.terminal.renderer'
 
-export interface TerminalRenderer {
-  open(host: HTMLElement): void
-  write(data: Uint8Array | string): void
-  onData(cb: (bytes: Uint8Array) => void): void
-  onResize(cb: (cols: number, rows: number) => void): void
-  fit(): void
-  focus(): void
-  dispose(): void
-  readonly cols: number
-  readonly rows: number
-  readonly name: RendererKind
-}
+/*
+ * The renderer contract and the stream decoder moved to ./protocol (GDK-865):
+ * the phone ships xterm only, and importing anything from this module would
+ * make a bundler resolve the ghostty dynamic import below. Re-exported here
+ * because this is where the web app already looks.
+ */
+import { createUtf8StreamDecoder } from './protocol'
+import type { TerminalRenderer } from './protocol'
 
-/** Streaming UTF-8 decoder so a 256 KiB ring replay that splits a character
- *  across two write() calls still renders one glyph. fatal:false matches
- *  "bytes from a PTY, never a contract that they are well-formed". */
-export function createUtf8StreamDecoder(): {
-  push(data: Uint8Array | string): string
-} {
-  const dec = new TextDecoder('utf-8', { fatal: false })
-  return {
-    push(data: Uint8Array | string): string {
-      if (typeof data === 'string') return data
-      return dec.decode(data, { stream: true })
-    },
-  }
-}
+export { createUtf8StreamDecoder }
+export type { TerminalRenderer }
 
 export function resolveRendererKind(opts?: {
   search?: string

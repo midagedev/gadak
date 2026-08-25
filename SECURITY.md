@@ -225,6 +225,17 @@ tailnet IP an `--allow-remote` bind answers on — needs a terminal token.
 `--allow-remote` publishes the mirror's data by design; it does not
 publish a shell.
 
+That Origin check also settles a question app builds raise: **no webview
+can open this socket.** A page inside an app shell has a custom-scheme
+origin (`tauri://localhost` and friends), the check admits only `http`/
+`https` origins equal to the request's own Host, and a browser cannot be
+told to omit Origin — so the handshake is refused even with a valid
+terminal token. Native clients, which send no Origin and can set an
+`Authorization` header, are the only remote callers that get through. That
+is why gadak's own phone app carries the shell over a native socket rather
+than the webview's, and why "teach the check about custom schemes" is not
+an available shortcut: it would hand any webview a shell.
+
 Once **any active pairing token exists**, all three surfaces demand
 `Authorization: Bearer <token>`. There is no loopback exemption on the
 passthrough, because a tunnel arrives as loopback; while no active token

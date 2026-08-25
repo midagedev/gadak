@@ -521,3 +521,58 @@ func TestTerminalLocalNeedsLoopbackPeer(t *testing.T) {
 		}
 	}
 }
+
+// ⑨ An app webview may not open this socket, and that is why the phone's
+// transport is native.
+//
+// The mobile companion (GDK-865) runs inside a WKWebView whose origin is a
+// custom scheme, and a webview WebSocket can neither omit that Origin nor
+// set an Authorization header. Both halves are refused here: the custom
+// scheme dies at the guard's Origin check, and a socket with no bearer at
+// all dies at the gate. The phone therefore dials natively — no Origin, a
+// real header — which is ⑤ above.
+//
+// This is pinned because the cheap "fix" for a desktop app is to teach
+// allowedOrigin about custom schemes, and that change would quietly hand a
+// webview — anyone's webview — a shell on this machine. Measured against a
+// live serve on a LAN address before it was written: 101 for the native
+// dial, 403 forbidden_origin with `Origin: tauri://localhost`.
+func TestTerminalWebviewOriginCannotOpenTheSocket(t *testing.T) {
+	srv, _, dir := termServer(t)
+	tok := seedStore(t, dir, seedToken{"phone", pairing.ScopeTerminal})[0]
+	id := createSession(t, srv, mirrorHost, tok)
+
+	u := "ws" + strings.TrimPrefix(srv.URL, "http") + termBase + "sessions/" + id + "/ws/"
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// The third case is the one that isolates the scheme rule: its host is
+	// the request's own Host, so only "a custom scheme is not http(s)" can
+	// refuse it. Drop that clause from allowedOrigin and this row alone
+	// turns green — which is what "teach it about custom schemes" means.
+	for _, origin := range []string{
+		"tauri://localhost",
+		"capacitor://localhost",
+		"null",
+		"tauri://" + mirrorHost,
+	} {
+		hdr := http.Header{}
+		hdr.Set("Authorization", "Bearer "+tok)
+		hdr.Set("Origin", origin)
+		c, resp, err := websocket.Dial(ctx, u, &websocket.DialOptions{
+			HTTPHeader: hdr,
+			HTTPClient: termClient(mirrorHost),
+		})
+		if err == nil {
+			c.CloseNow()
+			t.Fatalf("Origin %q opened the terminal socket; want it refused", origin)
+		}
+		if resp == nil || resp.StatusCode != http.StatusForbidden {
+			code := 0
+			if resp != nil {
+				code = resp.StatusCode
+			}
+			t.Fatalf("Origin %q: status %d (%v); want 403", origin, code, err)
+		}
+	}
+}
