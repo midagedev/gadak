@@ -270,6 +270,10 @@ func run() error {
 	})
 
 	openURL = app.Browser.OpenURL
+	// The terminal pane's transport (GDK-892). There is no TCP listener here,
+	// so its WebSocket cannot open; this carries the same bytes over a wails
+	// GoStream. Body in terminal_stream.go.
+	registerTerminalStream(app, api)
 	browse.bind(newPlatformEmbedder(func() unsafe.Pointer {
 		if window == nil {
 			return nil
@@ -663,6 +667,28 @@ func assetHandler(ui fs.FS, next http.Handler) http.Handler {
 	})
 }
 
+// normalizeWebviewPeer is the third half of the webview identity fix-up, next
+// to the Origin deletion and the Host rewrite above (GDK-892).
+//
+// The wails asset server stamps every webview request with a synthetic peer
+// address — "192.0.2.1:1234", RFC 5737 TEST-NET
+// (internal/assetserver/assetserver_webview.go). That is a lie in the only
+// direction that matters here: these requests never crossed a network
+// boundary at all. internal/server's terminal gate reads *both* halves of the
+// connection — Host and peer — because with `--allow-remote` a remote client
+// can send `Host: localhost` and must not thereby become this machine's user
+// (GDK-863). Under the synthetic peer the app was indistinguishable from that
+// remote client, and every terminal request in Gadak.app died as
+// forbidden_host, silently, before any transport ran.
+//
+// Clearing it lands on the case that gate already documents: "an empty
+// RemoteAddr is an in-process call with no network peer at all". The
+// hardening is untouched; the app merely stops misrepresenting itself.
+// terminalLocal is the only non-test reader of RemoteAddr in the product.
+func normalizeWebviewPeer(r *http.Request) {
+	r.RemoteAddr = ""
+}
+
 // fallbackHandler serves whatever the Wails asset server does not find as a
 // static file: the API, /config.json, workspace mounts, the desktop-only
 // open-in-browser and browse-tab routes, and the SPA's index.html for
@@ -869,6 +895,7 @@ func fallbackHandler(api http.Handler, ui fs.FS, reg *workspace.Registry, openUR
 		// guard itself.
 		r.Header.Del("Origin")
 		r.Host = "127.0.0.1"
+		normalizeWebviewPeer(r)
 		api.ServeHTTP(w, r)
 	}))
 	spa := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -881,6 +908,7 @@ func fallbackHandler(api http.Handler, ui fs.FS, reg *workspace.Registry, openUR
 			// routes pass the browser guard.
 			r.Header.Del("Origin")
 			r.Host = "127.0.0.1"
+			normalizeWebviewPeer(r)
 			// A workspace page in this webview is still the desktop app. The
 			// registry serves the base web config (it also serves plain
 			// `gadak serve`), so the desktop flag must be stamped here — the

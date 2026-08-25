@@ -8,38 +8,31 @@
  *
  * Loopback needs no Bearer. Same-origin WebSocket passes the Origin guard.
  *
+ * Inside Gadak.app there is no TCP port for a ws:// URL to reach, so
+ * openSessionSocket picks a wails GoStream there instead (./wails-stream,
+ * GDK-892). Both transports carry the same bytes and end in the same
+ * callbacks; everything below this seam — REST, grace, the kept session id —
+ * is shared.
+ *
  * Page unload deliberately does nothing: navigator.sendBeacon is a POST, and
  * DELETE is the only close verb. The 60 s reconnect grace reaps a session
  * that nobody reattached to.
  */
 
-import { config } from '../config'
+import { config, isDesktop } from '../config'
+import { coerceDroppedReason } from './protocol'
+import type { SocketHandle, SocketHandlers } from './protocol'
+import { openWailsSessionSocket } from './wails-stream'
+
+// The wire vocabulary lives in ./protocol so the two transports do not import
+// each other; re-exported here because this is where the pane already looks.
+export { coerceDroppedReason }
+export type { DroppedReason, SocketHandle, SocketHandlers } from './protocol'
 
 export const TERMINAL_GRACE_MS = 60_000
 export const TERMINAL_RECONNECT_BACKOFF_MS = [500, 1000, 2000, 4000] as const
 /** Bound for "WS that never opens" (desktop / wails:// has no TCP socket). */
 export const TERMINAL_WS_OPEN_MS = 8_000
-
-export type DroppedReason =
-  | 'slow_client'
-  | 'token_revoked'
-  | 'idle_timeout'
-  | 'server_shutdown'
-  | 'closed'
-
-const DROPPED_REASONS: ReadonlySet<string> = new Set([
-  'slow_client',
-  'token_revoked',
-  'idle_timeout',
-  'server_shutdown',
-  'closed',
-])
-
-export function coerceDroppedReason(raw: unknown): DroppedReason {
-  return typeof raw === 'string' && DROPPED_REASONS.has(raw)
-    ? (raw as DroppedReason)
-    : 'closed'
-}
 
 /** Sibling of dashboardsBase(): apiBase ends in issues/, this swaps the suffix
  *  so /w/<name>/ mounts keep working. */
@@ -113,22 +106,20 @@ export async function deleteSession(id: string): Promise<void> {
   })
 }
 
-export interface SocketHandle {
-  send(data: Uint8Array): void
-  resize(cols: number, rows: number): void
-  close(): void
+/**
+ * The transport picker (GDK-892). Gadak.app mounts the same handler behind
+ * the wails asset server and opens no TCP port, so there is no `ws:` URL for
+ * a browser network stack to reach — the desktop carries the identical bytes
+ * over a wails GoStream instead. isDesktop() (lib/config.ts) is the existing
+ * owner of "am I in the app"; this adds no second answer to that question.
+ */
+export function openSessionSocket(id: string, handlers: SocketHandlers): SocketHandle {
+  return isDesktop()
+    ? openWailsSessionSocket(id, handlers)
+    : openWebSocketSession(id, handlers)
 }
 
-export function openSessionSocket(
-  id: string,
-  handlers: {
-    onOpen: () => void
-    onBytes: (data: Uint8Array) => void
-    onExit: (code: number) => void
-    onDropped: (reason: DroppedReason) => void
-    onClose: (neverOpened: boolean) => void
-  },
-): SocketHandle {
+function openWebSocketSession(id: string, handlers: SocketHandlers): SocketHandle {
   const ws = new WebSocket(terminalWsUrl(id))
   ws.binaryType = 'arraybuffer'
   let opened = false

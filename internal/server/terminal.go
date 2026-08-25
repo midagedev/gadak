@@ -67,6 +67,19 @@ func (s *server) terminalManager() *term.Manager {
 	return s.termMgr
 }
 
+// Terminals is the session core, for an in-process host that carries the
+// terminal over its own transport instead of the WebSocket below.
+//
+// Gadak.app is that host (GDK-892): it mounts this Handler behind the wails
+// asset server, where there is no TCP listener for a ws:// URL to reach, and
+// moves the same bytes over a wails GoStream. Everything above the socket —
+// create, list, delete, the gate — is the REST surface it already uses.
+//
+// Lazy exactly as the HTTP path is: a process that never opens a terminal
+// still constructs no manager, because this is the same call handleTerminal*
+// makes.
+func (h *Handler) Terminals() *term.Manager { return h.s.terminalManager() }
+
 // closeTerminals reaps every shell this server started. Shutdown calls it:
 // an exiting serve that leaves shells behind is the orphan class
 // term.Session.Close exists to close, one level up.
