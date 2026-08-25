@@ -111,8 +111,16 @@ type server struct {
 	// holds. Lazy: first /api/v1/origin/ request constructs it via
 	// origin.StandaloneHandler. Tests pin it to keep a session alive
 	// after origin.live is evicted (cross-process simulation).
-	originOnce sync.Once
-	originH    http.Handler
+	//
+	// A mutex, not a sync.Once. The slot has to be *replaceable*: the
+	// workspace mount binds a handler, and when its advertise fails it
+	// releases that persist session and the rescan loop retries with a
+	// fresh one. Under a Once the retry's bind was a silent no-op and the
+	// two paths ended up on two issuetap stores over one persist file —
+	// measured, both minting id 10001. originMu serialises lazy
+	// construction with binds, which is the part the Once was right about.
+	originMu sync.Mutex
+	originH  http.Handler
 
 	// termMgr owns the PTY sessions of the terminal surface (GDK-862).
 	// Built on first use — a serve that never opens a terminal never

@@ -132,25 +132,34 @@ func bearerToken(r *http.Request) string {
 }
 
 func (s *server) standaloneOrigin() http.Handler {
-	s.originOnce.Do(func() {
-		h, err := origin.StandaloneHandler(s.config())
-		if err != nil {
-			log.Printf("server: origin passthrough: %v", err)
-			return
-		}
-		s.originH = h
-	})
+	s.originMu.Lock()
+	defer s.originMu.Unlock()
+	if s.originH != nil {
+		return s.originH
+	}
+	h, err := origin.StandaloneHandler(s.config())
+	if err != nil {
+		// Not cached: a construction that failed for a transient reason
+		// (the persist lock held by a process that is about to exit) must
+		// be retryable on the next request.
+		log.Printf("server: origin passthrough: %v", err)
+		return nil
+	}
+	s.originH = h
 	return s.originH
 }
 
-// BindOriginHandler pins the passthrough target before the first request.
-// originOnce also serializes concurrent lazy construction and reads, so callers
-// can bind a workspace-owned handler without racing standaloneOrigin.
+// BindOriginHandler pins the passthrough target, replacing whatever was
+// there. nil unbinds, which is how a caller whose session went away puts
+// the slot back to lazy — leaving a handler pinned to a session the caller
+// has since closed is how one persist file ends up with two stores.
+//
+// Serialised with standaloneOrigin so a bind cannot race lazy construction.
 func (h *Handler) BindOriginHandler(next http.Handler) {
-	if h == nil || h.s == nil || next == nil {
+	if h == nil || h.s == nil {
 		return
 	}
-	h.s.originOnce.Do(func() {
-		h.s.originH = next
-	})
+	h.s.originMu.Lock()
+	h.s.originH = next
+	h.s.originMu.Unlock()
 }

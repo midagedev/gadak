@@ -93,6 +93,13 @@ func StartOriginPassthrough(cfg *config.Config, api http.Handler) (func(), error
 	note("standalone-persist")
 	stop, err := origin.ServeOriginPassthrough(dir, api)
 	if err != nil {
+		// Release the session too, not just the mark. A held persist lock
+		// with no advertise is the exact state that makes every concurrent
+		// CLI write fail busy with nowhere to route — the mount path
+		// (workspace/origin.go) already releases here and this helper,
+		// lifted out of it, has to hold the same contract for any caller
+		// that does not go on to Close.
+		_ = origin.CloseStandalone(cfg)
 		origin.SetInProcess(cfg, false)
 		return nopStop, err
 	}

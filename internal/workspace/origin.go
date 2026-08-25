@@ -70,6 +70,10 @@ func (r *Registry) ensureOrigin(name string, e *Entry) {
 	if err != nil {
 		// A held lock without an advertise is exactly the defect (STD-3):
 		// release the lock so a CLI can embed; the rescan loop retries.
+		// Unbind first: the handler we just pinned wraps the session about
+		// to be closed, and leaving it pinned means the retry's fresh
+		// session and this dead one are two stores over one persist file.
+		e.Handler.BindOriginHandler(nil)
 		_ = origin.CloseStandalone(cfg)
 		origin.SetInProcess(cfg, false)
 		if logf != nil {
@@ -82,6 +86,7 @@ func (r *Registry) ensureOrigin(name string, e *Entry) {
 	if r.closed {
 		r.mu.Unlock()
 		stop()
+		e.Handler.BindOriginHandler(nil)
 		_ = origin.CloseStandalone(cfg)
 		origin.SetInProcess(cfg, false)
 		return

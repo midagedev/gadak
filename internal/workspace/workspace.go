@@ -166,6 +166,7 @@ func closeEntry(e *Entry) {
 	}
 }
 
+// Get returns a cached workspace entry, opening the profile on first use.
 func (r *Registry) Get(name string) (*Entry, error) {
 	if r == nil {
 		return nil, errRegistryClosed
