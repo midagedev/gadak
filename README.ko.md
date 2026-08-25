@@ -117,7 +117,7 @@ CLI 기동 포함 — [방법론과 재측정 이력, gadak이 지는 행](docs/
 <p align="center">
   <img src="docs/media/web-demo.gif" alt="타이핑할수록 종이 리스트가 좁혀지고, 이슈가 라벨·우선순위·리오픈 배지와 함께 열리며, 문서와 에픽이 같은 창에 있다" width="900">
   <br>
-  <sub><a href="e2e/demo/web-demo.spec.ts">e2e/demo/web-demo.spec.ts</a>가 데모 스냅샷에 대해 생성.</sub>
+  <sub>창의 90초. <a href="e2e/demo/web-demo.spec.ts">e2e/demo/web-demo.spec.ts</a>가 데모 스냅샷에 대해 생성.</sub>
 </p>
 
 </details>
@@ -204,6 +204,12 @@ Standalone에서 영속 파일은 origin의 persist 파일입니다 — 워크�
 origin 폴더의 issuetap.db(SQLite, WAL). gadak이 꺼져 있을 때 복사하거나
 (`-wal`/`-shm` 사이드카 포함), `sqlite3 origin/issuetap.db ".backup dest.db"`.
 
+읽기·쓰기·계층·위키·첨부·히스토리는 양쪽 모두 됩니다. 보드, UI로서의
+스프린트, Jira 대시보드, Jira 알림함은 안 됩니다 — 그건 Jira에 남습니다.
+
+<details>
+<summary>▶ 전체 매트릭스와 ✅마다 붙은 각주</summary>
+
 | | Connected (Atlassian Cloud) | Standalone (0.16부터) |
 | --- | :---: | :---: |
 | 이슈 읽기·검색 (FTS, JQL, SQL) | ✅¹ | ✅¹ |
@@ -226,6 +232,9 @@ origin 폴더의 issuetap.db(SQLite, WAL). gadak이 꺼져 있을 때 복사하�
 6. Changelog는 미러링됩니다. 상태 체류 시간은 저장 컬럼이 아니라 `status_changed_at`에서 계산합니다.
 7. Jira의 알림함, 알림 규칙, 이메일은 미러링하지 않습니다. gadak은 macOS·Linux에서 자체 watch-피드 OS 알림을 갖고 있습니다.
 8. 보드 UI도 리스트의 스프린트 컬럼도 없습니다. 스프린트 필드(`sprint_id` / `sprint_name` / `sprint_state`)는 미러에 있고, SQL과 JQL(`sprint =` / `sprint in openSprints()`)로 질의할 수 있습니다. `versions` 카탈로그와 `fix_version_ids`도 같은 방식으로 조인합니다.
+
+</details>
+
 
 **Linear.** Linear 워크스페이스도 같은 동사로 미러링하고 write-through
 합니다: 워크스페이스 `config.json`에 `"linear"` 블록(`apiKey`, 선택 `teamIds`)을
@@ -265,6 +274,27 @@ gadak mcp install claude
 
 두 설치(그리고 Raycast까지)는 macOS 앱에서는 버튼이기도 합니다 — 설치
 상태를 정직하게 보여주는 **설정 → 연동**.
+
+같은 리그에서 찍은 두 테이크. 각각 한 가지 일을 끝까지 따라갑니다. 첫
+문장을 빼면 아무것도 각본이 아닙니다 — 명령도, HTML도, 복구도 모델의
+것입니다:
+
+<table align="center">
+<tr>
+<td width="50%" align="center">
+  <img src="docs/media/claude-dashboards-vertical.gif" width="430" alt="트리아지 대시보드를 요청받은 라이브 Claude Code 세션이 미러에 질의하고 HTML을 써서 데이터소스 셋과 함께 저장한 뒤 엽니다. 벽에 상태 카드와 월별 라인 차트, 가장 오래된 미해결 이슈 목록이 그려지고, 벽 위의 이슈 키를 클릭하자 앱이 그 이슈를 엽니다">
+</td>
+<td width="50%" align="center">
+  <img src="docs/media/claude-tokens-vertical.gif" width="430" alt="팀 룩을 요청받은 라이브 Claude Code 세션이 액센트·라벨·이슈 유형 색과 행 높이·본문 크기를 설정합니다. 한 번의 쓰기가 타입 사다리 전체를 찍는 경고와 함께 저장되고, 세션이 그 경고를 읽어 스스로 단을 복구합니다">
+</td>
+</tr>
+<tr>
+<td align="center"><sub><b>벽을 세우고, 그 벽이 앱으로 되돌아옵니다.</b> 대시보드는 HTML 문서 하나에 이름 붙은 쿼리들입니다. 에이전트가 벽에 올린 키는 진짜 링크라, 클릭하면 페이지를 떠나는 대신 그 이슈가 열립니다.</sub></td>
+<td align="center"><sub><b>룩을 바꾸되, 요청한 값을 지킵니다.</b> 토큰 쓰기는 적용된 뒤 어떻게 보일지를 말해 줍니다 — 기계가 지킬 수 없는 것만 거절합니다. 여기서는 경고가 타입 사다리 전체를 찍어 주고, 세션이 스스로 단을 복구합니다.</sub></td>
+</tr>
+</table>
+
+<sub><a href="tools/tapes/claude-dashboards.tape">claude-dashboards.tape</a>와 <a href="tools/tapes/claude-tokens.tape">claude-tokens.tape</a>를 데모 스냅샷에 대해 녹화. 원본 해상도 MP4: <a href="docs/media/claude-dashboards-vertical.mp4">대시보드</a> · <a href="docs/media/claude-tokens-vertical.mp4">토큰</a>.</sub>
 
 설정도 에이전트가 화면을 눌러야 하는 일이 아닙니다. 설정 다이얼로그가
 편집하는 모든 필드가 같은 검증을 지나는 CLI 동사입니다:
@@ -346,64 +376,29 @@ JQL로 여전히 물을 수 없는 것은 `gadak sql`과
 
 ## 설치
 
-Atlassian Cloud, 또는 (0.16부터) Atlassian 계정이 없는 standalone
-워크스페이스입니다. Connected 사이트에는
-[API 토큰](https://id.atlassian.com/manage-profile/security/api-tokens)
-하나가 필요합니다 — 같은 사이트의 Jira와 Confluence를 모두 커버합니다.
+brew 두 줄은 이 페이지 맨 위에 있습니다. Atlassian Cloud, 또는 (0.16부터)
+Atlassian 계정이 필요 없는 standalone 워크스페이스 — connected 사이트는
+[API 토큰](https://id.atlassian.com/manage-profile/security/api-tokens) 하나면
+되고, 같은 사이트의 Jira와 Confluence를 함께 커버합니다.
 
-**1. [데스크톱 앱](docs/DESKTOP.md).**
+**Windows:** [최신 릴리스](https://github.com/midagedev/gadak/releases/latest)에서
+`gadak_<version>_windows_amd64.zip`(또는 `arm64`)을 받아 압축을 풀고
+`gadak.exe`를 `PATH`에 둡니다. 데스크톱 zip은 서명되어 있지 않습니다 —
+SmartScreen 차단은 바이러스 판정이 아니라 서명 부재입니다
+([이유와 sha256 확인법](docs/WINDOWS-SIGNING.md)). Smart App Control을 끄지
+마십시오.
 
-macOS: [최신 릴리스](https://github.com/midagedev/gadak/releases/latest)에서
-`Gadak-<version>-arm64.dmg`를 받아 Applications로 드래그하세요. 서명·공증
-완료. 첫 실행이 사이트, 이메일, 토큰, 프로젝트 선택을 안내합니다. CLI는
-번들 안에 있습니다 — macOS는 앱을 `PATH`에 올려 주지 않으므로:
+<details>
+<summary>▶ dmg, 리눅스 tarball, 두 번째 머신 페어링</summary>
+
+macOS dmg: [최신 릴리스](https://github.com/midagedev/gadak/releases/latest)의
+`Gadak-<version>-arm64.dmg`를 받아 Applications로 끌어다 놓습니다. 서명·공증
+완료. 첫 실행이 사이트·이메일·토큰·프로젝트를 안내합니다. CLI는 번들 안에
+들어 있고, macOS는 앱을 `PATH`에 올려 주지 않습니다:
 
 ```bash
 /Applications/Gadak.app/Contents/Resources/bin/gadak install-cli
 ```
-
-**2. CLI** — 리눅스, Windows, 또는 같은 UI를 브라우저 탭으로:
-
-macOS + Linux:
-
-```bash
-brew install midagedev/tap/gadak-cli
-```
-
-Windows: [최신 릴리스](https://github.com/midagedev/gadak/releases/latest)에서
-`gadak_<version>_windows_amd64.zip`(또는 `windows_arm64`)과 `checksums.txt`를
-받으세요. 압축을 풀고 `gadak.exe`를 `PATH`에 두세요. 이 경로가 가장
-확실합니다. sha256 확인:
-[`docs/WINDOWS-SIGNING.md`](docs/WINDOWS-SIGNING.md).
-
-데스크톱 zip(`Gadak-<version>-windows-x64.zip`, 또는 `windows-arm64`)은
-미서명입니다([GDK-211]). Windows가 **Windows protected your PC** 또는
-**Smart App Control blocked an app that may be unsafe**를 보여 주면
-바이러스 탐지가 아니라 서명 부재입니다 — 위의 CLI zip을 쓰세요.
-Smart App Control을 끄지 마세요.
-설치: [`docs/INSTALL.md`](docs/INSTALL.md#desktop-app-windows).
-Code signing policy (경고 이유, SHA256):
-[`docs/WINDOWS-SIGNING.md`](docs/WINDOWS-SIGNING.md).
-
-Atlassian 계정 없음:
-
-```bash
-gadak init --standalone
-gadak create "the thing I just noticed"
-gadak serve
-```
-
-`gadak serve`가 주소를 출력합니다 — `http://gadak.localhost:7777`을 열어
-이슈가 보이면 됩니다.
-
-이미 Jira가 있으면:
-
-```bash
-gadak init && gadak sync && gadak serve
-```
-
-`gadak serve`가 주소를 출력합니다 — `http://gadak.localhost:7777`을 열어
-이슈가 보이면 됩니다.
 
 **다른 머신과 페어링.** 홈의 `gadak serve`가 origin입니다. 홈에서 오퍼를
 만듭니다(stdout이 오퍼 한 줄):
@@ -464,19 +459,16 @@ Arch 리눅스: 검증된 `PKGBUILD`가
 바로 `open·stuck`을 보여 주고(토큰 없음, 네트워크 없음), 클릭하면 앱이
 열립니다. 실제 게스트에서 한 번 실행해 검증했습니다.
 
-<details>
-<summary>▶ 실제 Omarchy 게스트 위의 위젯 (PNG) — 바 배지는 <code>gadak sql</code> 자신의 숫자입니다</summary>
-
 <p align="center">
   <img src="docs/media/omarchy-widget.png" alt="Omarchy 데스크톱: Waybar 배지가 368·201을 표시하고, 아래 터미널에서 gadak sql --json이 같은 미러의 open 368, stuck 201을 반환하며, 배지를 클릭해 gadak 웹 앱이 열려 있다" width="900">
   <br>
-  <sub>Arch + Hyprland 검증 게스트에서 캡처 (<a href="contrib/omarchy/README.md">contrib/omarchy/README.md</a>).</sub>
+  <sub>바 배지는 <code>gadak sql</code> 자신의 숫자입니다. Arch + Hyprland 검증 게스트에서 캡처 (<a href="contrib/omarchy/README.md">contrib/omarchy/README.md</a>).</sub>
 </p>
-
-</details>
 
 설치 스크립트, 릴리스 아카이브, 소스 빌드, Docker, 위키 미러링, 워크스페이스,
 업그레이드: **[`docs/INSTALL.md`](docs/INSTALL.md)**.
+
+</details>
 
 ## 나머지
 

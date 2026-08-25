@@ -169,6 +169,28 @@ gadak transition NMB-1042 done -m "shipped"`}
       />
       <figcaption>{t.agent.driveCaption}</figcaption>
     </figure>
+    {/* v0.17.3: two takes from the same rig, each following one job to the
+        end — the flagship above asks for both at once and cannot hold on
+        either. Side by side rather than stacked: three 4:5 towers in a row
+        would be the whole section, and the pair reads as one composition. */}
+    <div class="media-diptych">
+      <figure class="media-pair">
+        <MediaSlot
+          slot={lang === 'en' ? 'a wall it can build' : '에이전트가 세우는 벽'}
+          src="/media/claude-dashboards-vertical.mp4"
+          poster="/media/claude-dashboards-vertical-poster.png"
+        />
+        <figcaption>{t.agent.dashboardsCaption}</figcaption>
+      </figure>
+      <figure class="media-pair">
+        <MediaSlot
+          slot={lang === 'en' ? 'a look it can change' : '에이전트가 바꾸는 룩'}
+          src="/media/claude-tokens-vertical.mp4"
+          poster="/media/claude-tokens-vertical-poster.png"
+        />
+        <figcaption>{t.agent.tokensCaption}</figcaption>
+      </figure>
+    </div>
     <p>{t.agent.mcpLead}</p>
     <Snippet code="claude mcp add gadak -- gadak mcp" copyLabel={copyLabel} copiedLabel={copiedLabel} />
     <p class="note">
@@ -400,6 +422,29 @@ gadak transition NMB-1042 done -m "shipped"`}
   .media-pair.vertical {
     max-width: 540px;
     margin-inline: auto;
+  }
+
+  /* Two 4:5 tapes as one exhibit. They are read as a pair — "a wall it can
+     build" beside "a look it can change" — so they share a row until the
+     column is too narrow for the terminal band to stay legible, and then
+     they stack at full width rather than shrinking further. */
+  .media-diptych {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.25rem;
+    align-items: start;
+    margin: 1.5rem 0;
+  }
+  .media-diptych .media-pair {
+    margin: 0;
+    min-width: 0;
+  }
+  @media (max-width: 720px) {
+    .media-diptych {
+      grid-template-columns: 1fr;
+      max-width: 540px;
+      margin-inline: auto;
+    }
   }
 
   .origin ul {

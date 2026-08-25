@@ -117,7 +117,7 @@ mirror trails Jira by one sync interval.
 <p align="center">
   <img src="docs/media/web-demo.gif" alt="The paper list narrows as you type; an issue opens with labels, priority and a reopen badge; documents and epics sit in the same window" width="900">
   <br>
-  <sub>Generated from <a href="e2e/demo/web-demo.spec.ts">e2e/demo/web-demo.spec.ts</a> against the demo snapshot.</sub>
+  <sub>The window, in 90 seconds. Generated from <a href="e2e/demo/web-demo.spec.ts">e2e/demo/web-demo.spec.ts</a> against the demo snapshot.</sub>
 </p>
 
 </details>
@@ -202,6 +202,13 @@ in the workspace's origin folder (SQLite, WAL). Copy it while gadak is not
 running (include the `-wal`/`-shm` sidecars), or
 `sqlite3 origin/issuetap.db ".backup dest.db"`.
 
+Reads, writes, hierarchy, wiki, attachments and history work on both. Boards,
+sprints as a UI, Jira dashboards and Jira's notification inbox do not — those
+stay in Jira.
+
+<details>
+<summary>▶ The full matrix, with the footnote for every ✅</summary>
+
 | | Connected (Atlassian Cloud) | Standalone (from 0.16) |
 | --- | :---: | :---: |
 | Issue read and search (FTS, JQL, SQL) | ✅¹ | ✅¹ |
@@ -224,6 +231,8 @@ running (include the `-wal`/`-shm` sidecars), or
 6. Changelog is mirrored. Time in status is computed from `status_changed_at`, not stored as a column.
 7. Jira's notification inbox, rules, and email are not mirrored. gadak has its own watch-feed OS alerts on macOS and Linux.
 8. No board UI and no sprint column on the list. Sprint fields (`sprint_id` / `sprint_name` / `sprint_state`) are in the mirror; SQL and JQL (`sprint =` / `sprint in openSprints()`) can query them. The `versions` catalog and `fix_version_ids` join the same way.
+
+</details>
 
 **Linear.** A Linear workspace mirrors and writes through the same
 verbs: add a `"linear"` block (`apiKey`, optional `teamIds`) to the
@@ -266,6 +275,27 @@ Pins this binary and workspace into the registration.
 
 Both installs (and the Raycast one) are also buttons in the macOS app,
 with install state shown honestly: **Settings → Integrations**.
+
+Two takes from the same rig, each following one job to the end. Nothing in
+either is scripted but the opening sentence — the commands, the HTML and the
+recovery are the model's:
+
+<table align="center">
+<tr>
+<td width="50%" align="center">
+  <img src="docs/media/claude-dashboards-vertical.gif" width="430" alt="Asked for a triage dashboard, a live Claude Code session queries the mirror, writes the HTML, saves it with three datasources and opens it; the wall paints status cards, a per-month line chart and a list of the oldest open issues, then an issue key on the wall is clicked and the app opens that issue">
+</td>
+<td width="50%" align="center">
+  <img src="docs/media/claude-tokens-vertical.gif" width="430" alt="Asked for the team look, a live Claude Code session sets the accent, the label and issue-type colors and the row height and body size; one write saves with a warning that prints the whole type ladder, and the session reads the warning and restores the step itself">
+</td>
+</tr>
+<tr>
+<td align="center"><sub><b>It builds the wall, and the wall links back.</b> A dashboard is one HTML document plus named queries. The keys it puts on the wall are real links — the frame asks the app to navigate, so a click lands on the issue instead of leaving the page.</sub></td>
+<td align="center"><sub><b>It changes the look, and keeps what you asked for.</b> Token writes apply and then say how they will read; only what the machine cannot honor is refused. Here the warning names the whole type ladder and the session repairs the step on its own.</sub></td>
+</tr>
+</table>
+
+<sub>Recorded from <a href="tools/tapes/claude-dashboards.tape">claude-dashboards.tape</a> and <a href="tools/tapes/claude-tokens.tape">claude-tokens.tape</a> against the demo snapshot. Full-resolution MP4s: <a href="docs/media/claude-dashboards-vertical.mp4">dashboards</a> · <a href="docs/media/claude-tokens-vertical.mp4">tokens</a>.</sub>
 
 Setup is not a screen an agent has to click, either. Every field the
 settings dialog edits is a CLI verb over the same validation:
@@ -345,64 +375,30 @@ and its off switch.
 
 ## Install
 
-Atlassian Cloud, or (from 0.16) a standalone workspace with no Atlassian account.
-A connected site needs one [API token](https://id.atlassian.com/manage-profile/security/api-tokens)
-— it covers Jira and Confluence on the same site.
+The two brew lines are at the top of this page. Atlassian Cloud, or (from
+0.16) a standalone workspace with no Atlassian account — a connected site
+needs one [API token](https://id.atlassian.com/manage-profile/security/api-tokens),
+which covers Jira and Confluence on the same site.
 
-**1. The [desktop app](docs/DESKTOP.md).**
+**Windows:** take `gadak_<version>_windows_amd64.zip` (or `arm64`) from the
+[latest release](https://github.com/midagedev/gadak/releases/latest), unzip,
+put `gadak.exe` on `PATH`. The desktop zip is unsigned — a SmartScreen block
+is a missing signature, not a virus finding
+([why, and how to check the sha256](docs/WINDOWS-SIGNING.md)). Do not turn
+Smart App Control off.
 
-macOS: download `Gadak-<version>-arm64.dmg` from the
+<details>
+<summary>▶ The dmg, the Linux tarball, and pairing a second machine</summary>
+
+macOS dmg: `Gadak-<version>-arm64.dmg` from the
 [latest release](https://github.com/midagedev/gadak/releases/latest), drag to
 Applications. Signed and notarized. First launch walks through site, email,
-token, and projects. The CLI is inside the bundle; macOS does not put an app
-on your `PATH`:
+token and projects. The CLI ships inside the bundle, and macOS does not put an
+app on your `PATH`:
 
 ```bash
 /Applications/Gadak.app/Contents/Resources/bin/gadak install-cli
 ```
-
-**2. The CLI**, on Linux, Windows, or for the same UI in a browser tab.
-
-macOS + Linux:
-
-```bash
-brew install midagedev/tap/gadak-cli
-```
-
-Windows: from the [latest release](https://github.com/midagedev/gadak/releases/latest),
-download `gadak_<version>_windows_amd64.zip` (or `windows_arm64`) and
-`checksums.txt`. Unzip, put `gadak.exe` on `PATH`. This is the reliable
-Windows route. How to check the sha256:
-[`docs/WINDOWS-SIGNING.md`](docs/WINDOWS-SIGNING.md).
-
-The desktop zip (`Gadak-<version>-windows-x64.zip`, or `windows-arm64`) is
-unsigned (signing is [GDK-211]). If Windows shows **Windows protected your PC**
-or **Smart App Control blocked an app that may be unsafe**, that is a missing
-signature, not a virus finding — use the CLI zip above. Do not turn Smart App
-Control off.
-Install: [`docs/INSTALL.md`](docs/INSTALL.md#desktop-app-windows).
-Code signing policy (why the warning, SHA256):
-[`docs/WINDOWS-SIGNING.md`](docs/WINDOWS-SIGNING.md).
-
-No Atlassian account:
-
-```bash
-gadak init --standalone
-gadak create "the thing I just noticed"
-gadak serve
-```
-
-`gadak serve` prints the address — open `http://gadak.localhost:7777` and you
-should see your issues.
-
-Already have Jira:
-
-```bash
-gadak init && gadak sync && gadak serve
-```
-
-`gadak serve` prints the address — open `http://gadak.localhost:7777` and you
-should see your issues.
 
 **Pair another machine.** Home `gadak serve` is the origin. On the home
 machine, mint an offer (stdout is one offer line):
@@ -419,63 +415,41 @@ gadak --workspace laptop init --pairing-code-stdin
 
 Confirm with `gadak --workspace laptop status` (paired with "laptop").
 `gadak pairing list` is the token table on home and one status line on the
-remote. `gadak pairing revoke laptop` is home only.
+remote. `gadak pairing revoke laptop` is home only. `_home` is this machine's
+routing token, not a device (`revoke` refuses it; `mint --label _home`
+rotates). `--profile` is an alias of `--workspace`. The gate is in
+[`SECURITY.md`](SECURITY.md).
 
-`_home` is this machine's routing token, not a device (`revoke` refuses it; `mint --label _home` rotates). Same verbs on the remote; a `pairing:` error is the whole message. `--profile` is an alias of `--workspace`. The gate is in [`SECURITY.md`](SECURITY.md).
-
-A Scoop manifest lives in [`contrib/scoop`](contrib/scoop). The bucket
-is not published and `scoop install` has not been run on a Windows machine
-([`docs/INSTALL.md`](docs/INSTALL.md#scoop-windows-cli)).
-
-Linux without Homebrew: from the
-[latest release](https://github.com/midagedev/gadak/releases/latest),
-download `gadak_<version>_linux_amd64.tar.gz` (or `linux_arm64`) and
-`checksums.txt`. One archive is the whole install — the web UI is inside
-the binary. Replace `<version>` with the tag from that release, without
-the leading `v`. Verify, unpack, and put `gadak` on `PATH`:
+**Linux without Homebrew:** take `gadak_<version>_linux_amd64.tar.gz` (or
+`linux_arm64`) and `checksums.txt` from the
+[latest release](https://github.com/midagedev/gadak/releases/latest). One
+archive is the whole install — the web UI is inside the binary:
 
 ```bash
 sha256sum --ignore-missing -c checksums.txt
 tar -xzf gadak_<version>_linux_amd64.tar.gz
 ```
 
-```bash
-gadak serve
-```
-
-`gadak serve` prints the address — open `http://gadak.localhost:7777` and you
-should see your issues.
-
-Optional, to survive reboot (`systemd --user`):
-
-```bash
-gadak install-service
-```
-
-Arch Linux: a checked `PKGBUILD` lives in
-[`contrib/aur/gadak-bin`](contrib/aur/gadak-bin) — `makepkg -si` there. Not in
-the AUR yet; upstream registration is closed
-([`docs/INSTALL.md`](docs/INSTALL.md#arch-linux)).
+Optional, to survive reboot (`systemd --user`): `gadak install-service`. Arch
+Linux: a checked `PKGBUILD` in [`contrib/aur/gadak-bin`](contrib/aur/gadak-bin)
+— `makepkg -si` there; not in the AUR yet. A Scoop manifest lives in
+[`contrib/scoop`](contrib/scoop), bucket unpublished.
 
 On [Omarchy](https://omarchy.org), the bar can answer the one question no
 cloud plugin can — what changed in *your* mirror. A shell-plugin widget in
 [`contrib/omarchy`](contrib/omarchy) shows `open·stuck` straight from the
-local mirror (no token, no network) and click-opens the app. Run once on a
-real guest.
-
-<details>
-<summary>▶ The widget on a real Omarchy guest (PNG) — the bar badge is <code>gadak sql</code>'s own numbers</summary>
+local mirror (no token, no network) and click-opens the app:
 
 <p align="center">
   <img src="docs/media/omarchy-widget.png" alt="An Omarchy desktop: the Waybar badge reads 368·201, the terminal below shows gadak sql --json returning open 368 and stuck 201 for the same mirror, and the gadak web app is open after clicking the badge" width="900">
   <br>
-  <sub>Captured on the Arch + Hyprland verification guest (<a href="contrib/omarchy/README.md">contrib/omarchy/README.md</a>).</sub>
+  <sub>The bar badge is <code>gadak sql</code>'s own numbers, captured on the Arch + Hyprland verification guest (<a href="contrib/omarchy/README.md">contrib/omarchy/README.md</a>).</sub>
 </p>
 
-</details>
+Install script, source build, Docker, wiki mirroring, workspaces, upgrades:
+**[`docs/INSTALL.md`](docs/INSTALL.md)**.
 
-Install script, release archive, source, Docker, wiki mirroring, workspaces,
-upgrades: **[`docs/INSTALL.md`](docs/INSTALL.md)**.
+</details>
 
 ## The rest
 
@@ -540,4 +514,3 @@ with the question you asked and what the agent did.
 
 Apache-2.0. See `LICENSE` and `NOTICE`.
 
-[GDK-211]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-211

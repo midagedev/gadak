@@ -83,6 +83,10 @@ export const strings = {
         'A live Claude Code session on the mirror: issues and wiki pages in one index — the join Jira and Confluence never make for you.',
       driveCaption:
         'The skill in motion: asked for new colors and a chart dashboard, the agent runs gadak and both land in the open tab — no reload.',
+      dashboardsCaption:
+        'It builds the wall, and the wall links back. One HTML document plus named queries — and the keys the agent puts on it are real links, so a click lands on the issue instead of leaving the page.',
+      tokensCaption:
+        'It changes the look, and keeps what you asked for. Token writes apply and then say how they will read; here the warning prints the whole type ladder, and the session repairs the step on its own.',
     },
     origin: {
       label: 'Why this is safe to try',
@@ -193,6 +197,10 @@ export const strings = {
         '미러 위의 실제 Claude Code 세션: 이슈와 위키 페이지가 하나의 인덱스 — Jira와 Confluence가 대신 만들어 주지 않는 조인.',
       driveCaption:
         '스킬이 움직이는 모습: 새 색과 차트 대시보드를 부탁하자 에이전트가 gadak을 실행하고, 둘 다 리로드 없이 열린 탭에 내려앉습니다.',
+      dashboardsCaption:
+        '벽을 세우고, 그 벽이 앱으로 되돌아옵니다. HTML 문서 하나에 이름 붙은 쿼리들 — 에이전트가 벽에 올린 키는 진짜 링크라, 누르면 페이지를 떠나는 대신 그 이슈가 열립니다.',
+      tokensCaption:
+        '룩을 바꾸되, 당신이 요청한 값을 지킵니다. 토큰 쓰기는 적용된 뒤 어떻게 보일지를 말해 줍니다 — 여기서는 경고가 타입 사다리 전체를 찍어 주고, 세션이 스스로 단을 복구합니다.',
     },
     origin: {
       label: '왜 안심하고 써도 되는가',

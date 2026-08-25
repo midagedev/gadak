@@ -50,7 +50,9 @@ each run with a fake credential.)
 | `docs/media/claude-drive.mp4` | same take, h264 | Twitter / LinkedIn / anywhere GIF is too heavy |
 | `docs/media/claude-drive-vertical.mp4` | same tape + stacked chrome (`record-claude-drive.sh vertical`) | social/vertical, 4:5 — README uses the landscape cut |
 | `docs/media/claude-dashboards-vertical.mp4` | VHS `tools/tapes/claude-dashboards.tape` + the same serve tab (`record-claude-drive.sh vertical claude-dashboards`) | social/vertical, 4:5 — the dashboards half of the flagship, ending on a key clicked off the wall that opens the issue in the app (the `open` verb, GDK-854) |
+| `docs/media/claude-dashboards-vertical.gif` (+`-poster.png`) | 430-wide reduction of that mp4 | README — GitHub strips `<video>` from markdown (measured 2026-08-25 via `gh api /markdown`), so the README pair ships as GIF; the poster is the landing's still |
 | `docs/media/claude-tokens-vertical.mp4` | VHS `tools/tapes/claude-tokens.tape` + the same serve tab (`record-claude-drive.sh vertical claude-tokens`) | social/vertical, 4:5 — the team-look half: colours plus the dimension axes, including a token saved with a warning the agent then acts on (GDK-858) |
+| `docs/media/claude-tokens-vertical.gif` (+`-poster.png`) | 430-wide reduction of that mp4 | README — same reason as the dashboards GIF |
 
 ## Landing media policy (gadak.dev, GDK-751)
 
@@ -118,7 +120,8 @@ existing there. The landing references them via `MediaSlot still=…` with a
 | `claude-drive.mp4` | soft ≤ 8 MB | h264 `yuv420p` + `faststart` |
 | `claude-drive-vertical.mp4` | soft ≤ 8 MB | 1080×1350 h264 `yuv420p` + `faststart`; no GIF |
 | `claude-dashboards-vertical.mp4` | soft ≤ 8 MB | same 4:5 stack as claude-drive-vertical; no GIF |
-| `claude-tokens-vertical.mp4` | soft ≤ 8 MB | same 4:5 stack as claude-drive-vertical; no GIF |
+| `claude-tokens-vertical.mp4` | soft ≤ 8 MB | same 4:5 stack as claude-drive-vertical |
+| `claude-{dashboards,tokens}-vertical.gif` | soft ≤ 4 MB each | 430-wide @ 9 fps, `palettegen=max_colors=64:stats_mode=diff` then `gifsicle -O3 --colors 64`. 430 rather than 540: two of them sit side by side in one README row, and the pair has to fit the 900 px column the other exhibits use |
 
 ### Current committed sizes (re-measure after regen)
 
@@ -147,6 +150,8 @@ Measured 2026-08-14 via `ls -la docs/media/` (decimal MB = bytes/1e6):
 | `claude-drive-vertical.mp4` | 2.1 MB | 2076793 | 30.9 s | 1080×1350 h264 (measured 2026-08-24) |
 | `claude-dashboards-vertical.mp4` | 1.7 MB | 1659163 | 25.6 s | 1080×1350 h264 (measured 2026-08-25) |
 | `claude-tokens-vertical.mp4` | 1.2 MB | 1166774 | 18.2 s | 1080×1350 h264 (measured 2026-08-25) |
+| `claude-dashboards-vertical.gif` | 1.3 MB | 1320334 | 25.6 s | 430×538 @ 9 fps, 64 colors (gifsicle; measured 2026-08-25) |
+| `claude-tokens-vertical.gif` | 0.97 MB | 969087 | 18.2 s | 430×538 @ 9 fps, 64 colors (gifsicle; measured 2026-08-25) |
 
 ## Readability comes first, and it costs bytes
 
