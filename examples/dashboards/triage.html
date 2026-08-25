@@ -22,8 +22,16 @@
      truncated: bool, warning?: string}
 
   and re-pushes them when the mirror moves (15s poll) or when this document
-  asks — the Refresh button posts {type: 'refresh'}, the one frame→parent
-  verb there is.
+  asks — the Refresh button posts {type: 'refresh'}. Links out of the wall
+  come in the two shapes the frame→parent whitelist allows (plus one the
+  sandbox allows on its own):
+
+    parent.postMessage({type: 'open', hash: '#/?issue=GDK-1'}, '*')   → the app navigates itself: issue detail
+    parent.postMessage({type: 'open', hash: '#/?sc=inprogress'}, '*') → filtered list (status category)
+    <a href="https://…" target="_blank" rel="noopener">…</a>          → a new tab, on click
+
+  The `open` hash is always a `#/…` fragment of the app's own grammar —
+  docs/DASHBOARDS.md has the recipe table (views, search, filters included).
 
   The chart library is vendored, not fetched from a CDN: uPlot is served by
   the same origin at /api/v1/dashboards/vendor/ (GDK-792). Leading slash on
@@ -58,10 +66,15 @@
   h1 { font-size: 19px; font-weight: 650; letter-spacing: 0.2px; color: #e8ecf4; }
   .sub { color: #8b94a7; font-size: 12.5px; }
   .cards { display: grid; grid-template-columns: repeat(4, minmax(120px, 1fr)); gap: 12px; margin-bottom: 18px; }
+  /* Cards are buttons (the count is a link into the app's filtered list), so
+     the reset is explicit: buttons bring their own font, color, and centering. */
   .card {
+    display: block; width: 100%; text-align: left; font: inherit; color: inherit;
     background: #161b26; border: 1px solid #232a3a; border-radius: 10px;
-    padding: 12px 14px 10px;
+    padding: 12px 14px 10px; cursor: pointer;
   }
+  .card:hover { border-color: #7aa2f7; }
+  .card .n, .card .label { display: block; }
   .card .n { font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; }
   .card .label { color: #8b94a7; font-size: 12px; margin-top: 2px; letter-spacing: 0.4px; text-transform: uppercase; }
   .card.new .n { color: #7aa2f7; }
@@ -74,6 +87,18 @@
   .row { display: flex; gap: 10px; align-items: baseline; padding: 5px 0; border-top: 1px solid #1d2331; }
   .row:first-of-type { border-top: 0; }
   .key { color: #7aa2f7; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; white-space: nowrap; }
+  /* An issue-key chip that navigates the app (open verb). Same ink as .key,
+     button reset on top. */
+  .key-btn {
+    background: none; border: 0; padding: 0; cursor: pointer; font: inherit;
+    text-decoration: underline; text-underline-offset: 3px;
+  }
+  .key-btn:hover { color: #e8ecf4; }
+  .ext {
+    margin-left: auto; color: #8b94a7; font-size: 12.5px; text-decoration: none;
+    border-bottom: 1px solid #232a3a;
+  }
+  .ext:hover { color: #e8ecf4; border-color: #7aa2f7; }
   .summary { color: #e8ecf4; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .rank {
     color: #f7768e; font-size: 11px; font-weight: 700; border: 1px solid #3a2a33;
@@ -91,7 +116,7 @@
   .chart-panel .u-legend { display: none; }
   .chart-panel .u-axis text { fill: #8b94a7; font-size: 11px; }
   #refresh {
-    margin-left: auto; background: #161b26; color: #e8ecf4; border: 1px solid #232a3a;
+    background: #161b26; color: #e8ecf4; border: 1px solid #232a3a;
     border-radius: 7px; padding: 4px 12px; font: inherit; font-size: 12.5px; cursor: pointer;
   }
   #refresh:hover { border-color: #7aa2f7; }
@@ -102,17 +127,25 @@
   <header>
     <h1>Triage</h1>
     <span class="sub" id="stamp">waiting for data…</span>
-    <!-- The one frame→parent verb: ask the host to re-run the datasources.
+    <!-- The sandbox's popup grants carry this one: a click-gestured
+         target="_blank" opens a real new tab (rel="noopener" keeps the tab
+         from referencing this frame back). The wall itself stays put —
+         never point a plain href at the outside; that navigates the frame
+         and replaces this document. -->
+    <a class="ext" href="https://github.com/midagedev/gadak/blob/main/docs/DASHBOARDS.md" target="_blank" rel="noopener noreferrer">contract&nbsp;↗</a>
+    <!-- The other frame→parent verb: ask the host to re-run the datasources.
          No URL, no navigation, no payload — the whitelist in the serving
-         page accepts exactly this and nothing else. -->
+         page accepts exactly this shape and nothing else. -->
     <button id="refresh" type="button">Refresh</button>
   </header>
 
+  <!-- Each card is an `open` link into the app's filtered list (data-sc is
+       the status_category value, or a comma list for the open-count card). -->
   <section class="cards" aria-label="counts">
-    <div class="card new"><div class="n" id="n-new">–</div><div class="label">to do</div></div>
-    <div class="card inprogress"><div class="n" id="n-inprogress">–</div><div class="label">in progress</div></div>
-    <div class="card done"><div class="n" id="n-done">–</div><div class="label">done</div></div>
-    <div class="card total"><div class="n" id="n-open">–</div><div class="label">open (to do + in progress)</div></div>
+    <button class="card new" type="button" data-sc="new"><span class="n" id="n-new">–</span><span class="label">to do</span></button>
+    <button class="card inprogress" type="button" data-sc="inprogress"><span class="n" id="n-inprogress">–</span><span class="label">in progress</span></button>
+    <button class="card done" type="button" data-sc="done"><span class="n" id="n-done">–</span><span class="label">done</span></button>
+    <button class="card total" type="button" data-sc="new,inprogress"><span class="n" id="n-open">–</span><span class="label">open (to do + in progress)</span></button>
   </section>
 
   <main>
@@ -173,7 +206,7 @@ function renderTop(res) {
   for (var i = 0; i < res.rows.length; i++) {
     var r = res.rows[i];
     var row = el('div', 'row');
-    row.appendChild(el('span', 'key', String(r[cKey])));
+    row.appendChild(keyBtn(String(r[cKey])));
     var rank = el('span', 'rank r' + r[cRank], 'P' + r[cRank]);
     row.appendChild(rank);
     row.appendChild(el('span', 'summary', String(r[cSum])));
@@ -238,7 +271,7 @@ function renderMine(res) {
   for (var i = 0; i < res.rows.length; i++) {
     var r = res.rows[i];
     var row = el('div', 'row');
-    row.appendChild(el('span', 'key', String(r[cKey])));
+    row.appendChild(keyBtn(String(r[cKey])));
     var what = r[cSum] + (cStatus === null ? '' : ' · ' + r[cStatus]);
     row.appendChild(el('span', 'summary', what));
     host.appendChild(row);
@@ -319,6 +352,15 @@ function el(tag, cls, text) {
   return e;
 }
 
+// An issue-key chip that navigates the app via the open verb. Mirror text is
+// still textContent-only; data-key carries the key, never markup.
+function keyBtn(key) {
+  var b = el('button', 'key key-btn', key);
+  b.type = 'button';
+  b.setAttribute('data-key', key);
+  return b;
+}
+
 function render() {
   if (results.by_status) renderCounts(results.by_status);
   if (results.by_status) renderBars(results.by_status);
@@ -351,11 +393,32 @@ window.addEventListener('message', function (ev) {
   render();
 });
 
-// Refresh (GDK-793): the one frame→parent verb. '*' because this document is
-// sandboxed to an opaque origin and cannot name the parent — the payload is
-// a bare verb, and the parent filters by message source anyway.
+// Frame→parent verbs (GDK-793): '*' because this document is
+// sandboxed to an opaque origin and cannot name the parent — the payloads
+// are bare verbs, and the parent filters by message source anyway.
 document.getElementById('refresh').addEventListener('click', function () {
   parent.postMessage({ type: 'refresh' }, '*');
+});
+
+// The open verb: hand the parent a `#/…` hash and it navigates the app
+// itself. A fragment is same-document by construction — the wall cannot
+// aim the app at an outside URL through this channel. To leave the app,
+// use a plain <a target="_blank" rel="noopener"> (the contract link in
+// the header): the click gesture opens a real new tab.
+function openInApp(hash) {
+  parent.postMessage({ type: 'open', hash: hash }, '*');
+}
+
+// One delegated listener for every navigating element: status cards go to
+// a category-filtered list, key chips go to the issue itself.
+document.addEventListener('click', function (ev) {
+  var card = ev.target.closest('.card[data-sc]');
+  if (card) {
+    openInApp('#/?sc=' + card.getAttribute('data-sc'));
+    return;
+  }
+  var chip = ev.target.closest('.key-btn');
+  if (chip) openInApp('#/?issue=' + chip.getAttribute('data-key'));
 });
 
 render();

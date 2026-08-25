@@ -575,8 +575,14 @@ gadak dashboards list / show / rm   # lifecycle; same name on save = update
 - **Your HTML never fetches.** It runs sandboxed (opaque origin, CSP closes
   the network); the host executes each registered datasource and pushes rows
   in as `postMessage` events `{type:'data', name, columns, rows}`. Listen
-  for those and paint. The only message you may send back is
-  `{type:'refresh'}` (throttled).
+  for those and paint. You may send back exactly two verbs, both throttled:
+  `{type:'refresh'}` (re-run datasources) and
+  `{type:'open', hash:'#/?issue=GDK-1'}` — navigate the app itself to one
+  of its own hashes (issue detail `#/?issue=KEY`, filtered list
+  `#/?sc=inprogress`, search `#/?q=…`; recipe table in `docs/DASHBOARDS.md`).
+  To link off-app, use `<a target="_blank" rel="noopener">` — it opens a
+  new tab and leaves the wall in place; never a plain external `href`,
+  which navigates the frame away.
 - **SQL datasources are arbitrary read-only SELECTs** over `issues_full` —
   CTEs and window functions included. Key on computed columns, never display
   names: `status_category` / `priority_rank` / `issue_type_id`.

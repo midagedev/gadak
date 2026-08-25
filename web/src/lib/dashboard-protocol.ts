@@ -2,29 +2,56 @@
  * Dashboard frame protocol (GDK-781/782) — pure helpers, no DOM.
  *
  * The parent→frame channel is one message shape ({type:'data', …}); the
- * frame→parent channel is a whitelist of exactly one verb: `refresh`. This
- * module owns both so the component stays markup and the whitelist stays
- * auditable in one place: adding a verb here is a security decision, not a
- * feature toggle.
+ * frame→parent channel is a whitelist of exactly two verbs: `refresh`
+ * (re-run the datasources) and `open` (navigate the app itself to a `#/…`
+ * hash). This module owns both so the component stays markup and the
+ * whitelist stays auditable in one place: adding a verb here is a security
+ * decision, not a feature toggle.
  */
 
 /** The only message types a dashboard frame may send to the parent. */
-export const FRAME_MESSAGE_TYPES = ['refresh'] as const
-export type FrameMessage = { type: (typeof FRAME_MESSAGE_TYPES)[number] }
+export const FRAME_MESSAGE_TYPES = ['refresh', 'open'] as const
+export type FrameMessage = { type: 'refresh' } | { type: 'open'; hash: string }
+
+/** Ceiling on an `open` hash. A longer one is dropped whole, not truncated. */
+export const OPEN_HASH_MAX = 2048
+
+// A hash a person clicked is '#' followed by printable characters. Raw C0
+// bytes have no business in a fragment; refusing them keeps the eventual
+// location.hash write free of control characters without re-encoding.
+function isOpenHashShape(hash: string): boolean {
+  if (!hash.startsWith('#')) return false
+  for (let i = 1; i < hash.length; i++) {
+    const c = hash.charCodeAt(i)
+    if (c < 0x20 || c === 0x7f) return false
+  }
+  return true
+}
 
 /**
  * Parse one message event's data into a whitelisted frame message. `null` for
  * everything else — unknown types, non-objects, arrays (typeof [] is 'object'),
  * missing/extra fields. Callers log-and-drop nulls; nothing here ever throws,
  * because a hostile frame sending garbage must not break the host's listener.
+ *
+ * `open` is the one verb with a payload, and the payload is a fragment on
+ * purpose: a `#…` string is same-document by construction, so the frame can
+ * never use it to name an outside URL for the parent to navigate to. Only
+ * the validated `hash` survives parsing — no other field rides along.
  */
 export function parseFrameMessage(data: unknown): FrameMessage | null {
   if (typeof data !== 'object' || data === null || Array.isArray(data)) return null
   const type = (data as { type?: unknown }).type
   if (typeof type !== 'string') return null
-  return (FRAME_MESSAGE_TYPES as readonly string[]).includes(type)
-    ? { type: type as FrameMessage['type'] }
-    : null
+  if (!(FRAME_MESSAGE_TYPES as readonly string[]).includes(type)) return null
+  if (type === 'open') {
+    const hash = (data as { hash?: unknown }).hash
+    if (typeof hash !== 'string') return null
+    if (hash.length > OPEN_HASH_MAX) return null
+    if (!isOpenHashShape(hash)) return null
+    return { type: 'open', hash }
+  }
+  return { type: 'refresh' }
 }
 
 /** One datasource result as pushed to the frame. */
@@ -51,16 +78,17 @@ export interface ThrottleTimer {
 }
 
 /**
- * Flood defense for `refresh`: a frame may only force a data re-run at most
- * once per `minIntervalMs`; bursts coalesce into one trailing run. A hostile
- * or buggy dashboard spamming refresh cannot turn the host into a query pump.
+ * Flood defense for the frame→parent verbs: the frame may force a host-side
+ * action at most once per `minIntervalMs`; bursts coalesce into one trailing
+ * run. A hostile or buggy dashboard spamming verbs cannot turn the host into
+ * a query pump (`refresh`) or a navigation/history churn (`open`).
  *
  * The returned runner takes a callback and returns whether the call ran
  * immediately (true) or was coalesced/pending (false). `flush()` runs a
  * pending trailing call immediately (used on teardown so no coalesced request
  * is lost).
  */
-export function createRefreshThrottle(minIntervalMs: number, timer: ThrottleTimer) {
+export function createVerbThrottle(minIntervalMs: number, timer: ThrottleTimer) {
   let last = 0
   let pending: (() => void) | null = null
   let scheduled = false

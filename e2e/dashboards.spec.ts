@@ -509,3 +509,104 @@ test('GDK-827: Esc closes the dashboard; a focused frame swallows the key and a 
 
   expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
 })
+
+/*
+ * GDK-854: links out of the wall. Two channels, each pinned at the point
+ * where it could silently regress:
+ *
+ *  1. `open` — the frame→parent navigation verb. The wall posts
+ *     {type:'open', hash:'#/?issue=<key>'}; the app itself navigates (its
+ *     own router, its own grammar), the dashboard releases the column, and
+ *     the issue's detail opens. A dropped/ignored verb shows up as "the URL
+ *     never moved".
+ *  2. an external `<a target="_blank" rel="noopener">` — allowed by the
+ *     sandbox's allow-popups (without it Chromium blocks the auxiliary
+ *     navigation outright). The popup event IS the new tab; the loopback
+ *     sink doubles as containment (the "external" host is 127.0.0.1) and as
+ *     the success signal — one request from the click gesture. And the wall
+ *     itself must still be there afterwards: the failure mode this guards
+ *     against is the anchor navigating the *frame* to the URL (residual
+ *     channel #1), which replaces the authored document with the sink's.
+ */
+test('links out of the wall: open navigates in-app, an external link opens a new tab, the frame stays put', async ({
+  page,
+}) => {
+  const errors = attachConsoleErrors(page)
+
+  const received: string[] = []
+  const sink: Server = createServer((req, res) => {
+    received.push(`${req.method} ${req.url}`)
+    res.writeHead(200, { 'content-type': 'text/html' })
+    res.end('<!doctype html><title>external tab</title>')
+  })
+  await new Promise<void>((resolve) => sink.listen(0, '127.0.0.1', resolve))
+  const sinkPort = (sink.address() as { port: number }).port
+
+  // A real key from the pool: the verb's contract is "navigate to this
+  // issue", so the scene uses an issue the mirror actually has.
+  await gotoApp(page)
+  const key = await page
+    .locator('[data-testid="issue-list-scroller"] [data-issue-key]')
+    .first()
+    .getAttribute('data-issue-key')
+  expect(key, 'no issue key in the demo list').toBeTruthy()
+
+  const html = `<!doctype html><html><body style="font: 14px sans-serif">
+<div data-testid="dash-version">links</div>
+<button id="go-issue" type="button">open ${key}</button>
+<a id="ext" href="http://127.0.0.1:${sinkPort}/ext-link" target="_blank" rel="noopener">external</a>
+<div id="pushed">waiting</div>
+<script>
+document.getElementById('go-issue').addEventListener('click', function () {
+  parent.postMessage({ type: 'open', hash: '#/?issue=${key}' }, '*');
+});
+window.addEventListener('message', function (ev) {
+  var d = ev.data;
+  if (!d || d.type !== 'data' || d.name !== 'total') return;
+  var i = d.columns.indexOf('n');
+  document.getElementById('pushed').textContent =
+    String(i >= 0 && d.rows[0] ? d.rows[0][i] : '0') + (d.warning ? ' warn:' + d.warning : '');
+});
+</script>
+</body></html>`
+  const saved = await saveDash(page.request, `${PREFIX} ${RUN} links`, html, TOTAL_DS)
+
+  // The sidebar fetched its dashboard list at boot, before this save — open
+  // via the `dash=` param instead: same live binding a link would ride.
+  await page.goto(`/#/?dash=${saved.id}`)
+  await expect(page.getByTestId('dashboard-view')).toBeVisible()
+  const fl = page.frameLocator(FRAME_SEL)
+  await expect(fl.getByTestId('dash-version')).toHaveText('links')
+  // The host side kept working while the wall grew links.
+  await expect(fl.locator('#pushed')).toHaveText(/^[1-9][0-9]*$/)
+
+  // The sandbox grants popups and nothing else new: no same-origin, no
+  // top-navigation. Pin the attribute so a flag removal goes red even if a
+  // browser change keeps the click working some other way.
+  await expect(page.locator(FRAME_SEL)).toHaveAttribute(
+    'sandbox',
+    'allow-scripts allow-popups allow-popups-to-escape-sandbox',
+  )
+
+  // 2. External link: a new tab opens, the wall does not move.
+  const popupPromise = page.waitForEvent('popup', { timeout: 10_000 })
+  await fl.locator('#ext').click()
+  const tab = await popupPromise
+  await expect(tab).toHaveURL(/\/ext-link$/)
+  await expect
+    .poll(() => received.join(' | '), 'the popup navigation reached the sink')
+    .toContain('GET /ext-link')
+  await tab.close()
+  await expect(fl.getByTestId('dash-version')).toHaveText('links')
+  await expect(page.locator(FRAME_SEL)).toHaveAttribute('src', /\/render\/$/)
+
+  // 1. In-app link: the app navigates itself, the column leaves the wall.
+  await fl.locator('#go-issue').click()
+  const keyRe = key!.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  await expect(page).toHaveURL(new RegExp(`[?&]issue=${keyRe}([&#]|$)`))
+  await expect(page.getByTestId('dashboard-view')).toHaveCount(0)
+  await expect(page.getByTestId('issue-detail-panel')).toBeVisible()
+
+  expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  sink.close()
+})

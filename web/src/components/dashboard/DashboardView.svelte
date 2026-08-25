@@ -2,13 +2,15 @@
   /*
    * DashboardView (GDK-782/793) — the host half of an agent dashboard.
    *
-   * The authored HTML runs in a sandboxed iframe (`allow-scripts`, never
-   * `allow-same-origin`: with both, the frame would share this origin and the
-   * sandbox would be decoration). The parent owns every fetch: it reads the
-   * dashboard's datasource map from the row, executes each through the
-   * server's data routes, and pushes results in with postMessage. The frame's
-   * only way back is the one-verb whitelist in lib/dashboard-protocol
-   * (`refresh`); there is no open, no navigate, no URL verb to grant.
+   * The authored HTML runs in a sandboxed iframe (`allow-scripts` + popup
+   * grants, never `allow-same-origin`: with both, the frame would share this
+   * origin and the sandbox would be decoration). The parent owns every fetch:
+   * it reads the dashboard's datasource map from the row, executes each
+   * through the server's data routes, and pushes results in with postMessage.
+   * The frame's only way back is the two-verb whitelist in
+   * lib/dashboard-protocol: `refresh` (re-run datasources) and `open`
+   * (navigate the app to a `#/…` hash — same-document by construction, so
+   * the wall cannot aim the app at an outside URL).
    *
    * Live updates (GDK-793):
    *  - authoring — the store bumps `renderGen` when the saved document
@@ -20,11 +22,12 @@
   import { onMount } from 'svelte'
   import { dashboardsBase, getDashboardData } from '../../lib/api'
   import {
-    createRefreshThrottle,
+    createVerbThrottle,
     dataMessageFromError,
     parseFrameMessage,
     type DataMessage,
   } from '../../lib/dashboard-protocol'
+  import { navigate, parseHash } from '../../lib/router.svelte'
   import { dashboards } from '../../stores/dashboards.svelte'
   import { issues } from '../../stores/issues.svelte'
   import { t } from '../../lib/i18n'
@@ -64,7 +67,12 @@
   // `refresh` flood control: a hostile or looping dashboard cannot turn the
   // host into a query pump. 2s floor, trailing coalesce so a burst still ends
   // in one run.
-  const throttle = createRefreshThrottle(2000, window)
+  const refreshThrottle = createVerbThrottle(2000, window)
+  // `open` flood control: the navigation itself is a cheap same-document
+  // hash write, so the floor is tighter than refresh's (1s) — a person
+  // clicking through issue links on the wall is not spamming, and the
+  // trailing coalesce still lands on the *last* hash a burst asked for.
+  const openThrottle = createVerbThrottle(1000, window)
 
   /** Push one datasource result (or its failure) into the frame. */
   async function pushOne(dashId: string, name: string): Promise<void> {
@@ -100,19 +108,32 @@
     if (!frame || ev.source !== frame.contentWindow) return
     const msg = parseFrameMessage(ev.data)
     if (!msg) {
-      // Unknown types are inert by design: logged for the author debugging a
-      // dashboard, granted nothing.
+      // Unknown types and malformed payloads are inert by design: logged for
+      // the author debugging a dashboard, granted nothing.
       console.log('[dashboards] unhandled frame message', ev.data)
       return
     }
-    if (msg.type === 'refresh') throttle.run(pushAll)
+    if (msg.type === 'refresh') {
+      refreshThrottle.run(pushAll)
+    } else if (msg.type === 'open') {
+      // The wall asks; the app navigates. parseHash is total (pure string
+      // slicing, hash.ts) and navigate re-serializes through the app's own
+      // grammar — the frame's string never reaches location directly. A
+      // navigation drops the `dash` param, which is what releases this
+      // column back to the list (GDK-815's union, working for free).
+      openThrottle.run(() => {
+        const route = parseHash(msg.hash)
+        navigate(route.path, route.params)
+      })
+    }
   }
 
   onMount(() => {
     window.addEventListener('message', onMessage)
     return () => {
       window.removeEventListener('message', onMessage)
-      throttle.flush()
+      refreshThrottle.flush()
+      openThrottle.flush()
     }
   })
 
@@ -169,19 +190,23 @@
     </div>
   {:else if row}
     <!--
-      sandbox="allow-scripts" and nothing else: no allow-same-origin (the frame
-      must not read this origin), no allow-forms/popups/top-navigation. The
-      {#key} wrapper is the full-document swap: a new key destroys and
-      recreates the element (a src change alone would navigate the same
-      frame). data-render-gen is how e2e (and a human with devtools) sees a
-      swap actually happened.
+      sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox" and
+      nothing else: no allow-same-origin (the frame must not read this
+      origin), no allow-forms/top-navigation. The popup grants let a
+      click-gestured <a target="_blank" rel="noopener"> open a real new tab —
+      strictly better than the frame navigating *itself* to the URL, which
+      plain hrefs can still do and which replaces the wall with the target
+      page (DASHBOARDS.md residual channel #1). The {#key} wrapper is the
+      full-document swap: a new key destroys and recreates the element (a src
+      change alone would navigate the same frame). data-render-gen is how e2e
+      (and a human with devtools) sees a swap actually happened.
     -->
     {#key frameKey}
       <iframe
         bind:this={frame}
         {src}
         title={row.name}
-        sandbox="allow-scripts"
+        sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
         class="min-h-0 w-full flex-1 border-0 bg-white"
         style="color-scheme: normal"
         data-testid="dashboard-frame"

@@ -21,11 +21,13 @@ always was: a disposable cache of the origin.
 
 ## The frame contract
 
-Your HTML runs in an iframe with `sandbox="allow-scripts"` and nothing else —
-no `allow-same-origin`, so the document's origin is *opaque*: it cannot read
-gadak's cookies, storage, or DOM. The response carries a CSP that closes the
-network to everything except inline script/style, `data:` images, and the
-vendored chart library:
+Your HTML runs in an iframe with `sandbox="allow-scripts allow-popups
+allow-popups-to-escape-sandbox"` — script plus the two popup grants that let
+an external link open a new tab (see [residual channels](#residual-channels-read-this-before-trusting-the-wall)),
+and nothing else — no `allow-same-origin`, so the document's origin is
+*opaque*: it cannot read gadak's cookies, storage, or DOM. The response
+carries a CSP that closes the network to everything except inline
+script/style, `data:` images, and the vendored chart library:
 
 ```
 default-src 'none';
@@ -71,11 +73,39 @@ window.addEventListener('message', function (ev) {
 });
 ```
 
-- **Backwards, you get exactly one verb.** `parent.postMessage({type:
-  'refresh'}, '*')` asks the serving page to re-run every datasource and
-  re-push. The host throttles this (2s floor, bursts coalesce). There is no
-  `open`, no `navigate`, no URL-shaped verb, and no payload channel — unknown
-  message types are logged and dropped.
+- **Backwards, you get two verbs.** Both are whitelisted message types;
+  everything else — unknown types, malformed payloads — is logged and
+  dropped, and neither verb can carry a URL that names a host:
+  - `parent.postMessage({type: 'refresh'}, '*')` — re-run every datasource
+    and re-push. Throttled: 2s floor, bursts coalesce into one trailing run.
+  - `parent.postMessage({type: 'open', hash: '#/?issue=GDK-1'}, '*')` —
+    navigate the *app* (not the frame) to a hash of the app's own grammar.
+    The payload must be a string, must start with `#`, must hold no control
+    bytes, and is capped at 2048 characters — anything else is dropped
+    whole, never truncated. A fragment is same-document by construction, so
+    this verb cannot aim the app at an outside URL: the host re-parses the
+    hash through the app's own router and applies the route it yields.
+    Throttled the same way, 1s floor.
+
+### Where `open` can go (hash recipes)
+
+`open` speaks the app's URL grammar — the same `#/…` any link inside gadak
+carries. Params compose; unknown params are ignored. These are measured
+recipes, not a promise to support any string:
+
+| goal | hash |
+|---|---|
+| one issue's detail | `#/?issue=GDK-1` |
+| list filtered by status category | `#/?sc=inprogress` — comma-join several: `sc=new,inprogress` |
+| list narrowed to exact keys | `#/?ks=GDK-1,GDK-2` |
+| search results | `#/?q=build+failure` |
+| every other sidebar filter | the same param set the app serializes: `lb` labels, `as` assignee email, `pr` priority, `ty` issue type, ranges `cf`/`ct` (created from/to) … combine freely |
+| another dashboard | `#/?dash=<id>` |
+| a wiki page | `#/?doc=<page key>` |
+
+A saved view has no view-id param — its link *is* its filter params, which
+is the row above this one. The full key list lives in the app's
+`web/src/lib/view-config.ts`, the single owner of the grammar.
 
 ### When data arrives
 
@@ -203,14 +233,25 @@ XHR traffic to every origin but the same-origin vendor and lib paths. Two
 channels remain, and calling them "blocked" would be the one fatal flaw of
 this document:
 
-1. **Self-navigation URL loading.** A link or script inside the document can
-   navigate the iframe *itself* to an external URL (`<a href>`,
-   `location.href = …`, a form). Navigation is not a CSP-governed fetch, so
-   the browser will request that URL — one outbound request, and the frame's
-   contents are replaced by what comes back. Top navigation stays blocked
-   (no `allow-top-navigation`): the gadak page around the frame cannot be
-   moved. The opened document still cannot read anything of gadak's — it
-   lands in the same opaque origin with the same empty hands.
+1. **Navigation out of the frame.** Navigation is not a CSP-governed fetch,
+   so a URL the document navigates to *will* be requested. Two shapes:
+   - A plain `<a href>` (or `location.href = …`, or a form) navigates the
+     iframe *itself* — one outbound request, and the frame's contents are
+     replaced by what comes back: the wall is gone. Don't author this
+     shape; it survives only because banning navigation outright would ban
+     the next bullet too.
+   - `<a href="https://…" target="_blank" rel="noopener">` opens a real
+     new tab — the click gesture plus the sandbox's `allow-popups` grant
+     makes it work, `allow-popups-to-escape-sandbox` keeps the tab
+     usable once it leaves, and `rel="noopener"` denies it a handle back
+     to the opener. This is the sanctioned way to link off-app: strictly
+     better than self-navigation, because the wall stays on screen.
+
+   Top navigation stays blocked (no `allow-top-navigation`): the gadak page
+   around the frame cannot be moved. And whatever opens still cannot read
+   anything of gadak's — a self-navigated document lands back in the same
+   opaque origin with the same empty hands, and a popup starts at the
+   target's origin knowing nothing about this one.
 2. **DNS prefetching.** `<link rel="dns-prefetch">` / `rel="preconnect"`
    hints are not governed by CSP; the browser may resolve the named host.
    That reveals a hostname can exist, nothing more.
@@ -218,7 +259,8 @@ this document:
 Both channels can emit *a request naming a host you wrote into the
 document*. Neither can carry data out: the frame holds no credentials, no
 mirror rows beyond what was pushed into it, and no channel back except the
-`refresh` verb. An authored dashboard is as trustworthy as its author — the
+two verbs — `refresh`, and an `open` that can only name an in-app hash.
+An authored dashboard is as trustworthy as its author — the
 boundary is what a broken one can *take*, not what it can *say*.
 
 ## Why this shape
@@ -228,6 +270,6 @@ who runs the serve. The threat model is not "untrusted third party crafts
 HTML" — it is "an agent generates HTML on my behalf and I want the blast
 radius of a mistake to be a broken wall, not an exfiltrated session." Every
 choice above — opaque origin, query execution outside the frame, the
-one-verb whitelist, vendor-and-libs-from-same-origin, libraries hashed at
+two-verb whitelist, vendor-and-libs-from-same-origin, libraries hashed at
 download and re-hashed at serve — shrinks what a generated document can do
 without shrinking what it can show.
