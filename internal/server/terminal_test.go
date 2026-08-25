@@ -486,7 +486,7 @@ func TestTerminalLocalHostIsLoopbackOnly(t *testing.T) {
 		"[::1]:7777":                    true,
 		"::1":                           true,
 		"192.0.2.7:7777":                false,
-		"100.64.0.1:7777":               false,
+		"198.51.100.1:7777":             false,
 		"home.tailnet.example.com:8443": false,
 	} {
 		if got := terminalLocalHost(host); got != want {
@@ -510,7 +510,7 @@ func TestTerminalLocalNeedsLoopbackPeer(t *testing.T) {
 		{"127.0.0.1:7877", "[::1]:50000", true},
 		{"localhost:7877", "", true}, // in-process, no network peer
 		{"localhost:7877", "192.0.2.9:50000", false},
-		{"127.0.0.1:7877", "100.64.0.1:50000", false},
+		{"127.0.0.1:7877", "198.51.100.1:50000", false},
 		{"192.0.2.7:7877", "127.0.0.1:50000", false},
 	} {
 		r := httptest.NewRequest(http.MethodGet, termBase+"sessions/", nil)
