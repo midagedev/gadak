@@ -26,6 +26,7 @@ audit-simplify
 audit-svelte
 audit-tests
 audit-ux
+audit-v018
 audit-wails
 auth
 autoupdate
@@ -45,6 +46,7 @@ cli
 community
 contract
 contributor
+cycle3
 dashboards
 datacenter
 dates
