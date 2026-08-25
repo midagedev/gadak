@@ -7,17 +7,26 @@ package config
  *	contract                              assertion
  *	────────────────────────────────────  ─────────────────────────────────────
  *	locked docked-min refuses writes      TestApplyUIDimensionsRefusals
- *	bad length / range refused            TestApplyUIDimensionsRefusals
+ *	bad length format refused             TestApplyUIDimensionsRefusals
+ *	range/relation warn and the value     TestApplyUIDimensionsRangeRelationWarns
+ *	  saves (GDK-858: judgment, not shape)
  *	unknown dim names carried + warned    TestApplyUIDimensionsUnknownCarried
  *	dims inside tokensByTheme warn only   TestTokensByThemeDimsWarnNotRefuse
  *	CLI roundtrip via the settings path   TestUIDimensionsSettingsRoundtrip
  *	expansion degrades drift to advisory  TestUIDimensionVarsDegradesToAdvisory
  *	expansion is palette-agnostic flat    TestUIDimensionVarsShape
+ *
+ * GDK-858 (user decision 2026-08-25): range and relation violations warn and
+ * the value saves — they are judgments about tested territory, not
+ * machine-checkable shapes. The length grammar and the derived docked-min
+ * keep refusing.
  */
 
 import (
 	"strings"
 	"testing"
+
+	"github.com/midagedev/gadak/internal/config/tokencheck"
 )
 
 func TestApplyUIDimensionsRefusals(t *testing.T) {
@@ -39,16 +48,6 @@ func TestApplyUIDimensionsRefusals(t *testing.T) {
 			wantErr: "not a px length",
 		},
 		{
-			name:    "range refused",
-			spacing: map[string]string{"row": "60px"},
-			wantErr: "outside",
-		},
-		{
-			name:    "relation refused",
-			spacing: map[string]string{"control-sm": "34px"},
-			wantErr: "control",
-		},
-		{
 			name:    "line-height format refused",
 			typ:     map[string]string{"body-line-height": "1.4px"},
 			wantErr: "not a unitless",
@@ -63,6 +62,63 @@ func TestApplyUIDimensionsRefusals(t *testing.T) {
 			}
 			if !strings.Contains(err.Error(), tc.wantErr) {
 				t.Fatalf("error = %q, want substring %q", err.Error(), tc.wantErr)
+			}
+		})
+	}
+}
+
+// TestApplyUIDimensionsRangeRelationWarns pins the GDK-858 write contract for
+// dimensions: range and relation violations WARN and the value SAVES. The
+// pre-GDK-858 source refused both (FAIL-first run output in the round
+// report). The docked-min and length-grammar refusals above are unchanged —
+// parsing and derivation are machine checks, not judgments.
+func TestApplyUIDimensionsRangeRelationWarns(t *testing.T) {
+	cases := []struct {
+		name    string
+		axis    string
+		token   string
+		value   string
+		wantSub string
+	}{
+		{"range", "spacing", "row", "60px", "36px–56px"},
+		{"relation", "spacing", "control-sm", "34px", "control"},
+		{"type ladder", "type", "micro", "14px", "micro"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ui := &UIConfig{Tokens: &UITokens{}}
+			switch tc.axis {
+			case "spacing":
+				ui.Tokens.Spacing = map[string]string{tc.token: tc.value}
+			case "type":
+				ui.Tokens.Type = map[string]string{tc.token: tc.value}
+			}
+			warns, err := ValidateUIConfig(ui)
+			if err != nil {
+				t.Fatalf("judgment violation refused the save: %v", err)
+			}
+			saw := false
+			for _, w := range warns {
+				if w.Severity == tokencheck.SeverityReject {
+					t.Fatalf("unexpected reject: %+v", w)
+				}
+				if strings.Contains(w.Message, tc.wantSub) {
+					saw = true
+				}
+			}
+			if !saw {
+				t.Fatalf("no warning mentioning %q: %+v", tc.wantSub, warns)
+			}
+			c := &Config{}
+			if err := ApplyUIConfig(c, ui); err != nil {
+				t.Fatalf("ApplyUIConfig refused a judgment write: %v", err)
+			}
+			stored := map[string]map[string]string{
+				"spacing": c.UI.Tokens.Spacing, "type": c.UI.Tokens.Type,
+			}[tc.axis]
+			if stored[tc.token] != tc.value {
+				t.Fatalf("judgment-violating %s.%s = %q, want %q — the value must save",
+					tc.axis, tc.token, stored[tc.token], tc.value)
 			}
 		})
 	}
@@ -144,9 +200,11 @@ func TestUIDimensionsSettingsRoundtrip(t *testing.T) {
 	if got.Spacing["row"] != "44px" {
 		t.Errorf("Get does not round-trip the spacing axis: %+v", got)
 	}
-	// A refused set leaves the stored value untouched.
-	if err := set.Set(c, []byte(`{"layout":{"sidebar":"200px"}}`)); err == nil {
-		t.Fatal("relation-violating sidebar accepted")
+	// A refused set leaves the stored value untouched. sidebar "200" is a
+	// length-grammar refusal (missing px unit — machine check, still refuses
+	// under GDK-858; 200px itself is now a warn+save relation judgment).
+	if err := set.Set(c, []byte(`{"layout":{"sidebar":"200"}}`)); err == nil {
+		t.Fatal("unparseable sidebar accepted")
 	}
 	if c.UI.Tokens.Spacing["row"] != "44px" || c.UI.Tokens.Layout != nil {
 		t.Errorf("refused set mutated stored tokens: %+v", c.UI.Tokens)

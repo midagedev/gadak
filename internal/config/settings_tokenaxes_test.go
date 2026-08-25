@@ -181,11 +181,13 @@ func TestUITokenAxisNullDeletesAndNoOps(t *testing.T) {
 func TestUITokenAxisRefusalLeavesConfigUnchanged(t *testing.T) {
 	c := &Config{}
 	setJSON(t, c, "ui.tokens", `{"colors":{"accent":"#7a4bd0"},"spacing":{"row":"44px"}}`)
-	// An out-of-range dimension (row is 36–56) and a locked color: both
-	// refuse, and neither may leak into the stored config.
+	// GDK-858 moved judgment violations (range, locked, contrast) to
+	// warn+save; the refusals that remain are the machine checks — an
+	// unparseable length and a non-hex color. Neither may leak into the
+	// stored config.
 	for path, raw := range map[string]string{
-		"ui.tokens.spacing": `{"row":"90px"}`,
-		"ui.tokens.colors":  `{"bg-base":"#000000"}`,
+		"ui.tokens.spacing": `{"row":"wide"}`,
+		"ui.tokens.colors":  `{"accent":"not-a-color"}`,
 	} {
 		s, ok := SettingByPath(path)
 		if !ok {
@@ -203,8 +205,8 @@ func TestUITokenAxisRefusalLeavesConfigUnchanged(t *testing.T) {
 	if !ok {
 		t.Fatal("ui.tokens.spacing missing from the settings catalog")
 	}
-	if err := spacing.Set(c, json.RawMessage(`{"row":"46px","control":"90px"}`)); err == nil {
-		t.Fatal("mixed patch accepted (control 90px is outside 28–40)")
+	if err := spacing.Set(c, json.RawMessage(`{"row":"46px","control":"zz"}`)); err == nil {
+		t.Fatal("mixed patch accepted (control zz does not parse)")
 	}
 	if c.UI.Tokens.Spacing["row"] != "44px" {
 		t.Fatalf("refused mixed patch leaked its valid half: %+v", c.UI.Tokens.Spacing)

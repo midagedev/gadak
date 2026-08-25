@@ -293,8 +293,9 @@ func buildSettings() []Setting {
 				"dimensions {\"spacing\": {\"row\": \"44px\"}, \"layout\": {\"sidebar\": \"280px\"}, " +
 				"\"type\": {\"heading\": \"24px\"}} apply to every palette — a set replaces the " +
 				"whole object; to update one axis only, set ui.tokens.colors / ui.tokens.spacing / " +
-				"ui.tokens.layout / ui.tokens.type (key-wise merge) (locked tokens refused; " +
-				"validated tokens must pass the contrast or length-range rules; discover color " +
+				"ui.tokens.layout / ui.tokens.type (key-wise merge) (unparseable values and the " +
+				"derived layout.docked-min refuse; locked tiers and contrast/range/relation " +
+				"judgments warn and save; discover color " +
 				"names with `gadak config get ui.tokens.catalog`, dimension names with " +
 				"`gadak config get ui.tokens.dim-catalog`)",
 			Get: func(c *Config) any {
@@ -927,10 +928,10 @@ var uiTokenAxisExamples = map[string]string{
 func uiTokenAxisSetting(axis string) Setting {
 	path := "ui.tokens." + axis
 	discovery := "`gadak config get ui.tokens.catalog`"
-	rules := "locked tokens refused, validated tokens judged in every palette"
+	rules := "unparseable values refuse; locked tiers and contrast/ΔEok judgments warn and save"
 	if axis != "colors" {
 		discovery = "`gadak config get ui.tokens.dim-catalog`"
-		rules = "locked tokens refused, range and relation rules judge the merged set"
+		rules = "unparseable lengths and the derived docked-min refuse; range and relation judgments warn and save"
 	}
 	return Setting{
 		Path: path,
@@ -1225,8 +1226,8 @@ var dimRelationSpecs = []struct {
 	{"type", "heading", "title", "ge_add", 2, "type steps closer than 2px read as noise, not hierarchy"},
 }
 
-// dimRelationSentence renders one rule the way a refusal would state it,
-// so the discovery output and the write-time error read the same.
+// dimRelationSentence renders one rule the way a write-time warning would
+// state it, so the discovery output and the warning read the same.
 func dimRelationSentence(axis, a, b, kind string, add float64, because string) string {
 	tokA, _ := tokencheck.DimTokenOf(axis, a)
 	tokB, _ := tokencheck.DimTokenOf(axis, b)

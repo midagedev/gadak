@@ -6,7 +6,8 @@
  *
  *   1. accent → #7a4bd0 (~1 s)
  *   2. dataColors label quick-win → #2e7d32
- *   3. locked bg-base refused with the measured error; the tab is untouched
+ *   3. locked bg-base warns on stderr AND applies — the tab turns black
+ *      (GDK-858: judgment warns, never refuses; scene 4 recovers the page)
  *   4. spacing row → 50px — rows repaint taller in place (dimensions, GDK-842)
  *
  * Gated by GADAK_MEDIA=1. Viewport must stay FRAME_W×FRAME_H (promo-split.ts)
@@ -40,9 +41,11 @@ const LABEL_CMD = `gadak config set ui.dataColors '{"label":{"quick-win":"#2e7d3
 const LOCKED_CMD = `gadak config set ui.tokens '{"colors":{"bg-base":"#000000"}}'`
 // Scene 4 (dimension axis). The colors ride along because `config set
 // ui.tokens` replaces the whole token object — a spacing-only write would
-// revert scene 1's accent mid-take. Row is 50px, not more, because the
-// relation row-excerpt ≥ row + 8px judges the effective set: the default
-// row-excerpt of 59px caps row at 51px, and 52px is refused outright.
+// revert scene 1's accent mid-take, and re-stating accent drops scene 3's
+// bg-base, recovering the paper page for the rest of the take. Row is 50px
+// because the relation row-excerpt ≥ row + 8px judges the effective set:
+// the default row-excerpt of 59px caps row at 51px; 52px still saves under
+// GDK-858 but lands with a range warning (GDK-857 ladder teaching).
 const DIMS_CMD = `gadak config set ui.tokens '{"colors":{"accent":"#7a4bd0"},"spacing":{"row":"50px"}}'`
 
 const APP_SRC = `${promoAppOrigin()}/#/?lb=quick-win&sc=new%2Cinprogress`
@@ -120,19 +123,25 @@ test.describe('tokens promo', () => {
     await page.locator('#cursor').evaluate((el) => el.classList.add('off'))
     await page.waitForTimeout(180)
     beat('tokens', 'enter_locked')
+    // GDK-858: the locked tier is a judgment — exit 0, the warning on stderr
+    // keeps the measured diagnostics, and the value APPLIES: the open tab's
+    // ground turns black on the next poll.
     const lockedRan = runTyped(LOCKED_CMD)
-    if (lockedRan.status === 0) {
-      throw new Error(`locked bg-base should have been refused, got: ${lockedRan.stdout}`)
+    if (lockedRan.status !== 0) {
+      throw new Error(`locked bg-base should warn and save, got: ${lockedRan.stderr || lockedRan.stdout}`)
     }
     await showCli(page, lockedRan.stdout, lockedRan.stderr)
     expect(`${lockedRan.stderr}\n${lockedRan.stdout}`).toMatch(/locked/i)
 
-    await page.waitForTimeout(650)
-    expect(
-      await frame.evaluate(() =>
-        getComputedStyle(document.documentElement).getPropertyValue('--color-accent').trim().toLowerCase(),
-      ),
-    ).toBe('#7a4bd0')
+    await expect
+      .poll(
+        async () =>
+          frame.evaluate(() =>
+            getComputedStyle(document.documentElement).getPropertyValue('--color-bg-base').trim().toLowerCase(),
+          ),
+        { timeout: 2_500 },
+      )
+      .toBe('#000000')
     beat('tokens', 'locked_shown', { port: PROMO_PORT })
     await page.waitForTimeout(3200)
 

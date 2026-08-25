@@ -17,13 +17,24 @@ package config
 //	                   type: {10007: "#d07020"},
 //	                   status: {inprogress: "#7e5904"}}
 //
-// Write-time contract (CLI `config set` and PUT settings/ share it):
-//   - locked tokens are refused; validated tokens must pass
-//     tokencheck.ValidateTokens in every palette they can render in;
-//     free tokens need a valid #rgb/#rrggbb only.
+// Write-time contract (CLI `config set` and PUT settings/ share it) — the
+// Severity split, from the user decision of 2026-08-25 ("난 대비는
+// 워닝만 떠야지 거절은 아니라고 생각해. 대비 뿐 아니라 전반적으로"):
+// REFUSE what a machine can check without taste, WARN about everything
+// judgment-shaped and save the value. Concretely:
+//   - unparseable values (non-hex colors, non-length dimensions) and wrong
+//     shapes (unknown wrapper axis) refuse — a value that cannot parse can
+//     never render;
+//   - derived tokens (layout.docked-min) refuse — a stored value would be
+//     overwritten by the recomputation;
+//   - everything else — locked tiers, contrast/ΔEok/deuteranopia floors,
+//     dimension ranges and relations — WARNS and saves: the look is the
+//     user's, warnings keep the measurements and teach the next move
+//     (contrast warnings name the failing palettes and the
+//     ui.tokensByTheme scoping fix; type-step warnings list the
+//     ladder that moves together).
 //   - dimension axes (spacing/layout/type) are palette-agnostic CSS lengths
-//     judged by tokencheck.ValidateDimensions: tier, length format, min/max
-//     range and cross-token relations. They are refused inside
+//     judged by tokencheck.ValidateDimensions. They are refused inside
 //     ui.tokensByTheme at the settings layer — a per-palette copy of a
 //     palette-free value is dead weight, and docked-min (the derived dock
 //     floor) is locked everywhere.
@@ -196,6 +207,18 @@ func ValidateUIConfig(u *UIConfig) (warns []tokencheck.Violation, err error) {
 		warned[k] = true
 		warns = append(warns, v)
 	}
+	// Palette-JUDGED rules (the fold): the same (rule, token) can fire in
+	// several palettes because an all-palette override is judged against each
+	// palette's own base. One folded line names the failing palettes and
+	// teaches the per-palette scoping fix. The palette
+	// list is deterministic: knownPalettes is sorted.
+	paletteJudged := map[string]bool{
+		"status-pair":              true,
+		"status-pair-deuteranopia": true,
+		"status-role-floor":        true,
+		"accent-text-contrast":     true,
+	}
+	paletteFails := map[string][]string{} // rule\x00token → failing palettes
 	// Dimension axes are palette-agnostic: validate the one stored copy
 	// before the per-palette color loop (a refused dimension stops the save
 	// before any palette judgment runs).
@@ -252,8 +275,40 @@ func ValidateUIConfig(u *UIConfig) (warns []tokencheck.Violation, err error) {
 			return warns, err
 		}
 		for _, v := range pw {
+			if paletteJudged[v.Rule] {
+				// One (rule, token) can fire several times per palette (the
+				// floors are per-ground); the fold keeps one line and one
+				// mention per palette. Palettes arrive in sorted order, so
+				// comparing the last entry dedupes.
+				k := v.Rule + "\x00" + v.Token
+				ps := paletteFails[k]
+				if len(ps) == 0 {
+					warns = append(warns, v) // first copy carries the message
+				}
+				if len(ps) == 0 || ps[len(ps)-1] != palette {
+					paletteFails[k] = append(ps, palette)
+				}
+				continue
+			}
 			addWarn(v)
 		}
+	}
+	// Fold the palette-judged warnings: append the failing-palette list (and
+	// the scoping fix) to the first copy's message.
+	for i := range warns {
+		v := &warns[i]
+		k := v.Rule + "\x00" + v.Token
+		ps, ok := paletteFails[k]
+		if !ok || len(ps) == 0 {
+			continue
+		}
+		delete(paletteFails, k)
+		noun, verb := "palette ", "to change one palette only, scope the override under "
+		if len(ps) > 1 {
+			noun, verb = "palettes ", "to change only those, scope the override per palette under "
+		}
+		v.Message += fmt.Sprintf(" — fails in %s%s; %sui.tokensByTheme.<palette>",
+			noun, strings.Join(ps, ", "), verb)
 	}
 	return warns, nil
 }
@@ -324,27 +379,40 @@ func truncate(v string, max int) string {
 // stderr here (LoadFor's migration notices set the precedent: the write
 // succeeded and the warning is part of its output, not an API result).
 func ApplyUIConfig(c *Config, next *UIConfig) error {
+	_, err := ApplyUIConfigWithWarnings(c, next)
+	return err
+}
+
+// ApplyUIConfigWithWarnings is ApplyUIConfig with the write-time warnings
+// returned as well: under warn+save the warning IS the interesting
+// part of the answer — why the saved look will render the way it does — and
+// the settings PUT carries them on its response (uiWarnings) so a writer
+// that never sees the CLI's stderr still reads them. The stderr print stays;
+// server logs keep the same record a CLI session leaves.
+func ApplyUIConfigWithWarnings(c *Config, next *UIConfig) ([]tokencheck.Violation, error) {
 	if c == nil {
-		return errors.New("nil config")
+		return nil, errors.New("nil config")
 	}
 	warns, err := ValidateUIConfig(next)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	for _, w := range warns {
 		fmt.Fprintf(os.Stderr, "gadak: ui: %s\n", w.Message)
 	}
 	c.UI = next
-	return nil
+	return warns, nil
 }
 
 // UITokenVars expands the stored overrides into the final CSS variable maps
-// the web consumes: palette → cssVar ("--color-accent") → hex. Only names the
-// catalog knows, tiers that may render, and valid hex values are injected —
-// anything else is reported as a load-time advisory so a config written by a
-// newer build (renamed token, newly locked token) degrades to "override
-// ignored" instead of an unbootable UI. The map is overrides-only: base
-// values keep coming from app.css.
+// the web consumes: palette → cssVar ("--color-accent") → hex. Only names
+// the catalog knows and valid hex values are injected — anything else is
+// reported as a load-time advisory so a config written by a newer build
+// (renamed token) degrades to "override ignored" instead of an unbootable
+// UI. Locked tiers RENDER (the write path warned and saved the
+// value — filtering it here would turn that warning into a silent lie); the
+// dimension sibling still filters its one locked token because a stored
+// docked-min is genuinely dead (the runtime recomputes it).
 func UITokenVars(u *UIConfig) (vars map[string]map[string]string, warns []tokencheck.Violation) {
 	vars = map[string]map[string]string{}
 	if u == nil {
@@ -352,18 +420,13 @@ func UITokenVars(u *UIConfig) (vars map[string]map[string]string, warns []tokenc
 	}
 	for _, palette := range tokencheck.CatalogPalettes() {
 		for name, value := range u.EffectiveTokenColors(palette) {
-			tier, known := tokencheck.TierOf(name)
+			_, known := tokencheck.TierOf(name)
 			cssVar := "--color-" + strings.TrimPrefix(strings.TrimSpace(name), "--color-")
 			switch {
 			case !known:
 				warns = append(warns, tokencheck.Violation{
 					Token: name, Rule: "unknown-token", Severity: tokencheck.SeverityWarn,
 					Message: fmt.Sprintf("%s is not in the color catalog; ignored (a newer catalog may have renamed it)", cssVar),
-				})
-			case tier == "locked":
-				warns = append(warns, tokencheck.Violation{
-					Token: name, Rule: "locked", Severity: tokencheck.SeverityWarn,
-					Message: fmt.Sprintf("%s is locked in this build; override ignored (palette authoring, GDK-789)", cssVar),
 				})
 			case !tokencheck.ValidHex(value):
 				warns = append(warns, tokencheck.Violation{

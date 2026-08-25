@@ -120,13 +120,44 @@ below.
 
 Token tiers for **colors** (the color catalog is the single source — `gadak
 config get ui.tokens.catalog` lists all 44 with per-palette values; the
-dimension axes have their own table below):
+dimension axes have their own table below). **Only parsing refuses**
+(user decision 2026-08-25 — judgment warns and saves; the look is
+yours): tier and contrast verdicts are warnings that carry the measured
+number and the floor, so the fix does not need a round trip:
 
 | Tier | Count | Rule on write |
 | --- | --- | --- |
-| locked | 10 | Refused outright. Grounds and shell structure are palette authoring (GDK-789), not runtime overrides. |
-| validated | 12 | Must pass the contrast/separation rules in **every palette the value can render in** — a `tokensByTheme` overlay is judged in its own palette only. |
+| locked | 10 | Warns and saves. Grounds and shell structure are palette authoring (GDK-789) — the warning says the build may re-derive them in an upgrade. |
+| validated | 12 | Judged in **every palette the value can render in** — a `tokensByTheme` overlay is judged in its own palette only. Contrast/ΔEok/deuteranopia violations warn and save; the warning names the failing palettes and the `ui.tokensByTheme` scoping fix. |
 | free | 22 | Hex shape only (lozenges, avatars, departments). |
+
+What still **refuses**: a value that cannot parse (`"red"`, `"90"`) or a
+wrong shape (unknown wrapper axis) — a value that cannot parse can never
+render — and the derived `layout.docked-min` (below). Everything else
+saves with its warning on stderr, and the write echoes the stored value:
+
+```console
+$ gadak config set ui.tokens '{"colors":{"bg-base":"#000000"}}'
+gadak: ui: --color-bg-base is locked (page ground (lightest surface of the paper
+ladder); light orange family (#f4efe4)) — applied, but locked tokens are palette
+authoring: the build may re-derive them in an upgrade; per-palette opening is the
+custom-palette scope (GDK-789)
+{"colors":{"bg-base":"#000000"}}
+$ echo $?
+0
+
+$ gadak config set ui.tokensByTheme '{"light":{"colors":{"status-reopen":"#f4efe4"}}}'
+gadak: ui: status-reopen #f4efe4 as text on bg-base #f4efe4: contrast 1.00 < 4.5 —
+applied, but it will read thin; pick a darker (text) or higher-chroma ink — fails
+in palette light; to change one palette only, scope the override under
+ui.tokensByTheme.<palette>
+{"light":{"colors":{"status-reopen":"#f4efe4"}}}
+
+$ gadak config set ui.tokens.colors '{"accent":"red"}'
+gadak: ui tokens (palette dark): --color-accent: "red" is not a #rgb or #rrggbb hex color
+$ echo $?
+1
+```
 
 `dataColors` keys follow the repo-wide display-name ban, and the refusals
 teach the right key kind: `label.*` is the label text itself, `type.*` is a
@@ -134,29 +165,15 @@ Jira **issue type id** (digits), `status.*` is a **status_category**
 (`new` \| `inprogress` \| `done`).
 
 ```console
-$ gadak config set ui.tokens '{"colors":{"bg-base":"#000000"}}'
-gadak: ui tokens (palette dark): --color-bg-base is locked (page ground (lightest
-surface of the paper ladder); light orange family (#f4efe4)): palette authoring,
-not a runtime override — see the custom-palette scope (GDK-789)
-$ echo $?
-1
-
-$ gadak config set ui.tokensByTheme '{"light":{"colors":{"status-reopen":"#f4efe4"}}}'
-gadak: ui tokens (palette light): status-reopen #f4efe4 as text on bg-base #f4efe4:
-contrast 1.00 < 4.5 — pick a darker (text) or higher-chroma ink
-
 $ gadak config set ui.dataColors '{"status":{"In Progress":"#7e5904"}}'
 gadak: ui.dataColors.status keys must be a status_category: new, inprogress, or done
 (got "In Progress") — status display names localize per account
 ```
 
-Validated refusals carry the measured number and the floor, so the fix does
-not need a round trip. A **valid** write echoes the stored value:
-
-```console
-$ gadak config set ui.dataColors '{"label":{"urgent":"#c03030"}}'
-{"label":{"urgent":"#c03030"}}
-```
+**Recovery.** A saved-but-regretted override is one command away:
+`gadak config set ui.tokens '{}'` clears the whole block, and a `null`
+value on an axis subpath deletes one key (`gadak config set
+ui.tokens.colors '{"accent":null}'`). Both always work from the CLI.
 
 Unknown token names (and unknown `tokensByTheme` palettes) are **carried
 with a warning, never refused** — a config written by a newer gadak must
@@ -223,8 +240,8 @@ $ gadak config set ui.tokens '{"spacing":{"row":"44px"}}'
 recipe. A subpath write is a **key-wise merge**: it updates the named keys
 only and preserves every other key, the other axes (colors included), and
 `ui.tokensByTheme`; a `null` value deletes its key, and `{}` changes
-nothing. Validation judges the merged object, so a refused write leaves
-the config exactly as it was:
+nothing. Validation judges the merged object, so a refused write (parse,
+shape, docked-min) leaves the config exactly as it was:
 
 ```console
 $ gadak config set ui.tokens '{"colors":{"accent":"#7a4bd0"}}'
@@ -237,8 +254,9 @@ $ gadak config set ui.tokens.spacing '{"row":null}'
 {}
 $ gadak config get ui.tokens
 {"colors":{"accent":"#7a4bd0"}}
-$ gadak config set ui.tokens.spacing '{"row":"90px"}'
-gadak: ui tokens (dimensions): --spacing-row: 90px is outside its range 36px–56px
+$ gadak config set ui.tokens.spacing '{"row":"wide"}'
+gadak: ui tokens (dimensions): --spacing-row: "wide" is not a px length (integer or
+one decimal, e.g. "44px")
 ```
 
 A write to `ui.tokens` itself **still replaces the whole object** — include
@@ -247,27 +265,53 @@ your colors in the same write
 dropped. That was already true for colors; with four axes it bites more
 often, which is why the axis paths above are the default recipe.
 
-**Validation: range + relations.** Every recordable token carries an
-inclusive min/max, and cross-token relations judge the **effective** set
-(defaults fill whatever you did not override) — `control-sm ≤ control`,
-`row-excerpt ≥ row + 8px`, `detail-max ≥ detail-min`, `sidebar-narrow ≤
-sidebar`, and the type steps (neighboring sizes ≥ 2px apart). Refusals
-carry the measured value and the bound, like the color rules:
+**Validation: range + relations — warn and save.** Every
+recordable token carries an inclusive min/max, and cross-token relations
+judge the **effective** set (defaults fill whatever you did not override) —
+`control-sm ≤ control`, `row-excerpt ≥ row + 8px`, `detail-max ≥
+detail-min`, `sidebar-narrow ≤ sidebar`, and the type steps (neighboring
+sizes ≥ 2px apart). These are judgments, not shapes: the value **saves**
+and the warning carries the measured value and the bound, like the color
+rules. An out-of-range value still participates in the relations, so one
+write can land both warnings:
 
 ```console
 $ gadak config set ui.tokens '{"spacing":{"row":"90px"}}'
-gadak: ui tokens (dimensions): --spacing-row: 90px is outside its range 36px–56px
+gadak: ui: --spacing-row: 90px is outside its range 36px–56px — applied, but only
+the range is tested
+gadak: ui: --spacing-row-excerpt 59px breaks ≥ 90px + 8px (a row carrying a preview
+line needs headroom) — applied, but the relation no longer holds
+{"spacing":{"row":"90px"}}
 
 $ gadak config set ui.tokens '{"spacing":{"control":"28px","control-sm":"30px"}}'
-gadak: ui tokens (dimensions): --spacing-control-sm 30px must be ≤ 28px (the small
-control rides inside the regular one)
+gadak: ui: --spacing-control-sm 30px breaks ≤ 28px (the small control rides inside
+the regular one) — applied, but the relation no longer holds
+{"spacing":{"control":"28px","control-sm":"30px"}}
 ```
 
-**`layout.docked-min` is derived and locked.** It is the dock floor
-`sidebar + list-min + detail-min`. Writes are refused, and the runtime
-recomputes it whenever any of the three track tokens is overridden — the
-grid and the dock/overlay regime switch stay one sum, so they cannot drift
-apart:
+Type-step warnings add the ladder teaching — the four size rungs are one
+ladder, listed as it now renders, so the set that must move together is in
+the message:
+
+```console
+$ gadak config set ui.tokens.type '{"micro":"14px"}'
+gadak: ui: --text-micro: 14px is outside its range 11px–13px — applied, but only
+the range is tested
+gadak: ui: --text-body 13px breaks ≥ 14px + 2px (type steps closer than 2px read as
+noise, not hierarchy) — applied, but the relation no longer holds; the ladder moves
+together: micro 14px → body 13px → title 15px → heading 22px
+{"type":{"micro":"14px"}}
+```
+
+What still refuses here: the **length grammar** (`"44"` without the unit,
+`"1.4px"` for a line-height) and the derived `docked-min` — see below.
+
+**`layout.docked-min` is derived and locked — the one dimension that still
+refuses.** It is the dock floor `sidebar + list-min + detail-min`. A
+stored value would be overwritten by the recomputation whenever any of the
+three track tokens is overridden, so refusing is the honest answer; the
+message keeps teaching the three tokens to set instead — the grid and the
+dock/overlay regime switch stay one sum, so they cannot drift apart:
 
 ```console
 $ gadak config set ui.tokens '{"layout":{"docked-min":"1200px"}}'
@@ -313,7 +357,13 @@ Four keys are omit-to-preserve, so an older client cannot wipe them:
 `fields` (discovery output), `confluence`, `appearance`, `ui` (color
 overrides). `runtime`, `site`, and `hasCredential` on the body are ignored.
 A present `ui` is still a whole-block replace — the per-axis merge paths
-(`ui.tokens.<axis>`) are CLI-only.
+(`ui.tokens.<axis>`) are CLI-only. Because judgment violations save
+(see above), a PUT carrying a `ui` block answers with the write-time
+warnings of **that** write as a response-only `uiWarnings` array (same
+violation objects: `token`, `rule`, `severity`, `measured`, `floor`,
+`message`) — a client that never sees the CLI's stderr still learns why
+the saved look will render the way it does. The key is absent when there
+is nothing to say, and a client-supplied value is ignored.
 
 ---
 
@@ -327,7 +377,7 @@ A present `ui` is still a whole-block replace — the per-axis merge paths
 | `tokenVerifiedAt` | string (RFC3339) | _(empty)_ | Set by successful credential verify | Read-only side effect |
 | `tokenOwner` | string | _(empty)_ | Set by successful credential verify | Read-only side effect |
 | `appearance.theme` | string | empty → **system** | Settings theme picker / `gadak config set appearance.theme` | Immediate after reload; shape `[a-z0-9-]{1,32}` (see above) |
-| `ui.tokens` | `{colors: {token: hex}, spacing\|layout\|type: {token: length}}` | _(absent)_ | `gadak config set ui.tokens` / Settings PUT `ui` (no form editor yet) | Live, no reload — color-token overrides for every palette (locked refused, validated contrast-checked) plus the palette-agnostic dimension axes (see above). A set replaces the whole object |
+| `ui.tokens` | `{colors: {token: hex}, spacing\|layout\|type: {token: length}}` | _(absent)_ | `gadak config set ui.tokens` / Settings PUT `ui` (no form editor yet) | Live, no reload — color-token overrides for every palette plus the palette-agnostic dimension axes (see above). Only parse/shape/derived refuse; tiers, contrast, ranges and relations warn and save. A set replaces the whole object |
 | `ui.tokens.<axis>` | `{token: hex or length}` (axis = `colors`, `spacing`, `layout`, `type`) | _(absent)_ | `gadak config set ui.tokens.<axis>` (CLI only) | Live, no reload — key-wise merge into one axis: named keys update, other keys/axes survive; `null` deletes a key, `{}` is a no-op |
 | `ui.tokensByTheme` | `{palette: {colors: {token: hex}}}` | _(absent)_ | `gadak config set ui.tokensByTheme` / Settings PUT `ui` | Live, no reload — per-palette overlay, judged in that palette; colors only (dimension axes are refused) |
 | `ui.dataColors` | `{label\|type\|status: {key: hex}}` | _(absent)_ | `gadak config set ui.dataColors` / Settings PUT `ui` | Live, no reload — per-data inks; `type` keys are issue type ids, `status` keys are status categories |

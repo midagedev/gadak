@@ -25,11 +25,13 @@ import (
  *	    Pins: sRGB transfer/gamma, OKLab coefficients, ΔEok, WCAG contrast,
  *	    and the Machado matrix orientation (a transposed copy fails the 30
  *	    deut vectors — gray-on-gray outputs coincide, colored ones don't).
- *	C2  locked tier refuses overrides — the 10 tokens theme-check's
- *	    palette-structure assertions are written against (GROUNDS
- *	    theme-check.mjs:107, FLOOR :108, search-match isolation :420-423,
- *	    shell ladder :222). Assert: reject severity ×2 (a ground and a text
- *	    token) + all 10 names reject (bulk).
+ *	C2  locked tier warns and carries (GDK-858, user decision 2026-08-25:
+ *	    "warnings, not refusals, for anything judgment-shaped") — the 10
+ *	    tokens theme-check's palette-structure assertions are written
+ *	    against (GROUNDS theme-check.mjs:107, FLOOR :108, search-match
+ *	    isolation :420-423, shell ladder :222). Reject stays reserved for
+ *	    what a machine can keep: parse/shape failures. Assert: warn
+ *	    severity ×2 (a ground and a text token) + all 10 names warn (bulk).
  *	C3  Violations carry numbers — Measured and Floor are populated for
  *	    status-role-floor (theme-check.mjs:281/:447 `floor 3/4.5`), so an
  *	    agent can self-correct without a round trip. Assert: measured parses
@@ -205,20 +207,28 @@ func TestGoldenVectorsDeut(t *testing.T) {
 
 // ── C2: locked tier ───────────────────────────────────────────────────────
 
-func TestLockedTokensRefuseOverrides(t *testing.T) {
+// TestLockedTokensWarnNotRefuse and TestAllTenLockedNamesWarn are revised
+// assertions, not relaxed ones — contract change 2026-08-25, user decision
+// GDK-858 ("난 대비는 워닝만 떠야지 거절은 아니라고 생각해. 대비 뿐 아니라
+// 전반적으로"): tier membership is a judgment about palette authoring, not a
+// machine-checkable property of the value, so a locked override warns and is
+// carried. The machine-checkable contract (hex shape, C5) still rejects.
+// FAIL-first: both tests fail against the pre-GDK-858 source, which returned
+// SeverityReject here (run output in the round report).
+func TestLockedTokensWarnNotRefuse(t *testing.T) {
 	base := lightBase(t)
 	for _, name := range []string{"bg-base", "text-primary"} {
 		vs := ValidateTokens(map[string]string{name: "#123456"}, base)
 		if len(vs) == 0 {
-			t.Fatalf("%s: override accepted, want reject", name)
+			t.Fatalf("%s: override produced no verdict at all", name)
 		}
-		if vs[0].Rule != "locked" || vs[0].Severity != SeverityReject {
-			t.Errorf("%s: got %+v, want rule=locked reject", name, vs[0])
+		if vs[0].Rule != "locked" || vs[0].Severity != SeverityWarn {
+			t.Errorf("%s: got %+v, want rule=locked warn", name, vs[0])
 		}
 	}
 }
 
-func TestAllTenLockedNamesReject(t *testing.T) {
+func TestAllTenLockedNamesWarn(t *testing.T) {
 	base := lightBase(t)
 	want := map[string]bool{
 		"bg-base": true, "bg-panel": true, "bg-elevated": true, "bg-hover": true,
@@ -229,12 +239,55 @@ func TestAllTenLockedNamesReject(t *testing.T) {
 		vs := ValidateTokens(map[string]string{name: "#a1b2c3"}, base)
 		found := false
 		for _, v := range vs {
-			if v.Token == name && v.Rule == "locked" && v.Severity == SeverityReject {
+			if v.Token == name && v.Rule == "locked" && v.Severity == SeverityWarn {
 				found = true
 			}
 		}
 		if !found {
-			t.Errorf("%s: no locked reject among %+v", name, vs)
+			t.Errorf("%s: no locked warn among %+v", name, vs)
+		}
+	}
+}
+
+// ── C2b: judgment rules warn; only parse rejects ─────────────────────────
+//
+// GDK-858 (user decision 2026-08-25): every rule that judges the LOOK —
+// pair separation, its deuteranopia simulation, per-role contrast floors,
+// accent-text contrast — warns and carries. The measured number and the
+// floor stay in the warning (C3 unchanged), so the fix still needs no
+// round trip. Reject survives only where a machine can keep the promise:
+// the hex parse (C5). FAIL-first: every case below returned SeverityReject
+// on the pre-GDK-858 source.
+func TestJudgmentRulesWarnAndCarry(t *testing.T) {
+	base := lightBase(t)
+	cases := []struct {
+		rule string
+		in   map[string]string
+	}{
+		{"status-role-floor", map[string]string{"status-new": "#cfc0a4"}},
+		{"status-pair", map[string]string{"status-done": base["status-new"]}},
+		{"status-pair-deuteranopia", map[string]string{"status-done": base["status-new"]}},
+		{"accent-text-contrast", map[string]string{"accent-text": "#ffffff"}},
+	}
+	for _, tc := range cases {
+		vs := ValidateTokens(tc.in, base)
+		found := false
+		for _, v := range vs {
+			if v.Rule == tc.rule {
+				found = true
+				if v.Severity != SeverityWarn {
+					t.Errorf("%s: severity %q, want warn: %+v", tc.rule, v.Severity, v)
+				}
+			}
+		}
+		if !found {
+			t.Errorf("%s never fired for %+v: %+v", tc.rule, tc.in, vs)
+			continue
+		}
+		for _, v := range vs {
+			if v.Severity == SeverityReject {
+				t.Errorf("%s: judgment input produced a reject (%s) — reject is for parse/shape only: %+v", tc.rule, v.Rule, v)
+			}
 		}
 	}
 }
@@ -391,9 +444,10 @@ func TestPartialOverrideUsesBaseContext(t *testing.T) {
 		t.Errorf("same-value override on dark base flagged: %+v", vs)
 	}
 	// The discriminating case: that same dark ink on the LIGHT base must be
-	// rejected — stale is #d19b5a, a warm mid tone that cannot carry text on
+	// flagged — stale is #d19b5a, a warm mid tone that cannot carry text on
 	// #f4efe4. If this passes, the base fill is not being used and every
-	// override is being judged in a vacuum.
+	// override is being judged in a vacuum. (GDK-858: the flag is a warn
+	// now; the firing is the assertion.)
 	vs = ValidateTokens(map[string]string{"status-stale": dark["status-stale"]}, light)
 	if !hasViolation(vs, "status-role-floor") {
 		t.Errorf("dark stale ink accepted on light grounds — base fill ignored: %+v", vs)

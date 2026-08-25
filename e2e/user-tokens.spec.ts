@@ -122,7 +122,11 @@ test.describe('user tokens', () => {
     expect(errors).toEqual([])
   })
 
-  test('locked tokens are refused with the reason and the open tab is untouched', async ({
+  // GDK-858 (user decision 2026-08-25): judgment violations warn and SAVE;
+  // only parse/shape/derived refusals remain. This spec was revised with the
+  // round — FAIL-first against the pre-change source: the old test asserted
+  // 400 + config unchanged for exactly this locked write.
+  test('locked tokens warn via uiWarnings and still apply; unparseable values refuse', async ({
     page,
     request,
   }) => {
@@ -133,22 +137,37 @@ test.describe('user tokens', () => {
     expect(status).toBe(200)
     await expect.poll(() => readToken(page, '--color-accent')).toBe(ACCENT)
 
-    const refused = await putUI(request, {
+    // Locked tier: a judgment — 200, the warning rides the response, and the
+    // value renders in the open tab.
+    const warned = await putUI(request, {
       tokens: { colors: { accent: ACCENT, 'bg-base': '#000000' } },
     })
-    expect(refused.status).toBe(400)
-    expect(String(refused.body.error)).toContain('locked')
-
-    // A refused write must not clobber what the tab already shows. Wait one
-    // poll cycle so a buggy refetch would have had its chance.
-    await page.waitForTimeout(650)
-    expect(await readToken(page, '--color-accent')).toBe(ACCENT)
+    expect(warned.status).toBe(200)
+    const uiWarnings = (warned.body.uiWarnings ?? []) as { rule?: string; token?: string }[]
+    expect(
+      uiWarnings.some((w) => w.rule === 'locked' && w.token === 'bg-base'),
+      `uiWarnings carried the locked verdict: ${JSON.stringify(uiWarnings)}`,
+    ).toBe(true)
+    await expect.poll(() => readToken(page, '--color-bg-base')).toBe('#000000')
     const doc = (await (await request.get(SETTINGS_URL)).json()) as {
       ui?: { tokens?: { colors?: Record<string, string> } }
     }
-    expect(doc.ui?.tokens?.colors?.['bg-base']).toBeUndefined()
+    expect(doc.ui?.tokens?.colors?.['bg-base']).toBe('#000000')
 
-    // And the refusal left no boot-cache pollution behind.
-    expect(await page.evaluate(() => localStorage.getItem('gadak:user-tokens'))).toContain(ACCENT)
+    // Machine check: a non-hex value still refuses, config unchanged.
+    // lozenge-red is free tier (hex-only rule), so this is a pure parse case.
+    const refused = await putUI(request, {
+      tokens: { colors: { accent: ACCENT, 'bg-base': '#000000', 'lozenge-red': 'not-a-color' } },
+    })
+    expect(refused.status).toBe(400)
+    expect(String(refused.body.error)).toContain('hex')
+    // one poll cycle + slack: if the refusal had leaked through, the next
+    // GET after a cycle is where the wrongly-applied write would show.
+    await page.waitForTimeout(650)
+    const after = (await (await request.get(SETTINGS_URL)).json()) as {
+      ui?: { tokens?: { colors?: Record<string, string> } }
+    }
+    expect(after.ui?.tokens?.colors?.['bg-base']).toBe('#000000')
+    expect(after.ui?.tokens?.colors?.['lozenge-red']).toBeUndefined()
   })
 })

@@ -123,19 +123,39 @@ func TestSettingsUIRoundtripAndRefusal(t *testing.T) {
 		t.Fatalf("disk ui wrong: %+v", saved.UI)
 	}
 
-	// A locked token is refused with the reason and does not clobber the file.
+	// A locked token is a judgment (GDK-858, user decision 2026-08-25): it
+	// SAVES with 200, the warning rides the response as uiWarnings, and the
+	// stored block reflects the write. FAIL-first: the pre-GDK-858 source
+	// refused here (run output in the round report).
 	rec = put(`{"tokens":{"colors":{"bg-base":"#000000"}}}`)
-	if rec.Code != http.StatusBadRequest {
+	if rec.Code != http.StatusOK {
 		t.Fatalf("locked token → %d %s", rec.Code, rec.Body.String())
 	}
-	if !strings.Contains(rec.Body.String(), "locked") {
+	if !strings.Contains(rec.Body.String(), "uiWarnings") || !strings.Contains(rec.Body.String(), "locked") {
+		t.Fatalf("judgment PUT must carry the locked warning as uiWarnings: %s", rec.Body.String())
+	}
+	saved, err = config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved.UI.Tokens.Colors["bg-base"] != "#000000" {
+		t.Fatalf("judgment PUT did not save: %+v", saved.UI)
+	}
+	// An unparseable value still refuses and does not clobber the file.
+	rec = put(`{"tokens":{"colors":{"accent":"not-a-color"}}}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("unparseable color → %d %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "hex") {
 		t.Fatalf("refusal must say why: %s", rec.Body.String())
 	}
 	saved, err = config.Load()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if saved.UI.Tokens.Colors["accent"] != "#7a4bd0" {
+	// Full-block semantics: the accepted locked PUT replaced the block (bg-base
+	// only, accent gone with it); the refused PUT must leave exactly that.
+	if saved.UI.Tokens.Colors["accent"] != "" || saved.UI.Tokens.Colors["bg-base"] != "#000000" {
 		t.Fatalf("refused PUT clobbered stored ui: %+v", saved.UI)
 	}
 	// Display-name keys teach the right key kind.
@@ -153,7 +173,7 @@ func TestSettingsUIRoundtripAndRefusal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if saved.UI == nil || saved.UI.Tokens.Colors["accent"] != "#7a4bd0" {
+	if saved.UI == nil || saved.UI.Tokens.Colors["bg-base"] != "#000000" {
 		t.Fatalf("omitted ui key wiped overrides: %+v", saved.UI)
 	}
 }

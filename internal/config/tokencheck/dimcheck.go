@@ -12,21 +12,33 @@
 //	         a lowercase px suffix ("44px", "42.5px"); line-heights (unit
 //	         none) are unitless with one or two decimals ("1.4", "1.35").
 //	         Stricter-than-CSS on purpose (the parseHex precedent: stricter
-//	         can only refuse, never misread).
+//	         can only refuse, never misread). REFUSES — a value that cannot
+//	         parse can never render (machine check).
 //	range    every validated-range token carries min/max in the catalog;
 //	         bounds are inclusive. Where the lower bound is a cross-token
 //	         relation instead of a constant (row-excerpt, detail-max) the
-//	         catalog omits min and the relation below owns it.
+//	         catalog omits min and the relation below owns it. WARNS — the
+//	         range is tested territory, not a shape; the value is
+//	         carried and still participates in the relations below, which
+//	         judge it as it renders.
 //	relation five cross-token rules from the chunk-1 spec (control-sm ≤
 //	         control, row-excerpt ≥ row+8, detail-max ≥ detail-min,
 //	         overlay-max ≤ shell-max, sidebar-narrow ≤ sidebar) plus the
 //	         census type-step gap (neighbors ≥ 2px apart). Relations judge
 //	         the EFFECTIVE set — defaults fill whatever the user did not
 //	         override — and run only when a participant was overridden, like
-//	         the color group rules.
+//	         the color group rules. WARNS; type-axis warnings list
+//	         the ladder that moves together.
 //	locked   layout.docked-min is the derived dock floor
-//	         (sidebar+list-min+detail-min). Writes are refused; the runtime
-//	         recomputes it from the three track tokens.
+//	         (sidebar+list-min+detail-min). Writes are refused — a stored
+//	         value would be overwritten by the recomputation of the three
+//	         track tokens, so refusing is the honest answer; the message
+//	         keeps teaching the three tokens to set instead.
+//
+// Severity split (user decision 2026-08-25): length and locked
+// refuse (machine check / derived); range and relation warn and carry —
+// they are judgments about tested territory and visual rhythm, and "my look
+// is mine" (docs/decisions/0003 has gadak forcing no taste on the user).
 //
 // Input defense mirrors the color contract (GDK-769 axis 3): unknown axis
 // ids and unknown token names produce warn-severity violations and are
@@ -210,8 +222,10 @@ var dimRelations = []dimRelation{
 // ValidateDimensions is the write gate for the dimension axes: tier, length
 // format, range and cross-token relations. Input is axis id → token name →
 // value; names may be bare ("row") or CSS variables ("--spacing-row").
-// Unknown axis ids and unknown names warn and are carried (GDK-769 axis 3);
-// everything else that fails refuses.
+// Unknown axis ids and unknown names warn and are carried (GDK-769 axis 3).
+// Of the failures, length format and the locked tier refuse (machine
+// check / derived sum); range and relation violations warn and the value is
+// carried (judgment, not shape).
 func ValidateDimensions(axes map[string]map[string]string) []Violation {
 	cat, idx := dimCatalog()
 	var vs []Violation
@@ -274,14 +288,20 @@ func ValidateDimensions(axes map[string]map[string]string) []Violation {
 				continue
 			}
 			if (tok.Min != nil && v < *tok.Min) || (tok.Max != nil && v > *tok.Max) {
+				// The range is a judgment — warn and CARRY the value
+				// into eff/overridden so the relations below judge what will
+				// actually render (before the severity split the write refused,
+				// eff was invisible).
 				vs = append(vs, Violation{
 					Token:    name,
 					Rule:     "range",
-					Severity: SeverityReject,
+					Severity: SeverityWarn,
 					Measured: tok.dimFormat(v),
 					Floor:    tok.dimBounds(),
-					Message:  fmt.Sprintf("%s: %s is outside its range %s", tok.CSSVar, value, tok.dimBounds()),
+					Message:  fmt.Sprintf("%s: %s is outside its range %s — applied, but only the range is tested", tok.CSSVar, value, tok.dimBounds()),
 				})
+				eff[ax.ID][name] = v
+				overridden[ax.ID][name] = true
 				continue
 			}
 			eff[ax.ID][name] = v
@@ -380,13 +400,41 @@ func checkDimRelations(eff map[string]map[string]float64, overridden map[string]
 		vs = append(vs, Violation{
 			Token:    dimBlame(overridden[rel.axis], rel.a, rel.b),
 			Rule:     "relation",
-			Severity: SeverityReject,
+			Severity: SeverityWarn,
 			Measured: tokA.dimFormat(va),
 			Floor:    dimFloor(tokB, vb, rel),
-			Message:  fmt.Sprintf("%s %s must be %s %s (%s)", tokA.CSSVar, tokA.dimFormat(va), rel.opWord(), dimFloor(tokB, vb, rel), rel.why),
+			Message: fmt.Sprintf("%s %s breaks %s %s (%s) — applied, but the relation no longer holds%s",
+				tokA.CSSVar, tokA.dimFormat(va), rel.opWord(), dimFloor(tokB, vb, rel), rel.why, typeLadderSuffix(eff, rel)),
 		})
 	}
 	return vs
+}
+
+// typeLadderSuffix teaches the type-step move: the four
+// size rungs are one ladder, and a step warning means the whole set (or the
+// one rung, deliberately) has to move. Empty for non-type relations.
+func typeLadderSuffix(eff map[string]map[string]float64, rel dimRelation) string {
+	if rel.axis != "type" {
+		return ""
+	}
+	_, idx := dimCatalog()
+	ax, ok := idx["type"]
+	if !ok {
+		return ""
+	}
+	var parts []string
+	for _, rung := range []string{"micro", "body", "title", "heading"} {
+		tok, known := ax.Tokens[rung]
+		if !known {
+			return ""
+		}
+		v, ok := eff["type"][rung]
+		if !ok {
+			return ""
+		}
+		parts = append(parts, rung+" "+tok.dimFormat(v))
+	}
+	return "; the ladder moves together: " + strings.Join(parts, " → ")
 }
 
 // dimFloor renders the right-hand bound of a relation for Floor/Message.

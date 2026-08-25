@@ -223,6 +223,13 @@ type settingsDoc struct {
 	// always populates it (empty object = nothing overridden).
 	UI *config.UIConfig `json:"ui,omitempty"`
 
+	// UIWarnings carries the write-time token warnings of THIS PUT back to
+	// the caller: judgment violations now save, so the warning is
+	// the payload's own diagnostics — why the saved look will render the way
+	// it does. Response-only: omitempty keeps GET and clean PUTs unchanged,
+	// and a client-supplied value is ignored (decode target, never read).
+	UIWarnings []tokencheck.Violation `json:"uiWarnings,omitempty"`
+
 	// Read-only context for the UI. Ignored on PUT — the site and the token are
 	// the credential endpoint's business (T4). runtime is assembled per request.
 	// fieldSpecs / fieldUsage are discovery output; PUT must not clobber Fields.
@@ -357,9 +364,13 @@ func (s *server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 	}
 	// Same omit-to-preserve contract: ui absent leaves stored overrides
 	// alone; present means full replacement of the block (the UI edits the
-	// whole object it GETs). Refusals carry the validator's reason.
+	// whole object it GETs). Refusals carry the validator's reason; judgment
+	// warnings ride the response as uiWarnings.
+	var uiWarns []tokencheck.Violation
 	if in.UI != nil {
-		if err := config.ApplyUIConfig(&next, in.UI); err != nil {
+		var err error
+		uiWarns, err = config.ApplyUIConfigWithWarnings(&next, in.UI)
+		if err != nil {
 			fail(w, http.StatusBadRequest, err.Error())
 			return
 		}
@@ -401,7 +412,9 @@ func (s *server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 	if scopeChanged(prev, &next) && next.HasCredential() && !next.SyncFrozen() {
 		_ = s.startSyncJob(&next, true)
 	}
-	writeJSON(w, http.StatusOK, s.settingsResponse(r.Context(), &next))
+	doc := s.settingsResponse(r.Context(), &next)
+	doc.UIWarnings = uiWarns // response-only; GET builds it without
+	writeJSON(w, http.StatusOK, doc)
 }
 
 // scopeChanged reports whether the mirrored source set differs between two

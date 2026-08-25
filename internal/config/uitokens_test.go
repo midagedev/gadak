@@ -4,8 +4,10 @@ package config
 //
 //	contract                              assertion
 //	────────────────────────────────────  ─────────────────────────────────────
-//	locked tokens refuse writes           TestApplyUIConfigTiers
-//	validated tokens pass rules           TestApplyUIConfigPerPaletteJudging
+//	locked tokens warn and save (858)     TestApplyUIConfigTiers
+//	validated rules judge per palette     TestApplyUIConfigPerPaletteJudging
+//	judgment violations store + stderr    TestJudgmentViolationsSaveWithWarnings
+//	warnings fold, name failing palettes  TestJudgmentWarningNamesFailingPalettes
 //	free tokens need hex only             TestApplyUIConfigTiers (lozenge)
 //	unknown token carried + warned        TestApplyUIConfigUnknownTokenCarried
 //	unknown palette carried + warned      TestApplyUIConfigUnknownTokenCarried
@@ -16,6 +18,11 @@ package config
 //	settings catalog exposes map paths    TestUISettingsPaths
 //	expansion filters drift to advisories TestUITokenVarsDegradesToAdvisory
 //	configVersion moves with the file     TestConfigVersionMoves
+//
+// GDK-858 (user decision 2026-08-25): judgment violations — locked tiers,
+// contrast floors — warn and SAVE; only parse/shape/derived refuse. The
+// revised assertions below fail against the pre-GDK-858 source (run output
+// in the round report).
 //
 // Fixtures that depend on color math are derived from the catalog at run time
 // (a token's own catalog value passes its palette by construction; a ground
@@ -36,9 +43,10 @@ func TestApplyUIConfigTiers(t *testing.T) {
 		wantErr string // substring of the refusal; empty means accept
 	}{
 		{
-			name:    "locked token refused",
-			ui:      &UIConfig{Tokens: &UITokens{Colors: map[string]string{"bg-base": "#000000"}}},
-			wantErr: "locked",
+			// GDK-858: tier is a judgment — the write warns and stores; the
+			// dedicated warn+save test below carries the assertions.
+			name: "locked token warned and stored",
+			ui:   &UIConfig{Tokens: &UITokens{Colors: map[string]string{"bg-base": "#000000"}}},
 		},
 		{
 			name:    "invalid hex refused",
@@ -85,7 +93,9 @@ func TestApplyUIConfigTiers(t *testing.T) {
 
 // Each palette's overlay is judged against that palette's own catalog base:
 // the own-palette catalog value passes, and using a palette's ground color as
-// a status ink (contrast 1.0 against itself) is refused naming that palette.
+// a status ink (contrast 1.0 against itself) warns naming that palette
+// (GDK-858: warns and saves — the palette attribution is what the assertion
+// pins; FAIL-first against the pre-GDK-858 source, which refused here).
 func TestApplyUIConfigPerPaletteJudging(t *testing.T) {
 	byTheme := map[string]*UITokens{}
 	for _, p := range tokencheck.CatalogPalettes() {
@@ -101,7 +111,7 @@ func TestApplyUIConfigPerPaletteJudging(t *testing.T) {
 
 	// The dark entry is the broken one: dark's bg-base as a status ink is
 	// contrast 1.0 on dark grounds. The light entry (light's own good ink)
-	// must not have been judged against dark's base, or the refusal would
+	// must not have been judged against dark's base, or the warning would
 	// name the wrong palette — and a fixed-base implementation fails one of
 	// the two directions.
 	badInk, _ := tokencheck.CatalogValue("bg-base", "dark")
@@ -110,15 +120,24 @@ func TestApplyUIConfigPerPaletteJudging(t *testing.T) {
 		"dark":  {Colors: map[string]string{"status-reopen": badInk}},
 		"light": {Colors: map[string]string{"status-reopen": goodInk}},
 	}}
-	_, err := ValidateUIConfig(mixed)
-	if err == nil {
-		t.Fatal("ground-color ink must be refused")
+	warns, err := ValidateUIConfig(mixed)
+	if err != nil {
+		t.Fatalf("judgment violations must warn and save (GDK-858), got refusal: %v", err)
 	}
-	if !strings.Contains(err.Error(), "palette dark") {
-		t.Fatalf("refusal must name the palette whose rules failed: %v", err)
+	var floor *tokencheck.Violation
+	for i, w := range warns {
+		if w.Rule == "status-role-floor" {
+			floor = &warns[i]
+		}
 	}
-	if !strings.Contains(err.Error(), "contrast") {
-		t.Fatalf("refusal must carry the measured contrast: %v", err)
+	if floor == nil {
+		t.Fatal("ground-color ink must warn with the role floor")
+	}
+	if !strings.Contains(floor.Message, "palette dark") {
+		t.Fatalf("warning must name the palette whose rules failed: %q", floor.Message)
+	}
+	if !strings.Contains(floor.Message, "contrast") {
+		t.Fatalf("warning must carry the measured contrast: %q", floor.Message)
 	}
 }
 
@@ -196,6 +215,85 @@ func TestApplyUIConfigUnknownTokenCarried(t *testing.T) {
 		t.Errorf("unknown palette must be carried for forward compatibility")
 	}
 }
+
+// The GDK-858 write contract, end to end: a judgment violation (locked
+// tier, contrast floor) SAVES — the value lands in the config a CLI write
+// would persist — and the warning reaches stderr. Deliberately rides the
+// long-standing ApplyUIConfig signature so the file compiles against the
+// pre-change source and the FAIL-first run is a real run: the old source
+// refuses both writes (locked + floor are rejects), stores nothing, and
+// prints nothing.
+func TestJudgmentViolationsSaveWithWarnings(t *testing.T) {
+	ink, ok := tokencheck.CatalogValue("bg-base", "dark")
+	if !ok {
+		t.Fatal("catalog missing bg-base/dark")
+	}
+	ui := &UIConfig{Tokens: &UITokens{Colors: map[string]string{
+		"bg-base":    "#000000", // locked tier: judgment, warn+save
+		"status-new": ink,       // dark ground as an all-palette ink: floors fail somewhere
+	}}}
+	var c Config
+	stderr := captureStderr(t, func() {
+		if err := ApplyUIConfig(&c, ui); err != nil {
+			t.Fatalf("judgment violations must not refuse the save: %v", err)
+		}
+	})
+	if c.UI == nil || c.UI.Tokens.Colors["bg-base"] != "#000000" || c.UI.Tokens.Colors["status-new"] != ink {
+		t.Fatalf("judgment-violating values not stored: %+v", c.UI)
+	}
+	if !strings.Contains(stderr, "gadak: ui:") {
+		t.Errorf("warnings did not reach stderr: %q", stderr)
+	}
+	if !strings.Contains(stderr, "locked") {
+		t.Errorf("no locked warning on stderr: %q", stderr)
+	}
+	if !strings.Contains(stderr, "status-role-floor") && !strings.Contains(stderr, "contrast") {
+		t.Errorf("no contrast-floor warning on stderr: %q", stderr)
+	}
+	// The refusal tone is gone: a warning says the value applied, not "pick a
+	// darker ink" alone.
+	if !strings.Contains(stderr, "applied") {
+		t.Errorf("warnings must say the value applied (GDK-858 tone): %q", stderr)
+	}
+}
+
+// The fold: one warning line per (rule, token) no matter how many palettes
+// repeat it, and palette-judged warnings name the failing palettes plus the
+// ui.tokensByTheme scoping fix — the GDK-856 teaching the user decision
+// asked for.
+func TestJudgmentWarningNamesFailingPalettes(t *testing.T) {
+	// All-palette write of dark's ground as a status ink: the floor fails in
+	// some palettes and passes in others; one folded line names the set.
+	ink, _ := tokencheck.CatalogValue("bg-base", "dark")
+	warns, err := ValidateUIConfig(&UIConfig{Tokens: &UITokens{Colors: map[string]string{"status-new": ink}}})
+	if err != nil {
+		t.Fatalf("judgment write refused: %v", err)
+	}
+	count := 0
+	for _, w := range warns {
+		if w.Rule == "status-role-floor" {
+			count++
+		}
+	}
+	if count == 0 {
+		t.Fatalf("ground ink produced no floor warning: %+v", warns)
+	}
+	if count > 1 {
+		t.Errorf("floor warning printed %d times — the fold must emit one line per rule+token: %+v", count, warns)
+	}
+	for _, w := range warns {
+		if w.Rule == "status-role-floor" {
+			if !strings.Contains(w.Message, "palette ") && !strings.Contains(w.Message, "palettes ") {
+				t.Errorf("folded warning does not name the failing palette(s): %q", w.Message)
+			}
+			if !strings.Contains(w.Message, "ui.tokensByTheme") {
+				t.Errorf("folded warning does not teach the per-palette scoping fix: %q", w.Message)
+			}
+		}
+	}
+}
+
+// captureStderr for this file is the package-wide helper in config_test.go.
 
 func TestValidateDataColorsKeys(t *testing.T) {
 	cases := []struct {
@@ -323,21 +421,39 @@ func TestUITokensFlatAndWrappedShapes(t *testing.T) {
 	if c.UI.TokensByTheme["dark"].Colors["accent"] != "#9a6be0" {
 		t.Errorf("theme overlay not stored: %+v", c.UI.TokensByTheme)
 	}
-	// The overlay is judged in its own palette: dark's ground as a status ink
-	// must refuse even though tokens (all-palette) is empty.
-	if err := byTheme.Set(c, []byte(`{"light":{"status-new":"#ffffff"}}`)); err == nil {
-		t.Fatal("unchecked overlay accepted")
+	// The overlay is judged in its own palette: light's ground as a status
+	// ink warns (and stores — GDK-858), naming palette light.
+	if err := byTheme.Set(c, []byte(`{"light":{"status-new":"#ffffff"}}`)); err != nil {
+		t.Fatalf("judgment-breaking overlay must save with a warning (GDK-858): %v", err)
+	}
+	if c.UI.TokensByTheme["light"].Colors["status-new"] != "#ffffff" {
+		t.Errorf("judgment-breaking overlay not stored: %+v", c.UI.TokensByTheme)
+	}
+	warns, err := ValidateUIConfig(c.UI)
+	if err != nil {
+		t.Fatalf("stored overlay revalidated with an error: %v", err)
+	}
+	sawFloor := false
+	for _, w := range warns {
+		if w.Rule == "status-role-floor" && strings.Contains(w.Message, "palette light") {
+			sawFloor = true
+		}
+	}
+	if !sawFloor {
+		t.Errorf("no role-floor warning naming palette light: %+v", warns)
 	}
 }
 
 // The stale-schema defense: a config that names a token this build does not
-// know (or a token that became locked) must degrade to an advisory, not break
-// expansion — this is the load path a downgrade takes.
+// know must degrade to an advisory, not break expansion — this is the load
+// path a downgrade takes. Locked colors are NOT drift anymore (GDK-858:
+// they warn at write time and are legitimate overrides), so they expand; a
+// tier that some future build re-locks is that build's call to re-filter.
 func TestUITokenVarsDegradesToAdvisory(t *testing.T) {
 	ui := &UIConfig{Tokens: &UITokens{Colors: map[string]string{
 		"accent":        "#7a4bd0",
 		"no-such-token": "#111111",
-		"bg-base":       "#000000", // locked in this build
+		"bg-base":       "#000000", // locked tier — warn+save+render (GDK-858)
 		"lozenge-red":   "red",     // invalid value on disk
 	}}}
 	vars, warns := UITokenVars(ui)
@@ -351,15 +467,15 @@ func TestUITokenVarsDegradesToAdvisory(t *testing.T) {
 		if _, ok := vars[p]["--color-no-such-token"]; ok {
 			t.Errorf("unknown token injected for %s", p)
 		}
-		if _, ok := vars[p]["--color-bg-base"]; ok {
-			t.Errorf("locked token injected for %s", p)
+		if vars[p]["--color-bg-base"] != "#000000" {
+			t.Errorf("locked override must render after its write-time warning (GDK-858), %s: %+v", p, vars[p])
 		}
 		if _, ok := vars[p]["--color-lozenge-red"]; ok {
 			t.Errorf("invalid value injected for %s", p)
 		}
 	}
 	if len(warns) == 0 {
-		t.Fatal("no advisories for unknown/locked/invalid entries")
+		t.Fatal("no advisories for unknown/invalid entries")
 	}
 	// dataColors values that reached disk without validation are filtered,
 	// valid ones pass through trimmed.

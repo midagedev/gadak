@@ -916,10 +916,89 @@ func TestPutSettingsOmitsAppearancePreserves(t *testing.T) {
 	}
 }
 
+// TestPutSettingsUIJudgmentWarnsAndSaves pins the GDK-858 server contract:
+// a judgment-violating ui block SAVES (200) and the write-time warnings ride
+// the response as uiWarnings — before GDK-858 the PUT refused with 400 and
+// the warnings only ever reached the server's stderr log, so a settings-tab
+// user never saw why their look rendered the way it did. The machine checks
+// (hex parsing) still refuse with 400 and leave the config untouched.
+func TestPutSettingsUIJudgmentWarnsAndSaves(t *testing.T) {
+	t.Setenv("GADAK_HOME", t.TempDir())
+	db, cfg := fixture(t)
+	h := New(db, cfg)
+
+	put := func(ui map[string]any) *httptest.ResponseRecorder {
+		t.Helper()
+		body, _ := json.Marshal(map[string]any{
+			"projects":            cfg.Projects,
+			"staleThresholdHours": 72,
+			"ui":                  ui,
+		})
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, testRequest(http.MethodPut, apiBase+"settings/", strings.NewReader(string(body))))
+		return rec
+	}
+
+	// 1. Locked tier: judgment — 200, warning carried, value stored.
+	rec := put(map[string]any{"tokens": map[string]any{"colors": map[string]any{"bg-base": "#000000"}}})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("locked-color PUT → %d %s", rec.Code, rec.Body.String())
+	}
+	var got struct {
+		UIWarnings []struct {
+			Token string `json:"token"`
+			Rule  string `json:"rule"`
+		} `json:"uiWarnings"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	sawLocked := false
+	for _, w := range got.UIWarnings {
+		if w.Rule == "locked" && w.Token == "bg-base" {
+			sawLocked = true
+		}
+	}
+	if !sawLocked {
+		t.Fatalf("response uiWarnings carry no locked verdict: %+v", got.UIWarnings)
+	}
+	saved, err := config.Load()
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if saved.UI == nil || saved.UI.Tokens.Colors["bg-base"] != "#000000" {
+		t.Fatalf("judgment-violating value not on disk: %+v", saved.UI)
+	}
+
+	// 2. Machine check: non-hex still refuses, config unchanged.
+	rec = put(map[string]any{"tokens": map[string]any{"colors": map[string]any{"accent": "not-a-color"}}})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("unparseable color PUT → %d %s", rec.Code, rec.Body.String())
+	}
+	saved, err = config.Load()
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if saved.UI.Tokens.Colors["accent"] != "" || saved.UI.Tokens.Colors["bg-base"] != "#000000" {
+		t.Fatalf("refused PUT mutated the stored ui block: %+v", saved.UI.Tokens)
+	}
+
+	// 3. A clean PUT answers with no uiWarnings key at all (omitempty).
+	rec = put(nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("ui-absent PUT → %d %s", rec.Code, rec.Body.String())
+	}
+	// send null ui → same omit path; assert on the raw body for the key shape
+	if strings.Contains(rec.Body.String(), "uiWarnings") {
+		t.Fatalf("clean PUT carried uiWarnings: %s", rec.Body.String())
+	}
+}
+
 func TestSettingsCatalogCoversPUTFields(t *testing.T) {
 	readOnly := map[string]bool{
 		"site": true, "hasCredential": true, "runtime": true,
 		"fieldSpecs": true, "fieldUsage": true,
+		"uiWarnings": true, // response-only transport (GDK-858); never a PUT input
 	}
 	typ := reflect.TypeOf(settingsDoc{})
 	want := map[string]bool{}

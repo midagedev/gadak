@@ -542,11 +542,19 @@ gadak config set ui.tokensByTheme '{"dark":{"colors":{"accent":"#9a6be0"}}}'
 gadak config set ui.dataColors '{"label":{"urgent":"#c03030"},"type":{"10007":"#d07020"},"status":{"inprogress":"#7e5904"}}'
 ```
 
-- **Tiers:** `locked` tokens are refused outright (grounds, shell); `validated`
-  tokens must pass the contrast/separation rules in every palette they render
-  in (refusals print the measured number and the floor — fix the color, do not
-  retry); `free` tokens need hex only. Values are `#rgb` or `#rrggbb`, nothing
-  else.
+- **Warnings mean applied: only parsing refuses.** A value that
+  cannot parse (`"red"`, `"90"` for a length) or a wrong shape refuses;
+  everything else — locked tiers, contrast/ΔEok/deuteranopia floors,
+  dimension ranges and relations — **warns on stderr and saves** (exit 0,
+  value echoed). Do not retry or work around a warning: the user's look is
+  theirs. Do surface the warning text — it carries the measured number,
+  the floor, and the fix (contrast warnings name the failing palettes and
+  the `ui.tokensByTheme.<palette>` scoping fix; type-step warnings list the
+  four-rung ladder that moves together).
+- **Tiers:** `locked` tokens warn and save (palette authoring — the build
+  may re-derive them in an upgrade); `validated` tokens are judged in every
+  palette they render in; `free` tokens need hex only. Values are `#rgb` or
+  `#rrggbb`, nothing else.
 - **`dataColors` keys are ids, never display names**: `label.*` is the label
   text itself, `type.*` is the Jira issue type id (digits — names localize per
   account), `status.*` is the status category `new` / `inprogress` / `done`.

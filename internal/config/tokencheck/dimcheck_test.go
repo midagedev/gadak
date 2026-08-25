@@ -20,10 +20,17 @@ package tokencheck
  *	valid partial overrides pass          TestValidateDimensionsAccepts
  *	unknown axis/token carried + warned   TestValidateDimensionsUnknownCarried
  *	locked docked-min refuses writes      TestValidateDimensionsLocked
- *	bad length / out of range refused     TestValidateDimensionsValues
- *	relations judged against defaults     TestValidateDimensionsRelations
+ *	bad length refused; range warns       TestValidateDimensionsValues
+ *	relations warn against defaults       TestValidateDimensionsRelations
+ *	range/relation values participate     TestRangeAndRelationValuesStillJudge
  *	boundary values accept                TestValidateDimensionsBoundaries
  *	deterministic output                  TestDimDeterminism
+ *
+ * GDK-858 (user decision 2026-08-25): range and relation violations are
+ * judgments about tested territory and visual rhythm, not machine-checkable
+ * shapes — they WARN and the value is carried. The length grammar and the
+ * derived docked-min keep refusing: a value that cannot parse can never
+ * render, and a stored docked-min would be overwritten by the recomputation.
  */
 
 import (
@@ -169,6 +176,30 @@ func dimNoReject(t *testing.T, axes map[string]map[string]string) {
 	}
 }
 
+// dimWarns asserts the judgment contract of GDK-858: a violation of wantRule
+// fires as a WARN carrying wantSub, and nothing rejects. FAIL-first: the
+// assertions below failed against the pre-GDK-858 source, which returned
+// SeverityReject for every range and relation violation (run output in the
+// round report).
+func dimWarns(t *testing.T, axes map[string]map[string]string, wantRule, wantSub string) {
+	t.Helper()
+	found := false
+	for _, v := range ValidateDimensions(axes) {
+		if v.Severity == SeverityReject {
+			t.Fatalf("unexpected reject for %v: %+v", axes, v)
+		}
+		if v.Rule == wantRule {
+			found = true
+			if !strings.Contains(v.Message, wantSub) {
+				t.Fatalf("warn message %q does not contain %q", v.Message, wantSub)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("no %s warn for %v (want %q)", wantRule, axes, wantSub)
+	}
+}
+
 func TestValidateDimensionsAccepts(t *testing.T) {
 	dimNoReject(t, map[string]map[string]string{
 		"spacing": {"row": "48px", "row-excerpt": "60px", "control-sm": "26px"},
@@ -212,26 +243,59 @@ func TestValidateDimensionsLocked(t *testing.T) {
 }
 
 func TestValidateDimensionsValues(t *testing.T) {
+	// The length grammar is a machine check — unparseable values still refuse.
 	dimRejects(t, map[string]map[string]string{"spacing": {"row": "44"}}, "not a px length")
-	dimRejects(t, map[string]map[string]string{"spacing": {"row": "60px"}}, "outside")
-	dimRejects(t, map[string]map[string]string{"spacing": {"row": "35.9px"}}, "outside")
-	dimRejects(t, map[string]map[string]string{"layout": {"shell-max": "1599px"}}, "outside")
-	dimRejects(t, map[string]map[string]string{"type": {"body-line-height": "1.7"}}, "outside")
-	dimRejects(t, map[string]map[string]string{"type": {"micro": "10.5px"}}, "outside")
+	// Range is a judgment (GDK-858): out-of-range values warn, carry their
+	// bounds, and no longer refuse.
+	dimWarns(t, map[string]map[string]string{"spacing": {"row": "60px"}}, "range", "36px–56px")
+	dimWarns(t, map[string]map[string]string{"spacing": {"row": "35.9px"}}, "range", "36px–56px")
+	dimWarns(t, map[string]map[string]string{"layout": {"shell-max": "1599px"}}, "range", "1600px–2800px")
+	dimWarns(t, map[string]map[string]string{"type": {"body-line-height": "1.7"}}, "range", "1.15–1.6")
+	dimWarns(t, map[string]map[string]string{"type": {"micro": "10.5px"}}, "range", "11px–13px")
 }
 
 func TestValidateDimensionsRelations(t *testing.T) {
 	// Each relation fires from a one-sided override judged against defaults.
-	dimRejects(t, map[string]map[string]string{"spacing": {"control-sm": "34px"}}, "control")
-	dimRejects(t, map[string]map[string]string{"spacing": {"row-excerpt": "48px"}}, "row-excerpt")
-	dimRejects(t, map[string]map[string]string{"layout": {"detail-max": "430px"}}, "detail-max")
-	dimRejects(t, map[string]map[string]string{"layout": {"overlay-max": "2300px"}}, "overlay-max")
-	dimRejects(t, map[string]map[string]string{"layout": {"sidebar": "200px"}}, "sidebar")
-	// Both sides overridden: the pair is judged as it renders.
-	dimRejects(t, map[string]map[string]string{"layout": {"sidebar-narrow": "260px", "sidebar": "280px"}}, "sidebar")
+	dimWarns(t, map[string]map[string]string{"spacing": {"control-sm": "34px"}}, "relation", "control")
+	dimWarns(t, map[string]map[string]string{"spacing": {"row-excerpt": "48px"}}, "relation", "row-excerpt")
+	dimWarns(t, map[string]map[string]string{"layout": {"detail-max": "430px"}}, "relation", "detail-max")
+	dimWarns(t, map[string]map[string]string{"layout": {"overlay-max": "2300px"}}, "relation", "overlay-max")
+	dimWarns(t, map[string]map[string]string{"layout": {"sidebar": "200px"}}, "relation", "sidebar")
+	// Both sides overridden: the pair is judged as it renders. (The
+	// pre-GDK-858 fixture 260/280 only rejected via the narrow side's RANGE;
+	// the relation itself fires when the narrow step exceeds the default.)
+	dimWarns(t, map[string]map[string]string{"layout": {"sidebar-narrow": "300px", "sidebar": "280px"}}, "relation", "sidebar")
 	// Type steps: less than 2px between neighbors reads as noise (census Q6).
-	dimRejects(t, map[string]map[string]string{"type": {"title": "14px"}}, "2px")
-	dimRejects(t, map[string]map[string]string{"type": {"micro": "13px"}}, "2px")
+	// The warning teaches the GDK-857 move: the four rungs are one ladder.
+	dimWarns(t, map[string]map[string]string{"type": {"title": "14px"}}, "relation", "2px")
+	dimWarns(t, map[string]map[string]string{"type": {"micro": "13px"}}, "relation", "2px")
+}
+
+// TestRangeAndRelationValuesStillJudge pins the carry semantics that
+// warn+save implies: an out-of-range value participates in the effective
+// set exactly like a conforming one, so a write that breaks BOTH its range
+// and a relation reports both, and the relation judges the value as it will
+// render. (Pre-GDK-858 the range branch stopped before eff, which was fine
+// only because the write refused anyway.)
+func TestRangeAndRelationValuesStillJudge(t *testing.T) {
+	// micro at 14px is above its range ceiling 13 AND body(13) no longer
+	// clears micro+2 — the write lands with both warnings.
+	vs := ValidateDimensions(map[string]map[string]string{"type": {"micro": "14px"}})
+	sawRange, sawRelation := false, false
+	for _, v := range vs {
+		if v.Rule == "range" && v.Token == "micro" {
+			sawRange = true
+		}
+		if v.Rule == "relation" {
+			sawRelation = true
+			if !strings.Contains(v.Message, "14px") {
+				t.Errorf("relation must judge the rendered value: %q", v.Message)
+			}
+		}
+	}
+	if !sawRange || !sawRelation {
+		t.Fatalf("out-of-range micro must warn range AND relation: %+v", vs)
+	}
 }
 
 func TestValidateDimensionsBoundaries(t *testing.T) {

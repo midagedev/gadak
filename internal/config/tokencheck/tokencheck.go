@@ -1,8 +1,19 @@
 // Package tokencheck validates user color-token overrides (GDK-769 wave,
 // GDK-785) with the same color math tools/theme-check.mjs asserts the shipped
 // palettes with at build time. User colors arrive at runtime, where the build
-// gate cannot see them; this package is the write-time refusal point and the
+// gate cannot see them; this package is the write-time gate and the
 // load-time warning source for that surface.
+//
+// Severity policy (user decision 2026-08-25: "난 대비는 워닝만 떠야지
+// 거절은 아니라고 생각해. 대비 뿐 아니라 전반적으로" — judgment warns, only
+// machine-checkable conditions refuse): a violation REFUSES when, and only
+// when, a machine can see it without taste — a value that cannot parse
+// (non-hex color). Everything judgment-shaped — tier, contrast, ΔEok,
+// deuteranopia — WARNS and the value is carried: the look is the user's, and
+// live filming measured agents burning turns working around refusals. The
+// measurements stay in every warning (the diagnostics are unchanged; only
+// the verdict moved), and the message teaches the next move instead of
+// blocking it.
 //
 // The two implementations are pinned together by golden vectors:
 // tools/theme-check.mjs --emit-vectors writes
@@ -14,10 +25,11 @@
 // tools/token-catalog.mjs from web/src/app.css — GDK-787):
 //
 //	locked     10 tokens — grounds (bg-*), text tiers, search-match, shell.
-//	           Overrides are refused; palette-level opening is the
-//	           custom-palette scope (GDK-789).
+//	           Overrides WARN and save; palette authoring stays
+//	           the recommendation (custom-palette scope, GDK-789).
 //	validated  12 tokens — accent 4, border 2, status inks 5, focus-ring.
-//	           Open for override, checked at write time by the rules below.
+//	           Open for override, judged at write time by the rules below
+//	           (warn, not refuse).
 //	free       22 tokens — lozenge/avatar/dept chips, scrim, scrollbar-hover.
 //	           Any valid hex passes.
 //
@@ -401,13 +413,14 @@ func ValidateTokens(overrides, base map[string]string) []Violation {
 			continue
 		}
 		if tok.Tier == "locked" {
+			// The tier is a judgment, not a machine check — warn, save,
+			// and keep the palette-authoring recommendation in the message.
 			vs = append(vs, Violation{
 				Token:    name,
 				Rule:     "locked",
-				Severity: SeverityReject,
+				Severity: SeverityWarn,
 				Measured: quote(value),
-				Floor:    "no override",
-				Message:  fmt.Sprintf("--color-%s is locked (%s): palette authoring, not a runtime override — see the custom-palette scope (GDK-789)", name, tok.Description),
+				Message:  fmt.Sprintf("--color-%s is locked (%s) — applied, but locked tokens are palette authoring: the build may re-derive them in an upgrade; per-palette opening is the custom-palette scope (GDK-789)", name, tok.Description),
 			})
 			continue
 		}
@@ -505,10 +518,10 @@ func checkStatusPairs(eff map[string]string, overridden map[string]bool) []Viola
 				vs = append(vs, Violation{
 					Token:    blame(overridden, a, b),
 					Rule:     "status-pair",
-					Severity: SeverityReject,
+					Severity: SeverityWarn,
 					Measured: fmt.Sprintf("%.4f", n),
 					Floor:    "0.05",
-					Message: fmt.Sprintf("status inks %s/%s (%s/%s) ΔEok %.4f < 0.05 — the two states would read as one",
+					Message: fmt.Sprintf("status inks %s/%s (%s/%s) ΔEok %.4f < 0.05 — applied, but the two states will read as one",
 						trimStatus(a), trimStatus(b), ah, bh, n),
 				})
 			}
@@ -517,10 +530,10 @@ func checkStatusPairs(eff map[string]string, overridden map[string]bool) []Viola
 				vs = append(vs, Violation{
 					Token:    blame(overridden, a, b),
 					Rule:     "status-pair-deuteranopia",
-					Severity: SeverityReject,
+					Severity: SeverityWarn,
 					Measured: fmt.Sprintf("%.4f", d),
 					Floor:    "0.04",
-					Message: fmt.Sprintf("status inks %s/%s (%s/%s) ΔEok %.4f < 0.04 under deuteranopia (%s/%s simulated)",
+					Message: fmt.Sprintf("status inks %s/%s (%s/%s) ΔEok %.4f < 0.04 under deuteranopia (%s/%s simulated) — applied, but deutan readers lose the pair",
 						trimStatus(a), trimStatus(b), ah, bh, d, Deut(ah), Deut(bh)),
 				})
 			}
@@ -554,10 +567,10 @@ func checkStatusRoleFloors(eff map[string]string, overridden map[string]bool) []
 				vs = append(vs, Violation{
 					Token:    s,
 					Rule:     "status-role-floor",
-					Severity: SeverityReject,
+					Severity: SeverityWarn,
 					Measured: fmt.Sprintf("%.2f", v),
 					Floor:    fmt.Sprintf("%.1f", floor),
-					Message: fmt.Sprintf("%s %s as %s on %s %s: contrast %.2f < %.1f — pick a darker (text) or higher-chroma ink",
+					Message: fmt.Sprintf("%s %s as %s on %s %s: contrast %.2f < %.1f — applied, but it will read thin; pick a darker (text) or higher-chroma ink",
 						s, eff[s], role, g, eff[g], v, floor),
 				})
 			}
@@ -576,10 +589,10 @@ func checkAccentText(eff map[string]string) []Violation {
 			vs = append(vs, Violation{
 				Token:    "accent-text",
 				Rule:     "accent-text-contrast",
-				Severity: SeverityReject,
+				Severity: SeverityWarn,
 				Measured: fmt.Sprintf("%.2f", v),
 				Floor:    "4.5",
-				Message: fmt.Sprintf("accent-text %s on %s %s: contrast %.2f < 4.5 — badge/link text would be illegible",
+				Message: fmt.Sprintf("accent-text %s on %s %s: contrast %.2f < 4.5 — applied, but badge/link text will be hard to read",
 					eff["accent-text"], g, eff[g], v),
 			})
 		}
