@@ -397,19 +397,49 @@ func TestTypeUnmatchedMentionsLocalisedAndID(t *testing.T) {
 }
 
 func TestTypeStructuralAmbiguousRefuses(t *testing.T) {
+	// Two types at level 1. The fixture used to be 에픽@1 + 이니셔티브@2,
+	// which was ambiguous only because "epic" matched `>= 1`; under `== 1`
+	// that pair resolves to 에픽, which is the right answer and no longer
+	// exercises this contract. Two level-1 types is the collision the test
+	// was written for.
 	types := []jira.CreateMetaIssueType{
 		{ID: "10001", Name: "에픽", HierarchyLevel: 1},
-		{ID: "10011", Name: "이니셔티브", HierarchyLevel: 2},
+		{ID: "10012", Name: "대형 작업", HierarchyLevel: 1},
 	}
 	_, err := Type("epic", types, nil, "STD")
 	if err == nil {
-		t.Fatal("two hierarchyLevel>=1 types must not pick one")
+		t.Fatal("two level-1 types must not pick one")
 	}
 	msg := err.Error()
-	for _, want := range []string{"10001", "10011", "에픽", "이니셔티브", "more than one"} {
+	for _, want := range []string{"10001", "10012", "에픽", "대형 작업", "more than one"} {
 		if !strings.Contains(msg, want) {
 			t.Errorf("missing %q in %q", want, msg)
 		}
+	}
+}
+
+func TestTypeStructuralEpicIsLevelOneNotAnyParent(t *testing.T) {
+	// Jira's Epic is hierarchy level 1; 2 and above are the premium parent
+	// tiers. A project whose only parent-level type is Initiative must not
+	// answer `--type epic` with it — that is the wrong-type outcome the
+	// collision rule exists to prevent, arriving by a different door.
+	only := []jira.CreateMetaIssueType{
+		{ID: "10003", Name: "작업"},
+		{ID: "10011", Name: "이니셔티브", HierarchyLevel: 2},
+	}
+	if got, err := Type("epic", only, nil, "STD"); err == nil {
+		t.Fatalf("a sole level-2 type answered --type epic with %q", got.Value)
+	}
+
+	// And with a real Epic present, the deeper tier does not make it
+	// ambiguous: level 1 is the only candidate.
+	both := append([]jira.CreateMetaIssueType{{ID: "10001", Name: "에픽", HierarchyLevel: 1}}, only...)
+	got, err := Type("epic", both, nil, "STD")
+	if err != nil {
+		t.Fatalf("Epic alongside Initiative: %v", err)
+	}
+	if got.Value != "10001" || got.Source != SourceAlias {
+		t.Fatalf("got %+v; want 10001 via %s", got, SourceAlias)
 	}
 }
 

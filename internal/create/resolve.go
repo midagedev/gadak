@@ -163,8 +163,14 @@ func structuralMatches(want string, types []origin.CreateMetaIssueType) []origin
 	var hits []origin.CreateMetaIssueType
 	switch strings.ToLower(want) {
 	case "epic":
+		// Level 1 exactly. Jira's Epic is level 1; 2 and above are the
+		// premium parent tiers (Initiative, Theme). `>= 1` let `--type epic`
+		// succeed on a project whose only parent-level type is Initiative,
+		// and file there — the wrong-type outcome this matcher refuses to
+		// risk everywhere else. A sole Initiative now misses this step,
+		// misses the locale table, and is refused with the catalog.
 		for _, t := range types {
-			if t.HierarchyLevel >= 1 {
+			if t.HierarchyLevel == 1 {
 				hits = append(hits, t)
 			}
 		}
