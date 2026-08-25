@@ -83,6 +83,29 @@ pub fn run() {
     let builder = builder.plugin(tauri_plugin_barcode_scanner::init());
 
     builder
+        .setup(|_app| {
+            // iOS: wry leaves the WKWebView's scroll view on .automatic
+            // inset adjustment, so UIKit shrinks the layout viewport by the
+            // safe areas while the page pays env(safe-area-inset-*) again —
+            // measured on the simulator: innerHeight 778 vs screen 874 with
+            // env top 62 / bottom 34 reported at the same time. The page is
+            // the single owner of the insets (mobile/src/app.css .safe-top/
+            // .safe-bottom), so the shell must go full-bleed.
+            #[cfg(target_os = "ios")]
+            {
+                use tauri::Manager;
+                if let Some(webview) = _app.get_webview_window("main") {
+                    webview.with_webview(|pv| unsafe {
+                        use objc2::runtime::AnyObject;
+                        let wk = pv.inner() as *mut AnyObject;
+                        let scroll: *mut AnyObject = objc2::msg_send![&*wk, scrollView];
+                        // 2 = UIScrollViewContentInsetAdjustmentNever
+                        let _: () = objc2::msg_send![&*scroll, setContentInsetAdjustmentBehavior: 2isize];
+                    })?;
+                }
+            }
+            Ok(())
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

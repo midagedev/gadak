@@ -1,0 +1,112 @@
+/*
+  gadak mobile — stylesheet.
+
+  Color has one owner: web/src/app.css (imported below, never copied).
+  Mobile consumes var(--color-*) only; no hex value may appear in this file
+  or any component style.
+
+  Dimensions are mobile-owned (DESIGN.md §3): the @theme block below
+  overrides the web type/density tokens for a phone — 16px body (also the
+  structural close for iOS input zoom: no input can inherit a size under
+  16px), 56px rows, 44pt touch floor.
+*/
+@import '../../web/src/app.css';
+
+@theme {
+  --text-micro: 12px;
+  --text-micro--line-height: 1.35;
+  --text-body: 16px;
+  --text-body--line-height: 1.45;
+  --text-title: 19px;
+  --text-title--line-height: 1.3;
+  --text-heading: 26px;
+  --text-heading--line-height: 1.2;
+
+  --spacing-row: 56px; /* queue row: ≥44pt target, 12+ rows per screen */
+  --spacing-control: 44px; /* iOS touch floor — not the web's 32px */
+  --spacing-control-sm: 32px;
+}
+
+/*
+  Mobile base. Unlayered on purpose: these must beat the imported web
+  @layer base rules (body background/size) regardless of specificity.
+*/
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+  background: var(--color-bg-base);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+
+/*
+  The frame (DESIGN.md §4.2): fixed to the layout viewport, no vh/dvh
+  anywhere in this app. The tab bar is a flex child of this frame, so the
+  keyboard cannot move it; overflow:hidden is the horizontal backstop.
+*/
+#app {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/*
+  Safe-area — single owner (DESIGN.md §4.1). Only these two classes may
+  read env(); components compose them, never env() directly.
+*/
+:root {
+  /*
+    Defaults assume a full-bleed webview (packaged builds). When the native
+    shell instead lays the webview out INSIDE the safe area — measured on
+    the current dev shell: innerHeight 778 vs screen 874, while env() still
+    reports bottom 34px — App.svelte collapses these to 0px so the insets
+    are not paid twice. Single owners: this file + that one effect.
+  */
+  --safe-top: env(safe-area-inset-top);
+  --safe-bottom: env(safe-area-inset-bottom);
+  /* Read-only telemetry for the dev viewport probe (PairingTab). */
+  --probe-safe-top: env(safe-area-inset-top);
+  --probe-safe-bottom: env(safe-area-inset-bottom);
+}
+.safe-top {
+  padding-top: var(--safe-top);
+}
+.safe-bottom {
+  padding-bottom: max(var(--safe-bottom), 12px);
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  touch-action: manipulation;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

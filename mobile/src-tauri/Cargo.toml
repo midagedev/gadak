@@ -24,3 +24,9 @@ tauri-plugin-http = "2"
 tauri-plugin-secure-storage = "1.5"
 tauri-plugin-barcode-scanner = "2"
 tauri-plugin-notification = "2"
+
+# iOS shell only: one objc2 msg_send pair sets the WKWebView scroll view to
+# UIScrollViewContentInsetAdjustmentNever (see lib.rs setup) — the page owns
+# the safe-area insets. Version rides the lockfile tauri already resolves.
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2 = "0.6"
