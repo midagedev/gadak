@@ -35,15 +35,26 @@ func GuardBrowser(next http.Handler, hostExempts ...func(*http.Request) bool) ht
 // Host for HTTP/1.0 clients). DNS names are forbidden so a rebinding name
 // cannot read the mirror.
 //
-// Origin: state-changing methods only — missing Origin is allowed (CLI
-// and curl); present Origin must match r.Host exactly (scheme http or https).
+// Origin: state-changing methods and WebSocket upgrades — missing Origin is
+// allowed (CLI and curl); present Origin must match r.Host exactly (scheme
+// http or https).
+//
+// The upgrade clause is not decoration. A WebSocket handshake is a GET, so
+// the method test alone lets it past, and browsers do not apply the
+// same-origin policy to WebSocket connections: any page anywhere can open
+// ws://gadak.localhost:7777/… and the browser will make the connection. The
+// host test does not help, because that is a host this guard allows on
+// purpose. The Origin header — which a browser always sends on a handshake
+// and cannot be told to omit — is the only thing standing between a hostile
+// tab and whatever the socket speaks. Written before the first socket exists
+// (the v0.18 terminal pane, GDK-855) rather than after.
 func browserGuard(w http.ResponseWriter, r *http.Request, hostExempts []func(*http.Request) bool) bool {
 	if !allowedHost(r.Host) && !anyHostExempt(hostExempts, r) {
 		log.Printf("server: forbidden host %q on %s %s", r.Host, r.Method, r.URL.Path)
 		fail(w, http.StatusForbidden, "forbidden_host")
 		return false
 	}
-	if stateChanging(r.Method) && !allowedOrigin(r) {
+	if (stateChanging(r.Method) || isWebSocketUpgrade(r)) && !allowedOrigin(r) {
 		log.Printf("server: forbidden origin %q host %q on %s %s",
 			r.Header.Get("Origin"), r.Host, r.Method, r.URL.Path)
 		fail(w, http.StatusForbidden, "forbidden_origin")
@@ -55,6 +66,26 @@ func browserGuard(w http.ResponseWriter, r *http.Request, hostExempts []func(*ht
 func anyHostExempt(exempts []func(*http.Request) bool, r *http.Request) bool {
 	for _, ok := range exempts {
 		if ok != nil && ok(r) {
+			return true
+		}
+	}
+	return false
+}
+
+// isWebSocketUpgrade reports whether r is a WebSocket handshake, so the guard
+// can origin-check it even though its method is GET.
+//
+// Both headers are matched the way RFC 6455 §4.1 and RFC 9110 §7.6.1 say they
+// must be: Upgrade is a case-insensitive token, and Connection is a
+// comma-separated list that is very often "keep-alive, Upgrade" rather than a
+// bare "Upgrade" — matching the whole field value would miss every proxy and
+// several browsers.
+func isWebSocketUpgrade(r *http.Request) bool {
+	if !strings.EqualFold(strings.TrimSpace(r.Header.Get("Upgrade")), "websocket") {
+		return false
+	}
+	for _, tok := range strings.Split(r.Header.Get("Connection"), ",") {
+		if strings.EqualFold(strings.TrimSpace(tok), "upgrade") {
 			return true
 		}
 	}

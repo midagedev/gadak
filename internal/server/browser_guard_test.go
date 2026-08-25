@@ -172,3 +172,64 @@ func TestBrowserGuardNoOriginAllowed(t *testing.T) {
 		t.Fatalf("guard rejected curl-like POST: %v", body)
 	}
 }
+
+// A WebSocket handshake is a GET, so the method test alone waves it through —
+// and browsers do not apply the same-origin policy to WebSocket connections,
+// which makes Origin the only check that can stop a hostile tab from opening
+// a socket against a host this guard allows on purpose. These three cover the
+// axis before the v0.18 terminal pane (GDK-855) puts anything on the far end.
+func TestBrowserGuardWebSocketForeignOriginForbidden(t *testing.T) {
+	db, _ := fixture(t)
+	h := New(db, &config.Config{})
+
+	req := httptest.NewRequest(http.MethodGet, apiBase+"NMB-1/", nil)
+	req.Host = "gadak.localhost:7777"
+	req.Header.Set("Origin", "https://evil.example")
+	req.Header.Set("Upgrade", "websocket")
+	// Real handshakes rarely send a bare "Upgrade" here.
+	req.Header.Set("Connection", "keep-alive, Upgrade")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status %d, want 403; body %s", rec.Code, rec.Body.String())
+	}
+	if got := decode[map[string]string](t, rec)["error"]; got != "forbidden_origin" {
+		t.Fatalf("error %q, want forbidden_origin", got)
+	}
+}
+
+func TestBrowserGuardWebSocketMatchingOriginAllowed(t *testing.T) {
+	db, _ := fixture(t)
+	h := New(db, &config.Config{})
+
+	req := httptest.NewRequest(http.MethodGet, apiBase+"NMB-1/", nil)
+	req.Host = "gadak.localhost:7777"
+	req.Header.Set("Origin", "http://gadak.localhost:7777")
+	req.Header.Set("Upgrade", "WebSocket") // token is case-insensitive
+	req.Header.Set("Connection", "Upgrade")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code == http.StatusForbidden {
+		t.Fatalf("same-origin handshake got 403: %s", rec.Body.String())
+	}
+}
+
+// A plain GET must not become origin-checked by this change: the browser
+// sends Origin on plenty of ordinary reads, and rejecting those would break
+// the app itself.
+func TestBrowserGuardPlainGetForeignOriginStillAllowed(t *testing.T) {
+	db, _ := fixture(t)
+	h := New(db, &config.Config{})
+
+	req := httptest.NewRequest(http.MethodGet, apiBase+"NMB-1/", nil)
+	req.Host = "gadak.localhost:7777"
+	req.Header.Set("Origin", "https://evil.example")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code == http.StatusForbidden {
+		t.Fatalf("plain GET with foreign Origin got 403: %s", rec.Body.String())
+	}
+}
