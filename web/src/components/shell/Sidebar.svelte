@@ -7,6 +7,8 @@
    */
   import type { Snippet } from 'svelte'
   import { isDesktop, sidebarLogoRowClass } from '../../lib/config'
+  import { t } from '../../lib/i18n'
+  import { terminalChrome } from '../../lib/terminal/pane.svelte'
   import BrandMark from '../ui/BrandMark.svelte'
 
   let { children }: { children?: Snippet } = $props()
@@ -42,4 +44,19 @@
   <nav class="scroll-region min-h-0 flex-1 px-2 pb-3">
     {@render children?.()}
   </nav>
+
+  <div class="flex-none border-t border-border-subtle px-2 py-2">
+    <button
+      type="button"
+      class="flex h-control w-full items-center rounded-md px-3 text-left text-body transition-colors {terminalChrome.open
+        ? 'bg-bg-active text-text-primary'
+        : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
+      aria-pressed={terminalChrome.open}
+      title="{t('sidebar.terminal')} ({t('terminal.shortcut')})"
+      data-testid="sidebar-terminal"
+      onclick={() => terminalChrome.toggle()}
+    >
+      {t('sidebar.terminal')}
+    </button>
+  </div>
 </aside>

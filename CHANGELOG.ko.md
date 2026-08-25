@@ -4,6 +4,12 @@
 
 ## Unreleased
 
+- 웹 UI에 터미널 페인이 생겼습니다: 기본은 ghostty-web(libghostty-vt WASM),
+  같은 렌더러 이음새 뒤의 폴백은 xterm.js, 리스트 왼쪽에 창 너비의 44%로
+  붙되 넓은 화면에서도 리스트가 제 몫을 지키도록 상한을 둡니다(Ctrl+`,
+  사이드바 행). 페인을 닫아도 세션은 60초 유예 동안 남아서 링 재생이 셸의
+  스크롤백을 되돌리고, 소켓을 열 수 없는 데스크톱 웹뷰는 빙글빙글 도는
+  대신 그렇게 말합니다 ([GDK-864]).
 - serve 스코프 페어링 토큰이 이제 13개 경로 allowlist 대신 미러 REST 전체 —
   로컬 웹 UI가 호출할 수 있는 모든 것 — 를 엽니다. origin 패스스루는 origin
   스코프 전용으로 남고, API가 아닌 경로는 호스트 가드 뒤에 그대로 있습니다.
@@ -1331,3 +1337,4 @@ HTTP·sync·에이전트 계약.
 [GDK-862]: https://gadak.dev/backlog/#/?ks=GDK-862
 [GDK-863]: https://gadak.dev/backlog/#/?ks=GDK-863
 [GDK-883]: https://gadak.dev/backlog/#/?ks=GDK-883
+[GDK-864]: https://gadak.dev/backlog/#/?ks=GDK-864

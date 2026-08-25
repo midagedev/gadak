@@ -73,6 +73,7 @@ export interface KeyContext {
 export type KeyCommand =
   | { type: 'ignore' }
   | { type: 'toggle-palette' }
+  | { type: 'toggle-terminal' }
   | { type: 'close-shortcuts' }
   | { type: 'open-shortcuts' }
   | { type: 'focus-narrow'; testid: string | null }
@@ -264,6 +265,21 @@ export const COMMANDS: readonly CommandDef[] = [
     chords: [{ key: 'k', mod: true }],
     dispatch: () => ({ type: 'toggle-palette' }),
     help: { group: 'global', kbd: '{mod} K', labelKey: 'shortcuts.palette', sort: 10 },
+  },
+  /*
+   * Ctrl+` (VS Code). Always-phase so it fires while the terminal textarea
+   * is focused. `when` requires ctrl and not meta: Cmd+` is macOS's
+   * same-app window cycle and is not ours. No existing backquote binding
+   * was found; Ctrl+Shift+` was the conflict fallback and is unused.
+   */
+  {
+    id: 'toggle-terminal',
+    phase: 'always',
+    scope: 'always',
+    chords: [{ key: '`', mod: true }],
+    when: (ctx) => ctx.ctrlKey && !ctx.metaKey && !ctx.altKey,
+    dispatch: () => ({ type: 'toggle-terminal' }),
+    help: { group: 'global', kbd: 'Ctrl+`', labelKey: 'shortcuts.terminal', sort: 15 },
   },
   {
     id: 'close-shortcuts',

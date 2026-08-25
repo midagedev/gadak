@@ -56,7 +56,23 @@ function isHtmlish(el: EventTarget | null): el is HTMLElement {
 export function isEditableTarget(el: EventTarget | null): boolean {
   if (!isHtmlish(el)) return false
   const tag = el.tagName
-  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable) {
+    return true
+  }
+  // Terminal host (ghostty canvas / xterm) — GDK-864. closest is optional so
+  // the duck-typed keymap tests keep running in node.
+  return fromTerminalHost(el)
+}
+
+/**
+ * True when this event target sits inside the terminal pane's host element.
+ * One owner for "the VT owns this keystroke" — read both by isEditableTarget
+ * (so the global keymap keeps its hands off) and by the defaultPrevented
+ * exception in createGlobalKeyHandler.
+ */
+export function fromTerminalHost(el: EventTarget | null): boolean {
+  if (!isHtmlish(el)) return false
+  return Boolean(el.closest?.('[data-gadak-editable]'))
 }
 
 /**
@@ -135,6 +151,7 @@ export interface GlobalKeyHost {
   dashboards: { openId: string | null; close: () => void }
   feature: (name: 'feed') => boolean
   openOrigin: (target: 'issue' | 'page') => void
+  toggleTerminal: () => void
 }
 
 function contextFromEvent(e: KeyboardEvent, host: GlobalKeyHost): KeyContext {
@@ -177,6 +194,10 @@ function dispatchKeyCommand(e: KeyboardEvent, cmd: KeyCommand, host: GlobalKeyHo
     case 'toggle-palette':
       e.preventDefault()
       host.paletteOpen = !host.paletteOpen
+      return
+    case 'toggle-terminal':
+      e.preventDefault()
+      host.toggleTerminal()
       return
     case 'close-shortcuts':
       e.preventDefault()
@@ -302,13 +323,21 @@ function exposeLastKeyCmd(type: KeyCommand['type']): void {
 
 export function createGlobalKeyHandler(host: GlobalKeyHost): (e: KeyboardEvent) => void {
   return function onGlobalKey(e: KeyboardEvent) {
+    const cmd = resolveGlobalKey(contextFromEvent(e, host))
     // A focused composer (GDK-462) or another surface already spent this key.
-    // Still record `ignore` so lastKeyCmd is this keystroke, not the previous one.
-    if (e.defaultPrevented) {
+    // Still record `ignore` so lastKeyCmd is this keystroke, not the previous
+    // one.
+    //
+    // The terminal host is the one exception (GDK-864): a VT renderer
+    // preventDefault-s nearly every keystroke on purpose — that is how the
+    // PTY gets them — so reading defaultPrevented there would mean no global
+    // shortcut can ever escape the pane, including the one that closes it.
+    // The exception is keyed on *where the key came from*, not on which
+    // command it resolved to, so the composer's contract is untouched.
+    if (e.defaultPrevented && !fromTerminalHost(e.target)) {
       exposeLastKeyCmd('ignore')
       return
     }
-    const cmd = resolveGlobalKey(contextFromEvent(e, host))
     // One-step: "what did that keystroke do?" — hold-boot-key means it
     // arrived before keysReady. Same dataset surface as cacheScope / uiFocusPoll.
     exposeLastKeyCmd(cmd.type)

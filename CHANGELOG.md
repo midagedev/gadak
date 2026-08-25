@@ -4,6 +4,13 @@
 
 ## Unreleased
 
+- The web UI grew a terminal pane: ghostty-web (libghostty-vt WASM) by
+  default, xterm.js as the fallback behind the same renderer seam, docked
+  left of the list at 44% of the window — capped so the list keeps its share
+  on a wide display — and opened with Ctrl+` or the sidebar row. Closing the
+  pane keeps the session for the 60-second grace so the ring replay brings
+  the shell's scrollback back; a desktop webview that cannot open the socket
+  says so instead of spinning ([GDK-864]).
 - A serve-scope pairing token now opens the whole mirror REST — everything
   the local web UI can call — instead of a 13-path allowlist. The origin
   passthrough stays origin-scope, and non-API paths stay behind the host
@@ -1399,3 +1406,4 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-862]: https://gadak.dev/backlog/#/?ks=GDK-862
 [GDK-863]: https://gadak.dev/backlog/#/?ks=GDK-863
 [GDK-883]: https://gadak.dev/backlog/#/?ks=GDK-883
+[GDK-864]: https://gadak.dev/backlog/#/?ks=GDK-864

@@ -42,6 +42,7 @@
   import Sidebar from './components/shell/Sidebar.svelte'
   import MainColumn from './components/shell/MainColumn.svelte'
   import RightPanel from './components/shell/RightPanel.svelte'
+  import TerminalPane from './components/terminal/TerminalPane.svelte'
   import LoadingShell from './components/shell/LoadingShell.svelte'
   import AuthGate from './components/shell/AuthGate.svelte'
   import SidebarNav from './components/sidebar/SidebarNav.svelte'
@@ -75,6 +76,7 @@
     subscribeViewportRegime,
     type ViewportRegime,
   } from './lib/viewport-regime'
+  import { terminalChrome } from './lib/terminal/pane.svelte'
 
   const LAST_VIEW_KEY = STORAGE_KEYS.lastView
 
@@ -223,6 +225,7 @@
     const unsubRegime = subscribeViewportRegime((r) => {
       viewportRegime = r
     })
+    const unsubTerminal = terminalChrome.start()
     const applyFocus = async () => {
       if (isHostedDemo()) return
       try {
@@ -317,6 +320,7 @@
       uninstallLinks()
       uninstallBrowse()
       unsubRegime()
+      unsubTerminal()
     }
   })
 
@@ -394,6 +398,9 @@
       }
       const issueKey = (triage.listActive ? triage.cursorKey : null) ?? selection.selectedKey
       if (issueKey) openIssueOrigin(issueKey)
+    },
+    toggleTerminal() {
+      terminalChrome.toggle()
     },
   })
 
@@ -718,28 +725,50 @@
         {/snippet}
       </Sidebar>
 
-      <MainColumn>
-        {#snippet children()}
-          <!-- Exactly one of these can be up: the column is one value
-               (stores/column, GDK-821), and each condition reads a view onto
-               it — the order below only decides which branch is checked
-               first, never which screen wins. ListView is the column's
-               resting state. -->
-          {#if me.feedOpen && feature('feed')}
-            <PersonalFeed />
-          {:else if dashboards.openId !== null}
-            <DashboardView />
-          {:else if pages.historyView}
-            <HistoryView />
-          {:else if pages.spaceView !== null}
-            <SpaceDocsView space={pages.spaceView} />
-          {:else if pages.docsView}
-            <DocsView />
-          {:else}
-            <ListView onOpenSettings={() => (serverSettingsOpen = true)} />
-          {/if}
-        {/snippet}
-      </MainColumn>
+      {#snippet columnBody()}
+        <!-- Exactly one of these can be up: the column is one value
+             (stores/column, GDK-821), and each condition reads a view onto
+             it — the order below only decides which branch is checked
+             first, never which screen wins. ListView is the column's
+             resting state. -->
+        {#if me.feedOpen && feature('feed')}
+          <PersonalFeed />
+        {:else if dashboards.openId !== null}
+          <DashboardView />
+        {:else if pages.historyView}
+          <HistoryView />
+        {:else if pages.spaceView !== null}
+          <SpaceDocsView space={pages.spaceView} />
+        {:else if pages.docsView}
+          <DocsView />
+        {:else}
+          <ListView onOpenSettings={() => (serverSettingsOpen = true)} />
+        {/if}
+      {/snippet}
+
+      {#if terminalChrome.open && !terminalChrome.narrow}
+        <div
+          class="flex h-full min-h-0 min-w-0 overflow-hidden"
+          style="grid-column: 2; grid-row: 1"
+          data-testid="terminal-split"
+        >
+          <TerminalPane />
+          <MainColumn>
+            {#snippet children()}
+              {@render columnBody()}
+            {/snippet}
+          </MainColumn>
+        </div>
+      {:else}
+        <MainColumn>
+          {#snippet children()}
+            {@render columnBody()}
+          {/snippet}
+        </MainColumn>
+      {/if}
+      {#if terminalChrome.open && terminalChrome.narrow}
+        <TerminalPane overlay />
+      {/if}
 
       <RightPanel open={panelOpen}>
         {#snippet children()}

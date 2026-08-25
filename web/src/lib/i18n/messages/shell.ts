@@ -95,6 +95,66 @@ export const shell = {
     ko: '대시보드',
     ja: 'ダッシュボード',
   },
+  'sidebar.terminal': {
+    en: 'Terminal',
+    ko: '터미널',
+    ja: 'ターミナル',
+  },
+  'terminal.title': {
+    en: 'Terminal',
+    ko: '터미널',
+    ja: 'ターミナル',
+  },
+  'terminal.reconnecting': {
+    en: 'Reconnecting…',
+    ko: '다시 연결 중',
+    ja: '再接続中',
+  },
+  'terminal.exited': {
+    en: 'Shell exited (code {code})',
+    ko: '셸이 종료됨 (코드 {code})',
+    ja: 'シェルが終了しました（コード {code}）',
+  },
+  'terminal.dropped.slow_client': {
+    en: 'Disconnected: slow client',
+    ko: '느린 연결로 끊겼습니다',
+    ja: '通信が遅く切断されました',
+  },
+  'terminal.dropped.token_revoked': {
+    en: 'Pairing token revoked',
+    ko: '페어링 토큰이 폐기되었습니다',
+    ja: 'ペアリングトークンが失効しました',
+  },
+  'terminal.dropped.idle_timeout': {
+    en: 'Session ended (idle timeout)',
+    ko: '유휴 시간이 지나 세션이 종료되었습니다',
+    ja: 'アイドルのためセッションが終了しました',
+  },
+  'terminal.dropped.server_shutdown': {
+    en: 'Server shut down',
+    ko: '서버가 종료되었습니다',
+    ja: 'サーバーが終了しました',
+  },
+  'terminal.dropped.closed': {
+    en: 'Session closed',
+    ko: '세션이 닫혔습니다',
+    ja: 'セッションが閉じられました',
+  },
+  'terminal.unavailable': {
+    en: 'Terminal is not available here',
+    ko: '여기서는 터미널을 쓸 수 없습니다',
+    ja: 'ここではターミナルを使えません',
+  },
+  'terminal.restartHint': {
+    en: 'Press Enter to start a new shell',
+    ko: 'Enter 키로 새 셸을 시작합니다',
+    ja: 'Enter で新しいシェルを起動します',
+  },
+  'terminal.shortcut': {
+    en: 'Ctrl+`',
+    ko: 'Ctrl+`',
+    ja: 'Ctrl+`',
+  },
   // The dashboard surface (GDK-782). notFound: the id arrived (link, uifocus)
   // but the row is gone — `gadak dashboards rm` or another workspace. Both
   // states name the next action (GDK-827): a dead end that only states
@@ -468,6 +528,11 @@ export const shell = {
     en: 'Show this cheat sheet',
     ko: '이 치트시트 보기',
     ja: 'このチートシートを表示',
+  },
+  'shortcuts.terminal': {
+    en: 'Toggle the terminal',
+    ko: '터미널 열기/닫기',
+    ja: 'ターミナルを開閉',
   },
   'shortcuts.moveDown': {
     en: 'Move cursor down',
