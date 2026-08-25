@@ -93,17 +93,37 @@ describe('GDK-637 theme text-* classes exist in @theme', () => {
       [...theme.matchAll(/--color-([a-z0-9-]+)\s*:/gi)].map((m) => m[1]),
     )
     expect(colors.size, '@theme must declare --color-* tokens').toBeGreaterThan(10)
-    const typeScale = new Set(
+    const textTokens = new Set(
       [...theme.matchAll(/--text-([a-z0-9-]+)\s*:/gi)]
         .map((m) => m[1])
         .filter((n) => !n.includes('--')),
     )
+    /*
+     * 2026-08-25 — GDK-864 (lead). `--text-terminal` is a `--text-*` token
+     * that is deliberately **not a rung on the type ladder**: it sizes the VT
+     * grid, which a person sets for themselves, and pulling it onto the
+     * ladder would mean growing the terminal also grows the issue list.
+     *
+     * So it is subtracted here rather than added to the expected list. The
+     * assertion below still says "the ladder is exactly these four", which is
+     * the thing this gate was written to protect; a fifth *rung* still fails.
+     * FAIL-first, measured on CI (run 32850920070, this file):
+     *   AssertionError: type-scale tokens: expected [ 'body', 'heading',
+     *   'micro', …(2) ] to deeply equal [ 'body', 'heading', 'micro', 'title' ]
+     */
+    const OFF_LADDER = ['terminal']
+    for (const name of OFF_LADDER) {
+      expect(textTokens.has(name), `--text-${name} must stay declared in @theme`).toBe(true)
+    }
+    const typeScale = new Set([...textTokens].filter((n) => !OFF_LADDER.includes(n)))
     expect([...typeScale].sort(), 'type-scale tokens').toEqual(['body', 'heading', 'micro', 'title'])
 
     const files = walkSrc(WEB_SRC)
     expect(files.length, 'the sweep found no sources to read').toBeGreaterThan(50)
 
-    const allowed = new Set<string>([...NON_COLOR_TEXT, ...typeScale])
+    // textTokens, not typeScale: an off-ladder size is still a real utility,
+    // so `text-terminal` in a template must not be reported as unknown.
+    const allowed = new Set<string>([...NON_COLOR_TEXT, ...textTokens])
     const failures: string[] = []
     let sawStatusReopen = false
     let sawTextPrimary = false
