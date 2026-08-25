@@ -103,16 +103,24 @@ async function walkAll(page: Page): Promise<Measure[]> {
   await page.locator('button.back').waitFor()
   report.push(await measure(page, 'detail'))
 
+  // This used to open the transition sheet and measure it. `gadak demo` is a
+  // serve with no origin credential: the transitions GET answers 409
+  // credential_required (measured 2026-08-26 — PROBE HTTP 409
+  // /api/v1/issues/NMS-134/transitions/). Before GDK-906 the sheet opened
+  // anyway and painted that refusal inside itself, so what this step measured
+  // was the empty-sheet dead end the fix removed. The control now refuses at
+  // the control — it disables and carries the sentence — which is the state
+  // this fixture can actually reach, so that is what is measured.
+  //
+  // Coverage this costs: `.detail-layer .sheet` geometry (the inset owner
+  // added in GDK-907) has no measurement on this fixture, because the
+  // transition sheet is the only sheet that lives in that layer. Tracked as
+  // GDK-911 — do not close it by deleting the assertion.
   const chip = page.locator('button.status').first()
   if ((await chip.count()) > 0) {
     await chip.click()
-    await page.locator('button.cancel').waitFor()
-    await settleSheet(page)
-    report.push(await measure(page, 'sheet'))
-    // A phone has no Escape key; DESIGN.md §2 gives scrim tap and Cancel.
-    // Clicking button.back while the sheet is open times out (covered).
-    await page.getByRole('button', { name: /cancel/i }).first().click()
-    await page.locator('button.cancel').waitFor({ state: 'hidden' })
+    await chip.and(page.locator(':disabled')).waitFor()
+    report.push(await measure(page, 'detail-writes-off'))
   }
 
   await page.locator('button.back').first().click()
@@ -176,7 +184,7 @@ test('viewport geometry at 402×874', async ({ page }) => {
     'issues',
     'scope-sheet',
     'detail',
-    'sheet',
+    'detail-writes-off',
     'docs',
     'page-detail',
     'search-empty',
