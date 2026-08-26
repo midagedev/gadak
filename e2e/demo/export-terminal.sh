@@ -59,16 +59,50 @@ fi
 # three-column app leaves the terminal too small to read, and the zoom was
 # paying for the frame's mistake. At 4:3 the whole window is legible at rest,
 # and pushing in then only takes the board away from the shell — the one thing
-# this clip exists to show together. A moving crop also has to be aimed at
-# beats a live model does not repeat between takes, so every re-record earned
-# a re-measure or shipped a zoom pointed at the wrong second.
+# this clip exists to show together.
 #
-# Nothing is sped up either, and that one is not a preference: Claude's own
-# elapsed-time counter is in frame, so a time-lapse would put the clip and the
-# clock on screen in disagreement.
+# ── Pacing ──────────────────────────────────────────────────────────────
+# The take runs 204s and that is real work, not dead air: measured with
+# mpdecimate over the frame minus the spinner band (crop=1440:930:0:0), only
+# 471 of 6110 frames are "changed", but the still runs between them are short
+# enough that capping every hold at one second still leaves 180s. There is
+# nothing to delete. What there is, is one very long stretch of the agent
+# working — 40s to 196s, 76% of the clip — while the two payoffs either side
+# of it take seconds.
+#
+# So the ramp is by beat, not by frame: everything a viewer has to read runs
+# at 1x, and the two working stretches are a time-lapse. This does put Claude's
+# own elapsed-time counter out of step with the clip, which is why the earlier
+# cut refused to speed anything up. It is the right trade at this length — a
+# ticking counter inside a visibly fast-forwarded spinner reads as time-lapse,
+# where a 3m24s hero clip reads as nothing at all, because it is not watched.
+#
+# Beats are measured per take, never guessed — a live model does not repeat
+# them. Method: scene detection on the list column
+# (`crop=580:1080:860:0,select='gt(scene,0.04)'`) gives the two payoffs (this
+# take: 32.3s the list becomes the answer, 199.8s the wall opens), and the
+# agent's own elapsed counter in-frame dates the start of each working stretch.
+# Aim a boundary wrong and the cost is bounded — a second of spinner at the
+# wrong rate — which is why a ramp is safe here where the zoom it replaced
+# was not: that one could hide a payoff outright.
+B1_END=13      # setup: list at rest, palette, pane, `claude` boots
+B2_END=31      # working on prompt 1                       → sped
+B3_END=40      # the list becomes the answer; prompt 2 typed
+B4_END=196     # authoring the dashboard                   → sped
+FAST_A=3.0
+FAST_B=4.5
+
 ffmpeg -y -ss "$TRIM_HEAD" -i "$WEBM" \
   -an \
-  -vf "fps=30,format=yuv420p" \
+  -filter_complex "\
+[0:v]fps=30,format=yuv420p,split=5[a][b][c][d][e]; \
+[a]trim=0:${B1_END},setpts=PTS-STARTPTS[s1]; \
+[b]trim=${B1_END}:${B2_END},setpts=(PTS-STARTPTS)/${FAST_A}[s2]; \
+[c]trim=${B2_END}:${B3_END},setpts=PTS-STARTPTS[s3]; \
+[d]trim=${B3_END}:${B4_END},setpts=(PTS-STARTPTS)/${FAST_B}[s4]; \
+[e]trim=start=${B4_END},setpts=PTS-STARTPTS[s5]; \
+[s1][s2][s3][s4][s5]concat=n=5:v=1:a=0,fps=30[v]" \
+  -map "[v]" \
   -c:v libx264 -profile:v high -level 4.0 -preset slow -crf 21 \
   -movflags +faststart \
   "$OUT_DIR/terminal-hero.mp4"
