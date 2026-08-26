@@ -56,3 +56,39 @@ describe('GDK-71 desktop token page in the browse pane', () => {
     expect(onboarding).toContain(OTHER_TAB)
   })
 })
+
+/*
+ * GDK-377: the no-tracker front door. Same harness discipline as above —
+ * source-text assertions, since importing .svelte is not possible here. The
+ * behavior contract lives in internal/server/onboarding_test.go (what the
+ * verb seeds and refuses); these pin the wiring this file owns: the shared
+ * verb, the composer landing, and the 409 sentence.
+ */
+describe('GDK-377 standalone front door', () => {
+  const onboarding = readFileSync(ONBOARDING, 'utf8')
+  const api = readFileSync(join(HERE, '../../lib/api.ts'), 'utf8')
+
+  test('the button posts the shared server verb, not a new path', () => {
+    expect(api).toMatch(/'onboarding\/standalone\//)
+    expect(onboarding).toMatch(/api\.createStandaloneWorkspace\(\)/)
+  })
+
+  test('landing is the first-issue composer, not step 2 or an empty list', () => {
+    // Order matters: the config flip clears the gate (wizard unmounts), then
+    // the write gate and project meta are re-read — boot cached both while
+    // no credential existed — before the composer opens. The poke is load
+    // bearing: lib/config's `current` is a plain variable, so without it the
+    // gate re-evaluates only on the next identity/pool change — neither of
+    // which happens on an empty standalone workspace.
+    expect(onboarding).toMatch(/await loadConfig\(\)/)
+    expect(onboarding).toMatch(/onboarding\.noteConfigFlipped\(\)/)
+    expect(onboarding).toMatch(/await write\.loadCredential\(\)/)
+    expect(onboarding).toMatch(/void write\.loadWriteMeta\(\)/)
+    expect(onboarding).toMatch(/write\.openNewIssue\(\)/)
+  })
+
+  test('a connected workspace 409 becomes the new-workspace sentence, not a raw code', () => {
+    expect(onboarding).toMatch(/'workspace_connected'/)
+    expect(onboarding).toMatch(/t\('onboarding\.standaloneConnected'\)/)
+  })
+})

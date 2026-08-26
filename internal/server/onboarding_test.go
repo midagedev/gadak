@@ -431,6 +431,153 @@ func TestSyncProgressLeavesATransportFailureUnclassified(t *testing.T) {
 	}
 }
 
+/* ── step 1, the other front door: POST onboarding/standalone ── */
+
+// standaloneEmptyEnv is what `gadak serve` on a fresh GADAK_HOME looks like
+// to the API: a server with no credential and no projects. The mirror is the
+// fixture store the handler was built on — the seed fills it through that
+// same handle, which is the assertion surface for "the fill ran here".
+func standaloneEmptyEnv(t *testing.T) (*store.DB, http.Handler, string) {
+	t.Helper()
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	db, cfg := fixture(t)
+	cfg.Site, cfg.Email, cfg.Token = "", "", ""
+	cfg.Projects = nil
+	return db, New(db, cfg), home
+}
+
+func TestStandaloneInitSeedsWorkspaceAndServesItImmediately(t *testing.T) {
+	db, h, home := standaloneEmptyEnv(t)
+
+	rec := send(t, h, http.MethodPost, apiBase+"onboarding/standalone/", `{}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	var doc struct {
+		WorkspaceKind  string `json:"workspace_kind"`
+		DefaultProject string `json:"default_project"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &doc); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if doc.WorkspaceKind != "standalone" || doc.DefaultProject != "STD" {
+		t.Fatalf("doc = %+v, want standalone/STD", doc)
+	}
+
+	// The saved config is the CLI verb's contract: kind standalone, no site
+	// trace, default project and the default issue type the origin offered.
+	saved := savedConfig(t, home)
+	if saved["kind"] != "standalone" {
+		t.Fatalf("kind = %v", saved["kind"])
+	}
+	if _, ok := saved["site"]; ok {
+		t.Fatalf("site survived the seed: %v", saved["site"])
+	}
+	if saved["defaultProject"] != "STD" {
+		t.Fatalf("defaultProject = %v", saved["defaultProject"])
+	}
+	if typ, _ := saved["defaultIssueType"].(string); typ == "" {
+		t.Fatalf("defaultIssueType empty: %v", saved["defaultIssueType"])
+	}
+	// The CLI verb leaves projects empty; this door scopes the workspace to
+	// the project it just seeded, because the REST create gate reads an
+	// empty list as deny-all (see the handler comment).
+	if projects, _ := saved["projects"].([]any); len(projects) != 1 || projects[0] != "STD" {
+		t.Fatalf("projects = %v, want [STD]", saved["projects"])
+	}
+
+	// The fill ran through the server's own store: the LOC wiki space the
+	// seed scopes is the one space row an empty mirror gains.
+	spaces, err := db.TableCount(context.Background(), "spaces")
+	if err != nil {
+		t.Fatalf("count spaces: %v", err)
+	}
+	if spaces != 1 {
+		t.Fatalf("spaces = %d, want 1 (the seeded LOC space)", spaces)
+	}
+
+	// Same process, no restart: the swapped config already answers as a
+	// standalone workspace — the write gate is open and the lazy origin
+	// serves the seeded project to the composer.
+	cred := get(t, h, apiBase+"credential/", nil)
+	if cred.Code != http.StatusOK {
+		t.Fatalf("credential: %d", cred.Code)
+	}
+	var credDoc credentialDoc
+	if err := json.Unmarshal(cred.Body.Bytes(), &credDoc); err != nil {
+		t.Fatalf("decode credential: %v", err)
+	}
+	if !credDoc.Configured {
+		t.Fatal("credential not configured after the standalone seed")
+	}
+	meta := get(t, h, apiBase+"create-meta/", nil)
+	if meta.Code != http.StatusOK {
+		t.Fatalf("create-meta: %d %s", meta.Code, meta.Body.String())
+	}
+	var metaDoc struct {
+		Projects []struct {
+			Key        string `json:"key"`
+			IssueTypes []struct {
+				Name string `json:"name"`
+			} `json:"issue_types"`
+		} `json:"projects"`
+	}
+	if err := json.Unmarshal(meta.Body.Bytes(), &metaDoc); err != nil {
+		t.Fatalf("decode create-meta: %v", err)
+	}
+	if len(metaDoc.Projects) != 1 || metaDoc.Projects[0].Key != "STD" {
+		t.Fatalf("create-meta projects = %+v, want the seeded STD project", metaDoc.Projects)
+	}
+	if len(metaDoc.Projects[0].IssueTypes) == 0 {
+		t.Fatal("seeded STD project offers no issue types — the composer cannot default")
+	}
+}
+
+func TestStandaloneInitRefusesConnectedWorkspace(t *testing.T) {
+	f, h, _ := onboarding(t)
+	connect(t, h, f)
+
+	rec := send(t, h, http.MethodPost, apiBase+"onboarding/standalone/", `{}`)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	var doc struct {
+		Error string `json:"error"`
+		Site  string `json:"site"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &doc); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if doc.Error != "workspace_connected" {
+		t.Fatalf("error = %q", doc.Error)
+	}
+	if doc.Site != f.URL {
+		t.Fatalf("site = %q, want the bound site", doc.Site)
+	}
+}
+
+func TestStandaloneInitIsIdempotentOnStandaloneWorkspace(t *testing.T) {
+	_, h, _ := standaloneConnectEnv(t, 0)
+
+	for i := 0; i < 2; i++ {
+		rec := send(t, h, http.MethodPost, apiBase+"onboarding/standalone/", `{}`)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("POST %d: status %d: %s", i+1, rec.Code, rec.Body.String())
+		}
+		var doc struct {
+			WorkspaceKind  string `json:"workspace_kind"`
+			DefaultProject string `json:"default_project"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &doc); err != nil {
+			t.Fatalf("POST %d decode: %v", i+1, err)
+		}
+		if doc.WorkspaceKind != "standalone" || doc.DefaultProject != "STD" {
+			t.Fatalf("POST %d doc = %+v, want standalone/STD", i+1, doc)
+		}
+	}
+}
+
 // kickSyncFastTransport is startSyncJob + runSyncJob with a jira.Client that
 // does not ride production backoff. Same error classification as runSyncJob
 // (IsRejectedCredential → credential_rejected; a 500 stays unclassified).

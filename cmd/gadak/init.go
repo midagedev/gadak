@@ -19,7 +19,6 @@ import (
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/originbind"
 	"github.com/midagedev/gadak/internal/store"
-	syncer "github.com/midagedev/gadak/internal/sync"
 )
 
 // tokenTrapHint is what the interactive prompt says before asking for a token.
@@ -42,9 +41,11 @@ var initStdin io.Reader = os.Stdin
 var initIsTerminal = stdinIsTerminal
 
 // parseProjectKeys splits a comma-separated project list the same way the
-// interactive init path always has: trim, upper-case, drop empties.
+// interactive init path always has: trim, upper-case, drop empties. The
+// originbind copy is the owner — POST onboarding/standalone parses its body
+// with the same function, not a lookalike.
 func parseProjectKeys(s string) []string {
-	return parseCSVKeys(s, true)
+	return originbind.ParseProjectKeys(s)
 }
 
 // parseSpaceKeys splits a Confluence space-key list. Keys are case-sensitive
@@ -449,65 +450,29 @@ func cmdInit(args []string) error {
 	return nil
 }
 
-// initStandalone writes a workspace that is not bound to a Jira site.
-// There is no site credential. GET /myself is the in-process origin, used
-// only to print the default author (GDK-482). The origin snapshot is created
-// on first origin.Client (PersistPath under the profile directory).
-// DefaultConfluenceConfig turns the wiki sync pass on and scopes it to the
-// space the standalone origin seeds.
+// initStandalone is the CLI shell of a standalone init: the seeding core
+// (config mutation, default type, mirror fill) lives in
+// originbind.SeedStandalone, shared with POST onboarding/standalone. What
+// stays here is CLI-only — the origin flush at process exit, the author line
+// (GET /myself on the in-process origin, GDK-482), skill auto-install, and
+// the human/JSON output.
 func initStandalone(cfg *config.Config, jsonOut bool, projectsFlag string) error {
 	already := cfg.IsStandalone()
-	cfg.Kind = config.KindStandalone
-	cfg.Site = ""
-	cfg.Email = ""
-	cfg.Token = ""
-	cfg.TokenVerifiedAt = ""
-	cfg.TokenOwner = ""
-	cfg.TokenExpiresAt = ""
-	cfg.TokenExpirySource = ""
-	cfg.AccountID = ""
-	cfg.Confluence = origin.DefaultConfluenceConfig()
-	if projectsFlag != "" {
-		cfg.Projects = parseProjectKeys(projectsFlag)
-	}
-	if strings.TrimSpace(cfg.DefaultProject) == "" {
-		if len(cfg.Projects) > 0 {
-			cfg.DefaultProject = cfg.Projects[0]
-		} else {
-			cfg.DefaultProject = origin.DefaultProjectKey
+	// A fill that fails does not fail init (the contract moved with the core,
+	// see originbind.SeedStandalone): the workspace exists, its persist file
+	// is written, and writes already work — the next `gadak sync` fixes it.
+	fillErr, err := originbind.SeedStandalone(cfg, projectsFlag, func() (*store.DB, func() error, error) {
+		db, err := openStore()
+		if err != nil {
+			return nil, nil, err
 		}
-	}
-	if err := cfg.Save(); err != nil {
-		return err
-	}
-	// The seeded project offers five issue types, so "the project's only
-	// type" cannot resolve and `gadak create <summary>` would demand --type
-	// on every call — the one thing this workspace exists to make cheap. Ask
-	// the origin we just created (in-process, no network) and record the
-	// answer, so the pick lives in config.json where it can be read and
-	// changed rather than being guessed per create.
-	typeID, typeName, err := standaloneDefaultType(cfg)
+		return db, db.Close, nil
+	})
 	if err != nil {
 		return err
 	}
-	if typeID != "" {
-		cfg.DefaultIssueTypeID = typeID
-		cfg.DefaultIssueType = typeName
-		if err := cfg.Save(); err != nil {
-			return err
-		}
-	}
-	// Fill the mirror now so warnIfStale's empty synced_at is false.
-	// Standalone origin is local; this is the same one-shot Run `gadak sync`
-	// would do, without printing (stdout may be --json).
-	//
-	// A fill that fails does not fail init: the workspace exists, its persist
-	// file is written, and writes already work. Returning an error here would
-	// break `init --standalone --json && gadak create …` over something the
-	// next `gadak sync` fixes — and the stale warning, which is what this call
-	// exists to silence, comes back to say so.
-	if err := fillStandaloneMirror(cfg); err != nil {
-		fmt.Fprintf(os.Stderr, "warning: could not fill the mirror yet (%v) — run `gadak sync`\n", err)
+	if fillErr != nil {
+		fmt.Fprintf(os.Stderr, "warning: could not fill the mirror yet (%v) — run `gadak sync`\n", fillErr)
 	}
 	author := standaloneAuthorName(cfg)
 	if err := origin.Close(); err != nil {
@@ -554,39 +519,6 @@ func initStandalone(cfg *config.Config, jsonOut bool, projectsFlag string) error
 	printSkillAutoResult(skill)
 	printInitNextSteps(cfg.WorkspaceKind())
 	return nil
-}
-
-// standaloneDefaultType picks the issue type new issues get when create is
-// given only a summary. "Task" is preferred by name; otherwise the first type
-// the origin offers. An origin.Client failure is an init failure — the
-// origin we just declared is unusable (GDK-345). Returning "", "", nil
-// leaves the config untouched: create then asks for --type, which is the
-// pre-existing behaviour when the origin is up but offers no types.
-//
-// Unlike a headless per-create fallback (deliberately absent, see
-// internal/create), this pick is written to config.json and printed, so the
-// person can see what they got and change it.
-func standaloneDefaultType(cfg *config.Config) (id, name string, err error) {
-	c, err := origin.Client(cfg)
-	if err != nil {
-		return "", "", err
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	projects, err := c.CreateMeta(ctx, []string{cfg.DefaultProject})
-	if err != nil || len(projects) == 0 {
-		return "", "", nil
-	}
-	types := projects[0].IssueTypes
-	if len(types) == 0 {
-		return "", "", nil
-	}
-	for _, t := range types {
-		if strings.EqualFold(t.Name, "Task") {
-			return t.ID, t.Name, nil
-		}
-	}
-	return types[0].ID, types[0].Name, nil
 }
 
 // initConfluenceJSON is the --json shape for Confluence after init:
@@ -638,28 +570,6 @@ func writeInitJSON(cfg *config.Config, account, path, skill string) error {
 		Persist:         persist,
 		Skill:           skill,
 	})
-}
-
-// fillStandaloneMirror runs the same one-shot Jira+Confluence sync `gadak
-// sync` would, without printing. That stamps sync_state.synced_at so
-// warnIfStale does not fire on the next command.
-func fillStandaloneMirror(cfg *config.Config) error {
-	db, err := openStore()
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	ctx := context.Background()
-	var opts syncer.Options
-	if _, err := syncer.Run(ctx, cfg, db, opts); err != nil {
-		return fmt.Errorf("fill mirror: %w", err)
-	}
-	if cfg.Confluence != nil {
-		if _, err := syncer.RunConfluence(ctx, cfg, db, opts); err != nil {
-			return fmt.Errorf("fill wiki mirror: %w", err)
-		}
-	}
-	return nil
 }
 
 // printInitNextSteps ends `init` with the whole path to value, not just the

@@ -6,8 +6,11 @@
  * (hosted demo and older documents also have no site) and must not scatter
  * `=== 'standalone'` comparisons.
  *
- * Creating a standalone workspace is still CLI-only this round
- * (cmd/gadak/init.go --standalone). The command below is what the UI shows.
+ * Creating a standalone workspace has two doors: the onboarding wizard's
+ * "Start with no tracker" button (POST onboarding/standalone, GDK-377) and
+ * the CLI verb below. Both seed the same workspace through the shared core
+ * (internal/originbind.SeedStandalone). The sidebar and settings hints still
+ * show the command form — it is the one that names the workspace.
  */
 
 export const WORKSPACE_KIND_CONNECTED = 'connected'
@@ -17,7 +20,7 @@ export type WorkspaceKind =
   | typeof WORKSPACE_KIND_STANDALONE
   | ''
 
-/** CLI that creates a standalone workspace. Flag lives in cmd/gadak/init.go. */
+/** CLI that creates a standalone workspace. Flag lives in cmd/gadak/init.go; the wizard button is the GUI equivalent. */
 export const STANDALONE_INIT_COMMAND = 'gadak --workspace <name> init --standalone'
 
 export function parseWorkspaceKind(raw: unknown): WorkspaceKind {

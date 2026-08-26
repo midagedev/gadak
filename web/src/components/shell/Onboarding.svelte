@@ -8,20 +8,26 @@
    * incomplete (onboarding store gating) — once a single issue has synced this
    * never renders again, so a normal empty filter result keeps using EmptyState.
    *
-   * The three server calls are onboarding-only: PUT onboarding/connect/ (which
-   * also stores the site, unlike PUT credential/), GET projects/available/, and
+   * The onboarding-only server calls: PUT onboarding/connect/ (which also
+   * stores the site, unlike PUT credential/), GET projects/available/, and
    * POST sync/ + GET sync/progress/. The token is typed once, posted once, and
    * never read back.
+   *
+   * Step 1 has a second front door (GDK-377): POST onboarding/standalone
+   * seeds the same workspace `gadak init --standalone` makes. It never
+   * reaches step 2 — the workspace kind flips, this component unmounts, and
+   * the first-issue composer opens in its place.
    */
   import { t, formatNumber } from '../../lib/i18n'
   import { copyText } from '../../lib/copy-text'
   import * as api from '../../lib/api'
   import { ApiError } from '../../lib/api'
-  import { surface } from '../../lib/config'
+  import { loadConfig, surface } from '../../lib/config'
   import { openInAppBrowser } from '../../lib/desktop-links'
   import { issues } from '../../stores/issues.svelte'
   import { me } from '../../stores/me.svelte'
   import { onboarding, onboardingHold } from '../../stores/onboarding.svelte'
+  import { write } from '../../stores/write.svelte'
   import Icon from '../ui/Icon.svelte'
   import BrandMark from '../ui/BrandMark.svelte'
 
@@ -145,6 +151,53 @@
   function reason(e: unknown): string {
     if (e instanceof ApiError) return e.code ?? String(e.status)
     return e instanceof Error ? e.message : String(e)
+  }
+
+  /* ── 1. the other front door: no tracker (GDK-377) ── */
+  let standaloneStarting = $state(false)
+  let standaloneError = $state<string | null>(null)
+
+  /**
+   * One click to a workspace with no Jira site at all. The verb is shared
+   * with the CLI (originbind.SeedStandalone), so what lands here is exactly
+   * what `gadak init --standalone` seeds: STD project, default type, LOC
+   * wiki space. The wizard does not continue to step 2 — there is nothing to
+   * pick or sync. Instead the workspace kind flips, the gate clears (the
+   * standalone clause — the pool stays empty), and the composer opens so
+   * the first action this person takes is filing their first issue, not
+   * reading an empty list.
+   */
+  async function startStandalone(): Promise<void> {
+    standaloneStarting = true
+    standaloneError = null
+    try {
+      await api.createStandaloneWorkspace()
+      // config.json now says standalone. This unmounts the wizard mid-await;
+      // every call after this line is on global stores, which survive it.
+      await loadConfig()
+      // The gate's config reads are not reactive on their own — poke it so
+      // the workspace-kind clause re-evaluates now, not at the next identity
+      // or pool change (neither of which happens on an empty workspace).
+      onboarding.noteConfigFlipped()
+      // Both were fetched at boot while no credential existed — re-read so
+      // the write gate opens and the composer sees the seeded STD project
+      // instead of the cached empty answers.
+      await write.loadCredential()
+      void write.loadWriteMeta()
+      void issues.refresh()
+      write.openNewIssue()
+    } catch (e) {
+      standaloneError = standaloneMessage(e)
+    } finally {
+      standaloneStarting = false
+    }
+  }
+
+  /** A connected workspace is not this path's problem to solve — say which door to use. */
+  function standaloneMessage(e: unknown): string {
+    const code = e instanceof ApiError ? e.code : null
+    if (code === 'workspace_connected') return t('onboarding.standaloneConnected')
+    return t('onboarding.errStandalone', { message: reason(e) })
   }
 
   /* ── 2. projects ── */
@@ -428,6 +481,28 @@
           <button class={GHOST} type="button" onclick={onOpenSettings}>{t('onboarding.openSettings')}</button>
         </div>
       </form>
+
+      <!-- The no-tracker front door, kept below a rule so it reads as
+           either/or with the credential form — an alternative way in, not
+           one more required field. Success never reaches step 2: the
+           workspace kind flips and the composer opens (startStandalone). -->
+      <div class="mt-5 border-t border-border-subtle pt-4" data-testid="onboarding-standalone">
+        <p class="text-micro text-text-muted">{t('onboarding.standaloneIntro')}</p>
+        {#if standaloneError}
+          <p class="mt-2 text-body text-status-reopen" role="alert" data-testid="onboarding-error">
+            {standaloneError}
+          </p>
+        {/if}
+        <button
+          class={GHOST}
+          type="button"
+          data-testid="onboarding-start-standalone"
+          disabled={standaloneStarting}
+          onclick={() => void startStandalone()}
+        >
+          {t('onboarding.standaloneStart')}
+        </button>
+      </div>
     {:else if step === 2}
       <div class="mt-5 flex flex-col gap-3" data-testid="onboarding-projects">
         <p class="text-body text-text-secondary">

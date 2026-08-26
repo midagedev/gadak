@@ -650,6 +650,26 @@ export async function connectJira(
   return (await res.json()) as JiraCredential
 }
 
+/** What POST onboarding/standalone answers: the seeded workspace facts. */
+export type StandaloneInit = {
+  workspace_kind: 'standalone'
+  default_project: string
+}
+
+/**
+ * Seed a standalone workspace — the GUI twin of `gadak init --standalone`
+ * (GDK-377). Body is `{}`: the server seeds the default STD project and the
+ * LOC wiki space. 409 workspace_connected when this workspace already has an
+ * origin; a workspace that is already standalone answers 200 idempotently.
+ */
+export function createStandaloneWorkspace(): Promise<StandaloneInit> {
+  return jsonW<StandaloneInit>('onboarding/standalone/', {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({}),
+  })
+}
+
 /** Real project list for the site. `truncated` means the list was capped at 500. */
 export function getAvailableProjects(init?: RequestInit): Promise<{
   projects: AvailableProject[]

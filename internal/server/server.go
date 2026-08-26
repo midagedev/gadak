@@ -294,6 +294,7 @@ func newServer(db *store.DB, cfg *config.Config, cache *attachcache.Cache, profi
 	// First-run onboarding (onboarding.go). These literal patterns are more
 	// specific than the `{key}/{action}/` pair above, so ServeMux prefers them.
 	mux.HandleFunc("PUT "+apiBase+"onboarding/connect/{$}", s.handleConnect)
+	mux.HandleFunc("POST "+apiBase+"onboarding/standalone/{$}", s.handleStandaloneInit)
 	mux.HandleFunc("GET "+apiBase+"projects/available/{$}", s.handleAvailableProjects)
 	mux.HandleFunc("POST "+apiBase+"sync/{$}", s.handleStartSync)
 	mux.HandleFunc("GET "+apiBase+"sync/progress/{$}", s.handleSyncProgress)

@@ -167,6 +167,89 @@ func normalizeSite(raw string) string {
 	return originbind.CanonicalSite(raw)
 }
 
+/* ── step 1, the other front door: no tracker ── */
+
+// standaloneInitDoc is the POST onboarding/standalone body. `{}` seeds the
+// default STD project; "projects" narrows the mirror to the given keys,
+// parsed by the same function the CLI flag uses (originbind.ParseProjectKeys).
+type standaloneInitDoc struct {
+	Projects string `json:"projects"`
+}
+
+// handleStandaloneInit is the GUI equivalent of `gadak init --standalone`:
+// one click on an empty home seeds the STD project, the default issue type
+// and the LOC wiki space, then serves the result — the seeding core is
+// shared (originbind.SeedStandalone), so the CLI and this verb cannot
+// diverge. The response is minimal on purpose: the client refetches
+// config.json, which already carries workspace_kind and projects.
+//
+// A credentialed workspace is refused (409): a workspace is bound to one
+// origin, and switching origin is a new workspace, not a settings edit. The
+// CLI verb stays the explicit conversion path. A workspace that is already
+// standalone is idempotent (CLI precedent: "already standalone"), so a
+// retried click after a lost response is safe.
+func (s *server) handleStandaloneInit(w http.ResponseWriter, r *http.Request) {
+	var in standaloneInitDoc
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		fail(w, http.StatusBadRequest, "invalid_body")
+		return
+	}
+	cur := s.config()
+	if !cur.IsStandalone() && cur.HasCredential() {
+		writeJSON(w, http.StatusConflict, map[string]string{
+			"error": "workspace_connected",
+			"site":  cur.Site,
+		})
+		return
+	}
+	// Snapshot before the seed, same as connect: a serve that booted on an
+	// empty home has no credential yet, and this seed is the moment the
+	// background sync loop may start (same fire-once rule).
+	hadCredential := cur.HasCredential()
+	next := *cur
+	// The mirror session hands the seed this server's already-open store.
+	// The release is a no-op: the handle is process-owned and must outlive
+	// the fill (the CLI opens and closes its own — see init.go).
+	sess := func() (*store.DB, func() error, error) {
+		return s.db, func() error { return nil }, nil
+	}
+	fillErr, err := originbind.SeedStandalone(&next, in.Projects, sess)
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
+	if fillErr != nil {
+		// Warning-class, the contract that moved with the core: the
+		// workspace exists and writes already work; the next sync fills
+		// what this pass could not. No token can appear in fillErr —
+		// standalone origin errors never carry one.
+		log.Printf("onboarding standalone: could not fill the mirror yet: %v", fillErr)
+	}
+	// The default body {} leaves Projects empty (CLI parity), but the REST
+	// create gate reads an empty list as deny-all (project_not_mirrored,
+	// internal/server/write.go) — the CLI's twin check deliberately reads it
+	// as "not a deny-all" (cmd/gadak/create.go refuseUnmirroredProject,
+	// GDK-467). Scope this workspace to the project the seed just created so
+	// the GUI door can file its first issue with no terminal. That REST
+	// deny-on-empty asymmetry is pre-existing and outside this verb — a
+	// CLI-created standalone home hits it on serve today; it needs the write
+	// path's owner, not this handler.
+	if len(next.Projects) == 0 && next.DefaultProject != "" {
+		next.Projects = []string{next.DefaultProject}
+		if err := next.Save(); err != nil {
+			serverError(w, r, err)
+			return
+		}
+	}
+	s.cfg.Store(&next)
+	s.gen.Add(1)
+	s.fireSyncStarterIfNeeded(hadCredential)
+	writeJSON(w, http.StatusOK, map[string]string{
+		"workspace_kind":  config.KindStandalone,
+		"default_project": next.DefaultProject,
+	})
+}
+
 /* ── step 2: project picker ── */
 
 func (s *server) handleAvailableProjects(w http.ResponseWriter, r *http.Request) {
