@@ -200,9 +200,9 @@ func cmdInit(args []string) error {
 	// standalone workspace is allowed through without that flag.
 	wasStandalone := cfg.IsStandalone()
 
-	// CLI conversion while serve/desktop has this workspace open would
-	// race the persist owner (GDK-415). HTTP onboarding is the owner
-	// process and does not take this gate.
+	// CLI conversion while a live `gadak serve` is listening would race
+	// the origin the UI still holds (GDK-415). HTTP onboarding is the
+	// owner process and does not take this gate.
 	if wasStandalone {
 		if err := originbind.RefuseIfOpen(cfg); err != nil {
 			return err

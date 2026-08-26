@@ -1,9 +1,6 @@
 package apprun
 
 import (
-	"encoding/base64"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -40,88 +37,26 @@ func standaloneRuntime(t *testing.T) (*Runtime, *config.Config) {
 	return rt, cfg
 }
 
-func TestStartOriginPassthroughAdvertisesAndProbes(t *testing.T) {
+func TestStartOriginPassthroughEmbedsWithoutAdvertise(t *testing.T) {
 	rt, cfg := standaloneRuntime(t)
-	origin.SetInProcess(cfg, true)
 	stop, err := StartOriginPassthrough(cfg, rt.API)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer stop()
 
-	advPath := origin.AdvertisePath(cfg.Directory())
-	data, err := os.ReadFile(advPath)
-	if err != nil {
-		t.Fatalf("FAIL-first GDK-340: advertise file missing: %v", err)
+	if _, err := os.Stat(filepath.Join(cfg.Directory(), "serve-origin.json")); !os.IsNotExist(err) {
+		t.Fatal("StartOriginPassthrough must not write serve-origin.json")
 	}
-	var adv origin.Advertise
-	if err := json.Unmarshal(data, &adv); err != nil {
-		t.Fatal(err)
+	if !origin.IsInProcess(cfg) {
+		t.Fatal("standalone StartOriginPassthrough must mark in-process")
 	}
-	if adv.Addr == "" || adv.PID != os.Getpid() {
-		t.Fatalf("advertise doc %+v", adv)
-	}
-
-	res, err := http.Get("http://" + adv.Addr + origin.ProbePath)
-	if err != nil {
-		t.Fatalf("probe: %v", err)
-	}
-	res.Body.Close()
-	if res.Header.Get("X-Gadak") != "1" {
-		t.Fatalf("probe response lacks X-Gadak (status %d)", res.StatusCode)
-	}
-
-	req, err := http.NewRequest(http.MethodGet, "http://"+adv.Addr+origin.RESTPrefix+"/rest/api/3/myself", nil)
+	c, err := origin.Client(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
-	req.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte("standalone:standalone")))
-	res, err = http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatalf("passthrough: %v", err)
-	}
-	res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		t.Fatalf("passthrough /rest/api/3/myself = %d", res.StatusCode)
-	}
-
-	stop()
-	if _, err := os.Stat(advPath); !os.IsNotExist(err) {
-		t.Fatal("advertise file still present after stop")
-	}
-}
-
-func TestStartOriginPassthroughServesOnlyOriginPaths(t *testing.T) {
-	rt, cfg := standaloneRuntime(t)
-	origin.SetInProcess(cfg, true)
-	stop, err := StartOriginPassthrough(cfg, rt.API)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer stop()
-
-	data, err := os.ReadFile(origin.AdvertisePath(cfg.Directory()))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var adv origin.Advertise
-	if err := json.Unmarshal(data, &adv); err != nil {
-		t.Fatal(err)
-	}
-	for _, p := range []string{
-		"/",
-		"/api/v1/bootstrap/",
-		"/healthz",
-		"/api/v1/issues/sync/progress/deeper",
-	} {
-		res, err := http.Get("http://" + adv.Addr + p)
-		if err != nil {
-			t.Fatalf("GET %s: %v", p, err)
-		}
-		res.Body.Close()
-		if res.StatusCode != http.StatusNotFound {
-			t.Fatalf("GET %s = %d, want 404", p, res.StatusCode)
-		}
+	if !origin.TransportIsEmbedded(c.HTTP.Transport) {
+		t.Fatalf("transport %T, want embedded", c.HTTP.Transport)
 	}
 }
 
@@ -136,15 +71,15 @@ func TestStartOriginPassthroughConnectedNoListener(t *testing.T) {
 		t.Fatal(err)
 	}
 	stop()
-	if _, err := os.Stat(origin.AdvertisePath(os.Getenv("GADAK_HOME"))); !os.IsNotExist(err) {
-		t.Fatal("connected workspace wrote advertise")
+	if _, err := os.Stat(filepath.Join(os.Getenv("GADAK_HOME"), "serve-origin.json")); !os.IsNotExist(err) {
+		t.Fatal("connected workspace wrote serve-origin.json")
 	}
 }
 
-// TestSecondProcessStandaloneListenerBusy is Q1 as a real second process:
-// with the parent holding the persist lock, StartOriginPassthrough must
-// return ErrWorkspaceBusy and must not write advertise.
-func TestSecondProcessStandaloneListenerBusy(t *testing.T) {
+// TestSecondProcessStandaloneEmbeds is Q1 after GDK-936: a second process
+// may embed the same WAL persist. The parent holds a session; the child
+// must acquire, not fail busy.
+func TestSecondProcessStandaloneEmbeds(t *testing.T) {
 	if os.Getenv("GDK658_APPRUN_CHILD") == "1" {
 		cfg, err := config.Load()
 		if err != nil {
@@ -152,47 +87,29 @@ func TestSecondProcessStandaloneListenerBusy(t *testing.T) {
 			os.Exit(1)
 		}
 		_, err = StartOriginPassthrough(cfg, http.NotFoundHandler())
-		if err == nil {
-			fmt.Fprintln(os.Stderr, "GDK658_ACQUIRED")
-			os.Exit(0)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "other: %v\n", err)
+			os.Exit(1)
 		}
-		if errors.Is(err, origin.ErrWorkspaceBusy) {
-			fmt.Fprintln(os.Stderr, "GDK658_BUSY")
-			os.Exit(2)
-		}
-		fmt.Fprintf(os.Stderr, "other: %v\n", err)
-		os.Exit(1)
+		fmt.Fprintln(os.Stderr, "GDK658_ACQUIRED")
+		os.Exit(0)
 	}
 
 	rt, cfg := standaloneRuntime(t)
-	origin.SetInProcess(cfg, true)
 	stop, err := StartOriginPassthrough(cfg, rt.API)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer stop()
 
-	advPath := origin.AdvertisePath(cfg.Directory())
-	before, err := os.ReadFile(advPath)
-	if err != nil {
-		t.Fatalf("parent advertise: %v", err)
-	}
-
-	cmd := exec.Command(os.Args[0], "-test.run=^TestSecondProcessStandaloneListenerBusy$", "-test.v=false")
+	cmd := exec.Command(os.Args[0], "-test.run=^TestSecondProcessStandaloneEmbeds$", "-test.v=false")
 	cmd.Env = append(os.Environ(), "GDK658_APPRUN_CHILD=1")
 	out, err := cmd.CombinedOutput()
-	if err == nil {
-		t.Fatalf("child acquired standalone origin while parent held the lock; out=%s", out)
-	}
-	if !strings.Contains(string(out), "GDK658_BUSY") {
-		t.Fatalf("child want GDK658_BUSY, err=%v out=%s", err, out)
-	}
-	after, err := os.ReadFile(advPath)
 	if err != nil {
-		t.Fatalf("advertise missing after child: %v", err)
+		t.Fatalf("child failed to embed: err=%v out=%s", err, out)
 	}
-	if string(after) != string(before) {
-		t.Fatalf("child overwrote advertise:\n before=%s\n after=%s", before, after)
+	if !strings.Contains(string(out), "GDK658_ACQUIRED") {
+		t.Fatalf("child want GDK658_ACQUIRED, err=%v out=%s", err, out)
 	}
 }
 

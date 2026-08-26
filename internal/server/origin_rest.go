@@ -140,8 +140,7 @@ func (s *server) standaloneOrigin() http.Handler {
 	h, err := origin.StandaloneHandler(s.config())
 	if err != nil {
 		// Not cached: a construction that failed for a transient reason
-		// (the persist lock held by a process that is about to exit) must
-		// be retryable on the next request.
+		// must be retryable on the next request.
 		log.Printf("server: origin passthrough: %v", err)
 		return nil
 	}

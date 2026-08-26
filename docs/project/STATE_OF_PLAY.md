@@ -32,10 +32,11 @@ write through the origin ([GDK-380], [GDK-381], [GDK-382]).
 Under it, v0.16.0, the release where gadak stops needing an
 Atlassian account and stops needing a Mac: standalone workspaces whose origin
 is an in-process minimal Jira (`issuetap`) — mirror still a disposable cache,
-every write through the origin, and while a standalone `gadak serve` runs it
-advertises itself so other gadak processes route writes through it instead of
-dual-writing the persist file ([GDK-333]; the desktop app followed in
-[GDK-340], and a post-tag hardening wave closed [GDK-241] and [GDK-342]–348).
+every write through the origin, and the origin persist is on-disk SQLite in
+WAL mode so a local CLI and a live serve can both embed the same file
+([GDK-936]; pairing remotes still reach origin through the serve
+passthrough). Earlier single-writer routing ([GDK-333], [GDK-340], and a
+post-tag hardening wave [GDK-241] and [GDK-342]–348) is gone.
 Windows gets a desktop zip and honest SmartScreen docs, Linux gets
 tarball + `install-service`, Omarchy gets a bar widget verified on a real
 guest. Issue editing now follows the issue's own editmeta: due date,
@@ -268,4 +269,5 @@ secret scan (T7.4), Docker and the release pipeline (T7.5/T7.6), the MCP server
 [GDK-333]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-333
 [GDK-340]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-340
 [GDK-342]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-342
+[GDK-936]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-936
 [GDK-711]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-711

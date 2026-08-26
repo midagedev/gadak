@@ -2,7 +2,6 @@ package origin
 
 import (
 	"context"
-	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -11,13 +10,11 @@ import (
 	"github.com/midagedev/gadak/internal/jira"
 )
 
-// TestGDK333FailFirstTwoSessionsInvisible documented the pre-fix defect:
-// two constructStandalone graphs on the same persist path did not share
-// memory — a create on A was invisible on B, and the last Close silently
-// won. GDK-333 closed the happy path by routing; GDK-343 closes the rest:
-// the persist lock now makes the second construction impossible at all, so
-// the assertion is that B fails with ErrWorkspaceBusy instead of opening
-// an invisible sibling graph.
+// TestGDK333FailFirstTwoSessionsInvisible is the F′ stage 1 seam: two
+// constructStandalone sessions on the same persist path share writes
+// through WAL. The persist lock is gone (GDK-936). FAIL-first (lock
+// no-op, 2026-08-26): the previous busy assertion went red because the
+// second construct succeeded, and B already saw A's issue.
 func TestGDK333FailFirstTwoSessionsInvisible(t *testing.T) {
 	persist := filepath.Join(t.TempDir(), filepath.FromSlash(PersistRel))
 	a, err := constructStandalone(persist, nil, config.ResolvedActor{}, "en")
@@ -39,18 +36,14 @@ func TestGDK333FailFirstTwoSessionsInvisible(t *testing.T) {
 		t.Fatalf("key %q", key)
 	}
 
-	// FAIL-first (2026-08-19, unmodified constructStandalone): this second
-	// construction succeeded and B could not see A's issue — two embedded
-	// graphs over one file. Since GDK-343 it must fail on the persist lock.
 	b, err := constructStandalone(persist, nil, config.ResolvedActor{}, "en")
-	if err == nil {
-		closeSession(b)
-		t.Fatal("second constructStandalone succeeded — the GDK-333/343 double-graph hazard is back")
+	if err != nil {
+		t.Fatalf("second constructStandalone: %v", err)
 	}
-	if !errors.Is(err, ErrWorkspaceBusy) {
-		t.Fatalf("second constructStandalone error = %v, want ErrWorkspaceBusy", err)
+	t.Cleanup(func() { closeSession(b) })
+	if !searchKey(t, b.client, key) {
+		t.Fatalf("issue %s missing on second session — WAL did not share the write", key)
 	}
-
 	if !searchKey(t, a.client, key) {
 		t.Fatalf("issue %s missing on its own session", key)
 	}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -107,9 +106,8 @@ func TestShutdownOnceClosesMountedStandaloneRegistry(t *testing.T) {
 	if _, err := reg.Get("mounted"); err != nil {
 		t.Fatal(err)
 	}
-	advertise := origin.AdvertisePath(cfg.Directory())
-	if _, err := os.Stat(advertise); err != nil {
-		t.Fatalf("mounted standalone did not advertise its origin: %v", err)
+	if !origin.IsInProcess(cfg) {
+		t.Fatal("mounted standalone did not bind its origin")
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -121,7 +119,7 @@ func TestShutdownOnceClosesMountedStandaloneRegistry(t *testing.T) {
 	default:
 		t.Fatal("shutdown did not cancel the watch context")
 	}
-	if _, err := os.Stat(advertise); !os.IsNotExist(err) {
-		t.Fatalf("mounted advertise remains after desktop shutdown: %v", err)
+	if origin.IsInProcess(cfg) {
+		t.Fatal("in-process mark remains after desktop shutdown")
 	}
 }

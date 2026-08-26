@@ -345,18 +345,3 @@ func FoldPairedError(cfg *config.Config, err error) error {
 	}
 	return err
 }
-
-// localRoutingToken is the device token a same-machine CLI presents when
-// it routes through this profile's live serve. The home machine's own
-// writes take the passthrough too, and once any token is minted the gate
-// has no loopback bypass — so the minting machine stores its own token in
-// the pairing credential file and the router picks it up here. Absent
-// file (the common case) returns "" and routing is byte-identical to
-// before.
-func localRoutingToken(cfgDir string) string {
-	rem, err := pairing.LoadRemote(cfgDir)
-	if err != nil || rem == nil {
-		return ""
-	}
-	return rem.Token
-}

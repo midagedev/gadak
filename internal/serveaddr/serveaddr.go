@@ -1,10 +1,9 @@
 // Package serveaddr owns the home-root run directory that a live `gadak serve`
 // writes so other processes can find it without guessing ports.
 //
-// This is not origin.AdvertiseRel (serve-origin.json). That file means "who
-// owns the standalone persist"; a connected workspace's origin is Jira, so
-// overloading it would give the file a second meaning. These files answer a
-// different question: which loopback ports currently serve the UI.
+// These files answer which loopback ports currently serve the UI. They are
+// not leftover serve-origin.json (ignored since GDK-936) and they do not
+// grant origin-write ownership.
 package serveaddr
 
 import (
@@ -59,7 +58,7 @@ func Path(dir, port string) string {
 }
 
 // Write publishes the bound listen address. Atomic write (temp + rename) at
-// 0600, same as origin.WriteAdvertise / config.Save. The filename is the
+// 0600, same as config.Save. The filename is the
 // port so two serves cannot collide.
 func Write(dir, addr, profile string) error {
 	if dir == "" || addr == "" {

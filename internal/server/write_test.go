@@ -2433,13 +2433,8 @@ func TestRESTParentRejectionUnrelated400HasNoHint(t *testing.T) {
 //
 // FAIL-first (2026-08-20, pre-fix): body error was credential_required.
 func TestStandaloneOriginBusyIsNotCredentialRequired(t *testing.T) {
-	h, cfg := standaloneServer(t)
-	if _, err := origin.Client(cfg); err != nil {
-		t.Fatal(err)
-	}
-	origin.ForgetLive()
-
-	rec := send(t, h, http.MethodPost, apiBase+"NMB-1/comment/", `{"text":"hi"}`)
+	rec := httptest.NewRecorder()
+	failOriginClient(rec, origin.ErrWorkspaceBusy)
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("status %d, want 409: %s", rec.Code, rec.Body.String())
 	}
@@ -2456,8 +2451,29 @@ func TestStandaloneOriginBusyIsNotCredentialRequired(t *testing.T) {
 	if body.Error != "workspace_busy" {
 		t.Fatalf("error %q, want workspace_busy", body.Error)
 	}
-	if !strings.Contains(body.Message, "persist is locked") {
-		t.Fatalf("message %q, want the ErrWorkspaceBusy text", body.Message)
+}
+
+func TestStandaloneOriginSecondSessionWrites(t *testing.T) {
+	h, cfg := standaloneServer(t)
+	if _, err := origin.Client(cfg); err != nil {
+		t.Fatal(err)
+	}
+	origin.ForgetLive()
+
+	rec := send(t, h, http.MethodPost, apiBase+"NMB-1/comment/", `{"text":"hi"}`)
+	if rec.Code == http.StatusConflict {
+		t.Fatalf("second session 409 after lock removal: %s", rec.Body.String())
+	}
+	if rec.Code != http.StatusOK && rec.Code != http.StatusCreated {
+		// NMB-1 may not exist on a fresh standalone origin; the point is
+		// the mapper did not answer workspace_busy or credential_required.
+		var body struct {
+			Error string `json:"error"`
+		}
+		_ = json.Unmarshal(rec.Body.Bytes(), &body)
+		if body.Error == "workspace_busy" || body.Error == "credential_required" {
+			t.Fatalf("second session error %q: %s", body.Error, rec.Body.String())
+		}
 	}
 }
 
@@ -2475,9 +2491,8 @@ func TestStandaloneOriginPersistFailureIsNotCredentialRequired(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(persist), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	// lockPersist opens persist+".lock"; a directory there is a path error,
-	// not ErrWorkspaceBusy.
-	if err := os.Mkdir(persist+".lock", 0o700); err != nil {
+	_ = os.Remove(persist)
+	if err := os.Mkdir(persist, 0o700); err != nil {
 		t.Fatal(err)
 	}
 
@@ -2488,9 +2503,6 @@ func TestStandaloneOriginPersistFailureIsNotCredentialRequired(t *testing.T) {
 	got := decode[map[string]string](t, rec)["error"]
 	if got == "credential_required" {
 		t.Fatal("standalone persist failure disguised as credential_required")
-	}
-	if !strings.Contains(got, "persist lock") {
-		t.Fatalf("error %q, want the origin persist-lock text", got)
 	}
 }
 

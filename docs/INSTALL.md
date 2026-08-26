@@ -273,8 +273,9 @@ running (include the `-wal`/`-shm` sidecars), or
 space `LOC`, and records a default issue type so `gadak create` takes only a
 summary (`cmd/gadak/init.go` `initStandalone`). The SQLite file `gadak.db` is
 still a cache. The first `gadak sync` against that origin finishes in 0s
-(measured; the origin is already local). While `gadak serve` is running, other
-gadak processes route writes through it so the persist file has one owner.
+(measured; the origin is already local). Local CLI writes embed the same
+SQLite file (WAL); a leftover `serve-origin.json` from an older install is
+ignored. Paired remotes still write through this machine's serve passthrough.
 
 ### Pair another machine
 

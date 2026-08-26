@@ -2,26 +2,16 @@ package origin
 
 import (
 	"context"
-	"errors"
-	"os"
 	"path/filepath"
-	"strconv"
-	"strings"
 	"testing"
 
 	"github.com/midagedev/gadak/internal/config"
 )
 
-// TestGDK343SecondProcessCannotEmbed: two processes (simulated with
-// ForgetLive — origin.go's existing technique) open the same persist.
-// Before the flock fix both embedded and the last Close won (silent
-// last-writer-wins loss). After the fix the second Client must not embed:
-// with no advertise to route to, it fails with ErrWorkspaceBusy.
-//
-// FAIL-first (2026-08-20, pre-fix): the second Client succeeded, both
-// sessions wrote STD-1/STD-2 into their own graphs, and
-// SessionsConstructed rose by 2 — the double-embed hazard was live.
-func TestGDK343SecondProcessCannotEmbed(t *testing.T) {
+// TestGDK343SecondProcessSeesFirstWrite: two processes (simulated with
+// ForgetLive) open the same persist. WAL shares the write (GDK-936);
+// the persist lock that used to return ErrWorkspaceBusy is gone.
+func TestGDK343SecondProcessSeesFirstWrite(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
 	config.SetProfile("")
@@ -35,33 +25,32 @@ func TestGDK343SecondProcessCannotEmbed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := a.CreateIssue(context.Background(), map[string]any{
+	key, err := a.CreateIssue(context.Background(), map[string]any{
 		"project":   map[string]any{"key": DefaultProjectKey},
 		"summary":   "gdk-343 first owner",
 		"issuetype": map[string]any{"name": "Task"},
-	}); err != nil {
+	})
+	if err != nil {
 		t.Fatalf("CreateIssue on first owner: %v", err)
 	}
 
-	// Simulate a second process: the first session still holds the graph
-	// (and the lock), but this "process" no longer finds it in live.
 	ForgetLive()
 
-	_, err = Client(cfg)
-	if err == nil {
-		t.Fatal("second process embedded the same persist — double-owner hazard (GDK-343)")
+	b, err := Client(cfg)
+	if err != nil {
+		t.Fatalf("second process Client: %v", err)
 	}
-	if !errors.Is(err, ErrWorkspaceBusy) {
-		t.Fatalf("second Client error = %v, want ErrWorkspaceBusy", err)
+	if !searchKey(t, b, key) {
+		t.Fatalf("second process cannot see %s — WAL did not share the write", key)
 	}
-	if _, err := Wiki(cfg); !errors.Is(err, ErrWorkspaceBusy) {
-		t.Fatalf("second Wiki error = %v, want ErrWorkspaceBusy", err)
+	if _, err := Wiki(cfg); err != nil {
+		t.Fatalf("second Wiki: %v", err)
 	}
 }
 
-// TestGDK343LockReleasedOnClose: Close releases the persist lock, so the
+// TestGDK343ConstructAfterClose: Close drops the session, so the
 // process is allowed to come back (origin.Close contract).
-func TestGDK343LockReleasedOnClose(t *testing.T) {
+func TestGDK343ConstructAfterClose(t *testing.T) {
 	persist := filepath.Join(t.TempDir(), filepath.FromSlash(PersistRel))
 	a, err := constructStandalone(persist, nil, config.ResolvedActor{}, "en")
 	if err != nil {
@@ -73,25 +62,4 @@ func TestGDK343LockReleasedOnClose(t *testing.T) {
 		t.Fatalf("construct after close: %v", err)
 	}
 	closeSession(b)
-}
-
-// TestBusyErrorNamesHolderPID: the sidecar records the owner's PID, so the
-// busy verdict names who to close (GDK-421). FAIL-first: pre-fix the error
-// was the bare sentinel with no pid.
-func TestBusyErrorNamesHolderPID(t *testing.T) {
-	persist := filepath.Join(t.TempDir(), filepath.FromSlash(PersistRel))
-	a, err := constructStandalone(persist, nil, config.ResolvedActor{}, "en")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { closeSession(a) })
-
-	_, err = constructStandalone(persist, nil, config.ResolvedActor{}, "en")
-	if !errors.Is(err, ErrWorkspaceBusy) {
-		t.Fatalf("second construct error = %v, want ErrWorkspaceBusy", err)
-	}
-	want := strconv.Itoa(os.Getpid())
-	if !strings.Contains(err.Error(), "pid "+want) {
-		t.Fatalf("busy error %q does not name the holder pid %s", err, want)
-	}
 }

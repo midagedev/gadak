@@ -73,10 +73,11 @@ func InProcessAuthB64() string {
 	return base64.StdEncoding.EncodeToString([]byte(inProcessUser + ":" + inProcessSecret))
 }
 
-// ErrWorkspaceBusy means another process holds the persist lock for this
-// workspace and did not advertise a routable origin. Embedding anyway would
-// open a second graph over the same file (GDK-343: last Close wins, silent
-// loss), so the caller gets this instead.
+// ErrWorkspaceBusy is the historical persist-lock refusal (GDK-343). The
+// lock is gone (GDK-936): standalone persist is WAL SQLite, and a second
+// process embeds the same file. The sentinel remains so the REST mapper
+// still answers workspace_busy rather than credential_required (GDK-345)
+// if a caller passes this error in.
 var ErrWorkspaceBusy = errors.New("origin: another process is using this workspace (persist is locked); write through its serve, or close it and retry")
 
 // PersistPath is the absolute issuetap SQLite state path inside a profile directory.
@@ -113,10 +114,9 @@ func Connected(site, email, token string) *jira.Client {
 
 // Client is the single owner of "this workspace's Jira client".
 // A connected workspace gets the same jira.New(site, email, token) as before.
-// A standalone workspace gets a client whose Transport is the in-process
-// issuetap handler, unless a live `gadak serve` for this profile advertised
-// itself — then Transport is that serve's origin passthrough so persist has
-// one owner. BaseURL stays empty so stored browse links are /browse/KEY
+// A standalone workspace embeds issuetap over the persist SQLite file
+// (WAL). A paired remote workspace talks to the home serve's RESTPrefix
+// passthrough. BaseURL stays empty so stored browse links are /browse/KEY
 // rather than a fake https origin a person might click.
 func Client(cfg *config.Config) (*jira.Client, error) {
 	if cfg == nil {
@@ -142,8 +142,8 @@ func Client(cfg *config.Config) (*jira.Client, error) {
 // PairedStatus is the single owner of "is this workspace paired with a
 // remote gadak serve?". status, doctor, profiles, and pairing list read
 // this instead of opening remote-origin.json themselves. Standalone is
-// excluded: the same file on the home machine only carries the routing
-// token (transport.go localRoutingToken).
+// excluded: the same file on the home machine only carries the local
+// pairing-gate token (`_home`), not a remote origin.
 func PairedStatus(cfg *config.Config) (*pairing.Remote, error) {
 	return pairedRemote(cfg)
 }
@@ -151,8 +151,8 @@ func PairedStatus(cfg *config.Config) (*pairing.Remote, error) {
 // pairedRemote resolves the stored pairing credential that makes this
 // workspace's origin a remote gadak serve (GDK-433). Standalone is
 // excluded on purpose: a standalone workspace owns a local persist, and
-// on the home machine the same file only ever carries the routing token
-// (transport.go localRoutingToken) — there it must not flip Client into a
+// on the home machine the same file only ever carries the local
+// pairing-gate token (`_home`) — there it must not flip Client into a
 // remote client. A malformed file is an error, not a fallthrough to the
 // connected path: silently treating a paired workspace as credential-less
 // would answer errNeedCredential, which points the user at the wrong fix.
@@ -264,7 +264,6 @@ type session struct {
 	emb    *issuetap.Embedded
 	client *jira.Client
 	wiki   *confluence.Client
-	unlock func() // releases the persist lock; runs after emb.Close
 	// locale is what the embedded store was last set to (GDK-597). Guarded
 	// by mu so a racing session lookup cannot half-see a switch.
 	locale string
@@ -292,7 +291,7 @@ var (
 )
 
 // SessionsConstructed is how many times constructStandalone ran. Tests
-// use a delta to prove a routed Client did not open a second persist graph.
+// use a delta to prove a live session was reused.
 func SessionsConstructed() uint64 { return sessionsConstructed.Load() }
 
 // SetInProcess marks/unmarks this process as the persist owner of cfg's
@@ -345,28 +344,14 @@ func ForgetLive() {
 	mu.Unlock()
 }
 
-// forgotten keeps ForgetLive's dropped sessions reachable. The persist
-// lock is a flock on an os.File; when the last reference to a session
-// dies, the file's GC finalizer closes the fd and the kernel releases the
-// lock — so a GC between ForgetLive and the next Client silently freed
-// the "live owner's" lock and busy assertions flaked on CI (GDK-484).
+// forgotten keeps ForgetLive's dropped sessions reachable so tests that
+// simulate a second process do not Close the first embedding via GC.
 // Production never calls ForgetLive; sessions stay in live for the
 // process lifetime.
 var forgotten []*session
 
 func standaloneClient(cfg *config.Config) (*jira.Client, error) {
-	if c, ok := routedJira(cfg); ok {
-		return c, nil
-	}
 	s, err := standaloneSession(cfg)
-	if errors.Is(err, ErrWorkspaceBusy) {
-		// The lock holder may have advertised between our probe and now, or
-		// the first probe was a 700ms false negative (F5). One more chance
-		// to route before surfacing the busy error.
-		if c, ok := routedJira(cfg); ok {
-			return c, nil
-		}
-	}
 	if err != nil {
 		return nil, err
 	}
@@ -374,9 +359,8 @@ func standaloneClient(cfg *config.Config) (*jira.Client, error) {
 }
 
 // StandaloneHandler is the in-process issuetap HTTP surface for this
-// workspace. Serve's origin passthrough uses it so CLI writes land on
-// the same graph the UI already holds. Always embeds — never routes —
-// so the serve process cannot proxy to itself through this entry.
+// workspace. The serve RESTPrefix passthrough uses it so a paired remote
+// client lands on the same origin the UI already holds. Always embeds.
 func StandaloneHandler(cfg *config.Config) (http.Handler, error) {
 	s, err := standaloneSession(cfg)
 	if err != nil {
@@ -444,16 +428,7 @@ func Wiki(cfg *config.Config) (*confluence.Client, error) {
 }
 
 func standaloneWiki(cfg *config.Config) (*confluence.Client, error) {
-	if w, ok := routedWiki(cfg); ok {
-		return w, nil
-	}
 	s, err := standaloneSession(cfg)
-	if errors.Is(err, ErrWorkspaceBusy) {
-		// Same second-chance route as standaloneClient (F5 false negative).
-		if w, ok := routedWiki(cfg); ok {
-			return w, nil
-		}
-	}
 	if err != nil {
 		return nil, err
 	}
@@ -468,8 +443,8 @@ var testBeforeStandalone func(persist string)
 // standaloneSession returns this workspace's embedded origin session with
 // the store speaking the workspace locale (GDK-597). The locale is part of
 // the session contract, not just of construction: a config change must
-// reach the already-live store in place — dropping the session would drop
-// the persist lock a long-lived `gadak serve` is holding.
+// reach the already-live store in place — dropping the session would close
+// the store a long-lived `gadak serve` is holding.
 func standaloneSession(cfg *config.Config) (*session, error) {
 	s, err := openStandaloneSession(cfg)
 	if err != nil {
@@ -557,6 +532,9 @@ func openStandaloneSession(cfg *config.Config) (*session, error) {
 	f.s = s
 	close(f.done)
 	mu.Unlock()
+	// Outside the lock: mu's contract is no IO under it, and this is a file
+	// write. Advisory only — see openmark.go. Nothing here can fail the open.
+	markOpen(persist)
 	return s, nil
 }
 
@@ -575,15 +553,6 @@ func constructStandalone(persist string, projects []string, actor config.Resolve
 		return nil, fmt.Errorf("origin: persist dir: %w", err)
 	}
 
-	// The persist lock is the single truth for "who may embed" (GDK-343).
-	// Held for the session's lifetime; the kernel releases it if the
-	// process dies. A second process gets ErrWorkspaceBusy here instead of
-	// a second graph whose last Close would silently win.
-	unlock, err := lockPersist(persist)
-	if err != nil {
-		return nil, err
-	}
-
 	fixturePath, fixtureBytes := selectStandaloneSeed(persist, projects)
 	emb, err := issuetap.NewEmbedded(issuetap.EmbeddedConfig{
 		PersistPath:  persist,
@@ -598,7 +567,6 @@ func constructStandalone(persist string, projects []string, actor config.Resolve
 		Locale: locale,
 	})
 	if err != nil {
-		unlock()
 		return nil, fmt.Errorf("origin: issuetap: %w", err)
 	}
 
@@ -607,7 +575,7 @@ func constructStandalone(persist string, projects []string, actor config.Resolve
 	c := transportJira(tr)
 	w := transportWiki(tr)
 
-	return &session{emb: emb, client: c, wiki: w, unlock: unlock, locale: locale}, nil
+	return &session{emb: emb, client: c, wiki: w, locale: locale}, nil
 }
 
 func closeSession(s *session) {
@@ -616,9 +584,6 @@ func closeSession(s *session) {
 	}
 	if s.emb != nil {
 		_ = s.emb.Close()
-	}
-	if s.unlock != nil {
-		s.unlock()
 	}
 }
 
@@ -686,17 +651,14 @@ func Close() error {
 				first = err
 			}
 		}
-		if s.unlock != nil {
-			s.unlock()
-		}
 	}
 	return first
 }
 
-// CloseStandalone checkpoints and drops the live session for cfg's persist
-// and releases its lock. Waits an in-flight constructor for the same key.
-// No-op when nothing is live. Callers that marked SetInProcess unmark it
-// themselves — this only owns the session.
+// CloseStandalone checkpoints and drops the live session for cfg's persist.
+// Waits an in-flight constructor for the same key. No-op when nothing is
+// live. Callers that marked SetInProcess unmark it themselves — this only
+// owns the session.
 func CloseStandalone(cfg *config.Config) error {
 	p := persistKeyOf(cfg)
 	if p == "" {
@@ -715,14 +677,11 @@ func CloseStandalone(cfg *config.Config) error {
 		if s == nil {
 			return nil
 		}
-		var first error
+		clearOpen(p)
 		if s.emb != nil {
-			first = s.emb.Close()
+			return s.emb.Close()
 		}
-		if s.unlock != nil {
-			s.unlock()
-		}
-		return first
+		return nil
 	}
 }
 

@@ -7,8 +7,6 @@
 // deeplink, Origin-strip mux). Intentional order differences are
 // options, not a merged sequence:
 //
-//   - GDK-468: serve checks for a live same-profile serve (AfterConfig)
-//     before taking the persist lock.
 //   - GDK-658: desktop runs wails SingleInstance (application.New)
 //     before AcquireStandalone / StartOriginPassthrough.
 //
@@ -55,8 +53,7 @@ type Options struct {
 	OpenStore func() (*store.DB, error)
 
 	// AfterConfig runs after config.Load and before the store opens (and
-	// before persist acquire). serve uses this for the live-serve handoff
-	// (GDK-468), which must happen before the persist lock.
+	// before persist acquire).
 	AfterConfig func(*config.Config) error
 
 	// DeferStandalone skips persist acquire during Open. Desktop sets this
@@ -191,10 +188,10 @@ func (rt *Runtime) stage(msg string) {
 	log.Print(msg)
 }
 
-// Close stops an origin-passthrough listener (if this Runtime started one),
-// flushes standalone persist when FlushOnClose is set or persist was
-// acquired here, then closes the registry, API handler, and store — API
-// before DB (GDK-270). Safe on a partial Open.
+// Close stops any origin cleanup this Runtime started, flushes standalone
+// persist when FlushOnClose is set or persist was acquired here, then
+// closes the registry, API handler, and store — API before DB (GDK-270).
+// Safe on a partial Open.
 func (rt *Runtime) Close() error {
 	if rt == nil {
 		return nil

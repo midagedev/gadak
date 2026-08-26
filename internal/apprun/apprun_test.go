@@ -86,8 +86,8 @@ func TestOpenSequenceDeferStandaloneSkipsPersist(t *testing.T) {
 	if got := *steps; !equalSteps(got, want) {
 		t.Fatalf("steps = %v, want %v", got, want)
 	}
-	if _, err := os.Stat(origin.AdvertisePath(rt.Cfg.Directory())); !os.IsNotExist(err) {
-		t.Fatal("DeferStandalone Open must not advertise")
+	if _, err := os.Stat(filepath.Join(rt.Cfg.Directory(), "serve-origin.json")); !os.IsNotExist(err) {
+		t.Fatal("DeferStandalone Open must not write serve-origin.json")
 	}
 }
 
@@ -145,34 +145,16 @@ func TestVersionStampIsFirst(t *testing.T) {
 	}
 }
 
-func TestPublishAdvertiseWritesAndRemoves(t *testing.T) {
+func TestOpenStandaloneDoesNotWriteAdvertise(t *testing.T) {
 	testHome(t)
-	cfg := saveStandalone(t)
-	unpublish, err := PublishAdvertise(cfg, "127.0.0.1:7998")
+	saveStandalone(t)
+	rt, err := Open(Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	p := origin.AdvertisePath(cfg.Directory())
-	if _, err := os.Stat(p); err != nil {
-		t.Fatalf("advertise missing: %v", err)
-	}
-	unpublish()
-	if _, err := os.Stat(p); !os.IsNotExist(err) {
-		t.Fatal("advertise still present")
-	}
-}
-
-func TestPublishAdvertiseSkipsConnected(t *testing.T) {
-	testHome(t)
-	cfg := &config.Config{Kind: config.KindConnected}
-	unpublish, err := PublishAdvertise(cfg, "127.0.0.1:7998")
-	if err != nil {
-		t.Fatal(err)
-	}
-	unpublish()
-	home := os.Getenv("GADAK_HOME")
-	if _, err := os.Stat(filepath.Join(home, origin.AdvertiseRel)); !os.IsNotExist(err) {
-		t.Fatal("connected workspace must not write serve-origin.json")
+	t.Cleanup(func() { _ = rt.Close() })
+	if _, err := os.Stat(filepath.Join(rt.Cfg.Directory(), "serve-origin.json")); !os.IsNotExist(err) {
+		t.Fatal("standalone Open must not write serve-origin.json")
 	}
 }
 

@@ -3,14 +3,17 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"net"
 	"net/http"
-	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/origin"
+	"github.com/midagedev/gadak/internal/originbind"
+	"github.com/midagedev/gadak/internal/serveaddr"
 )
 
 // seedStandaloneWithIssue is a standalone workspace that already holds a
@@ -241,34 +244,38 @@ func TestInitReplaceStandaloneRejectedWithStandalone(t *testing.T) {
 	}
 }
 
-// advertiseLiveServe writes serve-origin.json pointing at a probe that
-// answers as this profile, so origin.OwnerStatus reports a live serve.
-func advertiseLiveServe(t *testing.T, home string) *httptest.Server {
+// occupyLiveServe records a live UI-serve in serveaddr and answers the
+// identity probe so RefuseIfOpen sees this profile as open.
+func occupyLiveServe(t *testing.T, profile string) {
 	t.Helper()
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != origin.ProbePath {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("X-Gadak", "1")
-		w.Header().Set("X-Gadak-Profile", config.Profile())
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"running":false}`))
-	}))
-	t.Cleanup(ts.Close)
-	if err := origin.WriteAdvertise(home, ts.Listener.Addr().String()); err != nil {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
 		t.Fatal(err)
 	}
-	return ts
+	t.Cleanup(func() { _ = ln.Close() })
+	mux := http.NewServeMux()
+	mux.HandleFunc(origin.ProbePath, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Gadak", "1")
+		w.Header().Set("X-Gadak-Profile", profile)
+		w.WriteHeader(http.StatusOK)
+	})
+	srv := &http.Server{Handler: mux}
+	go func() { _ = srv.Serve(ln) }()
+	t.Cleanup(func() { _ = srv.Close() })
+	dir, err := serveaddr.Dir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := serveaddr.Write(dir, ln.Addr().String(), profile); err != nil {
+		t.Fatal(err)
+	}
 }
 
-// TestInitReplaceStandaloneRefusesWhenAdvertiseLive is GDK-415: converting
-// while a serve (or desktop) has the workspace open must not proceed.
-//
-// FAIL-first: --replace-standalone skips LocalData and currently succeeds.
-func TestInitReplaceStandaloneRefusesWhenAdvertiseLive(t *testing.T) {
+// TestInitReplaceStandaloneRefusesWhenServeLive is GDK-415: converting
+// while a serve has the workspace open must not proceed.
+func TestInitReplaceStandaloneRefusesWhenServeLive(t *testing.T) {
 	home := seedStandaloneWithIssue(t)
-	advertiseLiveServe(t, home)
+	occupyLiveServe(t, config.Profile())
 	srv := myselfServer(t)
 	withClosedStdin(t, func() {
 		_, err := capture(t, func() error {
@@ -298,21 +305,30 @@ func TestInitReplaceStandaloneRefusesWhenAdvertiseLive(t *testing.T) {
 	}
 }
 
-// TestInitReplaceStandaloneRefusesWhenPersistLocked is GDK-415's lock path:
-// a held persist lock without a live advertise still refuses conversion.
-//
-// FAIL-first: --replace-standalone skips LocalData and currently succeeds.
-func TestInitReplaceStandaloneRefusesWhenPersistLocked(t *testing.T) {
-	home := seedStandaloneWithIssue(t)
-	cfg, err := config.Load()
-	if err != nil {
+// writeForeignOpenMark makes the persist's open marker name another live
+// process. PID 1 always exists and is owned by root, so this also crosses
+// the liveness check's EPERM path — "alive but not signallable by me".
+func writeForeignOpenMark(t *testing.T, home string) string {
+	t.Helper()
+	p := origin.PersistPath(home) + ".open"
+	if err := os.WriteFile(p, []byte(`{"pid":1,"startedAt":"2026-01-01T00:00:00Z"}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := origin.Client(cfg); err != nil {
-		t.Fatalf("lock holder: %v", err)
-	}
-	origin.ForgetLive()
+	return p
+}
 
+// TestInitReplaceStandaloneRefusesWhenAppHoldsIt is GDK-971, and it is the
+// half of GDK-415 that serveaddr discovery cannot cover: Gadak.app opens no
+// port, so nothing on the network says it is holding the workspace. Before
+// GDK-936 the persist lock answered this by accident; the open marker
+// answers it on purpose.
+//
+// FAIL-first: on the tree that deleted the lock and had no marker yet, this
+// test fails — RefuseIfOpen returns nil and the conversion proceeds under a
+// live holder.
+func TestInitReplaceStandaloneRefusesWhenAppHoldsIt(t *testing.T) {
+	home := seedStandaloneWithIssue(t)
+	writeForeignOpenMark(t, home)
 	srv := myselfServer(t)
 	withClosedStdin(t, func() {
 		_, err := capture(t, func() error {
@@ -324,18 +340,59 @@ func TestInitReplaceStandaloneRefusesWhenPersistLocked(t *testing.T) {
 			})
 		})
 		if err == nil {
-			t.Fatal("replace-standalone must refuse when persist is locked")
+			t.Fatal("replace-standalone must refuse while another process holds the workspace")
 		}
 		if !strings.Contains(err.Error(), "has this workspace open") {
 			t.Fatalf("want workspace-open refusal, got: %v", err)
 		}
+		// A holder with no port must not render as "port )".
+		if strings.Contains(err.Error(), "port )") {
+			t.Fatalf("portless holder rendered a blank port: %v", err)
+		}
 	})
-	cfg, err = config.Load()
+	cfg, err := config.Load()
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !cfg.IsStandalone() {
 		t.Fatal("refused conversion must leave the workspace standalone")
+	}
+}
+
+// A marker left by a process that died must never block conversion: the
+// kernel released the old flock on exit, and nothing releases this file.
+// Forever-refusing after one crash would be worse than not checking.
+func TestInitReplaceStandaloneIgnoresDeadHolder(t *testing.T) {
+	home := seedStandaloneWithIssue(t)
+	p := origin.PersistPath(home) + ".open"
+	// A PID that cannot be running: the kernel's own maximum plus one.
+	if err := os.WriteFile(p, []byte(`{"pid":4194305,"startedAt":"2020-01-01T00:00:00Z"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := originbind.RefuseIfOpen(cfg); err != nil {
+		t.Fatalf("a dead holder must not refuse conversion: %v", err)
+	}
+	if _, err := os.Stat(p); !os.IsNotExist(err) {
+		t.Fatal("a dead holder's marker should be removed on sight")
+	}
+}
+
+func TestInitReplaceStandaloneIgnoresStaleAdvertise(t *testing.T) {
+	home := seedStandaloneWithIssue(t)
+	if err := os.WriteFile(filepath.Join(home, "serve-origin.json"),
+		[]byte(`{"addr":"127.0.0.1:1","pid":1,"startedAt":"2020-01-01T00:00:00Z"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := originbind.RefuseIfOpen(cfg); err != nil {
+		t.Fatalf("leftover serve-origin.json must not refuse conversion: %v", err)
 	}
 }
 

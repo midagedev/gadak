@@ -1149,11 +1149,10 @@ func TestInitStandaloneFailsWhenOriginClientFails(t *testing.T) {
 		config.SetProfile("")
 	})
 
-	holder := &config.Config{Kind: config.KindStandalone}
-	if _, err := origin.Client(holder); err != nil {
-		t.Fatalf("first Client (lock holder): %v", err)
+	cfg := &config.Config{Kind: config.KindStandalone, Frozen: true}
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
 	}
-	origin.ForgetLive()
 
 	withClosedStdin(t, func() {
 		_, err := capture(t, func() error {
@@ -1162,8 +1161,8 @@ func TestInitStandaloneFailsWhenOriginClientFails(t *testing.T) {
 		if err == nil {
 			t.Fatal("init --standalone succeeded while origin.Client failed")
 		}
-		if !errors.Is(err, origin.ErrWorkspaceBusy) {
-			t.Fatalf("init error = %v, want ErrWorkspaceBusy", err)
+		if !errors.Is(err, origin.ErrWorkspaceFrozen) {
+			t.Fatalf("init error = %v, want ErrWorkspaceFrozen", err)
 		}
 	})
 }

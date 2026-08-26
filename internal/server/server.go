@@ -113,12 +113,10 @@ type server struct {
 	// after origin.live is evicted (cross-process simulation).
 	//
 	// A mutex, not a sync.Once. The slot has to be *replaceable*: the
-	// workspace mount binds a handler, and when its advertise fails it
-	// releases that persist session and the rescan loop retries with a
-	// fresh one. Under a Once the retry's bind was a silent no-op and the
-	// two paths ended up on two issuetap stores over one persist file —
-	// measured, both minting id 10001. originMu serialises lazy
-	// construction with binds, which is the part the Once was right about.
+	// workspace mount binds a handler, and a failed bind releases that
+	// persist session so the rescan loop retries with a fresh one. Under
+	// a Once the retry's bind was a silent no-op. originMu serialises
+	// lazy construction with binds.
 	originMu sync.Mutex
 	originH  http.Handler
 

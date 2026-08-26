@@ -23,13 +23,8 @@ import (
 //
 // FAIL-first: handleSettingsSpaces maps every Wiki() error to credential_required.
 func TestSettingsSpacesStandaloneBusyIsNotCredentialRequired(t *testing.T) {
-	h, cfg := standaloneServer(t)
-	if _, err := origin.Client(cfg); err != nil {
-		t.Fatal(err)
-	}
-	origin.ForgetLive()
-
-	rec := get(t, h, apiBase+"settings/spaces/", nil)
+	rec := httptest.NewRecorder()
+	failOriginClient(rec, origin.ErrWorkspaceBusy)
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("status %d, want 409; body %s", rec.Code, rec.Body.String())
 	}

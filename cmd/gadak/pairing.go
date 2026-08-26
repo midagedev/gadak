@@ -28,6 +28,7 @@ import (
 	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/pairing"
+	"github.com/midagedev/gadak/internal/serveaddr"
 	"github.com/midagedev/gadak/internal/store"
 )
 
@@ -415,12 +416,30 @@ func isLoopbackHost(host string) bool {
 	return ip != nil && ip.IsLoopback()
 }
 
-// advertisedEndpoint turns the advertise file's machine-written listen
-// address (host:port, no scheme — WriteAdvertise stores the bind addr) into
-// the URL form --endpoint validation wants. An explicit --endpoint is not
-// normalized: making the user name the scheme is the point.
+// advertisedEndpoint turns a live UI-serve listen address into the URL
+// form --endpoint validation wants. Discovery uses the home-root run
+// directory (serveaddr), not leftover serve-origin.json. An explicit
+// --endpoint is not normalized: making the user name the scheme is the point.
 func advertisedEndpoint(cfg *config.Config) string {
-	return endpointFromAdvertise(origin.AdvertisedAddr(cfg))
+	dir, err := serveaddr.Dir()
+	if err != nil {
+		return ""
+	}
+	want := ""
+	if cfg != nil {
+		want = cfg.ProfileName()
+	}
+	for _, rec := range serveaddr.List(dir) {
+		got := origin.ProbeGadakOnPort(rec.Port, 0)
+		if !got.IsGadak {
+			continue
+		}
+		if got.Profile != want {
+			continue
+		}
+		return endpointFromAdvertise(rec.Addr)
+	}
+	return ""
 }
 
 func endpointFromAdvertise(addr string) string {

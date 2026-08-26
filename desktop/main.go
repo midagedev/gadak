@@ -473,7 +473,7 @@ func run() error {
 
 	if cfg.IsStandalone() {
 		// After application.New so wails SingleInstance can os.Exit the
-		// second process before persist is taken (GDK-658).
+		// second process before persist is opened (GDK-658).
 		if _, err := rt.StartOriginPassthrough(); err != nil {
 			return err
 		}

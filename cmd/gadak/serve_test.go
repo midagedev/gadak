@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"net"
 	"net/http"
 	"os"
@@ -148,7 +147,7 @@ func TestIsLoopback(t *testing.T) {
 	}
 }
 
-func TestPublishStandaloneOriginWritesAndRemoves(t *testing.T) {
+func TestStandaloneConfigDoesNotNeedAdvertiseFile(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
 	config.SetProfile("")
@@ -162,44 +161,8 @@ func TestPublishStandaloneOriginWritesAndRemoves(t *testing.T) {
 	if err := cfg.Save(); err != nil {
 		t.Fatal(err)
 	}
-	cfg, err = config.Load()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	unpublish, err := publishStandaloneOrigin(cfg, "127.0.0.1:7998")
-	if err != nil {
-		t.Fatal(err)
-	}
-	p := origin.AdvertisePath(cfg.Directory())
-	raw, err := os.ReadFile(p)
-	if err != nil {
-		t.Fatalf("advertise missing: %v", err)
-	}
-	var adv origin.Advertise
-	if err := json.Unmarshal(raw, &adv); err != nil {
-		t.Fatal(err)
-	}
-	if adv.Addr != "127.0.0.1:7998" || adv.PID != os.Getpid() {
-		t.Fatalf("advertise = %+v", adv)
-	}
-	unpublish()
-	if _, err := os.Stat(p); !os.IsNotExist(err) {
-		t.Fatalf("advertise still present: %v", err)
-	}
-}
-
-func TestPublishStandaloneOriginSkipsConnected(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("GADAK_HOME", home)
-	cfg := &config.Config{Kind: config.KindConnected}
-	unpublish, err := publishStandaloneOrigin(cfg, "127.0.0.1:7998")
-	if err != nil {
-		t.Fatal(err)
-	}
-	unpublish()
-	if _, err := os.Stat(filepath.Join(home, origin.AdvertiseRel)); !os.IsNotExist(err) {
-		t.Fatal("connected workspace must not write serve-origin.json")
+	if _, err := os.Stat(filepath.Join(cfg.Directory(), "serve-origin.json")); !os.IsNotExist(err) {
+		t.Fatal("standalone config must not write serve-origin.json")
 	}
 }
 

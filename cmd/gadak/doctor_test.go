@@ -5,8 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"log"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -16,7 +14,6 @@ import (
 	gadak "github.com/midagedev/gadak"
 	"github.com/midagedev/gadak/internal/applog"
 	"github.com/midagedev/gadak/internal/config"
-	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/store"
 )
 
@@ -627,7 +624,7 @@ func TestDoctorOriginOwnerEmbedded(t *testing.T) {
 	}
 }
 
-func TestDoctorOriginOwnerLiveServe(t *testing.T) {
+func TestDoctorOriginOwnerIgnoresStaleAdvertise(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
 	t.Setenv("HOME", home)
@@ -642,16 +639,8 @@ func TestDoctorOriginOwnerLiveServe(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/api/v1/issues/sync/progress/", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("X-Gadak", "1")
-		w.Header().Set("X-Gadak-Profile", "")
-		w.WriteHeader(http.StatusOK)
-	})
-	ts := httptest.NewServer(mux)
-	t.Cleanup(ts.Close)
-	if err := origin.WriteAdvertise(cfg.Directory(), ts.Listener.Addr().String()); err != nil {
+	if err := os.WriteFile(filepath.Join(cfg.Directory(), "serve-origin.json"),
+		[]byte(`{"addr":"127.0.0.1:1","pid":1,"startedAt":"2020-01-01T00:00:00Z"}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -660,11 +649,8 @@ func TestDoctorOriginOwnerLiveServe(t *testing.T) {
 		t.Fatalf("doctor: %v\n%s", err, out)
 	}
 	got := doctorValue(t, out, "origin owner")
-	if !strings.HasPrefix(got, "serve pid=") || !strings.Contains(got, "addr=") {
-		t.Fatalf("origin owner = %q, want serve pid=… addr=…", got)
-	}
-	if !strings.Contains(got, ts.Listener.Addr().String()) {
-		t.Fatalf("origin owner %q missing addr %s", got, ts.Listener.Addr().String())
+	if got != "embedded (no live serve)" {
+		t.Fatalf("origin owner = %q, want leftover serve-origin.json ignored", got)
 	}
 }
 

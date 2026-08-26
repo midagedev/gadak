@@ -1,7 +1,6 @@
 package workspace
 
 import (
-	"bytes"
 	"context"
 	"os"
 	"testing"
@@ -31,7 +30,7 @@ func seedStandaloneProfile(t *testing.T, name string) *config.Config {
 	return cfg
 }
 
-func TestSTD3MountedStandaloneAdvertisesAndRoutes(t *testing.T) {
+func TestSTD3MountedStandaloneBindsOrigin(t *testing.T) {
 	setupHome(t)
 	cfg := seedStandaloneProfile(t, "probe")
 
@@ -49,19 +48,23 @@ func TestSTD3MountedStandaloneAdvertisesAndRoutes(t *testing.T) {
 	if e == nil {
 		t.Fatal("mounted standalone entry is nil")
 	}
-	if _, err := os.Stat(origin.AdvertisePath(cfg.Directory())); err != nil {
-		t.Errorf("mounted standalone did not advertise its origin: %v", err)
+	if !e.ownsOrigin {
+		t.Fatal("mounted standalone did not bind its origin")
+	}
+	if _, err := os.Stat(cfg.Directory() + "/serve-origin.json"); !os.IsNotExist(err) {
+		t.Fatal("mounted standalone wrote leftover advertise file")
 	}
 
 	c, err := origin.Client(cfg)
 	if err != nil {
 		t.Fatalf("mount owner Client: %v", err)
 	}
-	if _, err := c.CreateIssue(context.Background(), map[string]any{
+	key, err := c.CreateIssue(context.Background(), map[string]any{
 		"project":   map[string]any{"key": origin.DefaultProjectKey},
 		"summary":   "STD-3 mount owner write",
 		"issuetype": map[string]any{"name": "Task"},
-	}); err != nil {
+	})
+	if err != nil {
 		t.Fatalf("mount owner CreateIssue: %v", err)
 	}
 
@@ -72,16 +75,17 @@ func TestSTD3MountedStandaloneAdvertisesAndRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("simulated CLI Client: %v", err)
 	}
-	if !origin.TransportIsServe(c2.HTTP.Transport) {
-		t.Fatalf("simulated CLI transport %T, want serve passthrough", c2.HTTP.Transport)
+	if !origin.TransportIsEmbedded(c2.HTTP.Transport) {
+		t.Fatalf("simulated CLI transport %T, want embedded", c2.HTTP.Transport)
 	}
 	if _, err := c2.CreateIssue(context.Background(), map[string]any{
 		"project":   map[string]any{"key": origin.DefaultProjectKey},
-		"summary":   "STD-3 routed CLI write",
+		"summary":   "STD-3 second embed write",
 		"issuetype": map[string]any{"name": "Task"},
 	}); err != nil {
-		t.Fatalf("routed CLI CreateIssue: %v", err)
+		t.Fatalf("second embed CreateIssue: %v", err)
 	}
+	_ = key
 }
 
 func TestMountedConnectedDoesNotOwnOrigin(t *testing.T) {
@@ -108,12 +112,6 @@ func TestMountedConnectedDoesNotOwnOrigin(t *testing.T) {
 	if entry.ownsOrigin || entry.stopOrigin != nil {
 		t.Fatal("connected mount claimed an origin")
 	}
-	if _, err := os.Stat(origin.AdvertisePath(cfg.Directory())); !os.IsNotExist(err) {
-		t.Fatalf("connected mount wrote advertise: %v", err)
-	}
-	if _, err := os.Stat(origin.PersistPath(cfg.Directory()) + ".lock"); !os.IsNotExist(err) {
-		t.Fatalf("connected mount took persist lock: %v", err)
-	}
 }
 
 func TestMountedStandaloneCloseReleasesOrigin(t *testing.T) {
@@ -135,9 +133,6 @@ func TestMountedStandaloneCloseReleasesOrigin(t *testing.T) {
 	}
 
 	reg.Close()
-	if _, err := os.Stat(origin.AdvertisePath(cfg.Directory())); !os.IsNotExist(err) {
-		t.Fatalf("advertise remains after Registry.Close: %v", err)
-	}
 	if origin.IsInProcess(cfg) {
 		t.Fatal("in-process mark remains after Registry.Close")
 	}
@@ -156,7 +151,7 @@ func TestMountedStandaloneCloseReleasesOrigin(t *testing.T) {
 
 func TestRegistryCloseWaitsForOriginOwnership(t *testing.T) {
 	setupHome(t)
-	cfg := seedStandaloneProfile(t, "probe")
+	_ = seedStandaloneProfile(t, "probe")
 	reg := New()
 	t.Cleanup(func() {
 		_ = origin.Close()
@@ -206,8 +201,9 @@ func TestRegistryCloseWaitsForOriginOwnership(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("Registry.Close did not return after origin ownership completed")
 	}
-	if _, err := os.Stat(origin.AdvertisePath(cfg.Directory())); !os.IsNotExist(err) {
-		t.Fatalf("advertise remains after Registry.Close: %v", err)
+	cfg, err := config.LoadFor("probe")
+	if err != nil {
+		t.Fatal(err)
 	}
 	if origin.IsInProcess(cfg) {
 		t.Fatal("in-process mark remains after Registry.Close")
@@ -239,15 +235,6 @@ func TestMountedStandaloneSkipsDoorAOwner(t *testing.T) {
 	api := server.NewWorkspace(db, cfg, nil, "probe")
 	api.BindOriginHandler(originHandler)
 	t.Cleanup(func() { _ = api.Close() })
-	stop, err := origin.ServeOriginPassthrough(cfg.Directory(), api)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(stop)
-	before, err := os.ReadFile(origin.AdvertisePath(cfg.Directory()))
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	reg := New()
 	t.Cleanup(reg.Close)
@@ -257,12 +244,5 @@ func TestMountedStandaloneSkipsDoorAOwner(t *testing.T) {
 	}
 	if entry.ownsOrigin || entry.stopOrigin != nil {
 		t.Fatal("mounted entry claimed the primary's origin")
-	}
-	after, err := os.ReadFile(origin.AdvertisePath(cfg.Directory()))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Equal(after, before) {
-		t.Fatal("mounted entry replaced the primary origin advertise")
 	}
 }

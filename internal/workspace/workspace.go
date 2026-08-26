@@ -42,8 +42,8 @@ type Entry struct {
 	Handler *server.Handler
 	DB      *store.DB
 	Cfg     *config.Config
-	// stopOrigin withdraws this mount's advertise file and closes its
-	// passthrough listener. nil when this process does not own the persist.
+	// stopOrigin is leftover from the origin-only listener (GDK-936
+	// removed it). nil in production; closeEntry still calls it if set.
 	// Written under Registry.mu; closeEntry reads it after the registry
 	// snapshot (happens-before via mu).
 	stopOrigin func()
@@ -144,8 +144,6 @@ func closeEntry(e *Entry) {
 	if e == nil {
 		return
 	}
-	// Withdraw the advertise and stop the listener first so no new routed
-	// request lands while sync/handler shut down.
 	if e.stopOrigin != nil {
 		e.stopOrigin()
 	}

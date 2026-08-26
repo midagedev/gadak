@@ -11,18 +11,17 @@ package originbind
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/confluence"
 	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/origin"
+	"github.com/midagedev/gadak/internal/serveaddr"
 	"github.com/midagedev/gadak/internal/store"
 )
 
@@ -67,44 +66,58 @@ func (e *WorkspaceOpenError) Error() string {
 	if e == nil {
 		return ""
 	}
-	if e.PID != 0 {
-		port := e.Addr
-		if _, p, err := net.SplitHostPort(e.Addr); err == nil && p != "" {
-			port = p
-		}
-		return fmt.Sprintf("another process (pid %d / port %s) has this workspace open — close the app or serve, then retry", e.PID, port)
+	const tail = " has this workspace open — close the app or serve, then retry"
+	if e.PID == 0 {
+		return "another process" + tail
 	}
-	return "another process has this workspace open — close the app or serve, then retry"
+	// The desktop app holds a workspace without listening on anything, so a
+	// holder with no address is normal here — printing "port )" for it was
+	// the tell that this branch assumed a serve (GDK-971).
+	port := e.Addr
+	if _, p, err := net.SplitHostPort(e.Addr); err == nil && p != "" {
+		port = p
+	}
+	if port == "" {
+		return fmt.Sprintf("another process (pid %d)%s", e.PID, tail)
+	}
+	return fmt.Sprintf("another process (pid %d / port %s)%s", e.PID, port, tail)
 }
 
-// RefuseIfOpen stops a CLI standalone→connected conversion while a serve
-// advertise probe succeeds or the persist lock is held. HTTP conversion
-// runs inside the owner process and must not call this.
+// RefuseIfOpen stops a CLI standalone→connected conversion while another
+// process has this workspace open. HTTP conversion runs inside the owner
+// process and must not call this.
+//
+// Two questions, because one answer does not cover both holders:
+//
+//	A live `gadak serve` is found through the home-root run directory
+//	(serveaddr) and an identity probe — not leftover serve-origin.json,
+//	which GDK-936 made meaningless.
+//
+//	Gadak.app opens no port at all (its assets go through a custom scheme
+//	handler), so serveaddr cannot see it. The persist's open marker can
+//	(GDK-971). That marker is advisory and never arbitrates writes — WAL
+//	does that — it only says someone is holding this workspace.
 func RefuseIfOpen(cfg *config.Config) error {
 	if cfg == nil || !cfg.IsStandalone() {
 		return nil
 	}
-	if st := origin.OwnerStatus(cfg); strings.HasPrefix(st, "serve pid=") {
-		var pid int
-		var addr string
-		if _, err := fmt.Sscanf(st, "serve pid=%d addr=%s", &pid, &addr); err == nil {
-			return &WorkspaceOpenError{PID: pid, Addr: addr}
+	if dir, err := serveaddr.Dir(); err == nil {
+		want := cfg.ProfileName()
+		for _, rec := range serveaddr.List(dir) {
+			got := origin.ProbeGadakOnPort(rec.Port, 0)
+			if !got.IsGadak {
+				continue
+			}
+			if got.Profile != want {
+				continue
+			}
+			return &WorkspaceOpenError{PID: rec.PID, Addr: rec.Addr}
 		}
-		return &WorkspaceOpenError{}
 	}
-	persist := origin.PersistPath(profileDir(cfg))
-	held, err := persistHeld(persist)
-	if err != nil {
-		return fmt.Errorf("cannot convert standalone workspace: %w", err)
+	if pid := origin.OpenHolder(origin.PersistPath(profileDir(cfg))); pid > 0 {
+		return &WorkspaceOpenError{PID: pid}
 	}
-	if !held {
-		return nil
-	}
-	open := &WorkspaceOpenError{}
-	if adv, ok := readAdvertiseFile(cfg); ok {
-		open.PID, open.Addr = adv.PID, adv.Addr
-	}
-	return open
+	return nil
 }
 
 func profileDir(cfg *config.Config) string {
@@ -115,22 +128,6 @@ func profileDir(cfg *config.Config) string {
 	}
 	d, _ := config.Dir()
 	return d
-}
-
-func readAdvertiseFile(cfg *config.Config) (origin.Advertise, bool) {
-	p := origin.AdvertisePath(profileDir(cfg))
-	if p == "" {
-		return origin.Advertise{}, false
-	}
-	data, err := os.ReadFile(p)
-	if err != nil {
-		return origin.Advertise{}, false
-	}
-	var adv origin.Advertise
-	if json.Unmarshal(data, &adv) != nil || adv.Addr == "" {
-		return origin.Advertise{}, false
-	}
-	return adv, true
 }
 
 // DropStandaloneProjection is the conversion cleanup both CLI init and HTTP

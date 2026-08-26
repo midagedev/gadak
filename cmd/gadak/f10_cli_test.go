@@ -3,8 +3,9 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"log"
+	"net"
+	"net/http"
 	"os"
 	"strings"
 	"testing"
@@ -203,11 +204,7 @@ func TestCmdServeHandsOffLiveSameProfile(t *testing.T) {
 	if _, err := capture(t, func() error { return cmdInit([]string{"--standalone", "--json"}) }); err != nil {
 		t.Fatal(err)
 	}
-	cfg, err := config.Load()
-	if err != nil {
-		t.Fatal(err)
-	}
-	advertiseLiveServe(t, cfg.Directory())
+	occupyPreferredServePort(t)
 
 	var buf bytes.Buffer
 	log.SetOutput(&buf)
@@ -218,12 +215,27 @@ func TestCmdServeHandsOffLiveSameProfile(t *testing.T) {
 	if !strings.Contains(buf.String(), "already serving at") {
 		t.Fatalf("handoff log = %q", buf.String())
 	}
-	if strings.Contains(buf.String(), "persist is locked") {
-		t.Fatalf("lock leaked onto the live-serve path: %s", buf.String())
-	}
 }
 
-func TestCmdServeOrphanLockStaysBusy(t *testing.T) {
+func occupyPreferredServePort(t *testing.T) {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:7777")
+	if err != nil {
+		t.Fatalf("listen 127.0.0.1:7777: %v", err)
+	}
+	t.Cleanup(func() { _ = ln.Close() })
+	mux := http.NewServeMux()
+	mux.HandleFunc(origin.ProbePath, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Gadak", "1")
+		w.Header().Set("X-Gadak-Profile", config.Profile())
+		w.WriteHeader(http.StatusOK)
+	})
+	srv := &http.Server{Handler: mux}
+	go func() { _ = srv.Serve(ln) }()
+	t.Cleanup(func() { _ = srv.Close() })
+}
+
+func TestCmdServeStaleLockFileDoesNotBusy(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
 	t.Setenv("HOME", home)
@@ -244,9 +256,11 @@ func TestCmdServeOrphanLockStaysBusy(t *testing.T) {
 		t.Fatal(err)
 	}
 	origin.ForgetLive()
-	err = cmdServe([]string{"--no-open", "--no-sync"})
-	if !errors.Is(err, origin.ErrWorkspaceBusy) {
-		t.Fatalf("orphan lock = %v, want ErrWorkspaceBusy", err)
+	if err := os.WriteFile(origin.PersistPath(cfg.Directory())+".lock", []byte("99999"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := origin.Client(cfg); err != nil {
+		t.Fatalf("leftover persist.lock must not busy: %v", err)
 	}
 }
 

@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -131,13 +130,6 @@ func runServeHTTP(ctx context.Context, mux http.Handler, preferred string, addrP
 		log.Printf("port %s busy (%s) — serving on %s", prefPort, occupant, boundPort)
 	}
 	defer ln.Close()
-	// Advertise the final listen address (after port fallback) so other
-	// processes route origin writes here. Connected workspaces skip.
-	unpublish, err := publishStandaloneOrigin(cfg, bound)
-	if err != nil {
-		return err
-	}
-	defer unpublish()
 	// ln.Addr is the kernel bind, which differs from preferred on port
 	// fallback and when the listen port is 0. Recording preferred would
 	// reintroduce the same "guessed the wrong port" bug this file exists
@@ -172,21 +164,6 @@ func runServeHTTP(ctx context.Context, mux http.Handler, preferred string, addrP
 		return nil
 	}
 	return err
-}
-
-// liveServeURL is the single owner of "this profile already has a live
-// serve" (GDK-468). It uses origin.AdvertisedAddr (advertise file + the
-// same probe bindListen trusts), so a serve that fell back to another
-// port is still found. Empty means no live same-profile serve.
-func liveServeURL(cfg *config.Config) string {
-	if cfg == nil {
-		return ""
-	}
-	addr := origin.AdvertisedAddr(cfg)
-	if addr == "" {
-		return ""
-	}
-	return browseAddr(addr)
 }
 
 // handoffExistingServe prints the existing open-existing line and
@@ -241,12 +218,6 @@ func serveScopeLog(cfg *config.Config) string {
 	return ""
 }
 
-// serveAlreadyUp is the GDK-468 handoff: AfterConfig saw a live same-profile
-// serve. cmdServe must not treat this as a boot failure.
-type serveAlreadyUp struct{ URL string }
-
-func (e serveAlreadyUp) Error() string { return "already serving at " + e.URL }
-
 func cmdServe(args []string) error {
 	opts, err := parseServeOpts(args)
 	if err != nil {
@@ -259,29 +230,8 @@ func cmdServe(args []string) error {
 	rt, err := apprun.Open(apprun.Options{
 		Version:   version,
 		OpenStore: openStore,
-		AfterConfig: func(cfg *config.Config) error {
-			// Living-serve detection is the single owner of "this profile is
-			// already up" (GDK-468). It must run before the persist lock: a
-			// same-profile serve holds that lock, so lock-first turned a
-			// re-serve into "persist is locked" instead of open-existing.
-			if url := liveServeURL(cfg); url != "" {
-				return serveAlreadyUp{URL: url}
-			}
-			return nil
-		},
 	})
 	if err != nil {
-		var up serveAlreadyUp
-		if errors.As(err, &up) {
-			return handoffExistingServe(up.URL, opts.noOpen)
-		}
-		if errors.Is(err, origin.ErrWorkspaceBusy) {
-			if cfg, loadErr := config.Load(); loadErr == nil {
-				if url := liveServeURL(cfg); url != "" {
-					return handoffExistingServe(url, opts.noOpen)
-				}
-			}
-		}
 		return err
 	}
 	defer rt.Close()
@@ -307,12 +257,6 @@ func cmdServe(args []string) error {
 
 	rt.StartWatch(ctx, opts.noSync)
 	return runServeHTTP(ctx, mux, opts.addr, opts.addrPinned, opts.noOpen, rt.Cfg)
-}
-
-// publishStandaloneOrigin writes serve-origin.json for a standalone workspace.
-// Implementation lives in apprun.PublishAdvertise (single owner with desktop).
-func publishStandaloneOrigin(cfg *config.Config, bound string) (func(), error) {
-	return apprun.PublishAdvertise(cfg, bound)
 }
 
 // publishServeAddr records the bound listen address in the home-root run

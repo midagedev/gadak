@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -14,15 +13,14 @@ import (
 
 	"github.com/midagedev/gadak/internal/apprun"
 	"github.com/midagedev/gadak/internal/config"
-	"github.com/midagedev/gadak/internal/origin"
 )
 
 // TestGDK658StandaloneOriginAfterApplicationNew is the GDK-658 contract:
 // StartOriginPassthrough must run after application.New inside run().
 // wails os.Exits a second instance inside New() without running defers
 // (v3/pkg/application/application.go alreadyRunningError path), so persist
-// taken first is abandoned — and a second launch dies on ErrWorkspaceBusy
-// instead of handing off to the first window.
+// taken first is abandoned. A second GUI instance is still SingleInstance
+// handoff; WAL allows a second process to embed the same persist.
 //
 // The sequence owner is internal/apprun; this file pins the desktop caller.
 // FAIL-first: with the call still above New() this fails at the index check.
@@ -103,11 +101,10 @@ func exprCallName(fun ast.Expr) string {
 	return ""
 }
 
-// TestGDK658SecondProcessStandaloneListenerBusy is Q1 as a real second
-// process: with the parent holding the persist lock, the origin passthrough
-// must return ErrWorkspaceBusy and must not write advertise. This is why a
-// second desktop launch never reached application.New before GDK-658.
-func TestGDK658SecondProcessStandaloneListenerBusy(t *testing.T) {
+// TestGDK658SecondProcessStandaloneEmbeds is Q1 after GDK-936: a second
+// process may embed the same WAL persist. SingleInstance still owns the
+// GUI; this test is the origin session, not the window.
+func TestGDK658SecondProcessStandaloneEmbeds(t *testing.T) {
 	if os.Getenv("GDK658_CHILD") == "1" {
 		cfg, err := config.Load()
 		if err != nil {
@@ -115,47 +112,28 @@ func TestGDK658SecondProcessStandaloneListenerBusy(t *testing.T) {
 			os.Exit(1)
 		}
 		_, err = apprun.StartOriginPassthrough(cfg, http.NotFoundHandler())
-		if err == nil {
-			fmt.Fprintln(os.Stderr, "GDK658_ACQUIRED")
-			os.Exit(0)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "other: %v\n", err)
+			os.Exit(1)
 		}
-		if errors.Is(err, origin.ErrWorkspaceBusy) {
-			fmt.Fprintln(os.Stderr, "GDK658_BUSY")
-			os.Exit(2)
-		}
-		fmt.Fprintf(os.Stderr, "other: %v\n", err)
-		os.Exit(1)
+		fmt.Fprintln(os.Stderr, "GDK658_ACQUIRED")
+		os.Exit(0)
 	}
 
 	cfg, api := standaloneApp(t)
-	origin.SetInProcess(cfg, true)
 	stop, err := apprun.StartOriginPassthrough(cfg, api)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer stop()
 
-	advPath := origin.AdvertisePath(cfg.Directory())
-	before, err := os.ReadFile(advPath)
-	if err != nil {
-		t.Fatalf("parent advertise: %v", err)
-	}
-
-	cmd := exec.Command(os.Args[0], "-test.run=^TestGDK658SecondProcessStandaloneListenerBusy$", "-test.v=false")
+	cmd := exec.Command(os.Args[0], "-test.run=^TestGDK658SecondProcessStandaloneEmbeds$", "-test.v=false")
 	cmd.Env = append(os.Environ(), "GDK658_CHILD=1")
 	out, err := cmd.CombinedOutput()
-	if err == nil {
-		t.Fatalf("child acquired standalone origin while parent held the lock; out=%s", out)
-	}
-	if !strings.Contains(string(out), "GDK658_BUSY") {
-		t.Fatalf("child want GDK658_BUSY, err=%v out=%s", err, out)
-	}
-
-	after, err := os.ReadFile(advPath)
 	if err != nil {
-		t.Fatalf("advertise missing after child: %v", err)
+		t.Fatalf("child failed to embed: err=%v out=%s", err, out)
 	}
-	if string(after) != string(before) {
-		t.Fatalf("child overwrote advertise:\n before=%s\n after=%s", before, after)
+	if !strings.Contains(string(out), "GDK658_ACQUIRED") {
+		t.Fatalf("child want GDK658_ACQUIRED, err=%v out=%s", err, out)
 	}
 }
