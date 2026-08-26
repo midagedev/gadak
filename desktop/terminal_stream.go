@@ -31,6 +31,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
+	"sync/atomic"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 
@@ -158,18 +159,31 @@ func serveTerminalStream(c termStreamConn, mgr *term.Manager) {
 	// attachment already ended (term.Session.detach ignores a stale one).
 	defer att.Detach()
 
+	// Written here and by the reader goroutine, and read by the deferred log
+	// below while that reader may still be parked in Receive — three accesses
+	// across two goroutines, so it is atomic rather than a plain string. A
+	// plain one is a data race that `go test -race ./desktop/...` reports.
+	var reason atomic.Value
+	reason.Store("context done")
+	log.Printf("desktop: terminal stream: attached session %s", msg.ID)
+	defer func() {
+		log.Printf("desktop: terminal stream: session %s ended: %s", msg.ID, reason.Load())
+	}()
+
 	if err := sendTermJSON(c, termAttachedMsg{T: "attached"}); err != nil {
+		reason.Store("receive error")
 		return
 	}
 
 	ctx, cancel := context.WithCancel(c.Context())
 	defer cancel()
-	go terminalStreamRead(ctx, cancel, c, sess)
+	go terminalStreamRead(ctx, cancel, c, sess, &reason)
 
 	for {
 		select {
 		case chunk := <-att.C():
 			if err := c.Send(termDataFrame(chunk)); err != nil {
+				reason.Store("receive error")
 				return
 			}
 		case <-att.Done():
@@ -186,11 +200,14 @@ func serveTerminalStream(c termStreamConn, mgr *term.Manager) {
 
 // terminalStreamRead is client → Go: keystrokes and resizes. It owns cancel,
 // so a dead connection ends the writer too.
-func terminalStreamRead(ctx context.Context, cancel context.CancelFunc, c termStreamConn, sess *term.Session) {
+func terminalStreamRead(ctx context.Context, cancel context.CancelFunc, c termStreamConn, sess *term.Session, reason *atomic.Value) {
 	defer cancel()
 	for {
 		frame, err := c.Receive()
 		if err != nil {
+			if reason != nil {
+				reason.Store("receive error")
+			}
 			return
 		}
 		if len(frame) == 0 {

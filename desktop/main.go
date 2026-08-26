@@ -29,6 +29,7 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/events"
 
 	gadak "github.com/midagedev/gadak"
+	"github.com/midagedev/gadak/internal/applog"
 	"github.com/midagedev/gadak/internal/apprun"
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/integrations"
@@ -48,6 +49,12 @@ func main() {
 	// each main reads GADAK_WORKSPACE/GADAK_PROFILE/SCRY_PROFILE itself —
 	// this is what makes `GADAK_PROFILE=work open -a Gadak` work.
 	apprun.SelectWorkspace()
+	if dir, err := config.DirFor(""); err != nil {
+		fmt.Fprintf(os.Stderr, "gadak: logs: %v\n", err)
+	} else {
+		closer, _ := applog.Install(dir)
+		defer closer()
+	}
 	if unregisterGadakProtocolIfRequested(os.Args[1:]) {
 		return
 	}

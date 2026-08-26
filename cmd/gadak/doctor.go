@@ -16,6 +16,7 @@ import (
 	"time"
 
 	gadak "github.com/midagedev/gadak"
+	"github.com/midagedev/gadak/internal/applog"
 	"github.com/midagedev/gadak/internal/clitool"
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/origin"
@@ -58,6 +59,17 @@ type doctorReport struct {
 	Sync            map[string]doctorSync `json:"sync"`
 	APIUsage        doctorAPIUsage        `json:"api_usage"`
 	Workspace       doctorWorkspace       `json:"workspace"`
+	Logs            doctorLogs            `json:"logs"`
+}
+
+// doctorLogs is the process log file Install opens under the gadak home.
+// Path is tilde-abbreviated like mirror_path. Size is omitted when the
+// file is absent. Recent is error-ish ring lines, cap 10.
+type doctorLogs struct {
+	Path    string   `json:"path"`
+	Size    *int64   `json:"size,omitempty"`
+	Rotated bool     `json:"rotated"`
+	Recent  []string `json:"recent,omitempty"`
 }
 
 // doctorWorkspace is the one-line consistency view: kind, whether a site
@@ -275,6 +287,7 @@ func collectDoctor() doctorReport {
 	// answer to "is my skill current?".
 	rep.Skill = collectSkillStatus()
 	rep.MCP = collectMCPStatus()
+	rep.Logs = collectLogs()
 
 	path, err := config.DBPath()
 	if err != nil {
@@ -714,7 +727,72 @@ func formatDoctorText(r doctorReport) string {
 	line("api_usage.throttled", strconv.FormatInt(r.APIUsage.Throttled, 10))
 	line("api_usage.retries", strconv.FormatInt(r.APIUsage.Retries, 10))
 
+	if r.Logs.Path != "" {
+		line("logs.path", r.Logs.Path)
+		if r.Logs.Size != nil {
+			line("logs.size", formatBytes(*r.Logs.Size))
+		} else {
+			line("logs.size", "not found")
+		}
+		rotated := "no"
+		if r.Logs.Rotated {
+			rotated = "yes"
+		}
+		line("logs.rotated", rotated)
+		if len(r.Logs.Recent) > 0 {
+			line("logs.recent", strings.Join(r.Logs.Recent, " | "))
+		}
+	}
+
 	return b.String()
+}
+
+func collectLogs() doctorLogs {
+	dir, err := config.DirFor("")
+	if err != nil {
+		return doctorLogs{Path: "unknown"}
+	}
+	p := applog.Path(dir)
+	out := doctorLogs{Path: tildeHome(p)}
+	if fi, err := os.Stat(p); err == nil {
+		sz := fi.Size()
+		out.Size = &sz
+	}
+	if _, err := os.Stat(p + ".1"); err == nil {
+		out.Rotated = true
+	}
+	// The ring only holds what this process logged, and doctor is usually a
+	// fresh process that has logged nothing — so the file is the real source
+	// here and the ring is the fallback for a long-lived one (serve).
+	if lines := errorishLogLines(applog.Tail(dir, 2000), 10); len(lines) > 0 {
+		out.Recent = lines
+	} else {
+		out.Recent = errorishLogLines(applog.Recent(500), 10)
+	}
+	return out
+}
+
+func errorishLogLines(lines []string, capN int) []string {
+	var out []string
+	for i := len(lines) - 1; i >= 0 && len(out) < capN; i-- {
+		if isErrorishLog(lines[i]) {
+			out = append(out, lines[i])
+		}
+	}
+	for i, j := 0, len(out)-1; i < j; i, j = i+1, j-1 {
+		out[i], out[j] = out[j], out[i]
+	}
+	return out
+}
+
+func isErrorishLog(line string) bool {
+	lower := strings.ToLower(line)
+	for _, k := range []string{"error", "failed", "denied", "refused", "panic"} {
+		if strings.Contains(lower, k) {
+			return true
+		}
+	}
+	return false
 }
 
 func formatDoctorCustomFields(cf doctorCustomFields) string {

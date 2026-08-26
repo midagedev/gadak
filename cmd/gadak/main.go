@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/midagedev/gadak/internal/applog"
 	"github.com/midagedev/gadak/internal/apprun"
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/origin"
@@ -221,6 +222,12 @@ Workspaces keep separate credentials and mirrors (e.g. work and demo):
 func main() {
 	log.SetFlags(0)
 	apprun.SelectWorkspace()
+	if dir, err := config.DirFor(""); err != nil {
+		fmt.Fprintf(os.Stderr, "gadak: logs: %v\n", err)
+	} else {
+		closer, _ := applog.Install(dir)
+		defer closer()
+	}
 	// origin.Close checkpoints a standalone issuetap PersistPath (WAL).
 	// Writes commit before ACK; Close is not a debounce flush. os.Exit
 	// below skips defers, so Close is also called on the error path. A

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"testing"
 
 	gadak "github.com/midagedev/gadak"
+	"github.com/midagedev/gadak/internal/applog"
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/store"
@@ -319,6 +321,128 @@ func TestDoctorJSONMatchesHumanFields(t *testing.T) {
 	}
 	if rep.Credential != "absent" || rep.Site != "none" || rep.Email != "none" {
 		t.Fatalf("empty config: credential=%q site=%q email=%q", rep.Credential, rep.Site, rep.Email)
+	}
+}
+
+func TestDoctorLogsSection(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	t.Setenv("HOME", home)
+	config.SetProfile("")
+
+	logsDir := filepath.Join(home, "logs")
+	if err := os.MkdirAll(logsDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	payload := []byte("hello log\n")
+	if err := os.WriteFile(filepath.Join(logsDir, "gadak.log"), payload, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(logsDir, "gadak.log.1"), []byte("old\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := capture(t, func() error { return cmdDoctor(nil) })
+	if err != nil {
+		t.Fatalf("doctor: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "logs.path:") {
+		t.Fatalf("human missing logs section:\n%s", out)
+	}
+	if !strings.Contains(out, "gadak.log") {
+		t.Fatalf("human missing log path:\n%s", out)
+	}
+	if !strings.Contains(out, "rotated") {
+		t.Fatalf("human missing rotation marker:\n%s", out)
+	}
+
+	raw, err := capture(t, func() error { return cmdDoctor([]string{"--json"}) })
+	if err != nil {
+		t.Fatalf("json: %v\n%s", err, raw)
+	}
+	var rep struct {
+		Logs struct {
+			Path    string   `json:"path"`
+			Size    *int64   `json:"size"`
+			Rotated bool     `json:"rotated"`
+			Recent  []string `json:"recent"`
+		} `json:"logs"`
+	}
+	if err := json.Unmarshal([]byte(raw), &rep); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, raw)
+	}
+	if !strings.Contains(rep.Logs.Path, "gadak.log") {
+		t.Fatalf("json logs.path = %q", rep.Logs.Path)
+	}
+	if rep.Logs.Size == nil || *rep.Logs.Size != int64(len(payload)) {
+		t.Fatalf("json logs.size = %v, want %d", rep.Logs.Size, len(payload))
+	}
+	if !rep.Logs.Rotated {
+		t.Fatal("json logs.rotated = false, want true")
+	}
+}
+
+func TestDoctorLogsRecentErrors(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	t.Setenv("HOME", home)
+	config.SetProfile("")
+
+	oldErr := os.Stderr
+	devnull, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stderr = devnull
+	t.Cleanup(func() {
+		os.Stderr = oldErr
+		_ = devnull.Close()
+	})
+
+	prevOut, prevFlags := log.Writer(), log.Flags()
+	closer, err := applog.Install(home)
+	if err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+	t.Cleanup(func() {
+		closer()
+		log.SetOutput(prevOut)
+		log.SetFlags(prevFlags)
+	})
+	log.SetFlags(0)
+	log.Println("ordinary diagnostic")
+	log.Println("sync failed: something")
+	log.Println("permission denied for attach")
+	log.Println("still fine")
+
+	out, err := capture(t, func() error { return cmdDoctor(nil) })
+	if err != nil {
+		t.Fatalf("doctor: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "logs.recent:") {
+		t.Fatalf("human missing logs.recent:\n%s", out)
+	}
+	if !strings.Contains(out, "sync failed") || !strings.Contains(out, "denied") {
+		t.Fatalf("human recent errors missing expected lines:\n%s", out)
+	}
+	if strings.Contains(out, "ordinary diagnostic") || strings.Contains(out, "still fine") {
+		t.Fatalf("non-error lines leaked into logs.recent:\n%s", out)
+	}
+
+	raw, err := capture(t, func() error { return cmdDoctor([]string{"--json"}) })
+	if err != nil {
+		t.Fatalf("json: %v\n%s", err, raw)
+	}
+	var rep struct {
+		Logs struct {
+			Recent []string `json:"recent"`
+		} `json:"logs"`
+	}
+	if err := json.Unmarshal([]byte(raw), &rep); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, raw)
+	}
+	if len(rep.Logs.Recent) != 2 {
+		t.Fatalf("json recent = %#v, want 2 error-ish lines", rep.Logs.Recent)
 	}
 }
 

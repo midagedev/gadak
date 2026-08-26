@@ -285,6 +285,7 @@ func (s *server) handleTerminalCreate(w http.ResponseWriter, r *http.Request, to
 		s.startTerminalRevokeWatch()
 	}
 	info := sess.Info()
+	log.Printf("server: terminal create: session %s", info.ID)
 	writeJSON(w, http.StatusOK, terminalSessionDoc{ID: info.ID, Cols: info.Cols, Rows: info.Rows})
 }
 
