@@ -8,14 +8,18 @@ import { defineConfig, devices } from '@playwright/test'
  * pane — the agent and the board it drives are finally in one frame, where
  * every earlier clip had to draw a paper terminal beside an app iframe.
  *
- * 1440x1080 (4:3). The first cut of this used 1080x1350, the 4:5 social
- * frame the tokens / dashboards cuts use — and that was the wrong frame for
- * *this* subject. Those clips shoot one column; this one shoots a shell and
- * the board it drives, side by side, and a portrait crop squeezes a
- * three-column app until neither half is readable. 4:3 still takes far more
- * of a phone timeline than 16:9 and gives the terminal its full width beside
- * a list that is still a list. Playwright letterboxes when the video size and
- * the viewport disagree, so the two move together or not at all.
+ * 1440x900 (16:10) — a window shape, which is what this clip is of.
+ *
+ * It got here by walking down: 1080x1350 (4:5) first, borrowed from the
+ * single-column tokens / dashboards cuts, and wrong for this subject — a
+ * portrait crop squeezes a three-column app until neither the shell nor the
+ * board reads. Then 1440x1080 (4:3), which fixed the width and left more
+ * height than the content wants: the terminal and the list both run out of
+ * things to say before the frame runs out of room. 16:10 keeps the full
+ * width, and the app looks like an app on a laptop rather than a tall box.
+ *
+ * Playwright letterboxes when the video size and the viewport disagree, so
+ * the two move together or not at all.
  *
  * No webServer block: record-terminal-claude.sh owns the serve, because the
  * PTY has to inherit an environment Playwright cannot express — the isolated
@@ -49,11 +53,11 @@ export default defineConfig({
     baseURL: `http://127.0.0.1:${PORT}`,
     locale: 'en-US',
     colorScheme: 'light',
-    viewport: { width: 1440, height: 1080 },
+    viewport: { width: 1440, height: 900 },
     deviceScaleFactor: 2,
     video: {
       mode: 'on',
-      size: { width: 1440, height: 1080 },
+      size: { width: 1440, height: 900 },
     },
     launchOptions: { slowMo: 0 },
     actionTimeout: 30_000,
@@ -66,7 +70,7 @@ export default defineConfig({
       use: {
         ...devices['Desktop Chrome'],
         colorScheme: 'light',
-        viewport: { width: 1440, height: 1080 },
+        viewport: { width: 1440, height: 900 },
         deviceScaleFactor: 2,
       },
     },

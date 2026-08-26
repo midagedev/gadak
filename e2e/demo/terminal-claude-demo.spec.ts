@@ -33,7 +33,7 @@
  * this config on its own attaches to whatever is on the port and will record
  * the operator's real home directory into the frame.
  *
- * Viewport and video size must stay 1440×1080 (terminal-claude.config.ts) or
+ * Viewport and video size must stay 1440×900 (terminal-claude.config.ts) or
  * Playwright letterboxes the capture.
  */
 import { test, expect, type Page } from '@playwright/test'
