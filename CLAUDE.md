@@ -97,6 +97,15 @@ hard-won 목록)와 `AGENTS.md`(스키마·쿼리)가 원본이다.
   푸시는 스크립트가 하지 않는다.
 - 로컬 Node는 CI와 같아야 한다 — 버전의 단일 소유자는 `.nvmrc`(`nvm use`).
   로컬 24/CI 20 격차가 결함 하나를 여러 푸시 동안 숨긴 적이 있다(GDK-57).
+- **의존성을 하나라도 건드렸으면 `bash tools/check-lockfile-platforms.sh`도
+  게이트다.** macOS에서 `npm install`이 lockfile을 재해결하면 npm 10은
+  darwin-arm64 것만 남기고 다른 플랫폼의 optional 네이티브 바이너리를 전부
+  지운다(2026-08-26: `@rollup/rollup-*` 75→26, `@esbuild/*` 78→27). 로컬은
+  전부 초록이다 — 없어진 게 이 머신이 안 쓰는 것들이라서. CI는 linux-x64라
+  `vite build`가 두 잡에서 죽었다. **고칠 때 lockfile을 지우고 재설치하지
+  마라** — 그게 애초에 잘라먹은 경로다. 플랫폼이 살아 있던 마지막 lockfile을
+  복원한 뒤(`git show <ref>:package-lock.json > package-lock.json`)
+  `npm install --package-lock-only`로 바뀐 의존성만 갱신한다.
 - 데모 fixture는 `examples/demo.db`(이슈 534). 수치를 문서에 박을 때는
   실측 후, 가능하면 숫자 자체를 빼라.
 
