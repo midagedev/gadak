@@ -12,6 +12,10 @@
  *   web/public/icon-32.png
  *   web/public/icon-512.png
  *   web/public/apple-touch-icon.png
+ *
+ * The desktop app resizes docs/media/logo.png at build time, so it follows
+ * this file on its own. The phone app's set is generated — see
+ * tools/brand/mobile-icons.sh. `make brand` runs both.
  */
 import { chromium } from '@playwright/test'
 import { mkdirSync } from 'node:fs'
