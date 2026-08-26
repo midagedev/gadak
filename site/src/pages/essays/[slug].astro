@@ -1,0 +1,44 @@
+---
+import Base from '../../layouts/Base.astro'
+import { listEssays } from '../../lib/essays'
+import '../../styles/changelog.css'
+
+export async function getStaticPaths() {
+  return (await listEssays()).map((essay) => ({ params: { slug: essay.slug }, props: { essay } }))
+}
+
+const { essay } = Astro.props
+const origin = Astro.site ? Astro.site.href.replace(/\/$/, '') : ''
+const url = `${origin}/essays/${essay.slug}/`
+
+// Same honesty rule as the changelog page: every field is read off the
+// essay's own frontmatter or off site facts, nothing asserted for the
+// crawler that the page does not also show.
+const jsonLd = JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'Article',
+  headline: essay.title,
+  description: essay.description,
+  datePublished: essay.date,
+  inLanguage: essay.lang,
+  mainEntityOfPage: url,
+  url,
+  image: `${origin}/og.png`,
+  author: { '@type': 'Person', name: 'midagedev', url: 'https://github.com/midagedev' },
+})
+---
+
+<Base
+  lang="en"
+  noAltLang
+  title={essay.title}
+  description={essay.description}
+  ogType="article"
+  jsonLd={jsonLd}
+>
+  <article class="changelog">
+    <h1>{essay.title}</h1>
+    <p class="note"><time datetime={essay.date}>{essay.date}</time></p>
+    <Fragment set:html={essay.html} />
+  </article>
+</Base>

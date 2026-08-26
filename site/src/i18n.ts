@@ -6,7 +6,7 @@ export const strings = {
     title: 'gadak — Same Jira. No waiting.',
     description:
       'The Jira your company already runs — issues and the Confluence wiki — mirrored into one local SQLite file. Search lands in milliseconds on 20,000 issues. Reads never touch the network.',
-    nav: { demo: 'Live demo', changelog: 'Changelog', install: 'Install', github: 'GitHub' },
+    nav: { demo: 'Live demo', changelog: 'Changelog', essays: 'Essays', install: 'Install', github: 'GitHub' },
     copy: { label: 'Copy', copied: 'Copied' },
     ogImageAlt:
       'gadak — Same Jira. No waiting. Your team’s Jira and its Confluence wiki, mirrored into one local SQLite file.',
@@ -130,7 +130,7 @@ export const strings = {
     title: 'gadak — 같은 지라, 기다림 없이.',
     description:
       '회사가 쓰는 그 Jira를 — 이슈도 Confluence 위키도 — 로컬 SQLite 파일 하나로 미러링합니다. 2만 건에서도 검색은 밀리초 단위. 읽기는 네트워크를 건드리지 않습니다.',
-    nav: { demo: '라이브 데모', changelog: '체인지로그', install: '설치', github: 'GitHub' },
+    nav: { demo: '라이브 데모', changelog: '체인지로그', essays: '에세이', install: '설치', github: 'GitHub' },
     copy: { label: '복사', copied: '복사됨' },
     ogImageAlt: 'gadak — 같은 Jira, 기다림 없이. 팀의 Jira와 Confluence 위키를 로컬 SQLite 파일 하나로 미러링.',
     langName: '한국어',

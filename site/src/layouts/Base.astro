@@ -10,15 +10,29 @@ interface Props {
   ogType?: 'website' | 'article'
   /** JSON-LD, already stringified by the page. Emitted verbatim in <head>. */
   jsonLd?: string
+  /**
+   * This page has no mirror in the other locale (the essays are en-only).
+   * The head then claims no hreflang alternates — an alternate that 404s is
+   * worse than none — the language banner stays hidden (the page is not
+   * offered in ko), and the header switcher falls back to the other
+   * locale's home instead of a dead path.
+   */
+  noAltLang?: boolean
 }
-const { lang, title, description, ogType = 'website', jsonLd } = Astro.props
+const { lang, title, description, ogType = 'website', jsonLd, noAltLang = false } = Astro.props
 const t = strings[lang]
 const origin = Astro.site ? Astro.site.href.replace(/\/$/, '') : ''
 // The mirror page in the other language. en '/' ↔ ko '/ko/', en '/install/' ↔ ko '/ko/install/'.
 const altLang: Locale = lang === 'en' ? 'ko' : 'en'
 const ta = strings[altLang]
 const enPath = lang === 'en' ? Astro.url.pathname : Astro.url.pathname.replace(/^\/ko/, '') || '/'
-const altPath = lang === 'en' ? `/ko${Astro.url.pathname === '/' ? '/' : Astro.url.pathname}` : enPath
+const altPath = noAltLang
+  ? altLang === 'ko'
+    ? '/ko/'
+    : '/'
+  : lang === 'en'
+    ? `/ko${Astro.url.pathname === '/' ? '/' : Astro.url.pathname}`
+    : enPath
 ---
 
 <!doctype html>
@@ -34,7 +48,9 @@ const altPath = lang === 'en' ? `/ko${Astro.url.pathname === '/' ? '/' : Astro.u
     <meta property="og:description" content={description} />
     <meta property="og:url" content={`${origin}${Astro.url.pathname}`} />
     <meta property="og:locale" content={lang === 'en' ? 'en_US' : 'ko_KR'} />
-    <meta property="og:locale:alternate" content={lang === 'en' ? 'ko_KR' : 'en_US'} />
+    {!noAltLang && (
+      <meta property="og:locale:alternate" content={lang === 'en' ? 'ko_KR' : 'en_US'} />
+    )}
     <meta property="og:image" content={`${origin}/og.png`} />
     <meta property="og:image:width" content="1280" />
     <meta property="og:image:height" content="640" />
@@ -44,9 +60,13 @@ const altPath = lang === 'en' ? `/ko${Astro.url.pathname === '/' ? '/' : Astro.u
         reachable at more than one address (trailing slash, query, the
         preview host) and search engines pick a winner for us. */}
     <link rel="canonical" href={`${origin}${Astro.url.pathname}`} />
-    <link rel="alternate" hreflang={lang} href={Astro.url} />
-    <link rel="alternate" hreflang={altLang} href={`${origin}${altPath}`} />
-    <link rel="alternate" hreflang="x-default" href={`${origin}${enPath}`} />
+    {!noAltLang && (
+      <>
+        <link rel="alternate" hreflang={lang} href={Astro.url} />
+        <link rel="alternate" hreflang={altLang} href={`${origin}${altPath}`} />
+        <link rel="alternate" hreflang="x-default" href={`${origin}${enPath}`} />
+      </>
+    )}
     <link rel="icon" type="image/png" sizes="32x32" href="/icon-32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/icon-16.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
@@ -66,6 +86,7 @@ const altPath = lang === 'en' ? `/ko${Astro.url.pathname === '/' ? '/' : Astro.u
     {/* Locale suggestion, never a forced redirect: static and hidden; the
         inline script below reveals it only when the browser's primary
         language matches the other page and no explicit choice is stored. */}
+    {!noAltLang && (
     <div class="lang-banner" id="lang-banner" hidden>
       <div class="lang-banner-inner">
         <span>{ta.langBanner.offer}</span>
@@ -73,6 +94,7 @@ const altPath = lang === 'en' ? `/ko${Astro.url.pathname === '/' ? '/' : Astro.u
         <button type="button" id="lang-banner-dismiss" aria-label={ta.langBanner.dismiss}>×</button>
       </div>
     </div>
+    )}
     <header>
       <nav>
         <a class="wordmark" href={lang === 'en' ? '/' : '/ko/'}>gadak</a>
@@ -85,6 +107,9 @@ const altPath = lang === 'en' ? `/ko${Astro.url.pathname === '/' ? '/' : Astro.u
               that the thing is alive, and sending that traffic away spends it
               somewhere else. */}
           <a href={lang === 'en' ? '/changelog/' : '/ko/changelog/'}>{t.nav.changelog}</a>
+          {/* Essays are en-only canonical: one URL from both locales,
+              like the GitHub link. */}
+          <a href="/essays/">{t.nav.essays}</a>
           <a href={lang === 'en' ? '/install/' : '/ko/install/'}>{t.nav.install}</a>
           <a href="https://github.com/midagedev/gadak">{t.nav.github}</a>
           <a data-lang-choice={altLang} href={altPath}>{ta.langName}</a>

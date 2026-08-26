@@ -60,11 +60,23 @@ function readReleases(html: string): Release[] {
   return out
 }
 
+/**
+ * Render markdown with the site's one processor. The changelog and the
+ * essays (src/lib/essays.ts) both go through this call, so heading ids,
+ * smartypants, and link syntax behave identically everywhere this site
+ * serves prose. A handful of calls per build; the processor is created
+ * per call because that is the supported shape for ad-hoc rendering.
+ */
+export async function renderMarkdown(md: string): Promise<string> {
+  const processor = await createMarkdownProcessor({})
+  const { code } = await processor.render(md)
+  return code
+}
+
 export async function renderChangelog(
   lang: Locale,
 ): Promise<{ html: string; releases: Release[] }> {
   const raw = readFileSync(new URL(FILES[lang], import.meta.url), 'utf8')
-  const processor = await createMarkdownProcessor({})
-  const { code } = await processor.render(stripTitleBlock(raw))
-  return { html: code, releases: readReleases(code) }
+  const html = await renderMarkdown(stripTitleBlock(raw))
+  return { html, releases: readReleases(html) }
 }

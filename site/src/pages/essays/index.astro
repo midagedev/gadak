@@ -1,0 +1,50 @@
+---
+import Base from '../../layouts/Base.astro'
+import { listEssays } from '../../lib/essays'
+import '../../styles/changelog.css'
+
+const essays = await listEssays()
+const origin = Astro.site ? Astro.site.href.replace(/\/$/, '') : ''
+
+const jsonLd = JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'ItemList',
+  name: 'gadak essays',
+  itemListElement: essays.map((e, i) => ({
+    '@type': 'ListItem',
+    position: i + 1,
+    name: e.title,
+    url: `${origin}/essays/${e.slug}/`,
+  })),
+})
+---
+
+<Base
+  lang="en"
+  noAltLang
+  title="Essays — gadak"
+  description="The decisions and measurements behind gadak, in the words of the person who shipped them — each essay canonical at its own URL."
+  jsonLd={jsonLd}
+>
+  <article class="changelog">
+    <h1>Essays</h1>
+    <p class="lede">
+      The decisions and measurements behind gadak, in the words of the person who shipped
+      them — each essay canonical at its own URL.
+    </p>
+
+    {
+      essays.map((e) => (
+        <section>
+          <h2>
+            <a href={`/essays/${e.slug}/`}>{e.title}</a>
+          </h2>
+          <p class="note">
+            <time datetime={e.date}>{e.date}</time>
+          </p>
+          <p>{e.description}</p>
+        </section>
+      ))
+    }
+  </article>
+</Base>
