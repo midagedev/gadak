@@ -64,6 +64,15 @@ hard-won 목록)와 `AGENTS.md`(스키마·쿼리)가 원본이다.
   npm run check && npm run lint:ios`도 게이트다 (2026-08-26: 웹에서 지운
   i18n 키를 `mobile/src/screens/Shell.svelte`가 계속 써서, 로컬 go·typecheck·
   vitest·e2e 326·doc-checks가 전부 초록인 채로 Mobile 잡만 빨갰다).
+- **브랜드 마크(`docs/media/logo.png`)를 건드렸으면 `make brand`가 게이트다.**
+  데스크톱은 빌드 때 그 로고를 리사이즈하니 새 마크를 자동으로 집지만, 폰
+  아이콘은 생성해 커밋하는 파일이라 따라오지 않는다 — 2026-08-27까지 폰은
+  스캐폴드 기본 아이콘을 달고 있었다. 재생성 없이 커밋하면
+  `tools/check-brand-icons.sh`(CI Mobile 잡)가 빨강이다. iOS 세트는 트리에
+  사본이 둘(`mobile/src-tauri/icons/ios/`와
+  `mobile/src-tauri/gen/apple/Assets.xcassets/`)이고 `tauri icon`은 후자만
+  쓴다 — `tools/brand/mobile-icons.sh`가 앞쪽을 미러링하고, 게이트가 둘의
+  일치를 잰다.
 - **e2e 직렬화의 실체는 락 파일이 아니라 포트다** (2026-08-23 실측 교정 —
   종전의 "저장소 전역 락 파일·600s" 문구는 타 레포 규칙의 오복사): serve가
   `127.0.0.1:7877` 하드코드 + 단일 `e2e/.tmp/home` + Playwright `workers: 1`.

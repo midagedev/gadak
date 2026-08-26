@@ -86,8 +86,14 @@ plugins-test:
 # Requires: ffmpeg, vhs (charmbracelet), Node 20+, Playwright chromium, Go.
 MEDIA_DIR := docs/media
 
+# Every surface's mark comes from docs/media/logo.png: the desktop resizes
+# it at build time (desktop/build-app.sh), the web icons are rendered
+# beside it, and the phone app's set is generated here. Needs the mobile
+# workspace installed (npm ci --prefix mobile) for the tauri CLI.
 brand:
 	node tools/brand/render.mjs
+	bash tools/brand/mobile-icons.sh
+	bash tools/check-brand-icons.sh
 
 # media-mcp is deliberately not here: it needs vhs and a Claude Code login,
 # and every run spends the operator's own model quota. Re-take it on purpose.

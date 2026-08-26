@@ -134,6 +134,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The phone icons are generated from docs/media/logo.png, the same
+      # source the desktop resizes at build time. Nothing else notices when
+      # the mark changes and this set is not regenerated. Pure shell — it
+      # runs before the installs so a drifted icon fails fast.
+      - name: Brand icons match the brand source
+        run: bash tools/check-brand-icons.sh
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:

@@ -1,0 +1,4 @@
+# The brand source these icons were generated from.
+# Regenerate: make brand   (tools/brand/mobile-icons.sh)
+# Verify:     bash tools/check-brand-icons.sh
+docs/media/logo.png  0e6d51688db3f2fbd7c9bd494f460f27c232dc294f4d989c19898bff310264d3
