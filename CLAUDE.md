@@ -58,6 +58,12 @@ hard-won 목록)와 `AGENTS.md`(스키마·쿼리)가 원본이다.
   없어 데스크톱 CI 3개 잡이 빨갛게 됐다 — 로컬 go 전체는 초록이었다.
 - 웹: `make typecheck` (svelte-check). e2e: Playwright, CI 세트는
   `e2e/*.spec.ts`(demo/·hosted/·perf/ 제외 — `e2e/playwright.config.ts`).
+- **`mobile/`은 루트 게이트가 보지 않는다** — 자기 tsconfig·자기 lockfile을
+  갖고 있으면서 `web/src`의 일부 모듈(i18n 카탈로그, `lib/terminal/protocol`)을
+  직접 import한다. **그 둘 중 하나를 건드렸으면** `cd mobile && npm test &&
+  npm run check && npm run lint:ios`도 게이트다 (2026-08-26: 웹에서 지운
+  i18n 키를 `mobile/src/screens/Shell.svelte`가 계속 써서, 로컬 go·typecheck·
+  vitest·e2e 326·doc-checks가 전부 초록인 채로 Mobile 잡만 빨갰다).
 - **e2e 직렬화의 실체는 락 파일이 아니라 포트다** (2026-08-23 실측 교정 —
   종전의 "저장소 전역 락 파일·600s" 문구는 타 레포 규칙의 오복사): serve가
   `127.0.0.1:7877` 하드코드 + 단일 `e2e/.tmp/home` + Playwright `workers: 1`.

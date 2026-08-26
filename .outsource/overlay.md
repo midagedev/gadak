@@ -18,6 +18,7 @@
 | Go | `go build ./... && go vet ./... && go test ./... -count=1` && `gofmt -l`(빈 출력 — CI에 gofmt 잡) |
 | 웹 타입체크 | `make typecheck` (svelte-check) |
 | 웹 유닛 | `npx vitest run` |
+| **mobile 모듈** | **i18n 카탈로그나 `web/src/lib/terminal/`을 건드렸으면** `cd mobile && npm test && npm run check && npm run lint:ios` — 폰 앱은 자기 tsconfig·자기 lockfile을 갖고 `web/src`에서 일부 모듈을 직접 import한다. 루트 `make typecheck`는 폰을 보지 않는다 (2026-08-26: 웹에서 지운 i18n 키를 `mobile/src/screens/Shell.svelte`가 여전히 써서, 로컬 전부 초록인데 Mobile 잡만 빨갰다) |
 | e2e (CI 세트) | `npx playwright test --config e2e/playwright.config.ts` — **web/·e2e/·i18n 카탈로그를 건드렸으면 선택이 아니다** |
 | 문서 사실성 | `bash tools/doc-checks.sh` |
 | 내부 문자열 | `bash scripts/scan-internal.sh` — IP 리터럴·호스트명·홈 경로가 들어가는 커밋이면 게이트다(CI와 같은 스크립트). **마지막 편집이 끝난 뒤에 돌린다** |

@@ -26,8 +26,19 @@
   } from '../lib/terminal/keys'
   import { imeReduce, IME_INPUT_ATTRS, type ImeState } from '../lib/terminal/ime'
   import { createRenderer, type PhoneTerminalRenderer } from '../lib/terminal/renderer'
-  import { coerceDroppedReason } from '../../../web/src/lib/terminal/protocol'
-  import type { DroppedReason, SocketHandle } from '../../../web/src/lib/terminal/protocol'
+  import {
+    classifyUnavailable,
+    coerceDroppedReason,
+    droppedAllowsRestart,
+    unavailableAllowsRestart,
+    UNAVAILABLE_KEYS,
+  } from '../../../web/src/lib/terminal/protocol'
+  import type {
+    DroppedReason,
+    SocketHandle,
+    UnavailableCause,
+  } from '../../../web/src/lib/terminal/protocol'
+  import { ApiError } from '../lib/api'
 
   // Copied from web/src/lib/terminal/session.ts — that module imports the
   // wails transport, which the phone must not resolve.
@@ -41,7 +52,7 @@
     | { kind: 'reconnecting' }
     | { kind: 'exited'; code: number }
     | { kind: 'dropped'; reason: DroppedReason }
-    | { kind: 'unavailable' }
+    | { kind: 'unavailable'; cause: UnavailableCause; detail?: string }
 
   const DROPPED_KEYS: Record<DroppedReason, 'terminal.dropped.slow_client' | 'terminal.dropped.token_revoked' | 'terminal.dropped.idle_timeout' | 'terminal.dropped.server_shutdown' | 'terminal.dropped.closed'> = {
     slow_client: 'terminal.dropped.slow_client',
@@ -135,6 +146,10 @@
     if (phase === 'ended' || phase === 'unavailable') {
       const enter = bytes.length === 1 && (bytes[0] === 13 || bytes[0] === 10)
       if (enter) {
+        // No PTY on the host and no shell for a revoked token: a restart
+        // cannot succeed, so it is not offered and not performed.
+        if (status.kind === 'unavailable' && !unavailableAllowsRestart(status.cause)) return
+        if (status.kind === 'dropped' && !droppedAllowsRestart(status.reason)) return
         status = { kind: 'connecting' }
         phase = 'live'
         reconnectSince = 0
@@ -303,8 +318,10 @@
             return
           }
           if (neverOpened && opts.afterCreate) {
+            // The POST was accepted, so this is not a permission verdict:
+            // the socket itself never came up.
             phase = 'unavailable'
-            status = { kind: 'unavailable' }
+            status = { kind: 'unavailable', cause: 'network' }
             keptSessionId = null
             return
           }
@@ -345,10 +362,20 @@
     }, delay)
   }
 
-  function onCreateFail(): void {
+  // The phone's adapter onto the shared classifier. A scope_rejected here is
+  // the common one: a serve QR scanned into the terminal slot.
+  function onCreateFail(err?: unknown): void {
     if (cancelled) return
     phase = 'unavailable'
-    status = { kind: 'unavailable' }
+    if (err instanceof ApiError) {
+      const cause = classifyUnavailable(err.status, err.code)
+      status =
+        cause === 'failed'
+          ? { kind: 'unavailable', cause, detail: err.message }
+          : { kind: 'unavailable', cause }
+    } else {
+      status = { kind: 'unavailable', cause: 'network' }
+    }
     keptSessionId = null
   }
 
@@ -502,10 +529,20 @@
           <span class="hint"> · {t('terminal.restartHint')}</span>
         {:else if status.kind === 'dropped'}
           {t(DROPPED_KEYS[status.reason])}
-          <span class="hint"> · {t('terminal.restartHint')}</span>
+          {#if droppedAllowsRestart(status.reason)}
+            <span class="hint"> · {t('terminal.restartHint')}</span>
+          {:else}
+            <span class="hint"> · {t('terminal.mintHint')}</span>
+          {/if}
         {:else}
-          {t('terminal.unavailable')}
-          <span class="hint"> · {t('terminal.restartHint')}</span>
+          {#if status.cause === 'failed'}
+            {t('terminal.unavailable.failed', { message: status.detail ?? '' })}
+          {:else}
+            {t(UNAVAILABLE_KEYS[status.cause])}
+          {/if}
+          {#if unavailableAllowsRestart(status.cause)}
+            <span class="hint"> · {t('terminal.restartHint')}</span>
+          {/if}
         {/if}
       </button>
     {/if}

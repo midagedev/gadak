@@ -17,6 +17,11 @@ const HERE = dirname(fileURLToPath(import.meta.url))
 const WRITE_GO = join(HERE, '../../../../internal/server/write.go')
 const WEB_SRC = join(HERE, '../..')
 const E2E_ROOT = join(HERE, '../../../../e2e')
+// The phone is a second app with its own tsconfig and its own lockfile, and
+// it reads this catalog. Nothing at the repo root typechecks it, so a key
+// deleted here stays green through every web gate and turns the Mobile CI
+// job red on its own (2026-08-26, `terminal.unavailable`).
+const MOBILE_SRC = join(HERE, '../../../../mobile/src')
 
 /**
  * Keys built at runtime, not written as literals:
@@ -67,9 +72,11 @@ function isCatalogDefinition(p: string): boolean {
 }
 
 function unusedCatalogKeys(): string[] {
-  const files = [...walkSourceFiles(WEB_SRC), ...walkSourceFiles(E2E_ROOT)].filter(
-    (f) => !isCatalogDefinition(f),
-  )
+  const files = [
+    ...walkSourceFiles(WEB_SRC),
+    ...walkSourceFiles(E2E_ROOT),
+    ...walkSourceFiles(MOBILE_SRC),
+  ].filter((f) => !isCatalogDefinition(f))
   const blobs = files.map((f) => readFileSync(f, 'utf8'))
   const extra = new Set<string>(Object.values(WRITE_ERROR_KEYS))
   const unused: string[] = []
@@ -97,7 +104,38 @@ function failCreateCodes(src: string): string[] {
   return [...new Set(codes)]
 }
 
+/**
+ * `t('some.key')` literals in a tree, as (key, file) pairs.
+ *
+ * Deliberately literal-only: a key built at runtime is invisible here, which
+ * is the same honest limit `unusedCatalogKeys` carries.
+ */
+function quotedTKeys(root: string): { key: string; file: string }[] {
+  const out: { key: string; file: string }[] = []
+  for (const file of walkSourceFiles(root)) {
+    const src = readFileSync(file, 'utf8')
+    for (const m of src.matchAll(/\bt\(\s*'([A-Za-z][\w-]*(?:\.[\w-]+)+)'/g)) {
+      out.push({ key: m[1], file })
+    }
+  }
+  return out
+}
+
 describe('catalog contracts', () => {
+  // The web suite runs on every change; mobile's does not. So the web suite
+  // is where a key the phone depends on has to be defended — otherwise the
+  // first sign of a deletion is a red CI job on a diff that never opened
+  // mobile/.
+  test('every key the phone asks for exists in the catalog', () => {
+    const refs = quotedTKeys(MOBILE_SRC)
+    expect(refs.length, 'mobile/src must contain t() calls at all').toBeGreaterThan(10)
+    const missing = refs
+      .filter(({ key }) => !hasDynamicPrefix(key) && !(key in en))
+      .map(({ key, file }) => `${key} (${file.slice(file.indexOf('mobile/'))})`)
+    expect([...new Set(missing)], missing.join('\n')).toEqual([])
+  })
+
+
   test('derived locale tables match the per-key catalog', () => {
     // t() reads the derived tables; a mismatch here is copy that the UI
     // never shows.

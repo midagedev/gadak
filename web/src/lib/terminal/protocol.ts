@@ -38,6 +38,60 @@ export function coerceDroppedReason(raw: unknown): DroppedReason {
     : 'closed'
 }
 
+/*
+ * Why a shell could not be opened, and what a host may offer next.
+ *
+ * This sits with the wire vocabulary for the same reason the vocabulary
+ * does: the browser pane and the phone are two hosts that must reach the
+ * same verdict from the same server response. The first cut of this lived
+ * in ./session, which the phone cannot import, so the phone kept its own
+ * one-sentence version — and removing that sentence turned the phone's
+ * typecheck red on a change that never touched it (2026-08-26). One owner,
+ * two adapters: each host unwraps its own error class and hands over the
+ * status and code.
+ */
+
+export type UnavailableCause = 'unsupported' | 'forbidden' | 'failed' | 'network'
+
+/** 403 scope_rejected / forbidden_host, 401 pairing_rejected — the shapes
+ *  internal/server/mirror_gate.go answers with. */
+const FORBIDDEN_CODES: ReadonlySet<string> = new Set([
+  'scope_rejected',
+  'forbidden_host',
+  'pairing_rejected',
+])
+
+/** Keyed on the server's error *code*, never on a localized string. The
+ *  status is the fallback for a body that carried no code. */
+export function classifyUnavailable(status: number, code: string | null): UnavailableCause {
+  if (code === 'terminal_unsupported' || status === 501) return 'unsupported'
+  if ((code !== null && FORBIDDEN_CODES.has(code)) || status === 401 || status === 403) {
+    return 'forbidden'
+  }
+  if (code === 'terminal_failed' || status === 500) return 'failed'
+  return 'network'
+}
+
+/** The i18n key for each cause. Both hosts render the same sentence. */
+export const UNAVAILABLE_KEYS = {
+  unsupported: 'terminal.unavailable.unsupported',
+  forbidden: 'terminal.unavailable.forbidden',
+  failed: 'terminal.unavailable.failed',
+  network: 'terminal.unavailable.network',
+} as const
+
+/** Windows has no PTY, so no retry can succeed there; everything else is
+ *  worth one more try, because the user asked for it. */
+export function unavailableAllowsRestart(cause: UnavailableCause): boolean {
+  return cause !== 'unsupported'
+}
+
+/** A revoked token cannot open another shell — offering "press Enter" there
+ *  is advice that fails the moment it is followed. */
+export function droppedAllowsRestart(reason: DroppedReason): boolean {
+  return reason !== 'token_revoked'
+}
+
 /** One client's view of a live session, whatever carries the bytes. */
 export interface SocketHandle {
   send(data: Uint8Array): void

@@ -20,14 +20,20 @@
  */
 
 import { config, isDesktop } from '../config'
-import { coerceDroppedReason } from './protocol'
-import type { DroppedReason, SocketHandle, SocketHandlers } from './protocol'
+import { classifyUnavailable, coerceDroppedReason } from './protocol'
+import type { SocketHandle, SocketHandlers, UnavailableCause } from './protocol'
 import { openWailsSessionSocket } from './wails-stream'
 
 // The wire vocabulary lives in ./protocol so the two transports do not import
 // each other; re-exported here because this is where the pane already looks.
 export { coerceDroppedReason }
-export type { DroppedReason, SocketHandle, SocketHandlers } from './protocol'
+export {
+  classifyUnavailable,
+  droppedAllowsRestart,
+  unavailableAllowsRestart,
+  UNAVAILABLE_KEYS,
+} from './protocol'
+export type { DroppedReason, SocketHandle, SocketHandlers, UnavailableCause } from './protocol'
 
 export const TERMINAL_GRACE_MS = 60_000
 export const TERMINAL_RECONNECT_BACKOFF_MS = [500, 1000, 2000, 4000] as const
@@ -61,40 +67,16 @@ export class TerminalHttpError extends Error {
   }
 }
 
-/** Why create/attach ended in unavailable — keyed on the server's error
- *  *code* (and HTTP status as fallback), never on a localized string. */
-export type UnavailableCause = 'unsupported' | 'forbidden' | 'failed' | 'network'
-
-const FORBIDDEN_CODES: ReadonlySet<string> = new Set([
-  'scope_rejected',
-  'forbidden_host',
-  'pairing_rejected',
-])
-
+/** The browser's adapter onto the shared classifier: unwrap this surface's
+ *  error class, and carry the host's own words for a `failed`. */
 export function classifyCreateFail(err: unknown): {
   cause: UnavailableCause
   detail: string | null
 } {
-  if (err instanceof TerminalHttpError) {
-    if (err.code === 'terminal_unsupported' || err.status === 501) {
-      return { cause: 'unsupported', detail: null }
-    }
-    if (
-      (err.code !== null && FORBIDDEN_CODES.has(err.code)) ||
-      err.status === 401 ||
-      err.status === 403
-    ) {
-      return { cause: 'forbidden', detail: null }
-    }
-    if (err.code === 'terminal_failed' || err.status === 500) {
-      const detail = err.serverMessage?.trim() || err.message
-      return { cause: 'failed', detail }
-    }
-    if (err.status === 0 || err.code === 'unreachable') {
-      return { cause: 'network', detail: null }
-    }
-  }
-  return { cause: 'network', detail: null }
+  if (!(err instanceof TerminalHttpError)) return { cause: 'network', detail: null }
+  const cause = classifyUnavailable(err.status, err.code)
+  if (cause !== 'failed') return { cause, detail: null }
+  return { cause, detail: err.serverMessage?.trim() || err.message }
 }
 
 /** First-connect attach that never opened retries once, using the same
@@ -102,14 +84,6 @@ export function classifyCreateFail(err: unknown): {
 export function firstAttachRetryDelayMs(attempt: number): number | null {
   if (attempt !== 0) return null
   return TERMINAL_RECONNECT_BACKOFF_MS[0]
-}
-
-export function unavailableAllowsRestart(cause: UnavailableCause): boolean {
-  return cause !== 'unsupported'
-}
-
-export function droppedAllowsRestart(reason: DroppedReason): boolean {
-  return reason !== 'token_revoked'
 }
 
 export interface SessionDoc {
