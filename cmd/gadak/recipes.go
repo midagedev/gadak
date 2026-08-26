@@ -2,8 +2,10 @@ package main
 
 // gadak recipes — a name for a read-only mirror SQL query, stored in
 // local.recipes. gadak next is the thin alias that runs the recipe named
-// "next". Rank comes from the mirror (priority_rank, status_category);
-// there is no private ranking engine and no default seed.
+// "next"; when none is saved it falls back to the built-in list default
+// (listDefaultSQL in list.go) with a stderr line saying so. Rank comes
+// from the mirror (priority_rank, status_category); there is no private
+// ranking engine.
 
 import (
 	"context"
@@ -77,7 +79,41 @@ func cmdNext(args []string) error {
 	if len(pos) > 0 {
 		return usageError("next", nextUsage)
 	}
-	return runNamedRecipe("next", sqlOutput{JSON: *asJSON, CSV: *asCSV, NoHeader: *noHeader})
+	out := sqlOutput{JSON: *asJSON, CSV: *asCSV, NoHeader: *noHeader}
+	if !hasSavedRecipe("next") {
+		return runNextDefault(out)
+	}
+	return runNamedRecipe("next", out)
+}
+
+// hasSavedRecipe reports whether local.recipes holds name. An unreadable
+// mirror answers false here so runNextDefault (or runNamedRecipe, for
+// `recipes run`) can re-open and surface the real error on its own path.
+func hasSavedRecipe(name string) bool {
+	db, err := openReadOnly()
+	if err != nil {
+		return false
+	}
+	defer db.Close()
+	var query string
+	return db.QueryRow(`SELECT sql FROM local.recipes WHERE name = ?`, name).Scan(&query) == nil
+}
+
+// runNextDefault is the no-recipe path for next/pick: the built-in list
+// default plus one stderr line naming the save command. An agent guessing
+// verbs used to end here with an error and give up; the question "what is
+// next" is answerable from the mirror, so it gets answered (exit 0), and
+// the notice keeps the recipe escape hatch visible.
+func runNextDefault(out sqlOutput) error {
+	db, err := openReadOnly()
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	fmt.Fprintf(os.Stderr, "no saved recipe %q — built-in default shown; customize: gadak recipes save next %q\n",
+		"next", listDefaultSQL(defaultListLimit))
+	warnIfStale(db)
+	return writeSQLQuery(db, listDefaultSQL(defaultListLimit), out)
 }
 
 func recipesList(args []string) error {

@@ -405,6 +405,41 @@ var helps = map[string]cmdHelp{
 		},
 		seeAlso: []string{"gadak issue", "gadak sql"},
 	},
+	"list": {
+		summary: "open issues from the local mirror, priority rank first — the default read before any query; done is hidden, updated_at breaks ties",
+		usage: "gadak [--workspace <name>] list [--limit N] [--all] [--ready]\n" +
+			"[--json|--csv|--no-header]",
+		options: []helpOption{
+			{name: "limit", desc: "maximum rows to list (default 30)"},
+			{name: "all", desc: "include done issues (default hides them)"},
+			{name: "ready", desc: "only issues no open blocker holds back: an inward Blocks link whose target is not done disqualifies. The blocking link type resolves against the origin's link-type catalog (one read; local on standalone); when no catalog can answer, a stderr notice says so and the filter is skipped"},
+			{name: "json", desc: "emit one JSON object per row"},
+			{name: "csv", desc: "emit CSV with a header row"},
+			{name: "no-header", desc: "omit the TSV/CSV header row (no-op with --json)"},
+		},
+		examples: []string{
+			"gadak list",
+			"gadak list --limit 5 --json",
+			"gadak list --all",
+			"gadak list --ready             # same rows as gadak ready",
+		},
+		seeAlso: []string{"gadak ready", "gadak next", "gadak sql", "gadak search"},
+	},
+	"ready": {
+		summary: "alias of list --ready — open issues no open blocker holds back (an inward Blocks link to an unfinished issue disqualifies)",
+		usage:   "gadak [--workspace <name>] ready [--limit N] [--json|--csv|--no-header]",
+		options: []helpOption{
+			{name: "limit", desc: "maximum rows to list (default 30)"},
+			{name: "json", desc: "emit one JSON object per row"},
+			{name: "csv", desc: "emit CSV with a header row"},
+			{name: "no-header", desc: "omit the TSV/CSV header row (no-op with --json)"},
+		},
+		examples: []string{
+			"gadak ready",
+			"gadak ready --json",
+		},
+		seeAlso: []string{"gadak list", "gadak next", "gadak link"},
+	},
 	"recents": {
 		summary: "list the keys this workspace read recently, newest first — the first command after a context compaction or session restart (issue reads record themselves; searches go to search history, not this list)",
 		usage:   "gadak [--workspace <name>] recents [--limit N] [--json]",
@@ -439,7 +474,7 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak next", "gadak sql", "gadak search"},
 	},
 	"next": {
-		summary: "run the recipe named next — a report, not occupancy (claiming is an origin write)",
+		summary: "run the recipe named next, or the built-in list default when none is saved (a stderr line says which) — a report, not occupancy (claiming is an origin write)",
 		usage:   "gadak [--workspace <name>] next [--json|--csv|--no-header]",
 		options: []helpOption{
 			{name: "json", desc: "emit one JSON object per row"},
@@ -450,14 +485,15 @@ var helps = map[string]cmdHelp{
 			`gadak recipes save next "` + nextRecipeSQL + `"`,
 			"gadak next",
 			"gadak next --json",
+			"gadak next                      # no recipe saved: built-in default + the save command on stderr",
 		},
-		seeAlso: []string{"gadak recipes", "gadak sql", "gadak claim"},
+		seeAlso: []string{"gadak recipes", "gadak list", "gadak sql", "gadak claim"},
 	},
 	// GDK-992: the v0.17 changelog advertises `gadak pick` ("chooses work"),
 	// and the changelog renders on the site where agents read it as API doc.
 	// History is not edited here — the verb is made real instead.
 	"pick": {
-		summary: "alias of next — run the recipe named next (the changelog's name for choosing work)",
+		summary: "alias of next — the recipe named next, or the built-in default when none is saved (the changelog's name for choosing work)",
 		usage:   "gadak [--workspace <name>] pick [--json|--csv|--no-header]",
 		options: []helpOption{
 			{name: "json", desc: "emit one JSON object per row"},
@@ -468,7 +504,7 @@ var helps = map[string]cmdHelp{
 			"gadak pick",
 			"gadak pick --json",
 		},
-		seeAlso: []string{"gadak next", "gadak recipes", "gadak claim"},
+		seeAlso: []string{"gadak next", "gadak recipes", "gadak list", "gadak claim"},
 	},
 	"dashboards": {
 		summary: "agent dashboards — an HTML wall plus named sql/jql datasources, saved in local.db like a view; " + displayNameSQLTrap,

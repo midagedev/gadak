@@ -164,11 +164,13 @@ Reading the mirror (no network; see docs/MIRROR.md):
                    <KEY> [KEY...] [--keys -] [--json] [--derive] [--link] [--editmeta]
   open       open the issue on your Jira site in the browser  <KEY>
   search     full-text or JQL            [--jql] [--emit] [--limit N] [--json] "text|JQL|URL"
+  list       open issues, priority rank first   [--limit N] [--all] [--ready] [--json|--csv|--no-header]
+  ready      open issues nothing open blocks (alias of list --ready)   [--limit N] [--json|--csv|--no-header]
   recents    keys read recently, newest first   [--limit N] [--json]
   views      list/open Jira filters      [list|show|open|save]  (alias: view)
   sql        read-only SQL               [--json|--csv] [--no-header] "select ..."
   recipes    named read-only SQL         [list|save|run|show|rm]
-  next       run the recipe named next   [--json|--csv|--no-header]
+  next       recipe named next, or the built-in default when none is saved   [--json|--csv|--no-header]
   pick       alias of next               [--json|--csv|--no-header]
   dashboards agent dashboards (HTML+SQL/JQL datasources) saved in local.db
                                        [list|show|open|save|rm]
@@ -400,6 +402,7 @@ var commands = map[string]func([]string) error{
 	"install-service": cmdInstallService,
 	"issue":           cmdIssue,
 	"link":            cmdLink,
+	"list":            cmdList,
 	"mcp":             cmdMCP,
 	"next":            cmdNext,
 	"pick":            cmdNext, // GDK-992: CHANGELOG v0.17 advertises this verb; alias of next
@@ -409,6 +412,7 @@ var commands = map[string]func([]string) error{
 	"profiles":        cmdProfiles,
 	"project":         cmdProject,
 	"raycast":         cmdRaycast,
+	"ready":           cmdReady, // top-level alias of list --ready
 	"recents":         cmdRecents,
 	"recipes":         cmdRecipes,
 	"search":          cmdSearch,

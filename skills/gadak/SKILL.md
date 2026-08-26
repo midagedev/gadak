@@ -268,17 +268,42 @@ WHERE sprint_state = 'active' AND status_category != 'done'
 ORDER BY priority_rank, updated_at DESC;
 ```
 
-## Named SQL recipes
+## Listing work: list, ready, next
+
+`gadak list` is the default open-issues read — run it before writing any
+query. Every issue with `status_category != 'done'`, highest
+`priority_rank` first, `updated_at` newest first as the tiebreak, 30 rows.
+Both `priority` and `priority_rank` are in the output so the ordering can
+be checked without a second query. `--limit N`, `--json`, `--csv`,
+`--no-header` behave like `gadak sql`; `--all` includes done issues.
+
+`gadak ready` (or `gadak list --ready`) narrows that list to issues no
+open blocker holds back: an inward Blocks link whose target issue is not
+done disqualifies. The blocking link type resolves against the origin's
+link-type catalog — the same vocabulary `gadak link --type` resolves —
+never a hardcoded name. When no catalog can answer (no credential, offline,
+Linear), a stderr notice says so and the plain open list is shown; an empty
+"nothing ready" would be a stronger and wronger claim.
+
+```bash
+gadak list                          # open issues, priority rank first
+gadak list --limit 5 --json
+gadak list --all                    # include done
+gadak ready                         # open issues nothing open blocks
+```
 
 A recipe is a name for a mirror SQL query, stored in `local.recipes`. It is
 not a ranking engine — order comes from `priority_rank` / `status_category`.
-There is no default recipe; save one before `gadak next`. This is a report,
-not occupancy — claiming still goes through the origin (`gadak claim`).
+`gadak next` (alias `gadak pick`) runs the recipe named next when one is
+saved; with none saved it runs the `gadak list` default and prints the save
+command on stderr. This is a report, not occupancy — claiming still goes
+through the origin (`gadak claim`).
 
 ```bash
 gadak recipes save next "select key, priority_rank, status, summary from issues_full where status_category != 'done' order by priority_rank, updated_at desc limit 10"
-gadak next                          # runs the recipe named next
-gadak recipes run next --json
+gadak next                          # saved recipe, or the built-in default
+gadak pick                          # same command, the changelog's name
+gadak recipes run next --json       # the runner: still an error when unsaved
 gadak recipes show next             # SQL text; pipeable into save
 gadak recipes show next | gadak recipes save next -m -
 gadak recipes                       # name, updated_at, sql preview

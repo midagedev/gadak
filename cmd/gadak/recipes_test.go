@@ -113,15 +113,32 @@ func TestRecipesShowRoundtrip(t *testing.T) {
 	}
 }
 
-func TestNextMissingPrintsSaveCommand(t *testing.T) {
+// next with no saved recipe used to error out; it now answers with the
+// built-in list default (the agent guess-chain list/issues/ls/backlog used
+// to end here and give up) and keeps the save command visible on stderr.
+func TestNextWithoutRecipeFallsBackToDefault(t *testing.T) {
 	recipesDemoHome(t)
-	_, err := capture(t, func() error { return cmdNext(nil) })
-	if err == nil {
-		t.Fatal("next with no recipe must error")
+	stdout, stderr, err := captureBoth(t, func() error { return cmdNext(nil) })
+	if err != nil {
+		t.Fatalf("next with no recipe must answer, got %v", err)
 	}
-	msg := err.Error()
-	if !strings.Contains(msg, `gadak recipes save next "`+nextRecipeSQL+`"`) {
-		t.Fatalf("missing save command in error:\n%s", msg)
+	if !strings.Contains(stderr, `no saved recipe "next"`) {
+		t.Fatalf("stderr missing the fallback notice:\n%s", stderr)
+	}
+	if !strings.Contains(stderr, "gadak recipes save next") {
+		t.Fatalf("stderr missing the save command:\n%s", stderr)
+	}
+	if !strings.Contains(stdout, "key\tpriority\tpriority_rank\tstatus\tupdated_at\tsummary") {
+		t.Fatalf("stdout missing the default list header:\n%s", stdout)
+	}
+	// The generic runner keeps the old refusal: the fallback belongs to the
+	// next/pick verb, not to `recipes run`.
+	_, err = capture(t, func() error { return cmdRecipes([]string{"run", "next"}) })
+	if err == nil {
+		t.Fatal("recipes run next with no recipe must still error")
+	}
+	if !strings.Contains(err.Error(), `gadak recipes save next "`+nextRecipeSQL+`"`) {
+		t.Fatalf("run-missing error must keep the save command:\n%v", err)
 	}
 }
 
