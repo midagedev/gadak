@@ -240,8 +240,13 @@ export function parseJql(input: string, email?: string | null): Promise<JqlParse
 
 /** What the 500ms ui-focus poll carries back (GDK-791). */
 export interface UIFocusPoll {
-  /** One-shot view hash left by `gadak views open`. null when nothing pending. */
+  /** View hash left by `gadak views open`. null when nothing is still fresh. */
   hash: string | null
+  /**
+   * Write timestamp of the focus file (RFC3339). Empty when hash is null.
+   * Each client applies a given `at` once (GDK-960).
+   */
+  at: string
   /**
    * Disk identity of config.json — always present on current servers, empty
    * on older ones (204 era) and on fetch failure. When it moves, settings
@@ -251,20 +256,23 @@ export interface UIFocusPoll {
   configVersion: string
 }
 
-export async function takeUIFocus(): Promise<UIFocusPoll> {
+const emptyUIFocus = (): UIFocusPoll => ({ hash: null, at: '', configVersion: '' })
+
+export async function pollUIFocus(): Promise<UIFocusPoll> {
   try {
     const res = await raw('ui-focus/')
     // 404 = serve without the endpoint. 204 = an older server with nothing
     // pending (no body to decode); either way only the focus half is dead.
-    if (res.status === 404 || res.status === 204) return { hash: null, configVersion: '' }
-    if (!res.ok) return { hash: null, configVersion: '' }
-    const body = (await res.json()) as { hash?: string; configVersion?: string }
+    if (res.status === 404 || res.status === 204) return emptyUIFocus()
+    if (!res.ok) return emptyUIFocus()
+    const body = (await res.json()) as { hash?: string; at?: string; configVersion?: string }
     return {
       hash: body.hash?.trim() ? body.hash : null,
+      at: typeof body.at === 'string' ? body.at : '',
       configVersion: typeof body.configVersion === 'string' ? body.configVersion : '',
     }
   } catch {
-    return { hash: null, configVersion: '' }
+    return emptyUIFocus()
   }
 }
 

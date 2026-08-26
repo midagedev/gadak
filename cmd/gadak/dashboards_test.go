@@ -199,7 +199,7 @@ func TestDashboardsOpenWritesFocusHash(t *testing.T) {
 	}
 	// The one-shot file carries the same hash and was written to this
 	// profile's config dir (the temp GADAK_HOME), not the real one.
-	hash, ok, err := uifocus.TakeFor(config.Profile())
+	hash, _, ok, err := uifocus.PeekFor(config.Profile())
 	if err != nil || !ok {
 		t.Fatalf("focus file: hash=%q ok=%v err=%v", hash, ok, err)
 	}

@@ -147,7 +147,7 @@ func TestHandlerUIFocusReadsProfileFile(t *testing.T) {
 	if body.Hash != "ks=BBB-1" {
 		t.Fatalf("workspace handler consumed %q, want ks=BBB-1", body.Hash)
 	}
-	hash, ok, err := uifocus.TakeFor("")
+	hash, _, ok, err := uifocus.PeekFor("")
 	if err != nil || !ok || hash != "ks=AAA-1" {
 		t.Fatalf("default file should be untouched: %q ok=%v err=%v", hash, ok, err)
 	}

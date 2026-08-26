@@ -1,5 +1,7 @@
-// Package uifocus is the one-shot handoff from the CLI to a running UI.
-// The CLI writes a hash; the desktop app or a serve tab reads and deletes it.
+// Package uifocus is the handoff from the CLI to a running UI.
+// The CLI writes a hash; every polling UI on that profile peeks the same
+// payload while it is fresh (MaxAge). The file is not deleted on read —
+// one-shot apply belongs to each client, keyed on the write timestamp.
 // The file lives next to the profile's config — not in SQLite — so a sync
 // cannot wipe a pending focus and a snapshot cannot carry one.
 package uifocus
@@ -54,29 +56,29 @@ func WriteFor(profile, hash string) error {
 	return os.WriteFile(p, body, 0o600)
 }
 
-// TakeFor returns a still-fresh hash and deletes the file. ok is false when
-// there is nothing to apply (missing, empty, or stale). Workspace mounts pass the /w/<name>
-// segment so they do not consume the process-primary file.
-func TakeFor(profile string) (hash string, ok bool, err error) {
+// PeekFor returns a still-fresh hash and its write timestamp without deleting
+// the file. ok is false when there is nothing to apply (missing, empty, or
+// stale). Workspace mounts pass the /w/<name> segment so they read their own
+// file, not the process-primary one.
+func PeekFor(profile string) (hash, at string, ok bool, err error) {
 	p, err := PathFor(profile)
 	if err != nil {
-		return "", false, err
+		return "", "", false, err
 	}
 	raw, err := os.ReadFile(p)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return "", false, nil
+			return "", "", false, nil
 		}
-		return "", false, err
+		return "", "", false, err
 	}
-	_ = os.Remove(p)
 	var req request
 	if err := json.Unmarshal(raw, &req); err != nil || req.Hash == "" {
-		return "", false, nil
+		return "", "", false, nil
 	}
-	at, err := time.Parse(time.RFC3339, req.At)
-	if err != nil || time.Since(at) > MaxAge {
-		return "", false, nil
+	parsed, err := time.Parse(time.RFC3339, req.At)
+	if err != nil || time.Since(parsed) > MaxAge {
+		return "", "", false, nil
 	}
-	return req.Hash, true, nil
+	return req.Hash, req.At, true, nil
 }

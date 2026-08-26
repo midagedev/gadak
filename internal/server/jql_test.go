@@ -124,28 +124,37 @@ func TestUIFocusTakeIsOneShot(t *testing.T) {
 	}
 	h := New(nil, nil)
 	got := decode[struct {
-		Hash string `json:"hash"`
+		Hash          string `json:"hash"`
+		At            string `json:"at"`
+		ConfigVersion string `json:"configVersion"`
 	}](t, get(t, h, apiBase+"ui-focus/", nil))
 	if got.Hash != "pj=NMA&sc=inprogress" {
 		t.Fatalf("hash %q", got.Hash)
 	}
+	if got.At == "" {
+		t.Fatal("first poll must carry at")
+	}
 	rec := get(t, h, apiBase+"ui-focus/", nil)
 	// GDK-791 (2026-08-24): the idle poll is 200 + configVersion, not 204 —
-	// the body carries the settings-change signal. One-shot semantics are
-	// unchanged: hash appears once, never again. FAIL-first: this assertion
-	// failed against the pre-791 handler's 204.
+	// the body carries the settings-change signal.
+	// GDK-960: the file is no longer consumed on read. Both polls return
+	// the same hash+at; one-shot apply is the client's job.
 	if rec.Code != http.StatusOK {
-		t.Fatalf("second take %d", rec.Code)
+		t.Fatalf("second poll %d", rec.Code)
 	}
 	idle := decode[struct {
 		Hash          string `json:"hash"`
+		At            string `json:"at"`
 		ConfigVersion string `json:"configVersion"`
 	}](t, rec)
-	if idle.Hash != "" {
-		t.Fatalf("hash must be one-shot, got %q", idle.Hash)
+	if idle.Hash != got.Hash {
+		t.Fatalf("second poll hash %q, want %q", idle.Hash, got.Hash)
+	}
+	if idle.At != got.At {
+		t.Fatalf("second poll at %q, want %q", idle.At, got.At)
 	}
 	if idle.ConfigVersion == "" {
-		t.Fatal("idle poll must carry configVersion")
+		t.Fatal("poll must carry configVersion")
 	}
 }
 

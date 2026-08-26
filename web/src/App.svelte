@@ -23,7 +23,8 @@
   import { createGlobalKeyHandler } from './lib/keymap.svelte'
   import { applyStartupView, readLastViewKey } from './lib/startup-view'
   import { feature, hasServerVerb, isHostedDemo, loadConfig } from './lib/config'
-  import { takeUIFocus } from './lib/api'
+  import { pollUIFocus } from './lib/api'
+  import { readLastFocusAt, rememberFocusAt, shouldApplyUIFocus } from './lib/ui-focus'
   import { applyUserTokens } from './lib/user-tokens'
   import { showIssueList } from './lib/show-issue-list'
   import { FEED_FOCUSES } from './lib/types'
@@ -229,7 +230,7 @@
     const applyFocus = async () => {
       if (isHostedDemo()) return
       try {
-        const poll = await takeUIFocus()
+        const poll = await pollUIFocus()
         // GDK-791: settings written elsewhere (CLI `config set`, another tab)
         // reach this open tab through configVersion on the same 500ms poll —
         // refetch config.json and re-apply colors, never a reload. The first
@@ -243,6 +244,14 @@
         }
         const hash = poll.hash
         if (!hash) return
+        // GDK-960: same at is applied once per tab (memory, then sessionStorage
+        // so a refresh inside MaxAge does not bounce the list).
+        const remembered = readLastFocusAt(lastFocusAt)
+        if (!shouldApplyUIFocus(poll.at, remembered)) return
+        if (poll.at) {
+          lastFocusAt = poll.at
+          rememberFocusAt(poll.at)
+        }
         const q = hash.startsWith('#/?')
           ? hash.slice(3)
           : hash.startsWith('?')
@@ -276,6 +285,7 @@
     }
     // configVersion this tab last saw (null = no baseline yet). See applyFocus.
     let lastConfigVersion: string | null = null
+    let lastFocusAt: string | null = null
     let focusTimer: ReturnType<typeof setInterval> | null = null
     const markFocusPoll = (on: boolean) => {
       document.documentElement.dataset.uiFocusPoll = on ? 'on' : 'off'

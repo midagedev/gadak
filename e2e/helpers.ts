@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, unlinkSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { expect, type ConsoleMessage, type Locator, type Page } from '@playwright/test'
@@ -53,6 +53,18 @@ export function apiURL(path = ''): string {
 /** GADAK_HOME for this suite: e2e/.tmp/home-<port>, so two ports do not share a db. */
 export function e2eHomeDir(): string {
   return join(E2E_DIR, '.tmp', `home-${e2eServePort()}`)
+}
+
+/**
+ * GDK-960: GET ui-focus/ no longer consumes the file. A leftover from
+ * `views open` / a spec writeFocus would otherwise yank the next test's URL.
+ */
+export function clearUIFocus(): void {
+  try {
+    unlinkSync(join(e2eHomeDir(), 'ui-focus.json'))
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err
+  }
 }
 
 /**
@@ -147,6 +159,7 @@ export default function globalSetup(): void {
     )
   }
   assertServedArtifact()
+  clearUIFocus()
 }
 
 /**
@@ -154,6 +167,7 @@ export default function globalSetup(): void {
  * without clobbering a user-driven setLocale() across reloads (locale.spec).
  */
 export async function forceLocale(page: Page, locale: 'en' | 'ko' = 'en'): Promise<void> {
+  clearUIFocus()
   await page.addInitScript((loc) => {
     try {
       if (!localStorage.getItem('gadak_locale')) {
