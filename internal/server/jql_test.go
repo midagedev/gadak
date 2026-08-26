@@ -116,7 +116,7 @@ func TestJqlDoesNotFullScanIssueLites(t *testing.T) {
 	}
 }
 
-func TestUIFocusTakeIsOneShot(t *testing.T) {
+func TestUIFocusReadDoesNotConsume(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
 	if err := uifocus.Write("pj=NMA&sc=inprogress"); err != nil {

@@ -3,11 +3,13 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"log"
 	"net"
 	"net/http"
 	"os"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -217,9 +219,24 @@ func TestCmdServeHandsOffLiveSameProfile(t *testing.T) {
 	}
 }
 
+// occupyPreferredServePort stands a fake gadak on serve's default address so
+// the handoff path has something live to find.
+//
+// It has to be that exact address — the point of the test is what serve does
+// when its *preferred* port is already gadak — which puts it head-on with
+// anyone running `gadak serve` on this machine. That is not a hypothetical
+// here: this repo is developed by dogfooding gadak, and a serve left running
+// turned `go test ./cmd/gadak` into "bind: address already in use", a failure
+// that names a port but not the reason. CI never sees it, so it stayed local
+// noise (GDK-982). A busy port means the test cannot run, not that anything
+// is broken: skip, and say what to do about it.
 func occupyPreferredServePort(t *testing.T) {
 	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:7777")
+	if errors.Is(err, syscall.EADDRINUSE) {
+		t.Skipf("127.0.0.1:7777 is taken — this test needs serve's preferred port free. "+
+			"A `gadak serve` of your own is the usual holder; stop it and re-run. (%v)", err)
+	}
 	if err != nil {
 		t.Fatalf("listen 127.0.0.1:7777: %v", err)
 	}

@@ -1,3 +1,9 @@
+// Parsers for the Linux /proc/<pid>/stat line. Deliberately without a
+// //go:build linux tag, and named without a platform suffix while its
+// callers (members_linux.go) carry one: these are pure functions over a
+// string, so tagging them would only stop them being tested anywhere but
+// Linux. `go test ./...` runs on ubuntu in CI, but a change made on a mac
+// would then have no local gate at all.
 package term
 
 import (

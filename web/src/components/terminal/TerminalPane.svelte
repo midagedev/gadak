@@ -24,6 +24,7 @@
     peekSessionId,
     rememberSessionId,
     unavailableAllowsRestart,
+    UNAVAILABLE_KEYS,
     TERMINAL_GRACE_MS,
     TERMINAL_RECONNECT_BACKOFF_MS,
     TERMINAL_WS_OPEN_MS,
@@ -60,13 +61,6 @@
     idle_timeout: 'terminal.dropped.idle_timeout',
     server_shutdown: 'terminal.dropped.server_shutdown',
     closed: 'terminal.dropped.closed',
-  } as const
-
-  const UNAVAILABLE_KEYS = {
-    unsupported: 'terminal.unavailable.unsupported',
-    forbidden: 'terminal.unavailable.forbidden',
-    failed: 'terminal.unavailable.failed',
-    network: 'terminal.unavailable.network',
   } as const
 
   function droppedKey(reason: DroppedReason): (typeof DROPPED_KEYS)[DroppedReason] {
