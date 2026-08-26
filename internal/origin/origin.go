@@ -642,10 +642,16 @@ func Close() error {
 	live = map[string]*session{}
 	mu.Unlock()
 	var first error
-	for _, s := range snapshot {
+	for persist, s := range snapshot {
 		if s == nil {
 			continue
 		}
+		// Every exit path has to drop the marker, not just CloseStandalone:
+		// this is the one the CLI actually takes, and hooking only the other
+		// left a dead PID's marker in every workspace after every command.
+		// Liveness still made that harmless, but a stale PID is one reuse
+		// away from refusing a conversion nobody is holding.
+		clearOpen(persist)
 		if s.emb != nil {
 			if err := s.emb.Close(); err != nil && first == nil {
 				first = err

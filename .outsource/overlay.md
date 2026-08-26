@@ -47,6 +47,15 @@
 - `time-in-status`는 저장 컬럼이 아니다 — `status_changed_at`에서 계산.
 - decisions/ 문서는 개정하지 않는다(Addendum만). CHANGELOG는 소급 수정 금지.
 - Go 1.19+ gofmt가 doc comment의 `''`를 `”`로 정규화한다 — 회피는 문구 재작성.
+- **수명주기에 훅을 걸었으면 "제품이 실제로 타는 경로"로 테스트했는지 확인하라.**
+  이 레포는 같은 자원에 진입점이 여러 개다 — 워크스페이스를 여는 길은
+  `origin.Client`(CLI)와 `origin.StandaloneHandler`(앱·serve) 둘이고, 닫는 길은
+  `origin.Close`(프로세스 종료)와 `origin.CloseStandalone`(워크스페이스 하나)
+  둘이다. 2026-08-26 GDK-971: 정리 훅을 `CloseStandalone`에만 걸었는데 CLI가
+  실제로 타는 건 `Close`라, 모든 명령이 죽은 PID의 마커를 흘렸다. 유닛 테스트는
+  전부 초록이었다 — 죄다 `CloseStandalone`을 직접 불렀기 때문이다. **훅마다
+  "이 경로로 들어오는 실제 호출자가 누구인가"를 grep하고, 각 호출자별 게이트를
+  하나씩 둬라.**
 
 ## 보안 (위임 라운드 절대 규칙)
 

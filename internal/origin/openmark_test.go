@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"testing"
+
+	"github.com/midagedev/gadak/internal/config"
 )
 
 // deadPID is past the kernel's maximum, so nothing can be running as it.
@@ -88,6 +90,54 @@ func TestMarkOpenNeverPanicsOnUnwritableDir(t *testing.T) {
 	markOpen(persist)
 	if pid := OpenHolder(persist); pid != 0 {
 		t.Fatalf("OpenHolder = %d, want 0 when no mark could be written", pid)
+	}
+}
+
+// Every path that ends a session must drop the marker, and Close is the one
+// the CLI actually takes — `cmd/gadak` main defers it, not CloseStandalone.
+// Hooking only the latter left a dead PID's marker behind after every
+// command, which a real run found and none of the unit tests did, because
+// they all called CloseStandalone directly.
+//
+// FAIL-first: without clearOpen in Close, the marker survives here.
+func TestCloseClearsTheMarker(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	config.SetProfile("")
+	cfg := seedStandalone(t, "")
+
+	if _, err := Client(cfg); err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	persist := PersistPath(home)
+	if _, err := os.Stat(persist + ".open"); err != nil {
+		t.Fatalf("no marker while the workspace is open: %v", err)
+	}
+
+	if err := Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	if _, err := os.Stat(persist + ".open"); !os.IsNotExist(err) {
+		t.Fatal("Close left the marker behind — a dead PID in every workspace")
+	}
+}
+
+// The desktop app never calls Client — it opens the workspace through
+// StandaloneHandler (apprun.StartOriginPassthrough, right after
+// application.New). Since the app is the holder this whole mechanism exists
+// for, that entry point has to reach the same hook, and this pins the
+// convergence rather than leaving it to whoever next edits either path.
+func TestStandaloneHandlerMarksOpenToo(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	config.SetProfile("")
+	cfg := seedStandalone(t, "")
+
+	if _, err := StandaloneHandler(cfg); err != nil {
+		t.Fatalf("StandaloneHandler: %v", err)
+	}
+	if _, err := os.Stat(PersistPath(home) + ".open"); err != nil {
+		t.Fatalf("the app's entry point left no marker: %v", err)
 	}
 }
 
