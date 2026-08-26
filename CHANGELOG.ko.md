@@ -2,8 +2,83 @@
 
 <sub><a href="CHANGELOG.md">English</a> · 한국어 — 영문이 원본이며, 번역은 영문과 함께 갱신됩니다(마지막 동기화 2026-08-26).</sub>
 
-## Unreleased
+## v0.18.0 — 2026-08-26
 
+- X에서 Confluence 미러를 줄여서 받을 수 있느냐는 질문이 들어왔습니다 —
+  위키 전체를 받기에는 양이 너무 많아 보여서 설치를 못 해봤다는 말과
+  함께. 두 전제 모두 이미 사실이 아니었습니다: 위키는 요청하기 전까지
+  꺼져 있고, 켤 때는 스페이스를 지정합니다. 그런데 들어오는 길목 어디에도
+  그 말이 없었습니다. `--spaces`는 어느 README에도, 사이트 어느 페이지에도
+  없었고, 유일한 노출은 **설치한 뒤에야** 닿는 sync 에러 메시지였습니다.
+  이제 사람이 결정하는 세 지점에서 말합니다 — `gadak init`이 프로젝트
+  필터 옆에 위키 범위를 함께 출력하고, 두 README가 API 토큰 문단 아래
+  그것을 적고, 설치 페이지에 "무엇을 미러링할지" 절이 생겼습니다
+  ([GDK-964]).
+- 터미널에 Beta 표식이 붙었습니다 — 사이드바 행과 패널 레일 양쪽에. 그
+  표식이 정직하게 가리키던 가장자리 하나는 이번에 닫혔습니다: 패널에서
+  한글을 조합하면 preedit이 커서가 아니라 좌상단에 떴습니다. 읽은 게
+  아니라 계측한 결과 — 렌더러의 보조 textarea가 0,0에 놓인 채 한 번도
+  움직이지 않고, 그 `position: absolute`가 static인 부모를 기준으로
+  풀립니다. 그래서 브라우저는 캐럿이 아니라 textarea가 있는 자리에
+  preedit을 그렸습니다. 같은 프로브를 xterm 렌더러에서 돌리면 커서 셀에
+  떨어졌고, 그것이 이 결함을 ghostty-web의 것으로 특정했습니다. 업스트림에
+  먼저 고치고(coder/ghostty-web#190) 머지될 때까지는 포크를 씁니다
+  ([GDK-956]).
+- gadak의 터미널 안에서 실행한 모든 `gadak` 명령이 "gadak이 gadak을 모른다"는
+  줄로 시작했습니다. `GADAK_TERMINAL=1`은 에뮬레이터가 `TERM_PROGRAM`을
+  세우듯 PTY가 세우는 표식이고, 미인식 `GADAK_*` 경고는 *설정처럼 보이지만
+  아닌* 이름을 잡으려고 있는 것이라 공개된 표식은 그 대상이 아닙니다. 이번
+  릴리스 영상을 찍다가 파이프라인마다 두 번씩, 카메라 앞에서 발견됐습니다
+  ([GDK-961]).
+- 에이전트 스킬이 대시보드 행의 정체를 말합니다. 데이터소스 채널은
+  `{type:'data', name, columns, rows}`까지만 적혀 있었고 `rows`가 위치
+  기반 배열이라는 말은 없었습니다 — 배열에 `row.n`은 `undefined`이고,
+  이건 아무것도 던지지 않고 아무것도 남기지 않은 채 멀쩡한 SQL 위에
+  `undefined`와 `NaN%`의 벽을 그립니다. 같은 방식으로 계측됐습니다:
+  카메라 앞에서 에이전트가 올바른 데이터소스 두 개를 쓰고도 엉뚱한 원인을
+  추론했는데, 프레임 안에서는 진짜 원인이 보이지 않기 때문입니다
+  ([GDK-963]).
+- 사이트가 체인지로그를 서빙합니다. 내비게이션은 Changelog라고 적어 두고
+  독자를 GitHub로 보냈습니다 — 이 사이트가 가진 "이건 살아 있다"는 가장
+  강한 증거를 남의 집에 쓰고 있던 셈입니다. `/changelog/`와
+  `/ko/changelog/`가 `CHANGELOG.md`·`CHANGELOG.ko.md`를 빌드 시점에
+  렌더합니다. 복사가 아니라 읽기입니다 — 체인지로그는 히스토리이고 제자리
+  수정을 하지 않으므로, 손으로 관리하는 웹 사본은 누가 무엇을 내보내는
+  순간 틀리기 때문입니다. 함께, 이 사이트에 없던 SEO 표면: canonical URL,
+  `og:type`, en/ko/x-default 대체 링크가 들어간 진짜 `sitemap.xml`,
+  `robots.txt`, 그리고 소프트웨어와 릴리스를 서술하는 JSON-LD — 모든 필드는
+  체인지로그나 패키지 사실에서 읽어 온 것이고, 페이지에서 참이 아닌 것을
+  크롤러에게 단언하지 않습니다.
+- `gadak create --type`이 현지화된 사이트에서도 Jira의 영문 이름을 받습니다.
+  읽기는 `issue_type_id`를 가르치는데 쓰기는 표시 이름만 받았기 때문에,
+  `--type Bug`은 한국어 사이트마다 한 번씩 죽었고 에이전트는 id로 재시도했습니다.
+  타입 해석은 이제 상호배타적인 다섯 단계입니다 — id, name,
+  untranslatedName, 카탈로그에서 읽은 계층, 그리고 실측한 작은 로케일 표 —
+  한 단계에서 둘 이상 걸리면 충돌을 이름으로 밝히는 하드 에러입니다. 잘못된
+  타입으로 등록되는 것이 왕복 한 번보다 나쁘기 때문입니다. 후속으로 "epic"을
+  계층 레벨 1로 못박았습니다: `>= 1` 매칭은 상위 계층이 Initiative뿐인
+  프로젝트에서 `--type epic`이 거절 대신 그리로 등록되게 했습니다
+  ([GDK-741]).
+- `gadak dev --help`는 두 개의 verb만 적는데 정작 자기 에러 메시지는 네 개를
+  말했고, 인자 없는 `gadak pairing`은 형제 list verb들이 전부 목록을 내는
+  자리에서 usage 에러였습니다. 둘 다 이제 나머지 CLI처럼 동작하고,
+  `pairing list --json`은 표가 찍는 컬럼만 그대로 냅니다 — 해시 앞 8자,
+  토큰은 절대 아니고 전체 해시도 아닙니다 ([GDK-946], [GDK-947]).
+- 실행 중인 `gadak serve`가 자기 주소를 기록해서 `gadak open`이 포트를 훑어
+  추측하지 않습니다 ([GDK-859]). 브라우저 가드가 WebSocket 업그레이드의
+  origin을 검사합니다 — 다른 탭의 페이지가 썼을 문입니다 ([GDK-860]). 그리고
+  대시보드에서 이슈를 여는 링크가 클릭된 벽을 그대로 둡니다 ([GDK-880]).
+- 폰 앱이 스캐폴드에서 쓸 수 있는 물건이 됐습니다. 뷰 레이어를 새로
+  세웠고, Issues 탭이 데스크톱의 어휘로 말합니다 — 범위가 제목이고 픽커는
+  책상의 저장된 뷰에 묶입니다 ([GDK-884], [GDK-885], [GDK-886]). 위키 문서가
+  그 픽커에 합류했습니다: 스페이스별 판, 읽기 전용 페이지 상세, 페이지
+  히트를 그리는 검색 ([GDK-887], [GDK-888]). 로딩·비어 있음·실패가 더는 같은
+  그림이 아니고 ([GDK-905]), 상세 헤더가 데이터를 컨트롤처럼 입히지 않으며
+  ([GDK-906]), 시스템 back이 실제로 보이는 가장자리에 연결됐고
+  ([GDK-907]), 셸은 연결 중임을 말하고 죽은 세션에는 새 세션을 권합니다
+  ([GDK-908]). 페어링을 풀면 셸도 함께 잊습니다 ([GDK-910]). 컨트롤은
+  44pt에 놓이고, 상세는 스레드에 착지하고, 페어링이 원장에 합류했습니다
+  ([GDK-867], [GDK-870], [GDK-879]).
 - 폰이 명령 한 줄로 TestFlight에 올라갑니다: `cd mobile &&
   scripts/testflight-upload.sh --bump`. 흥미로운 쪽은 업로드가 아니라 그
   앞에 도는 여덟 개의 검사입니다. 하나하나가, Apple이 빌드와 업로드를 다
@@ -1388,3 +1463,26 @@ HTTP·sync·에이전트 계약.
 [GDK-895]: https://gadak.dev/backlog/#/?ks=GDK-895
 [GDK-865]: https://gadak.dev/backlog/#/?ks=GDK-865
 [GDK-805]: https://gadak.dev/backlog/#/?ks=GDK-805
+[GDK-964]: https://gadak.dev/backlog/#/?ks=GDK-964
+[GDK-956]: https://gadak.dev/backlog/#/?ks=GDK-956
+[GDK-961]: https://gadak.dev/backlog/#/?ks=GDK-961
+[GDK-963]: https://gadak.dev/backlog/#/?ks=GDK-963
+[GDK-741]: https://gadak.dev/backlog/#/?ks=GDK-741
+[GDK-946]: https://gadak.dev/backlog/#/?ks=GDK-946
+[GDK-947]: https://gadak.dev/backlog/#/?ks=GDK-947
+[GDK-859]: https://gadak.dev/backlog/#/?ks=GDK-859
+[GDK-860]: https://gadak.dev/backlog/#/?ks=GDK-860
+[GDK-880]: https://gadak.dev/backlog/#/?ks=GDK-880
+[GDK-884]: https://gadak.dev/backlog/#/?ks=GDK-884
+[GDK-885]: https://gadak.dev/backlog/#/?ks=GDK-885
+[GDK-886]: https://gadak.dev/backlog/#/?ks=GDK-886
+[GDK-887]: https://gadak.dev/backlog/#/?ks=GDK-887
+[GDK-888]: https://gadak.dev/backlog/#/?ks=GDK-888
+[GDK-905]: https://gadak.dev/backlog/#/?ks=GDK-905
+[GDK-906]: https://gadak.dev/backlog/#/?ks=GDK-906
+[GDK-907]: https://gadak.dev/backlog/#/?ks=GDK-907
+[GDK-908]: https://gadak.dev/backlog/#/?ks=GDK-908
+[GDK-910]: https://gadak.dev/backlog/#/?ks=GDK-910
+[GDK-867]: https://gadak.dev/backlog/#/?ks=GDK-867
+[GDK-870]: https://gadak.dev/backlog/#/?ks=GDK-870
+[GDK-879]: https://gadak.dev/backlog/#/?ks=GDK-879

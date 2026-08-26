@@ -2,8 +2,85 @@
 
 <sub>English · <a href="CHANGELOG.ko.md">한국어</a></sub>
 
-## Unreleased
+## v0.18.0 — 2026-08-26
 
+- Someone asked on X whether the Confluence mirror could be sized down —
+  and said they had not installed gadak because a whole wiki was more than
+  they were willing to pull. Both halves of that were already false: the
+  wiki is off until you ask for it, and when you ask you name the spaces.
+  Nothing on the way in said so. `--spaces` appeared in no README, on no
+  page of the site, and its one user-facing mention was a sync error you
+  can only reach *after* installing. It is now said at the three moments
+  someone decides — `gadak init` prints the wiki's scope beside the
+  project filter's, both READMEs carry it under the API-token line, and the
+  install page has a "What it mirrors" section ([GDK-964]).
+- The terminal is marked Beta, in the sidebar row and on the pane's own
+  rail, and one of the edges that mark is honest about is now closed:
+  compose Korean in the pane and the preedit appeared at the top-left
+  instead of at the cursor. Measured rather than read — the renderer's
+  helper textarea sits at 0,0 and is never moved, and its `position:
+  absolute` resolves against a static parent, so a browser drew the preedit
+  where the textarea was rather than where the caret is. Under the xterm
+  renderer the same probe landed on the cursor cell, which is what named
+  the defect as ghostty-web's. Fixed upstream first (coder/ghostty-web#190)
+  and consumed from a fork until that lands ([GDK-956]).
+- Every `gadak` command run inside gadak's own terminal opened with a line
+  saying gadak did not recognise gadak. `GADAK_TERMINAL=1` is a marker the
+  PTY sets the way an emulator sets `TERM_PROGRAM`; the unknown-`GADAK_*`
+  warning exists to catch names that *look* like settings and are not, and
+  a published marker is neither. Found on camera, twice per pipeline, while
+  recording this release's clip ([GDK-961]).
+- The agent skill now says what a dashboard row is. The datasource channel
+  was documented as `{type:'data', name, columns, rows}` and never that
+  `rows` is positional — `row.n` on an array is `undefined`, which throws
+  nothing, logs nothing, and renders a wall of `undefined` and `NaN%` over
+  perfectly correct SQL. Measured the same way: on camera an agent wrote
+  two correct datasources and reasoned about the wrong cause, because from
+  inside the frame the real one is invisible ([GDK-963]).
+- The site serves the changelog. The nav said Changelog and sent the reader
+  to GitHub, spending the strongest evidence the site has that this thing is
+  alive somewhere else. `/changelog/` and `/ko/changelog/` render
+  `CHANGELOG.md` and `CHANGELOG.ko.md` at build time — read, not copied,
+  because the changelog is history and is never edited in place, so a
+  hand-kept web copy would be wrong the moment anyone shipped. With it, the
+  SEO surface the site never had: canonical URLs, `og:type`, a real
+  `sitemap.xml` with en/ko/x-default alternates, `robots.txt`, and
+  JSON-LD describing the software and its releases — every field read off
+  the changelog or off package facts, nothing asserted to a crawler that is
+  not also true on the page.
+- `gadak create --type` takes Jira's English names on a localised site.
+  Reads teach `issue_type_id`; writes accepted the display name and only
+  the display name, so `--type Bug` died once on every Korean site and the
+  agent retried with an id. Type resolution is now five exclusive steps —
+  id, name, untranslatedName, hierarchy read off the catalog, then a small
+  measured locale table — with two hits at one step a hard error naming the
+  collision, because filing under the wrong type is worse than a round
+  trip. A follow-up pinned "epic" to hierarchy level 1: matching `>= 1`
+  meant `--type epic` on a project whose only parent tier is Initiative
+  filed there instead of refusing ([GDK-741]).
+- `gadak dev --help` named two verbs while its own error message named
+  four, and `gadak pairing` with no arguments was a usage error while every
+  sibling list verb lists. Both now behave like the rest of the CLI, and
+  `pairing list --json` carries exactly the columns the table prints — the
+  8-character hash prefix, never the token and never the full hash
+  ([GDK-946], [GDK-947]).
+- A running `gadak serve` records its own address, so `gadak open` stops
+  sweeping ports to guess it ([GDK-859]); the browser guard origin-checks
+  WebSocket upgrades, which is the door a page in another tab would have
+  used ([GDK-860]); and a dashboard link that opens an issue keeps the wall
+  it was clicked from ([GDK-880]).
+- The phone app became a thing you can use rather than a scaffold. Its view
+  layer was rebuilt greenfield; the Issues tab speaks the desktop's words
+  with the scope as its heading and the picker bound to the desk's saved
+  views ([GDK-884], [GDK-885], [GDK-886]); wiki documents joined that
+  picker with per-space plates, a read-only page detail, and search that
+  paints its page hits ([GDK-887], [GDK-888]); loading, empty and failed
+  stopped being one picture ([GDK-905]); the detail header stopped dressing
+  data as controls ([GDK-906]); system back is wired to the edge that is
+  actually visible ([GDK-907]); the shell says it is connecting and offers
+  a new session when one has died ([GDK-908]); and unpairing forgets the
+  shell too ([GDK-910]). Controls sit at 44pt, detail lands on the thread,
+  and pairing joined the ledger ([GDK-867], [GDK-870], [GDK-879]).
 - The phone ships to TestFlight in one command: `cd mobile &&
   scripts/testflight-upload.sh --bump`. The interesting part is not the
   upload but the eight checks that run before it, each one there because
@@ -1466,3 +1543,26 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-895]: https://gadak.dev/backlog/#/?ks=GDK-895
 [GDK-865]: https://gadak.dev/backlog/#/?ks=GDK-865
 [GDK-805]: https://gadak.dev/backlog/#/?ks=GDK-805
+[GDK-964]: https://gadak.dev/backlog/#/?ks=GDK-964
+[GDK-956]: https://gadak.dev/backlog/#/?ks=GDK-956
+[GDK-961]: https://gadak.dev/backlog/#/?ks=GDK-961
+[GDK-963]: https://gadak.dev/backlog/#/?ks=GDK-963
+[GDK-741]: https://gadak.dev/backlog/#/?ks=GDK-741
+[GDK-946]: https://gadak.dev/backlog/#/?ks=GDK-946
+[GDK-947]: https://gadak.dev/backlog/#/?ks=GDK-947
+[GDK-859]: https://gadak.dev/backlog/#/?ks=GDK-859
+[GDK-860]: https://gadak.dev/backlog/#/?ks=GDK-860
+[GDK-880]: https://gadak.dev/backlog/#/?ks=GDK-880
+[GDK-884]: https://gadak.dev/backlog/#/?ks=GDK-884
+[GDK-885]: https://gadak.dev/backlog/#/?ks=GDK-885
+[GDK-886]: https://gadak.dev/backlog/#/?ks=GDK-886
+[GDK-887]: https://gadak.dev/backlog/#/?ks=GDK-887
+[GDK-888]: https://gadak.dev/backlog/#/?ks=GDK-888
+[GDK-905]: https://gadak.dev/backlog/#/?ks=GDK-905
+[GDK-906]: https://gadak.dev/backlog/#/?ks=GDK-906
+[GDK-907]: https://gadak.dev/backlog/#/?ks=GDK-907
+[GDK-908]: https://gadak.dev/backlog/#/?ks=GDK-908
+[GDK-910]: https://gadak.dev/backlog/#/?ks=GDK-910
+[GDK-867]: https://gadak.dev/backlog/#/?ks=GDK-867
+[GDK-870]: https://gadak.dev/backlog/#/?ks=GDK-870
+[GDK-879]: https://gadak.dev/backlog/#/?ks=GDK-879

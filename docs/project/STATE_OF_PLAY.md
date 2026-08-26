@@ -4,7 +4,22 @@
 "what the docs describe" and "what actually exists right now", written so a fresh
 session can start work without re-deriving anything.
 
-Last updated: 2026-08-21 — main after 0.16.1. The tag that finished 0.16:
+Last updated: 2026-08-26 — main at v0.18.0, **the release where the agent moves
+in**. `gadak serve` owns a PTY behind `/api/v1/terminal/` and one session core
+feeds three renderers — the web pane (ghostty-web WASM, xterm behind the same
+seam), the desktop app (a wails GoStream, because a WebSocket cannot ride a
+custom scheme and the app opens no port), and a paired phone. A third pairing
+scope, `terminal`, opens a shell and nothing else; a serve or origin token
+opens no shell at all. **The pane ships Beta** — the edge that mark is honest
+about was Korean IME composition, fixed upstream (coder/ghostty-web#190) and
+consumed from a fork until it lands. The phone app went from scaffold to the
+whole loop and ships to TestFlight in one command. Also: `create --type` takes
+Jira's English names on a localised site, and the site serves the changelog
+with the SEO surface it never had. Behind the tag are three defects found *on
+camera* while recording the release clip — a false `GADAK_TERMINAL` warning, an
+agent skill that never said dashboard rows are positional, and a one-shot
+ui-focus file any second client can steal ([GDK-960], still open).
+Under it, 0.16.1. The tag that finished 0.16:
 Linear is a write-through source ([GDK-263], [GDK-360], [GDK-361]) — a
 `"linear"` block in the workspace `config.json` (`apiKey`, optional
 `teamIds`) and `gadak sync --source linear` mirrors issues, comments,
