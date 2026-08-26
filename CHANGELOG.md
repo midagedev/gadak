@@ -2,6 +2,41 @@
 
 <sub>English · <a href="CHANGELOG.ko.md">한국어</a></sub>
 
+## v0.18.1 — 2026-08-26
+
+The patch where the terminal learned to clean up after itself, written the
+same day 0.18.0 shipped it.
+
+**Closing a terminal closes everything it started.** A shell puts a
+background job in its own process group, so closing a session used to leave
+`sleep 999 &` — or a forgotten agent — running forever. The close now walks
+every process on the session's terminal, once, while the walk can still be
+trusted; a measured Linux failure where a second walk found *another*
+session's shell is why it is once ([GDK-950]).
+
+**`gadak views open` reaches every open window** — the CLI's focus used to
+be consumed by whichever window polled first, and the window you were
+looking at stayed put. And two `views open` in the same second no longer
+lose the second one: the payload is deduped on what it says, not just when
+it was written ([GDK-960], [GDK-981]).
+
+**The terminal pane says why it cannot open** — no PTY on Windows, a token
+without the terminal scope, a network drop — in words, with a retry, on the
+web and on the phone from the same source ([GDK-944]).
+
+**gadak keeps a log file, and doctor hands it to you.** A Finder-launched
+app used to discard every diagnostic line; now `gadak doctor` names the file
+and quotes its recent errors. Credentials are scrubbed before a line is
+written ([GDK-967]).
+
+Also: the agent skill teaches an agent to diagnose the wall it hit and to
+report the friction instead of silently working around it ([GDK-968]); a
+CLI exit path that used to leave a stale "open" marker behind clears it
+([GDK-971]); the hosted demo's mirror is published as a file you can
+download and open in your own gadak ([GDK-975]); and the benchmark tables
+were re-measured on a quiet machine, on the corpus the demo actually ships.
+A release audit of this delta ran before the tag — parent [GDK-980].
+
 ## v0.18.0 — 2026-08-26
 
 **A terminal, inside gadak.** ⌘K → Terminal, or `Ctrl+\``. It is a real
@@ -985,6 +1020,15 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-805]: https://gadak.dev/backlog/#/?ks=GDK-805
 [GDK-964]: https://gadak.dev/backlog/#/?ks=GDK-964
 [GDK-956]: https://gadak.dev/backlog/#/?ks=GDK-956
+[GDK-950]: https://gadak.dev/backlog/#/?ks=GDK-950
+[GDK-960]: https://gadak.dev/backlog/#/?ks=GDK-960
+[GDK-981]: https://gadak.dev/backlog/#/?ks=GDK-981
+[GDK-944]: https://gadak.dev/backlog/#/?ks=GDK-944
+[GDK-967]: https://gadak.dev/backlog/#/?ks=GDK-967
+[GDK-968]: https://gadak.dev/backlog/#/?ks=GDK-968
+[GDK-971]: https://gadak.dev/backlog/#/?ks=GDK-971
+[GDK-975]: https://gadak.dev/backlog/#/?ks=GDK-975
+[GDK-980]: https://gadak.dev/backlog/#/?ks=GDK-980
 [GDK-963]: https://gadak.dev/backlog/#/?ks=GDK-963
 [GDK-741]: https://gadak.dev/backlog/#/?ks=GDK-741
 [GDK-946]: https://gadak.dev/backlog/#/?ks=GDK-946

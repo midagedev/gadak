@@ -20,6 +20,7 @@ agent-identity
 agent-surface
 agent-tasklist
 agent-ux
+agents
 architecture
 audit-go
 audit-simplify
@@ -55,6 +56,7 @@ decision
 deferred
 demo
 desktop
+diagnostics
 distribution
 docs
 dogfood

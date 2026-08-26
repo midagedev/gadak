@@ -2,6 +2,39 @@
 
 <sub><a href="CHANGELOG.md">English</a> · 한국어 — 영문이 원본이며, 번역은 영문과 함께 갱신됩니다(마지막 동기화 2026-08-26).</sub>
 
+## v0.18.1 — 2026-08-26
+
+터미널이 뒷정리를 배운 패치입니다 — 0.18.0이 터미널을 내놓은 바로 그날
+썼습니다.
+
+**터미널을 닫으면 그 안에서 시작한 것까지 전부 닫힙니다.** 셸은 백그라운드
+작업을 자기만의 프로세스 그룹에 두기 때문에, 세션을 닫아도 `sleep 999 &` —
+또는 잊고 둔 에이전트 — 는 영원히 남았습니다. 이제 닫기는 그 세션의 터미널
+위에 있는 모든 프로세스를 훑습니다. 단, 딱 한 번 — 훑기를 신뢰할 수 있는
+동안에만. 두 번째 훑기가 *다른* 세션의 셸을 찾아낸 리눅스 실측 실패가 "한
+번"의 이유입니다 ([GDK-950]).
+
+**`gadak views open`이 열려 있는 모든 창에 닿습니다** — 예전에는 먼저 폴링한
+창이 포커스를 소모해 버려서, 정작 보고 있던 창은 그대로였습니다. 그리고 같은
+초에 실행한 두 번의 `views open`도 이제 두 번째를 잃지 않습니다: 중복 판정이
+쓰인 시각만이 아니라 내용까지 봅니다 ([GDK-960], [GDK-981]).
+
+**터미널 패널이 왜 못 여는지 말해 줍니다** — Windows에는 PTY가 없다, 토큰에
+terminal 스코프가 없다, 네트워크가 끊겼다 — 문장으로, 재시도와 함께, 웹과
+폰이 같은 원본에서 같은 문장을 냅니다 ([GDK-944]).
+
+**gadak이 로그 파일을 남기고, doctor가 그것을 건네줍니다.** Finder에서 실행한
+앱은 진단 한 줄도 남기지 않고 버렸습니다. 이제 `gadak doctor`가 파일 위치를
+알려 주고 최근 에러를 인용합니다. 한 줄이 쓰이기 전에 자격증명은
+지워집니다 ([GDK-967]).
+
+그 외: 에이전트 스킬이 부딪힌 벽을 스스로 진단하고, 마찰을 조용히 우회하는
+대신 보고하도록 가르칩니다 ([GDK-968]); 낡은 "open" 마커를 남기던 CLI 종료
+경로가 마커를 지웁니다 ([GDK-971]); 호스티드 데모의 미러를 내려받아 자기
+gadak에서 열 수 있는 파일로 공개합니다 ([GDK-975]); 벤치마크 표는 조용한
+머신에서, 데모가 실제로 싣는 코퍼스로 다시 측정했습니다. 태그 전에 이 델타의
+릴리스 감사를 돌렸습니다 — 부모 이슈 [GDK-980].
+
 ## v0.18.0 — 2026-08-26
 
 **gadak 안에 터미널이 생겼습니다.** ⌘K → 터미널, 또는 `Ctrl+\``. 이슈와 같은
@@ -939,6 +972,15 @@ HTTP·sync·에이전트 계약.
 [GDK-805]: https://gadak.dev/backlog/#/?ks=GDK-805
 [GDK-964]: https://gadak.dev/backlog/#/?ks=GDK-964
 [GDK-956]: https://gadak.dev/backlog/#/?ks=GDK-956
+[GDK-950]: https://gadak.dev/backlog/#/?ks=GDK-950
+[GDK-960]: https://gadak.dev/backlog/#/?ks=GDK-960
+[GDK-981]: https://gadak.dev/backlog/#/?ks=GDK-981
+[GDK-944]: https://gadak.dev/backlog/#/?ks=GDK-944
+[GDK-967]: https://gadak.dev/backlog/#/?ks=GDK-967
+[GDK-968]: https://gadak.dev/backlog/#/?ks=GDK-968
+[GDK-971]: https://gadak.dev/backlog/#/?ks=GDK-971
+[GDK-975]: https://gadak.dev/backlog/#/?ks=GDK-975
+[GDK-980]: https://gadak.dev/backlog/#/?ks=GDK-980
 [GDK-963]: https://gadak.dev/backlog/#/?ks=GDK-963
 [GDK-741]: https://gadak.dev/backlog/#/?ks=GDK-741
 [GDK-946]: https://gadak.dev/backlog/#/?ks=GDK-946
