@@ -707,10 +707,45 @@ On a connected workspace this is a network round trip against the site's
 rate budget. On standalone it talks to the local origin (no network);
 unimplemented paths return 501.
 
+## When gadak itself is the problem
+
+You cannot see the window, so a path is your whole diagnostic surface. In
+order:
+
+- `gadak doctor` — a redacted summary of this install. Safe to paste into a
+  report; it never contains a credential.
+- `~/.gadak/logs/gadak.log` — the log file. It is local, never uploaded, and
+  token values are stripped before anything is written; read the tail of it.
+  `gadak doctor` prints the real path, which is what to trust if the home was
+  moved.
+- The mirror is a disposable cache, so `gadak sync --full` is a safe first
+  move and losing the mirror costs nothing. Do that before anything drastic.
+- `skill: stale` means this file and the binary disagree — `gadak skill
+  install`.
+
+## Report the friction; do not route around it
+
+If gadak made you work harder than the task deserved — a column you had to
+parse by hand, an identifier a read gave you that a write refused, an error
+that named a problem but not a next move — that is worth reporting, and
+reporting it is the expected move rather than a favour. The workaround you
+were about to write destroys the evidence: once you have parsed it yourself,
+nobody can see that the column was missing.
+
+Report it at `https://github.com/midagedev/gadak/issues`. What makes a report
+actionable here:
+
+- the exact command you ran and the exact output you got
+- `gadak --version`, and whether the workspace is connected, standalone or
+  Linear
+- what you expected instead — one sentence
+
+A patch is welcome too, and is often smaller than the report suggests: clone
+`https://github.com/midagedev/gadak`, and `AGENTS.md` at the root is the
+development contract, including the gate commands to run before you open a
+pull request.
+
 ## More
 
 `gadak sql "select ..."` against `specs/000-product/data-model.md` covers every
 column; `docs/RECIPES.md` in the gadak repository has more worked questions.
-`gadak doctor` prints a redacted summary of the install when something looks
-wrong. `skill: stale` means this file does not match the binary — reinstall
-with `gadak skill install`.
