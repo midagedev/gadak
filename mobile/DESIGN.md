@@ -296,8 +296,10 @@ the transition *action* lives with compose and send.
 
 ## 6. Measured on the dev shell (2026-08-25, iPhone 17 Pro simulator)
 
-The current native shell (mobile/src-tauri build installed as
-dev.gadak.mobile) lays the WKWebView's layout viewport out INSIDE the safe
+**The numbers in this first block are the pre-fix ones**, kept because they
+name the failure mode; the fix and its 2026-08-26 re-measurement are below.
+Before it, the native shell (mobile/src-tauri build installed as
+dev.gadak.mobile) laid the WKWebView's layout viewport out INSIDE the safe
 area while still reporting env() insets — both were measured with the
 dev viewport probe on the Pairing tab:
 
@@ -318,10 +320,34 @@ Consequences and the division of labor:
 
   **Landed** in `src-tauri/src/lib.rs` — an `objc2` `msg_send` pair in the
   Tauri `setup` hook, behind `#[cfg(target_os = "ios")]`, so it cannot reach
-  any other target. Verified to compile for `aarch64-apple-ios-sim`; **not
-  re-measured on the simulator yet**, so the numbers above are still the
-  pre-fix ones. Re-run the viewport probe on the Pairing tab after the next
-  shell build and replace them.
+  any other target.
+
+  **Re-measured 2026-08-26** on a shell built from the fixed source
+  (`tauri ios dev "iPhone 17 Pro"`), from a `simctl io … screenshot` of the
+  running app rather than the probe — the installed bundle at the time of
+  the note above predated the fix by five hours, and measuring that one
+  would have reported the bug as unfixed. Ink coverage per row on the
+  1206×2622 PNG (402×874 @3×) puts the three bands where a correct inset
+  puts them:
+
+  | y (px) | y (pt) | what |
+  | ---: | ---: | --- |
+  | 78–114 | 26–38 | iOS status bar (clock, indicators) |
+  | 120–198 | 40–66 | empty — zero ink |
+  | 204 → | 68 → | first app content |
+
+  Top inset is 186px/62pt; the app's first pixel is at 204px/68pt, so the
+  header pays the inset **once** and adds 6pt of its own. Neither 0
+  (`env()` ignored) nor ~372px (paid twice). The 90px of empty space
+  between the status-bar band and the app band is why no touch target can
+  land under the status bar here. Bottom: lowest app content sits
+  122–130px (41–43pt) above the edge, clear of the 102px/34pt home
+  indicator — not the ~96pt native band described above. A blind vision
+  verdict on the same capture independently read the first app content at
+  204px, which is the cross-check for the ink measurement.
+
+  Still not measured: what the tab bar does when the keyboard is dismissed
+  in Search. That needs driving, not a screenshot — GDK-838.
 
   Building the shell needs **rustup's** toolchain, not the one first on
   `PATH`: this machine has Homebrew `rustc` ahead of it, and Homebrew's Rust
