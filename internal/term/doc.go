@@ -9,15 +9,17 @@
 // test in this package:
 //
 //   - Shell. $SHELL, else /bin/sh, started under a PTY in its own session
-//     (Setsid + Setctty) so the child is a process-group leader and a
-//     signal to -pgid reaches everything it spawned. cwd is the workspace
-//     directory unless Options.Dir names another. Env is the parent's plus
-//     TERM=xterm-256color and GADAK_TERMINAL=1.
+//     (Setsid + Setctty) so the child is a session leader and this PTY is
+//     its controlling terminal. A job-control shell puts background jobs
+//     in a new process group, so a signal to -pgid does not reach them.
+//     cwd is the workspace directory unless Options.Dir names another.
+//     Env is the parent's plus TERM=xterm-256color and GADAK_TERMINAL=1.
 //
-//   - Close. SIGHUP to the process group, then wait; a SIGKILL to the same
-//     group after CloseGrace (2s) if the pump has not finished. No zombies
-//     and no orphaned grandchildren — TestCloseKillsProcessGroup pins the
-//     grandchild.
+//   - Close. SIGHUP every process on the shell's controlling terminal,
+//     then wait; a SIGKILL to whoever is still on that terminal after
+//     CloseGrace (2s). No zombies and no orphaned grandchildren —
+//     TestCloseKillsHUPImmuneGrandchild pins a grandchild that ignores
+//     SIGHUP, which bash's own HUP-to-jobs cannot hide.
 //
 //   - Ring. Each session keeps the last DefaultRingBytes (256 KiB) of
 //     output. Attach replays that buffer as the first chunk a reader sees,
@@ -47,7 +49,8 @@
 //   - Windows returns ErrUnsupportedPlatform from Create, naming GDK-861
 //     (the ConPTY shape). An honest stub beats a silent one.
 //
-// Snapshot() is the debug surface: per-session id, pid, size, attachment
+// Snapshot() is the debug surface: per-session id, pid, pids (every
+// process on the session's controlling terminal), size, attachment
 // count, createdAt, lastOutputAt, bytesOut, droppedAttachments. It carries
 // no output bytes and no token id, so it is safe to serve.
 package term

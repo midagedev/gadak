@@ -125,11 +125,16 @@ func (s *Session) TokenID() string { return s.tokenID }
 // Done closes when the shell is gone and every attachment has been told.
 func (s *Session) Done() <-chan struct{} { return s.done }
 
+// Members is the process set this session currently holds: every pid
+// whose controlling terminal is the shell's. One call, no HTTP.
+func (s *Session) Members() []int {
+	return SessionMembers(s.PID())
+}
+
 // Info is this session's Snapshot row.
 func (s *Session) Info() Info {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	return Info{
+	info := Info{
 		ID:                 s.id,
 		PID:                s.pid,
 		Cols:               s.cols,
@@ -142,6 +147,10 @@ func (s *Session) Info() Info {
 		Exited:             s.exited,
 		ExitCode:           s.exitCode,
 	}
+	pid := s.pid
+	s.mu.Unlock()
+	info.PIDs = SessionMembers(pid)
+	return info
 }
 
 // Write sends bytes to the shell's stdin.
@@ -195,7 +204,8 @@ func (s *Session) Attach() (*Attachment, error) {
 	return a, nil
 }
 
-// Close reaps the session: SIGHUP to the process group, then SIGKILL after
+// Close reaps the session: SIGHUP every process on the shell's
+// controlling terminal, then SIGKILL whoever is still there after
 // CloseGrace if the pump has not finished.
 func (s *Session) Close() error {
 	s.closeWithReason(ReasonClosed)
@@ -219,13 +229,21 @@ func (s *Session) closeWithReason(reason string) {
 		<-s.done
 		return
 	}
-	// SIGHUP the whole process group, not just the shell: the point of
-	// Setsid at spawn is that a grandchild (`sleep 300 &`) is reachable
-	// here. Then SIGKILL the same group if the pump has not ended.
+	// SIGHUP every process on the shell's controlling terminal, then
+	// always SIGKILL whoever is still there. Returning when the shell
+	// has already exited would skip a grandchild that ignored SIGHUP
+	// (TestCloseKillsHUPImmuneGrandchild).
+	//
+	// hangup walks the terminal and remembers what it found; kill walks
+	// again and signals the union. The second walk alone is not enough:
+	// the kernel revokes a session's controlling terminal when its
+	// leader exits, so once SIGHUP has killed the shell the walk returns
+	// nothing (measured: members=[shell grandchild] at SIGHUP,
+	// members=[] at SIGKILL). It is not redundant either — it is what
+	// catches a process spawned during the grace.
 	_ = s.proc.hangup()
 	select {
 	case <-s.done:
-		return
 	case <-time.After(CloseGrace):
 	}
 	_ = s.proc.kill()

@@ -12,13 +12,23 @@ import (
 	"github.com/creack/pty"
 )
 
-// ptyProc is the unix half of a session: the PTY master, the shell, and
-// the process group both belong to.
+// ptyProc is the unix half of a session: the PTY master and the shell
+// started under it.
 //
 // pty.StartWithSize sets Setsid and Setctty, so the child is a session
-// leader and its pid is its process-group id. That is what makes
-// `syscall.Kill(-pid, …)` reach a grandchild the shell backgrounded —
-// signalling the shell alone would leave `sleep 300 &` orphaned.
+// leader and this PTY is its controlling terminal. A job-control shell
+// puts a background job in a new process group, so syscall.Kill(-pid, …)
+// does not reach that grandchild. Close walks every process that shares
+// the shell's controlling-terminal device and signals those.
+//
+// The walk is also remembered, because it stops working exactly when it
+// is needed most: when the session leader exits, the kernel revokes the
+// session's controlling terminal, so a walk performed after the SIGHUP
+// killed the shell returns nothing and a HUP-immune grandchild would
+// never be reached (GDK-950, measured: members=[shell grandchild] at
+// SIGHUP, members=[] at SIGKILL). Each remembered pid is paired with a
+// start-time stamp so a pid recycled during the grace is not signalled
+// in its successor's place.
 type ptyProc struct {
 	f   *os.File
 	cmd *exec.Cmd
@@ -28,6 +38,13 @@ type ptyProc struct {
 	waitErr  error
 
 	closeOnce sync.Once
+
+	ttyOnce sync.Once
+	ttyDev  int32
+	ttyOK   bool
+
+	seenMu sync.Mutex
+	seen   map[int]uint64 // pid -> start-time stamp
 }
 
 func startProc(opts Options) (*ptyProc, error) {
@@ -63,17 +80,73 @@ func (p *ptyProc) resize(cols, rows uint16) error {
 	return pty.Setsize(p.f, &pty.Winsize{Cols: cols, Rows: rows})
 }
 
-func (p *ptyProc) hangup() error { return p.signalGroup(syscall.SIGHUP) }
-func (p *ptyProc) kill() error   { return p.signalGroup(syscall.SIGKILL) }
+func (p *ptyProc) hangup() error { return p.signalSession(syscall.SIGHUP) }
+func (p *ptyProc) kill() error   { return p.signalSession(syscall.SIGKILL) }
+
+func (p *ptyProc) captureTty() {
+	p.ttyOnce.Do(func() {
+		if pid := p.pid(); pid > 0 {
+			p.ttyDev, p.ttyOK = controllingTty(pid)
+		}
+	})
+}
+
+func (p *ptyProc) signalSession(sig syscall.Signal) error {
+	p.captureTty()
+	var fresh []int
+	if p.ttyOK {
+		fresh = pidsOnTty(p.ttyDev)
+	}
+	self := os.Getpid()
+
+	p.seenMu.Lock()
+	if p.seen == nil {
+		p.seen = make(map[int]uint64, len(fresh)+1)
+	}
+	// A fresh walk is the authority while the terminal still exists: it
+	// picks up anything spawned during the SIGHUP grace.
+	for _, m := range fresh {
+		if m <= 0 || m == self {
+			continue
+		}
+		stamp, ok := processStamp(m)
+		if !ok {
+			stamp = 0
+		}
+		p.seen[m] = stamp
+	}
+	targets := make([]int, 0, len(p.seen))
+	for m, stamp := range p.seen {
+		// The remembered pid must still be the same incarnation. A zero
+		// stamp means the platform cannot tell us; signal it anyway,
+		// because leaving a known member alive is the defect this
+		// closes, and the alternative is unreachable on that platform.
+		if now, ok := processStamp(m); ok && stamp != 0 && now != stamp {
+			delete(p.seen, m)
+			continue
+		}
+		targets = append(targets, m)
+	}
+	p.seenMu.Unlock()
+
+	sent := false
+	for _, m := range targets {
+		_ = syscall.Kill(m, sig)
+		sent = true
+	}
+	if !sent {
+		return p.signalGroup(sig)
+	}
+	return nil
+}
 
 func (p *ptyProc) signalGroup(sig syscall.Signal) error {
 	pid := p.pid()
 	if pid <= 0 {
 		return nil
 	}
-	// Negative pid is the process group. Fall back to the process itself
-	// if the group is already gone, so a partially reaped session still
-	// gets its signal.
+	// Negative pid is the process group. Used only when the tty walk
+	// returned nothing (no controlling terminal, /proc unreadable).
 	if err := syscall.Kill(-pid, sig); err != nil {
 		if err == syscall.ESRCH {
 			return nil

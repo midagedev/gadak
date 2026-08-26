@@ -120,6 +120,10 @@ type Info struct {
 	DroppedAttachments int       `json:"dropped_attachments"`
 	Exited             bool      `json:"exited"`
 	ExitCode           int       `json:"exit_code"`
+	// PIDs is every process currently on this session's controlling
+	// terminal, including the shell. Empty when the enumerator cannot
+	// see a tty (Windows, or a pid with no controlling terminal).
+	PIDs []int `json:"pids,omitempty"`
 }
 
 // Create spawns a shell under a PTY and returns its session.

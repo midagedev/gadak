@@ -154,6 +154,7 @@ func TestCloseKillsProcessGroup(t *testing.T) {
 	}
 	out := readUntil(t, a, "kid=", 10*time.Second)
 	child := grandchildPID(t, out)
+	t.Cleanup(func() { killPID(child) })
 	if !processAlive(child) {
 		t.Fatalf("grandchild %d never started", child)
 	}
@@ -170,6 +171,94 @@ func TestCloseKillsProcessGroup(t *testing.T) {
 	if _, err := m.Get(s.ID()); err == nil {
 		t.Fatal("closed session still listed")
 	}
+}
+
+// TestCloseKillsHUPImmuneGrandchild is the FAIL-first pin for GDK-950.
+// A job-control shell puts `sleep &` in a new process group, so
+// kill(-shell, SIGKILL) cannot reach it. bash may re-send SIGHUP to its
+// jobs on exit, which hides the leak; a grandchild that ignores SIGHUP
+// makes the miss deterministic on every platform.
+func TestCloseKillsHUPImmuneGrandchild(t *testing.T) {
+	m := testManager(t, Config{})
+	s := shellSession(t, m, Options{})
+	a, err := s.Attach()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Write([]byte("(trap '' HUP; sleep 300) & printf 'k%s=%s\\n' id $!\n")); err != nil {
+		t.Fatal(err)
+	}
+	out := readUntil(t, a, "kid=", 10*time.Second)
+	child := grandchildPID(t, out)
+	t.Cleanup(func() { killPID(child) })
+	if !processAlive(child) {
+		t.Fatalf("grandchild %d never started", child)
+	}
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for processAlive(child) {
+		if time.Now().After(deadline) {
+			t.Fatalf("HUP-immune grandchild %d still alive after Close", child)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+// TestSessionMembers pins the enumerator contract: the shell and a
+// background grandchild share a controlling tty, so both appear; a
+// zero/-1 device is not a key (that would sweep every daemon).
+func TestSessionMembers(t *testing.T) {
+	if got := pidsOnTty(0); len(got) != 0 {
+		t.Fatalf("pidsOnTty(0) = %v; want empty", got)
+	}
+	if got := pidsOnTty(-1); len(got) != 0 {
+		t.Fatalf("pidsOnTty(-1) = %v; want empty", got)
+	}
+
+	m := testManager(t, Config{})
+	s := shellSession(t, m, Options{})
+	a, err := s.Attach()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Write([]byte("(trap '' HUP; sleep 300) & printf 'k%s=%s\\n' id $!\n")); err != nil {
+		t.Fatal(err)
+	}
+	out := readUntil(t, a, "kid=", 10*time.Second)
+	child := grandchildPID(t, out)
+	t.Cleanup(func() { killPID(child) })
+	if !processAlive(child) {
+		t.Fatalf("grandchild %d never started", child)
+	}
+
+	members := SessionMembers(s.PID())
+	if !containsPID(members, s.PID()) {
+		t.Fatalf("SessionMembers %v missing shell %d", members, s.PID())
+	}
+	if !containsPID(members, child) {
+		t.Fatalf("SessionMembers %v missing grandchild %d", members, child)
+	}
+	if got := s.Members(); !containsPID(got, s.PID()) || !containsPID(got, child) {
+		t.Fatalf("Members %v missing shell %d or grandchild %d", got, s.PID(), child)
+	}
+}
+
+func containsPID(pids []int, want int) bool {
+	for _, p := range pids {
+		if p == want {
+			return true
+		}
+	}
+	return false
+}
+
+func killPID(pid int) {
+	if pid <= 0 || !processAlive(pid) {
+		return
+	}
+	_ = syscall.Kill(pid, syscall.SIGKILL)
 }
 
 // grandchildPID reads the `kid=<pid>` line the shell echoed. The PTY
@@ -388,6 +477,9 @@ func TestSnapshotShape(t *testing.T) {
 	}
 	if got.DroppedAttachments != 0 || got.Exited {
 		t.Fatalf("Snapshot row %+v", got)
+	}
+	if !containsPID(got.PIDs, got.PID) {
+		t.Fatalf("Snapshot PIDs %v missing shell %d", got.PIDs, got.PID)
 	}
 	// Session ids are random, not sequential: a second session must not
 	// be guessable from the first.
