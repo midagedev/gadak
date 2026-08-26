@@ -602,9 +602,59 @@ gadak dashboards list / show / rm   # lifecycle; same name on save = update
   hosts). `<script src="/api/v1/dashboards/vendor/uPlot.iife.min.js">` (+ its
   CSS) — leading slash required. The frame inherits no app styling: set your
   own explicit palette.
-- `examples/dashboards/triage.html` in the repo is the working norm — cards,
-  a bar breakdown, and a uPlot line chart wired to the postMessage contract.
-  Full contract: `docs/DASHBOARDS.md`.
+**A complete one. Copy this shape — there is no example file to go find.**
+Everything the contract requires is here: the listener, the positional read,
+and a paint. Nothing is elided.
+
+```html
+<!doctype html><meta charset="utf-8">
+<style>
+  :root { color-scheme: light dark }
+  body { margin:0; padding:24px; font:14px/1.5 ui-sans-serif,system-ui,sans-serif;
+         background:#12141a; color:#e8eaf0 }
+  h1 { font-size:15px; font-weight:600; margin:0 0 16px; letter-spacing:.01em }
+  .row { display:flex; align-items:center; gap:12px; margin:6px 0 }
+  .name { width:180px; color:#a8aec0; overflow:hidden; text-overflow:ellipsis;
+          white-space:nowrap }
+  .bar { height:18px; background:#5b8cff; border-radius:3px; min-width:2px }
+  .n { color:#a8aec0; font-variant-numeric:tabular-nums }
+</style>
+<h1 id="t">…</h1>
+<div id="out"></div>
+<script>
+  addEventListener('message', (e) => {
+    const m = e.data
+    if (!m || m.type !== 'data' || m.name !== 'by_label') return
+    // rows are POSITIONAL arrays keyed by columns — never row.n
+    const iL = m.columns.indexOf('label'), iN = m.columns.indexOf('n')
+    const rows = m.rows.map((r) => [String(r[iL]), Number(r[iN])])
+    const max = Math.max(1, ...rows.map((r) => r[1]))
+    document.getElementById('t').textContent =
+      `${rows.length} labels · ${rows.reduce((a, r) => a + r[1], 0)} issues`
+    document.getElementById('out').replaceChildren(...rows.map(([label, n]) => {
+      const row = document.createElement('div'); row.className = 'row'
+      const nm = document.createElement('div'); nm.className = 'name'; nm.textContent = label
+      const bar = document.createElement('div'); bar.className = 'bar'
+      bar.style.width = `${(n / max) * 320}px`
+      const num = document.createElement('div'); num.className = 'n'; num.textContent = n
+      row.append(nm, bar, num); return row
+    }))
+  })
+</script>
+```
+
+```bash
+gadak dashboards save label_ratio --html /tmp/label_ratio.html \
+  --datasource "by_label=sql:select json_each.value as label, count(*) as n \
+from issues_full, json_each(issues_full.labels) group by 1 order by n desc limit 20"
+gadak dashboards open label_ratio
+```
+
+- For a uPlot line chart and the full `open` recipe table, `docs/DASHBOARDS.md`
+  lives in gadak's source tree — it is *not* installed beside this file, so
+  fetch `https://github.com/midagedev/gadak/blob/main/docs/DASHBOARDS.md` if
+  you want it. Do not search the filesystem for it: there is nothing to find,
+  and the block above is already a working wall.
 
 ## Rules that come with the file
 
