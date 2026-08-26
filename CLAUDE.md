@@ -133,6 +133,10 @@ hard-won 목록)와 `AGENTS.md`(스키마·쿼리)가 원본이다.
   판단이고 리뷰어 데모 경로가 선행 조건이다(GDK-805).
 - 에이전트 온보딩은 **skill-first**: 셸 있는 호스트는 `gadak skill install`,
   MCP(`gadak mcp install claude`)는 셸 없는 호스트(Claude Desktop)용.
+- **리드 세션도 skill-first다**: gadak CLI를 만지기 전에 `Skill(gadak)`을
+  로드한다 — 동사 추측 금지 (2026-08-27 실측: 스킬이 current로 설치돼
+  있는데 리드가 안 읽고 view→show→get을 연속 추측, 셋 다 실패. 정답은
+  `gadak issue`. 에러 개선은 GDK-1015).
 - `make media`는 `media-mcp`를 포함하지 않는다 — mcp 클립은 Claude 로그인과
   실모델 호출이 필요해서 기여자에게 강제하지 않는다 (`docs/project/MEDIA.md`).
 - **업스트림 PR은 `docs/runbooks/upstream-pr.md`의 파이프라인을 통과한 뒤에만 제출한다**
