@@ -40,19 +40,54 @@ Does the web UI lean on the compiler instead of fighting it?
 - Components stay declarative — imperative DOM reach-ins are findings.
 - Props typed, events typed, no `any` leaking through boundaries.
 
-### 3. Wails usage
+### 3. The app shells — wails (desktop) and Tauri (phone)
 
-Is the desktop app using wails v3, or wrapping it? Check the release notes
-for capabilities added since the last audit (the API is still in beta and
-grows). Known surfaces: window lifecycle, events, second-instance handling,
-the custom scheme handler, menus, clipboard. A hand-rolled version of
-something wails provides is a finding.
+Two shells, one axis, because the question is the same on both: are we using
+the framework, or wrapping it?
 
-Upstream cuts both ways: a wails bug we worked around, or a capability we
-need and wails lacks, is a **contribution opportunity** — register it as a
-GDK sub-issue with an `upstream` label, holding a minimal repro or a
-concrete API sketch, so it can become a wails issue or PR. A workaround in
-our tree should point at the upstream ticket it is waiting on.
+**wails v3** (`desktop/`, a separate go.mod). Check the release notes for
+capabilities added since the last audit — the API is still in beta and
+grows. Surfaces it does provide: window lifecycle
+(<https://v3.wails.io/features/windows/events/>), events
+(<https://v3.wails.io/features/events/system/>), single-instance
+(<https://v3.wails.io/guides/single-instance/>), menus, clipboard, and the
+asset scheme handler. A hand-rolled version of any of those is a finding.
+
+Be exact about what "wails provides" covers, because the list above has been
+read too widely. **OS protocol registration is not on it.** `gadak://` is
+registered by `CFBundleURLTypes` that `desktop/build-app.sh` writes into
+Info.plist on macOS, and by hand-rolled registry code in
+`desktop/protocol_windows.go` — wails has no API for it, so that code is not
+a finding, it is the only way. The scheme handler wails owns serves the app's
+own assets, which is a different thing wearing a similar name.
+
+**Tauri v2** (`mobile/`, its own Cargo workspace and lockfile). The audit
+surface is bigger than "is the Rust idiomatic", because Tauri v2 moves two
+product-critical things into config:
+
+- `mobile/src-tauri/capabilities/*.json` is a **security artifact**, not
+  build config. It declares what the webview may call, and a permission
+  granted there outranks any guard written in TypeScript — JS can always
+  call the plugin directly. Read it against the outbound invariant every
+  cycle: an entry that widens what the app may dial, with the narrowing
+  living only in frontend code, is a finding even when nothing currently
+  misuses it. The file's own comment already names one (GDK-897).
+- Plugin inventory and version drift. Every `tauri-plugin-*` is a dependency
+  that earns its place like any other, and a plugin pinned to a different
+  major than the rest of the toolchain is a finding on sight.
+
+The installed-artifact rule below applies here too, with the `.ipa` as the
+artifact: `mobile/scripts/testflight-upload.sh` verifies its contract before
+upload, and `docs/runbooks/testflight-release.md` is the procedure.
+
+Upstream cuts both ways on both shells: a framework bug we worked around, or
+a capability we need and the framework lacks, is a **contribution
+opportunity** — register it as a GDK sub-issue with an `upstream` label,
+holding a minimal repro or a concrete API sketch, so it can become a wails or
+Tauri issue or PR. A workaround in our tree should point at the upstream
+ticket it is waiting on. `docs/runbooks/upstream-pr.md` is the pipeline, and
+its second stage is the one that matters here: a defect confirmed by reading
+the framework's code is a hypothesis until it is reproduced.
 
 **Verify the shipped bundle, not the script that writes it.** Anything the
 OS reads from `Info.plist` — the `gadak://` scheme above all — is invisible
