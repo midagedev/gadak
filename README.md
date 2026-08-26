@@ -38,6 +38,11 @@ A connected site needs one [API token](https://id.atlassian.com/manage-profile/s
 — it covers Jira and Confluence on the same site. A standalone workspace
 needs no Atlassian account at all.
 
+**You pick what it mirrors.** The wiki is off until you ask for it, and when
+you do, you name the spaces — `gadak init --spaces ENG,PROD`, or Settings →
+Sources. Jira narrows the same way with `--projects`. Nothing pulls a whole
+site down because you installed it.
+
 macOS app, CLI included:
 
 ```bash

@@ -39,6 +39,11 @@ gadak은 Jira *그리고* Confluence를 로컬 SQLite 파일 하나로 미러링
 하나가 필요합니다 — 같은 사이트의 Jira와 Confluence를 모두 커버합니다.
 Standalone 워크스페이스는 Atlassian 계정 자체가 필요 없습니다.
 
+**무엇을 미러링할지는 직접 고릅니다.** 위키는 요청하기 전까지 꺼져 있고,
+켤 때는 스페이스를 지정합니다 — `gadak init --spaces ENG,PROD`, 또는
+설정 → 소스. Jira도 `--projects`로 같은 방식으로 좁힙니다. 설치했다는
+이유만으로 사이트 전체를 내려받는 일은 없습니다.
+
 macOS 앱, CLI 포함:
 
 ```bash

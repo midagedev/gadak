@@ -356,6 +356,55 @@ func TestInitAllowsEmptyProjects(t *testing.T) {
 	}
 }
 
+// TestInitNamesWikiScope: a connected init that did not ask for spaces has the
+// wiki off, and has to say so — with the scoped way to turn it on.
+//
+// Inbound report (2026-08-25, @HamsterSyria): someone did not install at all,
+// because "gadak mirrors Jira *and* Confluence" reads as all-or-nothing and
+// their Confluence is far too large to mirror whole. Both halves of that fear
+// are wrong — the wiki is off until asked for, and when asked for it is scoped
+// per space — and nothing on the way in said either. The projects line right
+// above this one has told the same kind of truth since GDK-311.
+func TestInitNamesWikiScope(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	clearCredentialEnv(t)
+	config.SetProfile("")
+
+	srv := myselfServer(t)
+	var out string
+	withClosedStdin(t, func() {
+		var err error
+		out, err = capture(t, func() error {
+			return cmdInit([]string{
+				"--site", srv.URL,
+				"--email", "agent@example.com",
+				"--projects", "ENG",
+				"--token-file", writeTokenFile(t, home, "wiki-scope-token"),
+			})
+		})
+		if err != nil {
+			t.Fatalf("init: %v", err)
+		}
+	})
+	if !strings.Contains(out, "--spaces") {
+		t.Fatalf("init must name --spaces when the wiki is off: %q", out)
+	}
+	// The help text's own rule (help.go, spacesFlagUsage): never promise
+	// "every space" — `all` is every *global* space, and a personal space is
+	// mirrored only when named.
+	if strings.Contains(out, "every space") {
+		t.Fatalf("wiki line must not promise every space: %q", out)
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Confluence != nil {
+		t.Fatalf("confluence = %+v, want off when --spaces was not given", cfg.Confluence)
+	}
+}
+
 func TestInitRejectsTokenFlag(t *testing.T) {
 	t.Setenv("GADAK_HOME", t.TempDir())
 	config.SetProfile("")

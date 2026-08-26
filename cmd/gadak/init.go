@@ -436,6 +436,14 @@ func cmdInit(args []string) error {
 	if len(cfg.Projects) == 0 {
 		fmt.Println("no project filter — syncing everything this account can see; narrow it later in Settings → Sources")
 	}
+	// The wiki is opt-in and scoped per space, and until now nothing on the way
+	// in said either. Inbound report (2026-08-25): a reader of "gadak mirrors
+	// Jira *and* Confluence" did not install at all, because a whole Confluence
+	// was more than they were willing to pull. Same shape as the projects line
+	// above — say what the scope is at the moment it is set.
+	if cfg.Confluence == nil {
+		fmt.Println("wiki off — no Confluence page is mirrored; add named spaces with `gadak init --spaces ENG,PROD` (or Settings → Sources)")
+	}
 	printSkillAutoResult(skill)
 	printInitNextSteps(cfg.WorkspaceKind())
 	return nil

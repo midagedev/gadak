@@ -70,6 +70,18 @@ gadak serve`}
     verification.
   </p>
 
+  <h2 id="scope">What it mirrors</h2>
+  <p>
+    You choose, and nothing pulls a whole site down because you installed it. The Confluence wiki
+    is <strong>off until you ask for it</strong>, and when you do you name the spaces:
+  </p>
+  <Snippet code="gadak init --spaces ENG,PROD" copyLabel="Copy" copiedLabel="Copied" />
+  <p class="note">
+    Jira narrows the same way — <code>--projects ENG,PROD</code>, blank means every project the
+    account can see. Both are also a picker in Settings → Sources, so a scope you set now is one
+    you can widen later without re-running anything.
+  </p>
+
   <h2 id="agents">For agents</h2>
   <p>Hand the same mirror to your coding agent:</p>
   <Snippet code="gadak skill install" copyLabel="Copy" copiedLabel="Copied" />
