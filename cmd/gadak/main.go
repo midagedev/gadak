@@ -162,11 +162,13 @@ Commands:
 Reading the mirror (no network; see docs/MIRROR.md):
   issue      full detail for one or more issues
                    <KEY> [KEY...] [--keys -] [--json] [--derive] [--link] [--editmeta]
+  show       alias of issue               <KEY> [KEY...] [--keys -] [--json] [--derive] [--link]
   open       open the issue on your Jira site in the browser  <KEY>
   search     full-text or JQL            [--jql] [--emit] [--limit N] [--json] "text|JQL|URL"
   list       open issues, priority rank first   [--limit N] [--all] [--ready] [--json|--csv|--no-header]
   ready      open issues nothing open blocks (alias of list --ready)   [--limit N] [--json|--csv|--no-header]
   recents    keys read recently, newest first   [--limit N] [--json]
+  recent     alias of recents             [--limit N] [--json]
   views      list/open Jira filters      [list|show|open|save]  (alias: view)
   sql        read-only SQL               [--json|--csv] [--no-header] "select ..."
   recipes    named read-only SQL         [list|save|run|show|rm]
@@ -200,12 +202,14 @@ Writing through to the workspace origin — ` + writeThroughOriginPhrase + `:
                    [--resolution name|id] [--field key=JSON]... [-m text] [--json] | --batch - [--dry-run]
   close      close an issue (status category done)  <KEY>
                    [--resolution name|id] [--field key=JSON]... [-m text] [--json]
+  done       alias of close              <KEY> [--resolution name|id] [-m text] [--json]
   assign     set assignee     <KEY> <email|name|accountId|-> [--json] | --batch -
   claim      take an issue as yours (assignee + in-progress transition) <KEY> [--take-over] [--json]
                    (a claim another actor holds is refused — exit 75; their name is in the error)
   link       create an issue link <A> <B> --type <name|inward|outward|id> [--json]
-  page       wiki page create/edit/comment  create|edit|comment [<ID>]
-                   [--space K] [--title T] [-m <text|->] [--adf-file F] [--json]
+  page       wiki page get/list/create/edit/comment  get <ID> | list [--space K] [--limit N] [--json|--csv|--no-header]
+                   | create|edit|comment [<ID>] [--space K] [--title T] [-m <text|->] [--adf-file F] [--json]
+  wiki       alias of page                get <ID> | list | create|edit|comment [<ID>]
   project    grow a standalone workspace by a project  create <KEY> [--name N] [--json]
   dev        record PRs, deployments, and builds on issues (standalone)
                    link <KEY> --pr <url> [--status ...] | scan [--dry-run] [--install-hook]
@@ -392,6 +396,7 @@ var commands = map[string]func([]string) error{
 	"dev":             cmdDev,
 	"demo":            cmdDemo,
 	"doctor":          cmdDoctor,
+	"done":            cmdClose, // the word users type for a close; alias of close
 	"edit":            cmdEdit,
 	"export":          cmdExport,
 	"export-static":   cmdExportStatic,
@@ -412,11 +417,13 @@ var commands = map[string]func([]string) error{
 	"profiles":        cmdProfiles,
 	"project":         cmdProject,
 	"raycast":         cmdRaycast,
-	"ready":           cmdReady, // top-level alias of list --ready
+	"ready":           cmdReady,   // top-level alias of list --ready
+	"recent":          cmdRecents, // singular of recents; alias of recents
 	"recents":         cmdRecents,
 	"recipes":         cmdRecipes,
 	"search":          cmdSearch,
 	"serve":           cmdServe,
+	"show":            cmdIssue, // blind sessions reached for show first; alias of issue
 	"skill":           cmdSkill,
 	"snapshot":        cmdSnapshot,
 	"sql":             cmdSQL,
@@ -427,6 +434,7 @@ var commands = map[string]func([]string) error{
 	"version":         cmdVersion,
 	"view":            cmdViews,
 	"views":           cmdViews,
+	"wiki":            cmdPage, // page named by its subject; alias of page
 	"workspace":       cmdWorkspace,
 	"workspaces":      cmdWorkspaces,
 }

@@ -236,7 +236,8 @@ FROM issues WHERE status_category = 'inprogress' ORDER BY days DESC LIMIT 20;
 
 -- Has anyone hit this before? (descriptions, comments AND wiki pages, one index)
 -- ref is the issue key, or for kind='page' the origin page id (items.key —
--- the id `gadak page edit` takes; NOT pages.item_id, an internal join id).
+-- the id `gadak page get` prints and `gadak page edit` takes; NOT
+-- pages.item_id, an internal join id).
 SELECT it.kind, COALESCE(i.key, it.key) AS ref, it.title, p.space_key
 FROM items_fts f JOIN items it ON it.rowid = f.rowid
 LEFT JOIN issues i ON i.item_id = it.id
@@ -501,11 +502,15 @@ Ambiguous names are refused with the candidates and no comment is posted. A
 name that matches nobody stays plain text and is named on stderr; stdout stays
 pipeable.
 
-Wiki page writes (through the origin — connected Confluence, or standalone
-issuetap). Standalone seed space is `LOC`; connected: a space key that exists
-on that site:
+Wiki pages — read from the local mirror (no network), write through the
+origin (connected Confluence, or standalone issuetap). Standalone seed space
+is `LOC`; connected: a space key that exists on that site. `gadak wiki` runs
+every one of these (`gadak wiki get <ID>` = `gadak page get <ID>`):
 
 ```bash
+gadak page list                                  # id, space, title, updated_at — newest first; where <ID> comes from
+gadak page get <ID>                              # title, body, comments from the mirror
+gadak page get <ID> --json
 gadak page create --space LOC --title "Retention notes" -m "first draft"
 gadak page edit <ID> --title "Renamed"
 gadak page comment <ID> -m "a question"

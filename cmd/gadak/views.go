@@ -117,6 +117,12 @@ func viewsShow(args []string) error {
 	defer db.Close()
 	v, err := views.FindView(db, name)
 	if err != nil {
+		// GDK-1015: `gadak view GDK-377` is an issue key read as a view name.
+		// FindView's refusal (internal/views) stays byte-identical for its own
+		// callers — the CLI layer appends the next step it knows.
+		if looksLikeIssueKey(name) {
+			return fmt.Errorf("%w (an issue? try: gadak issue %s)", err, normalizeKey(name))
+		}
 		return err
 	}
 	if *asJSON {

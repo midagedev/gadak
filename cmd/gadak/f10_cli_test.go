@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
 	"os"
+	"reflect"
 	"strings"
 	"syscall"
 	"testing"
@@ -376,5 +378,117 @@ func TestPairingRevokeLastDeviceKeepsHomeGateClosed(t *testing.T) {
 	}
 	if strings.Contains(stderr, "gate is open") {
 		t.Fatalf("_home still holds the gate, but revoke claimed it opened: %q", stderr)
+	}
+}
+
+func TestUnknownCommandSuggestsSynonym(t *testing.T) {
+	// GDK-1015: the curated map answers the words sessions reach for that are
+	// not typos of anything. None of these keys may become real commands —
+	// a collision would make the entry dead code.
+	for _, tc := range []struct{ in, want string }{
+		{"get", "show"},
+		{"read", "show"},
+		{"ls", "list"},
+		{"issues", "list"},
+		{"backlog", "list"},
+		{"history", "recents"},
+		{"finish", "done"},
+		{"complete", "done"},
+	} {
+		if _, ok := commands[tc.in]; ok {
+			t.Errorf("%q became a real command; the synonym entry is dead code", tc.in)
+		}
+		err := unknownCommandError(tc.in)
+		if err == nil || err.Error() != fmt.Sprintf("unknown command %q — did you mean \"gadak %s\"? (see gadak --help)", tc.in, tc.want) {
+			t.Errorf("%q: err = %v, want suggestion %q", tc.in, err, tc.want)
+		}
+		if got := exitStatus(err); got != 64 {
+			t.Errorf("%q: exitStatus=%d want 64", tc.in, got)
+		}
+	}
+}
+
+func TestUnknownCommandSuggestsNearTypo(t *testing.T) {
+	// GDK-1015: fallback edit distance ≤2 over the dispatch names. "et" ties
+	// dev/edit/next at 2 and "dn" ties dev/done at 2 — sorted iteration keeps
+	// the first strictly-smaller distance, so the lexicographically first
+	// candidate wins ("dev" in both). "shw" is distance 1 from show and 2
+	// from sql; nearest wins.
+	for _, tc := range []struct{ in, want string }{
+		{"shw", "show"},
+		{"lst", "list"},
+		{"et", "dev"},
+		{"dn", "dev"},
+		{"done2", "done"},
+	} {
+		if got := suggestCommand(tc.in); got != tc.want {
+			t.Errorf("suggestCommand(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}
+
+func TestUnknownCommandDistantNameStaysPlain(t *testing.T) {
+	// A bad guess is worse than none: everything is farther than 2 from
+	// "xyzzy", so the refusal keeps its bare form (TestUnknownCommandError
+	// pins "foobar" byte-for-byte already).
+	if got := suggestCommand("xyzzy"); got != "" {
+		t.Errorf("suggestCommand(xyzzy) = %q, want none", got)
+	}
+	err := unknownCommandError("xyzzy")
+	if err == nil || err.Error() != `unknown command "xyzzy" — see gadak --help` {
+		t.Fatalf("err = %v", err)
+	}
+	if got := exitStatus(err); got != 64 {
+		t.Fatalf("exitStatus=%d want 64", got)
+	}
+}
+
+func TestBlindSessionVerbAliases(t *testing.T) {
+	// show/done/recent/wiki dispatch at the same func as
+	// their canonical verb — an alias that drifts to its own entry is a
+	// second implementation, not an alias.
+	for alias, canonical := range map[string]string{
+		"show":   "issue",
+		"done":   "close",
+		"recent": "recents",
+		"wiki":   "page",
+	} {
+		a, ok := commands[alias]
+		if !ok {
+			t.Errorf("commands[%q] missing", alias)
+			continue
+		}
+		if reflect.ValueOf(a).Pointer() != reflect.ValueOf(commands[canonical]).Pointer() {
+			t.Errorf("commands[%q] is not commands[%q]", alias, canonical)
+		}
+	}
+}
+
+func TestViewIssueKeyAppendsIssueHint(t *testing.T) {
+	// GDK-1015: `gadak view GDK-377` is an issue key read as a view name.
+	// The FindView refusal stays byte-identical; the CLI layer appends the
+	// next step it knows.
+	mirror(t, "https://unused.example.com")
+	_, _, err := captureErr(t, func() error { return cmdViews([]string{"NMB-140"}) })
+	if err == nil {
+		t.Fatal("an issue key is not a view name; must fail")
+	}
+	msg := err.Error()
+	if !strings.HasPrefix(msg, `no view matching "NMB-140"`) {
+		t.Fatalf("first sentence changed: %v", msg)
+	}
+	if !strings.Contains(msg, "(an issue? try: gadak issue NMB-140)") {
+		t.Fatalf("missing issue hint: %v", msg)
+	}
+}
+
+func TestViewPlainNameKeepsPlainRefusal(t *testing.T) {
+	mirror(t, "https://unused.example.com")
+	_, _, err := captureErr(t, func() error { return cmdViews([]string{"zzz"}) })
+	if err == nil {
+		t.Fatal("unknown view must fail")
+	}
+	if strings.Contains(err.Error(), "an issue? try") {
+		t.Fatalf("non-key name must not get the issue hint: %v", err)
 	}
 }

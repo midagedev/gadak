@@ -357,6 +357,22 @@ var helps = map[string]cmdHelp{
 		},
 		seeAlso: []string{"gadak search", "gadak open", "gadak sql", "gadak views open"},
 	},
+	// Five blind sessions asked to read one issue all reached for
+	// `show` first. The verb they typed now works.
+	"show": {
+		summary: "alias of issue — full detail for one or more issues from the local mirror; --editmeta asks the origin which configured fields this issue can edit",
+		usage: "gadak [--workspace <name>] show <KEY> [KEY...] [--keys …]\n" +
+			"[--json] [--derive] [--link] [--editmeta]",
+		examples: []string{
+			"gadak show NMB-140",
+			"gadak show NMB-140 NMB-141",
+			"gadak show --keys -",
+			"gadak show NMB-140 --json",
+			"gadak show NMB-140 --link",
+			"gadak show NMB-140 --editmeta",
+		},
+		seeAlso: []string{"gadak issue", "gadak search", "gadak open", "gadak views open"},
+	},
 	"open": {
 		summary: "open the issue on your Jira site in the browser",
 		usage:   "gadak [--workspace <name>] open <KEY>",
@@ -449,6 +465,18 @@ var helps = map[string]cmdHelp{
 			"gadak recents --json",
 		},
 		seeAlso: []string{"gadak issue", "gadak search"},
+	},
+	// Singular spelling of recents, registered with `done` in the same
+	// same verb-synonym round.
+	"recent": {
+		summary: "alias of recents — the keys this workspace read recently, newest first (issue reads record themselves; searches go to search history, not this list)",
+		usage:   "gadak [--workspace <name>] recent [--limit N] [--json]",
+		examples: []string{
+			"gadak recent",
+			"gadak recent --limit 5",
+			"gadak recent --json",
+		},
+		seeAlso: []string{"gadak recents", "gadak issue", "gadak search"},
 	},
 	"recipes": {
 		summary: "named read-only SQL stored in local.db; " + displayNameSQLTrap,
@@ -592,11 +620,24 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak create", "gadak attach", "gadak comment", "gadak issue"},
 	},
 	"page": {
-		summary: "wiki page writes through the origin (page create, edit, comment; connected Confluence or standalone issuetap)",
-		usage: "gadak [--workspace <name>] page create|edit|comment [<ID>]\n" +
+		summary: "wiki pages — read from the mirror (get, list; no network), write through the origin (create, edit, comment; connected Confluence or standalone issuetap)",
+		usage: "gadak [--workspace <name>] page get <ID> [--json]\n" +
+			"| page list [--space K] [--limit N] [--json|--csv|--no-header]\n" +
+			"| page create|edit|comment [<ID>]\n" +
 			"[--space K] [--title T] [-m <text|->] [--adf-file F]\n" +
 			"[--parent ID] [--version N] [--force] [--json]",
+		options: []helpOption{
+			{name: "space", desc: "create in this space key (create); list only this space (list)"},
+			{name: "limit", desc: "maximum rows to list (default 30) (list)"},
+			{name: "json", desc: "one JSON object for get; one per row for list"},
+			{name: "csv", desc: "emit CSV with a header row (list)"},
+			{name: "no-header", desc: "omit the TSV/CSV header row (list)"},
+		},
 		examples: []string{
+			"gadak page get 12345",
+			"gadak page get 12345 --json",
+			"gadak page list",
+			"gadak page list --space ENG --limit 5",
 			"gadak page create --space ENG --title \"Retention notes\" -m \"first draft\"",
 			"gadak page edit 12345 --title \"Renamed page\"",
 			"gadak page edit 12345 -m \"whole new body\" --force",
@@ -604,6 +645,31 @@ var helps = map[string]cmdHelp{
 			"gadak page comment 12345 -m \"question on the retention section\"",
 		},
 		seeAlso: []string{"gadak search", "gadak open"},
+	},
+	// The wiki's own noun — the verb a session reading or writing
+	// pages reaches for when it doesn't remember `page`.
+	"wiki": {
+		summary: "alias of page — wiki pages read from the mirror (get, list; no network), written through the origin (create, edit, comment)",
+		usage: "gadak [--workspace <name>] wiki get <ID> [--json]\n" +
+			"| wiki list [--space K] [--limit N] [--json|--csv|--no-header]\n" +
+			"| wiki create|edit|comment [<ID>]\n" +
+			"[--space K] [--title T] [-m <text|->] [--adf-file F]\n" +
+			"[--parent ID] [--version N] [--force] [--json]",
+		options: []helpOption{
+			{name: "space", desc: "create in this space key (create); list only this space (list)"},
+			{name: "limit", desc: "maximum rows to list (default 30) (list)"},
+			{name: "json", desc: "one JSON object for get; one per row for list"},
+			{name: "csv", desc: "emit CSV with a header row (list)"},
+			{name: "no-header", desc: "omit the TSV/CSV header row (list)"},
+		},
+		examples: []string{
+			"gadak wiki get 12345",
+			"gadak wiki list --space ENG",
+			"gadak wiki create --space ENG --title \"Retention notes\" -m \"first draft\"",
+			"gadak wiki edit 12345 --title \"Renamed page\"",
+			"gadak wiki comment 12345 -m \"question on the retention section\"",
+		},
+		seeAlso: []string{"gadak page", "gadak search", "gadak open"},
 	},
 	"project": {
 		summary: "grow a standalone workspace by one project key (connected workspaces create projects in Jira)",
@@ -642,6 +708,19 @@ var helps = map[string]cmdHelp{
 			"gadak transition NMB-140 new",
 		},
 		seeAlso: []string{"gadak transition", "gadak comment", "gadak issue"},
+	},
+	// Close's own word — the status category the command lands on.
+	"done": {
+		summary: "alias of close — transition an issue to status category done; already done is a no-op",
+		usage: "gadak [--workspace <name>] done <KEY>\n" +
+			"[--resolution name|id] [--field key=JSON]... [-m text] [--json]",
+		examples: []string{
+			"gadak done NMB-140",
+			"gadak done NMB-140 -m \"fixed in 1.2\"",
+			"gadak done NMB-140 --json",
+			"gadak transition NMB-140 inprogress  # reopen; there is no gadak reopen",
+		},
+		seeAlso: []string{"gadak close", "gadak transition", "gadak issue"},
 	},
 	"assign": {
 		summary: "set the assignee; pass - to unassign",
@@ -908,12 +987,90 @@ func usageError(cmd, line string) error {
 }
 
 // unknownCommandError is the one-line unknown-subcommand refusal (GDK-466).
-// 64 is EX_USAGE, the same class unknownConfigPath uses.
+// 64 is EX_USAGE, the same class unknownConfigPath uses. A name close to a
+// real verb carries a did-you-mean (GDK-1015): curated synonyms first — the
+// word a session reaches for is often not a typo of anything — then edit
+// distance against every command. Distant names stay unadorned; a bad guess
+// is worse than none.
 func unknownCommandError(name string) error {
+	msg := fmt.Sprintf("unknown command %q — see gadak --help", name)
+	if sug := suggestCommand(name); sug != "" {
+		msg = fmt.Sprintf("unknown command %q — did you mean \"gadak %s\"? (see gadak --help)", name, sug)
+	}
 	return &exitCodeError{
 		code: 64,
-		msg:  fmt.Sprintf("unknown command %q — see gadak --help", name),
+		msg:  msg,
 	}
+}
+
+// commandSynonyms are near-verbs a session types when it wants the real one
+// (GDK-1015). None of the keys are real commands — mapping them here is the
+// refusal plus a pointer, not a new verb.
+var commandSynonyms = map[string]string{
+	"get":      "show",
+	"read":     "show",
+	"ls":       "list",
+	"issues":   "list",
+	"backlog":  "list",
+	"history":  "recents",
+	"finish":   "done",
+	"complete": "done",
+}
+
+// suggestCommand returns the command the name most likely meant, or "" when
+// nothing is close enough to say. The fallback walks the sorted command
+// names keeping a strictly smaller distance, so the lexicographically first
+// of equal-distance candidates wins.
+func suggestCommand(name string) string {
+	if sug, ok := commandSynonyms[name]; ok {
+		return sug
+	}
+	best, bestDist := "", 3 // beyond the ≤2 suggestion threshold
+	for _, c := range commandNames() {
+		if d := levenshtein(name, c); d < bestDist {
+			best, bestDist = c, d
+		}
+	}
+	return best
+}
+
+// levenshtein is the plain two-row edit distance. internal/sqlhint has one
+// too, but it is unexported and this package must not reach into internal
+// helpers for a ten-line function.
+func levenshtein(a, b string) int {
+	if a == b {
+		return 0
+	}
+	if a == "" {
+		return len(b)
+	}
+	if b == "" {
+		return len(a)
+	}
+	prev := make([]int, len(b)+1)
+	cur := make([]int, len(b)+1)
+	for j := range prev {
+		prev[j] = j
+	}
+	for i := 1; i <= len(a); i++ {
+		cur[0] = i
+		for j := 1; j <= len(b); j++ {
+			cost := 1
+			if a[i-1] == b[j-1] {
+				cost = 0
+			}
+			n := prev[j] + 1 // deletion
+			if ins := cur[j-1] + 1; ins < n {
+				n = ins // insertion
+			}
+			if sub := prev[j-1] + cost; sub < n {
+				n = sub // substitution
+			}
+			cur[j] = n
+		}
+		prev, cur = cur, prev
+	}
+	return prev[len(b)]
 }
 
 // jsonList returns s, or a non-nil empty slice so encoding/json writes [].
