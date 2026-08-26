@@ -786,8 +786,37 @@ def read_names():
     return found
 
 
+def published_names():
+    """Names gadak *sets* for a process it starts, rather than reads.
+
+    A marker like GADAK_TERMINAL is the opposite of a ghost: the binary
+    published it, and prose is right to name it. Two independent sources
+    have to agree, so the check cannot be satisfied by editing either one:
+    the runtime census (identity.go's envPublished, which is what stops
+    warnUnknownGADAK calling the marker unrecognised) and an actual
+    `"GADAK_X=..."` assignment in non-test Go.
+    """
+    census = set()
+    ident = Path("internal/config/identity.go")
+    if ident.is_file():
+        body = strip_go_comments(ident.read_text())
+        block = re.search(r"envPublished\s*=\s*map\[string\]struct\{\}\{(.*?)\}", body, re.S)
+        if block:
+            census = set(re.findall(dq + r"(GADAK_[A-Z][A-Z0-9_]*)" + dq, block.group(1)))
+    assigned = set()
+    for path in Path(".").rglob("*.go"):
+        if any(p in SKIP_READ_DIR for p in path.parts) or path.name.endswith("_test.go"):
+            continue
+        try:
+            body = strip_go_comments(path.read_text())
+        except (UnicodeDecodeError, OSError):
+            continue
+        assigned |= set(re.findall(dq + r"(GADAK_[A-Z][A-Z0-9_]*)=", body))
+    return census & assigned
+
+
 docs = documented()
-read = read_names()
+read = read_names() | published_names()
 ghosts = sorted(n for n in docs if n not in read)
 for n in ghosts:
     where = ", ".join(docs[n][:4])
