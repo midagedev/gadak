@@ -169,6 +169,7 @@ Reading the mirror (no network; see docs/MIRROR.md):
   sql        read-only SQL               [--json|--csv] [--no-header] "select ..."
   recipes    named read-only SQL         [list|save|run|show|rm]
   next       run the recipe named next   [--json|--csv|--no-header]
+  pick       alias of next               [--json|--csv|--no-header]
   dashboards agent dashboards (HTML+SQL/JQL datasources) saved in local.db
                                        [list|show|open|save|rm]
   snapshot   shareable copy of the mirror <out.db> [--from db] [--spread 90d] [--scale N]
@@ -401,6 +402,7 @@ var commands = map[string]func([]string) error{
 	"link":            cmdLink,
 	"mcp":             cmdMCP,
 	"next":            cmdNext,
+	"pick":            cmdNext, // GDK-992: CHANGELOG v0.17 advertises this verb; alias of next
 	"open":            cmdOpen,
 	"page":            cmdPage,
 	"pairing":         cmdPairing,

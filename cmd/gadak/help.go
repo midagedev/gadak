@@ -453,6 +453,23 @@ var helps = map[string]cmdHelp{
 		},
 		seeAlso: []string{"gadak recipes", "gadak sql", "gadak claim"},
 	},
+	// GDK-992: the v0.17 changelog advertises `gadak pick` ("chooses work"),
+	// and the changelog renders on the site where agents read it as API doc.
+	// History is not edited here — the verb is made real instead.
+	"pick": {
+		summary: "alias of next — run the recipe named next (the changelog's name for choosing work)",
+		usage:   "gadak [--workspace <name>] pick [--json|--csv|--no-header]",
+		options: []helpOption{
+			{name: "json", desc: "emit one JSON object per row"},
+			{name: "csv", desc: "emit CSV with a header row"},
+			{name: "no-header", desc: "omit the TSV/CSV header row (no-op with --json)"},
+		},
+		examples: []string{
+			"gadak pick",
+			"gadak pick --json",
+		},
+		seeAlso: []string{"gadak next", "gadak recipes", "gadak claim"},
+	},
 	"dashboards": {
 		summary: "agent dashboards — an HTML wall plus named sql/jql datasources, saved in local.db like a view; " + displayNameSQLTrap,
 		usage: "gadak [--workspace <name>] dashboards [list|show <name>|open <name>|rm <name>]\n" +
