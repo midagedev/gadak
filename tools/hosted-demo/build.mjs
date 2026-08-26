@@ -112,6 +112,50 @@ function assertSharedBundle(demoDir, backlogDir) {
   }
 }
 
+/*
+ * Publish the demo mirror as a plain, downloadable SQLite file (GDK-975).
+ *
+ * The demo page next to it is frozen JSON, which proves the UI but not the
+ * claim the essay actually makes — that this is one ordinary SQLite file you
+ * can open with someone else's tool and ask your own questions of. That
+ * claim needs a URL, so this copies the same examples/demo.db the freeze
+ * reads. One source, two consumers: they cannot drift.
+ *
+ * The load-bearing property is portability, not size. The operational schema
+ * builds items_fts with contentless_delete=1 (SQLite 3.43+), which pyodide's
+ * older SQLite cannot open; snapshots are rebuilt without it (GDK-101/112,
+ * internal/store/fts_repair.go). If someone ever regenerates demo.db from
+ * the operational schema, the published file silently stops opening in
+ * Datasette Lite and only a human clicking the link would notice — so assert
+ * it here, where the file is published, and fail the build instead.
+ *
+ * The check is a byte search rather than a query because .nvmrc pins Node 20,
+ * which has no node:sqlite. sqlite_master stores DDL as plain text in the
+ * file, so absence from the whole file is a strictly stronger claim than
+ * absence from the DDL.
+ */
+const DEMO_DB_NAME = 'gadak-demo.db'
+
+function publishPortableDb(dbSrc, demoDir) {
+  const bytes = readFileSync(dbSrc)
+  const text = bytes.toString('latin1')
+  if (!text.includes('CREATE VIRTUAL TABLE items_fts')) {
+    console.error(`hosted-demo: ${dbSrc} has no items_fts — not a gadak mirror`)
+    process.exit(1)
+  }
+  if (text.includes('contentless_delete')) {
+    console.error(
+      `hosted-demo: ${dbSrc} carries contentless_delete — that file will not open in Datasette Lite.\n` +
+        '            Snapshots must be rebuilt without it (scripts/scrub-demo-db.py, GDK-101/112).',
+    )
+    process.exit(1)
+  }
+  const out = join(demoDir, DEMO_DB_NAME)
+  copyFileSync(dbSrc, out)
+  const mb = (bytes.length / (1024 * 1024)).toFixed(1)
+  console.log(`hosted-demo: ${DEMO_DB_NAME} published at ${demoBase}${DEMO_DB_NAME} (${mb} MB, portable FTS)`)
+}
+
 if (process.argv[2] === '--rewrite-backlog-config') {
   const configPath = process.argv[3] || join(root, 'dist/hosted/backlog/config.json')
   const appBase = process.argv[4] || '/backlog/'
@@ -255,6 +299,7 @@ run(bin, [
   authBase,
   demoOut,
 ])
+publishPortableDb(join(root, 'examples', 'demo.db'), demoOut)
 // ── 3b. Public backlog (GDK-389) — same Vite shell, committed snapshot ──
 // Git tracks examples/backlog-snapshot.tar.gz. The viewer still fetches
 // detail/<KEY>.json, so unpack to a temp tree and copy as before.
