@@ -4,8 +4,9 @@
 "what the docs describe" and "what actually exists right now", written so a fresh
 session can start work without re-deriving anything.
 
-Last updated: 2026-08-26 — main at v0.18.0, **the release where the agent moves
-in**. `gadak serve` owns a PTY behind `/api/v1/terminal/` and one session core
+Last updated: 2026-08-26 — main at v0.18.1, **the patch where the terminal
+cleans up after itself**, same-day on top of **the release where the agent
+moves in** (0.18.0). `gadak serve` owns a PTY behind `/api/v1/terminal/` and one session core
 feeds three renderers — the web pane (ghostty-web WASM, xterm behind the same
 seam), the desktop app (a wails GoStream, because a WebSocket cannot ride a
 custom scheme and the app opens no port), and a paired phone. A third pairing
@@ -73,7 +74,7 @@ notify-only (banner + brew/dmg), and releases deliberately ship no
 rebuilt around `query` with error echoes, the three pipe contracts written
 down (`issues_full` + RECIPES, `gadak sql` stdout, `views open --keys -`),
 personal-row export/import, brew renamed so `gadak` is the app cask, and the
-first live benchmark (`docs/BENCHMARKS.md`). Last tagged: v0.18.0.
+first live benchmark (`docs/BENCHMARKS.md`). Last tagged: v0.18.1.
 
 ## In one paragraph
 
