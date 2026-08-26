@@ -1069,3 +1069,27 @@ func TestStoredDefaultMissingDoesNotFallBack(t *testing.T) {
 		t.Fatalf("after error Profile() = %q, want nosuch (still not fallen back)", Profile())
 	}
 }
+
+// GDK-1034: ProjectMirrored is the single owner of the empty-list semantics
+// both write surfaces (REST gate, CLI pre-check) delegate to. Empty is "no
+// explicit scope" — the standalone home shape (gadak init --standalone
+// leaves projects null) and paired workspaces (GDK-467) — never a deny-all.
+func TestProjectMirrored(t *testing.T) {
+	var nilCfg *Config
+	cases := []struct {
+		name string
+		cfg  *Config
+		key  string
+		want bool
+	}{
+		{"nil receiver allows", nilCfg, "NMB", true},
+		{"empty list allows (standalone home shape)", &Config{}, "NMB", true},
+		{"listed allows", &Config{Projects: []string{"NMB", "NMA"}}, "NMB", true},
+		{"unlisted refuses", &Config{Projects: []string{"NMB", "NMA"}}, "ZZZ", false},
+	}
+	for _, tc := range cases {
+		if got := tc.cfg.ProjectMirrored(tc.key); got != tc.want {
+			t.Errorf("%s: ProjectMirrored(%q) = %v, want %v", tc.name, tc.key, got, tc.want)
+		}
+	}
+}

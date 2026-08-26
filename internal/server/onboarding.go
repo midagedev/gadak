@@ -225,15 +225,14 @@ func (s *server) handleStandaloneInit(w http.ResponseWriter, r *http.Request) {
 		// standalone origin errors never carry one.
 		log.Printf("onboarding standalone: could not fill the mirror yet: %v", fillErr)
 	}
-	// The default body {} leaves Projects empty (CLI parity), but the REST
-	// create gate reads an empty list as deny-all (project_not_mirrored,
-	// internal/server/write.go) — the CLI's twin check deliberately reads it
-	// as "not a deny-all" (cmd/gadak/create.go refuseUnmirroredProject,
-	// GDK-467). Scope this workspace to the project the seed just created so
-	// the GUI door can file its first issue with no terminal. That REST
-	// deny-on-empty asymmetry is pre-existing and outside this verb — a
-	// CLI-created standalone home hits it on serve today; it needs the write
-	// path's owner, not this handler.
+	// The default body {} leaves Projects empty (CLI parity). That is no
+	// longer a write blocker: the REST create gate and the CLI pre-check
+	// share one owner, Config.ProjectMirrored, which reads an empty list as
+	// "no explicit scope" (GDK-467 semantics; REST's deny-all reading of the
+	// same empty list was the GDK-1034 defect). Scope this workspace to the
+	// project the seed just created anyway — cfg.Projects is the createmeta
+	// scope (write.go) and the sole-project default, so the GUI door starts
+	// narrowed to its own project.
 	if len(next.Projects) == 0 && next.DefaultProject != "" {
 		next.Projects = []string{next.DefaultProject}
 		if err := next.Save(); err != nil {

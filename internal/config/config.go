@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -893,6 +894,20 @@ func (c *Config) HasCredential() bool {
 // from HasCredential: a standalone workspace has a credential by definition
 // (see HasCredential), and writes must keep working here.
 func (c *Config) SyncFrozen() bool { return c != nil && c.Frozen }
+
+// ProjectMirrored reports whether a write to project key may proceed: an
+// empty list means "no explicit scope" and allows any project (GDK-467:
+// paired workspaces carry no local Projects copy, and `gadak init
+// --standalone` leaves projects null), a non-empty list is the allowlist.
+// This is the single owner of that semantics — the REST create gate and the
+// CLI pre-check both delegate here so the surfaces cannot split again
+// (GDK-1034: they read the same empty list in opposite directions once).
+func (c *Config) ProjectMirrored(key string) bool {
+	if c == nil || len(c.Projects) == 0 {
+		return true
+	}
+	return slices.Contains(c.Projects, key)
+}
 
 // ErrNotConfigured is the single owner of "this workspace has no origin yet"
 // (GDK-454). CLI verbs that refuse because HasCredential is false print this

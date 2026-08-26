@@ -1035,6 +1035,25 @@ func TestCreateIssue(t *testing.T) {
 	}
 }
 
+// GDK-1034: `gadak init --standalone` leaves projects: null in the home's
+// config, and a serve of that home must still accept creates for the seeded
+// project. The empty list means "no explicit scope", not deny-all — the
+// decision has one owner, Config.ProjectMirrored (GDK-467 semantics), so
+// this test pins REST to the same answer the CLI pre-check gives.
+func TestCreateIssueEmptyProjectsAllows(t *testing.T) {
+	f, h, cfg := writable(t)
+	cfg.Projects = nil // the CLI-created standalone home shape
+
+	rec := send(t, h, http.MethodPost, apiBase+"create/",
+		`{"project_key":"NMB","issue_type":"10004","summary":"no local scope"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create with empty Projects → %d: %s", rec.Code, rec.Body.String())
+	}
+	if !f.called("POST /issue") {
+		t.Fatalf("empty Projects denied before the origin: %v", f.calls)
+	}
+}
+
 const manyCreateTypes = `{"projects":[{"key":"NMB","name":"Numbers","issuetypes":[
 	{"id":"10001","name":"Task"},{"id":"10002","name":"작업"},{"id":"10004","name":"Bug"}]}]}`
 

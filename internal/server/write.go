@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"slices"
 	"sort"
 	"strings"
 	"unicode/utf8"
@@ -1094,7 +1093,10 @@ func (s *server) handleCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	// An issue filed outside the mirrored projects would never come back from the
 	// re-read, so refuse it here rather than answering with a stale-mirror error.
-	if !slices.Contains(cfg.Projects, proj.Value) {
+	// The empty-list semantics ("no explicit scope", not deny-all) live in
+	// Config.ProjectMirrored — the one owner shared with the CLI pre-check.
+	if !cfg.ProjectMirrored(proj.Value) {
+		log.Printf("server: create refused project %q: not in the mirrored list (%d configured)", proj.Value, len(cfg.Projects))
 		fail(w, http.StatusBadRequest, "project_not_mirrored")
 		return
 	}
