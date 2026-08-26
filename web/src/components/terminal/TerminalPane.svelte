@@ -11,19 +11,25 @@
   import { onMount } from 'svelte'
   import { t } from '../../lib/i18n'
   import Icon from '../ui/Icon.svelte'
+  import LoadingState from '../ui/LoadingState.svelte'
+  import { createSkeletonGrace } from '../../lib/skeleton-grace.svelte'
   import { createRenderer, type TerminalRenderer } from '../../lib/terminal/renderer'
   import {
     createSession,
     coerceDroppedReason,
+    classifyCreateFail,
+    droppedAllowsRestart,
+    firstAttachRetryDelayMs,
     openSessionSocket,
     peekSessionId,
     rememberSessionId,
-    TerminalHttpError,
+    unavailableAllowsRestart,
     TERMINAL_GRACE_MS,
     TERMINAL_RECONNECT_BACKOFF_MS,
     TERMINAL_WS_OPEN_MS,
     type DroppedReason,
     type SocketHandle,
+    type UnavailableCause,
   } from '../../lib/terminal/session'
   import {
     TERMINAL_MIN_WIDTH_PX,
@@ -38,7 +44,7 @@
     | { kind: 'reconnecting' }
     | { kind: 'exited'; code: number }
     | { kind: 'dropped'; reason: DroppedReason }
-    | { kind: 'unavailable' }
+    | { kind: 'unavailable'; cause: UnavailableCause; detail?: string }
 
   let hostEl = $state<HTMLElement | null>(null)
   let status = $state<Status>({ kind: 'none' })
@@ -46,6 +52,7 @@
   let dragging = $state(false)
 
   const widthPx = $derived(terminalChrome.widthPx)
+  const connectingGrace = createSkeletonGrace(() => !attached && status.kind === 'none')
 
   const DROPPED_KEYS = {
     slow_client: 'terminal.dropped.slow_client',
@@ -55,8 +62,19 @@
     closed: 'terminal.dropped.closed',
   } as const
 
+  const UNAVAILABLE_KEYS = {
+    unsupported: 'terminal.unavailable.unsupported',
+    forbidden: 'terminal.unavailable.forbidden',
+    failed: 'terminal.unavailable.failed',
+    network: 'terminal.unavailable.network',
+  } as const
+
   function droppedKey(reason: DroppedReason): (typeof DROPPED_KEYS)[DroppedReason] {
     return DROPPED_KEYS[reason]
+  }
+
+  function unavailableKey(cause: UnavailableCause): (typeof UNAVAILABLE_KEYS)[UnavailableCause] {
+    return UNAVAILABLE_KEYS[cause]
   }
 
   onMount(() => {
@@ -164,9 +182,19 @@
             return
           }
           if (neverOpened && opts.afterCreate) {
-            // POST succeeded but the socket never opened: desktop / wails://.
+            const delay = firstAttachRetryDelayMs(reconnectAttempt)
+            if (delay !== null) {
+              phase = 'reconnecting'
+              status = { kind: 'reconnecting' }
+              reconnectAttempt += 1
+              reconnectTimer = setTimeout(() => {
+                if (cancelled) return
+                attachSocket(id, { afterCreate: true })
+              }, delay)
+              return
+            }
             phase = 'unavailable'
-            status = { kind: 'unavailable' }
+            status = { kind: 'unavailable', cause: 'network' }
             rememberSessionId(null)
             return
           }
@@ -213,9 +241,11 @@
       renderer.open(hostEl)
       renderer.fit()
       renderer.onData((bytes) => {
-        if (phase === 'ended') {
+        if (phase === 'ended' || phase === 'unavailable') {
           const enter = bytes.length === 1 && (bytes[0] === 13 || bytes[0] === 10)
           if (enter) {
+            if (status.kind === 'unavailable' && !unavailableAllowsRestart(status.cause)) return
+            if (status.kind === 'dropped' && !droppedAllowsRestart(status.reason)) return
             status = { kind: 'none' }
             phase = 'live'
             reconnectSince = 0
@@ -249,12 +279,12 @@
 
     function onCreateFail(err: unknown): void {
       if (cancelled) return
+      const classified = classifyCreateFail(err)
       phase = 'unavailable'
-      status = { kind: 'unavailable' }
+      status = classified.detail
+        ? { kind: 'unavailable', cause: classified.cause, detail: classified.detail }
+        : { kind: 'unavailable', cause: classified.cause }
       rememberSessionId(null)
-      if (err instanceof TerminalHttpError && err.status === 0) {
-        /* network — already unavailable */
-      }
     }
 
     void boot()
@@ -335,32 +365,50 @@
       <Icon name="x" size={14} />
     </button>
   </div>
-  {#if status.kind === 'unavailable'}
+  <div
+    class="relative min-h-0 min-w-0 flex-1 overflow-hidden"
+    data-skeleton={connectingGrace.attr}
+  >
     <div
-      class="flex h-full items-center justify-center px-4 text-center text-body text-text-secondary"
-      data-testid="terminal-status"
-    >
-      {t('terminal.unavailable')}
-    </div>
-  {:else}
-    <div class="min-h-0 min-w-0 flex-1 overflow-hidden" bind:this={hostEl}></div>
-    {#if status.kind !== 'none'}
-      <div
-        class="flex-none border-t border-border-subtle bg-bg-panel px-3 py-1.5 text-body text-text-secondary"
-        data-testid="terminal-status"
-        role="status"
-      >
-        {#if status.kind === 'reconnecting'}
-          {t('terminal.reconnecting')}
-        {:else if status.kind === 'exited'}
-          {t('terminal.exited', { code: status.code })}
-          <span class="text-text-muted"> · {t('terminal.restartHint')}</span>
-        {:else if status.kind === 'dropped'}
-          {t(droppedKey(status.reason))}
-          <span class="text-text-muted"> · {t('terminal.restartHint')}</span>
-        {/if}
+      class="h-full min-h-0 min-w-0 overflow-hidden"
+      class:invisible={connectingGrace.visible}
+      bind:this={hostEl}
+    ></div>
+    {#if connectingGrace.visible}
+      <div class="absolute inset-0" data-testid="terminal-connecting">
+        <LoadingState label={t('common.loading')} />
       </div>
     {/if}
+  </div>
+  {#if status.kind !== 'none'}
+    <div
+      class="flex-none border-t border-border-subtle bg-bg-panel px-3 py-1.5 text-body text-text-secondary"
+      data-testid="terminal-status"
+      role="status"
+    >
+      {#if status.kind === 'reconnecting'}
+        {t('terminal.reconnecting')}
+      {:else if status.kind === 'exited'}
+        {t('terminal.exited', { code: status.code })}
+        <span class="text-text-muted"> · {t('terminal.restartHint')}</span>
+      {:else if status.kind === 'dropped'}
+        {t(droppedKey(status.reason))}
+        {#if droppedAllowsRestart(status.reason)}
+          <span class="text-text-muted"> · {t('terminal.restartHint')}</span>
+        {:else}
+          <span class="text-text-muted"> · {t('terminal.mintHint')}</span>
+        {/if}
+      {:else if status.kind === 'unavailable'}
+        {#if status.cause === 'failed'}
+          {t('terminal.unavailable.failed', { message: status.detail ?? '' })}
+        {:else}
+          {t(unavailableKey(status.cause))}
+        {/if}
+        {#if unavailableAllowsRestart(status.cause)}
+          <span class="text-text-muted"> · {t('terminal.restartHint')}</span>
+        {/if}
+      {/if}
+    </div>
   {/if}
   {#if !overlay}
     <button

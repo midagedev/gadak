@@ -21,7 +21,7 @@
 
 import { config, isDesktop } from '../config'
 import { coerceDroppedReason } from './protocol'
-import type { SocketHandle, SocketHandlers } from './protocol'
+import type { DroppedReason, SocketHandle, SocketHandlers } from './protocol'
 import { openWailsSessionSocket } from './wails-stream'
 
 // The wire vocabulary lives in ./protocol so the two transports do not import
@@ -53,10 +53,63 @@ export class TerminalHttpError extends Error {
   constructor(
     readonly status: number,
     readonly code: string | null,
+    /** `message` from failMsg; fail() bodies have none. */
+    readonly serverMessage: string | null = null,
   ) {
-    super(code ?? `terminal HTTP ${status}`)
+    super(serverMessage || code || `terminal HTTP ${status}`)
     this.name = 'TerminalHttpError'
   }
+}
+
+/** Why create/attach ended in unavailable — keyed on the server's error
+ *  *code* (and HTTP status as fallback), never on a localized string. */
+export type UnavailableCause = 'unsupported' | 'forbidden' | 'failed' | 'network'
+
+const FORBIDDEN_CODES: ReadonlySet<string> = new Set([
+  'scope_rejected',
+  'forbidden_host',
+  'pairing_rejected',
+])
+
+export function classifyCreateFail(err: unknown): {
+  cause: UnavailableCause
+  detail: string | null
+} {
+  if (err instanceof TerminalHttpError) {
+    if (err.code === 'terminal_unsupported' || err.status === 501) {
+      return { cause: 'unsupported', detail: null }
+    }
+    if (
+      (err.code !== null && FORBIDDEN_CODES.has(err.code)) ||
+      err.status === 401 ||
+      err.status === 403
+    ) {
+      return { cause: 'forbidden', detail: null }
+    }
+    if (err.code === 'terminal_failed' || err.status === 500) {
+      const detail = err.serverMessage?.trim() || err.message
+      return { cause: 'failed', detail }
+    }
+    if (err.status === 0 || err.code === 'unreachable') {
+      return { cause: 'network', detail: null }
+    }
+  }
+  return { cause: 'network', detail: null }
+}
+
+/** First-connect attach that never opened retries once, using the same
+ *  backoff the live reconnect path already uses. null = do not retry. */
+export function firstAttachRetryDelayMs(attempt: number): number | null {
+  if (attempt !== 0) return null
+  return TERMINAL_RECONNECT_BACKOFF_MS[0]
+}
+
+export function unavailableAllowsRestart(cause: UnavailableCause): boolean {
+  return cause !== 'unsupported'
+}
+
+export function droppedAllowsRestart(reason: DroppedReason): boolean {
+  return reason !== 'token_revoked'
 }
 
 export interface SessionDoc {
@@ -80,13 +133,16 @@ export async function createSession(cols: number, rows: number): Promise<Session
   }
   if (!res.ok) {
     let code: string | null = null
+    let message: string | null = null
     try {
-      const body = (await res.json()) as { error?: string }
-      code = body.error ?? null
+      const body = (await res.json()) as { error?: unknown; message?: unknown }
+      code = typeof body.error === 'string' ? body.error : null
+      message =
+        typeof body.message === 'string' && body.message.trim() !== '' ? body.message : null
     } catch {
       /* non-JSON */
     }
-    throw new TerminalHttpError(res.status, code)
+    throw new TerminalHttpError(res.status, code, message)
   }
   return (await res.json()) as SessionDoc
 }

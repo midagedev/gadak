@@ -154,15 +154,35 @@ export const shell = {
     ko: '세션이 닫혔습니다',
     ja: 'セッションが閉じられました',
   },
-  'terminal.unavailable': {
-    en: 'Terminal is not available here',
-    ko: '여기서는 터미널을 쓸 수 없습니다',
-    ja: 'ここではターミナルを使えません',
+  'terminal.unavailable.unsupported': {
+    en: 'This machine cannot run a shell. Windows has no PTY, and that is permanent.',
+    ko: '이 기기에서는 셸을 쓸 수 없습니다. Windows에는 PTY가 없으며, 이는 바뀌지 않습니다.',
+    ja: 'このマシンではシェルを実行できません。Windows に PTY はなく、これは変わりません。',
+  },
+  'terminal.unavailable.forbidden': {
+    en: 'This device is not allowed to open a shell here. Mint a terminal-scope token with `gadak pairing mint --label NAME --scope terminal`.',
+    ko: '이 기기에서는 셸을 열 수 없습니다. `gadak pairing mint --label NAME --scope terminal`로 터미널 스코프 토큰을 만드세요.',
+    ja: 'このデバイスではシェルを開けません。`gadak pairing mint --label NAME --scope terminal` でターミナルスコープのトークンを発行してください。',
+  },
+  'terminal.unavailable.failed': {
+    en: 'The host could not start a shell: {message}',
+    ko: '호스트가 셸을 시작하지 못했습니다: {message}',
+    ja: 'ホストがシェルを起動できませんでした: {message}',
+  },
+  'terminal.unavailable.network': {
+    en: 'The shell connection did not open.',
+    ko: '셸 연결이 열리지 않았습니다.',
+    ja: 'シェル接続が開きませんでした。',
   },
   'terminal.restartHint': {
     en: 'Press Enter to start a new shell',
     ko: 'Enter 키로 새 셸을 시작합니다',
     ja: 'Enter で新しいシェルを起動します',
+  },
+  'terminal.mintHint': {
+    en: 'Mint a new token with `gadak pairing mint --label NAME --scope terminal`',
+    ko: '`gadak pairing mint --label NAME --scope terminal`로 새 토큰을 만드세요',
+    ja: '`gadak pairing mint --label NAME --scope terminal` で新しいトークンを発行してください',
   },
   'terminal.close': {
     en: 'Close the terminal',

@@ -57,6 +57,11 @@ const READ_PATH: { name: string; file: string; comment: string }[] = [
     file: join(WEB_SRC, 'components/detail/PersonPanel.svelte'),
     comment: 'author comments are a loopback mirror read; header is already on screen',
   },
+  {
+    name: 'terminal first attach',
+    file: join(WEB_SRC, 'components/terminal/TerminalPane.svelte'),
+    comment: 'POST session + socket open can take seconds; sibling of dashboard grace',
+  },
 ]
 
 /**
