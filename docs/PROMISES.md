@@ -1,8 +1,8 @@
 # Promises
 
-Nine things gadak asks you not to take on trust: one sentence each, and one
-command you can run in a clone of this repository — a Go toolchain for six of
-them, `sqlite3` for one, `grep` for the rest. Every command was run on this tree
+Ten things gadak asks you not to take on trust: one sentence each, and one
+command you can run in a clone of this repository — a Go toolchain for seven
+of them, `sqlite3` or `grep` for the rest. Every command was run on this tree
 and produced the output shown; if one stops doing so, the promise is broken and
 that is a bug worth reporting. Only what is true and checkable today, no roadmap.
 The threat model and the reasoning live in [`SECURITY.md`](../SECURITY.md).
@@ -96,31 +96,35 @@ go test ./internal/snapshot/ -run 'TestCredentialRejected|TestCredentialInPageRe
 # → ok  github.com/midagedev/gadak/internal/snapshot
 ```
 
-**9. On standalone, the origin is one plaintext YAML file, readable without gadak.**
-`gadak init --standalone` writes `origin/issuetap.yaml` under the profile
-directory (`internal/origin/origin.go` `PersistRel`). That file is the record;
-`gadak.db` remains a disposable cache. The command uses a throwaway
-`GADAK_HOME` so it never touches `~/.gadak`.
+**9. On standalone, the origin is one ordinary SQLite file, readable without gadak.**
+`gadak init --standalone` writes `origin/issuetap.db` under the profile
+directory (`internal/origin/origin.go` `PersistRel`) — plain SQLite, no
+custom container. That file is the record; `gadak.db` remains a disposable
+cache filled by sync. The command uses a throwaway `GADAK_HOME` so it never
+touches `~/.gadak`.
 
 ```bash
 tmp=$(mktemp -d)
 go build -o "$tmp/gadak" ./cmd/gadak
 GADAK_HOME=$tmp "$tmp/gadak" init --standalone --json >/dev/null
-head -n 16 "$tmp/origin/issuetap.yaml"
-# → seed: 1
-#   locale: en
-#   users:
-#     - accountId: 5b10a2844c20165700ede21g
-#       name: ada
-#       key: ada
-#       displayName: Ada Lovelace
-#       email: you@example.com
-#       active: true
-#       timeZone: Asia/Seoul
-#   projects:
-#     - id: "10000"
-#       key: STD
-#       name: Standalone
-#       type: software
-#       style: classic
+GADAK_HOME=$tmp "$tmp/gadak" create "written through gadak" --project STD --json >/dev/null 2>&1
+sqlite3 "$tmp/origin/issuetap.db" "select key, json_extract(blob, '$.summary') from issues"
+# → STD-1|written through gadak
+```
+
+**10. Deleting `gadak.db` loses nothing you made.**
+Saved views, visits, and search history live in `local.db`, a separate file
+beside the mirror — the mirror is a cache, and your own state is not in it.
+Delete `gadak.db` — corrupted mirror, full disk, fresh re-sync — and the
+views you saved, the issues you opened, and what you searched for are still
+there.
+
+```bash
+tmp=$(mktemp -d)
+go build -o "$tmp/gadak" ./cmd/gadak
+GADAK_HOME=$tmp "$tmp/gadak" init --standalone --json >/dev/null
+GADAK_HOME=$tmp "$tmp/gadak" views save "Night triage" --jql 'project = STD'
+rm "$tmp/gadak.db"
+GADAK_HOME=$tmp "$tmp/gadak" views | grep -c 'Night triage'
+# → 1
 ```

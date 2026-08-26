@@ -370,9 +370,15 @@ your files, full-disk encryption is the remaining tool — a local password on
 the file would only be obfuscation, and we would rather not pretend
 otherwise.
 
-Offboarding is one command: `rm -rf ~/.gadak` removes the mirror, the
-credential, and every profile. Nothing else on the machine or in Jira knows
-gadak existed.
+Offboarding depends on what the profile holds. On a connected workspace —
+or a paired one — the origin is elsewhere (your Atlassian site, or the home
+serve you paired with), and `rm -rf ~/.gadak` is the whole story: it removes
+the mirror, the credential, and every profile, and nothing else on the
+machine or in Jira knows gadak existed. On a standalone workspace that
+command destroys the origin itself: each profile's `origin/issuetap.db` is
+the only copy of that tracker anywhere. Copy the file out first (plain
+SQLite — nothing of gadak's is needed to read it) unless you mean to throw
+the data away.
 
 ## Release artifacts
 

@@ -1788,4 +1788,10 @@ if [[ -n "$raw_pre" ]]; then
 fi
 ok "site copyable blocks all go through Snippet.astro"
 
+# ── 35. The PROMISES verification blocks actually run ───────────────────
+# docs/PROMISES.md stakes its credibility on "if one stops doing so, the
+# promise is broken" — this makes that sentence executable. v0.18.1 shipped
+# with promise #9 reading a YAML persist the code had replaced with SQLite.
+bash tools/check-promises.sh
+
 echo "doc-checks: all passed"
