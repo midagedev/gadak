@@ -33,7 +33,7 @@
  * this config on its own attaches to whatever is on the port and will record
  * the operator's real home directory into the frame.
  *
- * Viewport and video size must stay 1080×1350 (terminal-claude.config.ts) or
+ * Viewport and video size must stay 1440×1080 (terminal-claude.config.ts) or
  * Playwright letterboxes the capture.
  */
 import { test, expect, type Page } from '@playwright/test'
@@ -128,9 +128,11 @@ test.describe('terminal claude demo', () => {
 
   test('the agent is in the window: two Korean prompts move the board', async ({ page }) => {
     // The pane's stored width is per-browser, and a fresh recording context
-    // has none — the default ratio would open it at 475px, about 55 columns,
-    // which wraps Claude's TUI into a column of stubs. 640 is the widest the
-    // 1080 frame allows beside the list's minimum.
+    // has none — the default ratio would open it at 634px here, and the take
+    // wants the width to be a decision rather than a ratio. 640 is also the
+    // first frame where the pane gets what it asks for: under the 1080-wide
+    // cut the split clamped to ~428 (the list keeps a 390px minimum), which
+    // is about 55 columns and wraps Claude's TUI into a column of stubs.
     await page.addInitScript(() => {
       try {
         localStorage.setItem('gadak.terminal.width', '640')
