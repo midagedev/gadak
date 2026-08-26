@@ -70,6 +70,17 @@ func viewsList(args []string) error {
 	if *asJSON {
 		return json.NewEncoder(os.Stdout).Encode(map[string]any{"views": jsonList(list)})
 	}
+	if len(list) == 0 {
+		// GDK-1020: zero views printed nothing at all — indistinguishable
+		// from a command that broke. One stdout line, parenthesized and
+		// tab-free so it cannot parse as the TSV row shape above, the same
+		// stance listTransitions takes for "no available transitions".
+		// stdout (not stderr) on purpose: the caller here is a pipe, and a
+		// pipe-only TTY gate would keep it blind — search's empty-on-pipe
+		// rule protects a row contract; this listing has no rows to protect.
+		fmt.Println(`(no saved views — save one: gadak views save "name" --jql '…')`)
+		return nil
+	}
 	for _, v := range list {
 		fav := ""
 		if v.Favourite {

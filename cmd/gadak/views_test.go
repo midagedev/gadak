@@ -56,6 +56,34 @@ func TestViewsListAndShow(t *testing.T) {
 	}
 }
 
+// GDK-1020: a listing with nothing to list says so on stdout — one tab-free
+// line that cannot parse as the TSV row shape — instead of printing nothing
+// at all, which a pipe cannot tell apart from a broken command.
+func TestViewsListEmptyStateSaysSo(t *testing.T) {
+	mirror(t, "https://unused.example.com")
+
+	out, err := capture(t, func() error { return cmdViews(nil) })
+	if err != nil {
+		t.Fatalf("views: %v\n%s", err, out)
+	}
+	want := `(no saved views — save one: gadak views save "name" --jql '…')`
+	if strings.TrimSpace(out) != want {
+		t.Fatalf("stdout %q, want %q", out, want)
+	}
+	if strings.Contains(out, "\t") {
+		t.Fatalf("the empty-state line must not parse as a TSV row: %q", out)
+	}
+
+	// The machine form was already an explicit empty state and stays one.
+	outJSON, err := capture(t, func() error { return cmdViews([]string{"--json"}) })
+	if err != nil {
+		t.Fatalf("views --json: %v\n%s", err, outJSON)
+	}
+	if strings.TrimSpace(outJSON) != `{"views":[]}` {
+		t.Fatalf("views --json %q", outJSON)
+	}
+}
+
 // A view whose JQL only partly compiled must say so every time it is listed
 // or opened, not once at save (GDK-504): the listing prints the requested JQL,
 // so without a marker the view reads as a promise it does not keep.

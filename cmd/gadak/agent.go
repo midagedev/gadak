@@ -592,10 +592,17 @@ func printIssue(l store.IssueLite, d *store.Detail, dur store.Spans) {
 		kv(alias, fmt.Sprint(l.Custom[alias]))
 	}
 
-	if body := strings.TrimSpace(jira.PlainText(d.DescriptionADF)); body != "" {
-		fmt.Printf("\ndescription\n%s\n", indent(body))
-	} else if text := strings.TrimSpace(d.DescriptionText); text != "" {
-		fmt.Printf("\ndescription\n%s\n", indent(text))
+	desc := strings.TrimSpace(jira.PlainText(d.DescriptionADF))
+	if desc == "" {
+		desc = strings.TrimSpace(d.DescriptionText)
+	}
+	if desc != "" {
+		fmt.Printf("\ndescription\n%s\n", indent(desc))
+	} else {
+		// GDK-1020: an omitted section read as a truncated answer — a caller
+		// with no session ran the right command and judged it incomplete.
+		// Absence is an answer, so it gets its line in the section's rhythm.
+		fmt.Printf("\ndescription (none)\n")
 	}
 	if len(d.Comments) > 0 {
 		fmt.Printf("\ncomments (%d)\n", len(d.Comments))
@@ -613,6 +620,10 @@ func printIssue(l store.IssueLite, d *store.Detail, dur store.Spans) {
 			}
 			fmt.Printf("  %s  %s\n%s\n", c.CreatedAt, c.Author, indent(body))
 		}
+	} else {
+		// Same contract as description (none): the count-0 header is the
+		// present form's own shape with nothing under it.
+		fmt.Printf("\ncomments (0)\n")
 	}
 	if len(d.Attachments) > 0 {
 		fmt.Printf("\nattachments (%d)\n", len(d.Attachments))
@@ -1597,8 +1608,35 @@ func emitAfterWrite(ctx context.Context, cfg *config.Config, db *store.DB, src, 
 		}
 		return json.NewEncoder(os.Stdout).Encode(body)
 	}
+	// The refreshed row is every write's confirmation except one: a comment
+	// changes nothing the row carries, so the comment write prints its own
+	// line instead (GDK-1019).
+	if line := commentAddedLine(key, extra); line != "" {
+		fmt.Println(line)
+		return nil
+	}
 	fmt.Println(summaryLine(lites[0]))
 	return nil
+}
+
+// commentBodyCols is the excerpt budget on the comment confirmation line —
+// display columns, not runes, so clip's CJK rule holds here too.
+const commentBodyCols = 60
+
+// commentAddedLine is the text success line for the one write whose effect
+// the refreshed TSV row cannot show: a comment. `gadak page comment` already
+// prints this shape (`comment <id> added`); the excerpt is what tells a
+// caller with no session which text landed (GDK-1019). Empty when extra is
+// not a comment write — every other verb keeps its summary row. The body is
+// the origin's echo (postComment's extra), not the text that was sent.
+func commentAddedLine(key string, extra map[string]any) string {
+	m, ok := extra["comment"].(map[string]any)
+	if !ok {
+		return ""
+	}
+	id, _ := m["comment_id"].(string)
+	body, _ := m["body"].(string)
+	return fmt.Sprintf("%s\tcomment %s added: %q", key, id, clip(body, commentBodyCols))
 }
 
 // writeAppliedMirrorStaleMessage is the one author of the CLI warning for a
@@ -1628,6 +1666,13 @@ func emitWriteAppliedMirrorStaleFor(db *store.DB, warnKey, rowKey string, asJSON
 			body[k] = v
 		}
 		return json.NewEncoder(os.Stdout).Encode(body)
+	}
+	// The comment landed even though the mirror did not refresh — and this is
+	// the branch where a caller most needs to be told the write itself
+	// succeeded, so the confirmation line leads here too (GDK-1019).
+	if line := commentAddedLine(rowKey, extra); line != "" {
+		fmt.Println(line)
+		return nil
 	}
 	if len(lites) == 0 {
 		fmt.Println(rowKey)

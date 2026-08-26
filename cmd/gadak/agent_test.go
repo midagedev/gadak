@@ -482,6 +482,59 @@ func TestIssuePrintsBodyTextWhenADFEmpty(t *testing.T) {
 	}
 }
 
+// GDK-1020: an issue with no description and no comments says so, one line
+// per section, instead of omitting the sections — a live round read the
+// missing sections as an incomplete command and dropped a finished task.
+// The present form (NMB-1 in the same fixture) must stay as it was.
+func TestIssuePrintsEmptyStateMarkers(t *testing.T) {
+	mirror(t, "https://unused.example.com")
+	db, err := store.Open(filepath.Join(os.Getenv("GADAK_HOME"), "gadak.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.UpsertIssues(context.Background(), store.Batch{
+		Records: []store.IssueRecord{{
+			Item: store.Item{
+				ID: "jira:1002", SourceID: "jira", Kind: "issue", ExternalID: "1002", Key: "NMB-2",
+				Title:     "bare issue, nothing attached",
+				CreatedAt: "2026-08-01T00:00:00.000Z", UpdatedAt: "2026-08-01T00:00:00.000Z",
+			},
+			Issue: store.Issue{ProjectKey: "NMB", StatusCategory: "new", Status: "To Do"},
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := capture(t, func() error { return cmdIssue([]string{"NMB-2"}) })
+	if err != nil {
+		t.Fatalf("issue: %v", err)
+	}
+	if !strings.Contains(out, "\ndescription (none)\n") {
+		t.Fatalf("empty description must state itself:\n%s", out)
+	}
+	if !strings.Contains(out, "\ncomments (0)\n") {
+		t.Fatalf("zero comments must state themselves:\n%s", out)
+	}
+
+	// The present form is unchanged: same fixture, issue with both sections.
+	out, err = capture(t, func() error { return cmdIssue([]string{"NMB-1"}) })
+	if err != nil {
+		t.Fatalf("issue NMB-1: %v", err)
+	}
+	if !strings.Contains(out, "\ndescription\n    retry drops the key\n") {
+		t.Fatalf("present description form changed:\n%s", out)
+	}
+	if !strings.Contains(out, "\ncomments (1)\n") {
+		t.Fatalf("present comments form changed:\n%s", out)
+	}
+	if strings.Contains(out, "(none)") || strings.Contains(out, "comments (0)") {
+		t.Fatalf("a described, commented issue must not carry empty markers:\n%s", out)
+	}
+}
+
 func TestOpenFallsBackToJiraBrowseWhenItemURLEmpty(t *testing.T) {
 	mirror(t, "https://jira.example.com")
 	var got string
@@ -1740,6 +1793,53 @@ func TestCommentTakesPositionalBody(t *testing.T) {
 
 func commentADF(f *fakeJira) string {
 	return f.bodies["POST /issue/NMB-1/comment"]
+}
+
+// GDK-1019: the comment write's text success output names what it wrote.
+// The refreshed TSV row cannot carry a comment, so the row is replaced by
+// the one-line shape `gadak page comment` already prints, with the origin's
+// echoed body excerpted so a caller with no session can tell which text
+// landed without a re-read round trip.
+func TestCommentPrintsItsConfirmationLine(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+
+	out, err := capture(t, func() error {
+		return cmdComment([]string{"NMB-1", "-m", "checked on staging"})
+	})
+	if err != nil {
+		t.Fatalf("comment: %v", err)
+	}
+	// The fake origin echoes body "checked" under id c-99; the line reports
+	// that echo, not the text that was sent.
+	if got, want := strings.TrimSpace(out), "NMB-1\tcomment c-99 added: \"checked\""; got != want {
+		t.Fatalf("stdout %q, want %q", got, want)
+	}
+}
+
+// The mirror-stale tail (write landed, re-read failed) is the branch where
+// the confirmation matters most: exit 0, the warning on stderr, and the
+// comment line still on stdout — the page comment verb behaves the same way.
+func TestCommentConfirmationSurvivesMirrorStale(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	f.rereadStatus = 422
+
+	stdout, stderr, err := captureBoth(t, func() error {
+		return cmdComment([]string{"NMB-1", "-m", "landed anyway"})
+	})
+	if err != nil {
+		t.Fatalf("comment must exit 0 after a landed write: %v", err)
+	}
+	if !f.called("POST /issue/NMB-1/comment") {
+		t.Fatal("write must have reached Jira before the refresh warning")
+	}
+	if !strings.Contains(stderr, "write applied to NMB-1, but the mirror did not refresh") {
+		t.Fatalf("stderr missing write-applied warning: %q", stderr)
+	}
+	if !strings.HasPrefix(stdout, "NMB-1\tcomment c-99 added: ") {
+		t.Fatalf("stdout missing the confirmation line: %q", stdout)
+	}
 }
 
 func TestCommentMentionSingleHitBecomesNode(t *testing.T) {
