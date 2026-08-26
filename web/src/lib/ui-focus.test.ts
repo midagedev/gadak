@@ -9,10 +9,11 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import {
-  UI_FOCUS_AT_KEY,
-  readLastFocusAt,
-  rememberFocusAt,
+  UI_FOCUS_KEY,
+  readLastFocusKey,
+  rememberFocusKey,
   shouldApplyUIFocus,
+  uiFocusKey,
 } from './ui-focus'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -30,24 +31,48 @@ afterEach(() => {
 })
 
 describe('GDK-960 shouldApplyUIFocus', () => {
-  test('the same at is applied only once', () => {
+  const H = 'pj=NMA'
+
+  test('the same payload is applied only once', () => {
     const at = '2026-08-26T00:00:00Z'
-    expect(shouldApplyUIFocus(at, null)).toBe(true)
-    expect(shouldApplyUIFocus(at, at)).toBe(false)
+    expect(shouldApplyUIFocus(at, H, null)).toBe(true)
+    expect(shouldApplyUIFocus(at, H, uiFocusKey(at, H))).toBe(false)
   })
 
   test('a newer at is applied', () => {
-    expect(shouldApplyUIFocus('2026-08-26T00:01:00Z', '2026-08-26T00:00:00Z')).toBe(true)
+    const last = uiFocusKey('2026-08-26T00:00:00Z', H)
+    expect(shouldApplyUIFocus('2026-08-26T00:01:00Z', H, last)).toBe(true)
+  })
+
+  /*
+   * GDK-981: `at` is a wall-clock stamp and can repeat — an older server
+   * writes it at second resolution, so `views open A && views open B` gives
+   * both the same one. Keyed on `at` alone the tab that applied A would drop
+   * B in silence, which is the symptom GDK-960 set out to fix.
+   */
+  test('a second hash under the same at is still applied', () => {
+    const at = '2026-08-26T00:00:00Z'
+    expect(shouldApplyUIFocus(at, 'pj=NMB', uiFocusKey(at, 'pj=NMA'))).toBe(true)
+  })
+
+  test('the same hash under the same at is not applied twice', () => {
+    const at = '2026-08-26T00:00:00Z'
+    expect(shouldApplyUIFocus(at, 'pj=NMA', uiFocusKey(at, 'pj=NMA'))).toBe(false)
   })
 
   test('missing at cannot be deduped and is applied', () => {
-    expect(shouldApplyUIFocus('', '2026-08-26T00:00:00Z')).toBe(true)
-    expect(shouldApplyUIFocus(null, '2026-08-26T00:00:00Z')).toBe(true)
-    expect(shouldApplyUIFocus(undefined, null)).toBe(true)
+    const last = uiFocusKey('2026-08-26T00:00:00Z', H)
+    expect(shouldApplyUIFocus('', H, last)).toBe(true)
+    expect(shouldApplyUIFocus(null, H, last)).toBe(true)
+    expect(shouldApplyUIFocus(undefined, H, null)).toBe(true)
   })
 })
 
-describe('GDK-960 last-applied at storage', () => {
+describe('GDK-960 last-applied key storage', () => {
+  const AT = '2026-08-26T00:00:00Z'
+  const H = 'pj=NMA'
+  const KEY = uiFocusKey(AT, H)
+
   test('memory is preferred over sessionStorage', () => {
     vi.stubGlobal('sessionStorage', {
       getItem: () => 'from-store',
@@ -55,7 +80,7 @@ describe('GDK-960 last-applied at storage', () => {
         throw new Error('should not write')
       },
     })
-    expect(readLastFocusAt('from-memory')).toBe('from-memory')
+    expect(readLastFocusKey('from-memory')).toBe('from-memory')
   })
 
   test('sessionStorage fills in after a refresh (memory empty)', () => {
@@ -66,10 +91,10 @@ describe('GDK-960 last-applied at storage', () => {
         store[k] = v
       },
     })
-    rememberFocusAt('2026-08-26T00:00:00Z')
-    expect(store[UI_FOCUS_AT_KEY]).toBe('2026-08-26T00:00:00Z')
-    expect(readLastFocusAt(null)).toBe('2026-08-26T00:00:00Z')
-    expect(shouldApplyUIFocus('2026-08-26T00:00:00Z', readLastFocusAt(null))).toBe(false)
+    rememberFocusKey(KEY)
+    expect(store[UI_FOCUS_KEY]).toBe(KEY)
+    expect(readLastFocusKey(null)).toBe(KEY)
+    expect(shouldApplyUIFocus(AT, H, readLastFocusKey(null))).toBe(false)
   })
 
   test('blocked sessionStorage is treated as not yet applied', () => {
@@ -81,9 +106,9 @@ describe('GDK-960 last-applied at storage', () => {
         throw new Error('blocked')
       },
     })
-    expect(readLastFocusAt(null)).toBeNull()
-    expect(() => rememberFocusAt('2026-08-26T00:00:00Z')).not.toThrow()
-    expect(shouldApplyUIFocus('2026-08-26T00:00:00Z', readLastFocusAt(null))).toBe(true)
+    expect(readLastFocusKey(null)).toBeNull()
+    expect(() => rememberFocusKey(KEY)).not.toThrow()
+    expect(shouldApplyUIFocus(AT, H, readLastFocusKey(null))).toBe(true)
   })
 })
 
@@ -93,7 +118,7 @@ describe('GDK-960 App.svelte calls the apply-once helpers', () => {
     expect(src).toContain('pollUIFocus')
     expect(src).not.toContain('takeUIFocus')
     expect(src).toContain('shouldApplyUIFocus')
-    expect(src).toContain('readLastFocusAt')
-    expect(src).toContain('rememberFocusAt')
+    expect(src).toContain('readLastFocusKey')
+    expect(src).toContain('rememberFocusKey')
   })
 })

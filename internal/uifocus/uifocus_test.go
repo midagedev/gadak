@@ -3,13 +3,14 @@ package uifocus
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/midagedev/gadak/internal/config"
 )
 
-func TestWriteTake(t *testing.T) {
+func TestWritePeek(t *testing.T) {
 	t.Setenv("GADAK_HOME", t.TempDir())
 	if err := Write("pj=NMA&sc=inprogress"); err != nil {
 		t.Fatal(err)
@@ -72,5 +73,39 @@ func TestPeekIgnoresStale(t *testing.T) {
 	}
 	if _, _, ok, err := PeekFor(config.Profile()); err != nil || ok {
 		t.Fatalf("stale should be ignored ok=%v err=%v", ok, err)
+	}
+}
+
+// GDK-981: two writes inside one second must stay distinguishable.
+//
+// The client dedupes a focus payload on `at` so an open tab applies it once
+// (GDK-960). That only works while `at` changes per write: stamped at second
+// resolution, `gadak views open A && gadak views open B` hands both writes
+// the same `at`, and every tab that already applied A drops B in silence.
+// Sub-second precision is the contract, not the spelling.
+func TestWriteStampsAreDistinguishableWithinOneSecond(t *testing.T) {
+	t.Setenv("GADAK_HOME", t.TempDir())
+	profile := config.Profile()
+
+	if err := Write("pj=NMA"); err != nil {
+		t.Fatal(err)
+	}
+	_, first, ok, err := PeekFor(profile)
+	if err != nil || !ok {
+		t.Fatalf("peek A ok=%v err=%v", ok, err)
+	}
+	if err := Write("pj=NMB"); err != nil {
+		t.Fatal(err)
+	}
+	_, second, ok, err := PeekFor(profile)
+	if err != nil || !ok {
+		t.Fatalf("peek B ok=%v err=%v", ok, err)
+	}
+
+	if !strings.Contains(first, ".") {
+		t.Errorf("at = %q, want sub-second precision: two writes in one second are indistinguishable without it", first)
+	}
+	if first == second {
+		t.Errorf("both writes stamped %q — the second focus is dropped by every tab that applied the first", first)
 	}
 }

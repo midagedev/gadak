@@ -17,6 +17,17 @@ import (
 
 const fileName = "ui-focus.json"
 
+// stampLayout is RFC 3339 with a fixed-width nanosecond field.
+//
+// The client dedupes a focus payload on this stamp, so two writes inside one
+// second must not carry the same one: at second resolution `gadak views open
+// A && gadak views open B` stamped both alike, and every tab that had applied
+// A dropped B in silence (GDK-981). time.RFC3339Nano is not enough here — it
+// trims trailing zeros, so a whole-second instant formats without any
+// fractional part at all. Readers are unaffected either way: fractional
+// seconds are RFC 3339, and time.Parse(time.RFC3339, …) accepts them.
+const stampLayout = "2006-01-02T15:04:05.000000000Z07:00"
+
 // MaxAge is how long a focus request stays valid. Older files are ignored
 // so a leftover from yesterday cannot yank the list when the app next opens.
 const MaxAge = 2 * time.Minute
@@ -49,7 +60,7 @@ func WriteFor(profile, hash string) error {
 	if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
 		return err
 	}
-	body, err := json.Marshal(request{Hash: hash, At: time.Now().UTC().Format(time.RFC3339)})
+	body, err := json.Marshal(request{Hash: hash, At: time.Now().UTC().Format(stampLayout)})
 	if err != nil {
 		return err
 	}

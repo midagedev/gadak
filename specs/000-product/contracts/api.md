@@ -207,12 +207,15 @@ id is not in the mirror.
 ### `GET ui-focus/` — R
 
 The view hash left by `gadak views open`, plus its write timestamp:
-`200 {"hash":"pj=NMA&sc=inprogress","at":"2026-08-26T05:00:00Z"}`. **The file
-is not consumed on read** — every UI polling that profile sees the same
-payload while it is fresh (2 min), and the file expires by age. Applying a
-given `at` once is each client's job; a read that consumed it meant whichever
-client polled first stole the focus from the window a human was looking at
-(GDK-960). Always `200` with a JSON body — `204` is retired, because an empty
+`200 {"hash":"pj=NMA&sc=inprogress","at":"2026-08-26T05:00:00.000000000Z"}`.
+**The file is not consumed on read** — every UI polling that profile sees the
+same payload while it is fresh (2 min), and the file expires by age. Applying
+a given payload once is each client's job; a read that consumed it meant
+whichever client polled first stole the focus from the window a human was
+looking at (GDK-960). Dedupe on `(at, hash)`, and treat `at` as an opaque
+string: it is RFC 3339 and now carries fractional seconds, but a client that
+keys on it alone drops the second of two writes that share a second (GDK-981).
+Always `200` with a JSON body — `204` is retired, because an empty
 body cannot carry `configVersion` (GDK-791). `hash` and `at` are absent when
 nothing is fresh. The SPA applies the hash as `#/?<hash>`.
 

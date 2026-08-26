@@ -24,7 +24,12 @@
   import { applyStartupView, readLastViewKey } from './lib/startup-view'
   import { feature, hasServerVerb, isHostedDemo, loadConfig } from './lib/config'
   import { pollUIFocus } from './lib/api'
-  import { readLastFocusAt, rememberFocusAt, shouldApplyUIFocus } from './lib/ui-focus'
+  import {
+    readLastFocusKey,
+    rememberFocusKey,
+    shouldApplyUIFocus,
+    uiFocusKey,
+  } from './lib/ui-focus'
   import { applyUserTokens } from './lib/user-tokens'
   import { showIssueList } from './lib/show-issue-list'
   import { FEED_FOCUSES } from './lib/types'
@@ -244,13 +249,15 @@
         }
         const hash = poll.hash
         if (!hash) return
-        // GDK-960: same at is applied once per tab (memory, then sessionStorage
-        // so a refresh inside MaxAge does not bounce the list).
-        const remembered = readLastFocusAt(lastFocusAt)
-        if (!shouldApplyUIFocus(poll.at, remembered)) return
+        // GDK-960: a payload is applied once per tab (memory, then
+        // sessionStorage so a refresh inside MaxAge does not bounce the
+        // list). GDK-981: keyed on (at, hash) — `at` alone repeats when two
+        // writes land in the same second, and the second one would vanish.
+        const remembered = readLastFocusKey(lastFocusKey)
+        if (!shouldApplyUIFocus(poll.at, hash, remembered)) return
         if (poll.at) {
-          lastFocusAt = poll.at
-          rememberFocusAt(poll.at)
+          lastFocusKey = uiFocusKey(poll.at, hash)
+          rememberFocusKey(lastFocusKey)
         }
         const q = hash.startsWith('#/?')
           ? hash.slice(3)
@@ -285,7 +292,7 @@
     }
     // configVersion this tab last saw (null = no baseline yet). See applyFocus.
     let lastConfigVersion: string | null = null
-    let lastFocusAt: string | null = null
+    let lastFocusKey: string | null = null
     let focusTimer: ReturnType<typeof setInterval> | null = null
     const markFocusPoll = (on: boolean) => {
       document.documentElement.dataset.uiFocusPoll = on ? 'on' : 'off'
