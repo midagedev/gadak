@@ -620,3 +620,61 @@ func TestMain(m *testing.M) {
 	}
 	os.Exit(m.Run())
 }
+
+// TestMemberWalkHappensOnceAndCannotCatchALaterSession pins the invariant
+// the first GDK-950 fix got wrong: the controlling-terminal walk must
+// happen once, while the shell is alive and owns the device, and never
+// again.
+//
+// Repeating it at the SIGKILL stage looks harmless and is not. The kernel
+// revokes the terminal when the session leader exits and hands the device
+// number to the next PTY, so the second walk returns either nothing or
+// another session's shell — which then gets SIGKILLed. Measured on Linux,
+// where every /dev/pts slot reported tty_nr 0x8800: closing shell 19
+// re-walked and found shell 20, a session opened moments later.
+//
+// The sequence below is that race made deterministic: capture, release the
+// device, let another session take it, signal again. Signal 0 is used
+// because only the target set is under test, not the delivery. On a
+// platform that does not reuse the device the assertion is simply always
+// true; the pin is meaningful where the reuse is real.
+func TestMemberWalkHappensOnceAndCannotCatchALaterSession(t *testing.T) {
+	m := testManager(t, Config{})
+	first := shellSession(t, m, Options{})
+	firstProc := first.proc
+
+	// Capture while the shell is alive: this is the only trustworthy walk.
+	if err := firstProc.signalSession(syscall.Signal(0)); err != nil {
+		t.Fatal(err)
+	}
+	firstProc.seenMu.Lock()
+	captured := len(firstProc.seen)
+	firstProc.seenMu.Unlock()
+	if captured == 0 {
+		t.Skip("no controlling-terminal members visible on this platform")
+	}
+
+	// Release the device so the next PTY can be handed the same number.
+	_ = first.Close()
+
+	second := shellSession(t, m, Options{})
+	secondPID := second.PID()
+	if secondPID <= 0 {
+		t.Fatal("second session has no pid")
+	}
+
+	// A second walk here is what the regression did. It must not happen.
+	if err := firstProc.signalSession(syscall.Signal(0)); err != nil {
+		t.Fatal(err)
+	}
+	firstProc.seenMu.Lock()
+	_, caught := firstProc.seen[secondPID]
+	members := make([]int, 0, len(firstProc.seen))
+	for pid := range firstProc.seen {
+		members = append(members, pid)
+	}
+	firstProc.seenMu.Unlock()
+	if caught {
+		t.Fatalf("the closed session's member set %v picked up shell %d of a later session", members, secondPID)
+	}
+}

@@ -21,14 +21,15 @@ import (
 // does not reach that grandchild. Close walks every process that shares
 // the shell's controlling-terminal device and signals those.
 //
-// The walk is also remembered, because it stops working exactly when it
-// is needed most: when the session leader exits, the kernel revokes the
-// session's controlling terminal, so a walk performed after the SIGHUP
-// killed the shell returns nothing and a HUP-immune grandchild would
-// never be reached (GDK-950, measured: members=[shell grandchild] at
-// SIGHUP, members=[] at SIGKILL). Each remembered pid is paired with a
-// start-time stamp so a pid recycled during the grace is not signalled
-// in its successor's place.
+// That walk happens once, at the first signal, and is remembered: it
+// stops working exactly when it is needed most. When the session leader
+// exits, the kernel revokes the session's controlling terminal, so a walk
+// performed after the SIGHUP killed the shell returns nothing and a
+// HUP-immune grandchild would never be reached (GDK-950, measured:
+// members=[shell grandchild] at SIGHUP, members=[] at SIGKILL). Each
+// remembered pid is paired with a start-time stamp so a pid recycled
+// during the grace is not signalled in its successor's place. See
+// captureMembers for why the walk must not be repeated.
 type ptyProc struct {
 	f   *os.File
 	cmd *exec.Cmd
@@ -83,44 +84,63 @@ func (p *ptyProc) resize(cols, rows uint16) error {
 func (p *ptyProc) hangup() error { return p.signalSession(syscall.SIGHUP) }
 func (p *ptyProc) kill() error   { return p.signalSession(syscall.SIGKILL) }
 
-func (p *ptyProc) captureTty() {
+// captureMembers walks the shell's controlling terminal exactly once and
+// remembers what it found, with a start-time stamp per pid.
+//
+// Once, and only at the first signal, is the whole point. The walk is
+// trustworthy only while the shell is alive and holding the master, which
+// is what makes the device exclusively ours. Afterwards it is worse than
+// useless: the kernel revokes the terminal when the session leader exits,
+// and the device number is then handed to the next PTY. A second walk
+// during the SIGKILL stage therefore returns either nothing or, worse,
+// somebody else's session — measured on Linux, where every /dev/pts slot
+// reported the same tty_nr and a closing session's re-walk found the
+// shell of a session opened moments later (dev=0x8800, closing shell 19,
+// walk returned [20]). Killing an unrelated live terminal is a far worse
+// defect than the orphan this fix exists to prevent.
+//
+// The cost of walking once is that a process the shell spawns *during*
+// the SIGHUP grace is not seen. That is a corner (the shell has just been
+// told to hang up) and the trade is deliberate.
+func (p *ptyProc) captureMembers() {
 	p.ttyOnce.Do(func() {
-		if pid := p.pid(); pid > 0 {
-			p.ttyDev, p.ttyOK = controllingTty(pid)
+		pid := p.pid()
+		if pid <= 0 {
+			return
 		}
+		p.ttyDev, p.ttyOK = controllingTty(pid)
+		if !p.ttyOK {
+			return
+		}
+		self := os.Getpid()
+		members := pidsOnTty(p.ttyDev)
+		p.seenMu.Lock()
+		p.seen = make(map[int]uint64, len(members))
+		for _, m := range members {
+			if m <= 0 || m == self {
+				continue
+			}
+			stamp, ok := processStamp(m)
+			if !ok {
+				stamp = 0
+			}
+			p.seen[m] = stamp
+		}
+		p.seenMu.Unlock()
 	})
 }
 
 func (p *ptyProc) signalSession(sig syscall.Signal) error {
-	p.captureTty()
-	var fresh []int
-	if p.ttyOK {
-		fresh = pidsOnTty(p.ttyDev)
-	}
-	self := os.Getpid()
+	p.captureMembers()
 
 	p.seenMu.Lock()
-	if p.seen == nil {
-		p.seen = make(map[int]uint64, len(fresh)+1)
-	}
-	// A fresh walk is the authority while the terminal still exists: it
-	// picks up anything spawned during the SIGHUP grace.
-	for _, m := range fresh {
-		if m <= 0 || m == self {
-			continue
-		}
-		stamp, ok := processStamp(m)
-		if !ok {
-			stamp = 0
-		}
-		p.seen[m] = stamp
-	}
 	targets := make([]int, 0, len(p.seen))
 	for m, stamp := range p.seen {
-		// The remembered pid must still be the same incarnation. A zero
-		// stamp means the platform cannot tell us; signal it anyway,
-		// because leaving a known member alive is the defect this
-		// closes, and the alternative is unreachable on that platform.
+		// The remembered pid must still be the same incarnation: pids are
+		// recycled, and by the SIGKILL stage this one may belong to a
+		// stranger. A zero stamp means the platform cannot tell us; signal
+		// it anyway, because leaving a known member alive is the defect
+		// this closes and there is no better answer on that platform.
 		if now, ok := processStamp(m); ok && stamp != 0 && now != stamp {
 			delete(p.seen, m)
 			continue

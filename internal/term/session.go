@@ -234,13 +234,11 @@ func (s *Session) closeWithReason(reason string) {
 	// has already exited would skip a grandchild that ignored SIGHUP
 	// (TestCloseKillsHUPImmuneGrandchild).
 	//
-	// hangup walks the terminal and remembers what it found; kill walks
-	// again and signals the union. The second walk alone is not enough:
-	// the kernel revokes a session's controlling terminal when its
-	// leader exits, so once SIGHUP has killed the shell the walk returns
-	// nothing (measured: members=[shell grandchild] at SIGHUP,
-	// members=[] at SIGKILL). It is not redundant either — it is what
-	// catches a process spawned during the grace.
+	// hangup walks the terminal once and remembers what it found; kill
+	// signals that same remembered set. Walking again at kill time is
+	// not an option — see captureMembers: by then the terminal has been
+	// revoked and its device number reissued, so the second walk finds
+	// either nothing or another session's shell.
 	_ = s.proc.hangup()
 	select {
 	case <-s.done:
