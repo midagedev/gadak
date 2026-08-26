@@ -47,6 +47,41 @@ August 15); the gadak side of that row measured 25 ms either way. The
 honesty table below is from 2026-08-15; the incremental-sync row was
 re-confirmed this run at 4.7 s.
 
+## Re-measured 2026-08-26
+
+Same harness and site, current binary, **3,296 issues** in the mirror. The
+corpus is not the one above: the measured project was re-scoped between runs
+(7,166 → 3,296), so **these numbers are not comparable to the 08-23 table**
+row by row — read each run against itself. The machine was quiet for this
+one; nothing else was running.
+
+| Question | Jira REST API | `gadak` | |
+| --- | ---: | ---: | ---: |
+| Simple filter, 100 issues | 583 ms | 19 ms | 31× |
+| One issue + full changelog | 710 ms | 28 ms | 25× |
+| Free-text search | 543 ms | 41 ms | 13× |
+| **Open issues per epic (GROUP BY)** | 4,761 ms — 8 API pages, 781 rows aggregated client-side | 22 ms — one query | **214×** |
+| A count over the change history (issues that ever left Done) | not expressible — ≈503 ms/issue measured, ≈28 min for this corpus | 14 ms | — |
+
+The GROUP BY row is back — it was absent on 08-23 only because the REST
+aggregation matched zero rows on that corpus, not because the shape changed.
+
+The `--jql` verb measured 72 ms against the same filter's 19 ms of `gadak
+sql`. The people-resolution cost that row used to carry is gone (the narrow
+projection landed); bisecting with `search --jql --emit`, which returns right
+after people resolution, puts parse + resolve at 20 ms and the remaining
+~45 ms in the matching path, which loads every issue and filters in Go
+rather than pushing WHERE/ORDER BY/LIMIT into SQL. That cost is linear in
+mirror size (≈10 ms at 978 issues, ≈45 ms at 3,323) and `--limit` does not
+reduce it. Tracked as GDK-748.
+
+If you re-run the harness, expect maxima 10–20× the medians in the first
+sample of each row. That is a cold **access path**, not process startup: the
+same query twelve times runs 320, then 20 ms flat, and a *different* query
+then pays 240 ms of its own before settling. Each column set is paged in
+once per boot from the 145 MB mirror. Medians are the honest figure; the
+first sample is measuring the page cache.
+
 ## Where gadak loses
 
 Honesty rows, measured 2026-08-15 (same evening re-run, corpus now 2,865
@@ -71,6 +106,18 @@ interval", not "a single call that returns nothing".
 
 If you need this minute's Jira state, ask Jira. gadak trades a sync interval
 of staleness for reads that cost nothing.
+
+Re-measured 2026-08-26 (3,296 issues): a first full sync of 3,323 issues +
+457 pages took **10.6 min**, and CLI startup re-confirmed at 15 ms. The
+incremental rows are *not* restated, because that run cannot carry them:
+the harness takes n=2 for sync, and the two samples spread 2.6–8.3 s (jira)
+and 2.0–15.7 s (confluence). At that spread a median means nothing, and the
+combined `--source all` tick came out **faster** (4.3 s) than either half —
+which contradicts the 08-15 row above rather than confirming it. Two samples
+are not enough to overturn a measured claim, so the 08-15 numbers stand and
+this is recorded as an open question about the harness, not a new result.
+An incremental-sync row worth publishing needs more runs than the harness
+currently takes.
 
 ## Caveats
 

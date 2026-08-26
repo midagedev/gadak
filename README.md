@@ -94,22 +94,25 @@ snapshot in this
 tab](<https://lite.datasette.io/?url=https%3A%2F%2Fraw.githubusercontent.com%2Fmidagedev%2Fgadak%2Fmain%2Fexamples%2Fdemo.db#/demo?sql=select+epic_key%2C+count(*)+from+issues_full+where+resolved_at+is+null+and+epic_key+%3C%3E+''+group+by+epic_key+order+by+2+desc>)
 and the SQL runs client-side.
 
-Measured 2026-08-23 against a live Cloud site (7,166 issues; medians, CLI
+Measured 2026-08-26 against a live Cloud site (3,296 issues; medians, CLI
 startup included — [method, the re-measurement history, and the losing
 rows](docs/BENCHMARKS.md)):
 
 | Question | REST API | `gadak` | |
 | --- | ---: | ---: | ---: |
-| Simple filter, 100 issues | 374 ms | 17 ms | 23× |
-| One issue with its full history | 687 ms | 29 ms | 24× |
-| Free-text search | 504 ms | 22 ms | 23× |
-| A count over the change history | not expressible — ≈ 109 min of crawling | 14 ms | — |
+| Simple filter, 100 issues | 583 ms | 19 ms | 31× |
+| One issue with its full history | 710 ms | 28 ms | 25× |
+| Free-text search | 543 ms | 41 ms | 13× |
+| **Open issues per epic (`GROUP BY`)** | 4,761 ms — 8 API pages, aggregated client-side | 22 ms — one query | **214×** |
+| A count over the change history | not expressible — ≈ 28 min of crawling | 14 ms | — |
 
-The last row is the point: past a page size, JQL answers stop being slow and
-start being unaskable. `GROUP BY` is the same story — on the 2026-08-15 corpus
-the epic rollup measured 3,924 ms across 7 API pages against one 24 ms query;
-this run the REST aggregation matched no rows at all, because the project's
-epic shape had changed, so that comparison stands on the August 15 numbers.
+The last two rows are the point: past a page size, JQL answers stop being slow
+and start being unaskable. The API can hand you rows but not the aggregate, so
+every `GROUP BY` becomes a paging loop in your code.
+
+The corpus is not the one the previous table was measured on — the project was
+re-scoped between runs (7,166 → 3,296 issues), so the two runs are comparable
+each against itself, not row by row.
 
 And the other side: the first full sync measured 26.4 s for 534 issues and
 7.2 min for 2,865 ([method and the losing rows](docs/BENCHMARKS.md)), every

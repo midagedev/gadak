@@ -95,21 +95,24 @@ gadak sql "select epic_key, count(*) from issues_full where resolved_at is null
 불러오고](<https://lite.datasette.io/?url=https%3A%2F%2Fraw.githubusercontent.com%2Fmidagedev%2Fgadak%2Fmain%2Fexamples%2Fdemo.db#/demo?sql=select+epic_key%2C+count(*)+from+issues_full+where+resolved_at+is+null+and+epic_key+%3C%3E+''+group+by+epic_key+order+by+2+desc>)
 SQL은 브라우저 안에서 돌아갑니다.
 
-2026-08-23에 실제 Cloud 사이트(이슈 7,166개)에서 실측한 값입니다 (중앙값,
+2026-08-26에 실제 Cloud 사이트(이슈 3,296개)에서 실측한 값입니다 (중앙값,
 CLI 기동 포함 — [방법론과 재측정 이력, gadak이 지는 행](docs/BENCHMARKS.md)):
 
 | 질문 | REST API | `gadak` | |
 | --- | ---: | ---: | ---: |
-| 단순 필터 100건 | 374 ms | 17 ms | 23× |
-| 이슈 하나 + 전체 히스토리 | 687 ms | 29 ms | 24× |
-| 자유 텍스트 검색 | 504 ms | 22 ms | 23× |
-| 변경 이력을 걸치는 집계 | 표현 불가 — 순회로 약 109분 | 14 ms | — |
+| 단순 필터 100건 | 583 ms | 19 ms | 31× |
+| 이슈 하나 + 전체 히스토리 | 710 ms | 28 ms | 25× |
+| 자유 텍스트 검색 | 543 ms | 41 ms | 13× |
+| **에픽별 열린 이슈 (`GROUP BY`)** | 4,761 ms — API 8페이지를 받아 클라이언트에서 집계 | 22 ms — 쿼리 하나 | **214×** |
+| 변경 이력을 걸치는 집계 | 표현 불가 — 순회로 약 28분 | 14 ms | — |
 
-마지막 행이 핵심입니다. 페이지 크기를 넘어서면 JQL의 답은 느린 것을 지나
-아예 물을 수 없는 것이 됩니다. `GROUP BY`도 같은 이야기입니다 — 2026-08-15
-코퍼스에서 에픽 롤업은 REST가 API 7페이지에 3,924 ms, gadak은 쿼리 하나에
-24 ms였습니다. 이번 측정에서는 프로젝트의 에픽 구성이 바뀌어 REST 집계가
-한 행도 매칭하지 못했으므로, 그 비교는 8월 15일 수치로 남깁니다.
+마지막 두 행이 핵심입니다. 페이지 크기를 넘어서면 JQL의 답은 느린 것을 지나
+아예 물을 수 없는 것이 됩니다. API는 행은 주지만 집계는 주지 않으므로,
+`GROUP BY`는 전부 당신 코드의 페이징 루프가 됩니다.
+
+코퍼스는 이전 표와 같은 것이 아닙니다 — 측정 대상 프로젝트가 그 사이 재조정
+됐습니다(이슈 7,166 → 3,296). 두 측정은 각각 자기 안에서만 비교 가능하고,
+행 단위로 맞대면 안 됩니다.
 
 반대편도: 첫 full sync는 실측 534이슈 26.4초 · 2,865이슈 7.2분
 ([방법론과 gadak이 지는 행](docs/BENCHMARKS.md)), 조용한 사이트의 watch

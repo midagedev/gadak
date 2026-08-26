@@ -30,11 +30,12 @@ export const strings = {
     speed: {
       label: 'Fast is a measurement, not an adjective',
       heading: 'The same question, asked two ways',
-      note: 'Measured 2026-08-23 against a live Atlassian Cloud site (a real work project, 7,166 issues), not a synthetic fixture. gadak numbers include full CLI process startup. Method, re-measurement history, and the honest where-gadak-loses table: docs/BENCHMARKS.md.',
+      note: 'Measured 2026-08-26 against a live Atlassian Cloud site (a real work project, 3,296 issues), not a synthetic fixture. gadak numbers include full CLI process startup. Method, re-measurement history, and the honest where-gadak-loses table: docs/BENCHMARKS.md.',
       rows: [
-        { what: 'Simple filter, 100 issues', value: '374 ms', alt: '17 ms', ratio: '23×' },
-        { what: 'One issue + full changelog', value: '687 ms', alt: '29 ms', ratio: '24×' },
-        { what: 'Free-text search', value: '504 ms', alt: '22 ms', ratio: '23×' },
+        { what: 'Simple filter, 100 issues', value: '583 ms', alt: '19 ms', ratio: '31×' },
+        { what: 'One issue + full changelog', value: '710 ms', alt: '28 ms', ratio: '25×' },
+        { what: 'Free-text search', value: '543 ms', alt: '41 ms', ratio: '13×' },
+        { what: 'Open issues per epic (GROUP BY)', value: '4,761 ms — 8 API pages', alt: '22 ms — one query', ratio: '214×' },
         { what: 'A count over the change history', value: 'not expressible', alt: '14 ms', ratio: '—' },
         { what: 'Rate limit', value: '429 + Retry-After', alt: 'none — your own disk', ratio: '—' },
       ],
@@ -152,11 +153,12 @@ export const strings = {
     speed: {
       label: '빠르다는 말 대신 측정값',
       heading: '같은 질문, 두 가지 방식',
-      note: '2026-08-23 실제 Atlassian Cloud 사이트(실제 업무 프로젝트, 7,166건) 대상 실측 — 합성 fixture가 아닙니다. gadak 수치에는 CLI 프로세스 시작까지 포함. 측정 방법과 gadak이 지는 지점 표 전체는 docs/BENCHMARKS.md.',
+      note: '2026-08-26 실제 Atlassian Cloud 사이트(실제 업무 프로젝트, 3,296건) 대상 실측 — 합성 fixture가 아닙니다. gadak 수치에는 CLI 프로세스 시작까지 포함. 측정 방법과 gadak이 지는 지점 표 전체는 docs/BENCHMARKS.md.',
       rows: [
-        { what: '단순 필터, 100건', value: '374 ms', alt: '17 ms', ratio: '23×' },
-        { what: '이슈 1건 + 체인지로그 전체', value: '687 ms', alt: '29 ms', ratio: '24×' },
-        { what: '전문 검색', value: '504 ms', alt: '22 ms', ratio: '23×' },
+        { what: '단순 필터, 100건', value: '583 ms', alt: '19 ms', ratio: '31×' },
+        { what: '이슈 1건 + 체인지로그 전체', value: '710 ms', alt: '28 ms', ratio: '25×' },
+        { what: '전문 검색', value: '543 ms', alt: '41 ms', ratio: '13×' },
+        { what: '에픽별 열린 이슈 (GROUP BY)', value: '4,761 ms — API 8페이지', alt: '22 ms — 쿼리 하나', ratio: '214×' },
         { what: '변경 이력에 대한 집계', value: '표현 불가', alt: '14 ms', ratio: '—' },
         { what: '레이트 리밋', value: '429 + Retry-After', alt: '없음 — 내 디스크니까', ratio: '—' },
       ],
