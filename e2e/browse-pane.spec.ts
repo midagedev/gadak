@@ -80,13 +80,17 @@ test.describe('in-app browser pane', () => {
     await expect.poll(() => mock.frames.length).toBeGreaterThan(0)
 
     // …and it is the viewport box of the empty container, to the pixel.
+    // ±1px, not toBeCloseTo(…, 0): the rect poll's last frame and
+    // boundingBox() round subpixels on either side of an async boundary, so
+    // a correct pane can legitimately report 944 against a measured 945
+    // (GDK-1064, observed 2026-08-28; <0.5px was the flake).
     const box = await page.getByTestId('browse-viewport').boundingBox()
     expect(box).not.toBeNull()
     const last = mock.frames[mock.frames.length - 1]
-    expect(last.x).toBeCloseTo(box!.x, 0)
-    expect(last.y).toBeCloseTo(box!.y, 0)
-    expect(last.w).toBeCloseTo(box!.width, 0)
-    expect(last.h).toBeCloseTo(box!.height, 0)
+    expect(Math.abs(last.x - box!.x)).toBeLessThanOrEqual(1)
+    expect(Math.abs(last.y - box!.y)).toBeLessThanOrEqual(1)
+    expect(Math.abs(last.w - box!.width)).toBeLessThanOrEqual(1)
+    expect(Math.abs(last.h - box!.height)).toBeLessThanOrEqual(1)
     // A pane worth showing a web page in.
     expect(last.w).toBeGreaterThan(500)
 
