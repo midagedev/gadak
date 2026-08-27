@@ -33,7 +33,6 @@ import (
 	"github.com/midagedev/gadak/internal/apprun"
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/integrations"
-	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/server"
 	"github.com/midagedev/gadak/internal/workspace"
 )
@@ -249,9 +248,10 @@ func run() error {
 		// About panel shows.
 		Name:        "Gadak",
 		Description: "Jira and Confluence, mirrored to your disk.",
-		// wails still os.Exit(1) after this returns. We show a dialog and
-		// write stderr first so a missing WebView2 is not a silent death.
-		ErrorHandler: handleDesktopFatal,
+		// wails still os.Exit(1) after this returns, past every defer. Run
+		// the full shutdown (terminals reaped, persist flushed) and show a
+		// dialog + stderr first so a missing WebView2 is not a silent death.
+		ErrorHandler: func(err error) { desktopFatal(shutdown, err) },
 		Mac: application.MacOptions{
 			// v2 quit when the only window closed; keep that.
 			ApplicationShouldTerminateAfterLastWindowClosed: true,
@@ -575,14 +575,25 @@ func webview2UserMessage(err error) string {
 	return b.String()
 }
 
+// desktopFatal runs the cleanup wails is about to skip, then surfaces the
+// error. wails calls the ErrorHandler and then os.Exit(1) without unwinding a
+// single defer (pkg/application/application.go handleFatalError), so run's
+// `defer shutdown()` never fires. Routing the fatal through the same shutdown
+// every other exit uses is the point: it flushes standalone persist (GDK-348)
+// AND reaps the terminal shells (GDK-917 — they are their own process groups
+// and outlive this process unless closeTerminals signals them), so this path
+// can never again drift out of sync by hand-rolling a partial cleanup that
+// forgets a closer. shutdownOnce makes it idempotent with OnShutdown and run's
+// defer.
+func desktopFatal(shutdown func(), err error) {
+	shutdown()
+	handleDesktopFatal(err)
+}
+
+// handleDesktopFatal is the user-facing half: stderr, and on Windows a native
+// dialog, so a missing WebView2 is not a silent death. Cleanup is
+// desktopFatal's job — it runs the full shutdown before this.
 func handleDesktopFatal(err error) {
-	// wails os.Exit(1)s after this returns, skipping every defer — including
-	// the standalone persist flush in run(). Flush here or a fatal inside
-	// the debounce window silently drops the last write (GDK-348). Close is
-	// idempotent and a no-op when no embedded origin is live.
-	if cerr := origin.Close(); cerr != nil {
-		fmt.Fprintf(os.Stderr, "warning: standalone persist flush on fatal: %v\n", cerr)
-	}
 	msg := webview2UserMessage(err)
 	fmt.Fprintln(os.Stderr, msg)
 	showNativeError("Gadak", msg)

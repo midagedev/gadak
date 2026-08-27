@@ -142,11 +142,14 @@ machine without WebView2** (that has not been done):
   instead of blocking forever on `GetMessageW`.
 - `Chromium.errorCallback` still calls `os.Exit(1)` after the handler
   (`internal/webview2/pkg/edge/chromium.go`).
-- `gadak-desktop` sets `ErrorHandler: handleDesktopFatal` (`main.go`),
-  which shows a `MessageBoxW` on Windows (`fatal_windows.go`) and writes
-  stderr. wails still `os.Exit(1)` after the handler returns, so there is
-  still no download dialog — the process exits. The silent half is
-  handled; the exit is not.
+- `gadak-desktop` sets an `ErrorHandler` that runs `desktopFatal`
+  (`main.go`): it first runs the same `shutdown` a clean exit runs — wails
+  `os.Exit(1)`s past every defer, so this is the only place the terminals
+  get reaped and standalone persist gets flushed on a fatal (GDK-917/348) —
+  then `handleDesktopFatal` shows a `MessageBoxW` on Windows
+  (`fatal_windows.go`) and writes stderr. wails still `os.Exit(1)` after the
+  handler returns, so there is still no download dialog — the process exits.
+  The silent half is handled and cleanup now runs; the exit is not stopped.
 
 Install the Evergreen runtime from
 <https://developer.microsoft.com/en-us/microsoft-edge/webview2/>.
