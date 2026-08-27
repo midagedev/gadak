@@ -36,7 +36,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/skip2/go-qrcode"
+	"github.com/midagedev/gadak/internal/pairflow"
 )
 
 // Terminal colors for the QR. Every line opens with both and closes with
@@ -94,17 +94,12 @@ func terminalWidth() int {
 	return n
 }
 
-// pairingQRModules encodes the offer at EC Medium and returns the module
-// matrix, quiet zone included (the library's default 4-module border).
-// Medium rather than Lower: pairing happens once per device, and a code
-// that scans from a phone held at an angle beats a dense one; higher than
-// Medium buys almost nothing at this payload size.
+// pairingQRModules moved to pairflow.QRModules (GDK-1047: the desktop
+// renders the same matrix as a PNG); this wrapper keeps the package-main
+// name qr_test.go pins. The matrix carries the quiet zone (the library's
+// default 4-module border).
 func pairingQRModules(offer string) ([][]bool, error) {
-	q, err := qrcode.New(offer, qrcode.Medium)
-	if err != nil {
-		return nil, err
-	}
-	return q.Bitmap(), nil
+	return pairflow.QRModules(offer)
 }
 
 // renderQRHalfblock draws text's QR into out, two modules per terminal row

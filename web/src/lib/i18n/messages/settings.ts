@@ -705,6 +705,218 @@ export const settings = {
     ko: '설치하기 전에 먼저 준비해야 할 것이 있습니다.',
     ja: 'インストールの前に用意が必要なものがあります。',
   },
+
+  /* ── Devices (desktop only, GDK-1047) ── */
+  'settings.tabDevices': {
+    en: 'Devices',
+    ko: '기기',
+    ja: 'デバイス',
+  },
+  'settings.devicesIntro': {
+    en: 'Pair a phone or another gadak with this workspace: mint a pairing offer, let the device scan its QR, and revoke any device here once it is gone.',
+    ko: '휴대폰이나 다른 gadak를 이 워크스페이스에 연결합니다: 페어링 오퍼를 발급해 기기가 QR을 스캔하게 하고, 떠난 기기는 여기서 해지하세요.',
+    ja: 'スマホや別のgadakをこのワークスペースに組み込みます：ペアリングオファーを発行して端末にQRをスキャンさせ、いなくなった端末はここで失効させます。',
+  },
+  'settings.devicesLoadFailed': {
+    en: 'Could not read the device list from the app. Try again, or check the desktop app.',
+    ko: '앱에서 기기 목록을 읽지 못했습니다. 다시 시도하거나 데스크톱 앱을 확인하세요.',
+    ja: 'アプリから端末一覧を読めませんでした。再試行するか、デスクトップアプリを確認してください。',
+  },
+  'settings.devicesLoading': {
+    en: 'Loading devices…',
+    ko: '기기를 불러오는 중…',
+    ja: '端末を読み込み中…',
+  },
+  'settings.devicesEmpty': {
+    en: 'No paired devices yet. Pair one below.',
+    ko: '아직 연결된 기기가 없습니다. 아래에서 연결하세요.',
+    ja: 'まだ組み込んだ端末がありません。下から組み込んでください。',
+  },
+  'settings.devicesUnavailableNotConfigured': {
+    en: 'This workspace has no origin yet — set it up before pairing devices.',
+    ko: '이 워크스페이스에는 아직 원본이 없습니다 — 기기를 연결하기 전에 먼저 설정하세요.',
+    ja: 'このワークスペースにはまだオリジンがありません — 端末を組み込む前に設定してください。',
+  },
+  'settings.devicesUnavailablePairedAway': {
+    en: 'This workspace is itself paired with another machine. Devices are minted on the home machine.',
+    ko: '이 워크스페이스는 다른 머신에 연결되어 있습니다. 기기 발급은 홈 머신에서 합니다.',
+    ja: 'このワークスペース自体が別のマシンに組み込まれています。端末の発行はホームマシンで行います。',
+  },
+  'settings.devicesColLabel': {
+    en: 'Device',
+    ko: '기기',
+    ja: '端末',
+  },
+  'settings.devicesColScope': {
+    en: 'Scope',
+    ko: '권한',
+    ja: 'スコープ',
+  },
+  'settings.devicesColExpires': {
+    en: 'Expires',
+    ko: '만료',
+    ja: '有効期限',
+  },
+  'settings.devicesColState': {
+    en: 'State',
+    ko: '상태',
+    ja: '状態',
+  },
+  'settings.devicesScopeServe': {
+    en: 'Mirror API (phone app)',
+    ko: '미러 API (휴대폰 앱)',
+    ja: 'ミラーAPI（スマホアプリ）',
+  },
+  'settings.devicesScopeOrigin': {
+    en: 'Origin passthrough (another gadak)',
+    ko: '원본 패스스루 (다른 gadak)',
+    ja: 'オリジンパススルー（別のgadak）',
+  },
+  'settings.devicesScopeLocalRouting': {
+    en: 'This machine (routing key)',
+    ko: '이 머신 (라우팅 키)',
+    ja: 'このマシン（ルーティングキー）',
+  },
+  'settings.devicesLabelLabel': {
+    en: 'Device name',
+    ko: '기기 이름',
+    ja: '端末名',
+  },
+  'settings.devicesScopeLabel': {
+    en: 'What the token opens',
+    ko: '토큰이 여는 것',
+    ja: 'トークンが開くもの',
+  },
+  'settings.devicesEndpointLabel': {
+    en: 'Endpoint',
+    ko: '엔드포인트',
+    ja: 'エンドポイント',
+  },
+  'settings.devicesEndpointHint': {
+    en: 'Empty uses the live serve address of this machine.',
+    ko: '비워 두면 이 머신의 실행 중인 serve 주소를 사용합니다.',
+    ja: '空欄にすると、このマシンの稼働中のserveアドレスを使います。',
+  },
+  'settings.devicesTtlLabel': {
+    en: 'Lifetime',
+    ko: '수명',
+    ja: '有効期間',
+  },
+  'settings.devicesMint': {
+    en: 'Pair device',
+    ko: '기기 연결',
+    ja: '端末を組み込む',
+  },
+  'settings.devicesMintBusy': {
+    en: 'Minting…',
+    ko: '발급 중…',
+    ja: '発行中…',
+  },
+  'settings.devicesMinted': {
+    en: 'Paired {label}. The offer is reusable until {expires} — scan it with the phone now.',
+    ko: '{label} 연결됨. 오퍼는 {expires}까지 재사용 가능합니다 — 지금 휴대폰으로 스캔하세요.',
+    ja: '{label} を組み込みました。オファーは {expires} まで再利用できます — 今すぐスマホでスキャンしてください。',
+  },
+  'settings.devicesLoopbackWarning': {
+    en: 'This endpoint is loopback — only a device on this machine can reach it. Use the tailnet URL instead (e.g. https://<machine>.<tailnet>.ts.net).',
+    ko: '이 엔드포인트는 루프백입니다 — 이 머신의 기기만 접근할 수 있습니다. 테일넷 URL(예: https://<machine>.<tailnet>.ts.net)을 사용하세요.',
+    ja: 'このエンドポイントはループバックです — このマシンの端末しか届きません。TailnetのURL（例: https://<machine>.<tailnet>.ts.net）を使ってください。',
+  },
+  'settings.devicesOfferLabel': {
+    en: 'Pairing offer',
+    ko: '페어링 오퍼',
+    ja: 'ペアリングオファー',
+  },
+  'settings.devicesOfferShow': {
+    en: 'Show',
+    ko: '표시',
+    ja: '表示',
+  },
+  'settings.devicesOfferHide': {
+    en: 'Hide',
+    ko: '숨기기',
+    ja: '隠す',
+  },
+  'settings.devicesCopyOffer': {
+    en: 'Copy offer',
+    ko: '오퍼 복사',
+    ja: 'オファーをコピー',
+  },
+  'settings.devicesQrAlt': {
+    en: 'Pairing QR code',
+    ko: '페어링 QR 코드',
+    ja: 'ペアリングQRコード',
+  },
+  'settings.devicesErrLabelRequired': {
+    en: 'Name the device first.',
+    ko: '먼저 기기 이름을 입력하세요.',
+    ja: 'まず端末名を入力してください。',
+  },
+  'settings.devicesErrReservedLabel': {
+    en: 'The name _home is the routing key of this machine — pick another name.',
+    ko: '_home는 이 머신의 라우팅 키입니다 — 다른 이름을 쓰세요.',
+    ja: '_home はこのマシンのルーティングキーです — 別の名前にしてください。',
+  },
+  'settings.devicesErrBadScope': {
+    en: 'That scope cannot be minted here.',
+    ko: '이곳에서 발급할 수 없는 권한입니다.',
+    ja: 'ここでは発行できないスコープです。',
+  },
+  'settings.devicesErrBadEndpoint': {
+    en: 'The endpoint must be an http(s) URL.',
+    ko: '엔드포인트는 http(s) URL이어야 합니다.',
+    ja: 'エンドポイントはhttp(s) URLである必要があります。',
+  },
+  'settings.devicesErrBadTtl': {
+    en: 'Lifetime must look like 90d, 12h, 30m, or 45s.',
+    ko: '수명은 90d, 12h, 30m, 45s 형식이어야 합니다.',
+    ja: '有効期間は 90d、12h、30m、45s の形である必要があります。',
+  },
+  'settings.devicesErrNoServe': {
+    en: 'No live serve found for this workspace — start one, or fill in the endpoint.',
+    ko: '이 워크스페이스의 실행 중인 serve를 찾지 못했습니다 — 하나 띄우거나 엔드포인트를 입력하세요.',
+    ja: 'このワークスペースの稼働中のserveが見つかりません — 起動するか、エンドポイントを入力してください。',
+  },
+  'settings.devicesErrLabelExists': {
+    en: 'An active token named {label} already exists — revoke it first, or pick another name.',
+    ko: '이름이 {label}인 활성 토큰이 이미 있습니다 — 먼저 해지하거나 다른 이름을 쓰세요.',
+    ja: '{label} という名前の有効なトークンがすでにあります — 先に失効させるか、別の名前にしてください。',
+  },
+  'settings.devicesErrFailed': {
+    en: 'The mint failed.',
+    ko: '발급에 실패했습니다.',
+    ja: '発行に失敗しました。',
+  },
+  'settings.devicesRevoke': {
+    en: 'Revoke',
+    ko: '해지',
+    ja: '失効',
+  },
+  'settings.devicesRevoked': {
+    en: 'Revoked {label}.',
+    ko: '{label} 해지됨.',
+    ja: '{label} を失効させました。',
+  },
+  'settings.devicesHomeRowHint': {
+    en: 'The routing key of this machine. Rotate it from the terminal: gadak pairing mint --label _home',
+    ko: '이 머신의 라우팅 키입니다. 터미널에서 교체하세요: gadak pairing mint --label _home',
+    ja: 'このマシンのルーティングキーです。ターミナルから交代してください: gadak pairing mint --label _home',
+  },
+  'settings.devicesStateActive': {
+    en: 'Active',
+    ko: '활성',
+    ja: '有効',
+  },
+  'settings.devicesStateExpired': {
+    en: 'Expired',
+    ko: '만료됨',
+    ja: '期限切れ',
+  },
+  'settings.devicesStateRevoked': {
+    en: 'Revoked',
+    ko: '해지됨',
+    ja: '失効',
+  },
   'settings.groupLabels': {
     en: 'Group labels & colors',
     ko: '그룹 라벨·색상',

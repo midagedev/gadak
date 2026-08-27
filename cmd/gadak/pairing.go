@@ -10,6 +10,15 @@ package main
 // nothing else; it is never a default, and revoking it closes the shells
 // it opened. While any active token exists, all three surfaces require
 // their Bearer.
+//
+// GDK-1047 moved the flow itself (validation, endpoint resolution, the
+// mint, the offer encode, the _home routing-token guard, list row
+// shaping, the QR encodings) into internal/pairflow so the desktop app's
+// Devices tab runs the identical flow. This file keeps what is
+// CLI-shaped only: flag parsing, the stdout/stderr contracts, the hints,
+// and the terminal QR renderer (qr.go). parseTTL and
+// endpointFromAdvertise stay as one-line wrappers because the package's
+// own tests pin them by name.
 
 import (
 	"context"
@@ -17,18 +26,15 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
-	"net/url"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/origin"
+	"github.com/midagedev/gadak/internal/pairflow"
 	"github.com/midagedev/gadak/internal/pairing"
-	"github.com/midagedev/gadak/internal/serveaddr"
 	"github.com/midagedev/gadak/internal/store"
 )
 
@@ -38,16 +44,6 @@ const pairingUsage = "usage: gadak pairing mint --label NAME [--scope origin|ser
 // of at least minPrefix (8) hex characters — pairing list prints 8, longer
 // prefixes still match (internal/pairing.Revoke).
 const pairingRevokeUsage = "usage: gadak pairing revoke <label|hash-prefix>"
-
-// defaultPairingTTL is 90 days: a device token is revocable, so it does
-// not need a short life, but an unattended one should not outlive a
-// quarter by default either.
-const defaultPairingTTL = 90 * 24 * time.Hour
-
-// homeRoutingTTL is long on purpose: an expiring routing token would
-// re-open the 401 cliff ensureHomeRoutingToken exists to close. Rotation
-// is explicit (`pairing mint --label _home`), not expiry.
-const homeRoutingTTL = 10 * 365 * 24 * time.Hour
 
 func cmdPairing(args []string) error {
 	if wantsHelp(args) {
@@ -77,77 +73,33 @@ func cmdPairing(args []string) error {
 	}
 }
 
-// parseTTL accepts one integer with a single unit — "90d", "24h", "30m",
-// "45s". time.ParseDuration rejects "d", and inventing compound syntax
-// ("1d12h") is surface nobody asked for; a clear error beats guessing.
-func parseTTL(s string) (time.Duration, error) {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return 0, errors.New("empty ttl")
-	}
-	unit := s[len(s)-1]
-	digits := s[:len(s)-1]
-	n, err := strconv.Atoi(digits)
-	if err != nil || n <= 0 {
-		return 0, fmt.Errorf("bad ttl %q: want <N><unit> with unit d, h, m, or s (e.g. 90d, 24h)", s)
-	}
-	switch unit {
-	case 'd':
-		return time.Duration(n) * 24 * time.Hour, nil
-	case 'h':
-		return time.Duration(n) * time.Hour, nil
-	case 'm':
-		return time.Duration(n) * time.Minute, nil
-	case 's':
-		return time.Duration(n) * time.Second, nil
-	default:
-		return 0, fmt.Errorf("bad ttl %q: unit must be d, h, m, or s", s)
-	}
-}
+// parseTTL moved to internal/pairflow.ParseTTL (one owner); this wrapper
+// keeps the package-main name the tests pin.
+func parseTTL(s string) (time.Duration, error) { return pairflow.ParseTTL(s) }
 
-// pairingDir is the profile directory the token store lives in. Pairing
-// protects both gated surfaces of a home serve — the origin passthrough
-// (standalone, GDK-433) and the mirror REST a phone companion
-// reads (GDK-797) — so both workspace kinds may mint; what stays closed
-// for a connected workspace is the passthrough itself (origin_rest.go
-// 404s it). A workspace that is itself paired away cannot mint: its home
-// is another machine.
+// endpointFromAdvertise moved with the rest of endpoint resolution to
+// pairflow.EndpointFromAdvertise; same deal — the tests pin this name.
+func endpointFromAdvertise(addr string) string { return pairflow.EndpointFromAdvertise(addr) }
+
+// pairingDir resolves where the token store lives and refuses the two
+// states that cannot mint (paired away, no credential); the rules moved
+// to pairflow.Dir, which both the CLI and the desktop now call.
 func pairingDir() (string, error) {
 	cfg, err := config.Load()
 	if err != nil {
 		return "", err
 	}
-	if rem, err := origin.PairedStatus(cfg); err != nil {
-		return "", err
-	} else if rem != nil {
-		return "", fmt.Errorf("%s — mint and revoke run on the home machine", pairedStatusLine(cfg, rem))
-	}
-	if !cfg.HasCredential() {
-		return "", config.ErrNotConfigured
-	}
-	dir := cfg.Directory()
-	if dir == "" {
-		return "", errors.New("pairing: profile directory not found")
-	}
-	return dir, nil
+	return pairflow.Dir(cfg)
 }
 
 func pairedStatusLine(cfg *config.Config, rem *pairing.Remote) string {
-	line := fmt.Sprintf("this workspace is paired with %q (%s)", rem.Label, rem.Endpoint)
-	if rem.Label == "" {
-		line = fmt.Sprintf("this workspace is paired with %s", rem.Endpoint)
-	}
-	if cfg != nil && strings.TrimSpace(cfg.TokenOwner) != "" {
-		line += " as " + cfg.TokenOwner
-	}
-	return line
+	return pairflow.PairedLine(cfg, rem)
 }
 
 func pairingMint(args []string) error {
 	fs := newFlagSet("pairing mint")
-	// ttlDefault renders defaultPairingTTL in the flag's <N><unit> syntax so
-	// the 90-day default has one owner.
-	ttlDefault := fmt.Sprintf("%dd", int(defaultPairingTTL/(24*time.Hour)))
+	// The 90-day default has one owner: pairflow.DefaultTTL.
+	ttlDefault := pairflow.DefaultTTLFlag()
 	label := fs.String("label", "", "device name shown in `gadak pairing list` (required)")
 	scope := fs.String("scope", "origin", "what the token opens: origin = origin passthrough for a paired gadak (default), serve = the mirror REST for a paired client (a phone companion), terminal = a shell on this machine (never a default — see `gadak help pairing`)")
 	ttlFlag := fs.String("ttl", ttlDefault, "token lifetime: <N><d|h|m|s>, e.g. 90d or 12h")
@@ -157,6 +109,9 @@ func pairingMint(args []string) error {
 	if _, err := parseAround(fs, args); err != nil {
 		return err
 	}
+	// Flag-surface validation keeps the CLI's exact error strings; the
+	// flow re-validates inside pairflow.MintDevice (structural owner), so
+	// the desktop gets the same rules without this file.
 	if strings.TrimSpace(*label) == "" {
 		return errors.New("pairing mint requires --label NAME")
 	}
@@ -165,8 +120,7 @@ func pairingMint(args []string) error {
 	default:
 		return fmt.Errorf("unknown --scope %q: want origin (a paired gadak riding the passthrough), serve (a paired client reading the mirror REST), or terminal (a shell on this machine)", strings.TrimSpace(*scope))
 	}
-	ttl, err := parseTTL(*ttlFlag)
-	if err != nil {
+	if _, err := parseTTL(*ttlFlag); err != nil {
 		return err
 	}
 	dir, err := pairingDir()
@@ -182,51 +136,24 @@ func pairingMint(args []string) error {
 		// stdout stays empty (cannot be piped into init --pairing-code).
 		return pairingMintHome(dir, cfg, strings.TrimRight(strings.TrimSpace(*endpoint), "/"))
 	}
-	// Resolve the endpoint before minting: a mint without a reachable
-	// endpoint is an orphan token nobody can use, and it would already
-	// have flipped the gate on.
-	ep := strings.TrimRight(strings.TrimSpace(*endpoint), "/")
-	if ep == "" {
-		ep = advertisedEndpoint(cfg)
-		if ep == "" {
-			return errors.New("no live serve found for this profile; start `gadak serve` first or pass --endpoint <url>")
+	res, err := pairflow.MintDevice(dir, cfg, *label, strings.TrimSpace(*scope), *ttlFlag, *endpoint, time.Now())
+	// The mint already produced the credential: the output contract prints
+	// even when a later step (the routing-token guard) failed, or the
+	// plaintext would exist nowhere and the token would be stranded.
+	if res.Offer != "" {
+		if res.LoopbackWarning {
+			fmt.Fprintf(os.Stderr, "warning: endpoint %s is loopback — remote devices cannot reach it; pass --endpoint with your tailnet URL (e.g. https://<machine>.<tailnet>.ts.net)\n", res.Endpoint)
+		}
+		if outErr := writePairingMintOutput(*asJSON, *noQR, res); outErr != nil {
+			return outErr
 		}
 	}
-	u, err := url.Parse(ep)
-	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
-		return fmt.Errorf("bad endpoint %q: want an http(s) URL", ep)
+	if res.HomeRouting == pairflow.HomeRoutingMinted {
+		fmt.Fprintln(os.Stderr, "minted a _home routing token so this machine's own writes keep passing the gate")
+	} else if res.HomeRouting == pairflow.HomeRoutingReissued {
+		fmt.Fprintln(os.Stderr, "reissued _home routing token so this machine's own writes keep passing the gate")
 	}
-	if host := u.Hostname(); isLoopbackHost(host) {
-		fmt.Fprintf(os.Stderr, "warning: endpoint %s is loopback — remote devices cannot reach it; pass --endpoint with your tailnet URL (e.g. https://<machine>.<tailnet>.ts.net)\n", ep)
-	}
-	token, meta, err := pairing.MintScoped(dir, *label, strings.TrimSpace(*scope), ttl, time.Now())
-	if err != nil {
-		return err
-	}
-	offer, err := pairing.EncodeOffer(pairing.Offer{
-		V:         pairing.OfferV1,
-		Endpoint:  ep,
-		Token:     token,
-		ExpiresAt: pairing.FormatExpiry(meta.ExpiresAt),
-		Label:     *label,
-	})
-	if err != nil {
-		return err
-	}
-	if err := writePairingMintOutput(*asJSON, *noQR, offer, *label, ep, strings.TrimSpace(*scope), meta); err != nil {
-		return err
-	}
-	// The _home routing token is a standalone home's concern: its local
-	// writes ride the passthrough this serve fronts. A connected
-	// workspace's writes go straight to its site, and the routing file
-	// (remote-origin.json) would make origin.pairedRemote read this
-	// workspace as paired with its own serve — never written here.
-	if cfg.IsStandalone() {
-		if err := ensureHomeRoutingToken(dir, cfg, ep); err != nil {
-			return err
-		}
-	}
-	return nil
+	return err
 }
 
 // writePairingMintOutput is the device-mint output contract (GDK-456).
@@ -238,8 +165,7 @@ func pairingMint(args []string) error {
 // scannable QR after the hints (GDK-1047) — decoration on top of the
 // contract, never part of it: it cannot fail the mint, and `_home`
 // rotation (pairingMintHome) never reaches this function.
-func writePairingMintOutput(asJSON, noQR bool, offer, label, endpoint, scope string, meta pairing.Meta) error {
-	expiry := pairing.FormatExpiry(meta.ExpiresAt)
+func writePairingMintOutput(asJSON, noQR bool, res pairflow.MintResult) error {
 	if asJSON {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetEscapeHTML(false)
@@ -249,25 +175,25 @@ func writePairingMintOutput(asJSON, noQR bool, offer, label, endpoint, scope str
 			Scope     string `json:"scope"`
 			Endpoint  string `json:"endpoint"`
 			ExpiresAt string `json:"expires_at"`
-		}{offer, label, scope, endpoint, expiry})
+		}{res.Offer, res.Label, res.Scope, res.Endpoint, res.ExpiresAt})
 	}
-	fmt.Println(offer)
-	switch scope {
+	fmt.Println(res.Offer)
+	switch res.Scope {
 	case pairing.ScopeServe:
 		fmt.Fprintln(os.Stderr, pairingMintServeHint())
 	case pairing.ScopeTerminal:
 		fmt.Fprintln(os.Stderr, pairingMintTerminalHint())
 	default:
-		fmt.Fprintln(os.Stderr, pairingMintRemoteHint(label))
+		fmt.Fprintln(os.Stderr, pairingMintRemoteHint(res.Label))
 	}
 	fmt.Fprintf(os.Stderr, "paired device %q — offer reusable until %s; revoke with: gadak pairing revoke %s\n",
-		label, expiry, meta.Hash[:8])
+		res.Label, res.ExpiresAt, res.Meta.Hash[:8])
 	if shouldDrawQR(pairingStderrIsTerminal(), noQR, asJSON,
 		os.Getenv("NO_COLOR") != "", os.Getenv("TERM") == "dumb") {
 		// The QR's own errors (a fixed "content too long" class string
 		// from the library — never the payload) cannot fail a mint that
 		// already printed its offer.
-		if err := drawPairingQR(os.Stderr, offer, pairingTerminalWidth()); err != nil {
+		if err := drawPairingQR(os.Stderr, res.Offer, pairingTerminalWidth()); err != nil {
 			fmt.Fprintf(os.Stderr, "pairing: QR not drawn (%v) — the offer line on stdout is unaffected\n", err)
 		}
 	}
@@ -304,207 +230,16 @@ func pairingMintTerminalHint() string {
 		"revoking it closes the shells it opened, within a couple of seconds, without stopping the serve."
 }
 
-// ensureHomeRoutingToken is the single owner of "_home is valid". Once one
-// token exists the gate takes Bearer only — no loopback bypass — and the
-// home machine's writes route through the same passthrough (GDK-333 single
-// persist owner). Standalone excludes the file from the paired-remote
-// branch (origin.pairedRemote), so here it only ever carries the routing
-// token localRoutingToken reads.
-//
-// Called after every device mint. If remote-origin.json's token is missing
-// or no longer active in the store while the gate is on, it reissues
-// `_home` and rewrites the file — the recovery path for a routing token
-// revoked by an older build (GDK-450).
-func ensureHomeRoutingToken(dir string, cfg *config.Config, mintEndpoint string) error {
-	rem, err := pairing.LoadRemote(dir)
-	if err != nil {
-		return err
-	}
-	now := time.Now()
-	if rem != nil {
-		v, aerr := pairing.Authorize(dir, rem.Token, now)
-		if aerr != nil {
-			return aerr
-		}
-		if v == pairing.VerdictAccept {
-			return nil
-		}
-		if v == pairing.VerdictOff {
-			// Gate off: no active tokens, local writes need no bearer.
-			return nil
-		}
-	} else {
-		v, aerr := pairing.Authorize(dir, "", now)
-		if aerr != nil {
-			return aerr
-		}
-		if v == pairing.VerdictOff {
-			return nil
-		}
-	}
-	first := rem == nil
-	if _, err := issueHomeRoutingToken(dir, cfg, mintEndpoint); err != nil {
-		return err
-	}
-	if first {
-		fmt.Fprintln(os.Stderr, "minted a _home routing token so this machine's own writes keep passing the gate")
-	} else {
-		fmt.Fprintln(os.Stderr, "reissued _home routing token so this machine's own writes keep passing the gate")
-	}
-	return nil
-}
-
-// pairingMintHome is `pairing mint --label _home`: routing-token rotation,
-// not a device offer. stdout stays empty so the line cannot be piped into
-// `init --pairing-code`. Standalone only — a connected workspace's writes
-// go straight to its site, and the routing file here would make
-// origin.pairedRemote read this workspace as paired with its own serve.
+// pairingMintHome is the CLI half of `_home` rotation: the flow lives in
+// pairflow.MintHome; this prints the one stderr line. stdout stays empty
+// so the line cannot be piped into `init --pairing-code`.
 func pairingMintHome(dir string, cfg *config.Config, endpoint string) error {
-	if !cfg.IsStandalone() {
-		return errors.New("_home is a standalone workspace's routing token — this workspace's writes go to its site directly, and a routing file here would misread this workspace as paired")
-	}
-	ep, err := resolveHomeEndpoint(cfg, dir, endpoint)
-	if err != nil {
-		return err
-	}
-	meta, err := issueHomeRoutingToken(dir, cfg, ep)
+	meta, err := pairflow.MintHome(dir, cfg, endpoint, time.Now())
 	if err != nil {
 		return err
 	}
 	fmt.Fprintf(os.Stderr, "rotated _home routing token (%s) — local writes keep passing the gate\n", meta.Hash[:8])
 	return nil
-}
-
-func resolveHomeEndpoint(cfg *config.Config, dir, endpoint string) (string, error) {
-	ep := strings.TrimRight(strings.TrimSpace(endpoint), "/")
-	if ep == "" {
-		ep = advertisedEndpoint(cfg)
-	}
-	if ep == "" {
-		if rem, err := pairing.LoadRemote(dir); err == nil && rem != nil {
-			ep = strings.TrimRight(strings.TrimSpace(rem.Endpoint), "/")
-		}
-	}
-	if ep == "" {
-		return "", errors.New("no live serve found for this profile; start `gadak serve` first or pass --endpoint <url>")
-	}
-	u, err := url.Parse(ep)
-	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
-		return "", fmt.Errorf("bad endpoint %q: want an http(s) URL", ep)
-	}
-	return ep, nil
-}
-
-func issueHomeRoutingToken(dir string, cfg *config.Config, mintEndpoint string) (pairing.Meta, error) {
-	token, meta, err := pairing.Rotate(dir, pairing.HomeLabel, homeRoutingTTL, time.Now())
-	if err != nil {
-		return pairing.Meta{}, err
-	}
-	ep := strings.TrimRight(strings.TrimSpace(mintEndpoint), "/")
-	if ep == "" {
-		ep = advertisedEndpoint(cfg)
-	}
-	if ep == "" {
-		if rem, rerr := pairing.LoadRemote(dir); rerr == nil && rem != nil {
-			ep = rem.Endpoint
-		}
-	}
-	if ep == "" {
-		return pairing.Meta{}, errors.New("no live serve found for this profile; start `gadak serve` first or pass --endpoint <url>")
-	}
-	if err := pairing.SaveRemote(dir, pairing.Remote{Endpoint: ep, Token: token, Label: pairing.HomeLabel}); err != nil {
-		return pairing.Meta{}, err
-	}
-	return meta, nil
-}
-
-// isLoopbackHost names the hosts only this machine can dial. Used for the
-// mint warning, never for a trust decision (GDK-433 prior art: a tunnel
-// can look like loopback).
-func isLoopbackHost(host string) bool {
-	if strings.EqualFold(host, "localhost") {
-		return true
-	}
-	ip := net.ParseIP(host)
-	return ip != nil && ip.IsLoopback()
-}
-
-// advertisedEndpoint turns a live UI-serve listen address into the URL
-// form --endpoint validation wants. Discovery uses the home-root run
-// directory (serveaddr), not leftover serve-origin.json. An explicit
-// --endpoint is not normalized: making the user name the scheme is the point.
-func advertisedEndpoint(cfg *config.Config) string {
-	dir, err := serveaddr.Dir()
-	if err != nil {
-		return ""
-	}
-	want := ""
-	if cfg != nil {
-		want = cfg.ProfileName()
-	}
-	for _, rec := range serveaddr.List(dir) {
-		got := origin.ProbeGadakOnPort(rec.Port, 0)
-		if !got.IsGadak {
-			continue
-		}
-		if got.Profile != want {
-			continue
-		}
-		return endpointFromAdvertise(rec.Addr)
-	}
-	return ""
-}
-
-func endpointFromAdvertise(addr string) string {
-	if addr == "" {
-		return ""
-	}
-	if !strings.Contains(addr, "://") {
-		return "http://" + addr
-	}
-	return addr
-}
-
-// pairingListTime is the table/JSON timestamp for pairing list columns.
-const pairingListTime = "2006-01-02T15:04Z"
-
-// pairingListRow is one pairing-list table row. JSON tags are the same
-// columns the human table prints — never the plaintext token, never the
-// full hash (only the 8-char prefix pairing list already showed).
-type pairingListRow struct {
-	Hash     string `json:"hash"`
-	Label    string `json:"label"`
-	Scope    string `json:"scope"`
-	Created  string `json:"created"`
-	Expires  string `json:"expires"`
-	LastUsed string `json:"last_used"`
-	State    string `json:"state"`
-}
-
-func pairingListRowFrom(m pairing.Meta, now time.Time) pairingListRow {
-	last := "-"
-	if m.LastUsedAt != nil {
-		last = m.LastUsedAt.UTC().Format(pairingListTime)
-	}
-	state := "active"
-	if m.RevokedAt != nil {
-		state = "revoked " + m.RevokedAt.UTC().Format(pairingListTime)
-	} else if now.After(m.ExpiresAt) {
-		state = "expired"
-	}
-	scope := m.Scope
-	if m.Label == pairing.HomeLabel {
-		scope = pairing.ScopeLocalRouting
-	}
-	return pairingListRow{
-		Hash:     m.Hash[:8],
-		Label:    m.Label,
-		Scope:    scope,
-		Created:  m.CreatedAt.UTC().Format(pairingListTime),
-		Expires:  m.ExpiresAt.UTC().Format(pairingListTime),
-		LastUsed: last,
-		State:    state,
-	}
 }
 
 func pairingList(args []string) error {
@@ -536,7 +271,7 @@ func pairingList(args []string) error {
 			}
 			return json.NewEncoder(os.Stdout).Encode(map[string]any{
 				"paired": paired,
-				"tokens": jsonList([]pairingListRow{}),
+				"tokens": jsonList([]pairflow.Row{}),
 			})
 		}
 		fmt.Println(pairedStatusLine(cfg, rem))
@@ -546,29 +281,22 @@ func pairingList(args []string) error {
 	if err != nil {
 		return err
 	}
-	toks, err := pairing.List(dir)
+	rows, err := pairflow.Rows(dir, time.Now())
 	if err != nil {
 		return err
 	}
-	now := time.Now()
 	if *asJSON {
 		// Empty --json is {"tokens":[]} (jsonList), never the human
 		// sentence and never null: a JSON consumer that gets English on
 		// stdout is a bug. pairingGateOpenLine stays on stderr.
-		rows := make([]pairingListRow, 0, len(toks))
-		for _, m := range toks {
-			rows = append(rows, pairingListRowFrom(m, now))
-		}
-		if err := json.NewEncoder(os.Stdout).Encode(map[string]any{"tokens": jsonList(rows)}); err != nil {
-			return err
-		}
-	} else if len(toks) == 0 {
+		return json.NewEncoder(os.Stdout).Encode(map[string]any{"tokens": jsonList(rows)})
+	}
+	if len(rows) == 0 {
 		fmt.Println("no pairing tokens — the origin passthrough is open to loopback (implicit trust)")
 	} else {
 		fmt.Printf("%-8s  %-20s  %-14s  %-20s  %-20s  %-20s  %s\n",
 			"HASH", "LABEL", "SCOPE", "CREATED", "EXPIRES", "LAST-USED", "STATE")
-		for _, m := range toks {
-			row := pairingListRowFrom(m, now)
+		for _, row := range rows {
 			fmt.Printf("%-8s  %-20s  %-14s  %-20s  %-20s  %-20s  %s\n",
 				row.Hash, truncate([]byte(row.Label), 20), row.Scope,
 				row.Created, row.Expires, row.LastUsed, row.State)
@@ -580,14 +308,14 @@ func pairingList(args []string) error {
 	return nil
 }
 
-// pairingGateOpenLine is the GDK-481 copy when Authorize would return
-// VerdictOff (no active token, including _home). Empty when the gate is
-// still closed. _home is counted: Authorize includes ScopeLocalRouting, so
+// pairingGateOpenLine is the GDK-481 copy when the gate has fallen back
+// open (no active token, including _home). Empty when the gate is still
+// closed. _home is counted: Authorize includes ScopeLocalRouting, so
 // revoking the last device token while _home remains must not claim the
-// gate is open.
+// gate is open. The sentence is presentation and stays here; the boolean
+// moved to pairflow.GateOpen.
 func pairingGateOpenLine(dir string) string {
-	v, err := pairing.Authorize(dir, "", time.Now())
-	if err != nil || v != pairing.VerdictOff {
+	if !pairflow.GateOpen(dir, time.Now()) {
 		return ""
 	}
 	return "no active tokens remain — the gate is open again; stop the serve to cut access"
@@ -606,7 +334,7 @@ func pairingRevoke(args []string) error {
 	if err != nil {
 		return err
 	}
-	meta, err := pairing.Revoke(dir, rest[0], time.Now())
+	meta, err := pairflow.Revoke(dir, rest[0], time.Now())
 	if err != nil {
 		return err
 	}

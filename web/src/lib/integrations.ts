@@ -371,10 +371,11 @@ export function installBlocked(item: IntegrationItem): boolean {
 /**
  * Settings tabs that only exist inside the desktop app, because the server
  * behind them only exists there. A browser tab asking `/desktop/integrations`
- * gets a 404 from `gadak serve`, so the tab must not be offered — including
- * via a `settings=integrations` URL somebody pasted out of the desktop app.
+ * or `/desktop/pairing` gets a 404 from `gadak serve`, so the tab must not
+ * be offered — including via a `settings=devices` URL somebody pasted out
+ * of the desktop app.
  */
-const DESKTOP_ONLY_SETTINGS_TABS = ['integrations'] as const satisfies readonly SettingsTab[]
+const DESKTOP_ONLY_SETTINGS_TABS = ['integrations', 'devices'] as const satisfies readonly SettingsTab[]
 
 function isDesktopOnlyTab(tab: string): boolean {
   return (DESKTOP_ONLY_SETTINGS_TABS as readonly string[]).includes(tab)

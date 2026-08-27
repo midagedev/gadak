@@ -53,6 +53,7 @@
   import MembersTab from './MembersTab.svelte'
   import FieldsTab from './FieldsTab.svelte'
   import IntegrationsTab from './IntegrationsTab.svelte'
+  import DevicesTab from './DevicesTab.svelte'
   import AboutTab from './AboutTab.svelte'
   import { trapFocus } from '../../lib/focus-trap'
   import Icon from '../ui/Icon.svelte'
@@ -73,16 +74,19 @@
     members: t('settings.tabMembers'),
     fields: t('settings.tabFields'),
     integrations: t('settings.tabIntegrations'),
+    devices: t('settings.tabDevices'),
     about: t('settings.tabAbout'),
   }
   /* Header order is SETTINGS_TABS order, minus the tabs this surface has no
-     server for (Integrations is desktop-only). One list, so the header and the
-     `settings=` URL guard can never disagree about what exists. */
+     server for (Integrations and Devices are desktop-only). One list, so the
+     header and the `settings=` URL guard can never disagree about what
+     exists. */
   const TABS: [Tab, string][] = visibleSettingsTabs(SETTINGS_TABS, isDesktop()).map((id) => [
     id,
     LABELS[id],
   ])
   const showIntegrations = TABS.some(([id]) => id === 'integrations')
+  const showDevices = TABS.some(([id]) => id === 'devices')
 
   let loading = $state(true)
   let saving = $state(false)
@@ -364,6 +368,8 @@
           <MembersTab bind:draft bind:openMember />
         {:else if tab === 'integrations' && showIntegrations}
           <IntegrationsTab />
+        {:else if tab === 'devices' && showDevices}
+          <DevicesTab />
         {:else if tab === 'about'}
           <AboutTab {runtime} />
         {:else}

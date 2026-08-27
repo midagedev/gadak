@@ -87,6 +87,10 @@ const ALLOWLIST: { file: string; reason: string }[] = [
     reason: 'integration status is a live origin check, not the mirror',
   },
   {
+    file: join(WEB_SRC, 'components/settings/DevicesTab.svelte'),
+    reason: 'pairing device list is an in-process store read, not the mirror',
+  },
+  {
     file: join(WEB_SRC, 'components/write/NewIssueDialog.svelte'),
     reason: 'write-path create-meta; a write in flight is not a read',
   },
