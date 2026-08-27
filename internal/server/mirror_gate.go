@@ -34,9 +34,11 @@ import (
 // /api/v1/workspaces (no mirrorGate behind the exemption) also return
 // false, so the rebinding guard keeps them closed for DNS Hosts.
 //
-// GDK-863: a serve token must never open a shell. No terminal route exists
-// in this package today; whoever adds one puts the scope check on that
-// route (do not admit a shell here).
+// GDK-863: a serve token must never open a shell. The terminal route now
+// lives in this package (terminal.go, registered at server.go), and the
+// scope check is on that route: termBase sits outside the admitted prefixes,
+// so this returns false for it by construction (TestTerminalPathIsNotMirrorREST).
+// Do not admit a shell here.
 func serveScopeAdmits(method, path string) bool {
 	_ = method
 	if path == origin.RESTPrefix || strings.HasPrefix(path, origin.RESTPrefix+"/") {

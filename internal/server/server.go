@@ -4,8 +4,23 @@
 // mirror. Credentials are needed for those writes and for fetching attachment
 // bytes that are not already on disk.
 //
-// The server has no authentication: `gadak serve` refuses a non-loopback bind
-// instead. Personal-state endpoints therefore never answer 401/403.
+// Authentication is by Host, not by session. A loopback (or *.localhost)
+// request is the CLI user and passes unauthenticated by construction
+// (decision 0003) — that surface stays byte-identical. A DNS-named or
+// otherwise non-loopback Host is the shape `tailscale serve` and
+// `--allow-remote` forward, and it meets a pairing token at one of three
+// gates, each answering 401 pairing_rejected / 403 scope_rejected |
+// forbidden_host on its own inputs and scope door:
+//
+//   - mirrorGate (mirror_gate.go)      — the mirror REST, serve scope
+//   - the origin passthrough (origin_rest.go) — origin scope
+//   - the terminal gate (terminal.go)  — terminal scope; a serve token can
+//     never reach a shell (GDK-863)
+//
+// So a remote Host without a valid scoped token DOES get 401/403 here; only
+// the loopback surface has nothing to authenticate. A new remote-reachable
+// route inherits no gate for free — it is closed until it names its scope
+// (serveScopeAdmits is default-closed; TestServeScopeIsDefaultClosed).
 package server
 
 import (

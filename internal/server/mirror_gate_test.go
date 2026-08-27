@@ -326,3 +326,32 @@ func TestMirrorGateCommentWriteGoesThroughOrigin(t *testing.T) {
 		t.Fatalf("response %+v — not the mutate contract shape", body)
 	}
 }
+
+// serveScopeAdmits is default-closed: only the three mirror-REST prefixes a
+// serve token is scoped for answer true. This is the property the package
+// comment promises ("a new remote-reachable route inherits no gate for
+// free") — a personal-state route added tomorrow without naming its scope is
+// unreachable by a serve token on a DNS Host until someone widens this
+// allowlist on purpose. The false "no authentication" comment this replaces
+// (GDK-916) is what made skipping that step look legitimate.
+func TestServeScopeIsDefaultClosed(t *testing.T) {
+	admitted := []string{
+		apiBase + "NMB-1", authBase + "me/", dashBase + "default/",
+	}
+	for _, p := range admitted {
+		if !serveScopeAdmits(http.MethodGet, p) {
+			t.Errorf("serveScopeAdmits(%q) is false — a scoped mirror route must pass", p)
+		}
+	}
+	// None of these share the three prefixes; every one must stay closed.
+	closed := []string{
+		"/api/v1/prefs/", "/api/v1/local/recents/", "/api/v1/notifications/",
+		"/api/v1/workspaces", "/api/v1/terminal/sessions/", "/config.json",
+		"/healthz", "/", origin.RESTPrefix + "/rest/api/3/myself",
+	}
+	for _, p := range closed {
+		if serveScopeAdmits(http.MethodPost, p) {
+			t.Errorf("serveScopeAdmits(%q) is true — a new route defaulted OPEN to a serve token", p)
+		}
+	}
+}
