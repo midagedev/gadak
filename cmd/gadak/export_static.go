@@ -50,6 +50,20 @@ func copyMirror(src, dst string) error {
 // content_url fields. Hosted demos rewrite it to the configured --api-base.
 const serverAPIBase = "/api/v1/issues/"
 
+// demoFeaturesAllOff is the hosted demo's features map: every optional surface
+// off, and only real features named. Building it from config.FeatureNames keeps
+// this the single owner (GDK-924) — the export can never carry a key that is not
+// a feature (an unknown key is dropped on read anyway), and a feature added
+// later ships here off by default without a second edit, because a static
+// export has no server to back any optional surface.
+func demoFeaturesAllOff() map[string]bool {
+	m := make(map[string]bool, len(config.FeatureNames))
+	for _, name := range config.FeatureNames {
+		m[name] = false
+	}
+	return m
+}
+
 func cmdExportStatic(args []string) error {
 	fs := newFlagSet("export-static")
 	dbPath := fs.String("db", "examples/demo.db", "snapshot database to freeze")
@@ -138,14 +152,7 @@ func cmdExportStatic(args []string) error {
 	// Snapshot projects only — no credential, every optional surface off.
 	cfg := &config.Config{
 		Projects: projectList,
-		Features: map[string]bool{
-			"presence":   false,
-			"feed":       false,
-			"push":       false,
-			"deploy":     false,
-			"qa":         false,
-			"teamGroups": false,
-		},
+		Features: demoFeaturesAllOff(),
 	}
 	handler := server.NewWithCache(db, cfg, cache)
 
@@ -277,14 +284,7 @@ func cmdExportStatic(args []string) error {
 		"groupColors":         map[string]string{},
 		"productByGroup":      map[string]any{},
 		"staleThresholdHours": 72,
-		"features": map[string]bool{
-			"presence":   false,
-			"feed":       false,
-			"push":       false,
-			"deploy":     false,
-			"qa":         false,
-			"teamGroups": false,
-		},
+		"features":            demoFeaturesAllOff(),
 		// Hosted-demo marker for operators; the client ignores unknown keys.
 		"hostedDemo": true,
 	}

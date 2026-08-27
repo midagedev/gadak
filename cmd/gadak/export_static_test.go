@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/midagedev/gadak/internal/config"
 )
 
 // GDK-389: the public-backlog scrub is whitelist-rebuild — anything the live
@@ -315,5 +317,31 @@ func TestCopyMirrorSeesUncheckpointedWAL(t *testing.T) {
 	}
 	if n != 2 {
 		t.Fatalf("copy holds %d rows, want 2 — the WAL was dropped", n)
+	}
+}
+
+// GDK-924: the hosted-demo features map is built from config.FeatureNames, so
+// it can only ever name real features — every one off, since a static export
+// has no server to back an optional surface. This closes the gap that let
+// "push" and "presence" (GDK-822/GDK-714) sit in the frozen JSON unnoticed:
+// nothing tested what keys the export planted.
+func TestDemoFeaturesAreOnlyRealFeaturesAllOff(t *testing.T) {
+	got := demoFeaturesAllOff()
+	if len(got) != len(config.FeatureNames) {
+		t.Fatalf("features has %d keys, config.FeatureNames has %d: %v", len(got), len(config.FeatureNames), got)
+	}
+	for _, name := range config.FeatureNames {
+		on, ok := got[name]
+		if !ok {
+			t.Errorf("features missing %q", name)
+		}
+		if on {
+			t.Errorf("feature %q is on in a static export; every optional surface must be off", name)
+		}
+	}
+	for _, dead := range []string{"push", "presence"} {
+		if _, ok := got[dead]; ok {
+			t.Errorf("dead feature %q is back in the hosted-demo export", dead)
+		}
 	}
 }
