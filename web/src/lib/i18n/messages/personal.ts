@@ -103,6 +103,11 @@ export const personal = {
     ko: '새 활동이 없습니다',
     ja: '新しいアクティビティはありません',
   },
+  'feed.unreadCount': {
+    en: '{n} unread',
+    ko: '안 읽은 활동 {n}건',
+    ja: '未読 {n}件',
+  },
   'feed.filterAll': {
     en: 'All',
     ko: '전체',

@@ -3,6 +3,7 @@
   import Row from '../ui/Row.svelte'
   import DocRow from '../ui/DocRow.svelte'
   import EmptyState from '../ui/EmptyState.svelte'
+  import GlanceStrip from '../ui/GlanceStrip.svelte'
   import Skeleton from '../ui/Skeleton.svelte'
   import ScopeSheet from '../ui/ScopeSheet.svelte'
   import { t } from '../lib/i18n'
@@ -109,6 +110,11 @@
       <p class="note">This serve has no identity to filter by.</p>
     {/if}
   {/snippet}
+
+  <!-- GDK-871: the glance strip — first band under the heading, above every
+       plate, scope-independent (the feed is a person's, not a scope's). It
+       gates itself on unread counts and renders nothing otherwise. -->
+  <GlanceStrip />
 
   {#if bootKind === 'skeleton'}
     <Skeleton />

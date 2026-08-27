@@ -2,7 +2,7 @@
 // unit-tested. Repo contract: logic keys on status_category and
 // priority_rank, never on display names (display names are labels only).
 
-import { collator, t } from './i18n'
+import { collator, t, type MessageKey } from './i18n'
 import type {
   DetailComment,
   IssueLite,
@@ -535,5 +535,124 @@ export function pendingComment(
     author: author === '' ? null : author,
     created_at: now.toISOString(),
     body: text,
+  }
+}
+
+/* ── Glance strip (GDK-871): the feed as the Issues queue's first band ── */
+
+/**
+ * One activity row from GET issues/feed/ (internal/store/feed.go FeedItem).
+ * The phone paints the identifier, the event, the actor and the time — the
+ * fields below are the subset it reads. The wire shapes normally live in
+ * ./types, which sits outside this round's file list, so they are declared
+ * here beside the selection logic that consumes them.
+ */
+export interface FeedItem {
+  event_id: string
+  issue_key: string
+  event_type: string
+  occurred_at: string | null
+  actor_name: string
+  /** Why this row is relevant to the paired identity: assignee / reporter / mention / watched. */
+  reasons: string[]
+  read_at: string | null
+}
+
+export interface FeedUnreadCounts {
+  all: number
+  assignee: number
+  reporter: number
+  mention: number
+}
+
+export interface FeedResponse {
+  items: FeedItem[]
+  unread_counts: FeedUnreadCounts
+}
+
+/** POST issues/feed/read/ reply (internal/store/feed.go MarkFeedReadResult). */
+export interface MarkFeedReadResponse {
+  updated: number
+  unread_counts: FeedUnreadCounts
+}
+
+/** The desktop feed's own event-type words — reused, never re-authored (§3.6). */
+const FEED_KIND_KEYS: Record<string, MessageKey> = {
+  created: 'feed.kindCreated',
+  status_changed: 'feed.kindStatus',
+  reopened: 'feed.kindReopen',
+  assigned: 'feed.kindAssignee',
+  comment_added: 'feed.kindComment',
+  attachment_added: 'feed.kindAttachment',
+  fields_changed: 'feed.kindField',
+}
+
+/** Human phrase for an event type; an unknown type shows itself, not a blank. */
+export function feedKindLabel(eventType: string): string {
+  const key = FEED_KIND_KEYS[eventType]
+  return key ? t(key) : eventType
+}
+
+/** Rows the strip shows: unread only, newest first, capped (null stamps last). */
+export function glanceRows(items: FeedItem[], limit: number = 3): FeedItem[] {
+  return [...items]
+    .filter((i) => !i.read_at)
+    .sort((a, b) => {
+      const ka = a.occurred_at ?? ''
+      const kb = b.occurred_at ?? ''
+      if (ka === '' || kb === '') {
+        if (ka !== kb) return ka === '' ? 1 : -1
+      } else {
+        const d = kb.localeCompare(ka)
+        if (d !== 0) return d
+      }
+      return a.event_id.localeCompare(b.event_id)
+    })
+    .slice(0, limit)
+}
+
+/**
+ * Unread delta a set of rows contributes — store.countUnread restricted to
+ * these rows, so a local decrement cannot drift from the server's arithmetic.
+ */
+function unreadDelta(items: FeedItem[]): FeedUnreadCounts {
+  const d = { all: 0, assignee: 0, reporter: 0, mention: 0 }
+  for (const i of items) {
+    if (i.read_at) continue
+    d.all++
+    if (i.reasons.includes('assignee')) d.assignee++
+    if (i.reasons.includes('reporter')) d.reporter++
+    if (i.reasons.includes('mention')) d.mention++
+  }
+  return d
+}
+
+/**
+ * Local feed state after a read receipt lands: the marked rows drop, the
+ * counts come from the server's reply when it carries them (it always does
+ * on a 200) and otherwise fall back to the mirrored decrement. `null` keys
+ * mean "all": every row goes and the counts zero, because the local window
+ * (limit 20) can be shorter than what "all" cleared.
+ */
+export function feedAfterRead(
+  feed: FeedResponse,
+  issueKeys: string[] | null,
+  counts?: FeedUnreadCounts,
+): FeedResponse {
+  if (issueKeys === null) {
+    return { items: [], unread_counts: counts ?? { all: 0, assignee: 0, reporter: 0, mention: 0 } }
+  }
+  const keys = new Set(issueKeys)
+  const d = unreadDelta(feed.items.filter((i) => keys.has(i.issue_key)))
+  const prev = feed.unread_counts
+  return {
+    items: feed.items.filter((i) => !keys.has(i.issue_key)),
+    unread_counts:
+      counts ?? {
+        all: Math.max(0, prev.all - d.all),
+        assignee: Math.max(0, prev.assignee - d.assignee),
+        reporter: Math.max(0, prev.reporter - d.reporter),
+        mention: Math.max(0, prev.mention - d.mention),
+      },
   }
 }

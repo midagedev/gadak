@@ -3,7 +3,7 @@
 // exported functions.
 
 import { configureApi, request, isPairingDead, ApiError } from './api'
-import { SCOPE_ME } from './domain'
+import { SCOPE_ME, feedAfterRead, type FeedResponse, type MarkFeedReadResponse } from './domain'
 import { tokenGet, tokenSet, tokenDel } from './secure'
 import { probeShellPairing } from './terminal/api'
 import type {
@@ -56,6 +56,12 @@ export const app = $state({
   sources: [] as SourceViewDoc[],
   /** Mirrored wiki pages (GET issues/pages/). Empty → no Documents section. */
   pages: [] as PageLite[],
+  /**
+   * Personal feed (GET issues/feed/), the glance strip's data (GDK-871).
+   * Null = no cycle has answered yet, or unpaired — the strip is absent,
+   * never an error chrome (optional surface, DESIGN.md §1).
+   */
+  feed: null as FeedResponse | null,
   /** Last scope the user picked; the heading is this scope's name. */
   scopeId: SCOPE_ME as string,
   /**
@@ -280,6 +286,15 @@ export async function sync(): Promise<void> {
     } catch {
       // Keep whatever we already painted (offline). No pages → no section.
     }
+    try {
+      // The glance strip's data (GDK-871): what moved while the phone was
+      // away. Rides sync()'s cycle — no timer of its own. A failure costs
+      // the strip, never the boot; the next cycle retries.
+      const res = await request<FeedResponse>('issues/feed/?focus=all&limit=20')
+      if (res.body) app.feed = res.body
+    } catch {
+      // Keep whatever was painted; no feed answered → no strip this cycle.
+    }
     app.loaded = true
     app.offline = false
     app.lastSyncAt = new Date()
@@ -296,6 +311,32 @@ export async function sync(): Promise<void> {
   } finally {
     app.syncing = false
   }
+}
+
+/* ── glance strip read receipts (GDK-871) ── */
+
+/**
+ * Marks one issue's feed events read (POST issues/feed/read/). A read
+ * receipt lives in feed_reads beside the mirror, not in origin — no
+ * credential is needed, so a demo serve answers it too. Local state moves
+ * only after the reply lands: nothing is removed optimistically, so a
+ * refused receipt cannot eat a row. Throws ApiError for the caller's copy.
+ */
+export async function markGlanceIssueRead(key: string): Promise<void> {
+  const res = await request<MarkFeedReadResponse>('issues/feed/read/', {
+    method: 'POST',
+    body: { issue_keys: [key] },
+  })
+  if (app.feed) app.feed = feedAfterRead(app.feed, [key], res.body?.unread_counts)
+}
+
+/** Marks everything read. Same receipt, same no-optimistic contract. */
+export async function markGlanceAllRead(): Promise<void> {
+  const res = await request<MarkFeedReadResponse>('issues/feed/read/', {
+    method: 'POST',
+    body: { all: true },
+  })
+  if (app.feed) app.feed = feedAfterRead(app.feed, null, res.body?.unread_counts)
 }
 
 /* ── pairing lifecycle ── */
@@ -351,6 +392,7 @@ export async function unpair(): Promise<void> {
   app.views = []
   app.sources = []
   app.pages = []
+  app.feed = null
   app.scopeId = SCOPE_ME
   app.loaded = false
   app.rejected = false
