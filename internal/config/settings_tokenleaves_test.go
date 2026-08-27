@@ -19,6 +19,8 @@ package config
 
 import (
 	"encoding/json"
+	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -206,31 +208,58 @@ func TestUITokenLeafGetAndNullDelete(t *testing.T) {
 	}
 }
 
-func TestUITokenLeafUnknownNameRefuses(t *testing.T) {
+// GDK-913: an unknown token name is not a second gate on the leaf path. The
+// same token set as a scalar (ui.tokens.<axis>.<name>) and set inside a JSON
+// blob (ui.tokens) must reach the same config — ui.tokens and ui.tokens.<axis>
+// already warn-and-save an unknown name (forward-compat, GDK-769), and the
+// leaf once rejected it (GDK-853, for discoverability). The fix routes the
+// leaf through the one gate the other two use, so all three agree.
+func TestUITokenLeafUnknownNameMatchesTheBlobPath(t *testing.T) {
 	for _, tc := range []struct {
-		path, raw, discovery string
+		axis, name, path, raw string
 	}{
-		{"ui.tokens.type.not-a-token", `"15px"`, "ui.tokens.dim-catalog"},
-		{"ui.tokens.colors.not-a-token", `"#7a4bd0"`, "ui.tokens.catalog"},
-		{"ui.tokens.spacing.<name>", `"44px"`, "ui.tokens.dim-catalog"},
+		{"colors", "not-a-token", "ui.tokens.colors.not-a-token", `"#7a4bd0"`},
+		{"type", "not-a-token", "ui.tokens.type.not-a-token", `"15px"`},
+		{"spacing", "not-a-token", "ui.tokens.spacing.not-a-token", `"44px"`},
 	} {
 		s, ok := SettingByPath(tc.path)
 		if !ok {
-			t.Fatalf("%s must resolve so Set can name the catalog (got unknown path)", tc.path)
+			t.Fatalf("%s must resolve", tc.path)
 		}
-		c := &Config{}
-		err := s.Set(c, json.RawMessage(tc.raw))
-		if err == nil {
-			t.Fatalf("%s accepted an unknown token", tc.path)
+		// Leaf path: the scalar set.
+		leaf := &Config{}
+		if err := s.Set(leaf, json.RawMessage(tc.raw)); err != nil {
+			t.Fatalf("%s rejected an unknown name (must warn-and-save like the blob): %v", tc.path, err)
 		}
-		if !strings.Contains(err.Error(), tc.discovery) {
-			t.Errorf("%s error = %q, want it to name %s", tc.path, err.Error(), tc.discovery)
+		// Blob path: the same token inside the ui.tokens object.
+		blob := &Config{}
+		setJSON(t, blob, "ui.tokens", fmt.Sprintf(`{%q:{%q:%s}}`, tc.axis, tc.name, tc.raw))
+
+		// Compare the axis both paths wrote (nil-vs-empty on the untouched
+		// axes is not a product difference and not what this pins).
+		leafAxis := uiTokenAxisMap(uiTokensOf(leaf), tc.axis)
+		blobAxis := uiTokenAxisMap(uiTokensOf(blob), tc.axis)
+		if !reflect.DeepEqual(leafAxis, blobAxis) {
+			t.Errorf("%s: scalar and blob disagree on the %s axis\n scalar=%v\n   blob=%v",
+				tc.path, tc.axis, leafAxis, blobAxis)
 		}
-		if !strings.Contains(err.Error(), "discover names") {
-			t.Errorf("%s error = %q, want the discovery teaching", tc.path, err.Error())
+		if leafAxis[tc.name] == "" {
+			t.Errorf("%s: unknown token was not saved under its own name: %v", tc.path, leafAxis)
 		}
-		if c.UI != nil {
-			t.Errorf("unknown token left a ui block: %+v", c.UI)
+		// And the name check survives as a warning, not a rejection — the
+		// discoverability GDK-853 wanted is kept, just not as a hard error.
+		warns, err := ValidateUIConfig(leaf.UI)
+		if err != nil {
+			t.Fatalf("%s: ValidateUIConfig refused the saved config: %v", tc.path, err)
+		}
+		var warned bool
+		for _, w := range warns {
+			if w.Token == tc.name {
+				warned = true
+			}
+		}
+		if !warned {
+			t.Errorf("%s: unknown name %q saved with no warning (lost the discovery signal)", tc.path, tc.name)
 		}
 	}
 }

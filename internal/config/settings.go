@@ -1359,30 +1359,44 @@ func uiTokenLeafSetting(axis, name string) Setting {
 			"null deletes it (token names: %s; %s)",
 			axis, axis, ex.name, ex.value, discovery, rules),
 		Get: func(c *Config) any {
-			canonical, ok := knownUITokenName(axis, name)
-			if !ok {
-				return nil
+			// A known name resolves to its catalog key; an unknown one reads
+			// under the name as given, the same key its own set stored. Both
+			// the ui.tokens object and the ui.tokens.<axis> merge already work
+			// this way (GDK-913).
+			key := name
+			if canonical, ok := knownUITokenName(axis, name); ok {
+				key = canonical
 			}
 			m := uiTokenAxisMap(uiTokensOf(c), axis)
-			if v, ok := m[canonical]; ok {
+			if v, ok := m[key]; ok {
 				return v
 			}
 			return nil
 		},
 		Set: func(c *Config, raw json.RawMessage) error {
-			canonical, ok := knownUITokenName(axis, name)
-			if !ok {
-				return fmt.Errorf("%s is not a %s token — discover names with %s", path, axis, discovery)
+			// The name is not a second gate. ui.tokens (whole object) and
+			// ui.tokens.<axis> (merge) both warn-and-save an unknown token
+			// name — ApplyUIConfig / ValidateUIConfig documents that as
+			// forward-compat, not an error (GDK-769). This leaf path once
+			// rejected it (GDK-853, for discoverability), so the same token
+			// set as a scalar and set as a JSON blob reached different
+			// products. Route through the one gate the other two use: a known
+			// name resolves to its catalog key, an unknown one passes through
+			// as given and ApplyUIConfig carries the discovery hint as a
+			// warning (GDK-913).
+			key := name
+			if canonical, ok := knownUITokenName(axis, name); ok {
+				key = canonical
 			}
 			var patch map[string]*string
 			if string(raw) == "null" {
-				patch = map[string]*string{canonical: nil}
+				patch = map[string]*string{key: nil}
 			} else {
 				s, err := decodeString(raw, path)
 				if err != nil {
 					return err
 				}
-				patch = map[string]*string{canonical: &s}
+				patch = map[string]*string{key: &s}
 			}
 			next := cloneUIConfig(c.UI)
 			next.Tokens = mergeUITokenAxis(uiTokensOf(c), axis, patch)
