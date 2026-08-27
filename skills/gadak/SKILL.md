@@ -144,7 +144,10 @@ Three rules follow, and they are the point of the design:
 - **Name the workspace in every command that matters.** Never rely on the
   ambient default when a question is about a specific site — a shell that was
   configured before you arrived can point anywhere, and your transcript will
-  not record which mirror answered.
+  not record which mirror answered. The one exception is gadak's own terminal:
+  it sets `GADAK_WORKSPACE` to the workspace its window shows, so a bare
+  `gadak` there is on that workspace by construction — but the transcript
+  still records nothing, so name `--workspace` on writes.
 - **Say which mirror you read.** `gadak status --json` carries a `profile`
   field (the workspace name; empty for the root); quote it when the answer
   could differ per site.

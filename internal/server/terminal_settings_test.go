@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -74,8 +75,9 @@ func TestTerminalCreateUsesConfiguredShellAndDir(t *testing.T) {
 
 // TestTerminalCreateWorkingDirMissingFallsBack: a typo in workingDir must
 // not make the terminal unopenable, and the fallback must say the
-// configured path out loud. The session then starts where it always did:
-// the workspace directory.
+// configured path out loud. The session then starts in the unconfigured
+// default — the user's home (GDK-995; it was the workspace directory, the
+// serve process's cwd).
 func TestTerminalCreateWorkingDirMissingFallsBack(t *testing.T) {
 	var buf bytes.Buffer
 	prev := log.Writer()
@@ -102,7 +104,13 @@ func TestTerminalCreateWorkingDirMissingFallsBack(t *testing.T) {
 	if err := c.Write(ctx, websocket.MessageBinary, []byte("pwd\n")); err != nil {
 		t.Fatal(err)
 	}
-	want, err := filepath.EvalSymlinks(cfg.Directory())
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Skipf("os.UserHomeDir: %v — fallback destination unpinned here", err)
+	}
+	// The kernel resolves symlinks on chdir, so the shell's pwd reports the
+	// evaluated path (same note as TestTerminalCreateUsesConfiguredShellAndDir).
+	want, err := filepath.EvalSymlinks(home)
 	if err != nil {
 		t.Fatal(err)
 	}

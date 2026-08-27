@@ -14,6 +14,7 @@ import (
 
 	"github.com/coder/websocket"
 
+	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/pairing"
 	"github.com/midagedev/gadak/internal/term"
 )
@@ -309,13 +310,32 @@ func (s *server) handleTerminalCreate(w http.ResponseWriter, r *http.Request) {
 		TokenID: tokenID,
 		Shell:   tc.Shell,
 	}
+	// Name this window's workspace to the shell it starts. The session
+	// inherits the serve process's whole environment, and workspace mode
+	// runs one server per profile in the same process — so an inherited
+	// GADAK_WORKSPACE, if any, belongs to some other window. Setting it
+	// unconditionally is what keeps the pane's bare `gadak` on the board the
+	// pane lives in; root serializes as "default", which canonProfile maps
+	// back to root when the child reads it. Options.Env is appended after
+	// the inherited environment, so this always wins.
+	opts.Env = append(opts.Env, "GADAK_WORKSPACE="+config.NormalizeProfile(s.profile))
 	// A configured workingDir that is missing at create time must not make
 	// the terminal unopenable, and the fallback must not hide the typo.
 	if tc.WorkingDir != "" {
 		if info, err := os.Stat(tc.WorkingDir); err != nil || !info.IsDir() {
-			log.Printf("server: terminal workingDir %q not found; session starts in the workspace default", tc.WorkingDir)
+			log.Printf("server: terminal workingDir %q not found; session starts in the default directory", tc.WorkingDir)
 		} else {
 			opts.Dir = tc.WorkingDir
+		}
+	}
+	// An unconfigured workingDir starts the session in the user's home, not
+	// the serve process's cwd — which is the profile state dir, gadak's own
+	// internals and nobody's workplace. A home that cannot be resolved
+	// leaves Dir empty, and the manager's fallback applies: the old
+	// behavior, not a failed create.
+	if opts.Dir == "" {
+		if home, err := os.UserHomeDir(); err == nil {
+			opts.Dir = home
 		}
 	}
 	sess, err := s.terminalManager().Create(opts)

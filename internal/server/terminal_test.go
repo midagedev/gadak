@@ -5,14 +5,18 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/coder/websocket"
 
+	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/pairing"
+	"github.com/midagedev/gadak/internal/store"
 	"github.com/midagedev/gadak/internal/term"
 )
 
@@ -61,6 +65,47 @@ func termServer(t *testing.T) (*httptest.Server, *Handler, string) {
 	srv := httptest.NewServer(h)
 	t.Cleanup(srv.Close)
 	return srv, h, cfg.Directory()
+}
+
+// termWorkspaceServer is termServer's standalone dance bound to a named
+// profile: the handler is NewWorkspace, so s.profile is the name a
+// /w/<name>/ window would show (GDK-995). The config/store steps copy
+// standaloneServer (origin_rest_test.go) because that helper hardcodes the
+// root constructor New; the guards (SetProfile reset, origin.Close) come
+// along with them.
+func termWorkspaceServer(t *testing.T, profile string) *httptest.Server {
+	t.Helper()
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	config.SetProfile("")
+	t.Cleanup(func() {
+		_ = origin.Close()
+		config.SetProfile("")
+	})
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Kind = config.KindStandalone
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err = config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	db, err := store.Open(filepath.Join(t.TempDir(), "mirror.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := NewWorkspace(db, cfg, nil, profile)
+	t.Cleanup(func() {
+		_ = h.Close()
+		_ = db.Close()
+	})
+	srv := httptest.NewServer(h)
+	t.Cleanup(srv.Close)
+	return srv
 }
 
 // termRequest sends one REST call with an optional Host override and
@@ -625,5 +670,59 @@ func TestTerminalWebviewOriginCannotOpenTheSocket(t *testing.T) {
 			}
 			t.Fatalf("Origin %q: status %d (%v); want 403", origin, code, err)
 		}
+	}
+}
+
+// ⑭ GDK-995: the window that hosts a terminal names its workspace to the
+// shell it starts. The server already knows which board the window shows
+// (s.profile); the session must carry that as GADAK_WORKSPACE so a bare
+// `gadak` typed in the pane resolves to the pane's own workspace — even when
+// the serve process inherited some other GADAK_WORKSPACE, which workspace
+// mode makes real (one server per profile in one process). Root serializes
+// as "default", which canonProfile maps back to root when the child reads
+// it. The same create also starts an unconfigured session in the user's
+// home, not the serve process's cwd (the profile state dir).
+//
+// The markers only match after the shell expands the variable: the typed
+// command echoes back with the literal $GADAK_WORKSPACE / $PWD, which does
+// not contain either expected value.
+func TestTerminalSessionNamesItsWorkspace(t *testing.T) {
+	home, homeErr := os.UserHomeDir()
+	for _, tc := range []struct {
+		name    string
+		profile string
+		want    string
+	}{
+		{"named profile", "work", "work"},
+		{"root server", "", "default"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var srv *httptest.Server
+			if tc.profile == "" {
+				srv, _, _ = termServer(t)
+			} else {
+				srv = termWorkspaceServer(t, tc.profile)
+			}
+			id := createSession(t, srv, "", "")
+			c, _, err := dialTerminal(t, srv, id, "", "")
+			if err != nil {
+				t.Fatalf("dial: %v", err)
+			}
+			defer c.CloseNow()
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			if err := c.Write(ctx, websocket.MessageBinary, []byte("echo \"gk995env=$GADAK_WORKSPACE\"\n")); err != nil {
+				t.Fatal(err)
+			}
+			readUntilMarker(t, c, "gk995env="+tc.want)
+			if homeErr != nil {
+				t.Logf("os.UserHomeDir: %v — cwd default unpinned in this environment", homeErr)
+				return
+			}
+			if err := c.Write(ctx, websocket.MessageBinary, []byte("echo \"gk995pwd=$PWD\"\n")); err != nil {
+				t.Fatal(err)
+			}
+			readUntilMarker(t, c, "gk995pwd="+home)
+		})
 	}
 }
