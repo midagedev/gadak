@@ -761,7 +761,13 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: desktop/go.mod
-          cache-dependency-path: desktop/go.sum
+          # build-windows.ps1 builds the ROOT module too (cmd/gadak), so the
+          # cache key must cover both go.sum files — a desktop-only key never
+          # rotates on a root dependency change, which then re-downloads on
+          # every run until desktop/go.sum happens to move (GDK-1036).
+          cache-dependency-path: |
+            go.sum
+            desktop/go.sum
           cache: true
 
       - name: Set up Node
@@ -770,8 +776,15 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
+      # Two steps, not one: when install and build share a step they share a
+      # duration, and the 2026-08-27 npm-ci swing (a git dependency re-cloned
+      # on every run, 2–6.5 minutes) hid inside "Build the web UI" for weeks
+      # (GDK-1036).
+      - name: Install web dependencies
+        run: npm ci
+
       - name: Build the web UI
-        run: npm ci && npm run build
+        run: npm run build
 
       - name: Pack the Windows app
         shell: pwsh
