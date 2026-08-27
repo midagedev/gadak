@@ -9,7 +9,15 @@ import { attachConsoleErrors, gotoApp } from './helpers'
  *
  * FAIL-first: the wide-viewport spread assertion is red on the inline-flow
  * row. The narrow-width case asserts a field is dropped (display:none), not
- * squeezed — that hide already existed (epic is `lg:`, 1024px).
+ * squeezed — that hide already existed (epic went at 1024px).
+ *
+ * What drops epic changed in GDK-1046: the row's own width, not the
+ * viewport's (`.trail-break-epic`, row ≤749). The assertions below are
+ * mechanism-blind and stayed green through that move — they ask whether the
+ * field is gone, never how. Containment is a different axis and lives in
+ * e2e/list-row-overflow.spec.ts: a column can share an x with every other
+ * row and still be painted outside the scroller, which is what this spec
+ * passed through for months.
  */
 
 const SPREAD_MAX_PX = 2
@@ -97,7 +105,8 @@ test.describe('list row trailing columns', () => {
       page.getByTestId('issue-list-scroller').locator('[data-issue-key]').first(),
     ).toBeVisible()
 
-    // Epic slot is `hidden lg:flex` (1024). 900 must drop the column, not
+    // Epic drops below a row width of 750 (GDK-1046; it was viewport
+    // `lg:`/1024 when this was written). 900 must drop the column, not
     // squeeze it. Painted rects, not the chip's own display: the button no
     // longer carries the breakpoint (the slot does).
     const visibleEpic = await page.evaluate(() => {

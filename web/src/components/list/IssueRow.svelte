@@ -4,8 +4,12 @@
    *  Layout: priority icon · status dot · key (mono) · title · trailing scan
    *  columns (fixed-width slots). Off columns are omitted — no hole. An on
    *  column keeps its width when the row has no value, so the same field
-   *  shares an x. Breakpoints hide the whole slot (sm 640 / md 768 / lg 1024 /
-   *  xl 1280), they do not squeeze. Title takes leftover and truncates.
+   *  shares an x. A hide drops the whole slot, never a squeeze: optional
+   *  columns break on the viewport (sm 640 / md 768 / lg 1024), while
+   *  qa_impact and epic break on the ROW's own width (@container issuerow,
+   *  GDK-1046) — a detail panel narrows the row for reasons the viewport
+   *  cannot see, and the width that has to fit is the one that decides.
+   *  Title takes leftover and truncates.
    *  Chip/dot/avatar click = add that value as a filter (stopPropagation vs row select).
    *  Tint and cursor ring are separate: checking a row must not hide where the
    *  keyboard is, or the next x lands blind.
@@ -295,11 +299,14 @@
 
   <!-- Trailing scan columns. Fixed-width flex slots, not inline flow: an on
        column occupies its width even when this row has no value, so the field
-       shares an x. An off column is not rendered (no hole). Breakpoint classes
+       shares an x. An off column is not rendered (no hole). Break classes
        live on the slot so a hide drops the column instead of leaving a gap.
        Container-query folds (trail-fold-*) hide whole slots in designed order
-       when the row cannot fit them — overflow:hidden on the list column is not
-       a fold (GDK-766). Keep last: stale, then reopen, then deploy. -->
+       when the row cannot fit them, and the qa_impact/epic breaks
+       (trail-break-*) are row-width-keyed for the same reason — the row, not
+       the viewport, is what runs out of room (GDK-1046). overflow:hidden on
+       the list column is not a fold (GDK-766). Keep last: stale, then
+       reopen, then deploy. -->
   <div class="flex min-w-0 shrink items-center gap-2.5" data-testid="issue-row-trail">
   <!-- Badges: reopen / stale -->
   {#if cols.has('reopen')}
@@ -343,7 +350,7 @@
   {/if}
 
   {#if cols.has('qa_impact')}
-    <div class="hidden w-24 flex-none items-center overflow-hidden xl:flex" data-col="qa_impact">
+    <div class="trail-break-qa flex w-24 flex-none items-center overflow-hidden" data-col="qa_impact">
       {#if qaImpactMeta}
         <button
           type="button"
@@ -565,7 +572,7 @@
        and the title column is what the eye scans down. Slot is reserved whenever
        the list is not already sectioned by epic, so later columns stay put. -->
   {#if filters.display.group_by !== 'epic'}
-    <div class="hidden w-16 flex-none items-center overflow-hidden lg:flex" data-col="epic">
+    <div class="trail-break-epic flex w-16 flex-none items-center overflow-hidden" data-col="epic">
       {#if epicKey}
         <button
           type="button"

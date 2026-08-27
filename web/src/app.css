@@ -994,6 +994,11 @@
     list-row-columns.spec.ts at 900 (row ~628) still needs `updated` visible,
     so fold-1 starts below that. Information order (what to keep last):
       stale (stuck?) → reopen (actionable) → deploy → labels → assignee → updated.
+
+    GDK-1046 raised fold-1 from 540 to 620: with the qa_impact/epic breaks
+    below, a 570px panel-open row (viewport 1280, detail open) was still
+    ~26px short and overflowed instead of folding. 620 stays under the
+    900-viewport closed row (~628), so `updated` keeps painting there.
   */
   @container issuerow (max-width: 1100px) {
     .stale-glyph {
@@ -1001,7 +1006,7 @@
     }
   }
 
-  @container issuerow (max-width: 540px) {
+  @container issuerow (max-width: 620px) {
     .trail-fold-1 {
       display: none;
     }
@@ -1015,6 +1020,35 @@
 
   @container issuerow (max-width: 400px) {
     .trail-fold-3 {
+      display: none;
+    }
+  }
+
+  /*
+    GDK-1046: the qa_impact / epic column breaks are row-width-keyed, not
+    viewport-keyed. They used to ride `hidden … xl:flex` / `hidden … lg:flex`
+    media utilities, but the row's width is the container's business — an
+    open detail panel leaves a 570-678px row under a viewport that still
+    says "wide", and the row carried a full-width column set outside its own
+    box (updated painted 190px past the scroller, measured 2026-08-27).
+    Same layer as the folds for the same GDK-766 reason: the slots keep
+    their `flex` Tailwind utility, so this display:none must outrank it —
+    in @layer components it would lose. Thresholds preserve the
+    panel-closed behaviour exactly (the closed row at each old viewport
+    breakpoint still clears its threshold):
+      qa_impact ≥1000  (viewport 1280 closed → row 1008)
+      epic      ≥750   (viewport 1024 closed → row 752)
+    Written as max-width so a browser without container query support lands
+    on the columns-visible step, the chipfold direction above.
+  */
+  @container issuerow (max-width: 999px) {
+    .trail-break-qa {
+      display: none;
+    }
+  }
+
+  @container issuerow (max-width: 749px) {
+    .trail-break-epic {
       display: none;
     }
   }
