@@ -14,9 +14,12 @@
  * callbacks; everything below this seam — REST, grace, the kept session id —
  * is shared.
  *
- * Page unload deliberately does nothing: navigator.sendBeacon is a POST, and
- * DELETE is the only close verb. The 60 s reconnect grace reaps a session
- * that nobody reattached to.
+ * The client never closes a session explicitly: page unload does nothing
+ * (navigator.sendBeacon is a POST, and there is no client close verb to send),
+ * so the 60 s reconnect grace is what reaps a session nobody reattached to.
+ * That is deliberate — a reopen inside the grace reattaches and replays the
+ * ring (keptSessionId, below). The server keeps a REST DELETE for its own
+ * tests and e2e, but the pane has no reason to call it (GDK-922).
  */
 
 import { config, isDesktop } from '../config'
@@ -119,21 +122,6 @@ export async function createSession(cols: number, rows: number): Promise<Session
     throw new TerminalHttpError(res.status, code, message)
   }
   return (await res.json()) as SessionDoc
-}
-
-export async function listSessions(): Promise<SessionDoc[]> {
-  const url = `${terminalBase()}sessions/`
-  const res = await fetch(url, { credentials: 'same-origin' })
-  if (!res.ok) return []
-  const body = (await res.json()) as { sessions?: SessionDoc[] }
-  return body.sessions ?? []
-}
-
-export async function deleteSession(id: string): Promise<void> {
-  await fetch(`${terminalBase()}sessions/${encodeURIComponent(id)}/`, {
-    method: 'DELETE',
-    credentials: 'same-origin',
-  })
 }
 
 /**
