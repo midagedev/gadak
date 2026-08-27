@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -724,5 +725,60 @@ func TestTerminalSessionNamesItsWorkspace(t *testing.T) {
 			}
 			readUntilMarker(t, c, "gk995pwd="+home)
 		})
+	}
+}
+
+// ⑮ GDK-915: a live terminal socket's goroutines are in the cancel tree that
+// Shutdown fires. The hard case is a stalled client — attached but no longer
+// draining: the shell's death makes the server want to write the end frame
+// and that write, plus the client→server Read, park. Rooted at
+// context.Background() they outlived Shutdown; parented on jobsCtx, jobsCancel
+// frees them. The client here deliberately stops reading after the first
+// frame to reproduce it.
+//
+// The deadline discriminates rather than just bounds: measured, the fix drains
+// the frames ~55ms after h.Close() returns, while context.Background() lets
+// them linger ~5s (a write/read that only a socket timeout eventually frees).
+// 2s sits with wide margin on both sides, so this fails on a regression to
+// Background and does not flake on the fix.
+func TestTerminalSocketGoroutinesStopOnShutdown(t *testing.T) {
+	srv, h, _ := termServer(t)
+	id := createSession(t, srv, "", "")
+
+	c, _, err := dialTerminal(t, srv, id, "", "")
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer c.CloseNow()
+	// One read so the server side is fully in its select loop, then stall:
+	// this client never reads again, so the server's end-frame write has
+	// nobody draining it.
+	rctx, rcancel := context.WithTimeout(context.Background(), 5*time.Second)
+	_, _, _ = c.Read(rctx)
+	rcancel()
+
+	liveSocketFrames := func() int {
+		buf := make([]byte, 1<<20)
+		dump := string(buf[:runtime.Stack(buf, true)])
+		return strings.Count(dump, "terminalReadLoop") + strings.Count(dump, "handleTerminalWS")
+	}
+	if liveSocketFrames() == 0 {
+		t.Fatal("no socket goroutines while attached — the test is not exercising the path")
+	}
+
+	if err := h.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+	// Close returned; the socket goroutines must now drain promptly.
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		n := liveSocketFrames()
+		if n == 0 {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("%d terminal socket goroutine frame(s) survived Shutdown (GDK-915 leak)", n)
+		}
+		time.Sleep(50 * time.Millisecond)
 	}
 }

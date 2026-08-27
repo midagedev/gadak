@@ -436,7 +436,20 @@ func (s *server) handleTerminalWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c.SetReadLimit(terminalReadLimit)
-	ctx, cancel := context.WithCancel(context.Background())
+	// Parent on jobsCtx, not context.Background() (GDK-915). Shutdown cancels
+	// jobsCtx (server.go), so both this socket's blocking calls join the
+	// cancel tree that actually stops them: the server→client end-frame write
+	// and the client→server Read. Rooted at Background they leaked — a stalled
+	// client (attached, not draining) left terminalSendEnd's write and the
+	// Read parked with no deadline, so the two goroutines outlived Shutdown
+	// even after closeTerminals had reaped the shell. Ordering holds: Shutdown
+	// runs closeTerminals (unblocking a wedged sess.Write by closing the PTY)
+	// before jobsCancel, so a write blocked in terminalReadLoop is freed too.
+	// The one residual jobsCtx cannot reach is a client that vanishes (no
+	// Shutdown) while a sess.Write is wedged AND another attachment keeps the
+	// session alive; closing that needs per-session write serialization — a
+	// shared multi-attach PTY fd cannot be safely deadlined per-client.
+	ctx, cancel := context.WithCancel(s.jobsCtx)
 	defer cancel()
 	go terminalReadLoop(ctx, cancel, c, sess)
 
