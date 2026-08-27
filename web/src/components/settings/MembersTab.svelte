@@ -4,7 +4,7 @@
      an index left over from the old list would point at a different person. */
   import { t } from '../../lib/i18n'
   import Icon from '../ui/Icon.svelte'
-  import { INPUT, ADD_BTN, DEL_BTN } from './controls'
+  import { INPUT, INPUT_BARE, ADD_BTN, DEL_BTN } from './controls'
   import type { SettingsDraft } from './draft'
 
   let {
@@ -28,8 +28,8 @@
       <div class="flex flex-col gap-1.5">
         <div class="flex items-center gap-1.5">
           <input class="{INPUT} flex-1" bind:value={row.email} placeholder="a@b.c" />
-          <input class="{INPUT} w-24 flex-none" bind:value={row.name} />
-          <input class="{INPUT} w-20 flex-none font-mono" bind:value={row.group} />
+          <input class="{INPUT_BARE} w-24 flex-none" bind:value={row.name} />
+          <input class="{INPUT_BARE} w-20 flex-none font-mono" bind:value={row.group} />
           <input class="{INPUT} flex-1 font-mono" bind:value={row.jira_account_id} />
           <button
             type="button"

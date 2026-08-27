@@ -2,7 +2,7 @@
   /* Custom fields: what discovery found, and the hand-written aliases. */
   import { t } from '../../lib/i18n'
   import Icon from '../ui/Icon.svelte'
-  import { INPUT, SELECT, SELECT_CHEVRON } from './controls'
+  import { INPUT, SELECT_BARE, SELECT_CHEVRON } from './controls'
   import type { SettingsDraft } from './draft'
 
   let { draft = $bindable() }: { draft: SettingsDraft } = $props()
@@ -35,7 +35,7 @@
               </span>
               <span class="relative flex">
                 <select
-                  class="{SELECT} w-24"
+                  class="{SELECT_BARE} w-24"
                   value={spec.role}
                   onchange={(e) => {
                     touchSpec(i)
@@ -51,7 +51,7 @@
               </span>
               <span class="relative flex">
                 <select
-                  class="{SELECT} w-32"
+                  class="{SELECT_BARE} w-32"
                   value={spec.kind ?? ''}
                   onchange={(e) => {
                     touchSpec(i)

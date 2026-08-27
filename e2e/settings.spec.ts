@@ -75,6 +75,51 @@ test.describe('settings dialog', () => {
     await expect(mirror).toHaveCount(1)
   })
 
+  /*
+   * GDK-1052: INPUT/SELECT used to carry w-full, which beat the rule row's
+   * w-24 by Tailwind emission order (class order in the attribute decides
+   * nothing). Measured: the group input rendered ~726px, its three flex-1
+   * siblings collapsed to ~18px, and the last input ended past the dialog
+   * edge. The unit lint (controls.test.ts) guards the source; this pins the
+   * visible geometry the lint cannot see.
+   */
+  test('the Teams / groups rule row fits inside the dialog (GDK-1052)', async ({ page }) => {
+    await gotoApp(page)
+    await openServerSettings(page)
+    const dialog = page.getByRole('dialog', { name: 'Settings' })
+    await dialog.getByRole('button', { name: 'Teams / groups', exact: true }).click()
+
+    // Rule rows only: their group input is the tab's sole input.w-24 (the
+    // group-label and product rows above it use flex-1 inputs).
+    const group = dialog.locator('input.w-24').first()
+    await expect(group, 'fixture seeds group rules; a rule row must render').toBeVisible()
+    const row = group.locator('xpath=ancestor::div[1]')
+    const inputs = row.locator('input')
+    await expect(inputs).toHaveCount(4)
+
+    const [dlg, g, flex1, flex2, flex3, last] = await Promise.all([
+      dialog.boundingBox(),
+      group.boundingBox(),
+      inputs.nth(1).boundingBox(),
+      inputs.nth(2).boundingBox(),
+      inputs.nth(3).boundingBox(),
+      inputs.nth(3).boundingBox(),
+    ])
+    if (!dlg || !g || !flex1 || !flex2 || !flex3 || !last) throw new Error('boundingBox vanished')
+
+    expect(g.width, 'group input must take its w-24 (6rem), not the base w-full').toBeLessThanOrEqual(96.5)
+    for (const [name, box] of [
+      ['projects', flex1],
+      ['labels', flex2],
+      ['components', flex3],
+    ] as const) {
+      expect(box.width, `flex-1 ${name} input collapsed`).toBeGreaterThanOrEqual(100)
+    }
+    expect(last.x + last.width, 'last rule input must end inside the dialog').toBeLessThanOrEqual(
+      dlg.x + dlg.width + 0.5,
+    )
+  })
+
   test('shows our own Jira call volume, including throttling', async ({ page }) => {
     await gotoApp(page)
     await openServerSettings(page)

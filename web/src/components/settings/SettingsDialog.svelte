@@ -45,7 +45,7 @@
   import { write } from '../../stores/write.svelte'
   import type { ScopeOption } from './ScopePicker.svelte'
   import { emptyDraft, toDraft, toSettings } from './draft'
-  import { SELECT, SELECT_CHEVRON } from './controls'
+  import { SELECT_BARE, SELECT_CHEVRON } from './controls'
   import SyncTab from './SyncTab.svelte'
   import SourcesTab from './SourcesTab.svelte'
   import FeaturesTab from './FeaturesTab.svelte'
@@ -411,7 +411,7 @@
       <span>{t('theme.label')}</span>
       <span class="relative flex">
         <select
-          class="{SELECT} w-auto"
+          class="{SELECT_BARE} w-auto"
           data-testid="theme-picker"
           value={themePref}
           onchange={onThemeChange}
@@ -427,7 +427,7 @@
       <span>{t('settings.locale')}</span>
       <span class="relative flex">
         <select
-          class="{SELECT} w-auto"
+          class="{SELECT_BARE} w-auto"
           value={locale()}
           onchange={(e) => setLocale(e.currentTarget.value as Locale)}
         >

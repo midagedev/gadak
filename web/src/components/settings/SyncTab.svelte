@@ -9,7 +9,7 @@
   import { write } from '../../stores/write.svelte'
   import Icon from '../ui/Icon.svelte'
   import type { SettingsRuntime } from '../../lib/api'
-  import { INPUT, SELECT, SELECT_CHEVRON, ADD_BTN, COPY_BTN } from './controls'
+  import { INPUT, INPUT_BARE, SELECT_BARE, SELECT_CHEVRON, ADD_BTN, COPY_BTN } from './controls'
   import { RECONCILE_PRESETS, SYNC_PRESETS, type SettingsDraft } from './draft'
   import RuntimeMirror from './RuntimeMirror.svelte'
 
@@ -92,7 +92,7 @@
            never re-syncs, leaving the control visibly empty. -->
       <span class="relative flex">
         <select
-          class="{SELECT} w-auto max-w-[12rem]"
+          class="{SELECT_BARE} w-auto max-w-[12rem]"
           onchange={(e) => {
             draft.syncPreset = Number(e.currentTarget.value)
             if (draft.syncPreset !== -1) draft.syncCustomText = ''
@@ -108,7 +108,7 @@
       </span>
       {#if draft.syncPreset === -1}
         <input
-          class="{INPUT} w-28"
+          class="{INPUT_BARE} w-28"
           type="number"
           min="15"
           step="1"
@@ -129,7 +129,7 @@
     <div class="flex flex-wrap items-center gap-2">
       <span class="relative flex">
         <select
-          class="{SELECT} w-auto max-w-[12rem]"
+          class="{SELECT_BARE} w-auto max-w-[12rem]"
           onchange={(e) => {
             draft.reconcilePreset = Number(e.currentTarget.value)
             if (draft.reconcilePreset !== -1) draft.reconcileCustomText = ''
@@ -145,7 +145,7 @@
       </span>
       {#if draft.reconcilePreset === -1}
         <input
-          class="{INPUT} w-28"
+          class="{INPUT_BARE} w-28"
           type="number"
           min="300"
           step="1"

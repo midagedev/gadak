@@ -3,7 +3,7 @@
      top-down rules that decide which group an issue belongs to. */
   import { t } from '../../lib/i18n'
   import Icon from '../ui/Icon.svelte'
-  import { INPUT, ADD_BTN, DEL_BTN } from './controls'
+  import { INPUT, INPUT_BARE, ADD_BTN, DEL_BTN } from './controls'
   import type { SettingsDraft } from './draft'
 
   let { draft = $bindable() }: { draft: SettingsDraft } = $props()
@@ -111,7 +111,7 @@
       </div>
       {#each draft.rules as row, i (i)}
         <div class="flex items-center gap-1.5">
-          <input class="{INPUT} w-24 flex-none font-mono" bind:value={row.group} placeholder="cloud" />
+          <input class="{INPUT_BARE} w-24 flex-none font-mono" bind:value={row.group} placeholder="cloud" />
           <input class="{INPUT} flex-1" bind:value={row.projects} placeholder="NMA, NMB" />
           <input class="{INPUT} flex-1" bind:value={row.labels} placeholder="backend" />
           <input class="{INPUT} flex-1" bind:value={row.components} placeholder="api" />
