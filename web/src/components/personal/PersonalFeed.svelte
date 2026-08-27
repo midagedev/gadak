@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { t } from '../../lib/i18n'
+  import { t, fieldLabel } from '../../lib/i18n'
   import Icon from '../ui/Icon.svelte'
   import type { FeedFocus, FeedItem } from '../../lib/types'
   import { selection } from '../../stores/selection.svelte'
@@ -64,10 +64,12 @@
     }
     if (item.event_type === 'fields_changed') {
       // Server ships field names as payload.fields[]; older shape used changes[].label.
+      // Raw ids render through fieldLabel so a person reads display names;
+      // unmapped ids degrade visibly to the raw id, never blank (GDK-1055).
       const fields = Array.isArray(item.payload.fields) ? item.payload.fields : []
       const fromFields = fields
         .slice(0, 3)
-        .map((f) => (typeof f === 'string' ? f : ''))
+        .map((f) => (typeof f === 'string' ? fieldLabel(f) : ''))
         .filter(Boolean)
       if (fromFields.length) return fromFields.join(', ')
       const changes = Array.isArray(item.payload.changes) ? item.payload.changes : []
@@ -76,7 +78,7 @@
         .map((change) => {
           if (!change || typeof change !== 'object') return ''
           const label = (change as Record<string, unknown>).label
-          return typeof label === 'string' ? label : ''
+          return typeof label === 'string' ? fieldLabel(label) : ''
         })
         .filter(Boolean)
         .join(', ')

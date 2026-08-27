@@ -173,6 +173,20 @@ export const fields = {
     ko: '상위 항목',
     ja: '親',
   },
+  // The changelog's machine id for parent links (GDK-1055); field.parent
+  // above is the form axis over the same concept.
+  'field.issueparentassociation': {
+    en: 'Parent',
+    ko: '상위 항목',
+    ja: '親課題',
+  },
+  // The most frequent changelog id the feed ships (726 rows measured,
+  // GDK-1055) — mapped so ko/ja readers do not get an English word.
+  'field.resolution': {
+    en: 'Resolution',
+    ko: '해결',
+    ja: '解決状況',
+  },
   'field.development_opinion': {
     en: 'Dev notes',
     ko: '개발 의견',
