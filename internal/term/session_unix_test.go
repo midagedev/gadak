@@ -342,19 +342,28 @@ func TestSlowAttachmentDroppedWithoutStallingOthers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Consume that startup escape from both attachments before the per-chunk
-	// comparisons. One Wake+Take each — a single read keeps slow's
-	// never-reads-again identity (it is meant to be dropped once emit()s
-	// exceed its bound), and waiting on Wake makes the discard deterministic
-	// where a bare Take() could race an escape not yet delivered.
-	for _, a := range []*Attachment{slow, fast} {
-		select {
-		case <-a.Wake():
-			a.Take()
-		case <-time.After(5 * time.Second):
-			t.Fatal("no startup replay to discard")
+	// Drain the shell's startup from both attachments until it goes quiet,
+	// then start the per-chunk comparisons from an empty queue. How much
+	// startup there is depends on the shell — bash emits a readline
+	// meta-mode escape, dash emits nothing at all — so a fixed Wake count
+	// cannot serve both (CI's /bin/sh is dash: a Wake that never came hung
+	// this out). PS1/PS2='' removed the prompt, which was the ONLY output
+	// that could arrive late; whatever remains lands at startup, so quiet
+	// for a short window means it is all consumed. The Take() keeps slow's
+	// never-reads-again identity: it must still be dropped once emit()s
+	// exceed its bound below.
+	quiesce := func(a *Attachment) {
+		for {
+			select {
+			case <-a.Wake():
+				a.Take()
+			case <-time.After(300 * time.Millisecond):
+				return
+			}
 		}
 	}
+	quiesce(slow)
+	quiesce(fast)
 	for i := 0; i < bound+3; i++ {
 		chunk := []byte{byte('a' + i)}
 		s.emit(chunk)
