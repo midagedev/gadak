@@ -4,9 +4,11 @@
    * below 900px, covers the content track (sidebar stays clickable).
    *
    * Closing the pane closes the WebSocket and keeps the session id; a reopen
-   * inside the 60 s grace reattaches and the ring replay is the first binary
-   * frame. Page unload does nothing — sendBeacon is a POST, DELETE is the
-   * close verb, and the grace reaps an abandoned session.
+   * reattaches and the ring replay is the first binary frame. Page unload
+   * does nothing — sendBeacon is a POST, DELETE is the close verb, and the
+   * grace reaps an abandoned session. Abandoned means idle: a session with
+   * something still running under its shell keeps re-arming the grace
+   * instead (GDK-994), so closing the pane on a running agent is safe.
    */
   import { onMount } from 'svelte'
   import { t } from '../../lib/i18n'
@@ -290,7 +292,8 @@
       detachSocket()
       renderer?.dispose()
       renderer = null
-      // Keep the session id. The grace reaps it if nobody reopens.
+      // Keep the session id. The grace reaps it if nobody reopens and
+      // nothing is running under it.
     }
   })
 

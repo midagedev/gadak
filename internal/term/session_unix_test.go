@@ -4,6 +4,7 @@ package term
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -438,11 +439,14 @@ func TestDefaultsAreTheDocumentedContract(t *testing.T) {
 	if DefaultGrace != 60*time.Second {
 		t.Errorf("DefaultGrace = %v; doc.go and SECURITY.md say 60s", DefaultGrace)
 	}
+	if DefaultMaxDetachedLife != 24*time.Hour {
+		t.Errorf("DefaultMaxDetachedLife = %v; doc.go says 24h", DefaultMaxDetachedLife)
+	}
 	if DefaultRingBytes != 256<<10 {
 		t.Errorf("DefaultRingBytes = %d; the contract is 256 KiB", DefaultRingBytes)
 	}
 	m := New(Config{})
-	if m.cfg.Grace != DefaultGrace || m.cfg.RingBytes != DefaultRingBytes || m.cfg.AttachBuffer != DefaultAttachBuffer {
+	if m.cfg.Grace != DefaultGrace || m.cfg.RingBytes != DefaultRingBytes || m.cfg.AttachBuffer != DefaultAttachBuffer || m.cfg.MaxDetachedLife != DefaultMaxDetachedLife {
 		t.Fatalf("New(Config{}) did not take the defaults: %+v", m.cfg)
 	}
 }
@@ -677,4 +681,128 @@ func TestMemberWalkHappensOnceAndCannotCatchALaterSession(t *testing.T) {
 	if caught {
 		t.Fatalf("the closed session's member set %v picked up shell %d of a later session", members, secondPID)
 	}
+}
+
+// ⑫ Work outlives the tab. A detached session whose shell still holds a
+// process — an agent, a build, an editor — is not idle, and the reconnect
+// grace must not reap it. Nothing else on the machine knows that work is
+// there: the shell is its only parent (GDK-994).
+func TestGraceSparesADetachedSessionThatIsStillWorking(t *testing.T) {
+	m := testManager(t, Config{Grace: 150 * time.Millisecond})
+	s := shellSession(t, m, Options{})
+	a, err := s.Attach()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A long job, started the way a user starts one and left running.
+	if _, err := s.Write([]byte("sleep 300 & printf 'k%s=%s\\n' id $!\n")); err != nil {
+		t.Fatal(err)
+	}
+	out := readUntil(t, a, "kid=", 10*time.Second)
+	child := grandchildPID(t, out)
+	t.Cleanup(func() { killPID(child) })
+
+	a.Detach() // the tab closes, the laptop sleeps, the phone backgrounds
+
+	select {
+	case <-s.Done():
+		t.Fatal("a detached session with a live child was reaped: the work is gone")
+	case <-time.After(1 * time.Second):
+	}
+	if !processAlive(child) {
+		t.Fatalf("child %d was killed with the session", child)
+	}
+	// And it can be picked up again, with its scrollback.
+	back, err := s.Attach()
+	if err != nil {
+		t.Fatalf("reattach after the grace: %v", err)
+	}
+	if _, err := s.Write([]byte("echo gadak-work-survived\n")); err != nil {
+		t.Fatal(err)
+	}
+	readUntil(t, back, "gadak-work-survived", 10*time.Second)
+}
+
+// ⑬ The ceiling on ⑫. Work keeps re-arming the grace, but not forever:
+// past MaxDetachedLife an unattended session is closed however busy it
+// looks, so one stray `sleep infinity` cannot hold a shell for the life
+// of the serve.
+func TestDetachedLifeIsCapped(t *testing.T) {
+	m := testManager(t, Config{Grace: 60 * time.Millisecond, MaxDetachedLife: 400 * time.Millisecond})
+	s := shellSession(t, m, Options{})
+	a, err := s.Attach()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Write([]byte("sleep 300 & printf 'k%s=%s\\n' id $!\n")); err != nil {
+		t.Fatal(err)
+	}
+	out := readUntil(t, a, "kid=", 10*time.Second)
+	child := grandchildPID(t, out)
+	t.Cleanup(func() { killPID(child) })
+
+	a.Detach()
+	select {
+	case <-s.Done():
+	case <-time.After(10 * time.Second):
+		t.Fatal("a busy session outlived MaxDetachedLife")
+	}
+	// It got there by sparing first, not by ignoring the work.
+	if got := s.Info().GraceExtensions; got == 0 {
+		t.Fatal("the session was reaped at the first grace; the cap, not the work check, should have ended it")
+	}
+}
+
+// ⑭ The second signal on its own. A shell that is still talking is not
+// idle either, even with nothing but itself on the terminal — the member
+// walk is one of two answers, not the only one.
+func TestOutputDuringTheGraceSparesTheSession(t *testing.T) {
+	m := testManager(t, Config{Grace: time.Hour}) // the timer must not fire; we call reap's owner directly
+	s := shellSession(t, m, Options{})
+	a, err := s.Attach()
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.Detach()
+	if got := s.idleForReap(); got != reapClose {
+		t.Fatalf("a quiet detached shell: idleForReap = %v; want reapClose", got)
+	}
+	s.emit([]byte("still here\n"))
+	if got := s.idleForReap(); got != reapSpare {
+		t.Fatalf("output arrived inside the grace: idleForReap = %v; want reapSpare", got)
+	}
+	// And an attachment beats both signals.
+	if _, err := s.Attach(); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.idleForReap(); got != reapGone {
+		t.Fatalf("reattached: idleForReap = %v; want reapGone", got)
+	}
+}
+
+// ⑮ The window ⑫ opened, closed. reap now walks the process table with
+// the lock released, so an Attach can land between "not idle" and the
+// kill. The claim is the arbiter: with something attached it refuses, and
+// once it succeeds the session takes no new attachments — a client either
+// wins outright or is told the session is closed, never handed a pane
+// that dies under it.
+func TestReapClaimAndAttachCannotBothWin(t *testing.T) {
+	m := testManager(t, Config{Grace: time.Hour}) // the timer must not fire
+	s := shellSession(t, m, Options{})
+	a, err := s.Attach()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := s.claimClose(ReasonReaped, true); got != closeSkip {
+		t.Fatalf("claim with a live attachment = %v; want closeSkip", got)
+	}
+	a.Detach()
+	if got := s.claimClose(ReasonReaped, true); got != closeOwned {
+		t.Fatalf("claim on an idle session = %v; want closeOwned", got)
+	}
+	if _, err := s.Attach(); !errors.Is(err, ErrSessionClosed) {
+		t.Fatalf("Attach on a claimed session: err = %v; want ErrSessionClosed", err)
+	}
+	s.terminate()
+	<-s.Done()
 }

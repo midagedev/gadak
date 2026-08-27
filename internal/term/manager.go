@@ -18,8 +18,14 @@ const (
 	// DefaultAttachBuffer is how many output chunks one attachment may
 	// fall behind before it is dropped.
 	DefaultAttachBuffer = 256
-	// DefaultGrace is how long a session outlives its last attachment.
+	// DefaultGrace is how long a session outlives its last attachment
+	// with nothing running under it.
 	DefaultGrace = 60 * time.Second
+	// DefaultMaxDetachedLife is the ceiling the grace may not raise: a
+	// session that keeps re-arming because work is still on its terminal
+	// is closed once it has been unattached this long. Without it, one
+	// `sleep infinity` would hold a shell for the life of the serve.
+	DefaultMaxDetachedLife = 24 * time.Hour
 	// CloseGrace is how long Close waits after SIGHUP before SIGKILL.
 	CloseGrace = 2 * time.Second
 	// readChunk is the PTY read size. Big enough that a busy shell is a
@@ -45,6 +51,9 @@ type Config struct {
 	WorkDir string
 	// Grace is how long a session outlives its last attachment.
 	Grace time.Duration
+	// MaxDetachedLife caps how long re-arming may keep an unattached
+	// session alive. Zero takes DefaultMaxDetachedLife.
+	MaxDetachedLife time.Duration
 	// RingBytes is the per-session scrollback.
 	RingBytes int
 	// AttachBuffer is the per-attachment channel bound.
@@ -71,6 +80,9 @@ type Manager struct {
 func New(cfg Config) *Manager {
 	if cfg.Grace <= 0 {
 		cfg.Grace = DefaultGrace
+	}
+	if cfg.MaxDetachedLife <= 0 {
+		cfg.MaxDetachedLife = DefaultMaxDetachedLife
 	}
 	if cfg.RingBytes <= 0 {
 		cfg.RingBytes = DefaultRingBytes
@@ -124,6 +136,13 @@ type Info struct {
 	// terminal, including the shell. Empty when the enumerator cannot
 	// see a tty (Windows, or a pid with no controlling terminal).
 	PIDs []int `json:"pids,omitempty"`
+	// DetachedAt is when this session last lost its final attachment,
+	// zero while anything is attached. GraceExtensions counts how many
+	// times the reconnect grace re-armed instead of reaping because work
+	// was still on the terminal. The pair answers "why is this shell
+	// still here" from `gadak terminal list`, without a debugger.
+	DetachedAt      time.Time `json:"detached_at"`
+	GraceExtensions int       `json:"grace_extensions,omitempty"`
 }
 
 // Create spawns a shell under a PTY and returns its session.

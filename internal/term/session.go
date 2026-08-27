@@ -104,6 +104,9 @@ type Session struct {
 	bytesOut     int64
 	dropped      int
 	graceTimer   *time.Timer
+	graceArmedAt time.Time
+	detachedAt   time.Time
+	graceExts    int
 	closing      bool
 	finished     bool
 	exited       bool
@@ -146,6 +149,8 @@ func (s *Session) Info() Info {
 		DroppedAttachments: s.dropped,
 		Exited:             s.exited,
 		ExitCode:           s.exitCode,
+		DetachedAt:         s.detachedAt,
+		GraceExtensions:    s.graceExts,
 	}
 	pid := s.pid
 	s.mu.Unlock()
@@ -183,7 +188,10 @@ func (s *Session) Resize(cols, rows uint16) error {
 // Attaching cancels a pending reap.
 func (s *Session) Attach() (*Attachment, error) {
 	s.mu.Lock()
-	if s.finished {
+	// closing, not just finished: a reap that has already claimed this
+	// session is going to kill the shell, and handing out an attachment
+	// on the way there would show a client a pane that dies under it.
+	if s.finished || s.closing {
 		s.mu.Unlock()
 		return nil, ErrSessionClosed
 	}
@@ -200,6 +208,10 @@ func (s *Session) Attach() (*Attachment, error) {
 	}
 	s.attached[a] = struct{}{}
 	s.stopGraceLocked()
+	// Someone is watching again, so the detached clock starts over: the
+	// absolute cap measures one unattended stretch, not the session's age.
+	s.detachedAt = time.Time{}
+	s.graceExts = 0
 	s.mu.Unlock()
 	return a, nil
 }
@@ -212,23 +224,58 @@ func (s *Session) Close() error {
 	return nil
 }
 
-func (s *Session) closeWithReason(reason string) {
+// closeClaim is who runs a shutdown, decided under one lock.
+type closeClaim int
+
+const (
+	// closeOwned: this caller signals the shell and waits for the pump.
+	closeOwned closeClaim = iota
+	// closeInProgress: another caller is already doing it; wait for Done.
+	closeInProgress
+	// closeSkip: finished already, or the claim's precondition is gone.
+	closeSkip
+)
+
+// claimClose flips the session into closing under a single lock, so the
+// decision to kill and the state that makes it true cannot drift apart.
+// idleOnly is reap's claim: it also fails if something attached while the
+// caller was deciding. That matters because reap walks the process table
+// with the lock released — a window of milliseconds, not microseconds —
+// and an Attach landing inside it must win, not lose its shell.
+func (s *Session) claimClose(reason string, idleOnly bool) closeClaim {
 	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.finished {
-		s.mu.Unlock()
-		return
+		return closeSkip
+	}
+	if idleOnly && (s.closing || len(s.attached) > 0) {
+		return closeSkip
 	}
 	if s.closeReason == "" {
 		s.closeReason = reason
 	}
-	already := s.closing
+	if s.closing {
+		return closeInProgress
+	}
 	s.closing = true
 	s.stopGraceLocked()
-	s.mu.Unlock()
-	if already {
+	return closeOwned
+}
+
+func (s *Session) closeWithReason(reason string) {
+	switch s.claimClose(reason, false) {
+	case closeSkip:
+		return
+	case closeInProgress:
 		<-s.done
 		return
 	}
+	s.terminate()
+}
+
+// terminate is the shutdown itself. Only a caller holding closeOwned runs
+// it.
+func (s *Session) terminate() {
 	// SIGHUP every process on the shell's controlling terminal, then
 	// always SIGKILL whoever is still there. Returning when the shell
 	// has already exited would skip a grandchild that ignored SIGHUP
@@ -335,13 +382,19 @@ func (s *Session) finish(code int) {
 
 // armGrace starts the reconnect grace. Called wherever the attachment
 // count reaches zero, including at Create: an id nobody connects to must
-// not hold a shell forever.
+// not hold a shell forever. reap calls it again when it decides to spare
+// the session; detachedAt survives that, so the absolute cap still runs.
 func (s *Session) armGrace() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.finished || s.closing || len(s.attached) > 0 {
 		return
 	}
+	now := s.mgr.cfg.Now()
+	if s.detachedAt.IsZero() {
+		s.detachedAt = now
+	}
+	s.graceArmedAt = now
 	s.stopGraceLocked()
 	s.graceTimer = s.mgr.cfg.AfterFunc(s.mgr.cfg.Grace, s.reap)
 }
@@ -353,12 +406,83 @@ func (s *Session) stopGraceLocked() {
 	}
 }
 
-func (s *Session) reap() {
+// reapVerdict is what idleForReap decided. Three outcomes, because
+// "not idle" and "no longer ours to reap" want different follow-ups.
+type reapVerdict int
+
+const (
+	// reapClose: nothing is attached and nothing is running. Reap.
+	reapClose reapVerdict = iota
+	// reapSpare: unattached, but work is still on this terminal. Give it
+	// another grace.
+	reapSpare
+	// reapGone: attached again, or already closing/finished. Do nothing.
+	reapGone
+)
+
+// idleForReap is the single owner of "is this session idle", because the
+// bug it exists to close was that answer being derived inline from one
+// signal: the attachment count. A shell with an agent, a build, or an
+// editor under it is not idle just because the last tab went away — that
+// is the whole point of leaving a job running and watching from a phone,
+// and until GDK-994 the grace killed it 60 seconds later.
+//
+// The signals, cheapest first:
+//
+//   - an attachment: someone is watching. Never reap.
+//   - output since the grace was armed: the shell is still talking.
+//   - a process besides the shell on this controlling terminal: work.
+//
+// MaxDetachedLife is the one thing none of them may raise: past it an
+// unattended session is closed however busy it looks, so a stray
+// `sleep infinity` cannot hold a shell for the life of the serve.
+func (s *Session) idleForReap() reapVerdict {
 	s.mu.Lock()
-	idle := !s.finished && !s.closing && len(s.attached) == 0
+	if s.finished || s.closing {
+		s.mu.Unlock()
+		return reapGone
+	}
+	if len(s.attached) > 0 {
+		s.mu.Unlock()
+		return reapGone
+	}
+	pid := s.pid
+	armedAt, lastOut, since := s.graceArmedAt, s.lastOutputAt, s.detachedAt
 	s.mu.Unlock()
-	if idle {
-		s.closeWithReason(ReasonReaped)
+
+	if !since.IsZero() && s.mgr.cfg.Now().Sub(since) >= s.mgr.cfg.MaxDetachedLife {
+		return reapClose
+	}
+	if lastOut.After(armedAt) {
+		return reapSpare
+	}
+	// Walked outside the lock deliberately: the enumerator reads every
+	// process on the machine, and holding s.mu across it would stall the
+	// pump. Info() keeps the same rule for the same reason. An enumerator
+	// that cannot see a tty returns nothing, which reads as idle — the
+	// pre-GDK-994 behaviour, which is the right way to fail here.
+	if len(SessionMembers(pid)) > 1 {
+		return reapSpare
+	}
+	return reapClose
+}
+
+func (s *Session) reap() {
+	switch s.idleForReap() {
+	case reapGone:
+		return
+	case reapSpare:
+		s.mu.Lock()
+		s.graceExts++
+		s.mu.Unlock()
+		s.armGrace()
+	default:
+		// idleOnly: re-check under the lock that decides. If an Attach
+		// landed during the walk, this session is not idle any more and
+		// the client that just arrived keeps its shell.
+		if s.claimClose(ReasonReaped, true) == closeOwned {
+			s.terminate()
+		}
 	}
 }
 

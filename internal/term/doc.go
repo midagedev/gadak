@@ -33,10 +33,23 @@
 //     client. The one thing that is never dropped is the PTY.
 //
 //   - Reconnect. A session survives its last attachment leaving for
-//     DefaultGrace (60s), then is reaped (Close). Reattaching by session
-//     id inside the grace cancels the reap and replays the ring. A session
-//     that still has an attachment never reaps, and an attached idle
-//     session is not timed out in v0.18.
+//     DefaultGrace (60s). Reattaching by session id inside the grace
+//     cancels the reap and replays the ring. A session that still has an
+//     attachment never reaps, and an attached idle session is not timed
+//     out.
+//
+//   - Idle, and what it is not. When the grace elapses, Session
+//     .idleForReap decides — one owner, three signals: an attachment,
+//     output since the grace was armed, or a process besides the shell on
+//     this controlling terminal. Any of them and the grace re-arms
+//     instead of reaping, because a shell with an agent or a build under
+//     it is not idle just because the tab closed. Attachment count alone
+//     was the whole answer until GDK-994, and it killed running work
+//     60 seconds after a phone went to the background. The ceiling is
+//     DefaultMaxDetachedLife (24h) measured from the last detach: past it
+//     an unattended session is closed however busy it looks. Info carries
+//     DetachedAt and GraceExtensions so the decision is visible from
+//     `gadak terminal list` rather than inferred.
 //
 //   - Ids are 128 bits of crypto/rand, hex. Never sequential: a session id
 //     is the only thing a socket URL carries.
