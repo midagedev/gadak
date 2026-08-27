@@ -534,6 +534,46 @@ custom fields this issue can edit. If a field still is not there, say so rather
 than reaching for the REST API — `gadak api` exists for that, but it is an
 escape hatch, not the path of least surprise.
 
+## Leaving and finding memory
+
+A page is where a session leaves what the next one should not have to
+rederive. Pages and issues share one index — `items_fts` covers both kinds —
+so retrieval is the search this file already teaches: the unified query under
+*Queries that cover most questions* above, or `gadak search '<keyword>'`,
+which returns issues and pages together.
+
+The loop, three commands:
+
+```bash
+gadak page create --space LOC --title "retry backoff — findings" -m - <<'EOF'
+Base 250ms, factor 2, cap 8s, jitter mandatory. Measured on the upload
+path; the flat 1s retry lost large uploads.
+EOF
+# → 20001  retry backoff — findings   (stdout is the page id, then the title)
+
+gadak comment STD-1 -m "Findings: /wiki/spaces/LOC/pages/20001 — backoff measured"
+gadak search "backoff"        # next session: the issue and the page both return
+```
+
+The comment is what ties page to issue: `item_refs` is rebuilt from comment
+text on every write, and a comment links a page **only when it carries the
+page's URL** — `/wiki/spaces/<KEY>/pages/<ID>` or `pageId=<ID>`, the two
+shapes `item_refs` recognizes (the linked page then shows under `ref_pages`
+in `gadak issue KEY --json`). A bare page id in a comment does not link —
+unlike a bare issue key, which does.
+
+**Leave a page when the finding outruns the issue**: an investigation whose
+result a future session would otherwise redo, a decision together with its
+why, a map of something the mirror cannot derive from its own rows. What the
+issue itself already records belongs in a comment — and so does a one-line
+fact; a page that would hold one sentence is a comment wearing a title.
+
+Confirm-first reaches pages exactly as it reaches issue writes: on a
+**connected** workspace a page is visible to the whole team — confirm before
+creating or editing one, and use a space key the user names, never a guess.
+On **standalone** the seed space is `LOC` and writes are free (see
+*Standalone* above).
+
 ## Workspace settings
 
 An agent configures the workspace through the CLI. Do not hand-edit

@@ -6,6 +6,10 @@ Two audiences. Pick your half:
   you want to comment, transition, or assign one. Most agents stop here.
 - **[Developing gadak](#developing-gadak)** — you are changing this repository.
 
+The wiki is agent memory too: pages share the mirror's one search index, and
+`gadak page create` leaves one a later `gadak search` finds — the loop lives in
+`skills/gadak/SKILL.md`.
+
 ## Developing gadak
 
 ### Required reading order
