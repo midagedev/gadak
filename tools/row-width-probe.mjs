@@ -3,7 +3,9 @@
  * Row width probe (GDK-1046 follow-up, 2026-08-27). One command that
  * answers "where did this row's width go": dumps the width allocation of
  * the issue-list rows — leading parts, title, every trailing slot with its
- * paint vs the list scroller's right edge — plus which container-query
+ * paint vs the list scroller's right edge, the labels slot's chip interiors
+ * (each visible chip/counter with a clipped flag — GDK-1050: the +N counter
+ * was the thing the slot's overflow-hidden cut) — plus which container-query
  * thresholds fired for the measured row width. That split (geometry +
  * fired-thresholds) is what tracking a "column painted outside the row"
  * report actually needs; before this it was a hand-written Playwright spec
@@ -47,7 +49,8 @@ const usage = () => {
   console.log(`usage: node tools/row-width-probe.mjs [--viewport N] [--issue KEY] [--cl a,b,c] [--rows N] [--json]
 
 Dumps the issue-list row width allocation — leading parts, title, trailing
-slots with px past the scroller edge, and which @container issuerow
+slots with px past the scroller edge, the labels slot's chip/counter
+interiors with a clipped flag, and which @container issuerow
 thresholds fired — against a cold \`gadak serve\` on :${PORT}
 (ROW_PROBE_PORT). --issue opens the detail panel via the URL place param
 (the shared-link path); --cl pins the column set; --rows limits the dump.
@@ -166,11 +169,41 @@ async function measure(page, opts) {
             })
           }
         }
+        // Labels slot interiors (GDK-1050): the slot clips with
+        // overflow-hidden, so "fits" is rect-vs-slot-rect — scrollWidth on
+        // the slot says nothing about which child got cut.
+        const chips = []
+        const labelsSlot = row.querySelector('.chipfold-labels')
+        if (labelsSlot) {
+          const ls = getComputedStyle(labelsSlot)
+          const lb = labelsSlot.getBoundingClientRect()
+          if (ls.display !== 'none' && ls.visibility !== 'hidden' && lb.width >= 1) {
+            for (const el of [...labelsSlot.children]) {
+              const es = getComputedStyle(el)
+              if (es.display === 'none' || es.visibility === 'hidden') continue
+              const kind = ['chipfold-first', 'chipfold-rest', 'chipfold-n-extra', 'chipfold-n-rest', 'chipfold-n-all'].find((c) =>
+                el.classList.contains(c),
+              )
+              if (!kind) continue
+              const b = el.getBoundingClientRect()
+              if (b.width < 1) continue
+              const clipRight = b.right - lb.right
+              const clipLeft = lb.left - b.left
+              chips.push({
+                kind: kind.replace('chipfold-', ''),
+                w: round(b.width),
+                clipped: clipRight > 0.5 || clipLeft > 0.5,
+                clip: round(Math.max(0, clipRight, clipLeft)),
+              })
+            }
+          }
+        }
         rows.push({
           key: row.dataset.issueKey ?? '',
           titleW: title ? round(title.clientWidth) : null,
           titleTruncated: title ? title.scrollWidth > title.clientWidth + 1 : null,
           slots,
+          chips,
         })
         if (rows.length >= maxRows) break
       }
@@ -249,6 +282,18 @@ async function main() {
           .join(' · ')
         console.log(
           `[row-width] ${r.key} title=${r.titleW}${r.titleTruncated ? '!' : ''} | ${slots}`,
+        )
+        if (r.chips.length) {
+          const chips = r.chips
+            .map((c) => `${c.kind} w=${c.w}${c.clipped ? ` CLIPPED+${c.clip}` : ''}`)
+            .join(' · ')
+          console.log(`[row-width]   labels: ${chips}`)
+        }
+      }
+      const maxClip = Math.max(0, ...data.rows.flatMap((r) => r.chips.map((c) => c.clip)))
+      if (maxClip > 0) {
+        console.log(
+          `[row-width] NOTE: ${maxClip}px of labels-slot content clipped by its own overflow-hidden — e2e/list-row-overflow.spec.ts is the gate for this axis`,
         )
       }
       if (maxPast > 0) {

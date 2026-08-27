@@ -767,7 +767,22 @@
     /* Width lives here, not as a utility: the container queries below adjust
        it, and a Tailwind w-* would outrank them from the utilities layer. */
     width: 76px;
-    min-width: 3rem;
+    /*
+      GDK-1050 (2026-08-27): the +N counter's width is reserved, not
+      residual. Single owner of the reserve — gap-1 (4px) + a two-digit
+      "+99" counter measured 25px in the shipped font (11px system-ui;
+      one-digit "+2" is 18px) = 29px. The chip rule in @layer utilities
+      spends it as max-width: calc(100% - 29px), so each slot step leaves
+      its chip exactly step - 29 of room:
+        140 → 111 (the chip's own max-w-[110px] still binds here)
+         76 → 47    64 → 35   (chip floor at those steps is 2rem = 32)
+      The slot's own floor moves with it (2rem + 29 = 61px) so a squeezed
+      row cannot compress the slot past "chip floor + gap + two-digit
+      counter". The floor used to be 3rem = 48, and 48 + 4 + 18 = 70 > 64
+      cut every counter at the 64px step by 6px (measured 2026-08-27).
+    */
+    --chipfold-counter-reserve: 29px;
+    min-width: calc(2rem + var(--chipfold-counter-reserve));
   }
 
   /* Default state, declared BEFORE the queries that turn them on: same layer,
@@ -1050,6 +1065,38 @@
   @container issuerow (max-width: 749px) {
     .trail-break-epic {
       display: none;
+    }
+  }
+
+  /*
+    GDK-1050 (2026-08-27): when a counter shares the labels slot, the
+    leading chip gives way — the counter is never the thing that clips.
+    Scoped to exactly the states where a .chipfold-n-* counter renders
+    (the show ladder in @layer components: labelfold ≤219 with the slot
+    above the ≤71px counter hide, plus issuerow ≤899, whose row-level
+    show outranks that hide) and to rows whose data draws a counter at
+    all (.chipfold-counted on the slot — a one-label row has no counter
+    to make room for). utilities layer because the chip's min-w-[3rem] /
+    max-w-[110px] are Tailwind utilities and would win from the
+    components layer (GDK-766); the two-class selector outranks them
+    anyway.
+
+    The floor steps 3rem → 2rem: at the narrowest slot (64px) the reserve
+    leaves 35px of chip, and a 48px floor would beat the max-width (CSS
+    resolves that fight in min-width's favour) and push the counter back
+    out. The chip truncates harder so the count survives — the trade this
+    issue picked.
+  */
+  @container labelfold (min-width: 71px) and (max-width: 219px) {
+    .chipfold-counted .chipfold-first {
+      min-width: 2rem;
+      max-width: calc(100% - var(--chipfold-counter-reserve));
+    }
+  }
+  @container issuerow (max-width: 899px) {
+    .chipfold-counted .chipfold-first {
+      min-width: 2rem;
+      max-width: calc(100% - var(--chipfold-counter-reserve));
     }
   }
 

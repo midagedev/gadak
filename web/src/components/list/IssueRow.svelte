@@ -92,6 +92,12 @@
   })
   const shownLabels = $derived(issue.labels.slice(0, 3))
   const extraLabels = $derived(Math.max(0, issue.labels.length - 3))
+  // A counter renders below iff either markup guard is true (n-extra:
+  // extraLabels; n-rest: length > 1 — n-all is display:none everywhere).
+  // .chipfold-counted lets the CSS reserve the counter's width only on
+  // rows that actually have one: a one-label row has nothing to make
+  // room for, and its chip keeps the full slot (GDK-1050).
+  const hasCountedLabels = $derived(extraLabels > 0 || issue.labels.length > 1)
   // Every count in the strip points at the same list, so a folded chip is still
   // one hover away from naming itself.
   const allLabelsTitle = $derived(
@@ -590,10 +596,13 @@
   <!-- Label chips. Still the one shrinkable slot: a fixed basis so the column
        shares an x, and shrink so the title's 13ch floor can claim space back.
        Chips fold via .chipfold-* (row + slot containers); they are never ground
-       down. `min-w-[3rem]` is the last line of that rule. -->
+       down. `min-w-[3rem]` is the last line of that rule — except where a +N
+       counter shares the slot: there the chip's floor and max step down to
+       reserve the counter's width, because a clipped count is unreadable
+       while a truncated label is still a route (GDK-1050). -->
   {#if cols.has('labels')}
     <span
-      class="trail-fold-2 chipfold-labels flex shrink items-center gap-1 overflow-hidden"
+      class="trail-fold-2 chipfold-labels {hasCountedLabels ? 'chipfold-counted' : ''} flex shrink items-center gap-1 overflow-hidden"
       data-col="labels"
     >
       {#if shownLabels.length}

@@ -15,6 +15,13 @@ import { attachConsoleErrors, forceLocale, DEMO_ISSUE_COUNT_EN_RE } from './help
  * visibility is row-width-keyed since GDK-1046 (@container issuerow), so
  * this assertion holds whatever made the row narrow.
  *
+ * GDK-1050: inside the labels slot the same squeeze cut the +N counter at
+ * the digit (+2 read as "+" and a stroke, measured 6px at the 64px slot
+ * step, 2026-08-27). The slot clips with overflow:hidden, so the scroller
+ * axis above stays green while the count is unreadable — the counter's own
+ * rect vs the slot's rect is the only measurement that sees it (the
+ * row-width probe's chip rows measure the same axis).
+ *
  * qa_impact is a default column behind the `qa` feature; e2e/serve.sh's
  * config.json enables only deploy + teamGroups, so without the route
  * override the painted set is one slot short and this gate under-covers
@@ -105,6 +112,107 @@ async function trailPastScroller(page: Page): Promise<PastProbe> {
   }, PAST_TOLERANCE_PX)
 }
 
+/** Closed-panel boot at the same pinned column set. 1440 closed is the 76px
+ *  labels-slot step (row 1168, counters visible); 1280 closed is row 1008,
+ *  where the labelfold ≤71 hide leaves no counter rendered to measure. */
+async function gotoPanelClosed(page: Page): Promise<void> {
+  await page.goto('about:blank')
+  await forceLocale(page, 'en')
+  await page.goto(`/#/?cl=${COLUMN_SET}`)
+  await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByText(DEMO_ISSUE_COUNT_EN_RE).first()).toBeVisible({ timeout: 30_000 })
+  await expect(
+    page.getByTestId('issue-list-scroller').locator('[data-issue-key]').first(),
+  ).toBeVisible({ timeout: 30_000 })
+}
+
+type CounterProbe = {
+  rows: number
+  counted: number
+  clipped: { key: string; kind: string; over: number; counterRight: number; slotRight: number }[]
+}
+
+/** Every visible +N counter whose box escapes its own .chipfold-labels slot
+ *  (GDK-1050). The slot clips with overflow:hidden — `scrollWidth` on the
+ *  slot cannot see this cut, only rect-vs-rect can. With `counterText`, each
+ *  visible counter's text is swapped before measuring and restored after:
+ *  the fixture's counts stop at 3 labels (+2), so the two-digit contract
+ *  (a "+12" on a real account) is gated by widening a live counter, which
+ *  exercises exactly the CSS that must give the width back. */
+async function countersPastSlot(page: Page, counterText?: string): Promise<CounterProbe> {
+  return page.evaluate(
+    ({ text, tol }) => {
+      const round = (n: number) => Math.round(n * 10) / 10
+      const scroller = document.querySelector<HTMLElement>('[data-testid="issue-list-scroller"]')
+      if (!scroller) return { rows: 0, counted: 0, clipped: [] }
+      const clipped: CounterProbe['clipped'] = []
+      const mutations: [HTMLElement, string | null][] = []
+      let rows = 0
+      let counted = 0
+      for (const row of scroller.querySelectorAll<HTMLElement>('[data-issue-key]')) {
+        const r = row.getBoundingClientRect()
+        if (r.bottom < 0 || r.top > innerHeight) continue
+        rows++
+        const slot = row.querySelector<HTMLElement>('.chipfold-labels')
+        if (!slot) continue
+        const ss = getComputedStyle(slot)
+        if (ss.display === 'none' || ss.visibility === 'hidden') continue
+        const visible = [...slot.querySelectorAll<HTMLElement>('.chipfold-n-extra, .chipfold-n-rest, .chipfold-n-all')].filter(
+          (el) => {
+            const st = getComputedStyle(el)
+            return st.display !== 'none' && st.visibility !== 'hidden' && el.getBoundingClientRect().width >= 1
+          },
+        )
+        if (text) for (const el of visible) mutations.push([el, el.textContent])
+        // One gBCR read after the (possible) text swap forces layout, so the
+        // measured slot right edge and counter boxes are from the same frame.
+        const slotRight = slot.getBoundingClientRect().right
+        for (const el of visible) {
+          const b = el.getBoundingClientRect()
+          const kind = (el.className.match(/chipfold-n-\w+/) ?? [''])[0]
+          if (text) el.textContent = text
+          const w = el.getBoundingClientRect()
+          counted++
+          const over = w.right - slotRight
+          if (over > tol) {
+            clipped.push({
+              key: row.dataset.issueKey ?? '',
+              kind,
+              over: round(over),
+              counterRight: round(w.right),
+              slotRight: round(slotRight),
+            })
+          }
+        }
+      }
+      for (const [el, text0] of mutations) el.textContent = text0
+      return { rows, counted, clipped }
+    },
+    { text: counterText ?? '', tol: 0.5 },
+  )
+}
+
+async function expectCountersInsideSlot(page: Page, width: number, label: string): Promise<void> {
+  const probe = await countersPastSlot(page)
+  // Liveness: with no counter rendered this would pass vacuously — the
+  // fixture's 2-3-label rows must be in view at every driven width.
+  expect(probe.rows, 'need several rendered rows in view').toBeGreaterThan(4)
+  expect(probe.counted, 'need at least one rendered +N counter').toBeGreaterThan(0)
+  expect(
+    probe.clipped,
+    `${label}: +N counters past their labels slot at ${width}: ${JSON.stringify(probe.clipped)}`,
+  ).toEqual([])
+
+  // Two-digit contract (GDK-1050): widen every live counter to "+99" — the
+  // chip must hand the extra width back, at every slot step.
+  const twoDigit = await countersPastSlot(page, '+99')
+  expect(twoDigit.counted, 'need at least one widened counter').toBeGreaterThan(0)
+  expect(
+    twoDigit.clipped,
+    `${label}: two-digit (+99) counters past their labels slot at ${width}: ${JSON.stringify(twoDigit.clipped)}`,
+  ).toEqual([])
+}
+
 for (const width of [1280, 1440]) {
   test.describe(`detail panel open @${width}`, () => {
     test.use({ viewport: { width, height: 900 } })
@@ -126,5 +234,29 @@ for (const width of [1280, 1440]) {
 
       expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
     })
+
+    test('every +N counter fits inside the labels slot', async ({ page }) => {
+      const errors = attachConsoleErrors(page)
+      await enableQaColumn(page)
+      await gotoPanelOpen(page)
+
+      await expectCountersInsideSlot(page, width, 'detail panel open')
+
+      expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+    })
   })
 }
+
+test.describe('detail panel closed @1440', () => {
+  test.use({ viewport: { width: 1440, height: 900 } })
+
+  test('every +N counter fits inside the labels slot', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    await enableQaColumn(page)
+    await gotoPanelClosed(page)
+
+    await expectCountersInsideSlot(page, 1440, 'detail panel closed')
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+})

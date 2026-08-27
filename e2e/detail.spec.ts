@@ -99,8 +99,16 @@ test.describe('detail', () => {
      * to hand its width over by truncation, which at this width left "cust…"
      * "d…" "r…" — labels narrower than the words in them, which read as a
      * rendering fault. Every chip still on screen has to be wide enough to be
-     * a word; 40px sits under the 48px floor they carry, so this fails on
-     * fraying rather than on a rounding difference.
+     * a word; the bound sits under the chip's floor so this fails on fraying
+     * rather than on a rounding difference.
+     *
+     * GDK-1050 (2026-08-27): that floor stepped 48 → 32px (2rem) so a
+     * two-digit +N counter always fits beside the chip at the 64px slot step
+     * (64 − 4 gap − 25 measured "+99" = 35px of chip room; a 40px chip
+     * pushes the counter back out of the slot — the clipped-count defect
+     * this closed). 31.5 = the 2rem floor with subpixel tolerance; it
+     * still fails on fraying, not on rounding. FAIL-first: the unfixed
+     * floor made this read 35 < 40 against the post-fix counter reserve.
      */
     const visibleChips = () =>
       scroller.evaluate((el) =>
@@ -115,7 +123,7 @@ test.describe('detail', () => {
       )
 
     for (const chip of await visibleChips()) {
-      expect(chip.width, `label chip "${chip.text}" width`).toBeGreaterThanOrEqual(40)
+      expect(chip.width, `label chip "${chip.text}" width`).toBeGreaterThanOrEqual(31.5)
     }
     // One chip always stays — a detail-open list that folds to "+3" reads as
     // having no labels. Extra labels may still collapse to +N beside it.
@@ -133,7 +141,10 @@ test.describe('detail', () => {
       })
       .toBeGreaterThan(0)
     for (const chip of await visibleChips()) {
-      expect(chip.width, `wide-list label chip "${chip.text}" width`).toBeGreaterThanOrEqual(40)
+      // Same floor as above — GDK-1050 stepped it 48 → 32px (2rem), and a
+      // short label now renders at its own width instead of the old 48px
+      // floor, so 40 would trip on label length, not on fraying.
+      expect(chip.width, `wide-list label chip "${chip.text}" width`).toBeGreaterThanOrEqual(31.5)
     }
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
