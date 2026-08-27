@@ -32,7 +32,7 @@ import (
 	"github.com/midagedev/gadak/internal/store"
 )
 
-const pairingUsage = "usage: gadak pairing mint --label NAME [--scope origin|serve|terminal] [--ttl 90d] [--endpoint URL] [--json] | pairing list [--json] | pairing revoke <label|hash-prefix>"
+const pairingUsage = "usage: gadak pairing mint --label NAME [--scope origin|serve|terminal] [--ttl 90d] [--endpoint URL] [--no-qr] [--json] | pairing list [--json] | pairing revoke <label|hash-prefix>"
 
 // pairingRevokeUsage is the revoke selector: exact label, or a hash prefix
 // of at least minPrefix (8) hex characters — pairing list prints 8, longer
@@ -153,6 +153,7 @@ func pairingMint(args []string) error {
 	ttlFlag := fs.String("ttl", ttlDefault, "token lifetime: <N><d|h|m|s>, e.g. 90d or 12h")
 	endpoint := fs.String("endpoint", "", "URL remote devices reach this serve at (default: this machine's live serve address)")
 	asJSON := fs.Bool("json", false, "emit JSON")
+	noQR := fs.Bool("no-qr", false, "skip the scannable QR mint draws below the offer line (drawn only when stderr is a terminal; --json, NO_COLOR, and TERM=dumb never draw one)")
 	if _, err := parseAround(fs, args); err != nil {
 		return err
 	}
@@ -212,7 +213,7 @@ func pairingMint(args []string) error {
 	if err != nil {
 		return err
 	}
-	if err := writePairingMintOutput(*asJSON, offer, *label, ep, strings.TrimSpace(*scope), meta); err != nil {
+	if err := writePairingMintOutput(*asJSON, *noQR, offer, *label, ep, strings.TrimSpace(*scope), meta); err != nil {
 		return err
 	}
 	// The _home routing token is a standalone home's concern: its local
@@ -233,8 +234,11 @@ func pairingMint(args []string) error {
 // JSON object on stdout with the same offer plus label/scope/endpoint/
 // expires_at. Human stderr says what the token is for — which machine
 // consumes it depends on the scope; the offer is reusable until expiry
-// (not "shown once").
-func writePairingMintOutput(asJSON bool, offer, label, endpoint, scope string, meta pairing.Meta) error {
+// (not "shown once"). On a terminal the offer is also drawn as a
+// scannable QR after the hints (GDK-1047) — decoration on top of the
+// contract, never part of it: it cannot fail the mint, and `_home`
+// rotation (pairingMintHome) never reaches this function.
+func writePairingMintOutput(asJSON, noQR bool, offer, label, endpoint, scope string, meta pairing.Meta) error {
 	expiry := pairing.FormatExpiry(meta.ExpiresAt)
 	if asJSON {
 		enc := json.NewEncoder(os.Stdout)
@@ -258,6 +262,15 @@ func writePairingMintOutput(asJSON bool, offer, label, endpoint, scope string, m
 	}
 	fmt.Fprintf(os.Stderr, "paired device %q — offer reusable until %s; revoke with: gadak pairing revoke %s\n",
 		label, expiry, meta.Hash[:8])
+	if shouldDrawQR(pairingStderrIsTerminal(), noQR, asJSON,
+		os.Getenv("NO_COLOR") != "", os.Getenv("TERM") == "dumb") {
+		// The QR's own errors (a fixed "content too long" class string
+		// from the library — never the payload) cannot fail a mint that
+		// already printed its offer.
+		if err := drawPairingQR(os.Stderr, offer, pairingTerminalWidth()); err != nil {
+			fmt.Fprintf(os.Stderr, "pairing: QR not drawn (%v) — the offer line on stdout is unaffected\n", err)
+		}
+	}
 	return nil
 }
 
