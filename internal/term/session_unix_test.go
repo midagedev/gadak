@@ -866,3 +866,35 @@ func TestReapClaimAndAttachCannotBothWin(t *testing.T) {
 	s.terminate()
 	<-s.Done()
 }
+
+// GDK-914: once the PTY master is closed, a Write or resize must report the
+// session-closed contract, not the raw fd error underneath it. This is the
+// race terminate() opens at session.go — it closes the master to unblock the
+// pump while finished is still false, so Session.Write's finished precheck
+// does not catch it and the bare os.File error would otherwise leak out. The
+// ptyProc owns the fd, so it owns the mapping; testing it here needs no pump
+// and no finish, which is what makes the assertion deterministic.
+func TestPTYWriteResizeAfterCloseIsSessionClosed(t *testing.T) {
+	p, err := startProc(Options{Shell: "/bin/sh", Args: []string{"-c", "sleep 300"}})
+	if err != nil {
+		t.Fatalf("startProc: %v", err)
+	}
+	t.Cleanup(func() {
+		if p.cmd.Process != nil {
+			_ = p.cmd.Process.Kill()
+		}
+		_, _ = p.wait()
+	})
+	if err := p.closePTY(); err != nil {
+		t.Fatalf("closePTY: %v", err)
+	}
+	if _, err := p.Write([]byte("x")); !errors.Is(err, ErrSessionClosed) {
+		t.Errorf("Write after close = %v; want ErrSessionClosed", err)
+	}
+	if err := p.resize(80, 24); !errors.Is(err, ErrSessionClosed) {
+		t.Errorf("resize after close = %v; want ErrSessionClosed", err)
+	}
+	// A genuine still-open write is untouched by the mapping: closePTY is
+	// idempotent (closeOnce) and closed stays latched, but that is the only
+	// state that maps — an open proc returns its own errors verbatim.
+}

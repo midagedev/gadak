@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"sync"
+	"sync/atomic"
 	"syscall"
 
 	"github.com/creack/pty"
@@ -39,6 +40,15 @@ type ptyProc struct {
 	waitErr  error
 
 	closeOnce sync.Once
+	// closed flips true the instant closePTY starts, before the master fd
+	// is actually closed. Write and resize consult it after the syscall
+	// fails: a failure once the PTY is closed is that close, not a shell
+	// problem, so it maps to ErrSessionClosed — the contract every caller
+	// checks — instead of a raw os.ErrClosed / EBADF that leaks the fd's
+	// state. This is the one place that owns "is the fd gone" (GDK-914);
+	// mapping here means Session.Write, Session.Resize, and any future
+	// caller of proc.Write/resize get the same answer without repeating it.
+	closed atomic.Bool
 
 	ttyOnce sync.Once
 	ttyDev  int32
@@ -67,8 +77,15 @@ func startProc(opts Options) (*ptyProc, error) {
 	return &ptyProc{f: f, cmd: cmd}, nil
 }
 
-func (p *ptyProc) Read(b []byte) (int, error)  { return p.f.Read(b) }
-func (p *ptyProc) Write(b []byte) (int, error) { return p.f.Write(b) }
+func (p *ptyProc) Read(b []byte) (int, error) { return p.f.Read(b) }
+
+func (p *ptyProc) Write(b []byte) (int, error) {
+	n, err := p.f.Write(b)
+	if err != nil && p.closed.Load() {
+		return n, ErrSessionClosed
+	}
+	return n, err
+}
 
 func (p *ptyProc) pid() int {
 	if p.cmd.Process == nil {
@@ -78,7 +95,11 @@ func (p *ptyProc) pid() int {
 }
 
 func (p *ptyProc) resize(cols, rows uint16) error {
-	return pty.Setsize(p.f, &pty.Winsize{Cols: cols, Rows: rows})
+	err := pty.Setsize(p.f, &pty.Winsize{Cols: cols, Rows: rows})
+	if err != nil && p.closed.Load() {
+		return ErrSessionClosed
+	}
+	return err
 }
 
 func (p *ptyProc) hangup() error { return p.signalSession(syscall.SIGHUP) }
@@ -191,6 +212,12 @@ func (p *ptyProc) wait() (int, error) {
 
 func (p *ptyProc) closePTY() error {
 	var err error
-	p.closeOnce.Do(func() { err = p.f.Close() })
+	p.closeOnce.Do(func() {
+		// Mark closed before the fd actually goes away, so a Write or
+		// resize racing this close sees the flag and maps its failure to
+		// ErrSessionClosed (GDK-914).
+		p.closed.Store(true)
+		err = p.f.Close()
+	})
 	return err
 }
