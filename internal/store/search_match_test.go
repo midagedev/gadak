@@ -244,13 +244,3 @@ func TestSearchMatchExistingFixtureComment(t *testing.T) {
 	}
 	assertPlainSnippet(t, m.Snippet)
 }
-
-func TestPlainFromFTSSnippetStripsMarkers(t *testing.T) {
-	got := plainFromFTSSnippet("before \x01hit\x02 after")
-	if got != "before hit after" {
-		t.Errorf("got %q", got)
-	}
-	if strings.Contains(got, "\x01") || strings.Contains(got, "\x02") {
-		t.Errorf("markers remain: %q", got)
-	}
-}

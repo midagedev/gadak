@@ -1146,17 +1146,18 @@ func (db *DB) search(ctx context.Context, match, rawQuery string, limit int) (Se
 	// the prefix posting list per returned row (GDK-166: ~75 ms × 3 × limit
 	// for q="p" on 20k). Field attribution is the same prefix test in Go on
 	// the source text we already fetch for snippets.
-	// items_fts is contentless (content=''), so FTS5 snippet()/highlight()
-	// return NULL — we still SELECT them for non-contentless compatibility.
+	// items_fts is contentless (content=''): Open always rebuilds it that way
+	// (repairItemsFTS) and the only path that reaches this query is through
+	// Open, so FTS5 snippet()/highlight() would always return NULL. The plain
+	// snippet is built from the source text we already fetch, which also lets
+	// the outer query drop the items_fts join the snippet() calls needed —
+	// `it` joins on ranked.rowid directly (GDK-920).
 	rank := ftsRankSQL()
 	err := each(ctx, db.sql, `
 		SELECT it.kind, COALESCE(it.key, ''), COALESCE(it.title, ''),
 		       COALESCE(it.author, ''), COALESCE(it.author_id, ''), COALESCE(it.updated_at, ''), COALESCE(it.url, ''),
 		       COALESCE(p.space_key, ''), COALESCE(sp.name, ''), COALESCE(sp.homepage_id, ''), COALESCE(p.parent_id, ''),
 		       COALESCE(p.version, 0), COALESCE(p.excerpt, ''), COALESCE(p.labels, '[]'),
-		       snippet(items_fts, 0, char(1), char(2), '…', 18),
-		       snippet(items_fts, 1, char(1), char(2), '…', 18),
-		       snippet(items_fts, 2, char(1), char(2), '…', 18),
 		       COALESCE(it.body_text, ''),
 		       COALESCE((SELECT group_concat(c.body_text, char(10)) FROM comments c WHERE c.item_id = it.id), ''),
 		       ranked.rank
@@ -1167,7 +1168,6 @@ func (db *DB) search(ctx context.Context, match, rawQuery string, limit int) (Se
 			ORDER BY `+rank+`
 			LIMIT ?
 		) ranked
-		JOIN items_fts ON items_fts.rowid = ranked.rowid
 		JOIN items it ON it.rowid = ranked.rowid
 		LEFT JOIN pages p ON p.item_id = it.id
 		LEFT JOIN spaces sp ON sp.source_id = it.source_id AND sp.key = p.space_key
@@ -1175,12 +1175,11 @@ func (db *DB) search(ctx context.Context, match, rawQuery string, limit int) (Se
 		func(rows *sql.Rows) error {
 			var kind, key, title, author, authorID, updatedAt, url, spaceKey, spaceName, spaceHomepageID, parentID, excerpt, labels string
 			var version int
-			var snipTitle, snipBody, snipComment sql.NullString
 			var bodyText, commentsText string
 			var score float64
 			if err := rows.Scan(&kind, &key, &title, &author, &authorID, &updatedAt, &url,
 				&spaceKey, &spaceName, &spaceHomepageID, &parentID, &version, &excerpt, &labels,
-				&snipTitle, &snipBody, &snipComment, &bodyText, &commentsText,
+				&bodyText, &commentsText,
 				&score); err != nil {
 				return err
 			}
@@ -1200,7 +1199,6 @@ func (db *DB) search(ctx context.Context, match, rawQuery string, limit int) (Se
 			if key != "" {
 				res.ftsHits = append(res.ftsHits, ftsHit{kind: kind, key: key, score: score})
 				if m, ok := resolveSearchMatch(
-					snipTitle.String, snipBody.String, snipComment.String,
 					title, bodyText, commentsText, rawQuery,
 					ftsColumnPrefixHit(title, rawQuery),
 					ftsColumnPrefixHit(bodyText, rawQuery),
@@ -1216,30 +1214,13 @@ func (db *DB) search(ctx context.Context, match, rawQuery string, limit int) (Se
 }
 
 // resolveSearchMatch picks the winning field (title > body > comment) and a
-// plain-text snippet. Prefer FTS snippet() markers when present; otherwise use
-// column-filter hits and build a window from source text (contentless FTS).
+// plain-text snippet built as a window around the query token in the source
+// text. items_fts is contentless (GDK-920), so there is no FTS snippet() to
+// prefer — the column-filter hits alone decide the field.
 func resolveSearchMatch(
-	snipTitle, snipBody, snipComment, title, body, comments, rawQuery string,
+	title, body, comments, rawQuery string,
 	titleHit, bodyHit, commentHit bool,
 ) (SearchMatch, bool) {
-	tMark := strings.Contains(snipTitle, "\x01")
-	bMark := strings.Contains(snipBody, "\x01")
-	cMark := strings.Contains(snipComment, "\x01")
-	if tMark || bMark || cMark {
-		switch {
-		case tMark:
-			snip := plainFromFTSSnippet(snipTitle)
-			if snip == "" {
-				snip = makeSearchSnippet(title, rawQuery)
-			}
-			return SearchMatch{Field: "title", Snippet: snip}, true
-		case bMark:
-			return SearchMatch{Field: "body", Snippet: plainFromFTSSnippet(snipBody)}, true
-		default:
-			return SearchMatch{Field: "comment", Snippet: plainFromFTSSnippet(snipComment)}, true
-		}
-	}
-	// Contentless path: no markers. Column filters decide the field.
 	switch {
 	case titleHit:
 		return SearchMatch{Field: "title", Snippet: makeSearchSnippet(title, rawQuery)}, true
@@ -1251,13 +1232,6 @@ func resolveSearchMatch(
 		// Overall MATCH hit without a per-column signal — omit rather than guess.
 		return SearchMatch{}, false
 	}
-}
-
-// plainFromFTSSnippet strips FTS highlight markers and normalizes whitespace.
-func plainFromFTSSnippet(s string) string {
-	s = strings.ReplaceAll(s, "\x01", "")
-	s = strings.ReplaceAll(s, "\x02", "")
-	return normalizeWhitespace(s)
 }
 
 // makeSearchSnippet returns a ~120-rune plain window around the first query
