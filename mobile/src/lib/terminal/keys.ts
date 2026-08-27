@@ -34,6 +34,7 @@ export type BarKey =
   | 'tab'
   | 'ctrl'
   | 'alt'
+  | 'clear'
   | 'up'
   | 'down'
   | 'left'
@@ -100,6 +101,10 @@ const BAR: Record<BarKey, BarSend> = {
   tab: { kind: 'text', ch: '\t' },
   ctrl: { kind: 'empty' },
   alt: { kind: 'empty' },
+  // `empty` here is not "a modifier" — it is "produces no bytes". `clear` is
+  // the panic reset (GDK-953): glasskeys' contract says any UI that offers
+  // lock must offer it. It sends nothing, so the encoder path never sees it.
+  clear: { kind: 'empty' },
   up: { kind: 'csi', final: 0x41 },
   down: { kind: 'csi', final: 0x42 },
   right: { kind: 'csi', final: 0x43 },
@@ -162,13 +167,18 @@ export function modifierIdForBarKey(key: BarKey): ModifierId | null {
 /**
  * Ordered steps for a non-modifier bar key. A PTY write cannot fail, so
  * `pending` is always `'not-needed'` and the failure rows of the barrier
- * table never appear. Modifier taps do not go through here — they `tap()`.
+ * table never appear. Modifier taps do not go through here — they `tap()`;
+ * neither does `clear` — the screen calls `sticky.clear()` for it.
  */
 export function stepsForBarKey(
   key: BarKey,
   hasMarked: boolean,
   mods: readonly ModifierId[] = [],
 ): Intent[] {
+  // `clear` resets every sticky slot; it is not a key press and must never
+  // reach the barrier — an unguarded name would come back as an `emit-key`
+  // the encoder has no bytes for (measured on the pre-fix source).
+  if (key === 'clear') return []
   return barrierSteps({
     key,
     mods: [...mods],

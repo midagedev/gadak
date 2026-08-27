@@ -18,6 +18,8 @@ describe('bytesForBarKey', () => {
     tab: [0x09],
     ctrl: [],
     alt: [],
+    // GDK-953: the panic exit sends nothing, under any modifier mix.
+    clear: [],
     up: [0x1b, 0x5b, 0x41],
     down: [0x1b, 0x5b, 0x42],
     right: [0x1b, 0x5b, 0x43],

@@ -3,11 +3,14 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { LOCK_WINDOW_MS, StickyModifiers } from 'glasskeys'
+import clearPanicExit from 'glasskeys/vectors/sticky/clear-is-the-panic-exit.json'
 import {
   encoderMods,
   modifierIdForBarKey,
   stepsForBarKey,
   stickySlots,
+  type ModifierId,
+  type SlotState,
 } from './keys'
 
 /*
@@ -22,6 +25,36 @@ const src = join(dirname(fileURLToPath(import.meta.url)), '../..')
 
 function read(rel: string): string {
   return readFileSync(join(src, rel), 'utf8')
+}
+
+type StickyVectorStep = {
+  t: number
+  in: { op: 'tap'; mod: ModifierId } | { op: 'clear' }
+  expect: { slots: Partial<Record<ModifierId, SlotState>>; active?: ModifierId[] }
+}
+
+type StickyVector = { id: string; steps: StickyVectorStep[] }
+
+/**
+ * Execute a glasskeys sticky vector as data — the JSON is the specification
+ * (lifted from naru-remote's XCTest suite), so a library that drifts from it
+ * goes red here rather than in a hand-copied set of assertions. Same
+ * consumption pattern as offer.test.ts reading the Go golden vectors.
+ */
+function runStickyVector(vector: StickyVector): void {
+  const sticky = new StickyModifiers()
+  for (const step of vector.steps) {
+    if (step.in.op === 'tap') sticky.tap(step.in.mod, step.t)
+    else if (step.in.op === 'clear') sticky.clear()
+    else throw new Error(`vector ${vector.id}: unknown op ${JSON.stringify(step.in)}`)
+    const snapshot = sticky.snapshot()
+    for (const [mod, state] of Object.entries(step.expect.slots)) {
+      expect(snapshot[mod as ModifierId], `${vector.id} t=${step.t}: ${mod}`).toBe(state)
+    }
+    if (step.expect.active !== undefined) {
+      expect(sticky.activeModifiers(), `${vector.id} t=${step.t}: active`).toEqual(step.expect.active)
+    }
+  }
 }
 
 describe('encoderMods — PTY adapter', () => {
@@ -88,6 +121,13 @@ describe('StickyModifiers via the encoder adapter (vectors/sticky)', () => {
     sticky.tap('control', 5100)
     expect(sticky.slot('control')).toBe('idle')
     expect(encoderMods(sticky.activeModifiers())).toEqual({ ctrl: false, alt: false })
+  })
+
+  it('clear is the panic exit — every slot to idle from any mix (clear-is-the-panic-exit)', () => {
+    // GDK-953: armed had no single-gesture way back to idle, and the strip
+    // never offered the library's clear(). This locks the vector the fix is
+    // built on, so neither the library nor this adapter can quietly lose it.
+    runStickyVector(clearPanicExit as StickyVector)
   })
 
   it('bar-key names map onto the library modifier ids the encoder understands', () => {

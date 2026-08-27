@@ -170,6 +170,16 @@
   }
 
   function onBarKey(key: BarKey) {
+    // The panic exit (GDK-953): every slot to idle, no bytes. glasskeys'
+    // contract — "Any UI that offers lock must also offer this" — and armed
+    // had no single-gesture way back. Before the modifier branch so a
+    // future BarKey can never reach the encoder as an emission.
+    if (key === 'clear') {
+      sticky.clear()
+      syncMods()
+      imeEl?.focus()
+      return
+    }
     const mod = modifierIdForBarKey(key)
     if (mod) {
       sticky.tap(mod, Date.now())
