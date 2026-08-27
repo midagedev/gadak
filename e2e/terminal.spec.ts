@@ -158,6 +158,70 @@ test.describe('terminal pane', () => {
 
     expect(appConsoleErrors(errors), `console errors:\n${errors.join('\n')}`).toEqual([])
   })
+
+  /*
+   * 2026-08-28 — GDK-939. Svelte component identity is the template branch:
+   * a MainColumn inside a terminal-keyed {#if} is destroyed and recreated on
+   * every toggle, and the collateral is real (ListView teardown resets the
+   * cursor, dashboard iframes reload, docs virtual scroll resets). An expando
+   * stamped on the column's DOM node is the cheapest observable — a recreated
+   * <main> loses it. FAIL-first, measured: against the split-branch template
+   * the first read-back after opening the pane reported the stamp gone.
+   */
+  test('opening the terminal never remounts the main column (GDK-939)', async ({ page }) => {
+    test.setTimeout(120_000)
+    const errors = await boot(page)
+    await page.setViewportSize({ width: 1440, height: 900 })
+
+    const columnStamped = () =>
+      page.evaluate(() => {
+        const el = document.querySelector('[data-testid="main-column"]')
+        return !!el && (el as HTMLElement & { __gdk939?: boolean }).__gdk939 === true
+      })
+    const stampColumn = () =>
+      page.evaluate(() => {
+        const el = document.querySelector('[data-testid="main-column"]')
+        if (!el) throw new Error('main-column not found')
+        ;(el as HTMLElement & { __gdk939?: boolean }).__gdk939 = true
+      })
+
+    await stampColumn()
+    await openPane(page)
+    expect(await columnStamped(), 'column identity across open').toBe(true)
+
+    await page.keyboard.press('Control+Backquote')
+    await expect(page.getByTestId('terminal-pane')).toHaveCount(0)
+    expect(await columnStamped(), 'column identity across close').toBe(true)
+
+    await openPane(page)
+    expect(await columnStamped(), 'column identity across reopen').toBe(true)
+
+    // The narrow threshold with the pane open used to swap in a second
+    // TerminalPane template branch (WASM renderer + socket remount). The
+    // pane now takes overlay as a prop, so its node survives the crossing.
+    await page.evaluate(() => {
+      const el = document.querySelector('[data-testid="terminal-pane"]')
+      if (!el) throw new Error('terminal-pane not found')
+      ;(el as HTMLElement & { __gdk939?: boolean }).__gdk939 = true
+    })
+    const paneStamped = () =>
+      page.evaluate(() => {
+        const el = document.querySelector('[data-testid="terminal-pane"]')
+        return !!el && (el as HTMLElement & { __gdk939?: boolean }).__gdk939 === true
+      })
+    await page.setViewportSize({ width: 820, height: 900 })
+    await expect(page.getByTestId('terminal-pane')).toHaveAttribute('data-overlay', 'true')
+    expect(await columnStamped(), 'column identity across the narrow crossing').toBe(true)
+    expect(await paneStamped(), 'pane identity across the narrow crossing').toBe(true)
+
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await expect(page.getByTestId('terminal-pane')).not.toHaveAttribute('data-overlay', 'true')
+    expect(await paneStamped(), 'pane identity across the wide crossing').toBe(true)
+
+    await page.keyboard.press('Control+Backquote')
+    await expect(page.getByTestId('terminal-pane')).toHaveCount(0)
+    expect(appConsoleErrors(errors), `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
 })
 
 test.describe('terminal shots', () => {

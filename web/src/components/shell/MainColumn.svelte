@@ -8,6 +8,6 @@
   let { children }: { children?: Snippet } = $props()
 </script>
 
-<main class="issue-main-column flex min-w-0 flex-1 flex-col bg-bg-base">
+<main class="issue-main-column flex min-w-0 flex-1 flex-col bg-bg-base" data-testid="main-column">
   {@render children?.()}
 </main>

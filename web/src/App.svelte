@@ -774,29 +774,29 @@
         {/if}
       {/snippet}
 
-      {#if terminalChrome.open && !terminalChrome.narrow}
-        <div
-          class="flex h-full min-h-0 min-w-0 overflow-hidden"
-          style="grid-column: 2; grid-row: 1"
-          data-testid="terminal-split"
-        >
-          <TerminalPane />
-          <MainColumn>
-            {#snippet children()}
-              {@render columnBody()}
-            {/snippet}
-          </MainColumn>
-        </div>
-      {:else}
+      <!-- GDK-939: MainColumn must never sit inside a terminal-keyed {#if} —
+           component identity is the template branch, so a keyed branch is a
+           destroy/recreate of the whole column (list teardown resets the
+           cursor, dashboard iframes reload, docs virtual scroll resets). The
+           cell wrapper is therefore always mounted and only the pane toggles
+           inside it; the pane takes overlay geometry from a reactive prop
+           (TerminalPane reads `overlay` in reactive positions only) rather
+           than a second template branch, so it too survives a threshold
+           crossing. -->
+      <div
+        class="flex h-full min-h-0 min-w-0 overflow-hidden"
+        style="grid-column: 2; grid-row: 1"
+        data-testid="terminal-split"
+      >
+        {#if terminalChrome.open}
+          <TerminalPane overlay={terminalChrome.narrow} />
+        {/if}
         <MainColumn>
           {#snippet children()}
             {@render columnBody()}
           {/snippet}
         </MainColumn>
-      {/if}
-      {#if terminalChrome.open && terminalChrome.narrow}
-        <TerminalPane overlay />
-      {/if}
+      </div>
 
       <RightPanel open={panelOpen}>
         {#snippet children()}
