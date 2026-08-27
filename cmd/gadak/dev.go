@@ -561,9 +561,15 @@ func installDevScanHook() error {
 	return nil
 }
 
-// refuseConnectedDevWrite allows standalone and paired workspaces (their
-// origin implements the dev-status POST). A plain connected Cloud site is
-// refused: the panel is Jira's GitHub app, and mirroring it is a config flag.
+// refuseConnectedDevWrite is the gate every dev write verb calls first.
+// Standalone and paired workspaces pass (their origin implements the
+// dev-status POST) — the paired lookup keeps its profile-dir fallback, so
+// it runs before anything that needs a loaded Config's Directory(). What
+// remains is connected-shaped or nothing: a home with no origin at all
+// answers the shared init sentence (GDK-943) — the connected-workspace
+// diagnosis would invent a workspace that does not exist. A plain
+// connected Cloud site is refused: the panel is Jira's GitHub app, and
+// mirroring it is a config flag.
 func refuseConnectedDevWrite(cfg *config.Config, verb string) error {
 	if cfg.IsStandalone() {
 		return nil
@@ -574,6 +580,9 @@ func refuseConnectedDevWrite(cfg *config.Config, verb string) error {
 	}
 	if rem != nil {
 		return nil
+	}
+	if !cfg.HasOrigin() {
+		return config.NotConfiguredWith("dev status writes go to the origin, not to the mirror")
 	}
 	return fmt.Errorf("%s is for standalone or paired workspaces — a connected Cloud workspace's development panel is linked by Jira's GitHub app; mirroring needs `gadak config set devStatus true`", verb)
 }

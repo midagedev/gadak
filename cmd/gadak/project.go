@@ -49,6 +49,11 @@ func cmdProjectCreate(args []string) error {
 	if err != nil {
 		return err
 	}
+	// No-origin homes answer the shared init sentence (GDK-943); the
+	// standalone-only refusal below is only for workspaces that exist.
+	if !cfg.HasOrigin() {
+		return config.NotConfiguredWith("project create writes to the origin, not to the mirror")
+	}
 	if !cfg.IsStandalone() {
 		return fmt.Errorf("project create is for standalone workspaces — on a connected workspace, create the project in Jira and run `gadak sync`")
 	}

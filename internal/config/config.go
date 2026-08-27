@@ -913,6 +913,25 @@ func (c *Config) HasCredential() bool {
 	return c.HasAtlassianCredential() || c.HasLinearCredential()
 }
 
+// HasOrigin reports whether this profile names a workspace at all — a
+// standalone kind, any Atlassian credential field (a partial site/email/
+// token counts: that is a real workspace whose credential is incomplete,
+// not a missing workspace), a Linear key, or a pairing remote. It is the
+// empty-home gate write verbs fold onto (GDK-943): !HasOrigin answers
+// ErrNotConfigured, while a workspace that merely lacks its credential
+// keeps the verb's connected dialect (origin's errNeedCredential and the
+// standalone-only refusals). HasCredential stays the "can I write"
+// question; this is the "is there anything to write to" question.
+func (c *Config) HasOrigin() bool {
+	if c == nil {
+		return false
+	}
+	if c.Site != "" || c.Email != "" || c.Token != "" {
+		return true
+	}
+	return c.HasCredential()
+}
+
 // SyncFrozen is the only question the sync gate asks. Deliberately separate
 // from HasCredential: a standalone workspace has a credential by definition
 // (see HasCredential), and writes must keep working here.

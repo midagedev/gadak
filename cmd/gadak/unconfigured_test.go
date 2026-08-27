@@ -2,6 +2,9 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -77,6 +80,67 @@ func TestUnconfiguredVerbsShareNotConfiguredSentence(t *testing.T) {
 			t.Fatalf("status --json lost kind: %s", stdout)
 		}
 	})
+}
+
+// TestWriteVerbsRefuseNotConfiguredInEmptyHome is GDK-943 FAIL-first: the
+// same empty home used to reach each write verb in its own dialect — pages
+// quoted origin's errNeedCredential ("site, email and token are required"),
+// project create and the dev verbs diagnosed a "connected workspace" that
+// does not exist. The refusal is one decision: every write verb answers
+// config.ErrNotConfigured here (errors.Is, so verb addenda may follow).
+// A write verb born later joins this table the day it is born.
+func TestWriteVerbsRefuseNotConfiguredInEmptyHome(t *testing.T) {
+	emptyHome(t)
+	verbs := []struct {
+		name string
+		run  func() error
+	}{
+		{"comment", func() error { return cmdComment([]string{"NMB-1", "-m", "hello"}) }},
+		{"transition", func() error { return cmdTransition([]string{"NMB-1", "Done"}) }},
+		{"assign", func() error { return cmdAssign([]string{"NMB-1", "someone@example.com"}) }},
+		{"edit", func() error { return cmdEdit([]string{"NMB-1", "--summary", "new"}) }},
+		{"page create", func() error { return cmdPageCreate([]string{"--space", "LOC", "--title", "T", "-m", "body"}) }},
+		{"page edit", func() error { return cmdPageEdit([]string{"NMB-1", "--title", "T"}) }},
+		{"page comment", func() error { return cmdPageComment([]string{"NMB-1", "-m", "hello"}) }},
+		{"project create", func() error { return cmdProjectCreate([]string{"NMBKEY"}) }},
+		{"dev link", func() error {
+			return cmdDevLink([]string{"NMB-1", "--pr", "https://example.com/pr/1", "--branch", "main"})
+		}},
+		{"dev deploy", func() error { return cmdDevDeploy([]string{"NMB-1", "--env", "production", "--state", "successful"}) }},
+	}
+	for _, v := range verbs {
+		t.Run(v.name, func(t *testing.T) {
+			_, err := capture(t, v.run)
+			if err == nil {
+				t.Fatalf("%s: empty home must refuse, got success", v.name)
+			}
+			if !errors.Is(err, config.ErrNotConfigured) {
+				t.Fatalf("%s: refusal must wrap config.ErrNotConfigured, got: %v", v.name, err)
+			}
+		})
+	}
+}
+
+// TestConnectedNoTokenPageWriteKeepsCredentialRefusal is GDK-943's other
+// half: an origin that exists but whose credential is incomplete (site and
+// email set, token cleared) must keep origin's connected refusal for pages
+// — errNeedCredential — not the empty-home sentence. The no-origin fold
+// must not swallow the connected dialect.
+func TestConnectedNoTokenPageWriteKeepsCredentialRefusal(t *testing.T) {
+	dir := emptyHome(t)
+	cfgJSON := `{"site": "https://conf-token-cleared.example.com", "email": "u@example.com"}`
+	if err := os.WriteFile(filepath.Join(dir, "config.json"), []byte(cfgJSON), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, err := capture(t, func() error {
+		return cmdPageCreate([]string{"--space", "LOC", "--title", "T", "-m", "body"})
+	})
+	if err == nil || !strings.Contains(err.Error(), "origin: site, email and token are required") {
+		t.Fatalf("connected workspace without token must keep errNeedCredential, got: %v", err)
+	}
+	if errors.Is(err, config.ErrNotConfigured) {
+		t.Fatalf("a workspace with a site must not read as unconfigured: %v", err)
+	}
 }
 
 // TestPairedWorkspaceIsNotUnconfigured is GDK-454 × GDK-449: a paired

@@ -1093,3 +1093,30 @@ func TestProjectMirrored(t *testing.T) {
 		}
 	}
 }
+
+// TestHasOrigin is GDK-943's owner test: HasOrigin answers "does this
+// profile name a workspace at all", not "can I write". The empty Config is
+// the only false — a partial site/email/token is a real workspace whose
+// credential is incomplete (its refusals stay the connected dialects), and
+// standalone, a Linear key, or a full triple are origins.
+func TestHasOrigin(t *testing.T) {
+	cases := []struct {
+		name string
+		cfg  *Config
+		want bool
+	}{
+		{"nil", nil, false},
+		{"empty", &Config{}, false},
+		{"site only", &Config{Site: "https://conf.example.com"}, true},
+		{"email only", &Config{Email: "u@example.com"}, true},
+		{"token only", &Config{Token: "t"}, true},
+		{"standalone kind", &Config{Kind: KindStandalone}, true},
+		{"full atlassian triple", &Config{Site: "https://conf.example.com", Email: "u@example.com", Token: "t"}, true},
+		{"linear key", &Config{Linear: &LinearConfig{APIKey: "lin_api"}}, true},
+	}
+	for _, tc := range cases {
+		if got := tc.cfg.HasOrigin(); got != tc.want {
+			t.Errorf("%s: HasOrigin() = %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}

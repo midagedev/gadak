@@ -178,6 +178,14 @@ func pageListWhere(space string) string {
 	return q
 }
 
+// errNoPageCredential is the empty-home refusal the page write verbs share
+// (GDK-943): a workspace with no origin cannot edit pages. Sentence owner
+// is config.ErrNotConfigured; the addendum is the wiki's, because a page
+// write that cannot reach an origin is not a local edit. A workspace whose
+// origin exists but lacks site+email+token keeps origin.Wiki's
+// errNeedCredential instead.
+var errNoPageCredential = config.NotConfiguredWith("wiki pages go to the origin, not to the mirror")
+
 func cmdPageCreate(args []string) error {
 	fs := newFlagSet("page create")
 	space := fs.String("space", "", "space key (required)")
@@ -227,6 +235,9 @@ func cmdPageCreate(args []string) error {
 	cfg, err := config.Load()
 	if err != nil {
 		return err
+	}
+	if !cfg.HasOrigin() {
+		return errNoPageCredential
 	}
 	wc, err := origin.Wiki(cfg)
 	if err != nil {
@@ -343,6 +354,9 @@ func cmdPageComment(args []string) error {
 	if err != nil {
 		return err
 	}
+	if !cfg.HasOrigin() {
+		return errNoPageCredential
+	}
 	wc, err := origin.Wiki(cfg)
 	if err != nil {
 		return err
@@ -422,6 +436,9 @@ func cmdPageEdit(args []string) error {
 	cfg, err := config.Load()
 	if err != nil {
 		return err
+	}
+	if !cfg.HasOrigin() {
+		return errNoPageCredential
 	}
 	wc, err := origin.Wiki(cfg)
 	if err != nil {
