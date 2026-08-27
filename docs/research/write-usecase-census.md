@@ -4,6 +4,13 @@ Date: 2026-08-23
 Issue: GDK-666
 Status: design input. No production code was changed.
 
+The `file.go:NNN` citations below are a **snapshot of the tree on this
+document's Date**, above. They are not maintained and they drift with
+every insertion above them — `edit.go:251-260` in §9 was already off by
+sixteen lines by 2026-08-27 (GDK-962 inserted a flag). Read them as "roughly
+here, in that tree"; find the current site by the symbol name, which is
+stable, not by the number.
+
 What came out of it, so a reader lands on the follow-through rather than on
 the census: GDK-681 (two HTTP write handlers bypass owner routing — filed
 Highest after the lead confirmed it in the code, and it also corrects one
@@ -245,7 +252,7 @@ HTTP: `handleLabels` `write.go:859-872` full replace (`normalizeLabels`, documen
 
 ### 9. priority
 
-CLI: `edit --priority NAME-or-id` → `create.Priority` then `fields.priority {id}` `edit.go:251-260`
+CLI: `edit --priority NAME-or-id` → `create.Priority` then `fields.priority {id}` `edit.go:267-276`
 HTTP: `handlePriority` `write.go:726-742` — `priority_id` only; `null`/`""` sends `priority: nil`
 
 | Axis | Difference | Verdict |
