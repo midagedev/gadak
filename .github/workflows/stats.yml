@@ -37,9 +37,29 @@ jobs:
       - name: Capture snapshot
         id: capture
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # GDK-881, measured 2026-08-25: under GITHUB_TOKEN both traffic
+          # endpoints answer 403 "Resource not accessible by integration",
+          # while a human `gh` with push access reads them fine the same day
+          # (clones 4632/417, views 765/144). Traffic is a 14-day rolling
+          # window, so every Monday that records zeros is history that cannot
+          # be recovered. STATS_TOKEN is a PAT with public_repo (classic) or
+          # Administration: read (fine-grained) — the header comment's path,
+          # not a widening of this workflow's own permissions.
+          #
+          # The fallback is deliberate: with no secret this behaves exactly as
+          # before — downloads land, the two endpoints land in errors[] — so
+          # the change is inert until the secret exists.
+          GH_TOKEN: ${{ secrets.STATS_TOKEN || secrets.GITHUB_TOKEN }}
+          # A boolean, never the value: interpolating the secret itself into a
+          # shell test would put it on a command line.
+          HAVE_STATS_TOKEN: ${{ secrets.STATS_TOKEN != '' }}
         run: |
           set -euo pipefail
+          if [ "$HAVE_STATS_TOKEN" = "true" ]; then
+            echo "stats: STATS_TOKEN is set — traffic/* should populate"
+          else
+            echo "::warning::stats: STATS_TOKEN is not set — traffic/clones and traffic/views will 403 into errors[] and this week's 14-day window is lost (GDK-881)"
+          fi
           mkdir -p /tmp/gadak-stats
           outfile=$(bash tools/release-stats.sh --out /tmp/gadak-stats --repo "${{ github.repository }}")
           test -f "$outfile"
