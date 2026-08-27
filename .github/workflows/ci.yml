@@ -75,18 +75,6 @@ jobs:
       - name: Go tests
         run: go test ./...
 
-      # GDK-270: a startSyncJob goroutine that outlives the test only shows
-      # up when this package is repeated under the race detector. Not
-      # path-scoped — the writer can be introduced from any import of
-      # internal/server. internal/workspace is here too: it owns the same
-      # lifetime one layer up (Registry.Close stops each workspace's sync
-      # before its mirror). count=2 (not 4): the job already ran count=1
-      # above; locally count=4 -race is ~180s, and doubling the package
-      # under race is enough to catch "passes once" while staying modest
-      # in a 20-minute job.
-      - name: Server tests under race (GDK-270)
-        run: go test ./internal/server/ ./internal/workspace/ -count=2 -race
-
       - name: Frontend typecheck
         run: npm run typecheck
 
@@ -123,6 +111,62 @@ jobs:
             exit 1
           fi
 
+
+  # The race tier that used to be the tail of the build job, split across
+  # three runners (GDK-1035).
+  race:
+    name: Server race tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # GDK-270: a startSyncJob goroutine that outlives the test only shows
+      # up when this package is repeated under the race detector. Not
+      # path-scoped — the writer can be introduced from any import of
+      # internal/server. internal/workspace is here too: it owns the same
+      # lifetime one layer up (Registry.Close stops each workspace's sync
+      # before its mirror). count=2 (not 4): the build job's Go tests step
+      # already ran count=1; locally count=4 -race is ~180s, and doubling
+      # the package under race is enough to catch "passes once" while
+      # staying modest in a 20-minute job.
+      #
+      # GDK-1035: this tier ran as one step inside the build job, where it
+      # was 507s of a 698s job and the whole CI critical path (11m38s wall
+      # on run 33018964815). This is a redistribution, not a relaxation —
+      # same -count=2, same -race, same two packages, same total test set,
+      # three runners instead of one. tools/race-partition.sh owns the
+      # split; --check runs in every shard so a test that escaped the
+      # partition fails the job that would otherwise have skipped it
+      # silently.
+      #
+      # The one thing sharding does narrow, said plainly: a leaked
+      # goroutine now shares a process with ~110 later tests instead of
+      # ~330, so a leak that only ever showed up against some unrelated
+      # later test has fewer chances to. GDK-270's own mechanism is
+      # untouched — that leak is caught by the test meeting its own
+      # leftover on the second run, and every test still runs twice in
+      # its shard.
+      - name: Race partition check
+        run: bash tools/race-partition.sh --check 3
+
+      - name: Workspace tests under race (GDK-270)
+        if: matrix.shard == 1
+        run: go test ./internal/workspace/ -count=2 -race
+
+      - name: Server race shard ${{ matrix.shard }}/3
+        run: go test ./internal/server/ -count=2 -race -run "$(bash tools/race-partition.sh ${{ matrix.shard }} 3)"
 
   mobile:
     name: Mobile (TypeScript)
@@ -225,6 +269,15 @@ jobs:
     name: Playwright E2E
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # GDK-1035: shard at the runner level only. Each shard is a separate
+    # machine with its own webServer, its own GADAK_E2E_PORT and its own
+    # seeded home, so e2e/playwright.config.ts keeps workers: 1 and
+    # fullyParallel: false — raising workers inside one runner is the
+    # unsafe variant (single shared served instance) and stays out.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
 
     steps:
       - uses: actions/checkout@v4
@@ -388,7 +441,7 @@ jobs:
           exit 1
 
       - name: Run browser E2E
-        run: npx playwright test --config e2e/playwright.config.ts
+        run: npx playwright test --config e2e/playwright.config.ts --shard=${{ matrix.shard }}/3
 
   # Nested module (desktop/go.mod). package main imports wails v3, which does
   # not compile on Linux with CGO_ENABLED=0 (undefined pointer in the linux
