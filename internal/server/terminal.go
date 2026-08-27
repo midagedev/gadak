@@ -43,13 +43,28 @@ const terminalReadLimit = 1 << 20
 // live sessions. See terminalRevokeWatch for why this is a poll.
 var terminalPollInterval = 2 * time.Second
 
-// registerTerminal adds the terminal routes to the API mux. Kept out of
-// newServer's body because the gate wraps every one of them.
+// registerTerminal mounts the terminal surface on the API mux: one
+// sub-mux owns every route under termBase, and that sub-mux is mounted
+// behind a single gate wrap. The gate is a value in the request path
+// (GDK-912), the same shape as Handler.guarded — not a convention each
+// registration has to remember. There is no second registration surface:
+// a route added to the sub-mux inherits the gate, and a termBase path no
+// route claims is answered by the gate first, so its 404 comes from
+// behind the gate, never from the outer mux's catch-all.
 func (s *server) registerTerminal(mux *http.ServeMux) {
-	mux.Handle("POST "+termBase+"sessions/{$}", s.terminalRoute(s.handleTerminalCreate))
-	mux.Handle("GET "+termBase+"sessions/{$}", s.terminalRoute(s.handleTerminalList))
-	mux.Handle("DELETE "+termBase+"sessions/{id}/{$}", s.terminalRoute(s.handleTerminalDelete))
-	mux.Handle("GET "+termBase+"sessions/{id}/ws/{$}", s.terminalRoute(s.handleTerminalWS))
+	// The four patterns are byte-identical to the direct registrations
+	// this replaces. termBase ends in "/", so the parent pattern below is
+	// the subtree they all lived in.
+	termMux := http.NewServeMux()
+	termMux.HandleFunc("POST "+termBase+"sessions/{$}", s.handleTerminalCreate)
+	termMux.HandleFunc("GET "+termBase+"sessions/{$}", s.handleTerminalList)
+	termMux.HandleFunc("DELETE "+termBase+"sessions/{id}/{$}", s.handleTerminalDelete)
+	termMux.HandleFunc("GET "+termBase+"sessions/{id}/ws/{$}", s.handleTerminalWS)
+	// The outer mux ends with the same catch-all (server.go): an unknown
+	// terminal path keeps the {"error":"not_found"} body the UI parses —
+	// only now the gate has already spoken by the time it is served.
+	termMux.HandleFunc("/", handleNotFound)
+	mux.Handle(termBase, s.terminalRoute(termMux))
 }
 
 // terminalManager is this server's session core, built on first use so a
@@ -92,17 +107,34 @@ func (s *server) closeTerminals() {
 	}
 }
 
-// terminalRoute is the gate every terminal handler sits behind. Handlers
-// receive the pairing token id the request authenticated with — empty for
-// a local client, which needs none.
-func (s *server) terminalRoute(fn func(http.ResponseWriter, *http.Request, string)) http.Handler {
+// terminalRoute is the gate every terminal handler sits behind, mounted
+// once over the whole terminal sub-mux. It stores the pairing token id
+// the gate authenticated into the request context; handlers read it with
+// terminalTokenID instead of a positional argument a registration could
+// forget to pass.
+func (s *server) terminalRoute(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		tokenID, ok := s.terminalGate(w, r)
 		if !ok {
 			return
 		}
-		fn(w, r, tokenID)
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), terminalTokenCtx{}, tokenID)))
 	})
+}
+
+// terminalTokenCtx is the context key carrying the pairing token id a
+// terminal request authenticated with. Unexported, and written in exactly
+// one place — terminalRoute — so no handler can read a token id the gate
+// did not vouch for.
+type terminalTokenCtx struct{}
+
+// terminalTokenID returns the pairing token id the gate authenticated
+// this request with. Empty means local root (decision 0003: a loopback
+// caller is this machine's user and needs no token), and the value is set
+// only by the gate — never by a handler or a client.
+func terminalTokenID(r *http.Request) string {
+	id, _ := r.Context().Value(terminalTokenCtx{}).(string)
+	return id
 }
 
 // terminalGate is the third gate, the same shape as pairingGate and
@@ -260,7 +292,8 @@ type terminalCreateReq struct {
 	Rows uint16 `json:"rows"`
 }
 
-func (s *server) handleTerminalCreate(w http.ResponseWriter, r *http.Request, tokenID string) {
+func (s *server) handleTerminalCreate(w http.ResponseWriter, r *http.Request) {
+	tokenID := terminalTokenID(r)
 	var req terminalCreateReq
 	if body, err := io.ReadAll(io.LimitReader(r.Body, 4<<10)); err == nil && len(body) > 0 {
 		// A body is optional: the pane may not know its size yet.
@@ -289,8 +322,8 @@ func (s *server) handleTerminalCreate(w http.ResponseWriter, r *http.Request, to
 	writeJSON(w, http.StatusOK, terminalSessionDoc{ID: info.ID, Cols: info.Cols, Rows: info.Rows})
 }
 
-func (s *server) handleTerminalList(w http.ResponseWriter, r *http.Request, tokenID string) {
-	_ = r
+func (s *server) handleTerminalList(w http.ResponseWriter, r *http.Request) {
+	tokenID := terminalTokenID(r)
 	all := s.terminalManager().Snapshot()
 	out := make([]term.Info, 0, len(all))
 	for _, info := range all {
@@ -304,7 +337,8 @@ func (s *server) handleTerminalList(w http.ResponseWriter, r *http.Request, toke
 	}{out})
 }
 
-func (s *server) handleTerminalDelete(w http.ResponseWriter, r *http.Request, tokenID string) {
+func (s *server) handleTerminalDelete(w http.ResponseWriter, r *http.Request) {
+	tokenID := terminalTokenID(r)
 	sess, err := s.terminalManager().Get(r.PathValue("id"))
 	if err != nil || !terminalOwns(sess.TokenID(), tokenID) {
 		// A session another credential opened is not distinguished from
@@ -341,7 +375,8 @@ func (s *server) terminalVisible(id, callerToken string) bool {
 //
 // The renderer adds nothing to this. Every other question a pane might ask
 // — what sessions exist, how big they are — is a REST call above.
-func (s *server) handleTerminalWS(w http.ResponseWriter, r *http.Request, tokenID string) {
+func (s *server) handleTerminalWS(w http.ResponseWriter, r *http.Request) {
+	tokenID := terminalTokenID(r)
 	sess, err := s.terminalManager().Get(r.PathValue("id"))
 	if err != nil || !terminalOwns(sess.TokenID(), tokenID) {
 		handleNotFound(w, r)

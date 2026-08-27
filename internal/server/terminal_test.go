@@ -522,6 +522,57 @@ func TestTerminalLocalNeedsLoopbackPeer(t *testing.T) {
 	}
 }
 
+// ⑬ The gate is a value, not a convention (GDK-912). The terminal surface
+// registers as one sub-mux mounted behind a single gate wrap, so there is
+// no second registration surface a future route could use to skip the
+// gate. Two halves, both pinned here: (a) every existing route answers a
+// non-local tokenless caller with the gate's verdict, and (b) an unknown
+// termBase path is answered by the gate before any 404 — with the old
+// per-route wraps an unknown path fell through to the outer mux's
+// catch-all, and a non-local caller was told "not_found" the gate had
+// never seen. That pre-gate 404 is the hole a future unwrapped route
+// would have reopened; closing it is what makes the sub-mux mount a
+// guarantee rather than a habit.
+func TestTerminalGateCoversTheWholeSubtree(t *testing.T) {
+	srv, _, dir := termServer(t)
+	termTok := seedStore(t, dir, seedToken{"pane", pairing.ScopeTerminal})[0]
+
+	// (a) the four routes, plus (b) two paths no route claims — one
+	// shallow, one deeper than any existing route, which is exactly where
+	// a future route lands.
+	routes := []struct{ method, path string }{
+		{http.MethodPost, termBase + "sessions/"},
+		{http.MethodGet, termBase + "sessions/"},
+		{http.MethodDelete, termBase + "sessions/abc123/"},
+		{http.MethodGet, termBase + "sessions/abc123/ws/"},
+		{http.MethodPost, termBase + "nosuch/"},
+		{http.MethodGet, termBase + "sessions/abc123/nosuch/"},
+	}
+	for _, rt := range routes {
+		// Non-loopback Host, no Bearer, tokens minted: the guard admits
+		// IP literals, so 401 pairing_rejected is the gate speaking — not
+		// a route answer (200/204/404), and not the guard's 403.
+		code, body := termRequest(t, srv, rt.method, rt.path, "", remoteIPHost, "")
+		if code != http.StatusUnauthorized || !strings.Contains(body, "pairing_rejected") {
+			t.Errorf("%s %s, non-local without bearer: %d %s; want 401 pairing_rejected (the gate, before any route)",
+				rt.method, rt.path, code, body)
+		}
+	}
+
+	// The unknown paths with the right scope: the gate admits, and the 404
+	// comes from behind it, in the shape the UI parses.
+	for _, path := range []string{termBase + "nosuch/", termBase + "sessions/abc123/nosuch/"} {
+		code, body := termRequest(t, srv, http.MethodPost, path, "", remoteIPHost, termTok)
+		if code != http.StatusNotFound || !strings.Contains(body, "not_found") {
+			t.Errorf("%s with a terminal token: %d %s; want 404 not_found from behind the gate", path, code, body)
+		}
+	}
+	// A local caller sees the same behind-the-gate 404 body.
+	if code, body := termRequest(t, srv, http.MethodGet, termBase+"nosuch/", "", "", ""); code != http.StatusNotFound || !strings.Contains(body, "not_found") {
+		t.Errorf("loopback, unknown terminal path: %d %s; want 404 not_found", code, body)
+	}
+}
+
 // ⑨ An app webview may not open this socket, and that is why the phone's
 // transport is native.
 //
