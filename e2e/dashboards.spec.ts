@@ -131,6 +131,64 @@ test('open from the sidebar renders the example wall and every datasource arrive
   await expect(fl.locator('#monthly canvas').first()).toBeVisible()
 })
 
+/*
+ * GDK-1053: the authored wall must fit its frame. The triage grid used to
+ * declare bare `1.5fr 1fr`, and a bare fr track floors at its content's
+ * min-content — the nowrap row summaries inflated both tracks to
+ * [656.8px 763.2px] while the frame was 1168px (1440x900) and 1008px
+ * (1280x800) wide, so the right card ("Open by status" / "Mine (open)")
+ * landed 286px/446px past the viewport, and a wheel probe over it moved
+ * nothing (macOS overlay scrollbars leave no gutter to grab). Measured
+ * mechanism, killed hypothesis: the uPlot canvas was NOT the driver — a
+ * probe with the canvas forced to 300px left the tracks and the overflow
+ * unchanged. The tracks are minmax(0, …) now; this pins the geometry
+ * contract at both audited sizes, inside the sandboxed frame. The frame is
+ * sandboxed to an opaque origin, so page JS cannot reach it — Playwright's
+ * frame handle can (protocol-level, no SOP).
+ */
+test('GDK-1053: the authored wall fits its frame — no track blowout at the audited sizes', async ({
+  page,
+}) => {
+  const html = readFileSync(
+    join(E2E_DIR, '..', 'examples', 'dashboards', 'triage.html'),
+    'utf8',
+  )
+  const saved = await saveDash(page.request, `${PREFIX} ${RUN} fit`, html, TRIAGE_DS)
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await gotoApp(page)
+  await page.locator(`[data-dashboard-id="${saved.id}"]`).click()
+  const fl = page.frameLocator(FRAME_SEL)
+  await expect(fl.locator('#stamp')).toHaveText('4/4 datasources')
+  await expect(fl.locator('#monthly canvas').first()).toBeVisible()
+
+  const frame = page.frames().find((f) => f.url().includes('/render/'))
+  expect(frame, 'render frame inspectable from the test (protocol-level)').toBeTruthy()
+  const inFrameOverflow = () =>
+    frame!.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    )
+
+  for (const size of [
+    { width: 1440, height: 900 },
+    { width: 1280, height: 800 },
+  ]) {
+    await page.setViewportSize(size)
+    // The wait is on the state under test: layout at this size, plus the
+    // authored file's debounced (100ms) chart re-fit after the viewport move.
+    await expect
+      .poll(inFrameOverflow, { timeout: 5000 })
+      .toBeLessThanOrEqual(1)
+    // The right card inside the app viewport (boundingBox is main-frame
+    // relative, so this is the user-visible "not cut at the edge" contract).
+    const box = await fl.locator('main > .panel').nth(1).boundingBox()
+    expect(box, `right card box at ${size.width}x${size.height}`).toBeTruthy()
+    expect(
+      box!.x + box!.width,
+      `right card right edge at ${size.width}x${size.height}`,
+    ).toBeLessThanOrEqual(size.width)
+  }
+})
+
 test('the dash= URL param restores the dashboard on a cold boot', async ({ page }) => {
   const saved = await saveDash(
     page.request,

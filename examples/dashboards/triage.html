@@ -81,7 +81,12 @@
   .card.inprogress .n { color: #e0af68; }
   .card.done .n { color: #9ece6a; }
   .card.total .n { color: #e8ecf4; }
-  main { display: grid; grid-template-columns: 1.5fr 1fr; gap: 12px; align-items: start; }
+  /* Tracks stay minmax(0, …), never bare fr: a bare fr track floors at its
+     content's min-content, so a wide child inflates its track and the grid
+     overflows the frame — measured GDK-1053: the nowrap row summaries pushed
+     both tracks to [656.8px 763.2px] while the frame was 1168px/1008px wide,
+     and the right card exited the viewport with no scrollbar to reach it. */
+  main { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 12px; align-items: start; }
   .panel { background: #161b26; border: 1px solid #232a3a; border-radius: 10px; padding: 14px 16px; }
   .panel h2 { font-size: 12px; font-weight: 600; color: #8b94a7; letter-spacing: 0.6px; text-transform: uppercase; margin-bottom: 10px; }
   .row { display: flex; gap: 10px; align-items: baseline; padding: 5px 0; border-top: 1px solid #1d2331; }
@@ -115,6 +120,11 @@
   .chart-panel { grid-column: 1 / -1; }
   .chart-panel .u-legend { display: none; }
   .chart-panel .u-axis text { fill: #8b94a7; font-size: 11px; }
+  /* The canvas is sized in px from its host at init and on resize; this cap
+     is the belt over that: if a sizing race ever makes it wider than the
+     panel, it degrades to the panel width instead of forcing the grid wide
+     (GDK-1053). */
+  #monthly canvas { max-width: 100%; }
   #refresh {
     background: #161b26; color: #e8ecf4; border: 1px solid #232a3a;
     border-radius: 7px; padding: 4px 12px; font: inherit; font-size: 12.5px; cursor: pointer;
