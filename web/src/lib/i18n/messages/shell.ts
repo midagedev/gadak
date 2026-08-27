@@ -121,8 +121,8 @@ export const shell = {
   },
   'terminal.reconnecting': {
     en: 'Reconnecting…',
-    ko: '다시 연결 중',
-    ja: '再接続中',
+    ko: '다시 연결 중…',
+    ja: '再接続中…',
   },
   'terminal.exited': {
     en: 'Shell exited (code {code})',
@@ -188,6 +188,13 @@ export const shell = {
     en: 'Close the terminal',
     ko: '터미널 닫기',
     ja: 'ターミナルを閉じる',
+  },
+  // The resize grip has its own name so a screen reader does not read it as a
+  // second "Terminal" — the region already carries terminal.title (GDK-948).
+  'terminal.resize': {
+    en: 'Resize the terminal',
+    ko: '터미널 크기 조절',
+    ja: 'ターミナルのサイズを変更',
   },
   'terminal.shortcut': {
     en: 'Ctrl+`',

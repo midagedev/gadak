@@ -411,7 +411,7 @@
     <button
       type="button"
       class="absolute top-0 right-0 h-full w-1 cursor-col-resize border-0 bg-transparent p-0 hover:bg-border-subtle"
-      aria-label={t('terminal.title')}
+      aria-label={t('terminal.resize')}
       data-testid="terminal-resize"
       onpointerdown={onHandlePointerDown}
     ></button>
