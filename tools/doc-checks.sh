@@ -1794,4 +1794,88 @@ ok "site copyable blocks all go through Snippet.astro"
 # with promise #9 reading a YAML persist the code had replaced with SQLite.
 bash tools/check-promises.sh
 
+# ── 36. "Not planned" refusals match the shipped tree ────────────────────
+# Class: a refusal list is a decision a reader can be pointed at. A refusal
+# the tree already contradicts is worse than none — it still reads as a
+# decision, only a false one. Measured twice in one month against this
+# file's own tree: the locale bullet said two while the third catalog had
+# shipped days earlier, and the Releases paragraph promised one window per
+# week against six tags in four days. Every refusal that is tree-visible
+# gets one probe here.
+#
+# Locale axis: the bullet must name the shipped set after "beyond", and
+# that set must equal LOCALES in web/src/lib/i18n/types.ts. LOCALES is the
+# single owner of what ships — the en.ts/ko.ts/ja.ts files beside it are
+# re-export shims, not catalogs; the catalogs are the {en,ko,ja} objects in
+# messages/*.ts, and they are keyed off LOCALES. A fourth locale added to
+# LOCALES, or a doc naming one that does not ship, fails in both
+# directions.
+#
+# Terminal axis: while the doc refuses terminal tabs/splits/profiles, the
+# i18n catalog must carry no terminal.* key naming one — a tab bar, a
+# split, or a profile picker needs a label, and terminal copy lives in
+# messages/*.ts (every terminal.* key is in messages/shell.ts today).
+# Limits: one source-level signal per word, not UI enumeration — a feature
+# whose labels dodge the three words, or UI added without an i18n key,
+# would not trip this. The refusal bullet itself is asserted too: dropping
+# it silently would leave the first tab request with no answer to link.
+#
+# Release cadence: deliberately NO probe. Cadence is behavior, not tree
+# state; anything grepable here could only pin the last observed wording,
+# which is the fake green this file exists to remove.
+refusal_drift=""
+refusal_drift=$(
+  python3 - <<'REFUSALPY'
+import re
+from pathlib import Path
+
+fails = []
+doc = Path("docs/MAINTENANCE.md").read_text()
+
+# Locale refusal vs LOCALES.
+bullet = re.search(r"^- \*\*New UI locales[^\n]*", doc, re.M)
+if not bullet:
+    fails.append('docs/MAINTENANCE.md: no "New UI locales" bullet in Not planned')
+else:
+    named = re.search(r"\bbeyond ([a-z]{2}(?:/[a-z]{2})*)\b", bullet.group(0))
+    doc_locales = set(named.group(1).split("/")) if named else set()
+    src = Path("web/src/lib/i18n/types.ts").read_text()
+    arr = re.search(r"LOCALES\s*=\s*\[([^\]]*)\]", src)
+    if not arr:
+        fails.append("web/src/lib/i18n/types.ts: cannot parse the LOCALES array")
+    else:
+        shipped = set(re.findall(r"['\"]([a-z]{2})['\"]", arr.group(1)))
+        if doc_locales != shipped:
+            fails.append(
+                "docs/MAINTENANCE.md names %s; the tree ships %s "
+                "(web/src/lib/i18n/types.ts LOCALES) — reconcile the two"
+                % (sorted(doc_locales) or ["no locale set"], sorted(shipped))
+            )
+
+# Terminal refusal vs terminal.* message keys.
+if not re.search(r"^- \*\*Terminal tabs, splits, or profiles\.\*\*", doc, re.M):
+    fails.append(
+        'docs/MAINTENANCE.md: no "Terminal tabs, splits, or profiles" bullet '
+        "in Not planned — the doc must answer the first such request"
+    )
+else:
+    for path in sorted(Path("web/src/lib/i18n/messages").glob("*.ts")):
+        text = path.read_text()
+        for m in re.finditer(r"'(terminal\.[A-Za-z0-9_.]*)'\s*:", text):
+            if re.search(r"tab|split|profile", m.group(1), re.I):
+                line = text.count("\n", 0, m.start()) + 1
+                fails.append(
+                    "%s:%d: %s — MAINTENANCE.md refuses terminal tabs/splits/"
+                    "profiles; reconcile doc and tree" % (path.as_posix(), line, m.group(1))
+                )
+
+if fails:
+    print("\n".join(fails))
+REFUSALPY
+)
+if [[ -n "$refusal_drift" ]]; then
+  fail "a Not-planned refusal contradicts the shipped tree:"$'\n'"$refusal_drift"
+fi
+ok "Not-planned refusals match the shipped tree (locale set, terminal ceiling)"
+
 echo "doc-checks: all passed"

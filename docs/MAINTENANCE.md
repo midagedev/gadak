@@ -19,15 +19,18 @@ not the way you depend on a database.
 
 ## Releases
 
-**One release window per week.** `main` moves whenever there is something worth
-committing, but tags are cut in a single weekly window, and the release notes
-are that week's work as one entry.
+**Tags cut when something is ready — regressions and security the same
+day.** `main` moves whenever there is something worth committing, and a tag
+follows when the tree holds something a user would want to decide about.
+Release notes still group the work into one honest entry per tag.
 
 Three releases went out on one day during the first month. That pace was
 possible only because nobody was on the receiving end: every tag a user sees is
 an upgrade they have to decide about, and a version number is a poor place to
-put the satisfaction of having finished something. Security fixes are the one
-thing that leaves outside the window.
+put the satisfaction of having finished something. The lesson stands as
+restraint, not as a calendar: a tag is an upgrade somebody has to decide
+about, so it earns its number — it just no longer waits for a weekday to do
+so.
 
 **The version stays 0.x for a while.** Not out of modesty — 0.x is the honest
 label for software whose schema moved fifteen times in its first month, and it
@@ -84,7 +87,16 @@ Beyond the list in [`docs/ROADMAP.md`](project/ROADMAP.md):
   (`desktop/build-linux.sh`); it is not a release asset.
 - **Per-site custom field handling.** Fields are mapped by configuration, not
   by special cases in the code for one company's setup.
-- **New UI locales.** Two is what one maintainer can keep honest.
+- **New UI locales beyond en/ko/ja.** Three is what one maintainer can keep
+  honest, and the third one shipped only because its checks are the same
+  gates the first two run. A fourth needs what a connector needs: someone
+  who stays.
+- **Terminal tabs, splits, or profiles.** The terminal is a pane beside the
+  issues, not a terminal app. The moment it grows tabs it competes with
+  tmux and every real terminal — a fight that costs exactly the twelve
+  years of `$TERM`, keycode, and IME constants those projects already paid
+  for. One pane, sized to sit next to the work it is about; a real terminal
+  is one Cmd-Tab away.
 - **Webhooks or real-time sync.** The polling loop is understandable and
   restartable; a push path is neither, and it needs an endpoint this
   architecture deliberately does not have.
