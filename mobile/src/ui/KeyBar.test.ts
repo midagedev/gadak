@@ -94,7 +94,7 @@ describe('GDK-953 — Shell routes clear to sticky.clear()', () => {
 
 describe('GDK-953 — clear is not an emission', () => {
   it('sends no bytes under any modifier mix', () => {
-    expect(bytesForBarKey('clear', { ctrl: true, alt: true })).toHaveLength(0)
+    expect(bytesForBarKey('clear', { ctrl: true, alt: true }, 'application')).toHaveLength(0)
   })
 
   it('produces no barrier steps, not even over an open composition', () => {

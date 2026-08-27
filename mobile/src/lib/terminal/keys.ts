@@ -92,7 +92,18 @@ function withMods(bytes: Uint8Array, mods: StickyMods, ctrlText: string | null):
   return out
 }
 
-type BarSend = { kind: 'empty' } | { kind: 'text'; ch: string } | { kind: 'csi'; final: number }
+/**
+ * DECCKM (`CSI ?1h`). Every full-screen TUI sets it, which is the whole
+ * reason this bar exists, and under it the cursor keys are SS3 (`ESC O A`)
+ * rather than CSI (`ESC [ A`). The renderer holds the live value; this
+ * module is pure, so it arrives as an argument.
+ */
+export type CursorKeyMode = 'normal' | 'application'
+
+type BarSend =
+  | { kind: 'empty' }
+  | { kind: 'text'; ch: string }
+  | { kind: 'cursor'; final: number }
 
 // Record<BarKey, …> is the exhaustiveness gate: a new bar key that does not
 // pick a send kind fails the typecheck, not a screenshot of a missing button.
@@ -105,37 +116,67 @@ const BAR: Record<BarKey, BarSend> = {
   // the panic reset (GDK-953): glasskeys' contract says any UI that offers
   // lock must offer it. It sends nothing, so the encoder path never sees it.
   clear: { kind: 'empty' },
-  up: { kind: 'csi', final: 0x41 },
-  down: { kind: 'csi', final: 0x42 },
-  right: { kind: 'csi', final: 0x43 },
-  left: { kind: 'csi', final: 0x44 },
-  home: { kind: 'csi', final: 0x48 },
-  end: { kind: 'csi', final: 0x46 },
+  up: { kind: 'cursor', final: 0x41 },
+  down: { kind: 'cursor', final: 0x42 },
+  right: { kind: 'cursor', final: 0x43 },
+  left: { kind: 'cursor', final: 0x44 },
+  home: { kind: 'cursor', final: 0x48 },
+  end: { kind: 'cursor', final: 0x46 },
   pipe: { kind: 'text', ch: '|' },
   slash: { kind: 'text', ch: '/' },
   dash: { kind: 'text', ch: '-' },
   tilde: { kind: 'text', ch: '~' },
 }
 
-/** Bytes a bar key sends under the current sticky modifiers. */
-export function bytesForBarKey(key: BarKey, mods: StickyMods): Uint8Array {
+/*
+ * Cursor keys, encoded the way the terminal the bytes are going to expects
+ * them (GDK-899). Three cases, and the bar used to send the first one for
+ * all three:
+ *
+ *   no modifier, normal mode        ESC [ A
+ *   no modifier, DECCKM             ESC O A
+ *   any modifier, either mode       ESC [ 1 ; <mask+1> A
+ *
+ * That table is not invented here. It is what the shipped xterm.js sends
+ * for a hardware keyboard — `node_modules/@xterm/xterm/lib/xterm.js`,
+ * `evaluateKeyboardEvent`, keyCodes 35–40:
+ *
+ *     case 38: … o.key = a ? ESC+"[1;"+(a+1)+"A" : t ? ESC+"OA" : ESC+"[A"
+ *
+ * where `t` is DECCKM and `a` is the modifier mask. The bar writes to the
+ * socket directly instead of going through xterm's keyboard path, so
+ * without this the same arrow sent different bytes depending on whether it
+ * came from a bluetooth keyboard or from the screen — the release audit's
+ * "same action, same affordance" axis, failing on the phone's own bar.
+ */
+function cursorKeyBytes(final: number, mods: StickyMods, cursorKeys: CursorKeyMode): Uint8Array {
+  // xterm's mask: shift 1, alt 2, ctrl 4, meta 8, sent as mask+1. The bar
+  // has no shift or meta slot, so only 2 and 4 can appear today; the
+  // parameter is written as decimal so a third slot would not need this
+  // function rewritten.
+  const mask = (mods.alt ? 2 : 0) | (mods.ctrl ? 4 : 0)
+  if (mask !== 0) {
+    return new Uint8Array([ESC, 0x5b, 0x31, 0x3b, ...utf8.encode(String(mask + 1)), final])
+  }
+  return new Uint8Array([ESC, cursorKeys === 'application' ? 0x4f : 0x5b, final])
+}
+
+/**
+ * Bytes a bar key sends under the current sticky modifiers.
+ *
+ * `cursorKeys` is required rather than defaulted: a default would be a
+ * silent answer to a question only the live renderer can answer, and the
+ * wrong answer is exactly the defect this argument exists to close.
+ */
+export function bytesForBarKey(
+  key: BarKey,
+  mods: StickyMods,
+  cursorKeys: CursorKeyMode,
+): Uint8Array {
   const send = BAR[key]
   if (send.kind === 'empty') return new Uint8Array(0)
   if (send.kind === 'text') return bytesForText(send.ch, mods)
-  /*
-   * CSI (`ESC [ x`) unconditionally, which is wrong under DECCKM and is
-   * tracked as GDK-899: an application that set `CSI ?1h` — every full-screen
-   * TUI, which is the whole reason this bar exists — expects SS3
-   * (`ESC O x`) for the cursor keys, and readline in application mode does
-   * not accept the CSI form. Fixing it needs the renderer's live
-   * `modes.applicationCursorKeysMode` threaded in as an argument, which is
-   * the same wiring GDK-899 needs for the touch-vs-mouse decision, so both
-   * land together rather than growing two parameters a week apart.
-   *
-   * CSI sequences have no control byte — send them unchanged, still honor Alt.
-   */
-  const seq = new Uint8Array([ESC, 0x5b, send.final])
-  return withMods(seq, mods, null)
+  return cursorKeyBytes(send.final, mods, cursorKeys)
 }
 
 /** An ordinary typed character with the sticky modifiers applied. */

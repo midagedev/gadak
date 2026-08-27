@@ -11,6 +11,7 @@ import {
   createUtf8StreamDecoder,
   type TerminalRenderer,
 } from '../../../../web/src/lib/terminal/protocol'
+import type { CursorKeyMode } from './keys'
 
 function cssVar(name: string, fallback: string): string {
   if (typeof document === 'undefined') return fallback
@@ -43,6 +44,8 @@ function chromeTheme(): {
 }
 
 type TermHook = {
+  /** Live DEC private modes; `modes` is xterm's public getter. */
+  modes?: { applicationCursorKeysMode?: boolean }
   buffer: {
     active: {
       length: number
@@ -83,6 +86,12 @@ function readCssVar(name: string): string {
 export interface PhoneTerminalRenderer extends TerminalRenderer {
   /** Clear the local buffer so a ring replay is the scrollback, not a duplicate. */
   reset(): void
+  /**
+   * DECCKM as the application currently has it (GDK-899). The key bar
+   * writes to the socket directly instead of going through xterm's
+   * keyboard path, so it has to ask for this — xterm cannot tell it.
+   */
+  cursorKeyMode(): CursorKeyMode
 }
 
 export async function createRenderer(): Promise<PhoneTerminalRenderer> {
@@ -158,6 +167,11 @@ export async function createRenderer(): Promise<PhoneTerminalRenderer> {
     },
     reset() {
       term.reset()
+    },
+    cursorKeyMode() {
+      // Optional-chained on purpose: a test double that only implements
+      // what it renders must read as 'normal', not throw at a keypress.
+      return term.modes?.applicationCursorKeysMode ? 'application' : 'normal'
     },
     dispose() {
       unData.dispose()

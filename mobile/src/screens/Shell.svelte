@@ -194,7 +194,12 @@
         // an armed slot. Marked text goes out with no modifiers.
         flushIme({ kind: 'compositionend', data: imeEl?.value ?? '' }, { spend: false, mods: [] })
       } else if (step.op === 'emit-key') {
-        sendBytes(bytesForBarKey(key, encoderMods(step.mods)))
+        // The renderer, not a default: DECCKM is whatever the application
+        // running right now set it to (GDK-899). No renderer means no
+        // application, so 'normal' is the honest answer there.
+        sendBytes(
+          bytesForBarKey(key, encoderMods(step.mods), renderer?.cursorKeyMode() ?? 'normal'),
+        )
         sticky.consume()
         syncMods()
       }
