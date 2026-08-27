@@ -601,15 +601,16 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak create", "gadak edit", "gadak issue"},
 	},
 	"edit": {
-		summary: "edit summary, description, labels, components, fix versions, priority, parent, due date, or a configured custom field",
+		summary: "edit summary, description, labels, components, fix versions, issue type, priority, parent, due date, or a configured custom field",
 		usage: "gadak [--workspace <name>] edit <KEY> [--summary S] [-m <text|->]\n" +
 			"[--label +x|-x]... [--component +x|-x]...\n" +
 			"[--fix-version +id-or-name|-id-or-name]...\n" +
-			"[--priority NAME-or-id] [--due YYYY-MM-DD|none] [--parent KEY|none]\n" +
+			"[--type NAME-or-id] [--priority NAME-or-id] [--due YYYY-MM-DD|none] [--parent KEY|none]\n" +
 			"[--field alias=value]... [--json] | --batch -",
 		examples: []string{
 			"gadak edit NMB-140 --summary \"Rename without opening Jira\"",
 			"gadak edit NMB-140 --label +batch --label -legacy --priority High",
+			"gadak edit NMB-140 --type Bug",
 			"gadak edit NMB-140 --component +SDK --component -Docs",
 			"gadak edit NMB-140 --fix-version +v2.5 --fix-version -10012",
 			"gadak edit NMB-140 --due 2026-09-01",

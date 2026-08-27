@@ -175,6 +175,8 @@ func (w *linearWriter) UpdateFields(ctx context.Context, key string, fields map[
 				return err
 			}
 			upd.DueDate = &s
+		case "issuetype":
+			return ErrNoIssueTypes
 		default:
 			return unsupportedf("linear: field %q is not editable on this origin", name)
 		}

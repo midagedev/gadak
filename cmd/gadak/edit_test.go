@@ -1,16 +1,19 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/fields"
 	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/store"
 )
 
@@ -87,6 +90,30 @@ import (
 //     TestEditFixVersionUnknownNameRejectedOnEmptyCatalogWhenOriginDoesNotCreate
 // 29. -unknown still refuses when the origin would mint on add
 //     TestEditFixVersionRemoveUnknownNameRejectedWhenOriginCreates
+//
+// --type (GDK-962 — a misfiled issue can be corrected):
+// 30. --type resolves through create.Type, GDK-741's single owner — id,
+//     localized name, untranslatedName, structural alias; unknown and
+//     ambiguous refuse
+//     TestEditTypeResolvesLikeCreate
+// 31. Unavailable type names the project catalog with ids; no PUT
+//     TestEditTypeUnmatchedListsAvailableWithIDs
+// 32. The project is the mirror's project_key (a prefix that is not the
+//     project key cannot misroute); the key prefix is only the fallback
+//     TestEditTypeUsesMirrorProjectWhenPrefixDiffers
+//     TestEditTypePrefixFallbackWhenMirrorMisses
+// 33. The origin's refusal (e.g. Jira's hierarchy 400) passes through
+//     verbatim, not flattened
+//     TestEditTypeOriginRefusalSurfacesJiraMessage
+// 34. Linear refuses loudly before any origin call; never a silent drop
+//     TestEditTypeLinearRefusesLoudly
+// 35. --batch accepts "type" on the same terms
+//     TestEditTypeBatchSendsID
+// 36. Empty --type is a usage error — create's empty-want fallbacks must
+//     never refile an existing issue
+//     TestEditTypeEmptyIsUsageError
+// 37. Help / usage enumerate --type
+//     TestEditHelpListsTypeFlag
 
 func TestEditSummaryAlone(t *testing.T) {
 	f := newFakeJira(t)
@@ -1429,5 +1456,332 @@ func TestEditHelpListsFieldFlag(t *testing.T) {
 	joined := strings.Join(helps["edit"].examples, "\n")
 	if !strings.Contains(joined, "--field") {
 		t.Errorf("examples missing --field:\n%s", joined)
+	}
+}
+
+// overrideCreateMeta answers GET /issue/createmeta with raw (ignoring the
+// projectKeys filter the way the fake does); every other request falls
+// through, the same wrapping shape rejectIssuePUT uses.
+func overrideCreateMeta(t *testing.T, f *fakeJira, raw string) {
+	t.Helper()
+	inner := f.Config.Handler
+	f.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/rest/api/3")
+		if r.Method == http.MethodGet && path == "/issue/createmeta" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(raw))
+			return
+		}
+		inner.ServeHTTP(w, r)
+	})
+}
+
+// nmbCreateMeta wraps issue types as the NMB project's createmeta payload.
+func nmbCreateMeta(types string) string {
+	return `{"projects":[{"key":"NMB","name":"Numbers","issuetypes":[` + types + `]}]}`
+}
+
+func TestEditTypeResolvesLikeCreate(t *testing.T) {
+	cases := []struct {
+		name, want, types, id, err string
+	}{
+		{"id", "10001",
+			`{"id":"10001","name":"Task"}`, "10001", ""},
+		{"name case-insensitive", "task",
+			`{"id":"10001","name":"Task"}`, "10001", ""},
+		{"localized name", "작업",
+			`{"id":"10002","name":"작업"}`, "10002", ""},
+		{"untranslatedName alias", "Defect",
+			`{"id":"10004","name":"버그","untranslatedName":"Defect"}`, "10004", ""},
+		{"structural epic", "epic",
+			`{"id":"10005","name":"에픽","hierarchyLevel":1}`, "10005", ""},
+		{"structural subtask spelling", "sub-task",
+			`{"id":"10006","name":"하위 작업","subtask":true}`, "10006", ""},
+		{"unknown names the catalog", "Story",
+			`{"id":"10001","name":"Task"},{"id":"10004","name":"Bug"}`, "",
+			`no issue type matching "Story"`},
+		{"ambiguous refuses", "subtask",
+			`{"id":"10006","name":"하위 작업","subtask":true},{"id":"10007","name":"부작업","subtask":true}`, "",
+			`issue type "subtask" matches more than one`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFakeJira(t)
+			mirror(t, f.URL)
+			overrideCreateMeta(t, f, nmbCreateMeta(tc.types))
+			_, err := capture(t, func() error {
+				return cmdEdit([]string{"NMB-1", "--type", tc.want})
+			})
+			if tc.err != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.err) {
+					t.Fatalf("err %v, want %q", err, tc.err)
+				}
+				if f.called("PUT /issue/NMB-1") {
+					t.Fatalf("refused --type reached Jira: %v", f.calls)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("edit --type %s: %v", tc.want, err)
+			}
+			body := f.bodies["PUT /issue/NMB-1"]
+			if !strings.Contains(body, `"issuetype":{"id":"`+tc.id+`"}`) {
+				t.Fatalf("PUT body %s, want issuetype id %s", body, tc.id)
+			}
+		})
+	}
+}
+
+func TestEditTypeAloneIsOnePUTWithOnlyIssuetype(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "--type", "Bug"})
+	})
+	if err != nil {
+		t.Fatalf("edit --type Bug: %v", err)
+	}
+	if !f.called("GET /issue/createmeta") {
+		t.Fatalf("type resolution must read createmeta: %v", f.calls)
+	}
+	if n := countCalls(f, "PUT /issue/NMB-1"); n != 1 {
+		t.Fatalf("want 1 PUT, got %d: %v", n, f.calls)
+	}
+	body := f.bodies["PUT /issue/NMB-1"]
+	payload := putPayload(t, body)
+	if got := string(payload.Fields["issuetype"]); got != `{"id":"10004"}` {
+		t.Fatalf("fields.issuetype = %s (body %s)", got, body)
+	}
+	if len(payload.Fields) != 1 {
+		t.Fatalf("type-only PUT must carry only issuetype: %s", body)
+	}
+	if payload.Update != nil {
+		t.Fatalf("type-only PUT must not send update: %s", body)
+	}
+}
+
+func TestEditTypeUnmatchedListsAvailableWithIDs(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "--type", "Story"})
+	})
+	if err == nil {
+		t.Fatal("unmatched type must be refused")
+	}
+	msg := err.Error()
+	for _, want := range []string{
+		`no issue type matching "Story"`,
+		"Task (id 10001)", "작업 (id 10002)", "Bug (id 10004)",
+		"an id always works",
+	} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("error %q missing %q", msg, want)
+		}
+	}
+	if f.called("PUT /issue/NMB-1") {
+		t.Fatalf("unmatched type reached Jira: %v", f.calls)
+	}
+}
+
+// seedForeignPrefixIssue plants STD-7 whose mirror project_key is NMB — the
+// shape that proves --type reads the project from the mirror, not the key
+// prefix (the prefix is not the project key).
+func seedForeignPrefixIssue(t *testing.T) {
+	t.Helper()
+	db, err := store.Open(filepath.Join(os.Getenv("GADAK_HOME"), "gadak.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.UpsertIssues(context.Background(), store.Batch{
+		Records: []store.IssueRecord{{
+			Item: store.Item{
+				ID: "jira:1007", SourceID: "jira", Kind: "issue", ExternalID: "1007", Key: "STD-7",
+				Title: "key prefix is not the project key", CreatedAt: "2026-07-01T00:00:00.000Z", UpdatedAt: "2026-08-01T00:00:00.000Z",
+			},
+			Issue: store.Issue{
+				ProjectKey: "NMB", IssueType: "Bug", IssueTypeID: "10004",
+				Status: "진행 중", StatusID: "3", StatusCategory: "inprogress",
+			},
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestEditTypeUsesMirrorProjectWhenPrefixDiffers(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	seedForeignPrefixIssue(t)
+	// No STD project in createmeta: prefix routing would fail here, the
+	// mirror's NMB row is what resolves.
+	overrideCreateMeta(t, f, nmbCreateMeta(`{"id":"10004","name":"Bug"}`))
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"STD-7", "--type", "Bug"})
+	})
+	if err != nil {
+		t.Fatalf("edit STD-7 --type Bug: %v", err)
+	}
+	body := f.bodies["PUT /issue/STD-7"]
+	if !strings.Contains(body, `"issuetype":{"id":"10004"}`) {
+		t.Fatalf("PUT body %s", body)
+	}
+}
+
+func TestEditTypePrefixFallbackWhenMirrorMisses(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	// GDK-1 has no mirror row; the default createmeta offers GDK/Task.
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"GDK-1", "--type", "Task"})
+	})
+	// The write lands; the re-read cannot mirror GDK-1 back (Projects is
+	// NMB-only in this fixture), which is the stale-mirror warning, not a
+	// failed write. The contract under test is the routed PUT itself.
+	if err != nil && !strings.Contains(err.Error(), "write applied to GDK-1") {
+		t.Fatalf("edit GDK-1 --type Task: %v", err)
+	}
+	body := f.bodies["PUT /issue/GDK-1"]
+	if !strings.Contains(body, `"issuetype":{"id":"10001"}`) {
+		t.Fatalf("PUT body %s", body)
+	}
+}
+
+func TestEditTypeOriginRefusalSurfacesJiraMessage(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	const jiraSays = "Issues with sub-tasks cannot be converted to sub-tasks."
+	rejectIssuePUT(t, f, jiraSays)
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "--type", "Bug"})
+	})
+	if err == nil {
+		t.Fatal("origin 400 must surface as an error")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, jiraSays) {
+		t.Fatalf("origin's own message was flattened: %q", msg)
+	}
+	if !strings.Contains(msg, "PUT") || !strings.Contains(msg, "issue/NMB-1") {
+		t.Fatalf("error must name the refused call: %q", msg)
+	}
+}
+
+func TestEditTypeLinearRefusesLoudly(t *testing.T) {
+	cfg := mirror(t, "")
+	cfg.Linear = &config.LinearConfig{APIKey: linearTestKey}
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+	db, err := store.Open(filepath.Join(os.Getenv("GADAK_HOME"), "gadak.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.UpsertSource(context.Background(), store.Source{ID: "linear", Kind: "linear", BaseURL: "https://linear.app"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.UpsertIssues(context.Background(), store.Batch{
+		Records: []store.IssueRecord{{
+			Item: store.Item{
+				ID: "linear:fix-1", SourceID: "linear", Kind: "issue", ExternalID: "fix-1", Key: "FIX-1",
+				Title: "misfiled on linear", CreatedAt: "2026-08-01T00:00:00.000Z", UpdatedAt: "2026-08-01T00:00:00.000Z",
+			},
+			Issue: store.Issue{ProjectKey: "FIX", StatusCategory: "new", Status: "Todo"},
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	// Any GraphQL leaving this test is itself a failure: the refusal must
+	// precede every origin call, including createmeta (a Linear type
+	// catalog cannot exist — fetching one would advertise its synthetic
+	// "Issue" entry as retryable).
+	var hits int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits++
+		w.WriteHeader(http.StatusBadRequest)
+	}))
+	t.Cleanup(srv.Close)
+	origin.LinearEndpoint = srv.URL
+	t.Cleanup(func() { origin.LinearEndpoint = "" })
+
+	_, err = capture(t, func() error {
+		return cmdEdit([]string{"FIX-1", "--type", "Bug"})
+	})
+	if err == nil {
+		t.Fatal("--type against Linear must refuse, not silently drop")
+	}
+	if !strings.Contains(err.Error(), origin.ErrNoIssueTypes.Error()) {
+		t.Fatalf("error must say Linear has no issue types: %q", err)
+	}
+	if hits != 0 {
+		t.Fatalf("refusal must precede every Linear call; %d GraphQL documents left the process", hits)
+	}
+}
+
+func TestEditTypeBatchSendsID(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	withStdin(t, `{"key":"NMB-1","type":"작업"}`+"\n")
+
+	out, err := capture(t, func() error {
+		return cmdEdit([]string{"--batch", "-"})
+	})
+	if err != nil {
+		t.Fatalf("edit --batch: %v\n%s", err, out)
+	}
+	body := f.bodies["PUT /issue/NMB-1"]
+	if !strings.Contains(body, `"issuetype":{"id":"10002"}`) {
+		t.Fatalf("batch type not resolved to id: %s", body)
+	}
+	if !strings.Contains(out, "NMB-1") {
+		t.Fatalf("envelope row missing: %s", out)
+	}
+}
+
+func TestEditTypeEmptyIsUsageError(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "--type", ""})
+	})
+	if err == nil || !strings.Contains(err.Error(), "usage: gadak edit") {
+		t.Fatalf("empty --type: %v", err)
+	}
+	if f.called("GET /issue/createmeta") || f.called("PUT /issue/NMB-1") {
+		t.Fatalf("empty --type reached the origin: %v", f.calls)
+	}
+}
+
+func TestEditHelpListsTypeFlag(t *testing.T) {
+	out, err := capture(t, func() error {
+		return cmdEdit([]string{"--help"})
+	})
+	if err != nil {
+		t.Fatalf("edit --help: %v", err)
+	}
+	if !strings.Contains(out, "--type") {
+		t.Fatalf("help Options missing --type:\n%s", out)
+	}
+	if !strings.Contains(helps["edit"].usage, "--type") {
+		t.Errorf("usage line missing --type: %s", helps["edit"].usage)
+	}
+	if !strings.Contains(editUsage, "--type") {
+		t.Errorf("editUsage missing --type: %s", editUsage)
+	}
+	joined := strings.Join(helps["edit"].examples, "\n")
+	if !strings.Contains(joined, "--type") {
+		t.Errorf("examples missing --type:\n%s", joined)
 	}
 }

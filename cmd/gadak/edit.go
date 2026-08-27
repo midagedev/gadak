@@ -22,7 +22,7 @@ import (
 	"github.com/midagedev/gadak/internal/transition"
 )
 
-const editUsage = "usage: gadak edit <KEY> [--summary S] [-m <text|->] [--label +x|-x]... [--component +x|-x]... [--fix-version +id-or-name|-id-or-name]... [--priority NAME-or-id] [--due YYYY-MM-DD|none] [--parent KEY|none] [--field alias=value]... [--json] | --batch -"
+const editUsage = "usage: gadak edit <KEY> [--summary S] [-m <text|->] [--label +x|-x]... [--component +x|-x]... [--fix-version +id-or-name|-id-or-name]... [--type NAME-or-id] [--priority NAME-or-id] [--due YYYY-MM-DD|none] [--parent KEY|none] [--field alias=value]... [--json] | --batch -"
 
 // fieldFlagUsage is the FlagSet description for create/edit --field.
 // Parse rule matches parseTransitionFieldFlags: JSON if valid, otherwise a string.
@@ -38,6 +38,7 @@ func cmdEdit(args []string) error {
 	fs.Var(&components, "component", "`+name` or `-name` (repeatable)")
 	var fixVersions labelFlags
 	fs.Var(&fixVersions, "fix-version", "`+id-or-name` or `-id-or-name` (repeatable)")
+	typeFlag := fs.String("type", "", "issue type name or id from the issue's project createmeta")
 	priority := fs.String("priority", "", "priority name or id")
 	due := fs.String("due", "", "due date (YYYY-MM-DD); `none` clears")
 	parent := fs.String("parent", "", "parent issue key; `none` clears")
@@ -54,7 +55,7 @@ func cmdEdit(args []string) error {
 		return err
 	}
 
-	var hasSummary, hasM, hasLabel, hasComponent, hasFixVersion, hasPriority, hasParent, hasDue, hasField bool
+	var hasSummary, hasM, hasLabel, hasComponent, hasFixVersion, hasType, hasPriority, hasParent, hasDue, hasField bool
 	fs.Visit(func(f *flag.Flag) {
 		switch f.Name {
 		case "summary":
@@ -67,6 +68,8 @@ func cmdEdit(args []string) error {
 			hasComponent = true
 		case "fix-version":
 			hasFixVersion = true
+		case "type":
+			hasType = true
 		case "priority":
 			hasPriority = true
 		case "parent":
@@ -90,8 +93,8 @@ func cmdEdit(args []string) error {
 		if len(pos) != 0 {
 			return usageError("edit", "usage: gadak edit: --batch and a key are mutually exclusive")
 		}
-		base, err := parseEditChange(hasSummary, hasM, hasLabel, hasComponent, hasFixVersion, hasPriority, hasParent, hasDue, hasField,
-			*summary, *text, *priority, *due, *parent, labels, components, fixVersions, fieldFlags)
+		base, err := parseEditChange(hasSummary, hasM, hasLabel, hasComponent, hasFixVersion, hasType, hasPriority, hasParent, hasDue, hasField,
+			*summary, *text, *typeFlag, *priority, *due, *parent, labels, components, fixVersions, fieldFlags)
 		if err != nil {
 			return err
 		}
@@ -103,7 +106,7 @@ func cmdEdit(args []string) error {
 	}
 	key := normalizeKey(pos[0])
 
-	if !hasSummary && !hasM && !hasLabel && !hasComponent && !hasFixVersion && !hasPriority && !hasParent && !hasDue && !hasField {
+	if !hasSummary && !hasM && !hasLabel && !hasComponent && !hasFixVersion && !hasType && !hasPriority && !hasParent && !hasDue && !hasField {
 		return usageError("edit", editUsage)
 	}
 
@@ -115,44 +118,57 @@ func cmdEdit(args []string) error {
 		}
 		body = string(buf)
 	}
-	ch, err := parseEditChange(hasSummary, hasM, hasLabel, hasComponent, hasFixVersion, hasPriority, hasParent, hasDue, hasField,
-		*summary, body, *priority, *due, *parent, labels, components, fixVersions, fieldFlags)
+	ch, err := parseEditChange(hasSummary, hasM, hasLabel, hasComponent, hasFixVersion, hasType, hasPriority, hasParent, hasDue, hasField,
+		*summary, body, *typeFlag, *priority, *due, *parent, labels, components, fixVersions, fieldFlags)
 	if err != nil {
 		return err
 	}
 	ch.key = key
-	return mutate(key, *asJSON, func(ctx context.Context, c origin.Writer, src string) (map[string]any, error) {
-		return nil, applyEditChange(ctx, c, src, ch)
+	// withKeyWriteSession (not mutate) so --type can verify the issue's
+	// project against the mirror before resolving createmeta; the tail is
+	// mutate's, unchanged.
+	return withKeyWriteSession(key, func(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src string) error {
+		if err := applyEditChange(ctx, cfg, db, c, src, ch); err != nil {
+			return err
+		}
+		return emitAfterWrite(ctx, cfg, db, src, key, *asJSON, nil)
 	})
 }
 
 // editChange is one edit write, shared by the single-key path and --batch.
 type editChange struct {
-	key                                           string
-	hasSummary, hasM, hasLabel, hasComponent      bool
-	hasFixVersion, hasPriority, hasParent, hasDue bool
-	hasField                                      bool
-	summary, body, priority, dueDate, parentKey   string
-	clearDue, clearParent                         bool
-	labels, components, fixVersions               []string
-	labelOps, componentOps                        []any
-	fieldRaws                                     map[string]json.RawMessage
-	fieldCfg                                      *config.Config
+	key                                                   string
+	hasSummary, hasM, hasLabel, hasComponent              bool
+	hasFixVersion, hasType, hasPriority                   bool
+	hasParent, hasDue, hasField                           bool
+	summary, body, typeWant, priority, dueDate, parentKey string
+	clearDue, clearParent                                 bool
+	labels, components, fixVersions                       []string
+	labelOps, componentOps                                []any
+	fieldRaws                                             map[string]json.RawMessage
+	fieldCfg                                              *config.Config
 }
 
 func (e editChange) empty() bool {
-	return !e.hasSummary && !e.hasM && !e.hasLabel && !e.hasComponent && !e.hasFixVersion && !e.hasPriority && !e.hasParent && !e.hasDue && !e.hasField
+	return !e.hasSummary && !e.hasM && !e.hasLabel && !e.hasComponent && !e.hasFixVersion && !e.hasType && !e.hasPriority && !e.hasParent && !e.hasDue && !e.hasField
 }
 
-func parseEditChange(hasSummary, hasM, hasLabel, hasComponent, hasFixVersion, hasPriority, hasParent, hasDue, hasField bool,
-	summary, body, priority, due, parent string, labels, components, fixVersions, fieldFlags []string) (editChange, error) {
+func parseEditChange(hasSummary, hasM, hasLabel, hasComponent, hasFixVersion, hasType, hasPriority, hasParent, hasDue, hasField bool,
+	summary, body, typ, priority, due, parent string, labels, components, fixVersions, fieldFlags []string) (editChange, error) {
 	var ch editChange
 	ch.hasSummary, ch.hasM, ch.hasLabel, ch.hasComponent = hasSummary, hasM, hasLabel, hasComponent
-	ch.hasFixVersion, ch.hasPriority, ch.hasParent, ch.hasDue, ch.hasField = hasFixVersion, hasPriority, hasParent, hasDue, hasField
-	ch.summary, ch.body, ch.priority = summary, body, priority
+	ch.hasFixVersion, ch.hasType, ch.hasPriority = hasFixVersion, hasType, hasPriority
+	ch.hasParent, ch.hasDue, ch.hasField = hasParent, hasDue, hasField
+	ch.summary, ch.body, ch.typeWant, ch.priority = summary, body, typ, priority
 	ch.labels, ch.components, ch.fixVersions = labels, components, fixVersions
 
 	if hasSummary && strings.TrimSpace(summary) == "" {
+		return ch, usageError("edit", editUsage)
+	}
+	// Empty is refused here, not inside create.Type: Type's empty-want path
+	// applies create-only fallbacks (configured default id, sole type) that
+	// must never refile an existing issue the user did not name a type for.
+	if hasType && strings.TrimSpace(typ) == "" {
 		return ch, usageError("edit", editUsage)
 	}
 	if hasDue {
@@ -221,7 +237,7 @@ func parseEditChange(hasSummary, hasM, hasLabel, hasComponent, hasFixVersion, ha
 	return ch, nil
 }
 
-func applyEditChange(ctx context.Context, c origin.Writer, src string, ch editChange) error {
+func applyEditChange(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src string, ch editChange) error {
 	key := ch.key
 	fields := map[string]any{}
 	update := map[string]any{}
@@ -259,6 +275,13 @@ func applyEditChange(ctx context.Context, c origin.Writer, src string, ch editCh
 		}
 		fields["priority"] = map[string]string{"id": id}
 	}
+	if ch.hasType {
+		id, terr := resolveEditType(ctx, cfg, db, c, src, key, ch.typeWant)
+		if terr != nil {
+			return terr
+		}
+		fields["issuetype"] = map[string]string{"id": id}
+	}
 	if ch.hasParent {
 		if ch.clearParent {
 			fields["parent"] = nil
@@ -295,7 +318,43 @@ func applyEditChange(ctx context.Context, c origin.Writer, src string, ch editCh
 	return withComponentHint(ctx, c, key, err, ch.hasComponent)
 }
 
-var editBatchFields = []string{"key", "summary", "description", "labels", "components", "fix_versions", "priority", "due", "parent", "fields"}
+// resolveEditType turns edit --type into the issuetype id the PUT carries.
+// Matching is create.Type's — the GDK-741 single owner, so edit accepts ids,
+// localized names, and structural aliases on exactly create's terms. The
+// catalog is createmeta for the issue's own project: the mirror's
+// project_key first (a key prefix that is not the project key cannot
+// misroute), the key prefix when the mirror has no row — the origin's
+// createmeta is the final verifier either way. Linear has no issue types,
+// so the write is refused before any catalog is fetched (GDK-962).
+func resolveEditType(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src, key, want string) (string, error) {
+	if src == "linear" {
+		return "", origin.ErrNoIssueTypes
+	}
+	project := projectKeyFromIssueKey(key)
+	if db != nil {
+		if lites, err := lookup(db, []string{key}); err == nil && len(lites) > 0 && strings.TrimSpace(lites[0].ProjectKey) != "" {
+			project = lites[0].ProjectKey
+		}
+	}
+	if project == "" {
+		return "", fmt.Errorf("cannot derive project key from %q", key)
+	}
+	meta, err := c.CreateMeta(ctx, []string{project})
+	if err != nil {
+		return "", err
+	}
+	_, types, err := create.MetaForWithCatalog(ctx, c, meta, project, cfg)
+	if err != nil {
+		return "", err
+	}
+	typeRes, err := create.Type(want, types, cfg, project)
+	if err != nil {
+		return "", formatCreateError(err)
+	}
+	return typeRes.Value, nil
+}
+
+var editBatchFields = []string{"key", "summary", "description", "labels", "components", "fix_versions", "type", "priority", "due", "parent", "fields"}
 
 func runEditBatch(asJSON bool, base editChange) error {
 	return runWriteBatch("edit", asJSON, func(raw string) batchResult {
@@ -309,11 +368,11 @@ func runEditBatch(asJSON bool, base editChange) error {
 		}
 		ch.key = key
 		if ch.empty() {
-			return batchErr(key, false, errors.New("nothing to edit — JSON line needs one of summary, description, labels, components, fix_versions, priority, due, parent, fields"))
+			return batchErr(key, false, errors.New("nothing to edit — JSON line needs one of summary, description, labels, components, fix_versions, type, priority, due, parent, fields"))
 		}
 		var wrote bool
 		err = withKeyWriteSession(key, func(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src string) error {
-			if err := applyEditChange(ctx, c, src, ch); err != nil {
+			if err := applyEditChange(ctx, cfg, db, c, src, ch); err != nil {
 				return err
 			}
 			wrote = true
@@ -375,6 +434,15 @@ func overlayEditJSON(base editChange, obj map[string]json.RawMessage) (editChang
 		}
 		ch.hasFixVersion = true
 		ch.fixVersions = v
+	}
+	if s, ok, err := jsonStringField(obj, "type"); err != nil {
+		return ch, err
+	} else if ok {
+		if strings.TrimSpace(s) == "" {
+			return ch, usageError("edit", editUsage)
+		}
+		ch.hasType = true
+		ch.typeWant = s
 	}
 	if s, ok, err := jsonStringField(obj, "priority"); err != nil {
 		return ch, err

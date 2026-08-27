@@ -118,6 +118,14 @@ func unsupportedf(format string, args ...any) error {
 	return unsupported(fmt.Sprintf(format, args...))
 }
 
+// ErrNoIssueTypes is the edit --type refusal (GDK-962): Linear has no issue
+// types, so asking to change one is refused, never silently dropped — the
+// same class as create --type being dropped before GDK-741. The CLI refuses
+// before fetching any catalog (a Linear type catalog cannot exist), and
+// linearWriter.UpdateFields refuses the issuetype field itself so any other
+// surface sending it inherits the same sentence.
+var ErrNoIssueTypes = unsupported("linear: this origin has no issue types")
+
 // AsVersionCatalog returns w as VersionCatalog, or ErrNoVersionCatalog.
 func AsVersionCatalog(w Writer) (VersionCatalog, error) {
 	v, ok := w.(VersionCatalog)

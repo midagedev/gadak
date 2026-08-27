@@ -475,6 +475,7 @@ gadak create Batch worker drops the last page --project NMB --type Bug -m "repro
 gadak create Severity required --project NMB --type Task --field severity=High
 gadak attach NMB-140 screenshot.png trace.log
 gadak edit NMB-140 --summary "…" --label +regression --label -needs-triage --priority High --parent none
+gadak edit NMB-140 --type Task                # name, localized name, or id — same resolver as create --type
 gadak edit NMB-140 --component +SDK --component -Docs
 gadak edit NMB-140 --fix-version +v2.5 --fix-version -10012
 gadak edit NMB-140 --field severity=High
@@ -484,7 +485,7 @@ gadak create --batch -                        # one JSON object per line on stdi
 gadak comment --batch -                       # JSON lines {"key","body"}; tries every line; one envelope row per key
 gadak transition --batch -                    # JSON lines {"key","target"}; --dry-run writes nothing (--json adds transition_id)
 gadak assign --batch -                        # JSON lines {"key","assignee"}; "-" unassigns
-gadak edit --batch -                          # JSON lines {"key"} plus summary, labels (+x/-x), priority, due, parent, fields
+gadak edit --batch -                          # JSON lines {"key"} plus summary, labels (+x/-x), type, priority, due, parent, fields
 gadak fields --apply                          # map in-use custom fields, then edit --field alias=value
 gadak project create IDEA --name Ideas        # grow a standalone workspace by a project
 gadak transition NMB-140 done --field environment=staging
