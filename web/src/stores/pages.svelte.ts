@@ -97,6 +97,13 @@ class PagesStore {
   index = $state<PageLite[]>([])
   /** Server answered — lets the sidebar tell "no docs" from "not asked yet". */
   loaded = $state(false)
+  /** Index request in flight — the docs screens' loading window (GDK-1054). */
+  loading = $state(false)
+  /**
+   * The index request failed. Failure is not emptiness: until this clears,
+   * "no documents" copy must not stand in for an unanswered request (GDK-1054).
+   */
+  loadFailed = $state(false)
   /** Page hits from the last server search. Cleared with the query. */
   searchHits = $state<PageLite[]>([])
   /** The tabbed document view owns the main column instead of the issue list.
@@ -314,14 +321,20 @@ class PagesStore {
   async init(): Promise<void> {
     if (this.loaded) return
     this.docsTab = loadDocsTab()
+    this.loading = true
+    this.loadFailed = false
     try {
       const res = await api.getPages()
       this.index = res.pages ?? []
+      this.loaded = true
     } catch (e) {
       console.warn('[pages] 문서 목록 로드 실패', e)
       this.index = []
+      // Failure is not emptiness: `loaded` stays false so the screen shows the
+      // error line (not the empty copy) and a later init()/reload() retries.
+      this.loadFailed = true
     } finally {
-      this.loaded = true
+      this.loading = false
     }
   }
 
@@ -332,6 +345,8 @@ class PagesStore {
    * watching to see whether it worked.
    */
   async reload(): Promise<void> {
+    this.loading = true
+    this.loadFailed = false
     try {
       const res = await api.getPages()
       this.index = res.pages ?? []
@@ -342,6 +357,11 @@ class PagesStore {
       this.detailNonce++
     } catch (e) {
       console.warn('[pages] 문서 목록 갱신 실패', e)
+      // Keep the stale index (the sidebar keeps its rows); the screens swap
+      // the list for the error line until a retry succeeds.
+      this.loadFailed = true
+    } finally {
+      this.loading = false
     }
   }
 

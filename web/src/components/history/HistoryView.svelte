@@ -271,7 +271,23 @@
     </button>
   </header>
 
-  {#if !history.loaded && history.loading}
+  {#if history.loadFailed}
+    <!-- Failure is not emptiness (GDK-1054): an unanswered/failed history
+         request must not read as "nothing viewed or searched yet". Same
+         shape as DetailPanel's network branch. -->
+    <div class="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
+      <p class="text-body text-text-secondary" data-testid="history-load-error">
+        {t('history.loadFailed')}
+      </p>
+      <button
+        type="button"
+        onclick={() => void history.reload()}
+        class="rounded-md border border-border-strong px-3 py-1.5 text-body font-medium text-text-secondary transition-colors hover:bg-bg-hover"
+      >
+        {t('common.retry')}
+      </button>
+    </div>
+  {:else if !history.loaded && history.loading}
     {#if skeleton.visible}
       <div class="min-h-0 flex-1">
         <LoadingState label={t('common.loading')} />

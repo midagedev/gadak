@@ -36,6 +36,14 @@ const READ_PATH: { name: string; file: string; comment: string }[] = [
     comment: 'GET feed/ is a local mirror read; sibling column of history',
   },
   {
+    // GDK-1054: the docs index is a mirror read whose loading window is the
+    // failure/empty split — without the grace, an in-flight (or failed)
+    // pages/ request painted the "no documents" copy.
+    name: 'docs list',
+    file: join(WEB_SRC, 'components/docs/DocsView.svelte'),
+    comment: 'GET pages/ index read; loading window separates unanswered from empty',
+  },
+  {
     // GDK-827: the dashboard row fetch joined the column's read-path family
     // (loopback serve read; the frame paints the instant the row lands).
     name: 'dashboard',

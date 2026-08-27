@@ -81,6 +81,15 @@ export class StandaloneDataPresentError extends ApiError {
 /**
  * GDK-477: a network throw (server gone) is the down signal. A caller abort
  * is a client timeout — Jira being slow is not "gadak serve is unreachable".
+ *
+ * GDK-1054: a RESPONSE with status >= 500 is the same signal. The GDK-1025
+ * audit measured a fully-503 server rendering as total silence — the server
+ * answered, but nothing marked "the server is failing". The single owner is
+ * lib/reachability (its state publishes on <html data-server-reachability>,
+ * so one DOM inspection names it on the next silent-failure hunt). 4xx stays
+ * per-surface: those are answers, not outages. Recovery is unchanged and
+ * pool-owned — a successful sync marks up (stores/issues #sync), the signal
+ * that always took the strip down.
  */
 let onNetworkDown: (() => void) | null = null
 
@@ -100,13 +109,20 @@ function noteNetworkFailure(err: unknown): void {
   onNetworkDown?.()
 }
 
+/** An answered 5xx joins the network throw as a down signal (GDK-1054). */
+function noteServerFailure(status: number): void {
+  if (status >= 500) onNetworkDown?.()
+}
+
 /** Shared fetch — path is relative to the API base. */
 async function raw(path: string, init?: RequestInit): Promise<Response> {
   try {
-    return await fetch(config().apiBase + path, {
+    const res = await fetch(config().apiBase + path, {
       credentials: 'same-origin',
       ...init,
     })
+    noteServerFailure(res.status)
+    return res
   } catch (err) {
     noteNetworkFailure(err)
     throw err
@@ -431,6 +447,7 @@ async function dashJSON<T>(path: string): Promise<T> {
     noteNetworkFailure(err)
     throw err
   }
+  noteServerFailure(res.status)
   if (!res.ok) {
     let code: string | null = null
     let message = `GET ${url} → ${res.status}`

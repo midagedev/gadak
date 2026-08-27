@@ -253,4 +253,95 @@ test.describe('F12 detail / settings / server-down', () => {
       `console errors:\n${errors.join('\n')}`,
     ).toEqual([])
   })
+
+  test('GDK-1054: an answered 503 raises the offline strip; recovery clears it', async ({
+    page,
+  }) => {
+    const errors = attachConsoleErrors(page)
+    await page.setViewportSize({ width: 1280, height: 800 })
+    await gotoApp(page)
+
+    /*
+     * GDK-477's down class was the network throw only. A server ANSWERING
+     * 503 to everything stayed silent — no strip on any screen (GDK-1025
+     * audit). No click here: the 500ms ui-focus poll carries a raw() 503
+     * within seconds, which is exactly the passive path that used to be
+     * silent. 4xx is deliberately not routed: those are answers, not
+     * outages, and stay per-surface.
+     */
+    let down = true
+    await page.route('**/api/v1/issues/**', (route) => {
+      if (!down) return route.continue()
+      return route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: '{"error":"service unavailable"}',
+      })
+    })
+
+    await expect(page.getByTestId('offline-banner')).toBeVisible({ timeout: 10_000 })
+    // Debug axis: one DOM inspection names the state (reachability publish).
+    await expect(page.locator('html')).toHaveAttribute('data-server-reachability', 'down')
+
+    // The sync popover's offline line lights up off the same signal.
+    await page.getByTestId('sidebar-sync-now').click()
+    const popover = page.getByTestId('sync-history-popover')
+    await expect(popover).toBeVisible()
+    await expect(popover.getByTestId('sync-history-offline')).toBeVisible()
+
+    await page.screenshot({ path: '/tmp/f12-shots/1054-503-strip.png' })
+
+    down = false
+    await popover.getByTestId('sync-history-retry').click()
+    await expect(page.getByTestId('offline-banner')).toHaveCount(0)
+    await expect(page.locator('html')).toHaveAttribute('data-server-reachability', 'up')
+
+    // The intercepted 503s log "Failed to load resource"; that is the regime.
+    expect(
+      errors.filter((e) => !e.includes('Failed to load resource')),
+      `console errors:\n${errors.join('\n')}`,
+    ).toEqual([])
+  })
+
+  test('GDK-1054: a 503 docs index is an error line, never the empty copy', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    await page.setViewportSize({ width: 1280, height: 800 })
+    await page.route('**/api/v1/issues/pages/**', (route) =>
+      route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: '{"error":"service unavailable"}',
+      }),
+    )
+    await gotoApp(page)
+    // Deep link: with the index failed the sidebar swaps its DOCS section for
+    // the empty CTA, so the view is reached the way a shared link arrives.
+    await page.goto('/?docs=1')
+    await expect(page.getByTestId('docs-view')).toBeVisible()
+    await expect(page.getByTestId('docs-load-error')).toBeVisible()
+    await expect(page.getByTestId('docs-load-error')).toContainText(en['docs.loadFailed'])
+    // Failure is not emptiness: neither empty copy may stand in for a 503.
+    await expect(page.getByText(en['docs.viewedEmpty'], { exact: false })).toHaveCount(0)
+    await expect(page.getByText(en['docs.recentEmpty'], { exact: false })).toHaveCount(0)
+    // No banner assertion here, on purpose: with only pages/ failing, the
+    // deep-link reload's own pool sync succeeds and marks the server back up
+    // (the strip is one-owner — a later successful sync clears it, exactly
+    // like a transient GDK-477 abort). The docs surface's own signal is the
+    // error line above; the strip's 5xx case is the test before this one.
+
+    await page.screenshot({ path: '/tmp/f12-shots/1054-docs-error.png' })
+
+    await page.unrouteAll({ behavior: 'ignoreErrors' })
+    await page.getByRole('button', { name: en['common.retry'] }).click()
+    // Recovered: rows on the Updated tab (Viewed is legitimately empty in a
+    // fresh context — it holds only this browser's own visits).
+    await page.locator('[data-testid="docs-tab"][data-tab="updated"]').click()
+    await expect(page.getByTestId('doc-row').first()).toBeVisible()
+    await expect(page.getByTestId('docs-load-error')).toHaveCount(0)
+
+    expect(
+      errors.filter((e) => !e.includes('Failed to load resource')),
+      `console errors:\n${errors.join('\n')}`,
+    ).toEqual([])
+  })
 })

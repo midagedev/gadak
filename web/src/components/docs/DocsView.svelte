@@ -23,10 +23,18 @@
   import EmptyState from '../list/EmptyState.svelte'
   import DocsFilter from './DocsFilter.svelte'
   import DocRow from './DocRow.svelte'
+  import LoadingState from '../ui/LoadingState.svelte'
   import VirtualRows from '../ui/VirtualRows.svelte'
+  import { createSkeletonGrace } from '../../lib/skeleton-grace.svelte'
   import { onRowMetricsInvalidated, rowMetrics } from '../../lib/row-metrics'
 
   docsEmpty.bind()
+
+  // In flight ≠ empty: while the index request is unanswered the settled
+  // empty copy must not stand in for it (GDK-1054 finding 12). Same grace
+  // owner as every other read path — a load that lands inside the window
+  // paints nothing at all.
+  const skeleton = createSkeletonGrace(() => pages.loading && !pages.loaded)
 
   const TABS: { key: DocsTab; label: string }[] = [
     { key: 'viewed', label: t('docs.tabViewed') },
@@ -185,7 +193,11 @@
   })
 </script>
 
-<section class="flex h-full min-h-0 flex-col bg-bg-base" data-testid="docs-view">
+<section
+  class="flex h-full min-h-0 flex-col bg-bg-base"
+  data-testid="docs-view"
+  data-skeleton={skeleton.attr}
+>
   <header class="flex flex-none flex-wrap items-center gap-2 border-b border-border-subtle px-4 py-2">
     <h2 class="whitespace-nowrap text-body font-semibold text-text-primary">{t('docs.title')}</h2>
     <!-- While the filter is on, the count is a fraction: how many rows are left
@@ -254,7 +266,28 @@
     </button>
   </header>
 
-  {#if emptyKind}
+  {#if pages.loadFailed}
+    <!-- Failure is not emptiness (GDK-1054): the request answered with an
+         error, so the error line replaces whatever the empty copy would say
+         about a mirror that may hold documents. Same shape as DetailPanel's
+         network branch. -->
+    <div class="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
+      <p class="text-body text-text-secondary" data-testid="docs-load-error">
+        {t('docs.loadFailed')}
+      </p>
+      <button
+        type="button"
+        onclick={() => void pages.reload()}
+        class="rounded-md border border-border-strong px-3 py-1.5 text-body font-medium text-text-secondary transition-colors hover:bg-bg-hover"
+      >
+        {t('common.retry')}
+      </button>
+    </div>
+  {:else if !pages.loaded}
+    {#if skeleton.visible}
+      <div class="min-h-0 flex-1"><LoadingState label={t('common.loading')} /></div>
+    {/if}
+  {:else if emptyKind}
     <div
       class="min-h-0 flex-1 overflow-y-auto"
       data-docs-empty-state={emptyKind === 'recent' ? docsEmpty.state : undefined}

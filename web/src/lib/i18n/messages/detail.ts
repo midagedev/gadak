@@ -385,6 +385,13 @@ export const detail = {
     ko: '미러링된 문서가 아직 없습니다',
     ja: 'ミラーされたドキュメントはまだありません',
   },
+  /* GDK-1054: the index request failed — the list-screen counterpart of
+     doc.loadFailed ("this document"), which is about one open page. */
+  'docs.loadFailed': {
+    en: 'Could not load documents.',
+    ko: '문서 목록을 불러오지 못했습니다.',
+    ja: 'ドキュメントの一覧を読み込めませんでした。',
+  },
   /* The field narrows what is on screen; Enter leaves for the whole mirror. The
      placeholder carries both, because Enter changing screens has to be asked
      for, not discovered. */
@@ -488,6 +495,12 @@ export const detail = {
     en: 'Nothing viewed or searched yet',
     ko: '열람하거나 검색한 항목이 없습니다',
     ja: 'まだ閲覧も検索もしていません',
+  },
+  /* GDK-1054: the history request failed — not "nothing viewed yet". */
+  'history.loadFailed': {
+    en: 'Could not load history.',
+    ko: '기록을 불러오지 못했습니다.',
+    ja: '履歴を読み込めませんでした。',
   },
   'history.emptyHint': {
     en: 'Issues and documents you open, and searches you run, appear here.',

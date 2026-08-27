@@ -17,6 +17,13 @@ class HistoryStore {
   nextCursor = $state('')
   loading = $state(false)
   loaded = $state(false)
+  /**
+   * The last load failed. Failure is not emptiness: wiping items on an error
+   * made a 503 render the "nothing viewed or searched yet" copy (GDK-1054).
+   * On failure the items stay (stale-but-real) and the screen shows the
+   * error line instead.
+   */
+  loadFailed = $state(false)
   /** Server `kind` query. Empty = mixed visits + searches. */
   kind = $state<HistoryKindFilter>('')
   /** Local text narrowing — not a recorded search. */
@@ -24,6 +31,7 @@ class HistoryStore {
 
   async reload(): Promise<void> {
     this.loading = true
+    this.loadFailed = false
     try {
       const page = await api.getHistory({
         kind: this.kind || undefined,
@@ -34,9 +42,7 @@ class HistoryStore {
       this.loaded = true
     } catch (e) {
       console.debug('[history] load failed', e)
-      this.items = []
-      this.nextCursor = ''
-      this.loaded = true
+      this.loadFailed = true
     } finally {
       this.loading = false
     }
