@@ -26,6 +26,20 @@ async function openIssue(page: import('@playwright/test').Page) {
   return panel
 }
 
+/** The placeholder must fit the input's client box — the invariant behind
+ *  both the GDK-463 and GDK-1056 switches: never a clipped intermediate. */
+async function placeholderFits(page: import('@playwright/test').Page) {
+  const input = searchInput(page)
+  return input.evaluate((el: HTMLInputElement) => {
+    const cs = getComputedStyle(el)
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return false
+    ctx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`.trim()
+    return ctx.measureText(el.placeholder).width <= el.clientWidth + 0.5
+  })
+}
+
 test.describe('F7 UX defects', () => {
   test('GDK-461: zero palette matches do not default Enter to create', async ({ page }) => {
     const errors = attachConsoleErrors(page)
@@ -115,14 +129,7 @@ test.describe('F7 UX defects', () => {
 
     const input = searchInput(page)
     await expect(input).toHaveAttribute('placeholder', en['list.searchPlaceholderShort'])
-    const fits = await input.evaluate((el: HTMLInputElement) => {
-      const cs = getComputedStyle(el)
-      const canvas = document.createElement('canvas')
-      const ctx = canvas.getContext('2d')
-      if (!ctx) return false
-      ctx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`.trim()
-      return ctx.measureText(el.placeholder).width <= el.clientWidth + 0.5
-    })
+    const fits = await placeholderFits(page)
     expect(fits, '900px placeholder must render without clipping').toBe(true)
     await page.screenshot({ path: '/tmp/f7-shots/900-list.png' })
 
@@ -145,6 +152,28 @@ test.describe('F7 UX defects', () => {
     const docked = await openIssue(page)
     await expect(docked.getByTestId('issue-detail-back')).toHaveCount(0)
     await page.screenshot({ path: '/tmp/f7-shots/1280-list.png' })
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  test('GDK-1056: a docked panel at 1440 switches the placeholder before it can clip', async ({
+    page,
+  }) => {
+    const errors = attachConsoleErrors(page)
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await gotoApp(page)
+
+    const input = searchInput(page)
+    await expect(input).toHaveAttribute('placeholder', en['list.searchPlaceholder'])
+
+    const panel = await openIssue(page)
+    // 1440 docks the panel (no overlay back control) — the input shrinks
+    // while the viewport does not, which is exactly the regime the
+    // viewport-only switch missed.
+    await expect(panel.getByTestId('issue-detail-back')).toHaveCount(0)
+    await expect(input).toHaveAttribute('placeholder', en['list.searchPlaceholderShort'])
+    const fits = await placeholderFits(page)
+    expect(fits, '1440+docked-panel placeholder must render without clipping').toBe(true)
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })

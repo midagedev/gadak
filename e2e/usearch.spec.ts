@@ -77,14 +77,14 @@ test.describe('unified search — palette + entry', () => {
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 
-  test('the top-bar entry opens the palette; SearchBox says it narrows this list', async ({
+  test('the top-bar entry opens the palette; SearchBox says it searches this list', async ({
     page,
   }) => {
     const errors = attachConsoleErrors(page)
     await gotoApp(page)
 
     const box = searchInput(page)
-    await expect(box).toHaveAttribute('placeholder', /narrow this list/i)
+    await expect(box).toHaveAttribute('placeholder', /search this list/i)
 
     await page.getByTestId('palette-open').click()
     const palette = page.getByRole('dialog', { name: 'Command palette' })

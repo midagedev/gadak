@@ -481,19 +481,19 @@ export const list = {
     ja: 'QA 待ち',
   },
   'list.searchPlaceholder': {
-    en: 'Narrow this list, or paste JQL…',
-    ko: '이 목록에서 좁히기, 또는 JQL 붙여넣기…',
-    ja: 'この一覧を絞る、または JQL を貼り付け…',
+    en: 'Search this list — key, title, @assignee…',
+    ko: '이 목록에서 검색 — 키·제목·@담당자…',
+    ja: 'この一覧を検索 — キー・タイトル・@担当者…',
   },
   'list.searchPlaceholderShort': {
-    en: 'Filter or JQL…',
-    ko: '필터 또는 JQL…',
-    ja: 'フィルターまたは JQL…',
+    en: 'Search…',
+    ko: '검색…',
+    ja: '検索…',
   },
   'list.searchHelp': {
-    en: 'Narrows this list (key, title, assignee, labels). Example: @dana or is:unassigned. Paste JQL to apply it. Enter searches body and comments here.',
-    ko: '이 목록을 좁힙니다 (키·제목·담당자·라벨). 예: @dana 또는 is:unassigned. JQL을 붙여넣으면 적용됩니다. Enter로 본문·코멘트를 검색합니다.',
-    ja: 'この一覧を絞ります（キー、タイトル、担当者、ラベル）。例: @dana または is:unassigned。JQL を貼ると適用されます。Enter で本文とコメントを検索します。',
+    en: 'Searches this list (key, title, assignee, labels). Example: @dana or is:unassigned. Paste JQL to apply it. Enter searches body and comments here.',
+    ko: '이 목록을 검색합니다 (키·제목·담당자·라벨). 예: @dana 또는 is:unassigned. JQL을 붙여넣으면 적용됩니다. Enter로 본문·코멘트를 검색합니다.',
+    ja: 'この一覧を検索します（キー、タイトル、担当者、ラベル）。例: @dana または is:unassigned。JQL を貼ると適用されます。Enter で本文とコメントを検索します。',
   },
   'list.searchHelpShortcuts': {
     en: 'Full syntax is in the keyboard cheat sheet (?)',

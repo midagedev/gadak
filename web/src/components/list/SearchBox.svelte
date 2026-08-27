@@ -30,16 +30,40 @@
   let inputEl = $state<HTMLInputElement | null>(null)
   let sugIdxRaw = $state(0)
 
-  // GDK-463: ≤960px the long placeholder clips inside the toolbar field.
-  // Match the catalog switch to the viewport, not to overlay-regime (1100).
-  const NARROW_PLACEHOLDER_MQ = '(max-width: 960px)'
-  let narrowPlaceholder = $state(false)
+  // GDK-463: ≤960px the toolbar is compact — hide the palette entry's label.
+  // Viewport-based on purpose (overlay-regime is 1100): it sizes a sibling
+  // button, where an input-width trigger would feed back through the layout
+  // (label hides → field grows → trigger flips → label returns → …).
+  const NARROW_TOOLBAR_MQ = '(max-width: 960px)'
+  let viewportNarrow = $state(false)
   onMount(() => {
-    const mq = window.matchMedia(NARROW_PLACEHOLDER_MQ)
-    const apply = () => (narrowPlaceholder = mq.matches)
+    const mq = window.matchMedia(NARROW_TOOLBAR_MQ)
+    const apply = () => (viewportNarrow = mq.matches)
     apply()
     mq.addEventListener('change', apply)
     return () => mq.removeEventListener('change', apply)
+  })
+
+  /*
+   * GDK-1056: a docked detail panel or a terminal split shrinks this input
+   * without touching the viewport, so the placeholder switch measures the
+   * field itself — the full copy renders only where it actually fits. Same
+   * font recipe the e2e fits-check uses (e2e/ux-f7.spec.ts); +8px slack so
+   * sub-pixel rounding at the boundary cannot flicker the switch.
+   */
+  let narrowPlaceholder = $state(false)
+  $effect(() => {
+    const el = inputEl
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => {
+      const cs = getComputedStyle(el)
+      const ctx = document.createElement('canvas').getContext('2d')
+      if (!ctx) return
+      ctx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`.trim()
+      narrowPlaceholder = ctx.measureText(t('list.searchPlaceholder')).width + 8 > el.clientWidth
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
   })
 
   /*
@@ -398,9 +422,18 @@
     onclick={() => requestOpenPalette()}
   >
     <Icon name="search" size={14} class="text-text-muted" />
-    {#if !narrowPlaceholder}
+    {#if !viewportNarrow}
       <span>{t('palette.entryLabel')}</span>
     {/if}
     <kbd class="rounded border border-border-subtle px-1 text-micro text-text-muted">{paletteShortcutLabel()}</kbd>
   </button>
 </div>
+
+<style>
+  /* GDK-1056: if a future copy outgrows the field in a regime the width
+     switch above does not predict, degrade to an ellipsis — never a silent
+     mid-word cut. */
+  input::placeholder {
+    text-overflow: ellipsis;
+  }
+</style>
