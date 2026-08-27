@@ -168,6 +168,16 @@
   --font-mono:
     ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono',
     'Apple SD Gothic Neo', 'Noto Sans CJK KR', 'Malgun Gothic', monospace;
+  /* The terminal pane cannot ride --font-mono (GDK-1043): WebKit resolves
+     ui-monospace to SF Mono, whose box-glyph ink (15.31css at 13px) is
+     shorter than the 16css cell xterm derives — a 1px seam at every row
+     boundary — while Menlo joins by overshoot (ink 15.14 ≥ cell 15.00) on
+     both engines (measured 2026-08-28). The Hangul gothics must stay ahead
+     of the generic: a sans-class fallback reaching the box glyphs destroys
+     the grid (measured vgaps=150, cell 12.03). */
+  --font-mono-terminal:
+    Menlo, ui-monospace, SFMono-Regular, 'SF Mono', Consolas, 'Liberation Mono',
+    'Apple SD Gothic Neo', 'Noto Sans CJK KR', 'Malgun Gothic', monospace;
 }
 
 /*

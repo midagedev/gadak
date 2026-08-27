@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { fromTerminalHost, isEditableTarget, keyContext, resolveGlobalKey } from '../keymap.svelte'
-import { createUtf8StreamDecoder, terminalFontSize } from './renderer'
+import { createUtf8StreamDecoder, fontFamily, terminalFontSize } from './renderer'
 import {
   TERMINAL_MIN_WIDTH_PX,
   TERMINAL_SPLIT_WITH_DETAIL_MIN_PX,
@@ -179,5 +179,40 @@ describe('the terminal size is a token, not a literal', () => {
     expect(terminalFontSize(() => '')).toBe(13)
     expect(terminalFontSize(() => 'inherit')).toBe(13)
     expect(terminalFontSize(() => '0px')).toBe(13)
+  })
+})
+
+describe('the terminal font stack is its own token (GDK-1043)', () => {
+  /*
+   * 2026-08-28 — GDK-1043. WebKit (the desktop pane and the phone, both
+   * WKWebView) resolves ui-monospace to SF Mono, whose box-glyph ink
+   * (15.31css) is shorter than the 16css cell xterm derives at 13px — a 1px
+   * seam at every row boundary, with └┴┘ arms floating above the cell
+   * bottom. Menlo joins by overshoot (15.14 ≥ 15.00) on both engines, so the
+   * pane leads with it through a token of its own; --font-mono stays the
+   * app-wide face (code chips, tables) where box grids never occur. The
+   * stack's order is pinned as text in font-stack.test.ts — these pin the
+   * reader's preference, not the stack itself.
+   */
+  const vars = (map: Record<string, string>) => (name: string) => map[name] ?? ''
+
+  test('the terminal token wins over the app-wide mono', () => {
+    const read = vars({
+      '--font-mono-terminal': 'Menlo, monospace',
+      '--font-mono': 'ui-monospace, monospace',
+    })
+    expect(fontFamily(read)).toBe('Menlo, monospace')
+  })
+
+  test('an empty terminal token falls back to the app-wide mono', () => {
+    const read = vars({
+      '--font-mono-terminal': '',
+      '--font-mono': 'ui-monospace, monospace',
+    })
+    expect(fontFamily(read)).toBe('ui-monospace, monospace')
+  })
+
+  test('neither token set keeps the hardcoded stack (units ship no stylesheet)', () => {
+    expect(fontFamily(() => '')).toBe('ui-monospace, SFMono-Regular, Menlo, Consolas, monospace')
   })
 })
