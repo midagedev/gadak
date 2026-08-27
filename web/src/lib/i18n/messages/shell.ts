@@ -765,6 +765,14 @@ export const shell = {
     ko: '가 실행 중인지 확인하세요.',
     ja: '起動していることを確認してください。',
   },
+  // GDK-1048: the pre-dial scope refusal in mobile lib/api.ts. Not
+  // 'network' — the server may be perfectly up; this app never sent the
+  // request because the endpoint is outside the http capability scope.
+  'app.endpointScope': {
+    en: 'This app does not send requests to that address. It only talks to tailnet HTTPS names (`*.ts.net`) or this machine over loopback. Pair again with a serve address of that shape.',
+    ko: '이 앱은 그 주소로 요청을 보내지 않습니다. 테일넷 HTTPS 주소(`*.ts.net`)나 이 기기의 루프백 주소로만 통신합니다. 그 형태의 serve 주소로 다시 페어링하세요.',
+    ja: 'このアプリはそのアドレスにリクエストを送信しません。テールネットの HTTPS アドレス（`*.ts.net`）かこの端末のループバックのみに接続します。その形式の serve アドレスで再度ペアリングしてください。',
+  },
   'app.offlineBanner': {
     en: 'Offline — showing cached data',
     ko: '오프라인 — 캐시된 데이터를 표시 중',

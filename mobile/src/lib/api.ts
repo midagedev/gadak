@@ -11,6 +11,9 @@
 // errorMessage(); the raw body is never echoed into the UI, and the token
 // never appears in an error, a log line, or a URL.
 
+import { inDialScope } from './dial-scope'
+import { t } from './i18n'
+
 const IS_DEV = import.meta.env.DEV
 
 export interface ApiSession {
@@ -67,23 +70,34 @@ interface RequestOpts {
   etag?: string | null
   /** Overrides the configured session — the pairing probe uses this. */
   session?: ApiSession
+  /** Test seam: same role as apiUrl's `dev` parameter. */
+  dev?: boolean
   /** Test seam. */
   fetchFn?: FetchLike
 }
 
 /**
- * Core request. Throws ApiError('network') when the server is unreachable,
- * ApiError(code) for `{"error": code}` bodies; returns the envelope
- * otherwise (304 comes back with body null).
+ * Core request. Throws ApiError('endpoint_out_of_scope') before dialing
+ * when the packaged session endpoint sits outside the `http:default`
+ * capability scope — the refusal the plugin would make anyway, named
+ * instead of swallowed (GDK-1048: this used to surface as 'network', with
+ * zero requests in the serve log to tell the two apart). ApiError('network')
+ * when the server is unreachable, ApiError(code) for `{"error": code}`
+ * bodies; returns the envelope otherwise (304 comes back with body null).
  */
 export async function request<T>(path: string, opts: RequestOpts = {}): Promise<Envelope<T>> {
   const s = opts.session ?? session
+  const dev = opts.dev ?? IS_DEV
+  const url = apiUrl(s.endpoint, path, dev)
+  if (!dev && !inDialScope(url)) {
+    throw new ApiError('endpoint_out_of_scope', 0)
+  }
   const doFetch = opts.fetchFn ?? (await pickFetch())
   const headers = apiHeaders(s.token, opts.body !== undefined)
   if (opts.etag) headers['If-None-Match'] = opts.etag
   let res: Response
   try {
-    res = await doFetch(apiUrl(s.endpoint, path), {
+    res = await doFetch(url, {
       method: opts.method ?? 'GET',
       headers,
       body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
@@ -117,6 +131,11 @@ export function errorMessage(err: unknown): string {
   switch (code) {
     case 'network':
       return 'Cannot reach the server.'
+    case 'endpoint_out_of_scope':
+      // The only localized sentence so far: it names a cause the generic
+      // 'network' line cannot ("the server is down" vs "this app never
+      // sent the request"), so it rides the shared catalog (GDK-1048).
+      return t('app.endpointScope')
     case 'pairing_rejected':
       return 'Pairing was refused. Mint a new offer on the desktop and pair again.'
     case 'forbidden_host':

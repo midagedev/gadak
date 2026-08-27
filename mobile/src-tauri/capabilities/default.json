@@ -1,14 +1,14 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Main window capability. http is scoped to the pairing surfaces only (ts.net home serves over Tailscale HTTPS, loopback for dev and USB) — the packaged app talks to nothing else. websocket:default has no URL allowlist, so granting it widens what this app may dial, and nothing here narrows it back: src/lib/terminal/transport.ts restates the http list (assertAllowedShellEndpoint) and pins the socket to the paired origin (assertPairedWsUrl), but both are module-level correctness guards that any other code in this webview can bypass by calling the plugin directly — the boundary version is a Rust command that validates against the stored pairing (GDK-897). barcode-scanner and notification are registered for their later UI chunks. secure-storage plugin commands are deliberately NOT granted to JS: the token_get/token_set/token_del commands in lib.rs are the only door to the token.",
+  "description": "Main window capability. http is scoped to the pairing surfaces only (ts.net home serves over Tailscale HTTPS on any port — the pattern must carry `:*`, because URLPattern treats an omitted port as the default port only, so a bare `https://*.ts.net` admitted 443 and refused the 8443/10000 that `tailscale serve` also hands out, GDK-1048; loopback for dev and USB) — the packaged app talks to nothing else. websocket:default has no URL allowlist, so granting it widens what this app may dial, and nothing here narrows it back: src/lib/dial-scope.ts restates this http list as one predicate (asserted in lib/terminal/transport.ts and, before each dial, in lib/api.ts) and pins the socket to the paired origin (assertPairedWsUrl), but both are module-level correctness guards that any other code in this webview can bypass by calling the plugin directly — the boundary version is a Rust command that validates against the stored pairing (GDK-897). barcode-scanner and notification are registered for their later UI chunks. secure-storage plugin commands are deliberately NOT granted to JS: the token_get/token_set/token_del commands in lib.rs are the only door to the token.",
   "windows": ["main"],
   "permissions": [
     "core:default",
     {
       "identifier": "http:default",
       "allow": [
-        { "url": "https://*.ts.net" },
+        { "url": "https://*.ts.net:*" },
         { "url": "http://127.0.0.1:*" },
         { "url": "http://localhost:*" }
       ]

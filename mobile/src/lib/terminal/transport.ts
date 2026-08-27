@@ -9,6 +9,7 @@
 
 import { coerceDroppedReason } from '../../../../web/src/lib/terminal/protocol'
 import type { SocketHandle, SocketHandlers } from '../../../../web/src/lib/terminal/protocol'
+import { inDialScope } from '../dial-scope'
 
 const IS_DEV = import.meta.env.DEV
 
@@ -71,10 +72,11 @@ const ENDPOINT_OUT_OF_SCOPE = 'shell endpoint is outside the app dialling scope'
  * The endpoint is inside the same scope the platform enforces for HTTP.
  *
  * `http:default` in capabilities/default.json is URL-scoped to
- * `https://*.ts.net` and loopback, so a fetch outside that scope is refused
+ * `https://*.ts.net:*` and loopback, so a fetch outside that scope is refused
  * by Tauri itself. The websocket permission carries no such list, which
  * would otherwise let the shell socket reach a host the mirror's own
- * transport cannot. This restates that list where the socket is opened, so
+ * transport cannot. The list itself lives in lib/dial-scope.ts — one owner,
+ * ports included (GDK-1048), shared with the fetch path in lib/api.ts — so
  * the two transports agree on where this app may dial.
  *
  * Read it for what it is: a **correctness** guard, not a security boundary.
@@ -84,18 +86,7 @@ const ENDPOINT_OUT_OF_SCOPE = 'shell endpoint is outside the app dialling scope'
  * that is filed, not built (GDK-897).
  */
 export function assertAllowedShellEndpoint(endpoint: string): void {
-  let u: URL
-  try {
-    u = new URL(endpoint)
-  } catch {
-    throw new Error(ENDPOINT_OUT_OF_SCOPE)
-  }
-  const host = u.hostname.toLowerCase()
-  if (u.protocol === 'https:' && (host === 'ts.net' || host.endsWith('.ts.net'))) return
-  if (u.protocol === 'http:' && (host === 'localhost' || host === '127.0.0.1' || host === '[::1]' || host === '::1')) {
-    return
-  }
-  throw new Error(ENDPOINT_OUT_OF_SCOPE)
+  if (!inDialScope(endpoint)) throw new Error(ENDPOINT_OUT_OF_SCOPE)
 }
 
 /**
