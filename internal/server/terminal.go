@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -299,11 +300,25 @@ func (s *server) handleTerminalCreate(w http.ResponseWriter, r *http.Request) {
 		// A body is optional: the pane may not know its size yet.
 		_ = json.Unmarshal(body, &req)
 	}
-	sess, err := s.terminalManager().Create(term.Options{
+	// The settings block owns behavior (GDK-896): shell and working dir
+	// come from the config, everything else stays as it was.
+	tc := s.config().EffectiveTerminal()
+	opts := term.Options{
 		Cols:    req.Cols,
 		Rows:    req.Rows,
 		TokenID: tokenID,
-	})
+		Shell:   tc.Shell,
+	}
+	// A configured workingDir that is missing at create time must not make
+	// the terminal unopenable, and the fallback must not hide the typo.
+	if tc.WorkingDir != "" {
+		if info, err := os.Stat(tc.WorkingDir); err != nil || !info.IsDir() {
+			log.Printf("server: terminal workingDir %q not found; session starts in the workspace default", tc.WorkingDir)
+		} else {
+			opts.Dir = tc.WorkingDir
+		}
+	}
+	sess, err := s.terminalManager().Create(opts)
 	if err != nil {
 		if errors.Is(err, term.ErrUnsupportedPlatform) {
 			// Honest, and named: the pane can say "not on Windows yet".

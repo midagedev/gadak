@@ -82,6 +82,10 @@ var neverExportConfigFields = []string{
 	// the same seat as Appearance, and its dataColors.type keys are site-bound
 	// issue_type ids — another account would tint the wrong types.
 	"UI",
+	// Terminal behavior (GDK-896) names machine-local paths — a shell and a
+	// starting directory that exist on this machine. Same seat as UI: a
+	// personal preference, not team consensus.
+	"Terminal",
 }
 
 // credentialJSONKeys are JSON object keys that mean "this file carries

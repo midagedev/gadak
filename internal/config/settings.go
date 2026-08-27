@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -155,6 +156,114 @@ func ApplyAppearance(c *Config, a Appearance) error {
 		return nil
 	}
 	c.Appearance = &Appearance{Theme: theme}
+	return nil
+}
+
+// The terminal behavior block (GDK-896). Defaults named once so the
+// catalog descriptions, the validators' messages, and EffectiveTerminal
+// cannot drift apart.
+const (
+	// DefaultTerminalScrollback is the pane scrollback in lines.
+	DefaultTerminalScrollback = 5000
+	// MinTerminalScrollback / MaxTerminalScrollback bound a stored value.
+	MinTerminalScrollback = 200
+	MaxTerminalScrollback = 100000
+	// DefaultTerminalRenderer is the pane renderer.
+	DefaultTerminalRenderer = "ghostty"
+)
+
+// terminalRenderers are the pane renderers a config may name.
+var terminalRenderers = map[string]bool{"ghostty": true, "xterm": true}
+
+// ValidateTerminalShell accepts empty (unset: $SHELL, else /bin/sh) or an
+// absolute path. Existence is not checked — the config may be edited on
+// another machine or before the shell is installed; a missing shell
+// surfaces at create time, not here.
+func ValidateTerminalShell(s string) (string, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return "", nil
+	}
+	if !filepath.IsAbs(s) {
+		return "", fmt.Errorf("terminal.shell must be empty or an absolute path (got %q)", s)
+	}
+	return s, nil
+}
+
+// ValidateTerminalWorkingDir accepts empty (unset: the workspace work dir)
+// or an absolute path. Existence is not checked here; create falls back to
+// the default with a log line when the directory is missing.
+func ValidateTerminalWorkingDir(s string) (string, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return "", nil
+	}
+	if !filepath.IsAbs(s) {
+		return "", fmt.Errorf("terminal.workingDir must be empty or an absolute path (got %q)", s)
+	}
+	return s, nil
+}
+
+// ValidateTerminalScrollback accepts 0 (default) or [200, 100000] lines.
+func ValidateTerminalScrollback(n int) (int, error) {
+	if n == 0 {
+		return 0, nil
+	}
+	if n < MinTerminalScrollback || n > MaxTerminalScrollback {
+		return 0, fmt.Errorf("terminal.scrollback must be 0 (default %d) or between %d and %d (got %d)",
+			DefaultTerminalScrollback, MinTerminalScrollback, MaxTerminalScrollback, n)
+	}
+	return n, nil
+}
+
+// ValidateTerminalRenderer accepts empty (default ghostty), ghostty, xterm.
+func ValidateTerminalRenderer(s string) (string, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return "", nil
+	}
+	if !terminalRenderers[s] {
+		return "", fmt.Errorf("terminal.renderer must be ghostty or xterm (got %q)", s)
+	}
+	return s, nil
+}
+
+// ApplyTerminal is the PUT settings / `gadak config set terminal*` rule.
+// Every field is validated; the block is stored nil when every field is
+// its default, so an untouched config never carries it (zero-value =
+// defaults, no migration).
+func ApplyTerminal(c *Config, t TerminalConfig) error {
+	if c == nil {
+		return fmt.Errorf("nil config")
+	}
+	shell, err := ValidateTerminalShell(t.Shell)
+	if err != nil {
+		return err
+	}
+	dir, err := ValidateTerminalWorkingDir(t.WorkingDir)
+	if err != nil {
+		return err
+	}
+	scrollback, err := ValidateTerminalScrollback(t.Scrollback)
+	if err != nil {
+		return err
+	}
+	renderer, err := ValidateTerminalRenderer(t.Renderer)
+	if err != nil {
+		return err
+	}
+	t = TerminalConfig{
+		Shell:       shell,
+		WorkingDir:  dir,
+		Scrollback:  scrollback,
+		CursorBlink: t.CursorBlink,
+		Renderer:    renderer,
+	}
+	if t == (TerminalConfig{}) {
+		c.Terminal = nil
+		return nil
+	}
+	c.Terminal = &t
 	return nil
 }
 
@@ -413,6 +522,110 @@ func buildSettings() []Setting {
 			Get: func(c *Config) any { return dimCatalogEntries() },
 			Set: func(*Config, json.RawMessage) error {
 				return fmt.Errorf("ui.tokens.dim-catalog is read-only — it ships with the binary; set ui.tokens instead")
+			},
+		},
+		{
+			Path: "terminal",
+			Root: "terminal",
+			Description: "terminal behavior block: {shell, workingDir, scrollback, cursorBlink, renderer}; " +
+				"a set replaces the whole object — omitted fields return to their defaults " +
+				"(empty shell = $SHELL else /bin/sh, empty workingDir = the workspace dir, " +
+				"scrollback 0 = 5000, empty renderer = ghostty). Style (font, size, line height) " +
+				"lives in ui.tokens.type.terminal, not here",
+			Get: func(c *Config) any { return c.EffectiveTerminal() },
+			Set: func(c *Config, raw json.RawMessage) error {
+				var t TerminalConfig
+				if err := json.Unmarshal(raw, &t); err != nil {
+					return fmt.Errorf(`terminal must be an object {"shell": "/bin/zsh", "workingDir": "/tmp", "scrollback": 5000, "cursorBlink": false, "renderer": "ghostty"}`)
+				}
+				return ApplyTerminal(c, t)
+			},
+		},
+		{
+			Path: "terminal.shell",
+			Root: "terminal",
+			Description: "absolute shell path for new terminal sessions (empty = $SHELL, else /bin/sh; " +
+				"existence is not checked here — a missing shell fails at create, by name)",
+			Get: func(c *Config) any { return c.EffectiveTerminal().Shell },
+			Set: func(c *Config, raw json.RawMessage) error {
+				s, err := decodeString(raw, "terminal.shell")
+				if err != nil {
+					return err
+				}
+				v, err := ValidateTerminalShell(s)
+				if err != nil {
+					return err
+				}
+				next := c.terminalOrZero()
+				next.Shell = v
+				return ApplyTerminal(c, next)
+			},
+		},
+		{
+			Path: "terminal.workingDir",
+			Root: "terminal",
+			Description: "absolute starting directory for new terminal sessions (empty = the workspace " +
+				"dir; a directory missing at create time falls back to it with a log line)",
+			Get: func(c *Config) any { return c.EffectiveTerminal().WorkingDir },
+			Set: func(c *Config, raw json.RawMessage) error {
+				s, err := decodeString(raw, "terminal.workingDir")
+				if err != nil {
+					return err
+				}
+				v, err := ValidateTerminalWorkingDir(s)
+				if err != nil {
+					return err
+				}
+				next := c.terminalOrZero()
+				next.WorkingDir = v
+				return ApplyTerminal(c, next)
+			},
+		},
+		intSetting("terminal.scrollback", "terminal",
+			"scrollback lines a terminal pane keeps (0 = default 5000; 200–100000 when set)",
+			func(c *Config) int { return c.EffectiveTerminal().Scrollback },
+			func(c *Config, n int) error {
+				v, err := ValidateTerminalScrollback(n)
+				if err != nil {
+					return err
+				}
+				next := c.terminalOrZero()
+				next.Scrollback = v
+				return ApplyTerminal(c, next)
+			},
+		),
+		{
+			Path:        "terminal.cursorBlink",
+			Root:        "terminal",
+			Description: "cursor blink in the terminal pane (default false)",
+			Get:         func(c *Config) any { return c.EffectiveTerminal().CursorBlink },
+			Set: func(c *Config, raw json.RawMessage) error {
+				b, err := decodeBool(raw, "terminal.cursorBlink")
+				if err != nil {
+					return err
+				}
+				next := c.terminalOrZero()
+				next.CursorBlink = b
+				return ApplyTerminal(c, next)
+			},
+		},
+		{
+			Path:        "terminal.renderer",
+			Root:        "terminal",
+			Description: "terminal pane renderer: ghostty or xterm (empty = ghostty)",
+			Get:         func(c *Config) any { return c.EffectiveTerminal().Renderer },
+			Set: func(c *Config, raw json.RawMessage) error {
+				s, err := decodeString(raw, "terminal.renderer")
+				if err != nil {
+					return err
+				}
+				v, err := ValidateTerminalRenderer(s)
+				if err != nil {
+					return err
+				}
+				next := c.terminalOrZero()
+				next.Renderer = v
+				return ApplyTerminal(c, next)
 			},
 		},
 		intSetting("syncIntervalSec", "syncIntervalSec",

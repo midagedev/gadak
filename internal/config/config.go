@@ -197,6 +197,14 @@ type Config struct {
 	// are not written.
 	Actor *ActorConfig `json:"actor,omitempty"`
 
+	// Terminal is the terminal behavior block (GDK-896): which shell a
+	// session runs, where it starts, and how the pane renders. Nil means
+	// every default and is not written — zero-value = defaults, so
+	// existing configs are untouched and no migration exists. Style
+	// (font family, size, line height) is deliberately absent: it stays
+	// token-owned in ui.tokens.type.terminal.
+	Terminal *TerminalConfig `json:"terminal,omitempty"`
+
 	// Confluence, when non-nil, enables the wiki-page mirror (second source).
 	// Spaces empty means every *global* space — not every space the account can
 	// see, which is what this comment used to claim and what a warning written
@@ -230,6 +238,21 @@ const (
 // Appearance is the look block in config.json. Empty Theme means "system".
 type Appearance struct {
 	Theme string `json:"theme,omitempty"`
+}
+
+// TerminalConfig is the terminal behavior block in config.json (GDK-896).
+// Every zero value is a default: Shell "" = $SHELL, else /bin/sh;
+// WorkingDir "" = the workspace work dir; Scrollback 0 =
+// DefaultTerminalScrollback; CursorBlink false; Renderer "" =
+// DefaultTerminalRenderer. Scrollback is lines, not bytes — the replay
+// ring in internal/term is byte-backed; this is the pane's visible-history
+// budget the web renderer materializes.
+type TerminalConfig struct {
+	Shell       string `json:"shell,omitempty"`
+	WorkingDir  string `json:"workingDir,omitempty"`
+	Scrollback  int    `json:"scrollback,omitempty"`
+	CursorBlink bool   `json:"cursorBlink,omitempty"`
+	Renderer    string `json:"renderer,omitempty"`
 }
 
 // ConfluenceConfig is the optional wiki-page source. Presence (non-nil) is the
@@ -963,6 +986,43 @@ func (c *Config) EffectiveLocale() string {
 		return "en"
 	}
 	return c.Locale
+}
+
+// EffectiveTerminal resolves the terminal behavior block with defaults
+// (GDK-896). Nil block (or nil Config) reads as every default, so an
+// untouched config and a fresh one answer identically.
+func (c *Config) EffectiveTerminal() TerminalConfig {
+	t := TerminalConfig{
+		Scrollback: DefaultTerminalScrollback,
+		Renderer:   DefaultTerminalRenderer,
+	}
+	if c == nil || c.Terminal == nil {
+		return t
+	}
+	if c.Terminal.Shell != "" {
+		t.Shell = c.Terminal.Shell
+	}
+	if c.Terminal.WorkingDir != "" {
+		t.WorkingDir = c.Terminal.WorkingDir
+	}
+	if c.Terminal.Scrollback != 0 {
+		t.Scrollback = c.Terminal.Scrollback
+	}
+	t.CursorBlink = c.Terminal.CursorBlink
+	if c.Terminal.Renderer != "" {
+		t.Renderer = c.Terminal.Renderer
+	}
+	return t
+}
+
+// terminalOrZero is the stored block as an editable value: unset reads as
+// the zero struct so a leaf Set can replace one field without baking the
+// other fields' effective defaults into storage.
+func (c *Config) terminalOrZero() TerminalConfig {
+	if c == nil || c.Terminal == nil {
+		return TerminalConfig{}
+	}
+	return *c.Terminal
 }
 
 // FieldSpecs returns the effective field specs. After LoadFor, this is Fields.

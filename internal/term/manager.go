@@ -113,7 +113,9 @@ type Options struct {
 	// Env is appended after the inherited environment and the two
 	// variables this package always sets.
 	Env []string
-	// Shell overrides $SHELL. Tests use it; nothing in the product does.
+	// Shell overrides $SHELL. The settings catalog's terminal.shell
+	// reaches here through handleTerminalCreate (GDK-896); tests use it
+	// too.
 	Shell string
 	// Args are the shell's arguments.
 	Args []string
