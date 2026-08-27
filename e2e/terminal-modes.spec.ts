@@ -144,10 +144,18 @@ test.describe('terminal mode reports', () => {
     await expect.poll(async () => readTerm(page)).toContain('GDK1045-AFTER:42')
 
     // Later chunks still parse. A healthy xterm answers each DECRQM with a
-    // DECRPM the shell reads as garbage input (fragments like `/1;2$y` on
-    // the prompt), so typing another command here would race that garbage —
-    // the prompt itself is the post-probe liveness signal, no typing needed.
-    await expect.poll(async () => readTerm(page)).toMatch(/GDK1045-AFTER:42[\s\S]*>/)
+    // DECRPM the shell reads as input, so fragments like `/1;2$y` are sitting
+    // on the current line — Ctrl-C discards it, and a second computed marker
+    // then proves the pane is still parsing whole chunks.
+    //
+    // Not the returning prompt: that was the first shape of this check and it
+    // asserted a `>`, which is this machine's prompt and not the Linux
+    // runner's. A gate may not depend on what someone's PS1 looks like.
+    await focusTerm(page)
+    await page.keyboard.press('Control+c')
+    await page.keyboard.press('Enter')
+    await typeLine(page, "printf 'GDK1045-LIVE:%s\\n' \"$((7*8))\"")
+    await expect.poll(async () => readTerm(page)).toContain('GDK1045-LIVE:56')
 
     expect(pageErrors, `uncaught page errors:\n${pageErrors.join('\n')}`).toEqual([])
     expect(appConsoleErrors(errors), `console errors:\n${errors.join('\n')}`).toEqual([])
