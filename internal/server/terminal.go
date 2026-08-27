@@ -372,11 +372,13 @@ func (s *server) handleTerminalWS(w http.ResponseWriter, r *http.Request, tokenI
 
 	for {
 		select {
-		case chunk := <-att.C():
-			if err := terminalWrite(ctx, c, websocket.MessageBinary, chunk); err != nil {
-				att.Detach()
-				_ = c.CloseNow()
-				return
+		case <-att.Wake():
+			if chunk := att.Take(); len(chunk) > 0 {
+				if err := terminalWrite(ctx, c, websocket.MessageBinary, chunk); err != nil {
+					att.Detach()
+					_ = c.CloseNow()
+					return
+				}
 			}
 		case <-att.Done():
 			terminalFlush(ctx, c, att)
@@ -424,19 +426,14 @@ func terminalReadLoop(ctx context.Context, cancel context.CancelFunc, c *websock
 	}
 }
 
-// terminalFlush writes whatever the attachment had buffered when it ended,
-// so a shell's last line arrives before the exit frame. C() is not closed
-// on end (internal/term), which is what makes this drain safe.
+// terminalFlush writes whatever the attachment still had pending when it
+// ended, so a shell's last line arrives before the exit frame. Take()
+// returns the whole backlog in one slice — a backlog that was pending at
+// the end stays readable (internal/term), which is what makes this drain
+// safe.
 func terminalFlush(ctx context.Context, c *websocket.Conn, att *term.Attachment) {
-	for {
-		select {
-		case chunk := <-att.C():
-			if err := terminalWrite(ctx, c, websocket.MessageBinary, chunk); err != nil {
-				return
-			}
-		default:
-			return
-		}
+	if chunk := att.Take(); len(chunk) > 0 {
+		_ = terminalWrite(ctx, c, websocket.MessageBinary, chunk)
 	}
 }
 

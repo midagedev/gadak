@@ -130,9 +130,10 @@ func registerTerminalStream(app *application.App, api *server.Handler) {
 //
 // Backpressure has one owner and it is internal/term, which drops a slow
 // attachment rather than stalling the PTY. Send blocks like a socket write,
-// so a frontend that stops collecting parks this loop, fills the attachment's
-// channel, and term drops it with slow_client — the cascade the WebSocket
-// path already gets. Nothing here adds a second policy.
+// so a frontend that stops collecting parks this loop, grows the
+// attachment's pending backlog past AttachBytes, and term drops it with
+// slow_client — the cascade the WebSocket path already gets. Nothing here
+// adds a second policy.
 func serveTerminalStream(c termStreamConn, mgr *term.Manager) {
 	first, err := c.Receive()
 	if err != nil {
@@ -181,10 +182,12 @@ func serveTerminalStream(c termStreamConn, mgr *term.Manager) {
 
 	for {
 		select {
-		case chunk := <-att.C():
-			if err := c.Send(termDataFrame(chunk)); err != nil {
-				reason.Store("receive error")
-				return
+		case <-att.Wake():
+			if chunk := att.Take(); len(chunk) > 0 {
+				if err := c.Send(termDataFrame(chunk)); err != nil {
+					reason.Store("receive error")
+					return
+				}
 			}
 		case <-att.Done():
 			terminalStreamFlush(c, att)
@@ -235,19 +238,13 @@ func terminalStreamRead(ctx context.Context, cancel context.CancelFunc, c termSt
 	}
 }
 
-// terminalStreamFlush writes whatever the attachment had buffered when it
-// ended, so a shell's last line arrives before the exit frame. C() is not
-// closed on end (internal/term), which is what makes this drain safe.
+// terminalStreamFlush writes whatever the attachment still had pending
+// when it ended, so a shell's last line arrives before the exit frame.
+// Take() returns the whole backlog in one slice — a backlog pending at the
+// end stays readable (internal/term), which is what makes this drain safe.
 func terminalStreamFlush(c termStreamConn, att *term.Attachment) {
-	for {
-		select {
-		case chunk := <-att.C():
-			if err := c.Send(termDataFrame(chunk)); err != nil {
-				return
-			}
-		default:
-			return
-		}
+	if chunk := att.Take(); len(chunk) > 0 {
+		_ = c.Send(termDataFrame(chunk))
 	}
 }
 
@@ -268,8 +265,9 @@ func sendTermEnd(c termStreamConn, end term.End) {
 
 // termDataFrame tags PTY bytes. A fresh slice every call: Send queues the
 // frame rather than copying it (pkg/application/stream.go:225-232), so the
-// caller may not hand it a buffer it still owns — and att.C() chunks are the
-// session's, not ours.
+// caller may not hand it a buffer it still owns. Take() does hand its
+// backlog over outright, but the frame needs a type byte in front of it,
+// so a fresh slice is what there is to send either way.
 func termDataFrame(chunk []byte) []byte {
 	frame := make([]byte, 0, len(chunk)+1)
 	frame = append(frame, termFrameData)

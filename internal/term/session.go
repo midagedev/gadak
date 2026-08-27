@@ -8,7 +8,7 @@ import (
 
 // Why an attachment ended, as the socket reports it to its client.
 const (
-	// ReasonSlow: the client fell further behind than its channel bound.
+	// ReasonSlow: the client's pending backlog grew past AttachBytes.
 	// The attachment is dropped; the PTY is never stalled for it.
 	ReasonSlow = "slow_client"
 	// ReasonRevoked: the pairing token this session was opened with is no
@@ -45,23 +45,47 @@ type End struct {
 }
 
 // Attachment is one client's view of a session's output: the ring replayed
-// as the first chunk, then live bytes, then an End.
+// as the first backlog, then live bytes, then an End. The backlog is a
+// byte quantity — N pending chunks are exactly their concatenation
+// (GDK-1042) — so a client that is many small PTY reads behind is handed
+// fewer, larger writes, never cut off for it.
 //
-// C() is not closed when the attachment ends — Done() is the signal, and
-// chunks already buffered stay readable after it so a socket can flush
-// what it has before sending its close frame.
+// Wake() is the edge signal that the backlog is non-empty. Take() is not
+// gated on the attachment ending — Done() is that signal, and a backlog
+// that was pending when the end arrived stays readable through Take(), so
+// a socket can flush what it has before sending its close frame.
 type Attachment struct {
 	sess *Session
-	ch   chan []byte
 	done chan struct{}
+	// wake is the capacity-1 edge signal: "Take has something". Producers
+	// send without blocking; a full channel already means "signalled".
+	wake chan struct{}
 
-	once sync.Once
-	mu   sync.Mutex
-	end  End
+	once    sync.Once
+	mu      sync.Mutex
+	end     End
+	pending []byte
 }
 
-// C yields output chunks, oldest first.
-func (a *Attachment) C() <-chan []byte { return a.ch }
+// Wake yields when Take has something to return. Edge-triggered: one
+// pending token covers any amount of backlog, and a token may outlive the
+// bytes it announced — a Take that returns nil is the reader's cue to go
+// back to sleep, not an error.
+func (a *Attachment) Wake() <-chan struct{} { return a.wake }
+
+// Take returns the whole pending backlog, oldest byte first, and clears
+// it; nil when nothing is pending. The returned slice is the caller's —
+// Take keeps no alias to it.
+func (a *Attachment) Take() []byte {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if len(a.pending) == 0 {
+		return nil
+	}
+	out := a.pending
+	a.pending = nil
+	return out
+}
 
 // Done closes when this attachment ends, for any of the four reasons.
 func (a *Attachment) Done() <-chan struct{} { return a.done }
@@ -103,6 +127,8 @@ type Session struct {
 	lastOutputAt time.Time
 	bytesOut     int64
 	dropped      int
+	backlogMax   int64
+	coalesced    int64
 	graceTimer   *time.Timer
 	graceArmedAt time.Time
 	detachedAt   time.Time
@@ -147,6 +173,8 @@ func (s *Session) Info() Info {
 		LastOutputAt:       s.lastOutputAt,
 		BytesOut:           s.bytesOut,
 		DroppedAttachments: s.dropped,
+		BacklogMaxBytes:    s.backlogMax,
+		CoalescedChunks:    s.coalesced,
 		Exited:             s.exited,
 		ExitCode:           s.exitCode,
 		DetachedAt:         s.detachedAt,
@@ -197,14 +225,23 @@ func (s *Session) Attach() (*Attachment, error) {
 	}
 	a := &Attachment{
 		sess: s,
-		ch:   make(chan []byte, s.mgr.cfg.AttachBuffer),
 		done: make(chan struct{}),
+		wake: make(chan struct{}, 1),
 	}
 	if replay := s.ring.bytes(); len(replay) > 0 {
-		// Buffered, capacity >= 1, and this attachment is not yet
-		// registered: the replay cannot block and cannot be interleaved
-		// with live bytes.
-		a.ch <- replay
+		// Seeded while still under s.mu and before this attachment is
+		// registered: the replay cannot interleave with live bytes, and no
+		// reader exists yet to contend for a.pending. Replay bytes count
+		// toward the backlog like any other — AttachBytes is 16x the ring,
+		// so the replay alone can never drop a client.
+		a.pending = append(a.pending, replay...)
+		if n := int64(len(a.pending)); n > s.backlogMax {
+			s.backlogMax = n
+		}
+		select {
+		case a.wake <- struct{}{}:
+		default:
+		}
 	}
 	s.attached[a] = struct{}{}
 	s.stopGraceLocked()
@@ -328,10 +365,8 @@ func (s *Session) emit(p []byte) {
 	s.lastOutputAt = s.mgr.cfg.Now()
 	var dropped []*Attachment
 	for a := range s.attached {
-		select {
-		case a.ch <- chunk:
-		default:
-			// Bounded channel full: drop this client, keep the pump.
+		if !a.push(chunk) {
+			// Backlog past AttachBytes: drop this client, keep the pump.
 			dropped = append(dropped, a)
 			delete(s.attached, a)
 			s.dropped++
@@ -345,6 +380,37 @@ func (s *Session) emit(p []byte) {
 	if len(dropped) > 0 && empty {
 		s.armGrace()
 	}
+}
+
+// push appends one chunk of output to the attachment's backlog and edges
+// wake. It reports false — appending nothing — when the result would
+// exceed cfg.AttachBytes; emit reads that as "drop this client".
+//
+// Lock ordering, fixed here: emit holds s.mu across the walk and takes
+// a.mu inside push, so no Attachment method may take s.mu while holding
+// a.mu — that inverts the order and deadlocks the pump. It is also why
+// the session counters below may be touched without a second lock: push
+// runs with s.mu already held by its only caller.
+func (a *Attachment) push(p []byte) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if len(a.pending)+len(p) > a.sess.mgr.cfg.AttachBytes {
+		return false
+	}
+	if len(a.pending) > 0 {
+		a.sess.coalesced++
+	}
+	a.pending = append(a.pending, p...)
+	if n := int64(len(a.pending)); n > a.sess.backlogMax {
+		a.sess.backlogMax = n
+	}
+	select {
+	case a.wake <- struct{}{}:
+	default:
+		// A token is already pending; one signal covers everything Take
+		// has not collected yet.
+	}
+	return true
 }
 
 func (s *Session) finish(code int) {

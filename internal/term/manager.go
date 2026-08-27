@@ -15,9 +15,12 @@ import (
 const (
 	// DefaultRingBytes is the scrollback a session replays on reattach.
 	DefaultRingBytes = 256 << 10
-	// DefaultAttachBuffer is how many output chunks one attachment may
-	// fall behind before it is dropped.
-	DefaultAttachBuffer = 256
+	// DefaultAttachBytes is how far behind, in bytes, one attachment may
+	// fall before it is dropped. On a loopback socket, four megabytes of
+	// unread output is a client that is gone, not one that is busy — and
+	// it is 16x the ring, so a drop can never be caused by the replay
+	// alone.
+	DefaultAttachBytes = 4 << 20
 	// DefaultGrace is how long a session outlives its last attachment
 	// with nothing running under it.
 	DefaultGrace = 60 * time.Second
@@ -56,8 +59,9 @@ type Config struct {
 	MaxDetachedLife time.Duration
 	// RingBytes is the per-session scrollback.
 	RingBytes int
-	// AttachBuffer is the per-attachment channel bound.
-	AttachBuffer int
+	// AttachBytes is the per-attachment backlog bound, in bytes. Zero
+	// takes DefaultAttachBytes.
+	AttachBytes int
 	// AfterFunc is time.AfterFunc, injectable so a test can pin the
 	// reconnect grace without sleeping a minute.
 	AfterFunc func(time.Duration, func()) *time.Timer
@@ -87,8 +91,8 @@ func New(cfg Config) *Manager {
 	if cfg.RingBytes <= 0 {
 		cfg.RingBytes = DefaultRingBytes
 	}
-	if cfg.AttachBuffer <= 0 {
-		cfg.AttachBuffer = DefaultAttachBuffer
+	if cfg.AttachBytes <= 0 {
+		cfg.AttachBytes = DefaultAttachBytes
 	}
 	if cfg.AfterFunc == nil {
 		cfg.AfterFunc = time.AfterFunc
@@ -132,6 +136,13 @@ type Info struct {
 	DroppedAttachments int       `json:"dropped_attachments"`
 	Exited             bool      `json:"exited"`
 	ExitCode           int       `json:"exit_code"`
+	// BacklogMaxBytes is the high-water mark of any one attachment's
+	// pending backlog over the session's life — the number that answers
+	// "was this anywhere near the drop bound?". CoalescedChunks counts
+	// how many emits landed on a non-empty backlog, i.e. how often
+	// merging actually did work (GDK-1042).
+	BacklogMaxBytes int64 `json:"backlog_max_bytes"`
+	CoalescedChunks int64 `json:"coalesced_chunks"`
 	// PIDs is every process currently on this session's controlling
 	// terminal, including the shell. Empty when the enumerator cannot
 	// see a tty (Windows, or a pid with no controlling terminal).

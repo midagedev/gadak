@@ -46,17 +46,26 @@ func shellSession(t *testing.T, m *Manager, opts Options) *Session {
 }
 
 // readUntil collects output until want appears or the deadline passes.
+// On Done it drains once before failing: a backlog pending at the end is
+// still readable through Take (internal/term), so a marker that arrived in
+// the last chunk must not be reported missing.
 func readUntil(t *testing.T, a *Attachment, want string, within time.Duration) string {
 	t.Helper()
 	var got bytes.Buffer
 	deadline := time.After(within)
 	for {
 		select {
-		case b := <-a.C():
-			got.Write(b)
+		case <-a.Wake():
+			got.Write(a.Take())
 			if strings.Contains(got.String(), want) {
 				return got.String()
 			}
+		case <-a.Done():
+			got.Write(a.Take())
+			if strings.Contains(got.String(), want) {
+				return got.String()
+			}
+			t.Fatalf("waiting for %q; attachment ended with %q", want, got.String())
 		case <-deadline:
 			t.Fatalf("waiting for %q; got %q", want, got.String())
 		}
@@ -293,10 +302,16 @@ func processAlive(pid int) bool {
 	return p.Signal(syscall.Signal(0)) == nil
 }
 
-// ⑤ Backpressure: a reader that never reads is dropped once it is more
-// than its channel bound behind, and it never delays a reader that is
+// ⑤ Backpressure: a reader that never reads is dropped once its pending
+// backlog exceeds AttachBytes, and it never delays a reader that is
 // keeping up — the fast reader receives chunk N before chunk N+1 is
 // produced, throughout.
+//
+// GDK-1042 (2026-08-27): the bound this test drives changed from chunk
+// count to bytes. The count bound (256 chunks) fired on a client that was
+// 256 tiny PTY reads behind — all of 59 KB of `seq` output — which is one
+// frame of not being scheduled, not a slow client; a terminal stream is a
+// byte stream, so the backlog is measured in bytes and coalesced.
 //
 // The output is driven through the session's own broadcast rather than
 // through a shell flood on purpose: "does not delay beyond the bound" is a
@@ -305,8 +320,11 @@ func processAlive(pid int) bool {
 // that the pump is alive after a drop — is asserted at the end through the
 // real shell.
 func TestSlowAttachmentDroppedWithoutStallingOthers(t *testing.T) {
-	const bound = 4
-	m := testManager(t, Config{AttachBuffer: bound, RingBytes: 4096})
+	// 64 bytes: two of the 32 KiB PTY read chunks' worth of accounting is
+	// not the point — the bound is bytes, and one-byte chunks drive it
+	// exactly.
+	const bound = 64
+	m := testManager(t, Config{AttachBytes: bound, RingBytes: 4096})
 	s := shellSession(t, m, Options{})
 	slow, err := s.Attach()
 	if err != nil {
@@ -316,12 +334,18 @@ func TestSlowAttachmentDroppedWithoutStallingOthers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Discard the startup replay both attachments were seeded with (the
+	// shell's prompt, if it beat the attaches) so per-chunk comparisons
+	// below are exact.
+	slow.Take()
+	fast.Take()
 	for i := 0; i < bound+3; i++ {
 		chunk := []byte{byte('a' + i)}
 		s.emit(chunk)
 		// The fast reader gets this chunk before the next one exists.
 		select {
-		case got := <-fast.C():
+		case <-fast.Wake():
+			got := fast.Take()
 			if !bytes.Equal(got, chunk) {
 				t.Fatalf("chunk %d: fast reader got %q, want %q", i, got, chunk)
 			}
@@ -331,7 +355,7 @@ func TestSlowAttachmentDroppedWithoutStallingOthers(t *testing.T) {
 		if i < bound {
 			select {
 			case <-slow.Done():
-				t.Fatalf("slow attachment dropped at chunk %d, inside its bound of %d", i, bound)
+				t.Fatalf("slow attachment dropped at chunk %d, inside its bound of %d bytes", i, bound)
 			default:
 			}
 		}
@@ -343,6 +367,13 @@ func TestSlowAttachmentDroppedWithoutStallingOthers(t *testing.T) {
 	}
 	if end := slow.End(); end.Kind != EndDropped || end.Reason != ReasonSlow {
 		t.Fatalf("slow end %+v; want dropped/%s", end, ReasonSlow)
+	}
+	// Reached, never passed. Not an equality: this runs against a real
+	// interactive /bin/sh, and a prompt landing in the same backlog moves
+	// where the last chunk that fits stops — the contract is the ceiling,
+	// not the exact high-water mark.
+	if info := s.Info(); info.BacklogMaxBytes > bound || info.BacklogMaxBytes == 0 {
+		t.Fatalf("BacklogMaxBytes %d; want 0 < n <= %d (the bound, reached but never passed)", info.BacklogMaxBytes, bound)
 	}
 	select {
 	case <-fast.Done():
@@ -382,7 +413,8 @@ func TestReattachReplaysRing(t *testing.T) {
 		t.Fatal(err)
 	}
 	select {
-	case b := <-second.C():
+	case <-second.Wake():
+		b := second.Take()
 		if !strings.Contains(string(b), "gadak-scrollback-mark") {
 			t.Fatalf("replay %q missing the mark", b)
 		}
@@ -445,8 +477,11 @@ func TestDefaultsAreTheDocumentedContract(t *testing.T) {
 	if DefaultRingBytes != 256<<10 {
 		t.Errorf("DefaultRingBytes = %d; the contract is 256 KiB", DefaultRingBytes)
 	}
+	if DefaultAttachBytes != 4<<20 {
+		t.Errorf("DefaultAttachBytes = %d; doc.go says 4 MiB", DefaultAttachBytes)
+	}
 	m := New(Config{})
-	if m.cfg.Grace != DefaultGrace || m.cfg.RingBytes != DefaultRingBytes || m.cfg.AttachBuffer != DefaultAttachBuffer || m.cfg.MaxDetachedLife != DefaultMaxDetachedLife {
+	if m.cfg.Grace != DefaultGrace || m.cfg.RingBytes != DefaultRingBytes || m.cfg.AttachBytes != DefaultAttachBytes || m.cfg.MaxDetachedLife != DefaultMaxDetachedLife {
 		t.Fatalf("New(Config{}) did not take the defaults: %+v", m.cfg)
 	}
 }

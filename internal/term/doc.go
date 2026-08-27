@@ -26,11 +26,16 @@
 //     then live bytes: a client that reconnects inside the grace picks up
 //     its scrollback instead of a blank screen.
 //
-//   - Backpressure. Every attachment has its own bounded channel
-//     (DefaultAttachBuffer chunks). When it is full the attachment is
-//     dropped — closed with a reason — and the PTY read loop keeps going.
-//     A slow client never stalls the shell and never delays another
-//     client. The one thing that is never dropped is the PTY.
+//   - Backpressure. Every attachment carries its own backlog, bounded in
+//     bytes (DefaultAttachBytes, 4 MiB), not in chunks: pending chunks
+//     are coalesced into it, because a terminal stream is a byte stream
+//     and N pending chunks are exactly their concatenation (GDK-1042 —
+//     the chunk-count bound this replaces dropped a client that was 256
+//     tiny reads behind, all of 59 KB). When the backlog would exceed
+//     the bound the attachment is dropped — closed with a reason — and
+//     the PTY read loop keeps going. A slow client never stalls the
+//     shell and never delays another client. The one thing that is never
+//     dropped is the PTY.
 //
 //   - Reconnect. A session survives its last attachment leaving for
 //     DefaultGrace (60s). Reattaching by session id inside the grace
@@ -64,6 +69,9 @@
 //
 // Snapshot() is the debug surface: per-session id, pid, pids (every
 // process on the session's controlling terminal), size, attachment
-// count, createdAt, lastOutputAt, bytesOut, droppedAttachments. It carries
-// no output bytes and no token id, so it is safe to serve.
+// count, createdAt, lastOutputAt, bytesOut, droppedAttachments, and —
+// since GDK-1042 — backlogMaxBytes and coalescedChunks, which say how
+// close a session came to the drop bound and how often coalescing did
+// work. It carries no output bytes and no token id, so it is safe to
+// serve.
 package term

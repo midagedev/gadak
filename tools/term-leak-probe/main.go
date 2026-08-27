@@ -97,12 +97,24 @@ func readUntil(a *term.Attachment, want string, within time.Duration) (string, e
 	deadline := time.After(within)
 	for {
 		select {
-		case b := <-a.C():
-			got.Write(b)
+		case <-a.Wake():
+			got.Write(a.Take())
 			if strings.Contains(got.String(), want) {
 				return got.String(), nil
 			}
+		case <-a.Done():
+			// A backlog pending at the end stays readable; drain it before
+			// declaring failure (internal/term).
+			got.Write(a.Take())
+			if strings.Contains(got.String(), want) {
+				return got.String(), nil
+			}
+			return "", fmt.Errorf("waiting for %q; attachment ended; got %q", want, got.String())
 		case <-deadline:
+			got.Write(a.Take())
+			if strings.Contains(got.String(), want) {
+				return got.String(), nil
+			}
 			return "", fmt.Errorf("waiting for %q; got %q", want, got.String())
 		}
 	}
