@@ -22,7 +22,10 @@ export type DroppedReason =
   | 'server_shutdown'
   | 'closed'
 
-const DROPPED_REASONS: ReadonlySet<string> = new Set([
+// Exported so a lock test can pin this set against the Go Reason* constants
+// (internal/term/session.go) it mirrors — the comment above promises neither
+// side re-spells the other, and GDK-932 makes that a test, not a promise.
+export const DROPPED_REASONS: ReadonlySet<string> = new Set([
   'slow_client',
   'token_revoked',
   'idle_timeout',
