@@ -283,6 +283,11 @@ func main() {
 		fmt.Fprintf(os.Stderr, "gadak: %v\n", err)
 		os.Exit(exitStatus(err))
 	}
+	// GDK-996: the installed skill copy follows the binary. One rate-limited
+	// refresh chance per day, before dispatch so no return/os.Exit inside a
+	// subcommand can skip it. Stale-only (foreign/missing untouched), errors
+	// swallowed; the excluded commands and the stamp live in skill.go.
+	maybeAutoSyncSkill(os.Stderr, args[0])
 	if err := run(args[1:]); err != nil {
 		fmt.Fprintf(os.Stderr, "gadak: %v\n", err)
 		if cerr := origin.Close(); cerr != nil {

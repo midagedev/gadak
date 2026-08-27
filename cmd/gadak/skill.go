@@ -20,6 +20,7 @@ import (
 
 	gadak "github.com/midagedev/gadak"
 	"github.com/midagedev/gadak/internal/clitool"
+	"github.com/midagedev/gadak/internal/config"
 )
 
 func printSkillHelp() {
@@ -485,4 +486,133 @@ func printSkillAutoResult(status string) {
 		return
 	}
 	fmt.Printf("skill: %s\n", status)
+}
+
+// ---------------------------------------------------------------------------
+// Daily auto-sync: the installed copy follows the binary (GDK-996)
+//
+// Every layer that receives a tag refreshes itself except the agent contract:
+// a skill installed by v0.16 kept teaching v0.16 verbs against a v0.18 binary
+// until the user re-ran `gadak skill install`. main() now gives every
+// subcommand one refresh chance per day — same move as fzf serving its shell
+// integration from the binary (`eval "$(fzf --bash)"`), closing the skew
+// between the artifact and the binary that owns it.
+//
+// The boundaries are the installer's classifier, unchanged and reused:
+// `conflict` (a copy gadak did not write — the issue's "foreign") and
+// `missing` (no skill installed) are never touched here. Creating a skill
+// uninvited is init / `skill install`'s job.
+// ---------------------------------------------------------------------------
+
+// skillAutoSyncStampName is the once-a-day rate-limit stamp, JSON like the
+// install receipt. It lives at the gadak home root (config.DirFor("")), not
+// under a profile directory: the skill is user-scoped, so the rate limit must
+// not reset per workspace.
+const skillAutoSyncStampName = "skill-autosync.json"
+
+// skillAutoSyncStamp records when the daily check last ran, so the common
+// case — already checked today — costs one small-file read and no skill I/O.
+type skillAutoSyncStamp struct {
+	LastCheck string `json:"last_check"` // RFC3339, UTC
+}
+
+// skillAutoSyncSkip names the commands the hook never runs for:
+//
+//	skill  its subcommands own the copy explicitly; the install verb is the
+//	       one that must write it
+//	mcp    the stdio JSON-RPC server — stdout is protocol and stderr sits
+//	       right beside it in the host's log, so no surprise startup lines
+var skillAutoSyncSkip = map[string]bool{
+	"skill": true,
+	"mcp":   true,
+}
+
+func skillAutoSyncStampPath() (string, error) {
+	dir, err := config.DirFor("")
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, skillAutoSyncStampName), nil
+}
+
+// lastSkillAutoCheck returns the stamp's last_check, or "" for a missing,
+// unreadable or corrupt stamp — which simply means "check now".
+func lastSkillAutoCheck() string {
+	p, err := skillAutoSyncStampPath()
+	if err != nil {
+		return ""
+	}
+	raw, err := os.ReadFile(p)
+	if err != nil {
+		return ""
+	}
+	var s skillAutoSyncStamp
+	if err := json.Unmarshal(raw, &s); err != nil {
+		return ""
+	}
+	return s.LastCheck
+}
+
+func writeSkillAutoSyncStamp(path string, now time.Time) {
+	raw, err := json.MarshalIndent(skillAutoSyncStamp{LastCheck: now.Format(time.RFC3339)}, "", "  ")
+	if err != nil {
+		return
+	}
+	_ = os.WriteFile(path, append(raw, '\n'), 0o600)
+}
+
+// skillAutoSyncCheckedToday reports whether stamp (RFC3339) falls on the same
+// UTC day as now. An unparsable stamp never rate-limits. A stamp in the
+// future (clock set back) also fails the date compare, so the check re-runs
+// and rewrites it — the stamp self-heals.
+func skillAutoSyncCheckedToday(stamp string, now time.Time) bool {
+	at, err := time.Parse(time.RFC3339, stamp)
+	if err != nil {
+		return false
+	}
+	y1, m1, d1 := at.UTC().Date()
+	y2, m2, d2 := now.UTC().Date()
+	return y1 == y2 && m1 == m2 && d1 == d2
+}
+
+// maybeAutoSyncSkill is the once-a-day hook main() puts on the dispatch path.
+// It never returns an error and never prints unless it actually updated the
+// copy: any failure is swallowed (a read-only gadak home is a supported
+// state, applog.Install says so too), so the subcommand's own exit status is
+// unaffected either way.
+func maybeAutoSyncSkill(w io.Writer, cmd string) {
+	if w == nil {
+		w = io.Discard
+	}
+	if skillAutoSyncSkip[cmd] {
+		return
+	}
+	now := time.Now().UTC()
+	if skillAutoSyncCheckedToday(lastSkillAutoCheck(), now) {
+		return
+	}
+	stampPath, err := skillAutoSyncStampPath()
+	if err != nil {
+		return
+	}
+	// Mark the day before touching the skill: a write that then fails
+	// retries tomorrow, not on every command.
+	writeSkillAutoSyncStamp(stampPath, now)
+
+	dest, err := resolveSkillDest(false, "")
+	if err != nil {
+		return
+	}
+	content := gadak.SkillMarkdown()
+	status, _, err := skillDestStatus(dest, content)
+	if err != nil || status != "stale" {
+		return
+	}
+	// installSkill reuses the same classifier, the same atomic write and the
+	// same receipt, so what lands is byte-identical to `gadak skill install`
+	// output and the next classifier still recognises gadak's own copy.
+	if err := installSkill(io.Discard, content, dest, false, false); err != nil {
+		return
+	}
+	fmt.Fprintf(w, "skill: updated %s (restart the agent to load it)\n", clitool.TildeHome(dest))
 }

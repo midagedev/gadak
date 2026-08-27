@@ -110,6 +110,10 @@ type doctorSkill struct {
 	Status string `json:"status"` // missing | stale | current
 	Scope  string `json:"scope"`  // user | project
 	Path   string `json:"path"`   // tilde-abbreviated (user) or repo-relative (project)
+	// LastAutoCheck is when the daily auto-sync last looked (GDK-996), so
+	// "why did/didn't it update?" is one line. Same convention as
+	// sync.*.synced_at: "never" before the first check.
+	LastAutoCheck string `json:"last_auto_check"`
 }
 
 // doctorMCP reports whether gadak is registered as an MCP server. Only the
@@ -286,6 +290,7 @@ func collectDoctor() doctorReport {
 	// returns early — collect it first so a user with no mirror still gets the
 	// answer to "is my skill current?".
 	rep.Skill = collectSkillStatus()
+	rep.Skill.LastAutoCheck = doctorSkillAutoCheckWord(lastSkillAutoCheck())
 	rep.MCP = collectMCPStatus()
 	rep.Logs = collectLogs()
 
@@ -443,6 +448,15 @@ func doctorSkillWord(installStatus string) string {
 		return "current"
 	}
 	return "stale"
+}
+
+// doctorSkillAutoCheckWord maps the empty auto-sync stamp (no check has run
+// yet on this machine) to "never".
+func doctorSkillAutoCheckWord(stamp string) string {
+	if stamp == "" {
+		return "never"
+	}
+	return stamp
 }
 
 // claudeMCPConfig is the slice of Claude Code's config that says whether gadak
@@ -703,6 +717,9 @@ func formatDoctorText(r doctorReport) string {
 		line("skill", r.Skill.Status+" ("+r.Skill.Path+")")
 	} else {
 		line("skill", r.Skill.Status)
+	}
+	if r.Skill.LastAutoCheck != "" {
+		line("skill.last_auto_check", r.Skill.LastAutoCheck)
 	}
 	if r.MCP.Path != "" {
 		line("mcp", r.MCP.Status+" ("+r.MCP.Path+", "+r.MCP.Scope+")")

@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	gadak "github.com/midagedev/gadak"
 	"github.com/midagedev/gadak/internal/applog"
@@ -554,6 +555,54 @@ func doctorValue(t *testing.T, out, key string) string {
 	}
 	t.Fatalf("no %q line in doctor output:\n%s", key, out)
 	return ""
+}
+
+// TestDoctorReportsSkillLastAutoCheck — GDK-996. "Why did/didn't my skill
+// update?" is one doctor line: the once-a-day stamp under the gadak home.
+func TestDoctorReportsSkillLastAutoCheck(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("GADAK_HOME", home)
+	config.SetProfile("")
+	t.Chdir(home)
+
+	human, err := capture(t, func() error { return cmdDoctor(nil) })
+	if err != nil {
+		t.Fatalf("doctor: %v\n%s", err, human)
+	}
+	if got := doctorValue(t, human, "skill.last_auto_check"); got != "never" {
+		t.Errorf("no stamp yet: last_auto_check = %q, want never", got)
+	}
+
+	p, err := skillAutoSyncStampPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	when := time.Now().UTC().Truncate(time.Second)
+	writeSkillAutoSyncStamp(p, when)
+	human, err = capture(t, func() error { return cmdDoctor(nil) })
+	if err != nil {
+		t.Fatalf("doctor after a check: %v\n%s", err, human)
+	}
+	if got := doctorValue(t, human, "skill.last_auto_check"); got != when.Format(time.RFC3339) {
+		t.Errorf("last_auto_check = %q, want the stamp %q", got, when.Format(time.RFC3339))
+	}
+
+	raw, err := capture(t, func() error { return cmdDoctor([]string{"--json"}) })
+	if err != nil {
+		t.Fatalf("doctor --json: %v\n%s", err, raw)
+	}
+	var rep struct {
+		Skill struct {
+			LastAutoCheck string `json:"last_auto_check"`
+		} `json:"skill"`
+	}
+	if err := json.Unmarshal([]byte(raw), &rep); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, raw)
+	}
+	if rep.Skill.LastAutoCheck != when.Format(time.RFC3339) {
+		t.Errorf("json last_auto_check = %q, want %q", rep.Skill.LastAutoCheck, when.Format(time.RFC3339))
+	}
 }
 
 func TestDoctorReportsStandaloneWithCredential(t *testing.T) {
