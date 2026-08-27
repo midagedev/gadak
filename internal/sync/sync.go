@@ -14,6 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/midagedev/gadak/internal/adf"
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/confluence"
 	"github.com/midagedev/gadak/internal/fields"
@@ -739,9 +740,9 @@ func build(ctx context.Context, c *jira.Client, cfg *config.Config, iss jira.Iss
 		}
 	}
 
-	body := []string{jira.PlainText(f.Description)}
+	body := []string{adf.PlainText(f.Description)}
 	for _, id := range fields.BodyFieldIDs(cfg.BodyFields, cfg.FieldSpecs()) {
-		if text := jira.PlainText(iss.Extra[id]); text != "" {
+		if text := adf.PlainText(iss.Extra[id]); text != "" {
 			body = append(body, text)
 		}
 	}
@@ -782,7 +783,7 @@ func build(ctx context.Context, c *jira.Client, cfg *config.Config, iss jira.Iss
 		FixVersions:     names(f.FixVersions),
 		FixVersionIDs:   ids(f.FixVersions),
 		AffectsVersions: names(f.Versions),
-		EnvironmentText: jira.PlainText(f.Environment),
+		EnvironmentText: adf.PlainText(f.Environment),
 		Duedate:         f.Duedate,
 		DescriptionADF:  f.Description,
 		Custom:          custom(cfg.FieldSpecs(), iss.Extra),
@@ -835,7 +836,7 @@ func build(ctx context.Context, c *jira.Client, cfg *config.Config, iss jira.Iss
 			Author:     cm.Author.DisplayName,
 			AuthorID:   cm.Author.AccountID,
 			BodyADF:    cm.Body,
-			BodyText:   jira.PlainText(cm.Body),
+			BodyText:   adf.PlainText(cm.Body),
 			CreatedAt:  jira.ISOTime(cm.Created),
 			UpdatedAt:  jira.ISOTime(cm.Updated),
 			JsdPublic:  cm.JsdPublic,

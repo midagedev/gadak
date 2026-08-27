@@ -29,6 +29,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/mattn/go-runewidth"
+	"github.com/midagedev/gadak/internal/adf"
 	"github.com/midagedev/gadak/internal/claim"
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/fields"
@@ -592,7 +593,7 @@ func printIssue(l store.IssueLite, d *store.Detail, dur store.Spans) {
 		kv(alias, fmt.Sprint(l.Custom[alias]))
 	}
 
-	desc := strings.TrimSpace(jira.PlainText(d.DescriptionADF))
+	desc := strings.TrimSpace(adf.PlainText(d.DescriptionADF))
 	if desc == "" {
 		desc = strings.TrimSpace(d.DescriptionText)
 	}
@@ -609,7 +610,7 @@ func printIssue(l store.IssueLite, d *store.Detail, dur store.Spans) {
 		for _, c := range d.Comments {
 			body := strings.TrimSpace(c.Body)
 			if body == "" {
-				body = strings.TrimSpace(jira.PlainText(c.BodyADF))
+				body = strings.TrimSpace(adf.PlainText(c.BodyADF))
 			}
 			if mark := commentMark(c); mark != "" {
 				if body != "" {
@@ -842,7 +843,7 @@ func deriveInput(l store.IssueLite, d *store.Detail, c *deriveContext) store.Der
 	for _, cm := range d.Comments {
 		body := cm.Body
 		if strings.TrimSpace(body) == "" {
-			body = jira.PlainText(cm.BodyADF)
+			body = adf.PlainText(cm.BodyADF)
 		}
 		in.Comments = append(in.Comments, store.Comment{
 			ID: cm.ID, ExternalID: cm.ExternalID, Author: cm.Author,
@@ -1972,7 +1973,7 @@ func postComment(ctx context.Context, c origin.Writer, key, body string, vis *ji
 	return map[string]any{"comment": map[string]any{
 		"comment_id": created.ID,
 		"author":     created.Author.DisplayName,
-		"body":       jira.PlainText(created.Body),
+		"body":       adf.PlainText(created.Body),
 	}}, nil
 }
 

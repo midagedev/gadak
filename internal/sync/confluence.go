@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/midagedev/gadak/internal/adf"
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/confluence"
 	"github.com/midagedev/gadak/internal/jira"
@@ -489,8 +490,8 @@ func fetchPageRecord(ctx context.Context, c *confluence.Client, cfg *config.Conf
 	if title == "" {
 		title = hit.Title
 	}
-	adf := full.Body.ADFRaw()
-	bodyText := jira.PlainText(adf)
+	bodyADF := full.Body.ADFRaw()
+	bodyText := adf.PlainText(bodyADF)
 
 	// Labels: first expand page only (≤25); sorted for deterministic store rows.
 	labels := full.LabelNames()
@@ -522,7 +523,7 @@ func fetchPageRecord(ctx context.Context, c *confluence.Client, cfg *config.Conf
 			Version:  ver,
 			Status:   status,
 			Labels:   labels,
-			BodyADF:  adf,
+			BodyADF:  bodyADF,
 		},
 	}
 	for _, cm := range cms {
@@ -534,7 +535,7 @@ func fetchPageRecord(ctx context.Context, c *confluence.Client, cfg *config.Conf
 			Author:     cm.Version.By.DisplayName,
 			AuthorID:   cm.Version.By.AccountID,
 			BodyADF:    cmADF,
-			BodyText:   jira.PlainText(cmADF),
+			BodyText:   adf.PlainText(cmADF),
 			CreatedAt:  cmWhen,
 			UpdatedAt:  cmWhen,
 		})

@@ -661,7 +661,7 @@ func (s *server) handleComment(w http.ResponseWriter, r *http.Request) {
 		return map[string]any{"comment": map[string]any{
 			"comment_id": created.ID,
 			"author":     created.Author.DisplayName,
-			"body":       jira.PlainText(created.Body),
+			"body":       adf.PlainText(created.Body),
 			"created_at": jira.ISOTime(created.Created),
 		}}, nil
 	})
