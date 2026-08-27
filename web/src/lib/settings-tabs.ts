@@ -12,6 +12,7 @@ export const SETTINGS_TABS = [
   'members',
   'fields',
   'integrations',
+  'devices',
   'about',
 ] as const
 

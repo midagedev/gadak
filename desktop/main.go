@@ -779,6 +779,10 @@ func fallbackHandler(api http.Handler, ui fs.FS, reg *workspace.Registry, openUR
 	// bundled CLI (gadak raycast|skill|mcp install) line by line.
 	mux.HandleFunc("GET /desktop/integrations", handleIntegrationsGET)
 	mux.HandleFunc("POST /desktop/integrations/{id}/install", handleIntegrationsInstall)
+	// Settings → Devices (GDK-1047). Desktop-only, same as integrations:
+	// the mint/revoke/list surface for phone pairing, run through
+	// internal/pairflow — the same flow `gadak pairing` uses.
+	registerPairingRoutes(mux)
 	// The in-app browser pane. The SPA sends Atlassian-origin links here
 	// instead of /desktop/open (web/src/lib/desktop-links.ts decides which);
 	// each becomes an embedded webview tab layered over the pane rect the SPA
