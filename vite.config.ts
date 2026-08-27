@@ -44,6 +44,19 @@ export default defineConfig({
   base,
   plugins: [svelte(), tailwindcss(), keepEmbedPlaceholder()],
   build: {
+    // GDK-1045 (2026-08-27): vite's default target ('modules', ~es2020)
+    // downlevels `||=` into `(void 0 || (i = {}))` with `i` never declared,
+    // so the bundled xterm's requestMode threw ReferenceError on the first
+    // DECRQM (crush's `ESC[?2026$p` handshake) and every byte after it in
+    // that write chunk was dropped — TUIs rendered nothing in the pane while
+    // upstream xterm (and our source) were fine. es2022 keeps logical
+    // assignment intact and matches mobile/vite.config.ts, whose xterm
+    // bundle is the healthy reference for the same dependency set. If an
+    // older local browser ever matters: es2021 (Safari 14, 2020-09, first
+    // logical-assignment support) is the lowest floor that still seals this.
+    // e2e/terminal-modes.spec.ts pins the seal against the built bundle —
+    // the defect only exists in build output, never on the dev server.
+    target: 'es2022',
     outDir: defaultOutDir,
     emptyOutDir: true,
   },
