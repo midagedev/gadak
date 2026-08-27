@@ -325,7 +325,15 @@ func TestSlowAttachmentDroppedWithoutStallingOthers(t *testing.T) {
 	// exactly.
 	const bound = 64
 	m := testManager(t, Config{AttachBytes: bound, RingBytes: 4096})
-	s := shellSession(t, m, Options{})
+	// PS1/PS2='' so the interactive shell prints no "$ " prompt. CI measured
+	// a prompt arriving late and merging into an emit() ("v$ " for "v",
+	// GDK-1070): the shell emits its prompt when it starts waiting for
+	// input, which can land after the attaches, so the single Take() below
+	// discarded nothing and the prompt surfaced mid-stream. With PS1 empty
+	// the whole startup is one meta-mode escape, which readline emits at
+	// once on startup and is therefore in the replay each attach is seeded
+	// with — not a late arrival.
+	s := shellSession(t, m, Options{Env: []string{"PS1=", "PS2="}})
 	slow, err := s.Attach()
 	if err != nil {
 		t.Fatal(err)
@@ -334,11 +342,19 @@ func TestSlowAttachmentDroppedWithoutStallingOthers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Discard the startup replay both attachments were seeded with (the
-	// shell's prompt, if it beat the attaches) so per-chunk comparisons
-	// below are exact.
-	slow.Take()
-	fast.Take()
+	// Consume that startup escape from both attachments before the per-chunk
+	// comparisons. One Wake+Take each — a single read keeps slow's
+	// never-reads-again identity (it is meant to be dropped once emit()s
+	// exceed its bound), and waiting on Wake makes the discard deterministic
+	// where a bare Take() could race an escape not yet delivered.
+	for _, a := range []*Attachment{slow, fast} {
+		select {
+		case <-a.Wake():
+			a.Take()
+		case <-time.After(5 * time.Second):
+			t.Fatal("no startup replay to discard")
+		}
+	}
 	for i := 0; i < bound+3; i++ {
 		chunk := []byte{byte('a' + i)}
 		s.emit(chunk)
