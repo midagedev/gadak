@@ -7,13 +7,15 @@ session can start work without re-deriving anything.
 Last updated: 2026-08-26 — main at v0.18.1, **the patch where the terminal
 cleans up after itself**, same-day on top of **the release where the agent
 moves in** (0.18.0). `gadak serve` owns a PTY behind `/api/v1/terminal/` and one session core
-feeds three renderers — the web pane (ghostty-web WASM, xterm behind the same
-seam), the desktop app (a wails GoStream, because a WebSocket cannot ride a
-custom scheme and the app opens no port), and a paired phone. A third pairing
-scope, `terminal`, opens a shell and nothing else; a serve or origin token
-opens no shell at all. **The pane ships Beta** — the edge that mark is honest
-about was Korean IME composition, fixed upstream (coder/ghostty-web#190) and
-consumed from a fork until it lands. The phone app went from scaffold to the
+feeds three renderers — the web pane (xterm.js, the single web renderer since
+the ghostty-web default lost a measured shootout, GDK-1041 — parity on
+throughput, IME composition and alt-screen at 189 KB gzip heavier, so the
+dependency went away), the desktop app (a wails GoStream, because a WebSocket
+cannot ride a custom scheme and the app opens no port), and a paired phone. A
+third pairing scope, `terminal`, opens a shell and nothing else; a serve or
+origin token opens no shell at all. **The pane ships Beta** — the ghostty
+IME edge that mark was honest about is gone with the renderer (xterm
+measured at parity). The phone app went from scaffold to the
 whole loop and ships to TestFlight in one command. Also: `create --type` takes
 Jira's English names on a localised site, and the site serves the changelog
 with the SEO surface it never had. Behind the tag are three defects found *on

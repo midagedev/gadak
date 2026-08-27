@@ -117,11 +117,12 @@ export interface SocketHandlers {
  * What a terminal renderer is, and the one decoder every host needs.
  *
  * These sit beside the wire vocabulary rather than in ./renderer for a
- * mechanical reason: ./renderer's createRenderer holds `import('ghostty-web')`,
- * and a bundler resolves that at build time. A host that ships only xterm —
- * the phone — cannot import anything from that module without dragging the
- * WASM renderer into its dependency graph. So the *contract* lives here,
- * where it costs nothing, and each host brings its own implementation.
+ * mechanical reason: ./renderer is the web app's own implementation (DOM
+ * hosts, cssVar, the xterm dynamic import). A host that brings its own
+ * renderer — the phone, the desktop stream — cannot import anything from
+ * that module without dragging the web renderer into its dependency graph.
+ * So the *contract* lives here, where it costs nothing, and each host
+ * brings its own implementation (GDK-865).
  */
 
 /** One renderer's surface, whichever library is behind it. */

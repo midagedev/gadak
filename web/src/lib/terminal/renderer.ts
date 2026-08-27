@@ -1,24 +1,17 @@
 /*
- * One renderer seam for the terminal pane (GDK-864).
+ * The terminal pane's renderer (GDK-864).
  *
- * ghostty-web is the default (libghostty-vt WASM). xterm.js + webgl + fit
- * is the fallback, loaded only when asked (`?term=xterm` / localStorage) or
- * when ghostty's import() rejects. Both enter through dynamic import() so
- * the unused renderer — and the WASM — stay out of the main bundle.
- *
- * Kind owner, in this order: URL query `term` > localStorage
- * `gadak.terminal.renderer` > ghostty. Nothing else writes the stored kind;
- * a runtime fallback does not persist.
+ * xterm.js + fit addon, entered through dynamic import() so the library
+ * stays out of the main bundle until a terminal is actually opened. It is
+ * the only renderer: the WASM default it replaced lost a measured shootout
+ * (GDK-1041) — parity on throughput, IME composition and alt-screen,
+ * 189 KB gzip heavier.
  */
-
-export type RendererKind = 'ghostty' | 'xterm'
-
-export const RENDERER_STORAGE_KEY = 'gadak.terminal.renderer'
 
 /*
  * The renderer contract and the stream decoder moved to ./protocol (GDK-865):
- * the phone ships xterm only, and importing anything from this module would
- * make a bundler resolve the ghostty dynamic import below. Re-exported here
+ * the phone imports that module directly, and this one is web-only renderer
+ * code (DOM hosts, cssVar, the xterm dynamic import). Re-exported here
  * because this is where the web app already looks.
  */
 import { createUtf8StreamDecoder } from './protocol'
@@ -26,25 +19,6 @@ import type { TerminalRenderer } from './protocol'
 
 export { createUtf8StreamDecoder }
 export type { TerminalRenderer }
-
-export function resolveRendererKind(opts?: {
-  search?: string
-  storage?: { getItem(key: string): string | null } | null
-}): RendererKind {
-  const search =
-    opts?.search ?? (typeof location !== 'undefined' ? location.search : '')
-  const q = new URLSearchParams(search).get('term')
-  if (q === 'xterm' || q === 'ghostty') return q
-  const storage =
-    opts && 'storage' in opts
-      ? opts.storage
-      : typeof localStorage !== 'undefined'
-        ? localStorage
-        : null
-  const stored = storage?.getItem(RENDERER_STORAGE_KEY)
-  if (stored === 'xterm' || stored === 'ghostty') return stored
-  return 'ghostty'
-}
 
 function cssVar(name: string, fallback: string): string {
   if (typeof document === 'undefined') return fallback
@@ -97,7 +71,7 @@ type TermHook = {
 
 declare global {
   interface Window {
-    /** Underlying ghostty-web / xterm Terminal, tests only (GDK-864). */
+    /** Underlying xterm Terminal, tests only (GDK-864). */
     __gadakTerm?: TermHook
   }
 }
@@ -106,14 +80,6 @@ function exposeTerm(term: TermHook | undefined): void {
   if (typeof window === 'undefined') return
   if (term) window.__gadakTerm = term
   else delete window.__gadakTerm
-}
-
-let ghosttyFallbackLogged = false
-
-function logGhosttyFallback(err: unknown): void {
-  if (ghosttyFallbackLogged) return
-  ghosttyFallbackLogged = true
-  console.warn('gadak: ghostty-web failed to load, using xterm', err)
 }
 
 /**
@@ -131,8 +97,7 @@ export function terminalFontSize(read: (name: string) => string = readCssVar): n
   return Number.isFinite(px) && px > 0 ? px : TERMINAL_FONT_SIZE_FALLBACK
 }
 
-/** The injectable half, so a node test can ask without a document — the same
- *  seam shape resolveRendererKind uses for its storage. */
+/** The injectable half, so a node test can ask without a document. */
 function readCssVar(name: string): string {
   return cssVar(name, '')
 }
@@ -149,72 +114,6 @@ function termOptions() {
     // person can scroll back through in one session.
     scrollback: 5000,
     cursorBlink: false,
-  }
-}
-
-async function createGhosttyRenderer(): Promise<TerminalRenderer> {
-  const { init, Terminal, FitAddon } = await import('ghostty-web')
-  await init()
-  const theme = chromeTheme()
-  const term = new Terminal({
-    ...termOptions(),
-    fontFamily: fontFamily(),
-    theme,
-    cols: 80,
-    rows: 24,
-  })
-  const fitAddon = new FitAddon()
-  term.loadAddon(fitAddon)
-  const decoder = createUtf8StreamDecoder()
-  const encoder = new TextEncoder()
-  let dataCb: ((bytes: Uint8Array) => void) | null = null
-  let resizeCb: ((cols: number, rows: number) => void) | null = null
-  const unData = term.onData((s) => {
-    dataCb?.(encoder.encode(s))
-  })
-  const unResize = term.onResize(({ cols, rows }) => {
-    resizeCb?.(cols, rows)
-  })
-  // ghostty: true consumes the event (does not send it to the PTY).
-  term.attachCustomKeyEventHandler((ev) => isToggleChord(ev))
-
-  return {
-    name: 'ghostty',
-    get cols() {
-      return term.cols
-    },
-    get rows() {
-      return term.rows
-    },
-    open(host: HTMLElement) {
-      host.setAttribute('data-gadak-editable', '')
-      host.style.height = '100%'
-      host.style.width = '100%'
-      term.open(host)
-      exposeTerm(term)
-    },
-    write(data: Uint8Array | string) {
-      term.write(decoder.push(data))
-    },
-    onData(cb) {
-      dataCb = cb
-    },
-    onResize(cb) {
-      resizeCb = cb
-    },
-    fit() {
-      fitAddon.fit()
-    },
-    focus() {
-      term.focus()
-    },
-    dispose() {
-      unData.dispose()
-      unResize.dispose()
-      fitAddon.dispose()
-      term.dispose()
-      exposeTerm(undefined)
-    },
   }
 }
 
@@ -250,7 +149,8 @@ async function createXtermRenderer(): Promise<TerminalRenderer> {
   const unResize = term.onResize(({ cols, rows }) => {
     resizeCb?.(cols, rows)
   })
-  // xterm: false means "do not process" (the opposite of ghostty's true).
+  // false means "do not process" — the toggle chord must escape the VT and
+  // reach the app's own handler.
   term.attachCustomKeyEventHandler((ev) => !isToggleChord(ev))
 
   return {
@@ -297,15 +197,6 @@ async function createXtermRenderer(): Promise<TerminalRenderer> {
   }
 }
 
-export async function createRenderer(
-  kind?: RendererKind,
-): Promise<TerminalRenderer> {
-  const requested = kind ?? resolveRendererKind()
-  if (requested === 'xterm') return createXtermRenderer()
-  try {
-    return await createGhosttyRenderer()
-  } catch (err) {
-    logGhosttyFallback(err)
-    return createXtermRenderer()
-  }
+export async function createRenderer(): Promise<TerminalRenderer> {
+  return createXtermRenderer()
 }

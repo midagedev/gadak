@@ -59,7 +59,7 @@ export function isEditableTarget(el: EventTarget | null): boolean {
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable) {
     return true
   }
-  // Terminal host (ghostty canvas / xterm) — GDK-864. closest is optional so
+  // Terminal host (xterm canvas / helper textarea) — GDK-864. closest is
   // the duck-typed keymap tests keep running in node.
   return fromTerminalHost(el)
 }

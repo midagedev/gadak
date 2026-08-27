@@ -14,9 +14,6 @@ import {
 
 const SHOT_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'scratch', 'terminal-shots')
 
-const KINDS = ['ghostty', 'xterm'] as const
-type Kind = (typeof KINDS)[number]
-
 type TermHook = {
   buffer: {
     active: {
@@ -26,10 +23,10 @@ type TermHook = {
   }
 }
 
-async function boot(page: Page, kind: Kind): Promise<string[]> {
+async function boot(page: Page): Promise<string[]> {
   const errors = attachConsoleErrors(page)
   await forceLocale(page, 'en')
-  await page.goto(`/?term=${kind}`)
+  await page.goto('/')
   await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 30_000 })
   await expect(page.getByText(DEMO_ISSUE_COUNT_EN_RE).first()).toBeVisible({ timeout: 30_000 })
   await expect(page).toHaveURL(/[#?&]sc=/, { timeout: 30_000 })
@@ -98,73 +95,69 @@ async function drainSessions(page: Page): Promise<void> {
 }
 
 test.describe('terminal pane', () => {
-  for (const kind of KINDS) {
-    test.describe(kind, () => {
-      test.afterEach(async ({ page }) => {
-        await drainSessions(page)
-        const res = await page.request.get(apiURL('/api/v1/terminal/sessions/'))
-        const body = (await res.json()) as { sessions?: unknown[] }
-        expect(body.sessions ?? []).toEqual([])
+  test.afterEach(async ({ page }) => {
+    await drainSessions(page)
+    const res = await page.request.get(apiURL('/api/v1/terminal/sessions/'))
+    const body = (await res.json()) as { sessions?: unknown[] }
+    expect(body.sessions ?? []).toEqual([])
+  })
+
+  test('echo, resize, Esc, replay, exit', async ({ page }) => {
+    test.setTimeout(90_000)
+    const errors = await boot(page)
+    await openPane(page)
+
+    await typeLine(page, "printf 'spike-864-%s\\n' ok")
+    await expect.poll(async () => readTerm(page)).toContain('spike-864-ok')
+
+    await typeLine(page, 'stty size')
+    let sizeBefore: string | null = null
+    await expect
+      .poll(async () => {
+        sizeBefore = lastStty(await readTerm(page))
+        return sizeBefore
       })
+      .toMatch(/\d+\s+\d+/)
 
-      test(`echo, resize, Esc, replay, exit (${kind})`, async ({ page }) => {
-        test.setTimeout(90_000)
-        const errors = await boot(page, kind)
-        await openPane(page)
-
-        await typeLine(page, "printf 'spike-864-%s\\n' ok")
-        await expect.poll(async () => readTerm(page)).toContain('spike-864-ok')
-
-        await typeLine(page, 'stty size')
-        let sizeBefore: string | null = null
-        await expect
-          .poll(async () => {
-            sizeBefore = lastStty(await readTerm(page))
-            return sizeBefore
-          })
-          .toMatch(/\d+\s+\d+/)
-
-        const viewport = page.viewportSize() ?? { width: 1280, height: 720 }
-        await page.setViewportSize({
-          width: viewport.width + 280,
-          height: viewport.height + 80,
-        })
-        await typeLine(page, 'stty size')
-        await expect
-          .poll(async () => {
-            const after = lastStty(await readTerm(page))
-            return after !== null && after !== sizeBefore
-          })
-          .toBe(true)
-
-        await page.keyboard.press('Escape')
-        await expect(page.getByTestId('terminal-pane')).toBeVisible()
-        await expect(page.getByTestId('shortcuts-dialog')).toHaveCount(0)
-        await expect(page.locator('[data-testid="issue-layout"]')).toHaveAttribute(
-          'data-detail-open',
-          'false',
-        )
-
-        await page.keyboard.press('Control+Backquote')
-        await expect(page.getByTestId('terminal-pane')).toHaveCount(0)
-        await page.keyboard.press('Control+Backquote')
-        await expect(page.getByTestId('terminal-pane')).toBeVisible()
-        await expect(page.getByTestId('terminal-pane')).toHaveAttribute('data-attached', 'true', {
-          timeout: 20_000,
-        })
-        await expect.poll(async () => readTerm(page)).toContain('spike-864-ok')
-
-        await focusTerm(page)
-        await page.keyboard.press('Control+C')
-        await typeLine(page, 'exit')
-        await expect(page.getByTestId('terminal-status')).toContainText('Shell exited', {
-          timeout: 20_000,
-        })
-
-        expect(appConsoleErrors(errors), `console errors:\n${errors.join('\n')}`).toEqual([])
-      })
+    const viewport = page.viewportSize() ?? { width: 1280, height: 720 }
+    await page.setViewportSize({
+      width: viewport.width + 280,
+      height: viewport.height + 80,
     })
-  }
+    await typeLine(page, 'stty size')
+    await expect
+      .poll(async () => {
+        const after = lastStty(await readTerm(page))
+        return after !== null && after !== sizeBefore
+      })
+      .toBe(true)
+
+    await page.keyboard.press('Escape')
+    await expect(page.getByTestId('terminal-pane')).toBeVisible()
+    await expect(page.getByTestId('shortcuts-dialog')).toHaveCount(0)
+    await expect(page.locator('[data-testid="issue-layout"]')).toHaveAttribute(
+      'data-detail-open',
+      'false',
+    )
+
+    await page.keyboard.press('Control+Backquote')
+    await expect(page.getByTestId('terminal-pane')).toHaveCount(0)
+    await page.keyboard.press('Control+Backquote')
+    await expect(page.getByTestId('terminal-pane')).toBeVisible()
+    await expect(page.getByTestId('terminal-pane')).toHaveAttribute('data-attached', 'true', {
+      timeout: 20_000,
+    })
+    await expect.poll(async () => readTerm(page)).toContain('spike-864-ok')
+
+    await focusTerm(page)
+    await page.keyboard.press('Control+C')
+    await typeLine(page, 'exit')
+    await expect(page.getByTestId('terminal-status')).toContainText('Shell exited', {
+      timeout: 20_000,
+    })
+
+    expect(appConsoleErrors(errors), `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
 })
 
 test.describe('terminal shots', () => {
@@ -190,7 +183,7 @@ test.describe('terminal shots', () => {
    */
   test('a wide display does not let the pane eat the list', async ({ page }) => {
     await page.setViewportSize({ width: 2200, height: 900 })
-    await boot(page, 'xterm')
+    await boot(page)
     await openPane(page)
     const trackBox = await page.getByTestId('terminal-split').boundingBox()
     const paneBox = await page.getByTestId('terminal-pane').boundingBox()
@@ -208,7 +201,7 @@ test.describe('terminal shots', () => {
    * Ctrl+` so the palette is also where you learn it.
    */
   test('the command palette opens the terminal, and shows its chord', async ({ page }) => {
-    await boot(page, 'xterm')
+    await boot(page)
     await page.keyboard.press('ControlOrMeta+k')
     const palette = page.getByRole('dialog', { name: 'Command palette' })
     await expect(palette).toBeVisible()
@@ -240,7 +233,7 @@ test.describe('terminal shots', () => {
     page,
   }) => {
     await page.setViewportSize({ width: 1100, height: 900 })
-    await boot(page, 'xterm')
+    await boot(page)
     await openPane(page)
     await expect(page.getByTestId('terminal-pane')).not.toHaveAttribute('data-overlay', 'true')
     // Open an issue: the detail panel docks at 1100px (VIEWPORT_DOCKED_MIN_PX).
@@ -273,61 +266,51 @@ test.describe('terminal shots', () => {
       })
     }
 
-    await boot(page, 'ghostty')
+    await boot(page)
     await openPane(page)
     await typeLine(page, 'ls -la')
     await expect.poll(async () => readTerm(page)).toMatch(/total\s+\d+/)
-    await shoot('01-split-ghostty.png')
-
-    await page.keyboard.press('Control+Backquote')
-    await expect(page.getByTestId('terminal-pane')).toHaveCount(0)
-
-    await boot(page, 'xterm')
-    await openPane(page)
-    await typeLine(page, 'ls -la')
-    await expect.poll(async () => readTerm(page)).toMatch(/total\s+\d+/)
-    await shoot('02-split-xterm.png')
+    await shoot('01-split.png')
 
     await focusTerm(page)
     await page.keyboard.press('Control+C')
     await typeLine(page, 'exit')
     await expect(page.getByTestId('terminal-status')).toContainText('Shell exited')
-    await shoot('03-exited.png')
+    await shoot('02-exited.png')
 
-    await boot(page, 'ghostty')
+    await boot(page)
     await openPane(page)
     await typeLine(page, "printf 'overlay\\n'")
     await page.setViewportSize({ width: 820, height: 900 })
     await expect(page.getByTestId('terminal-pane')).toHaveAttribute('data-overlay', 'true')
-    await shoot('04-narrow-overlay.png')
+    await shoot('03-overlay.png')
     await page.keyboard.press('Control+Backquote')
     await expect(page.getByTestId('terminal-pane')).toHaveCount(0)
 
     await page.setViewportSize({ width: 1440, height: 900 })
-    await boot(page, 'ghostty')
+    await boot(page)
     await page.evaluate(() => {
       document.documentElement.setAttribute('data-theme', 'dark')
     })
     await openPane(page)
     await typeLine(page, 'ls -la')
     await expect.poll(async () => readTerm(page)).toMatch(/total\s+\d+/)
-    await shoot('05-dark-ghostty.png')
+    await shoot('04-dark.png')
 
     writeFileSync(
       join(SHOT_DIR, 'MANIFEST.md'),
       [
-        '# terminal pane captures (GDK-864)',
+        '# terminal pane captures (GDK-864; single renderer)',
         '',
         `- source: \`${source}\``,
-        `- viewport: 1440×900, deviceScaleFactor 2 (04 is 820×900)`,
+        `- viewport: 1440×900, deviceScaleFactor 2 (03 is 820×900)`,
         '',
-        '| file | renderer | notes |',
-        '| --- | --- | --- |',
-        '| `01-split-ghostty.png` | ghostty | pane + list, `ls -la` |',
-        '| `02-split-xterm.png` | xterm | same, `?term=xterm` |',
-        '| `03-exited.png` | xterm | exited status line |',
-        '| `04-narrow-overlay.png` | ghostty | 820px overlay |',
-        '| `05-dark-ghostty.png` | ghostty | `data-theme=dark` |',
+        '| file | notes |',
+        '| --- | --- |',
+        '| `01-split.png` | pane + list, `ls -la` |',
+        '| `02-exited.png` | exited status line |',
+        '| `03-overlay.png` | 820px overlay |',
+        '| `04-dark.png` | `data-theme=dark` |',
         '',
       ].join('\n'),
       'utf8',

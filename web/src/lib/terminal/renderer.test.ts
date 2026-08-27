@@ -1,11 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { fromTerminalHost, isEditableTarget, keyContext, resolveGlobalKey } from '../keymap.svelte'
-import {
-  createUtf8StreamDecoder,
-  RENDERER_STORAGE_KEY,
-  resolveRendererKind,
-  terminalFontSize,
-} from './renderer'
+import { createUtf8StreamDecoder, terminalFontSize } from './renderer'
 import {
   TERMINAL_MIN_WIDTH_PX,
   TERMINAL_SPLIT_WITH_DETAIL_MIN_PX,
@@ -13,39 +8,6 @@ import {
 } from './layout'
 import { VIEWPORT_DOCKED_MIN_PX } from '../viewport-regime'
 import { COMMANDS } from '../commands'
-
-describe('resolveRendererKind owner', () => {
-  test('query beats localStorage beats default', () => {
-    const storage = {
-      store: new Map<string, string>([[RENDERER_STORAGE_KEY, 'xterm']]),
-      getItem(key: string) {
-        return this.store.get(key) ?? null
-      },
-    }
-    expect(resolveRendererKind({ search: '', storage })).toBe('xterm')
-    expect(resolveRendererKind({ search: '?term=ghostty', storage })).toBe('ghostty')
-    expect(resolveRendererKind({ search: '?term=xterm', storage })).toBe('xterm')
-    expect(resolveRendererKind({ search: '', storage: { getItem: () => null } })).toBe('ghostty')
-    expect(resolveRendererKind({ search: '?foo=1', storage: { getItem: () => null } })).toBe(
-      'ghostty',
-    )
-  })
-
-  test('unknown query values fall through to storage then default', () => {
-    expect(
-      resolveRendererKind({
-        search: '?term=kitty',
-        storage: { getItem: () => 'xterm' },
-      }),
-    ).toBe('xterm')
-    expect(
-      resolveRendererKind({
-        search: '?term=kitty',
-        storage: { getItem: () => 'nope' },
-      }),
-    ).toBe('ghostty')
-  })
-})
 
 describe('UTF-8 stream decoder', () => {
   test('a character split across two write() calls renders as one glyph', () => {

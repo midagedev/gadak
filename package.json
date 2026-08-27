@@ -39,7 +39,6 @@
     "@lucide/svelte": "^1.24.0",
     "@xterm/addon-fit": "0.11.0",
     "@xterm/xterm": "6.0.0",
-    "ghostty-web": "git+https://github.com/midagedev/ghostty-web.git#b45a4ff386c898a413a29fd5df97c76e0d37648d",
     "idb": "^8.0.3"
   }
 }
