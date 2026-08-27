@@ -17,6 +17,7 @@ edge that follows an issue from its row into its detail page.
 | Job | Screen | Budget |
 |---|---|---|
 | "What's on my plate?" | Issues (default tab), scope **Assigned to me** | glance — no taps |
+| "What moved while I was away?" | Issues, glance strip above the queue (GDK-871) | 0 taps |
 | "Show me the view I named at the desk" | Issues, scope picker on the heading | 1 tap |
 | "What's in this space / what changed in the wiki?" | Issues, Documents section of the same picker | 1 tap |
 | "Where was that issue or page about X?" | Search | 2 taps + typing |
@@ -27,7 +28,9 @@ edge that follows an issue from its row into its detail page.
 
 Non-jobs (deliberately absent in v1): creating issues, editing fields,
 attachments, **wiki writes** (create / edit / comment on a page),
-feed/notifications, JQL. The desktop owns those. History timeline and plugin
+a feed *tab* or notification center (the glance strip above the queue is
+the phone's whole feed surface — GDK-871; a fourth tab would be a desktop
+column transplanted), JQL. The desktop owns those. History timeline and plugin
 enrichments are read on the desktop too — the phone shows description,
 comments, linked issues, and a page's plain-text body. **Authoring** a view is a
 non-job in the same sense: the phone consumes the names the desk wrote and
