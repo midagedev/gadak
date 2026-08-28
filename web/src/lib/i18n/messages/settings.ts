@@ -917,6 +917,123 @@ export const settings = {
     ko: '해지됨',
     ja: '失効',
   },
+
+  /* ── Workspaces (GDK-1096) ── */
+  'settings.tabWorkspaces': {
+    en: 'Workspaces',
+    ko: '워크스페이스',
+    ja: 'ワークスペース',
+  },
+  'settings.workspacesIntro': {
+    en: 'Each workspace is its own mirror, served at /w/<name>/. Creating one seeds a standalone tracker; removing one deletes this machine’s copy of it.',
+    ko: '각 워크스페이스는 자체 미러를 가지며 /w/<name>/ 으로 서빙됩니다. 만들면 독립 트래커가 시드되고, 지우면 이 머신의 사본이 삭제됩니다.',
+    ja: '各ワークスペースは独自のミラーを持ち、/w/<name>/ で serve されます。作成するとスタンドアロンのトラッカーがシードされ、削除するとこのマシンのコピーが消えます。',
+  },
+  'settings.workspacesLoading': {
+    en: 'Loading workspaces…',
+    ko: '워크스페이스를 불러오는 중…',
+    ja: 'ワークスペースを読み込み中…',
+  },
+  'settings.workspacesLoadFailed': {
+    en: 'Could not read the workspace list.',
+    ko: '워크스페이스 목록을 읽지 못했습니다.',
+    ja: 'ワークスペース一覧を読めませんでした。',
+  },
+  'settings.workspacesEmpty': {
+    en: 'No workspaces besides this one yet. Create one below.',
+    ko: '아직 이 워크스페이스 외에는 없습니다. 아래에서 만드세요.',
+    ja: 'このワークスペース以外はまだありません。下から作成してください。',
+  },
+  'settings.workspacesColName': {
+    en: 'Workspace',
+    ko: '워크스페이스',
+    ja: 'ワークスペース',
+  },
+  'settings.workspacesColSite': {
+    en: 'Site',
+    ko: '사이트',
+    ja: 'サイト',
+  },
+  'settings.workspacesColProjects': {
+    en: 'Projects',
+    ko: '프로젝트',
+    ja: 'プロジェクト',
+  },
+  'settings.workspacesActiveBadge': {
+    en: 'This serve',
+    ko: '현재 서빙',
+    ja: 'このサーブ',
+  },
+  'settings.workspacesUnreadable': {
+    en: 'config unreadable',
+    ko: '설정을 읽을 수 없음',
+    ja: '設定を読み取れません',
+  },
+  'settings.workspacesActiveHint': {
+    en: 'This is the workspace this serve is running on. Stop serve first, then remove it from a terminal.',
+    ko: '현재 serve가 이 워크스페이스 위에서 돌고 있습니다. serve를 멈춘 뒤 터미널에서 삭제하세요.',
+    ja: 'このserveはこのワークスペース上で動いています。先にserveを止め、端末から削除してください。',
+  },
+  'settings.workspacesNameLabel': {
+    en: 'Workspace name',
+    ko: '워크스페이스 이름',
+    ja: 'ワークスペース名',
+  },
+  'settings.workspacesProjectsLabel': {
+    en: 'Project keys (optional, comma-separated)',
+    ko: '프로젝트 키 (선택, 콤마 구분)',
+    ja: 'プロジェクトキー（任意・カンマ区切り）',
+  },
+  'settings.workspacesCreate': {
+    en: 'Create workspace',
+    ko: '워크스페이스 생성',
+    ja: 'ワークスペースを作成',
+  },
+  'settings.workspacesCreateFailed': {
+    en: 'Could not create the workspace. Try again.',
+    ko: '워크스페이스를 만들지 못했습니다. 다시 시도하세요.',
+    ja: 'ワークスペースを作成できませんでした。もう一度お試しください。',
+  },
+  'settings.workspacesErrExists': {
+    en: 'A workspace named {name} already exists.',
+    ko: '{name}(이)라는 워크스페이스가 이미 있습니다.',
+    ja: '{name} というワークスペースは既に存在します。',
+  },
+  'settings.workspacesErrInvalidName': {
+    en: 'That name cannot be used for a workspace.',
+    ko: '그 이름은 워크스페이스 이름으로 쓸 수 없습니다.',
+    ja: 'その名前はワークスペース名に使えません。',
+  },
+  'settings.workspacesRemote': {
+    en: 'Workspace management is available from a local browser only.',
+    ko: '워크스페이스 관리는 로컬 브라우저에서만 할 수 있습니다.',
+    ja: 'ワークスペースの管理はローカルブラウザからのみ行えます。',
+  },
+  'settings.workspacesRemoveTitle': {
+    en: 'Remove workspace',
+    ko: '워크스페이스 삭제',
+    ja: 'ワークスペースを削除',
+  },
+  'settings.workspacesDestroyLabel': {
+    en: 'Also destroy the standalone persist (the only copy of this tracker)',
+    ko: '독립 persist도 함께 파기 (이 트래커의 유일한 사본)',
+    ja: 'スタンドアロンのpersistも破棄する（このトラッカーの唯一のコピー）',
+  },
+  'settings.workspacesDestroyHint': {
+    en: 'Copy the persist file out first if you want to keep its data.',
+    ko: '데이터를 남기려면 먼저 persist 파일을 복사해 두세요.',
+    ja: 'データを残す場合は、先にpersistファイルをコピーしてください。',
+  },
+  'settings.workspacesRemoveFailed': {
+    en: 'Could not remove the workspace. Try again.',
+    ko: '워크스페이스를 삭제하지 못했습니다. 다시 시도하세요.',
+    ja: 'ワークスペースを削除できませんでした。もう一度お試しください。',
+  },
+  'settings.workspacesAdvisories': {
+    en: 'After this removal:',
+    ko: '삭제 후 안내:',
+    ja: '削除後の注記:',
+  },
   'settings.groupLabels': {
     en: 'Group labels & colors',
     ko: '그룹 라벨·색상',

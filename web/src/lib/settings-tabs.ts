@@ -11,6 +11,7 @@ export const SETTINGS_TABS = [
   'groups',
   'members',
   'fields',
+  'workspaces',
   'integrations',
   'devices',
   'about',

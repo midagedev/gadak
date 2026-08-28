@@ -1137,6 +1137,115 @@ export async function getWorkspaces(): Promise<WorkspaceInfo[]> {
   }
 }
 
+/**
+ * A refused workspace-management call, kept as data rather than a message:
+ * `error` is the server's code (self_delete, exists, forbidden_host, …) and
+ * `detail` is the CLI's own refusal wording, which the UI shows verbatim —
+ * the server stays the single owner of what a refusal means.
+ */
+export class WorkspaceManageError extends Error {
+  status: number
+  error: string | null
+  detail: string | null
+  constructor(status: number, error: string | null, detail: string | null) {
+    super(error ?? `workspaces → ${status}`)
+    this.name = 'WorkspaceManageError'
+    this.status = status
+    this.error = error
+    this.detail = detail
+  }
+}
+
+/** POST /api/v1/workspaces 201 document (internal/workspace/manage.go). */
+export interface CreatedWorkspace {
+  name: string
+  kind: string
+  /** Absolute path of the new standalone persist — informational. */
+  persist: string
+}
+
+/** DELETE /api/v1/workspaces/{name} 200 document. `advisories` is server
+ *  wording, rendered as-is (pairing hint, stored-default cleanup, …). */
+export interface RemovedWorkspace {
+  removed: string
+  kind: string
+  origin_destroyed: boolean
+  advisories: string[]
+}
+
+/** Read a {error, detail?} refusal body off a non-OK response. Never throws:
+ *  a body that is not JSON leaves code/detail null and the status says it. */
+async function manageRefusal(res: Response): Promise<WorkspaceManageError> {
+  let error: string | null = null
+  let detail: string | null = null
+  try {
+    const doc = (await res.json()) as { error?: unknown; detail?: unknown }
+    if (typeof doc.error === 'string') error = doc.error
+    if (typeof doc.detail === 'string') detail = doc.detail
+  } catch {
+    /* not JSON — the status is the whole answer */
+  }
+  return new WorkspaceManageError(res.status, error, detail)
+}
+
+/**
+ * List mountable workspaces, refusing where getWorkspaces collapses: the
+ * management tab must tell "empty list" and "this browser may not manage
+ * workspaces" (403 forbidden_host on a DNS-named Host) apart, and a plain
+ * network failure apart from both. Same origin-root fetch as getWorkspaces —
+ * the list is one process-wide fact, the same from every mount.
+ */
+export async function listWorkspaces(): Promise<WorkspaceInfo[]> {
+  const res = await fetch('/api/v1/workspaces', { credentials: 'same-origin' })
+  if (!res.ok) throw await manageRefusal(res)
+  const doc = (await res.json()) as { workspaces?: WorkspaceInfo[] }
+  return doc.workspaces ?? []
+}
+
+/**
+ * Create a standalone workspace (the only kind creatable over HTTP —
+ * connected needs the credential flow, paired the pairing flow). `projects`
+ * is a CSV the server parses; empty mirrors every project.
+ */
+export async function createWorkspace(name: string, projects = ''): Promise<CreatedWorkspace> {
+  const body: Record<string, string> = { name, kind: 'standalone' }
+  const csv = projects.trim()
+  if (csv) body.projects = csv
+  const res = await fetch('/api/v1/workspaces', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw await manageRefusal(res)
+  return (await res.json()) as CreatedWorkspace
+}
+
+/**
+ * Remove a workspace. With no options this is the *probe*: the server
+ * answers 400 with the refusal whose detail explains what removal means for
+ * this workspace (needs_destroy_origin carries the persist path) — that
+ * wording is the confirmation dialog's body. `yes: true` commits, and
+ * `destroyOrigin: true` additionally destroys a standalone persist (the
+ * only copy of that tracker).
+ */
+export async function removeWorkspace(
+  name: string,
+  opts: { yes?: boolean; destroyOrigin?: boolean } = {},
+): Promise<RemovedWorkspace> {
+  const q = new URLSearchParams()
+  if (opts.yes) q.set('yes', '1')
+  if (opts.destroyOrigin) q.set('destroy_origin', '1')
+  const qs = q.toString()
+  const suffix = qs ? `?${qs}` : ''
+  const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(name)}${suffix}`, {
+    method: 'DELETE',
+    credentials: 'same-origin',
+  })
+  if (!res.ok) throw await manageRefusal(res)
+  return (await res.json()) as RemovedWorkspace
+}
+
 export function getSettings(): Promise<GadakSettings> {
   return jsonW<GadakSettings>('settings/')
 }

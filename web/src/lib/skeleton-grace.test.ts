@@ -99,6 +99,10 @@ const ALLOWLIST: { file: string; reason: string }[] = [
     reason: 'pairing device list is an in-process store read, not the mirror',
   },
   {
+    file: join(WEB_SRC, 'components/settings/WorkspacesTab.svelte'),
+    reason: 'workspace list is a serve control read, not the mirror',
+  },
+  {
     file: join(WEB_SRC, 'components/write/NewIssueDialog.svelte'),
     reason: 'write-path create-meta; a write in flight is not a read',
   },

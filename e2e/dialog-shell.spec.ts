@@ -241,6 +241,36 @@ async function measureShell(dialog: Locator): Promise<ShellGeometry> {
   })
 }
 
+/** Same mocking discipline as stubCreateMeta: the workspaces-remove dialog's
+ *  row must not create or destroy a real workspace in the e2e home. The list
+ *  and the probe refusal are both fulfilled here, so the dialog opens on
+ *  mock data and the suite's home stays exactly as serve.sh seeded it. */
+async function stubWorkspacesRemove(page: Page): Promise<void> {
+  await page.route('**/api/v1/workspaces', async (route) => {
+    if (route.request().method() === 'GET') {
+      await fulfillJSON(route, {
+        workspaces: [
+          { name: 'default', site: 'https://nimbus.example.com', projects: ['NMB'], active: true },
+          { name: 'shell-dialog-ws' },
+        ],
+      })
+      return
+    }
+    await route.continue()
+  })
+  await page.route('**/api/v1/workspaces/shell-dialog-ws', async (route) => {
+    await fulfillJSON(
+      route,
+      {
+        error: 'needs_destroy_origin',
+        detail:
+          'refusing: "shell-dialog-ws" is a standalone workspace and its persist is the only copy of that tracker anywhere\n  persist: /somewhere/profiles/shell-dialog-ws/origin.sqlite\n  to remove it anyway: gadak workspaces rm shell-dialog-ws --yes --destroy-origin',
+      },
+      400,
+    )
+  })
+}
+
 const DIALOGS: DialogRow[] = [
   {
     id: 'settings',
@@ -316,6 +346,26 @@ const DIALOGS: DialogRow[] = [
       await notice.click()
     },
     locate: (page) => page.getByTestId('update-notes'),
+  },
+  {
+    id: 'workspaces-remove',
+    hasCommit: true,
+    dismissLabel: en['common.cancel'],
+    primaryLabel: en['common.delete'],
+    open: async (page) => {
+      await stubWorkspacesRemove(page)
+      await gotoApp(page)
+      await openServerSettings(page)
+      await page
+        .getByRole('dialog', { name: en['settings.title'] })
+        .getByRole('button', { name: en['settings.tabWorkspaces'], exact: true })
+        .click()
+      await page.getByTestId('workspaces-remove-shell-dialog-ws').click()
+    },
+    // The nested confirm: opening it is two clicks deep, and Esc must close
+    // only this dialog — the settings dialog under it stays (the component's
+    // capture-phase guard), which is what the closing assertion below sees.
+    locate: (page) => page.getByTestId('workspaces-remove-dialog'),
   },
 ]
 

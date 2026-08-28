@@ -54,6 +54,7 @@
   import FieldsTab from './FieldsTab.svelte'
   import IntegrationsTab from './IntegrationsTab.svelte'
   import DevicesTab from './DevicesTab.svelte'
+  import WorkspacesTab from './WorkspacesTab.svelte'
   import AboutTab from './AboutTab.svelte'
   import { trapFocus } from '../../lib/focus-trap'
   import Icon from '../ui/Icon.svelte'
@@ -73,6 +74,7 @@
     groups: t('settings.tabTeams'),
     members: t('settings.tabMembers'),
     fields: t('settings.tabFields'),
+    workspaces: t('settings.tabWorkspaces'),
     integrations: t('settings.tabIntegrations'),
     devices: t('settings.tabDevices'),
     about: t('settings.tabAbout'),
@@ -370,6 +372,8 @@
           <IntegrationsTab />
         {:else if tab === 'devices' && showDevices}
           <DevicesTab />
+        {:else if tab === 'workspaces'}
+          <WorkspacesTab />
         {:else if tab === 'about'}
           <AboutTab {runtime} />
         {:else}
