@@ -2,6 +2,11 @@
 
 gadak is pre-release and support is best effort.
 
+**Where to talk:** GitHub Issues and the private security advisory
+(`SECURITY.md`) are the only inbound channels. There is no Discussions tab,
+Discord, or forum, and none is planned — that gets revisited when two
+independent outside conversations genuinely do not fit an issue.
+
 ## Before Opening an Issue
 
 1. **Paste `gadak doctor` output.** Run `gadak doctor` (or

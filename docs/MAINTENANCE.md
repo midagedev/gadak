@@ -58,6 +58,13 @@ What makes a report actionable, in order:
 on information, it closes. That is bookkeeping, not a verdict: reopen it with
 the missing piece and it picks up where it stopped.
 
+**Issues are the only public inbound.** There is no Discussions tab, no
+Discord, no forum, and none is planned: an empty plaza reads as a dead
+project, and every good report so far has fit an issue. Security reports go
+through the private advisory process in `SECURITY.md`. This gets revisited
+when two independent outside conversations genuinely do not fit an issue —
+not before.
+
 ## Pull requests
 
 Small, focused fixes with a test: yes, gladly.
