@@ -109,7 +109,7 @@ func TestMountedConnectedDoesNotOwnOrigin(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if entry.ownsOrigin || entry.stopOrigin != nil {
+	if entry.ownsOrigin {
 		t.Fatal("connected mount claimed an origin")
 	}
 }
@@ -242,7 +242,7 @@ func TestMountedStandaloneSkipsDoorAOwner(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if entry.ownsOrigin || entry.stopOrigin != nil {
+	if entry.ownsOrigin {
 		t.Fatal("mounted entry claimed the primary's origin")
 	}
 }

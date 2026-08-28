@@ -17,29 +17,30 @@ import (
 	gadaksync "github.com/midagedev/gadak/internal/sync"
 )
 
-// TestSettingsSpacesStandaloneBusyIsNotCredentialRequired is GDK-419:
-// origin.Wiki failure on a standalone workspace used to 409
-// credential_required and open the token dialog. Standalone has no token.
-//
-// FAIL-first: handleSettingsSpaces maps every Wiki() error to credential_required.
-func TestSettingsSpacesStandaloneBusyIsNotCredentialRequired(t *testing.T) {
+// TestSettingsSpacesOriginSentinelIsNotCredentialRequired keeps the
+// failOriginClient mapper-shape pin from GDK-419: a standalone origin
+// failure answers its own 409 code, never credential_required — standalone
+// has no token, so the token dialog would be a lie. The injected sentinel
+// is ErrWorkspaceFrozen now: ErrWorkspaceBusy went with the persist lock
+// it described (GDK-936, removed GDK-985), and frozen is the live sentinel
+// branch of the same mapper.
+func TestSettingsSpacesOriginSentinelIsNotCredentialRequired(t *testing.T) {
 	rec := httptest.NewRecorder()
-	failOriginClient(rec, origin.ErrWorkspaceBusy)
+	failOriginClient(rec, origin.ErrWorkspaceFrozen)
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("status %d, want 409; body %s", rec.Code, rec.Body.String())
 	}
 	var body struct {
-		Error   string `json:"error"`
-		Message string `json:"message"`
+		Error string `json:"error"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
 	if body.Error == "credential_required" {
-		t.Fatal("origin.Wiki failure disguised as credential_required")
+		t.Fatal("origin sentinel disguised as credential_required")
 	}
-	if body.Error != "workspace_busy" {
-		t.Fatalf("error %q, want workspace_busy", body.Error)
+	if body.Error != "workspace_frozen" {
+		t.Fatalf("error %q, want workspace_frozen", body.Error)
 	}
 }
 

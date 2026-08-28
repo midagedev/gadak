@@ -10,7 +10,7 @@ import (
 
 // TestGDK343SecondProcessSeesFirstWrite: two processes (simulated with
 // ForgetLive) open the same persist. WAL shares the write (GDK-936);
-// the persist lock that used to return ErrWorkspaceBusy is gone.
+// the persist lock that used to refuse a second process is gone.
 func TestGDK343SecondProcessSeesFirstWrite(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)

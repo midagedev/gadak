@@ -148,6 +148,8 @@ type Info struct {
 	// PIDs is every process currently on this session's controlling
 	// terminal, including the shell. Empty when the enumerator cannot
 	// see a tty (Windows, or a pid with no controlling terminal).
+	// Filled only by Snapshot — the list path; the create path does not
+	// walk the process table (GDK-988).
 	PIDs []int `json:"pids,omitempty"`
 	// DetachedAt is when this session last lost its final attachment,
 	// zero while anything is attached. GraceExtensions counts how many
@@ -237,12 +239,16 @@ func (m *Manager) List() []*Session {
 	return out
 }
 
-// Snapshot is the introspection surface — see doc.go.
+// Snapshot is the introspection surface — see doc.go. It is the one place
+// PIDs is filled: Info stays a pure field copy so the create path never
+// walks the process table (GDK-988).
 func (m *Manager) Snapshot() []Info {
 	sessions := m.List()
 	out := make([]Info, 0, len(sessions))
 	for _, s := range sessions {
-		out = append(out, s.Info())
+		info := s.Info()
+		info.PIDs = membersOf(info.PID)
+		out = append(out, info)
 	}
 	return out
 }

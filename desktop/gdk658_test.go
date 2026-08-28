@@ -5,7 +5,6 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"net/http"
 	"os"
 	"os/exec"
 	"strings"
@@ -111,7 +110,7 @@ func TestGDK658SecondProcessStandaloneEmbeds(t *testing.T) {
 			fmt.Fprintf(os.Stderr, "load: %v\n", err)
 			os.Exit(1)
 		}
-		_, err = apprun.StartOriginPassthrough(cfg, http.NotFoundHandler())
+		_, err = apprun.StartOriginPassthrough(cfg)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "other: %v\n", err)
 			os.Exit(1)
@@ -120,8 +119,8 @@ func TestGDK658SecondProcessStandaloneEmbeds(t *testing.T) {
 		os.Exit(0)
 	}
 
-	cfg, api := standaloneApp(t)
-	stop, err := apprun.StartOriginPassthrough(cfg, api)
+	cfg, _ := standaloneApp(t)
+	stop, err := apprun.StartOriginPassthrough(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}

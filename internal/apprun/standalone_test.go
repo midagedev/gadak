@@ -5,7 +5,6 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -38,8 +37,8 @@ func standaloneRuntime(t *testing.T) (*Runtime, *config.Config) {
 }
 
 func TestStartOriginPassthroughEmbedsWithoutAdvertise(t *testing.T) {
-	rt, cfg := standaloneRuntime(t)
-	stop, err := StartOriginPassthrough(cfg, rt.API)
+	_, cfg := standaloneRuntime(t)
+	stop, err := StartOriginPassthrough(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +65,7 @@ func TestStartOriginPassthroughConnectedNoListener(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stop, err := StartOriginPassthrough(cfg, http.NotFoundHandler())
+	stop, err := StartOriginPassthrough(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +85,7 @@ func TestSecondProcessStandaloneEmbeds(t *testing.T) {
 			fmt.Fprintf(os.Stderr, "load: %v\n", err)
 			os.Exit(1)
 		}
-		_, err = StartOriginPassthrough(cfg, http.NotFoundHandler())
+		_, err = StartOriginPassthrough(cfg)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "other: %v\n", err)
 			os.Exit(1)
@@ -95,8 +94,8 @@ func TestSecondProcessStandaloneEmbeds(t *testing.T) {
 		os.Exit(0)
 	}
 
-	rt, cfg := standaloneRuntime(t)
-	stop, err := StartOriginPassthrough(cfg, rt.API)
+	_, cfg := standaloneRuntime(t)
+	stop, err := StartOriginPassthrough(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}

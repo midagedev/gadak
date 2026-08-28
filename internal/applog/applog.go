@@ -39,12 +39,7 @@ type state struct {
 	file    *os.File
 	path    string
 	closer  func()
-	sink    *sink
 	partial []byte
-}
-
-type sink struct {
-	st *state
 }
 
 // Path is <dir>/logs/gadak.log — the file Install opens.
@@ -69,7 +64,6 @@ func Install(dir string) (func(), error) {
 	}
 
 	st := &state{path: Path(dir)}
-	st.sink = &sink{st: st}
 	st.closer = st.close
 
 	var openErr error
@@ -92,7 +86,7 @@ func Install(dir string) (func(), error) {
 	}
 
 	active = st
-	log.SetOutput(st.sink)
+	log.SetOutput(st)
 	return st.closer, openErr
 }
 
@@ -111,16 +105,16 @@ func (st *state) close() {
 	lines.reset()
 }
 
-func (s *sink) Write(p []byte) (int, error) {
+func (st *state) Write(p []byte) (int, error) {
 	if len(p) == 0 {
 		return 0, nil
 	}
 	cleaned := scrub(p)
 	stateMu.Lock()
-	s.st.feedRingLocked(cleaned)
-	if s.st.file != nil {
-		_, _ = s.st.file.Write(cleaned)
-		s.st.rotateIfNeededLocked()
+	st.feedRingLocked(cleaned)
+	if st.file != nil {
+		_, _ = st.file.Write(cleaned)
+		st.rotateIfNeededLocked()
 	}
 	stateMu.Unlock()
 	if _, err := os.Stderr.Write(cleaned); err != nil {

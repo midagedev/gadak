@@ -278,15 +278,12 @@ func TestSessionMembers(t *testing.T) {
 		t.Fatalf("grandchild %d never started", child)
 	}
 
-	members := SessionMembers(s.PID())
+	members := membersOf(s.PID())
 	if !containsPID(members, s.PID()) {
-		t.Fatalf("SessionMembers %v missing shell %d", members, s.PID())
+		t.Fatalf("membersOf %v missing shell %d", members, s.PID())
 	}
 	if !containsPID(members, child) {
-		t.Fatalf("SessionMembers %v missing grandchild %d", members, child)
-	}
-	if got := s.Members(); !containsPID(got, s.PID()) || !containsPID(got, child) {
-		t.Fatalf("Members %v missing shell %d or grandchild %d", got, s.PID(), child)
+		t.Fatalf("membersOf %v missing grandchild %d", members, child)
 	}
 }
 
@@ -585,6 +582,29 @@ func TestSnapshotShape(t *testing.T) {
 	s2 := shellSession(t, m, Options{})
 	if len(s2.ID()) != 32 || s2.ID() == s.ID() {
 		t.Fatalf("ids %q and %q are not 128-bit random hex", s.ID(), s2.ID())
+	}
+}
+
+// GDK-988: Info is the create path's answer and must stay a pure field
+// copy. Filling PIDs there made every terminal create walk the whole
+// process table (kern.proc.all on darwin); the list path owns the walk.
+// FAIL-first on the pre-GDK-988 code: Info().PIDs was non-nil for any
+// live shell.
+func TestInfoDoesNotWalkTheProcessTable(t *testing.T) {
+	m := testManager(t, Config{})
+	s := shellSession(t, m, Options{})
+	if _, err := s.Attach(); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.Info().PIDs; got != nil {
+		t.Fatalf("Info().PIDs = %v; want nil — only Snapshot fills PIDs (GDK-988)", got)
+	}
+	snap := m.Snapshot()
+	if len(snap) != 1 {
+		t.Fatalf("Snapshot len %d; want 1", len(snap))
+	}
+	if !containsPID(snap[0].PIDs, s.PID()) {
+		t.Fatalf("Snapshot PIDs %v missing shell %d", snap[0].PIDs, s.PID())
 	}
 }
 

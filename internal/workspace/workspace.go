@@ -42,11 +42,6 @@ type Entry struct {
 	Handler *server.Handler
 	DB      *store.DB
 	Cfg     *config.Config
-	// stopOrigin is leftover from the origin-only listener (GDK-936
-	// removed it). nil in production; closeEntry still calls it if set.
-	// Written under Registry.mu; closeEntry reads it after the registry
-	// snapshot (happens-before via mu).
-	stopOrigin func()
 	// ownsOrigin: closeEntry must release the persist session and the
 	// in-process mark on the way out.
 	ownsOrigin bool
@@ -56,7 +51,7 @@ type Entry struct {
 // them when the process exits.
 type Registry struct {
 	// mu guards entries, flights, owningOrigin, watching, closed, and the
-	// watch-owner fields, as well as Entry.stopOrigin and Entry.ownsOrigin.
+	// watch-owner fields, as well as Entry.ownsOrigin.
 	// Contract: no IO under this lock. The critical section is a map lookup
 	// or insert; construction (config.LoadFor, store.Open, attachcache.New,
 	// server.NewWorkspace) and Close of discarded or snapshotted entries run
@@ -143,9 +138,6 @@ func (r *Registry) Close() {
 func closeEntry(e *Entry) {
 	if e == nil {
 		return
-	}
-	if e.stopOrigin != nil {
-		e.stopOrigin()
 	}
 	// Stop this workspace's background sync before closing the mirror
 	// it writes to; a job that outlives the DB holds a WAL connection

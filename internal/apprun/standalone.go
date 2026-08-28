@@ -1,8 +1,6 @@
 package apprun
 
 import (
-	"net/http"
-
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/origin"
 )
@@ -31,7 +29,7 @@ func (rt *Runtime) acquireStandalone() error {
 // The desktop caller invokes this after application.New so wails
 // SingleInstance can os.Exit the second process before persist is opened
 // (GDK-658).
-func StartOriginPassthrough(cfg *config.Config, api http.Handler) (func(), error) {
+func StartOriginPassthrough(cfg *config.Config) (func(), error) {
 	if cfg == nil || !cfg.IsStandalone() {
 		return nopStop, nil
 	}
@@ -50,13 +48,12 @@ func (rt *Runtime) StartOriginPassthrough() (func(), error) {
 	if rt == nil {
 		return nopStop, nil
 	}
-	stop, err := StartOriginPassthrough(rt.Cfg, rt.API)
+	stop, err := StartOriginPassthrough(rt.Cfg)
 	if err != nil {
 		return nopStop, err
 	}
 	if rt.Cfg != nil && rt.Cfg.IsStandalone() {
 		rt.acquiredStandalone = true
-		rt.stopOrigin = stop
 	}
 	return stop, nil
 }

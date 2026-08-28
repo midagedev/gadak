@@ -65,19 +65,12 @@ func (s *server) client(w http.ResponseWriter) (*jira.Client, *config.Config, bo
 
 // failOriginClient maps origin.Client construction failures. HasCredential
 // already answers 409 credential_required when a connected workspace has
-// no token. This path is standalone persist/lock/path errors that used to
+// no token. This path is standalone persist/path errors that used to
 // be disguised as that same 409 (GDK-345), which opened the token dialog
 // on a workspace that has no token.
 func failOriginClient(w http.ResponseWriter, err error) {
 	if errors.Is(err, origin.ErrWorkspaceFrozen) {
 		fail(w, http.StatusConflict, "workspace_frozen")
-		return
-	}
-	if errors.Is(err, origin.ErrWorkspaceBusy) {
-		writeJSON(w, http.StatusConflict, map[string]string{
-			"error":   "workspace_busy",
-			"message": err.Error(),
-		})
 		return
 	}
 	log.Printf("server: origin client: %v", err)

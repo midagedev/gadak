@@ -39,7 +39,7 @@ func note(stage string) {
 }
 
 // Options configures caller-specific boot differences. Zero value is the
-// serve-shaped path: persist is taken during Open (after AfterConfig).
+// serve-shaped path: persist is taken during Open.
 type Options struct {
 	// Version stamps server.Version. Empty leaves the current value.
 	Version string
@@ -51,10 +51,6 @@ type Options struct {
 	// OpenStore, if set, replaces store.Open(config.DBPath()). serve
 	// passes cmd/gadak openStore so rejectUnknownProfile stays there.
 	OpenStore func() (*store.DB, error)
-
-	// AfterConfig runs after config.Load and before the store opens (and
-	// before persist acquire).
-	AfterConfig func(*config.Config) error
 
 	// DeferStandalone skips persist acquire during Open. Desktop sets this
 	// so wails SingleInstance (application.New) can os.Exit a second
@@ -78,7 +74,6 @@ type Runtime struct {
 	log                func(string)
 	flushOnClose       bool
 	acquiredStandalone bool
-	stopOrigin         func()
 }
 
 // SelectWorkspace is the process-start workspace pick (GDK-644). Both
@@ -121,13 +116,6 @@ func (rt *Runtime) boot(opts Options) error {
 	rt.Cfg = cfg
 	note("config")
 	rt.stage("apprun: config loaded")
-
-	if opts.AfterConfig != nil {
-		if err := opts.AfterConfig(cfg); err != nil {
-			return err
-		}
-		note("after-config")
-	}
 
 	if cfg.IsStandalone() && !opts.DeferStandalone {
 		if err := rt.acquireStandalone(); err != nil {
@@ -188,17 +176,12 @@ func (rt *Runtime) stage(msg string) {
 	log.Print(msg)
 }
 
-// Close stops any origin cleanup this Runtime started, flushes standalone
-// persist when FlushOnClose is set or persist was acquired here, then
-// closes the registry, API handler, and store — API before DB (GDK-270).
-// Safe on a partial Open.
+// Close flushes standalone persist when FlushOnClose is set or persist was
+// acquired here, then closes the registry, API handler, and store — API
+// before DB (GDK-270). Safe on a partial Open.
 func (rt *Runtime) Close() error {
 	if rt == nil {
 		return nil
-	}
-	if rt.stopOrigin != nil {
-		rt.stopOrigin()
-		rt.stopOrigin = nil
 	}
 	var first error
 	if rt.acquiredStandalone || rt.flushOnClose {

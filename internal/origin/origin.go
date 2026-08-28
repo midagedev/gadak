@@ -73,13 +73,6 @@ func InProcessAuthB64() string {
 	return base64.StdEncoding.EncodeToString([]byte(inProcessUser + ":" + inProcessSecret))
 }
 
-// ErrWorkspaceBusy is the historical persist-lock refusal (GDK-343). The
-// lock is gone (GDK-936): standalone persist is WAL SQLite, and a second
-// process embeds the same file. The sentinel remains so the REST mapper
-// still answers workspace_busy rather than credential_required (GDK-345)
-// if a caller passes this error in.
-var ErrWorkspaceBusy = errors.New("origin: another process is using this workspace (persist is locked); write through its serve, or close it and retry")
-
 // PersistPath is the absolute issuetap SQLite state path inside a profile directory.
 func PersistPath(dir string) string {
 	return joinRel(dir, PersistRel)

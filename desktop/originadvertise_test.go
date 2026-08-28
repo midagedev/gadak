@@ -1,7 +1,6 @@
 package main
 
 import (
-	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
@@ -46,9 +45,9 @@ func standaloneApp(t *testing.T) (*config.Config, *server.Handler) {
 }
 
 func TestGDK340StandaloneAppEmbedsWithoutAdvertise(t *testing.T) {
-	cfg, api := standaloneApp(t)
+	cfg, _ := standaloneApp(t)
 
-	stop, err := apprun.StartOriginPassthrough(cfg, api)
+	stop, err := apprun.StartOriginPassthrough(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +74,7 @@ func TestGDK340ConnectedAppNoAdvertise(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stop, err := apprun.StartOriginPassthrough(cfg, http.NotFoundHandler())
+	stop, err := apprun.StartOriginPassthrough(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}

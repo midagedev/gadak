@@ -1,7 +1,6 @@
 package apprun
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -107,28 +106,6 @@ func TestOpenSequenceStandaloneAcquiresPersistBeforeStore(t *testing.T) {
 	want := []string{"config", "standalone-persist", "store", "handler", "registry"}
 	if got := *steps; !equalSteps(got, want) {
 		t.Fatalf("steps = %v, want %v", got, want)
-	}
-}
-
-func TestAfterConfigRunsBeforePersist(t *testing.T) {
-	// GDK-468: live-serve handoff (AfterConfig) must run before persist.
-	testHome(t)
-	saveStandalone(t)
-	before := origin.SessionsConstructed()
-	stop := errors.New("after-config stop")
-	_, err := Open(Options{
-		AfterConfig: func(*config.Config) error {
-			if origin.SessionsConstructed() != before {
-				t.Error("persist taken before AfterConfig returned")
-			}
-			return stop
-		},
-	})
-	if !errors.Is(err, stop) {
-		t.Fatalf("err = %v, want after-config stop", err)
-	}
-	if origin.SessionsConstructed() != before {
-		t.Fatal("GDK-468: persist must not be taken when AfterConfig fails")
 	}
 }
 

@@ -2446,32 +2446,6 @@ func TestRESTParentRejectionUnrelated400HasNoHint(t *testing.T) {
 	}
 }
 
-// TestStandaloneOriginBusyIsNotCredentialRequired: a second process that
-// cannot embed (GDK-343) used to get 409 credential_required and the UI
-// opened the token dialog. Standalone has no token.
-//
-// FAIL-first (2026-08-20, pre-fix): body error was credential_required.
-func TestStandaloneOriginBusyIsNotCredentialRequired(t *testing.T) {
-	rec := httptest.NewRecorder()
-	failOriginClient(rec, origin.ErrWorkspaceBusy)
-	if rec.Code != http.StatusConflict {
-		t.Fatalf("status %d, want 409: %s", rec.Code, rec.Body.String())
-	}
-	var body struct {
-		Error   string `json:"error"`
-		Message string `json:"message"`
-	}
-	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-	if body.Error == "credential_required" {
-		t.Fatal("origin.ErrWorkspaceBusy disguised as credential_required")
-	}
-	if body.Error != "workspace_busy" {
-		t.Fatalf("error %q, want workspace_busy", body.Error)
-	}
-}
-
 func TestStandaloneOriginSecondSessionWrites(t *testing.T) {
 	h, cfg := standaloneServer(t)
 	if _, err := origin.Client(cfg); err != nil {

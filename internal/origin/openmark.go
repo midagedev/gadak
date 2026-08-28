@@ -33,7 +33,6 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"strconv"
 	"time"
 )
 
@@ -145,12 +144,4 @@ func OpenHolder(persist string) int {
 		return 0
 	}
 	return m.PID
-}
-
-// OpenHolderString is OpenHolder rendered for an error message, or "".
-func OpenHolderString(persist string) string {
-	if pid := OpenHolder(persist); pid > 0 {
-		return strconv.Itoa(pid)
-	}
-	return ""
 }

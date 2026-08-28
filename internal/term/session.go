@@ -154,13 +154,9 @@ func (s *Session) TokenID() string { return s.tokenID }
 // Done closes when the shell is gone and every attachment has been told.
 func (s *Session) Done() <-chan struct{} { return s.done }
 
-// Members is the process set this session currently holds: every pid
-// whose controlling terminal is the shell's. One call, no HTTP.
-func (s *Session) Members() []int {
-	return SessionMembers(s.PID())
-}
-
-// Info is this session's Snapshot row.
+// Info is this session's Snapshot row. PIDs stays empty here — only
+// Snapshot (the list path) fills it, so the create path never walks the
+// process table (GDK-988).
 func (s *Session) Info() Info {
 	s.mu.Lock()
 	info := Info{
@@ -180,9 +176,7 @@ func (s *Session) Info() Info {
 		DetachedAt:         s.detachedAt,
 		GraceExtensions:    s.graceExts,
 	}
-	pid := s.pid
 	s.mu.Unlock()
-	info.PIDs = SessionMembers(pid)
 	return info
 }
 
@@ -524,10 +518,11 @@ func (s *Session) idleForReap() reapVerdict {
 	}
 	// Walked outside the lock deliberately: the enumerator reads every
 	// process on the machine, and holding s.mu across it would stall the
-	// pump. Info() keeps the same rule for the same reason. An enumerator
-	// that cannot see a tty returns nothing, which reads as idle — the
-	// pre-GDK-994 behaviour, which is the right way to fail here.
-	if len(SessionMembers(pid)) > 1 {
+	// pump. Snapshot's PIDs fill keeps the same rule for the same reason
+	// (GDK-988). An enumerator that cannot see a tty returns nothing,
+	// which reads as idle — the pre-GDK-994 behaviour, which is the right
+	// way to fail here.
+	if len(membersOf(pid)) > 1 {
 		return reapSpare
 	}
 	return reapClose
