@@ -73,12 +73,13 @@ hard-won 목록)와 `AGENTS.md`(스키마·쿼리)가 원본이다.
   `mobile/src-tauri/gen/apple/Assets.xcassets/`)이고 `tauri icon`은 후자만
   쓴다 — `tools/brand/mobile-icons.sh`가 앞쪽을 미러링하고, 게이트가 둘의
   일치를 잰다.
-- **e2e 직렬화의 실체는 락 파일이 아니라 포트다** (2026-08-23 실측 교정 —
-  종전의 "저장소 전역 락 파일·600s" 문구는 타 레포 규칙의 오복사): serve가
-  `127.0.0.1:7877` 하드코드 + 단일 `e2e/.tmp/home` + Playwright `workers: 1`.
-  워크트리 두 개가 동시에 e2e를 못 돌리고, 포트 충돌·낡은 서버 재사용이
-  경쟁 신호다(스탬프 불일치는 `assertServedArtifact`가 잡는다). 병렬화는
-  GDK-672(PORT env·홈 격리)가 선행 조건.
+- **e2e 직렬화의 실체는 락 파일이 아니라 포트다** — 그리고 포트의 단일
+  소유자는 `GADAK_E2E_PORT`(기본 7877, `e2e/helpers.ts` `e2eServePort()`)다.
+  홈은 포트별로 격리된다(`e2e/.tmp/home-<port>`) — GDK-672 랜딩으로 **서로
+  다른 포트를 준 스위트 두 개는 병렬 가능**하다(병렬 라운드에는 스펙에
+  포트를 명시 배정). 같은 포트 위의 충돌·낡은 서버 재사용은 여전히 경쟁
+  신호이고(스탬프 불일치는 `assertServedArtifact`가 잡는다), 한 스위트
+  안은 `workers: 1`이다.
 - 게이트 단언 완화는 ①귀속 주석 ②정당한 파생 ③FAIL-first 증거 셋 모두
   있을 때만.
 - 문서 사실성 가드: `tools/doc-checks.sh` (있으면 커밋 전 실행).
