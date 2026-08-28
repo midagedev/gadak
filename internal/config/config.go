@@ -244,16 +244,19 @@ type Appearance struct {
 // TerminalConfig is the terminal behavior block in config.json (GDK-896).
 // Every zero value is a default: Shell "" = $SHELL, else /bin/sh;
 // WorkingDir "" = the workspace work dir; Scrollback 0 =
-// DefaultTerminalScrollback; CursorBlink false; Renderer "" =
-// DefaultTerminalRenderer. Scrollback is lines, not bytes — the replay
-// ring in internal/term is byte-backed; this is the pane's visible-history
-// budget the web renderer materializes.
+// DefaultTerminalScrollback; CursorBlink false. Scrollback is lines, not
+// bytes — the replay ring in internal/term is byte-backed; this is the pane's
+// visible-history budget the web renderer materializes.
+//
+// GDK-1078: a Renderer field went with ghostty-web (GDK-1041) — one
+// renderer, nothing to choose. A stored "renderer" key is dropped on load
+// (plain json.Unmarshal, no DisallowUnknownFields), so a config.json
+// written by an older binary keeps loading.
 type TerminalConfig struct {
 	Shell       string `json:"shell,omitempty"`
 	WorkingDir  string `json:"workingDir,omitempty"`
 	Scrollback  int    `json:"scrollback,omitempty"`
 	CursorBlink bool   `json:"cursorBlink,omitempty"`
-	Renderer    string `json:"renderer,omitempty"`
 }
 
 // ConfluenceConfig is the optional wiki-page source. Presence (non-nil) is the
@@ -1055,7 +1058,6 @@ func (c *Config) EffectiveLocale() string {
 func (c *Config) EffectiveTerminal() TerminalConfig {
 	t := TerminalConfig{
 		Scrollback: DefaultTerminalScrollback,
-		Renderer:   DefaultTerminalRenderer,
 	}
 	if c == nil || c.Terminal == nil {
 		return t
@@ -1070,9 +1072,6 @@ func (c *Config) EffectiveTerminal() TerminalConfig {
 		t.Scrollback = c.Terminal.Scrollback
 	}
 	t.CursorBlink = c.Terminal.CursorBlink
-	if c.Terminal.Renderer != "" {
-		t.Renderer = c.Terminal.Renderer
-	}
 	return t
 }
 

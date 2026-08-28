@@ -78,6 +78,10 @@ type TermHook = {
   }
   cols: number
   rows: number
+  /** Live xterm options — the behavior seam's readback (GDK-896 R2).
+   *  Optional like xterm's own ITerminalOptions; a set option is always
+   *  materialized by the time a test reads it back. */
+  options: { scrollback?: number; cursorBlink?: boolean }
 }
 
 declare global {
@@ -116,19 +120,40 @@ function readCssVar(name: string): string {
 /** Only reached when the stylesheet has not loaded; the token owns the value. */
 const TERMINAL_FONT_SIZE_FALLBACK = 13
 
+/**
+ * Terminal behavior the create response carries (GDK-896 R2). The values
+ * live in the Go config (`terminal.scrollback`, `terminal.cursorBlink`);
+ * the pane hands them to the renderer the moment it has them — there is no
+ * second opinion on this side (fallbacks sit next to the response, in
+ * ./session).
+ */
+export interface TerminalBehavior {
+  scrollback: number
+  cursorBlink: boolean
+}
+
+/** The renderer the pane drives: the shared contract plus the behavior
+ *  seam. Mobile's own renderer does not carry it — behavior follows the
+ *  create response, which is the web pane's path. */
+export type BehaviorTerminalRenderer = TerminalRenderer & {
+  /** Applies create-session behavior to the live terminal. xterm takes
+   *  options after construction (scrollback reallocates the visible
+   *  buffer), so this lands between the create response and the first
+   *  replay byte — nothing is frozen at open. */
+  applyBehavior(b: TerminalBehavior): void
+}
+
 function termOptions() {
   return {
     fontSize: terminalFontSize(),
     allowTransparency: false,
-    // Client-side history, distinct from the serve's 256 KiB reconnect ring:
-    // that ring is what a *reattaching* client replays, this is what the
-    // person can scroll back through in one session.
-    scrollback: 5000,
-    cursorBlink: false,
+    // No scrollback/cursorBlink here: behavior comes from the create
+    // response (GDK-896 R2), applied via applyBehavior once the pane knows
+    // it — the server is the single owner of those values, not this file.
   }
 }
 
-async function createXtermRenderer(): Promise<TerminalRenderer> {
+async function createXtermRenderer(): Promise<BehaviorTerminalRenderer> {
   const [{ Terminal }, { FitAddon }] = await Promise.all([
     import('@xterm/xterm'),
     import('@xterm/addon-fit'),
@@ -163,6 +188,9 @@ async function createXtermRenderer(): Promise<TerminalRenderer> {
   // false means "do not process" — the toggle chord must escape the VT and
   // reach the app's own handler.
   term.attachCustomKeyEventHandler((ev) => !isToggleChord(ev))
+  // Exposed from creation, not open(): the hook mirrors the live terminal,
+  // which exists before a host does (unit tests applyBehavior with no DOM).
+  exposeTerm(term)
 
   return {
     name: 'xterm',
@@ -171,6 +199,10 @@ async function createXtermRenderer(): Promise<TerminalRenderer> {
     },
     get rows() {
       return term.rows
+    },
+    applyBehavior(b: TerminalBehavior) {
+      term.options.scrollback = b.scrollback
+      term.options.cursorBlink = b.cursorBlink
     },
     open(host: HTMLElement) {
       host.setAttribute('data-gadak-editable', '')
@@ -181,7 +213,6 @@ async function createXtermRenderer(): Promise<TerminalRenderer> {
         term.element.style.height = '100%'
         term.element.style.width = '100%'
       }
-      exposeTerm(term)
     },
     write(data: Uint8Array | string) {
       term.write(decoder.push(data))
@@ -208,6 +239,6 @@ async function createXtermRenderer(): Promise<TerminalRenderer> {
   }
 }
 
-export async function createRenderer(): Promise<TerminalRenderer> {
+export async function createRenderer(): Promise<BehaviorTerminalRenderer> {
   return createXtermRenderer()
 }

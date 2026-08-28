@@ -89,10 +89,39 @@ export function firstAttachRetryDelayMs(attempt: number): number | null {
   return TERMINAL_RECONNECT_BACKOFF_MS[0]
 }
 
+/**
+ * Terminal behavior the create response carries (GDK-896 R2). The server's
+ * EffectiveTerminal is the single owner of the values; these constants are
+ * only the fallback for a response that predates the fields (an old serve
+ * behind a new bundle, or an old desktop bundle's backend) and match the
+ * server's own defaults, so both sides answer 5000/false when unset.
+ */
+export const TERMINAL_SCROLLBACK_FALLBACK = 5000
+export const TERMINAL_CURSOR_BLINK_FALLBACK = false
+
 export interface SessionDoc {
   id: string
   cols: number
   rows: number
+  scrollback: number
+  cursorBlink: boolean
+}
+
+/** Fills the behavior fields an older server never sent with the fallback
+ *  defaults. id/cols/rows stay trusted as before — every server version
+ *  that can answer at all has answered with those. */
+export function normalizeSessionDoc(
+  raw: Omit<SessionDoc, 'scrollback' | 'cursorBlink'> &
+    Partial<Pick<SessionDoc, 'scrollback' | 'cursorBlink'>>,
+): SessionDoc {
+  return {
+    ...raw,
+    scrollback:
+      typeof raw.scrollback === 'number' && Number.isFinite(raw.scrollback) && raw.scrollback > 0
+        ? Math.floor(raw.scrollback)
+        : TERMINAL_SCROLLBACK_FALLBACK,
+    cursorBlink: typeof raw.cursorBlink === 'boolean' ? raw.cursorBlink : TERMINAL_CURSOR_BLINK_FALLBACK,
+  }
 }
 
 export async function createSession(cols: number, rows: number): Promise<SessionDoc> {
@@ -121,7 +150,7 @@ export async function createSession(cols: number, rows: number): Promise<Session
     }
     throw new TerminalHttpError(res.status, code, message)
   }
-  return (await res.json()) as SessionDoc
+  return normalizeSessionDoc(await res.json())
 }
 
 /**

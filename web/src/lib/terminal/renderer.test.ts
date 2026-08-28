@@ -1,6 +1,11 @@
-import { describe, expect, test } from 'vitest'
+import { afterEach, describe, expect, test, vi } from 'vitest'
 import { fromTerminalHost, isEditableTarget, keyContext, resolveGlobalKey } from '../keymap.svelte'
-import { createUtf8StreamDecoder, fontFamily, terminalFontSize } from './renderer'
+import { createUtf8StreamDecoder, createRenderer, fontFamily, terminalFontSize } from './renderer'
+import {
+  normalizeSessionDoc,
+  TERMINAL_CURSOR_BLINK_FALLBACK,
+  TERMINAL_SCROLLBACK_FALLBACK,
+} from './session'
 import {
   TERMINAL_MIN_WIDTH_PX,
   TERMINAL_SPLIT_WITH_DETAIL_MIN_PX,
@@ -214,5 +219,67 @@ describe('the terminal font stack is its own token (GDK-1043)', () => {
 
   test('neither token set keeps the hardcoded stack (units ship no stylesheet)', () => {
     expect(fontFamily(() => '')).toBe('ui-monospace, SFMono-Regular, Menlo, Consolas, monospace')
+  })
+})
+
+/** The readback slice of the xterm options the behavior seam writes. */
+type TerminalBehaviorShape = { scrollback: number; cursorBlink: boolean }
+
+describe('the pane behavior comes from the create response (GDK-896 R2)', () => {
+  /*
+   * 2026-08-28 — GDK-896 R2. scrollback/cursorBlink used to be literals in
+   * termOptions(); now the Go config owns them (EffectiveTerminal) and the
+   * create response is the one road they reach the pane on — the settings
+   * dialog is deliberately not a second road (GDK-1069). These pin the two
+   * halves of that wiring: the values survive the trip into the live xterm
+   * options, and an older server that never sent them still renders the
+   * same 5000/false the literals used to hardcode.
+   *
+   * xterm constructs and takes options without a DOM, so this runs the real
+   * renderer — window is stubbed only because exposeTerm stores its test
+   * hook there.
+   */
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  test('applyBehavior reaches the live xterm options, and keeps taking later applies', async () => {
+    vi.stubGlobal('window', globalThis)
+    const renderer = await createRenderer()
+    const term = () =>
+      (globalThis as unknown as { __gadakTerm?: { options: TerminalBehaviorShape } }).__gadakTerm
+    try {
+      renderer.applyBehavior({ scrollback: 9000, cursorBlink: true })
+      expect(term()?.options.scrollback).toBe(9000)
+      expect(term()?.options.cursorBlink).toBe(true)
+      // Not frozen at first apply: a create response that arrives after
+      // the fallback still wins.
+      renderer.applyBehavior({ scrollback: 20000, cursorBlink: false })
+      expect(term()?.options.scrollback).toBe(20000)
+      expect(term()?.options.cursorBlink).toBe(false)
+    } finally {
+      renderer.dispose()
+    }
+  })
+
+  test('a response without behavior fields falls back to the server defaults', () => {
+    const doc = normalizeSessionDoc({ id: 's1', cols: 90, rows: 30 })
+    expect(doc.scrollback).toBe(TERMINAL_SCROLLBACK_FALLBACK)
+    expect(doc.cursorBlink).toBe(TERMINAL_CURSOR_BLINK_FALLBACK)
+    expect(TERMINAL_SCROLLBACK_FALLBACK).toBe(5000)
+  })
+
+  test('a response carrying behavior passes the values through', () => {
+    const doc = normalizeSessionDoc({ id: 's1', cols: 90, rows: 30, scrollback: 9000, cursorBlink: true })
+    expect(doc).toMatchObject({ id: 's1', cols: 90, rows: 30, scrollback: 9000, cursorBlink: true })
+  })
+
+  test('a zero or non-finite scrollback reads as absent, not as a budget of 0', () => {
+    expect(normalizeSessionDoc({ id: 's', cols: 1, rows: 1, scrollback: 0 }).scrollback).toBe(
+      TERMINAL_SCROLLBACK_FALLBACK,
+    )
+    expect(
+      normalizeSessionDoc({ id: 's', cols: 1, rows: 1, scrollback: Number.NaN }).scrollback,
+    ).toBe(TERMINAL_SCROLLBACK_FALLBACK)
   })
 })

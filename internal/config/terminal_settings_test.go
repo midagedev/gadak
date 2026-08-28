@@ -7,10 +7,10 @@ import (
 )
 
 // The terminal behavior block (GDK-896). Behavior (shell, working dir,
-// scrollback, cursor blink, renderer) lives here; style (font family,
+// scrollback, cursor blink) lives here; style (font family,
 // size, line height) stays token-owned in ui.tokens.type.terminal.
 
-// terminalPaths is the block's schema: the block object plus its five
+// terminalPaths is the block's schema: the block object plus its four
 // leaves. The coverage test below pins both the set and the Root each
 // path maps to on PUT /api/settings.
 var terminalPaths = []string{
@@ -19,7 +19,6 @@ var terminalPaths = []string{
 	"terminal.workingDir",
 	"terminal.scrollback",
 	"terminal.cursorBlink",
-	"terminal.renderer",
 }
 
 func TestTerminalCatalogPathsAndRoots(t *testing.T) {
@@ -57,7 +56,7 @@ func TestTerminalDefaultsRoundTrip(t *testing.T) {
 	if !ok {
 		t.Fatalf("terminal Get returned %T", block.Get(c))
 	}
-	want := TerminalConfig{Scrollback: 5000, Renderer: "ghostty"}
+	want := TerminalConfig{Scrollback: 5000}
 	if got != want {
 		t.Fatalf("defaults = %+v, want %+v", got, want)
 	}
@@ -69,7 +68,6 @@ func TestTerminalDefaultsRoundTrip(t *testing.T) {
 		{"terminal.workingDir", ""},
 		{"terminal.scrollback", 5000},
 		{"terminal.cursorBlink", false},
-		{"terminal.renderer", "ghostty"},
 	} {
 		s, ok := SettingByPath(leaf.path)
 		if !ok {
@@ -100,9 +98,7 @@ func TestTerminalValidationRejections(t *testing.T) {
 		{"workingDir not absolute", "terminal.workingDir", `"repo/gadak"`, []string{"terminal.workingDir", "absolute"}},
 		{"scrollback below range", "terminal.scrollback", `100`, []string{"terminal.scrollback", "200", "100000"}},
 		{"scrollback above range", "terminal.scrollback", `2000000`, []string{"terminal.scrollback", "200", "100000"}},
-		{"renderer unknown", "terminal.renderer", `"alacritty"`, []string{"terminal.renderer", "ghostty", "xterm"}},
 		{"block shell not absolute", "terminal", `{"shell":"fish"}`, []string{"terminal.shell", "absolute"}},
-		{"block renderer unknown", "terminal", `{"renderer":"kitty"}`, []string{"terminal.renderer", "ghostty", "xterm"}},
 	}
 	for _, tc := range cases {
 		s, ok := SettingByPath(tc.path)
@@ -138,13 +134,11 @@ func TestTerminalLeafSetPreservesSiblings(t *testing.T) {
 	set(t, c, "terminal.workingDir", `"/tmp"`)
 	set(t, c, "terminal.scrollback", `20000`)
 	set(t, c, "terminal.cursorBlink", `true`)
-	set(t, c, "terminal.renderer", `"xterm"`)
 	want := TerminalConfig{
 		Shell:       "/bin/zsh",
 		WorkingDir:  "/tmp",
 		Scrollback:  20000,
 		CursorBlink: true,
-		Renderer:    "xterm",
 	}
 	if c.Terminal == nil || *c.Terminal != want {
 		t.Fatalf("stored %+v, want %+v", c.Terminal, want)
@@ -158,7 +152,6 @@ func TestTerminalLeafSetPreservesSiblings(t *testing.T) {
 	set(t, c, "terminal.workingDir", `""`)
 	set(t, c, "terminal.scrollback", `0`)
 	set(t, c, "terminal.cursorBlink", `false`)
-	set(t, c, "terminal.renderer", `""`)
 	if c.Terminal != nil {
 		t.Fatalf("all-default leaves stored %+v, want nil", c.Terminal)
 	}
@@ -195,7 +188,10 @@ func jsonNumber(n int) string {
 
 // TestTerminalPersistenceShape pins the on-disk contract: the block is
 // absent unless something is set, and the stored shape is exactly the
-// five leaves.
+// four leaves. The input deliberately still carries a "renderer" key:
+// GDK-1078 removed the field with ghostty-web (GDK-1041), and a
+// config.json written by an older binary must keep loading — plain
+// json.Unmarshal drops the unknown key — and must not write it back.
 func TestTerminalPersistenceShape(t *testing.T) {
 	b, err := json.Marshal(&Config{})
 	if err != nil {
@@ -209,7 +205,7 @@ func TestTerminalPersistenceShape(t *testing.T) {
 	if err := json.Unmarshal(in, &c); err != nil {
 		t.Fatal(err)
 	}
-	want := TerminalConfig{Shell: "/bin/zsh", Scrollback: 20000, Renderer: "xterm"}
+	want := TerminalConfig{Shell: "/bin/zsh", Scrollback: 20000}
 	if c.Terminal == nil || *c.Terminal != want {
 		t.Fatalf("unmarshaled %+v, want %+v", c.Terminal, want)
 	}
@@ -225,12 +221,12 @@ func TestTerminalPersistenceShape(t *testing.T) {
 	if !ok {
 		t.Fatalf("marshaled shape lost the block: %s", out)
 	}
-	for _, key := range []string{"shell", "scrollback", "renderer"} {
+	for _, key := range []string{"shell", "scrollback"} {
 		if _, ok := term[key]; !ok {
 			t.Errorf("marshaled terminal block missing %q: %s", key, out)
 		}
 	}
-	for _, key := range []string{"workingDir", "cursorBlink"} {
+	for _, key := range []string{"workingDir", "cursorBlink", "renderer"} {
 		if _, ok := term[key]; ok {
 			t.Errorf("marshaled terminal block carries unset %q: %s", key, out)
 		}
@@ -240,7 +236,7 @@ func TestTerminalPersistenceShape(t *testing.T) {
 func TestEffectiveTerminalNilConfig(t *testing.T) {
 	var c *Config
 	got := c.EffectiveTerminal()
-	want := TerminalConfig{Scrollback: 5000, Renderer: "ghostty"}
+	want := TerminalConfig{Scrollback: 5000}
 	if got != want {
 		t.Fatalf("nil Config effective = %+v, want %+v", got, want)
 	}

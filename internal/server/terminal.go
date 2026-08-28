@@ -281,12 +281,19 @@ func PairedTerminalHostExempt(dir func() string) func(*http.Request) bool {
 	}
 }
 
-// terminalSessionDoc is the create/list row: identity and geometry, never
-// output. term.Info carries no token id, which is why it can be served.
+// terminalSessionDoc is the create response: identity, geometry, and the
+// behavior the pane applies to its renderer (GDK-896 R2) — never output.
+// term.Info carries no token id, which is why it can be served. Shell and
+// workingDir stay server-only: this body reaches paired remote clients,
+// and one that echoed them would publish the machine's shell paths — the
+// shape GDK-1069 rejected. The settings dialog is not a second road for
+// these values either; the create response is where the pane learns them.
 type terminalSessionDoc struct {
-	ID   string `json:"id"`
-	Cols uint16 `json:"cols"`
-	Rows uint16 `json:"rows"`
+	ID          string `json:"id"`
+	Cols        uint16 `json:"cols"`
+	Rows        uint16 `json:"rows"`
+	Scrollback  int    `json:"scrollback"`
+	CursorBlink bool   `json:"cursorBlink"`
 }
 
 type terminalCreateReq struct {
@@ -354,7 +361,13 @@ func (s *server) handleTerminalCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	info := sess.Info()
 	log.Printf("server: terminal create: session %s", info.ID)
-	writeJSON(w, http.StatusOK, terminalSessionDoc{ID: info.ID, Cols: info.Cols, Rows: info.Rows})
+	writeJSON(w, http.StatusOK, terminalSessionDoc{
+		ID:          info.ID,
+		Cols:        info.Cols,
+		Rows:        info.Rows,
+		Scrollback:  tc.Scrollback,
+		CursorBlink: tc.CursorBlink,
+	})
 }
 
 func (s *server) handleTerminalList(w http.ResponseWriter, r *http.Request) {

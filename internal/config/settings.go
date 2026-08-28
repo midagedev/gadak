@@ -168,12 +168,7 @@ const (
 	// MinTerminalScrollback / MaxTerminalScrollback bound a stored value.
 	MinTerminalScrollback = 200
 	MaxTerminalScrollback = 100000
-	// DefaultTerminalRenderer is the pane renderer.
-	DefaultTerminalRenderer = "ghostty"
 )
-
-// terminalRenderers are the pane renderers a config may name.
-var terminalRenderers = map[string]bool{"ghostty": true, "xterm": true}
 
 // ValidateTerminalShell accepts empty (unset: $SHELL, else /bin/sh) or an
 // absolute path. Existence is not checked — the config may be edited on
@@ -216,18 +211,6 @@ func ValidateTerminalScrollback(n int) (int, error) {
 	return n, nil
 }
 
-// ValidateTerminalRenderer accepts empty (default ghostty), ghostty, xterm.
-func ValidateTerminalRenderer(s string) (string, error) {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return "", nil
-	}
-	if !terminalRenderers[s] {
-		return "", fmt.Errorf("terminal.renderer must be ghostty or xterm (got %q)", s)
-	}
-	return s, nil
-}
-
 // ApplyTerminal is the PUT settings / `gadak config set terminal*` rule.
 // Every field is validated; the block is stored nil when every field is
 // its default, so an untouched config never carries it (zero-value =
@@ -248,16 +231,11 @@ func ApplyTerminal(c *Config, t TerminalConfig) error {
 	if err != nil {
 		return err
 	}
-	renderer, err := ValidateTerminalRenderer(t.Renderer)
-	if err != nil {
-		return err
-	}
 	t = TerminalConfig{
 		Shell:       shell,
 		WorkingDir:  dir,
 		Scrollback:  scrollback,
 		CursorBlink: t.CursorBlink,
-		Renderer:    renderer,
 	}
 	if t == (TerminalConfig{}) {
 		c.Terminal = nil
@@ -527,16 +505,16 @@ func buildSettings() []Setting {
 		{
 			Path: "terminal",
 			Root: "terminal",
-			Description: "terminal behavior block: {shell, workingDir, scrollback, cursorBlink, renderer}; " +
+			Description: "terminal behavior block: {shell, workingDir, scrollback, cursorBlink}; " +
 				"a set replaces the whole object — omitted fields return to their defaults " +
 				"(empty shell = $SHELL else /bin/sh, empty workingDir = the workspace dir, " +
-				"scrollback 0 = 5000, empty renderer = ghostty). Style (font, size, line height) " +
+				"scrollback 0 = 5000). Style (font, size, line height) " +
 				"lives in ui.tokens.type.terminal, not here",
 			Get: func(c *Config) any { return c.EffectiveTerminal() },
 			Set: func(c *Config, raw json.RawMessage) error {
 				var t TerminalConfig
 				if err := json.Unmarshal(raw, &t); err != nil {
-					return fmt.Errorf(`terminal must be an object {"shell": "/bin/zsh", "workingDir": "/tmp", "scrollback": 5000, "cursorBlink": false, "renderer": "ghostty"}`)
+					return fmt.Errorf(`terminal must be an object {"shell": "/bin/zsh", "workingDir": "/tmp", "scrollback": 5000, "cursorBlink": false}`)
 				}
 				return ApplyTerminal(c, t)
 			},
@@ -606,25 +584,6 @@ func buildSettings() []Setting {
 				}
 				next := c.terminalOrZero()
 				next.CursorBlink = b
-				return ApplyTerminal(c, next)
-			},
-		},
-		{
-			Path:        "terminal.renderer",
-			Root:        "terminal",
-			Description: "terminal pane renderer: ghostty or xterm (empty = ghostty)",
-			Get:         func(c *Config) any { return c.EffectiveTerminal().Renderer },
-			Set: func(c *Config, raw json.RawMessage) error {
-				s, err := decodeString(raw, "terminal.renderer")
-				if err != nil {
-					return err
-				}
-				v, err := ValidateTerminalRenderer(s)
-				if err != nil {
-					return err
-				}
-				next := c.terminalOrZero()
-				next.Renderer = v
 				return ApplyTerminal(c, next)
 			},
 		},

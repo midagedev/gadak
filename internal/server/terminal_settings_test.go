@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -18,9 +19,10 @@ import (
 )
 
 // The terminal settings block (GDK-896) as the create path consumes it.
-// Options carry no Shell/Dir today and term.Info never exposes them, so
-// the assertions ride the product path — what the shell reports about
-// itself ($0, pwd) — rather than a new seam.
+// Shell and workingDir carry no term.Info today, so those assertions ride
+// the product path — what the shell reports about itself ($0, pwd) —
+// rather than a new seam. Scrollback and cursorBlink (R2) have a seam of
+// their own: the create response.
 
 // setTerminalLeaf writes one terminal.* leaf through the catalog — the
 // same choke `gadak config set` rides, so the test config carries exactly
@@ -115,4 +117,63 @@ func TestTerminalCreateWorkingDirMissingFallsBack(t *testing.T) {
 		t.Fatal(err)
 	}
 	readUntilMarker(t, c, want)
+}
+
+// TestTerminalCreateResponseCarriesBehavior (GDK-896 R2): the create
+// response is the one surface terminal behavior reaches the pane on — the
+// settings dialog does not carry terminal keys (GDK-1069), so there is no
+// second road. The same body must never echo shell or workingDir: both are
+// server-only, and a response carrying them would hand a paired remote
+// client the machine's shell paths — the exact shape GDK-1069 rejected.
+func TestTerminalCreateResponseCarriesBehavior(t *testing.T) {
+	h, cfg := standaloneServer(t)
+	setTerminalLeaf(t, cfg, "terminal.scrollback", `9000`)
+	setTerminalLeaf(t, cfg, "terminal.cursorBlink", `true`)
+	srv := httptest.NewServer(h)
+	t.Cleanup(srv.Close)
+
+	code, body := termRequest(t, srv, http.MethodPost, termBase+"sessions/", `{"cols":90,"rows":30}`, "", "")
+	if code != http.StatusOK {
+		t.Fatalf("create session: %d %s", code, body)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal([]byte(body), &doc); err != nil {
+		t.Fatalf("create body %s: %v", body, err)
+	}
+	if got := doc["scrollback"]; got != float64(9000) {
+		t.Errorf("scrollback = %v (%T), want 9000 — body %s", got, got, body)
+	}
+	if got := doc["cursorBlink"]; got != true {
+		t.Errorf("cursorBlink = %v (%T), want true — body %s", got, got, body)
+	}
+	for _, key := range []string{"shell", "workingDir", "renderer"} {
+		if _, ok := doc[key]; ok {
+			t.Errorf("create response carries %q — server-only and removed keys must not reach a client (GDK-1069/1078): %s", key, body)
+		}
+	}
+}
+
+// TestTerminalCreateResponseBehaviorDefaults: an untouched config answers
+// the pane with the effective defaults — the same 5000/false the pane
+// hardcoded before the block existed, now named by the server instead of
+// reinvented on the client.
+func TestTerminalCreateResponseBehaviorDefaults(t *testing.T) {
+	h, _ := standaloneServer(t)
+	srv := httptest.NewServer(h)
+	t.Cleanup(srv.Close)
+
+	code, body := termRequest(t, srv, http.MethodPost, termBase+"sessions/", `{"cols":90,"rows":30}`, "", "")
+	if code != http.StatusOK {
+		t.Fatalf("create session: %d %s", code, body)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal([]byte(body), &doc); err != nil {
+		t.Fatalf("create body %s: %v", body, err)
+	}
+	if got := doc["scrollback"]; got != float64(config.DefaultTerminalScrollback) {
+		t.Errorf("scrollback = %v, want %d — body %s", got, config.DefaultTerminalScrollback, body)
+	}
+	if got := doc["cursorBlink"]; got != false {
+		t.Errorf("cursorBlink = %v, want false — body %s", got, body)
+	}
 }

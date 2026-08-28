@@ -15,7 +15,7 @@
   import Icon from '../ui/Icon.svelte'
   import LoadingState from '../ui/LoadingState.svelte'
   import { createSkeletonGrace } from '../../lib/skeleton-grace.svelte'
-  import { createRenderer, type TerminalRenderer } from '../../lib/terminal/renderer'
+  import { createRenderer, type BehaviorTerminalRenderer } from '../../lib/terminal/renderer'
   import {
     createSession,
     coerceDroppedReason,
@@ -30,6 +30,8 @@
     TERMINAL_GRACE_MS,
     TERMINAL_RECONNECT_BACKOFF_MS,
     TERMINAL_WS_OPEN_MS,
+    TERMINAL_SCROLLBACK_FALLBACK,
+    TERMINAL_CURSOR_BLINK_FALLBACK,
     type DroppedReason,
     type SocketHandle,
     type UnavailableCause,
@@ -75,7 +77,7 @@
 
   onMount(() => {
     let cancelled = false
-    let renderer: TerminalRenderer | null = null
+    let renderer: BehaviorTerminalRenderer | null = null
     let socket: SocketHandle | null = null
     let ro: ResizeObserver | null = null
     let fitTimer: ReturnType<typeof setTimeout> | undefined
@@ -128,6 +130,10 @@
       lastCols = cols
       lastRows = rows
       const doc = await createSession(cols, rows)
+      // The create response is the one road terminal behavior reaches the
+      // pane on (GDK-896 R2): apply before attaching, so the ring replay
+      // lands in a buffer already sized to the configured scrollback.
+      renderer?.applyBehavior({ scrollback: doc.scrollback, cursorBlink: doc.cursorBlink })
       rememberSessionId(doc.id)
       attachSocket(doc.id, { afterCreate: true })
     }
@@ -235,6 +241,14 @@
         return
       }
       renderer.open(hostEl)
+      // Behavior starts at the server's default values (GDK-896 R2); a
+      // create response overrides them below. The kept-session path never
+      // creates, so without this a reopen-in-grace pane would run on
+      // xterm's own 1000-line default until its next fresh session.
+      renderer.applyBehavior({
+        scrollback: TERMINAL_SCROLLBACK_FALLBACK,
+        cursorBlink: TERMINAL_CURSOR_BLINK_FALLBACK,
+      })
       renderer.fit()
       renderer.onData((bytes) => {
         if (phase === 'ended' || phase === 'unavailable') {
