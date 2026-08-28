@@ -62,6 +62,9 @@ func TestInstallWritesFileAndStderr(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The write end is closed in-line so ReadAll sees EOF; the read end
+	// outlives that and needs its own close (GDK-990).
+	t.Cleanup(func() { _ = r.Close() })
 	old := os.Stderr
 	os.Stderr = w
 	prevOut, prevFlags := log.Writer(), log.Flags()
@@ -175,6 +178,9 @@ func TestScrubTokenAbsentFromFileAndStderr(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The write end is closed in-line so ReadAll sees EOF; the read end
+	// outlives that and needs its own close (GDK-990).
+	t.Cleanup(func() { _ = r.Close() })
 	old := os.Stderr
 	os.Stderr = w
 	prevOut, prevFlags := log.Writer(), log.Flags()
