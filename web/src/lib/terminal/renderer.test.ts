@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { fromTerminalHost, isEditableTarget, keyContext, resolveGlobalKey } from '../keymap.svelte'
-import { createUtf8StreamDecoder, createRenderer, fontFamily, terminalFontSize } from './renderer'
+import {
+  createUtf8StreamDecoder,
+  createRenderer,
+  fontFamily,
+  stealsFromComposition,
+  terminalFontSize,
+} from './renderer'
 import {
   normalizeSessionDoc,
   TERMINAL_CURSOR_BLINK_FALLBACK,
@@ -47,6 +53,43 @@ describe('Ctrl+` toggle chord', () => {
     expect(resolveGlobalKey(keyContext({ key: '`', metaKey: true }))).toEqual({
       type: 'ignore',
     })
+  })
+})
+
+describe('GDK-1095 keys that steal from an open IME composition', () => {
+  // Plain objects, not KeyboardEvent: vitest unit runs in node. The shapes
+  // mirror what Chromium delivers — a real keyCode with isComposing true.
+  function ev(over: Partial<KeyboardEvent>): KeyboardEvent {
+    return { type: 'keydown', isComposing: false, keyCode: 0, ...over } as KeyboardEvent
+  }
+
+  test('Ctrl+letter during composition is blocked (the measured double-send)', () => {
+    expect(stealsFromComposition(ev({ isComposing: true, keyCode: 65, ctrlKey: true }))).toBe(true)
+  })
+
+  test('Backspace during composition is blocked — the IME owns jamo deletion', () => {
+    expect(stealsFromComposition(ev({ isComposing: true, keyCode: 8 }))).toBe(true)
+  })
+
+  test('arrows during composition are blocked — candidate navigation is the IME’s', () => {
+    expect(stealsFromComposition(ev({ isComposing: true, keyCode: 38 }))).toBe(true)
+  })
+
+  test('ordinary IME keystrokes (keyCode 229) pass — xterm already ignores them', () => {
+    expect(stealsFromComposition(ev({ isComposing: true, keyCode: 229 }))).toBe(false)
+  })
+
+  test('Enter passes — the one upstream-guarded key, commit keeps working', () => {
+    expect(stealsFromComposition(ev({ isComposing: true, keyCode: 13 }))).toBe(false)
+  })
+
+  test('outside a composition nothing is blocked', () => {
+    expect(stealsFromComposition(ev({ keyCode: 8 }))).toBe(false)
+    expect(stealsFromComposition(ev({ keyCode: 65, ctrlKey: true }))).toBe(false)
+  })
+
+  test('keyup during composition is not blocked (only keydown feeds the VT)', () => {
+    expect(stealsFromComposition(ev({ type: 'keyup', isComposing: true, keyCode: 8 }))).toBe(false)
   })
 })
 

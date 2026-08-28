@@ -69,6 +69,23 @@ function isToggleChord(ev: KeyboardEvent): boolean {
   )
 }
 
+/*
+ * GDK-1095: a key that arrives with a real keyCode while an IME composition
+ * is open — Backspace, a Ctrl+letter chord, an arrow — makes xterm 6.0.0's
+ * CompositionHelper send the composed text twice: the keydown path
+ * finalizes and sends without recording what it sent, and compositionend
+ * then resends the whole buffer (measured: Ctrl+A during 한글 composition
+ * writes the syllable to the PTY twice). Enter is the one upstream-guarded
+ * key (its CR branch clears the textarea), and ordinary IME keystrokes
+ * arrive as keyCode 229, which xterm already ignores. Everything else is
+ * blocked before xterm processes it — the custom key handler runs ahead of
+ * CompositionHelper.keydown — so the IME keeps owning those keys and the
+ * composition is sent exactly once, by compositionend.
+ */
+export function stealsFromComposition(ev: KeyboardEvent): boolean {
+  return ev.type === 'keydown' && ev.isComposing && ev.keyCode !== 229 && ev.keyCode !== 13
+}
+
 type TermHook = {
   buffer: {
     active: {
@@ -186,8 +203,9 @@ async function createXtermRenderer(): Promise<BehaviorTerminalRenderer> {
     resizeCb?.(cols, rows)
   })
   // false means "do not process" — the toggle chord must escape the VT and
-  // reach the app's own handler.
-  term.attachCustomKeyEventHandler((ev) => !isToggleChord(ev))
+  // reach the app's own handler, and a composition-stealing key (GDK-1095)
+  // must stay with the IME.
+  term.attachCustomKeyEventHandler((ev) => !isToggleChord(ev) && !stealsFromComposition(ev))
   // Exposed from creation, not open(): the hook mirrors the live terminal,
   // which exists before a host does (unit tests applyBehavior with no DOM).
   exposeTerm(term)
