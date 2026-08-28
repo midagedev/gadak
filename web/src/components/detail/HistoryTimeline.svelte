@@ -4,18 +4,13 @@
    * Compact status/assignee/priority changes (from→to, by, relative time).
    * Reopen (done-category → non-done) gets a red point.
    */
-  import { t } from '../../lib/i18n'
+  import { t, fieldLabel } from '../../lib/i18n'
   import type { HistoryEntry } from '../../lib/types'
   import { isReopen } from '../../lib/view-config'
   import { relativeTime, absoluteTime } from './format'
   import BotBadge from '../list/BotBadge.svelte'
 
   let { history }: { history: HistoryEntry[] } = $props()
-
-  /** Field label (via i18n). */
-  function fieldLabel(f: string): string {
-    return f === 'status' ? t('common.status') : f === 'assignee' ? t('common.assignee') : f === 'priority' ? t('common.priority') : f
-  }
 </script>
 
 <ol class="relative flex flex-col gap-3 pl-4">

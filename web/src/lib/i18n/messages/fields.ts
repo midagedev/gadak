@@ -18,6 +18,13 @@ export const fields = {
     ko: '상태',
     ja: 'ステータス',
   },
+  // The changelog's assignee axis is the plain id "assignee" (GDK-1065);
+  // assignee_email below is the filter/form axis. Wording is common.assignee's.
+  'field.assignee': {
+    en: 'Assignee',
+    ko: '담당자',
+    ja: '担当者',
+  },
   'field.assignee_email': {
     en: 'Assignee',
     ko: '담당자',
