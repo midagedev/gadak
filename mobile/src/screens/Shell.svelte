@@ -10,7 +10,11 @@
   import KeyBar from '../ui/KeyBar.svelte'
   import { t } from '../lib/i18n'
   import { app, terminalSession } from '../lib/store.svelte'
-  import { createShellSession } from '../lib/terminal/api'
+  import {
+    createShellSession,
+    TERMINAL_CURSOR_BLINK_FALLBACK,
+    TERMINAL_SCROLLBACK_FALLBACK,
+  } from '../lib/terminal/api'
   import { openShellSocket } from '../lib/terminal/transport'
   import {
     StickyModifiers,
@@ -42,7 +46,9 @@
   import { ApiError } from '../lib/api'
 
   // Copied from web/src/lib/terminal/session.ts — that module imports the
-  // wails transport, which the phone must not resolve.
+  // wails transport, which the phone must not resolve. The behavior
+  // fallbacks are not copies: they live next to the response they
+  // normalize, in ../lib/terminal/api (imported above).
   const TERMINAL_GRACE_MS = 60_000
   const TERMINAL_RECONNECT_BACKOFF_MS = [500, 1000, 2000, 4000] as const
   const TERMINAL_WS_OPEN_MS = 8_000
@@ -275,6 +281,11 @@
     lastCols = cols
     lastRows = rows
     const doc = await createShellSession(cols, rows, terminalSession())
+    // The create response is the one road terminal behavior reaches the
+    // pane on (GDK-896 R3, the web pane does the same): apply before
+    // attaching, so the ring replay lands in a buffer already sized to
+    // the configured scrollback.
+    renderer?.applyBehavior({ scrollback: doc.scrollback, cursorBlink: doc.cursorBlink })
     keptSessionId = doc.id
     attachSocket(doc.id, { afterCreate: true })
   }
@@ -405,6 +416,15 @@
       return false
     }
     renderer.open(hostEl)
+    // Behavior starts at the server's default values (GDK-896 R3); a
+    // create response overrides them in startNew. The kept-session paths
+    // (activate/reattachNow) never create, so without this a reattach
+    // would run on xterm's own 1000-line default until the next fresh
+    // session — the web pane's boot path applies the same fallback.
+    renderer.applyBehavior({
+      scrollback: TERMINAL_SCROLLBACK_FALLBACK,
+      cursorBlink: TERMINAL_CURSOR_BLINK_FALLBACK,
+    })
     renderer.fit()
     renderer.onResize((cols, rows) => {
       lastCols = cols

@@ -5,6 +5,8 @@ import {
   deleteShellSession,
   listShellSessions,
   probeShellPairing,
+  TERMINAL_CURSOR_BLINK_FALLBACK,
+  TERMINAL_SCROLLBACK_FALLBACK,
 } from './api'
 
 const TOKEN = '<terminal-token>'
@@ -31,7 +33,15 @@ describe('createShellSession', () => {
   it('POSTs geometry with the terminal Bearer, never the token in the URL', async () => {
     const { fn, calls } = fakeFetch(200, { id: 'sess-1', cols: 80, rows: 24 })
     const doc = await createShellSession(80, 24, session, fn)
-    expect(doc).toEqual({ id: 'sess-1', cols: 80, rows: 24 })
+    // No behavior fields in this response, so normalize fills the
+    // fallbacks (GDK-896 R3) — the deeper cases live in session-doc.test.ts.
+    expect(doc).toEqual({
+      id: 'sess-1',
+      cols: 80,
+      rows: 24,
+      scrollback: TERMINAL_SCROLLBACK_FALLBACK,
+      cursorBlink: TERMINAL_CURSOR_BLINK_FALLBACK,
+    })
     expect(calls[0].url).toContain('/api/v1/terminal/sessions/')
     expect(calls[0].url).not.toContain(TOKEN)
     expect(calls[0].init.method).toBe('POST')

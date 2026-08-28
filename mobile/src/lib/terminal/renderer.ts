@@ -115,7 +115,27 @@ export function readBufferOffset(raw: unknown): number {
   return typeof raw === 'number' && Number.isFinite(raw) ? raw : 0
 }
 
+/**
+ * Terminal behavior the create response carries (GDK-896 R3). The values
+ * live in the Go config (`terminal.scrollback`, `terminal.cursorBlink`);
+ * the pane hands them to the renderer the moment it has them — there is
+ * no second opinion on this side (fallbacks sit next to the response, in
+ * ./api).
+ */
+export interface TerminalBehavior {
+  scrollback: number
+  cursorBlink: boolean
+}
+
 export interface PhoneTerminalRenderer extends TerminalRenderer {
+  /**
+   * Applies create-session behavior to the live terminal (GDK-896 R3).
+   * xterm takes options after construction (scrollback reallocates the
+   * buffer), so this lands between the create response and the first
+   * replay byte — nothing is frozen at open. Web sibling:
+   * BehaviorTerminalRenderer.applyBehavior.
+   */
+  applyBehavior(b: TerminalBehavior): void
   /** Clear the local buffer so a ring replay is the scrollback, not a duplicate. */
   reset(): void
   /**
@@ -144,11 +164,13 @@ export async function createRenderer(): Promise<PhoneTerminalRenderer> {
   const term = new Terminal({
     fontSize: terminalFontSize(),
     allowTransparency: false,
-    // Client-side history, distinct from the serve's 256 KiB reconnect ring:
-    // that ring is what a *reattaching* client replays, this is what the
-    // person can scroll back through in one session.
-    scrollback: 5000,
-    cursorBlink: false,
+    // No scrollback/cursorBlink here (GDK-896 R3): behavior comes from the
+    // create response, applied via applyBehavior once the pane knows it —
+    // the server is the single owner of those values, not this file. The
+    // scrollback value still means client-side history, distinct from the
+    // serve's 256 KiB reconnect ring: that ring is what a *reattaching*
+    // client replays, this is what the person can scroll back through in
+    // one session.
     fontFamily: fontFamily(),
     theme,
     cols: 80,
@@ -178,6 +200,10 @@ export async function createRenderer(): Promise<PhoneTerminalRenderer> {
     },
     get rows() {
       return term.rows
+    },
+    applyBehavior(b: TerminalBehavior) {
+      term.options.scrollback = b.scrollback
+      term.options.cursorBlink = b.cursorBlink
     },
     open(host: HTMLElement) {
       host.setAttribute('data-gadak-editable', '')
