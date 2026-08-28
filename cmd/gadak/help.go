@@ -603,7 +603,7 @@ var helps = map[string]cmdHelp{
 	},
 	"edit": {
 		summary: "edit summary, description, labels, components, fix versions, issue type, priority, parent, due date, or a configured custom field",
-		usage: "gadak [--workspace <name>] edit <KEY> [--summary S] [-m <text|->]\n" +
+		usage: "gadak [--workspace <name>] edit <KEY> [--summary S] [-m <text|->] [--force-plain]\n" +
 			"[--label +x|-x]... [--component +x|-x]...\n" +
 			"[--fix-version +id-or-name|-id-or-name]...\n" +
 			"[--type NAME-or-id] [--priority NAME-or-id] [--due YYYY-MM-DD|none] [--parent KEY|none]\n" +
@@ -614,6 +614,7 @@ var helps = map[string]cmdHelp{
 			"gadak edit NMB-140 --type Bug",
 			"gadak edit NMB-140 --component +SDK --component -Docs",
 			"gadak edit NMB-140 --fix-version +v2.5 --fix-version -10012",
+			"gadak edit NMB-140 -m \"plain rewrite\" --force-plain",
 			"gadak edit NMB-140 --due 2026-09-01",
 			"gadak edit NMB-140 --due none",
 			"gadak edit NMB-140 --field severity=High",

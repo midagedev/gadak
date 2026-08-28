@@ -254,6 +254,23 @@ origin 폴더의 issuetap.db(SQLite, WAL). gadak이 꺼져 있을 때 복사하�
 인라인 코멘트 미디어는 파일은 붙고 본문 embed만 빠집니다. 필드 매핑:
 [`internal/linear/MAPPING.md`](internal/linear/MAPPING.md).
 
+### CLI가 하지 않는 것
+
+쓰기 쪽의 의도적인 공백입니다. 프로덕션에서 발견하는 대신 여기서
+미리 적어 둡니다:
+
+- **`edit -m`은 서식 있는 description을 지우지 않습니다.** `-m`은 평문을
+  씁니다. origin의 현재 description에 평문 교체로는 사라지는 서식 — 표,
+  제목, 리스트, 링크, 멘션 — 이 있으면 편집은 멈추고 무엇을 찾았는지
+  알려 줍니다. `gadak edit KEY -m … --force-plain`으로 그래도 교체할 수
+  있습니다. (`page edit -m`도 같은 가드를 `--force` 뒤에 두고 있습니다.)
+- **스프린트 동사는 없습니다.** 스프린트 필드는 미러에 있습니다
+  (`sprint_id`, `sprint_name`, `sprint_state`; SQL과 JQL로 질의), 하지만
+  이슈를 스프린트 사이에서 옮기거나 스프린트를 편집하는 일은 Jira에서
+  합니다.
+- **worklog 동사는 없습니다.** 패스스루로 남깁니다:
+  `gadak api POST /rest/api/3/issue/KEY/worklog --data @wl.json --write`.
+
 ## 에이전트를 위해
 
 gadak이 존재하는 이유의 절반입니다. 레퍼런스: **[docs/MIRROR.md](docs/MIRROR.md)**.

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -114,6 +115,28 @@ import (
 //     TestEditTypeEmptyIsUsageError
 // 37. Help / usage enumerate --type
 //     TestEditHelpListsTypeFlag
+//
+// -m vs formatted descriptions (GDK-1001 — a plain-text replace must not
+// silently destroy a table/heading/link body):
+// 38. formatted current description + -m → refused, the node types and marks
+//     named, --force-plain offered; no PUT; the guard did read the origin
+//     TestEditMRefusesFormattedDescription
+// 39. same + --force-plain → PUT carries the new plain body
+//     TestEditMForcePlainReplacesFormattedDescription
+// 40. plain current description + -m → passes with no flag
+//     TestEditMPassesPlainDescriptionWithoutFlag
+// 41. -m '' (clear) is the same loss → refused / forced clear lands null
+//     TestEditMClearRefusesFormattedDescription
+//     TestEditMClearForcePlainClears
+// 42. the guard's origin GET failing aborts the edit — "could not verify" is
+//     not "nothing to destroy"
+//     TestEditMGuardGETFailureAborts
+// 43. --batch description lines get the same guard; --force-plain lifts it
+//     TestEditBatchDescriptionGuard
+// 44. Linear skips the Jira GET (its descriptions are plain end to end)
+//     TestEditMGuardSkipsLinear
+// 45. Help / usage enumerate --force-plain
+//     TestEditHelpListsForcePlainFlag
 
 func TestEditSummaryAlone(t *testing.T) {
 	f := newFakeJira(t)
@@ -1783,5 +1806,227 @@ func TestEditHelpListsTypeFlag(t *testing.T) {
 	joined := strings.Join(helps["edit"].examples, "\n")
 	if !strings.Contains(joined, "--type") {
 		t.Errorf("examples missing --type:\n%s", joined)
+	}
+}
+
+// formattedDescADF carries one of each loss class: a mark (strong), a table
+// (block structure), and a heading.
+const formattedDescADF = `{"type":"doc","version":1,"content":[` +
+	`{"type":"paragraph","content":[{"type":"text","text":"plain lead"},` +
+	`{"type":"text","text":"bold","marks":[{"type":"strong"}]}]},` +
+	`{"type":"table","content":[{"type":"tableRow","content":[` +
+	`{"type":"tableCell","content":[{"type":"paragraph","content":[{"type":"text","text":"cell"}]}]}]}]},` +
+	`{"type":"heading","attrs":{"level":2},"content":[{"type":"text","text":"Steps"}]}]}`
+
+// plainDescADF is exactly what jira.Doc emits for a two-line plain body.
+const plainDescADF = `{"type":"doc","version":1,"content":[` +
+	`{"type":"paragraph","content":[{"type":"text","text":"line one"}]},` +
+	`{"type":"paragraph","content":[{"type":"text","text":"line two"}]}]}`
+
+// seedDescriptionADF answers POST /search/jql with the single issue whose
+// description is the given ADF, so the guard's pre-PUT read (and the
+// write-through re-read) both see it. Same wrapping shape as
+// overrideCreateMeta; the call/body recording matches f.route so f.called
+// keeps working.
+func seedDescriptionADF(t *testing.T, f *fakeJira, key, desc string) {
+	t.Helper()
+	inner := f.Config.Handler
+	f.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/rest/api/3")
+		if r.Method == http.MethodPost && path == "/search/jql" {
+			tag := r.Method + " " + path
+			f.calls = append(f.calls, tag)
+			body, _ := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+			if len(body) > 0 {
+				f.bodies[tag] = string(body)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"issues":[{"id":"1001","key":"` + key + `","fields":{
+				"summary":"batch worker drops the last page",
+				"description":` + desc + `,
+				"status":{"id":"10001","name":"완료","statusCategory":{"key":"done"}},
+				"project":{"key":"NMB"},"issuetype":{"id":"10004","name":"Bug"},
+				"assignee":{"accountId":"acc-hc","displayName":"Dana Whitfield"},
+				"created":"2026-07-01T00:00:00.000+0900","updated":"2026-08-04T12:00:00.000+0900"
+			}}],"isLast":true}`))
+			return
+		}
+		inner.ServeHTTP(w, r)
+	})
+}
+
+func TestEditMRefusesFormattedDescription(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	seedDescriptionADF(t, f, "NMB-1", formattedDescADF)
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "-m", "rewritten"})
+	})
+	if err == nil {
+		t.Fatal("formatted description must refuse a plain-text replace")
+	}
+	msg := err.Error()
+	for _, want := range []string{"NMB-1", "table", "heading", "strong", "--force-plain"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("refusal %q missing %q", msg, want)
+		}
+	}
+	if f.called("PUT /issue/NMB-1") {
+		t.Fatalf("refused edit still reached Jira: %v", f.calls)
+	}
+	if !f.called("POST /search/jql") {
+		t.Fatalf("guard must read the current description from the origin: %v", f.calls)
+	}
+}
+
+func TestEditMForcePlainReplacesFormattedDescription(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	seedDescriptionADF(t, f, "NMB-1", formattedDescADF)
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "-m", "rewritten", "--force-plain"})
+	})
+	if err != nil {
+		t.Fatalf("edit -m --force-plain: %v", err)
+	}
+	body := f.bodies["PUT /issue/NMB-1"]
+	if !strings.Contains(body, `"text":"rewritten"`) {
+		t.Fatalf("forced replace body: %s", body)
+	}
+}
+
+func TestEditMPassesPlainDescriptionWithoutFlag(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	seedDescriptionADF(t, f, "NMB-1", plainDescADF)
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "-m", "rewritten"})
+	})
+	if err != nil {
+		t.Fatalf("plain description needs no flag: %v", err)
+	}
+	if !f.called("PUT /issue/NMB-1") {
+		t.Fatalf("PUT missing: %v", f.calls)
+	}
+}
+
+func TestEditMClearRefusesFormattedDescription(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	seedDescriptionADF(t, f, "NMB-1", formattedDescADF)
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "-m", ""})
+	})
+	if err == nil {
+		t.Fatal("clearing a formatted description must refuse without --force-plain")
+	}
+	if !strings.Contains(err.Error(), "--force-plain") {
+		t.Fatalf("refusal must name the escape flag: %q", err)
+	}
+	if f.called("PUT /issue/NMB-1") {
+		t.Fatalf("refused clear reached Jira: %v", f.calls)
+	}
+}
+
+func TestEditMClearForcePlainClears(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	seedDescriptionADF(t, f, "NMB-1", formattedDescADF)
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "-m", "", "--force-plain"})
+	})
+	if err != nil {
+		t.Fatalf("edit -m '' --force-plain: %v", err)
+	}
+	body := f.bodies["PUT /issue/NMB-1"]
+	if !strings.Contains(body, `"description":null`) {
+		t.Fatalf("forced clear: %s", body)
+	}
+}
+
+func TestEditMGuardGETFailureAborts(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	// 404, not 500: reads retry 429/500/502/503/504 (httppolicy.IsRetryable),
+	// so a 5xx burns the retry budget for nothing — 404 fails the same GET
+	// without the wait. Either way the guard must not wave it through.
+	f.rereadStatus = 404
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "-m", "rewritten"})
+	})
+	if err == nil {
+		t.Fatal("an unreadable current description must abort the replace")
+	}
+	if f.called("PUT /issue/NMB-1") {
+		t.Fatalf("unverified replace reached Jira: %v", f.calls)
+	}
+}
+
+func TestEditBatchDescriptionGuard(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	seedDescriptionADF(t, f, "NMB-1", formattedDescADF)
+
+	withStdin(t, `{"key":"NMB-1","description":"batch body"}`+"\n")
+	out, err := capture(t, func() error {
+		return cmdEdit([]string{"--batch", "-"})
+	})
+	if err == nil {
+		t.Fatalf("batch guard must fail the line (out %s)", out)
+	}
+	if !strings.Contains(out, "--force-plain") {
+		t.Fatalf("envelope row must carry the refusal: %s", out)
+	}
+	if f.called("PUT /issue/NMB-1") {
+		t.Fatalf("guarded batch line reached Jira: %v", f.calls)
+	}
+
+	withStdin(t, `{"key":"NMB-1","description":"batch body"}`+"\n")
+	_, err = capture(t, func() error {
+		return cmdEdit([]string{"--batch", "-", "--force-plain"})
+	})
+	if err != nil {
+		t.Fatalf("batch --force-plain: %v", err)
+	}
+	if !f.called("PUT /issue/NMB-1") {
+		t.Fatalf("forced batch PUT missing: %v", f.calls)
+	}
+}
+
+func TestEditMGuardSkipsLinear(t *testing.T) {
+	cfg := mirror(t, "")
+	cfg.Linear = &config.LinearConfig{APIKey: linearTestKey}
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+	// A Jira description GET needs an Atlassian credential this workspace does
+	// not have — the guard must skip Linear (descriptions are plain text end
+	// to end), not fail the edit.
+	if err := guardDescriptionReplace(context.Background(), cfg, "linear", "FIX-1", false); err != nil {
+		t.Fatalf("linear descriptions are plain end to end; guard must skip: %v", err)
+	}
+}
+
+func TestEditHelpListsForcePlainFlag(t *testing.T) {
+	out, err := capture(t, func() error {
+		return cmdEdit([]string{"--help"})
+	})
+	if err != nil {
+		t.Fatalf("edit --help: %v", err)
+	}
+	if !strings.Contains(out, "--force-plain") {
+		t.Fatalf("help Options missing --force-plain:\n%s", out)
+	}
+	if !strings.Contains(helps["edit"].usage, "--force-plain") {
+		t.Errorf("usage line missing --force-plain: %s", helps["edit"].usage)
+	}
+	if !strings.Contains(editUsage, "--force-plain") {
+		t.Errorf("editUsage missing --force-plain: %s", editUsage)
 	}
 }

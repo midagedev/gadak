@@ -479,6 +479,7 @@ gadak create Severity required --project NMB --type Task --field severity=High
 gadak attach NMB-140 screenshot.png trace.log
 gadak edit NMB-140 --summary "…" --label +regression --label -needs-triage --priority High --parent none
 gadak edit NMB-140 --type Task                # name, localized name, or id — same resolver as create --type
+gadak edit NMB-140 -m "plain-text body"       # plain replace; a formatted description refuses without --force-plain
 gadak edit NMB-140 --component +SDK --component -Docs
 gadak edit NMB-140 --fix-version +v2.5 --fix-version -10012
 gadak edit NMB-140 --field severity=High

@@ -77,3 +77,40 @@ func TestIsSimpleRejectsMarksListsHeadings(t *testing.T) {
 		}
 	}
 }
+
+func TestFormatLoss(t *testing.T) {
+	table := `{"type":"doc","version":1,"content":[{"type":"table","content":[{"type":"tableRow","content":[` +
+		`{"type":"tableCell","content":[{"type":"paragraph","content":[{"type":"text","text":"c"}]}]}]}]}]}`
+	cases := []struct {
+		name string
+		raw  string
+		want []string
+	}{
+		{"empty", "", nil},
+		{"null description", `null`, nil},
+		{"plain paragraphs", `{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"a"}]}]}`, nil},
+		{"hardBreak is plain", `{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"a"},{"type":"hardBreak"}]}]}`, nil},
+		{"bare string is already plain", `"wiki markup"`, nil},
+		{"mark", `{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"b","marks":[{"type":"strong"}]}]}]}`, []string{"strong"}},
+		{"link mark names the mark", `{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"l","marks":[{"type":"link","attrs":{"href":"https://example.com"}}]}]}]}`, []string{"link"}},
+		{"table walks its rows and cells", table, []string{"table", "tableRow", "tableCell"}},
+		{"mention", `{"type":"doc","content":[{"type":"paragraph","content":[{"type":"mention","attrs":{"id":"a","text":"@D"}}]}]}`, []string{"mention"}},
+		// Two tables in one doc: each kind appears once.
+		{"dedup keeps one of each kind", `{"type":"doc","content":[{"type":"table","content":[{"type":"tableRow"}]},{"type":"table","content":[{"type":"tableRow"}]}]}`, []string{"table", "tableRow"}},
+		{"garbage is reported, never waved through", `not json`, []string{unreadableDescription}},
+	}
+
+	for _, tc := range cases {
+		got := FormatLoss(tc.raw)
+		if len(got) != len(tc.want) {
+			t.Errorf("%s: FormatLoss = %v, want %v", tc.name, got, tc.want)
+			continue
+		}
+		for i := range got {
+			if got[i] != tc.want[i] {
+				t.Errorf("%s: FormatLoss = %v, want %v", tc.name, got, tc.want)
+				break
+			}
+		}
+	}
+}

@@ -254,6 +254,23 @@ rather than half-applying; inline comment media attaches the file and
 drops only the body embed. Field mapping:
 [`internal/linear/MAPPING.md`](internal/linear/MAPPING.md).
 
+### What the CLI does not do
+
+Deliberate gaps on the write side, stated here so nobody finds them in
+production:
+
+- **`edit -m` refuses to destroy a formatted description.** `-m` writes
+  plain text; when the description currently on the origin carries
+  formatting a plain replace would drop — tables, headings, lists, links,
+  mentions — the edit stops and names what it found. `gadak edit KEY -m
+  … --force-plain` replaces it anyway. (`page edit -m` has the same
+  guard behind `--force`.)
+- **No sprint verbs.** Sprint fields are mirrored (`sprint_id`,
+  `sprint_name`, `sprint_state`; SQL and JQL query them), but moving an
+  issue between sprints or editing a sprint happens in Jira.
+- **No worklog verbs.** Log work through the pass-through instead:
+  `gadak api POST /rest/api/3/issue/KEY/worklog --data @wl.json --write`.
+
 ## For agents
 
 This is half the reason gadak exists. Reference: **[docs/MIRROR.md](docs/MIRROR.md)**.

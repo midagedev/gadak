@@ -4,7 +4,8 @@
 //
 // PlainText flattens a document for FTS. IsSimple is the format-loss gate
 // (doc / paragraph / text / hardBreak, no marks) ported from
-// web/src/lib/adf.ts isSimpleAdf.
+// web/src/lib/adf.ts isSimpleAdf; FormatLoss names what a plain-text replace
+// would destroy, for the refusal that prints it.
 package adf
 
 import (
@@ -78,6 +79,15 @@ type simpleNode struct {
 	Content []simpleNode      `json:"content"`
 }
 
+// simpleTypes is the node-type set a plain-text round trip preserves. jira.Doc
+// over a plain body emits exactly doc / paragraph / text (edit -m passes no
+// mentions or media); hardBreak joins the set because it is visually a line
+// break, the ported original's call (web/src/lib/adf.ts SIMPLE_ADF_TYPES).
+// walkSimple and FormatLoss share this one owner so the two cannot drift.
+var simpleTypes = map[string]bool{
+	"doc": true, "paragraph": true, "text": true, "hardBreak": true,
+}
+
 // IsSimple is the Go port of web/src/lib/adf.ts isSimpleAdf: empty/null is
 // simple; otherwise only doc/paragraph/text/hardBreak with no marks. A
 // plain-text replace of a non-simple document would drop formatting, so
@@ -94,9 +104,7 @@ func IsSimple(raw string) bool {
 }
 
 func walkSimple(n simpleNode) bool {
-	switch n.Type {
-	case "doc", "paragraph", "text", "hardBreak":
-	default:
+	if !simpleTypes[n.Type] {
 		return false
 	}
 	if len(n.Marks) > 0 {
@@ -108,4 +116,62 @@ func walkSimple(n simpleNode) bool {
 		}
 	}
 	return true
+}
+
+// unreadableDescription is FormatLoss's sentinel for a description that does
+// not parse: the caller refuses rather than destroy a body it could not read.
+const unreadableDescription = "unreadable description JSON"
+
+// FormatLoss lists what a plain-text replace of raw would destroy: node types
+// outside the IsSimple set, plus mark names (strong, link, …), deduped in
+// first-appearance order — edit -m's refusal prints them so the user sees what
+// the replace would drop (GDK-1001). Empty means a plain-text replace loses
+// nothing. A bare string (the older wiki-markup shape PlainText passes
+// through) is already plain. A document that does not parse is reported,
+// never waved through.
+func FormatLoss(raw string) []string {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	var s string
+	if json.Unmarshal([]byte(raw), &s) == nil {
+		return nil
+	}
+	var n simpleNode
+	if err := json.Unmarshal([]byte(raw), &n); err != nil {
+		return []string{unreadableDescription}
+	}
+	var out []string
+	seen := map[string]bool{}
+	collectLoss(n, seen, &out)
+	return out
+}
+
+func collectLoss(n simpleNode, seen map[string]bool, out *[]string) {
+	if !simpleTypes[n.Type] {
+		noteLoss(n.Type, seen, out)
+	}
+	for _, m := range n.Marks {
+		var mark struct {
+			Type string `json:"type"`
+		}
+		if json.Unmarshal(m, &mark) == nil && mark.Type != "" {
+			noteLoss(mark.Type, seen, out)
+			continue
+		}
+		noteLoss("marks", seen, out)
+	}
+	for _, c := range n.Content {
+		collectLoss(c, seen, out)
+	}
+}
+
+func noteLoss(kind string, seen map[string]bool, out *[]string) {
+	if kind == "" {
+		kind = "unknown node"
+	}
+	if !seen[kind] {
+		seen[kind] = true
+		*out = append(*out, kind)
+	}
 }
