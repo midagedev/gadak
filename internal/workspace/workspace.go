@@ -164,6 +164,32 @@ func closeEntry(e *Entry) {
 	}
 }
 
+// Evict closes one opened workspace entry and forgets it, so a removal
+// (DELETE /api/v1/workspaces/{name}) does not delete a profile directory
+// out from under an open SQLite handle — the /w/<name>/ mount would keep
+// serving a zombie mirror of files that no longer exist. No-op when the
+// entry is not open. The next Get for the name reconstructs it lazily, so a
+// refused removal costs one reopen, nothing else. Lock discipline matches
+// Close: the map mutation is under mu, closeEntry (IO) runs after release.
+func (r *Registry) Evict(name string) {
+	if r == nil {
+		return
+	}
+	r.mu.Lock()
+	if r.closed {
+		r.mu.Unlock()
+		return
+	}
+	e, ok := r.entries[name]
+	if !ok {
+		r.mu.Unlock()
+		return
+	}
+	delete(r.entries, name)
+	r.mu.Unlock()
+	closeEntry(e)
+}
+
 // Get returns a cached workspace entry, opening the profile on first use.
 func (r *Registry) Get(name string) (*Entry, error) {
 	if r == nil {

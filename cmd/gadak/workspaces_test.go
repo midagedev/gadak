@@ -308,3 +308,65 @@ func TestWorkspaceBadName404(t *testing.T) {
 		}
 	}
 }
+
+// TestServeMuxWorkspacesManageGuardBoundary pins that the workspace
+// management routes (GDK-1096) inherit the outer browser guard: a DNS-named
+// Host never reaches POST/DELETE, and a state-changing POST with a foreign
+// Origin is refused. Neither Host exemption admits /api/v1/workspaces* —
+// these are new routes on the outer mux, and this test is the proof the
+// structure actually covers them.
+func TestServeMuxWorkspacesManageGuardBoundary(t *testing.T) {
+	mux, _ := testServeMux(t)
+
+	// DNS Host → 403 forbidden_host on both verbs.
+	for _, tc := range []struct {
+		method string
+		target string
+	}{
+		{http.MethodPost, "/api/v1/workspaces"},
+		{http.MethodDelete, "/api/v1/workspaces/work"},
+	} {
+		req := httptest.NewRequest(tc.method, tc.target, strings.NewReader(`{"name":"x","kind":"standalone"}`))
+		req.Host = "evil.example.com"
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusForbidden {
+			t.Errorf("%s %s Host=evil.example.com status %d, want 403; body %s", tc.method, tc.target, rec.Code, rec.Body.String())
+			continue
+		}
+		var body map[string]string
+		if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil || body["error"] != "forbidden_host" {
+			t.Errorf("%s %s: error %v, want forbidden_host (%s)", tc.method, tc.target, body, rec.Body.String())
+		}
+	}
+
+	// Foreign Origin on a state-changing POST → 403 forbidden_origin.
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/workspaces", strings.NewReader(`{"name":"x","kind":"standalone"}`))
+	req.Host = "127.0.0.1:7777"
+	req.Header.Set("Origin", "http://evil.example.com")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("foreign Origin POST status %d, want 403; body %s", rec.Code, rec.Body.String())
+	}
+	var body map[string]string
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil || body["error"] != "forbidden_origin" {
+		t.Fatalf("foreign Origin POST: error %v, want forbidden_origin (%s)", body, rec.Body.String())
+	}
+
+	// Sanity: the guard is the only thing that answered above — a loopback
+	// Host with no Origin must reach the handler. An unsupported kind is
+	// refused by the handler (not the guard) with its own code, proving the
+	// route is registered and the guard admits it.
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/workspaces", strings.NewReader(`{"name":"x","kind":"connected"}`))
+	req.Host = "127.0.0.1:7777"
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("loopback POST status %d, want 400 from the handler; body %s", rec.Code, rec.Body.String())
+	}
+	body = nil
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil || body["error"] != "unsupported_kind" {
+		t.Fatalf("loopback POST: error %v, want unsupported_kind (%s)", body, rec.Body.String())
+	}
+}

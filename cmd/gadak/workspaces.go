@@ -37,6 +37,14 @@ func buildServeMux(primaryAPI http.Handler, spa http.Handler, reg *workspace.Reg
 	// More specific than /api/ so the list is not swallowed by the primary handler.
 	mux.HandleFunc("GET /api/v1/workspaces", workspace.ListHandler())
 	mux.HandleFunc("GET /api/v1/workspaces/{$}", workspace.ListHandler())
+	// Workspace creation/removal (GDK-1096), same spot as the list: the
+	// outer GuardBrowser below covers these too, and neither Host exemption
+	// admits /api/v1/workspaces* — a DNS-named Host never reaches the
+	// handlers. DELETE takes the registry so an open /w/<name>/ mount is
+	// closed before its directory is deleted.
+	mux.HandleFunc("POST /api/v1/workspaces", workspace.CreateHandler())
+	mux.HandleFunc("POST /api/v1/workspaces/{$}", workspace.CreateHandler())
+	mux.HandleFunc("DELETE /api/v1/workspaces/{name}", workspace.RemoveHandler(reg))
 	mux.Handle("/api/", primaryAPI)
 	if reg != nil {
 		mux.HandleFunc("/w/", reg.Handler(spa, version))

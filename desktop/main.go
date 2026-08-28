@@ -927,6 +927,13 @@ func fallbackHandler(api http.Handler, ui fs.FS, reg *workspace.Registry, openUR
 	})
 	mux.HandleFunc("GET /api/v1/workspaces", workspace.ListHandler())
 	mux.HandleFunc("GET /api/v1/workspaces/{$}", workspace.ListHandler())
+	// Workspace creation/removal (GDK-1096), same wiring as buildServeMux in
+	// cmd/gadak. This desktop mux has no outer browser guard (the webview is
+	// the only client), so these handlers run bare here — like the other
+	// top-level desktop routes (/config.json, /desktop/*).
+	mux.HandleFunc("POST /api/v1/workspaces", workspace.CreateHandler())
+	mux.HandleFunc("POST /api/v1/workspaces/{$}", workspace.CreateHandler())
+	mux.HandleFunc("DELETE /api/v1/workspaces/{name}", workspace.RemoveHandler(reg))
 	mux.Handle("/api/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// The webview sends wails://-scheme Origin values the browser guard
 		// would reject. These requests never crossed a network boundary —
