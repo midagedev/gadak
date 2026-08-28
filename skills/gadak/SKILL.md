@@ -137,7 +137,10 @@ gadak --workspace work sql "…"    # this call only
 
 `--profile` is an alias of `--workspace`; existing scripts and MCP installs
 that pass `--profile` keep working. `gadak profiles` is the same command as
-`gadak workspaces`.
+`gadak workspaces`. To remove a workspace entirely:
+`gadak workspaces rm <name> --yes` — a standalone workspace additionally
+needs `--destroy-origin` (its persist is the only copy of that tracker; the
+refusal names the file to copy out first).
 
 Three rules follow, and they are the point of the design:
 

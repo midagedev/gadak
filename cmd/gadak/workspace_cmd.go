@@ -24,6 +24,14 @@ type workspaceView struct {
 }
 
 func cmdWorkspace(args []string) error {
+	// Removal lives on the plural verb (workspaces rm), but the singular is
+	// where `use` lives, so `workspace rm` is a guessable spelling. Route it
+	// before this command's own flags parse — rm's flags (--yes,
+	// --destroy-origin) are unknown here and would die as mistyped flags
+	// before any subcommand check ran.
+	if len(args) > 0 && args[0] == "rm" {
+		return removeWorkspace("workspaces", args[1:])
+	}
 	fs := newFlagSet("workspace")
 	asJSON := fs.Bool("json", false, "emit JSON")
 	clear := fs.Bool("clear", false, "with use: unset the stored default workspace")

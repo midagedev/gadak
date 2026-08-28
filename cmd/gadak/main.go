@@ -154,9 +154,9 @@ Commands:
   doctor           redacted diagnostics safe to paste into a bug report [--json]
   demo             serve the bundled snapshot, no Jira account needed
   export-static    freeze demo.db into static JSON for hosted demo  <outdir>
-  profiles         list workspaces (same as workspaces)  [--json]
+  profiles         list workspaces (same as workspaces); rm <name> removes one  [--json]
   workspace        show the active workspace and what selected it; use NAME stores a default  [--json]
-  workspaces       list workspaces  [--json]
+  workspaces       list workspaces; rm <name> removes one  [--json]
   version          print version
 
 Reading the mirror (no network; see docs/MIRROR.md):

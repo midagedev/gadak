@@ -283,11 +283,19 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak demo", "gadak snapshot"},
 	},
 	"profiles": {
-		summary: "list workspaces: which mirrors exist, which one this command used (same as workspaces)",
-		usage:   "gadak profiles [--json]",
+		summary: "list workspaces: which mirrors exist, which one this command used (same as workspaces); rm removes one",
+		usage: "gadak profiles [--json]\n" +
+			"| profiles rm <name> [--yes] [--destroy-origin] [--json]",
+		options: []helpOption{
+			{name: "json", desc: "emit JSON"},
+			{name: "yes", desc: "with rm: remove — without it, rm explains and refuses"},
+			{name: "destroy-origin", desc: "with rm on a standalone workspace: also delete its persist, the only copy of that tracker"},
+		},
 		examples: []string{
 			"gadak profiles",
 			"gadak profiles --json",
+			"gadak profiles rm demo --yes  # connected: mirror+credential only, the origin is untouched",
+			"gadak profiles rm local --yes --destroy-origin  # standalone: persist is the only copy",
 		},
 		seeAlso: []string{"gadak init", "gadak workspace", "gadak workspaces"},
 	},
@@ -307,11 +315,19 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak workspaces", "gadak profiles", "gadak status"},
 	},
 	"workspaces": {
-		summary: "list workspaces: which mirrors exist, which one this command used (same as profiles)",
-		usage:   "gadak workspaces [--json]",
+		summary: "list workspaces: which mirrors exist, which one this command used (same as profiles); rm removes one",
+		usage: "gadak workspaces [--json]\n" +
+			"| workspaces rm <name> [--yes] [--destroy-origin] [--json]",
+		options: []helpOption{
+			{name: "json", desc: "emit JSON"},
+			{name: "yes", desc: "with rm: remove — without it, rm explains and refuses"},
+			{name: "destroy-origin", desc: "with rm on a standalone workspace: also delete its persist, the only copy of that tracker"},
+		},
 		examples: []string{
 			"gadak workspaces",
 			"gadak workspaces --json",
+			"gadak workspaces rm demo --yes  # connected: mirror+credential only, the origin is untouched",
+			"gadak workspaces rm local --yes --destroy-origin  # standalone: persist is the only copy",
 		},
 		seeAlso: []string{"gadak workspace", "gadak profiles", "gadak init"},
 	},

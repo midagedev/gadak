@@ -378,7 +378,9 @@ machine or in Jira knows gadak existed. On a standalone workspace that
 command destroys the origin itself: each profile's `origin/issuetap.db` is
 the only copy of that tracker anywhere. Copy the file out first (plain
 SQLite — nothing of gadak's is needed to read it) unless you mean to throw
-the data away.
+the data away. To offboard one profile rather than the whole home,
+`gadak workspaces rm <name>` removes just that profile; a standalone one
+additionally requires `--destroy-origin`, for exactly the reason above.
 
 ## Release artifacts
 

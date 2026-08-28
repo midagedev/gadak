@@ -44,8 +44,17 @@ type profileEntry struct {
 // invoked name is threaded through so `--help` describes the command the
 // user actually typed: `gadak workspaces --help` used to render the
 // `profiles` entry, which is the confusion the two names exist to avoid.
-func cmdProfiles(args []string) error   { return listWorkspaces("profiles", args) }
-func cmdWorkspaces(args []string) error { return listWorkspaces("workspaces", args) }
+// A first positional `rm` branches to the removal verb; every
+// other argv shape keeps the list behavior exactly as it was.
+func cmdProfiles(args []string) error   { return workspaceVerb("profiles", args) }
+func cmdWorkspaces(args []string) error { return workspaceVerb("workspaces", args) }
+
+func workspaceVerb(name string, args []string) error {
+	if len(args) > 0 && args[0] == "rm" {
+		return removeWorkspace(name, args[1:])
+	}
+	return listWorkspaces(name, args)
+}
 
 func listWorkspaces(name string, args []string) error {
 	fs := newFlagSet(name)
