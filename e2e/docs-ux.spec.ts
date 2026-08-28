@@ -916,6 +916,15 @@ test.describe('sync status at rest', () => {
 
     const row = page.getByTestId('sidebar-sync-now')
     const chip = page.getByTestId('freshness-chip')
+    // "At rest" is a server state to observe, not a boot default: a pass an
+    // earlier test kicked (a scope-changing settings save starts a full sync,
+    // internal/server/settings.go) can still be running when this boots, and
+    // while it runs the chip honestly says "Syncing issues…" — busy wording
+    // with no age for the verdict to travel with (GDK-1076). Wait on the
+    // chip's own data-state, then read once. 30s is the tail of one full
+    // pass against the fixture's unreachable origin (measured); it only
+    // guards a rest that never arrives.
+    await expect(chip).not.toHaveAttribute('data-state', 'syncing', { timeout: 30_000 })
     const rowText = ((await row.textContent()) ?? '').trim()
     const chipText = ((await chip.textContent()) ?? '').trim()
     expect(rowText).toBe('Sync history')
