@@ -53,6 +53,14 @@ describe('scrollGesture routing', () => {
     )
   })
 
+  it('a wheel in the alternate screen also hints the arrow keys (crush ignores the wheel)', () => {
+    const alt = scrollGesture(-1, ctx({ mouse: 'vt200', buffer: 'alternate' }))
+    expect(alt).toMatchObject({ kind: 'inject', hint: true })
+    // A normal-buffer wheel has scrollback to fall back on, so no hint.
+    const normal = scrollGesture(-1, ctx({ mouse: 'vt200', buffer: 'normal' }))
+    expect(normal).toMatchObject({ kind: 'inject', hint: false })
+  })
+
   it('x10 is press-only: not wheel — alternate is a hint, normal is scrollback', () => {
     expect(scrollGesture(-1, ctx({ mouse: 'x10', buffer: 'alternate' }))).toEqual({ kind: 'hint' })
     expect(scrollGesture(-1, ctx({ mouse: 'x10', buffer: 'normal' }))).toEqual({
@@ -61,9 +69,11 @@ describe('scrollGesture routing', () => {
     })
   })
 
-  it('unencodable wide-terminal cell sends nothing (never a corrupt wheel report)', () => {
-    const wide = ctx({ mouse: 'vt200', cell: { col: 100000, row: 12 } })
-    expect(scrollGesture(-1, wide)).toEqual({ kind: 'none' })
+  it('unencodable wide-terminal cell never sends a corrupt report — scrollback in normal, hint in alt', () => {
+    const wideNormal = ctx({ mouse: 'vt200', cell: { col: 100000, row: 12 } })
+    expect(scrollGesture(-1, wideNormal)).toEqual({ kind: 'scrollback', lines: -1 })
+    const wideAlt = ctx({ mouse: 'vt200', buffer: 'alternate', cell: { col: 100000, row: 12 } })
+    expect(scrollGesture(-1, wideAlt)).toEqual({ kind: 'hint' })
   })
 
   it('repeats one wheel report per line and clamps a fling to 32 notches', () => {

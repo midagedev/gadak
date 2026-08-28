@@ -536,7 +536,13 @@
     })
     lastScrollKind = g.kind
     if (g.kind === 'scrollback') renderer.scrollLines(g.lines)
-    else if (g.kind === 'inject') sendBytes(g.bytes)
+    else if (g.kind === 'inject') {
+      sendBytes(g.bytes)
+      // A wheel report in the alternate screen: if the TUI honoured it, it
+      // painted its own scroll; if it ignored it (crush), the arrow keys are
+      // the recourse, so surface the same hint as the no-wheel case.
+      if (g.hint) lastScrollKind = 'hint'
+    }
     updateScrollIndicator()
   }
 

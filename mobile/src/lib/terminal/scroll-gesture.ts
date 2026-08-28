@@ -33,9 +33,14 @@ export type ScrollGestureContext = {
 export type ScrollGesture =
   | { kind: 'none' }
   | { kind: 'scrollback'; lines: number }
-  | { kind: 'inject'; bytes: Uint8Array }
+  // A wheel report to a mouse-aware TUI. `hint` is set in the alternate screen:
+  // there is no scrollback to fall back on, and some agent CLIs (crush,
+  // measured) enable mouse tracking yet ignore the wheel — so if the swipe did
+  // nothing, the arrow keys are the recourse and the UI says so. In the normal
+  // buffer a wheel is a bonus over the scrollback that still exists, so no hint.
+  | { kind: 'inject'; bytes: Uint8Array; hint: boolean }
   // Alternate screen with no scrollback and no wheel target: touch cannot
-  // scroll it. The UI hints the arrow keys, which can.
+  // scroll it at all. The UI hints the arrow keys, which can.
   | { kind: 'hint' }
 
 const utf8 = new TextEncoder()
@@ -86,14 +91,19 @@ function repeat(seq: Uint8Array, count: number): Uint8Array {
 export function scrollGesture(lines: number, ctx: ScrollGestureContext): ScrollGesture {
   if (lines === 0) return { kind: 'none' }
 
+  const alternate = ctx.buffer === 'alternate'
+
   if (wantsWheel(ctx.mouse)) {
     const seq = wheelSeq(lines, ctx.cell)
-    if (!seq) return { kind: 'none' }
+    // Unencodable on a wide terminal: never a corrupt report. In the alternate
+    // screen the arrow keys are still the recourse, so hint; in the normal
+    // buffer, fall back to the scrollback that exists.
+    if (!seq) return alternate ? { kind: 'hint' } : { kind: 'scrollback', lines }
     const count = Math.min(Math.abs(lines), MAX_NOTCHES)
-    return { kind: 'inject', bytes: repeat(seq, count) }
+    return { kind: 'inject', bytes: repeat(seq, count), hint: alternate }
   }
 
-  if (ctx.buffer === 'alternate') return { kind: 'hint' }
+  if (alternate) return { kind: 'hint' }
 
   return { kind: 'scrollback', lines }
 }
