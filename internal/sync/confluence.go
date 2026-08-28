@@ -31,7 +31,8 @@ const pageBatchSize = 50
 // bodies) are collected when a mirrored page's current version number is not
 // already stored. A failed history fetch is logged and does not fail the pass.
 // Every successful pass prunes pages whose space is outside the current
-// config/listing scope.
+// config/listing scope; memory.space always joins that scope (GDK-1079,
+// joinMemorySpace).
 //
 // Incremental floors are per-space (spaces.watermark), but the queries are
 // chunked: many spaces share one type=page and one type=comment CQL round
@@ -164,6 +165,18 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 			spaceRows = append(spaceRows, row)
 		}
 		if err := db.UpsertSpaces(ctx, ConfluenceSourceID, spaceRows); err != nil {
+			return err
+		}
+	}
+	// GDK-1079: memory.space joins the pass's scope whichever path built it,
+	// and behind path ①'s global filter — a personal memory space must not be
+	// dropped by a filter that exists to drop exactly those.
+	spaces, joined, err := joinMemorySpace(ctx, c, cfg, opts, spaces)
+	if err != nil {
+		return record(ctx, cfg, db, ConfluenceSourceID, err)
+	}
+	if joined != nil {
+		if err := db.UpsertSpaces(ctx, ConfluenceSourceID, []store.SpaceRow{*joined}); err != nil {
 			return err
 		}
 	}
@@ -414,6 +427,56 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 		return err
 	}
 	return nil
+}
+
+// joinMemorySpace appends cfg.MemorySpace() to the pass's scope keys when it
+// is set and not already a member (case-insensitive, the same tolerance the
+// memory verbs apply to space keys), so one setting cannot be quietly voided
+// by another: a full pass's prune used to delete the memory pages whenever
+// memory.space sat outside confluence.spaces, because `memory add` mirrors
+// through RefreshPage, which has no say in the scope (GDK-1079). This is the
+// scope's only consumption point, so the guarantee holds no matter when or
+// how either setting was written.
+//
+// The scope is rebuilt from config on every pass, so the join re-fires (and
+// its one GET re-costs) every pass — the same per-space GET path ② already
+// spends, and zero when memory.space is unset or already inside the scope.
+//
+// The SpaceRow follows path ②'s attitude: a bad or restricted key is logged
+// and its row skipped while the key itself still joins — dropping the key
+// would hand the pass's prune exactly the pages this join exists to keep.
+// Only a rejected credential fails the pass, as in path ②.
+func joinMemorySpace(ctx context.Context, c *confluence.Client, cfg *config.Config, opts Options, keys []string) ([]string, *store.SpaceRow, error) {
+	mem := cfg.MemorySpace()
+	if mem == "" {
+		return keys, nil, nil
+	}
+	for _, k := range keys {
+		if strings.EqualFold(k, mem) {
+			return keys, nil, nil
+		}
+	}
+	opts.logf("confluence: memory.space %s joined the sync scope", mem)
+	s, err := c.Space(ctx, mem)
+	if err != nil {
+		if IsRejectedCredential(err) {
+			return nil, nil, err
+		}
+		opts.logf("confluence: space %s: %v", mem, err)
+		return append(keys, mem), nil, nil
+	}
+	// Mirror pages carry the server's canonical key (fetchPageRecord reads
+	// full.Space.Key) and prune compares exactly, so the key joins in the
+	// canonical form whenever the GET returned one.
+	key := s.Key
+	if key == "" {
+		key = mem
+	}
+	row := store.SpaceRow{Key: key, Name: s.Name, Kind: s.Type}
+	if s.Homepage != nil {
+		row.HomepageID = s.Homepage.ID
+	}
+	return append(keys, key), &row, nil
 }
 
 // confluenceChunkSize caps how many spaces share one incremental CQL round

@@ -1778,3 +1778,270 @@ func TestConfluenceNamedPersonalSpaceIsKept(t *testing.T) {
 		t.Fatalf("named personal pages = %d, want 1", n)
 	}
 }
+
+// confCfgMem is confCfg with memory.space set — the GDK-1079 shape: a
+// connected workspace whose agent-memory space sits outside confluence.spaces.
+func confCfgMem(spaces []string, mem string) *config.Config {
+	cfg := confCfg(spaces)
+	cfg.Memory = &config.MemoryConfig{Space: mem}
+	return cfg
+}
+
+// seedMirrorPage writes one page row the way `memory add` leaves it behind:
+// the page is created through origin and mirrored by RefreshPage/SyncPage,
+// which has no say in the sync scope — so the row exists in a space the next
+// full pass would prune unless the scope covers it.
+func seedMirrorPage(t *testing.T, db *mirror, key, space string) {
+	t.Helper()
+	if err := db.UpsertSource(context.Background(), store.Source{
+		ID: ConfluenceSourceID, Kind: "confluence", BaseURL: "https://example.invalid",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	adf := json.RawMessage(`{"type":"doc","version":1,"content":[]}`)
+	if _, err := db.UpsertPages(context.Background(), []store.PageRecord{{
+		Item: store.Item{
+			ID: "confluence:" + key, SourceID: ConfluenceSourceID, Kind: "page",
+			ExternalID: key, Key: key, Title: "seed " + key, BodyText: "seed",
+			CreatedAt: "2026-01-01T00:00:00.000Z", UpdatedAt: "2026-01-01T00:00:00.000Z",
+		},
+		Page: store.Page{SpaceKey: space, Version: 1, Status: "current", BodyADF: adf},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// pagesInSpace counts mirror page rows per space_key, straight SQL — the
+// prune assertion surface (data-model.md promises SQL access).
+func (m *mirror) pagesInSpace(t *testing.T, space string) int {
+	t.Helper()
+	var n int
+	if err := m.raw(t).QueryRow(`SELECT COUNT(*) FROM pages WHERE space_key = ?`, space).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	return n
+}
+
+// seededPageSurvives reports whether the row seedMirrorPage wrote for key is
+// still in the mirror under space — the exact row a prune takes.
+func (m *mirror) seededPageSurvives(t *testing.T, key, space string) bool {
+	t.Helper()
+	var n int
+	if err := m.raw(t).QueryRow(`SELECT COUNT(*) FROM items i JOIN pages p ON p.item_id = i.id
+		WHERE i.source_id = 'confluence' AND i.key = ? AND p.space_key = ?`, key, space).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	return n == 1
+}
+
+// TestConfluenceMemorySpaceJoinsScopeAndKeepsPages closes GDK-1079: memory
+// add mirrors its page via RefreshPage with no scope say, and the next full
+// pass used to prune exactly that page because memory.space sat outside
+// confluence.spaces. The pass must join memory.space into its scope: the
+// seeded page survives, the space gets its row, and the join leaves one log
+// line — the debugging layer, so the next "my memory vanished" report is
+// answered by the log instead of by re-deriving the interplay.
+func TestConfluenceMemorySpaceJoinsScopeAndKeepsPages(t *testing.T) {
+	f := newConfFixture(t)
+	f.spaces = []map[string]any{
+		{"key": "AAA", "name": "Alpha", "type": "global"},
+		{"key": "MEM", "name": "Memory", "type": "global"},
+	}
+	f.pages["9001"] = &confPage{
+		ID: "9001", Space: "MEM", Title: "note from a session",
+		Version: 1, When: "2026-08-20T10:00:00.000Z",
+		BodyADF: confADF("remember the deploy window"),
+	}
+	client := f.start()
+	db := newMirror(t)
+	seedMirrorPage(t, db, "m1", "MEM")
+
+	var logs []string
+	res, err := RunConfluence(context.Background(), confCfgMem([]string{"AAA"}, "MEM"), db.DB, Options{
+		Full: true, ConfluenceClient: client,
+		Log: func(line string) { logs = append(logs, line) },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Deleted != 0 {
+		t.Errorf("Deleted = %d, want 0 (nothing leaves scope; the memory page must survive)", res.Deleted)
+	}
+	if !db.seededPageSurvives(t, "m1", "MEM") {
+		t.Error("seeded memory page was pruned (GDK-1079)")
+	}
+	// The joined space is a first-class scope member: backfilled and rowed.
+	if got := db.pagesInSpace(t, "MEM"); got != 2 {
+		t.Errorf("MEM pages = %d, want 2 (seeded m1 + backfilled 9001)", got)
+	}
+	var n int
+	if err := db.raw(t).QueryRow(`SELECT COUNT(*) FROM spaces WHERE source_id = 'confluence' AND key = 'MEM'`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Errorf("MEM spaces rows = %d, want 1", n)
+	}
+	joined := false
+	for _, line := range logs {
+		if strings.Contains(line, "memory.space MEM joined the sync scope") {
+			joined = true
+		}
+	}
+	if !joined {
+		t.Errorf("missing join log, got %v", logs)
+	}
+}
+
+// TestConfluenceMemorySpaceJoinFetchFailureKeepsKey pins the join's failure
+// attitude (path ②'s per-key GET): a bad or restricted memory.space key logs
+// and skips its row while the pass continues — and the key stays in scope,
+// because dropping it would hand the pass's prune exactly the regression the
+// join exists to close.
+func TestConfluenceMemorySpaceJoinFetchFailureKeepsKey(t *testing.T) {
+	f := newConfFixture(t) // GHOST is in no catalog: GET /space/GHOST 404s.
+	client := f.start()
+	db := newMirror(t)
+	seedMirrorPage(t, db, "g1", "GHOST")
+
+	var logs []string
+	if _, err := RunConfluence(context.Background(), confCfgMem([]string{"AAA"}, "GHOST"), db.DB, Options{
+		Full: true, ConfluenceClient: client,
+		Log: func(line string) { logs = append(logs, line) },
+	}); err != nil {
+		t.Fatalf("a failed memory-space GET must not fail the pass: %v", err)
+	}
+	if !db.seededPageSurvives(t, "g1", "GHOST") {
+		t.Error("GHOST page was pruned although its key joined scope")
+	}
+	var n int
+	if err := db.raw(t).QueryRow(`SELECT COUNT(*) FROM spaces WHERE source_id = 'confluence' AND key = 'GHOST'`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Errorf("GHOST spaces rows = %d, want 0 (row fetch failed)", n)
+	}
+	var haveJoin, haveFail bool
+	for _, line := range logs {
+		if strings.Contains(line, "memory.space GHOST joined the sync scope") {
+			haveJoin = true
+		}
+		if strings.Contains(line, "confluence: space GHOST:") {
+			haveFail = true
+		}
+	}
+	if !haveJoin || !haveFail {
+		t.Errorf("logs = %v, want the join line and the space GET failure line", logs)
+	}
+}
+
+// TestConfluenceMemorySpaceEmptyKeepsPrune is the boundary: memory.space
+// unset joins nothing, and the pass still prunes pages that left the config
+// scope — the GDK-1079 fix must not widen the scope for everyone else.
+func TestConfluenceMemorySpaceEmptyKeepsPrune(t *testing.T) {
+	f := newConfFixture(t)
+	client := f.start()
+	db := newMirror(t)
+	seedMirrorPage(t, db, "b1", "BBB")
+
+	var logs []string
+	res, err := RunConfluence(context.Background(), confCfg([]string{"AAA"}), db.DB, Options{
+		Full: true, ConfluenceClient: client,
+		Log: func(line string) { logs = append(logs, line) },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Deleted < 1 {
+		t.Errorf("Deleted = %d, want ≥ 1 (BBB left the config scope; prune must still run)", res.Deleted)
+	}
+	if db.seededPageSurvives(t, "b1", "BBB") {
+		t.Error("out-of-scope page survived a prune it should not have")
+	}
+	for _, line := range logs {
+		if strings.Contains(line, "joined the sync scope") {
+			t.Errorf("join log without memory.space: %v", logs)
+		}
+	}
+}
+
+// TestConfluenceMemorySpaceAlreadyInScopeIsNoOp: a memory.space inside
+// confluence.spaces joins nothing — no log line, and exactly one backfill
+// for the space, not one per list membership.
+func TestConfluenceMemorySpaceAlreadyInScopeIsNoOp(t *testing.T) {
+	f := newConfFixture(t)
+	client := f.start()
+	db := newMirror(t)
+
+	var logs []string
+	if _, err := RunConfluence(context.Background(), confCfgMem([]string{"AAA", "BBB"}, "BBB"), db.DB, Options{
+		Full: true, ConfluenceClient: client,
+		Log: func(line string) { logs = append(logs, line) },
+	}); err != nil {
+		t.Fatal(err)
+	}
+	for _, line := range logs {
+		if strings.Contains(line, "joined the sync scope") {
+			t.Errorf("join log for an in-scope memory space: %v", logs)
+		}
+	}
+	f.mu.Lock()
+	memSearches := 0
+	for _, cql := range f.searches {
+		if strings.Contains(cql, `"BBB"`) {
+			memSearches++
+		}
+	}
+	f.mu.Unlock()
+	if memSearches != 1 {
+		t.Errorf(`space="BBB" searches = %d, want 1 (no duplicate join)`, memSearches)
+	}
+	if got := db.pagesInSpace(t, "BBB"); got != 1 {
+		t.Errorf("BBB pages = %d, want 1", got)
+	}
+}
+
+// TestConfluenceMemorySpaceJoinsFromListing is the path ① case: an empty
+// confluence.spaces listing filters personal spaces out of the scope, and
+// memory.space is exactly allowed to be one — the join sits behind that
+// filter and re-adds it.
+func TestConfluenceMemorySpaceJoinsFromListing(t *testing.T) {
+	f := newConfFixture(t)
+	f.spaces = []map[string]any{
+		{"key": "AAA", "name": "Alpha", "type": "global"},
+		{"key": "~mem", "name": "Ada personal", "type": "personal"},
+	}
+	f.pages["9002"] = &confPage{
+		ID: "9002", Space: "~mem", Title: "personal note",
+		Version: 1, When: "2026-08-21T10:00:00.000Z",
+		BodyADF: confADF("kept by the join"),
+	}
+	client := f.start()
+	db := newMirror(t)
+
+	var logs []string
+	if _, err := RunConfluence(context.Background(), confCfgMem(nil, "~mem"), db.DB, Options{
+		Full: true, ConfluenceClient: client,
+		Log: func(line string) { logs = append(logs, line) },
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if got := db.pagesInSpace(t, "~mem"); got != 1 {
+		t.Errorf("~mem pages = %d, want 1 (the join must survive the global filter)", got)
+	}
+	var n int
+	if err := db.raw(t).QueryRow(`SELECT COUNT(*) FROM spaces WHERE source_id = 'confluence' AND key = '~mem'`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Errorf("~mem spaces rows = %d, want 1", n)
+	}
+	joined := false
+	for _, line := range logs {
+		if strings.Contains(line, "memory.space ~mem joined the sync scope") {
+			joined = true
+		}
+	}
+	if !joined {
+		t.Errorf("missing join log, got %v", logs)
+	}
+}

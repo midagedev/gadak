@@ -913,7 +913,7 @@ func buildSettings() []Setting {
 		{
 			Path:        "memory.space",
 			Root:        "memory",
-			Description: "space key the memory verbs own (empty = standalone's seeded space; connected refuses until set; keep it inside the mirrored spaces or a full sync prunes the pages)",
+			Description: "space key the memory verbs own (empty = standalone's seeded space; connected refuses until set; the sync joins it into scope even outside confluence.spaces, so a full sync keeps its pages)",
 			Get: func(c *Config) any {
 				if c.Memory == nil {
 					return ""
