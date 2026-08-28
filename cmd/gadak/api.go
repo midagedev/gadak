@@ -49,6 +49,10 @@ func cmdAPI(args []string) error {
 	dataFlag := fs.String("data", "", "request body: literal, @file, or - for stdin")
 	writeFlag := fs.Bool("write", false, "allow non-GET/HEAD methods (uses write retry policy)")
 	statusFlag := fs.Bool("status", false, "print HTTP <code> to stderr in addition to the body")
+	// Every other subcommand takes --json, so hands type it here by reflex
+	// (GDK-1072). The body is the origin's response printed unchanged —
+	// already JSON — so the flag is accepted and changes nothing.
+	_ = fs.Bool("json", false, "accepted for consistency; the response body is printed unchanged either way")
 	if wantsHelp(args) {
 		fmt.Fprint(os.Stdout, formatHelp("api", fs))
 		return nil
@@ -114,9 +118,12 @@ func cmdAPI(args []string) error {
 	// the process. A missing/broken DB must not hide the API result. Failures
 	// are logged (sync.FlushAPIUsage), never returned.
 	if isWikiPath(path) {
-		if cfg.Confluence == nil {
-			return errors.New("Confluence is not enabled for this profile — set confluence in config (or enable it in the web UI) before calling /wiki/ paths; gadak will not use the wiki API against a source you left off")
-		}
+		// Deliberately NOT gated on cfg.Confluence (GDK-1072): that setting
+		// scopes the *mirror*, and this command is the escape hatch past the
+		// mirror. The credential, the same-site check, and --write are the
+		// security surface, and all three hold for /wiki exactly as for /rest.
+		// origin.Wiki's own refusals (frozen workspace, no credential,
+		// Linear-only profile) still apply.
 		// Client base is already …/wiki; strip the routing prefix.
 		cc, werr := origin.Wiki(cfg)
 		if werr != nil {

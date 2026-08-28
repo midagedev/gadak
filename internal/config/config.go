@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -456,10 +457,17 @@ func homeRoot() (string, error) {
 // (homeRoot is called several times per command).
 var dualHomeWarnOnce sync.Once
 
-// warnIfDualHome is the single owner of the D1 surface: when both the
+// dualHomeNoticeName marks that the leftover-home line has been printed once
+// on this machine. Every CLI call is a fresh process, so a process-level Once
+// meant one line per *invocation* — noise that dirtied script output on every
+// call (GDK-1072). The durable surface for the leftover is DualHomeLeftover
+// (doctor); stderr says it exactly once.
+const dualHomeNoticeName = "dual-home-noticed"
+
+// warnIfDualHome is the stderr half of the D1 surface: when both the
 // legacy ~/.scry tree and ~/.gadak exist, migratePath is a no-op and the
 // old mirror is silently abandoned. We do not merge (data-loss risk);
-// we name both paths on stderr so the leftover is visible.
+// we name both paths once, then leave the standing report to doctor.
 func warnIfDualHome(prev, next string) {
 	if prev == "" || next == "" || prev == next {
 		return
@@ -471,8 +479,42 @@ func warnIfDualHome(prev, next string) {
 		return
 	}
 	dualHomeWarnOnce.Do(func() {
-		fmt.Fprintf(os.Stderr, "gadak: leftover data at %s is being ignored; using %s\n", prev, next)
+		dualHomeWarnDurable(prev, next, os.Stderr)
 	})
+}
+
+// dualHomeWarnDurable prints the leftover-home line unless the marker under
+// next says a previous invocation already did, and reports whether it printed.
+// Split from warnIfDualHome so the durable half is testable past the
+// per-process Once.
+func dualHomeWarnDurable(prev, next string, w io.Writer) bool {
+	marker := filepath.Join(next, dualHomeNoticeName)
+	if _, err := os.Stat(marker); err == nil {
+		return false
+	}
+	fmt.Fprintf(w, "gadak: leftover data at %s is being ignored; using %s (this prints once — `gadak doctor` keeps reporting it)\n", prev, next)
+	// Best-effort: an unwritable home just means the line prints again.
+	_ = os.WriteFile(marker, []byte(prev+"\n"), 0o644)
+	return true
+}
+
+// DualHomeLeftover reports the abandoned legacy home when both trees exist —
+// the standing surface doctor prints (the stderr warning fires once per
+// machine). Empty when there is nothing to report.
+func DualHomeLeftover() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	prev := filepath.Join(home, LegacyDirName)
+	next := filepath.Join(home, DirName)
+	if _, err := os.Stat(prev); err != nil {
+		return ""
+	}
+	if _, err := os.Stat(next); err != nil {
+		return ""
+	}
+	return prev
 }
 
 // migratePath renames oldPath → newPath when newPath is absent and oldPath

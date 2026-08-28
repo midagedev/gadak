@@ -231,22 +231,50 @@ func TestAPI_WikiRoutesToConfluence(t *testing.T) {
 	}
 }
 
-func TestAPI_WikiDisabledClearError(t *testing.T) {
+// TestAPI_WikiPassthroughIgnoresMirrorScope (GDK-1072): confluence in config
+// scopes the mirror; `api` is the escape hatch past the mirror, so a /wiki
+// path goes through on the credential alone. FAIL-first: this used to refuse
+// with "Confluence is not enabled for this profile" and 0 network calls.
+func TestAPI_WikiPassthroughIgnoresMirrorScope(t *testing.T) {
 	hits := int32(0)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt32(&hits, 1)
+		w.Write([]byte(`{"results":[]}`))
 	}))
 	t.Cleanup(srv.Close)
-	apiMirror(t, srv.URL, false) // no Confluence
+	apiMirror(t, srv.URL, false) // no Confluence in config — mirror scope only
 
-	_, _, err := captureErr(t, func() error {
+	out, _, err := captureErr(t, func() error {
 		return cmdAPI([]string{"/wiki/api/v2/spaces"})
 	})
-	if err == nil || !strings.Contains(err.Error(), "Confluence") {
-		t.Fatalf("want Confluence-disabled error, got %v", err)
+	if err != nil {
+		t.Fatalf("wiki passthrough with confluence off: %v", err)
 	}
-	if atomic.LoadInt32(&hits) != 0 {
-		t.Error("must not call network when wiki source is off")
+	if atomic.LoadInt32(&hits) != 1 {
+		t.Errorf("hits = %d, want 1 (request must reach the configured site)", hits)
+	}
+	if !strings.Contains(out, `"results"`) {
+		t.Errorf("stdout = %q", out)
+	}
+}
+
+// --json is accepted (every sibling subcommand takes it, so hands type it by
+// reflex — GDK-1072); the body is printed unchanged either way.
+func TestAPI_JSONFlagAcceptedAsNoOp(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"id":"1"}`))
+	}))
+	t.Cleanup(srv.Close)
+	apiMirror(t, srv.URL, false)
+
+	out, _, err := captureErr(t, func() error {
+		return cmdAPI([]string{"GET", "/rest/api/3/myself", "--json"})
+	})
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if out != `{"id":"1"}` {
+		t.Errorf("stdout = %q", out)
 	}
 }
 

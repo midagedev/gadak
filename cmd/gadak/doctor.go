@@ -32,16 +32,20 @@ const doctorBanner = "# gadak doctor — safe to paste: counts and versions only
 // --json consumers; values never carry tokens, hostnames, emails, project
 // keys, custom-field names, or raw error strings.
 type doctorReport struct {
-	GadakVersion    string                `json:"gadak_version"`
-	GoVersion       string                `json:"go_version"`
-	OS              string                `json:"os"`
-	Arch            string                `json:"arch"`
-	Profile         string                `json:"profile"`
-	WorkspaceSource string                `json:"workspace_source"`
-	WorkspaceKind   string                `json:"workspace_kind"`
-	Origin          string                `json:"origin"`
-	OriginOwner     string                `json:"origin_owner,omitempty"`
-	MirrorPath      string                `json:"mirror_path"`
+	GadakVersion    string `json:"gadak_version"`
+	GoVersion       string `json:"go_version"`
+	OS              string `json:"os"`
+	Arch            string `json:"arch"`
+	Profile         string `json:"profile"`
+	WorkspaceSource string `json:"workspace_source"`
+	WorkspaceKind   string `json:"workspace_kind"`
+	Origin          string `json:"origin"`
+	OriginOwner     string `json:"origin_owner,omitempty"`
+	MirrorPath      string `json:"mirror_path"`
+	// HomeLeftover is the abandoned legacy home (~/.scry) when it still exists
+	// beside ~/.gadak. The stderr warning fires once per machine (GDK-1072);
+	// this is the standing report.
+	HomeLeftover    string                `json:"home_leftover,omitempty"`
 	Mirror          doctorMirror          `json:"mirror"`
 	MirrorHolders   *doctorMirrorHolders  `json:"mirror_holders,omitempty"`
 	SchemaVersion   *int                  `json:"schema_version"`
@@ -235,6 +239,9 @@ func collectDoctor() doctorReport {
 		rep.MirrorPath = tildeHome(path)
 	} else {
 		rep.MirrorPath = "unknown"
+	}
+	if prev := config.DualHomeLeftover(); prev != "" {
+		rep.HomeLeftover = tildeHome(prev)
 	}
 
 	if cfg, err := config.Load(); err == nil && cfg != nil {
@@ -655,6 +662,9 @@ func formatDoctorText(r doctorReport) string {
 	}
 	line("workspace", formatDoctorWorkspace(r.Workspace))
 	line("mirror_path", r.MirrorPath)
+	if r.HomeLeftover != "" {
+		line("home_leftover", r.HomeLeftover+" (ignored legacy home — delete it, or move anything you still need into the active home)")
+	}
 	if r.MirrorHolders != nil {
 		line("mirror_holders", formatDoctorMirrorHolders(*r.MirrorHolders))
 	}
