@@ -2075,6 +2075,190 @@ func TestCommentRepeatedMentionUsesSearchCache(t *testing.T) {
 	}
 }
 
+// GDK-894: an `@` inside markdown code is data about code, not a person.
+// The site must die at extraction, before the origin is ever asked — a fuzzy
+// user search will happily answer `@Dana` quoted in a log line with a human.
+func TestCommentMentionInCodeSpanIsNotSearched(t *testing.T) {
+	f := newFakeJira(t)
+	f.searchUsers = func(string) string {
+		return `[{"accountId":"acc-dana","displayName":"Dana Whitfield","active":true}]`
+	}
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		// Space before the @: the glued form `@Dana` is already excluded by
+		// the whitespace-start rule — this shape is the one that leaks.
+		return cmdComment([]string{"NMB-1", "-m", "fallback: `pin @Dana now` in the log"})
+	})
+	if err != nil {
+		t.Fatalf("comment: %v", err)
+	}
+	if len(f.searchQueries) != 0 {
+		t.Fatalf("SearchUsers ran for a code-span token: %v", f.searchQueries)
+	}
+	body := commentADF(f)
+	if strings.Contains(body, `"type":"mention"`) {
+		t.Fatalf("code-span token became a mention node: %s", body)
+	}
+	if !strings.Contains(body, "@Dana") {
+		t.Fatalf("code-span token lost from the body: %s", body)
+	}
+}
+
+// Same contract for fenced blocks: the whole fence is code, @ included.
+func TestCommentMentionInFenceIsNotSearched(t *testing.T) {
+	f := newFakeJira(t)
+	f.searchUsers = func(string) string {
+		return `[{"accountId":"acc-dana","displayName":"Dana Whitfield","active":true}]`
+	}
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdComment([]string{"NMB-1", "-m", "before\n```\n@dana debug flag\n```\nafter"})
+	})
+	if err != nil {
+		t.Fatalf("comment: %v", err)
+	}
+	if len(f.searchQueries) != 0 {
+		t.Fatalf("SearchUsers ran for a fenced token: %v", f.searchQueries)
+	}
+	if body := commentADF(f); strings.Contains(body, `"type":"mention"`) {
+		t.Fatalf("fenced token became a mention node: %s", body)
+	}
+}
+
+// GDK-894: `@scope/name` is a package path or handle, not a person (an npm
+// scoped package in a comment nearly summoned a user). The site is dropped
+// whole — a display name containing `/` is vanishingly rare, and the failure
+// mode of dropping is the safe one: plain text, nobody summoned.
+func TestCommentScopedPathIsNotAMention(t *testing.T) {
+	f := newFakeJira(t)
+	f.searchUsers = func(string) string {
+		return `[{"accountId":"acc-dana","displayName":"Dana Whitfield","active":true}]`
+	}
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdComment([]string{"NMB-1", "-m", "pin @xterm/xterm 6.0.0 as the fallback"})
+	})
+	if err != nil {
+		t.Fatalf("comment: %v", err)
+	}
+	if len(f.searchQueries) != 0 {
+		t.Fatalf("SearchUsers ran for a path token: %v", f.searchQueries)
+	}
+	body := commentADF(f)
+	if strings.Contains(body, `"type":"mention"`) {
+		t.Fatalf("path token became a mention node: %s", body)
+	}
+	if !strings.Contains(body, "xterm/xterm") {
+		t.Fatalf("path token lost from the body: %s", body)
+	}
+}
+
+// GDK-894: a live origin's user search answered a plain table-cell word with
+// every user on the site (18/18) — nobody's name contained the token — and
+// the comment was refused as "ambiguous". All-match is no-match: a hit whose
+// display name and email do not contain the typed token (case-folded) is not
+// a hit, and the comment posts with the token left as text.
+func TestCommentMentionEveryUserMatchIsNoMatch(t *testing.T) {
+	f := newFakeJira(t)
+	f.searchUsers = func(string) string {
+		return `[{"accountId":"acc-1","displayName":"Alice Park","active":true},
+			{"accountId":"acc-2","displayName":"Bob Kim","active":true},
+			{"accountId":"acc-3","displayName":"Carrol Lee","active":true}]`
+	}
+	mirror(t, f.URL)
+
+	stdout, stderr, err := captureBoth(t, func() error {
+		return cmdComment([]string{"NMB-1", "-m", "| @gamma | keep |"})
+	})
+	if err != nil {
+		t.Fatalf("all-match must not refuse the write: %v", err)
+	}
+	if !f.called("POST /issue/NMB-1/comment") {
+		t.Fatalf("comment not sent; calls %v", f.calls)
+	}
+	body := commentADF(f)
+	if strings.Contains(body, `"type":"mention"`) {
+		t.Fatalf("all-match must stay plain text: %s", body)
+	}
+	if !strings.Contains(body, "@gamma") {
+		t.Fatalf("token lost from the body: %s", body)
+	}
+	if !strings.Contains(stderr, "@gamma") {
+		t.Fatalf("stderr must name the unresolved token: %q", stderr)
+	}
+	if strings.Contains(stdout, "matches") {
+		t.Fatalf("refusal text leaked to stdout: %q", stdout)
+	}
+}
+
+// GDK-894: a body that will change on the origin must not change silently —
+// resolution success gets the same one-line stderr the unresolved warning
+// has, so the author sees who each token became.
+func TestCommentMentionResolvedNotifiesStderr(t *testing.T) {
+	f := newFakeJira(t)
+	f.searchUsers = func(q string) string {
+		switch q {
+		case "Dana":
+			return `[{"accountId":"acc-dana","displayName":"Dana Whitfield","active":true}]`
+		case "Marco":
+			return `[{"accountId":"acc-marco","displayName":"Marco Reyes","active":true}]`
+		}
+		return `[]`
+	}
+	mirror(t, f.URL)
+
+	stdout, stderr, err := captureBoth(t, func() error {
+		return cmdComment([]string{"NMB-1", "-m", "hi @Dana, cc @Marco"})
+	})
+	if err != nil {
+		t.Fatalf("comment: %v", err)
+	}
+	if !strings.Contains(stderr, "gadak: mention: @Dana -> Dana Whitfield, @Marco -> Marco Reyes") {
+		t.Fatalf("stderr missing the resolution notice: %q", stderr)
+	}
+	if strings.Contains(stdout, "mention:") {
+		t.Fatalf("notice leaked to stdout: %q", stdout)
+	}
+}
+
+// Site extraction is where code tokens die (GDK-894). The email row pins the
+// pre-existing rule — only a string-start/whitespace-preceded `@` is a site —
+// which is what keeps a@b.com from ever being searched.
+func TestMentionSitesSkipsCodePathsAndEmails(t *testing.T) {
+	cases := []struct {
+		name string
+		body string
+		want [][]string
+	}{
+		{"inline code span, space-led", "see `pin @Dana now` in the log", nil},
+		// Pre-existing rule, pinned: an @ glued to the opening backtick never
+		// started a site (backtick is not whitespace) — it stays excluded.
+		{"inline code span, glued", "see `@Dana` in the log", nil},
+		{"fenced block", "before\n```\n@dana x\n```\nafter", nil},
+		{"scoped path", "pin @xterm/xterm 6.0.0", nil},
+		{"email mid-token", "mail a@b.com now", nil},
+		// Third candidate keeps the code span because wordEndOffsets only
+		// breaks at whitespace or a word-initial `@` — fine: the search for
+		// "Dana and `@Dana`" can't contain-match anyone (GDK-894 filter).
+		{"plain mention survives next to code", "hi @Dana and `@Dana` again", [][]string{{"Dana", "Dana and", "Dana and `@Dana`"}}},
+	}
+	for _, tc := range cases {
+		got := mentionSites(tc.body)
+		if len(got) != len(tc.want) {
+			t.Errorf("%s: sites %v, want %v", tc.name, got, tc.want)
+			continue
+		}
+		for i := range got {
+			if strings.Join(got[i], "|") != strings.Join(tc.want[i], "|") {
+				t.Errorf("%s: site %d = %q, want %q", tc.name, i, got[i], tc.want[i])
+			}
+		}
+	}
+}
+
 func commentPOSTBody(t *testing.T, f *fakeJira) map[string]json.RawMessage {
 	t.Helper()
 	raw := f.bodies["POST /issue/NMB-1/comment"]

@@ -47,3 +47,27 @@ func TestDocTurnsMentionsIntoNodes(t *testing.T) {
 		t.Fatal("empty doc invalid")
 	}
 }
+
+// GDK-894: the same body can carry a real mention and the same token quoted
+// as code. Candidate extraction skips code regions, so substitution must skip
+// them too — a web-composed mentions map (resolved by the client, not the
+// CLI) would otherwise summon a person inside a code quote.
+func TestDocLeavesCodeQuotedMentionsAsText(t *testing.T) {
+	ids := map[string]string{"Dana": "acc-dana"}
+
+	span := string(Doc("plain @Dana and `@Dana` tail", ids))
+	if n := strings.Count(span, `"type":"mention"`); n != 1 {
+		t.Fatalf("inline code span must not become a mention node (got %d): %s", n, span)
+	}
+	if !strings.Contains(span, "`@Dana`") {
+		t.Fatalf("code span text lost: %s", span)
+	}
+
+	fence := string(Doc("before\n```\n@Dana\n```\nafter", ids))
+	if strings.Contains(fence, `"type":"mention"`) {
+		t.Fatalf("fenced @Dana must stay text: %s", fence)
+	}
+	if !strings.Contains(fence, "@Dana") {
+		t.Fatalf("fence text lost: %s", fence)
+	}
+}

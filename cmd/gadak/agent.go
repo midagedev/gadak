@@ -1711,30 +1711,47 @@ func mutate(key string, asJSON bool, fn func(context.Context, origin.Writer, str
 // reject; unbounded combinatorics are not allowed.
 const maxMentionWords = 3
 
+// resolvedMention is one token the origin accepted, carried for the stderr
+// notice that mirrors warnUnresolvedMentions: the author should see who each
+// token became, not only what failed to (GDK-894).
+type resolvedMention struct {
+	token string
+	name  string
+}
+
 // resolveCommentMentions turns typed `@Name` tokens into the map jira.Doc
 // expects: key = the exact substring the user typed (no `@`), value = account
 // id. The body is not rewritten — Jira renders the display name from the id.
 //
 // Hits: exactly one → mention node; two or more → refuse the write; zero →
 // leave the token as plain text and name it for the caller to warn about.
-func resolveCommentMentions(ctx context.Context, c origin.Writer, body string) (mentions map[string]string, unresolved []string, err error) {
+func resolveCommentMentions(ctx context.Context, c origin.Writer, body string) (mentions map[string]string, resolved []resolvedMention, unresolved []string, err error) {
 	sites := mentionSites(body)
 	if len(sites) == 0 {
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 	cache := make(map[string][]jira.User)
 	mentions = make(map[string]string)
 	seenUnresolved := map[string]bool{}
+	seenResolved := map[string]bool{}
 	for _, candidates := range sites {
 		token, id, users, err := resolveMentionSite(ctx, c, cache, candidates)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		if len(users) >= 2 {
-			return nil, nil, ambiguousMention(token, users)
+			return nil, nil, nil, ambiguousMention(token, users)
 		}
 		if id != "" {
 			mentions[token] = id
+			if !seenResolved[token] {
+				seenResolved[token] = true
+				name := users[0].DisplayName
+				if name == "" {
+					name = users[0].AccountID
+				}
+				resolved = append(resolved, resolvedMention{token: token, name: name})
+			}
 			continue
 		}
 		if token != "" && !seenUnresolved[token] {
@@ -1742,7 +1759,7 @@ func resolveCommentMentions(ctx context.Context, c origin.Writer, body string) (
 			unresolved = append(unresolved, token)
 		}
 	}
-	return mentions, unresolved, nil
+	return mentions, resolved, unresolved, nil
 }
 
 // resolveMentionSite walks the candidates shortest-first and stops at the
@@ -1763,6 +1780,7 @@ func resolveMentionSite(ctx context.Context, c origin.Writer, cache map[string][
 		if err != nil {
 			return "", "", nil, err
 		}
+		hits = plausibleMentionHits(hits, cand)
 		if len(hits) == 1 && hits[0].AccountID != "" {
 			return cand, hits[0].AccountID, hits, nil
 		}
@@ -1781,6 +1799,48 @@ func resolveMentionSite(ctx context.Context, c origin.Writer, cache map[string][
 		return candidates[0], "", nil, nil
 	}
 	return "", "", nil, nil
+}
+
+// plausibleMentionHits keeps only the hits whose display name or email
+// actually contains the typed token, case-folded. The origin's user search is
+// fuzzy, and on some sites a token that names nobody returns every user
+// instead — measured 2026-08-29 (GDK-894): a plain table-cell word matched
+// 18/18 users, none of them containing it, and the comment was refused as
+// "ambiguous". Containment turns all-match back into the no-match it is;
+// legitimate fuzzy hits (a partial name, an email prefix) contain the token
+// and pass.
+func plausibleMentionHits(hits []jira.User, token string) []jira.User {
+	if len(hits) == 0 || token == "" {
+		return hits
+	}
+	folded := foldForMention(token)
+	out := make([]jira.User, 0, len(hits))
+	for _, u := range hits {
+		if strings.Contains(foldForMention(u.DisplayName), folded) ||
+			(u.Email != "" && strings.Contains(foldForMention(u.Email), folded)) {
+			out = append(out, u)
+		}
+	}
+	return out
+}
+
+// foldForMention case-folds a string for substring matching: every rune maps
+// to the smallest rune of its Unicode simple-folding orbit, so Korean and
+// other caseless scripts pass through unchanged. stdlib-only on purpose —
+// this round adds no third-party import.
+func foldForMention(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		low := r
+		for f := unicode.SimpleFold(r); f != r; f = unicode.SimpleFold(f) {
+			if f < low {
+				low = f
+			}
+		}
+		b.WriteRune(low)
+	}
+	return b.String()
 }
 
 func lookupMentionUsers(ctx context.Context, c origin.Writer, cache map[string][]jira.User, q string) ([]jira.User, error) {
@@ -1825,22 +1885,64 @@ func warnUnresolvedMentions(tokens []string) {
 	fmt.Fprintf(os.Stderr, "gadak: %s did not resolve to a user on this origin — left as plain text\n", strings.Join(parts, ", "))
 }
 
+// noticeResolvedMentions is the twin of warnUnresolvedMentions for the
+// success side: the body that reaches the origin differs from what was typed,
+// and that must never happen silently (GDK-894).
+func noticeResolvedMentions(ms []resolvedMention) {
+	if len(ms) == 0 {
+		return
+	}
+	parts := make([]string, len(ms))
+	for i, m := range ms {
+		parts[i] = "@" + m.token + " -> " + m.name
+	}
+	fmt.Fprintf(os.Stderr, "gadak: mention: %s\n", strings.Join(parts, ", "))
+}
+
 // mentionSites returns one candidate list per `@` that starts a mention
 // (string start or immediately after whitespace). Each list is shortest-first,
 // at most maxMentionWords exact substrings of the body after `@` — see
 // resolveMentionSite for why the order is not the other way round.
+//
+// Two shapes never become sites at all (GDK-894): an `@` inside markdown code
+// — jira.FindCodeRegions is the same region judgment the substitution side
+// uses, so extraction and substitution cannot disagree — and an `@` whose
+// first word contains `/`, which is a package path or handle, not a person.
+// Dropping a site is the safe direction: the token stays plain text and
+// nobody is summoned. The reverse — treating code as a person — once nearly
+// turned `@xterm/xterm` into a user mention.
 func mentionSites(body string) [][]string {
+	regions := jira.FindCodeRegions(body)
 	var sites [][]string
 	for i := 0; i < len(body); {
 		r, size := utf8.DecodeRuneInString(body[i:])
-		if r == '@' && mentionStartsAt(body, i) {
-			if cands := mentionWordCandidates(body[i+size:]); len(cands) > 0 {
-				sites = append(sites, cands)
+		if r == '@' && mentionStartsAt(body, i) && !regions.Cover(i) {
+			rest := body[i+size:]
+			if !mentionFirstWordHasSlash(rest) {
+				if cands := mentionWordCandidates(rest); len(cands) > 0 {
+					sites = append(sites, cands)
+				}
 			}
 		}
 		i += size
 	}
 	return sites
+}
+
+// mentionFirstWordHasSlash reports whether the first word after an `@`
+// contains `/` — `@xterm/xterm`, `@types/node`, a social handle. Display
+// names with a slash are vanishingly rare, and one that slips through merely
+// stays plain text.
+func mentionFirstWordHasSlash(rest string) bool {
+	for _, r := range rest {
+		if r == '/' {
+			return true
+		}
+		if unicode.IsSpace(r) {
+			return false
+		}
+	}
+	return false
 }
 
 func mentionStartsAt(body string, i int) bool {
@@ -1961,10 +2063,11 @@ const commentUsage = "usage: gadak comment <KEY> [<text> | -m <text|->] [--visib
 var commentBatchFields = []string{"key", "body", "internal", "visibility"}
 
 func postComment(ctx context.Context, c origin.Writer, key, body string, vis *jira.CommentVisibility, internal bool) (map[string]any, error) {
-	mentions, unresolved, err := resolveCommentMentions(ctx, c, body)
+	mentions, resolved, unresolved, err := resolveCommentMentions(ctx, c, body)
 	if err != nil {
 		return nil, err
 	}
+	noticeResolvedMentions(resolved)
 	warnUnresolvedMentions(unresolved)
 	created, err := c.AddComment(ctx, key, jira.Doc(body, mentions), vis, internal)
 	if err != nil {
