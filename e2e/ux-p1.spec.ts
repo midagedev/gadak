@@ -191,6 +191,36 @@ test.describe('UX P1', () => {
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 
+  test('empty mirror with an active query says no-match, not sync-pending (GDK-1062)', async ({
+    page,
+  }) => {
+    const errors = attachConsoleErrors(page)
+    await mockIdentifiedEmptyMirror(page)
+    await forceLocale(page, 'en')
+    await page.goto('/')
+
+    // The genuine bare-workspace frame first — same state the test above pins.
+    await expect(page.getByText('No issues', { exact: true })).toBeVisible({ timeout: 30_000 })
+
+    // An active query makes the zero "no results", never "still syncing": the
+    // sync frame claimed it, so a workspace mid-first-sync told the reader a
+    // no-match search would be answered by waiting.
+    const search = searchInput(page)
+    await search.fill('editor')
+    await expect(page.getByText('No issues match', { exact: true })).toBeVisible()
+    await expect(page.getByText('They will appear here when sync finishes.')).toBeHidden()
+    const clear = page.getByTestId('empty-state-action')
+    await expect(clear).toHaveText('Clear search')
+
+    // Clearing the query puts the genuinely empty workspace back on the
+    // sync frame — the guard must not eat the real empty state.
+    await clear.click()
+    await expect(page.getByText('They will appear here when sync finishes.')).toBeVisible()
+    await expect(page.getByTestId('empty-state-action')).toHaveText('Sync now')
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
   test('expired token toast says replace, not set-first', async ({ page }) => {
     const errors = attachConsoleErrors(page)
     await gotoApp(page)

@@ -142,30 +142,37 @@
 
   {#if shownGroups.length > 0}
     <div class="h-5 w-px flex-none bg-border-strong/70"></div>
-    <div class="min-w-0 flex-1 overflow-x-auto">
-      <div class="flex w-max items-center gap-3 whitespace-nowrap text-micro">
+    <!-- GDK-1057: no w-max. At their natural width the chips used to keep
+         scrolling past the container edge, so a narrowed list column (docked
+         panel) cut a chip mid-word with no affordance. Now the chips shrink
+         and their labels ellipsize — the full name stays in the accessible
+         name and the title — while dot and count are flex-none, so a
+         squeezed chip keeps the parts that made it a summary. -->
+    <div class="min-w-0 flex-1 overflow-x-auto" data-testid="breakdown-strip">
+      <div class="flex min-w-0 items-center gap-3 whitespace-nowrap text-micro">
         {#each shownGroups as group, i (group.key || `empty-${i}`)}
           {@const glyph = groupGlyph(group.key)}
           <!-- A chip names a section of the list below, so it is the way to
                that section (the list owns where it sits — see filters.revealGroup). -->
           <button
             type="button"
-            class="inline-flex items-center gap-1.5 text-text-secondary transition-colors hover:text-text-primary"
+            class="inline-flex min-w-0 items-center gap-1.5 text-text-secondary transition-colors hover:text-text-primary"
+            title={group.label || t('common.all')}
             onclick={() => filters.revealGroup(group.key)}
           >
             <span
-              class="h-1.5 w-1.5 rounded-full"
+              class="h-1.5 w-1.5 flex-none rounded-full"
               style:background={groupColor(group.key, i)}
             ></span>
             {#if glyph}
               <Icon name={glyph} size={12} />
             {/if}
-            <span class="max-w-36 truncate">{group.label || t('common.all')}</span>
-            <span class="font-mono text-micro text-text-muted">{group.counts.total}</span>
+            <span class="min-w-0 max-w-36 truncate">{group.label || t('common.all')}</span>
+            <span class="flex-none font-mono text-micro text-text-muted">{group.counts.total}</span>
           </button>
         {/each}
         {#if hiddenGroupCount > 0}
-          <span class="text-micro text-text-muted">{t('list.moreCount', { n: hiddenGroupCount })}</span>
+          <span class="flex-none text-micro text-text-muted">{t('list.moreCount', { n: hiddenGroupCount })}</span>
         {/if}
       </div>
     </div>

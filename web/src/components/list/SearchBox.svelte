@@ -67,6 +67,40 @@
   })
 
   /*
+   * GDK-1059: a docked detail panel narrows this whole slot (flex-1 of the
+   * toolbar row), not the viewport, and below ~350px the palette button's
+   * full label no longer fit beside the field's 150px floor — the button
+   * wrapped to a lone second row (GDK-201's fallback firing one regime too
+   * early). Compact it to icon+shortcut, the render ≤960 already uses.
+   * Measured on the slot itself, and the full label's width is cached only
+   * while it is rendered: the slot's width is layout-determined (its parent
+   * has an explicit min-width, so no content-based minimum feeds back), and
+   * a decision made from the cached full width cannot oscillate when the
+   * button then shrinks. A stale cache after a locale switch while compact
+   * only errs toward staying compact — the safe direction.
+   */
+  let slotCompact = $state(false)
+  let boxEl = $state<HTMLDivElement | null>(null)
+  $effect(() => {
+    const el = boxEl
+    if (!el || typeof ResizeObserver === 'undefined') return
+    let fullLabelWidth = 0
+    const ro = new ResizeObserver(() => {
+      const button = el.querySelector<HTMLElement>('[data-testid="palette-open"]')
+      if (button && button.querySelector('span')) {
+        fullLabelWidth = Math.max(fullLabelWidth, button.offsetWidth)
+      }
+      if (!fullLabelWidth) return
+      const field = el.firstElementChild as HTMLElement | null
+      const floor = field ? parseFloat(getComputedStyle(field).minWidth) || 0 : 0
+      const gap = parseFloat(getComputedStyle(el).columnGap) || 0
+      slotCompact = el.clientWidth < floor + gap + fullLabelWidth + 8
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  })
+
+  /*
    * The `?` spells out what this box accepts. On a mouse the title does it on
    * hover; a touch screen has no hover, so the same string also has to be
    * reachable by tapping. It shares the one popover slot under the field with
@@ -286,9 +320,10 @@
 
 <!-- flex-wrap + the input's min-width floor: the field's fixed innards (icon,
      `?`, kbd, padding) are ~90px, so letting it shrink to 0 paints them over
-     the palette button (seen at 1120 docked, GDK-201). Below the floor the
-     button wraps under the field instead of being overlapped. -->
-<div class="flex flex-wrap items-center gap-2">
+     the palette button (seen at 1120 docked, GDK-201). GDK-1059: the palette
+     button compacts to icon+shortcut before that point, so the wrap below the
+     floor stays what it was meant to be — the last resort, not the first. -->
+<div class="flex flex-wrap items-center gap-2" bind:this={boxEl}>
   <!-- The boundary for the help popover's outside click: it has to hold the
        `?` too, or the click that closes the panel would reopen it. -->
   <div
@@ -422,7 +457,7 @@
     onclick={() => requestOpenPalette()}
   >
     <Icon name="search" size={14} class="text-text-muted" />
-    {#if !viewportNarrow}
+    {#if !viewportNarrow && !slotCompact}
       <span>{t('palette.entryLabel')}</span>
     {/if}
     <kbd class="rounded border border-border-subtle px-1 text-micro text-text-muted">{paletteShortcutLabel()}</kbd>

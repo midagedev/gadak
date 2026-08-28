@@ -214,6 +214,29 @@ for (const width of DOCKED_WIDTHS) {
         open!.y + open!.height <= help!.y
       expect(disjoint, 'search help and palette opener overlap').toBe(true)
     })
+
+    test('the palette opener shares the field row — no orphan wrap (GDK-1059)', async ({ page }) => {
+      // 2026-08-27 walkthrough: at 1280 with the panel docked, the toolbar's
+      // first row ran out of width and the "Search everything ⌘K" button
+      // wrapped alone onto its own row. The contract: the opener stays on the
+      // field's line at every docked width — compacting to icon+shortcut
+      // (SearchBox GDK-1059) instead of wrapping.
+      await openPanelBesideMigrateRows(page)
+      const help = await page.getByTestId('search-help').boundingBox()
+      const open = await page.getByTestId('palette-open').boundingBox()
+      expect(help, 'search-help must render').toBeTruthy()
+      expect(open, 'palette-open must render').toBeTruthy()
+      // Centers, not tops: the opener is h-control and `?` is h-control-sm,
+      // so a shared row still offsets the tops by a few px.
+      const helpCy = help!.y + help!.height / 2
+      const openCy = open!.y + open!.height / 2
+      expect(
+        Math.abs(openCy - helpCy),
+        `palette opener cy=${openCy} vs field row cy=${helpCy}: the button wrapped to an orphan row`,
+      ).toBeLessThan(2)
+      // And it still sits to the right of the field, not under it.
+      expect(open!.x).toBeGreaterThan(help!.x)
+    })
   })
 }
 

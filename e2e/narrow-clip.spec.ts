@@ -283,3 +283,89 @@ test.describe('demo banner at en 800', () => {
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 })
+
+/*
+ * GDK-1057 (2026-08-27 walkthrough): with the panel docked, the breakdown
+ * strip kept its natural width inside overflow-x-auto, so the narrowed list
+ * column cut a chip mid-word at the container edge ("Editor p") with no
+ * ellipsis and no summary. Contract: every chip ends inside the strip, and a
+ * chip whose label does not fit ellipsizes (the full name survives in the
+ * accessible name and the title). Geometry only, like the probes above.
+ */
+test.describe('breakdown chips at the docked seam (GDK-1057)', () => {
+  test.use({ viewport: { width: 1280, height: 900 } })
+
+  type ChipProbe = {
+    label: string
+    right: number
+    stripRight: number
+    labelScrollW: number
+    labelClientW: number
+    textOverflow: string
+  }
+
+  async function probeChips(page: Page): Promise<ChipProbe[]> {
+    return page.evaluate(() => {
+      // The testid is the GDK-1057 marker; the shape fallback keeps this
+      // probe reporting the defect (chips past the edge) on a pre-fix tree
+      // instead of failing on a missing selector.
+      const strip =
+        (document.querySelector<HTMLElement>('[data-testid="breakdown-strip"]') as HTMLElement | null) ??
+        ([...document.querySelectorAll('div.overflow-x-auto')].find((d) =>
+          d.querySelector('button span.truncate'),
+        ) as HTMLElement | undefined) ??
+        null
+      if (!strip) return []
+      const sbox = strip.getBoundingClientRect()
+      return [...strip.querySelectorAll<HTMLElement>('button')].map((chip) => {
+        const label = chip.querySelector<HTMLElement>('span.truncate')
+        return {
+          label: (label?.textContent ?? '').trim(),
+          right: Math.round(chip.getBoundingClientRect().right * 10) / 10,
+          stripRight: Math.round(sbox.right * 10) / 10,
+          labelScrollW: label ? label.scrollWidth : -1,
+          labelClientW: label ? label.clientWidth : -1,
+          textOverflow: label ? getComputedStyle(label).textOverflow : '',
+        }
+      })
+    })
+  }
+
+  test('chips ellipsize inside the strip, never cut at its edge', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    await gotoApp(page)
+    await waitListRows(page)
+
+    // Actor axis: many narrow chips — the axis the walkthrough cut. Picked
+    // before the panel opens because below 1440 the panel covers the toolbar
+    // seam and the breakdown trigger click does not land (breakdown-esc).
+    await page.getByRole('button', { name: /Breakdown/ }).click()
+    await page.getByRole('button', { name: 'Actor', exact: true }).click()
+
+    // Dock the panel: at 1280 the list column shrinks to ~570px.
+    await page.locator('[data-testid="issue-list-scroller"] [data-issue-key]').first().click()
+    await expect(page.getByTestId('issue-detail-panel')).toHaveClass(/is-open/)
+
+    const chips = await probeChips(page)
+    expect(chips.length, 'fixture must paint breakdown chips on the actor axis').toBeGreaterThan(0)
+    for (const c of chips) {
+      expect(
+        c.right,
+        `${c.label}: chip right ${c.right} passes the strip edge ${c.stripRight} — mid-word cut`,
+      ).toBeLessThanOrEqual(c.stripRight + 0.5)
+    }
+    const squeezed = chips.filter((c) => c.labelScrollW > c.labelClientW)
+    expect(
+      squeezed.length,
+      'at 1280 with the panel docked at least one actor label must be squeezed, else this is vacuous',
+    ).toBeGreaterThan(0)
+    for (const c of squeezed) {
+      expect(
+        c.textOverflow,
+        `${c.label}: a squeezed label must ellipsize, not clip`,
+      ).toBe('ellipsis')
+    }
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+})

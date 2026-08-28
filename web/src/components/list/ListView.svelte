@@ -59,6 +59,14 @@
 
   const needsOnboarding = $derived(onboarding.needsOnboarding)
 
+  /* GDK-1062: with a query, filter chips, or a body search in flight, zero
+   *  rows means "nothing matched" — never "this workspace is still filling
+   *  up". The sync frame is only for a genuinely bare workspace, so it is
+   *  gated on the absence of all three, not on the row count alone. */
+  const hasActiveQueryOrFilter = $derived(
+    filters.filters.q.trim() !== '' || filters.hasUserChips || filters.serverMatchQuery !== '',
+  )
+
   // Drop selections that left the visible list when the view (filter/sort/group)
   // changes. React only to viewKey (untrack visibleIssues so data deltas don't rerun).
   $effect(() => {
@@ -197,7 +205,7 @@
     {#if visibleCount === 0 || needsOnboarding}
       {#if needsOnboarding}
         <Onboarding onOpenSettings={() => onOpenSettings?.()} />
-      {:else if issues.pool.size === 0}
+      {:else if issues.pool.size === 0 && !hasActiveQueryOrFilter}
         <EmptyState
           icon="inbox"
           title={t('list.emptyTitle')}
