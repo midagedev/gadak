@@ -89,10 +89,10 @@ func TestMatchNamesAreOnlyDeclaredPatterns(t *testing.T) {
 		"private_key_pem":     true,
 	}
 	for _, p := range patterns {
-		if !allowed[p.name] {
-			t.Errorf("undeclared pattern name %q", p.name)
+		if !allowed[p.Name] {
+			t.Errorf("undeclared pattern name %q", p.Name)
 		}
-		delete(allowed, p.name)
+		delete(allowed, p.Name)
 	}
 	for name := range allowed {
 		t.Errorf("declared pattern %q missing from package table", name)
@@ -123,8 +123,8 @@ func assertScriptVarMatchesPattern(t *testing.T, scriptVar, patternName string) 
 	script := string(m[1])
 	var goPat string
 	for _, p := range patterns {
-		if p.name == patternName {
-			goPat = p.re.String()
+		if p.Name == patternName {
+			goPat = p.Re.String()
 		}
 	}
 	if goPat == "" {

@@ -12,10 +12,14 @@ package secretscan
 
 import "regexp"
 
-var patterns = []struct {
-	name string
-	re   *regexp.Regexp
-}{
+// Pattern is one row of the credential-shape table: the name Match reports
+// and the regexp that recognizes it.
+type Pattern struct {
+	Name string
+	Re   *regexp.Regexp
+}
+
+var patterns = []Pattern{
 	{"atlassian_api_token", regexp.MustCompile(`ATATT[A-Za-z0-9+/=_-]{20,}|ATCTT[A-Za-z0-9+/=_-]{20,}`)},
 	{"http_basic_auth", regexp.MustCompile(`(?i)Authorization:\s*Basic\s+[A-Za-z0-9+/=_-]{8,}`)},
 	{"http_bearer_token", regexp.MustCompile(`(?i)Authorization:\s*Bearer\s+[A-Za-z0-9._-]{20,}`)},
@@ -38,9 +42,18 @@ var patterns = []struct {
 // real snapshot.
 func Match(s string) string {
 	for _, p := range patterns {
-		if p.re.MatchString(s) {
-			return p.name
+		if p.Re.MatchString(s) {
+			return p.Name
 		}
 	}
 	return ""
+}
+
+// Patterns returns the pattern table for surfaces that erase rather than
+// refuse — internal/applog composes its log scrubber over it, so the two
+// lists cannot drift apart silently (the applog corpus test fails until a
+// new pattern name is covered there). The slice is shared with Match;
+// treat it as read-only.
+func Patterns() []Pattern {
+	return patterns
 }

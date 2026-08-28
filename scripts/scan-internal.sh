@@ -38,6 +38,7 @@ text_list="$(mktemp)"
 trap 'rm -f "$hits_file" "$text_list"' EXIT
 
 # User API tokens / org API keys from Atlassian.
+# The Go owner of these credential shapes is internal/secretscan (Patterns()).
 PAT_TOKEN='ATATT[A-Za-z0-9+/=_-]{20,}|ATCTT[A-Za-z0-9+/=_-]{20,}'
 # Linear personal API key. Kept as its own variable, not folded into
 # PAT_TOKEN, because internal/secretscan asserts PAT_TOKEN equals its
