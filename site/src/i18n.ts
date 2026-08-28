@@ -30,7 +30,7 @@ export const strings = {
     speed: {
       label: 'Fast is a measurement, not an adjective',
       heading: 'The same question, asked two ways',
-      note: 'Measured 2026-08-26 against a live Atlassian Cloud site (a real work project, 3,296 issues), not a synthetic fixture. gadak numbers include full CLI process startup. Method, re-measurement history, and the honest where-gadak-loses table: docs/BENCHMARKS.md.',
+      note: 'Measured 2026-08-26 against a live Atlassian Cloud site (a real work project, 3,296 issues), not a synthetic fixture. gadak numbers include full CLI process startup. Method, re-measurement history, and the honest where-gadak-loses table:',
       rows: [
         { what: 'Simple filter, 100 issues', value: '583 ms', alt: '19 ms', ratio: '31×' },
         { what: 'One issue + full changelog', value: '710 ms', alt: '28 ms', ratio: '25×' },
@@ -153,7 +153,7 @@ export const strings = {
     speed: {
       label: '빠르다는 말 대신 측정값',
       heading: '같은 질문, 두 가지 방식',
-      note: '2026-08-26 실제 Atlassian Cloud 사이트(실제 업무 프로젝트, 3,296건) 대상 실측 — 합성 fixture가 아닙니다. gadak 수치에는 CLI 프로세스 시작까지 포함. 측정 방법과 gadak이 지는 지점 표 전체는 docs/BENCHMARKS.md.',
+      note: '2026-08-26 실제 Atlassian Cloud 사이트(실제 업무 프로젝트, 3,296건) 대상 실측 — 합성 fixture가 아닙니다. gadak 수치에는 CLI 프로세스 시작까지 포함. 측정 방법과 gadak이 지는 지점 표 전체는',
       rows: [
         { what: '단순 필터, 100건', value: '583 ms', alt: '19 ms', ratio: '31×' },
         { what: '이슈 1건 + 체인지로그 전체', value: '710 ms', alt: '28 ms', ratio: '25×' },
