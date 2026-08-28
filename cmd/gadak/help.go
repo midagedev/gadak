@@ -891,7 +891,9 @@ func newFlagSet(name string) *flag.FlagSet {
 //
 // A token that starts with `-` and is not a registered flag is rejected
 // (GDK-41). Bare `-` is a value. `--` ends flag parsing so a positional that
-// starts with `-` can be passed. New commands inherit this by using
+// starts with `-` can be passed — but a registered flag beyond the first
+// argument after `--` is refused (GDK-851): it would fold into the positional
+// text instead of being parsed. New commands inherit this by using
 // newFlagSet + parseAround.
 func parseAround(fs *flag.FlagSet, args []string) (rest []string, err error) {
 	needVal := map[string]bool{}
@@ -907,7 +909,18 @@ func parseAround(fs *flag.FlagSet, args []string) (rest []string, err error) {
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		if a == "--" {
-			pos = append(pos, args[i+1:]...)
+			tail := args[i+1:]
+			// GDK-851: a registered flag token after `--` is a misplacement —
+			// everything there is positional, so `create -- "summary" -m
+			// "body"` folded -m and its value into the summary. The first
+			// token is exempt (a leading-dash positional is why `--` exists)
+			// and only exact registered names are refused.
+			for j := 1; j < len(tail); j++ {
+				if _, known := needVal[tail[j]]; known {
+					return nil, newFlagAfterDashDash(fs, tail[j])
+				}
+			}
+			pos = append(pos, tail...)
 			break
 		}
 		if a == "-" || !strings.HasPrefix(a, "-") {
@@ -964,6 +977,31 @@ func newUnknownFlag(fs *flag.FlagSet, token string) error {
 	return &unknownFlagErr{token: token, accepted: accepted, cmd: fs.Name()}
 }
 
+// flagAfterDashDashErr is a registered flag token refused after `--`
+// (GDK-851). Everything after `--` is positional, so `create -- "summary"
+// -m "body"` folded -m and the body into the summary — a short one silently
+// created the polluted issue, a long one died on the 255-char limit. The
+// first token after `--` stays exempt (a leading-dash positional is why
+// `--` exists) and unknown dash tokens stay positional; only exact
+// registered names are refused.
+type flagAfterDashDashErr struct {
+	token string
+	cmd   string
+}
+
+func (e *flagAfterDashDashErr) Error() string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "%s cannot follow --: everything after -- is positional text, so %s would fold into it\n", e.token, e.token)
+	fmt.Fprintf(&b, "move %s before --, or quote the text as one argument when it really contains %q\n", e.token, e.token)
+	fmt.Fprintf(&b, "run \"gadak %s --help\" for examples", e.cmd)
+	return b.String()
+}
+
+// newFlagAfterDashDash refuses a registered flag token found after `--`.
+func newFlagAfterDashDash(fs *flag.FlagSet, token string) error {
+	return &flagAfterDashDashErr{token: token, cmd: fs.Name()}
+}
+
 // exitCoder is a command error that names its process status (e.g. unknown
 // config path → 64). unknownFlagErr stays a separate 2 so a mistyped flag
 // does not change class.
@@ -972,8 +1010,8 @@ type exitCoder interface {
 }
 
 // exitStatus is the process code main uses for a command error.
-// unknown flags are usage (2); an exitCoder keeps the code it named;
-// everything else stays 1.
+// Unknown or misplaced flags are usage (2); an exitCoder keeps the code it
+// named; everything else stays 1.
 func exitStatus(err error) int {
 	if err == nil {
 		return 0
@@ -981,6 +1019,10 @@ func exitStatus(err error) int {
 	var u *unknownFlagErr
 	if errors.As(err, &u) {
 		return 2
+	}
+	var f *flagAfterDashDashErr
+	if errors.As(err, &f) {
+		return 2 // a misplaced flag is the same usage class as a mistyped one
 	}
 	var c exitCoder
 	if errors.As(err, &c) {

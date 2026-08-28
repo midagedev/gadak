@@ -46,9 +46,22 @@ import (
 //  8. Every positional command: unknown token rejected
 //     TestParseAroundRejectsUnknownOnFlagSetCommands
 //     TestPositionalCommandsRejectUnknownFlag
+//  9. A registered flag token after `--` (index >= 1) is refused — it folds
+//     into the positional text instead of being parsed (GDK-851)
+//     TestParseAroundRejectsKnownFlagAfterDoubleDash
+//     TestParseAroundRejectsKnownLongFlagAfterDoubleDash
+//     TestParseAroundFirstTokenAfterDoubleDashIsExempt
+//     TestParseAroundUndefinedDashTokenAfterDoubleDashStaysPositional
+//     TestParseAroundScatteredFlagsWithoutDoubleDashKeepBehavior
+//     TestParseAroundFlagAfterDoubleDashExitStatus
+//     TestParseAroundFlagAfterDoubleDashMessage
+//     TestCreateKnownFlagAfterDoubleDashWritesNothing
 //
 // Reproduction (2026-08-15): `gadak create --project GDK --type 10003
 // --summary "…" --priority Low -m -` wrote the flags into the summary.
+// Reproduction (2026-08-28, GDK-851): `gadak create --project GDK --type
+// 10003 --label throwaway -- "재현 프로브 요약" -m "본문"` folded -m and the
+// body into the summary.
 
 func createFlagSetForTest() *flag.FlagSet {
 	fs := newFlagSet("create")
@@ -133,6 +146,98 @@ func TestParseAroundDoubleDashStopsFlags(t *testing.T) {
 	}
 	if fs.Lookup("project").Value.String() != "NMB" {
 		t.Fatalf("flags before -- were dropped: project=%q", fs.Lookup("project").Value)
+	}
+}
+
+// Clause 9 (GDK-851): everything after `--` is positional, so a registered
+// flag token there is a misplacement that would fold into the summary.
+// Only index >= 1 and only exact registered names — the first token is the
+// leading-dash escape, and an unknown dash token is text.
+func TestParseAroundRejectsKnownFlagAfterDoubleDash(t *testing.T) {
+	fs := createFlagSetForTest()
+	_, err := parseAround(fs, []string{"--project", "NMB", "--", "재현 프로브 요약", "-m", "본문이 요약으로 접히는지 재현"})
+	if err == nil {
+		t.Fatal("known -m after -- must be rejected (it folds into the summary)")
+	}
+	if !strings.Contains(err.Error(), "-m") {
+		t.Fatalf("error must name the folded token: %v", err)
+	}
+}
+
+func TestParseAroundRejectsKnownLongFlagAfterDoubleDash(t *testing.T) {
+	fs := createFlagSetForTest()
+	_, err := parseAround(fs, []string{"--", "summary", "words", "--label", "batch"})
+	if err == nil {
+		t.Fatal("known --label after -- must be rejected")
+	}
+	if !strings.Contains(err.Error(), "--label") {
+		t.Fatalf("error must name the folded token: %v", err)
+	}
+}
+
+func TestParseAroundFirstTokenAfterDoubleDashIsExempt(t *testing.T) {
+	fs := createFlagSetForTest()
+	// A registered name as the first token after -- is the documented
+	// leading-dash escape (create -- --rollback-on-failure), not a fold.
+	pos, err := parseAround(fs, []string{"--project", "NMB", "--", "-m", "rest"})
+	if err != nil {
+		t.Fatalf("first token after -- must stay positional even when flag-shaped: %v", err)
+	}
+	if got := strings.Join(pos, " "); got != "-m rest" {
+		t.Fatalf("pos=%q", got)
+	}
+}
+
+func TestParseAroundUndefinedDashTokenAfterDoubleDashStaysPositional(t *testing.T) {
+	fs := createFlagSetForTest()
+	pos, err := parseAround(fs, []string{"--project", "NMB", "--", "summary", "-x", "-"})
+	if err != nil {
+		t.Fatalf("only registered names are refused, -x and bare - are text: %v", err)
+	}
+	if got := strings.Join(pos, " "); got != "summary -x -" {
+		t.Fatalf("pos=%q", got)
+	}
+}
+
+func TestParseAroundScatteredFlagsWithoutDoubleDashKeepBehavior(t *testing.T) {
+	fs := createFlagSetForTest()
+	pos, err := parseAround(fs, []string{"fix the gate", "--project", "NMB", "-m", "body"})
+	if err != nil {
+		t.Fatalf("scattered flags without -- are consumed as before: %v", err)
+	}
+	if got := strings.Join(pos, " "); got != "fix the gate" {
+		t.Fatalf("pos=%q", got)
+	}
+	if fs.Lookup("project").Value.String() != "NMB" || fs.Lookup("m").Value.String() != "body" {
+		t.Fatalf("flags were dropped: project=%q m=%q", fs.Lookup("project").Value, fs.Lookup("m").Value)
+	}
+}
+
+func TestParseAroundFlagAfterDoubleDashExitStatus(t *testing.T) {
+	fs := createFlagSetForTest()
+	_, err := parseAround(fs, []string{"--", "summary", "-m", "body"})
+	if err == nil {
+		t.Fatal("expected -m after -- to be rejected (CLI exit 2)")
+	}
+	if got := exitStatus(err); got != 2 {
+		t.Fatalf("exitStatus=%d want 2; err=%v", got, err)
+	}
+}
+
+func TestParseAroundFlagAfterDoubleDashMessage(t *testing.T) {
+	fs := createFlagSetForTest()
+	_, err := parseAround(fs, []string{"--", "summary", "-m", "body"})
+	if err == nil {
+		t.Fatal("expected -m after -- to be rejected")
+	}
+	// Verb-neutral wording: parseAround serves every verb, so the message
+	// says "positional text", not "the summary" (comment/memory add fold
+	// body text the same way).
+	want := "-m cannot follow --: everything after -- is positional text, so -m would fold into it\n" +
+		"move -m before --, or quote the text as one argument when it really contains \"-m\"\n" +
+		"run \"gadak create --help\" for examples"
+	if err.Error() != want {
+		t.Fatalf("exact message:\n got %q\nwant %q", err.Error(), want)
 	}
 }
 
@@ -335,6 +440,28 @@ func TestCreateLeadingDashSummaryAfterDoubleDash(t *testing.T) {
 	}
 	if sent := f.bodies["POST /issue"]; !strings.Contains(sent, `"summary":"-this broke"`) {
 		t.Fatalf("leading-dash summary after --: %s", sent)
+	}
+}
+
+func TestCreateKnownFlagAfterDoubleDashWritesNothing(t *testing.T) {
+	// The GDK-851 reproduction (2026-08-28): -m after -- folded into the
+	// summary, and a short one created the polluted issue silently.
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	_, err := capture(t, func() error {
+		return cmdCreate([]string{
+			"--project", "NMB", "--type", "Task", "--label", "throwaway",
+			"--", "재현 프로브 요약", "-m", "본문이 요약으로 접히는지 재현",
+		})
+	})
+	if err == nil {
+		t.Fatalf("known -m after -- created a folded summary; Jira calls %v", f.calls)
+	}
+	if !strings.Contains(err.Error(), "-m cannot follow --") {
+		t.Fatalf("want -m-after--- refusal, got %v", err)
+	}
+	if f.called("POST /issue") {
+		t.Fatalf("refusal reached Jira: %v", f.calls)
 	}
 }
 
