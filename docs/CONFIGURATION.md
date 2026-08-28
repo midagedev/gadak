@@ -118,7 +118,7 @@ below.
 | `ui.tokens.spacing` | `{\"row\": \"44px\"}` | The spacing axis alone, key-wise merge (rules judge the merged set). |
 | `ui.tokens.layout` | `{\"sidebar\": \"280px\"}` | The layout axis alone, key-wise merge. |
 | `ui.tokens.type` | `{\"heading\": \"24px\"}` | The type axis alone, key-wise merge. |
-| `ui.tokens.<axis>.<name>` | `15px` / `#7a4bd0` / `44px` | One token as a **bare scalar** — the same key-wise merge as the axis path with a one-key object. `null` deletes that key. Unknown names are refused (discover them with `ui.tokens.catalog` / `ui.tokens.dim-catalog`). |
+| `ui.tokens.<axis>.<name>` | `15px` / `#7a4bd0` / `44px` | One token as a **bare scalar** — the same key-wise merge as the axis path with a one-key object. `null` deletes that key. Unknown names save with a warning naming the catalog they missed (discover them with `ui.tokens.catalog` / `ui.tokens.dim-catalog`). |
 | `ui.tokensByTheme` | `{\"dark\": {\"colors\": {\"accent\": \"#9a6be0\"}}}` | Overlay for one palette only (theme wins over `ui.tokens`). **Colors only** — dimension axes are refused here (see below). |
 | `ui.dataColors` | `{\"label\": {\"urgent\": \"#c03030\"}, \"type\": {\"10007\": \"#d07020\"}, \"status\": {\"inprogress\": \"#7e5904\"}}` | Per-data inks: label chips, issue-type chips, status dots. |
 
@@ -182,12 +182,12 @@ ui.tokens.colors '{"accent":null}'`). The leaf spelling of that delete is
 from the CLI.
 
 Unknown token names (and unknown `tokensByTheme` palettes) are **carried
-with a warning, never refused** on the object paths (`ui.tokens`,
-`ui.tokens.<axis>`, `ui.tokensByTheme`) — a config written by a newer
-gadak must keep loading, and on this build the entry is simply not
-rendered. A **leaf** path is the other way around: an unknown
-`ui.tokens.<axis>.<name>` is refused and names the discovery command, so
-a typo is not stored as a silent extra key.
+with a warning, never refused** on every path — object
+(`ui.tokens`, `ui.tokens.<axis>`, `ui.tokensByTheme`) and leaf
+(`ui.tokens.<axis>.<name>`) alike — because a config written by a newer
+gadak must keep loading; on this build the entry is simply not rendered.
+The warning names the catalog it missed, so a typo is stored but never
+silent.
 
 ```console
 $ gadak config set ui.tokens '{"colors":{"accent":"#7a4bd0","future-name":"#111111"}}'
@@ -362,9 +362,9 @@ palette — set them under ui.tokens, not per theme
 ```
 
 Unknown **axes** are refused up front (`axes are colors, spacing, layout,
-type, fonts`); unknown token **names** on the object paths are carried with a
-warning, never a refused save — same contract as colors. An unknown name
-on a **leaf** path is refused (see above).
+type, fonts`); unknown token **names** — object and leaf paths alike — are
+carried with a warning, never a refused save (same contract as colors; see
+above).
 
 **The fonts axis (GDK-896 R4) — `mono-terminal`, the terminal pane
 stack.** `ui.tokens.fonts` carries font stacks where the other axes carry
@@ -434,7 +434,7 @@ is nothing to say, and a client-supplied value is ignored.
 | `appearance.theme` | string | empty → **system** | Settings theme picker / `gadak config set appearance.theme` | Immediate after reload; shape `[a-z0-9-]{1,32}` (see above) |
 | `ui.tokens` | `{colors: {token: hex}, spacing\|layout\|type: {token: length}, fonts: {token: stack}}` | _(absent)_ | `gadak config set ui.tokens` / Settings PUT `ui` (no form editor yet) | Live, no reload — color-token overrides for every palette plus the palette-agnostic dimension and font axes (see above). Only parse/shape/derived refuse; tiers, contrast, ranges and relations warn and save. A set replaces the whole object |
 | `ui.tokens.<axis>` | `{token: hex, length, or font stack}` (axis = `colors`, `spacing`, `layout`, `type`, `fonts`) | _(absent)_ | `gadak config set ui.tokens.<axis>` (CLI only) | Live, no reload — key-wise merge into one axis: named keys update, other keys/axes survive; `null` deletes a key, `{}` is a no-op |
-| `ui.tokens.<axis>.<name>` | hex, length, or font-stack scalar | _(absent)_ | `gadak config set ui.tokens.<axis>.<name>` (CLI only) | Live, no reload — one token into its axis as a bare scalar (`15px`, `#7a4bd0`, `Menlo, monospace`); `null` deletes that key; unknown names are refused |
+| `ui.tokens.<axis>.<name>` | hex, length, or font-stack scalar | _(absent)_ | `gadak config set ui.tokens.<axis>.<name>` (CLI only) | Live, no reload — one token into its axis as a bare scalar (`15px`, `#7a4bd0`, `Menlo, monospace`); `null` deletes that key; unknown names save with a warning |
 | `ui.tokensByTheme` | `{palette: {colors: {token: hex}}}` | _(absent)_ | `gadak config set ui.tokensByTheme` / Settings PUT `ui` | Live, no reload — per-palette overlay, judged in that palette; colors only (dimension and font axes are refused) |
 | `ui.dataColors` | `{label\|type\|status: {key: hex}}` | _(absent)_ | `gadak config set ui.dataColors` / Settings PUT `ui` | Live, no reload — per-data inks; `type` keys are issue type ids, `status` keys are status categories |
 | `projects` | string[] | `[]` (empty = every project this account can see) | Settings → Sources / `gadak init` / `gadak config set projects` | Next sync / list scope; UI reload after save |
