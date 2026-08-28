@@ -273,7 +273,24 @@ SELECT key, summary, sprint_id, sprint_name
 FROM issues_full
 WHERE sprint_state = 'active' AND status_category != 'done'
 ORDER BY priority_rank, updated_at DESC;
+
+-- What blocks one issue (links are stored from both ends: the blocked issue
+-- carries the inward row, the blocker the outward one)
+SELECT l.target_key AS blocked_by, t.status_category
+FROM links l
+JOIN issues_full i ON i.item_id = l.item_id
+JOIN issues_full t ON t.key = l.target_key
+WHERE i.key = 'NMA-24' AND l.type = 'Blocks' AND l.direction = 'inward';
+
+-- Everything under one epic (epic_key is derived: nearest level-1 ancestor)
+SELECT key, status_category, priority_rank, summary FROM issues_full
+WHERE epic_key = 'NMB-194' ORDER BY status_category, priority_rank, key;
 ```
+
+Blockers both ways, duplicate networks, open work per component or per epic,
+overdue-not-done, comments keyed on `author_id`, and @-mentions read out of
+the ADF body are worked queries in `docs/RECIPES.md` ("Blockers and
+duplicates", "Epics, components, and due dates").
 
 ## Listing work: list, ready, next
 

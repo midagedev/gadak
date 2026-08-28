@@ -10,7 +10,11 @@ are ISO-8601 UTC strings, so `julianday()` and string comparison both work.
 None of these are expressible in JQL — that is the point. JQL cannot join, see
 the changelog as data, aggregate, or read derived history. The inverse — a
 Jira filter you already have — is `gadak search --jql '…'` (or paste the URL
-into the search box), not this file.
+into the search box), not this file. The subset that path accepts is not
+function-free either: `currentUser()` on `assignee`/`reporter`, `sprint in
+openSprints()`, and `now()` / `startOfDay()` / `endOfDay()` inside `created` /
+`updated` / `due` / `resolved` comparisons all compile. Anything past that
+list is skipped with a notice on stderr — never silently re-matched.
 
 Every recipe also runs against the demo snapshot in a plain browser tab, no
 install, no account: [open the epic `GROUP BY` in Datasette
@@ -73,6 +77,64 @@ where status_category = 'new' and assignee is null
 order by created_at asc limit 20
 ```
 
+## Blockers and duplicates
+
+**What blocks this issue?** Every link is stored from both ends, and
+`direction` reads from the row's own side: on the blocked issue the row is
+`inward` — this issue is blocked by `target_key` — while the blocking issue
+carries the same link as its `outward` row. `type` is the origin's link-type
+name (`Blocks`, `Duplicate`, `Relates`, …), and `target_key` may point at an
+issue the mirror has not synced — a blocker missing from this join is not
+proof that none exists:
+
+```sql
+select l.target_key as blocked_by, t.status_category, t.summary
+from links l
+join issues_full i on i.item_id = l.item_id
+join issues_full t on t.key = l.target_key
+where i.key = 'NMA-24' and l.type = 'Blocks' and l.direction = 'inward'
+```
+
+**What does this issue block?** The same join on the row's other side —
+these are the issues waiting on it:
+
+```sql
+select l.target_key as blocks, t.status_category, t.summary
+from links l
+join issues_full i on i.item_id = l.item_id
+join issues_full t on t.key = l.target_key
+where i.key = 'NMA-24' and l.type = 'Blocks' and l.direction = 'outward'
+```
+
+**Every open issue an open blocker holds back** — the axis `gadak ready`
+walks (it resolves the blocking link type against the origin's catalog
+instead of a literal, and says so on stderr when no catalog can answer). The
+target join is a left join on purpose: a target outside the mirror is never
+known-done:
+
+```sql
+select i.key, l.target_key as blocked_by, t.status_category
+from links l
+join issues_full i on i.item_id = l.item_id
+left join issues_full t on t.key = l.target_key
+where l.type = 'Blocks' and l.direction = 'inward'
+  and i.status_category != 'done'
+  and (t.status_category is null or t.status_category != 'done')
+order by i.priority_rank, i.key
+```
+
+**The duplicates network** — stored like any other link, and the `inward`
+row is "this issue duplicates `target_key`". Drop the direction filter to
+see both ends of every pair:
+
+```sql
+select i.key, i.status_category, l.target_key as duplicate_of
+from links l
+join issues_full i on i.item_id = l.item_id
+where l.type = 'Duplicate' and l.direction = 'inward'
+order by i.key
+```
+
 ## Full-text
 
 `gadak search` (and the REST/MCP search path) rewrites bare terms as FTS5 prefix
@@ -102,6 +164,26 @@ from comments c
 join issues i on i.item_id = c.item_id
 where c.body_text like '%rollback%'
 order by c.created_at desc limit 20
+```
+
+**Who was @-mentioned where.** A mention is an ADF node, not a word:
+`body_text` LIKE matches the word in prose (on the demo snapshot, comment
+text containing "mention" is sentences about mid-sentence mentions) and
+cannot resolve to a person. The node in `body_adf` carries the account id,
+which display text cannot. The demo snapshot carries no mention nodes — this
+fence returns zero rows there and is valid SQL (same contract as the
+custom-field fences below):
+
+```sql
+with recursive adf(node) as (
+  select body_adf from comments where body_adf is not null
+  union all
+  select child.value from adf, json_each(adf.node, '$.content') child
+)
+select json_extract(node, '$.attrs.id') as mentioned_id,
+       json_extract(node, '$.attrs.text') as mentioned_as
+from adf
+where json_extract(node, '$.type') = 'mention'
 ```
 
 ## Team shape
@@ -139,6 +221,20 @@ panel runs on the same axis):
 select i.key, i.kind, substr(c.body_text, 1, 80) as opening, c.created_at
 from comments c join items i on i.id = c.item_id
 where c.author = 'Dana Whitfield'
+order by c.created_at desc limit 20
+```
+
+**The same question keyed on `author_id`.** The fence above filters on a
+display name — right for a skim, wrong as a key: names rename, and a
+colliding name is two people. `comments.author_id` is the stable one (the
+actor slug on standalone and paired workspaces, the origin's account id on
+Cloud), the same column the other write surfaces key on:
+
+```sql
+-- ids on this mirror: select distinct author_id, author from comments
+select i.key, i.kind, substr(c.body_text, 1, 80) as opening, c.created_at
+from comments c join items i on i.id = c.item_id
+where c.author_id = 'demo-dana'
 order by c.created_at desc limit 20
 ```
 
@@ -214,6 +310,51 @@ where sprint_state = 'active'
   and assignee_id = '<id from the person lookup>'
   and status_category != 'done'
 order by priority_rank, updated_at desc
+```
+
+## Epics, components, and due dates
+
+**Everything under one epic.** `epic_key` is derived at sync time — the
+nearest `hierarchy_level = 1` ancestor reached through `parent_key` — and
+recomputed on every sync, a column the origin does not expose as data at
+all. `parent_key` stays the *immediate* parent (a sub-task points at its
+story); `epic_key` is the epic either way:
+
+```sql
+select key, status_category, priority_rank, summary
+from issues_full
+where epic_key = 'NMB-194'
+order by status_category, priority_rank, key
+```
+
+**Open work per epic** — the roll-up of that drill-down, biggest first:
+
+```sql
+select epic_key, count(*) from issues_full
+where resolved_at is null and epic_key <> ''
+group by epic_key order by 2 desc
+```
+
+**Open work per component.** `components` is a JSON array the way
+`fix_versions` is — one row per issue per component:
+
+```sql
+select c.value as component, count(*) as open_issues
+from issues_full i, json_each(i.components) c
+where json_valid(i.components) and i.status_category != 'done'
+group by c.value order by open_issues desc
+```
+
+**Overdue and not done.** `duedate` is the origin's date-only string, so
+the string comparison against `date('now')` is exact — no `julianday`
+needed:
+
+```sql
+select key, summary, duedate
+from issues_full
+where duedate is not null and duedate < date('now')
+  and status_category != 'done'
+order by duedate
 ```
 
 ## Releases
