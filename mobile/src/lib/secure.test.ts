@@ -104,4 +104,58 @@ describe('Keychain key freeze', () => {
     expect(rs).toMatch(/Some\("terminal"\) => Ok\(TOKEN_KEY_TERMINAL\)/)
     expect(rs).toMatch(/Some\(_\) => Err\("unknown token kind"/)
   })
+
+  it('composes host-keyed slots and rejects every other host id (GDK-1097 B1)', () => {
+    const rs = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), '../../src-tauri/src/lib.rs'),
+      'utf8',
+    )
+    expect(rs).toMatch(/fn token_slot\(kind: Option<&str>, host: Option<&str>\) -> Result<String, String>/)
+    expect(rs).toMatch(/None => Ok\(base\.to_string\(\)\)/)
+    expect(rs).toMatch(/Some\(h\) if valid_host_id\(h\) => Ok\(format!\("\{base\}@\{h\}"\)\)/)
+    expect(rs).toMatch(/Some\(_\) => Err\("unknown host id"\.into\(\)\)/)
+    expect(rs).toMatch(/fn valid_host_id\(host: &str\) -> bool/)
+  })
+})
+
+describe('host-keyed slots (GDK-1097 B1)', () => {
+  it('composes the dev slot as <dev slot>@<hostId>, the Keychain shape', () => {
+    expect(devSlot('serve', 'local')).toBe('gadak.dev.token@local')
+    expect(devSlot('terminal', 'paired:0123abcd')).toBe('gadak.dev.token.terminal@paired:0123abcd')
+  })
+
+  it('leaves the slot key untouched when no hostId is given', () => {
+    expect(devSlot('serve', undefined)).toBe('gadak.dev.token')
+    expect(devSlot()).toBe('gadak.dev.token')
+    expect(devSlot('terminal')).toBe('gadak.dev.token.terminal')
+  })
+
+  it('stores and reads a host-keyed token without touching the legacy slot', async () => {
+    await tokenSet('<serve-token>')
+    await tokenSet('<host-serve-token>', 'serve', 'paired:0123abcd')
+    expect(mem.get('gadak.dev.token')).toBe('<serve-token>')
+    expect(mem.get('gadak.dev.token@paired:0123abcd')).toBe('<host-serve-token>')
+    expect(await tokenGet()).toBe('<serve-token>')
+    expect(await tokenGet('serve', 'paired:0123abcd')).toBe('<host-serve-token>')
+  })
+
+  it('deletes one host slot without touching the others', async () => {
+    await tokenSet('<legacy>', 'serve')
+    await tokenSet('<local>', 'serve', 'local')
+    await tokenSet('<paired>', 'serve', 'paired:0123abcd')
+    await tokenDel('serve', 'local')
+    expect(await tokenGet('serve', 'local')).toBeNull()
+    expect(await tokenGet('serve', 'paired:0123abcd')).toBe('<paired>')
+    expect(await tokenGet('serve')).toBe('<legacy>')
+  })
+
+  it('throws on a hostId that could splice the slot string', async () => {
+    await expect(tokenGet('serve', 'paired:0123ABCD')).rejects.toThrow('unknown host id')
+    await expect(tokenGet('serve', 'x@y')).rejects.toThrow('unknown host id')
+    await expect(tokenGet('serve', 'local!')).rejects.toThrow('unknown host id')
+    await expect(tokenSet('t', 'serve', 'pairing-token@evil')).rejects.toThrow('unknown host id')
+    await expect(tokenDel('serve', '../../etc')).rejects.toThrow('unknown host id')
+    // Nothing was composed or stored along the way.
+    expect([...mem.keys()].filter((k) => k.includes('@')).length).toBe(0)
+  })
 })

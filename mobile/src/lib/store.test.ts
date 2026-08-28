@@ -14,8 +14,17 @@ vi.mock('./api', async (importOriginal) => {
 })
 
 import { request } from './api'
+import { hostIdForEndpoint } from './hosts'
 import { tokenGet, tokenSet } from './secure'
-import { app, issuesBootKind, searchPaint, showOfflineBanner, sync, unpair } from './store.svelte'
+import {
+  app,
+  boot,
+  issuesBootKind,
+  searchPaint,
+  showOfflineBanner,
+  sync,
+  unpair,
+} from './store.svelte'
 
 const mem = new Map<string, string>()
 
@@ -312,5 +321,122 @@ describe('sync() — failed bootstrap settles, and does not write the snapshot',
     const raw = mem.get('gadak.snapshot')
     expect(raw).toBeTruthy()
     expect(JSON.parse(raw as string).issues[0].issue_key).toBe('STD-2')
+  })
+})
+
+describe('boot() legacy→roster migration (GDK-1097 B1) — no failure path unpairs', () => {
+  // Keychain is simulated on the dev path (localStorage dev slots), the
+  // same convention secure.test.ts uses. Endpoints are TEST-NET.
+  const EP = 'http://192.0.2.10:7877'
+
+  function seedLegacyPairing(): void {
+    localStorage.setItem(
+      'gadak.pairing.meta',
+      JSON.stringify({ endpoint: EP, label: 'desk', expires_at: '' }),
+    )
+    localStorage.setItem(
+      'gadak.pairing.meta.terminal',
+      JSON.stringify({ endpoint: EP, label: 'desk shell', expires_at: '' }),
+    )
+  }
+
+  /** Replaces the mem storage with one whose setItem throws for chosen keys. */
+  function breakSetItem(forKeys: (key: string) => boolean): void {
+    globalThis.localStorage = {
+      getItem: (k: string) => mem.get(k) ?? null,
+      setItem: (k: string, v: string) => {
+        if (forKeys(k)) throw new Error('storage write refused')
+        mem.set(k, v)
+      },
+      removeItem: (k: string) => {
+        mem.delete(k)
+      },
+      clear: () => mem.clear(),
+      key: () => null,
+      length: 0,
+    } as Storage
+  }
+
+  it('success: verified copy, roster row, legacy slots retired, paired entry', async () => {
+    seedLegacyPairing()
+    await tokenSet('placeholder-serve-token', 'serve')
+    await tokenSet('placeholder-terminal-token', 'terminal')
+    vi.mocked(request).mockRejectedValue(new ApiError('network', 0))
+    const hostId = await hostIdForEndpoint(EP)
+
+    await boot()
+
+    expect(app.phase).toBe('paired')
+    // Token now lives in the host slot — value equality, never a log.
+    expect(mem.get(`gadak.dev.token@${hostId}`)).toBe('placeholder-serve-token')
+    expect(mem.get(`gadak.dev.token.terminal@${hostId}`)).toBe('placeholder-terminal-token')
+    // Legacy slots retired.
+    expect(mem.get('gadak.dev.token')).toBeUndefined()
+    expect(mem.get('gadak.dev.token.terminal')).toBeUndefined()
+    // One roster row, active, revision 1.
+    const doc = JSON.parse(mem.get('gadak.hosts.v1') as string)
+    expect(doc.schema).toBe(1)
+    expect(doc.hosts).toHaveLength(1)
+    expect(doc.hosts[0].id).toBe(hostId)
+    expect(doc.hosts[0].pairingRevision).toBe(1)
+    expect(doc.hosts[0].label).toBe('desk')
+    expect(mem.get('gadak.hosts.active')).toBe(hostId)
+    // The terminal pairing rode along.
+    expect(app.terminal?.label).toBe('desk shell')
+  })
+
+  it('token copy fails: legacy preserved, no roster, boot still enters paired', async () => {
+    seedLegacyPairing()
+    await tokenSet('placeholder-serve-token', 'serve')
+    vi.mocked(request).mockRejectedValue(new ApiError('network', 0))
+    breakSetItem(() => true) // every write fails — tokenSet cannot land
+
+    await boot()
+
+    // Legacy untouched — this is the no-unpair guarantee.
+    expect(mem.get('gadak.dev.token')).toBe('placeholder-serve-token')
+    expect(await tokenGet('serve')).toBe('placeholder-serve-token')
+    expect(mem.get('gadak.hosts.v1')).toBeUndefined()
+    expect(mem.get('gadak.hosts.active')).toBeUndefined()
+    expect(app.phase).toBe('paired')
+  })
+
+  it('roster write fails quietly: legacy is NOT retired (read-back gate)', async () => {
+    seedLegacyPairing()
+    await tokenSet('placeholder-serve-token', 'serve')
+    vi.mocked(request).mockRejectedValue(new ApiError('network', 0))
+    const hostId = await hostIdForEndpoint(EP)
+    // Token writes succeed; only the roster doc and the active pointer
+    // cannot land. A silent failure here must not delete the legacy slot
+    // — that path would strand boot with no token address at all.
+    breakSetItem((k) => k === 'gadak.hosts.v1' || k === 'gadak.hosts.active')
+
+    await boot()
+
+    expect(mem.get(`gadak.dev.token@${hostId}`)).toBe('placeholder-serve-token') // copy made
+    expect(mem.get('gadak.dev.token')).toBe('placeholder-serve-token') // legacy kept
+    expect(mem.get('gadak.hosts.v1')).toBeUndefined()
+    expect(app.phase).toBe('paired')
+  })
+
+  it('idempotent: a second boot does not re-migrate or resurrect legacy slots', async () => {
+    seedLegacyPairing()
+    await tokenSet('placeholder-serve-token', 'serve')
+    await tokenSet('placeholder-terminal-token', 'terminal')
+    vi.mocked(request).mockRejectedValue(new ApiError('network', 0))
+
+    await boot()
+    const afterFirst = JSON.parse(mem.get('gadak.hosts.v1') as string)
+
+    await boot()
+    const afterSecond = JSON.parse(mem.get('gadak.hosts.v1') as string)
+
+    expect(afterSecond.hosts).toHaveLength(1)
+    expect(afterSecond.hosts[0].id).toBe(afterFirst.hosts[0].id)
+    expect(afterSecond.hosts[0].createdAt).toBe(afterFirst.hosts[0].createdAt)
+    expect(afterSecond.hosts[0].pairingRevision).toBe(1)
+    expect(mem.get('gadak.dev.token')).toBeUndefined()
+    expect(mem.get('gadak.dev.token.terminal')).toBeUndefined()
+    expect(app.phase).toBe('paired')
   })
 })

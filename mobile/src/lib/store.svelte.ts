@@ -5,6 +5,15 @@
 import { configureApi, request, isPairingDead, ApiError } from './api'
 import { setDemoSession } from './demo'
 import { SCOPE_ME, feedAfterRead, type FeedResponse, type MarkFeedReadResponse } from './domain'
+import {
+  getActiveHostId,
+  hasHostsDoc,
+  hostIdForEndpoint,
+  removeHost,
+  setActiveHostId,
+  touchHost,
+  upsertHostFromPairing,
+} from './hosts'
 import { tokenGet, tokenSet, tokenDel } from './secure'
 import { probeShellPairing } from './terminal/api'
 import type {
@@ -174,10 +183,66 @@ function drop(key: string): void {
 
 /* ── boot ── */
 
-export async function boot(): Promise<void> {
+/**
+ * One-time legacy→roster migration (GDK-1097 B1). The no-unpair
+ * invariant is structural, not rolled back: everything risky happens
+ * BEFORE anything observable changes. The token is copied to its host
+ * slot and read back; only a verified copy earns the roster write, and
+ * only a verified roster (read back too — localStorage fails as quietly
+ * as a Keychain can) earns retiring the legacy address. Any failure
+ * leaves the phone exactly as it was — token at the legacy address, no
+ * gadak.hosts.v1 — so the next boot retries and the boot read below
+ * falls back to the legacy slot. No failure path unpairs.
+ */
+async function migrateLegacyPairing(): Promise<void> {
+  if (hasHostsDoc()) return
   const meta = readJSON<PairMeta>(META_KEY)
-  const token = await tokenGet()
+  if (!meta) return
+  let serveToken: string | null
+  try {
+    serveToken = await tokenGet('serve')
+  } catch {
+    return
+  }
+  if (serveToken === null) return
+  try {
+    const hostId = await hostIdForEndpoint(meta.endpoint)
+    await tokenSet(serveToken, 'serve', hostId)
+    if ((await tokenGet('serve', hostId)) !== serveToken) return
+    // The terminal token is keyed by its own meta's endpoint — the same
+    // id loadTerminal() derives — which is the serve's endpoint in the
+    // usual one-host case.
+    const termMeta = readJSON<PairMeta>(TERM_META_KEY)
+    const termToken = await tokenGet('terminal')
+    if (termToken !== null) {
+      const termHostId = await hostIdForEndpoint(termMeta?.endpoint ?? meta.endpoint)
+      await tokenSet(termToken, 'terminal', termHostId)
+      if ((await tokenGet('terminal', termHostId)) !== termToken) return
+    }
+    await upsertHostFromPairing({ endpoint: meta.endpoint, label: meta.label })
+    setActiveHostId(hostId)
+    // Read-back gate #2: the roster doc and the active pointer must be
+    // observable before the legacy address may die — a silently failed
+    // write here must not strand boot with no token address at all.
+    if (!hasHostsDoc() || getActiveHostId() !== hostId) return
+    await tokenDel('serve')
+    if (termToken !== null) await tokenDel('terminal')
+  } catch {
+    // Partial copies may remain in host slots (harmless duplicates of a
+    // value that still lives at the legacy address) — never a partial unpair.
+    return
+  }
+}
+
+export async function boot(): Promise<void> {
+  await migrateLegacyPairing()
+  const meta = readJSON<PairMeta>(META_KEY)
+  const activeHost = getActiveHostId()
+  // Active host → its slot; no roster yet (migration refused) → the
+  // legacy slot, which is where an unmigrated phone's token still lives.
+  const token = await tokenGet('serve', activeHost ?? undefined)
   if (meta && (token !== null || import.meta.env.DEV)) {
+    if (activeHost !== null && token !== null) touchHost(activeHost)
     // Dev sessions may hold a tokenless meta (proxy adoption below).
     await enterPaired(meta, token ?? '')
     return
@@ -208,6 +273,11 @@ export async function boot(): Promise<void> {
       await request<Me>('auth/me/', { session: { endpoint: '', token } })
       const adopted: PairMeta = { endpoint: '', label: 'This Mac (dev)', expires_at: '' }
       writeJSON(META_KEY, adopted)
+      // The roster learns the dev proxy too (id 'local'). No token copy:
+      // dev reads fall back to the shell's legacy Keychain peek by design
+      // (secure.ts dev rule), and the pointer only claims an unset slot.
+      const host = await upsertHostFromPairing({ endpoint: '', label: adopted.label })
+      if (getActiveHostId() === null) setActiveHostId(host.id)
       await enterPaired(adopted, token ?? '')
       return
     } catch {
@@ -360,7 +430,12 @@ export async function markGlanceAllRead(): Promise<void> {
 export async function pair(offer: { endpoint: string; token: string; expires_at: string; label: string }): Promise<void> {
   // Probe with the offered credential before storing anything.
   await request<Me>('auth/me/', { session: { endpoint: offer.endpoint, token: offer.token } })
-  await tokenSet(offer.token)
+  // Roster commit (GDK-1097 B1): host row, then the token in that host's
+  // slot, then the active pointer — the pointer never leads the token,
+  // so "active is set" always implies "its slot holds the token".
+  const host = await upsertHostFromPairing({ endpoint: offer.endpoint, label: offer.label })
+  await tokenSet(offer.token, 'serve', host.id)
+  setActiveHostId(host.id)
   const meta: PairMeta = { endpoint: offer.endpoint, label: offer.label, expires_at: offer.expires_at }
   writeJSON(META_KEY, meta)
   drop(UNPAIRED_KEY)
@@ -368,17 +443,29 @@ export async function pair(offer: { endpoint: string; token: string; expires_at:
 }
 
 export async function unpair(): Promise<void> {
+  const active = getActiveHostId()
   try {
-    await tokenDel()
+    await tokenDel('serve', active ?? undefined)
   } catch {
     // The meta is gone either way; a stale Keychain entry cannot re-pair by
     // itself because the unpaired flag blocks dev re-adoption.
+  }
+  if (active !== null) {
+    // Pre-migration phones keep their token at the legacy address —
+    // forgetting the server forgets every address the token ever lived at.
+    try {
+      await tokenDel('serve')
+    } catch {
+      /* same stance as above */
+    }
   }
   // The shell is a second token issued by the same serve, so forgetting the
   // server means forgetting both. Leaving it behind kept a live Bearer in the
   // Keychain and let loadTerminal() revive a Shell tab pointed at a server the
   // user had already unpaired from.
   await unpairTerminal()
+  if (active !== null) removeHost(active) // also drops the active pointer
+  setActiveHostId(null)
   drop(META_KEY)
   drop(CACHE_KEY)
   drop(VIEWS_KEY)
@@ -473,8 +560,16 @@ export function exitDemo(): void {
 /* ── terminal pairing (own token, own meta — DESIGN.md §10.1) ── */
 
 async function loadTerminal(): Promise<void> {
-  const token = await tokenGet('terminal')
   const meta = readJSON<PairMeta>(TERM_META_KEY)
+  // The terminal token is keyed by the terminal pairing's own endpoint
+  // (pairTerminal's rule) — the shell may point at a different host than
+  // the serve session. Legacy fallback covers a phone whose migration
+  // did not complete.
+  let token: string | null = null
+  if (meta) {
+    const hostId = await hostIdForEndpoint(meta.endpoint)
+    token = (await tokenGet('terminal', hostId)) ?? (await tokenGet('terminal'))
+  }
   if (token && meta) {
     terminalToken = token
     app.terminal = meta
@@ -495,7 +590,13 @@ export async function pairTerminal(offer: {
   label: string
 }): Promise<void> {
   await probeShellPairing(offer.endpoint, offer.token)
-  await tokenSet(offer.token, 'terminal')
+  // Roster commit: host row, then the terminal token in that host's slot.
+  // The active pointer belongs to the serve session (boot reads the serve
+  // token from the active host's slot) — it is claimed only when nothing
+  // else is active.
+  const host = await upsertHostFromPairing({ endpoint: offer.endpoint, label: offer.label })
+  await tokenSet(offer.token, 'terminal', host.id)
+  if (getActiveHostId() === null) setActiveHostId(host.id)
   const meta: PairMeta = {
     endpoint: offer.endpoint,
     label: offer.label,
@@ -507,10 +608,22 @@ export async function pairTerminal(offer: {
 }
 
 export async function unpairTerminal(): Promise<void> {
+  // The terminal token's slot is derived from the terminal meta's own
+  // endpoint (loadTerminal's rule) — read before the meta is dropped.
+  const termMeta = readJSON<PairMeta>(TERM_META_KEY)
+  const slotHost = termMeta ? await hostIdForEndpoint(termMeta.endpoint) : getActiveHostId() ?? undefined
   try {
-    await tokenDel('terminal')
+    await tokenDel('terminal', slotHost)
   } catch {
     /* meta is gone either way */
+  }
+  if (slotHost !== undefined) {
+    // Legacy residue (pre-migration phones).
+    try {
+      await tokenDel('terminal')
+    } catch {
+      /* same stance */
+    }
   }
   drop(TERM_META_KEY)
   terminalToken = null

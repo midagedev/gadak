@@ -23,7 +23,8 @@ use tauri_plugin_secure_storage::{OptionsRequest, SecureStorageExt};
 
 /// Secure-store entry for the serve-scope pairing token. Frozen: renaming
 /// it silently unpairs every already-paired phone. endpoint/label are not
-/// secrets and stay in localStorage (mobile/src/lib/settings.ts).
+/// secrets and stay in localStorage (mobile/src/lib/store.svelte.ts
+/// META_KEY).
 const TOKEN_KEY_SERVE: &str = "pairing-token";
 /// Second slot: a Bearer whose pairing scope is exactly `terminal`.
 const TOKEN_KEY_TERMINAL: &str = "pairing-token-terminal";
@@ -36,6 +37,36 @@ fn token_key(kind: Option<&str>) -> Result<&'static str, String> {
         None | Some("serve") => Ok(TOKEN_KEY_SERVE),
         Some("terminal") => Ok(TOKEN_KEY_TERMINAL),
         Some(_) => Err("unknown token kind".into()),
+    }
+}
+
+/// Roster host ids (mobile/src/lib/hosts.ts): the dev-proxy 'local', or
+/// 'paired:' + 8 lowercase hex. Lockstep with the TS-side regex in
+/// secure.ts — same posture as token_key: anything else is an error, so a
+/// crafted id can never splice arbitrary text into a Keychain key.
+fn valid_host_id(host: &str) -> bool {
+    if host == "local" {
+        return true;
+    }
+    match host.strip_prefix("paired:") {
+        Some(hex) => {
+            hex.len() == 8
+                && hex.chars().all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c))
+        }
+        None => false,
+    }
+}
+
+/// Resolves the Keychain key, optionally host-keyed (GDK-1097 B1): no
+/// host → the frozen legacy key (the address every pre-B1 phone's pairing
+/// lives at); a valid roster host id → "<key>@<hostId>". An invalid host
+/// id is an error, never a silent fallback to the legacy slot.
+fn token_slot(kind: Option<&str>, host: Option<&str>) -> Result<String, String> {
+    let base = token_key(kind)?;
+    match host {
+        None => Ok(base.to_string()),
+        Some(h) if valid_host_id(h) => Ok(format!("{base}@{h}")),
+        Some(_) => Err("unknown host id".into()),
     }
 }
 
@@ -55,10 +86,14 @@ fn token_options(key: &str) -> OptionsRequest {
 
 /// Reads a pairing token; None when that slot was never written.
 #[tauri::command]
-async fn token_get(app: tauri::AppHandle, kind: Option<String>) -> Result<Option<String>, String> {
-    let key = token_key(kind.as_deref())?;
+async fn token_get(
+    app: tauri::AppHandle,
+    kind: Option<String>,
+    host: Option<String>,
+) -> Result<Option<String>, String> {
+    let key = token_slot(kind.as_deref(), host.as_deref())?;
     app.secure_storage()
-        .get_item(app.clone(), token_options(key))
+        .get_item(app.clone(), token_options(&key))
         .map(|r| r.data)
         .map_err(|e| e.to_string())
 }
@@ -69,8 +104,9 @@ async fn token_set(
     app: tauri::AppHandle,
     token: String,
     kind: Option<String>,
+    host: Option<String>,
 ) -> Result<(), String> {
-    let key = token_key(kind.as_deref())?;
+    let key = token_slot(kind.as_deref(), host.as_deref())?;
     let opts = serde_json::from_value(serde_json::json!({
         "prefixedKey": key,
         "sync": false,
@@ -86,10 +122,14 @@ async fn token_set(
 
 /// Deletes a pairing token (unpair).
 #[tauri::command]
-async fn token_del(app: tauri::AppHandle, kind: Option<String>) -> Result<(), String> {
-    let key = token_key(kind.as_deref())?;
+async fn token_del(
+    app: tauri::AppHandle,
+    kind: Option<String>,
+    host: Option<String>,
+) -> Result<(), String> {
+    let key = token_slot(kind.as_deref(), host.as_deref())?;
     app.secure_storage()
-        .remove_item(app.clone(), token_options(key))
+        .remove_item(app.clone(), token_options(&key))
         .map(|_| ())
         .map_err(|e| e.to_string())
 }
