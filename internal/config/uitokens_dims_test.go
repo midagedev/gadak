@@ -218,10 +218,11 @@ func TestUIDimensionsSettingsRoundtrip(t *testing.T) {
 		t.Fatalf("error should point at ui.tokens: %v", err)
 	}
 	// Unknown wrapper axes refuse with the valid list — a typo must not
-	// silently drop the payload.
+	// silently drop the payload. (List updated for the fonts axis,
+	// GDK-896 R4.)
 	if err := set.Set(c, []byte(`{"radius":{"sm":"4px"}}`)); err == nil {
 		t.Fatal("unknown axis accepted")
-	} else if !strings.Contains(err.Error(), "colors, spacing, layout, type") {
+	} else if !strings.Contains(err.Error(), "colors, spacing, layout, type, fonts") {
 		t.Fatalf("error should teach the axis list: %v", err)
 	}
 }

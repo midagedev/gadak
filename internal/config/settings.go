@@ -400,14 +400,15 @@ func buildSettings() []Setting {
 			Root: "ui",
 			Description: "token overrides: colors {\"accent\": \"#7a4bd0\"} for every palette; " +
 				"dimensions {\"spacing\": {\"row\": \"44px\"}, \"layout\": {\"sidebar\": \"280px\"}, " +
-				"\"type\": {\"heading\": \"24px\"}} apply to every palette — a set replaces the " +
+				"\"type\": {\"heading\": \"24px\"}} and fonts {\"mono-terminal\": \"Menlo, monospace\"} " +
+				"apply to every palette — a set replaces the " +
 				"whole object; to update one axis only, set ui.tokens.colors / ui.tokens.spacing / " +
-				"ui.tokens.layout / ui.tokens.type (key-wise merge); to update one token, set " +
+				"ui.tokens.layout / ui.tokens.type / ui.tokens.fonts (key-wise merge); to update one token, set " +
 				"ui.tokens.<axis>.<name> to a scalar (unparseable values and the " +
 				"derived layout.docked-min refuse; locked tiers and contrast/range/relation " +
 				"judgments warn and save; discover color " +
 				"names with `gadak config get ui.tokens.catalog`, dimension names with " +
-				"`gadak config get ui.tokens.dim-catalog`)",
+				"`gadak config get ui.tokens.dim-catalog`, font tokens: mono-terminal)",
 			Get: func(c *Config) any {
 				if c.UI == nil || c.UI.Tokens == nil {
 					return UITokens{}
@@ -432,6 +433,8 @@ func buildSettings() []Setting {
 		uiTokenLeafTemplate("layout"),
 		uiTokenAxisSetting("type"),
 		uiTokenLeafTemplate("type"),
+		uiTokenAxisSetting("fonts"),
+		uiTokenLeafTemplate("fonts"),
 		{
 			Path: "ui.tokensByTheme",
 			Root: "ui",
@@ -1141,6 +1144,7 @@ var uiTokenAxisExamples = map[string]string{
 	"spacing": `{"row": "44px"}`,
 	"layout":  `{"sidebar": "280px"}`,
 	"type":    `{"heading": "24px"}`,
+	"fonts":   `{"mono-terminal": "Menlo, monospace"}`,
 }
 
 // uiTokenAxisSetting builds one ui.tokens.<axis> entry. The whole-object
@@ -1203,6 +1207,8 @@ func uiTokenAxisMap(t *UITokens, axis string) map[string]string {
 		return t.Spacing
 	case "layout":
 		return t.Layout
+	case "fonts":
+		return t.Fonts
 	default: // "type"
 		return t.Type
 	}
@@ -1253,10 +1259,12 @@ func mergeUITokenAxis(cur *UITokens, axis string, patch map[string]*string) *UIT
 		next.Spacing = merged
 	case "layout":
 		next.Layout = merged
+	case "fonts":
+		next.Fonts = merged
 	default:
 		next.Type = merged
 	}
-	if len(next.Colors)+len(next.Spacing)+len(next.Layout)+len(next.Type) == 0 {
+	if len(next.Colors)+len(next.Spacing)+len(next.Layout)+len(next.Type)+len(next.Fonts) == 0 {
 		return nil
 	}
 	return next
@@ -1264,8 +1272,8 @@ func mergeUITokenAxis(cur *UITokens, axis string, patch map[string]*string) *UIT
 
 // uiTokenAxisNames is the closed set of ui.tokens.<axis> keys. Leaf paths
 // ui.tokens.<axis>.<name> resolve against this list so the catalog listing
-// stays four template rows instead of one row per token (GDK-853).
-var uiTokenAxisNames = []string{"colors", "spacing", "layout", "type"}
+// stays one template row per axis instead of one row per token (GDK-853).
+var uiTokenAxisNames = []string{"colors", "spacing", "layout", "type", "fonts"}
 
 // uiTokenLeafExamples is the scalar body each axis leaf template teaches.
 // Values are ones a real set accepts alone (same source as uiTokenAxisExamples,
@@ -1275,6 +1283,7 @@ var uiTokenLeafExamples = map[string]struct{ name, value string }{
 	"spacing": {"row", "44px"},
 	"layout":  {"sidebar", "280px"},
 	"type":    {"terminal", "15px"},
+	"fonts":   {"mono-terminal", "Menlo, monospace"},
 }
 
 func uiTokenLeafTemplate(axis string) Setting {
@@ -1306,12 +1315,18 @@ func uiTokenDiscovery(axis string) string {
 	if axis == "colors" {
 		return "`gadak config get ui.tokens.catalog`"
 	}
+	if axis == "fonts" {
+		return "`gadak config get ui.tokens.fonts` (one token: mono-terminal, the terminal pane stack)"
+	}
 	return "`gadak config get ui.tokens.dim-catalog`"
 }
 
 func uiTokenRules(axis string) string {
 	if axis == "colors" {
 		return "unparseable values refuse; locked tiers and contrast/ΔEok judgments warn and save"
+	}
+	if axis == "fonts" {
+		return "values that do not parse as a font stack refuse — comma-separated families (1-8, at most 256 characters total), each a bare identifier (Menlo) or a quoted name ('JetBrains Mono'); no warn tier exists"
 	}
 	return "unparseable lengths and the derived docked-min refuse; range and relation judgments warn and save"
 }
@@ -1330,6 +1345,10 @@ func knownUITokenName(axis, name string) (string, bool) {
 			return "", false
 		}
 		return strings.TrimPrefix(name, "--color-"), true
+	}
+	if axis == "fonts" {
+		bare, _, ok := uiFontToken(name)
+		return bare, ok
 	}
 	want, ok := tokencheck.DimTokenOf(axis, name)
 	if !ok {

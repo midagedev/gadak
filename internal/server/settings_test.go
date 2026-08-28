@@ -751,6 +751,56 @@ func TestWebConfigUIDimensionVars(t *testing.T) {
 	}
 }
 
+func TestWebConfigUIFonts(t *testing.T) {
+	// GDK-896 R4: the ui block carries the font overrides as a sibling of
+	// dims — one palette-agnostic map, cssVar → stack, already filtered by
+	// UIFontVars. Anonymous decode target pins the JSON wire shape (what
+	// user-tokens.ts parses), like the dims test above. A separate field,
+	// not keys inside dims: the web's dim filters assume numeric values, and
+	// a web build that predates fonts simply ignores the new key.
+	cfg := &config.Config{UI: &config.UIConfig{Tokens: &config.UITokens{
+		Fonts: map[string]string{
+			"mono-terminal": "'JetBrains Mono', Menlo, monospace",
+			"no-such-font":  "Menlo",   // unknown name: dropped by UIFontVars
+			"serif":         "Menlo;}", // grammar failure: dropped by UIFontVars
+		},
+	}}}
+	doc, err := WebConfig(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got struct {
+		UI struct {
+			Fonts map[string]string `json:"fonts"`
+		} `json:"ui"`
+	}
+	if err := json.Unmarshal(doc, &got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got.UI.Fonts) != 1 || got.UI.Fonts["--font-mono-terminal"] != "'JetBrains Mono', Menlo, monospace" {
+		t.Errorf("ui.fonts = %+v, want exactly the catalogued, grammar-passing stack", got.UI.Fonts)
+	}
+
+	// Nil UI still yields a present, empty fonts map — the web binds to it
+	// the same way it binds to vars and dims. Fresh decode target for the
+	// same reason as the dims test.
+	doc, err = WebConfig(&config.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var gotEmpty struct {
+		UI struct {
+			Fonts map[string]string `json:"fonts"`
+		} `json:"ui"`
+	}
+	if err := json.Unmarshal(doc, &gotEmpty); err != nil {
+		t.Fatal(err)
+	}
+	if gotEmpty.UI.Fonts == nil || len(gotEmpty.UI.Fonts) != 0 {
+		t.Errorf("nil-ui fonts = %v, want present empty map", gotEmpty.UI.Fonts)
+	}
+}
+
 func TestHumanBytes(t *testing.T) {
 	cases := []struct {
 		n    int64

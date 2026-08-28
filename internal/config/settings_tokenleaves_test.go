@@ -9,7 +9,7 @@ package config
  *
  *	contract                              assertion
  *	────────────────────────────────────  ─────────────────────────────────────
- *	four templates, not a token census    TestUITokenLeafListingIsTemplates
+ *	one template per axis, not a token census    TestUITokenLeafListingIsTemplates
  *	every catalog name resolves           TestUITokenLeafResolvesCatalogNames
  *	scalar set merges one key             TestUITokenLeafSetScalarMerges
  *	null deletes; get is override-or-null TestUITokenLeafGetAndNullDelete
@@ -56,6 +56,7 @@ func TestUITokenLeafListingIsTemplates(t *testing.T) {
 		"ui.tokens.spacing.<name>",
 		"ui.tokens.layout.<name>",
 		"ui.tokens.type.<name>",
+		"ui.tokens.fonts.<name>", // GDK-896 R4
 	}
 	if strings.Join(templates, ",") != strings.Join(wantTemplates, ",") {
 		t.Errorf("templates = %v, want %v", templates, wantTemplates)

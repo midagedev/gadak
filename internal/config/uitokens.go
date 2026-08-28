@@ -11,7 +11,9 @@ package config
 //	ui.tokens         {colors: {accent: "#7a4bd0", …},        every palette
 //	                   spacing: {row: "44px"},
 //	                   layout: {sidebar: "280px"},
-//	                   type: {body: "14px"}}                   dims: any palette
+//	                   type: {body: "14px"},
+//	                   fonts: {mono-terminal: "Menlo, monospace"}}
+//	                                                     spacing/layout/type/fonts: any palette
 //	ui.tokensByTheme  {dark: {colors: {accent: "#9a6be0"}}}   colors only
 //	ui.dataColors     {label: {urgent: "#c03030"},            per-data-key inks
 //	                   type: {10007: "#d07020"},
@@ -38,6 +40,12 @@ package config
 //     ui.tokensByTheme at the settings layer — a per-palette copy of a
 //     palette-free value is dead weight, and docked-min (the derived dock
 //     floor) is locked everywhere.
+//   - the fonts axis (GDK-896 R4) is palette-agnostic font stacks judged by
+//     validFontStack below — the one axis with no WARN tier for values: the
+//     grammar is a machine check with no judgment left inside (font
+//     existence is the CSS fallback chain's business), and it is what makes
+//     the web splice of the stored value safe. Refused inside
+//     ui.tokensByTheme like the dimension axes, for the same reason.
 //   - dataColors keys: `label.*` is the label text itself (labels are their
 //     own identifiers), `type.*` is a Jira issue_type_id (digits — display
 //     names localize per account and are refused), `status.*` is a
@@ -55,6 +63,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -63,14 +72,18 @@ import (
 
 // UITokens is one token override set. Colors are palette-scoped hex
 // overrides; the dimension axes (spacing, layout, type) are palette-agnostic
-// CSS lengths that ride the same wrapper but never the per-theme overlay.
+// CSS lengths; fonts is the string axis (GDK-896 R4) — palette-agnostic
+// font stacks whose grammar lives in this file, not in tokencheck. None of
+// the non-color axes ride the per-theme overlay.
 // Values are bare token names ("accent", "row") or CSS variable names
-// ("--color-accent", "--spacing-row") — tokencheck normalizes both.
+// ("--color-accent", "--spacing-row") — tokencheck normalizes both for
+// colors/dims, uiFontToken does it for fonts.
 type UITokens struct {
 	Colors  map[string]string `json:"colors,omitempty"`
 	Spacing map[string]string `json:"spacing,omitempty"`
 	Layout  map[string]string `json:"layout,omitempty"`
 	Type    map[string]string `json:"type,omitempty"`
+	Fonts   map[string]string `json:"fonts,omitempty"`
 }
 
 // UIConfig is the `ui` block of config.json. Nil means "nothing overridden"
@@ -234,9 +247,36 @@ func ValidateUIConfig(u *UIConfig) (warns []tokencheck.Violation, err error) {
 			addWarn(v)
 		}
 	}
-	// A hand-edited or newer-build config can park dimension axes inside a
-	// theme overlay (the struct has the fields); say so instead of
-	// pretending they render.
+	// The fonts axis (GDK-896 R4): unknown names carry with a warning like
+	// every axis (GDK-769 axis 3); a value outside the grammar refuses —
+	// the grammar is the machine check that keeps the web splice safe, and
+	// it has no WARN tier (see validFontStack).
+	if u.Tokens != nil && len(u.Tokens.Fonts) > 0 {
+		fontNames := make([]string, 0, len(u.Tokens.Fonts))
+		for name := range u.Tokens.Fonts {
+			fontNames = append(fontNames, name)
+		}
+		sort.Strings(fontNames)
+		for _, name := range fontNames {
+			value := strings.TrimSpace(u.Tokens.Fonts[name])
+			_, cssVar, known := uiFontToken(name)
+			if !known {
+				addWarn(tokencheck.Violation{
+					Token: strings.TrimSpace(name), Rule: "unknown-token", Severity: tokencheck.SeverityWarn,
+					Message: fmt.Sprintf("%s is not in the fonts catalog (%s); ignored (a newer catalog may have renamed it)",
+						strings.TrimSpace(name), strings.Join(fontCatalogNames(), ", ")),
+				})
+				continue
+			}
+			if !validFontStack(value) {
+				return warns, fmt.Errorf("ui tokens (fonts): %s: %q is not a font stack — comma-separated families (1-%d, at most %d characters total), each a bare identifier (Menlo, ui-monospace) or a quoted name ('JetBrains Mono')",
+					cssVar, truncate(value, 40), maxFontFamilies, maxFontStackLen)
+			}
+		}
+	}
+	// A hand-edited or newer-build config can park the palette-agnostic
+	// axes inside a theme overlay (the struct has the fields); say so
+	// instead of pretending they render.
 	themeKeys := make([]string, 0, len(u.TokensByTheme))
 	for p := range u.TokensByTheme {
 		themeKeys = append(themeKeys, p)
@@ -244,14 +284,14 @@ func ValidateUIConfig(u *UIConfig) (warns []tokencheck.Violation, err error) {
 	sort.Strings(themeKeys)
 	for _, palette := range themeKeys {
 		t := u.TokensByTheme[palette]
-		if t == nil || len(t.Spacing)+len(t.Layout)+len(t.Type) == 0 {
+		if t == nil || len(t.Spacing)+len(t.Layout)+len(t.Type)+len(t.Fonts) == 0 {
 			continue
 		}
 		addWarn(tokencheck.Violation{
 			Token:    palette,
-			Rule:     "dimensions-not-per-theme",
+			Rule:     "axes-not-per-theme",
 			Severity: tokencheck.SeverityWarn,
-			Message: fmt.Sprintf("ui.tokensByTheme[%q] carries dimension axes (spacing/layout/type); dimensions apply to every palette — kept for forward compatibility but not rendered; set them under ui.tokens",
+			Message: fmt.Sprintf("ui.tokensByTheme[%q] carries palette-agnostic axes (spacing/layout/type/fonts); they apply to every palette — kept for forward compatibility but not rendered; set them under ui.tokens",
 				palette),
 		})
 	}
@@ -498,6 +538,120 @@ func UIDimensionVars(u *UIConfig) (vars map[string]string, warns []tokencheck.Vi
 	return vars, warns
 }
 
+// ── the fonts axis (GDK-896 R4) ─────────────────────────────────────────────
+//
+// The terminal font stack becomes config: the token that owns the terminal
+// pane's family list (--font-mono-terminal, declared in app.css and read by
+// the xterm renderer) rides the same ui.tokens wrapper as colors and dims.
+// The catalog is a Go-owned table on purpose — dim-catalog.json is a numeric
+// contract (float + unit) that tokencheck parses, a font stack is a
+// free-form string, and mixing the two would break ParseValue/relations for
+// both sides.
+
+// uiFontTokens is the fonts-axis catalog: bare token name → CSS variable.
+// No defaults column exists: overrides only, the base stack keeps coming
+// from app.css (the same contract as every other axis).
+var uiFontTokens = map[string]string{
+	"mono-terminal": "--font-mono-terminal",
+}
+
+// fontCatalogNames lists the bare catalog names, sorted, for warning text.
+func fontCatalogNames() []string {
+	out := make([]string, 0, len(uiFontTokens))
+	for name := range uiFontTokens {
+		out = append(out, name)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// The fonts value grammar: a comma-separated family list — 1..8 families,
+// at most 256 characters in total, each family either a bare CSS identifier
+// or a quoted name (spaces live only inside quotes). REFUSE tier with no
+// WARN partner: the grammar exists because the web splices the stored value
+// into a <style> element as text, and every character that could carry CSS
+// structure (;{}()<>/\) is outside the accepted alphabets by construction —
+// what passes cannot inject. Whether a family exists on the machine is not
+// checkable here and stays the CSS fallback chain's business, which is why
+// there is nothing left to warn about.
+const (
+	maxFontFamilies = 8
+	maxFontStackLen = 256
+)
+
+var (
+	fontIdentRe       = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9-]{0,63}$`)
+	fontQuotedInnerRe = regexp.MustCompile(`^[A-Za-z0-9 _-]{1,64}$`)
+)
+
+// validFontStack judges one fonts-axis value against the grammar above. The
+// web mirrors it exactly (user-tokens.ts isFontStack) — keep the two in step
+// or the client belt and the write gate disagree about what renders.
+func validFontStack(v string) bool {
+	if v == "" || len(v) > maxFontStackLen {
+		return false
+	}
+	families := strings.Split(v, ",")
+	if len(families) > maxFontFamilies {
+		return false
+	}
+	for _, raw := range families {
+		f := strings.TrimSpace(raw)
+		if len(f) >= 2 && (f[0] == '\'' || f[0] == '"') && f[len(f)-1] == f[0] {
+			if !fontQuotedInnerRe.MatchString(f[1 : len(f)-1]) {
+				return false
+			}
+			continue
+		}
+		if !fontIdentRe.MatchString(f) {
+			return false
+		}
+	}
+	return true
+}
+
+// uiFontToken resolves one fonts-axis key to its catalog entry. Bare names
+// (mono-terminal) and CSS-variable spellings (--font-mono-terminal) both
+// resolve — the dim idiom (normalizeDimName); the stored key is the bare
+// name so a leaf set matches an axis JSON set of the same token.
+func uiFontToken(name string) (bare, cssVar string, ok bool) {
+	key := strings.TrimSpace(name)
+	if key == "" {
+		return "", "", false
+	}
+	if v, known := uiFontTokens[key]; known {
+		return key, v, true
+	}
+	for b, v := range uiFontTokens {
+		if v == key {
+			return b, v, true
+		}
+	}
+	return "", "", false
+}
+
+// UIFontVars expands the stored font overrides into the palette-agnostic CSS
+// variable map the web consumes: cssVar (--font-mono-terminal) → stack. The
+// sibling of UIDimensionVars without the advisories: with a one-token
+// catalog the drop cases (unknown name, grammar failure) are
+// self-explaining, and the load path never dies on a config written by a
+// newer build (GDK-769 axis 3) — unknown names and stale values drop and
+// the boot continues on the app.css base stack. Overrides only.
+func UIFontVars(u *UIConfig) map[string]string {
+	out := map[string]string{}
+	if u == nil || u.Tokens == nil {
+		return out
+	}
+	for name, value := range u.Tokens.Fonts {
+		_, cssVar, known := uiFontToken(name)
+		if !known || !validFontStack(strings.TrimSpace(value)) {
+			continue
+		}
+		out[cssVar] = strings.TrimSpace(value)
+	}
+	return out
+}
+
 // UIDataColors passes the stored data inks through the same value gate and
 // returns what may render. Keys were validated at write time; this is the
 // stale-schema defense for values that reached disk anyway.
@@ -550,13 +704,13 @@ func parseUITokens(path string, raw json.RawMessage) (*UITokens, error) {
 	}
 	var probe map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &probe); err != nil {
-		return nil, fmt.Errorf("%s must be an object of token→value, or {\"colors\": {…}, \"spacing\": {…}, \"layout\": {…}, \"type\": {…}}", path)
+		return nil, fmt.Errorf("%s must be an object of token→value, or {\"colors\": {…}, \"spacing\": {…}, \"layout\": {…}, \"type\": {…}, \"fonts\": {…}}", path)
 	}
 	for k := range probe {
 		switch k {
-		case "colors", "spacing", "layout", "type":
+		case "colors", "spacing", "layout", "type", "fonts":
 		default:
-			return nil, fmt.Errorf("%s: unknown axis %q — axes are colors, spacing, layout, type", path, k)
+			return nil, fmt.Errorf("%s: unknown axis %q — axes are colors, spacing, layout, type, fonts", path, k)
 		}
 	}
 	var wrapped struct {
@@ -564,6 +718,7 @@ func parseUITokens(path string, raw json.RawMessage) (*UITokens, error) {
 		Spacing map[string]string `json:"spacing"`
 		Layout  map[string]string `json:"layout"`
 		Type    map[string]string `json:"type"`
+		Fonts   map[string]string `json:"fonts"`
 	}
 	if err := json.Unmarshal(raw, &wrapped); err != nil {
 		return nil, fmt.Errorf("%s axes must map token names to values", path)
@@ -571,21 +726,21 @@ func parseUITokens(path string, raw json.RawMessage) (*UITokens, error) {
 	if wrapped.Colors == nil {
 		wrapped.Colors = map[string]string{}
 	}
-	return &UITokens{Colors: wrapped.Colors, Spacing: wrapped.Spacing, Layout: wrapped.Layout, Type: wrapped.Type}, nil
+	return &UITokens{Colors: wrapped.Colors, Spacing: wrapped.Spacing, Layout: wrapped.Layout, Type: wrapped.Type, Fonts: wrapped.Fonts}, nil
 }
 
 // parseThemeTokenOverlay parses one ui.tokensByTheme entry: colors only.
-// Dimension axes are palette-agnostic, so a per-theme copy could never
-// render; refusing here keeps the mistake next to the command that made it.
-// (The write gate still warns for such axes that reach config.json by other
-// roads — hand edits and newer builds.)
+// The palette-agnostic axes (dimensions, fonts) would never render as a
+// per-theme copy; refusing here keeps the mistake next to the command that
+// made it. (The write gate still warns for such axes that reach config.json
+// by other roads — hand edits and newer builds.)
 func parseThemeTokenOverlay(path string, raw json.RawMessage) (*UITokens, error) {
 	t, err := parseUITokens(path, raw)
 	if err != nil {
 		return nil, err
 	}
-	if t != nil && len(t.Spacing)+len(t.Layout)+len(t.Type) > 0 {
-		return nil, fmt.Errorf("%s: dimension axes (spacing/layout/type) apply to every palette — set them under ui.tokens, not per theme", path)
+	if t != nil && len(t.Spacing)+len(t.Layout)+len(t.Type)+len(t.Fonts) > 0 {
+		return nil, fmt.Errorf("%s: spacing/layout/type/fonts apply to every palette — set them under ui.tokens, not per theme", path)
 	}
 	return t, nil
 }

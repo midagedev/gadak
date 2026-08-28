@@ -29,6 +29,7 @@ import {
   applyUserTokens,
   buildUserTokenStyles,
   isDimValue,
+  isFontStack,
   isHexColor,
   parseUiDoc,
   userTokensStorageKeyFromPath,
@@ -285,6 +286,121 @@ describe('the boot cache carries dims (GDK-842)', () => {
     expect(parseUiDoc(JSON.parse(cached))!.dims).toEqual({ '--spacing-row': '48px' })
 
     applyUserTokens({ vars: {}, dims: {}, dataColors: {} })
+    expect(store.has(USER_TOKENS_STORAGE_KEY)).toBe(false)
+  })
+})
+
+describe('font overrides join the same palette-agnostic rule (GDK-896 R4)', () => {
+  it('isFontStack mirrors the server grammar — injection carriers drop, real stacks pass', () => {
+    // Stacks at the total-length boundary: 8 families (32 + 7×31 chars)
+    // joined by 7 commas = 256 exactly; one more char per family = 263.
+    const atCap = 'm'.repeat(32) + ',' + Array.from({ length: 7 }, () => 'm'.repeat(31)).join(',')
+    const overCap = 'm'.repeat(32) + ',' + Array.from({ length: 7 }, () => 'm'.repeat(32)).join(',')
+    expect(atCap).toHaveLength(256)
+    expect(overCap).toHaveLength(263)
+    for (const bad of [
+      'Menlo;}', // rule close
+      'Menlo}:root{--x:1', // rule open
+      'url(evil)', // function call
+      'Menlo, <script>', // html tag
+      '',
+      '   ',
+      '1Menlo', // leading digit
+      'Menlo mono', // unquoted space
+      "'unterminated",
+      "'JetBrains Mono\"'", // mismatched quote pair
+      'a, b, c, d, e, f, g, h, i', // nine families
+      overCap, // 263 characters
+      'm'.repeat(65), // one family over its 64-char cap
+    ]) {
+      expect(isFontStack(bad), JSON.stringify(bad)).toBe(false)
+    }
+    for (const good of [
+      'Menlo', // bare identifier
+      "'JetBrains Mono', Menlo, monospace", // quoted mixed stack
+      'ui-monospace, SFMono-Regular, Menlo, monospace', // hyphenated
+      '"SF Mono", Menlo',
+      '  Menlo ,  monospace  ', // untrimmed families
+      'a, b, c, d, e, f, g, h', // exactly 8
+      atCap, // exactly 256 characters
+      'm'.repeat(64), // one family at its 64-char cap
+    ]) {
+      expect(isFontStack(good), JSON.stringify(good)).toBe(true)
+    }
+  })
+
+  it('builds a :root rule from the fonts map, joined with dims after the cascade', () => {
+    const css = buildUserTokenStyles(
+      { light: { '--color-accent': '#7a4bd0' } },
+      { '--spacing-row': '48px' },
+      { '--font-mono-terminal': "'JetBrains Mono', Menlo, monospace" },
+    )
+    expect(css).toBe(
+      ':root{--color-accent:#7a4bd0;}' +
+        ':root{--spacing-row:48px;--font-mono-terminal:\'JetBrains Mono\', Menlo, monospace;}',
+    )
+  })
+
+  it('drops font entries whose name or value the server would have refused', () => {
+    const css = buildUserTokenStyles(
+      {},
+      {},
+      {
+        '--font-mono-terminal': 'Menlo', // fine
+        '--font-x': 'Menlo;}', // grammar failure
+        '--color-accent': '#7a4bd0', // color name inside the fonts map
+        '--spacing-row': '48px', // dim name inside the fonts map
+        'font-family': 'Menlo', // stray property
+        '--font-y': 42, // not a string
+      },
+    )
+    expect(css).toBe(':root{--font-mono-terminal:Menlo;}')
+  })
+
+  it('emits nothing for empty or malformed fonts', () => {
+    expect(buildUserTokenStyles({}, {}, {})).toBe('')
+    expect(buildUserTokenStyles({}, {}, null)).toBe('')
+    expect(buildUserTokenStyles({}, {}, 'nope')).toBe('')
+  })
+})
+
+describe('parseUiDoc carries the fonts axis', () => {
+  it('sanitizes fonts with the same name/value filters', () => {
+    const doc = parseUiDoc({
+      fonts: {
+        '--font-mono-terminal': 'Menlo, monospace',
+        '--font-bad': 'Menlo;}',
+        '--color-accent': '#7a4bd0',
+        'margin-left': '4px',
+      },
+    })
+    expect(doc!.fonts).toEqual({ '--font-mono-terminal': 'Menlo, monospace' })
+  })
+
+  it('defaults fonts to an empty object so callers never guard', () => {
+    expect(parseUiDoc({})!.fonts).toEqual({})
+  })
+})
+
+describe('the boot cache carries fonts (GDK-896 R4)', () => {
+  afterEach(() => {
+    applyUserTokens(null)
+    vi.unstubAllGlobals()
+  })
+
+  it('round-trips a fonts-only document and clears once everything is empty', () => {
+    const store = new Map<string, string>()
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+      removeItem: (k: string) => void store.delete(k),
+    })
+    applyUserTokens({ vars: {}, dims: {}, fonts: { '--font-mono-terminal': 'Menlo' }, dataColors: {} })
+    const cached = store.get(USER_TOKENS_STORAGE_KEY) ?? ''
+    expect(cached).toContain('"--font-mono-terminal":"Menlo"')
+    expect(parseUiDoc(JSON.parse(cached))!.fonts).toEqual({ '--font-mono-terminal': 'Menlo' })
+
+    applyUserTokens({ vars: {}, dims: {}, fonts: {}, dataColors: {} })
     expect(store.has(USER_TOKENS_STORAGE_KEY)).toBe(false)
   })
 })

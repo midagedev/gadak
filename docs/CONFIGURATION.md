@@ -293,7 +293,7 @@ gadak: ui.tokens.type.not-a-token is not a type token — discover names with `g
 A write to `ui.tokens` itself **still replaces the whole object** — include
 your colors in the same write
 (`{\"colors\":{\"accent\":\"#7a4bd0\"},\"spacing\":{…}}`) or they are
-dropped. That was already true for colors; with four axes it bites more
+dropped. That was already true for colors; with five axes it bites more
 often, which is why the axis paths above are the default recipe.
 
 **Validation: range + relations — warn and save.** Every
@@ -351,20 +351,42 @@ list-min + detail-min): a derived sum, not a runtime override — set those
 three and it is recomputed
 ```
 
-**Not per palette.** Dimension axes under `ui.tokensByTheme` are refused
-at the same command — a per-palette copy of a palette-free value could
-never render:
+**Not per palette.** The palette-agnostic axes — dimensions and fonts —
+under `ui.tokensByTheme` are refused at the same command: a per-palette
+copy of a palette-free value could never render:
 
 ```console
 $ gadak config set ui.tokensByTheme '{"dark":{"spacing":{"row":"44px"}}}'
-gadak: ui.tokensByTheme.dark: dimension axes (spacing/layout/type) apply to every
+gadak: ui.tokensByTheme.dark: spacing/layout/type/fonts apply to every
 palette — set them under ui.tokens, not per theme
 ```
 
 Unknown **axes** are refused up front (`axes are colors, spacing, layout,
-type`); unknown token **names** on the object paths are carried with a
+type, fonts`); unknown token **names** on the object paths are carried with a
 warning, never a refused save — same contract as colors. An unknown name
 on a **leaf** path is refused (see above).
+
+**The fonts axis (GDK-896 R4) — `mono-terminal`, the terminal pane
+stack.** `ui.tokens.fonts` carries font stacks where the other axes carry
+lengths. One token today: `mono-terminal`, the CSS variable
+`--font-mono-terminal` the xterm renderer reads when a terminal opens:
+
+```console
+$ gadak config set ui.tokens.fonts.mono-terminal "'JetBrains Mono', Menlo, monospace"
+"'JetBrains Mono', Menlo, monospace"
+```
+
+The value grammar is the one axis with **no warn tier**: a comma-separated
+list of 1–8 families, at most 256 characters in total, each family either a
+bare identifier (`Menlo`, `ui-monospace`) or a quoted name (`'JetBrains
+Mono'` — spaces only inside quotes). Anything else refuses, because the
+stored value is spliced into a `<style>` element as text and the grammar
+excludes every character that could carry CSS structure. Whether a family
+exists on your machine stays the CSS fallback chain's business — there is
+nothing to warn about. The change rides the same 500 ms ui-focus poll as
+the other axes, but an **open** terminal does not re-read font CSS (canvas
+renderer): the new stack applies from the next terminal open. The mobile
+app does not inherit font tokens.
 
 **Live reflection** rides the same 500 ms ui-focus poll as colors, and the
 dimensions recouple the JS geometry that used to own them as constants:
@@ -410,10 +432,10 @@ is nothing to say, and a client-supplied value is ignored.
 | `tokenVerifiedAt` | string (RFC3339) | _(empty)_ | Set by successful credential verify | Read-only side effect |
 | `tokenOwner` | string | _(empty)_ | Set by successful credential verify | Read-only side effect |
 | `appearance.theme` | string | empty → **system** | Settings theme picker / `gadak config set appearance.theme` | Immediate after reload; shape `[a-z0-9-]{1,32}` (see above) |
-| `ui.tokens` | `{colors: {token: hex}, spacing\|layout\|type: {token: length}}` | _(absent)_ | `gadak config set ui.tokens` / Settings PUT `ui` (no form editor yet) | Live, no reload — color-token overrides for every palette plus the palette-agnostic dimension axes (see above). Only parse/shape/derived refuse; tiers, contrast, ranges and relations warn and save. A set replaces the whole object |
-| `ui.tokens.<axis>` | `{token: hex or length}` (axis = `colors`, `spacing`, `layout`, `type`) | _(absent)_ | `gadak config set ui.tokens.<axis>` (CLI only) | Live, no reload — key-wise merge into one axis: named keys update, other keys/axes survive; `null` deletes a key, `{}` is a no-op |
-| `ui.tokens.<axis>.<name>` | hex or length scalar | _(absent)_ | `gadak config set ui.tokens.<axis>.<name>` (CLI only) | Live, no reload — one token into its axis as a bare scalar (`15px`, `#7a4bd0`); `null` deletes that key; unknown names are refused |
-| `ui.tokensByTheme` | `{palette: {colors: {token: hex}}}` | _(absent)_ | `gadak config set ui.tokensByTheme` / Settings PUT `ui` | Live, no reload — per-palette overlay, judged in that palette; colors only (dimension axes are refused) |
+| `ui.tokens` | `{colors: {token: hex}, spacing\|layout\|type: {token: length}, fonts: {token: stack}}` | _(absent)_ | `gadak config set ui.tokens` / Settings PUT `ui` (no form editor yet) | Live, no reload — color-token overrides for every palette plus the palette-agnostic dimension and font axes (see above). Only parse/shape/derived refuse; tiers, contrast, ranges and relations warn and save. A set replaces the whole object |
+| `ui.tokens.<axis>` | `{token: hex, length, or font stack}` (axis = `colors`, `spacing`, `layout`, `type`, `fonts`) | _(absent)_ | `gadak config set ui.tokens.<axis>` (CLI only) | Live, no reload — key-wise merge into one axis: named keys update, other keys/axes survive; `null` deletes a key, `{}` is a no-op |
+| `ui.tokens.<axis>.<name>` | hex, length, or font-stack scalar | _(absent)_ | `gadak config set ui.tokens.<axis>.<name>` (CLI only) | Live, no reload — one token into its axis as a bare scalar (`15px`, `#7a4bd0`, `Menlo, monospace`); `null` deletes that key; unknown names are refused |
+| `ui.tokensByTheme` | `{palette: {colors: {token: hex}}}` | _(absent)_ | `gadak config set ui.tokensByTheme` / Settings PUT `ui` | Live, no reload — per-palette overlay, judged in that palette; colors only (dimension and font axes are refused) |
 | `ui.dataColors` | `{label\|type\|status: {key: hex}}` | _(absent)_ | `gadak config set ui.dataColors` / Settings PUT `ui` | Live, no reload — per-data inks; `type` keys are issue type ids, `status` keys are status categories |
 | `projects` | string[] | `[]` (empty = every project this account can see) | Settings → Sources / `gadak init` / `gadak config set projects` | Next sync / list scope; UI reload after save |
 | `fields` | FieldSpec[] | `[]` | Auto on first full sync / `gadak fields --apply` / `gadak config set fields` (read-only on Settings GET as `fieldSpecs`) | Next sync ingest; `fieldUsage` on Settings is project→alias fill counts |
@@ -452,15 +474,16 @@ Most keys apply without restart; `syncIntervalSec` and
 
 ### `terminal` (behavior block)
 
-Terminal behavior lives in the `terminal` block; terminal style (size) lives
-in the design tokens. Both reach through the one `gadak config` verb, so an
-agent can set every terminal preference from the shell — the same promise a
+Terminal behavior lives in the `terminal` block; terminal style (size,
+family) lives in the design tokens. Both reach through the one `gadak
+config` verb, so an agent can set every terminal preference from the shell —
+the same promise a
 Ghostty config file makes. For Ghostty users, the mapping:
 
 | Ghostty (`~/.config/ghostty/config`) | gadak |
 | --- | --- |
 | `font-size` | `gadak config set ui.tokens.type.terminal 15px` (9–24px) |
-| `font-family` | not settable yet — the web token `--font-mono-terminal` owns the stack, fixed per theme |
+| `font-family` | `gadak config set ui.tokens.fonts.mono-terminal "'JetBrains Mono', Menlo, monospace"` (1–8 comma-separated families, at most 256 characters, each a bare identifier or a quoted name; an open terminal picks the change up on its next open) |
 | `scrollback-limit` (bytes) | `gadak config set terminal.scrollback 20000` (**lines**, 200–100000; `0` = 5000) |
 | `cursor-style-blink` | `gadak config set terminal.cursorBlink true` |
 | `command` | `gadak config set terminal.shell /bin/zsh` (absolute path; empty = `$SHELL`, else `/bin/sh`) |

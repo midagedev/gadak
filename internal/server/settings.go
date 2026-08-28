@@ -68,11 +68,12 @@ type webConfigDoc struct {
 	// Always sent. The UI must not infer this from an empty site URL — a
 	// hosted demo and an older document also have no site.
 	WorkspaceKind string `json:"workspaceKind"`
-	// UI is the server-merged color/dimension override block (GDK-786/791,
-	// GDK-842): the final per-palette CSS variable map, data inks, and the
-	// palette-agnostic dimension overrides, all already validated and
-	// filtered, so the web needs no catalog knowledge of its own. Warnings
-	// are load-time advisories (a downgrade met a renamed token), not errors.
+	// UI is the server-merged color/dimension/font override block
+	// (GDK-786/791, GDK-842, GDK-896 R4): the final per-palette CSS variable
+	// map, data inks, and the palette-agnostic dimension and font overrides,
+	// all already validated and filtered, so the web needs no catalog
+	// knowledge of its own. Warnings are load-time advisories (a downgrade
+	// met a renamed token), not errors.
 	UI *uiDoc `json:"ui"`
 	// ConfigVersion is the disk identity (mtime.size) of this profile's
 	// config.json. The ui-focus poll carries it too; the web refetches
@@ -86,10 +87,16 @@ type webConfigDoc struct {
 // tokensByTheme already merged in (theme wins); only overrides appear — base
 // values keep coming from app.css. Dims is cssVar → length/line-height
 // (GDK-842): palette-agnostic, overrides only, unknown/locked/invalid tokens
-// already filtered by UIDimensionVars.
+// already filtered by UIDimensionVars. Fonts is cssVar → font stack
+// (GDK-896 R4): palette-agnostic like dims, but a separate field on purpose —
+// the web's dim filters assume numeric values, and mixing kinds would make
+// both mirrors' name checks lie. Unknown names and grammar failures are
+// already dropped by UIFontVars; a web build that predates the field simply
+// ignores it.
 type uiDoc struct {
 	Vars       map[string]map[string]string `json:"vars"`
 	Dims       map[string]string            `json:"dims"`
+	Fonts      map[string]string            `json:"fonts"`
 	DataColors map[string]map[string]string `json:"dataColors"`
 	Warnings   []tokencheck.Violation       `json:"warnings,omitempty"`
 }
@@ -133,6 +140,7 @@ func webConfig(cfg *config.Config) webConfigDoc {
 		UI: &uiDoc{
 			Vars:       vars,
 			Dims:       dims,
+			Fonts:      config.UIFontVars(cfg.UI),
 			DataColors: config.UIDataColors(cfg.UI),
 			Warnings:   warns,
 		},

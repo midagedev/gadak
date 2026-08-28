@@ -23,6 +23,14 @@
  * viewport-regime's docked floor) so a dims change repaints and re-windows
  * in the same tick, not just the next reload.
  *
+ * GDK-896 R4 adds the fonts axis the same way: a palette-agnostic `fonts`
+ * map (--font-mono-terminal → "Menlo, monospace") that joins the same single
+ * :root rule. The grammar mirror (isFontStack) is load-bearing, not belt
+ * polish: the value is spliced into this element as text, and the grammar is
+ * what makes the splice inject-proof. The style half is CSS-only — an open
+ * xterm canvas does not re-read font CSS, so a change lands on the next
+ * terminal open (see renderer.ts fontFamily).
+ *
  * The server already refuses bad values at write time; the hex/var and dim
  * filters here are the client-side belt for hand-edited config.json files
  * and downgrades (a newer config naming tokens this build locks or renamed).
@@ -59,6 +67,10 @@ export interface UiTokenDoc {
    * tokens. Optional because documents predate the dim wave; parseUiDoc
    * always sets it (empty when the user overrides nothing). */
   dims?: Record<string, string>
+  /** CSS variable → font stack. Palette-agnostic (--font-mono-terminal →
+   * "Menlo, monospace"); the server's UIFontVars already dropped unknown
+   * names and grammar failures. Optional like dims for the same reason. */
+  fonts?: Record<string, string>
   /** Load-time advisories (unknown token after a downgrade, …). */
   warnings?: UiTokenWarning[]
 }
@@ -77,6 +89,17 @@ const DIM_NAME_RE = /^--(?:spacing|layout|text)-[a-z0-9-]+$/i
 // can never pass as a spacing, and "14px" never as a line-height.
 const DIM_PX_RE = /^[0-9]+(\.[0-9])?px$/
 const DIM_UNITLESS_RE = /^[0-9]+\.[0-9]{1,2}$/
+// Font names own their kind exactly like the dim prefixes: a --font-* name
+// inside dims is dropped, a --spacing-*/--color-* name inside fonts is
+// dropped, so neither map can launder the other's shape.
+const FONT_NAME_RE = /^--font-[a-z0-9-]+$/i
+// Font values, mirroring the server's validFontStack exactly (GDK-896 R4):
+// comma-separated families, 1..8 of them, at most 256 characters in total,
+// each a bare CSS identifier or a quoted name whose inner text is
+// [A-Za-z0-9 _-]. Everything that could carry CSS structure is outside
+// these alphabets by construction.
+const FONT_IDENT_RE = /^[A-Za-z][A-Za-z0-9-]{0,63}$/
+const FONT_QUOTED_INNER_RE = /^[A-Za-z0-9 _-]{1,64}$/
 
 /** #rgb/#rrggbb only — same rule the server's write gate applies. */
 export function isHexColor(v: unknown): v is string {
@@ -90,6 +113,23 @@ export function isDimValue(name: string, value: unknown): value is string {
     return DIM_UNITLESS_RE.test(value) && Number.parseFloat(value) > 0
   }
   return DIM_PX_RE.test(value) && Number.parseFloat(value) > 0
+}
+
+/** A fonts-axis value — the exact grammar the server write gate refuses on
+ *  (see FONT_*_RE). Quote characters must pair; commas split families. */
+export function isFontStack(v: unknown): v is string {
+  if (typeof v !== 'string' || v.length === 0 || v.length > 256) return false
+  const families = v.split(',')
+  if (families.length > 8) return false
+  for (const raw of families) {
+    const f = raw.trim()
+    if (f.length >= 2 && (f[0] === "'" || f[0] === '"') && f[f.length - 1] === f[0]) {
+      if (!FONT_QUOTED_INNER_RE.test(f.slice(1, -1))) return false
+      continue
+    }
+    if (!FONT_IDENT_RE.test(f)) return false
+  }
+  return true
 }
 
 /** Derive the boot-mirror key from a pathname. `/` and `/w/oss` stay distinct. */
@@ -122,6 +162,15 @@ function dimDeclarations(map: unknown): string {
   return out
 }
 
+function fontDeclarations(map: unknown): string {
+  if (!map || typeof map !== 'object') return ''
+  let out = ''
+  for (const [name, value] of Object.entries(map as Record<string, unknown>)) {
+    if (FONT_NAME_RE.test(name) && isFontStack(value)) out += `${name}:${value};`
+  }
+  return out
+}
+
 /**
  * The CSS text for one vars map, mirroring app.css's cascade: light at :root,
  * every other palette behind its data-theme attribute (dark included — an
@@ -131,8 +180,10 @@ function dimDeclarations(map: unknown): string {
  * The dims map (GDK-842) appends ONE palette-agnostic :root rule after the
  * cascade — lengths have no palette variants, and it must not sit inside a
  * data-theme block or a user with an explicit theme would lose the override.
+ * The fonts map (GDK-896 R4) joins that same trailing rule: stacks have no
+ * palette variants either.
  */
-export function buildUserTokenStyles(vars: unknown, dims?: unknown): string {
+export function buildUserTokenStyles(vars: unknown, dims?: unknown, fonts?: unknown): string {
   let css = ''
   if (vars && typeof vars === 'object') {
     const map = vars as Record<string, unknown>
@@ -146,8 +197,8 @@ export function buildUserTokenStyles(vars: unknown, dims?: unknown): string {
     const dark = declarations(map.dark)
     if (dark) css += `@media (prefers-color-scheme: dark){:root:not([data-theme='light']){${dark}}}`
   }
-  const dim = dimDeclarations(dims)
-  if (dim) css += `:root{${dim}}`
+  const tail = dimDeclarations(dims) + fontDeclarations(fonts)
+  if (tail) css += `:root{${tail}}`
   return css
 }
 
@@ -176,6 +227,16 @@ function parseDims(raw: unknown): UiTokenDoc['dims'] {
   return clean
 }
 
+/** Font map, sanitized the same way — names own the kind (FONT_NAME_RE). */
+function parseFonts(raw: unknown): UiTokenDoc['fonts'] {
+  const clean: Record<string, string> = {}
+  if (!raw || typeof raw !== 'object') return clean
+  for (const [name, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (FONT_NAME_RE.test(name) && isFontStack(value)) clean[name] = value
+  }
+  return clean
+}
+
 /** Defensive read of an untrusted `ui` document (cache, older servers). */
 export function parseUiDoc(raw: unknown): UiTokenDoc | null {
   if (!raw || typeof raw !== 'object') return null
@@ -183,6 +244,7 @@ export function parseUiDoc(raw: unknown): UiTokenDoc | null {
     vars: {},
     dataColors: parseDataColors((raw as Record<string, unknown>).dataColors),
     dims: parseDims((raw as Record<string, unknown>).dims),
+    fonts: parseFonts((raw as Record<string, unknown>).fonts),
   }
   const vars = (raw as Record<string, unknown>).vars
   if (vars && typeof vars === 'object') {
@@ -218,7 +280,12 @@ export function readCachedUserTokens(): UiTokenDoc | null {
 
 function writeUserTokensCache(doc: UiTokenDoc | null): void {
   try {
-    if (doc && (Object.keys(doc.vars).length > 0 || Object.keys(doc.dims ?? {}).length > 0)) {
+    if (
+      doc &&
+      (Object.keys(doc.vars).length > 0 ||
+        Object.keys(doc.dims ?? {}).length > 0 ||
+        Object.keys(doc.fonts ?? {}).length > 0)
+    ) {
       localStorage.setItem(userTokensStorageKey(), JSON.stringify(doc))
     } else {
       localStorage.removeItem(userTokensStorageKey())
@@ -262,7 +329,7 @@ export function applyUserTokens(doc: UiTokenDoc | null | undefined): void {
   invalidateRowMetrics()
   applyLayoutDimOverrides(clean?.dims ?? {})
   if (typeof document === 'undefined') return
-  const css = clean ? buildUserTokenStyles(clean.vars, clean.dims) : ''
+  const css = clean ? buildUserTokenStyles(clean.vars, clean.dims, clean.fonts) : ''
   let el = document.querySelector<HTMLStyleElement>(`style[${USER_TOKENS_STYLE_ATTR}]`)
   if (!el) {
     el = document.createElement('style')
