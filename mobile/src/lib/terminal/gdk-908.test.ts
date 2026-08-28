@@ -91,7 +91,15 @@ describe('GDK-908 host is a named control', () => {
     expect(host).toMatch(/role="textbox"/)
     expect(host).toMatch(/aria-label=\{t\('terminal\.title'\)\}/)
     expect(host).toMatch(/tabindex="0"/)
-    expect(shell).toMatch(/onpointerdown=\{focusIme\}/)
+    // GDK-899 renamed the pointerdown target: the handler now records focus
+    // provenance first (so a later drag can undo exactly this tap-focus),
+    // then makes the same focusIme() call this test has always pinned.
+    expect(shell).toMatch(/onpointerdown=\{onHostPointerDown\}/)
+    const pointer = shell.slice(
+      shell.indexOf('function onHostPointerDown'),
+      shell.indexOf('function onHostPointerDown') + 200,
+    )
+    expect(pointer).toContain('focusIme()')
   })
 })
 

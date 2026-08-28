@@ -26,6 +26,7 @@
   } from '../lib/terminal/keys'
   import { imeReduce, IME_INPUT_ATTRS, type ImeState } from '../lib/terminal/ime'
   import { createRenderer, type PhoneTerminalRenderer } from '../lib/terminal/renderer'
+  import { scrollGesture } from '../lib/terminal/scroll-gesture'
   import {
     classifyUnavailable,
     coerceDroppedReason,
@@ -474,6 +475,239 @@
     imeEl?.focus()
   }
 
+  // A tap on the terminal focuses the IME (existing behaviour); a drag must
+  // not, so pointerdown records whether the keyboard was already up before
+  // focusing — that provenance is what lets a later drag undo exactly this
+  // focus and never one the user brought up themselves.
+  function onHostPointerDown(): void {
+    imeHadFocus = document.activeElement === imeEl
+    focusIme()
+  }
+
+  // --- Touch scroll (GDK-899) ---------------------------------------------
+  // Ported from orca's surface gesture handlers (terminal-webview-html.ts):
+  // touch pixels accumulate in a sub-row offset and only whole rows are
+  // committed, so a slow drag keeps its fraction of a row instead of losing
+  // it at each commit. Sign: deltaY is `lastY - y`, so a downward finger
+  // pull (older rows revealed) is negative — the convention of xterm's
+  // scrollLines and of scroll-gesture.ts. The routing decision itself is the
+  // frozen pure module; this block only converts pixels to lines and
+  // dispatches the module's result.
+  const TAP_SLOP_PX = 8
+  const SCROLL_FRICTION = 0.972
+  const SCROLL_MIN_VEL_PX_PER_MS = 0.012
+  const SCROLL_FRAME_MS = 16
+  const SCROLL_INDICATOR_HIDE_MS = 550
+
+  let touchStartY = 0
+  let touchLastY = 0
+  let touchLastTime = 0
+  let touchAccumPx = 0
+  let scrollVelocity = 0
+  let touchMoved = false
+  let touchDead = false
+  let imeHadFocus = true
+  let momentumId: number | null = null
+  let scrollHideTimer: ReturnType<typeof setTimeout> | undefined
+  // What the last dispatched gesture was — decides indicator thumb vs hint
+  // without re-deriving the module's predicate over here.
+  let lastScrollKind: 'none' | 'scrollback' | 'inject' | 'hint' = 'none'
+
+  let scrollTrackEl = $state<HTMLElement | null>(null)
+  let scrollThumbEl = $state<HTMLElement | null>(null)
+  let scrollBadgeEl = $state<HTMLElement | null>(null)
+
+  function scrollCellHeight(): number {
+    const rows = renderer?.rows || 24
+    const h = hostEl?.clientHeight ?? 0
+    return rows > 0 && h > 0 ? h / rows : 0
+  }
+
+  function dispatchScrollLines(lines: number): void {
+    if (!renderer || lines === 0) return
+    const cols = renderer.cols || 80
+    const rows = renderer.rows || 24
+    const g = scrollGesture(lines, {
+      buffer: renderer.bufferType(),
+      mouse: renderer.mouseTrackingMode(),
+      // Centre cell: the module only needs it encodable (1..9999) — the
+      // gesture has no meaningful position of its own.
+      cell: { col: Math.max(1, Math.ceil(cols / 2)), row: Math.max(1, Math.ceil(rows / 2)) },
+    })
+    lastScrollKind = g.kind
+    if (g.kind === 'scrollback') renderer.scrollLines(g.lines)
+    else if (g.kind === 'inject') sendBytes(g.bytes)
+    updateScrollIndicator()
+  }
+
+  function commitWholeRows(): void {
+    const cellH = scrollCellHeight()
+    if (cellH <= 0) return
+    const lines = Math.trunc(touchAccumPx / cellH)
+    if (lines === 0) return
+    touchAccumPx -= lines * cellH
+    dispatchScrollLines(lines)
+  }
+
+  function updateTouchVelocity(deltaY: number, dtMs: number): void {
+    if (dtMs <= 0) return
+    const v = deltaY / dtMs
+    if (!Number.isFinite(v)) return
+    // Blend samples (orca): touchmove cadence is uneven, so momentum must
+    // not inherit a one-frame spike or stall.
+    scrollVelocity = scrollVelocity === 0 ? v : scrollVelocity * 0.55 + v * 0.45
+  }
+
+  function stopMomentum(): void {
+    if (momentumId !== null) {
+      cancelAnimationFrame(momentumId)
+      momentumId = null
+    }
+  }
+
+  function onTouchStart(e: TouchEvent): void {
+    stopMomentum()
+    touchAccumPx = 0
+    scrollVelocity = 0
+    touchMoved = false
+    // A second finger ends the gesture rather than starting a pinch: there is
+    // no zoom surface here (orca scales a transformed surface; gadak's xterm
+    // sits in the webview directly).
+    if (e.touches.length !== 1) {
+      touchDead = true
+      return
+    }
+    touchDead = false
+    touchStartY = e.touches[0].clientY
+    touchLastY = e.touches[0].clientY
+    touchLastTime = Date.now()
+  }
+
+  function onTouchMove(e: TouchEvent): void {
+    if (touchDead || e.touches.length !== 1) return
+    if (!renderer || !hostEl) return
+    e.preventDefault()
+    const y = e.touches[0].clientY
+    const now = Date.now()
+    const deltaY = touchLastY - y
+    if (!touchMoved && Math.abs(y - touchStartY) > TAP_SLOP_PX) {
+      touchMoved = true
+      // Undo this gesture's tap-focus: pointerdown runs before the first
+      // move can prove the touch is a drag, so without this a scroll started
+      // from a keyboard-down state would raise the keyboard mid-swipe.
+      if (!imeHadFocus) imeEl?.blur()
+    }
+    if (!touchMoved) {
+      touchLastY = y
+      touchLastTime = now
+      return
+    }
+    updateTouchVelocity(deltaY, now - touchLastTime)
+    touchLastY = y
+    touchLastTime = now
+    touchAccumPx += deltaY
+    commitWholeRows()
+  }
+
+  function onTouchEnd(e: TouchEvent): void {
+    if (e.touches.length > 0) return
+    const moved = touchMoved
+    touchDead = false
+    if (!moved || Math.abs(scrollVelocity) <= SCROLL_MIN_VEL_PX_PER_MS) return
+    momentumId = requestAnimationFrame(momentumStep)
+  }
+
+  function onTouchCancel(): void {
+    stopMomentum()
+    scrollVelocity = 0
+    touchDead = false
+    touchMoved = false
+  }
+
+  function momentumStep(): void {
+    momentumId = null
+    scrollVelocity *= SCROLL_FRICTION
+    if (Math.abs(scrollVelocity) < SCROLL_MIN_VEL_PX_PER_MS) return
+    touchAccumPx += scrollVelocity * SCROLL_FRAME_MS
+    commitWholeRows()
+    momentumId = requestAnimationFrame(momentumStep)
+  }
+
+  // Transient scroll affordance (GDK-899 decision 3), geometry ported from
+  // orca's #scroll-indicator. A swipe on the phone terminal is a pure scroll
+  // gesture — it never injects arrows, because the arrow keys are their own
+  // dedicated bar (keys.ts). So there are three outcomes to surface:
+  //   scrollback → a position thumb from the live viewport (normal buffer);
+  //   hint       → an "arrow keys scroll this" badge (an alternate-screen TUI
+  //                with no scrollback and no wheel target — touch cannot move
+  //                it, the ↑↓ keys can);
+  //   inject     → nothing (a wheel report went to a mouse-aware TUI, which
+  //                paints its own scroll; a local overlay would just lie).
+  function updateScrollIndicator(): void {
+    const track = scrollTrackEl
+    const thumb = scrollThumbEl
+    const badge = scrollBadgeEl
+    if (!track || !thumb || !badge || lastScrollKind === 'none') return
+    if (lastScrollKind === 'inject') {
+      thumb.style.display = 'none'
+      badge.style.display = 'none'
+      track.classList.remove('visible')
+      return
+    }
+    if (lastScrollKind === 'hint') {
+      thumb.style.display = 'none'
+      badge.style.display = ''
+      badge.textContent = '↑↓'
+    } else {
+      badge.style.display = 'none'
+      thumb.style.display = ''
+      if (hostEl) {
+        const vp = renderer?.viewport() ?? { viewportY: 0, baseY: 0 }
+        const rows = renderer?.rows || 24
+        const trackH = Math.max(0, hostEl.clientHeight - 8)
+        const totalRows = vp.baseY + rows
+        if (trackH > 0 && vp.baseY > 0 && totalRows > 0) {
+          const thumbH = Math.max(24, (trackH * rows) / totalRows)
+          const maxTop = Math.max(0, trackH - thumbH)
+          thumb.style.height = `${thumbH}px`
+          thumb.style.transform = `translateY(${(vp.viewportY / vp.baseY) * maxTop}px)`
+        }
+      }
+    }
+    track.classList.add('visible')
+    if (scrollHideTimer !== undefined) clearTimeout(scrollHideTimer)
+    scrollHideTimer = setTimeout(() => {
+      track.classList.remove('visible')
+      scrollHideTimer = undefined
+    }, SCROLL_INDICATOR_HIDE_MS)
+  }
+
+  $effect(() => {
+    if (app.tab !== 'shell') return
+    const el = hostEl
+    if (!el) return
+    // Non-passive touchmove: preventDefault is what keeps the webview's own
+    // rubber-banding out of the gesture (orca attaches the same way).
+    el.addEventListener('touchstart', onTouchStart, { passive: true })
+    el.addEventListener('touchmove', onTouchMove, { passive: false })
+    el.addEventListener('touchend', onTouchEnd, { passive: true })
+    el.addEventListener('touchcancel', onTouchCancel, { passive: true })
+    return () => {
+      el.removeEventListener('touchstart', onTouchStart)
+      el.removeEventListener('touchmove', onTouchMove)
+      el.removeEventListener('touchend', onTouchEnd)
+      el.removeEventListener('touchcancel', onTouchCancel)
+      stopMomentum()
+      // A tab switch inside the 550ms hide window would otherwise leave the
+      // indicator stuck visible when the tab comes back.
+      if (scrollHideTimer !== undefined) {
+        clearTimeout(scrollHideTimer)
+        scrollHideTimer = undefined
+      }
+      scrollTrackEl?.classList.remove('visible')
+    }
+  })
+
   $effect(() => {
     if (app.tab !== 'shell') return
     if (!hostEl) return
@@ -522,9 +756,13 @@
         aria-multiline="true"
         aria-label={t('terminal.title')}
         tabindex="0"
-        onpointerdown={focusIme}
+        onpointerdown={onHostPointerDown}
         onfocus={focusIme}
       ></div>
+      <div class="scroll-indicator" bind:this={scrollTrackEl} aria-hidden="true">
+        <div class="scroll-thumb" bind:this={scrollThumbEl}></div>
+        <div class="scroll-badge" bind:this={scrollBadgeEl}></div>
+      </div>
       {#if status.kind === 'connecting'}
         <div class="connecting" data-testid="terminal-status" role="status">
           <span class="paper"></span>
@@ -655,6 +893,53 @@
   }
   .host :global(.xterm-viewport) {
     overflow-x: hidden;
+  }
+  /* xterm's own scrollbar is hidden (orca's rule, both selectors): the
+     transient indicator below replaces it, and a native scrollbar under a
+     touch gesture is the double-scroll this task removes. */
+  .host :global(.xterm-scrollable-element > .xterm-scrollbar),
+  .host :global(.xterm-scrollbar) {
+    display: none !important;
+    width: 0 !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+  .scroll-indicator {
+    position: absolute;
+    top: 4px;
+    right: 3px;
+    bottom: 4px;
+    width: 3px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 120ms linear;
+    z-index: 7;
+  }
+  .scroll-indicator.visible {
+    opacity: 0.72;
+  }
+  .scroll-thumb {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 3px;
+    min-height: 24px;
+    border-radius: 999px;
+    background: var(--color-text-secondary);
+    will-change: transform, height;
+  }
+  .scroll-badge {
+    position: absolute;
+    top: 50%;
+    right: 2px;
+    transform: translateY(-50%);
+    padding: 2px 5px;
+    border-radius: 999px;
+    background: var(--color-bg-elevated);
+    color: var(--color-text-secondary);
+    font-family: var(--font-mono);
+    font-size: var(--text-micro);
+    white-space: nowrap;
   }
   .status {
     flex: none;

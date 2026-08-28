@@ -12,6 +12,7 @@ import {
   type TerminalRenderer,
 } from '../../../../web/src/lib/terminal/protocol'
 import type { CursorKeyMode } from './keys'
+import type { BufferType, MouseTrackingMode } from './scroll-gesture'
 
 function cssVar(name: string, fallback: string): string {
   if (typeof document === 'undefined') return fallback
@@ -45,13 +46,21 @@ function chromeTheme(): {
 
 type TermHook = {
   /** Live DEC private modes; `modes` is xterm's public getter. */
-  modes?: { applicationCursorKeysMode?: boolean }
-  buffer: {
-    active: {
+  modes?: {
+    applicationCursorKeysMode?: boolean
+    /** xterm's union, kept as a plain string so a partial double still fits. */
+    mouseTrackingMode?: string
+  }
+  buffer?: {
+    active?: {
+      type?: string
       length: number
+      viewportY?: number
+      baseY?: number
       getLine(y: number): { translateToString(trimRight?: boolean): string } | undefined
     }
   }
+  scrollLines?(n: number): void
   cols: number
   rows: number
 }
@@ -83,6 +92,29 @@ function readCssVar(name: string): string {
   return cssVar(name, '')
 }
 
+/*
+ * GDK-899 — the scroll router's context reads, as pure filters. They exist
+ * separately from the renderer object because the contract is "a term that
+ * lacks the field reads the safe default, never throws": `window.__gadakTerm`
+ * is typed TermHook precisely so a partial double can sit there, and the
+ * wiring below optional-chains every read through these.
+ */
+
+/** Only xterm's four tracking modes count; anything else is no mouse interest. */
+export function readMouseTrackingMode(raw: unknown): MouseTrackingMode {
+  return raw === 'x10' || raw === 'vt200' || raw === 'drag' || raw === 'any' ? raw : 'none'
+}
+
+/** Alternate only when the active buffer says so — the default is the normal one. */
+export function readBufferType(raw: unknown): BufferType {
+  return raw === 'alternate' ? 'alternate' : 'normal'
+}
+
+/** A missing or non-finite offset is 0 — the indicator must not render NaN. */
+export function readBufferOffset(raw: unknown): number {
+  return typeof raw === 'number' && Number.isFinite(raw) ? raw : 0
+}
+
 export interface PhoneTerminalRenderer extends TerminalRenderer {
   /** Clear the local buffer so a ring replay is the scrollback, not a duplicate. */
   reset(): void
@@ -92,6 +124,14 @@ export interface PhoneTerminalRenderer extends TerminalRenderer {
    * keyboard path, so it has to ask for this — xterm cannot tell it.
    */
   cursorKeyMode(): CursorKeyMode
+  /** Live mouse-tracking mode for the scroll router (GDK-899). */
+  mouseTrackingMode(): MouseTrackingMode
+  /** Which buffer owns the screen — alternate-screen TUIs own their scroll. */
+  bufferType(): BufferType
+  /** Scroll the local viewport by n rows (xterm sign: negative = toward history). */
+  scrollLines(n: number): void
+  /** Viewport position for the scroll indicator thumb. */
+  viewport(): { viewportY: number; baseY: number }
 }
 
 export async function createRenderer(): Promise<PhoneTerminalRenderer> {
@@ -172,6 +212,21 @@ export async function createRenderer(): Promise<PhoneTerminalRenderer> {
       // Optional-chained on purpose: a test double that only implements
       // what it renders must read as 'normal', not throw at a keypress.
       return term.modes?.applicationCursorKeysMode ? 'application' : 'normal'
+    },
+    mouseTrackingMode() {
+      return readMouseTrackingMode(term.modes?.mouseTrackingMode)
+    },
+    bufferType() {
+      return readBufferType(term.buffer?.active?.type)
+    },
+    scrollLines(n: number) {
+      term.scrollLines?.(n)
+    },
+    viewport() {
+      return {
+        viewportY: readBufferOffset(term.buffer?.active?.viewportY),
+        baseY: readBufferOffset(term.buffer?.active?.baseY),
+      }
     },
     dispose() {
       unData.dispose()
