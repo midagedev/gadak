@@ -155,6 +155,50 @@ where u.account_type in ('agent', 'app')
 order by a.issue_key
 ```
 
+## What a session left
+
+**Everything one actor left, across all four write surfaces** — on a
+standalone or paired workspace every write records its actor
+(`GADAK_ACTOR`, or `claude:<session prefix>` auto-detected for Claude
+Code), so "what did the last session do" is a query, not archaeology.
+Issues and pages it created, comments it wrote, fields it moved, page
+versions it saved — one timeline, newest first. Swap in the actor id you
+are asking about (`gadak status --json` prints the current one under
+`actor.slug`); `issue_actors` above is the coarse first pass (which
+issues), this is the full answer (what, when):
+
+```sql
+select at, kind, ref, what from (
+  select it.created_at as at, it.kind, coalesce(i.key, it.key) as ref,
+         'created: ' || it.title as what
+  from items it left join issues i on i.item_id = it.id
+  where it.author_id = 'claude:354bff2b'
+  union all
+  select c.created_at, it.kind, coalesce(i.key, it.key),
+         'comment: ' || substr(c.body_text, 1, 80)
+  from comments c join items it on it.id = c.item_id
+  left join issues i on i.item_id = it.id
+  where c.author_id = 'claude:354bff2b'
+  union all
+  select g.at, it.kind, coalesce(i.key, it.key),
+         'changed ' || g.field || ': ' || coalesce(g.from_value, '')
+           || ' -> ' || coalesce(g.to_value, '')
+  from changelog g join items it on it.id = g.item_id
+  left join issues i on i.item_id = it.id
+  where g.author_id = 'claude:354bff2b'
+  union all
+  select v.created_at, 'page', it.key,
+         'edited v' || v.number || coalesce(': ' || v.message, '')
+  from page_versions v join items it on it.id = v.item_id
+  where v.author_id = 'claude:354bff2b' and v.number > 1
+) order by at desc limit 50
+```
+
+For `kind = 'page'` the ref is the origin page id (`items.key` — what
+`gadak page edit` takes). Page version 1 is excluded — it is the same
+event as the `created:` row. On a connected Cloud workspace the same
+query works with the Atlassian `accountId` as the author id.
+
 ## This sprint
 
 **My open work in the active sprint.** Key on `sprint_state` (or `sprint_id`),

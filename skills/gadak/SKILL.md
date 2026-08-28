@@ -430,6 +430,14 @@ value wins over it). The actor reaches only the standalone/paired origin —
 never a connected Cloud site or any other outbound request. Without one,
 writes attribute to the workspace's default user, exactly as before.
 
+The attribution is queryable — "what did the previous session leave" is
+one query, not archaeology across four tables. Every write surface carries
+`author_id` (`items` for created issues and pages, `comments`, `changelog`,
+`page_versions`), so filter each on the actor slug and union the results;
+the ready-made timeline query is in `docs/RECIPES.md` under "What a
+session left". The current session's slug is `actor.slug` in
+`gadak status --json`.
+
 When several agents work one backlog, claiming is a write, not a comment
 convention: `gadak claim <KEY>` takes an issue as yours — assignee plus the
 in-progress transition in one step — and refuses (exit 75, the holder's
