@@ -5,8 +5,14 @@
  *
  * Mapping and retry live as plain functions in ./session so this suite can
  * exercise them without mounting TerminalPane.svelte (vitest unit is node,
- * no svelte plugin — same constraint as skeleton-grace.test.ts). The pane
- * is scanned for the call sites those functions must actually reach.
+ * no svelte plugin — same constraint as skeleton-grace.test.ts).
+ *
+ * GDK-989: the call-site scans that used to live here (indexOf + slice
+ * order over the pane source) are gone — they broke on harmless refactors
+ * and stayed green when the called result was ignored. What they pointed
+ * at is the plain-function tests below; the pane wiring itself has no
+ * unit-level assertion left (a mount harness is a lead-level call). The
+ * skeleton scan stays: it pins shared-module usage, not a call order.
  */
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -77,20 +83,6 @@ describe('GDK-944 first-attach retry', () => {
     expect(firstAttachRetryDelayMs(1)).toBeNull()
     expect(firstAttachRetryDelayMs(2)).toBeNull()
   })
-
-  test('the pane calls that retry before it is allowed to conclude unavailable', () => {
-    const src = paneSrc()
-    const idx = src.indexOf('neverOpened && opts.afterCreate')
-    expect(idx, 'onClose still has the afterCreate neverOpened branch').toBeGreaterThan(-1)
-    const slice = src.slice(idx, idx + 900)
-    expect(slice, 'must consult firstAttachRetryDelayMs').toContain('firstAttachRetryDelayMs')
-    expect(slice, 'retry must show the existing reconnecting state').toMatch(/kind:\s*'reconnecting'/)
-    const unavailableAt = slice.search(/kind:\s*'unavailable'/)
-    const retryAt = slice.indexOf('firstAttachRetryDelayMs')
-    expect(unavailableAt, 'unavailable still in the afterCreate branch').toBeGreaterThan(-1)
-    expect(retryAt, 'retry decision').toBeGreaterThan(-1)
-    expect(retryAt, 'retry must be decided before unavailable is concluded').toBeLessThan(unavailableAt)
-  })
 })
 
 describe('GDK-944 restart is offered only where it can succeed', () => {
@@ -107,31 +99,6 @@ describe('GDK-944 restart is offered only where it can succeed', () => {
     expect(droppedAllowsRestart('idle_timeout')).toBe(true)
     expect(droppedAllowsRestart('server_shutdown')).toBe(true)
     expect(droppedAllowsRestart('closed')).toBe(true)
-  })
-
-  test('Enter-to-restart reaches unavailable, gated on unavailableAllowsRestart', () => {
-    const src = paneSrc()
-    const start = src.indexOf('renderer.onData')
-    expect(start, 'renderer.onData handler').toBeGreaterThan(-1)
-    const body = src.slice(start, src.indexOf('renderer.onResize', start))
-    expect(body).toMatch(/phase === 'unavailable'|phase === 'ended' \|\| phase === 'unavailable'/)
-    expect(body).toContain('unavailableAllowsRestart')
-  })
-
-  test('token_revoked does not append terminal.restartHint', () => {
-    const src = paneSrc()
-    const start = src.indexOf("status.kind === 'dropped'}")
-    expect(start, 'dropped status template branch').toBeGreaterThan(-1)
-    const next = src.indexOf('{:else if', start + 1)
-    const branch = src.slice(start, next === -1 ? start + 500 : next)
-    expect(branch).toContain('droppedAllowsRestart')
-    expect(branch).toContain('terminal.mintHint')
-    // restartHint may still appear, but only behind the allows-restart gate.
-    const hint = branch.indexOf('terminal.restartHint')
-    const gate = branch.indexOf('droppedAllowsRestart')
-    expect(hint, 'restartHint still in the dropped branch').toBeGreaterThan(-1)
-    expect(gate).toBeGreaterThan(-1)
-    expect(gate, 'gate must wrap restartHint').toBeLessThan(hint)
   })
 })
 

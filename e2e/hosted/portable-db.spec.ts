@@ -13,30 +13,36 @@ import { test, expect } from '@playwright/test'
  * The build asserts portability too (tools/hosted-demo/build.mjs), but a
  * build-time check cannot see a copy that never reached the artifact, and
  * that is the failure this issue was about.
+ *
+ * GDK-990: the body is ~9 MB and both tests assert on the same bytes, so it
+ * is fetched once in beforeAll and shared — each test used to pull its own
+ * full copy. `request` in beforeAll is the dashboards.spec.ts precedent.
  */
 
 const DB_PATH = '/demo/gadak-demo.db'
 
+let db: Buffer
+
+test.beforeAll(async ({ request }) => {
+  const res = await request.get(DB_PATH)
+  expect(res.status(), `${DB_PATH} must be published in dist/hosted`).toBe(200)
+  db = Buffer.from(await res.body())
+})
+
 test.describe('GDK-975 the demo mirror is downloadable', () => {
-  test('the URL answers with a SQLite file, not an HTML 404 page', async ({ request }) => {
-    const res = await request.get(DB_PATH)
-    expect(res.status(), `${DB_PATH} must be published in dist/hosted`).toBe(200)
-    const body = await res.body()
+  test('the URL answers with a SQLite file, not an HTML 404 page', () => {
     // A missing file on a static host is an HTML page with status 200 on some
     // setups, so assert the format, not the status alone.
     expect(
-      body.subarray(0, 15).toString('latin1'),
+      db.subarray(0, 15).toString('latin1'),
       'not a SQLite 3 database — check what the build copied',
     ).toBe('SQLite format 3')
     // Guard against an empty or truncated copy; the fixture is ~9 MB.
-    expect(body.length).toBeGreaterThan(1_000_000)
+    expect(db.length).toBeGreaterThan(1_000_000)
   })
 
-  test('the published FTS is the portable one, or Datasette Lite cannot open it', async ({
-    request,
-  }) => {
-    const body = await request.get(DB_PATH).then((r) => r.body())
-    const text = body.toString('latin1')
+  test('the published FTS is the portable one, or Datasette Lite cannot open it', () => {
+    const text = db.toString('latin1')
     expect(text, 'no items_fts — this is not a gadak mirror').toContain(
       'CREATE VIRTUAL TABLE items_fts',
     )

@@ -55,6 +55,10 @@
   let status = $state<Status>({ kind: 'none' })
   let attached = $state(false)
   let dragging = $state(false)
+  // The pane's one data sink, filled by onMount. Keystrokes and the status
+  // line's click arrive here as the same bytes, so there is one Enter path
+  // (GDK-991), not an Enter branch plus a click branch to keep in step.
+  let sendTerminalData: ((bytes: Uint8Array) => void) | null = null
 
   const widthPx = $derived(terminalChrome.widthPx)
   const connectingGrace = createSkeletonGrace(() => !attached && status.kind === 'none')
@@ -74,6 +78,18 @@
   function unavailableKey(cause: UnavailableCause): (typeof UNAVAILABLE_KEYS)[UnavailableCause] {
     return UNAVAILABLE_KEYS[cause]
   }
+
+  /*
+   * GDK-991: where a restart can actually succeed, the status line is the
+   * click affordance the phone's status bar already is. Same verdicts the
+   * Enter path applies — every status these gates reject stays plain text
+   * (and announced, role="status").
+   */
+  const statusRestartable = $derived(
+    status.kind === 'exited' ||
+      (status.kind === 'unavailable' && unavailableAllowsRestart(status.cause)) ||
+      (status.kind === 'dropped' && droppedAllowsRestart(status.reason)),
+  )
 
   onMount(() => {
     let cancelled = false
@@ -233,6 +249,32 @@
       }, delay)
     }
 
+    /*
+     * The one data sink (GDK-991): the renderer's keystrokes and the status
+     * line's click — which synthesizes the same CR byte a pressed Enter
+     * produces — run the same gates and the same restart. A click can only
+     * arrive where statusRestartable already said yes, but the gates stay:
+     * the sink does not trust its caller.
+     */
+    function handleTerminalData(bytes: Uint8Array): void {
+      if (phase === 'ended' || phase === 'unavailable') {
+        const enter = bytes.length === 1 && (bytes[0] === 13 || bytes[0] === 10)
+        if (enter) {
+          if (status.kind === 'unavailable' && !unavailableAllowsRestart(status.cause)) return
+          if (status.kind === 'dropped' && !droppedAllowsRestart(status.reason)) return
+          status = { kind: 'none' }
+          phase = 'live'
+          reconnectSince = 0
+          reconnectAttempt = 0
+          void startNew().catch(onCreateFail)
+        }
+        return
+      }
+      if (phase !== 'live') return
+      socket?.send(bytes)
+    }
+    sendTerminalData = handleTerminalData
+
     async function boot(): Promise<void> {
       if (!hostEl) return
       renderer = await createRenderer()
@@ -250,23 +292,7 @@
         cursorBlink: TERMINAL_CURSOR_BLINK_FALLBACK,
       })
       renderer.fit()
-      renderer.onData((bytes) => {
-        if (phase === 'ended' || phase === 'unavailable') {
-          const enter = bytes.length === 1 && (bytes[0] === 13 || bytes[0] === 10)
-          if (enter) {
-            if (status.kind === 'unavailable' && !unavailableAllowsRestart(status.cause)) return
-            if (status.kind === 'dropped' && !droppedAllowsRestart(status.reason)) return
-            status = { kind: 'none' }
-            phase = 'live'
-            reconnectSince = 0
-            reconnectAttempt = 0
-            void startNew().catch(onCreateFail)
-          }
-          return
-        }
-        if (phase !== 'live') return
-        socket?.send(bytes)
-      })
+      renderer.onData(handleTerminalData)
       renderer.onResize((cols, rows) => {
         lastCols = cols
         lastRows = rows
@@ -306,6 +332,7 @@
       detachSocket()
       renderer?.dispose()
       renderer = null
+      sendTerminalData = null
       // Keep the session id. The grace reaps it if nobody reopens and
       // nothing is running under it.
     }
@@ -327,6 +354,16 @@
     }
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', up)
+  }
+
+  /*
+   * GDK-991: a click on the status line is a pressed Enter key — the same
+   * byte through the same data sink, so the restart gates and the restart
+   * itself cannot drift apart. The phone's status bar does the same
+   * (mobile/src/screens/Shell.svelte, onStatusActivate).
+   */
+  function onStatusActivate(): void {
+    sendTerminalData?.(new Uint8Array([13]))
   }
 </script>
 
@@ -392,11 +429,7 @@
     {/if}
   </div>
   {#if status.kind !== 'none'}
-    <div
-      class="flex-none border-t border-border-subtle bg-bg-panel px-3 py-1.5 text-body text-text-secondary"
-      data-testid="terminal-status"
-      role="status"
-    >
+    {#snippet statusLine()}
       {#if status.kind === 'reconnecting'}
         {t('terminal.reconnecting')}
       {:else if status.kind === 'exited'}
@@ -419,7 +452,34 @@
           <span class="text-text-muted"> · {t('terminal.restartHint')}</span>
         {/if}
       {/if}
-    </div>
+    {/snippet}
+    <!--
+      GDK-991: where a restart can succeed, the status line is the button the
+      phone's status bar already is — same copy, same classes; the additions
+      are the pointer cursor and text-left, which undoes the button's own
+      centered default so the div rendering is preserved. The states a
+      restart cannot help (reconnecting, token_revoked, unsupported) stay a
+      div role="status" — the live announcement a button role cannot carry
+      (mobile Shell.svelte splits the same way).
+    -->
+    {#if statusRestartable}
+      <button
+        type="button"
+        class="flex-none cursor-pointer border-t border-border-subtle bg-bg-panel px-3 py-1.5 text-left text-body text-text-secondary"
+        data-testid="terminal-status"
+        onclick={onStatusActivate}
+      >
+        {@render statusLine()}
+      </button>
+    {:else}
+      <div
+        class="flex-none border-t border-border-subtle bg-bg-panel px-3 py-1.5 text-body text-text-secondary"
+        data-testid="terminal-status"
+        role="status"
+      >
+        {@render statusLine()}
+      </div>
+    {/if}
   {/if}
   {#if !overlay}
     <button

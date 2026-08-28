@@ -1,12 +1,16 @@
 /*
  * GDK-960: same `at` is applied once. App.svelte cannot be mounted in the
  * vitest unit project (no svelte plugin — skeleton-grace.test.ts /
- * gdk-944.test.ts). The apply decision lives here; the suite also scans
- * App.svelte for the call sites.
+ * gdk-944.test.ts), so the apply decision lives here as plain functions.
+ *
+ * GDK-989: the App.svelte substring scan this file carried is gone. The
+ * wiring half ("App calls these") cannot be asserted without a mount, and
+ * half of what it pinned was a name that no longer exists anywhere — a
+ * regression to it is an import error, which typecheck already is. What
+ * made the wiring safe is asserted directly instead: the focus poll the
+ * app runs every 500ms degrades to an empty poll on every way the
+ * endpoint can disappoint, so the loop cannot be thrown out of.
  */
-import { readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import {
   UI_FOCUS_KEY,
@@ -15,16 +19,7 @@ import {
   shouldApplyUIFocus,
   uiFocusKey,
 } from './ui-focus'
-
-const HERE = dirname(fileURLToPath(import.meta.url))
-const APP = join(HERE, '../App.svelte')
-
-function appSrc(): string {
-  return readFileSync(APP, 'utf8')
-    .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/^\s*\/\/.*$/gm, '')
-}
+import { pollUIFocus } from './api'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -112,13 +107,62 @@ describe('GDK-960 last-applied key storage', () => {
   })
 })
 
-describe('GDK-960 App.svelte calls the apply-once helpers', () => {
-  test('applyFocus uses pollUIFocus and the at gate', () => {
-    const src = appSrc()
-    expect(src).toContain('pollUIFocus')
-    expect(src).not.toContain('takeUIFocus')
-    expect(src).toContain('shouldApplyUIFocus')
-    expect(src).toContain('readLastFocusKey')
-    expect(src).toContain('rememberFocusKey')
+describe('GDK-960 the focus poll degrades, never throws', () => {
+  const EMPTY = { hash: null, at: '', configVersion: '' }
+
+  test('404 — serve without the endpoint — is the empty poll', async () => {
+    vi.stubGlobal('fetch', async () => new Response('no such route', { status: 404 }))
+    expect(await pollUIFocus()).toEqual(EMPTY)
+  })
+
+  test('204 — an older server with nothing pending — is the empty poll', async () => {
+    vi.stubGlobal('fetch', async () => new Response(null, { status: 204 }))
+    expect(await pollUIFocus()).toEqual(EMPTY)
+  })
+
+  test('an answered 5xx is the empty poll too: the loop keeps looping', async () => {
+    vi.stubGlobal(
+      'fetch',
+      async () =>
+        new Response('{"error":"boom"}', {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+    )
+    expect(await pollUIFocus()).toEqual(EMPTY)
+  })
+
+  test('a pending payload is mapped, not echoed', async () => {
+    vi.stubGlobal(
+      'fetch',
+      async () =>
+        new Response(
+          JSON.stringify({ hash: '#/?pj=NMA', at: '2026-08-29T00:00:00Z', configVersion: 'in-42' }),
+          { headers: { 'Content-Type': 'application/json' } },
+        ),
+    )
+    expect(await pollUIFocus()).toEqual({
+      hash: '#/?pj=NMA',
+      at: '2026-08-29T00:00:00Z',
+      configVersion: 'in-42',
+    })
+  })
+
+  test('a blank hash is null and a missing at is the empty string', async () => {
+    vi.stubGlobal(
+      'fetch',
+      async () =>
+        new Response(JSON.stringify({ hash: '  ', configVersion: 'in-42' }), {
+          headers: { 'Content-Type': 'application/json' },
+        }),
+    )
+    expect(await pollUIFocus()).toEqual({ hash: null, at: '', configVersion: 'in-42' })
+  })
+
+  test('a fetch throw is the empty poll', async () => {
+    vi.stubGlobal('fetch', async () => {
+      throw new TypeError('fetch failed')
+    })
+    expect(await pollUIFocus()).toEqual(EMPTY)
   })
 })
