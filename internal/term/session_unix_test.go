@@ -116,9 +116,52 @@ func TestSessionEnvAndDir(t *testing.T) {
 	}
 }
 
+// awaitTTYSize keeps asking the child for its own tty size until want shows
+// up in the output. One `stty size` plus a fixed wall-clock wait on its echo
+// is the shape that flaked under full-suite load (GDK-977/1007/1071): the
+// deadline was a bet on scheduling, not on the contract. The question is
+// idempotent — Setsize is a synchronous ioctl, so once Resize has returned
+// every later probe must answer with the new size — which makes re-asking
+// the state-based wait GDK-1007 calls for. The outer deadline only guards a
+// size that truly never arrives (a real defect, not load).
+func awaitTTYSize(t *testing.T, s *Session, a *Attachment, want string, within time.Duration) {
+	t.Helper()
+	deadline := time.Now().Add(within)
+	var got bytes.Buffer
+	for {
+		if _, err := s.Write([]byte("stty size\n")); err != nil {
+			t.Fatal(err)
+		}
+		probe := time.After(2 * time.Second)
+	drain:
+		for {
+			select {
+			case <-a.Wake():
+				got.Write(a.Take())
+				if strings.Contains(got.String(), want) {
+					return
+				}
+			case <-a.Done():
+				got.Write(a.Take())
+				if strings.Contains(got.String(), want) {
+					return
+				}
+				t.Fatalf("waiting for tty size %q; attachment ended with %q", want, got.String())
+			case <-probe:
+				break drain
+			}
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("waiting for tty size %q; got %q", want, got.String())
+		}
+	}
+}
+
 // ③ Resize must reach the child, not just the master: the renderer sends
 // a size and the program inside has to see it. Asking the child for its
-// own tty size is the only proof that matters.
+// own tty size is the only proof that matters. Asking it again rather than
+// trapping WINCH is deliberate: a WINCH trap in /bin/sh only runs between
+// commands, which would test the shell's trap scheduling, not the ioctl.
 func TestResizeReachesChild(t *testing.T) {
 	m := testManager(t, Config{})
 	s := shellSession(t, m, Options{Cols: 80, Rows: 24})
@@ -126,21 +169,11 @@ func TestResizeReachesChild(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.Write([]byte("stty size\n")); err != nil {
-		t.Fatal(err)
-	}
-	readUntil(t, a, "24 80", 10*time.Second)
+	awaitTTYSize(t, s, a, "24 80", 30*time.Second)
 	if err := s.Resize(132, 43); err != nil {
 		t.Fatal(err)
 	}
-	// Ask the child again rather than trapping WINCH: what has to be true
-	// is that the process inside the PTY now reads the new size. (A WINCH
-	// trap in /bin/sh only runs between commands, which makes it a test of
-	// the shell's trap scheduling, not of the ioctl.)
-	if _, err := s.Write([]byte("stty size\n")); err != nil {
-		t.Fatal(err)
-	}
-	readUntil(t, a, "43 132", 10*time.Second)
+	awaitTTYSize(t, s, a, "43 132", 30*time.Second)
 	if info := s.Info(); info.Cols != 132 || info.Rows != 43 {
 		t.Fatalf("Info after resize: %dx%d; want 132x43", info.Cols, info.Rows)
 	}
