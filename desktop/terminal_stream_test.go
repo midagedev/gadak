@@ -291,9 +291,54 @@ func TestTerminalStreamDataRoundtrip(t *testing.T) {
 	conn.dataUntil(t, "gdk892-ok")
 }
 
+// sizeUntil keeps asking the child for its own tty size until want shows up
+// in the data stream. One `stty size` plus dataUntil's fixed wall-clock
+// deadline is the shape that flaked under CI load (GDK-977/1007/1071): the
+// deadline was a bet on scheduling, not on the contract. The question is
+// idempotent — the resize ioctl is synchronous, so once it has been applied
+// every later probe must answer with the new size — which makes re-asking
+// the state-based wait. The outer deadline only guards a size that truly
+// never arrives (a real defect, not load).
+func (f *fakeConn) sizeUntil(t *testing.T, want string, within time.Duration) {
+	t.Helper()
+	deadline := time.Now().Add(within)
+	var got bytes.Buffer
+	for {
+		f.writeData([]byte("stty size\n"))
+		probe := time.After(2 * time.Second)
+	drain:
+		for {
+			select {
+			case frame := <-f.out:
+				if len(frame) == 0 {
+					t.Fatal("empty frame on the wire")
+				}
+				if frame[0] == termFrameCtrl {
+					t.Fatalf("unexpected control frame while waiting for %q: %s", want, frame[1:])
+				}
+				if frame[0] != termFrameData {
+					t.Fatalf("frame tag %#x; want %#x", frame[0], termFrameData)
+				}
+				got.Write(frame[1:])
+				if strings.Contains(got.String(), want) {
+					return
+				}
+			case <-probe:
+				break drain
+			}
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("waiting for tty size %q; got %q", want, got.String())
+		}
+	}
+}
+
 // ④ A resize control frame changes the size the *child* sees, not just the
 // master. Asking the child for its own tty size is the only proof that
 // matters (the same argument internal/term's TestResizeReachesChild makes).
+// Asking again rather than trapping WINCH is deliberate: a WINCH trap in
+// /bin/sh only runs between commands, which would test the shell's trap
+// scheduling, not the ioctl.
 func TestTerminalStreamResizeReachesChild(t *testing.T) {
 	if _, err := exec.LookPath("stty"); err != nil {
 		t.Skip("stty not found; the resize contract cannot be pinned here")
@@ -304,14 +349,10 @@ func TestTerminalStreamResizeReachesChild(t *testing.T) {
 	conn.serve(mgr)
 	attachOK(t, conn, sess.ID())
 
-	conn.writeData([]byte("stty size\n"))
-	conn.dataUntil(t, "24 80")
+	conn.sizeUntil(t, "24 80", 30*time.Second)
 
 	conn.writeCtrl(t, map[string]any{"t": "resize", "cols": 132, "rows": 43})
-	// Ask the child again rather than trapping WINCH: what has to be true is
-	// that the process inside the PTY now reads the new size.
-	conn.writeData([]byte("stty size\n"))
-	conn.dataUntil(t, "43 132")
+	conn.sizeUntil(t, "43 132", 30*time.Second)
 	if info := sess.Info(); info.Cols != 132 || info.Rows != 43 {
 		t.Fatalf("Info after resize: %dx%d; want 132x43", info.Cols, info.Rows)
 	}
