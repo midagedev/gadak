@@ -857,4 +857,102 @@ export const shell = {
     ko: '표시된 이슈는 앱에 포함된 샘플 데이터입니다. 페어링된 서버가 없고 아무것도 전송되지 않습니다. 나가면 페어링 화면으로 돌아갑니다.',
     ja: '表示されている課題はアプリ同梱のサンプルデータです。ペアリングされたサーバーはなく、どこにも送信されません。終了するとペアリング画面に戻ります。',
   },
+  // GDK-1097 B2: the phone's known-host roster (mobile/src/screens/PairingTab.svelte)
+  // — switching, forgetting, and pairing another host from `gadak pairing mint`.
+  // No endpoint or token value ever appears in this copy.
+  'app.hosts.title': {
+    en: 'Hosts',
+    ko: '호스트',
+    ja: 'ホスト',
+  },
+  'app.hosts.active': {
+    en: 'Active',
+    ko: '활성',
+    ja: 'アクティブ',
+  },
+  'app.hosts.remove': {
+    en: 'Forget this host',
+    ko: '이 호스트 지우기',
+    ja: 'このホストを削除',
+  },
+  'app.hosts.removeConfirm': {
+    en: 'Tap again to forget',
+    ko: '다시 눌러 지우기',
+    ja: 'もう一度タップして削除',
+  },
+  'app.hosts.add': {
+    en: 'Pair another host',
+    ko: '다른 호스트 페어링',
+    ja: '別のホストをペアリング',
+  },
+  'app.hosts.addHide': {
+    en: 'Close',
+    ko: '닫기',
+    ja: '閉じる',
+  },
+  'app.hosts.repairHint': {
+    en: 'The token for this host is missing on this phone. Mint a new offer on its desktop and pair again.',
+    ko: '이 호스트의 토큰이 이 폰에 없습니다. 해당 데스크톱에서 새 오퍼를 만들어 다시 페어링하세요.',
+    ja: 'このホストのトークンがこの端末にありません。デスクトップで新しいオファーを作成して、再度ペアリングしてください。',
+  },
+  'app.hosts.offerLabel': {
+    en: 'Pairing offer',
+    ko: '페어링 오퍼',
+    ja: 'ペアリングオファー',
+  },
+  'app.hosts.offerPlaceholder': {
+    en: 'Paste the offer line here',
+    ko: '오퍼 줄을 여기에 붙여넣으세요',
+    ja: 'オファー行をここに貼り付けてください',
+  },
+  'app.hosts.pastePair': {
+    en: 'Paste & pair',
+    ko: '붙여넣고 페어링',
+    ja: '貼り付けてペアリング',
+  },
+  'app.hosts.pair': {
+    en: 'Pair',
+    ko: '페어링',
+    ja: 'ペアリング',
+  },
+  'app.hosts.checking': {
+    en: 'Checking…',
+    ko: '확인 중…',
+    ja: '確認中…',
+  },
+  'app.hosts.scan': {
+    en: 'Scan QR instead',
+    ko: '대신 QR 스캔',
+    ja: '代わりにQRをスキャン',
+  },
+  'app.hosts.errEmpty': {
+    en: 'Paste the offer line first.',
+    ko: '먼저 오퍼 줄을 붙여넣으세요.',
+    ja: '先にオファー行を貼り付けてください。',
+  },
+  'app.hosts.errVersion': {
+    en: 'This offer is from a newer gadak. Update the app, then pair.',
+    ko: '이 오퍼는 더 최신 gadak에서 만들어졌습니다. 앱을 업데이트한 뒤 페어링하세요.',
+    ja: 'このオファーは新しいgadakからのものです。アプリを更新してからペアリングしてください。',
+  },
+  'app.hosts.errBad': {
+    en: 'That does not look like a pairing offer. Copy the whole line from `gadak pairing mint`.',
+    ko: '페어링 오퍼로 보이지 않습니다. `gadak pairing mint`가 출력한 줄 전체를 복사하세요.',
+    ja: 'ペアリングオファーではないようです。`gadak pairing mint` の出力行全体をコピーしてください。',
+  },
+  'app.hosts.errClipboardEmpty': {
+    en: 'Clipboard is empty. Copy the offer line first.',
+    ko: '클립보드가 비어 있습니다. 먼저 오퍼 줄을 복사하세요.',
+    ja: 'クリップボードが空です。先にオファー行をコピーしてください。',
+  },
+  'app.hosts.errClipboardFail': {
+    en: 'Could not read the clipboard. Paste into the field instead.',
+    ko: '클립보드를 읽을 수 없습니다. 입력란에 직접 붙여넣으세요.',
+    ja: 'クリップボードを読み取れません。入力欄に貼り付けてください。',
+  },
+  'app.hosts.errCamera': {
+    en: 'Could not open the camera. Paste the offer line instead.',
+    ko: '카메라를 열 수 없습니다. 대신 오퍼 줄을 붙여넣으세요.',
+    ja: 'カメラを開けません。代わりにオファー行を貼り付けてください。',
+  },
 } as const satisfies Record<string, Message>

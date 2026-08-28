@@ -15,6 +15,17 @@ import {
   upsertHostFromPairing,
 } from './hosts'
 import { tokenGet, tokenSet, tokenDel } from './secure'
+import {
+  CACHE_KEY,
+  HOST_SCOPED_KEYS,
+  META_KEY,
+  PAGES_KEY,
+  SCOPE_KEY,
+  TERM_META_KEY,
+  VIEWS_KEY,
+  hostKey,
+  migrateHostKeys,
+} from './host-keys'
 import { probeShellPairing } from './terminal/api'
 import type {
   BootstrapResponse,
@@ -28,13 +39,11 @@ import type {
   ViewsResponse,
 } from './types'
 
-const META_KEY = 'gadak.pairing.meta'
-const TERM_META_KEY = 'gadak.pairing.meta.terminal'
+// The six host-scoped session keys (META/TERM_META/CACHE/VIEWS/PAGES/SCOPE)
+// are imported from host-keys.ts (GDK-1097 B2): the module that namespaces
+// them owns their names. UNPAIRED_KEY is a device-wide verdict and
+// RECENTS_KEY a device-wide history — neither belongs to a host.
 const UNPAIRED_KEY = 'gadak.pairing.unpaired'
-const CACHE_KEY = 'gadak.snapshot'
-const VIEWS_KEY = 'gadak.views'
-const PAGES_KEY = 'gadak.pages'
-const SCOPE_KEY = 'gadak.issues.scope'
 const RECENTS_KEY = 'gadak.search.recents'
 
 export type Tab = 'issues' | 'search' | 'pairing' | 'shell'
@@ -181,6 +190,14 @@ function drop(key: string): void {
   }
 }
 
+/**
+ * The active host's address for a host-scoped key (GDK-1097 B2). No active
+ * host → the bare key, which is what every pre-B2 phone's data lives at.
+ */
+function scopedKey(base: string): string {
+  return hostKey(base, getActiveHostId())
+}
+
 /* ── boot ── */
 
 /**
@@ -236,8 +253,17 @@ async function migrateLegacyPairing(): Promise<void> {
 
 export async function boot(): Promise<void> {
   await migrateLegacyPairing()
-  const meta = readJSON<PairMeta>(META_KEY)
   const activeHost = getActiveHostId()
+  // B2: with a roster host active, the six session documents live at its
+  // namespaced addresses. The rename is per-key verified and idempotent; a
+  // null host (unmigrated phone) keeps the bare keys untouched.
+  migrateHostKeys(activeHost)
+  // Read fallback: a phone whose META rename could not be verified still
+  // holds its pairing at the legacy address — missing both must not read
+  // as "never paired".
+  const meta =
+    readJSON<PairMeta>(hostKey(META_KEY, activeHost)) ??
+    (activeHost !== null ? readJSON<PairMeta>(META_KEY) : null)
   // Active host → its slot; no roster yet (migration refused) → the
   // legacy slot, which is where an unmigrated phone's token still lives.
   const token = await tokenGet('serve', activeHost ?? undefined)
@@ -250,7 +276,8 @@ export async function boot(): Promise<void> {
   if (meta && token === null) {
     // Meta without a token (fresh reinstall wiped the web storage's twin, or
     // the Keychain entry was removed outside the app): honest re-pair.
-    drop(META_KEY)
+    drop(hostKey(META_KEY, activeHost))
+    if (activeHost !== null) drop(META_KEY)
     app.phase = 'unpaired'
     return
   }
@@ -272,12 +299,14 @@ export async function boot(): Promise<void> {
     try {
       await request<Me>('auth/me/', { session: { endpoint: '', token } })
       const adopted: PairMeta = { endpoint: '', label: 'This Mac (dev)', expires_at: '' }
-      writeJSON(META_KEY, adopted)
       // The roster learns the dev proxy too (id 'local'). No token copy:
       // dev reads fall back to the shell's legacy Keychain peek by design
       // (secure.ts dev rule), and the pointer only claims an unset slot.
+      // The meta lands in the host's namespace (usually @local) once the
+      // pointer can answer for it.
       const host = await upsertHostFromPairing({ endpoint: '', label: adopted.label })
       if (getActiveHostId() === null) setActiveHostId(host.id)
+      writeJSON(hostKey(META_KEY, host.id), adopted)
       await enterPaired(adopted, token ?? '')
       return
     } catch {
@@ -291,7 +320,7 @@ async function enterPaired(meta: PairMeta, token: string): Promise<void> {
   app.meta = meta
   app.rejected = false
   configureApi({ endpoint: meta.endpoint, token })
-  const cached = readJSON<Snapshot>(CACHE_KEY)
+  const cached = readJSON<Snapshot>(scopedKey(CACHE_KEY))
   if (cached) {
     app.issues = cached.issues
     etag = cached.etag
@@ -299,16 +328,16 @@ async function enterPaired(meta: PairMeta, token: string): Promise<void> {
   }
   // Views are cached too, so a restored scope paints its own name on the
   // first frame instead of flashing the default until sync answers.
-  const cachedViews = readJSON<ViewsCache>(VIEWS_KEY)
+  const cachedViews = readJSON<ViewsCache>(scopedKey(VIEWS_KEY))
   if (cachedViews) {
     app.views = cachedViews.views ?? []
     app.sources = cachedViews.sources ?? []
   }
-  const cachedPages = readJSON<{ pages: PageLite[] }>(PAGES_KEY)
+  const cachedPages = readJSON<{ pages: PageLite[] }>(scopedKey(PAGES_KEY))
   if (cachedPages) {
     app.pages = cachedPages.pages ?? []
   }
-  const scope = readJSON<string>(SCOPE_KEY)
+  const scope = readJSON<string>(scopedKey(SCOPE_KEY))
   if (typeof scope === 'string' && scope !== '') app.scopeId = scope
   app.phase = 'paired'
   await loadTerminal()
@@ -331,7 +360,7 @@ export async function sync(): Promise<void> {
     if (res.status !== 304 && res.body) {
       app.issues = res.body.issues
       etag = res.etag
-      writeJSON(CACHE_KEY, {
+      writeJSON(scopedKey(CACHE_KEY), {
         etag,
         issues: res.body.issues,
         serverTime: res.body.server_time,
@@ -350,7 +379,7 @@ export async function sync(): Promise<void> {
       if (res.body) {
         app.views = res.body.views ?? []
         app.sources = res.body.source ?? []
-        writeJSON(VIEWS_KEY, { views: app.views, sources: app.sources } satisfies ViewsCache)
+        writeJSON(scopedKey(VIEWS_KEY), { views: app.views, sources: app.sources } satisfies ViewsCache)
       }
     } catch {
       // A serve that refuses the view list still lists issues under the two
@@ -363,7 +392,7 @@ export async function sync(): Promise<void> {
       const res = await request<PagesResponse>('issues/pages/')
       if (res.body) {
         app.pages = res.body.pages ?? []
-        writeJSON(PAGES_KEY, { pages: app.pages })
+        writeJSON(scopedKey(PAGES_KEY), { pages: app.pages })
       }
     } catch {
       // Keep whatever we already painted (offline). No pages → no section.
@@ -437,7 +466,7 @@ export async function pair(offer: { endpoint: string; token: string; expires_at:
   await tokenSet(offer.token, 'serve', host.id)
   setActiveHostId(host.id)
   const meta: PairMeta = { endpoint: offer.endpoint, label: offer.label, expires_at: offer.expires_at }
-  writeJSON(META_KEY, meta)
+  writeJSON(hostKey(META_KEY, host.id), meta)
   drop(UNPAIRED_KEY)
   await enterPaired(meta, offer.token)
 }
@@ -466,11 +495,13 @@ export async function unpair(): Promise<void> {
   await unpairTerminal()
   if (active !== null) removeHost(active) // also drops the active pointer
   setActiveHostId(null)
-  drop(META_KEY)
-  drop(CACHE_KEY)
-  drop(VIEWS_KEY)
-  drop(PAGES_KEY)
-  drop(SCOPE_KEY)
+  // B2: forget the session documents at every address this host's data
+  // lived at — the namespaced six, plus their bare-key residue from before
+  // the rename (the same dual-address stance as the token deletes above).
+  for (const base of HOST_SCOPED_KEYS) {
+    drop(hostKey(base, active))
+    if (active !== null) drop(base)
+  }
   // Packaged: unpairing must stick across launches. Dev: the proxy is the
   // trust boundary, so the next launch may re-adopt it — the gate still
   // shows for this session, which is what unpair-state verification needs.
@@ -487,6 +518,63 @@ export async function unpair(): Promise<void> {
   }
   resetSessionState()
   app.phase = 'unpaired'
+}
+
+/* ── host switching (GDK-1097 B2) ── */
+
+/**
+ * Points the app at another roster host. Reads the target's meta and serve
+ * token first; either missing → false with nothing moved (the roster row's
+ * re-pair hint is the caller's copy — the phone cannot mint a token for a
+ * host whose serve it cannot ask). A verified switch clears the sync timer
+ * and the in-memory session, claims the pointer, and re-enters paired, so
+ * caches, scope and terminal all reload from the new host's keys — the
+ * previous host's documents stay byte-identical at their addresses.
+ */
+export async function switchHost(id: string): Promise<boolean> {
+  const meta = readJSON<PairMeta>(hostKey(META_KEY, id))
+  let token: string | null = null
+  try {
+    token = await tokenGet('serve', id)
+  } catch {
+    // A Keychain refusal counts as "no token here" for switching purposes.
+  }
+  if (!meta || token === null) return false
+  if (syncTimer) {
+    clearInterval(syncTimer)
+    syncTimer = null
+  }
+  resetSessionState()
+  terminalToken = null // loadTerminal() re-reads under the new namespace
+  setActiveHostId(id)
+  touchHost(id)
+  await enterPaired(meta, token)
+  return true
+}
+
+/**
+ * Forgets an inactive roster row: its two token slots, its row, and its six
+ * namespaced documents. The active host is unpair()'s case — delegate. An
+ * inactive host's data only ever lived at its namespaced addresses (the
+ * bare keys belong to the legacy/active phone), so no bare-key drops here.
+ */
+export async function removeRosterHost(id: string): Promise<void> {
+  if (id === getActiveHostId()) {
+    await unpair()
+    return
+  }
+  try {
+    await tokenDel('serve', id)
+  } catch {
+    /* the row is gone either way */
+  }
+  try {
+    await tokenDel('terminal', id)
+  } catch {
+    /* same stance */
+  }
+  removeHost(id)
+  for (const base of HOST_SCOPED_KEYS) drop(hostKey(base, id))
 }
 
 /* ── bundled demo workspace (GDK-1051) ── */
@@ -560,7 +648,10 @@ export function exitDemo(): void {
 /* ── terminal pairing (own token, own meta — DESIGN.md §10.1) ── */
 
 async function loadTerminal(): Promise<void> {
-  const meta = readJSON<PairMeta>(TERM_META_KEY)
+  // The terminal meta lives in the active host's namespace (B2); the legacy
+  // read covers a phone whose rename could not be verified.
+  const meta =
+    readJSON<PairMeta>(scopedKey(TERM_META_KEY)) ?? readJSON<PairMeta>(TERM_META_KEY)
   // The terminal token is keyed by the terminal pairing's own endpoint
   // (pairTerminal's rule) — the shell may point at a different host than
   // the serve session. Legacy fallback covers a phone whose migration
@@ -602,7 +693,9 @@ export async function pairTerminal(offer: {
     label: offer.label,
     expires_at: offer.expires_at,
   }
-  writeJSON(TERM_META_KEY, meta)
+  // Written under the namespace the pointer answers for — the active host's,
+  // which is this host when the claim above fired (B2).
+  writeJSON(scopedKey(TERM_META_KEY), meta)
   terminalToken = offer.token
   app.terminal = meta
 }
@@ -610,7 +703,8 @@ export async function pairTerminal(offer: {
 export async function unpairTerminal(): Promise<void> {
   // The terminal token's slot is derived from the terminal meta's own
   // endpoint (loadTerminal's rule) — read before the meta is dropped.
-  const termMeta = readJSON<PairMeta>(TERM_META_KEY)
+  const termMeta =
+    readJSON<PairMeta>(scopedKey(TERM_META_KEY)) ?? readJSON<PairMeta>(TERM_META_KEY)
   const slotHost = termMeta ? await hostIdForEndpoint(termMeta.endpoint) : getActiveHostId() ?? undefined
   try {
     await tokenDel('terminal', slotHost)
@@ -625,7 +719,10 @@ export async function unpairTerminal(): Promise<void> {
       /* same stance */
     }
   }
-  drop(TERM_META_KEY)
+  // Both addresses, like the serve side: the active namespace and the bare
+  // key a pre-B2 phone may still hold.
+  drop(scopedKey(TERM_META_KEY))
+  if (getActiveHostId() !== null) drop(TERM_META_KEY)
   terminalToken = null
   app.terminal = null
   if (app.tab === 'shell') app.tab = 'issues'
@@ -657,7 +754,7 @@ export function switchTab(tab: Tab): void {
 /** Picks a scope and remembers it — boot restores the last one used. Demo skips the write. */
 export function setScope(id: string): void {
   app.scopeId = id
-  if (!app.demo) writeJSON(SCOPE_KEY, id)
+  if (!app.demo) writeJSON(scopedKey(SCOPE_KEY), id)
 }
 
 /* ── search recents ── */

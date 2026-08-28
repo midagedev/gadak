@@ -1,10 +1,21 @@
 <script lang="ts">
   import Screen from '../ui/Screen.svelte'
   import { t } from '../lib/i18n'
-  import { app, sync, unpair, pairTerminal, unpairTerminal, exitDemo } from '../lib/store.svelte'
+  import {
+    app,
+    sync,
+    unpair,
+    pair,
+    pairTerminal,
+    unpairTerminal,
+    exitDemo,
+    switchHost,
+    removeRosterHost,
+  } from '../lib/store.svelte'
   import { relTime, hasIdentity } from '../lib/domain'
   import { decodeOffer, OfferError } from '../lib/offer'
   import { ApiError, errorMessage } from '../lib/api'
+  import { getActiveHostId, listHosts, type KnownHost } from '../lib/hosts'
 
   // Rarely visited, always honest: what am I paired to, how fresh is the
   // snapshot, who does the serve think I am. The one destructive rarity —
@@ -55,6 +66,112 @@
       return new URL(endpoint).host
     } catch {
       return endpoint
+    }
+  }
+
+  /* ── host roster (GDK-1097 B2) ──
+     Every host this phone paired with, one active. A row tap switches;
+     the active row is a no-op. Forgetting an inactive row is the same
+     two-step arm as Unpair (UX_PRINCIPLES §7). The list is re-read after
+     each action below — roster rows change only through this screen. */
+  let roster = $state<KnownHost[]>(listHosts())
+  let activeId = $state<string | null>(getActiveHostId())
+  let repairHintId = $state<string | null>(null)
+  let removeArmedId = $state<string | null>(null)
+  let removeArmTimer: ReturnType<typeof setTimeout> | null = null
+
+  function refreshRoster(): void {
+    roster = listHosts()
+    activeId = getActiveHostId()
+  }
+
+  async function onSwitchHost(id: string): Promise<void> {
+    if (id === activeId) return
+    repairHintId = null
+    const ok = await switchHost(id)
+    if (!ok) {
+      // Token or meta is gone for that host — nothing moved. The row below
+      // gets the re-pair hint; the pairing form pairs it again.
+      repairHintId = id
+      return
+    }
+    refreshRoster()
+  }
+
+  function onRemoveHost(id: string): void {
+    if (removeArmedId !== id) {
+      removeArmedId = id
+      if (removeArmTimer) clearTimeout(removeArmTimer)
+      removeArmTimer = setTimeout(() => (removeArmedId = null), 3000)
+      return
+    }
+    if (removeArmTimer) clearTimeout(removeArmTimer)
+    removeArmedId = null
+    repairHintId = null
+    void removeRosterHost(id).then(refreshRoster)
+  }
+
+  // Pairing another host rides the same offer flow as PairGate: decode,
+  // probe, and pair() — which upserts the roster and makes the newcomer
+  // active (B1 contract). Copy is catalog-backed here.
+  let addHostOpen = $state(false)
+  let addOffer = $state('')
+  let addBusy = $state(false)
+  let addError = $state<string | null>(null)
+
+  function addOfferCopy(e: OfferError): string {
+    const m = e.message
+    if (m.includes('empty')) return t('app.hosts.errEmpty')
+    if (m.includes('version')) return t('app.hosts.errVersion')
+    return t('app.hosts.errBad')
+  }
+
+  async function submitAddHost() {
+    if (addBusy) return
+    addError = null
+    addBusy = true
+    try {
+      const offer = decodeOffer(addOffer)
+      await pair(offer)
+      addOffer = ''
+      addHostOpen = false
+      refreshRoster()
+    } catch (err) {
+      addError = err instanceof OfferError ? addOfferCopy(err) : errorMessage(err)
+    } finally {
+      addBusy = false
+    }
+  }
+
+  async function pasteAndAddHost() {
+    addError = null
+    try {
+      const text = (await navigator.clipboard.readText()).trim()
+      if (text === '') {
+        addError = t('app.hosts.errClipboardEmpty')
+        return
+      }
+      addOffer = text
+    } catch {
+      addError = t('app.hosts.errClipboardFail')
+      return
+    }
+    await submitAddHost()
+  }
+
+  // Same scan block as PairGate.svelte — do not re-derive the plugin call.
+  async function scanAddHost() {
+    addError = null
+    try {
+      const { scan: scanQR, Format, cancel } = await import('@tauri-apps/plugin-barcode-scanner')
+      const result = await scanQR({ windowed: false, formats: [Format.QRCode] })
+      void cancel
+      if (result?.content) {
+        addOffer = result.content
+        await submitAddHost()
+      }
+    } catch {
+      addError = t('app.hosts.errCamera')
     }
   }
 
@@ -171,6 +288,69 @@
         <p class="sub mono">{host(app.meta.endpoint)}</p>
         {#if expiry(app.meta.expires_at)}
           <p class="sub">Offer expires {expiry(app.meta.expires_at)}</p>
+        {/if}
+      </section>
+
+      <!-- Host roster (GDK-1097 B2): switch with a tap, forget an inactive
+           row through the two-step arm. -->
+      <section>
+        <h3>{t('app.hosts.title')}</h3>
+        {#each roster as h (h.id)}
+          <div class="hostrow">
+            <button class="host" onclick={() => void onSwitchHost(h.id)}>
+              <span class="hostline">
+                <span class="hostlabel">{h.label || host(h.endpoint)}</span>
+                {#if h.id === activeId}
+                  <span class="badge">{t('app.hosts.active')}</span>
+                {/if}
+              </span>
+              <span class="hostmeta">
+                <span class="mono">{host(h.endpoint)}</span>
+                <span class="quiet">{relTime(h.lastUsedAt, app.now)}</span>
+              </span>
+            </button>
+            {#if repairHintId === h.id}
+              <p class="error" role="alert">{t('app.hosts.repairHint')}</p>
+            {/if}
+            {#if h.id !== activeId}
+              <button class="rm" class:armed={removeArmedId === h.id} onclick={() => onRemoveHost(h.id)}>
+                {removeArmedId === h.id ? t('app.hosts.removeConfirm') : t('app.hosts.remove')}
+              </button>
+            {/if}
+          </div>
+        {/each}
+        {#if addHostOpen}
+          <label class="lbl" for="host-offer">{t('app.hosts.offerLabel')}</label>
+          <textarea
+            id="host-offer"
+            bind:value={addOffer}
+            rows="3"
+            placeholder={t('app.hosts.offerPlaceholder')}
+            autocapitalize="off"
+            spellcheck="false"
+          ></textarea>
+          {#if addError}
+            <p class="error" role="alert">{addError}</p>
+          {/if}
+          {#if addOffer.trim() === ''}
+            <button class="act" disabled={addBusy} onclick={() => void pasteAndAddHost()}>
+              {addBusy ? t('app.hosts.checking') : t('app.hosts.pastePair')}
+            </button>
+          {:else}
+            <button class="act" disabled={addBusy} onclick={() => void submitAddHost()}>
+              {addBusy ? t('app.hosts.checking') : t('app.hosts.pair')}
+            </button>
+          {/if}
+          {#if !DEV}
+            <button class="act" onclick={() => void scanAddHost()}>{t('app.hosts.scan')}</button>
+          {/if}
+          <button class="act" onclick={() => { addHostOpen = false; addError = null }}>
+            {t('app.hosts.addHide')}
+          </button>
+        {:else}
+          <button class="act" onclick={() => { addHostOpen = true; addError = null }}>
+            {t('app.hosts.add')}
+          </button>
         {/if}
       </section>
 
@@ -385,6 +565,63 @@
   .unpair.armed {
     background: var(--color-text-primary);
     border-color: var(--color-text-primary);
+    color: var(--color-bg-base);
+  }
+  .hostrow {
+    margin: 0 0 4px;
+  }
+  .host {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--color-border-subtle);
+    background: transparent;
+    text-align: left;
+  }
+  .hostline {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+  }
+  .hostlabel {
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .badge {
+    flex-shrink: 0;
+    font-size: var(--text-micro);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-accent-text);
+  }
+  .hostmeta {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    min-width: 0;
+    font-size: var(--text-micro);
+  }
+  .rm {
+    width: 100%;
+    margin: 2px 0 8px;
+    border-radius: 6px;
+    border: 1px solid var(--color-border-subtle);
+    color: var(--color-text-secondary);
+    font-weight: 500;
+    font-size: var(--text-micro);
+    background: transparent;
+  }
+  .rm.armed {
+    background: var(--color-text-secondary);
+    border-color: var(--color-text-secondary);
     color: var(--color-bg-base);
   }
   .center {

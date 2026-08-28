@@ -14,14 +14,16 @@ vi.mock('./api', async (importOriginal) => {
 })
 
 import { request } from './api'
-import { hostIdForEndpoint } from './hosts'
+import { getActiveHostId, hostIdForEndpoint, listHosts, setActiveHostId, upsertHostFromPairing } from './hosts'
 import { tokenGet, tokenSet } from './secure'
 import {
   app,
   boot,
   issuesBootKind,
+  removeRosterHost,
   searchPaint,
   showOfflineBanner,
+  switchHost,
   sync,
   unpair,
 } from './store.svelte'
@@ -438,5 +440,132 @@ describe('boot() legacy→roster migration (GDK-1097 B1) — no failure path unp
     expect(mem.get('gadak.dev.token')).toBeUndefined()
     expect(mem.get('gadak.dev.token.terminal')).toBeUndefined()
     expect(app.phase).toBe('paired')
+  })
+})
+
+describe('switchHost() — per-host caches never cross (GDK-1097 B2)', () => {
+  // The contamination contract, same class as the demo gates: what host A
+  // synced must never be visible while host B is active, and switching back
+  // must restore A's snapshot from its own bytes — B's session never
+  // overwrote them. Endpoints are TEST-NET; token values are placeholders.
+  const EP_A = 'http://192.0.2.10:7877'
+  const EP_B = 'http://192.0.2.11:7877'
+
+  async function seedHost(ep: string, label: string, issueKey: string): Promise<string> {
+    const id = await hostIdForEndpoint(ep)
+    await upsertHostFromPairing({ endpoint: ep, label })
+    mem.set(`gadak.dev.token@${id}`, `placeholder-token-${label}`)
+    mem.set(`gadak.pairing.meta@${id}`, JSON.stringify({ endpoint: ep, label, expires_at: '' }))
+    mem.set(
+      `gadak.snapshot@${id}`,
+      JSON.stringify({
+        etag: null,
+        issues: [issue({ issue_key: issueKey })],
+        serverTime: '2026-08-01T00:00:00Z',
+      }),
+    )
+    return id
+  }
+
+  async function bootOn(a: string): Promise<void> {
+    setActiveHostId(a)
+    vi.mocked(request).mockRejectedValue(new ApiError('network', 0)) // caches are the story
+    await boot()
+    expect(app.phase).toBe('paired')
+  }
+
+  it('loads the target host snapshot on switch and leaves the old host bytes untouched', async () => {
+    const a = await seedHost(EP_A, 'desk A', 'STD-A1')
+    const b = await seedHost(EP_B, 'desk B', 'STD-B1')
+    await bootOn(a)
+    expect(app.issues.map((i) => i.issue_key)).toEqual(['STD-A1'])
+
+    expect(await switchHost(b)).toBe(true)
+    expect(getActiveHostId()).toBe(b)
+    expect(app.meta?.label).toBe('desk B')
+    // B's rows — A's rows left the view without being deleted.
+    expect(app.issues.map((i) => i.issue_key)).toEqual(['STD-B1'])
+    expect(JSON.parse(mem.get(`gadak.snapshot@${a}`) as string).issues[0].issue_key).toBe('STD-A1')
+
+    // And back: A's snapshot still answers from its own address.
+    expect(await switchHost(a)).toBe(true)
+    expect(getActiveHostId()).toBe(a)
+    expect(app.issues.map((i) => i.issue_key)).toEqual(['STD-A1'])
+    expect(JSON.parse(mem.get(`gadak.snapshot@${b}`) as string).issues[0].issue_key).toBe('STD-B1')
+  })
+
+  it('refuses the switch when the target token is gone, changing nothing', async () => {
+    const a = await seedHost(EP_A, 'desk A', 'STD-A1')
+    const b = await seedHost(EP_B, 'desk B', 'STD-B1')
+    await bootOn(a)
+    mem.delete(`gadak.dev.token@${b}`)
+    const rosterBefore = mem.get('gadak.hosts.v1')
+
+    expect(await switchHost(b)).toBe(false)
+    expect(getActiveHostId()).toBe(a)
+    expect(app.meta?.label).toBe('desk A')
+    expect(app.issues.map((i) => i.issue_key)).toEqual(['STD-A1'])
+    expect(mem.get('gadak.hosts.v1')).toBe(rosterBefore) // not even lastUsedAt moved
+  })
+
+  it('refuses the switch when the target meta is gone, changing nothing', async () => {
+    const a = await seedHost(EP_A, 'desk A', 'STD-A1')
+    const b = await seedHost(EP_B, 'desk B', 'STD-B1')
+    await bootOn(a)
+    mem.delete(`gadak.pairing.meta@${b}`)
+
+    expect(await switchHost(b)).toBe(false)
+    expect(getActiveHostId()).toBe(a)
+    expect(app.meta?.label).toBe('desk A')
+    expect(app.issues.map((i) => i.issue_key)).toEqual(['STD-A1'])
+  })
+
+  it("unpair() forgets the active host's documents at both addresses", async () => {
+    const a = await seedHost(EP_A, 'desk A', 'STD-A1')
+    // Bare-key residue from before the B2 rename — unpair must take both.
+    for (const base of [
+      'gadak.pairing.meta',
+      'gadak.pairing.meta.terminal',
+      'gadak.snapshot',
+      'gadak.views',
+      'gadak.pages',
+      'gadak.issues.scope',
+    ]) {
+      mem.set(base, 'legacy residue')
+    }
+    await bootOn(a)
+
+    await unpair()
+
+    for (const base of [
+      'gadak.pairing.meta',
+      'gadak.pairing.meta.terminal',
+      'gadak.snapshot',
+      'gadak.views',
+      'gadak.pages',
+      'gadak.issues.scope',
+    ]) {
+      expect(mem.get(`${base}@${a}`), `${base}@host dropped`).toBeUndefined()
+      expect(mem.get(base), `${base} bare residue dropped`).toBeUndefined()
+    }
+    expect(listHosts()).toEqual([])
+    expect(app.phase).toBe('unpaired')
+  })
+
+  it("removeRosterHost() drops an inactive host's slots, row and documents — the active host untouched", async () => {
+    const a = await seedHost(EP_A, 'desk A', 'STD-A1')
+    const b = await seedHost(EP_B, 'desk B', 'STD-B1')
+    await bootOn(a)
+
+    await removeRosterHost(b)
+
+    expect(listHosts().map((h) => h.id)).toEqual([a])
+    expect(getActiveHostId()).toBe(a)
+    expect(mem.get(`gadak.dev.token@${b}`)).toBeUndefined()
+    expect(mem.get(`gadak.pairing.meta@${b}`)).toBeUndefined()
+    expect(mem.get(`gadak.snapshot@${b}`)).toBeUndefined()
+    expect(mem.get(`gadak.dev.token@${a}`)).toBeDefined()
+    expect(app.phase).toBe('paired')
+    expect(app.issues.map((i) => i.issue_key)).toEqual(['STD-A1'])
   })
 })
