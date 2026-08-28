@@ -989,6 +989,41 @@ export const settings = {
     ko: '워크스페이스 생성',
     ja: 'ワークスペースを作成',
   },
+  'settings.workspacesModeStandalone': {
+    en: 'New standalone',
+    ko: '새 독립 워크스페이스',
+    ja: '新規スタンドアロン',
+  },
+  'settings.workspacesModePaired': {
+    en: 'Register remote',
+    ko: '원격 등록',
+    ja: 'リモート登録',
+  },
+  'settings.workspacesOfferLabel': {
+    en: 'Pairing code',
+    ko: '페어링 코드',
+    ja: 'ペアリングコード',
+  },
+  'settings.workspacesPairHint': {
+    en: 'Paste the one-line code `gadak pairing mint` printed on the home machine.',
+    ko: '홈 머신에서 `gadak pairing mint`가 출력한 한 줄 코드를 붙여넣으세요.',
+    ja: 'ホームマシンで `gadak pairing mint` が出力した一行コードを貼り付けてください。',
+  },
+  'settings.workspacesPair': {
+    en: 'Register workspace',
+    ko: '워크스페이스 등록',
+    ja: 'ワークスペースを登録',
+  },
+  'settings.workspacesPairing': {
+    en: 'Registering…',
+    ko: '등록 중…',
+    ja: '登録中…',
+  },
+  'settings.workspacesPairFailed': {
+    en: 'Could not register the workspace. Try again.',
+    ko: '워크스페이스를 등록하지 못했습니다. 다시 시도하세요.',
+    ja: 'ワークスペースを登録できませんでした。もう一度お試しください。',
+  },
   'settings.workspacesCreateFailed': {
     en: 'Could not create the workspace. Try again.',
     ko: '워크스페이스를 만들지 못했습니다. 다시 시도하세요.',

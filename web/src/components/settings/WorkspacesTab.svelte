@@ -50,6 +50,16 @@
   /** A removal that failed before a dialog could say it (network throw). */
   let removeError = $state<string | null>(null)
 
+  /** GDK-1099: the create area's two modes — seed a standalone tracker, or
+   *  register a remote serve from its pairing offer. A boolean on purpose:
+   *  this is a form mode, not the server-owned workspace kind, and
+   *  workspace.test.ts (GDK-237) keeps kind literals out of components. */
+  let pairingMode = $state(false)
+  let pairName = $state('')
+  let pairOffer = $state('')
+  let pairing = $state(false)
+  let pairError = $state<string | null>(null)
+
   /** The removal dialog. `refusal` is the probe's error code: the two
    *  confirmable ones name the commit's shape, anything else (root,
    *  unreadable, self) is a hard refusal with no confirm button at all. */
@@ -124,6 +134,41 @@
       }
     } finally {
       creating = false
+    }
+  }
+
+  /** Register a remote serve as a new workspace (GDK-1099). The server
+   *  verifies the offer before writing anything; on refusal it owns the
+   *  wording — invalid_offer, pairing_refused, serve_unreachable all carry
+   *  the CLI's own `detail`, rendered verbatim below (same single-owner
+   *  rule as the removal refusals). The offer input is cleared only on
+   *  success: a failure must leave the code in place to re-submit. */
+  async function pair(): Promise<void> {
+    if (pairing || pairName.trim() === '' || pairOffer.trim() === '') return
+    // Capture before the await: the error line must name what was sent, not
+    // whatever the input holds by the time the answer lands.
+    const name = pairName.trim()
+    pairing = true
+    pairError = null
+    try {
+      await api.pairWorkspace(name, pairOffer.trim())
+      pairName = ''
+      pairOffer = ''
+      await load()
+    } catch (e) {
+      if (isRefusal(e, 'forbidden_host')) {
+        manageBlocked = true
+      } else if (isRefusal(e, 'exists')) {
+        pairError = t('settings.workspacesErrExists', { name })
+      } else if (isRefusal(e, 'invalid_name')) {
+        pairError = t('settings.workspacesErrInvalidName')
+      } else if (e instanceof api.WorkspaceManageError && e.detail) {
+        pairError = e.detail
+      } else {
+        pairError = t('settings.workspacesPairFailed')
+      }
+    } finally {
+      pairing = false
     }
   }
 
@@ -328,46 +373,129 @@
     {/if}
 
     {#if !manageBlocked}
-      <form
-        class="mt-1 flex flex-wrap items-end gap-2"
-        onsubmit={(e) => {
-          e.preventDefault()
-          void create()
-        }}
-        data-testid="workspaces-form"
-      >
-        <label class="flex flex-col gap-1">
-          <span class="text-micro text-text-muted">{t('settings.workspacesNameLabel')}</span>
-          <input
-            class={INPUT}
-            bind:value={newName}
-            data-testid="workspaces-name-input"
-            autocomplete="off"
-            spellcheck="false"
-          />
-        </label>
-        <label class="flex flex-col gap-1">
-          <span class="text-micro text-text-muted">{t('settings.workspacesProjectsLabel')}</span>
-          <input
-            class={INPUT}
-            bind:value={newProjects}
-            data-testid="workspaces-projects-input"
-            autocomplete="off"
-            spellcheck="false"
-          />
-        </label>
+      <!-- The create area's mode switch (GDK-1099): the same border-b-2
+           vocabulary the dialog's own tab bar uses, so "which mode am I in"
+           reads the same on both levels. -->
+      <div class="mt-2 flex gap-3" data-testid="workspaces-create-mode">
         <button
-          type="submit"
-          class={ADD_BTN}
-          disabled={creating || newName.trim() === ''}
-          data-testid="workspaces-create-button"
+          type="button"
+          class="-mb-px flex h-control items-center border-b-2 px-1 text-body transition-colors {!pairingMode
+            ? 'border-accent text-text-primary'
+            : 'border-transparent text-text-secondary hover:text-text-primary'}"
+          aria-pressed={!pairingMode}
+          onclick={() => (pairingMode = false)}
+          data-testid="workspaces-mode-standalone"
         >
-          {t(creating ? 'common.creating' : 'settings.workspacesCreate')}
+          {t('settings.workspacesModeStandalone')}
         </button>
-      </form>
+        <button
+          type="button"
+          class="-mb-px flex h-control items-center border-b-2 px-1 text-body transition-colors {pairingMode
+            ? 'border-accent text-text-primary'
+            : 'border-transparent text-text-secondary hover:text-text-primary'}"
+          aria-pressed={pairingMode}
+          onclick={() => (pairingMode = true)}
+          data-testid="workspaces-mode-paired"
+        >
+          {t('settings.workspacesModePaired')}
+        </button>
+      </div>
 
-      {#if createError}
-        <p class="text-micro text-status-reopen" data-testid="workspaces-create-error">{createError}</p>
+      {#if !pairingMode}
+        <form
+          class="mt-1 flex flex-wrap items-end gap-2"
+          onsubmit={(e) => {
+            e.preventDefault()
+            void create()
+          }}
+          data-testid="workspaces-form"
+        >
+          <label class="flex flex-col gap-1">
+            <span class="text-micro text-text-muted">{t('settings.workspacesNameLabel')}</span>
+            <input
+              class={INPUT}
+              bind:value={newName}
+              data-testid="workspaces-name-input"
+              autocomplete="off"
+              spellcheck="false"
+            />
+          </label>
+          <label class="flex flex-col gap-1">
+            <span class="text-micro text-text-muted">{t('settings.workspacesProjectsLabel')}</span>
+            <input
+              class={INPUT}
+              bind:value={newProjects}
+              data-testid="workspaces-projects-input"
+              autocomplete="off"
+              spellcheck="false"
+            />
+          </label>
+          <button
+            type="submit"
+            class={ADD_BTN}
+            disabled={creating || newName.trim() === ''}
+            data-testid="workspaces-create-button"
+          >
+            {t(creating ? 'common.creating' : 'settings.workspacesCreate')}
+          </button>
+        </form>
+
+        {#if createError}
+          <p class="text-micro text-status-reopen" data-testid="workspaces-create-error">{createError}</p>
+        {/if}
+      {:else}
+        <form
+          class="mt-1 flex flex-col gap-2"
+          onsubmit={(e) => {
+            e.preventDefault()
+            void pair()
+          }}
+          data-testid="workspaces-pair-form"
+        >
+          <p class="text-micro leading-relaxed text-text-muted">{t('settings.workspacesPairHint')}</p>
+          <div class="flex flex-wrap items-end gap-2">
+            <label class="flex flex-col gap-1">
+              <span class="text-micro text-text-muted">{t('settings.workspacesNameLabel')}</span>
+              <input
+                class={INPUT}
+                bind:value={pairName}
+                data-testid="workspaces-pair-name-input"
+                autocomplete="off"
+                spellcheck="false"
+              />
+            </label>
+            <button
+              type="submit"
+              class={ADD_BTN}
+              disabled={pairing || pairName.trim() === '' || pairOffer.trim() === ''}
+              data-testid="workspaces-pair-button"
+            >
+              {t(pairing ? 'settings.workspacesPairing' : 'settings.workspacesPair')}
+            </button>
+          </div>
+          <label class="flex flex-col gap-1">
+            <span class="text-micro text-text-muted">{t('settings.workspacesOfferLabel')}</span>
+            <!-- INPUT_BARE minus h-control plus py: a paste target, not a
+                 one-liner. font-mono because the offer is a code, the same
+                 treatment the refusal detail gets. -->
+            <textarea
+              class="w-full rounded-md border border-border-strong bg-bg-base px-2 py-1.5 font-mono text-body text-text-primary outline-none focus:border-accent"
+              rows="2"
+              bind:value={pairOffer}
+              data-testid="workspaces-offer-input"
+              autocomplete="off"
+              spellcheck="false"
+            ></textarea>
+          </label>
+        </form>
+
+        {#if pairError}
+          <!-- whitespace-pre-wrap: the server's refusal wording is
+               line-broken by its owner, never re-flowed here. -->
+          <p class="whitespace-pre-wrap text-micro text-status-reopen" data-testid="workspaces-pair-error">
+            {pairError}
+          </p>
+        {/if}
       {/if}
     {/if}
   {/if}

@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Route } from '@playwright/test'
 import { apiURL, attachConsoleErrors, gotoApp, openServerSettings } from './helpers'
 
 /*
@@ -8,11 +8,21 @@ import { apiURL, attachConsoleErrors, gotoApp, openServerSettings } from './help
  * standalone workspace is the only-copy warning with the persist path —
  * before yes=1 commits with destroy_origin).
  *
+ * GDK-1099 — the paired half. No real pairing home is stood up in this
+ * suite: the real verify-before-save contract (decode, the /myself round
+ * trip, the refusal taxonomy, the offer-never-echoed rule) is owned by the
+ * Go tests in internal/workspace/manage_test.go. This spec mocks the POST's
+ * answers with page.route — the dialog-shell.spec.ts stubWorkspacesRemove
+ * discipline — and pins the three UI states only: the new row after a
+ * successful register, the server's refusal detail rendered inline, and
+ * the invalid-offer line.
+ *
  * Port discipline: every URL goes through apiURL(), whose single owner is
  * GADAK_E2E_PORT (helpers.ts). The delegated round that authored this spec
- * ran the suite under GADAK_E2E_PORT=7891 to stay off the lead's 7877; CI
- * and the lead's full-suite runs use their own port and home
- * (e2e/.tmp/home-<port>), which is why nothing here may spell a host.
+ * ran the suite under GADAK_E2E_PORT=7891 (the GDK-1099 round: 7893) to
+ * stay off the lead's 7877; CI and the lead's full-suite runs use their own
+ * port and home (e2e/.tmp/home-<port>), which is why nothing here may
+ * spell a host.
  *
  * The workspace this spec creates lives under the e2e home, never a real
  * one — and the spec removes it itself, so a rerun starts clean even before
@@ -20,6 +30,11 @@ import { apiURL, attachConsoleErrors, gotoApp, openServerSettings } from './help
  */
 
 const WS = 'e2e-tmp-ws'
+
+/** dialog-shell.spec.ts's fulfillJSON: one-line JSON fulfill, status-bound. */
+async function fulfillJSON(route: Route, json: unknown, status = 200): Promise<void> {
+  await route.fulfill({ status, contentType: 'application/json', json })
+}
 
 test.describe('workspaces settings tab', () => {
   test('create, list, and two-step remove of a standalone workspace', async ({ page, request }) => {
@@ -89,6 +104,108 @@ test.describe('workspaces settings tab', () => {
     // duplicate create) — Chromium logs each as a console error, so both are
     // filtered the way helpers.ts filters the fixture's write-409s.
     const unexpected = errors.filter((e) => !e.includes('409') && !e.includes('400'))
+    expect(unexpected, `console errors:\n${unexpected.join('\n')}`).toEqual([])
+  })
+})
+
+test.describe('workspaces settings tab — register remote (GDK-1099)', () => {
+  /*
+   * Mocked POST answers, three UI states (see the GDK-1099 note up top —
+   * the real pairing contract is the Go tests'). The mock is stateful on
+   * purpose: the success path reloads the list, so the GET must learn the
+   * new row from the POST that created it, exactly as the real serve
+   * would answer.
+   */
+  test('register remote: refusals render inline, success adds a connected row and clears the code', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+
+    const PAIRED = 'e2e-paired-ws'
+    let answer: 'refused' | 'invalid' | 'ok' = 'refused'
+    let registered = false
+    await page.route('**/api/v1/workspaces', async (route) => {
+      const req = route.request()
+      if (req.method() === 'GET') {
+        await fulfillJSON(route, {
+          workspaces: [
+            { name: 'default', site: 'https://nimbus.example.com', projects: ['NMB'], active: true },
+            ...(registered ? [{ name: PAIRED, site: 'http://127.0.0.1:7900' }] : []),
+          ],
+        })
+        return
+      }
+      if (req.method() === 'POST') {
+        const body = req.postDataJSON() as { kind?: string }
+        if (body.kind !== 'paired') {
+          await route.continue()
+          return
+        }
+        if (answer === 'refused') {
+          await fulfillJSON(
+            route,
+            {
+              error: 'pairing_refused',
+              detail:
+                'the serve answered but refused this pairing token (401) — ask the home machine to mint a fresh offer',
+            },
+            400,
+          )
+          return
+        }
+        if (answer === 'invalid') {
+          await fulfillJSON(route, { error: 'invalid_offer', detail: 'pairing offer: not base64url' }, 400)
+          return
+        }
+        registered = true
+        await fulfillJSON(
+          route,
+          {
+            name: PAIRED,
+            kind: 'connected',
+            endpoint: 'http://127.0.0.1:7900',
+            label: 'web-tab',
+            account: 'Home Human',
+          },
+          201,
+        )
+        return
+      }
+      await route.continue()
+    })
+
+    await gotoApp(page)
+    await openServerSettings(page)
+    const dialog = page.getByRole('dialog', { name: 'Settings' })
+    await dialog.getByRole('button', { name: 'Workspaces', exact: true }).click()
+    const tab = dialog.getByTestId('workspaces-tab')
+
+    // The mode switch swaps the standalone form for the pairing form.
+    await tab.getByTestId('workspaces-mode-paired').click()
+    await expect(tab.getByTestId('workspaces-pair-form')).toBeVisible()
+    await expect(tab.getByTestId('workspaces-form')).toHaveCount(0)
+
+    // pairing_refused: the server's own wording, inline — and the offer
+    // stays in the box for a re-submit.
+    await tab.getByTestId('workspaces-pair-name-input').fill(PAIRED)
+    await tab.getByTestId('workspaces-offer-input').fill('e2e-mock-offer-line')
+    await tab.getByTestId('workspaces-pair-button').click()
+    await expect(tab.getByTestId('workspaces-pair-error')).toContainText('refused this pairing token')
+    await expect(tab.getByTestId('workspaces-offer-input')).toHaveValue('e2e-mock-offer-line')
+
+    // invalid_offer: the decode defect's wording, same inline lane.
+    answer = 'invalid'
+    await tab.getByTestId('workspaces-pair-button').click()
+    await expect(tab.getByTestId('workspaces-pair-error')).toContainText('pairing offer: not base64url')
+
+    // Success: the reloaded list carries the new row, and the code — a
+    // credential — is cleared from the input.
+    answer = 'ok'
+    await tab.getByTestId('workspaces-pair-button').click()
+    await expect(tab.getByTestId(`workspaces-row-${PAIRED}`)).toBeVisible({ timeout: 30_000 })
+    await expect(tab.getByTestId('workspaces-offer-input')).toHaveValue('')
+
+    // The mocked 400s are this spec's own staged answers, filtered the way
+    // the standalone test filters the protocol's 400/409 above.
+    const unexpected = errors.filter((e) => !e.includes('400'))
     expect(unexpected, `console errors:\n${unexpected.join('\n')}`).toEqual([])
   })
 })

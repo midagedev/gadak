@@ -11,6 +11,11 @@
  *   2. The serving profile's Delete button is disabled before any
  *      round-trip (the server would refuse self_delete anyway).
  *   3. forbidden_host collapses the tab to the local-only notice.
+ *   4. GDK-1099: the create area has two modes; the paired one POSTs
+ *      name+kind+offer through pairWorkspace and shows the server's
+ *      refusal detail verbatim. The real verify-before-save contract is
+ *      owned by the Go tests (internal/workspace/manage_test.go) — here
+ *      the POST shape and the rendering are what is under test.
  */
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -19,6 +24,7 @@ import { afterEach, describe, expect, test, vi } from 'vitest'
 import {
   createWorkspace,
   listWorkspaces,
+  pairWorkspace,
   removeWorkspace,
   WorkspaceManageError,
 } from '../../lib/api'
@@ -126,6 +132,41 @@ describe('GDK-1096 removeWorkspace — probe vs commit', () => {
   })
 })
 
+describe('GDK-1099 pairWorkspace', () => {
+  test('POSTs name + kind paired + the offer verbatim, nothing else', async () => {
+    const fetchMock = vi.fn(async () =>
+      jsonResponse(201, { name: 'laptop', kind: 'connected', endpoint: 'http://127.0.0.1:7900', label: 'web-tab', account: 'Home Human' }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const offer = 'eyJ2IjoxLCJlbmRwb2ludCI6Imh0dHA6Ly8xMjcuMC4wLjE6NzkwMCJ9'
+    const res = await pairWorkspace('laptop', offer)
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+    expect(url).toBe('/api/v1/workspaces')
+    expect(init.method).toBe('POST')
+    expect(init.credentials).toBe('same-origin')
+    expect(JSON.parse(String(init.body))).toEqual({ name: 'laptop', kind: 'paired', offer })
+    // The 201 doc keeps the server's spellings — kind connected included.
+    expect(res).toMatchObject({ name: 'laptop', kind: 'connected', account: 'Home Human' })
+  })
+
+  test('a refused pairing surfaces as {error, detail} — the CLI wording survives verbatim', async () => {
+    const detail = 'the serve answered but refused this pairing token (401) — ask the home machine to mint a fresh offer'
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(400, { error: 'pairing_refused', detail })))
+    const err = await pairWorkspace('laptop', 'offer-line').catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(WorkspaceManageError)
+    expect(err).toMatchObject({ status: 400, error: 'pairing_refused', detail })
+  })
+
+  test('serve_unreachable is the same shape (502, endpoint in detail)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse(502, { error: 'serve_unreachable', detail: 'could not verify the pairing against http://127.0.0.1:7900' })),
+    )
+    const err = await pairWorkspace('laptop', 'offer-line').catch((e: unknown) => e)
+    expect(err).toMatchObject({ status: 502, error: 'serve_unreachable' })
+  })
+})
+
 /* ── The component's render contract (source the compiler emits) ── */
 
 describe('GDK-1096 WorkspacesTab render contract', () => {
@@ -168,6 +209,45 @@ describe('GDK-1096 WorkspacesTab render contract', () => {
   test('workspace state is component-only — nothing persisted', () => {
     expect(src).not.toMatch(/localStorage/)
     expect(src).not.toMatch(/sessionStorage/)
+  })
+})
+
+describe('GDK-1099 WorkspacesTab pairing render contract', () => {
+  const src = readFileSync(WORKSPACES_TAB, 'utf8')
+
+  test('the create area is a two-mode switch, standalone first', () => {
+    // A boolean, not a kind literal: the form mode is not the server-owned
+    // workspace kind, and workspace.test.ts (GDK-237) keeps 'standalone'
+    // comparisons out of components altogether.
+    expect(src).toMatch(/let pairingMode = \$state\(false\)/)
+    expect(src).not.toMatch(/['"]standalone['"]|WORKSPACE_KIND_STANDALONE/)
+    expect(src).toMatch(/workspaces-mode-standalone/)
+    expect(src).toMatch(/workspaces-mode-paired/)
+    // The standalone form keeps its own testids inside its branch — the
+    // pre-pairing selectors still resolve.
+    expect(src).toMatch(/workspaces-form/)
+    expect(src).toMatch(/workspaces-create-button/)
+  })
+
+  test('the paired form POSTs through pairWorkspace with a trimmed offer', () => {
+    expect(src).toMatch(/api\.pairWorkspace\(name, pairOffer\.trim\(\)\)/)
+    expect(src).toMatch(/workspaces-offer-input/)
+    expect(src).toMatch(/workspaces-pair-button/)
+  })
+
+  test('the offer field is cleared only on success', () => {
+    // Both clears sit inside pair's try, after the awaited POST — a refused
+    // pairing must leave the code in the box to re-submit. Scoped to the
+    // pair function itself: create()'s finally block also matches the split.
+    const pairFn = src.slice(src.indexOf('async function pair'), src.indexOf('async function beginRemove'))
+    const cleared = /api\.pairWorkspace\(name, pairOffer\.trim\(\)\)[\s\S]*?pairOffer = ''/
+    expect(pairFn).toMatch(cleared)
+    const afterFinally = pairFn.slice(pairFn.indexOf('} finally {'))
+    expect(afterFinally).not.toMatch(/pairOffer = ''/)
+  })
+
+  test('a refused pairing renders the server detail verbatim, pre-wrap', () => {
+    expect(src).toMatch(/whitespace-pre-wrap[\s\S]*?data-testid="workspaces-pair-error"[\s\S]*?\{pairError\}/)
   })
 })
 
@@ -216,6 +296,13 @@ describe('GDK-1096 workspaces copy is complete in every locale', () => {
     'settings.workspacesProjectsLabel',
     'settings.workspacesCreate',
     'settings.workspacesCreateFailed',
+    'settings.workspacesModeStandalone',
+    'settings.workspacesModePaired',
+    'settings.workspacesOfferLabel',
+    'settings.workspacesPairHint',
+    'settings.workspacesPair',
+    'settings.workspacesPairing',
+    'settings.workspacesPairFailed',
     'settings.workspacesErrExists',
     'settings.workspacesErrInvalidName',
     'settings.workspacesRemote',

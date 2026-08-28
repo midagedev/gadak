@@ -5,7 +5,10 @@ package workspace
 // remove.go's Remove (shared with the CLI verb); creation reuses
 // originbind.SeedStandalone, the same core `gadak init --standalone` and
 // POST onboarding/standalone seed through, so the web cannot mint a
-// workspace shape the CLI paths would treat differently.
+// workspace shape the CLI paths would treat differently. The paired branch
+// (GDK-1099) reuses initPaired's core instead (cmd/gadak/pairing.go):
+// decode the offer, prove it against the remote serve, only then write —
+// the same verify-before-save the CLI verb enforces.
 //
 // No Host/Origin/token checks live here: these handlers sit on the outer
 // serve mux, where server.GuardBrowser wraps the whole tree, and neither
@@ -14,6 +17,7 @@ package workspace
 // (proven by the boundary tests next to buildServeMux).
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,27 +25,34 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/originbind"
+	"github.com/midagedev/gadak/internal/pairing"
 	"github.com/midagedev/gadak/internal/store"
 )
 
 // createWorkspaceDoc is the POST /api/v1/workspaces body. kind must be
-// spelled by the caller, not defaulted: only standalone is creatable over
-// HTTP — connected needs a credential flow and paired needs the pairing
-// flow, and both stay off this API rather than half-existing here.
+// spelled by the caller, not defaulted: standalone seeds a local issuetap
+// profile, paired registers a remote gadak serve from its one-line offer
+// (GDK-1099), and connected stays off this API — it needs a credential
+// flow this surface does not own.
 type createWorkspaceDoc struct {
 	Name     string `json:"name"`
 	Kind     string `json:"kind"`
 	Projects string `json:"projects"`
+	Offer    string `json:"offer"`
 }
 
 // CreateHandler answers POST /api/v1/workspaces by seeding a standalone
-// workspace profile. The seed is the shared one: config write, default issue
-// type, mirror fill. A fill that fails is logged, not failed (SeedStandalone
-// contract — the workspace exists and writes work; the next sync fills).
+// workspace profile or registering a paired one (kind "paired" + offer).
+// The standalone seed is the shared one: config write, default issue
+// type, mirror fill. A fill that fails is logged, not failed
+// (SeedStandalone contract — the workspace exists and writes work; the
+// next sync fills). The paired path is createPaired's.
 func CreateHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var in createWorkspaceDoc
@@ -49,7 +60,12 @@ func CreateHandler() http.HandlerFunc {
 			manageFail(w, http.StatusBadRequest, "invalid_body")
 			return
 		}
-		if in.Kind != config.KindStandalone {
+		// "paired" is this API's request spelling; the workspace it creates
+		// reports kind connected (WorkspaceKind — only standalone is its
+		// own kind), the same listing semantics the CLI pair produces.
+		switch in.Kind {
+		case config.KindStandalone, "paired":
+		default:
 			manageFail(w, http.StatusBadRequest, "unsupported_kind")
 			return
 		}
@@ -73,6 +89,10 @@ func CreateHandler() http.HandlerFunc {
 		} else if !os.IsNotExist(err) {
 			log.Printf("workspaces: create %s: stat: %v", in.Name, err)
 			manageFail(w, http.StatusInternalServerError, "create_failed")
+			return
+		}
+		if in.Kind == "paired" {
+			createPaired(w, in, dir)
 			return
 		}
 
@@ -126,6 +146,76 @@ func CreateHandler() http.HandlerFunc {
 			"persist": persist,
 		})
 	}
+}
+
+// createPaired is the kind "paired" branch of POST /api/v1/workspaces:
+// register a remote gadak serve as a fresh workspace from its one-line
+// pairing offer. The core is initPaired's (cmd/gadak/pairing.go): decode
+// the offer, prove it against the serve with one /myself round trip over
+// the exact transport the workspace would use, and only then write
+// anything (verify-before-save, GDK-433). On failure nothing is written.
+// The offer string and token never reach a log line or a response body —
+// initPaired's no-echo contract, inherited verbatim. The fresh-directory
+// precondition (CreateHandler's exists check) stands in for initPaired's
+// "already owns an origin" refusal: a LoadFor on a new directory cannot
+// hold an origin, so the duplicate check is not repeated here.
+func createPaired(w http.ResponseWriter, in createWorkspaceDoc, dir string) {
+	offer, err := pairing.DecodeOffer(in.Offer)
+	if err != nil {
+		// DecodeOffer's errors name the defect without quoting the payload
+		// (offer.go), so the detail can carry them to the web as-is.
+		manageFailDetail(w, http.StatusBadRequest, "invalid_offer", err.Error())
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	me, err := origin.VerifyPaired(ctx, offer.Endpoint, offer.Token)
+	if err != nil {
+		if errors.Is(err, jira.ErrAuth) {
+			log.Printf("workspaces: pair %s: the serve refused this token", in.Name)
+			manageFailDetail(w, http.StatusBadRequest, "pairing_refused",
+				"the serve answered but refused this pairing token (401) — ask the home machine to mint a fresh offer")
+			return
+		}
+		// Endpoint only: the user supplied it inside the offer. The
+		// underlying transport error is dropped, not forwarded — error
+		// text is not a channel this response should have to audit.
+		log.Printf("workspaces: pair %s: could not verify the pairing against %s", in.Name, offer.Endpoint)
+		manageFailDetail(w, http.StatusBadGateway, "serve_unreachable",
+			fmt.Sprintf("could not verify the pairing against %s", offer.Endpoint))
+		return
+	}
+	// Verified. Same write order as initPaired: credential file, identity
+	// stamp, config save. SaveRemote creates the profile directory; the
+	// LoadFor contract is the standalone branch's (dir-bound empty Config).
+	if err := pairing.SaveRemote(dir, pairing.Remote{
+		Endpoint: offer.Endpoint,
+		Token:    offer.Token,
+		Label:    offer.Label,
+	}); err != nil {
+		log.Printf("workspaces: pair %s: save pairing: %v", in.Name, err)
+		manageFail(w, http.StatusInternalServerError, "create_failed")
+		return
+	}
+	cfg, err := config.LoadFor(in.Name)
+	if err != nil {
+		log.Printf("workspaces: pair %s: load: %v", in.Name, err)
+		manageFail(w, http.StatusInternalServerError, "create_failed")
+		return
+	}
+	cfg.ApplyVerifiedIdentity(me.AccountID, me.DisplayName, store.Now())
+	if err := cfg.Save(); err != nil {
+		log.Printf("workspaces: pair %s: save: %v", in.Name, err)
+		manageFail(w, http.StatusInternalServerError, "create_failed")
+		return
+	}
+	writeManageJSON(w, http.StatusCreated, map[string]string{
+		"name":     in.Name,
+		"kind":     config.KindConnected,
+		"endpoint": offer.Endpoint,
+		"label":    offer.Label,
+		"account":  me.DisplayName,
+	})
 }
 
 // RemoveHandler answers DELETE /api/v1/workspaces/{name}?yes=1&destroy_origin=1.

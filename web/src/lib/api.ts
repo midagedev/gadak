@@ -1203,9 +1203,9 @@ export async function listWorkspaces(): Promise<WorkspaceInfo[]> {
 }
 
 /**
- * Create a standalone workspace (the only kind creatable over HTTP —
- * connected needs the credential flow, paired the pairing flow). `projects`
- * is a CSV the server parses; empty mirrors every project.
+ * Create a standalone workspace. `projects` is a CSV the server parses;
+ * empty mirrors every project. The paired flow is pairWorkspace's —
+ * connected still needs the credential flow and stays off this API.
  */
 export async function createWorkspace(name: string, projects = ''): Promise<CreatedWorkspace> {
   const body: Record<string, string> = { name, kind: 'standalone' }
@@ -1219,6 +1219,36 @@ export async function createWorkspace(name: string, projects = ''): Promise<Crea
   })
   if (!res.ok) throw await manageRefusal(res)
   return (await res.json()) as CreatedWorkspace
+}
+
+/** POST /api/v1/workspaces kind:"paired" 201 document (createPaired). The
+ *  new workspace reports kind connected — the same listing semantics the
+ *  CLI pairing flow produces. */
+export interface PairedWorkspace {
+  name: string
+  kind: string
+  endpoint: string
+  label: string
+  account: string
+}
+
+/**
+ * Register a remote gadak serve as a fresh workspace from its one-line
+ * pairing offer (GDK-1099). The server verifies the offer against the
+ * remote serve before writing anything (verify-before-save); its refusal
+ * wording (invalid_offer, pairing_refused, serve_unreachable) is the CLI's
+ * own, carried in `detail` for the UI to show verbatim. The offer is
+ * credential-shaped: it goes into the request body and nowhere else.
+ */
+export async function pairWorkspace(name: string, offer: string): Promise<PairedWorkspace> {
+  const res = await fetch('/api/v1/workspaces', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify({ name, kind: 'paired', offer }),
+  })
+  if (!res.ok) throw await manageRefusal(res)
+  return (await res.json()) as PairedWorkspace
 }
 
 /**

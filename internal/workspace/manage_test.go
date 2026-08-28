@@ -8,6 +8,7 @@ package workspace
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -16,7 +17,9 @@ import (
 	"testing"
 
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/origin"
+	"github.com/midagedev/gadak/internal/pairing"
 )
 
 // manageMux wires the two handlers the way buildServeMux does (method-
@@ -370,4 +373,184 @@ func manageDir(t *testing.T, name string) string {
 		t.Fatal(err)
 	}
 	return dir
+}
+
+// managePairHome is the minimal remote gadak serve a kind:"paired" create
+// talks to: VerifyPaired is one GET over the passthrough path, so a server
+// that answers /rest/api/3/myself is the whole fixture (the full passthrough
+// contract lives in internal/server/origin_rest_pairing_test.go). status
+// picks the answer: 200 proves the offer, 401 refuses it.
+func managePairHome(t *testing.T, status int) *httptest.Server {
+	t.Helper()
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasSuffix(r.URL.Path, "/rest/api/3/myself") {
+			http.NotFound(w, r)
+			return
+		}
+		if status == http.StatusUnauthorized {
+			w.WriteHeader(status)
+			_, _ = w.Write([]byte(`{"message":"bad token"}`))
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprint(w, `{"accountId":"acc-home","displayName":"Home Human"}`)
+	}))
+	t.Cleanup(ts.Close)
+	return ts
+}
+
+// manageOffer mints a real offer line for endpoint — EncodeOffer, the same
+// constructor `gadak pairing mint` prints through, never a hand-built shape.
+func manageOffer(t *testing.T, endpoint string) string {
+	t.Helper()
+	offer, err := pairing.EncodeOffer(pairing.Offer{
+		V:        pairing.OfferV1,
+		Endpoint: endpoint,
+		Token:    "test-device-token",
+		Label:    "web-tab",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return offer
+}
+
+// manageAssertNoEcho pins the absolute contract: neither the one-line offer
+// nor the token inside it appears in a response body, success or failure.
+func manageAssertNoEcho(t *testing.T, rec *httptest.ResponseRecorder, offer string) {
+	t.Helper()
+	if strings.Contains(rec.Body.String(), offer) {
+		t.Errorf("response echoes the offer string: %s", rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "test-device-token") {
+		t.Errorf("response echoes the pairing token: %s", rec.Body.String())
+	}
+}
+
+func TestManageCreatePairedRegisters(t *testing.T) {
+	setupHome(t)
+	h := manageMux(New())
+
+	ts := managePairHome(t, http.StatusOK)
+	offer := manageOffer(t, ts.URL)
+	rec := manageSend(t, h, http.MethodPost, "/api/v1/workspaces",
+		`{"name":"laptop","kind":"paired","offer":"`+offer+`"}`)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	var doc struct {
+		Name     string `json:"name"`
+		Kind     string `json:"kind"`
+		Endpoint string `json:"endpoint"`
+		Label    string `json:"label"`
+		Account  string `json:"account"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &doc); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	// A paired workspace reports kind connected — the listing semantics
+	// (WorkspaceKind: only standalone is its own kind), pinned here so the
+	// response cannot drift from what the workspaces list would say.
+	if doc.Name != "laptop" || doc.Kind != config.KindConnected ||
+		doc.Endpoint != ts.URL || doc.Label != "web-tab" || doc.Account != "Home Human" {
+		t.Fatalf("doc = %+v", doc)
+	}
+	manageAssertNoEcho(t, rec, offer)
+
+	// The profile exists on disk exactly as the CLI door leaves it: the
+	// credential file next to a config stamped by the verified identity.
+	dir := manageDir(t, "laptop")
+	rem, err := pairing.LoadRemote(dir)
+	if err != nil || rem == nil {
+		t.Fatalf("remote credential missing after create: %v", err)
+	}
+	if rem.Endpoint != ts.URL || rem.Token != "test-device-token" || rem.Label != "web-tab" {
+		t.Fatalf("remote credential = %+v", rem)
+	}
+	saved, err := config.LoadFor("laptop")
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if saved.IsStandalone() || saved.AccountID != "acc-home" || saved.TokenOwner != "Home Human" {
+		t.Fatalf("saved config = %+v", saved)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "config.json")); err != nil {
+		t.Errorf("config.json missing after create: %v", err)
+	}
+
+	// The exists refusal is shared with the standalone branch: a name
+	// already on disk is a conflict before any offer is read.
+	manageSeedProfile(t, "taken", config.KindConnected, false)
+	rec = manageSend(t, h, http.MethodPost, "/api/v1/workspaces",
+		`{"name":"taken","kind":"paired","offer":"`+offer+`"}`)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("exists: status %d, want 409: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestManageCreatePairedRefusals(t *testing.T) {
+	setupHome(t)
+	h := manageMux(New())
+
+	// One attempt, no backoff: the unreachable case would otherwise pay the
+	// production retry budget (1+2+4+8s of sleeps). The 502 mapping is
+	// under test, not the patience — client.go documents this override as
+	// the test hook for exactly that.
+	oldRetries, oldBackoff := jira.DefaultRetries, jira.DefaultBackoff
+	jira.DefaultRetries, jira.DefaultBackoff = 1, 0
+	t.Cleanup(func() { jira.DefaultRetries, jira.DefaultBackoff = oldRetries, oldBackoff })
+
+	// invalid_offer: a broken string never reaches the network.
+	rec := manageSend(t, h, http.MethodPost, "/api/v1/workspaces",
+		`{"name":"p1","kind":"paired","offer":"certainly-not-an-offer"}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("invalid_offer: status %d: %s", rec.Code, rec.Body.String())
+	}
+	if doc := manageErrDoc(t, rec); doc["error"] != "invalid_offer" {
+		t.Fatalf("invalid_offer: %+v", doc)
+	}
+	if strings.Contains(rec.Body.String(), "certainly-not-an-offer") {
+		t.Fatalf("invalid_offer detail quotes the payload: %s", rec.Body.String())
+	}
+	if _, err := os.Stat(manageDir(t, "p1")); !os.IsNotExist(err) {
+		t.Fatalf("invalid_offer wrote a profile: %v", err)
+	}
+
+	// pairing_refused: the serve answered 401 — CLI wording, reused.
+	ts := managePairHome(t, http.StatusUnauthorized)
+	offer := manageOffer(t, ts.URL)
+	rec = manageSend(t, h, http.MethodPost, "/api/v1/workspaces",
+		`{"name":"p2","kind":"paired","offer":"`+offer+`"}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("pairing_refused: status %d: %s", rec.Code, rec.Body.String())
+	}
+	doc := manageErrDoc(t, rec)
+	if doc["error"] != "pairing_refused" || !strings.Contains(doc["detail"], "refused this pairing token") {
+		t.Fatalf("pairing_refused: %+v", doc)
+	}
+	manageAssertNoEcho(t, rec, offer)
+	if _, err := os.Stat(manageDir(t, "p2")); !os.IsNotExist(err) {
+		t.Fatalf("pairing_refused wrote a profile: %v", err)
+	}
+
+	// serve_unreachable: a real port that is already closed (127.0.0.1
+	// httptest, never a routed-away address). The endpoint itself is the
+	// one thing the detail may name — the user supplied it.
+	ts2 := httptest.NewServer(http.NotFoundHandler())
+	endpoint := ts2.URL
+	ts2.Close()
+	offer2 := manageOffer(t, endpoint)
+	rec = manageSend(t, h, http.MethodPost, "/api/v1/workspaces",
+		`{"name":"p3","kind":"paired","offer":"`+offer2+`"}`)
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("serve_unreachable: status %d: %s", rec.Code, rec.Body.String())
+	}
+	doc = manageErrDoc(t, rec)
+	if doc["error"] != "serve_unreachable" || !strings.Contains(doc["detail"], endpoint) {
+		t.Fatalf("serve_unreachable: %+v, want detail naming %q", doc, endpoint)
+	}
+	manageAssertNoEcho(t, rec, offer2)
+	if _, err := os.Stat(manageDir(t, "p3")); !os.IsNotExist(err) {
+		t.Fatalf("serve_unreachable wrote a profile: %v", err)
+	}
 }
