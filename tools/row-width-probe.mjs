@@ -36,9 +36,25 @@ const BASE = `http://127.0.0.1:${PORT}`
 const DEFAULT_CL = 'assignee,updated,labels,reopen,stale,qa_impact,deploy'
 
 // Mirrors web/src/app.css @container issuerow thresholds — keep in step.
+// Mirror of the trail-break rung table in web/src/app.css (GDK-1049) — the
+// CSS block is the owner; keep in step. Rungs above the 1360 row-width cap
+// are listed too: the probe reporting them as "dropped" at every width is
+// the diagnostic that they cannot paint under today's layout.
 const THRESHOLDS = [
+  ['components column dropped (rung above the 1360 cap)', 1960],
+  ['fix_versions column dropped (rung above the 1360 cap)', 1840],
+  ['reporter column dropped (rung above the 1360 cap)', 1720],
+  ['team_group column dropped (rung above the 1360 cap)', 1620],
+  ['environment column dropped (rung above the 1360 cap)', 1530],
+  ['dev_test_result column dropped (rung above the 1360 cap)', 1440],
+  ['due column dropped', 1340],
+  ['created column dropped', 1180],
+  ['comment_count column dropped', 1130],
   ['stale-glyph hidden', 1100],
+  ['status column dropped', 1060],
   ['qa_impact column dropped', 1000],
+  ['issue_type column dropped', 860],
+  ['severity column dropped', 770],
   ['epic column dropped', 750],
   ['trail-fold-1 (assignee, updated)', 620],
   ['trail-fold-2 (labels)', 480],

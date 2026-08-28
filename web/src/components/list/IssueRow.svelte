@@ -4,12 +4,13 @@
    *  Layout: priority icon · status dot · key (mono) · title · trailing scan
    *  columns (fixed-width slots). Off columns are omitted — no hole. An on
    *  column keeps its width when the row has no value, so the same field
-   *  shares an x. A hide drops the whole slot, never a squeeze: optional
-   *  columns break on the viewport (sm 640 / md 768 / lg 1024), while
-   *  qa_impact and epic break on the ROW's own width (@container issuerow,
-   *  GDK-1046) — a detail panel narrows the row for reasons the viewport
-   *  cannot see, and the width that has to fit is the one that decides.
-   *  Title takes leftover and truncates.
+   *  shares an x. A hide drops the whole slot, never a squeeze: every
+   *  optional column (qa_impact, epic and the twelve catalog options
+   *  alike) breaks on the ROW's own width (@container issuerow, GDK-1046
+   *  and GDK-1049) — a detail panel narrows the row for reasons the
+   *  viewport cannot see, and the width that has to fit is the one that
+   *  decides. Each slot's threshold lives in one table in app.css (the
+   *  trail-break-* rungs). Title takes leftover and truncates.
    *  Chip/dot/avatar click = add that value as a filter (stopPropagation vs row select).
    *  Tint and cursor ring are separate: checking a row must not hide where the
    *  keyboard is, or the next x lands blind.
@@ -308,11 +309,12 @@
        shares an x. An off column is not rendered (no hole). Break classes
        live on the slot so a hide drops the column instead of leaving a gap.
        Container-query folds (trail-fold-*) hide whole slots in designed order
-       when the row cannot fit them, and the qa_impact/epic breaks
-       (trail-break-*) are row-width-keyed for the same reason — the row, not
-       the viewport, is what runs out of room (GDK-1046). overflow:hidden on
-       the list column is not a fold (GDK-766). Keep last: stale, then
-       reopen, then deploy. -->
+       when the row cannot fit them, and every optional column's break
+       (trail-break-*) is row-width-keyed for the same reason: the row, not
+       the viewport, is what runs out of room (GDK-1046; GDK-1049 moved the
+       twelve catalog options here too, thresholds in one app.css table).
+       overflow:hidden on the list column is not a fold (GDK-766). Keep
+       last: stale, then reopen, then deploy. -->
   <div class="flex min-w-0 shrink items-center gap-2.5" data-testid="issue-row-trail">
   <!-- Badges: reopen / stale -->
   {#if cols.has('reopen')}
@@ -401,7 +403,7 @@
   <!-- Optional columns (view settings). Slot is reserved when the column is
        on; empty rows keep the width so later fields do not shift. -->
   {#if cols.has('severity')}
-    <div class="hidden w-20 flex-none items-center overflow-hidden sm:flex" data-col="severity">
+    <div class="trail-break-severity flex w-20 flex-none items-center overflow-hidden" data-col="severity">
       {#if issue.severity}
         <button
           type="button"
@@ -415,7 +417,7 @@
     </div>
   {/if}
   {#if cols.has('issue_type')}
-    <div class="hidden w-20 flex-none items-center overflow-hidden sm:flex" data-col="issue_type">
+    <div class="trail-break-issue-type flex w-20 flex-none items-center overflow-hidden" data-col="issue_type">
       {#if issue.issue_type}
         <button
           type="button"
@@ -430,7 +432,7 @@
     </div>
   {/if}
   {#if cols.has('status')}
-    <div class="hidden w-20 flex-none items-center overflow-hidden sm:flex" data-col="status">
+    <div class="trail-break-status flex w-20 flex-none items-center overflow-hidden" data-col="status">
       {#if issue.status}
         <button
           type="button"
@@ -444,7 +446,7 @@
     </div>
   {/if}
   {#if cols.has('dev_test_result')}
-    <div class="hidden w-24 flex-none items-center overflow-hidden md:flex" data-col="dev_test_result">
+    <div class="trail-break-dev-test-result flex w-24 flex-none items-center overflow-hidden" data-col="dev_test_result">
       {#if issue.development_test_result}
         <button
           type="button"
@@ -458,7 +460,7 @@
     </div>
   {/if}
   {#if cols.has('environment')}
-    <div class="hidden w-20 flex-none items-center overflow-hidden md:flex" data-col="environment">
+    <div class="trail-break-environment flex w-20 flex-none items-center overflow-hidden" data-col="environment">
       {#if issue.environment}
         <button
           type="button"
@@ -472,7 +474,7 @@
     </div>
   {/if}
   {#if cols.has('team_group')}
-    <div class="hidden w-20 flex-none items-center overflow-hidden md:flex" data-col="team_group">
+    <div class="trail-break-team-group flex w-20 flex-none items-center overflow-hidden" data-col="team_group">
       {#if issue.team_group}
         <button
           type="button"
@@ -486,7 +488,7 @@
     </div>
   {/if}
   {#if cols.has('reporter')}
-    <div class="hidden w-[90px] flex-none items-center overflow-hidden md:flex" data-col="reporter">
+    <div class="trail-break-reporter flex w-[90px] flex-none items-center overflow-hidden" data-col="reporter">
       {#if issue.reporter}
         <button
           type="button"
@@ -502,7 +504,7 @@
     </div>
   {/if}
   {#if cols.has('comment_count')}
-    <div class="hidden w-10 flex-none items-center overflow-hidden sm:flex" data-col="comment_count">
+    <div class="trail-break-comment-count flex w-10 flex-none items-center overflow-hidden" data-col="comment_count">
       {#if issue.comment_count > 0}
         <span class="flex items-center gap-1 text-micro text-text-muted" title={t('list.commentCount', { n: issue.comment_count })}>
           <Icon name="message-square" size={11} />
@@ -512,7 +514,7 @@
     </div>
   {/if}
   {#if cols.has('fix_versions')}
-    <div class="hidden w-[110px] flex-none items-center overflow-hidden lg:flex" data-col="fix_versions">
+    <div class="trail-break-fix-versions flex w-[110px] flex-none items-center overflow-hidden" data-col="fix_versions">
       {#if issue.fix_versions.length}
         <span class="flex min-w-0 items-center gap-1">
           <button
@@ -531,7 +533,7 @@
     </div>
   {/if}
   {#if cols.has('components')}
-    <div class="hidden w-[110px] flex-none items-center overflow-hidden lg:flex" data-col="components">
+    <div class="trail-break-components flex w-[110px] flex-none items-center overflow-hidden" data-col="components">
       {#if issue.components.length}
         <span class="flex min-w-0 items-center gap-1">
           <button
@@ -550,7 +552,7 @@
     </div>
   {/if}
   {#if cols.has('created')}
-    <div class="hidden w-10 flex-none items-center overflow-hidden sm:flex" data-col="created">
+    <div class="trail-break-created flex w-10 flex-none items-center overflow-hidden" data-col="created">
       {#if issue.created_at}
         <span class="w-10 text-right text-micro text-text-muted" title={t('list.createdAt', { time: absTime(issue.created_at) })}>
           {relativeTime(issue.created_at)}
@@ -559,7 +561,7 @@
     </div>
   {/if}
   {#if cols.has('due')}
-    <div class="hidden w-20 flex-none items-center overflow-hidden sm:flex" data-col="due">
+    <div class="trail-break-due flex w-20 flex-none items-center overflow-hidden" data-col="due">
       {#if issue.duedate}
         <span
           class="w-20 text-right text-micro text-text-muted"
