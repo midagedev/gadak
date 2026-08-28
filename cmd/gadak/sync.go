@@ -131,8 +131,12 @@ func cmdSync(args []string) error {
 		if res.Full {
 			kind = "full"
 		}
-		fmt.Printf("%s sync: fetched %d, changed %d, deleted %d, watermark %s\n",
-			kind, res.Fetched, res.Changed, res.Deleted, res.Watermark)
+		unchanged := ""
+		if res.Skips > 0 {
+			unchanged = fmt.Sprintf(" (%d unchanged)", res.Skips)
+		}
+		fmt.Printf("%s sync: fetched %d, changed %d, deleted %d%s, watermark %s\n",
+			kind, res.Fetched, res.Changed, res.Deleted, unchanged, res.Watermark)
 	}
 	if runLinear {
 		lres, err := syncer.RunLinear(context.Background(), cfg, db, opts)

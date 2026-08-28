@@ -779,6 +779,43 @@ func (db *DB) PageStamps(ctx context.Context, sourceID, spaceKey string) (map[st
 	return out, err
 }
 
+// IssueStamps returns the mirror's updated_at per issue external id, for the
+// ids asked about. The Jira incremental pass uses it the way the Confluence
+// pass uses PageStamps: a search hit whose stamp the mirror already holds is
+// the watermark's overlap window echoing, not a change, so the pass spends no
+// build (and none of build's per-issue child fetches) on it (GDK-1075).
+// Jira's `updated` moves on comments and transitions too, so stamp equality
+// really does mean nothing changed.
+func (db *DB) IssueStamps(ctx context.Context, sourceID string, externalIDs []string) (map[string]string, error) {
+	out := map[string]string{}
+	if sourceID == "" || len(externalIDs) == 0 {
+		return out, nil
+	}
+	args := make([]any, 0, len(externalIDs)+1)
+	args = append(args, sourceID)
+	ph := make([]string, len(externalIDs))
+	for i, id := range externalIDs {
+		ph[i] = "?"
+		args = append(args, id)
+	}
+	err := each(ctx, db.sql, `
+		SELECT COALESCE(external_id, ''), COALESCE(updated_at, '')
+		FROM items
+		WHERE source_id = ? AND kind = 'issue' AND external_id IN (`+strings.Join(ph, ",")+`)`,
+		func(rows *sql.Rows) error {
+			var id, at string
+			if err := rows.Scan(&id, &at); err != nil {
+				return err
+			}
+			if id == "" {
+				return nil
+			}
+			out[id] = at
+			return nil
+		}, args...)
+	return out, err
+}
+
 // PageCommentStamps returns one space's mirrored wiki-comment stamps keyed by
 // the comment's source id (external_id → updated_at). The comments-only sync
 // pass uses it the way PageStamps gates page bodies: a comment search hit the

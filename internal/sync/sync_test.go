@@ -855,6 +855,7 @@ func TestIncrementalRerunIsANoOp(t *testing.T) {
 	}
 	before, _ := db.SyncState(context.Background(), SourceID)
 
+	hitsBefore := site.hits
 	res, err := Run(context.Background(), cfg, db.DB, Options{Client: client})
 	if err != nil {
 		t.Fatal(err)
@@ -862,8 +863,18 @@ func TestIncrementalRerunIsANoOp(t *testing.T) {
 	if res.Full {
 		t.Error("a mirror with a watermark must sync incrementally")
 	}
-	if res.Fetched != 3 || res.Changed != 0 {
-		t.Errorf("re-run changed %d of %d fetched rows, want 0", res.Changed, res.Fetched)
+	// Stamp gate (GDK-1075): every window hit is answered from the mirror —
+	// no build, no upsert, no catalog loads. Before the gate this re-run
+	// reported fetched 3 and spent per-issue child fetches on each.
+	if res.Fetched != 0 || res.Changed != 0 || res.Skips != 3 {
+		t.Errorf("re-run fetched %d changed %d unchanged %d, want 0/0/3", res.Fetched, res.Changed, res.Skips)
+	}
+	// The quiet tick's whole request budget: sprint-field resolve, the search
+	// pages (3 issues at pageSize 2 → 2 pages), and the filter import. A new
+	// per-tick request must show up here and be argued for, not drift in
+	// (status/priority catalogs and approximate-count used to be four more).
+	if got := site.hits - hitsBefore; got != 4 {
+		t.Errorf("quiet incremental tick spent %d requests, want 4", got)
 	}
 	after, _ := db.SyncState(context.Background(), SourceID)
 	if after.Version != before.Version {
@@ -879,6 +890,37 @@ func TestIncrementalRerunIsANoOp(t *testing.T) {
 	}
 	if !strings.Contains(site.syncJQL, `project in ("NMB")`) || !strings.Contains(site.syncJQL, "ORDER BY updated ASC") {
 		t.Errorf("incremental JQL = %q", site.syncJQL)
+	}
+
+	// A real change passes the gate: bump one issue's updated stamp and the
+	// next tick processes exactly that one, still answering the echo hits
+	// from the mirror.
+	var iss map[string]any
+	if err := json.Unmarshal(site.issues[0], &iss); err != nil {
+		t.Fatal(err)
+	}
+	fields := iss["fields"].(map[string]any)
+	fields["summary"] = "Editor crashes on save — now on open too"
+	fields["updated"] = "2026-08-09T00:00:00.000Z"
+	bumped, err := json.Marshal(iss)
+	if err != nil {
+		t.Fatal(err)
+	}
+	site.issues[0] = bumped
+
+	res, err = Run(context.Background(), cfg, db.DB, Options{Client: client})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Fetched != 1 || res.Changed != 1 || res.Skips != 2 {
+		t.Errorf("bumped tick fetched %d changed %d unchanged %d, want 1/1/2", res.Fetched, res.Changed, res.Skips)
+	}
+	var summary string
+	if err := db.raw(t).QueryRow(`SELECT title FROM items WHERE key = 'NMB-1'`).Scan(&summary); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(summary, "now on open too") {
+		t.Errorf("bumped summary did not land: %q", summary)
 	}
 }
 

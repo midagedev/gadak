@@ -3,6 +3,7 @@ package sync
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/midagedev/gadak/internal/atlhttp"
@@ -245,9 +246,15 @@ func runSource(
 	}
 
 	elapsed := time.Since(started).Round(time.Second)
-	opts.logf("%sdone: %s fetched, %s changed, %s deleted in %s",
+	unchanged := ""
+	if res.Skips > 0 {
+		// The stamp gate's tally (GDK-1075): how many window hits the mirror
+		// answered. Absent on full passes and on quiet windows with no echo.
+		unchanged = fmt.Sprintf(" (%s unchanged)", formatCount(res.Skips))
+	}
+	opts.logf("%sdone: %s fetched, %s changed, %s deleted%s in %s",
 		donePrefix,
-		formatCount(res.Fetched), formatCount(res.Changed), formatCount(res.Deleted), elapsed)
+		formatCount(res.Fetched), formatCount(res.Changed), formatCount(res.Deleted), unchanged, elapsed)
 	return res, nil
 }
 

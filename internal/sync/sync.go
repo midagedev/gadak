@@ -110,6 +110,11 @@ type Result struct {
 	// unchanged corpus must report PageBodies 0. Jira leaves both at 0.
 	PageBodies int
 	PageSkips  int
+	// Skips is the Jira pass's stamp-gate tally: incremental search hits the
+	// mirror already held at exactly their `updated` stamp, answered without a
+	// build or an upsert (GDK-1075). A quiet tick reports Fetched 0 and every
+	// window hit here. Confluence leaves it at 0 (its gate reports PageSkips).
+	Skips int
 }
 
 func (o Options) logf(format string, args ...any) {
@@ -215,13 +220,22 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 		}
 	}
 
-	cats, err := c.Statuses(ctx)
-	if err != nil {
-		return record(ctx, cfg, db, SourceID, err)
-	}
-	prios, err := c.Priorities(ctx)
-	if err != nil {
-		return record(ctx, cfg, db, SourceID, err)
+	// Status and priority catalogs load lazily, on the first page that has an
+	// issue to process: a quiet incremental tick — every hit answered by the
+	// stamp gate — spends no catalog requests (GDK-1075). A load failure still
+	// fails the pass through the page callback's error path.
+	var cats map[string]string
+	var prios []string
+	loadCatalogs := func() error {
+		if cats != nil {
+			return nil
+		}
+		var err error
+		if cats, err = c.Statuses(ctx); err != nil {
+			return err
+		}
+		prios, err = c.Priorities(ctx)
+		return err
 	}
 
 	if opts.sprintField == nil {
@@ -238,6 +252,45 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 	pageBase := 0
 	unitDenom := -1
 	page := func(issues []jira.Issue) error {
+		// Stamp gate (GDK-1075, the pageFetchGate idea on the issue side): on
+		// an incremental pass, a hit the mirror already holds at exactly this
+		// `updated` stamp is the watermark's overlap window echoing, not a
+		// change. It spends no build — none of build's per-issue comment /
+		// changelog fetches — and no upsert; its stamp still advances the
+		// watermark below. Jira's `updated` moves on comments and transitions
+		// too, so equality really means unchanged. Full (and locale-rebuild,
+		// which forces Full) re-reads everything: the repair path.
+		if !res.Full {
+			ids := make([]string, 0, len(issues))
+			for _, iss := range issues {
+				if iss.ID != "" {
+					ids = append(ids, iss.ID)
+				}
+			}
+			have, err := db.IssueStamps(ctx, SourceID, ids)
+			if err != nil {
+				return err
+			}
+			kept := make([]jira.Issue, 0, len(issues))
+			for _, iss := range issues {
+				at := jira.ISOTime(iss.Fields.Updated)
+				if iss.ID != "" && at != "" && have[iss.ID] == at {
+					res.Skips++
+					if u := at; u > maxUTC {
+						maxUTC, maxRaw = u, iss.Fields.Updated
+					}
+					continue
+				}
+				kept = append(kept, iss)
+			}
+			issues = kept
+		}
+		if len(issues) == 0 {
+			return nil
+		}
+		if err := loadCatalogs(); err != nil {
+			return err
+		}
 		batch := store.Batch{Categories: cats, Priorities: prios, Records: make([]store.IssueRecord, 0, len(issues))}
 		// A locale rewrite must go through the upsert's change detector: the
 		// origin's `updated` did not move (nothing in the origin changed —
@@ -306,6 +359,13 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 			// unread count would be one extra request every cycle.
 			return
 		}
+		if countJQL == "" {
+			// Incremental passes a blank countJQL: the window is small, the
+			// start line carries the since-clock, and the count would be one
+			// extra request on every tick (GDK-1075).
+			opts.logf("%s", startLine)
+			return
+		}
 		n, ok := approxCount(ctx, c, countJQL)
 		if ok {
 			unitDenom = n
@@ -341,7 +401,7 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 		}
 	} else {
 		jql := incrementalJQL(cfg.Projects, state.Watermark)
-		beginSearch("incremental: "+scopeLabel(cfg)+" — changes since "+sinceLabel(state.Watermark), jql, false)
+		beginSearch("incremental: "+scopeLabel(cfg)+" — changes since "+sinceLabel(state.Watermark), "", false)
 		if discoveryMode && !cfg.IsStandalone() {
 			opts.logf("tip: run `gadak sync --full` once to auto-configure custom fields")
 		}
