@@ -155,6 +155,11 @@ Clients:
 Options:
   --dry-run   print the command (claude) or config without registering
 
+For Claude Code, prefer ` + "`gadak skill install`" + ` — the skill carries the schema
+and query patterns MCP tools cannot. MCP is the path for hosts without a
+shell (Claude Desktop) and for clients the skill command does not support
+yet (cursor, codex, raycast).
+
 Examples:
   gadak mcp install claude
   gadak mcp install claude --dry-run
