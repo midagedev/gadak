@@ -1,15 +1,21 @@
 #!/usr/bin/env python3
 """Live benchmark: the Jira REST API vs the gadak CLI, on YOUR mirror.
 
-Usage:  python3 tools/bench-live.py [profile]     (default: the default profile)
+Usage:  python3 tools/bench-live.py [profile] [--sync-only]
 Env:    GADAK_BIN=/path/to/gadak                  (default: gadak on PATH)
+
+--sync-only runs only the incremental-sync rows (GDK-979): the REST/CLI
+comparison rows and the full sync are skipped, so the question "what does a
+tick cost today" is answerable without a 10-minute refetch.
 
 Reads site/email/token from the profile's config.json to call the REST API
 directly; never prints them. Results (docs/BENCHMARKS.md) mask the project
 key. Run on a quiet machine; medians of 5 (3 for paged scenarios)."""
-import json, os, subprocess, time, statistics, base64, urllib.request, urllib.parse, ssl, sys, atexit
+import json, os, re, subprocess, time, statistics, base64, urllib.request, urllib.parse, ssl, sys, atexit
 
-PROFILE = sys.argv[1] if len(sys.argv) > 1 else ""
+SYNC_ONLY = "--sync-only" in sys.argv
+_args = [a for a in sys.argv[1:] if not a.startswith("--")]
+PROFILE = _args[0] if _args else ""
 HOME = os.path.expanduser(f"~/.gadak/profiles/{PROFILE}") if PROFILE else os.path.expanduser("~/.gadak")
 cfg = json.load(open(f"{HOME}/config.json"))
 SITE = cfg["site"].rstrip("/")
@@ -68,75 +74,76 @@ R = {}
 ISSUES = subprocess.run([GADAK] + (["--profile", PROFILE] if PROFILE else []) + ["sql", "--no-header", "select count(*) from issues"], capture_output=True, text=True).stdout.strip()
 print(f"# corpus: profile={PROFILE or 'default'}, project ***, issues={ISSUES} (mirror)\n")
 
-# ── 1. 단순 필터 100건 ─────────────────────────────
-jql1 = f'project = {PROJ} AND statusCategory != Done ORDER BY updated DESC'
-def rest_search(jql, maxr=100, fields="key,status,summary"):
-    try:
-        return rest("/rest/api/3/search/jql", {"jql": jql, "maxResults": maxr, "fields": fields})
-    except Exception:
-        return rest("/rest/api/3/search", {"jql": jql, "maxResults": maxr, "fields": fields})
-R['rest_filter'] = bench("1a REST search 100 (simple filter)", lambda: rest_search(jql1))
-R['sql_filter'] = bench("1b gadak sql 100 (same filter)", lambda: cli(["sql", "--no-header",
-    "select key,status,summary from issues_full where status_category != 'done' order by updated_at desc limit 100"]))
-R['jql_filter'] = bench("1c gadak search --jql (same filter)", lambda: cli(["search", "--jql", jql1, "--limit", "100"]))
+if not SYNC_ONLY:
+    # ── 1. 단순 필터 100건 ─────────────────────────────
+    jql1 = f'project = {PROJ} AND statusCategory != Done ORDER BY updated DESC'
+    def rest_search(jql, maxr=100, fields="key,status,summary"):
+        try:
+            return rest("/rest/api/3/search/jql", {"jql": jql, "maxResults": maxr, "fields": fields})
+        except Exception:
+            return rest("/rest/api/3/search", {"jql": jql, "maxResults": maxr, "fields": fields})
+    R['rest_filter'] = bench("1a REST search 100 (simple filter)", lambda: rest_search(jql1))
+    R['sql_filter'] = bench("1b gadak sql 100 (same filter)", lambda: cli(["sql", "--no-header",
+        "select key,status,summary from issues_full where status_category != 'done' order by updated_at desc limit 100"]))
+    R['jql_filter'] = bench("1c gadak search --jql (same filter)", lambda: cli(["search", "--jql", jql1, "--limit", "100"]))
 
-# ── 2. 단건 상세(+changelog) ───────────────────────
-_, top = cli(["sql", "--no-header",
-    "select i.key from issues i join items it on it.id=i.item_id where i.comment_count>3 order by i.comment_count desc limit 1"])
-KEY = top.strip().splitlines()[0]
-print("\n# detail key: *** (comment-heavy)")
-R['rest_issue'] = bench("2a REST issue + changelog", lambda: rest(f"/rest/api/3/issue/{KEY}", {"expand": "changelog"}))
-R['cli_issue'] = bench("2b gadak issue (full detail)", lambda: cli(["issue", KEY]))
+    # ── 2. 단건 상세(+changelog) ───────────────────────
+    _, top = cli(["sql", "--no-header",
+        "select i.key from issues i join items it on it.id=i.item_id where i.comment_count>3 order by i.comment_count desc limit 1"])
+    KEY = top.strip().splitlines()[0]
+    print("\n# detail key: *** (comment-heavy)")
+    R['rest_issue'] = bench("2a REST issue + changelog", lambda: rest(f"/rest/api/3/issue/{KEY}", {"expand": "changelog"}))
+    R['cli_issue'] = bench("2b gadak issue (full detail)", lambda: cli(["issue", KEY]))
 
-# ── 3. 텍스트 검색 ────────────────────────────────
-_, w = cli(["sql", "--no-header",
-    "select lower(title) from items where kind='issue' order by length(title) desc limit 1"])
-word = next((t for t in w.split() if len(t) >= 4 and t.isalpha()), "test")
-print(f"\n# text term: (masked, {len(word)} chars)")
-R['rest_text'] = bench("3a REST jql text ~ term", lambda: rest_search(f'text ~ "{word}"', 50, "key,summary"))
-R['cli_text'] = bench("3b gadak search term (FTS)", lambda: cli(["search", word, "--limit", "50"]))
+    # ── 3. 텍스트 검색 ────────────────────────────────
+    _, w = cli(["sql", "--no-header",
+        "select lower(title) from items where kind='issue' order by length(title) desc limit 1"])
+    word = next((t for t in w.split() if len(t) >= 4 and t.isalpha()), "test")
+    print(f"\n# text term: (masked, {len(word)} chars)")
+    R['rest_text'] = bench("3a REST jql text ~ term", lambda: rest_search(f'text ~ "{word}"', 50, "key,summary"))
+    R['cli_text'] = bench("3b gadak search term (FTS)", lambda: cli(["search", word, "--limit", "50"]))
 
-# ── 4. 에픽 GROUP BY: REST의 정직한 총비용 ─────────
-def rest_groupby():
-    t0 = time.perf_counter(); total_fetched = 0; token = None; pages = 0
-    agg = {}
-    while True:
-        params = {"jql": f"project = {PROJ} AND resolution is EMPTY", "maxResults": 100, "fields": "parent"}
-        if token: params["nextPageToken"] = token
-        dt, data = rest("/rest/api/3/search/jql", params)
-        pages += 1
-        for it in data.get("issues", []):
-            p = (it.get("fields") or {}).get("parent") or {}
-            agg[p.get("key", "")] = agg.get(p.get("key", ""), 0) + 1
-        token = data.get("nextPageToken")
-        total_fetched += len(data.get("issues", []))
-        if not token: break
-    return time.perf_counter() - t0, {"pages": pages, "rows": total_fetched}
-def one_groupby():
-    dt, meta = rest_groupby()
-    one_groupby.meta = meta
-    return dt, meta
-R['rest_group'] = bench("4a REST GROUP BY epic (paged + client agg)", one_groupby, reps=3)
-print(f"    └ pages per run: {one_groupby.meta['pages']}, rows aggregated: {one_groupby.meta['rows']}")
-R['sql_group'] = bench("4b gadak sql GROUP BY epic_key (one shot)", lambda: cli(["sql", "--no-header",
-    "select epic_key, count(*) from issues_full where resolved_at is null and epic_key <> '' group by epic_key order by 2 desc"]))
+    # ── 4. 에픽 GROUP BY: REST의 정직한 총비용 ─────────
+    def rest_groupby():
+        t0 = time.perf_counter(); total_fetched = 0; token = None; pages = 0
+        agg = {}
+        while True:
+            params = {"jql": f"project = {PROJ} AND resolution is EMPTY", "maxResults": 100, "fields": "parent"}
+            if token: params["nextPageToken"] = token
+            dt, data = rest("/rest/api/3/search/jql", params)
+            pages += 1
+            for it in data.get("issues", []):
+                p = (it.get("fields") or {}).get("parent") or {}
+                agg[p.get("key", "")] = agg.get(p.get("key", ""), 0) + 1
+            token = data.get("nextPageToken")
+            total_fetched += len(data.get("issues", []))
+            if not token: break
+        return time.perf_counter() - t0, {"pages": pages, "rows": total_fetched}
+    def one_groupby():
+        dt, meta = rest_groupby()
+        one_groupby.meta = meta
+        return dt, meta
+    R['rest_group'] = bench("4a REST GROUP BY epic (paged + client agg)", one_groupby, reps=3)
+    print(f"    └ pages per run: {one_groupby.meta['pages']}, rows aggregated: {one_groupby.meta['rows']}")
+    R['sql_group'] = bench("4b gadak sql GROUP BY epic_key (one shot)", lambda: cli(["sql", "--no-header",
+        "select epic_key, count(*) from issues_full where resolved_at is null and epic_key <> '' group by epic_key order by 2 desc"]))
 
-# ── 5. reopen: REST로는 표현 불가 ──────────────────
-R['sql_reopen'] = bench("5a gadak sql reopen_count aggregate", lambda: cli(["sql", "--no-header",
-    "select count(*) from issues where reopen_count > 0"]))
-_, keys5 = cli(["sql", "--no-header", "select key from issues order by comment_count desc limit 5"])
-K5 = keys5.strip().splitlines()
-def changelog_sample():
-    t0 = time.perf_counter()
-    for k in K5:
-        rest(f"/rest/api/3/issue/{k}", {"expand": "changelog", "fields": "status"})
-    return time.perf_counter() - t0, {"issues": len(K5)}
-R['rest_changelog5'] = bench("5b REST changelog x5 issues (sample)", changelog_sample, reps=3)
-per_issue = R['rest_changelog5'] / 5
-print(f"    └ per-issue changelog ≈ {per_issue:.0f} ms → {ISSUES} issues ≈ {per_issue*int(ISSUES)/1000:.0f}s (REST가 reopen을 재려면 전 이슈 순회)")
+    # ── 5. reopen: REST로는 표현 불가 ──────────────────
+    R['sql_reopen'] = bench("5a gadak sql reopen_count aggregate", lambda: cli(["sql", "--no-header",
+        "select count(*) from issues where reopen_count > 0"]))
+    _, keys5 = cli(["sql", "--no-header", "select key from issues order by comment_count desc limit 5"])
+    K5 = keys5.strip().splitlines()
+    def changelog_sample():
+        t0 = time.perf_counter()
+        for k in K5:
+            rest(f"/rest/api/3/issue/{k}", {"expand": "changelog", "fields": "status"})
+        return time.perf_counter() - t0, {"issues": len(K5)}
+    R['rest_changelog5'] = bench("5b REST changelog x5 issues (sample)", changelog_sample, reps=3)
+    per_issue = R['rest_changelog5'] / 5
+    print(f"    └ per-issue changelog ≈ {per_issue:.0f} ms → {ISSUES} issues ≈ {per_issue*int(ISSUES)/1000:.0f}s (REST가 reopen을 재려면 전 이슈 순회)")
 
-# ── 6. gadak이 지는 행 ─────────────────────────────
-R['cli_startup'] = bench("6a gadak CLI startup (select 1)", lambda: cli(["sql", "--no-header", "select 1"]))
+    # ── 6. gadak이 지는 행 ─────────────────────────────
+    R['cli_startup'] = bench("6a gadak CLI startup (select 1)", lambda: cli(["sql", "--no-header", "select 1"]))
 
 def sync_run(extra):
     t0 = time.perf_counter()
@@ -152,30 +159,54 @@ def sync_counts(out):
     lines = [l.strip() for l in out.splitlines() if "fetched" in l]
     return " | ".join(lines) or "(no counts)"
 
-# Where a tick's time actually goes — the tax split by source. On a quiet
-# site these are the numbers behind the "watch tick" row in BENCHMARKS.md.
+def sync_nums(out):
+    """Total fetched/changed across whatever source lines this flavor printed."""
+    f = sum(int(m) for m in re.findall(r'(\d+) fetched', out))
+    c = sum(int(m) for m in re.findall(r'(\d+) changed', out))
+    return f, c
+
+# Where a tick's time actually goes — the tax split by source. Sync rounds
+# are not exchangeable samples: each round's condition (what the watermark
+# window matched) differs, so a median over raw rounds is rounding, not
+# measurement (GDK-979 — n=2 medians once came out contradicting a measured
+# claim they had no standing to overturn). Every round is printed with its
+# own conditions, and a median is computed only over the steady-state
+# subset — rounds that fetched and changed nothing, which do share a
+# condition. Fewer than 3 steady rounds → no median, range only.
+SYNC_REPS = 5
 for src in ("jira", "confluence", "all"):
-    runs = []
-    note = ""
-    for _ in range(2):
+    rounds = []
+    print(f"6b gadak sync --source {src}")
+    for i in range(SYNC_REPS):
         dt, out = sync_run(["--source", src])
-        runs.append(dt)
-        note = sync_counts(out)
-    R[f'sync_{src}'] = statistics.median(runs)
-    print(f"{'6b gadak sync --source ' + src:46s} median {R[f'sync_{src}']*1000:9.0f} ms   "
-          f"min {min(runs)*1000:8.0f}  max {max(runs)*1000:8.0f}  (n=2)  [{note}]")
+        f, c = sync_nums(out)
+        rounds.append((dt, f, c))
+        print(f"    round {i+1}: {dt*1000:8.0f} ms   [{sync_counts(out)}]")
+    steady = [dt for dt, f, c in rounds if f == 0 and c == 0]
+    if len(steady) >= 3:
+        R[f'sync_{src}'] = statistics.median(steady)
+        print(f"    steady-state tick (0 fetched, 0 changed): median {R[f'sync_{src}']*1000:7.0f} ms   "
+              f"min {min(steady)*1000:7.0f}  max {max(steady)*1000:7.0f}  (n={len(steady)} of {SYNC_REPS})")
+    else:
+        R[f'sync_{src}'] = None
+        lo, hi = min(dt for dt, _, _ in rounds), max(dt for dt, _, _ in rounds)
+        print(f"    no steady-state median — only {len(steady)} zero-change rounds of {SYNC_REPS}; "
+              f"range {lo*1000:.0f}\u2013{hi*1000:.0f} ms, conditions above")
 
-# First full sync, wall clock, n=1 by definition. This is the row that used
-# to read "minutes, size-dependent" — run it on a throwaway profile or one
-# you are willing to re-fetch (GDK-94).
-dt, out = sync_run(["--full"])
-R['sync_full'] = dt
-print(f"{'6c gadak sync --full (wall clock)':46s} {'':18s}{dt*1000:9.0f} ms   [{sync_counts(out)}]")
+if not SYNC_ONLY:
+    # First full sync, wall clock, n=1 by definition. This is the row that used
+    # to read "minutes, size-dependent" — run it on a throwaway profile or one
+    # you are willing to re-fetch (GDK-94).
+    dt, out = sync_run(["--full"])
+    R['sync_full'] = dt
+    print(f"{'6c gadak sync --full (wall clock)':46s} {'':18s}{dt*1000:9.0f} ms   [{sync_counts(out)}]")
 
-print("\n# summary ratios")
-print(f"simple filter : REST {R['rest_filter']:.0f}ms vs sql {R['sql_filter']:.0f}ms  ({R['rest_filter']/R['sql_filter']:.0f}x)")
-print(f"issue detail  : REST {R['rest_issue']:.0f}ms vs cli {R['cli_issue']:.0f}ms  ({R['rest_issue']/R['cli_issue']:.0f}x)")
-print(f"text search   : REST {R['rest_text']:.0f}ms vs cli {R['cli_text']:.0f}ms  ({R['rest_text']/R['cli_text']:.0f}x)")
-print(f"epic group by : REST {R['rest_group']:.0f}ms vs sql {R['sql_group']:.0f}ms  ({R['rest_group']/R['sql_group']:.0f}x)")
-print(f"losing rows   : tick all={R['sync_all']*1000:.0f}ms (jira {R['sync_jira']*1000:.0f} / confluence {R['sync_confluence']*1000:.0f}); "
-      f"first full sync {R['sync_full']/60:.1f} min ({ISSUES} issues); CLI startup {R['cli_startup']:.0f}ms per invocation")
+    print("\n# summary ratios")
+    print(f"simple filter : REST {R['rest_filter']:.0f}ms vs sql {R['sql_filter']:.0f}ms  ({R['rest_filter']/R['sql_filter']:.0f}x)")
+    print(f"issue detail  : REST {R['rest_issue']:.0f}ms vs cli {R['cli_issue']:.0f}ms  ({R['rest_issue']/R['cli_issue']:.0f}x)")
+    print(f"text search   : REST {R['rest_text']:.0f}ms vs cli {R['cli_text']:.0f}ms  ({R['rest_text']/R['cli_text']:.0f}x)")
+    print(f"epic group by : REST {R['rest_group']:.0f}ms vs sql {R['sql_group']:.0f}ms  ({R['rest_group']/R['sql_group']:.0f}x)")
+    def _tick(v):
+        return f"{v*1000:.0f}ms" if v is not None else "no steady median (see 6b rounds)"
+    print(f"losing rows   : steady tick all={_tick(R['sync_all'])} (jira {_tick(R['sync_jira'])} / confluence {_tick(R['sync_confluence'])}); "
+          f"first full sync {R['sync_full']/60:.1f} min ({ISSUES} issues); CLI startup {R['cli_startup']:.0f}ms per invocation")

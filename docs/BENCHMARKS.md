@@ -119,6 +119,33 @@ this is recorded as an open question about the harness, not a new result.
 An incremental-sync row worth publishing needs more runs than the harness
 currently takes.
 
+### Incremental sync, re-measured 2026-08-29 (redesigned rows)
+
+The harness question above is closed. Sync rounds are not exchangeable
+samples — each round's cost tracks what the watermark window matched, so a
+median over raw rounds mixes conditions. The harness now prints every round
+with its own fetched/changed counts and takes a median only over the
+**steady-state subset** (rounds that fetched and changed nothing, which do
+share a condition); fewer than three such rounds means no median at all.
+
+Same site, `work` mirror at 3,371 issues, quiet machine, five rounds per
+source — all fifteen steady (0 fetched, 0 changed, watermark unchanged):
+
+| Row | steady-state median | min–max | n |
+| --- | ---: | ---: | ---: |
+| `sync --source jira` | 1.8 s | 1.4–2.1 s | 5 |
+| `sync --source confluence` | 1.2 s | 1.1–1.9 s | 5 |
+| `sync --source all` | 3.2 s | 2.7–4.1 s | 5 |
+
+With conditions fixed, the combined tick is what the 08-15 row said it was:
+roughly the **sum** of its halves (3.2 ≈ 1.8 + 1.2), not faster than either.
+The 08-26 anomaly — `--source all` at 4.3 s beating a 5.5 s jira half — was
+two-sample noise from unequal watermark windows, recorded there as an open
+question and answered here. The standing claim for a watch loop: a
+nothing-changed tick against this site costs real seconds (≈2–4 s combined),
+so the honest unit stays "one tick of work every interval", never "a free
+no-op poll".
+
 ## Caveats
 
 - REST medians include TLS + network from one location (KST). Closer regions
