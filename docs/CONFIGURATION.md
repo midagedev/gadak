@@ -441,6 +441,7 @@ is nothing to say, and a client-supplied value is ignored.
 | `actor` | object or absent | absent = no acting identity; env `GADAK_ACTOR` (`slug\|display name`) overrides, and Claude Code sessions are auto-detected when both are unset | `gadak config set actor 'slug\|display name'` / `config.json` (not on Settings UI or Settings PUT; never team-exported) | Next origin session; writes to an issuetap origin (standalone/paired) carry `X-Issuetap-Actor` and attribute to that agent account. Never sent to connected Jira/Linear |
 | `locale` | string | _(empty)_ = English; `en` \| `ko` \| `ja` \| `de` | `gadak config set locale ko` / `config.json` (not on Settings UI or Settings PUT) | Standalone only: the origin's display-name language — status / issue-type / field names and agent aliases follow it; priority names stay English, like a live Cloud site. Changing it rebuilds the mirror on the next sync (display names are cached). A connected workspace ignores it: its language is the Atlassian account's |
 | `confluence.spaces` | string[] | `[]` = every *global* space; personal spaces only if named (`internal/config/config.go`) | Settings → Sources / `gadak config set confluence.spaces` | Next Confluence pass |
+| `terminal` | `{shell, workingDir, scrollback, cursorBlink}` | absent = all defaults (see below) | `gadak config set terminal` or `terminal.<leaf>` (not on Settings UI or Settings PUT; never team-exported — shell and workingDir are this machine's paths) | Next terminal session create; a block set replaces the whole object, a leaf set merges |
 
 The space list *is* the scope: drop a space and the next Confluence pass
 removes it from the mirror; add one and that space is fetched from the start
@@ -448,6 +449,31 @@ removes it from the mirror; add one and that space is fetched from the start
 [`runbooks/confluence-space-scope.md`](runbooks/confluence-space-scope.md)).
 Most keys apply without restart; `syncIntervalSec` and
 `reconcileIntervalSec` are picked up on the next watch tick.
+
+### `terminal` (behavior block)
+
+Terminal behavior lives in the `terminal` block; terminal style (size) lives
+in the design tokens. Both reach through the one `gadak config` verb, so an
+agent can set every terminal preference from the shell — the same promise a
+Ghostty config file makes. For Ghostty users, the mapping:
+
+| Ghostty (`~/.config/ghostty/config`) | gadak |
+| --- | --- |
+| `font-size` | `gadak config set ui.tokens.type.terminal 15px` (9–24px) |
+| `font-family` | not settable yet — the web token `--font-mono-terminal` owns the stack, fixed per theme |
+| `scrollback-limit` (bytes) | `gadak config set terminal.scrollback 20000` (**lines**, 200–100000; `0` = 5000) |
+| `cursor-style-blink` | `gadak config set terminal.cursorBlink true` |
+| `command` | `gadak config set terminal.shell /bin/zsh` (absolute path; empty = `$SHELL`, else `/bin/sh`) |
+| `working-directory` | `gadak config set terminal.workingDir /path` (empty = the workspace dir) |
+
+`shell` and `workingDir` are consumed server-side at session create; they are
+never carried in any API response, so a paired remote client cannot learn this
+machine's shell paths. `scrollback`/`cursorBlink` ride the create response to
+the pane — new sessions pick a change up immediately; a kept session that is
+reattached inside the grace window keeps the defaults until its next fresh
+session. A missing `workingDir` falls back to the default with one log line
+naming the path. There is no renderer choice: the pane has one renderer, so
+nothing is stored.
 
 ### `groupQuery`
 
