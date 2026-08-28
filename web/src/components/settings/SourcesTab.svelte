@@ -18,6 +18,7 @@
     spaceOptions,
     spacesLoading,
     spacesError,
+    onRetrySpaces,
     showPersonalSpaces = $bindable(),
   }: {
     draft: SettingsDraft
@@ -31,6 +32,9 @@
     spaceOptions: ScopeOption[]
     spacesLoading: boolean
     spacesError: string | null
+    /** GDK-1061: re-request the space list after a failure. The dialog owns
+     *  the once-guard; this only fires from the failed state. */
+    onRetrySpaces: () => void
     showPersonalSpaces: boolean
   } = $props()
 
@@ -187,9 +191,22 @@
     {#if spacesLoading}
       <p class="text-micro text-text-muted">{t('settings.scopeLoading')}</p>
     {:else if spacesError}
-      <p class="text-body text-status-stale" data-testid="scope-spaces-error">
-        {spacesError}
-      </p>
+      <div class="flex flex-wrap items-center gap-3">
+        <p class="text-body text-status-stale" data-testid="scope-spaces-error">
+          {spacesError}
+        </p>
+        <!-- GDK-1061: the same retry vocabulary and button as the
+             detail/dashboard load errors — the failed state names the fix,
+             reopening the whole dialog no longer is it. -->
+        <button
+          type="button"
+          class="rounded-md border border-border-strong px-3 py-1.5 text-body font-medium text-text-secondary transition-colors hover:bg-bg-hover"
+          onclick={onRetrySpaces}
+          data-testid="scope-spaces-retry"
+        >
+          {t('common.retry')}
+        </button>
+      </div>
     {:else}
       <!-- The hint reads "Only these spaces are mirrored", which is
            false with nothing selected — that is precisely the case

@@ -9,6 +9,7 @@
   import EmptyState from '../list/EmptyState.svelte'
   import LoadingState from '../ui/LoadingState.svelte'
   import { createSkeletonGrace } from '../../lib/skeleton-grace.svelte'
+  import { groupFeedItems, groupKindCounts, type FeedGroup } from './feed-groups'
 
   const skeleton = createSkeletonGrace(
     () => me.feedLoading && !me.feedLoaded,
@@ -97,26 +98,9 @@
     selection.select(item.issue_key)
   }
 
-  // Collapse consecutive events with same issue_key + event_type + day.
-  interface FeedGroup {
-    id: number // group representative (first item) id — {#each} key + expand state key
-    groupKey: string // adjacent-merge key
-    items: FeedItem[]
-  }
-
-  const groups = $derived.by<FeedGroup[]>(() => {
-    const out: FeedGroup[] = []
-    for (const item of me.feedItems) {
-      const day = item.occurred_at
-        ? new Date(item.occurred_at).toDateString()
-        : `solo-${item.id}`
-      const groupKey = `${item.issue_key}::${item.event_type}::${day}`
-      const last = out[out.length - 1]
-      if (last && last.groupKey === groupKey) last.items.push(item)
-      else out.push({ id: item.id, groupKey, items: [item] })
-    }
-    return out
-  })
+  // Collapse consecutive events of one issue (same day) into one row group
+  // (GDK-1058) — pure function in feed-groups.ts, unit-pinned there.
+  const groups = $derived(groupFeedItems(me.feedItems))
 
   // Expanded groups (local). Keyed by group representative id.
   let expanded = $state<Record<number, boolean>>({})
@@ -273,6 +257,7 @@
           {/each}
         {:else}
           {@const rep = group.items[0]}
+          {@const kinds = groupKindCounts(group.items)}
           {@const anyUnread = group.items.some((entry) => !entry.read_at)}
           <button
             type="button"
@@ -298,10 +283,21 @@
               </div>
               <div class="mt-1 flex min-w-0 items-center gap-1.5 text-micro">
                 <Icon name="chevron-right" size={12} class="text-text-muted" />
-                <span class="flex-none text-text-secondary">{EVENT_LABELS[rep.event_type]}</span>
-                <span class="flex-none rounded bg-bg-elevated px-1 py-0.5 text-micro font-medium text-text-secondary">
-                  ×{group.items.length}
-                </span>
+                {#if kinds.length === 1}
+                  <span class="flex-none text-text-secondary">{EVENT_LABELS[rep.event_type]}</span>
+                  <span class="flex-none rounded bg-bg-elevated px-1 py-0.5 text-micro font-medium text-text-secondary">
+                    ×{group.items.length}
+                  </span>
+                {:else}
+                  <!-- GDK-1058: a mixed run names each kind (×count when a
+                       kind repeats), so the collapsed row says what happened,
+                       not just how much. -->
+                  {#each kinds as kind (kind.type)}
+                    <span class="flex-none text-text-secondary">
+                      {EVENT_LABELS[kind.type]}{kind.count > 1 ? ` ×${kind.count}` : ''}
+                    </span>
+                  {/each}
+                {/if}
                 <span class="min-w-2 flex-1"></span>
                 {#each reasonsOf(group.items) as reason (reason)}
                   {#if REASON_LABELS[reason]}

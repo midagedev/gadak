@@ -15,7 +15,7 @@
  *    15s delta poll's lastSync re-runs the datasources and re-pushes (≤2s).
  */
 
-import { getDashboard, getDashboards } from '../lib/api'
+import { ApiError, getDashboard, getDashboards } from '../lib/api'
 import type { DashboardRow } from '../lib/types'
 import { column } from './column.svelte'
 
@@ -114,7 +114,14 @@ class DashboardsStore {
       this.error = null
     } catch (e) {
       if (this.openId !== id || seq !== this.#rowSeq) return
-      this.error = e instanceof Error && e.message.includes('404') ? 'not_found' : 'load_error'
+      // GDK-1060: classify on the status, never the message. The server's
+      // 404 body is {"error":"not_found"} and the shared fetch lets that
+      // body replace the error message, so message sniffing ("includes
+      // ('404')") read every real 404 as a load error — a dead id showed
+      // outage copy with no way back. Same classification createResource
+      // already owns (lib/resource.svelte.ts): 404 → notfound, the rest —
+      // 5xx and network throws alike — is retryable load_error.
+      this.error = e instanceof ApiError && e.status === 404 ? 'not_found' : 'load_error'
     } finally {
       if (seq === this.#rowSeq) this.#inFlightRow = false
     }

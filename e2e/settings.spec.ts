@@ -202,3 +202,67 @@ test.describe('settings about tab', () => {
     await expect(page.getByTestId('about-link-x')).toHaveAttribute('href', 'https://x.com/midagedev')
   })
 })
+
+/*
+ * GDK-1061: the Sources-tab scope lists load once per dialog (the guard
+ * that keeps a Jira/Confluence round-trip off every tab switch), which made
+ * a failed space list a dead end — the only retry was closing and reopening
+ * the whole dialog. The failed state now carries a Retry that re-arms this
+ * list's guard only; the success path still loads exactly once, which the
+ * request counter at the bottom pins (tab switches must not refetch).
+ * Same route-mock pattern as the copy-contract test above.
+ */
+test.describe('sources tab scope-list retry (GDK-1061)', () => {
+  test('a failed space list shows Retry which reloads it; success still loads once', async ({
+    page,
+  }) => {
+    const API = apiURL('/api/v1/issues/')
+    await page.route(`${API}settings/`, (route) =>
+      route.fulfill({
+        json: { projects: [], staleThresholdHours: 72 },
+      }),
+    )
+    await page.route(`${API}projects/available/`, (route) =>
+      route.fulfill({
+        json: { projects: [], truncated: false },
+      }),
+    )
+    let spacesCalls = 0
+    await page.route(`${API}settings/spaces/`, (route) => {
+      spacesCalls++
+      if (spacesCalls === 1) return route.fulfill({ status: 500, json: { error: 'unavailable' } })
+      return route.fulfill({
+        json: {
+          spaces: [{ key: 'ENG', name: 'Engineering', type: 'team' }],
+          all_global_when_empty: false,
+        },
+      })
+    })
+
+    await gotoApp(page)
+    await openServerSettings(page)
+    const dialog = page.getByRole('dialog', { name: 'Settings' })
+    await dialog.getByRole('button', { name: 'Sources', exact: true }).click()
+
+    // The failed state: the existing unavailable copy, plus the Retry the
+    // issue asked for.
+    await expect(dialog.getByTestId('scope-spaces-error')).toContainText(
+      'Could not read the space list',
+    )
+    await dialog.getByTestId('scope-spaces-retry').click()
+
+    // The retry re-requested and the picker is back, with the loaded list:
+    // focus the combobox, the option row is the proof the list landed.
+    const picker = dialog.getByTestId('scope-spaces')
+    await expect(picker).toBeVisible()
+    await picker.getByTestId('scope-input').click()
+    await expect(picker.getByTestId('scope-option')).toContainText('Engineering')
+
+    // The once-guard survived the retry: leaving and re-entering the tab
+    // does not refetch (a successful load is still exactly-once).
+    await dialog.getByRole('button', { name: 'Features', exact: true }).click()
+    await dialog.getByRole('button', { name: 'Sources', exact: true }).click()
+    await expect(picker).toBeVisible()
+    expect(spacesCalls, 'space list requests: 1 failed + 1 retry, no refetch after').toBe(2)
+  })
+})

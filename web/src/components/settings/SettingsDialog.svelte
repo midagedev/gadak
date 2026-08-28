@@ -110,7 +110,12 @@
    * reasons that should not cost a Jira round-trip. They live here rather than
    * in the tab because the tab unmounts on every tab switch.
    */
-  let sourcesRequested = false
+  // One guard per list, not one for the pair (GDK-1061): a failed
+  // Confluence space list must be retryable without re-requesting the
+  // project list that already answered, and a successful list stays
+  // exactly-once for the dialog's lifetime — the guard's original job.
+  let projectsRequested = false
+  let spacesRequested = false
   let projectOptions = $state<ScopeOption[]>([])
   /** Site list unreachable (no credential, Jira down) → keep the old text box,
    *  which is the only way to configure a scope without asking the site. */
@@ -177,22 +182,23 @@
     return c.signal
   }
 
-  /** Fetch the two scope lists once, the first time the Sources tab is shown. */
-  async function loadSources() {
-    if (sourcesRequested) return
-    sourcesRequested = true
+  /*
+   * Two independent lists, two independent requests (and since GDK-1061,
+   * two independent guards). They used to run in sequence, so an
+   * unreachable Jira held the Confluence picker at "loading" for as long
+   * as the socket took to give up — one dead source hiding the other's
+   * controls, on the screen whose job is to configure both.
+   */
 
-    // Manual entry is on screen from the first frame: asking the site for its
-    // projects can take many seconds when it is unreachable, and a spinner over
-    // the one field that works without the site is the wrong trade.
-    /*
-     * Two independent lists, two independent requests. They used to run in
-     * sequence, so an unreachable Jira held the Confluence picker at "loading"
-     * for as long as the socket took to give up — one dead source hiding the
-     * other's controls, on the screen whose job is to configure both.
-     */
+  /** Fetch the project list once, the first time the Sources tab is shown.
+   *  Manual entry is on screen from the first frame: asking the site for its
+   *  projects can take many seconds when it is unreachable, and a spinner over
+   *  the one field that works without the site is the wrong trade. */
+  function loadProjects() {
+    if (projectsRequested) return
+    projectsRequested = true
     projectsLoading = true
-    const projects = (async () => {
+    void (async () => {
       try {
         const res = await api.getAvailableProjects({ signal: scopeListSignal() })
         projectOptions = res.projects.map((p) => ({
@@ -212,11 +218,16 @@
       }
       projectsLoading = false
     })()
+  }
 
-    // Loaded whether or not the source is on: picking spaces is how you decide
-    // to turn it on, so the list has to arrive first.
+  /** Fetch the Confluence space list once. Loaded whether or not the source
+   *  is on: picking spaces is how you decide to turn it on, so the list has
+   *  to arrive first. */
+  function loadSpaces() {
+    if (spacesRequested) return
+    spacesRequested = true
     spacesLoading = true
-    const spaces = (async () => {
+    void (async () => {
       try {
         const res = await api.getSettingsSpaces({ signal: scopeListSignal() })
         spaceOptions = res.spaces.map((s) => ({ value: s.key, label: s.name, hint: s.type }))
@@ -228,12 +239,25 @@
       }
       spacesLoading = false
     })()
+  }
 
-    await Promise.all([projects, spaces])
+  /** The two lists, each through its own once-guard. */
+  function loadSources() {
+    loadProjects()
+    loadSpaces()
+  }
+
+  /** GDK-1061: a failed space list is retryable in place — re-arm this
+   *  list's guard and ask again. Only the failed state re-arms; reopening
+   *  the dialog (fresh instance, fresh guards) remains the other path. */
+  function retrySpaces() {
+    spacesRequested = false
+    spacesError = null
+    loadSpaces()
   }
 
   $effect(() => {
-    if (tab === 'sources' && !loading) void loadSources()
+    if (tab === 'sources' && !loading) loadSources()
   })
 
   function refreshJson() {
@@ -360,6 +384,7 @@
             {spaceOptions}
             {spacesLoading}
             {spacesError}
+            onRetrySpaces={retrySpaces}
             bind:showPersonalSpaces
           />
         {:else if tab === 'features'}

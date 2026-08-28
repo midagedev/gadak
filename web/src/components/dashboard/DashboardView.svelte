@@ -190,8 +190,23 @@
       <p class="max-w-sm text-center text-body text-text-secondary">{t('dash.notFound')}</p>
     </div>
   {:else if dashboards.error}
-    <div class="flex flex-1 items-center justify-center px-6" data-testid="dashboard-load-error">
+    <div
+      class="flex flex-1 flex-col items-center justify-center gap-3 px-6"
+      data-testid="dashboard-load-error"
+    >
       <p class="max-w-sm text-center text-body text-text-secondary">{t('dash.loadError')}</p>
+      <!-- GDK-1060: 5xx/network failure — the same retry button (copy and
+           component) as the detail panel's load error. not_found above
+           deliberately has none: the id is dead, and the fix is picking
+           another dashboard, which that copy already says how to do. -->
+      <button
+        type="button"
+        onclick={() => void dashboards.loadRow(true)}
+        class="rounded-md border border-border-strong px-3 py-1.5 text-body font-medium text-text-secondary transition-colors hover:bg-bg-hover"
+        data-testid="dashboard-retry"
+      >
+        {t('common.retry')}
+      </button>
     </div>
   {:else if row}
     <!--

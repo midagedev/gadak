@@ -721,3 +721,70 @@ window.addEventListener('message', function (ev) {
   expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   sink.close()
 })
+
+/*
+ * GDK-1060: a dead id and a dead server are different failures, and the
+ * screen must say which one happened.
+ *
+ * The distinction is real end to end — asserted against the live serve
+ * below, the row route answers 404 {"error":"not_found"} for a missing id.
+ * The pre-fix client never used it: loadRow classified by sniffing the
+ * error *message* for "404", but the shared fetch lets the body's error
+ * code replace that message, so every real 404 read as a load error and a
+ * missing id showed the outage sentence (the audit's finding). The 5xx
+ * half is route-mocked: making the real serve 5xx on this route needs a
+ * store-level failure this file cannot cause honestly.
+ */
+test('GDK-1060: a missing id is not-found copy without Retry; a 503 shows Retry and recovers', async ({
+  page,
+  request,
+}) => {
+  const errors = attachConsoleErrors(page)
+
+  // Measured server behavior first — it is what makes the two UI states
+  // distinguishable at all.
+  const missing = await request.get(`/api/v1/dashboards/${RUN}-does-not-exist/`)
+  expect(missing.status(), await missing.text()).toBe(404)
+  expect(await missing.json()).toEqual({ error: 'not_found' })
+
+  // 1. Dead id: its own copy, no Retry (a retry cannot resurrect an id),
+  //    and the outage branch never paints.
+  await page.goto(`/#/?dash=${RUN}-does-not-exist`)
+  const notFound = page.getByTestId('dashboard-not-found')
+  await expect(notFound).toBeVisible()
+  await expect(notFound).toContainText('no longer exists')
+  await expect(page.getByTestId('dashboard-load-error')).toHaveCount(0)
+  await expect(page.getByTestId('dashboard-retry')).toHaveCount(0)
+
+  // 2. Outage (503): outage copy plus a Retry that recovers once the
+  //    server answers again — same recovery gesture as the detail panel.
+  const saved = await saveDash(
+    page.request,
+    `${PREFIX} ${RUN} gdk1060`,
+    markerHtml('gdk1060'),
+    TOTAL_DS,
+  )
+  let rowFetches = 0
+  await page.route(`**/api/v1/dashboards/${saved.id}/`, (route) => {
+    rowFetches++
+    if (rowFetches === 1) return route.fulfill({ status: 503, json: { error: 'unavailable' } })
+    return route.fallback()
+  })
+  await page.goto(`/#/?dash=${saved.id}`)
+  const loadError = page.getByTestId('dashboard-load-error')
+  await expect(loadError).toBeVisible()
+  await expect(loadError).toContainText('Could not load this dashboard')
+  await page.getByTestId('dashboard-retry').click()
+  const fl = page.frameLocator(FRAME_SEL)
+  await expect(fl.getByTestId('dash-version')).toHaveText('gdk1060')
+  await expect(fl.locator('#pushed')).toHaveText(/^[1-9][0-9]*$/)
+
+  // The scenario itself makes the browser log the two failed fetches (404,
+  // then 503) as console errors — network-layer logging, not app errors
+  // (same reasoning as the helper's 409 filter). Anything beyond them is a
+  // real regression.
+  const unexpected = errors.filter(
+    (e) => !e.includes('404 (Not Found)') && !e.includes('503 (Service Unavailable)'),
+  )
+  expect(unexpected, `console errors:\n${unexpected.join('\n')}`).toEqual([])
+})
