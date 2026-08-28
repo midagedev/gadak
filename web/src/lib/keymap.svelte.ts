@@ -151,6 +151,8 @@ export interface GlobalKeyHost {
   dashboards: { openId: string | null; close: () => void }
   feature: (name: 'feed') => boolean
   openOrigin: (target: 'issue' | 'page') => void
+  /** The terminal pane covers the content track as an overlay (pane.svelte owns the verdict). */
+  get terminalOverlayOpen(): boolean
   toggleTerminal: () => void
 }
 
@@ -171,6 +173,8 @@ function contextFromEvent(e: KeyboardEvent, host: GlobalKeyHost): KeyContext {
     mediaViewerOpen: host.mediaViewerOpen,
     feedBlocksNarrow: host.me.feedOpen && host.feature('feed'),
     dashboardOpen: host.dashboards.openId !== null,
+    terminalOverlayOpen: host.terminalOverlayOpen,
+    keyFromTerminalHost: fromTerminalHost(e.target),
     historyView: host.pages.historyView,
     docsOpen: host.pages.open,
     listActive: host.triage.listActive,
@@ -256,6 +260,12 @@ function dispatchKeyCommand(e: KeyboardEvent, cmd: KeyCommand, host: GlobalKeyHo
     case 'close-dashboard':
       e.preventDefault()
       host.dashboards.close()
+      return
+    case 'close-terminal-overlay':
+      e.preventDefault()
+      // The when guaranteed the overlay is open, so the verb the X button
+      // and Ctrl+` use is a close here — there is no third close path.
+      host.toggleTerminal()
       return
     case 'close-feed':
       e.preventDefault()

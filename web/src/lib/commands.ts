@@ -53,6 +53,16 @@ export interface KeyContext {
   feedBlocksNarrow: boolean
   /** A dashboard holds the main column (GDK-827). */
   dashboardOpen: boolean
+  /**
+   * The terminal pane is open as an overlay over the content track
+   * (GDK-945). A docked split is not this — there Esc stays the column's.
+   */
+  terminalOverlayOpen: boolean
+  /**
+   * This keydown originated inside the terminal host, so the VT owns it —
+   * Esc included (vim, less, fzf live on it). Chrome must not answer it.
+   */
+  keyFromTerminalHost: boolean
   historyView: boolean
   docsOpen: boolean
   listActive: boolean
@@ -87,6 +97,7 @@ export type KeyCommand =
   | { type: 'close-history' }
   | { type: 'close-dashboard' }
   | { type: 'close-feed' }
+  | { type: 'close-terminal-overlay' }
   | { type: 'clear-page' }
   | { type: 'clear-person' }
   | { type: 'toggle-bulk-cursor' }
@@ -116,6 +127,8 @@ export function keyContext(over: Partial<KeyContext> = {}): KeyContext {
     mediaViewerOpen: false,
     feedBlocksNarrow: false,
     dashboardOpen: false,
+    terminalOverlayOpen: false,
+    keyFromTerminalHost: false,
     historyView: false,
     docsOpen: false,
     listActive: false,
@@ -167,6 +180,7 @@ export type KeyScope =
   | 'page'
   | 'person'
   | 'browse'
+  | 'overlay-terminal'
   | 'overlay-feed'
   | 'overlay-dashboard'
   | 'overlay-history'
@@ -422,12 +436,40 @@ export const COMMANDS: readonly CommandDef[] = [
     dispatch: () => ({ type: 'clear-selection' }),
     help: { group: 'list', kbd: 'Esc', labelKey: 'shortcuts.clearSelection', sort: 110 },
   },
+  /*
+   * GDK-945, axis B: the overlay terminal joins the Esc ladder — but only
+   * when the VT does not hold the keystroke. A focused terminal's Esc is
+   * the PTY's (vim, less, fzf), so keyFromTerminalHost refuses the key even
+   * though keymap's defaultPrevented exception is what lets terminal keys
+   * reach this resolver at all (that is how Ctrl+` closes from inside).
+   * The pane covers the content track, so it takes its turn before the
+   * column views; a docked split never enters — terminalOverlayOpen is the
+   * overlay owner's verdict (terminalChrome open && narrow). No help row on
+   * purpose: closing the top surface is what Esc already means everywhere
+   * else in the ladder (close-feed/close-dashboard precedent).
+   */
+  {
+    id: 'close-terminal-overlay',
+    scope: 'overlay-terminal',
+    chords: [{ key: 'Escape' }],
+    when: (ctx) =>
+      escFreeOfBrowseMenu(ctx) &&
+      !ctx.bulkActive &&
+      !ctx.detailOpen &&
+      ctx.terminalOverlayOpen &&
+      !ctx.keyFromTerminalHost,
+    dispatch: () => ({ type: 'close-terminal-overlay' }),
+  },
   {
     id: 'close-feed',
     scope: 'overlay-feed',
     chords: [{ key: 'Escape' }],
     when: (ctx) =>
-      escFreeOfBrowseMenu(ctx) && !ctx.bulkActive && !ctx.detailOpen && ctx.feedBlocksNarrow,
+      escFreeOfBrowseMenu(ctx) &&
+      !ctx.bulkActive &&
+      !ctx.detailOpen &&
+      !ctx.terminalOverlayOpen &&
+      ctx.feedBlocksNarrow,
     dispatch: () => ({ type: 'close-feed' }),
   },
   /*
@@ -446,6 +488,7 @@ export const COMMANDS: readonly CommandDef[] = [
       escFreeOfBrowseMenu(ctx) &&
       !ctx.bulkActive &&
       !ctx.detailOpen &&
+      !ctx.terminalOverlayOpen &&
       !ctx.feedBlocksNarrow &&
       ctx.dashboardOpen,
     dispatch: () => ({ type: 'close-dashboard' }),
@@ -458,6 +501,7 @@ export const COMMANDS: readonly CommandDef[] = [
       escFreeOfBrowseMenu(ctx) &&
       !ctx.bulkActive &&
       !ctx.detailOpen &&
+      !ctx.terminalOverlayOpen &&
       !ctx.feedBlocksNarrow &&
       !ctx.dashboardOpen &&
       ctx.historyView,
@@ -471,6 +515,7 @@ export const COMMANDS: readonly CommandDef[] = [
       escFreeOfBrowseMenu(ctx) &&
       !ctx.bulkActive &&
       !ctx.detailOpen &&
+      !ctx.terminalOverlayOpen &&
       !ctx.feedBlocksNarrow &&
       !ctx.dashboardOpen &&
       !ctx.historyView &&

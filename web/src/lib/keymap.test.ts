@@ -393,6 +393,56 @@ describe('resolveGlobalKey', () => {
     ).toBe('clear-bulk')
   })
 
+  /*
+   * GDK-945: the terminal overlay takes its Esc after detail/bulk and ahead
+   * of every column view — but only on axis B. An Escape that came from the
+   * terminal host belongs to the VT (vim, less, fzf), and a docked split is
+   * not an overlay, so it never joins the ladder at all.
+   */
+  test('Escape: the terminal overlay closes after detail, before the column views (GDK-945)', () => {
+    expect(resolveGlobalKey(keyContext({ key: 'Escape', terminalOverlayOpen: true })).type).toBe(
+      'close-terminal-overlay',
+    )
+    expect(
+      resolveGlobalKey(keyContext({ key: 'Escape', terminalOverlayOpen: true, detailOpen: true }))
+        .type,
+    ).toBe('clear-selection')
+    expect(
+      resolveGlobalKey(keyContext({ key: 'Escape', terminalOverlayOpen: true, bulkActive: true }))
+        .type,
+    ).toBe('clear-bulk')
+    // The pane covers the content track, so whichever column view is under
+    // it waits its turn.
+    expect(
+      resolveGlobalKey(keyContext({ key: 'Escape', terminalOverlayOpen: true, docsOpen: true }))
+        .type,
+    ).toBe('close-terminal-overlay')
+    expect(
+      resolveGlobalKey(keyContext({ key: 'Escape', terminalOverlayOpen: true, historyView: true }))
+        .type,
+    ).toBe('close-terminal-overlay')
+    expect(
+      resolveGlobalKey(
+        keyContext({ key: 'Escape', terminalOverlayOpen: true, feedBlocksNarrow: true }),
+      ).type,
+    ).toBe('close-terminal-overlay')
+    expect(
+      resolveGlobalKey(keyContext({ key: 'Escape', terminalOverlayOpen: true, dashboardOpen: true }))
+        .type,
+    ).toBe('close-terminal-overlay')
+    // The VT owns its Escape. keymap's defaultPrevented exception lets
+    // terminal-host keys reach this resolver at all (that is how Ctrl+`
+    // closes from inside) — this guard is what keeps Escape from doing the
+    // same, even if the inEditable bypass above ever stops covering it.
+    expect(
+      resolveGlobalKey(
+        keyContext({ key: 'Escape', terminalOverlayOpen: true, keyFromTerminalHost: true }),
+      ).type,
+    ).toBe('ignore')
+    // A split pane is not an overlay: the column keeps its Esc.
+    expect(resolveGlobalKey(keyContext({ key: 'Escape', docsOpen: true })).type).toBe('close-docs')
+  })
+
   test('x: page, then person, then cursor, then detail', () => {
     expect(resolveGlobalKey(keyContext({ key: 'x', pageSelected: true, detailOpen: true }))).toEqual({
       type: 'clear-page',

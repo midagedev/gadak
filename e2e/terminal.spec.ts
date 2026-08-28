@@ -94,6 +94,19 @@ async function drainSessions(page: Page): Promise<void> {
   }
 }
 
+/** Same dataset surface esc-negotiate.spec reads: what did the keystroke do? */
+function lastKeyCmd(page: Page): Promise<string | null> {
+  return page.locator('html').getAttribute('data-last-key-cmd')
+}
+
+/** Focus to nowhere: blur whatever holds it so Esc arrives at the shell. */
+async function blurFocus(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const active = document.activeElement
+    if (active instanceof HTMLElement) active.blur()
+  })
+}
+
 test.describe('terminal pane', () => {
   test.afterEach(async ({ page }) => {
     await drainSessions(page)
@@ -220,6 +233,87 @@ test.describe('terminal pane', () => {
 
     await page.keyboard.press('Control+Backquote')
     await expect(page.getByTestId('terminal-pane')).toHaveCount(0)
+    expect(appConsoleErrors(errors), `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  /*
+   * GDK-945: the overlay terminal joins the Esc ladder — on axis B only. Esc
+   * closes the pane when the VT does not hold focus; a focused terminal's Esc
+   * is the PTY's (vim, less, fzf eat it), and chrome may not take it. A
+   * docked split never joins the ladder: it is not covering anything.
+   *
+   * FAIL-first, measured 2026-08-29 against the pre-change tree: case 1
+   * failed at toHaveCount(0) — "34 × locator resolved to 1 element", the
+   * pane never closed. Cases 2 and 3 were already green there; they are the
+   * axis-B pins (an always-phase Esc command — rejected axis A — turns case
+   * 2 red, and treating a split as an overlay turns case 3 red).
+   */
+  test('overlay: Esc with focus outside the terminal closes the pane (GDK-945)', async ({
+    page,
+  }) => {
+    test.setTimeout(90_000)
+    await page.setViewportSize({ width: 820, height: 900 })
+    const errors = await boot(page)
+    await openPane(page)
+    await expect(page.getByTestId('terminal-pane')).toHaveAttribute('data-overlay', 'true')
+
+    // onOpen focuses the VT; walk focus off it so the Escape belongs to the
+    // shell, not the terminal.
+    await blurFocus(page)
+    await page.keyboard.press('Escape')
+
+    await expect(page.getByTestId('terminal-pane')).toHaveCount(0)
+    expect(await lastKeyCmd(page)).toBe('close-terminal-overlay')
+
+    expect(appConsoleErrors(errors), `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  test('overlay: Esc with focus in the terminal reaches the PTY, not the pane (GDK-945)', async ({
+    page,
+  }) => {
+    test.setTimeout(120_000)
+    await page.setViewportSize({ width: 820, height: 900 })
+    const errors = await boot(page)
+    await openPane(page)
+    await expect(page.getByTestId('terminal-pane')).toHaveAttribute('data-overlay', 'true')
+
+    // cat -v prints the ESC byte as ^[, so the buffer itself is the witness
+    // that the keystroke crossed chrome and reached the PTY. The printf
+    // marker is the readiness handshake: once it is rendered, cat is the
+    // foreground reader the Escape must land in.
+    await typeLine(page, "printf 'GDK945RDY\\n'; cat -v")
+    await expect.poll(async () => readTerm(page)).toContain('GDK945RDY')
+
+    await focusTerm(page)
+    await page.keyboard.press('Escape')
+
+    await expect.poll(async () => readTerm(page), 'ESC should reach the PTY').toContain('^[', {
+      timeout: 10_000,
+    })
+    await expect(page.getByTestId('terminal-pane')).toBeVisible()
+    expect(await lastKeyCmd(page)).toBe('ignore')
+
+    // Leave no reader behind the pane for the drain below.
+    await page.keyboard.press('Control+c')
+
+    expect(appConsoleErrors(errors), `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  test('split: Esc does not close the pane (GDK-945)', async ({ page }) => {
+    test.setTimeout(90_000)
+    await page.setViewportSize({ width: 1280, height: 900 })
+    const errors = await boot(page)
+    await openPane(page)
+    await expect(page.getByTestId('terminal-pane')).not.toHaveAttribute('data-overlay', 'true')
+
+    // Even with focus off the VT: a split pane is not an overlay, so Esc
+    // stays the column's and never becomes a close.
+    await blurFocus(page)
+    await page.keyboard.press('Escape')
+
+    await expect(page.getByTestId('terminal-pane')).toBeVisible()
+    expect(await lastKeyCmd(page)).toBe('ignore')
+
     expect(appConsoleErrors(errors), `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 })

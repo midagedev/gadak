@@ -125,4 +125,26 @@ describe('registry matches previous keymap contracts', () => {
   test('resolveGlobalKey still comes from this module', () => {
     expect(resolveGlobalKey(keyContext({ key: '?' }))).toEqual({ type: 'open-shortcuts' })
   })
+
+  /*
+   * GDK-945: the registry order is the Esc chain's documentation (GDK-827
+   * idiom). The overlay terminal covers the content track, so it takes its
+   * Esc before any column view — the X button and Ctrl+` remain the ways to
+   * close it from inside the VT, where Esc is the PTY's, not chrome's.
+   */
+  test('the Esc ladder order is browse, bulk, detail, terminal overlay, feed, dashboard, history, docs (GDK-945)', () => {
+    const escLadder = COMMANDS.filter((c) => c.chords.some((ch) => !ch.mod && ch.key === 'Escape')).map(
+      (c) => c.id,
+    )
+    expect(escLadder).toEqual([
+      'hide-browse',
+      'clear-bulk',
+      'clear-selection-esc',
+      'close-terminal-overlay',
+      'close-feed',
+      'close-dashboard',
+      'close-history',
+      'close-docs',
+    ])
+  })
 })

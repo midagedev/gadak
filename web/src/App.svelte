@@ -416,6 +416,11 @@
       const issueKey = (triage.listActive ? triage.cursorKey : null) ?? selection.selectedKey
       if (issueKey) openIssueOrigin(issueKey)
     },
+    // Overlay vs split is the pane chrome's verdict (GDK-945): docked is
+    // not an overlay, and only the overlay joins the Esc ladder.
+    get terminalOverlayOpen() {
+      return terminalChrome.open && terminalChrome.narrow
+    },
     toggleTerminal() {
       terminalChrome.toggle()
     },
