@@ -121,7 +121,7 @@ func cmdCreate(args []string) error {
 	}
 
 	return withCreateSession(*projectFlag, func(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src string) error {
-		key, extra, err := createOn(ctx, cfg, c, src, *projectFlag, *typeFlag, summary, body, *priorityFlag, *parentFlag, *dueFlag, []string(labels), attachFiles, fieldRaws)
+		key, extra, err := createOn(ctx, cfg, db, c, src, *projectFlag, *typeFlag, summary, body, *priorityFlag, *parentFlag, *dueFlag, []string(labels), attachFiles, fieldRaws)
 		if err != nil {
 			return err
 		}
@@ -228,7 +228,7 @@ func cmdCreateBatch(projectFlag, typeFlag, defaultBody, defaultPriority, default
 					w, lineSrc = nw, routed
 				}
 			}
-			key, extra, err := createOn(ctx, cfg, w, lineSrc, projectWant, typeWant, summary, body, priorityWant, parentWant, dueWant, labels, attach, fieldRaws)
+			key, extra, err := createOn(ctx, cfg, db, w, lineSrc, projectWant, typeWant, summary, body, priorityWant, parentWant, dueWant, labels, attach, fieldRaws)
 			if err != nil {
 				return fmt.Errorf("line %d: %w", lineNo, err)
 			}
@@ -313,9 +313,9 @@ func refuseSignedCreateLabels(labels []string) error {
 	return nil
 }
 
-func createOn(ctx context.Context, cfg *config.Config, c origin.Writer, src, projectWant, typeWant, summary, body, priorityWant, parentWant, dueWant string, labels, attach []string, fieldRaws map[string]json.RawMessage) (string, map[string]any, error) {
+func createOn(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src, projectWant, typeWant, summary, body, priorityWant, parentWant, dueWant string, labels, attach []string, fieldRaws map[string]json.RawMessage) (string, map[string]any, error) {
 	if projRes, err := create.Project(projectWant, cfg); err == nil {
-		if err := refuseUnmirroredProject(cfg, projRes.Value); err != nil {
+		if err := refuseUnmirroredProject(ctx, db, cfg, projRes.Value); err != nil {
 			return "", nil, err
 		}
 	}
@@ -331,11 +331,27 @@ func createOn(ctx context.Context, cfg *config.Config, c origin.Writer, src, pro
 // (empty is "no explicit scope", not a deny-all: paired workspaces carry no
 // local Projects copy, GDK-467; the split was GDK-1034). The post-write
 // writeNotMirroredError path stays as the race fallback.
-func refuseUnmirroredProject(cfg *config.Config, project string) error {
+//
+// GDK-973: the verdict is config-scope, so the message must be too. "not
+// mirrored" sent the diagnosis backwards — a config key stale after an
+// upstream rename (config DI, origin D1) made the refusal deny the one key
+// the mirror actually holds. When the mirror holds the key's issues, say so
+// and hand over the fix; the verdict itself never changes.
+func refuseUnmirroredProject(ctx context.Context, db *store.DB, cfg *config.Config, project string) error {
 	if cfg.ProjectMirrored(project) {
 		return nil
 	}
-	return fmt.Errorf("project %q is not mirrored — available: %s", project, strings.Join(cfg.Projects, ", "))
+	msg := fmt.Sprintf("project %q is not in the projects config — configured: %s", project, strings.Join(cfg.Projects, ", "))
+	// Best-effort enrichment over the caller's session handle (a second open
+	// would double any diagnostic the open path prints — GDK-314): a nil db
+	// or a failed count keeps the base sentence.
+	if db != nil {
+		if counts, err := db.ProjectIssueCounts(ctx, syncer.SourceID); err == nil && counts[project] > 0 {
+			msg += fmt.Sprintf("; %q is mirrored (%d issues), which the config does not list — a renamed Jira project key? fix with: gadak config set projects '[\"%s\", ...]'",
+				project, counts[project], project)
+		}
+	}
+	return fmt.Errorf("%s", msg)
 }
 
 func createLinearOne(ctx context.Context, cfg *config.Config, c origin.Writer, projectWant, typeWant, summary, body, priorityWant, parentWant, dueWant string, labels, attach []string, fieldRaws map[string]json.RawMessage) (string, map[string]any, error) {

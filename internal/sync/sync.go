@@ -443,7 +443,71 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 
 	// Owned + starred filters. Failure must not undo the issue pass.
 	importFilters(ctx, c, cfg, db, opts)
+	// The pass that just refreshed the mirror is the one place the config↔
+	// mirror rename signature (GDK-973) is observable in passing.
+	warnProjectScopeMismatch(ctx, cfg, db, opts)
 	return nil
+}
+
+// ProjectScopeMismatch is the single owner of the project-key rename/typo
+// signature (GDK-973): a configured key the Jira mirror holds no issues
+// under, together with a Jira-mirrored key outside the config. Either side
+// alone is not a defect — a freshly created configured project is
+// legitimately empty, and an unconfigured mirrored key is just out of scope —
+// so both lists are populated or both are nil. counts comes from
+// store.ProjectIssueCounts(db, SourceID); the post-sync warning and doctor
+// both read this one verdict.
+func ProjectScopeMismatch(cfg *config.Config, counts map[string]int) (configuredEmpty, mirroredExtra []string) {
+	configuredEmpty, mirroredExtra = ProjectScopeDiff(cfg, counts)
+	if len(configuredEmpty) == 0 || len(mirroredExtra) == 0 {
+		return nil, nil
+	}
+	return configuredEmpty, mirroredExtra
+}
+
+// ProjectScopeDiff is the raw config↔mirror set difference behind
+// ProjectScopeMismatch, and the single owner `gadak status` / `gadak config`
+// warnings read too (GDK-809 surfaced the sides independently; GDK-973 folded
+// their computation here so the surfaces can never disagree). Either side may
+// be non-empty on its own — only the combined signature is a rename verdict.
+func ProjectScopeDiff(cfg *config.Config, counts map[string]int) (configuredEmpty, mirroredExtra []string) {
+	if cfg == nil || len(cfg.Projects) == 0 {
+		return nil, nil
+	}
+	for _, p := range cfg.Projects {
+		if counts[p] == 0 {
+			configuredEmpty = append(configuredEmpty, p)
+		}
+	}
+	for k := range counts {
+		if !cfg.ProjectMirrored(k) {
+			mirroredExtra = append(mirroredExtra, k)
+		}
+	}
+	sort.Strings(mirroredExtra)
+	return configuredEmpty, mirroredExtra
+}
+
+// warnProjectScopeMismatch logs the GDK-973 signature after a successful Jira
+// pass: Jira keeps answering a renamed project's old key, so reads work while
+// writes are refused against a config that no longer names the real key. One
+// line per run, diagnosis + fix. Best-effort: a count read failure stays
+// silent rather than failing the pass that just succeeded.
+func warnProjectScopeMismatch(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) {
+	counts, err := db.ProjectIssueCounts(ctx, SourceID)
+	if err != nil {
+		return
+	}
+	empty, extra := ProjectScopeMismatch(cfg, counts)
+	if len(extra) == 0 {
+		return
+	}
+	held := make([]string, 0, len(extra))
+	for _, k := range extra {
+		held = append(held, fmt.Sprintf("%s (%s issues)", k, formatCount(counts[k])))
+	}
+	opts.logf("warning: the projects config lists %s but the mirror holds no %s issues; the mirror holds %s, which the config does not list — a renamed Jira project key? fix with: gadak config set projects '[\"%s\", ...]'",
+		strings.Join(empty, ", "), strings.Join(empty, ", "), strings.Join(held, ", "), extra[0])
 }
 
 // runDiscovery configures custom fields from the site catalog + mirror raw

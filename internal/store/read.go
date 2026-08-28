@@ -216,6 +216,33 @@ func (db *DB) ProjectSource(ctx context.Context, projectKey string) (string, err
 	}
 }
 
+// ProjectIssueCounts returns the issue count per project key for one
+// source's mirrored issues (GDK-973). Keys the source holds no issues under
+// do not appear; callers read absence as zero. sourceID is the items.source_id
+// slug ("jira"), so a Linear team key never counts toward a Jira scope
+// verdict.
+func (db *DB) ProjectIssueCounts(ctx context.Context, sourceID string) (map[string]int, error) {
+	rows, err := db.sql.QueryContext(ctx, `
+		SELECT i.project_key, COUNT(*)
+		FROM issues i JOIN items it ON it.id = i.item_id
+		WHERE it.source_id = ? AND i.project_key IS NOT NULL AND i.project_key != ''
+		GROUP BY i.project_key`, sourceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]int{}
+	for rows.Next() {
+		var k string
+		var n int
+		if err := rows.Scan(&k, &n); err != nil {
+			return nil, err
+		}
+		out[strings.TrimSpace(k)] = n
+	}
+	return out, rows.Err()
+}
+
 // IssueLites returns the whole mirror, which is what `bootstrap` sends.
 func (db *DB) IssueLites(ctx context.Context) ([]IssueLite, error) {
 	return db.issueLites(ctx, issueLiteSelect+` ORDER BY it.updated_at DESC`)

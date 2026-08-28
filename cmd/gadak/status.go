@@ -14,6 +14,7 @@ import (
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/selfupdate"
 	"github.com/midagedev/gadak/internal/store"
+	syncer "github.com/midagedev/gadak/internal/sync"
 )
 
 func cmdStatus(args []string) error {
@@ -223,31 +224,23 @@ func printSourceSyncedAt(id string, ss store.SyncState, err error) {
 // projectScopeMismatch compares config.Projects with distinct project_key
 // values already in the mirror (GDK-809). Empty Projects means "every
 // project" — that is not a mismatch. Does not call the origin.
+// projectScopeMismatch reads the sides through sync.ProjectScopeDiff — the
+// one owner of the config↔mirror comparison (GDK-973), scoped to Jira keys so
+// a Linear team key never reads as "in the mirror, not configured" (the
+// unscoped DISTINCT this used to run had that false positive latent). Empty
+// slices, not nil: the status JSON always carries both arrays.
 func projectScopeMismatch(cfg *config.Config, db *store.DB) (notMirrored, notConfigured []string) {
 	notMirrored, notConfigured = []string{}, []string{}
 	if cfg == nil || db == nil || len(cfg.Projects) == 0 {
 		return notMirrored, notConfigured
 	}
-	mirrored, err := mirrorProjectKeys(db)
+	counts, err := db.ProjectIssueCounts(context.Background(), syncer.SourceID)
 	if err != nil {
 		return notMirrored, notConfigured
 	}
-	inMirror := make(map[string]bool, len(mirrored))
-	for _, k := range mirrored {
-		inMirror[k] = true
-	}
-	inCfg := make(map[string]bool, len(cfg.Projects))
-	for _, p := range cfg.Projects {
-		inCfg[p] = true
-		if !inMirror[p] {
-			notMirrored = append(notMirrored, p)
-		}
-	}
-	for _, k := range mirrored {
-		if !inCfg[k] {
-			notConfigured = append(notConfigured, k)
-		}
-	}
+	empty, extra := syncer.ProjectScopeDiff(cfg, counts)
+	notMirrored = append(notMirrored, empty...)
+	notConfigured = append(notConfigured, extra...)
 	return notMirrored, notConfigured
 }
 

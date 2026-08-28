@@ -703,6 +703,52 @@ func TestCreateUnmirroredProjectRefusesBeforeOrigin(t *testing.T) {
 	t.Log(msg)
 }
 
+// TestCreateUnconfiguredProjectRefusalNamesMirrorRename is FAIL-first for
+// GDK-973: with the config listing a stale key (DI) and the origin renamed to
+// NMB, the refusal said "NMB is not mirrored" — the opposite of the truth,
+// since the mirror holds NMB-1. The refusal must speak config scope, and when
+// the mirror holds the key, name the rename evidence and the fix command.
+func TestCreateUnconfiguredProjectRefusalNamesMirrorRename(t *testing.T) {
+	f := newFakeJira(t)
+	cfg := mirror(t, f.URL) // mirror holds NMB-1; cfg.Projects [NMB]
+	cfg.Projects = []string{"DI"}
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := capture(t, func() error {
+		return cmdCreate([]string{"filed under the renamed key", "--project", "NMB", "--type", "Task"})
+	})
+	if err == nil {
+		t.Fatal("create into a project outside cfg.Projects must refuse")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, `project "NMB" is not in the projects config`) {
+		t.Errorf("refusal must speak config scope, not mirror presence: %v", err)
+	}
+	if !strings.Contains(msg, `"NMB" is mirrored (1 issues)`) {
+		t.Errorf("refusal must name the mirror evidence: %v", err)
+	}
+	if !strings.Contains(msg, "gadak config set projects") {
+		t.Errorf("refusal must carry the fix command: %v", err)
+	}
+	if len(f.calls) != 0 {
+		t.Fatalf("origin called before refuse: %v", f.calls)
+	}
+
+	// A key neither configured nor mirrored keeps the base sentence — no
+	// rename evidence exists for it.
+	_, err = capture(t, func() error {
+		return cmdCreate([]string{"unknown key", "--project", "QQ", "--type", "Task"})
+	})
+	if err == nil || !strings.Contains(err.Error(), "is not in the projects config") {
+		t.Fatalf("base refusal missing: %v", err)
+	}
+	if strings.Contains(err.Error(), "is mirrored") {
+		t.Errorf("no mirror evidence for QQ, the hint must stay off: %v", err)
+	}
+}
+
 // TestCreateEmptyProjectsDoesNotRefuse pins GDK-467: paired workspaces have
 // no local Projects copy. An empty list is not "allow 0 projects".
 func TestCreateEmptyProjectsDoesNotRefuse(t *testing.T) {

@@ -22,6 +22,7 @@ import (
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/originbind"
 	"github.com/midagedev/gadak/internal/store"
+	syncer "github.com/midagedev/gadak/internal/sync"
 )
 
 // doctorBanner is the first line of every doctor dump so a user pasting into a
@@ -45,25 +46,31 @@ type doctorReport struct {
 	// HomeLeftover is the abandoned legacy home (~/.scry) when it still exists
 	// beside ~/.gadak. The stderr warning fires once per machine (GDK-1072);
 	// this is the standing report.
-	HomeLeftover    string                `json:"home_leftover,omitempty"`
-	Mirror          doctorMirror          `json:"mirror"`
-	MirrorHolders   *doctorMirrorHolders  `json:"mirror_holders,omitempty"`
-	SchemaVersion   *int                  `json:"schema_version"`
-	SchemaSinceSync string                `json:"schema_since_sync,omitempty"`
-	SchemaAudit     *doctorSchemaAudit    `json:"schema_audit,omitempty"`
-	Migrations      string                `json:"migrations"`
-	Counts          *doctorCounts         `json:"counts"`
-	Confluence      string                `json:"confluence"`
-	CustomFields    doctorCustomFields    `json:"custom_fields"`
-	Credential      string                `json:"credential"`
-	Site            string                `json:"site"`
-	Email           string                `json:"email"`
-	Skill           doctorSkill           `json:"skill"`
-	MCP             doctorMCP             `json:"mcp"`
-	Sync            map[string]doctorSync `json:"sync"`
-	APIUsage        doctorAPIUsage        `json:"api_usage"`
-	Workspace       doctorWorkspace       `json:"workspace"`
-	Logs            doctorLogs            `json:"logs"`
+	HomeLeftover string `json:"home_leftover,omitempty"`
+	// ProjectsMismatch is the config↔mirror project-scope rename signature
+	// (GDK-973), as counts only — the keys themselves stay out of this
+	// paste-safe document (the rule the banner states and TestDoctorRedaction
+	// enforces). The post-sync warning and `gadak status` name the keys. Nil
+	// when the signature is absent.
+	ProjectsMismatch *doctorProjectsMismatch `json:"projects_mismatch,omitempty"`
+	Mirror           doctorMirror            `json:"mirror"`
+	MirrorHolders    *doctorMirrorHolders    `json:"mirror_holders,omitempty"`
+	SchemaVersion    *int                    `json:"schema_version"`
+	SchemaSinceSync  string                  `json:"schema_since_sync,omitempty"`
+	SchemaAudit      *doctorSchemaAudit      `json:"schema_audit,omitempty"`
+	Migrations       string                  `json:"migrations"`
+	Counts           *doctorCounts           `json:"counts"`
+	Confluence       string                  `json:"confluence"`
+	CustomFields     doctorCustomFields      `json:"custom_fields"`
+	Credential       string                  `json:"credential"`
+	Site             string                  `json:"site"`
+	Email            string                  `json:"email"`
+	Skill            doctorSkill             `json:"skill"`
+	MCP              doctorMCP               `json:"mcp"`
+	Sync             map[string]doctorSync   `json:"sync"`
+	APIUsage         doctorAPIUsage          `json:"api_usage"`
+	Workspace        doctorWorkspace         `json:"workspace"`
+	Logs             doctorLogs              `json:"logs"`
 }
 
 // doctorLogs is the process log file Install opens under the gadak home.
@@ -128,6 +135,17 @@ type doctorMCP struct {
 	Status string `json:"status"`          // absent | registered
 	Scope  string `json:"scope,omitempty"` // user | local | project | other
 	Path   string `json:"path,omitempty"`  // tilde-abbreviated config path
+}
+
+// doctorProjectsMismatch is the count-only view of the config↔mirror
+// project-scope rename signature (GDK-973): configured keys the Jira mirror
+// holds no issues under, beside Jira-mirrored keys the config does not list.
+// Which keys those are never enters doctor output — the banner promises a
+// paste-safe document; the post-sync warning and `gadak status` name them.
+type doctorProjectsMismatch struct {
+	ConfiguredNotMirrored       int `json:"configured_not_mirrored"`        // configured keys with zero mirrored issues
+	MirroredNotConfigured       int `json:"mirrored_not_configured"`        // Jira-mirrored keys outside the config
+	MirroredNotConfiguredIssues int `json:"mirrored_not_configured_issues"` // issues held under those keys
 }
 
 type doctorMirror struct {
@@ -383,6 +401,10 @@ func collectDoctor() doctorReport {
 	}
 	rep.Counts = counts
 
+	if pm := collectProjectsMismatch(db); pm != nil {
+		rep.ProjectsMismatch = pm
+	}
+
 	for _, src := range []string{"jira", "confluence"} {
 		rep.Sync[src] = collectSync(db, src)
 	}
@@ -418,6 +440,41 @@ func collectDoctor() doctorReport {
 // collectSkillStatus reuses the installer's own classifier (skillDestStatus in
 // skill.go), so `gadak doctor` and `gadak skill install --print` can never
 // disagree about the same file.
+// collectProjectsMismatch reads the config↔mirror rename signature through
+// sync.ProjectScopeMismatch — the same verdict the post-Jira-pass warning
+// logs — so doctor and sync can never disagree about it. Reads are
+// best-effort: an unopenable config or count query reports nothing rather
+// than a half verdict.
+func collectProjectsMismatch(db *store.DB) *doctorProjectsMismatch {
+	cfg, err := config.Load()
+	if err != nil || cfg == nil {
+		return nil
+	}
+	counts, err := db.ProjectIssueCounts(context.Background(), syncer.SourceID)
+	if err != nil {
+		return nil
+	}
+	empty, extra := syncer.ProjectScopeMismatch(cfg, counts)
+	if len(extra) == 0 {
+		return nil
+	}
+	out := &doctorProjectsMismatch{
+		ConfiguredNotMirrored: len(empty),
+		MirroredNotConfigured: len(extra),
+	}
+	for _, k := range extra {
+		out.MirroredNotConfiguredIssues += counts[k]
+	}
+	return out
+}
+
+// formatDoctorProjectsMismatch names the verdict and the way out without
+// naming keys: `gadak status` prints both scope-mismatch lines (GDK-809).
+func formatDoctorProjectsMismatch(m doctorProjectsMismatch) string {
+	return fmt.Sprintf("configured_not_mirrored=%d mirrored_not_configured=%d (%d issues) — a renamed Jira project key? `gadak status` lists the keys; fix with: gadak config set projects '[\"…\"]'",
+		m.ConfiguredNotMirrored, m.MirroredNotConfigured, m.MirroredNotConfiguredIssues)
+}
+
 func collectSkillStatus() doctorSkill {
 	content := gadak.SkillMarkdown()
 
@@ -715,6 +772,10 @@ func formatDoctorText(r doctorReport) string {
 		line("projects", "n/a")
 		line("status_categories", "n/a")
 		line("spaces", "n/a")
+	}
+
+	if r.ProjectsMismatch != nil {
+		line("projects_mismatch", formatDoctorProjectsMismatch(*r.ProjectsMismatch))
 	}
 
 	line("custom_fields", formatDoctorCustomFields(r.CustomFields))

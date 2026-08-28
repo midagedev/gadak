@@ -1692,6 +1692,69 @@ func TestCommentVisibilityAndJsdPublicMapped(t *testing.T) {
 	}
 }
 
+// TestSyncWarnsOnRenamedProjectKey is FAIL-first for GDK-973: the projects
+// config lists a key (DI) the origin renamed (fixture answers NMB issues
+// whatever JQL asks). Reads keep working — Jira honors old keys — so the
+// mirror silently fills with the new key while writes get refused. The pass
+// that just refreshed the mirror must say so, once per run, with the fix.
+func TestSyncWarnsOnRenamedProjectKey(t *testing.T) {
+	site := newSite(t, "en")
+	db := newMirror(t)
+	var logs []string
+	cfg := testConfig()
+	cfg.Projects = []string{"DI"} // the rename/typo: mirror ends up holding NMB
+	if _, err := Run(context.Background(), cfg, db.DB, Options{
+		Full: true, Client: site.start(),
+		Log: func(s string) { logs = append(logs, s) },
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var warns []string
+	for _, l := range logs {
+		if strings.HasPrefix(l, "warning:") {
+			warns = append(warns, l)
+		}
+	}
+	if len(warns) != 1 {
+		t.Fatalf("want exactly one warning line per run, got %d:\n%s", len(warns), strings.Join(logs, "\n"))
+	}
+	for _, want := range []string{"DI", "NMB", "3 issues", "gadak config set projects"} {
+		if !strings.Contains(warns[0], want) {
+			t.Errorf("warning missing %q: %s", want, warns[0])
+		}
+	}
+}
+
+// Either side alone is not the rename signature (GDK-973): a configured
+// project with no issues yet is a freshly created project, and an
+// unconfigured mirrored key is just out of scope. Both must hold or the
+// warning stays silent.
+func TestSyncRenameWarningNeedsBothSides(t *testing.T) {
+	for name, projects := range map[string][]string{
+		"empty configured, no extra key": {"DI", "NMB"},
+		"everything configured":          {"NMB"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			site := newSite(t, "en")
+			db := newMirror(t)
+			var logs []string
+			cfg := testConfig()
+			cfg.Projects = projects
+			if _, err := Run(context.Background(), cfg, db.DB, Options{
+				Full: true, Client: site.start(),
+				Log: func(s string) { logs = append(logs, s) },
+			}); err != nil {
+				t.Fatal(err)
+			}
+			for _, l := range logs {
+				if strings.HasPrefix(l, "warning:") {
+					t.Errorf("unexpected warning (no rename signature): %s", l)
+				}
+			}
+		})
+	}
+}
+
 func TestScopeLabelStandaloneOmitsAccount(t *testing.T) {
 	// GDK-464
 	connected := scopeLabel(&config.Config{})

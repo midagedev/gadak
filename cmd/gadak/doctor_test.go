@@ -61,6 +61,106 @@ func TestDoctorMirrorHoldersSurface(t *testing.T) {
 	}
 }
 
+// TestDoctorProjectsMismatch is FAIL-first for GDK-973: the standing report
+// of the config↔mirror rename signature. Counts only — the keys themselves
+// never enter a document the banner promises is safe to paste (the same rule
+// TestDoctorRedaction enforces); `gadak status` and the sync warning name them.
+func TestDoctorProjectsMismatch(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	t.Setenv("HOME", home)
+	config.SetProfile("")
+
+	db, err := store.Open(filepath.Join(home, "gadak.db"))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if err := db.UpsertSource(context.Background(), store.Source{ID: "jira", Kind: "jira", BaseURL: "https://example.atlassian.net"}); err != nil {
+		t.Fatalf("source: %v", err)
+	}
+	if _, err := db.UpsertIssues(context.Background(), store.Batch{
+		Categories: map[string]string{"3": "inprogress"},
+		Records: []store.IssueRecord{{
+			Item: store.Item{
+				ID: "jira:1", SourceID: "jira", Kind: "issue", ExternalID: "1",
+				Key: "NMB-1", Title: "renamed upstream",
+				CreatedAt: "2026-01-01T00:00:00.000Z", UpdatedAt: "2026-01-01T00:00:00.000Z",
+			},
+			Issue: store.Issue{
+				ProjectKey: "NMB", IssueType: "Bug", IssueTypeID: "1",
+				Status: "Open", StatusID: "3", StatusCategory: "inprogress",
+			},
+		}},
+	}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	cfg := &config.Config{
+		Site: "https://example.atlassian.net", Email: "someone@example.com", Token: "token",
+		Projects: []string{"DI"}, // the stale side of the rename
+	}
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := capture(t, func() error { return cmdDoctor(nil) })
+	if err != nil {
+		t.Fatalf("doctor: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "projects_mismatch:") {
+		t.Fatalf("human output missing projects_mismatch line:\n%s", out)
+	}
+	if !strings.Contains(out, "configured_not_mirrored=1") || !strings.Contains(out, "mirrored_not_configured=1") {
+		t.Fatalf("projects_mismatch line missing counts:\n%s", out)
+	}
+	if strings.Contains(out, "NMB") {
+		t.Errorf("project key leaked into the paste-safe document:\n%s", out)
+	}
+
+	raw, err := capture(t, func() error { return cmdDoctor([]string{"--json"}) })
+	if err != nil {
+		t.Fatalf("doctor --json: %v\n%s", err, raw)
+	}
+	if strings.Contains(raw, "NMB") {
+		t.Errorf("project key leaked into the JSON document: %s", raw)
+	}
+	var rep struct {
+		ProjectsMismatch *struct {
+			ConfiguredNotMirrored      int `json:"configured_not_mirrored"`
+			MirroredNotConfigured      int `json:"mirrored_not_configured"`
+			MirroredNotConfiguredIssue int `json:"mirrored_not_configured_issues"`
+		} `json:"projects_mismatch"`
+	}
+	if err := json.Unmarshal([]byte(raw), &rep); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, raw)
+	}
+	if rep.ProjectsMismatch == nil {
+		t.Fatal("json missing projects_mismatch on the rename signature")
+	}
+	if got := *rep.ProjectsMismatch; got.ConfiguredNotMirrored != 1 || got.MirroredNotConfigured != 1 || got.MirroredNotConfiguredIssue != 1 {
+		t.Fatalf("projects_mismatch = %+v, want 1/1/1", got)
+	}
+
+	// Control: config matching the mirror is not a mismatch — field omitted.
+	cfg.Projects = []string{"NMB"}
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+	raw, err = capture(t, func() error { return cmdDoctor([]string{"--json"}) })
+	if err != nil {
+		t.Fatalf("doctor --json (control): %v\n%s", err, raw)
+	}
+	rep.ProjectsMismatch = nil // Unmarshal keeps absent fields; reset before re-decoding
+	if err := json.Unmarshal([]byte(raw), &rep); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, raw)
+	}
+	if rep.ProjectsMismatch != nil {
+		t.Fatalf("projects_mismatch present with config matching the mirror: %+v", *rep.ProjectsMismatch)
+	}
+}
+
 func TestDoctorNoMirrorSucceeds(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)

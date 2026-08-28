@@ -1096,7 +1096,10 @@ func (s *server) handleCreate(w http.ResponseWriter, r *http.Request) {
 	// The empty-list semantics ("no explicit scope", not deny-all) live in
 	// Config.ProjectMirrored — the one owner shared with the CLI pre-check.
 	if !cfg.ProjectMirrored(proj.Value) {
-		log.Printf("server: create refused project %q: not in the mirrored list (%d configured)", proj.Value, len(cfg.Projects))
+		// GDK-973: same wording axis as the CLI refusal — the verdict is
+		// config scope ("not in the projects config"), not mirror presence;
+		// the wire code keeps its contract name project_not_mirrored.
+		log.Printf("server: create refused project %q: not in the projects config (%d configured)", proj.Value, len(cfg.Projects))
 		fail(w, http.StatusBadRequest, "project_not_mirrored")
 		return
 	}
