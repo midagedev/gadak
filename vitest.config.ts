@@ -36,6 +36,8 @@ export default defineConfig({
             'web/src/stores/pages.test.ts',
             'web/src/stores/filters-actor.test.ts',
             'web/src/stores/docs-empty.test.ts',
+            // me.feed.test.ts imports the me store (runes + store graph).
+            'web/src/stores/me.feed.test.ts',
             // format.ts routes status ink through the ui-tokens runes store,
             // so these suites need the svelte plugin too (GDK-786).
             'web/src/lib/format.test.ts',
@@ -63,6 +65,7 @@ export default defineConfig({
             'web/src/stores/pages.test.ts',
             'web/src/stores/filters-actor.test.ts',
             'web/src/stores/docs-empty.test.ts',
+            'web/src/stores/me.feed.test.ts',
             'web/src/lib/format.test.ts',
             'web/src/stores/ui-tokens.test.ts',
           ],

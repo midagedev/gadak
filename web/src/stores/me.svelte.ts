@@ -134,6 +134,13 @@ class MeStore {
   feedUnread = $state<FeedUnreadCounts>({ ...EMPTY_UNREAD })
   feedLoaded = $state(false)
   feedLoading = $state(false)
+  /**
+   * The last feed request failed. Failure is not emptiness: with no stale
+   * rows the feed panel shows the error line, not the empty copy, and the
+   * empty copy goes back to meaning "answered with zero rows" (GDK-1066,
+   * same split as pages/history in GDK-1054).
+   */
+  feedLoadFailed = $state(false)
 
   /* ── Local personalization (works without credential) ── */
   /** Recently opened issues *and* documents, newest first. */
@@ -277,6 +284,7 @@ class MeStore {
     this.feedItems = []
     this.feedUnread = { ...EMPTY_UNREAD }
     this.feedLoaded = false
+    this.feedLoadFailed = false
     this.#feedBaselineReady = false
     this.#prevUnreadAll = 0
     this.#syncAppBadge()
@@ -294,9 +302,13 @@ class MeStore {
       const prevAll = this.feedUnread.all
       this.feedUnread = response.unread_counts
       this.feedLoaded = true
+      this.feedLoadFailed = false
       this.#syncAppBadge()
       this.#maybeNotifyNewUnread(prevAll, response.items, response.unread_counts.all)
     } catch (e) {
+      // Failure is not emptiness (GDK-1066): flag the failure and keep any
+      // stale rows — a failed reload must not wipe what was on screen.
+      this.feedLoadFailed = true
       console.warn('[me] 피드 로드 실패', e)
     } finally {
       this.feedLoading = false

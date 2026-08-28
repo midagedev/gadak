@@ -199,6 +199,24 @@
       {#if skeleton.visible}
         <LoadingState label={t('common.loading')} />
       {/if}
+    {:else if me.feedLoadFailed && me.feedItems.length === 0}
+      <!-- Failure is not emptiness (GDK-1066): the feed request answered with
+           an error, so the error line replaces whatever the empty copy would
+           say. Same shape as DocsView/HistoryView's load-failure branches
+           (GDK-1054); stale rows on a failed reload stay below in the list —
+           the connection strip already reports that failure, no banner here. -->
+      <div class="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+        <p class="text-body text-text-secondary" data-testid="feed-load-error">
+          {t('feed.loadFailed')}
+        </p>
+        <button
+          type="button"
+          onclick={() => void me.loadFeed()}
+          class="rounded-md border border-border-strong px-3 py-1.5 text-body font-medium text-text-secondary transition-colors hover:bg-bg-hover"
+        >
+          {t('common.retry')}
+        </button>
+      </div>
     {:else if me.feedItems.length === 0}
       <EmptyState icon="inbox" title={t('feed.empty')} hint={t('personal.feedHint')} />
     {:else}

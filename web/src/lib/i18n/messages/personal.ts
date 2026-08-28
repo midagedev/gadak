@@ -103,6 +103,12 @@ export const personal = {
     ko: '새 활동이 없습니다',
     ja: '新しいアクティビティはありません',
   },
+  /* GDK-1066: the feed request failed — not "no new activity". */
+  'feed.loadFailed': {
+    en: 'Could not load the feed.',
+    ko: '피드를 불러오지 못했습니다.',
+    ja: 'フィードを読み込めませんでした。',
+  },
   'feed.unreadCount': {
     en: '{n} unread',
     ko: '안 읽은 활동 {n}건',

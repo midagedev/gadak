@@ -45,3 +45,23 @@ describe('GDK-1055 feed field names go through the catalog owner', () => {
     expect(src).not.toMatch(/typeof f === 'string' \? f : ''/)
   })
 })
+
+describe('GDK-1066 a failed feed load is failure copy, never the empty copy', () => {
+  test('feed.loadFailed is present in every locale, in the docs.loadFailed tone', () => {
+    expect(en['feed.loadFailed']).toBe('Could not load the feed.')
+    expect(ko['feed.loadFailed']).toBe('피드를 불러오지 못했습니다.')
+    expect(ja['feed.loadFailed']).toBe('フィードを読み込めませんでした。')
+  })
+
+  test('PersonalFeed branches failure before empty', () => {
+    const src = readFileSync(FEED, 'utf8')
+    const failure = src.indexOf('me.feedLoadFailed && me.feedItems.length === 0')
+    const empty = src.indexOf('{:else if me.feedItems.length === 0}')
+    // The failure branch exists (flag + zero rows) and says so with its own
+    // copy — so feed.empty can only mean "the request succeeded with 0 rows".
+    expect(failure, 'failure branch must key on feedLoadFailed with no stale rows').toBeGreaterThan(-1)
+    expect(src).toMatch(/t\('feed\.loadFailed'\)/)
+    expect(empty, 'the empty branch must survive for success + zero rows').toBeGreaterThan(-1)
+    expect(failure).toBeLessThan(empty)
+  })
+})
