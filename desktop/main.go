@@ -715,6 +715,11 @@ func assetHandler(ui fs.FS, next http.Handler) http.Handler {
 // RemoteAddr is an in-process call with no network peer at all". The
 // hardening is untouched; the app merely stops misrepresenting itself.
 // terminalLocal is the only non-test reader of RemoteAddr in the product.
+//
+// Upstream fix proposed at wailsapp/wails#6047 (synthesize a loopback peer
+// instead of the TEST-NET address). If it lands, this shim can drop the
+// clear once the pinned wails version carries it — a webview peer would then
+// already read as loopback.
 func normalizeWebviewPeer(r *http.Request) {
 	r.RemoteAddr = ""
 }
