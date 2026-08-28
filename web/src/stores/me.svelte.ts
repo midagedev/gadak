@@ -296,23 +296,30 @@ class MeStore {
   async loadFeed(focus: FeedFocus = this.feedFocus): Promise<void> {
     if (!feature('feed') || !this.identified) return
     this.feedLoading = true
+    // feedLoadFailed answers one question — did the feed *request* fail —
+    // so only the getFeed await sits in the try. Post-success bookkeeping
+    // (badge, notification) throwing must not read as a failed feed: that
+    // exact conflation shipped once — Node 20 has no `navigator` global, so
+    // the badge sync threw and CI saw feedLoadFailed=true on a 200 (GDK-1066).
+    let response: Awaited<ReturnType<typeof api.getFeed>>
     try {
-      const response = await api.getFeed(focus)
-      if (focus === this.feedFocus) this.feedItems = response.items
-      const prevAll = this.feedUnread.all
-      this.feedUnread = response.unread_counts
-      this.feedLoaded = true
-      this.feedLoadFailed = false
-      this.#syncAppBadge()
-      this.#maybeNotifyNewUnread(prevAll, response.items, response.unread_counts.all)
+      response = await api.getFeed(focus)
     } catch (e) {
       // Failure is not emptiness (GDK-1066): flag the failure and keep any
       // stale rows — a failed reload must not wipe what was on screen.
       this.feedLoadFailed = true
       console.warn('[me] 피드 로드 실패', e)
+      return
     } finally {
       this.feedLoading = false
     }
+    if (focus === this.feedFocus) this.feedItems = response.items
+    const prevAll = this.feedUnread.all
+    this.feedUnread = response.unread_counts
+    this.feedLoaded = true
+    this.feedLoadFailed = false
+    this.#syncAppBadge()
+    this.#maybeNotifyNewUnread(prevAll, response.items, response.unread_counts.all)
   }
 
   /**
@@ -447,6 +454,10 @@ class MeStore {
   }
 
   #syncAppBadge(): void {
+    // Progressive enhancement, same guard style as #maybeNotifyNewUnread's
+    // Notification check: no `navigator` global (Node under 21) is "no badge",
+    // never a throw.
+    if (typeof navigator === 'undefined') return
     const badge = navigator as Navigator & {
       setAppBadge?: (count?: number) => Promise<void>
       clearAppBadge?: () => Promise<void>
