@@ -34,7 +34,8 @@ import { attachConsoleErrors, forceLocale, DEMO_ISSUE_COUNT_EN_RE } from './help
  * scroller at 1280-open, 1001px at 1440-open, and the full catalog overflowed
  * CLOSED rows too (811px past at a 900 viewport, 437px at 1600). Since
  * GDK-1049 every optional column breaks on the row's own width
- * (@container issuerow, the threshold table in web/src/app.css), so this
+ * (@container issuerow; thresholds owned by
+ * web/src/components/list/row-column-thresholds.ts since GDK-1077), so this
  * assertion must hold for any on-set at any row width. The ladder also has
  * a capacity ceiling this matrix pins: the row caps at 1360px and the
  * fold-managed defaults + epic + qa_impact already spend most of it, so the
@@ -308,7 +309,7 @@ test.describe('detail panel closed @1440', () => {
  * Same axis as above (no trailing slot past the scroller) over the worst
  * on-set: the whole catalog. Row widths the driven viewports produce:
  * 1280-open ≈ 570, 1440-open ≈ 678, 1440-closed = 1168, 1700-closed = 1360
- * (the layout cap). Ladder rungs (app.css threshold table): severity 770,
+ * (the layout cap). Ladder rungs (full catalog, the generator's table): severity 770,
  * issue_type 860, status 1060, comment_count 1130, created 1180, due 1340;
  * md/lg groups above 1360 = never paint. */
 for (const width of [1280, 1440]) {
@@ -369,6 +370,78 @@ test.describe('full catalog, detail panel closed @1440', () => {
     expect(cols.fix_versions, 'fix_versions (rung 1840) must be hidden').toBeUndefined()
     expect(cols.components, 'components (rung 1960) must be hidden').toBeUndefined()
     expect(cols.reporter, 'reporter (rung 1720) must be hidden').toBeUndefined()
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+})
+
+/* ── GDK-1077 solo-enable case ──
+ * The GDK-1049 ladder was cumulative over the full catalog — a column's
+ * threshold carried every higher-priority slot whether enabled or not, so
+ * the six rungs above the 1360 row cap (dev_test_result … components)
+ * could not paint at ANY width, even enabled alone. Since GDK-1077 the
+ * ladder is regenerated for the enabled set (the constants + generator in
+ * web/src/components/list/row-column-thresholds.ts, injected at runtime as
+ * <style id="trail-break-rungs">), so a components-only set paints on any
+ * row that fits components itself: 1440 closed = row 1168, well under the
+ * set-aware rung (epic + components ≈ 800).
+ */
+test.describe('solo components, detail panel closed @1440 (GDK-1077)', () => {
+  test.use({ viewport: { width: 1440, height: 900 } })
+
+  test('a components-only set paints components below the row cap', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    await gotoPanelClosed(page, 'components')
+
+    const probe = await trailPastScroller(page)
+    expect(probe.rows, 'need several rendered rows in view').toBeGreaterThan(4)
+    expect(probe.rowW, '1440 closed must produce the 1168px row').toBe(1168)
+    expect(
+      probe.past,
+      `rowW=${probe.rowW}: solo-components trail slots past the scroller at 1440 closed: ${JSON.stringify(probe.past)}`,
+    ).toEqual([])
+
+    // The defect itself: under the static full-catalog ladder the rung was
+    // 1960 — above every row the layout can produce, so the column stayed
+    // hidden even as the only option column enabled.
+    const cols = await visibleColCounts(page)
+    expect(
+      cols.components,
+      'components must paint on a 1168px row when it is the only option column',
+    ).toBeGreaterThan(0)
+    // Epic is not column-gated (it paints whenever the list is not grouped
+    // by epic) — the solo set's ladder still carries its measured 750 rung.
+    expect(cols.epic, 'epic (rung 750) must paint on a 1168px row').toBeGreaterThan(0)
+
+    // The ladder must REGENERATE when the enabled set changes in-session
+    // (same-document cl flip — the column-menu path lands on the same
+    // store). Pinned on the injected style's own text, because behaviour
+    // alone cannot catch a stale ladder: a stale style has no
+    // .trail-break-reporter rule, so reporter would paint either way.
+    await page.goto('/#/?cl=reporter')
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () => document.getElementById('trail-break-rungs')?.textContent ?? '',
+        ),
+      )
+      .toContain('.trail-break-reporter {')
+    const styleText = await page.evaluate(
+      () => document.getElementById('trail-break-rungs')?.textContent ?? '',
+    )
+    expect(styleText, 'the components rule must leave with the column').not.toContain(
+      '.trail-break-components',
+    )
+    const probe2 = await trailPastScroller(page)
+    expect(probe2.rows, 'need several rendered rows after the cl flip').toBeGreaterThan(4)
+    expect(probe2.rowW).toBe(1168)
+    expect(
+      probe2.past,
+      `rowW=${probe2.rowW}: solo-reporter trail slots past the scroller: ${JSON.stringify(probe2.past)}`,
+    ).toEqual([])
+    const cols2 = await visibleColCounts(page)
+    expect(cols2.reporter, 'reporter must paint on a 1168px row as the only option column').toBeGreaterThan(0)
+    expect(cols2.components, 'the components slot is not rendered when the column is off').toBeUndefined()
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })

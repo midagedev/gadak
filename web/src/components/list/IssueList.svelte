@@ -28,6 +28,7 @@
   } from '../../lib/row-metrics'
   import IssueRow from './IssueRow.svelte'
   import GroupHeader from './GroupHeader.svelte'
+  import { TRAIL_BREAK_PRIORITY, trailBreakCss, syncTrailBreakStyle } from './row-column-thresholds'
 
   const OVERSCAN = 8
 
@@ -183,6 +184,24 @@
     triage.resetCursor()
   })
 
+  // ── GDK-1077: the option-column break ladder, regenerated for the enabled
+  // set ── A row-width hide threshold is a function of WHICH option columns
+  // are on; the static full-catalog table GDK-1049 left in app.css made the
+  // six rungs above the 1360 row cap unpaintable even enabled alone. Pure
+  // constant math (row-column-thresholds.ts — no layout reads here), synced
+  // into one <style> in <head>; the browser's container query does the
+  // firing. This list is the only renderer of rows that wear the
+  // trail-break classes, so the element rides its lifetime: gone on unmount.
+  $effect(() => {
+    const cols = filters.columnSet
+    const epicPaints = filters.display.group_by !== 'epic'
+    syncTrailBreakStyle(
+      trailBreakCss(
+        TRAIL_BREAK_PRIORITY.filter((col) => (col === 'epic' ? epicPaints : cols.has(col))),
+      ),
+    )
+  })
+
   // Tell the shell the triage keys have a list to act on. Feed / onboarding /
   // empty states render instead of this component, and there they do nothing.
   // The metrics subscription re-snapshots the token-sourced heights when a
@@ -197,6 +216,7 @@
       offMetrics()
       triage.listActive = false
       triage.resetCursor()
+      syncTrailBreakStyle('')
     }
   })
 </script>

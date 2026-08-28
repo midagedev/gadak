@@ -36,26 +36,56 @@ const BASE = `http://127.0.0.1:${PORT}`
 const DEFAULT_CL = 'assignee,updated,labels,reopen,stale,qa_impact,deploy'
 
 // Mirrors web/src/app.css @container issuerow thresholds — keep in step.
-// Mirror of the trail-break rung table in web/src/app.css (GDK-1049) — the
-// CSS block is the owner; keep in step. Rungs above the 1360 row-width cap
-// are listed too: the probe reporting them as "dropped" at every width is
-// the diagnostic that they cannot paint under today's layout.
-const THRESHOLDS = [
-  ['components column dropped (rung above the 1360 cap)', 1960],
-  ['fix_versions column dropped (rung above the 1360 cap)', 1840],
-  ['reporter column dropped (rung above the 1360 cap)', 1720],
-  ['team_group column dropped (rung above the 1360 cap)', 1620],
-  ['environment column dropped (rung above the 1360 cap)', 1530],
-  ['dev_test_result column dropped (rung above the 1360 cap)', 1440],
-  ['due column dropped', 1340],
-  ['created column dropped', 1180],
-  ['comment_count column dropped', 1130],
+// The option-column trail-break rungs are set-aware since GDK-1077: the
+// app computes them for the ENABLED set (owner:
+// web/src/components/list/row-column-thresholds.ts — feature-gated columns
+// and the epic slot included or excluded as the view dictates) and injects
+// them as <style id="trail-break-rungs">. The probe reads THAT element
+// from the live page instead of replicating the arithmetic: a mirror of
+// the derivation here would be feature-blind and set-blind (first real
+// run: the probe's serve has the `qa` feature off, so dev_test_result's
+// app rung is 1340, not the full-catalog 1440 — measured 2026-08-28).
+// The stale-glyph step and the trail-fold-* rules are still static app.css
+// rules, so they stay a literal list.
+const RUNG_STYLE_ID = 'trail-break-rungs'
+// Class → column id for the report label only (values come from the live
+// CSS; an unknown class falls back to its own name, never a wrong number).
+const RUNG_CLASS_TO_COL = {
+  'trail-break-epic': 'epic',
+  'trail-break-severity': 'severity',
+  'trail-break-issue-type': 'issue_type',
+  'trail-break-qa': 'qa_impact',
+  'trail-break-status': 'status',
+  'trail-break-comment-count': 'comment_count',
+  'trail-break-created': 'created',
+  'trail-break-due': 'due',
+  'trail-break-dev-test-result': 'dev_test_result',
+  'trail-break-environment': 'environment',
+  'trail-break-team-group': 'team_group',
+  'trail-break-reporter': 'reporter',
+  'trail-break-fix-versions': 'fix_versions',
+  'trail-break-components': 'components',
+}
+
+/** The option-column rungs the app injected for THIS page's enabled set,
+ *  as [rung, class] pairs — read from the generated style inside the page
+ *  (exact by construction: max-width N px hides below N+1, the report
+ *  lists the rung itself). Labels are attached in node below. */
+async function liveRungThresholds(page) {
+  return page.evaluate(
+    ({ id }) => {
+      const css = document.getElementById(id)?.textContent ?? ''
+      const out = []
+      const re = /@container issuerow \(max-width: (\d+)px\)\s*\{\s*\.([\w-]+)/g
+      for (let m; (m = re.exec(css)); ) out.push([Number(m[1]) + 1, m[2]])
+      return out
+    },
+    { id: RUNG_STYLE_ID },
+  )
+}
+
+const STATIC_THRESHOLDS = [
   ['stale-glyph hidden', 1100],
-  ['status column dropped', 1060],
-  ['qa_impact column dropped', 1000],
-  ['issue_type column dropped', 860],
-  ['severity column dropped', 770],
-  ['epic column dropped', 750],
   ['trail-fold-1 (assignee, updated)', 620],
   ['trail-fold-2 (labels)', 480],
   ['trail-fold-3 (reopen, deploy)', 400],
@@ -278,7 +308,17 @@ async function main() {
 
     const data = await measure(page, opts)
     if (data.error) throw new Error(data.error)
-    const fired = THRESHOLDS.filter(([, px]) => data.rowW !== null && data.rowW <= px)
+    // Rungs the app injected for THIS page's enabled set (GDK-1077
+    // set-aware ladder, read from the live style element), merged with the
+    // static fold thresholds, widest first.
+    const thresholds = [
+      ...(await liveRungThresholds(page)).map(([rung, cls]) => {
+        const col = RUNG_CLASS_TO_COL[cls] ?? cls
+        return [`${col} column dropped${rung > 1360 ? ' (rung above the 1360 cap)' : ''}`, rung]
+      }),
+      ...STATIC_THRESHOLDS,
+    ].sort((a, b) => b[1] - a[1])
+    const fired = thresholds.filter(([, px]) => data.rowW !== null && data.rowW <= px)
     const maxPast = Math.max(
       0,
       ...data.rows.flatMap((r) => r.slots.map((s) => s.pastScroller)),

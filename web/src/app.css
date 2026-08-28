@@ -1050,143 +1050,24 @@
   }
 
   /*
-    GDK-1049: the option-column break table. One owner for every threshold
-    that hides a trailing slot by the row's own width (@container issuerow):
-    a slot wears `trail-break-<column> flex …` in IssueRow.svelte and this
-    table is the only place its hiding threshold lives. GDK-1046 moved
-    qa_impact/epic here from viewport media utilities; GDK-1049 moved the
-    remaining twelve (severity, issue_type, status, dev_test_result,
-    environment, team_group, reporter, comment_count, fix_versions,
-    components, created, due) off `sm:/md:/lg:` and absorbed the two, so no
-    optional column keys on the viewport anymore.
-
-    Conversion of the old viewport keys (the GDK-1049 starting point): a
-    docked, panel-closed row measures viewport - 272 (640→368, 768→496,
-    1024→752, 1280→1008; 1360 is the cap from 1632 up; measured 2026-08-28
-    against the demo fixture). Those anchors proved unoccupiable: a 368px
-    row has ~65px of trail room and the fold-managed defaults already spend
-    it, and at the 1360 cap the fold base (382 with labels at 140) plus
-    leading/title 303 leaves ~675px for option slots while all fourteen
-    rungs want ~1126 of slots (~1250 with their gaps). So each rung below
-    is the narrowest row width where the column plus every column that
-    outranks it fits:
-      303 (leading 196 + the title's min-w-[13ch] floor 106.4, measured)
-      + Σ slot widths + 10px per gap (gap-2.5) ≤ row width,
-    re-checked at every event that grows the visible set: the fold unfires
-    (401 / 481 / 621), the ≤1100 step (stale 44→56, labels 64→76), labels
-    140 at ≥1300, and the epic/qa rungs joining (751 / 1001). Priority is
-    the order the old viewport groups encoded (sm > md > lg, DOM order
-    inside a group); the two GDK-1046 rungs keep their measured values.
-
-    Rung = minimum row width that paints the column · slot width:
-      epic             750 · 64    (GDK-1046)
-      severity         770 · 80
-      issue_type       860 · 80
-      qa_impact       1000 · 96    (GDK-1046)
-      status          1060 · 80
-      comment_count   1130 · 40
-      created         1180 · 40
-      due             1340 · 80
-      dev_test_result 1440 · 96   ┐ above the 1360 cap: the fold base +
-      environment     1530 · 80    │ epic + qa_impact leave ~675px of option
-      team_group      1620 · 80    │ budget there and the sm six (400px of
-      reporter        1720 · 90    │ slots) spend it, so these rungs cannot
-      fix_versions    1840 · 110   │ fire under today's cap. They paint only
-      components      1960 · 110   ┘ if the layout cap ever rises; e2e
-      (list-row-overflow.spec.ts, full-catalog @1700) pins the ceiling.
-
-    Same layer as the folds for the GDK-766 reason: the slots keep their
-    `flex` Tailwind utility, so this display:none must outrank it, and in
-    @layer components it would lose. Written as max-width so a browser
-    without container query support lands on the columns-visible step, the
-    chipfold direction above. Known edge, carried from GDK-1046: a row with
-    a favorite/watch marker needs up to 38px more than the title floor
-    leaves, so a marked row sitting within ~38px above a rung can paint
-    that slot slightly past the scroller.
+    GDK-1077: the option-column break rungs are GENERATED, not static. A
+    row-width hide threshold is a function of WHICH option columns are on —
+    the static full-catalog table this block used to hold (GDK-1049) was
+    cumulative over every slot whether enabled or not, so its six rungs
+    above the 1360 row cap (dev_test_result … components) could not paint
+    at any width, even enabled alone. The constants and the set-aware
+    generator have one owner now —
+    web/src/components/list/row-column-thresholds.ts — and IssueList.svelte
+    injects the recomputed ladder as <style id="trail-break-rungs">
+    whenever the enabled column set changes (pure constant arithmetic, the
+    GDK-1049 derivation moved verbatim; no layout reads). The generated
+    rules stay in @layer utilities for the GDK-766 reason (the display:none
+    must outrank the slots' `flex` utility) and stay max-width so a browser
+    without container-query support lands on the columns-visible step —
+    both encoded in the generator. The trail-fold-* rules above and the
+    chipfold rules below are unaffected: this block only ever owned the
+    option-column breaks.
   */
-  @container issuerow (max-width: 749px) {
-    .trail-break-epic {
-      display: none;
-    }
-  }
-
-  @container issuerow (max-width: 769px) {
-    .trail-break-severity {
-      display: none;
-    }
-  }
-
-  @container issuerow (max-width: 859px) {
-    .trail-break-issue-type {
-      display: none;
-    }
-  }
-
-  @container issuerow (max-width: 999px) {
-    .trail-break-qa {
-      display: none;
-    }
-  }
-
-  @container issuerow (max-width: 1059px) {
-    .trail-break-status {
-      display: none;
-    }
-  }
-
-  @container issuerow (max-width: 1129px) {
-    .trail-break-comment-count {
-      display: none;
-    }
-  }
-
-  @container issuerow (max-width: 1179px) {
-    .trail-break-created {
-      display: none;
-    }
-  }
-
-  @container issuerow (max-width: 1339px) {
-    .trail-break-due {
-      display: none;
-    }
-  }
-
-  @container issuerow (max-width: 1439px) {
-    .trail-break-dev-test-result {
-      display: none;
-    }
-  }
-
-  @container issuerow (max-width: 1529px) {
-    .trail-break-environment {
-      display: none;
-    }
-  }
-
-  @container issuerow (max-width: 1619px) {
-    .trail-break-team-group {
-      display: none;
-    }
-  }
-
-  @container issuerow (max-width: 1719px) {
-    .trail-break-reporter {
-      display: none;
-    }
-  }
-
-  @container issuerow (max-width: 1839px) {
-    .trail-break-fix-versions {
-      display: none;
-    }
-  }
-
-  @container issuerow (max-width: 1959px) {
-    .trail-break-components {
-      display: none;
-    }
-  }
 
   /*
     GDK-1050 (2026-08-27): when a counter shares the labels slot, the
