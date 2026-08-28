@@ -779,6 +779,37 @@ func (db *DB) PageStamps(ctx context.Context, sourceID, spaceKey string) (map[st
 	return out, err
 }
 
+// PageCommentStamps returns one space's mirrored wiki-comment stamps keyed by
+// the comment's source id (external_id → updated_at). The comments-only sync
+// pass uses it the way PageStamps gates page bodies: a comment search hit the
+// mirror already holds at the same stamp is inside cqlTime's overlap window,
+// not a change, so its container page body is not re-read (GDK-1074 — a
+// comment pinned inside the window re-read its page on every tick, forever).
+func (db *DB) PageCommentStamps(ctx context.Context, sourceID, spaceKey string) (map[string]string, error) {
+	out := map[string]string{}
+	if sourceID == "" || spaceKey == "" {
+		return out, nil
+	}
+	err := each(ctx, db.sql, `
+		SELECT COALESCE(c.external_id, ''), COALESCE(c.updated_at, '')
+		FROM comments c
+		JOIN pages p ON p.item_id = c.item_id
+		JOIN items it ON it.id = c.item_id
+		WHERE it.source_id = ? AND it.kind = 'page' AND p.space_key = ?`,
+		func(rows *sql.Rows) error {
+			var id, at string
+			if err := rows.Scan(&id, &at); err != nil {
+				return err
+			}
+			if id == "" {
+				return nil
+			}
+			out[id] = at
+			return nil
+		}, sourceID, spaceKey)
+	return out, err
+}
+
 // PageLites returns every mirrored page, ordered by space then title.
 func (db *DB) PageLites(ctx context.Context) ([]PageLite, error) {
 	out := []PageLite{}

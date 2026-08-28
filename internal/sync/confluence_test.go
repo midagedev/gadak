@@ -15,6 +15,7 @@ import (
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/confluence"
+	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/store"
 
 	_ "modernc.org/sqlite"
@@ -278,7 +279,38 @@ func commentSpaceMatch(cql, space string) bool {
 			return false
 		}
 	}
+	if keys, ok := cqlSpaceInList(cql); ok && !containsString(keys, space) {
+		return false
+	}
 	return true
+}
+
+// cqlSpaceInList parses the chunked `space IN ("A","B")` filter.
+func cqlSpaceInList(cql string) ([]string, bool) {
+	low := strings.ToLower(cql)
+	i := strings.Index(low, "space in (")
+	if i < 0 {
+		return nil, false
+	}
+	rest := cql[i+len("space in ("):]
+	end := strings.Index(rest, ")")
+	if end < 0 {
+		return nil, false
+	}
+	var keys []string
+	for _, item := range strings.Split(rest[:end], ",") {
+		keys = append(keys, strings.Trim(strings.TrimSpace(item), `"`))
+	}
+	return keys, true
+}
+
+func containsString(list []string, s string) bool {
+	for _, v := range list {
+		if v == s {
+			return true
+		}
+	}
+	return false
 }
 
 func commentWhenMatch(cql, when string) bool {
@@ -304,11 +336,8 @@ func cqlMatch(cql string, p *confPage) bool {
 			return false
 		}
 	}
-	if strings.Contains(cql, "space in (") {
-		// e.g. space in (AAA, BBB) — legacy chunk form.
-		if !strings.Contains(cql, p.Space) {
-			return false
-		}
+	if keys, ok := cqlSpaceInList(cql); ok && !containsString(keys, p.Space) {
+		return false
 	}
 	if i := strings.Index(cql, `lastModified >= "`); i >= 0 {
 		rest := cql[i+len(`lastModified >= "`):]
@@ -1024,7 +1053,201 @@ func TestConfluenceSyncRunKindReconcileSuffix(t *testing.T) {
 
 // TestConfluenceIncrementalPerSpaceCQL: AAA has a watermark → lastModified
 // floor; BBB has none → full-backfill CQL (no lastModified). No space-in chunks.
-func TestConfluenceIncrementalPerSpaceCQL(t *testing.T) {
+// TestConfluenceIncrementalChunksSpaces is the GDK-1074 cost contract: many
+// incremental spaces share ONE type=page and ONE type=comment CQL round trip
+// (per-space CQL made a quiet 80-space tick 160 sequential round trips, 105 s
+// measured). Quiet members advance to the chunk max so their old floors never
+// drag the window wider. FAIL-first: the per-space code issued 4 searches here
+// and left BBB's watermark at its old floor.
+func TestConfluenceIncrementalChunksSpaces(t *testing.T) {
+	f := newConfFixture(t)
+	client := f.start()
+	db := newMirror(t)
+	ctx := context.Background()
+	if err := db.UpsertSource(ctx, store.Source{ID: ConfluenceSourceID, Kind: "confluence", BaseURL: client.BaseURL()}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.RecordSync(ctx, ConfluenceSourceID, store.SyncResult{Watermark: "2026-08-01T00:00:00.000Z"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.UpsertSpaces(ctx, ConfluenceSourceID, []store.SpaceRow{
+		{Key: "AAA", Name: "Alpha", Kind: "global"},
+		{Key: "BBB", Name: "Beta", Kind: "global"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// Both incremental. BBB's floor (the chunk's oldest → the CQL floor)
+	// already covers its one page (2001 @ 2026-07-15), so BBB sees no hits of
+	// its own — the quiet member.
+	if err := db.SetSpaceWatermark(ctx, ConfluenceSourceID, "AAA", "2026-07-25T00:00:00.000Z"); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SetSpaceWatermark(ctx, ConfluenceSourceID, "BBB", "2026-07-20T00:00:00.000Z"); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := RunConfluence(ctx, confCfg([]string{"AAA", "BBB"}), db.DB, Options{
+		ConfluenceClient: client,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	var pageCQL, commentCQL string
+	pageCalls, commentCalls := 0, 0
+	for _, cql := range f.searches {
+		if strings.Contains(cql, "type=comment") {
+			commentCalls++
+			commentCQL = cql
+		} else {
+			pageCalls++
+			pageCQL = cql
+		}
+	}
+	if pageCalls != 1 || commentCalls != 1 {
+		t.Fatalf("searches = %d page + %d comment, want 1 + 1 (one chunk): %v",
+			pageCalls, commentCalls, f.searches)
+	}
+	for _, cql := range []string{pageCQL, commentCQL} {
+		if !strings.Contains(cql, `space IN ("AAA","BBB")`) && !strings.Contains(cql, `space IN ("BBB","AAA")`) {
+			t.Errorf("CQL %q lacks the chunked space IN filter", cql)
+		}
+	}
+	// Chunk floor = oldest member floor (BBB's).
+	wantFloor := cqlTime("2026-07-20T00:00:00.000Z")
+	if !strings.Contains(pageCQL, `lastModified >= "`+wantFloor+`"`) {
+		t.Errorf("page CQL = %q, want chunk floor %q", pageCQL, wantFloor)
+	}
+
+	// Quiet-member advance: BBB saw no hits of its own, but the chunk observed
+	// AAA's newest stamp — both members must land there, or BBB's old floor
+	// drags every future window back to July.
+	wms, err := db.ConfluenceSpaceWatermarks(ctx, ConfluenceSourceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if wms["AAA"] != wms["BBB"] {
+		t.Errorf("watermarks diverge: AAA=%q BBB=%q, want both at the chunk max", wms["AAA"], wms["BBB"])
+	}
+	if jira.ISOTime(wms["BBB"]) <= jira.ISOTime("2026-07-20T00:00:00.000Z") {
+		t.Errorf("BBB watermark = %q, want advanced past its old floor", wms["BBB"])
+	}
+}
+
+// TestConfluenceCommentInOverlapWindowReadsNoBody: a comment whose stamp IS
+// the watermark re-enters the CQL window on every tick (cqlTime's 5-minute
+// overlap; the watermark can never advance past it). The mirror already holds
+// it at that exact stamp, so a quiet tick must read zero container bodies.
+// FAIL-first: before the comment-stamp gate the container page body was
+// re-read on every such tick, forever (measured live: the oss workspace
+// re-read 1 body per tick; GDK-1074's site re-read 14).
+func TestConfluenceCommentInOverlapWindowReadsNoBody(t *testing.T) {
+	f := newConfFixture(t)
+	// Make the comment the newest stamp in AAA so it pins the window.
+	f.pages["1001"].Comments[0].When = "2026-08-02T09:30:00.000Z"
+	client := f.start()
+	db := newMirror(t)
+	ctx := context.Background()
+	if err := db.UpsertSource(ctx, store.Source{ID: ConfluenceSourceID, Kind: "confluence", BaseURL: client.BaseURL()}); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := confCfg([]string{"AAA"})
+	// First pass: full backfill mirrors the page and its comment.
+	if _, err := RunConfluence(ctx, cfg, db.DB, Options{ConfluenceClient: client}); err != nil {
+		t.Fatal(err)
+	}
+	// Second pass: incremental. The comment hits (inside the overlap window)
+	// but the mirror holds it at this stamp — no container body read.
+	f.resetCounters()
+	res, err := RunConfluence(ctx, cfg, db.DB, Options{ConfluenceClient: client})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.PageBodies != 0 {
+		t.Errorf("quiet tick read %d page bodies (fetches: %v), want 0", res.PageBodies, f.bodyFetches())
+	}
+	if got := f.bodyFetches(); len(got) != 0 {
+		t.Errorf("quiet tick fetched %v, want none", got)
+	}
+
+	// An actually-new comment still reaches the mirror through the container.
+	f.pages["1001"].Comments = append(f.pages["1001"].Comments, confComment{
+		ID: "c1002", Text: "new voice", When: "2026-08-02T10:00:00.000Z",
+	})
+	f.resetCounters()
+	res, err = RunConfluence(ctx, cfg, db.DB, Options{ConfluenceClient: client})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.PageBodies != 1 {
+		t.Errorf("new comment tick read %d bodies, want 1 (its container)", res.PageBodies)
+	}
+	var n int
+	if err := db.raw(t).QueryRow(`SELECT count(*) FROM comments WHERE external_id = 'c1002'`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Errorf("new comment not mirrored (rows=%d)", n)
+	}
+}
+
+// TestConfluenceChunkBoundarySplits: more spaces than the chunk size split
+// into several chunks, and a later chunk's failure leaves the earlier chunk's
+// watermarks advanced (chunk-level isolation).
+func TestConfluenceChunkBoundarySplits(t *testing.T) {
+	old := confluenceChunkSize
+	confluenceChunkSize = 1
+	t.Cleanup(func() { confluenceChunkSize = old })
+
+	f := newConfFixture(t)
+	// Chunks run newest floor first: AAA (newer floor) then BBB. Fail BBB's.
+	f.failIfCQLContains = `space="BBB"`
+	client := f.start()
+	db := newMirror(t)
+	ctx := context.Background()
+	if err := db.UpsertSource(ctx, store.Source{ID: ConfluenceSourceID, Kind: "confluence", BaseURL: client.BaseURL()}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.RecordSync(ctx, ConfluenceSourceID, store.SyncResult{Watermark: "2026-08-01T00:00:00.000Z"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.UpsertSpaces(ctx, ConfluenceSourceID, []store.SpaceRow{
+		{Key: "AAA", Name: "Alpha", Kind: "global"},
+		{Key: "BBB", Name: "Beta", Kind: "global"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SetSpaceWatermark(ctx, ConfluenceSourceID, "AAA", "2026-06-01T00:00:00.000Z"); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SetSpaceWatermark(ctx, ConfluenceSourceID, "BBB", "2026-05-01T00:00:00.000Z"); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := RunConfluence(ctx, confCfg([]string{"AAA", "BBB"}), db.DB, Options{
+		ConfluenceClient: client,
+	})
+	if err == nil {
+		t.Fatal("expected BBB chunk to fail the pass")
+	}
+	wms, err := db.ConfluenceSpaceWatermarks(ctx, ConfluenceSourceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if wms["AAA"] == "" || wms["AAA"] == "2026-06-01T00:00:00.000Z" {
+		t.Errorf("AAA watermark not advanced by its own successful chunk: %q", wms["AAA"])
+	}
+	if wms["BBB"] != "2026-05-01T00:00:00.000Z" {
+		t.Errorf("BBB watermark = %q, want its old floor (failed chunk must not move members)", wms["BBB"])
+	}
+}
+
+// TestConfluenceIncrementalSingleSpaceCQL: a single-member chunk keeps the
+// legacy space="KEY" form (older issuetap servers — standalone wikis in
+// released binaries, paired home serves — parse only that form), and a
+// backfill space still gets its own floor-less full pass with no
+// comments-only CQL.
+func TestConfluenceIncrementalSingleSpaceCQL(t *testing.T) {
 	f := newConfFixture(t)
 	client := f.start()
 	db := newMirror(t)
@@ -1056,8 +1279,8 @@ func TestConfluenceIncrementalPerSpaceCQL(t *testing.T) {
 	var aaaPage, bbbPage, aaaComment, bbbComment string
 	pageCalls, commentCalls := 0, 0
 	for _, cql := range f.searches {
-		if strings.Contains(cql, "space in (") {
-			t.Errorf("chunked space-in CQL still used: %s", cql)
+		if strings.Contains(strings.ToLower(cql), "space in (") {
+			t.Errorf("single-member chunk must keep the legacy space= form, got: %s", cql)
 		}
 		switch {
 		case strings.Contains(cql, "type=comment"):
@@ -1103,8 +1326,8 @@ func TestConfluenceIncrementalPerSpaceCQL(t *testing.T) {
 	}
 
 	joined := strings.Join(logs, "\n")
-	if !strings.Contains(joined, "confluence: space AAA floor=") {
-		t.Errorf("missing AAA floor log, got %v", logs)
+	if !strings.Contains(joined, "confluence: 1 spaces floor=") {
+		t.Errorf("missing chunk floor log, got %v", logs)
 	}
 	if !strings.Contains(joined, "confluence: space BBB floor=full-backfill") {
 		t.Errorf("missing BBB full-backfill log, got %v", logs)
