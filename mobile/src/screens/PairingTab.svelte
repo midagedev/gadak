@@ -1,7 +1,7 @@
 <script lang="ts">
   import Screen from '../ui/Screen.svelte'
   import { t } from '../lib/i18n'
-  import { app, sync, unpair, pairTerminal, unpairTerminal } from '../lib/store.svelte'
+  import { app, sync, unpair, pairTerminal, unpairTerminal, exitDemo } from '../lib/store.svelte'
   import { relTime, hasIdentity } from '../lib/domain'
   import { decodeOffer, OfferError } from '../lib/offer'
   import { ApiError, errorMessage } from '../lib/api'
@@ -152,7 +152,19 @@
   {/snippet}
 
   <div class="page">
-    {#if app.meta}
+    {#if app.demo}
+      <!-- Demo session (GDK-1051): the honest version of "Paired server" —
+           nothing is paired. Exit is not the two-step unpair: it deletes
+           nothing and is one tap back to the gate. -->
+      <section>
+        <h3>{t('app.demoWorkspace')}</h3>
+        <p class="big">{t('app.demoMode')}</p>
+        <p class="sub">{t('app.demoPairedNote')}</p>
+      </section>
+      <section>
+        <button class="unpair" onclick={exitDemo}>{t('app.demoExit')}</button>
+      </section>
+    {:else if app.meta}
       <section>
         <h3>Paired server</h3>
         <p class="big">{app.meta.label || host(app.meta.endpoint)}</p>

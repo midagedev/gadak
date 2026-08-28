@@ -830,4 +830,31 @@ export const shell = {
     ko: '이 데모에서 수정됨 — 저장되지 않음',
     ja: 'このデモで編集済み — 未保存',
   },
+  // GDK-1051: the phone's bundled demo workspace (mobile/src/lib/demo.ts) —
+  // a pairing-free, read-only sample mirror shipped in the app bundle.
+  'app.demoEnter': {
+    en: 'Explore the sample workspace',
+    ko: '샘플 워크스페이스 둘러보기',
+    ja: 'サンプルワークスペースを見る',
+  },
+  'app.demoWorkspace': {
+    en: 'Demo workspace',
+    ko: '데모 워크스페이스',
+    ja: 'デモワークスペース',
+  },
+  'app.demoMode': {
+    en: 'Demo — sample data, read-only',
+    ko: '데모 — 샘플 데이터 · 읽기 전용',
+    ja: 'デモ — サンプルデータ · 読み取り専用',
+  },
+  'app.demoExit': {
+    en: 'Exit demo',
+    ko: '데모 나가기',
+    ja: 'デモを終了',
+  },
+  'app.demoPairedNote': {
+    en: 'These issues are sample data bundled with the app. Nothing is paired and nothing is sent anywhere; exiting returns to pairing.',
+    ko: '표시된 이슈는 앱에 포함된 샘플 데이터입니다. 페어링된 서버가 없고 아무것도 전송되지 않습니다. 나가면 페어링 화면으로 돌아갑니다.',
+    ja: '表示されている課題はアプリ同梱のサンプルデータです。ペアリングされたサーバーはなく、どこにも送信されません。終了するとペアリング画面に戻ります。',
+  },
 } as const satisfies Record<string, Message>

@@ -1,6 +1,7 @@
 <script lang="ts">
   import Screen from '../ui/Screen.svelte'
-  import { app, pair } from '../lib/store.svelte'
+  import { t } from '../lib/i18n'
+  import { app, enterDemo, pair } from '../lib/store.svelte'
   import { decodeOffer, OfferError } from '../lib/offer'
   import { errorMessage } from '../lib/api'
 
@@ -137,6 +138,11 @@
     {#if !IS_DEV}
       <button class="qr" onclick={() => void scan()}>Scan QR instead</button>
     {/if}
+    <!-- Third door (GDK-1051): the bundled read-only sample workspace, no
+         pairing at all. -->
+    <button class="demo" disabled={busy} onclick={() => void enterDemo()}>
+      {t('app.demoEnter')}
+    </button>
     {#if devProbe}
       <p class="hint">{devProbe}</p>
     {/if}
@@ -227,7 +233,8 @@
   .pair:disabled {
     opacity: 0.45;
   }
-  .qr {
+  .qr,
+  .demo {
     margin-top: 8px;
     min-height: var(--spacing-control);
     color: var(--color-accent-text);

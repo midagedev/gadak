@@ -1,0 +1,22 @@
+{
+  "apiBase": "/api/v1/issues/",
+  "authBase": "/api/v1/auth/",
+  "features": {
+    "deploy": false,
+    "feed": false,
+    "qa": false,
+    "teamGroups": false
+  },
+  "groupColors": {},
+  "groupLabels": {},
+  "hostedDemo": true,
+  "jiraBaseUrl": "",
+  "productByGroup": {},
+  "projects": [
+    "NMB",
+    "NMA",
+    "NMS"
+  ],
+  "qaDashboardUrl": "",
+  "staleThresholdHours": 72
+}

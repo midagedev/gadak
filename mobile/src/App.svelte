@@ -1,8 +1,9 @@
 <script lang="ts">
   import { fly } from 'svelte/transition'
   import { initLocale } from './lib/i18n'
+  import { t } from './lib/i18n'
   import { systemBack } from './lib/back'
-  import { app, boot, closeIssue, startClock } from './lib/store.svelte'
+  import { app, boot, closeIssue, exitDemo, startClock } from './lib/store.svelte'
   import PairGate from './screens/PairGate.svelte'
   import Issues from './screens/Issues.svelte'
   import Search from './screens/Search.svelte'
@@ -56,6 +57,17 @@
 {:else if app.phase === 'unpaired'}
   <PairGate />
 {:else}
+  <!-- Demo banner (GDK-1051): the strip pays the top inset once, so the
+       screens below it drop their own (rule below) — no double gap, no
+       touch target under the status bar. -->
+  {#if app.demo}
+    <div class="safe-top demo-strip">
+      <div class="demo-banner">
+        <span class="demo-label">{t('app.demoMode')}</span>
+        <button class="demo-exit" onclick={exitDemo}>{t('app.demoExit')}</button>
+      </div>
+    </div>
+  {/if}
   <div class="tabs">
     <div class="pane" class:off={app.tab !== 'issues'}><Issues /></div>
     <div class="pane" class:off={app.tab !== 'search'}><Search /></div>
@@ -91,6 +103,31 @@
     flex: 1 1 auto;
     min-height: 0;
     display: flex;
+  }
+  .demo-strip {
+    flex: none;
+  }
+  .demo-strip + .tabs :global(.safe-top) {
+    /* The strip above already paid the top safe-area inset — composing
+       .safe-top again in the screen header would double the gap. */
+    padding-top: 0;
+  }
+  .demo-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 0 8px 0 16px;
+    background: var(--color-bg-panel);
+    border-bottom: 1px solid var(--color-border-subtle);
+  }
+  .demo-label {
+    font-size: var(--text-micro);
+    color: var(--color-text-muted);
+  }
+  .demo-exit {
+    color: var(--color-accent-text);
+    font-weight: 600;
   }
   .pane {
     flex: 1 1 auto;

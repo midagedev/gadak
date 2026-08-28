@@ -3,6 +3,7 @@
 // exported functions.
 
 import { configureApi, request, isPairingDead, ApiError } from './api'
+import { setDemoSession } from './demo'
 import { SCOPE_ME, feedAfterRead, type FeedResponse, type MarkFeedReadResponse } from './domain'
 import { tokenGet, tokenSet, tokenDel } from './secure'
 import { probeShellPairing } from './terminal/api'
@@ -47,6 +48,13 @@ export const app = $state({
   meta: null as PairMeta | null,
   /** Token verdict from the last sync: true → PairGate with explanation. */
   rejected: false,
+  /**
+   * True while the bundled demo workspace is showing (GDK-1051): a
+   * pairing-free, read-only session over /demo/. Never persisted — a
+   * relaunch always starts at the gate — and every persistence write and
+   * Keychain call below is gated on it being false.
+   */
+  demo: false,
 
   issues: [] as IssueLite[],
   me: null as Me | null,
@@ -242,6 +250,10 @@ async function enterPaired(meta: PairMeta, token: string): Promise<void> {
 /* ── sync ── */
 
 export async function sync(): Promise<void> {
+  // The demo snapshot is frozen bytes: nothing to re-sync, and the real
+  // sync path below must not run — it would overwrite CACHE/VIEWS/PAGES
+  // with demo rows (the contamination contract demo.test.ts asserts).
+  if (app.demo) return
   if (app.phase !== 'paired' || app.syncing) return
   app.syncing = true
   try {
@@ -386,6 +398,14 @@ export async function unpair(): Promise<void> {
     clearInterval(syncTimer)
     syncTimer = null
   }
+  resetSessionState()
+  app.phase = 'unpaired'
+}
+
+/* ── bundled demo workspace (GDK-1051) ── */
+
+/** The in-memory reset unpair() performs — the shared leaving-list. */
+function resetSessionState(): void {
   app.meta = null
   app.issues = []
   app.me = null
@@ -395,9 +415,58 @@ export async function unpair(): Promise<void> {
   app.feed = null
   app.scopeId = SCOPE_ME
   app.loaded = false
+  app.offline = false
+  app.lastSyncAt = null
   app.rejected = false
   app.detail = null
   app.tab = 'issues'
+  app.terminal = null
+  etag = null
+}
+
+/**
+ * Enters the bundled demo workspace from PairGate. Sets no meta, starts no
+ * sync timer, touches no persistence and no Keychain slot — the demo is a
+ * RAM-only session over the app's own /demo/ bundle (transport: demo.ts).
+ * Failure to load the bundle settles honestly as the failed plate, the
+ * same settlement a failed first sync gets.
+ */
+export async function enterDemo(): Promise<void> {
+  setDemoSession(true)
+  app.demo = true
+  app.phase = 'paired'
+  resetSessionState()
+  if (syncTimer) {
+    clearInterval(syncTimer)
+    syncTimer = null
+  }
+  try {
+    const res = await request<BootstrapResponse>('issues/bootstrap/')
+    if (res.body) {
+      app.issues = res.body.issues
+      app.loaded = true
+      app.lastSyncAt = new Date()
+    } else {
+      app.loaded = true
+      app.offline = true
+    }
+  } catch {
+    app.loaded = true
+    app.offline = true
+  }
+}
+
+/**
+ * Exits the demo back to the gate. Same in-memory reset as unpair() but
+ * deliberately narrower: no UNPAIRED_KEY write (a later real pairing must
+ * not be blocked by demo debris — and in dev the proxy may re-adopt), no
+ * token deletion (the demo never stored one), no localStorage drops (a
+ * previously cached real snapshot survives untouched).
+ */
+export function exitDemo(): void {
+  setDemoSession(false)
+  app.demo = false
+  resetSessionState()
   app.phase = 'unpaired'
 }
 
@@ -472,10 +541,10 @@ export function switchTab(tab: Tab): void {
   app.tab = tab
 }
 
-/** Picks a scope and remembers it — boot restores the last one used. */
+/** Picks a scope and remembers it — boot restores the last one used. Demo skips the write. */
 export function setScope(id: string): void {
   app.scopeId = id
-  writeJSON(SCOPE_KEY, id)
+  if (!app.demo) writeJSON(SCOPE_KEY, id)
 }
 
 /* ── search recents ── */
@@ -487,6 +556,11 @@ export function recentSearches(): string[] {
 export function rememberSearch(q: string): void {
   const t = q.trim()
   if (t === '') return
+  // Demo session: no recents row — the list would otherwise leak a demo
+  // query into the paired session's history (Search only reaches this on a
+  // server reply, which the demo transport never gives, but the guard
+  // holds for any future caller).
+  if (app.demo) return
   const list = [t, ...recentSearches().filter((x) => x !== t)].slice(0, 5)
   writeJSON(RECENTS_KEY, list)
 }

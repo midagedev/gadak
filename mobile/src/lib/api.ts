@@ -11,6 +11,7 @@
 // errorMessage(); the raw body is never echoed into the UI, and the token
 // never appears in an error, a log line, or a URL.
 
+import { demoRequest, isDemoSession } from './demo'
 import { inDialScope } from './dial-scope'
 import { t } from './i18n'
 
@@ -86,6 +87,8 @@ interface RequestOpts {
  * bodies; returns the envelope otherwise (304 comes back with body null).
  */
 export async function request<T>(path: string, opts: RequestOpts = {}): Promise<Envelope<T>> {
+  // The demo session's whole transport branch (GDK-1051): demo.ts owns it.
+  if (isDemoSession()) return demoRequest<T>(path, opts)
   const s = opts.session ?? session
   const dev = opts.dev ?? IS_DEV
   const url = apiUrl(s.endpoint, path, dev)
