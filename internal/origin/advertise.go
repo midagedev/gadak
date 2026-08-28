@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/serveaddr"
 )
 
 // RESTPrefix is the serve passthrough root. A client request to
@@ -68,4 +69,33 @@ func ProbeGadakOnPort(port string, timeout time.Duration) GadakProbe {
 		IsGadak: true,
 		Profile: res.Header.Get("X-Gadak-Profile"),
 	}
+}
+
+// LiveServeFor returns the first live UI serve advertising profile, found
+// through the home-root run directory (serveaddr) and the identity probe —
+// not leftover serve-origin.json, which GDK-936 made meaningless.
+//
+// This is the single owner of that discovery walk (GDK-987): until it, two
+// copies of the same serveaddr.List → ProbeGadakOnPort loop lived in
+// originbind.RefuseIfOpen (standalone→connected conversion refusal) and
+// pairflow.AdvertisedEndpoint (the pairing endpoint default), and a guard
+// added to one copy would silently miss the other. Consumers keep their own
+// framing of the record: RefuseIfOpen wraps PID/Addr in WorkspaceOpenError,
+// AdvertisedEndpoint upgrades Addr to a URL.
+func LiveServeFor(profile string) (serveaddr.Record, bool) {
+	dir, err := serveaddr.Dir()
+	if err != nil {
+		return serveaddr.Record{}, false
+	}
+	for _, rec := range serveaddr.List(dir) {
+		got := ProbeGadakOnPort(rec.Port, 0)
+		if !got.IsGadak {
+			continue
+		}
+		if got.Profile != profile {
+			continue
+		}
+		return rec, true
+	}
+	return serveaddr.Record{}, false
 }

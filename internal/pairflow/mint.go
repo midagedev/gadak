@@ -33,7 +33,6 @@ import (
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/pairing"
-	"github.com/midagedev/gadak/internal/serveaddr"
 )
 
 // DefaultTTL is 90 days: a device token is revocable, so it does not need
@@ -150,7 +149,7 @@ func PairedLine(cfg *config.Config, rem *pairing.Remote) string {
 // the structural owner, not a trusted callee.
 //
 // endpoint may be empty: a live serve for cfg's profile is then discovered
-// via serveaddr. ttl may be empty: DefaultTTL applies. On a failure after
+// via origin.LiveServeFor. ttl may be empty: DefaultTTL applies. On a failure after
 // the token was minted (the routing-token step is the only one) the
 // result still carries the offer: the plaintext exists exactly once, in
 // the caller output, or a minted token would be stranded unrecoverable.
@@ -347,30 +346,19 @@ func isLoopbackHost(host string) bool {
 }
 
 // AdvertisedEndpoint turns a live UI-serve listen address into the URL
-// form endpoint validation wants. Discovery uses the home-root run
-// directory (serveaddr), not leftover serve-origin.json. An explicit
-// endpoint is not normalized: making the user name the scheme is the
-// point.
+// form endpoint validation wants. Discovery is origin.LiveServeFor, the
+// single owner of the serveaddr walk. An explicit endpoint is not
+// normalized: making the user name the scheme is the point.
 func AdvertisedEndpoint(cfg *config.Config) string {
-	dir, err := serveaddr.Dir()
-	if err != nil {
-		return ""
-	}
 	want := ""
 	if cfg != nil {
 		want = cfg.ProfileName()
 	}
-	for _, rec := range serveaddr.List(dir) {
-		got := origin.ProbeGadakOnPort(rec.Port, 0)
-		if !got.IsGadak {
-			continue
-		}
-		if got.Profile != want {
-			continue
-		}
-		return EndpointFromAdvertise(rec.Addr)
+	rec, ok := origin.LiveServeFor(want)
+	if !ok {
+		return ""
 	}
-	return ""
+	return EndpointFromAdvertise(rec.Addr)
 }
 
 // EndpointFromAdvertise upgrades the raw bind address the advertise file

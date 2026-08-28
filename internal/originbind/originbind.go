@@ -21,7 +21,6 @@ import (
 	"github.com/midagedev/gadak/internal/confluence"
 	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/origin"
-	"github.com/midagedev/gadak/internal/serveaddr"
 	"github.com/midagedev/gadak/internal/store"
 )
 
@@ -101,18 +100,8 @@ func RefuseIfOpen(cfg *config.Config) error {
 	if cfg == nil || !cfg.IsStandalone() {
 		return nil
 	}
-	if dir, err := serveaddr.Dir(); err == nil {
-		want := cfg.ProfileName()
-		for _, rec := range serveaddr.List(dir) {
-			got := origin.ProbeGadakOnPort(rec.Port, 0)
-			if !got.IsGadak {
-				continue
-			}
-			if got.Profile != want {
-				continue
-			}
-			return &WorkspaceOpenError{PID: rec.PID, Addr: rec.Addr}
-		}
+	if rec, ok := origin.LiveServeFor(cfg.ProfileName()); ok {
+		return &WorkspaceOpenError{PID: rec.PID, Addr: rec.Addr}
 	}
 	if pid := origin.OpenHolder(origin.PersistPath(profileDir(cfg))); pid > 0 {
 		return &WorkspaceOpenError{PID: pid}
