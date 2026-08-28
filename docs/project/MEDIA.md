@@ -53,6 +53,11 @@ each run with a fake credential.)
 | `docs/media/claude-dashboards-vertical.gif` (+`-poster.png`) | 430-wide reduction of that mp4 | README — GitHub strips `<video>` from markdown (measured 2026-08-25 via `gh api /markdown`), so the README pair ships as GIF; the poster is the landing's still |
 | `docs/media/claude-tokens-vertical.mp4` | VHS `tools/tapes/claude-tokens.tape` + the same serve tab (`record-claude-drive.sh vertical claude-tokens`) | social/vertical, 4:5 — the team-look half: colours plus the dimension axes, including a token saved with a warning the agent then acts on (GDK-858) |
 | `docs/media/claude-tokens-vertical.gif` (+`-poster.png`) | 430-wide reduction of that mp4 | README — same reason as the dashboards GIF |
+| `docs/media/scale.mp4` (+`scale.gif`, `scale-poster.png`) | Playwright `e2e/demo/scale-demo.spec.ts` + post-process camera work `e2e/demo/export-scale.sh` (`make media-scale` — deliberately outside the `make media` aggregate: the committed artifacts are what the site ships) | landing flagship — record-time counts focus over a 20k-issue snapshot |
+| `docs/media/groupby.gif` / `groupby.mp4` (+`groupby-poster.png`) | Playwright `e2e/demo/groupby-demo.spec.ts` via `e2e/demo/export-groupby.sh` | group-by exhibit motion cut — the landing exhibit itself ships the still below |
+| `docs/media/groupby-still.png` | `e2e/demo/site-stills.mjs` | landing group-by exhibit (2x still; see the landing policy table) |
+| `docs/media/history.gif` / `history.mp4` (+`history-poster.png`) | Playwright `e2e/demo/history-demo.spec.ts` via `e2e/demo/export-history.sh` | history exhibit motion cut — the landing exhibit itself ships the still below |
+| `docs/media/history-still.png` | `e2e/demo/site-stills.mjs` | landing history exhibit (2x still; see the landing policy table) |
 
 ## Landing media policy (gadak.dev, GDK-751)
 
@@ -122,6 +127,11 @@ existing there. The landing references them via `MediaSlot still=…` with a
 | `claude-dashboards-vertical.mp4` | soft ≤ 8 MB | same 4:5 stack as claude-drive-vertical; no GIF |
 | `claude-tokens-vertical.mp4` | soft ≤ 8 MB | same 4:5 stack as claude-drive-vertical |
 | `claude-{dashboards,tokens}-vertical.gif` | soft ≤ 4 MB each | 430-wide @ 9 fps, `palettegen=max_colors=64:stats_mode=diff` then `gifsicle -O3 --colors 64`. 430 rather than 540: two of them sit side by side in one README row, and the pair has to fit the 900 px column the other exhibits use |
+| `scale.gif` | **≤ 8 MB** (prefer ≤ 5 MB) | same README inline budget as the hero |
+| `scale.mp4` | soft ≤ 8 MB | h264 `yuv420p` + `faststart`; camera work is a post-process crop, source pacing untouched |
+| `{groupby,history}.gif` | **≤ 8 MB** (prefer ≤ 5 MB) | same palette ladder as tokens |
+| `{groupby,history}.mp4` | soft ≤ 8 MB | h264 `yuv420p` + `faststart` |
+| `{groupby,history}-still.png` | soft ≤ 1 MB | 2x app stills; regenerate via `node e2e/demo/site-stills.mjs` against the standard e2e fixture |
 
 ### Current committed sizes (re-measure after regen)
 
