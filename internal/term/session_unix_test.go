@@ -13,6 +13,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/creack/pty"
 )
 
 // The session core, pinned against a real PTY. Every contract doc.go
@@ -930,4 +932,48 @@ func TestPTYWriteResizeAfterCloseIsSessionClosed(t *testing.T) {
 	// A genuine still-open write is untouched by the mapping: closePTY is
 	// idempotent (closeOnce) and closed stays latched, but that is the only
 	// state that maps — an open proc returns its own errors verbatim.
+}
+
+// GDK-1102, the fourth recurrence of the resize flake: attempt-1 CI logs
+// showed the child answering every 2s probe with the OLD size for a full
+// 30s — the resize itself was lost, not late. TIOCSWINSZ goes through
+// creack/pty's raw syscall.Syscall, which the runtime does not retry, so a
+// SIGURG preemption landing mid-ioctl surfaces as EINTR — and the stream
+// handlers discard Resize errors by contract ("a bad size is the client's
+// bug"). The owner of the ioctl must therefore absorb EINTR itself.
+func TestResizeRetriesEINTR(t *testing.T) {
+	orig := ptySetsize
+	t.Cleanup(func() { ptySetsize = orig })
+	calls := 0
+	var got pty.Winsize
+	ptySetsize = func(_ *os.File, ws *pty.Winsize) error {
+		calls++
+		if calls <= 2 {
+			return syscall.EINTR
+		}
+		got = *ws
+		return nil
+	}
+	p := &ptyProc{}
+	if err := p.resize(132, 43); err != nil {
+		t.Fatalf("resize with transient EINTR = %v; want nil after retry", err)
+	}
+	if calls != 3 {
+		t.Errorf("Setsize called %d times; want 3 (two EINTR retries)", calls)
+	}
+	if got.Cols != 132 || got.Rows != 43 {
+		t.Errorf("final Setsize got %dx%d; want 132x43", got.Cols, got.Rows)
+	}
+}
+
+// A non-EINTR failure still surfaces (and still maps to ErrSessionClosed
+// once the PTY is gone — the closed-flag contract above is untouched).
+func TestResizeNonEINTRErrorSurfaces(t *testing.T) {
+	orig := ptySetsize
+	t.Cleanup(func() { ptySetsize = orig })
+	ptySetsize = func(_ *os.File, _ *pty.Winsize) error { return syscall.EIO }
+	p := &ptyProc{}
+	if err := p.resize(80, 24); !errors.Is(err, syscall.EIO) {
+		t.Errorf("resize = %v; want EIO to surface", err)
+	}
 }

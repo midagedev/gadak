@@ -3,6 +3,7 @@
 package term
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -94,8 +95,27 @@ func (p *ptyProc) pid() int {
 	return p.cmd.Process.Pid
 }
 
+// ptySetsize is the TIOCSWINSZ seam — a var so the EINTR contract is
+// testable without a way to interrupt a real ioctl on cue.
+var ptySetsize = pty.Setsize
+
 func (p *ptyProc) resize(cols, rows uint16) error {
-	err := pty.Setsize(p.f, &pty.Winsize{Cols: cols, Rows: rows})
+	// TIOCSWINSZ rides creack/pty's raw syscall.Syscall, which the runtime
+	// does not restart — under load the runtime's own SIGURG preemption can
+	// land mid-ioctl and the call returns EINTR with the size NOT applied.
+	// The stream handlers deliberately discard Resize errors ("a bad size is
+	// the client's bug"), so an unretried EINTR is a silently lost resize:
+	// the child answers every later probe with the old size (GDK-1102,
+	// fourth recurrence of the resize flake — CI run 33212911928 attempt 1).
+	// EINTR means the kernel did not execute the request, so retrying is
+	// the contract, exactly as os.File does for its own syscalls.
+	var err error
+	for {
+		err = ptySetsize(p.f, &pty.Winsize{Cols: cols, Rows: rows})
+		if !errors.Is(err, syscall.EINTR) {
+			break
+		}
+	}
 	if err != nil && p.closed.Load() {
 		return ErrSessionClosed
 	}

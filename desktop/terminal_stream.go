@@ -228,8 +228,12 @@ func terminalStreamRead(ctx context.Context, cancel context.CancelFunc, c termSt
 			}
 			if msg.T == termMsgResize {
 				// A bad size is the client's bug, not a reason to drop the
-				// shell it is attached to.
-				_ = sess.Resize(msg.Cols, msg.Rows)
+				// shell it is attached to — but a lost resize must name
+				// itself (GDK-1102: a swallowed error here reads as "the
+				// child ignores winsize" one flake later).
+				if err := sess.Resize(msg.Cols, msg.Rows); err != nil {
+					log.Printf("desktop: terminal stream: resize %dx%d not applied: %v", msg.Cols, msg.Rows, err)
+				}
 			}
 		}
 		if ctx.Err() != nil {
