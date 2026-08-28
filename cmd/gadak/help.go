@@ -644,6 +644,7 @@ var helps = map[string]cmdHelp{
 			"gadak page create --space ENG --title \"Retention notes\" -m \"first draft\"",
 			"gadak page edit 12345 --title \"Renamed page\"",
 			"gadak page edit 12345 -m \"whole new body\" --force",
+			"gadak page edit 12345 --append -m \"follow-up paragraph, keeps the rest\"",
 			"gadak page edit 12345 --adf-file body.adf.json",
 			"gadak page comment 12345 -m \"question on the retention section\"",
 		},
@@ -673,6 +674,25 @@ var helps = map[string]cmdHelp{
 			"gadak wiki comment 12345 -m \"question on the retention section\"",
 		},
 		seeAlso: []string{"gadak page", "gadak search", "gadak open"},
+	},
+	"memory": {
+		summary: "agent memory — leave a note the next session can find (a page in the memory space), and search just those notes; the right verb for \"leave it so the next session finds it\"",
+		usage: "gadak [--workspace <name>] memory add <text> | -m <text|-> [--title T] [--json]\n" +
+			"| memory search <query> [--limit N] [--json|--no-header]",
+		options: []helpOption{
+			{name: "title", desc: "page title (omitted = derived from the note's first line) (add)"},
+			{name: "m", desc: "note as plain text; `-` reads stdin — or pass the note as an argument (add)"},
+			{name: "limit", desc: "maximum matches (default 20) (search)"},
+			{name: "json", desc: "what was written for add; one object per match for search"},
+			{name: "no-header", desc: "omit the TSV header row (search)"},
+		},
+		examples: []string{
+			"gadak memory add \"release audit lives in docs/runbooks/release-audit.md — check CI after\"",
+			"gadak memory add -m -  # note from stdin",
+			"gadak memory search \"release audit\"",
+			"gadak config set memory.space ENG  # connected workspaces refuse until this is set",
+		},
+		seeAlso: []string{"gadak page", "gadak search", "gadak config"},
 	},
 	"project": {
 		summary: "grow a standalone workspace by one project key (connected workspaces create projects in Jira)",

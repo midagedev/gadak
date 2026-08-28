@@ -232,30 +232,11 @@ func cmdPageCreate(args []string) error {
 		adf = string(jira.Doc(body, nil))
 	}
 
-	cfg, err := config.Load()
+	created, detail, mirrorStale, err := createPageViaOrigin(*space, *title, adf, *parent)
 	if err != nil {
 		return err
 	}
-	if !cfg.HasOrigin() {
-		return errNoPageCredential
-	}
-	wc, err := origin.Wiki(cfg)
-	if err != nil {
-		return err
-	}
-	ctx := context.Background()
-	created, err := wc.CreatePage(ctx, *space, *title, adf, *parent)
-	if err != nil {
-		return formatPageSpaceError(ctx, wc, *space, err)
-	}
-
-	db, err := openStore()
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	if err := syncer.RefreshPage(ctx, cfg, db, created.ID); err != nil {
-		warnWriteAppliedMirrorStale(created.ID, err)
+	if mirrorStale {
 		if *asJSON {
 			return json.NewEncoder(os.Stdout).Encode(map[string]any{
 				"id":           created.ID,
@@ -266,14 +247,50 @@ func cmdPageCreate(args []string) error {
 		return nil
 	}
 	if *asJSON {
-		detail, err := db.PageDetail(ctx, created.ID)
-		if err != nil {
-			return err
-		}
 		return json.NewEncoder(os.Stdout).Encode(map[string]any{"page": detail})
 	}
 	fmt.Printf("%s\t%s\n", created.ID, created.Title)
 	return nil
+}
+
+// createPageViaOrigin is the one page-create write path every verb shares
+// (page create, memory add): config → origin.Wiki → CreatePage → the
+// mirror refresh from that same origin. Sharing the function is what keeps
+// memory add from drifting into a second write path. The returned detail is
+// the refreshed mirror row (nil when mirrorStale — there may be no row to
+// read). mirrorStale means the write applied at the origin but the refresh
+// did not land; the warning is already on stderr by then.
+func createPageViaOrigin(space, title, adfBody, parent string) (created confluence.Page, detail *store.PageDetail, mirrorStale bool, err error) {
+	cfg, err := config.Load()
+	if err != nil {
+		return confluence.Page{}, nil, false, err
+	}
+	if !cfg.HasOrigin() {
+		return confluence.Page{}, nil, false, errNoPageCredential
+	}
+	wc, err := origin.Wiki(cfg)
+	if err != nil {
+		return confluence.Page{}, nil, false, err
+	}
+	ctx := context.Background()
+	created, err = wc.CreatePage(ctx, space, title, adfBody, parent)
+	if err != nil {
+		return confluence.Page{}, nil, false, formatPageSpaceError(ctx, wc, space, err)
+	}
+	db, err := openStore()
+	if err != nil {
+		return created, nil, false, err
+	}
+	defer db.Close()
+	if err := syncer.RefreshPage(ctx, cfg, db, created.ID); err != nil {
+		warnWriteAppliedMirrorStale(created.ID, err)
+		return created, nil, true, nil
+	}
+	detail, err = db.PageDetail(ctx, created.ID)
+	if err != nil {
+		return created, nil, false, err
+	}
+	return created, detail, false, nil
 }
 
 // formatPageSpaceError replaces a missing-space 400 JSON dump with the
@@ -394,6 +411,7 @@ func cmdPageEdit(args []string) error {
 	fs := newFlagSet("page edit")
 	title := fs.String("title", "", "new page title (omitted = keep)")
 	text := fs.String("m", "", "new body as plain text; `-` reads stdin. REPLACES the whole body; refused on a rich page unless --force (use --adf-file to keep formatting)")
+	appendBody := fs.Bool("append", false, "append -m's paragraphs to the current body instead of replacing it (keeps formatting, works on rich pages)")
 	adfFile := fs.String("adf-file", "", "new body as an ADF JSON document file; wins over -m")
 	version := fs.Int("version", 0, "base version for optimistic lock (the mirror's pages.version); omit to last-write-wins from origin HEAD")
 	force := fs.Bool("force", false, "replace a rich page with -m anyway")
@@ -407,7 +425,7 @@ func cmdPageEdit(args []string) error {
 		return err
 	}
 	if len(rest) != 1 {
-		return fmt.Errorf("page edit: exactly one page id (usage: gadak page edit <ID> [--title T] [-m <text|->|--adf-file F] [--version N] [--force])")
+		return fmt.Errorf("page edit: exactly one page id (usage: gadak page edit <ID> [--title T] [-m <text|-> [--append]|--adf-file F] [--version N] [--force])")
 	}
 	id := rest[0]
 	body := *text
@@ -431,6 +449,12 @@ func cmdPageEdit(args []string) error {
 	}
 	if *title == "" && body == "" && fileADF == "" {
 		return fmt.Errorf("page edit: nothing to change — pass --title, -m, or --adf-file")
+	}
+	if *appendBody && fileADF != "" {
+		return fmt.Errorf("page edit: --append takes -m text and --adf-file replaces the whole body — pick one")
+	}
+	if *appendBody && body == "" {
+		return fmt.Errorf("page edit: --append needs -m (the paragraphs to append)")
 	}
 
 	cfg, err := config.Load()
@@ -460,6 +484,12 @@ func cmdPageEdit(args []string) error {
 	switch {
 	case fileADF != "":
 		newADF = fileADF
+	case body != "" && *appendBody:
+		merged, aerr := appendParagraphs(newADF, body)
+		if aerr != nil {
+			return aerr
+		}
+		newADF = merged
 	case body != "":
 		if !*force && !adf.IsSimple(newADF) {
 			return fmt.Errorf("page edit: -m replaces the whole body and would drop this page's formatting; pass --adf-file to keep it, or --force to replace it")
@@ -509,4 +539,41 @@ func cmdPageEdit(args []string) error {
 		fmt.Printf("%s edited (row not in the mirrored spaces)\n", id)
 	}
 	return nil
+}
+
+// appendParagraphs grafts the note's paragraphs (jira.Doc's one-paragraph-
+// per-line shape) onto the end of the current ADF body. Append is not a
+// replace: a rich page keeps its headings, lists, and marks — that is the
+// whole point of --append, and why it needs no --force. A current body
+// that does not parse is refused, never guessed at (--adf-file can still
+// replace it whole).
+func appendParagraphs(curADF, text string) (string, error) {
+	doc := map[string]any{"type": "doc", "version": 1}
+	if strings.TrimSpace(curADF) != "" {
+		if err := json.Unmarshal([]byte(curADF), &doc); err != nil || doc == nil {
+			return "", fmt.Errorf("page edit: --append can't read the current body as ADF — replace it whole with --adf-file, or -m --force")
+		}
+	}
+	content, _ := doc["content"].([]any)
+	var add struct {
+		Content []json.RawMessage `json:"content"`
+	}
+	// jira.Doc always emits a valid document; the unmarshal is a guard, not
+	// a reachable branch.
+	if err := json.Unmarshal([]byte(string(jira.Doc(text, nil))), &add); err != nil {
+		return "", err
+	}
+	for _, raw := range add.Content {
+		var node any
+		if err := json.Unmarshal(raw, &node); err != nil {
+			return "", err
+		}
+		content = append(content, node)
+	}
+	doc["content"] = content
+	out, err := json.Marshal(doc)
+	if err != nil {
+		return "", err
+	}
+	return string(out), nil
 }

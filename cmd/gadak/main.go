@@ -210,6 +210,8 @@ Writing through to the workspace origin — ` + writeThroughOriginPhrase + `:
   page       wiki page get/list/create/edit/comment  get <ID> | list [--space K] [--limit N] [--json|--csv|--no-header]
                    | create|edit|comment [<ID>] [--space K] [--title T] [-m <text|->] [--adf-file F] [--json]
   wiki       alias of page                get <ID> | list | create|edit|comment [<ID>]
+  memory     agent memory: leave notes the next session finds   add <text> | -m <text|-> [--title T] [--json]
+                   | search <query> [--limit N] [--json]  (space: gadak config set memory.space KEY)
   project    grow a standalone workspace by a project  create <KEY> [--name N] [--json]
   dev        record PRs, deployments, and builds on issues (standalone)
                    link <KEY> --pr <url> [--status ...] | scan [--dry-run] [--install-hook]
@@ -414,6 +416,7 @@ var commands = map[string]func([]string) error{
 	"link":            cmdLink,
 	"list":            cmdList,
 	"mcp":             cmdMCP,
+	"memory":          cmdMemory,
 	"next":            cmdNext,
 	"pick":            cmdNext, // GDK-992: CHANGELOG v0.17 advertises this verb; alias of next
 	"open":            cmdOpen,

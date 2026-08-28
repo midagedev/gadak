@@ -22,6 +22,10 @@ var exportableConfigFields = []string{
 	"QaDashboardURL",
 	"StaleThresholdHours",
 	"Confluence",
+	// Memory is one space key — which wiki space the memory verbs own. Same
+	// species as Confluence's spaces: workspace-level scope, no secret, no
+	// machine-local path, so a team that picks a memory space shares it.
+	"Memory",
 }
 
 // Config struct field names that must never appear in a team file. Secrets,

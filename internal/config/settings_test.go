@@ -287,3 +287,56 @@ func TestLooksLikeProjectKey(t *testing.T) {
 		}
 	}
 }
+
+func TestSettingMemorySpaceRoundtripAndValidation(t *testing.T) {
+	s, ok := SettingByPath("memory.space")
+	if !ok {
+		t.Fatal("memory.space not in catalog")
+	}
+	c := &Config{}
+	if got := s.Get(c); got != "" {
+		t.Fatalf("unset must read as empty, got %v", got)
+	}
+	if err := s.Set(c, json.RawMessage(`"ENG"`)); err != nil {
+		t.Fatalf("set ENG: %v", err)
+	}
+	if c.Memory == nil || c.Memory.Space != "ENG" {
+		t.Fatalf("stored %+v, want block {ENG}", c.Memory)
+	}
+	if got := s.Get(c); got != "ENG" {
+		t.Fatalf("get after set = %v", got)
+	}
+	if got := c.MemorySpace(); got != "ENG" {
+		t.Fatalf("MemorySpace() = %q", got)
+	}
+	// Setting empty clears the block — an unset memory is nil, not an
+	// empty block, so config.json stays clean.
+	if err := s.Set(c, json.RawMessage(`""`)); err != nil {
+		t.Fatalf("clear: %v", err)
+	}
+	if c.Memory != nil {
+		t.Fatalf("cleared memory must be nil, got %+v", c.Memory)
+	}
+	// Whitespace inside is refused: a space key is one token, and a
+	// two-word answer here would silently search nothing. Surrounding
+	// whitespace trims away, same as defaultProject.
+	for name, raw := range map[string]string{
+		"interior space": `"EN G"`,
+		"interior tab":   "\"EN\tG\"",
+	} {
+		bad := &Config{}
+		if err := s.Set(bad, json.RawMessage(raw)); err == nil {
+			t.Fatalf("accepted %s (%s)", raw, name)
+		}
+		if bad.Memory != nil {
+			t.Fatalf("%s: stored %+v after rejection", name, bad.Memory)
+		}
+	}
+	trimmed := &Config{}
+	if err := s.Set(trimmed, json.RawMessage("\"  ENG  \"")); err != nil {
+		t.Fatalf("trim-around: %v", err)
+	}
+	if trimmed.Memory == nil || trimmed.Memory.Space != "ENG" {
+		t.Fatalf("trim-around stored %+v", trimmed.Memory)
+	}
+}

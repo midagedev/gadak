@@ -58,6 +58,22 @@ func ValidateDefaultProject(s string) (string, error) {
 	return s, nil
 }
 
+// ValidateMemorySpace accepts empty (unset) or one space key with no
+// whitespace. Existence is not checked here — the origin answers that on
+// the next write (the space-catalog error names what is actually
+// available), and the mirrored-spaces warning lives in the catalog
+// description instead.
+func ValidateMemorySpace(s string) (string, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return "", nil
+	}
+	if strings.ContainsAny(s, " \t\n\r") {
+		return "", fmt.Errorf("memory.space must be one space key (got %q)", s)
+	}
+	return s, nil
+}
+
 // projectKeyRe is the Jira Cloud project-key shape: 2–10 uppercase
 // alphanumeric characters, starting with a letter. IssueKeyLiteral uses the
 // same prefix for ABC-123; the length cap is so a multi-kilobyte all-caps
@@ -892,6 +908,33 @@ func buildSettings() []Setting {
 					return err
 				}
 				return ApplyConfluence(c, nil, v)
+			},
+		},
+		{
+			Path:        "memory.space",
+			Root:        "memory",
+			Description: "space key the memory verbs own (empty = standalone's seeded space; connected refuses until set; keep it inside the mirrored spaces or a full sync prunes the pages)",
+			Get: func(c *Config) any {
+				if c.Memory == nil {
+					return ""
+				}
+				return c.Memory.Space
+			},
+			Set: func(c *Config, raw json.RawMessage) error {
+				s, err := decodeString(raw, "memory.space")
+				if err != nil {
+					return err
+				}
+				v, err := ValidateMemorySpace(s)
+				if err != nil {
+					return err
+				}
+				if v == "" {
+					c.Memory = nil
+					return nil
+				}
+				c.Memory = &MemoryConfig{Space: v}
+				return nil
 			},
 		},
 		{

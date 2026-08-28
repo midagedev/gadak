@@ -206,6 +206,15 @@ type Config struct {
 	// token-owned in ui.tokens.type.terminal.
 	Terminal *TerminalConfig `json:"terminal,omitempty"`
 
+	// Memory is the agent-memory pointer: the wiki space `memory add`
+	// writes to and `memory search` scopes to. Memory is pages — there is
+	// no second write path — so this is a space key, not a new store. Nil
+	// means "not chosen": standalone falls back to its seeded space at the
+	// verb, connected refuses rather than guess a team-visible space (the
+	// fallback sentence lives in cmd; the seeded key belongs to origin,
+	// which config cannot import without a cycle).
+	Memory *MemoryConfig `json:"memory,omitempty"`
+
 	// Confluence, when non-nil, enables the wiki-page mirror (second source).
 	// Spaces empty means every *global* space — not every space the account can
 	// see, which is what this comment used to claim and what a warning written
@@ -263,6 +272,13 @@ type TerminalConfig struct {
 // on switch; same site/email/token as Jira, REST base under /wiki.
 type ConfluenceConfig struct {
 	Spaces []string `json:"spaces,omitempty"`
+}
+
+// MemoryConfig is the agent-memory space pointer: one space key, the wiki
+// space the memory verbs own. Empty Space means unset — see the Config.Memory
+// field comment for who fills the default and who refuses.
+type MemoryConfig struct {
+	Space string `json:"space,omitempty"`
 }
 
 // LinearConfig is the optional Linear issue source. Presence (non-nil) is the
@@ -1050,6 +1066,17 @@ func (c *Config) EffectiveLocale() string {
 		return "en"
 	}
 	return c.Locale
+}
+
+// MemorySpace is the configured agent-memory space key, trimmed; empty when
+// unset. The standalone fallback does not live here — the seeded key belongs
+// to internal/origin, which imports this package, so the verbs resolve it
+// (cmd/gadak/memory.go memorySpace).
+func (c *Config) MemorySpace() string {
+	if c == nil || c.Memory == nil {
+		return ""
+	}
+	return strings.TrimSpace(c.Memory.Space)
 }
 
 // EffectiveTerminal resolves the terminal behavior block with defaults

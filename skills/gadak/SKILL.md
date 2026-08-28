@@ -566,6 +566,19 @@ shapes `item_refs` recognizes (the linked page then shows under `ref_pages`
 in `gadak issue KEY --json`). A bare page id in a comment does not link —
 unlike a bare issue key, which does.
 
+**Agent memory has its own verb.** When the intent is "leave it so the next
+session finds it", `gadak memory add '<note>'` is the correct call: it
+writes a page into the memory space through the same origin path as
+`page create`, derives the title from the note's first line, and reports
+`id → title → space`. `gadak memory search '<text>'` scopes the search to
+that space alone. The space is the `memory.space` setting: **standalone**
+defaults to the seeded `LOC`; **connected refuses until it is set**
+(`gadak config set memory.space KEY`) rather than guess a team-visible
+space — ask the user which space before the first add. To extend an
+existing note instead of starting a new page, `gadak page edit <ID>
+--append -m '<text>'` grafts paragraphs onto the current body and keeps
+whatever formatting is already there.
+
 **Leave a page when the finding outruns the issue**: an investigation whose
 result a future session would otherwise redo, a decision together with its
 why, a map of something the mirror cannot derive from its own rows. What the

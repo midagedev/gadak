@@ -5,8 +5,12 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/midagedev/gadak/internal/adf"
 )
 
 // TestCmdPageEditVersionFlagParses is FAIL-first for GDK-408: --version must
@@ -201,5 +205,78 @@ func TestCmdPageEditPlainTextAllowsSimpleADF(t *testing.T) {
 	})
 	if wo.puts == 0 {
 		t.Fatal("simple ADF -m must reach origin PUT")
+	}
+}
+
+// TestCmdPageEditAppendKeepsRichAndAdds: --append grafts paragraphs onto
+// the current body instead of replacing it, so a rich page keeps its
+// formatting — that is the point of the flag. PUT must happen and the
+// stored ADF must hold both the old heading and the new paragraph.
+func TestCmdPageEditAppendKeepsRichAndAdds(t *testing.T) {
+	wo := newCLIWikiOrigin(t)
+	mirror(t, wo.URL)
+
+	out, err := capture(t, func() error {
+		return cmdPageEdit([]string{"100", "--append", "-m", "follow-up note"})
+	})
+	if err != nil {
+		t.Fatalf("page edit --append on a rich page: %v\n%s", err, out)
+	}
+	if wo.puts != 1 {
+		t.Fatalf("--append must PUT exactly once, got %d", wo.puts)
+	}
+	stored := wo.pages["100"].ADF
+	for _, want := range []string{"Steps", "follow-up note", `"heading"`, `"paragraph"`} {
+		if !strings.Contains(stored, want) {
+			t.Errorf("stored ADF missing %q after append:\n%s", want, stored)
+		}
+	}
+	if adf.PlainText(json.RawMessage(stored)) == "" {
+		t.Errorf("stored ADF lost its text:\n%s", stored)
+	}
+}
+
+// TestCmdPageEditAppendRefusesAdfFile: --append's merge is defined for
+// plain-text paragraphs; an arbitrary ADF document has no append semantics,
+// so the combination is refused before any PUT.
+func TestCmdPageEditAppendRefusesAdfFile(t *testing.T) {
+	wo := newCLIWikiOrigin(t)
+	mirror(t, wo.URL)
+
+	f := filepath.Join(t.TempDir(), "body.json")
+	if err := os.WriteFile(f, []byte(cliWikiSimpleADF), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := capture(t, func() error {
+		return cmdPageEdit([]string{"100", "--append", "-m", "note", "--adf-file", f})
+	})
+	if err == nil {
+		t.Fatal("--append + --adf-file must refuse")
+	}
+	if !strings.Contains(err.Error(), "--adf-file") {
+		t.Errorf("got %v", err)
+	}
+	if wo.puts != 0 {
+		t.Fatalf("refusal must not PUT, got %d", wo.puts)
+	}
+}
+
+// TestCmdPageEditAppendNeedsText: --append names a mode, not a payload —
+// without -m there is nothing to append.
+func TestCmdPageEditAppendNeedsText(t *testing.T) {
+	wo := newCLIWikiOrigin(t)
+	mirror(t, wo.URL)
+
+	_, err := capture(t, func() error {
+		return cmdPageEdit([]string{"100", "--append"})
+	})
+	if err == nil {
+		t.Fatal("--append without -m must refuse")
+	}
+	if !strings.Contains(err.Error(), "-m") {
+		t.Errorf("got %v", err)
+	}
+	if wo.puts != 0 {
+		t.Fatalf("refusal must not PUT, got %d", wo.puts)
 	}
 }
