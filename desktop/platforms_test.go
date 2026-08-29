@@ -99,8 +99,47 @@ func TestPinnedWailsVersionIsNamed(t *testing.T) {
 	}
 }
 
+// replacedWailsVersion is the version go.mod redirects the wails module to,
+// or "" when there is no replace. Distinct from pinnedWailsVersion: the
+// require line names the upstream base even while a fork carries the build.
+func replacedWailsVersion(t *testing.T) string {
+	t.Helper()
+	body, err := os.ReadFile("go.mod")
+	if err != nil {
+		t.Fatal(err)
+	}
+	const prefix = "replace github.com/wailsapp/wails/v3 "
+	for _, line := range strings.Split(string(body), "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, prefix) {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) >= 5 {
+			return fields[4]
+		}
+		t.Fatalf("go.mod wails replace is not a module@version form: %q", line)
+	}
+	return ""
+}
+
 func TestWailsModuleVersionMatchesGoMod(t *testing.T) {
 	want := pinnedWailsVersion(t)
+	// 2026-08-30 (GDK-1024 fork policy, docs/runbooks/upstream-pr.md): a
+	// `replace` onto a fork makes the built binary's version legitimately
+	// differ from the require line, and wailsModuleVersion() prefers
+	// Replace.Version by design — it reports what actually linked. So the
+	// assertion narrows rather than relaxes: the fork must be a patch ON
+	// the pin (prefix), and the binary must be the fork, not the base.
+	// FAIL-first: this test went red on the commit that added the replace,
+	// "wailsModuleVersion() = \"v3.0.0-beta.12-gadak.1\", go.mod has
+	// \"v3.0.0-beta.12\"" — the run is on PR #78, job "Desktop tests".
+	if fork := replacedWailsVersion(t); fork != "" {
+		if !strings.HasPrefix(fork, want) {
+			t.Fatalf("go.mod replaces wails with %q, which is not a patch on the pinned %q — a fork cut from a different upstream base is a silent version bump", fork, want)
+		}
+		want = fork
+	}
 	if got := wailsModuleVersion(); got != want {
 		t.Fatalf("wailsModuleVersion() = %q, go.mod has %q", got, want)
 	}

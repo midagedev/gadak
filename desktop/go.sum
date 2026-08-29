@@ -38,6 +38,8 @@ github.com/mattn/go-runewidth v0.0.19 h1:v++JhqYnZuu5jSKrk9RbgF5v4CGUjqRfBm05byF
 github.com/mattn/go-runewidth v0.0.19/go.mod h1:XBkDxAl56ILZc9knddidhrOlY5R/pDhgLpndooCuJAs=
 github.com/midagedev/issuetap v0.0.0-20260828070557-ccb366aea250 h1:SXqP1UxBFdBUHTThplIgw5LCr5IcvFwWbeDP+ku36Xk=
 github.com/midagedev/issuetap v0.0.0-20260828070557-ccb366aea250/go.mod h1:VI3sqskL2eqVH88g5jS9hAHTWPF8SJocH69p2/xh5Z0=
+github.com/midagedev/wails/v3 v3.0.0-beta.12-gadak.1 h1:SCcBMBdM3MVtoPv9FaVJZMUd1Hl9sGEzy7Cx5Q5kRXY=
+github.com/midagedev/wails/v3 v3.0.0-beta.12-gadak.1/go.mod h1:zKZYhB3WjrN5LhJWbnOAVMN0Xf8qTozbw2nf5micKl4=
 github.com/ncruces/go-strftime v1.0.0 h1:HMFp8mLCTPp341M/ZnA4qaf7ZlsbTc+miZjCLOFAw7w=
 github.com/ncruces/go-strftime v1.0.0/go.mod h1:Fwc5htZGVVkseilnfgOVb9mKy6w1naJmn9CehxcKcls=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
@@ -48,8 +50,6 @@ github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e h1:MRM5ITcdelLK2j1
 github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e/go.mod h1:XV66xRDqSt+GTGFMVlhk3ULuV0y9ZmzeVGR4mloJI3M=
 github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu7U=
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
-github.com/wailsapp/wails/v3 v3.0.0-beta.12 h1:Vema2kFgJvkwPovQ8GMBBrkZNm5cKVR4bYzSCMgU+PU=
-github.com/wailsapp/wails/v3 v3.0.0-beta.12/go.mod h1:zKZYhB3WjrN5LhJWbnOAVMN0Xf8qTozbw2nf5micKl4=
 golang.org/x/mod v0.37.0 h1:vF1DjpVEshcIqoEaauuHebaLk1O1forxjxBaVn884JQ=
 golang.org/x/mod v0.37.0/go.mod h1:m8S8VeM9r4dzDwjrKO0a1sZP3YjeMamRRlD+fmR2Q/0=
 golang.org/x/sync v0.21.0 h1:HLII4xRRTtCRkxYp4HNFF0Js/Og6q2i++KXbg0gHCwM=
