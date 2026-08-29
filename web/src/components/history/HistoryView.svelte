@@ -231,6 +231,8 @@
         class="flex h-control items-center gap-2 rounded-md border border-border-strong/70 bg-bg-elevated px-3 shadow-sm shadow-black/10 focus-within:border-accent/70"
       >
         <Icon name="search" size={14} class="text-text-muted" />
+        <!-- GDK-1088: an input clips its placeholder mid-word in a narrow
+             column; the ellipsis utility reaches the placeholder too. -->
         <input
           value={filterText}
           oninput={(e) => (history.filterText = (e.currentTarget as HTMLInputElement).value)}
@@ -240,7 +242,7 @@
           data-enter="widen"
           placeholder={t('history.filterPlaceholder')}
           aria-label={t('history.filterLabel')}
-          class="min-w-0 flex-1 bg-transparent text-body text-text-primary placeholder:text-text-muted focus:outline-none"
+          class="min-w-0 flex-1 bg-transparent text-body text-text-primary text-ellipsis placeholder:text-text-muted focus:outline-none"
           spellcheck="false"
           autocomplete="off"
         />

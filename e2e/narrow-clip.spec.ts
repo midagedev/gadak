@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test'
 import {
   attachConsoleErrors,
+  drainTerminalSessions,
   forceLocale,
   gotoApp,
   searchInput,
@@ -137,8 +138,12 @@ test.describe('stale chip at container ≤1100', () => {
       }
     })
     await page.goto('/')
-    await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 30_000 })
-    await expect(page.getByText(DEMO_ISSUE_COUNT_KO)).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByTestId('issue-layout')).toBeVisible({
+      timeout: 30_000,
+    })
+    await expect(page.getByText(DEMO_ISSUE_COUNT_KO)).toBeVisible({
+      timeout: 30_000,
+    })
     await waitListRows(page)
 
     // Search view is where the audit cropped "35일" (SSO login fails).
@@ -178,10 +183,9 @@ test.describe('row trailing at 740', () => {
     await gotoApp(page)
     await waitListRows(page)
     const hits = await trailOverflows(page)
-    expect(
-      hits,
-      `trail cells past the scroller/viewport at 740: ${JSON.stringify(hits)}`,
-    ).toEqual([])
+    expect(hits, `trail cells past the scroller/viewport at 740: ${JSON.stringify(hits)}`).toEqual(
+      [],
+    )
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 })
@@ -189,15 +193,15 @@ test.describe('row trailing at 740', () => {
 test.describe('row trailing at docked 1100', () => {
   test.use({ viewport: { width: VIEWPORT_DOCKED_MIN_PX, height: 900 } })
 
-  test('visible trail cells stay inside the list column (not the panel seam)', async ({
-    page,
-  }) => {
+  test('visible trail cells stay inside the list column (not the panel seam)', async ({ page }) => {
     const errors = attachConsoleErrors(page)
     await gotoApp(page)
     await waitListRows(page)
     const rows = page.locator('[data-testid="issue-list-scroller"] [data-issue-key]')
     await rows.nth(1).click()
-    await expect(page.locator('[data-testid="issue-layout"][data-detail-open="true"]')).toBeVisible()
+    await expect(
+      page.locator('[data-testid="issue-layout"][data-detail-open="true"]'),
+    ).toBeVisible()
     await expect(page.getByTestId('issue-detail-panel')).toHaveClass(/is-open/)
     // Panel width is locked immediately; opacity/transform slide 160ms.
     // Wait on the resting grid track, not a duration.
@@ -224,9 +228,9 @@ test.describe('row trailing at docked 1100', () => {
       return {
         scrollerRight: Math.round(scroller.getBoundingClientRect().right * 10) / 10,
         panelLeft: Math.round(panel.getBoundingClientRect().left * 10) / 10,
-        regime: document.querySelector('[data-testid="issue-layout"]')?.getAttribute(
-          'data-viewport-regime',
-        ),
+        regime: document
+          .querySelector('[data-testid="issue-layout"]')
+          ?.getAttribute('data-viewport-regime'),
       }
     })
     expect(seam.regime, '1100 is the docked floor').toBe('docked')
@@ -252,8 +256,12 @@ test.describe('demo banner at en 800', () => {
     })
     await forceLocale(page, 'en')
     await page.goto('/')
-    await expect(page.getByTestId('demo-banner')).toBeVisible({ timeout: 30_000 })
-    await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByTestId('demo-banner')).toBeVisible({
+      timeout: 30_000,
+    })
+    await expect(page.getByTestId('issue-layout')).toBeVisible({
+      timeout: 30_000,
+    })
 
     const links = page.getByTestId('hosted-links')
     // gadak serve compiles HostedLinks (unconditional import). Mount follows
@@ -310,7 +318,9 @@ test.describe('breakdown chips at the docked seam (GDK-1057)', () => {
       // probe reporting the defect (chips past the edge) on a pre-fix tree
       // instead of failing on a missing selector.
       const strip =
-        (document.querySelector<HTMLElement>('[data-testid="breakdown-strip"]') as HTMLElement | null) ??
+        (document.querySelector<HTMLElement>(
+          '[data-testid="breakdown-strip"]',
+        ) as HTMLElement | null) ??
         ([...document.querySelectorAll('div.overflow-x-auto')].find((d) =>
           d.querySelector('button span.truncate'),
         ) as HTMLElement | undefined) ??
@@ -360,11 +370,185 @@ test.describe('breakdown chips at the docked seam (GDK-1057)', () => {
       'at 1280 with the panel docked at least one actor label must be squeezed, else this is vacuous',
     ).toBeGreaterThan(0)
     for (const c of squeezed) {
+      expect(c.textOverflow, `${c.label}: a squeezed label must ellipsize, not clip`).toBe(
+        'ellipsis',
+      )
+    }
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+})
+
+/*
+ * GDK-1086 (2026-08-28 UI audit): the same legend at the audit's two narrow
+ * layouts. The audit ran on d02045c7, before the GDK-1057 shrink fix landed,
+ * and photographed "REST AP" / "In progre" cut mid-letter with "+ N more"
+ * pushed out of view. Contract: the strip never scrolls (scrollWidth <=
+ * clientWidth — a scrollable strip is an unhinted cut at its edge), every
+ * chip and the fold marker end inside it, and a label that does not fit
+ * ellipsizes. The 800 case is the audit's first-run/epic default axis; the
+ * 1440 case reproduces the audit's terminal-split + docked-detail layout
+ * with the status axis whose "In progress" chip was the mid-letter cut.
+ */
+type LegendProbe = {
+  sw: number
+  cw: number
+  stripRight: number
+  chips: {
+    label: string
+    right: number
+    labelScrollW: number
+    labelClientW: number
+    textOverflow: string
+  }[]
+  more: { text: string; right: number; display: string }[]
+}
+
+async function probeLegend(page: Page): Promise<LegendProbe> {
+  return page.evaluate(() => {
+    const strip = document.querySelector<HTMLElement>('[data-testid="breakdown-strip"]')
+    if (!strip) return { sw: -1, cw: -1, stripRight: 0, chips: [], more: [] }
+    const sbox = strip.getBoundingClientRect()
+    const chips = [...strip.querySelectorAll<HTMLElement>('button')].map((chip) => {
+      const label = chip.querySelector<HTMLElement>('span.truncate')
+      return {
+        label: (label?.textContent ?? '').trim(),
+        right: Math.round(chip.getBoundingClientRect().right * 10) / 10,
+        labelScrollW: label ? label.scrollWidth : -1,
+        labelClientW: label ? label.clientWidth : -1,
+        textOverflow: label ? getComputedStyle(label).textOverflow : '',
+      }
+    })
+    const more = [...strip.querySelectorAll<HTMLElement>(':scope > div > span')].map((s) => ({
+      text: (s.textContent ?? '').trim(),
+      right: Math.round(s.getBoundingClientRect().right * 10) / 10,
+      display: getComputedStyle(s).display,
+    }))
+    return {
+      sw: strip.scrollWidth,
+      cw: strip.clientWidth,
+      stripRight: Math.round(sbox.right * 10) / 10,
+      chips,
+      more,
+    }
+  })
+}
+
+function assertLegendContract(probe: LegendProbe, where: string): void {
+  expect(
+    probe.sw,
+    `${where}: strip scrollWidth ${probe.sw} > clientWidth ${probe.cw} — the legend is cut at its edge with no affordance`,
+  ).toBeLessThanOrEqual(probe.cw)
+  expect(probe.chips.length, `${where}: fixture must paint breakdown chips`).toBeGreaterThan(0)
+  for (const c of probe.chips) {
+    expect(
+      c.right,
+      `${where}: ${c.label}: chip right ${c.right} passes the strip edge ${probe.stripRight}`,
+    ).toBeLessThanOrEqual(probe.stripRight + 0.5)
+    if (c.labelScrollW > c.labelClientW) {
       expect(
         c.textOverflow,
-        `${c.label}: a squeezed label must ellipsize, not clip`,
+        `${where}: ${c.label}: a squeezed label must ellipsize, not clip mid-letter`,
       ).toBe('ellipsis')
     }
+  }
+  for (const m of probe.more) {
+    expect(m.display, `${where}: fold marker "${m.text}" must be painted`).not.toBe('none')
+    expect(
+      m.right,
+      `${where}: fold marker "${m.text}" right ${m.right} passes the strip edge ${probe.stripRight}`,
+    ).toBeLessThanOrEqual(probe.stripRight + 0.5)
+  }
+}
+
+test.describe('breakdown legend at 800 (GDK-1086)', () => {
+  test.use({ viewport: { width: 800, height: 900 } })
+
+  test('default axis legend fits with the fold marker visible', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    await gotoApp(page)
+    await waitListRows(page)
+    const probe = await probeLegend(page)
+    assertLegendContract(probe, '800px default axis')
+    expect(
+      probe.more.some((m) => m.text.startsWith('+')),
+      'at 800 the fixture must fold some groups, else the fold-marker assertion is vacuous',
+    ).toBe(true)
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+})
+
+test.describe('breakdown legend at 1440 terminal split + docked detail (GDK-1086)', () => {
+  test.use({ viewport: { width: 1440, height: 900 } })
+
+  // Ctrl+` below starts a real PTY on the shared serve, and nothing here
+  // closes it — an abandoned-but-alive session is never reaped, so it was
+  // still on the list when terminal-burst counted sessions minutes later
+  // (GDK-1127). The pane is scenery for this legend measurement; the
+  // session is not, and it is this suite's to clean up.
+  test.afterEach(async ({ page }) => {
+    await drainTerminalSessions(page)
+  })
+
+  test('status legend fits (the "In progre" cut)', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    await gotoApp(page)
+    await waitListRows(page)
+    // Status axis, whose chips carry the audit's "In progress" label — the
+    // mid-letter cut in the audit's terminal-split capture. Picked before
+    // the panel docks: the trigger click does not land through the seam.
+    await page.getByRole('button', { name: /Breakdown/ }).click()
+    await page.getByRole('button', { name: 'Progress', exact: true }).click()
+    await page.keyboard.press('Control+`')
+    await page.locator('[data-testid="issue-list-scroller"] [data-issue-key]').first().click()
+    await expect(page.getByTestId('issue-detail-panel')).toHaveClass(/is-open/)
+    const probe = await probeLegend(page)
+    assertLegendContract(probe, '1440 terminal split + docked detail (status axis)')
+    const squeezed = probe.chips.filter((c) => c.labelScrollW > c.labelClientW)
+    expect(
+      squeezed.length,
+      'the audit layout must squeeze at least one status label, else this is vacuous',
+    ).toBeGreaterThan(0)
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+})
+
+/*
+ * GDK-1088 (2026-08-28 UI audit): the docs column filter at 800 clipped its
+ * placeholder mid-word ("Filter — Enter s") with a partial glyph hanging
+ * against the `/` keycap. An input clips its placeholder by default;
+ * text-overflow: ellipsis applies to it too. Contract: the placeholder
+ * ellipsizes when it does not fit, and the keycap keeps a visible gap.
+ */
+test.describe('docs filter placeholder at 800 (GDK-1088)', () => {
+  test.use({ viewport: { width: 800, height: 900 } })
+
+  test('placeholder ellipsizes and keeps its gap to the keycap', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    await gotoApp(page)
+    await page.getByTestId('docs-documents').click()
+    await expect(page.getByTestId('docs-view')).toBeVisible()
+
+    const probe = await page.getByTestId('docs-filter').evaluate((wrap) => {
+      const input = wrap.querySelector<HTMLInputElement>('[data-testid="docs-filter-input"]')
+      const kbd = wrap.querySelector('kbd')
+      if (!input) return null
+      const ib = input.getBoundingClientRect()
+      const kb = kbd ? kbd.getBoundingClientRect() : null
+      return {
+        textOverflow: getComputedStyle(input).textOverflow,
+        gap: kb ? Math.round((kb.left - ib.right) * 10) / 10 : null,
+      }
+    })
+    expect(probe, 'docs filter must be mounted').toBeTruthy()
+    expect(
+      probe!.textOverflow,
+      'the placeholder must ellipsize when the column is narrow, not hard-clip mid-word',
+    ).toBe('ellipsis')
+    expect(
+      probe!.gap,
+      `keycap must keep a visible gap to the input text, got ${probe!.gap}px`,
+    ).toBeGreaterThanOrEqual(4)
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })

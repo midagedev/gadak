@@ -43,6 +43,8 @@
   data-testid="docs-filter"
 >
   <Icon name="search" size={14} class="text-text-muted" />
+  <!-- GDK-1088: an input clips its placeholder mid-word in a narrow column;
+       the ellipsis utility reaches the placeholder too. -->
   <input
     bind:this={inputEl}
     bind:value
@@ -52,7 +54,7 @@
     data-enter="widen"
     placeholder={t('docs.filterPlaceholder')}
     aria-label={t('docs.filterLabel')}
-    class="min-w-0 flex-1 bg-transparent text-body text-text-primary placeholder:text-text-muted focus:outline-none"
+    class="min-w-0 flex-1 bg-transparent text-body text-text-primary text-ellipsis placeholder:text-text-muted focus:outline-none"
     spellcheck="false"
     autocomplete="off"
   />
