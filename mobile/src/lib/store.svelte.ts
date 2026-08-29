@@ -647,11 +647,17 @@ export function exitDemo(): void {
 
 /* ── terminal pairing (own token, own meta — DESIGN.md §10.1) ── */
 
+/** The dev arm's own state, read once so the branches below read plainly. */
+function devShellArmed(): boolean {
+  return import.meta.env.DEV && import.meta.env.VITE_DEV_SHELL === '1'
+}
+
 async function loadTerminal(): Promise<void> {
   // The terminal meta lives in the active host's namespace (B2); the legacy
   // read covers a phone whose rename could not be verified.
-  const meta =
-    readJSON<PairMeta>(scopedKey(TERM_META_KEY)) ?? readJSON<PairMeta>(TERM_META_KEY)
+  const meta = devShellArmed()
+    ? null
+    : (readJSON<PairMeta>(scopedKey(TERM_META_KEY)) ?? readJSON<PairMeta>(TERM_META_KEY))
   // The terminal token is keyed by the terminal pairing's own endpoint
   // (pairTerminal's rule) — the shell may point at a different host than
   // the serve session. Legacy fallback covers a phone whose migration
@@ -689,11 +695,17 @@ async function loadTerminal(): Promise<void> {
   // wants a token, leaves the tab absent. Unpairing is session-scoped, as
   // it already is for the serve session (unpair() writes its sticky flag
   // only outside DEV, above) — an armed relaunch re-adopts.
-  if (!import.meta.env.DEV || meta) return
-  if (import.meta.env.VITE_DEV_SHELL !== '1') return
+  // Armed, the arm wins over whatever this device happens to remember: a
+  // rig has to put the app in a known state, and a simulator that scanned
+  // an offer months ago would otherwise keep pointing the pane — and its
+  // on-screen heading — at that old pairing. The label is the arm's too,
+  // so a recording can name the machine the take is about
+  // (VITE_DEV_SHELL_LABEL) instead of showing pairing debris.
+  if (!devShellArmed()) return
   try {
     await probeShellPairing('', '')
-    app.terminal = { endpoint: '', label: 'This Mac (dev)', expires_at: '' }
+    const label = import.meta.env.VITE_DEV_SHELL_LABEL || 'This Mac (dev)'
+    app.terminal = { endpoint: '', label, expires_at: '' }
   } catch {
     /* proxy dead, serve down, or the gate wants a token — no Shell tab */
   }

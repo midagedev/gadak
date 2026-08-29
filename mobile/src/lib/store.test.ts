@@ -258,6 +258,25 @@ describe('loadTerminal() — dev adopts the proxy for the shell (GDK-1118)', () 
     expect(app.terminal?.endpoint).toBe('')
   })
 
+  it('armed, it wins over a stored pairing and takes the label from the arm', async () => {
+    // A rig has to put the app in a known state; a simulator that scanned
+    // an offer months ago would otherwise keep pointing the pane — and the
+    // heading a recording shows — at that old pairing.
+    localStorage.setItem(
+      'gadak.pairing.meta.terminal',
+      JSON.stringify({ endpoint: 'http://127.0.0.1:9999', label: 'stale-pairing', expires_at: '' }),
+    )
+    await tokenSet('placeholder-terminal-token', 'terminal')
+    vi.stubEnv('VITE_DEV_SHELL', '1')
+    vi.stubEnv('VITE_DEV_SHELL_LABEL', 'home')
+    vi.mocked(request).mockResolvedValue(answer())
+
+    await boot()
+
+    expect(app.terminal?.label).toBe('home')
+    expect(app.terminal?.endpoint).toBe('')
+  })
+
   it('stays out of the way unarmed — the three-tab default is reachable in dev', async () => {
     // The adoption is opt-in for this row. mobile/e2e/shell.spec.ts asserts
     // a default install shows three tabs and that the Pairing tab offers the

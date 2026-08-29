@@ -64,8 +64,12 @@ LAUNCH_LEAD_MS="${GADAK_HERO_PHONE_LEAD_MS:-1800}"
 # frames, so the file starts later than the recorder did (measured: a take
 # scripted to ~18.1s of wall clock came back 15.97s long). Extraction reads
 # this; the dark flip reads the one above. Retunable with --frames-only.
-FRAME_LEAD_MS="${GADAK_HERO_PHONE_FRAME_LEAD_MS:-0}"
+FRAME_LEAD_MS="${GADAK_HERO_PHONE_FRAME_LEAD_MS:-3000}"
 TAIL_MS=900 # a beat of hold after the last frame, trimmed in the cut
+# The name the shell pane's heading shows. It is the pairing label, and the
+# arm supplies it so the take never puts whatever this simulator last
+# scanned on camera (MEDIA.md: fictional fixture, nothing from a real home).
+SHELL_LABEL="${GADAK_HERO_PHONE_SHELL_LABEL:-home}"
 
 mkdir -p "$OUT" "$SCRATCH"
 
@@ -181,7 +185,8 @@ fi
 echo "record-hero-phone: starting armed dev server (proxy → :${PORT})…"
 (
   cd "$ROOT/mobile"
-  GADAK_SERVE_PORT="$PORT" VITE_DEMO_TOUR=1 VITE_DEV_SHELL=1 exec npm run dev
+  GADAK_SERVE_PORT="$PORT" VITE_DEMO_TOUR=1 VITE_DEV_SHELL=1 \
+    VITE_DEV_SHELL_LABEL="$SHELL_LABEL" exec npm run dev
 ) >"$OUT/vite.log" 2>&1 &
 VITE_PID=$!
 
