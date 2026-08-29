@@ -138,6 +138,7 @@ theme
 tooling
 tracker-origin
 trust
+ui-audit
 ui
 upstream
 ux
