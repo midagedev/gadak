@@ -3,7 +3,12 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, test } from 'vitest'
 
-import { coerceDroppedReason, DROPPED_REASONS, TERMINAL_CHROME_VARS } from './protocol'
+import {
+  coerceDroppedReason,
+  DROPPED_REASONS,
+  TERMINAL_CHROME_VARS,
+  watchChromeVars,
+} from './protocol'
 
 // GDK-932: the wire vocabulary is the serve's own (internal/term/session.go),
 // and protocol.ts promises "neither side re-spells them." An unknown reason is
@@ -99,5 +104,50 @@ describe('GDK-1109 chrome-variable parity (protocol ⟷ app.css ⟷ renderers)',
     // catch. Font and size tokens (--font-*, --text-*) are not chrome and
     // stay as literals.
     expect(src.includes("'--color-")).toBe(false)
+  })
+
+  /*
+   * GDK-1156: both renderers must be wired to the shared watcher, not just
+   * able to be. The behaviour is held in a real browser by
+   * e2e/terminal-theme.spec.ts — but that spec drives the WEB pane, and the
+   * phone has no equivalent harness (its e2e runs the unpaired three-tab
+   * shell, where no terminal is constructed at all). So the phone's half is
+   * pinned the same way its variable names already are: by source, here,
+   * next to the list it shares. A renderer that goes back to reading the
+   * chrome once fails this before anyone flips a phone to dark at sunset.
+   */
+  test('both renderers subscribe to the shared watcher', () => {
+    for (const path of ['renderer.ts', '../../../../mobile/src/lib/terminal/renderer.ts']) {
+      const src = readFileSync(resolve(HERE, path), 'utf8')
+      expect(src, `${path} must import the shared watcher`).toContain('watchChromeVars')
+      expect(src, `${path} must re-apply the chrome, not only read it once`).toMatch(
+        /term\.options\.theme\s*=\s*chromeTheme\(\)/,
+      )
+    }
+  })
+})
+
+/*
+ * GDK-1156: the watcher runs inside a renderer that is also constructed in
+ * the plain unit project (environment 'node' — vite.config.ts), so it has to
+ * be a no-op without a DOM rather than throw on `document`. The behaviour
+ * that matters — noticing a stylesheet swap, an attribute, a media flip —
+ * is held by e2e/terminal-theme.spec.ts in a real browser; this pins only
+ * the guard, which is the half a node test can actually see.
+ */
+describe('GDK-1156 chrome watcher, without a document', () => {
+  test('returns a stoppable no-op and never reads the tokens', () => {
+    let reads = 0
+    const w = watchChromeVars(
+      () => {
+        reads += 1
+        return 'x'
+      },
+      () => {
+        throw new Error('onChange fired with no DOM')
+      },
+    )
+    expect(reads).toBe(0)
+    expect(() => w.stop()).not.toThrow()
   })
 })

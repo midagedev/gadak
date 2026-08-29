@@ -12,6 +12,7 @@ import {
   createUtf8StreamDecoder,
   TERMINAL_CHROME_VARS,
   type TerminalRenderer,
+  watchChromeVars,
 } from '../../../../web/src/lib/terminal/protocol'
 import type { CursorKeyMode } from './keys'
 import type { BufferType, MouseTrackingMode } from './scroll-gesture'
@@ -195,6 +196,17 @@ export async function createRenderer(): Promise<PhoneTerminalRenderer> {
   const unResize = term.onResize(({ cols, rows }) => {
     resizeCb?.(cols, rows)
   })
+  // GDK-1156: the phone has exactly one live theme path — the OS, which
+  // flips on its own at sunset — and it used to leave the pane in the
+  // previous scheme's ink. The watcher is shared with the web renderer so
+  // the two surfaces cannot drift on when the chrome is re-read; the phone
+  // simply has fewer causes for it to catch.
+  const chromeWatch = watchChromeVars(
+    () => JSON.stringify(chromeTheme()),
+    () => {
+      term.options.theme = chromeTheme()
+    },
+  )
 
   return {
     name: 'xterm',
@@ -258,6 +270,7 @@ export async function createRenderer(): Promise<PhoneTerminalRenderer> {
       }
     },
     dispose() {
+      chromeWatch.stop()
       unData.dispose()
       unResize.dispose()
       fitAddon.dispose()

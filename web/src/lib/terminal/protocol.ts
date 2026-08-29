@@ -16,11 +16,7 @@
  */
 
 export type DroppedReason =
-  | 'slow_client'
-  | 'token_revoked'
-  | 'idle_timeout'
-  | 'server_shutdown'
-  | 'closed'
+  'slow_client' | 'token_revoked' | 'idle_timeout' | 'server_shutdown' | 'closed'
 
 // Exported so a lock test can pin this set against the Go Reason* constants
 // (internal/term/session.go) it mirrors — the comment above promises neither
@@ -36,9 +32,7 @@ export const DROPPED_REASONS: ReadonlySet<string> = new Set([
 /** An unknown reason is reported as a plain close: the shell is gone either
  *  way, and inventing a cause would be worse than naming none. */
 export function coerceDroppedReason(raw: unknown): DroppedReason {
-  return typeof raw === 'string' && DROPPED_REASONS.has(raw)
-    ? (raw as DroppedReason)
-    : 'closed'
+  return typeof raw === 'string' && DROPPED_REASONS.has(raw) ? (raw as DroppedReason) : 'closed'
 }
 
 /*
@@ -163,6 +157,70 @@ export const TERMINAL_CHROME_VARS = {
   cursorAccent: '--color-bg-base',
   selectionBackground: '--color-bg-active',
 } as const
+
+/*
+ * When those variables move, and who notices (GDK-1156).
+ *
+ * The names having one owner was not enough: both renderers read them once,
+ * at construction, so a live theme change left the pane painted in the
+ * palette it was born in. Measured on the phone during the 0.19 hero shoot —
+ * iOS flipped to dark mid-session and the command output that had just
+ * landed became dark ink on a dark pane, which reads as an empty terminal.
+ *
+ * There are three live paths, and counting them was the trap: the picker
+ * (data-theme), the OS (prefers-color-scheme, the phone's only path), and
+ * `gadak config set ui.tokens`, which swaps a <style> element with no reload
+ * because retinting an open tab is the whole point of that feature. A
+ * subscriber wired to any one of them is a fix for one path and a bug for
+ * the next one someone adds.
+ *
+ * So this watches the *outcome* instead of the causes: anything that could
+ * repaint the document re-reads the tokens, and the callback fires only when
+ * a value actually changed. A fourth path costs nothing.
+ */
+export function watchChromeVars(read: () => string, onChange: () => void): { stop(): void } {
+  if (typeof document === 'undefined' || typeof window === 'undefined') {
+    return { stop() {} }
+  }
+  let last = read()
+  let queued = false
+  const check = () => {
+    queued = false
+    const now = read()
+    if (now === last) return
+    last = now
+    onChange()
+  }
+  // Coalesced to a frame: a token write touches the stylesheet, the layout
+  // dims and the row-metric cache in one call, and a picker change lands an
+  // attribute plus a media flip. One re-read per frame covers all of it.
+  const schedule = () => {
+    if (queued) return
+    queued = true
+    requestAnimationFrame(check)
+  }
+  // <html>: data-theme (picker) and inline custom properties (layout dims,
+  // and anything that later writes a token straight onto the element).
+  const root = new MutationObserver(schedule)
+  root.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['data-theme', 'style'],
+  })
+  // <head>: the ui.tokens override sheet is installed once and then has its
+  // textContent replaced, so childList alone would miss every write after
+  // the first — characterData under a subtree is what sees the swap.
+  const head = new MutationObserver(schedule)
+  head.observe(document.head, { childList: true, subtree: true, characterData: true })
+  const mq = window.matchMedia?.('(prefers-color-scheme: dark)')
+  mq?.addEventListener?.('change', schedule)
+  return {
+    stop() {
+      root.disconnect()
+      head.disconnect()
+      mq?.removeEventListener?.('change', schedule)
+    },
+  }
+}
 
 /** Streaming UTF-8 decoder so a 256 KiB ring replay that splits a character
  *  across two write() calls still renders one glyph. fatal:false matches

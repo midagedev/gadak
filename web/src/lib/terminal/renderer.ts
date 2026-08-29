@@ -14,7 +14,7 @@
  * code (DOM hosts, cssVar, the xterm dynamic import). Re-exported here
  * because this is where the web app already looks.
  */
-import { createUtf8StreamDecoder, TERMINAL_CHROME_VARS } from './protocol'
+import { createUtf8StreamDecoder, TERMINAL_CHROME_VARS, watchChromeVars } from './protocol'
 import type { TerminalRenderer } from './protocol'
 
 export { createUtf8StreamDecoder }
@@ -62,12 +62,7 @@ function chromeTheme(): {
 }
 
 function isToggleChord(ev: KeyboardEvent): boolean {
-  return (
-    ev.ctrlKey &&
-    !ev.metaKey &&
-    !ev.altKey &&
-    (ev.key === '`' || ev.code === 'Backquote')
-  )
+  return ev.ctrlKey && !ev.metaKey && !ev.altKey && (ev.key === '`' || ev.code === 'Backquote')
 }
 
 /*
@@ -99,7 +94,21 @@ type TermHook = {
   /** Live xterm options — the behavior seam's readback (GDK-896 R2).
    *  Optional like xterm's own ITerminalOptions; a set option is always
    *  materialized by the time a test reads it back. */
-  options: { scrollback?: number; cursorBlink?: boolean }
+  options: {
+    scrollback?: number
+    cursorBlink?: boolean
+    /** Live chrome, so a test can ask what the pane is actually painted in
+     *  rather than screenshot it (GDK-1156). Spelled out slot by slot
+     *  rather than as an index signature: xterm's own ITheme has none, and
+     *  a Record here would stop the real Terminal from satisfying the hook. */
+    theme?: {
+      background?: string
+      foreground?: string
+      cursor?: string
+      cursorAccent?: string
+      selectionBackground?: string
+    }
+  }
 }
 
 declare global {
@@ -207,6 +216,16 @@ async function createXtermRenderer(): Promise<BehaviorTerminalRenderer> {
   // reach the app's own handler, and a composition-stealing key (GDK-1095)
   // must stay with the IME.
   term.attachCustomKeyEventHandler((ev) => !isToggleChord(ev) && !stealsFromComposition(ev))
+  // GDK-1156: the chrome follows the theme for the life of the pane, not
+  // just at construction. xterm takes a whole theme object at runtime, so
+  // this is a replace, not a patch — and the ANSI palette is untouched
+  // either way, because chromeTheme() only carries the five chrome slots.
+  const chromeWatch = watchChromeVars(
+    () => JSON.stringify(chromeTheme()),
+    () => {
+      term.options.theme = chromeTheme()
+    },
+  )
   // Exposed from creation, not open(): the hook mirrors the live terminal,
   // which exists before a host does (unit tests applyBehavior with no DOM).
   exposeTerm(term)
@@ -249,6 +268,7 @@ async function createXtermRenderer(): Promise<BehaviorTerminalRenderer> {
       term.focus()
     },
     dispose() {
+      chromeWatch.stop()
       unData.dispose()
       unResize.dispose()
       fitAddon.dispose()
