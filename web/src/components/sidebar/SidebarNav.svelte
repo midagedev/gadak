@@ -568,7 +568,14 @@
   </div>
   {/if}
 
-  <div class="scroll-region min-h-0 flex-1" data-testid="sidebar-scroll">
+  <!-- GDK-1081: the mid region is a column that gives its slack to the
+       recency rows. Sections below (built-ins / filters / docs) keep their
+       natural height — flex-none — so a growing recent list can never push
+       them past the clip edge; FavoritesNav's recent-list wrapper is the one
+       axis that shrinks (and scrolls inside itself). MyIssuesNav keeps its
+       height through the flex automatic minimum size (overflow:visible
+       children cannot shrink below content). -->
+  <div class="scroll-region flex min-h-0 flex-1 flex-col" data-testid="sidebar-scroll">
     <!-- Personalization (Wave 3): My Issues / recent — above built-ins.
          Hidden during onboarding: the unauthenticated row is a second
          Set credentials (GDK-299 F6). -->
@@ -577,7 +584,7 @@
       <FavoritesNav />
     {/if}
 
-    <div role="list" data-testid="sidebar-sections">
+    <div role="list" data-testid="sidebar-sections" class="flex-none">
       {#each visibleIds as id (id)}
         {#if id === 'builtin'}
           <SidebarSection id="builtin" label={t('sidebar.builtinViews')} {visibleIds} {drag}>

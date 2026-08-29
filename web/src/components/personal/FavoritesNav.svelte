@@ -140,7 +140,7 @@
 </script>
 
 {#if favoriteItems.length}
-  <div class="mb-3">
+  <div class="mb-3 flex-none">
     <div class="px-3 py-1 text-micro font-medium uppercase tracking-wide text-text-muted">
       {t('personal.favorites')}
     </div>
@@ -203,106 +203,125 @@
   </div>
 {/if}
 
-<div class="mb-3">
-  <div class="flex items-center px-3 py-1">
-    <span class="text-micro font-medium uppercase tracking-wide text-text-muted">
-      {t('personal.recent')}
-    </span>
-    <button
-      type="button"
-      class="ml-auto text-micro font-medium uppercase tracking-wide text-text-muted transition-colors hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
-      data-testid="history-open"
-      aria-current={pages.historyView ? 'page' : undefined}
-      onclick={() => {
-        // Taking the column is openHistory's own move (GDK-821) — no
-        // hand-closed feed to forget.
-        pages.openHistory()
-      }}
-    >
-      {t('history.title')}
-    </button>
-  </div>
+<!--
+  GDK-1081: the recent rows are the sidebar's yielding axis. Everything around
+  them in the scroll region keeps its natural height, so when the window is
+  short it is these rows that give their space back — the list scrolls inside
+  itself rather than pushing BUILT-IN VIEWS / JIRA FILTERS / DOCUMENTS below
+  the clip edge. The RECENTLY VIEWED header above stays a plain sibling on
+  purpose: inside a shrinking box it would be squeezed and clipped with the
+  rows, and the clipped HISTORY button then clicks nothing (caught by
+  history.spec at the default viewport).
+-->
+<div class="flex flex-none items-center px-3 py-1">
+  <span class="text-micro font-medium uppercase tracking-wide text-text-muted">
+    {t('personal.recent')}
+  </span>
+  <button
+    type="button"
+    class="ml-auto text-micro font-medium uppercase tracking-wide text-text-muted transition-colors hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
+    data-testid="history-open"
+    aria-current={pages.historyView ? 'page' : undefined}
+    onclick={() => {
+      // Taking the column is openHistory's own move (GDK-821) — no
+      // hand-closed feed to forget.
+      pages.openHistory()
+    }}
+  >
+    {t('history.title')}
+  </button>
+</div>
+<!-- flex-initial + min-h-[48px]: shrink to the space left in the scroll region,
+     floor at one row, scroll when the rest no longer fits. No scrollbar in a
+     roomy window (auto). A shorter yield would leave the recency section a
+     header over nothing; the floor is what keeps it scrollable rather than
+     gone. The yielding classes bind to rows being present — empty, the div is
+     the same 12px tail the block always had, and nothing below it moves. -->
+<div
+  class="mb-3 {recentItems.length ? 'min-h-[48px] flex-initial overflow-y-auto' : ''}"
+  data-testid="recent-list"
+>
   {#each recentItems as item (item.page ? `d:${item.page.key}` : `i:${item.issue!.issue_key}`)}
-      {#if item.page}
-        <div
-          data-testid={`recent-doc-${item.page.key}`}
-          class="group relative flex min-h-[48px] items-center rounded-md px-2.5 py-1.5 transition-colors {pages.selectedKey ===
-          item.page.key
-            ? 'bg-bg-active'
-            : 'hover:bg-bg-hover'}"
+    {#if item.page}
+      <div
+        data-testid={`recent-doc-${item.page.key}`}
+        class="group relative flex min-h-[48px] items-center rounded-md px-2.5 py-1.5 transition-colors {pages.selectedKey ===
+        item.page.key
+          ? 'bg-bg-active'
+          : 'hover:bg-bg-hover'}"
+      >
+        <button
+          type="button"
+          class="w-full min-w-0 text-left"
+          onclick={() => selectPage(item.page!.key)}
+          title={item.page.title}
         >
-          <button
-            type="button"
-            class="w-full min-w-0 text-left"
-            onclick={() => selectPage(item.page!.key)}
-            title={item.page.title}
-          >
-            <span class="flex min-w-0 items-center gap-2">
-              <span class="min-w-0 flex-1 truncate text-micro font-medium text-text-muted">
-                {item.page.title}
-              </span>
-              <span
-                class="flex-none truncate text-right text-micro text-text-muted"
-                title={item.visit?.viewed_at ? absTime(item.visit.viewed_at) : undefined}
-              >
-                {viewedLabel(item.visit?.viewed_at)}
-              </span>
+          <span class="flex min-w-0 items-center gap-2">
+            <span class="min-w-0 flex-1 truncate text-micro font-medium text-text-muted">
+              {item.page.title}
             </span>
             <span
-              class="mt-0.5 block truncate text-micro font-medium leading-[1.35] {pages.selectedKey ===
-              item.page.key
-                ? 'text-text-primary'
-                : 'text-text-secondary group-hover:text-text-primary'}"
+              class="flex-none truncate text-right text-micro text-text-muted"
+              title={item.visit?.viewed_at ? absTime(item.visit.viewed_at) : undefined}
             >
-              {pages.spaceLabel(item.page.space_key)}
+              {viewedLabel(item.visit?.viewed_at)}
             </span>
-          </button>
-        </div>
-      {:else if item.issue}
-        <div
-          data-testid={`recent-issue-${item.issue.issue_key}`}
-          class="group relative flex min-h-[48px] items-center rounded-md px-2.5 py-1.5 transition-colors {selection.selectedKey ===
-          item.issue.issue_key
-            ? 'bg-bg-active'
-            : 'hover:bg-bg-hover'}"
-        >
-          <button
-            type="button"
-            class="w-full min-w-0 text-left"
-            onclick={(event) => selectIssue(event, item.issue!.issue_key)}
-            title={`${item.issue.issue_key} · ${item.issue.summary}`}
+          </span>
+          <span
+            class="mt-0.5 block truncate text-micro font-medium leading-[1.35] {pages.selectedKey ===
+            item.page.key
+              ? 'text-text-primary'
+              : 'text-text-secondary group-hover:text-text-primary'}"
           >
-            <span class="flex min-w-0 items-center gap-2">
-              <span class="w-[70px] flex-none truncate font-mono text-micro text-text-muted">
-                {item.issue.issue_key}
-              </span>
-              <span
-                class="min-w-0 flex-1 truncate text-right text-micro text-text-muted"
-                title={item.visit?.viewed_at ? absTime(item.visit.viewed_at) : undefined}
-              >
-                {viewedLabel(item.visit?.viewed_at)}
-              </span>
+            {pages.spaceLabel(item.page.space_key)}
+          </span>
+        </button>
+      </div>
+    {:else if item.issue}
+      <div
+        data-testid={`recent-issue-${item.issue.issue_key}`}
+        class="group relative flex min-h-[48px] items-center rounded-md px-2.5 py-1.5 transition-colors {selection.selectedKey ===
+        item.issue.issue_key
+          ? 'bg-bg-active'
+          : 'hover:bg-bg-hover'}"
+      >
+        <button
+          type="button"
+          class="w-full min-w-0 text-left"
+          onclick={(event) => selectIssue(event, item.issue!.issue_key)}
+          title={`${item.issue.issue_key} · ${item.issue.summary}`}
+        >
+          <span class="flex min-w-0 items-center gap-2">
+            <span class="w-[70px] flex-none truncate font-mono text-micro text-text-muted">
+              {item.issue.issue_key}
             </span>
             <span
-              class="mt-0.5 block truncate text-micro font-medium leading-[1.35] {selection.selectedKey ===
-              item.issue.issue_key
-                ? 'text-text-primary'
-                : 'text-text-secondary group-hover:text-text-primary'}"
+              class="min-w-0 flex-1 truncate text-right text-micro text-text-muted"
+              title={item.visit?.viewed_at ? absTime(item.visit.viewed_at) : undefined}
             >
-              {item.issue.summary}
+              {viewedLabel(item.visit?.viewed_at)}
             </span>
-          </button>
-          <button
-            type="button"
-            class="pointer-events-none absolute right-2 top-1 flex h-control-sm w-control-sm items-center justify-center rounded-md bg-bg-elevated text-text-muted opacity-0 shadow-sm shadow-black/25 transition-opacity hover:bg-bg-hover hover:text-text-primary group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100"
-            onclick={() => void favorites.toggle(item.issue!.issue_key)}
-            aria-pressed="false"
-            aria-label={t('personal.favoriteAria', { key: item.issue.issue_key })}
-            title={t('common.favorite')}
+          </span>
+          <span
+            class="mt-0.5 block truncate text-micro font-medium leading-[1.35] {selection.selectedKey ===
+            item.issue.issue_key
+              ? 'text-text-primary'
+              : 'text-text-secondary group-hover:text-text-primary'}"
           >
-            <Icon name="star" size={13} />
-          </button>
-        </div>
-      {/if}
-    {/each}
-  </div>
+            {item.issue.summary}
+          </span>
+        </button>
+        <button
+          type="button"
+          class="pointer-events-none absolute right-2 top-1 flex h-control-sm w-control-sm items-center justify-center rounded-md bg-bg-elevated text-text-muted opacity-0 shadow-sm shadow-black/25 transition-opacity hover:bg-bg-hover hover:text-text-primary group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100"
+          onclick={() => void favorites.toggle(item.issue!.issue_key)}
+          aria-pressed="false"
+          aria-label={t('personal.favoriteAria', { key: item.issue.issue_key })}
+          title={t('common.favorite')}
+        >
+          <Icon name="star" size={13} />
+        </button>
+      </div>
+    {/if}
+  {/each}
+</div>
