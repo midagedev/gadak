@@ -111,6 +111,18 @@ export interface GadakConfig {
    * from an empty `jiraBaseUrl` — that is also true of the hosted demo.
    */
   workspaceKind: WorkspaceKind
+  /**
+   * True when the server can reach the Jira-family origin — a site
+   * credential, a standalone workspace, or a pairing remote. It mirrors
+   * `config.HasAtlassianCredential`, which is the same bool every write path
+   * 409s on, so a surface that decides whether to send an origin request at
+   * all agrees with the server instead of guessing (GDK-1090). Absent
+   * (static export, hosted demo) is false — correct there.
+   *
+   * Not `me.identified`: that reads auth/me's email, which is empty on a
+   * standalone and on a paired workspace even though both write fine.
+   */
+  originWritable: boolean
   features: GadakFeatures
   /**
    * Server-merged color overrides (GDK-786/791): final per-palette CSS
@@ -132,6 +144,16 @@ export function isStandaloneWorkspace(): boolean {
   return isStandalone(current)
 }
 
+/**
+ * True when the origin can answer a Jira-family request — the client mirror
+ * of `config.HasAtlassianCredential` (GDK-1090). Ask this before sending a
+ * request whose only other outcome is 409 credential_required; do not
+ * reconstruct the predicate from identity or from an empty site URL.
+ */
+export function originWritable(): boolean {
+  return current.originWritable
+}
+
 const DEFAULTS: GadakConfig = {
   apiBase: '/api/v1/issues/',
   authBase: '/api/v1/auth/',
@@ -149,6 +171,7 @@ const DEFAULTS: GadakConfig = {
   profile: 'default',
   os: '',
   workspaceKind: '',
+  originWritable: false,
   features: {
     feed: false,
     deploy: false,
@@ -454,6 +477,7 @@ export async function loadConfig(): Promise<GadakConfig> {
         features: { ...DEFAULTS.features, ...(raw.features ?? {}) },
         windowChrome: resolveWindowChrome(raw),
         workspaceKind: parseWorkspaceKind(raw.workspaceKind),
+        originWritable: raw.originWritable === true,
       }
     }
   } catch {

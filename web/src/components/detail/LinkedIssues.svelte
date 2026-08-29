@@ -8,7 +8,7 @@
   import { writeErrorMessage } from '../../lib/i18n/en'
   import type { LinkedIssue } from '../../lib/types'
   import { ApiError, createIssueLink, getIssueLinkTypes, type IssueLinkType } from '../../lib/api'
-  import { isHostedDemo } from '../../lib/config'
+  import { isHostedDemo, originWritable } from '../../lib/config'
   import { invalidate } from '../../lib/detail-cache.svelte'
   import { selection } from '../../stores/selection.svelte'
   import { issues } from '../../stores/issues.svelte'
@@ -59,10 +59,23 @@
 
   const typeOptions = $derived(linkTypeOptions(types))
 
-  // Catalog fetch is I/O. Writes live in loadTypes (GDK-692).
+  // Catalog fetch is I/O. Writes live in loadTypes (GDK-692). When the origin
+  // cannot answer, the fetch is not sent at all (GDK-1090): the server replies
+  // 409 credential_required and Chromium paints every one of those as a
+  // console error on every detail open — the same "keep the boot-time probe
+  // out of the browser console" rule handleMe already applies to auth/me.
+  //
+  // The predicate is the server's own (config.HasAtlassianCredential, sent as
+  // originWritable), not identity: auth/me answers from cfg.Email, which is
+  // empty on a standalone and on a paired workspace even though both accept
+  // this request. Gating on me.identified would have killed the link-type
+  // catalog exactly there. The hosted demo stays in: loadTypes serves it a
+  // canned catalog without touching the network, so skipping it there would
+  // empty the demo's type list to fix console noise it never had.
   $effect(() => {
     const k = issueKey
     if (!k || linear) return
+    if (!originWritable() && !isHostedDemo()) return
     if (k === catalogFor) return
     void loadTypes(k)
   })

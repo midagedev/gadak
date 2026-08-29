@@ -68,6 +68,20 @@ type webConfigDoc struct {
 	// Always sent. The UI must not infer this from an empty site URL — a
 	// hosted demo and an older document also have no site.
 	WorkspaceKind string `json:"workspaceKind"`
+	// OriginWritable mirrors config.HasAtlassianCredential — "can this server
+	// reach the Jira-family origin at all" (site+email+token, standalone, or
+	// a pairing remote). Boolean only; no site, token, or email.
+	//
+	// It exists so the web does not re-derive that three-way predicate
+	// (GDK-1090). Every write path's 409 credential_required comes from this
+	// one bool on the server, and a surface that skips a request rather than
+	// collecting a 409 has to agree with it exactly. The near-miss it closes:
+	// `me.identified` looks like the same question and is not — auth/me
+	// answers from cfg.Email, which is empty on both standalone and paired,
+	// so gating on identity would have silenced the very workspaces 0.19
+	// targets. Absent (static export, hosted demo) reads as false, which is
+	// the truth there.
+	OriginWritable bool `json:"originWritable"`
 	// UI is the server-merged color/dimension/font override block
 	// (GDK-786/791, GDK-842, GDK-896 R4): the final per-palette CSS variable
 	// map, data inks, and the palette-agnostic dimension and font overrides,
@@ -137,6 +151,7 @@ func webConfig(cfg *config.Config) webConfigDoc {
 		Profile:             profileDisplay(config.Profile()),
 		OS:                  runtime.GOOS,
 		WorkspaceKind:       kind,
+		OriginWritable:      cfg.HasAtlassianCredential(),
 		UI: &uiDoc{
 			Vars:       vars,
 			Dims:       dims,

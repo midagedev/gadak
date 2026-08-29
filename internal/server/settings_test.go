@@ -692,6 +692,51 @@ func TestWebConfigWorkspaceKindFromDescribe(t *testing.T) {
 	}
 }
 
+func TestWebConfigOriginWritableMirrorsHasAtlassianCredential(t *testing.T) {
+	// GDK-1090. The web decides whether to send an origin request at all from
+	// this bool, so it must be the same predicate the write paths 409 on —
+	// config.HasAtlassianCredential, not identity and not a non-empty Site.
+	//
+	// The two rows that matter are standalone and site-without-token: a
+	// standalone workspace writes fine while auth/me answers no email, and a
+	// site with no token has an identity-looking config that cannot write.
+	// Gating the client on identity gets both backwards.
+	cases := []struct {
+		name string
+		cfg  *config.Config
+		want bool
+	}{
+		{"nil", nil, false},
+		{"empty", &config.Config{}, false},
+		{"site without credential", &config.Config{Site: "https://x.example"}, false},
+		{
+			"site with credential",
+			&config.Config{Site: "https://x.example", Email: "a@b.example", Token: "t"},
+			true,
+		},
+		{"standalone", &config.Config{Kind: config.KindStandalone}, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			doc, err := WebConfig(tc.cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var got webConfigDoc
+			if err := json.Unmarshal(doc, &got); err != nil {
+				t.Fatal(err)
+			}
+			if got.OriginWritable != tc.want {
+				t.Errorf("originWritable = %v, want %v", got.OriginWritable, tc.want)
+			}
+			if want := tc.cfg.HasAtlassianCredential(); got.OriginWritable != want {
+				t.Errorf("originWritable = %v, HasAtlassianCredential = %v — the two must not drift",
+					got.OriginWritable, want)
+			}
+		})
+	}
+}
+
 func TestWebConfigUIDimensionVars(t *testing.T) {
 	// GDK-842 chunk 4: the config document's `ui` block carries the merged
 	// dimension overrides as a sibling of `vars` — one palette-agnostic map,
