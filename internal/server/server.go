@@ -358,8 +358,12 @@ func newServer(db *store.DB, cfg *config.Config, cache *attachcache.Cache, profi
 	// The mirror gate sits inside the guard: the guard vouches for the Host
 	// (exemptions only where a later gate authenticates), the gate vouches
 	// for the token (GDK-797).
-	h.guarded = GuardBrowser(s.mirrorGate(mux),
-		PairedOriginHostExempt(dirFn), PairedMirrorHostExempt(dirFn), PairedTerminalHostExempt(dirFn))
+	h.guarded = GuardBrowser(s.mirrorGate(mux), GuardExempts{
+		Host: []func(*http.Request) bool{
+			PairedOriginHostExempt(dirFn), PairedMirrorHostExempt(dirFn), PairedTerminalHostExempt(dirFn),
+		},
+		Origin: []func(*http.Request) bool{PairedAppOriginExempt(dirFn)},
+	})
 	if testRegisterHandler != nil {
 		testRegisterHandler(h)
 	}

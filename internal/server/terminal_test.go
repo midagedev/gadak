@@ -619,59 +619,90 @@ func TestTerminalGateCoversTheWholeSubtree(t *testing.T) {
 	}
 }
 
-// ⑨ An app webview may not open this socket, and that is why the phone's
-// transport is native.
+// ⑨ An app webview may not open this socket by its scheme alone — the door
+// it gets is a proven pairing credential.
 //
 // The mobile companion (GDK-865) runs inside a WKWebView whose origin is a
-// custom scheme, and a webview WebSocket can neither omit that Origin nor
-// set an Authorization header. Both halves are refused here: the custom
-// scheme dies at the guard's Origin check, and a socket with no bearer at
-// all dies at the gate. The phone therefore dials natively — no Origin, a
-// real header — which is ⑤ above.
+// custom scheme. Its webview-JS half still has no way in: a webview
+// WebSocket can neither omit that Origin nor set an Authorization header,
+// so the identity alone dies at the guard and no bearer dies at the gate.
+// The phone dials natively — a real Authorization header — which is ⑤
+// above, and since GDK-1120 that native dial may also carry the
+// plugin-stamped `Origin: tauri://localhost` (tauri-plugin-http adds it to
+// every native request with no way to omit it, which had made the packaged
+// phone read-only against every serve).
 //
-// This is pinned because the cheap "fix" for a desktop app is to teach
-// allowedOrigin about custom schemes, and that change would quietly hand a
-// webview — anyone's webview — a shell on this machine. Measured against a
-// live serve on a LAN address before it was written: 101 for the native
-// dial, 403 forbidden_origin with `Origin: tauri://localhost`.
+// The original pin (2026-0.18) was "never teach allowedOrigin about custom
+// schemes — that hands anyone's webview a shell". That clause survives
+// intact: allowedOrigin still rejects every non-http(s) scheme, and the
+// exemption that admits the app (PairedAppOriginExempt) validates the
+// request's own Bearer, which a hostile page in a webview cannot present.
+// Revised 2026-08-29 (GDK-1120): rows below prove the surviving rejections —
+// identity without a credential, wrong-scope credential (GDK-863), lookalike
+// identities with a good credential — and the last block proves the one
+// admitted shape. FAIL-first: on the pre-fix source the admitted shape was
+// 403 (measured live in GDK-1116's round: `forbidden origin
+// "tauri://localhost"` in the serve log, and this test's own prior form).
 func TestTerminalWebviewOriginCannotOpenTheSocket(t *testing.T) {
 	srv, _, dir := termServer(t)
-	tok := seedStore(t, dir, seedToken{"phone", pairing.ScopeTerminal})[0]
+	toks := seedStore(t, dir,
+		seedToken{"phone", pairing.ScopeTerminal},
+		seedToken{"laptop", pairing.ScopeServe})
+	tok, serveTok := toks[0], toks[1]
 	id := createSession(t, srv, mirrorHost, tok)
 
 	u := "ws" + strings.TrimPrefix(srv.URL, "http") + termBase + "sessions/" + id + "/ws/"
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// The third case is the one that isolates the scheme rule: its host is
-	// the request's own Host, so only "a custom scheme is not http(s)" can
-	// refuse it. Drop that clause from allowedOrigin and this row alone
-	// turns green — which is what "teach it about custom schemes" means.
-	for _, origin := range []string{
-		"tauri://localhost",
-		"capacitor://localhost",
-		"null",
-		"tauri://" + mirrorHost,
-	} {
+	dial := func(origin, bearer string) (*websocket.Conn, *http.Response, error) {
 		hdr := http.Header{}
-		hdr.Set("Authorization", "Bearer "+tok)
+		if bearer != "" {
+			hdr.Set("Authorization", "Bearer "+bearer)
+		}
 		hdr.Set("Origin", origin)
-		c, resp, err := websocket.Dial(ctx, u, &websocket.DialOptions{
+		return websocket.Dial(ctx, u, &websocket.DialOptions{
 			HTTPHeader: hdr,
 			HTTPClient: termClient(mirrorHost),
 		})
+	}
+
+	// Still refused: the webview identity with no credential (what hostile
+	// webview JS can produce), the app identity on a wrong-scope token (a
+	// serve token never learns where the shell is — GDK-863), and every
+	// lookalike even with a good token.
+	for _, c := range []struct{ origin, bearer string }{
+		{"tauri://localhost", ""},
+		{"tauri://localhost", serveTok},
+		{"capacitor://localhost", tok},
+		{"null", tok},
+		{"tauri://" + mirrorHost, tok},
+	} {
+		conn, resp, err := dial(c.origin, c.bearer)
 		if err == nil {
-			c.CloseNow()
-			t.Fatalf("Origin %q opened the terminal socket; want it refused", origin)
+			conn.CloseNow()
+			t.Fatalf("Origin %q bearer %q opened the terminal socket; want it refused", c.origin, c.bearer)
 		}
 		if resp == nil || resp.StatusCode != http.StatusForbidden {
 			code := 0
 			if resp != nil {
 				code = resp.StatusCode
 			}
-			t.Fatalf("Origin %q: status %d (%v); want 403", origin, code, err)
+			t.Fatalf("Origin %q bearer %q: status %d (%v); want 403", c.origin, c.bearer, code, err)
 		}
 	}
+
+	// The one admitted shape: the app identity carrying its own
+	// terminal-scope pairing Bearer (the packaged phone, GDK-1120).
+	conn, resp, err := dial("tauri://localhost", tok)
+	if err != nil {
+		code := 0
+		if resp != nil {
+			code = resp.StatusCode
+		}
+		t.Fatalf("app origin with terminal bearer refused: status %d (%v); want the socket open", code, err)
+	}
+	conn.CloseNow()
 }
 
 // ⑭ GDK-995: the window that hosts a terminal names its workspace to the

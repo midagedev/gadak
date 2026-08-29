@@ -61,5 +61,10 @@ func buildServeMux(primaryAPI http.Handler, spa http.Handler, reg *workspace.Reg
 		}
 		return cfg.Directory()
 	}
-	return server.GuardBrowser(mux, server.PairedOriginHostExempt(dirFn), server.PairedMirrorHostExempt(dirFn))
+	return server.GuardBrowser(mux, server.GuardExempts{
+		Host: []func(*http.Request) bool{
+			server.PairedOriginHostExempt(dirFn), server.PairedMirrorHostExempt(dirFn),
+		},
+		Origin: []func(*http.Request) bool{server.PairedAppOriginExempt(dirFn)},
+	})
 }

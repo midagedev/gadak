@@ -8,20 +8,36 @@ import (
 	"strings"
 )
 
+// GuardExempts are the ways a request can step past one of browserGuard's
+// name-based checks — never both by one func, because the two checks stop
+// different attackers and an exemption argued for one is not an argument
+// for the other.
+type GuardExempts struct {
+	// Host widens only the Host (DNS-rebinding) check, for requests a later
+	// gate authenticates by credential instead of by name — today the paired
+	// origin passthrough (PairedOriginHostExempt), the paired mirror REST
+	// (PairedMirrorHostExempt), and the terminal (PairedTerminalHostExempt),
+	// whose Bearer requirements make the rebinding vector unmountable (a
+	// browser cannot attach Authorization cross-origin without a preflight
+	// this server never answers).
+	Host []func(*http.Request) bool
+	// Origin widens only the Origin (CSRF) check. Unlike Host exempts, an
+	// Origin exempt must validate the credential itself, not just note that
+	// one will be demanded later: on a serve with no pairing tokens there is
+	// no later gate, and the Origin header is then the only thing between a
+	// hostile page in *any* webview and this API (see
+	// TestTerminalWebviewOriginCannotOpenTheSocket). Today: the packaged
+	// app's webview identity with a proven pairing Bearer
+	// (PairedAppOriginExempt, GDK-1120).
+	Origin []func(*http.Request) bool
+}
+
 // GuardBrowser wraps next so Host/Origin checks run before any route.
 // Mount this on the top-level serve mux so routes registered outside Handler
 // (/config.json, /healthz, /api/v1/workspaces, /w/) cannot skip the guard.
-//
-// hostExempts widen only the Host check, for requests a later gate
-// authenticates by credential instead of by name — today that is the paired
-// origin passthrough (PairedOriginHostExempt) and the paired mirror
-// REST (PairedMirrorHostExempt), whose Bearer requirements make
-// the DNS-rebinding vector this check exists for unmountable (a browser
-// cannot attach Authorization cross-origin without a preflight this server
-// never answers). The Origin check is not exempted.
-func GuardBrowser(next http.Handler, hostExempts ...func(*http.Request) bool) http.Handler {
+func GuardBrowser(next http.Handler, ex GuardExempts) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !browserGuard(w, r, hostExempts) {
+		if !browserGuard(w, r, ex) {
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -48,13 +64,14 @@ func GuardBrowser(next http.Handler, hostExempts ...func(*http.Request) bool) ht
 // and cannot be told to omit — is the only thing standing between a hostile
 // tab and whatever the socket speaks. Written before the first socket exists
 // (the v0.18 terminal pane, GDK-855) rather than after.
-func browserGuard(w http.ResponseWriter, r *http.Request, hostExempts []func(*http.Request) bool) bool {
-	if !allowedHost(r.Host) && !anyHostExempt(hostExempts, r) {
+func browserGuard(w http.ResponseWriter, r *http.Request, ex GuardExempts) bool {
+	if !allowedHost(r.Host) && !anyExempt(ex.Host, r) {
 		log.Printf("server: forbidden host %q on %s %s", r.Host, r.Method, r.URL.Path)
 		fail(w, http.StatusForbidden, "forbidden_host")
 		return false
 	}
-	if (stateChanging(r.Method) || isWebSocketUpgrade(r)) && !allowedOrigin(r) {
+	if (stateChanging(r.Method) || isWebSocketUpgrade(r)) &&
+		!allowedOrigin(r) && !anyExempt(ex.Origin, r) {
 		log.Printf("server: forbidden origin %q host %q on %s %s",
 			r.Header.Get("Origin"), r.Host, r.Method, r.URL.Path)
 		fail(w, http.StatusForbidden, "forbidden_origin")
@@ -63,7 +80,7 @@ func browserGuard(w http.ResponseWriter, r *http.Request, hostExempts []func(*ht
 	return true
 }
 
-func anyHostExempt(exempts []func(*http.Request) bool, r *http.Request) bool {
+func anyExempt(exempts []func(*http.Request) bool, r *http.Request) bool {
 	for _, ok := range exempts {
 		if ok != nil && ok(r) {
 			return true

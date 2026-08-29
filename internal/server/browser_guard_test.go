@@ -19,7 +19,7 @@ func TestGuardBrowserWrapsNext(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
 	})
-	h := GuardBrowser(next)
+	h := GuardBrowser(next, GuardExempts{})
 
 	req := httptest.NewRequest(http.MethodGet, "/config.json", nil)
 	req.Host = "attacker.example"
@@ -170,6 +170,35 @@ func TestBrowserGuardNoOriginAllowed(t *testing.T) {
 	}
 	if body["error"] == "forbidden_origin" || body["error"] == "forbidden_host" {
 		t.Fatalf("guard rejected curl-like POST: %v", body)
+	}
+}
+
+// The packaged app's webview identity (Origin: tauri://localhost, stamped by
+// tauri-plugin-http on every native fetch) is exempted ONLY through
+// PairedAppOriginExempt, which validates the request's own pairing Bearer
+// (GDK-1120). This handler has no pairing store, so the identity alone — the
+// shape a hostile page inside anyone's webview shares — must still die here,
+// along with every lookalike. The credentialed acceptance is proven where a
+// pairing store exists: TestTerminalWebviewOriginCannotOpenTheSocket.
+func TestBrowserGuardTauriOriginWithoutPairingForbidden(t *testing.T) {
+	db, _ := fixture(t)
+	h := New(db, &config.Config{})
+
+	for _, origin := range []string{
+		"tauri://localhost",
+		"tauri://evil.example",
+		"tauri://localhost:8080",
+	} {
+		req := httptest.NewRequest(http.MethodPost, apiBase+"NMB-1/comment/", nil)
+		req.Host = "127.0.0.1:7777"
+		req.Header.Set("Origin", origin)
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("Origin %q: status %d, want 403; body %s", origin, rec.Code, rec.Body.String())
+		}
 	}
 }
 

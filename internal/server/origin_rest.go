@@ -35,6 +35,45 @@ func PairedOriginHostExempt(dir func() string) func(*http.Request) bool {
 	}
 }
 
+// PairedAppOriginExempt lets browserGuard's Origin check step aside for the
+// packaged app's webview identity. tauri-plugin-http stamps
+// `Origin: tauri://localhost` on every native fetch (nothing short of the
+// plugin's unsafe-headers feature can omit it), and allowedOrigin rightly
+// rejects non-http(s) schemes — so the packaged phone app was read-only
+// against every serve: each of its POSTs died as forbidden_origin while its
+// GETs sailed through (GDK-1120, measured against a live serve).
+//
+// Unlike the Host exempts, this one validates the credential itself:
+// AuthorizeMeta must return VerdictAccept for the request's own Bearer. A
+// hostile page in someone else's webview shares the tauri://localhost
+// identity but cannot present a pairing token (a page cannot set
+// Authorization on a WebSocket at all, and a cross-origin fetch with one
+// dies on a preflight this server never answers) — and on a serve with no
+// tokens at all there is no later gate, so "a gate will check it" is not
+// good enough here (see TestTerminalWebviewOriginCannotOpenTheSocket).
+// Terminal paths additionally require a scope that admits the terminal:
+// GDK-863's ruling — a serve token never learns where the shell is — applies
+// to this door too.
+func PairedAppOriginExempt(dir func() string) func(*http.Request) bool {
+	return func(r *http.Request) bool {
+		if r.Header.Get("Origin") != "tauri://localhost" {
+			return false
+		}
+		d := dir()
+		if d == "" {
+			return false
+		}
+		verdict, meta, err := pairing.AuthorizeMeta(d, bearerToken(r), time.Now())
+		if err != nil || verdict != pairing.VerdictAccept {
+			return false
+		}
+		if terminalPathAdmits(r.URL.Path) {
+			return pairing.AdmitsTerminal(meta.Scope)
+		}
+		return true
+	}
+}
+
 // handleOriginREST forwards method, path, query, headers, and body to this
 // process's embedded issuetap handler. It is not a mirror-write API: the
 // SQLite mirror is never the target. Writes go through the workspace origin
