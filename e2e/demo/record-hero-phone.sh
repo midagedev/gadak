@@ -37,6 +37,14 @@
 #   bash e2e/demo/record-hero-phone.sh --frames-only [video]
 #                     # re-extract the review keyframes from a finished take
 #
+# For the interleaved two-camera shoot — the phone bits happening inside the
+# desk take's away-wait, so one board carries both halves:
+#   bash e2e/demo/record-hero-phone.sh --warm-vite     # terminal 2, holds
+#   bash e2e/demo/record-hero-desk.sh                  # terminal 1, records
+#   bash e2e/demo/record-hero-phone.sh --reuse-vite    # when bit1_detached
+#                     # lands in e2e/.tmp/hero-desk/proof-take-1.jsonl
+#                     # (45s floor / 70s cap; the take needs ~25 of them)
+#
 # Requires a booted iOS simulator with a DEV build of dev.gadak.mobile
 # installed (`cd mobile && npm run tauri ios dev` once — the installed
 # binary points at the dev URL, so later takes only need the vite server).
@@ -101,6 +109,25 @@ if [[ "${1:-}" == "--frames-only" ]]; then
   exit 0
 fi
 
+# --warm-vite / --reuse-vite split the script at its one slow seam. The take
+# itself is ~25 seconds; starting the dev server is the minute in front of
+# it. The desk take's away-wait — the window the phone bits are supposed to
+# happen inside — has a 45s floor and a 70s cap (hero-desk.spec.ts), so a
+# genuinely interleaved shoot has to enter that window with vite already up.
+WARM_ONLY=""
+REUSE_VITE=""
+for arg in "$@"; do
+  case "$arg" in
+    --warm-vite) WARM_ONLY=1 ;;
+    --reuse-vite) REUSE_VITE=1 ;;
+  esac
+done
+# The stamp is the arming contract across the two processes: env vars live
+# inside the bundle and cannot be probed from out here, so a bare listener
+# on :5180 proves nothing about VITE_DEMO_TOUR. Only a server this script
+# started writes one, and --reuse-vite checks the pid is still that one.
+STAMP="$OUT/vite-armed.json"
+
 # ── Preconditions, each naming its own fix ─────────────────────────────────
 command -v ffmpeg >/dev/null || { echo "record-hero-phone: ffmpeg required" >&2; exit 1; }
 command -v xcrun >/dev/null || { echo "record-hero-phone: Xcode command line tools required" >&2; exit 1; }
@@ -121,18 +148,23 @@ fi
 # healthz answer would also come from a leftover e2e serve on this port
 # (measured 2026-08-29 — one was squatting :7794 and served the demo mirror
 # instead). The board is the discriminator, so ask for it by key.
-if ! curl -sf -m 3 "http://127.0.0.1:${PORT}/healthz" >/dev/null; then
-  echo "record-hero-phone: no serve on 127.0.0.1:${PORT}" >&2
-  echo "record-hero-phone: run 'bash e2e/demo/record-hero-desk.sh --serve-only' first" >&2
-  exit 1
-fi
-board="$(curl -sf -m 5 "http://127.0.0.1:${PORT}/api/v1/issues/bootstrap/" 2>/dev/null || true)"
-if [[ "$board" != *'"STD-'* ]]; then
-  echo "record-hero-phone: the serve on :${PORT} is not the hero fixture (no STD issues)" >&2
-  echo "record-hero-phone: stop it, then 'bash e2e/demo/record-hero-desk.sh --serve-only'" >&2
-  exit 1
-fi
-open_key="$(printf '%s' "$board" | python3 -c '
+#
+# --warm-vite skips all of it: warming only starts a dev server, and in the
+# interleaved shoot the serve it will proxy to is the desk take's, which
+# does not exist yet. The run that actually films makes every check below.
+if [[ -z "$WARM_ONLY" ]]; then
+  if ! curl -sf -m 3 "http://127.0.0.1:${PORT}/healthz" >/dev/null; then
+    echo "record-hero-phone: no serve on 127.0.0.1:${PORT}" >&2
+    echo "record-hero-phone: run 'bash e2e/demo/record-hero-desk.sh --serve-only' first" >&2
+    exit 1
+  fi
+  board="$(curl -sf -m 5 "http://127.0.0.1:${PORT}/api/v1/issues/bootstrap/" 2>/dev/null || true)"
+  if [[ "$board" != *'"STD-'* ]]; then
+    echo "record-hero-phone: the serve on :${PORT} is not the hero fixture (no STD issues)" >&2
+    echo "record-hero-phone: stop it, then 'bash e2e/demo/record-hero-desk.sh --serve-only'" >&2
+    exit 1
+  fi
+  open_key="$(printf '%s' "$board" | python3 -c '
 import json, sys
 doc = json.load(sys.stdin)
 rows = doc.get("issues") or []
@@ -141,11 +173,12 @@ rows = doc.get("issues") or []
 open_rows = [r for r in rows if r.get("status_category") != "done"]
 print(open_rows[0]["issue_key"] if open_rows else "")
 ' 2>/dev/null || true)"
-if [[ -z "$open_key" ]]; then
-  echo "record-hero-phone: the fixture has no open issue — bit 4 would have nothing to close" >&2
-  exit 1
+  if [[ -z "$open_key" ]]; then
+    echo "record-hero-phone: the fixture has no open issue — bit 4 would have nothing to close" >&2
+    exit 1
+  fi
+  echo "record-hero-phone: fixture ok (first open row ${open_key})"
 fi
-echo "record-hero-phone: fixture ok (first open row ${open_key})"
 
 # ── The dev server the phone loads ─────────────────────────────────────────
 # Node pinned to .nvmrc for the same reason the desk rig pins it (CLAUDE.md:
@@ -166,29 +199,68 @@ VITE_PID=""
 REC_PID=""
 cleanup() {
   [[ -n "$REC_PID" ]] && kill -INT "$REC_PID" 2>/dev/null || true
-  [[ -n "$VITE_PID" ]] && kill "$VITE_PID" 2>/dev/null || true
+  # Only the process that started the dev server tears it down (and clears
+  # the stamp with it); a --reuse-vite run leaves VITE_PID empty on purpose,
+  # so finishing a take does not pull the warm server out from under the
+  # next one.
+  if [[ -n "$VITE_PID" ]]; then
+    kill "$VITE_PID" 2>/dev/null || true
+    rm -f "$STAMP"
+  fi
   # The appearance is the operator's machine state, not this take's.
   xcrun simctl ui booted appearance light >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
 
-existing="$(lsof -tiTCP:"$VITE_PORT" -sTCP:LISTEN 2>/dev/null || true)"
-if [[ -n "$existing" ]]; then
-  # strictPort means a squatter is a hard failure later; and an unarmed dev
-  # server on this port would produce a take where nothing happens at all.
-  echo "record-hero-phone: :${VITE_PORT} is in use — stop it (the tour arms at dev-server start)" >&2
-  # shellcheck disable=SC2086
-  ps -o pid=,command= -p $existing >&2 || true
-  exit 1
-fi
+if [[ -n "$REUSE_VITE" ]]; then
+  [[ -f "$STAMP" ]] || {
+    echo "record-hero-phone: --reuse-vite but no $STAMP — run --warm-vite first" >&2
+    exit 1
+  }
+  warm_pid="$(sed -n 's/.*"pid":\([0-9]*\).*/\1/p' "$STAMP")"
+  warm_serve="$(sed -n 's/.*"serve_port":\([0-9]*\).*/\1/p' "$STAMP")"
+  kill -0 "$warm_pid" 2>/dev/null || {
+    echo "record-hero-phone: the warmed dev server (pid $warm_pid) is gone" >&2
+    exit 1
+  }
+  # A warm server proxies to the port it was started with; pointing the take
+  # at a different serve than the one it films is the two-unrelated-halves
+  # failure this script exists to prevent.
+  [[ "$warm_serve" == "$PORT" ]] || {
+    echo "record-hero-phone: warmed against :${warm_serve}, asked for :${PORT}" >&2
+    exit 1
+  }
+  echo "record-hero-phone: reusing the warmed dev server (pid $warm_pid)"
+else
+  existing="$(lsof -tiTCP:"$VITE_PORT" -sTCP:LISTEN 2>/dev/null || true)"
+  if [[ -n "$existing" ]]; then
+    # strictPort means a squatter is a hard failure later; and an unarmed dev
+    # server on this port would produce a take where nothing happens at all.
+    echo "record-hero-phone: :${VITE_PORT} is in use — stop it (the tour arms at dev-server start)" >&2
+    # shellcheck disable=SC2086
+    ps -o pid=,command= -p $existing >&2 || true
+    exit 1
+  fi
 
-echo "record-hero-phone: starting armed dev server (proxy → :${PORT})…"
-(
-  cd "$ROOT/mobile"
-  GADAK_SERVE_PORT="$PORT" VITE_DEMO_TOUR=1 VITE_DEV_SHELL=1 \
-    VITE_DEV_SHELL_LABEL="$SHELL_LABEL" exec npm run dev
-) >"$OUT/vite.log" 2>&1 &
-VITE_PID=$!
+  # Close the app before the server it points at appears. An instance left
+  # running from an earlier take reconnects to a fresh dev server and
+  # reloads — and the reload re-arms the tour, which walks and CLOSES AN
+  # ISSUE with no camera on it. Measured 2026-08-29: warming for an
+  # interleaved shoot silently transitioned STD-4 seventeen seconds before
+  # the take that was supposed to close it began, and the film's count went
+  # 12 → 10 for reasons the footage never shows.
+  xcrun simctl terminate booted "$BUNDLE_ID" >/dev/null 2>&1 || true
+
+  echo "record-hero-phone: starting armed dev server (proxy → :${PORT})…"
+  (
+    cd "$ROOT/mobile"
+    GADAK_SERVE_PORT="$PORT" VITE_DEMO_TOUR=1 VITE_DEV_SHELL=1 \
+      VITE_DEV_SHELL_LABEL="$SHELL_LABEL" exec npm run dev
+  ) >"$OUT/vite.log" 2>&1 &
+  VITE_PID=$!
+  printf '{"pid":%s,"vite_port":%s,"serve_port":%s,"label":"%s"}\n' \
+    "$VITE_PID" "$VITE_PORT" "$PORT" "$SHELL_LABEL" >"$STAMP"
+fi
 
 for i in $(seq 1 80); do
   if curl -sf -m 2 "http://localhost:${VITE_PORT}/" >/dev/null; then break; fi
@@ -206,6 +278,14 @@ curl -sf -m 5 "http://localhost:${VITE_PORT}/api/v1/terminal/sessions/" >/dev/nu
   exit 1
 }
 echo "record-hero-phone: dev server armed, proxy reaching the serve"
+
+if [[ -n "$WARM_ONLY" ]]; then
+  echo "record-hero-phone: warm — holding :${VITE_PORT} armed for --reuse-vite (Ctrl-C to stop)"
+  # Same shape as the desk rig's --serve-only hold: a sleep loop, so the EXIT
+  # trap is the only way out and Ctrl-C never leaves the port held.
+  while kill -0 "$VITE_PID" 2>/dev/null; do sleep 1; done
+  exit 0
+fi
 
 # ── The take ───────────────────────────────────────────────────────────────
 video="$OUT/take.mov"

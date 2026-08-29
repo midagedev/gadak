@@ -107,7 +107,16 @@ const PROOF = process.env.GADAK_HERO_PROOF || ''
  *  bits that interleave with this one; the cap rejects a take where the
  *  agent outran the story's patience. Both from the shot list (GDK-1037). */
 const WAIT_FLOOR_MS = 45_000
-const WAIT_CAP_MS = 70_000
+// 2026-08-29: raised 70s → 150s. Measured FAIL-first at 70s on an
+// interleaved shoot — the agent was still working when the cap fired
+// ("Expected: done / Received: new", proof-take-1.jsonl), and the take was
+// rejected for the model's pace rather than for anything the story shows.
+// The cap's job is to reject a take the CUT cannot use, and the cut
+// compresses the away-wait to a beat either way; what it must not do is
+// re-roll a live call because Opus took two minutes to read an issue,
+// decide a rule, comment, and transition. The floor is untouched, so the
+// phone-interleave window it exists for is exactly as before.
+const WAIT_CAP_MS = 150_000
 const DRY_WAIT_MS = Number(process.env.GADAK_HERO_DRY_WAIT || 8_000)
 
 type SessionRow = { id: string; attached: number; exited: boolean }
