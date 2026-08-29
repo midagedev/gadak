@@ -79,6 +79,8 @@ export const strings = {
       skillLead: 'Hand the same mirror to your coding agent:',
       mcpLead: 'For MCP clients without a shell (Claude Desktop):',
       setupLink: 'Pasteable setup blocks for every tool → docs/AGENT_SETUP.md',
+      heroCaption:
+        'One serve, one terminal session, twenty-six seconds. A ticket is handed to an agent and the pane is closed; the work keeps running with nobody watching. A phone closes another issue from the same board. The desk comes back to the scrollback it left and a count that already moved — including what the phone did.',
       videoCaption: 'A question JQL cannot ask, answered from the local mirror.',
       mcpCaption:
         'A live Claude Code session on the mirror: issues and wiki pages in one index — the join Jira and Confluence never make for you.',
@@ -202,6 +204,8 @@ export const strings = {
       skillLead: '같은 미러를 코딩 에이전트에게 넘기려면:',
       mcpLead: '셸이 없는 MCP 클라이언트(Claude Desktop)에는:',
       setupLink: '도구별 붙여넣기 블록 → docs/AGENT_SETUP.md',
+      heroCaption:
+        'serve 하나, 터미널 세션 하나, 26초. 티켓을 에이전트에게 넘기고 패널을 닫습니다 — 보는 사람이 없어도 일은 계속됩니다. 폰이 같은 보드에서 다른 이슈를 닫습니다. 자리로 돌아오면 두고 간 스크롤백이 그대로 있고, 카운트는 이미 움직여 있습니다 — 폰이 한 것까지 포함해서.',
       videoCaption: 'JQL이 표현 못 하는 질문 하나를, 로컬 미러에서 답하기.',
       mcpCaption:
         '미러 위의 실제 Claude Code 세션: 이슈와 위키 페이지가 하나의 인덱스 — Jira와 Confluence가 대신 만들어 주지 않는 조인.',
