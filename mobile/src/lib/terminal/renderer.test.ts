@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { readBufferOffset, readBufferType, readMouseTrackingMode } from './renderer'
+import { TERMINAL_CHROME_VARS } from '../../../../web/src/lib/terminal/protocol'
 
 /*
  * GDK-899 — the reads that feed the scroll router's context. They are pure
@@ -62,6 +63,31 @@ describe('GDK-899 — renderer wiring (source contract)', () => {
 
   it('scrollLines guards the call the same way', () => {
     expect(rendererSrc).toContain('term.scrollLines?.(n)')
+  })
+})
+
+/*
+ * GDK-1109 — the chrome variable names have one owner,
+ * web/src/lib/terminal/protocol.ts TERMINAL_CHROME_VARS. The phone used to
+ * spell its own copy of the list, so a web rename dropped the phone's chrome
+ * to fallbacks with nothing red. The list is pinned against app.css on the
+ * web side (protocol.test.ts); this pin is the phone's half — this renderer
+ * reads the names through the shared list and never re-spells one.
+ */
+describe('GDK-1109 — chrome variable names come from the shared protocol list', () => {
+  it('every chrome slot is read through TERMINAL_CHROME_VARS', () => {
+    for (const [slot, name] of Object.entries(TERMINAL_CHROME_VARS)) {
+      expect(rendererSrc, `${slot} must be read via TERMINAL_CHROME_VARS (${name})`).toContain(
+        `TERMINAL_CHROME_VARS.${slot}`,
+      )
+    }
+  })
+
+  it('no chrome name is re-spelled as a literal in this renderer', () => {
+    // A '--color-*' literal here is the copy drift this gate exists to
+    // catch. Font and size tokens (--font-mono, --text-terminal) are not
+    // chrome and stay as literals.
+    expect(rendererSrc.includes("'--color-")).toBe(false)
   })
 })
 

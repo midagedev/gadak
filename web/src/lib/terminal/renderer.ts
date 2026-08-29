@@ -14,7 +14,7 @@
  * code (DOM hosts, cssVar, the xterm dynamic import). Re-exported here
  * because this is where the web app already looks.
  */
-import { createUtf8StreamDecoder } from './protocol'
+import { createUtf8StreamDecoder, TERMINAL_CHROME_VARS } from './protocol'
 import type { TerminalRenderer } from './protocol'
 
 export { createUtf8StreamDecoder }
@@ -43,7 +43,8 @@ export function fontFamily(read: (name: string) => string = readCssVar): string 
 }
 
 /** Chrome colours only — ANSI palette stays the library default so a light
- *  paper theme does not invert black/white. */
+ *  paper theme does not invert black/white. Variable names come from the
+ *  shared list in ./protocol (GDK-1109); the fallbacks are web-owned hexes. */
 function chromeTheme(): {
   background: string
   foreground: string
@@ -52,11 +53,11 @@ function chromeTheme(): {
   selectionBackground: string
 } {
   return {
-    background: cssVar('--color-bg-base', '#f4efe4'),
-    foreground: cssVar('--color-text-primary', '#1c1812'),
-    cursor: cssVar('--color-accent', '#2e4560'),
-    cursorAccent: cssVar('--color-bg-base', '#f4efe4'),
-    selectionBackground: cssVar('--color-bg-active', '#cfc0a4'),
+    background: cssVar(TERMINAL_CHROME_VARS.background, '#f4efe4'),
+    foreground: cssVar(TERMINAL_CHROME_VARS.foreground, '#1c1812'),
+    cursor: cssVar(TERMINAL_CHROME_VARS.cursor, '#2e4560'),
+    cursorAccent: cssVar(TERMINAL_CHROME_VARS.cursorAccent, '#f4efe4'),
+    selectionBackground: cssVar(TERMINAL_CHROME_VARS.selectionBackground, '#cfc0a4'),
   }
 }
 

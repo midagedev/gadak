@@ -142,6 +142,28 @@ export interface TerminalRenderer {
   readonly name: string
 }
 
+/*
+ * The chrome CSS variables both renderers read (GDK-1109). The *names* have
+ * one owner here because the phone imports this module directly: before
+ * this, each renderer carried its own copy of the list, so a web rename left
+ * the phone's chrome silently on its fallbacks — no gate fired. The
+ * *fallback values* stay with each renderer (web pins paper-theme hexes;
+ * the phone passes '' and lets xterm's own default stand until its
+ * stylesheet loads). protocol.test.ts pins this list against app.css, where
+ * the tokens are declared.
+ */
+
+/** xterm theme slot → the app token that paints it. Chrome only — the ANSI
+ * palette stays the library default so a light paper theme does not invert
+ * black/white. */
+export const TERMINAL_CHROME_VARS = {
+  background: '--color-bg-base',
+  foreground: '--color-text-primary',
+  cursor: '--color-accent',
+  cursorAccent: '--color-bg-base',
+  selectionBackground: '--color-bg-active',
+} as const
+
 /** Streaming UTF-8 decoder so a 256 KiB ring replay that splits a character
  *  across two write() calls still renders one glyph. fatal:false matches
  *  "bytes from a PTY, never a contract that they are well-formed". */

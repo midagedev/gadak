@@ -2,13 +2,15 @@
 // must not resolve ghostty-web (WASM, megabytes) or the webgl addon (paints
 // a blank canvas headless — measured on the web side).
 //
-// The contract (TerminalRenderer, createUtf8StreamDecoder) lives in
-// web/src/lib/terminal/protocol.ts so this file never imports
-// web/src/lib/terminal/renderer.ts, which holds `import('ghostty-web')`.
-// Chrome colours copy the web xterm branch's CSS variable *list*, not hex.
+// The contract (TerminalRenderer, createUtf8StreamDecoder,
+// TERMINAL_CHROME_VARS) lives in web/src/lib/terminal/protocol.ts so this
+// file never imports web/src/lib/terminal/renderer.ts, which holds
+// `import('ghostty-web')`. Chrome colour *names* come from that shared
+// list (GDK-1109); the fallback values are phone-owned.
 
 import {
   createUtf8StreamDecoder,
+  TERMINAL_CHROME_VARS,
   type TerminalRenderer,
 } from '../../../../web/src/lib/terminal/protocol'
 import type { CursorKeyMode } from './keys'
@@ -26,8 +28,9 @@ function fontFamily(): string {
 }
 
 /** Chrome colours only — ANSI palette stays the library default so a light
- *  paper theme does not invert black/white. Variable list copied from
- *  web/src/lib/terminal/renderer.ts chromeTheme (xterm branch). */
+ *  paper theme does not invert black/white. Variable names come from the
+ *  shared protocol list (GDK-1109); the phone's fallbacks are empty so
+ *  xterm's own default stands until the stylesheet loads. */
 function chromeTheme(): {
   background: string
   foreground: string
@@ -36,11 +39,11 @@ function chromeTheme(): {
   selectionBackground: string
 } {
   return {
-    background: cssVar('--color-bg-base', ''),
-    foreground: cssVar('--color-text-primary', ''),
-    cursor: cssVar('--color-accent', ''),
-    cursorAccent: cssVar('--color-bg-base', ''),
-    selectionBackground: cssVar('--color-bg-active', ''),
+    background: cssVar(TERMINAL_CHROME_VARS.background, ''),
+    foreground: cssVar(TERMINAL_CHROME_VARS.foreground, ''),
+    cursor: cssVar(TERMINAL_CHROME_VARS.cursor, ''),
+    cursorAccent: cssVar(TERMINAL_CHROME_VARS.cursorAccent, ''),
+    selectionBackground: cssVar(TERMINAL_CHROME_VARS.selectionBackground, ''),
   }
 }
 
