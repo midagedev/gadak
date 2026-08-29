@@ -860,7 +860,9 @@ export function prioritySortRank(rank: number | null | undefined): number {
  * Never a status display name.
  *
  * Accepts an issue or a raw key so the list, the transition control, and
- * transition to_category strings share one decision.
+ * transition to_category strings share one decision. Go's internal/statuscat
+ * owns the canonical fold — this is its view-side mirror, kept because
+ * saved-view status_category axes and transition keys arrive as raw REST keys.
  */
 export function effectiveCategory(issueOrCat: IssueLite | string | null | undefined): StatusCategory {
   const raw =

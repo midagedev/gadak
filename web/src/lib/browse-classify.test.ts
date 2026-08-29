@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  browseLabelParts,
   classifyAtlassianLink,
   extractBrowseKey,
   extractWikiPageId,
@@ -32,6 +33,36 @@ describe('extractWikiPageId', () => {
   it('rejects other wiki paths', () => {
     expect(extractWikiPageId('/wiki/spaces/TEAM')).toBeNull()
     expect(extractWikiPageId('/browse/NMA-1')).toBeNull()
+  })
+})
+
+// GDK-1106: the tab label reads its parts here, so it inherits the
+// classifier's semantics (lowercase keys normalized, key must end at a path
+// boundary) instead of a drifted inline copy.
+describe('browseLabelParts', () => {
+  it('reads an issue key, normalizing a lowercase url', () => {
+    expect(browseLabelParts('/browse/NMA-12')).toEqual({ kind: 'issue', key: 'NMA-12' })
+    expect(browseLabelParts('/browse/nma-12')).toEqual({ kind: 'issue', key: 'NMA-12' })
+    // A following path segment is the classifier's boundary (same contract
+    // as extractBrowseKey): the key ends at / or end, mid-segment never.
+    expect(browseLabelParts('/browse/NMA-12/backlog')).toEqual({ kind: 'issue', key: 'NMA-12' })
+  })
+
+  it('reads the space and page id from a wiki pages path', () => {
+    expect(browseLabelParts('/wiki/spaces/TEAM/pages/4213')).toEqual({
+      kind: 'page',
+      space: 'TEAM',
+      pageId: '4213',
+    })
+  })
+
+  it('stops the key at a path boundary — a longer segment is not a key', () => {
+    expect(browseLabelParts('/browse/ABC-123x')).toBeNull()
+  })
+
+  it('returns null for paths that carry neither', () => {
+    expect(browseLabelParts('/secure/Dashboard.jspa')).toBeNull()
+    expect(browseLabelParts('/wiki/spaces/TEAM')).toBeNull()
   })
 })
 

@@ -4,6 +4,9 @@ import (
 	"database/sql"
 	"regexp"
 	"sort"
+	"strings"
+
+	"github.com/midagedev/gadak/internal/fields"
 )
 
 // item_refs holds text-derived cross-references between mirrored items
@@ -20,10 +23,13 @@ type ItemRef struct {
 
 // Package-level regexes: compiled once for sync and backfill throughput.
 var (
-	// /browse/ABC-123 in ADF / URL strings (via=url).
-	reBrowseIssue = regexp.MustCompile(`/browse/([A-Z][A-Z0-9]+-\d+)`)
-	// Bare issue key in plain text; must be filtered by known project keys (via=text).
-	reBareIssue = regexp.MustCompile(`\b([A-Z][A-Z0-9]+)-(\d+)\b`)
+	// /browse/ABC-123 in ADF / URL strings (via=url). Key body assembled from
+	// fields.IssueKeyBare (single owner, GDK-1103).
+	reBrowseIssue = regexp.MustCompile(`/browse/(` + fields.IssueKeyBare + `)`)
+	// Bare issue key in plain text; must be filtered by known project keys
+	// (via=text). Key body assembled from fields.IssueKeyBare (single owner,
+	// GDK-1103); the capture and \b anchors are this scan's.
+	reBareIssue = regexp.MustCompile(`\b(` + fields.IssueKeyBare + `)\b`)
 	// Confluence pretty URL …/wiki/spaces/…/pages/123…
 	reWikiPage = regexp.MustCompile(`/wiki/spaces/[^/\s]+/pages/(\d+)`)
 	// Query-style pageId=123
@@ -49,16 +55,18 @@ func ExtractIssueRefsFromPage(bodyADF, bodyText string, knownProjects map[string
 	}
 	if len(knownProjects) > 0 && bodyText != "" {
 		for _, m := range reBareIssue.FindAllStringSubmatch(bodyText, -1) {
-			if len(m) < 3 {
+			if len(m) < 2 || m[1] == "" {
 				continue
 			}
-			proj, num := m[1], m[2]
+			// The owner body matches the whole key; the project half is what
+			// knownProjects filters on (its charset has no hyphen, so the
+			// first one separates key halves).
+			proj, _, _ := strings.Cut(m[1], "-")
 			if !knownProjects[proj] {
 				continue
 			}
-			key := proj + "-" + num
-			if _, ok := best[key]; !ok {
-				best[key] = "text"
+			if _, ok := best[m[1]]; !ok {
+				best[m[1]] = "text"
 			}
 		}
 	}

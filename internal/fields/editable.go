@@ -231,3 +231,14 @@ func IssueKeyLiteral(s string) bool {
 // Same pattern cmd/gadak/views.go and internal/mcp/tools.go used to each
 // compile. Callers still own ToUpper/Trim so those sites stay byte-identical.
 var issueKeyRe = regexp.MustCompile(`^[A-Z][A-Z0-9]*-\d+$`)
+
+// IssueKeyBare is the regex body of a bare Jira issue key as it appears in
+// free text: a project key of two or more characters (a letter, then letters
+// and digits), a hyphen, one or more digits. Unanchored on purpose —
+// consumers add their own anchors (\b, /browse/…) and capture groups around
+// it. Single owner of the scan body (GDK-1103): cmd/gadak's dev scan and
+// internal/store's item-ref extraction assemble from it, so the copies
+// cannot drift. IssueKeyLiteral above stays the anchored whole-string check
+// and is pinned one character looser on project length (A-1 passes there,
+// not here).
+const IssueKeyBare = `[A-Z][A-Z0-9]+-[0-9]+`

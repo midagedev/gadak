@@ -28,7 +28,7 @@
 import * as api from './api'
 import * as db from './db'
 import { config, isDesktop } from './config'
-import { classifyAtlassianLink, githubTabLabel } from './browse-classify'
+import { browseLabelParts, classifyAtlassianLink, githubTabLabel } from './browse-classify'
 import { invalidate } from './detail-cache.svelte'
 import { issues } from '../stores/issues.svelte'
 import { me } from '../stores/me.svelte'
@@ -461,10 +461,11 @@ export function tabLabel(tab: BrowseTab): string {
   if (tab.title.trim()) return tab.title.trim()
   try {
     const u = new URL(tab.url)
-    const browsePath = u.pathname.match(/\/browse\/([A-Z][A-Z0-9]*-\d+)/)
-    if (browsePath) return browsePath[1]
-    const wiki = u.pathname.match(/\/wiki\/spaces\/([^/]+)\/pages\/(\d+)/)
-    if (wiki) return `${wiki[1]} / ${wiki[2]}`
+    // Path parsing belongs to browse-classify (GDK-1106) — the label rides
+    // the same extractors the link classifier uses.
+    const parts = browseLabelParts(u.pathname)
+    if (parts?.kind === 'issue') return parts.key
+    if (parts?.kind === 'page') return `${parts.space} / ${parts.pageId}`
     const gh = githubTabLabel(tab.url)
     if (gh) return gh
     return u.host

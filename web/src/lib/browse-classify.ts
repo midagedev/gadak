@@ -17,7 +17,7 @@ export interface ClassifiedAtlassianLink {
 
 const ISSUE_KEY_RE = /^[A-Z][A-Z0-9]*-\d+$/
 const BROWSE_PATH_RE = /\/browse\/([A-Za-z][A-Za-z0-9]*-\d+)(?:\/|$)/
-const WIKI_PAGE_PATH_RE = /\/wiki\/spaces\/[^/]+\/pages\/(\d+)/
+const WIKI_PAGE_PATH_RE = /\/wiki\/spaces\/([^/]+)\/pages\/(\d+)/
 
 /** Issue key in a /browse/KEY path, uppercased. Null when the path is not one. */
 export function extractBrowseKey(href: string): string | null {
@@ -30,7 +30,26 @@ export function extractBrowseKey(href: string): string | null {
 /** Confluence content id in a /wiki/spaces/…/pages/ID path. */
 export function extractWikiPageId(href: string): string | null {
   const m = href.match(WIKI_PAGE_PATH_RE)
-  return m ? m[1] : null
+  return m ? m[2] : null
+}
+
+export type BrowseLabelParts =
+  | { kind: 'issue'; key: string }
+  | { kind: 'page'; space: string; pageId: string }
+
+/** Key-bearing parts of an Atlassian browse path, for naming a tab before its
+ *  page answers with a title (GDK-1106): the issue key from a /browse/KEY
+ *  path, or the wiki space and page id from a /wiki/spaces/…/pages/ID path.
+ *  Null when the path carries neither — callers fall back to the host.
+ *  Parsing is the same as classifyAtlassianLink (lowercase keys normalized,
+ *  the key must end at a path boundary), so the tab label cannot drift from
+ *  the classifier. */
+export function browseLabelParts(pathname: string): BrowseLabelParts | null {
+  const key = extractBrowseKey(pathname)
+  if (key) return { kind: 'issue', key }
+  const wiki = pathname.match(WIKI_PAGE_PATH_RE)
+  if (wiki) return { kind: 'page', space: wiki[1], pageId: wiki[2] }
+  return null
 }
 
 const GITHUB_PR_RE = /^\/([^/]+\/[^/]+)\/pull\/(\d+)(?:[/?#]|$)/

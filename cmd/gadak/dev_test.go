@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/fields"
 	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/pairing"
 	"github.com/midagedev/gadak/internal/store"
@@ -30,6 +31,17 @@ func TestIssueKeys(t *testing.T) {
 	// owns rejecting it, so the extractor stays dumb on purpose.
 	if got := issueKeys("fixes CVE-2024-1234"); len(got) == 0 {
 		t.Fatal("extractor should stay broad; the mirror filters")
+	}
+}
+
+// GDK-1103: the scan body has a single owner — this pattern must be assembled
+// from fields.IssueKeyBare so a charset edit here cannot drift silently from
+// internal/store's copy (a re-inlined body that diverges stops containing the
+// owner fragment).
+func TestIssueKeyScanBodyHasSingleOwner(t *testing.T) {
+	if !strings.Contains(issueKeyRe.String(), fields.IssueKeyBare) {
+		t.Fatalf("issueKeyRe = %q, want it assembled from fields.IssueKeyBare (%q)",
+			issueKeyRe.String(), fields.IssueKeyBare)
 	}
 }
 

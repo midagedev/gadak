@@ -8,7 +8,10 @@
 // net/http (same reason jirafields was split from fields for the store
 // firewall, docs/ARCHITECTURE.md:79). Stdlib only — nothing here may grow a
 // dependency. Never key on status display names: they are localized
-// per account ("진행 중").
+// per account ("진행 중"). The web mirrors this fold in
+// web/src/lib/view-config.ts (effectiveCategory — saved-view status_category
+// axes and raw transition keys need it); this package stays the single
+// owner.
 package statuscat
 
 // KnownCategory maps a Jira statusCategory key or a gadak token onto the

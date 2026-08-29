@@ -6,10 +6,29 @@ import (
 	"encoding/json"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
+
+	"github.com/midagedev/gadak/internal/fields"
 )
 
 // ── pure extraction ─────────────────────────────────────────────────────────
+
+// GDK-1103: the bare-key scan body has a single owner — both regexes here
+// must be assembled from fields.IssueKeyBare so a charset edit cannot drift
+// silently from cmd/gadak's dev-scan copy (a re-inlined body that diverges
+// stops containing the owner fragment).
+func TestIssueKeyScanBodyHasSingleOwner(t *testing.T) {
+	for name, src := range map[string]string{
+		"reBrowseIssue": reBrowseIssue.String(),
+		"reBareIssue":   reBareIssue.String(),
+	} {
+		if !strings.Contains(src, fields.IssueKeyBare) {
+			t.Errorf("%s = %q, want it assembled from fields.IssueKeyBare (%q)",
+				name, src, fields.IssueKeyBare)
+		}
+	}
+}
 
 func TestExtractIssueRefsFromPageURL(t *testing.T) {
 	adf := `{"type":"doc","content":[{"type":"text","text":"see https://x.example/browse/NMB-12 and /browse/DEMO-3"}]}`

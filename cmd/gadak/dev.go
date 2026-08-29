@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/fields"
 	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/store"
@@ -355,8 +356,9 @@ func refreshDevLinks(ctx context.Context, db *store.DB, client *jira.Client, key
 
 // issueKeyRe is deliberately broad — anything shaped like a key. Matches are
 // filtered against the mirror before any write, so a CVE-2024 style false
-// positive costs one lookup, never a bad link.
-var issueKeyRe = regexp.MustCompile(`\b[A-Z][A-Z0-9]+-[0-9]+\b`)
+// positive costs one lookup, never a bad link. The body is fields.IssueKeyBare
+// (single owner, GDK-1103); the \b anchors are this scan's.
+var issueKeyRe = regexp.MustCompile(`\b` + fields.IssueKeyBare + `\b`)
 
 // issueKeys extracts deduped issue-key candidates from free text
 // (PR titles, branch names), in first-seen order.
