@@ -189,6 +189,40 @@ test('GDK-1053: the authored wall fits its frame — no track blowout at the aud
   }
 })
 
+/*
+ * GDK-1068: every text in the bars SVG must land inside the viewBox. The
+ * value label sits at pad + barWidth + 6, so the longest bar (barWidth =
+ * full scale) put its label at x=326 in a 320-wide viewBox — clipped at any
+ * viewport, whatever the data, since the max bar always uses the full scale.
+ * getBBox() is in user (viewBox) units, so the comparison is scale-free.
+ */
+test('GDK-1068: bar value labels land inside the viewBox', async ({ page }) => {
+  const html = readFileSync(
+    join(E2E_DIR, '..', 'examples', 'dashboards', 'triage.html'),
+    'utf8',
+  )
+  const saved = await saveDash(page.request, `${PREFIX} ${RUN} bars`, html, TRIAGE_DS)
+  await gotoApp(page)
+  await page.locator(`[data-dashboard-id="${saved.id}"]`).click()
+  const fl = page.frameLocator(FRAME_SEL)
+  await expect(fl.locator('#stamp')).toHaveText('4/4 datasources')
+  await expect(fl.locator('#bars svg')).toBeVisible()
+
+  const frame = page.frames().find((f) => f.url().includes('/render/'))
+  expect(frame, 'render frame inspectable from the test (protocol-level)').toBeTruthy()
+  const worstOverhang = await frame!.evaluate(() => {
+    const svg = document.querySelector('#bars svg') as SVGSVGElement
+    const vbW = svg.viewBox.baseVal.width
+    let worst = -Infinity
+    for (const t of svg.querySelectorAll('text')) {
+      const b = (t as SVGTextElement).getBBox()
+      worst = Math.max(worst, b.x + b.width - vbW)
+    }
+    return worst
+  })
+  expect(worstOverhang, 'user-unit overhang past the viewBox right edge').toBeLessThanOrEqual(0)
+})
+
 test('the dash= URL param restores the dashboard on a cold boot', async ({ page }) => {
   const saved = await saveDash(
     page.request,

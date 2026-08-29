@@ -235,7 +235,10 @@ function renderBars(res) {
     return;
   }
   var NS = 'http://www.w3.org/2000/svg';
-  var W = 320, rowH = 26, pad = 74;
+  // valRoom reserves the value label's width inside the viewBox: the longest
+  // bar's label sits at pad + barWidth + 6, so bars must scale to the space
+  // left of that or the label lands past W and clips (GDK-1068).
+  var W = 320, rowH = 26, pad = 74, valRoom = 34;
   var max = 1;
   var cats = ['new', 'inprogress', 'done'];
   var counts = {};
@@ -256,12 +259,12 @@ function renderBars(res) {
     svg.appendChild(label);
     var rect = document.createElementNS(NS, 'rect');
     rect.setAttribute('x', pad); rect.setAttribute('y', y + 4);
-    rect.setAttribute('width', Math.round((W - pad) * n / max));
+    rect.setAttribute('width', Math.round((W - pad - valRoom) * n / max));
     rect.setAttribute('height', 14); rect.setAttribute('rx', 3);
     rect.setAttribute('fill', fills[cat]);
     svg.appendChild(rect);
     var val = document.createElementNS(NS, 'text');
-    val.setAttribute('x', pad + Math.round((W - pad) * n / max) + 6);
+    val.setAttribute('x', pad + Math.round((W - pad - valRoom) * n / max) + 6);
     val.setAttribute('y', y + 16);
     val.setAttribute('fill', '#e8ecf4');
     val.textContent = String(n);
