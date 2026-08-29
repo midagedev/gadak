@@ -444,6 +444,22 @@ and pair again."), never apologize, never quote server internals.
   `grep -rn --exclude=vocabulary.test.ts "Queue\|'Mine'\|>Mine<\|>All<" src e2e`
   → no hits.
 
+- **Webview CSP `connect-src` (GDK-1137)** — `src/lib/csp.test.ts` in
+  `npm test`. The packaged webview may only `connect` to its own origin:
+  `'self'` and nothing else. Every network path is either same-origin
+  (the demo bundle's `window.fetch`, the dev `/api` proxy) or native and
+  outside CSP entirely (`plugin-http`, `plugin-websocket`); tauri's own iOS
+  IPC tries an `ipc://localhost` fetch, is refused by this same policy, and
+  falls back to `window.ipc.postMessage` — measured in the tauri 2.11.5
+  crate's `scripts/ipc-protocol.js`, so `'self'` costs nothing there. No dev
+  exception exists because none is needed: on iOS dev,
+  `PROXY_DEV_SERVER` (`all(dev, mobile)`) routes the page through
+  `tauri://localhost` and hands vite's responses to the webview verbatim —
+  dev HTML carries no CSP header at all, so HMR's `ws://localhost:5180` and
+  the dev terminal socket never consult this value. The capability file
+  (`http:default` → ts.net + loopback) was already narrow; this closes the
+  gap where the CSP alone would have let the webview fetch any origin.
+
 ## 10. Shell — the terminal tab (GDK-865)
 
 The phone attaches to a PTY session running on the paired `gadak serve`.
