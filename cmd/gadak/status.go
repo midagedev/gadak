@@ -71,8 +71,16 @@ func cmdStatus(args []string) error {
 	if n, err := db.TableCount(ctx, "issues"); err == nil {
 		st["issues"] = n
 	}
-	if n, err := db.TableCount(ctx, "comments"); err == nil {
-		st["comments"] = n
+	// GDK-628: the comments table holds issue and page comments alike, so a
+	// raw TableCount("comments") row was a mixed figure under an
+	// issue-sounding label. Split it by meaning: issue_comments reuses the
+	// settings runtime's owner (IssueCommentCount), page_comments is its
+	// counterpart — the two surfaces cannot disagree by definition.
+	if n, err := db.IssueCommentCount(ctx); err == nil {
+		st["issue_comments"] = n
+	}
+	if n, err := db.PageCommentCount(ctx); err == nil {
+		st["page_comments"] = n
 	}
 	if n, err := db.TableCount(ctx, "pages"); err == nil {
 		st["pages"] = n
@@ -156,7 +164,7 @@ func cmdStatus(args []string) error {
 	if *asJSON {
 		return json.NewEncoder(os.Stdout).Encode(st)
 	}
-	for _, k := range []string{"profile", "kind", "issues", "comments", "pages", "watermark", "version", "last_full_sync_at", "last_error"} {
+	for _, k := range []string{"profile", "kind", "issues", "issue_comments", "page_comments", "pages", "watermark", "version", "last_full_sync_at", "last_error"} {
 		if v, ok := st[k]; ok && v != "" {
 			fmt.Printf("%-18s %v\n", k, v)
 		}

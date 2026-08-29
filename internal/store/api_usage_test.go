@@ -69,3 +69,66 @@ func TestNewDBSchemaVersionMatchesMigrations(t *testing.T) {
 		t.Fatalf("PRAGMA user_version = %d, want %d", uv, want)
 	}
 }
+
+// GDK-628: PageCommentCount is the wiki share of the comments table — the
+// counterpart of IssueCommentCount's issue share. Together they split what
+// TableCount("comments") mixes; on this fixture the raw table count is the
+// sum of the two on purpose, the same divergence the settings runtime test
+// pins (internal/server TestSettingsRuntimeCountsMatchIssueLites).
+func TestPageCommentCountSplitsCommentsTable(t *testing.T) {
+	db := openTemp(t)
+	ctx := context.Background()
+	if err := db.UpsertSource(ctx, Source{ID: "jira", Kind: "jira", BaseURL: "https://j.example"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.UpsertSource(ctx, Source{ID: "confluence", Kind: "confluence", BaseURL: "https://j.example/wiki"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.UpsertIssues(ctx, Batch{
+		Categories: map[string]string{"1": "new"},
+		Records: []IssueRecord{{
+			Item: Item{
+				ID: "jira:1", SourceID: "jira", Kind: "issue", ExternalID: "1",
+				Key: "NMB-1", Title: "billing webhook retry",
+				CreatedAt: ago(2), UpdatedAt: ago(1),
+			},
+			Issue: Issue{
+				ProjectKey: "NMB", IssueType: "Bug", IssueTypeID: "10004",
+				Status: "To Do", StatusID: "1", StatusCategory: "new",
+			},
+			Comments: []Comment{{ID: "jira:c-1", Author: "Dana", BodyText: "repro", CreatedAt: ago(1)}},
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.UpsertPages(ctx, []PageRecord{{
+		Item: Item{
+			ID: "confluence:100", SourceID: "confluence", Kind: "page", ExternalID: "100",
+			Key: "100", Title: "로그인이 실패할 때", BodyText: "로그인 가이드",
+			CreatedAt: ago(2), UpdatedAt: ago(1),
+		},
+		Page:     Page{SpaceKey: "ENG", Version: 1, Status: "current"},
+		Comments: []Comment{{ID: "confluence:c1", Author: "Lee", BodyText: "ok", CreatedAt: ago(1)}},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+
+	issueComments, err := db.IssueCommentCount(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pageComments, err := db.PageCommentCount(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if issueComments != 1 || pageComments != 1 {
+		t.Fatalf("issue_comments = %d, page_comments = %d; want 1 and 1", issueComments, pageComments)
+	}
+	raw, err := db.TableCount(ctx, "comments")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if raw != 2 {
+		t.Fatalf("comments table = %d, want 2 (one issue + one page comment)", raw)
+	}
+}

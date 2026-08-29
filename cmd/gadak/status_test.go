@@ -271,7 +271,11 @@ func TestStatusJSONSchemaVersionMatchesLivePRAGMA(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	comments, err := db.TableCount(ctx, "comments")
+	issueComments, err := db.IssueCommentCount(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pageComments, err := db.PageCommentCount(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -294,7 +298,8 @@ func TestStatusJSONSchemaVersionMatchesLivePRAGMA(t *testing.T) {
 		LastError     string `json:"last_error"`
 		Version       int64  `json:"version"`
 		Issues        int    `json:"issues"`
-		Comments      int    `json:"comments"`
+		IssueComments int    `json:"issue_comments"`
+		PageComments  int    `json:"page_comments"`
 		SyncCount     int64  `json:"sync_count"`
 	}
 	if err := json.Unmarshal([]byte(out), &st); err != nil {
@@ -315,8 +320,11 @@ func TestStatusJSONSchemaVersionMatchesLivePRAGMA(t *testing.T) {
 	if st.Issues != issues {
 		t.Errorf("issues = %d, want %d", st.Issues, issues)
 	}
-	if st.Comments != comments {
-		t.Errorf("comments = %d, want %d", st.Comments, comments)
+	if st.IssueComments != issueComments {
+		t.Errorf("issue_comments = %d, want %d", st.IssueComments, issueComments)
+	}
+	if st.PageComments != pageComments {
+		t.Errorf("page_comments = %d, want %d", st.PageComments, pageComments)
 	}
 	if st.SyncCount < 1 {
 		t.Errorf("sync_count = %d, want >= 1 from RecordSync", st.SyncCount)
@@ -401,10 +409,80 @@ func TestDoctorReportsMigratedSinceLastSync(t *testing.T) {
 
 // statusJSONBaselineKeys are the --json fields that must survive GDK-522.
 // Optional keys (last_error, pairing, update, …) are omitted on purpose.
+// GDK-628: the mixed "comments" key became issue_comments + page_comments.
 var statusJSONBaselineKeys = []string{
 	"profile", "workspace", "workspace_source", "kind",
-	"issues", "comments", "pages", "schema_version",
+	"issues", "issue_comments", "page_comments", "pages", "schema_version",
 	"api_usage", "frozen", "token_expiry", "wiki",
+}
+
+// GDK-628: the comments table holds issue and page comments alike, so the
+// old single "comments" row was a mixed figure under an issue-sounding label
+// — a number that disagreed with the settings runtime (IssueCommentCount) on
+// any mirror with wiki comments. status must split it by meaning, reusing
+// the settings panel's owner for the issue share, and must not keep the
+// mixed key as an alias.
+func TestStatusSplitsIssueAndPageComments(t *testing.T) {
+	mirror(t, "https://example.invalid")
+	t.Setenv("HOME", t.TempDir())
+
+	// One page with one comment on top of mirror()'s one issue comment: the
+	// smallest fixture where the mixed row (2) and either split row differ.
+	db, err := store.Open(filepath.Join(os.Getenv("GADAK_HOME"), "gadak.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.UpsertSource(context.Background(), store.Source{ID: "confluence", Kind: "confluence", BaseURL: "https://x.atlassian.net/wiki"}); err != nil {
+		t.Fatal(err)
+	}
+	adf := json.RawMessage(`{"type":"doc","version":1,"content":[]}`)
+	if _, err := db.UpsertPages(context.Background(), []store.PageRecord{{
+		Item: store.Item{
+			ID: "confluence:100", SourceID: "confluence", Kind: "page", ExternalID: "100",
+			Key: "100", Title: "Billing notes", BodyText: "billing",
+			CreatedAt: "2026-07-01T00:00:00.000Z", UpdatedAt: "2026-08-01T00:00:00.000Z",
+		},
+		Page: store.Page{SpaceKey: "PROD", Version: 1, Status: "current", BodyADF: adf},
+		Comments: []store.Comment{{
+			ID: "confluence:c1", ExternalID: "c1", Author: "Lee",
+			BodyADF: adf, BodyText: "ok", CreatedAt: "2026-07-02T00:00:00.000Z",
+		}},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	js, err := capture(t, func() error { return cmdStatus([]string{"--json"}) })
+	if err != nil {
+		t.Fatalf("status --json: %v\n%s", err, js)
+	}
+	doc := decodeStatusJSON(t, js)
+	if n, _ := doc["issue_comments"].(float64); int(n) != 1 {
+		t.Fatalf("issue_comments = %v, want 1 (SUM(issues.comment_count)); body %s", doc["issue_comments"], js)
+	}
+	if n, _ := doc["page_comments"].(float64); int(n) != 1 {
+		t.Fatalf("page_comments = %v, want 1 (comments on kind=page items); body %s", doc["page_comments"], js)
+	}
+	if _, ok := doc["comments"]; ok {
+		t.Fatalf("status --json still emits the mixed comments key: %s", js)
+	}
+
+	out, err := capture(t, func() error { return cmdStatus(nil) })
+	if err != nil {
+		t.Fatalf("status: %v\n%s", err, out)
+	}
+	for _, k := range []string{"issue_comments", "page_comments"} {
+		if !strings.Contains(out, k) {
+			t.Fatalf("text output missing the %s row:\n%s", k, out)
+		}
+	}
+	for _, line := range strings.Split(out, "\n") {
+		if strings.HasPrefix(line, "comments") {
+			t.Fatalf("text output still prints the mixed comments row:\n%s", out)
+		}
+	}
 }
 
 func TestStatusJSONCustomFieldsMapped(t *testing.T) {

@@ -45,7 +45,7 @@ check explicitly:
 
 ```bash
 gadak status --json
-# {"profile":"…","issues":534,"comments":634,"watermark":"…",
+# {"profile":"…","issues":534,"issue_comments":614,"page_comments":20,"watermark":"…",
 #  "version":6,"schema_version":31,"sync_count":1,"first_sync_at":"…"}
 ```
 

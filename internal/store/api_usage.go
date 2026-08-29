@@ -171,6 +171,19 @@ func (db *DB) IssueCommentCount(ctx context.Context) (int, error) {
 	return n, err
 }
 
+// PageCommentCount returns the wiki-page share of the comments table: comment
+// rows whose item is kind "page". It is the counterpart of IssueCommentCount —
+// the two split what TableCount(ctx, "comments") mixes, so status can label
+// each figure by meaning instead of one "comments" row that disagrees with
+// the settings runtime on every mirror with wiki comments (GDK-628).
+func (db *DB) PageCommentCount(ctx context.Context) (int, error) {
+	var n int
+	err := db.sql.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM comments c JOIN items i ON i.id = c.item_id
+		WHERE i.kind = 'page'`).Scan(&n)
+	return n, err
+}
+
 // DistinctCount returns COUNT(DISTINCT col) for a fixed known table.column
 // used by doctor. Empty/NULL values are excluded.
 func (db *DB) DistinctCount(ctx context.Context, table, column string) (int, error) {
