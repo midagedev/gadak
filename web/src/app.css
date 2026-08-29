@@ -1073,8 +1073,19 @@
     (e2e/list-row-overflow.spec.ts caught it). Above 620 it is worse than
     unhelpful: row-column-thresholds.ts models this exact number as the
     constant 106.4 in LEAD_AND_TITLE, so a proportional floor moves every
-    option column's rung. The 678px two-pane row — title 172, the trailing
-    strip holding 294 — is still unfixed, and its fix is that re-derivation.
+    option column's rung.
+
+    The 678px two-pane row — title 172, the trailing strip holding 294 — is
+    still unfixed, and this comment used to say its fix was that
+    re-derivation. Measured 2026-08-30 (GDK-1155): it is not. At 678 the
+    option ladder is ALREADY fully folded — its floor is BASE_BANDS[0].lo
+    (621) and the cheapest single rung is 660 — so no option column is on
+    that row to remove, and moving the rungs up does nothing to it. The 294
+    is the always-on strip: reopen 36, stale 44, deploy 40, labels 64,
+    assignee 20, updated 40, five 10px gaps. Its only lever is the fold
+    thresholds, and raising trail-fold-1 to reach 678 also folds `updated`
+    on the 628px row GDK-1046 pinned 620 to protect. A row-width rule
+    cannot tell those two apart; the open question is in GDK-1155.
 
     The class exists so this file is the single owner of the number the
     ladder models; it was `min-w-[13ch]` on the element before.
