@@ -224,6 +224,51 @@ describe('unpair() — forgetting the server forgets the shell too', () => {
   })
 })
 
+describe('loadTerminal() — dev adopts the proxy for the shell (GDK-1118)', () => {
+  // boot() has always adopted the vite proxy for the serve session; the
+  // shell did not, so the Shell tab was unreachable in dev without a QR
+  // dance and the capture tour listed "a stored terminal pairing" as an
+  // environment precondition the operator arranged by hand. The server
+  // side already agreed — terminalGate's local rule admits a loopback peer
+  // with no Bearer (internal/server/terminal.go terminalLocal) — so the
+  // gap was entirely client-side.
+  //
+  // Driven through boot()'s own dev adoption — no meta, no token, the proxy
+  // answering — because that is the only path production takes to
+  // loadTerminal(), and a test seam here would assert a function nothing
+  // else calls.
+  //
+  // FAIL-first (2026-08-29, before the loadTerminal change): the first case
+  // asserted `app.terminal?.label` and got `undefined`.
+  const answer = (over: Record<string, unknown> = {}) =>
+    ({ status: 200, etag: null, body: { sessions: [], ...over } }) as never
+
+  it('adopts when the probe answers, with no meta and no token', async () => {
+    vi.mocked(request).mockResolvedValue(answer())
+
+    await boot()
+
+    expect(app.phase).toBe('paired')
+    expect(app.terminal?.label).toBe('This Mac (dev)')
+    expect(app.terminal?.endpoint).toBe('')
+  })
+
+  it('leaves the tab absent when the terminal gate refuses', async () => {
+    // The serve half still adopts; only the shell probe is refused — the
+    // shape of a serve whose terminal gate wants a token this device does
+    // not hold.
+    vi.mocked(request).mockImplementation(async (path: string) => {
+      if (path.startsWith('terminal/')) throw new ApiError('scope_rejected', 403)
+      return answer()
+    })
+
+    await boot()
+
+    expect(app.phase).toBe('paired')
+    expect(app.terminal).toBeNull()
+  })
+})
+
 describe('searchPaint — empty, searching, and failed are distinct (GDK-905)', () => {
   it('is idle when the query is empty, regardless of other flags', () => {
     expect(

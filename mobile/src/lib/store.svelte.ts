@@ -668,6 +668,29 @@ async function loadTerminal(): Promise<void> {
   }
   terminalToken = null
   app.terminal = null
+  // Dev: adopt the proxy for the shell too, the way boot() adopts it for
+  // the serve session. Same trust boundary (the developer pointed the vite
+  // proxy at their own loopback serve, decision 0003), and the server side
+  // already agrees: changeOrigin makes the Host a loopback IP literal and
+  // the peer is loopback, so terminalGate's local rule admits the request
+  // with no Bearer at all (internal/server/terminal.go terminalLocal).
+  // Without this the Shell tab was unreachable in dev without a QR dance —
+  // which is why the capture tour's own header listed "a stored terminal
+  // pairing" as an environment precondition the operator had to arrange by
+  // hand. The probe is what decides: no serve, or a gate that wants a
+  // token, leaves the tab absent exactly as before.
+  //
+  // Unpairing the shell is session-scoped here, exactly as unpairing the
+  // serve is: unpair() writes its sticky flag only outside DEV (see above),
+  // so a dev relaunch re-adopting the proxy is the established contract,
+  // not a hole this opens.
+  if (!import.meta.env.DEV || meta) return
+  try {
+    await probeShellPairing('', '')
+    app.terminal = { endpoint: '', label: 'This Mac (dev)', expires_at: '' }
+  } catch {
+    /* proxy dead, serve down, or the gate wants a token — no Shell tab */
+  }
 }
 
 /**
