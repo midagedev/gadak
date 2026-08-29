@@ -135,6 +135,15 @@ Two things that are not obvious and cost a round if guessed:
   that reads like a downgrade. `<upstream-tag>-gadak.N` reads like what it
   is and sorts as a prerelease.
 
+- **A pin gate that reads the build has to be taught about the replace.**
+  `debug.ReadBuildInfo()` reports the *replacement's* version, so
+  `desktop.TestWailsModuleVersionMatchesGoMod` went red on the very commit
+  that added the fork. The fix is not to relax it: the gate now reads the
+  `replace` line too and asserts the fork version is *prefixed by* the
+  required upstream version — so `v3.0.0-beta.12-gadak.1` passes while a
+  fork silently cut from a different base still fails. Name the fork tag
+  `<upstream-tag>-gadak.N` and that holds for free.
+
 Then, in the repo: the `replace` carries a comment saying which PR, why the
 defect is reachable, and **"delete this when it merges"**. A `replace` with
 no expiry is how a fork becomes permanent by accident. Every upstream bump
