@@ -79,7 +79,7 @@ function onMountBodies(): string[] {
   return out
 }
 
-describe("the updated-time accent tracks the wall clock (GDK-617a)", () => {
+describe('the updated-time accent tracks the wall clock (GDK-617a)', () => {
   test("isFresh's dependency list contains the clock — FreshnessChip's tick", () => {
     const isFresh = declarator('isFresh')
     expect(isFresh, 'no isFresh declarator in IssueRow.svelte').toBeDefined()
@@ -99,10 +99,38 @@ describe("the updated-time accent tracks the wall clock (GDK-617a)", () => {
     expect(tick, 'no tick $state in IssueRow.svelte').toBeDefined()
     expect(tick).toMatch(/\$state/)
     const clock = onMountBodies().filter((body) => body.includes('setInterval'))
-    expect(
-      clock,
-      'no onMount in IssueRow.svelte starts an interval for the clock',
-    ).toHaveLength(1)
+    expect(clock, 'no onMount in IssueRow.svelte starts an interval for the clock').toHaveLength(1)
     expect(clock[0]).toMatch(/clearInterval/)
+  })
+})
+
+/*
+ * GDK-1087: the column header is this component in `header` mode, and that is
+ * the whole recurrence story. The e2e gate (e2e/list-column-header.spec.ts)
+ * measures that the header's cells sit exactly over the row's; this one keeps
+ * the *reason* they do — that nobody has started a second copy of the slot
+ * geometry somewhere else. A grep is enough because the failure mode is
+ * textual: a header that writes `data-col` or a `w-…` slot of its own.
+ */
+describe('the column header has no geometry of its own (GDK-1087)', () => {
+  const listSource = readFileSync(join(HERE, 'IssueList.svelte'), 'utf8')
+
+  test('IssueList draws the header with IssueRow, not with markup of its own', () => {
+    expect(listSource).toMatch(/<IssueRow\b[^>]*\bheader\b/s)
+    expect(
+      listSource,
+      'IssueList names a column slot itself — the row is no longer the single owner of the geometry',
+    ).not.toContain('data-col')
+  })
+
+  test('every trailing slot in the row has a header branch', () => {
+    // Each slot is `data-col="key"`, and in header mode each renders the
+    // shared `head` snippet instead of its value. A slot added without one
+    // paints an empty header cell over a column with a value — the exact
+    // shape of "the header labels half its columns".
+    const slots = [...source.matchAll(/data-col="([a-z_]+)"/g)].map((m) => m[1])
+    expect(slots.length).toBeGreaterThan(15)
+    const labelled = new Set([...source.matchAll(/@render head\('([a-z_]+)'\)/g)].map((m) => m[1]))
+    expect(slots.filter((col) => !labelled.has(col))).toEqual([])
   })
 })

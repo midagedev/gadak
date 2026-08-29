@@ -11,6 +11,11 @@
  * report actually needs; before this it was a hand-written Playwright spec
  * per incident (the GDK-1046 probe-specs round).
  *
+ * Since GDK-1087 it also reports the column header: whether it is there
+ * (it appears only once the view leaves the default column set), the
+ * scrollbar gutter it gives back, and — the number that matters — any
+ * column whose label cell has drifted off its value cell.
+ *
  * Diagnostic, not a gate: nothing in CI runs this. It always starts its own
  * `gadak serve` on its own port (default 7898, ROW_PROBE_PORT) via
  * e2e/serve.sh — cold and fresh on purpose, because a reused server can be
@@ -77,7 +82,7 @@ async function liveRungThresholds(page) {
       const css = document.getElementById(id)?.textContent ?? ''
       const out = []
       const re = /@container issuerow \(max-width: (\d+)px\)\s*\{\s*\.([\w-]+)/g
-      for (let m; (m = re.exec(css)); ) out.push([Number(m[1]) + 1, m[2]])
+      for (let m; (m = re.exec(css));) out.push([Number(m[1]) + 1, m[2]])
       return out
     },
     { id: RUNG_STYLE_ID },
@@ -227,9 +232,13 @@ async function measure(page, opts) {
             for (const el of [...labelsSlot.children]) {
               const es = getComputedStyle(el)
               if (es.display === 'none' || es.visibility === 'hidden') continue
-              const kind = ['chipfold-first', 'chipfold-rest', 'chipfold-n-extra', 'chipfold-n-rest', 'chipfold-n-all'].find((c) =>
-                el.classList.contains(c),
-              )
+              const kind = [
+                'chipfold-first',
+                'chipfold-rest',
+                'chipfold-n-extra',
+                'chipfold-n-rest',
+                'chipfold-n-all',
+              ].find((c) => el.classList.contains(c))
               if (!kind) continue
               const b = el.getBoundingClientRect()
               if (b.width < 1) continue
@@ -253,6 +262,53 @@ async function measure(page, opts) {
         })
         if (rows.length >= maxRows) break
       }
+      // Column header (GDK-1087). It is the same component in header mode,
+      // so the interesting number is not its geometry but the DIFFERENCE:
+      // any column whose label cell has stopped sitting over its value cell.
+      // `null` when the view has not left the default column set — that is
+      // the header's own visibility rule, and "why is there no header" is a
+      // question this probe should answer too.
+      const headerEl = document.querySelector('[data-testid="issue-column-header"]')
+      let header = null
+      if (headerEl) {
+        const cellsOf = (root) => {
+          const out = {}
+          for (const slot of root.querySelectorAll('[data-col]')) {
+            const s = getComputedStyle(slot)
+            if (s.display === 'none' || s.visibility === 'hidden') continue
+            const b = slot.getBoundingClientRect()
+            if (b.width < 1) continue
+            out[slot.dataset.col ?? '?'] = { left: round(b.left), w: round(b.width) }
+          }
+          return out
+        }
+        const firstRow = scroller.querySelector('[data-issue-key]')
+        const hc = cellsOf(headerEl)
+        const rc = firstRow ? cellsOf(firstRow) : {}
+        const drift = []
+        for (const [col, r] of Object.entries(rc)) {
+          const h = hc[col]
+          if (!h) {
+            drift.push({ col, why: 'row paints it, header does not' })
+            continue
+          }
+          const dLeft = round(h.left - r.left)
+          const dW = round(h.w - r.w)
+          if (Math.abs(dLeft) > 0.5 || Math.abs(dW) > 0.5)
+            drift.push({
+              col,
+              why: `left ${dLeft >= 0 ? '+' : ''}${dLeft} width ${dW >= 0 ? '+' : ''}${dW}`,
+            })
+        }
+        for (const col of Object.keys(hc))
+          if (!rc[col]) drift.push({ col, why: 'header paints it, row does not' })
+        header = {
+          right: round(headerEl.getBoundingClientRect().right),
+          gutter: round(scroller.offsetWidth - scroller.clientWidth),
+          cols: Object.keys(hc),
+          drift,
+        }
+      }
       const layout = document.querySelector('[data-testid="issue-layout"]')
       return {
         viewportW: innerWidth,
@@ -260,6 +316,7 @@ async function measure(page, opts) {
         detailOpen: layout?.getAttribute('data-detail-open') ?? null,
         rowW,
         scrollerRight: round(sRight),
+        header,
         rows,
       }
     },
@@ -286,11 +343,7 @@ async function main() {
     await page.goto(`${BASE}/#/?${q.join('&')}`)
     await page.getByTestId('issue-layout').waitFor({ state: 'visible', timeout: 30_000 })
     await waitFor('first rendered issue row', () =>
-      page
-        .getByTestId('issue-list-scroller')
-        .locator('[data-issue-key]')
-        .first()
-        .isVisible(),
+      page.getByTestId('issue-list-scroller').locator('[data-issue-key]').first().isVisible(),
     )
     if (opts.issue) {
       await page
@@ -319,19 +372,37 @@ async function main() {
       ...STATIC_THRESHOLDS,
     ].sort((a, b) => b[1] - a[1])
     const fired = thresholds.filter(([, px]) => data.rowW !== null && data.rowW <= px)
-    const maxPast = Math.max(
-      0,
-      ...data.rows.flatMap((r) => r.slots.map((s) => s.pastScroller)),
-    )
+    const maxPast = Math.max(0, ...data.rows.flatMap((r) => r.slots.map((s) => s.pastScroller)))
 
     if (opts.json) {
-      console.log(JSON.stringify({ ...data, firedThresholds: fired.map((f) => f[0]), maxPast }, null, 1))
+      console.log(
+        JSON.stringify({ ...data, firedThresholds: fired.map((f) => f[0]), maxPast }, null, 1),
+      )
     } else {
-      console.log(`[row-width] viewport ${data.viewportW} regime=${data.regime} detailOpen=${data.detailOpen}`)
-      console.log(`[row-width] rowW=${data.rowW} scrollerRight=${data.scrollerRight} maxPastScroller=${maxPast}`)
+      console.log(
+        `[row-width] viewport ${data.viewportW} regime=${data.regime} detailOpen=${data.detailOpen}`,
+      )
+      console.log(
+        `[row-width] rowW=${data.rowW} scrollerRight=${data.scrollerRight} maxPastScroller=${maxPast}`,
+      )
       console.log(
         `[row-width] fired @container issuerow thresholds: ${fired.length ? fired.map((f) => `${f[0]} (≤${f[1]})`).join('; ') : 'none'}`,
       )
+      if (data.header) {
+        console.log(
+          `[row-width] column header: ${data.header.cols.length} cells, gutter=${data.header.gutter}, right=${data.header.right}`,
+        )
+        if (data.header.drift.length) {
+          for (const d of data.header.drift) console.log(`[row-width]   DRIFT ${d.col}: ${d.why}`)
+          console.log(
+            `[row-width] NOTE: the header has stopped sitting over the row — e2e/list-column-header.spec.ts is the gate for this axis (GDK-1087)`,
+          )
+        }
+      } else {
+        console.log(
+          `[row-width] column header: absent (the view has not left the default column set — GDK-1087)`,
+        )
+      }
       for (const r of data.rows) {
         const slots = r.slots
           .map((s) => `${s.col} w=${s.w}${s.pastScroller > 0 ? ` PAST+${s.pastScroller}` : ''}`)

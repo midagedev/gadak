@@ -1,3 +1,63 @@
+<script module lang="ts">
+  import type { IssueLite } from '../../lib/types'
+
+  /*
+   * The row a column header is drawn from (GDK-1087). The header is this same
+   * component in `header` mode, so that alignment cannot drift: the slot
+   * widths, the container-query folds and the shrink behaviour are the row's
+   * own markup, not a second copy of it. Nothing here is displayed — every
+   * value branch is replaced by the column's label — so the object exists only
+   * to keep the deriveds total. Frozen: one instance for the app's lifetime,
+   * and an accidental write is a throw instead of a header that drifts.
+   */
+  export const HEADER_ROW_ISSUE: IssueLite = Object.freeze({
+    issue_key: '',
+    summary: '',
+    status: '',
+    status_category: 'new',
+    issue_type: '',
+    priority: null,
+    priority_rank: null,
+    severity: null,
+    assignee: null,
+    assignee_email: null,
+    reporter: null,
+    reporter_email: null,
+    labels: [],
+    fix_versions: [],
+    components: [],
+    team_group: null,
+    epic_key: null,
+    parent_key: null,
+    source_project: null,
+    created_at: null,
+    updated_at: null,
+    resolved_at: null,
+    status_changed_at: null,
+    reopen_count: 0,
+    reopened_at: null,
+    reopen_reason: null,
+    comment_count: 0,
+    dev_project_number: null,
+    related_project_number: null,
+    environment: null,
+    browser: null,
+    found_version: null,
+    occurrence: null,
+    solution: null,
+    critical_phenomenon: null,
+    development_area: null,
+    cs: null,
+    development_test_assignee: null,
+    development_test_assignee_email: null,
+    development_test_result: null,
+    qa_impact_state: '',
+    qa_impact_label: '',
+    qa_runs: [],
+    qa_suites: [],
+  })
+</script>
+
 <script lang="ts">
   /*
    * Issue row ([explore]). Fixed 42px (virtual scroll assumption).
@@ -22,8 +82,8 @@
    *  highlighted summary already says why the row is here — see matchEvidence.
    */
   import { onMount } from 'svelte'
-  import { t } from '../../lib/i18n'
-  import type { IssueLite, SearchMatch } from '../../lib/types'
+  import { t, columnLabel, type ColumnLabelKey } from '../../lib/i18n'
+  import type { SearchMatch } from '../../lib/types'
   import { filters } from '../../stores/filters.svelte'
   import { issues } from '../../stores/issues.svelte'
   import { selection } from '../../stores/selection.svelte'
@@ -50,11 +110,15 @@
     /** Why the server search returned this row (body/comment hit). Absent in the
      *  main list, where the highlighted title already says why. */
     match = null,
+    /** Draw this row as the list's column header (GDK-1087): the same slots,
+     *  the same folds, the column's label instead of the row's value. */
+    header = false,
   }: {
     issue: IssueLite
     active?: boolean
     cursor?: boolean
     match?: SearchMatch | null
+    header?: boolean
   } = $props()
 
   const cat = $derived(categoryOf(issue))
@@ -212,38 +276,64 @@
   }
 </script>
 
+{#snippet head(col: ColumnLabelKey | 'epic')}
+  <!-- A header cell. The slot is the row's, so the label lives inside the same
+       width the value does — narrow icon columns therefore truncate, and the
+       full name is the tooltip. A label that overflowed its slot would be the
+       one thing this row must never do. -->
+  {@const label = col === 'epic' ? t('common.epic') : columnLabel(col)}
+  <span class="block min-w-0 flex-1 truncate text-left text-micro font-medium text-text-muted" title={label}>{label}</span>
+{/snippet}
+
 <div
-  class="chipfold-host group flex cursor-pointer select-none flex-col justify-center gap-0.5 border-b border-border-subtle/70 text-body transition-colors
-    {matchLine ? 'h-row-excerpt' : 'h-row'}
-    {selected
-      ? 'bg-accent-subtle/30'
-      : active
-        ? 'bg-accent-subtle/20'
-        : cursor
-          ? 'bg-bg-hover'
-          : mine
-            ? 'bg-accent-subtle/10 hover:bg-bg-hover'
-            : 'hover:bg-bg-hover'}
-    {cursor
-      ? 'shadow-[inset_0_0_0_1px_var(--color-accent)]'
-      : active
-        ? 'shadow-[inset_3px_0_0_var(--color-accent)]'
-        : ''}"
-  role="button"
+  class="chipfold-host group flex select-none flex-col justify-center gap-0.5 border-b text-body
+    {header
+      ? 'h-8 border-border-subtle'
+      : 'cursor-pointer border-border-subtle/70 transition-colors'}
+    {header ? '' : matchLine ? 'h-row-excerpt' : 'h-row'}
+    {header
+      ? ''
+      : selected
+        ? 'bg-accent-subtle/30'
+        : active
+          ? 'bg-accent-subtle/20'
+          : cursor
+            ? 'bg-bg-hover'
+            : mine
+              ? 'bg-accent-subtle/10 hover:bg-bg-hover'
+              : 'hover:bg-bg-hover'}
+    {header
+      ? ''
+      : cursor
+        ? 'shadow-[inset_0_0_0_1px_var(--color-accent)]'
+        : active
+          ? 'shadow-[inset_3px_0_0_var(--color-accent)]'
+          : ''}"
+  role={header ? undefined : 'button'}
   tabindex="-1"
   aria-current={active ? 'true' : undefined}
-  data-issue-key={issue.issue_key}
+  data-issue-key={header ? undefined : issue.issue_key}
+  data-testid={header ? 'issue-column-header' : undefined}
   data-cursor={cursor ? 'true' : undefined}
-  onclick={onRowClick}
-  onmouseenter={() => prefetchDetail(issue.issue_key)}
-  onkeydown={(e) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault()
-      selection.toggle(issue.issue_key)
-    }
-  }}
+  onclick={header ? undefined : onRowClick}
+  onmouseenter={header ? undefined : () => prefetchDetail(issue.issue_key)}
+  onkeydown={header
+    ? undefined
+    : (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          selection.toggle(issue.issue_key)
+        }
+      }}
 >
   <div class="flex w-full min-w-0 items-center gap-2.5 px-4">
+  <!-- Leading strip + title. In header mode these are the row's own nodes made
+       invisible rather than replaced by spacers: `display:contents` generates
+       no box, so the flex line is character-for-character the row's, and
+       `visibility:hidden` inherits through it. A spacer would be a second
+       owner of 196px — and of the lead-fold-1 that takes 34 of them away at
+       ≤480 (GDK-1087). -->
+  <div class="contents" class:invisible={header}>
   <!-- Multi-select checkbox (hit target only; shift=range).
        lead-fold-1: the leading strip folds too on a very narrow row
        (GDK-1089). Bulk-selecting rows you cannot read is not a workflow,
@@ -310,6 +400,7 @@
       </span>
     {/if}
   </span>
+  </div>
 
   <!-- Trailing scan columns. Fixed-width flex slots, not inline flow: an on
        column occupies its width even when this row has no value, so the field
@@ -326,7 +417,7 @@
   <!-- Badges: reopen / stale -->
   {#if cols.has('reopen')}
     <div class="trail-fold-3 flex w-9 flex-none items-center justify-start overflow-hidden" data-col="reopen">
-      {#if issue.reopen_count > 0}
+      {#if header}{@render head('reopen')}{:else if issue.reopen_count > 0}
         <button
           type="button"
           class="flex flex-none items-center gap-1 rounded bg-status-reopen/15 px-1.5 py-0.5 text-micro font-medium text-status-reopen transition-colors hover:bg-status-reopen/25"
@@ -347,7 +438,7 @@
          (~38px without the glyph). Do not put a Tailwind display utility on
          .stale-glyph: components-layer display:none lost to `flex` (GDK-766). -->
     <div class="stale-slot flex flex-none items-center justify-start overflow-hidden" data-col="stale">
-      {#if stale}
+      {#if header}{@render head('stale')}{:else if stale}
         <span
           class="flex flex-none items-center gap-1 rounded px-1.5 py-0.5 text-micro {staleBandClass}"
           data-stale-band={staleBand}
@@ -366,7 +457,7 @@
 
   {#if cols.has('qa_impact')}
     <div class="trail-break-qa flex w-24 flex-none items-center overflow-hidden" data-col="qa_impact">
-      {#if qaImpactMeta}
+      {#if header}{@render head('qa_impact')}{:else if qaImpactMeta}
         <button
           type="button"
           class="inline-flex max-w-full truncate rounded px-1.5 py-0.5 text-micro font-medium transition-opacity hover:opacity-80 {qaImpactMeta.cls}"
@@ -382,7 +473,7 @@
   <!-- Deploy-stage badge (qa=teal emphasis / others muted) -->
   {#if cols.has('deploy')}
     <div class="trail-fold-3 flex w-10 flex-none items-center overflow-hidden" data-col="deploy">
-      {#if deployMeta}
+      {#if header}{@render head('deploy')}{:else if deployMeta}
         <button
           type="button"
           class="flex min-w-0 items-center gap-1 truncate rounded px-1.5 py-0.5 text-micro font-medium transition-opacity hover:opacity-80 {deployMeta.cls}"
@@ -411,7 +502,7 @@
        on; empty rows keep the width so later fields do not shift. -->
   {#if cols.has('severity')}
     <div class="trail-break-severity flex w-20 flex-none items-center overflow-hidden" data-col="severity">
-      {#if issue.severity}
+      {#if header}{@render head('severity')}{:else if issue.severity}
         <button
           type="button"
           class="max-w-full truncate rounded px-1.5 py-0.5 text-micro text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary"
@@ -425,7 +516,7 @@
   {/if}
   {#if cols.has('issue_type')}
     <div class="trail-break-issue-type flex w-20 flex-none items-center overflow-hidden" data-col="issue_type">
-      {#if issue.issue_type}
+      {#if header}{@render head('issue_type')}{:else if issue.issue_type}
         <button
           type="button"
           class="max-w-full truncate rounded px-1.5 py-0.5 text-micro text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary"
@@ -440,7 +531,7 @@
   {/if}
   {#if cols.has('status')}
     <div class="trail-break-status flex w-20 flex-none items-center overflow-hidden" data-col="status">
-      {#if issue.status}
+      {#if header}{@render head('status')}{:else if issue.status}
         <button
           type="button"
           class="max-w-full truncate rounded px-1.5 py-0.5 text-micro text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary"
@@ -454,7 +545,7 @@
   {/if}
   {#if cols.has('dev_test_result')}
     <div class="trail-break-dev-test-result flex w-24 flex-none items-center overflow-hidden" data-col="dev_test_result">
-      {#if issue.development_test_result}
+      {#if header}{@render head('dev_test_result')}{:else if issue.development_test_result}
         <button
           type="button"
           class="max-w-full truncate rounded px-1.5 py-0.5 text-micro text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary"
@@ -468,7 +559,7 @@
   {/if}
   {#if cols.has('environment')}
     <div class="trail-break-environment flex w-20 flex-none items-center overflow-hidden" data-col="environment">
-      {#if issue.environment}
+      {#if header}{@render head('environment')}{:else if issue.environment}
         <button
           type="button"
           class="max-w-full truncate rounded px-1.5 py-0.5 text-micro text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary"
@@ -482,7 +573,7 @@
   {/if}
   {#if cols.has('team_group')}
     <div class="trail-break-team-group flex w-20 flex-none items-center overflow-hidden" data-col="team_group">
-      {#if issue.team_group}
+      {#if header}{@render head('team_group')}{:else if issue.team_group}
         <button
           type="button"
           class="max-w-full truncate rounded px-1.5 py-0.5 text-micro text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary"
@@ -496,7 +587,7 @@
   {/if}
   {#if cols.has('reporter')}
     <div class="trail-break-reporter flex w-[90px] flex-none items-center overflow-hidden" data-col="reporter">
-      {#if issue.reporter}
+      {#if header}{@render head('reporter')}{:else if issue.reporter}
         <button
           type="button"
           class="max-w-full truncate rounded px-1.5 py-0.5 text-micro text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary"
@@ -512,7 +603,7 @@
   {/if}
   {#if cols.has('comment_count')}
     <div class="trail-break-comment-count flex w-10 flex-none items-center overflow-hidden" data-col="comment_count">
-      {#if issue.comment_count > 0}
+      {#if header}{@render head('comment_count')}{:else if issue.comment_count > 0}
         <span class="flex items-center gap-1 text-micro text-text-muted" title={t('list.commentCount', { n: issue.comment_count })}>
           <Icon name="message-square" size={11} />
           {issue.comment_count}
@@ -522,7 +613,7 @@
   {/if}
   {#if cols.has('fix_versions')}
     <div class="trail-break-fix-versions flex w-[110px] flex-none items-center overflow-hidden" data-col="fix_versions">
-      {#if issue.fix_versions.length}
+      {#if header}{@render head('fix_versions')}{:else if issue.fix_versions.length}
         <span class="flex min-w-0 items-center gap-1">
           <button
             type="button"
@@ -541,7 +632,7 @@
   {/if}
   {#if cols.has('components')}
     <div class="trail-break-components flex w-[110px] flex-none items-center overflow-hidden" data-col="components">
-      {#if issue.components.length}
+      {#if header}{@render head('components')}{:else if issue.components.length}
         <span class="flex min-w-0 items-center gap-1">
           <button
             type="button"
@@ -560,7 +651,7 @@
   {/if}
   {#if cols.has('created')}
     <div class="trail-break-created flex w-10 flex-none items-center overflow-hidden" data-col="created">
-      {#if issue.created_at}
+      {#if header}{@render head('created')}{:else if issue.created_at}
         <span class="w-10 text-right text-micro text-text-muted" title={t('list.createdAt', { time: absTime(issue.created_at) })}>
           {relativeTime(issue.created_at)}
         </span>
@@ -569,7 +660,7 @@
   {/if}
   {#if cols.has('due')}
     <div class="trail-break-due flex w-20 flex-none items-center overflow-hidden" data-col="due">
-      {#if issue.duedate}
+      {#if header}{@render head('due')}{:else if issue.duedate}
         <span
           class="w-20 text-right text-micro text-text-muted"
           title={t('list.dueAt', { date: absTime(issue.duedate) })}
@@ -588,7 +679,7 @@
        the list is not already sectioned by epic, so later columns stay put. -->
   {#if filters.display.group_by !== 'epic'}
     <div class="trail-break-epic flex w-16 flex-none items-center overflow-hidden" data-col="epic">
-      {#if epicKey}
+      {#if header}{@render head('epic')}{:else if epicKey}
         <button
           type="button"
           class="max-w-[84px] truncate rounded px-1.5 py-0.5 font-mono text-micro text-text-muted transition-colors hover:bg-bg-elevated hover:text-accent-text"
@@ -614,7 +705,7 @@
       class="trail-fold-2 chipfold-labels {hasCountedLabels ? 'chipfold-counted' : ''} flex shrink items-center gap-1 overflow-hidden"
       data-col="labels"
     >
-      {#if shownLabels.length}
+      {#if header}{@render head('labels')}{:else if shownLabels.length}
         {#each shownLabels as label, i (label)}
           <button
             type="button"
@@ -645,7 +736,8 @@
 
   <!-- Assignee -->
   {#if cols.has('assignee')}
-    <div class="trail-fold-1 flex h-5 w-5 flex-none items-center justify-center" data-col="assignee">
+    <div class="trail-fold-1 flex h-5 w-5 flex-none items-center justify-center overflow-hidden" data-col="assignee">
+      {#if header}{@render head('assignee')}{:else}
       <Avatar
         email={issue.assignee_email}
         accountId={issue.assignee_id}
@@ -654,6 +746,7 @@
           ? stop(() => filters.addValue('assignee_email', issue.assignee_id ?? issue.assignee_email!))
           : undefined}
       />
+      {/if}
     </div>
   {/if}
 
@@ -664,13 +757,13 @@
        yours or actionable — your issues, watches, links. -->
   {#if cols.has('updated')}
     <span
-      class="trail-fold-1 w-10 flex-none text-right text-micro {isFresh
+      class="trail-fold-1 w-10 flex-none overflow-hidden text-right text-micro {isFresh
         ? 'font-medium text-text-secondary'
         : 'text-text-muted'}"
       data-col="updated"
-      title={absTime(issue.updated_at)}
+      title={header ? undefined : absTime(issue.updated_at)}
     >
-      {relativeTime(issue.updated_at)}
+      {#if header}{@render head('updated')}{:else}{relativeTime(issue.updated_at)}{/if}
     </span>
   {/if}
   </div>

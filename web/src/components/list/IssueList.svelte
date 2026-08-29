@@ -26,8 +26,9 @@
     rowIndexAt,
     rowWindow,
   } from '../../lib/row-metrics'
-  import IssueRow from './IssueRow.svelte'
+  import IssueRow, { HEADER_ROW_ISSUE } from './IssueRow.svelte'
   import GroupHeader from './GroupHeader.svelte'
+  import { defaultColumns } from '../../lib/view-config'
   import { TRAIL_BREAK_PRIORITY, trailBreakCss, syncTrailBreakStyle } from './row-column-thresholds'
 
   const OVERSCAN = 8
@@ -82,6 +83,23 @@
     })
     return m
   })
+
+  // ── GDK-1087: the column header row ──
+  // It appears only once the view has left the default column set. The seven
+  // defaults are an avatar, a date and label chips — self-evident, and a
+  // header over them would change the look of every list nobody customised.
+  // The audit's unreadable columns ("⧖ 2", "1w", "NMS-157") are all on a
+  // customised list, and when the header comes it labels every column on the
+  // row, defaults included: a strip that labels half its columns is worse
+  // than one that labels none.
+  const DEFAULT_COLS = $derived(new Set<string>(defaultColumns()))
+  const showColumnHeader = $derived(filters.display.columns.some((c) => !DEFAULT_COLS.has(c)))
+  // The header sits outside the scroller, so it does not compete with the
+  // floating group header for the top of the list. That costs one number: the
+  // scrollbar gutter the scroller takes out of the rows' width and the header
+  // would otherwise keep. Measured on the scroller itself (0 under macOS
+  // overlay scrollbars, ~15px on Linux/Windows), never assumed.
+  let gutter = $state(0)
 
   let scrollTop = $state(0)
   let viewportH = $state(0)
@@ -202,6 +220,21 @@
     )
   })
 
+  // Scrollbar gutter, measured. A content-box observer fires when a scrollbar
+  // appears or leaves as well as on resize, which is exactly when the header's
+  // right edge would stop agreeing with the rows'.
+  $effect(() => {
+    const el = scroller
+    if (!el) return
+    const measure = () => {
+      gutter = el.offsetWidth - el.clientWidth
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  })
+
   // Tell the shell the triage keys have a list to act on. Feed / onboarding /
   // empty states render instead of this component, and there they do nothing.
   // The metrics subscription re-snapshots the token-sourced heights when a
@@ -221,7 +254,16 @@
   })
 </script>
 
-<div class="relative h-full">
+<div class="flex h-full flex-col">
+  <!-- Column header. Same component as a row, in header mode, so the slots it
+       labels cannot drift from the slots below it (GDK-1087). -->
+  {#if showColumnHeader}
+    <div class="flex-none" style:padding-right="{gutter}px" data-testid="issue-column-header-host">
+      <IssueRow issue={HEADER_ROW_ISSUE} header />
+    </div>
+  {/if}
+
+  <div class="relative min-h-0 flex-1">
   <!-- Sticky group header (floating) -->
   {#if floatingGroup}
     <div
@@ -271,5 +313,6 @@
         </div>
       {/each}
     </div>
+  </div>
   </div>
 </div>
