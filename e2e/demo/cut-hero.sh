@@ -73,12 +73,14 @@ PH_2_IN=5.2   PH_2_OUT=8.7        # the glance: the board, on a phone
 PH_3_IN=9.4   PH_3_OUT=11.6       # the terminal tab — the same machine
                                   # (9.4, not 8.9: the pane's connect skeleton)
 PH_4_IN=11.6  PH_4_OUT=14.6       # `gadak close STD-n` by thumb, and the result
-# The cut skips take 14.6-16.3. The appearance flip re-themes the terminal by
-# re-rendering it, and the re-render comes back with an EMPTY buffer — the
-# `STD-4 Done …` line the beat exists to show disappears, and the frame is a
-# black pane with a scrollbar stripe down its right edge. That is a real
-# defect (GDK-1156); the cut is not hiding it, it is declining to spend a
-# second of a 26s film on it. Light result → dark board, hard cut.
+# The cut skips take 14.6-16.3. What is in that second was a real defect,
+# and not the one it looked like: the pane was not cleared by the
+# appearance flip, it kept the LIGHT palette's ink while everything around
+# it went dark, so the `STD-4 Done …` line this beat exists to show became
+# dark-on-dark and read as an empty terminal. Fixed in GDK-1156 (the chrome
+# now follows the theme); this footage predates the fix, and the cut is not
+# hiding it — it is declining to spend a second of a 26s film on it. A
+# re-shoot can put the flip back. Light result → dark board, hard cut.
 PH_5_IN=16.3  PH_5_OUT=19.5       # dark: the count drops; the issue holds Done
 
 W=1920 H=1080 FPS=30
