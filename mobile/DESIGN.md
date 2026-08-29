@@ -421,9 +421,10 @@ and pair again."), never apologize, never quote server internals.
   under `src/` (a comment that names the ban is not a unit).
 - **Viewport geometry** — `npm run viewport-gate` (from `mobile/`; also
   `bash mobile/scripts/viewport-gate.sh` from the repo root). Playwright at
-  402×874 against `gadak demo --addr 127.0.0.1:7899` (vite's hardcoded `/api`
-  proxy) and vite on `127.0.0.1:5182`. Not `e2e/`'s `127.0.0.1:7877` and not
-  `e2e/.tmp/home` — demo makes its own temp home. Asserts horizontal overflow
+  402×874 against `gadak demo --addr 127.0.0.1:7899` (vite's `/api` proxy —
+  target port `GADAK_SERVE_PORT`, default 7899) and vite on
+  `127.0.0.1:5182`. Not `e2e/`'s `127.0.0.1:7877` and not `e2e/.tmp/home` —
+  demo makes its own temp home. Asserts horizontal overflow
   0, `nav.safe-bottom` flush to the viewport bottom, no input/textarea under
   16px, ≥12 issue rows per screen (before **and** after the scope picker has
   been opened), a visible escape (tab bar, `button.back`, or sheet Cancel),

@@ -19,7 +19,22 @@ const host = process.env.TAURI_DEV_HOST
 // browser-facing dev origins (vite dev server, and the tauri dev window which
 // loads from it) reach serve same-origin through this proxy. The packaged app
 // rides tauri-plugin-http instead of this proxy — see lib/api.ts.
-const SERVE_DEV_ORIGIN = 'http://127.0.0.1:7899'
+//
+// The port is env-openable: a second serve on another port — a parallel
+// workspace with its own home — can back a phone dev harness without
+// editing this file. GADAK_SERVE_PORT follows GADAK_E2E_PORT's
+// single-owner pattern (e2e/helpers.ts e2eServePort); unset is 7899, the
+// default every script that starts a demo for this proxy still uses.
+function serveDevPort(): string {
+  const raw = process.env.GADAK_SERVE_PORT
+  if (raw === undefined || raw === '') return '7899'
+  if (!/^[1-9][0-9]*$/.test(raw) || Number(raw) > 65535) {
+    throw new Error(`GADAK_SERVE_PORT must be an integer 1-65535, got ${JSON.stringify(raw)}`)
+  }
+  return raw
+}
+
+const SERVE_DEV_ORIGIN = `http://127.0.0.1:${serveDevPort()}`
 
 export default defineConfig({
   plugins: [svelte(), tailwindcss()],
