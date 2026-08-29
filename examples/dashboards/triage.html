@@ -42,8 +42,13 @@
   statuses) is inserted via textContent only — this page builds no markup
   out of row data.
 
-  Colors are explicit on every element class; nothing is inherited from the
-  host page, so the wall reads the same in a light or dark app shell.
+  Colors come from this document's own CSS custom properties — nothing is
+  inherited from the host page. The frame is sandboxed to an opaque origin
+  (no allow-same-origin), so it cannot see the app's data-theme attribute;
+  the one theme axis it can follow is the OS scheme, which is also the
+  app's own default (light base in web/src/app.css, dark under
+  prefers-color-scheme). Light below converges on the app's light tokens,
+  and the dark block is the pre-GDK-1082 dark palette, byte for byte.
 -->
 <html lang="en">
 <head>
@@ -53,84 +58,139 @@
 <link rel="stylesheet" href="/api/v1/dashboards/vendor/uPlot.min.css">
 <script src="/api/v1/dashboards/vendor/uPlot.iife.min.js"></script>
 <style>
-  :root { color-scheme: dark; }
+  /*
+    Theme axis (GDK-1082): light is the base, dark rides the media query —
+    the same direction the app shell uses (web/src/app.css keeps light in
+    @theme and redefines the same properties under
+    prefers-color-scheme: dark). Light values converge on the app's light
+    tokens (app.css @theme); the dark block is this wall's pre-GDK-1082
+    dark palette, unchanged.
+  */
+  :root {
+    color-scheme: light;
+    --bg: #f4efe4;         /* app --color-bg-base — the surface the wall sits on */
+    --surface: #e4d9c4;    /* app --color-bg-elevated — cards, panels */
+    --border: #d5c9b2;     /* app --color-border-subtle */
+    --line: #d5c9b2;       /* hairline dividers + chart grid */
+    --ink: #1c1812;        /* app --color-text-primary */
+    --muted: #635a4f;      /* app --color-text-muted (≈4.8:1 on elevated) */
+    --accent: #2e4560;     /* app --color-accent (쪽빛) — links, hover */
+    --new: #2f5d8c;        /* app --color-status-new */
+    --inprogress: #7e5904; /* app --color-status-inprogress */
+    --done: #1c4c31;       /* app --color-status-done */
+    --reopen: #8f3530;     /* app --color-status-reopen — the P-rank chips */
+    --rank-line: #edd8d4;  /* app --color-lozenge-red — behind --reopen */
+    --series-fill: rgba(47, 93, 140, 0.12);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --bg: #0d1017;
+      --surface: #161b26;
+      --border: #232a3a;
+      --line: #1d2331;
+      --ink: #e8ecf4;
+      --muted: #8b94a7;
+      --accent: #7aa2f7;
+      --new: #7aa2f7;
+      --inprogress: #e0af68;
+      --done: #9ece6a;
+      --reopen: #f7768e;
+      --rank-line: #3a2a33;
+      --series-fill: rgba(122, 162, 247, 0.12);
+    }
+  }
   * { box-sizing: border-box; margin: 0; }
   html, body { height: 100%; }
   body {
-    background: #0d1017;
-    color: #e8ecf4;
+    background: var(--bg);
+    color: var(--ink);
     font: 14px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
     padding: 20px 22px 26px;
   }
   header { display: flex; align-items: baseline; gap: 14px; margin-bottom: 16px; }
-  h1 { font-size: 19px; font-weight: 650; letter-spacing: 0.2px; color: #e8ecf4; }
-  .sub { color: #8b94a7; font-size: 12.5px; }
+  h1 { font-size: 19px; font-weight: 650; letter-spacing: 0.2px; color: var(--ink); }
+  .sub { color: var(--muted); font-size: 12.5px; }
   .cards { display: grid; grid-template-columns: repeat(4, minmax(120px, 1fr)); gap: 12px; margin-bottom: 18px; }
   /* Cards are buttons (the count is a link into the app's filtered list), so
      the reset is explicit: buttons bring their own font, color, and centering. */
   .card {
     display: block; width: 100%; text-align: left; font: inherit; color: inherit;
-    background: #161b26; border: 1px solid #232a3a; border-radius: 10px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
     padding: 12px 14px 10px; cursor: pointer;
   }
-  .card:hover { border-color: #7aa2f7; }
+  .card:hover { border-color: var(--accent); }
   .card .n, .card .label { display: block; }
   .card .n { font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; }
-  .card .label { color: #8b94a7; font-size: 12px; margin-top: 2px; letter-spacing: 0.4px; text-transform: uppercase; }
-  .card.new .n { color: #7aa2f7; }
-  .card.inprogress .n { color: #e0af68; }
-  .card.done .n { color: #9ece6a; }
-  .card.total .n { color: #e8ecf4; }
+  .card .label { color: var(--muted); font-size: 12px; margin-top: 2px; letter-spacing: 0.4px; text-transform: uppercase; }
+  .card.new .n { color: var(--new); }
+  .card.inprogress .n { color: var(--inprogress); }
+  .card.done .n { color: var(--done); }
+  .card.total .n { color: var(--ink); }
   /* Tracks stay minmax(0, …), never bare fr: a bare fr track floors at its
      content's min-content, so a wide child inflates its track and the grid
      overflows the frame — measured GDK-1053: the nowrap row summaries pushed
      both tracks to [656.8px 763.2px] while the frame was 1168px/1008px wide,
-     and the right card exited the viewport with no scrollbar to reach it. */
+     and the right card exited the viewport with no scrollbar to reach it.
+     Measured GDK-1080: this rule has to hold in the narrow media too. The
+     override below used to say bare `1fr` (= minmax(auto, 1fr)), whose min
+     track sizing function is the content's min-content — the uPlot canvas,
+     init-sized from a host read before layout settled, floored the track at
+     761px inside a 528px frame (clientWidth 528, scrollWidth 785). */
   main { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 12px; align-items: start; }
-  .panel { background: #161b26; border: 1px solid #232a3a; border-radius: 10px; padding: 14px 16px; }
-  .panel h2 { font-size: 12px; font-weight: 600; color: #8b94a7; letter-spacing: 0.6px; text-transform: uppercase; margin-bottom: 10px; }
-  .row { display: flex; gap: 10px; align-items: baseline; padding: 5px 0; border-top: 1px solid #1d2331; }
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  /* A title never hard-clips mid-word (GDK-1080): a panel too narrow for
+     its title ellipsizes instead. */
+  .panel h2 {
+    font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: 0.6px;
+    text-transform: uppercase; margin-bottom: 10px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .row { display: flex; gap: 10px; align-items: baseline; padding: 5px 0; border-top: 1px solid var(--line); }
   .row:first-of-type { border-top: 0; }
-  .key { color: #7aa2f7; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; white-space: nowrap; }
+  .key { color: var(--accent); font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; white-space: nowrap; }
   /* An issue-key chip that navigates the app (open verb). Same ink as .key,
      button reset on top. */
   .key-btn {
     background: none; border: 0; padding: 0; cursor: pointer; font: inherit;
     text-decoration: underline; text-underline-offset: 3px;
   }
-  .key-btn:hover { color: #e8ecf4; }
+  .key-btn:hover { color: var(--ink); }
   .ext {
-    margin-left: auto; color: #8b94a7; font-size: 12.5px; text-decoration: none;
-    border-bottom: 1px solid #232a3a;
+    margin-left: auto; color: var(--muted); font-size: 12.5px; text-decoration: none;
+    border-bottom: 1px solid var(--border);
   }
-  .ext:hover { color: #e8ecf4; border-color: #7aa2f7; }
-  .summary { color: #e8ecf4; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ext:hover { color: var(--ink); border-color: var(--accent); }
+  .summary { color: var(--ink); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .rank {
-    color: #f7768e; font-size: 11px; font-weight: 700; border: 1px solid #3a2a33;
+    color: var(--reopen); font-size: 11px; font-weight: 700; border: 1px solid var(--rank-line);
     border-radius: 5px; padding: 0 5px; white-space: nowrap;
   }
-  .rank.r4, .rank.r5 { color: #8b94a7; border-color: #232a3a; }
-  .mine .key { color: #e0af68; }
-  .foot { color: #8b94a7; font-size: 12px; margin-top: 14px; }
-  .warn { color: #e0af68; }
-  .empty { color: #8b94a7; font-style: italic; }
-  svg text { fill: #8b94a7; font-size: 11px; }
+  .rank.r4, .rank.r5 { color: var(--muted); border-color: var(--border); }
+  .mine .key { color: var(--inprogress); }
+  .foot { color: var(--muted); font-size: 12px; margin-top: 14px; }
+  .warn { color: var(--inprogress); }
+  .empty { color: var(--muted); font-style: italic; }
+  svg text { fill: var(--muted); font-size: 11px; }
   /* The chart panel spans both columns: a trend reads across time, and the
      two-column area above it is about right now. */
   .chart-panel { grid-column: 1 / -1; }
   .chart-panel .u-legend { display: none; }
-  .chart-panel .u-axis text { fill: #8b94a7; font-size: 11px; }
+  .chart-panel .u-axis text { fill: var(--muted); font-size: 11px; }
   /* The canvas is sized in px from its host at init and on resize; this cap
      is the belt over that: if a sizing race ever makes it wider than the
      panel, it degrades to the panel width instead of forcing the grid wide
      (GDK-1053). */
   #monthly canvas { max-width: 100%; }
   #refresh {
-    background: #161b26; color: #e8ecf4; border: 1px solid #232a3a;
+    background: var(--surface); color: var(--ink); border: 1px solid var(--border);
     border-radius: 7px; padding: 4px 12px; font: inherit; font-size: 12.5px; cursor: pointer;
   }
-  #refresh:hover { border-color: #7aa2f7; }
-  @media (max-width: 960px) { main { grid-template-columns: 1fr; } .cards { grid-template-columns: repeat(2, 1fr); } }
+  #refresh:hover { border-color: var(--accent); }
+  @media (max-width: 960px) {
+    main { grid-template-columns: minmax(0, 1fr); }
+    .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
 </style>
 </head>
 <body>
@@ -249,7 +309,7 @@ function renderBars(res) {
   svg.setAttribute('viewBox', '0 0 ' + W + ' ' + (cats.length * rowH));
   svg.setAttribute('role', 'img');
   svg.setAttribute('aria-label', 'open issues by status category');
-  var fills = { new: '#7aa2f7', inprogress: '#e0af68', done: '#9ece6a' };
+  var fills = { new: cssVar('--new'), inprogress: cssVar('--inprogress'), done: cssVar('--done') };
   var names = { new: 'to do', inprogress: 'in progress', done: 'done' };
   for (i = 0; i < cats.length; i++) {
     var cat = cats[i], n = counts[cat] || 0, y = i * rowH;
@@ -266,7 +326,6 @@ function renderBars(res) {
     var val = document.createElementNS(NS, 'text');
     val.setAttribute('x', pad + Math.round((W - pad - valRoom) * n / max) + 6);
     val.setAttribute('y', y + 16);
-    val.setAttribute('fill', '#e8ecf4');
     val.textContent = String(n);
     svg.appendChild(val);
   }
@@ -332,17 +391,17 @@ function renderMonthly(res) {
     height: 150,
     cursor: { show: false },
     legend: { show: false },
-    grid: { stroke: '#1d2331' },
+    grid: { stroke: cssVar('--line') },
     axes: [
-      { stroke: '#8b94a7', grid: { show: false } },
-      { stroke: '#8b94a7', grid: { show: true, stroke: '#1d2331' } },
+      { stroke: cssVar('--muted'), grid: { show: false } },
+      { stroke: cssVar('--muted'), grid: { show: true, stroke: cssVar('--line') } },
     ],
     series: [
       {},
       {
-        stroke: '#7aa2f7', width: 2,
-        points: { show: true, size: 4, stroke: '#7aa2f7', fill: '#0d1017' },
-        fill: 'rgba(122, 162, 247, 0.12)',
+        stroke: cssVar('--new'), width: 2,
+        points: { show: true, size: 4, stroke: cssVar('--new'), fill: cssVar('--bg') },
+        fill: cssVar('--series-fill'),
       },
     ],
   }, data, host);
@@ -357,6 +416,27 @@ window.addEventListener('resize', function () {
     if (host && host.clientWidth) chart.setSize({ width: Math.max(280, host.clientWidth - 2), height: 150 });
   }, 100);
 });
+
+// One theme token, resolved at call time. The palette lives in CSS custom
+// properties (GDK-1082); the bars and the chart bake colors when they render,
+// so they read the properties instead of holding literal copies of them.
+function cssVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+// A live OS-scheme flip re-themes every CSS surface for free — the chart is
+// the one surface whose colors are baked into a canvas at init, so it is
+// rebuilt, and the bars re-read their ink. Both re-renders are the same
+// paths a datasource push already takes.
+var schemeQuery = window.matchMedia('(prefers-color-scheme: dark)');
+function onSchemeChange() {
+  if (results.by_status) renderBars(results.by_status);
+  if (!results.monthly_opened) return;
+  if (chart) { chart.destroy(); chart = null; }
+  renderMonthly(results.monthly_opened);
+}
+if (schemeQuery.addEventListener) schemeQuery.addEventListener('change', onSchemeChange);
+else if (schemeQuery.addListener) schemeQuery.addListener(onSchemeChange);
 
 function el(tag, cls, text) {
   var e = document.createElement(tag);

@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { createServer, type Server } from 'node:http'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { expect, test, type APIRequestContext } from '@playwright/test'
+import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 import { attachConsoleErrors, e2eHomeDir, gotoApp } from './helpers'
 
 /*
@@ -221,6 +221,144 @@ test('GDK-1068: bar value labels land inside the viewBox', async ({ page }) => {
     return worst
   })
   expect(worstOverhang, 'user-unit overhang past the viewBox right edge').toBeLessThanOrEqual(0)
+})
+
+/*
+ * GDK-1082: the wall follows the same theme axis as the app shell. The app's
+ * axis is prefers-color-scheme as the default, data-theme as the override
+ * (web/src/lib/theme.ts) — but the sandboxed frame cannot see the parent's
+ * data-theme attribute (opaque origin, no allow-same-origin), so the only
+ * axis a wall can honestly follow is the media query: the app default
+ * (system) and the frame now move together, which is the audited defect —
+ * in a light shell the sidebar painted cream while the wall stayed dark.
+ * The light contract: the iframe body background channel average >= 200
+ * (cream mood, converged on the app's light tokens), body text contrast
+ * checked separately by the palette itself (--color-text-primary on
+ * --color-bg-base). The dark sibling pins the pre-fix dark capture so
+ * re-theming cannot bleed light values into dark (regression guard — green
+ * before and after by design, it pins the baseline).
+ *
+ * Two describes because a second test.use() in one block overrides the
+ * option for the whole block — the light shell ran dark that way and read
+ * 17.3 on its own gate (measured in this round).
+ */
+const bodyChannelAvg = (frame: ReturnType<Page['frames']>[number]) =>
+  frame.evaluate(() => {
+    const m = getComputedStyle(document.body).backgroundColor.match(/(\d+),\s*(\d+),\s*(\d+)/)
+    return m ? (Number(m[1]) + Number(m[2]) + Number(m[3])) / 3 : -1
+  })
+const openTriage = async (page: Page) => {
+  const html = readFileSync(
+    join(E2E_DIR, '..', 'examples', 'dashboards', 'triage.html'),
+    'utf8',
+  )
+  const saved = await saveDash(page.request, `${PREFIX} ${RUN} theme`, html, TRIAGE_DS)
+  await page.goto(`/#/?dash=${saved.id}`)
+  await expect(page.getByTestId('dashboard-view')).toBeVisible()
+  const fl = page.frameLocator(FRAME_SEL)
+  await expect(fl.locator('#stamp')).toHaveText('4/4 datasources')
+  const frame = page.frames().find((f) => f.url().includes('/render/'))
+  expect(frame, 'render frame inspectable from the test (protocol-level)').toBeTruthy()
+  return frame!
+}
+
+test.describe('GDK-1082: the wall follows prefers-color-scheme — light shell', () => {
+  test.use({ colorScheme: 'light' })
+  test('a light shell reads a light wall (body bg channel average >= 200)', async ({ page }) => {
+    const frame = await openTriage(page)
+    const avg = await bodyChannelAvg(frame)
+    expect(
+      avg,
+      'iframe body background channel average with prefers-color-scheme: light',
+    ).toBeGreaterThanOrEqual(200)
+  })
+})
+
+test.describe('GDK-1082: the wall keeps the authored dark palette — dark shell', () => {
+  test.use({ colorScheme: 'dark' })
+  test('a dark shell keeps the authored dark palette untouched', async ({ page }) => {
+    const frame = await openTriage(page)
+    const dark = await frame.evaluate(() => ({
+      body: getComputedStyle(document.body).backgroundColor,
+      card: getComputedStyle(document.querySelector('.card') as Element).backgroundColor,
+      h2: getComputedStyle(document.querySelector('.panel h2') as Element).color,
+    }))
+    // The pre-fix dark capture, pinned element by element (2026-08-28 audit).
+    expect(dark, 'dark wall must stay the pre-fix dark palette').toEqual({
+      body: 'rgb(13, 16, 23)',
+      card: 'rgb(22, 27, 38)',
+      h2: 'rgb(139, 148, 167)',
+    })
+  })
+})
+
+/*
+ * GDK-1080: at 800x900 the wall folded its stat tiles to 2x2 but the widget
+ * grid kept a track wider than the frame — measured pre-fix: frame
+ * clientWidth 528, scrollWidth 785, the "Top open by priority" panel's right
+ * edge at 768.2px, past the frame. The mechanism is the narrow media
+ * override itself: `grid-template-columns: 1fr` is minmax(auto, 1fr), whose
+ * min track sizing function is the content's min-content — the uPlot canvas
+ * (init-sized from a host read before layout settled) floored the track at
+ * its own width, re-introducing at <=960 exactly the bare-fr blowout
+ * GDK-1053 killed above 960. The contract here: zero horizontal overflow in
+ * the frame AND every title / value label / bar text inside the frame
+ * viewport, booting straight into the dash= param at 800 so the init race
+ * is what runs.
+ */
+test('GDK-1080: at 800x900 the wall has zero horizontal overflow and no clipped title or label', async ({
+  page,
+}) => {
+  const html = readFileSync(
+    join(E2E_DIR, '..', 'examples', 'dashboards', 'triage.html'),
+    'utf8',
+  )
+  const saved = await saveDash(page.request, `${PREFIX} ${RUN} narrow`, html, TRIAGE_DS)
+  await page.setViewportSize({ width: 800, height: 900 })
+  await page.goto(`/#/?dash=${saved.id}`)
+  await expect(page.getByTestId('dashboard-view')).toBeVisible()
+  const fl = page.frameLocator(FRAME_SEL)
+  await expect(fl.locator('#stamp')).toHaveText('4/4 datasources')
+  await expect(fl.locator('#monthly canvas').first()).toBeVisible()
+
+  const frame = page.frames().find((f) => f.url().includes('/render/'))
+  expect(frame, 'render frame inspectable from the test (protocol-level)').toBeTruthy()
+  const inFrameOverflow = () =>
+    frame!.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    )
+  // The wait is on the state under test: layout at 800 plus the authored
+  // file's debounced (100ms) chart re-fit.
+  await expect.poll(inFrameOverflow, { timeout: 5000 }).toBeLessThanOrEqual(0)
+  // The app page itself does not scroll sideways either (the literal 800
+  // half of the contract: the frame is ~528px here, so <=800 is implied by
+  // overflow 0 — the frame-side assertion above is the stronger half).
+  const appOverflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  )
+  expect(appOverflow, 'app horizontal overflow at 800x900').toBeLessThanOrEqual(0)
+
+  // Every title / value label / bar text lands inside the frame viewport:
+  // the audit's symptom was titles hard-clipped mid-word and bar values cut
+  // at the right edge. Titles must ellipsize (CSS), never leave the box.
+  const worst = await frame!.evaluate(() => {
+    const w = document.documentElement.clientWidth
+    let worst = -Infinity
+    let label = ''
+    for (const el of document.querySelectorAll('h1, h2, .n, .label, #bars svg text')) {
+      const r = el.getBoundingClientRect()
+      if (r.width === 0) continue
+      if (r.right - w > worst) {
+        worst = r.right - w
+        label = (el.textContent ?? '').slice(0, 30)
+      }
+    }
+    return { worst, label, w }
+  })
+  expect(
+    worst.worst,
+    `rightmost element "${worst.label}" vs ${worst.w}px frame viewport`,
+  ).toBeLessThanOrEqual(0)
 })
 
 test('the dash= URL param restores the dashboard on a cold boot', async ({ page }) => {
