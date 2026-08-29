@@ -12,7 +12,9 @@ package main
 // The one UI delegate every embedded page shares. Atlassian is full of
 // target="_blank"; with no delegate those clicks die (the same silence the
 // main webview had before /desktop/open). In an embedded pane a new window
-// makes no sense, so the request loads in place instead.
+// makes no sense, so the request loads in place instead. This whole file is
+// a workaround for wails v3 having no child/overlay webview API — upstream
+// tracker wailsapp/wails#1997 (open implementation attempt: PR #5008).
 @interface GadakEmbedUIDelegate : NSObject <WKUIDelegate>
 @end
 @implementation GadakEmbedUIDelegate

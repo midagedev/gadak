@@ -473,7 +473,8 @@ func run() error {
 
 	if cfg.IsStandalone() {
 		// After application.New so wails SingleInstance can os.Exit the
-		// second process before persist is opened (GDK-658).
+		// second process before persist is opened (GDK-658). Upstream ticket
+		// for that exit skipping the caller's defers: wailsapp/wails#6052.
 		if _, err := rt.StartOriginPassthrough(); err != nil {
 			return err
 		}
@@ -544,6 +545,9 @@ func printIntegrationsIfRequested(args []string) bool {
 // Named in the missing-runtime dialog and on stderr.
 const webview2EvergreenURL = "https://developer.microsoft.com/en-us/microsoft-edge/webview2/"
 
+// String matching is the only classification wails offers — the bootstrap
+// errors are unexported fmt.Errorf values from internal/webview2. Sentinel
+// error proposed upstream on the error-handling umbrella: wailsapp/wails#3301.
 func isMissingWebView2(err error) bool {
 	if err == nil {
 		return false
@@ -578,7 +582,9 @@ func webview2UserMessage(err error) string {
 // desktopFatal runs the cleanup wails is about to skip, then surfaces the
 // error. wails calls the ErrorHandler and then os.Exit(1) without unwinding a
 // single defer (pkg/application/application.go handleFatalError), so run's
-// `defer shutdown()` never fires. Routing the fatal through the same shutdown
+// `defer shutdown()` never fires. Upstream: wailsapp/wails#5580 tracks the
+// errorCallback exit, wailsapp/wails#6006 (ours) removes the same file's
+// other kill; the exit-after-ErrorHandler itself has no dedicated ticket yet. Routing the fatal through the same shutdown
 // every other exit uses is the point: it flushes standalone persist (GDK-348)
 // AND reaps the terminal shells (GDK-917 — they are their own process groups
 // and outlive this process unless closeTerminals signals them), so this path
@@ -734,8 +740,9 @@ func normalizeWebviewPeer(r *http.Request) {
 func fallbackHandler(api http.Handler, ui fs.FS, reg *workspace.Registry, openURL func(string) error, browse *browseTabs, setClipboard func(string) bool) http.Handler {
 	mux := http.NewServeMux()
 	// The v3 webview has no new-window delegate, so target="_blank" clicks die
-	// inside it. The web bundle (in desktop mode only) routes external links
-	// here instead; only the webview can reach this — there is no TCP listener.
+	// inside it (upstream tracker: wailsapp/wails#5043). The web bundle (in
+	// desktop mode only) routes external links here instead; only the webview
+	// can reach this — there is no TCP listener.
 	mux.HandleFunc("POST /desktop/open", func(w http.ResponseWriter, r *http.Request) {
 		if openURL == nil {
 			http.Error(w, `{"error":"unavailable"}`, http.StatusServiceUnavailable)

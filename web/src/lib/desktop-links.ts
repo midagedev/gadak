@@ -1,8 +1,9 @@
 /*
  * External links inside the desktop webview.
  *
- * wails v3's webview ships no new-window delegate, so a `target="_blank"`
- * click dies silently inside the app — the browser-tab behaviour every
+ * wails v3's webview ships no new-window delegate (upstream tracker:
+ * wailsapp/wails#5043), so a `target="_blank"` click dies silently inside
+ * the app — the browser-tab behaviour every
  * external anchor here was written for. In desktop mode this intercepts those
  * clicks at the document and routes them:
  *
