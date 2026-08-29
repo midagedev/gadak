@@ -3,6 +3,7 @@ import {
   apiURL,
   appConsoleErrors,
   attachConsoleErrors,
+  drainTerminalSessions,
   DEMO_ISSUE_COUNT_EN,
   DEMO_ISSUE_COUNT_EN_RE,
   forceLocale,
@@ -94,18 +95,9 @@ async function typeLine(page: Page, line: string): Promise<void> {
   await page.keyboard.press('Enter')
 }
 
-async function drainSessions(page: Page): Promise<void> {
-  const res = await page.request.get(apiURL('/api/v1/terminal/sessions/'))
-  if (!res.ok()) return
-  const body = (await res.json()) as { sessions?: { id: string }[] }
-  for (const s of body.sessions ?? []) {
-    await page.request.delete(apiURL(`/api/v1/terminal/sessions/${s.id}/`))
-  }
-}
-
 test.describe('terminal mode reports', () => {
   test.afterEach(async ({ page }) => {
-    await drainSessions(page)
+    await drainTerminalSessions(page)
     const res = await page.request.get(apiURL('/api/v1/terminal/sessions/'))
     const body = (await res.json()) as { sessions?: unknown[] }
     expect(body.sessions ?? []).toEqual([])

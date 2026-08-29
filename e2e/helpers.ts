@@ -312,3 +312,26 @@ export async function walkRows(
   })
   return [...seen].map(([key, title]) => ({ key, title }))
 }
+
+/**
+ * Delete every terminal session on the serve, and report how many there were.
+ *
+ * One owner because the leak is cross-suite (GDK-1127): the whole set shares
+ * one serve, so a suite that opens a pane and walks away leaves a session
+ * that the 60s grace will not reap — the shell inside is alive, so the grace
+ * re-arms (GDK-994) and the row survives with `grace_extensions` counting up.
+ * The suite that then asserts a session count fails, and it is never the
+ * suite that leaked. Any spec that opens the terminal pane owes an
+ * `afterEach(drainTerminalSessions)`; the counting suites also call it in
+ * `beforeEach`, so test ordering cannot re-create this.
+ */
+export async function drainTerminalSessions(page: Page): Promise<number> {
+  const res = await page.request.get(apiURL('/api/v1/terminal/sessions/'))
+  if (!res.ok()) return 0
+  const body = (await res.json()) as { sessions?: { id: string }[] }
+  const rows = body.sessions ?? []
+  for (const s of rows) {
+    await page.request.delete(apiURL(`/api/v1/terminal/sessions/${s.id}/`))
+  }
+  return rows.length
+}

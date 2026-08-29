@@ -4,6 +4,7 @@ import {
   appConsoleErrors,
   attachConsoleErrors,
   DEMO_ISSUE_COUNT_EN_RE,
+  drainTerminalSessions,
   forceLocale,
 } from './helpers'
 
@@ -113,16 +114,18 @@ async function sessions(page: Page): Promise<SessionRow[]> {
   return body.sessions ?? []
 }
 
-async function drainSessions(page: Page): Promise<void> {
-  const rows = await sessions(page)
-  for (const s of rows) {
-    await page.request.delete(apiURL(`/api/v1/terminal/sessions/${s.id}/`))
-  }
-}
-
 test.describe('terminal burst', () => {
+  // This suite counts sessions, so it starts from zero rather than trusting
+  // the suites before it: one that opened a pane and walked away left a live
+  // session the grace never reaps, and the count failed here instead of
+  // there (GDK-1127). Ordering shifts with every test added; this does not.
+  test.beforeEach(async ({ page }) => {
+    const leaked = await drainTerminalSessions(page)
+    if (leaked > 0) console.log(`[terminal-burst] drained ${leaked} leaked session(s) on entry`)
+  })
+
   test.afterEach(async ({ page }) => {
-    await drainSessions(page)
+    await drainTerminalSessions(page)
     const body = (await (await page.request.get(apiURL('/api/v1/terminal/sessions/'))).json()) as {
       sessions?: unknown[]
     }
@@ -167,7 +170,13 @@ test.describe('terminal burst', () => {
     // browser's read cadence, and pinning a floor here would be pinning the
     // scheduler. Their values are what tools/term-burst-probe.mjs reports.
     const rows = await sessions(page)
-    expect(rows.length).toBe(1)
+    // GDK-1127: this asserted a bare count, and a leaked session from another
+    // suite made it fail here — the bare number named neither the leak nor
+    // its owner. Printing the rows is what identified it (created_at 95s
+    // before this session, attached:0, grace_extensions:1 — abandoned, alive,
+    // never reaped), so the diagnosis stays in the assertion rather than
+    // being rebuilt the next time.
+    expect(rows.length, `sessions:\n${JSON.stringify(rows, null, 2)}`).toBe(1)
     const row = rows[0]
     expect(row.dropped_attachments).toBe(0)
     expect(row.bytes_out).toBeGreaterThanOrEqual(seqBytes(LINES))
