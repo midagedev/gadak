@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   applyServerTextFrame,
   assertAllowedShellEndpoint,
@@ -145,6 +145,34 @@ describe('shellWsUrl', () => {
     expect(shellWsUrl('http://127.0.0.1:7899', 's', false)).toBe(
       'ws://127.0.0.1:7899/api/v1/terminal/sessions/s/ws/',
     )
+  })
+
+  // Dev rides the vite /api proxy, so the WS must target the vite origin —
+  // which the page origin only IS when the webview loaded it over http(s).
+  it('dev derives from an http(s) page origin', () => {
+    vi.stubGlobal('location', { protocol: 'http:', host: 'localhost:5199' })
+    try {
+      expect(shellWsUrl('http://127.0.0.1:7899', 's', true)).toBe(
+        'ws://localhost:5199/api/v1/terminal/sessions/s/ws/',
+      )
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  // Tauri mobile dev loads the page as tauri://localhost and proxies it to
+  // devUrl behind the scheme handler, so location.host is a portless
+  // 'localhost' — a WS derived from it lands on :80, whatever happens to be
+  // listening there (GDK-1119, measured against an unrelated port-80 server).
+  it('dev falls back to the vite origin under a tauri:// page origin', () => {
+    vi.stubGlobal('location', { protocol: 'tauri:', host: 'localhost' })
+    try {
+      expect(shellWsUrl('http://127.0.0.1:7899', 's', true)).toBe(
+        'ws://localhost:5180/api/v1/terminal/sessions/s/ws/',
+      )
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 })
 

@@ -122,10 +122,17 @@ export function assertPairedWsUrl(endpoint: string, url: string): void {
 export function shellWsUrl(endpoint: string, id: string, dev: boolean = IS_DEV): string {
   const path = `/api/v1/terminal/sessions/${encodeURIComponent(id)}/ws/`
   if (dev) {
-    const host =
-      typeof location !== 'undefined' && location.host ? location.host : 'localhost:5180'
-    const scheme =
-      typeof location !== 'undefined' && location.protocol === 'https:' ? 'wss:' : 'ws:'
+    // Dev rides the vite /api proxy, so the WS must target the vite origin —
+    // and the page origin only IS that origin when the webview loaded it over
+    // http(s). Tauri mobile dev serves the page as tauri://localhost (the
+    // scheme handler proxies every request to devUrl), so location.host is a
+    // portless 'localhost' and a URL derived from it lands on :80 — whatever
+    // happens to be listening there (GDK-1119).
+    const web =
+      typeof location !== 'undefined' &&
+      (location.protocol === 'http:' || location.protocol === 'https:')
+    const host = web && location.host ? location.host : 'localhost:5180'
+    const scheme = web && location.protocol === 'https:' ? 'wss:' : 'ws:'
     return `${scheme}//${host}${path}`
   }
   let http: URL
