@@ -94,6 +94,55 @@ unconsidered.
 - Do not open follow-up issues in the target's tracker on a bot's
   suggestion; that is the maintainers' call.
 
+## Shipping a PR the upstream has not merged
+
+A good PR can sit for weeks on a maintainer who is busy, and gadak does not
+have to wait behind it (user decision 2026-08-30: *"업스트림 머지 안된건
+포크해서라도 나가자"*). Ship it from a fork branch, pinned, with an
+expiry note.
+
+Do this only when the defect is **reachable in gadak** — say how, in the
+`replace` comment. wails#6006's reachability is one line of upstream source
+(`webview_window_windows.go` registers a `"*"` filter, so every Windows
+request runs the handler that called `log.Fatal`). A PR that is merely good
+is an upstream contribution, not a dependency change.
+
+Go, measured 2026-08-30 on `desktop/` (wails v3):
+
+```bash
+# 1. A distribution branch: the tag we are on, plus the PR's commits only.
+git -C ~/repo/<fork> branch -f gadak/<upstream-tag> <upstream-tag>
+git -C ~/repo/<fork> checkout gadak/<upstream-tag>
+git -C ~/repo/<fork> cherry-pick <pr-sha>...            # the PR's commits
+git -C ~/repo/<fork> tag <upstream-tag>-gadak.1
+git -C ~/repo/<fork> push fork gadak/<upstream-tag> <upstream-tag>-gadak.1
+
+# 2. Pin it.
+go mod edit -replace <module>=<fork-module>@<upstream-tag>-gadak.1
+go mod tidy && go build ./... && GOOS=windows go build ./...
+```
+
+Two things that are not obvious and cost a round if guessed:
+
+- **The fork's `go.mod` module line stays as upstream's.** Go resolves the
+  package path from the *original* module path and only checks that the
+  replacement's declared path matches the *replacement requirement* — so a
+  fork works with no import rewriting at all. (Rewriting the module path is
+  the folklore answer; it would break every internal import.)
+- **Tag the fork branch.** Without a tag, `go mod tidy` derives a
+  pseudo-version from the nearest tag reachable *in the fork*, which was
+  `v3.0.0-beta.9.0.2026…` for a branch cut from beta.12 — a `go.mod` line
+  that reads like a downgrade. `<upstream-tag>-gadak.N` reads like what it
+  is and sorts as a prerelease.
+
+Then, in the repo: the `replace` carries a comment saying which PR, why the
+defect is reachable, and **"delete this when it merges"**. A `replace` with
+no expiry is how a fork becomes permanent by accident. Every upstream bump
+redoes the branch (new tag → cherry-pick → `-gadak.N+1`) until the merge.
+
+A `desktop/` change needs a PR — the Windows and Linux desktop jobs are the
+ones local gates cannot run (CLAUDE.md).
+
 ## Lead-only boundary
 
 Fork, push, `gh pr create`, replies, and any tracker write are lead actions.
