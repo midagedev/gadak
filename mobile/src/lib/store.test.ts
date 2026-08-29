@@ -243,7 +243,12 @@ describe('loadTerminal() — dev adopts the proxy for the shell (GDK-1118)', () 
   const answer = (over: Record<string, unknown> = {}) =>
     ({ status: 200, etag: null, body: { sessions: [], ...over } }) as never
 
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
   it('adopts when the probe answers, with no meta and no token', async () => {
+    vi.stubEnv('VITE_DEV_SHELL', '1')
     vi.mocked(request).mockResolvedValue(answer())
 
     await boot()
@@ -253,7 +258,21 @@ describe('loadTerminal() — dev adopts the proxy for the shell (GDK-1118)', () 
     expect(app.terminal?.endpoint).toBe('')
   })
 
+  it('stays out of the way unarmed — the three-tab default is reachable in dev', async () => {
+    // The adoption is opt-in for this row. mobile/e2e/shell.spec.ts asserts
+    // a default install shows three tabs and that the Pairing tab offers the
+    // terminal field; adopting on sight made both unreachable in dev, which
+    // is the only place that suite runs.
+    vi.mocked(request).mockResolvedValue(answer())
+
+    await boot()
+
+    expect(app.phase).toBe('paired')
+    expect(app.terminal).toBeNull()
+  })
+
   it('leaves the tab absent when the terminal gate refuses', async () => {
+    vi.stubEnv('VITE_DEV_SHELL', '1')
     // The serve half still adopts; only the shell probe is refused — the
     // shape of a serve whose terminal gate wants a token this device does
     // not hold.

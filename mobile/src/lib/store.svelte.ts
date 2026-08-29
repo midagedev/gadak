@@ -668,23 +668,29 @@ async function loadTerminal(): Promise<void> {
   }
   terminalToken = null
   app.terminal = null
-  // Dev: adopt the proxy for the shell too, the way boot() adopts it for
-  // the serve session. Same trust boundary (the developer pointed the vite
-  // proxy at their own loopback serve, decision 0003), and the server side
-  // already agrees: changeOrigin makes the Host a loopback IP literal and
-  // the peer is loopback, so terminalGate's local rule admits the request
-  // with no Bearer at all (internal/server/terminal.go terminalLocal).
-  // Without this the Shell tab was unreachable in dev without a QR dance —
-  // which is why the capture tour's own header listed "a stored terminal
-  // pairing" as an environment precondition the operator had to arrange by
-  // hand. The probe is what decides: no serve, or a gate that wants a
-  // token, leaves the tab absent exactly as before.
+  // `VITE_DEV_SHELL=1 npm run dev`: adopt the proxy for the shell too, the
+  // way boot() adopts it for the serve session. Same trust boundary (the
+  // developer pointed the vite proxy at their own loopback serve, decision
+  // 0003), and the server side already agrees: changeOrigin makes the Host
+  // a loopback IP literal and the peer is loopback, so terminalGate's local
+  // rule admits the request with no Bearer at all (internal/server/
+  // terminal.go terminalLocal). Without it the Shell tab is unreachable in
+  // dev without a QR dance — which is why the capture tour's own header
+  // listed "a stored terminal pairing" as an environment precondition the
+  // operator had to arrange by hand.
   //
-  // Unpairing the shell is session-scoped here, exactly as unpairing the
-  // serve is: unpair() writes its sticky flag only outside DEV (see above),
-  // so a dev relaunch re-adopting the proxy is the established contract,
-  // not a hole this opens.
+  // Opt-in, unlike the serve session's adoption, because "no terminal
+  // pairing" is a state the app must still be able to show and dev is where
+  // it is shown: adopting on sight made the three-tab default unreachable
+  // and the Pairing tab's offer field with it (mobile/e2e/shell.spec.ts
+  // caught exactly that — six failures, and it was right).
+  //
+  // The probe is what decides even when armed: no serve, or a gate that
+  // wants a token, leaves the tab absent. Unpairing is session-scoped, as
+  // it already is for the serve session (unpair() writes its sticky flag
+  // only outside DEV, above) — an armed relaunch re-adopts.
   if (!import.meta.env.DEV || meta) return
+  if (import.meta.env.VITE_DEV_SHELL !== '1') return
   try {
     await probeShellPairing('', '')
     app.terminal = { endpoint: '', label: 'This Mac (dev)', expires_at: '' }

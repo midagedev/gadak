@@ -13,11 +13,14 @@
 #                 Absolute t≈ schedule from tour start; the beat boundaries
 #                 in that table are the cut-sync contract this script's
 #                 dark-flip mark is measured against.
-#   the shell   — no QR dance. In DEV loadTerminal() adopts the vite proxy
-#                 the way boot() adopts it for the serve session, and the
-#                 server agrees: changeOrigin makes the Host a loopback IP
-#                 literal, so terminalGate's local rule admits the request
-#                 with no Bearer (internal/server/terminal.go terminalLocal).
+#   the shell   — no QR dance. VITE_DEV_SHELL=1 lets loadTerminal() adopt
+#                 the vite proxy the way boot() adopts it for the serve
+#                 session, and the server agrees: changeOrigin makes the
+#                 Host a loopback IP literal, so terminalGate's local rule
+#                 admits the request with no Bearer (internal/server/
+#                 terminal.go terminalLocal). Opt-in, so the unpaired
+#                 three-tab default stays reachable in dev — which is where
+#                 mobile/e2e/shell.spec.ts asserts it.
 #   appearance  — the app follows the system, so the dark flip is `xcrun
 #                 simctl ui`, scheduled here inside the tour's own window.
 #
@@ -172,7 +175,7 @@ fi
 echo "record-hero-phone: starting armed dev server (proxy → :${PORT})…"
 (
   cd "$ROOT/mobile"
-  GADAK_SERVE_PORT="$PORT" VITE_DEMO_TOUR=1 exec npm run dev
+  GADAK_SERVE_PORT="$PORT" VITE_DEMO_TOUR=1 VITE_DEV_SHELL=1 exec npm run dev
 ) >"$OUT/vite.log" 2>&1 &
 VITE_PID=$!
 

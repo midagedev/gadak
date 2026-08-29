@@ -64,6 +64,12 @@ hard-won 목록)와 `AGENTS.md`(스키마·쿼리)가 원본이다.
   npm run check && npm run lint:ios`도 게이트다 (2026-08-26: 웹에서 지운
   i18n 키를 `mobile/src/screens/Shell.svelte`가 계속 써서, 로컬 go·typecheck·
   vitest·e2e 326·doc-checks가 전부 초록인 채로 Mobile 잡만 빨갰다).
+  **`mobile/src`의 화면·스토어를 건드렸으면 `npm run viewport-gate`까지가
+  게이트다** — `mobile/e2e/`(Playwright, 402×874 + 셸 6종)는 위 세 명령이
+  전혀 보지 않는데 CI Mobile 잡은 돌린다 (2026-08-29: dev 셸 자동 채택이
+  "페어링 없으면 탭 3개" 계약을 깼고, 로컬 go·web e2e 378·mobile vitest·
+  check·lint:ios가 전부 초록인 채로 CI에서 8개가 빨갰다). 느리다(~12분)
+  — 커밋 직전 1회.
 - **브랜드 마크(`docs/media/logo.png`)를 건드렸으면 `make brand`가 게이트다.**
   데스크톱은 빌드 때 그 로고를 리사이즈하니 새 마크를 자동으로 집지만, 폰
   아이콘은 생성해 커밋하는 파일이라 따라오지 않는다 — 2026-08-27까지 폰은

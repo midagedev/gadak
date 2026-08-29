@@ -29,11 +29,12 @@
 // with missing bits is a broken take, which the operator should see):
 //   - A reachable shell: the Shell tab exists only while app.terminal is
 //     set (App.svelte/TabBar.svelte). In DEV that no longer needs a QR
-//     dance — loadTerminal() adopts the vite proxy the way boot() adopts
-//     it for the serve session (store.svelte.ts), so a dev server pointed
-//     at a live serve is the whole precondition. The bundled demo
-//     workspace still cannot show the shell bits — enterDemo() resets the
-//     terminal state — so capture runs against the proxy, never the demo.
+//     dance — with VITE_DEV_SHELL=1, loadTerminal() adopts the vite proxy
+//     the way boot() adopts it for the serve session (store.svelte.ts), so
+//     a dev server pointed at a live serve is the whole precondition. The
+//     bundled demo workspace still cannot show the shell bits —
+//     enterDemo() resets the terminal state — so capture runs against the
+//     proxy, never the demo.
 //   - A scrubbed snapshot serve (MEDIA.md's standing rule): bit 4 types
 //     `gadak close <KEY>`, a real CLI write (cmdClose → applyTransitionWrite
 //     with target "done"), against whatever origin that serve fronts.
