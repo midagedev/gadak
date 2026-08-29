@@ -23,6 +23,7 @@ agent-ux
 agents
 architecture
 audit-go
+audit-shells
 audit-simplify
 audit-svelte
 audit-tests
