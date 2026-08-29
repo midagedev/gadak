@@ -244,10 +244,13 @@
   }}
 >
   <div class="flex w-full min-w-0 items-center gap-2.5 px-4">
-  <!-- Multi-select checkbox (hit target only; shift=range) -->
+  <!-- Multi-select checkbox (hit target only; shift=range).
+       lead-fold-1: the leading strip folds too on a very narrow row
+       (GDK-1089). Bulk-selecting rows you cannot read is not a workflow,
+       and this is the cheapest 26px on the row. -->
   <button
     type="button"
-    class="flex h-4 w-4 flex-none items-center justify-center rounded border transition-all {boxOpacity}
+    class="lead-fold-1 flex h-4 w-4 flex-none items-center justify-center rounded border transition-all {boxOpacity}
       {selected ? 'border-accent bg-accent text-white' : 'border-border-strong'}"
     onclick={onCheckClick}
     aria-pressed={selected}
@@ -260,10 +263,12 @@
   <!-- Priority -->
   <PriorityIcon priority={issue.priority} rank={issue.priority_rank} />
 
-  <!-- Status dot (click = category filter) -->
+  <!-- Status dot (click = category filter). Folds with the checkbox: the
+       category is a filter shortcut, and the same eight pixels of title
+       carry more at that width (GDK-1089). -->
   <button
     type="button"
-    class="h-2 w-2 flex-none rounded-full transition-transform hover:scale-125"
+    class="lead-fold-1 h-2 w-2 flex-none rounded-full transition-transform hover:scale-125"
     style:background={catMeta.color}
     title={t('list.categoryTitle', { label: catMeta.label, status: issue.status })}
     onclick={stop(() => filters.addValue('status_category', cat))}
@@ -288,13 +293,15 @@
   {/if}
 
   <!-- Title.
-       `min-w-[13ch]` is the row's one non-negotiable: the title takes whatever
+       `row-title` is the row's one non-negotiable: the title takes whatever
        the trailing strip leaves, and with the detail panel open that came to a
        character and an ellipsis while the label chips beside it kept every pixel
        they asked for — the widest thing on the row surrendering to the narrowest
        (vision verdict 2026-08-07). The floor is a CSS minimum, never a measured
-       one: this row is the 10k-row hot path and must not read layout. -->
-  <span class="min-w-[13ch] flex-1 truncate font-normal text-text-primary" title={issue.summary}>
+       one: this row is the 10k-row hot path and must not read layout. It is
+       13ch, and a share of the row below 620px — app.css owns both, because
+       row-column-thresholds.ts models the same number. -->
+  <span class="row-title flex-1 truncate font-normal text-text-primary" title={issue.summary}>
     <Marks segs={summarySegs} />
     {#if filters.filters.reopened && issue.reopen_count > 0 && issue.reopen_reason}
       <!-- Inline reason only on reopen view — elsewhere the badge + its tooltip is enough -->

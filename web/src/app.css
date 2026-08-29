@@ -1037,6 +1037,58 @@
     }
   }
 
+  /*
+    GDK-1089: the title's floor, and the leading strip's fold.
+
+    Measured 2026-08-30, viewport 1440, demo fixture (e2e/row-narrow.spec.ts
+    is the same measurement as a gate):
+
+      panes                       row    title   trailing strip
+      list only                  1168      638   reopen stale deploy labels assignee updated
+      list + detail               678      172   the same six, labels clipped 76 → 64
+      terminal + list + detail    358      106   stale only
+
+    106px IS the 13ch floor — the title had stopped shrinking and started
+    being unreadable, about twelve characters and an ellipsis. Of the 326px
+    of content on that row, the LEADING strip held 170 (52%): checkbox 16,
+    priority 18, dot 8, key 88, four 10px gaps. The trailing folds had
+    already done their work — everything but `stale` was gone — and the row
+    was still mostly furniture.
+
+    The fix is the leading strip folding, in the same information order the
+    trailing one uses (what to keep last): checkbox and status dot go at
+    480, priority and key stay. Bulk-selecting rows you cannot read is not
+    a workflow, and the category dot is a filter shortcut with a home in
+    the filter bar. Measured after: the 358px row's title goes 106 → 146.
+
+    The floor itself stays a constant 13ch, and this is the second thing
+    tried. Making it a share of the row below 620 (`max(13ch, 40%)`) read
+    as the more structural fix — the title is what identifies the row, so
+    it should not be the only part that pays for a narrow one — but it lost
+    to measurement twice. It never binds at the widths it was written for
+    (at 358 the leading fold already leaves more leftover than any floor
+    would claim), and at 570 it claimed 215px and pushed the label chips
+    52px past the scroller, because chipfold-labels has a `min-w-[3rem]`
+    floor of its own and two floors cannot share one row
+    (e2e/list-row-overflow.spec.ts caught it). Above 620 it is worse than
+    unhelpful: row-column-thresholds.ts models this exact number as the
+    constant 106.4 in LEAD_AND_TITLE, so a proportional floor moves every
+    option column's rung. The 678px two-pane row — title 172, the trailing
+    strip holding 294 — is still unfixed, and its fix is that re-derivation.
+
+    The class exists so this file is the single owner of the number the
+    ladder models; it was `min-w-[13ch]` on the element before.
+  */
+  .row-title {
+    min-width: 13ch;
+  }
+
+  @container issuerow (max-width: 480px) {
+    .lead-fold-1 {
+      display: none;
+    }
+  }
+
   @container issuerow (max-width: 480px) {
     .trail-fold-2 {
       display: none;
