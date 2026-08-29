@@ -229,8 +229,15 @@ export HOME='$HERO_ROOT/agent'
 export PATH='$(dirname "$GADAK_BIN"):/usr/bin:/bin:/usr/sbin:/sbin'
 export GADAK_NO_OPEN=1
 unset HISTFILE
-unset GADAK_E2E_PORT
-unset GADAK_PROMO_LAYOUT
+# Same allowlist as the tapes' env, for the same reason: a rig's own
+# GADAK_* variables reach the PTY and gadak prints "ignoring unrecognised …"
+# into the frame. Keep what it reads; drop the rest whatever it is called.
+for v in \$(env | sed -n 's/^\(GADAK_[A-Z0-9_]*\)=.*/\1/p'); do
+  case "\$v" in
+    GADAK_HOME|GADAK_WORKSPACE|GADAK_PROFILE|GADAK_NO_OPEN|GADAK_ACTOR) ;;
+    *) unset "\$v" ;;
+  esac
+done
 for v in \$(env | sed -n 's/^\(CLAUDE[A-Z_]*\)=.*/\1/p'); do unset "\$v"; done
 cd '$HERO_ROOT/agent'
 EOF

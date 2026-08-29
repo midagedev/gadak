@@ -244,11 +244,21 @@ export DISABLE_AUTOUPDATER=1
 unset HISTFILE
 unset FORCE_COLOR
 unset NO_COLOR
-# The recorder exports these for its own serve and Playwright halves; gadak
-# does not read them, so every command the agent runs would otherwise print
-# "ignoring unrecognised GADAK_E2E_PORT, GADAK_PROMO_LAYOUT" into the frame.
-unset GADAK_E2E_PORT
-unset GADAK_PROMO_LAYOUT
+# Recorders export GADAK_* variables for their own serve and Playwright
+# halves; gadak does not read most of them, and every command the agent runs
+# then prints "ignoring unrecognised …" into the frame. This was a list of
+# the two names that had bitten us (E2E_PORT, PROMO_LAYOUT), which is a list
+# that goes stale the next time a rig invents a variable — measured
+# 2026-08-29: GADAK_HERO_MAX_TAKES landed in the middle of a hero frame,
+# above the take's own output. An allowlist cannot go stale that way: keep
+# what gadak actually reads, drop the rest whatever it is called. The four
+# below are set above, or are the ones gadak names in that very warning.
+for v in \$(env | sed -n 's/^\(GADAK_[A-Z0-9_]*\)=.*/\1/p'); do
+  case "\$v" in
+    GADAK_HOME|GADAK_WORKSPACE|GADAK_PROFILE|GADAK_NO_OPEN|GADAK_ACTOR) ;;
+    *) unset "\$v" ;;
+  esac
+done
 for v in \$(env | sed -n 's/^\(CLAUDE[A-Z_]*\)=.*/\1/p'); do unset "\$v"; done
 cd '$WORKSPACE'
 EOF

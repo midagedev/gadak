@@ -91,12 +91,21 @@ const DRY = !!process.env.GADAK_HERO_DRY_RUN
  *  record-hero-desk.sh (which is the single owner of the fixture). */
 const TARGET_KEY = process.env.GADAK_HERO_TARGET || 'STD-7'
 
-/** One Korean sentence, the way a person asks — no JQL, no column names.
+/** One sentence, the way a person asks — no JQL, no column names.
  *  Comment-then-done is two verbs the installed skill teaches (`gadak
  *  comment <KEY> -m …`, `gadak transition <KEY> done`), and the comment is
  *  what makes the reattached scrollback worth reading: interim work, not
- *  just a status flip. */
-const PROMPT = `${TARGET_KEY} 버그 조사해서 요약 코멘트 남기고 완료로 바꿔줘`
+ *  just a status flip.
+ *
+ *  English by default, and overridable rather than hardcoded. This line is
+ *  the one piece of text the hero cut asks a stranger to read — it is the
+ *  whole premise of the film in a sentence — and the audience for the clip
+ *  is wider than the audience for any one language. The Korean phrasing
+ *  this replaced (`… 버그 조사해서 요약 코멘트 남기고 완료로 바꿔줘`) is a
+ *  GADAK_HERO_PROMPT away, for a take aimed at a Korean audience. */
+const PROMPT =
+  process.env.GADAK_HERO_PROMPT ||
+  `look into ${TARGET_KEY}, leave a short comment with what you find, then close it`
 
 /** The dry-run stand-in typed at the idle shell instead of `claude`. */
 const DRY_ECHO = 'echo gadak-hero-dry-run'
@@ -437,13 +446,23 @@ test.describe('hero desk demo', () => {
     await expect(pane).toHaveAttribute('data-attached', 'true', { timeout: 30_000 })
     mark('bit6_pane_reopened')
 
-    // Reattach, not create: still exactly one session, still that id, with a
-    // WebSocket attached again. A second row here — or a new id — is the
-    // failure mode this take exists to rule out.
+    // Reattach, not create: the same id, alive, with a WebSocket attached
+    // again — and no session that was not already there before the pane
+    // came back. A NEW row here is the failure mode this take exists to
+    // rule out.
+    //
+    // 2026-08-29: this was `expect(live).toHaveLength(1)`, and an
+    // interleaved two-camera shoot failed it with two live rows — the
+    // second belonging to the PHONE's shell on the same serve, which is
+    // the whole point of that shoot. "Exactly one row" was only ever a
+    // proxy for "the desk did not reopen"; the set difference against the
+    // pre-reattach snapshot says that directly, and says it whatever else
+    // is attached to the mirror.
+    const before = new Set(live.map((s) => s.id))
     live = await sessions(page)
-    expect(live).toHaveLength(1)
-    expect(live[0].id).toBe(sessionId)
-    expect(live[0].attached).toBeGreaterThanOrEqual(1)
+    expect(live.map((s) => s.id)).toContain(sessionId)
+    expect(live.find((s) => s.id === sessionId)?.attached).toBeGreaterThanOrEqual(1)
+    expect(live.filter((s) => !before.has(s.id))).toHaveLength(0)
     mark('proof_post_reattach', `sessions=${JSON.stringify(live)}`)
 
     // The replay: the buffer carries the interim work again. The dry-run
