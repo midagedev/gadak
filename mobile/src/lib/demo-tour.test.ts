@@ -59,3 +59,28 @@ describe('demo-tour arming', () => {
     expect(info).not.toHaveBeenCalled()
   })
 })
+
+// GDK-1117: the tour is a 6-bit story now, not a feature walk. These read
+// the source the way the arming suite does — the timeline is a media
+// contract (the desktop camera is cut against the t≈ table in tour()), so
+// its shape is asserted, not just its arming.
+describe('demo-tour timeline (the story, not the feature walk)', () => {
+  const src = readFileSync(srcPath, 'utf8')
+  const tabCalls = () =>
+    [...src.matchAll(/switchTab\(\s*['"]([a-z]+)['"]\s*\)/g)].map((m) => m[1])
+
+  it('keeps the pairing tab out of the timeline — plumbing earns no seconds', () => {
+    expect(src).not.toMatch(/switchTab\(\s*['"]pairing['"]\s*\)/)
+  })
+
+  it('has a shell bit — the terminal is a tab of the tracker, never a fullscreen cut', () => {
+    expect(src).toMatch(/switchTab\(\s*['"]shell['"]\s*\)/)
+  })
+
+  it('carries the t≈ bit table and ends the story on the Issues tab', () => {
+    // The table is the input the desktop camera cuts against (task spec).
+    expect(src).toMatch(/t≈/)
+    // Shell (catch-up), then the board — and nothing else in between.
+    expect(tabCalls()).toEqual(['shell', 'issues'])
+  })
+})
