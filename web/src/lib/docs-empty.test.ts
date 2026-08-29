@@ -13,6 +13,7 @@ const base = {
   hasDocsServer: true,
   confluenceEnabled: true,
   fetchingDocuments: false,
+  indexLoadFailed: false,
   confluenceRuns: [] as { error?: string }[] | null,
 }
 
@@ -63,6 +64,31 @@ describe('docsEmptyState', () => {
   test('a successful pass with no pages blames the selection', () => {
     expect(docsEmptyState({ ...base, confluenceRuns: [{}] })).toBe('empty')
   })
+
+  // GDK-1067: the index request failing used to read as this table's
+  // onboarding answers — 'empty' after a clean run, 'never' while the run
+  // fetch (killed by the same outage) had not answered.
+  test('a failed index after a clean pass is loadfailed, not empty', () => {
+    expect(docsEmptyState({ ...base, indexLoadFailed: true, confluenceRuns: [{}] })).toBe(
+      'loadfailed',
+    )
+  })
+
+  test('a failed index outranks runs-not-asked', () => {
+    expect(docsEmptyState({ ...base, indexLoadFailed: true, confluenceRuns: null })).toBe(
+      'loadfailed',
+    )
+  })
+
+  test('an errored run outranks a failed index — it carries the cause', () => {
+    expect(
+      docsEmptyState({
+        ...base,
+        indexLoadFailed: true,
+        confluenceRuns: [{ error: 'confluence: 503 unavailable' }],
+      }),
+    ).toBe('failed')
+  })
 })
 
 describe('docsEmptyCopy', () => {
@@ -86,6 +112,7 @@ describe('docsEmptyCopy', () => {
         hint: en['sidebar.docsEmptySpacesHint'],
         prefersBusy: false,
       },
+      loadfailed: { title: en['docs.loadFailed'], hint: null, prefersBusy: false },
     }
     for (const [state, want] of Object.entries(table) as [DocsEmptyState, (typeof table)['off']][]) {
       const copy = docsEmptyCopy(state)
@@ -96,7 +123,15 @@ describe('docsEmptyCopy', () => {
   })
 
   test('off is the only copy that asks to turn Confluence on', () => {
-    const states: DocsEmptyState[] = ['off', 'never', 'failed', 'empty', 'syncing', 'unavailable']
+    const states: DocsEmptyState[] = [
+      'off',
+      'never',
+      'failed',
+      'empty',
+      'syncing',
+      'unavailable',
+      'loadfailed',
+    ]
     const hits = states.filter((s) => {
       const c = docsEmptyCopy(s)
       const title = en[c.titleKey]
@@ -108,10 +143,11 @@ describe('docsEmptyCopy', () => {
 })
 
 describe('docsEmptyClickAction / glyph', () => {
-  test('click: never syncs, off/failed/empty open settings, the rest do nothing', () => {
+  test('click: never syncs, loadfailed retries, off/failed/empty open settings', () => {
     expect(docsEmptyClickAction('unavailable')).toBe('none')
     expect(docsEmptyClickAction('syncing')).toBe('none')
     expect(docsEmptyClickAction('never')).toBe('sync')
+    expect(docsEmptyClickAction('loadfailed')).toBe('retry')
     expect(docsEmptyClickAction('off')).toBe('settings')
     expect(docsEmptyClickAction('failed')).toBe('settings')
     expect(docsEmptyClickAction('empty')).toBe('settings')
@@ -120,6 +156,7 @@ describe('docsEmptyClickAction / glyph', () => {
   test('glyph: gear is reserved for unconfigured', () => {
     expect(docsEmptyGlyph('off')).toBe('settings')
     expect(docsEmptyGlyph('failed')).toBe('warning')
+    expect(docsEmptyGlyph('loadfailed')).toBe('warning')
     expect(docsEmptyGlyph('syncing')).toBe('refresh')
     expect(docsEmptyGlyph('never')).toBe('refresh')
     expect(docsEmptyGlyph('empty')).toBe('search-x')

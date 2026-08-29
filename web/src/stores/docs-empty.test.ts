@@ -14,6 +14,7 @@ const deps = vi.hoisted(() => ({
   confluenceEnabled: true,
   hasDocs: true,
   fetching: false,
+  loadFailed: false,
   bySpace: [] as unknown[],
   getSyncRuns: vi.fn(async () => ({ runs: [] as DocsEmptyRun[] })),
 }))
@@ -37,6 +38,9 @@ vi.mock('./pages.svelte', () => ({
     get bySpace() {
       return deps.bySpace
     },
+    get loadFailed() {
+      return deps.loadFailed
+    },
   },
 }))
 
@@ -50,6 +54,7 @@ const matrix: { name: string; input: Parameters<typeof docsEmptyState>[0] }[] = 
       hasDocsServer: false,
       confluenceEnabled: true,
       fetchingDocuments: true,
+      indexLoadFailed: false,
       confluenceRuns: [{ error: '403' }],
     },
   },
@@ -59,6 +64,7 @@ const matrix: { name: string; input: Parameters<typeof docsEmptyState>[0] }[] = 
       hasDocsServer: true,
       confluenceEnabled: false,
       fetchingDocuments: false,
+      indexLoadFailed: false,
       confluenceRuns: null,
     },
   },
@@ -68,6 +74,7 @@ const matrix: { name: string; input: Parameters<typeof docsEmptyState>[0] }[] = 
       hasDocsServer: true,
       confluenceEnabled: true,
       fetchingDocuments: true,
+      indexLoadFailed: false,
       confluenceRuns: [{ error: 'confluence: 403 forbidden' }],
     },
   },
@@ -77,6 +84,7 @@ const matrix: { name: string; input: Parameters<typeof docsEmptyState>[0] }[] = 
       hasDocsServer: true,
       confluenceEnabled: true,
       fetchingDocuments: false,
+      indexLoadFailed: false,
       confluenceRuns: null,
     },
   },
@@ -86,6 +94,7 @@ const matrix: { name: string; input: Parameters<typeof docsEmptyState>[0] }[] = 
       hasDocsServer: true,
       confluenceEnabled: true,
       fetchingDocuments: false,
+      indexLoadFailed: false,
       confluenceRuns: [],
     },
   },
@@ -95,6 +104,7 @@ const matrix: { name: string; input: Parameters<typeof docsEmptyState>[0] }[] = 
       hasDocsServer: true,
       confluenceEnabled: true,
       fetchingDocuments: false,
+      indexLoadFailed: false,
       confluenceRuns: [{ error: 'confluence: 403 forbidden' }, {}],
     },
   },
@@ -104,7 +114,28 @@ const matrix: { name: string; input: Parameters<typeof docsEmptyState>[0] }[] = 
       hasDocsServer: true,
       confluenceEnabled: true,
       fetchingDocuments: false,
+      indexLoadFailed: false,
       confluenceRuns: [{}],
+    },
+  },
+  {
+    name: 'loadfailed (index failed after a clean pass)',
+    input: {
+      hasDocsServer: true,
+      confluenceEnabled: true,
+      fetchingDocuments: false,
+      indexLoadFailed: true,
+      confluenceRuns: [{}],
+    },
+  },
+  {
+    name: 'loadfailed (index failed, runs unanswered)',
+    input: {
+      hasDocsServer: true,
+      confluenceEnabled: true,
+      fetchingDocuments: false,
+      indexLoadFailed: true,
+      confluenceRuns: null,
     },
   },
 ]
@@ -113,6 +144,7 @@ function apply(input: Parameters<typeof docsEmptyState>[0]): void {
   deps.hasDocs = input.hasDocsServer
   deps.confluenceEnabled = input.confluenceEnabled
   deps.fetching = input.fetchingDocuments
+  deps.loadFailed = input.indexLoadFailed
   docsEmpty.confluenceRuns = input.confluenceRuns
 }
 
@@ -120,6 +152,7 @@ afterEach(() => {
   deps.confluenceEnabled = true
   deps.hasDocs = true
   deps.fetching = false
+  deps.loadFailed = false
   deps.bySpace = []
   docsEmpty.confluenceRuns = null
 })

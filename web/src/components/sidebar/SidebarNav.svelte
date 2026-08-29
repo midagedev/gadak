@@ -314,12 +314,17 @@
   const docsEmptyText = $derived(docsEmpty.text)
   const confluenceRuns = $derived(docsEmpty.confluenceRuns)
 
-  /** 'never' is the one state the user can act on without leaving the sidebar. */
+  /** 'never' and a failed index are the states the user can act on without
+   *  leaving the sidebar — sync, or retry the index request (GDK-1067). */
   function onDocsEmptyClick() {
     const action = docsEmptyClickAction(docsEmptyState)
     if (action === 'none') return
     if (action === 'sync') {
       void issues.pullMirror('full')
+      return
+    }
+    if (action === 'retry') {
+      void pages.reload()
       return
     }
     onOpenSettings()
@@ -746,15 +751,17 @@
                   title={docsEmptyState === 'failed' ? (confluenceRuns?.[0]?.error ?? '') : ''}
                   onclick={onDocsEmptyClick}
                 >
-                  <!-- Five causes, five silhouettes. The gear is reserved for the one
-                       state that is genuinely unconfigured: once the source is on, a
-                       gear would say "set this up" about something already set up. The
-                       unavailable snapshot shares search-x with 'empty' — nothing to
-                       find either way — but never the gear: there is nowhere to go. -->
+                  <!-- Seven causes, four silhouettes. Both failure causes share the
+                       warning — they differ in copy and click, not in kind. The gear is
+                       reserved for the one state that is genuinely unconfigured: once
+                       the source is on, a gear would say "set this up" about something
+                       already set up. The unavailable snapshot shares search-x with
+                       'empty' — nothing to find either way — but never the gear: there
+                       is nowhere to go. -->
                   <Icon
                     name={docsEmptyGlyph(docsEmptyState)}
                     size={15}
-                    class="mt-0.5 flex-none {docsEmptyState === 'failed'
+                    class="mt-0.5 flex-none {docsEmptyState === 'failed' || docsEmptyState === 'loadfailed'
                       ? 'text-status-reopen'
                       : 'text-text-muted'} {docsEmptyState === 'syncing'
                       ? 'motion-safe:animate-spin'

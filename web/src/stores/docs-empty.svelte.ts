@@ -1,9 +1,10 @@
 /*
  * Empty-docs owner (sidebar CTA + Documents body).
  *
- * Six causes, one decision table (`lib/docs-empty.ts`). This store is the
+ * Seven causes, one decision table (`lib/docs-empty.ts`). This store is the
  * single place that gathers the table's inputs — including the Confluence
- * sync-run fetch — so the sidebar row and the body EmptyState cannot disagree.
+ * sync-run fetch and the page index's loadFailed — so the sidebar row and the
+ * body EmptyState cannot disagree.
  *
  * `bind()` starts the fetch effect. Do not call it from the constructor:
  * App import runs before loadConfig (sidebar-sections.svelte.ts documents
@@ -67,6 +68,7 @@ class DocsEmptyStore {
       hasDocsServer: hasServerVerb('docs'),
       confluenceEnabled: config().confluenceEnabled,
       fetchingDocuments: fetchingDocuments(),
+      indexLoadFailed: pages.loadFailed,
       confluenceRuns: this.confluenceRuns,
     })
   }
