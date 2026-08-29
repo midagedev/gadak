@@ -289,7 +289,9 @@ test.describe('hero desk demo', () => {
     const pane = page.getByTestId('terminal-pane')
     await expect(pane).toBeVisible()
     await expect(pane).toHaveAttribute('data-attached', 'true', { timeout: 30_000 })
-    await expect(page.getByTestId('terminal-beta')).toBeVisible()
+    // The beta mark came off in 0.19 (GDK-1024) — asserted absent, so a
+    // revert cannot quietly put it back into a recording.
+    await expect(page.getByTestId('terminal-beta')).toHaveCount(0)
     await beat(page, 1000)
 
     // Exactly one session exists and this is it — the id every later

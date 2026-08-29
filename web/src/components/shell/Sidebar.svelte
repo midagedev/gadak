@@ -59,10 +59,6 @@
     >
       <Icon name="terminal" size={14} class="flex-none" />
       <span class="min-w-0 flex-1 truncate">{t('sidebar.terminal')}</span>
-      <span
-        class="flex-none rounded-full border border-border-subtle px-1.5 text-micro font-medium tracking-wide text-text-muted uppercase"
-        data-testid="sidebar-terminal-beta">{t('terminal.beta')}</span
-      >
     </button>
   </div>
 </aside>

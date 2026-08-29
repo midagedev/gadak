@@ -429,11 +429,6 @@
       <span class="truncate text-micro tracking-wide text-text-muted uppercase"
         >{t('terminal.title')}</span
       >
-      <span
-        class="flex-none rounded-full border border-border-subtle px-1.5 text-micro font-medium tracking-wide text-text-muted uppercase"
-        title={t('terminal.betaHint')}
-        data-testid="terminal-beta">{t('terminal.beta')}</span
-      >
     </span>
     <button
       type="button"
