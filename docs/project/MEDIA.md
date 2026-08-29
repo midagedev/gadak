@@ -54,6 +54,7 @@ each run with a fake credential.)
 | `docs/media/claude-tokens-vertical.mp4` | VHS `tools/tapes/claude-tokens.tape` + the same serve tab (`record-claude-drive.sh vertical claude-tokens`) | social/vertical, 4:5 — the team-look half: colours plus the dimension axes, including a token saved with a warning the agent then acts on (GDK-858) |
 | `docs/media/claude-tokens-vertical.gif` (+`-poster.png`) | 430-wide reduction of that mp4 | README — same reason as the dashboards GIF |
 | `docs/media/scale.mp4` (+`scale.gif`, `scale-poster.png`) | Playwright `e2e/demo/scale-demo.spec.ts` + post-process camera work `e2e/demo/export-scale.sh` (`make media-scale` — deliberately outside the `make media` aggregate: the committed artifacts are what the site ships) | landing flagship — record-time counts focus over a 20k-issue snapshot |
+| `docs/media/hero.mp4` (+`hero-poster.png`) | two-camera LIVE shoot, one command: `e2e/demo/record-hero.sh` (the desk take `record-hero-desk.sh`, with the phone take `record-hero-phone.sh` running inside its away-wait), cut by `e2e/demo/cut-hero.sh`. Not in `make media` and not reproducible from a checkout alone — it needs a live Claude Code login AND a booted iOS simulator with a dev build of the phone app | the 0.19 hero — one serve, one terminal session: the desk hands work to an agent and walks away, a phone closes an issue while the chair is empty, and the desk comes back to the scrollback and the board |
 | `docs/media/groupby.gif` / `groupby.mp4` (+`groupby-poster.png`) | Playwright `e2e/demo/groupby-demo.spec.ts` via `e2e/demo/export-groupby.sh` | group-by exhibit motion cut — the landing exhibit itself ships the still below |
 | `docs/media/groupby-still.png` | `e2e/demo/site-stills.mjs` | landing group-by exhibit (2x still; see the landing policy table) |
 | `docs/media/history.gif` / `history.mp4` (+`history-poster.png`) | Playwright `e2e/demo/history-demo.spec.ts` via `e2e/demo/export-history.sh` | history exhibit motion cut — the landing exhibit itself ships the still below |
@@ -162,6 +163,7 @@ Measured 2026-08-14 via `ls -la docs/media/` (decimal MB = bytes/1e6):
 | `claude-tokens-vertical.mp4` | 1.2 MB | 1166774 | 18.2 s | 1080×1350 h264 (measured 2026-08-25) |
 | `claude-dashboards-vertical.gif` | 1.3 MB | 1320334 | 25.6 s | 430×538 @ 9 fps, 64 colors (gifsicle; measured 2026-08-25) |
 | `claude-tokens-vertical.gif` | 0.97 MB | 969087 | 18.2 s | 430×538 @ 9 fps, 64 colors (gifsicle; measured 2026-08-25) |
+| `hero.mp4` | 1.7 MB | 1723424 | 25.9 s | 1920×1080 h264 30 fps (measured 2026-08-30) |
 
 ## Readability comes first, and it costs bytes
 
@@ -217,6 +219,7 @@ bash e2e/demo/record-promo.sh  # tokens + dashboards split (not in `make media`)
 bash e2e/demo/record-vertical.sh  # tokens + dashboards 1080×1350 (not in `make media`; README stays landscape)
 bash e2e/demo/record-claude-drive.sh  # flagship: live Claude Code × serve tab (not in `make media`; needs vhs + Claude login)
 bash e2e/demo/record-claude-drive.sh vertical  # same take, 1080×1350 (mp4 only)
+bash e2e/demo/record-hero.sh  # 0.19 hero: desk + phone interleaved, one serve (not in make media; needs a Claude login AND a booted iOS simulator)
 tools/record-raycast.sh  # scripted LIVE take (not in make media): Raycast → gadak:// — needs Raycast + installed app
 make brand         # logo, wordmarks, favicons, OG card
 ```
