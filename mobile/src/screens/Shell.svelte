@@ -31,6 +31,7 @@
   import { imeReduce, IME_INPUT_ATTRS, type ImeState } from '../lib/terminal/ime'
   import { createRenderer, type PhoneTerminalRenderer } from '../lib/terminal/renderer'
   import { scrollGesture } from '../lib/terminal/scroll-gesture'
+  import { settleResize } from '../../../web/src/lib/terminal/resize'
   import {
     classifyUnavailable,
     coerceDroppedReason,
@@ -97,6 +98,7 @@
   let renderer: PhoneTerminalRenderer | null = null
   let socket: SocketHandle | null = null
   let ro: ResizeObserver | null = null
+  let stopSettle: (() => void) | null = null
   let fitTimer: ReturnType<typeof setTimeout> | undefined
   let openTimer: ReturnType<typeof setTimeout> | undefined
   let reconnectTimer: ReturnType<typeof setTimeout> | undefined
@@ -111,6 +113,8 @@
   let lastComposeEmit = ''
 
   const clearTimers = () => {
+    stopSettle?.()
+    stopSettle = null
     if (fitTimer !== undefined) clearTimeout(fitTimer)
     if (openTimer !== undefined) clearTimeout(openTimer)
     if (reconnectTimer !== undefined) clearTimeout(reconnectTimer)
@@ -133,6 +137,10 @@
     return { cols, rows }
   }
 
+  // The single owner of "tell the server how big the pane is" (GDK-1154).
+  // lastCols/lastRows mean "what the server was last told", so they advance
+  // here and nowhere else — a cache that runs ahead of an actual send turns
+  // every later check into a false negative.
   const sendResize = () => {
     if (!renderer || !socket || phase !== 'live') return
     const { cols, rows } = fittedSize()
@@ -315,6 +323,16 @@
           lastCols = cols
           lastRows = rows
           handle.resize(cols, rows)
+          // …and again across the window in which layout settles. This one
+          // read used to be the last word on the size for the life of the
+          // session: the ResizeObserver's only callback fires at observe()
+          // time, before phase is 'live', and a pane that reaches its final
+          // size before the socket opens never changes again. Measured
+          // 2026-08-29 — sessions created at 10x5 while the pane rendered
+          // 48x42, which is the size SIGWINCH hands every TUI in the pane
+          // (lib/terminal/resize.ts). sendResize no-ops once they agree.
+          stopSettle?.()
+          stopSettle = settleResize(sendResize)
         },
         onBytes(data) {
           renderer?.write(data)
@@ -426,11 +444,16 @@
       cursorBlink: TERMINAL_CURSOR_BLINK_FALLBACK,
     })
     renderer.fit()
-    renderer.onResize((cols, rows) => {
-      lastCols = cols
-      lastRows = rows
-      socket?.resize(cols, rows)
-    })
+    // Route xterm's own resize through the single sender rather than
+    // repeating it here. The duplicate used to advance lastCols/lastRows
+    // and *then* `socket?.resize(...)` — which is a no-op before the socket
+    // is live, so the cache recorded a size the server had never been told.
+    // Every later check compared against that phantom, found no change, and
+    // sent nothing: the PTY kept the pre-layout size for the life of the
+    // session (measured 2026-08-29 on the iOS simulator — cols 10 rows 5
+    // under a pane rendering 48x34, which is the size SIGWINCH hands every
+    // TUI in the pane). One writer, and it advances only after a send.
+    renderer.onResize(() => sendResize())
     ro = new ResizeObserver(scheduleFit)
     ro.observe(hostEl)
     return true

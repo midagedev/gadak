@@ -16,6 +16,7 @@
   import LoadingState from '../ui/LoadingState.svelte'
   import { createSkeletonGrace } from '../../lib/skeleton-grace.svelte'
   import { createRenderer, type BehaviorTerminalRenderer } from '../../lib/terminal/renderer'
+  import { settleResize } from '../../lib/terminal/resize'
   import {
     createSession,
     coerceDroppedReason,
@@ -96,6 +97,7 @@
     let renderer: BehaviorTerminalRenderer | null = null
     let socket: SocketHandle | null = null
     let ro: ResizeObserver | null = null
+    let stopSettle: (() => void) | null = null
     let fitTimer: ReturnType<typeof setTimeout> | undefined
     let openTimer: ReturnType<typeof setTimeout> | undefined
     let reconnectTimer: ReturnType<typeof setTimeout> | undefined
@@ -106,6 +108,8 @@
     let phase: 'live' | 'ended' | 'unavailable' | 'reconnecting' = 'live'
 
     const clearTimers = () => {
+      stopSettle?.()
+      stopSettle = null
       if (fitTimer !== undefined) clearTimeout(fitTimer)
       if (openTimer !== undefined) clearTimeout(openTimer)
       if (reconnectTimer !== undefined) clearTimeout(reconnectTimer)
@@ -127,6 +131,10 @@
       return { cols, rows }
     }
 
+    // The single owner of "tell the server how big the pane is" (GDK-1154).
+    // lastCols/lastRows mean "what the server was last told", so they advance
+    // here and nowhere else — a cache that runs ahead of an actual send turns
+    // every later check into a false negative.
     const sendResize = () => {
       if (!renderer || !socket || phase !== 'live') return
       const { cols, rows } = fittedSize()
@@ -174,6 +182,11 @@
           lastCols = cols
           lastRows = rows
           handle.resize(cols, rows)
+          // …and again across the window in which layout settles: this one
+          // read used to be the last word on the size for the life of the
+          // session (GDK-1154). sendResize no-ops once they agree.
+          stopSettle?.()
+          stopSettle = settleResize(sendResize)
           renderer?.focus()
         },
         onBytes(data) {
@@ -293,11 +306,16 @@
       })
       renderer.fit()
       renderer.onData(handleTerminalData)
-      renderer.onResize((cols, rows) => {
-        lastCols = cols
-        lastRows = rows
-        socket?.resize(cols, rows)
-      })
+      // Route xterm's own resize through the single sender rather than
+      // repeating it here. The duplicate advanced lastCols/lastRows and
+      // *then* `socket?.resize(...)`, which is a no-op before the socket is
+      // live — so the cache recorded a size the server had never been told,
+      // every later check found "no change", and the PTY kept its
+      // pre-layout size for the life of the session. Measured on the phone
+      // pane, which carried the same six lines (GDK-1154): cols 10 rows 5
+      // under a pane rendering 48x34, which is the size SIGWINCH hands
+      // every TUI running in it.
+      renderer.onResize(() => sendResize())
       ro = new ResizeObserver(scheduleFit)
       ro.observe(hostEl)
 

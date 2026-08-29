@@ -67,9 +67,7 @@ async function focusTerm(page: Page): Promise<void> {
     await pane.click({ position: { x: 24, y: 24 } })
   }
   await page.evaluate(() => {
-    const el = document.querySelector<HTMLTextAreaElement>(
-      '[data-testid="terminal-pane"] textarea',
-    )
+    const el = document.querySelector<HTMLTextAreaElement>('[data-testid="terminal-pane"] textarea')
     el?.focus()
   })
 }
@@ -160,6 +158,53 @@ test.describe('terminal pane', () => {
     await expect(page.getByTestId('terminal-status')).toContainText('Shell exited', {
       timeout: 20_000,
     })
+
+    expect(appConsoleErrors(errors), `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  /*
+   * GDK-1154 (2026-08-29). The size the PTY believes and the size the pane
+   * draws were allowed to disagree for the life of a session, and nothing
+   * on screen said so: xterm renders at its own width, so only a child
+   * asking the kernel — which is every TUI — sees the difference. Measured
+   * on the phone pane, which carried the same six lines: sessions created
+   * at cols 10 / rows 5 under a pane rendering 48x34.
+   *
+   * The cause was a cache that ran ahead of the send. `renderer.onResize`
+   * advanced lastCols/lastRows and *then* called `socket?.resize(...)`,
+   * a no-op before the socket is live — so the pane recorded a size the
+   * server had never been told, and every later check found "no change".
+   *
+   * The existing case above proves a *change* propagates. This one proves
+   * the starting value is right, which is the half that was wrong: ask the
+   * PTY through stty, ask the renderer through its own dims, and require
+   * them to agree with no resize in between.
+   */
+  test('the PTY agrees with the pane about its size from the first prompt (GDK-1154)', async ({
+    page,
+  }) => {
+    test.setTimeout(60_000)
+    const errors = await boot(page)
+    await openPane(page)
+
+    await typeLine(page, 'stty size')
+    await expect.poll(async () => lastStty(await readTerm(page))).toMatch(/\d+\s+\d+/)
+    const stty = lastStty(await readTerm(page))
+    const [ptyRows, ptyCols] = (stty ?? '').split(/\s+/).map(Number) // stty prints rows cols
+
+    const drawn = await page.evaluate(() => {
+      const t = (window as unknown as { __gadakTerm?: { cols: number; rows: number } }).__gadakTerm
+      return t ? { cols: t.cols, rows: t.rows } : null
+    })
+    expect(drawn, 'the renderer hook is missing').not.toBeNull()
+
+    // A laid-out pane, not a collapsed one: 10x5 was the measured failure.
+    expect(ptyCols, `stty said "${stty}"`).toBeGreaterThan(20)
+    expect(ptyRows, `stty said "${stty}"`).toBeGreaterThan(5)
+    expect(
+      { cols: ptyCols, rows: ptyRows },
+      `the PTY and the pane disagree: stty "${stty}" vs renderer ${JSON.stringify(drawn)}`,
+    ).toEqual(drawn)
 
     expect(appConsoleErrors(errors), `console errors:\n${errors.join('\n')}`).toEqual([])
   })
@@ -279,9 +324,11 @@ test.describe('terminal pane', () => {
     await focusTerm(page)
     await page.keyboard.press('Escape')
 
-    await expect.poll(async () => readTerm(page), 'ESC should reach the PTY').toContain('^[', {
-      timeout: 10_000,
-    })
+    await expect
+      .poll(async () => readTerm(page), 'ESC should reach the PTY')
+      .toContain('^[', {
+        timeout: 10_000,
+      })
     await expect(page.getByTestId('terminal-pane')).toBeVisible()
     expect(await lastKeyCmd(page)).toBe('ignore')
 
@@ -387,10 +434,7 @@ test.describe('terminal shots', () => {
     await openPane(page)
     await expect(page.getByTestId('terminal-pane')).not.toHaveAttribute('data-overlay', 'true')
     // Open an issue: the detail panel docks at 1100px (VIEWPORT_DOCKED_MIN_PX).
-    await page
-      .locator('[data-testid="issue-list-scroller"] [role="button"]')
-      .first()
-      .click()
+    await page.locator('[data-testid="issue-list-scroller"] [role="button"]').first().click()
     await expect(page.getByTestId('issue-detail-panel')).toBeVisible({ timeout: 15_000 })
     await expect(page.getByTestId('terminal-pane')).toHaveAttribute('data-overlay', 'true')
   })
