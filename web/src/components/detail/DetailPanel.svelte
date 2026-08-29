@@ -236,13 +236,38 @@
         </div>
       {:else if !detailForKey}
         {#if skeleton.visible}
-          <!-- Skeleton (body loading) -->
+          <!-- Skeleton (body loading). Section groups sketch the loaded body's
+               own rhythm (fields / description / comments / history / links),
+               so the pane reads as "content below" instead of ending
+               half-empty (GDK-1063). -->
           <div class="flex flex-col gap-2 px-5 py-4" aria-hidden="true">
-            <div class="h-3 w-3/4 animate-pulse rounded bg-bg-elevated"></div>
+            <!-- Details (field rows) -->
+            <div class="h-3 w-1/4 animate-pulse rounded bg-bg-elevated"></div>
             <div class="h-3 w-full animate-pulse rounded bg-bg-elevated"></div>
             <div class="h-3 w-5/6 animate-pulse rounded bg-bg-elevated"></div>
-            <div class="mt-4 h-3 w-1/2 animate-pulse rounded bg-bg-elevated"></div>
+            <div class="h-3 w-3/4 animate-pulse rounded bg-bg-elevated"></div>
+            <div class="h-3 w-2/3 animate-pulse rounded bg-bg-elevated"></div>
+            <div class="h-3 w-1/2 animate-pulse rounded bg-bg-elevated"></div>
+            <div class="h-3 w-3/4 animate-pulse rounded bg-bg-elevated"></div>
+            <!-- Description -->
+            <div class="mt-4 h-3 w-1/3 animate-pulse rounded bg-bg-elevated"></div>
             <div class="h-3 w-full animate-pulse rounded bg-bg-elevated"></div>
+            <div class="h-3 w-full animate-pulse rounded bg-bg-elevated"></div>
+            <div class="h-3 w-5/6 animate-pulse rounded bg-bg-elevated"></div>
+            <div class="h-3 w-2/3 animate-pulse rounded bg-bg-elevated"></div>
+            <!-- Comments -->
+            <div class="mt-4 h-3 w-1/4 animate-pulse rounded bg-bg-elevated"></div>
+            <div class="h-3 w-full animate-pulse rounded bg-bg-elevated"></div>
+            <div class="h-3 w-5/6 animate-pulse rounded bg-bg-elevated"></div>
+            <div class="h-3 w-3/4 animate-pulse rounded bg-bg-elevated"></div>
+            <!-- History -->
+            <div class="mt-4 h-3 w-1/3 animate-pulse rounded bg-bg-elevated"></div>
+            <div class="h-3 w-5/6 animate-pulse rounded bg-bg-elevated"></div>
+            <div class="h-3 w-1/2 animate-pulse rounded bg-bg-elevated"></div>
+            <!-- Linked issues -->
+            <div class="mt-4 h-3 w-1/4 animate-pulse rounded bg-bg-elevated"></div>
+            <div class="h-3 w-3/4 animate-pulse rounded bg-bg-elevated"></div>
+            <div class="h-3 w-2/3 animate-pulse rounded bg-bg-elevated"></div>
           </div>
         {/if}
       {:else}
