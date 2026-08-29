@@ -14,7 +14,9 @@
 // Shell pane lives inside the same .tabs column as Issues, with the tab
 // bar as its sibling (App.svelte), so a tab switch can never remove it.
 //
-// Arming: open the DEV origin with `?demo-tour` (any value) and reload.
+// Arming: `VITE_DEMO_TOUR=1 npm run dev` (what the phone rig uses — the
+// iOS dev window's URL is fixed at build time, so a query string is not
+// reachable there), or open the DEV origin with `?demo-tour` and reload.
 // A HEAD/file probe at /__demo-tour__ was abandoned: mobile/public/ does
 // not exist, and vite's SPA fallback serves index.html with 200 for every
 // unmatched path, so r.ok was always true and the tour drove every
@@ -25,10 +27,13 @@
 //
 // Environment the story assumes (the tour warns, never adapts — a take
 // with missing bits is a broken take, which the operator should see):
-//   - A stored terminal pairing: the Shell tab exists only while
-//     app.terminal is set (App.svelte/TabBar.svelte). The bundled demo
-//     workspace can never show the shell bits — enterDemo() resets the
-//     terminal state — so capture runs paired against the dev proxy.
+//   - A reachable shell: the Shell tab exists only while app.terminal is
+//     set (App.svelte/TabBar.svelte). In DEV that no longer needs a QR
+//     dance — loadTerminal() adopts the vite proxy the way boot() adopts
+//     it for the serve session (store.svelte.ts), so a dev server pointed
+//     at a live serve is the whole precondition. The bundled demo
+//     workspace still cannot show the shell bits — enterDemo() resets the
+//     terminal state — so capture runs against the proxy, never the demo.
 //   - A scrubbed snapshot serve (MEDIA.md's standing rule): bit 4 types
 //     `gadak close <KEY>`, a real CLI write (cmdClose → applyTransitionWrite
 //     with target "done"), against whatever origin that serve fronts.
@@ -175,15 +180,19 @@ async function tour(): Promise<void> {
   const t0 = Date.now()
   const at = (ms: number) => wait(Math.max(0, ms - (Date.now() - t0)))
 
-  if (!app.terminal) {
-    console.warn(
-      'gadak demo tour: no terminal pairing stored — the shell bits will show a blank tab (pair the terminal, then re-arm)',
-    )
-  }
-  const key = storyIssueKey()
-
   // Bit 2 — list + glance strip hold.
+  //
+  // Nothing about the session may be read before this await. Both reads
+  // that used to sit above it were answered by an empty store and both
+  // were wrong (measured 2026-08-29, first armed take): app.issues was
+  // still [] so the story's key came back '' — bit 4 announced "no open
+  // issue" and skipped the only write in the film, and bit 5's openIssue('')
+  // put a 404 where the punchline goes — while app.terminal was still null
+  // because loadTerminal()'s dev adoption had not resolved, so the take
+  // warned about a missing shell it then showed working. The store settles
+  // here; every read of it is below.
   await settleFirstSync()
+  const key = storyIssueKey()
   const open = sortIssues(openIssues(app.issues)).slice(0, 3)
   app.feed = glanceFeed(
     open.map((issue, i) => ({
@@ -197,7 +206,14 @@ async function tour(): Promise<void> {
   glide(560) // the one restrained glide — the old walk's four were too many
   await at(4200)
 
-  // Bit 3 — the terminal is a tab of the tracker.
+  // Bit 3 — the terminal is a tab of the tracker. The warning belongs to
+  // the beat it is about: by now the shell has either been adopted or it
+  // has not, and the operator is told the take is broken exactly once.
+  if (!app.terminal) {
+    console.warn(
+      'gadak demo tour: no shell reachable — the shell bits will show a blank tab (is the dev proxy pointed at a live serve?)',
+    )
+  }
   switchTab('shell')
   await at(7000)
 
@@ -241,9 +257,22 @@ async function tour(): Promise<void> {
   await at(15400)
 }
 
-/** True only in DEV when the page URL carries `?demo-tour`. */
+/**
+ * True only in DEV, and only when the operator armed this dev server or
+ * this page: `VITE_DEMO_TOUR=1 npm run dev`, or `?demo-tour` on the URL.
+ *
+ * The env arm exists because the phone rig cannot reach the query string.
+ * The iOS dev window's URL is fixed at build time (tauri.conf devUrl), so
+ * the only way to add a parameter is to rebuild the rust binary for every
+ * take — and under a proxied dev shell the page is not even served from
+ * that origin. The env var is set by one script for one dev-server start
+ * and is baked into that server's DEV bundle only, which is the same
+ * "explicit, per-launch, unforgeable by a route" property that made the
+ * query param win over the abandoned /__demo-tour__ probe.
+ */
 export function isDemoTourArmed(): boolean {
   if (!import.meta.env.DEV) return false
+  if (import.meta.env.VITE_DEMO_TOUR === '1') return true
   if (typeof location === 'undefined') return false
   return new URLSearchParams(location.search).has('demo-tour')
 }

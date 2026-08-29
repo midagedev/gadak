@@ -33,6 +33,10 @@
 #   bash e2e/demo/record-hero-desk.sh --dry-run       # no model call — the
 #                     # tuning loop for prompt/timing/grouping choreography
 #   bash e2e/demo/record-hero-desk.sh --skip-prepare  # reuse the agent HOME
+#   bash e2e/demo/record-hero-desk.sh --serve-only    # seed the fixture and
+#                     # hold the serve, no take — what the phone rig attaches
+#                     # to, and what a two-camera shoot runs first so both
+#                     # cameras watch one mirror
 #   bash e2e/demo/record-hero-desk.sh --frames-only [video]
 #                     # re-extract the review keyframes from a finished take
 #                     # (and GADAK_HERO_LEAD to re-time them) without a new
@@ -75,10 +79,19 @@ MODE_LIVE=""
 MODE_DRY=""
 SKIP_PREPARE=""
 FRAMES_ONLY=""
-if [[ "${1:-}" == "--dry-run" ]]; then MODE_DRY=1
-elif [[ "${1:-}" == "--skip-prepare" ]]; then SKIP_PREPARE=1
-elif [[ "${1:-}" == "--frames-only" ]]; then FRAMES_ONLY=1
-fi
+SERVE_ONLY=""
+# A loop rather than the old if/elif chain: --serve-only and --skip-prepare
+# are the one pair a caller genuinely combines (hold the serve for the phone
+# camera without rebuilding the agent HOME). --frames-only still reads $2 as
+# its video path, so it stays first when it is used.
+for arg in "$@"; do
+  case "$arg" in
+    --dry-run) MODE_DRY=1 ;;
+    --skip-prepare) SKIP_PREPARE=1 ;;
+    --frames-only) FRAMES_ONLY=1 ;;
+    --serve-only) SERVE_ONLY=1 ;;
+  esac
+done
 
 # This round's assignment (7877/7891/7892/7795 belong to other leagues).
 # Inside serveProbePorts()' 7777-7797 sweep (cmd/gadak/views.go) so gadak in
@@ -170,7 +183,7 @@ fi
 command -v ffmpeg >/dev/null || { echo "record-hero-desk: ffmpeg required" >&2; exit 1; }
 command -v ffprobe >/dev/null || { echo "record-hero-desk: ffprobe required" >&2; exit 1; }
 [[ -x node_modules/.bin/playwright ]] || { echo "record-hero-desk: playwright missing (npm ci)" >&2; exit 1; }
-if [[ -z "$MODE_DRY" ]]; then
+if [[ -z "$MODE_DRY" && -z "$SERVE_ONLY" ]]; then
   command -v claude >/dev/null || { echo "record-hero-desk: claude CLI required (or --dry-run)" >&2; exit 1; }
 fi
 
@@ -331,6 +344,26 @@ find_video() {
 # conditional array expansion is the one construct this script avoids for
 # /bin/bash 3.2 (empty arrays + set -u).
 dry_flag="$MODE_DRY"
+
+# --serve-only: seed the fixture, serve it, and hold. The two-camera take
+# needs ONE serve — the desk browser and the phone must watch the same
+# mirror and the same session, or the two halves are unrelated footage —
+# and this script is the single owner of the fixture (seed_hero_home is the
+# board the take contract describes). The phone rig
+# (e2e/demo/record-hero-phone.sh) attaches to what this leaves listening
+# and never seeds its own.
+if [[ -n "$SERVE_ONLY" ]]; then
+  seed_hero_home
+  rm -f "$HERO_HOME"/local.db "$HERO_HOME"/local.db-wal "$HERO_HOME"/local.db-shm
+  start_serve
+  echo "record-hero-desk: serve-only — fixture seeded, holding 127.0.0.1:${PORT} (Ctrl-C to stop)"
+  echo "record-hero-desk: GADAK_HOME=$HERO_HOME"
+  # `wait` on the serve pid would return on the first trapped signal without
+  # the trap having run; a sleep loop keeps EXIT (stop_serve) the only path
+  # out, so Ctrl-C never leaves the port held.
+  while kill -0 "$(cat "$OUT/serve.pid")" 2>/dev/null; do sleep 1; done
+  exit 0
+fi
 
 take=1
 while (( take <= MAX_TAKES )); do
