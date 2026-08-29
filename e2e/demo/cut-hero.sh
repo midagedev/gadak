@@ -17,11 +17,11 @@
 # and softened — which is also the film's argument in one image: the same
 # board, in two places, at the same moment.
 #
-# Timings below are video seconds, read off the proof marks the desk rig
-# writes (e2e/.tmp/hero-desk/proof-take-1.jsonl, plus GADAK_HERO_LEAD) and
-# the tour's own absolute table (mobile/src/lib/demo-tour.ts) plus the
-# phone rig's FRAME_LEAD_MS. Re-shoot and they move; this script is a cut
-# list, not a contract.
+# Timings below are seconds into each take, read off that take: the desk's
+# proof marks (e2e/.tmp/hero-desk/proof-take-1.jsonl, plus GADAK_HERO_LEAD)
+# and, for the phone, its 1fps contact sheet — NOT the tour table, which
+# describes the tour and not the recording. `record-hero.sh` prints both.
+# Re-shoot and they move; this script is a cut list, not a contract.
 #
 # Usage:
 #   bash e2e/demo/cut-hero.sh            # → scratch/hero/hero.mp4
@@ -52,13 +52,34 @@ DESK_B_IN=17.2  DESK_B_OUT=19.0   # the pane is gone; the work is not
 DESK_G_IN=67.3  DESK_G_OUT=74.6   # back — the scrollback, and STD-7 in Done
 BG_AT=20.5
 
-# Phone. The tour's own boundaries (0.0 / 4.2 / 7.0 / 11.2 / 15.4) plus the
-# rig's 3.0s FRAME_LEAD_MS, which is where the recorder's first kept frame
-# sits relative to tour t0.
-PH_2_IN=3.2   PH_2_OUT=7.2        # the glance: the board, on a phone
-PH_3_IN=7.2   PH_3_OUT=10.0       # the terminal tab — the same machine
-PH_4_IN=10.0  PH_4_OUT=14.2       # `gadak close STD-n`, typed by thumb
-PH_5_IN=14.2  PH_5_OUT=18.5       # the count drops; the issue holds Done
+# Phone. Read off the footage, NOT off the tour table plus FRAME_LEAD_MS.
+# That arithmetic was wrong by ~2s on this take — the app's launch splash
+# ran four seconds, so tour t0 landed well after the constant said, and the
+# beat that opens the phone half was four seconds of blank white. The tour
+# table describes the tour; only the file describes the recording.
+#
+# And read it off the CUT, not off phone-take1.mov: simctl's recorder writes
+# a variable-frame-rate file whose 1fps contact sheet does not land on whole
+# seconds (measured: a sheet tile read as take 12 was really take ~14.9).
+# So the loop is — rough numbers in, rebuild, then
+#
+#   ffmpeg -i hero.mp4 -vf "fps=1,crop=560:1040:680:20,scale=190:-1,\
+#          tile=13x1" -frames:v 1 sheet.png
+#
+# and move the boundaries until every second earns its place. What that
+# loop removed here: four seconds of launch splash, the pane's connect
+# skeleton, and the dark-flip hole below.
+PH_2_IN=5.2   PH_2_OUT=8.7        # the glance: the board, on a phone
+PH_3_IN=9.4   PH_3_OUT=11.6       # the terminal tab — the same machine
+                                  # (9.4, not 8.9: the pane's connect skeleton)
+PH_4_IN=11.6  PH_4_OUT=14.6       # `gadak close STD-n` by thumb, and the result
+# The cut skips take 14.6-16.3. The appearance flip re-themes the terminal by
+# re-rendering it, and the re-render comes back with an EMPTY buffer — the
+# `STD-4 Done …` line the beat exists to show disappears, and the frame is a
+# black pane with a scrollbar stripe down its right edge. That is a real
+# defect (GDK-1156); the cut is not hiding it, it is declining to spend a
+# second of a 26s film on it. Light result → dark board, hard cut.
+PH_5_IN=16.3  PH_5_OUT=19.5       # dark: the count drops; the issue holds Done
 
 W=1920 H=1080 FPS=30
 PHONE_H=1000 # the phone's height in frame; 1206x2622 → 460x1000
@@ -73,7 +94,7 @@ desk_seg() {
        "pad=${W}:${H}:(ow-iw)/2:0:color=0x1b1917,format=yuv420p,setsar=1[${3}];"
 }
 
-# A phone segment: the same still under every one of them, so the four beats
+# A phone segment: the same still under every one of them, so the phone beats
 # read as one continuous shot of a phone held in front of a desk. The pad is
 # a bezel — the recording is the screen only, and without an edge the phone
 # reads as a floating rectangle of the same paper colour as the board behind
@@ -115,8 +136,13 @@ ffprobe -v error -select_streams v:0 -show_entries stream=width,height,duration 
 # The poster is the frame the clip is judged by before anyone presses play,
 # so it is not frame 0 — it is the one frame that carries the whole premise:
 # the phone, mid-command, over the same board on the desk behind it.
+#
+# 14.4 is the command COMPLETE and not yet sent (`> gadak close STD-4`).
+# A second later it has run, and the frame gives away its own punchline.
+# A poster promises. Confirm it on the sheet after any retime.
+POSTER_AT=14.4
 poster="${OUT%.mp4}-poster.png"
-ffmpeg -v error -y -ss 15.6 -i "$OUT" -frames:v 1 "$poster"
+ffmpeg -v error -y -ss "$POSTER_AT" -i "$OUT" -frames:v 1 "$poster"
 echo "cut-hero: poster at $poster"
 
 if [[ "${1:-}" == "--strip" ]]; then

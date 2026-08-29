@@ -273,11 +273,24 @@ for i in $(seq 1 80); do
 done
 # The proxy, not just the page: a dev server that answers index.html while
 # the proxy target is down produces a take of an empty board.
-curl -sf -m 5 "http://localhost:${VITE_PORT}/api/v1/terminal/sessions/" >/dev/null || {
-  echo "record-hero-phone: the dev proxy cannot reach the serve — no Shell tab, no bits 3-4" >&2
-  exit 1
-}
-echo "record-hero-phone: dev server armed, proxy reaching the serve"
+#
+# Warming is exempt for the same reason the fixture checks above are: in an
+# interleaved shoot the serve does not exist yet, and vite's proxy connects
+# per request, so an unreachable target at warm time says nothing about the
+# take. It is not a weakened guarantee — the run that actually films is
+# --reuse-vite, and it makes this check with the serve up. Measured
+# 2026-08-30: --warm-vite wrote the stamp, failed here, and its EXIT trap
+# removed the stamp again; the orchestrator had already seen the stamp in
+# that window and fired a phone take that had no dev server.
+if [[ -z "$WARM_ONLY" ]]; then
+  curl -sf -m 5 "http://localhost:${VITE_PORT}/api/v1/terminal/sessions/" >/dev/null || {
+    echo "record-hero-phone: the dev proxy cannot reach the serve — no Shell tab, no bits 3-4" >&2
+    exit 1
+  }
+  echo "record-hero-phone: dev server armed, proxy reaching the serve"
+else
+  echo "record-hero-phone: dev server armed (proxy target :${PORT} checked at take time)"
+fi
 
 if [[ -n "$WARM_ONLY" ]]; then
   echo "record-hero-phone: warm — holding :${VITE_PORT} armed for --reuse-vite (Ctrl-C to stop)"
