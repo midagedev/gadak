@@ -95,4 +95,28 @@ test.describe('standalone workspace indicator', () => {
     await create.click()
     await expect(page.getByText(STANDALONE_INIT_COMMAND, { exact: true })).toBeVisible()
   })
+
+  // GDK-1122: a workspace that already IS standalone must not be offered
+  // another one, and its personal section must not send a no-account reader
+  // to the Jira credential dialog. The real standalone serve answers auth/me
+  // with {email:null} (handleMe: no credential, 200 — not an auth failure),
+  // so that anonymous branch is the one under test here.
+  test('standalone workspace offers no create control and no credentials CTA', async ({
+    page,
+  }) => {
+    await page.route('**/api/v1/auth/me/**', (route) =>
+      route.fulfill({ status: 200, json: { email: null } }),
+    )
+    await serveWorkspaceKind(page, 'standalone')
+    await gotoApp(page)
+
+    // Already standalone: the "create a standalone workspace" affordance is
+    // absent, not merely unhelpful.
+    await expect(page.getByTestId('standalone-create')).toHaveCount(0)
+
+    // MY ISSUES: the standalone note replaces the credential CTA — same
+    // branch the demo takes, minus the demo wording.
+    await expect(page.getByTestId('my-issues-standalone-note')).toBeVisible()
+    await expect(page.getByRole('button', { name: /Set credentials to see/ })).toHaveCount(0)
+  })
 })

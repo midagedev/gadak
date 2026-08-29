@@ -91,3 +91,56 @@ test.describe('sidebar section collapse and order', () => {
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 })
+
+/*
+ * GDK-1081. The sidebar's mid region is one scroller (sidebar-scroll), so
+ * "reachable" means "inside that scroller's client box" — a row past the
+ * client box is clipped even when the viewport rectangle still contains it.
+ * The personal lists above the sections grow one 48px row per visit and are
+ * the only blocks that push DOCUMENTS toward that clip edge. This gate pins
+ * the zero-recents baseline the GDK-1081 fix must preserve: a fresh context
+ * has no localStorage visits, so the fold has slack and both DOCUMENTS rows
+ * sit fully inside the scroller at 900px.
+ */
+test.describe('GDK-1081 sidebar reachability baseline', () => {
+  test.use({ viewport: { width: 1280, height: 900 } })
+
+  test('zero-recents layout keeps both DOCUMENTS rows inside the scroller', async ({ page }) => {
+    await gotoApp(page)
+
+    const geo = await page.evaluate(() => {
+      const scroll = document.querySelector('[data-testid="sidebar-scroll"]')
+      const rect = (id: string) =>
+        document.querySelector(`[data-testid="${id}"]`)?.getBoundingClientRect() ?? null
+      const s = scroll?.getBoundingClientRect()
+      return {
+        scrollTop: s?.top ?? -1,
+        scrollBottom: s ? s.top + (scroll?.clientTop ?? 0) + (scroll?.clientHeight ?? 0) : -1,
+        viewportH: window.innerHeight,
+        recents: document.querySelectorAll('[data-testid^="recent-issue-"]').length,
+        documents: rect('docs-documents'),
+        spaces: rect('docs-spaces'),
+      }
+    })
+
+    expect(geo.recents, 'fresh e2e context must carry no sidebar visits').toBe(0)
+    for (const [name, r] of [
+      ['documents', geo.documents],
+      ['spaces', geo.spaces],
+    ] as const) {
+      expect(r, `${name} row must exist on the demo fixture`).not.toBeNull()
+      expect.soft(
+        r!.top,
+        `${name}: top ${r!.top} above the scroller top ${geo.scrollTop}`,
+      ).toBeGreaterThanOrEqual(geo.scrollTop)
+      expect.soft(
+        r!.bottom,
+        `${name}: bottom ${r!.bottom} clipped by the scroller bottom ${geo.scrollBottom}`,
+      ).toBeLessThanOrEqual(geo.scrollBottom + 1)
+      expect.soft(
+        r!.bottom,
+        `${name}: bottom ${r!.bottom} past the viewport ${geo.viewportH}`,
+      ).toBeLessThanOrEqual(geo.viewportH)
+    }
+  })
+})

@@ -6,7 +6,9 @@
    *   - Reported: open personal feed on the "reported" focus tab.
    *   - Mentions/feed: open personal feed (all focus).
    *  Counts are $derived from the local pool (mentions = API result count).
-   *  Without identity: prompt to set credentials.
+   *  Without identity: standalone and the demo say why the rows are absent
+   *  (GDK-1122 — neither can configure one); a connected workspace prompts to
+   *  set credentials.
    */
   import { t } from '../../lib/i18n'
   import { issueMatchesPerson } from '../../stores/filters.svelte'
@@ -16,7 +18,7 @@
   import { showIssueList } from '../../lib/show-issue-list'
   import { effectiveCategory, emptyConfig, type ViewConfig } from '../../lib/view-config'
   import { feature } from '../../lib/config'
-  import { isHostedDemo } from '../../lib/config'
+  import { isHostedDemo, isStandaloneWorkspace } from '../../lib/config'
   import type { IssueLite } from '../../lib/types'
   import Icon from '../ui/Icon.svelte'
 
@@ -108,6 +110,16 @@
       {/if}
     </button>
     {/if}
+  {:else if isStandaloneWorkspace()}
+    <!-- GDK-1122: a standalone workspace has no credential and no identity to
+         configure — the seeded origin is the machine's own tracker (see
+         lib/workspace.ts), and writes are attributed to the process actor, not
+         to a reader. A credentials CTA here would send this workspace's only
+         audience to a dialog that cannot help, so the anonymous branch says
+         why the rows are absent instead. -->
+    <p class="px-3 py-1.5 text-micro text-text-muted" data-testid="my-issues-standalone-note">
+      {t('personal.standaloneNoIdentity')}
+    </p>
   {:else if isHostedDemo()}
     <!-- The personal views need a Jira identity, which the demo has no way to
          obtain. Say so rather than pointing at a credential dialog. -->

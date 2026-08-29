@@ -897,7 +897,10 @@
        error screen, so the errand it offers does not exist. -->
   <div class="flex-none border-t border-border-subtle px-3 py-2">
     {#if hasServerVerb('settings')}
-      {#if !onboarding.needsOnboarding}
+      {#if !onboarding.needsOnboarding && !standalone}
+      <!-- GDK-1122: the how-to-create affordance is for connected workspaces;
+           offering it inside a standalone one advertises leaving the origin
+           this workspace is bound to. -->
       <button
         type="button"
         class="mb-1 flex h-control-sm w-full items-center gap-1.5 rounded-md px-1 text-body text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"

@@ -47,6 +47,13 @@ export const personal = {
     ko: '개인 뷰는 Jira 신원이 필요해 데모에서는 표시되지 않습니다',
     ja: '個人ビューには Jira の身元が必要で、デモでは利用できません',
   },
+  /* GDK-1122: standalone has no credential to offer a dialog for, so this
+     note replaces the needCredentials CTA there. */
+  'personal.standaloneNoIdentity': {
+    en: 'Personal views need an identity — this workspace runs without an account',
+    ko: '개인 뷰는 신원이 필요해 계정 없이 쓰는 워크스페이스에서는 표시되지 않습니다',
+    ja: '個人ビューには身元が必要で、アカウントなしで使うワークスペースでは利用できません',
+  },
   'personal.favoriteAria': {
     en: 'Favorite {key}',
     ko: '{key} 즐겨찾기',
