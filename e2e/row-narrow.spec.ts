@@ -76,7 +76,13 @@ test.describe('narrow list rows', () => {
     // until it has actually given up the width, then measure that state.
     await expect.poll(async () => (await rowMetrics(page)).row).toBeLessThan(alone.row - 100)
     const withDetail = await rowMetrics(page)
-    expect(withDetail.title).toBeGreaterThan(150)
+    // 2026-08-30 (GDK-1155): was `> 150`, the 172 this row measured while the
+    // strip kept `assignee` and `updated` on it. With the panel open those
+    // two are on screen already — the panel is showing them for the row being
+    // read — so the fold takes them here and gives the title the 100px back.
+    // Measured after: 272. FAIL-first: this line went red on the source
+    // before the .detail-open fold rung in app.css.
+    expect(withDetail.title).toBeGreaterThan(250)
 
     // Three panes: terminal split as well. The row is ~358px, the trailing
     // folds have already fired, and this is where the title used to sit at

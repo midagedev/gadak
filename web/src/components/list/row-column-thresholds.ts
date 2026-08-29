@@ -127,7 +127,14 @@ const GAP = 10
 
 /** Fold-base width by row band: [lo, hi] inclusive, base px. The 621 lo is
  *  trail-fold-1's unfire (below it the fold model changes and no option
- *  rung may land — see the header). */
+ *  rung may land — see the header).
+ *
+ *  GDK-1155 moved that unfire to 691 while the detail panel is open, and
+ *  this table deliberately does not follow. It is the safe direction: in
+ *  621–690 with the panel open the row has `assignee` + `updated` + their
+ *  gaps (80px) MORE than these bands assume, so every rung stays
+ *  conservative. Following it would mean a second, state-dependent ladder
+ *  for a range where the measured cheapest rung (660) barely reaches. */
 const BASE_BANDS: readonly { lo: number; hi: number; base: number }[] = [
   { lo: 621, hi: 1100, base: 303 },
   { lo: 1101, hi: 1299, base: 327 },

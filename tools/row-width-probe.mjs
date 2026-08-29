@@ -96,6 +96,11 @@ const STATIC_THRESHOLDS = [
   ['trail-fold-3 (reopen, deploy)', 400],
 ]
 
+// GDK-1155: the fold-1 rung is 690, not 620, while the detail panel is open —
+// the one rule on this row that reads something other than the row's width.
+// Reported only in that state, or the list would name a rung that cannot fire.
+const DETAIL_OPEN_THRESHOLDS = [['trail-fold-1 with the detail panel open', 690]]
+
 const usage = () => {
   console.log(`usage: node tools/row-width-probe.mjs [--viewport N] [--issue KEY] [--cl a,b,c] [--rows N] [--json]
 
@@ -370,6 +375,7 @@ async function main() {
         return [`${col} column dropped${rung > 1360 ? ' (rung above the 1360 cap)' : ''}`, rung]
       }),
       ...STATIC_THRESHOLDS,
+      ...(data.detailOpen === 'true' ? DETAIL_OPEN_THRESHOLDS : []),
     ].sort((a, b) => b[1] - a[1])
     const fired = thresholds.filter(([, px]) => data.rowW !== null && data.rowW <= px)
     const maxPast = Math.max(0, ...data.rows.flatMap((r) => r.slots.map((s) => s.pastScroller)))

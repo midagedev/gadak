@@ -1038,6 +1038,37 @@
   }
 
   /*
+    GDK-1155: the same fold, one rung higher, when the detail panel is open.
+
+    The 678px two-pane row and the 628px list-only row are both above 620,
+    and a rule that reads only the row's width cannot tell them apart — that
+    is why the issue stood open. It is not missing information, though: the
+    app knows which one it is (`.detail-open` on .issue-layout, App.svelte),
+    and the row was throwing that bit away.
+
+    Reading it is not a return to viewport keying, which GDK-1046 removed for
+    a good reason — the viewport cannot see the panel. This IS the panel, and
+    it is the reason the row is narrow.
+
+    What makes it right rather than merely roomier: with the panel open,
+    `assignee` and `updated` are on screen already, in the panel, for the row
+    being read. The list's remaining job there is identification, and that is
+    the title. Measured 2026-08-30, viewport 1440 with the panel open: row
+    678, title 172 → 272 (assignee 20 + updated 40 + two 10px gaps, and the
+    trailing container stops shrinking the title to feed them).
+
+    690, not 678: the rung has to clear the row width it is aimed at. The
+    620 rung below is untouched, so the 628px list-only row GDK-1046 pinned
+    it for keeps `updated` — list-row-columns.spec.ts asserts that at
+    viewport 900, and row-narrow.spec.ts asserts the 272 here.
+  */
+  @container issuerow (max-width: 690px) {
+    .detail-open .trail-fold-1 {
+      display: none;
+    }
+  }
+
+  /*
     GDK-1089: the title's floor, and the leading strip's fold.
 
     Measured 2026-08-30, viewport 1440, demo fixture (e2e/row-narrow.spec.ts
@@ -1075,17 +1106,18 @@
     constant 106.4 in LEAD_AND_TITLE, so a proportional floor moves every
     option column's rung.
 
-    The 678px two-pane row — title 172, the trailing strip holding 294 — is
-    still unfixed, and this comment used to say its fix was that
+    The 678px two-pane row — title 172, the trailing strip holding 294 —
+    was the other half, and this comment used to say its fix was that
     re-derivation. Measured 2026-08-30 (GDK-1155): it is not. At 678 the
     option ladder is ALREADY fully folded — its floor is BASE_BANDS[0].lo
     (621) and the cheapest single rung is 660 — so no option column is on
     that row to remove, and moving the rungs up does nothing to it. The 294
     is the always-on strip: reopen 36, stale 44, deploy 40, labels 64,
-    assignee 20, updated 40, five 10px gaps. Its only lever is the fold
-    thresholds, and raising trail-fold-1 to reach 678 also folds `updated`
-    on the 628px row GDK-1046 pinned 620 to protect. A row-width rule
-    cannot tell those two apart; the open question is in GDK-1155.
+    assignee 20, updated 40, five 10px gaps, and its only lever is the fold
+    thresholds. Raising trail-fold-1 to reach 678 would also fold `updated`
+    on the 628px row GDK-1046 pinned 620 to protect — a row-width rule
+    cannot tell those two apart. The fold rung above reads the one bit that
+    can: `.detail-open`. Title 172 → 272.
 
     The class exists so this file is the single owner of the number the
     ladder models; it was `min-w-[13ch]` on the element before.
