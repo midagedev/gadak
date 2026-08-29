@@ -29,6 +29,7 @@
   } from '../../lib/dashboard-protocol'
   import { navigate, parseHash, router } from '../../lib/router.svelte'
   import { resolveOpen } from '../../lib/place-dimension'
+  import { publishDebugAttr } from '../../lib/debug-attrs'
   import { dashboards } from '../../stores/dashboards.svelte'
   import { issues } from '../../stores/issues.svelte'
   import { t } from '../../lib/i18n'
@@ -123,11 +124,13 @@
       // Which dimension of the screen moves is resolveOpen's decision
       // (GDK-880, place-dimension): a panel-only hash keeps the column
       // (`dash` stays), a column hash takes it, anything else hands it to
-      // the list. lastDashOpen on <html> names the rule that fired.
+      // the list. lastDashOpen on <html> names the rule that fired — through
+      // the debug-attrs single writer, so it is off in prod unless opted in
+      // (GDK-931/GDK-1146).
       openThrottle.run(() => {
         const route = parseHash(msg.hash)
         const { rule, params } = resolveOpen(router.params, route.params)
-        document.documentElement.dataset.lastDashOpen = rule
+        publishDebugAttr('lastDashOpen', () => rule)
         navigate(route.path, params)
       })
     }

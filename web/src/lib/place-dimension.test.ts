@@ -154,8 +154,14 @@ describe('open handler and boot both read the classification', () => {
     const src = readFileSync(DASH, 'utf8')
     expect(src, 'open handler must import the classification').toMatch(/place-dimension/)
     expect(src, 'open handler must call resolveOpen').toMatch(/\bresolveOpen\b/)
+    // GDK-931/GDK-1146 (2026-08-29): the rule used to be written straight
+    // onto dataset.lastDashOpen. Test-observability attributes now go
+    // through the single writer in lib/debug-attrs (off in prod unless
+    // opted in). Same contract — the fired rule is still named on <html> —
+    // re-pinned to the owner's call form, so a regression to a bare
+    // dataset write goes red here and in debug-attrs.test.ts.
     expect(src, 'open decision must be inspectable on <html>').toMatch(
-      /dataset\.lastDashOpen/,
+      /publishDebugAttr\('lastDashOpen'/,
     )
   })
 

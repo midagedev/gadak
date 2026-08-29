@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { DEBUG_ATTRS_KEY } from '../web/src/lib/debug-attrs'
 import { gotoApp, searchInput } from './helpers'
 
 /**
@@ -14,6 +15,19 @@ import { gotoApp, searchInput } from './helpers'
 
 test.describe('identity-web e2e', () => {
   test('C7: a delta upsert drops the open issue from the detail cache', async ({ page }) => {
+    // GDK-1146: data-detail-cache is a debug attribute behind the single
+    // writer in lib/debug-attrs — off in the production bundle this suite
+    // serves (e2e/serve.sh builds via `npm run build`). The key opts this
+    // context in before the app boots; the poll below is unchanged. The
+    // try/catch mirrors forceLocale: init scripts also run in child frames,
+    // and a sandboxed frame's localStorage access throws.
+    await page.addInitScript((key) => {
+      try {
+        localStorage.setItem(key, '1')
+      } catch {
+        /* not the host page — nothing to opt in there */
+      }
+    }, DEBUG_ATTRS_KEY)
     let nmb110: Record<string, unknown> | null = null
     await page.route('**/api/v1/issues/bootstrap/', async (route) => {
       const response = await route.fetch()

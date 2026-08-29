@@ -4,6 +4,7 @@ import { createServer, type Server } from 'node:http'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
+import { DEBUG_ATTRS_KEY } from '../web/src/lib/debug-attrs'
 import { attachConsoleErrors, e2eHomeDir, gotoApp } from './helpers'
 
 /*
@@ -787,6 +788,20 @@ test('links out of the wall: open classifies the column, an external link opens 
 
   // A real key from the pool: the verb's contract is "navigate to this
   // issue", so the scene uses an issue the mirror actually has.
+  // GDK-931/GDK-1146: data-last-dash-open is a debug attribute behind the
+  // single writer in lib/debug-attrs — off in the production bundle this
+  // suite serves (e2e/serve.sh builds via `npm run build`). The key opts
+  // this context in before the app boots; the rule assertions below are
+  // unchanged. The try/catch mirrors forceLocale: init scripts also run in
+  // child frames, and this suite's sandboxed wall frame cannot touch
+  // localStorage (opaque origin — it throws).
+  await page.addInitScript((key) => {
+    try {
+      localStorage.setItem(key, '1')
+    } catch {
+      /* sandboxed frame — the host page is the one that opts in */
+    }
+  }, DEBUG_ATTRS_KEY)
   await gotoApp(page)
   const key = await page
     .locator('[data-testid="issue-list-scroller"] [data-issue-key]')

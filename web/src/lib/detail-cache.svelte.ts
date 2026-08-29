@@ -11,6 +11,7 @@
 
 import type { DetailComment, DetailResponse } from './types'
 import { getDetail } from './api'
+import { publishDebugAttr } from './debug-attrs'
 
 const MAX = 50
 
@@ -22,8 +23,9 @@ const inflight = new Map<string, Promise<DetailResponse>>()
 let epoch = $state(0)
 
 function publishDebug(): void {
-  if (typeof document === 'undefined') return
-  document.documentElement.dataset.detailCache = [...cache.keys()].join(',')
+  // Single writer for <html> debug attributes (GDK-1146); the join is only
+  // evaluated when they are on, so prod cache mutations cost nothing here.
+  publishDebugAttr('detailCache', () => [...cache.keys()].join(','))
 }
 
 export function cacheEpoch(): number {
