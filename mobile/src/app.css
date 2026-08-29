@@ -22,22 +22,20 @@
   --text-heading: 26px;
   --text-heading--line-height: 1.2;
   /*
-    Phone terminal size (GDK-865). Desktop `--text-terminal` is 13px, its
-    body baseline. 16px here is the conservative choice, not the settled
-    one: it keeps the whole app above the iOS input-zoom floor (§3.2), and
-    xterm's keystroke sink is a textarea that inherits from `.xterm`.
+    Phone terminal size (GDK-865, settled by GDK-900). This is a reading
+    decision and nothing else: the iOS input-zoom floor (§3.2) does not
+    reach the grid, because xterm's keystroke sink is never focused here —
+    the renderer is `disableStdin: true` and its `focus()` has no caller.
+    Focus goes to the app's own IME field at `--text-body` (16px), which is
+    what actually keeps the app off the zoom trigger. Both facts are pinned
+    in lib/terminal/renderer.test.ts; break either and this token is back on
+    the hook.
 
-    The cost is real — 16px mono at 402pt is roughly 40 columns, and the
-    thing people will run in here is a full-screen TUI that wants more. The
-    escape is that the sink is 0×0, `opacity: 0`, parked at `left: -9999em`
-    (`@xterm/xterm/css/xterm.css`), so pinning *its* font-size to 16px in
-    CSS while the grid renders smaller would buy the columns back at no
-    visual cost. Whether iOS still zooms for an invisible zero-size control
-    is a device question, not a reading question, so it is measured before
-    it is believed — GDK-900. Until then this stays 16px, which is one line
-    to change because the size is a token.
+    13px is the same size the desktop grid uses. Measured on an iPhone 17
+    Pro simulator: 16px gave 39 columns, 13px gives 48 — past the 40 a
+    full-screen TUI wants, which was the whole point of GDK-900.
   */
-  --text-terminal: 16px;
+  --text-terminal: 13px;
 
   --spacing-row: 56px; /* queue row: ≥44pt target, 12+ rows per screen */
   --spacing-control: 44px; /* iOS touch floor on every control — not the web's 32px */

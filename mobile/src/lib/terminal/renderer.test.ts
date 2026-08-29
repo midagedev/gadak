@@ -64,3 +64,42 @@ describe('GDK-899 — renderer wiring (source contract)', () => {
     expect(rendererSrc).toContain('term.scrollLines?.(n)')
   })
 })
+
+/*
+ * GDK-900 — the real iOS zoom contract, and why the terminal grid is free of
+ * it.
+ *
+ * Safari zooms the page when a focused form control's font-size is under
+ * 16px. The token comment used to read that as a tax on the grid: shrink the
+ * glyphs for more columns, and iOS zooms on the xterm helper textarea. It
+ * does not, because that textarea is never focused here — the renderer runs
+ * `disableStdin: true` (display only; the PTY echo paints), and its `focus()`
+ * has no caller anywhere in this app. Every focus in the shell goes to the
+ * app's own IME field, which is 16px by token.
+ *
+ * So the invariant worth pinning is not the grid size — it is those two
+ * facts. While they hold, `--text-terminal` is a reading decision (measured
+ * on an iPhone 17 Pro simulator: 16px → 39 columns, 13px → 48). Break either
+ * and the sub-16px sink joins the focus path, which is when the zoom the old
+ * comment feared becomes real.
+ */
+describe('GDK-900 — nothing focusable in the shell is under the iOS zoom floor', () => {
+  const IOS_ZOOM_FLOOR_PX = 16
+
+  it('the terminal is display-only, so its sub-16px sink cannot be focused', () => {
+    expect(rendererSrc).toContain('disableStdin: true')
+    // Wiring term.focus() to anything is the change this test exists to
+    // catch: it would put xterm's helper textarea — sized from the grid
+    // token, below the floor — one tap away from the keyboard.
+    const shellSrc = readFileSync(join(here, '..', '..', 'screens', 'Shell.svelte'), 'utf8')
+    expect(shellSrc).not.toMatch(/\b(renderer|term)\??\.focus\(\)/)
+  })
+
+  it('the field that does take focus is at or above the floor', () => {
+    const css = readFileSync(join(here, '..', '..', 'app.css'), 'utf8')
+    const body = Number.parseFloat(/--text-body:\s*([\d.]+)px/.exec(css)?.[1] ?? 'NaN')
+    expect(body, '--text-body backs the IME field (.ime in Shell.svelte)').toBeGreaterThanOrEqual(
+      IOS_ZOOM_FLOOR_PX,
+    )
+  })
+})
