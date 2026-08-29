@@ -131,12 +131,23 @@
       return { cols, rows }
     }
 
+    /**
+     * A pane with no box has no size to report: xterm's fit answers from a
+     * zero rect with its floor — 10x5 — and shipping that to the PTY tells
+     * every child in it to lay out for a ten-column terminal. Measured on
+     * the phone pane, which is display:none behind another tab (GDK-1154).
+     * This pane is destroyed on close rather than hidden, so the shape is
+     * rarer here; the guard is the same because the mistake is the same.
+     */
+    const paneLaidOut = (): boolean => !!hostEl && hostEl.clientWidth > 0 && hostEl.clientHeight > 0
+
     // The single owner of "tell the server how big the pane is" (GDK-1154).
     // lastCols/lastRows mean "what the server was last told", so they advance
     // here and nowhere else — a cache that runs ahead of an actual send turns
     // every later check into a false negative.
     const sendResize = () => {
       if (!renderer || !socket || phase !== 'live') return
+      if (!paneLaidOut()) return
       const { cols, rows } = fittedSize()
       if (cols === lastCols && rows === lastRows) return
       lastCols = cols
@@ -177,14 +188,18 @@
           reconnectAttempt = 0
           reconnectSince = 0
           if (status.kind === 'reconnecting') status = { kind: 'none' }
-          // Fitted size may have changed while the socket was down.
-          const { cols, rows } = fittedSize()
-          lastCols = cols
-          lastRows = rows
-          handle.resize(cols, rows)
-          // …and again across the window in which layout settles: this one
-          // read used to be the last word on the size for the life of the
-          // session (GDK-1154). sendResize no-ops once they agree.
+          // The size may have changed while the socket was down, and the
+          // cache is "what the server was told" — a new socket has been
+          // told nothing. Empty it, then let the one owner send, guard and
+          // all. This used to call handle.resize() with its own unguarded
+          // fittedSize(), the side door a hidden pane's 10x5 reached the
+          // PTY through on a late reattach (GDK-1154).
+          lastCols = 0
+          lastRows = 0
+          sendResize()
+          // …and again across the window in which layout settles: one read
+          // at open used to be the last word on the size for the life of
+          // the session. sendResize no-ops once the sizes agree.
           stopSettle?.()
           stopSettle = settleResize(sendResize)
           renderer?.focus()

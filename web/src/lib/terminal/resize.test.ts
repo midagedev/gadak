@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { RESIZE_SETTLE_MS, settleResize } from './resize'
 
 // GDK-1154. FAIL-first is on the pane, not here: before the fix, the shell
@@ -55,5 +55,37 @@ describe('settleResize — the post-open size reconciliation schedule', () => {
     t.fireAll()
     expect(calls).toBe(0)
     expect(t.pending.size).toBe(0)
+  })
+
+  // A terminal's cell size IS its font metrics. On a cold dev server the
+  // mono face landed after every timed tick, the element never changed
+  // size, and no ResizeObserver callback came — 10x5 came back on a run
+  // whose ticks had all fired. This edge is the one that names the moment.
+  it('re-checks when the document fonts resolve, and not after cancel', async () => {
+    const t = fakeTimers()
+    let ready: () => void = () => {}
+    const fonts = { ready: new Promise<void>((r) => (ready = r)) }
+    vi.stubGlobal('document', { fonts })
+    try {
+      let calls = 0
+      settleResize(() => calls++, t.schedule, t.cancel)
+      ready()
+      await fonts.ready
+      await Promise.resolve()
+      expect(calls).toBe(1)
+
+      let after = 0
+      let ready2: () => void = () => {}
+      const fonts2 = { ready: new Promise<void>((r) => (ready2 = r)) }
+      vi.stubGlobal('document', { fonts: fonts2 })
+      const stop = settleResize(() => after++, t.schedule, t.cancel)
+      stop()
+      ready2()
+      await fonts2.ready
+      await Promise.resolve()
+      expect(after).toBe(0)
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 })

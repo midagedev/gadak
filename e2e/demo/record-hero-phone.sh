@@ -59,12 +59,18 @@ OUT="$ROOT/e2e/.tmp/hero-phone"
 TOUR_END_MS=15400
 DARK_FLIP_MS=11800
 LAUNCH_LEAD_MS="${GADAK_HERO_PHONE_LEAD_MS:-1800}"
+# Offset from the video's FIRST FRAME to the tour's t0, which is a different
+# number from LAUNCH_LEAD_MS: simctl's recorder drops the leading idle
+# frames, so the file starts later than the recorder did (measured: a take
+# scripted to ~18.1s of wall clock came back 15.97s long). Extraction reads
+# this; the dark flip reads the one above. Retunable with --frames-only.
+FRAME_LEAD_MS="${GADAK_HERO_PHONE_FRAME_LEAD_MS:-0}"
 TAIL_MS=900 # a beat of hold after the last frame, trimmed in the cut
 
 mkdir -p "$OUT" "$SCRATCH"
 
 # ── Keyframe extraction ────────────────────────────────────────────────────
-# One frame per beat boundary, at the tour's own marks plus the launch lead.
+# One frame per beat boundary, at the tour's own marks plus FRAME_LEAD_MS.
 # Reads only finished files, so it re-runs freely.
 extract_frames() {
   local video="$1"
@@ -78,7 +84,7 @@ extract_frames() {
     name="${mark%%:*}"
     local ms="${mark##*:}"
     local at
-    at="$(python3 -c "print((${LAUNCH_LEAD_MS} + ${ms}) / 1000)")"
+    at="$(python3 -c "print(max(0, (${FRAME_LEAD_MS} + ${ms})) / 1000)")"
     ffmpeg -v error -y -ss "$at" -i "$video" -frames:v 1 "$dir/${name}.png" || true
   done
   echo "record-hero-phone: frames in $dir"

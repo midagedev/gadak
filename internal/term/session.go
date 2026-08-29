@@ -133,6 +133,7 @@ type Session struct {
 	graceArmedAt time.Time
 	detachedAt   time.Time
 	graceExts    int
+	resizes      int
 	closing      bool
 	finished     bool
 	exited       bool
@@ -175,6 +176,7 @@ func (s *Session) Info() Info {
 		ExitCode:           s.exitCode,
 		DetachedAt:         s.detachedAt,
 		GraceExtensions:    s.graceExts,
+		Resizes:            s.resizes,
 	}
 	s.mu.Unlock()
 	return info
@@ -200,6 +202,9 @@ func (s *Session) Resize(cols, rows uint16) error {
 	if s.finished {
 		s.mu.Unlock()
 		return ErrSessionClosed
+	}
+	if s.cols != cols || s.rows != rows {
+		s.resizes++
 	}
 	s.cols, s.rows = cols, rows
 	s.mu.Unlock()

@@ -137,12 +137,24 @@
     return { cols, rows }
   }
 
+  /**
+   * A hidden pane has no size to report. The Shell lives inside the tabs
+   * column and is display:none while another tab is up (App.svelte), and
+   * xterm's fit on a zero box answers with its floor — 10x5 — which the
+   * pane then shipped to the PTY as gospel. Measured (GDK-1154): a session
+   * created correctly at 48x34 ended the take at 10x5 with resizes=1, the
+   * one resize being the tour switching back to the Issues tab. The size
+   * the child sees does not change because a tab did.
+   */
+  const paneLaidOut = (): boolean => !!hostEl && hostEl.clientWidth > 0 && hostEl.clientHeight > 0
+
   // The single owner of "tell the server how big the pane is" (GDK-1154).
   // lastCols/lastRows mean "what the server was last told", so they advance
   // here and nowhere else — a cache that runs ahead of an actual send turns
   // every later check into a false negative.
   const sendResize = () => {
     if (!renderer || !socket || phase !== 'live') return
+    if (!paneLaidOut()) return
     const { cols, rows } = fittedSize()
     if (cols === lastCols && rows === lastRows) return
     lastCols = cols
@@ -152,7 +164,7 @@
 
   const scheduleFit = () => {
     if (fitTimer !== undefined) clearTimeout(fitTimer)
-    fitTimer = setTimeout(sendResize, 100)
+    fitTimer = setTimeout(() => sendResize(), 100)
   }
 
   function sendBytes(bytes: Uint8Array) {
@@ -319,18 +331,19 @@
             status = { kind: 'none' }
           }
           renderer?.reset()
-          const { cols, rows } = fittedSize()
-          lastCols = cols
-          lastRows = rows
-          handle.resize(cols, rows)
-          // …and again across the window in which layout settles. This one
-          // read used to be the last word on the size for the life of the
-          // session: the ResizeObserver's only callback fires at observe()
-          // time, before phase is 'live', and a pane that reaches its final
-          // size before the socket opens never changes again. Measured
-          // 2026-08-29 — sessions created at 10x5 while the pane rendered
-          // 48x42, which is the size SIGWINCH hands every TUI in the pane
-          // (lib/terminal/resize.ts). sendResize no-ops once they agree.
+          // A new socket has been told nothing, so the cache — "what the
+          // server was told" — is empty for it; then the one owner does the
+          // sending, guard and all. This used to call handle.resize() with
+          // its own unguarded fittedSize(), which is how a hidden pane's
+          // 10x5 reached the PTY through the side door on a late reattach
+          // (GDK-1154; the guarded path had already refused it).
+          lastCols = 0
+          lastRows = 0
+          sendResize()
+          // …and again across the window in which layout settles: one read
+          // at open used to be the last word on the size for the life of the
+          // session (lib/terminal/resize.ts). sendResize no-ops once the
+          // sizes agree, and refuses while the pane has no box.
           stopSettle?.()
           stopSettle = settleResize(sendResize)
         },

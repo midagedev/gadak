@@ -158,6 +158,14 @@ type Info struct {
 	// still here" from `gadak terminal list`, without a debugger.
 	DetachedAt      time.Time `json:"detached_at"`
 	GraceExtensions int       `json:"grace_extensions,omitempty"`
+	// Resizes counts the size changes this session has actually applied
+	// since it was created — not attempts, and not the create size.
+	// Cols/Rows say what the PTY believes; this says whether any client
+	// ever corrected it. A pane whose layout settles after it opened its
+	// socket has to send one, and "0 here with a pane clearly wider than
+	// Cols" is the whole diagnosis of GDK-1154, which otherwise needs a
+	// debugger attached to a phone.
+	Resizes int `json:"resizes"`
 }
 
 // Create spawns a shell under a PTY and returns its session.

@@ -179,6 +179,20 @@ func TestResizeReachesChild(t *testing.T) {
 	if info := s.Info(); info.Cols != 132 || info.Rows != 43 {
 		t.Fatalf("Info after resize: %dx%d; want 132x43", info.Cols, info.Rows)
 	}
+	// Resizes answers "did any client ever correct this PTY's size?", which
+	// is what "Cols says 10 and the pane is clearly wider" needs to be
+	// diagnosable without a debugger attached to a phone (GDK-1154). It
+	// counts applied changes, so a resize to the size already in force is
+	// not one.
+	if info := s.Info(); info.Resizes != 1 {
+		t.Fatalf("Resizes after one change: %d; want 1", info.Resizes)
+	}
+	if err := s.Resize(132, 43); err != nil {
+		t.Fatal(err)
+	}
+	if info := s.Info(); info.Resizes != 1 {
+		t.Fatalf("Resizes after a no-op resize: %d; want 1", info.Resizes)
+	}
 }
 
 // ④ Close signals the process group, so a grandchild the shell
