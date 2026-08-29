@@ -2,7 +2,7 @@
   /* How often the mirror refreshes, and how old is "stale". */
   import { onMount } from 'svelte'
   import { t } from '../../lib/i18n'
-  import { config, surface } from '../../lib/config'
+  import { config, isStandaloneWorkspace, surface } from '../../lib/config'
   import { copyText } from '../../lib/copy-text'
   import { upgradeCta } from '../../lib/upgrade-cta'
   import { issues } from '../../stores/issues.svelte'
@@ -171,6 +171,20 @@
       {t('settings.staleHint')}
     </span>
   </label>
+  <!-- GDK-1148: the dialog behind this button edits a SITE credential —
+       email + API token. A standalone workspace has none to edit (it writes
+       through its in-process origin), so the entry point advertises a
+       concept that does not exist there.
+
+       The predicate is deliberately NOT originWritable: that is true of a
+       connected workspace WITH a credential too, and hiding the button
+       there would take away the way to rotate a token that does exist. A
+       paired workspace is the residual — its credential lives in
+       remote-origin.json, so this button is wrong there as well, and the
+       client cannot yet tell paired from connected. GDK-1152 is where that
+       gap closes; widening this branch by guessing is what put a regression
+       here in the first place. -->
+  {#if !isStandaloneWorkspace()}
   <div class="border-t border-border-subtle pt-3">
     <button
       type="button"
@@ -183,6 +197,7 @@
       {t('settings.credsElsewhere')}
     </p>
   </div>
+  {/if}
 
   <section
     class="rounded-md border border-border-subtle bg-bg-base/60 px-3 py-2.5"

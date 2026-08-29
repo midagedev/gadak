@@ -27,6 +27,7 @@
     hasServerVerb,
     isHostedDemo,
     jiraFilterUrl,
+    originWritable,
     workspaceName,
   } from '../../lib/config'
   import { isStandalone, STANDALONE_INIT_COMMAND } from '../../lib/workspace'
@@ -952,7 +953,11 @@
       <p class="px-3 py-1.5 text-center text-micro text-text-muted">
         {t('app.demoNoCredentials')}
       </p>
-    {:else if !onboarding.needsOnboarding && me.authChecked}
+    {:else if !onboarding.needsOnboarding && me.authChecked && !originWritable()}
+      <!-- GDK-1148: the CTA is only for an origin that cannot answer a write
+           (originWritable, the server's own HasAtlassianCredential). A
+           standalone or paired workspace is anonymous AND fully writable —
+           me.identified cannot tell those apart, so this branch must not. -->
       <button
         type="button"
         class="flex h-control w-full items-center justify-center gap-1.5 rounded-md border border-border-strong px-3 text-body font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"

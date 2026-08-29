@@ -14,7 +14,7 @@
   import { me } from '../../stores/me.svelte'
   import { createUserSearch } from '../../lib/user-search.svelte'
   import type { CommentMention, JiraUser, UploadedAttachment } from '../../lib/types'
-  import { isHostedDemo } from '../../lib/config'
+  import { isHostedDemo, originWritable } from '../../lib/config'
   import { commentDraftKey } from '../../lib/storage'
   import Icon from '../ui/Icon.svelte'
   import CommentSubmitFooter from './CommentSubmitFooter.svelte'
@@ -324,6 +324,9 @@
   ondrop={onDrop}
 >
   <div class="relative">
+    <!-- GDK-1148: a standalone/paired workspace is anonymous yet its writes
+         pass through the origin (originWritable) — the credential placeholder
+         would tell a working writer to go get a token. -->
     <textarea
       bind:this={ta}
       bind:value={text}
@@ -333,7 +336,7 @@
       onpaste={onPaste}
       rows="2"
       data-testid="comment-composer"
-      placeholder={me.identified || isHostedDemo()
+      placeholder={me.identified || isHostedDemo() || originWritable()
         ? t('write.commentPlaceholder')
         : t('write.commentNeedCredentials')}
       class="w-full resize-none rounded-md border bg-bg-base px-2.5 py-1.5 text-body text-text-primary outline-none transition-colors focus:border-accent {dragOver

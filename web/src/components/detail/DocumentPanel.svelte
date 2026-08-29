@@ -15,7 +15,7 @@
   import { pages } from '../../stores/pages.svelte'
   import { write } from '../../stores/write.svelte'
   import { me } from '../../stores/me.svelte'
-  import { isHostedDemo } from '../../lib/config'
+  import { isHostedDemo, originWritable } from '../../lib/config'
   import { openOriginUrl } from '../../lib/desktop-links'
   import { createResource } from '../../lib/resource.svelte'
   import { createSkeletonGrace } from '../../lib/skeleton-grace.svelte'
@@ -310,10 +310,13 @@
                 void postPageComment()
               }}
             >
+              <!-- GDK-1148: page comments are issue comments' sibling — an
+                   anonymous standalone/paired writer (originWritable) posts
+                   fine through the origin, so no credential placeholder. -->
               <textarea
                 bind:value={draft}
                 rows="2"
-                placeholder={me.identified || isHostedDemo()
+                placeholder={me.identified || isHostedDemo() || originWritable()
                   ? t('doc.commentPlaceholder')
                   : t('doc.commentNeedCredentials')}
                 data-testid="doc-comment-composer"
