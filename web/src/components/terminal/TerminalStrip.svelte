@@ -61,11 +61,21 @@
   function stateLabel(state: TerminalSessionState): string {
     return t(STATE_KEY[state])
   }
+
+  // The strip caps its height and scrolls, and selection can arrive from
+  // outside it (an issue row, a card's ▶) — the selected row must not sit
+  // below the fold it never chose.
+  let listEl: HTMLDivElement | undefined = $state()
+  $effect(() => {
+    void terminalSessions.selectedId
+    listEl?.querySelector('[data-selected="true"]')?.scrollIntoView({ block: 'nearest' })
+  })
 </script>
 
 {#if visible}
   <div
-    class="max-h-24 flex-none overflow-x-hidden overflow-y-auto border-b border-border-subtle bg-bg-panel"
+    bind:this={listEl}
+    class="max-h-36 flex-none overflow-x-hidden overflow-y-auto border-b border-border-subtle bg-bg-panel"
     role="group"
     aria-label={t('terminal.strip.list')}
     data-testid="terminal-strip"
