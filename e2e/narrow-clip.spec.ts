@@ -503,11 +503,23 @@ test.describe('breakdown legend at 1100 docked detail (GDK-1086)', () => {
     await expect(page.getByTestId('issue-detail-panel')).toHaveClass(/is-open/)
     const probe = await probeLegend(page)
     assertLegendContract(probe, '1120 docked detail (status axis)')
-    const squeezed = probe.chips.filter((c) => c.labelScrollW > c.labelClientW)
-    expect(
-      squeezed.length,
-      'the audit layout must squeeze at least one status label, else this is vacuous',
-    ).toBeGreaterThan(0)
+    /*
+     * The "must squeeze" guard assumed the layout forces an overflow here.
+     * It did while the terminal pane took width beside the list; the dock
+     * takes none, so at the product's narrowest docked layout the squeeze
+     * is decided by font metrics — CI run 33318658199 went red with zero
+     * squeezed chips because Linux ch is narrower than this machine's.
+     * What GDK-1086 protects is the cut's *shape*: a label that lacks
+     * space ellipsizes instead of clipping mid-glyph. Assert the mechanism
+     * on every chip unconditionally; when the fonts do overflow (as they
+     * do here on macOS), assertLegendContract above already checks the cut.
+     */
+    for (const c of probe.chips) {
+      expect(
+        c.textOverflow,
+        `${c.label}: a chip label without ellipsis armed clips mid-glyph the day it overflows`,
+      ).toBe('ellipsis')
+    }
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 })

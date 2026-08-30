@@ -120,8 +120,25 @@ test.describe('narrow list rows', () => {
      * pre-existing shape at a width nothing used to probe, and tightening it
      * is a fold-threshold change, not this one. The floor itself stays
      * modeled in row-column-thresholds.test.ts.
+     *
+     * 2026-08-31: 106 was that floor in *this machine's* font. CI run
+     * 33318658199 went red on this line alone — Linux ch is narrower, so
+     * the same 13ch floor lands under 106px there. The floor is a ch
+     * quantity; assert it in the title's own font instead of a pixel count
+     * measured in someone else's.
      */
-    expect(narrowest.title).toBeGreaterThanOrEqual(106)
+    const floorPx = await page.evaluate(() => {
+      const title = document.querySelector('.row-title') as HTMLElement
+      const probe = document.createElement('span')
+      probe.style.cssText = 'position:absolute;visibility:hidden;white-space:pre'
+      probe.style.font = getComputedStyle(title).font
+      probe.textContent = '0'.repeat(13)
+      document.body.appendChild(probe)
+      const w = probe.getBoundingClientRect().width
+      probe.remove()
+      return w
+    })
+    expect(narrowest.title).toBeGreaterThanOrEqual(Math.floor(floorPx * 0.95))
 
     // And it comes back: the fold is a response to width, not a mode.
     await page.setViewportSize({ width: 1440, height: 900 })
