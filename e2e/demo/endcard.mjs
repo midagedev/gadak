@@ -12,6 +12,11 @@
  * The colours are the take's own: --bg panel black, the paper ink the
  * terminal chrome uses, and the muted tan of the app's secondary text, so the
  * card reads as the last frame of the same film rather than as a slide.
+ *
+ * The line is the film's G1 sentence, and it has to survive the release-video
+ * gate on its own: it makes no claim of absence, needs no product name to
+ * parse, and describes what the previous four seconds just showed — three
+ * cards crossing a board with nobody's cursor on screen.
  */
 import { chromium } from '@playwright/test'
 import { resolve } from 'node:path'
@@ -30,7 +35,7 @@ const html = `<!doctype html><meta charset="utf-8"><style>
        font-family:ui-monospace,Menlo,monospace}
 </style>
 <div class="name">gadak <em>0.19</em></div>
-<div class="line">your shell and your tracker, one window</div>
+<div class="line">your shell and your tracker, one window.</div>
 <div class="url">github.com/midagedev/gadak</div>`
 
 const b = await chromium.launch()

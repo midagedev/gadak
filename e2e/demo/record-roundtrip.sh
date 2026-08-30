@@ -82,7 +82,12 @@ names = [
     ("linkify_opened", "09-linkify-opened.png"),
     ("close_enter", "10-close-typed.png"),
     ("card_done", "11-card-done.png"),
-    ("end_frame", "12-end-frame.png"),
+    ("crew_armed", "12-crew-armed.png"),
+    ("crew_claimed", "12b-crew-claimed.png"),
+    ("bridge", "12c-bridge.png"),
+    ("hands_off", "13-hands-off.png"),
+    ("volley_landed", "14-volley-landed.png"),
+    ("end_frame", "15-end-frame.png"),
 ]
 os.makedirs(frames_dir, exist_ok=True)
 dur = float(subprocess.run(
@@ -145,51 +150,91 @@ gh() { GADAK_HOME="$HERO_HOME" "$GADAK_BIN" "$@"; }
 # codeBlock: the ▶ is offered by adf.ts's commandHead() for a single-line
 # codeBlock (web/src/lib/issue-commands.ts:42), and by nothing else.
 #
-# `gadak edit STD-7 -m` cannot make one. Measured 2026-08-30: a plain-text body
-# with a ``` fence comes back from the mirror as five paragraphs, the fence
-# markers among them as literal text —
-#   {"content":[{"text":"```","type":"text"}],"type":"paragraph"}
-# — and the detail panel rendered zero [data-run-command] buttons. There is no
-# `--field description=` either (no such alias; `gadak fields` lists only the
-# aliases the workspace configured). So the ADF goes in through the origin's
-# REST surface, which is what `gadak api` exists for, and it is still a write
-# that passes through origin rather than a poke at the mirror — the product
-# invariant this repo will not bend (CLAUDE.md).
+# `-m` with a fence used to come back as paragraphs with literal ``` in them
+# (GDK-1178) and this function had to PUT ADF through `gadak api`. The fix
+# landed; the fence is a codeBlock now, so the rig writes the body the way any
+# agent would.
 #
-# The command in the fence is chosen, not arbitrary: its output has to print
-# several issue keys, because beat 3 clicks one of them and only keys the
-# mirror knows get linkified (web/src/lib/terminal/issue-links.ts:38).
+# The command in the fence is chosen, not arbitrary. Its output is one bare
+# key per row: beat 3 clicks one of those keys, and `gadak list`'s
+# ~95-character table wraps three times per row in a 400px pane and reads as
+# noise. One column also makes beat 3 unambiguous — every underlined thing on
+# screen is an issue key.
 seed_body() {
-  python3 - "$TARGET_KEY" <<'PY' >"$OUT/body.json"
-import json, sys
-key = sys.argv[1]
-# Short, and narrow where it counts. Beat 2 films this line inside a pane
-# clamped to TERMINAL_MIN_WIDTH_PX (320) — with the detail panel docked at
-# 1440 the layout has nothing left to give it — which is ~28 columns at the
-# 19px the fixture sets. So the OUTPUT is one bare key per row rather than
-# `gadak list`'s ~95-character table, which measured three wrapped lines per
-# issue and read as noise. One column also makes beat 3 unambiguous: every
-# underlined thing on screen is an issue key.
-cmd = 'gadak sql "select key from issues_full where status_category=\'done\'"'
-doc = {"type": "doc", "version": 1, "content": [
-    {"type": "paragraph", "content": [{"type": "text", "text":
-        "The weekly digest counts an issue twice when a bot closes it and a "
-        "human re-opens and closes it again in the same week."}]},
-    {"type": "paragraph", "content": [{"type": "text", "text":
-        "Start from what the mirror already holds — the issues that are "
-        "actually closed:"}]},
-    {"type": "codeBlock", "content": [{"type": "text", "text": cmd}]},
-    {"type": "paragraph", "content": [{"type": "text", "text":
-        "Decide the counting rule, write it down, and close this issue."}]},
-]}
-json.dump({"fields": {"description": doc}}, sys.stdout)
-PY
-  gh api PUT "/rest/api/3/issue/${TARGET_KEY}" --data "@$OUT/body.json" --write --status \
-    >"$OUT/seed-body.log" 2>&1 || {
-      echo "record-roundtrip: could not set ${TARGET_KEY}'s body" >&2
-      cat "$OUT/seed-body.log" >&2
-      return 1
-    }
+  cat >"$OUT/body.md" <<'BODY'
+The weekly digest counts an issue twice when a bot closes it and a human re-opens and closes it again in the same week.
+
+Start from what the mirror already holds:
+
+```
+gadak next
+```
+
+Decide the counting rule, write it down, and close this issue.
+BODY
+  if ! gh edit "$TARGET_KEY" -m - <"$OUT/body.md" >"$OUT/seed-body.log" 2>&1; then
+    echo "record-roundtrip: could not set ${TARGET_KEY}'s body" >&2
+    cat "$OUT/seed-body.log" >&2
+    return 1
+  fi
+  # Neutral titles. The shared seed describes gadak's own bugs, which is fine
+  # for a rig and wrong for a camera: fifteen cards all naming defects in the
+  # product being advertised reads as "0.19 is this broken". Retitled here so
+  # hero's seed function stays untouched — it is one `edit --summary` pass.
+  while IFS='|' read -r k t; do
+    [ -n "$k" ] && gh edit "$k" --summary "$t" >/dev/null 2>&1
+  done <<'TITLES'
+STD-1|Checkout retries the same card twice
+STD-2|Ship the spring pricing page
+STD-3|Onboarding copy for the free tier
+STD-4|Invoice export drops the tax column
+STD-5|Keyboard shortcuts help is stale
+STD-6|Map pins drift after a window restore
+STD-7|Weekly digest counts an order twice
+STD-8|Saved reports need an empty state
+STD-9|Search highlight leaks into the sidebar
+STD-10|Document the session grace window
+STD-11|Dashboard cards drift on narrow windows
+STD-12|Weekly triage sweep checklist
+STD-13|Order detail loads fields it never shows
+STD-14|Comment box eats the first keystroke
+STD-15|Sign-up flow on fresh browsers
+TITLES
+
+  # `gadak next` is a saved recipe, not the built-in default — the built-in
+  # prints a "no saved recipe" notice above its rows, and this is the one
+  # command the film asks a stranger to read. Ten characters, so it fits the
+  # ~28 columns a 320px pane has once the detail panel is docked; the raw SQL
+  # it replaces was 47 and folded onto three lines. Two narrow columns, and
+  # STD-3 in them, which is where beat 3 lands.
+  gh recipes save next "select key, priority from issues_full where status_category != 'done' order by priority_rank limit 3" >/dev/null 2>&1 || true
+
+  # Every issue gets a body. Beat 3 lands on whichever key the terminal
+  # actually printed — the spec picks from real output rather than a
+  # hardcoded key, which is right — so any of them can end up under the
+  # camera. Seeding only the expected one left a take landing on STD-8 and
+  # its "No description", which is a poor thing to show off in a film about a
+  # tracker. STD-7's own body is set separately above: it is the only one
+  # that needs a runnable fence.
+  while IFS='|' read -r k t; do
+    [ -n "$k" ] && [ "$k" != "$TARGET_KEY" ] && gh edit "$k" -m "$t" >/dev/null 2>&1
+  done <<'BODIES'
+STD-1|A declined retry is charging the card a second time. Reproduce with a test card that fails once, then decide whether the retry needs an idempotency key.
+STD-2|Copy and screenshots are ready; the page needs the new tier table and a link from the footer.
+STD-3|New accounts see the paid-tier copy for the first minute, then it swaps. Rewrite the free-tier strings and decide where the upgrade prompt belongs.
+STD-4|The tax column is present in the preview and missing in the downloaded file. Likely the export builder and the preview build their column list separately.
+STD-5|The overlay still lists shortcuts that were removed two releases ago, and misses the three added since.
+STD-6|Pins land in the right place, then shift by a few pixels once the window is restored from minimised. Only on restore, not on resize.
+STD-8|An account with no saved reports sees an empty panel with no explanation and no way to make one.
+STD-9|The highlight from a search survives into the sidebar and stays until the next query.
+STD-10|The window is real and undocumented: sessions survive a closed pane for a while, and nobody outside the code knows how long.
+STD-11|Below about 900px the cards overlap their own headings. The grid is fine; the card min-width is not.
+STD-12|The weekly sweep is done from memory. Write down what to look at, in order, so anyone can run it.
+STD-13|The detail request asks for fields the panel never renders. Trim the query and measure what it saves.
+STD-14|Typing into a fresh comment box loses the first character. Focus lands a frame before the box is ready.
+STD-15|Sign-up works on a browser that has been used before and fails on a clean profile. Suspect a cookie the flow expects to already exist.
+BODIES
+
   gh sync >/dev/null
   # FAIL-first, in the mirror rather than in the browser: no codeBlock, no ▶,
   # and beat 2 would film a click on nothing.
@@ -201,32 +246,42 @@ PY
     *) echo "record-roundtrip: ${TARGET_KEY} body has no codeBlock — the ▶ would be absent" >&2
        return 1 ;;
   esac
+
   # The terminal's own text is the line this film is about, so it is filmed at
-  # 19px rather than the 13px default. A shipped setting
-  # (`ui.tokens.type.--text-terminal`, internal/config/settings.go), read by
-  # renderer.ts:139 — not a stylesheet patched for the camera.
-  gh config set ui.tokens.type.--text-terminal 19px >/dev/null
-  # And the body text with it. At the shipped 13px a list row's text line is
-  # 18.2px, which is 24.3px in the 1080 frame — under the 27px (2.5%) floor
-  # this shoot holds itself to, and the v0.19 post-mortem's whole finding was
-  # that unreadable-on-a-phone is how a film dies. 16px is the top of
-  # --text-body's own tested range (internal/config/tokencheck/dim-catalog.json:
-  # 12–16) and its 1.4 line-height lands at 29.9px. Both the list summaries and
-  # the issue body read it.
-  #
-  # The whole ladder moves, not just the one rung. Setting body alone earned a
-  # warning from gadak itself — "--text-title 15px breaks >= 16px + 2px (type
-  # steps closer than 2px read as noise, not hierarchy)" — which is the app
-  # telling the camera it is about to film a broken type scale. So: micro 13,
-  # body 16, title 18, heading 26, each inside its own catalogue range.
-  # Largest first: each `config set` is checked against the ladder as it
-  # stands, so raising body before title prints a warning about a state that
-  # exists for one command. Descending order sets the same four values with a
-  # clean log.
+  # 19px rather than the 13px default, and the whole type ladder moves with it
+  # — setting one rung alone earns a warning from gadak itself ("type steps
+  # closer than 2px read as noise, not hierarchy"). At the defaults a text row
+  # is 24.3px in the 1080 frame, under the 27px this shoot holds itself to
+  # (GDK-1184 proposes revisiting them). Largest first, so the ladder is never
+  # transiently inverted.
   gh config set ui.tokens.type.--text-heading 26px >/dev/null
   gh config set ui.tokens.type.--text-title 18px >/dev/null
   gh config set ui.tokens.type.--text-body 16px >/dev/null
   gh config set ui.tokens.type.--text-micro 13px >/dev/null
+  gh config set ui.tokens.type.--text-terminal 19px >/dev/null
+
+  # The sidebar shrinks to its own shipped narrow value. Arithmetic, not
+  # taste: the board's three columns are 288px each (BoardColumn.svelte, not
+  # tokenised) and the pane is 400, so 208 + 400 + 864 = the 1472 frame
+  # exactly. At the 272px default the Done column — where the film ends — is
+  # pushed off screen.
+  gh config set ui.tokens.layout.sidebar 208px >/dev/null
+
+  # Two more people on the board. A comment is a "touch" the same way a
+  # transition is (read.go:849), so this is the cheapest way to get more than
+  # one human chip out of a seed that runs as a single actor.
+  GADAK_ACTOR='human:grace|Grace Hopper' gh comment STD-9 \
+    -m "Reproduced on a narrow window." >/dev/null 2>&1 || true
+  GADAK_ACTOR='human:katherine|Katherine Johnson' gh comment STD-6 \
+    -m "Only after a restore, not a resize." >/dev/null 2>&1 || true
+
+  # One wiki page, so the sidebar's Documents section says something instead
+  # of "No documents in these spaces". A frame of a product should not be
+  # mostly the product's empty states. (The other one, "Personal views need an
+  # identity", cannot be seeded away: a standalone workspace has no account by
+  # design, which is the point of standalone.)
+  gh page create --space LOC --title "Weekly digest rules" \
+    -m "The digest counts an issue once per week, on its first close." >/dev/null 2>&1 || true
 }
 
 # ── The serve, owned by the hero rig ───────────────────────────────────────
@@ -241,8 +296,16 @@ stop_serve() {
 }
 trap stop_serve EXIT
 
+# The seed runs as a PERSON. Every write records its actor (a changelog entry
+# counts, internal/server/read.go:849), and the board prints those as chips —
+# so with the default actor the whole board wore "Claude Code" from frame one
+# and the climax's three bots were not an arrival, they were more of the same.
+# The film's last beat is "the line I typed was one"; that only lands if the
+# board starts human. hero's seed function is not touched — the actor is
+# inherited by the child that runs it.
 echo "record-roundtrip: seeding + serving via record-hero-desk.sh --serve-only…"
-bash e2e/demo/record-hero-desk.sh --serve-only >"$OUT/serve.log" 2>&1 &
+GADAK_ACTOR="${GADAK_RT_SEED_ACTOR:-human:ada|Ada Lovelace}" \
+  bash e2e/demo/record-hero-desk.sh --serve-only >"$OUT/serve.log" 2>&1 &
 SERVE_PID=$!
 for i in $(seq 1 240); do
   curl -sf "http://127.0.0.1:${PORT}/healthz" >/dev/null && break

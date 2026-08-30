@@ -6,8 +6,8 @@ import { defineConfig, devices } from '@playwright/test'
  * board in the same breath, the issue's body hands a command back to that
  * shell, and `gadak close` lands the card in Done.
  *
- * Why 1440×810 and not the hero's 1440×900. The frame this feeds is 1920×1080,
- * and 1440×810 is exactly 1.333× of it — the capture fills the delivery frame
+ * Why 1472×828. The frame this feeds is 1920×1080, and 1472×828 is exactly
+ * 16:9 at 1.304× of it — the capture fills the delivery frame
  * with no bars and no crop, so nothing is enlarged in post. That ratio is the
  * whole readability fix from the v0.19 post-mortem (release-video.md): the
  * hero's 1440×900 could only scale by 1.2 before it ran out of frame width, and
@@ -17,12 +17,15 @@ import { defineConfig, devices } from '@playwright/test'
  * (`ui.tokens.type.--text-terminal`, a shipped setting, not a camera trick),
  * landing at 30px, above the 28px the body line reaches.
  *
- * Width is not free to shrink: below TERMINAL_SPLIT_WITH_DETAIL_MIN_PX (1420 =
- * VIEWPORT_DOCKED_MIN_PX 1100 + TERMINAL_MIN_WIDTH_PX 320, web/src/lib/terminal
- * /layout.ts) the pane stops being a split and becomes a full-width overlay —
- * measured at 1100, where the pane covered the whole detail panel and beat 2
- * (the ▶ and the shell it lands in) could not be in one frame at all. 1440 is
- * the first laptop width that clears it.
+ * Width is not free to shrink, and the board set the floor. The three columns
+ * are 288px each (BoardColumn.svelte — not tokenised), the pane is 400, and
+ * the sidebar is narrowed to its own shipped 208px value: 208 + 400 + 864 =
+ * 1472 exactly. A pixel less and the Done column — where the film ends — is
+ * off frame. It also clears TERMINAL_SPLIT_WITH_DETAIL_MIN_PX (1420 =
+ * VIEWPORT_DOCKED_MIN_PX 1100 + TERMINAL_MIN_WIDTH_PX 320, layout.ts), below
+ * which the pane stops being a split and covers the detail panel whole —
+ * measured at 1100, where beat 2 (the ▶ and the shell it lands in) could not
+ * be in one frame at all.
  *
  * No webServer block, same as hero-desk.config.ts: record-roundtrip.sh owns the
  * serve, because the PTY inherits an environment Playwright cannot express.
@@ -49,9 +52,9 @@ export default defineConfig({
     baseURL: `http://127.0.0.1:${PORT}`,
     locale: 'en-US',
     colorScheme: (process.env.GADAK_RT_SCHEME as 'light' | 'dark') || 'light',
-    viewport: { width: 1440, height: 810 },
+    viewport: { width: 1472, height: 828 },
     deviceScaleFactor: 2,
-    video: { mode: 'on', size: { width: 1440, height: 810 } },
+    video: { mode: 'on', size: { width: 1472, height: 828 } },
     launchOptions: { slowMo: 0 },
     actionTimeout: 30_000,
     navigationTimeout: 60_000,
@@ -63,7 +66,7 @@ export default defineConfig({
       use: {
         ...devices['Desktop Chrome'],
         colorScheme: (process.env.GADAK_RT_SCHEME as 'light' | 'dark') || 'light',
-        viewport: { width: 1440, height: 810 },
+        viewport: { width: 1472, height: 828 },
         deviceScaleFactor: 2,
       },
     },
