@@ -65,6 +65,7 @@ dogfooding
 e2e
 ecosystem
 extensibility
+filmable
 fixture
 flake
 follow-up
@@ -115,6 +116,7 @@ phase2-quarter
 pipe
 post-launch
 privacy
+process
 public
 quality
 race
@@ -123,6 +125,7 @@ refactor
 release
 release-audit
 release-0.19
+research
 roadmap
 search
 security
