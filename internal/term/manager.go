@@ -110,8 +110,10 @@ type Options struct {
 	// Cols and Rows are the initial PTY size. Zero takes 80x24 — a shell
 	// with a zero-sized terminal draws nothing and is a support ticket.
 	Cols, Rows uint16
-	// Env is appended after the inherited environment and the two
-	// variables this package always sets.
+	// Env is appended after the inherited environment and the variables
+	// this package always sets. Create appends GADAK_TERMINAL_SESSION
+	// after it in turn (last duplicate wins), so a session's own id is
+	// never maskable from here.
 	Env []string
 	// Shell overrides $SHELL. The settings catalog's terminal.shell
 	// reaches here through handleTerminalCreate (GDK-896); tests use it
@@ -166,6 +168,11 @@ type Info struct {
 	// Cols" is the whole diagnosis of GDK-1154, which otherwise needs a
 	// debugger attached to a phone.
 	Resizes int `json:"resizes"`
+	// IssueKey is the issue this session was claimed for, empty when none.
+	// It is runtime state and is not persisted anywhere: the binding dies
+	// with the session, and the durable record of "who claimed what when"
+	// is origin's own claim history (GDK-1158).
+	IssueKey string `json:"issue_key,omitempty"`
 }
 
 // Create spawns a shell under a PTY and returns its session.
@@ -190,6 +197,10 @@ func (m *Manager) Create(opts Options) (*Session, error) {
 	if err != nil {
 		return nil, err
 	}
+	// The session's own id rides in the shell's environment, appended after
+	// the caller's Env: os/exec keeps the last duplicate key, so a caller
+	// cannot mask which session its shell is (GDK-1158).
+	opts.Env = append(opts.Env, "GADAK_TERMINAL_SESSION="+id)
 	proc, err := startProc(opts)
 	if err != nil {
 		return nil, err

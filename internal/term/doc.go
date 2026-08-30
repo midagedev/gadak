@@ -13,7 +13,9 @@
 //     its controlling terminal. A job-control shell puts background jobs
 //     in a new process group, so a signal to -pgid does not reach them.
 //     cwd is the workspace directory unless Options.Dir names another.
-//     Env is the parent's plus TERM=xterm-256color and GADAK_TERMINAL=1.
+//     Env is the parent's plus TERM=xterm-256color, GADAK_TERMINAL=1, and
+//     GADAK_TERMINAL_SESSION=<session id> (GDK-1158) — the id a `gadak
+//     claim` typed in the pane reflects itself into.
 //
 //   - Close. SIGHUP every process on the shell's controlling terminal,
 //     then wait; a SIGKILL to whoever is still on that terminal after

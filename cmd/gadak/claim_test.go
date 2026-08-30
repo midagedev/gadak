@@ -1,6 +1,10 @@
 package main
 
 import (
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -120,6 +124,120 @@ func asActor(t *testing.T, actor string) {
 		t.Fatalf("origin.Close between actors: %v", err)
 	}
 	t.Setenv("GADAK_ACTOR", actor)
+}
+
+// TestClaimBindsToTerminalSession is GDK-1158: a claim typed inside a gadak
+// pane reflects itself into the session the pane's shell runs in, so the
+// serve can say which issue a terminal is for. The pane side is emulated
+// with the two things the real one provides — GADAK_TERMINAL_SESSION in the
+// environment (Manager.Create sets it) and a loopback serve answering the
+// binding route — plus the three rules that make the reflection safe: it
+// follows the confirmation, never fails the claim, and never happens for a
+// claim the origin refused.
+func TestClaimBindsToTerminalSession(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	t.Setenv("HOME", home)
+	t.Setenv("GADAK_ACTOR", "agent-a|Agent A")
+	t.Setenv("CLAUDECODE", "")
+	t.Setenv("CLAUDE_CODE_SESSION_ID", "")
+	clearCredentialEnv(t)
+	config.SetProfile("")
+	t.Cleanup(func() {
+		_ = origin.Close()
+		config.SetProfile("")
+	})
+
+	if _, err := capture(t, func() error { return cmdInit([]string{"--standalone", "--json"}) }); err != nil {
+		t.Fatalf("init --standalone: %v", err)
+	}
+	created, err := capture(t, func() error { return cmdCreate([]string{"bind roundtrip"}) })
+	if err != nil {
+		t.Fatalf("create: %v\n%s", err, created)
+	}
+	key := strings.Split(strings.TrimSpace(strings.Split(created, "\n")[0]), "\t")[0]
+
+	// The fake serve: it answers the binding route and records what reached
+	// it, which is the whole assertion surface for the POST's shape.
+	const session = "4f9c1a2b3c4d5e6f7a8b9c0d1e2f3a4b"
+	var posts []string
+	fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		posts = append(posts, r.Method+" "+r.URL.Path+" "+string(body))
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	t.Cleanup(fake.Close)
+
+	savedDiscover := discoverServes
+	t.Cleanup(func() { discoverServes = savedDiscover })
+	discoverServes = func() []serveHit {
+		return []serveHit{{base: fake.URL, profile: "", port: "7877", source: serveSourceRun}}
+	}
+	t.Setenv("GADAK_TERMINAL_SESSION", session)
+
+	// A landed claim binds: one POST to this session's route, a line after
+	// the confirmation row, and the full id in --json beside the claim.
+	out, err := capture(t, func() error { return cmdClaim([]string{key}) })
+	if err != nil {
+		t.Fatalf("claim with a session env: %v\n%s", err, out)
+	}
+	if want := "POST /api/v1/terminal/sessions/" + session + "/issue/ " + `{"issue_key":"` + key + `"}`; len(posts) != 1 || posts[0] != want {
+		t.Fatalf("binding POSTs: %v; want [%s]", posts, want)
+	}
+	bound := "bound to session " + session[:8] + "…"
+	if !strings.Contains(out, bound) {
+		t.Fatalf("claim output lacks %q:\n%s", bound, out)
+	}
+	if i, j := strings.Index(out, key), strings.Index(out, bound); i < 0 || j < i {
+		t.Fatalf("the bound line must follow the confirmation row:\n%s", out)
+	}
+	claimJSON, err := capture(t, func() error { return cmdClaim([]string{key, "--json"}) })
+	if err != nil {
+		t.Fatalf("claim --json with a session env: %v\n%s", err, claimJSON)
+	}
+	var jsonBody struct {
+		Session string         `json:"session"`
+		Claim   map[string]any `json:"claim"`
+	}
+	if err := json.Unmarshal([]byte(claimJSON), &jsonBody); err != nil {
+		t.Fatalf("claim --json: %v\n%s", err, claimJSON)
+	}
+	if jsonBody.Session != session {
+		t.Fatalf("claim --json session = %q; want %s\n%s", jsonBody.Session, session, claimJSON)
+	}
+	if jsonBody.Claim == nil {
+		t.Fatalf("claim --json lost the claim answer:\n%s", claimJSON)
+	}
+
+	// Rule 3: a claim survives a serve that is not there. The origin write
+	// already landed; the binding is best-effort and quiet.
+	discoverServes = func() []serveHit { return nil }
+	out, err = capture(t, func() error { return cmdClaim([]string{key}) })
+	if err != nil {
+		t.Fatalf("claim must survive a missing serve: %v\n%s", err, out)
+	}
+	if strings.Contains(out, "bound to session") {
+		t.Fatalf("no serve, yet a bound line printed:\n%s", out)
+	}
+
+	// Rule 5: a claim the origin refused never binds. B's claim over A's
+	// hold is exit 75, and the serve that is right there sees no POST.
+	discoverServes = func() []serveHit {
+		return []serveHit{{base: fake.URL, profile: "", port: "7877", source: serveSourceRun}}
+	}
+	asActor(t, "agent-b|Agent B")
+	before := len(posts)
+	out, err = capture(t, func() error { return cmdClaim([]string{key}) })
+	if code := exitStatus(err); code != exitClaimConflict {
+		t.Fatalf("agent B claim exit = %d, want %d (%v)", code, exitClaimConflict, err)
+	}
+	if len(posts) != before {
+		t.Fatalf("a refused claim still bound: %v", posts[before:])
+	}
+	if strings.Contains(out, "bound to session") {
+		t.Fatalf("a refused claim printed a bound line:\n%s", out)
+	}
 }
 
 // TestClaimConnectedFallback is the Cloud shape: the fake answers the claim

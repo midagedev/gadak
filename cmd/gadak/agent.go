@@ -11,6 +11,7 @@ package main
 // write Jira rejected must not leave a trace locally.
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -18,6 +19,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
@@ -42,6 +44,7 @@ import (
 	"github.com/midagedev/gadak/internal/store"
 	syncer "github.com/midagedev/gadak/internal/sync"
 	"github.com/midagedev/gadak/internal/transition"
+	"github.com/midagedev/gadak/internal/workspace"
 )
 
 // staleAfter is when a mirror stops being worth trusting silently. It is a
@@ -2552,8 +2555,92 @@ func cmdClaim(args []string) error {
 		if !res.Atomic {
 			fmt.Fprintf(os.Stderr, "warning: this origin has no atomic claim — assignee and in-progress transition were two calls, so a concurrent claim could interleave\n")
 		}
-		return emitAfterWrite(ctx, cfg, db, src, key, *asJSON, map[string]any{"claim": res})
+		// GDK-1158: inside a gadak pane, reflect the landed claim into the
+		// session this command ran in, so the serve can say which issue a
+		// terminal is for. Best-effort by contract — the origin write above
+		// is the claim, and a missing serve or an unknown session must not
+		// turn it into an error.
+		extra := map[string]any{"claim": res}
+		bound := ""
+		if session := os.Getenv("GADAK_TERMINAL_SESSION"); session != "" {
+			bound = bindClaimToTerminalSession(session, key)
+		}
+		if bound != "" {
+			extra["session"] = bound
+		}
+		if err := emitAfterWrite(ctx, cfg, db, src, key, *asJSON, extra); err != nil {
+			return err
+		}
+		if bound != "" && !*asJSON {
+			short := bound
+			if len(short) > 8 {
+				short = short[:8]
+			}
+			fmt.Printf("bound to session %s…\n", short)
+		}
+		return nil
 	})
+}
+
+// claimBindTimeout bounds the loopback POST that reflects a claim into the
+// session it ran in. A human is waiting on the claim, not on the binding.
+const claimBindTimeout = time.Second
+
+// bindClaimToTerminalSession reflects a just-landed claim into the terminal
+// session this command ran in (GDK-1158). Manager.Create sets
+// GADAK_TERMINAL_SESSION in every pane shell, so a claim typed anywhere
+// else never gets here (and the caller's empty check never fires). The
+// serve is found the way `views open` finds it — discoverServes, the
+// serveaddr walk plus identity probe (views.go) — restricted to this CLI
+// profile's own serve, because a session id is valid nowhere else; a
+// session the serve does not know is an old id from a restarted serve, and
+// trying further serves would only re-learn that. Every failure answers ""
+// so the claim stands.
+func bindClaimToTerminalSession(session, key string) string {
+	if session == "" {
+		return ""
+	}
+	want := config.Profile()
+	for _, hit := range discoverServes() {
+		if !workspace.ProfileEq(hit.profile, want) {
+			continue
+		}
+		if postTerminalIssueBinding(hit.base, session, key) {
+			return session
+		}
+		return ""
+	}
+	return ""
+}
+
+// postTerminalIssueBinding is the one loopback call: the terminal surface's
+// issue-binding route (internal/server, GDK-1158). False covers every
+// failure shape — no dial, wrong status, timeout — because the caller
+// treats them all the same: the claim stands, the binding is just not
+// reflected.
+func postTerminalIssueBinding(base, session, key string) bool {
+	payload, err := json.Marshal(map[string]string{"issue_key": key})
+	if err != nil {
+		return false
+	}
+	url := strings.TrimRight(base, "/") + server.TermBase + "sessions/" + session + "/issue/"
+	ctx, cancel := context.WithTimeout(context.Background(), claimBindTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
+	if err != nil {
+		return false
+	}
+	req.Header.Set("Content-Type", "application/json")
+	// Bounded like the identity probe (internal/origin/advertise.go): the
+	// client carries the timeout too, so a hang that ignores ctx cannot
+	// outlive it.
+	client := &http.Client{Timeout: claimBindTimeout}
+	res, err := client.Do(req)
+	if err != nil {
+		return false
+	}
+	defer res.Body.Close()
+	return res.StatusCode == http.StatusOK
 }
 
 // resolveAccount turns an email, display name, or account id into an origin

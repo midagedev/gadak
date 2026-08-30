@@ -32,6 +32,12 @@ import (
 // written.
 const termBase = "/api/v1/terminal/"
 
+// TermBase is termBase exported for the one client outside this package
+// that builds a URL against the surface: the CLI's claim reflection POST
+// (GDK-1158). Same shape as origin.RESTPrefix, and an alias rather than a
+// second literal, so the two names cannot drift.
+const TermBase = termBase
+
 // terminalWriteTimeout bounds one socket write. A client whose TCP window
 // has closed must not hold the writer loop: past this the attachment ends
 // and the session keeps running for the reconnect grace.
@@ -56,12 +62,14 @@ var terminalPollInterval = 2 * time.Second
 func (s *server) registerTerminal(mux *http.ServeMux) {
 	// The four patterns are byte-identical to the direct registrations
 	// this replaces. termBase ends in "/", so the parent pattern below is
-	// the subtree they all lived in.
+	// the subtree they all lived in. The issue-binding POST (GDK-1158)
+	// joined them later and inherits the gate by the same mount.
 	termMux := http.NewServeMux()
 	termMux.HandleFunc("POST "+termBase+"sessions/{$}", s.handleTerminalCreate)
 	termMux.HandleFunc("GET "+termBase+"sessions/{$}", s.handleTerminalList)
 	termMux.HandleFunc("DELETE "+termBase+"sessions/{id}/{$}", s.handleTerminalDelete)
 	termMux.HandleFunc("GET "+termBase+"sessions/{id}/ws/{$}", s.handleTerminalWS)
+	termMux.HandleFunc("POST "+termBase+"sessions/{id}/issue/{$}", s.handleTerminalIssue)
 	// The outer mux ends with the same catch-all (server.go): an unknown
 	// terminal path keeps the {"error":"not_found"} body the UI parses —
 	// only now the gate has already spoken by the time it is served.
@@ -396,6 +404,40 @@ func (s *server) handleTerminalDelete(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = sess.Close()
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// terminalIssueReq is the binding body: an issue key, or empty to clear.
+type terminalIssueReq struct {
+	IssueKey string `json:"issue_key"`
+}
+
+// handleTerminalIssue binds a session to the issue a claim in its shell
+// took (GDK-1158). The pane's own `gadak claim` POSTs here over loopback
+// after the origin write lands; this side is pure plumbing — the key is
+// stored as given, never checked against the mirror or the origin, because
+// the truth of a key is origin's and this binding is runtime state that
+// dies with the session. Gate and ownership are the neighbor routes': the
+// sub-mux gate has already spoken by the time this runs, and a session
+// another credential opened answers 404, not a 403 that names it.
+func (s *server) handleTerminalIssue(w http.ResponseWriter, r *http.Request) {
+	tokenID := terminalTokenID(r)
+	body, err := io.ReadAll(io.LimitReader(r.Body, 4<<10))
+	if err != nil {
+		fail(w, http.StatusBadRequest, "invalid_body")
+		return
+	}
+	var req terminalIssueReq
+	if err := json.Unmarshal(body, &req); err != nil {
+		fail(w, http.StatusBadRequest, "invalid_body")
+		return
+	}
+	sess, err := s.terminalManager().Get(r.PathValue("id"))
+	if err != nil || !terminalOwns(sess.TokenID(), tokenID) {
+		handleNotFound(w, r)
+		return
+	}
+	sess.SetIssueKey(req.IssueKey)
+	writeJSON(w, http.StatusOK, sess.Info())
 }
 
 // terminalOwns decides whether a caller may act on a session. A local

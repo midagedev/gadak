@@ -64,6 +64,12 @@ func TestIssueKeyStructTagsUseHelper(t *testing.T) {
 		"internal/store/feed.go":     "MarshalWithIssueKeyAlias",
 		"internal/server/read.go":    "MarshalWithIssueKeyAlias",
 		"cmd/gadak/export_static.go": `"key"`, // whitelist + scrubDetail copy
+		// The terminal session's issue binding (GDK-1158) is not a mirror
+		// row: it is runtime state on a PTY session, emitted by the binding
+		// route. The GDK-255 alias would be a lie here — a session Info has
+		// no issues_full.key to alias — so the tags are allowed without
+		// MarshalWithIssueKeyAlias, pinned by the handler that owns them.
+		"internal/server/terminal.go": "handleTerminalIssue",
 	}
 	var unexpected []string
 	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {

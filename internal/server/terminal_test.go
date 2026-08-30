@@ -591,6 +591,7 @@ func TestTerminalGateCoversTheWholeSubtree(t *testing.T) {
 		{http.MethodGet, termBase + "sessions/"},
 		{http.MethodDelete, termBase + "sessions/abc123/"},
 		{http.MethodGet, termBase + "sessions/abc123/ws/"},
+		{http.MethodPost, termBase + "sessions/abc123/issue/"},
 		{http.MethodPost, termBase + "nosuch/"},
 		{http.MethodGet, termBase + "sessions/abc123/nosuch/"},
 	}
@@ -811,5 +812,97 @@ func TestTerminalSocketGoroutinesStopOnShutdown(t *testing.T) {
 			t.Fatalf("%d terminal socket goroutine frame(s) survived Shutdown (GDK-915 leak)", n)
 		}
 		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+// ⑯ GDK-1158: the issue-binding route. A claim that lands in a pane's shell
+// is reflected into the session it ran in — the pane's own `gadak claim`
+// POSTs here over loopback. The route is plumbing: it never validates the
+// key against the mirror or the origin (the truth of a key is origin's), it
+// sits behind the same sub-mux gate and the same ownership rule as DELETE,
+// and it answers with the refreshed Info row the list surface already
+// serves.
+func TestTerminalIssueBinding(t *testing.T) {
+	srv, _, _ := termServer(t)
+	id := createSession(t, srv, "", "")
+
+	// Bind: the answer is the updated Info row, issue_key included.
+	code, body := termRequest(t, srv, http.MethodPost, termBase+"sessions/"+id+"/issue/", `{"issue_key":"GDK-1153"}`, "", "")
+	if code != http.StatusOK {
+		t.Fatalf("bind: %d %s", code, body)
+	}
+	var info term.Info
+	if err := json.Unmarshal([]byte(body), &info); err != nil {
+		t.Fatalf("bind body %s: %v", body, err)
+	}
+	if info.ID != id || info.IssueKey != "GDK-1153" {
+		t.Fatalf("bind answered id=%q issue_key=%q", info.ID, info.IssueKey)
+	}
+
+	// The list row carries it — that is the whole point of the binding.
+	code, body = termRequest(t, srv, http.MethodGet, termBase+"sessions/", "", "", "")
+	if code != http.StatusOK {
+		t.Fatalf("list: %d %s", code, body)
+	}
+	var doc struct {
+		Sessions []term.Info `json:"sessions"`
+	}
+	if err := json.Unmarshal([]byte(body), &doc); err != nil {
+		t.Fatalf("list body %s: %v", body, err)
+	}
+	found := false
+	for _, row := range doc.Sessions {
+		if row.ID == id {
+			found = true
+			if row.IssueKey != "GDK-1153" {
+				t.Fatalf("list row issue_key=%q; want GDK-1153", row.IssueKey)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("list after bind has no row for %s: %s", id, body)
+	}
+
+	// An empty key clears; omitempty drops the field from the answer.
+	code, body = termRequest(t, srv, http.MethodPost, termBase+"sessions/"+id+"/issue/", `{"issue_key":""}`, "", "")
+	if code != http.StatusOK {
+		t.Fatalf("clear: %d %s", code, body)
+	}
+	if strings.Contains(body, "issue_key") {
+		t.Fatalf("clear answer still carries issue_key: %s", body)
+	}
+
+	// An unknown session id is the same 404 shape DELETE answers.
+	code, body = termRequest(t, srv, http.MethodPost, termBase+"sessions/deadbeef/issue/", `{"issue_key":"GDK-1"}`, "", "")
+	if code != http.StatusNotFound || !strings.Contains(body, "not_found") {
+		t.Fatalf("bind unknown id: %d %s; want 404 not_found", code, body)
+	}
+
+	// A malformed body is a 400 before the session is consulted.
+	code, body = termRequest(t, srv, http.MethodPost, termBase+"sessions/"+id+"/issue/", `not json`, "", "")
+	if code != http.StatusBadRequest || !strings.Contains(body, "invalid_body") {
+		t.Fatalf("bind bad body: %d %s; want 400 invalid_body", code, body)
+	}
+
+	// Gate and ownership parity with the neighbor routes: a non-local
+	// tokenless caller is answered by the gate (⑬'s rule), and another
+	// token's session is a 404, never a 403 that names it (⑥'s rule).
+	srv2, _, dir := termServer(t)
+	seedStore(t, dir, seedToken{"pane", pairing.ScopeTerminal})
+	code, body = termRequest(t, srv2, http.MethodPost, termBase+"sessions/abc123/issue/", `{"issue_key":"GDK-1"}`, remoteIPHost, "")
+	if code != http.StatusUnauthorized || !strings.Contains(body, "pairing_rejected") {
+		t.Fatalf("bind, non-local without bearer: %d %s; want 401 pairing_rejected (the gate)", code, body)
+	}
+	toks := seedStore(t, dir,
+		seedToken{"pane-a", pairing.ScopeTerminal},
+		seedToken{"pane-b", pairing.ScopeTerminal})
+	idA := createSession(t, srv2, mirrorHost, toks[0])
+	code, _ = termRequest(t, srv2, http.MethodPost, termBase+"sessions/"+idA+"/issue/", `{"issue_key":"GDK-1"}`, mirrorHost, toks[1])
+	if code != http.StatusNotFound {
+		t.Fatalf("another token bound a session it did not open: %d; want 404", code)
+	}
+	code, body = termRequest(t, srv2, http.MethodPost, termBase+"sessions/"+idA+"/issue/", `{"issue_key":"GDK-1153"}`, mirrorHost, toks[0])
+	if code != http.StatusOK {
+		t.Fatalf("own token bind: %d %s; want 200", code, body)
 	}
 }

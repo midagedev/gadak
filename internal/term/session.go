@@ -134,6 +134,7 @@ type Session struct {
 	detachedAt   time.Time
 	graceExts    int
 	resizes      int
+	issueKey     string
 	closing      bool
 	finished     bool
 	exited       bool
@@ -177,9 +178,27 @@ func (s *Session) Info() Info {
 		DetachedAt:         s.detachedAt,
 		GraceExtensions:    s.graceExts,
 		Resizes:            s.resizes,
+		IssueKey:           s.issueKey,
 	}
 	s.mu.Unlock()
 	return info
+}
+
+// SetIssueKey binds this session to the issue a claim in its shell took.
+// One session holds one issue at a time: a new key replaces the old, and an
+// empty key clears the binding. Runtime state only — see Info.IssueKey for
+// why nothing persists it.
+func (s *Session) SetIssueKey(key string) {
+	s.mu.Lock()
+	s.issueKey = key
+	s.mu.Unlock()
+}
+
+// IssueKey is the issue this session is bound to, empty when none.
+func (s *Session) IssueKey() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.issueKey
 }
 
 // Write sends bytes to the shell's stdin.

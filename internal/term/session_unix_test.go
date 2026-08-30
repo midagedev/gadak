@@ -106,7 +106,7 @@ func TestSessionEnvAndDir(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.Write([]byte("printf 'D=%s T=%s G=%s\\n' \"$(pwd -P)\" \"$TERM\" \"$GADAK_TERMINAL\"\n")); err != nil {
+	if _, err := s.Write([]byte("printf 'D=%s T=%s G=%s S=%s\\n' \"$(pwd -P)\" \"$TERM\" \"$GADAK_TERMINAL\" \"$GADAK_TERMINAL_SESSION\"\n")); err != nil {
 		t.Fatal(err)
 	}
 	out := readUntil(t, a, "T=xterm-256color", 10*time.Second)
@@ -115,6 +115,81 @@ func TestSessionEnvAndDir(t *testing.T) {
 	}
 	if !strings.Contains(out, "G=1") {
 		t.Errorf("GADAK_TERMINAL: %q", out)
+	}
+	// The session's own id, exactly: a `gadak claim` typed in this pane
+	// reflects itself into the session this names (GDK-1158).
+	if !strings.Contains(out, "S="+s.ID()) {
+		t.Errorf("GADAK_TERMINAL_SESSION: %q does not contain S=%s", out, s.ID())
+	}
+}
+
+// GDK-1158: the issue binding is runtime state on the session — set by the
+// serve when a claim lands in that shell, carried by Info for the list
+// surface, cleared by an empty key, never persisted anywhere. One session
+// holds one issue: a new key replaces the old rather than accumulating.
+func TestSessionIssueKeySetGetAndClear(t *testing.T) {
+	m := testManager(t, Config{})
+	s := shellSession(t, m, Options{})
+	if got := s.IssueKey(); got != "" {
+		t.Fatalf("fresh session IssueKey = %q; want empty", got)
+	}
+	if got := s.Info().IssueKey; got != "" {
+		t.Fatalf("fresh Info.IssueKey = %q; want empty", got)
+	}
+	s.SetIssueKey("GDK-1153")
+	if got := s.IssueKey(); got != "GDK-1153" {
+		t.Fatalf("IssueKey after set = %q", got)
+	}
+	if got := s.Info().IssueKey; got != "GDK-1153" {
+		t.Fatalf("Info.IssueKey after set = %q", got)
+	}
+	// One session, one issue: a second claim in the same pane replaces.
+	s.SetIssueKey("GDK-1164")
+	if got := s.IssueKey(); got != "GDK-1164" {
+		t.Fatalf("IssueKey after rebind = %q; want the replacement", got)
+	}
+	// An empty key clears.
+	s.SetIssueKey("")
+	if got := s.IssueKey(); got != "" {
+		t.Fatalf("IssueKey after clear = %q; want empty", got)
+	}
+	if got := s.Info().IssueKey; got != "" {
+		t.Fatalf("Info.IssueKey after clear = %q; want empty", got)
+	}
+}
+
+// GDK-1158: two sessions in one manager each carry their own id in their
+// shell's environment. The variable names the session a command ran in, so
+// it must never degrade into a process-wide value — each pane's claim binds
+// to the pane it was typed in, nothing else.
+func TestSessionEnvNamesItsOwnSession(t *testing.T) {
+	m := testManager(t, Config{})
+	s1 := shellSession(t, m, Options{})
+	s2 := shellSession(t, m, Options{})
+	if s1.ID() == s2.ID() {
+		t.Fatal("two sessions share an id")
+	}
+	a1, err := s1.Attach()
+	if err != nil {
+		t.Fatal(err)
+	}
+	a2, err := s2.Attach()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s1.Write([]byte("printf 'ONE=%s\\n' \"$GADAK_TERMINAL_SESSION\"\n")); err != nil {
+		t.Fatal(err)
+	}
+	out1 := readUntil(t, a1, "ONE="+s1.ID(), 10*time.Second)
+	if _, err := s2.Write([]byte("printf 'TWO=%s\\n' \"$GADAK_TERMINAL_SESSION\"\n")); err != nil {
+		t.Fatal(err)
+	}
+	out2 := readUntil(t, a2, "TWO="+s2.ID(), 10*time.Second)
+	if strings.Contains(out1, s2.ID()) {
+		t.Errorf("session 1 saw session 2's id: %q", out1)
+	}
+	if strings.Contains(out2, s1.ID()) {
+		t.Errorf("session 2 saw session 1's id: %q", out2)
 	}
 }
 
