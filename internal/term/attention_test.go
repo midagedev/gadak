@@ -77,6 +77,43 @@ func TestBellRaisesAttentionAttachLowersIt(t *testing.T) {
 	}
 }
 
+// ①b A prompt that writes the window title does not ask for a person.
+//
+// This is the case that took main red on 2026-08-30: Ubuntu's stock
+// /etc/skel/.bashrc sets PS1 to `\[\e]0;\u@\h: \w\a\]…` for an xterm-ish
+// TERM, and sessions start with TERM=xterm-256color, so every prompt on that
+// machine ended an OSC string with 0x07. With emit searching for a bare BEL
+// byte the bit was true from the first prompt and could not stay lowered —
+// an attach cleared it and the next prompt raised it again. FAIL-first,
+// measured against that implementation: this test failed at the first check
+// with NeedsAttention already true.
+func TestWindowTitleOSCDoesNotAskForAPerson(t *testing.T) {
+	m := testManager(t, Config{})
+	s := shellSession(t, m, Options{})
+	a, err := s.Attach()
+	if err != nil {
+		t.Fatalf("Attach: %v", err)
+	}
+	defer a.Detach()
+
+	// The title sequence, then a marker so the wait lands on output that
+	// arrived *after* it. Split literal so the marker cannot be satisfied by
+	// the echo of the command.
+	if _, err := s.Write([]byte("printf '\\033]0;a title\\007%s\\n' ti''tled\n")); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+	readUntil(t, a, "titled", 5*time.Second)
+	if s.Info().NeedsAttention {
+		t.Fatal("an OSC window title terminated by BEL raised NeedsAttention")
+	}
+
+	// And a real bell in the same session still does.
+	if _, err := s.Write([]byte("printf '\\a'\n")); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+	waitAttention(t, s, true, 5*time.Second)
+}
+
 // ② The bit rides the list row next to the issue binding, under the name
 // the client reads. Both are what one strip row is made of.
 func TestSnapshotCarriesAttentionWithIssueKey(t *testing.T) {

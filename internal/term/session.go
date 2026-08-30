@@ -1,7 +1,6 @@
 package term
 
 import (
-	"bytes"
 	"errors"
 	"sync"
 	"time"
@@ -141,12 +140,16 @@ type Session struct {
 	graceExts    int
 	resizes      int
 	attention    bool
-	issueKey     string
-	closing      bool
-	finished     bool
-	exited       bool
-	exitCode     int
-	closeReason  string
+	// bells carries the escape state between PTY reads: a chunk can end in
+	// the middle of an OSC string, and whether the next 0x07 is a bell or
+	// that string's terminator depends on it (bell.go).
+	bells       bellScanner
+	issueKey    string
+	closing     bool
+	finished    bool
+	exited      bool
+	exitCode    int
+	closeReason string
 }
 
 // ID is the session id a socket URL carries.
@@ -399,8 +402,11 @@ func (s *Session) emit(p []byte) {
 	// The single place the attention bit can be raised: emit is the only
 	// reader of the PTY, so every byte this session will ever produce
 	// passes here exactly once. Deriving it anywhere else would be a
-	// second opinion on the same stream.
-	if bytes.IndexByte(chunk, bellByte) >= 0 {
+	// second opinion on the same stream. The scanner — not a plain byte
+	// search — is what keeps a window-title OSC's terminator from reading
+	// as a bell; see bell.go for the prompt that made every Linux session
+	// ask for a person forever.
+	if s.bells.scan(chunk) {
 		s.attention = true
 	}
 	var dropped []*Attachment
