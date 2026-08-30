@@ -592,6 +592,7 @@ func TestTerminalGateCoversTheWholeSubtree(t *testing.T) {
 		{http.MethodDelete, termBase + "sessions/abc123/"},
 		{http.MethodGet, termBase + "sessions/abc123/ws/"},
 		{http.MethodPost, termBase + "sessions/abc123/issue/"},
+		{http.MethodPost, termBase + "sessions/abc123/input/"},
 		{http.MethodPost, termBase + "nosuch/"},
 		{http.MethodGet, termBase + "sessions/abc123/nosuch/"},
 	}

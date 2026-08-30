@@ -31,6 +31,41 @@ export const detail = {
     ko: '첨부',
     ja: '添付',
   },
+  /* ── Commands in the body, and the shell they go to (GDK-1162/GDK-1164) ──
+     "Place", never "run". The button puts a line someone else wrote at a
+     prompt; the Enter that runs it is a keystroke a person makes, and the
+     serve enforces that (internal/server/terminal.go refuses \n and \r). Copy
+     that said "run" would be describing a feature this product declined to
+     build. */
+  'detail.runInShell': {
+    en: "Place at this issue's shell prompt — does not run it",
+    ko: '이 이슈의 셸 프롬프트에 놓기 — 실행하지는 않습니다',
+    ja: 'この課題のシェルのプロンプトに置く — 実行はしません',
+  },
+  'detail.placeFailed': {
+    en: 'Could not place the command in the shell.',
+    ko: '명령을 셸에 놓지 못했습니다.',
+    ja: 'コマンドをシェルに置けませんでした。',
+  },
+  'detail.noShellForIssue': {
+    en: 'No shell here is attached to {key}. Run `gadak claim {key}` in the terminal pane to bind one.',
+    ko: '여기에는 {key}에 붙어 있는 셸이 없습니다. 터미널 패널에서 `gadak claim {key}`를 실행하면 붙습니다.',
+    ja: 'ここには {key} に紐づいたシェルがありません。ターミナルパネルで `gadak claim {key}` を実行すると紐づきます。',
+  },
+  /* The mark's wording is the feature. A session binding is runtime state
+     that dies with the serve, so what is actually known is "no shell *here*
+     is on it" — never "this work is dead". Someone who reads the mark as the
+     second thing has been lied to. */
+  'detail.unattended': {
+    en: 'No shell here',
+    ko: '붙은 셸 없음',
+    ja: 'シェルなし',
+  },
+  'detail.unattendedHint': {
+    en: 'In progress, but no shell this serve knows about is attached to it. A shell on another machine — or one from before this serve restarted — is not visible here.',
+    ko: '진행 중이지만 이 serve가 아는 셸 중 이 이슈에 붙은 것이 없습니다. 다른 기기에서 도는 셸이나 이 serve가 재시작되기 전의 셸은 여기서 보이지 않습니다.',
+    ja: '進行中ですが、この serve が把握しているシェルの中にこの課題へ紐づいたものはありません。別のマシンで動いているシェルや、この serve の再起動前のシェルはここには見えません。',
+  },
   'detail.qaImpact': {
     en: 'QA impact',
     ko: 'QA 영향',

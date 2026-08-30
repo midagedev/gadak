@@ -154,12 +154,17 @@
   {:else}
     <div class="flex items-start gap-1">
       <div class="min-w-0 flex-1">
+        <!-- commands: the body is the one place a ▶ is offered (GDK-1162).
+             Comments and body-role custom fields do not get one — a button
+             that puts someone else's line at your prompt belongs where the
+             issue states its own reproduction, not in a thread. -->
         <AdfContent
           {node}
           issueKey={issueKey}
           {attachments}
           {fallback}
           emptyLabel={t('detail.noDescription')}
+          commands
         />
       </div>
       {#if canEdit}

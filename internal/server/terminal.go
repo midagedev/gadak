@@ -62,14 +62,16 @@ var terminalPollInterval = 2 * time.Second
 func (s *server) registerTerminal(mux *http.ServeMux) {
 	// The four patterns are byte-identical to the direct registrations
 	// this replaces. termBase ends in "/", so the parent pattern below is
-	// the subtree they all lived in. The issue-binding POST (GDK-1158)
-	// joined them later and inherits the gate by the same mount.
+	// the subtree they all lived in. The issue-binding POST (GDK-1158) and
+	// the input POST (GDK-1162) joined them later and inherit the gate by
+	// the same mount.
 	termMux := http.NewServeMux()
 	termMux.HandleFunc("POST "+termBase+"sessions/{$}", s.handleTerminalCreate)
 	termMux.HandleFunc("GET "+termBase+"sessions/{$}", s.handleTerminalList)
 	termMux.HandleFunc("DELETE "+termBase+"sessions/{id}/{$}", s.handleTerminalDelete)
 	termMux.HandleFunc("GET "+termBase+"sessions/{id}/ws/{$}", s.handleTerminalWS)
 	termMux.HandleFunc("POST "+termBase+"sessions/{id}/issue/{$}", s.handleTerminalIssue)
+	termMux.HandleFunc("POST "+termBase+"sessions/{id}/input/{$}", s.handleTerminalInput)
 	// The outer mux ends with the same catch-all (server.go): an unknown
 	// terminal path keeps the {"error":"not_found"} body the UI parses —
 	// only now the gate has already spoken by the time it is served.
@@ -438,6 +440,94 @@ func (s *server) handleTerminalIssue(w http.ResponseWriter, r *http.Request) {
 	}
 	sess.SetIssueKey(req.IssueKey)
 	writeJSON(w, http.StatusOK, sess.Info())
+}
+
+// terminalInputMax bounds one placed line, in bytes of `text`. A command
+// somebody is expected to read before pressing Enter is not a paste buffer;
+// the WebSocket (terminalReadLimit, 1 MiB) is the road for bulk input, and it
+// is the road a *person at the keyboard* uses. Same 4 KiB the issue-binding
+// body reads.
+const terminalInputMax = 4 << 10
+
+// terminalInputBodyMax is the raw-body read bound, and it is deliberately
+// much larger than terminalInputMax: the cap that matters is on the *text*,
+// and JSON escaping can inflate a legal 4 KiB line several times over (every
+// quote doubles, every non-ASCII control byte becomes \uXXXX). Reading to the
+// text cap exactly would refuse a legal payload as malformed — which is what
+// the first draft did, and it reported `invalid_body` for something whose
+// only sin was punctuation. Read generously, judge on req.Text.
+const terminalInputBodyMax = 8 * terminalInputMax
+
+// terminalInputReq is the input body: one line of text to place.
+type terminalInputReq struct {
+	Text string `json:"text"`
+}
+
+// handleTerminalInput places text in a session's shell without running it
+// (GDK-1162). The click that gets here came from a code block in an issue
+// body — text somebody else wrote, possibly an agent — so the whole point of
+// the route is the thing it refuses to do.
+//
+// A payload containing \n or \r is 400 and nothing reaches the PTY. That is
+// not a convention the caller keeps: on a terminal, \r *is* Enter, so a route
+// that forwarded one would be an execute endpoint wearing a different name,
+// and the next caller would find it. Keeping the refusal here means every
+// client — this bundle, the desktop, whatever comes after — inherits it,
+// while pressing Enter stays a keystroke a human makes in front of the line
+// they can see.
+//
+// Everything else is the neighbor routes' shape: the sub-mux gate has already
+// spoken, ownership is terminalOwns, and a session another credential opened
+// answers 404 rather than a 403 that would confirm it exists. Validation runs
+// before the session is consulted, so a malformed payload cannot be used to
+// probe for session ids either.
+func (s *server) handleTerminalInput(w http.ResponseWriter, r *http.Request) {
+	tokenID := terminalTokenID(r)
+	// One byte past the bound, so an over-long body is refused by its size
+	// rather than silently truncated into a *different* command than the one
+	// the caller sent — a truncated shell line is the worst possible answer.
+	body, err := io.ReadAll(io.LimitReader(r.Body, terminalInputBodyMax+1))
+	if err != nil {
+		fail(w, http.StatusBadRequest, "invalid_body")
+		return
+	}
+	if len(body) > terminalInputBodyMax {
+		fail(w, http.StatusBadRequest, "input_too_long")
+		return
+	}
+	var req terminalInputReq
+	if err := json.Unmarshal(body, &req); err != nil {
+		fail(w, http.StatusBadRequest, "invalid_body")
+		return
+	}
+	if len(req.Text) > terminalInputMax {
+		fail(w, http.StatusBadRequest, "input_too_long")
+		return
+	}
+	if req.Text == "" {
+		// Placing nothing is not a use of this route; it is a client bug.
+		fail(w, http.StatusBadRequest, "invalid_body")
+		return
+	}
+	if strings.ContainsAny(req.Text, "\n\r") {
+		failMsg(w, http.StatusBadRequest, "input_not_a_line",
+			"this route places a line in a shell; it does not run one — press Enter yourself")
+		return
+	}
+	sess, err := s.terminalManager().Get(r.PathValue("id"))
+	if err != nil || !terminalOwns(sess.TokenID(), tokenID) {
+		handleNotFound(w, r)
+		return
+	}
+	n, err := sess.Write([]byte(req.Text))
+	if err != nil {
+		log.Printf("server: terminal input: session %s: %v", r.PathValue("id"), err)
+		failMsg(w, http.StatusInternalServerError, "terminal_failed", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, struct {
+		Placed int `json:"placed"`
+	}{n})
 }
 
 // terminalOwns decides whether a caller may act on a session. A local

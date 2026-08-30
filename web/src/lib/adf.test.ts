@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { adfToPlainText, isSimpleAdf } from './adf'
+import { adfToPlainText, isSimpleAdf, renderAdf, renderCommandBody } from './adf'
 import type { AdfNode } from './types'
 
 const para = (...text: string[]): AdfNode => ({
@@ -221,5 +221,58 @@ describe('adfToPlainText', () => {
     }
     expect(got).not.toContain('{')
     expect(got.split('\n').length).toBeGreaterThanOrEqual(4)
+  })
+})
+
+/*
+ * GDK-1162: the ▶ markup, and the two ways it is withheld.
+ *
+ * The renderer decides *whether a button exists*; whether it is live is the
+ * container's (AdfContent reads the session table and stamps data-shell). So
+ * what belongs here is the narrowness: off unless asked, and never on a block
+ * that is not one line — the serve refuses a payload with a newline in it, so
+ * a ▶ there would be a button that always fails.
+ */
+describe('runnable code blocks', () => {
+  const code = (text: string, language?: string): AdfNode => ({
+    type: 'codeBlock',
+    ...(language ? { attrs: { language } } : {}),
+    content: [{ type: 'text', text }],
+  })
+
+  test('no ▶ unless the caller asked for one', () => {
+    expect(renderAdf(doc(code('go vet ./...', 'sh')))).not.toContain('data-run-command')
+  })
+
+  test('a one-line block carries the command verbatim in the attribute', () => {
+    const html = renderAdf(doc(code('go vet ./...', 'sh')), { commands: true })
+    expect(html).toContain('data-run-command="go vet ./..."')
+    expect(html).toContain('adf-code-head')
+    expect(html).toContain('adf-code-lang">sh<')
+  })
+
+  test('a multi-line block is still a code block, with no ▶', () => {
+    const html = renderAdf(doc(code('cd web\nnpm run build')), { commands: true })
+    expect(html).toContain('adf-code')
+    expect(html).not.toContain('data-run-command')
+  })
+
+  test('a quote in the command cannot break out of the attribute', () => {
+    // The text stays in the value as entities. It is fine for the *characters*
+    // onclick=alert(1) to be in the document — they are content; what must
+    // never happen is the `"` closing the attribute and turning them into one.
+    const html = renderAdf(doc(code(`printf 'a" onclick=alert(1) x="'`)), { commands: true })
+    expect(html).toContain(
+      'data-run-command="printf &#39;a&quot; onclick=alert(1) x=&quot;&#39;"',
+    )
+    expect(html, 'a real event-handler attribute').not.toMatch(/\sonclick\s*=\s*["']/)
+  })
+
+  test('a markdown body renders its fences as the same cards', () => {
+    const html = renderCommandBody('run it:\n\n```sh\ngadak sync\n```\n', { commands: true })
+    expect(html).toContain('data-run-command="gadak sync"')
+    expect(html).toContain('adf-plain')
+    // Prose with no fence keeps the caller's plain branch.
+    expect(renderCommandBody('just prose', { commands: true })).toBe('')
   })
 })

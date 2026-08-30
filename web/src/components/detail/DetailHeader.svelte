@@ -16,6 +16,8 @@
   import { jiraUrl } from './format'
   import { formatSpan } from '../../lib/format'
   import { typeChipTint } from '../../stores/ui-tokens.svelte'
+  import { shouldMarkUnattended } from '../../lib/issue-shells'
+  import { shells } from '../../lib/issue-shells.svelte'
   import IssueBreadcrumb from './IssueBreadcrumb.svelte'
   import WatchButton from '../personal/WatchButton.svelte'
   import StatusTransition from '../write/StatusTransition.svelte'
@@ -39,6 +41,11 @@
   } = $props()
 
   const isFavorite = $derived(favorites.keys.has(issue.issue_key))
+
+  // GDK-1164-A. In progress, and no shell this serve knows is on it. Read
+  // only — nothing here or below it unclaims anything; see lib/issue-shells.ts
+  // for why detecting death and recording it are different layers.
+  const unattended = $derived(shouldMarkUnattended(issue, shells.sessions))
 
   // "Waited 3d · In progress 5h" — the CLI durations line's numbers. Parts a
   // span cannot answer drop out; with none, the chip does not render.
@@ -200,6 +207,28 @@
         title={issue.reopen_reason ?? t('detail.reopened')}
       >
         {t('detail.reopenTimes', { n: issue.reopen_count })}
+      </span>
+    {/if}
+
+    <!-- No shell here (GDK-1164-A). Last in the row, beside the duration chip
+         and in its grammar: both are quiet things derived about the issue
+         rather than fields of it, and this one is information, not an alarm.
+         A colored badge would read as an accusation, and what is actually
+         known is only "this serve does not see a shell on it" — which a
+         sleeping laptop makes true of live work on another machine. The title
+         says so in full.
+
+         After the reopen badge, not before: the reopen badge is the loud,
+         colored one, and pushing it onto a second line to make room for a
+         muted note inverts which of the two the eye finds first (measured on
+         the capture — NMS-3 at 1600px wrapped exactly that way). -->
+    {#if unattended}
+      <span
+        class="rounded-md bg-bg-elevated px-2 py-0.5 text-text-muted"
+        data-testid="unattended-chip"
+        title={t('detail.unattendedHint')}
+      >
+        {t('detail.unattended')}
       </span>
     {/if}
 

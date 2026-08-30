@@ -32,6 +32,7 @@
   import { createResource } from '../../lib/resource.svelte'
   import { createSkeletonGrace } from '../../lib/skeleton-grace.svelte'
   import { onEscape } from '../../lib/dom-actions'
+  import { shells } from '../../lib/issue-shells.svelte'
   import { jiraUrl } from './format'
   import DetailHeader from './DetailHeader.svelte'
   import IssueFields from './IssueFields.svelte'
@@ -59,6 +60,12 @@
   // panel, so the control is absent there.
   let viewportRegime = $state<ViewportRegime>(readViewportRegime())
   onMount(() => subscribeViewportRegime((r) => (viewportRegime = r)))
+
+  // The live session table, polled only while this panel is up (GDK-1162 /
+  // GDK-1164-A): the ▶ needs to know which shell is on this issue, and the
+  // header's mark needs to know that none is. Refcounted in the store, so the
+  // poll stops when the last panel closes.
+  onMount(() => shells.track())
   const overlay = $derived(viewportRegime === 'overlay')
 
   // Load on selectedKey change; clear when selection clears.

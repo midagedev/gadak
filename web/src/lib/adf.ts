@@ -16,6 +16,7 @@
 
 import { t } from './i18n'
 import { config, jiraBrowseUrl } from './config'
+import { commandTextOf, isRunnableCommand, splitFencedBody } from './issue-commands'
 import type { AdfNode, DetailAttachment } from './types'
 
 /** Render options. Pass issue key for media fallback links. */
@@ -24,6 +25,12 @@ export interface AdfRenderOptions {
   issueKey?: string
   /** Map of Jira media UUID/filename → local attachment proxy URL. */
   attachments?: DetailAttachment[]
+  /**
+   * Offer a ▶ on single-line code blocks (GDK-1162). Off by default and set
+   * only for the issue *body*: a comment thread is a conversation, and a
+   * button that puts a stranger's line at your prompt does not belong in one.
+   */
+  commands?: boolean
 }
 
 /** Escape HTML specials. All text/attribute values go through this. */
@@ -155,6 +162,40 @@ function renderAttachment(attachment: DetailAttachment, compact = false): string
   return `<a class="adf-media" href="${src}" target="_blank" rel="noopener noreferrer">📎 ${name}</a>`
 }
 
+/**
+ * The header strip of a runnable code block: language badge (when there is
+ * one) and the ▶ that puts the line at a shell's prompt (GDK-1162).
+ *
+ * Empty string when the block is not one this feature offers — no `commands`
+ * option, or more than one line. A multi-line block is still a code block; it
+ * simply has no single honest thing to place, and the serve refuses a payload
+ * with a newline in it anyway (internal/server/terminal.go).
+ *
+ * The command travels in a data attribute rather than an index into a side
+ * array: the caller reads it back through `dataset`, which un-escapes, so
+ * there is no second list to keep in step with the HTML. esc() covers the
+ * attribute the same way it covers text — quotes included — so a body cannot
+ * break out of it.
+ *
+ * Whether the ▶ is *live* is not decided here. This renderer runs on the
+ * document; whether a shell is attached to this issue changes underneath it,
+ * and the container carries that as a data attribute the stylesheet and the
+ * click handler both read (AdfContent.svelte).
+ */
+function commandHead(raw: string, badge: string, opts: AdfRenderOptions): string {
+  if (!opts.commands) return ''
+  const command = commandTextOf(raw)
+  if (!isRunnableCommand(command)) return ''
+  const label = t('detail.runInShell')
+  const button =
+    `<button type="button" class="adf-code-run" data-run-command="${esc(command)}"` +
+    ` title="${esc(label)}" aria-label="${esc(label)}">` +
+    '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+    '<polygon points="6 3 20 12 6 21 6 3" stroke="currentColor" stroke-width="1.5"' +
+    ' stroke-linejoin="round"></polygon></svg></button>'
+  return `<div class="adf-code-head">${badge}${button}</div>`
+}
+
 /** Panel type → Tailwind color combo (border / bg tint / text). */
 const PANEL_STYLES: Record<string, string> = {
   info: 'border-status-new/40 bg-status-new/10',
@@ -220,8 +261,10 @@ function renderNode(node: AdfNode, opts: AdfRenderOptions): string {
         ? `<span class="adf-code-lang">${esc(lang)}</span>`
         : ''
       // codeBlock children are (unmarked) text nodes — escape only.
-      const code = (node.content ?? []).map((c) => esc(c.text ?? '')).join('')
-      return `<div class="adf-code">${badge}<pre><code>${code}</code></pre></div>`
+      const raw = (node.content ?? []).map((c) => c.text ?? '').join('')
+      const code = esc(raw)
+      const head = commandHead(raw, badge, opts)
+      return `<div class="adf-code">${head || badge}<pre><code>${code}</code></pre></div>`
     }
 
     case 'panel': {
@@ -353,6 +396,34 @@ export function renderAdf(doc: AdfNode | null | undefined, opts: AdfRenderOption
     console.warn('[adf] 렌더 실패', e)
     return ''
   }
+}
+
+/**
+ * A markdown body's fenced blocks, rendered as the same code cards ADF gets
+ * (GDK-1162). Everything else stays the escaped pre-wrap text it already was.
+ *
+ * This road is not hypothetical: internal/sync stores a Linear issue's body as
+ * text and leaves description_adf empty on purpose ("markdown must not pose as
+ * ADF"), so on a Linear workspace this is the *only* road a body takes. Without
+ * it the ▶ would exist for Jira and silently not for Linear.
+ *
+ * Returns '' when the text has no fenced block, so the caller keeps its plain
+ * branch and nothing changes for the bodies that are only prose.
+ */
+export function renderCommandBody(
+  text: string | null | undefined,
+  opts: AdfRenderOptions = {},
+): string {
+  const segments = splitFencedBody(text)
+  if (!segments.some((s) => s.kind === 'code')) return ''
+  return segments
+    .map((seg) => {
+      if (seg.kind === 'text') return `<div class="adf-plain">${esc(seg.text)}</div>`
+      const badge = seg.block.lang ? `<span class="adf-code-lang">${esc(seg.block.lang)}</span>` : ''
+      const head = commandHead(seg.block.text, badge, opts)
+      return `<div class="adf-code">${head || badge}<pre><code>${esc(seg.block.text)}</code></pre></div>`
+    })
+    .join('')
 }
 
 /* ── Plain-text slice (description editor) ──

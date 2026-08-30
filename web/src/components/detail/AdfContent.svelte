@@ -7,9 +7,15 @@
    */
   import { t } from '../../lib/i18n'
   import type { AdfNode, DetailAttachment } from '../../lib/types'
-  import { renderAdf } from '../../lib/adf'
+  import { renderAdf, renderCommandBody } from '../../lib/adf'
+  import { issueCommandBlocks } from '../../lib/issue-commands'
+  import { placeInShell, shellForIssue } from '../../lib/issue-shells'
+  import { shells } from '../../lib/issue-shells.svelte'
+  import { terminalChrome } from '../../lib/terminal/pane.svelte'
+  import { terminalSessions } from '../../lib/terminal/sessions.svelte'
   import { tryOpenNativeLink } from '../../lib/omnibox'
   import { mediaViewer } from '../../stores/media-viewer.svelte'
+  import { write } from '../../stores/write.svelte'
 
   let {
     node = null,
@@ -17,20 +23,77 @@
     attachments = [],
     fallback = null,
     emptyLabel = t('detail.noContent'),
+    commands = false,
   }: {
     node?: AdfNode | null
     issueKey?: string
     attachments?: DetailAttachment[]
     fallback?: string | null
     emptyLabel?: string
+    /** Offer a ▶ on single-line code blocks. Body only — see adf.ts. */
+    commands?: boolean
   } = $props()
 
-  const html = $derived(renderAdf(node, { issueKey, attachments }))
+  const html = $derived(renderAdf(node, { issueKey, attachments, commands }))
   const hasHtml = $derived(html.trim().length > 0)
   const hasFallback = $derived(!!fallback && fallback.trim().length > 0)
+  // A markdown body (Linear) has no ADF at all; its fences still deserve the
+  // same code cards and the same ▶. Empty string when there is no fence, so
+  // a prose-only body keeps the plain branch exactly as it was.
+  const fallbackHtml = $derived(
+    commands && !hasHtml && hasFallback ? renderCommandBody(fallback, { commands }) : '',
+  )
+
+  // The shell this issue's ▶ would reach, and whether the body has any.
+  const shell = $derived(commands ? shellForIssue(shells.sessions, issueKey) : null)
+  const runnable = $derived(
+    commands && issueCommandBlocks(node, fallback).some((b) => b.runnable),
+  )
+
+  /**
+   * Place the line, then show the shell holding it.
+   *
+   * Showing it is not decoration: the design is that a person reads the
+   * command and presses Enter, which they cannot do if the shell it landed in
+   * is off screen. Both verbs here already exist —
+   * terminalChrome.toggle() opens the pane, and terminalSessions.select() is
+   * the one owner of which session the pane is on — the same channel the
+   * strip and a reopen-within-grace go through (lib/terminal/sessions.svelte).
+   * Neither is invented and neither file is touched.
+   *
+   * A closed pane is pointed at the bound session before it opens, so it does
+   * not create a fresh shell beside the one that now holds the line. An
+   * already-open pane is left exactly as it is: closing it to re-target would
+   * detach whatever the person is running, and a detached session is reaped
+   * after the reconnect grace — spending someone's live shell to reveal a
+   * command is a bad trade.
+   */
+  async function run(command: string): Promise<void> {
+    const target = shell
+    if (!target) return
+    if (!(await placeInShell(target.id, command))) {
+      write.toast(t('detail.placeFailed'), 'error')
+      return
+    }
+    if (!terminalChrome.open) {
+      terminalSessions.select(target.id)
+      terminalChrome.toggle()
+    }
+  }
 
   function onContentClick(event: MouseEvent) {
     const target = event.target as HTMLElement | null
+    const runner = target?.closest<HTMLElement>('[data-run-command]')
+    if (runner) {
+      event.preventDefault()
+      // A disabled-looking ▶ is genuinely inert. It stays in the DOM and
+      // stays focusable on purpose: hiding it would leave nowhere to learn
+      // that shells attach to issues at all, which is the claim this product
+      // makes and this is where it is taught.
+      if (!shell) return
+      void run(runner.dataset.runCommand ?? '')
+      return
+    }
     const trigger = target?.closest<HTMLElement>('[data-attachment-id]')
     if (trigger) {
       const id = trigger.dataset.attachmentId
@@ -48,15 +111,31 @@
   }
 </script>
 
-{#if hasHtml}
+{#if hasHtml || fallbackHtml}
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div class="adf" onclick={onContentClick}>{@html html}</div>
+  <div
+    class="adf"
+    data-shell={commands ? (shell ? 'attached' : 'none') : undefined}
+    data-testid={commands ? 'issue-body' : undefined}
+    onclick={onContentClick}
+  >
+    {@html hasHtml ? html : fallbackHtml}
+  </div>
 {:else if hasFallback}
   <!-- Plain-text fallback when ADF missing/unparseable (preserve newlines) -->
   <div class="adf whitespace-pre-wrap">{fallback}</div>
 {:else}
   <p class="text-micro text-text-muted italic">{emptyLabel}</p>
+{/if}
+
+{#if runnable && !shell}
+  <!-- Why the ▶ is dead. One quiet line, and it names the way out: a body
+       with commands in it and no shell to put them in is the exact moment
+       someone can learn that `gadak claim` binds a pane to an issue. -->
+  <p class="mt-2 text-micro text-text-muted" data-testid="no-shell-hint">
+    {t('detail.noShellForIssue', { key: issueKey ?? '' })}
+  </p>
 {/if}
 
 <style>
@@ -208,6 +287,84 @@
     color: var(--color-text-muted);
     background: var(--color-bg-elevated);
     border-bottom: 1px solid var(--color-border-subtle);
+  }
+  /*
+   * Runnable code block header (GDK-1162): the language badge and the ▶ share
+   * one strip, so the button sits in the chrome the block already had rather
+   * than adding a row. The badge keeps its own type; the strip takes over the
+   * background and the rule under it, which is why .adf-code-head resets both
+   * on the badge inside it.
+   */
+  .adf :global(.adf-code-head) {
+    display: flex;
+    align-items: center;
+    /* No badge to push it: the ▶ still belongs on the right. */
+    justify-content: flex-end;
+    gap: 8px;
+    padding-right: 3px;
+    background: var(--color-bg-elevated);
+    border-bottom: 1px solid var(--color-border-subtle);
+  }
+  .adf :global(.adf-code-head:has(.adf-code-lang)) {
+    justify-content: space-between;
+  }
+  .adf :global(.adf-code-head .adf-code-lang) {
+    background: none;
+    border-bottom: none;
+  }
+  /*
+   * The same 24px icon-button the detail header uses (copy link, watch,
+   * close) — no new control grammar for this. It is muted at rest because a
+   * code block is content, not a call to action.
+   */
+  .adf :global(.adf-code-run) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 22px;
+    height: 22px;
+    margin: 2px 0;
+    border-radius: 6px;
+    color: var(--color-text-muted);
+    transition:
+      color 120ms,
+      background-color 120ms;
+  }
+  .adf :global(.adf-code-run:hover) {
+    background: var(--color-bg-hover);
+    color: var(--color-text-primary);
+  }
+  /*
+   * No shell on this issue. Dimmed rather than removed: the button is where
+   * someone learns that a shell can be bound to an issue at all, and the line
+   * under the body says how. The click handler is the real gate — this is
+   * only what that looks like.
+   */
+  .adf[data-shell='none'] :global(.adf-code-run) {
+    /* The app's own disabled step (disabled:opacity-50 on every button in
+       write/), not a number picked for this control. 0.4 was measured on the
+       dark capture and read as nearly gone — a mark the line under the body
+       points at has to be findable. */
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .adf[data-shell='none'] :global(.adf-code-run:hover) {
+    background: none;
+    color: var(--color-text-muted);
+  }
+  /* Prose between the fences of a markdown body (renderCommandBody). */
+  .adf :global(.adf-plain) {
+    white-space: pre-wrap;
+    margin: 0.55em 0;
+    line-height: 1.62;
+    color: var(--color-text-primary);
+  }
+  .adf :global(.adf-plain:first-child) {
+    margin-top: 0;
+  }
+  .adf :global(.adf-plain:last-child) {
+    margin-bottom: 0;
   }
   .adf :global(.adf-code pre) {
     margin: 0;
