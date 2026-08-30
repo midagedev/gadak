@@ -165,7 +165,7 @@ Measured 2026-08-14 via `ls -la docs/media/` (decimal MB = bytes/1e6):
 | `claude-dashboards-vertical.gif` | 1.3 MB | 1320334 | 25.6 s | 430×538 @ 9 fps, 64 colors (gifsicle; measured 2026-08-25) |
 | `claude-tokens-vertical.gif` | 0.97 MB | 969087 | 18.2 s | 430×538 @ 9 fps, 64 colors (gifsicle; measured 2026-08-25) |
 | `hero.mp4` | 1.7 MB | 1723424 | 25.9 s | 1920×1080 h264 30 fps (measured 2026-08-30) |
-| `roundtrip.mp4` | 3.1 MB | 3214422 | 24.5 s | 1920×1080 h264 30 fps (measured 2026-08-30) |
+| `roundtrip.mp4` | 3.2 MB | 3331313 | 25.1 s | 1920×1080 h264 30 fps (measured 2026-08-30) |
 
 ## Readability comes first, and it costs bytes
 

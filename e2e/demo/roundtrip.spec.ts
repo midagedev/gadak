@@ -422,6 +422,15 @@ test.describe('roundtrip demo', () => {
 
     const closeAt = await runLine(page, `gadak close ${TARGET_KEY}`)
     mark('close_enter')
+    // Close the pane the instant Enter lands. At the product's default pane
+    // width (44%) the board shows two columns and Done is off frame, so with
+    // the pane open the card would leave In progress and land nowhere the
+    // camera can see (GDK-1190). The pane closes faster than the ~400ms the
+    // write takes to reach the board, so the landing happens in the full
+    // three-column shot — and the film's last beat is the board's, which is
+    // where it belongs.
+    await page.getByTestId('terminal-close').click()
+    await expect(page.getByTestId('terminal-pane')).toHaveCount(0, { timeout: 5_000 })
     await expect
       .poll(async () => columnOf(page, TARGET_KEY), { timeout: 20_000, intervals: [200] })
       .toBe('done')
@@ -433,6 +442,11 @@ test.describe('roundtrip demo', () => {
     await beat(page, 1600)
 
     // ── BEAT 6: the issue's own shell, found by its name ─────────────────
+    // The pane comes back (E closed it for the landing). Sessions survive a
+    // closed pane — that is the whole point of the beat below.
+    await page.getByTestId('sidebar-terminal').click()
+    await expect(page.getByTestId('terminal-pane')).toHaveAttribute('data-attached', 'true', { timeout: 30_000 })
+    await beat(page, 1200)
     // Two shells: one anonymous, one wearing STD-7 because it claimed it.
     // Click away, then click the named row — the pane swaps and the server
     // replays that session's scrollback, so the work done on this issue is

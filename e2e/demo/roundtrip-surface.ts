@@ -40,7 +40,7 @@ export const BOARD_ROUTE = '/#/?sc=new,inprogress,done&g=status_category&ly=boar
  * moment the detail panel docks, the layout hands the pane its
  * TERMINAL_MIN_WIDTH_PX floor of 320 whatever is stored here.
  */
-export const PANE_WIDTH = '400'
+export const PANE_WIDTH = '648'
 
 /** The board is ready to be filmed. */
 export async function boardReady(page: Page): Promise<void> {
