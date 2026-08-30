@@ -39,6 +39,32 @@ export function readLastFocusKey(memory: string | null): string | null {
   }
 }
 
+/**
+ * What the tab does about the mirrorVersion on one ui-focus tick (GDK-1170).
+ *
+ * - `ignore`  — no signal (older server, no mirror, failed poll) or the mirror
+ *               has not moved. The issue store's 15s backstop still runs.
+ * - `baseline` — first sighting. This boot already has this mirror; adopting it
+ *               as the baseline is not a change and must not pull.
+ * - `pull`    — the mirror moved. Pull a delta now, and adopt the new value.
+ * - `wait`    — it moved while a pull is still in flight. Skip this tick and
+ *               keep the old baseline, so the next one (500ms later) decides
+ *               `pull` again. Two deltas stacked on a 500ms poll would be a
+ *               new defect, and dropping the baseline would lose the write.
+ */
+export type MirrorPollDecision = 'ignore' | 'baseline' | 'pull' | 'wait'
+
+export function decideMirrorPull(
+  next: string | null | undefined,
+  last: string | null,
+  pulling: boolean,
+): MirrorPollDecision {
+  if (!next) return 'ignore'
+  if (last === null) return 'baseline'
+  if (next === last) return 'ignore'
+  return pulling ? 'wait' : 'pull'
+}
+
 export function rememberFocusKey(key: string): void {
   if (!key) return
   try {

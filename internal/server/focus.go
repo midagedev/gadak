@@ -29,6 +29,13 @@ var (
 //     present — this is how a `gadak config set` (or a write from another
 //     tab) reaches an already-open UI with no reload: the client sees the
 //     version move and refetches config.json.
+//   - mirrorVersion: the same trick for the mirror itself (GDK-1170). A
+//     `gadak claim` in a terminal writes through the origin and refreshes the
+//     mirror in another process; without this the open board learns about it
+//     on the issue store's 15s backstop poll, so the product's own claim —
+//     the CLI moves the board — was up to fifteen seconds from true on
+//     screen. Always present, empty only when this server has no mirror; the
+//     client folds an empty value to "no signal" and keeps the backstop.
 //
 // The response is 200 with a JSON body in both cases (204 retired: an empty
 // body cannot carry the version).
@@ -42,7 +49,15 @@ func (s *server) handleUIFocus(w http.ResponseWriter, r *http.Request) {
 	if d, err := config.DirFor(s.profile); err == nil {
 		version = config.ConfigVersionOfDir(d)
 	}
-	body := map[string]string{"configVersion": version}
+	// Two os.Stat calls, never a query: this handler answers 120 times a
+	// minute per open tab. store.MirrorVersion owns why it is stat and which
+	// files it covers. A mirror it cannot see is the empty string, never an
+	// error — the focus half of this poll must not die of the mirror half.
+	mirror := ""
+	if s.db != nil {
+		mirror = s.db.MirrorVersion()
+	}
+	body := map[string]string{"configVersion": version, "mirrorVersion": mirror}
 	if ok {
 		body["hash"] = hash
 		body["at"] = at

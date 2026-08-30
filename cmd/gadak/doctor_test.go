@@ -185,6 +185,62 @@ func TestDoctorNoMirrorSucceeds(t *testing.T) {
 	}
 }
 
+// GDK-1170 layer ③: "why is my open board not showing the write I just made?"
+// is one command. doctor reports the identity the ui-focus poll compares and
+// when the mirror bytes last moved, so the answer is read rather than guessed.
+//
+// FAIL-first: before doctorMirror carried the pair, the JSON had no
+// mirror.version and this stopped on "doctor must report mirror.version".
+func TestDoctorReportsMirrorVersionAndAge(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	t.Setenv("HOME", home)
+	config.SetProfile("")
+
+	db, err := store.Open(filepath.Join(home, "gadak.db"))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if err := db.UpsertSource(context.Background(), store.Source{ID: "jira", Kind: "jira", BaseURL: "https://example.atlassian.net"}); err != nil {
+		t.Fatalf("source: %v", err)
+	}
+	db.Close()
+
+	raw, err := capture(t, func() error { return cmdDoctor([]string{"--json"}) })
+	if err != nil {
+		t.Fatalf("json: %v", err)
+	}
+	var rep doctorReport
+	if err := json.Unmarshal([]byte(raw), &rep); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, raw)
+	}
+	if rep.Mirror.Version == "" {
+		t.Fatalf("doctor must report mirror.version:\n%s", raw)
+	}
+	if rep.Mirror.ChangedAt == "" {
+		t.Fatalf("doctor must report mirror.changed_at:\n%s", raw)
+	}
+	if _, err := time.Parse(time.RFC3339, rep.Mirror.ChangedAt); err != nil {
+		t.Fatalf("mirror.changed_at %q is not RFC3339: %v", rep.Mirror.ChangedAt, err)
+	}
+	// The value doctor prints is the one the poll would have seen — doctor
+	// opening the mirror must not be what moved it.
+	if want := store.MirrorVersion(filepath.Join(home, "gadak.db")); rep.Mirror.Version != want {
+		t.Fatalf("doctor moved the mirror by diagnosing it: reported %q, now %q", rep.Mirror.Version, want)
+	}
+
+	human, err := capture(t, func() error { return cmdDoctor(nil) })
+	if err != nil {
+		t.Fatalf("human: %v", err)
+	}
+	if !strings.Contains(human, "mirror_version:") {
+		t.Fatalf("human form missing mirror_version:\n%s", human)
+	}
+	if !strings.Contains(human, "moved ") {
+		t.Fatalf("human mirror_version must say how long ago it moved:\n%s", human)
+	}
+}
+
 func TestDoctorDemoDBCounts(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)

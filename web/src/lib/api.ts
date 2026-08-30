@@ -270,9 +270,24 @@ export interface UIFocusPoll {
    * refetches config.json instead of reloading.
    */
   configVersion: string
+  /**
+   * Disk identity of the mirror (GDK-1170) — same trick as configVersion, one
+   * level down. Empty on an older server, on a server with no mirror, and on
+   * fetch failure; empty means "no signal", never "nothing changed", so the
+   * issue store's 15s backstop poll stays in charge. When it moves the mirror
+   * was written — by `gadak claim` in a terminal, another tab, or the watch
+   * loop — and the board pulls a delta on this tick instead of waiting out
+   * that backstop.
+   */
+  mirrorVersion: string
 }
 
-const emptyUIFocus = (): UIFocusPoll => ({ hash: null, at: '', configVersion: '' })
+const emptyUIFocus = (): UIFocusPoll => ({
+  hash: null,
+  at: '',
+  configVersion: '',
+  mirrorVersion: '',
+})
 
 export async function pollUIFocus(): Promise<UIFocusPoll> {
   try {
@@ -281,11 +296,17 @@ export async function pollUIFocus(): Promise<UIFocusPoll> {
     // pending (no body to decode); either way only the focus half is dead.
     if (res.status === 404 || res.status === 204) return emptyUIFocus()
     if (!res.ok) return emptyUIFocus()
-    const body = (await res.json()) as { hash?: string; at?: string; configVersion?: string }
+    const body = (await res.json()) as {
+      hash?: string
+      at?: string
+      configVersion?: string
+      mirrorVersion?: string
+    }
     return {
       hash: body.hash?.trim() ? body.hash : null,
       at: typeof body.at === 'string' ? body.at : '',
       configVersion: typeof body.configVersion === 'string' ? body.configVersion : '',
+      mirrorVersion: typeof body.mirrorVersion === 'string' ? body.mirrorVersion : '',
     }
   } catch {
     return emptyUIFocus()

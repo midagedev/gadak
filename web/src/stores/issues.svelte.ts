@@ -199,9 +199,19 @@ class IssuesStore {
     this.#startActivityPolling()
   }
 
-  /** Pick delta vs bootstrap based on whether a cache exists. */
-  async #sync(): Promise<void> {
-    if (this.#syncing) return
+  /**
+   * Pick delta vs bootstrap based on whether a cache exists.
+   *
+   * Returns false — and only false — when another sync was already in flight
+   * and this call was coalesced away. A caller that syncs because it saw
+   * something change (the mirrorVersion tick, GDK-1170) needs to tell "your
+   * change is in the pool now" from "somebody else's request answered
+   * instead", or it would advance its baseline over a write it never fetched.
+   * A sync that ran and failed returns true: it ran, and its own retry is the
+   * 15s poll.
+   */
+  async #sync(): Promise<boolean> {
+    if (this.#syncing) return false
     this.#syncing = true
     try {
       // Hosted snapshots have no live delta. The former empty stub with
@@ -227,6 +237,7 @@ class IssuesStore {
     } finally {
       this.#syncing = false
     }
+    return true
   }
 
   async #bootstrap(): Promise<void> {
@@ -443,9 +454,13 @@ class IssuesStore {
     }
   }
 
-  /** Manual refresh (tab focus / user trigger). */
-  async refresh(): Promise<void> {
-    await this.#sync()
+  /**
+   * Manual refresh (tab focus / user trigger / a moved mirrorVersion).
+   * False means the call was coalesced into a sync already in flight — see
+   * #sync. Every caller but the mirrorVersion tick ignores it.
+   */
+  async refresh(): Promise<boolean> {
+    return this.#sync()
   }
 
   /** Apply a newer-release snapshot (GET update/ after a user-initiated check). */

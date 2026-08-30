@@ -25,6 +25,7 @@
   import { feature, hasServerVerb, isHostedDemo, loadConfig } from './lib/config'
   import { pollUIFocus } from './lib/api'
   import {
+    decideMirrorPull,
     readLastFocusKey,
     rememberFocusKey,
     shouldApplyUIFocus,
@@ -247,6 +248,38 @@
           }
           lastConfigVersion = poll.configVersion
         }
+        // GDK-1170: the mirror moved somewhere else — `gadak claim` in a
+        // terminal, another tab, the watch loop — so pull a delta on this
+        // 500ms tick instead of waiting out the issue store's 15s backstop.
+        // That backstop stays: this signal is absent on an older server, on a
+        // serve with no mirror, and on every failed poll.
+        switch (decideMirrorPull(poll.mirrorVersion, lastMirrorVersion, mirrorPulling)) {
+          case 'baseline':
+            lastMirrorVersion = poll.mirrorVersion
+            break
+          case 'pull': {
+            const seen = poll.mirrorVersion
+            mirrorPulling = true
+            // Not awaited: the focus half of this tick (a `views open` hash)
+            // must not queue behind a delta round trip. The baseline moves
+            // only if the sync actually ran — coalesced into one already in
+            // flight, it may not carry this write, and the next tick retries.
+            void issues
+              .refresh()
+              .then((ran) => {
+                if (ran) lastMirrorVersion = seen
+              })
+              .catch(() => {
+                /* #sync swallows its own failures; the 15s poll retries */
+              })
+              .finally(() => {
+                mirrorPulling = false
+              })
+            break
+          }
+          // 'wait' keeps the old baseline on purpose so the next tick pulls.
+          // 'ignore' is no signal, or a mirror that has not moved.
+        }
         const hash = poll.hash
         if (!hash) return
         // GDK-960: a payload is applied once per tab (memory, then
@@ -292,6 +325,10 @@
     }
     // configVersion this tab last saw (null = no baseline yet). See applyFocus.
     let lastConfigVersion: string | null = null
+    // mirrorVersion this tab last pulled for (null = no baseline yet), and
+    // whether that pull is still in flight. See decideMirrorPull.
+    let lastMirrorVersion: string | null = null
+    let mirrorPulling = false
     let lastFocusKey: string | null = null
     let focusTimer: ReturnType<typeof setInterval> | null = null
     const markFocusPoll = (on: boolean) => {

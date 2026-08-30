@@ -2,12 +2,14 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"log"
 	"net/http"
 	"os"
 	"strings"
 	"testing"
 
+	"github.com/midagedev/gadak/internal/store"
 	"github.com/midagedev/gadak/internal/uifocus"
 )
 
@@ -98,6 +100,78 @@ func TestWorkspaceFocusTakesProfileFile(t *testing.T) {
 	hash, _, ok, err := uifocus.PeekFor("")
 	if err != nil || !ok || hash != "ks=AAA-1" {
 		t.Fatalf("default file should be untouched: %q ok=%v err=%v", hash, ok, err)
+	}
+}
+
+// GDK-1170: the poll carries the mirror's identity, and it moves exactly when
+// the mirror does. This is the whole signal — the board pulls a delta because
+// this value changed, so a value that sits still through a write is the defect
+// (and under WAL, keying on gadak.db alone is precisely that value).
+//
+// FAIL-first: before the handler carried the field, both polls decoded
+// mirrorVersion as "" and this stopped on "poll must carry mirrorVersion".
+func TestUIFocusCarriesMirrorVersionThatMovesWithTheMirror(t *testing.T) {
+	t.Setenv("GADAK_HOME", t.TempDir())
+	db, cfg := fixture(t)
+	h := New(db, cfg)
+	type body struct {
+		MirrorVersion string `json:"mirrorVersion"`
+		ConfigVersion string `json:"configVersion"`
+	}
+
+	first := decode[body](t, get(t, h, apiBase+"ui-focus/", nil))
+	if first.MirrorVersion == "" {
+		t.Fatal("poll must carry mirrorVersion")
+	}
+	// An untouched mirror polled twice is the same value, or every 500ms tick
+	// would pull a delta.
+	if same := decode[body](t, get(t, h, apiBase+"ui-focus/", nil)); same.MirrorVersion != first.MirrorVersion {
+		t.Fatalf("mirrorVersion moved with no write: %q -> %q", first.MirrorVersion, same.MirrorVersion)
+	}
+
+	if _, err := db.UpsertIssues(context.Background(), store.Batch{
+		Categories: map[string]string{"1": "new"},
+		Records: []store.IssueRecord{{
+			Item: store.Item{
+				ID: "jira:9001", SourceID: "jira", ExternalID: "9001", Key: "NMB-9001",
+				Title:     "written after the first poll",
+				CreatedAt: "2026-08-01T00:00:00.000Z", UpdatedAt: "2026-08-02T00:00:00.000Z",
+			},
+			Issue: store.Issue{
+				ProjectKey: "NMB", IssueType: "Task", IssueTypeID: "1",
+				Status: "To Do", StatusID: "1", StatusCategory: "new",
+			},
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	after := decode[body](t, get(t, h, apiBase+"ui-focus/", nil))
+	if after.MirrorVersion == first.MirrorVersion {
+		t.Fatalf("mirrorVersion did not move after a mirror write: %q", after.MirrorVersion)
+	}
+}
+
+// The mirror half must never take the focus half down with it. A handler with
+// no mirror to stat still answers 200 with the payload the CLI left.
+func TestUIFocusWithoutAMirrorStillServesFocus(t *testing.T) {
+	t.Setenv("GADAK_HOME", t.TempDir())
+	if err := uifocus.Write("pj=NMA"); err != nil {
+		t.Fatal(err)
+	}
+	h := New(nil, nil)
+	rec := get(t, h, apiBase+"ui-focus/", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("poll without a mirror answered %d", rec.Code)
+	}
+	got := decode[struct {
+		Hash          string `json:"hash"`
+		MirrorVersion string `json:"mirrorVersion"`
+	}](t, rec)
+	if got.Hash != "pj=NMA" {
+		t.Fatalf("focus payload lost: %q", got.Hash)
+	}
+	if got.MirrorVersion != "" {
+		t.Fatalf("no mirror must report no version, got %q", got.MirrorVersion)
 	}
 }
 

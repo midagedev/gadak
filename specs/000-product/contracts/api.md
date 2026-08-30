@@ -219,6 +219,16 @@ Always `200` with a JSON body — `204` is retired, because an empty
 body cannot carry `configVersion` (GDK-791). `hash` and `at` are absent when
 nothing is fresh. The SPA applies the hash as `#/?<hash>`.
 
+The same poll carries `mirrorVersion`: the disk identity of this profile's
+mirror (GDK-1170). Opaque — only ever compared to the previous one. When it
+moves, the mirror was written by somebody else (`gadak claim` in a terminal,
+another tab, the watch loop) and the client pulls `delta/` on this tick
+instead of waiting out its own 15s poll. Empty means "no signal" and never
+"nothing changed": an older server omits it, a server with no mirror sends
+`""`, and a failed poll has none — in each case the client's own backstop
+poll stays in charge. The first value a client sees is a baseline, not a
+change.
+
 ### `POST jql/emit/` — R
 
 The inverse: a `ViewFilters` (+ optional display and email) becomes JQL.

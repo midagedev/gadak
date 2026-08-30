@@ -152,6 +152,16 @@ type doctorMirror struct {
 	Status string `json:"status"`           // present | not_found | open_error | schema_too_new
 	Bytes  *int64 `json:"bytes,omitempty"`  // set when the file exists
 	Detail string `json:"detail,omitempty"` // redacted path / short reason
+	// Version and ChangedAt are the live-update signal, reported so "why is
+	// my open board not showing what I just wrote?" is one command instead of
+	// a guess (GDK-1170). The ui-focus poll hands Version to the web every
+	// 500ms and the board pulls a delta when it moves; ChangedAt (RFC3339,
+	// UTC) is when the mirror bytes last moved. A write that leaves ChangedAt
+	// in the past is a mirror that never got refreshed — the board is right
+	// and the write-through is the suspect. Both are counters and a
+	// timestamp: nothing here names a file, a person, or a key.
+	Version   string `json:"version,omitempty"`
+	ChangedAt string `json:"changed_at,omitempty"`
 }
 
 // doctorMirrorHolders is the best-effort list of other processes that have
@@ -342,6 +352,13 @@ func collectDoctor() doctorReport {
 	}
 	size := info.Size()
 	rep.Mirror = doctorMirror{Status: "present", Bytes: &size}
+	// Read before store.Open below: opening mints -wal/-shm when they are
+	// absent, which is itself a move. This has to report what an open board's
+	// poll would have seen a moment ago, not what doctor just caused.
+	rep.Mirror.Version = store.MirrorVersion(path)
+	if at := store.MirrorChangedAt(path); !at.IsZero() {
+		rep.Mirror.ChangedAt = at.UTC().Format(time.RFC3339)
+	}
 	rep.MirrorHolders = listMirrorHolders(path)
 
 	db, err := store.Open(path)
@@ -742,6 +759,9 @@ func formatDoctorText(r doctorReport) string {
 			line("mirror", r.Mirror.Status)
 		}
 	}
+	if r.Mirror.Version != "" {
+		line("mirror_version", formatDoctorMirrorVersion(r.Mirror))
+	}
 
 	if r.SchemaVersion != nil {
 		line("schema_version", strconv.Itoa(*r.SchemaVersion))
@@ -902,6 +922,40 @@ func formatDoctorCustomFields(cf doctorCustomFields) string {
 		return "none mapped (none seen in raw)"
 	}
 	return "none mapped"
+}
+
+// formatDoctorMirrorVersion renders the live-update signal as the one line
+// that answers "is my open board going to notice a write?" — the identity the
+// ui-focus poll compares, plus how long ago it last moved. A version that is
+// hours old right after a `gadak claim` says the mirror never got refreshed;
+// a version that moves while the board sits still says the web half is where
+// to look (GDK-1170).
+func formatDoctorMirrorVersion(m doctorMirror) string {
+	if m.ChangedAt == "" {
+		return m.Version
+	}
+	at, err := time.Parse(time.RFC3339, m.ChangedAt)
+	if err != nil {
+		return m.Version + " (moved " + m.ChangedAt + ")"
+	}
+	return fmt.Sprintf("%s (moved %s ago, %s)", m.Version, formatDoctorAge(time.Since(at)), m.ChangedAt)
+}
+
+// formatDoctorAge is a coarse duration for a human reading one line. Sub-second
+// reads as "0s" on purpose: what matters is "just now" vs "not since I wrote".
+func formatDoctorAge(d time.Duration) string {
+	if d < 0 {
+		d = 0
+	}
+	switch {
+	case d < time.Minute:
+		return fmt.Sprintf("%ds", int(d.Seconds()))
+	case d < time.Hour:
+		return fmt.Sprintf("%dm", int(d.Minutes()))
+	case d < 24*time.Hour:
+		return fmt.Sprintf("%dh", int(d.Hours()))
+	}
+	return fmt.Sprintf("%dd", int(d.Hours())/24)
 }
 
 func formatDoctorMirrorHolders(h doctorMirrorHolders) string {

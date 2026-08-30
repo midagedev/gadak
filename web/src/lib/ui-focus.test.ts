@@ -14,6 +14,7 @@
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import {
   UI_FOCUS_KEY,
+  decideMirrorPull,
   readLastFocusKey,
   rememberFocusKey,
   shouldApplyUIFocus,
@@ -107,8 +108,55 @@ describe('GDK-960 last-applied key storage', () => {
   })
 })
 
+/*
+ * GDK-1170: a `gadak claim` in a terminal reaches an open board on the same
+ * 500ms poll. The decision is a pure function for the same reason the focus
+ * one is — App.svelte cannot be mounted in the vitest unit project — and
+ * because the two ways to get it wrong are both silent: pulling on the first
+ * sighting re-fetches on every boot, and stacking pulls on a 500ms tick is a
+ * new defect rather than a fixed one.
+ */
+describe('GDK-1170 decideMirrorPull', () => {
+  const A = '1788053238.352256/1788053255.259592'
+  const B = '1788053238.352256/1788053266.358472'
+
+  test('the first sighting is a baseline, never a pull', () => {
+    expect(decideMirrorPull(A, null, false)).toBe('baseline')
+  })
+
+  test('a moved version pulls', () => {
+    expect(decideMirrorPull(B, A, false)).toBe('pull')
+  })
+
+  test('an unmoved version does nothing', () => {
+    expect(decideMirrorPull(A, A, false)).toBe('ignore')
+  })
+
+  test('no signal does nothing — the 15s backstop owns that board', () => {
+    // Older server, a serve with no mirror, and every failed poll.
+    expect(decideMirrorPull('', null, false)).toBe('ignore')
+    expect(decideMirrorPull('', A, false)).toBe('ignore')
+    expect(decideMirrorPull(undefined, A, false)).toBe('ignore')
+    expect(decideMirrorPull(null, A, false)).toBe('ignore')
+  })
+
+  test('a move during a pull waits instead of stacking a second delta', () => {
+    expect(decideMirrorPull(B, A, true)).toBe('wait')
+  })
+
+  test('waiting keeps the old baseline, so the next tick still pulls', () => {
+    // The tick that answered `wait` must not have adopted B — the caller
+    // holds A, and 500ms later the pull is no longer in flight.
+    expect(decideMirrorPull(B, A, false)).toBe('pull')
+  })
+
+  test('a first sighting during a pull is still only a baseline', () => {
+    expect(decideMirrorPull(A, null, true)).toBe('baseline')
+  })
+})
+
 describe('GDK-960 the focus poll degrades, never throws', () => {
-  const EMPTY = { hash: null, at: '', configVersion: '' }
+  const EMPTY = { hash: null, at: '', configVersion: '', mirrorVersion: '' }
 
   test('404 — serve without the endpoint — is the empty poll', async () => {
     vi.stubGlobal('fetch', async () => new Response('no such route', { status: 404 }))
@@ -137,7 +185,12 @@ describe('GDK-960 the focus poll degrades, never throws', () => {
       'fetch',
       async () =>
         new Response(
-          JSON.stringify({ hash: '#/?pj=NMA', at: '2026-08-29T00:00:00Z', configVersion: 'in-42' }),
+          JSON.stringify({
+            hash: '#/?pj=NMA',
+            at: '2026-08-29T00:00:00Z',
+            configVersion: 'in-42',
+            mirrorVersion: 'm-7',
+          }),
           { headers: { 'Content-Type': 'application/json' } },
         ),
     )
@@ -145,6 +198,7 @@ describe('GDK-960 the focus poll degrades, never throws', () => {
       hash: '#/?pj=NMA',
       at: '2026-08-29T00:00:00Z',
       configVersion: 'in-42',
+      mirrorVersion: 'm-7',
     })
   })
 
@@ -156,7 +210,40 @@ describe('GDK-960 the focus poll degrades, never throws', () => {
           headers: { 'Content-Type': 'application/json' },
         }),
     )
-    expect(await pollUIFocus()).toEqual({ hash: null, at: '', configVersion: 'in-42' })
+    expect(await pollUIFocus()).toEqual({
+      hash: null,
+      at: '',
+      configVersion: 'in-42',
+      mirrorVersion: '',
+    })
+  })
+
+  /*
+   * GDK-1170: a server that predates mirrorVersion is the normal path, not an
+   * error. Folding a missing or wrong-typed field to '' is what makes
+   * decideMirrorPull answer `ignore` there — anything else and an old server
+   * would either pull every 500ms or read as "nothing changed".
+   */
+  test('a server with no mirrorVersion folds to the empty string', async () => {
+    vi.stubGlobal(
+      'fetch',
+      async () =>
+        new Response(JSON.stringify({ configVersion: 'in-42' }), {
+          headers: { 'Content-Type': 'application/json' },
+        }),
+    )
+    expect((await pollUIFocus()).mirrorVersion).toBe('')
+  })
+
+  test('a wrong-typed mirrorVersion folds to the empty string', async () => {
+    vi.stubGlobal(
+      'fetch',
+      async () =>
+        new Response(JSON.stringify({ configVersion: 'in-42', mirrorVersion: 17 }), {
+          headers: { 'Content-Type': 'application/json' },
+        }),
+    )
+    expect((await pollUIFocus()).mirrorVersion).toBe('')
   })
 
   test('a fetch throw is the empty poll', async () => {
