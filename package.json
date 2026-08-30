@@ -18,6 +18,7 @@
     "test:unit": "vitest run",
     "test:unit:watch": "vitest",
     "test:e2e": "playwright test --config e2e/playwright.config.ts",
+    "test:e2e:wide-prompt": "GADAK_E2E_SHELL=e2e/ci-shell.sh playwright test --config e2e/playwright.config.ts",
     "test:hosted": "playwright test --config e2e/hosted/playwright.config.ts",
     "test:perf": "bash e2e/perf/make-fixture.sh && GADAK_PERF=1 playwright test --config e2e/perf/playwright.config.ts"
   },

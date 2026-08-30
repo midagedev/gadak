@@ -6,6 +6,8 @@ import {
   DEMO_ISSUE_COUNT_EN_RE,
   drainTerminalSessions,
   forceLocale,
+  readTerm,
+  readTermLines,
 } from './helpers'
 
 /*
@@ -29,15 +31,6 @@ import {
  * single-quoted printf format would not expand, and a literal marker could
  * be satisfied by the echo of the command (the GDK-1045 convention).
  */
-
-type TermHook = {
-  buffer: {
-    active: {
-      length: number
-      getLine: (y: number) => { translateToString: (trimRight?: boolean) => string } | undefined
-    }
-  }
-}
 
 type SessionRow = {
   id: string
@@ -72,19 +65,6 @@ async function openPane(page: Page): Promise<void> {
   await expect(page.getByTestId('terminal-pane')).toBeVisible()
   await expect(page.getByTestId('terminal-pane')).toHaveAttribute('data-attached', 'true', {
     timeout: 20_000,
-  })
-}
-
-async function readTermLines(page: Page): Promise<string[]> {
-  return page.evaluate(() => {
-    const t = (window as unknown as { __gadakTerm?: TermHook }).__gadakTerm
-    if (!t) return []
-    const buf = t.buffer.active
-    const lines: string[] = []
-    for (let i = 0; i < buf.length; i++) {
-      lines.push(buf.getLine(i)?.translateToString(true) ?? '')
-    }
-    return lines
   })
 }
 
@@ -149,13 +129,13 @@ test.describe('terminal burst', () => {
         timeout: 60_000,
       })
       .toBe(true)
-    await expect.poll(async () => (await readTermLines(page)).join('\n')).toContain('GDK1042-END:42')
+    await expect.poll(async () => readTerm(page)).toContain('GDK1042-END:42')
     const burstMs = Date.now() - t0
 
     // Still attached and still parsing after the burst: a client that was
     // dropped mid-burst never sees this marker.
     await typeLine(page, "printf 'GDK1042-LIVE:%s\\n' \"$((7*8))\"")
-    await expect.poll(async () => (await readTermLines(page)).join('\n')).toContain('GDK1042-LIVE:56')
+    await expect.poll(async () => readTerm(page)).toContain('GDK1042-LIVE:56')
 
     // No dropped end reached the client: the disconnected state renders
     // into terminal-status, and the pane is still attached.

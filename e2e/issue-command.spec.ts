@@ -1,14 +1,23 @@
-import { mkdirSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect } from '@playwright/test'
 import {
   apiURL,
   appConsoleErrors,
   attachConsoleErrors,
   drainTerminalSessions,
   forceLocale,
+  readTerm,
 } from './helpers'
+import {
+  BOUND_ISSUE,
+  COMMAND,
+  LONE_ISSUE,
+  OUTPUT,
+  focusTerm,
+  injectCommandBodies,
+  openIssue,
+  openPaneBoundTo,
+  sessions,
+} from './issue-command-fixture'
 
 /*
  * GDK-1162 / GDK-1164-A — a command block in an issue body, and the shell it
@@ -20,120 +29,17 @@ import {
  * and then a human's Enter produces the output — because an absence check
  * alone cannot tell "it did not run" from "nothing happened at all".
  *
- * The body is injected by intercepting the detail response rather than by
- * editing examples/demo.db: the fixture is shared by every other suite, and a
- * code block added to it would be a change those suites have to absorb for a
- * feature they do not test.
+ * Everything the captures also need — the injected bodies, the two issue
+ * keys, the marker command — lives in ./issue-command-fixture. The captures
+ * themselves are e2e/demo/issue-command-shots.spec.ts: this file is a merge
+ * gate, and a screenshot helper is not one.
  */
 
-const SHOT_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'scratch', 'issue-command-shots')
-
-/* Two in-progress demo issues. One gets a shell, the other does not — the
- * second is both the disabled-▶ case and the "No shell here" case. */
-const BOUND_ISSUE = 'NMA-1'
-const LONE_ISSUE = 'NMS-3'
-
-/* The marker rides printf's %s so the *placed* text and the text it would
- * print are different strings: "GDK1162-RAN" on screen can only have come
- * from running the line, never from echoing it. */
-const COMMAND = `printf 'GDK1162%s\\n' -RAN`
-const OUTPUT = 'GDK1162-RAN'
-const MULTILINE = 'cd web\nnpm run build'
 /* Typed after the placement to order the buffer read against it. A plain
  * word, not a `# comment`: interactive comments are on in bash and off in
  * zsh, and the shell behind the pane is whichever one the machine has. As
  * printf's second argument it changes nothing about the first one. */
 const BARRIER = 'GDK1162SETTLED'
-
-type TermHook = {
-  buffer: {
-    active: {
-      length: number
-      getLine: (y: number) => { translateToString: (trimRight?: boolean) => string } | undefined
-    }
-  }
-}
-
-async function readTerm(page: Page): Promise<string> {
-  return page.evaluate(() => {
-    const t = (window as unknown as { __gadakTerm?: TermHook }).__gadakTerm
-    if (!t) return ''
-    const buf = t.buffer.active
-    const lines: string[] = []
-    for (let i = 0; i < buf.length; i++) lines.push(buf.getLine(i)?.translateToString(true) ?? '')
-    return lines.join('\n')
-  })
-}
-
-async function focusTerm(page: Page): Promise<void> {
-  const pane = page.getByTestId('terminal-pane')
-  const host = pane.locator('[data-gadak-editable]')
-  if (await host.count()) await host.first().click({ position: { x: 24, y: 24 } })
-  else await pane.click({ position: { x: 24, y: 24 } })
-  await page.evaluate(() => {
-    document
-      .querySelector<HTMLTextAreaElement>('[data-testid="terminal-pane"] textarea')
-      ?.focus()
-  })
-}
-
-/**
- * Rewrite the detail response for both issues so each carries one runnable
- * code block and one that is not runnable. The multi-line block is the pin
- * that "runnable" is narrow: the serve refuses a payload with a newline, so a
- * ▶ on that block would be a button that always fails.
- */
-async function injectCommandBodies(page: Page): Promise<void> {
-  await page.route('**/api/v1/issues/*/detail/', async (route) => {
-    const res = await route.fetch()
-    const body = (await res.json()) as Record<string, unknown>
-    const key = String(body.issue_key ?? '')
-    if (key !== BOUND_ISSUE && key !== LONE_ISSUE) {
-      await route.fulfill({ response: res })
-      return
-    }
-    body.description_adf = {
-      type: 'doc',
-      version: 1,
-      content: [
-        { type: 'paragraph', content: [{ type: 'text', text: 'Reproduce it:' }] },
-        { type: 'codeBlock', attrs: { language: 'sh' }, content: [{ type: 'text', text: COMMAND }] },
-        { type: 'codeBlock', content: [{ type: 'text', text: MULTILINE }] },
-      ],
-    }
-    await route.fulfill({ response: res, json: body })
-  })
-}
-
-/** The live session table, as the serve reports it. */
-async function sessions(page: Page): Promise<{ id: string; issue_key?: string }[]> {
-  const res = await page.request.get(apiURL('/api/v1/terminal/sessions/'))
-  return ((await res.json()) as { sessions?: { id: string; issue_key?: string }[] }).sessions ?? []
-}
-
-/** Open the pane and bind its session to `key`, the way `gadak claim` does. */
-async function openPaneBoundTo(page: Page, key: string): Promise<string> {
-  await page.keyboard.press('Control+Backquote')
-  await expect(page.getByTestId('terminal-pane')).toBeVisible()
-  await expect(page.getByTestId('terminal-pane')).toHaveAttribute('data-attached', 'true', {
-    timeout: 20_000,
-  })
-  const [session] = await sessions(page)
-  expect(session, 'the pane should have created a session').toBeTruthy()
-  const bind = await page.request.post(apiURL(`/api/v1/terminal/sessions/${session.id}/issue/`), {
-    data: { issue_key: key },
-  })
-  expect(bind.ok(), `binding ${key}: ${bind.status()}`).toBe(true)
-  // A split, not an overlay: an overlay covers the body the ▶ lives in.
-  await expect(page.getByTestId('terminal-pane')).not.toHaveAttribute('data-overlay', 'true')
-  return session.id
-}
-
-async function openIssue(page: Page, key: string): Promise<void> {
-  await page.goto(`/#/?issue=${key}`)
-  await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 30_000 })
-  await expect(page.getByTestId('issue-detail-panel')).toBeVisible({ timeout: 15_000 })
-}
 
 test.describe('command blocks in an issue body', () => {
   /*
@@ -341,40 +247,5 @@ test.describe('command blocks in an issue body', () => {
     expect(hint?.toLowerCase()).not.toContain('dead')
 
     expect(appConsoleErrors(errors), `console errors:\n${errors.join('\n')}`).toEqual([])
-  })
-})
-
-test.describe('command block shots', () => {
-  test.use({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 })
-
-  test.beforeEach(async ({ page }) => {
-    await forceLocale(page, 'en')
-    await injectCommandBodies(page)
-  })
-
-  test.afterEach(async ({ page }) => {
-    await drainTerminalSessions(page)
-  })
-
-  test('capture attached, detached, unattended mark', async ({ page }) => {
-    test.setTimeout(120_000)
-    mkdirSync(SHOT_DIR, { recursive: true })
-
-    await openIssue(page, BOUND_ISSUE)
-    await openPaneBoundTo(page, BOUND_ISSUE)
-    await expect(page.getByTestId('issue-body')).toHaveAttribute('data-shell', 'attached', {
-      timeout: 20_000,
-    })
-    await page.getByTestId('issue-body').locator('[data-run-command]').first().click()
-    await expect.poll(async () => readTerm(page)).toContain(COMMAND)
-    await page.screenshot({ path: join(SHOT_DIR, '01-attached-placed.png') })
-
-    await openIssue(page, LONE_ISSUE)
-    await expect(page.getByTestId('issue-body')).toHaveAttribute('data-shell', 'none')
-    await expect(page.getByTestId('unattended-chip')).toBeVisible({ timeout: 20_000 })
-    await page.screenshot({ path: join(SHOT_DIR, '02-no-shell.png') })
-
-    await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'))
-    await page.screenshot({ path: join(SHOT_DIR, '03-no-shell-dark.png') })
   })
 })

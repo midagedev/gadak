@@ -78,6 +78,26 @@ cat >"$CFG" <<'EOF'
 }
 EOF
 
+# GADAK_E2E_SHELL points every pane session at a chosen shell (settings block
+# terminal.shell, GDK-896). The suite never sets it, so a normal run still gets
+# $SHELL. `npm run test:e2e:wide-prompt` sets it to e2e/ci-shell.sh, which is
+# how the Linux CI runner's 24-column prompt — and the line wrapping that comes
+# with it — is reproduced on a developer's machine.
+if [ -n "${GADAK_E2E_SHELL:-}" ]; then
+  SHELL_ABS="$(cd "$(dirname "$GADAK_E2E_SHELL")" && pwd)/$(basename "$GADAK_E2E_SHELL")"
+  if [ ! -x "$SHELL_ABS" ]; then
+    echo "[e2e] GADAK_E2E_SHELL=${GADAK_E2E_SHELL} is not an executable file" >&2
+    exit 1
+  fi
+  echo "[e2e] terminal.shell = ${SHELL_ABS} (GADAK_E2E_SHELL)"
+  CFG_PATH="$CFG" CFG_SHELL="$SHELL_ABS" node --input-type=module -e '
+    import { readFileSync, writeFileSync } from "node:fs"
+    const cfg = JSON.parse(readFileSync(process.env.CFG_PATH, "utf8"))
+    cfg.terminal = { ...(cfg.terminal ?? {}), shell: process.env.CFG_SHELL }
+    writeFileSync(process.env.CFG_PATH, JSON.stringify(cfg, null, 2) + "\n")
+  '
+fi
+
 # Recordings (not tests) freshen the sync clock: the committed snapshot ages, and
 # a demo that opens with "Sync delayed" reads as a defect rather than as the
 # freshness guard it is. Tests leave it unset so their timestamps stay fixed.
@@ -198,6 +218,13 @@ SQL
 export GADAK_HOME="$HOME_DIR"
 WORKTREE="$(git rev-parse --show-toplevel)"
 DIGEST="$(bash "$ROOT/e2e/served-digest.sh")"
+# The shell the pane's sessions get is not a git fact, so served-digest.sh
+# cannot see it — but it changes what the suite measures, and
+# reuseExistingServer would otherwise hand a wide-prompt run the server a
+# plain run left behind. Fold it in so the stamp mismatch says so out loud.
+if [ -n "${GADAK_E2E_SHELL:-}" ]; then
+  DIGEST="${DIGEST} shell=${GADAK_E2E_SHELL}"
+fi
 STAMP="${TMPDIR:-/tmp}/gadak-e2e-served-${PORT}.json"
 echo "[e2e] served worktree ${WORKTREE} digest ${DIGEST}"
 STAMP_PATH="$STAMP" STAMP_WORKTREE="$WORKTREE" STAMP_DIGEST="$DIGEST" node --input-type=module -e '

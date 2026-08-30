@@ -7,6 +7,7 @@ import {
   DEMO_ISSUE_COUNT_EN,
   DEMO_ISSUE_COUNT_EN_RE,
   forceLocale,
+  readTerm,
 } from './helpers'
 
 /*
@@ -30,15 +31,6 @@ import {
  * from xterm.
  */
 
-type TermHook = {
-  buffer: {
-    active: {
-      length: number
-      getLine: (y: number) => { translateToString: (trimRight?: boolean) => string } | undefined
-    }
-  }
-}
-
 async function boot(page: Page): Promise<string[]> {
   const errors = attachConsoleErrors(page)
   await forceLocale(page, 'en')
@@ -55,19 +47,6 @@ async function openPane(page: Page): Promise<void> {
   await expect(page.getByTestId('terminal-pane')).toBeVisible()
   await expect(page.getByTestId('terminal-pane')).toHaveAttribute('data-attached', 'true', {
     timeout: 20_000,
-  })
-}
-
-async function readTerm(page: Page): Promise<string> {
-  return page.evaluate(() => {
-    const t = (window as unknown as { __gadakTerm?: TermHook }).__gadakTerm
-    if (!t) return ''
-    const buf = t.buffer.active
-    const lines: string[] = []
-    for (let i = 0; i < buf.length; i++) {
-      lines.push(buf.getLine(i)?.translateToString(true) ?? '')
-    }
-    return lines.join('\n')
   })
 }
 

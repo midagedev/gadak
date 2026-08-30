@@ -76,6 +76,7 @@ site/.astro/
 e2e/demo/test-results-scale/
 e2e/demo/test-results-history/
 e2e/demo/test-results-terminal/
+e2e/demo/test-results-issue-command-shots/
 
 # CPython bytecode from the media editors (e2e/demo/edit-claude-drive.py et al.)
 __pycache__/

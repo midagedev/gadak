@@ -11,6 +11,7 @@ import {
   DEMO_ISSUE_COUNT_EN,
   DEMO_ISSUE_COUNT_EN_RE,
   forceLocale,
+  readTerm,
 } from './helpers'
 
 /*
@@ -25,15 +26,6 @@ import {
  * Every wait below is on the state being asserted (the buffer text, the
  * row's own selected flag). A proxy wait would only prove the test ran.
  */
-
-type TermHook = {
-  buffer: {
-    active: {
-      length: number
-      getLine: (y: number) => { translateToString: (trimRight?: boolean) => string } | undefined
-    }
-  }
-}
 
 async function boot(page: Page): Promise<string[]> {
   const errors = attachConsoleErrors(page)
@@ -51,19 +43,6 @@ async function openPane(page: Page): Promise<void> {
   await expect(page.getByTestId('terminal-pane')).toBeVisible()
   await expect(page.getByTestId('terminal-pane')).toHaveAttribute('data-attached', 'true', {
     timeout: 20_000,
-  })
-}
-
-async function readTerm(page: Page): Promise<string> {
-  return page.evaluate(() => {
-    const t = (window as unknown as { __gadakTerm?: TermHook }).__gadakTerm
-    if (!t) return ''
-    const buf = t.buffer.active
-    const lines: string[] = []
-    for (let i = 0; i < buf.length; i++) {
-      lines.push(buf.getLine(i)?.translateToString(true) ?? '')
-    }
-    return lines.join('\n')
   })
 }
 
@@ -251,11 +230,36 @@ test.describe('terminal session strip', () => {
     expect(box, 'the key should be rendered as its own glyph run').not.toBeNull()
     const x = box!.x + box!.width / 2
     const y = box!.y + box!.height / 2
+    /*
+     * The pointer arrives across a neighbouring row, not out of nowhere.
+     *
+     * xterm asks a link provider once per buffer line and keeps the answer
+     * against that line: Linkifier._handleHover takes the cached branch
+     * whenever the pointer's row equals `_activeLine`, and that branch never
+     * calls provideLinks again (@xterm/xterm 6.0.0). typeLine's focus click
+     * already parked the pointer on a row of the freshly opened pane — a row
+     * that was empty then, so the cached answer for it is "no links". On a
+     * shell that prints no startup banner the key lands on exactly that row,
+     * and the click below would consult that stale answer and open nothing.
+     *
+     * Measured 2026-08-30 with e2e/ci-shell.sh (`npm run
+     * test:e2e:wide-prompt`), which is the CI runner's shell: without this
+     * first move the detail panel stayed hidden for the full 20s — the same
+     * failure the Linux CI job had and macOS never did, because Apple's bash
+     * prints a three-line deprecation banner that pushed the key one row
+     * further down. One row up is always a different line from the key's own
+     * (the echoed command line sits above it), so the hover that follows is
+     * always a fresh ask.
+     */
+    await page.mouse.move(x, y - box!.height)
     await page.mouse.move(x, y)
     await page.mouse.click(x, y)
 
     const panel = page.getByTestId('issue-detail-panel')
-    await expect(panel).toBeVisible({ timeout: 20_000 })
+    await expect(
+      panel,
+      `clicking the key should have opened it; the terminal held:\n${await readTerm(page)}`,
+    ).toBeVisible({ timeout: 20_000 })
     await expect(panel).toContainText(key!, { timeout: 20_000 })
 
     expect(appConsoleErrors(errors), `console errors:\n${errors.join('\n')}`).toEqual([])

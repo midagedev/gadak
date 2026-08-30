@@ -86,6 +86,16 @@ hard-won 목록)와 `AGENTS.md`(스키마·쿼리)가 원본이다.
   포트를 명시 배정). 같은 포트 위의 충돌·낡은 서버 재사용은 여전히 경쟁
   신호이고(스탬프 불일치는 `assertServedArtifact`가 잡는다), 한 스위트
   안은 `workers: 1`이다.
+- **터미널 e2e(`e2e/terminal*.spec.ts`·`e2e/issue-command.spec.ts`)를
+  건드렸으면 `npm run test:e2e:wide-prompt`도 게이트다.** 그 스위트는 pane의
+  셸을 `e2e/ci-shell.sh`로 바꿔 리눅스 CI 러너의 환경 셋을 재현한다 —
+  24열 프롬프트(로컬 macOS는 훨씬 짧아 줄이 안 접힌다), Ubuntu 기본
+  `.bashrc`의 창 제목 OSC(종결자가 BEL이다), 그리고 **배너 없음**(macOS
+  bash 3.2의 zsh 안내 3줄이 모든 출력을 세 행 아래로 밀어 결함 하나를
+  가리고 있었다). 2026-08-30: 새 터미널 e2e 5건이
+  로컬 397 전부 초록인 채 CI에서만 죽었고, 원인은 접힌 줄을 읽는 방식·BEL
+  판정·xterm 링크 캐시 셋이었다. 버퍼를 읽을 때는 스펙마다 `readTerm`을 다시
+  쓰지 말고 `e2e/helpers.ts`의 것을 쓴다(접힘의 단일 소유자).
 - 게이트 단언 완화는 ①귀속 주석 ②정당한 파생 ③FAIL-first 증거 셋 모두
   있을 때만.
 - 문서 사실성 가드: `tools/doc-checks.sh` (있으면 커밋 전 실행).
