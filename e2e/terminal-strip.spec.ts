@@ -196,6 +196,65 @@ test.describe('terminal session strip', () => {
   })
 
   /*
+   * GDK-1185. The test above is that story at the speed of this machine;
+   * this one holds the create open so the window is a fact rather than a
+   * hope. A strip row is live the moment the *server* has the session —
+   * data-count reaches 2 off the roster poll — which is before the create
+   * response gets back to the pane, so a person can and will click a row
+   * while the pane is still between shells.
+   *
+   * FAIL-first, measured 2026-08-30 against the build before the fix: the
+   * row stayed `needs` for the full 20s, and the roster showed session one
+   * with `attached: 0` the whole time. The pane never left it, so the
+   * selection still pointed there, so clicking its row was `select()` on the
+   * value already held — idempotent, no attach, nothing at all. The create
+   * landing afterwards then took the pane off the row the person chose.
+   */
+  test('a row clicked while a new shell is still being created is not ignored (GDK-1185)', async ({
+    page,
+  }) => {
+    test.setTimeout(120_000)
+    const errors = await boot(page)
+    await openPane(page)
+    const [firstId] = await sessionIds(page)
+
+    await typeLine(page, "printf '\\a'")
+
+    // The create takes longer than the roster poll — the ordering a slower
+    // machine produces on its own.
+    await page.route('**/api/v1/terminal/sessions/', async (route) => {
+      if (route.request().method() !== 'POST') return route.fallback()
+      const res = await route.fetch()
+      await new Promise((done) => setTimeout(done, 6_000))
+      await route.fulfill({ response: res })
+    })
+
+    // The create's own response is the barrier the last assertion waits on:
+    // "the pane was not taken back" is only a claim once the thing that would
+    // have taken it has landed.
+    const created = page.waitForResponse(
+      (res) =>
+        res.url().includes('/api/v1/terminal/sessions/') && res.request().method() === 'POST',
+    )
+    await page.getByTestId('terminal-new').click()
+    await expect(page.getByTestId('terminal-strip')).toHaveAttribute('data-count', '2', {
+      timeout: 20_000,
+    })
+
+    const rowOne = page.locator(`[data-testid="terminal-strip-row"][data-session-id="${firstId}"]`)
+    await expect(rowOne).toHaveAttribute('data-state', 'needs', { timeout: 20_000 })
+    await rowOne.click()
+    // The bell is answered, which can only happen by attaching…
+    await expect(rowOne).not.toHaveAttribute('data-state', 'needs', { timeout: 20_000 })
+    // …and the create landing afterwards leaves the person's row alone.
+    await expect(rowOne).toHaveAttribute('data-selected', 'true', { timeout: 20_000 })
+    await created
+    await expect(rowOne).toHaveAttribute('data-selected', 'true')
+
+    expect(appConsoleErrors(errors), `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  /*
    * GDK-1160: an issue key printed into the terminal is a link into this
    * app's own issue view — not a Jira deep link, and not a new route. The
    * key is taken from the list so the test cannot pass on a key the mirror

@@ -240,7 +240,16 @@
       const { cols, rows } = fittedSize()
       lastCols = cols
       lastRows = rows
+      // What the pane was on when this create was asked for. A person can
+      // move the selection while the POST is in flight — a strip row is live
+      // the moment the *server* has the session, which is before its response
+      // gets back here — and a create landing into that window used to take
+      // the pane off the row they clicked (GDK-1185). Their choice is newer
+      // than this request, so it wins: the session is still created and the
+      // strip still shows it, this pane just does not go there.
+      const from = terminalSessions.selectedId
       const doc = await createSession(cols, rows)
+      if (cancelled || terminalSessions.selectedId !== from) return
       // The create response is the one road terminal behavior reaches the
       // pane on (GDK-896 R2): apply before attaching, so the ring replay
       // lands in a buffer already sized to the configured scrollback.
@@ -487,6 +496,20 @@
       status = { kind: 'none' }
       phase = 'live'
       renderer?.reset()
+      // Leave the old session *now*, not when the new one's POST comes back
+      // (GDK-1185). The buffer is already blank, so a socket still on the
+      // previous shell paints that shell's live output into a pane that is
+      // supposed to be showing a brand new one — and the session the person
+      // walked away from goes on counting this pane as a watcher.
+      //
+      // The selection has to go with it. Leaving it on the old session made
+      // that session's row *un-clickable* for the whole width of the create:
+      // `select()` is idempotent, so clicking the row it still points at
+      // changed nothing and no attach happened. Null is the honest value —
+      // the pane is between shells.
+      detachSocket()
+      attachedId = null
+      terminalSessions.select(null)
       void startNew().catch(onCreateFail)
     }
 
