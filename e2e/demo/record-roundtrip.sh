@@ -42,12 +42,82 @@ LEAD="${GADAK_RT_LEAD:--0.2}"
 mkdir -p "$OUT" "$SCRATCH"
 
 FRAMES_ONLY=""
+LIVE=""
 for arg in "$@"; do
   case "$arg" in
     --dark) SCHEME="dark" ;;
     --frames-only) FRAMES_ONLY=1 ;;
+    --live) LIVE=1 ;;
   esac
 done
+
+DRIVE_ROOT="/private/tmp/gadak-claude-drive"
+AGENT_HOME="$DRIVE_ROOT/agent"
+TAPES_ENV="$ROOT/tools/tapes/.tmp/env-claude-drive.sh"
+
+# ── --live: a real Claude Code in every shell ──────────────────────────────
+# The shipped cut is live (lead's call): what the camera replays has to be a
+# model actually reading actually-broken code, not a script pretending. This
+# costs a Claude login and ~8 minutes a take, which is why it is a flag and
+# the scripted rig above still runs in two minutes for framing work.
+#
+# Everything here happens BEFORE the serve child, and the child is given
+# --skip-prepare: prepare-claude-drive.sh rewrites .claude.json and the env
+# from scratch, so a second run inside the child would undo all three patches
+# below.
+prepare_live() {
+  command -v claude >/dev/null || { echo "record-roundtrip: claude CLI required for --live" >&2; exit 1; }
+  bash tools/tapes/prepare-claude-drive.sh
+
+  # The three lines the pilot measured on top of the tapes' env. They go in
+  # the file the serve sources, not in this shell's environment:
+  # record-hero-desk.sh hardcodes that path (and is never modified), and
+  # bash re-fills SHELL on its own, so exporting from here is not the same
+  # thing. See e2e/demo/claude-pane-env.sh, which documents each one.
+  cat >>"$TAPES_ENV" <<'EOF'
+# Appended by record-roundtrip.sh --live (see e2e/demo/claude-pane-env.sh):
+unset SHELL                      # /bin/sh: no zsh, no starship prompt
+export PROMPT='$ '
+unset NODE_EXTRA_CA_CERTS        # kills the mkcert SSL warning pair on boot
+EOF
+
+  # The PTY opens in the serve's $HOME (internal/server/terminal.go), which
+  # the tapes' env sets to $AGENT_HOME. Trust it, or the take's first ninety
+  # seconds are a "do you trust this folder" dialog eating the prompt — and
+  # point settings.json's GADAK_HOME at the writable standalone home, since
+  # Claude re-parents its Bash children onto that block and the prepared
+  # value is the frozen demo one. Both patches are the --serve-only path's
+  # gap: record-hero-desk.sh only makes them for its own agent.
+  python3 - "$AGENT_HOME" "$HERO_HOME" <<'PY'
+import json, os, sys
+
+agent_home, gadak_home = sys.argv[1], sys.argv[2]
+p = os.path.join(agent_home, ".claude.json")
+cfg = json.load(open(p))
+cfg.setdefault("projects", {}).setdefault(agent_home, {}).update({
+    "hasTrustDialogAccepted": True,
+    "hasCompletedProjectOnboarding": True,
+    "projectOnboardingSeenCount": 3,
+    "allowedTools": ["Bash", "Read", "Glob", "Grep"],
+    "history": [],
+    "mcpServers": {},
+})
+json.dump(cfg, open(p, "w"), indent=2)
+
+s = os.path.join(agent_home, ".claude", "settings.json")
+scfg = json.load(open(s))
+scfg.setdefault("env", {})["GADAK_HOME"] = gadak_home
+json.dump(scfg, open(s, "w"), indent=2)
+PY
+
+  # The repo the four investigations read, at $HOME because that is the PTY's
+  # cwd and the only folder trusted above. Its bugs are real (see its
+  # README.md) — that is what makes the answers on camera real.
+  rm -rf "$AGENT_HOME/src" "$AGENT_HOME/package.json"
+  cp -R "$ROOT/e2e/demo/shop-fixture/." "$AGENT_HOME/"
+  rm -f "$AGENT_HOME/README.md" "$AGENT_HOME/prompts.txt"
+  echo "record-roundtrip: live drive ready — fixture at \$HOME, 4 shells will run claude"
+}
 
 # ── Keyframe extraction ────────────────────────────────────────────────────
 # One frame per beat, named for what it has to prove. Extraction reads only
@@ -292,9 +362,15 @@ trap stop_serve EXIT
 # The film's last beat is "the line I typed was one"; that only lands if the
 # board starts human. hero's seed function is not touched — the actor is
 # inherited by the child that runs it.
+SERVE_ARGS=(--serve-only)
+if [[ -n "$LIVE" ]]; then
+  prepare_live
+  SERVE_ARGS+=(--skip-prepare)
+fi
+
 echo "record-roundtrip: seeding + serving via record-hero-desk.sh --serve-only…"
 GADAK_ACTOR="${GADAK_RT_SEED_ACTOR:-human:ada|Ada Lovelace}" \
-  bash e2e/demo/record-hero-desk.sh --serve-only >"$OUT/serve.log" 2>&1 &
+  bash e2e/demo/record-hero-desk.sh "${SERVE_ARGS[@]}" >"$OUT/serve.log" 2>&1 &
 SERVE_PID=$!
 for i in $(seq 1 240); do
   curl -sf "http://127.0.0.1:${PORT}/healthz" >/dev/null && break

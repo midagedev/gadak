@@ -43,9 +43,11 @@ export default defineConfig({
   retries: 0,
   workers: 1,
   reporter: 'list',
-  // No live model here — the whole take is CLI writes and UI polls, so the
-  // budget is the polls (SHELL_POLL_MS 4s, ROSTER_POLL_MS 2s) plus holds.
-  timeout: 300_000,
+  // Four live Claude Code sessions boot (~1m30s each, in flight together)
+  // and then investigate before the first frame of the cut is even usable.
+  // The budget is theirs; the polls (SHELL_POLL_MS 4s, ROSTER_POLL_MS 2s)
+  // and the holds are rounding error next to it.
+  timeout: 1_500_000,
   expect: { timeout: 30_000 },
   outputDir: '../.tmp/test-results-roundtrip',
   use: {

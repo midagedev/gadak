@@ -262,53 +262,37 @@ test.describe('roundtrip demo', () => {
     // no `ls -la`, no `pwd`. A storyboard still shot with `ls -la` had the
     // operator's account name in frame, which MEDIA.md keeps out of a
     // recording.
+    // Each shell runs a REAL Claude Code investigating the bug its issue
+    // names. The fixture repo (e2e/demo/shop-fixture) is copied to the PTY's
+    // cwd by record-roundtrip.sh --live and every bug in it is really there,
+    // so what the camera replays is the model's own reading — nothing is
+    // scripted output (lead's call: no printf/cat theatre).
+    //
+    // "read only" in every prompt keeps Claude on Grep/Read/Glob, which raise
+    // no permission dialog; a dialog on camera is a dialog, not an
+    // investigation. The prompts are e2e/demo/shop-fixture/prompts.txt.
     const CREW = [
       {
         key: 'STD-4',
         actor: 'human:ada|Ada Lovelace',
-        files: [
-          `printf 'preview builds its column list in the view\\nexport builds its own in the writer\\ntax column only exists in the first\\nboth read the same field map\\n' > notes.txt`,
-          `printf 'FAIL export/columns  tax missing (2 of 14)\\nFAIL export/totals   net != gross - tax\\nok   export/header\\n' > run.log`,
-        ],
-        work: [
-          'cat notes.txt',
-          'cat run.log',
-          'grep -n column notes.txt',
-        ],
+        prompt:
+          'find why the tax column is missing from the invoice export but not the preview, read only',
       },
       {
         key: 'STD-9',
         actor: 'human:grace|Grace Hopper',
-        files: [
-          `printf 'search, then open the sidebar: highlight stays\\nsidebar keeps the last query mark\\nclearing the query does not clear it\\nonly a second search repaints\\n' > repro.txt`,
-        ],
-        work: [
-          'cat repro.txt',
-          'grep -n sidebar repro.txt',
-          'wc -l repro.txt',
-        ],
+        prompt:
+          'find why the search highlight stays in the sidebar after the query is cleared, read only',
       },
       {
         key: 'STD-14',
         actor: 'human:katherine|Katherine Johnson',
-        files: [
-          `printf 'focus lands one frame before the box mounts\\nfirst keystroke goes to the document\\nsecond onward are fine\\nonly on a freshly rendered comment box\\n' > focus.txt`,
-        ],
-        work: [
-          'cat focus.txt',
-          'grep -n keystroke focus.txt',
-        ],
+        prompt: 'find why the first keystroke into a fresh comment box is lost, read only',
       },
       {
         key: 'STD-1',
         actor: 'human:ada|Ada Lovelace',
-        files: [
-          `printf 'declined once, retried, charged twice\\nretry sends a new request id each time\\nneeds an idempotency key on the retry\\ntest card 4000 0000 0000 0002 reproduces\\n' > retry.txt`,
-        ],
-        work: [
-          'cat retry.txt',
-          'grep -n idempotency retry.txt',
-        ],
+        prompt: 'find where checkout retries the same card twice and explain why, read only',
       },
     ]
     // Four, not five. The strip is 144px (GDK-1193) and a row is ~30px at the
@@ -336,6 +320,19 @@ test.describe('roundtrip demo', () => {
     mark('pane_open')
     await beat(page, 800)
 
+    // How much each shell had printed at the moment it was asked, keyed by
+    // issue. See the gate below for why the snapshot is taken there.
+    const asked = new Map<string, number>()
+
+    // Pass 1 — open four shells, claim one issue each, and start `claude` in
+    // every one of them WITHOUT waiting. A boot is ~1m30s; four of them in
+    // series is six minutes of nothing, four in flight is one boot's worth.
+    //
+    // `clear` right after the claim, so the session's ring holds only the
+    // investigation. A replay that opens on `gadak claim …` puts "drive the
+    // tracker from a terminal" in the most readable spot in the film — the
+    // exact thing this concept replaced. Identity is exported and cleared in
+    // its own pass-within-a-pass for the same reason.
     for (const [i, m] of CREW.entries()) {
       if (i > 0) {
         await page.getByTestId('terminal-new').click()
@@ -343,18 +340,46 @@ test.describe('roundtrip demo', () => {
         await beat(page, 400)
       }
       await runLine(page, `export GADAK_ACTOR='${m.actor}'; clear`, true)
-      // `clear` right after the claim, so the session's ring holds only the
-      // work. A replay that opens on `gadak claim …` puts "drive the tracker
-      // from a terminal" in the most readable spot in the film — the exact
-      // thing this concept replaced — and the claim's reply folds the issue
-      // summary mid-word on top of that.
-      // Files first, then claim-and-clear, then the reads. Everything that
-      // writes the fixture happens before the wipe, so the ring the camera
-      // replays holds only a person reading their own notes — no `printf`
-      // scaffolding, no `gadak claim`.
-      for (const c of m.files) await runLine(page, c, true)
       await runLine(page, `gadak claim ${m.key} && clear`, true)
-      for (const c of m.work) await runLine(page, c, true)
+      await runLine(page, 'claude', true)
+    }
+
+    // Pass 2 — collect the boots and hand each shell its question. The
+    // buffer reader only sees the ACTIVE session, so this is a tab tour; it
+    // is all off camera, which is why it may take as long as it takes.
+    for (const m of CREW) {
+      await sessionTab(page, m.key).click()
+      await expect
+        .poll(async () => readTerm(page), { timeout: 180_000, intervals: [1000] })
+        .toMatch(/Welcome to Claude Code|for shortcuts/i)
+      // Claude's input box re-renders as it grows, and an Enter that lands
+      // mid-render is swallowed (the tapes learned this the hard way), so
+      // this is `ask()` — type, let it settle, then send. runLine's
+      // read-back-and-retype belongs to a shell prompt, not to a TUI.
+      await focusPane(page)
+      await page.keyboard.type(m.prompt, { delay: 25 })
+      await beat(page, 900)
+      await page.keyboard.press('Enter')
+      await beat(page, 400)
+      // The high-water mark for this shell, taken at the moment it was
+      // asked. The gate below compares against THIS, not against the buffer
+      // at gate time: the pilot's investigation took 18s, so a shell asked
+      // early can be finished before the tour comes back round, and a gate
+      // that demands growth *from now* would fail a take for having answered
+      // too fast.
+      asked.set(m.key, (await readTerm(page)).length)
+    }
+
+    // Every shell has really been asked something, and has really produced
+    // something. The gate is growth since the question, not content: with a
+    // live model the words are never the same twice, and asserting on them is
+    // how a rig starts rejecting good takes. Streaming and standing-finished
+    // both pass, which is what the beat is allowed to show.
+    for (const m of CREW) {
+      await sessionTab(page, m.key).click()
+      await expect
+        .poll(async () => (await readTerm(page)).length, { timeout: 120_000, intervals: [1000] })
+        .toBeGreaterThan(asked.get(m.key) ?? 0)
     }
 
     // Every shell wears its issue's key, and every one of those issues shows a
@@ -377,30 +402,48 @@ test.describe('roundtrip demo', () => {
     await beat(page, 1800)
 
     // ── RECOVERY A ───────────────────────────────────────────────────────
-    // One click on a row, and the shell that was doing that issue's work is
-    // back with its scrollback. Then a line typed into it, because a replay
-    // that cannot be typed into is a screenshot.
-    // The replay is proved by something only THAT shell's history contains —
-    // the claim used to be the marker, but it is cleared out of the ring now
-    // (see the set-up), and a note from the issue's own work is the honest
-    // witness anyway.
-    const recover = async (key: string, line: string, tag: string, seen: string) => {
-      await sessionTab(page, key).click()
+    // One click on a tab, and the shell that was investigating that issue is
+    // back with its scrollback — an investigation still running, or one
+    // standing finished. Either is the proof; nothing is typed, because the
+    // session was never dead to begin with.
+    //
+    // What proves the replay, and why it is not the text on screen. Claude's
+    // TUI runs on the alternate screen, which has no scrollback: the buffer
+    // holds the viewport and nothing else, so the question typed into this
+    // shell has scrolled out of existence by the time its answer is standing
+    // (measured, take 1 — the assertion that expected it read back the tail
+    // of a correct investigation instead). And the answer itself is a live
+    // model's words, which a rig must never key on.
+    //
+    // So the witness is structural: the tab that was clicked is the selected
+    // one, the shell that came back is not empty, and what it holds is not
+    // what the previous shell held. "A different session, with its own work
+    // in it" is exactly the claim the beat makes.
+    const shown: string[] = []
+    const recover = async (key: string, tag: string) => {
+      const tab = sessionTab(page, key)
+      await tab.click()
+      await expect(tab).toHaveAttribute('data-selected', 'true')
       await expect
-        .poll(async () => readTerm(page), { timeout: 15_000, intervals: [200] })
-        .toContain(seen)
+        .poll(async () => {
+          const buf = (await readTerm(page)).trim()
+          return buf.length > 200 && !shown.includes(buf) ? buf.length : 0
+        }, { timeout: 20_000, intervals: [200] })
+        .toBeGreaterThan(0)
+      shown.push((await readTerm(page)).trim())
       mark(`${tag}_replay`, `key=${key}`)
-      await beat(page, 900)
-      await runLine(page, line)
-      await beat(page, 900)
+      // Long enough to actually read the investigation that is sitting there
+      // — the payoff of this beat is the words, not the switch.
+      await beat(page, 4200)
       mark(`${tag}_alive`)
     }
-    await recover(CREW[0].key, 'grep -n field notes.txt', 'a', 'FAIL export/columns')
+    await recover(CREW[0].key, 'a')
 
     // ── RECOVERY B ───────────────────────────────────────────────────────
-    // Straight into another one. Two in a row is what makes it a system
-    // rather than a trick.
-    await recover(CREW[1].key, 'grep -n repaint repro.txt', 'b', 'sidebar keeps the last query')
+    // Straight into another one, and a completely different investigation is
+    // sitting there. Two in a row is what makes it a system rather than a
+    // trick.
+    await recover(CREW[1].key, 'b')
     mark('end_frame')
     await beat(page, 2000)
     mark('end')

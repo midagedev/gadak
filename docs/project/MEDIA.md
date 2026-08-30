@@ -55,7 +55,7 @@ each run with a fake credential.)
 | `docs/media/claude-tokens-vertical.gif` (+`-poster.png`) | 430-wide reduction of that mp4 | README — same reason as the dashboards GIF |
 | `docs/media/scale.mp4` (+`scale.gif`, `scale-poster.png`) | Playwright `e2e/demo/scale-demo.spec.ts` + post-process camera work `e2e/demo/export-scale.sh` (`make media-scale` — deliberately outside the `make media` aggregate: the committed artifacts are what the site ships) | landing flagship — record-time counts focus over a 20k-issue snapshot |
 | `docs/media/hero.mp4` (+`hero-poster.png`) | two-camera LIVE shoot, one command: `e2e/demo/record-hero.sh` (the desk take `record-hero-desk.sh`, with the phone take `record-hero-phone.sh` running inside its away-wait), cut by `e2e/demo/cut-hero.sh`. Not in `make media` and not reproducible from a checkout alone — it needs a live Claude Code login AND a booted iOS simulator with a dev build of the phone app | the 0.19 hero — one serve, one terminal session: the desk hands work to an agent and walks away, a phone closes an issue while the chair is empty, and the desk comes back to the scrollback and the board |
-| `docs/media/roundtrip.mp4` (+`roundtrip-poster.png`) | Playwright `e2e/demo/roundtrip.spec.ts` via `e2e/demo/record-roundtrip.sh --dark`, cut by `e2e/demo/cut-roundtrip.sh` — no live model, no simulator; reproducible from a checkout (~2 min a cycle) | the 0.19 release cut — `gadak claim` typed in the pane moves the board's card where you can see both, the issue body's ▶ hands a command back to that issue's shell, and clicking an issue-key row in the strip brings that shell back, scrollback and all |
+| `docs/media/roundtrip.mp4` (+`roundtrip-poster.png`) | Playwright `e2e/demo/roundtrip.spec.ts` via `e2e/demo/record-roundtrip.sh --live --dark`, cut by `e2e/demo/cut-roundtrip.sh`. Like the hero, not in `make media` and not reproducible from a checkout alone — the four shells run a live Claude Code login against `e2e/demo/shop-fixture/`; nothing in the terminals is scripted, so takes vary and the rig retries until the beat contract holds | the 0.19 release cut — four shells bound to four issues investigate on their own (tabs named by issue key in the bottom dock), and clicking a card's session brings that shell back, findings standing, then another |
 | `docs/media/groupby.gif` / `groupby.mp4` (+`groupby-poster.png`) | Playwright `e2e/demo/groupby-demo.spec.ts` via `e2e/demo/export-groupby.sh` | group-by exhibit motion cut — the landing exhibit itself ships the still below |
 | `docs/media/groupby-still.png` | `e2e/demo/site-stills.mjs` | landing group-by exhibit (2x still; see the landing policy table) |
 | `docs/media/history.gif` / `history.mp4` (+`history-poster.png`) | Playwright `e2e/demo/history-demo.spec.ts` via `e2e/demo/export-history.sh` | history exhibit motion cut — the landing exhibit itself ships the still below |
@@ -165,7 +165,7 @@ Measured 2026-08-14 via `ls -la docs/media/` (decimal MB = bytes/1e6):
 | `claude-dashboards-vertical.gif` | 1.3 MB | 1320334 | 25.6 s | 430×538 @ 9 fps, 64 colors (gifsicle; measured 2026-08-25) |
 | `claude-tokens-vertical.gif` | 0.97 MB | 969087 | 18.2 s | 430×538 @ 9 fps, 64 colors (gifsicle; measured 2026-08-25) |
 | `hero.mp4` | 1.7 MB | 1723424 | 25.9 s | 1920×1080 h264 30 fps (measured 2026-08-30) |
-| `roundtrip.mp4` | 3.2 MB | 3331313 | 25.1 s | 1920×1080 h264 30 fps (measured 2026-08-30) |
+| `roundtrip.mp4` | 1.5 MB | 1545564 | 17.6 s | 1920×1080 h264 30 fps (measured 2026-08-31) |
 
 ## Readability comes first, and it costs bytes
 

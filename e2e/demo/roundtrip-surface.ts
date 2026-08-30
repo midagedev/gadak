@@ -131,13 +131,15 @@ export function sessionTabNames(page: Page): Promise<string[]> {
 }
 
 /** How many session tabs are clipped out of view. The chaos beat needs 0 —
- *  a roster that hides its own rows is not a roster (GDK-1193). */
+ *  a roster that hides its own rows is not a roster (GDK-1193). The dock's
+ *  strip scrolls sideways (TerminalStrip.svelte, `overflow-x-auto`), so the
+ *  fold is the right edge now, not the bottom one. */
 export function tabsBelowFold(page: Page): Promise<number> {
   return page.evaluate(() => {
     const strip = document.querySelector('[data-testid="terminal-strip"]')
     if (!strip) return -1
     const box = strip.getBoundingClientRect()
     return [...strip.querySelectorAll('[data-testid="terminal-strip-row"]')]
-      .filter((r) => r.getBoundingClientRect().bottom > box.bottom + 1).length
+      .filter((r) => r.getBoundingClientRect().right > box.right + 1).length
   })
 }
