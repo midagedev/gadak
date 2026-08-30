@@ -276,3 +276,25 @@ describe('runnable code blocks', () => {
     expect(renderCommandBody('just prose', { commands: true })).toBe('')
   })
 })
+
+describe('code blocks round-trip (GDK-1178)', () => {
+  const doc: AdfNode = {
+    type: 'doc',
+    content: [
+      { type: 'paragraph', content: [{ type: 'text', text: 'before' }] },
+      {
+        type: 'codeBlock',
+        attrs: { language: 'sh' },
+        content: [{ type: 'text', text: 'gadak sql "x"' }],
+      },
+    ],
+  }
+
+  test('is a simple doc \u2014 a plain-text PUT re-creates it', () => {
+    expect(isSimpleAdf(doc)).toBe(true)
+  })
+
+  test('seeds the textarea with the fence back', () => {
+    expect(adfToPlainText(doc)).toBe('before\n```sh\ngadak sql "x"\n```')
+  })
+})

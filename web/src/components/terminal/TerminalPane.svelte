@@ -45,6 +45,7 @@
   import TerminalStrip from './TerminalStrip.svelte'
   import { config } from '../../lib/config'
   import { issues } from '../../stores/issues.svelte'
+  import { knownProjectKeys } from '../../lib/terminal/issue-links'
   import { selection } from '../../stores/selection.svelte'
 
   let { overlay = false }: { overlay?: boolean } = $props()
@@ -126,24 +127,18 @@
   })
 
   /*
-   * GDK-1160: which project keys in the output are real. config().projects
-   * is the mirror's own list; where an install narrows nothing it is empty,
-   * so the pool's distinct source projects fill in. Memoized because a link
-   * provider is asked once per line under the pointer and the pool can hold
-   * five figures of issues.
+   * GDK-1160: which project keys in the output are real. The judgment itself
+   * lives in issue-links.ts (pure, tested); this only memoizes it, because a
+   * link provider is asked once per line under the pointer and the pool can
+   * hold five figures of issues.
    */
   const PROJECT_CACHE_MS = 5_000
   let projectCache: { at: number; keys: Set<string> } | null = null
 
-  function knownProjectKeys(): Set<string> {
+  function paneProjectKeys(): Set<string> {
     const now = Date.now()
     if (projectCache && now - projectCache.at < PROJECT_CACHE_MS) return projectCache.keys
-    const keys = new Set<string>(config().projects)
-    if (keys.size === 0) {
-      for (const issue of issues.pool.values()) {
-        if (issue.source_project) keys.add(issue.source_project)
-      }
-    }
+    const keys = knownProjectKeys(config().projects, issues.pool.values())
     projectCache = { at: now, keys }
     return keys
   }
@@ -426,7 +421,7 @@
       // build output and agent reports. Opening one goes through the app's
       // existing verb — there is no second route to an issue here.
       stopIssueLinks = renderer.registerIssueLinks({
-        projects: knownProjectKeys,
+        projects: paneProjectKeys,
         open: (key) => selection.select(key),
       })
       ro = new ResizeObserver(scheduleFit)

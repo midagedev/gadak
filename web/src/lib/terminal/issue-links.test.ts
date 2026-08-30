@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { findIssueKeyMatches } from './issue-links'
+import { findIssueKeyMatches, knownProjectKeys } from './issue-links'
 
 const MIRROR = ['GDK', 'NMB', 'OPS']
 
@@ -56,5 +56,25 @@ describe('findIssueKeyMatches (GDK-1160)', () => {
     expect(findIssueKeyMatches('GDK-1160', new Set(['GDK'])).map((m) => m.key)).toEqual([
       'GDK-1160',
     ])
+  })
+})
+
+describe('knownProjectKeys (GDK-1177)', () => {
+  it('prefers the configured projects list', () => {
+    expect([...knownProjectKeys(['NMB'], [{ issue_key: 'STD-1' }])]).toEqual(['NMB'])
+  })
+
+  it('falls back to the pool key prefixes when projects is unset (standalone)', () => {
+    const keys = knownProjectKeys(undefined, [
+      { issue_key: 'STD-1' },
+      { issue_key: 'STD-2' },
+      { issue_key: 'OPS-9' },
+    ])
+    expect([...keys].sort()).toEqual(['OPS', 'STD'])
+    expect(findIssueKeyMatches('see STD-2 now', keys)).toHaveLength(1)
+  })
+
+  it('ignores a malformed key', () => {
+    expect([...knownProjectKeys([], [{ issue_key: '-3' }, { issue_key: 'X' }])]).toEqual([])
   })
 })

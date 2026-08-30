@@ -432,8 +432,13 @@ export function renderCommandBody(
  * paragraphs of unmarked text, so anything else (marks, tables, media, …)
  * would be silently destroyed without isSimpleAdf. */
 
-/** Node types a plain-text PUT preserves (paragraphs, text, hard breaks). */
-const SIMPLE_ADF_TYPES = new Set(['doc', 'paragraph', 'text', 'hardBreak'])
+/**
+ * Node types a plain-text PUT preserves (paragraphs, text, hard breaks, code
+ * blocks). codeBlock is here because a markdown fence round-trips since
+ * GDK-1178: the seed below re-emits the fence and the server's jira.Doc turns
+ * it back into a codeBlock. Mirror of internal/adf.simpleTypes.
+ */
+const SIMPLE_ADF_TYPES = new Set(['doc', 'paragraph', 'text', 'hardBreak', 'codeBlock'])
 
 /** Block nodes that end a line in PlainText. Copied from internal/adf.blockNode. */
 const BLOCK_ADF_TYPES = new Set([
@@ -452,7 +457,8 @@ const BLOCK_ADF_TYPES = new Set([
 ])
 
 /**
- * True when `node` is only doc / paragraph / text / hardBreak, with no marks.
+ * True when `node` is only doc / paragraph / text / hardBreak / codeBlock,
+ * with no marks.
  * Null or missing is simple (an empty description is plain text).
  */
 export function isSimpleAdf(node: AdfNode | null | undefined): boolean {
@@ -472,8 +478,11 @@ function walkSimple(node: AdfNode): boolean {
 /**
  * Flatten ADF to plain text. Same rules as internal/adf.PlainText: text nodes
  * concatenate, hardBreak is a newline, mention/emoji keep attrs.text, listed
- * block types end a line. Callers use this as the textarea seed; a PUT then
- * re-wraps the string as paragraphs.
+ * block types end a line — with one addition PlainText does not make: a
+ * codeBlock is fenced back (GDK-1178), because this string is the textarea
+ * seed and the PUT re-parses it with the same fence rules the CLI uses. Drop
+ * the fences here and editing one word of a description would flatten every
+ * code block in it.
  */
 export function adfToPlainText(node: AdfNode | null | undefined): string {
   if (!node) return ''
@@ -483,6 +492,13 @@ export function adfToPlainText(node: AdfNode | null | undefined): string {
 }
 
 function flattenAdf(node: AdfNode, out: string[]): void {
+  if (node.type === 'codeBlock') {
+    const lang = attrStr(node, 'language') ?? ''
+    const body: string[] = []
+    for (const child of node.content ?? []) flattenAdf(child, body)
+    out.push('```' + lang + '\n' + body.join('').replace(/\n$/, '') + '\n```\n')
+    return
+  }
   switch (node.type) {
     case 'text':
       if (typeof node.text === 'string') out.push(node.text)

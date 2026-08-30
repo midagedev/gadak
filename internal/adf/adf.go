@@ -80,12 +80,15 @@ type simpleNode struct {
 }
 
 // simpleTypes is the node-type set a plain-text round trip preserves. jira.Doc
-// over a plain body emits exactly doc / paragraph / text (edit -m passes no
-// mentions or media); hardBreak joins the set because it is visually a line
-// break, the ported original's call (web/src/lib/adf.ts SIMPLE_ADF_TYPES).
+// over a plain body emits exactly doc / paragraph / text / codeBlock (edit -m
+// passes no mentions or media); hardBreak joins the set because it is visually
+// a line break, the ported original's call (web/src/lib/adf.ts
+// SIMPLE_ADF_TYPES). codeBlock joins it because a markdown fence round-trips
+// through jira.Doc since GDK-1178 — without it the second `edit -m` on an
+// issue would refuse the code block the first one wrote.
 // walkSimple and FormatLoss share this one owner so the two cannot drift.
 var simpleTypes = map[string]bool{
-	"doc": true, "paragraph": true, "text": true, "hardBreak": true,
+	"doc": true, "paragraph": true, "text": true, "hardBreak": true, "codeBlock": true,
 }
 
 // IsSimple is the Go port of web/src/lib/adf.ts isSimpleAdf: empty/null is

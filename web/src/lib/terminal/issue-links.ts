@@ -53,3 +53,27 @@ export function findIssueKeyMatches(
   }
   return out
 }
+
+/**
+ * The project keys this workspace can offer links for: the mirror's own
+ * `projects` setting when an install narrows it, otherwise the distinct
+ * project halves of the keys already in the pool.
+ *
+ * GDK-1177: the fallback used to read `source_project`, which is the
+ * *cloned-from* project (store/read.go), not the issue's own — null on every
+ * issue that was not cloned, so a standalone workspace (which also leaves
+ * `projects` empty, meaning "mirror everything") offered no links at all.
+ * The issue's own key is the thing the mirror actually covers.
+ */
+export function knownProjectKeys(
+  configured: Iterable<string> | undefined,
+  issues: Iterable<{ issue_key: string }>,
+): Set<string> {
+  const keys = new Set<string>(configured ?? [])
+  if (keys.size > 0) return keys
+  for (const issue of issues) {
+    const i = issue.issue_key.lastIndexOf('-')
+    if (i > 0) keys.add(issue.issue_key.slice(0, i))
+  }
+  return keys
+}
