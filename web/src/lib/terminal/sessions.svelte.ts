@@ -19,6 +19,7 @@
  */
 
 import { terminalBase } from './session'
+import { terminalChrome } from './pane.svelte'
 import type { TerminalSessionInfo } from './strip'
 
 /** How often the roster refreshes while the pane is open. Fast enough that
@@ -118,6 +119,22 @@ class TerminalSessions {
 }
 
 export const terminalSessions = new TerminalSessions()
+
+/**
+ * Show the shell bound to an issue (GDK-1196/GDK-1197).
+ *
+ * The one channel every "enter this issue's session" affordance goes through
+ * — the palette row and the board card both call this, and neither invents
+ * state: select() is already the sole owner of which session the pane holds,
+ * toggle() the sole owner of whether it is open. Unlike the body's ▶ this
+ * re-targets an already-open pane on purpose: being shown that session *is*
+ * the whole request here, and select() only changes what is visible — it
+ * detaches nothing.
+ */
+export function enterShell(id: string): void {
+  terminalSessions.select(id)
+  if (!terminalChrome.open) terminalChrome.toggle()
+}
 
 if (typeof window !== 'undefined') {
   ;(window as unknown as { __gadakTermSessions?: () => unknown }).__gadakTermSessions = () =>

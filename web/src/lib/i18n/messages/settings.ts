@@ -1386,6 +1386,13 @@ export const settings = {
     ko: '전체 검색 ({shortcut})',
     ja: 'すべてを検索 ({shortcut})',
   },
+  // Sub line of the session row the palette puts under a matched issue
+  // (GDK-1196). The label is the issue key; this says what the row does.
+  'palette.openShell': {
+    en: 'Open this issue’s shell',
+    ko: '이 이슈의 셸 열기',
+    ja: 'この課題のシェルを開く',
+  },
   'palette.sectionIssues': {
     en: 'Issues',
     ko: '이슈',

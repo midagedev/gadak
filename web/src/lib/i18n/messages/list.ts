@@ -645,6 +645,12 @@ export const list = {
     ko: '비어 있음',
     ja: '何もありません',
   },
+  // The card's way into the shell already on this issue (GDK-1197).
+  'board.openShell': {
+    en: 'Open this shell',
+    ko: '이 셸 열기',
+    ja: 'このシェルを開く',
+  },
   'board.shellNeeds': {
     en: 'This shell is waiting for you',
     ko: '이 셸이 기다리고 있습니다',

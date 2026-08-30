@@ -19,8 +19,12 @@
   import { issues } from '../../stores/issues.svelte'
   import { selection } from '../../stores/selection.svelte'
   import { prefetchDetail } from '../../lib/detail-cache.svelte'
+  import { shellForIssue } from '../../lib/issue-shells'
+  import { shells } from '../../lib/issue-shells.svelte'
+  import { enterShell } from '../../lib/terminal/sessions.svelte'
   import PriorityIcon from '../list/PriorityIcon.svelte'
   import Avatar from '../list/Avatar.svelte'
+  import Icon from '../ui/Icon.svelte'
 
   let {
     issue,
@@ -52,6 +56,16 @@
           ? 'var(--color-border-strong)'
           : null,
   )
+  /* GDK-1197 — the card's way *into* that shell.
+   *
+   * The edge is 3px of decoration and stays that way: it is too thin to aim
+   * at, and making a mark clickable teaches nothing on the way past. This is
+   * the session behind it, resolved with the same lookup the body's ▶ uses so
+   * the two can never disagree. Gated on `edge` as well, which keeps it off a
+   * ghost — the card that draws nothing because its session is about to be
+   * reaped is not one to offer a way into. */
+  const session = $derived(edge ? shellForIssue(shells.sessions, issue.issue_key) : null)
+
   const shellTitle = $derived(
     shell === 'needs'
       ? t('board.shellNeeds')
@@ -68,7 +82,7 @@
   data-testid="board-card"
   data-board-key={issue.issue_key}
   data-shell={shell ?? undefined}
-  class="board-card relative w-full flex-none overflow-hidden rounded-md border px-2.5 py-2 text-left
+  class="board-card group relative w-full flex-none overflow-hidden rounded-md border px-2.5 py-2 text-left
     transition-colors duration-150
     {active
       ? 'border-accent bg-bg-active'
@@ -90,6 +104,34 @@
     <span class="min-w-0 flex-1 truncate font-mono text-micro text-text-secondary">
       {issue.issue_key}
     </span>
+    {#if session}
+      <!-- A <button> here would be a button inside the card's own <button>
+           (invalid DOM, and Firefox drops the inner one), so this carries the
+           role and the keys itself. Both handlers stop propagation: entering a
+           shell is not selecting the card. -->
+      <span
+        role="button"
+        tabindex="0"
+        data-testid="board-card-shell-enter"
+        title={t('board.openShell')}
+        aria-label={t('board.openShell')}
+        class="flex h-4 w-4 flex-none items-center justify-center rounded opacity-0 transition-opacity
+          hover:bg-bg-hover focus-visible:opacity-100 group-hover:opacity-100"
+        style:color={edge ?? undefined}
+        onclick={(e) => {
+          e.stopPropagation()
+          enterShell(session.id)
+        }}
+        onkeydown={(e) => {
+          if (e.key !== 'Enter' && e.key !== ' ') return
+          e.preventDefault()
+          e.stopPropagation()
+          enterShell(session.id)
+        }}
+      >
+        <Icon name="terminal" size={12} />
+      </span>
+    {/if}
     {#if shell === 'needs'}
       <!-- The one state that is a request rather than a description, so it
            gets the only thing on the card that is allowed to be a signal. -->

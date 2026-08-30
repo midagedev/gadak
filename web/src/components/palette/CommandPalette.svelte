@@ -47,6 +47,9 @@
   import { triage } from '../../stores/triage.svelte'
   import { pages } from '../../stores/pages.svelte'
   import { terminalChrome } from '../../lib/terminal/pane.svelte'
+  import { enterShell } from '../../lib/terminal/sessions.svelte'
+  import { shellForIssue } from '../../lib/issue-shells'
+  import { shells } from '../../lib/issue-shells.svelte'
   import { views } from '../../stores/views.svelte'
   import { write } from '../../stores/write.svelte'
   import { favorites } from '../../stores/favorites.svelte'
@@ -125,7 +128,13 @@
 
   onMount(() => {
     inputEl?.focus()
-    return () => unifiedSession.cancel()
+    // The session table is polled only while a surface that draws it is
+    // mounted (issue-shells.svelte); the shell rows below are one.
+    const untrack = shells.track()
+    return () => {
+      untrack()
+      unifiedSession.cancel()
+    }
   })
 
   const raw = $derived(query.trim())
@@ -213,6 +222,40 @@
       : formatNumber(docMatches.length),
   )
 
+  /**
+   * GDK-1196 — the way into an issue's shell, from the palette.
+   *
+   * A row of its own rather than a hidden ⌘Enter on the issue row: this is
+   * the product's claim (a shell belongs to an issue) and a shortcut nobody
+   * can see does not teach it. It sits *under* the issue it belongs to and
+   * inside the same section, so the plain jump keeps the pre-selected Enter
+   * it has always had — pressing Enter on a key still opens the issue.
+   *
+   * Only a live binding produces one; `shellForIssue` is the same lookup the
+   * body's ▶ uses, so the two affordances can never disagree.
+   */
+  function shellRow(key: string, section: Section): Item | null {
+    const session = shellForIssue(shells.sessions, key)
+    if (!session) return null
+    return {
+      id: `s:${key}`,
+      section,
+      label: key,
+      mono: true,
+      icon: 'terminal',
+      sub: t('palette.openShell'),
+      testid: 'palette-shell-row',
+      run: () => enterShell(session.id),
+    }
+  }
+
+  function withShellRows(list: Item[]): Item[] {
+    return list.flatMap((item) => {
+      const row = item.id.startsWith('i:') ? shellRow(item.id.slice(2), item.section) : null
+      return row ? [item, row] : [item]
+    })
+  }
+
   const issueItems = $derived.by<Item[]>(() => {
     // Empty input = recently opened issues and documents, in visit order.
     if (!needle) {
@@ -227,7 +270,7 @@
         }
         if (out.length >= HOME_LIMIT) break
       }
-      return out
+      return withShellRows(out)
     }
     const f = emptyFilters()
     f.q = raw
@@ -239,9 +282,11 @@
       myAccountId: me.accountId,
       recentKeys: new Set(me.recentIssues.map((v) => v.key)),
     }
-    return sortIssues(filterIssues(issues.allIssues, f), 'relevance', 'desc', ctx)
-      .slice(0, 8)
-      .map((issue) => issueItem(issue))
+    return withShellRows(
+      sortIssues(filterIssues(issues.allIssues, f), 'relevance', 'desc', ctx)
+        .slice(0, 8)
+        .map((issue) => issueItem(issue)),
+    )
   })
 
   /**
