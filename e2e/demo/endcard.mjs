@@ -39,7 +39,7 @@ const html = `<!doctype html><meta charset="utf-8"><style>
 <div class="url">github.com/midagedev/gadak</div>`
 
 const b = await chromium.launch()
-const page = await b.newPage({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1 })
+const page = await b.newPage({ viewport: { width: 1920, height: 1296 }, deviceScaleFactor: 1 })
 await page.setContent(html)
 await page.waitForTimeout(300)
 await page.screenshot({ path: out })

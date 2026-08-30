@@ -33,16 +33,37 @@ import { expect, type Locator, type Page } from '@playwright/test'
 export const BOARD_ROUTE = '/#/?sc=new,inprogress,done&g=status_category&ly=board'
 
 /**
+ * Where the film opens: the same view, as a list. Identical query but for the
+ * missing `ly`, so the toggle click the first beat films changes exactly one
+ * thing — the gesture is the argument, and a gesture that also swapped the
+ * filter or the grouping would be arguing something else. (board.spec.ts
+ * pins that the toggle preserves the rest.)
+ */
+export const LIST_ROUTE = '/#/?sc=new,inprogress,done&g=status_category'
+
+/** The list ⇄ board segmented control, and the list itself. */
+export function layoutBoardButton(page: Page): Locator {
+  return page.getByTestId('layout-board')
+}
+
+export async function listReady(page: Page): Promise<void> {
+  await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 30_000 })
+  // The list has no row testid; `data-issue-key` is the row's own handle
+  // (IssueRow.svelte:315) and is what board.spec.ts's siblings key on too.
+  await expect(page.locator('[data-issue-key]').first()).toBeVisible({ timeout: 30_000 })
+}
+
+/**
  * Dock height (GDK-1194 — the pane is a bottom dock, so the number the film
  * seeds is a height now; the old 648px width is gone with the side pane).
- * ~340px inside the 828px frame leaves the board its three rows of cards and
- * still gives the shell a dozen lines, and the dock spans the whole content
- * width so nothing it prints wraps.
- *
- * The film framing itself has not been re-cut for the dock — that is a
- * capture round, not this change.
+ * The frame grew 20% taller (828 → 994) so the scrollback would read, and the
+ * dock takes most of that: 460px leaves the board 534px of content — more than
+ * the 488 it had at 828/340 — so the cards did not pay for the shell's extra
+ * eight lines. Both halves are checked on a still before a live take; the
+ * clamp that could silently cut this is TERMINAL_MAX_HEIGHT_RATIO 0.7
+ * (lib/terminal/layout.ts), i.e. 695px here, so 460 lands whole.
  */
-export const PANE_HEIGHT = '340'
+export const PANE_HEIGHT = '460'
 
 /** The board is ready to be filmed. */
 export async function boardReady(page: Page): Promise<void> {

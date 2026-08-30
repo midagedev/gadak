@@ -144,6 +144,8 @@ t0 = marks["start"]
 # moving / as ⌘K is pressed, so the still that shows the affordance itself —
 # the revealed glyph, the palette's shell row — is a second and a bit later.
 names = [
+    ("list_hold", "0-list.png", 0.6),
+    ("board_on", "0b-board.png", 0.4),
     ("chaos", "1-chaos.png", 0.0),
     ("a_enter", "2-card-glyph.png", 0.8),
     ("a_replay", "3-recover-a.png", 0.0),

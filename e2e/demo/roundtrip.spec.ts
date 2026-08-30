@@ -86,17 +86,15 @@ import { test, expect, type Page } from '@playwright/test'
 import { appendFileSync, rmSync, writeFileSync } from 'node:fs'
 import { forceLocale, readTerm } from '../helpers'
 import {
-  BOARD_ROUTE,
+  LIST_ROUTE,
   PANE_HEIGHT,
   boardReady,
-  card,
   cardAboveDock,
   cardShellEnter,
   categoryOf,
-  columnOf,
-  movedByOther,
+  layoutBoardButton,
+  listReady,
   paletteShellRow,
-  revealDone,
   sessionTab,
   sessionTabNames,
   tabsBelowFold,
@@ -323,8 +321,13 @@ test.describe('roundtrip demo', () => {
     // these".
 
     if (PROOF) mark('start')
-    await page.goto(BOARD_ROUTE)
-    await boardReady(page)
+    // The set-up runs on the LIST, because that is where the film opens
+    // (maker's call): a flat roster of work, the dock already holding four
+    // shells, and then one click stands the same issues up as a board. Going
+    // straight to `ly=board` would make that click a re-render of what was
+    // already there.
+    await page.goto(LIST_ROUTE)
+    await listReady(page)
 
     await page.keyboard.press('ControlOrMeta+k')
     const palette = page.getByRole('dialog', { name: 'Command palette' })
@@ -418,23 +421,38 @@ test.describe('roundtrip demo', () => {
     // nobody chose, which is what made the chaos beat unfilmable.
     const offscreen = await tabsBelowFold(page)
     expect(offscreen, 'strip rows below the fold').toBe(0)
-    // Recovery A points at a card, so that card has to be in frame — and the
-    // scroll that puts it there happens HERE, before the first frame of the
-    // cut. In Progress holds all four claimed issues and the column body
-    // scrolls; a card nudged into view mid-beat is a camera move nobody asked
-    // for, and a card still under the dock is a beat with no visible cause.
+    // ── OPENING: the list, then the board ────────────────────────────────
+    // The first thing on camera is the work as a list — the shape a tracker is
+    // usually read in — held long enough to be read, and then one click on the
+    // layout toggle stands the same issues up in three columns. The gesture is
+    // the argument, so this is the control on screen and not a URL with
+    // `ly=board` in it: a hash jump would be a hard cut between two views
+    // nobody connected.
+    mark('list_hold')
+    await beat(page, 1400)
+    await layoutBoardButton(page).click()
+    await boardReady(page)
+    mark('board_on')
+    await beat(page, 500)
+    // Recovery A points at a card, so that card has to be in frame. This used
+    // to sit before the first frame; the opening now starts a view earlier, so
+    // the scroll is inside the cut and is deliberately INSTANT — a smooth
+    // scroll a beat after the whole screen re-laid out reads as a second,
+    // unexplained camera move, while a single-frame settle reads as part of
+    // the layout landing.
+    //
     // `scrollIntoViewIfNeeded` is not enough: the dock is drawn over the board
     // rather than inside the column's scroll container, so a card the column
-    // considers perfectly visible can still be behind the dock (measured —
-    // the take below failed its own cardAboveDock gate on exactly that).
-    // Pulling the card to the top of its column puts it in the open half.
+    // considers perfectly visible can still be behind the dock (measured — a
+    // take failed its own cardAboveDock gate on exactly that). Pulling the card
+    // to the top of its column puts it in the open half.
     await page.evaluate((k) => {
       document
         .querySelector<HTMLElement>(`[data-board-key="${k}"]`)
-        ?.scrollIntoView({ block: 'start' })
+        ?.scrollIntoView({ block: 'start', behavior: 'instant' as ScrollBehavior })
     }, CREW[0].key)
     await beat(page, 600)
-    await beat(page, 1800)
+    await beat(page, 1000)
     mark('chaos')
     await beat(page, 1800)
 

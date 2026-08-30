@@ -42,7 +42,7 @@ command -v ffmpeg >/dev/null || { echo "cut-roundtrip: ffmpeg required" >&2; exi
 [[ -f "$TAKE" ]] || { echo "cut-roundtrip: no take at $TAKE" >&2; exit 1; }
 [[ -f "$PROOF" ]] || { echo "cut-roundtrip: no proof marks at $PROOF" >&2; exit 1; }
 
-W=1920 H=1080 FPS=30
+W=1920 H=1296 FPS=30
 BG=0x0e0d0c   # the take's own panel black, so any pillarbox is invisible
 
 # ── Clock alignment ────────────────────────────────────────────────────────
@@ -58,11 +58,14 @@ at() { python3 "$ROOT/e2e/demo/rt-marks.py" at "$PROOF" "$1" "${2:-0}" "$LEAD"; 
 # own segment — when the kanban board lands (GDK-761) it is filmed against the
 # board and swapped in here, and nothing else in this file changes.
 #
-# X: the chaos. Four shells, four issue keys, four cards wearing a shell edge
-#    — and only one scrollback visible. The premise: work was left in all of
-#    them and nobody remembers which. It runs from just before the `chaos`
-#    hold straight into the first gesture, so X and Y share no frames.
-X_IN="$(at chaos -0.9)"         X_OUT="$(at a_enter -0.4)"
+# X: the opening AND the chaos, in one unbroken take — the list-to-board
+#    transition only argues anything if no cut sits between the click and the
+#    columns. It runs from just before the list hold, through the toggle, into
+#    the chaos hold (four shells, four issue keys, four cards wearing a shell
+#    edge, one scrollback visible: work was left in all of them and nobody
+#    remembers which) and straight on to the first gesture, so X and Y share no
+#    frames.
+X_IN="$(at list_hold -0.2)"     X_OUT="$(at a_enter -0.4)"
 # Y: recovery A, from the board card. In at `a_enter` — NOT at a_replay, which
 #    fires after the session is already selected: the hover and the glyph are
 #    the reason this cut exists, and anchoring on the replay put them off
@@ -119,11 +122,16 @@ ffprobe -v error -select_streams v:0 -show_entries stream=width,height \
   -show_entries format=duration,size -of default=nw=1 "$OUT"
 
 # The poster is the frame the clip is judged by before anyone presses play, so
-# it is not frame 0. It is the money shot's own hold: the command has run, the
-# card is in In progress, the strip row says the issue key. Derived from the
-# segment lengths so a retime cannot leave it pointing at the wrong beat.
-POSTER_AT="${GADAK_RT_POSTER:-$(awk -v a="$X_OUT" -v b="$X_IN" \
-  'BEGIN{print (a-b)*0.75}')}"
+# it is not frame 0, and it is not inside X either. X now opens on the list and
+# holds the chaos, where every shell is mid-thought: a poster taken there caught
+# a live model saying "this directory doesn't look like it contains an actual
+# checkout/payment codebase" — an honest sentence three seconds into an
+# investigation, and a terrible thumbnail. The frame worth being judged on is
+# the END of recovery A: a card, and directly beneath it that card's shell with
+# a finished reading of the bug in it. Derived from the segment lengths so a
+# retime cannot leave it pointing at the wrong beat.
+POSTER_AT="${GADAK_RT_POSTER:-$(awk -v x1="$X_IN" -v x2="$X_OUT" -v y1="$Y_IN" -v y2="$Y_OUT" \
+  'BEGIN{print (x2-x1) + (y2-y1)*0.92}')}"
 poster="${OUT%.mp4}-poster.png"
 ffmpeg -v error -y -ss "$POSTER_AT" -i "$OUT" -frames:v 1 "$poster"
 echo "cut-roundtrip: poster at ${poster} (t=${POSTER_AT}s)"

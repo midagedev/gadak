@@ -6,13 +6,16 @@ import { defineConfig, devices } from '@playwright/test'
  * board in the same breath, the issue's body hands a command back to that
  * shell, and `gadak close` lands the card in Done.
  *
- * Why 1472×828. The frame this feeds is 1920×1080, and 1472×828 is exactly
- * 16:9 at 1.304× of it — the capture fills the delivery frame
- * with no bars and no crop, so nothing is enlarged in post. That ratio is the
- * whole readability fix from the v0.19 post-mortem (release-video.md): the
+ * Why 1472×994. The frame this feeds is 1920×1296, and 1472×994 is that frame
+ * at 1.304× — the capture fills the delivery frame with no bars and no crop,
+ * so nothing is enlarged in post. The scale factor is what matters, not 16:9:
+ * the frame is 20% taller than the 828/1080 pair it replaces (maker's call —
+ * a taller frame gives the dock more scrollback, and a vertical crop is
+ * allowed on the feed this ships to). That scale is the whole readability fix
+ * from the v0.19 post-mortem (release-video.md): the
  * hero's 1440×900 could only scale by 1.2 before it ran out of frame width, and
  * a row of body text landed at 1.1% of frame height. Measured here: the detail
- * body's 21.06px line becomes 28px at 1080 (2.6%), and the terminal's own text
+ * body's 21.06px line becomes 28px in the delivered frame (2.2%), and the terminal's own text
  * — the line the film is about — is raised to 19px by the fixture
  * (`ui.tokens.type.--text-terminal`, a shipped setting, not a camera trick),
  * landing at 30px, above the 28px the body line reaches.
@@ -54,9 +57,9 @@ export default defineConfig({
     baseURL: `http://127.0.0.1:${PORT}`,
     locale: 'en-US',
     colorScheme: (process.env.GADAK_RT_SCHEME as 'light' | 'dark') || 'light',
-    viewport: { width: 1472, height: 828 },
+    viewport: { width: 1472, height: 994 },
     deviceScaleFactor: 2,
-    video: { mode: 'on', size: { width: 1472, height: 828 } },
+    video: { mode: 'on', size: { width: 1472, height: 994 } },
     launchOptions: { slowMo: 0 },
     actionTimeout: 30_000,
     navigationTimeout: 60_000,
@@ -68,7 +71,7 @@ export default defineConfig({
       use: {
         ...devices['Desktop Chrome'],
         colorScheme: (process.env.GADAK_RT_SCHEME as 'light' | 'dark') || 'light',
-        viewport: { width: 1472, height: 828 },
+        viewport: { width: 1472, height: 994 },
         deviceScaleFactor: 2,
       },
     },
