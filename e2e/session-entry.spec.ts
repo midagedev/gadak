@@ -46,7 +46,12 @@ test.describe('entering an issue’s session', () => {
     await page.getByTestId('terminal-new').click()
     await expect(stripRow(page, boundId)).toHaveAttribute('data-selected', 'false')
 
-    await page.keyboard.press('ControlOrMeta+k')
+    // Focus sits in the xterm textarea after the clicks above, and inside a
+    // terminal Ctrl+K belongs to the shell (kill-line) — on Linux xterm
+    // feeds it to the PTY and the palette never opens (CI run 33339818811;
+    // macOS's ⌘K masked this locally). Enter through the visible door the
+    // toolbar offers instead, which is also the gesture being filmed.
+    await page.getByTestId('palette-open').click()
     const palette = page.getByRole('dialog', { name: 'Command palette' })
     await expect(palette).toBeVisible()
     await page.keyboard.type(BOUND_ISSUE, { delay: 20 })
