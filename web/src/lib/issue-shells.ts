@@ -27,12 +27,17 @@
 import type { IssueLite } from './types'
 import { categoryFallbackSeen, effectiveCategory, type StatusCategory } from './view-config'
 import { terminalBase } from './terminal/session'
+import { sessionState, type TerminalSessionInfo, type TerminalSessionState } from './terminal/strip'
 
-/** The subset of `term.Info` this join reads (GET terminal/sessions/). */
-export interface ShellSession {
-  id: string
-  /** Set by `gadak claim` in that pane's shell; absent when unbound. */
-  issue_key?: string
+/**
+ * The subset of `term.Info` this join reads (GET terminal/sessions/).
+ *
+ * It extends the strip's row shape rather than restating three fields,
+ * because the board draws the strip's four states on its cards and a second
+ * hand-written subset is how the two surfaces drift apart. `fetchShellSessions`
+ * keeps whatever the wire sent, so the extra fields are really there.
+ */
+export interface ShellSession extends TerminalSessionInfo {
   /** A session whose shell has ended is still listed until it is reaped. */
   exited?: boolean
 }
@@ -115,6 +120,22 @@ export function shouldMarkUnattended(
 ): boolean {
   if (liveSessions(sessions).length === 0) return false
   return isUnattendedInProgress(issue, sessions)
+}
+
+/**
+ * The four states of the shell on `key`, or null when no live shell is on it.
+ *
+ * The whole join is free: a session is named by the issue it was claimed for
+ * (GDK-1158), so a card knows its shell without asking for anything the
+ * terminal strip was not already polling.
+ */
+export function shellStateForIssue(
+  sessions: readonly ShellSession[],
+  key: string | null | undefined,
+  nowMs: number,
+): TerminalSessionState | null {
+  const s = shellForIssue(sessions, key)
+  return s ? sessionState(s, nowMs) : null
 }
 
 /** Sibling of createSession()'s URL builder, for the two calls below. */

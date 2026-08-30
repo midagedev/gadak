@@ -619,4 +619,45 @@ export const list = {
     ko: '{key}에 코멘트',
     ja: '{key} にコメント',
   },
+  /* ── Board layout (GDK-1175) ── */
+  'board.label': {
+    en: 'Board',
+    ko: '보드',
+    ja: 'ボード',
+  },
+  'board.layout': {
+    en: 'Layout',
+    ko: '레이아웃',
+    ja: 'レイアウト',
+  },
+  'board.asList': {
+    en: 'List',
+    ko: '리스트',
+    ja: 'リスト',
+  },
+  'board.asBoard': {
+    en: 'Board',
+    ko: '보드',
+    ja: 'ボード',
+  },
+  'board.columnEmpty': {
+    en: 'Nothing here',
+    ko: '비어 있음',
+    ja: '何もありません',
+  },
+  'board.shellNeeds': {
+    en: 'This shell is waiting for you',
+    ko: '이 셸이 기다리고 있습니다',
+    ja: 'このシェルが待っています',
+  },
+  'board.shellRunning': {
+    en: 'A shell is printing on this issue',
+    ko: '이 이슈의 셸이 출력 중입니다',
+    ja: 'この課題のシェルが出力中です',
+  },
+  'board.shellQuiet': {
+    en: 'A shell is attached to this issue',
+    ko: '이 이슈에 셸이 붙어 있습니다',
+    ja: 'この課題にシェルが接続中です',
+  },
 } as const satisfies Record<string, Message>

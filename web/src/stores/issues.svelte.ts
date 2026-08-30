@@ -20,6 +20,7 @@ import * as db from '../lib/db'
 import { applyCacheScopeDebug, isHostedDemo } from '../lib/config'
 import { invalidate, invalidateAll } from '../lib/detail-cache.svelte'
 import { reachability } from '../lib/reachability.svelte'
+import { externalMoves, movedExternally } from '../lib/board-moves.svelte'
 import type { CacheMeta } from '../lib/types'
 
 const POLL_MS = 15_000
@@ -308,10 +309,17 @@ class IssuesStore {
     syncHealth?: SyncHealth,
     membersVersion?: string,
   ): Promise<void> {
+    // A delta is the only door a change this tab did not make comes through
+    // — bootstrap fills an empty pool, and this tab's own writes are already
+    // in it. So the diff here is exactly "somebody else moved this card"
+    // (board-moves.svelte.ts), and the board animates on that and nothing else.
+    const moved: string[] = []
     for (const it of upserted) {
+      if (movedExternally(this.pool.get(it.issue_key), it)) moved.push(it.issue_key)
       this.pool.set(it.issue_key, it)
       invalidate(it.issue_key)
     }
+    externalMoves.note(moved)
     for (const key of deletedKeys) {
       this.pool.delete(key)
       invalidate(key)

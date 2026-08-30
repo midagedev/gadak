@@ -1265,10 +1265,63 @@
     }
   }
 
+  /*
+    Board (GDK-1175). Two marks, both earned:
+
+    - `.board-shell-running` — the card's left edge breathes on the same
+      six-second window that decides `running` (terminal/strip.ts). Opacity
+      only, and slow: a card whose shell is printing should read as alive at
+      the edge of vision, never ask to be looked at.
+    - `[data-moved]` — a card that arrived here by somebody else's hand keeps
+      a ring for as long as it takes to notice, then loses it. The flight
+      itself is a Web Animation played in BoardView; this is only the
+      afterglow, so the two never fight over `transform`.
+  */
+  .board-shell-running {
+    animation: board-breathe 6s ease-in-out infinite;
+  }
+  @keyframes board-breathe {
+    0%,
+    100% {
+      opacity: 0.45;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+  .board-card[data-moved] {
+    animation: board-landed 1.2s ease-out forwards;
+  }
+  @keyframes board-landed {
+    from {
+      box-shadow: 0 0 0 2px var(--color-accent);
+    }
+    to {
+      box-shadow: 0 0 0 2px transparent;
+    }
+  }
+  /* The chip says whose hand it was; it brightens with the ring and settles. */
+  .board-card[data-moved] .board-actor {
+    animation: board-actor-lit 1.2s ease-out forwards;
+  }
+  @keyframes board-actor-lit {
+    from {
+      color: var(--color-accent-text);
+      background: var(--color-accent-subtle);
+    }
+    to {
+      color: var(--color-text-muted);
+      background: var(--color-bg-elevated);
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .anim-enter,
     .anim-pop,
-    .anim-toast {
+    .anim-toast,
+    .board-shell-running,
+    .board-card[data-moved],
+    .board-card[data-moved] .board-actor {
       animation: none;
     }
     .issue-detail-panel {

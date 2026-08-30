@@ -43,6 +43,7 @@ import {
   type NormalizedKeys,
   type ColumnKey,
   type GroupBy,
+  type Layout,
   type MultiField,
   type NegationField,
   type RangeField,
@@ -436,6 +437,13 @@ class FiltersStore {
   setGroupBy(g: GroupBy): void {
     const c = this.snapshot()
     c.display.group_by = g
+    this.#apply(c)
+  }
+
+  /** Switch the reading of this view (list ⇄ board). */
+  setLayout(l: Layout): void {
+    const c = this.snapshot()
+    c.display.layout = l
     this.#apply(c)
   }
 

@@ -22,6 +22,8 @@
   import BulkBar from './BulkBar.svelte'
   import BreakdownBar from './BreakdownBar.svelte'
   import IssueList from './IssueList.svelte'
+  import LayoutToggle from './LayoutToggle.svelte'
+  import BoardView from '../board/BoardView.svelte'
   import IssueRow from './IssueRow.svelte'
   import MatchLine from './MatchLine.svelte'
   import SearchSection from './SearchSection.svelte'
@@ -103,10 +105,12 @@
     <div class="mb-2.5 flex flex-wrap items-center gap-2.5">
       {#if desktop}
         <div class="desktop-no-drag min-w-[260px] flex-1"><SearchBox /></div>
+        <div class="desktop-no-drag"><LayoutToggle /></div>
         <div class="desktop-no-drag"><ColumnsMenu /></div>
         <div class="desktop-no-drag"><DisplayMenu /></div>
       {:else}
         <div class="min-w-[260px] flex-1"><SearchBox /></div>
+        <LayoutToggle />
         <ColumnsMenu />
         <DisplayMenu />
       {/if}
@@ -262,7 +266,11 @@
             onAction={() => retryListLoad(reset)}
           />
         {/snippet}
-        <IssueList />
+        {#if filters.display.layout === 'board'}
+          <BoardView />
+        {:else}
+          <IssueList />
+        {/if}
       </svelte:boundary>
     {/if}
   </div>

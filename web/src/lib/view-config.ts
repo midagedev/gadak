@@ -132,6 +132,15 @@ export const GROUP_BY_VALUES = [
 ] as const
 export type GroupBy = (typeof GROUP_BY_VALUES)[number]
 
+/*
+ * Layout is the second reading of one view (GDK-1175): the same filtered,
+ * sorted, grouped issues, laid down the page or across it. It rides the view
+ * grammar rather than a place param because it describes the view — a saved
+ * view that says "board" opens as a board for whoever opens it.
+ */
+export const LAYOUT_VALUES = ['list', 'board'] as const
+export type Layout = (typeof LAYOUT_VALUES)[number]
+
 // 'relevance' = rank by search relevance when a query is present. Auto-promoted from
 // the default sort (updated); only serialized into the URL when explicitly chosen
 // (older URLs do not know relevance — keep backward compatible).
@@ -237,6 +246,8 @@ export function orderColumns(keys: readonly string[]): ColumnKey[] {
 }
 
 export interface ViewDisplay {
+  /** Down the page ('list') or across it ('board'). Default 'list'. */
+  layout: Layout
   group_by: GroupBy
   sort: SortKey
   dir: SortDir
@@ -440,6 +451,7 @@ export function emptyFilters(): ViewFilters {
 
 export function defaultDisplay(): ViewDisplay {
   return {
+    layout: 'list',
     group_by: 'status_category',
     sort: 'updated',
     dir: 'desc',
@@ -610,6 +622,7 @@ const GROUP_KEY = 'g'
 const SORT_KEY = 's'
 const DIR_KEY = 'd'
 const COLS_KEY = 'cl' // Comma-joined column list. All off = 'none'
+const LAYOUT_KEY = 'ly' // 'board'; omitted for the 'list' default
 const COLS_NONE = 'none'
 
 type StaticViewAlias =
@@ -622,6 +635,7 @@ type StaticViewAlias =
   | typeof SORT_KEY
   | typeof DIR_KEY
   | typeof COLS_KEY
+  | typeof LAYOUT_KEY
 
 /** Every param key involved in view serialization (stable viewKey; fixed order). */
 export const VIEW_PARAM_KEYS = [
@@ -634,6 +648,7 @@ export const VIEW_PARAM_KEYS = [
   SORT_KEY,
   DIR_KEY,
   COLS_KEY,
+  LAYOUT_KEY,
 ] as const satisfies readonly StaticViewAlias[]
 
 export type ViewParamKey = (typeof VIEW_PARAM_KEYS)[number]
@@ -696,6 +711,8 @@ export function parseView(params: URLSearchParams): { config: ViewConfig; keys: 
   // emits `cl=` for unset keys too. All-off is only the explicit sentinel 'none'.
   const cl = params.get(COLS_KEY)
   if (cl) d.columns = cl === COLS_NONE ? [] : orderColumns(splitList(cl))
+  const ly = params.get(LAYOUT_KEY)
+  if (ly && isLayout(ly)) d.layout = ly
 
   return { config: { filters: f, display: d }, keys }
 }
@@ -708,6 +725,9 @@ export function parseConfig(params: URLSearchParams): ViewConfig {
 function isGroupBy(v: string): v is GroupBy {
   const hit = GROUP_BY_VALUES.find((g) => g === v)
   return hit !== undefined && groupByEnabled(hit)
+}
+function isLayout(v: string): v is Layout {
+  return (LAYOUT_VALUES as readonly string[]).includes(v)
 }
 function isSortKey(v: string): v is SortKey {
   return (SORT_KEY_VALUES as readonly string[]).includes(v)
@@ -762,6 +782,9 @@ export function configToParams(config: ViewConfig): Record<string, string | null
   const def = defaultColumns()
   const colsEqDefault = cols.length === def.length && cols.every((c, i) => c === def[i])
   out[COLS_KEY] = colsEqDefault ? null : cols.length ? cols.join(',') : COLS_NONE
+
+  // 'list' is the default reading, so only 'board' earns a param.
+  out[LAYOUT_KEY] = (d.layout ?? 'list') === 'list' ? null : d.layout
 
   return out
 }
