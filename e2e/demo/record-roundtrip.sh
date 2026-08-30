@@ -140,26 +140,31 @@ if "start" not in marks:
     sys.exit(f"proof has no 'start' mark — cannot time frames: {proof}")
 t0 = marks["start"]
 
+# (mark, filename, offset). The gesture marks fire as the pointer starts
+# moving / as ⌘K is pressed, so the still that shows the affordance itself —
+# the revealed glyph, the palette's shell row — is a second and a bit later.
 names = [
-    ("chaos", "1-chaos.png"),
-    ("a_replay", "2-recover-a.png"),
-    ("a_alive", "3-alive-a.png"),
-    ("b_replay", "4-recover-b.png"),
-    ("b_alive", "5-alive-b.png"),
-    ("end_frame", "6-end-frame.png"),
+    ("chaos", "1-chaos.png", 0.0),
+    ("a_enter", "2-card-glyph.png", 0.8),
+    ("a_replay", "3-recover-a.png", 0.0),
+    ("a_alive", "4-alive-a.png", 0.0),
+    ("b_enter", "5-palette.png", 1.2),
+    ("b_replay", "6-recover-b.png", 0.0),
+    ("b_alive", "7-alive-b.png", 0.0),
+    ("end_frame", "8-end-frame.png", 0.0),
 ]
 os.makedirs(frames_dir, exist_ok=True)
 dur = float(subprocess.run(
     ["ffprobe", "-v", "error", "-show_entries", "format=duration",
      "-of", "default=noprint_wrappers=1:nokey=1", video],
     capture_output=True, text=True, check=True).stdout.strip())
-for mark, out in names:
+for mark, out, off in names:
     if mark not in marks:
         # linkify is the one optional beat; anything else missing is a bug in
         # the take, so say which rather than dying on the first gap.
         print(f"frame {out}  SKIPPED (no '{mark}' mark)")
         continue
-    t = (marks[mark] - t0) / 1000.0 + lead
+    t = (marks[mark] - t0) / 1000.0 + lead + off
     t = max(0.0, min(t, dur - 0.25))
     dest = os.path.join(frames_dir, out)
     r = subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error",

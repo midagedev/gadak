@@ -58,16 +58,22 @@ at() { python3 "$ROOT/e2e/demo/rt-marks.py" at "$PROOF" "$1" "${2:-0}" "$LEAD"; 
 # own segment — when the kanban board lands (GDK-761) it is filmed against the
 # board and swapped in here, and nothing else in this file changes.
 #
-# X: the chaos. Five shells, five issue keys, five cards wearing a shell edge
+# X: the chaos. Four shells, four issue keys, four cards wearing a shell edge
 #    — and only one scrollback visible. The premise: work was left in all of
-#    them and nobody remembers which.
-X_IN="$(at chaos -1.8)"         X_OUT="$(at chaos 1.8)"
-# Y: recovery A. One click and that issue's shell is back with its scrollback,
-#    then a line typed into it — a replay you cannot type into is a screenshot.
-Y_IN="$(at a_replay -0.5)"      Y_OUT="$(at a_alive 0.5)"
-# Z: recovery B, straight after. Two in a row is what makes it a system rather
-#    than a trick, and the speed is the argument.
-Z_IN="$(at b_replay -0.4)"      Z_OUT="$(at end_frame 1.4)"
+#    them and nobody remembers which. It runs from just before the `chaos`
+#    hold straight into the first gesture, so X and Y share no frames.
+X_IN="$(at chaos -0.9)"         X_OUT="$(at a_enter -0.4)"
+# Y: recovery A, from the board card. In at `a_enter` — NOT at a_replay, which
+#    fires after the session is already selected: the hover and the glyph are
+#    the reason this cut exists, and anchoring on the replay put them off
+#    camera. Cause (card) and effect (dock) are one frame apart, vertically.
+Y_IN="$(at a_enter -0.4)"       Y_OUT="$(at a_alive 0)"
+# Z: recovery B, from ⌘K. Same rule: in on the gesture, not on its result. Two
+#    in a row by two different doors is what makes it a system rather than a
+#    trick.
+# a_alive and b_enter are the same instant (the read-hold ends and the next
+# gesture begins), so Y and Z join with no seam and no duplicated frames.
+Z_IN="$(at b_enter 0)"          Z_OUT="$(at end_frame 1.4)"
 
 SEGMENTS="X Y Z"
 

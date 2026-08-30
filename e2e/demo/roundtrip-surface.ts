@@ -123,11 +123,59 @@ export async function categoryOf(page: Page, key: string): Promise<string | null
  * row".
  */
 export function sessionTab(page: Page, key: string): Locator {
-  return page.getByTestId('terminal-strip-row').filter({ hasText: key }).first()
+  // Exact on the NAME, not `hasText` on the row. `hasText: 'STD-1'` is a
+  // substring match, so it also matches the STD-14 row — and `.first()` then
+  // hands back STD-14, since it is created earlier. Measured 2026-08-31: two
+  // takes came back with STD-1's investigation sitting inside STD-14's shell
+  // and STD-1 never selected at all, because every click meant for STD-1 had
+  // been landing on its longer-keyed neighbour.
+  return page.getByTestId('terminal-strip-row').filter({
+    has: page.getByTestId('terminal-strip-name').filter({ hasText: new RegExp(`^${key}$`) }),
+  })
 }
 
 export function sessionTabNames(page: Page): Promise<string[]> {
   return page.getByTestId('terminal-strip-name').allTextContents()
+}
+
+/**
+ * The two ways INTO an issue's session that are not the session strip itself
+ * (GDK-1196 / GDK-1197). The film's recovery beats use these because the
+ * argument is "I come back from the issue", not "I click a terminal tab":
+ * the card's hover-revealed glyph, and the ⌘K palette's shell row under the
+ * issue. Selectors are pinned by e2e/session-entry.spec.ts — that spec is the
+ * contract, this is the camera's handle on it.
+ */
+export function cardShellEnter(page: Page, key: string): Locator {
+  return page
+    .locator(`[data-testid="board-card"][data-board-key="${key}"]`)
+    .getByTestId('board-card-shell-enter')
+}
+
+export function paletteShellRow(page: Page): Locator {
+  return page.getByTestId('palette-shell-row')
+}
+
+/**
+ * True when the card is fully above the dock — the frame the recovery beat
+ * exists for is the card and *that card's shell* stacked in one image. A card
+ * scrolled under the dock (or out of the DOM entirely, see columnOf) makes the
+ * beat a terminal switch with no visible cause.
+ */
+export async function cardAboveDock(page: Page, key: string): Promise<string> {
+  return page.evaluate((k) => {
+    const c = document.querySelector<HTMLElement>(`[data-board-key="${k}"]`)
+    const dock = document.querySelector<HTMLElement>('[data-testid="terminal-pane"]')
+    if (!c) return 'card not rendered'
+    if (!dock) return 'dock not rendered'
+    const cb = c.getBoundingClientRect()
+    const db = dock.getBoundingClientRect()
+    // The geometry travels with the verdict: a bare false sends the next take
+    // out to measure what this one already knew.
+    return cb.bottom <= db.top + 1
+      ? 'ok'
+      : `card bottom ${Math.round(cb.bottom)} > dock top ${Math.round(db.top)}`
+  }, key)
 }
 
 /** How many session tabs are clipped out of view. The chaos beat needs 0 —

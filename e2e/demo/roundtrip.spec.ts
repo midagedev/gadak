@@ -90,9 +90,12 @@ import {
   PANE_HEIGHT,
   boardReady,
   card,
+  cardAboveDock,
+  cardShellEnter,
   categoryOf,
   columnOf,
   movedByOther,
+  paletteShellRow,
   revealDone,
   sessionTab,
   sessionTabNames,
@@ -235,6 +238,24 @@ async function clickTerminalKey(page: Page, key: string): Promise<boolean> {
   return true
 }
 
+/**
+ * Put the pane on a shell and prove it landed there before typing into it.
+ *
+ * The set-up tour types the moment it has clicked, and everything downstream —
+ * the boot poll, the question, the growth gate — then talks to whichever shell
+ * the pane is actually holding. A click that silently went somewhere else is
+ * therefore invisible until a frame comes back wrong (it did: two takes had
+ * STD-1's investigation inside STD-14's shell, sessionTab's substring match).
+ * Asserting the selection here is what makes that a red take instead of a
+ * reshoot.
+ */
+async function selectShell(page: Page, key: string): Promise<void> {
+  const tab = sessionTab(page, key)
+  await tab.click()
+  await expect(tab).toHaveAttribute('data-selected', 'true')
+  await page.waitForTimeout(400)
+}
+
 test.describe('roundtrip demo', () => {
   test.skip(!isMedia, 'GADAK_MEDIA=1 only — media pipeline recording')
 
@@ -348,7 +369,7 @@ test.describe('roundtrip demo', () => {
     // buffer reader only sees the ACTIVE session, so this is a tab tour; it
     // is all off camera, which is why it may take as long as it takes.
     for (const m of CREW) {
-      await sessionTab(page, m.key).click()
+      await selectShell(page, m.key)
       await expect
         .poll(async () => readTerm(page), { timeout: 180_000, intervals: [1000] })
         .toMatch(/Welcome to Claude Code|for shortcuts/i)
@@ -376,7 +397,7 @@ test.describe('roundtrip demo', () => {
     // how a rig starts rejecting good takes. Streaming and standing-finished
     // both pass, which is what the beat is allowed to show.
     for (const m of CREW) {
-      await sessionTab(page, m.key).click()
+      await selectShell(page, m.key)
       await expect
         .poll(async () => (await readTerm(page)).length, { timeout: 120_000, intervals: [1000] })
         .toBeGreaterThan(asked.get(m.key) ?? 0)
@@ -397,6 +418,22 @@ test.describe('roundtrip demo', () => {
     // nobody chose, which is what made the chaos beat unfilmable.
     const offscreen = await tabsBelowFold(page)
     expect(offscreen, 'strip rows below the fold').toBe(0)
+    // Recovery A points at a card, so that card has to be in frame — and the
+    // scroll that puts it there happens HERE, before the first frame of the
+    // cut. In Progress holds all four claimed issues and the column body
+    // scrolls; a card nudged into view mid-beat is a camera move nobody asked
+    // for, and a card still under the dock is a beat with no visible cause.
+    // `scrollIntoViewIfNeeded` is not enough: the dock is drawn over the board
+    // rather than inside the column's scroll container, so a card the column
+    // considers perfectly visible can still be behind the dock (measured —
+    // the take below failed its own cardAboveDock gate on exactly that).
+    // Pulling the card to the top of its column puts it in the open half.
+    await page.evaluate((k) => {
+      document
+        .querySelector<HTMLElement>(`[data-board-key="${k}"]`)
+        ?.scrollIntoView({ block: 'start' })
+    }, CREW[0].key)
+    await beat(page, 600)
     await beat(page, 1800)
     mark('chaos')
     await beat(page, 1800)
@@ -419,10 +456,16 @@ test.describe('roundtrip demo', () => {
     // one, the shell that came back is not empty, and what it holds is not
     // what the previous shell held. "A different session, with its own work
     // in it" is exactly the claim the beat makes.
+    //
+    // And the *entry* is the point of this cut. A recovery that starts on the
+    // terminal's own tab strip argues "the terminal remembers"; the film has
+    // to argue "the issue remembers", so both beats start from the work: a
+    // card on the board (GDK-1197) and the ⌘K palette (GDK-1196). Neither
+    // gesture is a chord — that is why they are filmable at all.
     const shown: string[] = []
-    const recover = async (key: string, tag: string) => {
+    const recover = async (key: string, tag: string, enter: () => Promise<void>) => {
       const tab = sessionTab(page, key)
-      await tab.click()
+      await enter()
       await expect(tab).toHaveAttribute('data-selected', 'true')
       await expect
         .poll(async () => {
@@ -437,13 +480,52 @@ test.describe('roundtrip demo', () => {
       await beat(page, 4200)
       mark(`${tag}_alive`)
     }
-    await recover(CREW[0].key, 'a')
+    // Entry A — the card. Hover reveals the shell glyph on the key line, one
+    // click lands in that issue's session, and the card stays unselected (the
+    // click belonged to the shell, not to the issue). The card and the dock
+    // are vertically adjacent, so both are in the same frame: cause on top,
+    // effect underneath.
+    expect(
+      await cardAboveDock(page, CREW[0].key),
+      `${CREW[0].key}'s card is not fully above the dock — the beat has no cause in frame`,
+    ).toBe('ok')
+    await recover(CREW[0].key, 'a', async () => {
+      const target = page.locator(`[data-board-key="${CREW[0].key}"]`)
+      const box = await target.boundingBox()
+      expect(box, 'the card is not in the DOM').toBeTruthy()
+      mark('a_enter')
+      // Travelled, not warped: hover() teleports the pointer and reads as a
+      // jump cut. The glyph is hover-revealed, so the pointer has to arrive
+      // and stay before there is anything to click.
+      await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2, { steps: 25 })
+      const glyph = cardShellEnter(page, CREW[0].key)
+      await expect(glyph).toBeVisible({ timeout: 10_000 })
+      await beat(page, 900)
+      await glyph.click()
+    })
+    // GDK-1186's self-opening panel would put a detail sheet over the board
+    // mid-beat. Cheaper to fail here than to find it in frame review.
+    await expect(page.getByTestId('issue-detail-panel')).not.toHaveClass(/is-open/)
 
     // ── RECOVERY B ───────────────────────────────────────────────────────
-    // Straight into another one, and a completely different investigation is
-    // sitting there. Two in a row is what makes it a system rather than a
-    // trick.
-    await recover(CREW[1].key, 'b')
+    // Straight into another one, from ⌘K this time: type the issue key, and
+    // under the issue itself sits its shell. A completely different
+    // investigation is waiting. Two in a row, by two different doors, is what
+    // makes it a system rather than a trick.
+    await recover(CREW[1].key, 'b', async () => {
+      mark('b_enter')
+      await page.keyboard.press('ControlOrMeta+k')
+      const palette = page.getByRole('dialog', { name: 'Command palette' })
+      await expect(palette).toBeVisible()
+      await page.keyboard.type(CREW[1].key, { delay: 60 })
+      const row = paletteShellRow(page)
+      await expect(row).toBeVisible({ timeout: 20_000 })
+      await expect(row).toContainText(CREW[1].key)
+      // The row is the beat — it has to be readable before it is taken.
+      await beat(page, 1100)
+      await row.click()
+      await expect(palette).toBeHidden()
+    })
     mark('end_frame')
     await beat(page, 2000)
     mark('end')
