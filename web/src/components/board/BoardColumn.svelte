@@ -32,7 +32,7 @@
 <section
   data-testid="board-column"
   data-board-column={group.key}
-  class="flex h-full w-[288px] flex-none flex-col border-r border-border-subtle/70 last:border-r-0"
+  class="flex h-full min-w-[288px] max-w-[400px] flex-[1_0_288px] flex-col border-r border-border-subtle/70 last:border-r-0"
 >
   <div class="flex-none"><GroupHeader {group} {showCategoryCounts} /></div>
   <div class="scroll-region flex min-h-0 flex-1 flex-col gap-1.5 px-2 pt-1">
