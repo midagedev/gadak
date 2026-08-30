@@ -18,7 +18,7 @@
  * (navigator.sendBeacon is a POST, and there is no client close verb to send),
  * so the 60 s reconnect grace is what reaps a session nobody reattached to.
  * That is deliberate — a reopen inside the grace reattaches and replays the
- * ring (keptSessionId, below). The server keeps a REST DELETE for its own
+ * ring (the selected id, ./sessions.svelte.ts). The server keeps a REST DELETE for its own
  * tests and e2e, but the pane has no reason to call it (GDK-922).
  */
 
@@ -217,14 +217,11 @@ function openWebSocketSession(id: string, handlers: SocketHandlers): SocketHandl
   }
 }
 
-/** Module-level session id: closing the pane keeps this so a reopen inside
- *  the grace reattaches and the ring replay brings scrollback back. */
-let keptSessionId: string | null = null
-
-export function peekSessionId(): string | null {
-  return keptSessionId
-}
-
-export function rememberSessionId(id: string | null): void {
-  keptSessionId = id
-}
+/*
+ * The kept session id used to live here as a module-level `let`, and that
+ * `let` was one of the two things making a fully multi-session server look
+ * single-session to a person. It moved to ./sessions.svelte.ts (GDK-1153),
+ * which is now the single owner of "which session is the pane on" — the
+ * strip, a create, an exit and a reopen inside the grace all set it there.
+ * This module keeps no second copy: it is the transport, not the selector.
+ */

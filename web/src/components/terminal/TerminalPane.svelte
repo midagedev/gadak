@@ -24,8 +24,6 @@
     droppedAllowsRestart,
     firstAttachRetryDelayMs,
     openSessionSocket,
-    peekSessionId,
-    rememberSessionId,
     unavailableAllowsRestart,
     UNAVAILABLE_KEYS,
     TERMINAL_GRACE_MS,
@@ -42,6 +40,12 @@
     TERMINAL_SPLIT_MAX_PCT,
     terminalChrome,
   } from '../../lib/terminal/pane.svelte'
+  import { terminalSessions } from '../../lib/terminal/sessions.svelte'
+  import { sessionLabel } from '../../lib/terminal/strip'
+  import TerminalStrip from './TerminalStrip.svelte'
+  import { config } from '../../lib/config'
+  import { issues } from '../../stores/issues.svelte'
+  import { selection } from '../../stores/selection.svelte'
 
   let { overlay = false }: { overlay?: boolean } = $props()
 
@@ -92,6 +96,58 @@
       (status.kind === 'dropped' && droppedAllowsRestart(status.reason)),
   )
 
+  /*
+   * GDK-1153: the rail names the session the pane is holding, so the answer
+   * to "what is this terminal for" is on screen without opening anything.
+   * The roster row is preferred because it carries the issue binding a
+   * claim wrote (GDK-1158); before the first poll lands, the id stands in.
+   */
+  const currentName = $derived.by(() => {
+    const id = terminalSessions.selectedId
+    if (!id) return ''
+    return sessionLabel(terminalSessions.selected ?? { id })
+  })
+
+  /*
+   * The pane's two hooks into the driver below. They are set inside
+   * onMount, so the effect that reads them tolerates a null: its first run
+   * is the mount-time value, which boot() is already handling.
+   */
+  let switchTo: ((id: string | null) => void) | null = null
+  let newSession: (() => void) | null = null
+
+  // The one place a selection becomes an attachment. Whatever moves the
+  // selected id — a strip row, a create, an exit, a reopen inside the grace
+  // — arrives here, so "which session is the pane on" has a single answer
+  // and a single code path to be wrong in.
+  $effect(() => {
+    const want = terminalSessions.selectedId
+    switchTo?.(want)
+  })
+
+  /*
+   * GDK-1160: which project keys in the output are real. config().projects
+   * is the mirror's own list; where an install narrows nothing it is empty,
+   * so the pool's distinct source projects fill in. Memoized because a link
+   * provider is asked once per line under the pointer and the pool can hold
+   * five figures of issues.
+   */
+  const PROJECT_CACHE_MS = 5_000
+  let projectCache: { at: number; keys: Set<string> } | null = null
+
+  function knownProjectKeys(): Set<string> {
+    const now = Date.now()
+    if (projectCache && now - projectCache.at < PROJECT_CACHE_MS) return projectCache.keys
+    const keys = new Set<string>(config().projects)
+    if (keys.size === 0) {
+      for (const issue of issues.pool.values()) {
+        if (issue.source_project) keys.add(issue.source_project)
+      }
+    }
+    projectCache = { at: now, keys }
+    return keys
+  }
+
   onMount(() => {
     let cancelled = false
     let renderer: BehaviorTerminalRenderer | null = null
@@ -106,6 +162,11 @@
     let lastCols = 0
     let lastRows = 0
     let phase: 'live' | 'ended' | 'unavailable' | 'reconnecting' = 'live'
+    // Which session this pane's socket is on. The selected id is the wish;
+    // this is what actually happened, and the two being separate is what
+    // makes the switch idempotent.
+    let attachedId: string | null = null
+    let stopIssueLinks: (() => void) | null = null
 
     const clearTimers = () => {
       stopSettle?.()
@@ -118,7 +179,27 @@
       reconnectTimer = undefined
     }
 
+    /*
+     * GDK-1153: a socket the pane has moved off is not allowed to speak.
+     *
+     * Every attach stamps a generation; every callback checks it first, so
+     * a socket closed on the way to another session cannot run the pane's
+     * reconnect for the session it just left. Measured before this guard:
+     * switching sessions closed a *live* socket, its onClose read
+     * phase === 'live' and reconnected the old id, and the two attachments
+     * then took turns replaying their rings into one buffer — the pane
+     * showed both shells' scrollback, spliced, and neither session's
+     * keystrokes landed where they were aimed.
+     *
+     * The class this closes is wider than the switch: any late callback
+     * from a socket the pane no longer holds — a slow close, a drop that
+     * arrives after a reattach — used to be indistinguishable from the
+     * current one's.
+     */
+    let socketGen = 0
+
     const detachSocket = () => {
+      socketGen += 1
       socket?.close()
       socket = null
       attached = false
@@ -169,7 +250,7 @@
       // pane on (GDK-896 R2): apply before attaching, so the ring replay
       // lands in a buffer already sized to the configured scrollback.
       renderer?.applyBehavior({ scrollback: doc.scrollback, cursorBlink: doc.cursorBlink })
-      rememberSessionId(doc.id)
+      terminalSessions.select(doc.id)
       attachSocket(doc.id, { afterCreate: true })
     }
 
@@ -177,8 +258,14 @@
       detachSocket()
       let opened = false
       phase = 'live'
+      attachedId = id
+      // Claimed after detachSocket bumped it: this closure owns the pane
+      // only while the counter still reads its own number.
+      const gen = socketGen
+      const stale = () => gen !== socketGen
       const handle = openSessionSocket(id, {
         onOpen() {
+          if (stale()) return
           opened = true
           if (openTimer !== undefined) {
             clearTimeout(openTimer)
@@ -205,25 +292,29 @@
           renderer?.focus()
         },
         onBytes(data) {
+          if (stale()) return
           renderer?.write(data)
         },
         onExit(code) {
+          if (stale()) return
           phase = 'ended'
           status = { kind: 'exited', code }
-          rememberSessionId(null)
+          terminalSessions.select(null)
         },
         onDropped(reason) {
+          if (stale()) return
           phase = 'ended'
           status = { kind: 'dropped', reason: coerceDroppedReason(reason) }
           if (reason === 'token_revoked' || reason === 'server_shutdown' || reason === 'idle_timeout') {
-            rememberSessionId(null)
+            terminalSessions.select(null)
           }
         },
         onClose(neverOpened) {
+          if (stale()) return
           attached = false
           if (cancelled || phase === 'ended' || phase === 'unavailable') return
           if (neverOpened && opts.recreateOnFail) {
-            rememberSessionId(null)
+            terminalSessions.select(null)
             void startNew().catch(onCreateFail)
             return
           }
@@ -241,7 +332,7 @@
             }
             phase = 'unavailable'
             status = { kind: 'unavailable', cause: 'network' }
-            rememberSessionId(null)
+            terminalSessions.select(null)
             return
           }
           scheduleReconnect(id)
@@ -261,7 +352,7 @@
       if (Date.now() - reconnectSince >= TERMINAL_GRACE_MS) {
         phase = 'ended'
         status = { kind: 'dropped', reason: 'idle_timeout' }
-        rememberSessionId(null)
+        terminalSessions.select(null)
         return
       }
       phase = 'reconnecting'
@@ -331,10 +422,17 @@
       // under a pane rendering 48x34, which is the size SIGWINCH hands
       // every TUI running in it.
       renderer.onResize(() => sendResize())
+      // GDK-1160: issue keys already flow through this pane in git logs,
+      // build output and agent reports. Opening one goes through the app's
+      // existing verb — there is no second route to an issue here.
+      stopIssueLinks = renderer.registerIssueLinks({
+        projects: knownProjectKeys,
+        open: (key) => selection.select(key),
+      })
       ro = new ResizeObserver(scheduleFit)
       ro.observe(hostEl)
 
-      const kept = peekSessionId()
+      const kept = terminalSessions.selectedId
       try {
         if (kept) {
           attachSocket(kept, { afterCreate: false, recreateOnFail: true })
@@ -353,14 +451,59 @@
       status = classified.detail
         ? { kind: 'unavailable', cause: classified.cause, detail: classified.detail }
         : { kind: 'unavailable', cause: classified.cause }
-      rememberSessionId(null)
+      terminalSessions.select(null)
+    }
+
+    /*
+     * The switch (GDK-1153). A strip row does not open a second pane — it
+     * moves this one. The socket is dropped, the buffer is emptied, and the
+     * new session's ring replay is its own complete scrollback; without the
+     * reset the two shells would be spliced into one history and the
+     * "scrollback follows the row" contract would be a lie by concatenation.
+     *
+     * Idempotent on the id already attached, because the selected id is
+     * also set by create and by a reopen inside the grace — the paths that
+     * attach for themselves.
+     */
+    switchTo = (want: string | null) => {
+      // No renderer yet means boot() is still in its dynamic import; it
+      // reads the selected id after that, so a wish made in this window is
+      // honoured there rather than attaching a socket with nowhere to draw.
+      if (cancelled || !renderer || want === null || want === attachedId) return
+      clearTimers()
+      reconnectAttempt = 0
+      reconnectSince = 0
+      status = { kind: 'none' }
+      renderer?.reset()
+      attachSocket(want, { afterCreate: false })
+    }
+
+    /*
+     * A second shell, from the rail. The server has never had a session
+     * ceiling; this is the surface that finally admits it. Same path a
+     * restart takes, so nothing here is a second way to create a session.
+     */
+    newSession = () => {
+      // Same window as switchTo: boot() is about to create one of its own.
+      if (cancelled || !renderer) return
+      clearTimers()
+      reconnectAttempt = 0
+      reconnectSince = 0
+      status = { kind: 'none' }
+      phase = 'live'
+      renderer?.reset()
+      void startNew().catch(onCreateFail)
     }
 
     void boot()
 
     return () => {
       cancelled = true
+      switchTo = null
+      newSession = null
       clearTimers()
+      stopIssueLinks?.()
+      stopIssueLinks = null
       ro?.disconnect()
       detachSocket()
       renderer?.dispose()
@@ -426,21 +569,46 @@
   >
     <span class="flex min-w-0 items-center gap-1.5">
       <Icon name="terminal" size={13} class="flex-none text-text-muted" />
-      <span class="truncate text-micro tracking-wide text-text-muted uppercase"
+      <span class="flex-none text-micro tracking-wide text-text-muted uppercase"
         >{t('terminal.title')}</span
       >
+      <!--
+        GDK-1153: whose terminal this is. The name is the issue a claim in
+        this shell took, falling back to a short id — so a pane holding one
+        session answers "what is this for" without a strip row under it, and
+        the one-session case costs no chrome at all.
+      -->
+      {#if currentName}
+        <span class="flex-none text-micro text-text-muted" aria-hidden="true">·</span>
+        <span class="truncate text-micro text-text-secondary" data-testid="terminal-rail-name"
+          >{currentName}</span
+        >
+      {/if}
     </span>
-    <button
-      type="button"
-      class="flex h-6 w-6 flex-none items-center justify-center rounded text-text-muted hover:bg-bg-hover hover:text-text-primary"
-      aria-label={t('terminal.close')}
-      title="{t('terminal.close')} ({t('terminal.shortcut')})"
-      data-testid="terminal-close"
-      onclick={() => terminalChrome.toggle()}
-    >
-      <Icon name="x" size={14} />
-    </button>
+    <span class="flex flex-none items-center">
+      <button
+        type="button"
+        class="flex h-6 w-6 flex-none items-center justify-center rounded text-text-muted hover:bg-bg-hover hover:text-text-primary"
+        aria-label={t('terminal.strip.new')}
+        title={t('terminal.strip.new')}
+        data-testid="terminal-new"
+        onclick={() => newSession?.()}
+      >
+        <Icon name="plus" size={14} />
+      </button>
+      <button
+        type="button"
+        class="flex h-6 w-6 flex-none items-center justify-center rounded text-text-muted hover:bg-bg-hover hover:text-text-primary"
+        aria-label={t('terminal.close')}
+        title="{t('terminal.close')} ({t('terminal.shortcut')})"
+        data-testid="terminal-close"
+        onclick={() => terminalChrome.toggle()}
+      >
+        <Icon name="x" size={14} />
+      </button>
+    </span>
   </div>
+  <TerminalStrip offerStart={statusRestartable} onstart={onStatusActivate} />
   <div
     class="relative min-h-0 min-w-0 flex-1 overflow-hidden"
     data-skeleton={connectingGrace.attr}

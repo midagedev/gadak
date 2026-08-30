@@ -16,6 +16,7 @@
  */
 import { createUtf8StreamDecoder, TERMINAL_CHROME_VARS, watchChromeVars } from './protocol'
 import type { TerminalRenderer } from './protocol'
+import { findIssueKeyMatches } from './issue-links'
 
 export { createUtf8StreamDecoder }
 export type { TerminalRenderer }
@@ -168,6 +169,22 @@ export type BehaviorTerminalRenderer = TerminalRenderer & {
    *  buffer), so this lands between the create response and the first
    *  replay byte — nothing is frozen at open. */
   applyBehavior(b: TerminalBehavior): void
+  /** Empties the screen and the scrollback. The pane calls this when it
+   *  switches sessions (GDK-1153): the next session's ring replay is a
+   *  complete scrollback of its own, so leaving the previous one above it
+   *  would splice two shells into one history. */
+  reset(): void
+  /**
+   * Underlines the issue keys in this terminal's output and opens them
+   * (GDK-1160). `projects` is asked per line rather than captured, because
+   * the mirror's project list arrives after the pane does; `open` is the
+   * app's existing verb for showing an issue, not a second router.
+   * Returns the disposer.
+   */
+  registerIssueLinks(opts: {
+    projects: () => Iterable<string>
+    open: (key: string) => void
+  }): () => void
 }
 
 function termOptions() {
@@ -241,6 +258,49 @@ async function createXtermRenderer(): Promise<BehaviorTerminalRenderer> {
     applyBehavior(b: TerminalBehavior) {
       term.options.scrollback = b.scrollback
       term.options.cursorBlink = b.cursorBlink
+    },
+    reset() {
+      term.reset()
+      term.clear()
+    },
+    /*
+     * One provider, asked per line. xterm hands the provider a 1-based
+     * buffer line number and expects 1-based inclusive x coordinates back
+     * — the same convention @xterm/addon-web-links works in, which is why
+     * this needs no addon of its own: registerLinkProvider is core API.
+     *
+     * Single line, no wrap stitching: a key broken across a wrap is not
+     * offered rather than guessed at. `activate` runs the app's own open
+     * verb; there is no second route to an issue in this app and this does
+     * not add one.
+     */
+    registerIssueLinks({ projects, open }) {
+      const disposable = term.registerLinkProvider({
+        provideLinks(bufferLineNumber, callback) {
+          const line = term.buffer.active.getLine(bufferLineNumber - 1)
+          const text = line?.translateToString(true)
+          if (!text) {
+            callback(undefined)
+            return
+          }
+          const matches = findIssueKeyMatches(text, projects())
+          if (matches.length === 0) {
+            callback(undefined)
+            return
+          }
+          callback(
+            matches.map((m) => ({
+              text: m.key,
+              range: {
+                start: { x: m.start + 1, y: bufferLineNumber },
+                end: { x: m.end, y: bufferLineNumber },
+              },
+              activate: () => open(m.key),
+            })),
+          )
+        },
+      })
+      return () => disposable.dispose()
     },
     open(host: HTMLElement) {
       host.setAttribute('data-gadak-editable', '')

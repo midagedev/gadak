@@ -1,10 +1,16 @@
 package term
 
 import (
+	"bytes"
 	"errors"
 	"sync"
 	"time"
 )
+
+// bellByte is BEL (^G). A shell, an agent or a TUI writes it when it wants
+// a person, which makes it the one signal on this stream that means
+// "blocked on you" rather than "busy" (GDK-1163).
+const bellByte = 0x07
 
 // Why an attachment ended, as the socket reports it to its client.
 const (
@@ -134,6 +140,7 @@ type Session struct {
 	detachedAt   time.Time
 	graceExts    int
 	resizes      int
+	attention    bool
 	issueKey     string
 	closing      bool
 	finished     bool
@@ -178,6 +185,7 @@ func (s *Session) Info() Info {
 		DetachedAt:         s.detachedAt,
 		GraceExtensions:    s.graceExts,
 		Resizes:            s.resizes,
+		NeedsAttention:     s.attention,
 		IssueKey:           s.issueKey,
 	}
 	s.mu.Unlock()
@@ -205,6 +213,11 @@ func (s *Session) IssueKey() string {
 func (s *Session) Write(p []byte) (int, error) {
 	s.mu.Lock()
 	fin := s.finished
+	// Typing into a session is the other way the bell gets answered, and
+	// the one that matters while the pane is already attached: attaching
+	// cannot lower a bit raised after the attach, so without this a
+	// session someone is watching would keep asking for them forever.
+	s.attention = false
 	s.mu.Unlock()
 	if fin {
 		return 0, ErrSessionClosed
@@ -262,6 +275,8 @@ func (s *Session) Attach() (*Attachment, error) {
 		}
 	}
 	s.attached[a] = struct{}{}
+	// A person arriving is the answer to the question the bell asked.
+	s.attention = false
 	s.stopGraceLocked()
 	// Someone is watching again, so the detached clock starts over: the
 	// absolute cap measures one unattended stretch, not the session's age.
@@ -381,6 +396,13 @@ func (s *Session) emit(p []byte) {
 	s.ring.write(chunk)
 	s.bytesOut += int64(len(chunk))
 	s.lastOutputAt = s.mgr.cfg.Now()
+	// The single place the attention bit can be raised: emit is the only
+	// reader of the PTY, so every byte this session will ever produce
+	// passes here exactly once. Deriving it anywhere else would be a
+	// second opinion on the same stream.
+	if bytes.IndexByte(chunk, bellByte) >= 0 {
+		s.attention = true
+	}
 	var dropped []*Attachment
 	for a := range s.attached {
 		if !a.push(chunk) {

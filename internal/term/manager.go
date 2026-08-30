@@ -168,6 +168,13 @@ type Info struct {
 	// Cols" is the whole diagnosis of GDK-1154, which otherwise needs a
 	// debugger attached to a phone.
 	Resizes int `json:"resizes"`
+	// NeedsAttention is "this session rang for a person" (GDK-1163): a BEL
+	// byte went through the ring and nobody has attached since. It is the
+	// only honest answer to "is this blocked or is it working" that the
+	// terminal already carries — idleForReap deliberately answers a
+	// different question ("may I reap you"), and an agent waiting at a
+	// prompt with a child on the tty reads as busy to that one.
+	NeedsAttention bool `json:"needs_attention,omitempty"`
 	// IssueKey is the issue this session was claimed for, empty when none.
 	// It is runtime state and is not persisted anywhere: the binding dies
 	// with the session, and the durable record of "who claimed what when"

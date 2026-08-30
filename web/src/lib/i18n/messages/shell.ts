@@ -187,6 +187,50 @@ export const shell = {
     ko: 'Ctrl+`',
     ja: 'Ctrl+`',
   },
+  // The session strip (GDK-1153 / GDK-1163): one row per live shell, named
+  // after the issue it was claimed for. The four states are the terminal's
+  // own signals — output, a BEL, an attachment, what is on the tty — not a
+  // status field anyone types.
+  'terminal.strip.list': {
+    en: 'Terminal sessions',
+    ko: '터미널 세션',
+    ja: 'ターミナルセッション',
+  },
+  'terminal.strip.show': {
+    en: 'Show {name}',
+    ko: '{name} 보기',
+    ja: '{name} を表示',
+  },
+  'terminal.strip.state.needs': {
+    en: 'Wants you',
+    ko: '사람 필요',
+    ja: '要対応',
+  },
+  'terminal.strip.state.running': {
+    en: 'Running',
+    ko: '출력 중',
+    ja: '実行中',
+  },
+  'terminal.strip.state.quiet': {
+    en: 'Quiet',
+    ko: '조용',
+    ja: '静か',
+  },
+  'terminal.strip.state.ghost': {
+    en: 'Unwatched',
+    ko: '유령',
+    ja: '見ていない',
+  },
+  'terminal.strip.start': {
+    en: 'Start a shell here',
+    ko: '여기서 셸을 엽니다',
+    ja: 'ここでシェルを開く',
+  },
+  'terminal.strip.new': {
+    en: 'New shell',
+    ko: '새 셸',
+    ja: '新しいシェル',
+  },
   // The dashboard surface (GDK-782). notFound: the id arrived (link, uifocus)
   // but the row is gone — `gadak dashboards rm` or another workspace. Both
   // states name the next action (GDK-827): a dead end that only states
