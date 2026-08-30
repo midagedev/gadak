@@ -1,6 +1,6 @@
 # Promises
 
-Ten things gadak asks you not to take on trust: one sentence each, and one
+Twelve things gadak asks you not to take on trust: one sentence each, and one
 command you can run in a clone of this repository — a Go toolchain for seven
 of them, `sqlite3` or `grep` for the rest. Every command was run on this tree
 and produced the output shown; if one stops doing so, the promise is broken and
@@ -127,4 +127,37 @@ GADAK_HOME=$tmp "$tmp/gadak" views save "Night triage" --jql 'project = STD'
 rm "$tmp/gadak.db"
 GADAK_HOME=$tmp "$tmp/gadak" views | grep -c 'Night triage'
 # → 1
+```
+
+**11. What you type in gadak's terminal never touches disk.**
+The shell that opens inside gadak is a real PTY, and its scrollback lives in
+one fixed byte slice in memory — a ring, 256 KiB, overwritten as it fills.
+The package that owns those sessions writes no file at all: not a log, not a
+transcript, not a crash dump. Close the session and the bytes are gone with
+the process. What leaves this machine is still only promise 2's destinations,
+and none of them is fed by a shell.
+
+```bash
+printf 'ring in memory: %s\nfiles the package writes: %s\n' \
+  "$(grep -c 'buf *\[\]byte' internal/term/ring.go)" \
+  "$(grep -rlE 'os\.(Create|WriteFile|OpenFile)' internal/term --include='*.go' \
+     | grep -v _test | wc -l | tr -d ' ')"
+# → ring in memory: 1
+# → files the package writes: 0
+```
+
+**12. Only a terminal-scoped pairing token can open a shell.**
+A `serve` token reaches the mirror over REST and a paired phone's issues; it
+opens no shell. Neither does an `origin` token, and neither does a token
+minted before the terminal existed — an empty scope does not silently
+acquire one. One rule decides it, and the server asks that rule on every
+terminal route. Loopback is the exception in the other direction: on your own
+machine there is no token at all.
+
+```bash
+grep -A 1 'func AdmitsTerminal' internal/pairing/store.go | tail -1
+grep -rn 'AdmitsTerminal' internal --include='*.go' | grep -v _test \
+  | grep -c 'internal/server/'
+# → 	return scope == ScopeTerminal
+# → 3
 ```
