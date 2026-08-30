@@ -35,7 +35,7 @@ const html = `<!doctype html><meta charset="utf-8"><style>
        font-family:ui-monospace,Menlo,monospace}
 </style>
 <div class="name">gadak <em>0.19</em></div>
-<div class="line">your shell and your tracker, one window.</div>
+<div class="line">every terminal knows its issue.</div>
 <div class="url">github.com/midagedev/gadak</div>`
 
 const b = await chromium.launch()

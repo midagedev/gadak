@@ -71,23 +71,12 @@ if "start" not in marks:
 t0 = marks["start"]
 
 names = [
-    ("board_at_rest", "01-board-at-rest.png"),
-    ("strip_two_shells", "02-two-shells.png"),
-    ("claim_enter", "03-claim-typed.png"),
-    ("card_moved", "04-card-moved.png"),
-    ("moneyshot_hold", "05-moneyshot-hold.png"),
-    ("shell_attached_seen", "06-detail-shell-attached.png"),
-    ("command_placed", "07-command-placed.png"),
-    ("command_output", "08-command-output.png"),
-    ("linkify_opened", "09-linkify-opened.png"),
-    ("close_enter", "10-close-typed.png"),
-    ("card_done", "11-card-done.png"),
-    ("crew_armed", "12-crew-armed.png"),
-    ("crew_claimed", "12b-crew-claimed.png"),
-    ("bridge", "12c-bridge.png"),
-    ("hands_off", "13-hands-off.png"),
-    ("volley_landed", "14-volley-landed.png"),
-    ("end_frame", "15-end-frame.png"),
+    ("chaos", "1-chaos.png"),
+    ("a_replay", "2-recover-a.png"),
+    ("a_alive", "3-alive-a.png"),
+    ("b_replay", "4-recover-b.png"),
+    ("b_alive", "5-alive-b.png"),
+    ("end_frame", "6-end-frame.png"),
 ]
 os.makedirs(frames_dir, exist_ok=True)
 dur = float(subprocess.run(
@@ -330,13 +319,17 @@ env GADAK_MEDIA=1 GADAK_RT_PROOF="$PROOF" GADAK_RT_TARGET="$TARGET_KEY" \
 # The result contract is checked against the workspace, not against the video:
 # a take that only *looks* right is exactly what a rig cannot see. status_category,
 # never a display name (CLAUDE.md).
-cat="$(gh sql --no-header \
-  "SELECT status_category FROM issues_full WHERE key='${TARGET_KEY}'" 2>/dev/null || true)"
-if [[ "$cat" != "done" ]]; then
-  echo "record-roundtrip: ${TARGET_KEY} status_category='${cat}' — the take did not hold" >&2
+# The film no longer closes anything; it claims five issues onto five shells.
+# The contract is that all five really moved (status_category, never a display
+# name — CLAUDE.md).
+held="$(gh sql --no-header "SELECT count(*) FROM issues_full
+  WHERE key IN ('STD-4','STD-9','STD-14','STD-1')
+    AND status_category='inprogress'" 2>/dev/null || true)"
+if [[ "$held" != "4" ]]; then
+  echo "record-roundtrip: only ${held}/4 crew issues are in progress — the take did not hold" >&2
   exit 1
 fi
-echo "record-roundtrip: workspace holds — ${TARGET_KEY} is done"
+echo "record-roundtrip: workspace holds — 4 issues claimed onto 4 shells"
 
 stop_serve
 

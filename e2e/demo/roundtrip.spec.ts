@@ -94,6 +94,9 @@ import {
   columnOf,
   movedByOther,
   revealDone,
+  sessionTab,
+  sessionTabNames,
+  tabsBelowFold,
 } from './roundtrip-surface'
 
 const isMedia = !!process.env.GADAK_MEDIA
@@ -245,434 +248,161 @@ test.describe('roundtrip demo', () => {
     }, PANE_WIDTH)
     await forceLocale(page, 'en')
 
-    // ── The board at rest ────────────────────────────────────────────────
+    // ── SET-UP (off camera) ──────────────────────────────────────────────
+    // Five shells, each claimed onto a different issue and left with a bit of
+    // work in it. The cut opens after all of this: the film is about coming
+    // BACK to sessions, so the leaving has already happened when it starts.
+    //
+    // Identity is exported and cleared before each claim (two-pass, see the
+    // note further down): a card wearing "Claude Code" reads as an agent
+    // fleet, which is the opposite of this film's subject — a person who left
+    // five terminals lying around.
+    //
+    // Every command is chosen to print nothing about the machine it runs on:
+    // no `ls -la`, no `pwd`. A storyboard still shot with `ls -la` had the
+    // operator's account name in frame, which MEDIA.md keeps out of a
+    // recording.
+    const CREW = [
+      {
+        key: 'STD-4',
+        actor: 'human:ada|Ada Lovelace',
+        files: [
+          `printf 'preview builds its column list in the view\\nexport builds its own in the writer\\ntax column only exists in the first\\nboth read the same field map\\n' > notes.txt`,
+          `printf 'FAIL export/columns  tax missing (2 of 14)\\nFAIL export/totals   net != gross - tax\\nok   export/header\\n' > run.log`,
+        ],
+        work: [
+          'cat notes.txt',
+          'cat run.log',
+          'grep -n column notes.txt',
+        ],
+      },
+      {
+        key: 'STD-9',
+        actor: 'human:grace|Grace Hopper',
+        files: [
+          `printf 'search, then open the sidebar: highlight stays\\nsidebar keeps the last query mark\\nclearing the query does not clear it\\nonly a second search repaints\\n' > repro.txt`,
+        ],
+        work: [
+          'cat repro.txt',
+          'grep -n sidebar repro.txt',
+          'wc -l repro.txt',
+        ],
+      },
+      {
+        key: 'STD-14',
+        actor: 'human:katherine|Katherine Johnson',
+        files: [
+          `printf 'focus lands one frame before the box mounts\\nfirst keystroke goes to the document\\nsecond onward are fine\\nonly on a freshly rendered comment box\\n' > focus.txt`,
+        ],
+        work: [
+          'cat focus.txt',
+          'grep -n keystroke focus.txt',
+        ],
+      },
+      {
+        key: 'STD-1',
+        actor: 'human:ada|Ada Lovelace',
+        files: [
+          `printf 'declined once, retried, charged twice\\nretry sends a new request id each time\\nneeds an idempotency key on the retry\\ntest card 4000 0000 0000 0002 reproduces\\n' > retry.txt`,
+        ],
+        work: [
+          'cat retry.txt',
+          'grep -n idempotency retry.txt',
+        ],
+      },
+    ]
+    // Four, not five. The strip is 144px (GDK-1193) and a row is ~30px at the
+    // fixture's 16px body text — five rows are 150px and the last one sits
+    // below the fold (measured, the take failed its own assertion). Four fill
+    // the strip exactly and the roster still reads as "I left work in all of
+    // these".
+
     if (PROOF) mark('start')
     await page.goto(BOARD_ROUTE)
     await boardReady(page)
-    await expect(card(page, TARGET_KEY)).toBeVisible()
-    // The premise of the shot: the card starts outside In progress.
-    expect(await categoryOf(page, TARGET_KEY)).toBe('new')
-    mark('board_at_rest')
-    await beat(page, 1800)
 
-    // ── The terminal arrives in the same window ──────────────────────────
-    // ⌘K rather than the chord: the palette is the discovery path a viewer
-    // with no prior knowledge can follow (G4).
     await page.keyboard.press('ControlOrMeta+k')
     const palette = page.getByRole('dialog', { name: 'Command palette' })
     await expect(palette).toBeVisible()
-    await beat(page, 500)
-    await page.keyboard.type('terminal', { delay: 55 })
+    await page.keyboard.type('terminal', { delay: 40 })
     await expect(palette.getByTestId('palette-action-terminal')).toBeVisible()
-    await beat(page, 600)
     await page.keyboard.press('Enter')
     await expect(palette).toBeHidden()
-
     const pane = page.getByTestId('terminal-pane')
-    await expect(pane).toBeVisible()
     await expect(pane).toHaveAttribute('data-attached', 'true', { timeout: 30_000 })
-    // The beta mark came off in 0.19 (GDK-1024) — asserted absent so a revert
-    // cannot quietly put it back into a recording.
-    await expect(page.getByTestId('terminal-beta')).toHaveCount(0)
+    // Not a beat — the clock mark. rt-marks.py finds the offset between the
+    // spec's wall clock and the recorder's by looking for the luma cliff the
+    // pane makes when it opens, and it needs this mark to compare against.
     mark('pane_open')
-    await beat(page, 1200)
+    await beat(page, 800)
 
-    // A second shell, so the strip exists to be renamed (see the header).
-    await page.getByTestId('terminal-new').click()
-    await expect(page.getByTestId('terminal-strip')).toBeVisible({ timeout: 15_000 })
-    await expect(page.getByTestId('terminal-strip-row')).toHaveCount(2, { timeout: 15_000 })
-    // Both rows are anonymous right now — that is the "before" the rename
-    // beat needs, and asserting it means a take where one was already named
-    // cannot pass as a rename.
-    const namesBefore = await page.getByTestId('terminal-strip-name').allTextContents()
-    expect(namesBefore.some((n) => n.includes(TARGET_KEY))).toBe(false)
-    mark('strip_two_shells', `names=${JSON.stringify(namesBefore)}`)
-    await beat(page, 900)
-
-    // One real question before the claim, for two reasons. It gives the claim
-    // a motive a stranger can follow — *these* are open, so I take one — and
-    // it fills the pane: an empty 828px-tall terminal beside a full board is
-    // half a frame of nothing, which is what the first board take looked
-    // like. Two narrow columns on purpose; `gadak list`'s ~95-character table
-    // wraps three times per row at this width and reads as noise.
-    await runLine(page, `gadak sql "select key, status from issues_full where status_category='new'"`)
-    await expect
-      .poll(async () => readTerm(page), { timeout: 20_000, intervals: [300] })
-      .toContain(TARGET_KEY)
-    mark('queue_listed')
-    await beat(page, 1700)
-
-    // ── BEAT 1: the money shot ───────────────────────────────────────────
-    const enterAt = await runLine(page, `gadak claim ${TARGET_KEY}`)
-    mark('claim_enter')
-
-    // The card. Polled tightly (200ms) because the number this take exists
-    // to produce is *how long it took*, and a 2s poll would report the poll.
-    await expect
-      .poll(async () => columnOf(page, TARGET_KEY), { timeout: 20_000, intervals: [200] })
-      .toBe('inprogress')
-    const moveMs = Date.now() - enterAt
-    mark('card_moved', `ms_after_enter=${moveMs}`)
-    // The mirror-side truth, not the header text.
-    expect(await categoryOf(page, TARGET_KEY)).toBe('inprogress')
-
-    // The shell said so too, and the strip row took the issue's name.
-    await expect
-      .poll(async () => readTerm(page), { timeout: 15_000, intervals: [300] })
-      .toContain('bound to session')
-    mark('shell_bound')
-    await expect
-      .poll(async () => page.getByTestId('terminal-strip-name').allTextContents(),
-        { timeout: 15_000, intervals: [300] })
-      .toEqual(expect.arrayContaining([expect.stringContaining(TARGET_KEY)]))
-    mark('strip_renamed')
-    // The hold the cut lands on: all three changes are on screen at once.
-    await beat(page, 2600)
-    mark('moneyshot_hold')
-
-    // ── BEAT 2: the return leg ───────────────────────────────────────────
-    await card(page, TARGET_KEY).click()
-    const body = page.getByTestId('issue-body')
-    await expect(body).toBeVisible({ timeout: 20_000 })
-    mark('detail_open')
-    // Wait for the binding to be *seen*, not for a stopwatch: SHELL_POLL_MS
-    // is 4s and the poll only starts when this panel mounts.
-    await expect(body).toHaveAttribute('data-shell', 'attached', { timeout: 20_000 })
-    mark('shell_attached_seen')
-    await beat(page, 1200)
-
-    const run = page.locator('[data-run-command]').first()
-    await expect(run).toBeVisible()
-    const command = (await run.getAttribute('data-run-command')) ?? ''
-    expect(command.length).toBeGreaterThan(0)
-    await run.click()
-    // Placed, not run — the server refuses any payload with a newline
-    // (internal/server/terminal.go:471), so this is a contract, not a
-    // convention. The frame has to show the line sitting at the prompt.
-    // Compared against the buffer with its line breaks removed. A 320px pane
-    // is ~35 columns and the command is longer than that, so xterm wraps it
-    // across buffer rows — the first take failed this assertion on a command
-    // that was sitting at the prompt perfectly well. What is being proved is
-    // that the text arrived, not how the renderer folded it.
-    const flat = (s: string) => s.replace(/[\s ]+/g, '')
-    await expect
-      .poll(async () => flat(await readTerm(page)), { timeout: 15_000, intervals: [300] })
-      .toContain(flat(command))
-    mark('command_placed')
-    await beat(page, 1800)
-
-    // A person presses Enter. That is the beat: the tool put the line there,
-    // the human decided to run it.
-    await focusPane(page)
-    await page.keyboard.press('Enter')
-    mark('command_run')
-    // The gate has to be output only *this* command produces. `STD-7` is
-    // already in the buffer twice from beat 1 (the claim and its reply), so
-    // "two issue keys are on screen" would pass the moment Enter was pressed
-    // and film an empty result. A key that is not the target is the evidence.
-    await expect
-      .poll(async () => {
-        const t = await readTerm(page)
-        return (t.match(/\bSTD-\d+\b/g) ?? []).some((k) => k !== TARGET_KEY)
-      }, { timeout: 20_000, intervals: [300] })
-      .toBe(true)
-    mark('command_output')
-    await beat(page, 1600)
-
-    // ── BEAT 3: the link back ────────────────────────────────────────────
-    // Whichever key the output actually printed — never a guess. The target
-    // is excluded so the click demonstrably *changes* the open issue.
-    //
-    // This beat was cut once: linkify linked nothing in a standalone
-    // workspace because knownProjectKeys() found neither config().projects
-    // nor any issue's source_project (GDK-1177, now fixed). It is still
-    // wrapped in a try: the beat is decoration, and a hunt on camera is worse
-    // than a missing second.
-    const term = await readTerm(page)
-    const other = (term.match(/\bSTD-\d+\b/g) ?? []).find((k) => k !== TARGET_KEY)
-    let linked = false
-    if (other) {
-      linked = await clickTerminalKey(page, other)
-      if (linked) {
-        try {
-          // Which issue the panel is on, asked of the panel: selection.select
-          // routes to panel.show('issue', key) and the panel store touches no
-          // URL at all (web/src/stores/panel.svelte.ts).
-          await expect(page.getByTestId('issue-detail-panel'))
-            .toContainText(other, { timeout: 5_000 })
-          mark('linkify_opened', `key=${other}`)
-          await beat(page, 1700)
-        } catch {
-          linked = false
-        }
-      }
-    }
-    if (!linked) mark('linkify_skipped', `candidate=${other ?? 'none'}`)
-
-    // ── BEAT 4: close, and the card crosses to Done ─────────────────────
-    // Close the detail panel first: while it is docked the pane is squeezed
-    // to its 320px minimum, and the rest of this film is the board. Its own
-    // close button, not Escape: measured, Escape left the panel open and a
-    // take ended on a squeezed stage. In-app only, never a reload — that
-    // would drop every session.
-    await page.getByTestId('issue-detail-close').click()
-    await expect(page.getByTestId('issue-body')).toHaveCount(0, { timeout: 10_000 })
-    await boardReady(page)
-    await beat(page, 1200)
-
-    const closeAt = await runLine(page, `gadak close ${TARGET_KEY}`)
-    mark('close_enter')
-    // Close the pane the instant Enter lands. At the product's default pane
-    // width (44%) the board shows two columns and Done is off frame, so with
-    // the pane open the card would leave In progress and land nowhere the
-    // camera can see (GDK-1190). The pane closes faster than the ~400ms the
-    // write takes to reach the board, so the landing happens in the full
-    // three-column shot — and the film's last beat is the board's, which is
-    // where it belongs.
-    await page.getByTestId('terminal-close').click()
-    await expect(page.getByTestId('terminal-pane')).toHaveCount(0, { timeout: 5_000 })
-    await expect
-      .poll(async () => columnOf(page, TARGET_KEY), { timeout: 20_000, intervals: [200] })
-      .toBe('done')
-    mark('card_done', `ms_after_enter=${Date.now() - closeAt}`)
-    expect(await categoryOf(page, TARGET_KEY)).toBe('done')
-    await revealDone(page)
-    await expect(card(page, TARGET_KEY)).toBeInViewport({ ratio: 0.9 })
-    mark('done_revealed')
-    await beat(page, 1600)
-
-    // ── BEAT 6: the issue's own shell, found by its name ─────────────────
-    // The pane comes back (E closed it for the landing). Sessions survive a
-    // closed pane — that is the whole point of the beat below.
-    await page.getByTestId('sidebar-terminal').click()
-    await expect(page.getByTestId('terminal-pane')).toHaveAttribute('data-attached', 'true', { timeout: 30_000 })
-    await beat(page, 1200)
-    // Two shells: one anonymous, one wearing STD-7 because it claimed it.
-    // Click away, then click the named row — the pane swaps and the server
-    // replays that session's scrollback, so the work done on this issue is
-    // back on screen. This is the film's point in one gesture: you do not
-    // hunt a tab, you pick the issue.
-    const rows = page.getByTestId('terminal-strip-row')
-    await rows.filter({ hasNotText: TARGET_KEY }).first().click()
-    await beat(page, 1400)
-    mark('session_away')
-    await rows.filter({ hasText: TARGET_KEY }).first().click()
-    await expect
-      .poll(async () => readTerm(page), { timeout: 15_000, intervals: [300] })
-      .toContain(`claim ${TARGET_KEY}`)
-    mark('session_pick')
-    await beat(page, 2200)
-    await beat(page, 1600)
-
-    // ── BEAT 5: THE CLIMAX — the hand leaves and the board keeps moving ──
-    //
-    // Three shells, three actors, three cards crossing on their own. What
-    // makes this honest rather than a mockup is that nothing here is
-    // simulated: each write is a real `gadak close` run by a real shell, and
-    // the shell runs it because a `sleep` planted earlier expired — not
-    // because the camera asked at that moment.
-    //
-    // Why sleeps and not three CLI calls from the recorder: the film claims
-    // the RIGHT side caused the LEFT side. A write fired from the record
-    // script would move the cards while the pane sat frozen, and the strip
-    // dots — the only thing that says "three agents are alive" — would never
-    // light. There is no way to press Enter in a shell that is not selected
-    // (the input API refuses newlines, internal/server/terminal.go:471, the
-    // same contract that makes ▶ place-but-not-run), so the command has to be
-    // armed while the shell IS selected and fire itself later.
-    //
-    // The volley is SEQUENTIAL, 150ms apart. Concurrent writes are still
-    // broken (GDK-1179: two of three come back exit 0 with the mirror
-    // refresh failed on `UNIQUE constraint failed: changelog.id`, and only
-    // one card ever moves). 150ms × 3 = 450ms, still inside one 500ms
-    // ui-focus tick, so the board can still show all three moving on one
-    // frame — measured spread 0ms for a serial trio.
-    const CREW: Array<{ key: string; actor: string }> = [
-      { key: 'STD-15', actor: 'claude:a3f10c2b|Claude Code' },
-      { key: 'STD-13', actor: 'claude:7b2e9d14|Claude Code' },
-      { key: 'STD-12', actor: 'claude:c19f4a06|Claude Code' },
-    ]
-
-    // The starting pistol is a file, not a stopwatch.
-    //
-    // The first version armed each shell with `sleep <computed>` so the three
-    // would expire together. It does not survive contact: arming a shell —
-    // new session, claim, wait for the card, type the armed line — measured
-    // 8 seconds, so by the time the third was armed the first two sleeps had
-    // long expired and fired one at a time, eight seconds apart. There was no
-    // volley to film (proof-take: `volley_landed t_after_arm_ms=31916`,
-    // `data_moved_seen=0`).
-    //
-    // Waiting on a file instead decouples the fire time from the arming time
-    // completely: the shells spin on a path that does not exist yet, the spec
-    // creates it once every shell is armed, and they all wake inside one
-    // 50ms poll. The per-member `sleep` after the wait is the 150ms stagger —
-    // concurrent writes are still broken (GDK-1179), and 3 × 150ms = 450ms
-    // still fits one 500ms ui-focus tick, which is what lets the board show
-    // the cards moving on a single frame.
-    const GO = `${process.env.GADAK_RT_GO || '/private/tmp/gadak-hero-desk/go'}-${Date.now()}`
-    const VOLLEY_GAP_S = 0.15
-
-    // Claim first, arm second — the order is what makes the bridge filmable.
-    //
-    // The strip is three rows tall (max-h-24) and scrolls, so a fourth
-    // session pushes a crew member out of frame. There is no close verb on
-    // the client (GDK-922), so the way to exactly three rows is to not make a
-    // fourth: crew member 0 takes over the person's own shell and member 1
-    // takes the one beat B opened. `claim` rebinds a session, so the row that
-    // said STD-7 simply starts saying STD-15. Nothing is left over and no
-    // ghost row is ever on screen.
-    for (const [i, member] of CREW.entries()) {
-      if (i < 2) {
-        await page.locator('[data-testid="terminal-strip-row"]').nth(i).click()
-      } else {
+    for (const [i, m] of CREW.entries()) {
+      if (i > 0) {
         await page.getByTestId('terminal-new').click()
         await expect(pane).toHaveAttribute('data-attached', 'true', { timeout: 30_000 })
+        await beat(page, 400)
       }
-      await beat(page, 500)
-      // Identity first, in its own pass over the crew. A blind reviewer read
-      // an on-camera `GADAK_ACTOR='claude:…' gadak claim …` as a person
-      // LABELLING himself an agent — the opposite of what the film claims.
-      // Setting it inline fixed the claim line but left `export GADAK_…`
-      // being typed inside the bridge window instead (measured, twice). So
-      // every shell gets its identity here, before any of them claims
-      // anything, and `clear` takes the line with it. The actor still reaches
-      // the write; its evidence stays where it belongs — the row's rename and
-      // the chip that appears on the card.
-      await runLine(page, `export GADAK_ACTOR='${member.actor}'; clear`, true)
+      await runLine(page, `export GADAK_ACTOR='${m.actor}'; clear`, true)
+      // `clear` right after the claim, so the session's ring holds only the
+      // work. A replay that opens on `gadak claim …` puts "drive the tracker
+      // from a terminal" in the most readable spot in the film — the exact
+      // thing this concept replaced — and the claim's reply folds the issue
+      // summary mid-word on top of that.
+      // Files first, then claim-and-clear, then the reads. Everything that
+      // writes the fixture happens before the wipe, so the ring the camera
+      // replays holds only a person reading their own notes — no `printf`
+      // scaffolding, no `gadak claim`.
+      for (const c of m.files) await runLine(page, c, true)
+      await runLine(page, `gadak claim ${m.key} && clear`, true)
+      for (const c of m.work) await runLine(page, c, true)
     }
 
-    // Now the claims, and the bridge opens one claim before the last: the
-    // camera catches the renames themselves — a row stops being a hex id and
-    // starts being an issue key, twice, ~2s apart because that is the roster
-    // cadence (GDK-1182). Before this, three named rows appeared with no
-    // visible cause and a blind reviewer asked who had renamed them.
-    for (const [i, member] of CREW.entries()) {
-      await page.locator('[data-testid="terminal-strip-row"]').nth(i).click()
-      await beat(page, 500)
-      if (i === CREW.length - 2) mark('bridge_in')
-      await runLine(page, `gadak claim ${member.key}`, true)
-      await beat(page, 500)
-    }
-
+    // Every shell wears its issue's key, and every one of those issues shows a
+    // shell on its card. This is the premise the film needs true before the
+    // first frame.
     await expect
-      .poll(async () => page.getByTestId('terminal-strip-name').allTextContents(),
-        { timeout: 15_000, intervals: [300] })
-      .toEqual(CREW.map((m) => expect.stringContaining(m.key)))
-    for (const member of CREW) {
-      expect(await categoryOf(page, member.key)).toBe('inprogress')
+      .poll(async () => sessionTabNames(page),
+        { timeout: 20_000, intervals: [300] })
+      .toEqual(expect.arrayContaining(CREW.map((m) => expect.stringContaining(m.key))))
+    for (const m of CREW) {
+      expect(await categoryOf(page, m.key)).toBe('inprogress')
     }
-    mark('crew_claimed')
+    // The strip is 144px now (GDK-1193) and five rows are 131px, so the whole
+    // roster is on screen — before the fix the active session sat below a fold
+    // nobody chose, which is what made the chaos beat unfilmable.
+    const offscreen = await tabsBelowFold(page)
+    expect(offscreen, 'strip rows below the fold').toBe(0)
+    await beat(page, 1800)
+    mark('chaos')
+    await beat(page, 1800)
 
-    // ── THE BRIDGE ───────────────────────────────────────────────────────
-    // Three shells wearing three issue keys, their dots still lit from the
-    // claims that just ran, beside a board that has not moved yet. This
-    // roster is the climax's CAUSE, and without it a blind reviewer could
-    // only infer the cause from the end card — release-video.md's G3 failure
-    // ("the argument lives off-frame"). It is filmed BEFORE the shells are
-    // armed, which is why no `while [ ! -f … ]` scaffolding is in frame and
-    // why the dots still read running: RUNNING_WINDOW_MS is 6s from the last
-    // output, and a shell blocked on a silent wait loop goes quiet (measured
-    // — the first bridge take filmed three "Quiet" rows).
-    //
-    // The tail hold is short now: the beat's own middle is two rows flipping
-    // from hex ids to issue keys, so it no longer has to sit still long
-    // enough for the 2s roster cadence (GDK-1182) to be trusted — the flips
-    // ARE the evidence.
-    await beat(page, 900)
-    mark('bridge')
-
-    // Now arm them, off camera as far as the cut is concerned: the segment
-    // after this one opens at the starting pistol.
-    for (const [i, member] of CREW.entries()) {
-      await page.locator('[data-testid="terminal-strip-row"]').nth(i).click()
-      await beat(page, 400)
-      await runLine(
-        page,
-        `while [ ! -f ${GO} ]; do sleep 0.05; done; clear; ` +
-          `sleep ${(i * VOLLEY_GAP_S).toFixed(2)}; ` +
-          `gadak close ${member.key}`,
-        true,
-      )
-      mark(`armed_${member.key}`, `actor=${member.actor}`)
-    }
-    mark('crew_armed')
-
-    // Nothing but the board and the pane in the last shot. A take shipped
-    // with the STD-3 detail panel still docked through the whole climax,
-    // covering the Done column the three cards were flying into — beat 4
-    // closes the panel, and something between there and here re-opened it.
-    // Rather than hunt the re-open, the frame states its own requirement:
-    // if a panel is on screen at the pistol, close it and prove it is gone.
-    const detailClose = page.getByTestId('issue-detail-close')
-    if (await detailClose.count()) {
-      await detailClose.first().click()
-    }
-    // The panel's own frame (`issue-detail-panel`) is always mounted, empty
-    // or not — measured, asserting on it fails on a closed panel. The close
-    // button only exists while something is open, so it is the honest gate.
-    await expect(detailClose).toHaveCount(0, { timeout: 10_000 })
-    await beat(page, 600)
-
-    // Stay on the last crew shell, so the volley's own output prints on
-    // camera in F. Its armed line clears itself the instant the pistol
-    // fires, so nothing of the rig survives into that segment.
-
-    // Watch for the board's own proof that a move came from outside this
-    // browser: BoardView stamps `data-moved="1"` for LANDED_MS on a card the
-    // mirror tick moved, and only then does it fly and glow the actor chip
-    // (BoardView.svelte:130-139). The marker is short-lived, so it is
-    // observed continuously rather than sampled once after the fact — the
-    // first climax take read 0 purely because it looked afterwards.
-    await page.evaluate((keys) => {
-      const w = window as unknown as { __flew?: Set<string> }
-      w.__flew = new Set<string>()
-      new MutationObserver(() => {
-        for (const k of keys) {
-          const el = document.querySelector(`[data-board-key="${k}"]`)
-          if (el instanceof HTMLElement && el.dataset.moved === '1') w.__flew!.add(k)
-        }
-      }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['data-moved'] })
-    }, CREW.map((m) => m.key))
-
-    // The hand leaves. The pointer parks off every interactive thing and
-    // nothing is clicked or typed again — the only input from here on is the
-    // starting pistol, which is a file the shells are already waiting on.
-    //
-    // What prints next in this pane is written by the shell itself — and it
-    // prints alone, because the armed line clears the screen the moment the
-    // pistol fires. That `clear` is inside the armed command on purpose: an
-    // earlier take typed it as a separate line and the shell, still blocked
-    // on the wait, buffered it as stdin and ran it AFTER the close printed,
-    // wiping the one output the climax exists to show. The cut starts this
-    // segment just after the clear, so the scaffolding — a while-loop and a
-    // temp path — never reaches a frame.
-    await page.mouse.move(1200, 820)
-    await beat(page, 1400)
-    mark('hands_off')
-
-    const goAt = Date.now()
-    writeFileSync(GO, '')
-    for (const member of CREW) {
+    // ── RECOVERY A ───────────────────────────────────────────────────────
+    // One click on a row, and the shell that was doing that issue's work is
+    // back with its scrollback. Then a line typed into it, because a replay
+    // that cannot be typed into is a screenshot.
+    // The replay is proved by something only THAT shell's history contains —
+    // the claim used to be the marker, but it is cleared out of the ring now
+    // (see the set-up), and a note from the issue's own work is the honest
+    // witness anyway.
+    const recover = async (key: string, line: string, tag: string, seen: string) => {
+      await sessionTab(page, key).click()
       await expect
-        .poll(async () => columnOf(page, member.key), { timeout: 30_000, intervals: [120] })
-        .toBe('done')
+        .poll(async () => readTerm(page), { timeout: 15_000, intervals: [200] })
+        .toContain(seen)
+      mark(`${tag}_replay`, `key=${key}`)
+      await beat(page, 900)
+      await runLine(page, line)
+      await beat(page, 900)
+      mark(`${tag}_alive`)
     }
-    mark('volley_landed', `ms_after_go=${Date.now() - goAt}`)
-    const flew = await page.evaluate(
-      () => [...((window as unknown as { __flew?: Set<string> }).__flew ?? [])],
-    )
-    // A note, never a gate: the film is not rejected because a 260ms marker
-    // was missed, but a take where none of the three flew is a take whose
-    // climax the cut should not use, and this is how that is known.
-    mark('flight_marker', `flew=${JSON.stringify(flew)}`)
-    for (const member of CREW) {
-      expect(await categoryOf(page, member.key)).toBe('done')
-    }
-    rmSync(GO, { force: true })
-    await beat(page, 2200)
+    await recover(CREW[0].key, 'grep -n field notes.txt', 'a', 'FAIL export/columns')
+
+    // ── RECOVERY B ───────────────────────────────────────────────────────
+    // Straight into another one. Two in a row is what makes it a system
+    // rather than a trick.
+    await recover(CREW[1].key, 'grep -n repaint repro.txt', 'b', 'sidebar keeps the last query')
     mark('end_frame')
-    await beat(page, 2400)
+    await beat(page, 2000)
     mark('end')
   })
 })

@@ -109,3 +109,33 @@ export async function categoryOf(page: Page, key: string): Promise<string | null
   }
   return (body.issues ?? []).find((i) => i.key === key)?.status_category ?? null
 }
+
+/**
+ * The tab/row that names a session by its issue key, and the list of those
+ * names.
+ *
+ * Today the terminal is a side pane and these are rows in its session strip;
+ * with the bottom dock (GDK-1194) they become tabs in a ribbon. They live
+ * here rather than in the spec so that swap is a change to this file only —
+ * the choreography asks "the thing that names this session", never "the strip
+ * row".
+ */
+export function sessionTab(page: Page, key: string): Locator {
+  return page.getByTestId('terminal-strip-row').filter({ hasText: key }).first()
+}
+
+export function sessionTabNames(page: Page): Promise<string[]> {
+  return page.getByTestId('terminal-strip-name').allTextContents()
+}
+
+/** How many session tabs are clipped out of view. The chaos beat needs 0 —
+ *  a roster that hides its own rows is not a roster (GDK-1193). */
+export function tabsBelowFold(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    const strip = document.querySelector('[data-testid="terminal-strip"]')
+    if (!strip) return -1
+    const box = strip.getBoundingClientRect()
+    return [...strip.querySelectorAll('[data-testid="terminal-strip-row"]')]
+      .filter((r) => r.getBoundingClientRect().bottom > box.bottom + 1).length
+  })
+}

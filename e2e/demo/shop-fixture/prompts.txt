@@ -1,0 +1,7 @@
+# One investigation per shell, in crew order. "read only" keeps Claude on
+# Grep/Read/Glob, which need no permission prompt — a permission dialog on
+# camera is a dialog, not an investigation.
+STD-1|find where checkout retries the same card twice and explain why, read only
+STD-9|find why the search highlight stays in the sidebar after the query is cleared, read only
+STD-14|find why the first keystroke into a fresh comment box is lost, read only
+STD-4|find why the tax column is missing from the invoice export but not the preview, read only

@@ -58,57 +58,18 @@ at() { python3 "$ROOT/e2e/demo/rt-marks.py" at "$PROOF" "$1" "${2:-0}" "$LEAD"; 
 # own segment — when the kanban board lands (GDK-761) it is filmed against the
 # board and swapped in here, and nothing else in this file changes.
 #
-# A: the board at rest, and ⌘K bringing the terminal into the same window.
-A_IN="$(at board_at_rest 0.9)"   A_OUT="$(at pane_open -0.25)"
-# B: two shells in the strip, both anonymous. It exists so the rename in C has
-#    a "before", and it earns no more than a second.
-B_IN="$(at strip_two_shells -0.4)" B_OUT="$(at strip_two_shells 0.8)"
-# C: THE MONEY SHOT. Opens mid-command — the film has no time to watch someone
-#    type a paragraph, and the interesting frame is the one just before Enter —
-#    and runs UNBROKEN through Enter, the card crossing into In progress, the
-#    `bound to session` reply, and the strip row taking the issue's name.
-#    Nothing may be cut out of this range: the unbroken frame IS the claim.
-#    It ends after strip_renamed because the rail/strip rename trails the row
-#    by 0-2s (measured 0.27-1.27s over four samples — the roster poll runs on a
-#    fixed 2s cadence while the row moves the instant the write lands).
-C_IN="$(at claim_enter -1.7)"    C_OUT="$(at strip_renamed 2.2)"
-# D: the return leg — the issue's own body hands a command back to the shell
-#    that claimed it (▶ places it, a person runs it), the keys come back, and
-#    one of them is clicked open. Ends on linkify rather than on the output so
-#    the third leg is in frame: shell → tracker → shell → tracker.
-D_IN="$(at detail_open -0.1)"    D_OUT="$(at linkify_opened 1.2)"
-# E: THE CLIMAX / payoff. `gadak close`, the card leaves In progress, and the
-#    Done chip reveals the column it landed in. The reveal is not decoration:
-#    without it the payoff row sits on the frame's last twelve pixels
-#    (measured) and the film's final image arrives cropped.
-E_IN="$(at close_enter -0.7)"    E_OUT="$(at done_revealed 1.5)"
-# F: THE CLIMAX — the hand leaves and three cards cross on their own. This is
-#    the segment the board (GDK-1175) exists for and the one most likely to be
-#    re-shot. It opens just AFTER the starting pistol — the armed shells clear
-#    themselves at that instant, so the rig's while-loop and temp path are
-#    never in frame — and runs unbroken through the volley. Nothing may be cut out of the
-#    volley itself — three cards flying at once IS the shot, and measured they
-#    all land within 493ms of the trigger.
-# G: THE BRIDGE — the climax's cause, on screen. Three shells wearing three
-#    issue keys with their dots running, beside a board that is still all
-#    human chips. A blind reviewer of the previous cut could only work out
-#    where the climax came from by reading the end card: the crew was armed
-#    off-frame and the cards simply moved. This is release-video.md's G3
-#    failure ("the argument lives off-frame") and this beat is its fix.
-#    Filmed from the PERSON's shell, so no armed while-loop is in frame, and
-#    held 2.6s because the strip renames on a 2s roster cadence (GDK-1182) —
-#    cut shorter and it can land on a row that is still a hex id.
-G_IN="$(at bridge_in -0.3)"     G_OUT="$(at bridge 0.1)"
-F_IN="$(at hands_off 0.45)"     F_OUT="$(at end_frame 2.2)"
+# X: the chaos. Five shells, five issue keys, five cards wearing a shell edge
+#    — and only one scrollback visible. The premise: work was left in all of
+#    them and nobody remembers which.
+X_IN="$(at chaos -1.8)"         X_OUT="$(at chaos 1.8)"
+# Y: recovery A. One click and that issue's shell is back with its scrollback,
+#    then a line typed into it — a replay you cannot type into is a screenshot.
+Y_IN="$(at a_replay -0.5)"      Y_OUT="$(at a_alive 0.5)"
+# Z: recovery B, straight after. Two in a row is what makes it a system rather
+#    than a trick, and the speed is the argument.
+Z_IN="$(at b_replay -0.4)"      Z_OUT="$(at end_frame 1.4)"
 
-# H: the issue's own shell, found by its name — click a strip row and the
-#    pane swaps to that session with its scrollback replayed. The film's
-#    nearest claim: you do not hunt a terminal tab, you pick the issue.
-H_IN="$(at session_away -0.6)"  H_OUT="$(at session_pick 2.0)"
-
-# G (bridge) and F (volley) stay defined above: their footage is still in the
-# take and the bounds still resolve, they are simply not in the running order.
-SEGMENTS="A B C D E H"
+SEGMENTS="X Y Z"
 
 seg() {
   echo "[0:v]trim=${1}:${2},setpts=PTS-STARTPTS,fps=${FPS},scale=${W}:${H}," \
@@ -155,9 +116,8 @@ ffprobe -v error -select_streams v:0 -show_entries stream=width,height \
 # it is not frame 0. It is the money shot's own hold: the command has run, the
 # card is in In progress, the strip row says the issue key. Derived from the
 # segment lengths so a retime cannot leave it pointing at the wrong beat.
-POSTER_AT="${GADAK_RT_POSTER:-$(python3 -c "
-a=$A_OUT-$A_IN; b=$B_OUT-$B_IN; c=$C_IN
-print(round(a+b+($C_OUT-$C_IN)*0.72, 2))")}"
+POSTER_AT="${GADAK_RT_POSTER:-$(awk -v a="$X_OUT" -v b="$X_IN" \
+  'BEGIN{print (a-b)*0.75}')}"
 poster="${OUT%.mp4}-poster.png"
 ffmpeg -v error -y -ss "$POSTER_AT" -i "$OUT" -frames:v 1 "$poster"
 echo "cut-roundtrip: poster at ${poster} (t=${POSTER_AT}s)"
