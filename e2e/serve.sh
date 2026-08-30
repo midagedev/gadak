@@ -195,7 +195,8 @@ VALUES
    'claimed from the triage queue; reproducing on staging now', '2026-07-16T02:10:00.000Z'),
   ('jira:c-e2e-bot-2', 'jira:10344', 'c-e2e-bot-2', 'Claude (build 1)', 'acc-e2e-bot',
    'fix up — PR linked from the dev panel', '2026-07-20T15:05:00.000Z')
-ON CONFLICT(id) DO UPDATE SET
+-- comments is keyed (item_id, id) since schemaV39 (GDK-1179).
+ON CONFLICT(item_id, id) DO UPDATE SET
   body_text = excluded.body_text;
 
 -- comments rows ride the detail payload; the list column is stored, so the

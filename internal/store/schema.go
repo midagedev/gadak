@@ -3,7 +3,7 @@ package store
 // migrations are applied in order and the index+1 is the schema version. A
 // released migration is never edited; a schema change is a new entry at the end
 // plus a documented row in specs/000-product/data-model.md.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39}
 
 // itemsFTSCreate is the canonical items_fts DDL, spliced into schemaV1 so a
 // fresh database is born matching it (GDK-444: an inline copy in V1 lagged at
@@ -730,6 +730,95 @@ DROP TABLE IF EXISTS saved_views;
 DROP TABLE IF EXISTS watches;
 DROP TABLE IF EXISTS favorites;
 DROP TABLE IF EXISTS feed_reads;
+`
+
+// schemaV39 (GDK-1179) re-keys the per-item child tables on (item_id, id).
+// A child row's id is only unique inside its item, and the mirror had been
+// asserting the stronger thing. issuetap mints history/comment/attachment
+// ids from in-memory counters seeded when the persist is opened, so two
+// gadak processes writing at the same time mint the same id for different
+// issues — and it is durable, in the origin's persist. With a global
+// PRIMARY KEY the second issue's re-read failed forever ("UNIQUE constraint
+// failed: changelog.id"), and so did the `gadak sync` the warning told the
+// user to run. The delete side was already per item (`DELETE FROM changelog
+// WHERE item_id = ?`), so this only makes the key match the writes.
+// Copying is safe: the old PK could not have admitted a duplicate.
+// issue_actors selects comments and changelog, so it is dropped up front and
+// recreated verbatim at the end — otherwise the DROP TABLE fails on it, and
+// ALTER ... RENAME would rewrite it under our feet.
+const schemaV39 = `
+DROP VIEW issue_actors;
+
+CREATE TABLE changelog_new (
+  id         TEXT NOT NULL,
+  item_id    TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+  at         TEXT,
+  author     TEXT,
+  field      TEXT,
+  from_value TEXT,
+  from_id    TEXT,
+  to_value   TEXT,
+  to_id      TEXT,
+  author_id  TEXT,
+  PRIMARY KEY (item_id, id)
+);
+INSERT INTO changelog_new SELECT id, item_id, at, author, field, from_value, from_id, to_value, to_id, author_id FROM changelog;
+DROP TABLE changelog;
+ALTER TABLE changelog_new RENAME TO changelog;
+CREATE INDEX changelog_item_at ON changelog(item_id, at);
+CREATE INDEX changelog_field_at ON changelog(field, at);
+
+CREATE TABLE comments_new (
+  id          TEXT NOT NULL,
+  item_id     TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+  external_id TEXT,
+  author      TEXT,
+  author_id   TEXT,
+  body_adf    TEXT,
+  body_text   TEXT,
+  created_at  TEXT,
+  updated_at  TEXT,
+  visibility_type  TEXT NOT NULL DEFAULT '',
+  visibility_value TEXT NOT NULL DEFAULT '',
+  jsd_public  INTEGER,
+  PRIMARY KEY (item_id, id)
+);
+INSERT INTO comments_new SELECT id, item_id, external_id, author, author_id, body_adf, body_text, created_at, updated_at, visibility_type, visibility_value, jsd_public FROM comments;
+DROP TABLE comments;
+ALTER TABLE comments_new RENAME TO comments;
+CREATE INDEX comments_item_created ON comments(item_id, created_at);
+
+CREATE TABLE attachments_new (
+  id          TEXT NOT NULL,
+  item_id     TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+  external_id TEXT,
+  filename    TEXT,
+  mime_type   TEXT,
+  size        INTEGER,
+  author      TEXT,
+  created_at  TEXT,
+  author_id   TEXT,
+  url         TEXT,
+  PRIMARY KEY (item_id, id)
+);
+INSERT INTO attachments_new SELECT id, item_id, external_id, filename, mime_type, size, author, created_at, author_id, url FROM attachments;
+DROP TABLE attachments;
+ALTER TABLE attachments_new RENAME TO attachments;
+CREATE INDEX attachments_item ON attachments(item_id);
+
+CREATE VIEW issue_actors AS
+SELECT i.key AS issue_key, i.source_id AS source_id,
+       c.author_id AS actor_id, c.author AS actor_name, 'comment' AS via
+  FROM comments c JOIN items i ON i.id = c.item_id
+ WHERE c.author_id != ''
+UNION ALL
+SELECT i.key, i.source_id, cl.author_id, cl.author, 'changelog'
+  FROM changelog cl JOIN items i ON i.id = cl.item_id
+ WHERE cl.author_id != ''
+UNION ALL
+SELECT i.key, i.source_id, d.actor, d.actor_name, 'dev_link'
+  FROM dev_links d JOIN items i ON i.id = d.item_id
+ WHERE d.actor != '';
 `
 
 // personalStateCopyVersion is the migration level schemaV26 lands on. migrate

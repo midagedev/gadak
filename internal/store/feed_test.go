@@ -217,7 +217,7 @@ func TestFeedEventMappingAndReasons(t *testing.T) {
 	}
 
 	// Status change on my assigned issue.
-	st, ok := m["cl:jira:h-status"]
+	st, ok := m["cl:jira:1:jira:h-status"]
 	if !ok {
 		t.Fatalf("missing status event; items=%v", keysOf(m))
 	}
@@ -232,10 +232,10 @@ func TestFeedEventMappingAndReasons(t *testing.T) {
 	}
 
 	// Self action excluded.
-	if _, ok := m["cl:jira:h-self"]; ok {
+	if _, ok := m["cl:jira:1:jira:h-self"]; ok {
 		t.Error("self status change should be excluded")
 	}
-	if _, ok := m["cm:jira:c-self"]; ok {
+	if _, ok := m["cm:jira:1:jira:c-self"]; ok {
 		t.Error("self comment should be excluded")
 	}
 
@@ -260,13 +260,13 @@ func TestFeedEventMappingAndReasons(t *testing.T) {
 	}
 
 	// assigned
-	as, ok := m["cl:jira:h-assign"]
+	as, ok := m["cl:jira:1:jira:h-assign"]
 	if !ok || as.EventType != "assigned" {
 		t.Errorf("assigned event: ok=%v type=%q", ok, as.EventType)
 	}
 
 	// comment with mention reason
-	cm, ok := m["cm:jira:c-other"]
+	cm, ok := m["cm:jira:1:jira:c-other"]
 	if !ok {
 		t.Fatal("missing mention comment")
 	}
@@ -278,26 +278,26 @@ func TestFeedEventMappingAndReasons(t *testing.T) {
 	}
 
 	// attachment
-	if at, ok := m["at:jira:a-1"]; !ok || at.EventType != "attachment_added" {
+	if at, ok := m["at:jira:1:jira:a-1"]; !ok || at.EventType != "attachment_added" {
 		t.Errorf("attachment: ok=%v", ok)
 	} else if at.Payload["filename"] != "trace.png" {
 		t.Errorf("filename %v", at.Payload["filename"])
 	}
 
 	// reporter reason on NMB-2 comment
-	rp, ok := m["cm:jira:c-rp"]
+	rp, ok := m["cm:jira:2:jira:c-rp"]
 	if !ok || !hasReason(rp, "reporter") {
 		t.Errorf("reporter comment: ok=%v reasons=%v", ok, rp.Reasons)
 	}
 
 	// watched reason on NMB-3
-	w, ok := m["cl:jira:h-watch"]
+	w, ok := m["cl:jira:3:jira:h-watch"]
 	if !ok || !hasReason(w, "watched") {
 		t.Errorf("watched: ok=%v reasons=%v", ok, w.Reasons)
 	}
 
 	// reopened
-	re, ok := m["cl:jira:h-reopen"]
+	re, ok := m["cl:jira:4:jira:h-reopen"]
 	if !ok {
 		t.Fatal("missing reopen event")
 	}

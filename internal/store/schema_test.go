@@ -237,16 +237,16 @@ func TestChangelogAttachmentAuthorIDWrittenAndFeedSelfExclude(t *testing.T) {
 		t.Fatal(err)
 	}
 	m := byEventID(res.Items)
-	if _, ok := m["cl:jira:h-me"]; ok {
+	if _, ok := m["cl:jira:1:jira:h-me"]; ok {
 		t.Error("I7: own changelog (same display name) must be excluded by author_id")
 	}
-	if _, ok := m["at:jira:a-me"]; ok {
+	if _, ok := m["at:jira:1:jira:a-me"]; ok {
 		t.Error("I7: own attachment (same display name) must be excluded by author_id")
 	}
-	if _, ok := m["cl:jira:h-ot"]; !ok {
+	if _, ok := m["cl:jira:1:jira:h-ot"]; !ok {
 		t.Error("I7: other Kim's changelog must remain (author_id differs)")
 	}
-	if _, ok := m["at:jira:a-ot"]; !ok {
+	if _, ok := m["at:jira:1:jira:a-ot"]; !ok {
 		t.Error("I7: other Kim's attachment must remain (author_id differs)")
 	}
 

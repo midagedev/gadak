@@ -328,6 +328,11 @@ func (db *DB) computeFeedEvents(ctx context.Context, me FeedIdentity, now time.T
 		if isSelfActor(me, ch.AuthorID, ch.Author) {
 			continue
 		}
+		// Event ids carry item_id (like "fl:" below) because a child row's
+		// id is only unique inside its item — schemaV39 re-keyed the tables
+		// on (item_id, id) for that reason (GDK-1179). Unscoped, two items
+		// sharing a history id would share one read-mark. One-time cost:
+		// read-marks written under the old bare-id form stop matching.
 		switch ch.Field {
 		case "status":
 			eventType := "status_changed"
@@ -338,7 +343,7 @@ func (db *DB) computeFeedEvents(ctx context.Context, me FeedIdentity, now time.T
 			if len(reasons) == 0 {
 				continue
 			}
-			eid := "cl:" + ch.ID
+			eid := "cl:" + ch.ItemID + ":" + ch.ID
 			out = append(out, FeedItem{
 				EventID:       eid,
 				IssueKey:      iss.Key,
@@ -356,7 +361,7 @@ func (db *DB) computeFeedEvents(ctx context.Context, me FeedIdentity, now time.T
 			if len(reasons) == 0 {
 				continue
 			}
-			eid := "cl:" + ch.ID
+			eid := "cl:" + ch.ItemID + ":" + ch.ID
 			out = append(out, FeedItem{
 				EventID:       eid,
 				IssueKey:      iss.Key,
@@ -432,7 +437,7 @@ func (db *DB) computeFeedEvents(ctx context.Context, me FeedIdentity, now time.T
 		if len(reasons) == 0 {
 			continue
 		}
-		eid := "cm:" + c.ID
+		eid := "cm:" + c.ItemID + ":" + c.ID
 		excerpt := c.BodyText
 		if excerpt == "" {
 			excerpt = plainExcerptFromADF(c.BodyADF)
@@ -464,7 +469,7 @@ func (db *DB) computeFeedEvents(ctx context.Context, me FeedIdentity, now time.T
 		if len(reasons) == 0 {
 			continue
 		}
-		eid := "at:" + a.ID
+		eid := "at:" + a.ItemID + ":" + a.ID
 		out = append(out, FeedItem{
 			EventID:       eid,
 			IssueKey:      iss.Key,

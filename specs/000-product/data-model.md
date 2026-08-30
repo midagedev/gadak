@@ -360,8 +360,8 @@ database stays small and no file content is ever committed in a snapshot.
 
 | Column | Type | Notes |
 | --- | --- | --- |
-| `id` | TEXT PK | |
-| `item_id` | TEXT | FK |
+| `id` | TEXT | PK is `(item_id, id)` since v39 — a child row's id is only unique inside its item (GDK-1179; same for `comments` and `attachments`). |
+| `item_id` | TEXT | FK, PK |
 | `at` | TEXT | |
 | `author` | TEXT | |
 | `field` | TEXT | `status`, `assignee`, `priority`, ... |
@@ -561,9 +561,9 @@ no longer silently wrong, but write it anyway — the prefix is the contract.
 Feed read receipts record which computed feed event ids the user has marked
 read; feed events themselves are never stored — the feed is computed from the
 mirror at query time (status/assignee changelog, comments, attachments, issue
-creates). `event_id` is a deterministic id: `cl:<changelog.id>`,
-`cm:<comment.id>`, `at:<attachment.id>`, `cr:<issue.key>`, or
-`fl:<item_id>:<at>` for grouped field changes.
+creates). `event_id` is a deterministic id: `cl:<item_id>:<changelog.id>`,
+`cm:<item_id>:<comment.id>`, `at:<item_id>:<attachment.id>`, `cr:<issue.key>`,
+or `fl:<item_id>:<at>` for grouped field changes.
 
 ## Replacing the origin
 
