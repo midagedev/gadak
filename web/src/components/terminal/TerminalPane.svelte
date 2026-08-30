@@ -1,7 +1,8 @@
 <script lang="ts">
   /*
-   * Terminal pane (GDK-864). Split: docks left of the main column. Overlay:
-   * below 900px, covers the content track (sidebar stays clickable).
+   * Terminal pane (GDK-864, GDK-1194). Dock: the bottom of the content row,
+   * spanning list/board and a docked detail panel both. Overlay: below 900px,
+   * covers the content track (sidebar stays clickable).
    *
    * Closing the pane closes the WebSocket and keeps the session id; a reopen
    * reattaches and the ring replay is the first binary frame. Page unload
@@ -36,8 +37,8 @@
     type UnavailableCause,
   } from '../../lib/terminal/session'
   import {
+    TERMINAL_MIN_HEIGHT_PX,
     TERMINAL_MIN_WIDTH_PX,
-    TERMINAL_SPLIT_MAX_PCT,
     terminalChrome,
   } from '../../lib/terminal/pane.svelte'
   import { terminalSessions } from '../../lib/terminal/sessions.svelte'
@@ -66,7 +67,7 @@
   // (GDK-991), not an Enter branch plus a click branch to keep in step.
   let sendTerminalData: ((bytes: Uint8Array) => void) | null = null
 
-  const widthPx = $derived(terminalChrome.widthPx)
+  const heightPx = $derived(terminalChrome.heightPx)
   const connectingGrace = createSkeletonGrace(() => !attached && status.kind === 'none')
 
   const DROPPED_KEYS = {
@@ -536,10 +537,11 @@
     if (overlay) return
     e.preventDefault()
     dragging = true
-    const startX = e.clientX
-    const startW = widthPx
+    const startY = e.clientY
+    const startH = heightPx
+    // Up is taller: the handle is on the dock's top edge (GDK-1194).
     const move = (ev: PointerEvent) => {
-      terminalChrome.persistWidth(startW + (ev.clientX - startX))
+      terminalChrome.persistHeight(startH + (startY - ev.clientY))
     }
     const up = () => {
       dragging = false
@@ -562,13 +564,13 @@
 </script>
 
 <aside
-  class="flex h-full min-h-0 flex-none flex-col overflow-hidden bg-bg-base {overlay
-    ? 'fixed top-0 right-0 bottom-0 border-l border-border-subtle'
-    : 'relative border-r border-border-subtle'}"
+  class="flex min-h-0 w-full min-w-0 flex-col overflow-hidden bg-bg-base {overlay
+    ? 'fixed top-0 right-0 bottom-0 h-full border-l border-border-subtle'
+    : 'relative border-t border-border-subtle'}"
   class:select-none={dragging}
   style={overlay
     ? `left: var(--layout-sidebar, 272px); z-index: 48; min-width: ${TERMINAL_MIN_WIDTH_PX}px`
-    : `width: ${widthPx}px; min-width: ${TERMINAL_MIN_WIDTH_PX}px; max-width: min(${TERMINAL_SPLIT_MAX_PCT}%, calc(100% - var(--layout-list-min, 390px)))`}
+    : `height: ${heightPx}px; min-height: ${TERMINAL_MIN_HEIGHT_PX}px`}
   role="region"
   aria-label={t('terminal.title')}
   data-testid="terminal-pane"
@@ -698,7 +700,7 @@
   {#if !overlay}
     <button
       type="button"
-      class="absolute top-0 right-0 h-full w-1 cursor-col-resize border-0 bg-transparent p-0 hover:bg-border-subtle"
+      class="absolute top-0 right-0 left-0 h-1 cursor-row-resize border-0 bg-transparent p-0 hover:bg-border-subtle"
       aria-label={t('terminal.resize')}
       data-testid="terminal-resize"
       onpointerdown={onHandlePointerDown}

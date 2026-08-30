@@ -820,25 +820,34 @@
            component identity is the template branch, so a keyed branch is a
            destroy/recreate of the whole column (list teardown resets the
            cursor, dashboard iframes reload, docs virtual scroll resets). The
-           cell wrapper is therefore always mounted and only the pane toggles
-           inside it; the pane takes overlay geometry from a reactive prop
+           cell wrapper is therefore always mounted; since GDK-1194 the
+           terminal is not even a sibling here — it is the dock row below —
+           and it still takes overlay geometry from a reactive prop
            (TerminalPane reads `overlay` in reactive positions only) rather
-           than a second template branch, so it too survives a threshold
+           than a second template branch, so it survives a threshold
            crossing. -->
       <div
         class="flex h-full min-h-0 min-w-0 overflow-hidden"
         style="grid-column: 2; grid-row: 1"
         data-testid="terminal-split"
       >
-        {#if terminalChrome.open}
-          <TerminalPane overlay={terminalChrome.narrow} />
-        {/if}
         <MainColumn>
           {#snippet children()}
             {@render columnBody()}
           {/snippet}
         </MainColumn>
       </div>
+
+      <!-- GDK-1194: the dock spans the whole content row, under the list and
+           a docked detail panel both, so the shell is as wide as the window
+           allows. The cell is only mounted while the pane is open — an empty
+           `auto` row is zero-height either way, and not mounting it keeps the
+           row out of the way of the overlay regime entirely. -->
+      {#if terminalChrome.open}
+        <div class="terminal-dock" data-testid="terminal-dock">
+          <TerminalPane overlay={terminalChrome.narrow} />
+        </div>
+      {/if}
 
       <RightPanel open={panelOpen}>
         {#snippet children()}

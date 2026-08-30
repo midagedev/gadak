@@ -347,27 +347,52 @@ test.describe('terminal shots', () => {
   })
 
   /*
-   * 2026-08-25 — GDK-864 (lead review). The default width is 44% of the
-   * *window*, but the pane is a flex child of the layout's main track, which
-   * is capped at 1360px. On a wide display those two disagree and the issue
-   * list is squeezed. TERMINAL_SPLIT_MAX_PCT is the ceiling; this pins it
-   * where the disagreement is largest.
+   * 2026-08-30 — GDK-1194. Replaces "a wide display does not let the pane eat
+   * the list", which pinned the old side pane's width cap: the dock spans the
+   * whole content row, so there is no list width left for it to eat and that
+   * assertion can no longer fail. The axis it competed on moved, so the cap
+   * moved with it — the same claim, one quarter-turn over.
    *
-   * FAIL-first, measured: with the max-width removed from TerminalPane's
-   * split style, this test failed here at `pane took 71% of the track`
-   * (ratio 0.7118) — the list kept 392px of a 1360px track.
+   * Both halves, because a dock that is merely *not too tall* could also be a
+   * dock that never opened: it takes a real share of the row (the 40%
+   * default, TERMINAL_DEFAULT_HEIGHT_RATIO) and still leaves the board more
+   * than the 70% ceiling allows it to take (TERMINAL_MAX_HEIGHT_RATIO,
+   * clamped in persistHeight — the single owner, since a grid item in an
+   * `auto` row has no definite height for a CSS percentage to resolve
+   * against).
+   *
+   * FAIL-first, measured 2026-08-30: with the `Math.min(want, maxHeight())`
+   * in pane.svelte.ts `heightPx` reduced to `return want`, this failed here
+   * at `dock took 444% of the window` — the seeded 4000px straight through.
    */
-  test('a wide display does not let the pane eat the list', async ({ page }) => {
-    await page.setViewportSize({ width: 2200, height: 900 })
+  test('the dock takes the row it is given and no more', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    // Beyond the ceiling on purpose: what is stored is a wish, and the clamp
+    // is what answers it.
+    await page.addInitScript(() => {
+      try {
+        localStorage.setItem('gadak.terminal.height', '4000')
+      } catch {
+        /* private mode */
+      }
+    })
     await boot(page)
     await openPane(page)
-    const trackBox = await page.getByTestId('terminal-split').boundingBox()
-    const paneBox = await page.getByTestId('terminal-pane').boundingBox()
-    expect(trackBox, 'split wrapper box').not.toBeNull()
-    expect(paneBox, 'pane box').not.toBeNull()
-    const ratio = paneBox!.width / trackBox!.width
-    expect(ratio, `pane took ${Math.round(ratio * 100)}% of the track`).toBeLessThanOrEqual(0.62)
-    expect(trackBox!.width - paneBox!.width).toBeGreaterThan(400)
+    const rowBox = await page.getByTestId('issue-layout').boundingBox()
+    const dockBox = await page.getByTestId('terminal-pane').boundingBox()
+    expect(rowBox, 'layout box').not.toBeNull()
+    expect(dockBox, 'dock box').not.toBeNull()
+    // Against the window, which is what TERMINAL_MAX_HEIGHT_RATIO is a
+    // fraction of — the layout row is the window minus the header, and
+    // measuring against it would be asking the cap about a number it was
+    // never written in terms of.
+    const ratio = dockBox!.height / 900
+    expect(ratio, `dock took ${Math.round(ratio * 100)}% of the window`).toBeLessThanOrEqual(0.72)
+    expect(ratio, `dock took ${Math.round(ratio * 100)}% of the window`).toBeGreaterThan(0.3)
+    // …and it really is a dock, not a column: it runs from the sidebar's edge
+    // to the far side of the row, so the shell gets the whole content width.
+    expect(dockBox!.x + dockBox!.width).toBeCloseTo(rowBox!.x + rowBox!.width, 0)
+    expect(dockBox!.width).toBeGreaterThan(rowBox!.width * 0.7)
   })
 
   /*

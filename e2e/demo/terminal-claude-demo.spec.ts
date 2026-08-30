@@ -135,7 +135,7 @@ test.describe('terminal claude demo', () => {
     // is about 55 columns and wraps Claude's TUI into a column of stubs.
     await page.addInitScript(() => {
       try {
-        localStorage.setItem('gadak.terminal.width', '640')
+        localStorage.setItem('gadak.terminal.height', '340')
       } catch {
         /* private mode */
       }

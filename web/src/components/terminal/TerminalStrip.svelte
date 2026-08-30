@@ -1,8 +1,15 @@
 <script lang="ts">
   /*
-   * The session strip (GDK-1153 / GDK-1163). One row per live shell; the
-   * name on the row is the issue the session was claimed for (GDK-1158),
-   * and clicking a row is what the pane below attaches to.
+   * The session strip (GDK-1153 / GDK-1163). One tab per live shell; the
+   * name on the tab is the issue the session was claimed for (GDK-1158),
+   * and clicking a tab is what the pane below attaches to.
+   *
+   * GDK-1194 turned it on its side: the terminal is a bottom dock now, and
+   * the axis it has to spare is horizontal — a vertical roster inside a
+   * 40%-tall dock spent the pane's scarce dimension on chrome. Same rows,
+   * same testids, same single owner; a tab row is the IDE grammar for
+   * exactly this. The DOM order is still the roster order, so a keyboard
+   * walks the tabs the way it walked the rows.
    *
    * This is a selector, not a window manager. There is still exactly one
    * <TerminalPane> mount and one socket — the strip only moves the id that
@@ -61,21 +68,11 @@
   function stateLabel(state: TerminalSessionState): string {
     return t(STATE_KEY[state])
   }
-
-  // The strip caps its height and scrolls, and selection can arrive from
-  // outside it (an issue row, a card's ▶) — the selected row must not sit
-  // below the fold it never chose.
-  let listEl: HTMLDivElement | undefined = $state()
-  $effect(() => {
-    void terminalSessions.selectedId
-    listEl?.querySelector('[data-selected="true"]')?.scrollIntoView({ block: 'nearest' })
-  })
 </script>
 
 {#if visible}
   <div
-    bind:this={listEl}
-    class="max-h-36 flex-none overflow-x-hidden overflow-y-auto border-b border-border-subtle bg-bg-panel"
+    class="flex flex-none items-stretch overflow-x-auto overflow-y-hidden border-b border-border-subtle bg-bg-panel"
     role="group"
     aria-label={t('terminal.strip.list')}
     data-testid="terminal-strip"
@@ -84,7 +81,7 @@
     {#if showEmpty}
       <button
         type="button"
-        class="flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-left text-body text-text-secondary hover:bg-bg-hover hover:text-text-primary"
+        class="flex flex-none cursor-pointer items-center gap-2 px-3 py-1.5 text-left text-body text-text-secondary hover:bg-bg-hover hover:text-text-primary"
         data-testid="terminal-strip-start"
         onclick={onstart}
       >
@@ -98,16 +95,25 @@
       {#each rows as row (row.id)}
         <button
           type="button"
-          class="flex w-full cursor-pointer items-center gap-2 px-3 py-1 text-left hover:bg-bg-hover"
+          class="flex max-w-48 min-w-0 flex-none cursor-pointer items-center gap-2 border-r border-b-2 border-r-border-subtle px-3 py-1 text-left hover:bg-bg-hover"
           class:bg-bg-active={row.selected}
+          class:border-b-text-secondary={row.selected}
+          class:border-b-transparent={!row.selected}
           aria-current={row.selected ? 'true' : undefined}
           aria-label={t('terminal.strip.show', { name: row.label })}
-          title={stateLabel(row.state)}
+          title="{row.label} · {stateLabel(row.state)}{row.since
+            ? ` · ${relativeTime(row.since, 'compact')}`
+            : ''}"
           data-testid="terminal-strip-row"
           data-session-id={row.id}
           data-state={row.state}
           data-selected={row.selected ? 'true' : 'false'}
           onclick={() => terminalSessions.select(row.id)}
+          {@attach (el) => {
+            // The selected tab has to be on screen to be a selection you can
+            // see; with many shells the row scrolls sideways past the edge.
+            if (row.selected) el.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+          }}
         >
           <span class="h-1.5 w-1.5 flex-none rounded-full {DOT[row.state]}"></span>
           <span
@@ -117,9 +123,6 @@
             class:font-medium={row.namedByIssue}
             data-testid="terminal-strip-name">{row.label}</span
           >
-          <span class="ml-auto flex-none truncate text-micro text-text-muted">
-            {stateLabel(row.state)}{row.since ? ` · ${relativeTime(row.since, 'compact')}` : ''}
-          </span>
         </button>
       {/each}
     {/if}

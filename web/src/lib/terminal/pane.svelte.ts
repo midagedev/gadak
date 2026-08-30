@@ -1,14 +1,15 @@
 /*
- * Terminal chrome state (open, overlay vs split, persisted width).
+ * Terminal chrome state (open, overlay vs dock, persisted height).
  * Session bytes live in session.ts; this file is the pane's geometry.
  */
 
 import {
-  TERMINAL_DEFAULT_RATIO,
-  TERMINAL_MIN_WIDTH_PX,
+  TERMINAL_DEFAULT_HEIGHT_RATIO,
+  TERMINAL_HEIGHT_KEY,
+  TERMINAL_MAX_HEIGHT_RATIO,
+  TERMINAL_MIN_HEIGHT_PX,
   TERMINAL_OVERLAY_MAX_PX,
   TERMINAL_SPLIT_WITH_DETAIL_MIN_PX,
-  TERMINAL_WIDTH_KEY,
   terminalIsNarrow,
 } from './layout'
 
@@ -16,22 +17,30 @@ import {
 // the pane and its tests already look here.
 export * from './layout'
 
-function readStoredWidth(): number {
+function readStoredHeight(): number {
   try {
-    const raw = localStorage.getItem(TERMINAL_WIDTH_KEY)
+    const raw = localStorage.getItem(TERMINAL_HEIGHT_KEY)
     const n = raw ? Number(raw) : NaN
-    if (Number.isFinite(n) && n >= TERMINAL_MIN_WIDTH_PX) return Math.round(n)
+    if (Number.isFinite(n) && n >= TERMINAL_MIN_HEIGHT_PX) return Math.round(n)
   } catch {
     /* private mode */
   }
   return 0
 }
 
-function defaultWidth(): number {
-  if (typeof window === 'undefined') return TERMINAL_MIN_WIDTH_PX
+function defaultHeight(): number {
+  if (typeof window === 'undefined') return TERMINAL_MIN_HEIGHT_PX
   return Math.max(
-    TERMINAL_MIN_WIDTH_PX,
-    Math.round(window.innerWidth * TERMINAL_DEFAULT_RATIO),
+    TERMINAL_MIN_HEIGHT_PX,
+    Math.round(window.innerHeight * TERMINAL_DEFAULT_HEIGHT_RATIO),
+  )
+}
+
+function maxHeight(): number {
+  if (typeof window === 'undefined') return Number.MAX_SAFE_INTEGER
+  return Math.max(
+    TERMINAL_MIN_HEIGHT_PX,
+    Math.round(window.innerHeight * TERMINAL_MAX_HEIGHT_RATIO),
   )
 }
 
@@ -39,15 +48,15 @@ class TerminalChrome {
   open = $state(false)
   /** Overlay rather than split — see terminalIsNarrow for the two reasons. */
   narrow = $state(false)
-  /** 0 means "use 44% of the window on next read". */
-  #widthPx = $state(0)
+  /** 0 means "use 40% of the window on next read". */
+  #heightPx = $state(0)
   /** A docked detail panel is the fourth surface competing for the row. */
   #detailDocked = $state(false)
 
   constructor() {
     if (typeof window === 'undefined') return
     this.narrow = terminalIsNarrow(window.innerWidth, false)
-    this.#widthPx = readStoredWidth()
+    this.#heightPx = readStoredHeight()
   }
 
   /**
@@ -66,17 +75,23 @@ class TerminalChrome {
     this.narrow = terminalIsNarrow(window.innerWidth, this.#detailDocked)
   }
 
-  get widthPx(): number {
-    return this.#widthPx >= TERMINAL_MIN_WIDTH_PX ? this.#widthPx : defaultWidth()
+  get heightPx(): number {
+    const want = this.#heightPx >= TERMINAL_MIN_HEIGHT_PX ? this.#heightPx : defaultHeight()
+    return Math.min(want, maxHeight())
   }
 
-  persistWidth(px: number): void {
-    const max =
-      typeof window === 'undefined' ? px : Math.max(TERMINAL_MIN_WIDTH_PX, window.innerWidth - 200)
-    const clamped = Math.min(max, Math.max(TERMINAL_MIN_WIDTH_PX, Math.round(px)))
-    this.#widthPx = clamped
+  /*
+   * The ceiling is enforced here rather than in CSS: the dock is a grid item
+   * in an `auto` row, so a percentage max-height has no definite container to
+   * resolve against. Clamping on read as well as on write (see heightPx)
+   * keeps a height stored on a tall window from opening a dock taller than a
+   * short one.
+   */
+  persistHeight(px: number): void {
+    const clamped = Math.min(maxHeight(), Math.max(TERMINAL_MIN_HEIGHT_PX, Math.round(px)))
+    this.#heightPx = clamped
     try {
-      localStorage.setItem(TERMINAL_WIDTH_KEY, String(clamped))
+      localStorage.setItem(TERMINAL_HEIGHT_KEY, String(clamped))
     } catch {
       /* private mode */
     }

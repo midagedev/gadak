@@ -33,14 +33,16 @@ import { expect, type Locator, type Page } from '@playwright/test'
 export const BOARD_ROUTE = '/#/?sc=new,inprogress,done&g=status_category&ly=board'
 
 /**
- * Pane width. 400px is what is left after the board's three 288px columns and
- * the narrowed sidebar inside a 1472px frame — the board, not the terminal,
- * sets this number now. It holds ~35 columns at the fixture's 19px, which
- * fits `gadak claim STD-7` and `bound to session …` unwrapped. From the
- * moment the detail panel docks, the layout hands the pane its
- * TERMINAL_MIN_WIDTH_PX floor of 320 whatever is stored here.
+ * Dock height (GDK-1194 — the pane is a bottom dock, so the number the film
+ * seeds is a height now; the old 648px width is gone with the side pane).
+ * ~340px inside the 828px frame leaves the board its three rows of cards and
+ * still gives the shell a dozen lines, and the dock spans the whole content
+ * width so nothing it prints wraps.
+ *
+ * The film framing itself has not been re-cut for the dock — that is a
+ * capture round, not this change.
  */
-export const PANE_WIDTH = '648'
+export const PANE_HEIGHT = '340'
 
 /** The board is ready to be filmed. */
 export async function boardReady(page: Page): Promise<void> {

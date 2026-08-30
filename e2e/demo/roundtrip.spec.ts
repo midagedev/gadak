@@ -87,7 +87,7 @@ import { appendFileSync, rmSync, writeFileSync } from 'node:fs'
 import { forceLocale, readTerm } from '../helpers'
 import {
   BOARD_ROUTE,
-  PANE_WIDTH,
+  PANE_HEIGHT,
   boardReady,
   card,
   categoryOf,
@@ -241,11 +241,11 @@ test.describe('roundtrip demo', () => {
   test('a command in the terminal moves the card on the board', async ({ page }) => {
     await page.addInitScript((w) => {
       try {
-        localStorage.setItem('gadak.terminal.width', w)
+        localStorage.setItem('gadak.terminal.height', w)
       } catch {
         /* private mode */
       }
-    }, PANE_WIDTH)
+    }, PANE_HEIGHT)
     await forceLocale(page, 'en')
 
     // ── SET-UP (off camera) ──────────────────────────────────────────────
