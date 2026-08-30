@@ -148,10 +148,15 @@ test.describe('list column header', () => {
     expect(Object.keys(twoPane.row).length).toBeLessThan(Object.keys(alone.row).length)
     expect(misaligned(twoPane)).toEqual([])
 
-    // Three panes: ≤480, where lead-fold-1 takes 34px out of the leading
-    // strip. This is the width a header with its own spacers gets wrong.
-    await page.keyboard.press('Control+Backquote')
-    await expect(page.getByTestId('terminal-pane')).toBeVisible()
+    // Narrower: ≤480, where lead-fold-1 takes 34px out of the leading strip.
+    // This is the width a header with its own spacers gets wrong.
+    //
+    // 2026-08-30 (GDK-1194): the third pane used to be the terminal, taking
+    // its width out of this row. The terminal is a bottom dock now and takes
+    // none, so the same row width comes from the viewport — 1120 is the
+    // narrowest the docked regime has (VIEWPORT_DOCKED_MIN_PX is 1100) and
+    // it lands the row at ~410, inside the ≤480 rung this cell is about.
+    await page.setViewportSize({ width: 1120, height: 900 })
     await expect.poll(async () => (await probe(page)).rowW).toBeLessThan(500)
     const threePane = await probe(page)
     expect(misaligned(threePane)).toEqual([])

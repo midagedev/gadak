@@ -8,20 +8,31 @@
 
 import { VIEWPORT_DOCKED_MIN_PX } from '../viewport-regime'
 
-export const TERMINAL_WIDTH_KEY = 'gadak.terminal.width'
-export const TERMINAL_MIN_WIDTH_PX = 320
-export const TERMINAL_DEFAULT_RATIO = 0.44
 /*
- * The split's ceiling, as a percentage of the *track it lives in* — not of
- * the window (2026-08-25, GDK-864 lead review). The pane is a flex child of
- * the layout's main track, which is capped at 1360px, while the default
- * width is 44% of the window. On a wide display those two disagree: 44% of
- * 2560px is 1126px inside a 1360px track, leaving the issue list ~230px.
- * A percentage max-width resolves against the parent, so the list keeps its
- * share no matter how wide the display is, and dragging past the cap simply
- * saturates.
+ * GDK-1194 (2026-08-30): the split is horizontal — a dock across the bottom
+ * of everything right of the sidebar — so the persisted number is a height.
+ * A new key rather than a migrated one: a stored width is a number in the
+ * wrong axis, and 44% of a window read as a height is a dock that opens
+ * nearly half-screen on one machine and 300px on another.
  */
-export const TERMINAL_SPLIT_MAX_PCT = 60
+export const TERMINAL_HEIGHT_KEY = 'gadak.terminal.height'
+export const TERMINAL_MIN_HEIGHT_PX = 160
+export const TERMINAL_DEFAULT_HEIGHT_RATIO = 0.4
+/*
+ * The dock's ceiling, as a fraction of the window. Unlike the old width cap
+ * this has no track to resolve against — the dock spans the whole content
+ * row — so the clamp lives in persistHeight (pane.svelte.ts), the single
+ * owner, and this is the number it uses.
+ */
+export const TERMINAL_MAX_HEIGHT_RATIO = 0.7
+
+/*
+ * Still the pane's minimum *width*, and still the number the narrow rule
+ * below is derived from: an overlay pane covers the content track, so the
+ * width at which it can no longer coexist with a docked detail panel is
+ * unchanged by the dock.
+ */
+export const TERMINAL_MIN_WIDTH_PX = 320
 /** Below 900px the pane is a full-width overlay instead of a split. */
 export const TERMINAL_OVERLAY_MAX_PX = 899
 

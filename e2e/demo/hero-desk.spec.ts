@@ -258,7 +258,7 @@ test.describe('hero desk demo', () => {
     // spec): 640 is where the pane stops being clamped by the list minimum.
     await page.addInitScript(() => {
       try {
-        localStorage.setItem('gadak.terminal.width', '640')
+        localStorage.setItem('gadak.terminal.height', '340')
       } catch {
         /* private mode */
       }

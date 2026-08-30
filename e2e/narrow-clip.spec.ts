@@ -1,7 +1,6 @@
 import { test, expect, type Page } from '@playwright/test'
 import {
   attachConsoleErrors,
-  drainTerminalSessions,
   forceLocale,
   gotoApp,
   searchInput,
@@ -478,32 +477,32 @@ test.describe('breakdown legend at 800 (GDK-1086)', () => {
   })
 })
 
-test.describe('breakdown legend at 1440 terminal split + docked detail (GDK-1086)', () => {
-  test.use({ viewport: { width: 1440, height: 900 } })
-
-  // Ctrl+` below starts a real PTY on the shared serve, and nothing here
-  // closes it — an abandoned-but-alive session is never reaped, so it was
-  // still on the list when terminal-burst counted sessions minutes later
-  // (GDK-1127). The pane is scenery for this legend measurement; the
-  // session is not, and it is this suite's to clean up.
-  test.afterEach(async ({ page }) => {
-    await drainTerminalSessions(page)
-  })
+/*
+ * 2026-08-30 (GDK-1194): the audit's third pane was a terminal *beside* the
+ * list. The terminal is a bottom dock now and takes no width from this
+ * strip, so the layout is reproduced by the viewport that leaves the list
+ * the least: VIEWPORT_DOCKED_MIN_PX itself, the last width at which the
+ * panel is still docked. The cut this test is named for is a fact
+ * about a squeezed legend, not about what did the squeezing, and the
+ * "vacuous" guard below still proves the squeeze happened. With the pane
+ * gone so is its PTY, and with it the afterEach that reaped the session.
+ */
+test.describe('breakdown legend at 1100 docked detail (GDK-1086)', () => {
+  test.use({ viewport: { width: VIEWPORT_DOCKED_MIN_PX, height: 900 } })
 
   test('status legend fits (the "In progre" cut)', async ({ page }) => {
     const errors = attachConsoleErrors(page)
     await gotoApp(page)
     await waitListRows(page)
     // Status axis, whose chips carry the audit's "In progress" label — the
-    // mid-letter cut in the audit's terminal-split capture. Picked before
-    // the panel docks: the trigger click does not land through the seam.
+    // mid-letter cut in the audit's capture. Picked before the panel docks:
+    // the trigger click does not land through the seam.
     await page.getByRole('button', { name: /Breakdown/ }).click()
     await page.getByRole('button', { name: 'Progress', exact: true }).click()
-    await page.keyboard.press('Control+`')
     await page.locator('[data-testid="issue-list-scroller"] [data-issue-key]').first().click()
     await expect(page.getByTestId('issue-detail-panel')).toHaveClass(/is-open/)
     const probe = await probeLegend(page)
-    assertLegendContract(probe, '1440 terminal split + docked detail (status axis)')
+    assertLegendContract(probe, '1120 docked detail (status axis)')
     const squeezed = probe.chips.filter((c) => c.labelScrollW > c.labelClientW)
     expect(
       squeezed.length,
