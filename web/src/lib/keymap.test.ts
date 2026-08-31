@@ -611,6 +611,100 @@ describe('resolveGlobalKey', () => {
   })
 })
 
+/*
+ * GDK-1250/GDK-1251: the four Ctrl+Shift chords match on ev.code — the
+ * physical key — because ev.key under Shift is the layout's glyph ('[' is
+ * '{' on a US layout, '¨' on a Scandinavian one). The cases below pin both
+ * halves of that: a US ev.key and a non-US one resolve to the same command,
+ * and the shiftless forms stay ignored (the PTY keeps Ctrl+[ as ESC,
+ * Ctrl+] as GS, Ctrl+O as ^O). All resolve with inEditable:true because
+ * these are always-phase — they owe nothing to where focus sits, which is
+ * the whole point of escaping the VT.
+ */
+describe('terminal app chords (GDK-1250)', () => {
+  test('Ctrl+Shift+[ / ] walk the roster regardless of the layout glyph', () => {
+    expect(
+      resolveGlobalKey(
+        keyContext({ key: '{', code: 'BracketLeft', ctrlKey: true, shiftKey: true, inEditable: true }),
+      ),
+    ).toEqual({ type: 'terminal-prev-session' })
+    // Scandinavian layouts print '¨' where the US prints '{'.
+    expect(
+      resolveGlobalKey(
+        keyContext({ key: '¨', code: 'BracketLeft', ctrlKey: true, shiftKey: true, inEditable: true }),
+      ),
+    ).toEqual({ type: 'terminal-prev-session' })
+    expect(
+      resolveGlobalKey(
+        keyContext({ key: '}', code: 'BracketRight', ctrlKey: true, shiftKey: true, inEditable: true }),
+      ),
+    ).toEqual({ type: 'terminal-next-session' })
+  })
+
+  test('Ctrl+Shift+` is the focus escape even where Shift+` still prints `', () => {
+    expect(
+      resolveGlobalKey(
+        keyContext({ key: '`', code: 'Backquote', ctrlKey: true, shiftKey: true, inEditable: true }),
+      ),
+    ).toEqual({ type: 'terminal-focus-strip' })
+    expect(
+      resolveGlobalKey(
+        keyContext({ key: '~', code: 'Backquote', ctrlKey: true, shiftKey: true, inEditable: true }),
+      ),
+    ).toEqual({ type: 'terminal-focus-strip' })
+  })
+
+  test('Ctrl+Shift+O opens the session issue from inside the VT', () => {
+    expect(
+      resolveGlobalKey(
+        keyContext({
+          key: 'O',
+          code: 'KeyO',
+          ctrlKey: true,
+          shiftKey: true,
+          inEditable: true,
+          keyFromTerminalHost: true,
+        }),
+      ),
+    ).toEqual({ type: 'terminal-open-issue' })
+  })
+
+  test('the shiftless forms stay the PTY — ignored, not matched', () => {
+    expect(
+      resolveGlobalKey(keyContext({ key: '[', code: 'BracketLeft', ctrlKey: true, inEditable: true })),
+    ).toEqual({ type: 'ignore' })
+    expect(
+      resolveGlobalKey(keyContext({ key: ']', code: 'BracketRight', ctrlKey: true, inEditable: true })),
+    ).toEqual({ type: 'ignore' })
+    expect(
+      resolveGlobalKey(keyContext({ key: 'o', code: 'KeyO', ctrlKey: true, inEditable: true })),
+    ).toEqual({ type: 'ignore' })
+    // Shiftless Backquote is the toggle, not the focus escape.
+    expect(
+      resolveGlobalKey(keyContext({ key: '`', code: 'Backquote', ctrlKey: true, inEditable: true })),
+    ).toEqual({ type: 'toggle-terminal' })
+  })
+
+  test('Cmd and Alt shapes are not ours', () => {
+    expect(
+      resolveGlobalKey(
+        keyContext({ key: 'O', code: 'KeyO', metaKey: true, shiftKey: true, inEditable: true }),
+      ),
+    ).toEqual({ type: 'ignore' })
+    expect(
+      resolveGlobalKey(
+        keyContext({ key: '{', code: 'BracketLeft', ctrlKey: true, altKey: true, shiftKey: true, inEditable: true }),
+      ),
+    ).toEqual({ type: 'ignore' })
+  })
+
+  test('without ev.code (unit-test shape) the chords cannot match', () => {
+    expect(
+      resolveGlobalKey(keyContext({ key: '{', ctrlKey: true, shiftKey: true, inEditable: true })),
+    ).toEqual({ type: 'ignore' })
+  })
+})
+
 describe('boot-held list keys', () => {
   test('isBootHoldKey is only j/k/x', () => {
     expect(isBootHoldKey('j')).toBe(true)

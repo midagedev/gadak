@@ -73,6 +73,11 @@ async function sessionIds(page: Page): Promise<string[]> {
   return (body.sessions ?? []).map((s) => s.id)
 }
 
+/** Same dataset surface terminal.spec.ts reads: what did the keystroke do? */
+function lastKeyCmdOf(page: Page): Promise<string | null> {
+  return page.locator('html').getAttribute('data-last-key-cmd')
+}
+
 test.describe('terminal session strip', () => {
   test.beforeEach(async ({ page }) => {
     await drainTerminalSessions(page)
@@ -384,6 +389,179 @@ test.describe('terminal session strip', () => {
       `clicking the key should have opened it; the terminal held:\n${await readTerm(page)}`,
     ).toBeVisible({ timeout: 20_000 })
     await expect(panel).toContainText(key!, { timeout: 20_000 })
+
+    expect(appConsoleErrors(errors), `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  /*
+   * GDK-1250: the roster chords work from inside the VT — where the pane
+   * spends its whole life. The contract is the strip's own: the selection
+   * lands on the tab the roster order says it should, the scrollback that
+   * follows is the new session's alone, and both ends wrap.
+   */
+  test('Ctrl+Shift+[ / ] walk the roster from inside the VT (GDK-1250)', async ({ page }) => {
+    test.setTimeout(120_000)
+    const errors = await boot(page)
+    await openPane(page)
+
+    await typeLine(page, "printf 'MARKER-''ONE\\n'")
+    await expect.poll(async () => readTerm(page)).toContain('MARKER-ONE')
+    const [firstId] = await sessionIds(page)
+    expect(firstId, 'the pane should have created a session').toBeTruthy()
+
+    await page.getByTestId('terminal-new').click()
+    await expect(page.getByTestId('terminal-strip')).toHaveAttribute('data-count', '2', {
+      timeout: 20_000,
+    })
+    await typeLine(page, "printf 'MARKER-''TWO\\n'")
+    await expect.poll(async () => readTerm(page)).toContain('MARKER-TWO')
+
+    const rowOne = page.locator(
+      `[data-testid="terminal-strip-row"][data-session-id="${firstId}"]`,
+    )
+    const ids = await sessionIds(page)
+    const secondId = ids.find((id) => id !== firstId)
+    expect(secondId, 'two sessions should be alive').toBeTruthy()
+    const rowTwo = page.locator(
+      `[data-testid="terminal-strip-row"][data-session-id="${secondId}"]`,
+    )
+
+    // Previous, from the pane's seat in session two: one step back the
+    // roster order is session one.
+    await focusTerm(page)
+    await page.keyboard.press('Control+Shift+BracketLeft')
+    expect(await lastKeyCmdOf(page)).toBe('terminal-prev-session')
+    await expect(rowOne).toHaveAttribute('data-selected', 'true', { timeout: 20_000 })
+    await expect
+      .poll(async () => readTerm(page), 'the scrollback should follow the chord')
+      .toContain('MARKER-ONE')
+    expect(
+      await readTerm(page),
+      'the chord is a switch, not a splice — two histories must not merge',
+    ).not.toContain('MARKER-TWO')
+
+    // Next: forward to session two again.
+    await focusTerm(page)
+    await page.keyboard.press('Control+Shift+BracketRight')
+    expect(await lastKeyCmdOf(page)).toBe('terminal-next-session')
+    await expect(rowTwo).toHaveAttribute('data-selected', 'true', { timeout: 20_000 })
+    await expect.poll(async () => readTerm(page)).toContain('MARKER-TWO')
+
+    // Next once more wraps around to the top of the roster.
+    await focusTerm(page)
+    await page.keyboard.press('Control+Shift+BracketRight')
+    await expect(rowOne).toHaveAttribute('data-selected', 'true', { timeout: 20_000 })
+    await expect
+      .poll(async () => readTerm(page), 'the wrap should land on the first session')
+      .toContain('MARKER-ONE')
+
+    expect(appConsoleErrors(errors), `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  /*
+   * GDK-1250's focus escape: Ctrl+Shift+` leaves the VT's focus without
+   * closing the pane — the toggle's old conflict-fallback slot doing the
+   * job it was kept for. After it, the strip's selected tab holds focus,
+   * ordinary app keys work again, and Enter on that tab is the tab's own
+   * click: a re-select of the session already shown, which the selector is
+   * contractually idempotent about.
+   */
+  test('Ctrl+Shift+` moves focus to the selected tab and the pane stays (GDK-1250)', async ({
+    page,
+  }) => {
+    test.setTimeout(120_000)
+    const errors = await boot(page)
+    await openPane(page)
+
+    const row = page.locator('[data-testid="terminal-strip-row"][data-selected="true"]')
+    await expect(row).toHaveCount(1, { timeout: 20_000 })
+
+    await focusTerm(page)
+    await page.keyboard.press('Control+Shift+Backquote')
+
+    // Focus is on the strip's selected tab, not the VT and not a close.
+    await expect
+      .poll(async () =>
+        page.evaluate(() =>
+          document.activeElement?.matches(
+            '[data-testid="terminal-strip-row"][data-selected="true"]',
+          ),
+        ),
+      )
+      .toBe(true)
+    await expect(page.getByTestId('terminal-pane')).toBeVisible()
+    await expect(page.getByTestId('terminal-pane')).toHaveAttribute('data-attached', 'true')
+
+    // Enter on the tab is the tab's own activation: the same select() the
+    // click makes, on the id already held — nothing reattaches, nothing
+    // moves, the pane is still the same session. Pressed while focus is
+    // provably on the tab, before anything below can move it.
+    await page.keyboard.press('Enter')
+    await expect(page.getByTestId('terminal-pane')).toHaveAttribute('data-attached', 'true')
+    await expect(row).toHaveAttribute('data-selected', 'true')
+
+    // An ordinary app key answers from there: ? is chrome's again, and Esc
+    // retires it — the ladder a focused VT could not offer. (The sheet has
+    // its own Escape handler, so this close does not depend on focus.)
+    await page.keyboard.press('?')
+    await expect(page.getByTestId('shortcuts-dialog')).toBeVisible({ timeout: 20_000 })
+    await page.keyboard.press('Escape')
+    await expect(page.getByTestId('shortcuts-dialog')).toHaveCount(0)
+
+    expect(appConsoleErrors(errors), `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  /*
+   * GDK-1251: Ctrl+Shift+O opens the selected session's bound issue — the
+   * same verb the pane's own link activation uses (selection.select), so
+   * the panel is the app's issue view, and an unbound session is a no-op,
+   * not an error.
+   */
+  test('Ctrl+Shift+O opens the selected session’s issue (GDK-1251)', async ({ page }) => {
+    test.setTimeout(120_000)
+    const errors = await boot(page)
+
+    // From the list, like the GDK-1160 test: the key is one the mirror
+    // holds, so the open has somewhere to land.
+    const firstRow = page.locator('[data-testid="issue-list-scroller"] [data-issue-key]').first()
+    await expect(firstRow).toBeVisible({ timeout: 20_000 })
+    const key = await firstRow.getAttribute('data-issue-key')
+    expect(key, 'the demo list should have an issue key').toBeTruthy()
+
+    await openPane(page)
+    const [sessionId] = await sessionIds(page)
+    expect(sessionId, 'the pane should have created a session').toBeTruthy()
+    const row = page.locator(`[data-testid="terminal-strip-row"][data-session-id="${sessionId}"]`)
+    await expect(row).toHaveAttribute('data-selected', 'true', { timeout: 20_000 })
+
+    // Unbound: the chord resolves (the app saw it) and does nothing — no
+    // detail opens over the list.
+    await focusTerm(page)
+    await page.keyboard.press('Control+Shift+KeyO')
+    expect(await lastKeyCmdOf(page)).toBe('terminal-open-issue')
+    await expect(page.locator('[data-testid="issue-layout"]')).toHaveAttribute(
+      'data-detail-open',
+      'false',
+    )
+
+    // The binding the strip exists for, landed the same way `gadak claim`
+    // lands it. The tab carries it as an attribute — the read side of the
+    // same contract the chord dispatches from.
+    await page.request.post(apiURL(`/api/v1/terminal/sessions/${sessionId}/issue/`), {
+      data: { issue_key: key! },
+    })
+    await expect(row).toHaveAttribute('data-issue-key', key!, { timeout: 20_000 })
+
+    await focusTerm(page)
+    await page.keyboard.press('Control+Shift+KeyO')
+    const panel = page.getByTestId('issue-detail-panel')
+    await expect(
+      panel,
+      'the bound session’s issue should have opened; the terminal held:\n' +
+        (await readTerm(page)),
+    ).toBeVisible({ timeout: 20_000 })
+    await expect(panel).toContainText(key!, { timeout: 20_000 })
+    await expect(page.getByTestId('terminal-pane')).toBeVisible()
 
     expect(appConsoleErrors(errors), `console errors:\n${errors.join('\n')}`).toEqual([])
   })

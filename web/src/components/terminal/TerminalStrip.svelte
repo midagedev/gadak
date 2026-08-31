@@ -111,6 +111,7 @@
         data-session-id={row.id}
         data-state={row.state}
         data-selected={row.selected ? 'true' : 'false'}
+        data-issue-key={row.namedByIssue ? row.label : undefined}
         onclick={() => terminalSessions.select(row.id)}
         {@attach (el) => {
           // The selected tab has to be on screen to be a selection you can

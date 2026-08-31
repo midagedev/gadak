@@ -317,6 +317,78 @@ test.describe('terminal pane', () => {
     expect(appConsoleErrors(errors), `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 
+  /*
+   * GDK-1250/GDK-1251: the four Ctrl+Shift chords are the app's while the VT
+   * holds focus — renderer.ts isAppChord returns false for them, so xterm
+   * never processes them and the PTY never sees a byte. Same technique as
+   * the Esc test above: cat -v is the foreground reader and the tty's own
+   * echo (ECHOCTL) prints a control byte as ^X the moment it lands, so the
+   * buffer is the witness on both sides of the boundary — absence for the
+   * chords, presence for the shiftless forms of the very same keys, which
+   * the contract leaves to the PTY (Ctrl+[ is ESC, Ctrl+] is GS).
+   */
+  test('the four Ctrl+Shift chords reach the app, not the PTY (GDK-1250)', async ({ page }) => {
+    test.setTimeout(120_000)
+    const errors = await boot(page)
+    await openPane(page)
+
+    await typeLine(page, "printf 'GDK1250RDY\\n'; cat -v")
+    await expect.poll(async () => readTerm(page)).toContain('GDK1250RDY')
+
+    // Three of the four, pressed with the VT holding focus. Each is a
+    // different command, so the dataset says which one the app resolved —
+    // the proof the keystroke escaped chrome and was not merely swallowed.
+    await focusTerm(page)
+    await page.keyboard.press('Control+Shift+BracketLeft')
+    expect(await lastKeyCmd(page)).toBe('terminal-prev-session')
+    await page.keyboard.press('Control+Shift+BracketRight')
+    expect(await lastKeyCmd(page)).toBe('terminal-next-session')
+    await page.keyboard.press('Control+Shift+KeyO')
+    expect(await lastKeyCmd(page)).toBe('terminal-open-issue')
+    // None of the four is a close: the pane is attached and open throughout.
+    await expect(page.getByTestId('terminal-pane')).toBeVisible()
+    await expect(page.getByTestId('terminal-pane')).toHaveAttribute('data-attached', 'true')
+
+    // The focus escape is pressed last of the four because it succeeds —
+    // focus leaves the VT for the strip's selected tab (GDK-1250's other
+    // test file holds the tab-side assertions; here it is the fourth chord
+    // that must not leak).
+    await focusTerm(page)
+    await page.keyboard.press('Control+Shift+Backquote')
+    expect(await lastKeyCmd(page)).toBe('terminal-focus-strip')
+
+    // Liveness witness, then the boundary. 'qq' is typed into the VT and
+    // must come back — the same path a leaked chord would have taken, so
+    // once the echo is rendered, any chord byte would already be in the
+    // buffer above it. The doubled letter is the sentinel: no banner or
+    // prompt on any of this repo's CI shells prints 'qq'.
+    await focusTerm(page)
+    await page.keyboard.press('q')
+    await page.keyboard.press('q')
+    await expect.poll(async () => readTerm(page), 'q should still reach the PTY').toContain('qq')
+
+    // ESC (^[), GS (^]), SI (^O), NUL (^@): the control bytes the four
+    // chords would have produced had xterm processed them. None may be in
+    // the buffer.
+    expect(await readTerm(page), 'the app chords must not reach the PTY').not.toMatch(
+      /\^\[|\^\]|\^O|\^@/,
+    )
+
+    // The shiftless forms of the same physical keys stay the PTY's — the
+    // contract's other edge, and the reason the chord matching is
+    // Shift-exact rather than prefix-fuzzy.
+    await page.keyboard.press('Control+BracketLeft')
+    await expect.poll(async () => readTerm(page), 'Ctrl+[ should still reach the PTY').toContain('^[')
+    await page.keyboard.press('Control+BracketRight')
+    await expect.poll(async () => readTerm(page), 'Ctrl+] should still reach the PTY').toContain('^]')
+    await expect(page.getByTestId('terminal-pane')).toBeVisible()
+
+    // Leave no reader behind the pane for the drain below.
+    await page.keyboard.press('Control+c')
+
+    expect(appConsoleErrors(errors), `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
   test('split: Esc does not close the pane (GDK-945)', async ({ page }) => {
     test.setTimeout(90_000)
     await page.setViewportSize({ width: 1280, height: 900 })

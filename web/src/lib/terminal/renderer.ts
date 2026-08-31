@@ -62,8 +62,28 @@ function chromeTheme(): {
   }
 }
 
-function isToggleChord(ev: KeyboardEvent): boolean {
-  return ev.ctrlKey && !ev.metaKey && !ev.altKey && (ev.key === '`' || ev.code === 'Backquote')
+/*
+ * The keys that must escape the VT and reach the app (GDK-864 Ctrl+`, then
+ * GDK-1250's four Ctrl+Shift chords). One function, both halves read it:
+ * this is the door, lib/commands.ts's registry is where those chords go.
+ *
+ * The Shift chords match on ev.code — the physical key — because with Shift
+ * held ev.key is whatever the layout prints on it ('[' becomes '{' on a US
+ * layout and something else on every other one), and the binding is to the
+ * key, not the glyph. Their shiftless forms are not app keys: Ctrl+[ is the
+ * PTY's ESC, Ctrl+] its GS, Ctrl+O its ^O, so they stay xterm's to process.
+ */
+function isAppChord(ev: KeyboardEvent): boolean {
+  if (!ev.ctrlKey || ev.metaKey || ev.altKey) return false
+  if (ev.shiftKey) {
+    return (
+      ev.code === 'BracketLeft' ||
+      ev.code === 'BracketRight' ||
+      ev.code === 'Backquote' ||
+      ev.code === 'KeyO'
+    )
+  }
+  return ev.key === '`' || ev.code === 'Backquote'
 }
 
 /*
@@ -229,10 +249,10 @@ async function createXtermRenderer(): Promise<BehaviorTerminalRenderer> {
   const unResize = term.onResize(({ cols, rows }) => {
     resizeCb?.(cols, rows)
   })
-  // false means "do not process" — the toggle chord must escape the VT and
-  // reach the app's own handler, and a composition-stealing key (GDK-1095)
-  // must stay with the IME.
-  term.attachCustomKeyEventHandler((ev) => !isToggleChord(ev) && !stealsFromComposition(ev))
+  // false means "do not process" — an app chord must escape the VT and reach
+  // the app's own handler, and a composition-stealing key (GDK-1095) must
+  // stay with the IME.
+  term.attachCustomKeyEventHandler((ev) => !isAppChord(ev) && !stealsFromComposition(ev))
   // GDK-1156: the chrome follows the theme for the life of the pane, not
   // just at construction. xterm takes a whole theme object at runtime, so
   // this is a replace, not a patch — and the ANSI palette is untouched

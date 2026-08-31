@@ -107,7 +107,18 @@ describe('dumpKey', () => {
     const compose = sections.find((s) => s.titleKey === 'shortcuts.sectionCompose')
     expect(compose?.rows).toEqual([{ kbd: '⌘ ↵', labelKey: 'shortcuts.submitComment' }])
     const global = sections.find((s) => s.titleKey === 'shortcuts.sectionGlobal')
-    expect(global?.rows.map((r) => r.kbd)).toEqual(['⌘ K', 'Ctrl+`', ',', 'c', '?', 'Esc'])
+    expect(global?.rows.map((r) => r.kbd)).toEqual([
+      '⌘ K',
+      'Ctrl+`',
+      'Ctrl+Shift+[',
+      'Ctrl+Shift+]',
+      'Ctrl+Shift+`',
+      'Ctrl+Shift+O',
+      ',',
+      'c',
+      '?',
+      'Esc',
+    ])
     const list = sections.find((s) => s.titleKey === 'shortcuts.sectionList')
     expect(list?.rows.map((r) => r.kbd)).toEqual(['j', 'k', '↵', 'o', 'x', 's', 'p', 'a', 'l', 'c', 'Esc'])
     const detail = sections.find((s) => s.titleKey === 'shortcuts.sectionDetail')

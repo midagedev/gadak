@@ -162,6 +162,8 @@ function contextFromEvent(e: KeyboardEvent, host: GlobalKeyHost): KeyContext {
     metaKey: e.metaKey,
     ctrlKey: e.ctrlKey,
     altKey: e.altKey,
+    shiftKey: e.shiftKey,
+    code: e.code,
     inEditable: isEditableTarget(e.target),
     enterActivating: isEnterActivatingTarget(e.target),
     settingsOpen: host.write.settingsOpen,
@@ -203,6 +205,55 @@ function dispatchKeyCommand(e: KeyboardEvent, cmd: KeyCommand, host: GlobalKeyHo
       e.preventDefault()
       host.toggleTerminal()
       return
+    /*
+     * GDK-1250: walk the session roster. The sessions singleton lives in a
+     * runes module, and this file's unit tests run in the plugin-less vitest
+     * project (vitest.config.ts keeps it that way on purpose), so it is
+     * reached the way renderer.ts reaches xterm — dynamically, on first
+     * use. App.svelte imports the pane statically, so the module is loaded
+     * long before any terminal opens; this resolve is a cache hit.
+     */
+    case 'terminal-prev-session':
+    case 'terminal-next-session': {
+      e.preventDefault()
+      const dir = cmd.type === 'terminal-next-session' ? 1 : -1
+      void import('./terminal/sessions.svelte').then(({ terminalSessions }) => {
+        terminalSessions.cycle(dir)
+      })
+      return
+    }
+    /*
+     * Focus escape (GDK-1250): the pane stays, focus moves to the active
+     * tab — the strip's own buttons are then Tab/Enter-walkable, which is
+     * why the strip is the target and not the list. The DOM is the
+     * handler's job (focus-narrow precedent): no strip yet means the pane
+     * never rendered it, and a no-op must not eat the key event's default.
+     */
+    case 'terminal-focus-strip': {
+      const tab = document.querySelector<HTMLButtonElement>(
+        '[data-testid="terminal-strip-row"][data-selected="true"]',
+      )
+      if (!tab) return
+      e.preventDefault()
+      tab.focus()
+      return
+    }
+    /*
+     * GDK-1251: the selected session's binding, through the same verb the
+     * pane's own link activation uses — selection.select (GDK-1160). The
+     * tab carries its session's key as an attribute (TerminalStrip), so the
+     * roster module need not be imported here; an unbound or missing tab is
+     * the no-op the spec names.
+     */
+    case 'terminal-open-issue': {
+      const key = document
+        .querySelector<HTMLElement>('[data-testid="terminal-strip-row"][data-selected="true"]')
+        ?.getAttribute('data-issue-key')
+      if (!key) return
+      e.preventDefault()
+      host.selection.select(key)
+      return
+    }
     case 'close-shortcuts':
       e.preventDefault()
       host.shortcutsOpen = false

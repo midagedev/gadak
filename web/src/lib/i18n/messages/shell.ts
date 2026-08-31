@@ -617,6 +617,26 @@ export const shell = {
     ko: '터미널 열기/닫기',
     ja: 'ターミナルを開閉',
   },
+  'shortcuts.terminalPrevSession': {
+    en: 'Previous terminal session',
+    ko: '이전 터미널 세션으로',
+    ja: '前のターミナルセッションへ',
+  },
+  'shortcuts.terminalNextSession': {
+    en: 'Next terminal session',
+    ko: '다음 터미널 세션으로',
+    ja: '次のターミナルセッションへ',
+  },
+  'shortcuts.terminalFocusTabs': {
+    en: 'Move focus to the terminal tabs',
+    ko: '터미널 탭으로 포커스 이동',
+    ja: 'ターミナルのタブへフォーカスを移す',
+  },
+  'shortcuts.terminalOpenIssue': {
+    en: "Open the session's issue",
+    ko: '세션의 이슈 열기',
+    ja: 'セッションの課題を開く',
+  },
   'shortcuts.moveDown': {
     en: 'Move cursor down',
     ko: '커서 아래로',

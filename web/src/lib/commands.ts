@@ -36,6 +36,11 @@ export interface KeyContext {
   metaKey: boolean
   ctrlKey: boolean
   altKey: boolean
+  /** Carried for code chords (GDK-1250); plain chords never read it. */
+  shiftKey: boolean
+  /** ev.code — the physical key. Null when the caller had no event (unit
+   *  tests), which is also why a code chord can never match there. */
+  code: string | null
   inEditable: boolean
   /**
    * True when Enter already belongs to the event target (native activation).
@@ -84,6 +89,10 @@ export type KeyCommand =
   | { type: 'ignore' }
   | { type: 'toggle-palette' }
   | { type: 'toggle-terminal' }
+  | { type: 'terminal-prev-session' }
+  | { type: 'terminal-next-session' }
+  | { type: 'terminal-focus-strip' }
+  | { type: 'terminal-open-issue' }
   | { type: 'close-shortcuts' }
   | { type: 'open-shortcuts' }
   | { type: 'focus-narrow'; testid: string | null }
@@ -116,6 +125,8 @@ export function keyContext(over: Partial<KeyContext> = {}): KeyContext {
     metaKey: false,
     ctrlKey: false,
     altKey: false,
+    shiftKey: false,
+    code: null,
     inEditable: false,
     enterActivating: false,
     settingsOpen: false,
@@ -187,9 +198,18 @@ export type KeyScope =
   | 'overlay-docs'
 
 export interface Chord {
-  key: string
+  /** ev.key — the printed character. Omitted on a code chord. */
+  key?: string
   /** meta OR ctrl, matching ⌘K / Ctrl+K. */
   mod?: boolean
+  /** ev.code — the physical key, for the Shift-sensitive chords (GDK-1250):
+   *  with Shift held, '[' prints '{' on a US layout and something else on
+   *  every other one, and the binding is to the key, not the glyph. A chord
+   *  carries exactly one of key/code. */
+  code?: string
+  /** Shift held (code chords only — a plain chord's shifted form is already
+   *  a different ev.key). */
+  shift?: boolean
 }
 
 export type HelpGroupId =
@@ -281,10 +301,82 @@ export const COMMANDS: readonly CommandDef[] = [
     help: { group: 'global', kbd: '{mod} K', labelKey: 'shortcuts.palette', sort: 10 },
   },
   /*
+   * GDK-1250/GDK-1251: the four Ctrl+Shift chords the app owns while the VT
+   * holds focus — renderer.ts isAppChord is the door that lets them out of
+   * xterm, so they never reach the PTY. Chords are ev.code, not ev.key:
+   * Shift turns '[' into '{' on a US layout and into something else on every
+   * other one, and the binding is to the physical key. Registered ahead of
+   * toggle-terminal on purpose — the matcher is first-chord-wins and that
+   * entry is Shift-agnostic, so a layout whose Shift+Backquote prints '`'
+   * would otherwise hand Ctrl+Shift+` to it. `when` matches its Ctrl-not-Cmd
+   * shape too: Cmd+Shift+… stays macOS's. Sheet rows only, no palette rows —
+   * the pane's own strip is the surface these act on.
+   */
+  {
+    id: 'terminal-prev-session',
+    phase: 'always',
+    scope: 'always',
+    chords: [{ code: 'BracketLeft', mod: true, shift: true }],
+    when: (ctx) => ctx.ctrlKey && !ctx.metaKey && !ctx.altKey,
+    dispatch: () => ({ type: 'terminal-prev-session' }),
+    help: {
+      group: 'global',
+      kbd: 'Ctrl+Shift+[',
+      labelKey: 'shortcuts.terminalPrevSession',
+      sort: 16,
+    },
+  },
+  {
+    id: 'terminal-next-session',
+    phase: 'always',
+    scope: 'always',
+    chords: [{ code: 'BracketRight', mod: true, shift: true }],
+    when: (ctx) => ctx.ctrlKey && !ctx.metaKey && !ctx.altKey,
+    dispatch: () => ({ type: 'terminal-next-session' }),
+    help: {
+      group: 'global',
+      kbd: 'Ctrl+Shift+]',
+      labelKey: 'shortcuts.terminalNextSession',
+      sort: 17,
+    },
+  },
+  {
+    id: 'terminal-focus-strip',
+    phase: 'always',
+    scope: 'always',
+    chords: [{ code: 'Backquote', mod: true, shift: true }],
+    when: (ctx) => ctx.ctrlKey && !ctx.metaKey && !ctx.altKey,
+    dispatch: () => ({ type: 'terminal-focus-strip' }),
+    // Ctrl+Shift+` was toggle-terminal's conflict fallback, left unused on
+    // purpose when Ctrl+` landed — this is the job it was being kept for:
+    // leave the VT without closing the pane, focus on the active tab.
+    help: {
+      group: 'global',
+      kbd: 'Ctrl+Shift+`',
+      labelKey: 'shortcuts.terminalFocusTabs',
+      sort: 18,
+    },
+  },
+  {
+    id: 'terminal-open-issue',
+    phase: 'always',
+    scope: 'always',
+    chords: [{ code: 'KeyO', mod: true, shift: true }],
+    when: (ctx) => ctx.ctrlKey && !ctx.metaKey && !ctx.altKey,
+    dispatch: () => ({ type: 'terminal-open-issue' }),
+    help: {
+      group: 'global',
+      kbd: 'Ctrl+Shift+O',
+      labelKey: 'shortcuts.terminalOpenIssue',
+      sort: 19,
+    },
+  },
+  /*
    * Ctrl+` (VS Code). Always-phase so it fires while the terminal textarea
    * is focused. `when` requires ctrl and not meta: Cmd+` is macOS's
    * same-app window cycle and is not ours. No existing backquote binding
-   * was found; Ctrl+Shift+` was the conflict fallback and is unused.
+   * was found; the Ctrl+Shift+` conflict fallback stayed unused until
+   * terminal-focus-strip took it over (GDK-1250).
    */
   {
     id: 'toggle-terminal',
@@ -893,6 +985,15 @@ export function isBootHoldKey(key: string): boolean {
 
 export function chordMatches(ctx: KeyContext, chords: readonly Chord[]): boolean {
   return chords.some((ch) => {
+    // Code chords (GDK-1250): the physical key decides, and Shift is part
+    // of the chord or explicitly absent — the shiftless form of these keys
+    // belongs to the PTY, not to a fuzzy match here.
+    if (ch.code) {
+      if (ctx.code !== ch.code) return false
+      if (ch.shift ? !ctx.shiftKey : ctx.shiftKey) return false
+      return ch.mod ? ctx.metaKey || ctx.ctrlKey : true
+    }
+    if (!ch.key) return false
     if (ch.mod) {
       return (ctx.metaKey || ctx.ctrlKey) && ctx.key.toLowerCase() === ch.key.toLowerCase()
     }
@@ -1002,17 +1103,18 @@ export function duplicateBindingKeys(commands: readonly CommandDef[] = COMMANDS)
     const phase = phaseOf(cmd)
     const scope = cmd.scope ?? 'global'
     for (const ch of cmd.chords) {
-      const token = `${phase}\0${scope}\0${ch.mod ? 'mod' : ''}\0${ch.key}`
+      const token = `${phase}\0${scope}\0${ch.mod ? 'mod' : ''}${ch.shift ? '+shift' : ''}\0${ch.code ?? ch.key}`
       const prev = seen.get(token)
-      if (prev) dupes.push(`${ch.mod ? 'mod+' : ''}${ch.key} scope=${scope} (${prev} ∩ ${cmd.id})`)
-      else seen.set(token, cmd.id)
+      if (prev) {
+        dupes.push(`${ch.mod ? 'mod+' : ''}${ch.code ?? ch.key} scope=${scope} (${prev} ∩ ${cmd.id})`)
+      } else seen.set(token, cmd.id)
     }
   }
   return dupes
 }
 
 function chordDump(ch: Chord): string {
-  return ch.mod ? `mod+${ch.key}` : ch.key
+  return `${ch.mod ? 'mod+' : ''}${ch.shift ? 'shift+' : ''}${ch.code ?? ch.key}`
 }
 
 function dumpQueryHits(text: string, q: string): boolean {

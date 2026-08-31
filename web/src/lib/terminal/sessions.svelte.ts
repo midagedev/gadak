@@ -65,6 +65,23 @@ class TerminalSessions {
   }
 
   /**
+   * Move the selection one session along the roster (GDK-1250): the strip's
+   * own order, wrapping at both ends. False — nothing moved — when the pane
+   * is closed or fewer than two sessions are alive; a selection the roster
+   * no longer lists anchors at the first session, the first tab the eye
+   * would fall on. One synchronous pass over the roster, so a poll that
+   * swaps the list between two chords can never strand an index.
+   */
+  cycle(dir: 1 | -1): boolean {
+    if (!terminalChrome.open) return false
+    const ids = this.list.map((s) => s.id)
+    if (ids.length < 2) return false
+    const at = ids.indexOf(this.selectedId ?? '')
+    this.select(at === -1 ? ids[0] : ids[(at + dir + ids.length) % ids.length])
+    return true
+  }
+
+  /**
    * End a session on purpose (GDK-1200): a tab's ×, no confirmation. The
    * selection moves first and synchronously — to the right-hand neighbour
    * when the killed session is the shown one — so the pane has already left
