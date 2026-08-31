@@ -11,7 +11,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -605,11 +607,7 @@ func printFieldReport(report fieldReport, sampleN, mirrored, projects int) {
 		fmt.Println()
 		fmt.Printf("Suggested fields (≥%.0f%% filled, not in config):\n", mapSuggestMinRate*100)
 		// Stable key order for paste-friendly output.
-		aliases := make([]string, 0, len(report.suggestedMap))
-		for a := range report.suggestedMap {
-			aliases = append(aliases, a)
-		}
-		sort.Strings(aliases)
+		aliases := slices.Sorted(maps.Keys(report.suggestedMap))
 		fmt.Println("{")
 		for i, a := range aliases {
 			comma := ","

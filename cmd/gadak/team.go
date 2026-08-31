@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/teamconfig"
@@ -137,49 +136,22 @@ func countSettingsKeys(s teamconfig.TeamSettings) int {
 func cmdTeamImport(args []string) error {
 	// Flags may appear before or after <FILE> (same ergonomics as gadak sql / snapshot).
 	const importUsage = "usage: gadak team import <FILE|-> [--dry-run] [--overwrite]"
-	dryRun := false
-	overwrite := false
-	var positionals []string
-	for i := 0; i < len(args); i++ {
-		a := args[i]
-		switch {
-		case a == "-h" || a == "--help":
-			fmt.Print(`gadak team import — merge a team config file into this profile
-
-Usage:
-  gadak [--workspace <name>] team import <FILE|-> [--dry-run] [--overwrite]
-
-Options:
-  --dry-run     print what would change without writing
-  --overwrite   replace conflicting settings keys and same-named views
-
-Examples:
-  gadak team import gadak-team.json --dry-run
-  gadak team import gadak-team.json
-  gadak team import gadak-team.json --overwrite
-  cat gadak-team.json | gadak team import -
-
-See also: gadak team export
-`)
-			return nil
-		case a == "--dry-run" || a == "-dry-run":
-			dryRun = true
-		case a == "--overwrite" || a == "-overwrite":
-			overwrite = true
-		case a == "-":
-			// stdin, same idiom as -m - / --keys - / --batch -
-			positionals = append(positionals, a)
-		case strings.HasPrefix(a, "-"):
-			return fmt.Errorf("unknown flag %s", a)
-		default:
-			positionals = append(positionals, a)
-		}
+	fs := newFlagSet("team import")
+	dryRun := fs.Bool("dry-run", false, "print what would change without writing")
+	overwrite := fs.Bool("overwrite", false, "replace conflicting settings keys and same-named views")
+	if wantsHelp(args) {
+		fmt.Fprint(os.Stdout, formatHelp("team", fs))
+		return nil
 	}
-	if len(positionals) != 1 {
+	pos, err := parseAround(fs, args)
+	if err != nil {
+		return err
+	}
+	if len(pos) != 1 {
 		return usageError("team", importUsage)
 	}
 
-	raw, err := readTeamFile(positionals[0])
+	raw, err := readTeamFile(pos[0])
 	if err != nil {
 		return err
 	}
@@ -209,15 +181,15 @@ See also: gadak team export
 	}
 
 	plan := teamconfig.BuildPlan(cfg, views, doc, teamconfig.ImportOptions{
-		Overwrite: overwrite,
-		DryRun:    dryRun,
+		Overwrite: *overwrite,
+		DryRun:    *dryRun,
 	})
 
 	fmt.Println("team import plan:")
 	for _, line := range plan.SummaryLines() {
 		fmt.Println("  " + line)
 	}
-	if dryRun {
+	if *dryRun {
 		fmt.Println("dry-run: no changes written")
 		fmt.Println("tip: re-run without --dry-run to apply; use --overwrite to replace conflicts")
 		return nil

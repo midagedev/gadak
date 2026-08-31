@@ -11,10 +11,11 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"maps"
 	"net"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -453,10 +454,5 @@ var commands = map[string]func([]string) error{
 // tests assert the two sets stay equal so a new command without help (or a
 // leftover help for a removed command) fails CI, and that every name dispatches.
 func commandNames() []string {
-	names := make([]string, 0, len(commands))
-	for n := range commands {
-		names = append(names, n)
-	}
-	sort.Strings(names)
-	return names
+	return slices.Sorted(maps.Keys(commands))
 }

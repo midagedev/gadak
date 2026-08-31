@@ -15,10 +15,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"regexp"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -470,11 +471,7 @@ func cmdDevScan(args []string) error {
 		fmt.Println(devScanNoMatchMessage(len(prs)))
 		return nil
 	}
-	keys := make([]string, 0, len(byKey))
-	for k := range byKey {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
+	keys := slices.Sorted(maps.Keys(byKey))
 
 	db, err := openStore()
 	if err != nil {

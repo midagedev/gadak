@@ -5,9 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -238,11 +239,7 @@ func dashboardsShow(args []string) error {
 		fmt.Printf("lib\t%s\n", id)
 	}
 	// Datasource names print sorted so repeated runs diff clean.
-	names := make([]string, 0, len(cfg.Datasources))
-	for n := range cfg.Datasources {
-		names = append(names, n)
-	}
-	sort.Strings(names)
+	names := slices.Sorted(maps.Keys(cfg.Datasources))
 	for _, n := range names {
 		src := cfg.Datasources[n]
 		kind, query := "sql", src.SQL

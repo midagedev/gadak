@@ -19,11 +19,13 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
 	"runtime"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -458,11 +460,7 @@ func printIssueEditMeta(key string, asJSON bool) error {
 // handleEditMeta).
 func editableFieldsForIssue(cfg *config.Config, meta map[string]jira.FieldMeta) []issueEditMetaField {
 	allow := fields.EditableAliases(cfg)
-	aliases := make([]string, 0, len(allow))
-	for alias := range allow {
-		aliases = append(aliases, alias)
-	}
-	sort.Strings(aliases)
+	aliases := slices.Sorted(maps.Keys(allow))
 	out := make([]issueEditMetaField, 0)
 	for _, alias := range aliases {
 		ea := allow[alias]
@@ -587,11 +585,7 @@ func printIssue(l store.IssueLite, d *store.Detail, dur store.Spans) {
 		kv("reopens", fmt.Sprintf("%d (last %s)", l.ReopenCount, deref(l.ReopenedAt, "?")))
 	}
 	// Sorted: map order would make two runs on the same issue differ.
-	aliases := make([]string, 0, len(l.Custom))
-	for alias := range l.Custom {
-		aliases = append(aliases, alias)
-	}
-	sort.Strings(aliases)
+	aliases := slices.Sorted(maps.Keys(l.Custom))
 	for _, alias := range aliases {
 		kv(alias, fmt.Sprint(l.Custom[alias]))
 	}

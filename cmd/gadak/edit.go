@@ -7,8 +7,9 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"maps"
 	"os"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/midagedev/gadak/internal/adf"
@@ -785,11 +786,7 @@ func checkConfiguredAliases(cfg *config.Config, raws map[string]json.RawMessage)
 }
 
 func unknownFieldAliasError(alias string, allow map[string]fields.EditableAlias) error {
-	names := make([]string, 0, len(allow))
-	for a := range allow {
-		names = append(names, a)
-	}
-	sort.Strings(names)
+	names := slices.Sorted(maps.Keys(allow))
 	if len(names) == 0 {
 		return fmt.Errorf("unknown field alias %q — no configured aliases; run `gadak fields --apply`, then `gadak issue KEY --editmeta`", alias)
 	}

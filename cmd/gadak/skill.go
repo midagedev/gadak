@@ -74,48 +74,26 @@ func cmdSkill(args []string) error {
 }
 
 func cmdSkillInstall(args []string) error {
-	project := false
-	printOnly := false
-	force := false
-	dirFlag := ""
-	var positionals []string
-
-	for i := 0; i < len(args); i++ {
-		a := args[i]
-		switch {
-		case a == "-h" || a == "--help":
-			printSkillHelp()
-			return nil
-		case a == "--project":
-			project = true
-		case a == "--print":
-			printOnly = true
-		case a == "--force":
-			force = true
-		case a == "--dir":
-			if i+1 >= len(args) {
-				return fmt.Errorf("--dir requires a path\nrun \"gadak skill install --help\" for examples")
-			}
-			i++
-			dirFlag = args[i]
-		case strings.HasPrefix(a, "--dir="):
-			dirFlag = strings.TrimPrefix(a, "--dir=")
-			if dirFlag == "" {
-				return fmt.Errorf("--dir requires a path\nrun \"gadak skill install --help\" for examples")
-			}
-		case strings.HasPrefix(a, "-"):
-			return fmt.Errorf("unknown flag %s\nrun \"gadak skill install --help\" for examples", a)
-		default:
-			positionals = append(positionals, a)
-		}
+	fs := newFlagSet("skill install")
+	project := fs.Bool("project", false, "install into ./.claude/skills/gadak/ under the current directory")
+	dirFlag := fs.String("dir", "", "install into PATH/gadak/SKILL.md (overrides default and --project)")
+	printOnly := fs.Bool("print", false, "print the install plan without writing")
+	force := fs.Bool("force", false, "overwrite when the existing file differs from the embedded skill")
+	if wantsHelp(args) {
+		printSkillHelp()
+		return nil
+	}
+	pos, err := parseAround(fs, args)
+	if err != nil {
+		return err
 	}
 
 	client := "claude"
-	if len(positionals) > 1 {
+	if len(pos) > 1 {
 		return usageError("skill install", "usage: gadak skill install [client] [--project] [--dir <path>] [--print] [--force]")
 	}
-	if len(positionals) == 1 {
-		client = strings.ToLower(positionals[0])
+	if len(pos) == 1 {
+		client = strings.ToLower(pos[0])
 	}
 	if client != "claude" {
 		return fmt.Errorf("unknown client %q — only Claude Code skills are supported (client: claude)\n"+
@@ -123,11 +101,11 @@ func cmdSkillInstall(args []string) error {
 			"run \"gadak skill install --help\" for examples", client)
 	}
 
-	dest, err := resolveSkillDest(project, dirFlag)
+	dest, err := resolveSkillDest(*project, *dirFlag)
 	if err != nil {
 		return err
 	}
-	return installSkill(os.Stdout, gadak.SkillMarkdown(), dest, force, printOnly)
+	return installSkill(os.Stdout, gadak.SkillMarkdown(), dest, *force, *printOnly)
 }
 
 // resolveSkillDest picks the SKILL.md path.
