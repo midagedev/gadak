@@ -144,10 +144,14 @@ func viewsOpen(args []string) error {
 	fs := newFlagSet("views")
 	jqlFlag := fs.String("jql", "", "open this JQL as a view (instead of a stored name)")
 	keysFlag := fs.String("keys", "", "issue keys (comma or whitespace); - reads stdin")
+	layoutFlag := fs.String("layout", "", "layout for --jql/--keys views: board|list (default list)")
 	asJSON := fs.Bool("json", false, "emit the hash and where it was sent")
 	noOpenFlag := fs.Bool("no-open", false, "write the hash only; do not open a window")
 	pos, err := parseAround(fs, args)
 	if err != nil {
+		return err
+	}
+	if err := checkLayoutFlag(*layoutFlag); err != nil {
 		return err
 	}
 	keysRaw := strings.TrimSpace(*keysFlag)
@@ -155,6 +159,11 @@ func viewsOpen(args []string) error {
 	name := strings.TrimSpace(strings.Join(pos, " "))
 	if keysRaw != "" && (jqlRaw != "" || name != "") {
 		return usageError("views", "--keys cannot be combined with --jql or a view name")
+	}
+	// A stored view carries its own layout (saved by `views save --layout`);
+	// --layout describes a view being built here, so it pairs with --jql/--keys.
+	if *layoutFlag != "" && name != "" {
+		return usageError("views", "--layout cannot be combined with a view name")
 	}
 
 	var hash, label string
@@ -178,9 +187,9 @@ func viewsOpen(args []string) error {
 		}
 		f := jql.EmptyFilter()
 		f.Keys = keys
-		hash, label = jql.Hash(f, jql.Display{}), "keys"
+		hash, label = jql.Hash(f, jql.Display{Layout: *layoutFlag}), "keys"
 	case jqlRaw != "":
-		h, err := hashFromJQL(jqlRaw)
+		h, err := hashFromJQL(jqlRaw, *layoutFlag)
 		if err != nil {
 			return err
 		}
@@ -344,9 +353,13 @@ func findExactView(db *store.DB, name string) (views.ListedView, error) {
 func viewsSave(args []string) error {
 	fs := newFlagSet("views")
 	jqlFlag := fs.String("jql", "", "JQL to compile into the view")
+	layoutFlag := fs.String("layout", "", "save the view's layout: board|list (default list)")
 	asJSON := fs.Bool("json", false, "emit the saved row as JSON")
 	pos, err := parseAround(fs, args)
 	if err != nil {
+		return err
+	}
+	if err := checkLayoutFlag(*layoutFlag); err != nil {
 		return err
 	}
 	name := strings.TrimSpace(strings.Join(pos, " "))
@@ -368,16 +381,24 @@ func viewsSave(args []string) error {
 	}
 	defer db.Close()
 	jql.ResolveIdentity(&parsed, peopleFromStore(db), me)
-	hash := jql.Hash(parsed.Filters, parsed.Display)
 	// Empty hash is what `views open` reports as "nothing to focus". Applied
 	// can still list a clause whose values ResolveIdentity then stripped
 	// (currentUser() with no identity), so hash — not Applied — is the gate.
+	// The gate runs before Layout joins the Display: a layout is a reading,
+	// not a filter, and ly=board alone must not save an all-unsupported JQL
+	// as a board of everything.
+	hash := jql.Hash(parsed.Filters, parsed.Display)
 	if hash == "" {
 		if len(parsed.Unsupported) > 0 {
 			return fmt.Errorf("nothing in this JQL can be applied — unsupported: %s", strings.Join(parsed.Unsupported, "; "))
 		}
 		return fmt.Errorf("nothing in this JQL can be applied")
 	}
+	// Layout joins only now, past the gate. It rides the saved config's
+	// Display, so `views open <name>` re-derives ly=board from the stored
+	// row (internal/views decodes the same Display and recomputes the hash).
+	parsed.Display.Layout = *layoutFlag
+	hash = jql.Hash(parsed.Filters, parsed.Display)
 	body, err := json.Marshal(struct {
 		Filters     jql.Filter  `json:"filters"`
 		Display     jql.Display `json:"display"`
@@ -411,7 +432,7 @@ func viewsSave(args []string) error {
 	return nil
 }
 
-func hashFromJQL(text string) (string, error) {
+func hashFromJQL(text, layout string) (string, error) {
 	cfg, err := config.Load()
 	me := jql.Identity{}
 	if err == nil {
@@ -425,7 +446,19 @@ func hashFromJQL(text string) (string, error) {
 	if len(parsed.Unsupported) > 0 {
 		fmt.Fprintf(os.Stderr, "warning: JQL skipped %s\n", strings.Join(parsed.Unsupported, "; "))
 	}
+	parsed.Display.Layout = layout
 	return jql.Hash(parsed.Filters, parsed.Display), nil
+}
+
+// checkLayoutFlag is the one validator for --layout on both views subcommands.
+// The web's LAYOUT_VALUES (view-config.ts) is the closed set; "list" is the
+// default reading and means "no param", same as leaving the flag off.
+func checkLayoutFlag(v string) error {
+	switch v {
+	case "", "board", "list":
+		return nil
+	}
+	return usageError("views", fmt.Sprintf("--layout must be board or list, got %q", v))
 }
 
 func peopleFromStore(db *store.DB) []jql.Person {

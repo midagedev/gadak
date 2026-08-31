@@ -287,6 +287,51 @@ func TestHashEncodesViewParams(t *testing.T) {
 	}
 }
 
+// GDK-1248: Layout is the CLI half of the web's ly=board — 'list' is the
+// default reading and earns no param, exactly like configToParams in
+// web/src/lib/view-config.ts. The pins are byte-equality, not substring:
+// every Display that does not say "board" must keep producing the exact
+// string the package produced before the field existed, and an arbitrary
+// string must not reach a link either (equality, not non-empty).
+func TestHashLayoutBoardParam(t *testing.T) {
+	f := EmptyFilter()
+	f.JiraProject = []string{"NMA"}
+	f.StatusCategory = []string{"inprogress"}
+	d := Display{Sort: "created", Dir: "asc", GroupBy: "assignee"}
+
+	const wantList = "d=asc&g=assignee&pj=NMA&s=created&sc=inprogress"
+	if got := Hash(f, d); got != wantList {
+		t.Fatalf("unset layout changed the hash: %q want %q", got, wantList)
+	}
+	d.Layout = "list"
+	if got := Hash(f, d); got != wantList {
+		t.Fatalf("layout list changed the hash: %q want %q", got, wantList)
+	}
+	d.Layout = "grid" // not a layout; emits nothing rather than a bogus param
+	if got := Hash(f, d); got != wantList {
+		t.Fatalf("unknown layout changed the hash: %q want %q", got, wantList)
+	}
+	d.Layout = "board"
+	const wantBoard = "d=asc&g=assignee&ly=board&pj=NMA&s=created&sc=inprogress"
+	if got := Hash(f, d); got != wantBoard {
+		t.Fatalf("board hash %q want %q", got, wantBoard)
+	}
+	if got := QueryURL(Hash(f, d)); got != "#/?"+wantBoard {
+		t.Fatalf("QueryURL %q", got)
+	}
+
+	// The ks literal-comma contract beside ly: Encode sorts, so the new key
+	// must slot in without touching the pinned ks= form.
+	kf := EmptyFilter()
+	kf.Keys = []string{"NMA-1", "NMA-2"}
+	if got := Hash(kf, Display{}); got != "ks=NMA-1,NMA-2" {
+		t.Fatalf("keys hash %q", got)
+	}
+	if got := Hash(kf, Display{Layout: "board"}); got != "ks=NMA-1,NMA-2&ly=board" {
+		t.Fatalf("keys board hash %q", got)
+	}
+}
+
 func TestStatusCategoryId(t *testing.T) {
 	res := Parse(`statusCategory = 4`, fixedOpts())
 	if len(res.Filters.StatusCategory) != 1 || res.Filters.StatusCategory[0] != "inprogress" {

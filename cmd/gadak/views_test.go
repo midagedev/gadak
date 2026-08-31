@@ -991,6 +991,160 @@ func TestViewsSavePartialPrintsAppliedAndFillsHash(t *testing.T) {
 	}
 }
 
+// GDK-1248: --layout board is the CLI's half of the web's ly=board. A saved
+// view keeps its reading in the stored config's Display, so `views open
+// <name>` re-derives it without a flag; unset and --layout list stay
+// byte-identical (the hash, not a substring of it, is pinned).
+func TestViewsSaveLayoutBoardRoundTrips(t *testing.T) {
+	mirror(t, "https://unused.example.com")
+	out, err := capture(t, func() error {
+		return cmdViews([]string{"save", "NMA board", "--jql", "project = NMA", "--layout", "board", "--json"})
+	})
+	if err != nil {
+		t.Fatalf("save: %v\n%s", err, out)
+	}
+	var saved struct {
+		Hash string `json:"hash"`
+	}
+	if err := json.Unmarshal([]byte(out), &saved); err != nil {
+		t.Fatalf("decode %s: %v", out, err)
+	}
+	if saved.Hash != "ly=board&pj=NMA" {
+		t.Fatalf("board hash %q, want ly=board&pj=NMA", saved.Hash)
+	}
+
+	// The stored row, not the flag, carries the layout: internal/views decodes
+	// the same Display and recomputes the hash from it.
+	db, err := openStore()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	rows, err := db.SavedViews(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("saved views %d", len(rows))
+	}
+	if h := views.HashFromConfig(rows[0].Config); h != "ly=board&pj=NMA" {
+		t.Fatalf("stored-config hash %q, want ly=board&pj=NMA", h)
+	}
+
+	out, err = capture(t, func() error {
+		return cmdViews([]string{"open", "NMA board", "--no-open", "--json"})
+	})
+	if err != nil {
+		t.Fatalf("open: %v\n%s", err, out)
+	}
+	var opened struct {
+		Hash string `json:"hash"`
+	}
+	if err := json.Unmarshal([]byte(out), &opened); err != nil {
+		t.Fatalf("decode %s: %v", out, err)
+	}
+	if opened.Hash != "ly=board&pj=NMA" {
+		t.Fatalf("opened hash %q, want the saved reading ly=board&pj=NMA", opened.Hash)
+	}
+}
+
+// The byte-stability half: without --layout, and with the explicit default
+// --layout list, the hash is exactly what it was before the flag existed.
+func TestViewsLayoutListEmitsNothing(t *testing.T) {
+	mirror(t, "https://unused.example.com")
+	for _, args := range [][]string{
+		{"save", "Plain", "--jql", "project = NMA", "--json"},
+		{"save", "Explicit list", "--jql", "project = NMA", "--layout", "list", "--json"},
+	} {
+		out, err := capture(t, func() error { return cmdViews(args) })
+		if err != nil {
+			t.Fatalf("%v: %v\n%s", args, err, out)
+		}
+		var body struct {
+			Hash string `json:"hash"`
+		}
+		if err := json.Unmarshal([]byte(out), &body); err != nil {
+			t.Fatalf("decode %s: %v", out, err)
+		}
+		if body.Hash != "pj=NMA" {
+			t.Fatalf("%v: hash %q, want exactly pj=NMA", args, body.Hash)
+		}
+	}
+	out, err := capture(t, func() error {
+		return cmdViews([]string{"open", "--jql", "project = NMA", "--no-open", "--json"})
+	})
+	if err != nil {
+		t.Fatalf("open: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, `"hash":"pj=NMA"`) {
+		t.Fatalf("open without --layout must keep the exact hash: %s", out)
+	}
+}
+
+// --layout also positions an ad-hoc view: --jql and --keys build their hash
+// through Display.Layout. A view name is refused — a stored view already
+// carries its own reading.
+func TestViewsOpenLayoutOnJQLAndKeys(t *testing.T) {
+	isolateGadakHome(t)
+	out, err := capture(t, func() error {
+		return cmdViews([]string{"open", "--jql", "project = NMA", "--layout", "board", "--no-open", "--json"})
+	})
+	if err != nil {
+		t.Fatalf("open --jql --layout board: %v\n%s", err, out)
+	}
+	var body struct {
+		Hash string `json:"hash"`
+	}
+	if err := json.Unmarshal([]byte(out), &body); err != nil {
+		t.Fatalf("decode %s: %v", out, err)
+	}
+	if body.Hash != "ly=board&pj=NMA" {
+		t.Fatalf("jql board hash %q, want ly=board&pj=NMA", body.Hash)
+	}
+
+	out, err = capture(t, func() error {
+		return cmdViews([]string{"open", "--keys", "NMA-1", "--layout", "board", "--no-open", "--json"})
+	})
+	if err != nil {
+		t.Fatalf("open --keys --layout board: %v\n%s", err, out)
+	}
+	if err := json.Unmarshal([]byte(out), &body); err != nil {
+		t.Fatalf("decode %s: %v", out, err)
+	}
+	if body.Hash != "ks=NMA-1&ly=board" {
+		t.Fatalf("keys board hash %q, want ks=NMA-1&ly=board", body.Hash)
+	}
+
+	err = cmdViews([]string{"open", "NMA board", "--layout", "board", "--no-open"})
+	if err == nil || !strings.Contains(err.Error(), "--layout cannot be combined") {
+		t.Fatalf("layout+name: %v", err)
+	}
+}
+
+func TestViewsLayoutFlagValidation(t *testing.T) {
+	mirror(t, "https://unused.example.com")
+	for _, args := range [][]string{
+		{"save", "X", "--jql", "project = NMA", "--layout", "grid"},
+		{"open", "--jql", "project = NMA", "--layout", "grid", "--no-open"},
+	} {
+		err := cmdViews(args)
+		if err == nil || !strings.Contains(err.Error(), "--layout must be board or list") {
+			t.Fatalf("%v: %v", args, err)
+		}
+	}
+}
+
+// The applied-nothing gate must not be bypassable by a layout: ly=board is a
+// reading, not a filter, so an all-unsupported JQL still refuses to save even
+// when the flag would make the hash non-empty.
+func TestViewsSaveLayoutBoardDoesNotBypassAppliedNothingGate(t *testing.T) {
+	mirror(t, "https://unused.example.com")
+	err := cmdViews([]string{"save", "Nothing", "--jql", `sprint = "Sprint 41"`, "--layout", "board"})
+	if err == nil || !strings.Contains(err.Error(), "nothing in this JQL can be applied") {
+		t.Fatalf("board layout smuggled an all-unsupported JQL: %v", err)
+	}
+}
+
 func TestViewsShowAlwaysPrintsJQLAppliedUnsupported(t *testing.T) {
 	mirror(t, "https://unused.example.com")
 	if _, err := capture(t, func() error {

@@ -410,7 +410,7 @@ var helps = map[string]cmdHelp{
 	"views": {
 		summary: "list Jira filters and saved views; open one in the running UI",
 		usage: "gadak [--workspace <name>] views [list|show <name>|open <name|KEY>|\n" +
-			"save <name> --jql '…'] [--keys …] [--json] [--no-open]",
+			"save <name> --jql '…'] [--keys …] [--layout board|list] [--json] [--no-open]",
 		examples: []string{
 			"gadak views",
 			"gadak views show \"NMA in progress\"",
@@ -420,7 +420,9 @@ var helps = map[string]cmdHelp{
 			"gadak views open --keys 'NMA-1,NMA-2'",
 			"gadak views open --keys -",
 			"gadak views open --jql 'project = NMA' --no-open",
+			"gadak views open --jql 'project = NMA' --layout board --no-open",
 			"gadak views save \"Night triage\" --jql 'assignee = currentUser() AND resolution is EMPTY'",
+			"gadak views save \"NMA board\" --jql 'project = NMA' --layout board",
 		},
 		seeAlso: []string{"gadak search", "gadak sync"},
 	},

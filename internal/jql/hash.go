@@ -111,6 +111,14 @@ func Hash(f Filter, d Display) string {
 	if d.Dir != "" && d.Dir != "desc" {
 		p.Set("d", d.Dir)
 	}
+	// 'list' is the default reading, so only 'board' earns a param — the same
+	// rule as the web's configToParams (web/src/lib/view-config.ts). The check
+	// is equality, not non-empty: any other value ("" and "list" included)
+	// emits nothing, so existing hashes stay byte-identical and an arbitrary
+	// string never reaches a link.
+	if d.Layout == "board" {
+		p.Set("ly", "board")
+	}
 	h := p.Encode()
 	// Encode() turns commas into %2C. The pinned ks= contract (and the web
 	// parser's split-on-comma) is the literal comma form; leave other axes

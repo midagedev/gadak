@@ -64,6 +64,12 @@ type Display struct {
 	Sort    string `json:"sort,omitempty"`     // updated | created | priority
 	Dir     string `json:"dir,omitempty"`      // asc | desc
 	GroupBy string `json:"group_by,omitempty"` // status_category is the default
+	// Layout is the second reading of one view ("" and "list" are the same
+	// list). It is not JQL — nothing here parses it out of a query — so the
+	// only writers are callers that know the reading (the CLI --layout flag,
+	// a saved-view config). Hash emits ly=board for "board" and nothing for
+	// any other value.
+	Layout string `json:"layout,omitempty"` // "" | list | board
 }
 
 // Result is one parse (or emit) outcome. Error is a stable code; Message is
