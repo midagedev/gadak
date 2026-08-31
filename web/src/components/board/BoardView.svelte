@@ -139,6 +139,9 @@
       // about who moved the card, and only the flight is decoration.
       el.dataset.moved = '1'
       setTimeout(() => delete el.dataset.moved, LANDED_MS)
+      // GDK-1190: a landing off-screen is a ring nobody sees. External moves
+      // only, by construction — your own drop never reaches this loop.
+      el.scrollIntoView({ block: 'nearest', inline: 'nearest' })
       const from = before.get(key)
       if (!from || reducedMotion()) continue
       const to = el.getBoundingClientRect()
