@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { attachConsoleErrors, gotoApp, openServerSettings } from './helpers'
+import { en } from '../web/src/lib/i18n/en'
 
 const LATEST = '0.99.0'
 const RELEASE = `https://github.com/midagedev/gadak/releases/tag/v${LATEST}`
@@ -75,7 +76,7 @@ test.describe('update notice from delta', () => {
     }
   })
 
-  test('release_notes on delta opens a plain-text dialog from the banner', async ({ page }) => {
+  test('release_notes on delta opens the link-first dialog from the banner', async ({ page }) => {
     const errors = attachConsoleErrors(page)
     await injectDeltaUpdate(page, { release_notes: NOTES })
     await gotoApp(page)
@@ -86,21 +87,42 @@ test.describe('update notice from delta', () => {
     await notice.click()
     const notes = page.getByTestId('update-notes')
     await expect(notes).toBeVisible()
-    await expect(notes).toContainText('Fixed the flaky upload.')
-    await expect(notes).toContainText('Second line.')
-    await expect(notes.locator('pre')).toHaveText(NOTES)
+    await expect(notes).toContainText(LATEST)
+    const link = notes.getByTestId('update-notes-link')
+    await expect(link).toHaveAttribute('href', RELEASE)
+    await expect(link).toHaveText(en['settings.updateReleaseNotes'])
+    // GDK-1246: the release page owns the notes text — the raw body must
+    // not be dumped into the dialog.
+    await expect(notes.locator('pre')).toHaveCount(0)
+    await expect(notes).not.toContainText('Fixed the flaky upload.')
+    // The upgrade command is per-platform (same discipline as the Settings
+    // row): an OS without one must not end the dialog in an empty bordered
+    // footer strip — the footer hides entirely there.
+    const served = await page.evaluate(async () => {
+      const res = await fetch('/config.json')
+      return res.ok ? ((await res.json()) as { os?: string }).os ?? '' : ''
+    })
+    const footer = notes.locator('[data-dialog-footer]')
+    if (served === 'darwin') {
+      await expect(footer).toBeVisible()
+      await expect(footer).toContainText('brew upgrade --cask gadak')
+    } else {
+      await expect(footer).toBeHidden()
+    }
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 
-  test('delta without release_notes keeps the banner as a link and opens no dialog', async ({
-    page,
-  }) => {
+  test('delta without release_notes still opens the dialog from the banner', async ({ page }) => {
     await injectDeltaUpdate(page)
     await gotoApp(page)
     await flushDelta(page)
     const notice = page.getByTestId('update-notice')
     await expect(notice).toBeVisible()
-    await expect(notice).toHaveAttribute('href', RELEASE)
-    await expect(page.getByTestId('update-notes')).toHaveCount(0)
+    await expect(notice).not.toHaveAttribute('href')
+    await notice.click()
+    const notes = page.getByTestId('update-notes')
+    await expect(notes).toBeVisible()
+    await expect(notes).toContainText(LATEST)
+    await expect(notes.getByTestId('update-notes-link')).toHaveAttribute('href', RELEASE)
   })
 })

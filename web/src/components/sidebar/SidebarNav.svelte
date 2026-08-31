@@ -75,13 +75,15 @@
   let notesOpen = $state(false)
   let copiedCmd = $state(false)
   const cta = $derived(upgradeCta(config().os))
-  const notesText = $derived(issues.releaseNotes.trim())
 
-  // No effect closing this on notesText going empty (GDK-692): the dialog's
-  // own render guard (`{#if notesOpen && notesText}`) already hides it, so
-  // the effect only existed to stop it reappearing when notesText comes
-  // back — a trade the audit accepted. The keydown guard below mirrors the
-  // render guard so a hidden-but-open state cannot swallow an Esc.
+  // No effect closing this on latestVersion going empty (GDK-692): the
+  // dialog's own render guard (`{#if notesOpen && issues.latestVersion}` —
+  // the notice's display condition, so the dialog is openable exactly while
+  // its trigger shows; the notes body stopped gating anything, GDK-1246)
+  // already hides it, so the effect only existed to stop it reappearing
+  // when latestVersion comes back — a trade the audit accepted. The keydown
+  // guard below mirrors the render guard so a hidden-but-open state cannot
+  // swallow an Esc.
 
   function closeNotes() {
     notesOpen = false
@@ -89,7 +91,7 @@
   }
 
   function onNotesKeydown(e: KeyboardEvent) {
-    if (!notesOpen || !notesText || e.key !== 'Escape') return
+    if (!notesOpen || !issues.latestVersion || e.key !== 'Escape') return
     e.preventDefault()
     closeNotes()
   }
@@ -430,30 +432,19 @@
   {/if}
 
   <!-- Update notice: server found a newer published release (daily check).
-       Notes present → dialog (plain text). Empty body → same external link
-       as before; do not open an empty dialog. -->
+       Click opens the link-first dialog (GDK-1246): the GitHub release page
+       is the canonical notes surface, so an empty release body opens the
+       same dialog as a full one. -->
   {#if issues.latestVersion}
     <div class="flex-none px-3 pb-1">
-      {#if notesText}
-        <button
-          type="button"
-          class="block w-full rounded-md border border-accent/30 bg-accent-subtle/30 px-2.5 py-1.5 text-left text-micro text-accent-text transition-colors hover:bg-accent-subtle/50"
-          data-testid="update-notice"
-          onclick={() => (notesOpen = true)}
-        >
-          {t('sidebar.updateAvailable', { version: issues.latestVersion })}
-        </button>
-      {:else}
-        <a
-          href={issues.releaseUrl || 'https://github.com/midagedev/gadak/releases'}
-          target="_blank"
-          rel="noreferrer"
-          class="block rounded-md border border-accent/30 bg-accent-subtle/30 px-2.5 py-1.5 text-micro text-accent-text transition-colors hover:bg-accent-subtle/50"
-          data-testid="update-notice"
-        >
-          {t('sidebar.updateAvailable', { version: issues.latestVersion })}
-        </a>
-      {/if}
+      <button
+        type="button"
+        class="block w-full rounded-md border border-accent/30 bg-accent-subtle/30 px-2.5 py-1.5 text-left text-micro text-accent-text transition-colors hover:bg-accent-subtle/50"
+        data-testid="update-notice"
+        onclick={() => (notesOpen = true)}
+      >
+        {t('sidebar.updateAvailable', { version: issues.latestVersion })}
+      </button>
     </div>
   {/if}
 
@@ -971,21 +962,43 @@
   </div>
 </div>
 
-{#if notesOpen && notesText}
+{#if notesOpen && issues.latestVersion}
   <DialogShell
-    title={t('sidebar.updateAvailable', { version: issues.latestVersion })}
-    ariaLabel={t('sidebar.updateAvailable', { version: issues.latestVersion })}
+    title={t('settings.updateTitle')}
+    ariaLabel={t('settings.updateTitle')}
     data-testid="update-notes"
     onclose={closeNotes}
     trap={trapFocus}
     panelClass="anim-pop max-h-[80vh] max-w-lg"
     headerClass="flex flex-none flex-col border-b border-border-subtle px-4 py-3"
-    footerClass="flex flex-none flex-wrap items-center gap-2 border-t border-border-subtle px-4 py-3"
+    footerClass={cta.command
+      ? 'flex flex-none flex-wrap items-center gap-2 border-t border-border-subtle px-4 py-3'
+      : 'hidden'}
   >
-    <pre
-      class="scroll-region min-h-0 flex-1 overflow-auto whitespace-pre-wrap px-4 py-3 font-mono text-micro text-text-primary"
-    >{notesText}</pre>
+    <!-- Link-first body (GDK-1246): the GitHub release page owns the notes
+         text — this dialog announces the version and sends the reader there.
+         The release body used to be dumped raw into a <pre> here; without a
+         release_url the CTA drops away and the version line stands alone. -->
+    <div class="flex flex-col gap-1 px-4 py-3">
+      <p class="text-body text-text-primary">
+        {t('sidebar.updateAvailable', { version: issues.latestVersion })}
+      </p>
+      {#if issues.releaseUrl}
+        <a
+          href={issues.releaseUrl}
+          target="_blank"
+          rel="noreferrer"
+          class="text-body text-accent-text hover:underline"
+          data-testid="update-notes-link"
+        >
+          {t('settings.updateReleaseNotes')}
+        </a>
+      {/if}
+    </div>
     {#snippet footer()}
+      <!-- linux/windows have no upgrade command (upgradeCta) — the wrapper
+           class above hides the footer there, so the dialog cannot end in
+           an empty bordered strip. -->
       {#if cta.command}
         <span class="font-mono text-micro text-text-primary">{cta.command}</span>
         <button
@@ -995,16 +1008,6 @@
         >
           {copiedCmd ? t('settings.copied') : t('settings.copy')}
         </button>
-      {/if}
-      {#if issues.releaseUrl}
-        <a
-          href={issues.releaseUrl}
-          target="_blank"
-          rel="noreferrer"
-          class="text-micro text-accent-text hover:underline"
-        >
-          {t('settings.updateReleaseNotes')}
-        </a>
       {/if}
     {/snippet}
   </DialogShell>

@@ -18,7 +18,6 @@
   type UpdateDoc = {
     latest?: string
     release_url?: string
-    release_notes?: string
     newer?: boolean
     last_user_check_at?: string
     last_user_status?: string
@@ -35,7 +34,7 @@
       const data = (await res.json()) as UpdateDoc
       // Apply only when newer — never clear a delta-injected banner.
       if (data.newer && data.latest) {
-        issues.applyUpdateInfo(data.latest, data.release_url ?? '', data.release_notes ?? '')
+        issues.applyUpdateInfo(data.latest, data.release_url ?? '')
       }
       if (!data.last_user_check_at || data.last_user_check_at === lastUserAt) return
       const age = Date.now() - Date.parse(data.last_user_check_at)
