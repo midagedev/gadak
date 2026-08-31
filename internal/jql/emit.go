@@ -247,6 +247,11 @@ func dateClause(field string, from, to *string) []string {
 	return out
 }
 
+// quoteEscape escapes both JQL string metacharacters in one pass. The
+// backslash must be escaped too, or lexString eats it on re-parse: `C:\path`
+// emitted as "C:\path" round-trips as `C:path` (GDK-1234 D3).
+var quoteEscape = strings.NewReplacer(`\`, `\\`, `"`, `\"`)
+
 func quote(s string) string {
 	if s == "currentUser()" {
 		return s
@@ -254,7 +259,7 @@ func quote(s string) string {
 	if bareIdent.MatchString(s) && !isReserved(s) {
 		return s
 	}
-	return `"` + strings.ReplaceAll(s, `"`, `\"`) + `"`
+	return `"` + quoteEscape.Replace(s) + `"`
 }
 
 func isReserved(s string) bool {

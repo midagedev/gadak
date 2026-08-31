@@ -50,7 +50,7 @@ func Parse(input string, opts Opts) Result {
 		return res
 	}
 
-	c := &compiler{opts: opts, f: EmptyFilter(), seenMultiAND: map[string]bool{}}
+	c := &compiler{opts: opts, f: EmptyFilter(), seenIncludeAND: map[string]bool{}}
 	c.compileTop(n)
 	c.applyOrder(orders)
 	res.Filters = c.f
@@ -67,13 +67,13 @@ func Parse(input string, opts Opts) Result {
 }
 
 type compiler struct {
-	opts         Opts
-	f            Filter
-	d            Display
-	applied      []string
-	unsupported  []string
-	seenMultiAND map[string]bool
-	keyCount     int // set when Keys exceeds MaxKeys
+	opts           Opts
+	f              Filter
+	d              Display
+	applied        []string
+	unsupported    []string
+	seenIncludeAND map[string]bool // axes with one applied include (= / IN)
+	keyCount       int             // set when Keys exceeds MaxKeys
 }
 
 func (c *compiler) skip(clause string) {
@@ -178,17 +178,17 @@ func (c *compiler) compileOr(n *node) {
 	}
 	// Same field: collapse to IN, unless an op we cannot fold.
 	var values []value
-	op := opIn
 	for _, cl := range clauses {
 		switch cl.op {
 		case opEq, opIn:
 			values = append(values, cl.values...)
 		case opTilde:
-			// text ~ a OR text ~ b → join
 			if field == "text" || field == "summary" || field == "description" || field == "comment" {
-				values = append(values, cl.values...)
-				op = opTilde
-				continue
+				// Folding OR-ed text clauses joins their values into one
+				// space-joined needle ("a b"), a substring that matches
+				// almost nothing. Refuse instead of mangling (GDK-1234 D5).
+				c.skip(termRender(n) + " (OR of text clauses is not a gadak filter)")
+				return
 			}
 			c.skip(cl.render())
 			return
@@ -197,7 +197,7 @@ func (c *compiler) compileOr(n *node) {
 			return
 		}
 	}
-	c.compileClause(&clause{field: field, op: op, values: values, raw: termRender(n)})
+	c.compileClause(&clause{field: field, op: opIn, values: values, raw: termRender(n)})
 }
 
 func canonicalField(name string) string {
@@ -257,18 +257,12 @@ func (c *compiler) compileClause(cl *clause) {
 		if c.notInto("project", cl, &c.f.JiraProjectNot) {
 			return
 		}
-		c.eqOrIn("project", cl, func(vs []string) {
-			c.f.JiraProject = mergeUnique(c.f.JiraProject, vs)
-			c.mark("project")
-		})
+		c.eqOrIn("project", cl, &c.f.JiraProject)
 	case "status":
 		if c.notInto("status", cl, &c.f.StatusNot) {
 			return
 		}
-		c.eqOrIn("status", cl, func(vs []string) {
-			c.f.Status = mergeUnique(c.f.Status, vs)
-			c.mark("status")
-		})
+		c.eqOrIn("status", cl, &c.f.Status)
 	case "statuscategory":
 		c.compileStatusCategory(cl)
 	case "assignee":
@@ -284,18 +278,12 @@ func (c *compiler) compileClause(cl *clause) {
 		if c.notInto("priority", cl, &c.f.PriorityNot) {
 			return
 		}
-		c.eqOrIn("priority", cl, func(vs []string) {
-			c.f.Priority = mergeUnique(c.f.Priority, vs)
-			c.mark("priority")
-		})
+		c.eqOrIn("priority", cl, &c.f.Priority)
 	case "type":
 		if c.notInto("type", cl, &c.f.IssueTypeNot) {
 			return
 		}
-		c.eqOrIn("type", cl, func(vs []string) {
-			c.f.IssueType = mergeUnique(c.f.IssueType, vs)
-			c.mark("type")
-		})
+		c.eqOrIn("type", cl, &c.f.IssueType)
 	case "component":
 		if c.notInto("component", cl, &c.f.ComponentsNot) {
 			return
@@ -329,14 +317,30 @@ func (c *compiler) compileClause(cl *clause) {
 	}
 }
 
-func (c *compiler) eqOrIn(name string, cl *clause, apply func([]string)) {
+// refuseSecondInclude is the loud refusal for a second AND-ed include
+// (= or IN) on an axis whose in-memory filter is has-any. In Jira that is
+// an intersection (usually zero rows); merging the lists would silently
+// widen it into a union (GDK-1234 D1).
+func (c *compiler) refuseSecondInclude(name string, dest *[]string) {
+	c.skip(name + " = / in … AND " + name + " = / in … (AND of two includes is an intersection, not a union)")
+	*dest = nil
+	c.unmark(name)
+}
+
+func (c *compiler) eqOrIn(name string, cl *clause, dest *[]string) {
 	switch cl.op {
 	case opEq, opIn:
+		if c.seenIncludeAND[name] {
+			c.refuseSecondInclude(name, dest)
+			return
+		}
 		vs := c.plainValues(cl)
 		if vs == nil {
 			return
 		}
-		apply(vs)
+		c.seenIncludeAND[name] = true
+		*dest = mergeUnique(*dest, vs)
+		c.mark(name)
 	default:
 		c.skip(cl.render() + " (only = and IN)")
 	}
@@ -345,22 +349,21 @@ func (c *compiler) eqOrIn(name string, cl *clause, apply func([]string)) {
 func (c *compiler) multiValued(name string, cl *clause, dest *[]string) {
 	switch cl.op {
 	case opEq, opIn:
-		if cl.op == opEq && c.seenMultiAND[name] {
-			// A second AND-ed equality on a multi-valued field means "has
-			// both", which ViewFilters cannot express. Drop the field rather
-			// than silently OR.
-			c.skip(name + " = … AND " + name + " = … (has-all is not a gadak filter)")
+		if c.seenIncludeAND[name] {
+			// A second AND-ed include on a multi-valued field means "has
+			// all of them" whatever the operator pair (= with =, = with
+			// IN, IN with IN), which ViewFilters cannot express. Drop the
+			// field rather than silently OR (GDK-1234 D1).
+			c.skip(name + " = / in … AND " + name + " = / in … (has-all is not a gadak filter)")
 			*dest = nil
 			c.unmark(name)
 			return
-		}
-		if cl.op == opEq {
-			c.seenMultiAND[name] = true
 		}
 		vs := c.plainValues(cl)
 		if vs == nil {
 			return
 		}
+		c.seenIncludeAND[name] = true
 		*dest = mergeUnique(*dest, vs)
 		c.mark(name)
 	default:
@@ -411,6 +414,13 @@ func (c *compiler) plainValues(cl *clause) []string {
 		}
 		out = append(out, s)
 	}
+	if len(out) == 0 {
+		// Every value was empty (or the IN list was). Refusing out loud
+		// beats letting the clause vanish from Applied and Unsupported
+		// alike (GDK-1234 D4).
+		c.skip(cl.render() + " (empty value)")
+		return nil
+	}
 	return out
 }
 
@@ -429,12 +439,50 @@ func (c *compiler) compileStatusCategory(cl *clause) {
 		}
 		cats = append(cats, mapped)
 	}
+	if len(cats) == 0 {
+		// Same rule as plainValues: an all-empty value list is refused,
+		// not vanished (GDK-1234 D4).
+		c.skip(cl.render() + " (empty value)")
+		return
+	}
 	if neg {
 		c.f.StatusCategoryNot = mergeUnique(c.f.StatusCategoryNot, cats)
-	} else {
-		c.f.StatusCategory = mergeUnique(c.f.StatusCategory, cats)
+		c.mark("statusCategory")
+		return
+	}
+	if !c.narrowStatusCategory(cl, cats) {
+		return
 	}
 	c.mark("statusCategory")
+}
+
+// narrowStatusCategory applies an include set to the shared StatusCategory
+// axis — statusCategory clauses and resolution is [NOT] EMPTY both land
+// here. The AND of two include sets is an intersection in Jira, never a
+// union: statusCategory = Done AND resolution is EMPTY is zero rows, not
+// every row. An empty intersection has no honest filter form (an empty
+// StatusCategory means unconstrained), so the clause is refused out loud
+// and the prior constraint stays (GDK-1234 D2).
+func (c *compiler) narrowStatusCategory(cl *clause, cats []string) bool {
+	if len(c.f.StatusCategory) == 0 {
+		c.f.StatusCategory = mergeUnique(c.f.StatusCategory, cats)
+		return true
+	}
+	var kept []string
+	for _, have := range c.f.StatusCategory {
+		for _, want := range cats {
+			if strings.EqualFold(strings.TrimSpace(have), strings.TrimSpace(want)) {
+				kept = append(kept, have)
+				break
+			}
+		}
+	}
+	if len(kept) == 0 {
+		c.skip(cl.render() + " (contradicts the other statusCategory or resolution constraint — zero rows)")
+		return false
+	}
+	c.f.StatusCategory = kept
+	return true
 }
 
 func mapStatusCategory(raw string) (string, bool) {
@@ -459,10 +507,15 @@ func (c *compiler) compileAssignee(cl *clause) {
 	case opIsNotEmpty:
 		c.skip(cl.render() + " (assignee is not EMPTY is not a gadak filter)")
 	case opEq, opIn:
+		if c.seenIncludeAND["assignee"] {
+			c.refuseSecondInclude("assignee", &c.f.AssigneeEmail)
+			return
+		}
 		vs := c.plainValues(cl)
 		if vs == nil {
 			return
 		}
+		c.seenIncludeAND["assignee"] = true
 		c.f.AssigneeEmail = mergeUnique(c.f.AssigneeEmail, vs)
 		c.mark("assignee")
 	case opNotIn, opNeq:
@@ -480,10 +533,15 @@ func (c *compiler) compileAssignee(cl *clause) {
 func (c *compiler) compileReporter(cl *clause) {
 	switch cl.op {
 	case opEq, opIn:
+		if c.seenIncludeAND["reporter"] {
+			c.refuseSecondInclude("reporter", &c.f.ReporterEmail)
+			return
+		}
 		vs := c.plainValues(cl)
 		if vs == nil {
 			return
 		}
+		c.seenIncludeAND["reporter"] = true
 		c.f.ReporterEmail = mergeUnique(c.f.ReporterEmail, vs)
 		c.mark("reporter")
 	case opNotIn, opNeq:
@@ -503,14 +561,22 @@ func (c *compiler) compileText(cl *clause) {
 		c.skip(cl.render() + " (only ~)")
 		return
 	}
-	var parts []string
 	if c.f.Q != "" {
-		parts = append(parts, c.f.Q)
+		// A second AND-ed text clause would space-join into one needle
+		// ("a b") that matches almost nothing. One text constraint is the
+		// whole subset (GDK-1234 D5).
+		c.skip(cl.render() + " (only one text clause is a gadak filter)")
+		return
 	}
+	var parts []string
 	for _, v := range cl.values {
 		if s := strings.TrimSpace(v.raw); s != "" {
 			parts = append(parts, s)
 		}
+	}
+	if len(parts) == 0 {
+		c.skip(cl.render() + " (empty value)")
+		return
 	}
 	c.f.Q = strings.Join(parts, " ")
 	c.mark("text")
@@ -521,10 +587,16 @@ func (c *compiler) compileKey(cl *clause) {
 		c.skip(cl.render() + " (only = and IN)")
 		return
 	}
+	if c.seenIncludeAND["key"] {
+		c.refuseSecondInclude("key", &c.f.Keys)
+		c.keyCount = 0
+		return
+	}
 	vs := c.plainValues(cl)
 	if vs == nil {
 		return
 	}
+	c.seenIncludeAND["key"] = true
 	c.f.Keys = mergeUniqueUpper(c.f.Keys, vs)
 	c.keyCount = len(c.f.Keys)
 	c.mark("key")
@@ -535,10 +607,15 @@ func (c *compiler) compileParent(cl *clause) {
 		c.skip(cl.render() + " (only = and IN)")
 		return
 	}
+	if c.seenIncludeAND["parent"] {
+		c.refuseSecondInclude("parent", &c.f.Parent)
+		return
+	}
 	vs := c.plainValues(cl)
 	if vs == nil {
 		return
 	}
+	c.seenIncludeAND["parent"] = true
 	c.f.Parent = mergeUniqueUpper(c.f.Parent, vs)
 	c.mark("parent")
 }
@@ -582,6 +659,11 @@ func (c *compiler) compileSprint(cl *clause) {
 		c.skip(cl.render() + " (not in the subset)")
 		return
 	}
+	if c.seenIncludeAND["sprint"] {
+		c.refuseSecondInclude("sprint", &c.f.SprintIDs)
+		return
+	}
+	c.seenIncludeAND["sprint"] = true
 	c.f.SprintIDs = mergeUnique(c.f.SprintIDs, ids)
 	c.mark("sprint")
 }
@@ -589,15 +671,21 @@ func (c *compiler) compileSprint(cl *clause) {
 func (c *compiler) compileResolution(cl *clause) {
 	switch cl.op {
 	case opIsEmpty:
-		// Unresolved ≈ not done. Inclusion filter: both open buckets.
-		c.f.StatusCategory = mergeUnique(c.f.StatusCategory, []string{"new", "inprogress"})
-		c.mark("resolution")
+		// Unresolved ≈ not done. Inclusion filter: both open buckets,
+		// intersected with whatever the StatusCategory axis already
+		// carries (narrowStatusCategory, GDK-1234 D2).
+		if !c.narrowStatusCategory(cl, []string{"new", "inprogress"}) {
+			return
+		}
 	case opIsNotEmpty:
-		c.f.StatusCategory = mergeUnique(c.f.StatusCategory, []string{"done"})
-		c.mark("resolution")
+		if !c.narrowStatusCategory(cl, []string{"done"}) {
+			return
+		}
 	default:
 		c.skip(cl.render() + " (only IS EMPTY / IS NOT EMPTY)")
+		return
 	}
+	c.mark("resolution")
 }
 
 func (c *compiler) compileDate(name string, cl *clause, from, to **string) {
