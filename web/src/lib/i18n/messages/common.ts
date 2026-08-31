@@ -351,7 +351,7 @@ export const common = {
   /* ── ADF fallbacks ── */
   'adf.unknownMention': {
     en: 'unknown',
-    ko: '불명',
+    ko: '알 수 없음',
     ja: '不明',
   },
 } as const satisfies Record<string, Message>

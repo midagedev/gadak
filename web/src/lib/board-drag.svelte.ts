@@ -20,6 +20,8 @@ import * as api from './api'
 import type { IssueLite, Transition } from './types'
 import { transitionsInto, dropVerdict } from './board-drag'
 import { effectiveCategory } from './view-config'
+import { t } from './i18n'
+import { isHostedDemo } from './config'
 import { filters } from '../stores/filters.svelte'
 import { write } from '../stores/write.svelte'
 
@@ -199,8 +201,18 @@ class BoardDrag {
   ): Promise<void> {
     if (effectiveCategory(issue) === col) return // same column — no-op by design
     const list = known ?? (pending ? await pending : null)
-    const into = list ? transitionsInto(list, col) : []
-    if (into.length === 0) return // unknown or unreachable: the dimming said as much
+    if (!list) {
+      // No answer ever arrived (map miss, GET failed — GDK-1221): there is no
+      // transition id to attempt and nothing dimmed anything — unknown read
+      // legal, the column even took the `over` highlight — so silence here
+      // reads as a dead gesture, not a verdict. The hosted demo snapshot
+      // carries no transitions by design and stays quiet: its copy would
+      // claim a connection problem it does not have.
+      if (!isHostedDemo()) write.toast(t('board.dropTransitionsFailed'), 'error')
+      return
+    }
+    const into = transitionsInto(list, col)
+    if (into.length === 0) return // genuinely illegal: the dimming said as much
     if (into.length === 1) {
       void write.transition(issue.issue_key, into[0])
       return

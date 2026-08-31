@@ -263,7 +263,7 @@ describe('catalog contracts', () => {
     // Exclusions (not competing spellings of those terms):
     //   qa.inProgress "진행"        — QA run-state glyph, not the category
     //   group.byStatusCategory      — "진행 단계", no 진행중 substring
-    //   settings.runtimeIssues      — "이슈 {n}개": noun + generic 개, not {n} 이슈
+    //   settings.runtimeIssues      — "이슈 {n}건": noun-led counter, not {n} 이슈
     //   bare 이슈                    — section/noun copy (새 이슈, 이슈가 없습니다)
     const failures: string[] = []
     for (const [key, value] of Object.entries(ko)) {
@@ -304,7 +304,7 @@ describe('catalog contracts', () => {
     //   {n}件    — issue/document counter (ko {n}건)
     // Exclusions:
     //   qa.inProgress "進行"           — QA run-state glyph, not the category
-    //   settings.runtimeIssues         — "課題 {n}個": noun + generic 個, not {n}件
+    //   settings.runtimeIssues         — "課題 {n}件": noun-led counter, not {n}件 alone
     //                                    (so the sidebar pool "{n}件" stays unique on screen)
     const failures: string[] = []
     for (const [key, value] of Object.entries(ja)) {

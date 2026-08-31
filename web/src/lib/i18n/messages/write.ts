@@ -630,7 +630,7 @@ export const write = {
   },
   'onboarding.selectedCount': {
     en: '{n} selected',
-    ko: '{n}개 선택',
+    ko: '{n}건 선택',
     ja: '{n}件選択',
   },
   'onboarding.startSync': {

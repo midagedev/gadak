@@ -207,7 +207,7 @@ export const settings = {
     ja: '一覧を読み込み中…',
   },
   'settings.scopeNoMatch': {
-    en: 'No match',
+    en: 'No matches',
     ko: '일치하는 항목 없음',
     ja: '一致なし',
   },
@@ -403,13 +403,13 @@ export const settings = {
   },
   'settings.runtimeIssues': {
     en: '{n} issues',
-    ko: '이슈 {n}개',
-    ja: '課題 {n}個',
+    ko: '이슈 {n}건',
+    ja: '課題 {n}件',
   },
   'settings.runtimeComments': {
     en: '{n} comments',
     ko: '코멘트 {n}개',
-    ja: 'コメント {n}個',
+    ja: 'コメント {n}件',
   },
   'settings.runtimeSchema': {
     en: 'Schema version',
@@ -905,7 +905,7 @@ export const settings = {
   'settings.devicesStateActive': {
     en: 'Active',
     ko: '활성',
-    ja: '有効',
+    ja: 'アクティブ',
   },
   'settings.devicesStateExpired': {
     en: 'Expired',
@@ -1677,12 +1677,12 @@ export const settings = {
   },
   'sync.busyDocuments': {
     en: 'Fetching documents…',
-    ko: '문서 가져오는 중…',
+    ko: '문서를 가져오는 중…',
     ja: 'ドキュメントを取得中…',
   },
   'sync.busyDocumentsN': {
     en: 'Fetching documents · {n}',
-    ko: '문서 가져오는 중 · {n}',
+    ko: '문서를 가져오는 중 · {n}',
     ja: 'ドキュメントを取得中 · {n}',
   },
   // At rest: the verdict and the age together, so neither surface has to be

@@ -19,8 +19,11 @@ test.describe('locale', () => {
       dialog.getByLabel('Language').selectOption('ko'),
     ])
 
-    // ko.ts: sidebar.issueCount = '{n}건' (pool size; list count may be filtered)
-    await expect(page.getByText(DEMO_ISSUE_COUNT_KO)).toBeVisible({ timeout: 30_000 })
+    // ko.ts: sidebar.issueCount = '{n}건' (pool size; list count may be filtered).
+    // .first(): the settings dialog is still open across the reload and its
+    // runtime section now counts in the same 건 unit (GDK-1226), so a bare
+    // getByText doubles up and trips strict mode — same as the en assertion.
+    await expect(page.getByText(DEMO_ISSUE_COUNT_KO).first()).toBeVisible({ timeout: 30_000 })
     // <html lang> follows the locale so screen readers switch pronunciation.
     await expect(page.locator('html')).toHaveAttribute('lang', 'ko-KR')
     // ko.ts: sidebar.settings
@@ -50,8 +53,10 @@ test.describe('locale', () => {
       dialog.getByLabel('Language').selectOption('ja'),
     ])
 
-    // ja.ts: sidebar.issueCount = '{n}件' (pool size; list count may be filtered)
-    await expect(page.getByText(DEMO_ISSUE_COUNT_JA)).toBeVisible({ timeout: 30_000 })
+    // ja.ts: sidebar.issueCount = '{n}件' (pool size; list count may be filtered).
+    // .first() for the same reason as the ko assertion above: the open
+    // settings dialog counts issues in 件 too (GDK-1226).
+    await expect(page.getByText(DEMO_ISSUE_COUNT_JA).first()).toBeVisible({ timeout: 30_000 })
     await expect(page.locator('html')).toHaveAttribute('lang', 'ja-JP')
     // ja.ts: sidebar.settings
     await expect(page.getByRole('button', { name: '設定', exact: true })).toBeVisible()

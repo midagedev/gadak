@@ -204,6 +204,121 @@ test.describe('GDK-1176 board drag', () => {
     expect(appConsoleErrors(errors)).toEqual([])
   })
 
+  /*
+   * GDK-1221 — the drop's two kinds of nothing. `into.length === 0` used to
+   * cover both and return with "the dimming said as much", but on the
+   * unreachable path (transitions GET failed) nothing ever dimmed anything:
+   * unknown reads legal, the column even takes the `over` highlight, and the
+   * drop no-ops with no cue at all. The two tests split those cases the way
+   * the code now must: no list → the honest failure toast; a list that dims
+   * the column → the same silence as before.
+   */
+  test('a drop with no transitions answer is a failure toast, not silence', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    // Empty local map so the routed lazy GET below is the one legality source.
+    await page.route('**/api/v1/meta/write/', (route) =>
+      fulfillJSON(route, { transitions: {}, create_meta: { projects: [] }, updated_at: null }),
+    )
+    const rig = await installRig(page)
+    await gotoBoard(page)
+
+    const source = page.locator('[data-board-column="new"] [data-board-key]').first()
+    const key = (await source.getAttribute('data-board-key')) ?? ''
+    expect(key).not.toBe('')
+    expect(rig.rowFor(key), 'the dragged row must be a real bootstrap row').not.toBeNull()
+
+    // The transitions GET dies the way a dead origin dies (audit axis 6: 502).
+    await page.route(`**/api/v1/issues/${key}/transitions/`, (route) => {
+      if (route.request().method() !== 'GET') return route.continue()
+      return fulfillJSON(route, { error: 'unavailable' }, 502)
+    })
+    let posted = false
+    await page.route(`**/api/v1/issues/${key}/transition/`, (route) => {
+      if (route.request().method() !== 'POST') return route.continue()
+      posted = true
+      return route.continue()
+    })
+
+    // Drag by hand onto a column the unknown list cannot judge.
+    const box = (await source.boundingBox())!
+    const target = (await page.locator('[data-board-column="done"]').boundingBox())!
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(box.x + box.width / 2 + 12, box.y + box.height / 2 + 4, { steps: 3 })
+    await page.mouse.move(target.x + target.width / 2, target.y + target.height / 2, { steps: 6 })
+    // Unknown reads legal: the hovered target even takes the acceptance
+    // highlight, which is exactly why the silent no-op reads as a dead gesture.
+    await expect(page.locator('.board-drag-ghost')).toHaveCount(1)
+    await expect(page.locator('[data-board-column="done"]')).toHaveAttribute('data-drop', 'over')
+
+    await page.mouse.up()
+
+    // No transition id existed, so the honest outcome is the failure toast —
+    // never a write attempt, never a phantom move.
+    const errorToast = page.getByTestId('toast').and(page.getByRole('alert'))
+    await expect(errorToast).toBeVisible()
+    await expect(errorToast).toContainText('Could not load transitions')
+    await expect(errorToast).toContainText('cannot move')
+    expect(posted, 'no transition id means no POST is attemptable').toBe(false)
+    await expect(columnOf(page, key)).toHaveAttribute('data-board-column', 'new')
+
+    // Chromium logs the routed 502 as a resource error; anything else is ours.
+    expect(
+      errors.filter((e) => !e.includes('502')),
+      `unexpected console errors:\n${errors.join('\n')}`,
+    ).toEqual([])
+  })
+
+  test('a drop on a dimmed column stays quiet — the dimming said as much', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    await page.route('**/api/v1/meta/write/', (route) =>
+      fulfillJSON(route, { transitions: {}, create_meta: { projects: [] }, updated_at: null }),
+    )
+    const rig = await installRig(page)
+    await gotoBoard(page)
+
+    const source = page.locator('[data-board-column="new"] [data-board-key]').first()
+    const key = (await source.getAttribute('data-board-key')) ?? ''
+    expect(key).not.toBe('')
+    expect(rig.rowFor(key), 'the dragged row must be a real bootstrap row').not.toBeNull()
+
+    // A known list that reaches inprogress only: `done` is genuinely illegal,
+    // and the preview dims it before the pointer ever lets go.
+    await page.route(`**/api/v1/issues/${key}/transitions/`, (route) => {
+      if (route.request().method() !== 'GET') return route.continue()
+      return fulfillJSON(route, { transitions: [TRANSITION] })
+    })
+    let posted = false
+    await page.route(`**/api/v1/issues/${key}/transition/`, (route) => {
+      if (route.request().method() !== 'POST') return route.continue()
+      posted = true
+      return route.continue()
+    })
+
+    const box = (await source.boundingBox())!
+    const target = (await page.locator('[data-board-column="done"]').boundingBox())!
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(box.x + box.width / 2 + 12, box.y + box.height / 2 + 4, { steps: 3 })
+    await page.mouse.move(target.x + target.width / 2, target.y + target.height / 2, { steps: 6 })
+    // The candidates landed — `done` dims — so the drop below runs the known
+    // branch, and the ghost proves the gesture is armed over `done`, not the
+    // card's own column (which would be the same-column no-op instead).
+    await expect(page.locator('.board-drag-ghost')).toHaveCount(1)
+    await expect(page.locator('[data-board-column="done"]')).toHaveAttribute('data-drop', 'illegal')
+
+    await page.mouse.up()
+
+    // The candidates arrived (the attribute above proves it), so the drop has
+    // already run its synchronous branch by the time mouse.up resolves: a
+    // one-shot count, because a negated auto-retry would wait a toast out.
+    expect(await page.getByTestId('toast').count(), 'no toast for a dimmed column').toBe(0)
+    expect(posted, 'an illegal drop never reaches the write').toBe(false)
+    await expect(columnOf(page, key)).toHaveAttribute('data-board-column', 'new')
+
+    expect(appConsoleErrors(errors)).toEqual([])
+  })
+
   test('a plain click is still a click — select, not drag', async ({ page }) => {
     const errors = attachConsoleErrors(page)
     await gotoBoard(page)

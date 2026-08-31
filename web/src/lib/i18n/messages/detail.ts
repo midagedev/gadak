@@ -133,7 +133,7 @@ export const detail = {
   },
   'detail.deploy': {
     en: 'Deploy status',
-    ko: '배포 현황',
+    ko: '배포 상태',
     ja: 'デプロイ状況',
   },
   'detail.prs': {
@@ -185,10 +185,13 @@ export const detail = {
     ko: '복사됨',
     ja: 'コピーしました',
   },
+  // Toast copy rule: a single-sentence toast carries no trailing period
+  // (`filter.saveServerFailed` in list.ts is the standard); hints and
+  // standalone sentences keep theirs. (GDK-1226)
   'clipboard.copyFailed': {
-    en: 'Could not copy — the clipboard refused the write.',
-    ko: '복사하지 못했습니다 — 클립보드가 쓰기를 거부했습니다.',
-    ja: 'コピーできませんでした — クリップボードが書き込みを拒否しました。',
+    en: 'Could not copy — the clipboard refused the write',
+    ko: '복사하지 못했습니다 — 클립보드가 쓰기를 거부했습니다',
+    ja: 'コピーできませんでした — クリップボードが書き込みを拒否しました',
   },
   'detail.reopened': {
     en: 'Reopened',
@@ -534,7 +537,7 @@ export const detail = {
   /* GDK-1054: the history request failed — not "nothing viewed yet". */
   'history.loadFailed': {
     en: 'Could not load history.',
-    ko: '기록을 불러오지 못했습니다.',
+    ko: '히스토리를 불러오지 못했습니다.',
     ja: '履歴を読み込めませんでした。',
   },
   'history.emptyHint': {

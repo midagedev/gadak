@@ -632,8 +632,8 @@ export const list = {
   },
   'board.asList': {
     en: 'List',
-    ko: '리스트',
-    ja: 'リスト',
+    ko: '목록',
+    ja: '一覧',
   },
   'board.asBoard': {
     en: 'Board',
@@ -671,5 +671,13 @@ export const list = {
     en: 'Choose a transition',
     ko: '전환 선택',
     ja: '遷移を選択',
+  },
+  // The transitions GET never answered, so no transition id exists to attempt
+  // and nothing dimmed anything (GDK-1221). Multi-sentence failure copy, so it
+  // keeps its periods — the no-period rule is for single-sentence toasts.
+  'board.dropTransitionsFailed': {
+    en: 'Could not load transitions, so the card cannot move. Check the connection and try again.',
+    ko: '전환 목록을 가져오지 못해 카드를 옮길 수 없습니다. 연결을 확인한 뒤 다시 시도하세요.',
+    ja: '遷移を読み込めなかったため、カードを移動できません。接続を確認して再試行してください。',
   },
 } as const satisfies Record<string, Message>
