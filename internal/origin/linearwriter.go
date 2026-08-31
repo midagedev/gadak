@@ -175,6 +175,15 @@ func (w *linearWriter) UpdateFields(ctx context.Context, key string, fields map[
 				return err
 			}
 			upd.DueDate = &s
+		case "assignee":
+			// SetAssignee interpretation, verbatim: an accountId (a user
+			// UUID). Nil or an empty accountId unassigns — the explicit
+			// null IssueUpdate encodes for AssigneeID.
+			id, err := accountIDField("assignee", v)
+			if err != nil {
+				return err
+			}
+			upd.AssigneeID = &id
 		case "issuetype":
 			return ErrNoIssueTypes
 		default:
@@ -244,6 +253,42 @@ func priorityID(v any) (int, error) {
 		return 0, fmt.Errorf("linear: priority id %q is not on the 0-4 scale", id)
 	}
 	return n, nil
+}
+
+// accountIDField reads the Writer-shaped user value down to the accountId
+// SetAssignee takes: the accountId object both real callers build
+// (fields.ValueFromIDs "user" is map[string]string; a JSON-decoded copy is
+// map[string]any) or nil, the editor clear. Nil and an empty accountId are
+// the unassign SetAssignee encodes with an empty string. Every other shape
+// is refused before the wire — reading one as the empty accountId would
+// silently unassign the issue (the GDK-643 wrong-typed-any rule, with
+// higher stakes than an empty string).
+func accountIDField(name string, v any) (string, error) {
+	id := ""
+	switch av := v.(type) {
+	case nil:
+	case map[string]string:
+		raw, ok := av["accountId"]
+		if !ok {
+			return "", fmt.Errorf("linear: field %q wants an accountId, got a user object without one", name)
+		}
+		id = raw
+	case map[string]any:
+		raw, ok := av["accountId"]
+		if !ok {
+			return "", fmt.Errorf("linear: field %q wants an accountId, got a user object without one", name)
+		}
+		if raw != nil {
+			s, err := stringField(name, raw)
+			if err != nil {
+				return "", err
+			}
+			id = s
+		}
+	default:
+		return "", fmt.Errorf("linear: field %q wants an accountId object, got %T", name, v)
+	}
+	return id, nil
 }
 
 func (w *linearWriter) CreateIssue(ctx context.Context, fields map[string]any) (string, error) {

@@ -194,6 +194,151 @@ func TestUpdateFieldsRejectsLabelsDueClearAndBadPriority(t *testing.T) {
 	}
 }
 
+// GDK-1235: every field EditMeta advertises must reach its own UpdateFields
+// case. An advertised key falling to the default "not editable" refusal is
+// the advertisement lying to every EditMeta consumer — the web editor greens
+// the field and the save rejects it. FAIL-first on the pre-fix source:
+// assignee was advertised as set("user") with no case, and this walk failed
+// with `linear: field "assignee" is not editable on this origin`.
+func TestUpdateFieldsCoversEveryAdvertisedField(t *testing.T) {
+	w, _ := testLinearWriter(t)
+	ctx := context.Background()
+	meta, err := w.EditMeta(ctx, "FIX-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The pinned keys keep the walk honest in the other direction: dropping
+	// a field from the advertisement would also make the walk green. If a
+	// removal is deliberate, update this list with the reason.
+	for _, k := range []string{"summary", "description", "priority", "duedate", "assignee"} {
+		if _, ok := meta[k]; !ok {
+			t.Errorf("EditMeta no longer advertises %q; the catalog lost a field the writer may still accept", k)
+		}
+	}
+	// One representative value per advertised schema type, good enough for
+	// each case to accept or to reject as a value error. A type with no
+	// entry here is a hole in the walk itself.
+	byType := map[string]any{
+		"string":   "parity probe",
+		"priority": map[string]any{"id": "2"},
+		"date":     "2026-09-30",
+		"user":     map[string]any{"accountId": "lin-u1"},
+	}
+	for name, m := range meta {
+		v, ok := byType[m.Schema.Type]
+		if !ok {
+			t.Errorf("field %q: schema type %q has no representative value in this walk; add one", name, m.Schema.Type)
+			continue
+		}
+		t.Run(name, func(t *testing.T) {
+			err := w.UpdateFields(ctx, "FIX-1", map[string]any{name: v})
+			if err == nil {
+				return // a working write is the strongest parity
+			}
+			msg := err.Error()
+			if strings.Contains(msg, "is not editable on this origin") {
+				t.Fatalf("EditMeta advertises %q (schema %q) but UpdateFields falls to its not-editable default: %s", name, m.Schema.Type, msg)
+			}
+			// Anything else must at least be a field-aware value error.
+			if !strings.Contains(msg, name) {
+				t.Errorf("rejection %q does not name the field %q", msg, name)
+			}
+		})
+	}
+}
+
+// GDK-1235: the assignee case and SetAssignee are two entry points for one
+// mutation, so the same account id must leave the process as the same wire
+// input — two interpretations of one value is the next defect. FAIL-first on
+// the pre-fix source: the case did not exist and UpdateFields was refused.
+func TestUpdateFieldsAssigneeWireMatchesSetAssignee(t *testing.T) {
+	w, rec := testLinearWriter(t)
+	ctx := context.Background()
+	if err := w.SetAssignee(ctx, "FIX-1", "lin-u1"); err != nil {
+		t.Fatal(err)
+	}
+	want := string(rec.lastVars)
+	// fields.ValueFromIDs("user", …) hands the server and CLI callers
+	// map[string]string; the same JSON decoded is map[string]any.
+	for name, v := range map[string]any{
+		"accountId object": map[string]string{"accountId": "lin-u1"},
+		"decoded object":   map[string]any{"accountId": "lin-u1"},
+	} {
+		err := w.UpdateFields(ctx, "FIX-1", map[string]any{"assignee": v})
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if string(rec.lastVars) != want {
+			t.Errorf("%s: wire input %s, want the SetAssignee input %s", name, rec.lastVars, want)
+		}
+	}
+	if rec.updates != 3 {
+		t.Errorf("updates = %d, want 3 (one SetAssignee + two UpdateFields)", rec.updates)
+	}
+}
+
+// GDK-1235: clearing is advertised-shaped too — the editor sends null and
+// fields.FieldValue maps it to nil — and every clear variant must encode as
+// SetAssignee's empty-string unassign (assigneeId: null), never as an error
+// or as a no-op.
+func TestUpdateFieldsAssigneeClearUnassigns(t *testing.T) {
+	w, rec := testLinearWriter(t)
+	ctx := context.Background()
+	if err := w.SetAssignee(ctx, "FIX-1", ""); err != nil {
+		t.Fatal(err)
+	}
+	want := string(rec.lastVars)
+	for name, v := range map[string]any{
+		"null value":      nil,
+		"empty accountId": map[string]string{"accountId": ""},
+		"decoded empty":   map[string]any{"accountId": ""},
+		"null accountId":  map[string]any{"accountId": nil},
+	} {
+		err := w.UpdateFields(ctx, "FIX-1", map[string]any{"assignee": v})
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if string(rec.lastVars) != want {
+			t.Errorf("%s: wire input %s, want the SetAssignee unassign input %s", name, rec.lastVars, want)
+		}
+	}
+}
+
+// GDK-643 discipline on the new case: a wrong-shaped user value must be
+// refused before the wire. The stakes are higher than an empty string —
+// reading a wrong shape as the empty accountId silently unassigns the issue.
+func TestUpdateFieldsAssigneeRejectsWrongShapes(t *testing.T) {
+	w, rec := testLinearWriter(t)
+	ctx := context.Background()
+	cases := []struct {
+		name  string
+		value any
+	}{
+		// Names and emails are resolved to ids by the callers before this
+		// point; a bare string is not the Writer vocabulary for a user.
+		{"bare string", "lin-u1"},
+		{"float64", 1.0},
+		{"object without accountId", map[string]any{"name": "Dana"}},
+		{"id-shaped object", map[string]any{"id": "lin-u1"}},
+		{"accountId float64", map[string]any{"accountId": 1.0}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			before := rec.updates
+			err := w.UpdateFields(ctx, "FIX-1", map[string]any{"assignee": tc.value})
+			if err == nil {
+				t.Fatalf("wrong shape %v succeeded (updates=%d); it would have been read as an unassign", tc.value, rec.updates)
+			}
+			if !strings.Contains(err.Error(), "assignee") {
+				t.Errorf("error %q does not name the field", err)
+			}
+			if rec.updates != before {
+				t.Errorf("issueUpdate ran; refuse must stay local")
+			}
+		})
+	}
+}
+
 func TestEditIssueRefusesUpdateOps(t *testing.T) {
 	w, rec := testLinearWriter(t)
 	err := w.EditIssue(context.Background(), "FIX-1",
