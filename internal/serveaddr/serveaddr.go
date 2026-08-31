@@ -19,6 +19,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/midagedev/gadak/internal/atomicfile"
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/fsperm"
 )
@@ -86,16 +87,9 @@ func Write(dir, addr, profile string) error {
 		return err
 	}
 	p := Path(dir, port)
-	tmp := p + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o600); err != nil {
-		_ = os.Remove(tmp)
-		return err
-	}
-	if err := os.Rename(tmp, p); err != nil {
-		_ = os.Remove(tmp)
-		return err
-	}
-	return nil
+	// Unique staging via atomicfile (GDK-1244): two serves racing one
+	// address file must not truncate each other's staging copy.
+	return atomicfile.WriteFile(p, "serve-*.json", data)
 }
 
 // Remove deletes the runtime file for port. Missing is not an error — a

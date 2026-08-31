@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/midagedev/gadak/internal/atomicfile"
 )
 
 // RemoteRel is the profile-relative file holding this workspace's stored
@@ -84,13 +86,10 @@ func SaveRemote(dir string, r Remote) error {
 	if err != nil {
 		return err
 	}
-	tmp := p + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o600); err != nil {
-		_ = os.Remove(tmp)
-		return err
-	}
-	if err := os.Rename(tmp, p); err != nil {
-		_ = os.Remove(tmp)
+	// Unique staging via atomicfile: a fixed .tmp let two savers truncate
+	// each other's staging copy of this credential (GDK-1244, the GDK-1233
+	// class outside config).
+	if err := atomicfile.WriteFile(p, "remote-origin-*.json", data); err != nil {
 		return err
 	}
 	return nil

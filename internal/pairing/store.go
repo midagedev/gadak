@@ -40,6 +40,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/midagedev/gadak/internal/atomicfile"
 )
 
 // ScopeOrigin is full origin passthrough — the device-token scope.
@@ -596,13 +598,10 @@ func mutateStore(dir string, fn func(*storeDoc) error) error {
 	if err != nil {
 		return err
 	}
-	tmp := p + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o600); err != nil {
-		_ = os.Remove(tmp)
-		return err
-	}
-	if err := os.Rename(tmp, p); err != nil {
-		_ = os.Remove(tmp)
+	// Unique staging via atomicfile: mint/rotate can run from serve and a
+	// CLI verb at once, and a fixed .tmp let one truncate the other's
+	// staging copy of the token store (GDK-1244).
+	if err := atomicfile.WriteFile(p, "pairing-*.json", data); err != nil {
 		return err
 	}
 	if fi, err := os.Stat(p); err == nil {
