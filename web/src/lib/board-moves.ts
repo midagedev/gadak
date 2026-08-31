@@ -52,3 +52,21 @@ export function movedExternally(prev: IssueLite | undefined, next: IssueLite): b
   return prev.status_category !== next.status_category
 }
 
+/**
+ * How long this tab's own transition keeps its mirror echo silent (GDK-1176).
+ *
+ * The comparison above is blind to one ordering: the optimistic patch writes
+ * the new status *name* but keeps the old `status_id` (a Transition does not
+ * carry the target id), so a delta that lands before the origin confirm sees
+ * old id → new id and reads this tab's own write as somebody else's move.
+ * `write.transition` flags the key before it patches; a flagged key's next
+ * echo is silent. Long enough for a slow origin write plus a tick; a genuine
+ * outside move of the same issue inside this window loses only its animation.
+ */
+export const SELF_ECHO_MS = 10_000
+
+/** True while a key flagged at `notedAt` is still this tab's own echo. */
+export function selfEchoFresh(notedAt: number | undefined, nowMs: number): boolean {
+  return notedAt !== undefined && nowMs - notedAt < SELF_ECHO_MS
+}
+

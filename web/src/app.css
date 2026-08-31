@@ -1323,6 +1323,27 @@
       box-shadow: 0 0 0 2px transparent;
     }
   }
+  /*
+    Drag = transition (GDK-1176). The column attributes are set by
+    board-drag.svelte.ts only while a card is up: `illegal` dims what no
+    transition reaches (a preview — the write path's 400 is the law), `over`
+    marks the column under the pointer. The ghost is a fixed clone on <body>;
+    the real card never moves, so the FLIP above never meets a dnd transform.
+  */
+  [data-board-column] {
+    transition: opacity 120ms ease, background-color 120ms ease;
+  }
+  [data-board-column][data-drop='illegal'] {
+    opacity: 0.45;
+  }
+  [data-board-column][data-drop='over'] {
+    background: var(--color-bg-hover);
+  }
+  .board-drag-ghost {
+    opacity: 0.92;
+    scale: 1.02;
+  }
+
   /* The chip says whose hand it was; it brightens with the ring and settles. */
   .board-card[data-moved] .board-actor {
     animation: board-actor-lit 1.2s ease-out forwards;

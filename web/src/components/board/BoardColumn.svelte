@@ -12,6 +12,7 @@
    * board that needs it is a filter problem the board should not paper over.
    */
   import { t } from '../../lib/i18n'
+  import { boardDrag } from '../../lib/board-drag.svelte'
   import type { IssueGroup } from '../../stores/filters.svelte'
   import type { TerminalSessionState } from '../../lib/terminal/strip'
   import GroupHeader from '../list/GroupHeader.svelte'
@@ -32,6 +33,7 @@
 <section
   data-testid="board-column"
   data-board-column={group.key}
+  data-drop={boardDrag.dropStateFor(group.key) ?? undefined}
   class="flex h-full min-w-[288px] max-w-[400px] flex-[1_0_288px] flex-col border-r border-border-subtle/70 last:border-r-0"
 >
   <div class="flex-none"><GroupHeader {group} {showCategoryCounts} /></div>

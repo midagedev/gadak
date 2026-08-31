@@ -22,6 +22,7 @@ import { ApiError } from '../lib/api'
 import { issues } from './issues.svelte'
 import { me } from './me.svelte'
 import { appendComment, invalidate } from '../lib/detail-cache.svelte'
+import { externalMoves } from '../lib/board-moves.svelte'
 import { recordRecent } from '../lib/recency'
 import { isHostedDemo, jiraBrowseUrl } from '../lib/config'
 import type {
@@ -423,6 +424,9 @@ class WriteStore {
   ): Promise<boolean> {
     const proj = this.projectOf(issues.pool.get(key) ?? ({ issue_key: key } as IssueLite))
     const failMsg = t('write.transitionFailed')
+    // Before the patch, not after the confirm: the mirror's echo of this write
+    // can land in the gap and must not read as somebody else's move (GDK-1176).
+    externalMoves.noteSelf(key)
     const ok = await this.#writeIssue(
       key,
       { status: tr.to_status, status_category: tr.to_category },

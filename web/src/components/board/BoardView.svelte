@@ -35,7 +35,9 @@
   import type { TerminalSessionState } from '../../lib/terminal/strip'
   import { categoryMetaOf } from '../../lib/format'
   import type { StatusCategory } from '../../lib/view-config'
+  import { boardDrag } from '../../lib/board-drag.svelte'
   import BoardColumn from './BoardColumn.svelte'
+  import BoardDropChoice from './BoardDropChoice.svelte'
 
   /** How long an externally-moved card takes to cross. Longer than the app's
    *  120–180ms chrome on purpose: this one is meant to be *seen*, and it is
@@ -160,4 +162,7 @@
   {#each columns as group (group.key)}
     <BoardColumn {group} showCategoryCounts={!byStatusCategory} {shellOf} />
   {/each}
+  {#if boardDrag.choice}
+    <BoardDropChoice choice={boardDrag.choice} />
+  {/if}
 </div>

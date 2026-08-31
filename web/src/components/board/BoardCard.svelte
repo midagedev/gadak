@@ -18,6 +18,7 @@
   import type { TerminalSessionState } from '../../lib/terminal/strip'
   import { issues } from '../../stores/issues.svelte'
   import { selection } from '../../stores/selection.svelte'
+  import { boardDrag } from '../../lib/board-drag.svelte'
   import { prefetchDetail } from '../../lib/detail-cache.svelte'
   import { shellForIssue } from '../../lib/issue-shells'
   import { shells } from '../../lib/issue-shells.svelte'
@@ -82,13 +83,19 @@
   data-testid="board-card"
   data-board-key={issue.issue_key}
   data-shell={shell ?? undefined}
+  data-dragging={boardDrag.draggingKey === issue.issue_key ? '1' : undefined}
   class="board-card group relative w-full flex-none overflow-hidden rounded-md border px-2.5 py-2 text-left
     transition-colors duration-150
     {active
       ? 'border-accent bg-bg-active'
       : 'border-border-subtle bg-bg-panel hover:border-border-strong hover:bg-bg-hover'}"
   onmouseenter={() => prefetchDetail(issue.issue_key)}
-  onclick={() => selection.toggle(issue.issue_key)}
+  onpointerdown={(e) => boardDrag.start(e, issue)}
+  onclick={() => {
+    // A finished drag ends in a click on this same button; it was a drop, not a select.
+    if (boardDrag.consumeClick()) return
+    selection.toggle(issue.issue_key)
+  }}
 >
   <!-- Shell edge. Absolute so it never joins the flow the FLIP measures. -->
   {#if edge}

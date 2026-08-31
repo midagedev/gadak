@@ -666,4 +666,10 @@ export const list = {
     ko: '이 이슈에 셸이 붙어 있습니다',
     ja: 'この課題にシェルが接続中です',
   },
+  // An ambiguous drop: 2+ transitions reach the column (GDK-1176).
+  'board.dropChoose': {
+    en: 'Choose a transition',
+    ko: '전환 선택',
+    ja: '遷移を選択',
+  },
 } as const satisfies Record<string, Message>

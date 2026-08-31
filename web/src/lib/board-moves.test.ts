@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { movedExternally } from './board-moves'
+import { SELF_ECHO_MS, movedExternally, selfEchoFresh } from './board-moves'
 import type { IssueLite } from './types'
 
 /*
@@ -43,5 +43,29 @@ describe('movedExternally', () => {
 
   it('a first sighting is an arrival, not a move (no old position to fly from)', () => {
     expect(movedExternally(undefined, issue({ status_id: '3' }))).toBe(false)
+  })
+
+  /*
+   * The race selfEchoFresh exists for (GDK-1176): the optimistic patch keeps
+   * the *old* status_id (a Transition carries no target id), so an echo delta
+   * that beats the origin confirm compares old id → new id and reads this
+   * tab's own drop as an outside move. This test is the bug demonstrated;
+   * the two below are the guard that swallows it.
+   */
+  it('an echo landing before the confirm would read as external — the id gap', () => {
+    const optimistic = issue({ status_id: '1', status_category: 'indeterminate' })
+    const echo = issue({ status_id: '3', status_category: 'indeterminate' })
+    expect(movedExternally(optimistic, echo)).toBe(true)
+  })
+})
+
+describe('selfEchoFresh', () => {
+  it('a key this tab just transitioned keeps its echo silent', () => {
+    expect(selfEchoFresh(1_000, 1_000 + SELF_ECHO_MS - 1)).toBe(true)
+  })
+
+  it('an unflagged key, or one past the window, is nobody’s echo', () => {
+    expect(selfEchoFresh(undefined, 1_000)).toBe(false)
+    expect(selfEchoFresh(1_000, 1_000 + SELF_ECHO_MS)).toBe(false)
   })
 })
