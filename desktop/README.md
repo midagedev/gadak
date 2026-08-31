@@ -235,6 +235,14 @@ would try to self-swap.
 - `main.go` opens the profile's mirror (`GADAK_PROFILE` respected), builds the
   API handler, starts the sync loop and update check — the same wiring as
   `cmd/gadak serve`, minus the listener and workspace mounts.
+- A boot failure before any window exists (a mirror schema refusal from a
+  newer gadak, an unreadable config, a locked DB) goes through `bootFatal` in
+  `main.go`: the same stderr + log line the old `log.Fatal`
+  wrote, then a native dialog carrying the error verbatim — `MessageBoxW` on
+  Windows (the `fatal_windows.go` primitive), `osascript display dialog` on
+  macOS. Not a wails dialog: before `application.New`, `application.Get()`
+  is nil, and between New and `app.Run` nothing drains the main-queue
+  dispatch a wails dialog needs. Linux keeps stderr (no shipped artifact).
 - v3's asset server takes one handler, not a file system plus a fallback, so
   `assetHandler` in `main.go` does that split: a GET that names a file in the
   embedded bundle is served from it, everything else goes to `fallbackHandler`.

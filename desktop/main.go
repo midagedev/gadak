@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path"
 	"runtime"
 	"runtime/debug"
@@ -71,7 +72,7 @@ func main() {
 		server.Version = strings.TrimPrefix(appVersion, "v")
 	}
 	if err := run(); err != nil {
-		log.Fatal(err)
+		bootFatal(err)
 	}
 }
 
@@ -610,6 +611,83 @@ func showNativeError(title, text string) {
 		return
 	}
 	windowsMessageBox(title, text)
+}
+
+// bootFatal is the pre-window boot exit: run() failed before the user had
+// anything to look at — a mirror schema refusal from a newer gadak, an
+// unreadable config, a locked DB. The old `log.Fatal(err)` put the store's
+// sentence on stderr and in the log file, neither of which a double-clicked
+// or gadak:// launch ever shows, so the app died with no window and no
+// message. This is the same output plus a native dialog, then the same exit
+// code log.Fatal used. (Issue key lives in gdk1243_test.go — doc-checks
+// resolves public-surface citations against the backlog snapshot.)
+func bootFatal(err error) {
+	reportBootFailure(err)
+	os.Exit(1)
+}
+
+// reportBootFailure is the stderr/log/dialog half of bootFatal, split off so
+// tests can drive it with the dialog seam swapped (CI has no display to
+// dismiss a modal on).
+func reportBootFailure(err error) {
+	// Same destination log.Fatal wrote to: the applog file plus stderr
+	// (applog.Install mirrors both). The trail is the CLI-parity surface;
+	// the dialog is additive, not a replacement.
+	log.Print(err)
+	showBootErrorDialog("Gadak", err.Error())
+}
+
+// showBootErrorDialog is the production dialog for a pre-window boot
+// failure. It is a package var so tests can replace it and assert the boot
+// path reached the dialog with the store's message verbatim — without
+// showing a real modal.
+var showBootErrorDialog = func(title, text string) {
+	nativeBootErrorDialog(runtime.GOOS, title, text)
+}
+
+// nativeBootErrorDialog surfaces a boot failure where the OS has a cheap
+// pre-window surface. Not a wails dialog, at either failure site:
+//   - an apprun.Open failure (the schema-refusal site) happens before
+//     application.New, so application.Get() is nil — globalApplication is
+//     only assigned inside New (pkg/application/application.go) and the
+//     dialog helpers dispatch through InvokeAsync, which dereferences it.
+//   - a StartOriginPassthrough failure runs after New but before app.Run,
+//     and MessageDialog.Show dispatches through dispatch_async(main_queue),
+//     which nothing drains until app.Run pumps the native event loop — the
+//     dialog would queue and the process would exit without showing it.
+//
+// That is the same judgment fatal_windows.go made for its MessageBoxW
+// isolation. Linux ships no desktop artifact (README), so stderr stays the
+// truth there.
+func nativeBootErrorDialog(goos, title, text string) {
+	switch goos {
+	case "windows":
+		windowsMessageBox(title, text)
+	case "darwin":
+		if err := macOSShowBootError(title, text); err != nil {
+			log.Printf("gadak-desktop: boot dialog: %v", err)
+		}
+	}
+}
+
+// bootDialogScript is the osascript line for a boot failure. Escaping is the
+// same idiom as internal/sync's osascript notifier (notify.go): \ and "
+// only — raw newlines inside an -e argument compile, so multi-line error
+// text stays multi-line (measured).
+func bootDialogScript(title, text string) string {
+	esc := func(s string) string {
+		s = strings.ReplaceAll(s, `\`, `\\`)
+		s = strings.ReplaceAll(s, `"`, `\"`)
+		return s
+	}
+	return fmt.Sprintf(`display dialog "%s" with title "%s" with icon stop`, esc(text), esc(title))
+}
+
+// macOSShowBootError runs the dialog and blocks until it is dismissed —
+// MessageBoxW parity. A context with no user session (SSH, CI) errors and
+// the caller logs it; stderr already carries the message either way.
+func macOSShowBootError(title, text string) error {
+	return exec.Command("osascript", "-e", bootDialogScript(title, text)).Run()
 }
 
 func applyWindowChrome(opts *application.WebviewWindowOptions, chrome string) {
