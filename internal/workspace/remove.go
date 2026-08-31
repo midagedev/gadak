@@ -105,19 +105,6 @@ func (e *InvalidNameError) Error() string { return e.Err.Error() }
 
 func (e *InvalidNameError) Unwrap() error { return e.Err }
 
-// RemoveFailedError is os.RemoveAll failing mid-removal (permissions, open
-// handles on Windows): the directory may now be half gone.
-type RemoveFailedError struct {
-	Dir string
-	Err error
-}
-
-func (e *RemoveFailedError) Error() string {
-	return fmt.Sprintf("removing %s: %s", e.Dir, e.Err)
-}
-
-func (e *RemoveFailedError) Unwrap() error { return e.Err }
-
 // RemoveResult is what a successful removal did. The CLI shell reassembles
 // its output lines from these fields; the HTTP handler serialises them. The
 // core itself prints nothing except the stored-default warning, which was
@@ -225,8 +212,12 @@ func Remove(name string, yes, destroyOrigin bool, cmdHint string) (RemoveResult,
 			}
 		}
 	}
+	// os.RemoveAll failing mid-removal (permissions, open handles on
+	// Windows) can leave the directory half gone — name the directory.
+	// Nothing distinguishes this from other failures (the GDK-1239 census
+	// found no errors.As or field reader), so it stays a wrapped error.
 	if err := os.RemoveAll(dir); err != nil {
-		return RemoveResult{}, &RemoveFailedError{Dir: dir, Err: err}
+		return RemoveResult{}, fmt.Errorf("removing %s: %w", dir, err)
 	}
 
 	// A stored default pointing at the removed name would dangle: every
