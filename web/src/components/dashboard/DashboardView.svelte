@@ -38,8 +38,6 @@
   import { createSkeletonGrace } from '../../lib/skeleton-grace.svelte'
 
   let frame = $state<HTMLIFrameElement | null>(null)
-  /** Set once the frame's load event fired — pushing before it silently drops. */
-  let frameReady = $state(false)
 
   const id = $derived(dashboards.openId)
   const row = $derived(dashboards.row)
@@ -59,6 +57,13 @@
    *  the mirror's sync stamp, and the datasource set (the row can land after
    *  the frame does — open() loads them in parallel). */
   const frameKey = $derived(`${id ?? ''}:${renderGen}`)
+  /** Readiness is a comparison, not a flag an effect resets: the load
+   *  handler records which frameKey actually loaded, so a key swap reads
+   *  false in the same update — before any effect could run — and nothing
+   *  pushes into the void between the swap and the new load event. No
+   *  effect-ordering to keep honest (GDK-692). */
+  let readyKey = $state<string | null>(null)
+  const frameReady = $derived(readyKey !== null && readyKey === frameKey)
   const dsKey = $derived(
     Object.keys(dashboards.row?.config?.datasources ?? {})
       .sort()
@@ -102,7 +107,7 @@
   }
 
   function onFrameLoad(): void {
-    frameReady = true
+    readyKey = frameKey
   }
 
   function onMessage(ev: MessageEvent): void {
@@ -143,13 +148,6 @@
       refreshThrottle.flush()
       openThrottle.flush()
     }
-  })
-
-  // A replaced frame (key change) starts with no listeners — drop ready so
-  // nothing pushes into the void between the swap and the new load event.
-  $effect(() => {
-    void frameKey
-    frameReady = false
   })
 
   // The one push trigger: run when the frame is loaded AND anything the push

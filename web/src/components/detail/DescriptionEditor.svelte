@@ -37,12 +37,10 @@
   const simple = $derived(isSimpleAdf(node))
   const canEdit = $derived(me.identified || isHostedDemo())
 
-  $effect(() => {
-    void issueKey
-    editing = false
-    draft = ''
-    busy = false
-  })
+  // No reset effect on issueKey (GDK-692): DetailPanel keys this component on
+  // the issue, so a switch remounts it and every local above returns to its
+  // initial value — and an in-flight commit's continuation writes to the old
+  // instance instead of clobbering the new issue's draft.
 
   async function start() {
     if (!(await write.ensureWritableFor(issueKey))) return

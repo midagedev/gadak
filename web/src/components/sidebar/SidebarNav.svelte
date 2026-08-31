@@ -77,9 +77,11 @@
   const cta = $derived(upgradeCta(config().os))
   const notesText = $derived(issues.releaseNotes.trim())
 
-  $effect(() => {
-    if (!notesText) notesOpen = false
-  })
+  // No effect closing this on notesText going empty (GDK-692): the dialog's
+  // own render guard (`{#if notesOpen && notesText}`) already hides it, so
+  // the effect only existed to stop it reappearing when notesText comes
+  // back — a trade the audit accepted. The keydown guard below mirrors the
+  // render guard so a hidden-but-open state cannot swallow an Esc.
 
   function closeNotes() {
     notesOpen = false
@@ -87,7 +89,7 @@
   }
 
   function onNotesKeydown(e: KeyboardEvent) {
-    if (!notesOpen || e.key !== 'Escape') return
+    if (!notesOpen || !notesText || e.key !== 'Escape') return
     e.preventDefault()
     closeNotes()
   }

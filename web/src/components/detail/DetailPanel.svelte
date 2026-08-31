@@ -97,16 +97,17 @@
   // so the *next* Esc can close. A non-empty draft with no focus spends one
   // Esc the same way. Clearing the draft is forbidden — the localStorage
   // composer already keeps it, and reopening the issue restores it.
-  let commentEscArmed = $state(false)
+  // Armed-for-key rather than a flag an effect resets on selection change:
+  // "armed" is per-issue, so it is the comparison — when the key moves, this
+  // reads false in the same update, with no effect ordering to keep honest
+  // (the GDK-692 shape this repo guards against).
+  let commentEscArmedFor = $state<string | null>(null)
   let composer = $state<ReturnType<typeof CommentComposer> | null>(null)
-  $effect(() => {
-    void key
-    commentEscArmed = false
-  })
+  const commentEscArmed = $derived(commentEscArmedFor !== null && commentEscArmedFor === key)
 
   function onEscapeKey(e: KeyboardEvent): void {
     if (e.defaultPrevented) {
-      commentEscArmed = true
+      commentEscArmedFor = key
       return
     }
     const el = composer?.composerEl() ?? null
@@ -115,7 +116,7 @@
     if ((focused || hasDraft) && !commentEscArmed) {
       e.preventDefault()
       if (focused) el.blur()
-      commentEscArmed = true
+      commentEscArmedFor = key
       return
     }
     selection.clear()
@@ -290,14 +291,20 @@
             <IssueFields issue={lite} developmentOpinion={detailForKey.development_opinion} />
           {/if}
 
-          <!-- Description -->
+          <!-- Description. Keyed on the issue alone: a switch must drop an
+               open edit (draft, busy) the way the removed reset effect did —
+               by remount, not by an effect writing state (GDK-692). The key
+               wraps only DescriptionEditor: taking siblings along would reset
+               their state, focus, and scroll too. -->
           <Section title={t('detail.description')}>
-            <DescriptionEditor
-              issueKey={key}
-              node={detailForKey.description_adf}
-              fallback={detailForKey.description_text}
-              attachments={detailForKey.attachments}
-            />
+            {#key key}
+              <DescriptionEditor
+                issueKey={key}
+                node={detailForKey.description_adf}
+                fallback={detailForKey.description_text}
+                attachments={detailForKey.attachments}
+              />
+            {/key}
           </Section>
 
           <!-- Body-role custom fields (재현 단계, QA comment, …) — documents, not chips.

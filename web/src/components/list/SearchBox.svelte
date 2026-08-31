@@ -81,12 +81,16 @@
    */
   let slotCompact = $state(false)
   let boxEl = $state<HTMLDivElement | null>(null)
+  // The palette button by reference, not by its e2e testid: data-testid is
+  // the e2e contract, and runtime logic leaning on the same selector means
+  // renaming a test hook breaks the layout switch.
+  let paletteBtn = $state<HTMLButtonElement | null>(null)
   $effect(() => {
     const el = boxEl
     if (!el || typeof ResizeObserver === 'undefined') return
     let fullLabelWidth = 0
     const ro = new ResizeObserver(() => {
-      const button = el.querySelector<HTMLElement>('[data-testid="palette-open"]')
+      const button = paletteBtn
       if (button && button.querySelector('span')) {
         fullLabelWidth = Math.max(fullLabelWidth, button.offsetWidth)
       }
@@ -450,6 +454,7 @@
   </div>
   <button
     type="button"
+    bind:this={paletteBtn}
     data-testid="palette-open"
     class="flex h-control flex-none items-center gap-1.5 rounded-md border border-border-strong/70 bg-bg-elevated px-2.5 text-body text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary"
     title={t('palette.entryTitle', { shortcut: paletteShortcutLabel() })}
