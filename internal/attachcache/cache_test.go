@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 func fetcher(body string, ct string) func() (io.ReadCloser, Meta, error) {
@@ -219,5 +220,51 @@ func TestFetchFailureLeavesNoEntry(t *testing.T) {
 	files, _ := c.Stats()
 	if files != 0 {
 		t.Fatalf("%d files left behind", files)
+	}
+}
+
+// A waiter on a failed flight must receive the owner's typed cause — a
+// fresh errors.New here sent every errors.Is branch (auth, too-large) in
+// the server to default (GDK-1237). FAIL-first: red on the pre-fix Fill.
+func TestWaiterSeesTheOwnersTypedError(t *testing.T) {
+	c, err := New(t.TempDir(), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sentinel := errors.New("origin said no")
+	release := make(chan struct{})
+	failing := func() (io.ReadCloser, Meta, error) {
+		<-release
+		return nil, Meta{}, sentinel
+	}
+
+	ownerDone := make(chan error, 1)
+	go func() { ownerDone <- c.Fill("same", failing) }()
+	// Wait until the owner's flight is registered, so the second Fill is a
+	// waiter, never a new owner.
+	for {
+		c.mu.Lock()
+		_, busy := c.flight["same"]
+		c.mu.Unlock()
+		if busy {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	waiterDone := make(chan error, 1)
+	go func() { waiterDone <- c.Fill("same", failing) }()
+	// The waiter parks in wg.Wait; nothing observable marks that, so give
+	// it a beat and release the owner either way — a waiter that arrived
+	// late would become a new owner and hang on release, which the test
+	// would catch as a second fetch blocking forever.
+	time.Sleep(10 * time.Millisecond)
+	close(release)
+
+	if err := <-ownerDone; !errors.Is(err, sentinel) {
+		t.Fatalf("owner error = %v, want the sentinel", err)
+	}
+	if err := <-waiterDone; !errors.Is(err, sentinel) {
+		t.Fatalf("waiter error = %v, want errors.Is(sentinel) to hold through the wrap", err)
 	}
 }

@@ -72,7 +72,15 @@ type Cache struct {
 	maxBytes int64
 
 	mu     sync.Mutex
-	flight map[string]*sync.WaitGroup
+	flight map[string]*fill
+}
+
+// fill is one in-flight Fill. err carries the owner's outcome to every
+// waiter — without it, a waiter saw a fresh errors.New and the caller's
+// typed branches (auth, too-large) all fell through to default (GDK-1237).
+type fill struct {
+	wg  sync.WaitGroup
+	err error
 }
 
 // New opens (and creates) a cache directory. maxBytes <= 0 means DefaultMaxBytes.
@@ -86,7 +94,7 @@ func New(dir string, maxBytes int64) (*Cache, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
 	}
-	return &Cache{dir: dir, maxBytes: maxBytes, flight: map[string]*sync.WaitGroup{}}, nil
+	return &Cache{dir: dir, maxBytes: maxBytes, flight: map[string]*fill{}}, nil
 }
 
 // Dir is the directory the cache owns.
@@ -135,13 +143,15 @@ func (c *Cache) Has(id string) bool {
 // fetch must return the body, its content type, and its length (0 if unknown).
 func (c *Cache) Fill(id string, fetch func() (io.ReadCloser, Meta, error)) error {
 	c.mu.Lock()
-	if wg, busy := c.flight[id]; busy {
+	if f, busy := c.flight[id]; busy {
 		c.mu.Unlock()
-		wg.Wait()
-		if c.Has(id) {
-			return nil
+		f.wg.Wait()
+		if f.err != nil {
+			// %w keeps the owner's typed cause (auth, too-large) reaching
+			// every waiter's errors.Is branches (GDK-1237).
+			return fmt.Errorf("attachcache: concurrent fill: %w", f.err)
 		}
-		return errors.New("attachcache: concurrent fill failed")
+		return nil
 	}
 	// Cached means no fetch — owned here, not by callers. Without this, a
 	// caller arriving between a flight's completion and its own Has check
@@ -151,18 +161,26 @@ func (c *Cache) Fill(id string, fetch func() (io.ReadCloser, Meta, error)) error
 		c.mu.Unlock()
 		return nil
 	}
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-	c.flight[id] = wg
+	f := &fill{}
+	f.wg.Add(1)
+	c.flight[id] = f
 	c.mu.Unlock()
 
+	// f.err is assigned before the deferred Done, so waiters woken by Wait
+	// always observe the outcome (WaitGroup gives the happens-before).
 	defer func() {
 		c.mu.Lock()
 		delete(c.flight, id)
 		c.mu.Unlock()
-		wg.Done()
+		f.wg.Done()
 	}()
+	f.err = c.fill(id, fetch)
+	return f.err
+}
 
+// fill is Fill's owner half: fetch, stage, rename. Split out so the
+// single-flight bookkeeping above can record its error for the waiters.
+func (c *Cache) fill(id string, fetch func() (io.ReadCloser, Meta, error)) error {
 	body, meta, err := fetch()
 	if err != nil {
 		return err
