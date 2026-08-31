@@ -108,9 +108,21 @@ test.describe('terminal session strip', () => {
     const [firstId] = await sessionIds(page)
     expect(firstId, 'the pane should have created a session').toBeTruthy()
 
-    // One session is not a chooser: the rail names it and no rows show.
-    await expect(page.getByTestId('terminal-strip')).toHaveCount(0)
-    await expect(page.getByTestId('terminal-rail-name')).toBeVisible()
+    // One session is still a tab (GDK-1199): the strip is resident chrome
+    // now, and the tab carries the name the rail's own slot used to
+    // (GDK-1153) — same name, new place, never blank.
+    await expect(page.getByTestId('terminal-strip')).toHaveAttribute('data-count', '1', {
+      timeout: 20_000,
+    })
+    await expect(page.getByTestId('terminal-strip-name')).toBeVisible()
+    await expect(page.getByTestId('terminal-strip-name')).not.toHaveText('')
+    // …and the dock's chrome is that one row: the tabs and both verbs share
+    // a single container, and the old rail (label + name slot) is gone.
+    const chrome = page.getByTestId('terminal-chrome')
+    await expect(chrome.getByTestId('terminal-strip')).toHaveCount(1)
+    await expect(chrome.getByTestId('terminal-new')).toBeVisible()
+    await expect(chrome.getByTestId('terminal-close')).toBeVisible()
+    await expect(page.getByTestId('terminal-rail-name')).toHaveCount(0)
 
     // A second shell from the rail.
     await page.getByTestId('terminal-new').click()
@@ -158,6 +170,58 @@ test.describe('terminal session strip', () => {
     await rowTwo.click()
     await expect(rowTwo).toHaveAttribute('data-selected', 'true')
     await expect.poll(async () => readTerm(page)).toContain('MARKER-TWO')
+
+    expect(appConsoleErrors(errors), `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  /*
+   * GDK-1200: a tab's × ends that session — the client finally calls the
+   * DELETE the server has kept since GDK-922. Killing the shown session
+   * must hand the pane to a neighbour, not leave it attached to a shell
+   * the server is tearing down; with two sessions and the right-hand one
+   * killed, the neighbour is the left one.
+   */
+  test('a tab’s × ends that session and the pane moves to the neighbour (GDK-1200)', async ({
+    page,
+  }) => {
+    test.setTimeout(120_000)
+    const errors = await boot(page)
+    await openPane(page)
+    const [firstId] = await sessionIds(page)
+    expect(firstId, 'the pane should have created a session').toBeTruthy()
+
+    await page.getByTestId('terminal-new').click()
+    await expect(page.getByTestId('terminal-strip')).toHaveAttribute('data-count', '2', {
+      timeout: 20_000,
+    })
+    const ids = await sessionIds(page)
+    const secondId = ids.find((id) => id !== firstId)
+    expect(secondId, 'two sessions should be alive').toBeTruthy()
+
+    const rowTwo = page.locator(
+      `[data-testid="terminal-strip-row"][data-session-id="${secondId}"]`,
+    )
+    await expect(rowTwo).toHaveAttribute('data-selected', 'true', { timeout: 20_000 })
+
+    // The × is hover-revealed, so hover is how it is reached — but it is a
+    // real element with a role, not a chord.
+    await rowTwo.hover()
+    await rowTwo.getByTestId('terminal-strip-kill').click()
+
+    // The session is gone — from the strip and from the server both — and
+    // the neighbour tab holds the pane.
+    await expect(rowTwo).toHaveCount(0, { timeout: 20_000 })
+    await expect(page.getByTestId('terminal-strip')).toHaveAttribute('data-count', '1')
+    await expect
+      .poll(async () => sessionIds(page), 'the DELETE should have reached the server')
+      .toEqual([firstId])
+    const rowOne = page.locator(
+      `[data-testid="terminal-strip-row"][data-session-id="${firstId}"]`,
+    )
+    await expect(rowOne).toHaveAttribute('data-selected', 'true')
+    await expect(page.getByTestId('terminal-pane')).toHaveAttribute('data-attached', 'true', {
+      timeout: 20_000,
+    })
 
     expect(appConsoleErrors(errors), `console errors:\n${errors.join('\n')}`).toEqual([])
   })
@@ -336,7 +400,8 @@ const SHOT_DIR = join(
  * The strip's own captures, next to the pane's (terminal.spec.ts). The three
  * counts are the ones the design is decided by: none, one, several. Zero is
  * the failure path this feature has — a person who runs no agents must not
- * be handed an empty table — and one is where the strip has to cost nothing.
+ * be handed an empty table — and one is where the resident row (GDK-1199)
+ * has to earn its keep with a single named tab.
  */
 test.describe('terminal strip shots', () => {
   test.use({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 })
@@ -360,7 +425,9 @@ test.describe('terminal strip shots', () => {
     await openPane(page)
     await typeLine(page, "printf 'one ses''sion\\n'")
     await expect.poll(async () => readTerm(page)).toContain('one session')
-    await expect(page.getByTestId('terminal-strip')).toHaveCount(0)
+    await expect(page.getByTestId('terminal-strip')).toHaveAttribute('data-count', '1', {
+      timeout: 20_000,
+    })
     await shoot('01-one.png')
 
     await page.getByTestId('terminal-new').click()
@@ -415,7 +482,7 @@ test.describe('terminal strip shots', () => {
         '',
         '| file | notes |',
         '| --- | --- |',
-        '| `01-one.png` | one session: no rows, the rail carries the name |',
+        '| `01-one.png` | one session: a single named tab in the one chrome row |',
         '| `02-three.png` | three sessions: the strip is the selector |',
         '| `03-none.png` | no session: the row list is the start action |',
         '',

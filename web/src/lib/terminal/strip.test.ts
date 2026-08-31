@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
+  nextSelectedAfterKill,
   RUNNING_WINDOW_MS,
   sessionLabel,
   sessionState,
   stripRows,
-  stripShowsRows,
   type TerminalSessionInfo,
 } from './strip'
 
@@ -75,16 +75,15 @@ describe('sessionState (GDK-1163)', () => {
 })
 
 describe('stripRows (GDK-1153)', () => {
-  it('is empty with no sessions, and the row list still shows — that space is the start action', () => {
+  it('is empty with no sessions — that space is the start action', () => {
     expect(stripRows([], null, NOW)).toEqual([])
-    expect(stripShowsRows(0)).toBe(true)
   })
 
-  it('hides the row list at exactly one session: the rail already names it', () => {
+  it('a single session is still a tab: the row is the name now (GDK-1199)', () => {
     const rows = stripRows([info({ id: 'one', issue_key: 'GDK-1' })], 'one', NOW)
     expect(rows).toHaveLength(1)
     expect(rows[0].selected).toBe(true)
-    expect(stripShowsRows(1)).toBe(false)
+    expect(rows[0].label).toBe('GDK-1')
   })
 
   it('marks exactly the pane’s own session as selected, whatever the server counts as attached', () => {
@@ -101,11 +100,35 @@ describe('stripRows (GDK-1153)', () => {
     expect(rows.map((r) => r.selected)).toEqual([false, true, false])
     expect(rows.map((r) => r.label)).toEqual(['GDK-1', 'GDK-2', 'ccc00000…'])
     expect(rows.map((r) => r.namedByIssue)).toEqual([true, true, false])
-    expect(stripShowsRows(3)).toBe(true)
   })
 
   it('keeps the server’s order, which is creation order — a row must not move under the pointer', () => {
     const sessions = [info({ id: 'first' }), info({ id: 'second' }), info({ id: 'third' })]
     expect(stripRows(sessions, null, NOW).map((r) => r.id)).toEqual(['first', 'second', 'third'])
+  })
+})
+
+describe('nextSelectedAfterKill (GDK-1200)', () => {
+  const ids = ['a', 'b', 'c']
+
+  it('killing an unshown session moves nothing', () => {
+    expect(nextSelectedAfterKill(ids, 'a', 'b')).toBe('b')
+    expect(nextSelectedAfterKill(ids, 'c', null)).toBe(null)
+  })
+
+  it('killing the shown session hands the pane to the right-hand neighbour first', () => {
+    expect(nextSelectedAfterKill(ids, 'b', 'b')).toBe('c')
+  })
+
+  it('falls back to the left neighbour at the end of the row', () => {
+    expect(nextSelectedAfterKill(ids, 'c', 'c')).toBe('b')
+  })
+
+  it('an emptied roster selects nothing — the exit path takes it from there', () => {
+    expect(nextSelectedAfterKill(['a'], 'a', 'a')).toBe(null)
+  })
+
+  it('a kill the roster no longer knows selects nothing rather than guessing', () => {
+    expect(nextSelectedAfterKill(ids, 'zz', 'zz')).toBe(null)
   })
 })

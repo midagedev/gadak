@@ -42,7 +42,6 @@
     terminalChrome,
   } from '../../lib/terminal/pane.svelte'
   import { terminalSessions } from '../../lib/terminal/sessions.svelte'
-  import { sessionLabel } from '../../lib/terminal/strip'
   import TerminalStrip from './TerminalStrip.svelte'
   import { config } from '../../lib/config'
   import { issues } from '../../stores/issues.svelte'
@@ -97,18 +96,6 @@
       (status.kind === 'unavailable' && unavailableAllowsRestart(status.cause)) ||
       (status.kind === 'dropped' && droppedAllowsRestart(status.reason)),
   )
-
-  /*
-   * GDK-1153: the rail names the session the pane is holding, so the answer
-   * to "what is this terminal for" is on screen without opening anything.
-   * The roster row is preferred because it carries the issue binding a
-   * claim wrote (GDK-1158); before the first poll lands, the id stands in.
-   */
-  const currentName = $derived.by(() => {
-    const id = terminalSessions.selectedId
-    if (!id) return ''
-    return sessionLabel(terminalSessions.selected ?? { id })
-  })
 
   /*
    * The pane's two hooks into the driver below. They are set inside
@@ -578,34 +565,22 @@
   data-overlay={overlay ? 'true' : undefined}
 >
   <!--
-    A rail, not a title bar: the same strip the status line already is, at
-    the other end. It exists because the pane swallows every keystroke on
-    purpose, so the key that closes it cannot also be the only way out —
-    someone who opened this with a shortcut they half-remember needs
-    something to click. Micro-caps and hairline, the app's own idiom.
+    One chrome row (GDK-1199): the terminal mark, the session tabs, and the
+    two verbs — new shell, close dock. It exists because the pane swallows
+    every keystroke on purpose, so the key that closes it cannot also be the
+    only way out — someone who opened this with a shortcut they
+    half-remember needs something to click. The "TERMINAL" label is gone:
+    the tabs say what this is, and the icon answers it at a glance. The tabs
+    took over the naming job the rail's own name slot carried (GDK-1153) —
+    a single session is still a tab now, so the name never leaves the row.
   -->
   <div
-    class="flex flex-none items-center justify-between gap-2 border-b border-border-subtle bg-bg-panel py-1 pr-1 pl-3"
+    class="flex flex-none items-stretch border-b border-border-subtle bg-bg-panel pr-1 pl-3"
+    data-testid="terminal-chrome"
   >
-    <span class="flex min-w-0 items-center gap-1.5">
-      <Icon name="terminal" size={13} class="flex-none text-text-muted" />
-      <span class="flex-none text-micro tracking-wide text-text-muted uppercase"
-        >{t('terminal.title')}</span
-      >
-      <!--
-        GDK-1153: whose terminal this is. The name is the issue a claim in
-        this shell took, falling back to a short id — so a pane holding one
-        session answers "what is this for" without a strip row under it, and
-        the one-session case costs no chrome at all.
-      -->
-      {#if currentName}
-        <span class="flex-none text-micro text-text-muted" aria-hidden="true">·</span>
-        <span class="truncate text-micro text-text-secondary" data-testid="terminal-rail-name"
-          >{currentName}</span
-        >
-      {/if}
-    </span>
-    <span class="flex flex-none items-center">
+    <Icon name="terminal" size={13} class="mr-1.5 flex-none self-center text-text-muted" />
+    <TerminalStrip offerStart={statusRestartable} onstart={onStatusActivate} />
+    <span class="flex flex-none items-center py-1 pl-1">
       <button
         type="button"
         class="flex h-6 w-6 flex-none items-center justify-center rounded text-text-muted hover:bg-bg-hover hover:text-text-primary"
@@ -628,7 +603,6 @@
       </button>
     </span>
   </div>
-  <TerminalStrip offerStart={statusRestartable} onstart={onStatusActivate} />
   <div
     class="relative min-h-0 min-w-0 flex-1 overflow-hidden"
     data-skeleton={connectingGrace.attr}

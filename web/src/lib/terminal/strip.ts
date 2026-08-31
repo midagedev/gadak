@@ -124,14 +124,21 @@ export function stripRows(
 }
 
 /**
- * Whether the strip's row list is worth the space it takes.
+ * Which session the pane should hold once `killedId` is gone (GDK-1200).
  *
- * Zero sessions is not an empty table — it is the one place the strip has
- * something to offer, so the row list stays up and carries the start
- * action (GDK-1153 §4.4). Exactly one session needs no selector at all:
- * its name is already in the rail, and a one-row chooser with nothing to
- * choose is the furniture this design is trying not to build.
+ * A kill that was not aimed at the shown session moves nothing. Killing the
+ * shown one hands the pane to the right-hand neighbour first — the tab the
+ * eye falls on when the killed one collapses — then the left, and null when
+ * the roster is about to be empty (the pane's own exit path takes it from
+ * there).
  */
-export function stripShowsRows(count: number): boolean {
-  return count !== 1
+export function nextSelectedAfterKill(
+  ids: readonly string[],
+  killedId: string,
+  selectedId: string | null,
+): string | null {
+  if (selectedId !== killedId) return selectedId
+  const i = ids.indexOf(killedId)
+  if (i === -1) return null
+  return ids[i + 1] ?? ids[i - 1] ?? null
 }

@@ -231,6 +231,13 @@ export const shell = {
     ko: '새 셸',
     ja: '新しいシェル',
   },
+  // The tab's × (GDK-1200): ends the session itself, as opposed to
+  // terminal.close, which only closes the dock and leaves every shell alive.
+  'terminal.strip.kill': {
+    en: 'Close session {name}',
+    ko: '{name} 세션 종료',
+    ja: 'セッション {name} を終了',
+  },
   // The dashboard surface (GDK-782). notFound: the id arrived (link, uifocus)
   // but the row is gone — `gadak dashboards rm` or another workspace. Both
   // states name the next action (GDK-827): a dead end that only states

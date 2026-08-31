@@ -14,12 +14,13 @@
  * callbacks; everything below this seam — REST, grace, the kept session id —
  * is shared.
  *
- * The client never closes a session explicitly: page unload does nothing
- * (navigator.sendBeacon is a POST, and there is no client close verb to send),
- * so the 60 s reconnect grace is what reaps a session nobody reattached to.
- * That is deliberate — a reopen inside the grace reattaches and replays the
- * ring (the selected id, ./sessions.svelte.ts). The server keeps a REST DELETE for its own
- * tests and e2e, but the pane has no reason to call it (GDK-922).
+ * Page unload never closes a session (navigator.sendBeacon is a POST, and
+ * unload is not a decision anyway): the 60 s reconnect grace is what reaps a
+ * session nobody reattached to, and a reopen inside the grace reattaches and
+ * replays the ring (the selected id, ./sessions.svelte.ts). That contract
+ * stands (GDK-922). What the client does send is the explicit gesture — a
+ * tab's × (GDK-1200) — through deleteSession below, the same REST DELETE the
+ * server has always kept for its tests and e2e.
  */
 
 import { config, isDesktop } from '../config'
@@ -151,6 +152,22 @@ export async function createSession(cols: number, rows: number): Promise<Session
     throw new TerminalHttpError(res.status, code, message)
   }
   return normalizeSessionDoc(await res.json())
+}
+
+/**
+ * The explicit close verb (GDK-1200): a person aimed an × at this session.
+ * Errors are swallowed on purpose — a 404 means it is already gone, and the
+ * roster poll is the authority on what is left either way.
+ */
+export async function deleteSession(id: string): Promise<void> {
+  try {
+    await fetch(`${terminalBase()}sessions/${encodeURIComponent(id)}/`, {
+      method: 'DELETE',
+      credentials: 'same-origin',
+    })
+  } catch {
+    /* the roster poll reconciles */
+  }
 }
 
 /**

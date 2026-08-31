@@ -50,13 +50,11 @@
  *
  * ── Why a second shell is opened before the money shot ────────────────────
  *
- * Not staging: the strip hides itself when there is exactly one session
- * (`stripShowsRows: count !== 1`, strip.ts:133), so with a single shell the
- * rename beat is not merely subtle, it is not rendered at all. Opening a
- * second shell (the pane's own `terminal-new` button) is the only way the
- * strip exists to be renamed — and it improves the argument rather than
- * padding it: two anonymous shells, and the one that claimed the issue takes
- * the issue's name.
+ * Since GDK-1199 the strip is resident chrome — a single shell is a tab too,
+ * so the rename beat would render either way. The second shell (the pane's
+ * own `terminal-new` button) stays because it improves the argument rather
+ * than padding it: two anonymous shells, and the one that claimed the issue
+ * takes the issue's name.
  *
  * ── The fixture ──────────────────────────────────────────────────────────
  *

@@ -18,9 +18,9 @@
  * the serve, and gadak stores no originals of its own (CLAUDE.md).
  */
 
-import { terminalBase } from './session'
+import { deleteSession, terminalBase } from './session'
 import { terminalChrome } from './pane.svelte'
-import type { TerminalSessionInfo } from './strip'
+import { nextSelectedAfterKill, type TerminalSessionInfo } from './strip'
 
 /** How often the roster refreshes while the pane is open. Fast enough that
  *  a shell that just started printing is marked running before the eye
@@ -62,6 +62,27 @@ class TerminalSessions {
     const id = this.selectedId
     if (!id) return null
     return this.list.find((s) => s.id === id) ?? null
+  }
+
+  /**
+   * End a session on purpose (GDK-1200): a tab's ×, no confirmation. The
+   * selection moves first and synchronously — to the right-hand neighbour
+   * when the killed session is the shown one — so the pane has already left
+   * before the server tears the shell down; killing the last session leaves
+   * null and the pane's own exit/dropped path narrates the end. The DELETE
+   * is the same verb the server has kept since GDK-922, and the refresh
+   * pulls the roster the poll would otherwise take two seconds to notice.
+   */
+  async kill(id: string): Promise<void> {
+    this.select(
+      nextSelectedAfterKill(
+        this.list.map((s) => s.id),
+        id,
+        this.selectedId,
+      ),
+    )
+    await deleteSession(id)
+    await this.refresh()
   }
 
   /**
