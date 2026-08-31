@@ -445,9 +445,25 @@ test.describe('roundtrip demo', () => {
     // take failed its own cardAboveDock gate on exactly that). Pulling the card
     // to the top of its column puts it in the open half.
     await page.evaluate((k) => {
-      document
-        .querySelector<HTMLElement>(`[data-board-key="${k}"]`)
-        ?.scrollIntoView({ block: 'start', behavior: 'instant' as ScrollBehavior })
+      const card = document.querySelector<HTMLElement>(`[data-board-key="${k}"]`)
+      const sc = card?.closest('.scroll-region') as HTMLElement | null
+      if (!card || !sc) return
+      card.scrollIntoView({ block: 'start', behavior: 'instant' as ScrollBehavior })
+      // 'start' clamps when the column runs out of content below the card
+      // (measured: wanted 190, clamped at 123) — and the residue is the card
+      // above it beheaded by exactly its key row for the rest of the film
+      // (takes 1-5). Settle on the nearest card boundary at or above where
+      // the clamp landed, so whatever ends up at the top edge is whole.
+      const cards = Array.from(sc.querySelectorAll<HTMLElement>('[data-board-key]'))
+      if (!cards.length) return
+      const base = cards[0].offsetTop
+      let top = 0
+      for (const el of cards) {
+        const y = el.offsetTop - base
+        if (y <= sc.scrollTop) top = y
+        else break
+      }
+      sc.scrollTop = top
     }, CREW[0].key)
     await beat(page, 600)
     await beat(page, 1000)

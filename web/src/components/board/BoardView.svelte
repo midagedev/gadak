@@ -154,6 +154,16 @@
       const key = el.dataset.boardKey
       if (key) before.set(key, el.getBoundingClientRect())
     }
+    // GDK-1254: the loan is taken HERE, against the view the person actually
+    // had — before Svelte inserts the arriving card. By the post-DOM effect
+    // the top edge is already the newcomer's clipped geometry (and scroll
+    // anchoring has restated the numbers), so an anchor read there records
+    // the disturbance as if it were the parked view. First borrow wins; a
+    // burst only extends the give-back timer.
+    for (const s of root.querySelectorAll<HTMLElement>('.scroll-region')) {
+      if (!borrowedScroll.has(s)) borrowedScroll.set(s, anchorOf(s))
+    }
+    if (borrowedRootLeft === null) borrowedRootLeft = root.scrollLeft
   })
 
   // Invert + Play, for the flagged keys only. Untracked so consuming a flag
@@ -164,14 +174,6 @@
     if (!root) return
     const moved = untrack(() => externalMoves.fresh())
     if (moved.size === 0) return
-    // GDK-1254: the landing scroll below is borrowed, not taken. borrow()
-    // records the parked view once, before our first nudge touches it; a
-    // burst of outside writes lands as several effect runs and only extends
-    // the loan (the timer below), never re-reads the ledger.
-    const borrow = (scroller: HTMLElement) => {
-      if (!borrowedScroll.has(scroller)) borrowedScroll.set(scroller, anchorOf(scroller))
-    }
-    if (borrowedRootLeft === null) borrowedRootLeft = root.scrollLeft
     for (const key of moved) {
       untrack(() => externalMoves.clear(key))
       const el = root.querySelector<HTMLElement>(`[data-board-key="${CSS.escape(key)}"]`)
@@ -182,8 +184,6 @@
       setTimeout(() => delete el.dataset.moved, LANDED_MS)
       // GDK-1190: a landing off-screen is a ring nobody sees. External moves
       // only, by construction — your own drop never reaches this loop.
-      const scroller = el.closest<HTMLElement>('.scroll-region')
-      if (scroller) borrow(scroller)
       el.scrollIntoView({ block: 'nearest', inline: 'nearest' })
       const from = before.get(key)
       if (!from || reducedMotion()) continue
