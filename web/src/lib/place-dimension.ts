@@ -26,7 +26,7 @@ export type PlaceDimension = 'column' | 'panel' | 'other'
  * are `satisfies`-keyed off this table, so a dimension change without an
  * identity-map update also does not compile.
  */
-export const PLACE_DIMENSION: { readonly [K in PlaceParamKey]: PlaceDimension } = {
+export const PLACE_DIMENSION = {
   dash: 'column',
   docs: 'column',
   hist: 'column',
@@ -39,7 +39,7 @@ export const PLACE_DIMENSION: { readonly [K in PlaceParamKey]: PlaceDimension } 
   dview: 'other',
   // Settings dialog — overlay, not a column or the right panel.
   settings: 'other',
-}
+} as const satisfies { readonly [K in PlaceParamKey]: PlaceDimension }
 
 export type ColumnParamKey = {
   [K in PlaceParamKey]: (typeof PLACE_DIMENSION)[K] extends 'column' ? K : never

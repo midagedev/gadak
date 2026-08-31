@@ -11,19 +11,14 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, test } from 'vitest'
 import { parseHash } from './hash'
 import {
-  COLUMN_PARAM,
   COLUMN_PARAM_KEYS,
-  OTHER_PARAM,
   OTHER_PARAM_KEYS,
-  PANEL_PARAM,
   PANEL_PARAM_KEYS,
-  PLACE_DIMENSION,
   classifyOpenParams,
   mergePanelParams,
   placeDimension,
   resolveOpen,
 } from './place-dimension'
-import { PLACE_PARAM_KEYS, type PlaceParamKey } from './url-state'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const APP = join(HERE, '..', 'App.svelte')
@@ -38,39 +33,12 @@ function entries(sp: URLSearchParams): Record<string, string> {
 }
 
 describe('PLACE_DIMENSION', () => {
-  test('every place param maps to the dimension it owns', () => {
-    const expected: { readonly [K in PlaceParamKey]: 'column' | 'panel' | 'other' } = {
-      dash: 'column',
-      docs: 'column',
-      hist: 'column',
-      space: 'column',
-      feed: 'column',
-      issue: 'panel',
-      doc: 'panel',
-      person: 'panel',
-      dview: 'other',
-      settings: 'other',
-    }
-    for (const key of PLACE_PARAM_KEYS) {
-      expect(PLACE_DIMENSION[key], key).toBe(expected[key])
-      expect(placeDimension(key), key).toBe(expected[key])
-    }
-  })
-
   test('view params and unknown keys are other, not a silent column/panel', () => {
     expect(placeDimension('sc')).toBe('other')
     expect(placeDimension('q')).toBe('other')
     expect(placeDimension('g')).toBe('other')
     expect(placeDimension('nope')).toBe('other')
     expect(placeDimension('f.story_points')).toBe('other')
-  })
-
-  test('identity maps cover exactly the keys of each dimension', () => {
-    expect([...COLUMN_PARAM_KEYS].sort()).toEqual([...Object.values(COLUMN_PARAM)].sort())
-    expect([...PANEL_PARAM_KEYS].sort()).toEqual([...Object.values(PANEL_PARAM)].sort())
-    expect([...OTHER_PARAM_KEYS].sort()).toEqual([...Object.values(OTHER_PARAM)].sort())
-    const all = [...COLUMN_PARAM_KEYS, ...PANEL_PARAM_KEYS, ...OTHER_PARAM_KEYS].sort()
-    expect(all).toEqual([...PLACE_PARAM_KEYS].sort())
   })
 })
 

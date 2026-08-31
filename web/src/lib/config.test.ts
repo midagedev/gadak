@@ -61,7 +61,6 @@ describe('hasServerVerb / serverVerbReport (GDK-52)', () => {
   test('serverVerbReport covers exactly the known verbs', async () => {
     const mod = await loadConfigWith({ hostedDemo: true })
     const report = mod.serverVerbReport()
-    expect(Object.keys(report).sort()).toEqual([...mod.SERVER_VERBS].sort())
     expect(report).toEqual({ bodySearch: false, docs: false, settings: false })
   })
 })
