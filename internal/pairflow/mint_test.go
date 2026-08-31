@@ -13,6 +13,7 @@ package pairflow
 import (
 	"bytes"
 	"image/png"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -429,5 +430,23 @@ func TestQRPNGIsTheMatrix(t *testing.T) {
 	// the pixel-map loop above if the matrix itself were all false).
 	if dark == 0 {
 		t.Fatal("the PNG carries no dark module")
+	}
+}
+
+// A SaveRemote failure right after Rotate is the one moment the gate is up
+// with no valid routing credential on disk — Rotate already revoked every
+// previous _home token in its own store write. The error must name the
+// recovery (a fresh mint) and keep the cause (GDK-1236). FAIL-first: the
+// pre-fix return was the bare SaveRemote error.
+func TestIssueHomeRoutingTokenSaveFailureSaysReMint(t *testing.T) {
+	dir := t.TempDir()
+	// Occupy the credential path with a directory so the atomic save fails
+	// while Rotate (the token store) still succeeds.
+	if err := os.MkdirAll(pairing.RemotePath(dir), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	_, err := issueHomeRoutingToken(dir, nil, "http://127.0.0.1:7877", time.Now())
+	if err == nil || !strings.Contains(err.Error(), "re-run to mint a fresh one") {
+		t.Fatalf("err = %v, want the re-mint recovery named", err)
 	}
 }

@@ -329,7 +329,11 @@ func issueHomeRoutingToken(dir string, cfg *config.Config, mintEndpoint string, 
 		return pairing.Meta{}, errors.New("no live serve found for this profile; start `gadak serve` first or pass --endpoint <url>")
 	}
 	if err := pairing.SaveRemote(dir, pairing.Remote{Endpoint: ep, Token: token, Label: pairing.HomeLabel}); err != nil {
-		return pairing.Meta{}, err
+		// Rotate revoked every previous _home token in the same store write
+		// (its crash-atomicity — never reorder these), so a failed save
+		// leaves the gate up with no valid routing credential on disk. The
+		// recovery is a fresh mint, and the error must say so (GDK-1236).
+		return pairing.Meta{}, fmt.Errorf("home routing token rotated (previous ones already revoked) but saving it failed — re-run to mint a fresh one: %w", err)
 	}
 	return meta, nil
 }
