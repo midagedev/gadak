@@ -131,6 +131,13 @@
     if (!root) return
     const moved = untrack(() => externalMoves.fresh())
     if (moved.size === 0) return
+    // GDK-1254: the landing scroll below is borrowed, not taken — remember
+    // where every scroller stood before the first nudge, so it can be given
+    // back when the ring is gone. `pre` is the owner's position; `post` (set
+    // after the loop) is where our scrolls left it, and a mismatch at expiry
+    // means the person scrolled meanwhile — then the position is theirs.
+    const borrowed = new Map<Element, { pre: number; post: number }>()
+    const preLeft = root.scrollLeft
     for (const key of moved) {
       untrack(() => externalMoves.clear(key))
       const el = root.querySelector<HTMLElement>(`[data-board-key="${CSS.escape(key)}"]`)
@@ -141,6 +148,10 @@
       setTimeout(() => delete el.dataset.moved, LANDED_MS)
       // GDK-1190: a landing off-screen is a ring nobody sees. External moves
       // only, by construction — your own drop never reaches this loop.
+      const scroller = el.closest('.scroll-region')
+      if (scroller && !borrowed.has(scroller)) {
+        borrowed.set(scroller, { pre: scroller.scrollTop, post: 0 })
+      }
       el.scrollIntoView({ block: 'nearest', inline: 'nearest' })
       const from = before.get(key)
       if (!from || reducedMotion()) continue
@@ -153,6 +164,22 @@
         { duration: FLIGHT_MS, easing: 'ease-out' },
       )
     }
+    // Give the borrowed scroll back once the rings are gone (GDK-1254) —
+    // unless the person moved it themselves in the meantime, in which case
+    // the position is theirs and staying put is the fix, not the bug.
+    for (const [s, b] of borrowed) b.post = s.scrollTop
+    const rootPost = root.scrollLeft
+    setTimeout(() => {
+      const smooth = reducedMotion() ? ('auto' as const) : ('smooth' as const)
+      for (const [s, b] of borrowed) {
+        if (s.isConnected && s.scrollTop === b.post && b.post !== b.pre) {
+          s.scrollTo({ top: b.pre, behavior: smooth })
+        }
+      }
+      if (root.isConnected && root.scrollLeft === rootPost && rootPost !== preLeft) {
+        root.scrollTo({ left: preLeft, behavior: smooth })
+      }
+    }, LANDED_MS)
   })
 </script>
 

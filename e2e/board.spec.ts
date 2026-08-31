@@ -190,6 +190,15 @@ test.describe('GDK-1175 status board', () => {
     expect(rig.rowFor(key), 'the moved row must be a real bootstrap row').not.toBeNull()
     await expect(columnOf(page, key)).toHaveAttribute('data-board-column', /new|inprogress/)
 
+    // GDK-1254: park the Done column somewhere of the person's own choosing
+    // before the outside write lands — the landing scroll is borrowed, and
+    // this is the position it has to come back to.
+    const doneScroller = page.locator('[data-board-column="done"] .scroll-region')
+    await doneScroller.evaluate((el) => (el.scrollTop = 400))
+    await expect
+      .poll(() => doneScroller.evaluate((el) => el.scrollTop))
+      .toBeGreaterThan(0)
+
     rig.move(key, 'done')
 
     // The card is in the Done column, and it flew there: `data-moved` is set
@@ -204,6 +213,16 @@ test.describe('GDK-1175 status board', () => {
       'data-moved',
       '1',
     )
+
+    // The ring needed the scroll; the person owns it. Once the landing ring
+    // expires the column returns to where it was parked (GDK-1254) — not to
+    // 400 on the nose, because the card landing above the parked region makes
+    // the browser's scroll anchoring restate the same view as a larger number
+    // (measured 461 here). Without the give-back the column sits at the
+    // landing (measured 4), so "at least the parked offset" is the contract.
+    await expect
+      .poll(() => doneScroller.evaluate((el) => el.scrollTop), { timeout: 8_000 })
+      .toBeGreaterThanOrEqual(400)
 
     expect(appConsoleErrors(errors)).toEqual([])
   })
