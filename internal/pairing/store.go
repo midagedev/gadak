@@ -139,9 +139,10 @@ const (
 	ReasonUnknown Reason = "unknown"
 )
 
-// Mint creates an origin-scope device token — every pre-serve caller's
-// meaning (a paired laptop riding the passthrough). Scope choice lives in
-// MintScoped; this stays so those call sites keep saying exactly that.
+// Mint creates an origin-scope device token (a paired laptop riding the
+// passthrough). Production mints name their scope via MintScoped (pairflow's
+// mint command is the caller); this origin-scope surface carries no
+// production call site — the tests state the token contract through it.
 func Mint(dir, label string, ttl time.Duration, now time.Time) (string, Meta, error) {
 	return MintScoped(dir, label, ScopeOrigin, ttl, now)
 }

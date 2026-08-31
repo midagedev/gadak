@@ -217,17 +217,4 @@ func (rt *Runtime) Close() error {
 	return first
 }
 
-func profileDir(cfg *config.Config) string {
-	if cfg != nil {
-		if d := cfg.Directory(); d != "" {
-			return d
-		}
-	}
-	d, err := config.Dir()
-	if err != nil || d == "" {
-		return ""
-	}
-	return d
-}
-
 func nopStop() {}

@@ -74,10 +74,6 @@ type serveOriginTransport struct {
 	rt        http.RoundTripper
 }
 
-func newServeOriginTransport(host string) *serveOriginTransport {
-	return &serveOriginTransport{host: host, rt: http.DefaultTransport}
-}
-
 // newRemoteOriginTransport builds the passthrough transport for a paired
 // remote serve: endpoint is the advertised serve URL (http or https) and
 // bearer the device token from the pairing offer. This is the DC-PAT

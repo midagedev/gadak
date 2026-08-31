@@ -53,13 +53,13 @@ func qrHasBlockRune(s string) bool {
 	return strings.ContainsAny(s, "▀▄█")
 }
 
-// TestRenderQRHalfblockShape pins the terminal shape of the 238-byte offer:
+// TestWriteQRHalfblockShape pins the terminal shape of the 238-byte offer:
 // a rectangle of half-block cells, every line opening with both colors and
 // closing with the reset (theme independence), the 4-module quiet zone
 // painted as the first and last two all-white terminal rows, nothing but
 // the four cell runes + ANSI + newlines in the output, and the whole code
 // inside 80 columns.
-func TestRenderQRHalfblockShape(t *testing.T) {
+func TestWriteQRHalfblockShape(t *testing.T) {
 	offer := qrFixtureOffer(t)
 	mods, err := pairingQRModules(offer)
 	if err != nil {
@@ -73,10 +73,10 @@ func TestRenderQRHalfblockShape(t *testing.T) {
 		t.Fatalf("module matrix is %d wide, want 69 (version 11 @ Medium + 4-module quiet zone)", len(mods))
 	}
 
+	// drawPairingQR's draw path: modules already decoded above, rendering
+	// goes straight to writeQRHalfblock.
 	var buf bytes.Buffer
-	if err := renderQRHalfblock(offer, &buf); err != nil {
-		t.Fatal(err)
-	}
+	writeQRHalfblock(mods, &buf)
 	lines := strings.Split(strings.TrimSuffix(buf.String(), "\n"), "\n")
 	if len(lines) != (len(mods)+1)/2 {
 		t.Fatalf("%d terminal rows, want %d (two modules per row)", len(lines), (len(mods)+1)/2)

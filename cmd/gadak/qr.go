@@ -102,18 +102,6 @@ func pairingQRModules(offer string) ([][]bool, error) {
 	return pairflow.QRModules(offer)
 }
 
-// renderQRHalfblock draws text's QR into out, two modules per terminal row
-// via half-block cells. Each line is one row pair; see the file comment for
-// the color contract.
-func renderQRHalfblock(text string, out io.Writer) error {
-	mods, err := pairingQRModules(text)
-	if err != nil {
-		return err
-	}
-	writeQRHalfblock(mods, out)
-	return nil
-}
-
 // writeQRHalfblock renders the module matrix (bitmap[y][x], quiet zone
 // included) as half-block rows. The module count is odd (4v+17), so the
 // final cell row's lower half is padding: painted white like the quiet

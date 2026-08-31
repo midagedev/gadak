@@ -803,8 +803,8 @@ func TestRingKeepsTheTail(t *testing.T) {
 	if got := string(r.bytes()); got != "23456789" {
 		t.Fatalf("ring %q; want 23456789", got)
 	}
-	if r.size() != 8 {
-		t.Fatalf("ring grew to %d", r.size())
+	if len(r.buf) != 8 {
+		t.Fatalf("ring buffer grew to %d", len(r.buf))
 	}
 }
 

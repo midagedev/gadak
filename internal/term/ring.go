@@ -17,8 +17,6 @@ func newRing(size int) *ring {
 	return &ring{buf: make([]byte, size)}
 }
 
-func (r *ring) size() int { return len(r.buf) }
-
 func (r *ring) write(p []byte) {
 	if len(p) == 0 {
 		return

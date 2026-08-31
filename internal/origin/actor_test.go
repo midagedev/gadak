@@ -249,7 +249,9 @@ func TestServeTransportCarriesActor(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	tr := newServeOriginTransport(ts.Listener.Addr().String())
+	// Same construction the local-serve path used before its constructor
+	// went away: host plus the default dial transport.
+	tr := &serveOriginTransport{host: ts.Listener.Addr().String(), rt: http.DefaultTransport}
 	tr.bearer = "dev-token"
 	tr.actor, tr.actorName = "claude:354bff2b", "Claude (build 1)"
 	req, _ := http.NewRequest(http.MethodGet, "http://origin/rest/api/3/myself", nil)

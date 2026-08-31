@@ -131,14 +131,6 @@ func InRange(raw string, kind Kind, from, to string, z Zone) bool {
 	return true
 }
 
-// StartOfWeekMonday is the ISO date of Monday 00:00 in z for now.
-func StartOfWeekMonday(now time.Time, z Zone) string {
-	t := now.In(z.locOrLocal())
-	offset := int(t.Weekday()+6) % 7 // Monday = 0
-	mon := time.Date(t.Year(), t.Month(), t.Day()-offset, 0, 0, 0, 0, z.locOrLocal())
-	return mon.Format("2006-01-02")
-}
-
 // FormatDay is YYYY-MM-DD of t in z. compileDate uses this so JQL
 // startOfDay() / -7d land on the same calendar the matcher uses.
 func FormatDay(t time.Time, z Zone) string {

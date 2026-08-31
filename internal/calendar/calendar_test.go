@@ -85,15 +85,6 @@ func TestExplainReportsDecision(t *testing.T) {
 	}
 }
 
-func TestStartOfWeekMonday(t *testing.T) {
-	// Wednesday 2026-08-19 01:00 KST → Monday 2026-08-17.
-	now := time.Date(2026, 8, 18, 16, 0, 0, 0, time.UTC)
-	got := StartOfWeekMonday(now, seoul(t))
-	if got != "2026-08-17" {
-		t.Fatalf("got %s", got)
-	}
-}
-
 func TestFormatDayUsesZone(t *testing.T) {
 	ts := time.Date(2026, 8, 17, 16, 0, 0, 0, time.UTC)
 	if got := FormatDay(ts, seoul(t)); got != "2026-08-18" {
