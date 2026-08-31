@@ -87,7 +87,7 @@ func TestLinkTypesREST(t *testing.T) {
 	}
 }
 
-func TestLinkRESTBlocksOutward(t *testing.T) {
+func TestLinkRESTOutwardDescriptionMakesPathIssueDisplayOutwardDescription(t *testing.T) {
 	f, h, _ := writable(t)
 
 	rec := send(t, h, http.MethodPost, apiBase+"NMB-1/link/", `{"type":"blocks","key":"NMB-2"}`)
@@ -95,8 +95,8 @@ func TestLinkRESTBlocksOutward(t *testing.T) {
 		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
 	}
 	id, outward, inward := postedIssueLink(t, f)
-	if id != "10000" || outward != "NMB-1" || inward != "NMB-2" {
-		t.Errorf("id=%q outward=%q inward=%q, want 10000 / NMB-1 / NMB-2", id, outward, inward)
+	if id != "10000" || outward != "NMB-2" || inward != "NMB-1" {
+		t.Errorf("id=%q outward=%q inward=%q, want 10000 / NMB-2 / NMB-1", id, outward, inward)
 	}
 	if n := countTagged(f, "GET /issueLinkType"); n != 1 {
 		t.Errorf("catalog GET count %d, want 1; calls %v", n, f.calls)
@@ -130,7 +130,7 @@ func TestLinkRESTBlocksOutward(t *testing.T) {
 	}
 }
 
-func TestLinkRESTInwardReversesDirection(t *testing.T) {
+func TestLinkRESTInwardDescriptionMakesPathIssueDisplayInwardDescription(t *testing.T) {
 	f, h, _ := writable(t)
 
 	rec := send(t, h, http.MethodPost, apiBase+"NMB-1/link/",
@@ -139,8 +139,8 @@ func TestLinkRESTInwardReversesDirection(t *testing.T) {
 		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
 	}
 	id, outward, inward := postedIssueLink(t, f)
-	if id != "10000" || outward != "NMB-2" || inward != "NMB-1" {
-		t.Errorf("id=%q outward=%q inward=%q, want 10000 / NMB-2 / NMB-1 (reversed)", id, outward, inward)
+	if id != "10000" || outward != "NMB-1" || inward != "NMB-2" {
+		t.Errorf("id=%q outward=%q inward=%q, want 10000 / NMB-1 / NMB-2", id, outward, inward)
 	}
 }
 
@@ -234,17 +234,17 @@ func TestResolveLinkTypeMatchesCLI(t *testing.T) {
 	cat := []jira.IssueLinkType{
 		{ID: "10000", Name: "Blocks", Outward: "blocks", Inward: "is blocked by"},
 	}
-	lt, reverse, err := origin.ResolveLinkType("blocks", cat)
-	if err != nil || lt.ID != "10000" || reverse {
-		t.Fatalf("blocks: id=%q reverse=%v err=%v", lt.ID, reverse, err)
+	lt, inwardDescription, err := origin.ResolveLinkType("blocks", cat)
+	if err != nil || lt.ID != "10000" || inwardDescription {
+		t.Fatalf("blocks: id=%q inwardDescription=%v err=%v", lt.ID, inwardDescription, err)
 	}
-	lt, reverse, err = origin.ResolveLinkType("is blocked by", cat)
-	if err != nil || lt.ID != "10000" || !reverse {
-		t.Fatalf("inward: id=%q reverse=%v err=%v", lt.ID, reverse, err)
+	lt, inwardDescription, err = origin.ResolveLinkType("is blocked by", cat)
+	if err != nil || lt.ID != "10000" || !inwardDescription {
+		t.Fatalf("inward: id=%q inwardDescription=%v err=%v", lt.ID, inwardDescription, err)
 	}
-	lt, reverse, err = origin.ResolveLinkType("10000", cat)
-	if err != nil || lt.ID != "10000" || reverse {
-		t.Fatalf("id: id=%q reverse=%v err=%v", lt.ID, reverse, err)
+	lt, inwardDescription, err = origin.ResolveLinkType("10000", cat)
+	if err != nil || lt.ID != "10000" || inwardDescription {
+		t.Fatalf("id: id=%q inwardDescription=%v err=%v", lt.ID, inwardDescription, err)
 	}
 	_, _, err = origin.ResolveLinkType("clones", cat)
 	if err == nil || !strings.Contains(err.Error(), `no link type matching "clones"`) {
@@ -254,9 +254,9 @@ func TestResolveLinkTypeMatchesCLI(t *testing.T) {
 	sym := []jira.IssueLinkType{
 		{ID: "10003", Name: "Relates", Outward: "relates to", Inward: "relates to"},
 	}
-	lt, reverse, err = origin.ResolveLinkType("relates to", sym)
-	if err != nil || lt.ID != "10003" || reverse {
-		t.Fatalf("symmetric: id=%q reverse=%v err=%v", lt.ID, reverse, err)
+	lt, inwardDescription, err = origin.ResolveLinkType("relates to", sym)
+	if err != nil || lt.ID != "10003" || inwardDescription {
+		t.Fatalf("symmetric: id=%q inwardDescription=%v err=%v", lt.ID, inwardDescription, err)
 	}
 
 	amb := []jira.IssueLinkType{

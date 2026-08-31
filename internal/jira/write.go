@@ -216,9 +216,9 @@ func (c *Client) IssueLinkTypes(ctx context.Context) ([]IssueLinkType, error) {
 	return out.IssueLinkTypes, c.do(ctx, http.MethodGet, apiPath+"/issueLinkType", nil, &out)
 }
 
-// LinkIssues is POST /rest/api/3/issueLink. outwardIssue is the subject of
-// the type's outward description (MKY-1 duplicates HSP-1 when outward is
-// MKY-1). 201/200 with an empty body is success.
+// LinkIssues is POST /rest/api/3/issueLink. On an issue response, the issue
+// at outwardIssue displays the type's inward description; inwardIssue displays
+// the outward description. 201/200 with an empty body is success.
 func (c *Client) LinkIssues(ctx context.Context, typeID, outwardKey, inwardKey string) error {
 	body := map[string]any{
 		"type":         map[string]string{"id": typeID},
