@@ -322,6 +322,11 @@ func TestLoadForMigratesLegacyWhenDirReadOnly(t *testing.T) {
 	if _, err := os.Stat(path + ".tmp"); !os.IsNotExist(err) {
 		t.Fatalf("leftover %s.tmp: %v", path, err)
 	}
+	// The staging file is a per-save os.CreateTemp name now (GDK-1233); a
+	// failed write must leave none of those either.
+	if leftovers, err := filepath.Glob(filepath.Join(filepath.Dir(path), "config-*")); err != nil || len(leftovers) > 0 {
+		t.Fatalf("leftover staging files (%v): %v", err, leftovers)
+	}
 
 	raw, err := os.ReadFile(path)
 	if err != nil {

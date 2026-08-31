@@ -707,6 +707,33 @@ func readStoredWorkspace() string {
 	return name
 }
 
+// writeFileAtomic stages data through a unique temp file beside p and
+// renames it into place. The temp name must be unique per call: serve's
+// settings PUT and a CLI verb (often separate processes) can save the same
+// profile at once, and a shared "<p>.tmp" let one truncate the other's
+// staging file, so half-written bytes reached the credential document by
+// rename (GDK-1233). os.CreateTemp opens 0600 with O_EXCL — the intended
+// final mode of both callers — whereas os.WriteFile wrote through a
+// pre-existing staging file and renamed its looser mode into place.
+func writeFileAtomic(p, pattern string, data []byte) error {
+	tmp, err := os.CreateTemp(filepath.Dir(p), pattern)
+	if err != nil {
+		return err
+	}
+	name := tmp.Name()
+	// Best-effort cleanup on any failure before the rename; after it the
+	// name no longer exists and the remove is a no-op.
+	defer func() { _ = os.Remove(name) }()
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(name, p)
+}
+
 func writeStoredWorkspace(name string) error {
 	p, err := storedWorkspacePath()
 	if err != nil {
@@ -719,16 +746,7 @@ func writeStoredWorkspace(name string) error {
 			return err
 		}
 	}
-	tmp := p + ".tmp"
-	if err := os.WriteFile(tmp, []byte(name+"\n"), 0o600); err != nil {
-		_ = os.Remove(tmp)
-		return err
-	}
-	if err := os.Rename(tmp, p); err != nil {
-		_ = os.Remove(tmp)
-		return err
-	}
-	return nil
+	return writeFileAtomic(p, "default-workspace-*", []byte(name+"\n"))
 }
 
 // SetStoredWorkspace writes the home-root stored default used by Profile()
@@ -868,16 +886,7 @@ func (c *Config) Save() error {
 	if err != nil {
 		return err
 	}
-	tmp := p + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o600); err != nil {
-		_ = os.Remove(tmp)
-		return err
-	}
-	if err := os.Rename(tmp, p); err != nil {
-		_ = os.Remove(tmp)
-		return err
-	}
-	return nil
+	return writeFileAtomic(p, "config-*.json", data)
 }
 
 // ApplyVerifiedIdentity stamps the three fields a successful Jira /myself

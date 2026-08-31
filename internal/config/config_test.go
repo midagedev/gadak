@@ -588,6 +588,15 @@ func TestSaveRemovesTmpOnRenameFailure(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, "config.json.tmp")); !os.IsNotExist(err) {
 		t.Fatalf("leftover config.json.tmp: %v", err)
 	}
+	// The staging file is a per-save os.CreateTemp name now (GDK-1233);
+	// a failed save must leave none of those either.
+	leftovers, err := filepath.Glob(filepath.Join(dir, "config-*"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(leftovers) > 0 {
+		t.Fatalf("leftover staging files: %v", leftovers)
+	}
 }
 
 func TestWorkspaceKindDefaultConnected(t *testing.T) {
