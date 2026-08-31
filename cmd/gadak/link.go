@@ -47,13 +47,16 @@ func cmdLink(args []string) error {
 		if err != nil {
 			return err
 		}
-		lt, reverse, err := origin.ResolveLinkType(token, catalog)
+		lt, inwardDescription, err := origin.ResolveLinkType(token, catalog)
 		if err != nil {
 			return err
 		}
-		outward, inward := a, b
-		if reverse {
-			outward, inward = b, a
+		// Jira displays type.outward when A is inwardIssue and type.inward
+		// when A is outwardIssue. Put A on the end that makes the token the
+		// phrase displayed on A.
+		outward, inward := b, a
+		if inwardDescription {
+			outward, inward = a, b
 		}
 		if err := linker.LinkIssues(ctx, lt.ID, outward, inward); err != nil {
 			return err

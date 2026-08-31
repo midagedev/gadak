@@ -274,7 +274,7 @@ gadak transition NMB-140 done --resolution "Won't Do" -m "fixed in 1.2"
 gadak assign NMB-140 dana@example.com # email, display name, or accountId
 gadak assign NMB-140 -                # unassign
 gadak claim NMB-140                   # take it as yours: assignee + in-progress transition; held issues refuse (exit 75)
-gadak link NMB-140 NMB-141 --type blocks   # A blocks B; --type "is blocked by" reverses
+gadak link NMB-140 NMB-141 --type blocks   # A blocks B; "is blocked by" means A is blocked by B
 
 gadak fields                          # custom-field usage on a sample (needs credential)
 gadak fields --sample 100 --project NMB --json

@@ -15,18 +15,20 @@ import (
 // each other. A parity test is a way to notice a drift, not a way to prevent
 // one: there is one owner now and nothing to keep in step.
 
-// LinkTypeHit is one catalog entry that matched a token, with the direction
-// the match implies.
+// LinkTypeHit is one catalog entry that matched a token and whether it is the
+// type's inward description.
 type LinkTypeHit struct {
-	Type    jira.IssueLinkType
-	Reverse bool
+	Type              jira.IssueLinkType
+	InwardDescription bool
 }
 
 // ResolveLinkType matches token against the catalog. An all-digit token is a
-// type id and keeps the outward convention. Otherwise the type name and its
-// outward description keep A as the outward side; a match on the inward
-// description swaps A and B. reverse reports that swap.
-func ResolveLinkType(token string, catalog []jira.IssueLinkType) (lt jira.IssueLinkType, reverse bool, err error) {
+// type id and uses the outward description convention. Otherwise the type name
+// and its outward description are outward; a match on the inward description
+// reports inwardDescription. The caller assigns POST issue ends because Jira's
+// issue response displays type.inward for outwardIssue and type.outward for
+// inwardIssue.
+func ResolveLinkType(token string, catalog []jira.IssueLinkType) (lt jira.IssueLinkType, inwardDescription bool, err error) {
 	token = strings.TrimSpace(token)
 	if token == "" {
 		return jira.IssueLinkType{}, false, fmt.Errorf("empty link type")
@@ -53,14 +55,14 @@ func ResolveLinkType(token string, catalog []jira.IssueLinkType) (lt jira.IssueL
 			// Both descriptions of one type match only when they are equal
 			// (a symmetric type like Relates) — direction is meaningless
 			// there, so this is one hit, not an ambiguity.
-			hits = append(hits, LinkTypeHit{Type: t, Reverse: false})
+			hits = append(hits, LinkTypeHit{Type: t, InwardDescription: false})
 			continue
 		}
-		hits = append(hits, LinkTypeHit{Type: t, Reverse: inwardDir})
+		hits = append(hits, LinkTypeHit{Type: t, InwardDescription: inwardDir})
 	}
 	switch len(hits) {
 	case 1:
-		return hits[0].Type, hits[0].Reverse, nil
+		return hits[0].Type, hits[0].InwardDescription, nil
 	case 0:
 		return jira.IssueLinkType{}, false, fmt.Errorf("no link type matching %q — available: %s", token, FormatLinkTypes(catalog))
 	default:

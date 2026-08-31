@@ -8,16 +8,17 @@ import (
 
 // Contract ↔ assertion (GDK-19 link half):
 //
-//  1. --type blocks → POST type.id=10000, outward=A, inward=B
-//     TestLinkBlocksOutward
-//  2. --type "is blocked by" → outward=B, inward=A
-//     TestLinkIsBlockedByReversesDirection
+//  1. --type blocks → POST type.id=10000, outward=B, inward=A
+//     TestLinkOutwardDescriptionMakesFirstArgumentDisplayOutwardDescription
+//  2. --type "is blocked by" → outward=A, inward=B
+//     TestLinkInwardDescriptionMakesFirstArgumentDisplayInwardDescription
 //  3. unknown token lists the catalog; no POST
 //     TestLinkUnknownTokenListsCatalogAndDoesNotPOST
 //  4. A==B refused locally; no catalog GET
 //     TestLinkSelfRefusedWithoutCatalogGET
 //  5. success re-reads both keys (search/jql twice)
-//     TestLinkBlocksOutward (POST /search/jql count)
+//     TestLinkOutwardDescriptionMakesFirstArgumentDisplayOutwardDescription
+//     (POST /search/jql count)
 //  6. Dispatch + help (blocks / is blocked by; distinct from issue --link)
 //     TestLinkIsRegisteredAndHelpShowsDirectionExamples
 
@@ -54,7 +55,10 @@ func countTagged(f *fakeJira, tag string) int {
 	return n
 }
 
-func TestLinkBlocksOutward(t *testing.T) {
+// Jira renders type.outward on an issue when that issue appears as
+// inwardIssue in its issueLinks response. Therefore the first CLI argument
+// must be POSTed as inwardIssue when the caller uses an outward description.
+func TestLinkOutwardDescriptionMakesFirstArgumentDisplayOutwardDescription(t *testing.T) {
 	f := newFakeJira(t)
 	mirror(t, f.URL)
 
@@ -68,8 +72,8 @@ func TestLinkBlocksOutward(t *testing.T) {
 	if id != "10000" {
 		t.Errorf("type.id = %q, want 10000; body %s", id, f.bodies["POST /issueLink"])
 	}
-	if outward != "NMB-1" || inward != "NMB-2" {
-		t.Errorf("outward=%q inward=%q, want NMB-1 / NMB-2", outward, inward)
+	if outward != "NMB-2" || inward != "NMB-1" {
+		t.Errorf("outward=%q inward=%q, want NMB-2 / NMB-1", outward, inward)
 	}
 	if strings.Contains(out, "NMB-1\t완료\t") == false {
 		t.Fatalf("stale line %q", out)
@@ -82,7 +86,10 @@ func TestLinkBlocksOutward(t *testing.T) {
 	}
 }
 
-func TestLinkIsBlockedByReversesDirection(t *testing.T) {
+// Jira renders type.inward on an issue when that issue appears as
+// outwardIssue in its issueLinks response. The first CLI argument therefore
+// remains outwardIssue for an inward description.
+func TestLinkInwardDescriptionMakesFirstArgumentDisplayInwardDescription(t *testing.T) {
 	f := newFakeJira(t)
 	mirror(t, f.URL)
 
@@ -96,8 +103,25 @@ func TestLinkIsBlockedByReversesDirection(t *testing.T) {
 	if id != "10000" {
 		t.Errorf("type.id = %q, want 10000", id)
 	}
-	if outward != "NMB-2" || inward != "NMB-1" {
-		t.Errorf("outward=%q inward=%q, want NMB-2 / NMB-1 (reversed)", outward, inward)
+	if outward != "NMB-1" || inward != "NMB-2" {
+		t.Errorf("outward=%q inward=%q, want NMB-1 / NMB-2", outward, inward)
+	}
+}
+
+func TestLinkSplitFromMakesFirstArgumentDisplayInwardDescription(t *testing.T) {
+	f := newFakeJira(t)
+	f.linkTypesJSON = `{"issueLinkTypes":[{"id":"10001","name":"Issue split","outward":"split to","inward":"split from"}]}`
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error {
+		return cmdLink([]string{"NMB-1", "NMB-2", "--type", "split from"})
+	})
+	if err != nil {
+		t.Fatalf("link: %v", err)
+	}
+	id, outward, inward := postedIssueLink(t, f)
+	if id != "10001" || outward != "NMB-1" || inward != "NMB-2" {
+		t.Errorf("id=%q outward=%q inward=%q, want 10001 / NMB-1 / NMB-2", id, outward, inward)
 	}
 }
 
@@ -154,8 +178,8 @@ func TestLinkTypeIDUsesOutwardConvention(t *testing.T) {
 		t.Fatalf("link --type 10000: %v", err)
 	}
 	id, outward, inward := postedIssueLink(t, f)
-	if id != "10000" || outward != "NMB-1" || inward != "NMB-2" {
-		t.Errorf("id=%q outward=%q inward=%q", id, outward, inward)
+	if id != "10000" || outward != "NMB-2" || inward != "NMB-1" {
+		t.Errorf("id=%q outward=%q inward=%q, want 10000 / NMB-2 / NMB-1", id, outward, inward)
 	}
 }
 
@@ -218,8 +242,8 @@ func TestLinkSymmetricTypeIsNotAmbiguous(t *testing.T) {
 	if id != "10003" {
 		t.Errorf("type.id = %q, want 10003", id)
 	}
-	if outward != "NMB-1" || inward != "NMB-2" {
-		t.Errorf("outward=%q inward=%q, want NMB-1 / NMB-2", outward, inward)
+	if outward != "NMB-2" || inward != "NMB-1" {
+		t.Errorf("outward=%q inward=%q, want NMB-2 / NMB-1", outward, inward)
 	}
 }
 

@@ -90,14 +90,17 @@ func (s *server) handleLink(w http.ResponseWriter, r *http.Request) {
 		failJira(w, r, s.config(), err)
 		return
 	}
-	lt, reverse, err := origin.ResolveLinkType(token, catalog)
+	lt, inwardDescription, err := origin.ResolveLinkType(token, catalog)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
-	outward, inward := a, b
-	if reverse {
-		outward, inward = b, a
+	// Jira displays type.outward when A is inwardIssue and type.inward when A
+	// is outwardIssue. Put A on the end that makes the requested token the
+	// phrase displayed on A.
+	outward, inward := b, a
+	if inwardDescription {
+		outward, inward = a, b
 	}
 	if err := linker.LinkIssues(r.Context(), lt.ID, outward, inward); err != nil {
 		failJira(w, r, s.config(), err)
