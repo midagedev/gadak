@@ -483,8 +483,9 @@ class FiltersStore {
   }
 
   /**
-   * Replace filters with a parsed JQL result. Keeps the current grouping and
-   * columns; takes ORDER BY when the query named one.
+   * Replace filters with a parsed JQL result. Keeps the current grouping,
+   * columns and layout — a search is a filter change, not a view apply
+   * (GDK-1247); takes ORDER BY when the query named one.
    */
   applyJqlResult(
     parsed: {
@@ -497,6 +498,7 @@ class FiltersStore {
     next.filters = { ...emptyFilters(), ...parsed.filters }
     next.display.group_by = cur.display.group_by
     next.display.columns = cur.display.columns
+    next.display.layout = cur.display.layout
     const sort = parsed.display?.sort
     if (
       sort === 'updated' ||

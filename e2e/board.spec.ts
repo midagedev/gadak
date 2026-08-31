@@ -153,6 +153,25 @@ test.describe('GDK-1175 status board', () => {
     expect(appConsoleErrors(errors)).toEqual([])
   })
 
+  test('a search keeps the board — a filter change is not a view apply (GDK-1247)', async ({
+    page,
+  }) => {
+    const errors = attachConsoleErrors(page)
+    await gotoBoard(page)
+
+    const box = page.getByTestId('search-input')
+    await box.click()
+    await box.fill('project = NMA AND statusCategory = "In Progress"')
+    await box.press('Enter')
+
+    // The filters landed, and the layout did not go with them.
+    await expect(page).toHaveURL(/pj=NMA/)
+    await expect(page).toHaveURL(/ly=board/)
+    await expect(page.getByTestId('board')).toBeVisible()
+
+    expect(appConsoleErrors(errors)).toEqual([])
+  })
+
   test('a write made elsewhere moves the card across columns and marks it as not ours', async ({
     page,
   }) => {

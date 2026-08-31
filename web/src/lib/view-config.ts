@@ -451,6 +451,8 @@ export function emptyFilters(): ViewFilters {
 
 export function defaultDisplay(): ViewDisplay {
   return {
+    // Layout belongs to the view (GDK-1249): applying a view takes its
+    // layout (unset = list); filter changes — search included — leave it be.
     layout: 'list',
     group_by: 'status_category',
     sort: 'updated',
