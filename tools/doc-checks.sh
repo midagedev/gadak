@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Stale-doc guards. Grep/sqlite only — no network, no Makefile/CI hook.
+# Stale-doc guards: greps, sqlite lookups, and the delegated script gates
+# (check-promises.sh, check-write-handlers.sh). No network. Runs in CI's
+# "Documentation factuality" step and from the demo-fixture target.
 #
 # Checks (FAIL-first was recorded against the pre-fix tree in the 2026-08-15
 # census fix round; see scratch/yc/progress-stale.log):
@@ -1877,5 +1879,16 @@ if [[ -n "$refusal_drift" ]]; then
   fail "a Not-planned refusal contradicts the shipped tree:"$'\n'"$refusal_drift"
 fi
 ok "Not-planned refusals match the shipped tree (locale set, terminal ceiling)"
+
+# ── 37. Write handlers never mint via s.client() (GDK-681) ────────────────
+# tools/check-write-handlers.sh runs TestWriteHandlersDoNotCallClient, the
+# AST lock keeping issue write handlers on writerFor / keyWriter /
+# createWriter: origin.Client is Jira-only, and a Linear apiKey still
+# passes HasCredential, so the 409 gate does not save those handlers. The
+# script had existed since GDK-681 with nothing executing it — an unrun
+# guard is a comment — so doc-checks carries it the way check 35 carries
+# check-promises.sh.
+bash tools/check-write-handlers.sh
+ok "write handlers do not call s.client() (TestWriteHandlersDoNotCallClient)"
 
 echo "doc-checks: all passed"
