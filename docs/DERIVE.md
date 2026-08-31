@@ -98,10 +98,13 @@ splitting a sequence mid-rune — without that, Korean text would end in a broke
 final character.
 
 **`cloned_from` matches a link-type *name*.** Jira's default clone link type is
-"Cloners", and the match is `contains "clone"`, case-insensitive, on inward
-links. Link type names are site configuration created in the site's language,
-so a site whose clone type carries a non-English name derives `''` here — there
-is no language-stable id to key on. `cloned_from != ''` is the is-a-clone test.
+"Cloners", and the match is `contains "clone"`, case-insensitive, on outward
+links — the clone is the issue that displays "clones <origin>", so the origin
+sits behind the outward direction (GDK-1214; the inward side marks the origin
+and derives nothing). Link type names are site configuration created in the
+site's language, so a site whose clone type carries a non-English name derives
+`''` here — there is no language-stable id to key on. `cloned_from != ''` is
+the is-a-clone test.
 
 **`priority_rank` is 1-based and 0 means unknown.** The site's priority list
 arrives most-urgent-first; rank 1 is the most urgent. 0 covers both "no

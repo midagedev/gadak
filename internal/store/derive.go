@@ -118,13 +118,18 @@ func reopenReason(comments []Comment, reopenedAt string) string {
 }
 
 // clonedFrom is the key of the issue this one was cloned from: the target of
-// an inward link whose type name contains "clone" (Jira's default "Cloners"
-// type). Caveat: link type names are site configuration created in the site's
-// language, so a site whose clone type carries a non-English name derives
-// nothing here — there is no language-stable id to key on.
+// an OUTWARD link whose type name contains "clone" (Jira's default "Cloners"
+// type). The clone is the issue that displays the outward phrase — "clones
+// <origin>" — so the origin's key sits behind the outward direction; the
+// inward side ("is cloned by") belongs to the origin and names the clone.
+// This was inverted until GDK-1214 (the GDK-1204 mirror-image class): twelve
+// of twelve Cloners rows on a production mirror put outward on the newer
+// issue of each pair. Caveat: link type names are site configuration created
+// in the site's language, so a site whose clone type carries a non-English
+// name derives nothing here — there is no language-stable id to key on.
 func clonedFrom(links []Link) string {
 	for _, l := range links {
-		if l.Direction == "inward" && strings.Contains(strings.ToLower(l.Type), "clone") {
+		if l.Direction == "outward" && strings.Contains(strings.ToLower(l.Type), "clone") {
 			return l.TargetKey
 		}
 	}

@@ -2581,7 +2581,7 @@ func seedDerivable(t *testing.T) {
 				status(6, "5", "9"), // reopen #2: 9 is unmapped, so not done
 				status(7, "9", "3"), // unmapped -> inprogress is not a reopen
 			},
-			Links: []store.Link{{Type: "Cloners", Direction: "inward", TargetKey: "NMS-42"}},
+			Links: []store.Link{{Type: "Cloners", Direction: "outward", TargetKey: "NMS-42"}}, // the clone displays "clones NMS-42" (GDK-1214)
 		}, anchor("1008", "NMB-8", "1", "new", ko), anchor("1009", "NMB-9", "5", "done", ko)},
 	}); err != nil {
 		t.Fatalf("seed NMB-7: %v", err)

@@ -1,6 +1,11 @@
 package store
 
-import "testing"
+import (
+	"context"
+	"database/sql"
+	"path/filepath"
+	"testing"
+)
 
 // Status ids are the same on both sites; only the display names differ. Every
 // case below is run twice, once per naming, and the results must be identical.
@@ -252,17 +257,96 @@ func TestDeriveReopenReasonTruncatesOnRuneBoundary(t *testing.T) {
 	}
 }
 
+// The clone displays the outward phrase ("clones <origin>"), so the origin
+// sits behind the OUTWARD link. Inward ("is cloned by") marks the origin
+// itself and must derive nothing (GDK-1214; inverted before it).
 func TestDeriveClonedFrom(t *testing.T) {
 	links := []Link{
-		{Type: "Blocks", Direction: "outward", TargetKey: "NMA-1"},
-		{Type: "Cloners", Direction: "inward", TargetKey: "NMS-42"},
+		{Type: "Blocks", Direction: "inward", TargetKey: "NMA-1"},
+		{Type: "Cloners", Direction: "outward", TargetKey: "NMS-42"},
 	}
 	if got := Derive(DeriveInput{Links: links}); got.ClonedFrom != "NMS-42" {
 		t.Fatalf("cloned_from = %q", got.ClonedFrom)
 	}
-	// Outward clone links ("clones X") are not an origin.
-	outOnly := []Link{{Type: "Cloners", Direction: "outward", TargetKey: "NMS-42"}}
-	if got := Derive(DeriveInput{Links: outOnly}); got.ClonedFrom != "" {
-		t.Fatalf("outward clone treated as origin: %q", got.ClonedFrom)
+	// Inward clone links ("is cloned by X") sit on the origin, not the clone.
+	inOnly := []Link{{Type: "Cloners", Direction: "inward", TargetKey: "NMS-42"}}
+	if got := Derive(DeriveInput{Links: inOnly}); got.ClonedFrom != "" {
+		t.Fatalf("the origin derived a cloned_from: %q", got.ClonedFrom)
+	}
+}
+
+// TestMigrateV40RecomputesClonedFrom seeds a v39 mirror whose cloned_from was
+// derived from the inward Cloners link (the pre-GDK-1214 inversion: the value
+// sat on the origin, the clone had none) and asserts v40 moves it to the
+// clone, straight from the links rows the mirror already holds.
+func TestMigrateV40RecomputesClonedFrom(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "gadak.db")
+	raw, err := sql.Open("sqlite", "file:"+path+"?_pragma=foreign_keys(1)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 39; i++ {
+		if _, err := raw.Exec(migrations[i]); err != nil {
+			raw.Close()
+			t.Fatalf("migration %d: %v", i+1, err)
+		}
+	}
+	if _, err := raw.Exec(`PRAGMA user_version = 39`); err != nil {
+		raw.Close()
+		t.Fatal(err)
+	}
+	if _, err := raw.Exec(`INSERT INTO sources (id, kind) VALUES ('jira', 'jira')`); err != nil {
+		raw.Close()
+		t.Fatal(err)
+	}
+	insert := func(id, key, clonedFrom string) {
+		t.Helper()
+		itemID := "jira:" + id
+		if _, err := raw.Exec(`
+			INSERT INTO items (id, source_id, kind, external_id, key, title, created_at, updated_at, synced_at)
+			VALUES (?, 'jira', 'issue', ?, ?, ?, '2026-01-01', '2026-01-02', '2026-01-02')`,
+			itemID, id, key, key); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := raw.Exec(`
+			INSERT INTO issues (item_id, key, project_key, priority_rank, reopen_count, comment_count, raw, cloned_from)
+			VALUES (?, ?, 'NMB', 0, 0, 0, '{}', ?)`,
+			itemID, key, clonedFrom); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// NMB-1 is the origin (inward "is cloned by"), NMB-2 the clone (outward
+	// "clones NMB-1") — the inverted derive had stamped the origin.
+	insert("1", "NMB-1", "NMB-2")
+	insert("2", "NMB-2", "")
+	if _, err := raw.Exec(`
+		INSERT INTO links (item_id, type, direction, target_key) VALUES
+		('jira:1', 'Cloners', 'inward',  'NMB-2'),
+		('jira:2', 'Cloners', 'outward', 'NMB-1')`); err != nil {
+		raw.Close()
+		t.Fatal(err)
+	}
+	raw.Close()
+
+	db, err := Open(path)
+	if err != nil {
+		t.Fatalf("migrate to v40: %v", err)
+	}
+	defer db.Close()
+	got := map[string]string{}
+	rows, err := db.sql.QueryContext(context.Background(), `SELECT key, cloned_from FROM issues ORDER BY key`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var k, c string
+		if err := rows.Scan(&k, &c); err != nil {
+			t.Fatal(err)
+		}
+		got[k] = c
+	}
+	if got["NMB-1"] != "" || got["NMB-2"] != "NMB-1" {
+		t.Fatalf("cloned_from after v40 = %v, want origin empty and clone → NMB-1", got)
 	}
 }

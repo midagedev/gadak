@@ -3,7 +3,7 @@ package store
 // migrations are applied in order and the index+1 is the schema version. A
 // released migration is never edited; a schema change is a new entry at the end
 // plus a documented row in specs/000-product/data-model.md.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39, schemaV40}
 
 // itemsFTSCreate is the canonical items_fts DDL, spliced into schemaV1 so a
 // fresh database is born matching it (GDK-444: an inline copy in V1 lagged at
@@ -825,3 +825,17 @@ SELECT i.key, i.source_id, d.actor, d.actor_name, 'dev_link'
 // holds a mirror whose local.db is unreachable one version below it so the
 // copy re-runs later instead of refusing the open.
 const personalStateCopyVersion = 26
+
+// schemaV40 (GDK-1214) recomputes cloned_from from the links the mirror
+// already holds: the derive had read the inward Cloners link (the origin's
+// side) instead of the outward one (the clone's), so every mirrored value
+// was on the wrong issue. Same predicate as store.clonedFrom, in SQL.
+const schemaV40 = `
+UPDATE issues SET cloned_from = COALESCE((
+  SELECT l.target_key FROM links l
+  WHERE l.item_id = issues.item_id
+    AND l.direction = 'outward'
+    AND lower(l.type) LIKE '%clone%'
+  ORDER BY l.target_key LIMIT 1
+), '');
+`
