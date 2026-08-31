@@ -207,6 +207,7 @@ Writing through to the workspace origin — ` + writeThroughOriginPhrase + `:
   claim      take an issue as yours (assignee + in-progress transition) <KEY> [--take-over] [--json]
                    (a claim another actor holds is refused — exit 75; their name is in the error)
   link       create an issue link <A> <B> --type <name|inward|outward|id> [--json]
+  unlink     remove an issue link      <A> <B> --type <name|inward|outward|id> [--json]
   page       wiki page get/list/create/edit/comment  get <ID> | list [--space K] [--limit N] [--json|--csv|--no-header]
                    | create|edit|comment [<ID>] [--space K] [--title T] [-m <text|->] [--adf-file F] [--json]
   wiki       alias of page                get <ID> | list | create|edit|comment [<ID>]
@@ -414,6 +415,7 @@ var commands = map[string]func([]string) error{
 	"install-service": cmdInstallService,
 	"issue":           cmdIssue,
 	"link":            cmdLink,
+	"unlink":          cmdUnlink,
 	"list":            cmdList,
 	"mcp":             cmdMCP,
 	"memory":          cmdMemory,

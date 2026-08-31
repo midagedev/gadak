@@ -275,6 +275,7 @@ gadak assign NMB-140 dana@example.com # email, display name, or accountId
 gadak assign NMB-140 -                # unassign
 gadak claim NMB-140                   # take it as yours: assignee + in-progress transition; held issues refuse (exit 75)
 gadak link NMB-140 NMB-141 --type blocks   # A blocks B; "is blocked by" means A is blocked by B
+gadak unlink NMB-140 NMB-141 --type blocks # removes that link (live id lookup; the mirror keeps no link ids)
 
 gadak fields                          # custom-field usage on a sample (needs credential)
 gadak fields --sample 100 --project NMB --json

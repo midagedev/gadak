@@ -791,6 +791,15 @@ var helps = map[string]cmdHelp{
 		},
 		seeAlso: []string{"gadak issue", "gadak edit", "gadak comment"},
 	},
+	"unlink": {
+		summary: "remove an issue link — the one `gadak link A B --type t` created (looked up live for its id; the mirror carries none)",
+		usage:   "gadak [--workspace <name>] unlink <A> <B> --type <name|inward|outward|id> [--json]",
+		examples: []string{
+			"gadak unlink NMB-140 NMB-141 --type blocks",
+			"gadak unlink NMB-140 NMB-141 --type \"is blocked by\"",
+		},
+		seeAlso: []string{"gadak link", "gadak issue"},
+	},
 	"fields": {
 		summary: "report which custom fields are populated (samples the mirror; queries Jira)",
 		usage: "gadak [--workspace <name>] fields [--sample N] [--json] [--all]\n" +

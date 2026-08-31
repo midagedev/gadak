@@ -512,6 +512,7 @@ gadak edit NMB-140 --component +SDK --component -Docs
 gadak edit NMB-140 --fix-version +v2.5 --fix-version -10012
 gadak edit NMB-140 --field severity=High
 gadak link NMB-140 NMB-141 --type blocks          # A blocks B; "is blocked by" means A is blocked by B
+gadak unlink NMB-140 NMB-141 --type blocks        # removes that link (live id lookup; the mirror keeps no link ids)
 
 gadak create --batch -                        # one JSON object per line on stdin (stops at the first failure)
 gadak comment --batch -                       # JSON lines {"key","body"}; tries every line; one envelope row per key

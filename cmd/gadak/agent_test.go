@@ -79,6 +79,9 @@ type fakeJira struct {
 	// catalog TestLink* relies on (id 10000, outward "blocks").
 	linkTypesJSON string
 
+	// deletedLinks records every DELETE /issueLink/{id}, in order (GDK-1205).
+	deletedLinks []string
+
 	// claim support (additive; GDK-591 — existing write tests never hit
 	// these paths). Atlassian Cloud has no claim route, so the default is
 	// the 404 that flips the CLI onto its two-call fallback.
@@ -216,6 +219,9 @@ func (f *fakeJira) route(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(raw))
 	case path == "/issueLink" && r.Method == http.MethodPost:
 		w.WriteHeader(http.StatusCreated)
+	case strings.HasPrefix(path, "/issueLink/") && r.Method == http.MethodDelete:
+		f.deletedLinks = append(f.deletedLinks, strings.TrimPrefix(path, "/issueLink/"))
+		w.WriteHeader(http.StatusNoContent)
 	// Last on purpose: a bare GET /issue/{key} must not shadow createmeta,
 	// editmeta or any other /issue/…/… subroute above.
 	case strings.HasPrefix(path, "/issue/") && r.Method == http.MethodGet && !strings.Contains(strings.TrimPrefix(path, "/issue/"), "/"):

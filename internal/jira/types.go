@@ -87,7 +87,11 @@ type Attachment struct {
 }
 
 type IssueLink struct {
+	// ID names this link for DELETE /issueLink/{id}. Only the live GET
+	// carries it — the mirror's links rows deliberately do not (GDK-1205).
+	ID   string `json:"id"`
 	Type struct {
+		ID   string `json:"id"`
 		Name string `json:"name"`
 	} `json:"type"`
 	InwardIssue *struct {

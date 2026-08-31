@@ -228,6 +228,25 @@ func (c *Client) LinkIssues(ctx context.Context, typeID, outwardKey, inwardKey s
 	return c.write(ctx, http.MethodPost, apiPath+"/issueLink", body, nil)
 }
 
+// IssueLinks is GET /issue/{key}?fields=issuelinks — the live projection,
+// with the link ids the mirror deliberately does not carry. Deleting needs
+// an id, so it always starts here (GDK-1205).
+func (c *Client) IssueLinks(ctx context.Context, key string) ([]IssueLink, error) {
+	var out struct {
+		Fields struct {
+			IssueLinks []IssueLink `json:"issuelinks"`
+		} `json:"fields"`
+	}
+	err := c.do(ctx, http.MethodGet, apiPath+"/issue/"+url.PathEscape(key)+"?fields=issuelinks", nil, &out)
+	return out.Fields.IssueLinks, err
+}
+
+// DeleteIssueLink is DELETE /issueLink/{id}. 204 with an empty body is
+// success; an unknown or already-removed id is a 404.
+func (c *Client) DeleteIssueLink(ctx context.Context, id string) error {
+	return c.write(ctx, http.MethodDelete, apiPath+"/issueLink/"+url.PathEscape(id), nil, nil)
+}
+
 // AddComment posts an ADF body (not plain text). Mentions must already be
 // mention nodes — a leftover "@Name" string notifies nobody.
 // visibility is sent as Jira's visibility object when non-nil. internal

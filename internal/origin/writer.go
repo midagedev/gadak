@@ -65,6 +65,10 @@ type VersionCatalog interface {
 type IssueLinker interface {
 	IssueLinkTypes(ctx context.Context) ([]IssueLinkType, error)
 	LinkIssues(ctx context.Context, typeID, outwardKey, inwardKey string) error
+	// IssueLinks is the live projection with link ids (the mirror carries
+	// none), and DeleteIssueLink takes one of those ids back (GDK-1205).
+	IssueLinks(ctx context.Context, key string) ([]IssueLink, error)
+	DeleteIssueLink(ctx context.Context, id string) error
 }
 
 // CreateFieldCatalog is what this project+type requires and accepts at create
