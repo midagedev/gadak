@@ -1451,28 +1451,13 @@ func ftsHasTokenPrefix(text, prefix string) bool {
 	return false
 }
 
+// ftsTokens splits lowercased text on everything that is not a letter, digit
+// or underscore — the same cut the FTS tokenizer makes, mirrored here so the
+// snippet windows line up with what the index matched.
 func ftsTokens(s string) []string {
-	var out []string
-	var b strings.Builder
-	flush := func() {
-		if b.Len() > 0 {
-			out = append(out, b.String())
-			b.Reset()
-		}
-	}
-	for _, r := range strings.ToLower(s) {
-		if isFTSTokenRune(r) {
-			b.WriteRune(r)
-			continue
-		}
-		flush()
-	}
-	flush()
-	return out
-}
-
-func isFTSTokenRune(r rune) bool {
-	return unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_'
+	return strings.FieldsFunc(strings.ToLower(s), func(r rune) bool {
+		return !(unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_')
+	})
 }
 
 // snippetTokens pulls plain search words out of a raw user query for windowing.

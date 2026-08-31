@@ -2,9 +2,7 @@ package clitool
 
 import (
 	"errors"
-	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 
@@ -91,25 +89,5 @@ func TestLookPathThenEmptyLookIsMiss(t *testing.T) {
 	})
 	if !ok || got != "/usr/local/bin/gadak" {
 		t.Fatalf("empty LookPath must fall through: got %q ok=%v", got, ok)
-	}
-}
-
-func TestExecutableRegularFile(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("windows treats a regular file as executable")
-	}
-	dir := t.TempDir()
-	bin := filepath.Join(dir, "tool")
-	if err := os.WriteFile(bin, []byte("x"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if executable(bin) {
-		t.Fatal("0644 regular file must not count as executable on unix")
-	}
-	if err := os.Chmod(bin, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if !executable(bin) {
-		t.Fatal("0755 regular file must count as executable")
 	}
 }

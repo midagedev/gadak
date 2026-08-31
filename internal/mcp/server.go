@@ -10,6 +10,7 @@ package mcp
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -59,6 +60,9 @@ func New(dbPath, profile, version string) *Server {
 // to out. Logs must never go to out — callers should leave log output on stderr.
 // Returns when in is exhausted or a fatal I/O error occurs.
 func (s *Server) Serve(in io.Reader, out io.Writer) error {
+	// Every exit path releases the mirror — a failed Encode or scanner error
+	// used to leak the handle for the process lifetime.
+	defer s.closeDB()
 	sc := bufio.NewScanner(in)
 	// SQL and large keys can exceed the default 64 KiB token; 4 MiB is plenty
 	// for a single MCP request on this surface.
@@ -70,7 +74,7 @@ func (s *Server) Serve(in io.Reader, out io.Writer) error {
 
 	for sc.Scan() {
 		line := sc.Bytes()
-		if len(bytesTrimSpace(line)) == 0 {
+		if len(bytes.TrimSpace(line)) == 0 {
 			continue
 		}
 		resp := s.handleLine(line)
@@ -84,7 +88,6 @@ func (s *Server) Serve(in io.Reader, out io.Writer) error {
 	if err := sc.Err(); err != nil {
 		return err
 	}
-	s.closeDB()
 	return nil
 }
 
@@ -297,18 +300,6 @@ func errResponse(id json.RawMessage, code int, message string) *rpcResponse {
 		ID:      id,
 		Error:   &rpcError{Code: code, Message: message},
 	}
-}
-
-func bytesTrimSpace(b []byte) []byte {
-	// Avoid importing bytes just for TrimSpace on a hot path; tiny helper.
-	start, end := 0, len(b)
-	for start < end && (b[start] == ' ' || b[start] == '\t' || b[start] == '\r') {
-		start++
-	}
-	for end > start && (b[end-1] == ' ' || b[end-1] == '\t' || b[end-1] == '\r') {
-		end--
-	}
-	return b[start:end]
 }
 
 // Logf writes a diagnostic line to stderr. Never use the process logger against

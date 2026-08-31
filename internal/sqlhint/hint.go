@@ -10,6 +10,7 @@ package sqlhint
 import (
 	"database/sql"
 	"fmt"
+	"math"
 	"regexp"
 	"strings"
 )
@@ -124,20 +125,7 @@ func suggestColumn(unknown string, columns []string) string {
 		return ""
 	}
 	lower := strings.ToLower(unknown)
-	var unique []string
-	seen := map[string]struct{}{}
 	for _, c := range columns {
-		if c == "" {
-			continue
-		}
-		k := strings.ToLower(c)
-		if _, ok := seen[k]; ok {
-			continue
-		}
-		seen[k] = struct{}{}
-		unique = append(unique, c)
-	}
-	for _, c := range unique {
 		if strings.EqualFold(c, unknown) {
 			return ""
 		}
@@ -145,7 +133,7 @@ func suggestColumn(unknown string, columns []string) string {
 	// Prefer "<prefix>_<column>" over raw edit distance so issue_key → key
 	// wins instead of issue_type (which is closer by Levenshtein).
 	best := ""
-	for _, c := range unique {
+	for _, c := range columns {
 		if strings.HasSuffix(lower, "_"+strings.ToLower(c)) && len(c) > len(best) {
 			best = c
 		}
@@ -153,10 +141,10 @@ func suggestColumn(unknown string, columns []string) string {
 	if best != "" {
 		return best
 	}
-	bestDist := int(^uint(0) >> 1)
+	bestDist := math.MaxInt
 	winner := ""
 	ties := 0
-	for _, c := range unique {
+	for _, c := range columns {
 		d := levenshtein(lower, strings.ToLower(c))
 		if d < bestDist {
 			bestDist = d
@@ -207,14 +195,7 @@ func levenshtein(a, b string) int {
 			del := prev[j] + 1
 			ins := cur[j-1] + 1
 			sub := prev[j-1] + cost
-			n := del
-			if ins < n {
-				n = ins
-			}
-			if sub < n {
-				n = sub
-			}
-			cur[j] = n
+			cur[j] = min(del, ins, sub)
 		}
 		prev, cur = cur, prev
 	}

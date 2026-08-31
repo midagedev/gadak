@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -310,12 +311,7 @@ func ProfileExists(name string) bool {
 	if err != nil {
 		return false
 	}
-	for _, n := range names {
-		if n == name {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(names, name)
 }
 
 // Handler routes /w/<name>/… to the named profile's API, config, healthz, or
@@ -328,11 +324,9 @@ func (r *Registry) Handler(spa http.Handler, version string) http.HandlerFunc {
 			http.NotFound(w, req)
 			return
 		}
-		name, rest, cut := strings.Cut(path, "/")
-		if !cut {
-			name = path
-			rest = ""
-		}
+		// strings.Cut already yields (s, "", false) when the separator is
+		// absent, so the "no slash" case needs no special handling here.
+		name, rest, _ := strings.Cut(path, "/")
 		if !workspaceNameRe.MatchString(name) || !ProfileExists(name) {
 			http.NotFound(w, req)
 			return

@@ -61,10 +61,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/midagedev/gadak/internal/config/tokencheck"
@@ -156,12 +157,7 @@ func (u *UIConfig) knownPalettes() []string {
 			set[p] = true
 		}
 	}
-	out := make([]string, 0, len(set))
-	for p := range set {
-		out = append(out, p)
-	}
-	sort.Strings(out)
-	return out
+	return slices.Sorted(maps.Keys(set))
 }
 
 // catalogBase is the catalog value set of one palette, shaped as the `base`
@@ -252,11 +248,7 @@ func ValidateUIConfig(u *UIConfig) (warns []tokencheck.Violation, err error) {
 	// the grammar is the machine check that keeps the web splice safe, and
 	// it has no WARN tier (see validFontStack).
 	if u.Tokens != nil && len(u.Tokens.Fonts) > 0 {
-		fontNames := make([]string, 0, len(u.Tokens.Fonts))
-		for name := range u.Tokens.Fonts {
-			fontNames = append(fontNames, name)
-		}
-		sort.Strings(fontNames)
+		fontNames := slices.Sorted(maps.Keys(u.Tokens.Fonts))
 		for _, name := range fontNames {
 			value := strings.TrimSpace(u.Tokens.Fonts[name])
 			_, cssVar, known := uiFontToken(name)
@@ -277,11 +269,7 @@ func ValidateUIConfig(u *UIConfig) (warns []tokencheck.Violation, err error) {
 	// A hand-edited or newer-build config can park the palette-agnostic
 	// axes inside a theme overlay (the struct has the fields); say so
 	// instead of pretending they render.
-	themeKeys := make([]string, 0, len(u.TokensByTheme))
-	for p := range u.TokensByTheme {
-		themeKeys = append(themeKeys, p)
-	}
-	sort.Strings(themeKeys)
+	themeKeys := slices.Sorted(maps.Keys(u.TokensByTheme))
 	for _, palette := range themeKeys {
 		t := u.TokensByTheme[palette]
 		if t == nil || len(t.Spacing)+len(t.Layout)+len(t.Type)+len(t.Fonts) == 0 {
@@ -364,20 +352,12 @@ func ValidateDataColors(dc map[string]map[string]string) error {
 	for _, f := range uiDataFamilies {
 		families[f] = true
 	}
-	keys := make([]string, 0, len(dc))
-	for f := range dc {
-		keys = append(keys, f)
-	}
-	sort.Strings(keys)
+	keys := slices.Sorted(maps.Keys(dc))
 	for _, family := range keys {
 		if !families[family] {
 			return fmt.Errorf("ui.dataColors: unknown family %q — valid families are %s", family, strings.Join(uiDataFamilies, ", "))
 		}
-		sub := make([]string, 0, len(dc[family]))
-		for k := range dc[family] {
-			sub = append(sub, k)
-		}
-		sort.Strings(sub)
+		sub := slices.Sorted(maps.Keys(dc[family]))
 		for _, k := range sub {
 			key := strings.TrimSpace(k)
 			if key == "" {
@@ -504,11 +484,7 @@ func UIDimensionVars(u *UIConfig) (vars map[string]string, warns []tokencheck.Vi
 		"type":    u.Tokens.Type,
 	}
 	for _, axis := range tokencheck.DimAxes() {
-		names := make([]string, 0, len(axes[axis]))
-		for name := range axes[axis] {
-			names = append(names, name)
-		}
-		sort.Strings(names)
+		names := slices.Sorted(maps.Keys(axes[axis]))
 		for _, name := range names {
 			key := strings.TrimSpace(name)
 			value := strings.TrimSpace(axes[axis][name])
@@ -557,12 +533,7 @@ var uiFontTokens = map[string]string{
 
 // fontCatalogNames lists the bare catalog names, sorted, for warning text.
 func fontCatalogNames() []string {
-	out := make([]string, 0, len(uiFontTokens))
-	for name := range uiFontTokens {
-		out = append(out, name)
-	}
-	sort.Strings(out)
-	return out
+	return slices.Sorted(maps.Keys(uiFontTokens))
 }
 
 // The fonts value grammar: a comma-separated family list — 1..8 families,

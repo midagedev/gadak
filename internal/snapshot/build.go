@@ -3,8 +3,10 @@ package snapshot
 import (
 	"database/sql"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -394,8 +396,8 @@ func loadPages(src *sql.DB) ([]pageRow, error) {
 }
 
 func insertPageBundle(tx *sql.Tx, p pageRow, ch children) error {
-	item := copyMap(p.itemCols)
-	page := copyMap(p.pageCols)
+	item := maps.Clone(p.itemCols)
+	page := maps.Clone(p.pageCols)
 	itemID := p.itemID
 
 	// Destination may have columns the source lacks (body_adf, labels, excerpt).
@@ -428,7 +430,7 @@ func insertPageBundle(tx *sql.Tx, p pageRow, ch children) error {
 	// Page comments live on the shared comments table (same as issues).
 	comms := ch.commentsBy[itemID]
 	for _, row := range comms {
-		row = copyMap(row)
+		row = maps.Clone(row)
 		row["item_id"] = itemID
 		if err := insertRow(tx, "comments", commentColumns, row); err != nil {
 			return err
@@ -436,7 +438,7 @@ func insertPageBundle(tx *sql.Tx, p pageRow, ch children) error {
 	}
 	// Attachments metadata (no file bytes) — same policy as issue path.
 	for _, row := range ch.attachmentsBy[itemID] {
-		row = copyMap(row)
+		row = maps.Clone(row)
 		row["item_id"] = itemID
 		if err := insertRow(tx, "attachments", attachmentColumns, row); err != nil {
 			return err
@@ -538,8 +540,8 @@ func tableExists(db *sql.DB, name string) (bool, error) {
 }
 
 func insertIssueBundle(tx *sql.Tx, p plannedIssue, itemID, key string, ch children) error {
-	item := copyMap(p.src.itemCols)
-	issue := copyMap(p.src.issueCols)
+	item := maps.Clone(p.src.itemCols)
+	issue := maps.Clone(p.src.issueCols)
 
 	item["id"] = itemID
 	item["key"] = key
@@ -593,7 +595,7 @@ func insertIssueBundle(tx *sql.Tx, p plannedIssue, itemID, key string, ch childr
 	srcID := p.src.itemID
 	comms := ch.commentsBy[srcID]
 	for i, row := range comms {
-		row = copyMap(row)
+		row = maps.Clone(row)
 		if p.cloneSeq > 0 {
 			row["id"] = fmt.Sprintf("snap:clone:%d:c:%v", p.cloneSeq, row["id"])
 		}
@@ -612,7 +614,7 @@ func insertIssueBundle(tx *sql.Tx, p plannedIssue, itemID, key string, ch childr
 	}
 	atts := ch.attachmentsBy[srcID]
 	for i, row := range atts {
-		row = copyMap(row)
+		row = maps.Clone(row)
 		if p.cloneSeq > 0 {
 			row["id"] = fmt.Sprintf("snap:clone:%d:a:%v", p.cloneSeq, row["id"])
 		}
@@ -626,7 +628,7 @@ func insertIssueBundle(tx *sql.Tx, p plannedIssue, itemID, key string, ch childr
 	}
 	changes := ch.changelogBy[srcID]
 	for i, row := range changes {
-		row = copyMap(row)
+		row = maps.Clone(row)
 		if p.cloneSeq > 0 {
 			row["id"] = fmt.Sprintf("snap:clone:%d:h:%v", p.cloneSeq, row["id"])
 		}
@@ -731,6 +733,21 @@ var (
 	}
 )
 
+// notNullDefaults is the value a NOT NULL destination column takes when the
+// source row supplied nothing for it — SQLite would reject the INSERT
+// otherwise. Looked up per (table, column) inside insertRow's loop; every
+// other column keeps nil.
+var notNullDefaults = map[string]map[string]any{
+	"issues": {
+		"priority_rank": 0, "reopen_count": 0, "comment_count": 0,
+		"reopen_reason": "", "cloned_from": "", "priority_id": "",
+	},
+	"pages": {
+		"version": 1, "parent_id": "", "status": "current",
+		"body_adf": "", "labels": "[]", "excerpt": "",
+	},
+}
+
 func insertRow(tx *sql.Tx, table string, cols []string, data map[string]any) error {
 	vals := make([]any, len(cols))
 	ph := make([]string, len(cols))
@@ -738,7 +755,7 @@ func insertRow(tx *sql.Tx, table string, cols []string, data map[string]any) err
 		ph[i] = "?"
 		v, ok := data[c]
 		if !ok || v == nil {
-			vals[i] = nil
+			vals[i] = notNullDefaults[table][c]
 			continue
 		}
 		switch x := v.(type) {
@@ -753,70 +770,11 @@ func insertRow(tx *sql.Tx, table string, cols []string, data map[string]any) err
 		default:
 			vals[i] = v
 		}
-		// JSON array columns must stay json_each-able even when source had NULL.
-		if vals[i] == nil {
-			switch c {
-			case "labels", "components", "fix_versions", "affects_versions":
-				vals[i] = "[]"
-			case "custom":
-				vals[i] = "{}"
-			}
-		}
-	}
-	// Defaults for NOT NULL integer columns.
-	if table == "issues" {
-		if vals[indexOf(cols, "priority_rank")] == nil {
-			vals[indexOf(cols, "priority_rank")] = 0
-		}
-		if vals[indexOf(cols, "reopen_count")] == nil {
-			vals[indexOf(cols, "reopen_count")] = 0
-		}
-		if vals[indexOf(cols, "comment_count")] == nil {
-			vals[indexOf(cols, "comment_count")] = 0
-		}
-		if vals[indexOf(cols, "reopen_reason")] == nil {
-			vals[indexOf(cols, "reopen_reason")] = ""
-		}
-		if vals[indexOf(cols, "cloned_from")] == nil {
-			vals[indexOf(cols, "cloned_from")] = ""
-		}
-		if vals[indexOf(cols, "priority_id")] == nil {
-			vals[indexOf(cols, "priority_id")] = ""
-		}
-	}
-	if table == "pages" {
-		if vals[indexOf(cols, "version")] == nil {
-			vals[indexOf(cols, "version")] = 1
-		}
-		if vals[indexOf(cols, "parent_id")] == nil {
-			vals[indexOf(cols, "parent_id")] = ""
-		}
-		if vals[indexOf(cols, "status")] == nil {
-			vals[indexOf(cols, "status")] = "current"
-		}
-		if vals[indexOf(cols, "body_adf")] == nil {
-			vals[indexOf(cols, "body_adf")] = ""
-		}
-		if vals[indexOf(cols, "labels")] == nil {
-			vals[indexOf(cols, "labels")] = "[]"
-		}
-		if vals[indexOf(cols, "excerpt")] == nil {
-			vals[indexOf(cols, "excerpt")] = ""
-		}
 	}
 	q := fmt.Sprintf(`INSERT INTO %s (%s) VALUES (%s)`,
 		table, strings.Join(cols, ","), strings.Join(ph, ","))
 	_, err := tx.Exec(q, vals...)
 	return err
-}
-
-func indexOf(cols []string, name string) int {
-	for i, c := range cols {
-		if c == name {
-			return i
-		}
-	}
-	return -1
 }
 
 func columnNames(db *sql.DB, table string) ([]string, error) {
@@ -869,7 +827,7 @@ func loadTableMaps(db *sql.DB, table string) ([]map[string]any, error) {
 	}
 	// Stable order so clone/spread child placement is deterministic.
 	order := "rowid"
-	if hasCol(cols, "id") {
+	if slices.Contains(cols, "id") {
 		order = `"id"`
 	}
 	q := fmt.Sprintf(`SELECT %s FROM %s ORDER BY %s`, strings.Join(quoteIdents(cols), ","), table, order)
@@ -887,15 +845,6 @@ func loadTableMaps(db *sql.DB, table string) ([]map[string]any, error) {
 		out = append(out, m)
 	}
 	return out, rows.Err()
-}
-
-func hasCol(cols []string, name string) bool {
-	for _, c := range cols {
-		if c == name {
-			return true
-		}
-	}
-	return false
 }
 
 func groupBy(rows []map[string]any, key string) map[string][]map[string]any {
@@ -938,12 +887,4 @@ func nullStr(ns sql.NullString) any {
 		return nil
 	}
 	return ns.String
-}
-
-func copyMap(m map[string]any) map[string]any {
-	out := make(map[string]any, len(m))
-	for k, v := range m {
-		out[k] = v
-	}
-	return out
 }

@@ -168,8 +168,7 @@ func (t *serveOriginTransport) RoundTrip(req *http.Request) (*http.Response, err
 // PairingError is the remote-device first line for a failed home-serve
 // round trip: cause and next action, no REST method/path.
 type PairingError struct {
-	msg    string
-	reason string
+	msg string
 }
 
 func (e *PairingError) Error() string {
@@ -181,8 +180,7 @@ func (e *PairingError) Error() string {
 
 func unreachableError(endpoint string) *PairingError {
 	return &PairingError{
-		msg:    fmt.Sprintf("pairing: cannot reach the home serve at %s — is 'gadak serve' running on the home machine?", endpoint),
-		reason: "unreachable",
+		msg: fmt.Sprintf("pairing: cannot reach the home serve at %s — is 'gadak serve' running on the home machine?", endpoint),
 	}
 }
 
@@ -190,18 +188,15 @@ func refusedError(reason string) *PairingError {
 	switch reason {
 	case string(pairing.ReasonRevoked):
 		return &PairingError{
-			msg:    "pairing: this device's token was revoked on the home machine — pair again with a fresh offer (home: gadak pairing mint --label <new-device>)",
-			reason: reason,
+			msg: "pairing: this device's token was revoked on the home machine — pair again with a fresh offer (home: gadak pairing mint --label <new-device>)",
 		}
 	case string(pairing.ReasonExpired):
 		return &PairingError{
-			msg:    "pairing: this device's token expired — ask the home machine for a fresh offer (gadak pairing mint)",
-			reason: reason,
+			msg: "pairing: this device's token expired — ask the home machine for a fresh offer (gadak pairing mint)",
 		}
 	default:
 		return &PairingError{
-			msg:    "pairing: the home serve refused this device's token — mint a fresh offer on the home machine",
-			reason: string(pairing.ReasonUnknown),
+			msg: "pairing: the home serve refused this device's token — mint a fresh offer on the home machine",
 		}
 	}
 }
@@ -281,13 +276,17 @@ func isUnreachable(err error) bool {
 		return true
 	}
 	s := strings.ToLower(err.Error())
+	// String sniffing is the fallback only where the error rides inside a
+	// %v, not a %w. Go 1.26 wraps the HTTP/1 break as *net.OpError
+	// (net/http transport.go: "connection broken: %w"), so errors.As above
+	// catches dial-time failures (refused, no such host, unreachable,
+	// server misbehaving) before this loop. What survives to here is
+	// http2's retry error (h2_bundle.go "cannot retry err [%v]") — a %v
+	// embed from writing a body onto an established connection, where the
+	// reachable failures are a reset or a write timeout.
 	for _, n := range []string{
-		"connection refused",
 		"connection reset",
 		"i/o timeout",
-		"no such host",
-		"network is unreachable",
-		"server misbehaving",
 	} {
 		if strings.Contains(s, n) {
 			return true

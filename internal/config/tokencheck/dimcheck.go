@@ -50,8 +50,9 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"regexp"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -244,11 +245,7 @@ func ValidateDimensions(axes map[string]map[string]string) []Violation {
 		if len(in) == 0 {
 			continue
 		}
-		keys := make([]string, 0, len(in))
-		for k := range in {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
+		keys := slices.Sorted(maps.Keys(in))
 		for _, k := range keys {
 			name := normalizeDimName(ax, k)
 			value := strings.TrimSpace(in[k])
@@ -311,11 +308,7 @@ func ValidateDimensions(axes map[string]map[string]string) []Violation {
 
 	// Defensive: the settings layer refuses unknown axes at parse time, but
 	// a direct caller (or a hand-edited payload) can still land one here.
-	axisIDs := make([]string, 0, len(axes))
-	for id := range axes {
-		axisIDs = append(axisIDs, id)
-	}
-	sort.Strings(axisIDs)
+	axisIDs := slices.Sorted(maps.Keys(axes))
 	for _, id := range axisIDs {
 		if len(axes[id]) == 0 {
 			continue

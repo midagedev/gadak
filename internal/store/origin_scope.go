@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -382,11 +384,7 @@ func mentionsToken(s, tok string) bool {
 // String renders the reset for a human: one line, empty when nothing went.
 func (r OriginReset) String() string {
 	var parts []string
-	keys := make([]string, 0, len(r.Removed))
-	for t := range r.Removed {
-		keys = append(keys, t)
-	}
-	sort.Strings(keys)
+	keys := slices.Sorted(maps.Keys(r.Removed))
 	for _, t := range keys {
 		parts = append(parts, fmt.Sprintf("%s %d", t, r.Removed[t]))
 	}

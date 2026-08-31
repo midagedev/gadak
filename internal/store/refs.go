@@ -2,8 +2,9 @@ package store
 
 import (
 	"database/sql"
+	"maps"
 	"regexp"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/midagedev/gadak/internal/fields"
@@ -112,11 +113,7 @@ func refsFromMap(best map[string]string, kind string) []ItemRef {
 	if len(best) == 0 {
 		return nil
 	}
-	keys := make([]string, 0, len(best))
-	for k := range best {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
+	keys := slices.Sorted(maps.Keys(best))
 	out := make([]ItemRef, 0, len(keys))
 	for _, k := range keys {
 		out = append(out, ItemRef{TargetKind: kind, TargetKey: k, Via: best[k]})

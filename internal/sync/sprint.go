@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -79,15 +80,11 @@ func appendSprintField(ids []string, sprintID string) []string {
 	if len(ids) == 1 && ids[0] == "*all" {
 		return ids
 	}
-	for _, id := range ids {
-		if id == sprintID {
-			return ids
-		}
+	if slices.Contains(ids, sprintID) {
+		return ids
 	}
-	out := make([]string, len(ids)+1)
-	copy(out, ids)
-	out[len(ids)] = sprintID
-	return out
+	// append on a clone: the extra slot must not write into ids' array.
+	return append(slices.Clone(ids), sprintID)
 }
 
 func applySprint(issue *store.Issue, extra map[string]json.RawMessage, fieldID string) {

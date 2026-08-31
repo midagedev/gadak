@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"hash/fnv"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -721,11 +722,8 @@ func filterFocus(events []FeedItem, focus FeedFocus) []FeedItem {
 	}
 	out := make([]FeedItem, 0, len(events))
 	for _, e := range events {
-		for _, r := range e.Reasons {
-			if r == string(focus) {
-				out = append(out, e)
-				break
-			}
+		if slices.Contains(e.Reasons, string(focus)) {
+			out = append(out, e)
 		}
 	}
 	return out
@@ -738,24 +736,13 @@ func countUnread(events []FeedItem) FeedUnreadCounts {
 			continue
 		}
 		c.All++
-		var hasA, hasR, hasM bool
-		for _, r := range e.Reasons {
-			switch r {
-			case "assignee":
-				hasA = true
-			case "reporter":
-				hasR = true
-			case "mention":
-				hasM = true
-			}
-		}
-		if hasA {
+		if slices.Contains(e.Reasons, "assignee") {
 			c.Assignee++
 		}
-		if hasR {
+		if slices.Contains(e.Reasons, "reporter") {
 			c.Reporter++
 		}
-		if hasM {
+		if slices.Contains(e.Reasons, "mention") {
 			c.Mention++
 		}
 	}

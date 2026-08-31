@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -1143,11 +1144,7 @@ func synthesizeFromFieldMap(fm map[string]string) []FieldSpec {
 		return nil
 	}
 	out := make([]FieldSpec, 0, len(fm))
-	aliases := make([]string, 0, len(fm))
-	for a := range fm {
-		aliases = append(aliases, a)
-	}
-	sort.Strings(aliases)
+	aliases := slices.Sorted(maps.Keys(fm))
 	for _, alias := range aliases {
 		id := fm[alias]
 		if id == "" {
@@ -1177,11 +1174,7 @@ func overlayEditableFields(specs []FieldSpec, editable map[string]string) []Fiel
 			byAlias[s.Alias] = i
 		}
 	}
-	aliases := make([]string, 0, len(editable))
-	for a := range editable {
-		aliases = append(aliases, a)
-	}
-	sort.Strings(aliases)
+	aliases := slices.Sorted(maps.Keys(editable))
 	for _, alias := range aliases {
 		id := editable[alias]
 		if alias == "" || id == "" {

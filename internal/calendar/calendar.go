@@ -149,11 +149,11 @@ func dateOnly(raw string) (string, bool) {
 }
 
 func parseInstant(raw string) (time.Time, bool) {
+	// RFC3339Nano makes the fraction optional (0–9 digits), so it alone
+	// covers the fixed-fraction and no-fraction RFC3339 spellings; the
+	// space-separated shapes are the only genuinely distinct layouts.
 	layouts := []string{
 		time.RFC3339Nano,
-		time.RFC3339,
-		"2006-01-02T15:04:05.000Z07:00",
-		"2006-01-02T15:04:05Z07:00",
 		"2006-01-02 15:04:05Z07:00",
 		"2006-01-02 15:04:05",
 	}

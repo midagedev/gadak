@@ -1,9 +1,7 @@
 package clitool
 
 import (
-	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 
 	"github.com/midagedev/gadak/internal/config"
@@ -25,16 +23,10 @@ const RaycastExtDirName = "raycast-extension"
 
 // LookPathThen is LookPath(name), then the first fallback that present
 // reports. look and present are injected so tests can assert order without
-// touching the host. A nil present falls back to an execute-bit check
-// (on Windows, any regular file).
+// touching the host; both are required.
 func LookPathThen(name string, fallbacks []string, look func(string) (string, error), present func(string) bool) (string, bool) {
-	if look != nil {
-		if p, err := look(name); err == nil && p != "" {
-			return p, true
-		}
-	}
-	if present == nil {
-		present = executable
+	if p, err := look(name); err == nil && p != "" {
+		return p, true
 	}
 	for _, c := range fallbacks {
 		if present(c) {
@@ -64,15 +56,4 @@ func RaycastExtDir() (string, error) {
 		return "", err
 	}
 	return filepath.Join(base, RaycastExtDirName), nil
-}
-
-func executable(path string) bool {
-	fi, err := os.Stat(path)
-	if err != nil || fi.IsDir() {
-		return false
-	}
-	if runtime.GOOS == "windows" {
-		return true
-	}
-	return fi.Mode()&0o111 != 0
 }

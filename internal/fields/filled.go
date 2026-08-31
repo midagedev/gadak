@@ -20,23 +20,7 @@ func IsFilled(raw json.RawMessage) bool {
 		// Non-JSON garbage that is still present — treat as filled.
 		return true
 	}
-	if v == nil {
-		return false
-	}
-	switch x := v.(type) {
-	case string:
-		return x != ""
-	case []any:
-		return len(x) > 0
-	case map[string]any:
-		return len(x) > 0
-	case bool:
-		return true
-	case float64:
-		return true
-	default:
-		return true
-	}
+	return IsFilledAny(v)
 }
 
 // IsFilledAny reports whether a decoded JSON value counts as set (same rules as

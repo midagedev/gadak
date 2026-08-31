@@ -448,10 +448,6 @@ func MergedPRLinks(devLinks []store.DevLink, attachments []store.DetailAttachmen
 	return raw
 }
 
-func mergedPRLinks(devLinks []store.DevLink, attachments []store.DetailAttachment) json.RawMessage {
-	return MergedPRLinks(devLinks, attachments)
-}
-
 func (s *server) handleDetail(w http.ResponseWriter, r *http.Request) {
 	key := r.PathValue("key")
 	d, err := s.db.Detail(r.Context(), key)
@@ -532,7 +528,7 @@ func (s *server) handleDetail(w http.ResponseWriter, r *http.Request) {
 	}
 	if p := payload(en["prs"]); p != nil {
 		res.LinkedPRs = p
-	} else if prs := mergedPRLinks(d.DevLinks, d.Attachments); prs != nil {
+	} else if prs := MergedPRLinks(d.DevLinks, d.Attachments); prs != nil {
 		res.LinkedPRs = prs
 	}
 	if p := payload(en["opinion"]); p != nil {

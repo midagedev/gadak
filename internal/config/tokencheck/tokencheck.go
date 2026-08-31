@@ -82,8 +82,9 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"math"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -375,20 +376,12 @@ func ValidateTokens(overrides, base map[string]string) []Violation {
 
 	// Resolve keys in sorted order so "--color-x" and "x" colliding is
 	// deterministic (last wins, like CSS) and per-token output is sorted.
-	keys := make([]string, 0, len(overrides))
-	for k := range overrides {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
+	keys := slices.Sorted(maps.Keys(overrides))
 	resolved := make(map[string]string, len(overrides))
 	for _, k := range keys {
 		resolved[normalizeTokenName(k)] = overrides[k]
 	}
-	names := make([]string, 0, len(resolved))
-	for n := range resolved {
-		names = append(names, n)
-	}
-	sort.Strings(names)
+	names := slices.Sorted(maps.Keys(resolved))
 
 	var vs []Violation
 	// eff is the effective palette: base with valid overrides applied. Group

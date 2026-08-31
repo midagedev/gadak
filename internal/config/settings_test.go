@@ -243,6 +243,29 @@ func TestSettingSetProjectsNormalizesAndAcceptsEmpty(t *testing.T) {
 	}
 }
 
+func TestSettingGetNeverConfiguredIsEmpty(t *testing.T) {
+	// GDK-1241: a setting the user never configured GETs as [] / {}, not
+	// JSON null — sliceOrEmpty/mapOrEmpty are the whole guarantee, and this
+	// pins the marshaled shape rather than nil-ness (an any holding a nil
+	// slice is not a nil interface).
+	for path, want := range map[string]string{
+		"projects": "[]",
+		"fieldMap": "{}",
+	} {
+		s, ok := SettingByPath(path)
+		if !ok {
+			t.Fatalf("%s not in catalog", path)
+		}
+		got, err := json.Marshal(s.Get(&Config{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(got) != want {
+			t.Errorf("%s GET on never-configured config = %s, want %s", path, got, want)
+		}
+	}
+}
+
 func mustJSONStrings(t *testing.T, keys ...string) []byte {
 	t.Helper()
 	b, err := json.Marshal(keys)

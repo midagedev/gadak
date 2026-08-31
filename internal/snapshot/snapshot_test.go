@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -834,4 +835,75 @@ func logicalHash(t *testing.T, path string) string {
 	}
 	rows.Close()
 	return hex.EncodeToString(h.Sum(nil))
+}
+
+func TestInsertRowNotNullDefaults(t *testing.T) {
+	// GDK-1241: notNullDefaults is the only thing between a source row that
+	// has nothing for a NOT NULL column and a rejected INSERT. The scratch
+	// tables below carry exactly the NOT NULL columns the destination schema
+	// gives no SQLite default — an entry missing from the map fails the
+	// constraint, not a later count.
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	schema := map[string]string{
+		"issues": `CREATE TABLE issues (
+			priority_rank INTEGER NOT NULL, reopen_count INTEGER NOT NULL,
+			comment_count INTEGER NOT NULL, reopen_reason TEXT NOT NULL,
+			cloned_from TEXT NOT NULL, priority_id TEXT NOT NULL)`,
+		"pages": `CREATE TABLE pages (
+			version INTEGER NOT NULL, parent_id TEXT NOT NULL,
+			status TEXT NOT NULL, body_adf TEXT NOT NULL,
+			labels TEXT NOT NULL, excerpt TEXT NOT NULL)`,
+	}
+	want := map[string]map[string]any{
+		"issues": {
+			"priority_rank": 0, "reopen_count": 0, "comment_count": 0,
+			"reopen_reason": "", "cloned_from": "", "priority_id": "",
+		},
+		"pages": {
+			"version": 1, "parent_id": "", "status": "current",
+			"body_adf": "", "labels": "[]", "excerpt": "",
+		},
+	}
+	for table, ddl := range schema {
+		if _, err := db.Exec(ddl); err != nil {
+			t.Fatalf("%s: %v", table, err)
+		}
+		var cols []string
+		for c := range want[table] {
+			cols = append(cols, c)
+		}
+		sort.Strings(cols)
+		tx, err := db.Begin()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := insertRow(tx, table, cols, map[string]any{}); err != nil {
+			tx.Rollback()
+			t.Fatalf("%s: empty source row rejected: %v", table, err)
+		}
+		if err := tx.Commit(); err != nil {
+			t.Fatal(err)
+		}
+		for c, w := range want[table] {
+			var got sql.NullString
+			q := fmt.Sprintf(`SELECT CAST(%s AS TEXT) FROM %s`, c, table)
+			if err := db.QueryRow(q).Scan(&got); err != nil {
+				t.Fatalf("%s.%s: %v", table, c, err)
+			}
+			switch w.(type) {
+			case string:
+				if got.String != w.(string) {
+					t.Errorf("%s.%s = %q, want %q", table, c, got.String, w)
+				}
+			default:
+				if got.String != fmt.Sprint(w) {
+					t.Errorf("%s.%s = %q, want %v", table, c, got.String, w)
+				}
+			}
+		}
+	}
 }

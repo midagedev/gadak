@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"maps"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -464,16 +465,7 @@ func scopeChanged(prev, next *config.Config) bool {
 }
 
 func sameStringSet(a, b []string) bool {
-	ma, mb := stringSet(a), stringSet(b)
-	if len(ma) != len(mb) {
-		return false
-	}
-	for k := range ma {
-		if _, ok := mb[k]; !ok {
-			return false
-		}
-	}
-	return true
+	return maps.Equal(stringSet(a), stringSet(b))
 }
 
 func stringSet(v []string) map[string]struct{} {

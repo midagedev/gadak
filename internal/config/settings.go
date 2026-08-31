@@ -4,9 +4,10 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"path/filepath"
 	"regexp"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -457,11 +458,7 @@ func buildSettings() []Setting {
 					return fmt.Errorf("ui.tokensByTheme must be an object of palette→token map")
 				}
 				byTheme := map[string]*UITokens{}
-				palettes := make([]string, 0, len(in))
-				for p := range in {
-					palettes = append(palettes, p)
-				}
-				sort.Strings(palettes)
+				palettes := slices.Sorted(maps.Keys(in))
 				for _, p := range palettes {
 					t, err := parseThemeTokenOverlay("ui.tokensByTheme."+p, in[p])
 					if err != nil {
@@ -789,7 +786,7 @@ func buildSettings() []Setting {
 			Path:        "projects",
 			Root:        "projects",
 			Description: "Jira project keys to mirror (empty = every project this account can see)",
-			Get:         func(c *Config) any { return strsOrEmpty(c.Projects) },
+			Get:         func(c *Config) any { return sliceOrEmpty(c.Projects) },
 			Set: func(c *Config, raw json.RawMessage) error {
 				v, err := decodeStrings(raw, "projects")
 				if err != nil {
@@ -903,7 +900,7 @@ func buildSettings() []Setting {
 				if c.Confluence == nil {
 					return []string{}
 				}
-				return strsOrEmpty(c.Confluence.Spaces)
+				return sliceOrEmpty(c.Confluence.Spaces)
 			},
 			Set: func(c *Config, raw json.RawMessage) error {
 				v, err := decodeStrings(raw, "confluence.spaces")
@@ -944,7 +941,7 @@ func buildSettings() []Setting {
 			Path:        "fields",
 			Root:        "fields",
 			Description: "discovered/pinned custom-field specs (alias, ids, role, kind)",
-			Get:         func(c *Config) any { return fieldSpecsOrEmpty(c.Fields) },
+			Get:         func(c *Config) any { return sliceOrEmpty(c.Fields) },
 			Set: func(c *Config, raw json.RawMessage) error {
 				var v []FieldSpec
 				if err := json.Unmarshal(raw, &v); err != nil {
@@ -958,7 +955,7 @@ func buildSettings() []Setting {
 			Path:        "fieldMap",
 			Root:        "fieldMap",
 			Description: "legacy alias→custom-field id map; LoadFor synthesizes into fields and clears it (set refuses — use fields)",
-			Get:         func(c *Config) any { return stringMapOrEmpty(c.FieldMap) },
+			Get:         func(c *Config) any { return mapOrEmpty(c.FieldMap) },
 			Set: func(*Config, json.RawMessage) error {
 				return fmt.Errorf(`use "fields" instead — fieldMap is a legacy shape that is migrated away on the next load`)
 			},
@@ -967,7 +964,7 @@ func buildSettings() []Setting {
 			Path:        "bodyFields",
 			Root:        "bodyFields",
 			Description: "ADF custom-field ids folded into full-text search",
-			Get:         func(c *Config) any { return strsOrEmpty(c.BodyFields) },
+			Get:         func(c *Config) any { return sliceOrEmpty(c.BodyFields) },
 			Set: func(c *Config, raw json.RawMessage) error {
 				v, err := decodeStrings(raw, "bodyFields")
 				if err != nil {
@@ -981,7 +978,7 @@ func buildSettings() []Setting {
 			Path:        "editableFields",
 			Root:        "editableFields",
 			Description: "legacy alias→field id write allowlist; LoadFor overlays onto fields and clears it (set refuses — use fields)",
-			Get:         func(c *Config) any { return stringMapOrEmpty(c.EditableFields) },
+			Get:         func(c *Config) any { return mapOrEmpty(c.EditableFields) },
 			Set: func(*Config, json.RawMessage) error {
 				return fmt.Errorf(`use "fields" instead — editableFields is a legacy shape that is migrated away on the next load`)
 			},
@@ -990,7 +987,7 @@ func buildSettings() []Setting {
 			Path:        "members",
 			Root:        "members",
 			Description: "static member directory (email, name, group, …)",
-			Get:         func(c *Config) any { return membersOrEmpty(c.Members) },
+			Get:         func(c *Config) any { return sliceOrEmpty(c.Members) },
 			Set: func(c *Config, raw json.RawMessage) error {
 				var v []Member
 				if err := json.Unmarshal(raw, &v); err != nil {
@@ -1004,7 +1001,7 @@ func buildSettings() []Setting {
 			Path:        "groupRules",
 			Root:        "groupRules",
 			Description: "first-match group classification rules",
-			Get:         func(c *Config) any { return rulesOrEmpty(c.GroupRules) },
+			Get:         func(c *Config) any { return sliceOrEmpty(c.GroupRules) },
 			Set: func(c *Config, raw json.RawMessage) error {
 				var v []GroupRule
 				if err := json.Unmarshal(raw, &v); err != nil {
@@ -1036,7 +1033,7 @@ func buildSettings() []Setting {
 			Path:        "groupLabels",
 			Root:        "groupLabels",
 			Description: "group key → display label",
-			Get:         func(c *Config) any { return stringMapOrEmpty(c.GroupLabels) },
+			Get:         func(c *Config) any { return mapOrEmpty(c.GroupLabels) },
 			Set: func(c *Config, raw json.RawMessage) error {
 				v, err := decodeStringMap(raw, "groupLabels")
 				if err != nil {
@@ -1050,7 +1047,7 @@ func buildSettings() []Setting {
 			Path:        "groupColors",
 			Root:        "groupColors",
 			Description: "group key → hex color",
-			Get:         func(c *Config) any { return stringMapOrEmpty(c.GroupColors) },
+			Get:         func(c *Config) any { return mapOrEmpty(c.GroupColors) },
 			Set: func(c *Config, raw json.RawMessage) error {
 				v, err := decodeStringMap(raw, "groupColors")
 				if err != nil {
@@ -1064,7 +1061,7 @@ func buildSettings() []Setting {
 			Path:        "productByGroup",
 			Root:        "productByGroup",
 			Description: "group key → {key, label} product bucket",
-			Get:         func(c *Config) any { return productsOrEmpty(c.ProductByGroup) },
+			Get:         func(c *Config) any { return mapOrEmpty(c.ProductByGroup) },
 			Set: func(c *Config, raw json.RawMessage) error {
 				var v map[string]Product
 				if err := json.Unmarshal(raw, &v); err != nil {
@@ -1168,7 +1165,7 @@ func uiTokenAxisSetting(axis string) Setting {
 			"(token names: %s; %s)",
 			axis, uiTokenAxisExamples[axis], axis, discovery, rules),
 		Get: func(c *Config) any {
-			return stringMapOrEmpty(uiTokenAxisMap(uiTokensOf(c), axis))
+			return mapOrEmpty(uiTokenAxisMap(uiTokensOf(c), axis))
 		},
 		Set: func(c *Config, raw json.RawMessage) error {
 			patch, err := parseUITokenAxisPatch(path, raw)
@@ -1435,7 +1432,7 @@ func getConfluence(c *Config) any {
 	if c.Confluence == nil {
 		return map[string]any{"enabled": false, "spaces": []string{}}
 	}
-	return map[string]any{"enabled": true, "spaces": strsOrEmpty(c.Confluence.Spaces)}
+	return map[string]any{"enabled": true, "spaces": sliceOrEmpty(c.Confluence.Spaces)}
 }
 
 func setConfluence(c *Config, raw json.RawMessage) error {
@@ -1489,44 +1486,18 @@ func decodeStringMap(raw json.RawMessage, path string) (map[string]string, error
 	return v, nil
 }
 
-func strsOrEmpty(v []string) []string {
+// sliceOrEmpty and mapOrEmpty are the GET-side nil→empty pair: a setting the
+// user never configured must marshal as [] / {}, not null.
+func sliceOrEmpty[T any](v []T) []T {
 	if v == nil {
-		return []string{}
+		return []T{}
 	}
 	return v
 }
 
-func stringMapOrEmpty(v map[string]string) map[string]string {
+func mapOrEmpty[K comparable, V any](v map[K]V) map[K]V {
 	if v == nil {
-		return map[string]string{}
-	}
-	return v
-}
-
-func fieldSpecsOrEmpty(v []FieldSpec) []FieldSpec {
-	if v == nil {
-		return []FieldSpec{}
-	}
-	return v
-}
-
-func membersOrEmpty(v []Member) []Member {
-	if v == nil {
-		return []Member{}
-	}
-	return v
-}
-
-func rulesOrEmpty(v []GroupRule) []GroupRule {
-	if v == nil {
-		return []GroupRule{}
-	}
-	return v
-}
-
-func productsOrEmpty(v map[string]Product) map[string]Product {
-	if v == nil {
-		return map[string]Product{}
+		return map[K]V{}
 	}
 	return v
 }
@@ -1560,12 +1531,7 @@ func dimDiscoveryNames() map[string][]string {
 		return out
 	}
 	for _, ax := range file.Axes {
-		names := make([]string, 0, len(ax.Tokens))
-		for name := range ax.Tokens {
-			names = append(names, name)
-		}
-		sort.Strings(names)
-		out[ax.ID] = names
+		out[ax.ID] = slices.Sorted(maps.Keys(ax.Tokens))
 	}
 	return out
 }
