@@ -181,13 +181,15 @@ test.describe('GDK-1175 status board', () => {
 
     // Take a card that is not already in the column we are going to move it
     // to, so "it moved" cannot be true before the delta lands.
-    const source = page
+    const sources = page
       .locator('[data-board-column="new"] [data-board-key], [data-board-column="inprogress"] [data-board-key]')
-      .first()
-    await expect(source).toBeVisible()
-    const key = (await source.getAttribute('data-board-key')) ?? ''
+    await expect(sources.first()).toBeVisible()
+    const key = (await sources.nth(0).getAttribute('data-board-key')) ?? ''
+    const key2 = (await sources.nth(1).getAttribute('data-board-key')) ?? ''
     expect(key, 'a board card must carry its issue key').not.toBe('')
+    expect(key2, 'the burst needs a second movable card').not.toBe('')
     expect(rig.rowFor(key), 'the moved row must be a real bootstrap row').not.toBeNull()
+    expect(rig.rowFor(key2), 'the second moved row must be a real bootstrap row').not.toBeNull()
     await expect(columnOf(page, key)).toHaveAttribute('data-board-column', /new|inprogress/)
 
     // GDK-1254: park the Done column somewhere of the person's own choosing
@@ -214,11 +216,22 @@ test.describe('GDK-1175 status board', () => {
       '1',
     )
 
-    // The ring needed the scroll; the person owns it. Once the landing ring
-    // expires the column returns to where it was parked (GDK-1254) — not to
-    // 400 on the nose, because the card landing above the parked region makes
-    // the browser's scroll anchoring restate the same view as a larger number
-    // (measured 461 here). Without the give-back the column sits at the
+    // A second write lands while the first ring is still up (GDK-1254's
+    // filmed failure was exactly this burst): the loan must extend, not
+    // fork — per-run bookkeeping mistook the first nudge's scroll for the
+    // person's and never gave anything back.
+    rig.move(key2, 'done')
+    await expect(columnOf(page, key2), 'the second card must land too').toHaveAttribute(
+      'data-board-column',
+      'done',
+      { timeout: 5_000 },
+    )
+
+    // The rings needed the scroll; the person owns it. Once the last ring
+    // expires the column returns to where it was parked — not to 400 on the
+    // nose, because cards landing above the parked region make the browser's
+    // scroll anchoring restate the same view as a larger number (measured
+    // 461 for one landing). Without the give-back the column sits at the
     // landing (measured 4), so "at least the parked offset" is the contract.
     await expect
       .poll(() => doneScroller.evaluate((el) => el.scrollTop), { timeout: 8_000 })
