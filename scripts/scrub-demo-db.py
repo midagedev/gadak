@@ -232,6 +232,30 @@ def main() -> int:
         print("items_fts lost the cjk_bigram column in the portable rebuild", file=sys.stderr)
         return 1
 
+    # e2e/person.spec.ts opens both kinds of comment from one person's panel,
+    # and the panel loads the newest 50 (CommentsByAuthorDefaultLimit). The
+    # snapshot re-dates comments, so whether a page comment survives inside
+    # that window is regen luck — one regen pushed Alex Kim's first page
+    # comment from rank 46 to 88 and only CI noticed. Pin the premise instead:
+    # his newest page comment gets re-dated next to his newest comment.
+    newest = con.execute(
+        "SELECT MAX(c.created_at) FROM comments c WHERE c.author = 'Alex Kim'"
+    ).fetchone()[0]
+    if newest:
+        con.execute(
+            """
+            UPDATE comments SET created_at = datetime(?, '-1 minute')
+            WHERE rowid = (
+              SELECT c.rowid FROM comments c
+              JOIN items it ON it.id = c.item_id
+              WHERE c.author = 'Alex Kim' AND it.kind = 'page'
+              ORDER BY c.created_at DESC LIMIT 1
+            )
+            """,
+            (newest,),
+        )
+        con.commit()
+
     leftovers = 0
     for table in tables:
         cols = con.execute(f"PRAGMA table_info({table})").fetchall()

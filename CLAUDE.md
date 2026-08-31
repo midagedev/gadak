@@ -140,6 +140,11 @@ hard-won 목록)와 `AGENTS.md`(스키마·쿼리)가 원본이다.
   `npm install --package-lock-only`로 바뀐 의존성만 갱신한다.
 - 데모 fixture는 `examples/demo.db`(이슈 534). 수치를 문서에 박을 때는
   실측 후, 가능하면 숫자 자체를 빼라.
+- **미러 스키마 마이그레이션(schemaVNN)을 추가한 커밋은 `make demo-fixture`가
+  게이트다** — e2e serve가 fixture의 user_version 불일치를 거절해서, go 전체
+  초록인 채 CI e2e만 빨갛다(2026-08-31: schemaV40이 정확히 이 경로로 074c9dcd
+  를 적색으로 만들었다 — 로컬에서 스키마 커밋에 Playwright를 건너뛴 것이 원인).
+  재생성은 항상 make 타깃으로(스크럽 생략 금지), 재생성 뒤 Playwright 전체.
 
 ## 배포·이름
 
