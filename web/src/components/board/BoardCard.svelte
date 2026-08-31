@@ -39,9 +39,14 @@
   const active = $derived(selection.selectedKey === issue.issue_key)
 
   /* At most two actors: the point is "an agent is on this", not a roster.
-   * `actor_ids` are account ids — the member catalog owns the names. */
+   * `actor_ids` are account ids — the member catalog owns the names. The id
+   * stays on as the render key: names are not unique (every deleted account
+   * resolves to the same "Former user" string, and one such card took the
+   * whole board down through the keyed each — GDK-1218). */
   const actors = $derived(
-    (issue.actor_ids ?? []).slice(0, 2).map((id) => issues.memberOfAccountId(id)?.name ?? id),
+    (issue.actor_ids ?? [])
+      .slice(0, 2)
+      .map((id) => ({ id, name: issues.memberOfAccountId(id)?.name ?? id })),
   )
   const extraActors = $derived(Math.max(0, (issue.actor_ids ?? []).length - actors.length))
 
@@ -158,13 +163,13 @@
 
   {#if actors.length || issue.assignee}
     <div class="mt-1.5 flex items-center gap-1">
-      {#each actors as name (name)}
+      {#each actors as actor (actor.id)}
         <span
           data-testid="board-actor"
           class="board-actor max-w-[92px] truncate rounded bg-bg-elevated px-1 py-px text-micro font-medium text-text-muted"
-          title={name}
+          title={actor.name}
         >
-          {name}
+          {actor.name}
         </span>
       {/each}
       {#if extraActors}
