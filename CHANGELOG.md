@@ -2,6 +2,73 @@
 
 <sub>English · <a href="CHANGELOG.ko.md">한국어</a></sub>
 
+## v0.19.0 — 2026-09-01
+
+The release where the issues stand up as a board, and the terminal takes
+its Beta mark off.
+
+**The board.** The list you already filter is now also a board: one toggle
+lays the same issues across columns — same filters, same thirteen grouping
+axes, same search. Dragging a card is a real transition, with a menu when
+more than one status matches; a move made anywhere else — another window,
+an agent's `gadak transition` — flies across the board with a landing ring,
+because on this screen the movement is the only evidence it happened. The
+three status columns are always all three: "Done is empty" is an answer,
+not a missing column ([GDK-1175], [GDK-1176], [GDK-1190]). And a view can
+say it is a board: saved in board layout it reopens as one — from the app,
+and from the CLI: `gadak views save "Sprint board" --jql '…' --layout
+board`, with `views open` carrying the layout in the deeplink ([GDK-1248]).
+
+**The terminal takes its Beta mark off** ([GDK-1024]) — and its sessions
+belong to issues. `gadak claim` in a pane's shell binds that session to the
+issue, and the tab wears the issue key ([GDK-1158]). A command in an
+issue's body gets a ▶ that places it at that issue's shell prompt; the
+board card and the ⌘K palette both open an issue's session ([GDK-1196],
+[GDK-1197]). The pane lies down as a dock under the whole row, its chrome
+is one row, and a tab can end its session ([GDK-1194], [GDK-1199],
+[GDK-1200]). A focused terminal is no longer a keyboard trap either:
+`Ctrl+Shift+[` and `]` walk the sessions, `` Ctrl+Shift+` `` steps out
+without closing anything, and `Ctrl+Shift+O` opens the session's issue
+([GDK-1250], [GDK-1251]).
+
+**The phone holds more than one home.** A host roster with per-host caches
+switches between paired machines; workspaces can be created and removed
+from the web and the CLI; a bundled demo workspace shows every surface with
+zero pairing. A glance strip answers "what moved while I was away", and the
+terminal scrolls under a finger ([GDK-1097], [GDK-1096], [GDK-1098],
+[GDK-1051], [GDK-871], [GDK-899]).
+
+**The CLI learned the verbs sessions actually type.** `gadak list`, `next`,
+`show`, `done`, `recent`, `pick` — measured against what blind sessions
+reached for — plus `memory add`/`memory search` for agent notes,
+`edit --type` to refile a misfiled issue, `unlink` (the reverse verb `link`
+never had), and `workspaces rm`. A write confirms itself, and `edit -m`
+refuses to silently flatten a formatted description ([GDK-992], [GDK-1030],
+[GDK-1205], [GDK-1098], [GDK-1001]).
+
+**Refusals got louder, writes got safer.** A JQL clause the mirror's subset
+cannot express is refused out loud instead of silently widening the list
+([GDK-1234]). Config and credential saves go through one atomic
+stage-then-rename owner, so two saves can no longer torch each other
+([GDK-1233], [GDK-1244]). A desktop boot that fails before the window opens
+says so in a dialog instead of exiting silently ([GDK-1243]), and Linear
+assignee edits go through the same write surface the UI advertises
+([GDK-1235]).
+
+**Sync got faster on quiet mirrors.** Jira incremental answers
+overlap-window echoes from the mirror instead of refetching them, and
+Confluence incremental asks one CQL pair per tick and stops re-reading
+bodies whose comments have not moved ([GDK-1075], [GDK-1074]).
+
+Also: pairing offers render as a scannable QR and the desktop gets a
+Devices tab ([GDK-1047]); the update dialog announces the version and
+points at the release page instead of dumping raw markdown ([GDK-1246]); a
+standalone workspace stops offering a Jira credential dialog that cannot
+help it ([GDK-1122]); and the installed agent skill follows the binary,
+once a day ([GDK-996]).
+
+A full-codebase audit ran before this tag — parent [GDK-1128].
+
 ## v0.18.1 — 2026-08-26
 
 The patch where the terminal learned to clean up after itself, written the
@@ -1049,3 +1116,38 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-867]: https://gadak.dev/backlog/#/?ks=GDK-867
 [GDK-870]: https://gadak.dev/backlog/#/?ks=GDK-870
 [GDK-879]: https://gadak.dev/backlog/#/?ks=GDK-879
+[GDK-1175]: https://gadak.dev/backlog/#/?ks=GDK-1175
+[GDK-1176]: https://gadak.dev/backlog/#/?ks=GDK-1176
+[GDK-1190]: https://gadak.dev/backlog/#/?ks=GDK-1190
+[GDK-1248]: https://gadak.dev/backlog/#/?ks=GDK-1248
+[GDK-1024]: https://gadak.dev/backlog/#/?ks=GDK-1024
+[GDK-1158]: https://gadak.dev/backlog/#/?ks=GDK-1158
+[GDK-1196]: https://gadak.dev/backlog/#/?ks=GDK-1196
+[GDK-1197]: https://gadak.dev/backlog/#/?ks=GDK-1197
+[GDK-1194]: https://gadak.dev/backlog/#/?ks=GDK-1194
+[GDK-1199]: https://gadak.dev/backlog/#/?ks=GDK-1199
+[GDK-1200]: https://gadak.dev/backlog/#/?ks=GDK-1200
+[GDK-1250]: https://gadak.dev/backlog/#/?ks=GDK-1250
+[GDK-1251]: https://gadak.dev/backlog/#/?ks=GDK-1251
+[GDK-1097]: https://gadak.dev/backlog/#/?ks=GDK-1097
+[GDK-1096]: https://gadak.dev/backlog/#/?ks=GDK-1096
+[GDK-1098]: https://gadak.dev/backlog/#/?ks=GDK-1098
+[GDK-1051]: https://gadak.dev/backlog/#/?ks=GDK-1051
+[GDK-871]: https://gadak.dev/backlog/#/?ks=GDK-871
+[GDK-899]: https://gadak.dev/backlog/#/?ks=GDK-899
+[GDK-992]: https://gadak.dev/backlog/#/?ks=GDK-992
+[GDK-1030]: https://gadak.dev/backlog/#/?ks=GDK-1030
+[GDK-1205]: https://gadak.dev/backlog/#/?ks=GDK-1205
+[GDK-1001]: https://gadak.dev/backlog/#/?ks=GDK-1001
+[GDK-1234]: https://gadak.dev/backlog/#/?ks=GDK-1234
+[GDK-1233]: https://gadak.dev/backlog/#/?ks=GDK-1233
+[GDK-1244]: https://gadak.dev/backlog/#/?ks=GDK-1244
+[GDK-1243]: https://gadak.dev/backlog/#/?ks=GDK-1243
+[GDK-1235]: https://gadak.dev/backlog/#/?ks=GDK-1235
+[GDK-1075]: https://gadak.dev/backlog/#/?ks=GDK-1075
+[GDK-1074]: https://gadak.dev/backlog/#/?ks=GDK-1074
+[GDK-1047]: https://gadak.dev/backlog/#/?ks=GDK-1047
+[GDK-1246]: https://gadak.dev/backlog/#/?ks=GDK-1246
+[GDK-1122]: https://gadak.dev/backlog/#/?ks=GDK-1122
+[GDK-996]: https://gadak.dev/backlog/#/?ks=GDK-996
+[GDK-1128]: https://gadak.dev/backlog/#/?ks=GDK-1128

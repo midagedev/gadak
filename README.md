@@ -130,7 +130,7 @@ mirror trails Jira by one sync interval.
 
 </details>
 
-> **Status: 0.18, still 0.x.** Sync, read API, write-through, desktop, web, CLI, and MCP are verified against a live site. [`CHANGELOG.md`](CHANGELOG.md).
+> **Status: 0.19, still 0.x.** Sync, read API, write-through, desktop, web, CLI, and MCP are verified against a live site. [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Why
 

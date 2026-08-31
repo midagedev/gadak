@@ -1,6 +1,69 @@
 # Changelog
 
-<sub><a href="CHANGELOG.md">English</a> · 한국어 — 영문이 원본이며, 번역은 영문과 함께 갱신됩니다(마지막 동기화 2026-08-26).</sub>
+<sub><a href="CHANGELOG.md">English</a> · 한국어 — 영문이 원본이며, 번역은 영문과 함께 갱신됩니다(마지막 동기화 2026-09-01).</sub>
+
+## v0.19.0 — 2026-09-01
+
+이슈가 보드로 일어서고, 터미널이 베타 딱지를 떼는 릴리스입니다.
+
+**보드.** 늘 필터하던 그 리스트가 이제 보드이기도 합니다: 토글 하나로 같은
+이슈들이 컬럼으로 눕습니다 — 같은 필터, 같은 13개 그룹 축, 같은 검색.
+카드를 끌면 진짜 전환이고(대상 상태가 여럿이면 메뉴가 묻습니다), 다른
+곳에서 일어난 이동은 — 다른 창이든, 에이전트의 `gadak transition`이든 —
+착지 링과 함께 보드를 가로질러 날아옵니다. 이 화면에서는 움직임이 그 일이
+일어났다는 유일한 증거이기 때문입니다. 상태 컬럼 셋은 항상 셋입니다:
+"Done이 비어 있다"는 없어진 컬럼이 아니라 대답입니다 ([GDK-1175],
+[GDK-1176], [GDK-1190]). 그리고 뷰는 자신이 보드임을 말할 수 있습니다:
+보드 레이아웃으로 저장한 뷰는 보드로 다시 열립니다 — 앱에서도, CLI에서도:
+`gadak views save "Sprint board" --jql '…' --layout board`, 딥링크도
+레이아웃을 싣습니다 ([GDK-1248]).
+
+**터미널이 베타 딱지를 뗍니다** ([GDK-1024]) — 그리고 세션은 이슈의
+것입니다. 패널의 셸에서 `gadak claim`을 치면 그 세션이 이슈에 묶이고, 탭이
+이슈 키를 답니다 ([GDK-1158]). 이슈 본문의 명령에는 ▶가 붙어 그 이슈의 셸
+프롬프트에 명령을 놓아 주고, 보드 카드와 ⌘K 팔레트 둘 다 이슈의 세션을
+엽니다 ([GDK-1196], [GDK-1197]). 패널은 행 전체 아래 독으로 눕고, 크롬은 한
+줄이며, 탭에서 세션을 끝낼 수 있습니다 ([GDK-1194], [GDK-1199],
+[GDK-1200]). 포커스된 터미널이 더는 키보드의 함정이 아닙니다:
+`Ctrl+Shift+[` 와 `]` 로 세션을 오가고, `` Ctrl+Shift+` `` 는 아무것도 닫지
+않고 빠져나오며, `Ctrl+Shift+O` 는 그 세션의 이슈를 엽니다 ([GDK-1250],
+[GDK-1251]).
+
+**폰이 집을 여러 개 가집니다.** 호스트마다 캐시를 가진 로스터로 페어링된
+머신들을 오가고, 워크스페이스는 웹과 CLI에서 만들고 지웁니다. 페어링 없이
+모든 화면을 보여주는 내장 데모 워크스페이스가 실렸고, "자리 비운 사이 뭐가
+움직였나"는 글랜스 스트립이 답하며, 터미널은 손가락으로 스크롤됩니다
+([GDK-1097], [GDK-1096], [GDK-1098], [GDK-1051], [GDK-871], [GDK-899]).
+
+**CLI가 세션들이 실제로 치는 동사를 배웠습니다.** `gadak list`, `next`,
+`show`, `done`, `recent`, `pick` — 블라인드 세션들이 뻗은 손을 실측해서
+고른 동사들 — 에 더해 에이전트 노트용 `memory add`/`memory search`, 잘못
+분류된 이슈를 옮기는 `edit --type`, `link`에 늘 없던 역동사 `unlink`,
+그리고 `workspaces rm`. 쓰기는 스스로를 확인해 주고, `edit -m`은 서식 있는
+본문을 소리 없이 평문으로 뭉개기를 거부합니다 ([GDK-992], [GDK-1030],
+[GDK-1205], [GDK-1098], [GDK-1001]).
+
+**거절은 시끄러워지고, 쓰기는 안전해졌습니다.** 미러의 부분집합이 표현할 수
+없는 JQL 절은 목록을 조용히 넓히는 대신 소리 내어 거절됩니다 ([GDK-1234]).
+설정·자격증명 저장은 하나의 원자적 stage-then-rename 소유자를 거치므로 두
+저장이 서로를 태워 먹을 수 없습니다 ([GDK-1233], [GDK-1244]). 창이 뜨기
+전에 실패한 데스크톱 부팅은 조용히 종료하는 대신 대화상자로 말하고
+([GDK-1243]), Linear 담당자 수정은 UI가 광고하는 것과 같은 쓰기 표면을
+지납니다 ([GDK-1235]).
+
+**조용한 미러에서 동기화가 빨라졌습니다.** Jira 증분은 겹침 창의 메아리를
+다시 받아오는 대신 미러에서 답하고, Confluence 증분은 틱마다 CQL 한 쌍만
+물으며 코멘트가 움직이지 않은 본문을 다시 읽지 않습니다 ([GDK-1075],
+[GDK-1074]).
+
+그밖에: 페어링 제안이 스캔 가능한 QR로 그려지고 데스크톱에 기기 탭이
+생겼습니다 ([GDK-1047]); 업데이트 대화상자는 마크다운 원문을 쏟아붓는 대신
+버전을 알리고 릴리스 페이지를 가리킵니다 ([GDK-1246]); 스탠드얼론
+워크스페이스는 도움이 될 수 없는 Jira 자격증명 대화상자를 팔지 않습니다
+([GDK-1122]); 설치된 에이전트 스킬은 하루 한 번 바이너리를 따라갑니다
+([GDK-996]).
+
+이 태그 전에 전체 코드베이스 감사가 한 번 돌았습니다 — 부모 [GDK-1128].
 
 ## v0.18.1 — 2026-08-26
 
@@ -1001,3 +1064,38 @@ HTTP·sync·에이전트 계약.
 [GDK-867]: https://gadak.dev/backlog/#/?ks=GDK-867
 [GDK-870]: https://gadak.dev/backlog/#/?ks=GDK-870
 [GDK-879]: https://gadak.dev/backlog/#/?ks=GDK-879
+[GDK-1175]: https://gadak.dev/backlog/#/?ks=GDK-1175
+[GDK-1176]: https://gadak.dev/backlog/#/?ks=GDK-1176
+[GDK-1190]: https://gadak.dev/backlog/#/?ks=GDK-1190
+[GDK-1248]: https://gadak.dev/backlog/#/?ks=GDK-1248
+[GDK-1024]: https://gadak.dev/backlog/#/?ks=GDK-1024
+[GDK-1158]: https://gadak.dev/backlog/#/?ks=GDK-1158
+[GDK-1196]: https://gadak.dev/backlog/#/?ks=GDK-1196
+[GDK-1197]: https://gadak.dev/backlog/#/?ks=GDK-1197
+[GDK-1194]: https://gadak.dev/backlog/#/?ks=GDK-1194
+[GDK-1199]: https://gadak.dev/backlog/#/?ks=GDK-1199
+[GDK-1200]: https://gadak.dev/backlog/#/?ks=GDK-1200
+[GDK-1250]: https://gadak.dev/backlog/#/?ks=GDK-1250
+[GDK-1251]: https://gadak.dev/backlog/#/?ks=GDK-1251
+[GDK-1097]: https://gadak.dev/backlog/#/?ks=GDK-1097
+[GDK-1096]: https://gadak.dev/backlog/#/?ks=GDK-1096
+[GDK-1098]: https://gadak.dev/backlog/#/?ks=GDK-1098
+[GDK-1051]: https://gadak.dev/backlog/#/?ks=GDK-1051
+[GDK-871]: https://gadak.dev/backlog/#/?ks=GDK-871
+[GDK-899]: https://gadak.dev/backlog/#/?ks=GDK-899
+[GDK-992]: https://gadak.dev/backlog/#/?ks=GDK-992
+[GDK-1030]: https://gadak.dev/backlog/#/?ks=GDK-1030
+[GDK-1205]: https://gadak.dev/backlog/#/?ks=GDK-1205
+[GDK-1001]: https://gadak.dev/backlog/#/?ks=GDK-1001
+[GDK-1234]: https://gadak.dev/backlog/#/?ks=GDK-1234
+[GDK-1233]: https://gadak.dev/backlog/#/?ks=GDK-1233
+[GDK-1244]: https://gadak.dev/backlog/#/?ks=GDK-1244
+[GDK-1243]: https://gadak.dev/backlog/#/?ks=GDK-1243
+[GDK-1235]: https://gadak.dev/backlog/#/?ks=GDK-1235
+[GDK-1075]: https://gadak.dev/backlog/#/?ks=GDK-1075
+[GDK-1074]: https://gadak.dev/backlog/#/?ks=GDK-1074
+[GDK-1047]: https://gadak.dev/backlog/#/?ks=GDK-1047
+[GDK-1246]: https://gadak.dev/backlog/#/?ks=GDK-1246
+[GDK-1122]: https://gadak.dev/backlog/#/?ks=GDK-1122
+[GDK-996]: https://gadak.dev/backlog/#/?ks=GDK-996
+[GDK-1128]: https://gadak.dev/backlog/#/?ks=GDK-1128
