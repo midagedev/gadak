@@ -461,7 +461,7 @@ func initStandalone(cfg *config.Config, jsonOut bool, projectsFlag string) error
 	// A fill that fails does not fail init (the contract moved with the core,
 	// see originbind.SeedStandalone): the workspace exists, its persist file
 	// is written, and writes already work — the next `gadak sync` fixes it.
-	fillErr, err := originbind.SeedStandalone(cfg, projectsFlag, func() (*store.DB, func() error, error) {
+	fillErr, err := originbind.SeedStandalone(cfg, projectsFlag, nil, func() (*store.DB, func() error, error) {
 		db, err := openStore()
 		if err != nil {
 			return nil, nil, err

@@ -121,7 +121,7 @@ func CreateHandler() http.HandlerFunc {
 			}
 			return db, db.Close, nil
 		}
-		fillErr, err := originbind.SeedStandalone(cfg, in.Projects, openMirror)
+		fillErr, err := originbind.SeedStandalone(cfg, in.Projects, nil, openMirror)
 		if err != nil {
 			log.Printf("workspaces: create %s: seed: %v", in.Name, err)
 			manageFail(w, http.StatusInternalServerError, "create_failed")

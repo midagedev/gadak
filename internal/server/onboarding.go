@@ -213,7 +213,7 @@ func (s *server) handleStandaloneInit(w http.ResponseWriter, r *http.Request) {
 	sess := func() (*store.DB, func() error, error) {
 		return s.db, func() error { return nil }, nil
 	}
-	fillErr, err := originbind.SeedStandalone(&next, in.Projects, sess)
+	fillErr, err := originbind.SeedStandalone(&next, in.Projects, nil, sess)
 	if err != nil {
 		serverError(w, r, err)
 		return

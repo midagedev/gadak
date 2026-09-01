@@ -693,6 +693,15 @@ var helps = map[string]cmdHelp{
 		},
 		seeAlso: []string{"gadak page", "gadak search", "gadak open"},
 	},
+	"migrate": {
+		summary: "export a workspace's mirror into a new standalone workspace — issues, comments, history, links, attachments, and wiki pages leave with you; ends with a source-vs-migrated count report",
+		usage:   "gadak --workspace <new name> migrate --from <workspace> [--projects A,B] [--spaces X,Y] [--skip-attachments] [--json]",
+		examples: []string{
+			"gadak --workspace local migrate --from work --projects GDK",
+			"gadak --workspace local migrate --from work --skip-attachments",
+		},
+		seeAlso: []string{"gadak init", "gadak workspaces", "gadak sync"},
+	},
 	"memory": {
 		summary: "agent memory — leave a note the next session can find (a page in the memory space), and search just those notes; the right verb for \"leave it so the next session finds it\"",
 		usage: "gadak [--workspace <name>] memory add <text> | -m <text|-> [--title T] [--json]\n" +

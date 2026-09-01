@@ -58,7 +58,11 @@ type MirrorOpener func() (db *store.DB, release func() error, err error)
 //
 // The origin flush (origin.Close) is deliberately NOT here: it is the CLI
 // process-exit path. A serve holds the origin session for its lifetime.
-func SeedStandalone(cfg *config.Config, projectsCSV string, openMirror MirrorOpener) (fillErr error, err error) {
+//
+// spaces is the wiki space set the workspace syncs; nil keeps the seeded
+// default (LOC). migrate passes the space keys its fixture carries, so the
+// first fill mirrors them instead of a space the fixture does not contain.
+func SeedStandalone(cfg *config.Config, projectsCSV string, spaces []string, openMirror MirrorOpener) (fillErr error, err error) {
 	cfg.Kind = config.KindStandalone
 	cfg.Site = ""
 	cfg.Email = ""
@@ -68,7 +72,11 @@ func SeedStandalone(cfg *config.Config, projectsCSV string, openMirror MirrorOpe
 	cfg.TokenExpiresAt = ""
 	cfg.TokenExpirySource = ""
 	cfg.AccountID = ""
-	cfg.Confluence = origin.DefaultConfluenceConfig()
+	if len(spaces) > 0 {
+		cfg.Confluence = &config.ConfluenceConfig{Spaces: append([]string{}, spaces...)}
+	} else {
+		cfg.Confluence = origin.DefaultConfluenceConfig()
+	}
 	if projectsCSV != "" {
 		cfg.Projects = ParseProjectKeys(projectsCSV)
 	}

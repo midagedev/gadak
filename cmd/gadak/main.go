@@ -44,8 +44,9 @@ func openStore() (*store.DB, error) {
 // directory (init writes config; serve is the onboarding path). Every other
 // command errors if --profile / GADAK_PROFILE names a missing directory (D3).
 var profileCreateOK = map[string]bool{
-	"init":  true,
-	"serve": true,
+	"init":    true,
+	"serve":   true,
+	"migrate": true, // fills a brand-new workspace from another one's mirror
 }
 
 // profileIndependent commands never read or create a profile directory, so a
@@ -214,6 +215,8 @@ Writing through to the workspace origin — ` + writeThroughOriginPhrase + `:
   wiki       alias of page                get <ID> | list | create|edit|comment [<ID>]
   memory     agent memory: leave notes the next session finds   add <text> | -m <text|-> [--title T] [--json]
                    | search <query> [--limit N] [--json]  (space: gadak config set memory.space KEY)
+  migrate    export a workspace's mirror into a new standalone workspace (issues, wiki, attachments, history)
+                   --from <workspace> [--projects A,B] [--spaces X,Y] [--skip-attachments] [--json]
   project    grow a standalone workspace by a project  create <KEY> [--name N] [--json]
   dev        record PRs, deployments, and builds on issues (standalone)
                    link <KEY> --pr <url> [--status ...] | scan [--dry-run] [--install-hook]
@@ -420,6 +423,7 @@ var commands = map[string]func([]string) error{
 	"list":            cmdList,
 	"mcp":             cmdMCP,
 	"memory":          cmdMemory,
+	"migrate":         cmdMigrate,
 	"next":            cmdNext,
 	"pick":            cmdNext, // GDK-992: CHANGELOG v0.17 advertises this verb; alias of next
 	"open":            cmdOpen,
