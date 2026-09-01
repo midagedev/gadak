@@ -56,7 +56,8 @@
         <span class="font-mono text-text-primary">{runtime.profile}</span>
         {#if localOrigin}
           <!-- Same status-pill classes as IntegrationsTab's install-state chip.
-               data-kind=local-origin is a new case, not a borrowed enum. -->
+               data-kind carries the stored kind value ("standalone"), not the
+               GDK-1278 vocabulary — it is a DOM contract e2e reads. -->
           <span
             class="inline-flex items-center gap-1.5 rounded-full border border-border-subtle px-1.5 py-0.5 text-micro text-text-secondary"
             data-testid="workspace-kind"

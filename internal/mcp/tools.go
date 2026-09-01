@@ -74,7 +74,7 @@ names. Jira localizes status.name and issuetype.name per account, so
 
 Only SELECT or WITH is allowed. Results are capped (default 200 rows, hard max
 1000; response also byte-capped). When truncated, the result says so — tighten
-LIMIT or columns and retry. Never write to this database; writes go through the origin (Jira, another machine's serve, or the built-in local-origin tracker).
+LIMIT or columns and retry. Never write to this database; writes go through the origin (Jira, another machine's serve, or gadak's own built-in tracker).
 
 Examples:
 1) Open work for someone, most urgent first:
@@ -125,9 +125,11 @@ several (same document shape, wrapped as {"issues":[…], "missing"?:[…]}).
 Use when you need the whole conversation around a key.`
 
 const toolStatusDescription = `Return mirror freshness: watermark, version, last_error, last_full_sync_at,
-schema_version, row counts (issues, comments), the workspace kind
-(connected|localOrigin) with its origin, and frozen (sync is paused when true).
-A paired workspace is kind connected plus a pairing object (endpoint, label).
+schema_version, row counts (issues, comments), origin_type (jira|linear|gadak)
+and transport (local|remote), the older workspace kind (connected|standalone)
+with its origin, and frozen (sync is paused when true). A paired workspace is
+origin_type gadak over transport remote — kind still calls it connected — plus
+a pairing object (endpoint, label).
 custom_fields.mapped is the number of configured field aliases; 0 means
 issues.custom is unmapped (empty json_extract results may mean gadak fields
 --apply has not run).
@@ -454,11 +456,14 @@ func (s *Server) issuePayload(key string) (map[string]any, error) {
 func (s *Server) toolStatus(args map[string]any) ([]contentItem, error) {
 	_ = args
 	st := map[string]any{"profile": s.Profile}
-	// A shell-less host must be able to tell local-origin from connected
-	// (GDK-420); origin.Describe is the single owner of that verdict.
+	// A shell-less host must be able to tell one origin from another
+	// (GDK-420); origin.Describe is the single owner of the kind verdict,
+	// and the two axes ride beside it (GDK-1280).
 	if cfg, err := config.LoadFor(s.Profile); err == nil {
 		kind, originDesc := origin.Describe(cfg)
 		st["kind"] = kind
+		st["origin_type"] = cfg.OriginType()
+		st["transport"] = cfg.Transport()
 		st["origin"] = originDesc
 		st["frozen"] = cfg.SyncFrozen()
 		st["custom_fields"] = cfg.CustomFieldsStatus()
