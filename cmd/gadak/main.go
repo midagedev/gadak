@@ -144,7 +144,7 @@ Usage:
 
 Commands:
   init             ` + initSummary + `
-                   [--standalone] [--site] [--email] [--projects] [--spaces] [--token-file|--token-stdin] [--json]
+                   [--local] [--site] [--email] [--projects] [--spaces] [--token-file|--token-stdin] [--json]
   config           get or set workspace settings   [list|get <path>|set <path> <value>] [--json]
   sync             mirror the workspace origin into SQLite   [--full] [--watch] [--source jira|linear|confluence|all]
   serve            web UI + API on loopback  [--addr] [--static] [--no-sync] [--no-open] [--allow-remote]
@@ -215,19 +215,19 @@ Writing through to the workspace origin — ` + writeThroughOriginPhrase + `:
   wiki       alias of page                get <ID> | list | create|edit|comment [<ID>]
   memory     agent memory: leave notes the next session finds   add <text> | -m <text|-> [--title T] [--json]
                    | search <query> [--limit N] [--json]  (space: gadak config set memory.space KEY)
-  ref        point an issue at another workspace's issue (standalone/paired)  <KEY> <workspace>/<KEY> [--as <phrase>]
+  ref        point an issue at another workspace's issue (a gadak origin)     <KEY> <workspace>/<KEY> [--as <phrase>]
                    | --list [--json] | --rm <id>   (the list hydrates the target's live state locally)
-  migrate    export a workspace's mirror into a new standalone workspace (issues, wiki, attachments, history)
+  migrate    export a workspace's mirror into a new one gadak keeps itself (issues, wiki, attachments, history)
                    --from <workspace> [--projects A,B] [--spaces X,Y] [--skip-attachments] [--json]
-  project    grow a standalone workspace by a project  create <KEY> [--name N] [--json]
-  dev        record PRs, deployments, and builds on issues (standalone)
+  project    grow a gadak-origin workspace by a project create <KEY> [--name N] [--json]
+  dev        record PRs, deployments, and builds on issues (a gadak origin)
                    link <KEY> --pr <url> [--status ...] | scan [--dry-run] [--install-hook]
                    | deploy <KEY> --env <name> --state <state> | build <KEY> --state <state>
   fields     custom-field usage report  [--sample N] [--json] [--all] [--project KEY] [--apply]
   team       share team settings/views  export [--out] [--with-members]
                                         import <FILE|-> [--dry-run] [--overwrite]
 
-Pairing other machines onto this serve (standalone):
+Pairing other machines onto this serve (a gadak origin):
   pairing    device tokens gating the origin passthrough  mint --label NAME [--ttl 90d] [--endpoint URL] [--json] | list [--json] | revoke <label|hash-prefix>
 
 Workspaces keep separate credentials and mirrors (e.g. work and demo):

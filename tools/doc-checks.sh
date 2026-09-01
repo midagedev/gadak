@@ -972,7 +972,7 @@ ok "issuetap pin agrees between go.mod and desktop/go.mod"
 #   docs/INSTALL.md:9  "Atlassian Cloud only"
 #   docs/FAQ.md:37     "Offboarding is `rm -rf ~/.gadak`." with no
 #                      connected/standalone branch in the paragraph
-#   README.md          0× `init --standalone` (INSTALL.md already had 1)
+#   README.md          0× `init --local` (INSTALL.md already had 1)
 if grep -n "Atlassian Cloud only" docs/INSTALL.md; then
   fail "docs/INSTALL.md still says \"Atlassian Cloud only\" (GDK-271)"
 fi
@@ -1005,14 +1005,14 @@ ok "docs/FAQ.md does not tell a standalone user to rm -rf ~/.gadak"
 
 standalone_cmd_missing=""
 for f in docs/INSTALL.md README.md; do
-  if ! grep -q 'init --standalone' "$f"; then
-    standalone_cmd_missing+="  $f: no init --standalone"$'\n'
+  if ! grep -q 'init --local' "$f"; then
+    standalone_cmd_missing+="  $f: no init --local"$'\n'
   fi
 done
 if [[ -n "$standalone_cmd_missing" ]]; then
-  fail "install front door does not name init --standalone (GDK-271):"$'\n'"$standalone_cmd_missing"
+  fail "install front door does not name init --local (GDK-271):"$'\n'"$standalone_cmd_missing"
 fi
-ok "docs/INSTALL.md and README.md name init --standalone"
+ok "docs/INSTALL.md and README.md name init --local"
 
 # check 21 — every GDK key a reader-facing doc names must resolve on the public
 # backlog (GDK-269, GDK-389; user decision 2026-08-20 to link past entries too).
@@ -1048,7 +1048,7 @@ fi
 # Class: a third way to bind a workspace (home serve + mint + remote
 # `init --pairing-code-stdin`) shipped in the binary, but README / INSTALL /
 # the agent cookbook / SKILL said nothing, so a reader following the front
-# door could not pair. Analogous to check 20 (`init --standalone`). The flag
+# door could not pair. Analogous to check 20 (`init --local`). The flag
 # name is the pin: `cmd/gadak/init.go` registers `--pairing-code-stdin`.
 # The agent cookbook moved from AGENTS.md to docs/MIRROR.md (GDK-8); this
 # check follows the file, not the old name.
@@ -1247,7 +1247,7 @@ fi
 ok "AGENTS.md is the development contract (no product-cookbook headings)"
 
 # ── 26. AGENTS.md ↔ docs/MIRROR.md pointers are live (GDK-8) ──
-# Same shape as check 20 (`grep -q 'init --standalone'`) and check 22
+# Same shape as check 20 (`grep -q 'init --local'`) and check 22
 # (`grep -q 'pairing-code-stdin'`): a path token that must appear in the
 # counterpart file. This repo's doc-checks do not have a markdown-link
 # resolver; presence of the path is the existing contract.

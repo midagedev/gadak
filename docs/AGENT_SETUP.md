@@ -54,9 +54,9 @@ a gadak standalone workspace, file the first tickets, and show them to me.
 1. Install gadak if missing: `brew install midagedev/tap/gadak-cli`
    (or the install script in the repo README).
 2. Non-interactive, no token, no --site:
-   gadak init --standalone --json
+   gadak init --local --json
    If a connected (Jira-site) workspace already exists on this machine:
-   gadak --workspace plan init --standalone --json
+   gadak --workspace plan init --local --json
    and pass `--workspace plan` on every later command. If `~/.claude`
    already exists, init installs the Claude Code skill.
 3. gadak sync

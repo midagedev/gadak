@@ -54,8 +54,8 @@ export function parseTransport(raw: unknown): Transport {
   return ''
 }
 
-/** CLI that creates a standalone workspace. Flag lives in cmd/gadak/init.go; the wizard button is the GUI equivalent. */
-export const STANDALONE_INIT_COMMAND = 'gadak --workspace <name> init --standalone'
+/** CLI that creates a workspace with a gadak origin. Flag lives in cmd/gadak/init.go; the wizard button is the GUI equivalent. `--standalone` is still accepted there, but only one name is taught. */
+export const STANDALONE_INIT_COMMAND = 'gadak --workspace <name> init --local'
 
 export function parseWorkspaceKind(raw: unknown): WorkspaceKind {
   if (raw === WORKSPACE_KIND_STANDALONE || raw === WORKSPACE_KIND_CONNECTED) {

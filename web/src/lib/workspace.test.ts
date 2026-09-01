@@ -54,7 +54,7 @@ describe('isStandalone (server-owned, never inferred from site)', () => {
 describe('standalone init command', () => {
   test('names --profile <name> so the slot the user fills is visible', async () => {
     const { STANDALONE_INIT_COMMAND } = await import('./workspace')
-    expect(STANDALONE_INIT_COMMAND).toBe('gadak --workspace <name> init --standalone')
+    expect(STANDALONE_INIT_COMMAND).toBe('gadak --workspace <name> init --local')
   })
 })
 

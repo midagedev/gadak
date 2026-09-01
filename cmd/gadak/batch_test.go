@@ -350,7 +350,7 @@ func TestTransitionBatchStandaloneRoundtrip(t *testing.T) {
 		config.SetProfile("")
 	})
 
-	if _, err := capture(t, func() error { return cmdInit([]string{"--standalone", "--json"}) }); err != nil {
+	if _, err := capture(t, func() error { return cmdInit([]string{"--local", "--json"}) }); err != nil {
 		t.Fatalf("init --standalone: %v", err)
 	}
 	created, err := capture(t, func() error { return cmdCreate([]string{"batch roundtrip"}) })

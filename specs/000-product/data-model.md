@@ -578,7 +578,7 @@ or `fl:<item_id>:<at>` for grouped field changes.
 ## Replacing the origin
 
 A workspace is bound to one origin, and converting a standalone workspace to a
-site replaces it. An issue key is not globally unique — `init --standalone`
+site replaces it. An issue key is not globally unique — `init --local`
 seeds project `STD`, and a real site's project can be `STD` too — so a row
 naming the old origin's `STD-1` does not become stale when the origin changes.
 It rebinds to whatever the new site has at that key, which is worse than losing

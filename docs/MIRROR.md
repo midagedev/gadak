@@ -3,7 +3,7 @@
 gadak keeps a local SQLite mirror of Jira at `~/.gadak/gadak.db` (`--workspace x` puts
 it under `~/.gadak/profiles/x/`). `--profile` is an alias of `--workspace`.
 The origin is a Jira site, or — with no
-Atlassian account — an in-process tracker (`gadak init --standalone`), or
+Atlassian account — an in-process tracker (`gadak init --local`), or
 another machine's `gadak serve` bound with `gadak init --pairing-code-stdin`.
 Reads never touch the network. Writes go to the origin (Jira on a connected
 workspace, the local origin on a standalone one, the home serve on a paired one)
@@ -318,7 +318,7 @@ a write answers `{"issue": {…IssueLite}}`, plus `"comment"` for `comment`.
 
 Writes go through the origin: a **connected** workspace needs a credential and
 fails before calling Jira without one; a **standalone** workspace has no site
-token and writes still succeed (`gadak init --standalone --json`). `gadak init`
+token and writes still succeed (`gadak init --local --json`). `gadak init`
 takes the whole setup non-interactively, so an agent never has to drive a
 prompt — it only falls back to asking when stdin is a terminal *and* nothing was
 supplied (`--standalone` included):
@@ -327,7 +327,7 @@ supplied (`--standalone` included):
 GADAK_TOKEN=$(cat token) gadak init \
   --site https://your-site.atlassian.net --email you@example.com --projects ABC --json
 
-gadak init --standalone --json
+gadak init --local --json
 ```
 
 **Pairing.** A standalone home running `gadak serve` mints a device offer;

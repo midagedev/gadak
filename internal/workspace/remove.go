@@ -29,7 +29,7 @@ type RootRefusalError struct {
 }
 
 func (e *RootRefusalError) Error() string {
-	return fmt.Sprintf("cannot remove the root workspace: %q is the unnamed workspace — the home directory itself\n  %s\n  offboarding the whole home is manual: rm -rf %s (SECURITY.md, \"Offboarding\" —\n  standalone profiles there hold the only copy of their trackers)",
+	return fmt.Sprintf("cannot remove the root workspace: %q is the unnamed workspace — the home directory itself\n  %s\n  offboarding the whole home is manual: rm -rf %s (SECURITY.md, \"Offboarding\" —\n  a gadak origin there holds the only copy of its tracker)",
 		e.Name, e.Home, e.Home)
 }
 
@@ -55,7 +55,7 @@ type KindUnreadableError struct {
 }
 
 func (e *KindUnreadableError) Error() string {
-	return fmt.Sprintf("cannot determine what kind of workspace %q is: %s\n  its directory may hold a standalone persist (the only copy of that tracker) —\n  fix or delete %s by hand, then retry",
+	return fmt.Sprintf("cannot determine what kind of workspace %q is: %s\n  its directory may hold a persist file (the only copy of that tracker) —\n  fix or delete %s by hand, then retry",
 		e.Name, e.Err, e.ConfigPath)
 }
 
@@ -70,7 +70,7 @@ type NeedsDestroyOriginError struct {
 }
 
 func (e *NeedsDestroyOriginError) Error() string {
-	return fmt.Sprintf("refusing: %q is a standalone workspace and its persist is the only copy of that tracker anywhere\n  persist: %s — plain SQLite; copy it out and it reads without gadak\n  to remove it anyway: gadak %s rm %s --yes --destroy-origin",
+	return fmt.Sprintf("refusing: %q keeps its own tracker and its persist is the only copy of it anywhere\n  persist: %s — plain SQLite; copy it out and it reads without gadak\n  to remove it anyway: gadak %s rm %s --yes --destroy-origin",
 		e.Name, e.Persist, e.CmdHint, e.Name)
 }
 
@@ -86,7 +86,7 @@ type NeedsYesError struct {
 
 func (e *NeedsYesError) Error() string {
 	if e.Standalone {
-		return fmt.Sprintf("refusing: removing %q needs --yes\n  no standalone persist exists in it — there is no origin data to protect\n  to proceed: gadak %s rm %s --yes",
+		return fmt.Sprintf("refusing: removing %q needs --yes\n  no persist file exists in it — there is no origin data to protect\n  to proceed: gadak %s rm %s --yes",
 			e.Name, e.CmdHint, e.Name)
 	}
 	return fmt.Sprintf("refusing: removing %q needs --yes\n  it deletes only this machine's mirror and credential — the origin (your Jira site, or the\n  paired home serve) keeps everything\n  to proceed: gadak %s rm %s --yes",

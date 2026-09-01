@@ -50,7 +50,7 @@
  * ── The mirror ────────────────────────────────────────────────────────────
  *
  * The workspace is a standalone one (record-hero-desk.sh builds it:
- * `gadak init --standalone`, seed issues only, no real data — MEDIA.md).
+ * `gadak init --local`, seed issues only, no real data — MEDIA.md).
  * Standalone is load-bearing here, not a convenience: the frozen demo home
  * the terminal-claude league uses rejects every write (origin.ErrWorkspaceFrozen,
  * internal/origin/origin.go:94-100), and this take needs the agent to really

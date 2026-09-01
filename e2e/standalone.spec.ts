@@ -12,7 +12,7 @@ import { en } from '../web/src/lib/i18n/en'
  * (GDK-178: a toast that lies is worse than a button that fails aloud).
  */
 
-const STANDALONE_INIT_COMMAND = 'gadak --workspace <name> init --standalone'
+const STANDALONE_INIT_COMMAND = 'gadak --workspace <name> init --local'
 
 /** Open an issue's detail panel: search narrows the list, click the row. */
 async function openIssueDetail(page: Page, key: string) {

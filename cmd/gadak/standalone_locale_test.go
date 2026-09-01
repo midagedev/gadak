@@ -32,7 +32,7 @@ func TestStandaloneLocaleRebuildRoundtrip(t *testing.T) {
 	})
 
 	if _, err := capture(t, func() error {
-		return cmdInit([]string{"--standalone", "--json"})
+		return cmdInit([]string{"--local", "--json"})
 	}); err != nil {
 		t.Fatalf("init --standalone: %v", err)
 	}
@@ -168,7 +168,7 @@ func TestStandaloneLocalePersistedRoundtrip(t *testing.T) {
 	})
 
 	if _, err := capture(t, func() error {
-		return cmdInit([]string{"--standalone", "--json"})
+		return cmdInit([]string{"--local", "--json"})
 	}); err != nil {
 		t.Fatalf("init --standalone: %v", err)
 	}

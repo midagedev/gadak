@@ -1067,7 +1067,7 @@ func (c *Config) SyncFrozen() bool { return c != nil && c.Frozen }
 // ProjectMirrored reports whether a write to project key may proceed: an
 // empty list means "no explicit scope" and allows any project (GDK-467:
 // paired workspaces carry no local Projects copy, and `gadak init
-// --standalone` leaves projects null), a non-empty list is the allowlist.
+// --local` leaves projects null), a non-empty list is the allowlist.
 // This is the single owner of that semantics — the REST create gate and the
 // CLI pre-check both delegate here so the surfaces cannot split again
 // (GDK-1034: they read the same empty list in opposite directions once).
@@ -1089,7 +1089,7 @@ func (c *Config) ProjectMirrored(key string) bool {
 // origin.errNeedCredential is a different error (Client/Wiki construction
 // when a connected workspace lacks site/email/token) and is quoted by
 // wikiPathStatus; it is not this sentence.
-var ErrNotConfigured = errors.New("not configured — run gadak init (Jira), gadak init --standalone (local), or gadak init --pairing-code (another machine's serve)")
+var ErrNotConfigured = errors.New("not configured — run gadak init (Jira), gadak init --local (gadak's own tracker), or gadak init --pairing-code (another machine's serve)")
 
 // NotConfiguredWith appends a verb-specific addendum to ErrNotConfigured.
 func NotConfiguredWith(addendum string) error {

@@ -9,7 +9,7 @@ No Atlassian account:
 
 ```bash
 brew install midagedev/tap/gadak-cli
-gadak init --standalone
+gadak init --local
 gadak create "the thing I just noticed"
 gadak serve
 ```
@@ -109,7 +109,7 @@ block that hits the desktop exe. How to check the sha256:
 (`Gadak-<version>-windows-x64.zip`) is currently unsigned — a SmartScreen /
 Smart App Control warning is a missing signature, not a virus finding; details
 under [Desktop app (Windows)](#desktop-app-windows). For a workspace with no
-Atlassian account, use [First run](#first-run) (`gadak init --standalone`)
+Atlassian account, use [First run](#first-run) (`gadak init --local`)
 instead of `gadak init` / `gadak sync` above.
 
 ### Desktop app (Windows)
@@ -257,14 +257,14 @@ demo needs none of it.
 ### Standalone (no Atlassian account)
 
 ```bash
-gadak init --standalone
+gadak init --local
 gadak create "the thing I just noticed"
 gadak serve
 ```
 
 `gadak serve` prints the address — open `http://gadak.localhost:7777` and you should see your issues.
 
-`gadak init --standalone` writes `config.json` in the workspace directory
+`gadak init --local` writes `config.json` in the workspace directory
 (`~/.gadak/` by default, or `$GADAK_HOME`) and creates `origin/issuetap.db`
 there — a SQLite database (WAL), the origin, the file to back up
 (`internal/origin/origin.go` `PersistRel`). Copy it while gadak is not
@@ -337,7 +337,7 @@ Empty `spaces` means every *global* space; personal spaces only if named.
 pages (current version, comments, labels) alongside issues —
 `--source jira|confluence|all` narrows a run. Pages land in the same FTS index,
 the sidebar grows a DOCS tree, and search answers across both.
-`gadak init --standalone` writes `confluence.spaces` as `["LOC"]` (the space
+`gadak init --local` writes `confluence.spaces` as `["LOC"]` (the space
 the in-process origin seeds) so the wiki pass is on for a new standalone
 workspace.
 

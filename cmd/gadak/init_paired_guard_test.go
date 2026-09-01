@@ -86,7 +86,7 @@ func assertPairedOriginUntouched(t *testing.T, dir string) {
 func TestInitPairedRefusesStandalone(t *testing.T) {
 	dir := seedPairedProfile(t)
 	_, err := capture(t, func() error {
-		return cmdInit([]string{"--standalone"})
+		return cmdInit([]string{"--local"})
 	})
 	assertPairedOriginRefusal(t, err)
 	assertPairedOriginUntouched(t, dir)
@@ -146,7 +146,7 @@ func TestInitStandaloneHomeRoutingNotRefused(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := capture(t, func() error {
-		return cmdInit([]string{"--standalone", "--json"})
+		return cmdInit([]string{"--local", "--json"})
 	}); err != nil {
 		t.Fatalf("home routing token must not block init --standalone: %v", err)
 	}

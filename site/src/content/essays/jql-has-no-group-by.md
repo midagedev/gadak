@@ -194,7 +194,7 @@ In order of commitment:
    brew install midagedev/tap/gadak-cli    # CLI only — the Linux path too
    ```
 
-   No Jira? `gadak init --standalone` and the tracker is yours, one file on
+   No Jira? `gadak init --local` and the tracker is yours, one file on
    your machine.
 
 If gadak stopped shipping tomorrow, you would delete a directory and lose

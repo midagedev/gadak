@@ -116,7 +116,7 @@ func TestInitJSONDefaultProfileAndEmptyProjects(t *testing.T) {
 		_ = origin.Close()
 		config.SetProfile("")
 	})
-	out, err := capture(t, func() error { return cmdInit([]string{"--standalone", "--json"}) })
+	out, err := capture(t, func() error { return cmdInit([]string{"--local", "--json"}) })
 	if err != nil {
 		t.Fatalf("init: %v\n%s", err, out)
 	}
@@ -142,7 +142,7 @@ func TestDoctorStandaloneHasSiteTokenNotHasCredential(t *testing.T) {
 		_ = origin.Close()
 		config.SetProfile("")
 	})
-	if _, err := capture(t, func() error { return cmdInit([]string{"--standalone", "--json"}) }); err != nil {
+	if _, err := capture(t, func() error { return cmdInit([]string{"--local", "--json"}) }); err != nil {
 		t.Fatal(err)
 	}
 	raw, err := capture(t, func() error { return cmdDoctor([]string{"--json"}) })
@@ -205,7 +205,7 @@ func TestCmdServeHandsOffLiveSameProfile(t *testing.T) {
 		_ = origin.Close()
 		config.SetProfile("")
 	})
-	if _, err := capture(t, func() error { return cmdInit([]string{"--standalone", "--json"}) }); err != nil {
+	if _, err := capture(t, func() error { return cmdInit([]string{"--local", "--json"}) }); err != nil {
 		t.Fatal(err)
 	}
 	occupyPreferredServePort(t)
@@ -264,7 +264,7 @@ func TestCmdServeStaleLockFileDoesNotBusy(t *testing.T) {
 		_ = origin.Close()
 		config.SetProfile("")
 	})
-	if _, err := capture(t, func() error { return cmdInit([]string{"--standalone", "--json"}) }); err != nil {
+	if _, err := capture(t, func() error { return cmdInit([]string{"--local", "--json"}) }); err != nil {
 		t.Fatal(err)
 	}
 	cfg, err := config.Load()
@@ -293,7 +293,7 @@ func TestCreateStandaloneUnknownProjectListsAvailable(t *testing.T) {
 		_ = origin.Close()
 		config.SetProfile("")
 	})
-	if _, err := capture(t, func() error { return cmdInit([]string{"--standalone", "--json"}) }); err != nil {
+	if _, err := capture(t, func() error { return cmdInit([]string{"--local", "--json"}) }); err != nil {
 		t.Fatal(err)
 	}
 	_, err := capture(t, func() error {
@@ -320,7 +320,7 @@ func TestPageCreateUnknownSpaceListsAvailable(t *testing.T) {
 		_ = origin.Close()
 		config.SetProfile("")
 	})
-	if _, err := capture(t, func() error { return cmdInit([]string{"--standalone", "--json"}) }); err != nil {
+	if _, err := capture(t, func() error { return cmdInit([]string{"--local", "--json"}) }); err != nil {
 		t.Fatal(err)
 	}
 	_, err := capture(t, func() error {

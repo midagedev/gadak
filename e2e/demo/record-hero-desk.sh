@@ -10,7 +10,7 @@
 #                That home rejects every write (origin.ErrWorkspaceFrozen,
 #                internal/origin/origin.go:94-100) and this take needs the
 #                agent to really transition an issue, so this script builds a
-#                standalone workspace instead: `gadak init --standalone`, seed
+#                standalone workspace instead: `gadak init --local`, seed
 #                issues only, issuetap in-process on loopback — writable,
 #                credential-free, and fictional either way (MEDIA.md).
 #   cwd        — $AGENT_HOME (the PTY opens in the serve's $HOME,
@@ -315,7 +315,7 @@ gh() { GADAK_HOME="$HERO_HOME" "$GADAK_BIN" "$@"; }
 seed_hero_home() {
   rm -rf "$HERO_HOME"
   mkdir -p "$HERO_HOME"
-  gh init --standalone --json >/dev/null
+  gh init --local --json >/dev/null
 
   # A lived-in backlog: fifteen issues, mixed type/priority/labels, spread
   # across the three statuses. Anything a viewer pauses on should look like

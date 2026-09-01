@@ -33,24 +33,24 @@ const spacesFlagUsage = `Confluence spaces: KEY,KEY… | all (every global space
 
 // initSummary is the one-line init description for top-level usage and
 // `gadak init --help`. It has to name every workspace path: connected
-// init writes site/email/token (cmdInit); --standalone writes
+// init writes site/email/token (cmdInit); --local writes
 // KindStandalone with no site or credential (initStandalone, flag usage
 // in cmdInit); --pairing-code binds a fresh workspace to a remote gadak
 // serve (initPaired, GDK-433).
-const initSummary = "configure a Jira site and credential (projects optional), a standalone workspace (--standalone), or pair to a remote gadak serve (--pairing-code)"
+const initSummary = "configure a Jira site and credential (projects optional), a tracker gadak keeps itself (--local), or pair to a remote gadak serve (--pairing-code)"
 
 // serveSyncDefault is the serve sync-on-start condition, matching
 // startServeLoops: cfg.HasCredential() is true for a standalone workspace,
 // a connected workspace with site+email+token, or a Linear apiKey
 // (internal/config.HasCredential).
-const serveSyncDefault = "syncs by default on a standalone workspace, or on a connected workspace with a credential"
+const serveSyncDefault = "syncs by default when the origin is gadak's own tracker, or when a connected workspace has a credential"
 
 // writeThroughOriginPhrase is the single owner of "where CLI writes go"
 // (GDK-469). Verified: mutate in agent.go calls origin.Writer; origin.Client
 // refuses a connected workspace without site/email/token (errNeedCredential)
 // and admits a standalone workspace with no token. Verb --help first lines
 // name the verb; this sentence lives once in top-level usage.
-const writeThroughOriginPhrase = "Jira on a connected workspace (needs a site credential), Linear when a linear apiKey is configured, the embedded origin on a standalone one; the mirror refreshes after the origin accepts"
+const writeThroughOriginPhrase = "Jira on a connected workspace (needs a site credential), Linear when a linear apiKey is configured, gadak's own tracker when that is the origin; the mirror refreshes after the origin accepts"
 
 // displayNameSQLTrap is the locale trap docs/MIRROR.md and sqlhint already own.
 // Restated in sql / search / recipes help so the command itself says it
@@ -64,15 +64,15 @@ const displayNameSQLTrap = "status, priority, and issue type names localize per 
 var helps = map[string]cmdHelp{
 	"init": {
 		summary: initSummary,
-		usage: "gadak [--workspace <name>] init [--standalone] [--site URL] [--email ADDR]\n" +
+		usage: "gadak [--workspace <name>] init [--local] [--site URL] [--email ADDR]\n" +
 			"[--projects A,B] [--spaces KEYS|all|none]\n" +
 			"[--token-file PATH | --token-stdin] [--token-expires DATE]\n" +
 			"[--pairing-code OFFER | --pairing-code-stdin] [--json]",
 		// FlagSet VisitAll supplies Options when `gadak init --help` runs; this
 		// list covers formatHelp(nil) and documents the env-only token path.
 		options: []helpOption{
-			{name: "standalone", desc: "create an independent workspace (no Jira site or credential)"},
-			{name: "replace-standalone", desc: replaceStandaloneUsage},
+			{name: "local", desc: "create a workspace whose origin is gadak's own tracker, running here (no Jira site or credential)"},
+			{name: "replace-local", desc: replaceStandaloneUsage},
 			{name: "site", desc: "Jira site URL (https://your-site.atlassian.net); env GADAK_SITE"},
 			{name: "email", desc: "account email; env GADAK_EMAIL"},
 			{name: "projects", desc: "project keys, comma-separated (optional — blank syncs every project you can see); env GADAK_PROJECTS"},
@@ -87,7 +87,7 @@ var helps = map[string]cmdHelp{
 		},
 		examples: []string{
 			"gadak init",
-			"gadak init --standalone",
+			"gadak init --local",
 			"gadak --workspace demo init",
 			"GADAK_TOKEN=$(cat token) gadak init --site https://x.atlassian.net --email you@example.com --json",
 			"gadak init --site https://x.atlassian.net --email you@example.com --projects ABC --token-file ./token",
@@ -239,7 +239,7 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak export", "gadak team import"},
 	},
 	"dev": {
-		summary: "development-panel links: record PRs, deployments, and builds on issues (standalone origin)",
+		summary: "development-panel links: record PRs, deployments, and builds on issues (a gadak origin)",
 		usage: "gadak dev link <KEY> --pr <url>\n" +
 			"[--status open|merged|declined] [--name N] [--author LOGIN] [--branch REF] [--json]\n" +
 			"gadak dev scan [--dry-run] [--install-hook]\n" +
@@ -289,13 +289,13 @@ var helps = map[string]cmdHelp{
 		options: []helpOption{
 			{name: "json", desc: "emit JSON"},
 			{name: "yes", desc: "with rm: remove — without it, rm explains and refuses"},
-			{name: "destroy-origin", desc: "with rm on a standalone workspace: also delete its persist, the only copy of that tracker"},
+			{name: "destroy-origin", desc: "when the origin is gadak's own tracker: also delete its persist, the only copy of that tracker"},
 		},
 		examples: []string{
 			"gadak profiles",
 			"gadak profiles --json",
 			"gadak profiles rm demo --yes  # connected: mirror+credential only, the origin is untouched",
-			"gadak profiles rm local --yes --destroy-origin  # standalone: persist is the only copy",
+			"gadak profiles rm local --yes --destroy-origin  # persist is the only copy of that tracker",
 		},
 		seeAlso: []string{"gadak init", "gadak workspace", "gadak workspaces"},
 	},
@@ -327,7 +327,7 @@ var helps = map[string]cmdHelp{
 			"gadak workspaces",
 			"gadak workspaces --json",
 			"gadak workspaces rm demo --yes  # connected: mirror+credential only, the origin is untouched",
-			"gadak workspaces rm local --yes --destroy-origin  # standalone: persist is the only copy",
+			"gadak workspaces rm local --yes --destroy-origin  # persist is the only copy of that tracker",
 		},
 		seeAlso: []string{"gadak workspace", "gadak profiles", "gadak init"},
 	},
@@ -447,7 +447,7 @@ var helps = map[string]cmdHelp{
 		options: []helpOption{
 			{name: "limit", desc: "maximum rows to list (default 30)"},
 			{name: "all", desc: "include done issues (default hides them)"},
-			{name: "ready", desc: "only issues no open blocker holds back: an inward Blocks link whose target is not done disqualifies. The blocking link type resolves against the origin's link-type catalog (one read; local on standalone); when no catalog can answer, a stderr notice says so and the filter is skipped"},
+			{name: "ready", desc: "only issues no open blocker holds back: an inward Blocks link whose target is not done disqualifies. The blocking link type resolves against the origin's link-type catalog (one read; in-process when the origin is gadak's own); when no catalog can answer, a stderr notice says so and the filter is skipped"},
 			{name: "json", desc: "emit one JSON object per row"},
 			{name: "csv", desc: "emit CSV with a header row"},
 			{name: "no-header", desc: "omit the TSV/CSV header row (no-op with --json)"},
@@ -641,7 +641,7 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak create", "gadak attach", "gadak comment", "gadak issue"},
 	},
 	"page": {
-		summary: "wiki pages — read from the mirror (get, list; no network), write through the origin (create, edit, comment; connected Confluence or standalone issuetap)",
+		summary: "wiki pages — read from the mirror (get, list; no network), write through the origin (create, edit, comment; Confluence, or gadak's own wiki)",
 		usage: "gadak [--workspace <name>] page get <ID> [--json]\n" +
 			"| page list [--space K] [--limit N] [--json|--csv|--no-header]\n" +
 			"| page create|edit|comment [<ID>]\n" +
@@ -694,7 +694,7 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak page", "gadak search", "gadak open"},
 	},
 	"ref": {
-		summary: "point this issue at an issue in another workspace (standalone/paired origin) — the list hydrates the target's live state from that workspace's own mirror, no network",
+		summary: "point this issue at an issue in another workspace (a gadak origin, here or paired) — the list hydrates the target's live state from that workspace's own mirror, no network",
 		usage: "gadak [--workspace <name>] ref <KEY> <workspace>/<TARGET-KEY>|<url> [--as <relationship>] [--json]\n" +
 			"| ref <KEY> --list [--json] | ref <KEY> --rm <id>",
 		examples: []string{
@@ -705,7 +705,7 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak link", "gadak issue", "gadak workspaces"},
 	},
 	"migrate": {
-		summary: "export a workspace's mirror into a new standalone workspace — issues, comments, history, links, attachments, and wiki pages leave with you; ends with a source-vs-migrated count report",
+		summary: "export a workspace's mirror into a new workspace gadak keeps itself — issues, comments, history, links, attachments, and wiki pages leave with you; ends with a source-vs-migrated count report",
 		usage:   "gadak --workspace <new name> migrate --from <workspace> [--projects A,B] [--spaces X,Y] [--skip-attachments] [--json]",
 		examples: []string{
 			"gadak --workspace local migrate --from work --projects GDK",
@@ -733,7 +733,7 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak page", "gadak search", "gadak config"},
 	},
 	"project": {
-		summary: "grow a standalone workspace by one project key (connected workspaces create projects in Jira)",
+		summary: "grow a gadak-origin workspace by one project key (connected workspaces create projects in Jira)",
 		usage:   "gadak [--workspace <name>] project create <KEY> [--name N] [--json]",
 		examples: []string{
 			"gadak project create IDEA --name Ideas",

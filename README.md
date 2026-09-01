@@ -71,7 +71,7 @@ gadak init && gadak sync && gadak serve
 Or start with no tracker:
 
 ```bash
-gadak init --standalone
+gadak init --local
 gadak create "the thing I just noticed"
 gadak serve
 ```

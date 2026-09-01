@@ -14,7 +14,7 @@
    * never read back.
    *
    * Step 1 has a second front door (GDK-377): POST onboarding/standalone
-   * seeds the same workspace `gadak init --standalone` makes. It never
+   * seeds the same workspace `gadak init --local` makes. It never
    * reaches step 2 — the workspace kind flips, this component unmounts, and
    * the first-issue composer opens in its place.
    */
@@ -160,7 +160,7 @@
   /**
    * One click to a workspace with no Jira site at all. The verb is shared
    * with the CLI (originbind.SeedStandalone), so what lands here is exactly
-   * what `gadak init --standalone` seeds: STD project, default type, LOC
+   * what `gadak init --local` seeds: STD project, default type, LOC
    * wiki space. The wizard does not continue to step 2 — there is nothing to
    * pick or sync. Instead the workspace kind flips, the gate clears (the
    * standalone clause — the pool stays empty), and the composer opens so

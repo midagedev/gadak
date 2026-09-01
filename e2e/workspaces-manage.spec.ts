@@ -82,7 +82,10 @@ test.describe('workspaces settings tab', () => {
     const confirm = page.getByTestId('workspaces-remove-dialog')
     await expect(confirm).toBeVisible()
     const detail = confirm.getByTestId('workspaces-refusal-detail')
-    await expect(detail).toContainText('standalone workspace')
+    // GDK-1281: the refusal names what it is protecting rather than a kind
+    // word. The point of the assertion — that the persist is the only copy
+    // — is what the sentence still has to say.
+    await expect(detail).toContainText('the only copy')
     await expect(detail).toContainText('persist:')
 
     // The only-copy checkbox is offered unchecked, and until it is checked

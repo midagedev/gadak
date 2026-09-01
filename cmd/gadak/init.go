@@ -68,10 +68,10 @@ func parseCSVKeys(s string, upper bool) []string {
 	return out
 }
 
-// replaceStandaloneUsage is the --replace-standalone help text. It names
+// replaceStandaloneUsage is the --replace-local help text. It names
 // what is lost: locally originated issues have no Jira copy, and the
 // conversion drops them from the mirror (GDK-241).
-const replaceStandaloneUsage = "replace this standalone workspace with a Jira site; locally originated issues exist only here and converting deletes them from the mirror"
+const replaceStandaloneUsage = "replace this workspace's gadak origin with a Jira site; issues that originated here exist only here and converting deletes them from the mirror"
 
 // renderReplaceRefusedJSON writes the --json document for a refused
 // standalone replace. Shape and field values match the previous
@@ -112,6 +112,38 @@ func initMissingError(missing []string, reason string) error {
 // re-prompts credentials (and optional projects) so a human can replace an
 // expired token. Any non-interactive supply turns prompting off entirely.
 // Projects are optional: blank means sync every project the account can see.
+// renameLegacyInitFlags rewrites the pre-GDK-1281 flag names to the ones
+// the FlagSet knows. A flag already sitting in someone's script is a
+// contract, so the old spellings never stop working — but they are
+// translated here rather than registered, because a registered alias
+// would appear in `gadak init --help` and teach two names for one thing.
+func renameLegacyInitFlags(args []string) []string {
+	renamed := map[string]string{"standalone": "local", "replace-standalone": "replace-local"}
+	out := make([]string, 0, len(args))
+	for _, a := range args {
+		dashes := ""
+		switch {
+		case strings.HasPrefix(a, "--"):
+			dashes = "--"
+		case strings.HasPrefix(a, "-") && len(a) > 1:
+			dashes = "-"
+		}
+		if dashes == "" {
+			out = append(out, a)
+			continue
+		}
+		name, tail := strings.TrimPrefix(a, dashes), ""
+		if i := strings.IndexByte(name, '='); i >= 0 {
+			name, tail = name[:i], name[i:]
+		}
+		if to, ok := renamed[name]; ok {
+			a = dashes + to + tail
+		}
+		out = append(out, a)
+	}
+	return out
+}
+
 func cmdInit(args []string) error {
 	fs := newFlagSet("init")
 	siteFlag := fs.String("site", "", "Jira site URL (https://your-site.atlassian.net)")
@@ -129,8 +161,9 @@ func cmdInit(args []string) error {
 	// "flag provided but not defined"; the value must never be accepted (ps/history).
 	tokenFlag := fs.String("token", "", "not accepted; use GADAK_TOKEN, --token-file, or --token-stdin")
 	jsonOut := fs.Bool("json", false, "emit one JSON object on success")
-	// Quiet beta: independent workspace, no Jira site or credential.
-	standalone := fs.Bool("standalone", false, "create an independent workspace (no Jira site or credential)")
+	// The origin is gadak's own tracker, running in this process — the
+	// transport axis's local (GDK-1278).
+	localOrigin := fs.Bool("local", false, "create a workspace whose origin is gadak's own tracker, running here (no Jira site or credential)")
 	// Pairing (GDK-433): bind this workspace to a remote gadak serve with
 	// an offer from the home machine's `gadak pairing mint`. The stdin form
 	// exists for the same reason --token-stdin does: the offer carries a
@@ -138,10 +171,12 @@ func cmdInit(args []string) error {
 	pairingCode := fs.String("pairing-code", "", "pairing offer from the home machine's `gadak pairing mint`; binds this workspace to that serve")
 	pairingStdin := fs.Bool("pairing-code-stdin", false, "read the pairing offer from stdin (keeps it out of ps and shell history)")
 	// Long name on purpose: a typo or a stray -f must not flip the origin.
-	replaceStandalone := fs.Bool("replace-standalone", false, replaceStandaloneUsage)
-	if err := fs.Parse(args); err != nil {
+	replaceLocal := fs.Bool("replace-local", false, replaceStandaloneUsage)
+	if err := fs.Parse(renameLegacyInitFlags(args)); err != nil {
 		return err
 	}
+	standalone := *localOrigin
+	replaceStandalone := *replaceLocal
 	if *tokenFlag != "" {
 		return fmt.Errorf("--token is not accepted: it would be visible in `ps` and shell history.\nuse GADAK_TOKEN=..., --token-file <path>, or --token-stdin")
 	}
@@ -158,8 +193,8 @@ func cmdInit(args []string) error {
 	// over the remote serve, then a remote-origin credential. Nothing else
 	// in init applies, so refuse the combinations instead of ignoring them.
 	if *pairingCode != "" || *pairingStdin {
-		if *standalone || *replaceStandalone {
-			return fmt.Errorf("--pairing-code cannot be combined with --standalone or --replace-standalone")
+		if standalone || replaceStandalone {
+			return fmt.Errorf("--pairing-code cannot be combined with --local or --replace-local")
 		}
 		if *siteFlag != "" || *emailFlag != "" || *tokenFile != "" || *tokenStdin || *tokenExpires != "" || *spacesFlag != "" {
 			return fmt.Errorf("--pairing-code cannot be combined with site, email, token, or spaces flags")
@@ -181,16 +216,16 @@ func cmdInit(args []string) error {
 	envToken := config.Env("TOKEN")
 	envProjects := config.Env("PROJECTS")
 
-	if *standalone {
-		if *replaceStandalone {
-			return fmt.Errorf("--standalone cannot be combined with --replace-standalone")
+	if standalone {
+		if replaceStandalone {
+			return fmt.Errorf("--local cannot be combined with --replace-local")
 		}
 		if *siteFlag != "" || *emailFlag != "" || *tokenFile != "" || *tokenStdin || *tokenExpires != "" ||
 			envSite != "" || envEmail != "" || envToken != "" {
-			return fmt.Errorf("--standalone cannot be combined with a site, email, or token")
+			return fmt.Errorf("--local cannot be combined with a site, email, or token")
 		}
 		if *spacesFlag != "" {
-			return fmt.Errorf("--standalone cannot be combined with --spaces")
+			return fmt.Errorf("--local cannot be combined with --spaces")
 		}
 		return initStandalone(cfg, *jsonOut, *projectsFlag)
 	}
@@ -213,7 +248,7 @@ func cmdInit(args []string) error {
 	// Close the class "a command silently changes which origin owns this
 	// workspace". An empty standalone workspace is not a hazard; one that
 	// holds locally originated issues is (GDK-238).
-	if err := originbind.RefuseReplace(cfg, *replaceStandalone); err != nil {
+	if err := originbind.RefuseReplace(cfg, replaceStandalone); err != nil {
 		if *jsonOut {
 			return renderReplaceRefusedJSON(err)
 		}
@@ -490,11 +525,11 @@ func initStandalone(cfg *config.Config, jsonOut bool, projectsFlag string) error
 		if persist == "" {
 			persist = p
 		}
-		fmt.Printf("already standalone at %s\n", persist)
+		fmt.Printf("origin is already gadak's own tracker, at %s\n", persist)
 		printSkillAutoResult(skill)
 		return nil
 	}
-	fmt.Printf("standalone workspace — saved %s\n", p)
+	fmt.Printf("origin is gadak's own tracker — saved %s\n", p)
 	if persist != "" {
 		fmt.Printf("origin persist (this file is the original): %s\n", persist)
 	}

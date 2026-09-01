@@ -27,7 +27,7 @@ func TestRefCrossWorkspaceHydrates(t *testing.T) {
 	// The "team" workspace stands in for a mirrored Jira: another workspace
 	// with its own issues, which this one only ever reads.
 	config.SetProfile("team")
-	if out, err := capture(t, func() error { return cmdInit([]string{"--standalone"}) }); err != nil {
+	if out, err := capture(t, func() error { return cmdInit([]string{"--local"}) }); err != nil {
 		t.Fatalf("init team: %v\n%s", err, out)
 	}
 	teamKey := createIssue(t, "the team's issue")
@@ -40,7 +40,7 @@ func TestRefCrossWorkspaceHydrates(t *testing.T) {
 
 	// The personal workspace points at it.
 	config.SetProfile("plan")
-	if out, err := capture(t, func() error { return cmdInit([]string{"--standalone"}) }); err != nil {
+	if out, err := capture(t, func() error { return cmdInit([]string{"--local"}) }); err != nil {
 		t.Fatalf("init plan: %v\n%s", err, out)
 	}
 	mine := createIssue(t, "my own note")
@@ -113,7 +113,7 @@ func TestRefUnhydratedTargetIsNotAnError(t *testing.T) {
 	})
 
 	config.SetProfile("plan")
-	if out, err := capture(t, func() error { return cmdInit([]string{"--standalone"}) }); err != nil {
+	if out, err := capture(t, func() error { return cmdInit([]string{"--local"}) }); err != nil {
 		t.Fatalf("init: %v\n%s", err, out)
 	}
 	mine := createIssue(t, "note")

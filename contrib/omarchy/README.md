@@ -6,7 +6,7 @@ open, and how much of that has been sitting in the same status for more
 than seven days.
 
 This is not a “my assigned tickets” widget. A standalone workspace has no
-account (`gadak init --standalone` clears `AccountID`), and the competing
+account (`gadak init --local` clears `AccountID`), and the competing
 community plugins (`tmn73.jira`, Linear, Todoist, ClickUp, `37signals.basecamp`)
 all need a cloud token and a live network. This one runs `gadak sql --json`
 against the on-disk mirror and nothing else.

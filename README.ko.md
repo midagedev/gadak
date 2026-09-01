@@ -73,7 +73,7 @@ gadak init && gadak sync && gadak serve
 또는 트래커 없이 시작:
 
 ```bash
-gadak init --standalone
+gadak init --local
 gadak create "the thing I just noticed"
 gadak serve
 ```

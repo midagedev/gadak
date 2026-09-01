@@ -32,7 +32,7 @@ func TestMigrateStandaloneRoundtrip(t *testing.T) {
 
 	// ── source workspace ───────────────────────────────────────────────
 	config.SetProfile("src")
-	if out, err := capture(t, func() error { return cmdInit([]string{"--standalone"}) }); err != nil {
+	if out, err := capture(t, func() error { return cmdInit([]string{"--local"}) }); err != nil {
 		t.Fatalf("init src: %v\n%s", err, out)
 	}
 	keyA := createIssue(t, "migrate roundtrip alpha")
@@ -199,7 +199,7 @@ func TestMigrateRefusals(t *testing.T) {
 	})
 
 	config.SetProfile("src")
-	if out, err := capture(t, func() error { return cmdInit([]string{"--standalone"}) }); err != nil {
+	if out, err := capture(t, func() error { return cmdInit([]string{"--local"}) }); err != nil {
 		t.Fatalf("init src: %v\n%s", err, out)
 	}
 

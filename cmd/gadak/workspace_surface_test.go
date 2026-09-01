@@ -48,42 +48,48 @@ func TestWriteVerbHelpFirstLinesAreTheVerb(t *testing.T) {
 	}
 }
 
-func TestInitHelpNamesStandalone(t *testing.T) {
-	if !strings.Contains(helps["init"].usage, "--standalone") {
-		t.Errorf("init usage missing --standalone: %s", helps["init"].usage)
+func TestInitHelpNamesLocalOrigin(t *testing.T) {
+	// GDK-1281 renamed the flag to --local; --standalone still works but is
+	// deliberately absent from the help, so only one name is taught.
+	if !strings.Contains(helps["init"].usage, "--local") {
+		t.Errorf("init usage missing --local: %s", helps["init"].usage)
 	}
 	out := formatHelp("init", nil)
-	if !strings.Contains(out, "--standalone") {
-		t.Errorf("gadak help init missing --standalone:\n%s", out)
+	if !strings.Contains(out, "--local") {
+		t.Errorf("gadak help init missing --local:\n%s", out)
 	}
 	foundExample := false
 	for _, ex := range helps["init"].examples {
-		if strings.Contains(ex, "--standalone") {
+		if strings.Contains(ex, "--local") {
 			foundExample = true
 			break
 		}
 	}
 	if !foundExample {
-		t.Errorf("init examples missing a --standalone line: %v", helps["init"].examples)
+		t.Errorf("init examples missing a --local line: %v", helps["init"].examples)
 	}
-	if !strings.Contains(usage, "--standalone") {
-		t.Errorf("top-level usage missing --standalone:\n%s", usage)
+	if !strings.Contains(usage, "--local") {
+		t.Errorf("top-level usage missing --local:\n%s", usage)
 	}
-	if !strings.Contains(helps["init"].summary, "standalone") {
-		t.Errorf("init summary does not cover standalone: %q", helps["init"].summary)
+	// The summary must still cover the no-tracker path; GDK-1281 names it
+	// by what it is rather than by the old kind word.
+	if !strings.Contains(helps["init"].summary, "--local") {
+		t.Errorf("init summary does not cover the gadak-origin path: %q", helps["init"].summary)
 	}
 }
 
 func TestServeHelpSyncsStandaloneWithoutCredential(t *testing.T) {
+	// The contract is that serve syncs a workspace with no credential at
+	// all — a gadak origin needs none. GDK-1281 stopped naming that case
+	// "standalone", so the assertion names the case instead of the word.
 	sum := helps["serve"].summary
-	if strings.Contains(sum, "when a credential is configured") && !strings.Contains(sum, "standalone") {
+	if !strings.Contains(sum, "gadak's own tracker") {
+		t.Errorf("serve summary does not say sync happens without a credential: %q", sum)
+	}
+	if strings.Contains(sum, "when a credential is configured") {
 		t.Errorf("serve summary still keys sync on credential only: %q", sum)
 	}
-	if !strings.Contains(sum, "standalone") {
-		t.Errorf("serve summary missing standalone: %q", sum)
-	}
-	if strings.Contains(usage, "syncs by default when a credential is configured") &&
-		!strings.Contains(usage, "standalone") {
+	if strings.Contains(usage, "syncs by default when a credential is configured") {
 		t.Errorf("top-level serve line still keys sync on credential only")
 	}
 }
@@ -207,7 +213,7 @@ func TestInitStandaloneJSONPersistAndFillsMirror(t *testing.T) {
 	})
 
 	out, err := capture(t, func() error {
-		return cmdInit([]string{"--standalone", "--json"})
+		return cmdInit([]string{"--local", "--json"})
 	})
 	if err != nil {
 		t.Fatalf("init --standalone --json: %v\n%s", err, out)
@@ -257,7 +263,7 @@ func TestInitStandaloneHumanPersistAndNextSteps(t *testing.T) {
 	})
 
 	out, err := capture(t, func() error {
-		return cmdInit([]string{"--standalone"})
+		return cmdInit([]string{"--local"})
 	})
 	if err != nil {
 		t.Fatalf("init --standalone: %v\n%s", err, out)
@@ -311,13 +317,15 @@ func TestInitStandaloneHumanPersistAndNextSteps(t *testing.T) {
 
 	// GDK-465: re-init of an already-standalone home is one line.
 	again, err := capture(t, func() error {
-		return cmdInit([]string{"--standalone"})
+		return cmdInit([]string{"--local"})
 	})
 	if err != nil {
 		t.Fatalf("reinit --standalone: %v\n%s", err, again)
 	}
-	if !strings.Contains(again, "already standalone at") {
-		t.Fatalf("reinit missing already-standalone line:\n%s", again)
+	// GDK-1281 rewrote the sentence; what it must still do is say the
+	// origin is already there rather than re-seeding it.
+	if !strings.Contains(again, "already") {
+		t.Fatalf("reinit missing the already-seeded line:\n%s", again)
 	}
 	if !strings.Contains(again, persist) {
 		t.Fatalf("reinit must name persist %s:\n%s", persist, again)
@@ -342,7 +350,7 @@ func TestStandaloneSyncCopyOmitsAccount(t *testing.T) {
 	})
 
 	if _, err := capture(t, func() error {
-		return cmdInit([]string{"--standalone", "--json"})
+		return cmdInit([]string{"--local", "--json"})
 	}); err != nil {
 		t.Fatalf("init --standalone: %v", err)
 	}

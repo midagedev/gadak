@@ -24,7 +24,7 @@ description: >
 
 gadak keeps a local SQLite mirror of Jira (and optionally Confluence) at
 `~/.gadak/gadak.db`. The origin is a Jira site, or — with no Atlassian account —
-an in-process tracker (`gadak init --standalone`), or another machine's
+an in-process tracker (`gadak init --local`), or another machine's
 `gadak serve` bound with `gadak init --pairing-code-stdin`. Reads never touch
 the network, so queries are free and fast: prefer a query over asking the user
 to look something up.
@@ -372,13 +372,13 @@ machine, or your own plan as an agent — create a standalone workspace.
 One command, no token, no site:
 
 ```bash
-gadak init --standalone --json
+gadak init --local --json
 gadak sync                          # first fill; in-process, no network
 gadak create "first ticket title" -m "why this exists"
 gadak views open <KEY>
 ```
 
-`init --standalone` is non-interactive. Do not combine it with `--site`,
+`init --local` is non-interactive. Do not combine it with `--site`,
 `--email`, or a token. It seeds project `STD` and wiki space `LOC`, and
 records the default issue type, so a summary-only `gadak create` is enough.
 
@@ -386,7 +386,7 @@ Use a dedicated `--workspace` and name it in every command, so the backlog
 never mixes with a connected mirror:
 
 ```bash
-gadak --workspace plan init --standalone --json
+gadak --workspace plan init --local --json
 gadak --workspace plan create "Ship the uploader" -m "found while refactoring"
 gadak --workspace plan views open <KEY>
 ```

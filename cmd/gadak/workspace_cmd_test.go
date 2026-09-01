@@ -125,7 +125,7 @@ func TestInitJSONWorkspaceAndSource(t *testing.T) {
 		_ = origin.Close()
 		config.SetProfile("")
 	})
-	out, err := capture(t, func() error { return cmdInit([]string{"--standalone", "--json"}) })
+	out, err := capture(t, func() error { return cmdInit([]string{"--local", "--json"}) })
 	if err != nil {
 		t.Fatalf("init: %v\n%s", err, out)
 	}

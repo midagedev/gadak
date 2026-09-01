@@ -583,7 +583,7 @@ func refuseConnectedDevWrite(cfg *config.Config, verb string) error {
 	if !cfg.HasOrigin() {
 		return config.NotConfiguredWith("dev status writes go to the origin, not to the mirror")
 	}
-	return fmt.Errorf("%s is for standalone or paired workspaces — a connected Cloud workspace's development panel is linked by Jira's GitHub app; mirroring needs `gadak config set devStatus true`", verb)
+	return fmt.Errorf("%s needs a gadak origin (here or paired) — a connected Cloud workspace's development panel is linked by Jira's GitHub app; mirroring needs `gadak config set devStatus true`", verb)
 }
 
 func devScanNoMatchMessage(prCount int) string {

@@ -23,7 +23,7 @@ func standalonePages(t *testing.T) string {
 		_ = origin.Close()
 		config.SetProfile("")
 	})
-	if _, err := capture(t, func() error { return cmdInit([]string{"--standalone", "--json"}) }); err != nil {
+	if _, err := capture(t, func() error { return cmdInit([]string{"--local", "--json"}) }); err != nil {
 		t.Fatal(err)
 	}
 	out, err := capture(t, func() error {
@@ -114,7 +114,7 @@ func TestPageGetEmptyBodySaysSo(t *testing.T) {
 		_ = origin.Close()
 		config.SetProfile("")
 	})
-	if _, err := capture(t, func() error { return cmdInit([]string{"--standalone", "--json"}) }); err != nil {
+	if _, err := capture(t, func() error { return cmdInit([]string{"--local", "--json"}) }); err != nil {
 		t.Fatal(err)
 	}
 	out, err := capture(t, func() error {
@@ -195,7 +195,7 @@ func TestPageListEmptyWorkspaceSaysSo(t *testing.T) {
 		_ = origin.Close()
 		config.SetProfile("")
 	})
-	if _, err := capture(t, func() error { return cmdInit([]string{"--standalone", "--json"}) }); err != nil {
+	if _, err := capture(t, func() error { return cmdInit([]string{"--local", "--json"}) }); err != nil {
 		t.Fatal(err)
 	}
 	// Fresh standalone seeds no pages (verified: select count(*) from pages

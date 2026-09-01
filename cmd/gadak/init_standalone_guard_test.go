@@ -31,7 +31,7 @@ func seedStandaloneWithIssue(t *testing.T) string {
 		config.SetProfile("")
 	})
 	if _, err := capture(t, func() error {
-		return cmdInit([]string{"--standalone", "--json"})
+		return cmdInit([]string{"--local", "--json"})
 	}); err != nil {
 		t.Fatalf("init --standalone: %v", err)
 	}
@@ -137,7 +137,7 @@ func TestInitConnectedEmptyStandaloneSucceeds(t *testing.T) {
 		config.SetProfile("")
 	})
 	if _, err := capture(t, func() error {
-		return cmdInit([]string{"--standalone", "--json"})
+		return cmdInit([]string{"--local", "--json"})
 	}); err != nil {
 		t.Fatalf("init --standalone: %v", err)
 	}
@@ -234,12 +234,14 @@ func TestInitReplaceStandaloneRejectedWithStandalone(t *testing.T) {
 	config.SetProfile("")
 	t.Cleanup(func() { config.SetProfile("") })
 	_, err := capture(t, func() error {
-		return cmdInit([]string{"--standalone", "--replace-standalone"})
+		return cmdInit([]string{"--local", "--replace-standalone"})
 	})
 	if err == nil {
-		t.Fatal("expected error combining --standalone and --replace-standalone")
+		t.Fatal("expected error combining --local and --replace-local")
 	}
-	if !strings.Contains(err.Error(), "--replace-standalone") {
+	// GDK-1281: the legacy spelling is translated before parsing, so the
+	// refusal names the flag the help teaches.
+	if !strings.Contains(err.Error(), "--replace-local") {
 		t.Fatalf("error %v", err)
 	}
 }
@@ -411,7 +413,7 @@ func TestInitStandaloneProjectsSeedsOrigin(t *testing.T) {
 		config.SetProfile("")
 	})
 	if _, err := capture(t, func() error {
-		return cmdInit([]string{"--standalone", "--json", "--projects", "IDEA,FOO"})
+		return cmdInit([]string{"--local", "--json", "--projects", "IDEA,FOO"})
 	}); err != nil {
 		t.Fatalf("init --standalone --projects: %v", err)
 	}
@@ -462,7 +464,7 @@ func TestCreateStandaloneUnknownProjectDoesNotAssumeCredential(t *testing.T) {
 		config.SetProfile("")
 	})
 	if _, err := capture(t, func() error {
-		return cmdInit([]string{"--standalone", "--json"})
+		return cmdInit([]string{"--local", "--json"})
 	}); err != nil {
 		t.Fatalf("init --standalone: %v", err)
 	}

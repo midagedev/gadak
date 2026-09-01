@@ -30,7 +30,7 @@ func TestStandaloneCreateSyncSQL(t *testing.T) {
 		Path string `json:"path"`
 	}
 	out, err := capture(t, func() error {
-		return cmdInit([]string{"--standalone", "--json"})
+		return cmdInit([]string{"--local", "--json"})
 	})
 	if err != nil {
 		t.Fatalf("init --standalone: %v\n%s", err, out)
@@ -126,12 +126,12 @@ func TestInitStandaloneRejectsCredentialFlags(t *testing.T) {
 	t.Cleanup(func() { config.SetProfile("") })
 
 	_, err := capture(t, func() error {
-		return cmdInit([]string{"--standalone", "--site", "https://example.atlassian.net"})
+		return cmdInit([]string{"--local", "--site", "https://example.atlassian.net"})
 	})
 	if err == nil {
 		t.Fatal("expected error combining --standalone and --site")
 	}
-	if !strings.Contains(err.Error(), "--standalone") {
+	if !strings.Contains(err.Error(), "--local") {
 		t.Fatalf("error %v", err)
 	}
 }

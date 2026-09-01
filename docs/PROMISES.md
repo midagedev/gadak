@@ -97,7 +97,7 @@ go test ./internal/snapshot/ -run 'TestCredentialRejected|TestCredentialInPageRe
 ```
 
 **9. On standalone, the origin is one ordinary SQLite file, readable without gadak.**
-`gadak init --standalone` writes `origin/issuetap.db` under the profile
+`gadak init --local` writes `origin/issuetap.db` under the profile
 directory (`internal/origin/origin.go` `PersistRel`) — plain SQLite, no
 custom container. That file is the record; `gadak.db` remains a disposable
 cache filled by sync. The command uses a throwaway `GADAK_HOME` so it never
@@ -106,7 +106,7 @@ touches `~/.gadak`.
 ```bash
 tmp=$(mktemp -d)
 go build -o "$tmp/gadak" ./cmd/gadak
-GADAK_HOME=$tmp "$tmp/gadak" init --standalone --json >/dev/null
+GADAK_HOME=$tmp "$tmp/gadak" init --local --json >/dev/null
 GADAK_HOME=$tmp "$tmp/gadak" create "written through gadak" --project STD --json >/dev/null 2>&1
 sqlite3 "$tmp/origin/issuetap.db" "select key, json_extract(blob, '$.summary') from issues"
 # → STD-1|written through gadak
@@ -122,7 +122,7 @@ there.
 ```bash
 tmp=$(mktemp -d)
 go build -o "$tmp/gadak" ./cmd/gadak
-GADAK_HOME=$tmp "$tmp/gadak" init --standalone --json >/dev/null
+GADAK_HOME=$tmp "$tmp/gadak" init --local --json >/dev/null
 GADAK_HOME=$tmp "$tmp/gadak" views save "Night triage" --jql 'project = STD'
 rm "$tmp/gadak.db"
 GADAK_HOME=$tmp "$tmp/gadak" views | grep -c 'Night triage'

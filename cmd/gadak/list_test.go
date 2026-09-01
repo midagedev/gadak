@@ -160,7 +160,7 @@ func standaloneHome(t *testing.T) {
 		_ = origin.Close()
 		config.SetProfile("")
 	})
-	if _, err := capture(t, func() error { return cmdInit([]string{"--standalone", "--json"}) }); err != nil {
+	if _, err := capture(t, func() error { return cmdInit([]string{"--local", "--json"}) }); err != nil {
 		t.Fatalf("init --standalone: %v", err)
 	}
 }

@@ -777,7 +777,7 @@ export const write = {
     ja: '置き換えて接続',
   },
   // GDK-377: the no-tracker front door on step 1. POST onboarding/standalone
-  // seeds the same workspace `gadak init --standalone` makes.
+  // seeds the same workspace `gadak init --local` makes.
   'onboarding.standaloneIntro': {
     en: 'No tracker to connect? gadak can keep issues by itself — one click, and everything stays on this machine.',
     ko: '연결할 트래커가 없나요? gadak이 직접 이슈를 보관합니다 — 클릭 한 번이면 되고, 모든 데이터는 이 머신에 그대로 있습니다.',
@@ -791,9 +791,9 @@ export const write = {
   // 409 workspace_connected: the server names the same fact handleConnect's
   // refusals do — origin switch is a new workspace, not a settings edit.
   'onboarding.standaloneConnected': {
-    en: 'This workspace is already connected to a Jira site. Switching origin means starting a new workspace — the CLI verb does that: gadak --workspace <name> init --standalone.',
-    ko: '이 워크스페이스는 이미 Jira 사이트에 연결되어 있습니다. origin을 바꾸는 것은 새 워크스페이스를 시작하는 일입니다 — CLI로 할 수 있습니다: gadak --workspace <name> init --standalone.',
-    ja: 'このワークスペースはすでに Jira サイトに接続されています。origin の切り替えは新しいワークスペースを作ることです — CLI で行えます: gadak --workspace <name> init --standalone。',
+    en: 'This workspace is already connected to a Jira site. Switching origin means starting a new workspace — the CLI verb does that: gadak --workspace <name> init --local.',
+    ko: '이 워크스페이스는 이미 Jira 사이트에 연결되어 있습니다. origin을 바꾸는 것은 새 워크스페이스를 시작하는 일입니다 — CLI로 할 수 있습니다: gadak --workspace <name> init --local.',
+    ja: 'このワークスペースはすでに Jira サイトに接続されています。origin の切り替えは新しいワークスペースを作ることです — CLI で行えます: gadak --workspace <name> init --local。',
   },
   'onboarding.errStandalone': {
     en: 'Could not start the workspace: {message}',

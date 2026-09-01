@@ -312,8 +312,8 @@ func TestInitMissingNonTTY(t *testing.T) {
 		}
 		// GDK-454: the missing-values path must name the other two init
 		// shapes, not only site/email/token.
-		if !strings.Contains(msg, "--standalone") {
-			t.Errorf("missing-values error must name --standalone: %s", msg)
+		if !strings.Contains(msg, "--local") {
+			t.Errorf("missing-values error must name --local: %s", msg)
 		}
 		if !strings.Contains(msg, "--pairing-code") {
 			t.Errorf("missing-values error must name --pairing-code: %s", msg)
@@ -1093,7 +1093,7 @@ func TestInitConvertingEmptyStandaloneDropsSeededSpace(t *testing.T) {
 
 	withClosedStdin(t, func() {
 		if _, err := capture(t, func() error {
-			return cmdInit([]string{"--standalone", "--json"})
+			return cmdInit([]string{"--local", "--json"})
 		}); err != nil {
 			t.Fatalf("standalone init: %v", err)
 		}
@@ -1156,7 +1156,7 @@ func TestInitStandaloneFailsWhenOriginClientFails(t *testing.T) {
 
 	withClosedStdin(t, func() {
 		_, err := capture(t, func() error {
-			return cmdInit([]string{"--standalone", "--json"})
+			return cmdInit([]string{"--local", "--json"})
 		})
 		if err == nil {
 			t.Fatal("init --standalone succeeded while origin.Client failed")
@@ -1185,7 +1185,7 @@ func runStandaloneInitJSON(t *testing.T) string {
 		config.SetProfile("")
 	})
 	out, err := capture(t, func() error {
-		return cmdInit([]string{"--standalone", "--json"})
+		return cmdInit([]string{"--local", "--json"})
 	})
 	if err != nil {
 		t.Fatalf("init --standalone --json: %v\n%s", err, out)
@@ -1246,7 +1246,7 @@ func TestInitStandaloneSkillConflictPreservesFile(t *testing.T) {
 	}
 
 	out, stderr, err := captureErr(t, func() error {
-		return cmdInit([]string{"--standalone", "--json"})
+		return cmdInit([]string{"--local", "--json"})
 	})
 	if err != nil {
 		t.Fatalf("conflict must not fail init: %v\nstdout=%s\nstderr=%s", err, out, stderr)
@@ -1277,7 +1277,7 @@ func TestInitStandaloneHumanSkillInstalledLine(t *testing.T) {
 		config.SetProfile("")
 	})
 	out, err := capture(t, func() error {
-		return cmdInit([]string{"--standalone"})
+		return cmdInit([]string{"--local"})
 	})
 	if err != nil {
 		t.Fatalf("init --standalone: %v\n%s", err, out)

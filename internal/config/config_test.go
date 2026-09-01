@@ -621,7 +621,7 @@ func TestErrNotConfiguredNamesThreeInitPaths(t *testing.T) {
 	for _, want := range []string{
 		"not configured",
 		"gadak init (Jira)",
-		"gadak init --standalone (local)",
+		"gadak init --local (gadak's own tracker)",
 		"gadak init --pairing-code (another machine's serve)",
 	} {
 		if !strings.Contains(msg, want) {

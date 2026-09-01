@@ -695,7 +695,7 @@ export type StandaloneInit = {
 }
 
 /**
- * Seed a standalone workspace — the GUI twin of `gadak init --standalone`
+ * Seed a standalone workspace — the GUI twin of `gadak init --local`
  * (GDK-377). Body is `{}`: the server seeds the default STD project and the
  * LOC wiki space. 409 workspace_connected when this workspace already has an
  * origin; a workspace that is already standalone answers 200 idempotently.
