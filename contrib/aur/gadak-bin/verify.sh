@@ -61,7 +61,12 @@ if [[ ! -f "${here}/PKGBUILD" ]]; then
   exit 1
 fi
 
-out="$(mktemp -d "${TMPDIR:-/tmp}/gadak-aur-verify.XXXXXX")"
+# The scratch dir must live next to the PKGBUILD, not under ${TMPDIR}: on
+# macOS mktemp answers /var/folders/…, which Docker Desktop does not share
+# with the VM — the container then writes /out somewhere VM-local, every
+# check passes, and the host is left with no .SRCINFO to commit (GDK-1256,
+# measured: a probe file written through that mount never reaches the host).
+out="$(mktemp -d "${here}/.verify-out.XXXXXX")"
 cleanup() { rm -rf "$out"; }
 trap cleanup EXIT INT HUP TERM
 
@@ -144,5 +149,11 @@ docker run --rm --platform linux/amd64 "${sec[@]}" \
   -v "${here}:/pkg:ro" -v "${out}:/out" \
   archlinux:latest bash -c "$inner"
 
+# Belt for any other mount arrangement that swallows /out: a green
+# container run without the artifact is a failure, not a pass.
+if [[ ! -f "${out}/.SRCINFO" ]]; then
+  echo "verify.sh: container passed but ${out}/.SRCINFO never reached the host — the /out mount is not shared with the docker daemon" >&2
+  exit 1
+fi
 cp "${out}/.SRCINFO" "${here}/.SRCINFO"
 echo "verify.sh: wrote ${here}/.SRCINFO"
