@@ -93,7 +93,10 @@ test.describe('standalone onboarding origin guard', () => {
 
     const block = page.getByTestId('onboarding-standalone-block')
     await expect(block).toBeVisible()
-    await expect(block).toContainText('3 locally originated issues')
+    // GDK-1281: the sentence now says where the issues came from rather
+    // than naming a workspace kind. The count and its subject are what this
+    // assertion is about, and both are still here.
+    await expect(block).toContainText('3 issues or documents that originated here')
     await expect(page.getByTestId('onboarding-standalone-persist')).toContainText(PERSIST)
     await expect(block).toContainText('separate workspace')
     expect(connectBodies).toHaveLength(1)

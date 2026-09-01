@@ -362,19 +362,19 @@ export const settings = {
     ja: 'このミラー',
   },
   'settings.workspaceStandalone': {
-    en: 'Standalone',
-    ko: '독립 워크스페이스',
-    ja: 'スタンドアロン',
+    en: 'gadak',
+    ko: 'gadak',
+    ja: 'gadak',
   },
   'settings.workspaceStandaloneHint': {
-    en: "A workspace without a Jira account. The origin is this computer's issuetap persist file, not gadak.db — back that file up.",
-    ko: 'Jira 계정 없이 쓰는 워크스페이스입니다. 원본은 이 컴퓨터의 issuetap persist 파일이며, 백업 대상은 gadak.db가 아니라 그 파일입니다.',
-    ja: 'Jira アカウントのないワークスペースです。origin はこのコンピュータの issuetap persist ファイルであり、gadak.db ではありません — そのファイルをバックアップしてください。',
+    en: "The origin is gadak's own tracker, running here. It keeps this computer's issuetap persist file, not gadak.db — back that file up.",
+    ko: '원본이 gadak 자신의 트래커이고, 여기서 돕니다. 보관 파일은 이 컴퓨터의 issuetap persist 이며, 백업 대상은 gadak.db가 아니라 그 파일입니다.',
+    ja: 'origin は gadak 自身のトラッカーで、ここで動いています。保管するのはこのコンピュータの issuetap persist ファイルであり、gadak.db ではありません — そのファイルをバックアップしてください。',
   },
   'settings.standaloneHow': {
-    en: 'Create a standalone workspace',
-    ko: '독립 워크스페이스 만들기',
-    ja: 'スタンドアロンワークスペースを作る',
+    en: 'Create a workspace with no tracker to connect',
+    ko: '연결할 트래커 없이 워크스페이스 만들기',
+    ja: '接続するトラッカーなしでワークスペースを作る',
   },
   'settings.runtimeProfile': {
     en: 'Workspace',
@@ -925,9 +925,9 @@ export const settings = {
     ja: 'ワークスペース',
   },
   'settings.workspacesIntro': {
-    en: 'Each workspace is its own mirror, served at /w/<name>/. Creating one seeds a standalone tracker; removing one deletes this machine’s copy of it.',
-    ko: '각 워크스페이스는 자체 미러를 가지며 /w/<name>/ 으로 서빙됩니다. 만들면 독립 트래커가 시드되고, 지우면 이 머신의 사본이 삭제됩니다.',
-    ja: '各ワークスペースは独自のミラーを持ち、/w/<name>/ で serve されます。作成するとスタンドアロンのトラッカーがシードされ、削除するとこのマシンのコピーが消えます。',
+    en: 'Each workspace is its own mirror, served at /w/<name>/. Creating one seeds a tracker gadak keeps itself; removing one deletes this machine’s copy of it.',
+    ko: '각 워크스페이스는 자체 미러를 가지며 /w/<name>/ 으로 서빙됩니다. 만들면 gadak이 직접 보관하는 트래커가 시드되고, 지우면 이 머신의 사본이 삭제됩니다.',
+    ja: '各ワークスペースは独自のミラーを持ち、/w/<name>/ で serve されます。作成すると gadak 自身が保持するトラッカーがシードされ、削除するとこのマシンのコピーが消えます。',
   },
   'settings.workspacesLoading': {
     en: 'Loading workspaces…',
@@ -990,9 +990,9 @@ export const settings = {
     ja: 'ワークスペースを作成',
   },
   'settings.workspacesModeStandalone': {
-    en: 'New standalone',
-    ko: '새 독립 워크스페이스',
-    ja: '新規スタンドアロン',
+    en: 'New, no tracker',
+    ko: '새 워크스페이스 (트래커 없이)',
+    ja: '新規（トラッカーなし）',
   },
   'settings.workspacesModePaired': {
     en: 'Register remote',
@@ -1050,9 +1050,9 @@ export const settings = {
     ja: 'ワークスペースを削除',
   },
   'settings.workspacesDestroyLabel': {
-    en: 'Also destroy the standalone persist (the only copy of this tracker)',
-    ko: '독립 persist도 함께 파기 (이 트래커의 유일한 사본)',
-    ja: 'スタンドアロンのpersistも破棄する（このトラッカーの唯一のコピー）',
+    en: 'Also destroy the persist file (the only copy of this tracker)',
+    ko: 'persist 파일도 함께 파기 (이 트래커의 유일한 사본)',
+    ja: 'persist ファイルも破棄する（このトラッカーの唯一のコピー）',
   },
   'settings.workspacesDestroyHint': {
     en: 'Copy the persist file out first if you want to keep its data.',

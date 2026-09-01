@@ -752,9 +752,9 @@ export const write = {
   // GDK-247: PUT onboarding/connect/ 409 standalone_data_present. Facts match
   // cmd/gadak/init.go's ReplaceRefusedError sentence (via workspace.RefuseReplace).
   'onboarding.standaloneBlocked': {
-    en: 'This workspace is standalone and holds {n} locally originated issues or documents. They exist only here — no Jira site has a copy. Converting this workspace deletes them from the mirror.',
-    ko: '이 워크스페이스는 독립 워크스페이스이며 여기서만 존재하는 로컬 원본 이슈 또는 문서가 {n}개 있습니다. 어떤 Jira 사이트에도 사본이 없습니다. 이 워크스페이스를 전환하면 미러에서 그 이슈 또는 문서들이 즉시 삭제됩니다.',
-    ja: 'このワークスペースはスタンドアロンで、ここでだけ存在する課題またはドキュメントが {n}件あります。どの Jira サイトにもコピーはありません。このワークスペースを変換すると、それらはミラーから削除されます。',
+    en: 'This workspace holds {n} issues or documents that originated here, in gadak\u2019s own tracker. They exist only here — no Jira site has a copy. Converting this workspace deletes them from the mirror.',
+    ko: '이 워크스페이스에는 gadak 자신의 트래커에서 만들어진 이슈 또는 문서가 {n}개 있습니다. 여기에만 존재하며 어떤 Jira 사이트에도 사본이 없습니다. 이 워크스페이스를 전환하면 미러에서 그것들이 삭제됩니다.',
+    ja: 'このワークスペースには gadak 自身のトラッカーで作られた課題またはドキュメントが {n}件あります。ここにしか存在せず、どの Jira サイトにもコピーはありません。このワークスペースを変換すると、それらはミラーから削除されます。',
   },
   'onboarding.standalonePersist': {
     en: 'Origin persist file: {path}',
@@ -779,9 +779,9 @@ export const write = {
   // GDK-377: the no-tracker front door on step 1. POST onboarding/standalone
   // seeds the same workspace `gadak init --standalone` makes.
   'onboarding.standaloneIntro': {
-    en: 'No tracker to connect? gadak can keep issues by itself — one click creates a standalone workspace, and everything stays on this machine.',
-    ko: '연결할 트래커가 없나요? gadak이 직접 이슈를 보관합니다 — 클릭 한 번으로 독립 워크스페이스를 만들고, 모든 데이터는 이 머신에 그대로 있습니다.',
-    ja: '接続するトラッカーがない? gadak が自分で課題を保持します — クリックひとつでスタンドアロンのワークスペースを作り、データはすべてこのマシンに残ります。',
+    en: 'No tracker to connect? gadak can keep issues by itself — one click, and everything stays on this machine.',
+    ko: '연결할 트래커가 없나요? gadak이 직접 이슈를 보관합니다 — 클릭 한 번이면 되고, 모든 데이터는 이 머신에 그대로 있습니다.',
+    ja: '接続するトラッカーがない? gadak が自分で課題を保持します — クリックひとつで済み、データはすべてこのマシンに残ります。',
   },
   'onboarding.standaloneStart': {
     en: 'Start with no tracker',
@@ -796,8 +796,8 @@ export const write = {
     ja: 'このワークスペースはすでに Jira サイトに接続されています。origin の切り替えは新しいワークスペースを作ることです — CLI で行えます: gadak --workspace <name> init --standalone。',
   },
   'onboarding.errStandalone': {
-    en: 'Could not start the standalone workspace: {message}',
-    ko: '독립 워크스페이스를 시작하지 못했습니다: {message}',
-    ja: 'スタンドアロンワークスペースを開始できませんでした: {message}',
+    en: 'Could not start the workspace: {message}',
+    ko: '워크스페이스를 시작하지 못했습니다: {message}',
+    ja: 'ワークスペースを開始できませんでした: {message}',
   },
 } as const satisfies Record<string, Message>
