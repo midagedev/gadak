@@ -86,7 +86,7 @@ The alarm is a count: **a minor whose scope contains zero `filmable` issues
 is under-scoped**, and it rings while there is still time to act on it.
 
 ```bash
-gadak --profile oss sql "select key, priority_rank, summary from issues_full
+gadak --workspace gdk sql "select key, priority_rank, summary from issues_full
   where json_extract(labels,'\$') like '%filmable%'
     and json_extract(labels,'\$') like '%release-0.20%'
   order by priority_rank"

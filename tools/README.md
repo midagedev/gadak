@@ -95,7 +95,7 @@ no emails, no concrete site URLs) and runs again in `pages.yml` on the
 built artifact. Refresh is manual, release-time by default.
 
 ```bash
-tools/backlog-snapshot.sh            # default mirror: ~/.gadak/profiles/oss/gadak.db
+tools/backlog-snapshot.sh            # default mirror: ~/.gadak/profiles/gdk/gadak.db
 tools/backlog-scrub-check.sh examples/backlog-snapshot
 ```
 

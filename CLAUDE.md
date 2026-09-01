@@ -195,14 +195,21 @@ hard-won 목록)와 `AGENTS.md`(스키마·쿼리)가 원본이다.
   게이트가 초록이면 그 자리에서 main에 올린다 — 기능 작업이 끝나기를
   기다리거나 다음 릴리스까지 묶어 두지 않는다. 릴리스 태그는 별개 결정이다.
 - **착수 순서는 대화 순서가 아니라 GDK 우선순위 순서다.** 라운드를 열기
-  전에 `gadak --profile oss sql`로 우선순위 상위를 확인하고 거기서 고른다
+  전에 `gadak --workspace gdk sql`로 우선순위 상위를 확인하고 거기서 고른다
   (`priority_rank` — display name으로 키하지 말 것). 방금 대화에서 나왔다는
   이유로 순번을 앞당기지 않는다.
-- **백로그 원본은 Jira `GDK` 프로젝트** (midagedev 개인 사이트, `gadak
-  --profile oss`). 세션 태스크 리스트는 이번 세션의 실행 단위일 뿐 —
-  세션을 넘길 백로그는 GDK에 이슈로 등록한다. 조회는 gadak으로(도그푸딩):
-  `gadak --profile oss sql "..."`.
-- 홍보 전략·멘토 보고서·벤치 원자료는 **Confluence `GDK` 스페이스**.
+- **백로그 원본은 셀프호스트 트래커의 `GDK` 프로젝트**다 (2026-09-01
+  컷오버, GDK-1262). 집 serve에 페어링된 `gdk` 워크스페이스가 그 origin이고,
+  읽기·쓰기 모두 `gadak --workspace gdk`로 간다. **Jira(`--profile oss`)는
+  컷오버 이전 기록의 읽기 전용 보존본**이다 — `frozen: true`라 동기화되지
+  않고, 거기에 새로 쓰지 않는다. 세션 태스크 리스트는 이번 세션의 실행
+  단위일 뿐 — 세션을 넘길 백로그는 GDK에 이슈로 등록한다. 조회는
+  gadak으로(도그푸딩): `gadak --workspace gdk sql "..."`.
+- 홍보 전략·멘토 보고서·벤치 원자료는 **Confluence `GDK` 스페이스**로
+  Atlassian에 남아 있다 (이슈만 이전했다). 페어링 워크스페이스는 아직
+  위키를 동기화하지 못하고(GDK-1276), `oss`는 frozen이라 위키 미러도 멈춰
+  있다 — 위키를 읽어야 하면 `gadak --profile oss config set frozen false`로
+  잠시 풀고 동기화한 뒤 다시 얼린다.
   비공개 전략 문서를 공개 레포(scratch/ 포함)에 새로 만들지 않는다.
 - GitHub Issues는 **사용자 인바운드 전용** — 들어오면 GDK로 미러.
 - 백로그 작업 중 걸리는 write 격차는 그 자리에서 GDK에 `write-gap`

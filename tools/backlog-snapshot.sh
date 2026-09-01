@@ -11,7 +11,8 @@
 #   tools/backlog-snapshot.sh --unpack <dest> [archive]
 #   tools/backlog-snapshot.sh --pack-from <exported-dir>
 #
-# Default mirror: ~/.gadak/profiles/oss/gadak.db. Refresh cadence is manual,
+# Default mirror: ~/.gadak/profiles/gdk/gadak.db — the paired workspace whose
+# origin is the self-hosted tracker (GDK-1262). Refresh cadence is manual,
 # release-time by default.
 #
 # --pack-from packs an already-exported snapshot directory without talking
@@ -91,7 +92,9 @@ if [[ "${1:-}" == "--pack-from" ]]; then
   exit 0
 fi
 
-MIRROR="${1:-$HOME/.gadak/profiles/oss/gadak.db}"
+# GDK-1262: the backlog's origin is the self-hosted tracker on the paired
+# home serve, not Jira. The default mirror is the paired workspace's.
+MIRROR="${1:-$HOME/.gadak/profiles/gdk/gadak.db}"
 
 [ -f "$MIRROR" ] || { echo "mirror not found: $MIRROR" >&2; exit 1; }
 
@@ -100,9 +103,9 @@ go build -trimpath -o bin/gadak ./cmd/gadak
 # GDK-600: a regen is a full rewrite of the published state, so it must run
 # on a fresh mirror — a parallel session's label writes landed in Jira but a
 # stale local mirror silently dropped them from the public page. Only the
-# default oss mirror can be synced here (a custom path has no profile mapping).
-if [ "$MIRROR" = "$HOME/.gadak/profiles/oss/gadak.db" ]; then
-  bin/gadak --profile oss sync --if-stale 1m
+# default mirror can be synced here (a custom path has no profile mapping).
+if [ "$MIRROR" = "$HOME/.gadak/profiles/gdk/gadak.db" ]; then
+  bin/gadak --workspace gdk sync --if-stale 1m
 else
   echo "warning: custom mirror path — freshness is the caller's job (no sync run)" >&2
 fi
