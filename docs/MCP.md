@@ -48,7 +48,7 @@ The process exits when stdin closes.
 While the server is running it keeps the mirror fresh on the same incremental
 loop `gadak serve` uses (`syncIntervalSec`; `--no-sync` turns the loop off —
 fixtures and demos). The loop starts only when the workspace has a credential
-(standalone origin included) and is not frozen, and it stops when stdin closes.
+(gadak origin included) and is not frozen, and it stops when stdin closes.
 A missing mirror still starts the protocol; the loop is not forced on that path.
 Tools still do not write to Jira or the mirror.
 

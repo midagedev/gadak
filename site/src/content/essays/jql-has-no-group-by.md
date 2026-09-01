@@ -14,7 +14,7 @@ and runs the epic query client-side in your browser. No install, no account,
 no server of ours.
 
 And since 0.16, gadak also runs with no Jira at all. `gadak init
---standalone` starts a deliberately minimal in-process tracker (`issuetap`)
+--local` starts a deliberately minimal in-process tracker (`issuetap`)
 as the origin; the app, the CLI, `gadak sql`, and the MCP server work
 unchanged on top of it. The design rule survives: the origin owns the data,
 the mirror is a cache you can throw away, and the one file you back up is
@@ -198,6 +198,6 @@ In order of commitment:
    your machine.
 
 If gadak stopped shipping tomorrow, you would delete a directory and lose
-nothing: your Jira was the source of truth the whole time, and a standalone
+nothing: your Jira was the source of truth the whole time, and a gadak-origin
 workspace's record is one SQLite file you already know how to read. That
 property is the product.

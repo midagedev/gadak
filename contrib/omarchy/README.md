@@ -5,7 +5,7 @@ that answers one question offline: how much of the local gadak mirror is
 open, and how much of that has been sitting in the same status for more
 than seven days.
 
-This is not a “my assigned tickets” widget. A standalone workspace has no
+This is not a “my assigned tickets” widget. A workspace whose origin is gadak's own tracker has no
 account (`gadak init --local` clears `AccountID`), and the competing
 community plugins (`tmn73.jira`, Linear, Todoist, ClickUp, `37signals.basecamp`)
 all need a cloud token and a live network. This one runs `gadak sql --json`

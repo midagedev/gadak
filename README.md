@@ -35,7 +35,7 @@ stays the source of truth.
 </p>
 
 A connected site needs one [API token](https://id.atlassian.com/manage-profile/security/api-tokens)
-— it covers Jira and Confluence on the same site. A standalone workspace
+— it covers Jira and Confluence on the same site. A workspace whose origin is gadak's own tracker
 needs no Atlassian account at all.
 
 **You pick what it mirrors.** The wiki is off until you ask for it, and when
@@ -77,7 +77,7 @@ gadak serve
 ```
 
 Or leave one, data in hand — issues, comments, full history, attachments,
-and wiki pages move from a synced workspace into a standalone one, ending
+and wiki pages move from a synced workspace into a gadak-origin one, ending
 with a source-vs-migrated count table:
 
 ```bash
@@ -210,10 +210,10 @@ open-by-key half.
 
 ## What's covered
 
-Connected talks to Atlassian Cloud. Standalone (from 0.16) is a workspace
+Connected talks to Atlassian Cloud. gadak's own tracker (from 0.16) is a workspace
 with no Atlassian account — a minimal Jira origin that travels with the
 app. The mirror is a cache either way; every write goes through the origin.
-On standalone the durable file is the origin's persist file — issuetap.db
+On a gadak origin the durable file is the origin's persist file — issuetap.db
 in the workspace's origin folder (SQLite, WAL). Copy it while gadak is not
 running (include the `-wal`/`-shm` sidecars), or
 `sqlite3 origin/issuetap.db ".backup dest.db"`.
@@ -225,7 +225,7 @@ dashboards and Jira's notification inbox do not — those stay in Jira.
 <details>
 <summary>▶ The full matrix, with the footnote for every ✅</summary>
 
-| | Connected (Atlassian Cloud) | Standalone (from 0.16) |
+| | Connected (Atlassian Cloud) | gadak's own tracker (from 0.16) |
 | --- | :---: | :---: |
 | Issue read and search (FTS, JQL, SQL) | ✅¹ | ✅¹ |
 | Create, comment, transition, assignee, labels, priority | ✅ | ✅ |
@@ -416,7 +416,7 @@ and its off switch.
 ## Install
 
 The two brew lines are at the top of this page. Atlassian Cloud, or (from
-0.16) a standalone workspace with no Atlassian account — a connected site
+0.16) a workspace whose origin is gadak's own tracker with no Atlassian account — a connected site
 needs one [API token](https://id.atlassian.com/manage-profile/security/api-tokens),
 which covers Jira and Confluence on the same site.
 

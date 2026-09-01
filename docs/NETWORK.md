@@ -28,7 +28,7 @@ The traffic that does exist:
 2. **Writes** — a comment, transition, or edit goes to the origin first,
    then the mirror is re-read. gadak never queues a write in the mirror: if
    the origin is remote and unreachable the write fails, and if the origin
-   is the in-process standalone tracker no network is involved at all.
+   is gadak's own in-process tracker no network is involved at all.
 3. **The version check** — one anonymous GitHub GET per day, at most.
 4. **Deliberate sharing** — a paired machine reaching a home serve you set
    up yourself (below).
@@ -41,13 +41,13 @@ grep that proves it stays complete:
 
 | Destination | When | Carries | Off switch |
 | --- | --- | --- | --- |
-| **Your tracker** — the Atlassian site, Linear, or a paired home serve you configured | sync, write-through, and on-demand attachment fetch | to Atlassian and Linear's GraphQL: your API token; to Linear's signed upload PUT: no token, only Linear's signed headers; to a paired home serve: that device's bearer token. Never to any other host — cross-host redirects drop the Authorization header | remove the source; an unpaired standalone workspace has no remote at all |
+| **Your tracker** — the Atlassian site, Linear, or a paired home serve you configured | sync, write-through, and on-demand attachment fetch | to Atlassian and Linear's GraphQL: your API token; to Linear's signed upload PUT: no token, only Linear's signed headers; to a paired home serve: that device's bearer token. Never to any other host — cross-host redirects drop the Authorization header | remove the source; an unpaired gadak-origin workspace has no remote at all |
 | **GitHub Releases** | at most one anonymous version-check `GET` per day | nothing — no identifier, no local data | `updateCheck: false`; dev builds never check |
 | **`gh` (your own CLI)** | only when you run `gadak dev scan` | whatever `gh` is already configured to send — gadak execs it, it does not call GitHub itself | don't run `dev scan` |
 
 That table is exhaustive. There is no telemetry, no crash reporting, no
 gadak-operated server, no account, and nothing that phones home on install,
-on error, or on schedule. On a standalone workspace with `updateCheck:
+on error, or on schedule. On a workspace whose origin is gadak's own tracker with `updateCheck:
 false`, the gadak process itself opens no outbound connections — the one
 thing that can still reach out is `gadak dev scan`, because it execs your
 own `gh`.
@@ -103,7 +103,7 @@ Linear — so multi-host is trivial: run `gadak init` on each machine and every
 mirror syncs from the same site independently. Nothing to pair, nothing new
 on the network.
 
-A **standalone** workspace carries its own tracker in-process; the durable
+A **local gadak origin** carries its tracker in-process; the durable
 record is its persist file (that file, not any mirror, is what you back up).
 To share it, one machine runs `gadak serve` as the **home serve** — the HTTP
 face of that tracker — and other machines join by **pairing**:
@@ -176,7 +176,7 @@ stating precisely:
   network boundary itself (a firewalled host, a tailnet ACL) is the access
   control you mean.
 
-### A team on one standalone workspace
+### A team on one gadak-origin workspace
 
 The same pieces compose into a small team tracker with no vendor and no
 server bill:
@@ -190,7 +190,7 @@ server bill:
   gadak: `gadak sql` locally, writes through the paired origin, freshness
   from the watch loop or `sync --if-stale`.
 - Concurrent agents don't trample each other's claims: `gadak claim` is one
-  atomic call on the standalone origin, and a claim someone already holds
+  atomic call on the gadak origin, and a claim someone already holds
   is refused with the holder's name.
 
 What this deliberately is not: a hosted product. The traffic stays inside

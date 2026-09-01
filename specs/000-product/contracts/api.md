@@ -63,7 +63,7 @@ Request header: `If-None-Match: "sv-<version>"` (optional).
   Actors of comments, changelog entries and dev-panel links are members too
   (GDK-590): a bot that only commented appears, keyed by account id with an
   empty email, exactly like an email-hidden human. `account_type` is the
-  origin's account axis (`agent` for standalone worker accounts, `app` for
+  origin's account axis (`agent` for gadak-origin worker accounts, `app` for
   Cloud Connect, `atlassian`/`customer` for humans) and `is_bot` is derived
   from it — the one judgement, never a display-name guess. Both are omitted
   for accounts the catalog has no type for.

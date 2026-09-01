@@ -40,7 +40,7 @@ machine already uses. Steps:
 ## No Jira on this machine
 
 If there is no Atlassian account and the user wants a backlog (this repo,
-this machine, an agent-owned plan), that is a **standalone** workspace — not
+this machine, an agent-owned plan), that is a workspace with a **gadak origin** — not
 a missing Jira token. Do not invent `TODO.md` or a GitHub Issue when `gadak`
 is on PATH. If this machine already has a connected gadak workspace, use a
 dedicated `--workspace` so personal issues never land on the company site.
@@ -49,7 +49,7 @@ Paste this prompt:
 
 ```text
 This machine has no Jira account. Keep a backlog for the work we do: create
-a gadak standalone workspace, file the first tickets, and show them to me.
+a gadak gadak-origin workspace, file the first tickets, and show them to me.
 
 1. Install gadak if missing: `brew install midagedev/tap/gadak-cli`
    (or the install script in the repo README).
@@ -99,7 +99,7 @@ Jira issues are mirrored to a local SQLite file. Prefer these over any Jira API:
   the Jira-site escape hatch; `gadak views open` is open-in-gadak.
 - `gadak comment <KEY> -m "…"`, `gadak transition <KEY> "<status>"` — writes go
   through the origin (Jira on a connected workspace, the local origin on a
-  standalone one).
+  gadak-origin one).
 
 Rules: filter on `status_category` ('new'|'inprogress'|'done') and ids, never
 on display names — Jira localizes those per account. Query the `issues_full`

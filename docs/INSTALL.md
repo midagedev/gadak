@@ -1,7 +1,7 @@
 # Install
 
 A connected workspace needs one [API token](https://id.atlassian.com/manage-profile/security/api-tokens)
-(it covers Jira and Confluence on the same site). A standalone workspace
+(it covers Jira and Confluence on the same site). A workspace whose origin is gadak's own tracker
 needs no Atlassian account at all. Pick an install under [The ways in](#the-ways-in),
 then [First run](#first-run).
 
@@ -254,7 +254,7 @@ demo needs none of it.
 
 ## First run
 
-### Standalone (no Atlassian account)
+### A tracker of your own (no Atlassian account)
 
 ```bash
 gadak init --local
@@ -271,7 +271,7 @@ there — a SQLite database (WAL), the origin, the file to back up
 running (include the `-wal`/`-shm` sidecars), or
 `sqlite3 origin/issuetap.db ".backup dest.db"`. It seeds project `STD` and wiki
 space `LOC`, and records a default issue type so `gadak create` takes only a
-summary (`cmd/gadak/init.go` `initStandalone`). The SQLite file `gadak.db` is
+summary (`cmd/gadak/init.go` `initLocalOrigin`). The SQLite file `gadak.db` is
 still a cache. The first `gadak sync` against that origin finishes in 0s
 (measured; the origin is already local). Local CLI writes embed the same
 SQLite file (WAL); a leftover `serve-origin.json` from an older install is
@@ -301,7 +301,7 @@ is a token table on the home machine and one status line on the remote.
 warning — a machine that is not this one needs a URL it can reach. `_home` is
 this machine's routing token, not a device (`revoke` refuses it; `mint --label
 _home` rotates). Same CLI verbs on the remote; a `pairing:` error is the whole
-message. Do not combine `--pairing-code-stdin` with `--standalone` or a site
+message. Do not combine `--pairing-code-stdin` with `--local` or a site
 token. The gate is in [SECURITY.md](../SECURITY.md).
 
 ### Already have Jira
@@ -338,7 +338,7 @@ pages (current version, comments, labels) alongside issues —
 `--source jira|confluence|all` narrows a run. Pages land in the same FTS index,
 the sidebar grows a DOCS tree, and search answers across both.
 `gadak init --local` writes `confluence.spaces` as `["LOC"]` (the space
-the in-process origin seeds) so the wiki pass is on for a new standalone
+the in-process origin seeds) so the wiki pass is on for a new gadak-origin
 workspace.
 
 ## Two sites at once

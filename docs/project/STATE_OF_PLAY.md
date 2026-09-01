@@ -33,7 +33,7 @@ due date, and state history (`status_changed_at` stays NULL) refuse
 honestly rather than half-applying. Wiki page create, edit, and comment
 write through the origin ([GDK-380], [GDK-381], [GDK-382]).
 Under it, v0.16.0, the release where gadak stops needing an
-Atlassian account and stops needing a Mac: standalone workspaces whose origin
+Atlassian account and stops needing a Mac: gadak-origin workspaces whose origin
 is an in-process minimal Jira (`issuetap`) — mirror still a disposable cache,
 every write through the origin, and the origin persist is on-disk SQLite in
 WAL mode so a local CLI and a live serve can both embed the same file
@@ -167,7 +167,7 @@ snapshot, not assumed.
 ## The plugin boundary (how company-specific surfaces come back)
 
 The open-source core does not embed a GitHub/CD/test-management client.
-Development-panel pull requests live in `dev_links`: standalone
+Development-panel pull requests live in `dev_links`: a gadak origin
 writes them through `gadak dev link` / `gadak dev scan` (the latter shells
 out to user-invoked `gh`); a connected Cloud workspace mirrors Jira's
 dev-status into the same table when `devStatus` is on. Separately, an

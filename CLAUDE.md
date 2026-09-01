@@ -8,11 +8,11 @@ hard-won 목록)와 `AGENTS.md`(스키마·쿼리)가 원본이다.
 
 - **미러는 버려도 되는 캐시.** 원본은 항상 Jira — 그 Jira가 Atlassian
   Cloud든, gadak이 함께 들고 다니는 아주 미니멀한 셀프호스트 Jira
-  (`issuetap`, standalone 워크스페이스)든. 어느 쪽이든 미러는 origin에서 다시
+  (`issuetap`, gadak origin)든. 어느 쪽이든 미러는 origin에서 다시
   만들 수 있고, **gadak 자신은 원본을 보관하지 않는다.** gadak에만 존재하는
   원본 데이터를 만드는 변경은 금지 — 예외는 `local.db`(방문·검색 기록)와
   저장된 뷰이고, 그것들은 export 가능해야 한다.
-- **영속은 origin의 몫이다.** standalone 워크스페이스의 영속 공간은
+- **영속은 origin의 몫이다.** gadak origin 의 영속 공간은
   issuetap의 persist 파일이며 미러가 아니다. 그래서 백업 대상은 `gadak.db`가
   아니라 그 파일이고, **워크스페이스는 origin 하나에 묶인다** — origin을
   바꾸는 것은 설정 편집이 아니라 새 워크스페이스다. 이 조항을 어기는 것이
@@ -20,7 +20,7 @@ hard-won 목록)와 `AGENTS.md`(스키마·쿼리)가 원본이다.
 - **쓰기는 전부 origin(Jira)을 통과**한 뒤 미러 갱신. 미러에 직접 쓰는 API를
   열지 않는다. 위키도 같은 규칙이다 — 페이지 쓰기(생성·편집·코멘트,
   GDK-380/381/382)는 origin.Wiki를 통과한다: connected는 Confluence REST,
-  standalone은 issuetap의 Confluence API(미러 직접 쓰기가 아니다).
+  gadak origin 은 issuetap 의 Confluence API(미러 직접 쓰기가 아니다).
 - **아웃바운드 없음.** 텔레메트리 금지. 나가는 요청은 사용자가 설정한
   origin(Atlassian 사이트·Linear: api.linear.app/uploads.linear.app), GitHub
   릴리스 버전 체크(설정으로 끔), 페어링한 home serve, loopback뿐

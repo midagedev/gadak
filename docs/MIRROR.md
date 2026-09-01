@@ -6,9 +6,10 @@ The origin is a Jira site, or — with no
 Atlassian account — an in-process tracker (`gadak init --local`), or
 another machine's `gadak serve` bound with `gadak init --pairing-code-stdin`.
 Reads never touch the network. Writes go to the origin (Jira on a connected
-workspace, the local origin on a standalone one, the home serve on a paired one)
+workspace, the local origin on a gadak-origin one, the home serve on a paired one)
 and re-read the issue into the mirror afterwards. Kind lives on
-`gadak doctor --json` (`workspace.kind` is `standalone` or `connected`; a paired
+`gadak doctor --json` (`workspace.origin_type` is `gadak`, `jira` or `linear`
+and `workspace.transport` is `local` or `remote`; a paired
 workspace is `connected` plus a `pairing` object on `gadak status --json`). If
 `gadak status --json` includes `kind`, you may use that.
 
@@ -23,7 +24,7 @@ Four layers. Use the lowest one that answers the question:
 
 ### Writing as an agent: the actor
 
-Agents sharing a standalone or paired workspace each get their own byline:
+Agents sharing a gadak origin, local or paired, each get their own byline:
 export `GADAK_ACTOR="slug|Display Name"` before the first write (Claude Code
 is auto-detected per session; `gadak config set actor '{"slug":"…","name":"…"}'`
 is the machine's fallback and env wins over it). Confirm recognition with the
@@ -131,7 +132,7 @@ FROM issues_full
 WHERE reopen_count > 0 ORDER BY reopen_count DESC, reopened_at DESC LIMIT 20;
 
 -- 3. What is stuck, and for how long
--- Standalone origin clocks can sit far behind wall time (GDK-369);
+-- A gadak origin's clock can sit far behind wall time (GDK-369);
 -- julianday('now') then mis-ages rows. Do not rewrite this query.
 SELECT key, status, ROUND(julianday('now') - julianday(status_changed_at), 1) AS days
 FROM issues WHERE status_category = 'inprogress' ORDER BY days DESC LIMIT 20;
@@ -163,7 +164,7 @@ WHERE json_valid(i.fix_version_ids)
 ORDER BY v.release_date, i.key;
 
 -- 7. What moved this week, and who moved it
--- Same GDK-369 clock caveat on standalone; datetime('now', '-7 days')
+-- Same GDK-369 clock caveat on a gadak origin; datetime('now', '-7 days')
 -- then returns no rows. Do not rewrite this query.
 SELECT c.at, c.author, c.field, c.from_value, c.to_value, i.key
 FROM changelog c JOIN issues i ON i.item_id = c.item_id
@@ -207,7 +208,7 @@ Pipe keys from (9) into the running UI: `gadak sql --no-header "select key from 
 Rules that come with the file:
 
 - **Never write to the database.** Writes go through the origin (Jira on a
-  connected workspace, the local origin on a standalone one); a row written
+  connected workspace, the local origin on a gadak-origin one); a row written
   directly is destroyed by the next sync. There is no exception for "just a
   label".
 - **Do not depend on `issues.raw`.** It is an escape hatch shaped by Jira's API,
@@ -290,10 +291,10 @@ gadak page create --space LOC --title "Retention notes" -m "first draft"
 gadak page edit <ID> --title "Renamed"
 gadak page comment <ID> -m "a question"
 
-gadak project create IDEA --name Ideas    # grow a standalone workspace by a project
+gadak project create IDEA --name Ideas    # grow a workspace whose origin is gadak's own tracker by a project
 
-gadak dev link STD-1 --pr https://github.com/org/app/pull/7   # standalone: record a PR
-gadak dev scan                            # standalone: gh pr list, link matches
+gadak dev link STD-1 --pr https://github.com/org/app/pull/7   # gadak origin: record a PR
+gadak dev scan                            # gadak origin: gh pr list, link matches
 
 gadak config list                         # every editable path
 gadak config set appearance.theme ink
@@ -317,11 +318,11 @@ Text output for a search result or a write is one tab-separated line —
 a write answers `{"issue": {…IssueLite}}`, plus `"comment"` for `comment`.
 
 Writes go through the origin: a **connected** workspace needs a credential and
-fails before calling Jira without one; a **standalone** workspace has no site
+fails before calling Jira without one; a **gadak origin** has no site
 token and writes still succeed (`gadak init --local --json`). `gadak init`
 takes the whole setup non-interactively, so an agent never has to drive a
 prompt — it only falls back to asking when stdin is a terminal *and* nothing was
-supplied (`--standalone` included):
+supplied (`--local` included):
 
 ```
 GADAK_TOKEN=$(cat token) gadak init \
@@ -330,7 +331,7 @@ GADAK_TOKEN=$(cat token) gadak init \
 gadak init --local --json
 ```
 
-**Pairing.** A standalone home running `gadak serve` mints a device offer;
+**Pairing.** A gadak-origin home running `gadak serve` mints a device offer;
 a remote machine binds a *fresh* workspace. Same CLI verbs after that; the
 origin is the home serve. `workspace.kind` stays `connected`. If a command
 fails with a `pairing:` prefix, show that error — do not invent a retry.
@@ -343,7 +344,7 @@ gadak pairing list                                # home: token table; remote: o
 gadak pairing revoke laptop                       # home only
 ```
 
-Do not combine `--pairing-code-stdin` with `--standalone` or a site token.
+Do not combine `--pairing-code-stdin` with `--local` or a site token.
 `_home` is the home machine's routing token, not a device (`revoke` refuses
 it; `mint --label _home` rotates). Details: [SECURITY.md](../SECURITY.md).
 
@@ -417,7 +418,7 @@ curl -s -X POST localhost:7777/api/v1/issues/pages/ \
 ```
 
 A write on a **connected** workspace with no stored credential answers
-`409 {"error":"credential_required"}`. A standalone workspace has no site
+`409 {"error":"credential_required"}`. A workspace whose origin is gadak's own tracker has no site
 token and writes still succeed.
 The full endpoint list, response shapes, and error bodies are in
 `specs/000-product/contracts/api.md`.

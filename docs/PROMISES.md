@@ -96,7 +96,7 @@ go test ./internal/snapshot/ -run 'TestCredentialRejected|TestCredentialInPageRe
 # → ok  github.com/midagedev/gadak/internal/snapshot
 ```
 
-**9. On standalone, the origin is one ordinary SQLite file, readable without gadak.**
+**9. On a gadak origin, the origin is one ordinary SQLite file, readable without gadak.**
 `gadak init --local` writes `origin/issuetap.db` under the profile
 directory (`internal/origin/origin.go` `PersistRel`) — plain SQLite, no
 custom container. That file is the record; `gadak.db` remains a disposable

@@ -111,7 +111,7 @@ Windows files: gadak_<version>_windows_amd64.zip, gadak_<version>_windows_arm64.
 ```
 gadak is a local-first issue tracker for people and coding agents. It mirrors
 Jira, Confluence, and optionally Linear into one SQLite file on the user's
-machine (or runs a standalone in-process origin with no Atlassian account).
+machine (or runs gadak's own in-process tracker with no Atlassian account).
 Reads never use the network. Writes go through the origin the user configured.
 Surfaces: a desktop window (Windows portable zip, macOS signed+notarized dmg),
 a web UI served from the same binary, a CLI, and MCP.
