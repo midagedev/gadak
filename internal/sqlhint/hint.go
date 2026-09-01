@@ -48,7 +48,10 @@ var noSuchColumnRe = regexp.MustCompile(`(?i)no such column:\s+([^\s(]+)`)
 
 // WithColumnSuggestion appends `did you mean "col"?` to a SQLite
 // "no such column" error when one column from hintTables is close enough.
-// Distant names stay unadorned — a bad guess is worse than none.
+// When the name exists verbatim on a hint table, the query hit the wrong
+// table — say which one holds it (GDK-974: summary lives on issues_full,
+// and the miss was silent). Distant names stay unadorned — a bad guess is
+// worse than none.
 func WithColumnSuggestion(db *sql.DB, err error) error {
 	if err == nil || db == nil {
 		return err
@@ -57,9 +60,12 @@ func WithColumnSuggestion(db *sql.DB, err error) error {
 	if !ok {
 		return err
 	}
-	cols, colErr := hintColumns(db)
+	cols, owner, colErr := hintColumns(db)
 	if colErr != nil || len(cols) == 0 {
 		return err
+	}
+	if table, ok := owner[strings.ToLower(name)]; ok {
+		return fmt.Errorf("%w; column %q exists on %s — query %s", err, name, table, table)
 	}
 	sug := suggestColumn(name, cols)
 	if sug == "" {
@@ -83,8 +89,10 @@ func parseNoSuchColumn(msg string) (string, bool) {
 	return name, true
 }
 
-func hintColumns(db *sql.DB) ([]string, error) {
-	seen := map[string]struct{}{}
+// hintColumns lists the candidate columns and which hint table owns each
+// name (first table in hintTables order wins, so issues_full claims key).
+func hintColumns(db *sql.DB) ([]string, map[string]string, error) {
+	owner := map[string]string{}
 	var out []string
 	for _, table := range hintTables {
 		rows, err := db.Query("PRAGMA table_info(" + table + ")")
@@ -99,25 +107,25 @@ func hintColumns(db *sql.DB) ([]string, error) {
 			var pk int
 			if err := rows.Scan(&cid, &name, &typ, &notnull, &dflt, &pk); err != nil {
 				rows.Close()
-				return nil, err
+				return nil, nil, err
 			}
 			if name == "" {
 				continue
 			}
 			k := strings.ToLower(name)
-			if _, ok := seen[k]; ok {
+			if _, ok := owner[k]; ok {
 				continue
 			}
-			seen[k] = struct{}{}
+			owner[k] = table
 			out = append(out, name)
 		}
 		err = rows.Err()
 		rows.Close()
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
-	return out, nil
+	return out, owner, nil
 }
 
 func suggestColumn(unknown string, columns []string) string {

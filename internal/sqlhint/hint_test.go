@@ -1,6 +1,12 @@
 package sqlhint
 
-import "testing"
+import (
+	"database/sql"
+	"strings"
+	"testing"
+
+	_ "modernc.org/sqlite"
+)
 
 func TestZeroRowDisplayNameWarning(t *testing.T) {
 	q := `SELECT key FROM issues WHERE status = 'In Progress'`
@@ -33,6 +39,51 @@ func TestSuggestColumnIssueKey(t *testing.T) {
 	}
 	if got := suggestColumn("issue_type", cols); got != "" {
 		t.Fatalf("exact match must not suggest, got %q", got)
+	}
+}
+
+func TestWithColumnSuggestionWrongTable(t *testing.T) {
+	db, err := sql.Open("sqlite", "file::memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if _, err := db.Exec(`CREATE TABLE issues_full (key TEXT, summary TEXT, status TEXT);
+		CREATE TABLE items (id INTEGER, title TEXT);
+		CREATE TABLE issues (item_id INTEGER, key TEXT)`); err != nil {
+		t.Fatal(err)
+	}
+	queryErr := func(q string) error {
+		rows, err := db.Query(q)
+		if err == nil {
+			rows.Close()
+			t.Fatalf("query %q unexpectedly succeeded", q)
+		}
+		return err
+	}
+
+	// Wrong table: the name exists verbatim on a hint table — name it,
+	// instead of the old silence (GDK-974).
+	got := WithColumnSuggestion(db, queryErr(`SELECT summary FROM issues`))
+	want := `column "summary" exists on issues_full — query issues_full`
+	if !strings.Contains(got.Error(), want) {
+		t.Fatalf("wrong-table hint missing: %q", got)
+	}
+	got = WithColumnSuggestion(db, queryErr(`SELECT title FROM issues`))
+	if !strings.Contains(got.Error(), `exists on items — query items`) {
+		t.Fatalf("items ownership missing: %q", got)
+	}
+
+	// Typo path is unchanged.
+	got = WithColumnSuggestion(db, queryErr(`SELECT sumary FROM issues_full`))
+	if !strings.Contains(got.Error(), `did you mean "summary"?`) {
+		t.Fatalf("typo hint missing: %q", got)
+	}
+
+	// A name nowhere near any column stays unadorned.
+	base := queryErr(`SELECT zzqx FROM issues`)
+	if got := WithColumnSuggestion(db, base); got.Error() != base.Error() {
+		t.Fatalf("distant name must stay unadorned: %q", got)
 	}
 }
 
