@@ -210,9 +210,9 @@ in the workspace's origin folder (SQLite, WAL). Copy it while gadak is not
 running (include the `-wal`/`-shm` sidecars), or
 `sqlite3 origin/issuetap.db ".backup dest.db"`.
 
-Reads, writes, hierarchy, wiki, attachments and history work on both. Boards,
-sprints as a UI, Jira dashboards and Jira's notification inbox do not — those
-stay in Jira.
+Reads, writes, hierarchy, wiki, attachments and history work on both, and
+since 0.19 the list can lay itself out as a board. Sprints as a UI, Jira
+dashboards and Jira's notification inbox do not — those stay in Jira.
 
 <details>
 <summary>▶ The full matrix, with the footnote for every ✅</summary>
@@ -227,7 +227,8 @@ stay in Jira.
 | Attachments | ✅ | ✅ |
 | History / time in status | ✅⁶ | ✅⁶ |
 | Agent surfaces (skill, MCP, SQL) | ✅ | ✅ |
-| Boards and sprints | —⁸ | —⁸ |
+| Board (from 0.19) | ✅⁸ | ✅⁸ |
+| Sprints as a UI | —⁸ | —⁸ |
 | Dashboards | — | — |
 | Jira notifications | —⁷ | —⁷ |
 
@@ -238,7 +239,7 @@ stay in Jira.
 5. Pages sync from the in-process origin. `gadak page create|edit|comment` and the REST verbs work here too; the UI has a page comment composer but no page editor yet.
 6. Changelog is mirrored. Time in status is computed from `status_changed_at`, not stored as a column.
 7. Jira's notification inbox, rules, and email are not mirrored. gadak has its own watch-feed OS alerts on macOS and Linux.
-8. No board UI and no sprint column on the list. Sprint fields (`sprint_id` / `sprint_name` / `sprint_state`) are in the mirror; SQL and JQL (`sprint =` / `sprint in openSprints()`) can query them. The `versions` catalog and `fix_version_ids` join the same way.
+8. The board (0.19) is the same filtered list laid out as columns — same filters, same group axes; on the status axis a drag is a real transition, and a view saved with `--layout board` reopens as one. What it is not: Jira's sprint and board administration. There is still no sprint column on the list; sprint fields (`sprint_id` / `sprint_name` / `sprint_state`) are in the mirror, and SQL and JQL (`sprint =` / `sprint in openSprints()`) can query them. The `versions` catalog and `fix_version_ids` join the same way.
 
 </details>
 
@@ -482,8 +483,8 @@ reconcile pass. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Why not an
 extension or Forge app: [`docs/decisions/0003-local-process.md`](docs/decisions/0003-local-process.md).
 
 **Good fit / bad fit.** Daily search latency, an agent over tracker *and* wiki,
-offline reads — yes. Boards, admin, a page editor in the UI, or a minute of
-staleness — stay in Jira. CLI and REST already write wiki pages.
+offline reads — yes. Sprint planning, admin, a page editor in the UI, or a
+minute of staleness — stay in Jira. CLI and REST already write wiki pages.
 [`docs/CONCEPT.md`](docs/CONCEPT.md#good-fit-bad-fit).
 
 **How it compares.** jira-cli talks to the live API per command. Linear is a

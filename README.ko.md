@@ -212,8 +212,9 @@ Standalone에서 영속 파일은 origin의 persist 파일입니다 — 워크�
 origin 폴더의 issuetap.db(SQLite, WAL). gadak이 꺼져 있을 때 복사하거나
 (`-wal`/`-shm` 사이드카 포함), `sqlite3 origin/issuetap.db ".backup dest.db"`.
 
-읽기·쓰기·계층·위키·첨부·히스토리는 양쪽 모두 됩니다. 보드, UI로서의
-스프린트, Jira 대시보드, Jira 알림함은 안 됩니다 — 그건 Jira에 남습니다.
+읽기·쓰기·계층·위키·첨부·히스토리는 양쪽 모두 되고, 0.19부터는 리스트를
+보드 레이아웃으로 펼칠 수 있습니다. UI로서의 스프린트, Jira 대시보드,
+Jira 알림함은 안 됩니다. 그 일은 Jira에 남습니다.
 
 <details>
 <summary>▶ 전체 매트릭스와 ✅마다 붙은 각주</summary>
@@ -228,7 +229,8 @@ origin 폴더의 issuetap.db(SQLite, WAL). gadak이 꺼져 있을 때 복사하�
 | 첨부 | ✅ | ✅ |
 | 히스토리 / 상태 체류 시간 | ✅⁶ | ✅⁶ |
 | 에이전트 표면 (스킬, MCP, SQL) | ✅ | ✅ |
-| 보드와 스프린트 | —⁸ | —⁸ |
+| 보드 (0.19부터) | ✅⁸ | ✅⁸ |
+| UI로서의 스프린트 | —⁸ | —⁸ |
 | 대시보드 | — | — |
 | Jira 알림 | —⁷ | —⁷ |
 
@@ -239,7 +241,7 @@ origin 폴더의 issuetap.db(SQLite, WAL). gadak이 꺼져 있을 때 복사하�
 5. 페이지는 인프로세스 origin에서 동기화됩니다. `gadak page create|edit|comment`와 REST 동사가 여기서도 동작합니다. UI에는 페이지 코멘트 작성기가 있고 페이지 에디터는 아직 없습니다.
 6. Changelog는 미러링됩니다. 상태 체류 시간은 저장 컬럼이 아니라 `status_changed_at`에서 계산합니다.
 7. Jira의 알림함, 알림 규칙, 이메일은 미러링하지 않습니다. gadak은 macOS·Linux에서 자체 watch-피드 OS 알림을 갖고 있습니다.
-8. 보드 UI도 리스트의 스프린트 컬럼도 없습니다. 스프린트 필드(`sprint_id` / `sprint_name` / `sprint_state`)는 미러에 있고, SQL과 JQL(`sprint =` / `sprint in openSprints()`)로 질의할 수 있습니다. `versions` 카탈로그와 `fix_version_ids`도 같은 방식으로 조인합니다.
+8. 보드(0.19)는 같은 필터된 리스트를 컬럼으로 펼친 레이아웃입니다. 필터도 그룹 축도 리스트와 같고, 상태 축에서는 드래그가 실제 상태 전환이며, `--layout board`로 저장한 뷰는 보드로 다시 열립니다. Jira의 스프린트·보드 관리는 여기에 포함되지 않습니다. 리스트의 스프린트 컬럼도 여전히 없습니다. 스프린트 필드(`sprint_id` / `sprint_name` / `sprint_state`)는 미러에 있고, SQL과 JQL(`sprint =` / `sprint in openSprints()`)로 질의할 수 있습니다. `versions` 카탈로그와 `fix_version_ids`도 같은 방식으로 조인합니다.
 
 </details>
 
@@ -500,8 +502,8 @@ Arch 리눅스: 검증된 `PKGBUILD`가
 Forge 앱이 아닌가: [`docs/decisions/0003-local-process.md`](docs/decisions/0003-local-process.md).
 
 **맞는 곳 / 안 맞는 곳.** 매일의 검색 지연, 트래커 *와* 위키를 함께 보는
-에이전트, 오프라인 읽기 — 맞습니다. 보드, 어드민, UI의 페이지 에디터,
-그리고 1분의 지연도 안 되는 일 — Jira에 남기세요. CLI와 REST는 이미
+에이전트, 오프라인 읽기에는 맞습니다. 스프린트 계획, 어드민, UI의 페이지
+에디터, 그리고 1분의 지연도 안 되는 일은 Jira에 남기세요. CLI와 REST는 이미
 위키 페이지를 씁니다.
 [`docs/CONCEPT.md`](docs/CONCEPT.md#good-fit-bad-fit).
 
