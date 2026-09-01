@@ -136,6 +136,23 @@ func TestMigrateStandaloneRoundtrip(t *testing.T) {
 		t.Fatalf("attachment bytes differ: got %x want %x", body, binBytes)
 	}
 
+	// The text/plain file rides the fixture's `text:` field, a different
+	// path from dataBase64 — prove it serves byte-identical too (a string
+	// re-encode that normalized the newline would pass every count).
+	txtID := strings.TrimSpace(dstSQL(t,
+		"select coalesce(nullif(external_id,''), id) from attachments a join issues_full i on i.item_id = a.item_id where a.filename = 'notes.txt'"))
+	if txtID == "" {
+		t.Fatal("text attachment missing from target mirror")
+	}
+	status, body, err = client.Raw(context.Background(), "GET",
+		"/rest/api/3/attachment/content/"+url.PathEscape(txtID), nil, false)
+	if err != nil || status != 200 {
+		t.Fatalf("text attachment content: status=%d err=%v", status, err)
+	}
+	if string(body) != "plain text attachment\n" {
+		t.Fatalf("text attachment bytes differ: %q", body)
+	}
+
 	// The key sequence continues where the source left off.
 	next := createIssue(t, "post-migrate issue")
 	if next != "STD-4" {
