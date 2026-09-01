@@ -76,7 +76,7 @@ notify-only (banner + brew/dmg), and releases deliberately ship no
 rebuilt around `query` with error echoes, the three pipe contracts written
 down (`issues_full` + RECIPES, `gadak sql` stdout, `views open --keys -`),
 personal-row export/import, brew renamed so `gadak` is the app cask, and the
-first live benchmark (`docs/BENCHMARKS.md`). Last tagged: v0.19.2.
+first live benchmark (`docs/BENCHMARKS.md`). Last tagged: v0.19.3.
 
 ## In one paragraph
 

@@ -10,7 +10,7 @@
 # x86_64/aarch64. source_* maps between the two.
 
 pkgname=gadak-bin
-pkgver=0.19.2
+pkgver=0.19.3
 pkgrel=1
 pkgdesc='Local SQLite mirror of Jira and Confluence — web UI and agent SQL'
 arch=('x86_64' 'aarch64')
@@ -28,8 +28,8 @@ conflicts=('gadak')
 options=('!strip' '!debug')
 source_x86_64=("https://github.com/midagedev/gadak/releases/download/v${pkgver}/gadak_${pkgver}_linux_amd64.tar.gz")
 source_aarch64=("https://github.com/midagedev/gadak/releases/download/v${pkgver}/gadak_${pkgver}_linux_arm64.tar.gz")
-sha256sums_x86_64=('99795c3774ad8bc70e4bbceb36d2a089d8eef667841bfea0d3a9ed86671d4787')
-sha256sums_aarch64=('6dec7106106d7a56bd9ec3d41904b16e5871d4edc8551079e34eef7a6b15c4a4')
+sha256sums_x86_64=('57bb88d55e70453e1e5f1a7de9657a7667b8fa38feefc288d7e7defaa9b897d8')
+sha256sums_aarch64=('a40313818340f30b37d5428ba5a2eae3036b34fedcd524d58ec7921df87aa0ae')
 
 package() {
   install -Dm755 gadak "${pkgdir}/usr/bin/gadak"
