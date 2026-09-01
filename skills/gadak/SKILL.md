@@ -185,11 +185,14 @@ WHERE status_category = 'inprogress'  -- RIGHT: stable everywhere
 
 ## The schema in one paragraph
 
-`items` is the source-neutral spine (title, `body_text`, timestamps). `issues`
-is the Jira projection, joined on `issues.item_id = items.id`. **`issues_full`
-is the view to reach for** — every `issues` column plus `summary` and
-`description_text` (`items.body_text`, flattened). Sprint is three columns on
-`issues` (`sprint_id`, `sprint_name`, `sprint_state` — filter on id or state,
+`items` is the source-neutral spine (title, `body_text`, timestamps).
+**`issues` is the view to reach for** — the Jira projection joined onto the
+spine, so it carries `summary`, `description_text` (`items.body_text`,
+flattened), and every projection column in one relation; the intuitive
+`SELECT key, summary, status FROM issues` just works (since 0.19.1;
+`issues_full` is the same view under its older name, and on an older
+mirror it is the one that has `summary`). Sprint is three columns there
+(`sprint_id`, `sprint_name`, `sprint_state` — filter on id or state,
 never the name). `versions` is the project catalog; join it on
 `fix_version_ids` (same-order ids next to the name array `fix_versions`).
 `pages` is

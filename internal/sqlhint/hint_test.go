@@ -48,9 +48,9 @@ func TestWithColumnSuggestionWrongTable(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	if _, err := db.Exec(`CREATE TABLE issues_full (key TEXT, summary TEXT, status TEXT);
+	if _, err := db.Exec(`CREATE TABLE issues (key TEXT, summary TEXT, status TEXT);
 		CREATE TABLE items (id INTEGER, title TEXT);
-		CREATE TABLE issues (item_id INTEGER, key TEXT)`); err != nil {
+		CREATE TABLE changelog (item_id INTEGER, at TEXT)`); err != nil {
 		t.Fatal(err)
 	}
 	queryErr := func(q string) error {
@@ -64,18 +64,18 @@ func TestWithColumnSuggestionWrongTable(t *testing.T) {
 
 	// Wrong table: the name exists verbatim on a hint table — name it,
 	// instead of the old silence (GDK-974).
-	got := WithColumnSuggestion(db, queryErr(`SELECT summary FROM issues`))
-	want := `column "summary" exists on issues_full — query issues_full`
+	got := WithColumnSuggestion(db, queryErr(`SELECT summary FROM changelog`))
+	want := `column "summary" exists on issues — query issues`
 	if !strings.Contains(got.Error(), want) {
 		t.Fatalf("wrong-table hint missing: %q", got)
 	}
-	got = WithColumnSuggestion(db, queryErr(`SELECT title FROM issues`))
+	got = WithColumnSuggestion(db, queryErr(`SELECT title FROM changelog`))
 	if !strings.Contains(got.Error(), `exists on items — query items`) {
 		t.Fatalf("items ownership missing: %q", got)
 	}
 
 	// Typo path is unchanged.
-	got = WithColumnSuggestion(db, queryErr(`SELECT sumary FROM issues_full`))
+	got = WithColumnSuggestion(db, queryErr(`SELECT sumary FROM issues`))
 	if !strings.Contains(got.Error(), `did you mean "summary"?`) {
 		t.Fatalf("typo hint missing: %q", got)
 	}

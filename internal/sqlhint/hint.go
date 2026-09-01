@@ -40,9 +40,11 @@ func ZeroRowDisplayNameWarning(query string, rowCount int) string {
 }
 
 // hintTables are the agent-facing relations whose columns we offer as
-// did-you-mean candidates. The JSON/SQL name mismatch (issue_key vs key)
-// lives on issues_full; items/pages/comments catch the rest of a typo.
-var hintTables = []string{"issues_full", "items", "pages", "comments"}
+// did-you-mean candidates. Since schemaV41 `issues` is the full view
+// (issues_full is its alias), so it carries the issue_key-vs-key mismatch
+// and summary alike; items/pages/comments catch the rest of a typo. The
+// physical issues_raw table is internal and must never be advertised here.
+var hintTables = []string{"issues", "items", "pages", "comments"}
 
 var noSuchColumnRe = regexp.MustCompile(`(?i)no such column:\s+([^\s(]+)`)
 

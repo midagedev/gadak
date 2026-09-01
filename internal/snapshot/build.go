@@ -250,7 +250,7 @@ func loadIssues(src *sql.DB) ([]issueRow, error) {
 	if err != nil {
 		return nil, err
 	}
-	issueCols, err := columnNames(src, "issues")
+	issueCols, err := columnNames(src, "issues_raw")
 	if err != nil {
 		return nil, err
 	}
@@ -587,7 +587,7 @@ func insertIssueBundle(tx *sql.Tx, p plannedIssue, itemID, key string, ch childr
 	if err := insertRow(tx, "items", itemColumns, item); err != nil {
 		return err
 	}
-	if err := insertRow(tx, "issues", issueColumns, issue); err != nil {
+	if err := insertRow(tx, "issues_raw", issueColumns, issue); err != nil {
 		return err
 	}
 
@@ -738,7 +738,7 @@ var (
 // otherwise. Looked up per (table, column) inside insertRow's loop; every
 // other column keeps nil.
 var notNullDefaults = map[string]map[string]any{
-	"issues": {
+	"issues_raw": {
 		"priority_rank": 0, "reopen_count": 0, "comment_count": 0,
 		"reopen_reason": "", "cloned_from": "", "priority_id": "",
 	},

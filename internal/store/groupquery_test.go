@@ -15,7 +15,7 @@ func TestGroupQueryHits(t *testing.T) {
 			('1','jira','issue','1','NMB-1','one','t','t','t'),
 			('2','jira','issue','2','NMB-2','two','t','t','t'),
 			('3','jira','issue','3','DESK-1','desk','t','t','t');
-		INSERT INTO issues (item_id, key, project_key, labels, components, custom, priority_rank, reopen_count, comment_count)
+		INSERT INTO issues_raw (item_id, key, project_key, labels, components, custom, priority_rank, reopen_count, comment_count)
 		VALUES
 			('1','NMB-1','NMB','["skip-triage"]','[]','{}',0,0,0),
 			('2','NMB-2','NMB','["backend"]','["payments-api"]','{"billing_code":"invoice"}',0,0,0),

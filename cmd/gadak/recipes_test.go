@@ -296,7 +296,7 @@ func TestRecipesSaveZeroRowsIsSuccess(t *testing.T) {
 func TestRecipesSaveWriteIsRefused(t *testing.T) {
 	recipesDemoHome(t)
 	_, err := capture(t, func() error {
-		return cmdRecipes([]string{"save", "mutate", "update issues set key = key"})
+		return cmdRecipes([]string{"save", "mutate", "update items set key = key"})
 	})
 	if err == nil {
 		t.Fatal("UPDATE must not save")

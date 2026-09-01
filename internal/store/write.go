@@ -100,9 +100,9 @@ const epicKeySelect = `
 				WHEN p.hierarchy_level = 1 THEN p.key
 				WHEN gp.hierarchy_level = 1 THEN gp.key
 			END
-			FROM issues p
-			LEFT JOIN issues gp ON gp.key = p.parent_key
-			WHERE p.key = issues.parent_key
+			FROM issues_raw p
+			LEFT JOIN issues_raw gp ON gp.key = p.parent_key
+			WHERE p.key = issues_raw.parent_key
 `
 
 // recomputeEpicKeys sets issues.epic_key to the nearest hierarchy_level==1
@@ -115,7 +115,7 @@ const epicKeySelect = `
 // backfill shape in schema.go.
 func recomputeEpicKeys(tx *sql.Tx, keys []string) error {
 	if len(keys) == 0 {
-		_, err := tx.Exec(`UPDATE issues SET epic_key = (` + epicKeySelect + `)`)
+		_, err := tx.Exec(`UPDATE issues_raw SET epic_key = (` + epicKeySelect + `)`)
 		return err
 	}
 	affected, err := affectedEpicKeys(tx, keys)
@@ -130,7 +130,7 @@ func recomputeEpicKeys(tx *sql.Tx, keys []string) error {
 		return err
 	}
 	_, err = tx.Exec(`
-		UPDATE issues SET epic_key = (`+epicKeySelect+`)
+		UPDATE issues_raw SET epic_key = (`+epicKeySelect+`)
 		WHERE key IN (SELECT value FROM json_each(?))`, string(payload))
 	return err
 }
@@ -285,11 +285,11 @@ func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {
 	})
 
 	is := r.Issue
-	if _, err := tx.Exec(`DELETE FROM issues WHERE item_id = ?`, it.ID); err != nil {
+	if _, err := tx.Exec(`DELETE FROM issues_raw WHERE item_id = ?`, it.ID); err != nil {
 		return false, err
 	}
 	if _, err := tx.Exec(`
-		INSERT INTO issues (item_id, key, project_key, issue_type, issue_type_id,
+		INSERT INTO issues_raw (item_id, key, project_key, issue_type, issue_type_id,
 			status, status_id, status_category, priority, priority_id, priority_rank,
 			assignee, assignee_id, assignee_email, reporter, reporter_id, reporter_email, parent_key,
 			labels, components, fix_versions, fix_version_ids, affects_versions, environment_text,

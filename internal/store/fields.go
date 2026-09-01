@@ -183,7 +183,7 @@ func (db *DB) ReingestCustom(ctx context.Context, specs []fields.SpecIDs, bodyFi
 			sources := map[string]bool{}
 			now := Now()
 			for _, u := range chunk {
-				if _, err := tx.Exec(`UPDATE issues SET custom = ? WHERE item_id = ?`, u.customJSON, u.itemID); err != nil {
+				if _, err := tx.Exec(`UPDATE issues_raw SET custom = ? WHERE item_id = ?`, u.customJSON, u.itemID); err != nil {
 					return nil, err
 				}
 				if _, err := tx.Exec(`UPDATE items SET body_text = ?, synced_at = ? WHERE id = ?`, u.bodyText, now, u.itemID); err != nil {

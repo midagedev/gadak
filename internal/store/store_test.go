@@ -21,7 +21,8 @@ var documentedColumns = map[string][]string{
 	"sources": {"id", "kind", "base_url", "synced_at"},
 	"items": {"id", "source_id", "kind", "external_id", "key", "title", "body_text",
 		"author", "author_id", "url", "created_at", "updated_at", "synced_at"},
-	"issues": {"item_id", "key", "project_key", "issue_type", "issue_type_id",
+	// issues_raw is the physical Jira projection — internal, writes only.
+	"issues_raw": {"item_id", "key", "project_key", "issue_type", "issue_type_id",
 		"status", "status_id", "status_category", "priority", "priority_rank",
 		"assignee", "assignee_id", "assignee_email", "reporter", "reporter_id", "reporter_email", "parent_key",
 		"labels", "components", "fix_versions", "affects_versions", "environment_text",
@@ -31,8 +32,20 @@ var documentedColumns = map[string][]string{
 		"reopen_reason", "cloned_from", "hierarchy_level", "epic_key", "priority_id", "resolution_id",
 		"sprint_id", "sprint_name", "sprint_state", "fix_version_ids",
 		"security_level_id", "security_level"},
-	// issues_full is the agent view (summary + issues.* + description_text).
-	// description_text is not an issues storage column (items.body_text).
+	// issues is the agent view since schemaV41 (GDK-1258): summary +
+	// issues_raw.* + description_text (items.body_text). issues_full is its
+	// compatibility alias — one of the three 0.x promises.
+	"issues": {"summary", "item_id", "key", "project_key", "issue_type", "issue_type_id",
+		"status", "status_id", "status_category", "priority", "priority_rank",
+		"assignee", "assignee_id", "assignee_email", "reporter", "reporter_id", "reporter_email", "parent_key",
+		"labels", "components", "fix_versions", "affects_versions", "environment_text",
+		"duedate", "resolution", "created_at", "updated_at",
+		"status_changed_at", "resolved_at", "reopen_count", "reopened_at",
+		"assignee_changed_at", "comment_count", "description_adf", "custom", "raw",
+		"reopen_reason", "cloned_from", "hierarchy_level", "epic_key", "priority_id", "resolution_id",
+		"sprint_id", "sprint_name", "sprint_state", "fix_version_ids",
+		"security_level_id", "security_level",
+		"description_text"},
 	"issues_full": {"summary", "item_id", "key", "project_key", "issue_type", "issue_type_id",
 		"status", "status_id", "status_category", "priority", "priority_rank",
 		"assignee", "assignee_id", "assignee_email", "reporter", "reporter_id", "reporter_email", "parent_key",

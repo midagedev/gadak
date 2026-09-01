@@ -849,7 +849,7 @@ func TestInsertRowNotNullDefaults(t *testing.T) {
 	}
 	defer db.Close()
 	schema := map[string]string{
-		"issues": `CREATE TABLE issues (
+		"issues_raw": `CREATE TABLE issues_raw (
 			priority_rank INTEGER NOT NULL, reopen_count INTEGER NOT NULL,
 			comment_count INTEGER NOT NULL, reopen_reason TEXT NOT NULL,
 			cloned_from TEXT NOT NULL, priority_id TEXT NOT NULL)`,
@@ -859,7 +859,7 @@ func TestInsertRowNotNullDefaults(t *testing.T) {
 			labels TEXT NOT NULL, excerpt TEXT NOT NULL)`,
 	}
 	want := map[string]map[string]any{
-		"issues": {
+		"issues_raw": {
 			"priority_rank": 0, "reopen_count": 0, "comment_count": 0,
 			"reopen_reason": "", "cloned_from": "", "priority_id": "",
 		},

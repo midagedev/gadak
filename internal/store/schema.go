@@ -3,7 +3,7 @@ package store
 // migrations are applied in order and the index+1 is the schema version. A
 // released migration is never edited; a schema change is a new entry at the end
 // plus a documented row in specs/000-product/data-model.md.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39, schemaV40}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39, schemaV40, schemaV41}
 
 // itemsFTSCreate is the canonical items_fts DDL, spliced into schemaV1 so a
 // fresh database is born matching it (GDK-444: an inline copy in V1 lagged at
@@ -838,4 +838,23 @@ UPDATE issues SET cloned_from = COALESCE((
     AND lower(l.type) LIKE '%clone%'
   ORDER BY l.target_key LIMIT 1
 ), '');
+`
+
+// schemaV41 (GDK-1258) gives the intuitive name to the right relation: the
+// physical Jira projection becomes issues_raw (internal — writes only, never
+// documented as a query surface), and `issues` is now the items-joined view
+// that used to be issues_full, so SELECT key, summary, status FROM issues is
+// correct by construction. issues_full stays as a compatibility alias — it
+// is one of the three 0.x promises (data-model.md). The old view is dropped
+// before the rename so SQLite's RENAME does not rewrite its body first.
+// NOTE for the next column migration: BOTH views expand their * at CREATE
+// VIEW time (the v32 rule) — an ALTER TABLE issues_raw ADD COLUMN must
+// recreate `issues` AND `issues_full`, in that order.
+const schemaV41 = `
+DROP VIEW issues_full;
+ALTER TABLE issues RENAME TO issues_raw;
+CREATE VIEW issues AS
+  SELECT it.title AS summary, i.*, COALESCE(it.body_text, '') AS description_text
+  FROM issues_raw i JOIN items it ON it.id = i.item_id;
+CREATE VIEW issues_full AS SELECT * FROM issues;
 `

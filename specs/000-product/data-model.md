@@ -109,9 +109,19 @@ Indexes: `(source_id, key)` unique, `(kind, updated_at)`, `(updated_at)`,
 `items(id)` with `ON DELETE CASCADE`, so deleting an item is one statement and
 cannot leave orphans. This is why `foreign_keys=ON` is not optional.
 
-## `issues`
+## `issues` (view since v41) and `issues_raw`
 
-The Jira projection. Joined to `items` on `item_id`.
+The Jira projection. Since v41 (GDK-1258) the physical table is
+`issues_raw` — internal, written by sync, never a documented query surface —
+and `issues` is the items-joined view that used to be `issues_full`:
+`summary` + every `issues_raw` column + `description_text`. The intuitive
+query (`SELECT key, summary, status FROM issues`) is correct by
+construction; before v41 it was the single most common agent miss
+(GDK-974). `issues_full` remains as a compatibility alias because it is one
+of the three 0.x promises above.
+
+The columns below are the storage columns (`issues_raw`, and therefore also
+part of the `issues` view). Joined to `items` on `item_id`.
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -158,7 +168,7 @@ The Jira projection. Joined to `items` on `item_id`.
 | `assignee_changed_at` | TEXT | Derived |
 | `comment_count` | INTEGER | Derived |
 | `description_adf` | TEXT (JSON) | Raw ADF, rendered by the UI |
-| `description_text` | TEXT | Flattened plain text, same flattening as `environment_text`. View column on `issues_full` (`items.body_text`; NULL → `''`). Not stored on `issues` |
+| `description_text` | TEXT | Flattened plain text, same flattening as `environment_text`. View column on `issues`/`issues_full` (`items.body_text`; NULL → `''`). Not stored on `issues_raw` |
 | `custom` | TEXT (JSON object) | Mapped custom fields, keyed by config alias |
 | `raw` | TEXT (JSON) | Full source payload. Escape hatch; not a contract |
 | `reopen_reason` | TEXT | Derived (v3): first comment at/after the last reopen. Heuristic; `''` when none |
@@ -633,28 +643,27 @@ same transaction as the migration itself, so a half-applied schema is impossible
 a database whose level is higher than the binary knows is refused, never
 silently used.
 
-## `issues_full` (view)
+## `issues` / `issues_full` (views)
 
-Agent convenience view: `issues` columns plus `summary` from `items.title`, so
-queries that need a title do not have to join the spine. Rebuilt in v12: the
-view expands `i.*` at CREATE VIEW time, so it had to be recreated to expose
-the v11 columns (`hierarchy_level`, `epic_key`). Rebuilt again in v23 to add
-`description_text` (`items.body_text`, NULL → `''`) — the flattened description
-agents can read without parsing ADF. Rebuilt in v27 so `i.*` includes
-`resolution_id`; the v23 `description_text` expression is kept. Rebuilt in
-v30 so `i.*` includes `sprint_id` / `sprint_name` / `sprint_state`. Rebuilt in
-v31 so `i.*` includes `fix_version_ids`. Rebuilt in v32 so `i.*` includes
-`security_level_id` / `security_level`. SQLite expands `i.*` at CREATE VIEW
-time, so an `ALTER TABLE` alone would hide the new columns from the view.
+`issues` is the agent view since v41: `summary` from `items.title`, every
+storage column, and `description_text` (`items.body_text`, NULL → `''`), so
+queries that need a title or body do not have to join the spine.
+`issues_full` is its alias — the name the 0.x contract promises — and stays
+column-identical.
 
 ```sql
-CREATE VIEW issues_full AS
+CREATE VIEW issues AS
   SELECT it.title AS summary, i.*, COALESCE(it.body_text, '') AS description_text
-  FROM issues i JOIN items it ON it.id = i.item_id;
+  FROM issues_raw i JOIN items it ON it.id = i.item_id;
+CREATE VIEW issues_full AS SELECT * FROM issues;
 ```
 
-Prefer `issues_full` when the answer needs a human-readable title. The base
-`issues` table still has no title column — that lives on `items` (or this view).
+History: the view was born as `issues_full` and rebuilt whenever storage
+gained a column (v12 hierarchy_level/epic_key, v23 description_text, v27
+resolution_id, v30 sprint_*, v31 fix_version_ids, v32 security_level_*),
+because SQLite expands `i.*` at CREATE VIEW time — an `ALTER TABLE` alone
+would hide new columns from it. That rule still holds, doubled: a migration
+that adds a storage column must recreate **both** views, `issues` first.
 
 ## `api_usage`
 

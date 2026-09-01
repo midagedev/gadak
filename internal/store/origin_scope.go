@@ -90,7 +90,7 @@ var originScopedTables = []tableRule{
 		dropForSource: `DELETE FROM sources WHERE id = ?`,
 		why:           "the cascade root"},
 	{table: "items", scope: scopeMirror, why: "cascades from sources"},
-	{table: "issues", scope: scopeMirror, why: "cascades from items"},
+	{table: "issues_raw", scope: scopeMirror, why: "cascades from items"},
 	{table: "pages", scope: scopeMirror, why: "cascades from items"},
 	{table: "comments", scope: scopeMirror, why: "cascades from items"},
 	{table: "dev_links", scope: scopeMirror, why: "cascades from items"},

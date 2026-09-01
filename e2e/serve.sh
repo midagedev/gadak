@@ -201,7 +201,8 @@ ON CONFLICT(item_id, id) DO UPDATE SET
 
 -- comments rows ride the detail payload; the list column is stored, so the
 -- row count and the badge it implies have to agree.
-UPDATE issues SET comment_count = comment_count + 1 WHERE key IN ('NMB-112', 'NMB-139');
+-- issues is a view since schemaV41 (GDK-1258); writes go to issues_raw.
+UPDATE issues_raw SET comment_count = comment_count + 1 WHERE key IN ('NMB-112', 'NMB-139');
 
 -- A dev-panel link the bot attached to a human's PR (GDK-589's two axes):
 -- author is the PR author, actor is who linked it.
