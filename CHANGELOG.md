@@ -53,7 +53,9 @@ stage-then-rename owner, so two saves can no longer torch each other
 ([GDK-1233], [GDK-1244]). A desktop boot that fails before the window opens
 says so in a dialog instead of exiting silently ([GDK-1243]), and Linear
 assignee edits go through the same write surface the UI advertises
-([GDK-1235]).
+([GDK-1235]). And `gadak link` now points the link the way Jira will
+display it — the outward and inward ends were swapped, on the CLI and
+REST both ([GDK-1204]; #79, thanks @wafe).
 
 **Sync got faster on quiet mirrors.** Jira incremental answers
 overlap-window echoes from the mirror instead of refetching them, and
@@ -1151,3 +1153,4 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-1122]: https://gadak.dev/backlog/#/?ks=GDK-1122
 [GDK-996]: https://gadak.dev/backlog/#/?ks=GDK-996
 [GDK-1128]: https://gadak.dev/backlog/#/?ks=GDK-1128
+[GDK-1204]: https://gadak.dev/backlog/#/?ks=GDK-1204
