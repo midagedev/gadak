@@ -89,7 +89,17 @@ func cmdMigrate(args []string) error {
 	if !*skipAttach && stats.Attachments > 0 {
 		client, cerr := origin.Client(srcCfg)
 		if cerr != nil {
-			fmt.Fprintf(os.Stderr, "warning: source origin unavailable (%v) — attachments stay metadata-only\n", cerr)
+			// A warning used to be enough here, and it was not: the run
+			// still "succeeded", and the verify table still read 26/26,
+			// because that row counts rows and the bytes are what went
+			// missing (GDK-1275). The cutover procedure — freeze the
+			// source, then migrate — walks into exactly this, so the
+			// refusal has to come before the export, not after.
+			return fmt.Errorf("cannot read attachment bytes from %q: %w\n"+
+				"  %d attachments would migrate as empty metadata, and the count table would not say so\n"+
+				"  to bring the bytes: make the source reachable (a frozen workspace: `gadak --workspace %s config set frozen false`)\n"+
+				"  to migrate without them on purpose: --skip-attachments",
+				*from, cerr, stats.Attachments, *from)
 		} else {
 			migrate.InlineAttachments(ctx, doc, func(ctx context.Context, id string) (int, []byte, error) {
 				return client.Raw(ctx, "GET", "/rest/api/3/attachment/content/"+url.PathEscape(id), nil, false)

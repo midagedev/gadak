@@ -230,3 +230,61 @@ func TestMigrateRefusals(t *testing.T) {
 		t.Fatal("missing --from must be a usage error")
 	}
 }
+
+// GDK-1275: a frozen source cannot serve attachment bytes, and the run used
+// to warn and carry on — producing a workspace whose 26 attachments were
+// empty shells while the verify table read 26/26. The cutover procedure
+// (freeze writes, then migrate) walks straight into it. Refuse instead,
+// unless the caller says metadata-only is what they want.
+func TestMigrateRefusesFrozenSourceWithAttachments(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	t.Setenv("HOME", home)
+	clearCredentialEnv(t)
+	allowProfileCreate = true
+	t.Cleanup(func() {
+		allowProfileCreate = false
+		_ = origin.Close()
+		config.SetProfile("")
+	})
+
+	config.SetProfile("src")
+	if out, err := capture(t, func() error { return cmdInit([]string{"--local"}) }); err != nil {
+		t.Fatalf("init src: %v\n%s", err, out)
+	}
+	key := createIssue(t, "an issue with a file")
+	att := filepath.Join(t.TempDir(), "note.txt")
+	if err := os.WriteFile(att, []byte("bytes that must not vanish\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := capture(t, func() error { return cmdAttach([]string{key, att}) }); err != nil {
+		t.Fatalf("attach: %v\n%s", err, out)
+	}
+	if out, err := capture(t, func() error { return cmdSync(nil) }); err != nil {
+		t.Fatalf("sync src: %v\n%s", err, out)
+	}
+	_ = origin.Close()
+	if out, err := capture(t, func() error { return cmdConfig([]string{"set", "frozen", "true"}) }); err != nil {
+		t.Fatalf("freeze src: %v\n%s", err, out)
+	}
+
+	config.SetProfile("dst")
+	_, err := capture(t, func() error { return cmdMigrate([]string{"--from", "src"}) })
+	if err == nil {
+		t.Fatal("a frozen source with attachments must be refused, not warned about")
+	}
+	// The message has to name both ways forward, or the refusal is a wall.
+	for _, want := range []string{"frozen", "--skip-attachments"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("refusal does not name %q: %v", want, err)
+		}
+	}
+
+	// Saying metadata-only out loud still works.
+	config.SetProfile("dst")
+	if out, merr := capture(t, func() error {
+		return cmdMigrate([]string{"--from", "src", "--skip-attachments"})
+	}); merr != nil {
+		t.Fatalf("--skip-attachments must proceed on a frozen source: %v\n%s", merr, out)
+	}
+}
