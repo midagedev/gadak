@@ -28,141 +28,143 @@ import (
 	"unicode/utf8"
 )
 
-// Doc is the fixture document. Field names and yaml keys follow issuetap's
-// internal/fixtures.Doc; only the parts a mirror can fill are declared.
+// Doc is the fixture document. Key names follow issuetap's
+// internal/fixtures.Doc (its json and yaml tags agree); only the parts a
+// mirror can fill are declared. Emitted as JSON — see cmdMigrate for why
+// the seed is never yaml.Marshal'd.
 type Doc struct {
-	Users      []User      `yaml:"users,omitempty"`
-	Projects   []Project   `yaml:"projects,omitempty"`
-	Statuses   []Status    `yaml:"statuses,omitempty"`
-	Priorities []Priority  `yaml:"priorities,omitempty"`
-	IssueTypes []IssueType `yaml:"issueTypes,omitempty"`
-	Issues     []Issue     `yaml:"issues,omitempty"`
-	Spaces     []Space     `yaml:"spaces,omitempty"`
-	Pages      []Page      `yaml:"pages,omitempty"`
+	Users      []User      `json:"users,omitempty"`
+	Projects   []Project   `json:"projects,omitempty"`
+	Statuses   []Status    `json:"statuses,omitempty"`
+	Priorities []Priority  `json:"priorities,omitempty"`
+	IssueTypes []IssueType `json:"issueTypes,omitempty"`
+	Issues     []Issue     `json:"issues,omitempty"`
+	Spaces     []Space     `json:"spaces,omitempty"`
+	Pages      []Page      `json:"pages,omitempty"`
 }
 
 type User struct {
-	AccountID   string `yaml:"accountId,omitempty"`
-	DisplayName string `yaml:"displayName"`
-	Email       string `yaml:"email,omitempty"`
-	AccountType string `yaml:"accountType,omitempty"`
+	AccountID   string `json:"accountId,omitempty"`
+	DisplayName string `json:"displayName"`
+	Email       string `json:"email,omitempty"`
+	AccountType string `json:"accountType,omitempty"`
 }
 
 type Project struct {
-	Key  string `yaml:"key"`
-	Name string `yaml:"name"`
+	Key  string `json:"key"`
+	Name string `json:"name"`
 }
 
 type Status struct {
-	ID       string `yaml:"id"`
-	Name     string `yaml:"name"`
-	Category string `yaml:"category"` // new | indeterminate | done
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Category string `json:"category"` // new | indeterminate | done
 }
 
 type Priority struct {
-	ID   string `yaml:"id"`
-	Name string `yaml:"name"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
 type IssueType struct {
-	ID             string `yaml:"id"`
-	Name           string `yaml:"name"`
-	HierarchyLevel int    `yaml:"hierarchyLevel,omitempty"`
-	Subtask        bool   `yaml:"subtask,omitempty"`
+	ID             string `json:"id"`
+	Name           string `json:"name"`
+	HierarchyLevel int    `json:"hierarchyLevel,omitempty"`
+	Subtask        bool   `json:"subtask,omitempty"`
 }
 
 type Issue struct {
-	Key         string       `yaml:"key"`
-	Summary     string       `yaml:"summary"`
-	Description string       `yaml:"description,omitempty"`
-	Project     string       `yaml:"project,omitempty"`
-	Type        string       `yaml:"type,omitempty"`   // id
-	Status      string       `yaml:"status,omitempty"` // id
-	Priority    string       `yaml:"priority,omitempty"`
-	Assignee    string       `yaml:"assignee,omitempty"`
-	Reporter    string       `yaml:"reporter,omitempty"`
-	Parent      string       `yaml:"parent,omitempty"`
-	Labels      []string     `yaml:"labels,omitempty"`
-	Components  []string     `yaml:"components,omitempty"`
-	FixVersions []string     `yaml:"fixVersions,omitempty"`
-	Duedate     string       `yaml:"duedate,omitempty"`
-	Resolution  string       `yaml:"resolution,omitempty"`
-	Created     string       `yaml:"created,omitempty"`
-	Updated     string       `yaml:"updated,omitempty"`
-	Comments    []Comment    `yaml:"comments,omitempty"`
-	Attachments []Attachment `yaml:"attachments,omitempty"`
-	Links       []Link       `yaml:"links,omitempty"`
-	History     []History    `yaml:"history,omitempty"`
+	Key         string       `json:"key"`
+	Summary     string       `json:"summary"`
+	Description string       `json:"description,omitempty"`
+	Project     string       `json:"project,omitempty"`
+	Type        string       `json:"type,omitempty"`   // id
+	Status      string       `json:"status,omitempty"` // id
+	Priority    string       `json:"priority,omitempty"`
+	Assignee    string       `json:"assignee,omitempty"`
+	Reporter    string       `json:"reporter,omitempty"`
+	Parent      string       `json:"parent,omitempty"`
+	Labels      []string     `json:"labels,omitempty"`
+	Components  []string     `json:"components,omitempty"`
+	FixVersions []string     `json:"fixVersions,omitempty"`
+	Duedate     string       `json:"duedate,omitempty"`
+	Resolution  string       `json:"resolution,omitempty"`
+	Created     string       `json:"created,omitempty"`
+	Updated     string       `json:"updated,omitempty"`
+	Comments    []Comment    `json:"comments,omitempty"`
+	Attachments []Attachment `json:"attachments,omitempty"`
+	Links       []Link       `json:"links,omitempty"`
+	History     []History    `json:"history,omitempty"`
 }
 
 type Comment struct {
-	Author  string `yaml:"author,omitempty"`
-	Body    string `yaml:"body"`
-	Created string `yaml:"created,omitempty"`
+	Author  string `json:"author,omitempty"`
+	Body    string `json:"body"`
+	Created string `json:"created,omitempty"`
 }
 
 type Attachment struct {
-	Filename   string `yaml:"filename"`
-	MimeType   string `yaml:"mimeType,omitempty"`
-	Text       string `yaml:"text,omitempty"`
-	DataBase64 string `yaml:"dataBase64,omitempty"`
-	Author     string `yaml:"author,omitempty"`
-	Created    string `yaml:"created,omitempty"`
+	Filename   string `json:"filename"`
+	MimeType   string `json:"mimeType,omitempty"`
+	Text       string `json:"text,omitempty"`
+	DataBase64 string `json:"dataBase64,omitempty"`
+	Author     string `json:"author,omitempty"`
+	Created    string `json:"created,omitempty"`
 	// ContentID is the origin content id for the byte download
 	// (external_id when set, else the store row id — the same rule as
 	// store.AttachmentOrigin). Never emitted.
-	ContentID string `yaml:"-"`
+	ContentID string `json:"-"`
 	// Size is the mirror's byte count, used to skip oversized files
 	// before spending the download. Never emitted.
-	Size int64 `yaml:"-"`
+	Size int64 `json:"-"`
 	// SourceURL is the mirror's stored origin content URL (non-Jira
 	// sources). Non-empty means the bytes do not live behind Jira's
 	// /attachment/content/{id} and this pass skips them. Never emitted.
-	SourceURL string `yaml:"-"`
+	SourceURL string `json:"-"`
 }
 
 type Link struct {
-	Type    string `yaml:"type"`
-	Inward  string `yaml:"inward,omitempty"`
-	Outward string `yaml:"outward,omitempty"`
+	Type    string `json:"type"`
+	Inward  string `json:"inward,omitempty"`
+	Outward string `json:"outward,omitempty"`
 }
 
 type History struct {
-	At     string        `yaml:"at"`
-	Author string        `yaml:"author,omitempty"`
-	Items  []HistoryItem `yaml:"items"`
+	At     string        `json:"at"`
+	Author string        `json:"author,omitempty"`
+	Items  []HistoryItem `json:"items"`
 }
 
 type HistoryItem struct {
-	Field      string `yaml:"field"`
-	From       string `yaml:"from,omitempty"`
-	FromString string `yaml:"fromString,omitempty"`
-	To         string `yaml:"to,omitempty"`
-	ToString   string `yaml:"toString,omitempty"`
+	Field      string `json:"field"`
+	From       string `json:"from,omitempty"`
+	FromString string `json:"fromString,omitempty"`
+	To         string `json:"to,omitempty"`
+	ToString   string `json:"toString,omitempty"`
 }
 
 type Space struct {
-	Key  string `yaml:"key"`
-	Name string `yaml:"name"`
+	Key  string `json:"key"`
+	Name string `json:"name"`
 }
 
 type Page struct {
-	ID       string        `yaml:"id,omitempty"`
-	Title    string        `yaml:"title"`
-	Space    string        `yaml:"space"`
-	Version  int           `yaml:"version,omitempty"`
-	When     string        `yaml:"when,omitempty"`
-	Author   string        `yaml:"author,omitempty"`
-	Body     string        `yaml:"body,omitempty"`
-	Labels   []string      `yaml:"labels,omitempty"`
-	Parent   string        `yaml:"parent,omitempty"`
-	Comments []PageComment `yaml:"comments,omitempty"`
+	ID       string        `json:"id,omitempty"`
+	Title    string        `json:"title"`
+	Space    string        `json:"space"`
+	Version  int           `json:"version,omitempty"`
+	When     string        `json:"when,omitempty"`
+	Author   string        `json:"author,omitempty"`
+	Body     string        `json:"body,omitempty"`
+	Labels   []string      `json:"labels,omitempty"`
+	Parent   string        `json:"parent,omitempty"`
+	Comments []PageComment `json:"comments,omitempty"`
 }
 
 type PageComment struct {
-	Author string `yaml:"author,omitempty"`
-	Body   string `yaml:"body"`
-	When   string `yaml:"when,omitempty"`
+	Author string `json:"author,omitempty"`
+	Body   string `json:"body"`
+	When   string `json:"when,omitempty"`
 }
 
 // Options selects what leaves the mirror. Empty means everything mirrored.

@@ -16,7 +16,6 @@ import (
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/originbind"
 	"github.com/midagedev/gadak/internal/store"
-	"gopkg.in/yaml.v3"
 )
 
 const migrateUsage = "usage: gadak --workspace <new name> migrate --from <workspace> [--projects A,B] [--spaces X,Y] [--skip-attachments] [--json]"
@@ -98,7 +97,13 @@ func cmdMigrate(args []string) error {
 		}
 	}
 
-	data, err := yaml.Marshal(doc)
+	// JSON, not YAML, even though the seed file keeps issuetap's legacy
+	// name: yaml.v3's emitter produces block scalars its own parser
+	// rejects on real Jira bodies (leading-space/blank-line combinations —
+	// measured on the first full GDK export, "did not find expected key").
+	// JSON escaping has no such class, and JSON is valid YAML, so
+	// issuetap's yaml.Unmarshal reads it unchanged.
+	data, err := json.MarshalIndent(doc, "", "  ")
 	if err != nil {
 		return err
 	}

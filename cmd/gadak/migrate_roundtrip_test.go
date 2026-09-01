@@ -38,6 +38,18 @@ func TestMigrateStandaloneRoundtrip(t *testing.T) {
 	keyA := createIssue(t, "migrate roundtrip alpha")
 	keyB := createIssue(t, "migrate roundtrip beta")
 
+	// The seed-file killer measured on the first full GDK export: a body
+	// whose lines start with spaces or tabs around blank lines makes
+	// yaml.v3 emit a block scalar its own parser rejects ("did not find
+	// expected key"). The seed is emitted as JSON exactly for this body;
+	// the migrate below fails if that regresses.
+	nasty := "  leading spaces\n\n\tstarts with a tab\ntrailing spaces  \n\n"
+	if out, err := capture(t, func() error {
+		return cmdCreate([]string{"migrate roundtrip nasty body", "-m", nasty})
+	}); err != nil {
+		t.Fatalf("create nasty: %v\n%s", err, out)
+	}
+
 	if out, err := capture(t, func() error { return cmdComment([]string{keyA, "-m", "first comment"}) }); err != nil {
 		t.Fatalf("comment: %v\n%s", err, out)
 	}
@@ -126,8 +138,8 @@ func TestMigrateStandaloneRoundtrip(t *testing.T) {
 
 	// The key sequence continues where the source left off.
 	next := createIssue(t, "post-migrate issue")
-	if next != "STD-3" {
-		t.Fatalf("next key after migrate = %q, want STD-3", next)
+	if next != "STD-4" {
+		t.Fatalf("next key after migrate = %q, want STD-4", next)
 	}
 }
 
