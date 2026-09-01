@@ -460,7 +460,9 @@ convention: `gadak claim <KEY>` takes an issue as yours — assignee plus the
 in-progress transition in one step — and refuses (exit 75, the holder's
 name in the error) while another actor holds it. Use it instead of a
 "[claim]" comment; `--take-over` replaces the holder only when the human
-says to. `gadak issue KEY` answers "how long has this sat?" with its
+says to. On a workflow where two transitions land in progress the bare
+claim refuses with both named — pass `--transition <id|name>` to choose
+(it must land in progress; anything else is `gadak transition`). `gadak issue KEY` answers "how long has this sat?" with its
 `durations` line (wait = created → first in-progress, progress = in-progress
 → done or now), computed from the changelog — never stored.
 

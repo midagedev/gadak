@@ -13,6 +13,22 @@ import (
 	"github.com/midagedev/gadak/internal/statuscat"
 )
 
+// AmbiguousTransitionError is the refusal when want lands on more than one
+// transition (GDK-1174: a board with two in-progress statuses makes every
+// bare `gadak claim` land here). The message is unchanged from the old
+// fmt.Errorf; the type exists so a caller that owns a disambiguation flag
+// can name its recourse — this package still never names CLI flags.
+type AmbiguousTransitionError struct {
+	Key        string
+	Want       string
+	Candidates []Transition
+}
+
+func (e *AmbiguousTransitionError) Error() string {
+	return fmt.Sprintf("transition %q is ambiguous on %s — %d transitions land there: %s",
+		e.Want, e.Key, len(e.Candidates), JoinTransitions(e.Candidates))
+}
+
 // PickTransition resolves want against the issue's available transitions.
 // Order: transition id, target status id, transition name / target status
 // name, then category tokens (new|inprogress|done). Two landings in the same
@@ -49,8 +65,7 @@ func PickTransition(key, want string, list []Transition) (string, error) {
 	case 0:
 		// names, then category
 	default:
-		return "", fmt.Errorf("transition %q is ambiguous on %s — %d transitions land there: %s",
-			want, key, len(toHits), JoinTransitions(toHits))
+		return "", &AmbiguousTransitionError{Key: key, Want: want, Candidates: toHits}
 	}
 	for _, t := range list {
 		if strings.EqualFold(t.Name, want) || strings.EqualFold(t.To.Name, want) {
@@ -70,8 +85,7 @@ func PickTransition(key, want string, list []Transition) (string, error) {
 		case 0:
 			// fall through to the shared miss error, which names reachable tokens
 		default:
-			return "", fmt.Errorf("transition %q is ambiguous on %s — %d transitions land there: %s",
-				want, key, len(hits), JoinTransitions(hits))
+			return "", &AmbiguousTransitionError{Key: key, Want: want, Candidates: hits}
 		}
 	}
 	return "", noTransitionMatch(key, want, list)

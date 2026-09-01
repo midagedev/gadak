@@ -25,6 +25,8 @@ type fakeOrigin struct {
 	readErr     error
 	transitions []jira.Transition
 	calls       []string
+	// claimID records the transition id the atomic route was handed.
+	claimID string
 }
 
 func (f *fakeOrigin) Transitions(_ context.Context, _ string) ([]jira.Transition, error) {
@@ -41,8 +43,9 @@ func (f *fakeOrigin) Transition(_ context.Context, _, id string, _ map[string]an
 	return nil
 }
 
-func (f *fakeOrigin) Claim(_ context.Context, _, _ string, _ bool) (jira.ClaimResult, error) {
+func (f *fakeOrigin) Claim(_ context.Context, _, id string, _ bool) (jira.ClaimResult, error) {
 	f.calls = append(f.calls, "claim")
+	f.claimID = id
 	if f.claimErr != nil {
 		return jira.ClaimResult{}, f.claimErr
 	}
@@ -90,6 +93,77 @@ func cloudTransitions() []jira.Transition {
 	return []jira.Transition{
 		{ID: "11", Name: "Start", To: inProgressStatus()},
 		{ID: "31", Name: "Done", To: doneStatus()},
+	}
+}
+
+func reviewStatus() jira.Status {
+	st := jira.Status{ID: "40", Name: "In Review"}
+	st.StatusCategory.Key = "indeterminate"
+	return st
+}
+
+// twoLaneTransitions is the GDK board shape (GDK-1174): two transitions
+// land in the in-progress category, so a bare category pick is ambiguous.
+func twoLaneTransitions() []jira.Transition {
+	return []jira.Transition{
+		{ID: "11", Name: "Start", To: inProgressStatus()},
+		{ID: "21", Name: "Review", To: reviewStatus()},
+		{ID: "31", Name: "Done", To: doneStatus()},
+	}
+}
+
+// A bare claim on a two-lane board refuses with the typed ambiguity, so the
+// CLI can name its --transition recourse — through transition.Refused too.
+func TestApplyCloudFallbackAmbiguousIsTyped(t *testing.T) {
+	f := &fakeOrigin{
+		me:          me,
+		st:          toDoStatus(),
+		transitions: twoLaneTransitions(),
+		claimErr:    &jira.APIError{Status: 404, Messages: []string{"no route"}},
+	}
+	_, err := Apply(context.Background(), f, nil, Request{Key: "NMB-1"})
+	var amb *jira.AmbiguousTransitionError
+	if !errors.As(err, &amb) {
+		t.Fatalf("want AmbiguousTransitionError, got %v", err)
+	}
+	if len(amb.Candidates) != 2 {
+		t.Fatalf("candidates: %+v", amb.Candidates)
+	}
+}
+
+// An explicit transition picks the lane: resolved before the atomic call,
+// honored by the fallback instead of the category token.
+func TestApplyExplicitTransition(t *testing.T) {
+	atomic := &fakeOrigin{me: me, st: toDoStatus(), transitions: twoLaneTransitions(),
+		claimAnswer: jira.ClaimResult{Key: "NMB-1", Assignee: me, Status: reviewStatus()}}
+	if _, err := Apply(context.Background(), atomic, nil, Request{Key: "NMB-1", TransitionID: "Review"}); err != nil {
+		t.Fatalf("atomic: %v", err)
+	}
+	if atomic.claimID != "21" {
+		t.Fatalf("atomic route got %q, want the resolved id 21", atomic.claimID)
+	}
+
+	fb := &fakeOrigin{me: me, st: toDoStatus(), transitions: twoLaneTransitions(),
+		claimErr: &jira.APIError{Status: 404, Messages: []string{"no route"}}}
+	if _, err := Apply(context.Background(), fb, nil, Request{Key: "NMB-1", TransitionID: "Review"}); err != nil {
+		t.Fatalf("fallback: %v", err)
+	}
+	want := []string{"claim", "transition:21", "assignee:me-1"}
+	if fmt.Sprint(fb.calls) != fmt.Sprint(want) {
+		t.Fatalf("calls %v, want %v", fb.calls, want)
+	}
+}
+
+// claim is not a general transition: a destination outside in-progress is
+// refused before any write.
+func TestApplyExplicitTransitionMustLandInProgress(t *testing.T) {
+	f := &fakeOrigin{me: me, st: toDoStatus(), transitions: twoLaneTransitions()}
+	_, err := Apply(context.Background(), f, nil, Request{Key: "NMB-1", TransitionID: "Done"})
+	if err == nil || !strings.Contains(err.Error(), "claim takes an issue into progress") {
+		t.Fatalf("want the in-progress refusal, got %v", err)
+	}
+	if len(f.calls) != 0 {
+		t.Fatalf("refusal must precede every write, calls: %v", f.calls)
 	}
 }
 

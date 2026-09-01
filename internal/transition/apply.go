@@ -64,9 +64,14 @@ type issueStatusReader interface {
 // map this to a 400 / CLI message; origin errors pass through unchanged.
 type Refused struct {
 	Msg string
+	// Err is the refusal this was built from, when one exists — kept so a
+	// caller can still match the concrete kind (jira.AmbiguousTransitionError
+	// under gadak claim, GDK-1174) through the type adapters map on.
+	Err error
 }
 
 func (e *Refused) Error() string { return e.Msg }
+func (e *Refused) Unwrap() error { return e.Err }
 
 // RequiredFieldsError is a Refused whose screen lists required fields the
 // request did not supply. CLI appends flag names; REST uses Error as-is.
@@ -105,7 +110,7 @@ func Apply(ctx context.Context, o Origin, cfg *config.Config, req Request) (Resu
 		return Result{Changed: false}, nil
 	}
 	if pickErr != nil {
-		return Result{}, &Refused{Msg: pickErr.Error()}
+		return Result{}, &Refused{Msg: pickErr.Error(), Err: pickErr}
 	}
 	selected := byID(list, id)
 	assembled, err := assembleFields(ctx, o, cfg, selected, req.Resolution, req.Fields)

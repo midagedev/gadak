@@ -41,7 +41,11 @@ type Origin interface {
 }
 
 // Request is one claim write. TransitionID is optional: empty lets the
-// origin pick the first destination whose category is in-progress.
+// origin pick the first destination whose category is in-progress. Set, it
+// accepts whatever PickTransition accepts (transition id, status id, name)
+// and is the answer to a board where two transitions land in progress
+// (GDK-1174) — Apply resolves it and refuses a destination that is not
+// in-progress, because claim is not a general transition.
 type Request struct {
 	Key          string
 	TransitionID string
@@ -89,6 +93,13 @@ func (e *TakenError) Error() string {
 // and the two-call fallback runs. Apply does not refresh the mirror — that
 // tail is the write verb's, same as transition.
 func Apply(ctx context.Context, o Origin, cfg *config.Config, req Request) (Result, error) {
+	if req.TransitionID != "" {
+		id, err := resolveExplicitTransition(ctx, o, req.Key, req.TransitionID)
+		if err != nil {
+			return Result{}, err
+		}
+		req.TransitionID = id
+	}
 	res, err := o.Claim(ctx, req.Key, req.TransitionID, req.TakeOver)
 	if err == nil {
 		return fromOrigin(res, true), nil
@@ -134,7 +145,11 @@ func cloudFallback(ctx context.Context, o Origin, cfg *config.Config, req Reques
 		return Result{}, &TakenError{Key: req.Key, Holder: name}
 	}
 	if !inProgress {
-		if _, err := transition.Apply(ctx, o, cfg, transition.Request{Key: req.Key, Target: categoryInProgress}); err != nil {
+		target := categoryInProgress
+		if req.TransitionID != "" {
+			target = req.TransitionID
+		}
+		if _, err := transition.Apply(ctx, o, cfg, transition.Request{Key: req.Key, Target: target}); err != nil {
 			return Result{}, err
 		}
 	}
@@ -161,6 +176,31 @@ func cloudFallback(ctx context.Context, o Origin, cfg *config.Config, req Reques
 		// claimed_at is the atomic route's answer and stays empty on it.
 		Atomic: false,
 	}, nil
+}
+
+// resolveExplicitTransition turns whatever the caller passed (transition id,
+// status id, name) into the one transition id both write paths take, and
+// refuses a destination outside the in-progress category — claim moves an
+// issue into progress; anything else is `gadak transition`.
+func resolveExplicitTransition(ctx context.Context, o Origin, key, want string) (string, error) {
+	list, err := o.Transitions(ctx, key)
+	if err != nil {
+		return "", err
+	}
+	id, err := jira.PickTransition(key, want, list)
+	if err != nil {
+		return "", err
+	}
+	for _, t := range list {
+		if t.ID != id {
+			continue
+		}
+		if cat, ok := statuscat.KnownCategory(t.To.StatusCategory.Key); !ok || cat != categoryInProgress {
+			return "", fmt.Errorf("claim takes an issue into progress — %s lands on %s; use gadak transition for that move",
+				jira.FormatTransition(t), t.To.Name)
+		}
+	}
+	return id, nil
 }
 
 func fromOrigin(res jira.ClaimResult, atomic bool) Result {

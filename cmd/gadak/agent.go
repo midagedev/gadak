@@ -2520,6 +2520,7 @@ func cmdClaim(args []string) error {
 	fs := newFlagSet("claim")
 	asJSON := fs.Bool("json", false, "emit JSON")
 	takeOver := fs.Bool("take-over", false, "claim even when another assignee holds the issue in progress (replaces them)")
+	trans := fs.String("transition", "", "which in-progress transition to take when more than one lands there (id, name, or status id)")
 	if wantsHelp(args) {
 		fmt.Fprint(os.Stdout, formatHelp("claim", fs))
 		return nil
@@ -2529,7 +2530,7 @@ func cmdClaim(args []string) error {
 		return err
 	}
 	if len(pos) != 1 {
-		return usageError("claim", "usage: gadak claim <KEY> [--take-over] [--json]")
+		return usageError("claim", "usage: gadak claim <KEY> [--transition <id|name>] [--take-over] [--json]")
 	}
 	key := normalizeKey(pos[0])
 
@@ -2538,11 +2539,18 @@ func cmdClaim(args []string) error {
 		if !ok {
 			return fmt.Errorf("claim has no counterpart on this issue's origin (%s) — it is a Jira-workflow verb: assignee plus the in-progress transition; `gadak transition` and `gadak assign` are the two halves", src)
 		}
-		res, err := claim.Apply(ctx, o, cfg, claim.Request{Key: key, TakeOver: *takeOver})
+		res, err := claim.Apply(ctx, o, cfg, claim.Request{Key: key, TransitionID: *trans, TakeOver: *takeOver})
 		if err != nil {
 			var taken *claim.TakenError
 			if errors.As(err, &taken) {
 				return &exitCodeError{code: exitClaimConflict, msg: taken.Error()}
+			}
+			// GDK-1174: a board with two in-progress statuses fails every
+			// bare claim — the candidates are already in the error; the
+			// flag that picks one is this command's, so it is named here.
+			var amb *jira.AmbiguousTransitionError
+			if errors.As(err, &amb) && *trans == "" {
+				return fmt.Errorf("%w\npass --transition <id|name> to choose one", err)
 			}
 			return err
 		}
