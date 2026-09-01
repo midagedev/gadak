@@ -78,10 +78,10 @@ func TestCloseExtraArgIsUsage(t *testing.T) {
 	}
 }
 
-// TestCloseStandaloneRoundtrip is the GDK-500 origin check: close posts
+// TestCloseLocalOriginRoundtrip is the GDK-500 origin check: close posts
 // transition+comment in one write, and a second close on an already-done
 // issue is exit 0 / changed:false with no extra comment.
-func TestCloseStandaloneRoundtrip(t *testing.T) {
+func TestCloseLocalOriginRoundtrip(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
 	t.Setenv("HOME", home)

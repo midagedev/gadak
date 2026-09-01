@@ -87,7 +87,7 @@ type member struct {
 	Status        *string `json:"status"`
 	JiraAccountID *string `json:"jira_account_id"`
 	// AccountType is the origin's account axis (GDK-590): "agent" for
-	// standalone worker accounts, "app" for Cloud Connect ones, "atlassian" /
+	// local-origin worker accounts, "app" for Cloud Connect ones, "atlassian" /
 	// "customer" for humans. IsBot is jira.IsBotAccountType of it — the one
 	// judgement, never a display-name guess. Both omitempty: absent for
 	// accounts the catalog has no type for, which is the pre-v36 mirror and

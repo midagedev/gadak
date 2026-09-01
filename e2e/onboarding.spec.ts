@@ -185,7 +185,7 @@ async function assertOnboardingChromeQuiet(
   await expect(wizard).toBeVisible()
   await expect(page.getByRole('button', { name: en['write.newIssue'] })).toHaveCount(0)
   await expect(page.getByRole('button', { name: en['common.setCredentials'], exact: true })).toHaveCount(0)
-  await expect(page.getByRole('button', { name: en['settings.standaloneHow'] })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: en['settings.localOriginHow'] })).toHaveCount(0)
   await expect(page.getByTestId('search-input')).toHaveCount(0)
   await expect(page.getByTestId('filter-chip')).toHaveCount(0)
   await expect(page.getByTestId('sidebar-jira-filters')).toHaveCount(0)

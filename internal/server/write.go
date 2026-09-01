@@ -44,11 +44,11 @@ const maxUpload = 64 << 20
 // that test's allowlist with a reason.
 //
 // A connected workspace without a token answers 409 credential_required so
-// the UI opens its credential dialog. Standalone origin failures are mapped
+// the UI opens its credential dialog. Local-origin origin failures are mapped
 // by failOriginClient — they are not a missing token.
 func (s *server) client(w http.ResponseWriter) (*jira.Client, *config.Config, bool) {
 	cfg := s.config()
-	// HasCredential is true for standalone (no site token) and for a
+	// HasCredential is true for local-origin (no site token) and for a
 	// connected workspace that has site+email+token. Connected without
 	// a token still 409s here — that gate is not weakened.
 	if !cfg.HasCredential() {
@@ -65,7 +65,7 @@ func (s *server) client(w http.ResponseWriter) (*jira.Client, *config.Config, bo
 
 // failOriginClient maps origin.Client construction failures. HasCredential
 // already answers 409 credential_required when a connected workspace has
-// no token. This path is standalone persist/path errors that used to
+// no token. This path is local-origin persist/path errors that used to
 // be disguised as that same 409 (GDK-345), which opened the token dialog
 // on a workspace that has no token.
 func failOriginClient(w http.ResponseWriter, err error) {
@@ -153,7 +153,7 @@ func failJira(w http.ResponseWriter, r *http.Request, cfg *config.Config, err er
 }
 
 // wikiWriter is the wiki write gate: connected without a token is 409
-// credential_required (same code as issue writes). Standalone HasCredential
+// credential_required (same code as issue writes). Local-origin HasCredential
 // is true, so it passes through to origin.Wiki.
 func (s *server) wikiWriter(w http.ResponseWriter) (*confluence.Client, *config.Config, bool) {
 	cfg := s.config()
@@ -222,7 +222,7 @@ func (s *server) writerFor(w http.ResponseWriter, src string) (origin.Writer, *c
 	return c, cfg, true
 }
 
-// keyWriter is writerFor routed per key: the Jira client for jira/standalone
+// keyWriter is writerFor routed per key: the Jira client for jira/local-origin
 // rows, the Linear adapter for linear rows (GDK-361).
 func (s *server) keyWriter(w http.ResponseWriter, r *http.Request, key string) (origin.Writer, *config.Config, string, bool) {
 	src, err := s.keySource(r.Context(), key)
@@ -259,7 +259,7 @@ func (s *server) createWriter(w http.ResponseWriter, r *http.Request, project st
 }
 
 // writeOriginLabel is the source id the write actually used. Empty is
-// WriterFor's default Jira-family origin (connected Jira or standalone).
+// WriterFor's default Jira-family origin (connected Jira or localOrigin).
 func writeOriginLabel(src string) string {
 	if src == "" {
 		return sync.SourceID

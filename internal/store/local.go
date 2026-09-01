@@ -72,7 +72,7 @@ CREATE INDEX recents_kind_used_at ON recents(kind, used_at);
 `
 
 // localSchemaV3 gives history a generation. Replacing a workspace's origin
-// (standalone → a real site) leaves visit and search rows naming keys the new
+// (localOrigin → a real site) leaves visit and search rows naming keys the new
 // origin can mint too, and the timeline resolves a bare key against whatever
 // mirror is current — so `STD-1 viewed yesterday` starts pointing at a
 // stranger's issue (GDK-418). Deleting them is not available: data-model.md

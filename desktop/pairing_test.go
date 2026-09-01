@@ -32,9 +32,9 @@ func pairingMuxForTest() http.Handler {
 	return fallbackHandler(http.NotFoundHandler(), nil, nil, nil, newBrowseTabs(), nil)
 }
 
-// standaloneDesktopHome stands up a temp GADAK_HOME holding a standalone
+// localOriginDesktopHome stands up a temp GADAK_HOME holding a local-origin
 // workspace — the home-serve shape the Devices tab operates on.
-func standaloneDesktopHome(t *testing.T) string {
+func localOriginDesktopHome(t *testing.T) string {
 	t.Helper()
 	for _, k := range []string{"GADAK_SITE", "GADAK_EMAIL", "GADAK_TOKEN"} {
 		t.Setenv(k, "")
@@ -48,7 +48,7 @@ func standaloneDesktopHome(t *testing.T) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg.Kind = config.KindStandalone
+	cfg.Kind = config.KindLocalOrigin
 	if err := cfg.Save(); err != nil {
 		t.Fatal(err)
 	}
@@ -81,11 +81,11 @@ func pairingErrCode(t *testing.T, rec *httptest.ResponseRecorder) string {
 }
 
 // TestPairingMintGuardAndQR is the round's namesake gate: mint through the
-// route, and the standalone home still holds a usable _home routing token;
+// route, and the local-origin home still holds a usable _home routing token;
 // the QR in the response is the same module matrix the terminal renders;
 // the offer round-trips and appears only where it belongs.
 func TestPairingMintGuardAndQR(t *testing.T) {
-	dir := standaloneDesktopHome(t)
+	dir := localOriginDesktopHome(t)
 	h := pairingMuxForTest()
 
 	rec := postPairing(t, h, "/desktop/pairing/mint",
@@ -177,7 +177,7 @@ func TestPairingMintGuardAndQR(t *testing.T) {
 // _home label, an empty label, a non-http endpoint, no endpoint with no
 // live serve, and a duplicate active label.
 func TestPairingMintRefusals(t *testing.T) {
-	standaloneDesktopHome(t)
+	localOriginDesktopHome(t)
 	h := pairingMuxForTest()
 
 	cases := []struct {
@@ -224,7 +224,7 @@ func TestPairingMintRefusals(t *testing.T) {
 // prefix the list itself printed, and revoking _home is refused with the
 // same sentence the CLI refuses it with.
 func TestPairingListAndRevoke(t *testing.T) {
-	standaloneDesktopHome(t)
+	localOriginDesktopHome(t)
 	h := pairingMuxForTest()
 
 	getDevices := func() []map[string]any {
@@ -305,7 +305,7 @@ func TestPairingListAndRevoke(t *testing.T) {
 // machine owns no devices — GET answers the state as data and mint/revoke
 // answer a 409 code, never a stack-flavored 500.
 func TestPairingPairedAway(t *testing.T) {
-	dir := standaloneDesktopHome(t)
+	dir := localOriginDesktopHome(t)
 	if err := pairing.SaveRemote(dir, pairing.Remote{
 		Endpoint: "http://192.0.2.10:7877",
 		Token:    "paired-away-not-a-pairing-token",
@@ -347,7 +347,7 @@ func TestPairingPairedAway(t *testing.T) {
 // TestPairingNeverLeaksTheOffer: the offer appears in exactly one response
 // — the mint's. Error bodies and the devices list never carry it.
 func TestPairingNeverLeaksTheOffer(t *testing.T) {
-	standaloneDesktopHome(t)
+	localOriginDesktopHome(t)
 	h := pairingMuxForTest()
 
 	rec := postPairing(t, h, "/desktop/pairing/mint",

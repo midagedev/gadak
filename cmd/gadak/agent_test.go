@@ -421,14 +421,14 @@ func mirror(t *testing.T, site string) *config.Config {
 	return cfg
 }
 
-// standaloneMirror is mirror("") plus KindStandalone. The no-site open
+// localOriginMirror is mirror("") plus KindLocalOrigin. The no-site open
 // tests are about an already-inited local workspace, not an empty
 // connected config (GDK-454: HasCredential is true here, so open does
 // not print ErrNotConfigured).
-func standaloneMirror(t *testing.T) *config.Config {
+func localOriginMirror(t *testing.T) *config.Config {
 	t.Helper()
 	cfg := mirror(t, "")
-	cfg.Kind = config.KindStandalone
+	cfg.Kind = config.KindLocalOrigin
 	if err := cfg.Save(); err != nil {
 		t.Fatal(err)
 	}
@@ -602,7 +602,7 @@ func TestOpenPrefersStoredItemURL(t *testing.T) {
 }
 
 // stubIssueOpen captures `gadak open`'s browser seam and isolates serve
-// discovery so a live listener on this machine cannot flip the standalone
+// discovery so a live listener on this machine cannot flip the local-origin
 // cases (the no-site path now asks serveFocusURL).
 func stubIssueOpen(t *testing.T) *string {
 	t.Helper()
@@ -659,8 +659,8 @@ func seedNamedIssue(t *testing.T, key, title string) {
 	}
 }
 
-func TestOpenStandaloneRelativeURLDoesNotSucceed(t *testing.T) {
-	standaloneMirror(t)
+func TestOpenLocalOriginRelativeURLDoesNotSucceed(t *testing.T) {
+	localOriginMirror(t)
 	seedIssueURL(t, "STD-1", "/browse/STD-1")
 	got := stubIssueOpen(t)
 
@@ -680,8 +680,8 @@ func TestOpenStandaloneRelativeURLDoesNotSucceed(t *testing.T) {
 	}
 }
 
-func TestOpenStandaloneMissingKeyIsNotInitAdvice(t *testing.T) {
-	standaloneMirror(t)
+func TestOpenLocalOriginMissingKeyIsNotInitAdvice(t *testing.T) {
+	localOriginMirror(t)
 	got := stubIssueOpen(t)
 
 	_, err := capture(t, func() error { return cmdOpen([]string{"NOPE-1"}) })
@@ -697,8 +697,8 @@ func TestOpenStandaloneMissingKeyIsNotInitAdvice(t *testing.T) {
 	}
 }
 
-func TestOpenStandaloneKnownKeyWithoutSite(t *testing.T) {
-	standaloneMirror(t)
+func TestOpenLocalOriginKnownKeyWithoutSite(t *testing.T) {
+	localOriginMirror(t)
 	got := stubIssueOpen(t)
 
 	_, err := capture(t, func() error { return cmdOpen([]string{"NMB-1"}) })
@@ -717,7 +717,7 @@ func TestOpenStandaloneKnownKeyWithoutSite(t *testing.T) {
 func TestOpenMissingKeyWithSiteStillBrowses(t *testing.T) {
 	// `open` is the escape hatch to Jira: the mirror may lag a key that
 	// exists on the site, so a configured site still gets the browse URL.
-	// Only the no-site workspaces (standalone/paired) refuse a missing key.
+	// Only the no-site workspaces (localOrigin/paired) refuse a missing key.
 	mirror(t, "https://jira.example.com")
 	got := stubIssueOpen(t)
 
@@ -729,8 +729,8 @@ func TestOpenMissingKeyWithSiteStillBrowses(t *testing.T) {
 	}
 }
 
-func TestOpenStandaloneUsesLiveServe(t *testing.T) {
-	standaloneMirror(t)
+func TestOpenLocalOriginUsesLiveServe(t *testing.T) {
+	localOriginMirror(t)
 	got := stubIssueOpen(t)
 	discoverServes = func() []serveHit {
 		return []serveHit{{base: "http://127.0.0.1:7777", profile: "", port: "7777"}}

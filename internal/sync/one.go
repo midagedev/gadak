@@ -43,12 +43,12 @@ func SyncIssue(ctx context.Context, cfg *config.Config, db *store.DB, key string
 			return err
 		}
 	}
-	// Write-through can run before the first full sync (standalone create is
+	// Write-through can run before the first full sync (localOrigin create is
 	// the case that made this visible). items.source_id references sources.id.
 	// Same GDK-241 upgrade purge as runJiraPass: a write-back to an existing
 	// issue re-mirrors it under the namespaced id, which UNIQUE(source_id,
 	// key) rejects while the pre-namespace row is still in the mirror.
-	if cfg.IsStandalone() {
+	if cfg.HasLocalOrigin() {
 		if _, err := db.PurgeIssueIDsOutsideNamespace(ctx, SourceID, itemNS(cfg)); err != nil {
 			return err
 		}
@@ -132,7 +132,7 @@ func SyncPage(ctx context.Context, cfg *config.Config, db *store.DB, id string) 
 	// existing page re-mirrors it under the namespaced id, which
 	// UNIQUE(source_id, key) rejects while the pre-namespace row is still
 	// in the mirror.
-	if cfg.IsStandalone() {
+	if cfg.HasLocalOrigin() {
 		if _, err := db.PurgePageIDsOutsideNamespace(ctx, ConfluenceSourceID, pageNS(cfg)); err != nil {
 			return err
 		}

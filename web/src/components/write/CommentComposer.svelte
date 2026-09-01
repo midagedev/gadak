@@ -324,7 +324,7 @@
   ondrop={onDrop}
 >
   <div class="relative">
-    <!-- GDK-1148: a standalone/paired workspace is anonymous yet its writes
+    <!-- GDK-1148: a local-origin/paired workspace is anonymous yet its writes
          pass through the origin (originWritable) — the credential placeholder
          would tell a working writer to go get a token. -->
     <textarea

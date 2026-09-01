@@ -25,7 +25,7 @@ import (
 )
 
 // ErrCodeReplaceRefused is the --json / HTTP "error" value when a connected
-// init or onboarding connect refuses to take over a standalone workspace
+// init or onboarding connect refuses to take over a local-origin workspace
 // that holds data. The string is a CLI --json contract; do not change it.
 const ErrCodeReplaceRefused = "standalone_data_present"
 
@@ -43,14 +43,14 @@ func (e *ReplaceRefusedError) Error() string {
 	return replaceMessage(e.Issues, e.Persist)
 }
 
-// replaceMessage is the former standaloneReplaceMessage. Wording is a
+// replaceMessage is the former localOriginReplaceMessage. Wording is a
 // user-facing contract; do not invent a new sentence.
 func replaceMessage(n int, persist string) string {
 	noun, exist := "issues or pages", "they exist only here"
 	if n == 1 {
 		noun, exist = "issue or page", "it exists only here"
 	}
-	return fmt.Sprintf("this workspace holds %d %s that originated here, in gadak's own tracker; %s — no Jira site has a copy\norigin persist file: %s\nconnect the site in a separate workspace: gadak --workspace <name> init\n(list workspaces with gadak workspaces)\nto replace this workspace anyway (converting deletes these issues or pages from the mirror): --replace-standalone",
+	return fmt.Sprintf("this workspace holds %d %s that originated here, in gadak's own tracker; %s — no Jira site has a copy\norigin persist file: %s\nconnect the site in a separate workspace: gadak --workspace <name> init\n(list workspaces with gadak workspaces)\nto replace this workspace anyway (converting deletes these issues or pages from the mirror): --replace-local",
 		n, noun, exist, persist)
 }
 
@@ -82,7 +82,7 @@ func (e *WorkspaceOpenError) Error() string {
 	return fmt.Sprintf("another process (pid %d / port %s)%s", e.PID, port, tail)
 }
 
-// RefuseIfOpen stops a CLI standalone→connected conversion while another
+// RefuseIfOpen stops a CLI local-origin→connected conversion while another
 // process has this workspace open. HTTP conversion runs inside the owner
 // process and must not call this.
 //
@@ -97,7 +97,7 @@ func (e *WorkspaceOpenError) Error() string {
 //	(GDK-971). That marker is advisory and never arbitrates writes — WAL
 //	does that — it only says someone is holding this workspace.
 func RefuseIfOpen(cfg *config.Config) error {
-	if cfg == nil || !cfg.IsStandalone() {
+	if cfg == nil || !cfg.HasLocalOrigin() {
 		return nil
 	}
 	if rec, ok := origin.LiveServeFor(cfg.ProfileName()); ok {
@@ -119,7 +119,7 @@ func profileDir(cfg *config.Config) string {
 	return d
 }
 
-// DropStandaloneProjection is the conversion cleanup both CLI init and HTTP
+// DropLocalOriginProjection is the conversion cleanup both CLI init and HTTP
 // onboarding must run: drop the seeded LOC wiki scope, then hand both sources
 // to the store's origin-replacement owner.
 //
@@ -132,33 +132,33 @@ func profileDir(cfg *config.Config) string {
 //
 // The returned OriginReset is what to tell the user; an empty String() means
 // nothing personal was bound to the old origin.
-func DropStandaloneProjection(cfg *config.Config, db *store.DB) (store.OriginReset, error) {
+func DropLocalOriginProjection(cfg *config.Config, db *store.DB) (store.OriginReset, error) {
 	if cfg != nil {
 		cfg.Confluence = nil
 	}
 	if db == nil {
-		return store.OriginReset{}, fmt.Errorf("drop standalone mirror: nil store")
+		return store.OriginReset{}, fmt.Errorf("drop local-origin mirror: nil store")
 	}
 	reset, err := db.ResetForNewOrigin(context.Background(), []string{"jira", "confluence"})
 	if err != nil {
-		return store.OriginReset{}, fmt.Errorf("drop standalone mirror: %w", err)
+		return store.OriginReset{}, fmt.Errorf("drop local-origin mirror: %w", err)
 	}
 	return reset, nil
 }
 
 // RefuseReplace stops a connected init / onboarding connect from silently
-// changing which origin owns a standalone workspace that holds locally
-// originated data. An empty standalone workspace (tried it, nothing
+// changing which origin owns a local-origin workspace that holds locally
+// originated data. An empty local-origin workspace (tried it, nothing
 // filed) is not a hazard and is allowed through.
 //
 // JSON rendering stays at the CLI call site — this returns an error only.
 func RefuseReplace(cfg *config.Config, replace bool) error {
-	if cfg == nil || !cfg.IsStandalone() || replace {
+	if cfg == nil || !cfg.HasLocalOrigin() || replace {
 		return nil
 	}
 	n, persist, err := LocalData(cfg)
 	if err != nil {
-		return fmt.Errorf("cannot replace standalone workspace: %w", err)
+		return fmt.Errorf("cannot replace local-origin workspace: %w", err)
 	}
 	if n == 0 {
 		return nil
@@ -166,18 +166,18 @@ func RefuseReplace(cfg *config.Config, replace bool) error {
 	return &ReplaceRefusedError{Issues: n, Persist: persist}
 }
 
-// ClearStandalone is the single owner of "origin is now a Jira site, so
-// this workspace is no longer standalone". Reached only after RefuseReplace
-// (or an explicit replace opt-in). Empty standalone workspaces take this
+// ClearLocalOrigin is the single owner of "origin is now a Jira site, so
+// this workspace is no longer local-origin". Reached only after RefuseReplace
+// (or an explicit replace opt-in). Empty local-origin workspaces take this
 // path too: once connected, Kind must be cleared.
-func ClearStandalone(next *config.Config) {
+func ClearLocalOrigin(next *config.Config) {
 	if next == nil {
 		return
 	}
 	next.Kind = ""
 }
 
-// LocalData reports how much locally originated data this standalone
+// LocalData reports how much locally originated data this local-origin
 // workspace holds, and the origin persist path (via origin.PersistPath —
 // never rebuilt from string pieces). The returned n is max(issues, pages).
 //

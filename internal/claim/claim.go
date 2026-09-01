@@ -1,7 +1,7 @@
 // Package claim is the single owner of the gadak claim write (CLI today,
 // REST later), the way internal/transition owns the transition write.
 //
-// On an origin that implements issuetap's claim route — standalone and
+// On an origin that implements issuetap's claim route — local-origin and
 // paired workspaces — Apply is one atomic call: of two agents claiming
 // concurrently exactly one wins. Atlassian Cloud has no claim route and
 // answers 404; there Apply falls back to the two writes the atomic route
@@ -87,7 +87,7 @@ func (e *TakenError) Error() string {
 	return fmt.Sprintf("%s is already claimed by %s", e.Key, holder)
 }
 
-// Apply claims req.Key on the origin. Standalone and paired origins answer
+// Apply claims req.Key on the origin. Local-origin and paired origins answer
 // the atomic route; a 404 means the origin has no claim route (Cloud — or
 // the issue does not exist, which the fallback's read then reports honestly)
 // and the two-call fallback runs. Apply does not refresh the mirror — that

@@ -528,11 +528,11 @@ ALTER TABLE comments ADD COLUMN jsd_public INTEGER;
 
 // schemaV29 adds dev_links (GDK-497): the development-panel pull-request
 // links the origin holds for an issue — Jira's dev-status on a connected
-// workspace, issuetap's on a standalone one. Rows live and die with the
+// workspace, issuetap's on a local-origin one. Rows live and die with the
 // issue rewrite when a DevLinksUpdate is present: a successful empty
 // list drains, a fetch error cannot construct the update so existing
 // rows stay (GDK-536 / GDK-580).
-// Standalone / issuetap always fetches; Cloud keeps the DevStatus opt-in.
+// Local-origin / issuetap always fetches; Cloud keeps the DevStatus opt-in.
 // url is the idempotent key per issue, matching both origins' upsert rule.
 const schemaV29 = `
 CREATE TABLE dev_links (
@@ -657,7 +657,7 @@ CREATE TABLE status_catalog (
 // mirror. The sync pass compares this column with the configured locale and
 // rebuilds (full refetch) when they differ. NULL (pre-v35 mirror) reads as
 // "": English, which is what those mirrors were fetched under — no spurious
-// rebuild on upgrade. Standalone only: a connected workspace's language is
+// rebuild on upgrade. Local-origin only: a connected workspace's language is
 // the Atlassian account's, not this setting.
 const schemaV35 = `
 ALTER TABLE sync_state ADD COLUMN locale TEXT;
@@ -670,7 +670,7 @@ ALTER TABLE sync_state ADD COLUMN locale TEXT;
 // IssueRecord.Users during UpsertIssues (same pattern as v34 status_catalog);
 // the migration does not backfill, because the mirror is a cache and the
 // origin is the record — a wipe costs one re-sync. account_type keeps the
-// origin's spelling ("agent" for standalone issuetap actors, "app" for Cloud
+// origin's spelling ("agent" for local-origin issuetap actors, "app" for Cloud
 // Connect); the bot judgement on those values lives in one function
 // (jira.IsBotAccountType), never in SQL. issue_actors is the actor axis as a
 // view: comments ∪ changelog ∪ dev_links, so "issues this account touched"

@@ -18,10 +18,10 @@ import (
 	"github.com/midagedev/gadak/internal/store"
 )
 
-// standaloneMemory is the memory-verb fixture: a standalone workspace (the
+// localOriginMemory is the memory-verb fixture: a local-origin workspace (the
 // in-process origin, no network) and nothing else — memory add creates the
 // first page itself.
-func standaloneMemory(t *testing.T) {
+func localOriginMemory(t *testing.T) {
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
@@ -41,7 +41,7 @@ func standaloneMemory(t *testing.T) {
 // is findable now, through the same origin write path and mirror refresh
 // page create uses. Text form on both ends.
 func TestMemoryAddSearchRoundtrip(t *testing.T) {
-	standaloneMemory(t)
+	localOriginMemory(t)
 
 	out, err := capture(t, func() error {
 		return cmdMemory([]string{"add", "deploy lock on nmb: always gadak claim, never the raw API"})
@@ -61,7 +61,7 @@ func TestMemoryAddSearchRoundtrip(t *testing.T) {
 		t.Errorf("derived title must carry the first line, got %q", title)
 	}
 	if space != origin.DefaultSpaceKey {
-		t.Errorf("standalone default space = %q, want the seeded %q", space, origin.DefaultSpaceKey)
+		t.Errorf("local-origin default space = %q, want the seeded %q", space, origin.DefaultSpaceKey)
 	}
 
 	sout, serr := capture(t, func() error {
@@ -93,7 +93,7 @@ func TestMemoryAddSearchRoundtrip(t *testing.T) {
 // TestMemoryAddSearchJSON: --json on both verbs. Add names what it wrote
 // (id, title, space); search streams one object per row.
 func TestMemoryAddSearchJSON(t *testing.T) {
-	standaloneMemory(t)
+	localOriginMemory(t)
 
 	out, err := capture(t, func() error {
 		return cmdMemory([]string{"add", "release audit rhythm", "--title", "Release audit notes", "--json"})
@@ -140,7 +140,7 @@ func TestMemoryAddSearchJSON(t *testing.T) {
 // TestMemorySearchNoMatchSaysSo: 0 hits is an answer, not silence — one
 // line that says so and names the verb that would fill the space.
 func TestMemorySearchNoMatchSaysSo(t *testing.T) {
-	standaloneMemory(t)
+	localOriginMemory(t)
 
 	out, err := capture(t, func() error {
 		return cmdMemory([]string{"search", "quantum-flensing-ritual"})
@@ -198,7 +198,7 @@ func TestMemorySearchRefusesConnectedWithoutSpace(t *testing.T) {
 // TestMemoryAddTitleDerivedFromFirstLine: no --title means the first line
 // is the title, whitespace-collapsed and clipped when overly long.
 func TestMemoryAddTitleDerivedFromFirstLine(t *testing.T) {
-	standaloneMemory(t)
+	localOriginMemory(t)
 
 	out, err := capture(t, func() error {
 		return cmdMemory([]string{"add", "short title line\nthe body that actually carries the detail"})
@@ -229,7 +229,7 @@ func TestMemoryAddTitleDerivedFromFirstLine(t *testing.T) {
 // TestMemoryAddStdinDash: `-m -` reads the note from stdin, the same idiom
 // every write verb shares.
 func TestMemoryAddStdinDash(t *testing.T) {
-	standaloneMemory(t)
+	localOriginMemory(t)
 
 	r, w, err := os.Pipe()
 	if err != nil {
@@ -254,7 +254,7 @@ func TestMemoryAddStdinDash(t *testing.T) {
 // TestMemoryAddGivenTwiceRefused: the note as a positional and as -m at the
 // same time is the comment verb's "pick one" refusal, not a concatenation.
 func TestMemoryAddGivenTwiceRefused(t *testing.T) {
-	standaloneMemory(t)
+	localOriginMemory(t)
 
 	_, err := capture(t, func() error {
 		return cmdMemory([]string{"add", "positional note", "-m", "flag note"})
@@ -271,7 +271,7 @@ func TestMemoryAddGivenTwiceRefused(t *testing.T) {
 // pages in other spaces answer `search`, not `memory search`, even when
 // their bodies match better.
 func TestMemorySearchScopedToConfiguredSpace(t *testing.T) {
-	standaloneMemory(t)
+	localOriginMemory(t)
 
 	home := os.Getenv("GADAK_HOME")
 	db, err := store.Open(home + "/gadak.db")
@@ -319,7 +319,7 @@ func TestMemorySearchScopedToConfiguredSpace(t *testing.T) {
 
 // TestMemoryAddEmptyNoteRefused: whitespace is not a note.
 func TestMemoryAddEmptyNoteRefused(t *testing.T) {
-	standaloneMemory(t)
+	localOriginMemory(t)
 
 	_, err := capture(t, func() error { return cmdMemory([]string{"add", "   "}) })
 	if err == nil {

@@ -9,10 +9,10 @@ import (
 	"github.com/midagedev/gadak/internal/store"
 )
 
-// seedStandaloneIssue puts one issue in the standalone mirror under the key a
+// seedLocalOriginIssue puts one issue in the local-origin mirror under the key a
 // real Jira site can also mint. STD is what `init --standalone` seeds, and a
 // site's project can be called STD too — that collision is the whole hazard.
-func seedStandaloneIssue(t *testing.T, db *store.DB) {
+func seedLocalOriginIssue(t *testing.T, db *store.DB) {
 	t.Helper()
 	ctx := context.Background()
 	if err := db.UpsertSource(ctx, store.Source{ID: "jira", Kind: "jira"}); err != nil {
@@ -22,7 +22,7 @@ func seedStandaloneIssue(t *testing.T, db *store.DB) {
 		Categories: map[string]string{"1": "new"},
 		Records: []store.IssueRecord{{
 			Item: store.Item{
-				ID: "standalone-jira:10001", SourceID: "jira", Kind: "issue",
+				ID: "local-origin-jira:10001", SourceID: "jira", Kind: "issue",
 				ExternalID: "10001", Key: "STD-1", Title: "filed here",
 				CreatedAt: "2026-07-01T00:00:00.000Z", UpdatedAt: "2026-07-01T00:00:00.000Z",
 			},
@@ -79,7 +79,7 @@ func rawCount(t *testing.T, path, query string) int {
 // minted. That is why the fix is a classification every table must appear in
 // rather than four more DELETEs.
 func TestConversionLeavesNoRowBoundToTheOldOrigin(t *testing.T) {
-	cfg := standaloneHome(t)
+	cfg := localOriginHome(t)
 	path, err := config.DBPath()
 	if err != nil {
 		t.Fatal(err)
@@ -90,7 +90,7 @@ func TestConversionLeavesNoRowBoundToTheOldOrigin(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	seedStandaloneIssue(t, db)
+	seedLocalOriginIssue(t, db)
 	if err := db.SetWatch(ctx, "STD-1", true); err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +99,7 @@ func TestConversionLeavesNoRowBoundToTheOldOrigin(t *testing.T) {
 	}
 	// A picker-ranking cache of ids the old origin minted: this account id does
 	// not exist on the new site, so the ranking offers a stranger or nothing.
-	if _, err := db.RecordRecent(ctx, "assignee", "standalone-acct-1"); err != nil {
+	if _, err := db.RecordRecent(ctx, "assignee", "local-origin-acct-1"); err != nil {
 		t.Fatal(err)
 	}
 	// History is protected data (data-model.md names it), so this row must
@@ -125,7 +125,7 @@ func TestConversionLeavesNoRowBoundToTheOldOrigin(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	reset, err := DropStandaloneProjection(cfg, db)
+	reset, err := DropLocalOriginProjection(cfg, db)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,7 +182,7 @@ func TestConversionLeavesNoRowBoundToTheOldOrigin(t *testing.T) {
 // the swap, so it must not go unmentioned either (GDK-418, the half that was
 // filed as a product judgment).
 func TestConversionKeepsSavedViewsAndNamesTheRiskyOnes(t *testing.T) {
-	cfg := standaloneHome(t)
+	cfg := localOriginHome(t)
 	path, err := config.DBPath()
 	if err != nil {
 		t.Fatal(err)
@@ -192,7 +192,7 @@ func TestConversionKeepsSavedViewsAndNamesTheRiskyOnes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	seedStandaloneIssue(t, db)
+	seedLocalOriginIssue(t, db)
 	for _, v := range []store.SavedView{
 		{ID: "v1", Name: "std backlog", Config: []byte(`{"jql":"project = STD AND status_category = 'new'"}`)},
 		{ID: "v2", Name: "everything open", Config: []byte(`{"jql":"status_category = 'inprogress'"}`)},
@@ -203,7 +203,7 @@ func TestConversionKeepsSavedViewsAndNamesTheRiskyOnes(t *testing.T) {
 		}
 	}
 
-	reset, err := DropStandaloneProjection(cfg, db)
+	reset, err := DropLocalOriginProjection(cfg, db)
 	if err != nil {
 		t.Fatal(err)
 	}

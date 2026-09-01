@@ -2511,7 +2511,7 @@ func runAssignBatch(asJSON bool) error {
 const exitClaimConflict = 75
 
 // cmdClaim is `gadak claim KEY`: take an issue as yours — assignee plus the
-// in-progress transition in one step (internal/claim). On standalone and
+// in-progress transition in one step (internal/claim). On local-origin and
 // paired origins that is one atomic call; on connected Cloud there is no
 // such route, the two writes run as a fallback, and the caller is told so.
 // A claim someone else holds is refused with exit 75 rather than silently
@@ -2728,14 +2728,14 @@ func cmdOpen(args []string) error {
 		return err
 	}
 	key := normalizeKey(pos[0])
-	// Unconfigured (no origin at all) is not the standalone no-site case.
-	// Standalone HasCredential is true, so it still hits the lookup / live-
+	// Unconfigured (no origin at all) is not the local-origin no-site case.
+	// Local-origin HasCredential is true, so it still hits the lookup / live-
 	// serve / views-open path below and is not told to re-run init (GDK-454).
 	if !cfg.HasCredential() {
 		return config.NotConfiguredWith(fmt.Sprintf("use `gadak views open %s` (or `gadak serve`)", key))
 	}
 	// Key first: a missing row used to fall through to the no-site error and
-	// tell an already-inited standalone workspace to re-run init. With a
+	// tell an already-inited local-origin workspace to re-run init. With a
 	// site, a missing key still opens the browse URL — `open` is the escape
 	// hatch to Jira, and the mirror may simply lag a key that exists there.
 	found, stored, lookErr := lookupItem(key)
@@ -2785,7 +2785,7 @@ func lookupItem(key string) (found bool, itemURL string, err error) {
 	return true, strings.TrimSpace(u.String), nil
 }
 
-// absoluteHTTPURL accepts only http(s) URLs with a host. Standalone origin
+// absoluteHTTPURL accepts only http(s) URLs with a host. Local-origin origin
 // stores /browse/KEY (empty BaseURL); handing that to macOS `open` is a
 // false success.
 func absoluteHTTPURL(raw string) string {

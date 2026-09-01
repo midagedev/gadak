@@ -19,7 +19,7 @@ import (
 func TestSecondSessionWriteAttributesToActor(t *testing.T) {
 	t.Setenv("GADAK_ACTOR", "claude:354bff2b|Claude (build 1)")
 	t.Setenv("CLAUDECODE", "")
-	cfg, _ := standaloneHome(t)
+	cfg, _ := localOriginHome(t)
 
 	if _, err := origin.Client(cfg); err != nil {
 		t.Fatal(err)

@@ -8,7 +8,7 @@
  * First run vs. "mirror is empty, sync will fill it". Setup is incomplete when
  * there is no stored credential or no project list; once anything has synced
  * (pool > 0) this is false forever, so onboarding cannot come back.
- * A standalone workspace has no Jira site to connect — the wizard would ask
+ * A local-origin workspace has no Jira site to connect — the wizard would ask
  * for a token the origin cannot use. Kind comes from config.json, never
  * from an empty site URL.
  *
@@ -20,14 +20,14 @@
  *  configEpoch: `current` in lib/config is a plain variable, so Svelte cannot
  *  see runtime writes to it (pool.size tracks nothing either — an empty map
  *  staying empty bumps no reactive dep this gate reads). The connect flow
- *  closes the wizard through me.identified flipping; the standalone door
+ *  closes the wizard through me.identified flipping; the local-origin door
  *  (GDK-377) keeps identity anonymous and the pool empty, so after
  *  loadConfig() it calls noteConfigFlipped() to make this derived re-read
  *  the workspace kind. Boot-time flips (CLI init before load) need no poke:
  *  the derived evaluates fresh on mount.
  */
 
-import { config, isStandaloneWorkspace } from '../lib/config'
+import { config, isLocalOriginWorkspace } from '../lib/config'
 import { issues } from './issues.svelte'
 import { me } from './me.svelte'
 
@@ -65,7 +65,7 @@ class OnboardingStore {
     if (
       issues.pool.size === 0 &&
       me.authChecked &&
-      !isStandaloneWorkspace() &&
+      !isLocalOriginWorkspace() &&
       (!me.identified || config().projects.length === 0)
     ) {
       return me.identified ? 'no-projects' : 'no-credential'

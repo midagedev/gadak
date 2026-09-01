@@ -29,17 +29,17 @@ const PersistRel = "origin/issuetap.db"
 // The YAML is left in place as a rollback asset.
 const LegacyYAMLRel = "origin/issuetap.yaml"
 
-// DefaultProjectKey is the project seeded into a new standalone origin so
+// DefaultProjectKey is the project seeded into a new local-origin origin so
 // create/createmeta have somewhere to file. Issuetap also creates a project
 // on first write if a caller names another key.
 const DefaultProjectKey = "STD"
 
-// DefaultSpaceKey is the wiki space seeded into a new standalone origin so
+// DefaultSpaceKey is the wiki space seeded into a new local-origin origin so
 // page create has somewhere to file. Short and obviously local — not a
 // display name, and not a site-specific key.
 const DefaultSpaceKey = "LOC"
 
-// DefaultConfluenceConfig is what initStandalone writes so the wiki
+// DefaultConfluenceConfig is what initLocalOrigin writes so the wiki
 // sync pass is on and scoped to the seeded space. Presence of the block is
 // the on switch (internal/sync/confluence.go).
 func DefaultConfluenceConfig() *config.ConfluenceConfig {
@@ -107,7 +107,7 @@ func Connected(site, email, token string) *jira.Client {
 
 // Client is the single owner of "this workspace's Jira client".
 // A connected workspace gets the same jira.New(site, email, token) as before.
-// A standalone workspace embeds issuetap over the persist SQLite file
+// A local-origin workspace embeds issuetap over the persist SQLite file
 // (WAL). A paired remote workspace talks to the home serve's RESTPrefix
 // passthrough. BaseURL stays empty so stored browse links are /browse/KEY
 // rather than a fake https origin a person might click.
@@ -123,8 +123,8 @@ func Client(cfg *config.Config) (*jira.Client, error) {
 	} else if rem != nil {
 		return pairedJira(cfg, rem)
 	}
-	if cfg.IsStandalone() {
-		return standaloneClient(cfg)
+	if cfg.HasLocalOrigin() {
+		return localOriginClient(cfg)
 	}
 	if cfg.Site == "" || cfg.Email == "" || cfg.Token == "" {
 		return nil, errNeedCredential
@@ -134,7 +134,7 @@ func Client(cfg *config.Config) (*jira.Client, error) {
 
 // PairedStatus is the single owner of "is this workspace paired with a
 // remote gadak serve?". status, doctor, profiles, and pairing list read
-// this instead of opening remote-origin.json themselves. Standalone is
+// this instead of opening remote-origin.json themselves. Local-origin is
 // excluded: the same file on the home machine only carries the local
 // pairing-gate token (`_home`), not a remote origin.
 func PairedStatus(cfg *config.Config) (*pairing.Remote, error) {
@@ -142,15 +142,15 @@ func PairedStatus(cfg *config.Config) (*pairing.Remote, error) {
 }
 
 // pairedRemote resolves the stored pairing credential that makes this
-// workspace's origin a remote gadak serve (GDK-433). Standalone is
-// excluded on purpose: a standalone workspace owns a local persist, and
+// workspace's origin a remote gadak serve (GDK-433). Local-origin is
+// excluded on purpose: a local-origin workspace owns a local persist, and
 // on the home machine the same file only ever carries the local
 // pairing-gate token (`_home`) — there it must not flip Client into a
 // remote client. A malformed file is an error, not a fallthrough to the
 // connected path: silently treating a paired workspace as credential-less
 // would answer errNeedCredential, which points the user at the wrong fix.
 func pairedRemote(cfg *config.Config) (*pairing.Remote, error) {
-	if cfg == nil || cfg.IsStandalone() {
+	if cfg == nil || cfg.HasLocalOrigin() {
 		return nil, nil
 	}
 	dir, err := profileDir(cfg)
@@ -166,7 +166,7 @@ func pairedRemote(cfg *config.Config) (*pairing.Remote, error) {
 
 // pairedJira builds the Jira client for a paired workspace: the remote
 // serve's REST passthrough with the device token as Bearer. BaseURL stays
-// empty for the same reason as standalone — the endpoint is an API target,
+// empty for the same reason as local-origin — the endpoint is an API target,
 // not a site a person browses. The process's actor (GDK-586) rides along:
 // the home serve's pairing gate rewrites Authorization but forwards
 // X-Issuetap-Actor, so a remote agent's writes attribute to it, not to the
@@ -238,9 +238,9 @@ func VerifyPaired(ctx context.Context, endpoint, token string) (jira.User, error
 // Describe answers doctor: which kind of workspace, and where the origin is.
 // Connected reports "jira" — "jira+linear" when the Linear source is on
 // (no hostname or key either way; doctor is safe to paste).
-// Standalone reports the persist path.
+// Local-origin reports the persist path.
 func Describe(cfg *config.Config) (kind, origin string) {
-	if cfg == nil || !cfg.IsStandalone() {
+	if cfg == nil || !cfg.HasLocalOrigin() {
 		if cfg != nil && cfg.Linear != nil {
 			return config.KindConnected, "jira+linear"
 		}
@@ -248,9 +248,9 @@ func Describe(cfg *config.Config) (kind, origin string) {
 	}
 	dir, err := profileDir(cfg)
 	if err != nil {
-		return config.KindStandalone, PersistRel
+		return config.KindLocalOrigin, PersistRel
 	}
-	return config.KindStandalone, PersistPath(dir)
+	return config.KindLocalOrigin, PersistPath(dir)
 }
 
 type session struct {
@@ -273,7 +273,7 @@ var (
 	// this lock. The critical section is a map lookup or insert; MkdirAll,
 	// issuetap.NewEmbedded (persist read/write), and Embedded.Close run
 	// with the lock released. This mutex is process-global and keyed by
-	// persist path — holding it across persist IO queues every standalone
+	// persist path — holding it across persist IO queues every local-origin
 	// workspace behind one disk.
 	mu               sync.Mutex
 	live             = map[string]*session{}
@@ -283,7 +283,7 @@ var (
 	sessionsConstructed atomic.Uint64
 )
 
-// SessionsConstructed is how many times constructStandalone ran. Tests
+// SessionsConstructed is how many times constructLocalOrigin ran. Tests
 // use a delta to prove a live session was reused.
 func SessionsConstructed() uint64 { return sessionsConstructed.Load() }
 
@@ -343,24 +343,24 @@ func ForgetLive() {
 // process lifetime.
 var forgotten []*session
 
-func standaloneClient(cfg *config.Config) (*jira.Client, error) {
-	s, err := standaloneSession(cfg)
+func localOriginClient(cfg *config.Config) (*jira.Client, error) {
+	s, err := localOriginSession(cfg)
 	if err != nil {
 		return nil, err
 	}
 	return s.client, nil
 }
 
-// StandaloneHandler is the in-process issuetap HTTP surface for this
+// LocalOriginHandler is the in-process issuetap HTTP surface for this
 // workspace. The serve RESTPrefix passthrough uses it so a paired remote
 // client lands on the same origin the UI already holds. Always embeds.
-func StandaloneHandler(cfg *config.Config) (http.Handler, error) {
-	s, err := standaloneSession(cfg)
+func LocalOriginHandler(cfg *config.Config) (http.Handler, error) {
+	s, err := localOriginSession(cfg)
 	if err != nil {
 		return nil, err
 	}
 	if s == nil || s.emb == nil {
-		return nil, errors.New("origin: standalone handler is missing")
+		return nil, errors.New("origin: local-origin handler is missing")
 	}
 	return s.emb, nil
 }
@@ -373,7 +373,7 @@ var LinearEndpoint string
 
 // Linear is the single owner of "this workspace's Linear client" — the same
 // role Wiki plays for Confluence (GDK-258: a third source beside the Jira
-// client, never a facade behind its Transport). There is no standalone
+// client, never a facade behind its Transport). There is no local-origin
 // variant: issuetap has no Linear surface, and the block carries its own
 // credential rather than the Atlassian one.
 func Linear(cfg *config.Config) (*linear.Client, error) {
@@ -395,7 +395,7 @@ func Linear(cfg *config.Config) (*linear.Client, error) {
 
 // Wiki is the single owner of "this workspace's Confluence client".
 // A connected workspace gets confluence.New(site, email, token).
-// A standalone workspace shares the in-process issuetap handler with Client.
+// A local-origin workspace shares the in-process issuetap handler with Client.
 func Wiki(cfg *config.Config) (*confluence.Client, error) {
 	if cfg == nil {
 		return nil, errors.New("origin: nil config")
@@ -408,8 +408,8 @@ func Wiki(cfg *config.Config) (*confluence.Client, error) {
 	} else if rem != nil {
 		return pairedWiki(cfg, rem)
 	}
-	if cfg.IsStandalone() {
-		return standaloneWiki(cfg)
+	if cfg.HasLocalOrigin() {
+		return localOriginWiki(cfg)
 	}
 	if cfg.Site == "" || cfg.Email == "" || cfg.Token == "" {
 		if cfg.HasLinearCredential() && cfg.Site == "" {
@@ -420,26 +420,26 @@ func Wiki(cfg *config.Config) (*confluence.Client, error) {
 	return confluence.New(cfg.Site, cfg.Email, cfg.Token), nil
 }
 
-func standaloneWiki(cfg *config.Config) (*confluence.Client, error) {
-	s, err := standaloneSession(cfg)
+func localOriginWiki(cfg *config.Config) (*confluence.Client, error) {
+	s, err := localOriginSession(cfg)
 	if err != nil {
 		return nil, err
 	}
 	return s.wiki, nil
 }
 
-// testBeforeStandalone, if set, runs after the live-session lookup and before
+// testBeforeLocalOrigin, if set, runs after the live-session lookup and before
 // MkdirAll / issuetap.NewEmbedded. Tests use it as a barrier to prove the
 // process-global mutex is not held across persist IO. Production is nil.
-var testBeforeStandalone func(persist string)
+var testBeforeLocalOrigin func(persist string)
 
-// standaloneSession returns this workspace's embedded origin session with
+// localOriginSession returns this workspace's embedded origin session with
 // the store speaking the workspace locale (GDK-597). The locale is part of
 // the session contract, not just of construction: a config change must
 // reach the already-live store in place — dropping the session would close
 // the store a long-lived `gadak serve` is holding.
-func standaloneSession(cfg *config.Config) (*session, error) {
-	s, err := openStandaloneSession(cfg)
+func localOriginSession(cfg *config.Config) (*session, error) {
+	s, err := openLocalOriginSession(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -464,13 +464,13 @@ func standaloneSession(cfg *config.Config) (*session, error) {
 	return s, nil
 }
 
-func openStandaloneSession(cfg *config.Config) (*session, error) {
+func openLocalOriginSession(cfg *config.Config) (*session, error) {
 	dir, err := profileDir(cfg)
 	if err != nil {
 		return nil, err
 	}
 	if dir == "" {
-		return nil, errors.New("origin: standalone workspace has no profile directory")
+		return nil, errors.New("origin: local-origin workspace has no profile directory")
 	}
 	persist := PersistPath(dir)
 
@@ -491,8 +491,8 @@ func openStandaloneSession(cfg *config.Config) (*session, error) {
 	flights[persist] = f
 	mu.Unlock()
 
-	if testBeforeStandalone != nil {
-		testBeforeStandalone(persist)
+	if testBeforeLocalOrigin != nil {
+		testBeforeLocalOrigin(persist)
 	}
 
 	var projects []string
@@ -504,7 +504,7 @@ func openStandaloneSession(cfg *config.Config) (*session, error) {
 		locale = "en"
 	}
 	actor, _ := config.ResolveActor(cfg)
-	s, err := constructStandalone(persist, projects, actor, locale)
+	s, err := constructLocalOrigin(persist, projects, actor, locale)
 
 	mu.Lock()
 	delete(flights, persist)
@@ -531,7 +531,7 @@ func openStandaloneSession(cfg *config.Config) (*session, error) {
 	return s, nil
 }
 
-// constructStandalone embeds issuetap over persist. actor is the process's
+// constructLocalOrigin embeds issuetap over persist. actor is the process's
 // resolved acting identity (GDK-586): when set, the session's transport
 // stamps X-Issuetap-Actor on every request so writes attribute to the
 // agent, not the in-process user. Resolution happens once per session —
@@ -540,18 +540,18 @@ func openStandaloneSession(cfg *config.Config) (*session, error) {
 // non-empty: passing it explicitly keeps the persist file's own locale
 // field from winning — gadak owns the workspace language; the persist is
 // the origin's state.
-func constructStandalone(persist string, projects []string, actor config.ResolvedActor, locale string) (*session, error) {
+func constructLocalOrigin(persist string, projects []string, actor config.ResolvedActor, locale string) (*session, error) {
 	sessionsConstructed.Add(1)
 	if err := os.MkdirAll(filepath.Dir(persist), 0o700); err != nil {
 		return nil, fmt.Errorf("origin: persist dir: %w", err)
 	}
 
-	fixturePath, fixtureBytes := selectStandaloneSeed(persist, projects)
+	fixturePath, fixtureBytes := selectLocalOriginSeed(persist, projects)
 	emb, err := issuetap.NewEmbedded(issuetap.EmbeddedConfig{
 		PersistPath:  persist,
 		FixturePath:  fixturePath,
 		FixtureBytes: fixtureBytes,
-		// A standalone workspace is a real tracker: records carry wall
+		// A local-origin workspace is a real tracker: records carry wall
 		// time, not issuetap's deterministic seed clock (GDK-369 — a
 		// January created_at read as a sync bug).
 		WallClock: true,
@@ -597,7 +597,7 @@ func persistKeyOf(cfg *config.Config) string {
 	return PersistPath(dir)
 }
 
-// Close checkpoints every live standalone origin (WAL) and drops the
+// Close checkpoints every live local-origin origin (WAL) and drops the
 // sessions. Safe to call more than once. The process owner (cmd/gadak
 // main) calls this on the way out. Writes commit before ACK; Close is a
 // checkpoint, not a debounce flush.
@@ -625,7 +625,7 @@ func Close() error {
 		if s == nil {
 			continue
 		}
-		// Every exit path has to drop the marker, not just CloseStandalone:
+		// Every exit path has to drop the marker, not just CloseLocalOrigin:
 		// this is the one the CLI actually takes, and hooking only the other
 		// left a dead PID's marker in every workspace after every command.
 		// Liveness still made that harmless, but a stale PID is one reuse
@@ -640,11 +640,11 @@ func Close() error {
 	return first
 }
 
-// CloseStandalone checkpoints and drops the live session for cfg's persist.
+// CloseLocalOrigin checkpoints and drops the live session for cfg's persist.
 // Waits an in-flight constructor for the same key. No-op when nothing is
 // live. Callers that marked SetInProcess unmark it themselves — this only
 // owns the session.
-func CloseStandalone(cfg *config.Config) error {
+func CloseLocalOrigin(cfg *config.Config) error {
 	p := persistKeyOf(cfg)
 	if p == "" {
 		return nil
@@ -670,11 +670,11 @@ func CloseStandalone(cfg *config.Config) error {
 	}
 }
 
-// selectStandaloneSeed follows issuetap's load order: an existing SQLite
+// selectLocalOriginSeed follows issuetap's load order: an existing SQLite
 // persist is the graph (no fixture); else a sibling legacy YAML is
 // FixturePath (one-shot seed, file left in place); else FixtureBytes from
-// standaloneFixture.
-func selectStandaloneSeed(persist string, projects []string) (fixturePath string, fixtureBytes []byte) {
+// localOriginFixture.
+func selectLocalOriginSeed(persist string, projects []string) (fixturePath string, fixtureBytes []byte) {
 	if persist != "" {
 		if _, err := os.Stat(persist); err == nil {
 			return "", nil
@@ -686,10 +686,10 @@ func selectStandaloneSeed(persist string, projects []string) (fixturePath string
 			return yamlPath, nil
 		}
 	}
-	return "", standaloneFixture(projects)
+	return "", localOriginFixture(projects)
 }
 
-// standaloneFixture is applied only when PersistPath does not yet exist
+// localOriginFixture is applied only when PersistPath does not yet exist
 // and there is no sibling legacy YAML. It names the requested projects
 // (or DefaultProjectKey when the list is empty) so createmeta/create have
 // a target, and one space so page create has a target; it does not seed
@@ -697,7 +697,7 @@ func selectStandaloneSeed(persist string, projects []string) (fixturePath string
 //
 // Keys come from DefaultProjectKey / DefaultSpaceKey so the literals are
 // not scattered.
-func standaloneFixture(projects []string) []byte {
+func localOriginFixture(projects []string) []byte {
 	keys := make([]string, 0, len(projects))
 	seen := map[string]bool{}
 	for _, k := range projects {
@@ -713,7 +713,7 @@ func standaloneFixture(projects []string) []byte {
 	var b []byte
 	b = append(b, "projects:\n"...)
 	for i, key := range keys {
-		name := "Standalone"
+		name := "Local-origin"
 		if key != DefaultProjectKey {
 			name = key
 		}

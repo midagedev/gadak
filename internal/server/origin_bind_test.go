@@ -37,7 +37,7 @@ func bindProbe(name string) (http.Handler, func() int) {
 func servedBy(t *testing.T, h *Handler) string {
 	t.Helper()
 	rec := get(t, h, origin.RESTPrefix+"/rest/api/3/myself", map[string]string{
-		"Authorization": basicStandalone(t),
+		"Authorization": basicLocalOrigin(t),
 	})
 	if rec.Code != http.StatusOK {
 		t.Fatalf("passthrough: %d %s", rec.Code, rec.Body.String())
@@ -46,7 +46,7 @@ func servedBy(t *testing.T, h *Handler) string {
 }
 
 func TestBindOriginHandlerReplacesTheTarget(t *testing.T) {
-	h, _ := standaloneServer(t)
+	h, _ := localOriginServer(t)
 	first, firstReqs := bindProbe("first")
 	second, secondReqs := bindProbe("second")
 
@@ -67,7 +67,7 @@ func TestBindOriginHandlerNilUnbindsBackToLazy(t *testing.T) {
 	// The unbind path the mount uses when its advertise fails: drop the
 	// handler wrapping the session it is about to close, so the slot goes
 	// back to lazy instead of pinning a store nobody owns.
-	h, _ := standaloneServer(t)
+	h, _ := localOriginServer(t)
 	pinned, pinnedReqs := bindProbe("pinned")
 	h.BindOriginHandler(pinned)
 	if got := servedBy(t, h); got != "pinned" {
@@ -76,7 +76,7 @@ func TestBindOriginHandlerNilUnbindsBackToLazy(t *testing.T) {
 
 	h.BindOriginHandler(nil)
 	rec := get(t, h, origin.RESTPrefix+"/rest/api/3/myself", map[string]string{
-		"Authorization": basicStandalone(t),
+		"Authorization": basicLocalOrigin(t),
 	})
 	if rec.Code != http.StatusOK {
 		t.Fatalf("after unbind the lazy path did not answer: %d %s", rec.Code, rec.Body.String())
@@ -93,7 +93,7 @@ func TestBindOriginHandlerAfterLazyUseTakesEffect(t *testing.T) {
 	// The mount publishes its entry before it binds, so a concurrent
 	// /w/<name>/api/v1/origin/ request can construct the lazy handler
 	// first. That must not lock the slot against the owner's bind.
-	h, _ := standaloneServer(t)
+	h, _ := localOriginServer(t)
 	if got := servedBy(t, h); got != "" {
 		t.Fatalf("expected the lazy handler first, got probe %q", got)
 	}

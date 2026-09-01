@@ -3,14 +3,14 @@ package main
 // GDK-1281: `--standalone` was the flag until the vocabulary split, and a
 // flag someone already put in a script is a contract. It keeps working
 // forever; it is simply not taught any more, so the help names only
-// --local. The same holds for --replace-standalone.
+// --local. The same holds for --replace-local.
 
 import (
 	"strings"
 	"testing"
 )
 
-func TestInitStandaloneFlagStillWorksAsAlias(t *testing.T) {
+func TestInitLocalOriginFlagStillWorksAsAlias(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
 	t.Setenv("HOME", home)

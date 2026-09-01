@@ -93,15 +93,15 @@ func RunConfluence(ctx context.Context, cfg *config.Config, db *store.DB, opts O
 // runConfluencePass is the Confluence-specific body inside the shared runSource
 // skeleton. Usage flush is registered by runSource on the client from setup.
 func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Config, db *store.DB, opts Options, state store.SyncState, res *Result) error {
-	// Upgrade path for GDK-344: standalone wiki mirrors written before the
+	// Upgrade path for GDK-344: local-origin wiki mirrors written before the
 	// page id namespace existed hold `confluence:N` rows whose keys the pass
-	// is about to re-insert as `standalone-confluence:N` — same (source_id,
+	// is about to re-insert as `local-origin-confluence:N` — same (source_id,
 	// key), different id, which UNIQUE(source_id, key) rejects.
-	if cfg.IsStandalone() {
+	if cfg.HasLocalOrigin() {
 		if n, err := db.PurgePageIDsOutsideNamespace(ctx, ConfluenceSourceID, pageNS(cfg)); err != nil {
 			return record(ctx, cfg, db, ConfluenceSourceID, err)
 		} else if n > 0 {
-			opts.logf("purged %d pre-namespace standalone pages (GDK-344)", n)
+			opts.logf("purged %d pre-namespace local-origin pages (GDK-344)", n)
 		}
 	}
 
@@ -535,8 +535,8 @@ func chunkConfluenceSpaces(keys []string, wms map[string]string) []spaceChunk {
 
 // cqlSpaceSet renders the space filter for a chunk. One space keeps the
 // space="KEY" form: issuetap servers older than its space-IN support
-// (standalone wikis inside released binaries, paired home serves) parse only
-// that form, and nearly every standalone/paired workspace has exactly one
+// (localOrigin wikis inside released binaries, paired home serves) parse only
+// that form, and nearly every local-origin/paired workspace has exactly one
 // space. A multi-space chunk against such a server fails loudly with a CQL
 // parse error — never silently.
 func cqlSpaceSet(keys []string) string {

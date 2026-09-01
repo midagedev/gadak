@@ -94,17 +94,17 @@ func TestMarkOpenNeverPanicsOnUnwritableDir(t *testing.T) {
 }
 
 // Every path that ends a session must drop the marker, and Close is the one
-// the CLI actually takes — `cmd/gadak` main defers it, not CloseStandalone.
+// the CLI actually takes — `cmd/gadak` main defers it, not CloseLocalOrigin.
 // Hooking only the latter left a dead PID's marker behind after every
 // command, which a real run found and none of the unit tests did, because
-// they all called CloseStandalone directly.
+// they all called CloseLocalOrigin directly.
 //
 // FAIL-first: without clearOpen in Close, the marker survives here.
 func TestCloseClearsTheMarker(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
 	config.SetProfile("")
-	cfg := seedStandalone(t, "")
+	cfg := seedLocalOrigin(t, "")
 
 	if _, err := Client(cfg); err != nil {
 		t.Fatalf("open: %v", err)
@@ -123,18 +123,18 @@ func TestCloseClearsTheMarker(t *testing.T) {
 }
 
 // The desktop app never calls Client — it opens the workspace through
-// StandaloneHandler (apprun.StartOriginPassthrough, right after
+// LocalOriginHandler (apprun.StartOriginPassthrough, right after
 // application.New). Since the app is the holder this whole mechanism exists
 // for, that entry point has to reach the same hook, and this pins the
 // convergence rather than leaving it to whoever next edits either path.
-func TestStandaloneHandlerMarksOpenToo(t *testing.T) {
+func TestLocalOriginHandlerMarksOpenToo(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
 	config.SetProfile("")
-	cfg := seedStandalone(t, "")
+	cfg := seedLocalOrigin(t, "")
 
-	if _, err := StandaloneHandler(cfg); err != nil {
-		t.Fatalf("StandaloneHandler: %v", err)
+	if _, err := LocalOriginHandler(cfg); err != nil {
+		t.Fatalf("LocalOriginHandler: %v", err)
 	}
 	if _, err := os.Stat(PersistPath(home) + ".open"); err != nil {
 		t.Fatalf("the app's entry point left no marker: %v", err)

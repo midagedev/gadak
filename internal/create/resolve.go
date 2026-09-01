@@ -233,7 +233,7 @@ func MetaFor(meta []origin.CreateMetaProject, project string, cfg *config.Config
 		}
 	}
 	suffix := availableProjectsSuffix(meta)
-	if cfg != nil && cfg.IsStandalone() {
+	if cfg != nil && cfg.HasLocalOrigin() {
 		return origin.CreateMetaProject{}, nil, fmt.Errorf("project %s does not exist in this workspace%s", project, suffix)
 	}
 	return origin.CreateMetaProject{}, nil, fmt.Errorf("this credential cannot create issues in %s%s", project, suffix)

@@ -8,14 +8,14 @@ import (
 // to Registry.Close. Tests use it to prove Close waits for the attempt.
 var testBeforeOriginAcquire func(name string)
 
-// ensureOrigin binds this process's embedded standalone origin onto a
+// ensureOrigin binds this process's embedded local-origin origin onto a
 // mounted workspace so pairing remotes hitting /w/<name>/api/v1/origin/
 // land on the persist. Connected mounts and persists already owned
 // in-process (the primary) are no-ops. Idempotent; safe from the rescan
 // loop. Local CLI writes embed the same WAL file directly (GDK-936) —
 // this no longer advertises a loopback listener.
 func (r *Registry) ensureOrigin(name string, e *Entry) {
-	if r == nil || e == nil || e.Cfg == nil || !e.Cfg.IsStandalone() {
+	if r == nil || e == nil || e.Cfg == nil || !e.Cfg.HasLocalOrigin() {
 		return
 	}
 	if origin.IsInProcess(e.Cfg) {
@@ -48,7 +48,7 @@ func (r *Registry) ensureOrigin(name string, e *Entry) {
 	}
 
 	cfg := e.Cfg
-	h, err := origin.StandaloneHandler(cfg)
+	h, err := origin.LocalOriginHandler(cfg)
 	if err != nil {
 		if logf != nil {
 			logf("workspace " + name + ": origin: " + err.Error())
@@ -62,7 +62,7 @@ func (r *Registry) ensureOrigin(name string, e *Entry) {
 	if r.closed {
 		r.mu.Unlock()
 		e.Handler.BindOriginHandler(nil)
-		_ = origin.CloseStandalone(cfg)
+		_ = origin.CloseLocalOrigin(cfg)
 		origin.SetInProcess(cfg, false)
 		return
 	}

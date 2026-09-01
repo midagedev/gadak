@@ -3,9 +3,9 @@ import { apiURL, attachConsoleErrors, gotoApp, openServerSettings } from './help
 
 /*
  * GDK-1096 A2 — the Workspaces settings tab against the real serve: create
- * a standalone workspace, see it listed, then walk the two-step removal
+ * a local-origin workspace, see it listed, then walk the two-step removal
  * (the probe DELETE surfaces the server's own refusal wording — which for a
- * standalone workspace is the only-copy warning with the persist path —
+ * local-origin workspace is the only-copy warning with the persist path —
  * before yes=1 commits with destroy_origin).
  *
  * GDK-1099 — the paired half. No real pairing home is stood up in this
@@ -37,7 +37,7 @@ async function fulfillJSON(route: Route, json: unknown, status = 200): Promise<v
 }
 
 test.describe('workspaces settings tab', () => {
-  test('create, list, and two-step remove of a standalone workspace', async ({ page, request }) => {
+  test('create, list, and two-step remove of a local-origin workspace', async ({ page, request }) => {
     const errors = attachConsoleErrors(page)
 
     // Defensive pre-delete: a crashed earlier run may have left the row
@@ -76,7 +76,7 @@ test.describe('workspaces settings tab', () => {
     await expect(tab.getByTestId('workspaces-create-error')).toContainText('already exists')
 
     // Removal, step one: the probe DELETE (no yes=1) puts the server's own
-    // refusal into the dialog — for a standalone workspace that wording is
+    // refusal into the dialog — for a local-origin workspace that wording is
     // the only-copy warning and names the persist.
     await tab.getByTestId(`workspaces-remove-${WS}`).click()
     const confirm = page.getByTestId('workspaces-remove-dialog')
@@ -181,7 +181,7 @@ test.describe('workspaces settings tab — register remote (GDK-1099)', () => {
     await dialog.getByRole('button', { name: 'Workspaces', exact: true }).click()
     const tab = dialog.getByTestId('workspaces-tab')
 
-    // The mode switch swaps the standalone form for the pairing form.
+    // The mode switch swaps the local-origin form for the pairing form.
     await tab.getByTestId('workspaces-mode-paired').click()
     await expect(tab.getByTestId('workspaces-pair-form')).toBeVisible()
     await expect(tab.getByTestId('workspaces-form')).toHaveCount(0)
@@ -207,7 +207,7 @@ test.describe('workspaces settings tab — register remote (GDK-1099)', () => {
     await expect(tab.getByTestId('workspaces-offer-input')).toHaveValue('')
 
     // The mocked 400s are this spec's own staged answers, filtered the way
-    // the standalone test filters the protocol's 400/409 above.
+    // the local-origin test filters the protocol's 400/409 above.
     const unexpected = errors.filter((e) => !e.includes('400'))
     expect(unexpected, `console errors:\n${unexpected.join('\n')}`).toEqual([])
   })

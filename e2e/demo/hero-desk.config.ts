@@ -13,7 +13,7 @@ import { defineConfig, devices } from '@playwright/test'
  *
  * No webServer block: record-hero-desk.sh owns the serve, because the PTY has
  * to inherit an environment Playwright cannot express — the throwaway agent
- * HOME, a standalone (writable, seed-only) GADAK_HOME, and the CLAUDE_* /
+ * HOME, a local-origin (writable, seed-only) GADAK_HOME, and the CLAUDE_* /
  * GADAK_E2E_PORT unsets. It starts the serve from that environment and this
  * config attaches to it.
  *

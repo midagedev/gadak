@@ -13,7 +13,7 @@ import (
 	"github.com/midagedev/gadak/internal/confluence"
 )
 
-func standaloneHome(t *testing.T) (*config.Config, string) {
+func localOriginHome(t *testing.T) (*config.Config, string) {
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
@@ -26,7 +26,7 @@ func standaloneHome(t *testing.T) (*config.Config, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg.Kind = config.KindStandalone
+	cfg.Kind = config.KindLocalOrigin
 	if err := cfg.Save(); err != nil {
 		t.Fatal(err)
 	}
@@ -66,8 +66,8 @@ func TestDefaultConfluenceConfigNamesSpaceKey(t *testing.T) {
 	}
 }
 
-func TestStandaloneOriginServesSpace(t *testing.T) {
-	cfg, _ := standaloneHome(t)
+func TestLocalOriginOriginServesSpace(t *testing.T) {
+	cfg, _ := localOriginHome(t)
 	w, err := Wiki(cfg)
 	if err != nil {
 		t.Fatal(err)
@@ -84,12 +84,12 @@ func TestStandaloneOriginServesSpace(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Fatalf("standalone origin spaces = %+v, want key %s", spaces, DefaultSpaceKey)
+		t.Fatalf("local-origin origin spaces = %+v, want key %s", spaces, DefaultSpaceKey)
 	}
 }
 
 func TestCreatePageVersion1AndReadPath(t *testing.T) {
-	cfg, _ := standaloneHome(t)
+	cfg, _ := localOriginHome(t)
 	w, err := Wiki(cfg)
 	if err != nil {
 		t.Fatal(err)
@@ -122,7 +122,7 @@ func TestCreatePageVersion1AndReadPath(t *testing.T) {
 }
 
 func TestUpdatePageVersion2AndHistory(t *testing.T) {
-	cfg, _ := standaloneHome(t)
+	cfg, _ := localOriginHome(t)
 	w, err := Wiki(cfg)
 	if err != nil {
 		t.Fatal(err)
@@ -152,7 +152,7 @@ func TestUpdatePageVersion2AndHistory(t *testing.T) {
 }
 
 func TestUpdateStaleVersionIsConflict(t *testing.T) {
-	cfg, _ := standaloneHome(t)
+	cfg, _ := localOriginHome(t)
 	w, err := Wiki(cfg)
 	if err != nil {
 		t.Fatal(err)
@@ -180,7 +180,7 @@ func TestUpdateStaleVersionIsConflict(t *testing.T) {
 }
 
 func TestCreatedPageSurvivesPersistReload(t *testing.T) {
-	cfg, home := standaloneHome(t)
+	cfg, home := localOriginHome(t)
 	w, err := Wiki(cfg)
 	if err != nil {
 		t.Fatal(err)
@@ -222,7 +222,7 @@ func TestCreatedPageSurvivesPersistReload(t *testing.T) {
 		t.Fatal(err)
 	}
 	if w2 != w3 {
-		t.Fatal("Wiki should reuse the live standalone session")
+		t.Fatal("Wiki should reuse the live local-origin session")
 	}
 }
 

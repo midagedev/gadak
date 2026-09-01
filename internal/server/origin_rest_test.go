@@ -15,8 +15,8 @@ import (
 
 func TestOriginRESTConnectedIs404(t *testing.T) {
 	db, cfg := fixture(t)
-	if cfg.IsStandalone() {
-		t.Fatal("fixture is standalone")
+	if cfg.HasLocalOrigin() {
+		t.Fatal("fixture is local-origin")
 	}
 	h := New(db, cfg)
 	rec := get(t, h, origin.RESTPrefix+"/rest/api/3/myself", nil)
@@ -28,7 +28,7 @@ func TestOriginRESTConnectedIs404(t *testing.T) {
 	}
 }
 
-func standaloneServer(t *testing.T) (*Handler, *config.Config) {
+func localOriginServer(t *testing.T) (*Handler, *config.Config) {
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
@@ -41,7 +41,7 @@ func standaloneServer(t *testing.T) (*Handler, *config.Config) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg.Kind = config.KindStandalone
+	cfg.Kind = config.KindLocalOrigin
 	if err := cfg.Save(); err != nil {
 		t.Fatal(err)
 	}
@@ -61,23 +61,23 @@ func standaloneServer(t *testing.T) (*Handler, *config.Config) {
 	return h, cfg
 }
 
-func TestOriginRESTStandalonePassesThrough(t *testing.T) {
-	h, _ := standaloneServer(t)
-	auth := "Basic " + base64.StdEncoding.EncodeToString([]byte("standalone:standalone"))
+func TestOriginRESTLocalOriginPassesThrough(t *testing.T) {
+	h, _ := localOriginServer(t)
+	auth := "Basic " + base64.StdEncoding.EncodeToString([]byte("local-origin:local-origin"))
 	rec := get(t, h, origin.RESTPrefix+"/rest/api/3/myself", map[string]string{
 		"Authorization": auth,
 	})
 	if rec.Code != http.StatusOK {
-		t.Fatalf("standalone passthrough myself: %d %s", rec.Code, rec.Body.String())
+		t.Fatalf("local-origin passthrough myself: %d %s", rec.Code, rec.Body.String())
 	}
 }
 
-func TestOriginRESTStandalonePOSTWithoutOriginAllowed(t *testing.T) {
+func TestOriginRESTLocalOriginPOSTWithoutOriginAllowed(t *testing.T) {
 	// Missing Origin is allowed (CLI). This is the existing browser guard,
 	// not new auth — loopback single-user model (decision 0003).
-	h, _ := standaloneServer(t)
+	h, _ := localOriginServer(t)
 	req := testRequest(http.MethodPost, origin.RESTPrefix+"/rest/api/3/search/jql", strings.NewReader(`{"jql":"order by created","maxResults":1}`))
-	req.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte("standalone:standalone")))
+	req.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte("local-origin:local-origin")))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
@@ -85,6 +85,6 @@ func TestOriginRESTStandalonePOSTWithoutOriginAllowed(t *testing.T) {
 		t.Fatalf("CLI POST without Origin must not be forbidden: %s", rec.Body.String())
 	}
 	if rec.Code == http.StatusNotFound {
-		t.Fatalf("standalone POST must not 404: %s", rec.Body.String())
+		t.Fatalf("local-origin POST must not 404: %s", rec.Body.String())
 	}
 }

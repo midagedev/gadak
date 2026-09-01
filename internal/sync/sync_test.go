@@ -1755,21 +1755,21 @@ func TestSyncRenameWarningNeedsBothSides(t *testing.T) {
 	}
 }
 
-func TestScopeLabelStandaloneOmitsAccount(t *testing.T) {
+func TestScopeLabelLocalOriginOmitsAccount(t *testing.T) {
 	// GDK-464
 	connected := scopeLabel(&config.Config{})
 	if connected != "every project this account can see" {
 		t.Fatalf("connected empty projects = %q", connected)
 	}
-	st := scopeLabel(&config.Config{Kind: config.KindStandalone, DefaultProject: origin.DefaultProjectKey})
+	st := scopeLabel(&config.Config{Kind: config.KindLocalOrigin, DefaultProject: origin.DefaultProjectKey})
 	if strings.Contains(st, "this account") {
-		t.Fatalf("standalone still mentions an account: %q", st)
+		t.Fatalf("local-origin still mentions an account: %q", st)
 	}
 	if st != origin.DefaultProjectKey {
-		t.Fatalf("standalone empty projects = %q, want %s", st, origin.DefaultProjectKey)
+		t.Fatalf("local-origin empty projects = %q, want %s", st, origin.DefaultProjectKey)
 	}
-	named := scopeLabel(&config.Config{Kind: config.KindStandalone, Projects: []string{"IDEA", "STD"}})
+	named := scopeLabel(&config.Config{Kind: config.KindLocalOrigin, Projects: []string{"IDEA", "STD"}})
 	if named != "IDEA, STD" {
-		t.Fatalf("standalone with projects = %q", named)
+		t.Fatalf("local-origin with projects = %q", named)
 	}
 }

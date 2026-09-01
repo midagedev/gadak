@@ -347,7 +347,7 @@ describe('catalog contracts', () => {
  * browse.* is a different object (browser tabs) and is excluded on purpose.
  */
 function isWikiObjectKey(key: string): boolean {
-  return /^(doc\.|docs\.|sidebar\.docs|list\.doc|person\.docs|palette\.sectionDocs|palette\.actionDocs|palette\.docCount|history\.tabDocs|history\.emptyHint|settings\.confluence|settings\.sourcesNoSpaces|settings\.sourcesSpaces|settings\.roleBody|sync\.busyDocuments|sync\.partial|shortcuts\.sectionColumnViews|shortcuts\.tabMoveRows|shortcuts\.closeColumnView|onboarding\.standalone)/.test(
+  return /^(doc\.|docs\.|sidebar\.docs|list\.doc|person\.docs|palette\.sectionDocs|palette\.actionDocs|palette\.docCount|history\.tabDocs|history\.emptyHint|settings\.confluence|settings\.sourcesNoSpaces|settings\.sourcesSpaces|settings\.roleBody|sync\.busyDocuments|sync\.partial|shortcuts\.sectionColumnViews|shortcuts\.tabMoveRows|shortcuts\.closeColumnView|onboarding\.localOrigin)/.test(
     key,
   )
 }

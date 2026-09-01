@@ -42,7 +42,7 @@ func CanonicalSite(raw string) string {
 
 // RefuseSiteRebind stops a connected init / onboarding connect from silently
 // re-pointing a workspace at a different site. Empty cfg.Site is first bind
-// (or standalone/paired with no site) and is allowed. Same site after
+// (or local-origin/paired with no site) and is allowed. Same site after
 // CanonicalSite is token rotation and is allowed.
 func RefuseSiteRebind(cfg *config.Config, newSite string) error {
 	if cfg == nil {

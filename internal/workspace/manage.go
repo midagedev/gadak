@@ -3,7 +3,7 @@ package workspace
 // POST /api/v1/workspaces and DELETE /api/v1/workspaces/{name} — the serve
 // side of workspace management (GDK-1096). The removal contract is
 // remove.go's Remove (shared with the CLI verb); creation reuses
-// originbind.SeedStandalone, the same core `gadak init --standalone` and
+// originbind.SeedLocalOrigin, the same core `gadak init --standalone` and
 // POST onboarding/standalone seed through, so the web cannot mint a
 // workspace shape the CLI paths would treat differently. The paired branch
 // (GDK-1099) reuses initPaired's core instead (cmd/gadak/pairing.go):
@@ -36,7 +36,7 @@ import (
 )
 
 // createWorkspaceDoc is the POST /api/v1/workspaces body. kind must be
-// spelled by the caller, not defaulted: standalone seeds a local issuetap
+// spelled by the caller, not defaulted: local-origin seeds a local issuetap
 // profile, paired registers a remote gadak serve from its one-line offer
 // (GDK-1099), and connected stays off this API — it needs a credential
 // flow this surface does not own.
@@ -47,11 +47,11 @@ type createWorkspaceDoc struct {
 	Offer    string `json:"offer"`
 }
 
-// CreateHandler answers POST /api/v1/workspaces by seeding a standalone
+// CreateHandler answers POST /api/v1/workspaces by seeding a local-origin
 // workspace profile or registering a paired one (kind "paired" + offer).
-// The standalone seed is the shared one: config write, default issue
+// The local-origin seed is the shared one: config write, default issue
 // type, mirror fill. A fill that fails is logged, not failed
-// (SeedStandalone contract — the workspace exists and writes work; the
+// (SeedLocalOrigin contract — the workspace exists and writes work; the
 // next sync fills). The paired path is createPaired's.
 func CreateHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -61,10 +61,10 @@ func CreateHandler() http.HandlerFunc {
 			return
 		}
 		// "paired" is this API's request spelling; the workspace it creates
-		// reports kind connected (WorkspaceKind — only standalone is its
+		// reports kind connected (WorkspaceKind — only local-origin is its
 		// own kind), the same listing semantics the CLI pair produces.
 		switch in.Kind {
-		case config.KindStandalone, "paired":
+		case config.KindLocalOrigin, "paired":
 		default:
 			manageFail(w, http.StatusBadRequest, "unsupported_kind")
 			return
@@ -109,7 +109,7 @@ func CreateHandler() http.HandlerFunc {
 		// the registry's entries (the serving workspaces) are not touched,
 		// and the handle is released as soon as the fill finishes (same
 		// coordinates Registry.construct opens with; the CLI's
-		// initStandalone does the same open/close).
+		// initLocalOrigin does the same open/close).
 		openMirror := func() (*store.DB, func() error, error) {
 			dbPath, err := config.DBPathFor(in.Name)
 			if err != nil {
@@ -121,7 +121,7 @@ func CreateHandler() http.HandlerFunc {
 			}
 			return db, db.Close, nil
 		}
-		fillErr, err := originbind.SeedStandalone(cfg, in.Projects, nil, openMirror)
+		fillErr, err := originbind.SeedLocalOrigin(cfg, in.Projects, nil, openMirror)
 		if err != nil {
 			log.Printf("workspaces: create %s: seed: %v", in.Name, err)
 			manageFail(w, http.StatusInternalServerError, "create_failed")
@@ -133,7 +133,7 @@ func CreateHandler() http.HandlerFunc {
 		// Flush only this profile's origin session. origin.Close() is the
 		// process-exit verb: it would checkpoint every live session,
 		// including the ones the running serve is writing through.
-		if err := origin.CloseStandalone(cfg); err != nil {
+		if err := origin.CloseLocalOrigin(cfg); err != nil {
 			log.Printf("workspaces: create %s: flush origin persist: %v", in.Name, err)
 			manageFail(w, http.StatusInternalServerError, "origin_flush_failed")
 			return
@@ -142,7 +142,7 @@ func CreateHandler() http.HandlerFunc {
 		_, persist := origin.Describe(cfg) // same owner the rm success line uses
 		writeManageJSON(w, http.StatusCreated, map[string]string{
 			"name":    in.Name,
-			"kind":    config.KindStandalone,
+			"kind":    config.KindLocalOrigin,
 			"persist": persist,
 		})
 	}
@@ -187,7 +187,7 @@ func createPaired(w http.ResponseWriter, in createWorkspaceDoc, dir string) {
 	}
 	// Verified. Same write order as initPaired: credential file, identity
 	// stamp, config save. SaveRemote creates the profile directory; the
-	// LoadFor contract is the standalone branch's (dir-bound empty Config).
+	// LoadFor contract is the local-origin branch's (dir-bound empty Config).
 	if err := pairing.SaveRemote(dir, pairing.Remote{
 		Endpoint: offer.Endpoint,
 		Token:    offer.Token,

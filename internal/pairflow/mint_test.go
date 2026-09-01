@@ -22,7 +22,7 @@ import (
 	"github.com/midagedev/gadak/internal/pairing"
 )
 
-// pairflowHome stands up a temp GADAK_HOME with a standalone workspace —
+// pairflowHome stands up a temp GADAK_HOME with a local-origin workspace —
 // the shape the mint flow operates on — and returns (dir, cfg).
 func pairflowHome(t *testing.T) (string, *config.Config) {
 	t.Helper()
@@ -36,7 +36,7 @@ func pairflowHome(t *testing.T) (string, *config.Config) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg.Kind = config.KindStandalone
+	cfg.Kind = config.KindLocalOrigin
 	if err := cfg.Save(); err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +65,7 @@ func homeRoutingTokenUsable(t *testing.T, dir string, now time.Time) {
 }
 
 // TestMintDeviceKeepsHomeRoutingToken is the guard: after a device mint on
-// a standalone home, the _home routing token exists and authorizes. First
+// a local-origin home, the _home routing token exists and authorizes. First
 // mint reports minted; a second mint (credential already valid) reports
 // none; a stale credential (file token no longer in the store — the
 // GDK-450 shape) is reissued by the next mint.
@@ -159,7 +159,7 @@ func TestMintDeviceContract(t *testing.T) {
 		t.Fatal("a TEST-NET endpoint is not loopback")
 	}
 	if res.HomeRouting != HomeRoutingMinted {
-		t.Fatalf("standalone mint reports %q, want minted", res.HomeRouting)
+		t.Fatalf("local-origin mint reports %q, want minted", res.HomeRouting)
 	}
 
 	// The warning is the caller's copy to render; both polarities are data.
@@ -224,7 +224,7 @@ func TestMintDeviceConnectedWritesNoRoutingFile(t *testing.T) {
 }
 
 // TestMintHomeRotationAndRefusal: _home rotation answers with the meta the
-// caller prints, refuses a non-standalone workspace, and — like the device
+// caller prints, refuses a non-local-origin workspace, and — like the device
 // mint — refuses to guess an endpoint.
 func TestMintHomeRotationAndRefusal(t *testing.T) {
 	dir, cfg := pairflowHome(t)
@@ -244,7 +244,7 @@ func TestMintHomeRotationAndRefusal(t *testing.T) {
 	cfg.Email = "home@example.net"
 	cfg.Token = "secret-not-a-pairing-token"
 	if _, err := MintHome(dir, cfg, "http://127.0.0.1:7877", now); err == nil ||
-		!strings.Contains(err.Error(), "standalone") {
+		!strings.Contains(err.Error(), "local-origin") {
 		t.Fatalf("connected _home mint refused with: %v", err)
 	}
 }

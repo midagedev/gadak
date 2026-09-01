@@ -17,7 +17,7 @@ const unlinkUsage = "usage: gadak unlink <A> <B> --type <name|inward|outward|id>
 // cmdUnlink removes the link `gadak link A B --type t` would have created —
 // the one displayed on A as "A <t> B" (GDK-1205). The mirror's links rows
 // carry no link id on purpose, so the id is fetched live from A's projection
-// and handed to DELETE /issueLink/{id}; on standalone that id is issuetap's
+// and handed to DELETE /issueLink/{id}; on local-origin that id is issuetap's
 // synthetic one, which both projections agree on.
 func cmdUnlink(args []string) error {
 	fs := newFlagSet("unlink")

@@ -104,7 +104,7 @@ export const strings = {
     workspace: {
       heading: 'Work and your own work, side by side',
       body:
-        'A second workspace keeps private tasks off the company tracker — same machine, separate file, separate credentials. Standalone needs no tracker at all.',
+        'A second workspace keeps private tasks off the company tracker — same machine, separate file, separate credentials. Local-origin needs no tracker at all.',
       standaloneLead: 'No tracker at all — issues live on this machine:',
       secondLead: 'A second workspace: separate file, separate credentials:',
     },

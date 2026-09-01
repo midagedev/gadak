@@ -1,7 +1,7 @@
 package main
 
 // gadak dev — the development-panel verbs (GDK-497). `dev link` records a
-// pull request on an issue for standalone and paired workspaces: the origin
+// pull request on an issue for local-origin and paired workspaces: the origin
 // (issuetap, or a paired home serve) keeps the link and serves it back in
 // Jira's dev-status shape. On a plain connected Cloud workspace the panel
 // belongs to Jira's GitHub app, so gadak refuses instead of pretending;
@@ -561,7 +561,7 @@ func installDevScanHook() error {
 }
 
 // refuseConnectedDevWrite is the gate every dev write verb calls first.
-// Standalone and paired workspaces pass (their origin implements the
+// Local-origin and paired workspaces pass (their origin implements the
 // dev-status POST) — the paired lookup keeps its profile-dir fallback, so
 // it runs before anything that needs a loaded Config's Directory(). What
 // remains is connected-shaped or nothing: a home with no origin at all
@@ -570,7 +570,7 @@ func installDevScanHook() error {
 // connected Cloud site is refused: the panel is Jira's GitHub app, and
 // mirroring it is a config flag.
 func refuseConnectedDevWrite(cfg *config.Config, verb string) error {
-	if cfg.IsStandalone() {
+	if cfg.HasLocalOrigin() {
 		return nil
 	}
 	rem, err := origin.PairedStatus(cfg)

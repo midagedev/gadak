@@ -336,7 +336,7 @@ func TestEditBatchCLILabelDefault(t *testing.T) {
 	}
 }
 
-func TestTransitionBatchStandaloneRoundtrip(t *testing.T) {
+func TestTransitionBatchLocalOriginRoundtrip(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
 	t.Setenv("HOME", home)
@@ -369,7 +369,7 @@ func TestTransitionBatchStandaloneRoundtrip(t *testing.T) {
 		return cmdTransition([]string{"--batch", "-", "--json"})
 	})
 	if err == nil {
-		t.Fatalf("mixed standalone batch must be non-zero:\n%s", out)
+		t.Fatalf("mixed local-origin batch must be non-zero:\n%s", out)
 	}
 	if !strings.Contains(err.Error(), "1 of 3 failed") {
 		t.Fatalf("summary %v", err)

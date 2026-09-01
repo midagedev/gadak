@@ -86,11 +86,11 @@ type doctorLogs struct {
 // doctorWorkspace is the one-line consistency view: kind, whether a site
 // token is stored (never the token itself), the origin persist path, and
 // how many locally originated issues LocalData counts. Inconsistent is
-// standalone-with-a-token — a site token on a standalone workspace is
+// local-origin-with-a-token — a site token on a local-origin workspace is
 // unused and contradicts Kind (GDK-247).
 //
 // HasSiteToken is site-token presence, not config.HasCredential (GDK-470).
-// Standalone writes work with no site token; this field stays false there.
+// Local-origin writes work with no site token; this field stays false there.
 // doctorCustomFields is the mapping-visibility object (GDK-522). mapped is
 // the configured alias count; applied_at is when `gadak fields --apply` last
 // succeeded. usage_rows and raw_has_custom need the mirror (0 / false when
@@ -293,7 +293,7 @@ func collectDoctor() doctorReport {
 		}
 		kind, src := origin.Describe(cfg)
 		rep.WorkspaceKind = kind
-		if kind == config.KindStandalone {
+		if kind == config.KindLocalOrigin {
 			// Persist path is the origin; tilde so the account username
 			// does not appear (same rule as mirror_path).
 			rep.Origin = tildeHome(src)
@@ -324,7 +324,7 @@ func collectDoctor() doctorReport {
 			HasSiteToken: hasTok,
 			Persist:      tildeHome(persist),
 			LocalIssues:  n,
-			Inconsistent: cfg.IsStandalone() && hasTok,
+			Inconsistent: cfg.HasLocalOrigin() && hasTok,
 			Frozen:       cfg.SyncFrozen(),
 		}
 	}

@@ -676,7 +676,7 @@ func (db *DB) KeysBySource(ctx context.Context, sourceID string) ([]string, erro
 }
 
 // ExternalID is the origin's own id for a mirrored issue key — what Jira's
-// dev-status calls issueId (numeric on Cloud, issuetap's id standalone).
+// dev-status calls issueId (numeric on Cloud, issuetap's id localOrigin).
 func (db *DB) ExternalID(ctx context.Context, key string) (string, error) {
 	var id string
 	err := db.sql.QueryRowContext(ctx, `

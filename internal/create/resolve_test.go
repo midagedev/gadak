@@ -122,18 +122,18 @@ func TestPriorityFieldIsID(t *testing.T) {
 	}
 }
 
-// TestMetaForStandaloneDoesNotAssumeCredential is GDK-390: a missing
-// createmeta project on standalone is "not in this workspace", not a
+// TestMetaForLocalOriginDoesNotAssumeCredential is GDK-390: a missing
+// createmeta project on local-origin is "not in this workspace", not a
 // credential failure. Connected keeps the existing sentence.
 //
 // FAIL-first: MetaFor always names a credential.
-func TestMetaForStandaloneDoesNotAssumeCredential(t *testing.T) {
-	_, _, err := MetaFor(nil, "IDEA", &config.Config{Kind: config.KindStandalone})
+func TestMetaForLocalOriginDoesNotAssumeCredential(t *testing.T) {
+	_, _, err := MetaFor(nil, "IDEA", &config.Config{Kind: config.KindLocalOrigin})
 	if err == nil {
 		t.Fatal("missing project must error")
 	}
 	if strings.Contains(err.Error(), "credential") {
-		t.Fatalf("standalone must not assume a credential: %v", err)
+		t.Fatalf("local-origin must not assume a credential: %v", err)
 	}
 	if !strings.Contains(err.Error(), "does not exist in this workspace") {
 		t.Fatalf("got %v", err)
@@ -154,7 +154,7 @@ func TestMetaForListsAvailableKeys(t *testing.T) {
 	catalog := []jira.CreateMetaProject{
 		{Key: "STD"}, {Key: "IDEA"},
 	}
-	_, _, err := MetaFor(catalog, "NOPE", &config.Config{Kind: config.KindStandalone})
+	_, _, err := MetaFor(catalog, "NOPE", &config.Config{Kind: config.KindLocalOrigin})
 	if err == nil {
 		t.Fatal("missing project must error")
 	}
@@ -194,7 +194,7 @@ func TestMetaForWithCatalogFetchesOnlyOnFallback(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 	c := jira.New(srv.URL, "someone@example.com", "secret-token")
-	cfg := &config.Config{Kind: config.KindStandalone, Projects: []string{"STD", "IDEA"}}
+	cfg := &config.Config{Kind: config.KindLocalOrigin, Projects: []string{"STD", "IDEA"}}
 
 	// Hit: no catalog fetch.
 	p, _, err := MetaForWithCatalog(context.Background(), c, []jira.CreateMetaProject{{Key: "STD"}}, "STD", cfg)

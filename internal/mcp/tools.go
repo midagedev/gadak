@@ -74,7 +74,7 @@ names. Jira localizes status.name and issuetype.name per account, so
 
 Only SELECT or WITH is allowed. Results are capped (default 200 rows, hard max
 1000; response also byte-capped). When truncated, the result says so — tighten
-LIMIT or columns and retry. Never write to this database; writes go through the origin (Jira, another machine's serve, or the built-in standalone tracker).
+LIMIT or columns and retry. Never write to this database; writes go through the origin (Jira, another machine's serve, or the built-in local-origin tracker).
 
 Examples:
 1) Open work for someone, most urgent first:
@@ -126,7 +126,7 @@ Use when you need the whole conversation around a key.`
 
 const toolStatusDescription = `Return mirror freshness: watermark, version, last_error, last_full_sync_at,
 schema_version, row counts (issues, comments), the workspace kind
-(connected|standalone) with its origin, and frozen (sync is paused when true).
+(connected|localOrigin) with its origin, and frozen (sync is paused when true).
 A paired workspace is kind connected plus a pairing object (endpoint, label).
 custom_fields.mapped is the number of configured field aliases; 0 means
 issues.custom is unmapped (empty json_extract results may mean gadak fields
@@ -454,7 +454,7 @@ func (s *Server) issuePayload(key string) (map[string]any, error) {
 func (s *Server) toolStatus(args map[string]any) ([]contentItem, error) {
 	_ = args
 	st := map[string]any{"profile": s.Profile}
-	// A shell-less host must be able to tell standalone from connected
+	// A shell-less host must be able to tell local-origin from connected
 	// (GDK-420); origin.Describe is the single owner of that verdict.
 	if cfg, err := config.LoadFor(s.Profile); err == nil {
 		kind, originDesc := origin.Describe(cfg)

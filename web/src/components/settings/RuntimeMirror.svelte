@@ -11,12 +11,12 @@
   import { t } from '../../lib/i18n'
   import { copyText } from '../../lib/copy-text'
   import { config, surface } from '../../lib/config'
-  import { isStandalone, STANDALONE_INIT_COMMAND } from '../../lib/workspace'
+  import { isLocalOrigin, STANDALONE_INIT_COMMAND } from '../../lib/workspace'
   import type { SettingsRuntime } from '../../lib/api'
   import { COPY_BTN } from './controls'
 
   const onDesktop = surface() === 'desktop'
-  const standalone = isStandalone(config())
+  const localOrigin = isLocalOrigin(config())
 
   let { runtime }: { runtime: SettingsRuntime } = $props()
 
@@ -54,17 +54,17 @@
     <dd class="min-w-0">
       <div class="flex min-w-0 flex-wrap items-center gap-1.5">
         <span class="font-mono text-text-primary">{runtime.profile}</span>
-        {#if standalone}
+        {#if localOrigin}
           <!-- Same status-pill classes as IntegrationsTab's install-state chip.
-               data-kind=standalone is a new case, not a borrowed enum. -->
+               data-kind=local-origin is a new case, not a borrowed enum. -->
           <span
             class="inline-flex items-center gap-1.5 rounded-full border border-border-subtle px-1.5 py-0.5 text-micro text-text-secondary"
             data-testid="workspace-kind"
             data-kind="standalone"
-            title={t('settings.workspaceStandaloneHint')}
-            aria-label={t('settings.workspaceStandaloneHint')}
+            title={t('settings.workspaceLocalOriginHint')}
+            aria-label={t('settings.workspaceLocalOriginHint')}
           >
-            {t('settings.workspaceStandalone')}
+            {t('settings.workspaceLocalOrigin')}
           </span>
         {/if}
       </div>
@@ -159,24 +159,24 @@
     <dt class="text-text-muted">{t('settings.runtimeVersion')}</dt>
     <dd class="font-mono text-text-primary">{runtime.gadakVersion}</dd>
 
-    <dt class="text-text-muted">{t('settings.standaloneHow')}</dt>
+    <dt class="text-text-muted">{t('settings.localOriginHow')}</dt>
     <dd class="min-w-0">
       <div class="flex flex-wrap items-center gap-1.5">
         <code
           class="break-all font-mono text-text-primary"
-          data-testid="standalone-init-command"
+          data-testid="local-origin-init-command"
         >{STANDALONE_INIT_COMMAND}</code>
         <button
           type="button"
           class={COPY_BTN}
-          data-testid="standalone-init-copy"
-          onclick={() => copyValue('standalone-init', STANDALONE_INIT_COMMAND)}
+          data-testid="local-origin-init-copy"
+          onclick={() => copyValue('local-origin-init', STANDALONE_INIT_COMMAND)}
         >
-          {copiedKey === 'standalone-init' ? t('settings.copied') : t('settings.copy')}
+          {copiedKey === 'local-origin-init' ? t('settings.copied') : t('settings.copy')}
         </button>
       </div>
-      <div class="mt-0.5 text-text-muted">{t('settings.workspaceStandaloneHint')}</div>
-      <div class="mt-0.5 text-text-muted">{t('settings.standaloneCommandHint')}</div>
+      <div class="mt-0.5 text-text-muted">{t('settings.workspaceLocalOriginHint')}</div>
+      <div class="mt-0.5 text-text-muted">{t('settings.localOriginCommandHint')}</div>
     </dd>
   </dl>
 </section>

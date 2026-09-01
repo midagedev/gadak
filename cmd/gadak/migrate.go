@@ -20,7 +20,7 @@ import (
 
 const migrateUsage = "usage: gadak --workspace <new name> migrate --from <workspace> [--projects A,B] [--spaces X,Y] [--skip-attachments] [--json]"
 
-// cmdMigrate exports a workspace's mirror into a brand-new standalone
+// cmdMigrate exports a workspace's mirror into a brand-new local-origin
 // workspace (GDK-1264): mirror → issuetap fixture YAML → one-shot seed →
 // first fill → verification report. The source is only read — its mirror,
 // plus one origin round-trip per attachment for the bytes. The target must
@@ -47,7 +47,7 @@ func cmdMigrate(args []string) error {
 
 	target := config.Profile()
 	if target == "" || target == "default" {
-		return fmt.Errorf("migrate creates a new standalone workspace — name it: gadak --workspace <new name> migrate --from %s", *from)
+		return fmt.Errorf("migrate creates a new local-origin workspace — name it: gadak --workspace <new name> migrate --from %s", *from)
 	}
 	if target == *from {
 		return fmt.Errorf("--from %s names the target workspace itself; migrate exports into a different, new workspace", *from)
@@ -120,13 +120,13 @@ func cmdMigrate(args []string) error {
 	}
 
 	// The YAML is in place before the first origin.Client call inside
-	// SeedStandalone, so issuetap's one-shot legacy seed picks it up —
+	// SeedLocalOrigin, so issuetap's one-shot legacy seed picks it up —
 	// reversed, the workspace would silently seed the default STD project.
 	tcfg, err := config.LoadFor(target)
 	if err != nil {
 		return err
 	}
-	fillErr, err := originbind.SeedStandalone(tcfg, strings.Join(stats.Projects, ","), stats.Spaces,
+	fillErr, err := originbind.SeedLocalOrigin(tcfg, strings.Join(stats.Projects, ","), stats.Spaces,
 		func() (*store.DB, func() error, error) {
 			p, err := config.DBPathFor(target)
 			if err != nil {
@@ -188,7 +188,7 @@ func splitCSV(s string) []string {
 }
 
 func printMigrateReport(w *os.File, target, from string, st *migrate.Stats, verify []migrate.VerifyRow) {
-	fmt.Fprintf(w, "migrated %s → standalone workspace %q\n", from, target)
+	fmt.Fprintf(w, "migrated %s → local-origin workspace %q\n", from, target)
 	fmt.Fprintf(w, "projects: %s", strings.Join(st.Projects, ", "))
 	if len(st.Spaces) > 0 {
 		fmt.Fprintf(w, "  spaces: %s", strings.Join(st.Spaces, ", "))

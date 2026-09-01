@@ -12,14 +12,14 @@ import (
 	"github.com/midagedev/gadak/internal/store"
 )
 
-func seedStandaloneProfile(t *testing.T, name string) *config.Config {
+func seedLocalOriginProfile(t *testing.T, name string) *config.Config {
 	t.Helper()
 	seedProfile(t, name, &config.Config{Projects: []string{origin.DefaultProjectKey}})
 	cfg, err := config.LoadFor(name)
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg.Kind = config.KindStandalone
+	cfg.Kind = config.KindLocalOrigin
 	if err := cfg.Save(); err != nil {
 		t.Fatal(err)
 	}
@@ -32,7 +32,7 @@ func seedStandaloneProfile(t *testing.T, name string) *config.Config {
 
 func TestSTD3MountedStandaloneBindsOrigin(t *testing.T) {
 	setupHome(t)
-	cfg := seedStandaloneProfile(t, "probe")
+	cfg := seedLocalOriginProfile(t, "probe")
 
 	reg := New()
 	t.Cleanup(func() {
@@ -46,13 +46,13 @@ func TestSTD3MountedStandaloneBindsOrigin(t *testing.T) {
 		t.Fatal(err)
 	}
 	if e == nil {
-		t.Fatal("mounted standalone entry is nil")
+		t.Fatal("mounted local-origin entry is nil")
 	}
 	if !e.ownsOrigin {
-		t.Fatal("mounted standalone did not bind its origin")
+		t.Fatal("mounted local-origin did not bind its origin")
 	}
 	if _, err := os.Stat(cfg.Directory() + "/serve-origin.json"); !os.IsNotExist(err) {
-		t.Fatal("mounted standalone wrote leftover advertise file")
+		t.Fatal("mounted local-origin wrote leftover advertise file")
 	}
 
 	c, err := origin.Client(cfg)
@@ -95,8 +95,8 @@ func TestMountedConnectedDoesNotOwnOrigin(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.IsStandalone() {
-		t.Fatal("fixture unexpectedly standalone")
+	if cfg.HasLocalOrigin() {
+		t.Fatal("fixture unexpectedly local-origin")
 	}
 
 	reg := New()
@@ -114,9 +114,9 @@ func TestMountedConnectedDoesNotOwnOrigin(t *testing.T) {
 	}
 }
 
-func TestMountedStandaloneCloseReleasesOrigin(t *testing.T) {
+func TestMountedLocalOriginCloseReleasesOrigin(t *testing.T) {
 	setupHome(t)
-	cfg := seedStandaloneProfile(t, "probe")
+	cfg := seedLocalOriginProfile(t, "probe")
 
 	reg := New()
 	t.Cleanup(func() {
@@ -129,7 +129,7 @@ func TestMountedStandaloneCloseReleasesOrigin(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !entry.ownsOrigin {
-		t.Fatal("mounted standalone did not claim its origin")
+		t.Fatal("mounted local-origin did not claim its origin")
 	}
 
 	reg.Close()
@@ -151,7 +151,7 @@ func TestMountedStandaloneCloseReleasesOrigin(t *testing.T) {
 
 func TestRegistryCloseWaitsForOriginOwnership(t *testing.T) {
 	setupHome(t)
-	_ = seedStandaloneProfile(t, "probe")
+	_ = seedLocalOriginProfile(t, "probe")
 	reg := New()
 	t.Cleanup(func() {
 		_ = origin.Close()
@@ -210,16 +210,16 @@ func TestRegistryCloseWaitsForOriginOwnership(t *testing.T) {
 	}
 }
 
-func TestMountedStandaloneSkipsDoorAOwner(t *testing.T) {
+func TestMountedLocalOriginSkipsDoorAOwner(t *testing.T) {
 	setupHome(t)
-	cfg := seedStandaloneProfile(t, "probe")
+	cfg := seedLocalOriginProfile(t, "probe")
 	t.Cleanup(func() {
 		_ = origin.Close()
 		origin.ResetInProcess()
 	})
 
 	origin.SetInProcess(cfg, true)
-	originHandler, err := origin.StandaloneHandler(cfg)
+	originHandler, err := origin.LocalOriginHandler(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -3,7 +3,7 @@ package jira
 // Remote issue links (GDK-1032): Cloud's
 // /rest/api/3/issue/{key}/remotelink. Both origins gadak points this at —
 // Atlassian Cloud and issuetap — speak the same shape; gadak only ever
-// writes them on issuetap-backed origins (standalone / paired), where a
+// writes them on issuetap-backed origins (localOrigin / paired), where a
 // gadak://<workspace>/<KEY> URL points one workspace's issue at another's.
 
 import (

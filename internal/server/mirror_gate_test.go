@@ -77,7 +77,7 @@ func bearer(v string) map[string]string {
 // the mirror exemption that Host died as forbidden_host before any token
 // could speak — the phone had no path in at all.
 func TestMirrorGateServeBearerOpensBootstrap(t *testing.T) {
-	h, cfg := standaloneServer(t)
+	h, cfg := localOriginServer(t)
 	token := seedStore(t, cfg.Directory(), seedToken{"phone", "serve"})[0]
 	rec := getWithHost(t, h, "/api/v1/issues/bootstrap/", bearer(token), mirrorHost)
 	if rec.Code != http.StatusOK {
@@ -112,7 +112,7 @@ func TestMirrorGateCredentialHintedNoToken(t *testing.T) {
 // ③ A mirror-REST path on a DNS Host with no Bearer is a pairing rejection,
 // not a silent pass: the guard stepped aside, so the gate must speak.
 func TestMirrorGateDemandsBearer(t *testing.T) {
-	h, cfg := standaloneServer(t)
+	h, cfg := localOriginServer(t)
 	seedStore(t, cfg.Directory(), seedToken{"phone", "serve"})
 	rec := getWithHost(t, h, "/api/v1/issues/bootstrap/", nil, mirrorHost)
 	if rec.Code != http.StatusUnauthorized || !strings.Contains(rec.Body.String(), "pairing_rejected") {
@@ -123,7 +123,7 @@ func TestMirrorGateDemandsBearer(t *testing.T) {
 // ④ loopback is untouched, with and without tokens minted — the local web
 // UI must never see a 401 from the mirror gate.
 func TestMirrorGateLoopbackUnchanged(t *testing.T) {
-	h, cfg := standaloneServer(t)
+	h, cfg := localOriginServer(t)
 	rec := get(t, h, "/api/v1/issues/bootstrap/", nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("loopback, no tokens: %d %s; want 200", rec.Code, rec.Body.String())
@@ -139,7 +139,7 @@ func TestMirrorGateLoopbackUnchanged(t *testing.T) {
 // exemption exists only while the gate can speak (regression pin — today's
 // answer for every DNS-named Host).
 func TestMirrorGateUnpairedDNSHostStaysForbidden(t *testing.T) {
-	h, _ := standaloneServer(t)
+	h, _ := localOriginServer(t)
 	for _, path := range []string{
 		"/api/v1/issues/bootstrap/",
 		"/api/v1/issues/NMB-1/detail/",
@@ -155,7 +155,7 @@ func TestMirrorGateUnpairedDNSHostStaysForbidden(t *testing.T) {
 // ⑥ The scopes are one-way doors, and the rejection names itself so a
 // phone developer can tell a wrong-scope token from a wrong path.
 func TestMirrorGateScopeBoundaries(t *testing.T) {
-	h, cfg := standaloneServer(t)
+	h, cfg := localOriginServer(t)
 	toks := seedStore(t, cfg.Directory(), seedToken{"phone", "serve"}, seedToken{"laptop", "origin"})
 	serve, laptop := toks[0], toks[1]
 
@@ -268,7 +268,7 @@ func TestMirrorAllowlistTable(t *testing.T) {
 	// non-API paths (SPA, root config.json). Measured on this connected
 	// fixture: the passthrough 404s before pairingGate (same as
 	// TestOriginRESTConnectedIs404); PairedOriginHostExempt already
-	// stepped aside, so the answer is not forbidden_host. A standalone
+	// stepped aside, so the answer is not forbidden_host. A local-origin
 	// serve answers 403 scope_rejected (TestMirrorGateScopeBoundaries).
 	forbidden := []struct {
 		method, path, body string

@@ -11,7 +11,7 @@ import (
 )
 
 // seedPairedProfile is a workspace whose origin is a remote gadak serve
-// (remote-origin.json, not KindStandalone). That is the GDK-452 shape:
+// (remote-origin.json, not KindLocalOrigin). That is the GDK-452 shape:
 // `init --pairing-code` already refuses to re-pair it, but bare init and
 // `init --standalone` currently rebind the origin.
 func seedPairedProfile(t *testing.T) string {
@@ -69,8 +69,8 @@ func assertPairedOriginUntouched(t *testing.T, dir string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.IsStandalone() {
-		t.Fatal("refused init must not flip the workspace to standalone")
+	if cfg.HasLocalOrigin() {
+		t.Fatal("refused init must not flip the workspace to local-origin")
 	}
 	if cfg.Site != "" || cfg.Token != "" {
 		t.Fatalf("refused init must not write a site credential: site=%q token_set=%t", cfg.Site, cfg.Token != "")
@@ -80,10 +80,10 @@ func assertPairedOriginUntouched(t *testing.T, dir string) {
 	}
 }
 
-// TestInitPairedRefusesStandalone is GDK-452: `gadak init --standalone` on a
+// TestInitPairedRefusesLocalOrigin is GDK-452: `gadak init --standalone` on a
 // profile bound to a remote serve must not replace the origin with an empty
 // local persist.
-func TestInitPairedRefusesStandalone(t *testing.T) {
+func TestInitPairedRefusesLocalOrigin(t *testing.T) {
 	dir := seedPairedProfile(t)
 	_, err := capture(t, func() error {
 		return cmdInit([]string{"--local"})
@@ -135,9 +135,9 @@ func TestInitPairedRefusesRepairing(t *testing.T) {
 }
 
 // Home machines store a routing token in the same file. That is not a
-// paired origin (origin.pairedRemote excludes standalone); init --standalone
+// paired origin (origin.pairedRemote excludes localOrigin); init --standalone
 // must not pick up the paired-origin refusal.
-func TestInitStandaloneHomeRoutingNotRefused(t *testing.T) {
+func TestInitLocalOriginHomeRoutingNotRefused(t *testing.T) {
 	pairingHome(t)
 	_, _, err := captureErr(t, func() error {
 		return cmdPairing([]string{"mint", "--label", "laptop", "--ttl", "1h", "--endpoint", "http://127.0.0.1:9"})

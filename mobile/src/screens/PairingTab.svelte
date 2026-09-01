@@ -382,7 +382,7 @@
           {/if}
           <p class="sub">{t('personal.myAssignee')} filters to this identity.</p>
         {:else}
-          <p class="line"><span class="quiet">No identity — the serve runs standalone, so {t('doc.issues')} opens on {t('view.allOpen.name')}.</span></p>
+          <p class="line"><span class="quiet">No identity — the serve runs localOrigin, so {t('doc.issues')} opens on {t('view.allOpen.name')}.</span></p>
         {/if}
       </section>
 

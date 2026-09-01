@@ -12,8 +12,8 @@ import (
 // fourth column. The fixture isolates the compound case — KO-MID's title
 // carries 결제 only inside 간편결제, so a token-start (prefix) MATCH cannot
 // find it and a passing test proves the bigram path, not an accidental
-// standalone token. The previous round contaminated this exact fixture with a
-// standalone 결제 token; every row here is written to keep the isolation.
+// local-origin token. The previous round contaminated this exact fixture with a
+// local-origin 결제 token; every row here is written to keep the isolation.
 func seedCJKCompound(t *testing.T, db *DB) {
 	t.Helper()
 	if err := db.UpsertSource(context.Background(), Source{ID: "jira", Kind: "jira", BaseURL: "https://fixture.invalid"}); err != nil {

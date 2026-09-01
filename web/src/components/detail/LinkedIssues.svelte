@@ -67,7 +67,7 @@
   //
   // The predicate is the server's own (config.HasAtlassianCredential, sent as
   // originWritable), not identity: auth/me answers from cfg.Email, which is
-  // empty on a standalone and on a paired workspace even though both accept
+  // empty on a local-origin and on a paired workspace even though both accept
   // this request. Gating on me.identified would have killed the link-type
   // catalog exactly there. The hosted demo stays in: loadTypes serves it a
   // canned catalog without touching the network, so skipping it there would

@@ -8,7 +8,7 @@ import (
 	"github.com/midagedev/gadak/internal/origin"
 )
 
-// TestRefCrossWorkspaceHydrates is the GDK-1032 round-trip: a standalone
+// TestRefCrossWorkspaceHydrates is the GDK-1032 round-trip: a local-origin
 // issue points at an issue in another workspace, the pointer lands on this
 // origin (never on the target's), and the list shows the target's current
 // state read out of that workspace's own mirror.

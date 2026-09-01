@@ -30,7 +30,7 @@
     originWritable,
     workspaceName,
   } from '../../lib/config'
-  import { isStandalone, STANDALONE_INIT_COMMAND } from '../../lib/workspace'
+  import { isLocalOrigin, STANDALONE_INIT_COMMAND } from '../../lib/workspace'
   import { setParams } from '../../lib/router.svelte'
   import { mirrorLabel } from '../../lib/mirror-status'
   import { docsEmptyClickAction, docsEmptyGlyph } from '../../lib/docs-empty'
@@ -291,8 +291,8 @@
       return w.site
     }
   }
-  const standalone = isStandalone(config())
-  let standaloneHowOpen = $state(false)
+  const localOrigin = isLocalOrigin(config())
+  let localOriginHowOpen = $state(false)
 
   /* ── Docs (mirrored wiki pages) ── */
   //  The nav carries two entries only — the document view, and a collapsed
@@ -875,15 +875,15 @@
                   aria-hidden="true"
                 ></span>
                 <span class="min-w-0 flex-1 truncate">{w.name}</span>
-                {#if currentWorkspace === w.name && standalone}
+                {#if currentWorkspace === w.name && localOrigin}
                   <span
                     class="inline-flex flex-none items-center rounded-full border border-border-subtle px-1.5 py-0.5 text-micro text-text-secondary"
                     data-testid="workspace-kind"
                     data-kind="standalone"
-                    title={t('settings.workspaceStandaloneHint')}
-                    aria-label={t('settings.workspaceStandaloneHint')}
+                    title={t('settings.workspaceLocalOriginHint')}
+                    aria-label={t('settings.workspaceLocalOriginHint')}
                   >
-                    {t('settings.workspaceStandalone')}
+                    {t('settings.workspaceLocalOrigin')}
                   </span>
                 {/if}
                 {#if workspaceHost(w)}
@@ -919,24 +919,24 @@
        error screen, so the errand it offers does not exist. -->
   <div class="flex-none border-t border-border-subtle px-3 py-2">
     {#if hasServerVerb('settings')}
-      {#if !onboarding.needsOnboarding && !standalone}
+      {#if !onboarding.needsOnboarding && !localOrigin}
       <!-- GDK-1122: the how-to-create affordance is for connected workspaces;
-           offering it inside a standalone one advertises leaving the origin
+           offering it inside a local-origin one advertises leaving the origin
            this workspace is bound to. -->
       <button
         type="button"
         class="mb-1 flex h-control-sm w-full items-center gap-1.5 rounded-md px-1 text-body text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
-        data-testid="standalone-create"
-        aria-expanded={standaloneHowOpen}
-        onclick={() => (standaloneHowOpen = !standaloneHowOpen)}
+        data-testid="local-origin-create"
+        aria-expanded={localOriginHowOpen}
+        onclick={() => (localOriginHowOpen = !localOriginHowOpen)}
       >
-        {t('settings.standaloneHow')}
+        {t('settings.localOriginHow')}
       </button>
-      {#if standaloneHowOpen}
+      {#if localOriginHowOpen}
         <div class="mb-1 px-1">
           <code class="break-all font-mono text-micro text-text-primary">{STANDALONE_INIT_COMMAND}</code>
-          <div class="mt-0.5 text-micro text-text-muted">{t('settings.workspaceStandaloneHint')}</div>
-          <div class="mt-0.5 text-micro text-text-muted">{t('settings.standaloneCommandHint')}</div>
+          <div class="mt-0.5 text-micro text-text-muted">{t('settings.workspaceLocalOriginHint')}</div>
+          <div class="mt-0.5 text-micro text-text-muted">{t('settings.localOriginCommandHint')}</div>
         </div>
       {/if}
       {/if}
@@ -970,7 +970,7 @@
     {:else if !onboarding.needsOnboarding && me.authChecked && !originWritable()}
       <!-- GDK-1148: the CTA is only for an origin that cannot answer a write
            (originWritable, the server's own HasAtlassianCredential). A
-           standalone or paired workspace is anonymous AND fully writable —
+           local-origin or paired workspace is anonymous AND fully writable —
            me.identified cannot tell those apart, so this branch must not. -->
       <button
         type="button"

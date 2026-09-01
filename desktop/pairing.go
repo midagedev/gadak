@@ -51,7 +51,7 @@ type deviceRow struct {
 
 // handlePairingGET answers the tab's whole world state: the device rows,
 // the endpoint a mint would advertise, and whether this workspace is
-// standalone (the routing-token guard only applies to a standalone home).
+// local-origin (the routing-token guard only applies to a local-origin home).
 // When the workspace cannot own devices — paired away, or no credential
 // yet — the answer is still 200 with empty rows and `unavailable` naming
 // why, so the tab can render its disabled reason instead of guessing from
@@ -78,7 +78,7 @@ func handlePairingGET(w http.ResponseWriter, r *http.Request) {
 	resp := map[string]any{
 		"devices":             []deviceRow{},
 		"advertised_endpoint": pairflow.AdvertisedEndpoint(cfg),
-		"standalone":          cfg.IsStandalone(),
+		"standalone":          cfg.HasLocalOrigin(),
 	}
 	dir, err := pairflow.Dir(cfg)
 	if err != nil {

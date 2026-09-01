@@ -11,7 +11,7 @@ import (
 )
 
 // cmdProject is the project partition surface (GDK-391). Creation is
-// standalone-only: the embedded origin grows a project through its own
+// local-origin-only: the embedded origin grows a project through its own
 // Jira API (writes pass through the origin, never the mirror). On a
 // connected workspace projects are Jira admin territory — gadak refuses
 // and points there instead of half-owning the verb.
@@ -50,12 +50,12 @@ func cmdProjectCreate(args []string) error {
 		return err
 	}
 	// No-origin homes answer the shared init sentence (GDK-943); the
-	// standalone-only refusal below is only for workspaces that exist.
+	// local-origin-only refusal below is only for workspaces that exist.
 	if !cfg.HasOrigin() {
 		return config.NotConfiguredWith("project create writes to the origin, not to the mirror")
 	}
-	if !cfg.IsStandalone() {
-		return fmt.Errorf("project create is for standalone workspaces — on a connected workspace, create the project in Jira and run `gadak sync`")
+	if !cfg.HasLocalOrigin() {
+		return fmt.Errorf("project create is for local-origin workspaces — on a connected workspace, create the project in Jira and run `gadak sync`")
 	}
 	client, err := origin.Client(cfg)
 	if err != nil {

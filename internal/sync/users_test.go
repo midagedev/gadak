@@ -10,7 +10,7 @@ import (
 
 // GDK-590. accountType must survive the whole pipe: origin payload →
 // jira.User → IssueRecord.Users → users catalog. Two origins, two spellings,
-// one axis: issuetap standalone mints "agent" for the accounts behind
+// one axis: issuetap local-origin mints "agent" for the accounts behind
 // X-Issuetap-Actor (internal/origin/actor_test.go pins that wire shape),
 // Atlassian Cloud sends "app" for Connect bots. The mirror caches both the
 // same way so the bot judgement never branches on origin kind.
@@ -27,7 +27,7 @@ func TestUserCatalogIngest(t *testing.T) {
 			"reporter": map[string]any{"accountId": "712020:abc", "displayName": "GitHub sync",
 				"accountType": "app"},
 			"comment": map[string]any{"total": 1, "comments": []any{
-				// Standalone agent as commenter: accountType "agent", no email —
+				// Local-origin agent as commenter: accountType "agent", no email —
 				// exactly the object issuetap returns.
 				map[string]any{"id": "9101",
 					"author":  map[string]any{"accountId": "claude:354bff2b", "displayName": "Claude (build 1)", "accountType": "agent"},

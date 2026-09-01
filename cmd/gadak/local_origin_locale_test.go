@@ -1,6 +1,6 @@
 package main
 
-// GDK-597: a standalone workspace speaks the user's language, and display
+// GDK-597: a local-origin workspace speaks the user's language, and display
 // names are never keys. This pins the whole chain at the CLI level — config
 // locale → embedded origin (Cloud fidelity: priority names English) →
 // locale-triggered mirror rebuild → queries keyed by status_category.
@@ -16,11 +16,11 @@ import (
 	"github.com/midagedev/gadak/internal/origin"
 )
 
-// TestStandaloneLocaleRebuildRoundtrip walks the lifecycle:
+// TestLocalOriginLocaleRebuildRoundtrip walks the lifecycle:
 // English mirror → config set locale ko → create through the recorded type
 // ID (not a display name) → sync announces the rebuild and refetches every
 // row in Korean → the query keys on status_category, never on a name.
-func TestStandaloneLocaleRebuildRoundtrip(t *testing.T) {
+func TestLocalOriginLocaleRebuildRoundtrip(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
 	t.Setenv("HOME", home)
@@ -152,11 +152,11 @@ func TestStandaloneLocaleRebuildRoundtrip(t *testing.T) {
 	}
 }
 
-// TestStandaloneLocalePersistedRoundtrip reopens the workspace from disk
+// TestLocalOriginLocalePersistedRoundtrip reopens the workspace from disk
 // with the setting in place: the persist file's own locale must not win —
 // gadak owns the workspace language — and a fresh process syncs in Korean
 // without another rebuild.
-func TestStandaloneLocalePersistedRoundtrip(t *testing.T) {
+func TestLocalOriginLocalePersistedRoundtrip(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
 	t.Setenv("HOME", home)

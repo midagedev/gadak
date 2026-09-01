@@ -58,7 +58,7 @@
  *
  * ── The fixture ──────────────────────────────────────────────────────────
  *
- * record-roundtrip.sh owns it. The workspace is the standalone one
+ * record-roundtrip.sh owns it. The workspace is the local-origin one
  * seed_hero_home() builds (record-hero-desk.sh --serve-only) — writable,
  * credential-free, fictional (MEDIA.md) — with STD-7's description replaced
  * afterwards — `gadak edit -m` with a fence, the way any agent would write it

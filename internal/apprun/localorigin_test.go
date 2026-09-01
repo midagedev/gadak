@@ -17,10 +17,10 @@ import (
 	"github.com/midagedev/gadak/internal/store"
 )
 
-func standaloneRuntime(t *testing.T) (*Runtime, *config.Config) {
+func localOriginRuntime(t *testing.T) (*Runtime, *config.Config) {
 	t.Helper()
 	testHome(t)
-	cfg := saveStandalone(t)
+	cfg := saveLocalOrigin(t)
 	path, err := config.DBPath()
 	if err != nil {
 		t.Fatal(err)
@@ -37,7 +37,7 @@ func standaloneRuntime(t *testing.T) (*Runtime, *config.Config) {
 }
 
 func TestStartOriginPassthroughEmbedsWithoutAdvertise(t *testing.T) {
-	_, cfg := standaloneRuntime(t)
+	_, cfg := localOriginRuntime(t)
 	stop, err := StartOriginPassthrough(cfg)
 	if err != nil {
 		t.Fatal(err)
@@ -48,7 +48,7 @@ func TestStartOriginPassthroughEmbedsWithoutAdvertise(t *testing.T) {
 		t.Fatal("StartOriginPassthrough must not write serve-origin.json")
 	}
 	if !origin.IsInProcess(cfg) {
-		t.Fatal("standalone StartOriginPassthrough must mark in-process")
+		t.Fatal("local-origin StartOriginPassthrough must mark in-process")
 	}
 	c, err := origin.Client(cfg)
 	if err != nil {
@@ -75,10 +75,10 @@ func TestStartOriginPassthroughConnectedNoListener(t *testing.T) {
 	}
 }
 
-// TestSecondProcessStandaloneEmbeds is Q1 after GDK-936: a second process
+// TestSecondProcessLocalOriginEmbeds is Q1 after GDK-936: a second process
 // may embed the same WAL persist. The parent holds a session; the child
 // must acquire, not fail busy.
-func TestSecondProcessStandaloneEmbeds(t *testing.T) {
+func TestSecondProcessLocalOriginEmbeds(t *testing.T) {
 	if os.Getenv("GDK658_APPRUN_CHILD") == "1" {
 		cfg, err := config.Load()
 		if err != nil {
@@ -94,14 +94,14 @@ func TestSecondProcessStandaloneEmbeds(t *testing.T) {
 		os.Exit(0)
 	}
 
-	_, cfg := standaloneRuntime(t)
+	_, cfg := localOriginRuntime(t)
 	stop, err := StartOriginPassthrough(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer stop()
 
-	cmd := exec.Command(os.Args[0], "-test.run=^TestSecondProcessStandaloneEmbeds$", "-test.v=false")
+	cmd := exec.Command(os.Args[0], "-test.run=^TestSecondProcessLocalOriginEmbeds$", "-test.v=false")
 	cmd.Env = append(os.Environ(), "GDK658_APPRUN_CHILD=1")
 	out, err := cmd.CombinedOutput()
 	if err != nil {

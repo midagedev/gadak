@@ -12,7 +12,7 @@ import (
 )
 
 // TestNoDirectKindClearOutsideOriginbind is the structural lock: clearing
-// Kind (leaving standalone) belongs to ClearStandalone in this package.
+// Kind (leaving localOrigin) belongs to ClearLocalOrigin in this package.
 // A `.Kind = ""` assignment in production code outside internal/originbind/
 // fails this test.
 //
@@ -55,7 +55,7 @@ func TestNoDirectKindClearOutsideOriginbind(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(hits) > 0 {
-		t.Fatalf("cfg.Kind = \"\" must not be assigned from production code outside internal/originbind (use workspace.ClearStandalone):\n  %s",
+		t.Fatalf("cfg.Kind = \"\" must not be assigned from production code outside internal/originbind (use workspace.ClearLocalOrigin):\n  %s",
 			strings.Join(hits, "\n  "))
 	}
 }

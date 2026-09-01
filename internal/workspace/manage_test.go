@@ -60,7 +60,7 @@ func manageSeedProfile(t *testing.T, name, kind string, withPersist bool) string
 		t.Fatal(err)
 	}
 	cfg := "{}"
-	if kind == config.KindStandalone {
+	if kind == config.KindLocalOrigin {
 		cfg = `{"kind":"standalone"}`
 	}
 	if err := os.WriteFile(filepath.Join(dir, "config.json"), []byte(cfg), 0o600); err != nil {
@@ -88,7 +88,7 @@ func manageErrDoc(t *testing.T, rec *httptest.ResponseRecorder) map[string]strin
 	return doc
 }
 
-func TestManageCreateStandaloneSeedsProfile(t *testing.T) {
+func TestManageCreateLocalOriginSeedsProfile(t *testing.T) {
 	setupHome(t)
 	h := manageMux(New())
 
@@ -105,12 +105,12 @@ func TestManageCreateStandaloneSeedsProfile(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &doc); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if doc.Name != "scratch" || doc.Kind != config.KindStandalone {
+	if doc.Name != "scratch" || doc.Kind != config.KindLocalOrigin {
 		t.Fatalf("doc = %+v", doc)
 	}
 
 	// The profile exists on disk exactly as the CLI door leaves it: config
-	// is standalone, the persist the response named is real, the mirror
+	// is localOrigin, the persist the response named is real, the mirror
 	// was created, and the CSV projects parsed the shared way.
 	dir := manageDir(t, "scratch")
 	if doc.Persist != origin.PersistPath(dir) {
@@ -122,8 +122,8 @@ func TestManageCreateStandaloneSeedsProfile(t *testing.T) {
 		}
 	}
 	saved, err := config.LoadFor("scratch")
-	if err != nil || !saved.IsStandalone() {
-		t.Fatalf("saved config not standalone: %v %+v", err, saved)
+	if err != nil || !saved.HasLocalOrigin() {
+		t.Fatalf("saved config not local-origin: %v %+v", err, saved)
 	}
 	if strings.Join(saved.Projects, ",") != "ABC,DEF" {
 		t.Fatalf("projects = %v, want [ABC DEF]", saved.Projects)
@@ -173,7 +173,7 @@ func TestManageCreateRefusals(t *testing.T) {
 	}
 	// The 409 must not have touched the existing config's kind.
 	saved, err := config.LoadFor("taken")
-	if err != nil || saved.IsStandalone() {
+	if err != nil || saved.HasLocalOrigin() {
 		t.Fatalf("409 reseeded an existing profile: %v %+v", err, saved)
 	}
 
@@ -201,9 +201,9 @@ func TestManageRemoveRefusals(t *testing.T) {
 		t.Fatalf("needs_yes: %+v", doc)
 	}
 
-	// needs_destroy_origin: standalone persist present, yes given without
+	// needs_destroy_origin: local-origin persist present, yes given without
 	// destroy_origin — the detail must carry the persist's absolute path.
-	dir := manageSeedProfile(t, "s1", config.KindStandalone, true)
+	dir := manageSeedProfile(t, "s1", config.KindLocalOrigin, true)
 	persist := origin.PersistPath(dir)
 	rec = manageSend(t, h, http.MethodDelete, "/api/v1/workspaces/s1?yes=1", "")
 	if rec.Code != http.StatusBadRequest {
@@ -260,7 +260,7 @@ func TestManageRemoveRefusals(t *testing.T) {
 	}
 }
 
-func TestManageRemoveStandaloneDestroys(t *testing.T) {
+func TestManageRemoveLocalOriginDestroys(t *testing.T) {
 	setupHome(t)
 	h := manageMux(New())
 
@@ -285,7 +285,7 @@ func TestManageRemoveStandaloneDestroys(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &doc); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if doc.Removed != "gone" || doc.Kind != config.KindStandalone || !doc.OriginDestroyed {
+	if doc.Removed != "gone" || doc.Kind != config.KindLocalOrigin || !doc.OriginDestroyed {
 		t.Fatalf("doc = %+v", doc)
 	}
 	if _, err := os.Stat(dir); !os.IsNotExist(err) {
@@ -449,7 +449,7 @@ func TestManageCreatePairedRegisters(t *testing.T) {
 		t.Fatalf("decode: %v", err)
 	}
 	// A paired workspace reports kind connected — the listing semantics
-	// (WorkspaceKind: only standalone is its own kind), pinned here so the
+	// (WorkspaceKind: only local-origin is its own kind), pinned here so the
 	// response cannot drift from what the workspaces list would say.
 	if doc.Name != "laptop" || doc.Kind != config.KindConnected ||
 		doc.Endpoint != ts.URL || doc.Label != "web-tab" || doc.Account != "Home Human" {
@@ -471,14 +471,14 @@ func TestManageCreatePairedRegisters(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}
-	if saved.IsStandalone() || saved.AccountID != "acc-home" || saved.TokenOwner != "Home Human" {
+	if saved.HasLocalOrigin() || saved.AccountID != "acc-home" || saved.TokenOwner != "Home Human" {
 		t.Fatalf("saved config = %+v", saved)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "config.json")); err != nil {
 		t.Errorf("config.json missing after create: %v", err)
 	}
 
-	// The exists refusal is shared with the standalone branch: a name
+	// The exists refusal is shared with the local-origin branch: a name
 	// already on disk is a conflict before any offer is read.
 	manageSeedProfile(t, "taken", config.KindConnected, false)
 	rec = manageSend(t, h, http.MethodPost, "/api/v1/workspaces",

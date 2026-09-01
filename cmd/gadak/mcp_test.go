@@ -18,7 +18,7 @@ func TestMCPSyncLoopEnabled(t *testing.T) {
 		Email: "a@b.c",
 		Token: "t",
 	}
-	standalone := &config.Config{Kind: config.KindStandalone}
+	localOrigin := &config.Config{Kind: config.KindLocalOrigin}
 	cases := []struct {
 		name   string
 		cfg    *config.Config
@@ -27,14 +27,14 @@ func TestMCPSyncLoopEnabled(t *testing.T) {
 		reason string
 	}{
 		{name: "connected credential", cfg: cred, want: true},
-		{name: "standalone", cfg: standalone, want: true},
+		{name: "standalone", cfg: localOrigin, want: true},
 		{name: "nil config", cfg: nil, reason: "no credential"},
 		{name: "empty config", cfg: &config.Config{}, reason: "no credential"},
 		{name: "connected missing token", cfg: &config.Config{Site: cred.Site, Email: cred.Email}, reason: "no credential"},
 		{name: "no-sync connected", cfg: cred, noSync: true, reason: "no-sync"},
-		{name: "no-sync standalone", cfg: standalone, noSync: true, reason: "no-sync"},
+		{name: "no-sync local-origin", cfg: localOrigin, noSync: true, reason: "no-sync"},
 		{name: "frozen connected", cfg: &config.Config{Site: cred.Site, Email: cred.Email, Token: cred.Token, Frozen: true}, reason: "frozen"},
-		{name: "frozen standalone", cfg: &config.Config{Kind: config.KindStandalone, Frozen: true}, reason: "frozen"},
+		{name: "frozen local-origin", cfg: &config.Config{Kind: config.KindLocalOrigin, Frozen: true}, reason: "frozen"},
 		{name: "no-sync wins over frozen", cfg: &config.Config{Site: cred.Site, Email: cred.Email, Token: cred.Token, Frozen: true}, noSync: true, reason: "no-sync"},
 		{name: "no-sync wins over no credential", cfg: nil, noSync: true, reason: "no-sync"},
 	}

@@ -96,7 +96,7 @@ func TestShutdownOnceClosesMountedStandaloneRegistry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg.Kind = config.KindStandalone
+	cfg.Kind = config.KindLocalOrigin
 	if err := cfg.Save(); err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +107,7 @@ func TestShutdownOnceClosesMountedStandaloneRegistry(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !origin.IsInProcess(cfg) {
-		t.Fatal("mounted standalone did not bind its origin")
+		t.Fatal("mounted local-origin did not bind its origin")
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())

@@ -43,7 +43,7 @@ func setTerminalLeaf(t *testing.T, cfg *config.Config, path, raw string) {
 // directory. $SHELL points at a path that does not exist, so a create
 // that ignored terminal.shell could not have started a shell at all.
 func TestTerminalCreateUsesConfiguredShellAndDir(t *testing.T) {
-	h, cfg := standaloneServer(t)
+	h, cfg := localOriginServer(t)
 	t.Setenv("SHELL", "/nonexistent-shell-gdk896")
 	setTerminalLeaf(t, cfg, "terminal.shell", `"/bin/sh"`)
 	dir := t.TempDir()
@@ -86,7 +86,7 @@ func TestTerminalCreateWorkingDirMissingFallsBack(t *testing.T) {
 	log.SetOutput(&buf)
 	t.Cleanup(func() { log.SetOutput(prev) })
 
-	h, cfg := standaloneServer(t)
+	h, cfg := localOriginServer(t)
 	missing := filepath.Join(t.TempDir(), "gone")
 	setTerminalLeaf(t, cfg, "terminal.workingDir", `"`+missing+`"`)
 	srv := httptest.NewServer(h)
@@ -126,7 +126,7 @@ func TestTerminalCreateWorkingDirMissingFallsBack(t *testing.T) {
 // server-only, and a response carrying them would hand a paired remote
 // client the machine's shell paths — the exact shape GDK-1069 rejected.
 func TestTerminalCreateResponseCarriesBehavior(t *testing.T) {
-	h, cfg := standaloneServer(t)
+	h, cfg := localOriginServer(t)
 	setTerminalLeaf(t, cfg, "terminal.scrollback", `9000`)
 	setTerminalLeaf(t, cfg, "terminal.cursorBlink", `true`)
 	srv := httptest.NewServer(h)
@@ -158,7 +158,7 @@ func TestTerminalCreateResponseCarriesBehavior(t *testing.T) {
 // hardcoded before the block existed, now named by the server instead of
 // reinvented on the client.
 func TestTerminalCreateResponseBehaviorDefaults(t *testing.T) {
-	h, _ := standaloneServer(t)
+	h, _ := localOriginServer(t)
 	srv := httptest.NewServer(h)
 	t.Cleanup(srv.Close)
 

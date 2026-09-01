@@ -981,7 +981,7 @@ func TestSearchMissingQueryIsErrorNotEmptyResult(t *testing.T) {
 }
 
 // TestToolDescriptionsOriginAndCJK is GDK-471: gadak_query must not summarise
-// writes as Jira-only (standalone and paired origins exist), and gadak_search
+// writes as Jira-only (localOrigin and paired origins exist), and gadak_search
 // must carry the CJK mid-compound sentence. Primary search argument stays query.
 func TestToolDescriptionsOriginAndCJK(t *testing.T) {
 	var query, search Tool

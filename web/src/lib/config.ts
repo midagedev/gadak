@@ -11,7 +11,7 @@
  */
 
 import {
-  isStandalone,
+  isLocalOrigin,
   parseOriginType,
   parseTransport,
   parseWorkspaceKind,
@@ -22,7 +22,7 @@ import {
 import type { UiTokenDoc } from './user-tokens'
 
 export {
-  isStandalone,
+  isLocalOrigin,
   parseOriginType,
   parseTransport,
   parseWorkspaceKind,
@@ -137,14 +137,14 @@ export interface GadakConfig {
   transport: Transport
   /**
    * True when the server can reach the Jira-family origin — a site
-   * credential, a standalone workspace, or a pairing remote. It mirrors
+   * credential, a local-origin workspace, or a pairing remote. It mirrors
    * `config.HasAtlassianCredential`, which is the same bool every write path
    * 409s on, so a surface that decides whether to send an origin request at
    * all agrees with the server instead of guessing (GDK-1090). Absent
    * (static export, hosted demo) is false — correct there.
    *
    * Not `me.identified`: that reads auth/me's email, which is empty on a
-   * standalone and on a paired workspace even though both write fine.
+   * local-origin and on a paired workspace even though both write fine.
    */
   originWritable: boolean
   features: GadakFeatures
@@ -163,9 +163,9 @@ export interface GadakConfig {
   configVersion?: string
 }
 
-/** True only when the server said standalone. Unknown and connected are false. */
-export function isStandaloneWorkspace(): boolean {
-  return isStandalone(current)
+/** True only when the server said localOrigin. Unknown and connected are false. */
+export function isLocalOriginWorkspace(): boolean {
+  return isLocalOrigin(current)
 }
 
 /**

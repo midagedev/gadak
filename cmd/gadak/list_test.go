@@ -1,8 +1,8 @@
 package main
 
 // gadak list / gadak ready. The default-list tests ride examples/demo.db
-// (sqlDemoHome); the ready tests ride a real standalone workspace the same
-// way TestStandaloneCreateSyncSQL does — init --standalone, create through
+// (sqlDemoHome); the ready tests ride a real local-origin workspace the same
+// way TestLocalOriginCreateSyncSQL does — init --standalone, create through
 // the origin, link, transition — because ready's blocker filter resolves
 // the link type against that origin's catalog, which is the path the
 // product actually takes.
@@ -147,9 +147,9 @@ func TestListRejectsBadArgs(t *testing.T) {
 	}
 }
 
-// standaloneHome is the TestStandaloneCreateSyncSQL pattern: a throwaway
-// GADAK_HOME with a real standalone workspace behind it.
-func standaloneHome(t *testing.T) {
+// localOriginHome is the TestLocalOriginCreateSyncSQL pattern: a throwaway
+// GADAK_HOME with a real local-origin workspace behind it.
+func localOriginHome(t *testing.T) {
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
@@ -165,10 +165,10 @@ func standaloneHome(t *testing.T) {
 	}
 }
 
-// createStandalone creates one issue through the standalone origin and
+// createLocalOrigin creates one issue through the local-origin origin and
 // returns its key. create refreshes the mirror, so the key is readable
 // immediately after.
-func createStandalone(t *testing.T, summary string) string {
+func createLocalOrigin(t *testing.T, summary string) string {
 	t.Helper()
 	out, err := capture(t, func() error { return cmdCreate([]string{summary}) })
 	if err != nil {
@@ -178,9 +178,9 @@ func createStandalone(t *testing.T, summary string) string {
 }
 
 func TestReadyDropsBlockedIssueAndRecovers(t *testing.T) {
-	standaloneHome(t)
-	blocker := createStandalone(t, "the blocker")
-	blocked := createStandalone(t, "the blocked one")
+	localOriginHome(t)
+	blocker := createLocalOrigin(t, "the blocker")
+	blocked := createLocalOrigin(t, "the blocked one")
 	if _, err := capture(t, func() error {
 		return cmdLink([]string{blocker, blocked, "--type", "blocks"})
 	}); err != nil {
@@ -223,8 +223,8 @@ func TestReadyDropsBlockedIssueAndRecovers(t *testing.T) {
 }
 
 func TestListReadyFlagMatchesReadyAlias(t *testing.T) {
-	standaloneHome(t)
-	createStandalone(t, "unblocked either way")
+	localOriginHome(t)
+	createLocalOrigin(t, "unblocked either way")
 	byFlag, _, err := captureBoth(t, func() error { return cmdList([]string{"--ready"}) })
 	if err != nil {
 		t.Fatalf("list --ready: %v\n%s", err, byFlag)
@@ -259,11 +259,11 @@ func TestListReadyUnresolvedDegradesToOpenList(t *testing.T) {
 	}
 }
 
-// next/pick on a fresh standalone workspace: rows, not an error, with the
+// next/pick on a fresh local-origin workspace: rows, not an error, with the
 // notice on stderr. This is the completion criterion for the fallback.
-func TestPickOnFreshStandaloneReturnsRows(t *testing.T) {
-	standaloneHome(t)
-	key := createStandalone(t, "pick fodder")
+func TestPickOnFreshLocalOriginReturnsRows(t *testing.T) {
+	localOriginHome(t)
+	key := createLocalOrigin(t, "pick fodder")
 	stdout, stderr, err := captureBoth(t, func() error { return cmdNext(nil) })
 	if err != nil {
 		t.Fatalf("pick on a fresh workspace must answer: %v", err)

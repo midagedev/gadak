@@ -274,7 +274,7 @@ func syncRunKind(full, reconcile bool) string {
 // record stores last_error for sourceID and returns the error unchanged. It
 // passes no watermark: a failed run must not advance it. FoldPairedError runs
 // before the store so a paired failure's first line is the pairing sentence
-// (GDK-485); connected/standalone errors pass through.
+// (GDK-485); connected/local-origin errors pass through.
 func record(ctx context.Context, cfg *config.Config, db *store.DB, sourceID string, err error) error {
 	if store.IsBusy(err) {
 		// GDK-754: last_error is itself a write(). A holder that just

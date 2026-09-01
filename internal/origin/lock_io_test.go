@@ -7,7 +7,7 @@ import (
 	"github.com/midagedev/gadak/internal/config"
 )
 
-func seedStandalone(t *testing.T, name string) *config.Config {
+func seedLocalOrigin(t *testing.T, name string) *config.Config {
 	t.Helper()
 	dir, err := config.DirFor(name)
 	if err != nil {
@@ -20,7 +20,7 @@ func seedStandalone(t *testing.T, name string) *config.Config {
 	if err != nil {
 		t.Fatal(err)
 	}
-	loaded.Kind = config.KindStandalone
+	loaded.Kind = config.KindLocalOrigin
 	if err := loaded.Save(); err != nil {
 		t.Fatal(err)
 	}
@@ -31,10 +31,10 @@ func seedStandalone(t *testing.T, name string) *config.Config {
 	return loaded
 }
 
-// TestStandaloneSessionReleasesLockDuringOpen is the GDK-282 recurrence
+// TestLocalOriginSessionReleasesLockDuringOpen is the GDK-282 recurrence
 // gate for site 3: two persist paths must construct at once. The signal is
 // structural (TryLock + a second construct hook), not a wall-clock compare.
-func TestStandaloneSessionReleasesLockDuringOpen(t *testing.T) {
+func TestLocalOriginSessionReleasesLockDuringOpen(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
 	config.SetProfile("")
@@ -43,8 +43,8 @@ func TestStandaloneSessionReleasesLockDuringOpen(t *testing.T) {
 		config.SetProfile("")
 	})
 
-	cfgA := seedStandalone(t, "alpha")
-	cfgB := seedStandalone(t, "beta")
+	cfgA := seedLocalOrigin(t, "alpha")
+	cfgB := seedLocalOrigin(t, "beta")
 	pathA := PersistPath(cfgA.Directory())
 	pathB := PersistPath(cfgB.Directory())
 
@@ -52,7 +52,7 @@ func TestStandaloneSessionReleasesLockDuringOpen(t *testing.T) {
 	aHold := make(chan struct{})
 	bStarted := make(chan struct{})
 	t.Cleanup(func() {
-		testBeforeStandalone = nil
+		testBeforeLocalOrigin = nil
 		select {
 		case <-aHold:
 		default:
@@ -60,7 +60,7 @@ func TestStandaloneSessionReleasesLockDuringOpen(t *testing.T) {
 		}
 	})
 
-	testBeforeStandalone = func(persist string) {
+	testBeforeLocalOrigin = func(persist string) {
 		switch persist {
 		case pathA:
 			close(aStarted)
@@ -78,7 +78,7 @@ func TestStandaloneSessionReleasesLockDuringOpen(t *testing.T) {
 	<-aStarted
 
 	if !mu.TryLock() {
-		t.Fatal("standaloneSession still holds the process-global mutex during NewEmbedded — one persist write serialises every workspace")
+		t.Fatal("localOriginSession still holds the process-global mutex during NewEmbedded — one persist write serialises every workspace")
 	}
 	mu.Unlock()
 

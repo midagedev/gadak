@@ -26,7 +26,7 @@ func standaloneApp(t *testing.T) (*config.Config, *server.Handler) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg.Kind = config.KindStandalone
+	cfg.Kind = config.KindLocalOrigin
 	if err := cfg.Save(); err != nil {
 		t.Fatal(err)
 	}

@@ -9,10 +9,10 @@ import (
 	"github.com/midagedev/gadak/internal/origin"
 )
 
-// standalonePages is the page-verb fixture: a standalone workspace (the
+// localOriginPages is the page-verb fixture: a local-origin workspace (the
 // in-process origin, no network) with one page created through the real
 // write path. It returns the created page id.
-func standalonePages(t *testing.T) string {
+func localOriginPages(t *testing.T) string {
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
@@ -40,7 +40,7 @@ func standalonePages(t *testing.T) string {
 }
 
 func TestPageGetPrintsTitleAndBody(t *testing.T) {
-	id := standalonePages(t)
+	id := localOriginPages(t)
 	out, err := capture(t, func() error { return cmdPage([]string{"get", id}) })
 	if err != nil {
 		t.Fatalf("page get: %v\n%s", err, out)
@@ -63,7 +63,7 @@ func TestPageGetPrintsTitleAndBody(t *testing.T) {
 }
 
 func TestPageGetJSONIsTheDetailDocument(t *testing.T) {
-	id := standalonePages(t)
+	id := localOriginPages(t)
 	out, err := capture(t, func() error { return cmdPage([]string{"get", id, "--json"}) })
 	if err != nil {
 		t.Fatalf("page get --json: %v\n%s", err, out)
@@ -91,7 +91,7 @@ func TestPageGetJSONIsTheDetailDocument(t *testing.T) {
 }
 
 func TestPageGetUnknownIDListsNextStep(t *testing.T) {
-	standalonePages(t)
+	localOriginPages(t)
 	_, err := capture(t, func() error { return cmdPage([]string{"get", "99999"}) })
 	if err == nil {
 		t.Fatal("unknown page id must fail")
@@ -134,7 +134,7 @@ func TestPageGetEmptyBodySaysSo(t *testing.T) {
 }
 
 func TestPageGetShowsComments(t *testing.T) {
-	id := standalonePages(t)
+	id := localOriginPages(t)
 	if _, err := capture(t, func() error {
 		return cmdPage([]string{"comment", id, "-m", "a question"})
 	}); err != nil {
@@ -150,7 +150,7 @@ func TestPageGetShowsComments(t *testing.T) {
 }
 
 func TestPageListRowsAndSpaceFilter(t *testing.T) {
-	id := standalonePages(t)
+	id := localOriginPages(t)
 	out, err := capture(t, func() error { return cmdPage([]string{"list"}) })
 	if err != nil {
 		t.Fatalf("page list: %v\n%s", err, out)
@@ -198,7 +198,7 @@ func TestPageListEmptyWorkspaceSaysSo(t *testing.T) {
 	if _, err := capture(t, func() error { return cmdInit([]string{"--local", "--json"}) }); err != nil {
 		t.Fatal(err)
 	}
-	// Fresh standalone seeds no pages (verified: select count(*) from pages
+	// Fresh local-origin seeds no pages (verified: select count(*) from pages
 	// = 0). The text form says so — views-list stance, one tab-free line.
 	out, err := capture(t, func() error { return cmdPage([]string{"list"}) })
 	if err != nil {

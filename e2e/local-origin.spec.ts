@@ -3,7 +3,7 @@ import { gotoApp, openServerSettings, searchInput } from './helpers'
 import { en } from '../web/src/lib/i18n/en'
 
 /**
- * Track D: a standalone workspace must show its kind indicator; a connected
+ * Track D: a local-origin workspace must show its kind indicator; a connected
  * one must not. Key off data-testid + the served kind — not a locale string
  * or a platform command.
  *
@@ -43,8 +43,8 @@ async function serveWorkspaceKind(
   })
 }
 
-test.describe('standalone workspace indicator', () => {
-  test('standalone workspace shows its indicator; connected does not', async ({ page }) => {
+test.describe('local-origin workspace indicator', () => {
+  test('local-origin workspace shows its indicator; connected does not', async ({ page }) => {
     await serveWorkspaceKind(page, 'standalone')
     await gotoApp(page)
     await openServerSettings(page)
@@ -58,7 +58,7 @@ test.describe('standalone workspace indicator', () => {
     await expect(indicator).toBeVisible()
     await expect(indicator).toHaveAttribute('data-kind', 'standalone')
     await expect(indicator).toHaveAttribute('aria-label', /issuetap persist/)
-    await expect(page.getByTestId('standalone-init-command')).toHaveText(STANDALONE_INIT_COMMAND)
+    await expect(page.getByTestId('local-origin-init-command')).toHaveText(STANDALONE_INIT_COMMAND)
 
     // The served document is the source of truth — the chip must match it,
     // not a client-side guess from an empty site URL.
@@ -76,13 +76,13 @@ test.describe('standalone workspace indicator', () => {
     await gotoApp(page)
     await openServerSettings(page)
 
-    await page.getByTestId('standalone-init-copy').click()
+    await page.getByTestId('local-origin-init-copy').click()
     await expect.poll(async () => page.evaluate(() => navigator.clipboard.readText())).toBe(
       STANDALONE_INIT_COMMAND,
     )
   })
 
-  test('connected workspace does not show the standalone indicator', async ({ page }) => {
+  test('connected workspace does not show the local-origin indicator', async ({ page }) => {
     await serveWorkspaceKind(page, 'connected')
     await gotoApp(page)
     await openServerSettings(page)
@@ -105,25 +105,25 @@ test.describe('standalone workspace indicator', () => {
     await openServerSettings(page)
 
     await expect(page.getByTestId('workspace-kind')).toHaveCount(0)
-    await expect(page.getByTestId('standalone-init-command')).toHaveText(STANDALONE_INIT_COMMAND)
+    await expect(page.getByTestId('local-origin-init-command')).toHaveText(STANDALONE_INIT_COMMAND)
   })
 
   test('sidebar create control reveals the init command', async ({ page }) => {
     await serveWorkspaceKind(page, 'connected')
     await gotoApp(page)
 
-    const create = page.getByTestId('standalone-create')
+    const create = page.getByTestId('local-origin-create')
     await expect(create).toBeVisible()
     await create.click()
     await expect(page.getByText(STANDALONE_INIT_COMMAND, { exact: true })).toBeVisible()
   })
 
-  // GDK-1122: a workspace that already IS standalone must not be offered
+  // GDK-1122: a workspace that already IS local-origin must not be offered
   // another one, and its personal section must not send a no-account reader
-  // to the Jira credential dialog. The real standalone serve answers auth/me
+  // to the Jira credential dialog. The real local-origin serve answers auth/me
   // with {email:null} (handleMe: no credential, 200 — not an auth failure),
   // so that anonymous branch is the one under test here.
-  test('standalone workspace offers no create control and no credentials CTA', async ({
+  test('local-origin workspace offers no create control and no credentials CTA', async ({
     page,
   }) => {
     await page.route('**/api/v1/auth/me/**', (route) =>
@@ -132,13 +132,13 @@ test.describe('standalone workspace indicator', () => {
     await serveWorkspaceKind(page, 'standalone')
     await gotoApp(page)
 
-    // Already standalone: the "create a standalone workspace" affordance is
+    // Already local-origin: the "create a local-origin workspace" affordance is
     // absent, not merely unhelpful.
-    await expect(page.getByTestId('standalone-create')).toHaveCount(0)
+    await expect(page.getByTestId('local-origin-create')).toHaveCount(0)
 
-    // MY ISSUES: the standalone note replaces the credential CTA — same
+    // MY ISSUES: the local-origin note replaces the credential CTA — same
     // branch the demo takes, minus the demo wording.
-    await expect(page.getByTestId('my-issues-standalone-note')).toBeVisible()
+    await expect(page.getByTestId('my-issues-local-origin-note')).toBeVisible()
     await expect(page.getByRole('button', { name: /Set credentials to see/ })).toHaveCount(0)
   })
 
@@ -150,12 +150,12 @@ test.describe('standalone workspace indicator', () => {
    *
    * The predicate is the served originWritable (config.HasAtlassianCredential),
    * never me.identified: auth/me answers from cfg.Email, which is empty on a
-   * standalone and on a paired workspace even though both write fine — the
+   * local-origin and on a paired workspace even though both write fine — the
    * same trap GDK-1090 closed for the link-types catalog, restated for copy.
    * auth/me is stubbed anonymous so the branch that used to render the CTA is
    * the one under test.
    */
-  test('standalone workspace: footer CTA and credential placeholders are gone', async ({ page }) => {
+  test('local-origin workspace: footer CTA and credential placeholders are gone', async ({ page }) => {
     await page.route('**/api/v1/auth/me/**', (route) =>
       route.fulfill({ status: 200, json: { email: null } }),
     )
@@ -163,7 +163,7 @@ test.describe('standalone workspace indicator', () => {
     await gotoApp(page)
 
     // Footer: the Set credentials button is absent, not disabled — a
-    // standalone has no credential to set and no dialog that could help.
+    // local-origin has no credential to set and no dialog that could help.
     await expect(
       page.getByRole('button', { name: en['common.setCredentials'], exact: true }),
     ).toHaveCount(0)
@@ -190,7 +190,7 @@ test.describe('standalone workspace indicator', () => {
     )
 
     // Sync tab: the personal-token dialog edits a site credential (email +
-    // API token). A standalone has none, so the entry point is absent.
+    // API token). A local-origin has none, so the entry point is absent.
     await openServerSettings(page)
     await expect(
       page.getByRole('dialog', { name: 'Settings' }).getByRole('button', {

@@ -85,31 +85,31 @@
   let connecting = $state(false)
   let connectError = $state<string | null>(null)
   let owner = $state('')
-  let standaloneBlock = $state<{ issues: number; persist: string } | null>(null)
-  let replaceStandalone = $state(false)
+  let localOriginBlock = $state<{ issues: number; persist: string } | null>(null)
+  let replaceLocalOrigin = $state(false)
 
   async function connect(event: SubmitEvent): Promise<void> {
     event.preventDefault()
     // Second request only after an explicit confirm — never auto-retry the 409.
-    if (standaloneBlock && !replaceStandalone) return
+    if (localOriginBlock && !replaceLocalOrigin) return
     connecting = true
     connectError = null
     try {
       const cred = await api.connectJira(site.trim(), email.trim(), token, tokenExpires, {
-        replaceStandalone,
+        replaceLocalOrigin,
       })
       owner = cred.display_name || cred.jira_email
       // The credential is the identity, so the rest of the app has to re-read it.
       await me.refreshIdentity()
       token = '' // no reason to keep it in a live component
-      standaloneBlock = null
-      replaceStandalone = false
+      localOriginBlock = null
+      replaceLocalOrigin = false
       step = 2
       void loadProjects()
     } catch (e) {
-      if (e instanceof api.StandaloneDataPresentError) {
-        standaloneBlock = { issues: e.issues, persist: e.persist }
-        replaceStandalone = false
+      if (e instanceof api.LocalOriginDataPresentError) {
+        localOriginBlock = { issues: e.issues, persist: e.persist }
+        replaceLocalOrigin = false
         connectError = null
       } else {
         connectError = connectMessage(e)
@@ -137,7 +137,7 @@
     if (code === 'site_required') return t('onboarding.errSite')
     if (code === 'email_and_token_required') return t('onboarding.errFields')
     if (code === 'invalid_token_expires') return t('onboarding.errExpires')
-    if (code === 'standalone_data_present') return t('onboarding.standaloneBlocked', { n: 0 })
+    if (code === 'standalone_data_present') return t('onboarding.localOriginBlocked', { n: 0 })
     return t('onboarding.errConnect', { message: reason(e) })
   }
 
@@ -154,25 +154,25 @@
   }
 
   /* ── 1. the other front door: no tracker (GDK-377) ── */
-  let standaloneStarting = $state(false)
-  let standaloneError = $state<string | null>(null)
+  let localOriginStarting = $state(false)
+  let localOriginError = $state<string | null>(null)
 
   /**
    * One click to a workspace with no Jira site at all. The verb is shared
-   * with the CLI (originbind.SeedStandalone), so what lands here is exactly
+   * with the CLI (originbind.SeedLocalOrigin), so what lands here is exactly
    * what `gadak init --local` seeds: STD project, default type, LOC
    * wiki space. The wizard does not continue to step 2 — there is nothing to
    * pick or sync. Instead the workspace kind flips, the gate clears (the
-   * standalone clause — the pool stays empty), and the composer opens so
+   * local-origin clause — the pool stays empty), and the composer opens so
    * the first action this person takes is filing their first issue, not
    * reading an empty list.
    */
-  async function startStandalone(): Promise<void> {
-    standaloneStarting = true
-    standaloneError = null
+  async function startLocalOrigin(): Promise<void> {
+    localOriginStarting = true
+    localOriginError = null
     try {
-      await api.createStandaloneWorkspace()
-      // config.json now says standalone. This unmounts the wizard mid-await;
+      await api.createLocalOriginWorkspace()
+      // config.json now says localOrigin. This unmounts the wizard mid-await;
       // every call after this line is on global stores, which survive it.
       await loadConfig()
       // The gate's config reads are not reactive on their own — poke it so
@@ -187,17 +187,17 @@
       void issues.refresh()
       write.openNewIssue()
     } catch (e) {
-      standaloneError = standaloneMessage(e)
+      localOriginError = localOriginMessage(e)
     } finally {
-      standaloneStarting = false
+      localOriginStarting = false
     }
   }
 
   /** A connected workspace is not this path's problem to solve — say which door to use. */
-  function standaloneMessage(e: unknown): string {
+  function localOriginMessage(e: unknown): string {
     const code = e instanceof ApiError ? e.code : null
-    if (code === 'workspace_connected') return t('onboarding.standaloneConnected')
-    return t('onboarding.errStandalone', { message: reason(e) })
+    if (code === 'workspace_connected') return t('onboarding.localOriginConnected')
+    return t('onboarding.errLocalOrigin', { message: reason(e) })
   }
 
   /* ── 2. projects ── */
@@ -430,23 +430,23 @@
           <span class="text-micro text-text-muted">{t('onboarding.tokenExpiresHint')}</span>
         </label>
 
-        {#if standaloneBlock}
-          <div class="flex flex-col gap-2" role="alert" data-testid="onboarding-standalone-block">
+        {#if localOriginBlock}
+          <div class="flex flex-col gap-2" role="alert" data-testid="onboarding-local-origin-block">
             <p class="text-body text-status-reopen">
-              {t('onboarding.standaloneBlocked', { n: standaloneBlock.issues })}
+              {t('onboarding.localOriginBlocked', { n: localOriginBlock.issues })}
             </p>
-            <p class="font-mono text-micro text-text-secondary" data-testid="onboarding-standalone-persist">
-              {t('onboarding.standalonePersist', { path: standaloneBlock.persist })}
+            <p class="font-mono text-micro text-text-secondary" data-testid="onboarding-local-origin-persist">
+              {t('onboarding.localOriginPersist', { path: localOriginBlock.persist })}
             </p>
-            <p class="text-micro text-text-secondary">{t('onboarding.standaloneOtherWorkspace')}</p>
+            <p class="text-micro text-text-secondary">{t('onboarding.localOriginOtherWorkspace')}</p>
             <label class="flex items-start gap-2 text-body text-text-secondary">
               <input
                 type="checkbox"
                 class="mt-0.5 accent-accent"
-                data-testid="onboarding-replace-standalone"
-                bind:checked={replaceStandalone}
+                data-testid="onboarding-replace-local"
+                bind:checked={replaceLocalOrigin}
               />
-              <span>{t('onboarding.standaloneReplaceConfirm')}</span>
+              <span>{t('onboarding.localOriginReplaceConfirm')}</span>
             </label>
           </div>
         {/if}
@@ -470,12 +470,12 @@
           <button
             class={PRIMARY}
             type="submit"
-            disabled={connecting || (!!standaloneBlock && !replaceStandalone)}
+            disabled={connecting || (!!localOriginBlock && !replaceLocalOrigin)}
           >
             {connecting
               ? t('common.verifying')
-              : standaloneBlock
-                ? t('onboarding.standaloneReplace')
+              : localOriginBlock
+                ? t('onboarding.localOriginReplace')
                 : t('onboarding.connect')}
           </button>
           <button class={GHOST} type="button" onclick={onOpenSettings}>{t('onboarding.openSettings')}</button>
@@ -485,22 +485,22 @@
       <!-- The no-tracker front door, kept below a rule so it reads as
            either/or with the credential form — an alternative way in, not
            one more required field. Success never reaches step 2: the
-           workspace kind flips and the composer opens (startStandalone). -->
-      <div class="mt-5 border-t border-border-subtle pt-4" data-testid="onboarding-standalone">
-        <p class="text-micro text-text-muted">{t('onboarding.standaloneIntro')}</p>
-        {#if standaloneError}
+           workspace kind flips and the composer opens (startLocalOrigin). -->
+      <div class="mt-5 border-t border-border-subtle pt-4" data-testid="onboarding-local-origin">
+        <p class="text-micro text-text-muted">{t('onboarding.localOriginIntro')}</p>
+        {#if localOriginError}
           <p class="mt-2 text-body text-status-reopen" role="alert" data-testid="onboarding-error">
-            {standaloneError}
+            {localOriginError}
           </p>
         {/if}
         <button
           class={GHOST}
           type="button"
-          data-testid="onboarding-start-standalone"
-          disabled={standaloneStarting}
-          onclick={() => void startStandalone()}
+          data-testid="onboarding-start-local-origin"
+          disabled={localOriginStarting}
+          onclick={() => void startLocalOrigin()}
         >
-          {t('onboarding.standaloneStart')}
+          {t('onboarding.localOriginStart')}
         </button>
       </div>
     {:else if step === 2}

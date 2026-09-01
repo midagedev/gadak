@@ -63,7 +63,7 @@ type Registry struct {
 	flights map[string]*openFlight
 	closed  bool
 
-	// owningOrigin records in-flight standalone-origin acquisition. Close waits
+	// owningOrigin records in-flight local-origin-origin acquisition. Close waits
 	// for these before snapshotting entries, so a late acquisition cannot leave
 	// an advertise file or listener behind after shutdown returns.
 	owningOrigin map[string]*originFlight
@@ -152,7 +152,7 @@ func closeEntry(e *Entry) {
 	// Release the persist session and the ownership mark last: the sync
 	// loop above may have been mid-write through the embedded session.
 	if e.ownsOrigin {
-		_ = origin.CloseStandalone(e.Cfg)
+		_ = origin.CloseLocalOrigin(e.Cfg)
 		origin.SetInProcess(e.Cfg, false)
 	}
 }

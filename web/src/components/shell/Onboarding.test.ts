@@ -64,13 +64,13 @@ describe('GDK-71 desktop token page in the browse pane', () => {
  * verb seeds and refuses); these pin the wiring this file owns: the shared
  * verb, the composer landing, and the 409 sentence.
  */
-describe('GDK-377 standalone front door', () => {
+describe('GDK-377 local-origin front door', () => {
   const onboarding = readFileSync(ONBOARDING, 'utf8')
   const api = readFileSync(join(HERE, '../../lib/api.ts'), 'utf8')
 
   test('the button posts the shared server verb, not a new path', () => {
     expect(api).toMatch(/'onboarding\/standalone\//)
-    expect(onboarding).toMatch(/api\.createStandaloneWorkspace\(\)/)
+    expect(onboarding).toMatch(/api\.createLocalOriginWorkspace\(\)/)
   })
 
   test('landing is the first-issue composer, not step 2 or an empty list', () => {
@@ -79,7 +79,7 @@ describe('GDK-377 standalone front door', () => {
     // no credential existed — before the composer opens. The poke is load
     // bearing: lib/config's `current` is a plain variable, so without it the
     // gate re-evaluates only on the next identity/pool change — neither of
-    // which happens on an empty standalone workspace.
+    // which happens on an empty local-origin workspace.
     expect(onboarding).toMatch(/await loadConfig\(\)/)
     expect(onboarding).toMatch(/onboarding\.noteConfigFlipped\(\)/)
     expect(onboarding).toMatch(/await write\.loadCredential\(\)/)
@@ -89,6 +89,6 @@ describe('GDK-377 standalone front door', () => {
 
   test('a connected workspace 409 becomes the new-workspace sentence, not a raw code', () => {
     expect(onboarding).toMatch(/'workspace_connected'/)
-    expect(onboarding).toMatch(/t\('onboarding\.standaloneConnected'\)/)
+    expect(onboarding).toMatch(/t\('onboarding\.localOriginConnected'\)/)
   })
 })

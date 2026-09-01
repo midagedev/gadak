@@ -17,7 +17,7 @@ import (
 
 // collisionSite is the smallest stub that can accept a connected init and
 // a full sync, and that returns one issue whose numeric id is 10001 — the
-// id issuetap assigns to the first standalone-created issue (GDK-241).
+// id issuetap assigns to the first local-origin-created issue (GDK-241).
 type collisionSite struct {
 	issueJSON []byte
 	hits      []string
@@ -57,20 +57,20 @@ func sqlTSV(t *testing.T, q string) string {
 	return strings.TrimSpace(out)
 }
 
-// TestGDK241ItemIDCollision asserts that a standalone-created issue with
+// TestGDK241ItemIDCollision asserts that a local-origin-created issue with
 // numeric id 10001 (issuetap's first id — the same number a real site can
 // hold) is not silently overwritten when the workspace is converted with
-// --replace-standalone and a connected sync upserts a site issue with the
+// --replace-local and a connected sync upserts a site issue with the
 // same numeric id. The local row must either survive or be cleanly
 // tombstoned by reconcile into deleted_items — never transmuted into the
 // site row by ON CONFLICT(id).
 func TestGDK241ItemIDCollision(t *testing.T) {
-	home := seedStandaloneWithIssue(t)
+	home := seedLocalOriginWithIssue(t)
 
 	beforeItems := sqlTSV(t, "select id, key, title, external_id from items where kind = 'issue' order by id")
 	t.Logf("BEFORE items: %s", beforeItems)
-	if !strings.Contains(beforeItems, "standalone-jira:10001") {
-		t.Fatalf("GDK-241 premise: first standalone issue id is standalone-jira:10001, got %q", beforeItems)
+	if !strings.Contains(beforeItems, "local-origin-jira:10001") {
+		t.Fatalf("GDK-241 premise: first local-origin issue id is local-origin-jira:10001, got %q", beforeItems)
 	}
 	if !strings.Contains(beforeItems, "local only issue") {
 		t.Fatalf("local summary missing from before-row: %q", beforeItems)
@@ -104,25 +104,25 @@ func TestGDK241ItemIDCollision(t *testing.T) {
 				"--site", srv.URL,
 				"--email", "agent@example.com",
 				"--token-file", writeTokenFile(t, home, "id-token"),
-				"--replace-standalone",
+				"--replace-local",
 			})
 		}); err != nil {
-			t.Fatalf("replace-standalone init: %v", err)
+			t.Fatalf("replace-local init: %v", err)
 		}
 	})
 	cfg, err := config.Load()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.IsStandalone() {
-		t.Fatal("expected connected after --replace-standalone")
+	if cfg.HasLocalOrigin() {
+		t.Fatal("expected connected after --replace-local")
 	}
 
 	// The conversion drops the old origin's mirror whole (disposable cache;
-	// the origin persist keeps the local issue). A leftover standalone row
+	// the origin persist keeps the local issue). A leftover local-origin row
 	// is exactly what the connected sync's ON CONFLICT(id) would transmute.
 	if got := sqlTSV(t, "select id, key from items where kind = 'issue'"); got != "" {
-		t.Fatalf("conversion must drop the standalone mirror, still holds: %q", got)
+		t.Fatalf("conversion must drop the local-origin mirror, still holds: %q", got)
 	}
 
 	syncOut, syncErr := capture(t, func() error { return cmdSync([]string{"--full"}) })
@@ -144,22 +144,22 @@ func TestGDK241ItemIDCollision(t *testing.T) {
 		!strings.Contains(afterItems, "SITE ISSUE COLLISION") {
 		t.Fatalf("site issue NMB-1 (jira:10001) missing after sync: %q", afterItems)
 	}
-	// No trace of the standalone row may leak into the connected mirror —
+	// No trace of the local-origin row may leak into the connected mirror —
 	// neither its key nor its title transmuted onto the site id. (Its origin
 	// copy still lives in the issuetap persist file.)
 	if strings.Contains(afterItems, "STD-1") || strings.Contains(afterItems, "local only issue") {
-		t.Fatalf("standalone row leaked into connected mirror (GDK-241): items=%q deleted_items=%q persist=%s",
+		t.Fatalf("local-origin row leaked into connected mirror (GDK-241): items=%q deleted_items=%q persist=%s",
 			afterItems, deleted, origin.PersistPath(home))
 	}
 }
 
 // TestGDK241LegacyStandaloneMirrorUpgrades covers the upgrade path: a
-// standalone mirror written before ids were namespaced holds `jira:10001` /
-// STD-1. The next standalone sync inserts `standalone-jira:10001` / STD-1 —
+// local-origin mirror written before ids were namespaced holds `jira:10001` /
+// STD-1. The next local-origin sync inserts `local-origin-jira:10001` / STD-1 —
 // same UNIQUE(source_id, key), new id — which must not fail the sync: the
 // pre-namespace row is purged and re-mirrored under the new namespace.
 func TestGDK241LegacyStandaloneMirrorUpgrades(t *testing.T) {
-	seedStandaloneWithIssue(t)
+	seedLocalOriginWithIssue(t)
 
 	// Rewrite the mirror row back to the pre-namespace id, simulating a
 	// workspace whose mirror was written by an older build.
@@ -177,12 +177,12 @@ func TestGDK241LegacyStandaloneMirrorUpgrades(t *testing.T) {
 
 	out, err := capture(t, func() error { return cmdSync([]string{"--full"}) })
 	if err != nil {
-		t.Fatalf("standalone sync over a pre-namespace mirror must not fail: %v\n%s", err, out)
+		t.Fatalf("local-origin sync over a pre-namespace mirror must not fail: %v\n%s", err, out)
 	}
 	items := sqlTSV(t, "select id, key, title from items where kind = 'issue' order by id")
-	if !strings.Contains(items, "standalone-jira:10001") || strings.Contains(items, "\tjira:10001") ||
+	if !strings.Contains(items, "local-origin-jira:10001") || strings.Contains(items, "\tjira:10001") ||
 		strings.HasPrefix(items, "jira:10001") {
-		t.Fatalf("legacy row must be re-mirrored under the standalone namespace, got %q", items)
+		t.Fatalf("legacy row must be re-mirrored under the local-origin namespace, got %q", items)
 	}
 	if !strings.Contains(items, "local only issue") {
 		t.Fatalf("local issue lost during namespace upgrade: %q", items)
@@ -191,13 +191,13 @@ func TestGDK241LegacyStandaloneMirrorUpgrades(t *testing.T) {
 
 // TestGDK241LegacyMirrorDroppedOnConversion covers the remaining seal: a
 // mirror written by a pre-namespace build (legacy `jira:10001` row) is
-// converted with --replace-standalone WITHOUT ever running a standalone
-// sync on the new build — so the standalone-path purge never fires. The
+// converted with --replace-local WITHOUT ever running a local-origin
+// sync on the new build — so the local-origin-path purge never fires. The
 // conversion itself must drop the old origin's mirror; otherwise the first
 // connected sync's ON CONFLICT(id) silently transmutes the legacy row into
 // the site issue (the original GDK-241 symptom).
 func TestGDK241LegacyMirrorDroppedOnConversion(t *testing.T) {
-	home := seedStandaloneWithIssue(t)
+	home := seedLocalOriginWithIssue(t)
 
 	dbPath := filepath.Join(home, "gadak.db")
 	raw, err := sql.Open("sqlite", dbPath)
@@ -238,17 +238,17 @@ func TestGDK241LegacyMirrorDroppedOnConversion(t *testing.T) {
 				"--site", srv.URL,
 				"--email", "agent@example.com",
 				"--token-file", writeTokenFile(t, home, "id-token"),
-				"--replace-standalone",
+				"--replace-local",
 			})
 		}); err != nil {
-			t.Fatalf("replace-standalone init: %v", err)
+			t.Fatalf("replace-local init: %v", err)
 		}
 	})
 
 	// The seal: conversion drops the old origin's mirror whole. A leftover
 	// legacy row is exactly what the first connected sync would transmute.
 	if got := sqlTSV(t, "select id, key from items where kind = 'issue'"); got != "" {
-		t.Fatalf("conversion must drop the standalone mirror, still holds: %q", got)
+		t.Fatalf("conversion must drop the local-origin mirror, still holds: %q", got)
 	}
 
 	// Plain sync (no --full): the cleared watermark must make it full, so
@@ -262,13 +262,13 @@ func TestGDK241LegacyMirrorDroppedOnConversion(t *testing.T) {
 		t.Fatalf("site issue missing after first connected sync: %q", items)
 	}
 	if strings.Contains(items, "STD-1") || strings.Contains(items, "local only issue") {
-		t.Fatalf("legacy standalone row leaked into connected mirror: %q", items)
+		t.Fatalf("legacy local-origin row leaked into connected mirror: %q", items)
 	}
 }
 
 // collisionWikiSite is collisionSite plus the Confluence endpoints a
 // connected wiki pass needs: one space and one page whose numeric id is
-// 20001 — the id issuetap assigns to the first standalone-created page
+// 20001 — the id issuetap assigns to the first local-origin-created page
 // (GDK-344 / F10).
 type collisionWikiSite struct {
 	collisionSite
@@ -342,11 +342,11 @@ func pageADF(text string) string {
 	return string(b)
 }
 
-// seedStandaloneWithPage is a standalone workspace that already holds a
+// seedLocalOriginWithPage is a local-origin workspace that already holds a
 // locally originated wiki page (issuetap 20001) mirrored into gadak.db.
-func seedStandaloneWithPage(t *testing.T) (home, pageID string) {
+func seedLocalOriginWithPage(t *testing.T) (home, pageID string) {
 	t.Helper()
-	home = seedStandaloneWithIssue(t)
+	home = seedLocalOriginWithIssue(t)
 	cfg, err := config.Load()
 	if err != nil {
 		t.Fatal(err)
@@ -355,7 +355,7 @@ func seedStandaloneWithPage(t *testing.T) (home, pageID string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	created, err := w.CreatePage(context.Background(), origin.DefaultSpaceKey, "local only page", pageADF("hello from standalone wiki"), "")
+	created, err := w.CreatePage(context.Background(), origin.DefaultSpaceKey, "local only page", pageADF("hello from local-origin wiki"), "")
 	if err != nil {
 		t.Fatalf("CreatePage: %v", err)
 	}
@@ -367,7 +367,7 @@ func seedStandaloneWithPage(t *testing.T) (home, pageID string) {
 	}
 	out, err := capture(t, func() error { return cmdSync([]string{"--full", "--source", "confluence"}) })
 	if err != nil {
-		t.Fatalf("standalone wiki sync: %v\n%s", err, out)
+		t.Fatalf("local-origin wiki sync: %v\n%s", err, out)
 	}
 	// Production `gadak sync` exits and the kernel drops the persist lock.
 	// This test stays in-process; leave the lock and CLI conversion
@@ -379,20 +379,20 @@ func seedStandaloneWithPage(t *testing.T) (home, pageID string) {
 }
 
 // TestGDK344PageIDCollision is the wiki sibling of TestGDK241ItemIDCollision:
-// a standalone-created page with numeric id 20001 (issuetap's first page id —
+// a local-origin-created page with numeric id 20001 (issuetap's first page id —
 // the same number a real Confluence site can hold) is not silently overwritten
-// when the workspace is converted with --replace-standalone and a connected
+// when the workspace is converted with --replace-local and a connected
 // wiki sync upserts a site page with the same numeric id.
 func TestGDK344PageIDCollision(t *testing.T) {
-	home, pageID := seedStandaloneWithPage(t)
+	home, pageID := seedLocalOriginWithPage(t)
 	if pageID != "20001" {
-		t.Fatalf("GDK-344 premise: first standalone page id is 20001, got %q", pageID)
+		t.Fatalf("GDK-344 premise: first local-origin page id is 20001, got %q", pageID)
 	}
 
 	before := sqlTSV(t, "select id, key, title, external_id from items where kind = 'page' order by id")
 	t.Logf("BEFORE pages: %s", before)
-	if !strings.Contains(before, "standalone-confluence:20001") {
-		t.Fatalf("GDK-344 premise: first standalone page id is standalone-confluence:20001, got %q", before)
+	if !strings.Contains(before, "local-origin-confluence:20001") {
+		t.Fatalf("GDK-344 premise: first local-origin page id is local-origin-confluence:20001, got %q", before)
 	}
 	if !strings.Contains(before, "local only page") {
 		t.Fatalf("local page title missing from before-row: %q", before)
@@ -411,26 +411,26 @@ func TestGDK344PageIDCollision(t *testing.T) {
 				"--site", srv.URL,
 				"--email", "agent@example.com",
 				"--token-file", writeTokenFile(t, home, "id-token"),
-				"--replace-standalone",
+				"--replace-local",
 				"--spaces", "ENG",
 			})
 		}); err != nil {
-			t.Fatalf("replace-standalone init: %v", err)
+			t.Fatalf("replace-local init: %v", err)
 		}
 	})
 	cfg, err := config.Load()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.IsStandalone() {
-		t.Fatal("expected connected after --replace-standalone")
+	if cfg.HasLocalOrigin() {
+		t.Fatal("expected connected after --replace-local")
 	}
 	if cfg.Confluence == nil {
 		t.Fatal("expected wiki to stay on after --spaces ENG")
 	}
 
 	if got := sqlTSV(t, "select id, key from items where kind = 'page'"); got != "" {
-		t.Fatalf("conversion must drop the standalone wiki mirror, still holds: %q", got)
+		t.Fatalf("conversion must drop the local-origin wiki mirror, still holds: %q", got)
 	}
 
 	syncOut, syncErr := capture(t, func() error { return cmdSync([]string{"--full", "--source", "confluence"}) })
@@ -445,21 +445,21 @@ func TestGDK344PageIDCollision(t *testing.T) {
 		!strings.Contains(after, "SITE PAGE COLLISION") {
 		t.Fatalf("site page 20001 (confluence:20001) missing after sync: %q", after)
 	}
-	if strings.Contains(after, "standalone-confluence:") || strings.Contains(after, "local only page") {
-		t.Fatalf("standalone page leaked into connected mirror (GDK-344): %q persist=%s",
+	if strings.Contains(after, "local-origin-confluence:") || strings.Contains(after, "local only page") {
+		t.Fatalf("local-origin page leaked into connected mirror (GDK-344): %q persist=%s",
 			after, origin.PersistPath(home))
 	}
 }
 
 // TestGDK344LegacyStandalonePageMirrorUpgrades is the wiki sibling of
-// TestGDK241LegacyStandaloneMirrorUpgrades: a standalone page written before
-// ids were namespaced holds `confluence:20001`. The next standalone wiki
-// sync inserts `standalone-confluence:20001` — same UNIQUE(source_id, key),
+// TestGDK241LegacyStandaloneMirrorUpgrades: a local-origin page written before
+// ids were namespaced holds `confluence:20001`. The next local-origin wiki
+// sync inserts `local-origin-confluence:20001` — same UNIQUE(source_id, key),
 // new id — which must not fail the sync.
 func TestGDK344LegacyStandalonePageMirrorUpgrades(t *testing.T) {
-	_, pageID := seedStandaloneWithPage(t)
+	_, pageID := seedLocalOriginWithPage(t)
 	if pageID != "20001" {
-		t.Fatalf("GDK-344 premise: first standalone page id is 20001, got %q", pageID)
+		t.Fatalf("GDK-344 premise: first local-origin page id is 20001, got %q", pageID)
 	}
 
 	dbPath := filepath.Join(os.Getenv("GADAK_HOME"), "gadak.db")
@@ -476,12 +476,12 @@ func TestGDK344LegacyStandalonePageMirrorUpgrades(t *testing.T) {
 
 	out, err := capture(t, func() error { return cmdSync([]string{"--full", "--source", "confluence"}) })
 	if err != nil {
-		t.Fatalf("standalone wiki sync over a pre-namespace page must not fail: %v\n%s", err, out)
+		t.Fatalf("local-origin wiki sync over a pre-namespace page must not fail: %v\n%s", err, out)
 	}
 	items := sqlTSV(t, "select id, key, title from items where kind = 'page' order by id")
-	if !strings.Contains(items, "standalone-confluence:20001") || strings.Contains(items, "\tconfluence:20001") ||
+	if !strings.Contains(items, "local-origin-confluence:20001") || strings.Contains(items, "\tconfluence:20001") ||
 		strings.HasPrefix(items, "confluence:20001") {
-		t.Fatalf("legacy page must be re-mirrored under the standalone namespace, got %q", items)
+		t.Fatalf("legacy page must be re-mirrored under the local-origin namespace, got %q", items)
 	}
 	if !strings.Contains(items, "local only page") {
 		t.Fatalf("local page lost during namespace upgrade: %q", items)

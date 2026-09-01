@@ -12,31 +12,31 @@ import (
 )
 
 // The pairing gate on the origin passthrough (GDK-433). Fixture and request
-// helpers come from origin_rest_test.go: standaloneServer builds a real
-// standalone workspace under a temp GADAK_HOME, get() drives the Handler.
+// helpers come from origin_rest_test.go: localOriginServer builds a real
+// local-origin workspace under a temp GADAK_HOME, get() drives the Handler.
 //
 // Gate contract under test:
 //   - no active token  -> passthrough behaves exactly as before (①)
 //   - active token + missing/wrong/expired/revoked Bearer -> 401 (②④)
 //   - active token + valid Bearer -> 200, last_used_at recorded (③)
 //
-// The in-process Basic credential ("standalone:standalone") is what today's
+// The in-process Basic credential ("local-origin:local-origin") is what today's
 // local CLI sends; a request carrying it must also be refused once the gate
 // is on — a tailnet proxy reaches the serve as loopback, so "local-looking"
 // is not an identity.
 
-func basicStandalone(t *testing.T) string {
+func basicLocalOrigin(t *testing.T) string {
 	t.Helper()
 	return "Basic " + origin.InProcessAuthB64()
 }
 
 func TestPairingGateOffWithoutTokens(t *testing.T) {
-	h, cfg := standaloneServer(t)
+	h, cfg := localOriginServer(t)
 	if _, err := pairing.List(cfg.Directory()); err != nil {
 		t.Fatal(err)
 	}
 	rec := get(t, h, origin.RESTPrefix+"/rest/api/3/myself", map[string]string{
-		"Authorization": basicStandalone(t),
+		"Authorization": basicLocalOrigin(t),
 	})
 	if rec.Code != http.StatusOK {
 		t.Fatalf("no tokens minted: %d %s; want 200 (today's behavior)", rec.Code, rec.Body.String())
@@ -44,7 +44,7 @@ func TestPairingGateOffWithoutTokens(t *testing.T) {
 }
 
 func TestPairingGateRejectsWithoutValidBearer(t *testing.T) {
-	h, cfg := standaloneServer(t)
+	h, cfg := localOriginServer(t)
 	dir := cfg.Directory()
 	token, _, err := pairing.Mint(dir, "laptop", time.Hour, time.Now())
 	if err != nil {
@@ -52,7 +52,7 @@ func TestPairingGateRejectsWithoutValidBearer(t *testing.T) {
 	}
 	for name, headers := range map[string]map[string]string{
 		// Today's local-CLI shape: Basic in-process credential, no Bearer.
-		"basic only": {"Authorization": basicStandalone(t)},
+		"basic only": {"Authorization": basicLocalOrigin(t)},
 		"no auth":    nil,
 		"wrong bear": {"Authorization": "Bearer " + token + "x"},
 		"other schm": {"Authorization": "Token " + token},
@@ -70,7 +70,7 @@ func TestPairingGateRejectsWithoutValidBearer(t *testing.T) {
 }
 
 func TestPairingGateAcceptsValidBearer(t *testing.T) {
-	h, cfg := standaloneServer(t)
+	h, cfg := localOriginServer(t)
 	dir := cfg.Directory()
 	token, meta, err := pairing.Mint(dir, "laptop", time.Hour, time.Now())
 	if err != nil {
@@ -96,7 +96,7 @@ func TestPairingGateAcceptsValidBearer(t *testing.T) {
 func TestPairingGate401CarriesRejectReason(t *testing.T) {
 	// GDK-453: the home serve knows why a token died; 401 must name
 	// revoked/expired for tokens that existed, and unknown otherwise.
-	h, cfg := standaloneServer(t)
+	h, cfg := localOriginServer(t)
 	dir := cfg.Directory()
 	revoked, _, err := pairing.Mint(dir, "revoked-device", time.Hour, time.Now())
 	if err != nil {
@@ -134,7 +134,7 @@ func TestPairingGate401CarriesRejectReason(t *testing.T) {
 }
 
 func TestPairingGateExpiredAndRevokedRejected(t *testing.T) {
-	h, cfg := standaloneServer(t)
+	h, cfg := localOriginServer(t)
 	dir := cfg.Directory()
 	keeper, _, err := pairing.Mint(dir, "keeper", time.Hour, time.Now())
 	if err != nil {
@@ -170,7 +170,7 @@ func TestPairingGateExpiredAndRevokedRejected(t *testing.T) {
 	}
 	// With every token inactive the gate lifts: requests pass as before.
 	rec = get(t, h, origin.RESTPrefix+"/rest/api/3/myself", map[string]string{
-		"Authorization": basicStandalone(t),
+		"Authorization": basicLocalOrigin(t),
 	})
 	if rec.Code != http.StatusOK {
 		t.Fatalf("gate must lift when no active token remains: %d %s", rec.Code, rec.Body.String())
@@ -183,7 +183,7 @@ func TestPairingGateExpiredAndRevokedRejected(t *testing.T) {
 // only under RESTPrefix, and only while active tokens make the Bearer gate
 // stand right behind it.
 func TestPairedHostExemptLetsTailnetNameThrough(t *testing.T) {
-	h, cfg := standaloneServer(t)
+	h, cfg := localOriginServer(t)
 	dir := cfg.Directory()
 	// Any DNS name exercises the same rejection as a MagicDNS *.ts.net one;
 	// an example.com shape keeps the secret scanner's tailnet regex quiet.

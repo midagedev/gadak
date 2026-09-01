@@ -207,9 +207,9 @@ func shutdownOnce(cancel context.CancelFunc, close func() error) func() {
 
 func run() error {
 	rt, err := apprun.Open(apprun.Options{
-		Version:         server.Version,
-		DeferStandalone: true, // GDK-658: persist after application.New
-		FlushOnClose:    true, // GDK-342/348: desktop has no cmd/gadak main flush
+		Version:          server.Version,
+		DeferLocalOrigin: true, // GDK-658: persist after application.New
+		FlushOnClose:     true, // GDK-342/348: desktop has no cmd/gadak main flush
 	})
 	if err != nil {
 		return err
@@ -239,10 +239,10 @@ func run() error {
 	// reason openURL is — the single-instance callback can fire before then.
 	var applyDeepLink func(string)
 
-	if cfg.IsStandalone() {
+	if cfg.HasLocalOrigin() {
 		// Second instance prints this then os.Exits inside New(); persist
 		// and advertise are not held yet (GDK-658).
-		log.Printf("gadak-desktop: single-instance check (standalone persist not held)")
+		log.Printf("gadak-desktop: single-instance check (localOrigin persist not held)")
 	}
 	app := application.New(application.Options{
 		// Name labels the macOS app menu; Name + Description are what the
@@ -472,7 +472,7 @@ func run() error {
 		rt.StartWatch(ctx, false)
 	})
 
-	if cfg.IsStandalone() {
+	if cfg.HasLocalOrigin() {
 		// After application.New so wails SingleInstance can os.Exit the
 		// second process before persist is opened (GDK-658). Upstream ticket
 		// for that exit skipping the caller's defers: wailsapp/wails#6052.
@@ -586,7 +586,7 @@ func webview2UserMessage(err error) string {
 // `defer shutdown()` never fires. Upstream: wailsapp/wails#5580 tracks the
 // errorCallback exit, wailsapp/wails#6006 (ours) removes the same file's
 // other kill; the exit-after-ErrorHandler itself has no dedicated ticket yet. Routing the fatal through the same shutdown
-// every other exit uses is the point: it flushes standalone persist (GDK-348)
+// every other exit uses is the point: it flushes local-origin persist (GDK-348)
 // AND reaps the terminal shells (GDK-917 — they are their own process groups
 // and outlive this process unless closeTerminals signals them), so this path
 // can never again drift out of sync by hand-rolling a partial cleanup that

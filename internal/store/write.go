@@ -943,9 +943,9 @@ func (db *DB) DeleteItems(ctx context.Context, sourceID string, keys []string) (
 }
 
 // PurgeIssueIDsOutsideNamespace deletes one source's issue rows whose item id
-// does not start with ns+":". Upgrade path for GDK-241: a standalone mirror
+// does not start with ns+":". Upgrade path for GDK-241: a local-origin mirror
 // written before ids were namespaced holds `jira:N` rows whose keys the next
-// sync re-inserts as `standalone-jira:N` — same (source_id, key), new id —
+// sync re-inserts as `local-origin-jira:N` — same (source_id, key), new id —
 // which UNIQUE(source_id, key) rejects. The rows re-mirror immediately under
 // the new namespace, so no tombstones are written. Children go via
 // ON DELETE CASCADE; items_fts is contentless and needs the explicit delete.
@@ -954,9 +954,9 @@ func (db *DB) PurgeIssueIDsOutsideNamespace(ctx context.Context, sourceID, ns st
 }
 
 // PurgePageIDsOutsideNamespace is the wiki sibling of
-// PurgeIssueIDsOutsideNamespace (GDK-344). A standalone page's key is its
+// PurgeIssueIDsOutsideNamespace (GDK-344). A local-origin page's key is its
 // numeric external id, so a pre-namespace `confluence:N` row and the
-// namespaced `standalone-confluence:N` insert share UNIQUE(source_id, key).
+// namespaced `local-origin-confluence:N` insert share UNIQUE(source_id, key).
 func (db *DB) PurgePageIDsOutsideNamespace(ctx context.Context, sourceID, ns string) (int, error) {
 	return db.purgeIDsOutsideNamespace(ctx, sourceID, ns, "page")
 }

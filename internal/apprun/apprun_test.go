@@ -21,13 +21,13 @@ func testHome(t *testing.T) {
 	})
 }
 
-func saveStandalone(t *testing.T) *config.Config {
+func saveLocalOrigin(t *testing.T) *config.Config {
 	t.Helper()
 	cfg, err := config.Load()
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg.Kind = config.KindStandalone
+	cfg.Kind = config.KindLocalOrigin
 	if err := cfg.Save(); err != nil {
 		t.Fatal(err)
 	}
@@ -63,22 +63,22 @@ func TestOpenSequenceConnected(t *testing.T) {
 	}
 }
 
-func TestOpenSequenceDeferStandaloneSkipsPersist(t *testing.T) {
+func TestOpenSequenceDeferLocalOriginSkipsPersist(t *testing.T) {
 	testHome(t)
-	saveStandalone(t)
+	saveLocalOrigin(t)
 	before := origin.SessionsConstructed()
 	steps := recordSteps(t)
-	rt, err := Open(Options{DeferStandalone: true})
+	rt, err := Open(Options{DeferLocalOrigin: true})
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = rt.Close() })
 	if origin.SessionsConstructed() != before {
-		t.Fatal("GDK-658: DeferStandalone Open must not take persist (desktop SingleInstance has not run)")
+		t.Fatal("GDK-658: DeferLocalOrigin Open must not take persist (desktop SingleInstance has not run)")
 	}
 	for _, s := range *steps {
-		if s == "standalone-persist" {
-			t.Fatalf("DeferStandalone Open recorded persist: %v", *steps)
+		if s == "local-origin-persist" {
+			t.Fatalf("DeferLocalOrigin Open recorded persist: %v", *steps)
 		}
 	}
 	want := []string{"config", "store", "handler", "registry"}
@@ -86,13 +86,13 @@ func TestOpenSequenceDeferStandaloneSkipsPersist(t *testing.T) {
 		t.Fatalf("steps = %v, want %v", got, want)
 	}
 	if _, err := os.Stat(filepath.Join(rt.Cfg.Directory(), "serve-origin.json")); !os.IsNotExist(err) {
-		t.Fatal("DeferStandalone Open must not write serve-origin.json")
+		t.Fatal("DeferLocalOrigin Open must not write serve-origin.json")
 	}
 }
 
-func TestOpenSequenceStandaloneAcquiresPersistBeforeStore(t *testing.T) {
+func TestOpenSequenceLocalOriginAcquiresPersistBeforeStore(t *testing.T) {
 	testHome(t)
-	saveStandalone(t)
+	saveLocalOrigin(t)
 	before := origin.SessionsConstructed()
 	steps := recordSteps(t)
 	rt, err := Open(Options{})
@@ -101,9 +101,9 @@ func TestOpenSequenceStandaloneAcquiresPersistBeforeStore(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = rt.Close() })
 	if origin.SessionsConstructed() == before {
-		t.Fatal("standalone Open without DeferStandalone must take persist")
+		t.Fatal("local-origin Open without DeferLocalOrigin must take persist")
 	}
-	want := []string{"config", "standalone-persist", "store", "handler", "registry"}
+	want := []string{"config", "local-origin-persist", "store", "handler", "registry"}
 	if got := *steps; !equalSteps(got, want) {
 		t.Fatalf("steps = %v, want %v", got, want)
 	}
@@ -122,16 +122,16 @@ func TestVersionStampIsFirst(t *testing.T) {
 	}
 }
 
-func TestOpenStandaloneDoesNotWriteAdvertise(t *testing.T) {
+func TestOpenLocalOriginDoesNotWriteAdvertise(t *testing.T) {
 	testHome(t)
-	saveStandalone(t)
+	saveLocalOrigin(t)
 	rt, err := Open(Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = rt.Close() })
 	if _, err := os.Stat(filepath.Join(rt.Cfg.Directory(), "serve-origin.json")); !os.IsNotExist(err) {
-		t.Fatal("standalone Open must not write serve-origin.json")
+		t.Fatal("local-origin Open must not write serve-origin.json")
 	}
 }
 

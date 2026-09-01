@@ -11,7 +11,7 @@
 // have matched the edit path (GDK-525).
 //
 // Detection is typed, not textual: every Jira-family origin (connected,
-// standalone issuetap, paired) rides *jira.Client, so the 400 arrives as
+// local-origin issuetap, paired) rides *jira.Client, so the 400 arrives as
 // *jira.APIError and Rejection reads its field keys. The old err.Error()
 // scan matched any sentence containing "parent" — including the Linear
 // adapter's local refusal, which is not an origin parent rejection at all
@@ -70,7 +70,7 @@ func (h *Hinted) Unwrap() error {
 
 // Rejection reports whether err is the origin refusing the parent we sent.
 // The answer is read off the typed *jira.APIError the whole Jira REST
-// family returns (connected, standalone issuetap, paired — one client),
+// family returns (connected, localOrigin issuetap, paired — one client),
 // never off the message text: `parent`/`parentId` answer POST /issue,
 // `pid` answers PUT /issue/{key}. The Linear adapter never reaches here
 // with a parent rejection; it refuses the field locally, and that

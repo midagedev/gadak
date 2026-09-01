@@ -8,7 +8,7 @@ import (
 	"github.com/midagedev/gadak/internal/jira"
 )
 
-// jiraWriter is the Jira/standalone Writer. It wraps *jira.Client so a
+// jiraWriter is the Jira/local-origin Writer. It wraps *jira.Client so a
 // caller cannot type-assert the HTTP client out of the interface (the
 // hole cmd/gadak/create.go used to punch — GDK-665). Optional faces
 // (VersionCatalog, IssueLinker, CreateFieldCatalog, MediaRef) and

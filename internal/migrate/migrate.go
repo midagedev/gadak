@@ -1,5 +1,5 @@
 // Package migrate exports a mirror into an issuetap fixture document — the
-// seed a fresh standalone workspace loads one-shot (origin/issuetap.yaml,
+// seed a fresh local-origin workspace loads one-shot (origin/issuetap.yaml,
 // GDK-1264). Reads are mirror-only; the single origin round-trip is the
 // attachment byte download, and the caller owns that client.
 //

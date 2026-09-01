@@ -140,7 +140,7 @@ export interface Member {
   status: string | null
   /** Jira accountId — used for assignee writes (local pick, no server round-trip). Backend fills. */
   jira_account_id?: string | null
-  /** Origin account type: 'agent' (standalone) or 'app' (Cloud). Older servers omit. */
+  /** Origin account type: 'agent' (localOrigin) or 'app' (Cloud). Older servers omit. */
   account_type?: string | null
   /** Server's judgement that this account is a bot (account_type agent/app).
    *  The badge renders on this flag alone — the client never re-derives it. */

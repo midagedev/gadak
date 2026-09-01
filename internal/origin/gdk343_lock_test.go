@@ -19,7 +19,7 @@ func TestGDK343SecondProcessSeesFirstWrite(t *testing.T) {
 		_ = Close()
 		config.SetProfile("")
 	})
-	cfg := &config.Config{Kind: config.KindStandalone}
+	cfg := &config.Config{Kind: config.KindLocalOrigin}
 
 	a, err := Client(cfg)
 	if err != nil {
@@ -52,12 +52,12 @@ func TestGDK343SecondProcessSeesFirstWrite(t *testing.T) {
 // process is allowed to come back (origin.Close contract).
 func TestGDK343ConstructAfterClose(t *testing.T) {
 	persist := filepath.Join(t.TempDir(), filepath.FromSlash(PersistRel))
-	a, err := constructStandalone(persist, nil, config.ResolvedActor{}, "en")
+	a, err := constructLocalOrigin(persist, nil, config.ResolvedActor{}, "en")
 	if err != nil {
 		t.Fatal(err)
 	}
 	closeSession(a)
-	b, err := constructStandalone(persist, nil, config.ResolvedActor{}, "en")
+	b, err := constructLocalOrigin(persist, nil, config.ResolvedActor{}, "en")
 	if err != nil {
 		t.Fatalf("construct after close: %v", err)
 	}

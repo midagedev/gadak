@@ -7,7 +7,7 @@ import (
 )
 
 // ActorConfig is the workspace-default acting identity for writes to an
-// issuetap origin (standalone or paired, GDK-586): the slug becomes the
+// issuetap origin (localOrigin or paired, GDK-586): the slug becomes the
 // origin accountId verbatim and names an agent account there; Name is an
 // optional display name. Nil (or empty slug) means unset. Per-machine
 // identity — never team-exported.

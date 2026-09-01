@@ -34,13 +34,13 @@ const spacesFlagUsage = `Confluence spaces: KEY,KEY… | all (every global space
 // initSummary is the one-line init description for top-level usage and
 // `gadak init --help`. It has to name every workspace path: connected
 // init writes site/email/token (cmdInit); --local writes
-// KindStandalone with no site or credential (initStandalone, flag usage
+// KindLocalOrigin with no site or credential (initLocalOrigin, flag usage
 // in cmdInit); --pairing-code binds a fresh workspace to a remote gadak
 // serve (initPaired, GDK-433).
 const initSummary = "configure a Jira site and credential (projects optional), a tracker gadak keeps itself (--local), or pair to a remote gadak serve (--pairing-code)"
 
 // serveSyncDefault is the serve sync-on-start condition, matching
-// startServeLoops: cfg.HasCredential() is true for a standalone workspace,
+// startServeLoops: cfg.HasCredential() is true for a local-origin workspace,
 // a connected workspace with site+email+token, or a Linear apiKey
 // (internal/config.HasCredential).
 const serveSyncDefault = "syncs by default when the origin is gadak's own tracker, or when a connected workspace has a credential"
@@ -48,7 +48,7 @@ const serveSyncDefault = "syncs by default when the origin is gadak's own tracke
 // writeThroughOriginPhrase is the single owner of "where CLI writes go"
 // (GDK-469). Verified: mutate in agent.go calls origin.Writer; origin.Client
 // refuses a connected workspace without site/email/token (errNeedCredential)
-// and admits a standalone workspace with no token. Verb --help first lines
+// and admits a local-origin workspace with no token. Verb --help first lines
 // name the verb; this sentence lives once in top-level usage.
 const writeThroughOriginPhrase = "Jira on a connected workspace (needs a site credential), Linear when a linear apiKey is configured, gadak's own tracker when that is the origin; the mirror refreshes after the origin accepts"
 
@@ -72,7 +72,7 @@ var helps = map[string]cmdHelp{
 		// list covers formatHelp(nil) and documents the env-only token path.
 		options: []helpOption{
 			{name: "local", desc: "create a workspace whose origin is gadak's own tracker, running here (no Jira site or credential)"},
-			{name: "replace-local", desc: replaceStandaloneUsage},
+			{name: "replace-local", desc: replaceLocalOriginUsage},
 			{name: "site", desc: "Jira site URL (https://your-site.atlassian.net); env GADAK_SITE"},
 			{name: "email", desc: "account email; env GADAK_EMAIL"},
 			{name: "projects", desc: "project keys, comma-separated (optional — blank syncs every project you can see); env GADAK_PROJECTS"},
@@ -321,7 +321,7 @@ var helps = map[string]cmdHelp{
 		options: []helpOption{
 			{name: "json", desc: "emit JSON"},
 			{name: "yes", desc: "with rm: remove — without it, rm explains and refuses"},
-			{name: "destroy-origin", desc: "with rm on a standalone workspace: also delete its persist, the only copy of that tracker"},
+			{name: "destroy-origin", desc: "with rm on a local-origin workspace: also delete its persist, the only copy of that tracker"},
 		},
 		examples: []string{
 			"gadak workspaces",

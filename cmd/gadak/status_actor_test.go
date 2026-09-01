@@ -2,7 +2,7 @@ package main
 
 // `gadak status` shows the resolved actor (GDK-586): the one place an
 // agent checks that its identity was recognized before writing to a
-// standalone or paired origin.
+// local-origin or paired origin.
 
 import (
 	"encoding/json"

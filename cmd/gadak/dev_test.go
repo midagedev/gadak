@@ -60,9 +60,9 @@ func TestDevOriginWriteGate(t *testing.T) {
 	t.Setenv("GADAK_HOME", t.TempDir())
 	config.SetProfile("")
 
-	standalone := &config.Config{Kind: config.KindStandalone}
-	if err := refuseConnectedDevWrite(standalone, "dev link"); err != nil {
-		t.Fatalf("standalone refused: %v", err)
+	localOrigin := &config.Config{Kind: config.KindLocalOrigin}
+	if err := refuseConnectedDevWrite(localOrigin, "dev link"); err != nil {
+		t.Fatalf("local-origin refused: %v", err)
 	}
 
 	connected := &config.Config{Site: "https://example.atlassian.net", Email: "a@b.c", Token: "t"}
@@ -129,7 +129,7 @@ func TestInstallDevScanHookWritesWorkspaceAndKeepsStderr(t *testing.T) {
 	config.SetProfile("laptop")
 	t.Cleanup(func() { config.SetProfile("") })
 
-	cfg := &config.Config{Kind: config.KindStandalone}
+	cfg := &config.Config{Kind: config.KindLocalOrigin}
 	if err := cfg.Save(); err != nil {
 		t.Fatal(err)
 	}

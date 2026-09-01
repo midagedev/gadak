@@ -264,7 +264,7 @@ async function stubWorkspacesRemove(page: Page): Promise<void> {
       {
         error: 'needs_destroy_origin',
         detail:
-          'refusing: "shell-dialog-ws" is a standalone workspace and its persist is the only copy of that tracker anywhere\n  persist: /somewhere/profiles/shell-dialog-ws/origin.sqlite\n  to remove it anyway: gadak workspaces rm shell-dialog-ws --yes --destroy-origin',
+          'refusing: "shell-dialog-ws" is a local-origin workspace and its persist is the only copy of that tracker anywhere\n  persist: /somewhere/profiles/shell-dialog-ws/origin.sqlite\n  to remove it anyway: gadak workspaces rm shell-dialog-ws --yes --destroy-origin',
       },
       400,
     )

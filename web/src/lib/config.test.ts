@@ -92,31 +92,31 @@ describe('originType / transport (GDK-1278, server-owned)', () => {
 })
 
 describe('workspaceKind (server-owned, never inferred)', () => {
-  test('defaults and missing/garbage documents are unknown, not standalone', async () => {
+  test('defaults and missing/garbage documents are unknown, not local-origin', async () => {
     const missing = await loadConfigWith(null, false)
     expect(missing.config().workspaceKind).toBe('')
-    expect(missing.isStandaloneWorkspace()).toBe(false)
+    expect(missing.isLocalOriginWorkspace()).toBe(false)
 
     const emptySite = await loadConfigWith({ jiraBaseUrl: '' })
     expect(emptySite.config().workspaceKind).toBe('')
-    expect(emptySite.isStandaloneWorkspace()).toBe(false)
+    expect(emptySite.isLocalOriginWorkspace()).toBe(false)
 
     const garbage = await loadConfigWith({ workspaceKind: 'local', jiraBaseUrl: '' })
     expect(garbage.parseWorkspaceKind('local')).toBe('')
     expect(garbage.config().workspaceKind).toBe('')
-    expect(garbage.isStandaloneWorkspace()).toBe(false)
+    expect(garbage.isLocalOriginWorkspace()).toBe(false)
   })
 
-  test('connected and standalone come from the document only', async () => {
+  test('connected and local-origin come from the document only', async () => {
     const connected = await loadConfigWith({
       workspaceKind: 'connected',
       jiraBaseUrl: '',
     })
     expect(connected.config().workspaceKind).toBe('connected')
-    expect(connected.isStandaloneWorkspace()).toBe(false)
+    expect(connected.isLocalOriginWorkspace()).toBe(false)
 
-    const standalone = await loadConfigWith({ workspaceKind: 'standalone' })
-    expect(standalone.config().workspaceKind).toBe('standalone')
-    expect(standalone.isStandaloneWorkspace()).toBe(true)
+    const localOrigin = await loadConfigWith({ workspaceKind: 'standalone' })
+    expect(localOrigin.config().workspaceKind).toBe('standalone')
+    expect(localOrigin.isLocalOriginWorkspace()).toBe(true)
   })
 })

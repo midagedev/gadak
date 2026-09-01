@@ -361,17 +361,17 @@ export const settings = {
     ko: '이 미러',
     ja: 'このミラー',
   },
-  'settings.workspaceStandalone': {
+  'settings.workspaceLocalOrigin': {
     en: 'gadak',
     ko: 'gadak',
     ja: 'gadak',
   },
-  'settings.workspaceStandaloneHint': {
+  'settings.workspaceLocalOriginHint': {
     en: "The origin is gadak's own tracker, running here. It keeps this computer's issuetap persist file, not gadak.db — back that file up.",
     ko: '원본이 gadak 자신의 트래커이고, 여기서 돕니다. 보관 파일은 이 컴퓨터의 issuetap persist 이며, 백업 대상은 gadak.db가 아니라 그 파일입니다.',
     ja: 'origin は gadak 自身のトラッカーで、ここで動いています。保管するのはこのコンピュータの issuetap persist ファイルであり、gadak.db ではありません — そのファイルをバックアップしてください。',
   },
-  'settings.standaloneHow': {
+  'settings.localOriginHow': {
     en: 'Create a workspace with no tracker to connect',
     ko: '연결할 트래커 없이 워크스페이스 만들기',
     ja: '接続するトラッカーなしでワークスペースを作る',
@@ -989,7 +989,7 @@ export const settings = {
     ko: '워크스페이스 생성',
     ja: 'ワークスペースを作成',
   },
-  'settings.workspacesModeStandalone': {
+  'settings.workspacesModeLocalOrigin': {
     en: 'New, no tracker',
     ko: '새 워크스페이스 (트래커 없이)',
     ja: '新規（トラッカーなし）',
@@ -1299,7 +1299,7 @@ export const settings = {
     ko: '日本語',
     ja: '日本語',
   },
-  'settings.standaloneCommandHint': {
+  'settings.localOriginCommandHint': {
     en: '<name> is the workspace name you choose.',
     ko: '<name>은 직접 정하는 워크스페이스 이름입니다.',
     ja: '<name> は自分で決めるワークスペース名です。',

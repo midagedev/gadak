@@ -12,13 +12,13 @@ import (
 	"github.com/midagedev/gadak/internal/origin"
 )
 
-// TestMigrateStandaloneRoundtrip is the product round-trip (GDK-1264): a
-// standalone source workspace with issues, a comment, a link pair, a
+// TestMigrateLocalOriginRoundtrip is the product round-trip (GDK-1264): a
+// local-origin source workspace with issues, a comment, a link pair, a
 // transition, attachments (text and binary), and a wiki page migrates into
-// a brand-new standalone workspace — counts match, the link exists on both
+// a brand-new local-origin workspace — counts match, the link exists on both
 // ends, attachment bytes survive verbatim, and the next create continues
 // the key sequence instead of colliding.
-func TestMigrateStandaloneRoundtrip(t *testing.T) {
+func TestMigrateLocalOriginRoundtrip(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
 	t.Setenv("HOME", home)

@@ -55,7 +55,7 @@ var neverExportConfigFields = []string{
 	"DefaultProject",
 	"DefaultIssueTypeID",
 	"DefaultIssueType",
-	// Workspace kind is per-machine: standalone origin is this profile's
+	// Workspace kind is per-machine: local-origin origin is this profile's
 	// issuetap snapshot, not a team setting.
 	"Kind",
 	// Frozen is a per-workspace safety latch (GDK-181): a scrubbed fixture
@@ -77,7 +77,7 @@ var neverExportConfigFields = []string{
 	// (GDK-586). Whose shell is running is not team consensus, and a shared
 	// slug would merge every importer's agent into one origin account.
 	"Actor",
-	// Locale names the language of this profile's standalone origin snapshot
+	// Locale names the language of this profile's local-origin origin snapshot
 	// (GDK-597) — the same per-machine character as Kind: the origin the
 	// setting describes is not part of a team file, and language is the
 	// importer's own preference. A connected workspace ignores it anyway.

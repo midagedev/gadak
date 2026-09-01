@@ -4,7 +4,7 @@ package jira
 // internal /rest/dev-status API — Atlassian's own workaround for the panel
 // having no public read (JSWCLOUD-16901): works with the site API token,
 // explicitly unsupported and free to change. issuetap serves the same two
-// GETs on purpose, so this one reader covers connected and standalone.
+// GETs on purpose, so this one reader covers connected and localOrigin.
 // Callers gate it behind config.DevStatus and treat every error as
 // "skip this issue", never as a sync failure.
 
@@ -188,7 +188,7 @@ func (c *Client) DevStatusPRs(ctx context.Context, issueID string) ([]DevPR, err
 }
 
 // LinkDevPR posts one pull-request link to the origin's dev-status store.
-// Only issuetap (standalone) implements the endpoint — Jira Cloud's panel is
+// Only issuetap (localOrigin) implements the endpoint — Jira Cloud's panel is
 // written by its marketplace apps, so a connected origin answers 404 and the
 // caller says so instead of pretending. author (the PR author's login) and
 // branch (the head ref) are optional (GDK-589): empty ones are omitted so a

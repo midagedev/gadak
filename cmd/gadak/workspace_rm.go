@@ -13,7 +13,7 @@ import (
 const workspaceRMUsage = "usage: gadak workspaces rm <name> [--yes] [--destroy-origin] [--json]"
 
 // workspaceRMDoc is the `--json` success document: exactly what was removed
-// and whether the standalone origin died with it.
+// and whether the local-origin origin died with it.
 type workspaceRMDoc struct {
 	Removed         string `json:"removed"`
 	Kind            string `json:"kind"`
@@ -33,7 +33,7 @@ func removeWorkspace(invoked string, args []string) error {
 	}
 	fs := newFlagSet(invoked + " rm")
 	yes := fs.Bool("yes", false, "remove the workspace — without this, rm explains and refuses")
-	destroyOrigin := fs.Bool("destroy-origin", false, "standalone only: also destroy this profile's persist, the only copy of that tracker")
+	destroyOrigin := fs.Bool("destroy-origin", false, "local-origin only: also destroy this profile's persist, the only copy of that tracker")
 	asJSON := fs.Bool("json", false, "emit JSON")
 	pos, err := parseAround(fs, args)
 	if err != nil {
@@ -63,9 +63,9 @@ func removeWorkspace(invoked string, args []string) error {
 
 	fmt.Printf("removed workspace %q (%s) — %s\n", name, res.Kind, res.Dir)
 	if doc.OriginDestroyed {
-		fmt.Printf("destroyed standalone origin: %s\n", res.Persist)
-	} else if res.Standalone {
-		fmt.Println("no standalone persist was present; no origin data existed to destroy")
+		fmt.Printf("destroyed local-origin origin: %s\n", res.Persist)
+	} else if res.LocalOrigin {
+		fmt.Println("no local-origin persist was present; no origin data existed to destroy")
 	} else {
 		fmt.Println("the origin is untouched: only this machine's mirror and credential existed here")
 	}

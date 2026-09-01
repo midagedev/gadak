@@ -15,14 +15,14 @@ import (
 	"github.com/midagedev/gadak/internal/serveaddr"
 )
 
-func TestServeScopeLogStandaloneOmitsAccount(t *testing.T) {
+func TestServeScopeLogLocalOriginOmitsAccount(t *testing.T) {
 	// GDK-464
-	st := serveScopeLog(&config.Config{Kind: config.KindStandalone, DefaultProject: origin.DefaultProjectKey})
+	st := serveScopeLog(&config.Config{Kind: config.KindLocalOrigin, DefaultProject: origin.DefaultProjectKey})
 	if strings.Contains(st, "this account") {
-		t.Fatalf("standalone serve line still mentions an account: %q", st)
+		t.Fatalf("local-origin serve line still mentions an account: %q", st)
 	}
 	if st != "syncing "+origin.DefaultProjectKey {
-		t.Fatalf("standalone serve line = %q", st)
+		t.Fatalf("local-origin serve line = %q", st)
 	}
 	connected := serveScopeLog(&config.Config{
 		Site: "https://example.atlassian.net", Email: "a@b.c", Token: "t",
@@ -147,7 +147,7 @@ func TestIsLoopback(t *testing.T) {
 	}
 }
 
-func TestStandaloneConfigDoesNotNeedAdvertiseFile(t *testing.T) {
+func TestLocalOriginConfigDoesNotNeedAdvertiseFile(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
 	config.SetProfile("")
@@ -157,12 +157,12 @@ func TestStandaloneConfigDoesNotNeedAdvertiseFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg.Kind = config.KindStandalone
+	cfg.Kind = config.KindLocalOrigin
 	if err := cfg.Save(); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(cfg.Directory(), "serve-origin.json")); !os.IsNotExist(err) {
-		t.Fatal("standalone config must not write serve-origin.json")
+		t.Fatal("local-origin config must not write serve-origin.json")
 	}
 }
 

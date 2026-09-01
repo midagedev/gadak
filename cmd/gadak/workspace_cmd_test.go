@@ -48,7 +48,7 @@ func TestStatusJSONWorkspaceAndSource(t *testing.T) {
 	config.SetProfile("")
 	t.Cleanup(func() { config.SetProfile("") })
 
-	cfg := &config.Config{Kind: config.KindStandalone}
+	cfg := &config.Config{Kind: config.KindLocalOrigin}
 	if err := cfg.Save(); err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +78,7 @@ func TestDoctorJSONWorkspaceSource(t *testing.T) {
 	config.SetProfile("")
 	t.Cleanup(func() { config.SetProfile("") })
 
-	cfg := &config.Config{Kind: config.KindStandalone}
+	cfg := &config.Config{Kind: config.KindLocalOrigin}
 	if err := cfg.Save(); err != nil {
 		t.Fatal(err)
 	}
@@ -107,11 +107,11 @@ func TestDoctorJSONWorkspaceSource(t *testing.T) {
 	if doc.Workspace.Name != "default" {
 		t.Fatalf("workspace.name = %q, want default", doc.Workspace.Name)
 	}
-	if doc.Workspace.Kind != config.KindStandalone {
+	if doc.Workspace.Kind != config.KindLocalOrigin {
 		t.Fatalf("workspace.kind = %q", doc.Workspace.Kind)
 	}
 	if doc.Workspace.HasSiteToken {
-		t.Fatal("standalone with no site token must keep has_site_token=false")
+		t.Fatal("local-origin with no site token must keep has_site_token=false")
 	}
 }
 
@@ -326,8 +326,8 @@ func TestCmdWorkspaceShowsSelection(t *testing.T) {
 	clearWorkspaceEnv(t)
 	config.SetProfile("")
 
-	seedNamedProfile(t, "", &config.Config{Kind: config.KindStandalone}, 0, 0, false)
-	seedNamedProfile(t, "oss", &config.Config{Kind: config.KindStandalone}, 0, 0, false)
+	seedNamedProfile(t, "", &config.Config{Kind: config.KindLocalOrigin}, 0, 0, false)
+	seedNamedProfile(t, "oss", &config.Config{Kind: config.KindLocalOrigin}, 0, 0, false)
 
 	out, err := capture(t, func() error { return cmdWorkspace(nil) })
 	if err != nil {
@@ -396,8 +396,8 @@ func TestCmdWorkspaceUseStoresDefault(t *testing.T) {
 	config.SetProfile("")
 	config.ReloadWorkspaceFromEnv()
 
-	seedNamedProfile(t, "", &config.Config{Kind: config.KindStandalone}, 0, 0, false)
-	seedNamedProfile(t, "oss", &config.Config{Kind: config.KindStandalone}, 0, 0, false)
+	seedNamedProfile(t, "", &config.Config{Kind: config.KindLocalOrigin}, 0, 0, false)
+	seedNamedProfile(t, "oss", &config.Config{Kind: config.KindLocalOrigin}, 0, 0, false)
 
 	out, err := capture(t, func() error { return cmdWorkspace([]string{"use", "oss"}) })
 	if err != nil {
@@ -445,7 +445,7 @@ func TestCmdWorkspaceUseMissingErrors(t *testing.T) {
 	clearWorkspaceEnv(t)
 	config.SetProfile("")
 	config.ReloadWorkspaceFromEnv()
-	seedNamedProfile(t, "demo", &config.Config{Kind: config.KindStandalone}, 0, 0, false)
+	seedNamedProfile(t, "demo", &config.Config{Kind: config.KindLocalOrigin}, 0, 0, false)
 
 	err := cmdWorkspace([]string{"use", "nosuch"})
 	if err == nil {
@@ -496,7 +496,7 @@ func TestCmdWorkspaceHidesExportHintWhenAlone(t *testing.T) {
 	clearWorkspaceEnv(t)
 	config.SetProfile("")
 
-	seedNamedProfile(t, "", &config.Config{Kind: config.KindStandalone}, 0, 0, false)
+	seedNamedProfile(t, "", &config.Config{Kind: config.KindLocalOrigin}, 0, 0, false)
 
 	out, err := capture(t, func() error { return cmdWorkspace(nil) })
 	if err != nil {

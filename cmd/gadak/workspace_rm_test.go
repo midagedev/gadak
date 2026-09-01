@@ -34,12 +34,12 @@ func seedRMWorkspace(t *testing.T, name, kind string) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if kind == config.KindStandalone {
+	if kind == config.KindLocalOrigin {
 		loaded, err := config.LoadFor(name)
 		if err != nil {
 			t.Fatal(err)
 		}
-		loaded.Kind = config.KindStandalone
+		loaded.Kind = config.KindLocalOrigin
 		if err := loaded.Save(); err != nil {
 			t.Fatal(err)
 		}
@@ -47,7 +47,7 @@ func seedRMWorkspace(t *testing.T, name, kind string) string {
 	return dir
 }
 
-// seedPersist plants a standalone persist (origin/issuetap.db) inside dir.
+// seedPersist plants a local-origin persist (origin/issuetap.db) inside dir.
 func seedPersist(t *testing.T, dir string) string {
 	t.Helper()
 	p := origin.PersistPath(dir)
@@ -151,20 +151,20 @@ func TestWorkspaceRMConnectedRemovesDirAndKeepsOriginClaim(t *testing.T) {
 	}
 }
 
-func TestWorkspaceRMStandaloneRequiresDestroyOrigin(t *testing.T) {
+func TestWorkspaceRMLocalOriginRequiresDestroyOrigin(t *testing.T) {
 	rmTestHome(t)
-	dir := seedRMWorkspace(t, "s1", config.KindStandalone)
+	dir := seedRMWorkspace(t, "s1", config.KindLocalOrigin)
 	persist := seedPersist(t, dir)
 
 	// --yes alone must not be enough: persist is the only copy.
 	_, err := capture(t, func() error { return cmdWorkspaces([]string{"rm", "s1", "--yes"}) })
 	if err == nil {
-		t.Fatal("standalone rm with --yes only: expected refusal")
+		t.Fatal("local-origin rm with --yes only: expected refusal")
 	}
 	msg := err.Error()
 	for _, want := range []string{"--destroy-origin", persist, "only copy"} {
 		if !strings.Contains(msg, want) {
-			t.Errorf("standalone refusal should mention %q, got:\n%s", want, msg)
+			t.Errorf("local-origin refusal should mention %q, got:\n%s", want, msg)
 		}
 	}
 	if _, err := os.Stat(persist); err != nil {
@@ -180,18 +180,18 @@ func TestWorkspaceRMStandaloneRequiresDestroyOrigin(t *testing.T) {
 		t.Fatalf("profile dir should be gone, stat err = %v", err)
 	}
 	if !strings.Contains(out, "standalone") {
-		t.Errorf("success output should name the standalone origin destruction, got:\n%s", out)
+		t.Errorf("success output should name the local-origin origin destruction, got:\n%s", out)
 	}
 }
 
-func TestWorkspaceRMStandaloneNoPersistNeedsOnlyYes(t *testing.T) {
+func TestWorkspaceRMLocalOriginNoPersistNeedsOnlyYes(t *testing.T) {
 	rmTestHome(t)
-	dir := seedRMWorkspace(t, "s2", config.KindStandalone)
+	dir := seedRMWorkspace(t, "s2", config.KindLocalOrigin)
 	// No persist planted: there is no origin data to protect.
 
 	_, err := capture(t, func() error { return cmdWorkspaces([]string{"rm", "s2", "--yes"}) })
 	if err != nil {
-		t.Fatalf("standalone without persist should remove with --yes alone: %v", err)
+		t.Fatalf("local-origin without persist should remove with --yes alone: %v", err)
 	}
 	if _, err := os.Stat(dir); !os.IsNotExist(err) {
 		t.Fatalf("profile dir should be gone, stat err = %v", err)
@@ -200,7 +200,7 @@ func TestWorkspaceRMStandaloneNoPersistNeedsOnlyYes(t *testing.T) {
 
 func TestWorkspaceRMUnreadableConfigRefused(t *testing.T) {
 	rmTestHome(t)
-	dir := seedRMWorkspace(t, "broken", config.KindStandalone) // kind unknowable below
+	dir := seedRMWorkspace(t, "broken", config.KindLocalOrigin) // kind unknowable below
 	if err := os.WriteFile(filepath.Join(dir, "config.json"), []byte("{not json"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -220,7 +220,7 @@ func TestWorkspaceRMUnreadableConfigRefused(t *testing.T) {
 func TestWorkspaceRMJSONShape(t *testing.T) {
 	rmTestHome(t)
 	seedRMWorkspace(t, "w3", config.KindConnected)
-	dir := seedRMWorkspace(t, "s3", config.KindStandalone)
+	dir := seedRMWorkspace(t, "s3", config.KindLocalOrigin)
 	seedPersist(t, dir)
 
 	out, err := capture(t, func() error { return cmdWorkspaces([]string{"rm", "w3", "--yes", "--json"}) })
@@ -237,14 +237,14 @@ func TestWorkspaceRMJSONShape(t *testing.T) {
 
 	out, err = capture(t, func() error { return cmdWorkspaces([]string{"rm", "s3", "--yes", "--destroy-origin", "--json"}) })
 	if err != nil {
-		t.Fatalf("standalone json rm: %v", err)
+		t.Fatalf("local-origin json rm: %v", err)
 	}
 	doc = nil
 	if err := json.Unmarshal([]byte(out), &doc); err != nil {
 		t.Fatalf("stdout is not one JSON object: %v\n%s", err, out)
 	}
 	if len(doc) != 3 || doc["removed"] != "s3" || doc["kind"] != "standalone" || doc["origin_destroyed"] != true {
-		t.Errorf("standalone json shape wrong: %v", doc)
+		t.Errorf("local-origin json shape wrong: %v", doc)
 	}
 }
 

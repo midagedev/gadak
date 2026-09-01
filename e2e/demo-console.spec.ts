@@ -13,7 +13,7 @@ import { attachConsoleErrors, gotoApp } from './helpers'
  *
  * That question is config.HasAtlassianCredential, carried to the web as
  * `originWritable` — not identity. auth/me answers from cfg.Email, which is
- * empty on a standalone workspace and on a paired one, both of which accept
+ * empty on a local-origin workspace and on a paired one, both of which accept
  * this request: a client gated on me.identified would silence the catalog
  * exactly there. Hence two tests, and the second is the one that fails if
  * someone reaches for identity again.
@@ -66,7 +66,7 @@ test.describe('linktypes catalog asks the origin, not the identity (GDK-1090)', 
 
   test('a writable origin with no identity still loads the catalog', async ({ page }) => {
     const seen = watchCatalogRequests(page)
-    // The standalone/paired shape: the origin writes fine, auth/me has no
+    // The local-origin/paired shape: the origin writes fine, auth/me has no
     // email to answer with. This is the row a me.identified gate gets wrong.
     await serveOriginWritable(page, true)
     await page.route('**/api/v1/auth/me/**', async (route) => {

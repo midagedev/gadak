@@ -11,7 +11,7 @@ import (
 // GDK-590. A bot that only commented never showed up on the people axis —
 // members were derived from assignee/reporter alone — and no REST payload
 // said which actors are bots. The catalog's account_type (one axis for
-// standalone "agent" and connected "app") now rides on member rows, the
+// local-origin "agent" and connected "app") now rides on member rows, the
 // comment payload, and history carries author_id so attribution does not
 // depend on display names.
 func TestBotActorSurfaces(t *testing.T) {
@@ -26,7 +26,7 @@ func TestBotActorSurfaces(t *testing.T) {
 			ProjectKey: "NMB", IssueType: "Bug", IssueTypeID: "10004",
 			Status: "진행 중", StatusID: "3", StatusCategory: "inprogress",
 		},
-		// What a sync pass collected: the standalone agent and a Cloud app
+		// What a sync pass collected: the local-origin agent and a Cloud app
 		// account, both keyed by account id, never by display name.
 		Users: []store.UserAccount{
 			{AccountID: "acc-bot", Name: "Claude (build 1)", AccountType: "agent"},

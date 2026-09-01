@@ -1073,20 +1073,20 @@ func TestSQLUnknownProfileDoesNotCreate(t *testing.T) {
 	}
 }
 
-// TestInitConvertingEmptyStandaloneDropsSeededSpace guards the half of "a
-// workspace is bound to one origin" that the --replace-standalone flag does not
-// cover. An *empty* standalone workspace is deliberately allowed to convert
-// without that flag (refuseStandaloneReplace returns nil at n==0), so a guard
+// TestInitConvertingEmptyLocalOriginDropsSeededSpace guards the half of "a
+// workspace is bound to one origin" that the --replace-local flag does not
+// cover. An *empty* local-origin workspace is deliberately allowed to convert
+// without that flag (refuseLocalOriginReplace returns nil at n==0), so a guard
 // keyed on the flag leaves the seeded issuetap space (LOC) in the config of a
 // now-connected workspace — and the wiki pass then asks a real Atlassian site
 // for a space that only ever existed in the in-process origin.
-func TestInitConvertingEmptyStandaloneDropsSeededSpace(t *testing.T) {
+func TestInitConvertingEmptyLocalOriginDropsSeededSpace(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
 	clearCredentialEnv(t)
 	config.SetProfile("")
 	// origin keeps live in-process sessions in a process-global map, and a
-	// standalone init opens one. Left behind, its debounced snapshot flush
+	// local-origin init opens one. Left behind, its debounced snapshot flush
 	// targets a TempDir that has already been removed, and the *next* test in
 	// this package to call origin.Close() is the one that fails.
 	t.Cleanup(func() { _ = origin.Close() })
@@ -1095,7 +1095,7 @@ func TestInitConvertingEmptyStandaloneDropsSeededSpace(t *testing.T) {
 		if _, err := capture(t, func() error {
 			return cmdInit([]string{"--local", "--json"})
 		}); err != nil {
-			t.Fatalf("standalone init: %v", err)
+			t.Fatalf("local-origin init: %v", err)
 		}
 	})
 	seeded, err := config.Load()
@@ -1103,10 +1103,10 @@ func TestInitConvertingEmptyStandaloneDropsSeededSpace(t *testing.T) {
 		t.Fatal(err)
 	}
 	if seeded.Confluence == nil || len(seeded.Confluence.Spaces) == 0 {
-		t.Fatalf("standalone init should seed a wiki space, got %+v", seeded.Confluence)
+		t.Fatalf("local-origin init should seed a wiki space, got %+v", seeded.Confluence)
 	}
 
-	// No --replace-standalone: the workspace holds no locally originated
+	// No --replace-local: the workspace holds no locally originated
 	// issues, so this conversion is allowed through.
 	srv := myselfServer(t)
 	withClosedStdin(t, func() {
@@ -1125,20 +1125,20 @@ func TestInitConvertingEmptyStandaloneDropsSeededSpace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.IsStandalone() {
-		t.Fatalf("converted workspace still reports standalone: kind=%q", cfg.Kind)
+	if cfg.HasLocalOrigin() {
+		t.Fatalf("converted workspace still reports local-origin: kind=%q", cfg.Kind)
 	}
 	if cfg.Confluence != nil {
-		t.Fatalf("seeded standalone space survived the conversion: %+v", cfg.Confluence)
+		t.Fatalf("seeded local-origin space survived the conversion: %+v", cfg.Confluence)
 	}
 }
 
-// TestInitStandaloneFailsWhenOriginClientFails: origin.Client errors used
-// to be swallowed by standaloneDefaultType, so `init --standalone` printed
+// TestInitLocalOriginFailsWhenOriginClientFails: origin.Client errors used
+// to be swallowed by localOriginDefaultType, so `init --standalone` printed
 // success against an unusable origin (GDK-345).
 //
 // FAIL-first (2026-08-20, pre-fix): cmdInit returned nil.
-func TestInitStandaloneFailsWhenOriginClientFails(t *testing.T) {
+func TestInitLocalOriginFailsWhenOriginClientFails(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
 	t.Setenv("HOME", home)
@@ -1149,7 +1149,7 @@ func TestInitStandaloneFailsWhenOriginClientFails(t *testing.T) {
 		config.SetProfile("")
 	})
 
-	cfg := &config.Config{Kind: config.KindStandalone, Frozen: true}
+	cfg := &config.Config{Kind: config.KindLocalOrigin, Frozen: true}
 	if err := cfg.Save(); err != nil {
 		t.Fatal(err)
 	}
@@ -1176,7 +1176,7 @@ func initJSONSkill(t *testing.T, out string) (skill string, doc map[string]any) 
 	return skill, doc
 }
 
-func runStandaloneInitJSON(t *testing.T) string {
+func runLocalOriginInitJSON(t *testing.T) string {
 	t.Helper()
 	clearCredentialEnv(t)
 	config.SetProfile("")
@@ -1193,13 +1193,13 @@ func runStandaloneInitJSON(t *testing.T) string {
 	return out
 }
 
-// TestInitStandaloneAutoInstallsSkillWhenClaudeDirExists — GDK-93.
+// TestInitLocalOriginAutoInstallsSkillWhenClaudeDirExists — GDK-93.
 // FAIL-first (2026-08-21, pre-fix): init succeeded, ~/.claude existed,
 // SKILL.md was not created, --json had no "skill" field.
-func TestInitStandaloneAutoInstallsSkillWhenClaudeDirExists(t *testing.T) {
+func TestInitLocalOriginAutoInstallsSkillWhenClaudeDirExists(t *testing.T) {
 	home := isolateHomeWithClaude(t)
 	t.Setenv("GADAK_HOME", home)
-	out := runStandaloneInitJSON(t)
+	out := runLocalOriginInitJSON(t)
 	skill, _ := initJSONSkill(t, out)
 	if skill != "installed" {
 		t.Fatalf("skill = %q, want installed; out=%s", skill, out)
@@ -1213,10 +1213,10 @@ func TestInitStandaloneAutoInstallsSkillWhenClaudeDirExists(t *testing.T) {
 	}
 }
 
-func TestInitStandaloneSkillSkippedWithoutClaudeDir(t *testing.T) {
+func TestInitLocalOriginSkillSkippedWithoutClaudeDir(t *testing.T) {
 	home := isolateHome(t)
 	t.Setenv("GADAK_HOME", home)
-	out := runStandaloneInitJSON(t)
+	out := runLocalOriginInitJSON(t)
 	skill, _ := initJSONSkill(t, out)
 	if skill != "skipped" {
 		t.Fatalf("skill = %q, want skipped; out=%s", skill, out)
@@ -1226,7 +1226,7 @@ func TestInitStandaloneSkillSkippedWithoutClaudeDir(t *testing.T) {
 	}
 }
 
-func TestInitStandaloneSkillConflictPreservesFile(t *testing.T) {
+func TestInitLocalOriginSkillConflictPreservesFile(t *testing.T) {
 	home := isolateHomeWithClaude(t)
 	t.Setenv("GADAK_HOME", home)
 	clearCredentialEnv(t)
@@ -1267,7 +1267,7 @@ func TestInitStandaloneSkillConflictPreservesFile(t *testing.T) {
 	}
 }
 
-func TestInitStandaloneHumanSkillInstalledLine(t *testing.T) {
+func TestInitLocalOriginHumanSkillInstalledLine(t *testing.T) {
 	home := isolateHomeWithClaude(t)
 	t.Setenv("GADAK_HOME", home)
 	clearCredentialEnv(t)

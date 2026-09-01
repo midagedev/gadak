@@ -16,7 +16,7 @@ import (
 
 // Writer is the write surface of an origin: the verbs every origin implements
 // and the server and CLI call when writing through. Jira (connected) and
-// standalone (issuetap speaks the Jira API) satisfy it via jiraWriter
+// local-origin (issuetap speaks the Jira API) satisfy it via jiraWriter
 // wrapping *jira.Client; a Linear adapter implements the same verbs over
 // GraphQL (GDK-358). The method vocabulary is Jira-shaped (EditMeta,
 // Transitions) so existing callers keep working; the types are origin DTOs
@@ -101,7 +101,7 @@ var (
 	ErrNoIssueLinks     = unsupported("linear: issue links are not supported on this origin")
 	ErrNoCreateFields   = unsupported("linear: create-time field metadata is not supported on this origin")
 	ErrNoMediaRef       = unsupported("linear: inline comment media is not supported; the file is attached to the issue")
-	ErrNoRemoteLinks    = unsupported("this origin does not support remote issue links — they need a standalone or paired workspace")
+	ErrNoRemoteLinks    = unsupported("this origin does not support remote issue links — they need a local-origin or paired workspace")
 )
 
 // unsupportedError is a capability refusal whose Error() is the origin's
@@ -142,7 +142,7 @@ func AsVersionCatalog(w Writer) (VersionCatalog, error) {
 }
 
 // CreatesVersionsByName reports whether w mints a project version from a
-// fixVersions add {"name": token}. True for issuetap (standalone in-process,
+// fixVersions add {"name": token}. True for issuetap (localOrigin in-process,
 // routed serve, paired home). False for Cloud Jira and Linear (GDK-678).
 func CreatesVersionsByName(w Writer) bool {
 	vc, err := AsVersionCatalog(w)
@@ -154,7 +154,7 @@ func CreatesVersionsByName(w Writer) bool {
 
 // RemoteLinker is Jira's remote issue links (GDK-1032): a pointer at
 // something outside this tracker. gadak writes them only on an
-// issuetap-backed origin (standalone / paired) — a Cloud site would show
+// issuetap-backed origin (localOrigin / paired) — a Cloud site would show
 // them to the whole team, and a cross-workspace pointer is personal.
 type RemoteLinker interface {
 	RemoteLinks(ctx context.Context, key string) ([]RemoteLink, error)
@@ -177,7 +177,7 @@ func AsRemoteLinker(cfg *config.Config, w Writer) (RemoteLinker, error) {
 	return v, nil
 }
 
-// HasRemoteLinks reports an issuetap-backed origin — standalone
+// HasRemoteLinks reports an issuetap-backed origin — local-origin
 // (in-process) or paired (the home serve's passthrough). Single owner of
 // the write gate: the CLI verbs ask here.
 func HasRemoteLinks(cfg *config.Config, w any) bool {
@@ -283,7 +283,7 @@ func ResolveCreateSource(ctx context.Context, cfg *config.Config, db *store.DB, 
 
 // WriterFor picks the write path for one issue's source — the caller reads
 // it from the mirror (store.KeySource), because a key's shape cannot tell a
-// Linear "MID-5" from a Jira "MID-5". Jira and standalone rows share the
+// Linear "MID-5" from a Jira "MID-5". Jira and local-origin rows share the
 // Jira client (wrapped); "linear" routes to the GraphQL adapter (GDK-361).
 // An empty source (a key the mirror does not know yet, or a create) routes
 // to the default origin.

@@ -301,7 +301,7 @@ describe('buildList', () => {
     expect(v.total).toBe(2)
   })
 
-  it('falls back to All open when the serve has no identity (standalone)', () => {
+  it('falls back to All open when the serve has no identity (localOrigin)', () => {
     const anon: Me = { email: '', account_id: null, name: '' }
     const v = buildList(rows, anon, scopeOf(scopes(anon), SCOPE_ALL_OPEN))
     expect(v.scopeId).toBe(SCOPE_ALL_OPEN)

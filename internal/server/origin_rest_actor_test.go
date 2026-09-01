@@ -37,11 +37,11 @@ func (c *actorCapture) handler() http.Handler {
 }
 
 func TestOriginRESTPreservesActorHeaderWithoutGate(t *testing.T) {
-	h, _ := standaloneServer(t)
+	h, _ := localOriginServer(t)
 	cap := &actorCapture{}
 	h.BindOriginHandler(cap.handler())
 	rec := get(t, h, origin.RESTPrefix+"/rest/api/3/myself", map[string]string{
-		"Authorization":         basicStandalone(t),
+		"Authorization":         basicLocalOrigin(t),
 		"X-Issuetap-Actor":      "claude:354bff2b",
 		"X-Issuetap-Actor-Name": "Claude (build 1)",
 	})
@@ -56,7 +56,7 @@ func TestOriginRESTPreservesActorHeaderWithoutGate(t *testing.T) {
 }
 
 func TestPairingGateKeepsActorHeaderWhileRewritingAuth(t *testing.T) {
-	h, cfg := standaloneServer(t)
+	h, cfg := localOriginServer(t)
 	cap := &actorCapture{}
 	h.BindOriginHandler(cap.handler())
 

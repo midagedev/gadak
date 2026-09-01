@@ -1243,7 +1243,7 @@ func TestConfluenceChunkBoundarySplits(t *testing.T) {
 }
 
 // TestConfluenceIncrementalSingleSpaceCQL: a single-member chunk keeps the
-// legacy space="KEY" form (older issuetap servers — standalone wikis in
+// legacy space="KEY" form (older issuetap servers — local-origin wikis in
 // released binaries, paired home serves — parse only that form), and a
 // backfill space still gets its own floor-less full pass with no
 // comments-only CQL.

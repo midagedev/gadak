@@ -109,14 +109,14 @@ func TestStatusSurfacesConfigLoadError(t *testing.T) {
 	}
 }
 
-func TestStatusJSONWikiPathStandaloneOn(t *testing.T) {
+func TestStatusJSONWikiPathLocalOriginOn(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
 	config.SetProfile("")
 	t.Cleanup(func() { config.SetProfile("") })
 
 	cfg := &config.Config{
-		Kind:       config.KindStandalone,
+		Kind:       config.KindLocalOrigin,
 		Confluence: &config.ConfluenceConfig{Spaces: []string{"LOC"}},
 	}
 	if err := cfg.Save(); err != nil {
@@ -155,7 +155,7 @@ func TestStatusJSONWikiPathSkippedWhenNotConfigured(t *testing.T) {
 	t.Cleanup(func() { config.SetProfile("") })
 
 	cfg := &config.Config{
-		Kind: config.KindStandalone,
+		Kind: config.KindLocalOrigin,
 	}
 	if err := cfg.Save(); err != nil {
 		t.Fatal(err)
@@ -559,14 +559,14 @@ func TestStatusJSONCustomFieldsUnmappedNoStderrNudge(t *testing.T) {
 		t.Fatalf("status must not stderr-nudge fields --apply (raw scan is not cheap): %q", stderr)
 	}
 
-	standaloneMirror(t)
+	localOriginMirror(t)
 	t.Setenv("HOME", t.TempDir())
 	_, stderr, err = captureBoth(t, func() error { return cmdStatus([]string{"--json"}) })
 	if err != nil {
-		t.Fatalf("standalone status --json: %v", err)
+		t.Fatalf("local-origin status --json: %v", err)
 	}
 	if strings.Contains(stderr, "fields --apply") {
-		t.Fatalf("standalone status must not nudge custom-field mapping: %q", stderr)
+		t.Fatalf("local-origin status must not nudge custom-field mapping: %q", stderr)
 	}
 }
 

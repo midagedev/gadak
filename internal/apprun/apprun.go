@@ -8,7 +8,7 @@
 // options, not a merged sequence:
 //
 //   - GDK-658: desktop runs wails SingleInstance (application.New)
-//     before AcquireStandalone / StartOriginPassthrough.
+//     before AcquireLocalOrigin / StartOriginPassthrough.
 //
 // Process-start workspace selection (GDK-644) is SelectWorkspace, called
 // from each main before flags. Persist flush on the CLI process is still
@@ -52,10 +52,10 @@ type Options struct {
 	// passes cmd/gadak openStore so rejectUnknownProfile stays there.
 	OpenStore func() (*store.DB, error)
 
-	// DeferStandalone skips persist acquire during Open. Desktop sets this
+	// DeferLocalOrigin skips persist acquire during Open. Desktop sets this
 	// so wails SingleInstance (application.New) can os.Exit a second
 	// instance before persist is taken (GDK-658).
-	DeferStandalone bool
+	DeferLocalOrigin bool
 
 	// FlushOnClose runs origin.Close from Runtime.Close. Desktop sets this
 	// (GDK-342/348). serve leaves it false: cmd/gadak main flushes every
@@ -71,9 +71,9 @@ type Runtime struct {
 	API *server.Handler
 	Reg *workspace.Registry
 
-	log                func(string)
-	flushOnClose       bool
-	acquiredStandalone bool
+	log                 func(string)
+	flushOnClose        bool
+	acquiredLocalOrigin bool
 }
 
 // SelectWorkspace is the process-start workspace pick (GDK-644). Both
@@ -85,8 +85,8 @@ func SelectWorkspace() {
 
 // Open loads config, opens the mirror, builds the API handler (attachment
 // cache + server.New), and creates the workspace registry. Version stamp
-// is first when Options.Version is set. Persist acquire for standalone
-// runs here unless DeferStandalone is set.
+// is first when Options.Version is set. Persist acquire for local-origin
+// runs here unless DeferLocalOrigin is set.
 func Open(opts Options) (*Runtime, error) {
 	rt := &Runtime{
 		log:          opts.Log,
@@ -117,12 +117,12 @@ func (rt *Runtime) boot(opts Options) error {
 	note("config")
 	rt.stage("apprun: config loaded")
 
-	if cfg.IsStandalone() && !opts.DeferStandalone {
-		if err := rt.acquireStandalone(); err != nil {
+	if cfg.HasLocalOrigin() && !opts.DeferLocalOrigin {
+		if err := rt.acquireLocalOrigin(); err != nil {
 			return err
 		}
-		note("standalone-persist")
-		rt.stage("apprun: standalone persist acquired")
+		note("local-origin-persist")
+		rt.stage("apprun: local-origin persist acquired")
 	}
 
 	db, err := openDB(opts)
@@ -176,7 +176,7 @@ func (rt *Runtime) stage(msg string) {
 	log.Print(msg)
 }
 
-// Close flushes standalone persist when FlushOnClose is set or persist was
+// Close flushes local-origin persist when FlushOnClose is set or persist was
 // acquired here, then closes the registry, API handler, and store — API
 // before DB (GDK-270). Safe on a partial Open.
 func (rt *Runtime) Close() error {
@@ -184,18 +184,18 @@ func (rt *Runtime) Close() error {
 		return nil
 	}
 	var first error
-	if rt.acquiredStandalone || rt.flushOnClose {
+	if rt.acquiredLocalOrigin || rt.flushOnClose {
 		if err := origin.Close(); err != nil {
 			if rt.flushOnClose {
-				log.Printf("warning: standalone persist flush on exit: %v", err)
+				log.Printf("warning: local-origin persist flush on exit: %v", err)
 			}
 			if first == nil {
 				first = err
 			}
 		}
-		if rt.acquiredStandalone {
+		if rt.acquiredLocalOrigin {
 			origin.SetInProcess(rt.Cfg, false)
-			rt.acquiredStandalone = false
+			rt.acquiredLocalOrigin = false
 		}
 	}
 	if rt.Reg != nil {

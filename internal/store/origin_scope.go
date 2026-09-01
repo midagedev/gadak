@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-// Replacing a workspace's origin — standalone → a real Jira site (GDK-241,
+// Replacing a workspace's origin — local-origin → a real Jira site (GDK-241,
 // GDK-344) — is not a cache invalidation. An issue key is not globally unique:
 // `init --standalone` seeds project STD and a real site's project can be called
 // STD too, so a personal row naming STD-1 does not go stale when the origin
@@ -199,7 +199,7 @@ const currentEpochSQL = `COALESCE((SELECT CAST(v AS INTEGER) FROM local.local_me
 
 // DropSourceMirror deletes everything one source mirrored: its items (and their
 // cascaded children), FTS rows, spaces, tombstones, sync state and sync runs —
-// so the next sync starts full against the new origin. Used when a standalone
+// so the next sync starts full against the new origin. Used when a local-origin
 // workspace converts to connected: a pre-namespace mirror holds `jira:N` /
 // `confluence:N` rows the new site's upsert would silently overwrite on an id
 // collision. The disposable cache is dropped whole rather than reconciled row by
@@ -232,7 +232,7 @@ func dropSourceTx(tx *sql.Tx, sourceID string, removed map[string]int) error {
 
 // ResetForNewOrigin is the one owner of "this workspace's origin is being
 // replaced". Both conversion surfaces reach it through
-// originbind.DropStandaloneProjection, so the decision cannot exist on the CLI
+// originbind.DropLocalOriginProjection, so the decision cannot exist on the CLI
 // path and not the HTTP one (GDK-247).
 //
 // One transaction: a conversion that dropped the mirror but left the feed marks

@@ -31,7 +31,7 @@ func TestDropSourceMirrorTakesItsWatchesAndFavorites(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	put("jira", "standalone-jira:10001", "STD-1")
+	put("jira", "local-origin-jira:10001", "STD-1")
 	put("other", "other:1", "OTH-1")
 	for _, key := range []string{"STD-1", "OTH-1"} {
 		if err := db.SetWatch(ctx, key, true); err != nil {

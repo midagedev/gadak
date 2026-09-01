@@ -3,7 +3,7 @@ package workspace
 // The removal core of `gadak workspaces rm <name>` (GDK-1098), extracted so
 // the HTTP surface (DELETE /api/v1/workspaces/{name}, GDK-1096) enforces the
 // same contract instead of a copy of it. Every refusal names its reason and
-// the next move: the root workspace is the home itself, a standalone persist
+// the next move: the root workspace is the home itself, a local-origin persist
 // is the only copy of that tracker anywhere (SECURITY.md, "Offboarding"),
 // and --yes is what separates "explain" from "delete" in a non-interactive
 // verb. The CLI's refusal wording is byte-preserved: each typed error's
@@ -46,7 +46,7 @@ func (e *NotFoundError) Error() string {
 }
 
 // KindUnreadableError is a config.json that will not parse. An unreadable
-// config is a refusal, not a guess: if this might be standalone, its persist
+// config is a refusal, not a guess: if this might be localOrigin, its persist
 // is the only copy of that tracker and a plain --yes must not destroy it.
 type KindUnreadableError struct {
 	Name       string
@@ -61,7 +61,7 @@ func (e *KindUnreadableError) Error() string {
 
 func (e *KindUnreadableError) Unwrap() error { return e.Err }
 
-// NeedsDestroyOriginError: standalone with an existing persist, but the
+// NeedsDestroyOriginError: local-origin with an existing persist, but the
 // caller did not opt into destroying the only copy of that tracker.
 type NeedsDestroyOriginError struct {
 	Name    string
@@ -75,17 +75,17 @@ func (e *NeedsDestroyOriginError) Error() string {
 }
 
 // NeedsYesError: the caller asked about removal without committing to it.
-// Standalone picks the wording that says there is no origin data to protect
+// Local-origin picks the wording that says there is no origin data to protect
 // (no persist exists); connected picks the one that says the origin keeps
 // everything.
 type NeedsYesError struct {
-	Name       string
-	CmdHint    string
-	Standalone bool
+	Name        string
+	CmdHint     string
+	LocalOrigin bool
 }
 
 func (e *NeedsYesError) Error() string {
-	if e.Standalone {
+	if e.LocalOrigin {
 		return fmt.Sprintf("refusing: removing %q needs --yes\n  no persist file exists in it — there is no origin data to protect\n  to proceed: gadak %s rm %s --yes",
 			e.Name, e.CmdHint, e.Name)
 	}
@@ -118,10 +118,10 @@ type RemoveResult struct {
 
 	// The success lines below need more than the three fields above:
 	// Dir is the removed directory, Persist the destroyed persist path
-	// (empty when none), Standalone the pre-removal kind reading.
-	Dir        string
-	Persist    string
-	Standalone bool
+	// (empty when none), Local-origin the pre-removal kind reading.
+	Dir         string
+	Persist     string
+	LocalOrigin bool
 
 	// Advisory materials.
 	PairedSelector string
@@ -186,17 +186,17 @@ func Remove(name string, yes, destroyOrigin bool, cmdHint string) (RemoveResult,
 	if err != nil {
 		return RemoveResult{}, &KindUnreadableError{Name: name, ConfigPath: filepath.Join(dir, "config.json"), Err: err}
 	}
-	standalone := cfg.IsStandalone()
+	localOrigin := cfg.HasLocalOrigin()
 	persist := ""
-	if standalone {
+	if localOrigin {
 		persist = existingPersist(dir)
 	}
 
-	if standalone && persist != "" && !destroyOrigin {
+	if localOrigin && persist != "" && !destroyOrigin {
 		return RemoveResult{}, &NeedsDestroyOriginError{Name: name, Persist: persist, CmdHint: cmdHint}
 	}
 	if !yes {
-		return RemoveResult{}, &NeedsYesError{Name: name, CmdHint: cmdHint, Standalone: standalone}
+		return RemoveResult{}, &NeedsYesError{Name: name, CmdHint: cmdHint, LocalOrigin: localOrigin}
 	}
 
 	wasActive := config.Profile() == name
@@ -204,7 +204,7 @@ func Remove(name string, yes, destroyOrigin bool, cmdHint string) (RemoveResult,
 	// lives in — the hint describes a token that outlives this directory
 	// on the home serve, not one we just destroyed here.
 	pairedSelector := ""
-	if !standalone {
+	if !localOrigin {
 		if rem, err := origin.PairedStatus(cfg); err == nil && rem != nil {
 			pairedSelector = rem.Label
 			if pairedSelector == "" {
@@ -238,7 +238,7 @@ func Remove(name string, yes, destroyOrigin bool, cmdHint string) (RemoveResult,
 		OriginDestroyed: persist != "",
 		Dir:             dir,
 		Persist:         persist,
-		Standalone:      standalone,
+		LocalOrigin:     localOrigin,
 		PairedSelector:  pairedSelector,
 		ClearedStored:   clearedStored,
 		WasActive:       wasActive,

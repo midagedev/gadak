@@ -68,14 +68,14 @@ func parseCSVKeys(s string, upper bool) []string {
 	return out
 }
 
-// replaceStandaloneUsage is the --replace-local help text. It names
+// replaceLocalOriginUsage is the --replace-local help text. It names
 // what is lost: locally originated issues have no Jira copy, and the
 // conversion drops them from the mirror (GDK-241).
-const replaceStandaloneUsage = "replace this workspace's gadak origin with a Jira site; issues that originated here exist only here and converting deletes them from the mirror"
+const replaceLocalOriginUsage = "replace this workspace's gadak origin with a Jira site; issues that originated here exist only here and converting deletes them from the mirror"
 
 // renderReplaceRefusedJSON writes the --json document for a refused
-// standalone replace. Shape and field values match the previous
-// refuseStandaloneReplace encoder (CLI --json contract).
+// local-origin replace. Shape and field values match the previous
+// refuseLocalOriginReplace encoder (CLI --json contract).
 func renderReplaceRefusedJSON(err error) error {
 	var refused *originbind.ReplaceRefusedError
 	if !errors.As(err, &refused) {
@@ -118,7 +118,7 @@ func initMissingError(missing []string, reason string) error {
 // translated here rather than registered, because a registered alias
 // would appear in `gadak init --help` and teach two names for one thing.
 func renameLegacyInitFlags(args []string) []string {
-	renamed := map[string]string{"standalone": "local", "replace-standalone": "replace-local"}
+	renamed := map[string]string{"standalone": "local", "replace-local": "replace-local"}
 	out := make([]string, 0, len(args))
 	for _, a := range args {
 		dashes := ""
@@ -171,12 +171,12 @@ func cmdInit(args []string) error {
 	pairingCode := fs.String("pairing-code", "", "pairing offer from the home machine's `gadak pairing mint`; binds this workspace to that serve")
 	pairingStdin := fs.Bool("pairing-code-stdin", false, "read the pairing offer from stdin (keeps it out of ps and shell history)")
 	// Long name on purpose: a typo or a stray -f must not flip the origin.
-	replaceLocal := fs.Bool("replace-local", false, replaceStandaloneUsage)
+	replaceLocalFlag := fs.Bool("replace-local", false, replaceLocalOriginUsage)
 	if err := fs.Parse(renameLegacyInitFlags(args)); err != nil {
 		return err
 	}
-	standalone := *localOrigin
-	replaceStandalone := *replaceLocal
+	wantLocalOrigin := *localOrigin
+	replaceLocal := *replaceLocalFlag
 	if *tokenFlag != "" {
 		return fmt.Errorf("--token is not accepted: it would be visible in `ps` and shell history.\nuse GADAK_TOKEN=..., --token-file <path>, or --token-stdin")
 	}
@@ -193,7 +193,7 @@ func cmdInit(args []string) error {
 	// over the remote serve, then a remote-origin credential. Nothing else
 	// in init applies, so refuse the combinations instead of ignoring them.
 	if *pairingCode != "" || *pairingStdin {
-		if standalone || replaceStandalone {
+		if wantLocalOrigin || replaceLocal {
 			return fmt.Errorf("--pairing-code cannot be combined with --local or --replace-local")
 		}
 		if *siteFlag != "" || *emailFlag != "" || *tokenFile != "" || *tokenStdin || *tokenExpires != "" || *spacesFlag != "" {
@@ -216,8 +216,8 @@ func cmdInit(args []string) error {
 	envToken := config.Env("TOKEN")
 	envProjects := config.Env("PROJECTS")
 
-	if standalone {
-		if replaceStandalone {
+	if wantLocalOrigin {
+		if replaceLocal {
 			return fmt.Errorf("--local cannot be combined with --replace-local")
 		}
 		if *siteFlag != "" || *emailFlag != "" || *tokenFile != "" || *tokenStdin || *tokenExpires != "" ||
@@ -227,28 +227,28 @@ func cmdInit(args []string) error {
 		if *spacesFlag != "" {
 			return fmt.Errorf("--local cannot be combined with --spaces")
 		}
-		return initStandalone(cfg, *jsonOut, *projectsFlag)
+		return initLocalOrigin(cfg, *jsonOut, *projectsFlag)
 	}
 
-	// Whether this run is converting a standalone workspace, captured before
+	// Whether this run is converting a local-origin workspace, captured before
 	// cfg.Kind is cleared below. The seeded wiki space must be dropped on
-	// every such conversion, not only the --replace-standalone one: an empty
-	// standalone workspace is allowed through without that flag.
-	wasStandalone := cfg.IsStandalone()
+	// every such conversion, not only the --replace-local one: an empty
+	// local-origin workspace is allowed through without that flag.
+	wasLocalOrigin := cfg.HasLocalOrigin()
 
 	// CLI conversion while a live `gadak serve` is listening would race
 	// the origin the UI still holds (GDK-415). HTTP onboarding is the
 	// owner process and does not take this gate.
-	if wasStandalone {
+	if wasLocalOrigin {
 		if err := originbind.RefuseIfOpen(cfg); err != nil {
 			return err
 		}
 	}
 
 	// Close the class "a command silently changes which origin owns this
-	// workspace". An empty standalone workspace is not a hazard; one that
+	// workspace". An empty local-origin workspace is not a hazard; one that
 	// holds locally originated issues is (GDK-238).
-	if err := originbind.RefuseReplace(cfg, replaceStandalone); err != nil {
+	if err := originbind.RefuseReplace(cfg, replaceLocal); err != nil {
 		if *jsonOut {
 			return renderReplaceRefusedJSON(err)
 		}
@@ -390,20 +390,20 @@ func cmdInit(args []string) error {
 	cfg.Email = email
 	cfg.Token = token
 	cfg.Projects = projects
-	// Reached only after RefuseReplace (or --replace-standalone).
-	originbind.ClearStandalone(cfg)
+	// Reached only after RefuseReplace (or --replace-local).
+	originbind.ClearLocalOrigin(cfg)
 	// A workspace is bound to one origin. Conversion drops the seeded LOC
 	// space and the old origin's mirror, plus every personal row that named
 	// it — a kept row does not go stale, it rebinds to whatever the new site
 	// has at the same key (internal/store/origin_scope.go). Shared with HTTP
 	// onboarding so the two paths cannot diverge. --spaces still owns the
 	// connected wiki scope below.
-	if wasStandalone {
+	if wasLocalOrigin {
 		db, err := openStore()
 		if err != nil {
 			return err
 		}
-		reset, err := originbind.DropStandaloneProjection(cfg, db)
+		reset, err := originbind.DropLocalOriginProjection(cfg, db)
 		if err != nil {
 			_ = db.Close()
 			return err
@@ -485,18 +485,18 @@ func cmdInit(args []string) error {
 	return nil
 }
 
-// initStandalone is the CLI shell of a standalone init: the seeding core
+// initLocalOrigin is the CLI shell of a local-origin init: the seeding core
 // (config mutation, default type, mirror fill) lives in
-// originbind.SeedStandalone, shared with POST onboarding/standalone. What
+// originbind.SeedLocalOrigin, shared with POST onboarding/standalone. What
 // stays here is CLI-only — the origin flush at process exit, the author line
 // (GET /myself on the in-process origin, GDK-482), skill auto-install, and
 // the human/JSON output.
-func initStandalone(cfg *config.Config, jsonOut bool, projectsFlag string) error {
-	already := cfg.IsStandalone()
+func initLocalOrigin(cfg *config.Config, jsonOut bool, projectsFlag string) error {
+	already := cfg.HasLocalOrigin()
 	// A fill that fails does not fail init (the contract moved with the core,
-	// see originbind.SeedStandalone): the workspace exists, its persist file
+	// see originbind.SeedLocalOrigin): the workspace exists, its persist file
 	// is written, and writes already work — the next `gadak sync` fixes it.
-	fillErr, err := originbind.SeedStandalone(cfg, projectsFlag, nil, func() (*store.DB, func() error, error) {
+	fillErr, err := originbind.SeedLocalOrigin(cfg, projectsFlag, nil, func() (*store.DB, func() error, error) {
 		db, err := openStore()
 		if err != nil {
 			return nil, nil, err
@@ -509,7 +509,7 @@ func initStandalone(cfg *config.Config, jsonOut bool, projectsFlag string) error
 	if fillErr != nil {
 		fmt.Fprintf(os.Stderr, "warning: could not fill the mirror yet (%v) — run `gadak sync`\n", fillErr)
 	}
-	author := standaloneAuthorName(cfg)
+	author := localOriginAuthorName(cfg)
 	if err := origin.Close(); err != nil {
 		return fmt.Errorf("flush origin persist: %w", err)
 	}
@@ -520,7 +520,7 @@ func initStandalone(cfg *config.Config, jsonOut bool, projectsFlag string) error
 	}
 	_, persist := origin.Describe(cfg)
 	if already {
-		// GDK-465: re-init of an already-standalone home is one line, not
+		// GDK-465: re-init of an already-local-origin home is one line, not
 		// the first-run next list.
 		if persist == "" {
 			persist = p
@@ -569,13 +569,13 @@ func initConfluenceJSON(cfg *config.Config) any {
 }
 
 // writeInitJSON is the --json document for both init kinds. Persist is
-// standalone-only (origin.Describe's path); connected origin is not a file.
+// local-origin-only (origin.Describe's path); connected origin is not a file.
 // skill is the auto-install result (installed|skipped|failed); initPaired
 // has its own encoder and must name the same field.
 func writeInitJSON(cfg *config.Config, account, path, skill string) error {
 	kind, src := origin.Describe(cfg)
 	persist := ""
-	if kind == config.KindStandalone {
+	if kind == config.KindLocalOrigin {
 		persist = src
 	}
 	enc := json.NewEncoder(os.Stdout)
@@ -608,11 +608,11 @@ func writeInitJSON(cfg *config.Config, account, path, skill string) error {
 }
 
 // printInitNextSteps ends `init` with the whole path to value, not just the
-// next command. Kind owns the duration hedge: a standalone first sync is
+// next command. Kind owns the duration hedge: a local-origin first sync is
 // local (the fill already ran); a connected first run can take minutes.
 // printPairedInitNextSteps is the paired twin (pairing.go) — do not fold it in.
 func printInitNextSteps(kind string) {
-	if kind == config.KindStandalone {
+	if kind == config.KindLocalOrigin {
 		// GDK-465: the mirror is already filled; skill-first, MCP secondary.
 		fmt.Printf(`
 next:
@@ -633,11 +633,11 @@ JQL cannot ask.
 `)
 }
 
-// standaloneAuthorName is the display name GET /myself returns on the
+// localOriginAuthorName is the display name GET /myself returns on the
 // in-process origin. Empty if the origin cannot answer — the init success
 // line is then omitted rather than inventing a name. GDK-482: no gadak
 // verb changes this (measured against config list paths and issuetap seed).
-func standaloneAuthorName(cfg *config.Config) string {
+func localOriginAuthorName(cfg *config.Config) string {
 	c, err := origin.Client(cfg)
 	if err != nil {
 		return ""

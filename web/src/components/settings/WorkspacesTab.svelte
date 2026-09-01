@@ -50,7 +50,7 @@
   /** A removal that failed before a dialog could say it (network throw). */
   let removeError = $state<string | null>(null)
 
-  /** GDK-1099: the create area's two modes — seed a standalone tracker, or
+  /** GDK-1099: the create area's two modes — seed a local-origin tracker, or
    *  register a remote serve from its pairing offer. A boolean on purpose:
    *  this is a form mode, not the server-owned workspace kind, and
    *  workspace.test.ts (GDK-237) keeps kind literals out of components. */
@@ -248,7 +248,7 @@
   }
 
   /** SidebarNav's host-shortening rule: a site URL reads as its host; a
-   *  workspace with no site (standalone seeds have none) is a dash. */
+   *  workspace with no site (localOrigin seeds have none) is a dash. */
   function siteHost(w: WorkspaceInfo): string {
     if (!w.site) return ''
     try {
@@ -384,9 +384,9 @@
             : 'border-transparent text-text-secondary hover:text-text-primary'}"
           aria-pressed={!pairingMode}
           onclick={() => (pairingMode = false)}
-          data-testid="workspaces-mode-standalone"
+          data-testid="workspaces-mode-local-origin"
         >
-          {t('settings.workspacesModeStandalone')}
+          {t('settings.workspacesModeLocalOrigin')}
         </button>
         <button
           type="button"
@@ -514,7 +514,7 @@
           <p class="text-micro text-text-muted">{t('settings.workspacesLoading')}</p>
         {:else}
           <!-- The server's refusal paragraph, verbatim: it names the
-               workspace, says what removal deletes, and (for a standalone
+               workspace, says what removal deletes, and (for a local-origin
                persist) carries the absolute path. whitespace-pre-wrap because
                the wording is line-broken by its owner. -->
           <p

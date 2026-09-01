@@ -79,7 +79,7 @@ type webConfigDoc struct {
 	OriginType string `json:"originType"`
 	Transport  string `json:"transport"`
 	// OriginWritable mirrors config.HasAtlassianCredential — "can this server
-	// reach the Jira-family origin at all" (site+email+token, standalone, or
+	// reach the Jira-family origin at all" (site+email+token, localOrigin, or
 	// a pairing remote). Boolean only; no site, token, or email.
 	//
 	// It exists so the web does not re-derive that three-way predicate
@@ -87,7 +87,7 @@ type webConfigDoc struct {
 	// one bool on the server, and a surface that skips a request rather than
 	// collecting a 409 has to agree with it exactly. The near-miss it closes:
 	// `me.identified` looks like the same question and is not — auth/me
-	// answers from cfg.Email, which is empty on both standalone and paired,
+	// answers from cfg.Email, which is empty on both local-origin and paired,
 	// so gating on identity would have silenced the very workspaces 0.19
 	// targets. Absent (static export, hosted demo) reads as false, which is
 	// the truth there.

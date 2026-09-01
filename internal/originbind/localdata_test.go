@@ -13,7 +13,7 @@ import (
 	"github.com/midagedev/gadak/internal/store"
 )
 
-func standaloneHome(t *testing.T) *config.Config {
+func localOriginHome(t *testing.T) *config.Config {
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
@@ -26,7 +26,7 @@ func standaloneHome(t *testing.T) *config.Config {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg.Kind = config.KindStandalone
+	cfg.Kind = config.KindLocalOrigin
 	if err := cfg.Save(); err != nil {
 		t.Fatal(err)
 	}
@@ -72,10 +72,10 @@ func seedMirrorPages(t *testing.T, n int) {
 	}
 }
 
-// TestLocalDataCountsPagesWhenNoIssues is GDK-417: a wiki-only standalone
+// TestLocalDataCountsPagesWhenNoIssues is GDK-417: a wiki-only local-origin
 // workspace is still local data. Docstring previously counted issues only.
 func TestLocalDataCountsPagesWhenNoIssues(t *testing.T) {
-	cfg := standaloneHome(t)
+	cfg := localOriginHome(t)
 	seedMirrorPages(t, 2)
 	n, persist, err := LocalData(cfg)
 	if err != nil {
@@ -92,11 +92,11 @@ func TestLocalDataCountsPagesWhenNoIssues(t *testing.T) {
 // TestRefuseReplaceBlocksPagesOnlyWorkspace is GDK-417's convert gate:
 // pages without issues must still refuse a silent connected init.
 func TestRefuseReplaceBlocksPagesOnlyWorkspace(t *testing.T) {
-	cfg := standaloneHome(t)
+	cfg := localOriginHome(t)
 	seedMirrorPages(t, 2)
 	err := RefuseReplace(cfg, false)
 	if err == nil {
-		t.Fatal("pages-only standalone must refuse a connected init")
+		t.Fatal("pages-only local-origin must refuse a connected init")
 	}
 	var refused *ReplaceRefusedError
 	if !asReplaceRefused(err, &refused) {
@@ -123,14 +123,14 @@ func asReplaceRefused(err error, target **ReplaceRefusedError) bool {
 }
 
 func TestRefuseReplaceAllowsEmpty(t *testing.T) {
-	cfg := standaloneHome(t)
+	cfg := localOriginHome(t)
 	if err := RefuseReplace(cfg, false); err != nil {
-		t.Fatalf("empty standalone: %v", err)
+		t.Fatalf("empty local-origin: %v", err)
 	}
 }
 
 func TestRefuseReplaceOptIn(t *testing.T) {
-	cfg := standaloneHome(t)
+	cfg := localOriginHome(t)
 	seedMirrorPages(t, 1)
 	if err := RefuseReplace(cfg, true); err != nil {
 		t.Fatalf("opt-in: %v", err)
@@ -138,7 +138,7 @@ func TestRefuseReplaceOptIn(t *testing.T) {
 }
 
 func TestLocalDataCountsLegacyYAMLOrigin(t *testing.T) {
-	cfg := standaloneHome(t)
+	cfg := localOriginHome(t)
 	home := cfg.Directory()
 	yamlPath := origin.LegacyYAMLPath(home)
 	if err := os.MkdirAll(filepath.Dir(yamlPath), 0o700); err != nil {
@@ -147,7 +147,7 @@ func TestLocalDataCountsLegacyYAMLOrigin(t *testing.T) {
 	body := []byte(`projects:
   - id: "10000"
     key: STD
-    name: Standalone
+    name: Local-origin
     type: software
     style: classic
 issues:
@@ -168,12 +168,12 @@ issues:
 		t.Fatalf("LocalData = %d, want yaml-origin issue counted", n)
 	}
 	if err := RefuseReplace(cfg, false); err == nil {
-		t.Fatal("yaml-only standalone with issues must refuse a connected init")
+		t.Fatal("yaml-only local-origin with issues must refuse a connected init")
 	}
 }
 
 func TestLocalDataMissingMirrorIsZero(t *testing.T) {
-	cfg := standaloneHome(t)
+	cfg := localOriginHome(t)
 	n, _, err := LocalData(cfg)
 	if err != nil {
 		t.Fatal(err)

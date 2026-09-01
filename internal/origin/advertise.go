@@ -23,11 +23,11 @@ const ProbePath = "/api/v1/issues/sync/progress/"
 
 const probeTimeout = 700 * time.Millisecond
 
-// OwnerStatus is the doctor line for a standalone workspace. There is no
+// OwnerStatus is the doctor line for a local-origin workspace. There is no
 // exclusive persist owner after GDK-936 (WAL); leftover serve-origin.json
-// is ignored. Empty when the workspace is not standalone.
+// is ignored. Empty when the workspace is not localOrigin.
 func OwnerStatus(cfg *config.Config) string {
-	if cfg == nil || !cfg.IsStandalone() {
+	if cfg == nil || !cfg.HasLocalOrigin() {
 		return ""
 	}
 	return "embedded (no live serve)"
@@ -77,7 +77,7 @@ func ProbeGadakOnPort(port string, timeout time.Duration) GadakProbe {
 //
 // This is the single owner of that discovery walk (GDK-987): until it, two
 // copies of the same serveaddr.List → ProbeGadakOnPort loop lived in
-// originbind.RefuseIfOpen (standalone→connected conversion refusal) and
+// originbind.RefuseIfOpen (localOrigin→connected conversion refusal) and
 // pairflow.AdvertisedEndpoint (the pairing endpoint default), and a guard
 // added to one copy would silently miss the other. Consumers keep their own
 // framing of the record: RefuseIfOpen wraps PID/Addr in WorkspaceOpenError,

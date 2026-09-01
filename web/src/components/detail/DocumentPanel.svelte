@@ -311,7 +311,7 @@
               }}
             >
               <!-- GDK-1148: page comments are issue comments' sibling — an
-                   anonymous standalone/paired writer (originWritable) posts
+                   anonymous local-origin/paired writer (originWritable) posts
                    fine through the origin, so no credential placeholder. -->
               <textarea
                 bind:value={draft}

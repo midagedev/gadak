@@ -1,6 +1,6 @@
 package main
 
-// `gadak ref` — cross-workspace issue references (GDK-1032). A standalone
+// `gadak ref` — cross-workspace issue references (GDK-1032). A local-origin
 // or paired issue points at an issue in another workspace, the pointer is
 // stored on this origin as a Jira remote issue link, and the target's
 // current state is hydrated from that workspace's own mirror with no

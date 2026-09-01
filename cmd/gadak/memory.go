@@ -5,7 +5,7 @@ package main
 // memory space. A memory is a page — created through the same origin path
 // page create uses (createPageViaOrigin), mirrored by the same refresh — so
 // there is no second write path and nothing agent-specific in the store.
-// The space is config-owned (memory.space): standalone defaults to the
+// The space is config-owned (memory.space): local-origin defaults to the
 // seeded personal space, connected refuses until set, because quietly
 // writing agent notes into a team-visible space is not the CLI's call.
 
@@ -41,14 +41,14 @@ const memorySearchFetchLimit = 200
 var errNoMemorySpace = fmt.Errorf("memory: memory.space is not set — a connected workspace will not quietly write notes to a team space; pick one with `gadak config set memory.space KEY`")
 
 // memorySpace resolves where agent memory lives. An explicit memory.space
-// wins on both workspace kinds. Standalone falls back to its seeded
+// wins on both workspace kinds. Local-origin falls back to its seeded
 // personal space (the origin owns that key; config cannot import it without
 // a cycle). Connected has no default — the refusal is the point.
 func memorySpace(cfg *config.Config) (string, error) {
 	if s := cfg.MemorySpace(); s != "" {
 		return s, nil
 	}
-	if cfg.IsStandalone() {
+	if cfg.HasLocalOrigin() {
 		return origin.DefaultSpaceKey, nil
 	}
 	return "", errNoMemorySpace

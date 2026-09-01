@@ -21,7 +21,7 @@
   import { selection } from '../../stores/selection.svelte'
   import { issues } from '../../stores/issues.svelte'
   import { write } from '../../stores/write.svelte'
-  import { feature, isHostedDemo, isStandaloneWorkspace } from '../../lib/config'
+  import { feature, isHostedDemo, isLocalOriginWorkspace } from '../../lib/config'
   import {
     readViewportRegime,
     subscribeViewportRegime,
@@ -395,7 +395,7 @@
           <Section title={t('detail.prs')} count={detailForKey.linked_prs.length}>
             {#if detailForKey.linked_prs.length > 0}
               <PrList prs={detailForKey.linked_prs} />
-            {:else if isStandaloneWorkspace()}
+            {:else if isLocalOriginWorkspace()}
               <p class="text-micro text-text-muted">{t('detail.noPrs')}</p>
             {:else}
               <p class="text-micro text-text-muted">{t('detail.prsNotMirrored')}</p>

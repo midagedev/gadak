@@ -1,6 +1,6 @@
 package origin
 
-// The open marker answers one question and only one: is this standalone
+// The open marker answers one question and only one: is this local-origin
 // workspace open in some other process right now?
 //
 // That question used to be answered by a side effect. Before GDK-936 a
@@ -9,7 +9,7 @@ package origin
 // know. GDK-936 proved the write arbitration unnecessary — issuetap's WAL
 // already lets two sessions share one persist, measured — and deleted the
 // sidecar. The write question was answered correctly; the open question lost
-// its answer with it (GDK-971: `gadak init --replace-standalone` stopped
+// its answer with it (GDK-971: `gadak init --replace-local` stopped
 // refusing while Gadak.app held the workspace, because the app listens on no
 // port and so is invisible to serveaddr discovery).
 //
@@ -17,7 +17,7 @@ package origin
 // lock:
 //
 //	Nothing waits on it and nothing is refused a write because of it. The
-//	only caller is the standalone→connected conversion, which is a
+//	only caller is the local-origin→connected conversion, which is a
 //	destructive migration rather than concurrent access — a workspace is
 //	bound to one origin (see CLAUDE.md), so changing it under a live holder
 //	is the "quietly points at a different tracker" defect.

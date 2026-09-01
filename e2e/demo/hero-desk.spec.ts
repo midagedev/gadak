@@ -49,12 +49,12 @@
  *
  * ── The mirror ────────────────────────────────────────────────────────────
  *
- * The workspace is a standalone one (record-hero-desk.sh builds it:
+ * The workspace is a local-origin one (record-hero-desk.sh builds it:
  * `gadak init --local`, seed issues only, no real data — MEDIA.md).
- * Standalone is load-bearing here, not a convenience: the frozen demo home
+ * Local-origin is load-bearing here, not a convenience: the frozen demo home
  * the terminal-claude league uses rejects every write (origin.ErrWorkspaceFrozen,
  * internal/origin/origin.go:94-100), and this take needs the agent to really
- * transition an issue. The standalone origin is issuetap in-process, on
+ * transition an issue. The local-origin origin is issuetap in-process, on
  * loopback, so the write path stays inside the machine and the fixture stays
  * fictional.
  *
@@ -63,7 +63,7 @@
  * the target key. The final UI beat switches the list to Jira-status grouping
  * and checks the target row sits *below the Done header* — a display name is
  * fine there because the fixture owns these names (seeded To Do / In
- * Progress / Done — the whole standalone transition graph, en locale), and
+ * Progress / Done — the whole local-origin transition graph, en locale), and
  * the correctness gate is the category poll, not the header text.
  *
  * ── Modes ─────────────────────────────────────────────────────────────────
@@ -265,7 +265,7 @@ test.describe('hero desk demo', () => {
     })
     await forceLocale(page, 'en')
 
-    // ── 1. The list at rest, on a real (seeded, standalone) mirror. ──────
+    // ── 1. The list at rest, on a real (seeded, localOrigin) mirror. ──────
     await page.goto('/#/')
     await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 30_000 })
     await expect(page.getByTestId('issue-list-scroller')).toBeVisible({ timeout: 30_000 })

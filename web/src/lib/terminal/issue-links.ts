@@ -61,7 +61,7 @@ export function findIssueKeyMatches(
  *
  * GDK-1177: the fallback used to read `source_project`, which is the
  * *cloned-from* project (store/read.go), not the issue's own — null on every
- * issue that was not cloned, so a standalone workspace (which also leaves
+ * issue that was not cloned, so a local-origin workspace (which also leaves
  * `projects` empty, meaning "mirror everything") offered no links at all.
  * The issue's own key is the thing the mirror actually covers.
  */

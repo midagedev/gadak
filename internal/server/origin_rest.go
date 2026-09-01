@@ -82,14 +82,14 @@ func PairedAppOriginExempt(dir func() string) func(*http.Request) bool {
 // (GDK-433), which applies while at least one active pairing token exists.
 func (s *server) handleOriginREST(w http.ResponseWriter, r *http.Request) {
 	cfg := s.config()
-	if cfg == nil || !cfg.IsStandalone() {
+	if cfg == nil || !cfg.HasLocalOrigin() {
 		handleNotFound(w, r)
 		return
 	}
 	if !s.pairingGate(w, r, cfg) {
 		return
 	}
-	h := s.standaloneOrigin()
+	h := s.localOriginOrigin()
 	if h == nil {
 		log.Printf("server: origin passthrough unavailable")
 		fail(w, http.StatusBadGateway, "origin_unavailable")
@@ -170,13 +170,13 @@ func bearerToken(r *http.Request) string {
 	return strings.TrimSpace(rest)
 }
 
-func (s *server) standaloneOrigin() http.Handler {
+func (s *server) localOriginOrigin() http.Handler {
 	s.originMu.Lock()
 	defer s.originMu.Unlock()
 	if s.originH != nil {
 		return s.originH
 	}
-	h, err := origin.StandaloneHandler(s.config())
+	h, err := origin.LocalOriginHandler(s.config())
 	if err != nil {
 		// Not cached: a construction that failed for a transient reason
 		// must be retryable on the next request.
@@ -192,7 +192,7 @@ func (s *server) standaloneOrigin() http.Handler {
 // the slot back to lazy — leaving a handler pinned to a session the caller
 // has since closed is how one persist file ends up with two stores.
 //
-// Serialised with standaloneOrigin so a bind cannot race lazy construction.
+// Serialised with localOriginOrigin so a bind cannot race lazy construction.
 func (h *Handler) BindOriginHandler(next http.Handler) {
 	if h == nil || h.s == nil {
 		return

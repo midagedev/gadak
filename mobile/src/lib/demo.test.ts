@@ -154,7 +154,7 @@ describe('demoRequest — the response contract of the bundled bundle', () => {
     expect(f.urls).toHaveLength(1)
   })
 
-  it('answers auth/me with the standalone no-identity shape', async () => {
+  it('answers auth/me with the local-origin no-identity shape', async () => {
     const f = fileFetch(null)
     const res = await demoRequest<{ email: null; account_id: null; name: null }>('auth/me/', { fetchFn: f.fn })
     expect(res.body).toEqual({ email: null, account_id: null, name: null })

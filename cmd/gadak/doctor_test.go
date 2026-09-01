@@ -761,14 +761,14 @@ func TestDoctorReportsSkillLastAutoCheck(t *testing.T) {
 	}
 }
 
-func TestDoctorReportsStandaloneWithCredential(t *testing.T) {
+func TestDoctorReportsLocalOriginWithCredential(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
 	t.Setenv("HOME", home)
 	config.SetProfile("")
 
 	const planted = "NOT-A-REAL-TOKEN-doctor-inconsistent"
-	cfg := &config.Config{Kind: config.KindStandalone, Token: planted}
+	cfg := &config.Config{Kind: config.KindLocalOrigin, Token: planted}
 	if err := cfg.Save(); err != nil {
 		t.Fatal(err)
 	}
@@ -781,6 +781,8 @@ func TestDoctorReportsStandaloneWithCredential(t *testing.T) {
 		t.Fatalf("doctor leaked the token:\n%s", out)
 	}
 	got := doctorValue(t, out, "workspace")
+	// kind still reports the stored value (GDK-1280 added origin_type and
+	// transport beside it rather than replacing it).
 	if !strings.Contains(got, "kind=standalone") {
 		t.Errorf("workspace line missing kind=standalone: %q", got)
 	}
@@ -788,7 +790,7 @@ func TestDoctorReportsStandaloneWithCredential(t *testing.T) {
 		t.Errorf("workspace line missing site_token=yes: %q", got)
 	}
 	if !strings.Contains(got, "inconsistent") {
-		t.Errorf("standalone-with-token must say inconsistent: %q", got)
+		t.Errorf("local-origin-with-token must say inconsistent: %q", got)
 	}
 
 	raw, err := capture(t, func() error { return cmdDoctor([]string{"--json"}) })
@@ -802,7 +804,7 @@ func TestDoctorReportsStandaloneWithCredential(t *testing.T) {
 	if err := json.Unmarshal([]byte(raw), &rep); err != nil {
 		t.Fatalf("invalid JSON: %v\n%s", err, raw)
 	}
-	if !rep.Workspace.Inconsistent || !rep.Workspace.HasSiteToken || rep.Workspace.Kind != config.KindStandalone {
+	if !rep.Workspace.Inconsistent || !rep.Workspace.HasSiteToken || rep.Workspace.Kind != config.KindLocalOrigin {
 		t.Fatalf("json workspace = %+v", rep.Workspace)
 	}
 }
@@ -814,7 +816,7 @@ func TestDoctorOriginOwnerEmbedded(t *testing.T) {
 	config.SetProfile("")
 	t.Cleanup(func() { config.SetProfile("") })
 
-	cfg := &config.Config{Kind: config.KindStandalone}
+	cfg := &config.Config{Kind: config.KindLocalOrigin}
 	if err := cfg.Save(); err != nil {
 		t.Fatal(err)
 	}
@@ -836,7 +838,7 @@ func TestDoctorOriginOwnerIgnoresStaleAdvertise(t *testing.T) {
 	config.SetProfile("")
 	t.Cleanup(func() { config.SetProfile("") })
 
-	cfg := &config.Config{Kind: config.KindStandalone}
+	cfg := &config.Config{Kind: config.KindLocalOrigin}
 	if err := cfg.Save(); err != nil {
 		t.Fatal(err)
 	}
