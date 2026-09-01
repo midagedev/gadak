@@ -31,6 +31,7 @@
     workspaceName,
   } from '../../lib/config'
   import { isStandalone, STANDALONE_INIT_COMMAND } from '../../lib/workspace'
+  import { setParams } from '../../lib/router.svelte'
   import { mirrorLabel } from '../../lib/mirror-status'
   import { docsEmptyClickAction, docsEmptyGlyph } from '../../lib/docs-empty'
   import { docsEmpty } from '../../stores/docs-empty.svelte'
@@ -270,7 +271,13 @@
     // Agent dashboards (GDK-782): server rows only — nothing to list without
     // a serve, and the section's whole lifecycle is CLI-authored anyway.
     if (dashboards.list.length) present.add('dashboards')
-    if (workspaceList.length > 1) present.add('workspaces')
+    // GDK-1270: with several mirrors the section is the switcher; with one
+    // it still renders wherever workspace management exists, because the
+    // "+ new workspace" row below is the only main-surface path to it —
+    // hidden, the feature reads as absent (measured: the maintainer looked
+    // for create here, gave up, and filed it as missing).
+    if (workspaceList.length > 1 || (workspaceList.length === 1 && hasServerVerb('settings')))
+      present.add('workspaces')
     return sidebarSections.order.filter((id) => present.has(id))
   })
   function workspaceHref(w: WorkspaceInfo): string {
@@ -886,6 +893,20 @@
                 {/if}
               </a>
             {/each}
+            {#if hasServerVerb('settings')}
+              <!-- The one main-surface door to workspace management
+                   (GDK-1270): deep-link into Settings → Workspaces, where
+                   create / pair / remove already live. -->
+              <button
+                type="button"
+                data-testid="workspace-new"
+                class="flex h-control w-full items-center gap-2 rounded-md px-3 text-left text-body text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+                onclick={() => setParams({ settings: 'workspaces' })}
+              >
+                <span class="flex-none text-text-muted" aria-hidden="true">+</span>
+                <span class="min-w-0 flex-1 truncate">{t('sidebar.workspaceNew')}</span>
+              </button>
+            {/if}
           </SidebarSection>
         {/if}
       {/each}

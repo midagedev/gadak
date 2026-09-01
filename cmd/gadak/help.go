@@ -693,6 +693,17 @@ var helps = map[string]cmdHelp{
 		},
 		seeAlso: []string{"gadak page", "gadak search", "gadak open"},
 	},
+	"ref": {
+		summary: "point this issue at an issue in another workspace (standalone/paired origin) — the list hydrates the target's live state from that workspace's own mirror, no network",
+		usage: "gadak [--workspace <name>] ref <KEY> <workspace>/<TARGET-KEY>|<url> [--as <relationship>] [--json]\n" +
+			"| ref <KEY> --list [--json] | ref <KEY> --rm <id>",
+		examples: []string{
+			"gadak --workspace plan ref STD-1 work/NMA-9",
+			"gadak --workspace plan ref STD-1 work/NMA-9 --as \"blocked by\"",
+			"gadak --workspace plan ref STD-1 --list",
+		},
+		seeAlso: []string{"gadak link", "gadak issue", "gadak workspaces"},
+	},
 	"migrate": {
 		summary: "export a workspace's mirror into a new standalone workspace — issues, comments, history, links, attachments, and wiki pages leave with you; ends with a source-vs-migrated count report",
 		usage:   "gadak --workspace <new name> migrate --from <workspace> [--projects A,B] [--spaces X,Y] [--skip-attachments] [--json]",

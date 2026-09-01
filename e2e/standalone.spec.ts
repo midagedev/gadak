@@ -49,7 +49,12 @@ test.describe('standalone workspace indicator', () => {
     await gotoApp(page)
     await openServerSettings(page)
 
-    const indicator = page.getByTestId('workspace-kind')
+    // Scoped to the settings panel: the same badge also rides the sidebar's
+    // workspace row, which GDK-1270 made visible on a single-workspace
+    // server (the section used to hide below two). Two matches is a strict
+    // -mode violation, not a product defect — this assertion is about the
+    // settings chip.
+    const indicator = page.getByTestId('runtime-mirror').getByTestId('workspace-kind')
     await expect(indicator).toBeVisible()
     await expect(indicator).toHaveAttribute('data-kind', 'standalone')
     await expect(indicator).toHaveAttribute('aria-label', /issuetap persist/)
@@ -82,6 +87,8 @@ test.describe('standalone workspace indicator', () => {
     await gotoApp(page)
     await openServerSettings(page)
 
+    // A connected workspace shows the badge nowhere — sidebar included, so
+    // this count stays page-wide.
     await expect(page.getByTestId('workspace-kind')).toHaveCount(0)
 
     const served = await page.evaluate(async () => {

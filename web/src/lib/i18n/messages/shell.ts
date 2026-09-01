@@ -288,6 +288,11 @@ export const shell = {
     ko: '워크스페이스',
     ja: 'ワークスペース',
   },
+  'sidebar.workspaceNew': {
+    en: 'New workspace',
+    ko: '새 워크스페이스',
+    ja: '新しいワークスペース',
+  },
   'sidebar.workspaceUnreadable': {
     en: 'Workspace config could not be read',
     ko: '워크스페이스 설정을 읽을 수 없음',

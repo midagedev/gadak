@@ -215,6 +215,8 @@ Writing through to the workspace origin — ` + writeThroughOriginPhrase + `:
   wiki       alias of page                get <ID> | list | create|edit|comment [<ID>]
   memory     agent memory: leave notes the next session finds   add <text> | -m <text|-> [--title T] [--json]
                    | search <query> [--limit N] [--json]  (space: gadak config set memory.space KEY)
+  ref        point an issue at another workspace's issue (standalone/paired)  <KEY> <workspace>/<KEY> [--as <phrase>]
+                   | --list [--json] | --rm <id>   (the list hydrates the target's live state locally)
   migrate    export a workspace's mirror into a new standalone workspace (issues, wiki, attachments, history)
                    --from <workspace> [--projects A,B] [--spaces X,Y] [--skip-attachments] [--json]
   project    grow a standalone workspace by a project  create <KEY> [--name N] [--json]
@@ -435,6 +437,7 @@ var commands = map[string]func([]string) error{
 	"ready":           cmdReady,   // top-level alias of list --ready
 	"recent":          cmdRecents, // singular of recents; alias of recents
 	"recents":         cmdRecents,
+	"ref":             cmdRef,
 	"recipes":         cmdRecipes,
 	"search":          cmdSearch,
 	"serve":           cmdServe,
