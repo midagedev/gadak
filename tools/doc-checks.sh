@@ -1891,4 +1891,46 @@ ok "Not-planned refusals match the shipped tree (locale set, terminal ceiling)"
 bash tools/check-write-handlers.sh
 ok "write handlers do not call s.client() (TestWriteHandlersDoNotCallClient)"
 
+# ── 38. MCP tool descriptions name values the code actually emits ─────────
+# The MCP tool text is the one surface with no gate at all: a shell-less
+# agent reads it, no test asserts on it, and go / e2e / the rest of this
+# script are green whatever it claims. GDK-1278's vocabulary rename walked
+# straight into that — a `\bstandalone\b` sweep rewrote the enum inside
+# `toolStatusDescription`, so the description advertised
+# `kind: connected|localOrigin` while the server kept sending `standalone`.
+# Every other contract string the sweep ate was caught by a gate; this one
+# was caught by a human re-reading the diff.
+#
+# The rule: each `(a|b|c)` enum in a description must be spelled somewhere
+# in the non-test Go source as a quoted literal. That is what separates a
+# real value from an invented one — `"standalone"` appears 25 times,
+# `"localOrigin"` zero.
+mcp_enum_drift=$(python3 - <<'MCPPY'
+import re, subprocess
+from pathlib import Path
+
+src = Path("internal/mcp/tools.go").read_text()
+tokens = set()
+for group in re.findall(r"\(([A-Za-z_]+(?:\|[A-Za-z_]+)+)\)", src):
+    tokens.update(group.split("|"))
+
+files = subprocess.run(
+    ["bash", "-c", "git ls-files 'cmd/**/*.go' 'internal/**/*.go' | grep -v '_test\\.go$'"],
+    capture_output=True, text=True, check=True).stdout.split()
+literals = set()
+for f in files:
+    if f == "internal/mcp/tools.go":
+        continue
+    literals.update(re.findall(r'"([A-Za-z_]+)"', Path(f).read_text()))
+
+missing = sorted(t for t in tokens if t not in literals)
+if missing:
+    print("\n".join(f"  {t}: named in an MCP enum, never a string literal in the Go source" for t in missing))
+MCPPY
+)
+if [[ -n "$mcp_enum_drift" ]]; then
+  fail "MCP tool descriptions teach values the code never emits:"$'\n'"$mcp_enum_drift"
+fi
+ok "MCP tool description enums name values the Go source emits"
+
 echo "doc-checks: all passed"
