@@ -2,6 +2,44 @@
 
 <sub><a href="CHANGELOG.md">English</a> · 한국어 — 영문이 원본이며, 번역은 영문과 함께 갱신됩니다(마지막 동기화 2026-09-01).</sub>
 
+## v0.19.3 — 2026-09-02
+
+**질문 둘에 단어 둘.** 워크스페이스는 "너는 어떤 종류냐"에 한 단어로
+답했고, 그 단어가 사실 두 가지를 한꺼번에 나르고 있었습니다 — origin이 어느
+트래커냐, 그리고 그게 여기서 도느냐. 페어링된 워크스페이스가 그 이음매를
+드러냈습니다: `connected`라고 보고하는데(남의 트래커라고 읽히는 말입니다)
+정작 origin은 한 대 건너에 있는 gadak 자신의 트래커였고, 그걸 알 방법은
+별도 pairing 객체뿐이었습니다. 그래서 이제 필드가 둘입니다. `origin_type`은
+`jira`·`linear`·`gadak`, `transport`는 `local`(이 프로세스 안) 또는
+`remote`(serve API 너머)입니다. 새 단어는 하나도 만들지 않았습니다 —
+`sources`가 이미 그 트래커 이름들로 키하고 있었으니까요 ([GDK-1278],
+[GDK-1279], [GDK-1280]).
+
+`gadak status --json`, `doctor --json`, `workspaces --json`, 서빙되는
+config, MCP status 툴이 전부 둘을 함께 냅니다. `kind`도 그대로 나가고 뜻도
+그대로입니다 — 스킬·폰·데스크톱 셸이 전부 그걸 읽고 있으니까요. 다만 이제
+더 굵은 필드일 뿐입니다.
+
+그런 워크스페이스를 만드는 플래그도 따라갑니다: **`gadak init --local`**.
+`--standalone`은 계속 동작합니다 — 이미 누군가의 스크립트에 들어간 플래그는
+계약입니다 — 다만 별칭으로 등록하는 대신 번역해서, 도움말은 두 이름이 아니라
+하나만 가르칩니다 ([GDK-1281]). 그 단어는 앱 문구, 문서, 에이전트가 읽는
+스킬, 그리고 소스 자체(식별자·파일명·테스트명)에서 사라졌습니다 ([GDK-1283],
+[GDK-1282]). 옛 표기가 의도적으로 남은 자리는 넷이고 전부 wire 계약입니다:
+저장된 `kind` 값, `standalone_data_present` 에러 코드, `replace_standalone`
+요청 필드, `onboarding/standalone/` 라우트.
+
+**수정.** `migrate`는 소스의 첨부 바이트를 못 읽을 때 경고만 하고 그대로
+진행했고, 그 아래 모든 것이 성공이라고 보고했습니다 — count 표까지요.
+`attachments 26 26`이라고 찍힙니다, 그 행은 행 수를 세는데 사라진 건
+바이트였으니까요. 트래커를 떠나는 절차가 *소스를 동결한 뒤 마이그레이션*이라
+이건 엣지 케이스가 아니라 평범한 경로였습니다. 이제 export 전에 거절하고,
+앞으로 가는 길 둘을 다 적습니다 ([GDK-1275]). 현지화된 사이트에서 옮겨온
+워크스페이스에는 "Epic"으로 보이는 이슈 유형이 둘, "In Progress"인 상태가
+둘 있었습니다 — 심어진 기본값이 마이그레이션된 카탈로그 옆에, 표시 오버레이가
+같은 단어로 매핑하는 id로 나란히 선 것이라, `--type Epic`에 답이 아예
+없었습니다 ([GDK-1284]).
+
 ## v0.19.2 — 2026-09-01
 
 **트래커를 떠날 때 데이터를 들고 나온다.** `gadak --workspace <새> migrate
@@ -1205,3 +1243,11 @@ HTTP·sync·에이전트 계약을 담았습니다.
 [GDK-1269]: https://gadak.dev/backlog/#/?ks=GDK-1269
 [GDK-1270]: https://gadak.dev/backlog/#/?ks=GDK-1270
 [GDK-1032]: https://gadak.dev/backlog/#/?ks=GDK-1032
+[GDK-1275]: https://gadak.dev/backlog/#/?ks=GDK-1275
+[GDK-1278]: https://gadak.dev/backlog/#/?ks=GDK-1278
+[GDK-1279]: https://gadak.dev/backlog/#/?ks=GDK-1279
+[GDK-1280]: https://gadak.dev/backlog/#/?ks=GDK-1280
+[GDK-1281]: https://gadak.dev/backlog/#/?ks=GDK-1281
+[GDK-1282]: https://gadak.dev/backlog/#/?ks=GDK-1282
+[GDK-1283]: https://gadak.dev/backlog/#/?ks=GDK-1283
+[GDK-1284]: https://gadak.dev/backlog/#/?ks=GDK-1284

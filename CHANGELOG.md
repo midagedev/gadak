@@ -2,6 +2,47 @@
 
 <sub>English · <a href="CHANGELOG.ko.md">한국어</a></sub>
 
+## v0.19.3 — 2026-09-02
+
+**Two words for two questions.** A workspace answered "what kind are you?"
+with one word, and that word was carrying two facts at once: which tracker
+the origin is, and whether it runs here. A paired workspace made the seam
+visible — it reported `connected`, a word that reads as someone else's
+tracker, while its origin was gadak's own tracker one machine away, and the
+only way to tell was a separate pairing object. So the field is two now:
+`origin_type` is `jira`, `linear` or `gadak`, and `transport` is `local`
+(in this process) or `remote` (across a serve API). No new vocabulary was
+invented — `sources` already keyed on those tracker names ([GDK-1278],
+[GDK-1279], [GDK-1280]).
+
+`gadak status --json`, `doctor --json`, `workspaces --json`, the served
+config and the MCP status tool all carry both. `kind` still ships and still
+means what it meant, because the skill, the phone and the desktop shell all
+read it; it is simply the coarser field now.
+
+The flag that creates such a workspace follows: **`gadak init --local`**.
+`--standalone` keeps working — a flag already sitting in someone's script
+is a contract — but it is translated rather than registered as an alias, so
+the help teaches one name instead of two ([GDK-1281]). The word is gone
+from the app's copy, the docs, the skill an agent reads, and the source
+itself: identifiers, filenames, test names ([GDK-1283], [GDK-1282]). Four
+places keep the old spelling on purpose, because they are wire contracts
+rather than vocabulary: the stored `kind` value, the `standalone_data_present`
+error code, the `replace_standalone` request field, and the
+`onboarding/standalone/` route.
+
+**Fixed.** `migrate` warned and carried on when it could not read the
+source's attachment bytes, and everything downstream reported success —
+including the count table, which reads `attachments 26 26` because it counts
+rows and bytes are what went missing. Since the procedure for leaving a
+tracker is *freeze the source, then migrate*, that was the ordinary path,
+not an edge case. It refuses before exporting now, naming both ways forward
+([GDK-1275]). A workspace migrated out of a localized site arrived with two
+issue types rendering as "Epic" and two statuses as "In Progress" — the
+seeded defaults standing beside the migrated catalog under ids the display
+overlay maps to the same word — which left `--type Epic` with no answer at
+all ([GDK-1284]).
+
 ## v0.19.2 — 2026-09-01
 
 **Leaving a tracker, data in hand.** `gadak --workspace <new> migrate --from
@@ -1237,3 +1278,11 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-1269]: https://gadak.dev/backlog/#/?ks=GDK-1269
 [GDK-1270]: https://gadak.dev/backlog/#/?ks=GDK-1270
 [GDK-1032]: https://gadak.dev/backlog/#/?ks=GDK-1032
+[GDK-1275]: https://gadak.dev/backlog/#/?ks=GDK-1275
+[GDK-1278]: https://gadak.dev/backlog/#/?ks=GDK-1278
+[GDK-1279]: https://gadak.dev/backlog/#/?ks=GDK-1279
+[GDK-1280]: https://gadak.dev/backlog/#/?ks=GDK-1280
+[GDK-1281]: https://gadak.dev/backlog/#/?ks=GDK-1281
+[GDK-1282]: https://gadak.dev/backlog/#/?ks=GDK-1282
+[GDK-1283]: https://gadak.dev/backlog/#/?ks=GDK-1283
+[GDK-1284]: https://gadak.dev/backlog/#/?ks=GDK-1284
