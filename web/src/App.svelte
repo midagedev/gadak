@@ -84,6 +84,7 @@
     type ViewportRegime,
   } from './lib/viewport-regime'
   import { terminalChrome } from './lib/terminal/pane.svelte'
+  import { terminalSessions } from './lib/terminal/sessions.svelte'
 
   const LAST_VIEW_KEY = STORAGE_KEYS.lastView
 
@@ -260,6 +261,10 @@
           case 'pull': {
             const seen = poll.mirrorVersion
             mirrorPulling = true
+            // GDK-1182: the same write that moved the mirror may have renamed
+            // a terminal session (claim). The strip rides this tick too,
+            // instead of waiting out its own 2s roster grid.
+            terminalSessions.nudge()
             // Not awaited: the focus half of this tick (a `views open` hash)
             // must not queue behind a delta round trip. The baseline moves
             // only if the sync actually ran — coalesced into one already in

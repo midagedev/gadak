@@ -126,6 +126,17 @@ class TerminalSessions {
   }
 
   /**
+   * A mirror write elsewhere — `gadak claim` renaming a session — should
+   * reach the strip on the tick it happened, not the next 2s grid line
+   * (GDK-1182: the skew was uniform 0–2000ms). The ui-focus poll calls this
+   * on the same mirrorVersion signal the board already rides (GDK-1170).
+   * Only while a surface is watching: a closed pane learns at open.
+   */
+  nudge(): void {
+    if (this.#watchers > 0) void this.refresh()
+  }
+
+  /**
    * One roster read. A failure leaves the last known list standing: the
    * strip going blank because one poll lost a race is worse than a row
    * being two seconds stale, and the pane's own socket is the authority on
