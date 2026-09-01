@@ -61,10 +61,18 @@ type Product struct {
 // site settings but never reach the database, a log, or a snapshot; the file
 // is written 0600.
 type Config struct {
-	// Kind is the workspace kind. Empty (or any value other than
-	// KindStandalone) is a connected workspace — Jira-site bound, the
-	// default. Absent from existing configs; no migration.
-	// Do not store the word "local" here: gadak is already local-first.
+	// Kind names the origin's type: OriginJira, OriginLinear, or
+	// OriginGadak (GDK-1279). Read it through OriginType(), which also
+	// understands the values this field carried before that split —
+	// "standalone" (now OriginGadak), and empty or "connected" (a
+	// Jira-family site, derived from the credential). Those keep being
+	// accepted forever: the mirror is a throwaway cache, but this file
+	// is not.
+	//
+	// Where the origin *is* — in this process or across a serve API — is
+	// the other axis, and Transport() answers it. Do not store "local"
+	// here: it is a transport value, and it says nothing about which
+	// tracker the origin is.
 	Kind string `json:"kind,omitempty"`
 
 	// Frozen stops every request to this workspace's origin — pulls and
@@ -242,9 +250,32 @@ type Config struct {
 
 // Workspace kinds. Empty Kind on disk is connected — existing configs keep
 // working with no rewrite.
+//
+// Deprecated vocabulary (GDK-1278): these two values conflated what the
+// origin is with where it is. A paired workspace reported KindConnected
+// while its origin was a gadak tracker one machine away. Prefer
+// OriginType() and Transport(); these constants remain because they are
+// still on disk and still on the JSON surface.
 const (
 	KindConnected  = "connected"
 	KindStandalone = "standalone"
+)
+
+// Origin types — which tracker this workspace's origin is (GDK-1278). The
+// vocabulary is the one the product already used for sources.
+const (
+	OriginJira   = "jira"
+	OriginLinear = "linear"
+	OriginGadak  = "gadak" // gadak's own tracker (issuetap), in-process or behind a serve
+)
+
+// Transports — how that origin is reached (GDK-1278). The axis is whether
+// the call goes in-process or over the serve API, not how far away the
+// machine is: a serve on loopback is TransportRemote, because the cost
+// model and the capability set follow the transport, not the geography.
+const (
+	TransportLocal  = "local"
+	TransportRemote = "remote"
 )
 
 // Appearance is the look block in config.json. Empty Theme means "system".
@@ -901,9 +932,61 @@ func (c *Config) ProfileName() string {
 }
 
 // IsStandalone reports a workspace whose origin is the in-process issuetap
-// snapshot, not a Jira site.
+// snapshot, not a Jira site. Both the old stored value and the new one
+// mean that.
 func (c *Config) IsStandalone() bool {
-	return c != nil && c.Kind == KindStandalone
+	return c != nil && (c.Kind == KindStandalone || c.Kind == OriginGadak)
+}
+
+// isPaired reports a workspace bound to another machine's serve. The
+// credential lives in remote-origin.json, never in this file; a malformed
+// file reads as "not paired", the same way HasAtlassianCredential treats it.
+func (c *Config) isPaired() bool {
+	if c == nil {
+		return false
+	}
+	rem, err := pairing.LoadRemote(c.Directory())
+	return err == nil && rem != nil
+}
+
+// OriginType is OriginJira, OriginLinear, or OriginGadak — which tracker
+// this workspace writes through (GDK-1278).
+//
+// A paired workspace is OriginGadak: the origin it talks to is a gadak
+// serve. Whether that serve in turn mirrors Jira is the home machine's
+// business, and this side cannot see it — remote-origin.json carries an
+// endpoint and a token, nothing about what is behind them.
+func (c *Config) OriginType() string {
+	if c == nil {
+		return OriginJira
+	}
+	switch c.Kind {
+	case OriginGadak, KindStandalone:
+		return OriginGadak
+	case OriginJira, OriginLinear:
+		return c.Kind
+	}
+	// Empty or "connected": the pre-split vocabulary, so the credential
+	// says which tracker it meant. Same precedence origin.Client uses —
+	// Linear only when no Atlassian site is configured.
+	if c.isPaired() {
+		return OriginGadak
+	}
+	if c.HasLinearCredential() && c.Site == "" {
+		return OriginLinear
+	}
+	return OriginJira
+}
+
+// Transport is TransportLocal or TransportRemote — whether origin calls
+// run in this process or cross the serve API (GDK-1278). Only gadak's own
+// tracker can be local, and only when this machine holds it: pair the same
+// workspace to a serve and the very same origin type becomes remote.
+func (c *Config) Transport() string {
+	if c.OriginType() == OriginGadak && !c.isPaired() {
+		return TransportLocal
+	}
+	return TransportRemote
 }
 
 // WorkspaceKind is KindStandalone or KindConnected. Empty/unknown Kind is
@@ -936,8 +1019,7 @@ func (c *Config) HasAtlassianCredential() bool {
 	// workspace three different ways). A malformed file reads as "no
 	// credential" — the verbs' init hint is wrong then, but a bool cannot
 	// carry the better error; Client() surfaces it on actual use.
-	rem, err := pairing.LoadRemote(c.Directory())
-	return err == nil && rem != nil
+	return c.isPaired()
 }
 
 // HasLinearCredential reports whether Linear origin writes are possible: a
