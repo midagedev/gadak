@@ -13,6 +13,7 @@
 # the word itself is publishable — the summary already got that decision via
 # vocabulary: whatever anyone types in Jira ships to the public site with the
 # Why it exists (2026-08-20): seven labels in this project were real people's
+0.19.1
 a11y
 agent
 agent-first
@@ -123,8 +124,8 @@ race
 raycast
 refactor
 release
-release-audit
 release-0.19
+release-audit
 research
 roadmap
 search
@@ -142,8 +143,8 @@ theme
 tooling
 tracker-origin
 trust
-ui-audit
 ui
+ui-audit
 upstream
 ux
 ux-audit
