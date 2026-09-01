@@ -412,6 +412,18 @@ report what you filed (keys and one-line summaries).
 Everything else in this file works identically: `status_category`,
 `issues_full`, `reopen_count`, `views open`.
 
+### Leaving a tracker: migrate a mirror into a new standalone workspace
+
+`gadak --workspace <new name> migrate --from <workspace>` exports the
+source workspace's mirror — issues, comments, history, links, attachment
+bytes, wiki pages — into a brand-new standalone workspace and ends with a
+source-vs-migrated count table (derived columns like `reopen_count`
+included). The source is read-only throughout and keeps working. The
+target must not exist yet; migrating never rebinds an existing workspace.
+`--projects A,B` / `--spaces X,Y` narrow the set, `--skip-attachments`
+skips the byte downloads. Bodies migrate as plain text; the report says
+how many code blocks / media / tables that flattened.
+
 ## Pairing: the origin is another machine's serve
 
 Home (standalone, with `gadak serve` running) mints one offer per device.

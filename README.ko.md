@@ -78,6 +78,14 @@ gadak create "the thing I just noticed"
 gadak serve
 ```
 
+트래커를 떠날 때는 데이터를 들고 나옵니다 — 이슈·코멘트·전체 이력·첨부·
+위키 페이지가 동기화된 워크스페이스에서 standalone 워크스페이스로 옮겨지고,
+끝에 원본 대 이전본 건수 대조표가 출력됩니다:
+
+```bash
+gadak --workspace local migrate --from work
+```
+
 `gadak serve`가 주소를 출력합니다. `http://gadak.localhost:7777`을 열어
 이슈가 보이면 됩니다. 리눅스 타볼, 페어링, 서명된 macOS dmg:
 [설치](#설치).

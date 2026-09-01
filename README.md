@@ -76,6 +76,14 @@ gadak create "the thing I just noticed"
 gadak serve
 ```
 
+Or leave one, data in hand — issues, comments, full history, attachments,
+and wiki pages move from a synced workspace into a standalone one, ending
+with a source-vs-migrated count table:
+
+```bash
+gadak --workspace local migrate --from work
+```
+
 `gadak serve` prints the address — open `http://gadak.localhost:7777` and you
 should see your issues. Linux tarball, pairing, the signed macOS dmg:
 [Install](#install).
