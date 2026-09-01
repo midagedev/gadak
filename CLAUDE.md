@@ -99,6 +99,18 @@ hard-won 목록)와 `AGENTS.md`(스키마·쿼리)가 원본이다.
 - 게이트 단언 완화는 ①귀속 주석 ②정당한 파생 ③FAIL-first 증거 셋 모두
   있을 때만.
 - 문서 사실성 가드: `tools/doc-checks.sh` (있으면 커밋 전 실행).
+- **어휘 일괄 치환은 계약 문자열을 삼킨다 — 치환 뒤에 계약을 따로 세어라**
+  (2026-09-02 GDK-1278 어휘 리네임, 5회 발생). 저장 값·에러 코드·요청 필드·
+  라우트·데이터 id 접두사·DOM testid 는 어휘가 아니라 wire 계약인데, `\bword\b`
+  치환은 주석과 구분하지 못한다. 실측으로 삼킨 것: 플래그 이름
+  (`--replace-standalone` → 없는 플래그), 미러 데이터 id
+  (`standalone-jira:`), API 라우트 정규식(`onboarding/standalone/`),
+  식별자 자리에 들어간 산문(`Local-origin bool`), 그리고 **MCP 툴 서술의
+  enum**. 앞의 넷은 게이트가 잡았고 다섯째는 아무 게이트도 안 봤다 —
+  **`internal/mcp/tools.go` 의 서술은 게이트가 없는 표면이다**: 서버가 내지
+  않는 값을 가르쳐도 go·doc-checks·e2e 전부 초록이고, 그것을 읽는 것은
+  셸 없는 에이전트뿐이다. 리네임 커밋은 게이트 전부를 뒤에 세운 한 덩어리로
+  하고, 커밋 전에 `grep` 으로 wire 계약 목록을 눈으로 확인한다.
 - **IP 리터럴·호스트명·홈 경로가 들어가는 커밋은 `bash scripts/scan-internal.sh`도
   게이트다** — CI의 secret/internal-string 스캔과 같은 스크립트이고, 로컬
   게이트 목록에 없어서 두 번 연속 CI만 빨갰다(2026-08-25: 테스트 표의 CGNAT
