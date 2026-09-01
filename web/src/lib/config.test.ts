@@ -65,6 +65,32 @@ describe('hasServerVerb / serverVerbReport (GDK-52)', () => {
   })
 })
 
+describe('originType / transport (GDK-1278, server-owned)', () => {
+  test('a paired workspace is a gadak origin reached remotely, whatever kind says', async () => {
+    // The case that split the axes: kind still reads 'connected' while the
+    // origin is gadak's own tracker one machine away.
+    const paired = await loadConfigWith({
+      workspaceKind: 'connected',
+      originType: 'gadak',
+      transport: 'remote',
+      jiraBaseUrl: '',
+    })
+    expect(paired.config().workspaceKind).toBe('connected')
+    expect(paired.config().originType).toBe('gadak')
+    expect(paired.config().transport).toBe('remote')
+  })
+
+  test('unknown documents and unknown values stay empty, never guessed', async () => {
+    const older = await loadConfigWith({ workspaceKind: 'standalone', jiraBaseUrl: '' })
+    expect(older.config().originType).toBe('')
+    expect(older.config().transport).toBe('')
+
+    const garbage = await loadConfigWith({ originType: 'self-hosted', transport: 'tailnet' })
+    expect(garbage.config().originType).toBe('')
+    expect(garbage.config().transport).toBe('')
+  })
+})
+
 describe('workspaceKind (server-owned, never inferred)', () => {
   test('defaults and missing/garbage documents are unknown, not standalone', async () => {
     const missing = await loadConfigWith(null, false)

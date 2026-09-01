@@ -106,8 +106,14 @@ type doctorCustomFields struct {
 }
 
 type doctorWorkspace struct {
-	Name         string `json:"name"`
-	Kind         string `json:"kind"`
+	Name string `json:"name"`
+	Kind string `json:"kind"`
+	// OriginType and Transport are the two questions Kind used to answer
+	// at once (GDK-1278): which tracker (jira|linear|gadak), and whether
+	// it is reached in-process or across a serve API (local|remote). Kind
+	// stays for readers that have not moved.
+	OriginType   string `json:"origin_type"`
+	Transport    string `json:"transport"`
 	HasSiteToken bool   `json:"has_site_token"`
 	Persist      string `json:"persist"`
 	LocalIssues  int    `json:"local_issues"`
@@ -313,6 +319,8 @@ func collectDoctor() doctorReport {
 		rep.Workspace = doctorWorkspace{
 			Name:         workspaceJSONName(),
 			Kind:         cfg.WorkspaceKind(),
+			OriginType:   cfg.OriginType(),
+			Transport:    cfg.Transport(),
 			HasSiteToken: hasTok,
 			Persist:      tildeHome(persist),
 			LocalIssues:  n,
@@ -730,6 +738,8 @@ func formatDoctorText(r doctorReport) string {
 	line("os", r.OS+"/"+r.Arch)
 	line("profile", r.Profile)
 	line("workspace_kind", r.WorkspaceKind)
+	line("origin_type", r.Workspace.OriginType)
+	line("transport", r.Workspace.Transport)
 	line("origin", r.Origin)
 	if r.OriginOwner != "" {
 		line("origin owner", r.OriginOwner)

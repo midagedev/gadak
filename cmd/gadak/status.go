@@ -101,6 +101,11 @@ func cmdStatus(args []string) error {
 	}
 	kind, _ := origin.Describe(cfg)
 	st["kind"] = kind
+	if cfg != nil {
+		// The two axes kind used to conflate (GDK-1278). kind stays.
+		st["origin_type"] = cfg.OriginType()
+		st["transport"] = cfg.Transport()
+	}
 	if rem, err := origin.PairedStatus(cfg); err != nil {
 		fmt.Fprintf(os.Stderr, "gadak: pairing: %v\n", err)
 		st["pairing_error"] = err.Error()

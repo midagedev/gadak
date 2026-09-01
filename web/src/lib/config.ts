@@ -12,17 +12,30 @@
 
 import {
   isStandalone,
+  parseOriginType,
+  parseTransport,
   parseWorkspaceKind,
+  type OriginType,
+  type Transport,
   type WorkspaceKind,
 } from './workspace'
 import type { UiTokenDoc } from './user-tokens'
 
 export {
   isStandalone,
+  parseOriginType,
+  parseTransport,
   parseWorkspaceKind,
   STANDALONE_INIT_COMMAND,
   WORKSPACE_KIND_CONNECTED,
   WORKSPACE_KIND_STANDALONE,
+  ORIGIN_GADAK,
+  ORIGIN_JIRA,
+  ORIGIN_LINEAR,
+  TRANSPORT_LOCAL,
+  TRANSPORT_REMOTE,
+  type OriginType,
+  type Transport,
   type WorkspaceKind,
 } from './workspace'
 
@@ -112,6 +125,17 @@ export interface GadakConfig {
    */
   workspaceKind: WorkspaceKind
   /**
+   * Which tracker the origin is (GDK-1278). Empty means unknown — a static
+   * export, the hosted demo, or a server older than the split.
+   */
+  originType: OriginType
+  /**
+   * Whether that origin runs in the server's own process or behind a serve
+   * API. Empty means unknown. A loopback serve is 'remote': the axis is the
+   * transport, not the distance.
+   */
+  transport: Transport
+  /**
    * True when the server can reach the Jira-family origin — a site
    * credential, a standalone workspace, or a pairing remote. It mirrors
    * `config.HasAtlassianCredential`, which is the same bool every write path
@@ -171,6 +195,8 @@ const DEFAULTS: GadakConfig = {
   profile: 'default',
   os: '',
   workspaceKind: '',
+  originType: '',
+  transport: '',
   originWritable: false,
   features: {
     feed: false,
@@ -477,6 +503,8 @@ export async function loadConfig(): Promise<GadakConfig> {
         features: { ...DEFAULTS.features, ...(raw.features ?? {}) },
         windowChrome: resolveWindowChrome(raw),
         workspaceKind: parseWorkspaceKind(raw.workspaceKind),
+        originType: parseOriginType(raw.originType),
+        transport: parseTransport(raw.transport),
         originWritable: raw.originWritable === true,
       }
     }

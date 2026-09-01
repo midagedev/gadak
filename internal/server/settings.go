@@ -69,6 +69,15 @@ type webConfigDoc struct {
 	// Always sent. The UI must not infer this from an empty site URL — a
 	// hosted demo and an older document also have no site.
 	WorkspaceKind string `json:"workspaceKind"`
+	// OriginType and Transport split what WorkspaceKind answered at once
+	// (GDK-1278): which tracker the origin is (jira|linear|gadak), and
+	// whether it is reached in-process or across a serve API
+	// (local|remote). A paired workspace is the case that needed them —
+	// WorkspaceKind calls it "connected" while its origin is gadak's own
+	// tracker one machine away. Always sent; the UI must not infer either
+	// from the site URL or from the presence of a pairing block.
+	OriginType string `json:"originType"`
+	Transport  string `json:"transport"`
 	// OriginWritable mirrors config.HasAtlassianCredential — "can this server
 	// reach the Jira-family origin at all" (site+email+token, standalone, or
 	// a pairing remote). Boolean only; no site, token, or email.
@@ -152,6 +161,8 @@ func webConfig(cfg *config.Config) webConfigDoc {
 		Profile:             profileDisplay(config.Profile()),
 		OS:                  runtime.GOOS,
 		WorkspaceKind:       kind,
+		OriginType:          cfg.OriginType(),
+		Transport:           cfg.Transport(),
 		OriginWritable:      cfg.HasAtlassianCredential(),
 		UI: &uiDoc{
 			Vars:       vars,

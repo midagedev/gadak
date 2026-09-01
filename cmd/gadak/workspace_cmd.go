@@ -19,6 +19,8 @@ type workspaceView struct {
 	Workspace       string   `json:"workspace"`
 	WorkspaceSource string   `json:"workspace_source"`
 	Kind            string   `json:"kind"`
+	OriginType      string   `json:"origin_type,omitempty"`
+	Transport       string   `json:"transport,omitempty"`
 	Persist         string   `json:"persist"`
 	Others          []string `json:"others"`
 }
@@ -90,6 +92,8 @@ func collectWorkspace() (workspaceView, error) {
 	}
 	if cfg, err := config.Load(); err == nil && cfg != nil {
 		v.Kind = cfg.WorkspaceKind()
+		v.OriginType = cfg.OriginType()
+		v.Transport = cfg.Transport()
 	}
 	if dir, err := config.Dir(); err == nil {
 		v.Persist = origin.PersistPath(dir)
@@ -117,6 +121,10 @@ func printWorkspaceText(v workspaceView) {
 	fmt.Printf("%-18s %s\n", "source", formatWorkspaceSource(v.WorkspaceSource))
 	if v.Kind != "" {
 		fmt.Printf("%-18s %s\n", "kind", v.Kind)
+	}
+	// The pair reads as one sentence: which tracker, and where it runs.
+	if v.OriginType != "" {
+		fmt.Printf("%-18s %s (%s)\n", "origin", v.OriginType, v.Transport)
 	}
 	if v.Persist != "" {
 		fmt.Printf("%-18s %s\n", "persist", v.Persist)

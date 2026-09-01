@@ -20,6 +20,40 @@ export type WorkspaceKind =
   | typeof WORKSPACE_KIND_STANDALONE
   | ''
 
+/*
+ * The two axes workspaceKind conflated (GDK-1278): which tracker the origin
+ * is, and whether it is reached in-process or across a serve API. A paired
+ * workspace is why they had to split — its kind is 'connected' while its
+ * origin is gadak's own tracker on another machine. Both come from the
+ * server; neither is ever inferred here.
+ */
+export const ORIGIN_JIRA = 'jira'
+export const ORIGIN_LINEAR = 'linear'
+export const ORIGIN_GADAK = 'gadak'
+export type OriginType =
+  | typeof ORIGIN_JIRA
+  | typeof ORIGIN_LINEAR
+  | typeof ORIGIN_GADAK
+  | ''
+
+export const TRANSPORT_LOCAL = 'local'
+export const TRANSPORT_REMOTE = 'remote'
+export type Transport = typeof TRANSPORT_LOCAL | typeof TRANSPORT_REMOTE | ''
+
+export function parseOriginType(raw: unknown): OriginType {
+  if (raw === ORIGIN_JIRA || raw === ORIGIN_LINEAR || raw === ORIGIN_GADAK) {
+    return raw
+  }
+  return ''
+}
+
+export function parseTransport(raw: unknown): Transport {
+  if (raw === TRANSPORT_LOCAL || raw === TRANSPORT_REMOTE) {
+    return raw
+  }
+  return ''
+}
+
 /** CLI that creates a standalone workspace. Flag lives in cmd/gadak/init.go; the wizard button is the GUI equivalent. */
 export const STANDALONE_INIT_COMMAND = 'gadak --workspace <name> init --standalone'
 
