@@ -27,5 +27,6 @@ type (
 	Version             = jira.Version
 	IssueLink           = jira.IssueLink
 	IssueLinkType       = jira.IssueLinkType
+	RemoteLink          = jira.RemoteLink
 	CreateFieldMeta     = jira.CreateFieldMeta
 )

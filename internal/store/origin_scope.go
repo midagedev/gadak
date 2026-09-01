@@ -94,6 +94,7 @@ var originScopedTables = []tableRule{
 	{table: "pages", scope: scopeMirror, why: "cascades from items"},
 	{table: "comments", scope: scopeMirror, why: "cascades from items"},
 	{table: "dev_links", scope: scopeMirror, why: "cascades from items"},
+	{table: "remote_links", scope: scopeMirror, why: "cascades from items"},
 	{table: "attachments", scope: scopeMirror, why: "cascades from items"},
 	{table: "changelog", scope: scopeMirror, why: "cascades from items"},
 	{table: "links", scope: scopeMirror, why: "cascades from items"},

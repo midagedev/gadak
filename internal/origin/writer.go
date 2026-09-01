@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"strings"
 
 	"github.com/midagedev/gadak/internal/config"
@@ -100,6 +101,7 @@ var (
 	ErrNoIssueLinks     = unsupported("linear: issue links are not supported on this origin")
 	ErrNoCreateFields   = unsupported("linear: create-time field metadata is not supported on this origin")
 	ErrNoMediaRef       = unsupported("linear: inline comment media is not supported; the file is attached to the issue")
+	ErrNoRemoteLinks    = unsupported("this origin does not support remote issue links — they need a standalone or paired workspace")
 )
 
 // unsupportedError is a capability refusal whose Error() is the origin's
@@ -148,6 +150,75 @@ func CreatesVersionsByName(w Writer) bool {
 		return false
 	}
 	return vc.CreatesVersionsByName()
+}
+
+// RemoteLinker is Jira's remote issue links (GDK-1032): a pointer at
+// something outside this tracker. gadak writes them only on an
+// issuetap-backed origin (standalone / paired) — a Cloud site would show
+// them to the whole team, and a cross-workspace pointer is personal.
+type RemoteLinker interface {
+	RemoteLinks(ctx context.Context, key string) ([]RemoteLink, error)
+	SetRemoteLink(ctx context.Context, key string, rl RemoteLink) error
+	DeleteRemoteLink(ctx context.Context, key, id string) error
+}
+
+// AsRemoteLinker returns w as RemoteLinker when this workspace's origin is
+// issuetap-backed, else ErrNoRemoteLinks. The face test alone would not do:
+// a connected Cloud site is the same *jira.Client type and would answer the
+// route, publishing a personal cross-workspace pointer to the whole team.
+func AsRemoteLinker(cfg *config.Config, w Writer) (RemoteLinker, error) {
+	v, ok := w.(RemoteLinker)
+	if !ok {
+		return nil, ErrNoRemoteLinks
+	}
+	if !HasRemoteLinks(cfg, w) {
+		return nil, ErrNoRemoteLinks
+	}
+	return v, nil
+}
+
+// HasRemoteLinks reports an issuetap-backed origin — standalone
+// (in-process) or paired (the home serve's passthrough). Single owner of
+// the write gate: the CLI verbs ask here.
+func HasRemoteLinks(cfg *config.Config, w any) bool {
+	rt, ok := clientTransport(w)
+	if !ok {
+		return false
+	}
+	return TransportIsEmbedded(rt) || TransportIsServe(rt)
+}
+
+// SyncFetchesRemoteLinks is deliberately narrower than HasRemoteLinks: the
+// remote-link read is one request per issue, which is free in-process and
+// one tailnet round-trip per issue on a paired workspace — a full sync of a
+// thousand-issue mirror would pay a thousand of them for a feature most
+// issues do not use. So a paired workspace's rows arrive through the write
+// -through path (`gadak ref` refreshes the issue it touched) and a sync
+// leaves them alone (nil preserves). Widen this only with a protocol that
+// answers for many issues at once.
+func SyncFetchesRemoteLinks(cfg *config.Config, w any) bool {
+	rt, ok := clientTransport(w)
+	if !ok {
+		return false
+	}
+	return TransportIsEmbedded(rt)
+}
+
+// clientTransport reaches the Jira client behind a Writer. jiraWriter
+// embeds *jira.Client rather than being one, so a bare type assertion on
+// the Writer misses — and a missed test here reads as "this origin cannot
+// do that", which is why the interface below exists instead.
+func clientTransport(w any) (http.RoundTripper, bool) {
+	c, ok := w.(*jira.Client)
+	if !ok {
+		if h, hok := w.(interface{ jiraClient() *jira.Client }); hok {
+			c, ok = h.jiraClient(), true
+		}
+	}
+	if !ok || c == nil || c.HTTP == nil {
+		return nil, false
+	}
+	return c.HTTP.Transport, true
 }
 
 // AsIssueLinker returns w as IssueLinker, or ErrNoIssueLinks.

@@ -424,6 +424,18 @@ target must not exist yet; migrating never rebinds an existing workspace.
 skips the byte downloads. Bodies migrate as plain text; the report says
 how many code blocks / media / tables that flattened.
 
+### Pointing at another workspace's issue
+
+On a standalone or paired workspace, `gadak ref <KEY> <workspace>/<TARGET>`
+records a pointer at an issue in a different workspace — a personal note
+that names a team ticket, without writing anything to that team's tracker.
+`gadak ref <KEY> --list` prints each pointer with the target's **current**
+status and assignee, read from that workspace's own mirror on this machine
+(no network). A target this machine does not mirror still lists — it just
+says so. `--rm <id>` takes one back. The same references appear on the
+issue in the app. A connected Cloud workspace refuses the verb: the pointer
+would be visible to that whole site.
+
 ## Pairing: the origin is another machine's serve
 
 Home (standalone, with `gadak serve` running) mints one offer per device.

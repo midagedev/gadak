@@ -78,6 +78,7 @@ hierarchy
 hosted
 hosted-demo
 i18n
+idea
 ime
 in-app
 inbound

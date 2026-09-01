@@ -49,6 +49,7 @@
   import LinkedIssues from './LinkedIssues.svelte'
   import RelatedDocs from './RelatedDocs.svelte'
   import PrList from './PrList.svelte'
+  import IssueRefs from './IssueRefs.svelte'
   import DeployTimeline from './DeployTimeline.svelte'
 
   const key = $derived(selection.selectedKey)
@@ -382,6 +383,15 @@
                Empty is shown so "not mirrored" is distinct from a true empty
                list (GDK-555). config.json does not expose `devStatus`, so a
                connected empty list uses the not-mirrored sentence. -->
+          {#if detailForKey.refs && detailForKey.refs.length > 0}
+            <!-- Cross-workspace pointers (GDK-1032). Absent unless this
+                 issue carries one, so no empty-state sentence: the section
+                 exists only where the feature is in use. -->
+            <Section title={t('detail.refs')} count={detailForKey.refs.length}>
+              <IssueRefs refs={detailForKey.refs} />
+            </Section>
+          {/if}
+
           <Section title={t('detail.prs')} count={detailForKey.linked_prs.length}>
             {#if detailForKey.linked_prs.length > 0}
               <PrList prs={detailForKey.linked_prs} />

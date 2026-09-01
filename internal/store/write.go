@@ -330,6 +330,11 @@ func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {
 			return false, err
 		}
 	}
+	if r.RemoteLinks != nil {
+		if _, err := tx.Exec(`DELETE FROM remote_links WHERE item_id = ?`, it.ID); err != nil {
+			return false, err
+		}
+	}
 	for _, t := range childTables {
 		if _, err := tx.Exec(`DELETE FROM `+t+` WHERE item_id = ?`, it.ID); err != nil {
 			return false, err
@@ -370,6 +375,11 @@ func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {
 	}
 	if r.DevLinks != nil {
 		if err := insertDevLinks(tx, it.ID, r.DevLinks.Links); err != nil {
+			return false, err
+		}
+	}
+	if r.RemoteLinks != nil {
+		if err := insertRemoteLinks(tx, it.ID, r.RemoteLinks.Links); err != nil {
 			return false, err
 		}
 	}
@@ -1445,6 +1455,44 @@ func (db *DB) ReplaceDevLinks(ctx context.Context, key string, update DevLinksUp
 		}
 		return []string{sourceID}, nil
 	})
+}
+
+// ReplaceRemoteLinks swaps one issue's remote_links rows for a successful
+// origin answer — the mirror-refresh half of a remote-link write-through
+// (GDK-1032). Same never-a-source-of-truth contract as ReplaceDevLinks.
+func (db *DB) ReplaceRemoteLinks(ctx context.Context, key string, update RemoteLinksUpdate) error {
+	return db.mutate(ctx, func(tx *sql.Tx) ([]string, error) {
+		var itemID, sourceID string
+		if err := tx.QueryRow(`
+			SELECT i.item_id, it.source_id
+			FROM issues_raw i JOIN items it ON it.id = i.item_id
+			WHERE i.key = ?`, key).Scan(&itemID, &sourceID); err != nil {
+			return nil, err
+		}
+		if _, err := tx.Exec(`DELETE FROM remote_links WHERE item_id = ?`, itemID); err != nil {
+			return nil, err
+		}
+		if err := insertRemoteLinks(tx, itemID, update.Links); err != nil {
+			return nil, err
+		}
+		return []string{sourceID}, nil
+	})
+}
+
+func insertRemoteLinks(tx *sql.Tx, itemID string, links []RemoteLink) error {
+	for _, rl := range links {
+		if _, err := tx.Exec(`
+			INSERT INTO remote_links (item_id, id, global_id, relationship, url, title, summary)
+			VALUES (?,?,?,?,?,?,?)
+			ON CONFLICT(item_id, id) DO UPDATE SET
+			  global_id=excluded.global_id, relationship=excluded.relationship,
+			  url=excluded.url, title=excluded.title, summary=excluded.summary`,
+			itemID, rl.ID, rl.GlobalID, rl.Relationship, rl.URL, rl.Title, rl.Summary,
+		); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func insertDevLinks(tx *sql.Tx, itemID string, links []DevLink) error {

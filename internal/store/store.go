@@ -144,6 +144,13 @@ func (db *DB) QueryRow(query string, args ...any) *sql.Row {
 	return db.sql.QueryRow(query, args...)
 }
 
+// QueryRowContext is QueryRow with a deadline — for reads against a mirror
+// another process owns, where a lock wait must not outlive the request
+// (GDK-1032 cross-workspace hydration).
+func (db *DB) QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row {
+	return db.sql.QueryRowContext(ctx, query, args...)
+}
+
 // Query runs a multi-row read on the same held connection (GDK-635 parent
 // hierarchy hint). Same rule as QueryRow: do not open a second handle.
 func (db *DB) Query(query string, args ...any) (*sql.Rows, error) {

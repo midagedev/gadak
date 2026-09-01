@@ -170,6 +170,25 @@ type ChangeEntry struct {
 	ToID      string
 }
 
+// RemoteLink is one remote issue link (GDK-1032): a pointer at something
+// outside the origin tracker. url is the identity; gadak://<ws>/<KEY> rows
+// hydrate live from that workspace's own mirror.
+type RemoteLink struct {
+	ID           string `json:"id"`
+	GlobalID     string `json:"global_id,omitempty"`
+	Relationship string `json:"relationship,omitempty"`
+	URL          string `json:"url"`
+	Title        string `json:"title,omitempty"`
+	Summary      string `json:"summary,omitempty"`
+}
+
+// RemoteLinksUpdate is a successful origin answer for one issue's remote
+// links — same contract as DevLinksUpdate: nil skips the rewrite, non-nil
+// with empty Links drains.
+type RemoteLinksUpdate struct {
+	Links []RemoteLink
+}
+
 // Link is an edge out of an item. TargetKey may point outside the mirror.
 type Link struct {
 	Type      string
@@ -208,6 +227,8 @@ type IssueRecord struct {
 	// empty). Nil means the origin was not observed and existing rows
 	// stay (GDK-536 / GDK-580).
 	DevLinks *DevLinksUpdate
+	// RemoteLinks follows the same nil-skips contract (GDK-1032).
+	RemoteLinks *RemoteLinksUpdate
 }
 
 // Page is the document projection (one row in the pages table). Field names

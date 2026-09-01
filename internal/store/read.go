@@ -452,6 +452,10 @@ type Detail struct {
 	Created string `json:"-"`
 	// DevLinks are the development-panel links (GDK-497), newest first.
 	DevLinks []DevLink `json:"dev_links"`
+	// Refs are cross-workspace / external pointers (GDK-1032). Hydration —
+	// the target's live state out of that workspace's own mirror — is the
+	// server's job, not this loader's: it opens a second mirror file.
+	Refs []RemoteLink `json:"refs,omitempty"`
 }
 
 // Detail assembles one issue. An unknown key returns ErrNotFound so the
@@ -521,6 +525,21 @@ func (db *DB) Detail(ctx context.Context, key string) (*Detail, error) {
 				return err
 			}
 			d.DevLinks = append(d.DevLinks, l)
+			return nil
+		}, itemID); err != nil {
+		return nil, err
+	}
+
+	if err := each(ctx, db.sql, `
+		SELECT id, COALESCE(global_id,''), COALESCE(relationship,''), url,
+		       COALESCE(title,''), COALESCE(summary,'')
+		FROM remote_links WHERE item_id = ? ORDER BY id`,
+		func(rows *sql.Rows) error {
+			var rl RemoteLink
+			if err := rows.Scan(&rl.ID, &rl.GlobalID, &rl.Relationship, &rl.URL, &rl.Title, &rl.Summary); err != nil {
+				return err
+			}
+			d.Refs = append(d.Refs, rl)
 			return nil
 		}, itemID); err != nil {
 		return nil, err
@@ -692,6 +711,29 @@ func (db *DB) AttachmentOrigin(ctx context.Context, issueKey, attachmentID strin
 		return "", "", ErrNotFound
 	}
 	return sourceID, contentURL, err
+}
+
+// RemoteLinks reads one issue's mirrored remote links (GDK-1032). An issue
+// with none — or one this mirror does not carry — is an empty list, not an
+// error: a pointer list is a read, and callers print what is there.
+func (db *DB) RemoteLinks(ctx context.Context, key string) ([]RemoteLink, error) {
+	rows, err := db.sql.QueryContext(ctx, `
+		SELECT r.id, r.global_id, r.relationship, r.url, r.title, r.summary
+		FROM remote_links r JOIN issues i ON i.item_id = r.item_id
+		WHERE i.key = ? ORDER BY r.id`, key)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []RemoteLink
+	for rows.Next() {
+		var rl RemoteLink
+		if err := rows.Scan(&rl.ID, &rl.GlobalID, &rl.Relationship, &rl.URL, &rl.Title, &rl.Summary); err != nil {
+			return nil, err
+		}
+		out = append(out, rl)
+	}
+	return out, rows.Err()
 }
 
 // pageLitesFromRefs runs a PageLite-shaped SELECT and returns the rows (nil when empty).

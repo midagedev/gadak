@@ -2,6 +2,44 @@
 
 <sub>English · <a href="CHANGELOG.ko.md">한국어</a></sub>
 
+## v0.19.2 — 2026-09-01
+
+**Leaving a tracker, data in hand.** `gadak --workspace <new> migrate --from
+<old>` exports a synced workspace's mirror into a brand-new standalone
+workspace: issues, comments, the full changelog, links, attachment bytes,
+and wiki pages, ending with a source-vs-migrated count table that includes
+the derived columns — reopen counts and epic keys have to re-derive from the
+migrated history, so equality there is the real proof. Losses are reported
+rather than silent: bodies migrate as plain text and the report says how
+many code blocks, media nodes and tables that flattened; links and parents
+outside the migrated set are counted as dropped. Measured on this project's
+own backlog: 1,268 issues, 3,811 history rows, 26 of 26 attachments, every
+row equal ([GDK-1264]).
+
+Two hard-won details came out of that first full export. The seed document
+ships as JSON, because YAML's emitter writes block scalars its own parser
+rejects on real tracker text — a value that starts with newlines, nested
+deep enough, fails to load back ([GDK-1269]); the embedded tracker now
+proves its own snapshots by parsing them before they leave. And a
+keep-chomped block at the end of a document stores its trailing newlines as
+value bytes, so the loader stopped trimming what it parses.
+
+**An issue can point at an issue in another workspace.** `gadak ref STD-1
+work/NMA-9` records a pointer, stored as a Jira remote issue link on your
+own origin — nothing is written to the workspace you point at, so a personal
+note about a team ticket stays personal. What makes it worth having is the
+other half: `gadak ref STD-1 --list`, and the issue's References section in
+the app, show the target's **current** status, assignee and summary, read
+out of that workspace's own mirror on this machine. No network call, no
+second tab. A target this machine does not mirror still lists — it says so
+instead of pretending ([GDK-1032]).
+
+**The app finally admits you can make a workspace.** Creating, pairing and
+removing workspaces has lived in Settings → Workspaces since 0.19, but the
+sidebar's workspace section only appeared once you already had two, so the
+main surface never said the feature existed. It now shows with one workspace
+and carries a "New workspace" row into that panel ([GDK-1270]).
+
 ## v0.19.1 — 2026-09-01
 
 The patch where the intuitive query becomes the correct one, written the
@@ -1195,3 +1233,7 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-1182]: https://gadak.dev/backlog/#/?ks=GDK-1182
 [GDK-1256]: https://gadak.dev/backlog/#/?ks=GDK-1256
 [GDK-1258]: https://gadak.dev/backlog/#/?ks=GDK-1258
+[GDK-1264]: https://gadak.dev/backlog/#/?ks=GDK-1264
+[GDK-1269]: https://gadak.dev/backlog/#/?ks=GDK-1269
+[GDK-1270]: https://gadak.dev/backlog/#/?ks=GDK-1270
+[GDK-1032]: https://gadak.dev/backlog/#/?ks=GDK-1032

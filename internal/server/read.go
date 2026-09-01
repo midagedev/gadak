@@ -358,6 +358,10 @@ type detailResponse struct {
 	// answer: the detail chip renders nothing, never a 0.
 	WaitMs     *int64 `json:"wait_ms,omitempty"`
 	ProgressMs *int64 `json:"progress_ms,omitempty"`
+	// Refs are cross-workspace / external pointers, each carrying the
+	// target's live state when this machine mirrors that workspace
+	// (GDK-1032). Empty omits.
+	Refs []detailRef `json:"refs,omitempty"`
 	// Bodies carries the body-role custom field values (ADF documents), keyed
 	// by alias. List rows strip these; the detail panel renders them as blocks.
 	Bodies map[string]json.RawMessage `json:"bodies"`
@@ -497,6 +501,7 @@ func (s *server) handleDetail(w http.ResponseWriter, r *http.Request) {
 		LinkedPRs:       json.RawMessage("[]"),
 		Bodies:          map[string]json.RawMessage{},
 	}
+	res.Refs = hydrateRefs(r.Context(), d.Refs)
 	if spans.Wait != nil {
 		ms := spans.Wait.Milliseconds()
 		res.WaitMs = &ms

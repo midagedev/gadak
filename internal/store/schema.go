@@ -3,7 +3,7 @@ package store
 // migrations are applied in order and the index+1 is the schema version. A
 // released migration is never edited; a schema change is a new entry at the end
 // plus a documented row in specs/000-product/data-model.md.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39, schemaV40, schemaV41}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39, schemaV40, schemaV41, schemaV42}
 
 // itemsFTSCreate is the canonical items_fts DDL, spliced into schemaV1 so a
 // fresh database is born matching it (GDK-444: an inline copy in V1 lagged at
@@ -857,4 +857,23 @@ CREATE VIEW issues AS
   SELECT it.title AS summary, i.*, COALESCE(it.body_text, '') AS description_text
   FROM issues_raw i JOIN items it ON it.id = i.item_id;
 CREATE VIEW issues_full AS SELECT * FROM issues;
+`
+
+// schemaV42 (GDK-1032) mirrors remote issue links — pointers at things
+// outside the origin tracker. url is the identity a client dereferences
+// (gadak://<workspace>/<KEY> rows hydrate from that workspace's own mirror,
+// no network). Rows are replaced wholesale per issue on sync, the dev_links
+// contract. No view rebuild: this is its own table, not an issues column.
+const schemaV42 = `
+CREATE TABLE remote_links (
+  item_id      TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+  id           TEXT NOT NULL,
+  global_id    TEXT NOT NULL DEFAULT '',
+  relationship TEXT NOT NULL DEFAULT '',
+  url          TEXT NOT NULL,
+  title        TEXT NOT NULL DEFAULT '',
+  summary      TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY (item_id, id)
+);
+CREATE INDEX remote_links_item ON remote_links(item_id);
 `

@@ -21,6 +21,11 @@ func newJiraWriter(c *jira.Client) *jiraWriter {
 	return &jiraWriter{Client: c}
 }
 
+// jiraClient hands the embedded client to the capability tests in
+// writer.go (which transport is this origin talking over?). Unexported —
+// it is a within-package accessor, not a face callers may reach for.
+func (w *jiraWriter) jiraClient() *jira.Client { return w.Client }
+
 func (w *jiraWriter) CreateMeta(ctx context.Context, projects []string) ([]CreateMetaProject, error) {
 	raw, err := w.Client.CreateMeta(ctx, projects)
 	if err != nil {

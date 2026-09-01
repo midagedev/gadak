@@ -953,6 +953,7 @@ func build(ctx context.Context, c *jira.Client, cfg *config.Config, iss jira.Iss
 		// Cloud opt-out: a successful "we are not collecting these" drains.
 		rec.DevLinks = &store.DevLinksUpdate{}
 	}
+	rec.RemoteLinks = remoteLinksFor(ctx, cfg, c, iss.Key)
 	for _, cm := range comments {
 		sc := store.Comment{
 			ID:         itemNS(cfg) + ":" + cm.ID,
@@ -1371,6 +1372,30 @@ func shouldFetchDevLinks(cfg *config.Config, c *jira.Client) bool {
 		}
 	}
 	return false
+}
+
+// remoteLinksFor reads one issue's remote links (GDK-1032). Only from an
+// issuetap-backed origin (standalone / paired), where the call is
+// in-process or one hop over the tailnet: on Atlassian Cloud it would be a
+// second per-issue GET on every sync, and gadak does not write remote links
+// there. nil leaves existing rows (the DevLinks contract); a fetch error is
+// never a failed pass.
+func remoteLinksFor(ctx context.Context, cfg *config.Config, c *jira.Client, key string) *store.RemoteLinksUpdate {
+	if !origin.SyncFetchesRemoteLinks(cfg, c) {
+		return nil
+	}
+	links, err := c.RemoteLinks(ctx, key)
+	if err != nil {
+		return nil
+	}
+	u := &store.RemoteLinksUpdate{}
+	for _, rl := range links {
+		u.Links = append(u.Links, store.RemoteLink{
+			ID: rl.ID, GlobalID: rl.GlobalID, Relationship: rl.Relationship,
+			URL: rl.URL, Title: rl.Title, Summary: rl.Summary,
+		})
+	}
+	return u
 }
 
 // devLinksFor reads the origin's development panel for one issue — summary

@@ -349,6 +349,27 @@ export interface DetailResponse {
    *  Absent when the changelog cannot answer — the chip renders nothing. */
   wait_ms?: number | null
   progress_ms?: number | null
+  /** Cross-workspace / external pointers (GDK-1032). Omitted when empty. */
+  refs?: IssueRef[]
+}
+
+/** One reference out of this issue: a pointer at an issue in another
+ *  workspace (gadak://<workspace>/<KEY>) or any external URL. When this
+ *  machine mirrors the named workspace the server hydrates the target's
+ *  live state and sets `hydrated`; otherwise the pointer stands with no
+ *  live half, which is a state to show, not an error. */
+export interface IssueRef {
+  id: string
+  url: string
+  relationship?: string
+  title?: string
+  workspace?: string
+  key?: string
+  summary?: string
+  status?: string
+  status_category?: string
+  assignee?: string
+  hydrated: boolean
 }
 
 /** GET `bootstrap/` response. */

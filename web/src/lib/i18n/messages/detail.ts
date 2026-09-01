@@ -225,6 +225,21 @@ export const detail = {
     ko: '심각도 {s}',
     ja: '重大度 {s}',
   },
+  'detail.refs': {
+    en: 'References',
+    ko: '참조',
+    ja: '参照',
+  },
+  'detail.refRelates': {
+    en: 'relates to',
+    ko: '관련',
+    ja: '関連',
+  },
+  'detail.refNotMirrored': {
+    en: 'workspace {workspace} is not mirrored on this machine',
+    ko: '이 컴퓨터에 {workspace} 워크스페이스 미러가 없습니다',
+    ja: 'このマシンに {workspace} ワークスペースのミラーがありません',
+  },
   'detail.linked': {
     en: 'Linked',
     ko: '연결됨',
