@@ -2,6 +2,41 @@
 
 <sub>English · <a href="CHANGELOG.ko.md">한국어</a></sub>
 
+## v0.19.1 — 2026-09-01
+
+The patch where the intuitive query becomes the correct one, written the
+day after 0.19.0 shipped.
+
+**`SELECT key, summary, status FROM issues` just works now.** The mirror's
+most common agent miss was structural: the intuitive name held a narrow
+internal table while the answer lived on `issues_full`. The names now match
+the intent — `issues` is the full view (title and description included),
+`issues_full` stays as a compatibility alias, and the physical table steps
+back to an internal name ([GDK-1258]). A `SELECT *` on `issues` therefore
+carries two more columns than before. And when a query does name a column
+that lives elsewhere, the error says where: `column "summary" exists on
+issues — query issues`, instead of the silence that used to cost three
+guesses ([GDK-974]).
+
+**`gadak claim` survives a board with two in-progress lanes.** On a
+workflow where two transitions land in progress, every bare claim used to
+refuse with both candidates named and no way to pick one. `--transition
+<id|name>` chooses the lane — on the atomic route and the Cloud fallback
+alike, and a destination outside in-progress is refused, because claim is
+not a general transition ([GDK-1174]). The claim's other half got faster
+too: the terminal strip now renames the session on the tick the write
+landed, instead of waiting out its own two-second poll ([GDK-1182]).
+
+**Two agents on one standalone workspace no longer mint the same id.**
+Comment, history, and attachment ids came from per-process counters seeded
+once at open, so three concurrent writers handed the same id to three
+different issues. The counters now live in the working copy itself, one
+atomic allocation per id, with no persist format change ([GDK-1180]).
+
+Also: the AUR verify script's scratch directory moves inside the repo,
+where Docker Desktop can actually mount it — a green container run that
+left no `.SRCINFO` on the host now fails loudly instead ([GDK-1256]).
+
 ## v0.19.0 — 2026-09-01
 
 The release where the issues stand up as a board, and the terminal takes
@@ -1154,3 +1189,9 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-996]: https://gadak.dev/backlog/#/?ks=GDK-996
 [GDK-1128]: https://gadak.dev/backlog/#/?ks=GDK-1128
 [GDK-1204]: https://gadak.dev/backlog/#/?ks=GDK-1204
+[GDK-974]: https://gadak.dev/backlog/#/?ks=GDK-974
+[GDK-1174]: https://gadak.dev/backlog/#/?ks=GDK-1174
+[GDK-1180]: https://gadak.dev/backlog/#/?ks=GDK-1180
+[GDK-1182]: https://gadak.dev/backlog/#/?ks=GDK-1182
+[GDK-1256]: https://gadak.dev/backlog/#/?ks=GDK-1256
+[GDK-1258]: https://gadak.dev/backlog/#/?ks=GDK-1258

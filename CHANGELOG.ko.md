@@ -2,6 +2,41 @@
 
 <sub><a href="CHANGELOG.md">English</a> · 한국어 — 영문이 원본이며, 번역은 영문과 함께 갱신됩니다(마지막 동기화 2026-09-01).</sub>
 
+## v0.19.1 — 2026-09-01
+
+직관대로 쓴 쿼리가 곧 맞는 쿼리가 되는 패치입니다. 0.19.0을 내보낸 다음 날
+썼습니다.
+
+**`SELECT key, summary, status FROM issues`가 이제 그냥 동작합니다.** 미러에서
+에이전트가 가장 자주 헛짚던 자리는 구조 문제였습니다. 직관적인 이름은 좁은
+내부 테이블이 차지하고 있었고, 정답은 `issues_full`에 있었습니다. 이제 이름이
+의도와 일치합니다. `issues`가 제목과 본문까지 담은 풀 뷰가 되고,
+`issues_full`은 호환용 별칭으로 남으며, 물리 테이블은 내부 이름으로
+물러납니다 ([GDK-1258]). 그래서 `issues`에 대한 `SELECT *`는 이전보다 컬럼이
+둘 늘어납니다. 그리고 쿼리가 다른 테이블에 있는 컬럼을 짚으면 에러가 그
+자리를 말해줍니다. 예전에는 침묵해서 세 번을 헛짚게 만들던 자리에서, 이제
+`column "summary" exists on issues — query issues`라고 답합니다 ([GDK-974]).
+
+**`gadak claim`이 in-progress 상태가 둘인 보드에서도 살아남습니다.** 진행
+카테고리로 들어가는 전환이 두 개인 워크플로에서는, 맨몸의 claim이 후보 둘을
+나열만 하고 항상 거절했습니다. 고를 수단이 없었기 때문입니다. 이제
+`--transition <id|name>`으로 갈래를 고를 수 있습니다. 원자 경로와 Cloud
+폴백이 같은 해석을 쓰고, 진행 카테고리 밖으로 나가는 목적지는 거절합니다.
+claim은 범용 전환이 아니기 때문입니다 ([GDK-1174]). claim의 나머지 절반도
+빨라졌습니다. 터미널 스트립이 자기만의 2초 폴을 기다리는 대신, 쓰기가 떨어진
+바로 그 틱에 세션 이름을 바꿉니다 ([GDK-1182]).
+
+**한 standalone 워크스페이스에 붙은 에이전트 둘이 더는 같은 id를 채번하지
+않습니다.** 코멘트·이력·첨부의 id가 열 때 한 번 시드되는 프로세스별
+카운터에서 나와서, 동시 작성자 셋이 서로 다른 이슈에 같은 id를 붙이곤
+했습니다. 이제 카운터가 작업 사본 안에 살고, id 하나마다 원자적으로 할당되며,
+persist 형식은 바뀌지 않습니다 ([GDK-1180]).
+
+그 밖에, AUR 검증 스크립트의 작업 디렉터리가 레포 안으로 들어왔습니다. Docker
+Desktop이 실제로 마운트할 수 있는 자리입니다. 컨테이너 검증은 초록인데
+호스트에 `.SRCINFO`가 남지 않던 경로는 이제 소리 내어 실패합니다
+([GDK-1256]).
+
 ## v0.19.0 — 2026-09-01
 
 이슈 목록이 보드로 일어서고, 터미널이 Beta 딱지를 떼는 릴리스입니다.
@@ -1126,3 +1161,9 @@ HTTP·sync·에이전트 계약을 담았습니다.
 [GDK-996]: https://gadak.dev/backlog/#/?ks=GDK-996
 [GDK-1128]: https://gadak.dev/backlog/#/?ks=GDK-1128
 [GDK-1204]: https://gadak.dev/backlog/#/?ks=GDK-1204
+[GDK-974]: https://gadak.dev/backlog/#/?ks=GDK-974
+[GDK-1174]: https://gadak.dev/backlog/#/?ks=GDK-1174
+[GDK-1180]: https://gadak.dev/backlog/#/?ks=GDK-1180
+[GDK-1182]: https://gadak.dev/backlog/#/?ks=GDK-1182
+[GDK-1256]: https://gadak.dev/backlog/#/?ks=GDK-1256
+[GDK-1258]: https://gadak.dev/backlog/#/?ks=GDK-1258
