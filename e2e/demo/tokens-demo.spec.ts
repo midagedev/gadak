@@ -154,8 +154,8 @@ test.describe('tokens promo', () => {
       await frame.evaluate(() =>
         getComputedStyle(document.documentElement).getPropertyValue('--spacing-row').trim(),
       ),
-    ).toBe('42px')
-    expect(Math.round(await issueRow.evaluate((el) => el.getBoundingClientRect().height))).toBe(42)
+    ).toBe('36px') // the default rung since GDK-1336 (was 42)
+    expect(Math.round(await issueRow.evaluate((el) => el.getBoundingClientRect().height))).toBe(36)
 
     await clearTerminal(page)
     await page.waitForTimeout(280)

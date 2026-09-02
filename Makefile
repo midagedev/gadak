@@ -107,6 +107,7 @@ media: media-web media-search media-agent media-groupby media-history
 media-deps:
 	@command -v ffmpeg >/dev/null || { echo "media: ffmpeg required" >&2; exit 1; }
 	@command -v go >/dev/null || { echo "media: go required" >&2; exit 1; }
+	@command -v gifsicle >/dev/null || echo "media: gifsicle not found — mcp/claude-drive GIFs skip their -O3 pass (brew install gifsicle)" >&2
 	@if [ ! -x node_modules/.bin/playwright ]; then \
 		echo "media: npm ci…"; \
 		npm ci; \

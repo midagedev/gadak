@@ -26,12 +26,14 @@ import { fileURLToPath } from 'node:url'
 
 import { test, expect, type Page } from '@playwright/test'
 
-import { forceLocale, DEMO_ISSUE_COUNT_EN_RE } from '../helpers'
+import { forceLocale, DEMO_ISSUE_COUNT_EN_RE, e2eHomeDir } from '../helpers'
 
 const isMedia = !!process.env.GADAK_MEDIA
 const here = path.dirname(fileURLToPath(import.meta.url))
 const gadakBin = path.join(here, '../.tmp/gadak')
-const gadakHome = path.join(here, '../.tmp/home')
+// The serve's home is per port (e2e/.tmp/home-<port>, GDK-672); the CLI must
+// write ui-focus.json into that same directory or the iframe never sees it.
+const gadakHome = e2eHomeDir()
 
 // "Stuck the longest in progress" — a universal question (every team has
 // in-progress work; not every team reopens issues), and one JQL cannot rank

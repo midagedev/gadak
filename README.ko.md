@@ -136,12 +136,12 @@ CLI 기동 포함, [방법론과 재측정 이력, gadak이 지는 행](docs/BEN
 늦습니다.
 
 <details>
-<summary>▶ 종이 리스트 90초 투어 (GIF, 7 MB)</summary>
+<summary>▶ 종이 리스트 20초 투어 (GIF)</summary>
 
 <p align="center">
-  <img src="docs/media/web-demo.gif" alt="타이핑할수록 종이 리스트가 좁혀지고, 이슈가 라벨·우선순위·리오픈 배지와 함께 열리며, 문서와 에픽이 같은 창에 있다" width="900">
+  <img src="docs/media/web-demo.gif" alt="타이핑할수록 종이 리스트가 좁혀지고, 이슈가 라벨·우선순위·리오픈 배지와 함께 열리며, 문서와 보드가 같은 창에 있다" width="900">
   <br>
-  <sub>창의 90초. <a href="e2e/demo/web-demo.spec.ts">e2e/demo/web-demo.spec.ts</a>가 데모 스냅샷에 대해 생성.</sub>
+  <sub>창의 20초. <a href="e2e/demo/web-demo.spec.ts">e2e/demo/web-demo.spec.ts</a>가 데모 스냅샷에 대해 생성.</sub>
 </p>
 
 </details>
@@ -188,7 +188,7 @@ Jira 검색은 네트워크 왕복이고, 위키는 두 번째 검색입니다. 
 `gadak config set appearance.theme ink`.
 
 <p align="center">
-  <img src="docs/media/tokens.gif" alt="터미널이 ui.tokens와 ui.dataColors를 설정하자 열린 탭이 리로드 없이 그 자리에서 다시 물든다 — 액센트·칩·분해 색이 바뀌고, 잠긴 bg-base에 쓰려는 시도는 이유와 함께 거절된다" width="900">
+  <img src="docs/media/tokens.gif" alt="터미널이 ui.tokens와 ui.dataColors를 설정하자 열린 탭이 리로드 없이 그 자리에서 다시 물든다 — 액센트·칩·분해 색이 바뀌고, 잠긴 bg-base에 쓰면 이유를 밝히는 경고와 함께 저장된다" width="900">
   <br>
   <sub>색도 설정입니다: <code>ui.tokens</code> / <code>ui.dataColors</code>가 CLI에서 열린 탭으로 리로드 없이 흘러가고, 팔레트가 소유한 키는 종이를 조용히 깨는 대신 오버라이드를 거절합니다. <a href="e2e/demo/tokens-demo.spec.ts">e2e/demo/tokens-demo.spec.ts</a>가 생성.</sub>
 </p>

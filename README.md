@@ -132,12 +132,12 @@ watch tick costs ~4.7 s on a quiet site even when nothing changed, and the
 mirror trails Jira by one sync interval.
 
 <details>
-<summary>▶ 90-second tour of the paper list (GIF, 7 MB)</summary>
+<summary>▶ 20-second tour of the paper list (GIF)</summary>
 
 <p align="center">
-  <img src="docs/media/web-demo.gif" alt="The paper list narrows as you type; an issue opens with labels, priority and a reopen badge; documents and epics sit in the same window" width="900">
+  <img src="docs/media/web-demo.gif" alt="The paper list narrows as you type; an issue opens with labels, priority and a reopen badge; documents and the board sit in the same window" width="900">
   <br>
-  <sub>The window, in 90 seconds. Generated from <a href="e2e/demo/web-demo.spec.ts">e2e/demo/web-demo.spec.ts</a> against the demo snapshot.</sub>
+  <sub>The window, in twenty seconds. Generated from <a href="e2e/demo/web-demo.spec.ts">e2e/demo/web-demo.spec.ts</a> against the demo snapshot.</sub>
 </p>
 
 </details>
@@ -180,7 +180,7 @@ the system unless you pick one, and it belongs to the workspace, not the
 browser: `gadak config set appearance.theme ink`.
 
 <p align="center">
-  <img src="docs/media/tokens.gif" alt="A terminal sets ui.tokens and ui.dataColors and the open tab retints live — accent, chips and breakdown colors change with no reload; a write to the locked bg-base is refused with the reason" width="900">
+  <img src="docs/media/tokens.gif" alt="A terminal sets ui.tokens and ui.dataColors and the open tab retints live — accent, chips and breakdown colors change with no reload; a write to the locked bg-base saves with a warning that names the reason" width="900">
   <br>
   <sub>Colors are config: <code>ui.tokens</code> / <code>ui.dataColors</code> flow from the CLI into an open tab with no reload, and the keys a palette owns refuse an override instead of silently breaking the paper. Generated from <a href="e2e/demo/tokens-demo.spec.ts">e2e/demo/tokens-demo.spec.ts</a>.</sub>
 </p>

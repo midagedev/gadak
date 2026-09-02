@@ -40,7 +40,7 @@ each run with a fake credential.)
 | `docs/media/mcp.mp4` | same tape, second `Output` line | Twitter / LinkedIn / anywhere GIF is too heavy |
 | `docs/media/raycast.gif` | scripted live take `tools/record-raycast.sh` | README — Raycast searches the mirror per keystroke, Enter opens the hit via `gadak://` |
 | `docs/media/raycast.mp4` | same take, h264 | Twitter / LinkedIn / anywhere GIF is too heavy |
-| `docs/media/tokens.gif` | Playwright split `e2e/demo/tokens-demo.spec.ts` | README — CLI `config set ui.tokens` / `ui.dataColors` retints an open tab; locked `bg-base` is refused |
+| `docs/media/tokens.gif` | Playwright split `e2e/demo/tokens-demo.spec.ts` | README — CLI `config set ui.tokens` / `ui.dataColors` retints an open tab; locked `bg-base` saves with a warning |
 | `docs/media/tokens.mp4` | same recording, h264 | Twitter / LinkedIn / anywhere GIF is too heavy |
 | `docs/media/dashboards.gif` | Playwright split `e2e/demo/dashboards-demo.spec.ts` | README — CLI `dashboards save` / `open` renders the triage wall; a second save swaps the open frame |
 | `docs/media/dashboards.mp4` | same recording, h264 | Twitter / LinkedIn / anywhere GIF is too heavy |
@@ -76,8 +76,8 @@ Current state:
 | --- | --- | --- |
 | flagship (hero) | `scale.mp4` (+`scale-poster.png`) | video kept, with **post-process camera work** (`export-scale.sh`): smoothstep push-in to the palette for the typing beats, out for the regroup, in to the counts band for the chip narrowing, back to full frame at the loop point. Source pacing untouched — only the crop moves |
 | search exhibit | `search.mp4` (+`search-poster.png`) | video kept, mp4 cropped to the palette+detail region (`export-search.sh`); the README `search.gif` stays full-frame |
-| group-by exhibit | `groupby-still.png` | still — assignee filter submenu with live counts over the epic-grouped list (2x, 1240×1110) |
-| history exhibit | `history-still.png` | still — NMB-139 header badges + bot comment + changelog with the Reopened marker (2x, 880×1540) |
+| group-by exhibit | `groupby-still.png` | still — assignee filter submenu with live counts over the epic-grouped list (2x, 1656×1110; reframed 2026-09-02 when the filter popover moved to the toolbar's right half) |
+| history exhibit | `history-still.png` | still — NMB-139 header badges + bot comment + changelog with the Reopened marker (2x, 876×1740; a 900-tall viewport since the 0.20 detail grew a breadcrumb and a taller composer) |
 | agent exhibit | `agent.mp4` | video kept as recorded — the command→view causality is the claim |
 | agent proof | `mcp.mp4` (+`mcp-poster.png`) | video — the claim is a conversation flow, so the exhibit plays the tape (was `mcp-still.png` until the user call of 2026-08-24) |
 | skill drive | `claude-drive-vertical.mp4` (+`claude-drive-vertical-poster.png`) | video — a command changing the visible view (retint + dashboard landing in an open tab) is the motion rule's own example; added for v0.17.2, vertical 4:5 cut capped at 540px in the column (user calls 2026-08-25) |
@@ -99,8 +99,9 @@ ffmpeg -y -ss 23.5 -i docs/media/mcp.mp4 -frames:v 1 -vf "crop=1080:450:0:0" \
   docs/media/mcp-still.png
 ```
 
-`site/public/media` is a symlink to `docs/media` — stills land on the site by
-existing there. The landing references them via `MediaSlot still=…` with a
+`site/public/media` is a symlink to `docs/media` (created by the Pages
+workflow at build time; a fresh checkout has no such entry) — stills land on
+the site by existing there. The landing references them via `MediaSlot still=…` with a
 `displayWidth` equal to the crop's CSS-pixel width (half the PNG width).
 
 ## Size budget
@@ -137,35 +138,35 @@ existing there. The landing references them via `MediaSlot still=…` with a
 
 ### Current committed sizes (re-measure after regen)
 
-Measured 2026-08-14 via `ls -la docs/media/` (decimal MB = bytes/1e6):
+Measured 2026-09-02 via `ls -la docs/media/` + `ffprobe` (decimal MB = bytes/1e6):
 
 | Asset | Size | Bytes (`ls -la`) | Duration | Resolution / fps |
 | --- | --- | --- | --- | --- |
-| `web-demo.gif` | 7.4 MB | 7368472 | 15.8 s | 960×600 @ 9 fps, 128-color palette |
-| `web-demo.mp4` | 1.1 MB | 1073187 | 15.8 s | 1024×640 h264 |
-| `search.gif` | 3.7 MB | 3707159 | 7.4 s | 960×600 @ 9 fps, 128-color palette |
-| `search.mp4` | 0.53 MB | 527808 | 7.4 s | 1024×640 h264 |
-| `agent.gif` | 5.8 MB | 5814162 | 18.7 s | 960×758 @ 9 fps, 128-color palette |
-| `agent.mp4` | 0.69 MB | 687886 | 18.7 s | 1024×808 h264 |
-| `mcp.gif` | 0.36 MB | 357824 | 24.9 s | 1080×620 @ 25 fps, 64 colors (gifsicle) |
-| `mcp.mp4` | 0.28 MB | 276463 | 24.9 s | 1080×620 h264 |
-| `raycast.gif` | 0.98 MB | 982043 | 13.2 s | 960×579 @ 10 fps, 128-color palette (measured 2026-08-17) |
-| `raycast.mp4` | 0.26 MB | 255880 | 13.2 s | 1088×656 h264 (measured 2026-08-17) |
-| `tokens.gif` | 3.2 MB | 3185180 | 20.6 s | 1280×493 @ 9 fps, 128-color palette (measured 2026-08-24) |
-| `tokens.mp4` | 0.76 MB | 762298 | 20.5 s | 1744×672 h264 (measured 2026-08-24) |
-| `dashboards.gif` | 3.1 MB | 3142466 | 28.4 s | 1280×493 @ 9 fps, 128-color palette (measured 2026-08-24) |
-| `dashboards.mp4` | 0.80 MB | 803739 | 28.4 s | 1744×672 h264 (measured 2026-08-24) |
-| `tokens-vertical.mp4` | 1.1 MB | 1099309 | 20.7 s | 1080×1350 h264 (measured 2026-08-24) |
-| `dashboards-vertical.mp4` | 2.1 MB | 2122855 | 41.0 s | 1080×1350 h264 (measured 2026-08-24) |
-| `claude-drive.gif` | 4.0 MB | 3958051 | 26.6 s | 1280×490 @ 9 fps, 64 colors (gifsicle; measured 2026-08-24) |
-| `claude-drive.mp4` | 2.0 MB | 1999568 | 26.6 s | 1880×720 h264 25 fps (measured 2026-08-24) |
-| `claude-drive-vertical.mp4` | 2.1 MB | 2076793 | 30.9 s | 1080×1350 h264 (measured 2026-08-24) |
-| `claude-dashboards-vertical.mp4` | 1.7 MB | 1659163 | 25.6 s | 1080×1350 h264 (measured 2026-08-25) |
-| `claude-tokens-vertical.mp4` | 1.2 MB | 1166774 | 18.2 s | 1080×1350 h264 (measured 2026-08-25) |
-| `claude-dashboards-vertical.gif` | 1.3 MB | 1320334 | 25.6 s | 430×538 @ 9 fps, 64 colors (gifsicle; measured 2026-08-25) |
-| `claude-tokens-vertical.gif` | 0.97 MB | 969087 | 18.2 s | 430×538 @ 9 fps, 64 colors (gifsicle; measured 2026-08-25) |
-| `hero.mp4` | 1.7 MB | 1723424 | 25.9 s | 1920×1080 h264 30 fps (measured 2026-08-30) |
-| `roundtrip.mp4` | 3.1 MB | 3292613 | 21.2 s | 1920×1296 h264 30 fps (measured 2026-08-31) |
+| `web-demo.gif` | 7.73 MB | 7725746 | 17.1 s | 960×600 @ 9 fps |
+| `web-demo.mp4` | 1.04 MB | 1042959 | 17.1 s | 1024×640 h264 |
+| `search.gif` | 3.66 MB | 3659975 | 7.4 s | 960×600 @ 9 fps |
+| `search.mp4` | 0.55 MB | 547850 | 7.4 s | 800×640 h264 |
+| `agent.gif` | 5.74 MB | 5737596 | 19.7 s | 960×758 @ 9 fps |
+| `agent.mp4` | 0.65 MB | 650789 | 19.7 s | 1024×808 h264 |
+| `mcp.gif` | 0.16 MB | 157323 | 24.8 s | 1080×620 @ 25 fps |
+| `mcp.mp4` | 0.18 MB | 176644 | 24.8 s | 1080×620 h264 |
+| `raycast.gif` | 0.98 MB | 982043 | 13.2 s | 960×579 @ 10 fps |
+| `raycast.mp4` | 0.26 MB | 255880 | 13.2 s | 1088×656 h264 |
+| `tokens.gif` | 3.97 MB | 3966234 | 26.0 s | 1280×493 @ 9 fps |
+| `tokens.mp4` | 0.92 MB | 916969 | 26.0 s | 1744×672 h264 |
+| `dashboards.gif` | 2.91 MB | 2909844 | 38.3 s | 1280×493 @ 9 fps |
+| `dashboards.mp4` | 0.99 MB | 988500 | 38.3 s | 1744×672 h264 |
+| `tokens-vertical.mp4` | 1.34 MB | 1339418 | 26.9 s | 1080×1350 h264 |
+| `dashboards-vertical.mp4` | 1.88 MB | 1877890 | 37.4 s | 1080×1350 h264 |
+| `claude-drive.gif` | 4.02 MB | 4016952 | 26.7 s | 1280×490 @ 9 fps |
+| `claude-drive.mp4` | 1.40 MB | 1402635 | 26.7 s | 1880×720 h264 |
+| `claude-drive-vertical.mp4` | 1.88 MB | 1881536 | 27.8 s | 1080×1350 h264 |
+| `claude-dashboards-vertical.mp4` | 1.78 MB | 1776640 | 25.6 s | 1080×1350 h264 |
+| `claude-tokens-vertical.mp4` | 1.43 MB | 1428013 | 20.4 s | 1080×1350 h264 |
+| `claude-dashboards-vertical.gif` | 1.80 MB | 1797436 | 25.6 s | 430×538 @ 9 fps |
+| `claude-tokens-vertical.gif` | 1.39 MB | 1391483 | 20.4 s | 430×538 @ 9 fps |
+| `hero.mp4` | 1.72 MB | 1723424 | 25.9 s | 1920×1080 h264 |
+| `roundtrip.mp4` | 3.29 MB | 3292613 | 21.2 s | 1920×1296 h264 |
 
 ## Readability comes first, and it costs bytes
 
@@ -183,8 +184,8 @@ So the recordings are deliberately small:
   1024×640 app frame as the hero. Do not scale the iframe; the list has to
   match the hero's glyph size.
 
-**Web GIF tradeoff:** the 0.12 walkthrough is four beats (search, an open
-issue, documents, epics) on the paper UI. `export-video.sh` starts at
+**Web GIF tradeoff:** the walkthrough is four beats (search, an open
+issue, documents, the board) on the paper UI. `export-video.sh` starts at
 `fps=9 width=960 colors=128` and steps down to `8/960/96`, then `8/900/64`.
 Note that fewer colors does **not** reliably shrink a GIF here: bayer dither
 noise compresses worse, so a 96-colour pass can come out larger than a 128 one.
@@ -235,12 +236,15 @@ directly, and CI does not regenerate media.
 
 ~20 s of readable motion, viewport **1024×640** @ `deviceScaleFactor: 2`:
 
-1. Boot — paper list, 가 mark, 534 issues, labels on the rows
+1. Boot — the epic breakdown (the startup view whenever the mirror has
+   epics, `startup-view.ts`), 534 issues in the sidebar, labels on the rows
 2. Instant local search (`pagination`) with per-keystroke narrowing and `<mark>`
 3. **NMA-123** open beside the list — title, priority, labels, reopen badge
 4. Sidebar **Documents** — Viewed, then one page open with its breadcrumb
    and the issues it cites
-5. Sidebar **Epics**: the same backlog re-sectioned by epic
+5. Sidebar **All open**, then the **Board** layout toggle: the same open
+   work as status columns. (An Epics beat would repeat the boot frame now
+   that the epic breakdown is the startup view — swapped 2026-09-02.)
 
 The in-app Jira/Confluence pane is desktop-only (a native WKWebView). This
 clip is the browser tab against `examples/demo.db`. The spaces tree was
@@ -301,7 +305,8 @@ One take, two panes, two beats, ~19 s, viewport **1024×808**:
    on the default **All open** view (368 issues)
 3. On Enter the test runs that pipe against the serve fixture (`--no-open`);
    the iframe polls `GET ui-focus/` and the list becomes those five keys
-   (**NMA-1, NMA-100, NMA-102, NMA-11, NMA-118**), with a **5 keys** chip
+   (**NMA-1, NMS-3, NMB-5, NMB-6, NMB-10** on the current snapshot), with a
+   **5 keys** chip
    and **5 issues**. Sort reads **Given order**. Default `group_by` is still
    status category (`jql.Hash` with an empty Display does not emit `g=none`),
    so the five rows section into In progress / New
@@ -336,12 +341,19 @@ stacked. Regen: `bash e2e/demo/record-promo.sh`. The capture home is frozen
    **Labels: quick-win** chip in the filter bar
 2. Terminal types `gadak config set ui.tokens '{"colors":{"accent":"#7a4bd0"}}'`
    (the value in `docs/CONFIGURATION.md`). On Enter the test runs that string;
-   `--color-accent` becomes `#7a4bd0` without a reload (**+ New issue** goes
-   purple)
+   `--color-accent` becomes `#7a4bd0` without a reload — the filter chips'
+   border, the 가 mark and the Feed badge pick up the purple (the New issue
+   button is neutral since the 0.20 UI pass, so the retint reads quietly)
 3. `gadak config set ui.dataColors '{"label":{"quick-win":"#2e7d32"}}'` —
    row label chips pick up the green tint
-4. `gadak config set ui.tokens '{"colors":{"bg-base":"#000000"}}'` is refused
-   (`locked` in the CLI error); the open tab keeps the purple accent
+4. `gadak config set ui.tokens '{"colors":{"bg-base":"#000000"}}'` saves with
+   a `locked` warning (GDK-789: grounds are palette authoring, so the write is
+   honoured and the warning says an upgrade may re-derive it); the list ground
+   goes black on the next poll and the take holds there ~3 s before scene 4
+   restores it. Honest, but the half-black frame is the ugliest second in the
+   clip — a candidate for cutting the scene (noted 2026-09-02)
+5. `ui.tokens` with `spacing.row` 50px: rows repaint taller in place
+   (dimension axis, GDK-842)
 
 Commands are real (`spawnSync` of the typed string). Loopback `web\t` lines
 are dropped, same as the agent clip.

@@ -4,7 +4,7 @@
  * Gated by GADAK_MEDIA=1 so the main suite skips it. This is a hero asset: a
  * reader gives it two seconds, so it shows one thing first — the list collapsing
  * under the keystroke — then an issue (labels, priority, title, reopen),
- * documents, and epics. The in-app Jira pane is a desktop WKWebView; this
+ * documents, and the board. The in-app Jira pane is a desktop WKWebView; this
  * recording is the browser tab against demo.db, not a reconstruction of that.
  *
  * Four rules learned the hard way:
@@ -142,11 +142,18 @@ test.describe('web UI demo', () => {
     await expect(docPanel).toHaveCount(0)
     await beat(page, 300)
 
-    // ── Epics: re-section the same list by the hierarchy Jira hides ───────
-    const epics = page.getByRole('button', { name: /Epics/ })
-    await epics.scrollIntoViewIfNeeded()
-    await epics.click()
-    await expect(page.getByTestId('group-header').first()).toBeVisible()
+    // ── Board: the same open work as columns, one click from the list ────
+    // The startup view is already the epic breakdown when the mirror has
+    // epics (startup-view.ts), so an "Epics" beat would repeat the boot
+    // frame. The layout toggle is the beat that shows something new — it
+    // lives in the list toolbar, so leave the documents column first.
+    const allOpen = page.getByRole('button', { name: /All open/ })
+    await allOpen.scrollIntoViewIfNeeded()
+    await allOpen.click()
+    await expect(page.getByTestId('issue-list-scroller')).toBeVisible()
+    await beat(page, 1000)
+    await page.getByTestId('layout-board').click()
+    await expect(page.getByTestId('board-column').first()).toBeVisible()
     await beat(page, 1800)
 
     await expect(listCount(page)).toBeVisible()

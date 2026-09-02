@@ -40,9 +40,13 @@ await page.getByText('+ Filter', { exact: true }).first().click()
 await page.waitForTimeout(400)
 await page.getByText('Assignee', { exact: true }).first().click()
 await page.waitForTimeout(600)
+// 2026-09-02: the "+ Filter" popover moved from the chip row to the toolbar's
+// right half (GDK-1343 toolbar). The frame starts at the title column (whole
+// titles beat a whole toolbar) and just under the toolbar, so the assignee
+// submenu with its counts floats over the epic-grouped rows.
 await page.screenshot({
   path: join(out, 'groupby-still.png'),
-  clip: { x: 280, y: 85, width: 620, height: 555 },
+  clip: { x: 452, y: 44, width: 828, height: 555 },
 })
 await page.keyboard.press('Escape')
 await page.keyboard.press('Escape')
@@ -58,14 +62,19 @@ await panel.waitFor({ timeout: 15000 })
 await page.waitForTimeout(1200)
 const scroller = panel.getByTestId('detail-scroll')
 // Land the frame on: agent comment (Bot badge) + HISTORY with the Reopened
-// marker, under the sticky header's duration chip.
-await scroller.evaluate((el) => {
-  el.scrollTop = (el.scrollHeight - el.clientHeight) * 0.38
-})
+// marker, under the sticky header's duration chip. The 0.20 detail is longer
+// (breadcrumb, composer), so the viewport grows to 900 for this frame and
+// the scroll is anchored on the COMMENTS heading instead of a fraction.
+await page.setViewportSize({ width: 1280, height: 900 })
+await page.waitForTimeout(400)
+const heading = panel.getByText('Comments', { exact: true }).first()
+// The header (key row, breadcrumb, title, badges, durations) sits above the
+// scroller, not over it, so block:'start' lands the heading right under it.
+await heading.evaluate((el) => el.scrollIntoView({ block: 'start' }))
 await page.waitForTimeout(500)
 await page.screenshot({
   path: join(out, 'history-still.png'),
-  clip: { x: 840, y: 15, width: 440, height: 770 },
+  clip: { x: 842, y: 15, width: 438, height: 870 },
 })
 
 await browser.close()

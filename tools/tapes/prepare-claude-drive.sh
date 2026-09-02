@@ -185,7 +185,7 @@ cat >"$AGENT_HOME/.claude/settings.json" <<EOF
   "model": "claude-sonnet-5",
   "permissions": {
     "allow": ["Bash", "Write", "Read", "Edit", "Glob", "Grep", "Skill"],
-    "deny": ["Task", "WebFetch", "WebSearch"],
+    "deny": ["Task", "WebFetch", "WebSearch", "Artifact", "ArtifactComments", "ArtifactData", "ArtifactCheck", "Agent", "ToolSearch", "Workflow", "Monitor", "SendMessage", "ScheduleWakeup", "advisor"],
     "defaultMode": "default"
   },
   "includeCoAuthoredBy": false,

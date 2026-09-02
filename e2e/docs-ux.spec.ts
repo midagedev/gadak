@@ -728,16 +728,29 @@ test.describe('the document lists explain themselves', () => {
     expect(await hit.locator('mark').allInnerTexts()).toEqual(['Rate Limit Storm'])
     await expect(context.locator('mark')).toHaveCount(0)
 
-    const tone = await view.evaluate(() => {
-      const nodes = [...document.querySelectorAll('[data-testid="doc-tree-node"]')]
-      const titleColor = (row: Element) =>
-        getComputedStyle(row.querySelectorAll('button')[row.querySelectorAll('button').length - 1])
-          .color
-      const answer = nodes.find((n) => n.getAttribute('data-hit') === 'true')!
-      const path = nodes.find((n) => n.getAttribute('data-hit') === 'false')!
-      return { answer: titleColor(answer), path: titleColor(path) }
-    })
-    expect(tone.answer).not.toBe(tone.path)
+    // The two rows swap tones through `transition-colors`, so a single read
+    // right after data-hit flips can land while both are mid-fade at the same
+    // value (2026-09-02: 1 of 2 local repeats). Poll for the settled state —
+    // the contract is still that the tones differ.
+    const readTone = () =>
+      view.evaluate(() => {
+        const nodes = [...document.querySelectorAll('[data-testid="doc-tree-node"]')]
+        const titleColor = (row: Element) =>
+          getComputedStyle(row.querySelectorAll('button')[row.querySelectorAll('button').length - 1])
+            .color
+        const answer = nodes.find((n) => n.getAttribute('data-hit') === 'true')!
+        const path = nodes.find((n) => n.getAttribute('data-hit') === 'false')!
+        return { answer: titleColor(answer), path: titleColor(path) }
+      })
+    await expect
+      .poll(
+        async () => {
+          const t = await readTone()
+          return t.answer !== t.path
+        },
+        { timeout: 2_000 },
+      )
+      .toBe(true)
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })

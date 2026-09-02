@@ -92,6 +92,10 @@ PY
 # Task/Glob/Grep are denied, not just Bash: without them a take spawned an
 # Explore subagent and searched the *codebase* for the word instead of asking
 # the mirror. The only tools left are gadak's, which is the point of the clip.
+# 2026-09-02: the harness grew tools the deny list never named — a take
+# called Artifact(list) ("listed 1 published artifact") and then told the
+# viewer "that call was unnecessary". Anything that is not a gadak tool is
+# denied by name, and the list has to grow with the harness.
 # MAX_THINKING_TOKENS=0 turns extended thinking off — the wait a viewer reads
 # as gadak's latency is the model's, and this question needs no deliberation.
 cat >"$AGENT_HOME/.claude/settings.json" <<'EOF'
@@ -99,7 +103,7 @@ cat >"$AGENT_HOME/.claude/settings.json" <<'EOF'
   "model": "claude-sonnet-5",
   "permissions": {
     "allow": ["mcp__gadak__gadak_query", "mcp__gadak__gadak_search", "mcp__gadak__gadak_issue", "mcp__gadak__gadak_status"],
-    "deny": ["Bash", "Read", "Write", "Edit", "WebFetch", "WebSearch", "Task", "Glob", "Grep"],
+    "deny": ["Bash", "Read", "Write", "Edit", "WebFetch", "WebSearch", "Task", "Glob", "Grep", "Artifact", "ArtifactComments", "ArtifactData", "ArtifactCheck", "Agent", "ToolSearch", "Workflow", "Monitor", "SendMessage", "ScheduleWakeup", "advisor"],
     "defaultMode": "default"
   },
   "includeCoAuthoredBy": false,
