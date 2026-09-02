@@ -288,11 +288,6 @@ export const shell = {
     ko: '워크스페이스 전환',
     ja: 'ワークスペースを切り替え',
   },
-  'sidebar.searchEverything': {
-    en: 'Search everything',
-    ko: '전체 검색',
-    ja: 'すべてを検索',
-  },
   'sidebar.workspaceNew': {
     en: 'New workspace',
     ko: '새 워크스페이스',

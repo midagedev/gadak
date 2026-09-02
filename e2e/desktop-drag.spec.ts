@@ -76,7 +76,9 @@ test.describe('desktop drag regions', () => {
       page.getByRole('button', { name: 'Columns', exact: true }),
       page.getByTitle('Sort options'),
       page.getByRole('button', { name: '+ Filter', exact: true }),
-      page.getByTestId('filter-copy-jql'),
+      // Copy JQL is not on the bare view any more (GDK-1336: view actions
+      // appear once the reader has narrowed the view); it inherits no-drag
+      // from the same FilterBar wrapper as `+ Filter` when it does.
       page.getByTestId('freshness-chip'),
     ]
     for (const el of noDrag) {

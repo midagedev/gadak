@@ -96,7 +96,7 @@
 </script>
 
 <div
-  class="flex min-h-11 flex-none items-center gap-3 border-b border-border-subtle bg-bg-panel/55 px-4 py-1.5"
+  class="flex min-h-9 flex-none items-center gap-3 border-b border-border-subtle bg-bg-panel/55 px-3 py-1"
 >
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
@@ -107,7 +107,7 @@
   >
     <button
       type="button"
-      class="inline-flex h-control items-center gap-1.5 rounded-md border border-border-strong bg-bg-elevated px-2.5 text-body font-medium text-text-secondary transition-colors hover:text-text-primary"
+      class="inline-flex h-control-sm items-center gap-1.5 rounded-md px-2 text-micro font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
       onclick={() => (open = !open)}
       aria-expanded={open}
     >
@@ -141,7 +141,7 @@
   </div>
 
   {#if shownGroups.length > 0}
-    <div class="h-5 w-px flex-none bg-border-strong/70"></div>
+    <div class="h-4 w-px flex-none bg-border-strong/70"></div>
     <!-- GDK-1057: no w-max. At their natural width the chips used to keep
          scrolling past the container edge, so a narrowed list column (docked
          panel) cut a chip mid-word with no affordance. Now the chips shrink

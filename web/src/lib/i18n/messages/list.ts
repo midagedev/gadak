@@ -486,9 +486,9 @@ export const list = {
     ja: 'この一覧を検索 — キー・タイトル・@担当者…',
   },
   'list.searchPlaceholderShort': {
-    en: 'Search…',
-    ko: '검색…',
-    ja: '検索…',
+    en: 'Search this list…',
+    ko: '이 목록에서 검색…',
+    ja: 'この一覧を検索…',
   },
   'list.searchHelp': {
     en: 'Searches this list (key, title, assignee, labels). Example: @dana or is:unassigned. Paste JQL to apply it. Enter searches body and comments here.',

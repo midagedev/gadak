@@ -78,3 +78,10 @@ Rules that decide what earns a place:
   `local-origin-create`.
 - Later rounds (GDK-1336…1339) take the same rules to the list chrome, the
   detail properties, the board card and the column headers.
+
+## Addendum 2026-09-02 (GDK-1336)
+
+The `[ ⌕ ]` palette button beside New issue, and the `sidebar.searchEverything`
+key it used, were removed one round later. The list toolbar's `palette-open`
+button is the one visible door to the palette; two doors two inches apart
+read as two different features. The action row is New issue alone.

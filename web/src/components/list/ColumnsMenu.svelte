@@ -45,8 +45,12 @@
     class="inline-flex h-control items-center gap-1.5 rounded-md border border-border-strong/70 bg-bg-elevated px-2.5 text-body text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary"
     onclick={() => (open = !open)}
     title={t('columns.title')}
+    aria-label={t('columns.label')}
   >
-    <span>{t('columns.label')}</span>
+    <!-- Glyph, not the word (GDK-1336): the toolbar is one row and this is
+         the one control whose meaning a glyph carries alone. The name stays
+         on the button for readers and for the accessibility tree. -->
+    <Icon name="columns" size={14} class="text-text-muted" />
     {#if !isDefault}
       <span class="rounded bg-accent-subtle/70 px-1 text-micro text-accent-text">{active.size}</span>
     {/if}

@@ -39,7 +39,6 @@
   import { builtinViews } from '../../lib/builtin-views'
   import { configToParams, type ViewConfig } from '../../lib/view-config'
   import { onEscape, onOutsideClick } from '../../lib/dom-actions'
-  import { paletteShortcutLabel, requestOpenPalette } from '../../lib/unified-search'
   import { terminalChrome } from '../../lib/terminal/pane.svelte'
   import MyIssuesNav from '../personal/MyIssuesNav.svelte'
   import FavoritesNav from '../personal/FavoritesNav.svelte'
@@ -559,8 +558,9 @@
     </div>
   {/if}
 
-  <!-- Action row: new issue (shortcut c) and the palette. Quiet on purpose —
-       the loudest thing in the window should be the content, not a button.
+  <!-- Action row: new issue (shortcut c). Quiet on purpose — the loudest
+       thing in the window should be the content, not a button. The palette's
+       door is the toolbar's, beside the search field (one door, GDK-1336).
        New issue is disabled on the hosted demo, where the snapshot service
        worker answers every write with 501. Hidden during onboarding: the
        wizard is the write path (GDK-299 F6). -->
@@ -576,16 +576,6 @@
         <Icon name="plus" size={13} class="flex-none text-text-secondary" />
         <span class="min-w-0 flex-1 truncate text-left">{t('write.newIssue')}</span>
         <kbd class="flex-none font-mono text-micro text-text-muted" aria-hidden="true">c</kbd>
-      </button>
-      <button
-        type="button"
-        class="flex h-7 w-7 flex-none items-center justify-center rounded-md border border-border-subtle bg-bg-base text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
-        title="{t('sidebar.searchEverything')} ({paletteShortcutLabel()})"
-        aria-label={t('sidebar.searchEverything')}
-        data-testid="sidebar-palette"
-        onclick={() => requestOpenPalette()}
-      >
-        <Icon name="search" size={14} />
       </button>
     </div>
   {/if}

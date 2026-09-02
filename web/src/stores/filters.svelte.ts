@@ -314,6 +314,14 @@ class FiltersStore {
   /** User-added chips only (GDK-479). Query is not a chip. */
   hasUserChips = $derived(this.activeChips.length > 0)
 
+  /** The reader has narrowed the list beyond the view they opened: a chip, a
+   *  typed query, or a server search. The chip row and its view actions (Copy
+   *  JQL, Save as view, Clear) exist for this state — a built-in view's own
+   *  filters are not something to copy or save again (GDK-1336). */
+  hasNarrowing = $derived(
+    this.hasUserChips || this.#config.filters.q.trim() !== '' || this.serverMatchQuery !== '',
+  )
+
   /**
    * Whether the current view is already scoped to "my issues" (my account ID or email in
    *  assignee or reporter filters). Whole list is then mine, so per-row highlight

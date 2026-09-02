@@ -52,6 +52,11 @@
    * sub-pixel rounding at the boundary cannot flicker the switch.
    */
   let narrowPlaceholder = $state(false)
+  /* The suggestion and jump lists hang under the field only while it has
+     focus. They are absolute and z-30, and since GDK-1336 the Breakdown band
+     sits directly under the toolbar — an open jump card after the reader had
+     clicked into the list was covering that band's controls. */
+  let focused = $state(false)
   $effect(() => {
     const el = inputEl
     if (!el || typeof ResizeObserver === 'undefined') return
@@ -324,14 +329,17 @@
 
 <!-- flex-wrap + the input's min-width floor: the field's fixed innards (icon,
      `?`, kbd, padding) are ~90px, so letting it shrink to 0 paints them over
-     the palette button (seen at 1120 docked, GDK-201). GDK-1059: the palette
+     the palette button (seen at 1120 docked, GDK-201). The floor is 200 so the
+     short placeholder ("Search this list…", ~105px) always renders unclipped
+     — since GDK-1336 the field shares its row with every list control and is
+     at the floor far more often. GDK-1059: the palette
      button compacts to icon+shortcut before that point, so the wrap below the
      floor stays what it was meant to be — the last resort, not the first. -->
 <div class="flex flex-wrap items-center gap-2" bind:this={boxEl}>
   <!-- The boundary for the help popover's outside click: it has to hold the
        `?` too, or the click that closes the panel would reopen it. -->
   <div
-    class="relative min-w-[150px] flex-1"
+    class="relative min-w-[200px] flex-1"
     use:onOutsideClick={{ handler: () => (helpOpen = false), enabled: helpOpen }}
   >
   <div
@@ -346,6 +354,8 @@
       oncompositionend={onCompositionEnd}
       onpaste={onPaste}
       onkeydown={onKeydown}
+      onfocus={() => (focused = true)}
+      onblur={() => (focused = false)}
       type="text"
       data-testid="search-input"
       data-enter="widen"
@@ -411,7 +421,7 @@
         {t('list.searchHelpShortcuts')}
       </button>
     </div>
-  {:else if suggestions.length > 0}
+  {:else if focused && suggestions.length > 0}
     <div
       class="anim-enter absolute left-0 top-full z-30 mt-1 w-full max-w-md rounded-lg border border-border-strong bg-bg-elevated p-1 shadow-overlay"
     >
@@ -431,7 +441,7 @@
         </button>
       {/each}
     </div>
-  {:else if showJump && jumpKey}
+  {:else if focused && showJump && jumpKey}
     <div
       class="anim-enter absolute left-0 top-full z-30 mt-1 w-full max-w-md rounded-lg border border-border-strong bg-bg-elevated p-1 shadow-overlay"
     >

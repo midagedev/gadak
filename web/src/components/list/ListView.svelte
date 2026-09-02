@@ -65,9 +65,7 @@
    *  rows means "nothing matched" — never "this workspace is still filling
    *  up". The sync frame is only for a genuinely bare workspace, so it is
    *  gated on the absence of all three, not on the row count alone. */
-  const hasActiveQueryOrFilter = $derived(
-    filters.filters.q.trim() !== '' || filters.hasUserChips || filters.serverMatchQuery !== '',
-  )
+  const hasActiveQueryOrFilter = $derived(filters.hasNarrowing)
 
   // Drop selections that left the visible list when the view (filter/sort/group)
   // changes. React only to viewKey (untrack visibleIssues so data deltas don't rerun).
@@ -94,37 +92,54 @@
        undercut the wizard (GDK-299 F6). -->
   {#if !needsOnboarding}
   <div
-    class="flex-none border-b border-border-strong/70 bg-bg-panel/35 px-4 py-3"
+    class="flex-none border-b border-border-strong/70 bg-bg-panel/35 px-3 py-2"
     class:desktop-drag-region={desktop}
     data-testid="list-toolbar"
   >
-    <!-- flex-wrap + a content floor on the search slot: with min-w-0 the row
+    <!-- GDK-1336: one row until a filter is active. The field, the add-filter
+         door, the view controls and the freshness/count share a line; the
+         chips get a line of their own only once there is a chip to show, so
+         the default screen spends 44px on chrome here, not 100.
+         flex-wrap + a content floor on the search slot: with min-w-0 the row
          squeezed SearchBox below its fixed innards at the docked floor
          (GDK-201, 1120px) and glyphs painted over each other. Menus wrap
          under the field before anything overlaps. -->
-    <div class="mb-2.5 flex flex-wrap items-center gap-2.5">
+    <div class="flex flex-wrap items-center gap-2">
+      <!-- One FilterBar instance in both states. While it is only the add-filter
+           door it sits beside the field; once the reader has narrowed the view
+           (chips, a query — filters.hasNarrowing) it takes a full-width line of its own
+           (order-last basis-full) — moved by flex, not remounted, so a menu
+           that is open when the first chip lands stays open. -->
       {#if desktop}
-        <div class="desktop-no-drag min-w-[260px] flex-1"><SearchBox /></div>
+        <div class="desktop-no-drag min-w-[310px] flex-1"><SearchBox /></div>
+        <div class="desktop-no-drag {filters.hasNarrowing ? 'order-last min-w-0 basis-full' : 'flex-none'}">
+          <FilterBar />
+        </div>
         <div class="desktop-no-drag"><LayoutToggle /></div>
         <div class="desktop-no-drag"><ColumnsMenu /></div>
         <div class="desktop-no-drag"><DisplayMenu /></div>
+        <!-- The count is a label, not a control: it stays a grab surface. -->
+        <div class="ml-auto flex items-center gap-2">
+          <div class="desktop-no-drag"><FreshnessChip /></div>
+          <span data-testid="list-count" class="flex-none text-micro tabular-nums text-text-muted">
+            {t('list.countIssues', { n: formatNumber(visibleCount) })}
+          </span>
+        </div>
       {:else}
-        <div class="min-w-[260px] flex-1"><SearchBox /></div>
+        <div class="min-w-[310px] flex-1"><SearchBox /></div>
+        <div class={filters.hasNarrowing ? 'order-last min-w-0 basis-full' : 'flex-none'}>
+          <FilterBar />
+        </div>
         <LayoutToggle />
         <ColumnsMenu />
         <DisplayMenu />
+        <div class="ml-auto flex items-center gap-2">
+          <FreshnessChip />
+          <span data-testid="list-count" class="flex-none text-micro tabular-nums text-text-muted">
+            {t('list.countIssues', { n: formatNumber(visibleCount) })}
+          </span>
+        </div>
       {/if}
-    </div>
-    <div class="flex items-center gap-2.5">
-      {#if desktop}
-        <div class="desktop-no-drag min-w-0 flex-1"><FilterBar /></div>
-      {:else}
-        <div class="min-w-0 flex-1"><FilterBar /></div>
-      {/if}
-      <FreshnessChip />
-      <span data-testid="list-count" class="flex-none text-micro text-text-muted">
-        {t('list.countIssues', { n: formatNumber(visibleCount) })}
-      </span>
     </div>
   </div>
   {/if}

@@ -396,7 +396,7 @@
     {/if}
   </div>
 
-  {#if filters.hasFilters}
+  {#if filters.hasNarrowing}
     <button
       type="button"
       class="inline-flex h-control-sm items-center rounded-md px-2 text-micro text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
