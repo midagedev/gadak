@@ -1142,6 +1142,21 @@ export interface WorkspaceInfo {
   error?: string
 }
 
+/** Where the switcher and the palette send a click: the active one is the root mount. */
+export function workspaceHref(w: WorkspaceInfo): string {
+  return w.active ? '/' : `/w/${w.name}/`
+}
+
+/** The site's host, or the raw site when it is not a URL; empty for a built-in origin. */
+export function workspaceHost(w: WorkspaceInfo): string {
+  if (!w.site) return ''
+  try {
+    return new URL(w.site).host
+  } catch {
+    return w.site
+  }
+}
+
 /**
  * List mountable workspaces. Deliberately fetched at the origin root, not the
  * API base: the list is one process-wide fact, the same from every mount.

@@ -927,7 +927,10 @@
 {#if paletteOpen}
   <CommandPalette
     onclose={() => (paletteOpen = false)}
-    onOpenSettings={() => (serverSettingsOpen = true)}
+    onOpenSettings={(tab) => {
+      serverSettingsOpen = true
+      if (tab) serverSettingsTab = tab
+    }}
   />
 {/if}
 

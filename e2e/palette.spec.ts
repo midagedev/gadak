@@ -337,4 +337,71 @@ test.describe('command palette', () => {
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
+
+  /*
+   * GDK-1340: the mirror list lives in the sidebar switcher's menu (GDK-1335);
+   * the palette carries the same rows so a workspace is one keystroke away.
+   * The list is mocked — the e2e home has one workspace — and the target
+   * mount is stubbed, because the row is a full navigation to another mount.
+   */
+  test.describe('workspace rows', () => {
+    test.beforeEach(async ({ page }) => {
+      await page.route('**/api/v1/workspaces', (route) =>
+        route.fulfill({
+          json: {
+            workspaces: [
+              { name: 'work', active: true },
+              { name: 'gdk', site: 'https://gdk.example.com' },
+              { name: 'broken', error: 'unreadable' },
+            ],
+          },
+        }),
+      )
+      await page.route('**/w/gdk/', (route) =>
+        route.fulfill({ contentType: 'text/html', body: '<title>gdk mount</title>' }),
+      )
+    })
+
+    test('Switch to <workspace> is an action, and Enter navigates to that mount', async ({
+      page,
+    }) => {
+      const errors = attachConsoleErrors(page)
+      await gotoApp(page)
+
+      await page.keyboard.press('ControlOrMeta+k')
+      const palette = page.getByRole('dialog', { name: 'Command palette' })
+      await expect(palette).toBeVisible()
+
+      // Every other readable workspace, never the one on screen or a broken one.
+      const rows = palette.getByTestId('palette-workspace')
+      await expect(rows).toHaveCount(1)
+      await expect(rows.first()).toContainText('Switch to gdk')
+      await expect(rows.first()).toContainText('gdk.example.com')
+
+      await page.keyboard.type('gdk', { delay: 20 })
+      const first = palette.getByRole('option').first()
+      await expect(first).toContainText('Switch to gdk')
+      await expect(first).toHaveAttribute('aria-selected', 'true')
+      expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+
+      await page.keyboard.press('Enter')
+      await page.waitForURL(/\/w\/gdk\/$/)
+    })
+
+    test('New workspace opens Settings → Workspaces', async ({ page }) => {
+      const errors = attachConsoleErrors(page)
+      await gotoApp(page)
+
+      await page.keyboard.press('ControlOrMeta+k')
+      const palette = page.getByRole('dialog', { name: 'Command palette' })
+      await expect(palette).toBeVisible()
+      await page.keyboard.type('new workspace', { delay: 20 })
+      await expect(palette.getByRole('option').first()).toContainText('New workspace')
+      await page.keyboard.press('Enter')
+
+      await expect(page.getByTestId('settings-dialog')).toBeVisible()
+      await expect(page).toHaveURL(/settings=workspaces/)
+      expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+    })
+  })
 })

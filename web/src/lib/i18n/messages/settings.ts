@@ -1420,6 +1420,11 @@ export const settings = {
     ko: '저장된 뷰',
     ja: 'ビュー',
   },
+  'palette.actionSwitchWorkspace': {
+    en: 'Switch to {name}',
+    ko: '{name} 워크스페이스로 전환',
+    ja: '{name} に切り替え',
+  },
   'palette.sectionActions': {
     en: 'Actions',
     ko: '액션',

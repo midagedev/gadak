@@ -21,7 +21,8 @@
   import { copyText } from '../../lib/copy-text'
   import { trapFocus } from '../../lib/focus-trap'
   import { upgradeCta } from '../../lib/upgrade-cta'
-  import { getSyncRuns, getWorkspaces, type SyncRun, type WorkspaceInfo } from '../../lib/api'
+  import { getSyncRuns, workspaceHost, workspaceHref, type SyncRun } from '../../lib/api'
+  import { workspaces } from '../../stores/workspaces.svelte'
   import {
     config,
     feature,
@@ -254,9 +255,9 @@
   }
 
   /* ── Workspaces (one process, several profile mirrors) ── */
-  let workspaceList = $state<WorkspaceInfo[]>([])
+  const workspaceList = $derived(workspaces.list)
   onMount(() => {
-    void getWorkspaces().then((list) => (workspaceList = list))
+    void workspaces.load()
   })
   /** The mirror this page is looking at: URL mount, or the serve primary. */
   const currentWorkspace = $derived(
@@ -302,17 +303,6 @@
     const w = workspaceList.find((x) => x.name === currentWorkspace)
     return w ? workspaceHost(w) : ''
   })
-  function workspaceHref(w: WorkspaceInfo): string {
-    return w.active ? '/' : `/w/${w.name}/`
-  }
-  function workspaceHost(w: WorkspaceInfo): string {
-    if (!w.site) return ''
-    try {
-      return new URL(w.site).host
-    } catch {
-      return w.site
-    }
-  }
   // $derived on the onboarding store's configEpoch, not a const: the sidebar
   // is mounted before onboarding finishes, and "Start with the built-in
   // tracker" flips the workspace kind under it. `config()` is a plain

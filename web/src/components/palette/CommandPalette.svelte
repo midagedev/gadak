@@ -18,7 +18,8 @@
   } from '../../lib/i18n'
   import { rankPages } from '../../lib/doc-search'
   import { highlightSegments } from '../../lib/format'
-  import { search } from '../../lib/api'
+  import { search, workspaceHost, workspaceHref } from '../../lib/api'
+  import { workspaces } from '../../stores/workspaces.svelte'
   import { matchEvidence } from '../../lib/search-match'
   import {
     UNIFIED_FETCH_LIMIT,
@@ -54,15 +55,17 @@
   import { write } from '../../stores/write.svelte'
   import { favorites } from '../../stores/favorites.svelte'
   import { watches } from '../../stores/watches.svelte'
-  import { feature, isHostedDemo } from '../../lib/config'
+  import { feature, hasServerVerb, isHostedDemo } from '../../lib/config'
   import { runSyncNow } from '../../lib/sync-now'
   import { openIssueOrigin, openOriginUrl } from '../../lib/desktop-links'
   import { paletteActionItems } from '../../lib/command-palette'
   import type { IssueLite, Member, PageLite, SearchMatch } from '../../lib/types'
+import type { SettingsTab } from '../../lib/settings-tabs'
   import Icon, { type IconName } from '../ui/Icon.svelte'
   import Marks from '../ui/Marks.svelte'
 
-  let { onclose, onOpenSettings }: { onclose: () => void; onOpenSettings: () => void } = $props()
+  let { onclose, onOpenSettings }: { onclose: () => void; onOpenSettings: (tab?: SettingsTab) => void } =
+    $props()
 
   // Empty-query home: 'recent' is visits (issues + documents, visit order —
   // one group so neither kind claims the other's section); 'updated' is the
@@ -558,6 +561,44 @@
     }
   }
 
+  /**
+   * GDK-1340: Switch to <workspace> for every mirror but the one on screen,
+   * then the door into Settings → Workspaces — the rows the sidebar
+   * switcher's menu holds (GDK-1335), reachable without the mouse. Read from
+   * the store the sidebar filled at boot: the palette makes no request of
+   * its own. A full navigation, not a store flip — a workspace is a
+   * different mount with its own mirror.
+   */
+  const workspaceItems = $derived.by<Item[]>(() => {
+    const out: Item[] = []
+    for (const w of workspaces.list) {
+      if (w.active || w.error) continue
+      const label = t('palette.actionSwitchWorkspace', { name: w.name })
+      if (!matches(label)) continue
+      out.push({
+        id: `w:${w.name}`,
+        section: 'action',
+        label,
+        icon: 'layers',
+        sub: workspaceHost(w),
+        testid: 'palette-workspace',
+        run: () => window.location.assign(workspaceHref(w)),
+      })
+    }
+    const newLabel = t('sidebar.workspaceNew')
+    if (hasServerVerb('settings') && matches(newLabel)) {
+      out.push({
+        id: 'a:workspace-new',
+        section: 'action',
+        label: newLabel,
+        icon: 'plus',
+        testid: 'palette-workspace-new',
+        run: () => onOpenSettings('workspaces'),
+      })
+    }
+    return out
+  })
+
   const actionItems = $derived.by<Item[]>(() => {
     const cursor = triage.listActive ? triage.cursorKey : null
     const pageKey = pages.selectedKey
@@ -613,6 +654,7 @@
     const createNow = defs.find((d) => d.id === 'a:create-now')
     const rest = defs.filter((d) => d.id !== 'a:create-now' && matches(d.label))
     const out: Item[] = rest.map((d) => ({ ...d, section: 'action' as const }))
+    out.push(...workspaceItems)
     if (!raw) return out
     // Instant-create is the typed text — it is not filtered by the action name.
     // It goes AFTER every matched action: create writes to Jira, so it must
