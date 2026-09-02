@@ -317,5 +317,12 @@
         </button>
       </div>
     {/if}
+  {:else}
+    <!-- Empty says what comes here, in the same gutter as the rows will use
+         — the docs section already speaks this way (GDK-1342). The History
+         door above stays: it is also how a cleared history is reached. -->
+    <div class="flex h-7 items-center px-3 text-micro text-text-muted" data-testid="recent-empty">
+      {t('personal.recentEmpty')}
+    </div>
   {/each}
 </div>

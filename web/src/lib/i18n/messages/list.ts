@@ -322,6 +322,16 @@ export const list = {
     ko: '동기화가 완료되면 여기 표시됩니다.',
     ja: '同期が終わるとここに表示されます。',
   },
+  'list.emptyLocalTitle': {
+    en: 'No issues yet',
+    ko: '아직 이슈가 없습니다',
+    ja: '課題はまだありません',
+  },
+  'list.emptyLocalHint': {
+    en: 'The first one is yours to write — c, or New issue in the sidebar.',
+    ko: '첫 이슈를 만들어 보세요 — c 키, 또는 사이드바의 새 이슈.',
+    ja: '最初の課題を作成しましょう — c キー、またはサイドバーの新規課題。',
+  },
   'list.emptyRunSync': {
     en: 'Sync now',
     ko: '지금 동기화',

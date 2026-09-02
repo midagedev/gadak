@@ -458,9 +458,9 @@ export const write = {
     ja: 'gadak をセットアップ',
   },
   'onboarding.intro': {
-    en: 'Setup happens here, no terminal needed. The last step is optional.',
-    ko: '설정은 여기서 끝납니다. 터미널이 필요 없고, 마지막 단계는 선택입니다.',
-    ja: 'セットアップはここで完了します。ターミナルは不要で、最後のステップは任意です。',
+    en: 'gadak keeps a local copy of your tracker, so reading is instant and works offline. Setup happens here, no terminal needed; the last step is optional.',
+    ko: 'gadak 은 트래커의 로컬 사본을 들고 있어 읽기가 즉시, 오프라인에서도 됩니다. 설정은 여기서 끝나고 터미널은 필요 없습니다. 마지막 단계는 선택입니다.',
+    ja: 'gadak はトラッカーのローカルコピーを持つので、読み取りは即時でオフラインでも動きます。セットアップはここで完了し、ターミナルは不要です。最後のステップは任意です。',
   },
   'onboarding.stepOf': {
     en: 'Step {n} of 4',

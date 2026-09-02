@@ -75,6 +75,11 @@ export const shell = {
     ko: '소스 설정에서 스페이스와 자격증명을 확인하세요.',
     ja: 'ソースでスペースと資格情報を確認してください。',
   },
+  'sidebar.docsLocalEmpty': {
+    en: 'No documents yet',
+    ko: '아직 문서가 없습니다',
+    ja: 'ドキュメントはまだありません',
+  },
   'sidebar.docsEmptySpaces': {
     en: 'No documents in these spaces',
     ko: '이 스페이스에 문서가 없습니다',

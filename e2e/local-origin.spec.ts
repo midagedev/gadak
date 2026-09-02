@@ -179,9 +179,11 @@ test.describe('local-origin workspace indicator', () => {
     await expect(page.getByTestId('local-origin-create')).toHaveCount(0)
     await page.keyboard.press('Escape')
 
-    // MY ISSUES: the local-origin note replaces the credential CTA — same
-    // branch the demo takes, minus the demo wording.
-    await expect(page.getByTestId('my-issues-local-origin-note')).toBeVisible()
+    // MY ISSUES: a built-in tracker without an identity has no "mine", so the
+    // section is not rendered at all (GDK-1342) — neither the credential CTA
+    // nor the sentence that used to explain the section's own emptiness.
+    await expect(page.getByTestId('my-issues-local-origin-note')).toHaveCount(0)
+    await expect(page.getByText('My issues', { exact: true })).toHaveCount(0)
     await expect(page.getByRole('button', { name: /Set credentials to see/ })).toHaveCount(0)
   })
 

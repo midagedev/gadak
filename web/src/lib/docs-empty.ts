@@ -16,6 +16,9 @@ export type DocsEmptyState =
   | 'never'
   | 'empty'
   | 'unavailable'
+  /** A built-in (gadak-origin) tracker whose wiki has no pages yet. Nothing
+   *  to configure and nothing to fetch — the page you write is the first one. */
+  | 'local-empty'
 
 export type DocsEmptyRun = { error?: string }
 
@@ -26,11 +29,16 @@ export function docsEmptyState(input: {
   /** The page-index request itself failed (pages store's loadFailed). */
   indexLoadFailed: boolean
   confluenceRuns: DocsEmptyRun[] | null
+  /** The workspace's origin is gadak's own tracker (GDK-1342). */
+  localOrigin?: boolean
 }): DocsEmptyState {
   // First question, before "is it configured": does this deployment have a
   // docs server to configure at all. A static snapshot is not "off" — there
   // is no Settings screen that could switch it on.
   if (!input.hasDocsServer) return 'unavailable'
+  // A built-in tracker has a wiki of its own; "turn on Confluence" and
+  // "change the space selection" are both the wrong errand for it.
+  if (input.localOrigin) return 'local-empty'
   if (!input.confluenceEnabled) return 'off'
   // Only while the mirror is fetching *documents*. An issue pass is the sync
   // row's business, not this section's — that split is what made one mirror
@@ -61,6 +69,8 @@ export function docsEmptyCopy(state: DocsEmptyState): DocsEmptyCopy {
   switch (state) {
     case 'unavailable':
       return { titleKey: 'sidebar.docsUnavailable', hintKey: null, titlePrefersBusy: false }
+    case 'local-empty':
+      return { titleKey: 'sidebar.docsLocalEmpty', hintKey: null, titlePrefersBusy: false }
     case 'syncing':
       return { titleKey: 'sidebar.docsSyncing', hintKey: null, titlePrefersBusy: true }
     case 'failed':
@@ -101,7 +111,7 @@ export function docsEmptyCopy(state: DocsEmptyState): DocsEmptyCopy {
 export type DocsEmptyClick = 'none' | 'sync' | 'settings' | 'retry'
 
 export function docsEmptyClickAction(state: DocsEmptyState): DocsEmptyClick {
-  if (state === 'unavailable' || state === 'syncing') return 'none'
+  if (state === 'unavailable' || state === 'syncing' || state === 'local-empty') return 'none'
   if (state === 'never') return 'sync'
   if (state === 'loadfailed') return 'retry'
   return 'settings'
@@ -109,10 +119,11 @@ export function docsEmptyClickAction(state: DocsEmptyState): DocsEmptyClick {
 
 export function docsEmptyGlyph(
   state: DocsEmptyState,
-): 'warning' | 'refresh' | 'search-x' | 'settings' {
+): 'warning' | 'refresh' | 'search-x' | 'settings' | 'file' {
   if (state === 'failed' || state === 'loadfailed') return 'warning'
   if (state === 'syncing' || state === 'never') return 'refresh'
   if (state === 'empty' || state === 'unavailable') return 'search-x'
+  if (state === 'local-empty') return 'file'
   return 'settings'
 }
 

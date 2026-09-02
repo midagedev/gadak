@@ -13,6 +13,7 @@
 
 import { getSyncRuns } from '../lib/api'
 import { config, hasServerVerb } from '../lib/config'
+import { isLocalOrigin } from '../lib/workspace'
 import {
   docsEmptyCopy,
   docsEmptyState,
@@ -70,6 +71,7 @@ class DocsEmptyStore {
       fetchingDocuments: fetchingDocuments(),
       indexLoadFailed: pages.loadFailed,
       confluenceRuns: this.confluenceRuns,
+      localOrigin: isLocalOrigin(config()),
     })
   }
 

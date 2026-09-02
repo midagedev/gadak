@@ -95,6 +95,7 @@ describe('docsEmptyCopy', () => {
   test('each state owns its own sentence keys', () => {
     const table: Record<DocsEmptyState, { title: string; hint: string | null; prefersBusy: boolean }> = {
       unavailable: { title: en['sidebar.docsUnavailable'], hint: null, prefersBusy: false },
+      'local-empty': { title: en['sidebar.docsLocalEmpty'], hint: null, prefersBusy: false },
       off: { title: en['sidebar.docsNoneTitle'], hint: en['sidebar.docsNoneHint'], prefersBusy: false },
       syncing: { title: en['sidebar.docsSyncing'], hint: null, prefersBusy: true },
       never: {

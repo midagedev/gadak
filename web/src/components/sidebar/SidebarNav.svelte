@@ -313,7 +313,12 @@
       return w.site
     }
   }
-  const localOrigin = isLocalOrigin(config())
+  // $derived on the onboarding store's configEpoch, not a const: the sidebar
+  // is mounted before onboarding finishes, and "Start with the built-in
+  // tracker" flips the workspace kind under it. `config()` is a plain
+  // variable, so the epoch is the only reactive dep that sees the flip
+  // (GDK-1342; same trick as onboarding.reason).
+  const localOrigin = $derived((onboarding.configEpoch, isLocalOrigin(config())))
   let localOriginHowOpen = $state(false)
 
   /* ── Docs (mirrored wiki pages) ── */
@@ -723,10 +728,19 @@
          Hidden during onboarding: the unauthenticated row is a second
          Set credentials (GDK-299 F6). -->
     {#if !onboarding.needsOnboarding}
-      <MyIssuesNav />
+      <!-- A built-in tracker without an identity has no "mine": the section
+           would only carry the sentence explaining its own absence (GDK-1342). -->
+      {#if !(localOrigin && !me.identified)}
+        <MyIssuesNav />
+      {/if}
       <FavoritesNav />
     {/if}
 
+    <!-- Silent during onboarding: seven empty views and a docs errand under a
+         wizard that has not connected anything yet talk about a mirror that
+         does not exist. The workspace row above is the sidebar until then
+         (GDK-1342). -->
+    {#if !onboarding.needsOnboarding}
     <div role="list" data-testid="sidebar-sections" class="flex-none">
       {#each visibleIds as id (id)}
         {#if id === 'builtin'}
@@ -753,9 +767,13 @@
                   class={activeBuiltin === v.id ? 'text-text-secondary' : 'text-text-muted'}
                 />
                 <span class="min-w-0 flex-1 truncate">{v.name}</span>
-                <span class="flex-none font-mono text-micro tabular-nums text-text-muted">
-                  {formatNumber(builtinCounts.get(v.id) ?? 0)}
-                </span>
+                <!-- A column of zeros on an empty mirror says nothing seven
+                     times; the counts return with the first issue (GDK-1342). -->
+                {#if issues.pool.size}
+                  <span class="flex-none font-mono text-micro tabular-nums text-text-muted">
+                    {formatNumber(builtinCounts.get(v.id) ?? 0)}
+                  </span>
+                {/if}
               </button>
             {/each}
           </SidebarSection>
@@ -999,6 +1017,7 @@
         {/if}
       {/each}
     </div>
+    {/if}
   </div>
 
   <!-- Footer (GDK-1335): one row — settings, who you are, the terminal. The

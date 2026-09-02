@@ -30,7 +30,9 @@
   import EmptyState from './EmptyState.svelte'
   import Onboarding from '../shell/Onboarding.svelte'
   import FreshnessChip from '../shell/FreshnessChip.svelte'
-  import { isDesktop } from '../../lib/config'
+  import { config, isDesktop } from '../../lib/config'
+  import { isLocalOrigin } from '../../lib/workspace'
+  import { write } from '../../stores/write.svelte'
   import { onboarding } from '../../stores/onboarding.svelte'
   import { runSyncNow } from '../../lib/sync-now'
 
@@ -224,6 +226,16 @@
     {#if visibleCount === 0 || needsOnboarding}
       {#if needsOnboarding}
         <Onboarding onOpenSettings={() => onOpenSettings?.()} />
+      {:else if issues.pool.size === 0 && !hasActiveQueryOrFilter && isLocalOrigin(config())}
+        <!-- A built-in tracker has nothing to sync from; its first issue is
+             written, not fetched (GDK-1342). -->
+        <EmptyState
+          icon="inbox"
+          title={t('list.emptyLocalTitle')}
+          hint={t('list.emptyLocalHint')}
+          actionLabel={t('write.newIssue')}
+          onAction={() => write.openNewIssue()}
+        />
       {:else if issues.pool.size === 0 && !hasActiveQueryOrFilter}
         <EmptyState
           icon="inbox"
