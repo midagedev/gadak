@@ -72,24 +72,29 @@ fi
 [[ -x "$BIN" ]] || { echo "record-terminal-claude: $BIN missing — run without --skip-prepare" >&2; exit 1; }
 
 # prepare-claude-drive.sh trusts the *tape's* cwd (its agent workspace), but
-# the pane does not open there: gadak starts the PTY in GADAK_HOME, so that is
-# the folder Claude asks about. Trust it too, or the take spends its first
-# ninety seconds on "Is this a project you trust?". Additive — the workspace
-# entry the tapes rely on is left exactly as prepare wrote it.
-python3 - "$AGENT_HOME/.claude.json" "$GADAK_HOME_DIR" <<'PY'
+# the pane does not open there. Where it opens has moved once already —
+# GADAK_HOME first, then the PTY's $HOME (the agent home; GDK-1159's
+# claude-pane-env.sh already says "the fixture repo lives at $HOME (the PTY
+# cwd)") — and each move cost three takes to "Is this a project you
+# trust?" (measured 2026-09-02: 3/3 rejected, 90s each, the dialog in
+# every frame). So trust both candidates rather than guess which one this
+# build starts in. Additive — the workspace entry the tapes rely on is left
+# exactly as prepare wrote it.
+python3 - "$AGENT_HOME/.claude.json" "$GADAK_HOME_DIR" "$AGENT_HOME" <<'PY'
 import json, sys
 
-path, cwd = sys.argv[1], sys.argv[2]
+path, cwds = sys.argv[1], sys.argv[2:]
 cfg = json.load(open(path))
 projects = cfg.setdefault("projects", {})
-projects.setdefault(cwd, {}).update({
-    "hasTrustDialogAccepted": True,
-    "hasCompletedProjectOnboarding": True,
-    "projectOnboardingSeenCount": 3,
-    "allowedTools": ["Bash", "Write", "Read", "Edit", "Glob", "Grep"],
-    "history": [],
-    "mcpServers": {},
-})
+for cwd in cwds:
+    projects.setdefault(cwd, {}).update({
+        "hasTrustDialogAccepted": True,
+        "hasCompletedProjectOnboarding": True,
+        "projectOnboardingSeenCount": 3,
+        "allowedTools": ["Bash", "Write", "Read", "Edit", "Glob", "Grep"],
+        "history": [],
+        "mcpServers": {},
+    })
 json.dump(cfg, open(path, "w"), indent=2)
 PY
 
@@ -111,8 +116,16 @@ fi
 start_serve() {
   echo "record-terminal-claude: serving $GADAK_HOME_DIR on 127.0.0.1:${PORT}"
   # The PTY the pane opens is a child of this process, so everything the
-  # agent sees is set here — by sourcing the same env the tapes use.
-  bash -c "set -a; . '$ENV_SH'; set +a; exec '$BIN' serve \
+  # agent sees is set here — by sourcing the same env the tapes use, plus
+  # the lines claude-pane-env.sh learned for the hero (GDK-1159): the tape
+  # env sets HOME but not the shell, and the pane runs $SHELL — the
+  # operator's zsh, whose ZDOTDIR rc files then print their own paths into
+  # the first frame (measured 2026-09-02: "/Users/…/.zshenv: no such file"
+  # above a starship prompt). /bin/sh with the e2e prompt fixture is a bare
+  # `$`; NODE_EXTRA_CA_CERTS is the pair of mkcert warnings at claude boot.
+  bash -c "set -a; . '$ENV_SH'; set +a; \
+      export SHELL=/bin/sh ENV='$ROOT/e2e/demo/prompt.sh'; unset ZDOTDIR NODE_EXTRA_CA_CERTS; \
+      exec '$BIN' serve \
       --addr '127.0.0.1:${PORT}' --static '$ROOT/dist/app' --no-open --no-sync" \
     >"$OUT/serve.log" 2>&1 &
   echo $! >"$OUT/serve.pid"
