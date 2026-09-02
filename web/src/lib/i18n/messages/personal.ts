@@ -23,9 +23,9 @@ export const personal = {
     ja: '最近',
   },
   'personal.recentEmpty': {
-    en: 'Issues and documents you open appear here',
-    ko: '연 이슈와 문서가 여기에 쌓입니다',
-    ja: '開いた課題やドキュメントがここに並びます',
+    en: 'What you open appears here',
+    ko: '연 항목이 여기에 쌓입니다',
+    ja: '開いたものがここに並びます',
   },
   'personal.myAssignee': {
     en: 'Assigned to me',
