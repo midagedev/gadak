@@ -3,7 +3,7 @@ package main
 // GDK-1281: `--standalone` was the flag until the vocabulary split, and a
 // flag someone already put in a script is a contract. It keeps working
 // forever; it is simply not taught any more, so the help names only
-// --local. The same holds for --replace-local.
+// --local. The same holds for --replace-standalone → --replace-local.
 
 import (
 	"strings"
@@ -40,5 +40,18 @@ func TestInitHelpTeachesOnlyTheNewFlag(t *testing.T) {
 	}
 	if !strings.Contains(h.usage, "--local") {
 		t.Errorf("init usage does not name --local: %s", h.usage)
+	}
+}
+
+// GDK-1312: the alias table mapped "replace-local" to itself and never knew
+// the old spelling, so `--replace-standalone` was "flag provided but not
+// defined" — the exact contract the function's comment promises to keep.
+// Parsing is enough here: the flag must be recognised, whatever the
+// workspace then says about replacing.
+func TestInitReplaceStandaloneFlagStillParses(t *testing.T) {
+	got := renameLegacyInitFlags([]string{"--replace-standalone", "--standalone", "-replace-standalone=true", "--json"})
+	want := []string{"--replace-local", "--local", "-replace-local=true", "--json"}
+	if strings.Join(got, " ") != strings.Join(want, " ") {
+		t.Fatalf("renameLegacyInitFlags = %q, want %q", got, want)
 	}
 }

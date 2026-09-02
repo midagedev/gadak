@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { gotoApp, openServerSettings, searchInput } from './helpers'
+import { attachConsoleErrors, forceLocale, gotoApp, openServerSettings, searchInput } from './helpers'
 import { en } from '../web/src/lib/i18n/en'
 
 /**
@@ -18,11 +18,8 @@ const STANDALONE_INIT_COMMAND = 'gadak --workspace <name> init --local'
 async function openIssueDetail(page: Page, key: string) {
   const input = searchInput(page)
   await input.fill(key)
-  await page
-    .locator('[data-testid="issue-list-scroller"] [role="button"]')
-    .filter({ hasText: key })
-    .first()
-    .click()
+  // Exact key, not hasText: 'NMB-1' is a substring of 'NMB-105' (GDK-1313 first run).
+  await page.getByTestId('issue-list-scroller').locator(`[data-issue-key="${key}"]`).click()
   const panel = page.getByTestId('issue-detail-panel')
   await expect(panel).toBeVisible()
   return panel
@@ -44,6 +41,44 @@ async function serveWorkspaceKind(
 }
 
 test.describe('local-origin workspace indicator', () => {
+  /*
+   * GDK-1313: the built-in tracker has no origin page, so nothing may
+   * advertise "Open in Built-in" — the palette row, the `o` shortcut's help
+   * row, and the header key anchor all promised an action that did nothing
+   * (the key was a link-styled <a> with no href). FAIL-first against the
+   * unchanged tree: the palette offered the row and the key rendered as <a>.
+   */
+  test('built-in tracker: no "open in origin" affordance, the key is a label', async ({
+    page,
+  }) => {
+    const errors = attachConsoleErrors(page)
+    await serveWorkspaceKind(page, 'standalone', { originType: 'gadak', jiraBaseUrl: '' })
+    await forceLocale(page, 'en')
+    await gotoApp(page)
+    const panel = await openIssueDetail(page, 'NMB-1')
+
+    // The header shows the key as text, not as a dead link.
+    await expect(panel.getByTestId('issue-key-label')).toHaveText('NMB-1')
+    await expect(panel.locator('a', { hasText: /^NMB-1$/ })).toHaveCount(0)
+
+    // The palette offers no origin row for this issue.
+    await page.keyboard.press('Escape')
+    await page.keyboard.press('ControlOrMeta+k')
+    const palette = page.getByRole('dialog', { name: 'Command palette' })
+    await expect(palette).toBeVisible()
+    await page.keyboard.type('Open in', { delay: 15 })
+    await expect(palette.getByRole('option').filter({ hasText: /Open in Built-in/ })).toHaveCount(0)
+    await page.keyboard.press('Escape')
+
+    // Nor does the shortcuts sheet teach an `o` that would do nothing.
+    await page.keyboard.press('?')
+    const sheet = page.getByTestId('shortcuts-dialog')
+    await expect(sheet).toBeVisible()
+    await expect(sheet.getByText(/Open the issue in/)).toHaveCount(0)
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
   test('local-origin workspace shows its indicator; connected does not', async ({ page }) => {
     await serveWorkspaceKind(page, 'standalone')
     await gotoApp(page)

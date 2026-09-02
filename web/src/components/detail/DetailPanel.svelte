@@ -197,14 +197,19 @@
                 <Icon name="arrow-left" size={14} />
               </button>
             {/if}
-            <a
-              href={issueOriginUrl(key)}
-              target="_blank"
-              rel="noopener noreferrer"
-              class="font-mono text-micro font-medium text-accent-text hover:underline"
-            >
-              {key}
-            </a>
+            {#if issueOriginUrl(key)}
+              <a
+                href={issueOriginUrl(key)}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="font-mono text-micro font-medium text-accent-text hover:underline"
+              >
+                {key}
+              </a>
+            {:else}
+              <!-- No origin page (built-in tracker): the key is a label, not a dead link (GDK-1313). -->
+              <span class="font-mono text-micro font-medium text-text-secondary">{key}</span>
+            {/if}
           </div>
           <button
             type="button"

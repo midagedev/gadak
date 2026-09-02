@@ -9,6 +9,7 @@ import type { Locale, MessageKey } from './i18n/catalog'
 import { LOCALES } from './i18n/types'
 import { persistThemePreference, THEME_MODES } from './theme'
 import { originTrackerName } from './config'
+import { issueOriginUrl } from './issue-origin'
 import { COMMANDS, type PaletteSpec, type TriageMenuKey } from './commands'
 
 export interface PaletteActionHost {
@@ -179,6 +180,11 @@ function itemsFor(spec: PaletteSpec, input: PaletteActionInput): PaletteActionIt
       }
       if (!input.issueKey) return []
       const key = input.issueKey
+      // GDK-1313: the row promises an action, so it needs the page, not just
+      // a key — on the built-in tracker (and a Linear row with no stored
+      // url) `openIssueOrigin` is a no-op, and the 400-toast hatch already
+      // gates on the same resolver (stores/write.svelte.ts).
+      if (!issueOriginUrl(key)) return []
       return [
         {
           id: spec.id,

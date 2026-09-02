@@ -35,7 +35,19 @@ func TestPickLinearState(t *testing.T) {
 		t.Errorf("new without backlog = %q, want s-todo", got.ID)
 	}
 	if got := pickLinearState(states[:2], "done"); got.ID != "" {
-		t.Errorf("done without completed must be empty, got %q", got.ID)
+		t.Errorf("done without any done-category state must be empty, got %q", got.ID)
+	}
+	// GDK-1314: a team whose done states are all canceled-type is still a
+	// team with a done category — sync files canceled under done, so migrate
+	// must land there too instead of failing. FAIL-first: the type-list
+	// version returned the zero state here.
+	cancelOnly := []linear.WorkflowState{
+		{ID: "s-back", Name: "Backlog", Type: "backlog", Position: 0},
+		{ID: "s-dup", Name: "Duplicate", Type: "duplicate", Position: 9},
+		{ID: "s-canc", Name: "Canceled", Type: "canceled", Position: 5},
+	}
+	if got := pickLinearState(cancelOnly, "done"); got.ID != "s-canc" {
+		t.Errorf("done on a canceled-only team = %q, want s-canc (lowest of the cancel-ish kinds)", got.ID)
 	}
 }
 

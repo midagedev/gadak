@@ -122,20 +122,29 @@
           <Icon name="arrow-left" size={14} />
         </button>
       {/if}
-      <a
-        href={issueOriginUrl(issue.issue_key) ?? undefined}
-        target="_blank"
-        rel="noopener noreferrer"
-        class="flex-none font-mono text-micro font-medium text-accent-text hover:underline"
-        title={t('detail.openJira', { tracker: originTrackerName() })}
-        onclick={(e) => {
-          if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
-          e.preventDefault()
-          openIssueOrigin(issue.issue_key)
-        }}
-      >
-        {issue.issue_key}
-      </a>
+      {#if issueOriginUrl(issue.issue_key)}
+        <a
+          href={issueOriginUrl(issue.issue_key)}
+          target="_blank"
+          rel="noopener noreferrer"
+          class="flex-none font-mono text-micro font-medium text-accent-text hover:underline"
+          title={t('detail.openJira', { tracker: originTrackerName() })}
+          onclick={(e) => {
+            if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+            e.preventDefault()
+            openIssueOrigin(issue.issue_key)
+          }}
+        >
+          {issue.issue_key}
+        </a>
+      {:else}
+        <!-- No origin page (built-in tracker, or a Linear row without its url yet):
+             the key is a label — a link-styled <a> with no href promised an action
+             that did nothing (GDK-1313). -->
+        <span class="flex-none font-mono text-micro font-medium text-text-secondary" data-testid="issue-key-label">
+          {issue.issue_key}
+        </span>
+      {/if}
     </div>
     <div class="flex flex-none items-center gap-1">
       <!-- Favorite toggle -->

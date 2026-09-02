@@ -68,35 +68,52 @@ func parseMigrateFooter(desc string) string {
 	return ""
 }
 
-// stateTypesFor is the category → WorkflowState.type preference list
-// (MAPPING.md "status_category", read in reverse). Unknown categories are
-// filed as new — the same bucket the mirror gives an unknown Jira status.
-func stateTypesFor(category string) []string {
+// pickLinearState returns the state a source status category lands on: the
+// lowest-positioned workflow state whose type linear.StatusCategory files
+// under that category — the same collapse the mirror applies when it reads
+// the team back, so a migrated issue reports the category it left with.
+//
+// This used to keep its own type list (done → "completed" only), a second
+// owner of the mapping that had already drifted: a team whose done states
+// are all canceled-type failed with "no workflow state of type completed"
+// while sync round-tripped those states fine (GDK-1314). Among the
+// matching states, a "completed"-kind state still wins over a
+// canceled/duplicate one when both exist: a migrated done issue should land
+// on Done, not Canceled, and the cancel-ish types are the fallback for a
+// team that has nothing else.
+func pickLinearState(states []linear.WorkflowState, category string) linear.WorkflowState {
 	switch category {
-	case "inprogress":
-		return []string{"started"}
-	case "done":
-		return []string{"completed"}
+	case "inprogress", "done":
+	default:
+		// Unknown categories are filed as new — the same bucket the mirror
+		// gives an unknown Jira status.
+		category = "new"
 	}
-	return []string{"backlog", "unstarted", "triage"}
+	var best *linear.WorkflowState
+	for i := range states {
+		s := &states[i]
+		if cat, _ := linear.StatusCategory(s.Type); cat != category {
+			continue
+		}
+		if best == nil || stateRank(*s) < stateRank(*best) ||
+			(stateRank(*s) == stateRank(*best) && s.Position < best.Position) {
+			best = s
+		}
+	}
+	if best == nil {
+		return linear.WorkflowState{}
+	}
+	return *best
 }
 
-// pickLinearState returns the lowest-positioned state of the first
-// preferred type present; the zero WorkflowState when none is.
-func pickLinearState(states []linear.WorkflowState, category string) linear.WorkflowState {
-	for _, typ := range stateTypesFor(category) {
-		var best *linear.WorkflowState
-		for i := range states {
-			s := &states[i]
-			if s.Type == typ && (best == nil || s.Position < best.Position) {
-				best = s
-			}
-		}
-		if best != nil {
-			return *best
-		}
+// stateRank orders states of one category: the plain kinds first, the
+// terminal-negative kinds (canceled, duplicate) last.
+func stateRank(s linear.WorkflowState) int {
+	switch s.Type {
+	case "canceled", "duplicate":
+		return 1
 	}
-	return linear.WorkflowState{}
+	return 0
 }
 
 // linearPriority maps priority_rank (1 = most urgent, 0 = unset) onto
@@ -253,7 +270,7 @@ func ToLinear(ctx context.Context, client *linear.Client, doc *Doc, st *Stats, o
 	relations := linearRelations(issues)
 
 	for _, c := range sortedKeys(cats) {
-		rep.Mapping = append(rep.Mapping, fmt.Sprintf("status_category %-10s → workflow state of type %s", c, strings.Join(stateTypesFor(c), "|")))
+		rep.Mapping = append(rep.Mapping, fmt.Sprintf("status_category %-10s → the team's lowest workflow state in that category", c))
 	}
 	rankList := make([]int, 0, len(ranks))
 	for r := range ranks {
@@ -335,7 +352,7 @@ func ToLinear(ctx context.Context, client *linear.Client, doc *Doc, st *Stats, o
 	for c := range cats {
 		s := pickLinearState(states, c)
 		if s.ID == "" {
-			return nil, fmt.Errorf("migrate: team %s has no workflow state of type %s for status_category %q", opt.TeamKey, strings.Join(stateTypesFor(c), "|"), c)
+			return nil, fmt.Errorf("migrate: team %s has no workflow state in status_category %q (no state whose type maps there)", opt.TeamKey, c)
 		}
 		stateFor[c] = s.ID
 		rep.Mapping = append(rep.Mapping, fmt.Sprintf("status_category %-10s → %q (%s)", c, s.Name, s.Type))

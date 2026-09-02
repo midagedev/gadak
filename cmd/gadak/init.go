@@ -118,7 +118,10 @@ func initMissingError(missing []string, reason string) error {
 // translated here rather than registered, because a registered alias
 // would appear in `gadak init --help` and teach two names for one thing.
 func renameLegacyInitFlags(args []string) []string {
-	renamed := map[string]string{"standalone": "local", "replace-local": "replace-local"}
+	// GDK-1312: the second entry used to map the NEW name to itself, so the
+	// v0.19 spelling --replace-standalone died while the alias test only
+	// exercised --standalone.
+	renamed := map[string]string{"standalone": "local", "replace-standalone": "replace-local"}
 	out := make([]string, 0, len(args))
 	for _, a := range args {
 		dashes := ""
