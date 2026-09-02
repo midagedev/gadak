@@ -7,13 +7,19 @@
    */
   import { t } from '../../lib/i18n'
   import type { IssueLite } from '../../lib/types'
-  import { config, isDesktop, ORIGIN_LINEAR, profileName, workspaceName } from '../../lib/config'
+  import {
+    config,
+    isDesktop,
+    originTrackerName,
+    profileName,
+    workspaceName,
+  } from '../../lib/config'
   import { copyText } from '../../lib/copy-text'
   import { selection } from '../../stores/selection.svelte'
   import { favorites } from '../../stores/favorites.svelte'
   import { write } from '../../stores/write.svelte'
   import { openIssueOrigin } from '../../lib/desktop-links'
-  import { jiraUrl } from './format'
+  import { issueOriginUrl } from '../../lib/issue-origin'
   import { formatSpan } from '../../lib/format'
   import { typeChipTint } from '../../stores/ui-tokens.svelte'
   import { shouldMarkUnattended } from '../../lib/issue-shells'
@@ -73,23 +79,14 @@
     return `${location.origin}${prefix}/#/?issue=${key}`
   }
 
-  // The tracker whose page is the paste's first line, for the toast. A brand
-  // name, not a translation. Jira is the default because a non-null jiraUrl
-  // is always a Jira /browse/ URL — '' (older server) and 'jira' both mean
-  // it. Linear arrives here only once a Linear URL resolution exists; 'gadak'
-  // never does (no site → no origin URL → no origin toast).
-  function originTrackerName(): string {
-    return config().originType === ORIGIN_LINEAR ? 'Linear' : 'Jira'
-  }
-
   async function copyLink(): Promise<void> {
     const key = issue.issue_key
     const gadak = gadakIssueLink(key)
     // The origin's page for this key — the address that survives a paste into
-    // chat. Same resolution as the key anchor above (jiraUrl →
-    // jiraBrowseUrl); null on the built-in tracker and any site-less
-    // workspace, where the app links below are the only shareable address.
-    const originUrl = jiraUrl(key)
+    // chat. Same resolution as the key anchor above (issueOriginUrl: the
+    // row's stored url, else the site's /browse/KEY); null on the built-in
+    // tracker, where the app links below are the only shareable address.
+    const originUrl = issueOriginUrl(key)
     // Desktop has no shareable http origin (in-process webview). Serve/hosted
     // copy both lines so a paste into Slack still works without the app.
     const appText = isDesktop() ? gadak : `${gadak}\n${httpIssueLink(key)}`
@@ -108,7 +105,7 @@
 </script>
 
 <header class="border-b border-border-strong/70 px-5 pt-4 pb-4">
-  <!-- Top row: issue key (Jira link) + close -->
+  <!-- Top row: issue key (origin link) + close -->
   <div class="mb-2 flex items-center justify-between gap-2">
     <div class="flex min-w-0 items-center gap-2">
       {#if overlay}
@@ -126,11 +123,11 @@
         </button>
       {/if}
       <a
-        href={jiraUrl(issue.issue_key) ?? undefined}
+        href={issueOriginUrl(issue.issue_key) ?? undefined}
         target="_blank"
         rel="noopener noreferrer"
         class="flex-none font-mono text-micro font-medium text-accent-text hover:underline"
-        title={t('detail.openJira')}
+        title={t('detail.openJira', { tracker: originTrackerName() })}
         onclick={(e) => {
           if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
           e.preventDefault()

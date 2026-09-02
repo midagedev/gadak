@@ -62,13 +62,13 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe('issue cache upgrade (v1 → v2)', () => {
+describe('issue cache upgrade (v1 → v2 → v3)', () => {
   test('legacy v1 rows and the sync cursor are dropped; write meta stays', async () => {
     const name = uniqueName()
     await seedV1(name)
     const db2 = await openDB(name, ISSUE_CACHE_DB_VERSION, { upgrade: upgradeIssueCache })
     try {
-      expect(db2.version).toBe(2)
+      expect(db2.version).toBe(ISSUE_CACHE_DB_VERSION)
       const issues = await db2.getAll('issues')
       expect(issues.some((row) => row.issue_key === 'LEGACY-1')).toBe(false)
       expect(issues).toEqual([])
@@ -80,7 +80,34 @@ describe('issue cache upgrade (v1 → v2)', () => {
     }
   })
 
-  test('a later v2 reopen does not clear a fresh snapshot', async () => {
+  // GDK-1149: v2 rows predate `url`; a cache that hydrates then polls delta
+  // would otherwise keep url-less rows for as long as they stay unchanged —
+  // on Linear that is every deep link. The v3 open drops them the way v2
+  // dropped reporter_id-less rows; the sync cursor goes with them.
+  test('v2 rows without url and the sync cursor are dropped on the v3 open', async () => {
+    const name = uniqueName()
+    const v2 = await openDB(name, 2, { upgrade: upgradeIssueCache })
+    await v2.put('issues', { issue_key: 'LIN-1', reporter_id: 'x' } as import('./types').IssueLite)
+    await v2.put('meta', {
+      key: 'sync',
+      sync_version: 5,
+      server_time: '2026-08-01T00:00:00.000Z',
+      members: [],
+    } as import('./types').CacheMeta)
+    v2.close()
+
+    const db3 = await openDB(name, ISSUE_CACHE_DB_VERSION, { upgrade: upgradeIssueCache })
+    try {
+      expect(db3.version).toBe(3)
+      expect(await db3.getAll('issues')).toEqual([])
+      expect(await db3.get('meta', 'sync')).toBeUndefined()
+    } finally {
+      db3.close()
+      await deleteDb(name)
+    }
+  })
+
+  test('a later same-version reopen does not clear a fresh snapshot', async () => {
     const name = uniqueName()
     const first = await openDB(name, ISSUE_CACHE_DB_VERSION, { upgrade: upgradeIssueCache })
     try {
@@ -100,7 +127,7 @@ describe('issue cache upgrade (v1 → v2)', () => {
 
     const second = await openDB(name, ISSUE_CACHE_DB_VERSION, { upgrade: upgradeIssueCache })
     try {
-      expect(second.version).toBe(2)
+      expect(second.version).toBe(ISSUE_CACHE_DB_VERSION)
       expect(await second.get('issues', 'NMB-1')).toMatchObject({ reporter_id: 'demo-alex' })
       expect(await second.get('meta', 'sync')).toMatchObject({ sync_version: 7 })
     } finally {
@@ -109,11 +136,11 @@ describe('issue cache upgrade (v1 → v2)', () => {
     }
   })
 
-  test('fresh install creates the v2 stores', async () => {
+  test('fresh install creates the current stores', async () => {
     const name = uniqueName()
     const db2 = await openDB(name, ISSUE_CACHE_DB_VERSION, { upgrade: upgradeIssueCache })
     try {
-      expect(db2.version).toBe(2)
+      expect(db2.version).toBe(ISSUE_CACHE_DB_VERSION)
       expect([...db2.objectStoreNames].sort()).toEqual(['issues', 'meta'])
       expect(await db2.getAll('issues')).toEqual([])
     } finally {
@@ -123,13 +150,13 @@ describe('issue cache upgrade (v1 → v2)', () => {
   })
 })
 
-describe('getAllIssues row contract (v2, wipe does not run)', () => {
-  test('a legacy v2 row missing labels hydrates with empty arrays', async () => {
+describe('getAllIssues row contract (current version, wipe does not run)', () => {
+  test('a cached row missing labels hydrates with empty arrays', async () => {
     const name = issueCacheDbName()
     await deleteDb(name)
     const conn = await openDB(name, ISSUE_CACHE_DB_VERSION, { upgrade: upgradeIssueCache })
     try {
-      expect(conn.version).toBe(2)
+      expect(conn.version).toBe(ISSUE_CACHE_DB_VERSION)
       await conn.put(
         'issues',
         { issue_key: 'LEGACY-2', summary: 'cached v2 row' } as import('./types').IssueLite,

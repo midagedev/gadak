@@ -702,10 +702,11 @@ export const shell = {
     ko: '문서·히스토리·피드·대시보드 닫기',
     ja: 'ドキュメント・履歴・フィード・ダッシュボードを閉じる',
   },
+  // {tracker}: the origin's brand name (Jira/Linear), see detail.openJira.
   'shortcuts.detailOpenJira': {
-    en: 'Open the issue in Jira',
-    ko: '이슈를 Jira에서 열기',
-    ja: '課題を Jira で開く',
+    en: 'Open the issue in {tracker}',
+    ko: '이슈를 {tracker}에서 열기',
+    ja: '課題を {tracker} で開く',
   },
   'shortcuts.focusStatus': {
     en: 'Change status (when detail is open)',

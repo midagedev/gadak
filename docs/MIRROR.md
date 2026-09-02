@@ -218,9 +218,10 @@ Rules that come with the file:
 
 ### CLI reference
 
-`gadak open` is the Jira escape hatch (system browser to `/browse/KEY`);
-`gadak views open` is the "open in gadak" verb (focus the running app or
-serve tab). The names collide; the verbs do not.
+`gadak open` is the origin escape hatch (system browser to the issue's page on
+Jira or Linear — the stored `items.url`); `gadak views open` is the "open in
+gadak" verb (focus the running app or serve tab). The names collide; the
+verbs do not.
 
 **Handing a view to a human.** `gadak views open` acts — it pulls the window
 forward now. When you would rather offer than act, or you are on a host with
@@ -239,7 +240,7 @@ gadak sql --no-header "select key from issues_full where parent_key='NMB-140'" |
 # `gadak issue` is the context pack: one call returns everything an LLM needs
 # about an issue — no follow-up requests, no pagination.
 
-gadak open NMB-140                    # Jira escape hatch: system browser to /browse/KEY
+gadak open NMB-140                    # origin escape hatch: system browser to the issue's Jira/Linear page
 
 gadak search "flaky upload" --limit 5
 gadak search "idempotency" --json     # matching IssueLite rows, best match first

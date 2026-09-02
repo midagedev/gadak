@@ -401,7 +401,7 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak issue", "gadak search", "gadak open", "gadak views open"},
 	},
 	"open": {
-		summary: "open the issue on your Jira site in the browser",
+		summary: "open the issue on its origin (Jira or Linear) in the browser",
 		usage:   "gadak [--workspace <name>] open <KEY>",
 		examples: []string{
 			"gadak open NMB-140",

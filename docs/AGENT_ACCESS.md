@@ -26,9 +26,9 @@ agent *answers*. Presentation is a different axis:
 | --- | --- | --- | --- |
 | **Views** | `gadak views open` (`--jql`, `--keys`, `--keys -`, or a KEY) | the human should *see* the set in gadak, not in a pasted table | a running Gadak.app or `gadak serve` tab |
 
-The database stays the answer interface. `gadak open` is the Jira escape hatch
-(system browser to `/browse/KEY`); `gadak views open` is the "open in gadak"
-verb. The names collide; the verbs do not.
+The database stays the answer interface. `gadak open` is the origin escape hatch
+(system browser to the issue's page on Jira or Linear); `gadak views open` is the
+"open in gadak" verb. The names collide; the verbs do not.
 
 There is no fourth layer for writes: the CLI and REST write paths both call Jira
 and then re-read the issue into the mirror. Writing to SQLite directly is not a

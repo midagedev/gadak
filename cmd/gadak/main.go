@@ -165,7 +165,7 @@ Reading the mirror (no network; see docs/MIRROR.md):
   issue      full detail for one or more issues
                    <KEY> [KEY...] [--keys -] [--json] [--derive] [--link] [--editmeta]
   show       alias of issue               <KEY> [KEY...] [--keys -] [--json] [--derive] [--link]
-  open       open the issue on your Jira site in the browser  <KEY>
+  open       open the issue on its origin (Jira or Linear) in the browser  <KEY>
   search     full-text or JQL            [--jql] [--emit] [--limit N] [--json] "text|JQL|URL"
   list       open issues, priority rank first   [--limit N] [--all] [--ready] [--json|--csv|--no-header]
   ready      open issues nothing open blocks (alias of list --ready)   [--limit N] [--json|--csv|--no-header]

@@ -96,7 +96,7 @@ Jira issues are mirrored to a local SQLite file. Prefer these over any Jira API:
   list mirrored Jira filters and put the running app or serve tab on that
   view. Do not describe chips to the user; set them. When the user wants to
   *see* issues, do not paste a table — `gadak views open`. `gadak open` is
-  the Jira-site escape hatch; `gadak views open` is open-in-gadak.
+  the origin (Jira/Linear) escape hatch; `gadak views open` is open-in-gadak.
 - `gadak comment <KEY> -m "…"`, `gadak transition <KEY> "<status>"` — writes go
   through the origin (the Jira site on a Jira workspace, the local origin on
   the built-in tracker).

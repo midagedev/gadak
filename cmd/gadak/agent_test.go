@@ -672,7 +672,7 @@ func TestOpenLocalOriginRelativeURLDoesNotSucceed(t *testing.T) {
 	if strings.Contains(msg, "gadak init") {
 		t.Fatalf("prescribed re-init on an already-inited workspace: %s", msg)
 	}
-	if !strings.Contains(msg, "no Jira site to browse") || !strings.Contains(msg, "gadak views open") {
+	if !strings.Contains(msg, "no origin site to browse") || !strings.Contains(msg, "gadak views open") {
 		t.Fatalf("want no-site browse advice, got %q", msg)
 	}
 	if *got != "" {
@@ -709,7 +709,7 @@ func TestOpenLocalOriginKnownKeyWithoutSite(t *testing.T) {
 	if strings.Contains(msg, "gadak init") {
 		t.Fatalf("prescribed re-init: %s", msg)
 	}
-	if !strings.Contains(msg, "no Jira site to browse") {
+	if !strings.Contains(msg, "no origin site to browse") {
 		t.Fatalf("want no-site browse advice, got %q", msg)
 	}
 }

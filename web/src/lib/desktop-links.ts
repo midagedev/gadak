@@ -16,8 +16,9 @@
  * — the app has no TCP listener — so they are left to their own story.
  */
 
-import { config, isDesktop, jiraBrowseUrl } from './config'
+import { config, isDesktop } from './config'
 import { browse } from './browse.svelte'
+import { issueOriginUrl } from './issue-origin'
 import {
   classifyAtlassianLink,
   extractBrowseKey,
@@ -98,9 +99,9 @@ export function openOriginUrl(url: string | null | undefined): boolean {
   return true
 }
 
-/** Issue-key header link (`detail.openJira`). No-op when `jiraBrowseUrl` is null. */
+/** Issue-key header link (`detail.openJira`). No-op when `issueOriginUrl` is null. */
 export function openIssueOrigin(issueKey: string): boolean {
-  return openOriginUrl(jiraBrowseUrl(issueKey))
+  return openOriginUrl(issueOriginUrl(issueKey))
 }
 
 // GitHub tabs ride the pane as kind 'other': nothing in the mirror to resync
