@@ -88,8 +88,30 @@ func resolveView(l deeplink.Link, served string) (string, error) {
 		// hash. A subject here means the link meant some other action.
 		return "", fmt.Errorf("a view link takes no subject, got %q", l.Subject)
 	}
-	return workspace.Prefix(l.Profile, served) + "/" + jql.QueryURL(l.Hash), nil
+	prefix := workspace.Prefix(l.Profile, served)
+	if prefix != "" && !profileExists(l.Profile) {
+		// The grammar accepts any well-formed name, so a link minted on
+		// another machine parses fine here — and its mount answers a bare
+		// text 404 that replaces the app with no way back (GitHub #85,
+		// GDK-1309). Refuse before navigating; the navigator tells the user.
+		return "", fmt.Errorf("%w: %q", errNoSuchWorkspace, l.Profile)
+	}
+	return prefix + "/" + jql.QueryURL(l.Hash), nil
 }
+
+// profileExists is workspace.ProfileExists behind a var so the resolver's
+// decision is testable without a profiles/ directory on disk.
+var profileExists = workspace.ProfileExists
+
+// errNoSuchWorkspace is the refusal for a link whose workspace is not on this
+// machine — the one refusal a user sees, because the link is well-formed and
+// the only other outcome was the 404 page.
+var errNoSuchWorkspace = errors.New("this link's workspace is not on this machine (a link from someone else's gadak?)")
+
+// showDeepLinkRefusal surfaces a refusal the user should read. main wires it
+// to a window-attached dialog; the default is silent so tests and headless
+// paths stay quiet.
+var showDeepLinkRefusal = func(text string) {}
 
 // deepLinkTarget turns a gadak:// URL into the path to navigate this window
 // to, for an app whose primary mirror is served.
@@ -142,6 +164,9 @@ func deepLinkNavigator(served string, navigate func(path string)) func(raw strin
 		if err != nil {
 			if !errors.Is(err, deeplink.ErrNotGadak) {
 				log.Printf("deep link refused: %v", err)
+			}
+			if errors.Is(err, errNoSuchWorkspace) {
+				showDeepLinkRefusal(err.Error())
 			}
 			return
 		}
