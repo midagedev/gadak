@@ -43,12 +43,19 @@
    * stays on as the render key: names are not unique (every deleted account
    * resolves to the same "Former user" string, and one such card took the
    * whole board down through the keyed each — GDK-1218). */
-  const actors = $derived(
-    (issue.actor_ids ?? [])
-      .slice(0, 2)
-      .map((id) => ({ id, name: issues.memberOfAccountId(id)?.name ?? id })),
+  // Recent actors as faces, not name chips (GDK-1338): a card with "Alex Kim"
+  // in a chip and AK in the corner said one person twice. The assignee's own
+  // face is the corner one, so it is left out of the actor row.
+  const actorIds = $derived(
+    (issue.actor_ids ?? []).filter((id) => !issue.assignee_id || id !== issue.assignee_id),
   )
-  const extraActors = $derived(Math.max(0, (issue.actor_ids ?? []).length - actors.length))
+  const actors = $derived(
+    actorIds.slice(0, 3).map((id) => {
+      const m = issues.memberOfAccountId(id)
+      return { id, name: m?.name ?? id, email: m?.email ?? null }
+    }),
+  )
+  const extraActors = $derived(Math.max(0, actorIds.length - actors.length))
 
   /* `ghost` draws nothing on purpose: it is the session the reap grace is
    * about to take, and a mark for it would be a card decorated with something
@@ -166,14 +173,14 @@
       {#each actors as actor (actor.id)}
         <span
           data-testid="board-actor"
-          class="board-actor max-w-[92px] truncate rounded bg-bg-elevated px-1 py-px text-micro font-medium text-text-muted"
+          class="board-actor flex h-4 w-4 flex-none items-center justify-center overflow-hidden rounded-full"
           title={actor.name}
         >
-          {actor.name}
+          <Avatar accountId={actor.id} email={actor.email} name={actor.name} size={16} />
         </span>
       {/each}
       {#if extraActors}
-        <span class="text-micro text-text-muted">+{extraActors}</span>
+        <span class="text-micro tabular-nums text-text-muted">+{extraActors}</span>
       {/if}
       <span class="flex-1"></span>
       {#if issue.assignee}

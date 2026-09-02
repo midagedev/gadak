@@ -1419,18 +1419,18 @@
     scale: 1.02;
   }
 
-  /* The chip says whose hand it was; it brightens with the ring and settles. */
+  /* The face says whose hand it was; it lights with an accent ring and
+     settles (GDK-1338: the actor is a 16px avatar now, so the mark is a ring
+     around it rather than a chip fill). */
   .board-card[data-moved] .board-actor {
     animation: board-actor-lit 1.2s ease-out forwards;
   }
   @keyframes board-actor-lit {
     from {
-      color: var(--color-accent-text);
-      background: var(--color-accent-subtle);
+      box-shadow: 0 0 0 2px var(--color-accent);
     }
     to {
-      color: var(--color-text-muted);
-      background: var(--color-bg-elevated);
+      box-shadow: 0 0 0 2px transparent;
     }
   }
 
