@@ -200,6 +200,9 @@ async function runRequiredSteps(page: Page): Promise<void> {
   const wizard = page.getByTestId('onboarding')
   await expect(wizard).toBeVisible({ timeout: 30_000 })
   await expect(wizard.getByText('Step 1 of 4 · Connect')).toBeVisible()
+  // GDK-1345: nothing is chosen at first; the Jira form (and its Open
+  // settings door) follows the choice.
+  await wizard.getByTestId('onboarding-source-jira').click()
   // The escape hatch out of a wizard that blocks the app. polish.spec.ts held
   // its only assertion until GDK-289 deleted that first-run duplicate, so it is
   // asserted here instead — on the step-1 render every onboarding test already
@@ -207,7 +210,6 @@ async function runRequiredSteps(page: Page): Promise<void> {
   await expect(wizard.getByRole('button', { name: 'Open settings' })).toBeVisible()
   await assertOnboardingChromeQuiet(page, { wizardEscape: true })
   await expect(wizard).toHaveAttribute('data-onboarding-reason', 'no-credential')
-  await wizard.getByTestId('onboarding-source-jira').click()
   await wizard.locator('input[name="site"]').fill('https://example.atlassian.net')
   await wizard.locator('input[name="email"]').fill('dana@example.com')
   await wizard.locator('input[name="token"]').fill('super-secret-token')

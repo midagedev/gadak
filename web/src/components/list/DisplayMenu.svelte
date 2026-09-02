@@ -97,8 +97,14 @@
   >
     <span>{t('sort.label')}</span>
     <!-- The value is state, the palette door beside it is wayfinding: when the
-         toolbar runs short the value goes first, and the menu still says it. -->
-    <span class="text-text-muted @max-[1120px]:hidden">
+         toolbar runs short the value goes first, and the menu still says it.
+         The auto-promoted orders (given order, relevance) stay: they explain
+         why the list is not in its usual order. -->
+    <span
+      class="text-text-muted {filters.effectiveSort === 'keys' || filters.effectiveSort === 'relevance'
+        ? ''
+        : '@max-[1120px]:hidden'}"
+    >
       {[KEYS_SORT, RELEVANCE, ...BASE_SORTS].find((s) => s.k === filters.effectiveSort)?.l}
     </span>
   </button>
