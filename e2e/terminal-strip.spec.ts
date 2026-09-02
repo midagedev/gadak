@@ -121,8 +121,9 @@ test.describe('terminal session strip', () => {
     })
     await expect(page.getByTestId('terminal-strip-name')).toBeVisible()
     await expect(page.getByTestId('terminal-strip-name')).not.toHaveText('')
-    // …and the dock's chrome is that one row: the tabs and both verbs share
-    // a single container, and the old rail (label + name slot) is gone.
+    // …and the dock's chrome is that one column (GDK-1355; one row before
+    // it): the rows and both verbs share a single container, and the old
+    // rail (label + name slot) is gone.
     const chrome = page.getByTestId('terminal-chrome')
     await expect(chrome.getByTestId('terminal-strip')).toHaveCount(1)
     await expect(chrome.getByTestId('terminal-new')).toBeVisible()

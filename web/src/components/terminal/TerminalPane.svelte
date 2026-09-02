@@ -1,9 +1,12 @@
 <script lang="ts">
   /*
-   * Terminal pane (GDK-864, GDK-1194, GDK-1352). Dock: a band across the
-   * bottom of the whole window — sidebar, list/board and a docked detail
-   * panel all sit above it. Overlay: below 900px, covers the content track
-   * (sidebar stays clickable).
+   * Terminal pane (GDK-864, GDK-1194, GDK-1352, GDK-1355). Dock: a band
+   * across the bottom of the whole window — sidebar, list/board and a docked
+   * detail panel all sit above it. Inside, two columns: the session roster on
+   * the left, as wide as the app sidebar above it (the window's left column
+   * is navigation, its right column is content), and the shell taking every
+   * row of the band. Overlay: below 900px, a right-hand sheet over the
+   * content track (sidebar stays clickable) with a narrower roster.
    *
    * Closing the pane closes the WebSocket and keeps the session id; a reopen
    * reattaches and the ring replay is the first binary frame. Page unload
@@ -244,6 +247,12 @@
       // lands in a buffer already sized to the configured scrollback.
       renderer?.applyBehavior({ scrollback: doc.scrollback, cursorBlink: doc.cursorBlink })
       terminalSessions.select(doc.id)
+      // The strip learns of sessions by polling (ROSTER_POLL_MS); without
+      // this the shell is at its prompt for up to two seconds before its
+      // own tab appears above it (measured 2026-09-02 — 1.2s after attach
+      // the row was still empty). kill() already refreshes on its own verb;
+      // create is the other one.
+      terminalSessions.nudge()
       attachSocket(doc.id, { afterCreate: true })
     }
 
@@ -552,7 +561,7 @@
 </script>
 
 <aside
-  class="flex min-h-0 w-full min-w-0 flex-col overflow-hidden bg-bg-base {overlay
+  class="flex min-h-0 w-full min-w-0 flex-row overflow-hidden bg-bg-base {overlay
     ? 'fixed top-0 right-0 bottom-0 h-full border-l border-border-subtle'
     : 'relative border-t border-border-subtle'}"
   class:select-none={dragging}
@@ -566,32 +575,27 @@
   data-overlay={overlay ? 'true' : undefined}
 >
   <!--
-    One chrome row (GDK-1199): the terminal mark, the session tabs, and the
-    two verbs — new shell, close dock. It exists because the pane swallows
-    every keystroke on purpose, so the key that closes it cannot also be the
-    only way out — someone who opened this with a shortcut they
-    half-remember needs something to click. The "TERMINAL" label is gone:
-    the tabs say what this is, and the icon answers it at a glance. The tabs
-    took over the naming job the rail's own name slot carried (GDK-1153) —
-    a single session is still a tab now, so the name never leaves the row.
+    The roster column (GDK-1355). It replaces the one chrome row GDK-1199
+    folded the dock's verbs into: with the dock a quarter-tall band across
+    the whole window, a row across the top spent the band's scarce height
+    and left most of its width empty. The column is as wide as the app
+    sidebar above it, so the dock's one vertical rule continues the
+    sidebar's edge and the window reads as two columns — navigation on the
+    left, content on the right — under one horizontal seam. Header: the
+    terminal mark and the close verb (the pane swallows every keystroke on
+    purpose, so the key that closes it cannot be the only way out). Then
+    the rows, then the new-shell row where a list's trailing action goes —
+    after the last row, not pinned to the floor, so one shell is a list of
+    one and a verb rather than a row and a hole. The "TERMINAL" label is
+    still gone (GDK-1199): the rows say what this is.
   -->
   <div
-    class="flex flex-none items-stretch border-b border-border-subtle bg-bg-panel pr-1 pl-3"
+    class="terminal-roster flex flex-none flex-col border-r border-border-subtle bg-bg-panel"
     data-testid="terminal-chrome"
   >
-    <Icon name="terminal" size={13} class="mr-1.5 flex-none self-center text-text-muted" />
-    <TerminalStrip offerStart={statusRestartable} onstart={onStatusActivate} />
-    <span class="flex flex-none items-center py-1 pl-1">
-      <button
-        type="button"
-        class="flex h-6 w-6 flex-none items-center justify-center rounded text-text-muted hover:bg-bg-hover hover:text-text-primary"
-        aria-label={t('terminal.strip.new')}
-        title={t('terminal.strip.new')}
-        data-testid="terminal-new"
-        onclick={() => newSession?.()}
-      >
-        <Icon name="plus" size={14} />
-      </button>
+    <div class="flex h-7 flex-none items-center pr-2 pl-4">
+      <Icon name="terminal" size={13} class="flex-none text-text-muted" />
+      <span class="flex-1"></span>
       <button
         type="button"
         class="flex h-6 w-6 flex-none items-center justify-center rounded text-text-muted hover:bg-bg-hover hover:text-text-primary"
@@ -602,8 +606,30 @@
       >
         <Icon name="x" size={14} />
       </button>
-    </span>
+    </div>
+    <div class="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-2 pb-1">
+      <TerminalStrip offerStart={statusRestartable} onstart={onStatusActivate} />
+      <!-- Hidden only while the strip is showing its own start row (no
+           sessions, restart on offer): that row is already the one verb
+           worth having there, and two plus rows would ask the same question
+           twice. With sessions still listed and the shown one exited, this
+           stays — the status line restarts *that* shell, this makes another. -->
+      {#if !(statusRestartable && terminalSessions.list.length === 0)}
+        <button
+          type="button"
+          class="flex h-7 w-full cursor-pointer items-center gap-2 rounded-md px-2 text-left text-body text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
+          aria-label={t('terminal.strip.new')}
+          title={t('terminal.strip.new')}
+          data-testid="terminal-new"
+          onclick={() => newSession?.()}
+        >
+          <Icon name="plus" size={12} class="flex-none" />
+          <span class="truncate">{t('terminal.strip.new')}</span>
+        </button>
+      {/if}
+    </div>
   </div>
+  <div class="flex min-h-0 min-w-0 flex-1 flex-col">
   <div
     class="relative min-h-0 min-w-0 flex-1 overflow-hidden"
     data-skeleton={connectingGrace.attr}
@@ -672,6 +698,7 @@
       </div>
     {/if}
   {/if}
+  </div>
   {#if !overlay}
     <button
       type="button"

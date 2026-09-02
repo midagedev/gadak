@@ -677,6 +677,21 @@
   }
 
   /*
+    The dock's roster column (GDK-1355) is as wide as the sidebar above it,
+    from the same token, so its right rule continues the sidebar's edge and
+    the window keeps reading as two columns under the dock's one seam. In the
+    overlay regime the pane is a right-hand sheet with no sidebar above it to
+    align with, so the roster takes a fixed narrow track there instead.
+  */
+  .terminal-roster {
+    width: var(--layout-sidebar, 272px);
+  }
+
+  [data-overlay] .terminal-roster {
+    width: 160px;
+  }
+
+  /*
     The browser pane (desktop app).
 
     The native WKWebView draws over every pixel in this box, so nothing of the
@@ -1089,6 +1104,11 @@
       width: var(--layout-sidebar, 272px);
     }
 
+    .terminal-roster {
+      --layout-sidebar: var(--layout-sidebar-narrow, 208px);
+      width: var(--layout-sidebar, 272px);
+    }
+
     .browse-pane {
       --layout-sidebar: var(--layout-sidebar-narrow, 208px);
       left: var(--layout-sidebar, 272px);
@@ -1482,4 +1502,15 @@
 */
 .terminal-host .xterm .xterm-viewport {
   background-color: var(--color-bg-base);
+}
+
+/*
+  The shell's gutter (GDK-1352 polish). Every other surface keeps its text off
+  the window edge; the dock's first column sat at x=0. Padding goes on the
+  .xterm element itself — that is the box the fit addon subtracts before it
+  counts columns, so the gutter costs three columns and clips none. Also
+  outside the layers, for the same reason as the rule above.
+*/
+.terminal-host .xterm {
+  padding: 6px 12px 0;
 }

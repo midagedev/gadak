@@ -279,8 +279,13 @@ test('app.css consumes the tokens and never restates their px', () => {
    *
    * GDK-849 (2026-08-25) closed that last exception: the narrow step is
    * var()-valued now, so the px ban holds across the whole file and the
-   * block's three step redefinitions must all be the override-channel
-   * form.
+   * block's step redefinitions must all be the override-channel form.
+   * Three consumers under GDK-849 (sidebar, browse pane, browse re-entry
+   * pill);
+   * GDK-1355 (2026-09-02) added a fourth, the terminal dock's roster
+   * column, which is as wide as the sidebar and so steps with it — the
+   * count moved 3 → 4 here first, with the new block already in the
+   * var() form.
    */
   const narrow = mediaBody('@media (max-width: 760px)')
   const steps = [
@@ -289,7 +294,7 @@ test('app.css consumes the tokens and never restates their px', () => {
   expect(
     steps.length,
     'every narrow-step redefinition channels --layout-sidebar-narrow (GDK-849)',
-  ).toBe(3)
+  ).toBe(4)
   expect(narrow.body, 'no bare literal narrow step survives').not.toContain(
     '--layout-sidebar: 208px',
   )
