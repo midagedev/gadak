@@ -337,7 +337,7 @@ origin is the home serve. `workspace.kind` stays `connected`. If a command
 fails with a `pairing:` prefix, show that error — do not invent a retry.
 
 ```bash
-gadak pairing mint --label laptop                 # home: stdout is one offer line
+gadak pairing mint --label laptop --endpoint https://<machine>.<tailnet>.ts.net   # home: stdout is one offer line
 gadak --workspace laptop init --pairing-code-stdin  # remote: paste the offer
 gadak --workspace laptop status                     # confirm: paired with "laptop"
 gadak pairing list                                # home: token table; remote: one status line

@@ -442,10 +442,11 @@ app on your `PATH`:
 ```
 
 **Pair another machine.** Home `gadak serve` is the origin. On the home
-machine, mint an offer (stdout is one offer line):
+machine, mint an offer (stdout is one offer line) naming the URL the other
+machine reaches this serve at — your tailnet URL:
 
 ```bash
-gadak pairing mint --label laptop
+gadak pairing mint --label laptop --endpoint https://<machine>.<tailnet>.ts.net
 ```
 
 On the remote, paste the offer:

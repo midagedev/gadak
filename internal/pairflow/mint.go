@@ -84,8 +84,10 @@ func ParseTTL(s string) (time.Duration, error) {
 type MintResult struct {
 	Offer, Label, Scope, Endpoint, ExpiresAt string
 	Meta                                     pairing.Meta
-	// LoopbackWarning says the endpoint is a loopback address — remote
-	// devices cannot reach it. The caller renders its own copy.
+	// LoopbackWarning says the explicit endpoint is a loopback address —
+	// only a device on this machine can reach it. The caller renders its
+	// own copy. (A discovered loopback endpoint is refused instead:
+	// LoopbackEndpointError, GDK-1266.)
 	LoopbackWarning bool
 	// HomeRouting names what ensureHomeRoutingToken did, so the CLI can
 	// print its stderr note and the desktop can stay quiet.
@@ -179,7 +181,8 @@ func MintDevice(dir string, cfg *config.Config, label, scope, ttl, endpoint stri
 	// endpoint is an orphan token nobody can use, and it would already
 	// have flipped the gate on.
 	ep := strings.TrimRight(strings.TrimSpace(endpoint), "/")
-	if ep == "" {
+	discovered := ep == ""
+	if discovered {
 		ep = AdvertisedEndpoint(cfg)
 		if ep == "" {
 			return MintResult{}, errors.New("no live serve found for this profile; start `gadak serve` first or pass --endpoint <url>")
@@ -190,6 +193,14 @@ func MintDevice(dir string, cfg *config.Config, label, scope, ttl, endpoint stri
 		return MintResult{}, fmt.Errorf("bad endpoint %q: want an http(s) URL", ep)
 	}
 	loopback := isLoopbackHost(u.Hostname())
+	// GDK-1266: the serve binds loopback by default, so the discovered
+	// endpoint is one only this machine can dial — an offer carrying it
+	// can never work on the device it is labelled for. Refuse before the
+	// token exists. An explicit loopback --endpoint is the caller saying
+	// "this machine" and is allowed (flagged, below).
+	if discovered && loopback {
+		return MintResult{}, &LoopbackEndpointError{Endpoint: ep}
+	}
 	token, meta, err := pairing.MintScoped(dir, label, scope, ttlDur, now)
 	if err != nil {
 		return MintResult{}, err
@@ -338,9 +349,20 @@ func issueHomeRoutingToken(dir string, cfg *config.Config, mintEndpoint string, 
 	return meta, nil
 }
 
+// LoopbackEndpointError is the GDK-1266 refusal: no --endpoint was given
+// and the live serve's own address is loopback, so no remote device could
+// use the offer. Callers add their own prescription (the CLI: a completed
+// command); the endpoint is here so they can name it.
+type LoopbackEndpointError struct{ Endpoint string }
+
+func (e *LoopbackEndpointError) Error() string {
+	return fmt.Sprintf("the live serve listens on loopback (%s) — a device that is not this machine cannot reach it; pass --endpoint https://<home>.<tailnet>.ts.net (the URL other devices reach this serve at)", e.Endpoint)
+}
+
 // isLoopbackHost names the hosts only this machine can dial. Used for the
-// mint warning, never for a trust decision (GDK-433 prior art: a tunnel
-// can look like loopback).
+// mint refusal (discovered endpoint) and the mint warning (explicit one),
+// never for a trust decision (GDK-433 prior art: a tunnel can look like
+// loopback).
 func isLoopbackHost(host string) bool {
 	if strings.EqualFold(host, "localhost") {
 		return true

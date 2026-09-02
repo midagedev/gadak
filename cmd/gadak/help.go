@@ -106,7 +106,7 @@ var helps = map[string]cmdHelp{
 			{name: "label", desc: "device name shown in `gadak pairing list` (required, unique among active tokens)"},
 			{name: "scope", desc: "what the token opens: origin (default) rides the origin passthrough for a paired gadak; serve opens the whole mirror REST for a paired client such as a phone companion; terminal opens a shell on this machine (the terminal pane) and nothing else — never a default, you have to type it. Each scope is refused on the other two surfaces. A leaked serve token leaks this workspace's data; a leaked terminal token leaks the machine, so give it a short --ttl and revoke it when the device is done — revoking closes the shells it opened"},
 			{name: "ttl", desc: "token lifetime: <N><d|h|m|s>, e.g. 90d (default) or 12h"},
-			{name: "endpoint", desc: "URL remote devices reach this serve at; default is this machine's live serve address (loopback draws a warning — pass your tailnet URL)"},
+			{name: "endpoint", desc: "URL remote devices reach this serve at; default is this machine's live serve address, refused when that is loopback (it is, unless serve runs --allow-remote) — pass your tailnet URL"},
 			{name: "no-qr", desc: "skip the scannable QR mint draws below the offer line — the phone app scans it instead of copy-paste. Drawn only when stderr is a terminal and the code fits its width; --json, NO_COLOR, and TERM=dumb never draw one"},
 			{name: "json", desc: "emit JSON (mint and list)"},
 		},

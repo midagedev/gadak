@@ -167,7 +167,10 @@ func handlePairingMint(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case strings.Contains(err.Error(), "already exists"):
 			writePairingErr(w, http.StatusConflict, "label_exists")
-		case strings.Contains(err.Error(), "no live serve"):
+		case strings.Contains(err.Error(), "no live serve"),
+			strings.Contains(err.Error(), "listens on loopback"):
+			// GDK-1266: the form sent no endpoint and the live serve is
+			// loopback-only — same prescription as no serve: fill it in.
 			writePairingErr(w, http.StatusConflict, "no_serve")
 		case strings.Contains(err.Error(), "bad endpoint"):
 			writePairingErr(w, http.StatusBadRequest, "bad_endpoint")

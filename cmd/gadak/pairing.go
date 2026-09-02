@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -103,7 +104,7 @@ func pairingMint(args []string) error {
 	label := fs.String("label", "", "device name shown in `gadak pairing list` (required)")
 	scope := fs.String("scope", "origin", "what the token opens: origin = origin passthrough for a paired gadak (default), serve = the mirror REST for a paired client (a phone companion), terminal = a shell on this machine (never a default — see `gadak help pairing`)")
 	ttlFlag := fs.String("ttl", ttlDefault, "token lifetime: <N><d|h|m|s>, e.g. 90d or 12h")
-	endpoint := fs.String("endpoint", "", "URL remote devices reach this serve at (default: this machine's live serve address)")
+	endpoint := fs.String("endpoint", "", "URL remote devices reach this serve at (default: this machine's live serve address — refused when that is loopback, which it is unless serve runs --allow-remote)")
 	asJSON := fs.Bool("json", false, "emit JSON")
 	noQR := fs.Bool("no-qr", false, "skip the scannable QR mint draws below the offer line (drawn only when stderr is a terminal; --json, NO_COLOR, and TERM=dumb never draw one)")
 	if _, err := parseAround(fs, args); err != nil {
@@ -137,12 +138,18 @@ func pairingMint(args []string) error {
 		return pairingMintHome(dir, cfg, strings.TrimRight(strings.TrimSpace(*endpoint), "/"))
 	}
 	res, err := pairflow.MintDevice(dir, cfg, *label, strings.TrimSpace(*scope), *ttlFlag, *endpoint, time.Now())
+	var lb *pairflow.LoopbackEndpointError
+	if errors.As(err, &lb) {
+		// GDK-1266: usage class (EX_USAGE) — nothing was minted; the fix is
+		// a flag, and the hint spells it out when tailscale can name it.
+		return &exitCodeError{code: 64, msg: err.Error() + tailnetMintHint(strings.TrimSpace(*label), strings.TrimSpace(*scope))}
+	}
 	// The mint already produced the credential: the output contract prints
 	// even when a later step (the routing-token guard) failed, or the
 	// plaintext would exist nowhere and the token would be stranded.
 	if res.Offer != "" {
 		if res.LoopbackWarning {
-			fmt.Fprintf(os.Stderr, "warning: endpoint %s is loopback — remote devices cannot reach it; pass --endpoint with your tailnet URL (e.g. https://<machine>.<tailnet>.ts.net)\n", res.Endpoint)
+			fmt.Fprintf(os.Stderr, "warning: endpoint %s is loopback — only a device on this machine can reach it; a remote device needs --endpoint with your tailnet URL (e.g. https://<machine>.<tailnet>.ts.net)\n", res.Endpoint)
 		}
 		if outErr := writePairingMintOutput(*asJSON, *noQR, res); outErr != nil {
 			return outErr
@@ -154,6 +161,43 @@ func pairingMint(args []string) error {
 		fmt.Fprintln(os.Stderr, "reissued _home routing token so this machine's own writes keep passing the gate")
 	}
 	return err
+}
+
+// tailnetMintHint completes the GDK-1266 refusal when the tailscale CLI is
+// on PATH: `tailscale status --json` answers Self.DNSName without root, and
+// through `tailscale serve` (docs/NETWORK.md, the intended transport) that
+// name is the URL other devices reach this serve at. Suggested only — the
+// user re-runs with it; adopting it silently would hand out an offer for a
+// URL nobody checked. No tailscale, or any failure: no hint, the refusal
+// stands alone. A local exec, not an outbound request.
+func tailnetMintHint(label, scope string) string {
+	if _, err := exec.LookPath("tailscale"); err != nil {
+		return ""
+	}
+	// 5s: tailscale answers in milliseconds when its daemon is up; the
+	// bound is for a wedged daemon, and macOS's first exec of a fresh
+	// binary can itself take a second or two.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "tailscale", "status", "--json").Output()
+	if err != nil {
+		return ""
+	}
+	var st struct {
+		Self struct{ DNSName string } `json:"Self"`
+	}
+	if json.Unmarshal(out, &st) != nil {
+		return ""
+	}
+	dns := strings.TrimSuffix(strings.TrimSpace(st.Self.DNSName), ".")
+	if dns == "" {
+		return ""
+	}
+	cmd := "gadak pairing mint --label " + label
+	if scope != pairing.ScopeOrigin {
+		cmd += " --scope " + scope
+	}
+	return fmt.Sprintf("\ntry: %s --endpoint https://%s", cmd, dns)
 }
 
 // writePairingMintOutput is the device-mint output contract (GDK-456).

@@ -284,7 +284,7 @@ Home `gadak serve` is the origin. Mint an offer on the **home** machine
 (stdout is one offer line):
 
 ```bash
-gadak pairing mint --label laptop
+gadak pairing mint --label laptop --endpoint https://<machine>.<tailnet>.ts.net
 ```
 
 On the **remote** machine, paste the offer:
@@ -298,8 +298,11 @@ gadak --workspace laptop status
 is a token table on the home machine and one status line on the remote.
 `gadak pairing revoke laptop` is home only.
 
-`gadak pairing mint` needs a live serve (or `--endpoint URL`). Loopback draws a
-warning — a machine that is not this one needs a URL it can reach. `_home` is
+`gadak pairing mint` needs a live serve (or `--endpoint URL`). Without
+`--endpoint` it takes the serve's own address, and refuses when that is
+loopback (it is, unless serve runs `--allow-remote`) — a machine that is not
+this one needs a URL it can reach; if `tailscale` is installed the refusal
+suggests the completed command. `_home` is
 this machine's routing token, not a device (`revoke` refuses it; `mint --label
 _home` rotates). Same CLI verbs on the remote; a `pairing:` error is the whole
 message. Do not combine `--pairing-code-stdin` with `--local` or a site

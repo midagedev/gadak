@@ -451,10 +451,11 @@ macOS dmg: [최신 릴리스](https://github.com/midagedev/gadak/releases/latest
 ```
 
 **다른 머신과 페어링.** 홈의 `gadak serve`가 origin입니다. 홈에서 오퍼를
-만듭니다(stdout이 오퍼 한 줄):
+만듭니다(stdout이 오퍼 한 줄) — 다른 머신이 이 serve에 닿는 URL, 즉
+테일넷 URL을 함께 줍니다:
 
 ```bash
-gadak pairing mint --label laptop
+gadak pairing mint --label laptop --endpoint https://<machine>.<tailnet>.ts.net
 ```
 
 원격에서 오퍼를 붙여넣습니다:

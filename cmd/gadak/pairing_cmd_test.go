@@ -17,6 +17,7 @@ import (
 	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/pairing"
+	"github.com/midagedev/gadak/internal/serveaddr"
 	"github.com/midagedev/gadak/internal/store"
 )
 
@@ -1370,5 +1371,63 @@ func TestPairingListJSON(t *testing.T) {
 	}
 	if strings.Contains(bare+bareErrOut, offer.Token) {
 		t.Fatal("pairing no-args leaked the fixture token value")
+	}
+}
+
+// GDK-1266: a device mint whose endpoint was *discovered* from the live
+// serve and is loopback is refused, not warned about — the offer could
+// never work on the remote device it is labelled for. An explicit
+// `--endpoint http://127.0.0.1:…` stays allowed (the caller said "this
+// machine"). FAIL-first: before the fix this minted with a stderr warning.
+func TestPairingMintRefusesDiscoveredLoopbackEndpoint(t *testing.T) {
+	pairingHome(t)
+	addr, _ := startGadakProbe(t, "")
+	runDir, err := serveaddr.Dir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := serveaddr.Write(runDir, addr, ""); err != nil {
+		t.Fatal(err)
+	}
+	// No tailscale on PATH: the refusal alone, no completed-command hint.
+	t.Setenv("PATH", t.TempDir())
+
+	out, _, err := captureErr(t, func() error {
+		return cmdPairing([]string{"mint", "--label", "laptop"})
+	})
+	if err == nil {
+		t.Fatalf("discovered loopback endpoint %s minted an offer: %q", addr, out)
+	}
+	if got := exitStatus(err); got != 64 {
+		t.Fatalf("exit %d, want 64 (usage): %v", got, err)
+	}
+	if !strings.Contains(err.Error(), "--endpoint https://") || strings.Contains(err.Error(), "tailscale") {
+		t.Fatalf("refusal must prescribe --endpoint and carry no hint without tailscale: %v", err)
+	}
+	if strings.TrimSpace(out) != "" {
+		t.Fatalf("stdout must stay empty on refusal, got %q", out)
+	}
+	toks, err := pairing.List(configDirOrFatal(t))
+	if err != nil || len(toks) != 0 {
+		t.Fatalf("refused mint left tokens: %+v (%v)", toks, err)
+	}
+
+	// With tailscale on PATH, the refusal completes the command for the user
+	// from Self.DNSName (trailing dot dropped) — suggested, never adopted.
+	bin := t.TempDir()
+	fake := filepath.Join(bin, "tailscale")
+	script := "#!/bin/sh\necho '{\"Self\":{\"DNSName\":\"home.example.ts.net.\"}}'\n"
+	if err := os.WriteFile(fake, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin)
+	_, _, err = captureErr(t, func() error {
+		return cmdPairing([]string{"mint", "--label", "laptop", "--scope", "serve"})
+	})
+	if err == nil || exitStatus(err) != 64 {
+		t.Fatalf("refusal with tailscale present: %v", err)
+	}
+	if !strings.Contains(err.Error(), "gadak pairing mint --label laptop --scope serve --endpoint https://home.example.ts.net") {
+		t.Fatalf("hint must be the completed command: %v", err)
 	}
 }

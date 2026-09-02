@@ -109,8 +109,8 @@ To share it, one machine runs `gadak serve` as the **home serve** — the HTTP
 face of that tracker — and other machines join by **pairing**:
 
 ```bash
-# home machine — the origin
-gadak pairing mint --label laptop            # prints one offer line
+# home machine — the origin; --endpoint is the URL the other machine reaches it at
+gadak pairing mint --label laptop --endpoint https://<machine>.<tailnet>.ts.net   # prints one offer line
 
 # the other machine
 gadak --workspace team init --pairing-code-stdin   # paste the offer

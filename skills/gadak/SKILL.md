@@ -454,10 +454,13 @@ would be visible to that whole site.
 
 Home (the built-in tracker, with `gadak serve` running) mints one offer per device.
 The remote binds a *fresh* workspace. After that, every verb on that workspace
-uses the home serve as origin.
+uses the home serve as origin. `--endpoint` is the URL the remote reaches the
+home serve at (the tailnet URL); without it mint takes the serve's own address
+and refuses when that is loopback (exit 64) — show that error, it may already
+carry the completed command.
 
 ```bash
-gadak pairing mint --label laptop                 # home: stdout is one offer line
+gadak pairing mint --label laptop --endpoint https://<machine>.<tailnet>.ts.net   # home: stdout is one offer line
 gadak --workspace laptop init --pairing-code-stdin  # remote: paste the offer
 gadak --workspace laptop status                     # kind is connected; prints paired with "laptop"
 gadak pairing list                                # home: token table; remote: one status line
