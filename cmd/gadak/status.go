@@ -323,7 +323,9 @@ func wikiPathStatus(cfg *config.Config) map[string]any {
 		out["reason"] = "sync: confluence is not configured"
 		return out
 	}
-	if !cfg.HasLocalOrigin() && (cfg.Site == "" || cfg.Email == "" || cfg.Token == "") {
+	// HasAtlassianCredential, not the site/email/token triple: a paired
+	// workspace keeps its credential in remote-origin.json (GDK-1276).
+	if !cfg.HasAtlassianCredential() {
 		out["path"] = "skipped"
 		out["reason"] = "origin: site, email and token are required"
 		return out

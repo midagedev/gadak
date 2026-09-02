@@ -46,6 +46,15 @@ func DefaultConfluenceConfig() *config.ConfluenceConfig {
 	return &config.ConfluenceConfig{Spaces: []string{DefaultSpaceKey}}
 }
 
+// PairedConfluenceConfig is the paired twin: what pairing writes so the
+// wiki pass is on. Spaces stays empty — every global space the home origin
+// lists — because this side has no site of its own to name and cannot see
+// which keys the home machine seeded (GDK-1276: without the block a paired
+// workspace mirrored issues but reported its wiki as not configured).
+func PairedConfluenceConfig() *config.ConfluenceConfig {
+	return &config.ConfluenceConfig{}
+}
+
 // in-process Basic credentials presented to issuetap. They never leave this
 // process: they are not written to config, a log, or disk. Issuetap rejects
 // a completely empty Authorization (Accepts).

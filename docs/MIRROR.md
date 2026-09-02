@@ -344,6 +344,8 @@ gadak pairing list                                # home: token table; remote: o
 gadak pairing revoke laptop                       # home only
 ```
 
+Pairing turns the wiki pass on with `confluence.spaces` empty, so the paired
+mirror carries every global space the home origin lists alongside its issues.
 Do not combine `--pairing-code-stdin` with `--local` or a site token.
 `_home` is the home machine's routing token, not a device (`revoke` refuses
 it; `mint --label _home` rotates). Details: [SECURITY.md](../SECURITY.md).

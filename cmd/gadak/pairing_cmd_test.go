@@ -398,6 +398,12 @@ func TestInitPairingCodeVerifiesBeforeSave(t *testing.T) {
 	if cfg.AccountID != "acc-pair" || cfg.Site != "" || cfg.Email != "" || cfg.Token != "" {
 		t.Fatalf("config after pair = %+v", cfg)
 	}
+	// GDK-1276: pairing turns the wiki mirror on, scoped to every global
+	// space the home origin lists — the paired twin of the block local-origin
+	// init seeds. Without it the wiki pass reports "not configured" forever.
+	if cfg.Confluence == nil || len(cfg.Confluence.Spaces) != 0 {
+		t.Fatalf("config after pair: confluence = %+v, want an empty (all global spaces) block", cfg.Confluence)
+	}
 
 	// The paired workspace's origin.Client must talk to the serve with
 	// the stored token.

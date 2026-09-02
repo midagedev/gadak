@@ -393,6 +393,7 @@ func initPaired(cfg *config.Config, code string, fromStdin bool, jsonOut bool) e
 		return err
 	}
 	cfg.ApplyVerifiedIdentity(me.AccountID, me.DisplayName, store.Now())
+	cfg.Confluence = origin.PairedConfluenceConfig()
 	if err := cfg.Save(); err != nil {
 		return err
 	}

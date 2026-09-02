@@ -340,7 +340,10 @@ pages (current version, comments, labels) alongside issues —
 the sidebar grows a DOCS tree, and search answers across both.
 `gadak init --local` writes `confluence.spaces` as `["LOC"]` (the space
 the in-process origin seeds) so the wiki pass is on for a new built-in-tracker
-workspace.
+workspace. Pairing writes the block with `spaces` empty — every global space
+the home origin lists — so a paired workspace mirrors the home machine's wiki
+too; a workspace paired before that was the default turns it on with
+`gadak config set confluence.enabled true`.
 
 ## Two sites at once
 

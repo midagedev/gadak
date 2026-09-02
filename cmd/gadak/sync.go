@@ -85,7 +85,9 @@ func cmdSync(args []string) error {
 		return fmt.Errorf("linear is off for this workspace — add a \"linear\" block (apiKey, optional teamIds) to config.json")
 	}
 	if *source == "confluence" && cfg.Confluence == nil {
-		return fmt.Errorf("confluence is off for this workspace — turn it on with `gadak init --spaces ENG,PROD`\n(or `--spaces all`), or in Settings → Sources")
+		// `gadak config set` works on every workspace kind; `gadak init
+		// --spaces` is refused on a paired one (GDK-1276).
+		return fmt.Errorf("confluence is off for this workspace — turn it on with `gadak config set confluence.enabled true`\n(then `gadak config set confluence.spaces '[\"ENG\",\"PROD\"]'` to narrow it), or in Settings → Sources")
 	}
 	if staleEvery > 0 {
 		now := time.Now()

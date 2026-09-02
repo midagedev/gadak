@@ -204,6 +204,7 @@ func createPaired(w http.ResponseWriter, in createWorkspaceDoc, dir string) {
 		return
 	}
 	cfg.ApplyVerifiedIdentity(me.AccountID, me.DisplayName, store.Now())
+	cfg.Confluence = origin.PairedConfluenceConfig()
 	if err := cfg.Save(); err != nil {
 		log.Printf("workspaces: pair %s: save: %v", in.Name, err)
 		manageFail(w, http.StatusInternalServerError, "create_failed")

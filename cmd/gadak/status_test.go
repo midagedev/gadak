@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/pairing"
 	"github.com/midagedev/gadak/internal/store"
 )
 
@@ -216,6 +217,46 @@ func TestStatusJSONWikiPathConnectedOn(t *testing.T) {
 	}
 	if doc.Wiki.Path != "on" {
 		t.Fatalf("wiki.path = %q, want on; body %s", doc.Wiki.Path, out)
+	}
+}
+
+// TestStatusJSONWikiPathPairedOn (GDK-1276): a paired workspace has no site,
+// email, or token of its own — its credential is remote-origin.json — so the
+// connected-shaped check used to report its wiki pass as skipped for a
+// missing Atlassian credential even with the block on.
+func TestStatusJSONWikiPathPairedOn(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	config.SetProfile("")
+	t.Cleanup(func() { config.SetProfile("") })
+
+	if err := pairing.SaveRemote(home, pairing.Remote{Endpoint: "http://192.0.2.10:7877", Token: "pair-token", Label: "laptop"}); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Confluence = &config.ConfluenceConfig{}
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := capture(t, func() error { return cmdStatus([]string{"--json"}) })
+	if err != nil {
+		t.Fatalf("status --json: %v", err)
+	}
+	var doc struct {
+		Wiki struct {
+			Path   string `json:"path"`
+			Reason string `json:"reason"`
+		} `json:"wiki"`
+	}
+	if err := json.Unmarshal([]byte(out), &doc); err != nil {
+		t.Fatalf("decode %q: %v", out, err)
+	}
+	if doc.Wiki.Path != "on" || doc.Wiki.Reason != "" {
+		t.Fatalf("paired wiki = %q (%q), want on with no reason; body %s", doc.Wiki.Path, doc.Wiki.Reason, out)
 	}
 }
 

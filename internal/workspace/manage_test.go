@@ -474,6 +474,11 @@ func TestManageCreatePairedRegisters(t *testing.T) {
 	if saved.HasLocalOrigin() || saved.AccountID != "acc-home" || saved.TokenOwner != "Home Human" {
 		t.Fatalf("saved config = %+v", saved)
 	}
+	// GDK-1276: same as the CLI door — the wiki mirror is on, scoped to the
+	// home origin's global spaces.
+	if saved.Confluence == nil || len(saved.Confluence.Spaces) != 0 {
+		t.Fatalf("saved config: confluence = %+v, want an empty (all global spaces) block", saved.Confluence)
+	}
 	if _, err := os.Stat(filepath.Join(dir, "config.json")); err != nil {
 		t.Errorf("config.json missing after create: %v", err)
 	}
