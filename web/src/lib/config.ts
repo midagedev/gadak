@@ -12,6 +12,7 @@
 
 import {
   isLocalOrigin,
+  ORIGIN_GADAK,
   ORIGIN_LINEAR,
   parseOriginType,
   parseTransport,
@@ -21,6 +22,7 @@ import {
   type WorkspaceKind,
 } from './workspace'
 import type { UiTokenDoc } from './user-tokens'
+import { t } from './i18n'
 
 export {
   isLocalOrigin,
@@ -335,7 +337,14 @@ export function jiraBrowseUrl(issueKey: string): string | null {
  * store-free modules such as command-palette.ts need it.
  */
 export function originTrackerName(): string {
-  return config().originType === ORIGIN_LINEAR ? 'Linear' : 'Jira'
+  switch (config().originType) {
+    case ORIGIN_LINEAR:
+      return 'Linear'
+    case ORIGIN_GADAK:
+      return t('settings.workspaceLocalOrigin')
+    default:
+      return 'Jira'
+  }
 }
 
 /**

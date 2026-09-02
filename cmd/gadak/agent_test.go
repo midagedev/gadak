@@ -541,7 +541,22 @@ func TestIssuePrintsEmptyStateMarkers(t *testing.T) {
 	}
 }
 
-func TestOpenFallsBackToJiraBrowseWhenItemURLEmpty(t *testing.T) {
+// linearMirror is mirror("") as a Linear workspace: no site, a Linear key,
+// Kind linear. `open` must branch on that, never on what a row stores.
+func linearMirror(t *testing.T) *config.Config {
+	t.Helper()
+	cfg := mirror(t, "")
+	cfg.Kind = config.OriginLinear
+	cfg.Linear = &config.LinearConfig{APIKey: "lin_api_test"}
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+	return cfg
+}
+
+func TestOpenJiraBuildsBrowseURLFromSite(t *testing.T) {
+	// A Jira workspace opens Jira's page, built from the site — the row's
+	// stored url is not consulted (GDK-1308: one branch per origin type).
 	mirror(t, "https://jira.example.com")
 	var got string
 	saved := startIssueOpen
@@ -553,15 +568,15 @@ func TestOpenFallsBackToJiraBrowseWhenItemURLEmpty(t *testing.T) {
 	}
 	want := "https://jira.example.com/browse/NMB-1"
 	if got != want {
-		t.Fatalf("opened %q, want Jira browse fallback %q", got, want)
+		t.Fatalf("opened %q, want Jira browse URL %q", got, want)
 	}
 	if !strings.Contains(out, want) {
 		t.Fatalf("stdout %q, want the URL", out)
 	}
 }
 
-func TestOpenPrefersStoredItemURL(t *testing.T) {
-	mirror(t, "https://jira.example.com")
+func TestOpenLinearOpensStoredItemURL(t *testing.T) {
+	linearMirror(t)
 	db, err := store.Open(filepath.Join(os.Getenv("GADAK_HOME"), "gadak.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -656,6 +671,34 @@ func seedNamedIssue(t *testing.T, key, title string) {
 		}},
 	}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestOpenLinearRowWithoutURLIsNotAJiraPage(t *testing.T) {
+	// GDK-1308: a Linear row with no stored url (a cache from before the
+	// column, a lagging mirror) is a missing link — not a /browse/KEY built
+	// from a site this workspace does not have. The seeded NMB-1 row has no
+	// url.
+	linearMirror(t)
+	got := stubIssueOpen(t)
+
+	_, err := capture(t, func() error { return cmdOpen([]string{"NMB-1"}) })
+	if err == nil {
+		t.Fatalf("open succeeded (opened %q), want a refusal", *got)
+	}
+	if *got != "" {
+		t.Fatalf("a browser was opened on %q", *got)
+	}
+	if !strings.Contains(err.Error(), "gadak sync") {
+		t.Fatalf("want sync advice, got %q", err.Error())
+	}
+	if strings.Contains(err.Error(), "/browse/") {
+		t.Fatalf("a Jira page leaked into a Linear refusal: %q", err.Error())
+	}
+
+	_, err = capture(t, func() error { return cmdOpen([]string{"NOPE-1"}) })
+	if err == nil || !strings.Contains(err.Error(), "not in the mirror") {
+		t.Fatalf("missing key on Linear: got %v, want not-in-mirror", err)
 	}
 }
 
