@@ -16,9 +16,18 @@
 
   let { linked }: { linked: LinkedIssue[] } = $props()
 
-  /** Human label from direction/type. Prefer backend direction text when present. */
+  /**
+   * Human label. The mirror stores `direction` as the bare token
+   * (`inward`/`outward`, sync.go) and `type` as the link type's name, so the
+   * phrase for this side ("is blocked by" / "blocks") is looked up in the
+   * catalog the add form already fetches; without a catalog, the type name.
+   * The token itself is never shown (GDK-1293).
+   */
   function label(l: LinkedIssue): string {
-    return (l.direction && l.direction.trim()) || l.type || t('detail.linked')
+    const dir = (l.direction ?? '').trim()
+    const row = types.find((r) => r.name.toLowerCase() === (l.type ?? '').toLowerCase())
+    const phrase = dir === 'inward' ? row?.inward : dir === 'outward' ? row?.outward : dir
+    return phrase?.trim() || l.type || t('detail.linked')
   }
 
   // Backend sometimes duplicates the same link (key+direction). Duplicate each keys

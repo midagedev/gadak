@@ -21,13 +21,22 @@
  * state instead and the first pass reads that promotion as a param the URL has
  * dropped, and closes what it just opened.
  *
- * Writes are `replace`, so a selection does not fill the back stack; a real
- * navigation is still the user's own.
+ * A state-first move pushes (a place param names a place, and back is the
+ * previous place — GDK-1292/GDK-1296); a binding whose param is a dialog
+ * decides per move through `mode`: open pushes, tab switches replace, and
+ * close is `history.back()` when the entry being left is the one its open
+ * pushed (router `atEntry`), else a replace. Two exceptions are never pushes:
+ * the first pass (a deep link the app promotes or normalizes arrives as one
+ * entry), and a URL-first move — what the store makes of an arriving value
+ * (`settings=bogus` → `sync`, a `dview` outside any space) is written back in
+ * place, so back and forward never lose the entries ahead of them.
  */
 
 import { untrack } from 'svelte'
-import { router, setParams } from './router.svelte'
+import { atEntry, router, setParams } from './router.svelte'
 import type { PlaceParamKey } from './url-state'
+
+export type HistoryMode = 'push' | 'replace' | 'back'
 
 /** The value of each bound param — `null` meaning absent, both in the URL and
  *  in whatever state mirrors it. */
@@ -66,10 +75,15 @@ export function bindParams<K extends PlaceParamKey>(spec: {
   params: readonly K[]
   read: () => ParamValues<K>
   write: (next: ParamValues<K>) => void
+  /** What a state-first move does to history; default `push`. `back` is
+   *  honoured only on the entry this binding's own push left (else replace). */
+  mode?: (prev: ParamValues<K>, next: ParamValues<K>) => HistoryMode
 }): void {
-  const { params, read, write } = spec
+  const { params, read, write, mode } = spec
+  const entry = params.join('+')
   // Seeded from the URL, before the first pass — see the note above.
   let synced = readUrl(params)
+  let first = true
 
   $effect(() => {
     const url = readUrl(params)
@@ -79,15 +93,28 @@ export function bindParams<K extends PlaceParamKey>(spec: {
 
     if (differs(url, synced, params)) {
       synced = url
+      first = false
       // The write is a write, not a read: untracked so applying it cannot
       // subscribe this effect to whatever the setters happen to touch.
       untrack(() => write(url))
+      const after = untrack(read)
+      if (differs(after, url, params)) {
+        synced = after
+        setParams(after, true)
+      }
       return
     }
     if (differs(state, synced, params)) {
+      const how: HistoryMode = first ? 'replace' : (mode?.(synced, state) ?? 'push')
       synced = state
-      setParams(state, true)
+      if (how === 'back' && atEntry(entry)) {
+        // The hash follows on popstate; `synced` already says where it lands.
+        history.back()
+      } else {
+        setParams(state, how !== 'push', how === 'push' ? entry : undefined)
+      }
     }
+    first = false
   })
 }
 
@@ -97,11 +124,13 @@ export function bindParam(spec: {
   param: PlaceParamKey
   read: () => string | null
   write: (next: string | null) => void
+  mode?: (prev: string | null, next: string | null) => HistoryMode
 }): void {
-  const { param, read, write } = spec
+  const { param, read, write, mode } = spec
   bindParams({
     params: [param],
     read: () => ({ [param]: read() }) as ParamValues<typeof param>,
     write: (next) => write(next[param]),
+    mode: mode && ((prev, next) => mode(prev[param], next[param])),
   })
 }

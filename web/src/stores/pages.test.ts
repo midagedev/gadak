@@ -267,7 +267,11 @@ describe('GDK-815 the dashboard releases the main column', () => {
     // applyConfig writes the applied view into the hash; node has no history
     // API. Only that URL write is stubbed — the assertion is about the
     // store, not the hash.
-    ;(globalThis as { history?: Partial<History> }).history ??= { replaceState: () => {} }
+    ;(globalThis as { history?: Partial<History> }).history ??= {
+      replaceState: () => {},
+      pushState: () => {},
+    }
+    ;(globalThis as { location?: Partial<Location> }).location ??= { hash: '' }
     dashboards.open('e2e-gdk815')
     expect(dashboards.openId).toBe('e2e-gdk815')
     showIssueList(emptyConfig())

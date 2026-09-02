@@ -1,5 +1,5 @@
 import { expect, test, type Page, type Route } from '@playwright/test'
-import { attachConsoleErrors, gotoApp, searchInput } from './helpers'
+import { apiURL, attachConsoleErrors, forceLocale, gotoApp, searchInput } from './helpers'
 
 /**
  * Issue-link write-through from the detail panel (GDK-85).
@@ -11,6 +11,11 @@ import { attachConsoleErrors, gotoApp, searchInput } from './helpers'
  *
  * Delete is not on origin.IssueLinker (IssueLinkTypes + LinkIssues only);
  * this spec covers add → appears.
+ *
+ * GitHub discussion #80 (GDK-1292 / GDK-1293): the label of a linked row is
+ * the catalog phrase for its direction ("is blocked by"), never the mirror's
+ * raw `inward`/`outward` token; and following a link is a navigation, so the
+ * back button returns to the issue it was followed from.
  */
 
 const KEY = 'NMB-110'
@@ -64,7 +69,142 @@ async function openIssue(page: Page) {
   return panel
 }
 
+// A fixture pair linked both ways: NMA-104 blocks NMB-104 (outward), so
+// NMB-104's row for NMA-104 is the inward side.
+const BLOCKED = 'NMB-104'
+const BLOCKER = 'NMA-104'
+
+async function gotoIssue(page: Page, key: string) {
+  await forceLocale(page, 'en')
+  await page.goto(`/#/?issue=${key}`)
+  const panel = page.getByTestId('issue-detail-panel')
+  await expect(panel).toHaveClass(/is-open/, { timeout: 30_000 })
+  await expect(panel.getByRole('link', { name: key, exact: true })).toBeVisible()
+  return panel
+}
+
 test.describe('linked issues', () => {
+  test('label is the catalog phrase for the direction, not the raw token (GDK-1293)', async ({
+    page,
+  }) => {
+    const errors = attachConsoleErrors(page)
+    await page.route(`**/api/v1/issues/${BLOCKED}/linktypes/`, async (route) => {
+      if (route.request().method() !== 'GET') return route.continue()
+      await fulfillJSON(route, CATALOG)
+    })
+    const panel = await gotoIssue(page, BLOCKED)
+    const links = panel.getByTestId('linked-issues')
+    const row = links.getByRole('button').filter({ hasText: BLOCKER })
+    await expect(row).toContainText('is blocked by')
+    await expect(links.getByText('inward', { exact: true })).toHaveCount(0)
+    await expect(links.getByText('outward', { exact: true })).toHaveCount(0)
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  test('without a catalog the label falls back to the type name, never the token', async ({
+    page,
+  }) => {
+    const errors = attachConsoleErrors(page)
+    await page.route(`**/api/v1/issues/${BLOCKED}/linktypes/`, async (route) => {
+      if (route.request().method() !== 'GET') return route.continue()
+      await fulfillJSON(route, { link_types: [] })
+    })
+    const panel = await gotoIssue(page, BLOCKED)
+    const links = panel.getByTestId('linked-issues')
+    const row = links.getByRole('button').filter({ hasText: BLOCKER })
+    await expect(row).toContainText('Blocks')
+    await expect(links.getByText('inward', { exact: true })).toHaveCount(0)
+    await expect(links.getByText('outward', { exact: true })).toHaveCount(0)
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  test('back returns to the issue the link was followed from (GDK-1292)', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    await page.route('**/api/v1/issues/*/linktypes/', async (route) => {
+      if (route.request().method() !== 'GET') return route.continue()
+      await fulfillJSON(route, CATALOG)
+    })
+    const panel = await gotoIssue(page, BLOCKER)
+
+    await panel.getByTestId('linked-issues').getByRole('button').filter({ hasText: BLOCKED }).click()
+    await expect(page).toHaveURL(new RegExp(`issue=${BLOCKED}`))
+    await expect(panel.getByRole('link', { name: BLOCKED, exact: true })).toBeVisible()
+
+    // Following a link left an entry, so back reopens the issue it came from.
+    await page.goBack()
+    await expect(page).toHaveURL(new RegExp(`issue=${BLOCKER}`), { timeout: 5_000 })
+    await expect(panel.getByRole('link', { name: BLOCKER, exact: true })).toBeVisible()
+
+    // Closing is a move too: back after close reopens what was closed.
+    await panel.getByTestId('issue-detail-close').click()
+    await expect(page).not.toHaveURL(/issue=/)
+    await expect(panel).not.toHaveClass(/is-open/)
+    await page.goBack()
+    await expect(page).toHaveURL(new RegExp(`issue=${BLOCKER}`), { timeout: 5_000 })
+    await expect(panel).toHaveClass(/is-open/)
+    await expect(panel.getByRole('link', { name: BLOCKER, exact: true })).toBeVisible()
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  test('an issue opened over a document takes the panel, and back gives the document back', async ({
+    page,
+    request,
+  }) => {
+    // The right panel is one union: opening the issue pushes `issue=` while the
+    // document's binding drops `doc=` in the same flush. The second write must
+    // build on the first (setParams syncs the router on push), or the queued
+    // hashchange reads a hash with no `issue=` and closes the panel it just
+    // opened — which is what the full suite showed, and this spec alone did not.
+    const errors = attachConsoleErrors(page)
+    const res = await request.get(apiURL('/api/v1/issues/pages/'))
+    const body = (await res.json()) as { pages: { key: string }[] }
+    const doc = [...body.pages].sort((a, b) => a.key.localeCompare(b.key))[0]
+
+    await forceLocale(page, 'en')
+    await page.goto(`/#/?doc=${encodeURIComponent(doc.key)}`)
+    await expect(page.getByTestId('doc-panel')).toBeVisible({ timeout: 30_000 })
+    // The document link restores the documents screen in the main column; the
+    // issue list comes back through the sidebar, with the panel still open.
+    await page.getByRole('button', { name: /All open/ }).click()
+    await expect(page.getByTestId('issue-list-scroller')).toBeVisible()
+    await expect(page.getByTestId('doc-panel')).toBeVisible()
+
+    // From the list, not the address bar: it is the state moving first that
+    // makes the two bindings write in one flush.
+    await searchInput(page).fill(BLOCKER)
+    await searchInput(page).press('Enter')
+    const panel = page.getByTestId('issue-detail-panel')
+    await expect(panel).toHaveClass(/is-open/)
+    await expect(panel.getByRole('link', { name: BLOCKER, exact: true })).toBeVisible()
+    await expect(page).toHaveURL(new RegExp(`issue=${BLOCKER}`))
+    await expect(page).not.toHaveURL(/doc=/)
+    await expect(page.getByTestId('doc-panel')).toHaveCount(0)
+
+    // And the other way round: a document opened over the issue, from the
+    // sidebar's recent list.
+    await page.getByTestId(`recent-doc-${doc.key}`).getByRole('button').first().click()
+    await expect(page.getByTestId('doc-panel')).toBeVisible()
+    await expect(page).toHaveURL(/doc=/)
+    await expect(page).not.toHaveURL(/issue=/)
+    await expect(panel.getByRole('link', { name: BLOCKER, exact: true })).toHaveCount(0)
+
+    // Each open was a move, so back walks them in reverse.
+    await page.goBack()
+    await expect(page).toHaveURL(new RegExp(`issue=${BLOCKER}`), { timeout: 5_000 })
+    await expect(page).not.toHaveURL(/doc=/)
+    await expect(panel.getByRole('link', { name: BLOCKER, exact: true })).toBeVisible()
+    await expect(page.getByTestId('doc-panel')).toHaveCount(0)
+
+    await page.goBack()
+    await expect(page).toHaveURL(/doc=/, { timeout: 5_000 })
+    await expect(page).not.toHaveURL(/issue=/)
+    await expect(page.getByTestId('doc-panel')).toBeVisible()
+    await expect(panel.getByRole('link', { name: BLOCKER, exact: true })).toHaveCount(0)
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
   test('add: request carries type+key; list shows the refreshed link, not the typed guess', async ({
     page,
   }) => {

@@ -18,7 +18,7 @@
   import { bulk } from './stores/bulk.svelte'
   import { triage } from './stores/triage.svelte'
   import { dashboards } from './stores/dashboards.svelte'
-  import { router } from './lib/router.svelte'
+  import { pushHash, router } from './lib/router.svelte'
   import { bindParam, bindParams } from './lib/url-sync.svelte'
   import { createGlobalKeyHandler } from './lib/keymap.svelte'
   import { applyStartupView, readLastViewKey } from './lib/startup-view'
@@ -311,19 +311,18 @@
           // Taking the column is dashboards.open's own move (GDK-821 union) —
           // whatever full-column surface was up, feed included, is released.
           dashboards.open(dashId)
-          const nextDash = q ? `#/?${q}` : '#/'
-          if (location.hash !== nextDash) location.hash = nextDash
+          pushHash(q ? `#/?${q}` : '#/')
           return
         }
-        // Column latches first (showIssueList → applyConfig replaceState).
-        // Then the CLI's literal hash, so ks=A,B stays unescaped. Do not
-        // replaceState+hashchange here: that re-parses location.hash before
-        // applyConfig's router write and can drop the focus view.
+        // Column latches first (showIssueList → applyConfig). Then the CLI's
+        // literal hash, so ks=A,B stays unescaped — through the router, which
+        // syncs its own state on the spot (a raw `location.hash =` left it a
+        // task stale, and the column binding's flush rebuilt the hash from
+        // that) and folds this push into applyConfig's: one arrival, one entry.
         const focused = parseView(new URLSearchParams(q))
         showIssueList(focused.config)
         filters.notifyKeysCapped(focused.keys)
-        const next = q ? `#/?${q}` : '#/'
-        if (location.hash !== next) location.hash = next
+        pushHash(q ? `#/?${q}` : '#/')
       } catch {
         /* serve without the endpoint, or offline */
       }
@@ -495,7 +494,9 @@
       group: me.group,
     }
     applyStartupView(startupInput, (c) => {
-      filters.applyConfig(c)
+      // Boot, not a move: the default view rewrites the entry the tab opened
+      // on, so back from the first screen does not land on the unfiltered pool.
+      filters.applyConfig(c, true)
       filters.setViewOrigin(c.filters)
     })
     filters.latchOriginFromBuiltins()
@@ -545,6 +546,10 @@
    * once in lib/url-sync, where it also owns the last-synced value it needs.
    */
 
+  // Every place binding pushes (lib/url-sync): opening, switching or closing
+  // an issue is a move, so back reopens the issue a link was followed from,
+  // or the one just closed (GDK-1292). The settings dialog below is the one
+  // binding with its own history mode.
   bindParam({
     param: 'issue',
     read: () => selection.selectedKey,
@@ -566,7 +571,9 @@
     read: () => ({
       space: pages.spaceView,
       docs: pages.docsView ? '1' : null,
-      dview: pages.spaceTree ? 'tree' : null,
+      // Only inside a space: the flag outlives one (openDocs leaves it), and
+      // an address carrying `dview` alone would say nothing.
+      dview: pages.spaceView && pages.spaceTree ? 'tree' : null,
       hist: pages.historyView ? '1' : null,
     }),
     write: ({ space, docs, dview, hist }) => {
@@ -648,9 +655,13 @@
   // the tab list will grow, and a link from before a rename must keep opening
   // something real. Registered only where the settings verb exists, so the
   // hosted snapshot neither opens nor rewrites a `settings=` param.
+  // History: opening pushes one entry, a tab switch rewrites it, and closing
+  // is the same move as back — so back never lands on a dead press and
+  // forward reopens what was closed (GDK-1296 rules 2 and 3).
   if (hasServerVerb('settings')) {
     bindParam({
       param: 'settings',
+      mode: (prev, next) => (prev === null ? 'push' : next === null ? 'back' : 'replace'),
       read: () => (serverSettingsOpen ? serverSettingsTab : null),
       write: (v) => {
         if (v === null) {
@@ -796,7 +807,12 @@
     >
       <Sidebar>
         {#snippet children()}
-          <SidebarNav onOpenSettings={() => (serverSettingsOpen = true)} />
+          <SidebarNav
+            onOpenSettings={(tab) => {
+              serverSettingsOpen = true
+              if (tab) serverSettingsTab = tab
+            }}
+          />
         {/snippet}
       </Sidebar>
 
