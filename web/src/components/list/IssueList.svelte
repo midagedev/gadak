@@ -39,9 +39,10 @@
     // multi-membership (one issue in several buckets), so the each-key needs
     // group+issue to stay unique; every other axis simply carries it unused.
     // mode: the paint mode IssueRow will use for this row — 'row' is the
-    // dense 42px paint, 'row-excerpt' adds the match line at 59px. This list
-    // never passes a match line today, so every row is 'row'; the field keeps
-    // the window honest the day one does (GDK-842 closes the 42/59 drift).
+    // dense --spacing-row paint (36px since GDK-1336), 'row-excerpt' adds the
+    // match line at --spacing-row-excerpt (59px). This list never passes a
+    // match line today, so every row is 'row'; the field keeps the window
+    // honest the day one does (GDK-842 closes the row/row-excerpt drift).
     | { type: 'issue'; issue: IssueLite; gk?: string; mode: RowMode }
 
   const grouped = $derived(filters.display.group_by !== 'none')

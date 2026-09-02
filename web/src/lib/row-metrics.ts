@@ -44,7 +44,7 @@ const invalidated: Set<() => void> = new Set()
 export function rowMetrics(): RowMetrics {
   if (!cache) {
     cache = {
-      row: tokenPx('--spacing-row', 42),
+      row: tokenPx('--spacing-row', 36),
       rowExcerpt: tokenPx('--spacing-row-excerpt', 59),
       control: tokenPx('--spacing-control', 32),
     }

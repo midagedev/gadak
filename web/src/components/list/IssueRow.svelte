@@ -139,18 +139,20 @@
     if (ratio <= 4) return 'mid'
     return 'loud'
   })
-  // Fill is ground-neutral (bg-elevated), not stale-amber — an amber wash
-  // mixed to olive on dark/ink and read as a stain. Amber stays on the
-  // glyph, the day count, and a hairline. Band weight is fill/border
-  // opacity, not a louder wash.
+  // GDK-1336: band weight is text weight and amber opacity — no box. The
+  // bordered chip was the loudest trailing element on every stale row, and
+  // on a list where most rows are stale it read as a column of badges
+  // rather than a signal. (An amber wash was tried earlier and mixed to
+  // olive on dark/ink — GDK-766; that lesson stands: amber on glyph and
+  // digits only.)
   const staleBandClass = $derived.by(() => {
     switch (staleBand) {
       case 'quiet':
         return 'text-text-muted'
       case 'mid':
-        return 'border border-status-stale/20 bg-bg-elevated/50 text-status-stale/80'
+        return 'text-status-stale/80'
       case 'loud':
-        return 'border border-status-stale/40 bg-bg-elevated font-medium text-status-stale'
+        return 'font-medium text-status-stale'
       default:
         return ''
     }
@@ -440,7 +442,7 @@
     <div class="stale-slot flex flex-none items-center justify-start overflow-hidden" data-col="stale">
       {#if header}{@render head('stale')}{:else if stale}
         <span
-          class="flex flex-none items-center gap-1 rounded px-1.5 py-0.5 text-micro {staleBandClass}"
+          class="flex flex-none items-center gap-1 px-0.5 text-micro tabular-nums {staleBandClass}"
           data-stale-band={staleBand}
           title={t('list.staleDays', { n: staleDays })}
         >

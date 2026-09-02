@@ -8,7 +8,7 @@
       "tokens": {
         "row": {
           "cssVar": "--spacing-row",
-          "default": "42px",
+          "default": "36px",
           "tier": "validated-range",
           "unit": "px",
           "min": 36,

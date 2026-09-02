@@ -263,7 +263,7 @@ func TestValidateDimensionsValues(t *testing.T) {
 func TestValidateDimensionsRelations(t *testing.T) {
 	// Each relation fires from a one-sided override judged against defaults.
 	dimWarns(t, map[string]map[string]string{"spacing": {"control-sm": "34px"}}, "relation", "control")
-	dimWarns(t, map[string]map[string]string{"spacing": {"row-excerpt": "48px"}}, "relation", "row-excerpt")
+	dimWarns(t, map[string]map[string]string{"spacing": {"row-excerpt": "40px"}}, "relation", "row-excerpt") // row 36 + 8 = 44 (GDK-1336)
 	dimWarns(t, map[string]map[string]string{"layout": {"detail-max": "430px"}}, "relation", "detail-max")
 	dimWarns(t, map[string]map[string]string{"layout": {"overlay-max": "2300px"}}, "relation", "overlay-max")
 	dimWarns(t, map[string]map[string]string{"layout": {"sidebar": "200px"}}, "relation", "sidebar")

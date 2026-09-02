@@ -31,7 +31,7 @@ describe('rowMetrics reads the tokens it documents', () => {
   })
 
   it('falls back to the shipped defaults without a DOM', () => {
-    expect(rowMetrics()).toEqual({ row: 42, rowExcerpt: 59, control: 32 })
+    expect(rowMetrics()).toEqual({ row: 36, rowExcerpt: 59, control: 32 })
   })
 
   it('caches between reads and re-reads after invalidateRowMetrics', () => {

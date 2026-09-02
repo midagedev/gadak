@@ -215,7 +215,7 @@ pairs, unitless one-or-two-decimal numbers (`"1.4"`).
 
 | Axis | Tokens (default) | CSS var |
 | --- | --- | --- |
-| `spacing` | `row` (42px), `row-excerpt` (59px), `control` (32px), `control-sm` (24px) | `--spacing-*` |
+| `spacing` | `row` (36px), `row-excerpt` (59px), `control` (32px), `control-sm` (24px) | `--spacing-*` |
 | `layout` | `sidebar` (272px), `sidebar-narrow` (208px), `list-min` (390px), `detail-min` (438px), `detail-max` (720px), `overlay-max` (560px), `shell-max` (2200px) | `--layout-*` |
 | `type` | `micro` (11px), `body` (13px), `title` (15px), `heading` (22px), each with a matching `…-line-height` (1.3 / 1.4 / 1.35 / 1.22), plus `terminal` (13px, range 9–24) | `--text-*` |
 

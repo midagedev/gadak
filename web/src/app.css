@@ -79,8 +79,8 @@
   --color-dept-5: #9a5a32;
 
   /* ── Density tokens ── */
-  --spacing-row: 42px; /* list row height */
-  --spacing-row-excerpt: 59px; /* document row carrying a one-line body preview */
+  --spacing-row: 36px; /* list row height — was 42 (GDK-1336: Linear's rung; 13px text sits at 1:2.8) */
+  --spacing-row-excerpt: 59px; /* row carrying a body preview: a docs row is title + meta + excerpt, three lines (GDK-1336 kept this at 59 when row went 42 → 36) */
 
   /*
     Control height grid. Two steps, and nothing between them. The toolbar used
