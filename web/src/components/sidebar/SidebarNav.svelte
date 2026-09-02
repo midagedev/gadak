@@ -15,6 +15,7 @@
   import { onboarding } from '../../stores/onboarding.svelte'
   import { pages } from '../../stores/pages.svelte'
   import { showIssueList } from '../../lib/show-issue-list'
+  import type { SettingsTab } from '../../lib/settings-tabs'
   import { write } from '../../stores/write.svelte'
   import { runSyncNow } from '../../lib/sync-now'
   import { copyText } from '../../lib/copy-text'
@@ -31,7 +32,6 @@
     workspaceName,
   } from '../../lib/config'
   import { isLocalOrigin, STANDALONE_INIT_COMMAND } from '../../lib/workspace'
-  import { setParams } from '../../lib/router.svelte'
   import { mirrorLabel } from '../../lib/mirror-status'
   import { docsEmptyClickAction, docsEmptyGlyph } from '../../lib/docs-empty'
   import { docsEmpty } from '../../stores/docs-empty.svelte'
@@ -50,7 +50,7 @@
   docsEmpty.bind()
 
   /** Open server settings dialog — App.svelte mounts the dialog itself. */
-  let { onOpenSettings }: { onOpenSettings: () => void } = $props()
+  let { onOpenSettings }: { onOpenSettings: (tab?: SettingsTab) => void } = $props()
 
   let draggingId = $state<SectionId | null>(null)
   let dropTargetId = $state<SectionId | null>(null)
@@ -901,7 +901,7 @@
                 type="button"
                 data-testid="workspace-new"
                 class="flex h-control w-full items-center gap-2 rounded-md px-3 text-left text-body text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
-                onclick={() => setParams({ settings: 'workspaces' })}
+                onclick={() => onOpenSettings('workspaces')}
               >
                 <span class="flex-none text-text-muted" aria-hidden="true">+</span>
                 <span class="min-w-0 flex-1 truncate">{t('sidebar.workspaceNew')}</span>
@@ -943,7 +943,7 @@
       <button
         type="button"
         class="mb-1 flex h-control-sm w-full items-center gap-1.5 rounded-md px-1 text-body text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
-        onclick={onOpenSettings}
+        onclick={() => onOpenSettings()}
         title={t('sidebar.serverSettings')}
       >
         <Icon name="settings" size={14} />

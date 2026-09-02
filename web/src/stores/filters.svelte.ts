@@ -4,7 +4,8 @@
  * Design: **the URL hash is the single source of truth for the view**.
  *  - filters/display derive from router.params (parseConfig) → "view = URL" holds naturally.
  *  - Every change (chip add/remove · grouping · sort · query) updates the URL via
- *    setParams(replace) → derived values recompute.
+ *    setParams → derived values recompute. A change is a move and pushes
+ *    (back is the previous view); typing inside a query, and boot, replace.
  *  - Selecting an issue (?issue) must not refilter: an intermediate stable string
  *    (#viewKey) of view-only params blocks refilter (perf discipline).
  *
@@ -337,16 +338,16 @@ class FiltersStore {
   /** facet: value distribution over the full pool (add dropdowns). Includes member name labels. */
   facets = $derived.by(() => buildFacets(issues.allIssues, issues.members))
 
-  /* ── Mutations: all via URL update (replace, no history push) ── */
+  /* ── Mutations: all via URL update. Push unless told to replace. ── */
 
-  #apply(config: ViewConfig): void {
+  #apply(config: ViewConfig, replace = false): void {
     const params = configToParams(config)
     // A dynamic axis dropped from the config must clear its URL param too —
     // configToParams only emits keys for axes still present.
     for (const [k] of router.params) {
       if (k.startsWith(DYN_FIELD_PREFIX) && !(k in params)) params[k] = null
     }
-    setParams(params, true)
+    setParams(params, replace)
   }
 
   /** Independent copy of current config (arrays cloned). Starting point for mutations. */
@@ -426,10 +427,13 @@ class FiltersStore {
   }
 
   setQuery(q: string): void {
-    if (q === this.#config.filters.q) return
+    const prev = this.#config.filters.q
+    if (q === prev) return
     const c = this.snapshot()
     c.filters.q = q
-    this.#apply(c)
+    // Typing is continuous input: one entry for the query however many
+    // keystrokes land, pushed when the box goes empty → text or text → empty.
+    this.#apply(c, Boolean(prev.trim()) === Boolean(q.trim()))
     // Local query change invalidates prior server-search results
     if (!q.trim()) this.clearServerSearch()
   }
@@ -475,11 +479,12 @@ class FiltersStore {
     this.#apply(c)
   }
 
-  /** Apply a saved/default view wholesale. */
-  applyConfig(config: ViewConfig): void {
+  /** Apply a saved/default view wholesale. `replace` for boot writes (the
+   *  startup default), which are not a move the user made. */
+  applyConfig(config: ViewConfig, replace = false): void {
     this.clearServerSearch()
     this.notifyKeysCapped(normalizeKeys(config.filters?.keys ?? []))
-    this.#apply(mergeConfig(config))
+    this.#apply(mergeConfig(config), replace)
   }
 
   /**
