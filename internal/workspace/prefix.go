@@ -13,17 +13,22 @@ package workspace
 // profile is `served`: "" when they are the same mirror, "/w/<name>" when the
 // profile has to be reached as a workspace mount.
 //
+// The primary profile ("" or "default") is "" on every server, whatever
+// `served` is. It used to become /w/default on a named server, and that
+// mount can never answer: the existence gate reads directory names under
+// profiles/ and the primary lives at the root with no directory, so the
+// desktop's Settings… menu (a link with no /w/ segment) navigated a named
+// workspace into a bare 404 with no way back (GitHub #85, GDK-1309). The
+// deep-link grammar already says a segment-less link is the primary mirror,
+// and the primary mirror is `/` on any serve.
+//
 // Callers join it ahead of the rest of the path, so the empty string is the
 // correct answer for the primary profile and not a missing value.
 func Prefix(profile, served string) string {
-	if ProfileEq(profile, served) {
+	if ProfileEq(profile, served) || ProfileEq(profile, "") {
 		return ""
 	}
-	name := profile
-	if name == "" || name == "default" {
-		name = "default"
-	}
-	return "/w/" + name
+	return "/w/" + profile
 }
 
 // ProfileEq reports whether two profile names mean the same mirror. The

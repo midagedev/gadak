@@ -14,10 +14,12 @@ func TestPrefix(t *testing.T) {
 	}{
 		{"same named profile is already mounted", "work", "work", ""},
 		{"a named profile on the primary server is a mount", "work", "", "/w/work"},
-		{"the primary profile on a named server is /w/default", "", "work", "/w/default"},
+		// GitHub #85 / GDK-1309: /w/default is a mount that can never answer,
+		// so the primary is / on every server.
+		{"the primary profile on a named server is the root", "", "work", ""},
 		{"default and empty are the same mirror", "default", "", ""},
 		{"empty and default are the same mirror", "", "default", ""},
-		{"default spelled out on a named server", "default", "work", "/w/default"},
+		{"default spelled out on a named server is the root", "default", "work", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := Prefix(tc.profile, tc.served); got != tc.want {

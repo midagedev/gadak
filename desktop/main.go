@@ -440,6 +440,11 @@ func run() error {
 		window.SetURL(path)
 		raiseWindow(window)
 	})
+	showDeepLinkRefusal = func(text string) {
+		// Show dispatches through InvokeSync; off the caller's goroutine so
+		// a delivery on the main thread cannot wait on itself.
+		go app.Dialog.Warning().SetTitle("Gadak").SetMessage(text).AttachToWindow(window).Show()
+	}
 	// ApplicationLaunchedWithUrl: macOS Apple Event (first launch and
 	// same-process reopen) and Windows/Linux when wails sees a single
 	// argument containing "://" (GTK4 Linux: wailsapp/wails#6000, landed

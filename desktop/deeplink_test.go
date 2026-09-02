@@ -14,7 +14,17 @@ import (
 // composition, the argv scan, the silence/log split, and the one fact that
 // lives in two files at once — the scheme.
 
+// Every profile the tests below name as a mount exists on the imaginary
+// machine except the ones spelled "elsewhere" (GDK-1309).
+func stubProfiles(t *testing.T) {
+	t.Helper()
+	saved := profileExists
+	profileExists = func(name string) bool { return name != "elsewhere" }
+	t.Cleanup(func() { profileExists = saved })
+}
+
 func TestDeepLinkTarget(t *testing.T) {
+	stubProfiles(t)
 	for _, tc := range []struct {
 		name, raw, served, want string
 	}{
@@ -39,9 +49,12 @@ func TestDeepLinkTarget(t *testing.T) {
 			want: "/#/?ks=NMA-1",
 		},
 		{
-			name: "the primary profile seen from a named app is /w/default",
+			// GitHub #85 / GDK-1309: /w/default can never be served (the
+			// primary has no profiles/ directory), so the primary is the
+			// root mount on every server — this is the Settings… ⌘, link.
+			name: "the primary profile seen from a named app is the root mount",
 			raw:  "gadak://view?pj=NMA&sc=inprogress", served: "work",
-			want: "/w/default/#/?pj=NMA&sc=inprogress",
+			want: "/#/?pj=NMA&sc=inprogress",
 		},
 		{
 			// Percent-encoding survives the whole trip, not just the parser.
@@ -70,6 +83,7 @@ func TestDeepLinkTarget(t *testing.T) {
 }
 
 func TestDeepLinkTargetRejects(t *testing.T) {
+	stubProfiles(t)
 	for _, tc := range []struct {
 		name, raw string
 		is        error // nil = any error will do
@@ -158,6 +172,7 @@ func TestFirstDeepLinkArg(t *testing.T) {
 }
 
 func TestDeepLinkNavigator(t *testing.T) {
+	stubProfiles(t)
 	for _, tc := range []struct {
 		name, raw, want string
 	}{
@@ -172,6 +187,9 @@ func TestDeepLinkNavigator(t *testing.T) {
 		{"an empty query does not navigate", "gadak://view", ""},
 		{"an unsupported action does not navigate", "gadak://settings?tab=sync", ""},
 		{"an empty string does not navigate", "", ""},
+		// GitHub #85: well-formed, names a workspace this machine does not
+		// have. Navigating would land on a bare 404 with no way back.
+		{"a workspace not on this machine does not navigate", "gadak://view/w/elsewhere?issue=GADAK-1234", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got := ""
@@ -204,5 +222,32 @@ func TestBundleRegistersTheScheme(t *testing.T) {
 	}
 	if want := "<string>" + deeplink.Scheme + "</string>"; !strings.Contains(s, want) {
 		t.Fatalf("build-app.sh does not register the %q scheme (looked for %s)", deeplink.Scheme, want)
+	}
+}
+
+// TestNoSuchWorkspaceIsToldToTheUser: the one refusal that gets a dialog. A
+// mistyped or hostile link stays log-only; a link from another machine's
+// gadak used to become the 404 page, so the user needs the sentence.
+func TestNoSuchWorkspaceIsToldToTheUser(t *testing.T) {
+	stubProfiles(t)
+	shown := ""
+	saved := showDeepLinkRefusal
+	showDeepLinkRefusal = func(text string) { shown = text }
+	t.Cleanup(func() { showDeepLinkRefusal = saved })
+	navigated := false
+	nav := deepLinkNavigator("", func(string) { navigated = true })
+
+	nav("gadak://view/w/elsewhere?issue=GADAK-1234")
+	if navigated {
+		t.Fatal("navigated to a workspace that is not here")
+	}
+	if !strings.Contains(shown, "elsewhere") || !strings.Contains(shown, "not on this machine") {
+		t.Fatalf("dialog text %q, want the workspace name and the reason", shown)
+	}
+
+	shown = ""
+	nav("gadak://view/w/../?x=1")
+	if shown != "" {
+		t.Fatalf("a malformed link raised a dialog: %q", shown)
 	}
 }
