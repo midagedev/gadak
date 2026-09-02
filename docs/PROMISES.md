@@ -53,7 +53,7 @@ go test ./internal/selfupdate/ -run 'TestCheck_disabled|TestCheck_devVersion' -c
 
 **4. The mirror is an ordinary SQLite file, readable without gadak.**
 No custom container and no lock-in: the bundled demo mirror opens in any SQLite
-client. On a connected workspace, deleting a mirror loses nothing your
+client. On a Jira workspace, deleting a mirror loses nothing your
 Atlassian site does not hold.
 
 ```bash
@@ -96,7 +96,7 @@ go test ./internal/snapshot/ -run 'TestCredentialRejected|TestCredentialInPageRe
 # → ok  github.com/midagedev/gadak/internal/snapshot
 ```
 
-**9. On a gadak origin, the origin is one ordinary SQLite file, readable without gadak.**
+**9. On the built-in tracker, the origin is one ordinary SQLite file, readable without gadak.**
 `gadak init --local` writes `origin/issuetap.db` under the profile
 directory (`internal/origin/origin.go` `PersistRel`) — plain SQLite, no
 custom container. That file is the record; `gadak.db` remains a disposable

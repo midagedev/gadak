@@ -71,7 +71,7 @@ func parseCSVKeys(s string, upper bool) []string {
 // replaceLocalOriginUsage is the --replace-local help text. It names
 // what is lost: locally originated issues have no Jira copy, and the
 // conversion drops them from the mirror (GDK-241).
-const replaceLocalOriginUsage = "replace this workspace's gadak origin with a Jira site; issues that originated here exist only here and converting deletes them from the mirror"
+const replaceLocalOriginUsage = "replace this workspace's built-in tracker with a Jira site; issues that originated here exist only here and converting deletes them from the mirror"
 
 // renderReplaceRefusedJSON writes the --json document for a refused
 // local-origin replace. Shape and field values match the previous
@@ -161,9 +161,9 @@ func cmdInit(args []string) error {
 	// "flag provided but not defined"; the value must never be accepted (ps/history).
 	tokenFlag := fs.String("token", "", "not accepted; use GADAK_TOKEN, --token-file, or --token-stdin")
 	jsonOut := fs.Bool("json", false, "emit one JSON object on success")
-	// The origin is gadak's own tracker, running in this process — the
+	// The origin is the built-in tracker, running in this process — the
 	// transport axis's local (GDK-1278).
-	localOrigin := fs.Bool("local", false, "create a workspace whose origin is gadak's own tracker, running here (no Jira site or credential)")
+	localOrigin := fs.Bool("local", false, "create a workspace on the built-in tracker, running here (no Jira site or credential)")
 	// Pairing (GDK-433): bind this workspace to a remote gadak serve with
 	// an offer from the home machine's `gadak pairing mint`. The stdin form
 	// exists for the same reason --token-stdin does: the offer carries a
@@ -525,11 +525,11 @@ func initLocalOrigin(cfg *config.Config, jsonOut bool, projectsFlag string) erro
 		if persist == "" {
 			persist = p
 		}
-		fmt.Printf("origin is already gadak's own tracker, at %s\n", persist)
+		fmt.Printf("origin is already the built-in tracker, at %s\n", persist)
 		printSkillAutoResult(skill)
 		return nil
 	}
-	fmt.Printf("origin is gadak's own tracker — saved %s\n", p)
+	fmt.Printf("origin is the built-in tracker — saved %s\n", p)
 	if persist != "" {
 		fmt.Printf("origin persist (this file is the original): %s\n", persist)
 	}

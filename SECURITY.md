@@ -181,7 +181,7 @@ device. A DNS-named Host — the shape `tailscale serve` forwards — is
 rejected by the rebinding guard unless the request is bound for a surface a
 token authenticates, and there are exactly three of those:
 
-- **The origin passthrough** (`/api/v1/origin`, gadak-origin workspaces): raw
+- **The origin passthrough** (`/api/v1/origin`, workspaces on the built-in tracker): raw
   REST for paired gadak machines and this machine's own routed writes
   (`internal/server/origin_rest.go`).
 - **The mirror REST** (any workspace kind): everything the local web UI
@@ -209,7 +209,7 @@ and on the terminal; `--scope terminal` opens a shell and is refused on
 both of the others (`403 scope_rejected`, or `403 forbidden_host` where a
 wrong-scope token is not even told the terminal route exists). A leaked
 serve token cannot reach raw REST or a shell; a paired laptop cannot dump
-the mirror. Minting works on any workspace kind (GDK-798) — a connected
+the mirror. Minting works on any workspace kind (GDK-798) — a Jira
 home mints phone tokens for its mirror REST, while its passthrough stays
 closed (404) regardless.
 
@@ -370,16 +370,16 @@ your files, full-disk encryption is the remaining tool — a local password on
 the file would only be obfuscation, and we would rather not pretend
 otherwise.
 
-Offboarding depends on what the profile holds. On a connected workspace —
-or a paired one — the origin is elsewhere (your Atlassian site, or the home
+Offboarding depends on what the profile holds. On a Jira or Linear workspace —
+or a paired one — the origin is elsewhere (your Atlassian site or Linear, or the home
 serve you paired with), and `rm -rf ~/.gadak` is the whole story: it removes
 the mirror, the credential, and every profile, and nothing else on the
-machine or in Jira knows gadak existed. On a workspace whose origin is gadak's own tracker that
+machine or in Jira knows gadak existed. On the built-in tracker that
 command destroys the origin itself: each profile's `origin/issuetap.db` is
 the only copy of that tracker anywhere. Copy the file out first (plain
 SQLite — nothing of gadak's is needed to read it) unless you mean to throw
 the data away. To offboard one profile rather than the whole home,
-`gadak workspaces rm <name>` removes just that profile; a gadak-origin one
+`gadak workspaces rm <name>` removes just that profile; one on the built-in tracker
 additionally requires `--destroy-origin`, for exactly the reason above.
 
 ## Release artifacts

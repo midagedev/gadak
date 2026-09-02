@@ -198,6 +198,6 @@ In order of commitment:
    your machine.
 
 If gadak stopped shipping tomorrow, you would delete a directory and lose
-nothing: your Jira was the source of truth the whole time, and a gadak-origin
+nothing: your Jira was the source of truth the whole time, and a built-in-tracker
 workspace's record is one SQLite file you already know how to read. That
 property is the product.

@@ -227,7 +227,7 @@ order by c.created_at desc limit 20
 **The same question keyed on `author_id`.** The fence above filters on a
 display name — right for a skim, wrong as a key: names rename, and a
 colliding name is two people. `comments.author_id` is the stable one (the
-actor slug on a gadak origin and paired workspaces, the origin's account id on
+actor slug on the built-in tracker, local or paired, the origin's account id on
 Cloud), the same column the other write surfaces key on:
 
 ```sql
@@ -240,7 +240,7 @@ order by c.created_at desc limit 20
 
 **Issues a bot worker touched.** `issue_actors` is one touch per row across
 comments, changelog and dev-panel links; `users` caches the origin's
-`account_type`, where `agent` (gadak-origin worker accounts) and `app` (Cloud
+`account_type`, where `agent` (the built-in tracker's worker accounts) and `app` (Cloud
 Connect) mean bot. Join on ids — display names localize and rename:
 
 ```sql
@@ -253,8 +253,8 @@ order by a.issue_key
 
 ## What a session left
 
-**Everything one actor left, across all four write surfaces** — on a
-gadak origin, local or paired, every write records its actor
+**Everything one actor left, across all four write surfaces** — on the
+built-in tracker, local or paired, every write records its actor
 (`GADAK_ACTOR`, or `claude:<session prefix>` auto-detected for Claude
 Code), so "what did the last session do" is a query, not archaeology.
 Issues and pages it created, comments it wrote, fields it moved, page
@@ -292,7 +292,7 @@ select at, kind, ref, what from (
 
 For `kind = 'page'` the ref is the origin page id (`items.key` — what
 `gadak page edit` takes). Page version 1 is excluded — it is the same
-event as the `created:` row. On a connected Cloud workspace the same
+event as the `created:` row. On a Jira Cloud workspace the same
 query works with the Atlassian `accountId` as the author id.
 
 ## This sprint

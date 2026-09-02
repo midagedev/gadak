@@ -87,7 +87,7 @@ The neutral spine. One row per mirrored object regardless of source.
 
 | Column | Type | Notes |
 | --- | --- | --- |
-| `id` | TEXT PK | `<source_id>:<external_id>`. A gadak origin (issuetap) issues the same numeric ids a real site uses, so those rows are stored as `standalone-<source_id>:<external_id>` (`standalone-jira:10001`, `standalone-confluence:20001`). `source_id` stays `jira` / `confluence`; ids are opaque (GDK-241, GDK-344). |
+| `id` | TEXT PK | `<source_id>:<external_id>`. The built-in tracker (issuetap) issues the same numeric ids a real site uses, so those rows are stored as `standalone-<source_id>:<external_id>` (`standalone-jira:10001`, `standalone-confluence:20001`). `source_id` stays `jira` / `confluence`; ids are opaque (GDK-241, GDK-344). |
 | `source_id` | TEXT | FK to `sources.id` |
 | `kind` | TEXT | `issue` in v0.1; `page` reserved for Confluence |
 | `external_id` | TEXT | Source's own id |
@@ -241,7 +241,7 @@ generated strings, so the UI joins here for a human name.
 The document projection (Confluence pages; decision 0006). Joined to `items` on
 `item_id`; the item row carries `kind = 'page'`, the numeric page id as `key`,
 and the flattened ADF body as `body_text`, so FTS and the spine queries need no
-change. Comments reuse the `comments` table. gadak-origin page item ids use the
+change. Comments reuse the `comments` table. Built-in-tracker page item ids use the
 `standalone-confluence:` prefix (see `items.id`); the key stays the numeric
 external id (GDK-344).
 
@@ -291,7 +291,7 @@ A failed history fetch is logged and the rest of the pass continues.
 
 | Column | Type | Notes |
 | --- | --- | --- |
-| `id` | TEXT PK | `<source_id>:<comment_id>`. gadak-origin mirrors use the same `standalone-<source_id>:` prefix as the parent item (GDK-241 issues, GDK-344 wiki comments). |
+| `id` | TEXT PK | `<source_id>:<comment_id>`. Built-in-tracker mirrors use the same `standalone-<source_id>:` prefix as the parent item (GDK-241 issues, GDK-344 wiki comments). |
 | `item_id` | TEXT | FK |
 | `external_id` | TEXT | |
 | `author` | TEXT | |
@@ -313,9 +313,9 @@ tree.
 ## `dev_links`
 
 v29 (GDK-497). The development-panel pull-request links the origin holds for
-an issue — Jira's dev-status on a connected workspace (mirrored only when
+an issue — Jira's dev-status on a Jira workspace (mirrored only when
 `devStatus` is set in config.json; the API is Atlassian-internal), issuetap's
-own store on a gadak-origin one (written through `gadak dev link`). Rows live
+own store on the built-in tracker (written through `gadak dev link`). Rows live
 and die with the issue rewrite, like comments. `(item_id, url)` is the
 primary key — url is the idempotent key both origins use.
 
@@ -410,8 +410,8 @@ read time (GDK-591).
 | `source_id` | TEXT | `jira` (PK with `account_id`) |
 | `account_id` | TEXT | Origin-minted account id |
 | `name` | TEXT | Display name |
-| `email` | TEXT | Empty when the origin hides it (gadak-origin agents have none) |
-| `account_type` | TEXT | Origin's spelling: `agent` (gadak-origin actors), `app` (Cloud Connect), `atlassian` / `customer` (humans) |
+| `email` | TEXT | Empty when the origin hides it (the built-in tracker's agents have none) |
+| `account_type` | TEXT | Origin's spelling: `agent` (built-in-tracker actors), `app` (Cloud Connect), `atlassian` / `customer` (humans) |
 
 The origin's account catalog, cached by every sync pass from user payloads the
 sync already reads — assignee, reporter, creator, comment/attachment/changelog
@@ -577,7 +577,7 @@ or `fl:<item_id>:<at>` for grouped field changes.
 
 ## Replacing the origin
 
-A workspace is bound to one origin, and converting a workspace whose origin is gadak's own tracker to a
+A workspace is bound to one origin, and converting a workspace on the built-in tracker to a
 site replaces it. An issue key is not globally unique — `init --local`
 seeds project `STD`, and a real site's project can be `STD` too — so a row
 naming the old origin's `STD-1` does not become stale when the origin changes.

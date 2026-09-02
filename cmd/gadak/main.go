@@ -215,19 +215,19 @@ Writing through to the workspace origin — ` + writeThroughOriginPhrase + `:
   wiki       alias of page                get <ID> | list | create|edit|comment [<ID>]
   memory     agent memory: leave notes the next session finds   add <text> | -m <text|-> [--title T] [--json]
                    | search <query> [--limit N] [--json]  (space: gadak config set memory.space KEY)
-  ref        point an issue at another workspace's issue (a gadak origin)     <KEY> <workspace>/<KEY> [--as <phrase>]
+  ref        point an issue at another workspace's issue (built-in tracker) <KEY> <workspace>/<KEY> [--as <phrase>]
                    | --list [--json] | --rm <id>   (the list hydrates the target's live state locally)
-  migrate    export a workspace's mirror into a new one gadak keeps itself (issues, wiki, attachments, history)
+  migrate    export a workspace's mirror into a new one on the built-in tracker (issues, wiki, attachments, history)
                    --from <workspace> [--projects A,B] [--spaces X,Y] [--skip-attachments] [--json]
-  project    grow a gadak-origin workspace by a project create <KEY> [--name N] [--json]
-  dev        record PRs, deployments, and builds on issues (a gadak origin)
+  project    grow a built-in-tracker workspace by a project create <KEY> [--name N] [--json]
+  dev        record PRs, deployments, and builds on issues (built-in tracker)
                    link <KEY> --pr <url> [--status ...] | scan [--dry-run] [--install-hook]
                    | deploy <KEY> --env <name> --state <state> | build <KEY> --state <state>
   fields     custom-field usage report  [--sample N] [--json] [--all] [--project KEY] [--apply]
   team       share team settings/views  export [--out] [--with-members]
                                         import <FILE|-> [--dry-run] [--overwrite]
 
-Pairing other machines onto this serve (a gadak origin):
+Pairing other machines onto this serve (built-in tracker):
   pairing    device tokens gating the origin passthrough  mint --label NAME [--ttl 90d] [--endpoint URL] [--json] | list [--json] | revoke <label|hash-prefix>
 
 Workspaces keep separate credentials and mirrors (e.g. work and demo):

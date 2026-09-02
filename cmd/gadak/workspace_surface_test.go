@@ -83,7 +83,7 @@ func TestServeHelpSyncsLocalOriginWithoutCredential(t *testing.T) {
 	// all — a gadak origin needs none. GDK-1281 stopped naming that case
 	// "standalone", so the assertion names the case instead of the word.
 	sum := helps["serve"].summary
-	if !strings.Contains(sum, "gadak's own tracker") {
+	if !strings.Contains(sum, "built-in tracker") {
 		t.Errorf("serve summary does not say sync happens without a credential: %q", sum)
 	}
 	if strings.Contains(sum, "when a credential is configured") {

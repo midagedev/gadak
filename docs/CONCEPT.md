@@ -42,17 +42,17 @@ product than this one.
 **The mirror is disposable.** If the schema is a cache of the origin's truth,
 deleting it is always safe. That property is worth protecting: the moment the
 mirror holds something irreplaceable it becomes infrastructure someone has to
-back up. On a gadak origin, the irreplaceable file is not `gadak.db` — it is the
+back up. On the built-in tracker, the irreplaceable file is not `gadak.db` — it is the
 origin persist file (below).
 
 ## Two origins
 
 A workspace is bound to one origin.
 
-- **Connected** — Atlassian Cloud (or Linear, when configured) is the record.
+- **Jira or Linear** — Atlassian Cloud (or Linear, when configured) is the record.
   The token talks to that site. Delete the profile directory and you have lost
   a cache.
-- **A gadak origin** (from 0.16) — the origin is an in-process minimal Jira
+- **Built-in tracker** (from 0.16) — the origin is an in-process minimal Jira
   (`issuetap`). There is no Atlassian account. The durable file is
   `origin/issuetap.db` in the profile directory (`internal/origin/origin.go`
   `PersistRel`): a SQLite database (WAL). That is the file to back up —
@@ -132,7 +132,7 @@ CLI covers those plus `create`, `attach`, and `edit` (values always come from
 what the origin allows, never free text — an issue type or priority the CLI
 cannot match is refused with the names that origin actually uses).
 Wiki page create, edit, and comment go through the origin too — Confluence
-Cloud on a connected workspace, the in-process origin on a gadak origin.
+Cloud on a Jira workspace, the in-process origin on the built-in tracker.
 
 Hierarchy is first-class: `epic_key` is derived honestly (the nearest epic
 *ancestor*, so a sub-task groups under its epic, not its story), group-by-epic
@@ -174,8 +174,8 @@ pain hardest. Local means nothing to approve.
 Not a Jira replacement — we do not reimplement boards, dashboards, or the rest
 of Jira's UI; we contain those pages so the window can hold what the mirror
 refuses to model. Not a sync engine. Not an archive. Not multi-user. On a
-connected workspace, not a place to put anything you cannot afford to lose
-(the Atlassian site holds the record). On a gadak origin, `origin/issuetap.db`
+Jira workspace, not a place to put anything you cannot afford to lose
+(the Atlassian site holds the record). On the built-in tracker, `origin/issuetap.db`
 *is* the record — losing that file loses the work.
 
 ## Good fit / bad fit

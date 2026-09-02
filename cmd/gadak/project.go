@@ -55,7 +55,7 @@ func cmdProjectCreate(args []string) error {
 		return config.NotConfiguredWith("project create writes to the origin, not to the mirror")
 	}
 	if !cfg.HasLocalOrigin() {
-		return fmt.Errorf("project create is for local-origin workspaces — on a connected workspace, create the project in Jira and run `gadak sync`")
+		return fmt.Errorf("project create is for the built-in tracker — on a Jira workspace, create the project in Jira and run `gadak sync`")
 	}
 	client, err := origin.Client(cfg)
 	if err != nil {

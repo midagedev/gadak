@@ -16,8 +16,8 @@ plugin registry, lifecycle, or manifest.
 If your plugin can open a SQLite file, it is compatible.
 
 PR URLs on an issue are first-class `dev_links` (`gadak issue KEY --json`;
-SQL joins `dev_links` on `item_id`). On a gadak origin, `gadak dev link` /
-`gadak dev scan` write that table through the origin; on connected Cloud,
+SQL joins `dev_links` on `item_id`). On the built-in tracker, `gadak dev link` /
+`gadak dev scan` write that table through the origin; on Jira Cloud,
 `gadak config set devStatus true` mirrors Jira's development panel into it
 (read). The `kind=prs` plugin is extra metadata on top of that, not the
 way to attach a PR.

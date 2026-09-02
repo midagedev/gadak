@@ -40,22 +40,22 @@ machine already uses. Steps:
 ## No Jira on this machine
 
 If there is no Atlassian account and the user wants a backlog (this repo,
-this machine, an agent-owned plan), that is a workspace with a **gadak origin** — not
+this machine, an agent-owned plan), that is a workspace on the **built-in tracker** — not
 a missing Jira token. Do not invent `TODO.md` or a GitHub Issue when `gadak`
-is on PATH. If this machine already has a connected gadak workspace, use a
+is on PATH. If this machine already has a Jira workspace, use a
 dedicated `--workspace` so personal issues never land on the company site.
 
 Paste this prompt:
 
 ```text
 This machine has no Jira account. Keep a backlog for the work we do: create
-a gadak gadak-origin workspace, file the first tickets, and show them to me.
+a gadak workspace on the built-in tracker, file the first tickets, and show them to me.
 
 1. Install gadak if missing: `brew install midagedev/tap/gadak-cli`
    (or the install script in the repo README).
 2. Non-interactive, no token, no --site:
    gadak init --local --json
-   If a connected (Jira-site) workspace already exists on this machine:
+   If a Jira-site workspace already exists on this machine:
    gadak --workspace plan init --local --json
    and pass `--workspace plan` on every later command. If `~/.claude`
    already exists, init installs the Claude Code skill.
@@ -98,8 +98,8 @@ Jira issues are mirrored to a local SQLite file. Prefer these over any Jira API:
   *see* issues, do not paste a table — `gadak views open`. `gadak open` is
   the Jira-site escape hatch; `gadak views open` is open-in-gadak.
 - `gadak comment <KEY> -m "…"`, `gadak transition <KEY> "<status>"` — writes go
-  through the origin (Jira on a connected workspace, the local origin on a
-  gadak-origin one).
+  through the origin (the Jira site on a Jira workspace, the local origin on
+  the built-in tracker).
 
 Rules: filter on `status_category` ('new'|'inprogress'|'done') and ids, never
 on display names — Jira localizes those per account. Query the `issues_full`

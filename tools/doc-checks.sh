@@ -989,9 +989,12 @@ hits = []
 for p in paras:
     if not re.search(r"rm\s+-rf\s+~/\.gadak", p):
         continue
-    # Connected-scoped mention is allowed. Unqualified "just delete
-    # ~/.gadak" is the class that wipes a standalone origin.
-    if re.search(r"\bconnected\b", p, re.I):
+    # A mention scoped to a site-backed workspace is allowed. Unqualified
+    # "just delete ~/.gadak" is the class that wipes a standalone origin.
+    # GDK-1278's vocabulary split retired "connected" as the category word
+    # in prose; the scope is now spelled "Jira workspace" (FAIL-first
+    # 2026-09-02: the reworded paragraph tripped the old regex).
+    if re.search(r"\b(connected|Jira)\b", p, re.I):
         continue
     hits.append(re.sub(r"\s+", " ", p.strip())[:220])
 if hits:
@@ -999,7 +1002,7 @@ if hits:
 GDK373PY
 )
 if [[ -n "$faq_rm_unscoped" ]]; then
-  fail "docs/FAQ.md has an unscoped \`rm -rf ~/.gadak\` (GDK-373) — scope it to a connected workspace:"$'\n'"$faq_rm_unscoped"
+  fail "docs/FAQ.md has an unscoped \`rm -rf ~/.gadak\` (GDK-373) — scope it to a Jira workspace:"$'\n'"$faq_rm_unscoped"
 fi
 ok "docs/FAQ.md does not tell a standalone user to rm -rf ~/.gadak"
 

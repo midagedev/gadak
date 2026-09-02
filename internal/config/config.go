@@ -1089,7 +1089,7 @@ func (c *Config) ProjectMirrored(key string) bool {
 // origin.errNeedCredential is a different error (Client/Wiki construction
 // when a connected workspace lacks site/email/token) and is quoted by
 // wikiPathStatus; it is not this sentence.
-var ErrNotConfigured = errors.New("not configured — run gadak init (Jira), gadak init --local (gadak's own tracker), or gadak init --pairing-code (another machine's serve)")
+var ErrNotConfigured = errors.New("not configured — run gadak init (Jira), gadak init --local (built-in tracker), or gadak init --pairing-code (another machine's serve)")
 
 // NotConfiguredWith appends a verb-specific addendum to ErrNotConfigured.
 func NotConfiguredWith(addendum string) error {

@@ -22,7 +22,7 @@ it in the [desktop app](docs/DESKTOP.md) or a browser tab, or let a coding
 agent ask in plain SQL and point the same window at the answer. One binary,
 one app, no gadak account.
 
-**The mirror is a cache you can throw away.** On a connected workspace, if this
+**The mirror is a cache you can throw away.** On a Jira workspace, if this
 project stops tomorrow, you delete a directory and have lost nothing: Jira
 stays the source of truth.
 
@@ -34,8 +34,8 @@ stays the source of truth.
   &nbsp;—&nbsp; what shipped.
 </p>
 
-A connected site needs one [API token](https://id.atlassian.com/manage-profile/security/api-tokens)
-— it covers Jira and Confluence on the same site. A workspace whose origin is gadak's own tracker
+A Jira site needs one [API token](https://id.atlassian.com/manage-profile/security/api-tokens)
+— it covers Jira and Confluence on the same site. A workspace on the built-in tracker
 needs no Atlassian account at all.
 
 **You pick what it mirrors.** The wiki is off until you ask for it, and when
@@ -68,7 +68,7 @@ Connect to Jira:
 gadak init && gadak sync && gadak serve
 ```
 
-Or start with no tracker:
+Or start on the built-in tracker, with no account:
 
 ```bash
 gadak init --local
@@ -77,7 +77,7 @@ gadak serve
 ```
 
 Or leave one, data in hand — issues, comments, full history, attachments,
-and wiki pages move from a synced workspace into a gadak-origin one, ending
+and wiki pages move from a synced workspace onto the built-in tracker, ending
 with a source-vs-migrated count table:
 
 ```bash
@@ -210,10 +210,10 @@ open-by-key half.
 
 ## What's covered
 
-Connected talks to Atlassian Cloud. gadak's own tracker (from 0.16) is a workspace
+A Jira workspace talks to Atlassian Cloud. The built-in tracker (from 0.16) is a workspace
 with no Atlassian account — a minimal Jira origin that travels with the
 app. The mirror is a cache either way; every write goes through the origin.
-On a gadak origin the durable file is the origin's persist file — issuetap.db
+On the built-in tracker the durable file is the origin's persist file — issuetap.db
 in the workspace's origin folder (SQLite, WAL). Copy it while gadak is not
 running (include the `-wal`/`-shm` sidecars), or
 `sqlite3 origin/issuetap.db ".backup dest.db"`.
@@ -225,7 +225,7 @@ dashboards and Jira's notification inbox do not — those stay in Jira.
 <details>
 <summary>▶ The full matrix, with the footnote for every ✅</summary>
 
-| | Connected (Atlassian Cloud) | gadak's own tracker (from 0.16) |
+| | Jira (Atlassian Cloud) | Built-in tracker (from 0.16) |
 | --- | :---: | :---: |
 | Issue read and search (FTS, JQL, SQL) | ✅¹ | ✅¹ |
 | Create, comment, transition, assignee, labels, priority | ✅ | ✅ |
@@ -416,7 +416,7 @@ and its off switch.
 ## Install
 
 The two brew lines are at the top of this page. Atlassian Cloud, or (from
-0.16) a workspace whose origin is gadak's own tracker with no Atlassian account — a connected site
+0.16) a workspace on the built-in tracker with no Atlassian account — a Jira site
 needs one [API token](https://id.atlassian.com/manage-profile/security/api-tokens),
 which covers Jira and Confluence on the same site.
 

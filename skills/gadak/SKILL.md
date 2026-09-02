@@ -9,7 +9,7 @@ description: >
   untriaged, how a release is shaped, about a backlog, or anything that would
   otherwise mean paging through Jira search — including when they have no
   Jira or Atlassian account and want a tracker that lives on this machine
-  (a tracker gadak keeps itself). Also use before any write — creating an issue, attaching a
+  (the built-in tracker). Also use before any write — creating an issue, attaching a
   file, editing a summary, label or priority, commenting, transitioning,
   assigning, creating or editing a wiki page — since all of those go through
   the same tool rather than the Atlassian API. When the user wants to *see*
@@ -74,7 +74,7 @@ Linear when Linear is the only issue source that has; `sources.jira` /
 `sources.linear` for per-source rows). If `gadak` is missing,
 say so rather than guessing at answers. If `gadak` is on PATH but there is no
 workspace yet and they asked for a backlog (or have no Jira), create a
-workspace whose origin is gadak's own tracker — do not invent a `TODO.md`
+workspace on the built-in tracker — do not invent a `TODO.md`
 or a GitHub Issue.
 
 After a context compaction, or when resuming someone else's session on an
@@ -109,7 +109,7 @@ Two questions, not one. Same CLI verbs either way.
 Writes always go to the origin first, then the mirror re-reads.
 
 A paired workspace is the case worth remembering: `gadak, remote`. Its
-origin is gadak's own tracker one machine away, so writes work with no
+origin is the built-in tracker one machine away, so writes work with no
 Atlassian credential at all.
 
 Detect both before you write:
@@ -122,7 +122,7 @@ gadak workspaces --json # name, active, configured, site_host, issues, …
 
 `kind` is still there — `standalone` or `connected` — and still means what
 it used to. It is the older, coarser field: it calls a paired workspace
-`connected` even though its origin is gadak's own tracker. Prefer
+`connected` even though its origin is the built-in tracker. Prefer
 `origin_type` and `transport`; read `kind` only from a gadak too old to
 send them.
 
@@ -150,7 +150,7 @@ gadak --workspace work sql "…"    # this call only
 `--profile` is an alias of `--workspace`; existing scripts and MCP installs
 that pass `--profile` keep working. `gadak profiles` is the same command as
 `gadak workspaces`. To remove a workspace entirely:
-`gadak workspaces rm <name> --yes` — a gadak origin additionally
+`gadak workspaces rm <name> --yes` — one on the built-in tracker additionally
 needs `--destroy-origin` (its persist is the only copy of that tracker; the
 refusal names the file to copy out first).
 
@@ -170,9 +170,9 @@ Three rules follow, and they are the point of the design:
   `transition`, `assign` and `api --write` all take the same `--workspace`. If
   the question came from data in one mirror, the write goes to that same one.
 
-If a workspace shows `configured: false` it has no credential: a **connected**
+If a workspace shows `configured: false` it has no credential: a **Jira or Linear**
 mirror can still be read if it was ever synced, but it will not be refreshed
-and writes will fail. A **gadak-origin** workspace is `configured: true` with
+and writes will fail. A **built-in-tracker** workspace is `configured: true` with
 an empty `site_host` and no token — writes still work; they go to the local
 origin, not Atlassian. If `site_host` is empty, read `workspace.kind` from
 `gadak doctor --json` (or `kind` from `gadak status --json` when that field
@@ -251,7 +251,7 @@ SELECT key, summary, reopen_count, reopen_reason FROM issues_full
 WHERE reopen_count > 0 ORDER BY reopen_count DESC, reopened_at DESC LIMIT 20;
 
 -- What is stuck, and for how long
--- Same GDK-369 clock caveat on a gadak origin for julianday('now').
+-- Same GDK-369 clock caveat on the built-in tracker for julianday('now').
 SELECT key, status, ROUND(julianday('now') - julianday(status_changed_at), 1) AS days
 FROM issues WHERE status_category = 'inprogress' ORDER BY days DESC LIMIT 20;
 
@@ -266,7 +266,7 @@ LEFT JOIN pages  p ON p.item_id = it.id
 WHERE items_fts MATCH 'webhook AND retry' LIMIT 20;
 
 -- What moved this week, and who moved it
--- On a gadak origin, the origin clock may not match the wall clock (GDK-369);
+-- On the built-in tracker, the origin clock may not match the wall clock (GDK-369);
 -- this window can be empty. Do not rewrite the predicate.
 SELECT c.at, c.author, c.field, c.from_value, c.to_value, i.key
 FROM changelog c JOIN issues i ON i.item_id = c.item_id
@@ -395,7 +395,7 @@ gadak views open <KEY>
 records the default issue type, so a summary-only `gadak create` is enough.
 
 Use a dedicated `--workspace` and name it in every command, so the backlog
-never mixes with a connected mirror:
+never mixes with a Jira mirror:
 
 ```bash
 gadak --workspace plan init --local --json
@@ -403,9 +403,9 @@ gadak --workspace plan create "Ship the uploader" -m "found while refactoring"
 gadak --workspace plan views open <KEY>
 ```
 
-If the active workspace is already a connected Cloud site and the user asked
+If the active workspace is already a Jira Cloud site and the user asked
 for a backlog of this repo (not of that site), do not file there. That write
-is visible to their whole team. Init a gadak origin under a new workspace instead.
+is visible to their whole team. Init the built-in tracker under a new workspace instead.
 
 Do not invent a `TODO.md`, a markdown checklist, or a GitHub Issue when
 `gadak` is on PATH. The window is how the human sees the same backlog.
@@ -413,11 +413,11 @@ Do not invent a `TODO.md`, a markdown checklist, or a GitHub Issue when
 The durable record is `<workspace-dir>/origin/issuetap.yaml` — that file is
 the backup target, not `gadak.db`. `gadak doctor --json` reports it as
 `workspace.persist` (and top-level `origin`). Running `init` with a site on
-a gadak origin deletes issues that originated there; warn before
+the built-in tracker deletes issues that originated there; warn before
 converting.
 
-**Write freely here.** Confirm-before-writing applies to connected
-workspaces because the team can see the issue. A gadak-origin write is a file
+**Write freely here.** Confirm-before-writing applies to Jira or Linear
+workspaces because the team can see the issue. A built-in-tracker write is a file
 on this machine: create, edit, comment, and transition without asking, then
 report what you filed (keys and one-line summaries).
 
@@ -428,7 +428,7 @@ Everything else in this file works identically: `status_category`,
 
 `gadak --workspace <new name> migrate --from <workspace>` exports the
 source workspace's mirror — issues, comments, history, links, attachment
-bytes, wiki pages — into a brand-new workspace gadak keeps itself and ends with a
+bytes, wiki pages — into a brand-new workspace on the built-in tracker and ends with a
 source-vs-migrated count table (derived columns like `reopen_count`
 included). The source is read-only throughout and keeps working. The
 target must not exist yet; migrating never rebinds an existing workspace.
@@ -438,19 +438,19 @@ how many code blocks / media / tables that flattened.
 
 ### Pointing at another workspace's issue
 
-On any gadak origin, local or paired, `gadak ref <KEY> <workspace>/<TARGET>`
+On the built-in tracker, local or paired, `gadak ref <KEY> <workspace>/<TARGET>`
 records a pointer at an issue in a different workspace — a personal note
 that names a team ticket, without writing anything to that team's tracker.
 `gadak ref <KEY> --list` prints each pointer with the target's **current**
 status and assignee, read from that workspace's own mirror on this machine
 (no network). A target this machine does not mirror still lists — it just
 says so. `--rm <id>` takes one back. The same references appear on the
-issue in the app. A connected Cloud workspace refuses the verb: the pointer
+issue in the app. A Jira Cloud workspace refuses the verb: the pointer
 would be visible to that whole site.
 
 ## Pairing: the origin is another machine's serve
 
-Home (a gadak origin, with `gadak serve` running) mints one offer per device.
+Home (the built-in tracker, with `gadak serve` running) mints one offer per device.
 The remote binds a *fresh* workspace. After that, every verb on that workspace
 uses the home serve as origin.
 
@@ -469,7 +469,7 @@ Do not combine `--pairing-code-stdin` with `--local` or a site token.
 
 ## Writing as yourself: the actor
 
-On any gadak origin, local or paired, every write records who made it. Set
+On the built-in tracker, local or paired, every write records who made it. Set
 your identity before the first write so comments and transitions attribute
 to you, not the workspace's default user:
 
@@ -482,8 +482,8 @@ Claude Code is detected automatically — no export needed; each session
 writes as `claude:<session prefix>`. A slug is a stable identity: pick one
 per agent and keep it across sessions. The machine's fallback lives in
 `gadak config set actor '{"slug":"grok:aa11","name":"Grok"}'` (the env
-value wins over it). The actor reaches only a gadak origin —
-never a connected Cloud site or any other outbound request. Without one,
+value wins over it). The actor reaches only the built-in tracker —
+never a Jira Cloud site or any other outbound request. Without one,
 writes attribute to the workspace's default user, exactly as before.
 
 The attribution is queryable — "what did the previous session leave" is
@@ -507,23 +507,23 @@ claim refuses with both named — pass `--transition <id|name>` to choose
 
 ## One issue, and writes
 
-With a **gadak origin**, `init` seeds project `STD` and records a default issue type,
-so a summary-only create is enough. On **connected**, use a key and project
+On the **built-in tracker**, `init` seeds project `STD` and records a default issue type,
+so a summary-only create is enough. On **Jira**, use a key and project
 that exist on that site (the `NMB-140` lines below are an example, not a
 universal project). A paired workspace is `connected` with no default project
 or type — `create` will ask for `--project` / `--type` until you set them.
 
 ```bash
-# gadak origin (seed project STD)
+# built-in tracker (seed project STD)
 gadak create "first ticket title" -m "why this exists"
 gadak issue STD-1 --json
 gadak comment STD-1 -m "Reproduced on staging."
-gadak assign STD-1 you@example.com            # the one seeded user; example.com emails from connected docs do not exist here
+gadak assign STD-1 you@example.com            # the one seeded user; example.com emails from the Jira examples do not exist here
 gadak claim STD-1                             # take it as yours: assignee + in-progress transition; refuses while another actor holds it (exit 75)
 gadak dev link STD-1 --pr https://github.com/org/app/pull/7   # opened a PR? record it right here
 gadak dev scan                                                # or sweep the repo: keys in PR titles/branches → links
 
-# connected: a key that exists on that site
+# Jira: a key that exists on that site
 gadak issue NMB-140 --json                    # fields, description, comments, history
 gadak issue NMB-140 --editmeta                # which configured fields this issue can edit (origin GET; not stored)
 gadak issue NMB-140 NMB-141 --json            # JSON array of the same documents; omit --json for text with --- KEY --- between them
@@ -561,7 +561,7 @@ gadak transition --batch -                    # JSON lines {"key","target"}; --d
 gadak assign --batch -                        # JSON lines {"key","assignee"}; "-" unassigns
 gadak edit --batch -                          # JSON lines {"key"} plus summary, labels (+x/-x), type, priority, due, parent, fields
 gadak fields --apply                          # map in-use custom fields, then edit --field alias=value
-gadak project create IDEA --name Ideas        # grow a gadak-origin workspace by a project
+gadak project create IDEA --name Ideas        # grow a built-in-tracker workspace by a project
 gadak transition NMB-140 done --field environment=staging
 gadak search NMB-140 --explain                # why each hit ranked: key-exact, key-prefix, or fts
 ```
@@ -578,8 +578,8 @@ name that matches nobody stays plain text and is named on stderr; stdout stays
 pipeable.
 
 Wiki pages — read from the local mirror (no network), write through the
-origin (Confluence, or gadak's own wiki). The seeded space
-is `LOC`; connected: a space key that exists on that site. `gadak wiki` runs
+origin (Confluence, or the built-in tracker's wiki). The seeded space
+is `LOC`; Jira: a space key that exists on that site. `gadak wiki` runs
 every one of these (`gadak wiki get <ID>` = `gadak page get <ID>`):
 
 ```bash
@@ -592,9 +592,9 @@ gadak page comment <ID> -m "a question"
 ```
 
 Writes go to the origin, then the issue (or page) is re-read into the mirror.
-On a **connected** Cloud workspace the origin is Jira — a create, comment,
+On a **Jira** Cloud workspace the origin is Jira — a create, comment,
 or transition is visible to their whole team; confirm first.
-On a **local gadak origin** the origin is this machine. File without
+On the **local built-in tracker** the origin is this machine. File without
 asking, then report the keys and one-line summaries.
 On a **paired** workspace (`status --json` has `pairing`), writes go to the
 home serve, not Atlassian.
@@ -641,8 +641,8 @@ session finds it", `gadak memory add '<note>'` is the correct call: it
 writes a page into the memory space through the same origin path as
 `page create`, derives the title from the note's first line, and reports
 `id → title → space`. `gadak memory search '<text>'` scopes the search to
-that space alone. The space is the `memory.space` setting: a **gadak origin**
-defaults to the seeded `LOC`; **connected refuses until it is set**
+that space alone. The space is the `memory.space` setting: the **built-in tracker**
+defaults to the seeded `LOC`; **Jira refuses until it is set**
 (`gadak config set memory.space KEY`) rather than guess a team-visible
 space — ask the user which space before the first add. To extend an
 existing note instead of starting a new page, `gadak page edit <ID>
@@ -656,9 +656,9 @@ issue itself already records belongs in a comment — and so does a one-line
 fact; a page that would hold one sentence is a comment wearing a title.
 
 Confirm-first reaches pages exactly as it reaches issue writes: on a
-**connected** workspace a page is visible to the whole team — confirm before
+**Jira** workspace a page is visible to the whole team — confirm before
 creating or editing one, and use a space key the user names, never a guess.
-On a **gadak origin** the seed space is `LOC` and writes are free (see
+On the **built-in tracker** the seed space is `LOC` and writes are free (see
 *A tracker of your own* above).
 
 ## Workspace settings
@@ -816,8 +816,8 @@ gadak dashboards open label_ratio
 
 ## Rules that come with the file
 
-- **Never write to the database.** Writes go through the origin (Jira on
-  Jira when connected, gadak's own tracker when local, the home serve when paired);
+- **Never write to the database.** Writes go through the origin (the Jira site on
+  a Jira workspace, the built-in tracker when local, the home serve when paired);
   a row written directly is destroyed by the next sync. No exception for
   "just a label". Saved views and visits live in `local.db`, not the mirror.
 - **Do not depend on `issues.raw`.** It is shaped by Jira's API, not by gadak's
@@ -841,10 +841,10 @@ gadak dashboards open label_ratio
 status). `gadak issue KEY --json` includes it; SQL joins `dev_links` on
 `item_id`.
 
-- **gadak origin:** `gadak dev link KEY --pr <url>` records a PR through the
+- **built-in tracker:** `gadak dev link KEY --pr <url>` records a PR through the
   local origin; `gadak dev scan` execs `gh pr list` and links matches
-  (`cmd/gadak/dev.go`). Both refuse on a connected workspace.
-- **connected Cloud:** do not run `dev link` / `dev scan`. `gadak config set
+  (`cmd/gadak/dev.go`). Both refuse on a Jira workspace.
+- **Jira Cloud:** do not run `dev link` / `dev scan`. `gadak config set
   devStatus true` to *mirror* Jira's development panel into `dev_links` (read).
 - **paired** is kind `connected`: same refusal as Cloud. Write on the
   gadak home, then sync.
@@ -861,8 +861,8 @@ gadak api GET /rest/api/3/issue/NMB-140/watchers
 ```
 
 Read-only unless `--write` is passed. Prefer the mirror when it can answer.
-On a connected workspace this is a network round trip against the site's
-rate budget. On a local gadak origin it talks in-process (no network);
+On a Jira or Linear workspace this is a network round trip against the site's
+rate budget. On the local built-in tracker it talks in-process (no network);
 unimplemented paths return 501.
 
 ## When gadak itself is the problem

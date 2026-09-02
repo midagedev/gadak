@@ -459,9 +459,9 @@ is nothing to say, and a client-supplied value is ignored.
 | `confluence` | object or absent | absent = wiki mirror off. `gadak init --local` writes the block scoped to `LOC` | Settings → Sources / `gadak config set confluence` | Next Confluence pass |
 | `linear` | object or absent | absent = Linear source off. `apiKey` (personal API key, sent bare in the Authorization header) turns the source on; writes to Linear-owned keys route through it | edit `config.json` (no Settings surface yet) | Next `sync --source linear` |
 | `linear.teamIds` | string[] | `[]` = every team the key can see; team UUIDs restrict the mirror scope | edit `config.json` | Next Linear pass |
-| `devStatus` | bool | **false** | `gadak config set devStatus true` / `config.json` (not on Settings UI or Settings PUT) | Next sync; connected Cloud: mirror Jira's development-status API into `dev_links` (one extra request per issue). A gadak origin always fetches; `gadak dev link` / `dev scan` write the same table |
-| `actor` | object or absent | absent = no acting identity; env `GADAK_ACTOR` (`slug\|display name`) overrides, and Claude Code sessions are auto-detected when both are unset | `gadak config set actor 'slug\|display name'` / `config.json` (not on Settings UI or Settings PUT; never team-exported) | Next origin session; writes to a gadak origin (local or paired) carry `X-Issuetap-Actor` and attribute to that agent account. Never sent to connected Jira/Linear |
-| `locale` | string | _(empty)_ = English; `en` \| `ko` \| `ja` \| `de` | `gadak config set locale ko` / `config.json` (not on Settings UI or Settings PUT) | A gadak origin only: the origin's display-name language — status / issue-type / field names and agent aliases follow it; priority names stay English, like a live Cloud site. Changing it rebuilds the mirror on the next sync (display names are cached). A connected workspace ignores it: its language is the Atlassian account's |
+| `devStatus` | bool | **false** | `gadak config set devStatus true` / `config.json` (not on Settings UI or Settings PUT) | Next sync; Jira Cloud: mirror Jira's development-status API into `dev_links` (one extra request per issue). The built-in tracker always fetches; `gadak dev link` / `dev scan` write the same table |
+| `actor` | object or absent | absent = no acting identity; env `GADAK_ACTOR` (`slug\|display name`) overrides, and Claude Code sessions are auto-detected when both are unset | `gadak config set actor 'slug\|display name'` / `config.json` (not on Settings UI or Settings PUT; never team-exported) | Next origin session; writes to the built-in tracker (local or paired) carry `X-Issuetap-Actor` and attribute to that agent account. Never sent to Jira or Linear |
+| `locale` | string | _(empty)_ = English; `en` \| `ko` \| `ja` \| `de` | `gadak config set locale ko` / `config.json` (not on Settings UI or Settings PUT) | Built-in tracker only: the origin's display-name language — status / issue-type / field names and agent aliases follow it; priority names stay English, like a live Cloud site. Changing it rebuilds the mirror on the next sync (display names are cached). A Jira workspace ignores it: its language is the Atlassian account's |
 | `confluence.spaces` | string[] | `[]` = every *global* space; personal spaces only if named (`internal/config/config.go`) | Settings → Sources / `gadak config set confluence.spaces` | Next Confluence pass |
 | `terminal` | `{shell, workingDir, scrollback, cursorBlink}` | absent = all defaults (see below) | `gadak config set terminal` or `terminal.<leaf>` (not on Settings UI or Settings PUT; never team-exported — shell and workingDir are this machine's paths) | Next terminal session create; a block set replaces the whole object, a leaf set merges |
 
@@ -652,7 +652,7 @@ into `fields`.
 watches, favorites, and recents (`cmd/gadak/export.go`; help in
 `cmd/gadak/help.go`). Credentials never appear in the file — a credential-shaped
 string is refused (`secretscan`). It is not a `gadak team export` file (team
-settings live in that other command) and it does not include the gadak-origin
+settings live in that other command) and it does not include the built-in tracker's
 persist file (`origin/issuetap.db`) or the issue rows in `gadak.db`.
 
 `gadak import <FILE>` restores those four lists. On a name/key conflict the
@@ -717,8 +717,8 @@ against `/myself` before anything is written.
 | --- | --- |
 | `$GADAK_HOME/config.json` or `~/.gadak/config.json` | Settings + credential (0600) |
 | `$GADAK_HOME/gadak.db` | SQLite mirror (a cache; the next sync rebuilds it from the origin) |
-| `$GADAK_HOME/origin/issuetap.db` | A gadak origin's persist file (`internal/origin/origin.go` `PersistRel`). SQLite (WAL); this is the record on a workspace whose origin is gadak's own tracker. Copy while gadak is not running (include `-wal`/`-shm`), or `sqlite3 <db> ".backup"`. Absent on a connected workspace. A sibling `origin/issuetap.yaml` is a one-shot seed if the db is missing. |
-| `~/.gadak/profiles/<name>/` | Isolated config + mirror (and, on a gadak origin, persist) per profile |
+| `$GADAK_HOME/origin/issuetap.db` | The built-in tracker's persist file (`internal/origin/origin.go` `PersistRel`). SQLite (WAL); this is the record on a workspace on the built-in tracker. Copy while gadak is not running (include `-wal`/`-shm`), or `sqlite3 <db> ".backup"`. Absent on a Jira or Linear workspace. A sibling `origin/issuetap.yaml` is a one-shot seed if the db is missing. |
+| `~/.gadak/profiles/<name>/` | Isolated config + mirror (and, on the built-in tracker, persist) per profile |
 
 Never write issue rows into the DB by hand — the next sync overwrites them. The
 supported external write table is `enrichments` (see [PLUGINS.md](PLUGINS.md)).

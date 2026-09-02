@@ -104,8 +104,8 @@ export const strings = {
     workspace: {
       heading: 'Work and your own work, side by side',
       body:
-        'A second workspace keeps private tasks off the company tracker — same machine, separate file, separate credentials. Local-origin needs no tracker at all.',
-      localOriginLead: 'No tracker at all — issues live on this machine:',
+        'A second workspace keeps private tasks off the company tracker — same machine, separate file, separate credentials. The built-in tracker needs no account at all.',
+      localOriginLead: 'The built-in tracker — no account, issues live on this machine:',
       secondLead: 'A second workspace: separate file, separate credentials:',
     },
     changelog: {
@@ -229,8 +229,8 @@ export const strings = {
     workspace: {
       heading: '회사 일과 내 일, 나란히',
       body:
-        '두 번째 워크스페이스가 개인 작업을 회사 트래커 밖에 둡니다 — 같은 머신, 다른 파일, 다른 자격증명. 스탠드얼론은 트래커 없이도 시작합니다.',
-      localOriginLead: '트래커가 아예 없어도 됩니다 — 이슈는 이 머신에 삽니다:',
+        '두 번째 워크스페이스가 개인 작업을 회사 트래커 밖에 둡니다 — 같은 머신, 다른 파일, 다른 자격증명. 내장 트래커는 계정 없이 시작합니다.',
+      localOriginLead: '내장 트래커 — 계정 없이, 이슈는 이 머신에 삽니다:',
       secondLead: '두 번째 워크스페이스: 같은 머신, 다른 파일, 다른 자격증명:',
     },
     changelog: {

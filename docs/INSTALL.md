@@ -1,7 +1,7 @@
 # Install
 
-A connected workspace needs one [API token](https://id.atlassian.com/manage-profile/security/api-tokens)
-(it covers Jira and Confluence on the same site). A workspace whose origin is gadak's own tracker
+A Jira workspace needs one [API token](https://id.atlassian.com/manage-profile/security/api-tokens)
+(it covers Jira and Confluence on the same site). A workspace on the built-in tracker
 needs no Atlassian account at all. Pick an install under [The ways in](#the-ways-in),
 then [First run](#first-run).
 
@@ -338,7 +338,7 @@ pages (current version, comments, labels) alongside issues —
 `--source jira|confluence|all` narrows a run. Pages land in the same FTS index,
 the sidebar grows a DOCS tree, and search answers across both.
 `gadak init --local` writes `confluence.spaces` as `["LOC"]` (the space
-the in-process origin seeds) so the wiki pass is on for a new gadak-origin
+the in-process origin seeds) so the wiki pass is on for a new built-in-tracker
 workspace.
 
 ## Two sites at once

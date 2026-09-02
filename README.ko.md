@@ -23,7 +23,7 @@ gadak은 Jira *그리고* Confluence를 로컬 SQLite 파일 하나로 미러링
 에이전트가 SQL로 묻고 같은 창에 답을 띄우게 하세요. 바이너리 하나,
 앱 하나, gadak 계정은 없습니다.
 
-**미러는 버려도 되는 캐시입니다.** 연결된(connected) 워크스페이스에서는,
+**미러는 버려도 되는 캐시입니다.** Jira 워크스페이스에서는,
 이 프로젝트가 내일 멈춰도 디렉터리 하나를 지우면 끝이고, 잃는 것이
 없습니다. 원본은 Jira입니다.
 
@@ -35,9 +35,9 @@ gadak은 Jira *그리고* Confluence를 로컬 SQLite 파일 하나로 미러링
   &nbsp;—&nbsp; 무엇이 나왔는지.
 </p>
 
-연결된 사이트에는 [API 토큰](https://id.atlassian.com/manage-profile/security/api-tokens)
+Jira 사이트에는 [API 토큰](https://id.atlassian.com/manage-profile/security/api-tokens)
 하나가 필요합니다. 토큰 하나가 같은 사이트의 Jira와 Confluence를 모두
-커버합니다. origin 이 gadak 자신의 트래커인 워크스페이스는 Atlassian 계정이
+커버합니다. 내장 트래커 워크스페이스는 Atlassian 계정이
 아예 필요 없습니다.
 
 **무엇을 미러링할지는 직접 고릅니다.** 위키는 요청하기 전까지 꺼져 있고,
@@ -71,7 +71,7 @@ Jira에 연결:
 gadak init && gadak sync && gadak serve
 ```
 
-또는 트래커 없이 시작:
+또는 계정 없이 내장 트래커에서 시작:
 
 ```bash
 gadak init --local
@@ -80,7 +80,7 @@ gadak serve
 ```
 
 트래커를 떠날 때는 데이터를 들고 나옵니다 — 이슈·코멘트·전체 이력·첨부·
-위키 페이지가 동기화된 워크스페이스에서 gadak 이 직접 보관하는 워크스페이스로
+위키 페이지가 동기화된 워크스페이스에서 내장 트래커 워크스페이스로
 옮겨지고,
 끝에 원본 대 이전본 건수 대조표가 출력됩니다:
 
@@ -218,10 +218,10 @@ macOS 앱에서는 같은 설치가 버튼이기도 합니다. **설정 → 연�
 
 ## 무엇을 커버하나
 
-Connected는 Atlassian Cloud와 대화합니다. gadak 자신의 트래커(0.16부터)는 Atlassian
+Jira 워크스페이스는 Atlassian Cloud와 대화합니다. 내장 트래커(0.16부터)는 Atlassian
 계정이 없는 워크스페이스입니다. 그 origin은 앱과 함께 다니는 미니멀한
 Jira입니다. 어느 쪽이든 미러는 캐시이고, 모든 쓰기는 origin을 통과합니다.
-gadak origin 에서 영속 파일은 origin의 persist 파일, 즉 워크스페이스 origin
+내장 트래커에서 영속 파일은 origin의 persist 파일, 즉 워크스페이스 origin
 폴더의 `issuetap.db`(SQLite, WAL)입니다. gadak이 꺼져 있을 때 복사하거나
 (`-wal`/`-shm` 사이드카 포함), `sqlite3 origin/issuetap.db ".backup
 dest.db"`를 쓰세요.
@@ -233,7 +233,7 @@ Jira 알림함은 안 됩니다. 그 일은 Jira에 남습니다.
 <details>
 <summary>▶ 전체 매트릭스와 ✅마다 붙은 각주</summary>
 
-| | Connected (Atlassian Cloud) | gadak 자신의 트래커 (0.16부터) |
+| | Jira (Atlassian Cloud) | 내장 트래커 (0.16부터) |
 | --- | :---: | :---: |
 | 이슈 읽기·검색 (FTS, JQL, SQL) | ✅¹ | ✅¹ |
 | 생성, 코멘트, 상태 전이, 담당자, 라벨, 우선순위 | ✅ | ✅ |
@@ -425,8 +425,8 @@ JQL로 여전히 물을 수 없는 것은 `gadak sql`과
 ## 설치
 
 brew 두 줄은 이 페이지 맨 위에 있습니다. Atlassian Cloud에 연결하거나,
-(0.16부터) Atlassian 계정이 필요 없는 gadak origin 워크스페이스로 시작합니다.
-connected 사이트는
+(0.16부터) Atlassian 계정이 필요 없는 내장 트래커 워크스페이스로 시작합니다.
+Jira 사이트는
 [API 토큰](https://id.atlassian.com/manage-profile/security/api-tokens) 하나면
 되고, 그 토큰이 같은 사이트의 Jira와 Confluence를 함께 커버합니다.
 

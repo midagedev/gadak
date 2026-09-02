@@ -39,8 +39,8 @@ flowchart TB
 
 Confluence is a peer source (`internal/confluence`, `decisions/0006-confluence-connector.md`):
 page writes (create, edit, page comments — [GDK-380]/381/382) go through
-`origin.Wiki`, never the SQLite mirror. On a connected workspace that client
-is Confluence REST; on a workspace whose origin is gadak's own tracker it is the in-process issuetap
+`origin.Wiki`, never the SQLite mirror. On a Jira workspace that client
+is Confluence REST; on the built-in tracker it is the in-process issuetap
 handler (same session as `origin.Client`), whose Confluence API receives the
 same verbs.
 

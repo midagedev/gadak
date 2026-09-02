@@ -38,7 +38,7 @@ const memorySearchFetchLimit = 200
 // errNoMemorySpace is the connected-without-memory.space refusal: the
 // workspace has an origin, the verb just refuses to guess which of its
 // spaces agent memory belongs in.
-var errNoMemorySpace = fmt.Errorf("memory: memory.space is not set — a connected workspace will not quietly write notes to a team space; pick one with `gadak config set memory.space KEY`")
+var errNoMemorySpace = fmt.Errorf("memory: memory.space is not set — a Jira workspace will not quietly write notes to a team space; pick one with `gadak config set memory.space KEY`")
 
 // memorySpace resolves where agent memory lives. An explicit memory.space
 // wins on both workspace kinds. Local-origin falls back to its seeded
