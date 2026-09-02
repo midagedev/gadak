@@ -608,7 +608,7 @@
     data-skeleton={connectingGrace.attr}
   >
     <div
-      class="h-full min-h-0 min-w-0 overflow-hidden"
+      class="terminal-host h-full min-h-0 min-w-0 overflow-hidden"
       class:invisible={connectingGrace.visible}
       bind:this={hostEl}
     ></div>

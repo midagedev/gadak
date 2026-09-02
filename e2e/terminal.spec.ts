@@ -468,6 +468,28 @@ test.describe('terminal shots', () => {
   })
 
   /*
+   * 2026-09-02 — GDK-1354. xterm 6 paints its theme background on the
+   * scrollable element and leaves the compat `.xterm-viewport` on the library
+   * default (#000, xterm.css). The screen is rows × cell height and the
+   * viewport is the whole box, so a dock height that is not a row multiple
+   * showed a black strip under the last line. FAIL-first, measured at
+   * 1440×900 with the 225px default: elementFromPoint(700, 890) was the
+   * viewport at rgb(0, 0, 0) against the pane's rgb(244, 239, 228).
+   */
+  test('the pane paints paper under the last row too', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await boot(page)
+    await openPane(page)
+    const pane = page.getByTestId('terminal-pane')
+    await expect(pane.locator('.xterm-viewport')).toBeAttached()
+    const [paneBg, viewportBg] = await Promise.all([
+      pane.evaluate((el) => getComputedStyle(el).backgroundColor),
+      pane.locator('.xterm-viewport').evaluate((el) => getComputedStyle(el).backgroundColor),
+    ])
+    expect(viewportBg, 'viewport ground is the pane ground').toBe(paneBg)
+  })
+
+  /*
    * 2026-08-25 — GDK-864 (lead, entry-point pass). ⌘K is this app's answer to
    * "how do I do anything", so a surface reachable only by a chord is
    * reachable only by someone who already knows the chord. The row carries

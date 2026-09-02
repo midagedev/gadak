@@ -1461,3 +1461,21 @@
     }
   }
 }
+
+/*
+  GDK-1354: xterm 6 paints the theme background on its scrollable element and
+  leaves the compat `.xterm-viewport` on the library CSS default, #000. The
+  screen is rows × cell height; the viewport is the whole box; so any dock
+  height that is not a multiple of one row showed a black strip under the
+  last line. Same variable the renderer's chromeTheme() reads
+  (TERMINAL_CHROME_VARS.background), so a theme change moves both.
+
+  Deliberately outside every @layer: xterm.css is a lazy import
+  (renderer.ts) and unlayered, and an unlayered sheet beats a layered one no
+  matter the selector — inside `components` this rule measured as never
+  applied (viewport still rgb(0,0,0)). Out here it competes on specificity,
+  and the host class is the extra weight that wins over xterm's own two.
+*/
+.terminal-host .xterm .xterm-viewport {
+  background-color: var(--color-bg-base);
+}
