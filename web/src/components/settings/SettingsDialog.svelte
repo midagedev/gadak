@@ -326,7 +326,7 @@
   data-testid="settings-dialog"
   {onclose}
   trap={trapFocus}
-  panelClass="anim-pop max-h-[92vh] max-w-3xl"
+  panelClass="anim-pop max-h-[92vh] w-full max-w-3xl"
   headerClass="flex flex-none flex-col border-b border-border-subtle px-5 pt-4"
   titleRowClass="mb-0.5 flex items-center justify-between"
   footerClass="flex flex-none flex-wrap items-center gap-2 border-t border-border-subtle px-5 py-3"
