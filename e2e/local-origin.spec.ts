@@ -18,7 +18,8 @@ const STANDALONE_INIT_COMMAND = 'gadak --workspace <name> init --local'
 async function openIssueDetail(page: Page, key: string) {
   const input = searchInput(page)
   await input.fill(key)
-  // Exact key, not hasText: 'NMB-1' is a substring of 'NMB-105' (GDK-1313 first run).
+  // Exact key, not hasText: 'NMB-1' is a substring of 111 other keys, and the
+  // windowed list renders only the rows in view (GDK-1313: green locally, red in CI).
   await page.getByTestId('issue-list-scroller').locator(`[data-issue-key="${key}"]`).click()
   const panel = page.getByTestId('issue-detail-panel')
   await expect(panel).toBeVisible()
@@ -55,11 +56,11 @@ test.describe('local-origin workspace indicator', () => {
     await serveWorkspaceKind(page, 'standalone', { originType: 'gadak', jiraBaseUrl: '' })
     await forceLocale(page, 'en')
     await gotoApp(page)
-    const panel = await openIssueDetail(page, 'NMB-1')
+    const panel = await openIssueDetail(page, 'NMB-110')
 
     // The header shows the key as text, not as a dead link.
-    await expect(panel.getByTestId('issue-key-label')).toHaveText('NMB-1')
-    await expect(panel.locator('a', { hasText: /^NMB-1$/ })).toHaveCount(0)
+    await expect(panel.getByTestId('issue-key-label')).toHaveText('NMB-110')
+    await expect(panel.locator('a', { hasText: /^NMB-110$/ })).toHaveCount(0)
 
     // The palette offers no origin row for this issue.
     await page.keyboard.press('Escape')
