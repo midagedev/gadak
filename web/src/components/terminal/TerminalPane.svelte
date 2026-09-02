@@ -1,8 +1,9 @@
 <script lang="ts">
   /*
-   * Terminal pane (GDK-864, GDK-1194). Dock: the bottom of the content row,
-   * spanning list/board and a docked detail panel both. Overlay: below 900px,
-   * covers the content track (sidebar stays clickable).
+   * Terminal pane (GDK-864, GDK-1194, GDK-1352). Dock: a band across the
+   * bottom of the whole window — sidebar, list/board and a docked detail
+   * panel all sit above it. Overlay: below 900px, covers the content track
+   * (sidebar stays clickable).
    *
    * Closing the pane closes the WebSocket and keeps the session id; a reopen
    * reattaches and the ring replay is the first binary frame. Page unload

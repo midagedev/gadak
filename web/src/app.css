@@ -587,9 +587,9 @@
     grid-template-columns: var(--layout-sidebar, 272px) minmax(0, 1360px) minmax(0, 1fr);
     /*
       GDK-1194: two explicit rows. The second is the terminal dock, `auto` so
-      it is zero-height when nothing is in it — and explicit because the
-      sidebar spans `1 / -1`, which resolves against explicit lines only: with
-      implicit rows the sidebar would stop above the dock and leave a hole.
+      it is zero-height when nothing is in it. GDK-1352: the dock spans every
+      column, so the sidebar lives in row 1 like the rest — one horizontal
+      seam across the window, not an L.
     */
     grid-template-rows: minmax(0, 1fr) auto;
     width: 100%;
@@ -642,7 +642,7 @@
   */
   .issue-sidebar {
     grid-column: 1;
-    grid-row: 1 / -1;
+    grid-row: 1;
     width: var(--layout-sidebar, 272px);
     min-height: 0;
     overflow: hidden;
@@ -657,16 +657,20 @@
   }
 
   /*
-    The terminal dock (GDK-1194). Everything right of the sidebar sits above
-    it — the list or board, and a docked detail panel with them — so the
-    shell gets the whole content width (~150 columns on a laptop) instead of
-    the ~44% of one track the old side pane took, and wrapped lines stop
-    being the terminal's normal state. Its height is inline, owned by
-    lib/terminal/pane.svelte.ts. In the overlay regime the pane inside is
-    `position: fixed`, so this cell collapses to nothing on its own.
+    The terminal dock (GDK-1194, GDK-1352). A band across the bottom of the
+    whole window: the sidebar, the list or board, and a docked detail panel
+    all sit above it, so the shell gets every column the window has (~180 on
+    a laptop) instead of the ~44% of one track the old side pane took, and
+    wrapped lines stop being the terminal's normal state. Full width rather
+    than the content row (GDK-1352, 2026-09-02): a terminal needs columns,
+    not rows — a gadak one-liner runs ~120 characters — and one seam reads
+    as two floors where an L-shaped cut read as a corner. The sidebar pays in
+    height, which its sections already scroll for. Its height is inline,
+    owned by lib/terminal/pane.svelte.ts. In the overlay regime the pane
+    inside is `position: fixed`, so this cell collapses to nothing on its own.
   */
   .terminal-dock {
-    grid-column: 2 / -1;
+    grid-column: 1 / -1;
     grid-row: 2;
     min-width: 0;
     min-height: 0;

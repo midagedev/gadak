@@ -10,18 +10,27 @@ import { VIEWPORT_DOCKED_MIN_PX } from '../viewport-regime'
 
 /*
  * GDK-1194 (2026-08-30): the split is horizontal — a dock across the bottom
- * of everything right of the sidebar — so the persisted number is a height.
- * A new key rather than a migrated one: a stored width is a number in the
- * wrong axis, and 44% of a window read as a height is a dock that opens
- * nearly half-screen on one machine and 300px on another.
+ * of the window (the whole width since GDK-1352, sidebar included) — so the
+ * persisted number is a height. A new key rather than a migrated one: a
+ * stored width is a number in the wrong axis, and 44% of a window read as a
+ * height is a dock that opens nearly half-screen on one machine and 300px on
+ * another.
  */
 export const TERMINAL_HEIGHT_KEY = 'gadak.terminal.height'
 export const TERMINAL_MIN_HEIGHT_PX = 160
-export const TERMINAL_DEFAULT_HEIGHT_RATIO = 0.4
+/*
+ * GDK-1352 (2026-09-02): a quarter of the window, down from 40%. The dock is
+ * a band under the tracker, not a second workspace: a gadak one-liner and its
+ * answer fit in ~9 rows at 900px tall, which is the height the promo clips'
+ * paper terminal has always drawn (168px on 808), and the first open should
+ * look like that. A session that wants more drags the handle once and the
+ * height persists.
+ */
+export const TERMINAL_DEFAULT_HEIGHT_RATIO = 0.25
 /*
  * The dock's ceiling, as a fraction of the window. Unlike the old width cap
- * this has no track to resolve against — the dock spans the whole content
- * row — so the clamp lives in persistHeight (pane.svelte.ts), the single
+ * this has no track to resolve against — the dock spans the whole window
+ * width — so the clamp lives in persistHeight (pane.svelte.ts), the single
  * owner, and this is the number it uses.
  */
 export const TERMINAL_MAX_HEIGHT_RATIO = 0.7

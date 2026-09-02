@@ -426,8 +426,8 @@ test.describe('terminal shots', () => {
    * moved with it — the same claim, one quarter-turn over.
    *
    * Both halves, because a dock that is merely *not too tall* could also be a
-   * dock that never opened: it takes a real share of the row (the 40%
-   * default, TERMINAL_DEFAULT_HEIGHT_RATIO) and still leaves the board more
+   * dock that never opened: it takes a real share of the row (the seeded
+   * wish, clamped) and still leaves the board more
    * than the 70% ceiling allows it to take (TERMINAL_MAX_HEIGHT_RATIO,
    * clamped in persistHeight — the single owner, since a grid item in an
    * `auto` row has no definite height for a CSS percentage to resolve
@@ -452,8 +452,10 @@ test.describe('terminal shots', () => {
     await openPane(page)
     const rowBox = await page.getByTestId('issue-layout').boundingBox()
     const dockBox = await page.getByTestId('terminal-pane').boundingBox()
+    const sidebarBox = await page.locator('.issue-sidebar').boundingBox()
     expect(rowBox, 'layout box').not.toBeNull()
     expect(dockBox, 'dock box').not.toBeNull()
+    expect(sidebarBox, 'sidebar box').not.toBeNull()
     // Against the window, which is what TERMINAL_MAX_HEIGHT_RATIO is a
     // fraction of — the layout row is the window minus the header, and
     // measuring against it would be asking the cap about a number it was
@@ -465,8 +467,24 @@ test.describe('terminal shots', () => {
     // to the far side of the row, so the shell gets the whole content width.
     expect(dockBox!.x + dockBox!.width).toBeCloseTo(rowBox!.x + rowBox!.width, 0)
     expect(dockBox!.width).toBeGreaterThan(rowBox!.width * 0.7)
+    // GDK-1352 (2026-09-02): the band runs the whole window, under the sidebar
+    // too — one horizontal seam, not an L. The sidebar therefore ends where
+    // the dock begins. FAIL-first on the content-row dock: `x` read 272 (the
+    // sidebar track) against the layout's 0.
+    expect(dockBox!.x, 'dock starts at the window edge').toBeCloseTo(rowBox!.x, 0)
+    expect(sidebarBox!.y + sidebarBox!.height, 'sidebar ends at the dock').toBeCloseTo(
+      dockBox!.y,
+      0,
+    )
   })
 
+  /*
+   * 2026-09-02 — GDK-1352. The first open is a band, not a half-screen: with
+   * nothing stored, the dock takes TERMINAL_DEFAULT_HEIGHT_RATIO of the window
+   * (a quarter — the height the promo clips' paper terminal has always had).
+   * A constant with no check drifts back; this is the one that fails when it
+   * does (0.4 reads here as 40%, outside the band).
+   */
   /*
    * 2026-09-02 — GDK-1354. xterm 6 paints its theme background on the
    * scrollable element and leaves the compat `.xterm-viewport` on the library
@@ -487,6 +505,17 @@ test.describe('terminal shots', () => {
       pane.locator('.xterm-viewport').evaluate((el) => getComputedStyle(el).backgroundColor),
     ])
     expect(viewportBg, 'viewport ground is the pane ground').toBe(paneBg)
+  })
+
+  test('the dock opens as a band by default', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await boot(page)
+    await openPane(page)
+    const dockBox = await page.getByTestId('terminal-pane').boundingBox()
+    expect(dockBox, 'dock box').not.toBeNull()
+    const ratio = dockBox!.height / 900
+    expect(ratio, `dock opened at ${Math.round(ratio * 100)}% of the window`).toBeGreaterThan(0.22)
+    expect(ratio, `dock opened at ${Math.round(ratio * 100)}% of the window`).toBeLessThan(0.28)
   })
 
   /*

@@ -862,11 +862,12 @@
         </MainColumn>
       </div>
 
-      <!-- GDK-1194: the dock spans the whole content row, under the list and
-           a docked detail panel both, so the shell is as wide as the window
-           allows. The cell is only mounted while the pane is open — an empty
-           `auto` row is zero-height either way, and not mounting it keeps the
-           row out of the way of the overlay regime entirely. -->
+      <!-- GDK-1194/GDK-1352: the dock spans the whole window, under the
+           sidebar, the list and a docked detail panel alike, so the shell is
+           as wide as the window is. The cell is only mounted while the pane
+           is open — an empty `auto` row is zero-height either way, and not
+           mounting it keeps the row out of the way of the overlay regime
+           entirely. -->
       {#if terminalChrome.open}
         <div class="terminal-dock" data-testid="terminal-dock">
           <TerminalPane overlay={terminalChrome.narrow} />
