@@ -7,7 +7,7 @@
    */
   import { t } from '../../lib/i18n'
   import type { IssueLite } from '../../lib/types'
-  import { config, isDesktop, profileName, workspaceName } from '../../lib/config'
+  import { config, isDesktop, ORIGIN_LINEAR, profileName, workspaceName } from '../../lib/config'
   import { copyText } from '../../lib/copy-text'
   import { selection } from '../../stores/selection.svelte'
   import { favorites } from '../../stores/favorites.svelte'
@@ -73,14 +73,34 @@
     return `${location.origin}${prefix}/#/?issue=${key}`
   }
 
+  // The tracker whose page is the paste's first line, for the toast. A brand
+  // name, not a translation. Jira is the default because a non-null jiraUrl
+  // is always a Jira /browse/ URL — '' (older server) and 'jira' both mean
+  // it. Linear arrives here only once a Linear URL resolution exists; 'gadak'
+  // never does (no site → no origin URL → no origin toast).
+  function originTrackerName(): string {
+    return config().originType === ORIGIN_LINEAR ? 'Linear' : 'Jira'
+  }
+
   async function copyLink(): Promise<void> {
     const key = issue.issue_key
     const gadak = gadakIssueLink(key)
+    // The origin's page for this key — the address that survives a paste into
+    // chat. Same resolution as the key anchor above (jiraUrl →
+    // jiraBrowseUrl); null on the built-in tracker and any site-less
+    // workspace, where the app links below are the only shareable address.
+    const originUrl = jiraUrl(key)
     // Desktop has no shareable http origin (in-process webview). Serve/hosted
     // copy both lines so a paste into Slack still works without the app.
-    const text = isDesktop() ? gadak : `${gadak}\n${httpIssueLink(key)}`
+    const appText = isDesktop() ? gadak : `${gadak}\n${httpIssueLink(key)}`
+    const text = originUrl ? `${originUrl}\n${appText}` : appText
     if (await copyText(text)) {
-      write.toast(t('detail.linkCopied'), 'success')
+      write.toast(
+        originUrl
+          ? t('detail.originLinkCopied', { tracker: originTrackerName() })
+          : t('detail.linkCopied'),
+        'success',
+      )
     } else {
       write.toast(t('clipboard.copyFailed'), 'error')
     }
@@ -134,7 +154,7 @@
       >
         <Icon name="star" size={14} filled={isFavorite} />
       </button>
-      <!-- Copy gadak:// (and http, off desktop) — same 24px icon-button cluster -->
+      <!-- Copy the origin URL, then gadak:// (+ http, off desktop) — same 24px icon-button cluster -->
       <button
         type="button"
         onclick={() => void copyLink()}

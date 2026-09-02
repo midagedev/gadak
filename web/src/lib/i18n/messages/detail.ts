@@ -185,6 +185,15 @@ export const detail = {
     ko: '복사됨',
     ja: 'コピーしました',
   },
+  // The paste's first line is the origin's own page for the key, so the
+  // toast names the tracker that page belongs to. {tracker} is a brand name
+  // (Jira/Linear) and passes through untranslated. The built-in tracker has
+  // no origin page and keeps detail.linkCopied above.
+  'detail.originLinkCopied': {
+    en: '{tracker} link copied',
+    ko: '{tracker} 링크를 복사했습니다',
+    ja: '{tracker} のリンクをコピーしました',
+  },
   // Toast copy rule: a single-sentence toast carries no trailing period
   // (`filter.saveServerFailed` in list.ts is the standard); hints and
   // local-origin sentences keep theirs. (GDK-1226)
