@@ -2708,11 +2708,12 @@ func resolveAccount(ctx context.Context, c origin.Writer, who, source string) (s
 }
 
 // cmdOpen jumps from a key in the terminal to the issue's page on its origin
-// — the stored items.url first (Jira /browse/KEY, or the page Linear
-// minted), then the site's /browse/KEY. gadak is the fast path for reading;
-// this is the escape hatch for everything the mirror deliberately does not
-// do (boards, admin, workflow). The web's issueOriginUrl resolves the same
-// way (GDK-1149).
+// — Jira's /browse/KEY on a Jira workspace, the page Linear minted (stored
+// in items.url) on a Linear one, the live serve on the built-in tracker.
+// One branch per origin type, no fallback across them (GDK-1308). gadak is
+// the fast path for reading; this is the escape hatch for everything the
+// mirror deliberately does not do (boards, admin, workflow). The web's
+// issueOriginUrl resolves the same way (GDK-1149).
 func cmdOpen(args []string) error {
 	fs := newFlagSet("open")
 	if wantsHelp(args) {
@@ -2737,19 +2738,43 @@ func cmdOpen(args []string) error {
 	if !cfg.HasCredential() {
 		return config.NotConfiguredWith(fmt.Sprintf("use `gadak views open %s` (or `gadak serve`)", key))
 	}
-	// Key first: a missing row used to fall through to the no-site error and
-	// tell an already-inited local-origin workspace to re-run init. With a
-	// site, a missing key still opens the browse URL — `open` is the escape
-	// hatch to Jira, and the mirror may simply lag a key that exists there.
-	found, stored, lookErr := lookupItem(key)
-	if lookErr == nil && !found && cfg.Site == "" {
-		return fmt.Errorf("%s is not in the mirror — check the key, or run `gadak sync`", key)
-	}
-	if u := absoluteHTTPURL(stored); u != "" {
+	// Branch on the origin's type and never cross over (GDK-1308 — "Jira is
+	// Jira, Linear is Linear", no fallbacks): a Linear row without a stored
+	// url must not get a Jira URL built from a site this workspace does not
+	// have.
+	switch cfg.OriginType() {
+	case config.OriginLinear:
+		// The page Linear itself minted, as sync stored it (items.url). No
+		// row or no url: the mirror lags — say so, do not invent a page.
+		found, stored, err := lookupItem(key)
+		if err != nil {
+			return err
+		}
+		if !found {
+			return fmt.Errorf("%s is not in the mirror — check the key, or run `gadak sync`", key)
+		}
+		u := absoluteHTTPURL(stored)
+		if u == "" {
+			return fmt.Errorf("%s has no Linear page stored yet — run `gadak sync`", key)
+		}
 		return openIssueURL(u)
-	}
-	if cfg.Site != "" {
+	case config.OriginJira:
+		// `open` is the escape hatch to Jira: the mirror may lag a key that
+		// exists on the site, so a missing key still opens the browse URL.
+		if cfg.Site == "" {
+			return fmt.Errorf("this workspace has no Jira site to browse — use `gadak views open %s` (or `gadak serve`)", key)
+		}
 		return openIssueURL(strings.TrimRight(cfg.Site, "/") + "/browse/" + url.PathEscape(key))
+	}
+	// The built-in tracker: its page is this app. A missing row used to
+	// fall through to an error telling an already-inited workspace to
+	// re-run init (GDK-454); it is a key problem, not a setup one.
+	found, _, err := lookupItem(key)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return fmt.Errorf("%s is not in the mirror — check the key, or run `gadak sync`", key)
 	}
 	if web := serveFocusURL("issue=" + key); web != "" {
 		return openIssueURL(web)
