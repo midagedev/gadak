@@ -143,9 +143,34 @@
    * Nodes from {@html} are outside Svelte scoping — style with :global.
    * Colors/spacing use app.css @theme CSS vars (single source).
    */
+  /*
+   * Prose scale (GDK-1311). The app's --text-body (13px) is sized for list
+   * rows and chips; a description read in the panel is prose, and prose has
+   * its own rules: a size the Hangul gothics hold at on a dark ground, a
+   * paragraph gap wider than the line gap so paragraphs read as units, and a
+   * heading ramp that stands ABOVE the body — headings used to be body-size
+   * in the secondary text colour, i.e. dimmer than the text they titled, so a body
+   * scanned as one grey wall. Measured before: p 13/21, h3 13 grey, gap 7px.
+   */
+  .adf {
+    --prose-size: 14px;
+    --prose-lh: 1.7;
+    --prose-h1: 19px;
+    --prose-h2: 17px;
+    --prose-h3: 15px;
+    font-size: var(--prose-size);
+    line-height: var(--prose-lh);
+    /* A reading measure: the wide layout can hand this column 1000px+ on a
+       big window, and a Korean line past ~800px stops being one saccade. The
+       docked column never reaches this, so it only binds where it should. */
+    max-width: 800px;
+    /* Keep a Hangul face ahead of the Latin one at this size: SF's 14px
+       Latin next to SD Gothic's 14px Hangul is the same pairing the body
+       stack already makes, so only the size changes here. */
+  }
   .adf :global(p) {
-    margin: 0.55em 0;
-    line-height: 1.62;
+    margin: 0.9em 0;
+    line-height: var(--prose-lh);
     color: var(--color-text-primary);
   }
   .adf :global(p:first-child) {
@@ -160,58 +185,44 @@
   .adf :global(h4),
   .adf :global(h5),
   .adf :global(h6) {
-    margin: 1em 0 0.4em;
+    margin: 1.5em 0 0.5em;
     font-weight: 600;
     line-height: 1.3;
     color: var(--color-text-primary);
   }
   /*
-    Body headings must lose to the panel title (20px) that names the thing they
-    are inside. They used to run 18/16/14/13 — the top of that ramp sat 2px under
-    the panel title, near enough that a page opened looking like it had two
-    titles. That was cut to 16/14/13/13, which fixed the top of the ramp and left
-    the bottom of it broken: measured on the demo's pages, a body h2 rendered at
-    14px directly above 13px paragraphs, a 1px step nobody can see. (2026-08-06)
-
-    Revised the same day: every step is now at least 2px, and the sizes are the
-    app's own tokens rather than numbers picked between them.
-
-    Between body (13) and title (15) the scale has nothing, and it should not —
-    14 next to 13 is the invisible step this revision exists to remove. So body
-    headings get exactly two sizes and the rest of the ramp is weight and color,
-    the technique the previous revision had already chosen for h4-h6:
-
-      panel title  22 / 600 display
-      h1           15 / 700 display
-      h2           15 / 600 display
-      h3-h6        13 / 600, secondary
-      body         13 / 400, secondary
-
-    h1 and h2 share a size because Confluence's editor makes h2 the top level
-    most pages actually use — every page in the demo mirror is written that way.
-    Mapping h2 down to body size to keep it under an h1 that pages rarely have
-    would cost the common page its only heading size to serve the rare one.
+    Body headings stay under the panel title (22px) that names the thing they
+    are inside, and above the body they title. The ramp is 19 / 17 / 15 with
+    the body at 14: every step is visible, and h3 keeps its place by weight
+    and the body colour rather than by shrinking into the secondary colour — a
+    heading dimmer than its paragraph is what made bodies scan as one wall
+    (GDK-1311; measured 2026-09-02 on a 2.5KB Korean description). h1 and h2
+    are close because Confluence's editor makes h2 the top level most pages
+    actually use; h4–h6 share h3's size and drop to the secondary colour so a deep
+    outline still steps down.
   */
   .adf :global(h1) {
     font-family: var(--font-display);
     font-optical-sizing: auto;
-    font-size: var(--text-title);
+    font-size: var(--prose-h1);
     font-weight: 700;
     letter-spacing: -0.015em;
-    margin-top: 1.3em;
+    margin-top: 1.4em;
   }
   .adf :global(h2) {
     font-family: var(--font-display);
     font-optical-sizing: auto;
-    font-size: var(--text-title);
+    font-size: var(--prose-h2);
     letter-spacing: -0.015em;
-    margin-top: 1.2em;
+    margin-top: 1.4em;
   }
-  .adf :global(h3),
+  .adf :global(h3) {
+    font-size: var(--prose-h3);
+  }
   .adf :global(h4),
   .adf :global(h5),
   .adf :global(h6) {
-    font-size: var(--text-body);
+    font-size: var(--prose-h3);
     color: var(--color-text-secondary);
   }
   .adf :global(h1:first-child),
@@ -242,8 +253,8 @@
     list-style: decimal;
   }
   .adf :global(li) {
-    margin: 0.25em 0;
-    line-height: 1.55;
+    margin: 0.3em 0;
+    line-height: 1.6;
   }
   .adf :global(li > p) {
     margin: 0;
@@ -260,13 +271,17 @@
     border-top: 1px solid var(--color-border-subtle);
   }
   /* Inline code */
+  /* Inline code reads as part of the sentence, not as a chip: the mono face
+     and a faint ground mark it, the text keeps the body colour (GDK-1311 —
+     accent-coloured chips in Korean prose pulled the eye between chips
+     instead of along the line). Sized relative to the prose it sits in. */
   .adf :global(code) {
     font-family: var(--font-mono);
-    font-size: 12px;
-    padding: 0.1em 0.35em;
+    font-size: 0.92em;
+    padding: 0.05em 0.3em;
     border-radius: 4px;
-    background: var(--color-bg-active);
-    color: var(--color-accent-text);
+    background: var(--color-bg-elevated);
+    color: var(--color-text-primary);
   }
   /* code block */
   .adf :global(.adf-code) {
@@ -375,8 +390,8 @@
     padding: 0;
     background: none;
     color: var(--color-text-primary);
-    font-size: 12px;
-    line-height: 1.5;
+    font-size: 13px;
+    line-height: 1.55;
   }
   /* Mention chip */
   .adf :global(.adf-mention) {
@@ -494,7 +509,8 @@
   }
   .adf :global(table) {
     border-collapse: collapse;
-    font-size: 12px;
+    font-size: 13px;
+    line-height: 1.5;
     width: 100%;
   }
   .adf :global(th),

@@ -32,6 +32,10 @@ export const STORAGE_KEYS = {
   get recent() {
     return `gadak:${keyPrefix()}recent`
   },
+  /** Detail panel reading width — a display preference of this browser, not a place (GDK-1311). */
+  get detailWide() {
+    return `gadak:${keyPrefix()}detail-wide`
+  },
   get personalViews() {
     return `gadak:${keyPrefix()}personal-views`
   },

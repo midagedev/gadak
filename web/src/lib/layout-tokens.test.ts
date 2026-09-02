@@ -201,6 +201,11 @@ test('converted declarations resolve to the exact pre-conversion geometry', () =
   expect(resolve(declOf(CSS_CODE, '.issue-layout.detail-open', 'grid-template-columns'))).toBe(
     '272px minmax(390px, 1fr) clamp(438px, 34vw, 720px)',
   )
+  // GDK-1311: the reading-width default (40vw) only where the list has slack;
+  // at 1440 it cost the list title 84px (row-narrow.spec).
+  expect(resolve(declOf(wide1600, '.issue-layout.detail-open', 'grid-template-columns'))).toBe(
+    '272px minmax(390px, 1fr) clamp(438px, 40vw, 720px)',
+  )
   expect(resolve(declOf(wide1600, '.issue-layout.browse-open', 'grid-template-columns'))).toBe(
     '272px clamp(640px, 40vw, 800px) minmax(0, 1fr)',
   )

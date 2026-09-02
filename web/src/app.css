@@ -568,6 +568,27 @@
   }
 
   /*
+    GDK-1311: the docked detail column is a reading column, but every pixel
+    it takes comes straight out of the list title (34vw → 40vw at 1440 cut the
+    title from ~250px to 166px, row-narrow.spec). So the wider default waits
+    for a window with slack — the same 1600 step the browse pane uses — and
+    below it the reading width is the wide toggle's (.detail-wide). The rule
+    itself lives in the 1600px block below, next to the browse pane's.
+  */
+
+  /*
+    GDK-1311: reading width. The docked track above is sized for scanning an
+    issue beside its list (34vw leaves a ~420px body at 1440, which wraps
+    Korean prose every ~30 characters). With the panel's wide
+    toggle on, the list keeps only its minimum track and the detail takes
+    the rest — a 1440 window reads its description in ~780px.
+  */
+  .issue-layout.detail-open.detail-wide {
+    grid-template-columns:
+      var(--layout-sidebar) minmax(var(--layout-list-min), 1fr) minmax(0, 2.4fr);
+  }
+
+  /*
     Explicit cells for all four children. The pane is placed on top of the
     detail panel rather than beside it, and one explicitly-placed item is enough
     to push every auto-placed sibling into the next row.
@@ -639,6 +660,13 @@
   }
 
   @media (min-width: 1600px) {
+    /* GDK-1311: the reading-width default — see the note above .detail-wide. */
+    .issue-layout.detail-open {
+      grid-template-columns:
+        var(--layout-sidebar) minmax(var(--layout-list-min), 1fr)
+        clamp(var(--layout-detail-min), 40vw, var(--layout-detail-max, 720px));
+    }
+
     /* The list keeps a working width; everything past it goes to the page. */
     .issue-layout.browse-open,
     .issue-layout.detail-open.browse-open {

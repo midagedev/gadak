@@ -225,7 +225,7 @@ Markers:
     fallback across them (GDK-1308): Jira is `cfg.Site + /browse/KEY`
     (`web/src/lib/issue-origin.ts:29`, `cmd/gadak/agent.go:2761`); the
     header key anchor and the copy-link paste lead with it
-    (`web/src/components/detail/DetailHeader.svelte:89`).
+    (`web/src/components/detail/DetailHeader.svelte:126`).
 
 [^48]: Linear has no site; the page Linear itself minted is stored on the
     row (`items.url`) by sync, and `gadak open`, the key anchor, copy-link

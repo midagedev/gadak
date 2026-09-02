@@ -16,6 +16,7 @@
   } from '../../lib/config'
   import { copyText } from '../../lib/copy-text'
   import { selection } from '../../stores/selection.svelte'
+  import { reading } from '../../stores/reading.svelte'
   import { favorites } from '../../stores/favorites.svelte'
   import { write } from '../../stores/write.svelte'
   import { openIssueOrigin } from '../../lib/desktop-links'
@@ -184,6 +185,24 @@
             stroke-linecap="round"
             stroke-linejoin="round"
           />
+        </svg>
+      </button>
+      <!-- Reading width (GDK-1311): the list keeps its minimum, the body gets the rest. -->
+      <button
+        type="button"
+        onclick={() => reading.toggle()}
+        data-testid="issue-detail-wide"
+        class="flex h-6 w-6 flex-none items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary aria-pressed:text-text-primary"
+        aria-pressed={reading.wide}
+        aria-label={reading.wide ? t('detail.wideOff') : t('detail.wideOn')}
+        title={reading.wide ? t('detail.wideOff') : t('detail.wideOn')}
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          {#if reading.wide}
+            <path d="M9 4l-6 8 6 8M15 4l6 8-6 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+          {:else}
+            <path d="M8 4l-5 8 5 8M16 4l5 8-5 8M3 12h18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+          {/if}
         </svg>
       </button>
       <!-- Watch -->

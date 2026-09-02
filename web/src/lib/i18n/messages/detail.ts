@@ -173,6 +173,16 @@ export const detail = {
   // {tracker} is the origin's brand name (Jira/Linear, `originTrackerName`)
   // and passes through untranslated (GDK-1149). The key keeps its name: it
   // is referenced by the command registry and tests as a wire id.
+  'detail.wideOn': {
+    en: 'Wide reading',
+    ko: '넓게 읽기',
+    ja: '広く読む',
+  },
+  'detail.wideOff': {
+    en: 'Back to the list width',
+    ko: '리스트 옆으로',
+    ja: 'リストの横に戻す',
+  },
   'detail.openJira': {
     en: 'Open in {tracker}',
     ko: '{tracker} 원본 열기',

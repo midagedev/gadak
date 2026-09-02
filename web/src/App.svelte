@@ -12,6 +12,7 @@
   import { pages } from './stores/pages.svelte'
   import { person } from './stores/person.svelte'
   import { panel } from './stores/panel.svelte'
+  import { reading } from './stores/reading.svelte'
   import { filters } from './stores/filters.svelte'
   import { me, type FeedFocus } from './stores/me.svelte'
   import { write } from './stores/write.svelte'
@@ -797,12 +798,14 @@
     <div
       class="issue-layout"
       class:detail-open={panelOpen}
+      class:detail-wide={panelOpen && reading.wide}
       class:browse-open={browse.paneOpen}
       data-testid="issue-layout"
       data-detail-open={panelOpen}
       data-browse-open={browse.paneOpen}
       data-viewport-regime={viewportRegime}
       style={layoutTokenStyle()}
+      data-detail-wide={panelOpen && reading.wide}
       bind:this={layoutEl}
     >
       <Sidebar>
