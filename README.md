@@ -281,12 +281,6 @@ Pins this binary and workspace into the registration.
 `~/.claude` already exists. A file gadak did not write is left in place.
 
 <p align="center">
-  <a href="docs/media/hero.mp4"><img src="docs/media/hero-poster.png" alt="A phone held over a desk: the phone's terminal has gadak close STD-4 typed and ready to send, while the same board — the same serve, the same mirror — fills the screen behind it" width="900"></a>
-  <br>
-  <sub><b>Twenty-six seconds, one serve, one terminal session</b> (<a href="docs/media/hero.mp4">play the film ▶</a>). A ticket is handed to an agent and the pane is closed — the work keeps running with nobody watching. A phone closes another issue from the same board. The desk comes back to the scrollback it left and a count that already moved, including what the phone did. Shot by two cameras at the same moment, not cut together from two takes: <a href="e2e/demo/record-hero.sh">e2e/demo/record-hero.sh</a>.</sub>
-</p>
-
-<p align="center">
   <img src="docs/media/claude-drive.gif" alt="A live Claude Code session beside the app: asked to retint the workspace and build a chart dashboard, it runs gadak config and dashboards save, and the open tab picks up the new colors and renders the dashboard" width="900">
   <br>
   <sub>What the skill buys: a live Claude Code session drives the same workspace you are looking at — colors and a chart dashboard land in the open tab, no reload. Recorded from <a href="tools/tapes/claude-drive.tape">tools/tapes/claude-drive.tape</a>.</sub>

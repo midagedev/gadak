@@ -54,7 +54,7 @@ each run with a fake credential.)
 | `docs/media/claude-tokens-vertical.mp4` | VHS `tools/tapes/claude-tokens.tape` + the same serve tab (`record-claude-drive.sh vertical claude-tokens`) | social/vertical, 4:5 — the team-look half: colours plus the dimension axes, including a token saved with a warning the agent then acts on (GDK-858) |
 | `docs/media/claude-tokens-vertical.gif` (+`-poster.png`) | 430-wide reduction of that mp4 | README — same reason as the dashboards GIF |
 | `docs/media/scale.mp4` (+`scale.gif`, `scale-poster.png`) | Playwright `e2e/demo/scale-demo.spec.ts` + post-process camera work `e2e/demo/export-scale.sh` (`make media-scale` — deliberately outside the `make media` aggregate: the committed artifacts are what the site ships) | landing flagship — record-time counts focus over a 20k-issue snapshot |
-| `docs/media/hero.mp4` (+`hero-poster.png`) | two-camera LIVE shoot, one command: `e2e/demo/record-hero.sh` (the desk take `record-hero-desk.sh`, with the phone take `record-hero-phone.sh` running inside its away-wait), cut by `e2e/demo/cut-hero.sh`. Not in `make media` and not reproducible from a checkout alone — it needs a live Claude Code login AND a booted iOS simulator with a dev build of the phone app | the 0.19 hero — one serve, one terminal session: the desk hands work to an agent and walks away, a phone closes an issue while the chair is empty, and the desk comes back to the scrollback and the board |
+| ~~`docs/media/hero.mp4`~~ (+`hero-poster.png`) — **removed 2026-09-02**: the phone app is not shipped, so no public surface shows it (user call). The rig stays: `e2e/demo/record-hero.sh` (desk take `record-hero-desk.sh` + phone take `record-hero-phone.sh` inside its away-wait, cut by `cut-hero.sh`) needs a live Claude Code login AND a booted iOS simulator with a dev build of the phone app | was the 0.19 hero — one serve, one terminal session: the desk hands work to an agent, a phone closes an issue while the chair is empty, the desk comes back to the scrollback and the board. Re-shoot and re-add when the phone app ships |
 | `docs/media/roundtrip.mp4` (+`roundtrip-poster.png`) | Playwright `e2e/demo/roundtrip.spec.ts` via `e2e/demo/record-roundtrip.sh --live --dark`, cut by `e2e/demo/cut-roundtrip.sh`. Like the hero, not in `make media` and not reproducible from a checkout alone — the four shells run a live Claude Code login against `e2e/demo/shop-fixture/`; nothing in the terminals is scripted, so takes vary and the rig retries until the beat contract holds | the 0.19 release cut — four shells bound to four issues investigate on their own (tabs named by issue key in the bottom dock), and clicking a card's session brings that shell back, findings standing, then another |
 | `docs/media/groupby.gif` / `groupby.mp4` (+`groupby-poster.png`) | Playwright `e2e/demo/groupby-demo.spec.ts` via `e2e/demo/export-groupby.sh` | group-by exhibit motion cut — the landing exhibit itself ships the still below |
 | `docs/media/groupby-still.png` | `e2e/demo/site-stills.mjs` | landing group-by exhibit (2x still; see the landing policy table) |
@@ -165,7 +165,6 @@ Measured 2026-09-02 via `ls -la docs/media/` + `ffprobe` (decimal MB = bytes/1e6
 | `claude-tokens-vertical.mp4` | 1.43 MB | 1428013 | 20.4 s | 1080×1350 h264 |
 | `claude-dashboards-vertical.gif` | 1.80 MB | 1797436 | 25.6 s | 430×538 @ 9 fps |
 | `claude-tokens-vertical.gif` | 1.39 MB | 1391483 | 20.4 s | 430×538 @ 9 fps |
-| `hero.mp4` | 1.72 MB | 1723424 | 25.9 s | 1920×1080 h264 |
 | `roundtrip.mp4` | 3.29 MB | 3292613 | 21.2 s | 1920×1296 h264 |
 
 ## Readability comes first, and it costs bytes
@@ -222,7 +221,7 @@ bash e2e/demo/record-promo.sh  # tokens + dashboards split (not in `make media`)
 bash e2e/demo/record-vertical.sh  # tokens + dashboards 1080×1350 (not in `make media`; README stays landscape)
 bash e2e/demo/record-claude-drive.sh  # flagship: live Claude Code × serve tab (not in `make media`; needs vhs + Claude login)
 bash e2e/demo/record-claude-drive.sh vertical  # same take, 1080×1350 (mp4 only)
-bash e2e/demo/record-hero.sh  # 0.19 hero: desk + phone interleaved, one serve (not in make media; needs a Claude login AND a booted iOS simulator)
+bash e2e/demo/record-hero.sh  # desk + phone interleaved, one serve — output not committed until the phone app ships (needs a Claude login AND a booted iOS simulator)
 tools/record-raycast.sh  # scripted LIVE take (not in make media): Raycast → gadak:// — needs Raycast + installed app
 make brand         # logo, wordmarks, favicons, OG card
 ```

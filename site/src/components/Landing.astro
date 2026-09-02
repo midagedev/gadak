@@ -131,19 +131,6 @@ const installHref = lang === 'en' ? '/install/' : '/ko/install/'
   <section class="agent">
     <h2>{t.agent.heading}</h2>
     <p>{t.agent.body}</p>
-    {/* 0.19 (GDK-1118): the section's lead exhibit, because it is the only
-        one that shows the claim end to end — one serve and one terminal
-        session, filmed by two cameras at the same moment rather than cut
-        together from two shoots. Full frame, not the 4:5 tower treatment:
-        the argument is a desk and a phone in one image. */}
-    <figure class="media-pair">
-      <MediaSlot
-        slot={lang === 'en' ? 'one board, two places' : '보드 하나, 두 자리'}
-        src="/media/hero.mp4"
-        poster="/media/hero-poster.png"
-      />
-      <figcaption>{t.agent.heroCaption}</figcaption>
-    </figure>
     <figure class="media-pair">
       <MediaSlot
         slot={lang === 'en' ? 'agent round' : '에이전트 한 판'}

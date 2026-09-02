@@ -287,12 +287,6 @@ gadak mcp install claude
 자동으로 설치합니다. gadak이 쓰지 않은 파일은 그대로 둡니다.
 
 <p align="center">
-  <a href="docs/media/hero.mp4"><img src="docs/media/hero-poster.png" alt="책상 앞에 든 폰: 폰 터미널에는 gadak close STD-4가 입력돼 전송을 기다리고, 그 뒤로 같은 보드 — 같은 serve, 같은 미러 — 가 화면을 채우고 있다" width="900"></a>
-  <br>
-  <sub><b>26초, serve 하나, 터미널 세션 하나</b> (<a href="docs/media/hero.mp4">영상 재생 ▶</a>). 티켓을 에이전트에게 넘기고 패널을 닫습니다. 보는 사람이 없어도 일은 계속됩니다. 폰이 같은 보드에서 다른 이슈를 닫습니다. 자리로 돌아오면 두고 간 스크롤백이 그대로 있고, 카운트는 폰이 한 것까지 포함해 이미 움직여 있습니다. 두 대의 카메라가 같은 순간을 찍은 것이지, 두 테이크를 이어 붙인 것이 아닙니다: <a href="e2e/demo/record-hero.sh">e2e/demo/record-hero.sh</a>.</sub>
-</p>
-
-<p align="center">
   <img src="docs/media/claude-drive.gif" alt="앱 옆의 라이브 Claude Code 세션: 워크스페이스를 다시 물들이고 차트 대시보드를 만들어 달라는 요청에 gadak config와 dashboards save를 실행하자, 열린 탭이 새 색을 입고 대시보드를 렌더한다" width="900">
   <br>
   <sub>스킬이 사 주는 것: 라이브 Claude Code 세션이 지금 보고 있는 그 워크스페이스를 직접 몰아서, 색과 차트 대시보드가 리로드 없이 열린 탭에 내려앉습니다. <a href="tools/tapes/claude-drive.tape">tools/tapes/claude-drive.tape</a>로 녹화.</sub>
