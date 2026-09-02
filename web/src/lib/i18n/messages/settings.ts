@@ -361,6 +361,11 @@ export const settings = {
     ko: '이 로컬 사본',
     ja: 'このローカルコピー',
   },
+  'pairing.noIdentityLocal': {
+    en: 'No identity — this serve is on the {tracker} tracker, so {issues} opens on {view}.',
+    ko: '신원 없음 — 이 serve 는 {tracker} 트래커라서 {issues}가 {view}로 열립니다.',
+    ja: 'アイデンティティなし — この serve は{tracker}トラッカーなので、{issues}は{view}で開きます。',
+  },
   'settings.workspaceLocalOrigin': {
     en: 'Built-in',
     ko: '내장',
