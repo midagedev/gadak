@@ -13,7 +13,7 @@
   import { onMount } from 'svelte'
   import { issues } from '../../stores/issues.svelte'
   import { t, relativeTime, absTime } from '../../lib/i18n'
-  import { isHostedDemo } from '../../lib/config'
+  import { config, isHostedDemo, isLocalOrigin, originTrackerName } from '../../lib/config'
   import { mirrorLabel } from '../../lib/mirror-status'
 
   /** Relabel cadence. relativeTime is minute-granular below the hour, so a 1s
@@ -66,9 +66,17 @@
     }
     if (level === 'failed') return t('freshness.titleFailed', { message: health?.message ?? '' })
     if (level === 'never') return t('freshness.titleNever')
-    const key = level === 'stale' ? 'freshness.titleStale' : 'freshness.titleFresh'
+    // GDK-1325: the tracker is named by its single owner, never assumed to
+    // be Jira — a Linear mirror said "pulled from Jira" for a month.
+    const when = relativeTime(syncedAt, 'long')
+    const line =
+      level === 'stale'
+        ? t('freshness.titleStale', { when })
+        : isLocalOrigin(config())
+          ? t('freshness.titleFreshLocal', { when })
+          : t('freshness.titleFresh', { when, tracker: originTrackerName() })
     const abs = absTime(syncedAt)
-    return `${t(key, { when: relativeTime(syncedAt, 'long') })}${abs ? `\n${abs}` : ''}`
+    return `${line}${abs ? `\n${abs}` : ''}`
   })
 
   // Same semantic tones as the sidebar sync badge — no new colors. While a pull

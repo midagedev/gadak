@@ -445,9 +445,14 @@ export const shell = {
     ja: 'ミラーの鮮度',
   },
   'freshness.titleFresh': {
-    en: 'Mirror pulled from Jira {when}. Click to sync now.',
-    ko: 'Jira에서 미러를 {when} 가져왔습니다. 클릭하면 지금 동기화합니다.',
-    ja: 'Jira からミラーを {when} 取得しました。クリックで今すぐ同期します。',
+    en: 'Mirror pulled from {tracker} {when}. Click to sync now.',
+    ko: '{tracker}에서 미러를 {when} 가져왔습니다. 클릭하면 지금 동기화합니다.',
+    ja: '{tracker} からミラーを {when} 取得しました。クリックで今すぐ同期します。',
+  },
+  'freshness.titleFreshLocal': {
+    en: 'Mirror refreshed from the built-in tracker {when}. Click to sync now.',
+    ko: '내장 트래커에서 미러를 {when} 갱신했습니다. 클릭하면 지금 동기화합니다.',
+    ja: '内蔵トラッカーからミラーを {when} 更新しました。クリックで今すぐ同期します。',
   },
   'freshness.titleStale': {
     en: 'Mirror is behind — last successful sync {when}. Click to sync now.',
