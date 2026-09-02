@@ -144,3 +144,30 @@ func (s *server) handleGetHistory(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, page)
 }
+
+// visitedKeysCap bounds GET history/visited/. A person who has opened more
+// distinct issues than this in the retention window loses the mark on the
+// oldest ones, which is the cheap failure; an unbounded answer is not.
+const visitedKeysCap = 5000
+
+// handleGetVisited answers "which keys has this browser opened, and when" for
+// one kind in a single request (GDK-1344). The history/ timeline pages and
+// mixes searches in; a list marking 10k rows needs the folded set, once.
+func (s *server) handleGetVisited(w http.ResponseWriter, r *http.Request) {
+	kind := strings.TrimSpace(r.URL.Query().Get("kind"))
+	switch kind {
+	case store.VisitKindIssue, store.VisitKindPage:
+	default:
+		fail(w, http.StatusBadRequest, "invalid_kind")
+		return
+	}
+	items, err := s.db.VisitedKeys(r.Context(), kind, visitedKeysCap)
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
+	if items == nil {
+		items = []store.RecentVisit{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": items, "truncated": len(items) == visitedKeysCap})
+}

@@ -41,6 +41,11 @@ export const list = {
     ko: '필터 초기화',
     ja: 'フィルターをクリア',
   },
+  'list.changedSinceSeen': {
+    en: 'Changed since you opened it',
+    ko: '연 뒤에 바뀜',
+    ja: '開いた後に変更あり',
+  },
   'filter.copyJql': {
     en: 'Copy JQL',
     ko: 'JQL 복사',

@@ -90,6 +90,7 @@
   import { bulk } from '../../stores/bulk.svelte'
   import { watches } from '../../stores/watches.svelte'
   import { favorites } from '../../stores/favorites.svelte'
+  import { me } from '../../stores/me.svelte'
   import { categoryOf, categoryMetaOf, relativeTime, absTime, highlightSegments } from '../../lib/format'
   import { calendarDay } from '../../lib/calendar'
   import Marks from '../ui/Marks.svelte'
@@ -217,6 +218,18 @@
   // Own-issue highlight. Off when the view is already scoped to "my issues".
   const mine = $derived(filters.isMine(issue) && !filters.scopedToMe)
 
+  // GDK-1344, a:visited's grammar: an opened issue's key goes quiet, and one
+  // that changed after the visit carries the accent dot a document row uses
+  // for the same fact. Neither adds chrome; the row's hierarchy is untouched.
+  const seenAt = $derived(me.visitedIssues.get(issue.issue_key))
+  const seen = $derived(seenAt !== undefined)
+  const changedSinceSeen = $derived.by(() => {
+    if (!seenAt || !issue.updated_at) return false
+    const edited = Date.parse(issue.updated_at)
+    const opened = Date.parse(seenAt)
+    return Number.isFinite(edited) && Number.isFinite(opened) && edited > opened
+  })
+
   // Epic chip. Redundant while the list is already sectioned by epic, so it is
   // dropped there rather than repeating the group header on every row.
   const epicKey = $derived(filters.display.group_by === 'epic' ? null : issue.epic_key)
@@ -315,6 +328,8 @@
   tabindex="-1"
   aria-current={active ? 'true' : undefined}
   data-issue-key={header ? undefined : issue.issue_key}
+  data-seen={seen ? 'true' : undefined}
+  data-changed={changedSinceSeen ? 'true' : undefined}
   data-testid={header ? 'issue-column-header' : undefined}
   data-cursor={cursor ? 'true' : undefined}
   onclick={header ? undefined : onRowClick}
@@ -367,9 +382,21 @@
     aria-label={t('list.categoryFilter', { label: catMeta.label })}
   ></button>
 
-  <!-- Key (accent tone marks own issues) -->
-  <span class="w-[88px] flex-none truncate font-mono text-micro {mine ? 'text-accent-text' : 'text-text-secondary'}">
-    <Marks segs={keySegs} />
+  <!-- Key (accent tone marks own issues; an opened one goes quiet, GDK-1344) -->
+  <span
+    class="flex w-[88px] flex-none items-center gap-1 font-mono text-micro {mine
+      ? 'text-accent-text'
+      : seen
+        ? 'text-text-muted'
+        : 'text-text-secondary'}"
+  >
+    <span class="min-w-0 truncate"><Marks segs={keySegs} /></span>
+    <!-- After the key, not before: a leading dot shifted the key off the
+         column every other row keeps (measured on the demo fixture). -->
+    {#if changedSinceSeen}
+      <span class="h-1.5 w-1.5 flex-none rounded-full bg-accent" aria-hidden="true"></span>
+      <span class="sr-only">{t('list.changedSinceSeen')}</span>
+    {/if}
   </span>
 
   <!-- Personal markers (favorite/watch) — quiet, before title -->

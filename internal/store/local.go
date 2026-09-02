@@ -811,16 +811,39 @@ type RecentVisit struct {
 // retired pair names a key the new origin can mint (GDK-418), and this list
 // exists precisely so its reader goes on to open those keys.
 func (db *DB) RecentVisits(ctx context.Context, limit int) ([]RecentVisit, error) {
+	return db.recentVisits(ctx, "", limit)
+}
+
+// VisitedKeys is RecentVisits narrowed to one kind — the set a list needs to
+// mark rows already opened (GDK-1344), newest first. The cap is the caller's;
+// the list asks for the whole set once and answers per row from a map.
+func (db *DB) VisitedKeys(ctx context.Context, kind string, limit int) ([]RecentVisit, error) {
+	switch kind {
+	case VisitKindIssue, VisitKindPage:
+	default:
+		return nil, fmt.Errorf("kind must be %q or %q", VisitKindIssue, VisitKindPage)
+	}
+	return db.recentVisits(ctx, kind, limit)
+}
+
+func (db *DB) recentVisits(ctx context.Context, kind string, limit int) ([]RecentVisit, error) {
 	if limit <= 0 {
 		return nil, errors.New("limit must be > 0")
 	}
+	where := "origin_epoch = " + currentEpochSQL
+	args := []any{}
+	if kind != "" {
+		where += " AND kind = ?"
+		args = append(args, kind)
+	}
+	args = append(args, limit)
 	rows, err := db.sql.QueryContext(ctx, `
 		SELECT kind, key, MAX(viewed_at) AS viewed_at
 		FROM local.visits
-		WHERE origin_epoch = `+currentEpochSQL+`
+		WHERE `+where+`
 		GROUP BY kind, key
 		ORDER BY viewed_at DESC, MAX(id) DESC
-		LIMIT ?`, limit)
+		LIMIT ?`, args...)
 	if err != nil {
 		return nil, err
 	}

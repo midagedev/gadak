@@ -22,6 +22,7 @@ import * as api from '../lib/api'
 import { config, feature } from '../lib/config'
 import { SEARCH_DEDUPE_MS, VISIT_DEBOUNCE_MS } from '../lib/history'
 import { STORAGE_KEYS } from '../lib/storage'
+import { SvelteMap } from 'svelte/reactivity'
 import type { HistoryVisitKind } from '../lib/types'
 import { column } from './column.svelte'
 import { history } from './history.svelte'
@@ -148,6 +149,16 @@ class MeStore {
   /** The issue slice — for anything that resolves a key against the issue pool. */
   recentIssues = $derived(this.recent.filter((visit) => visit.kind === 'issue'))
 
+  /**
+   * Every issue this browser has opened → when it last did (GDK-1344). The
+   * list reads it per row the way a:visited reads history: the key of an
+   * opened issue goes quiet, and one whose updated_at is newer than the
+   * visit carries the same accent dot a document row does. Filled once at
+   * boot from local.db (recent, above, is the 30-row sidebar slice); every
+   * recordRecent updates it in place.
+   */
+  visitedIssues = new SvelteMap<string, string>()
+
   /** Personal feed main-area toggle. A view onto the column union (GDK-821):
    *  the feed is one more full-column surface, so taking the column is what
    *  opens it and releasing it is what closes it — no separate latch. */
@@ -218,6 +229,15 @@ class MeStore {
     this.#initialized = true
 
     this.recent = loadRecent()
+    for (const visit of this.recent) {
+      if (visit.kind === 'issue' && visit.viewed_at) this.visitedIssues.set(visit.key, visit.viewed_at)
+    }
+    void api.getVisited('issue').then((items) => {
+      for (const it of items) {
+        const have = this.visitedIssues.get(it.key)
+        if (!have || have < it.viewed_at) this.visitedIssues.set(it.key, it.viewed_at)
+      }
+    })
     await favorites.load()
 
     try {
@@ -493,12 +513,14 @@ class MeStore {
   recordRecent(key: string, kind: RecentKind = 'issue'): void {
     if (!key) return
     const id = visitId(kind, key)
+    const viewedAt = new Date().toISOString()
     const next = [
-      { key, viewed_at: new Date().toISOString(), kind },
+      { key, viewed_at: viewedAt, kind },
       ...this.recent.filter((visit) => visitId(visit.kind, visit.key) !== id),
     ].slice(0, RECENT_MAX)
     this.recent = next
     saveRecent(next)
+    if (kind === 'issue') this.visitedIssues.set(key, viewedAt)
 
     const serverKind: HistoryVisitKind = kind === 'doc' ? 'page' : 'issue'
     const now = Date.now()

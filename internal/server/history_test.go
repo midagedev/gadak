@@ -164,3 +164,41 @@ func patchJSON(t *testing.T, h http.Handler, path, body string) *httptest.Respon
 	h.ServeHTTP(rec, req)
 	return rec
 }
+
+// GDK-1344: the folded per-key set a list marks visited rows from — one
+// row per key at its newest visit, one kind, never a search.
+func TestHistoryVisitedKeysFoldsPerKey(t *testing.T) {
+	db, cfg := fixture(t)
+	h := New(db, cfg)
+
+	for _, body := range []string{
+		`{"kind":"issue","key":"NMB-1"}`,
+		`{"kind":"issue","key":"NMB-1"}`,
+		`{"kind":"issue","key":"NMB-2"}`,
+		`{"kind":"page","key":"622723"}`,
+	} {
+		if rec := postJSON(t, h, apiBase+"history/visits/", body); rec.Code != http.StatusCreated {
+			t.Fatalf("visit %s: %d %s", body, rec.Code, rec.Body.String())
+		}
+	}
+	postJSON(t, h, apiBase+"history/searches/", `{"query":"NMB","result_count":2}`)
+
+	type visitedPage struct {
+		Items     []store.RecentVisit `json:"items"`
+		Truncated bool                `json:"truncated"`
+	}
+	got := decode[visitedPage](t, get(t, h, apiBase+"history/visited/?kind=issue", nil))
+	if len(got.Items) != 2 || got.Truncated {
+		t.Fatalf("visited issues = %+v", got)
+	}
+	// Newest first, so NMB-2 (visited last) leads and NMB-1 appears once.
+	if got.Items[0].Key != "NMB-2" || got.Items[1].Key != "NMB-1" || got.Items[1].ViewedAt == "" {
+		t.Fatalf("order/fold = %+v", got.Items)
+	}
+	if rec := get(t, h, apiBase+"history/visited/", nil); rec.Code != http.StatusBadRequest {
+		t.Fatalf("no kind: %d, want 400", rec.Code)
+	}
+	if rec := get(t, h, apiBase+"history/visited/?kind=search", nil); rec.Code != http.StatusBadRequest {
+		t.Fatalf("kind=search: %d, want 400", rec.Code)
+	}
+}

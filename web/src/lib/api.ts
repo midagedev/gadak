@@ -220,6 +220,21 @@ export function patchSearch(
   })
 }
 
+/** One row per key at its newest visit — the set a list marks opened rows
+ *  from (GDK-1344). Older servers and the hosted demo answer 404 → empty. */
+export async function getVisited(
+  kind: HistoryVisitKind,
+): Promise<{ key: string; viewed_at: string }[]> {
+  try {
+    const doc = await json<{ items?: { key: string; viewed_at: string }[] }>(
+      `history/visited/?kind=${kind}`,
+    )
+    return doc.items ?? []
+  } catch {
+    return []
+  }
+}
+
 export function getHistory(opts?: {
   kind?: string
   limit?: number
