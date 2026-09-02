@@ -22,15 +22,12 @@
   import { openIssueOrigin } from '../../lib/desktop-links'
   import { issueOriginUrl } from '../../lib/issue-origin'
   import { formatSpan } from '../../lib/format'
-  import { typeChipTint } from '../../stores/ui-tokens.svelte'
   import { shouldMarkUnattended } from '../../lib/issue-shells'
   import { shells } from '../../lib/issue-shells.svelte'
   import IssueBreadcrumb from './IssueBreadcrumb.svelte'
   import WatchButton from '../personal/WatchButton.svelte'
   import StatusTransition from '../write/StatusTransition.svelte'
   import PriorityPicker from '../write/PriorityPicker.svelte'
-  import AssigneePicker from '../write/AssigneePicker.svelte'
-  import LabelEditor from '../write/LabelEditor.svelte'
   import TitleEditor from '../write/TitleEditor.svelte'
   import Icon from '../ui/Icon.svelte'
 
@@ -233,10 +230,9 @@
   <div class="flex flex-wrap items-center gap-2 text-micro">
     <!-- Status (click → transition dropdown) -->
     <StatusTransition {issue} />
-
-    {#if issue.issue_type}
-      <span class="rounded-md bg-bg-elevated px-2 py-0.5 text-text-secondary" style:background={typeChipTint(issue.issue_type_id)}>{issue.issue_type}</span>
-    {/if}
+    <!-- Type is a property, not a state: it lives in the list below (GDK-1337).
+         The row keeps what changes or alarms — status, priority, reopen — plus
+         the quiet derived chips. -->
     <PriorityPicker {issue} />
     {#if issue.severity}
       <span class="rounded-md bg-bg-elevated px-2 py-0.5 text-text-secondary">{t('detail.severityShort', { s: issue.severity })}</span>
@@ -288,20 +284,8 @@
     {/if}
   </div>
 
-  <!-- Assignee + labels/versions -->
-  <div class="mt-3 flex flex-col gap-2 text-micro text-text-muted">
-    <!-- Assignee (click → assign popover; works when unassigned too) -->
-    <AssigneePicker {issue} />
-    {#if issue.fix_versions.length > 0}
-      <div class="flex items-start gap-2">
-        <span class="w-12 flex-none pt-0.5 text-text-muted">{t('common.version')}</span>
-        <span class="flex flex-wrap gap-1">
-          {#each issue.fix_versions as v (v)}
-            <span class="rounded bg-bg-elevated px-1.5 py-0.5 text-text-secondary">{v}</span>
-          {/each}
-        </span>
-      </div>
-    {/if}
-    <LabelEditor {issue} />
-  </div>
+  <!-- Assignee, type, labels, versions: one property list in IssueFields,
+       directly under this header (GDK-1337). Two groups with two label widths
+       — and Version here, Fix versions there, the same value — were the
+       measured defect. -->
 </header>

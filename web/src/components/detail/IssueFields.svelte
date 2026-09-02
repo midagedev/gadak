@@ -15,6 +15,9 @@
   import { issues } from '../../stores/issues.svelte'
   import { write } from '../../stores/write.svelte'
   import FieldEditor, { type EditorKind } from './FieldEditor.svelte'
+  import AssigneePicker from '../write/AssigneePicker.svelte'
+  import LabelEditor from '../write/LabelEditor.svelte'
+  import { typeChipTint } from '../../stores/ui-tokens.svelte'
   import Section from './Section.svelte'
 
   let {
@@ -170,9 +173,29 @@
   }
 </script>
 
-{#if visibleRows.length > 0}
-  <Section title={t('detail.details')}>
+<!-- One property list (GDK-1337). The header keeps status · priority · reopen;
+     everything that describes rather than alarms is a row here, in one label
+     column: who, what kind, labels, then the fields the mirror knows about. -->
+<Section title={t('detail.details')}>
     <dl class="grid grid-cols-[116px_minmax(0,1fr)] gap-x-3 gap-y-2 text-micro">
+      <div class="contents" data-testid="field-row-assignee">
+        <dt class="pt-0.5 text-text-muted">{fieldLabel('assignee')}</dt>
+        <dd class="min-w-0 text-text-muted"><AssigneePicker {issue} bare /></dd>
+      </div>
+      {#if issue.issue_type}
+        <div class="contents" data-testid="field-row-issue_type">
+          <dt class="pt-0.5 text-text-muted">{fieldLabel('issue_type')}</dt>
+          <dd class="min-w-0">
+            <span
+              class="inline-block max-w-full truncate rounded px-1.5 py-0.5 text-text-secondary"
+              style:background={typeChipTint(issue.issue_type_id)}>{issue.issue_type}</span>
+          </dd>
+        </div>
+      {/if}
+      <div class="contents" data-testid="field-row-labels">
+        <dt class="pt-0.5 text-text-muted">{fieldLabel('labels')}</dt>
+        <dd class="min-w-0 text-text-muted"><LabelEditor {issue} bare /></dd>
+      </div>
       {#each visibleRows as row (row.key)}
         {@const editable = rowEditable(row)}
         <div
@@ -202,5 +225,4 @@
         </div>
       {/each}
     </dl>
-  </Section>
-{/if}
+</Section>

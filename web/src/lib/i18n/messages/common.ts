@@ -143,11 +143,6 @@ export const common = {
     ko: '미분류',
     ja: '未分類',
   },
-  'common.version': {
-    en: 'Version',
-    ko: '버전',
-    ja: 'バージョン',
-  },
   'common.labels': {
     en: 'Labels',
     ko: '라벨',

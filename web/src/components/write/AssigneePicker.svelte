@@ -27,7 +27,8 @@
   // they wear in every row behind this popover.
   import Avatar from '../list/Avatar.svelte'
 
-  let { issue }: { issue: IssueLite } = $props()
+  /** bare: no inline label — the caller's <dt> names the row (GDK-1337). */
+  let { issue, bare = false }: { issue: IssueLite; bare?: boolean } = $props()
 
   let open = $state(false)
   let query = $state('')
@@ -166,7 +167,7 @@
   class="relative flex items-center gap-1.5"
   use:onOutsideClick={{ handler: () => (open = false), enabled: open }}
 >
-  <span class="w-12 flex-none text-text-muted">{t('write.assigneeLabel')}</span>
+  {#if !bare}<span class="w-12 flex-none text-text-muted">{t('write.assigneeLabel')}</span>{/if}
   <button
     type="button"
     onclick={openPicker}

@@ -14,7 +14,8 @@
   import { onEscape, onOutsideClick } from '../../lib/dom-actions'
   import Icon from '../ui/Icon.svelte'
 
-  let { issue }: { issue: IssueLite } = $props()
+  /** bare: no inline label — the caller's <dt> names the row (GDK-1337). */
+  let { issue, bare = false }: { issue: IssueLite; bare?: boolean } = $props()
 
   let adding = $state(false)
   let labelInput = $state('')
@@ -113,7 +114,7 @@
   data-testid="label-editor"
   use:onOutsideClick={{ handler: closeAdd, enabled: adding }}
 >
-  <span class="w-12 flex-none pt-0.5 text-text-muted">{t('common.labels')}</span>
+  {#if !bare}<span class="w-12 flex-none pt-0.5 text-text-muted">{t('common.labels')}</span>{/if}
   <div class="flex min-w-0 flex-1 flex-wrap items-center gap-1">
     {#each issue.labels as l (l)}
       <span
