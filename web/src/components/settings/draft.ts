@@ -14,7 +14,7 @@
  * one pure function is what makes the payload checkable without a browser.
  */
 
-import type { GadakSettings, SettingsFieldSpec } from '../../lib/api'
+import type { GadakSettings, SettingsFieldSpec, UITokens } from '../../lib/api'
 import type { GadakFeatures } from '../../lib/config'
 import type { MessageKey } from '../../lib/i18n'
 
@@ -82,6 +82,20 @@ export interface SettingsDraft {
    */
   specsTouched: boolean
   specsSupported: boolean
+  /** Terminal tab (GDK-1357). Scrollback as typed; '' = the server default. */
+  terminalScrollbackText: string
+  terminalCursorBlink: boolean
+  /** Font size in px as typed ('' = default) and the family stack — the two
+   *  `ui.tokens` leaves the tab edits (type.terminal, fonts.mono-terminal). */
+  terminalFontSizeText: string
+  terminalFontFamily: string
+  /**
+   * The `ui` block as GET sent it. PUT replaces that block whole, so the tab
+   * changes two leaves on this copy and sends the copy — only when touched:
+   * absence keeps the stored overrides (the omit-to-preserve rule).
+   */
+  ui: GadakSettings['ui']
+  uiTouched: boolean
 }
 
 /** Preset values in seconds. 0 = server default; -1 = custom number entry. */
@@ -181,7 +195,45 @@ export function toDraft(s: GadakSettings, features: FeatureFlags = NO_FEATURES):
     specs: (s.fieldSpecs ?? []).map((sp) => ({ ...sp, ids: [...sp.ids] })),
     specsTouched: false,
     specsSupported: s.fieldSpecs !== undefined,
+    terminalScrollbackText: s.terminal?.scrollback ? String(s.terminal.scrollback) : '',
+    terminalCursorBlink: s.terminal?.cursorBlink ?? false,
+    terminalFontSizeText: (s.ui?.tokens?.type?.terminal ?? '').replace(/px$/, ''),
+    terminalFontFamily: s.ui?.tokens?.fonts?.['mono-terminal'] ?? '',
+    ui: s.ui,
+    uiTouched: false,
   }
+}
+
+/**
+ * The GET `ui` block with the Terminal tab's two leaves written onto a copy.
+ * An empty entry deletes its leaf; an axis left empty is dropped so the
+ * document never carries `type: {}`. Anything else in the block is carried
+ * verbatim — PUT replaces the block, so a partial send would erase it.
+ */
+export function withTerminalTokens(
+  ui: GadakSettings['ui'],
+  fontSizeText: string,
+  fontFamily: string,
+): NonNullable<GadakSettings['ui']> {
+  const tokens: UITokens = { ...(ui?.tokens ?? {}) }
+  const type = { ...(tokens.type ?? {}) }
+  const fonts = { ...(tokens.fonts ?? {}) }
+  // Both arrive from <input type="number"> bindings, which hand back a
+  // number once the field holds one — so coerce before trimming.
+  const size = String(fontSizeText ?? '').trim()
+  if (size) type.terminal = /^\d+(\.\d+)?$/.test(size) ? `${size}px` : size
+  else delete type.terminal
+  const family = String(fontFamily ?? '').trim()
+  if (family) fonts['mono-terminal'] = family
+  else delete fonts['mono-terminal']
+  if (Object.keys(type).length) tokens.type = type
+  else delete tokens.type
+  if (Object.keys(fonts).length) tokens.fonts = fonts
+  else delete tokens.fonts
+  const out = { ...(ui ?? {}) }
+  if (Object.keys(tokens).length) out.tokens = tokens
+  else delete out.tokens
+  return out
 }
 
 /** The form's state before the first response lands. */
@@ -210,6 +262,7 @@ export function toSettings(d: SettingsDraft, projectsPickerReady: boolean): Gada
     if (group) productByGroup[group] = { key: row.key.trim(), label: row.label.trim() }
   }
   const hours = Number(d.staleText)
+  const scrollback = Number(d.terminalScrollbackText)
   return {
     projects: projectsPickerReady ? [...d.projects] : splitCsv(d.projectsText),
     // `enabled` is what lets the Sources tab turn the source on at all; the
@@ -249,5 +302,12 @@ export function toSettings(d: SettingsDraft, projectsPickerReady: boolean): Gada
     ...(d.specsTouched && d.specsSupported
       ? { fields: d.specs.filter((r) => r.alias.trim() && r.ids.length > 0) }
       : {}),
+    // Display fields only — the server merges them onto the stored block, so
+    // shell and workingDir (not in this document, GDK-1069) are untouched.
+    terminal: {
+      scrollback: Number.isFinite(scrollback) && scrollback > 0 ? Math.floor(scrollback) : 0,
+      cursorBlink: d.terminalCursorBlink,
+    },
+    ...(d.uiTouched ? { ui: withTerminalTokens(d.ui, d.terminalFontSizeText, d.terminalFontFamily) } : {}),
   }
 }

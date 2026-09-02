@@ -158,8 +158,32 @@ func ValidateLocale(s string) (string, error) {
 	return s, nil
 }
 
-// ApplyAppearance writes a validated theme onto c. "system" and empty store
-// as the zero value so the default is not persisted.
+// The terminal dock's appearance values (GDK-1357). Dark is the default and
+// stores as the zero value; follow makes the dock take the app palette.
+const (
+	TerminalAppearanceDark   = "dark"
+	TerminalAppearanceFollow = "follow"
+)
+
+// ValidateTerminalAppearance accepts empty or "dark" (both store as the zero
+// value — dark is the default) and "follow". Anything else is refused by
+// name: a stored value the web does not know would leave the dock in
+// whatever the CSS default is, silently.
+func ValidateTerminalAppearance(s string) (string, error) {
+	s = strings.TrimSpace(s)
+	switch s {
+	case "", TerminalAppearanceDark:
+		return "", nil
+	case TerminalAppearanceFollow:
+		return s, nil
+	}
+	return "", fmt.Errorf("appearance.terminal must be %q (default) or %q (got %q)",
+		TerminalAppearanceDark, TerminalAppearanceFollow, s)
+}
+
+// ApplyAppearance writes a validated look block onto c. "system" theme and
+// "dark" terminal are the defaults and store as zero values, so an untouched
+// look never persists a block at all.
 func ApplyAppearance(c *Config, a Appearance) error {
 	if c == nil {
 		return fmt.Errorf("nil config")
@@ -168,12 +192,27 @@ func ApplyAppearance(c *Config, a Appearance) error {
 	if err != nil {
 		return err
 	}
-	if theme == "" {
+	terminal, err := ValidateTerminalAppearance(a.Terminal)
+	if err != nil {
+		return err
+	}
+	a = Appearance{Theme: theme, Terminal: terminal}
+	if a == (Appearance{}) {
 		c.Appearance = nil
 		return nil
 	}
-	c.Appearance = &Appearance{Theme: theme}
+	c.Appearance = &a
 	return nil
+}
+
+// appearanceOrZero is the current look block by value, so a leaf setter
+// (`appearance.theme`, `appearance.terminal`) starts from what is stored and
+// changes one field — not from an empty block that would drop the other.
+func (c *Config) appearanceOrZero() Appearance {
+	if c == nil || c.Appearance == nil {
+		return Appearance{}
+	}
+	return *c.Appearance
 }
 
 // The terminal behavior block (GDK-896). Defaults named once so the
@@ -260,6 +299,20 @@ func ApplyTerminal(c *Config, t TerminalConfig) error {
 	}
 	c.Terminal = &t
 	return nil
+}
+
+// ApplyTerminalDisplay sets the two display fields of the terminal block
+// and leaves shell and workingDir as stored. It is the only terminal write
+// PUT settings/ performs (GDK-1069: that endpoint admits paired serve-scope
+// Bearers, so the fields that name the next spawned binary are not on it).
+func ApplyTerminalDisplay(c *Config, scrollback int, cursorBlink bool) error {
+	if c == nil {
+		return fmt.Errorf("nil config")
+	}
+	next := c.terminalOrZero()
+	next.Scrollback = scrollback
+	next.CursorBlink = cursorBlink
+	return ApplyTerminal(c, next)
 }
 
 // ValidateIntervals is the PUT / gadak config rule for the two watch periods.
@@ -373,12 +426,14 @@ func buildSettings() []Setting {
 		{
 			Path:        "appearance",
 			Root:        "appearance",
-			Description: "UI look block; empty theme means system",
-			Get:         func(c *Config) any { return Appearance{Theme: c.EffectiveTheme()} },
+			Description: "UI look block {theme, terminal}; empty theme means system, empty terminal means dark",
+			Get: func(c *Config) any {
+				return Appearance{Theme: c.EffectiveTheme(), Terminal: c.EffectiveTerminalAppearance()}
+			},
 			Set: func(c *Config, raw json.RawMessage) error {
 				var a Appearance
 				if err := json.Unmarshal(raw, &a); err != nil {
-					return fmt.Errorf("appearance must be an object {\"theme\": \"…\"}")
+					return fmt.Errorf("appearance must be an object {\"theme\": \"…\", \"terminal\": \"dark|follow\"}")
 				}
 				return ApplyAppearance(c, a)
 			},
@@ -393,7 +448,25 @@ func buildSettings() []Setting {
 				if err != nil {
 					return err
 				}
-				return ApplyAppearance(c, Appearance{Theme: s})
+				next := c.appearanceOrZero()
+				next.Theme = s
+				return ApplyAppearance(c, next)
+			},
+		},
+		{
+			Path: "appearance.terminal",
+			Root: "appearance",
+			Description: "terminal dock appearance: dark (default — the dock paints the dark palette " +
+				"under every app theme) or follow (the dock takes the app palette)",
+			Get: func(c *Config) any { return c.EffectiveTerminalAppearance() },
+			Set: func(c *Config, raw json.RawMessage) error {
+				s, err := decodeString(raw, "appearance.terminal")
+				if err != nil {
+					return err
+				}
+				next := c.appearanceOrZero()
+				next.Terminal = s
+				return ApplyAppearance(c, next)
 			},
 		},
 		{

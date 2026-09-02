@@ -1086,17 +1086,36 @@ export interface GadakSettings {
    * UI look. GET always sends it (empty stored → "system"). Omit on PUT
    * to keep the stored value — the document is otherwise a full replace.
    */
-  appearance?: { theme?: string }
+  appearance?: { theme?: string; terminal?: string }
+  /**
+   * Terminal display behavior (GDK-1357): scrollback lines (0 = default)
+   * and cursor blink. GET always sends it; omit on PUT to keep the stored
+   * values. Shell and workingDir are deliberately not in this document
+   * (GDK-1069) — `gadak config set terminal.shell` is their only road.
+   */
+  terminal?: { scrollback: number; cursorBlink: boolean }
   /**
    * User color overrides (GDK-786). Same omit-to-preserve rule: GET always
    * sends it, an older PUT that omits the key keeps the stored overrides.
    * Refusals (locked token, bad key kind) answer 400 with the reason.
    */
   ui?: {
-    tokens?: { colors?: Record<string, string> }
-    tokensByTheme?: Record<string, { colors?: Record<string, string> }>
+    tokens?: UITokens
+    tokensByTheme?: Record<string, UITokens>
     dataColors?: Record<string, Record<string, string>>
   }
+}
+
+/** One token block of `ui` (internal/config/uitokens.go UITokens): colors
+ *  are hex, the dimension axes are CSS lengths, fonts are family stacks.
+ *  `type.terminal` and `fonts.mono-terminal` are the two the Terminal
+ *  settings tab edits. */
+export interface UITokens {
+  colors?: Record<string, string>
+  spacing?: Record<string, string>
+  layout?: Record<string, string>
+  type?: Record<string, string>
+  fonts?: Record<string, string>
 }
 
 /** One recorded sync pass (meaningful runs only: changed something, full, or failed). */

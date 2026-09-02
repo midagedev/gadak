@@ -363,3 +363,76 @@ func TestSettingMemorySpaceRoundtripAndValidation(t *testing.T) {
 		t.Fatalf("trim-around stored %+v", trimmed.Memory)
 	}
 }
+
+// GDK-1357: the terminal dock's own appearance. Dark is the default and
+// stores as the zero value; the leaf setters start from the stored block so
+// `gadak config set appearance.theme ink` cannot drop a stored terminal
+// value, nor the other way round.
+func TestSettingGetSetAppearanceTerminal(t *testing.T) {
+	term, ok := SettingByPath("appearance.terminal")
+	if !ok {
+		t.Fatal("appearance.terminal not in catalog")
+	}
+	theme, _ := SettingByPath("appearance.theme")
+	c := &Config{}
+	if got := term.Get(c); got != "dark" {
+		t.Fatalf("default get = %#v, want dark", got)
+	}
+	if err := term.Set(c, json.RawMessage(`"follow"`)); err != nil {
+		t.Fatal(err)
+	}
+	if c.Appearance == nil || c.Appearance.Terminal != "follow" || c.Appearance.Theme != "" {
+		t.Fatalf("stored %+v", c.Appearance)
+	}
+	// The sibling leaf keeps it.
+	if err := theme.Set(c, json.RawMessage(`"ink"`)); err != nil {
+		t.Fatal(err)
+	}
+	if c.Appearance.Terminal != "follow" || c.Appearance.Theme != "ink" {
+		t.Fatalf("theme leaf dropped terminal: %+v", c.Appearance)
+	}
+	// And this leaf keeps the theme.
+	if err := term.Set(c, json.RawMessage(`"dark"`)); err != nil {
+		t.Fatal(err)
+	}
+	if c.Appearance == nil || c.Appearance.Theme != "ink" || c.Appearance.Terminal != "" {
+		t.Fatalf("dark must store as zero and keep the theme: %+v", c.Appearance)
+	}
+	if got := term.Get(c); got != "dark" {
+		t.Fatalf("get after dark = %#v", got)
+	}
+	// Both defaults → no block at all.
+	if err := theme.Set(c, json.RawMessage(`"system"`)); err != nil {
+		t.Fatal(err)
+	}
+	if c.Appearance != nil {
+		t.Fatalf("both defaults must store nil, got %+v", c.Appearance)
+	}
+	if err := term.Set(c, json.RawMessage(`"light"`)); err == nil {
+		t.Fatal("unknown terminal appearance accepted")
+	}
+}
+
+// ApplyTerminalDisplay is the settings-PUT road into the terminal block: it
+// must leave shell and workingDir exactly as stored (GDK-1069).
+func TestApplyTerminalDisplayKeepsShellAndDir(t *testing.T) {
+	c := &Config{Terminal: &TerminalConfig{Shell: "/bin/zsh", WorkingDir: "/srv/work"}}
+	if err := ApplyTerminalDisplay(c, 20000, true); err != nil {
+		t.Fatal(err)
+	}
+	want := TerminalConfig{Shell: "/bin/zsh", WorkingDir: "/srv/work", Scrollback: 20000, CursorBlink: true}
+	if c.Terminal == nil || *c.Terminal != want {
+		t.Fatalf("got %+v, want %+v", c.Terminal, want)
+	}
+	if err := ApplyTerminalDisplay(c, 5, false); err == nil {
+		t.Fatal("scrollback below the floor accepted")
+	}
+	// Back to defaults on a config with no paths → the block is dropped.
+	c = &Config{Terminal: &TerminalConfig{Scrollback: 900}}
+	if err := ApplyTerminalDisplay(c, 0, false); err != nil {
+		t.Fatal(err)
+	}
+	if c.Terminal != nil {
+		t.Fatalf("all-default block must store nil, got %+v", c.Terminal)
+	}
+}

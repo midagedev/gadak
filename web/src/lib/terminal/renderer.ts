@@ -21,9 +21,14 @@ import { findIssueKeyMatches } from './issue-links'
 export { createUtf8StreamDecoder }
 export type { TerminalRenderer }
 
-function cssVar(name: string, fallback: string): string {
+/** A token as it computes on `scope` — the pane's host once there is one.
+ *  The dock re-declares the palette under itself (GDK-1357), so a read off
+ *  <html> would hand xterm the page's ground, not the dock's. */
+function cssVar(name: string, fallback: string, scope?: Element | null): string {
   if (typeof document === 'undefined') return fallback
-  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+  const v = getComputedStyle(scope ?? document.documentElement)
+    .getPropertyValue(name)
+    .trim()
   return v || fallback
 }
 
@@ -46,7 +51,7 @@ export function fontFamily(read: (name: string) => string = readCssVar): string 
 /** Chrome colours only — ANSI palette stays the library default so a light
  *  paper theme does not invert black/white. Variable names come from the
  *  shared list in ./protocol (GDK-1109); the fallbacks are web-owned hexes. */
-function chromeTheme(): {
+function chromeTheme(scope?: Element | null): {
   background: string
   foreground: string
   cursor: string
@@ -54,11 +59,11 @@ function chromeTheme(): {
   selectionBackground: string
 } {
   return {
-    background: cssVar(TERMINAL_CHROME_VARS.background, '#f4efe4'),
-    foreground: cssVar(TERMINAL_CHROME_VARS.foreground, '#1c1812'),
-    cursor: cssVar(TERMINAL_CHROME_VARS.cursor, '#2e4560'),
-    cursorAccent: cssVar(TERMINAL_CHROME_VARS.cursorAccent, '#f4efe4'),
-    selectionBackground: cssVar(TERMINAL_CHROME_VARS.selectionBackground, '#cfc0a4'),
+    background: cssVar(TERMINAL_CHROME_VARS.background, '#f4efe4', scope),
+    foreground: cssVar(TERMINAL_CHROME_VARS.foreground, '#1c1812', scope),
+    cursor: cssVar(TERMINAL_CHROME_VARS.cursor, '#2e4560', scope),
+    cursorAccent: cssVar(TERMINAL_CHROME_VARS.cursorAccent, '#f4efe4', scope),
+    selectionBackground: cssVar(TERMINAL_CHROME_VARS.selectionBackground, '#cfc0a4', scope),
   }
 }
 
@@ -223,6 +228,9 @@ async function createXtermRenderer(): Promise<BehaviorTerminalRenderer> {
     import('@xterm/addon-fit'),
     import('@xterm/xterm/css/xterm.css'),
   ])
+  // Constructed before a host exists, so the first theme is the document's;
+  // open() replaces it with the host's own computed tokens (GDK-1357).
+  let scope: HTMLElement | null = null
   const theme = chromeTheme()
   const term = new Terminal({
     ...termOptions(),
@@ -258,9 +266,9 @@ async function createXtermRenderer(): Promise<BehaviorTerminalRenderer> {
   // this is a replace, not a patch — and the ANSI palette is untouched
   // either way, because chromeTheme() only carries the five chrome slots.
   const chromeWatch = watchChromeVars(
-    () => JSON.stringify(chromeTheme()),
+    () => JSON.stringify(chromeTheme(scope)),
     () => {
-      term.options.theme = chromeTheme()
+      term.options.theme = chromeTheme(scope)
     },
   )
   // Exposed from creation, not open(): the hook mirrors the live terminal,
@@ -327,6 +335,9 @@ async function createXtermRenderer(): Promise<BehaviorTerminalRenderer> {
       host.style.height = '100%'
       host.style.width = '100%'
       term.open(host)
+      scope = host
+      term.options.theme = chromeTheme(scope)
+      chromeWatch.sync()
       if (term.element) {
         term.element.style.height = '100%'
         term.element.style.width = '100%'

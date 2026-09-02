@@ -27,7 +27,7 @@ export const settings = {
     ja: '機能',
   },
   'settings.tabTeams': {
-    en: 'Teams / groups',
+    en: 'Teams',
     ko: '팀/그룹',
     ja: 'チーム / グループ',
   },
@@ -37,7 +37,7 @@ export const settings = {
     ja: 'メンバー',
   },
   'settings.tabFields': {
-    en: 'Field mapping',
+    en: 'Fields',
     ko: '필드 매핑',
     ja: 'フィールドマップ',
   },
@@ -577,7 +577,7 @@ export const settings = {
     ja: 'チームグループ',
   },
   'settings.featureTeamsDesc': {
-    en: 'Group members into teams for filters and grouping — configure rules in the Teams / groups tab',
+    en: 'Group members into teams for filters and grouping — configure rules in the Teams tab',
     ko: '멤버를 팀으로 묶어 필터·그룹핑 — 팀/그룹 탭에서 규칙 설정',
     ja: 'メンバーをチームにまとめてフィルターとグループ化に使います — チーム / グループタブで規則を設定',
   },
@@ -1344,6 +1344,87 @@ export const settings = {
     en: 'Saved on this device only. The server did not take the theme.',
     ko: '이 기기에만 저장됨. 서버에 테마를 쓰지 못했습니다.',
     ja: 'このデバイスにだけ保存されました。サーバーはテーマを受け取りませんでした。',
+  },
+  /* ── Terminal tab (GDK-1357) ── */
+  'settings.tabTerminal': {
+    en: 'Terminal',
+    ko: '터미널',
+    ja: 'ターミナル',
+  },
+  'settings.terminalAppearance': {
+    en: 'Appearance',
+    ko: '외양',
+    ja: '外観',
+  },
+  'settings.terminalAppearanceDark': {
+    en: 'Dark, under every theme',
+    ko: '항상 다크',
+    ja: '常にダーク',
+  },
+  'settings.terminalAppearanceFollow': {
+    en: 'Follow the app theme',
+    ko: '앱 테마를 따름',
+    ja: 'アプリのテーマに従う',
+  },
+  'settings.terminalAppearanceDesc': {
+    en: 'The terminal keeps a dark ground by default: shell colors are made for one, and the band reads as its own section under a light page. Applies at once.',
+    ko: '터미널은 기본적으로 어두운 바탕을 유지합니다. 셸 색상은 어두운 배경용이고, 밝은 페이지 아래에서 하나의 구획으로 읽힙니다. 즉시 적용됩니다.',
+    ja: 'ターミナルは既定で暗い地を保ちます。シェルの配色は暗い背景向けで、明るいページの下で独立した区画として読めます。即時に適用されます。',
+  },
+  'settings.terminalText': {
+    en: 'Text',
+    ko: '글자',
+    ja: '文字',
+  },
+  'settings.terminalFontSize': {
+    en: 'Font size (px, 9–24)',
+    ko: '글자 크기 (px, 9–24)',
+    ja: '文字サイズ (px, 9–24)',
+  },
+  'settings.terminalFontFamily': {
+    en: 'Font family',
+    ko: '글꼴',
+    ja: 'フォント',
+  },
+  'settings.terminalTextDesc': {
+    en: 'Empty means the default. A terminal that is already open keeps its text until it is opened again.',
+    ko: '비우면 기본값입니다. 이미 열린 터미널은 다시 열 때까지 이전 글자를 유지합니다.',
+    ja: '空欄は既定値です。すでに開いているターミナルは、次に開くまで以前の文字のままです。',
+  },
+  'settings.terminalBehavior': {
+    en: 'Behavior',
+    ko: '동작',
+    ja: '動作',
+  },
+  'settings.terminalScrollback': {
+    en: 'Scrollback (lines)',
+    ko: '스크롤백 (줄)',
+    ja: 'スクロールバック (行)',
+  },
+  'settings.terminalScrollbackDesc': {
+    en: 'Empty means 5000. Between 200 and 100000.',
+    ko: '비우면 5000. 200–100000 사이.',
+    ja: '空欄は 5000。200〜100000 の範囲。',
+  },
+  'settings.terminalCursorBlink': {
+    en: 'Blinking cursor',
+    ko: '커서 깜박임',
+    ja: 'カーソルの点滅',
+  },
+  'settings.terminalBehaviorDesc': {
+    en: 'New shells pick these up on Save. A shell that is already running keeps what it started with.',
+    ko: '저장하면 새 셸부터 적용됩니다. 이미 실행 중인 셸은 시작 시점 값을 유지합니다.',
+    ja: '保存すると新しいシェルから適用されます。実行中のシェルは開始時の値を保ちます。',
+  },
+  'settings.terminalShell': {
+    en: 'Shell and starting directory',
+    ko: '셸과 시작 디렉터리',
+    ja: 'シェルと開始ディレクトリ',
+  },
+  'settings.terminalShellDesc': {
+    en: 'Set these from a shell on this machine. They name the program the next terminal runs, so they stay off a screen a paired device can also reach.',
+    ko: '이 기기의 셸에서 설정합니다. 다음 터미널이 실행할 프로그램을 정하는 값이라, 페어링된 기기도 닿는 화면에는 두지 않습니다.',
+    ja: 'このマシンのシェルから設定します。次のターミナルが実行するプログラムを決める値なので、ペアリングした機器からも届く画面には置きません。',
   },
   /* ── Command palette ── */
   'palette.title': {

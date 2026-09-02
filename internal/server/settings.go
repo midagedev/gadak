@@ -217,6 +217,23 @@ type settingsConfluenceDoc struct {
 	Spaces  []string `json:"spaces,omitempty"`
 }
 
+// settingsTerminalDoc is the terminal block as the settings document carries
+// it: the two display fields, stored values (0 / false = default). See the
+// Terminal field comment for why shell and workingDir are absent.
+type settingsTerminalDoc struct {
+	Scrollback  int  `json:"scrollback"`
+	CursorBlink bool `json:"cursorBlink"`
+}
+
+func terminalDisplay(cfg *config.Config) *settingsTerminalDoc {
+	out := &settingsTerminalDoc{}
+	if cfg != nil && cfg.Terminal != nil {
+		out.Scrollback = cfg.Terminal.Scrollback
+		out.CursorBlink = cfg.Terminal.CursorBlink
+	}
+	return out
+}
+
 // settingsDoc is everything the settings UI may read and write. The credential
 // block (email, token) is absent by construction, not by filtering.
 type settingsDoc struct {
@@ -249,8 +266,17 @@ type settingsDoc struct {
 
 	// Appearance is the UI look. A pointer so older clients that omit the key
 	// on PUT cannot wipe a stored theme. GET always populates it (empty
-	// stored theme → "system").
+	// stored theme → "system", empty stored terminal → "dark").
 	Appearance *config.Appearance `json:"appearance,omitempty"`
+
+	// Terminal is the pane's display behavior — scrollback and cursor blink
+	// only. Shell and workingDir are deliberately NOT here (GDK-1069): this
+	// endpoint admits serve-scope pairing Bearers, and a field that names the
+	// next binary the local user's terminal spawns would let a paired device
+	// plant it. Those two stay `gadak config set terminal.shell` — a write
+	// from the machine that runs the shell. Pointer for the omit-to-preserve
+	// rule; GET always populates it with the stored values (0 = default).
+	Terminal *settingsTerminalDoc `json:"terminal,omitempty"`
 
 	// UI is the user color-override block (GDK-786): tokens, per-palette
 	// overlays, data inks. Pointer for the same reason as Appearance — an
@@ -398,6 +424,14 @@ func (s *server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	// Merge onto the stored block: shell and workingDir are not in the
+	// document, so they must survive a PUT untouched (GDK-1069).
+	if in.Terminal != nil {
+		if err := config.ApplyTerminalDisplay(&next, in.Terminal.Scrollback, in.Terminal.CursorBlink); err != nil {
+			fail(w, http.StatusBadRequest, err.Error())
+			return
+		}
+	}
 	// Same omit-to-preserve contract: ui absent leaves stored overrides
 	// alone; present means full replacement of the block (the UI edits the
 	// whole object it GETs). Refusals carry the validator's reason; judgment
@@ -507,8 +541,12 @@ func settings(cfg *config.Config) settingsDoc {
 		ReconcileIntervalSec: cfg.ReconcileIntervalSec,
 		Site:                 cfg.Site,
 		HasCredential:        cfg.HasCredential(),
-		Appearance:           &config.Appearance{Theme: cfg.EffectiveTheme()},
-		UI:                   uiOrEmpty(cfg.UI),
+		Appearance: &config.Appearance{
+			Theme:    cfg.EffectiveTheme(),
+			Terminal: cfg.EffectiveTerminalAppearance(),
+		},
+		Terminal: terminalDisplay(cfg),
+		UI:       uiOrEmpty(cfg.UI),
 	}
 	if cfg.Confluence != nil {
 		doc.Confluence = &settingsConfluenceDoc{Spaces: strs(cfg.Confluence.Spaces)}

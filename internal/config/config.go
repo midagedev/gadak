@@ -279,8 +279,13 @@ const (
 )
 
 // Appearance is the look block in config.json. Empty Theme means "system".
+// Terminal is the terminal dock's own appearance (GDK-1357): empty means
+// "dark" — the dock paints the dark palette whatever the app theme, because
+// the xterm ANSI palette is a dark-ground palette (9 of its 16 colours fall
+// under 3.0:1 on paper). "follow" makes the dock take the app's palette.
 type Appearance struct {
-	Theme string `json:"theme,omitempty"`
+	Theme    string `json:"theme,omitempty"`
+	Terminal string `json:"terminal,omitempty"`
 }
 
 // TerminalConfig is the terminal behavior block in config.json (GDK-896).
@@ -1122,6 +1127,15 @@ func (c *Config) EffectiveTheme() string {
 		return "system"
 	}
 	return c.Appearance.Theme
+}
+
+// EffectiveTerminalAppearance is the terminal dock's appearance with the
+// default filled: "dark" unless the block says "follow" (GDK-1357).
+func (c *Config) EffectiveTerminalAppearance() string {
+	if c == nil || c.Appearance == nil || c.Appearance.Terminal == "" {
+		return TerminalAppearanceDark
+	}
+	return c.Appearance.Terminal
 }
 
 // EffectiveLocale is the origin's display-name language (GDK-597). Empty

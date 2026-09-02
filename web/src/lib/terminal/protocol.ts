@@ -178,9 +178,12 @@ export const TERMINAL_CHROME_VARS = {
  * repaint the document re-reads the tokens, and the callback fires only when
  * a value actually changed. A fourth path costs nothing.
  */
-export function watchChromeVars(read: () => string, onChange: () => void): { stop(): void } {
+export function watchChromeVars(
+  read: () => string,
+  onChange: () => void,
+): { stop(): void; sync(): void } {
   if (typeof document === 'undefined' || typeof window === 'undefined') {
-    return { stop() {} }
+    return { stop() {}, sync() {} }
   }
   let last = read()
   let queued = false
@@ -199,12 +202,13 @@ export function watchChromeVars(read: () => string, onChange: () => void): { sto
     queued = true
     requestAnimationFrame(check)
   }
-  // <html>: data-theme (picker) and inline custom properties (layout dims,
-  // and anything that later writes a token straight onto the element).
+  // <html>: data-theme (picker), data-terminal-theme (the dock's own
+  // appearance, GDK-1357) and inline custom properties (layout dims, and
+  // anything that later writes a token straight onto the element).
   const root = new MutationObserver(schedule)
   root.observe(document.documentElement, {
     attributes: true,
-    attributeFilter: ['data-theme', 'style'],
+    attributeFilter: ['data-theme', 'data-terminal-theme', 'style'],
   })
   // <head>: the ui.tokens override sheet is installed once and then has its
   // textContent replaced, so childList alone would miss every write after
@@ -218,6 +222,15 @@ export function watchChromeVars(read: () => string, onChange: () => void): { sto
       root.disconnect()
       head.disconnect()
       mq?.removeEventListener?.('change', schedule)
+    },
+    // Re-seed the baseline after the caller applied the chrome by another
+    // road (GDK-1357: open() re-reads the tokens on the pane's host, which
+    // the construction-time baseline never saw). Without this the first
+    // change after open() can compare equal to the stale baseline — the
+    // host's paper reading matched the document's paper reading taken
+    // before the dock scope existed — and be dropped as "no change".
+    sync() {
+      last = read()
     },
   }
 }

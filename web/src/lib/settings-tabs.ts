@@ -8,6 +8,7 @@ export const SETTINGS_TABS = [
   'sync',
   'sources',
   'features',
+  'terminal',
   'groups',
   'members',
   'fields',

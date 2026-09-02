@@ -120,8 +120,10 @@ describe('GDK-1109 chrome-variable parity (protocol ⟷ app.css ⟷ renderers)',
     for (const path of ['renderer.ts', '../../../../mobile/src/lib/terminal/renderer.ts']) {
       const src = readFileSync(resolve(HERE, path), 'utf8')
       expect(src, `${path} must import the shared watcher`).toContain('watchChromeVars')
+      // GDK-1357: the web renderer reads the chrome off the pane's host
+      // (`chromeTheme(scope)`), so the argument list is open here.
       expect(src, `${path} must re-apply the chrome, not only read it once`).toMatch(
-        /term\.options\.theme\s*=\s*chromeTheme\(\)/,
+        /term\.options\.theme\s*=\s*chromeTheme\([^)]*\)/,
       )
     }
   })
@@ -147,6 +149,8 @@ describe('GDK-1156 chrome watcher, without a document', () => {
         throw new Error('onChange fired with no DOM')
       },
     )
+    expect(reads).toBe(0)
+    expect(() => w.sync()).not.toThrow()
     expect(reads).toBe(0)
     expect(() => w.stop()).not.toThrow()
   })

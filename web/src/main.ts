@@ -5,6 +5,7 @@ import { applyCacheScopeDebug, config, loadConfig } from './lib/config'
 import { installHostedFetch } from './lib/hosted-fetch'
 import { applySearchPromotion } from './lib/promote-search'
 import { migrateStorageKeys } from './lib/storage'
+import { applyTerminalAppearanceAtBoot } from './lib/terminal/appearance'
 import { applyThemeAtBoot } from './lib/theme'
 import { applyUserTokens } from './lib/user-tokens'
 
@@ -12,6 +13,7 @@ import { applyUserTokens } from './lib/user-tokens'
 // boot shell has a theme; strip or replace it now so the first real paint
 // matches the stored preference (system = no attribute).
 applyThemeAtBoot()
+applyTerminalAppearanceAtBoot()
 
 const target = document.getElementById('app')
 if (!target) throw new Error('#app not found')

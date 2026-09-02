@@ -98,6 +98,15 @@ web so a new palette does not need a server deploy. The picker today
 iterates `system`, `light`, `dark`, `ink`, `ember`
 (`web/src/lib/theme.ts`).
 
+### `appearance.terminal`
+
+The terminal dock's own appearance (GDK-1357): `dark` (the default, stored
+as the zero value) paints the dark palette under every app theme — xterm's
+ANSI palette is a dark-ground palette, and on paper 9 of its 16 colours fall
+under 3.0:1 — while `follow` hands the dock the app's palette. Settings →
+Terminal, or `gadak config set appearance.terminal follow`. Anything else is
+refused by name. Applies to an open pane at once; no reload.
+
 ### `ui.*` — user token overrides (colors + dimensions)
 
 Catalog paths under one `ui` block in `config.json` — the three whole
@@ -432,6 +441,7 @@ is nothing to say, and a client-supplied value is ignored.
 | `tokenVerifiedAt` | string (RFC3339) | _(empty)_ | Set by successful credential verify | Read-only side effect |
 | `tokenOwner` | string | _(empty)_ | Set by successful credential verify | Read-only side effect |
 | `appearance.theme` | string | empty → **system** | Settings theme picker / `gadak config set appearance.theme` | Immediate after reload; shape `[a-z0-9-]{1,32}` (see above) |
+| `appearance.terminal` | `dark` \| `follow` | empty → **dark** | Settings → Terminal / `gadak config set appearance.terminal follow` | Immediate, open pane included (see above) |
 | `ui.tokens` | `{colors: {token: hex}, spacing\|layout\|type: {token: length}, fonts: {token: stack}}` | _(absent)_ | `gadak config set ui.tokens` / Settings PUT `ui` (no form editor yet) | Live, no reload — color-token overrides for every palette plus the palette-agnostic dimension and font axes (see above). Only parse/shape/derived refuse; tiers, contrast, ranges and relations warn and save. A set replaces the whole object |
 | `ui.tokens.<axis>` | `{token: hex, length, or font stack}` (axis = `colors`, `spacing`, `layout`, `type`, `fonts`) | _(absent)_ | `gadak config set ui.tokens.<axis>` (CLI only) | Live, no reload — key-wise merge into one axis: named keys update, other keys/axes survive; `null` deletes a key, `{}` is a no-op |
 | `ui.tokens.<axis>.<name>` | hex, length, or font-stack scalar | _(absent)_ | `gadak config set ui.tokens.<axis>.<name>` (CLI only) | Live, no reload — one token into its axis as a bare scalar (`15px`, `#7a4bd0`, `Menlo, monospace`); `null` deletes that key; unknown names save with a warning |
@@ -463,7 +473,7 @@ is nothing to say, and a client-supplied value is ignored.
 | `actor` | object or absent | absent = no acting identity; env `GADAK_ACTOR` (`slug\|display name`) overrides, and Claude Code sessions are auto-detected when both are unset | `gadak config set actor 'slug\|display name'` / `config.json` (not on Settings UI or Settings PUT; never team-exported) | Next origin session; writes to the built-in tracker (local or paired) carry `X-Issuetap-Actor` and attribute to that agent account. Never sent to Jira or Linear |
 | `locale` | string | _(empty)_ = English; `en` \| `ko` \| `ja` \| `de` | `gadak config set locale ko` / `config.json` (not on Settings UI or Settings PUT) | Built-in tracker only: the origin's display-name language — status / issue-type / field names and agent aliases follow it; priority names stay English, like a live Cloud site. Changing it rebuilds the mirror on the next sync (display names are cached). A Jira workspace ignores it: its language is the Atlassian account's |
 | `confluence.spaces` | string[] | `[]` = every team space (global, collaboration, knowledge_base); personal spaces only if named (`internal/config/config.go`) | Settings → Sources / `gadak config set confluence.spaces` | Next Confluence pass |
-| `terminal` | `{shell, workingDir, scrollback, cursorBlink}` | absent = all defaults (see below) | `gadak config set terminal` or `terminal.<leaf>` (not on Settings UI or Settings PUT; never team-exported — shell and workingDir are this machine's paths) | Next terminal session create; a block set replaces the whole object, a leaf set merges |
+| `terminal` | `{shell, workingDir, scrollback, cursorBlink}` | absent = all defaults (see below) | `scrollback`/`cursorBlink`: Settings → Terminal or `gadak config set terminal.<leaf>`; `shell`/`workingDir`: `gadak config set terminal.<leaf>` **only** (never on Settings PUT — GDK-1069, see below; never team-exported — they are this machine's paths) | Next terminal session create; a block set replaces the whole object, a leaf set merges; Settings PUT merges the two display fields onto the stored block |
 
 The space list *is* the scope: drop a space and the next Confluence pass
 removes it from the mirror; add one and that space is fetched from the start
@@ -486,12 +496,19 @@ Ghostty config file makes. For Ghostty users, the mapping:
 | `font-family` | `gadak config set ui.tokens.fonts.mono-terminal "'JetBrains Mono', Menlo, monospace"` (1–8 comma-separated families, at most 256 characters, each a bare identifier or a quoted name; an open terminal picks the change up on its next open) |
 | `scrollback-limit` (bytes) | `gadak config set terminal.scrollback 20000` (**lines**, 200–100000; `0` = 5000) |
 | `cursor-style-blink` | `gadak config set terminal.cursorBlink true` |
+| `theme` / `background` | `gadak config set appearance.terminal dark` (default; `follow` takes the app palette — see [`appearance.terminal`](#appearanceterminal)) |
 | `command` | `gadak config set terminal.shell /bin/zsh` (absolute path; empty = `$SHELL`, else `/bin/sh`) |
 | `working-directory` | `gadak config set terminal.workingDir /path` (empty = the workspace dir) |
 
 `shell` and `workingDir` are consumed server-side at session create; they are
-never carried in any API response, so a paired remote client cannot learn this
-machine's shell paths. `scrollback`/`cursorBlink` ride the create response to
+never carried in any API response — not the session create body, not
+`GET settings/` — and `PUT settings/` does not decode them, so a paired
+remote client can neither learn this machine's shell paths nor plant the
+next shell it runs (GDK-1069: that endpoint admits serve-scope pairing
+Bearers). The Settings → Terminal tab therefore shows them as the CLI
+command to run on this machine, next to the fields it does edit
+(`scrollback`, `cursorBlink`, and the two text tokens `ui.tokens.type.terminal`
+/ `ui.tokens.fonts.mono-terminal`). `scrollback`/`cursorBlink` ride the create response to
 the pane — new sessions pick a change up immediately; a kept session that is
 reattached inside the grace window keeps the defaults until its next fresh
 session. A missing `workingDir` falls back to the default with one log line

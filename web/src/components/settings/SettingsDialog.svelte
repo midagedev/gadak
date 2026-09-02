@@ -49,6 +49,7 @@
   import SyncTab from './SyncTab.svelte'
   import SourcesTab from './SourcesTab.svelte'
   import FeaturesTab from './FeaturesTab.svelte'
+  import TerminalTab from './TerminalTab.svelte'
   import GroupsTab from './GroupsTab.svelte'
   import MembersTab from './MembersTab.svelte'
   import FieldsTab from './FieldsTab.svelte'
@@ -71,6 +72,7 @@
     sync: t('settings.tabSync'),
     sources: t('settings.tabSources'),
     features: t('settings.tabFeatures'),
+    terminal: t('settings.tabTerminal'),
     groups: t('settings.tabTeams'),
     members: t('settings.tabMembers'),
     fields: t('settings.tabFields'),
@@ -335,13 +337,17 @@
     <p class="mb-3 text-micro text-text-muted" data-testid="settings-intro">
       {t('settings.intro')}
     </p>
-    <div class="flex gap-1">
+    <!-- Nine tabs at 13px fit the dialog's width on one row with short
+         labels (GDK-1357 added Terminal; "Teams / groups" and "Field
+         mapping" wrapped inside their own buttons). Should a tenth arrive,
+         the row wraps between tabs, never inside a label. -->
+    <div class="flex flex-wrap gap-1">
       {#each TABS as [id, label] (id)}
         <!-- aria-current on the same condition as the accent border: the
              active tab is exposed semantically, not only as paint (GDK-613). -->
         <button
           type="button"
-          class="-mb-px flex h-control items-center border-b-2 px-2.5 text-body transition-colors {tab === id
+          class="-mb-px flex h-control items-center border-b-2 px-2.5 text-body whitespace-nowrap transition-colors {tab === id
             ? 'border-accent text-text-primary'
             : 'border-transparent text-text-secondary hover:text-text-primary'}"
           aria-current={tab === id ? 'true' : undefined}
@@ -389,6 +395,8 @@
           />
         {:else if tab === 'features'}
           <FeaturesTab bind:draft osNotifySupported={runtime?.osNotifySupported ?? true} />
+        {:else if tab === 'terminal'}
+          <TerminalTab bind:draft />
         {:else if tab === 'groups'}
           <GroupsTab bind:draft />
         {:else if tab === 'members'}

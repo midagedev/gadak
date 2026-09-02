@@ -1116,3 +1116,128 @@ func TestSettingsCatalogCoversPUTFields(t *testing.T) {
 		}
 	}
 }
+
+// GDK-1357 + GDK-1069: PUT settings/ carries the terminal's display fields
+// (scrollback, cursorBlink) and the dock appearance, and nothing that names
+// the next spawned binary. A body that smuggles terminal.shell is not
+// decoded — the stored shell and workingDir survive untouched — and GET
+// never emits them. GDK-1069 was closed on exactly this property; this is
+// the test that keeps it closed now that the document has a terminal key.
+func TestPutSettingsTerminalDisplayOnly(t *testing.T) {
+	t.Setenv("GADAK_HOME", t.TempDir())
+	db, cfg := fixture(t)
+	setTerminalLeaf(t, cfg, "terminal.shell", `"/opt/shells/keep"`)
+	setTerminalLeaf(t, cfg, "terminal.workingDir", `"/srv/keep"`)
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+	h := New(db, cfg)
+
+	putBody := map[string]any{
+		"projects":            cfg.Projects,
+		"staleThresholdHours": 72,
+		"appearance":          map[string]any{"theme": "light", "terminal": "follow"},
+		"terminal": map[string]any{
+			"shell":       "/tmp/evil",
+			"workingDir":  "/tmp",
+			"scrollback":  20000,
+			"cursorBlink": true,
+		},
+	}
+	b, _ := json.Marshal(putBody)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, testRequest(http.MethodPut, apiBase+"settings/", strings.NewReader(string(b))))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("PUT terminal → %d %s", rec.Code, rec.Body.String())
+	}
+	saved, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved.Terminal == nil {
+		t.Fatal("terminal block not stored")
+	}
+	if saved.Terminal.Shell != "/opt/shells/keep" || saved.Terminal.WorkingDir != "/srv/keep" {
+		t.Fatalf("PUT settings/ reached shell/workingDir (GDK-1069): %+v", saved.Terminal)
+	}
+	if saved.Terminal.Scrollback != 20000 || !saved.Terminal.CursorBlink {
+		t.Fatalf("display fields not stored: %+v", saved.Terminal)
+	}
+	if saved.Appearance == nil || saved.Appearance.Terminal != "follow" || saved.Appearance.Theme != "light" {
+		t.Fatalf("appearance stored %+v", saved.Appearance)
+	}
+
+	var probe map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &probe); err != nil {
+		t.Fatal(err)
+	}
+	term, _ := probe["terminal"].(map[string]any)
+	if term == nil {
+		t.Fatalf("response carries no terminal block: %v", probe)
+	}
+	for _, key := range []string{"shell", "workingDir"} {
+		if _, leaked := term[key]; leaked {
+			t.Fatalf("response terminal.%s present — a paired client must not learn this machine's paths", key)
+		}
+	}
+	if term["scrollback"] != float64(20000) || term["cursorBlink"] != true {
+		t.Fatalf("response terminal=%v", term)
+	}
+	app, _ := probe["appearance"].(map[string]any)
+	if app == nil || app["terminal"] != "follow" {
+		t.Fatalf("response appearance=%v", probe["appearance"])
+	}
+
+	// The defaults read back by name, and a PUT of them stores no block.
+	putBody["appearance"] = map[string]any{"theme": "system", "terminal": "dark"}
+	putBody["terminal"] = map[string]any{"scrollback": 0, "cursorBlink": false}
+	b, _ = json.Marshal(putBody)
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, testRequest(http.MethodPut, apiBase+"settings/", strings.NewReader(string(b))))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("PUT defaults → %d %s", rec.Code, rec.Body.String())
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &probe); err != nil {
+		t.Fatal(err)
+	}
+	app, _ = probe["appearance"].(map[string]any)
+	if app == nil || app["terminal"] != "dark" {
+		t.Fatalf("GET-shape after defaults = %v", probe["appearance"])
+	}
+	saved, err = config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved.Appearance != nil {
+		t.Fatalf("defaults must store nil appearance, got %+v", saved.Appearance)
+	}
+	if saved.Terminal == nil || saved.Terminal.Shell != "/opt/shells/keep" {
+		t.Fatalf("shell must survive a defaults PUT: %+v", saved.Terminal)
+	}
+
+	// An older client that omits both keys wipes neither. Store a
+	// non-default value through the server first (the handler works on its
+	// own config, not this test's pointer), then PUT without the keys.
+	putBody["terminal"] = map[string]any{"scrollback": 900, "cursorBlink": false}
+	b, _ = json.Marshal(putBody)
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, testRequest(http.MethodPut, apiBase+"settings/", strings.NewReader(string(b))))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("PUT scrollback 900 → %d %s", rec.Code, rec.Body.String())
+	}
+	delete(putBody, "appearance")
+	delete(putBody, "terminal")
+	b, _ = json.Marshal(putBody)
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, testRequest(http.MethodPut, apiBase+"settings/", strings.NewReader(string(b))))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("PUT without terminal → %d %s", rec.Code, rec.Body.String())
+	}
+	saved, err = config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved.Terminal == nil || saved.Terminal.Scrollback != 900 {
+		t.Fatalf("omitted terminal key must preserve the stored block: %+v", saved.Terminal)
+	}
+}

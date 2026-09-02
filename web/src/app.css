@@ -219,7 +219,8 @@
 }
 :root[data-theme='dark'],
 :root[data-theme='ink'],
-:root[data-theme='ember'] {
+:root[data-theme='ember'],
+:root:not([data-terminal-theme='follow']) .terminal-dock {
   color-scheme: dark;
 }
 
@@ -286,7 +287,17 @@
     }
   }
 
-  :root[data-theme='dark'] {
+  /*
+    The second selector is the terminal dock (GDK-1357). The dock paints the
+    dark palette under every app theme unless the user picked "follow"
+    (appearance.terminal): xterm's ANSI palette is a dark-ground palette — 9
+    of its 16 colours fall under 3.0:1 on paper — and a band of ink under a
+    paper page is the seam the dock otherwise lacks. Keyed on the absence of
+    `follow`, so an unset attribute (hosted demo, pre-boot) is dark. One
+    block, two selectors: the dock never carries a palette of its own.
+  */
+  :root[data-theme='dark'],
+  :root:not([data-terminal-theme='follow']) .terminal-dock {
     --color-bg-base: #0d0e10;
     --color-bg-panel: #131417;
     --color-bg-elevated: #1b1d22;

@@ -12,10 +12,12 @@
  * light / dark → data-theme wins over the OS.
  */
 
-import { getSettings, putSettings } from './api'
+import { getSettings } from './api'
 import { isHostedDemo } from './config'
 import type { MessageKey } from './i18n'
+import { queueSettingsPatch } from './settings-write'
 import { themeStorageKey } from './storage'
+import { hydrateTerminalAppearance } from './terminal/appearance'
 
 export const THEMES = [
   { name: 'light', labelKey: 'theme.light' satisfies MessageKey },
@@ -92,23 +94,17 @@ export function applyThemeAtBoot(): void {
  */
 export function persistThemePreference(pref: ThemePreference): Promise<void> {
   setThemePreference(pref)
-  const run = persistChain.then(
-    () => writeThroughTheme(pref),
-    () => writeThroughTheme(pref),
-  )
-  persistChain = run.catch(() => {
-    /* keep the chain alive after a failure */
-  })
-  return run
+  return writeThroughTheme(pref)
 }
 
-let persistChain: Promise<void> = Promise.resolve()
-
 async function writeThroughTheme(pref: ThemePreference): Promise<void> {
-  if (isHostedDemo()) return
   try {
-    const current = await getSettings()
-    await putSettings({ ...current, appearance: { theme: pref } })
+    // The block also carries the terminal dock's appearance (GDK-1357);
+    // spread it so a theme click cannot reset that to its default.
+    await queueSettingsPatch((current) => ({
+      ...current,
+      appearance: { ...current.appearance, theme: pref },
+    }))
   } catch {
     try {
       const { write } = await import('../stores/write.svelte')
@@ -130,6 +126,7 @@ export async function hydrateThemeFromServer(): Promise<void> {
   try {
     const settings = await getSettings()
     if (!settings.appearance) return
+    hydrateTerminalAppearance(settings)
     const remote = parseThemePreference(settings.appearance.theme)
     if (readThemePreference() !== localBefore) return
     if (remote !== localBefore) setThemePreference(remote)

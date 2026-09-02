@@ -66,7 +66,15 @@ test.describe('settings dialog', () => {
     })
     expect(order).toBe('after-sync-controls')
 
-    for (const tab of ['Sources', 'Features', 'Teams / groups', 'Members', 'Field mapping', 'About']) {
+    for (const tab of [
+      'Sources',
+      'Features',
+      'Terminal',
+      'Teams',
+      'Members',
+      'Fields',
+      'About',
+    ]) {
       await dialog.getByRole('button', { name: tab, exact: true }).click()
       await expect(mirror, `mirror must not render on the ${tab} tab`).toHaveCount(0)
     }
@@ -83,11 +91,11 @@ test.describe('settings dialog', () => {
    * edge. The unit lint (controls.test.ts) guards the source; this pins the
    * visible geometry the lint cannot see.
    */
-  test('the Teams / groups rule row fits inside the dialog (GDK-1052)', async ({ page }) => {
+  test('the Teams rule row fits inside the dialog (GDK-1052)', async ({ page }) => {
     await gotoApp(page)
     await openServerSettings(page)
     const dialog = page.getByRole('dialog', { name: 'Settings' })
-    await dialog.getByRole('button', { name: 'Teams / groups', exact: true }).click()
+    await dialog.getByRole('button', { name: 'Teams', exact: true }).click()
 
     // Rule rows only: their group input is the tab's sole input.w-24 (the
     // group-label and product rows above it use flex-1 inputs).
