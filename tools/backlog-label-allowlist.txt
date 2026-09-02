@@ -160,3 +160,4 @@ windows
 workspace
 write-gap
 xplat
+flaky
