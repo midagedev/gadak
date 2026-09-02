@@ -557,7 +557,7 @@ func initLocalOrigin(cfg *config.Config, jsonOut bool, projectsFlag string) erro
 }
 
 // initConfluenceJSON is the --json shape for Confluence after init:
-// "off" | "all" (the --spaces all token: every global space) | ["ENG","PROD"].
+// "off" | "all" (the --spaces all token: every team space, personal excluded) | ["ENG","PROD"].
 func initConfluenceJSON(cfg *config.Config) any {
 	if cfg == nil || cfg.Confluence == nil {
 		return "off"

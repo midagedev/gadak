@@ -123,7 +123,10 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 			// Personal spaces stay reachable by naming them in config.spaces
 			// (path ② upserts those). Upserting them here just so prune can
 			// delete them would bump version every Watch cycle.
-			if s.Type != "global" {
+			// GDK-1302: the exclusion is personal, not "anything but global" —
+			// Cloud later added team space types (collaboration,
+			// knowledge_base) and an allowlist dropped whole team spaces.
+			if s.Type == "personal" {
 				continue
 			}
 			row := store.SpaceRow{Key: s.Key, Name: s.Name, Kind: s.Type}

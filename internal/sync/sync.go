@@ -755,7 +755,7 @@ func syncScope(cfg *config.Config) string {
 	}
 	switch n := len(cfg.Confluence.Spaces); {
 	case n == 0:
-		// Empty is not "nothing selected": it is every global space
+		// Empty is not "nothing selected": it is every team space (personal excluded)
 		// (see RunConfluence). Saying "0 spaces" would read as the opposite.
 		return proj + ", confluence on (all global spaces)"
 	case n == 1:

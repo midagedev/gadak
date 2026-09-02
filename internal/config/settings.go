@@ -871,7 +871,7 @@ func buildSettings() []Setting {
 		{
 			Path:        "confluence",
 			Root:        "confluence",
-			Description: "wiki-page source: {enabled, spaces}; empty spaces = every global space",
+			Description: "wiki-page source: {enabled, spaces}; empty spaces = every team space (personal excluded)",
 			Get:         getConfluence,
 			Set:         setConfluence,
 		},

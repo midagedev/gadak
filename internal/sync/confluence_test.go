@@ -601,10 +601,20 @@ func TestConfluenceSpacesFromListing(t *testing.T) {
 		{"key": "3dvBrsa61dIo", "name": "Engineering", "type": "global",
 			"homepage": map[string]any{"id": "9001"}},
 		{"key": "~personal", "name": "Ada personal", "type": "personal"},
+		// GDK-1302: Cloud added space types after global/personal. A team
+		// space of type collaboration (or knowledge_base) is the team's wiki
+		// too — only personal is out of the empty-config scope.
+		{"key": "CT1", "name": "Collab team", "type": "collaboration",
+			"homepage": map[string]any{"id": "9002"}},
 	}
 	f.pages = map[string]*confPage{
 		"9001": {
 			ID: "9001", Space: "3dvBrsa61dIo", Title: "Root",
+			Version: 1, When: "2026-08-01T10:00:00.000Z",
+			BodyADF: `{"type":"doc","version":1,"content":[]}`,
+		},
+		"9002": {
+			ID: "9002", Space: "CT1", Title: "Collab root",
 			Version: 1, When: "2026-08-01T10:00:00.000Z",
 			BodyADF: `{"type":"doc","version":1,"content":[]}`,
 		},
@@ -620,8 +630,15 @@ func TestConfluenceSpacesFromListing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Fetched != 1 {
-		t.Fatalf("fetched = %d, want 1", res.Fetched)
+	if res.Fetched != 2 {
+		t.Fatalf("fetched = %d, want 2 (global + collaboration space pages)", res.Fetched)
+	}
+	var collabKind string
+	if err := db.raw(t).QueryRow(`SELECT kind FROM spaces WHERE source_id = 'confluence' AND key = 'CT1'`).Scan(&collabKind); err != nil {
+		t.Fatalf("collaboration space row (GDK-1302): %v", err)
+	}
+	if collabKind != "collaboration" {
+		t.Errorf("CT1 kind = %q, want collaboration", collabKind)
 	}
 	raw := db.raw(t)
 	var name, kind, homepageID string
@@ -647,11 +664,12 @@ func TestConfluenceSpacesFromListing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(pages) != 1 || pages[0].SpaceName != "Engineering" {
-		t.Errorf("PageLites = %+v, want SpaceName Engineering", pages)
+	names := map[string]string{}
+	for _, p := range pages {
+		names[p.SpaceName] = p.SpaceHomepageID
 	}
-	if pages[0].SpaceHomepageID != "9001" {
-		t.Errorf("PageLites SpaceHomepageID = %q, want 9001", pages[0].SpaceHomepageID)
+	if len(pages) != 2 || names["Engineering"] != "9001" || names["Collab team"] != "9002" {
+		t.Errorf("PageLites = %+v, want Engineering/9001 and Collab team/9002", pages)
 	}
 }
 

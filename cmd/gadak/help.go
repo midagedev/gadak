@@ -27,9 +27,9 @@ type helpOption struct {
 
 // spacesFlagUsage is the --spaces description for both the FlagSet and
 // `gadak help init`. It must match internal/sync/confluence.go: empty
-// Spaces lists type=="global" only; personal spaces are included only
+// Spaces lists every non-personal space (global, collaboration, knowledge_base); personal spaces are included only
 // when named. Do not say "every space" / "everything".
-const spacesFlagUsage = `Confluence spaces: KEY,KEY… | all (every global space; name a personal space to include it) | none (off); "all"/"none" are reserved`
+const spacesFlagUsage = `Confluence spaces: KEY,KEY… | all (every team space — anything but personal; name a personal space to include it) | none (off); "all"/"none" are reserved`
 
 // initSummary is the one-line init description for top-level usage and
 // `gadak init --help`. It has to name every workspace path: connected

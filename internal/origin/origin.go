@@ -47,7 +47,7 @@ func DefaultConfluenceConfig() *config.ConfluenceConfig {
 }
 
 // PairedConfluenceConfig is the paired twin: what pairing writes so the
-// wiki pass is on. Spaces stays empty — every global space the home origin
+// wiki pass is on. Spaces stays empty — every team space the home origin
 // lists — because this side has no site of its own to name and cannot see
 // which keys the home machine seeded (GDK-1276: without the block a paired
 // workspace mirrored issues but reported its wiki as not configured).

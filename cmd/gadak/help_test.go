@@ -138,17 +138,19 @@ func TestParseAroundKeepsTrailingFlags(t *testing.T) {
 	}
 }
 
-func TestInitHelpSpacesAreGlobalOnly(t *testing.T) {
+func TestInitHelpSpacesExcludePersonal(t *testing.T) {
 	// formatHelp(nil) is the `gadak help init` path (helps["init"].options).
-	// confluence.go only syncs type=="global" when Spaces is empty.
+	// confluence.go skips type=="personal" when Spaces is empty (GDK-1302:
+	// it used to keep only "global", which dropped collaboration and
+	// knowledge_base team spaces).
 	out := formatHelp("init", nil)
-	if !strings.Contains(out, "global") {
-		t.Errorf("init help must say global spaces, got:\n%s", out)
+	if !strings.Contains(out, "personal") {
+		t.Errorf("init help must name the personal-space exclusion, got:\n%s", out)
 	}
 	if strings.Contains(out, "every space you can see") {
 		t.Errorf("init help still claims every visible space:\n%s", out)
 	}
-	// "all (every space)" was the dishonest form; "every global space" is ok.
+	// "all (every space)" was the dishonest form; "every team space" is ok.
 	if strings.Contains(out, "all (every space)") {
 		t.Errorf("init help still says all = every space:\n%s", out)
 	}

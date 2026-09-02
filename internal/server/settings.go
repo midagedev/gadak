@@ -339,9 +339,10 @@ func (s *server) handleSettingsSpaces(w http.ResponseWriter, r *http.Request) {
 			Selected: enabled && !empty && selected[sp.Key],
 		})
 	}
-	// global first, then name (case-insensitive) within each group.
+	// team spaces first (anything but personal — GDK-1302), then name
+	// (case-insensitive) within each group.
 	sort.SliceStable(out, func(i, j int) bool {
-		gi, gj := out[i].Type == "global", out[j].Type == "global"
+		gi, gj := out[i].Type != "personal", out[j].Type != "personal"
 		if gi != gj {
 			return gi
 		}
