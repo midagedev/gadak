@@ -472,6 +472,30 @@ func TestEditReadsDescriptionFromStdin(t *testing.T) {
 	}
 }
 
+// GDK-1360: `-m -` on an empty stdin is refused, not written. The failure
+// mode was real — a sed that errored left a zero-byte file, the pipe went
+// through, the success line printed, and the description was gone. Clearing
+// is still one flag away, spelled as itself.
+func TestEditEmptyStdinRefusedNotCleared(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	for _, body := range []string{"", "\n  \n"} {
+		withStdin(t, body)
+		_, err := capture(t, func() error {
+			return cmdEdit([]string{"NMB-1", "-m", "-"})
+		})
+		if err == nil {
+			t.Fatalf("stdin %q: empty body accepted", body)
+		}
+		if !strings.Contains(err.Error(), "empty stdin") || !strings.Contains(err.Error(), "-m ''") {
+			t.Fatalf("stdin %q: refusal must name the cause and the deliberate spelling, got %v", body, err)
+		}
+		if _, wrote := f.bodies["PUT /issue/NMB-1"]; wrote {
+			t.Fatalf("stdin %q: a PUT went out despite the refusal", body)
+		}
+	}
+}
+
 func TestEditJSONPrintsReread(t *testing.T) {
 	f := newFakeJira(t)
 	mirror(t, f.URL)

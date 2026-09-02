@@ -121,6 +121,15 @@ func cmdEdit(args []string) error {
 			return err
 		}
 		body = string(buf)
+		// GDK-1360: an empty stdin on `-m -` is almost always the step
+		// before this one having failed (a sed that errored, a file that was
+		// never written), and the write it would perform is the destructive
+		// one — the description replaced by nothing, with the ordinary
+		// success line as the only output. Clearing stays available, spelled
+		// as itself.
+		if strings.TrimSpace(body) == "" {
+			return fmt.Errorf("edit %s: -m - read an empty stdin — the description would be cleared; pass -m '' to clear it on purpose", key)
+		}
 	}
 	ch, err := parseEditChange(hasSummary, hasM, hasLabel, hasComponent, hasFixVersion, hasType, hasPriority, hasParent, hasDue, hasField,
 		*summary, body, *typeFlag, *priority, *due, *parent, labels, components, fixVersions, fieldFlags)
