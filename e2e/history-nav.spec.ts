@@ -232,6 +232,8 @@ test.describe('history: dialogs (rules 2 and 3)', () => {
     const listUrl = page.url()
     const dialog = page.getByTestId('settings-dialog')
 
+    // GDK-1335: the door is inside the workspace switcher's menu.
+    await page.getByTestId('workspace-switcher').click()
     await page.getByTestId('workspace-new').click()
     await expect(dialog).toBeVisible()
     await expect(page).toHaveURL(/settings=workspaces/)

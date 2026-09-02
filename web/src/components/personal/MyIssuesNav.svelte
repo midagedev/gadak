@@ -57,20 +57,20 @@
   }
 </script>
 
-<div class="mb-3">
-  <div class="px-3 py-1 text-micro font-medium uppercase tracking-wide text-text-muted">
+<div class="mb-2">
+  <div class="flex h-6 items-center pl-7 pr-3 text-micro font-medium uppercase tracking-wide text-text-muted">
     {t('personal.myIssues')}
   </div>
 
   {#if me.identified}
     <button
       type="button"
-      class="flex h-control w-full items-center gap-2 rounded-md px-3 text-left text-body text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+      class="flex h-7 w-full items-center gap-2 rounded-md px-3 text-left text-body text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
       onclick={applyAssignee}
     >
-      <Icon name="user" size={15} class="text-text-muted" />
+      <Icon name="user" size={14} class="flex-none text-text-muted" />
       <span class="min-w-0 flex-1 truncate">{t('personal.myAssignee')}</span>
-      <span class="flex-none text-micro text-text-muted">{assignedCount}</span>
+      <span class="flex-none font-mono text-micro tabular-nums text-text-muted">{assignedCount}</span>
     </button>
 
     {#if feedOn}
@@ -79,21 +79,21 @@
          reads instead of the bg token (GDK-613). -->
     <button
       type="button"
-      class="flex h-control w-full items-center gap-2 rounded-md px-3 text-left text-body transition-colors {me.feedOpen &&
+      class="flex h-7 w-full items-center gap-2 rounded-md px-3 text-left text-body transition-colors {me.feedOpen &&
       me.feedFocus === 'reporter'
         ? 'bg-bg-active text-text-primary'
         : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
       aria-current={me.feedOpen && me.feedFocus === 'reporter' ? 'true' : undefined}
       onclick={() => me.openFeed('reporter')}
     >
-      <Icon name="pen" size={15} class="text-text-muted" />
+      <Icon name="pen" size={14} class="flex-none text-text-muted" />
       <span class="min-w-0 flex-1 truncate">{t('personal.myReporter')}</span>
-      <span class="flex-none text-micro text-text-muted">{reportedCount}</span>
+      <span class="flex-none font-mono text-micro tabular-nums text-text-muted">{reportedCount}</span>
     </button>
 
     <button
       type="button"
-      class="flex h-control w-full items-center gap-2 rounded-md px-3 text-left text-body transition-colors {me.feedOpen &&
+      class="flex h-7 w-full items-center gap-2 rounded-md px-3 text-left text-body transition-colors {me.feedOpen &&
       me.feedFocus !== 'reporter'
         ? 'bg-bg-active text-text-primary'
         : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
@@ -101,11 +101,11 @@
       onclick={() => me.openFeed('all')}
       title={t('personal.feedHint')}
     >
-      <Icon name="megaphone" size={15} class="text-text-muted" />
+      <Icon name="megaphone" size={14} class="flex-none text-text-muted" />
       <span class="min-w-0 flex-1 truncate">{t('common.feed')}</span>
       {#if feedUnreadCount}
         <span
-          class="min-w-5 flex-none rounded-full bg-accent px-1.5 py-0.5 text-center text-micro font-semibold text-white"
+          class="flex h-4 min-w-4 flex-none items-center justify-center rounded-full bg-accent-subtle px-1.5 font-mono text-micro font-semibold tabular-nums text-accent-text"
         >{feedUnreadCount > 99 ? '99+' : feedUnreadCount}</span>
       {/if}
     </button>

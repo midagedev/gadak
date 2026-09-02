@@ -39,6 +39,8 @@
   import { builtinViews } from '../../lib/builtin-views'
   import { configToParams, type ViewConfig } from '../../lib/view-config'
   import { onEscape, onOutsideClick } from '../../lib/dom-actions'
+  import { paletteShortcutLabel, requestOpenPalette } from '../../lib/unified-search'
+  import { terminalChrome } from '../../lib/terminal/pane.svelte'
   import MyIssuesNav from '../personal/MyIssuesNav.svelte'
   import FavoritesNav from '../personal/FavoritesNav.svelte'
   import Icon from '../ui/Icon.svelte'
@@ -271,14 +273,35 @@
     // Agent dashboards (GDK-782): server rows only — nothing to list without
     // a serve, and the section's whole lifecycle is CLI-authored anyway.
     if (dashboards.list.length) present.add('dashboards')
-    // GDK-1270: with several mirrors the section is the switcher; with one
-    // it still renders wherever workspace management exists, because the
-    // "+ new workspace" row below is the only main-surface path to it —
-    // hidden, the feature reads as absent (measured: the maintainer looked
-    // for create here, gave up, and filed it as missing).
-    if (workspaceList.length > 1 || (workspaceList.length === 1 && hasServerVerb('settings')))
-      present.add('workspaces')
+    // `workspaces` stays in SECTION_IDS for stored-order parse (GDK-1335):
+    // the mirror list moved out of the scroller into the switcher row at the
+    // top, so it is never present here.
     return sidebarSections.order.filter((id) => present.has(id))
+  })
+  /*
+   * Workspace switcher (GDK-1335, was the WORKSPACES section). Same
+   * visibility rule the section had (GDK-1270): with several mirrors it is
+   * the switcher; with one it still renders wherever workspace management
+   * exists, because "+ new workspace" inside it is the only main-surface
+   * path to that screen — hidden, the feature reads as absent.
+   */
+  const showSwitcher = $derived(
+    workspaceList.length > 1 || (workspaceList.length === 1 && hasServerVerb('settings')),
+  )
+  let switcherOpen = $state(false)
+  function closeSwitcher() {
+    switcherOpen = false
+    localOriginHowOpen = false
+  }
+  function onSwitcherEsc(e: KeyboardEvent) {
+    if (e.key !== 'Escape' || !switcherOpen) return
+    e.preventDefault()
+    e.stopPropagation()
+    closeSwitcher()
+  }
+  const currentHost = $derived.by(() => {
+    const w = workspaceList.find((x) => x.name === currentWorkspace)
+    return w ? workspaceHost(w) : ''
   })
   function workspaceHref(w: WorkspaceInfo): string {
     return w.active ? '/' : `/w/${w.name}/`
@@ -375,7 +398,7 @@
 })}
   {@const armed = deleteArmedId === row.id}
   <div
-    class="group flex h-control items-center gap-2 rounded-md px-3 text-body transition-colors {row.active
+    class="group flex h-7 items-center gap-2 rounded-md px-3 text-body transition-colors {row.active
       ? 'bg-bg-active'
       : 'hover:bg-bg-hover'}"
     data-testid="sidebar-view-row"
@@ -419,23 +442,152 @@
 <svelte:window onkeydown={onNotesKeydown} />
 
 <div class="flex h-full flex-col">
-  <!-- New issue (shortcut c). Disabled on the hosted demo, where the snapshot
-       service worker answers every write with 501 — offering the button only to
-       fail on submit wastes the visitor's time. Hidden during onboarding: the
+  <!-- Workspace row (GDK-1335): which mirror this window shows, and the door
+       to the others. A switcher, not a section — the list of mirrors is not
+       something to scroll past on the way to a view. -->
+  {#if showSwitcher}
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="relative flex-none px-2 pt-1"
+      onkeydown={onSwitcherEsc}
+      use:onEscape={onSwitcherEsc}
+      use:onOutsideClick={{ handler: closeSwitcher, enabled: switcherOpen }}
+    >
+      <button
+        type="button"
+        class="flex h-7 w-full items-center gap-1.5 rounded-md px-2 text-left text-body transition-colors hover:bg-bg-hover {switcherOpen
+          ? 'bg-bg-hover'
+          : ''}"
+        aria-expanded={switcherOpen}
+        aria-haspopup="menu"
+        title={t('sidebar.workspaceSwitch')}
+        data-testid="workspace-switcher"
+        onclick={() => (switcherOpen ? closeSwitcher() : (switcherOpen = true))}
+      >
+        <span class="min-w-0 flex-none truncate font-medium text-text-primary">{currentWorkspace}</span>
+        {#if localOrigin}
+          <span
+            class="flex-none rounded-sm bg-bg-elevated px-1 text-micro text-text-secondary"
+            data-testid="workspace-kind"
+            data-kind="standalone"
+            title={t('settings.workspaceLocalOriginHint')}
+          >
+            {t('settings.workspaceLocalOrigin')}
+          </span>
+        {:else if currentHost}
+          <span class="min-w-0 flex-1 truncate text-micro text-text-muted">{currentHost}</span>
+        {/if}
+        <span class="ml-auto flex-none rotate-90 text-text-muted" aria-hidden="true">
+          <Icon name="chevron-right" size={12} />
+        </span>
+      </button>
+      {#if switcherOpen}
+        <div
+          class="anim-enter absolute left-2 right-2 top-full z-40 mt-1 rounded-lg border border-border-strong bg-bg-elevated p-1 shadow-overlay"
+          role="menu"
+          data-testid="workspace-menu"
+        >
+          {#each workspaceList as w (w.name)}
+            <a
+              href={workspaceHref(w)}
+              role="menuitem"
+              data-testid="workspace-link"
+              class="flex h-7 w-full items-center gap-2 rounded-md px-2 text-left text-body transition-colors {currentWorkspace ===
+              w.name
+                ? 'bg-bg-active text-text-primary'
+                : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
+              title={w.error ? t('sidebar.workspaceUnreadable') : w.site}
+            >
+              <span
+                class="h-1.5 w-1.5 flex-none rounded-full {currentWorkspace === w.name
+                  ? 'bg-status-done'
+                  : 'bg-border-strong'}"
+                aria-hidden="true"
+              ></span>
+              <span class="min-w-0 flex-1 truncate">{w.name}</span>
+              {#if workspaceHost(w)}
+                <span class="max-w-[45%] flex-none truncate text-micro text-text-muted">
+                  {workspaceHost(w)}
+                </span>
+              {/if}
+            </a>
+          {/each}
+          {#if hasServerVerb('settings')}
+            <div class="my-1 border-t border-border-subtle"></div>
+            <!-- The one main-surface door to workspace management (GDK-1270):
+                 deep-link into Settings → Workspaces, where create / pair /
+                 remove already live. -->
+            <button
+              type="button"
+              role="menuitem"
+              data-testid="workspace-new"
+              class="flex h-7 w-full items-center gap-2 rounded-md px-2 text-left text-body text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+              onclick={() => {
+                closeSwitcher()
+                onOpenSettings('workspaces')
+              }}
+            >
+              <Icon name="plus" size={13} class="flex-none text-text-muted" />
+              <span class="min-w-0 flex-1 truncate">{t('sidebar.workspaceNew')}</span>
+            </button>
+            {#if !onboarding.needsOnboarding && !localOrigin}
+              <!-- GDK-1122: the how-to-create affordance is for connected
+                   workspaces; offering it inside a local-origin one advertises
+                   leaving the origin this workspace is bound to. -->
+              <button
+                type="button"
+                role="menuitem"
+                class="flex h-7 w-full items-center gap-2 rounded-md px-2 text-left text-body text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+                data-testid="local-origin-create"
+                aria-expanded={localOriginHowOpen}
+                onclick={() => (localOriginHowOpen = !localOriginHowOpen)}
+              >
+                <Icon name="terminal" size={13} class="flex-none text-text-muted" />
+                <span class="min-w-0 flex-1 truncate">{t('settings.localOriginHow')}</span>
+              </button>
+              {#if localOriginHowOpen}
+                <div class="px-2 pb-1.5 pt-0.5">
+                  <code class="break-all font-mono text-micro text-text-primary">{STANDALONE_INIT_COMMAND}</code>
+                  <div class="mt-0.5 text-micro text-text-muted">{t('settings.workspaceLocalOriginHint')}</div>
+                  <div class="mt-0.5 text-micro text-text-muted">{t('settings.localOriginCommandHint')}</div>
+                </div>
+              {/if}
+            {/if}
+          {/if}
+        </div>
+      {/if}
+    </div>
+  {/if}
+
+  <!-- Action row: new issue (shortcut c) and the palette. Quiet on purpose —
+       the loudest thing in the window should be the content, not a button.
+       New issue is disabled on the hosted demo, where the snapshot service
+       worker answers every write with 501. Hidden during onboarding: the
        wizard is the write path (GDK-299 F6). -->
   {#if !onboarding.needsOnboarding}
-  <div class="flex-none px-3 pt-1 pb-2">
-    <button
-      type="button"
-      disabled={isHostedDemo()}
-      onclick={() => write.openNewIssue()}
-      class="flex h-control w-full items-center justify-center gap-1.5 rounded-md bg-accent px-3 text-body font-medium text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-bg-elevated disabled:text-text-muted disabled:hover:bg-bg-elevated"
-      title={isHostedDemo() ? t('app.demoWriteDisabled') : t('sidebar.newIssueTitle')}
-    >
-      <Icon name="plus" size={13} />
-      {t('write.newIssue')}
-    </button>
-  </div>
+    <div class="flex flex-none items-center gap-1 px-2 pb-1 pt-1">
+      <button
+        type="button"
+        disabled={isHostedDemo()}
+        onclick={() => write.openNewIssue()}
+        class="flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-md border border-border-subtle bg-bg-base px-2 text-body font-medium text-text-primary transition-colors hover:bg-bg-hover disabled:cursor-not-allowed disabled:border-transparent disabled:bg-bg-elevated disabled:text-text-muted"
+        title={isHostedDemo() ? t('app.demoWriteDisabled') : t('sidebar.newIssueTitle')}
+      >
+        <Icon name="plus" size={13} class="flex-none text-text-secondary" />
+        <span class="min-w-0 flex-1 truncate text-left">{t('write.newIssue')}</span>
+        <kbd class="flex-none font-mono text-micro text-text-muted" aria-hidden="true">c</kbd>
+      </button>
+      <button
+        type="button"
+        class="flex h-7 w-7 flex-none items-center justify-center rounded-md border border-border-subtle bg-bg-base text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+        title="{t('sidebar.searchEverything')} ({paletteShortcutLabel()})"
+        aria-label={t('sidebar.searchEverything')}
+        data-testid="sidebar-palette"
+        onclick={() => requestOpenPalette()}
+      >
+        <Icon name="search" size={14} />
+      </button>
+    </div>
   {/if}
 
   <!-- Update notice: server found a newer published release (daily check).
@@ -443,7 +595,7 @@
        is the canonical notes surface, so an empty release body opens the
        same dialog as a full one. -->
   {#if issues.latestVersion}
-    <div class="flex-none px-3 pb-1">
+    <div class="flex-none px-2 pb-1">
       <button
         type="button"
         class="block w-full rounded-md border border-accent/30 bg-accent-subtle/30 px-2.5 py-1.5 text-left text-micro text-accent-text transition-colors hover:bg-accent-subtle/50"
@@ -460,7 +612,7 @@
        Hidden during onboarding: pool size 0 / a sync sentence contradicts
        the wizard's own fetched count (GDK-299 F7). -->
   {#if !onboarding.needsOnboarding}
-  <div class="flex-none px-3 pb-2 pt-1 text-micro text-text-muted">
+  <div class="flex-none px-3 pb-1.5 pt-0.5 text-micro text-text-muted">
     {t('sidebar.issueCount', { n: formatNumber(issues.pool.size) })}
     <span class="ml-1">·</span>
     <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -595,7 +747,7 @@
                    readers read (GDK-613). -->
               <button
                 type="button"
-                class="flex h-control w-full items-center gap-2 rounded-md px-3 text-left text-body transition-colors {activeBuiltin ===
+                class="flex h-7 w-full items-center gap-2 rounded-md px-3 text-left text-body transition-colors {activeBuiltin ===
                 v.id
                   ? 'bg-bg-active text-text-primary'
                   : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
@@ -607,7 +759,7 @@
                      label it sits next to, and only rises with the row it marks. -->
                 <Icon
                   name={v.icon}
-                  size={15}
+                  size={14}
                   class={activeBuiltin === v.id ? 'text-text-secondary' : 'text-text-muted'}
                 />
                 <span class="min-w-0 flex-1 truncate">{v.name}</span>
@@ -629,7 +781,7 @@
             {#each views.source as v (v.id)}
               {@const href = jiraFilterUrl(v.external_id ?? '', v.jql)}
               <div
-                class="group flex h-control items-center gap-2 rounded-md px-3 text-body transition-colors {activeSource ===
+                class="group flex h-7 items-center gap-2 rounded-md px-3 text-body transition-colors {activeSource ===
                 v.id
                   ? 'bg-bg-active'
                   : 'hover:bg-bg-hover'}"
@@ -709,7 +861,7 @@
             {#each dashboards.list as d (d.id)}
               <button
                 type="button"
-                class="flex h-control w-full items-center gap-2 rounded-md px-3 text-left text-body transition-colors {dashboards.openId ===
+                class="flex h-7 w-full items-center gap-2 rounded-md px-3 text-left text-body transition-colors {dashboards.openId ===
                 d.id
                   ? 'bg-bg-active text-text-primary'
                   : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
@@ -721,7 +873,7 @@
               >
                 <Icon
                   name="layout-dashboard"
-                  size={15}
+                  size={14}
                   class={dashboards.openId === d.id ? 'text-text-secondary' : 'text-text-muted'}
                 />
                 <span class="min-w-0 flex-1 truncate">{d.name}</span>
@@ -791,7 +943,7 @@
                      and what you had open, are questions no single space answers. -->
                 <button
                   type="button"
-                  class="flex h-control w-full items-center gap-2 rounded-md px-3 text-left text-body transition-colors {pages.docsView
+                  class="flex h-7 w-full items-center gap-2 rounded-md px-3 text-left text-body transition-colors {pages.docsView
                     ? 'bg-bg-active text-text-primary'
                     : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
                   aria-pressed={pages.docsView}
@@ -801,7 +953,7 @@
                 >
                   <Icon
                     name="file"
-                    size={15}
+                    size={14}
                     class={pages.docsView ? 'text-text-secondary' : 'text-text-muted'}
                   />
                   <span class="min-w-0 flex-1 truncate">{t('sidebar.docsAll')}</span>
@@ -810,7 +962,7 @@
                      times was the thing that read as too much. -->
                 <button
                   type="button"
-                  class="flex h-control w-full items-center gap-2 rounded-md px-3 text-left text-body text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+                  class="flex h-7 w-full items-center gap-2 rounded-md px-3 text-left text-body text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
                   aria-expanded={spacesOpen}
                   title={t('sidebar.docsSpacesTitle')}
                   data-testid="docs-spaces"
@@ -820,7 +972,7 @@
                     class="flex-none text-text-muted transition-transform duration-150"
                     style={spacesOpen ? 'transform: rotate(90deg)' : ''}
                   >
-                    <Icon name="chevron-right" size={15} />
+                    <Icon name="chevron-right" size={14} />
                   </span>
                   <span class="min-w-0 flex-1 truncate">{t('sidebar.docsSpaces')}</span>
                   <span class="flex-none font-mono text-micro tabular-nums text-text-muted">
@@ -831,7 +983,7 @@
                   {#each pages.bySpace as group (group.space)}
                     <button
                       type="button"
-                      class="flex h-control w-full items-center gap-2 rounded-md pl-[35px] pr-3 text-left text-body transition-colors {pages.spaceView ===
+                      class="flex h-7 w-full items-center gap-2 rounded-md pl-8 pr-3 text-left text-body transition-colors {pages.spaceView ===
                       group.space
                         ? 'bg-bg-active text-text-primary'
                         : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
@@ -854,117 +1006,43 @@
               </div>
             {/if}
           </SidebarSection>
-        {:else if id === 'workspaces'}
-          <!-- Workspaces: other profile mirrors this serve can mount. Hidden unless
-               the server actually has more than one (older servers / demo → 404 → []). -->
-          <SidebarSection id="workspaces" label={t('sidebar.workspaces')} {visibleIds} {drag}>
-            {#each workspaceList as w (w.name)}
-              <a
-                href={workspaceHref(w)}
-                data-testid="workspace-link"
-                class="flex h-control w-full items-center gap-2 rounded-md px-3 text-left text-body transition-colors {currentWorkspace ===
-                w.name
-                  ? 'bg-bg-active text-text-primary'
-                  : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
-                title={w.error ? t('sidebar.workspaceUnreadable') : w.site}
-              >
-                <span
-                  class="h-1.5 w-1.5 flex-none rounded-full {currentWorkspace === w.name
-                    ? 'bg-status-done'
-                    : 'bg-border-strong'}"
-                  aria-hidden="true"
-                ></span>
-                <span class="min-w-0 flex-1 truncate">{w.name}</span>
-                {#if currentWorkspace === w.name && localOrigin}
-                  <span
-                    class="inline-flex flex-none items-center rounded-full border border-border-subtle px-1.5 py-0.5 text-micro text-text-secondary"
-                    data-testid="workspace-kind"
-                    data-kind="standalone"
-                    title={t('settings.workspaceLocalOriginHint')}
-                    aria-label={t('settings.workspaceLocalOriginHint')}
-                  >
-                    {t('settings.workspaceLocalOrigin')}
-                  </span>
-                {/if}
-                {#if workspaceHost(w)}
-                  <span class="max-w-[45%] flex-none truncate text-micro text-text-muted">
-                    {workspaceHost(w)}
-                  </span>
-                {/if}
-              </a>
-            {/each}
-            {#if hasServerVerb('settings')}
-              <!-- The one main-surface door to workspace management
-                   (GDK-1270): deep-link into Settings → Workspaces, where
-                   create / pair / remove already live. -->
-              <button
-                type="button"
-                data-testid="workspace-new"
-                class="flex h-control w-full items-center gap-2 rounded-md px-3 text-left text-body text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
-                onclick={() => onOpenSettings('workspaces')}
-              >
-                <span class="flex-none text-text-muted" aria-hidden="true">+</span>
-                <span class="min-w-0 flex-1 truncate">{t('sidebar.workspaceNew')}</span>
-              </button>
-            {/if}
-          </SidebarSection>
         {/if}
       {/each}
     </div>
   </div>
 
-  <!-- Settings / identity area (sidebar footer). The server settings entry
-       point is absent — not disabled — wherever there is no server to edit:
-       on a static snapshot the dialog's own load (settings/ → 404) is an
-       error screen, so the errand it offers does not exist. -->
-  <div class="flex-none border-t border-border-subtle px-3 py-2">
+  <!-- Footer (GDK-1335): one row — settings, who you are, the terminal. The
+       server settings entry point is absent — not disabled — wherever there
+       is no server to edit: on a static snapshot the dialog's own load
+       (settings/ → 404) is an error screen, so the errand it offers does
+       not exist. -->
+  <div class="flex flex-none items-center gap-1 border-t border-border-subtle px-2 py-1.5">
     {#if hasServerVerb('settings')}
-      {#if !onboarding.needsOnboarding && !localOrigin}
-      <!-- GDK-1122: the how-to-create affordance is for connected workspaces;
-           offering it inside a local-origin one advertises leaving the origin
-           this workspace is bound to. -->
       <button
         type="button"
-        class="mb-1 flex h-control-sm w-full items-center gap-1.5 rounded-md px-1 text-body text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
-        data-testid="local-origin-create"
-        aria-expanded={localOriginHowOpen}
-        onclick={() => (localOriginHowOpen = !localOriginHowOpen)}
-      >
-        {t('settings.localOriginHow')}
-      </button>
-      {#if localOriginHowOpen}
-        <div class="mb-1 px-1">
-          <code class="break-all font-mono text-micro text-text-primary">{STANDALONE_INIT_COMMAND}</code>
-          <div class="mt-0.5 text-micro text-text-muted">{t('settings.workspaceLocalOriginHint')}</div>
-          <div class="mt-0.5 text-micro text-text-muted">{t('settings.localOriginCommandHint')}</div>
-        </div>
-      {/if}
-      {/if}
-      <button
-        type="button"
-        class="mb-1 flex h-control-sm w-full items-center gap-1.5 rounded-md px-1 text-body text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
+        class="flex h-7 w-7 flex-none items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
         onclick={() => onOpenSettings()}
         title={t('sidebar.serverSettings')}
+        aria-label={t('sidebar.settings')}
       >
         <Icon name="settings" size={14} />
-        {t('sidebar.settings')}
       </button>
     {/if}
     {#if !onboarding.needsOnboarding && me.identified}
       <button
         type="button"
-        class="flex h-control-sm w-full items-center gap-1.5 rounded-md px-1 text-body text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+        class="flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-md px-2 text-body text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
         onclick={() => write.openSettings()}
         title={write.configured ? t('sidebar.jiraCreds') : t('sidebar.jiraCredsMissing')}
         aria-label={t('sidebar.jiraCreds')}
       >
-        <Icon name="user" size={14} class={write.configured ? '' : 'text-status-stale'} />
+        <Icon name="user" size={14} class="flex-none {write.configured ? '' : 'text-status-stale'}" />
         <span class="min-w-0 flex-1 truncate text-left">{me.name ?? me.email}</span>
       </button>
     {:else if !onboarding.needsOnboarding && isHostedDemo()}
       <!-- No credential button on the hosted demo: the dialog behind it asks for
            a real Atlassian token, and nothing on a static snapshot could use one. -->
-      <p class="px-3 py-1.5 text-center text-micro text-text-muted">
+      <p class="min-w-0 flex-1 truncate px-2 text-micro text-text-muted">
         {t('app.demoNoCredentials')}
       </p>
     {:else if !onboarding.needsOnboarding && me.authChecked && !originWritable()}
@@ -974,12 +1052,27 @@
            me.identified cannot tell those apart, so this branch must not. -->
       <button
         type="button"
-        class="flex h-control w-full items-center justify-center gap-1.5 rounded-md border border-border-strong px-3 text-body font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+        class="flex h-7 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-md border border-border-strong px-2 text-body font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
         onclick={() => write.openSettings()}
       >
         {t('common.setCredentials')}
       </button>
+    {:else}
+      <span class="min-w-0 flex-1" aria-hidden="true"></span>
     {/if}
+    <button
+      type="button"
+      class="flex h-7 w-7 flex-none items-center justify-center rounded-md transition-colors {terminalChrome.open
+        ? 'bg-bg-active text-text-primary'
+        : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
+      aria-pressed={terminalChrome.open}
+      aria-label={t('sidebar.terminal')}
+      title="{t('sidebar.terminal')} ({t('terminal.shortcut')})"
+      data-testid="sidebar-terminal"
+      onclick={() => terminalChrome.toggle()}
+    >
+      <Icon name="terminal" size={14} />
+    </button>
   </div>
 </div>
 

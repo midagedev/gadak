@@ -7,10 +7,7 @@
    */
   import type { Snippet } from 'svelte'
   import { isDesktop, sidebarLogoRowClass } from '../../lib/config'
-  import { t } from '../../lib/i18n'
-  import { terminalChrome } from '../../lib/terminal/pane.svelte'
   import BrandMark from '../ui/BrandMark.svelte'
-  import Icon from '../ui/Icon.svelte'
 
   let { children }: { children?: Snippet } = $props()
   /** Desktop app: BrandMark is omitted so it is not a fourth traffic light. */
@@ -46,19 +43,4 @@
     {@render children?.()}
   </nav>
 
-  <div class="flex-none border-t border-border-subtle px-2 py-2">
-    <button
-      type="button"
-      class="flex h-control w-full items-center gap-1.5 rounded-md px-3 text-left text-body transition-colors {terminalChrome.open
-        ? 'bg-bg-active text-text-primary'
-        : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
-      aria-pressed={terminalChrome.open}
-      title="{t('sidebar.terminal')} ({t('terminal.shortcut')})"
-      data-testid="sidebar-terminal"
-      onclick={() => terminalChrome.toggle()}
-    >
-      <Icon name="terminal" size={14} class="flex-none" />
-      <span class="min-w-0 flex-1 truncate">{t('sidebar.terminal')}</span>
-    </button>
-  </div>
 </aside>

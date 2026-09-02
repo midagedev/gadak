@@ -150,6 +150,8 @@ test.describe('local-origin workspace indicator', () => {
     await serveWorkspaceKind(page, 'connected')
     await gotoApp(page)
 
+    // GDK-1335: the create affordance lives in the workspace switcher's menu.
+    await page.getByTestId('workspace-switcher').click()
     const create = page.getByTestId('local-origin-create')
     await expect(create).toBeVisible()
     await create.click()
@@ -171,8 +173,11 @@ test.describe('local-origin workspace indicator', () => {
     await gotoApp(page)
 
     // Already local-origin: the "create a local-origin workspace" affordance is
-    // absent, not merely unhelpful.
+    // absent from the switcher's menu, not merely unhelpful.
+    await page.getByTestId('workspace-switcher').click()
+    await expect(page.getByTestId('workspace-menu')).toBeVisible()
     await expect(page.getByTestId('local-origin-create')).toHaveCount(0)
+    await page.keyboard.press('Escape')
 
     // MY ISSUES: the local-origin note replaces the credential CTA — same
     // branch the demo takes, minus the demo wording.

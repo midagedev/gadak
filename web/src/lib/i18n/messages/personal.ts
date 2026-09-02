@@ -18,9 +18,9 @@ export const personal = {
     ja: 'お気に入り',
   },
   'personal.recent': {
-    en: 'Recently viewed',
-    ko: '최근 본 항목',
-    ja: '最近閲覧',
+    en: 'Recent',
+    ko: '최근',
+    ja: '最近',
   },
   'personal.myAssignee': {
     en: 'Assigned to me',
