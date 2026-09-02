@@ -13,7 +13,14 @@
   --color-bg-base: #f4efe4; /* page */
   --color-bg-panel: #ebe3d2; /* sidebar / right panel */
   --color-bg-elevated: #e4d9c4; /* cards / group headers */
-  --color-bg-hover: #d9cdb6; /* row hover */
+  /* Hover is ink, not paint (GDK-1341): a 7% wash of the text colour over
+     whatever surface the element sits on, so a hovered row on the page, a
+     hovered row in the sidebar and a hovered option in the palette each
+     darken one step relative to their own ground — and every one of them
+     stays lighter than the opaque selected fill below. The opaque #d9cdb6 it
+     replaces sat darker than the selected row's bg-elevated, so a hovered
+     neighbour outranked the selection. */
+  --color-bg-hover: rgb(74 54 26 / 0.07); /* row hover */
   --color-bg-active: #cfc0a4; /* selected */
 
   /* ── Text tiers ──
@@ -77,6 +84,19 @@
   --color-dept-3: #8a4a62;
   --color-dept-4: #3d4f6f;
   --color-dept-5: #9a5a32;
+
+  /* ── Motion tokens (GDK-1341) ──
+     Three durations and one curve; nothing longer than 160ms, because a
+     transition the reader waits for is a delay, not a softness. Tailwind's
+     transition-* utilities take the default pair below (every
+     `transition-colors` in the tree runs at 100ms instead of the 150ms stock
+     default); hand-written CSS in this file reads --motion-*. */
+  --motion-fast: 80ms; /* hover colour, pressed release */
+  --motion-base: 120ms; /* popover enter, toggle, selection */
+  --motion-slow: 160ms; /* panels and sheets */
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --default-transition-duration: 100ms;
+  --default-transition-timing-function: cubic-bezier(0.25, 1, 0.5, 1);
 
   /* ── Density tokens ── */
   --spacing-row: 36px; /* list row height — was 42 (GDK-1336: Linear's rung; 13px text sits at 1:2.8) */
@@ -215,7 +235,7 @@
       --color-bg-base: #0d0e10;
       --color-bg-panel: #131417;
       --color-bg-elevated: #1b1d22;
-      --color-bg-hover: #25272d;
+      --color-bg-hover: rgb(255 255 255 / 0.055);
       --color-bg-active: #2f313a;
       --color-shell: #08080a;
       --color-text-primary: #eae6dd;
@@ -270,7 +290,7 @@
     --color-bg-base: #0d0e10;
     --color-bg-panel: #131417;
     --color-bg-elevated: #1b1d22;
-    --color-bg-hover: #25272d;
+    --color-bg-hover: rgb(255 255 255 / 0.055);
     --color-bg-active: #2f313a;
     --color-shell: #08080a;
     --color-text-primary: #eae6dd;
@@ -499,6 +519,33 @@
   :focus-visible {
     outline: 2px solid var(--color-focus-ring);
     outline-offset: 1px;
+  }
+
+  /*
+    Every button reacts (GDK-1341). Three states, one rule each:
+    - hover: the component's own hover:* classes paint it; this base rule only
+      guarantees the paint is a transition, so a button that forgot
+      `transition-colors` (ten files had none) still eases instead of snapping.
+      A component's transition-* utility wins over this by layer order.
+    - pressed: a 1px dip while the pointer is down. `translate`, not
+      `transform`, so it composes with a chevron's rotate or a card's drag
+      transform instead of replacing it. Instant both ways, like a key.
+    - focus-visible: the ring above.
+    Opt out with data-no-press on the rare button that must not move
+    (a drag handle, a button inside a measured layout).
+  */
+  button,
+  a,
+  [role='button'],
+  [role='option'],
+  [role='tab'],
+  [role='menuitem'] {
+    transition-property: color, background-color, border-color, opacity;
+    transition-duration: var(--motion-fast);
+    transition-timing-function: var(--ease-out-quart);
+  }
+  button:not(:disabled, [data-no-press]):active {
+    translate: 0 1px;
   }
 }
 
@@ -1402,6 +1449,15 @@
     }
     .issue-scrim {
       transition: none;
+    }
+    /* GDK-1341: the pressed dip and every eased colour stop moving too. */
+    button:not(:disabled, [data-no-press]):active {
+      translate: none;
+    }
+    *,
+    ::before,
+    ::after {
+      transition-duration: 0s !important;
     }
   }
 }

@@ -118,7 +118,7 @@
             {#if me.identified && c.author_account_id && !c.comment_id.startsWith('temp-')}
               <button
                 type="button"
-                class="ml-auto rounded px-1.5 py-0.5 text-micro text-text-muted opacity-0 transition-colors hover:bg-bg-hover hover:text-text-primary group-hover:opacity-100"
+                class="ml-auto rounded px-1.5 py-0.5 text-micro text-text-muted opacity-0 transition hover:bg-bg-hover hover:text-text-primary group-hover:opacity-100"
                 onclick={() => reply(c)}
                 title={t('detail.replyToComment')}>{t('common.reply')}</button
               >
