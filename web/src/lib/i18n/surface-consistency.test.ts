@@ -148,6 +148,7 @@ describe('GDK-621 close affordances agree with themselves', () => {
 
 const PALETTE = join(WEB_SRC, 'components/palette/CommandPalette.svelte')
 const FEED = join(WEB_SRC, 'components/personal/PersonalFeed.svelte')
+const COLUMN_HEADER = join(WEB_SRC, 'components/ui/ColumnHeader.svelte')
 const NEED_CREDENTIAL_KEYS = [
   'personal.needCredentials',
   'feed.needCredentials',
@@ -270,8 +271,11 @@ describe('GDK-652 back-arrow: one key for the arrow-left close', () => {
       }
     }
     expect(failures, failures.join('\n')).toEqual([])
-    const feed = readFileSync(FEED, 'utf8')
-    expect(feed).toContain("t('feed.backToList')")
+    // GDK-1339: the column screens' back arrow lives in ColumnHeader now — the
+    // feed, Documents, History and dashboards all render it from there.
+    const header = readFileSync(COLUMN_HEADER, 'utf8')
+    expect(header).toContain("t('feed.backToList')")
+    expect(readFileSync(FEED, 'utf8')).toContain('<ColumnHeader')
   })
 })
 
