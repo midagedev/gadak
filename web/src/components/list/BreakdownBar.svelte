@@ -39,7 +39,19 @@
         ? filters.groups
         : [...filters.groups].sort((a, b) => b.counts.total - a.counts.total),
   )
-  const shownGroups = $derived(rankedGroups.slice(0, 6))
+  // GDK-1348: how many chips the strip shows is a width budget, not a fixed
+  // six. Six chips squeezed into a 350px strip (docked detail, 1024 viewport)
+  // left every label a one-letter sliver — the dot and count survived, the
+  // name did not, and a legend without names is not a summary. ~130px is a
+  // chip with a readable label; what does not fit folds into "+N more".
+  // ponytail: a budget, not a measurement — labels still ellipsize when the
+  // share runs short; measure real chip widths if the budget proves wrong.
+  const CHIP_BUDGET_PX = 130
+  let stripWidth = $state(0)
+  const maxChips = $derived(
+    stripWidth > 0 ? Math.max(1, Math.min(6, Math.floor(stripWidth / CHIP_BUDGET_PX))) : 6,
+  )
+  const shownGroups = $derived(rankedGroups.slice(0, maxChips))
   const hiddenGroupCount = $derived(Math.max(0, rankedGroups.length - shownGroups.length))
 
   // Spend Esc so one keystroke cannot also clear the selection below — the
@@ -148,7 +160,7 @@
          and their labels ellipsize — the full name stays in the accessible
          name and the title — while dot and count are flex-none, so a
          squeezed chip keeps the parts that made it a summary. -->
-    <div class="min-w-0 flex-1 overflow-x-auto" data-testid="breakdown-strip">
+    <div class="min-w-0 flex-1 overflow-x-auto" data-testid="breakdown-strip" bind:clientWidth={stripWidth}>
       <div class="flex min-w-0 items-center gap-3 whitespace-nowrap text-micro">
         {#each shownGroups as group, i (group.key || `empty-${i}`)}
           {@const glyph = groupGlyph(group.key)}

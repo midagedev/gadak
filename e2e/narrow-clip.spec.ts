@@ -363,11 +363,15 @@ test.describe('breakdown chips at the docked seam (GDK-1057)', () => {
         `${c.label}: chip right ${c.right} passes the strip edge ${c.stripRight} — mid-word cut`,
       ).toBeLessThanOrEqual(c.stripRight + 0.5)
     }
+    // GDK-1348: the strip folds chips to a width budget now, so at 1280
+    // docked the actor labels mostly fit whole. The squeeze this test guards
+    // is proven by the fold marker instead — and a label that does survive
+    // squeezed must still be a word, not a one-letter sliver.
+    await expect(page.getByTestId('breakdown-strip').getByText(/^\+\d+ more$/)).toBeVisible()
     const squeezed = chips.filter((c) => c.labelScrollW > c.labelClientW)
-    expect(
-      squeezed.length,
-      'at 1280 with the panel docked at least one actor label must be squeezed, else this is vacuous',
-    ).toBeGreaterThan(0)
+    for (const c of chips) {
+      expect(c.labelClientW, `${c.label}: label squeezed to ${c.labelClientW}px — a sliver, not a name`).toBeGreaterThanOrEqual(40)
+    }
     for (const c of squeezed) {
       expect(c.textOverflow, `${c.label}: a squeezed label must ellipsize, not clip`).toBe(
         'ellipsis',
