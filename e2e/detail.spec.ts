@@ -1,5 +1,18 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 import { attachConsoleErrors, gotoApp, searchInput } from './helpers'
+
+/**
+ * Overlay the served config document for this page — the same mock pattern
+ * local-origin.spec.ts owns (serveWorkspaceKind). Kept local because
+ * helpers.ts is not this round's to edit.
+ */
+async function serveConfigOverride(page: Page, extra: Record<string, unknown>): Promise<void> {
+  await page.route('**/config.json', async (route) => {
+    const res = await route.fetch()
+    const doc = (await res.json()) as Record<string, unknown>
+    await route.fulfill({ response: res, json: { ...doc, ...extra } })
+  })
+}
 
 test.describe('detail', () => {
   test('row click opens detail panel with summary/history/comments sections', async ({ page }) => {
@@ -253,7 +266,17 @@ test.describe('detail', () => {
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 
-  test('copy-link writes the gadak:// and http issue forms to the clipboard', async ({ page }) => {
+  /*
+   * GDK-1290: the paste's first line is the origin's own page for the key —
+   * the Jira /browse/ URL a teammate can open — followed by the app links, so
+   * a paste into chat still opens gadak. The fixture serves site
+   * https://nimbus.example.com (e2e/serve.sh), so this is the connected-Jira
+   * shape; copy is asserted against the real clipboard, not the toast alone
+   * (GDK-178: a toast that lies is worse than a button that fails aloud).
+   */
+  test('copy-link writes the origin URL first, then the gadak:// and http forms', async ({
+    page,
+  }) => {
     const errors = attachConsoleErrors(page)
     await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
     await gotoApp(page)
@@ -274,8 +297,52 @@ test.describe('detail', () => {
     await copy.click()
 
     const origin = new URL(page.url()).origin
+    const want = `https://nimbus.example.com/browse/NMB-110\ngadak://view?issue=NMB-110\n${origin}/#/?issue=NMB-110`
+    await expect.poll(async () => page.evaluate(() => navigator.clipboard.readText())).toBe(want)
+
+    // The toast names what line one is: the tracker whose page was copied.
+    await expect(page.getByTestId('toast')).toContainText('Jira link copied')
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  /*
+   * GDK-1290, the other side: a workspace with no origin page — the built-in
+   * tracker's serve sends jiraBaseUrl "" (originbind seeds cfg.Site = ""),
+   * originType "gadak", workspaceKind "standalone" — copies exactly what it
+   * copied before: the deep link first, then the serve http line. No first
+   * line is invented for it, and the toast stays the plain "Copied".
+   */
+  test('copy-link without an origin page keeps the gadak:// and http forms', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
+    await serveConfigOverride(page, {
+      jiraBaseUrl: '',
+      originType: 'gadak',
+      workspaceKind: 'standalone',
+    })
+    await gotoApp(page)
+
+    const input = searchInput(page)
+    await input.fill('NMB-110')
+    await expect(page.getByText('NMB-110').first()).toBeVisible()
+    await page
+      .locator('[data-testid="issue-list-scroller"] [role="button"]')
+      .filter({ hasText: 'NMB-110' })
+      .first()
+      .click()
+
+    const panel = page.getByTestId('issue-detail-panel')
+    await expect(panel).toBeVisible()
+    const copy = panel.getByTestId('issue-copy-link')
+    await expect(copy).toBeVisible()
+    await copy.click()
+
+    const origin = new URL(page.url()).origin
     const want = `gadak://view?issue=NMB-110\n${origin}/#/?issue=NMB-110`
     await expect.poll(async () => page.evaluate(() => navigator.clipboard.readText())).toBe(want)
+
+    await expect(page.getByTestId('toast')).toContainText('Copied')
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
