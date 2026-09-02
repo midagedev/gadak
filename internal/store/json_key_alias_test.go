@@ -78,7 +78,7 @@ func TestIssueKeyStructTagsUseHelper(t *testing.T) {
 		}
 		if d.IsDir() {
 			base := d.Name()
-			if base == "vendor" || base == "node_modules" || base == ".git" || base == "scratch" || base == "dist" || base == "examples" {
+			if strings.HasPrefix(base, ".") || base == "vendor" || base == "node_modules" || base == "scratch" || base == "dist" || base == "examples" {
 				return filepath.SkipDir
 			}
 			return nil
