@@ -75,7 +75,7 @@ test.describe('scroll-region last item stays inside the client box', () => {
 
     await openServerSettings(page)
     const dialog = page.getByTestId('settings-dialog')
-    await expect(dialog.getByText('This mirror').or(dialog.getByText('이 미러'))).toBeVisible()
+    await expect(dialog.getByText('This local copy').or(dialog.getByText('이 로컬 사본'))).toBeVisible()
     const settings = await measureScrollEnd(dialog)
     expect(settings.scrolls, 'settings body must overflow at 640px').toBe(true)
     await page.keyboard.press('Escape')

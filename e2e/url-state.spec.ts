@@ -161,10 +161,11 @@ test.describe('place params', () => {
     await dialog.getByRole('button', { name: en['settings.tabMembers'], exact: true }).click()
     await expect(page).toHaveURL(/settings=members/)
 
-    // Esc closes through the dialog's own handler; the param goes with it.
+    // Esc closes through the dialog's own handler; the param goes with it —
+    // closing is a history.back() (GDK-1296), so the URL follows on popstate.
     await page.keyboard.press('Escape')
     await expect(dialog).toHaveCount(0)
-    expect(page.url()).not.toContain('settings=')
+    await expect(page).not.toHaveURL(/settings=/)
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })

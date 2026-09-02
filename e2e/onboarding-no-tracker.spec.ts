@@ -195,7 +195,7 @@ async function mockNoTracker(page: Page): Promise<Flow> {
 }
 
 test.describe('no-tracker onboarding (GDK-377)', () => {
-  test('Start with no tracker seeds the workspace and lands on the composer', async ({ page }) => {
+  test('the Built-in answer seeds the workspace and lands on the composer', async ({ page }) => {
     const errors = attachConsoleErrors(page)
     const flow = await mockNoTracker(page)
 
@@ -206,9 +206,18 @@ test.describe('no-tracker onboarding (GDK-377)', () => {
     await expect(wizard).toBeVisible({ timeout: 30_000 })
     await expect(wizard).toHaveAttribute('data-onboarding-reason', 'no-credential')
 
-    // The second front door sits under the credential form, not inside it.
+    // GDK-1287: step 1 opens on the source question with three answers at one
+    // layer; Jira is preselected. Choosing Built-in reveals its door in place
+    // of the credential form.
+    const chooser = page.getByTestId('onboarding-source')
+    await expect(chooser.getByRole('radio')).toHaveCount(3)
+    await expect(chooser.getByRole('radio', { name: /^Jira/ })).toHaveAttribute('aria-checked', 'true')
+    await expect(page.getByTestId('onboarding-connect')).toBeVisible()
+    await expect(page.getByTestId('onboarding-local-origin')).toHaveCount(0)
+    await page.getByTestId('onboarding-source-builtin').click()
     const door = page.getByTestId('onboarding-local-origin')
     await expect(door).toBeVisible()
+    await expect(page.getByTestId('onboarding-connect')).toHaveCount(0)
     await expect(door.getByRole('button', { name: en['onboarding.localOriginStart'] })).toBeVisible()
 
     await door.getByRole('button', { name: en['onboarding.localOriginStart'] }).click()
@@ -267,13 +276,35 @@ test.describe('no-tracker onboarding (GDK-377)', () => {
     const wizard = page.getByTestId('onboarding')
     await expect(wizard).toBeVisible({ timeout: 30_000 })
 
+    await page.getByTestId('onboarding-source-builtin').click()
     await page.getByTestId('onboarding-start-local-origin').click()
 
     const err = page.getByTestId('onboarding-error')
     await expect(err).toContainText('already connected to a Jira site')
     // The wizard is still step 1 — this path neither converts nor exits.
-    await expect(page.getByTestId('onboarding-connect')).toBeVisible()
+    await expect(page.getByTestId('onboarding-local-origin')).toBeVisible()
     await expect(page.getByTestId('new-issue-dialog')).toHaveCount(0)
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  test('the Paired answer opens Settings on the Workspaces tab (GDK-1287)', async ({ page }) => {
+    // No route binds an unconfigured workspace to a remote gadak, so the
+    // paired door is the existing Settings → Workspaces pairing form.
+    const errors = attachConsoleErrors(page)
+    await mockNoTracker(page)
+    await forceLocale(page, 'en')
+    await page.goto('/')
+
+    const wizard = page.getByTestId('onboarding')
+    await expect(wizard).toBeVisible({ timeout: 30_000 })
+    await page.getByTestId('onboarding-source-paired').click()
+    await expect(page.getByTestId('onboarding-connect')).toHaveCount(0)
+    await page.getByTestId('onboarding-paired-open').click()
+
+    const dialog = page.getByRole('dialog', { name: 'Settings' })
+    await expect(dialog.getByTestId('workspaces-tab')).toBeVisible()
+    await expect(dialog.getByTestId('workspaces-mode-paired')).toBeVisible()
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })

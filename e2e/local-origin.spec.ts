@@ -57,7 +57,9 @@ test.describe('local-origin workspace indicator', () => {
     const indicator = page.getByTestId('runtime-mirror').getByTestId('workspace-kind')
     await expect(indicator).toBeVisible()
     await expect(indicator).toHaveAttribute('data-kind', 'standalone')
-    await expect(indicator).toHaveAttribute('aria-label', /issuetap persist/)
+    // The hint's data-loss claim (GDK-1286 wording): the backup target is the
+    // tracker data file, not gadak.db.
+    await expect(indicator).toHaveAttribute('aria-label', /not gadak\.db/)
     await expect(page.getByTestId('local-origin-init-command')).toHaveText(STANDALONE_INIT_COMMAND)
 
     // The served document is the source of truth — the chip must match it,
