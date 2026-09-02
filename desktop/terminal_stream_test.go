@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os/exec"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -328,7 +329,15 @@ func (f *fakeConn) sizeUntil(t *testing.T, want string, within time.Duration) {
 			}
 		}
 		if time.Now().After(deadline) {
-			t.Fatalf("waiting for tty size %q; got %q", want, got.String())
+			// GDK-1192: the resize flake has never reproduced off the CI
+			// runner, and its failure line alone cannot tell a blocked read
+			// loop (the ioctl never returned, so no later probe reached the
+			// shell) from a child that ignored a size it was given. The
+			// stacks say which goroutine is where; the caller's Cleanup logs
+			// the session's own count of applied resizes.
+			buf := make([]byte, 1<<20)
+			n := runtime.Stack(buf, true)
+			t.Fatalf("waiting for tty size %q; got %q\n--- goroutines ---\n%s", want, got.String(), buf[:n])
 		}
 	}
 }
@@ -351,6 +360,13 @@ func TestTerminalStreamResizeReachesChild(t *testing.T) {
 
 	conn.sizeUntil(t, "24 80", 30*time.Second)
 
+	// On failure, whether Resize ever ran: Info counts applied resizes and
+	// carries the size the session believes it set (GDK-1192).
+	t.Cleanup(func() {
+		if t.Failed() {
+			t.Logf("session info at failure: %+v", sess.Info())
+		}
+	})
 	conn.writeCtrl(t, map[string]any{"t": "resize", "cols": 132, "rows": 43})
 	conn.sizeUntil(t, "43 132", 30*time.Second)
 	if info := sess.Info(); info.Cols != 132 || info.Rows != 43 {
