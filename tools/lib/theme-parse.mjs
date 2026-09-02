@@ -147,7 +147,18 @@ export const hexOf = (pal, name) => {
   const v = pal[name]
   if (!v) return null
   const m = v.match(/#([0-9a-fA-F]{3,8})\b/)
-  return m ? (m[0].length === 4 ? null : m[0].toLowerCase()) : null
+  if (m) return m[0].length === 4 ? null : m[0].toLowerCase()
+  // An ink token — `rgb(r g b / a)`, a wash meant to sit over any ground
+  // (GDK-1341 made bg-hover one). The gate measures it the way the page
+  // shows it: composited over this palette's bg-base.
+  const ink = v.match(/rgba?\(\s*(\d+)[\s,]+(\d+)[\s,]+(\d+)\s*(?:[/,]\s*([\d.]+%?))?\s*\)/)
+  if (!ink) return null
+  const base = pal['bg-base']?.match(/#[0-9a-fA-F]{6}\b/)?.[0]
+  if (!base) return null
+  let a = ink[4] === undefined ? 1 : parseFloat(ink[4])
+  if (ink[4]?.endsWith('%')) a /= 100
+  const fg = rgb2hex([+ink[1], +ink[2], +ink[3]])
+  return alphaOver(fg, base.toLowerCase(), a)
 }
 
 /*

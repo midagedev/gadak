@@ -215,7 +215,23 @@ for (const name of THEME_NAMES) {
   }
   // The ladder is the depth cue: shell is the mat, active is the nearest
   // surface. Out of order, elevation reads backwards on every panel.
-  const ls = LADDER.map((g) => [g, hexOf(pal, g)]).filter(([, h]) => h).map(([g, h]) => [g, hex2oklch(h)[0]])
+  // An ink token (`rgb(r g b / a)`, GDK-1341's bg-hover) is not a rung: it is
+  // a wash that lands one step above whatever ground it sits on, so its place
+  // in the ladder depends on the ground. The rule for it is that the step is
+  // visible over the page.
+  const isInk = (g) => /rgba?\(/.test(pal[g] ?? '') && !/#/.test(pal[g] ?? '')
+  for (const g of LADDER.filter(isInk)) {
+    const base = hexOf(pal, 'bg-base')
+    const over = hexOf(pal, g)
+    if (!base || !over) continue
+    const step = Math.abs(hex2oklch(over)[0] - hex2oklch(base)[0]) * 100
+    console.log(`    ${g.padEnd(12)} ink ${pal[g]} → over bg-base ${over}  ΔokL ${step.toFixed(1)}`)
+    if (step < 1.2) fail(`${name} ${g} ink is not a visible step over bg-base (ΔokL ${step.toFixed(1)} < 1.2)`)
+  }
+  const ls = LADDER.filter((g) => !isInk(g))
+    .map((g) => [g, hexOf(pal, g)])
+    .filter(([, h]) => h)
+    .map(([g, h]) => [g, hex2oklch(h)[0]])
   for (let i = 1; i < ls.length; i++) {
     if (ls[i][1] <= ls[i - 1][1]) {
       fail(
