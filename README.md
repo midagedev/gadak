@@ -223,38 +223,12 @@ running (include the `-wal`/`-shm` sidecars), or
 `sqlite3 origin/issuetap.db ".backup dest.db"`. `gadak backup` does the
 same in one step while serve keeps running ([`docs/runbooks/backup-restore.md`](docs/runbooks/backup-restore.md)).
 
-Reads, writes, hierarchy, wiki, attachments and history work on both, and
-since 0.19 the list can lay itself out as a board. Sprints as a UI, Jira
-dashboards and Jira's notification inbox do not — those stay in Jira.
-
-<details>
-<summary>▶ The full matrix, with the footnote for every ✅</summary>
-
-| | Jira (Atlassian Cloud) | Built-in tracker (from 0.16) |
-| --- | :---: | :---: |
-| Issue read and search (FTS, JQL, SQL) | ✅¹ | ✅¹ |
-| Create, comment, transition, assignee, labels, priority | ✅ | ✅ |
-| Due date, description, custom-field edits (from 0.16) | ✅² | ✅² |
-| Hierarchy | ✅³ | ✅³ |
-| Wiki documents | ✅⁴ | ✅⁵ |
-| Attachments | ✅ | ✅ |
-| History / time in status | ✅⁶ | ✅⁶ |
-| Agent surfaces (skill, MCP, SQL) | ✅ | ✅ |
-| Board (from 0.19) | ✅⁸ | ✅⁸ |
-| Sprints as a UI | —⁸ | —⁸ |
-| Dashboards | — | — |
-| Jira notifications | —⁷ | —⁷ |
-
-1. SQL and FTS are local. `--jql` / a Jira URL maps a documented subset onto the in-memory filter; clauses gadak cannot express are listed, never dropped. Sprint-by-name, `WAS`, cross-field `OR`, and custom fields are among the refusals; numeric `sprint =` / `sprint in` and `sprint in openSprints()` are in the subset ([decision 0007](docs/decisions/0007-jql-subset.md)).
-2. Dedicated endpoints for due date and description. Custom fields: kinds `text`, `number`, `date`, `option`, `user`, `multi_option` / `version_array`, gated by the issue's editmeta and the configured field allowlist. Cascading selects and textarea custom fields have no editor.
-3. Epic grouping (`epic_key`, nearest hierarchy-level-1 ancestor) is first-class. Setting a parent is CLI `create --parent` / `edit --parent` only — there is no REST `PUT {key}/parent`. Sub-task create-meta flags are not surfaced, so create cannot tell that a type requires a parent.
-4. Confluence Cloud is mirrored; page create, edit (title/body) and page comments write through it — `gadak page create|edit|comment`, `POST pages/`, `PUT pages/{id}/edit`, `POST pages/{id}/comment`.
-5. Pages sync from the in-process origin. `gadak page create|edit|comment` and the REST verbs work here too; the UI has a page comment composer but no page editor yet.
-6. Changelog is mirrored. Time in status is computed from `status_changed_at`, not stored as a column.
-7. Jira's notification inbox, rules, and email are not mirrored. gadak has its own watch-feed OS alerts on macOS and Linux.
-8. The board (0.19) is the same filtered list laid out as columns — same filters, same group axes; on the status axis a drag is a real transition, and a view saved with `--layout board` reopens as one. What it is not: Jira's sprint and board administration. There is still no sprint column on the list; sprint fields (`sprint_id` / `sprint_name` / `sprint_state`) are in the mirror, and SQL and JQL (`sprint =` / `sprint in openSprints()`) can query them. The `versions` catalog and `fix_version_ids` join the same way.
-
-</details>
+Reads, writes, hierarchy, wiki, attachments and history work on every
+origin, and since 0.19 the list can lay itself out as a board. What each
+origin refuses — and where — is one table with the code citation behind
+every cell: [`docs/SUPPORT_MATRIX.md`](docs/SUPPORT_MATRIX.md). Three
+things appear on no origin at all: sprints as a UI, Jira dashboards, and
+Jira's notification inbox — those stay in Jira.
 
 **Linear.** A Linear workspace mirrors and writes through the same
 verbs: add a `"linear"` block (`apiKey`, optional `teamIds`) to the

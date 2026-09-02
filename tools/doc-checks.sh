@@ -1936,4 +1936,94 @@ if [[ -n "$mcp_enum_drift" ]]; then
 fi
 ok "MCP tool description enums name values the Go source emits"
 
+# ── 39. docs/SUPPORT_MATRIX.md keeps its shape (GDK-1300) ────────────────
+# Class: a support matrix is a map a reader plans around, and it is the
+# single owner of the origin table — the READMEs summarize and link. This
+# check pins only the structure: the file exists, the first table row is
+# the three-origin header, every data row carries exactly three cells of
+# ✅/◐/— each with a footnote marker, every used marker has a definition,
+# and both READMEs link here instead of carrying a second table. Whether a
+# cell still tells the truth is review's job — the doc's own "How this
+# file is maintained" section names the files whose commits must update
+# it; generating cells from refusal code instead of review is GDK-1301.
+# Per-cell refusal mapping is deliberately absent.
+#
+# FAIL-first 2026-09-02, recorded against this branch's tree:
+#   - file moved aside: the run goes red at the docs/README.md index check
+#     first ("broken relative links in docs/README.md: SUPPORT_MATRIX.md",
+#     exit 1), and this check's own existence branch prints
+#     "docs/SUPPORT_MATRIX.md is missing — the matrix needs its single
+#     owner" (run standalone with the file moved).
+#   - one cell's footnote dropped (`✅[^4]` → `✅` in the full-text search
+#     row): "FAIL: docs/SUPPORT_MATRIX.md drifted:
+#     line 27: origin cell 2 is '✅', want ✅[^n] / ◐[^n] / —[^n]" — exit 1.
+#   - as shipped: green ("docs/SUPPORT_MATRIX.md keeps its shape; the
+#     READMEs link to it").
+matrix_drift=""
+matrix_drift=$(
+  python3 - <<'MATRIXPY'
+from pathlib import Path
+import re
+
+doc = Path("docs/SUPPORT_MATRIX.md")
+if not doc.exists():
+    print("docs/SUPPORT_MATRIX.md is missing — the matrix needs its single owner")
+    raise SystemExit
+text = doc.read_text()
+lines = text.splitlines()
+
+HEADER = "| Capability | Jira | Linear | Built-in |"
+header_at = None
+for i, l in enumerate(lines):
+    s = l.strip()
+    if s.startswith("|"):
+        if s != HEADER:
+            print(f"line {i+1}: first table row is {s!r}, want {HEADER!r}")
+        header_at = i
+        break
+if header_at is None:
+    print("docs/SUPPORT_MATRIX.md has no table")
+    raise SystemExit
+
+MARKER = re.compile(r"^(✅|◐|—)\[\^([0-9]+)\]$")
+used = set()
+rows = 0
+for i in range(header_at + 1, len(lines)):
+    s = lines[i].strip()
+    if not s.startswith("|"):
+        break  # the table ended
+    if set(s) <= set("|-: "):
+        continue  # separator row
+    rows += 1
+    cells = [c.strip() for c in s.strip("|").split("|")]
+    if len(cells) != 4:
+        print(f"line {i+1}: {len(cells)} cells, want 4 (capability + 3 origins)")
+        continue
+    for j, c in enumerate(cells[1:], 2):
+        m = MARKER.match(c)
+        if not m:
+            print(f"line {i+1}: origin cell {j} is {c!r}, want ✅[^n] / ◐[^n] / —[^n]")
+        else:
+            used.add(m.group(2))
+if rows == 0:
+    print("docs/SUPPORT_MATRIX.md: the table has no data rows")
+
+defined = set(re.findall(r"^\[\^([0-9]+)\]:", text, re.M))
+for n in sorted(used - defined, key=int):
+    print(f"footnote [^{n}] is used in a cell but never defined")
+
+for f in ("README.md", "README.ko.md"):
+    body = Path(f).read_text()
+    if "docs/SUPPORT_MATRIX.md" not in body:
+        print(f"{f}: no link to docs/SUPPORT_MATRIX.md — the matrix needs its readers")
+    for i, l in enumerate(body.splitlines(), 1):
+        if l.startswith("| Capability |"):
+            print(f"{f}:{i}: carries a Capability table — docs/SUPPORT_MATRIX.md is the single owner")
+MATRIXPY
+)
+if [[ -n "$matrix_drift" ]]; then
+  fail "docs/SUPPORT_MATRIX.md drifted:"$'\n'"$matrix_drift"
+fi
+ok "docs/SUPPORT_MATRIX.md keeps its shape; the READMEs link to it"
+
 echo "doc-checks: all passed"

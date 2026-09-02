@@ -99,6 +99,13 @@ hard-won 목록)와 `AGENTS.md`(스키마·쿼리)가 원본이다.
 - 게이트 단언 완화는 ①귀속 주석 ②정당한 파생 ③FAIL-first 증거 셋 모두
   있을 때만.
 - 문서 사실성 가드: `tools/doc-checks.sh` (있으면 커밋 전 실행).
+- **origin 표면을 바꿨으면 `docs/SUPPORT_MATRIX.md`도 같은 커밋이다** (GDK-1300,
+  2026-09-02). Jira·Linear·Built-in 세 열의 단일 소유자이고 README 둘은 링크만
+  한다. `internal/origin/writer.go`·`linearwriter.go`·`internal/linear/`·
+  `internal/sync/`·issuetap 의존성 범프·CLI 동사의 origin 분기(`gadak open`
+  같은)를 건드린 커밋은 해당 셀과 `[^n]` 각주의 `path:line`을 갱신한다.
+  `tools/doc-checks.sh` #39 는 구조(파일·헤더·셀 형식·각주 정의·README 링크)만
+  잡고 셀의 참·거짓은 리뷰의 몫이다 — 코드에서 생성하는 것은 GDK-1301.
 - **어휘 일괄 치환은 계약 문자열을 삼킨다 — 치환 뒤에 계약을 따로 세어라**
   (2026-09-02 GDK-1278 어휘 리네임, 5회 발생). 저장 값·에러 코드·요청 필드·
   라우트·데이터 id 접두사·DOM testid 는 어휘가 아니라 wire 계약인데, `\bword\b`

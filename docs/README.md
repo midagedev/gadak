@@ -22,6 +22,7 @@ document answers.
 ## Using gadak
 
 - [MIRROR.md](MIRROR.md): SQL, CLI, REST, and MCP against the local mirror — the cookbook
+- [SUPPORT_MATRIX.md](SUPPORT_MATRIX.md): what works on Jira, Linear, and the built-in tracker — every cell with the code citation behind it
 - [AGENT_ACCESS.md](AGENT_ACCESS.md): which access layer to reach for, and what each costs
 - [DASHBOARDS.md](DASHBOARDS.md): agent-authored dashboards — the frame contract, datasources, vendored charts, and the two residual leak channels
 - [RECIPES.md](RECIPES.md): questions JQL cannot ask, as ready-to-run SQL

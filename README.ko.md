@@ -231,39 +231,12 @@ Jira입니다. 어느 쪽이든 미러는 캐시이고, 모든 쓰기는 origin�
 dest.db"`를 쓰세요. `gadak backup`은 serve가 켜진 채로 같은 일을 한 번에 합니다
 ([`docs/runbooks/backup-restore.md`](docs/runbooks/backup-restore.md)).
 
-읽기·쓰기·계층·위키·첨부·히스토리는 양쪽 모두 되고, 0.19부터는 리스트를
-보드 레이아웃으로 펼칠 수 있습니다. UI로서의 스프린트, Jira 대시보드,
-Jira 알림함은 안 됩니다. 그 일은 Jira에 남습니다.
-
-<details>
-<summary>▶ 전체 매트릭스와 ✅마다 붙은 각주</summary>
-
-| | Jira (Atlassian Cloud) | 내장 트래커 (0.16부터) |
-| --- | :---: | :---: |
-| 이슈 읽기·검색 (FTS, JQL, SQL) | ✅¹ | ✅¹ |
-| 생성, 코멘트, 상태 전이, 담당자, 라벨, 우선순위 | ✅ | ✅ |
-| 마감일·설명·커스텀 필드 편집 (0.16부터) | ✅² | ✅² |
-| 계층 구조 | ✅³ | ✅³ |
-| 위키 문서 | ✅⁴ | ✅⁵ |
-| 첨부 | ✅ | ✅ |
-| 히스토리 / 상태 체류 시간 | ✅⁶ | ✅⁶ |
-| 에이전트 표면 (스킬, MCP, SQL) | ✅ | ✅ |
-| 보드 (0.19부터) | ✅⁸ | ✅⁸ |
-| UI로서의 스프린트 | —⁸ | —⁸ |
-| 대시보드 | — | — |
-| Jira 알림 | —⁷ | —⁷ |
-
-1. SQL과 FTS는 로컬입니다. `--jql` / Jira URL은 문서화된 부분집합을 인메모리 필터로 매핑하고, gadak이 표현하지 못하는 절은 조용히 버려지지 않고 나열됩니다. 스프린트 이름 비교, `WAS`, 필드를 가로지르는 `OR`, 커스텀 필드가 거절 목록에 있습니다. 숫자 `sprint =` / `sprint in`과 `sprint in openSprints()`는 부분집합입니다 ([decision 0007](docs/decisions/0007-jql-subset.md)).
-2. 마감일과 설명은 전용 엔드포인트입니다. 커스텀 필드는 `text`, `number`, `date`, `option`, `user`, `multi_option` / `version_array` kind이며, 이슈의 editmeta와 설정된 필드 allowlist로 게이트됩니다. 캐스케이딩 셀렉트와 textarea 커스텀 필드는 편집기가 없습니다.
-3. 에픽 그룹핑(`epic_key`, 가장 가까운 hierarchy-level-1 조상)은 일급입니다. 부모 지정은 CLI `create --parent` / `edit --parent`뿐입니다. REST `PUT {key}/parent`는 없습니다. 서브태스크 create-meta 플래그는 표면화되지 않아, create는 어떤 유형이 부모를 요구하는지 알지 못합니다.
-4. Confluence Cloud를 미러링하고, 페이지 생성·수정(제목/본문)·페이지 코멘트가 origin을 통과해 쓰입니다: `gadak page create|edit|comment`, `POST pages/`, `PUT pages/{id}/edit`, `POST pages/{id}/comment`.
-5. 페이지는 인프로세스 origin에서 동기화됩니다. `gadak page create|edit|comment`와 REST 동사가 여기서도 동작합니다. UI에는 페이지 코멘트 작성기가 있고 페이지 에디터는 아직 없습니다.
-6. Changelog는 미러링됩니다. 상태 체류 시간은 저장 컬럼이 아니라 `status_changed_at`에서 계산합니다.
-7. Jira의 알림함, 알림 규칙, 이메일은 미러링하지 않습니다. gadak은 macOS·Linux에서 자체 watch-피드 OS 알림을 갖고 있습니다.
-8. 보드(0.19)는 같은 필터된 리스트를 컬럼으로 펼친 레이아웃입니다. 필터도 그룹 축도 리스트와 같고, 상태 축에서는 드래그가 실제 상태 전환이며, `--layout board`로 저장한 뷰는 보드로 다시 열립니다. Jira의 스프린트·보드 관리는 여기에 포함되지 않습니다. 리스트의 스프린트 컬럼도 여전히 없습니다. 스프린트 필드(`sprint_id` / `sprint_name` / `sprint_state`)는 미러에 있고, SQL과 JQL(`sprint =` / `sprint in openSprints()`)로 질의할 수 있습니다. `versions` 카탈로그와 `fix_version_ids`도 같은 방식으로 조인합니다.
-
-</details>
-
+읽기·쓰기·계층·위키·첨부·히스토리는 모든 origin에서 되고, 0.19부터는
+리스트를 보드 레이아웃으로 펼칠 수 있습니다. 각 origin이 무엇을 거절하는지,
+그 근거 코드가 어디인지는 한 표에 들어 있습니다:
+[`docs/SUPPORT_MATRIX.md`](docs/SUPPORT_MATRIX.md). 어떤 origin에도 없는
+것이 셋 있습니다: UI로서의 스프린트, Jira 대시보드, Jira 알림함 — 그 일은
+Jira에 남습니다.
 
 **Linear.** Linear 워크스페이스도 같은 동사로 미러링하고 write-through
 합니다: 워크스페이스 `config.json`에 `"linear"` 블록(`apiKey`, 선택 `teamIds`)을
