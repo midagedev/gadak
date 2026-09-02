@@ -731,12 +731,18 @@ func mainWindowOptions() application.WebviewWindowOptions {
 }
 
 // raiseWindow is the one raise path: second-instance, deeplink, and dock
-// reopen. Restore un-minimises; Focus brings the window forward.
+// reopen. Only a minimised window is un-minimised; Focus brings the window
+// forward. Restore() is not that verb — wails' Restore also leaves
+// fullscreen and un-maximises, so a dock click on a fullscreen window
+// snapped it back to its normal frame (GDK-1294, reported in discussion
+// #80).
 func raiseWindow(w *application.WebviewWindow) {
 	if w == nil {
 		return
 	}
-	w.Restore()
+	if w.IsMinimised() {
+		w.UnMinimise()
+	}
 	w.Focus()
 }
 
