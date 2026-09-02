@@ -24,6 +24,7 @@
   import { ApiError } from '../../lib/api'
   import { loadConfig, surface } from '../../lib/config'
   import { openInAppBrowser } from '../../lib/desktop-links'
+  import { setParams } from '../../lib/router.svelte'
   import { issues } from '../../stores/issues.svelte'
   import { me } from '../../stores/me.svelte'
   import { onboarding, onboardingHold } from '../../stores/onboarding.svelte'
@@ -76,6 +77,21 @@
 
   type Step = 1 | 2 | 3 | 4
   let step = $state<Step>(1)
+
+  /*
+   * GDK-1287: step 1 opens on "Where do your issues live?" and the three
+   * answers sit at one layer. Jira is preselected so the credential form is
+   * on screen at once; the other two reveal their own door. A form mode, not
+   * the server-owned workspace kind. Linear has no onboarding flow, so it is
+   * not offered here.
+   */
+  type Source = 'jira' | 'builtin' | 'paired'
+  let source = $state<Source>('jira')
+  const SOURCES: { id: Source; label: string; aux: string }[] = [
+    { id: 'jira', label: t('onboarding.sourceJira'), aux: t('onboarding.sourceJiraAux') },
+    { id: 'builtin', label: t('onboarding.sourceBuiltin'), aux: t('onboarding.sourceBuiltinAux') },
+    { id: 'paired', label: t('onboarding.sourcePaired'), aux: t('onboarding.sourcePairedAux') },
+  ]
 
   /* ── 1. connect ── */
   let site = $state('')
@@ -379,7 +395,27 @@
     </div>
 
     {#if step === 1}
-      <form class="mt-5 flex flex-col gap-3" onsubmit={connect} data-testid="onboarding-connect">
+      <p class="mt-5 text-body font-medium text-text-primary">{t('onboarding.whereQuestion')}</p>
+      <div class="mt-2 grid grid-cols-3 gap-2" role="radiogroup" data-testid="onboarding-source">
+        {#each SOURCES as s (s.id)}
+          <button
+            type="button"
+            role="radio"
+            aria-checked={source === s.id}
+            data-testid="onboarding-source-{s.id}"
+            class="flex flex-col items-start gap-0.5 rounded-md border px-2.5 py-2 text-left transition-colors {source === s.id
+              ? 'border-accent bg-bg-active'
+              : 'border-border-subtle hover:bg-bg-hover'}"
+            onclick={() => (source = s.id)}
+          >
+            <span class="text-body font-medium text-text-primary">{s.label}</span>
+            <span class="text-micro text-text-muted">{s.aux}</span>
+          </button>
+        {/each}
+      </div>
+
+      {#if source === 'jira'}
+      <form class="mt-4 flex flex-col gap-3" onsubmit={connect} data-testid="onboarding-connect">
         <label class="flex flex-col gap-1">
           <span class="text-micro font-medium text-text-secondary">{t('onboarding.site')}</span>
           <input
@@ -481,28 +517,47 @@
           <button class={GHOST} type="button" onclick={onOpenSettings}>{t('onboarding.openSettings')}</button>
         </div>
       </form>
-
-      <!-- The no-tracker front door, kept below a rule so it reads as
-           either/or with the credential form — an alternative way in, not
-           one more required field. Success never reaches step 2: the
-           workspace kind flips and the composer opens (startLocalOrigin). -->
-      <div class="mt-5 border-t border-border-subtle pt-4" data-testid="onboarding-local-origin">
-        <p class="text-micro text-text-muted">{t('onboarding.localOriginIntro')}</p>
+      {:else if source === 'builtin'}
+      <!-- The built-in door. Success never reaches step 2: the workspace
+           kind flips and the composer opens (startLocalOrigin). -->
+      <div class="mt-4 flex flex-col gap-2" data-testid="onboarding-local-origin">
+        <p class="text-body text-text-secondary">{t('onboarding.localOriginIntro')}</p>
         {#if localOriginError}
           <p class="mt-2 text-body text-status-reopen" role="alert" data-testid="onboarding-error">
             {localOriginError}
           </p>
         {/if}
-        <button
-          class={GHOST}
-          type="button"
-          data-testid="onboarding-start-local-origin"
-          disabled={localOriginStarting}
-          onclick={() => void startLocalOrigin()}
-        >
-          {t('onboarding.localOriginStart')}
-        </button>
+        <div>
+          <button
+            class={PRIMARY}
+            type="button"
+            data-testid="onboarding-start-local-origin"
+            disabled={localOriginStarting}
+            onclick={() => void startLocalOrigin()}
+          >
+            {t('onboarding.localOriginStart')}
+          </button>
+        </div>
       </div>
+      {:else}
+      <!-- Paired: no server route binds THIS workspace to a remote gadak (the
+           CLI's init --pairing-code is the only current-workspace path), so
+           the door is Settings → Workspaces, which registers the paired serve
+           as a new named workspace. The copy says so. -->
+      <div class="mt-4 flex flex-col gap-2" data-testid="onboarding-paired">
+        <p class="text-body text-text-secondary">{t('onboarding.pairedIntro')}</p>
+        <div>
+          <button
+            class={PRIMARY}
+            type="button"
+            data-testid="onboarding-paired-open"
+            onclick={() => setParams({ settings: 'workspaces' })}
+          >
+            {t('onboarding.pairedOpen')}
+          </button>
+        </div>
+      </div>
+      {/if}
     {:else if step === 2}
       <div class="mt-5 flex flex-col gap-3" data-testid="onboarding-projects">
         <p class="text-body text-text-secondary">

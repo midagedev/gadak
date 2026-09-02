@@ -357,24 +357,24 @@ export const settings = {
     ja: '開発ビルド — 更新確認をスキップしました。',
   },
   'settings.thisMirror': {
-    en: 'This mirror',
-    ko: '이 미러',
-    ja: 'このミラー',
+    en: 'This local copy',
+    ko: '이 로컬 사본',
+    ja: 'このローカルコピー',
   },
   'settings.workspaceLocalOrigin': {
-    en: 'gadak',
-    ko: 'gadak',
-    ja: 'gadak',
+    en: 'Built-in',
+    ko: '내장',
+    ja: '内蔵',
   },
   'settings.workspaceLocalOriginHint': {
-    en: "The origin is gadak's own tracker, running here. It keeps this computer's issuetap persist file, not gadak.db — back that file up.",
-    ko: '원본이 gadak 자신의 트래커이고, 여기서 돕니다. 보관 파일은 이 컴퓨터의 issuetap persist 이며, 백업 대상은 gadak.db가 아니라 그 파일입니다.',
-    ja: 'origin は gadak 自身のトラッカーで、ここで動いています。保管するのはこのコンピュータの issuetap persist ファイルであり、gadak.db ではありません — そのファイルをバックアップしてください。',
+    en: "Your issues live in the built-in tracker, running here. Their only copy is this computer's tracker data file, not gadak.db — back that file up.",
+    ko: '이슈는 여기서 도는 내장 트래커에 있습니다. 유일한 사본은 이 컴퓨터의 트래커 데이터 파일이며, 백업 대상은 gadak.db가 아니라 그 파일입니다.',
+    ja: '課題はここで動いている内蔵トラッカーにあります。唯一のコピーはこのコンピュータのトラッカーデータファイルであり、gadak.db ではありません — そのファイルをバックアップしてください。',
   },
   'settings.localOriginHow': {
-    en: 'Create a workspace with no tracker to connect',
-    ko: '연결할 트래커 없이 워크스페이스 만들기',
-    ja: '接続するトラッカーなしでワークスペースを作る',
+    en: 'Create a built-in tracker workspace',
+    ko: '내장 트래커 워크스페이스 만들기',
+    ja: '内蔵トラッカーのワークスペースを作る',
   },
   'settings.runtimeProfile': {
     en: 'Workspace',
@@ -387,9 +387,9 @@ export const settings = {
     ja: 'gadak --workspace {name}',
   },
   'settings.runtimeDb': {
-    en: 'Mirror database',
-    ko: '미러 DB',
-    ja: 'ミラーデータベース',
+    en: 'Local copy database',
+    ko: '로컬 사본 DB',
+    ja: 'ローカルコピーのデータベース',
   },
   'settings.runtimeConfig': {
     en: 'Config file',
@@ -583,9 +583,9 @@ export const settings = {
   },
   /* Integrations tab (desktop app only) */
   'settings.integrationsIntro': {
-    en: 'Where your agents reach this mirror. Each install runs the command shown — copy it to run it yourself instead.',
-    ko: '에이전트가 이 미러에 닿는 경로입니다. 설치 버튼은 아래에 적힌 명령을 그대로 실행합니다 — 직접 실행하려면 복사하세요.',
-    ja: 'エージェントがこのミラーに届く経路です。インストールは下のコマンドを実行します — 自分で走らせるならコピーしてください。',
+    en: 'Where your agents reach this local copy. Each install runs the command shown — copy it to run it yourself instead.',
+    ko: '에이전트가 이 로컬 사본에 닿는 경로입니다. 설치 버튼은 아래에 적힌 명령을 그대로 실행합니다 — 직접 실행하려면 복사하세요.',
+    ja: 'エージェントがこのローカルコピーに届く経路です。インストールは下のコマンドを実行します — 自分で走らせるならコピーしてください。',
   },
   'settings.integrationsLoading': {
     en: 'Reading what is installed…',
@@ -733,9 +733,9 @@ export const settings = {
     ja: 'まだ組み込んだ端末がありません。下から組み込んでください。',
   },
   'settings.devicesUnavailableNotConfigured': {
-    en: 'This workspace has no origin yet — set it up before pairing devices.',
-    ko: '이 워크스페이스에는 아직 원본이 없습니다 — 기기를 연결하기 전에 먼저 설정하세요.',
-    ja: 'このワークスペースにはまだオリジンがありません — 端末を組み込む前に設定してください。',
+    en: 'This workspace has no tracker yet — set it up before pairing devices.',
+    ko: '이 워크스페이스에는 아직 트래커가 없습니다 — 기기를 연결하기 전에 먼저 설정하세요.',
+    ja: 'このワークスペースにはまだトラッカーがありません — 端末を組み込む前に設定してください。',
   },
   'settings.devicesUnavailablePairedAway': {
     en: 'This workspace is itself paired with another machine. Devices are minted on the home machine.',
@@ -763,14 +763,14 @@ export const settings = {
     ja: '状態',
   },
   'settings.devicesScopeServe': {
-    en: 'Mirror API (phone app)',
-    ko: '미러 API (휴대폰 앱)',
-    ja: 'ミラーAPI（スマホアプリ）',
+    en: 'Local copy API (phone app)',
+    ko: '로컬 사본 API (휴대폰 앱)',
+    ja: 'ローカルコピーAPI（スマホアプリ）',
   },
   'settings.devicesScopeOrigin': {
-    en: 'Origin passthrough (another gadak)',
-    ko: '원본 패스스루 (다른 gadak)',
-    ja: 'オリジンパススルー（別のgadak）',
+    en: 'Tracker passthrough (another gadak)',
+    ko: '트래커 패스스루 (다른 gadak)',
+    ja: 'トラッカーパススルー（別のgadak）',
   },
   'settings.devicesScopeLocalRouting': {
     en: 'This machine (routing key)',
@@ -925,9 +925,9 @@ export const settings = {
     ja: 'ワークスペース',
   },
   'settings.workspacesIntro': {
-    en: 'Each workspace is its own mirror, served at /w/<name>/. Creating one seeds a tracker gadak keeps itself; removing one deletes this machine’s copy of it.',
-    ko: '각 워크스페이스는 자체 미러를 가지며 /w/<name>/ 으로 서빙됩니다. 만들면 gadak이 직접 보관하는 트래커가 시드되고, 지우면 이 머신의 사본이 삭제됩니다.',
-    ja: '各ワークスペースは独自のミラーを持ち、/w/<name>/ で serve されます。作成すると gadak 自身が保持するトラッカーがシードされ、削除するとこのマシンのコピーが消えます。',
+    en: 'Each workspace is its own local copy, served at /w/<name>/. Creating one seeds a built-in tracker; removing one deletes this machine’s copy of it.',
+    ko: '각 워크스페이스는 자체 로컬 사본을 가지며 /w/<name>/ 으로 서빙됩니다. 만들면 내장 트래커가 시드되고, 지우면 이 머신의 사본이 삭제됩니다.',
+    ja: '各ワークスペースは独自のローカルコピーを持ち、/w/<name>/ で serve されます。作成すると内蔵トラッカーがシードされ、削除するとこのマシンのコピーが消えます。',
   },
   'settings.workspacesLoading': {
     en: 'Loading workspaces…',
@@ -990,9 +990,9 @@ export const settings = {
     ja: 'ワークスペースを作成',
   },
   'settings.workspacesModeLocalOrigin': {
-    en: 'New, no tracker',
-    ko: '새 워크스페이스 (트래커 없이)',
-    ja: '新規（トラッカーなし）',
+    en: 'New, built-in tracker',
+    ko: '새 워크스페이스 (내장 트래커)',
+    ja: '新規（内蔵トラッカー）',
   },
   'settings.workspacesModePaired': {
     en: 'Register remote',
@@ -1050,14 +1050,14 @@ export const settings = {
     ja: 'ワークスペースを削除',
   },
   'settings.workspacesDestroyLabel': {
-    en: 'Also destroy the persist file (the only copy of this tracker)',
-    ko: 'persist 파일도 함께 파기 (이 트래커의 유일한 사본)',
-    ja: 'persist ファイルも破棄する（このトラッカーの唯一のコピー）',
+    en: 'Also destroy the tracker data file (the only copy of this tracker)',
+    ko: '트래커 데이터 파일도 함께 파기 (이 트래커의 유일한 사본)',
+    ja: 'トラッカーのデータファイルも破棄する（このトラッカーの唯一のコピー）',
   },
   'settings.workspacesDestroyHint': {
-    en: 'Copy the persist file out first if you want to keep its data.',
-    ko: '데이터를 남기려면 먼저 persist 파일을 복사해 두세요.',
-    ja: 'データを残す場合は、先にpersistファイルをコピーしてください。',
+    en: 'Copy the tracker data file out first if you want to keep its data.',
+    ko: '데이터를 남기려면 먼저 트래커 데이터 파일을 복사해 두세요.',
+    ja: 'データを残す場合は、先にトラッカーのデータファイルをコピーしてください。',
   },
   'settings.workspacesRemoveFailed': {
     en: 'Could not remove the workspace. Try again.',
@@ -1647,9 +1647,9 @@ export const settings = {
   },
   // CLI frozenSyncError (cmd/gadak/sync.go): cause plus how to unfreeze.
   'sync.frozen': {
-    en: 'This workspace is frozen — nothing goes to the origin, syncs or writes. Unfreeze with `gadak config set frozen false`.',
-    ko: '이 워크스페이스는 동결되어 origin으로 아무것도 나가지 않습니다 — 동기화도 쓰기도요. `gadak config set frozen false`로 해제합니다.',
-    ja: 'このワークスペースは凍結されています — origin へは同期も書き込みも行きません。`gadak config set frozen false` で解除します。',
+    en: 'This workspace is frozen — nothing goes to the tracker, syncs or writes. Unfreeze with `gadak config set frozen false`.',
+    ko: '이 워크스페이스는 동결되어 트래커로 아무것도 나가지 않습니다 — 동기화도 쓰기도요. `gadak config set frozen false`로 해제합니다.',
+    ja: 'このワークスペースは凍結されています — トラッカーへは同期も書き込みも行きません。`gadak config set frozen false` で解除します。',
   },
   // Jira landed, a second source did not. Naming it keeps a wiki permission
   // error from reading as "none of this worked".

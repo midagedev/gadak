@@ -453,9 +453,9 @@ export const write = {
 
   /* ── Onboarding (first run) ── */
   'onboarding.title': {
-    en: 'Set up your mirror',
-    ko: '미러 설정하기',
-    ja: 'ミラーをセットアップ',
+    en: 'Set up gadak',
+    ko: 'gadak 설정하기',
+    ja: 'gadak をセットアップ',
   },
   'onboarding.intro': {
     en: 'Setup happens here, no terminal needed. The last step is optional.',
@@ -670,14 +670,14 @@ export const write = {
     ja: '任意',
   },
   'onboarding.agentIntro': {
-    en: 'The mirror is filled. The last choice is what reads it.',
-    ko: '미러가 채워졌습니다. 이제 이걸 무엇으로 읽을지만 고르면 됩니다.',
-    ja: 'ミラーは埋まりました。最後の選択は、それを何で読むかです。',
+    en: 'Your local copy is filled. The last choice is what reads it.',
+    ko: '로컬 사본이 채워졌습니다. 이제 이걸 무엇으로 읽을지만 고르면 됩니다.',
+    ja: 'ローカルコピーは埋まりました。最後の選択は、それを何で読むかです。',
   },
   'onboarding.agentWhy': {
-    en: 'This app is one reader. The other is your coding agent — one command lets it query the mirror directly, without going back to Jira.',
-    ko: '지금 보고 있는 앱이 리더 하나이고, 다른 하나는 당신의 코딩 에이전트입니다. 명령 한 줄이면 에이전트가 Jira를 다시 거치지 않고 이 미러에 직접 질의합니다.',
-    ja: 'このアプリがリーダーのひとつです。もうひとつはコーディングエージェントです — コマンドひとつで、Jira に戻らずミラーへ直接問い合わせられます。',
+    en: 'This app is one reader. The other is your coding agent — one command lets it query the local copy directly, without going back to Jira.',
+    ko: '지금 보고 있는 앱이 리더 하나이고, 다른 하나는 당신의 코딩 에이전트입니다. 명령 한 줄이면 에이전트가 Jira를 다시 거치지 않고 이 로컬 사본에 직접 질의합니다.',
+    ja: 'このアプリがリーダーのひとつです。もうひとつはコーディングエージェントです — コマンドひとつで、Jira に戻らずローカルコピーへ直接問い合わせられます。',
   },
   'onboarding.agentCommandsLabel': {
     en: 'Register gadak with your agent',
@@ -752,14 +752,14 @@ export const write = {
   // GDK-247: PUT onboarding/connect/ 409 standalone_data_present. Facts match
   // cmd/gadak/init.go's ReplaceRefusedError sentence (via workspace.RefuseReplace).
   'onboarding.localOriginBlocked': {
-    en: 'This workspace holds {n} issues or documents that originated here, in gadak\u2019s own tracker. They exist only here — no Jira site has a copy. Converting this workspace deletes them from the mirror.',
-    ko: '이 워크스페이스에는 gadak 자신의 트래커에서 만들어진 이슈 또는 문서가 {n}개 있습니다. 여기에만 존재하며 어떤 Jira 사이트에도 사본이 없습니다. 이 워크스페이스를 전환하면 미러에서 그것들이 삭제됩니다.',
-    ja: 'このワークスペースには gadak 自身のトラッカーで作られた課題またはドキュメントが {n}件あります。ここにしか存在せず、どの Jira サイトにもコピーはありません。このワークスペースを変換すると、それらはミラーから削除されます。',
+    en: 'This workspace holds {n} issues or documents that originated here, in the built-in tracker. They exist only here — no Jira site has a copy. Converting this workspace deletes them from this local copy.',
+    ko: '이 워크스페이스에는 내장 트래커에서 만들어진 이슈 또는 문서가 {n}개 있습니다. 여기에만 존재하며 어떤 Jira 사이트에도 사본이 없습니다. 이 워크스페이스를 전환하면 이 로컬 사본에서 그것들이 삭제됩니다.',
+    ja: 'このワークスペースには内蔵トラッカーで作られた課題またはドキュメントが {n}件あります。ここにしか存在せず、どの Jira サイトにもコピーはありません。このワークスペースを変換すると、それらはこのローカルコピーから削除されます。',
   },
   'onboarding.localOriginPersist': {
-    en: 'Origin persist file: {path}',
-    ko: '원본 persist 파일: {path}',
-    ja: 'origin persist ファイル: {path}',
+    en: 'Tracker data file: {path}',
+    ko: '트래커 데이터 파일: {path}',
+    ja: 'トラッカーのデータファイル: {path}',
   },
   'onboarding.localOriginOtherWorkspace': {
     en: 'Connect the site in a separate workspace: gadak --workspace <name> init (list workspaces with gadak workspaces).',
@@ -767,9 +767,9 @@ export const write = {
     ja: 'サイトは別のワークスペースで接続してください: gadak --workspace <name> init（一覧は gadak workspaces）。',
   },
   'onboarding.localOriginReplaceConfirm': {
-    en: 'Replace this workspace anyway. Converting deletes these issues or documents from the mirror.',
-    ko: '그래도 이 워크스페이스를 교체합니다. 전환하면 미러에서 이 이슈 또는 문서들이 즉시 삭제됩니다.',
-    ja: 'それでもこのワークスペースを置き換えます。変換するとこれらの課題またはドキュメントはミラーから削除されます。',
+    en: 'Replace this workspace anyway. Converting deletes these issues or documents from this local copy.',
+    ko: '그래도 이 워크스페이스를 교체합니다. 전환하면 이 로컬 사본에서 이 이슈 또는 문서들이 즉시 삭제됩니다.',
+    ja: 'それでもこのワークスペースを置き換えます。変換するとこれらの課題またはドキュメントはこのローカルコピーから削除されます。',
   },
   'onboarding.localOriginReplace': {
     en: 'Replace and connect',
@@ -779,21 +779,69 @@ export const write = {
   // GDK-377: the no-tracker front door on step 1. POST onboarding/standalone
   // seeds the same workspace `gadak init --local` makes.
   'onboarding.localOriginIntro': {
-    en: 'No tracker to connect? gadak can keep issues by itself — one click, and everything stays on this machine.',
-    ko: '연결할 트래커가 없나요? gadak이 직접 이슈를 보관합니다 — 클릭 한 번이면 되고, 모든 데이터는 이 머신에 그대로 있습니다.',
-    ja: '接続するトラッカーがない? gadak が自分で課題を保持します — クリックひとつで済み、データはすべてこのマシンに残ります。',
+    en: 'No account? The built-in tracker keeps issues on this machine — one click, and you start here.',
+    ko: '계정이 없나요? 내장 트래커가 이 머신에 이슈를 보관합니다 — 클릭 한 번으로 여기서 시작합니다.',
+    ja: 'アカウント不要 — 内蔵トラッカーが課題をこのマシンに保持します。クリックひとつでここから始められます。',
   },
   'onboarding.localOriginStart': {
-    en: 'Start with no tracker',
-    ko: '트래커 없이 시작',
-    ja: 'トラッカーなしで始める',
+    en: 'Start with the built-in tracker',
+    ko: '내장 트래커로 시작',
+    ja: '内蔵トラッカーで始める',
   },
   // 409 workspace_connected: the server names the same fact handleConnect's
   // refusals do — origin switch is a new workspace, not a settings edit.
   'onboarding.localOriginConnected': {
-    en: 'This workspace is already connected to a Jira site. Switching origin means starting a new workspace — the CLI verb does that: gadak --workspace <name> init --local.',
-    ko: '이 워크스페이스는 이미 Jira 사이트에 연결되어 있습니다. origin을 바꾸는 것은 새 워크스페이스를 시작하는 일입니다 — CLI로 할 수 있습니다: gadak --workspace <name> init --local.',
-    ja: 'このワークスペースはすでに Jira サイトに接続されています。origin の切り替えは新しいワークスペースを作ることです — CLI で行えます: gadak --workspace <name> init --local。',
+    en: 'This workspace is already connected to a Jira site. Switching to another tracker means starting a new workspace — the CLI does that: gadak --workspace <name> init --local.',
+    ko: '이 워크스페이스는 이미 Jira 사이트에 연결되어 있습니다. 다른 트래커로 바꾸는 것은 새 워크스페이스를 시작하는 일입니다 — CLI로 할 수 있습니다: gadak --workspace <name> init --local.',
+    ja: 'このワークスペースはすでに Jira サイトに接続されています。別のトラッカーへの切り替えは新しいワークスペースを作ることです — CLI で行えます: gadak --workspace <name> init --local。',
+  },
+  // GDK-1287: step 1 opens on this question; the three answers share one layer.
+  'onboarding.whereQuestion': {
+    en: 'Where do your issues live?',
+    ko: '이슈가 어디에 있나요?',
+    ja: '課題はどこにありますか?',
+  },
+  'onboarding.sourceJira': {
+    en: 'Jira',
+    ko: 'Jira',
+    ja: 'Jira',
+  },
+  'onboarding.sourceJiraAux': {
+    en: 'Atlassian Cloud site',
+    ko: 'Atlassian Cloud 사이트',
+    ja: 'Atlassian Cloud サイト',
+  },
+  'onboarding.sourceBuiltin': {
+    en: 'Built-in tracker',
+    ko: '내장 트래커',
+    ja: '内蔵トラッカー',
+  },
+  'onboarding.sourceBuiltinAux': {
+    en: 'no account, starts here',
+    ko: '계정 없이 여기서 시작',
+    ja: 'アカウント不要、ここから始める',
+  },
+  'onboarding.sourcePaired': {
+    en: 'Paired',
+    ko: '페어링됨',
+    ja: 'ペアリング済み',
+  },
+  'onboarding.sourcePairedAux': {
+    en: "another machine's gadak",
+    ko: '다른 기기의 gadak',
+    ja: '別のマシンの gadak',
+  },
+  // The paired door opens Settings → Workspaces: pairing registers the other
+  // machine's gadak as a new named workspace here (no route binds this one).
+  'onboarding.pairedIntro': {
+    en: 'Paste the pairing code from `gadak pairing mint` on the other machine. It is registered as a new workspace here, under a name you choose.',
+    ko: '다른 기기에서 `gadak pairing mint`가 출력한 페어링 코드를 붙여넣으세요. 직접 정한 이름의 새 워크스페이스로 여기에 등록됩니다.',
+    ja: '別のマシンで `gadak pairing mint` が出力したペアリングコードを貼り付けます。自分で決めた名前の新しいワークスペースとしてここに登録されます。',
+  },
+  'onboarding.pairedOpen': {
+    en: 'Open Settings → Workspaces',
+    ko: '설정 → 워크스페이스 열기',
+    ja: '設定 → ワークスペースを開く',
   },
   'onboarding.errLocalOrigin': {
     en: 'Could not start the workspace: {message}',

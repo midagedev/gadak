@@ -47,7 +47,7 @@ test.describe('settings dialog', () => {
     await openServerSettings(page)
 
     const dialog = page.getByRole('dialog', { name: 'Settings' })
-    const mirror = dialog.getByRole('region', { name: 'This mirror' })
+    const mirror = dialog.getByRole('region', { name: 'This local copy' })
 
     // Sync is the default tab.
     await expect(mirror).toHaveCount(1)
@@ -55,7 +55,7 @@ test.describe('settings dialog', () => {
     // Below the tab's own controls, not above them: the intervals are the
     // subject of the tab, the mirror is the reference under it.
     const order = await dialog.evaluate((root) => {
-      const region = root.querySelector('section[aria-label="This mirror"]')
+      const region = root.querySelector('section[aria-label="This local copy"]')
       const token = Array.from(root.querySelectorAll('button')).find((b) =>
         (b.textContent ?? '').includes('Personal Jira API token'),
       )
