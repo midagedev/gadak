@@ -8,6 +8,7 @@
    * — it must not grow with content volume.
    */
   import { onMount } from 'svelte'
+  import ColumnHeader from '../ui/ColumnHeader.svelte'
   import Icon from '../ui/Icon.svelte'
   import Marks from '../ui/Marks.svelte'
   import { t, formatNumber } from '../../lib/i18n'
@@ -237,19 +238,22 @@
 {/snippet}
 
 <section class="flex h-full min-h-0 flex-col bg-bg-base" data-testid="space-docs-view" data-space={space}>
-  <header class="flex flex-none flex-wrap items-center gap-2 border-b border-border-subtle px-4 py-2">
-    <h2 class="truncate text-body font-semibold text-text-primary" title={space}>{label}</h2>
-    <span class="flex-none text-micro tabular-nums text-text-muted" data-testid="docs-count">
-      {#if filtering}{formatNumber(docs.length)} / {formatNumber(all.length)}{:else}{formatNumber(
-          all.length,
-        )}{/if}
-    </span>
+  <ColumnHeader
+    title={label}
+    titleAttr={space}
+    count={filtering
+      ? `${formatNumber(docs.length)} / ${formatNumber(all.length)}`
+      : formatNumber(all.length)}
+    countTestid="docs-count"
+    closeTestid="docs-close"
+    onClose={() => pages.closeDocs()}
+  >
     {#if labelFilter}
       <!-- Same chip as the tabbed view: the narrowing is stated where the count
            is, and removed from the same place. -->
       <button
         type="button"
-        class="group mr-2 flex h-control-sm flex-none items-center gap-1 rounded-full bg-bg-elevated pl-2.5 pr-1.5 text-micro text-text-primary transition-colors hover:bg-bg-active"
+        class="group mr-2 flex h-control-sm flex-none items-center gap-1 rounded-full bg-bg-elevated pl-2.5 pr-1.5 text-micro text-text-primary hover:bg-bg-active"
         data-testid="docs-label-chip"
         data-label={labelFilter}
         title={t('docs.labelClear', { label: labelFilter })}
@@ -266,7 +270,7 @@
     <div class="ml-1 flex flex-none items-center gap-0.5 rounded-md bg-bg-elevated p-1">
       <button
         type="button"
-        class="flex h-control-sm items-center rounded px-2 text-micro font-medium transition-colors {treeMode
+        class="flex h-control-sm items-center rounded px-2 text-micro font-medium {treeMode
           ? 'text-text-muted hover:text-text-secondary'
           : 'bg-bg-active text-text-primary'}"
         aria-pressed={!treeMode}
@@ -277,7 +281,7 @@
       </button>
       <button
         type="button"
-        class="flex h-control-sm items-center rounded px-2 text-micro font-medium transition-colors {treeMode
+        class="flex h-control-sm items-center rounded px-2 text-micro font-medium {treeMode
           ? 'bg-bg-active text-text-primary'
           : 'text-text-muted hover:text-text-secondary'}"
         aria-pressed={treeMode}
@@ -288,18 +292,10 @@
       </button>
     </div>
 
-    <div class="ml-auto min-w-0 max-w-[300px] flex-1"><DocsFilter bind:value={filterText} /></div>
-    <button
-      type="button"
-      class="flex h-control-sm w-control-sm flex-none items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
-      onclick={() => pages.closeDocs()}
-      title={t('feed.backToList')}
-      aria-label={t('feed.backToList')}
-      data-testid="docs-close"
-    >
-      <Icon name="arrow-left" size={15} />
-    </button>
-  </header>
+    {#snippet trailing()}
+      <DocsFilter bind:value={filterText} />
+    {/snippet}
+  </ColumnHeader>
 
   {#if docs.length === 0}
     <div

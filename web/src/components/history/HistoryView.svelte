@@ -5,6 +5,7 @@
    * kind filter, local narrow, grouped rows. No new tokens.
    */
   import { onMount, untrack } from 'svelte'
+  import ColumnHeader from '../ui/ColumnHeader.svelte'
   import Icon from '../ui/Icon.svelte'
   import { t, formatNumber, relativeSeenLabel, absTime } from '../../lib/i18n'
   import {
@@ -191,17 +192,18 @@
 </script>
 
 <section class="flex h-full min-h-0 flex-col bg-bg-base" data-testid="history-view" data-skeleton={skeleton.attr}>
-  <header class="flex flex-none flex-wrap items-center gap-2 border-b border-border-subtle px-4 py-2">
-    <h2 class="whitespace-nowrap text-body font-semibold text-text-primary">{t('history.title')}</h2>
-    <span class="flex-none text-micro tabular-nums text-text-muted" data-testid="history-count">
-      {formatNumber(entries.length)}
-    </span>
-
+  <ColumnHeader
+    title={t('history.title')}
+    count={formatNumber(entries.length)}
+    countTestid="history-count"
+    closeTestid="history-close"
+    onClose={() => pages.closeHistory()}
+  >
     <div class="ml-1 flex flex-none items-center gap-0.5 rounded-md bg-bg-elevated p-1">
       {#each TABS as entry (entry.key)}
         <button
           type="button"
-          class="flex h-control-sm items-center rounded px-2 text-micro font-medium transition-colors {history.kind ===
+          class="flex h-control-sm items-center rounded px-2 text-micro font-medium {history.kind ===
           entry.key
             ? 'bg-bg-active text-text-primary'
             : 'text-text-muted hover:text-text-secondary'}"
@@ -218,7 +220,7 @@
     {#if listKeys.length}
       <button
         type="button"
-        class="flex h-control-sm flex-none items-center rounded-md px-2 text-micro font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+        class="flex h-control-sm flex-none items-center rounded-md px-2 text-micro font-medium text-text-secondary hover:bg-bg-hover hover:text-text-primary"
         data-testid="history-open-as-list"
         onclick={openAsList}
       >
@@ -226,7 +228,7 @@
       </button>
     {/if}
 
-    <div class="ml-auto min-w-0 max-w-[300px] flex-1">
+    {#snippet trailing()}
       <div
         class="flex h-control items-center gap-2 rounded-md border border-border-strong/70 bg-bg-elevated px-3 shadow-sm shadow-black/10 focus-within:border-accent/70"
       >
@@ -260,18 +262,8 @@
           <kbd class="flex-none rounded border border-border-subtle px-1 text-micro text-text-muted">/</kbd>
         {/if}
       </div>
-    </div>
-    <button
-      type="button"
-      class="flex h-control-sm w-control-sm flex-none items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
-      onclick={() => pages.closeHistory()}
-      title={t('feed.backToList')}
-      aria-label={t('feed.backToList')}
-      data-testid="history-close"
-    >
-      <Icon name="arrow-left" size={15} />
-    </button>
-  </header>
+    {/snippet}
+  </ColumnHeader>
 
   {#if history.loadFailed}
     <!-- Failure is not emptiness (GDK-1054): an unanswered/failed history

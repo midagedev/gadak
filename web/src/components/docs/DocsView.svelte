@@ -13,6 +13,7 @@
    * Everything is client-side over the page index — no request of its own.
    */
   import { onMount } from 'svelte'
+  import ColumnHeader from '../ui/ColumnHeader.svelte'
   import Icon from '../ui/Icon.svelte'
   import { t, formatNumber } from '../../lib/i18n'
   import { pages, type DocsTab } from '../../stores/pages.svelte'
@@ -198,33 +199,29 @@
   data-testid="docs-view"
   data-skeleton={skeleton.attr}
 >
-  <header class="flex flex-none flex-wrap items-center gap-2 border-b border-border-subtle px-4 py-2">
-    <h2 class="whitespace-nowrap text-body font-semibold text-text-primary">{t('docs.title')}</h2>
-    <!-- While the filter is on, the count is a fraction: how many rows are left
-         out of how many the tab holds. -->
-    <span class="flex-none text-micro tabular-nums text-text-muted" data-testid="docs-count">
-      {#if filtering}{formatNumber(count)} / {formatNumber(total)}{:else}{formatNumber(count)}{/if}
-    </span>
+  <ColumnHeader
+    title={t('docs.title')}
+    count={filtering ? `${formatNumber(count)} / ${formatNumber(total)}` : formatNumber(count)}
+    countTestid="docs-count"
+    closeTestid="docs-close"
+    onClose={() => pages.closeDocs()}
+  >
     {#if label}
       <!--
         The narrowing a row's chip put on the screen, stated where the count is,
         and removable in the same place. A filter that only shows in the rows it
-        removed is a filter someone forgets is on.
-
-        It has to read as a chip rather than as a fourth piece of the segmented
-        control beside it, which is what it did while it shared that control's
-        4px corner, its fill and its 4px seam (vision verdict 2026-08-07). The
-        pill corner and the wider seam (`mr-2` on top of the header's own gap-2)
-        separate the two, and the x sits a tier below the label it removes — one
-        word plus an affordance, not three equal-weight words in a row.
+        removed is a filter someone forgets is on. It reads as a chip, not as a
+        fourth piece of the segmented control beside it: pill corner, wider seam
+        (`mr-2` on top of the header's gap-2), x a tier below the label
+        (vision verdict 2026-08-07).
       -->
       <button
         type="button"
-        class="group mr-2 flex h-control-sm flex-none items-center gap-1 rounded-full bg-bg-elevated pl-2.5 pr-1.5 text-micro text-text-primary transition-colors hover:bg-bg-active"
+        class="group mr-2 flex h-control-sm flex-none items-center gap-1 rounded-full bg-bg-elevated pl-2.5 pr-1.5 text-micro text-text-primary hover:bg-bg-active"
         data-testid="docs-label-chip"
         data-label={label}
-        title={t('docs.labelClear', { label })}
-        aria-label={t('docs.labelClear', { label })}
+        title={t('docs.labelClear', { label: label })}
+        aria-label={t('docs.labelClear', { label: label })}
         onclick={() => pages.setDocsLabel(null)}
       >
         <span class="max-w-[140px] truncate">{label}</span>
@@ -239,8 +236,7 @@
       {#each TABS as entry (entry.key)}
         <button
           type="button"
-          class="flex h-control-sm items-center rounded px-2 text-micro font-medium transition-colors {tab ===
-          entry.key
+          class="flex h-control-sm items-center rounded px-2 text-micro font-medium {tab === entry.key
             ? 'bg-bg-active text-text-primary'
             : 'text-text-muted hover:text-text-secondary'}"
           aria-pressed={tab === entry.key}
@@ -253,18 +249,10 @@
       {/each}
     </div>
 
-    <div class="ml-auto min-w-0 max-w-[300px] flex-1"><DocsFilter bind:value={filterText} /></div>
-    <button
-      type="button"
-      class="flex h-control-sm w-control-sm flex-none items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
-      onclick={() => pages.closeDocs()}
-      title={t('feed.backToList')}
-      aria-label={t('feed.backToList')}
-      data-testid="docs-close"
-    >
-      <Icon name="arrow-left" size={15} />
-    </button>
-  </header>
+    {#snippet trailing()}
+      <DocsFilter bind:value={filterText} />
+    {/snippet}
+  </ColumnHeader>
 
   {#if pages.loadFailed}
     <!-- Failure is not emptiness (GDK-1054): the request answered with an

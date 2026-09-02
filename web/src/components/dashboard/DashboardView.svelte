@@ -33,7 +33,7 @@
   import { dashboards } from '../../stores/dashboards.svelte'
   import { issues } from '../../stores/issues.svelte'
   import { t } from '../../lib/i18n'
-  import Icon from '../ui/Icon.svelte'
+  import ColumnHeader from '../ui/ColumnHeader.svelte'
   import LoadingState from '../ui/LoadingState.svelte'
   import { createSkeletonGrace } from '../../lib/skeleton-grace.svelte'
 
@@ -167,24 +167,12 @@
 </script>
 
 <section class="flex h-full min-h-0 flex-col bg-bg-base" data-testid="dashboard-view">
-  <header
-    class="flex flex-none flex-wrap items-center gap-2 border-b border-border-subtle px-4 py-2"
-  >
-    <Icon name="layout-dashboard" size={15} class="flex-none text-text-muted" />
-    <h2 class="min-w-0 flex-1 truncate text-body font-semibold text-text-primary" title={row?.name}>
-      {row?.name ?? '…'}
-    </h2>
-    <button
-      type="button"
-      class="flex h-control-sm w-control-sm flex-none items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
-      onclick={() => dashboards.close()}
-      title={t('feed.backToList')}
-      aria-label={t('feed.backToList')}
-      data-testid="dashboard-close"
-    >
-      <Icon name="arrow-left" size={15} />
-    </button>
-  </header>
+  <ColumnHeader
+    icon="layout-dashboard"
+    title={row?.name ?? '…'}
+    closeTestid="dashboard-close"
+    onClose={() => dashboards.close()}
+  />
 
   {#if dashboards.error === 'not_found'}
     <div class="flex flex-1 items-center justify-center px-6" data-testid="dashboard-not-found">
