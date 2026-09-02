@@ -169,7 +169,13 @@ function buildCatalog() {
   const paletteOrder = ['light', ...themeNames]
   const tokens = Object.keys(light).map((name) => {
     const values = {}
-    for (const p of paletteOrder) values[p] = (p === 'light' ? light : palettes[p])[name] ?? null
+    for (const p of paletteOrder) {
+      const pal = p === 'light' ? light : palettes[p]
+      // An ink token (rgb/alpha wash, GDK-1341) is written as the colour it
+      // shows over that palette's bg-base: the Go tokencheck reads hex only,
+      // and hex over the page is what its floors are about.
+      values[p] = hexOf(pal, name) ?? pal[name] ?? null
+    }
     const lightHex = hexOf(light, name)
     const tier = tierOf(name)
     const desc = lightHex

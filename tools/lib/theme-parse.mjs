@@ -157,7 +157,7 @@ export const hexOf = (pal, name) => {
   if (!base) return null
   let a = ink[4] === undefined ? 1 : parseFloat(ink[4])
   if (ink[4]?.endsWith('%')) a /= 100
-  const fg = rgb2hex([+ink[1], +ink[2], +ink[3]])
+  const fg = rgb2hex([+ink[1] / 255, +ink[2] / 255, +ink[3] / 255]) // rgb2hex takes 0..1
   return alphaOver(fg, base.toLowerCase(), a)
 }
 
