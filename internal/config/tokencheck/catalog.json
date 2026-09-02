@@ -51,11 +51,11 @@
       "name": "bg-hover",
       "cssVar": "--color-bg-hover",
       "tier": "locked",
-      "description": "row-hover ground; light orange family (#d9cdb6)",
+      "description": "row-hover ground; light orange family (#f5f0e6)",
       "rules": [],
       "values": {
-        "light": "#d9cdb6",
-        "dark": "#25272d",
+        "light": "rgb(74 54 26 / 0.07)",
+        "dark": "rgb(255 255 255 / 0.055)",
         "ember": "#362717",
         "ink": "#273347"
       }
@@ -339,7 +339,7 @@
       "name": "scrim",
       "cssVar": "--color-scrim",
       "tier": "free",
-      "description": "modal scrim (alpha value, not a flat hex)",
+      "description": "modal scrim (alpha value, not a flat hex); light orange family (#f7f3ec)",
       "rules": [
         "hex"
       ],
