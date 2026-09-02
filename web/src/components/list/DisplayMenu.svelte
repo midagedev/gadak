@@ -80,7 +80,13 @@
   class="relative"
   onkeydown={onEsc}
   use:onEscape={onEsc}
-  use:onOutsideClick={{ handler: () => (open = false), enabled: open }}
+  use:onOutsideClick={{
+    handler: () => {
+      open = false
+      saveOpen = false
+    },
+    enabled: open,
+  }}
 >
   <button
     type="button"

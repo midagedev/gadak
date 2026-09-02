@@ -332,8 +332,7 @@
     {/if}
   </div>
 
-  {#if filters.hasNarrowing}
-    {#if filters.hasUserChips}
+  {#if filters.hasUserChips}
       <button
         type="button"
         data-testid="filter-clear"
@@ -342,6 +341,5 @@
       >
         {t('filter.clear')}
       </button>
-    {/if}
   {/if}
 </div>

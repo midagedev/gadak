@@ -15,7 +15,7 @@ import { describe, expect, test } from 'vitest'
 import { en, ja, ko } from '../../lib/i18n/catalog'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
-const FILTER_BAR = join(HERE, 'FilterBar.svelte')
+const FILTER_BAR = join(HERE, 'DisplayMenu.svelte')
 const SIDEBAR_NAV = join(HERE, '../sidebar/SidebarNav.svelte')
 const VIEWS_STORE = join(HERE, '../../stores/views.svelte.ts')
 
@@ -82,7 +82,7 @@ function contains(outer: AnyNode, inner: AnyNode): boolean {
 
 const filterBarNodes: AnyNode[] = []
 walkTemplate(
-  (parse(filterBarSrc, { modern: true, filename: 'FilterBar.svelte' }) as unknown as AnyNode)
+  (parse(filterBarSrc, { modern: true, filename: 'DisplayMenu.svelte' }) as unknown as AnyNode)
     .fragment,
   (n) => filterBarNodes.push(n),
 )
@@ -125,9 +125,9 @@ function teamVocabHits(locale: string, table: Record<string, string>): string[] 
   return hits
 }
 
-describe('GDK-437 save popover is one action', () => {
+describe('GDK-437 save popover is one action (in the Display menu since GDK-1343)', () => {
   test('the popover exists and holds exactly one button', () => {
-    expect(savePopover, 'no [data-testid="filter-save-popover"] in FilterBar.svelte').toBeDefined()
+    expect(savePopover, 'no [data-testid="filter-save-popover"] in DisplayMenu.svelte').toBeDefined()
     const buttons = filterBarNodes.filter(
       (n) =>
         n.type === 'RegularElement' &&

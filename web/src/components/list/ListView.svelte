@@ -112,12 +112,13 @@
     <div class="@container flex flex-wrap items-center gap-2">
       <!-- One FilterBar instance in both states. While it is only the add-filter
            door it sits beside the field; once the reader has narrowed the view
-           (chips, a query — filters.hasNarrowing) it takes a full-width line of its own
+           (chips — filters.hasUserChips; a bare query earns no row now that the
+           view actions left the bar, GDK-1343) it takes a full-width line of its own
            (order-last basis-full) — moved by flex, not remounted, so a menu
            that is open when the first chip lands stays open. -->
       {#if desktop}
         <div class="desktop-no-drag min-w-[310px] flex-1"><SearchBox /></div>
-        <div class="desktop-no-drag {filters.hasNarrowing ? 'order-last min-w-0 basis-full' : 'flex-none'}">
+        <div class="desktop-no-drag {filters.hasUserChips ? 'order-last min-w-0 basis-full' : 'flex-none'}">
           <FilterBar />
         </div>
         <div class="desktop-no-drag"><LayoutToggle /></div>
@@ -133,7 +134,7 @@
         </div>
       {:else}
         <div class="min-w-[310px] flex-1"><SearchBox /></div>
-        <div class={filters.hasNarrowing ? 'order-last min-w-0 basis-full' : 'flex-none'}>
+        <div class={filters.hasUserChips ? 'order-last min-w-0 basis-full' : 'flex-none'}>
           <FilterBar />
         </div>
         <LayoutToggle />

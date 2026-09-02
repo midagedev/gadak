@@ -654,7 +654,11 @@ import type { SettingsTab } from '../../lib/settings-tabs'
       },
     })
     const createNow = defs.find((d) => d.id === 'a:create-now')
-    const rest = defs.filter((d) => d.id !== 'a:create-now' && matches(d.label))
+    // Copy link builds the Jira line from the list's filters; off the list
+    // (Documents, History, feed, a dashboard) the hash names another screen.
+    const rest = defs.filter(
+      (d) => d.id !== 'a:create-now' && matches(d.label) && (d.id !== 'a:copy-view-link' || column.is('list')),
+    )
     const out: Item[] = rest.map((d) => ({ ...d, section: 'action' as const }))
     out.push(...workspaceItems)
     if (!raw) return out

@@ -42,6 +42,7 @@ Markers:
 | **Read** · hierarchy — `parent_key` / `epic_key` | ✅[^41] | ◐[^42] | ✅[^43] |
 | **Read** · wiki pages | ✅[^44] | —[^45] | ✅[^46] |
 | **Read** · origin web URL — `gadak open`, web key anchor, copy link | ✅[^47] | ✅[^48] | ◐[^49] |
+| **Read** · view link — toolbar / palette "Copy link to this view" | ✅[^103] | ◐[^104] | ◐[^105] |
 | **Write** · create issue | ✅[^50] | ◐[^51] | ✅[^52] |
 | **Write** · comment — visibility / internal | ✅[^53] | ◐[^54] | ✅[^55] |
 | **Write** · transition — screen fields | ✅[^56] | ◐[^57] | ✅[^58] |
@@ -414,3 +415,12 @@ missing file, a malformed row, a footnote marker with no definition, a
 README that stopped linking — is caught by `tools/doc-checks.sh` check
 **#39**; whether a cell still tells the truth is review's job. Generating
 this table from the code instead of maintaining it by hand is GDK-1301.
+[^103]: The issue navigator with this view's JQL (`<site>/issues/?jql=…`,
+    `web/src/lib/view-link.ts:52`) leads the paste, then `gadak://view?<hash>`
+    and the http link (GDK-1343). The JQL comes from the server's `jql/emit/`;
+    clauses it cannot carry are named in the toast.
+[^104]: Linear has no public URL parameter that carries a filter, so the paste is
+    the app lines alone (`web/src/lib/view-link.ts:49`) — the same branch the
+    issue copy-link takes on the Built-in origin. No stand-in.
+[^105]: The Built-in tracker's page is this app: app lines only
+    (`web/src/lib/view-link.ts:49`).
