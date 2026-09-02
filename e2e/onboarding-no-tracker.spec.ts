@@ -207,12 +207,12 @@ test.describe('no-tracker onboarding (GDK-377)', () => {
     await expect(wizard).toHaveAttribute('data-onboarding-reason', 'no-credential')
 
     // GDK-1287: step 1 opens on the source question with three answers at one
-    // layer; Jira is preselected. Choosing Built-in reveals its door in place
-    // of the credential form.
+    // layer. GDK-1345: none is preselected — a form open under one card read
+    // as that card being required. Choosing Built-in reveals its door.
     const chooser = page.getByTestId('onboarding-source')
     await expect(chooser.getByRole('radio')).toHaveCount(3)
-    await expect(chooser.getByRole('radio', { name: /^Jira/ })).toHaveAttribute('aria-checked', 'true')
-    await expect(page.getByTestId('onboarding-connect')).toBeVisible()
+    await expect(chooser.getByRole('radio', { checked: true })).toHaveCount(0)
+    await expect(page.getByTestId('onboarding-connect')).toHaveCount(0)
     await expect(page.getByTestId('onboarding-local-origin')).toHaveCount(0)
     await page.getByTestId('onboarding-source-builtin').click()
     const door = page.getByTestId('onboarding-local-origin')

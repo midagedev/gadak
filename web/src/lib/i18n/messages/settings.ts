@@ -1697,6 +1697,11 @@ export const settings = {
   },
   // At rest: the verdict and the age together, so neither surface has to be
   // read alongside the other to mean anything.
+  'sync.settledLocalWhen': {
+    en: 'Saved on this machine · {when}',
+    ko: '이 기계에 보관 · {when}',
+    ja: 'この端末に保存 · {when}',
+  },
   'sync.settledOk': {
     en: 'Synced {when}',
     ko: '{when} 동기화됨',

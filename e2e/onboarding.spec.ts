@@ -207,6 +207,7 @@ async function runRequiredSteps(page: Page): Promise<void> {
   await expect(wizard.getByRole('button', { name: 'Open settings' })).toBeVisible()
   await assertOnboardingChromeQuiet(page, { wizardEscape: true })
   await expect(wizard).toHaveAttribute('data-onboarding-reason', 'no-credential')
+  await wizard.getByTestId('onboarding-source-jira').click()
   await wizard.locator('input[name="site"]').fill('https://example.atlassian.net')
   await wizard.locator('input[name="email"]').fill('dana@example.com')
   await wizard.locator('input[name="token"]').fill('super-secret-token')
@@ -313,6 +314,7 @@ test.describe('first-run onboarding', () => {
 
     const wizard = page.getByTestId('onboarding')
     await expect(wizard).toBeVisible({ timeout: 30_000 })
+    await wizard.getByTestId('onboarding-source-jira').click()
     await wizard.locator('input[name="site"]').fill('https://example.atlassian.net')
     await wizard.locator('input[name="email"]').fill('dana@example.com')
     await wizard.locator('input[name="token"]').fill('super-secret-token')
@@ -363,6 +365,7 @@ test.describe('first-run onboarding', () => {
 
       const wizard = page.getByTestId('onboarding')
       await expect(wizard).toBeVisible({ timeout: 30_000 })
+      await wizard.getByTestId('onboarding-source-jira').click()
       await wizard.locator('input[name="site"]').fill('https://example.atlassian.net')
       await wizard.locator('input[name="email"]').fill('dana@example.com')
       await wizard.locator('input[name="token"]').fill(tc.token)
@@ -412,6 +415,8 @@ test.describe('first-run onboarding', () => {
 
     const wizard = page.getByTestId('onboarding')
     await expect(wizard).toBeVisible({ timeout: 30_000 })
+    // GDK-1345: the credential form follows the Jira choice.
+    await wizard.getByTestId('onboarding-source-jira').click()
 
     const tokenLink = wizard.getByRole('link', { name: en['onboarding.tokenLink'] })
     await expect(tokenLink).toHaveAttribute('href', TOKEN_PAGE)
@@ -435,6 +440,8 @@ test.describe('first-run onboarding', () => {
 
     const wizard = page.getByTestId('onboarding')
     await expect(wizard).toBeVisible({ timeout: 30_000 })
+    // GDK-1345: the credential form follows the Jira choice.
+    await wizard.getByTestId('onboarding-source-jira').click()
 
     const escape = wizard.getByRole('link', { name: en['browse.openExternal'] })
     await expect(escape).toHaveAttribute('href', TOKEN_PAGE)
@@ -454,6 +461,8 @@ test.describe('first-run onboarding', () => {
 
     const wizard = page.getByTestId('onboarding')
     await expect(wizard).toBeVisible({ timeout: 30_000 })
+    // GDK-1345: the credential form follows the Jira choice.
+    await wizard.getByTestId('onboarding-source-jira').click()
 
     const tokenLink = wizard.getByRole('link', { name: en['onboarding.tokenLink'] })
     await expect(tokenLink).toHaveAttribute('href', TOKEN_PAGE)

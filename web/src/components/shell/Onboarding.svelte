@@ -86,7 +86,11 @@
    * not offered here.
    */
   type Source = 'jira' | 'builtin' | 'paired'
-  let source = $state<Source>('jira')
+  // GDK-1345: no answer is picked for the person. With Jira preselected and
+  // its credential form open, the first screen read as "Jira required" and
+  // the account-free card was the second thing seen.
+  let source = $state<Source | null>(null)
+  let tokenFocused = $state(false)
   const SOURCES: { id: Source; label: string; aux: string }[] = [
     { id: 'jira', label: t('onboarding.sourceJira'), aux: t('onboarding.sourceJiraAux') },
     { id: 'builtin', label: t('onboarding.sourceBuiltin'), aux: t('onboarding.sourceBuiltinAux') },
@@ -440,9 +444,14 @@
             name="token"
             autocomplete="off"
             bind:value={token}
+            onfocus={() => (tokenFocused = true)}
+            onblur={() => (tokenFocused = false)}
           />
+          <!-- GDK-1345: the three-sentence token guidance (ATATT/ATCTT/scoped)
+               was the densest text on the first screen. It appears while the
+               field is in use; the door to create a token is always there. -->
           <span class="text-micro text-text-muted">
-            {t('onboarding.tokenHint')}
+            {#if tokenFocused || token}{t('onboarding.tokenHint')}{/if}
             <a
               class="text-accent hover:underline"
               href={TOKEN_URL}
@@ -539,7 +548,7 @@
           </button>
         </div>
       </div>
-      {:else}
+      {:else if source === 'paired'}
       <!-- Paired: no server route binds THIS workspace to a remote gadak (the
            CLI's init --pairing-code is the only current-workspace path), so
            the door is Settings → Workspaces, which registers the paired serve

@@ -12,6 +12,8 @@
  * GDK-460: the sidebar row is the sync-history entry and does not.
  */
 import { formatNumber, relativeTime, t } from './i18n'
+import { config } from './config'
+import { isLocalOrigin } from './workspace'
 import { issues } from '../stores/issues.svelte'
 
 /** True while the mirror is fetching wiki pages specifically. */
@@ -67,6 +69,10 @@ export function settledLabel(): string {
   if (overall === 'warning' || health.status === 'stale') {
     return t('sync.settledDelayedWhen', { when })
   }
+  // GDK-1345: on the built-in origin nothing was pulled from anywhere — the
+  // tracker lives on this machine and the mirror follows it. "Synced" is
+  // remote vocabulary; say where the data is.
+  if (isLocalOrigin(config())) return t('sync.settledLocalWhen', { when })
   return t('sync.settledOk', { when })
 }
 

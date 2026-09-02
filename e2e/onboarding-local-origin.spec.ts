@@ -86,6 +86,7 @@ test.describe('local-origin onboarding origin guard', () => {
 
     const wizard = page.getByTestId('onboarding')
     await expect(wizard).toBeVisible({ timeout: 30_000 })
+    await wizard.getByTestId('onboarding-source-jira').click()
     await wizard.locator('input[name="site"]').fill('https://example.atlassian.net')
     await wizard.locator('input[name="email"]').fill('dana@example.com')
     await wizard.locator('input[name="token"]').fill('super-secret-token')
