@@ -8,6 +8,7 @@ import { locale, setLocale, t } from './i18n'
 import type { Locale, MessageKey } from './i18n/catalog'
 import { LOCALES } from './i18n/types'
 import { persistThemePreference, THEME_MODES } from './theme'
+import { originTrackerName } from './config'
 import { COMMANDS, type PaletteSpec, type TriageMenuKey } from './commands'
 
 export interface PaletteActionHost {
@@ -181,7 +182,7 @@ function itemsFor(spec: PaletteSpec, input: PaletteActionInput): PaletteActionIt
       return [
         {
           id: spec.id,
-          label: t('detail.openJira'),
+          label: t('detail.openJira', { tracker: originTrackerName() }),
           kbd: spec.kbd,
           run: () => host.openIssueOrigin(key),
         },

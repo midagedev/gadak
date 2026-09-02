@@ -51,7 +51,7 @@ header row first — skip it with `--no-header` (or `tail -n +2`) or that header
 becomes a key.
 `--keys` cannot be combined with `--jql` or a view name.
 
-`gadak open <KEY>` is the Jira escape hatch (system browser to `/browse/KEY`).
+`gadak open <KEY>` is the origin escape hatch (system browser to the issue's page on Jira or Linear).
 `gadak views open` is the "open in gadak" verb (focus the running app or serve
 tab). The names collide; the verbs do not.
 
@@ -374,8 +374,8 @@ gadak views save "Night triage" --jql '…'   # keep a named view in local.db (s
 listening, and focuses Gadak.app on macOS (the `--workspace` is passed through
 so the window and the file match). `--no-open` writes the hash only. `--json`
 prints the hash and where it was sent. Confirm you named `--workspace` if the
-user has more than one mirror. `gadak open` is the Jira-site escape hatch;
-`gadak views open` is open-in-gadak.
+user has more than one mirror. `gadak open` is the origin (Jira/Linear) escape
+hatch; `gadak views open` is open-in-gadak.
 
 ## A tracker of your own: a backlog you may create and own
 

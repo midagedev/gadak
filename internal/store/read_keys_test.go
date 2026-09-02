@@ -12,6 +12,67 @@ import (
 	"github.com/midagedev/gadak/internal/config"
 )
 
+// GDK-1149: IssueLite carries items.url verbatim, per origin shape — the
+// Jira /browse/ page, the Linear page its API minted (slug and title
+// included), and the built-in tracker's relative /browse/KEY, which clients
+// must not treat as an origin page. The web resolves every "open in
+// origin" affordance from this field, so a Linear workspace (no site) gets
+// the same deep links as Jira.
+func TestIssueLitesCarryOriginURL(t *testing.T) {
+	db := openTemp(t)
+	ctx := context.Background()
+	for _, src := range []Source{
+		{ID: "jira", Kind: "jira", BaseURL: "https://example.invalid"},
+		{ID: "linear", Kind: "linear", BaseURL: "https://linear.app"},
+		{ID: "gadak", Kind: "gadak", BaseURL: ""},
+	} {
+		if err := db.UpsertSource(ctx, src); err != nil {
+			t.Fatal(err)
+		}
+	}
+	item := func(src, key, url string) IssueRecord {
+		return IssueRecord{
+			Item: Item{
+				ID: src + ":" + key, SourceID: src, Kind: "issue", ExternalID: key, Key: key,
+				Title: key, URL: url,
+				CreatedAt: "2026-08-01T00:00:00.000Z", UpdatedAt: "2026-08-01T00:00:00.000Z",
+			},
+			Issue: Issue{ProjectKey: strings.SplitN(key, "-", 2)[0], StatusCategory: "new"},
+		}
+	}
+	want := map[string]string{
+		"JIR-1": "https://example.invalid/browse/JIR-1",
+		"MID-1": "https://linear.app/midagedev/issue/MID-1/get-familiar-with-linear",
+		"GDK-1": "/browse/GDK-1",
+	}
+	if _, err := db.UpsertIssues(ctx, Batch{Records: []IssueRecord{
+		item("jira", "JIR-1", want["JIR-1"]),
+		item("linear", "MID-1", want["MID-1"]),
+		item("gadak", "GDK-1", want["GDK-1"]),
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	lites, err := db.IssueLites(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for _, l := range lites {
+		got[l.IssueKey] = l.URL
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("IssueLite.URL = %v, want %v", got, want)
+	}
+	// The wire name is `url` (web/src/lib/types.ts IssueLite.url).
+	raw, err := lites[0].MarshalJSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), `"url":"`) {
+		t.Fatalf("JSON lacks url: %s", raw)
+	}
+}
+
 func TestIssueLitesByKeys(t *testing.T) {
 	db := openTemp(t)
 	seed(t, db)

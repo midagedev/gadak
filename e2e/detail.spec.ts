@@ -321,6 +321,16 @@ test.describe('detail', () => {
       originType: 'gadak',
       workspaceKind: 'standalone',
     })
+    // The built-in tracker stores a relative /browse/KEY as the row's url
+    // (measured on a paired mirror); the Jira fixture's rows carry the
+    // absolute nimbus URL, so the bootstrap is rewritten to the real shape —
+    // otherwise the row-first resolver (GDK-1149) would honestly find a page.
+    await page.route('**/api/v1/issues/bootstrap/', async (route) => {
+      const res = await route.fetch()
+      const doc = (await res.json()) as { issues: Array<Record<string, unknown>> }
+      for (const it of doc.issues) it.url = `/browse/${String(it.issue_key)}`
+      await route.fulfill({ response: res, json: doc })
+    })
     await gotoApp(page)
 
     const input = searchInput(page)
@@ -343,6 +353,89 @@ test.describe('detail', () => {
     await expect.poll(async () => page.evaluate(() => navigator.clipboard.readText())).toBe(want)
 
     await expect(page.getByTestId('toast')).toContainText('Copied')
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+})
+
+/*
+ * GDK-1149: a Linear workspace has no site — its serve sends jiraBaseUrl ""
+ * — but every mirrored row carries the page Linear itself minted
+ * (items.url, "https://linear.app/<slug>/issue/KEY/<title>"). The origin
+ * affordances that were Jira-only (key anchor, copy-link's first line, the
+ * `o` command, the palette entry) must resolve through that stored URL, and
+ * the copy names Linear, not Jira. The fixture is Jira-shaped, so the
+ * bootstrap is rewritten in flight to give NMB-110 a Linear-shaped url.
+ */
+test.describe('detail — Linear origin (GDK-1149)', () => {
+  const LINEAR_URL = 'https://linear.app/nimbus/issue/NMB-110/example-title-slug'
+
+  async function serveLinearShape(page: Page): Promise<void> {
+    await serveConfigOverride(page, {
+      jiraBaseUrl: '',
+      originType: 'linear',
+      workspaceKind: 'connected',
+    })
+    await page.route('**/api/v1/issues/bootstrap/', async (route) => {
+      const res = await route.fetch()
+      const doc = (await res.json()) as { issues: Array<Record<string, unknown>> }
+      for (const it of doc.issues) {
+        if (it.issue_key === 'NMB-110') it.url = LINEAR_URL
+      }
+      await route.fulfill({ response: res, json: doc })
+    })
+  }
+
+  test('key anchor, copy-link and the o command resolve the Linear page', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
+    await serveLinearShape(page)
+    await page.addInitScript(() => {
+      const opened: string[] = []
+      ;(window as unknown as { __gadakOpened: string[] }).__gadakOpened = opened
+      window.open = (url?: string | URL) => {
+        opened.push(String(url ?? ''))
+        return null
+      }
+    })
+    await gotoApp(page)
+
+    const input = searchInput(page)
+    await input.fill('NMB-110')
+    await expect(page.getByText('NMB-110').first()).toBeVisible()
+    await page
+      .locator('[data-testid="issue-list-scroller"] [role="button"]')
+      .filter({ hasText: 'NMB-110' })
+      .first()
+      .click()
+    const panel = page.getByTestId('issue-detail-panel')
+    await expect(panel).toBeVisible()
+
+    // Key anchor: href is Linear's page; its title names Linear.
+    const anchor = panel.getByRole('link', { name: 'NMB-110', exact: true }).first()
+    await expect(anchor).toHaveAttribute('href', LINEAR_URL)
+    await expect(anchor).toHaveAttribute('title', 'Open in Linear')
+
+    // Copy-link: Linear page first, then the app links; toast names Linear.
+    await panel.getByTestId('issue-copy-link').click()
+    const origin = new URL(page.url()).origin
+    const want = `${LINEAR_URL}\ngadak://view?issue=NMB-110\n${origin}/#/?issue=NMB-110`
+    await expect.poll(async () => page.evaluate(() => navigator.clipboard.readText())).toBe(want)
+    await expect(page.getByTestId('toast')).toContainText('Linear link copied')
+
+    // `o` with the detail open goes to the same page (serve: window.open).
+    await page.keyboard.press('o')
+    const opened = await page.evaluate(
+      () => (window as unknown as { __gadakOpened: string[] }).__gadakOpened,
+    )
+    expect(opened).toEqual([LINEAR_URL])
+
+    // Palette entry carries the tracker name.
+    await page.keyboard.press('ControlOrMeta+k')
+    const palette = page.getByRole('dialog', { name: 'Command palette' })
+    await expect(palette).toBeVisible()
+    await page.keyboard.type('Open in', { delay: 15 })
+    await expect(palette.getByRole('option').filter({ hasText: 'Open in Linear' })).toHaveCount(1)
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })

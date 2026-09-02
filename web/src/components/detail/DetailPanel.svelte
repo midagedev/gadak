@@ -33,7 +33,7 @@
   import { createSkeletonGrace } from '../../lib/skeleton-grace.svelte'
   import { onEscape } from '../../lib/dom-actions'
   import { shells } from '../../lib/issue-shells.svelte'
-  import { jiraUrl } from './format'
+  import { issueOriginUrl } from '../../lib/issue-origin'
   import DetailHeader from './DetailHeader.svelte'
   import IssueFields from './IssueFields.svelte'
   import QaImpact from './QaImpact.svelte'
@@ -198,7 +198,7 @@
               </button>
             {/if}
             <a
-              href={jiraUrl(key)}
+              href={issueOriginUrl(key)}
               target="_blank"
               rel="noopener noreferrer"
               class="font-mono text-micro font-medium text-accent-text hover:underline"

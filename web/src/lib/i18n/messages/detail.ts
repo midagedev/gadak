@@ -170,10 +170,13 @@ export const detail = {
     ko: '상세를 불러오지 못했습니다.',
     ja: '詳細を読み込めませんでした。',
   },
+  // {tracker} is the origin's brand name (Jira/Linear, `originTrackerName`)
+  // and passes through untranslated (GDK-1149). The key keeps its name: it
+  // is referenced by the command registry and tests as a wire id.
   'detail.openJira': {
-    en: 'Open in Jira',
-    ko: 'Jira 원본 열기',
-    ja: 'Jira で開く',
+    en: 'Open in {tracker}',
+    ko: '{tracker} 원본 열기',
+    ja: '{tracker} で開く',
   },
   'detail.copyLink': {
     en: 'Copy link',

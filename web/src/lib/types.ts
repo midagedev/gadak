@@ -87,6 +87,11 @@ export interface IssueLite {
   source_project: string | null
   /** Origin that owns the row (`jira` / `linear`). Older caches omit it. */
   source?: string
+  /** The origin's own page for the row (items.url), verbatim: Jira
+   *  `<site>/browse/KEY`, Linear the url its API minted, the built-in tracker
+   *  a relative `/browse/KEY`. Resolve deep links through `issueOriginUrl`,
+   *  which accepts only an absolute http(s) value. Older caches omit it. */
+  url?: string
 
   created_at: string | null // ISO8601
   updated_at: string | null

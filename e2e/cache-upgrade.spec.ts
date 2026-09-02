@@ -63,7 +63,7 @@ test.describe('IssueLite cache network wiring', () => {
 })
 
 // GDK-835: a v2 cached row that predates `labels` must not collapse the list.
-// Seeded at version 2 so the v1→v2 wipe cannot be what saves us. Bootstrap
+// Seeded at the current version so the upgrade wipe cannot be what saves us. Bootstrap
 // and delta are aborted so the first paint is the cached row, not a network
 // replace.
 const LEGACY_KEY = 'LEGACY-835'
@@ -72,7 +72,10 @@ async function seedLegacyV2Row(page: Page): Promise<void> {
   await page.evaluate(
     async ({ name, key }) => {
       await new Promise<void>((resolve, reject) => {
-        const request = indexedDB.open(name, 2)
+        // Seed at the current cache version (web/src/lib/db.ts ISSUE_CACHE_DB_VERSION)
+        // so the upgrade wipe cannot be what saves us — an older version is dropped
+        // whole on open (v2 rows predate `url`, GDK-1149).
+        const request = indexedDB.open(name, 3)
         request.onupgradeneeded = () => {
           const db = request.result
           if (!db.objectStoreNames.contains('issues')) {

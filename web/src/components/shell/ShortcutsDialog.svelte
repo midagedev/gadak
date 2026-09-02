@@ -8,13 +8,17 @@
   import { trapFocus } from '../../lib/focus-trap'
   import { helpSections } from '../../lib/commands'
   import { modifierSymbol } from '../../lib/unified-search'
+  import { originTrackerName } from '../../lib/config'
   import DialogShell from '../ui/DialogShell.svelte'
 
   let { onclose }: { onclose: () => void } = $props()
 
+  // The origin rows name the tracker ("Open the issue in {tracker}"); the
+  // placeholder is inert on every other row.
+  const params = { tracker: originTrackerName() }
   const sections = helpSections(modifierSymbol()).map((section) => ({
     title: t(section.titleKey),
-    rows: section.rows.map((row) => [row.kbd, t(row.labelKey)] as [string, string]),
+    rows: section.rows.map((row) => [row.kbd, t(row.labelKey, params)] as [string, string]),
   }))
 
   function onKeydown(e: KeyboardEvent) {

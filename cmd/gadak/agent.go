@@ -2707,9 +2707,12 @@ func resolveAccount(ctx context.Context, c origin.Writer, who, source string) (s
 	return "", fmt.Errorf("%q matches %d users — be more specific: %s", who, len(users), strings.Join(names, "; "))
 }
 
-// cmdOpen jumps from a key in the terminal to the issue on the Jira site.
-// gadak is the fast path for reading; this is the escape hatch for everything
-// the mirror deliberately does not do (boards, admin, workflow).
+// cmdOpen jumps from a key in the terminal to the issue's page on its origin
+// — the stored items.url first (Jira /browse/KEY, or the page Linear
+// minted), then the site's /browse/KEY. gadak is the fast path for reading;
+// this is the escape hatch for everything the mirror deliberately does not
+// do (boards, admin, workflow). The web's issueOriginUrl resolves the same
+// way (GDK-1149).
 func cmdOpen(args []string) error {
 	fs := newFlagSet("open")
 	if wantsHelp(args) {
@@ -2751,7 +2754,7 @@ func cmdOpen(args []string) error {
 	if web := serveFocusURL("issue=" + key); web != "" {
 		return openIssueURL(web)
 	}
-	return fmt.Errorf("this workspace has no Jira site to browse — use `gadak views open %s` (or `gadak serve`)", key)
+	return fmt.Errorf("this workspace has no origin site to browse — use `gadak views open %s` (or `gadak serve`)", key)
 }
 
 func openIssueURL(u string) error {

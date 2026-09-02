@@ -24,7 +24,8 @@ import { me } from './me.svelte'
 import { appendComment, invalidate } from '../lib/detail-cache.svelte'
 import { externalMoves } from '../lib/board-moves.svelte'
 import { recordRecent } from '../lib/recency'
-import { isHostedDemo, jiraBrowseUrl } from '../lib/config'
+import { isHostedDemo, originTrackerName } from '../lib/config'
+import { issueOriginUrl } from '../lib/issue-origin'
 import type {
   CommentMention,
   CreateIssuePayload,
@@ -936,8 +937,8 @@ function compactCreatePayload(input: CreateIssuePayload): CreateIssuePayload {
 
 /** GDK-83 / GDK-52: 400 screen refusals offer the origin hatch only when it can open. */
 function originAction(key: string): ToastAction | undefined {
-  if (!jiraBrowseUrl(key)) return undefined
-  return { label: t('detail.openJira'), openIssueKey: key }
+  if (!issueOriginUrl(key)) return undefined
+  return { label: t('detail.openJira', { tracker: originTrackerName() }), openIssueKey: key }
 }
 
 /** Jira's Message() plus any jira_errors the message did not already carry. */

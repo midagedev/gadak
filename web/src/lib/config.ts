@@ -12,6 +12,7 @@
 
 import {
   isLocalOrigin,
+  ORIGIN_LINEAR,
   parseOriginType,
   parseTransport,
   parseWorkspaceKind,
@@ -323,6 +324,18 @@ export function serverVerbReport(): Record<ServerVerb, boolean> {
 export function jiraBrowseUrl(issueKey: string): string | null {
   const base = config().jiraBaseUrl.replace(/\/+$/, '')
   return base ? `${base}/browse/${encodeURIComponent(issueKey)}` : null
+}
+
+/**
+ * The tracker whose page the origin affordances open, for copy that names
+ * it ("Open in {tracker}", "{tracker} link copied"). A brand name, not a
+ * translation. Jira is the default: '' (older server) and 'jira' both mean
+ * a /browse/ URL, and the built-in tracker never yields an origin page, so
+ * its copy is never shown. Lives here (not lib/issue-origin.ts) because
+ * store-free modules such as command-palette.ts need it.
+ */
+export function originTrackerName(): string {
+  return config().originType === ORIGIN_LINEAR ? 'Linear' : 'Jira'
 }
 
 /**

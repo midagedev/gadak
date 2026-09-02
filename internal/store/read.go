@@ -87,6 +87,14 @@ type IssueLite struct {
 	// Id is the key (names localize); the name is display-only.
 	SecurityLevelID *string `json:"security_level_id"`
 	SecurityLevel   *string `json:"security_level"`
+	// URL is items.url — the origin's own page for the row, exactly as the
+	// sync stored it: Jira writes <site>/browse/KEY, Linear the url its API
+	// minted (workspace slug and title slug included), the built-in tracker
+	// a relative /browse/KEY. It is the deep-link source for every origin
+	// (GDK-1149): a Linear workspace has no site to join a key onto, and
+	// sources.base_url carries no workspace slug. Clients accept only an
+	// absolute http(s) value here — the same rule as `gadak open`.
+	URL string `json:"url,omitempty"`
 }
 
 // MarshalJSON adds `key` as an alias of `issue_key` so JSON surfaces and
@@ -141,7 +149,7 @@ const issueLiteSelect = `
 	       COALESCE(i.reopen_reason, ''), COALESCE(i.cloned_from, ''), i.comment_count,
 	       COALESCE(i.custom, '{}'), COALESCE(it.source_id, ''),
 	       i.sprint_id, i.sprint_name, i.sprint_state,
-	       i.security_level_id, i.security_level
+	       i.security_level_id, i.security_level, COALESCE(it.url, '')
 	FROM issues i JOIN items it ON it.id = i.item_id`
 
 // ErrKeyAmbiguous means one key exists under more than one source (a Jira
@@ -323,7 +331,7 @@ func (db *DB) issueLites(ctx context.Context, query string, args ...any) ([]Issu
 			&reopenReason, &clonedFrom, &v.CommentCount,
 			&custom, &v.Source,
 			&v.SprintID, &v.SprintName, &v.SprintState,
-			&v.SecurityLevelID, &v.SecurityLevel,
+			&v.SecurityLevelID, &v.SecurityLevel, &v.URL,
 		); err != nil {
 			return nil, err
 		}

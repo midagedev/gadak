@@ -21,7 +21,10 @@ export function issueCacheDbName(scope = cacheScopeId()): string {
 // v2 invalidates IssueLite rows written before reporter_id joined the row
 // contract. SQLite already has the IDs, so one fresh bootstrap is sufficient;
 // write metadata is independent and remains warm.
-export const ISSUE_CACHE_DB_VERSION = 2
+// v3 does the same for `url` (GDK-1149): a cache hydrates then polls delta,
+// so rows that never change would keep no origin page — on Linear that is
+// every deep link, silently, until the row happens to move.
+export const ISSUE_CACHE_DB_VERSION = 3
 
 interface IssueDB extends DBSchema {
   issues: {
@@ -60,11 +63,11 @@ export const upgradeIssueCache: NonNullable<OpenDBCallbacks<IssueDB>['upgrade']>
   if (!database.objectStoreNames.contains('meta')) {
     database.createObjectStore('meta', { keyPath: 'key' })
   }
-  // Existing v1 rows may not carry reporter_id. Clear only that legacy
-  // issue snapshot and its sync cursor: keeping the cursor could make an
-  // empty cache send If-None-Match and accept a 304. Fresh v2 databases
-  // and every later v2 reopen skip this branch entirely.
-  if (oldVersion > 0 && oldVersion < 2) {
+  // Existing v1 rows may not carry reporter_id, v2 rows not `url`. Clear
+  // only that legacy issue snapshot and its sync cursor: keeping the cursor
+  // could make an empty cache send If-None-Match and accept a 304. Fresh
+  // databases and every later same-version reopen skip this branch entirely.
+  if (oldVersion > 0 && oldVersion < ISSUE_CACHE_DB_VERSION) {
     void transaction.objectStore('issues').clear()
     void transaction.objectStore('meta').delete('sync')
   }
