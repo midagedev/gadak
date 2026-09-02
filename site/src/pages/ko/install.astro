@@ -16,7 +16,7 @@ const releases = 'https://github.com/midagedev/gadak/releases/latest'
     플랫폼 골라 한 줄 실행하고, <a href="#first-run">처음 실행</a>으로 넘어가면 됩니다. Atlassian
     사이트에 연결하려면
     <a href="https://id.atlassian.com/manage-profile/security/api-tokens">API 토큰</a> 하나면 되고
-    (같은 사이트의 Jira·Confluence를 함께 커버합니다), 스탠드얼론 모드는 계정 자체가 필요
+    (같은 사이트의 Jira·Confluence를 함께 커버합니다), 내장 트래커는 계정 자체가 필요
     없습니다.
   </p>
 
@@ -61,7 +61,7 @@ const releases = 'https://github.com/midagedev/gadak/releases/latest'
     copyLabel="복사"
     copiedLabel="복사됨"
   />
-  <p>또는 트래커 없이 시작:</p>
+  <p>또는 계정 없이 내장 트래커로 시작:</p>
   <Snippet
     code={`gadak init --local
 gadak create "방금 생각난 일"
