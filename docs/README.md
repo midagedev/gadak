@@ -67,6 +67,7 @@ under `project/` is that half — it is there so a reader looking for how to
 - [runbooks/release-audit.md](runbooks/release-audit.md): per-minor full-codebase audit procedure
 - [runbooks/upstream-pr.md](runbooks/upstream-pr.md): how this repository sends changes to upstream projects
 - [runbooks/confluence-space-scope.md](runbooks/confluence-space-scope.md): Confluence space-scope residue and backfill
+- [runbooks/backup-restore.md](runbooks/backup-restore.md): `gadak backup` of the built-in tracker's persist file, periodic copies, restore
 - [runbooks/omarchy-vm.md](runbooks/omarchy-vm.md): Omarchy QEMU guest used to verify install and the bar widget
 - [runbooks/signpath-application.md](runbooks/signpath-application.md): SignPath Foundation application checklist (lead-only)
 

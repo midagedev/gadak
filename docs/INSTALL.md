@@ -269,7 +269,8 @@ gadak serve
 there — a SQLite database (WAL), the origin, the file to back up
 (`internal/origin/origin.go` `PersistRel`). Copy it while gadak is not
 running (include the `-wal`/`-shm` sidecars), or
-`sqlite3 origin/issuetap.db ".backup dest.db"`. It seeds project `STD` and wiki
+`sqlite3 origin/issuetap.db ".backup dest.db"`. `gadak backup` does the same in one
+step while serve keeps running (`docs/runbooks/backup-restore.md`). It seeds project `STD` and wiki
 space `LOC`, and records a default issue type so `gadak create` takes only a
 summary (`cmd/gadak/init.go` `initLocalOrigin`). The SQLite file `gadak.db` is
 still a cache. The first `gadak sync` against that origin finishes in 0s

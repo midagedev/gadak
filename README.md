@@ -216,7 +216,8 @@ app. The mirror is a cache either way; every write goes through the origin.
 On the built-in tracker the durable file is the origin's persist file — issuetap.db
 in the workspace's origin folder (SQLite, WAL). Copy it while gadak is not
 running (include the `-wal`/`-shm` sidecars), or
-`sqlite3 origin/issuetap.db ".backup dest.db"`.
+`sqlite3 origin/issuetap.db ".backup dest.db"`. `gadak backup` does the
+same in one step while serve keeps running ([`docs/runbooks/backup-restore.md`](docs/runbooks/backup-restore.md)).
 
 Reads, writes, hierarchy, wiki, attachments and history work on both, and
 since 0.19 the list can lay itself out as a board. Sprints as a UI, Jira

@@ -224,7 +224,8 @@ Jira입니다. 어느 쪽이든 미러는 캐시이고, 모든 쓰기는 origin�
 내장 트래커에서 영속 파일은 origin의 persist 파일, 즉 워크스페이스 origin
 폴더의 `issuetap.db`(SQLite, WAL)입니다. gadak이 꺼져 있을 때 복사하거나
 (`-wal`/`-shm` 사이드카 포함), `sqlite3 origin/issuetap.db ".backup
-dest.db"`를 쓰세요.
+dest.db"`를 쓰세요. `gadak backup`은 serve가 켜진 채로 같은 일을 한 번에 합니다
+([`docs/runbooks/backup-restore.md`](docs/runbooks/backup-restore.md)).
 
 읽기·쓰기·계층·위키·첨부·히스토리는 양쪽 모두 되고, 0.19부터는 리스트를
 보드 레이아웃으로 펼칠 수 있습니다. UI로서의 스프린트, Jira 대시보드,

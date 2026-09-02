@@ -393,6 +393,8 @@ gadak views open <KEY>
 `init --local` is non-interactive. Do not combine it with `--site`,
 `--email`, or a token. It seeds project `STD` and wiki space `LOC`, and
 records the default issue type, so a summary-only `gadak create` is enough.
+The record is `origin/issuetap.db`, not the mirror — `gadak backup --to <dir>`
+copies it to one file while serve runs, and prints the path.
 
 Use a dedicated `--workspace` and name it in every command, so the backlog
 never mixes with a Jira mirror:

@@ -57,7 +57,8 @@ A workspace is bound to one origin.
   `origin/issuetap.db` in the profile directory (`internal/origin/origin.go`
   `PersistRel`): a SQLite database (WAL). That is the file to back up —
   copy it while gadak is not running (include the `-wal`/`-shm` sidecars),
-  or `sqlite3 origin/issuetap.db ".backup dest.db"`. A sibling
+  or `sqlite3 origin/issuetap.db ".backup dest.db"`. `gadak backup` does the same in
+  one step while serve keeps running (`docs/runbooks/backup-restore.md`). A sibling
   `origin/issuetap.yaml`, if present, is a one-shot seed, not the record.
   `gadak.db` is still a cache; the next sync rebuilds it from the persist
   file.

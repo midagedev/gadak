@@ -34,7 +34,10 @@ import (
 // VACUUM INTO takes a read transaction, so it sees the WAL and writes one
 // consistent file with no side effects on the source (unlike a checkpoint).
 func copyMirror(src, dst string) error {
-	db, err := sql.Open("sqlite", "file:"+src+"?mode=ro")
+	// busy_timeout: a WAL reader can still meet SQLITE_BUSY during a
+	// concurrent checkpoint or WAL-index recovery; on the `gadak backup`
+	// cron path a bare BUSY is a silently skipped night (GDK-1277).
+	db, err := sql.Open("sqlite", "file:"+src+"?mode=ro&_pragma=busy_timeout(5000)")
 	if err != nil {
 		return err
 	}

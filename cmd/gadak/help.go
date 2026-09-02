@@ -218,6 +218,16 @@ var helps = map[string]cmdHelp{
 		},
 		seeAlso: []string{"gadak serve", "gadak snapshot"},
 	},
+	"backup": {
+		summary: "copy the built-in tracker's persist file (origin/issuetap.db — the record; the mirror is a cache) to one self-contained SQLite file; safe while serve runs",
+		usage:   "gadak [--workspace <name>] backup [--to <dir|file>] [--json]",
+		examples: []string{
+			"gadak backup",
+			"gadak backup --to /srv/backups",
+			"gadak --workspace plan backup --to plan-$(date +%F).db --json",
+		},
+		seeAlso: []string{"gadak sync", "gadak doctor"},
+	},
 	"export": {
 		summary: "dump saved views, watches, favorites, and recents as JSON (no credentials)",
 		usage:   "gadak [--workspace <name>] export [--out FILE]",

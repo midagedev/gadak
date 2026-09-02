@@ -52,7 +52,8 @@ origin**, not a database you migrate into. On a Jira workspace, delete
 gadak and you have lost nothing but a cache of your Jira. On the built-in tracker, the
 record is `origin/issuetap.db` in the workspace directory — a SQLite
 database (WAL). Copy it while gadak is not running (include the `-wal`/`-shm`
-sidecars), or `sqlite3 origin/issuetap.db ".backup dest.db"`. The storage
+sidecars), or `sqlite3 origin/issuetap.db ".backup dest.db"`. `gadak backup` does the same in one step while serve keeps running
+(`docs/runbooks/backup-restore.md`). The storage
 schema is documented, and the part of it you can build on is promised across
 versions (`specs/000-product/data-model.md`); the code is Apache-2.0, and the
 mirror is plain SQLite readable by anything. There is no gadak account and

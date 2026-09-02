@@ -179,6 +179,7 @@ Reading the mirror (no network; see docs/MIRROR.md):
   dashboards agent dashboards (HTML+SQL/JQL datasources) saved in local.db
                                        [list|show|open|save|rm]
   snapshot   shareable copy of the mirror <out.db> [--from db] [--spread 90d] [--scale N]
+  backup     one consistent copy of the built-in tracker's persist file (the record; not the mirror)  [--to <dir|file>] [--json]
   export     dump saved views, watches, favorites as JSON  [--out FILE]
   import     restore them from a gadak export file         <FILE>
   mcp        MCP server on stdio; mcp install <client> pins the workspace (docs/MCP.md)
@@ -401,6 +402,7 @@ var commands = map[string]func([]string) error{
 	"api":             cmdAPI,
 	"assign":          cmdAssign,
 	"attach":          cmdAttach,
+	"backup":          cmdBackup,
 	"claim":           cmdClaim,
 	"close":           cmdClose,
 	"comment":         cmdComment,
