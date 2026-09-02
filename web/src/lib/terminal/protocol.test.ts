@@ -6,6 +6,7 @@ import { describe, expect, test } from 'vitest'
 import {
   coerceDroppedReason,
   DROPPED_REASONS,
+  TERMINAL_ANSI_VARS,
   TERMINAL_CHROME_VARS,
   watchChromeVars,
 } from './protocol'
@@ -91,6 +92,22 @@ describe('GDK-1109 chrome-variable parity (protocol ⟷ app.css ⟷ renderers)',
         `${slot} reads ${name}, which app.css no longer declares — update TERMINAL_CHROME_VARS (protocol.ts is the list's one owner)`,
       ).toBe(true)
     }
+  })
+
+  // GDK-1358: the sixteen ANSI slots are tokens too — one per xterm ITheme
+  // key, declared in app.css under every palette (theme-check holds the
+  // per-palette parity; this holds the list against the stylesheet).
+  test('every ANSI variable the list names is declared in app.css', () => {
+    const declared = declaredTokens()
+    const slots = Object.keys(TERMINAL_ANSI_VARS)
+    expect(slots).toHaveLength(16)
+    for (const [slot, name] of Object.entries(TERMINAL_ANSI_VARS)) {
+      expect(declared.has(name), `${slot} reads ${name}, which app.css does not declare`).toBe(true)
+    }
+    const src = readFileSync(resolve(HERE, 'renderer.ts'), 'utf8')
+    expect(src, 'renderer.ts must read the ANSI slots through TERMINAL_ANSI_VARS').toContain(
+      'TERMINAL_ANSI_VARS[slot]',
+    )
   })
 
   test('the web renderer reads the names through the list, not a re-spelled copy', () => {

@@ -366,6 +366,246 @@
       }
     },
     {
+      "name": "ansi-black",
+      "cssVar": "--color-ansi-black",
+      "tier": "free",
+      "description": "color token; light orange family (#1c1812)",
+      "rules": [
+        "hex"
+      ],
+      "values": {
+        "light": "#1c1812",
+        "dark": "#2e3436",
+        "ember": "#2e3436",
+        "ink": "#2e3436"
+      }
+    },
+    {
+      "name": "ansi-red",
+      "cssVar": "--color-ansi-red",
+      "tier": "free",
+      "description": "color token; light red family (#9c2f2a)",
+      "rules": [
+        "hex"
+      ],
+      "values": {
+        "light": "#9c2f2a",
+        "dark": "#cc0000",
+        "ember": "#cc0000",
+        "ink": "#cc0000"
+      }
+    },
+    {
+      "name": "ansi-green",
+      "cssVar": "--color-ansi-green",
+      "tier": "free",
+      "description": "color token; light green family (#3a6a2a)",
+      "rules": [
+        "hex"
+      ],
+      "values": {
+        "light": "#3a6a2a",
+        "dark": "#4e9a06",
+        "ember": "#4e9a06",
+        "ink": "#4e9a06"
+      }
+    },
+    {
+      "name": "ansi-yellow",
+      "cssVar": "--color-ansi-yellow",
+      "tier": "free",
+      "description": "color token; light orange family (#7d5a05)",
+      "rules": [
+        "hex"
+      ],
+      "values": {
+        "light": "#7d5a05",
+        "dark": "#c4a000",
+        "ember": "#c4a000",
+        "ink": "#c4a000"
+      }
+    },
+    {
+      "name": "ansi-blue",
+      "cssVar": "--color-ansi-blue",
+      "tier": "free",
+      "description": "color token; light blue family (#2f5d8c)",
+      "rules": [
+        "hex"
+      ],
+      "values": {
+        "light": "#2f5d8c",
+        "dark": "#3465a4",
+        "ember": "#3465a4",
+        "ink": "#3465a4"
+      }
+    },
+    {
+      "name": "ansi-magenta",
+      "cssVar": "--color-ansi-magenta",
+      "tier": "free",
+      "description": "color token; light magenta family (#7a3d78)",
+      "rules": [
+        "hex"
+      ],
+      "values": {
+        "light": "#7a3d78",
+        "dark": "#75507b",
+        "ember": "#75507b",
+        "ink": "#75507b"
+      }
+    },
+    {
+      "name": "ansi-cyan",
+      "cssVar": "--color-ansi-cyan",
+      "tier": "free",
+      "description": "color token; light teal family (#1e6b6e)",
+      "rules": [
+        "hex"
+      ],
+      "values": {
+        "light": "#1e6b6e",
+        "dark": "#06989a",
+        "ember": "#06989a",
+        "ink": "#06989a"
+      }
+    },
+    {
+      "name": "ansi-white",
+      "cssVar": "--color-ansi-white",
+      "tier": "free",
+      "description": "color token; light orange family (#6f6656)",
+      "rules": [
+        "hex"
+      ],
+      "values": {
+        "light": "#6f6656",
+        "dark": "#d3d7cf",
+        "ember": "#d3d7cf",
+        "ink": "#d3d7cf"
+      }
+    },
+    {
+      "name": "ansi-bright-black",
+      "cssVar": "--color-ansi-bright-black",
+      "tier": "free",
+      "description": "color token; light orange family (#635a4f)",
+      "rules": [
+        "hex"
+      ],
+      "values": {
+        "light": "#635a4f",
+        "dark": "#555753",
+        "ember": "#555753",
+        "ink": "#555753"
+      }
+    },
+    {
+      "name": "ansi-bright-red",
+      "cssVar": "--color-ansi-bright-red",
+      "tier": "free",
+      "description": "color token; light red family (#b8433c)",
+      "rules": [
+        "hex"
+      ],
+      "values": {
+        "light": "#b8433c",
+        "dark": "#ef2929",
+        "ember": "#ef2929",
+        "ink": "#ef2929"
+      }
+    },
+    {
+      "name": "ansi-bright-green",
+      "cssVar": "--color-ansi-bright-green",
+      "tier": "free",
+      "description": "color token; light green family (#4b8438)",
+      "rules": [
+        "hex"
+      ],
+      "values": {
+        "light": "#4b8438",
+        "dark": "#8ae234",
+        "ember": "#8ae234",
+        "ink": "#8ae234"
+      }
+    },
+    {
+      "name": "ansi-bright-yellow",
+      "cssVar": "--color-ansi-bright-yellow",
+      "tier": "free",
+      "description": "color token; light orange family (#9a7010)",
+      "rules": [
+        "hex"
+      ],
+      "values": {
+        "light": "#9a7010",
+        "dark": "#fce94f",
+        "ember": "#fce94f",
+        "ink": "#fce94f"
+      }
+    },
+    {
+      "name": "ansi-bright-blue",
+      "cssVar": "--color-ansi-bright-blue",
+      "tier": "free",
+      "description": "color token; light blue family (#3f77ad)",
+      "rules": [
+        "hex"
+      ],
+      "values": {
+        "light": "#3f77ad",
+        "dark": "#729fcf",
+        "ember": "#729fcf",
+        "ink": "#729fcf"
+      }
+    },
+    {
+      "name": "ansi-bright-magenta",
+      "cssVar": "--color-ansi-bright-magenta",
+      "tier": "free",
+      "description": "color token; light magenta family (#96528f)",
+      "rules": [
+        "hex"
+      ],
+      "values": {
+        "light": "#96528f",
+        "dark": "#ad7fa8",
+        "ember": "#ad7fa8",
+        "ink": "#ad7fa8"
+      }
+    },
+    {
+      "name": "ansi-bright-cyan",
+      "cssVar": "--color-ansi-bright-cyan",
+      "tier": "free",
+      "description": "color token; light teal family (#2a8588)",
+      "rules": [
+        "hex"
+      ],
+      "values": {
+        "light": "#2a8588",
+        "dark": "#34e2e2",
+        "ember": "#34e2e2",
+        "ink": "#34e2e2"
+      }
+    },
+    {
+      "name": "ansi-bright-white",
+      "cssVar": "--color-ansi-bright-white",
+      "tier": "free",
+      "description": "color token; light orange family (#847a6a)",
+      "rules": [
+        "hex"
+      ],
+      "values": {
+        "light": "#847a6a",
+        "dark": "#eeeeec",
+        "ember": "#eeeeec",
+        "ink": "#eeeeec"
+      }
+    },
+    {
       "name": "lozenge-neutral",
       "cssVar": "--color-lozenge-neutral",
       "tier": "free",

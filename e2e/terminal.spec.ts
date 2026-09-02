@@ -494,7 +494,7 @@ test.describe('terminal shots', () => {
    * 1440×900 with the 225px default: elementFromPoint(700, 890) was the
    * viewport at rgb(0, 0, 0) against the pane's rgb(244, 239, 228).
    */
-  test('the pane paints paper under the last row too', async ({ page }) => {
+  test('the pane paints its own ground under the last row too', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await boot(page)
     await openPane(page)

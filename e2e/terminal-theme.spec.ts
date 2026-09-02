@@ -1,5 +1,5 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test'
-import { TERMINAL_CHROME_VARS } from '../web/src/lib/terminal/protocol'
+import { TERMINAL_ANSI_VARS, TERMINAL_CHROME_VARS } from '../web/src/lib/terminal/protocol'
 import { apiURL, drainTerminalSessions, forceLocale, openServerSettings } from './helpers'
 
 /*
@@ -76,6 +76,24 @@ type ThemeHook = {
       selectionBackground?: string
     }
   }
+}
+
+/** One named slot of the live terminal's applied theme (GDK-1358 ANSI,
+ *  GDK-1359 cursor), and the same token as the host computes it. */
+async function appliedSlot(page: Page, slot: string, token: string) {
+  return page.evaluate(
+    ({ slot, token }) => {
+      const t = (window as unknown as { __gadakTerm?: { options: { theme?: Record<string, string> } } })
+        .__gadakTerm
+      if (!t?.options.theme) throw new Error('no live theme')
+      const host = document.querySelector('[data-testid="terminal-pane"] .terminal-host')!
+      return {
+        applied: t.options.theme[slot] ?? '',
+        host: getComputedStyle(host).getPropertyValue(token).trim(),
+      }
+    },
+    { slot, token },
+  )
 }
 
 /** The live terminal's applied chrome, as xterm holds it. */
@@ -294,6 +312,14 @@ test.describe('the dock has an appearance of its own (GDK-1357)', () => {
     expect(dock.scheme).toBe('dark')
     expect(dock.pane).toBe('rgb(13, 14, 16)')
     expect(dock.roster).toBe('rgb(19, 20, 23)')
+    // The dark palettes carry xterm's own ANSI sixteen (GDK-1358) — yellow
+    // is the slot that fails hardest on paper, so it is the one pinned.
+    const yellow = await appliedSlot(page, 'yellow', TERMINAL_ANSI_VARS.yellow)
+    expect(yellow).toEqual({ applied: '#c4a000', host: '#c4a000' })
+    // And the block cursor is ink on that ground, not the accent fill
+    // (GDK-1359: accent was 2.75:1 on this page).
+    const cursor = await appliedSlot(page, 'cursor', TERMINAL_CHROME_VARS.cursor)
+    expect(cursor).toEqual({ applied: '#97b3d2', host: '#97b3d2' })
   })
 
   test('the Terminal settings tab switches it to follow and back, live', async ({
@@ -321,6 +347,15 @@ test.describe('the dock has an appearance of its own (GDK-1357)', () => {
       .poll(async () => (await appliedChrome(page)).background, { timeout: 5_000 })
       .toBe(paper)
     expect((await documentChrome(page)).background).toBe(paper)
+    // With the paper ground comes the paper-tuned ANSI sixteen (GDK-1358):
+    // yellow is an ochre that clears 4.5:1 here, not xterm's #c4a000 (2.19).
+    await expect
+      .poll(async () => (await appliedSlot(page, 'yellow', TERMINAL_ANSI_VARS.yellow)).applied)
+      .toBe('#7d5a05')
+    expect(await appliedSlot(page, 'brightWhite', TERMINAL_ANSI_VARS.brightWhite)).toEqual({
+      applied: '#847a6a',
+      host: '#847a6a',
+    })
     // Written through, keeping the sibling theme field.
     await expect.poll(() => serverTerminalAppearance(request)).toBe('follow')
     const doc = (await (await request.get(SETTINGS_URL)).json()) as AppearanceDoc
@@ -345,6 +380,16 @@ test.describe('the dock has an appearance of its own (GDK-1357)', () => {
         return `${doc.appearance?.theme}/${doc.appearance?.terminal}`
       })
       .toBe('ember/follow')
+    // Put the theme back and wait for the write-through: a test that ends
+    // while its PUT is in flight hands the next spec an ember server
+    // (theme.spec's light-default test read #160f04 once, on the CI-shell
+    // run).
     await (await themePicker(page)).selectOption('system')
+    await expect
+      .poll(async () => {
+        const doc = (await (await request.get(SETTINGS_URL)).json()) as AppearanceDoc
+        return doc.appearance?.theme ?? null
+      })
+      .toBe('system')
   })
 })

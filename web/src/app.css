@@ -59,6 +59,39 @@
   --color-scrim: rgb(28 24 18 / 0.28);
   --color-scrollbar-hover: #a89880;
 
+  /* ── Terminal ANSI palette (GDK-1358) ──
+     xterm's default sixteen are a dark-ground palette: on this page nine
+     of them fall under 3.0:1 (yellow 2.19, bright yellow 1.08, bright
+     white 1.01). These are the same sixteen roles as ink on paper — the
+     normal eight clear 4.5:1 on bg-base and bg-panel, the bright eight
+     clear 3.0:1 (most 3.9+) — so `ls --color`, a prompt, a test runner all
+     stay legible when the dock follows a light theme. Warm and inky like
+     the rest of the palette: brick, moss, ochre, indigo, plum, teal. The
+     dark palettes carry xterm's own defaults under the same names, so the
+     renderer reads one list whatever the ground. "white" is a readable
+     grey here, not paper: programs that print white assume a dark ground,
+     and unreadable is the wrong kind of faithful. The cost is the badge
+     idiom (white text on a red or blue background), which drops to a grey
+     on brick — legible enough, and the block still says what it is. The
+     alternative (white ≈ paper, GitHub Light's opposite) makes every bright
+     white *foreground* vanish on the page, and that is the commoner use. */
+  --color-ansi-black: #1c1812;
+  --color-ansi-red: #9c2f2a;
+  --color-ansi-green: #3a6a2a;
+  --color-ansi-yellow: #7d5a05;
+  --color-ansi-blue: #2f5d8c;
+  --color-ansi-magenta: #7a3d78;
+  --color-ansi-cyan: #1e6b6e;
+  --color-ansi-white: #6f6656;
+  --color-ansi-bright-black: #635a4f;
+  --color-ansi-bright-red: #b8433c;
+  --color-ansi-bright-green: #4b8438;
+  --color-ansi-bright-yellow: #9a7010;
+  --color-ansi-bright-blue: #3f77ad;
+  --color-ansi-bright-magenta: #96528f;
+  --color-ansi-bright-cyan: #2a8588;
+  --color-ansi-bright-white: #847a6a;
+
   /* Jira ADF status lozenges (adf.ts STATUS_COLORS) */
   --color-lozenge-neutral: #e4d9c4;
   --color-lozenge-purple: #ddd4e8;
@@ -257,6 +290,22 @@
       --color-search-match: #6d4a05;
       --color-scrim: rgb(6 7 9 / 0.66);
       --color-scrollbar-hover: #8d95a3;
+      --color-ansi-black: #2e3436;
+      --color-ansi-red: #cc0000;
+      --color-ansi-green: #4e9a06;
+      --color-ansi-yellow: #c4a000;
+      --color-ansi-blue: #3465a4;
+      --color-ansi-magenta: #75507b;
+      --color-ansi-cyan: #06989a;
+      --color-ansi-white: #d3d7cf;
+      --color-ansi-bright-black: #555753;
+      --color-ansi-bright-red: #ef2929;
+      --color-ansi-bright-green: #8ae234;
+      --color-ansi-bright-yellow: #fce94f;
+      --color-ansi-bright-blue: #729fcf;
+      --color-ansi-bright-magenta: #ad7fa8;
+      --color-ansi-bright-cyan: #34e2e2;
+      --color-ansi-bright-white: #eeeeec;
       --color-lozenge-neutral: #1b1d22;
       --color-lozenge-purple: #2c2740;
       --color-lozenge-blue: #1a2a3f;
@@ -322,6 +371,22 @@
     --color-search-match: #6d4a05;
     --color-scrim: rgb(6 7 9 / 0.66);
     --color-scrollbar-hover: #8d95a3;
+    --color-ansi-black: #2e3436;
+    --color-ansi-red: #cc0000;
+    --color-ansi-green: #4e9a06;
+    --color-ansi-yellow: #c4a000;
+    --color-ansi-blue: #3465a4;
+    --color-ansi-magenta: #75507b;
+    --color-ansi-cyan: #06989a;
+    --color-ansi-white: #d3d7cf;
+    --color-ansi-bright-black: #555753;
+    --color-ansi-bright-red: #ef2929;
+    --color-ansi-bright-green: #8ae234;
+    --color-ansi-bright-yellow: #fce94f;
+    --color-ansi-bright-blue: #729fcf;
+    --color-ansi-bright-magenta: #ad7fa8;
+    --color-ansi-bright-cyan: #34e2e2;
+    --color-ansi-bright-white: #eeeeec;
     --color-lozenge-neutral: #1b1d22;
     --color-lozenge-purple: #2c2740;
     --color-lozenge-blue: #1a2a3f;
@@ -381,6 +446,22 @@
     --color-search-match: #71500a;
     --color-scrim: rgb(5 9 14 / 0.66);
     --color-scrollbar-hover: #8b9aac;
+    --color-ansi-black: #2e3436;
+    --color-ansi-red: #cc0000;
+    --color-ansi-green: #4e9a06;
+    --color-ansi-yellow: #c4a000;
+    --color-ansi-blue: #3465a4;
+    --color-ansi-magenta: #75507b;
+    --color-ansi-cyan: #06989a;
+    --color-ansi-white: #d3d7cf;
+    --color-ansi-bright-black: #555753;
+    --color-ansi-bright-red: #ef2929;
+    --color-ansi-bright-green: #8ae234;
+    --color-ansi-bright-yellow: #fce94f;
+    --color-ansi-bright-blue: #729fcf;
+    --color-ansi-bright-magenta: #ad7fa8;
+    --color-ansi-bright-cyan: #34e2e2;
+    --color-ansi-bright-white: #eeeeec;
     --color-lozenge-neutral: #1a222e;
     --color-lozenge-purple: #2b2c4a;
     --color-lozenge-blue: #152f48;
@@ -441,6 +522,22 @@
     --color-search-match: #724900;
     --color-scrim: rgb(10 6 1 / 0.62);
     --color-scrollbar-hover: #8f8273;
+    --color-ansi-black: #2e3436;
+    --color-ansi-red: #cc0000;
+    --color-ansi-green: #4e9a06;
+    --color-ansi-yellow: #c4a000;
+    --color-ansi-blue: #3465a4;
+    --color-ansi-magenta: #75507b;
+    --color-ansi-cyan: #06989a;
+    --color-ansi-white: #d3d7cf;
+    --color-ansi-bright-black: #555753;
+    --color-ansi-bright-red: #ef2929;
+    --color-ansi-bright-green: #8ae234;
+    --color-ansi-bright-yellow: #fce94f;
+    --color-ansi-bright-blue: #729fcf;
+    --color-ansi-bright-magenta: #ad7fa8;
+    --color-ansi-bright-cyan: #34e2e2;
+    --color-ansi-bright-white: #eeeeec;
     --color-lozenge-neutral: #312713;
     --color-lozenge-purple: #30253d;
     --color-lozenge-blue: #1b2c41;

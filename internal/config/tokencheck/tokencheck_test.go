@@ -58,7 +58,9 @@ import (
  *	    `--color-` CSS variable spelling normalizes to the bare name (both
  *	    accepted, same tier lookup).
  *	C8  Catalog shape — the embedded catalog.json is the single tier
- *	    source. Assert: 44 tokens, tier counts 10/12/22, exact locked and
+ *	    source. Assert: 60 tokens, tier counts 10/12/38 (44 → 60 when
+ *	    GDK-1358 added the sixteen --color-ansi-* terminal tokens, all
+ *	    free tier — no floor is written against them), exact locked and
  *	    validated name sets, tier ∈ {free,validated,locked}, every rules
  *	    entry ∈ implementedRules, palettes == [light dark ember ink],
  *	    cssVar == "--color-"+name, and every value parses as hex except the
@@ -509,8 +511,8 @@ func TestCSSVarNameNormalizes(t *testing.T) {
 
 func TestCatalogShape(t *testing.T) {
 	toks := CatalogTokens()
-	if len(toks) != 44 {
-		t.Fatalf("catalog carries %d tokens, want 44", len(toks))
+	if len(toks) != 60 {
+		t.Fatalf("catalog carries %d tokens, want 60", len(toks))
 	}
 	counts := map[string]int{}
 	for _, tok := range toks {
@@ -535,8 +537,10 @@ func TestCatalogShape(t *testing.T) {
 			}
 		}
 	}
-	if counts["locked"] != 10 || counts["validated"] != 12 || counts["free"] != 22 {
-		t.Errorf("tier counts = %v, want locked 10 / validated 12 / free 22", counts)
+	// free 22 → 38: the sixteen ANSI terminal tokens (GDK-1358) carry no
+	// floor of their own and land in the free tier.
+	if counts["locked"] != 10 || counts["validated"] != 12 || counts["free"] != 38 {
+		t.Errorf("tier counts = %v, want locked 10 / validated 12 / free 38", counts)
 	}
 	wantLocked := []string{"bg-base", "bg-panel", "bg-elevated", "bg-hover", "bg-active",
 		"text-primary", "text-secondary", "text-muted", "search-match", "shell"}

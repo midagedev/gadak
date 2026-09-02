@@ -14,7 +14,13 @@
  * code (DOM hosts, cssVar, the xterm dynamic import). Re-exported here
  * because this is where the web app already looks.
  */
-import { createUtf8StreamDecoder, TERMINAL_CHROME_VARS, watchChromeVars } from './protocol'
+import {
+  createUtf8StreamDecoder,
+  TERMINAL_ANSI_VARS,
+  TERMINAL_CHROME_VARS,
+  watchChromeVars,
+  type TerminalAnsiSlot,
+} from './protocol'
 import type { TerminalRenderer } from './protocol'
 import { findIssueKeyMatches } from './issue-links'
 
@@ -48,22 +54,52 @@ export function fontFamily(read: (name: string) => string = readCssVar): string 
   return raw || 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'
 }
 
-/** Chrome colours only — ANSI palette stays the library default so a light
- *  paper theme does not invert black/white. Variable names come from the
- *  shared list in ./protocol (GDK-1109); the fallbacks are web-owned hexes. */
-function chromeTheme(scope?: Element | null): {
+/** xterm's own sixteen — the fallback when a token is missing (jsdom, an
+ *  older stylesheet), and what the dark palettes declare (GDK-1358). */
+const XTERM_DEFAULT_ANSI: Record<TerminalAnsiSlot, string> = {
+  black: '#2e3436',
+  red: '#cc0000',
+  green: '#4e9a06',
+  yellow: '#c4a000',
+  blue: '#3465a4',
+  magenta: '#75507b',
+  cyan: '#06989a',
+  white: '#d3d7cf',
+  brightBlack: '#555753',
+  brightRed: '#ef2929',
+  brightGreen: '#8ae234',
+  brightYellow: '#fce94f',
+  brightBlue: '#729fcf',
+  brightMagenta: '#ad7fa8',
+  brightCyan: '#34e2e2',
+  brightWhite: '#eeeeec',
+}
+
+type ChromeTheme = {
   background: string
   foreground: string
   cursor: string
   cursorAccent: string
   selectionBackground: string
-} {
+} & Record<TerminalAnsiSlot, string>
+
+/** The five chrome slots plus the sixteen ANSI slots, every one read from a
+ *  token so the palette that owns the ground also owns the ink on it
+ *  (GDK-1358 — xterm's defaults are unreadable on paper). Variable names
+ *  come from the shared lists in ./protocol (GDK-1109); the fallbacks are
+ *  web-owned hexes. */
+function chromeTheme(scope?: Element | null): ChromeTheme {
+  const ansi = {} as Record<TerminalAnsiSlot, string>
+  for (const slot of Object.keys(TERMINAL_ANSI_VARS) as TerminalAnsiSlot[]) {
+    ansi[slot] = cssVar(TERMINAL_ANSI_VARS[slot], XTERM_DEFAULT_ANSI[slot], scope)
+  }
   return {
     background: cssVar(TERMINAL_CHROME_VARS.background, '#f4efe4', scope),
     foreground: cssVar(TERMINAL_CHROME_VARS.foreground, '#1c1812', scope),
-    cursor: cssVar(TERMINAL_CHROME_VARS.cursor, '#2e4560', scope),
+    cursor: cssVar(TERMINAL_CHROME_VARS.cursor, '#2a4159', scope),
     cursorAccent: cssVar(TERMINAL_CHROME_VARS.cursorAccent, '#f4efe4', scope),
     selectionBackground: cssVar(TERMINAL_CHROME_VARS.selectionBackground, '#cfc0a4', scope),
+    ...ansi,
   }
 }
 
@@ -133,7 +169,7 @@ type TermHook = {
       cursor?: string
       cursorAccent?: string
       selectionBackground?: string
-    }
+    } & Partial<Record<TerminalAnsiSlot, string>>
   }
 }
 
@@ -263,8 +299,8 @@ async function createXtermRenderer(): Promise<BehaviorTerminalRenderer> {
   term.attachCustomKeyEventHandler((ev) => !isAppChord(ev) && !stealsFromComposition(ev))
   // GDK-1156: the chrome follows the theme for the life of the pane, not
   // just at construction. xterm takes a whole theme object at runtime, so
-  // this is a replace, not a patch — and the ANSI palette is untouched
-  // either way, because chromeTheme() only carries the five chrome slots.
+  // this is a replace, not a patch — chrome and ANSI slots alike, since
+  // GDK-1358 made the sixteen tokens too.
   const chromeWatch = watchChromeVars(
     () => JSON.stringify(chromeTheme(scope)),
     () => {

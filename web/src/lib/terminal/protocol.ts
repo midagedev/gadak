@@ -153,10 +153,44 @@ export interface TerminalRenderer {
 export const TERMINAL_CHROME_VARS = {
   background: '--color-bg-base',
   foreground: '--color-text-primary',
-  cursor: '--color-accent',
+  // accent-text, not accent (GDK-1359): the block cursor is a filled cell
+  // with the ground's colour as its glyph, so both halves need a token that
+  // is readable *against the ground*. accent is a fill (dark 2.75:1 on its
+  // page, ember 2.40); accent-text is ink on that page by definition
+  // (dark 8.9:1, light 8.3:1).
+  cursor: '--color-accent-text',
   cursorAccent: '--color-bg-base',
   selectionBackground: '--color-bg-active',
 } as const
+
+/*
+ * The sixteen ANSI slots, by xterm's ITheme key, each a token app.css
+ * declares in every palette (GDK-1358). The light palette carries a
+ * paper-tuned sixteen; the dark palettes carry xterm's own defaults under
+ * the same names — one list, one read path, whatever the ground. The web
+ * renderer is the consumer; the phone keeps xterm's defaults (its pane is
+ * always on a dark ground).
+ */
+export const TERMINAL_ANSI_VARS = {
+  black: '--color-ansi-black',
+  red: '--color-ansi-red',
+  green: '--color-ansi-green',
+  yellow: '--color-ansi-yellow',
+  blue: '--color-ansi-blue',
+  magenta: '--color-ansi-magenta',
+  cyan: '--color-ansi-cyan',
+  white: '--color-ansi-white',
+  brightBlack: '--color-ansi-bright-black',
+  brightRed: '--color-ansi-bright-red',
+  brightGreen: '--color-ansi-bright-green',
+  brightYellow: '--color-ansi-bright-yellow',
+  brightBlue: '--color-ansi-bright-blue',
+  brightMagenta: '--color-ansi-bright-magenta',
+  brightCyan: '--color-ansi-bright-cyan',
+  brightWhite: '--color-ansi-bright-white',
+} as const
+
+export type TerminalAnsiSlot = keyof typeof TERMINAL_ANSI_VARS
 
 /*
  * When those variables move, and who notices (GDK-1156).
