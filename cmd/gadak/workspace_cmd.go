@@ -169,11 +169,16 @@ func workspaceJSONSource() string {
 
 // warnWorkspaceIfEnv prints one stderr line when a write is going to a
 // workspace that was selected by the environment (not visible in argv).
-// stdout is untouched. Flag and root selections stay silent.
+// stdout is untouched. Flag and root selections stay silent — and so does
+// a gadak pane (GADAK_TERMINAL=1): there the serve set GADAK_WORKSPACE to
+// the workspace its window shows (internal/server/terminal.go), so the
+// selection is the window the person is looking at, not a shell variable
+// they cannot see. Without this every write typed into a named workspace's
+// pane opened with the warning (GDK-1362).
 func warnWorkspaceIfEnv() {
 	name := config.Profile()
 	kind, envName := config.WorkspaceSource()
-	if kind != config.SourceEnv || name == "" {
+	if kind != config.SourceEnv || name == "" || os.Getenv("GADAK_TERMINAL") == "1" {
 		return
 	}
 	fmt.Fprintf(os.Stderr, "warning: workspace: %s (from %s)\n", name, envName)

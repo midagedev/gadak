@@ -2,6 +2,7 @@ package migrate
 
 import (
 	"context"
+	"database/sql"
 	"encoding/base64"
 	"path/filepath"
 	"testing"
@@ -200,5 +201,40 @@ func TestInlineAttachments(t *testing.T) {
 	}
 	if st.AttachInlined != 2 || st.AttachMissing != 1 || st.AttachSkipURL != 1 || st.AttachTooLarge != 1 {
 		t.Fatalf("stats %+v", st)
+	}
+}
+
+// GDK-1361: status_catalog is written by sync passes, so a mirror that never
+// ran one — a snapshot, examples/demo.db — has an empty table. The issues
+// still carry status_category, and that is what the catalog must be built
+// from: with the table empty this fell to "new" for every status, and the
+// migrated board opened with Done and In Progress as open issues.
+func TestStatusCategoriesSurviveEmptyCatalog(t *testing.T) {
+	path := seedMirror(t)
+	rw, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("open rw: %v", err)
+	}
+	if _, err := rw.Exec(`DELETE FROM status_catalog`); err != nil {
+		t.Fatalf("empty status_catalog: %v", err)
+	}
+	if err := rw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	sqlDB, err := store.OpenReadOnly(path)
+	if err != nil {
+		t.Fatalf("open ro: %v", err)
+	}
+	t.Cleanup(func() { _ = sqlDB.Close() })
+	doc, _, err := Build(context.Background(), sqlDB, Options{})
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	got := map[string]string{}
+	for _, s := range doc.Statuses {
+		got[s.ID] = s.Category
+	}
+	if got["3"] != "indeterminate" || got["10001"] != "done" {
+		t.Fatalf("categories with an empty status_catalog: %v, want 3→indeterminate, 10001→done", got)
 	}
 }

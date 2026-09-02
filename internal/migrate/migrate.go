@@ -523,9 +523,22 @@ func buildCatalogs(ctx context.Context, db *sql.DB, doc *Doc, st *Stats) error {
 		histName); err != nil {
 		return err
 	}
+	// Category: the issues' own status_category first — those rows are the
+	// ones leaving, and the catalogs must agree with them — then the origin
+	// status catalog for history-only ids. status_catalog alone is not
+	// enough: it is written by sync passes, and a mirror that never ran one
+	// (a snapshot, a fixture, examples/demo.db) has an empty table. Read
+	// that way, every status fell to "new" and the migrated board opened
+	// with Done and In Progress as open issues and no in-progress state for
+	// `gadak claim` to land on (GDK-1361).
 	cat := map[string]string{}
 	if err := scanPairs(ctx, db, `SELECT status_id, category FROM status_catalog`, cat); err != nil {
 		return err
+	}
+	for i := range doc.Issues {
+		if is := &doc.Issues[i]; is.Status != "" && is.StatusCategory != "" {
+			cat[is.Status] = is.StatusCategory
+		}
 	}
 
 	// Mirror categories are new|inprogress|done; fixtures speak Cloud's

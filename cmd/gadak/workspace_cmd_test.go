@@ -286,6 +286,18 @@ func TestWarnWorkspaceIfEnvOnly(t *testing.T) {
 		t.Fatalf("disclosure leaked onto stdout: %q", stdout)
 	}
 
+	// env + named, inside a gadak pane → silent: the serve put
+	// GADAK_WORKSPACE there to name the window's own workspace (GDK-1362).
+	t.Setenv("GADAK_TERMINAL", "1")
+	stdout, stderr, err = captureBoth(t, func() error {
+		return cmdCreate([]string{"hello"})
+	})
+	_ = err
+	if strings.Contains(stderr, "warning: workspace:") {
+		t.Fatalf("a pane's own workspace is not a hidden selection, got stderr=%q", stderr)
+	}
+	t.Setenv("GADAK_TERMINAL", "")
+
 	// flag → silent
 	config.SetProfile("oss")
 	stdout, stderr, err = captureBoth(t, func() error {
