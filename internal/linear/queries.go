@@ -331,3 +331,33 @@ const queryUsers = `query Users($filter: UserFilter, $after: String) {
     nodes { id name displayName email }
   }
 }`
+
+// The migrate verbs (GDK-1265). Input shapes were introspected live on
+// 2026-09-02 (IssueRelationCreateInput, IssueLabelCreateInput,
+// IssueCreateInput.parentId/createdAt, CommentCreateInput.createdAt).
+
+// queryLabels lists every label the credential can see, unfiltered:
+// workspace-level labels have team = null and a team filter would hide
+// them, yet they apply to the team's issues and block same-named creates.
+var queryLabels = `query Labels($after: String) {
+  issueLabels(first: 250, after: $after) {
+    pageInfo { hasNextPage endCursor }
+    nodes {` + labelSelection + `
+    }
+  }
+}`
+
+var mutIssueLabelCreate = `mutation IssueLabelCreate($input: IssueLabelCreateInput!) {
+  issueLabelCreate(input: $input) {
+    success
+    issueLabel {` + labelSelection + `
+    }
+  }
+}`
+
+const mutIssueRelationCreate = `mutation IssueRelationCreate($input: IssueRelationCreateInput!) {
+  issueRelationCreate(input: $input) {
+    success
+    issueRelation { id }
+  }
+}`

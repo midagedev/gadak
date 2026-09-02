@@ -1,0 +1,20 @@
+{
+  "data": {
+    "issueLabels": {
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": "fixture-cursor-labels"
+      },
+      "nodes": [
+        {
+          "id": "00000000-0000-4000-8000-000000000013",
+          "name": "Bug"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000014",
+          "name": "Feature"
+        }
+      ]
+    }
+  }
+}

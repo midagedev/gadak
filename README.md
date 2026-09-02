@@ -84,6 +84,10 @@ with a source-vs-migrated count table:
 gadak --workspace local migrate --from work
 ```
 
+The same command with `--to linear --team ENG`, run in a Linear workspace,
+sends the issues into that team instead — history and wiki pages cannot
+follow, and the report says so.
+
 `gadak serve` prints the address — open `http://gadak.localhost:7777` and you
 should see your issues. Linux tarball, pairing, the signed macOS dmg:
 [Install](#install).

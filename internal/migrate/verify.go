@@ -13,6 +13,10 @@ type VerifyRow struct {
 	Metric   string `json:"metric"`
 	Source   int    `json:"source"`
 	Migrated int    `json:"migrated"`
+	// Skipped is the part of Migrated that was already at the target
+	// before this run (the Linear path's idempotency scan); zero on the
+	// built-in-tracker path, where the target is always new.
+	Skipped int `json:"skipped,omitempty"`
 }
 
 // VerifyMirror re-counts the exported axes on the target mirror. The

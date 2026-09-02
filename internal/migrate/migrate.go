@@ -95,6 +95,15 @@ type Issue struct {
 	Attachments []Attachment `json:"attachments,omitempty"`
 	Links       []Link       `json:"links,omitempty"`
 	History     []History    `json:"history,omitempty"`
+	// StatusCategory (new|inprogress|done) and PriorityRank are the
+	// mirror's contract axes — what a target with its own catalogs (Linear)
+	// maps from, since ids mean nothing there. Never emitted: the fixture
+	// path carries the ids and rebuilds both from its catalogs.
+	StatusCategory string `json:"-"`
+	PriorityRank   int    `json:"-"`
+	// AssigneeEmail is the row's own email column — the fallback when the
+	// users catalog has no row for the account (scrubbed fixtures).
+	AssigneeEmail string `json:"-"`
 }
 
 type Comment struct {
@@ -298,7 +307,8 @@ func buildIssues(ctx context.Context, db *sql.DB, doc *Doc, st *Stats) error {
 		       COALESCE(duedate,''), COALESCE(resolution,''),
 		       COALESCE(created_at,''), COALESCE(updated_at,''),
 		       COALESCE(reopen_count,0), COALESCE(epic_key,''),
-		       COALESCE(custom,''), COALESCE(sprint_id,0)
+		       COALESCE(custom,''), COALESCE(sprint_id,0),
+		       COALESCE(status_category,''), COALESCE(priority_rank,0), COALESCE(assignee_email,'')
 		FROM issues_full WHERE project_key IN (`+marks+`) ORDER BY key`, args...)
 	if err != nil {
 		return err
@@ -317,7 +327,8 @@ func buildIssues(ctx context.Context, db *sql.DB, doc *Doc, st *Stats) error {
 			&is.Project, &is.Type, &is.Status, &is.Priority,
 			&is.Assignee, &is.Reporter, &is.Parent,
 			&labels, &comps, &fixes, &is.Duedate, &is.Resolution,
-			&is.Created, &is.Updated, &reopen, &epic, &custom, &sprintID); err != nil {
+			&is.Created, &is.Updated, &reopen, &epic, &custom, &sprintID,
+			&is.StatusCategory, &is.PriorityRank, &is.AssigneeEmail); err != nil {
 			return err
 		}
 		is.Labels = jsonStrings(labels)

@@ -249,3 +249,21 @@ name으로 키하지 않는다.**
   유실했다"일 수 있어 재시도하면 이중 생성. jira `write()`와 같은 규율.
 - **success=false**는 애플리케이션 수준 거부이며 에러로 변환한다( GraphQL
   errors 배열과 별개 경로).
+
+## 미러 → Linear 이전 매핑 (GDK-1265, `gadak migrate --to linear`)
+
+읽기 매핑을 거꾸로 탄다 — 키는 **계약 축**(`status_category`·
+`priority_rank`), display name이 아니다. `internal/migrate/linear.go`.
+
+| 미러 | Linear | 비고 |
+| --- | --- | --- |
+| `status_category` new / inprogress / done | 팀 workflow state 중 type `backlog\|unstarted\|triage` / `started` / `completed` — 각 type에서 position 최소 | canceled·duplicate 로는 절대 보내지 않는다(done ≠ 취소) |
+| `priority_rank` 0,1-4 / ≥5 | `priority` 0,1-4 / 4 | 5 이상은 Low 로 접히고 건수 보고 |
+| `issue_type` 이름, `labels` | 팀 라벨(이름 일치 재사용, 없으면 `issueLabelCreate`) + 마커 라벨 `gadak-migrate` | 워크스페이스 라벨도 이름 충돌하므로 `issueLabels` 무필터 조회 |
+| `parent_key` | `parentId` (부모 먼저 생성) | Epic 은 라벨 `Epic` 인 부모 이슈 — Project 매핑은 스코프 밖 |
+| `links.type` Blocks / Duplicate / 그 외 | `issueRelationCreate` blocks / duplicate / related | outward = 나→대상, 쌍당 1건. 실측 2026-09-02: duplicate 관계를 만들면 Linear 가 중복 쪽 이슈를 `Duplicate` 상태(type duplicate)로 옮긴다 — 카테고리는 done 그대로 |
+| 코멘트 | `commentCreate` + `createdAt`, 본문 앞 `**작성자 · 시각**` | 대필 불가 — 생성자는 API 키 사용자 |
+| `created_at` | `IssueCreateInput.createdAt` | 서버가 무시하면 1회 경고 |
+| 설명 | 평문 + 푸터 `gadak-migrate: <KEY>` | 멱등성 키: 재실행 전 팀 이슈를 훑어 일치 건은 건너뜀 |
+| 첨부 | `attachmentCreate(url)` — 소스 URL 또는 Jira `…/attachment/content/<id>` | 바이트 업로드 없음 |
+| changelog·위키 페이지·dev links·custom·sprint | **이전 불가** | Linear 에 쓰기 API 없음 — 보고서 "not migrated" |

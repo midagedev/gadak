@@ -12,13 +12,15 @@ import (
 	"github.com/midagedev/gadak/internal/atomicfile"
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/fsperm"
+	"github.com/midagedev/gadak/internal/linear"
 	"github.com/midagedev/gadak/internal/migrate"
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/originbind"
 	"github.com/midagedev/gadak/internal/store"
 )
 
-const migrateUsage = "usage: gadak --workspace <new name> migrate --from <workspace> [--projects A,B] [--spaces X,Y] [--skip-attachments] [--json]"
+const migrateUsage = "usage: gadak --workspace <new name> migrate --from <workspace> [--projects A,B] [--spaces X,Y] [--skip-attachments] [--json]\n" +
+	"       gadak --workspace <linear workspace> migrate --from <workspace> --to linear --team <KEY> [--projects A,B] [--limit N] [--dry-run] [--json]"
 
 // cmdMigrate exports a workspace's mirror into a brand-new local-origin
 // workspace (GDK-1264): mirror → issuetap fixture YAML → one-shot seed →
@@ -32,6 +34,10 @@ func cmdMigrate(args []string) error {
 	projectsFlag := fs.String("projects", "", "comma-separated project keys (default: every project in the source mirror)")
 	spacesFlag := fs.String("spaces", "", "comma-separated wiki space keys (default: every mirrored space)")
 	skipAttach := fs.Bool("skip-attachments", false, "keep attachment metadata only; skip the byte download")
+	to := fs.String("to", "", "destination: the built-in tracker (default, a new workspace) or `linear` (the Linear workspace this command runs in)")
+	team := fs.String("team", "", "Linear team key that receives the issues (--to linear)")
+	limit := fs.Int("limit", 0, "migrate only the first N issues by key (--to linear)")
+	dryRun := fs.Bool("dry-run", false, "print the mapping and counts without writing anything (--to linear)")
 	jsonOut := fs.Bool("json", false, "emit JSON")
 	if wantsHelp(args) {
 		fmt.Fprint(os.Stdout, formatHelp("migrate", fs))
@@ -46,6 +52,13 @@ func cmdMigrate(args []string) error {
 	}
 
 	target := config.Profile()
+	switch *to {
+	case "linear":
+		return migrateToLinear(target, *from, *team, *projectsFlag, *limit, *dryRun, *jsonOut)
+	case "":
+	default:
+		return usageError("migrate", migrateUsage)
+	}
 	if target == "" || target == "default" {
 		return fmt.Errorf("migrate creates a new local-origin workspace — name it: gadak --workspace <new name> migrate --from %s", *from)
 	}
@@ -184,6 +197,100 @@ func cmdMigrate(args []string) error {
 		})
 	}
 	printMigrateReport(os.Stdout, target, *from, stats, verify)
+	return nil
+}
+
+// migrateToLinear is the second destination (GDK-1265): the source mirror
+// leaves through the Linear write verbs into team `team` of the Linear
+// workspace this command runs in. No workspace is created — Linear is the
+// origin already, and `gadak sync` fills its mirror afterwards. --dry-run
+// makes no network call.
+func migrateToLinear(target, from, team, projects string, limit int, dryRun, jsonOut bool) error {
+	if team == "" {
+		return usageError("migrate", migrateUsage)
+	}
+	if target == from {
+		return fmt.Errorf("--from %s names the target workspace itself", from)
+	}
+	tcfg, err := config.LoadFor(target)
+	if err != nil {
+		return err
+	}
+	if tcfg.OriginType() != config.OriginLinear {
+		return fmt.Errorf("workspace %q is not a Linear workspace (origin: %s) — --to linear writes through the Linear credential of the workspace it runs in", target, tcfg.OriginType())
+	}
+	srcCfg, err := config.LoadFor(from)
+	if err != nil {
+		return err
+	}
+	srcDBPath, err := config.DBPathFor(from)
+	if err != nil {
+		return err
+	}
+	if _, err := os.Stat(srcDBPath); err != nil {
+		return fmt.Errorf("source workspace %q has no mirror yet — run `gadak --workspace %s sync` first", from, from)
+	}
+	srcDB, err := store.OpenReadOnly(srcDBPath)
+	if err != nil {
+		return err
+	}
+	defer srcDB.Close()
+
+	ctx := context.Background()
+	doc, stats, err := migrate.Build(ctx, srcDB, migrate.Options{Projects: originbind.ParseProjectKeys(projects)})
+	if err != nil {
+		return err
+	}
+	opt := migrate.LinearOptions{TeamKey: team, Limit: limit, DryRun: dryRun, Progress: os.Stderr}
+	if srcCfg.Site != "" {
+		site := strings.TrimRight(srcCfg.Site, "/")
+		opt.AttachmentURL = func(id string) string {
+			return site + "/rest/api/3/attachment/content/" + url.PathEscape(id)
+		}
+	}
+	var client *linear.Client
+	if !dryRun {
+		if client, err = origin.Linear(tcfg); err != nil {
+			return err
+		}
+	}
+	rep, err := migrate.ToLinear(ctx, client, doc, stats, opt)
+	if err != nil {
+		return err
+	}
+	if jsonOut {
+		return json.NewEncoder(os.Stdout).Encode(map[string]any{
+			"workspace": target, "from": from, "to": "linear", "stats": stats, "report": rep,
+		})
+	}
+	w := os.Stdout
+	verb := "migrated"
+	if rep.DryRun {
+		verb = "dry-run:"
+	}
+	fmt.Fprintf(w, "%s %s → Linear team %s (workspace %q)\n", verb, from, rep.Team, target)
+	fmt.Fprintf(w, "projects: %s\n\nmapping:\n", strings.Join(stats.Projects, ", "))
+	for _, m := range rep.Mapping {
+		fmt.Fprintf(w, "  %s\n", m)
+	}
+	fmt.Fprintf(w, "\n%-12s %8s %8s %16s\n", "metric", "source", "migrated", "already there")
+	for _, r := range rep.Counts {
+		mark := ""
+		if !rep.DryRun && r.Source != r.Migrated {
+			mark = "  MISMATCH"
+		}
+		fmt.Fprintf(w, "%-12s %8d %8d %16d%s\n", r.Metric, r.Source, r.Migrated, r.Skipped, mark)
+	}
+	fmt.Fprintln(w, "\nnot migrated:")
+	for _, n := range rep.NotMigrated {
+		fmt.Fprintf(w, "  %s\n", n)
+	}
+	for _, wn := range rep.Warnings {
+		fmt.Fprintf(w, "warning: %s\n", wn)
+	}
+	if !rep.DryRun {
+		fmt.Fprintf(w, "\nnext: gadak --workspace %s sync\n", target)
+	}
 	return nil
 }
 

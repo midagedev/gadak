@@ -438,6 +438,19 @@ target must not exist yet; migrating never rebinds an existing workspace.
 skips the byte downloads. Bodies migrate as plain text; the report says
 how many code blocks / media / tables that flattened.
 
+The second destination is Linear: `gadak --workspace <linear workspace>
+migrate --from <workspace> --to linear --team <KEY>` writes the issues into
+that team through the Linear credential of the workspace the command runs
+in (no new workspace; `gadak sync` fills its mirror afterwards).
+`status_category` picks the workflow state by type, `priority_rank` becomes
+0-4, issue types and labels become team labels, parents and links become
+sub-issues and relations, comments carry `author · time` in the body.
+Re-running is safe: every created issue ends with a `gadak-migrate: <KEY>`
+footer and a match is skipped. Not migrated, and said so in the report:
+history (Linear has no changelog write API), wiki pages, attachment bytes
+(linked by URL), real authorship. `--dry-run` prints the mapping and counts
+with no network call; `--limit N` takes the first N issues.
+
 ### Pointing at another workspace's issue
 
 On the built-in tracker, local or paired, `gadak ref <KEY> <workspace>/<TARGET>`

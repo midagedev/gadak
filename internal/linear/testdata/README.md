@@ -15,6 +15,9 @@ identity is not.
 | `issue_create.json` | — hand-built (GDK-360) | `issueCreate` success + returned issue parse |
 | `issue_update.json` | — hand-built (GDK-360) | `issueUpdate` success + updated issue parse |
 | `comment_create.json` | — hand-built (GDK-360) | `commentCreate` success + comment parse |
+| `relation_create.json` | — hand-built (GDK-1265) | `issueRelationCreate` success |
+| `label_create.json` | — hand-built (GDK-1265) | `issueLabelCreate` success + label parse |
+| `labels.json` | — hand-built (GDK-1265) | `issueLabels` catalog page |
 
 The three mutation fixtures are **not captures**: no live mutation was
 allowed against the capture workspace. They are hand-built to the documented

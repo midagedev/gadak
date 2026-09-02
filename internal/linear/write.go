@@ -47,6 +47,14 @@ type IssueCreate struct {
 	LabelIDs []string
 	// DueDate is "YYYY-MM-DD" exactly; empty omits.
 	DueDate string
+	// ParentID nests the new issue under an existing one (sub-issue);
+	// empty omits.
+	ParentID string
+	// CreatedAt backdates the issue (ISO-8601 UTC) — the import case, where
+	// the source's timestamp is the truth. Empty omits and Linear stamps
+	// now. Whether the server honors it is the caller's to verify against
+	// the returned Issue.CreatedAt.
+	CreatedAt string
 }
 
 // IssueUpdate is the patch for UpdateIssue. A nil field is omitted from the
@@ -71,6 +79,8 @@ type IssueUpdate struct {
 	// due date (explicit null) is not expressible in this shape — extend it
 	// with the AssigneeID convention if the adapter ever needs unsetting.
 	DueDate *string
+	// ParentID: a pointer to an issue UUID nests under it; nil is unchanged.
+	ParentID *string
 }
 
 // CreateIssue files one issue and returns it with the full read-path field
@@ -109,6 +119,12 @@ func (c *Client) CreateIssue(ctx context.Context, in IssueCreate) (Issue, error)
 			return Issue{}, err
 		}
 		input["dueDate"] = in.DueDate
+	}
+	if in.ParentID != "" {
+		input["parentId"] = in.ParentID
+	}
+	if in.CreatedAt != "" {
+		input["createdAt"] = in.CreatedAt
 	}
 
 	var res struct {
@@ -167,6 +183,9 @@ func (c *Client) UpdateIssue(ctx context.Context, id string, in IssueUpdate) (Is
 		}
 		input["dueDate"] = *in.DueDate
 	}
+	if in.ParentID != nil {
+		input["parentId"] = *in.ParentID
+	}
 
 	var res struct {
 		IssueUpdate struct {
@@ -188,12 +207,21 @@ func (c *Client) UpdateIssue(ctx context.Context, id string, in IssueUpdate) (Is
 // "comments"). Whether an empty body is acceptable is Linear's call; the
 // client does not invent a rule for it.
 func (c *Client) CreateComment(ctx context.Context, issueID string, body string) (Comment, error) {
+	return c.CreateCommentAt(ctx, issueID, body, "")
+}
+
+// CreateCommentAt is CreateComment with a backdated createdAt (ISO-8601
+// UTC) — the import case. Empty createdAt omits the field.
+func (c *Client) CreateCommentAt(ctx context.Context, issueID, body, createdAt string) (Comment, error) {
 	if issueID == "" {
 		return Comment{}, errors.New("linear: issueId is required")
 	}
 	input := map[string]any{
 		"issueId": issueID,
 		"body":    body,
+	}
+	if createdAt != "" {
+		input["createdAt"] = createdAt
 	}
 
 	var res struct {

@@ -88,6 +88,10 @@ gadak serve
 gadak --workspace local migrate --from work
 ```
 
+같은 명령을 Linear 워크스페이스에서 `--to linear --team ENG`로 실행하면
+이슈가 그 팀으로 들어갑니다 — 이력과 위키 페이지는 따라가지 못하고,
+보고서가 그렇게 말합니다.
+
 `gadak serve`가 주소를 출력합니다. `http://gadak.localhost:7777`을 열어
 이슈가 보이면 됩니다. 리눅스 타볼, 페어링, 서명된 macOS dmg:
 [설치](#설치).
