@@ -48,10 +48,18 @@ probe_dim() {
   ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0:s=x "$1"
 }
 SRC_DIM="$(probe_dim "$WEBM")"
-if [[ "$SRC_DIM" != "1440x900" ]]; then
-  echo "export-terminal: source ${SRC_DIM}, want 1440x900" >&2
-  exit 1
-fi
+# Two takes share this exporter and the shape says which one arrived: the
+# live-Claude hero is the 16:10 window (terminal-claude.config.ts), the
+# scripted pipe-and-JQL take is the 4:5 social cut (terminal.config.ts).
+# Each ships under its own name so one cannot overwrite the other.
+case "$SRC_DIM" in
+  1440x900)  OUT_NAME="terminal-hero.mp4" ;;
+  1080x1350) OUT_NAME="terminal-demo.mp4" ;;
+  *)
+    echo "export-terminal: source ${SRC_DIM}, want 1440x900 (claude take) or 1080x1350 (scripted take)" >&2
+    exit 1
+    ;;
+esac
 
 # No camera work. The 4:5 cut needed a zoom because a portrait crop of a
 # three-column app leaves the terminal too small to read, and the zoom was
@@ -137,7 +145,7 @@ if python3 -c "import sys; sys.exit(0 if $USABLE > $RAMP_ABOVE else 1)"; then
     -map "[v]" \
     -c:v libx264 -profile:v high -level 4.0 -preset slow -crf 21 \
     -movflags +faststart \
-    "$OUT_DIR/terminal-hero.mp4"
+    "$OUT_DIR/$OUT_NAME"
 else
   echo "export-terminal: ${USABLE}s of take — shipping it whole, at 1x"
   ffmpeg -y -ss "$TRIM_HEAD" -i "$WEBM" \
@@ -145,11 +153,11 @@ else
     -vf "fps=30,format=yuv420p" \
     -c:v libx264 -profile:v high -level 4.0 -preset slow -crf 21 \
     -movflags +faststart \
-    "$OUT_DIR/terminal-hero.mp4"
+    "$OUT_DIR/$OUT_NAME"
 fi
 
 ffprobe -v error -select_streams v:0 \
   -show_entries stream=width,height,r_frame_rate,pix_fmt \
   -show_entries format=duration,size \
-  -of default=noprint_wrappers=1 "$OUT_DIR/terminal-hero.mp4"
-ls -lh "$OUT_DIR/terminal-hero.mp4"
+  -of default=noprint_wrappers=1 "$OUT_DIR/$OUT_NAME"
+ls -lh "$OUT_DIR/$OUT_NAME"
