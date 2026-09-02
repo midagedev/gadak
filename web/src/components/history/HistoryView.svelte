@@ -230,7 +230,7 @@
 
     {#snippet trailing()}
       <div
-        class="flex h-control items-center gap-2 rounded-md border border-border-strong/70 bg-bg-elevated px-3 shadow-sm shadow-black/10 focus-within:border-accent/70"
+        class="flex h-control w-full min-w-0 max-w-[300px] items-center gap-2 rounded-md border border-border-strong/70 bg-bg-elevated px-3 shadow-sm shadow-black/10 focus-within:border-accent/70"
       >
         <Icon name="search" size={14} class="text-text-muted" />
         <!-- GDK-1088: an input clips its placeholder mid-word in a narrow

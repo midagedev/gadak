@@ -250,7 +250,7 @@
     </div>
 
     {#snippet trailing()}
-      <DocsFilter bind:value={filterText} />
+      <div class="w-full min-w-0 max-w-[300px]"><DocsFilter bind:value={filterText} /></div>
     {/snippet}
   </ColumnHeader>
 

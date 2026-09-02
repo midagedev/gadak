@@ -56,19 +56,21 @@
     </span>
   {/if}
   {@render children?.()}
-  {#if trailing}
-    <div class="ml-auto min-w-0 max-w-[300px] flex-1">{@render trailing()}</div>
-  {/if}
-  <button
-    type="button"
-    class="flex h-control-sm w-control-sm flex-none items-center justify-center rounded-md text-text-secondary hover:bg-bg-hover hover:text-text-primary {trailing
-      ? ''
-      : 'ml-auto'}"
-    onclick={onClose}
-    title={t('feed.backToList')}
-    aria-label={t('feed.backToList')}
-    data-testid={closeTestid}
-  >
-    <Icon name="arrow-left" size={15} />
-  </button>
+  <!-- The right edge: the screen's narrowing field or its one bulk action,
+       then the way back. One flex-1 group rather than auto margins on each,
+       because two auto margins split the free space between them and the
+       field would float mid-band. -->
+  <div class="ml-auto flex min-w-0 flex-1 items-center justify-end gap-2">
+    {@render trailing?.()}
+    <button
+      type="button"
+      class="flex h-control-sm w-control-sm flex-none items-center justify-center rounded-md text-text-secondary hover:bg-bg-hover hover:text-text-primary"
+      onclick={onClose}
+      title={t('feed.backToList')}
+      aria-label={t('feed.backToList')}
+      data-testid={closeTestid}
+    >
+      <Icon name="arrow-left" size={15} />
+    </button>
+  </div>
 </header>

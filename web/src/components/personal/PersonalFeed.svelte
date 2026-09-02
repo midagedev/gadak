@@ -1,6 +1,7 @@
 <script lang="ts">
   import { t, fieldLabel } from '../../lib/i18n'
   import Icon from '../ui/Icon.svelte'
+  import ColumnHeader from '../ui/ColumnHeader.svelte'
   import type { FeedFocus, FeedItem } from '../../lib/types'
   import { selection } from '../../stores/selection.svelte'
   import { me } from '../../stores/me.svelte'
@@ -117,10 +118,7 @@
 </script>
 
 <div class="flex h-full flex-col" data-skeleton={skeleton.attr}>
-  <header
-    class="flex flex-none flex-wrap items-center gap-2 border-b border-border-subtle px-3 py-2"
-  >
-    <h1 class="whitespace-nowrap text-body font-semibold text-text-primary">{t('feed.title')}</h1>
+  <ColumnHeader title={t('feed.title')} closeTestid="feed-close" onClose={() => me.closeFeed()}>
     {#if me.feedUnread.all > 0}
       <span
         class="min-w-5 rounded-full bg-accent px-1.5 py-0.5 text-center text-micro font-semibold text-white"
@@ -129,14 +127,16 @@
       </span>
     {/if}
 
+    <!-- p-1 + h-control-sm: the 32px segmented control every column header
+         uses (GDK-1339), so the feed's tabs stand as tall as Documents'. -->
     <div
-      class="ml-1 flex flex-none items-center gap-0.5 rounded-md bg-bg-elevated p-0.5 max-[760px]:order-last max-[760px]:ml-0 max-[760px]:w-full max-[760px]:overflow-x-auto"
+      class="ml-1 flex flex-none items-center gap-0.5 rounded-md bg-bg-elevated p-1 max-[760px]:order-last max-[760px]:ml-0 max-[760px]:w-full max-[760px]:overflow-x-auto"
     >
       {#each TABS as tab (tab.key)}
         {@const count = me.feedUnread[tab.key]}
         <button
           type="button"
-          class="flex min-h-6 items-center gap-1 rounded px-2 py-0.5 text-micro font-medium transition-colors {me.feedFocus ===
+          class="flex h-control-sm items-center gap-1 rounded px-2 text-micro font-medium {me.feedFocus ===
           tab.key
             ? 'bg-bg-active text-text-primary'
             : 'text-text-muted hover:text-text-secondary'}"
@@ -148,28 +148,20 @@
       {/each}
     </div>
 
-    <div class="flex-1"></div>
-    {#if me.feedUnread.all > 0}
-      <button
-        type="button"
-        onclick={() => me.markAllFeedRead()}
-        class="flex h-control-sm items-center gap-1 rounded-md px-2 text-micro text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary max-[760px]:w-control-sm max-[760px]:justify-center max-[760px]:px-0"
-        title={t('feed.markAllRead')}
-      >
-        <Icon name="check-check" size={14} />
-        <span class="max-[760px]:hidden">{t('feed.markAllRead')}</span>
-      </button>
-    {/if}
-    <button
-      type="button"
-      onclick={() => me.closeFeed()}
-      class="flex h-control-sm w-control-sm items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
-      title={t('feed.backToList')}
-      aria-label={t('feed.backToList')}
-    >
-      <Icon name="arrow-left" size={15} />
-    </button>
-  </header>
+    {#snippet trailing()}
+      {#if me.feedUnread.all > 0}
+        <button
+          type="button"
+          onclick={() => me.markAllFeedRead()}
+          class="flex h-control-sm flex-none items-center gap-1 rounded-md px-2 text-micro text-text-secondary hover:bg-bg-hover hover:text-text-primary max-[760px]:w-control-sm max-[760px]:justify-center max-[760px]:px-0"
+          title={t('feed.markAllRead')}
+        >
+          <Icon name="check-check" size={14} />
+          <span class="max-[760px]:hidden">{t('feed.markAllRead')}</span>
+        </button>
+      {/if}
+    {/snippet}
+  </ColumnHeader>
 
   <div class="min-h-0 flex-1 overflow-y-auto">
     {#if !me.identified}
