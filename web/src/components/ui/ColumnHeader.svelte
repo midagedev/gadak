@@ -41,7 +41,7 @@
 </script>
 
 <header
-  class="flex flex-none flex-wrap items-center gap-2 border-b border-border-strong/70 bg-bg-panel/35 px-3 py-2"
+  class="flex min-h-12 flex-none flex-wrap items-center gap-2 border-b border-border-strong/70 bg-bg-panel/35 px-3 py-2"
   data-testid="column-header"
 >
   {#if icon}
