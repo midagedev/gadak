@@ -98,6 +98,11 @@ hard-won 목록)와 `AGENTS.md`(스키마·쿼리)가 원본이다.
   쓰지 말고 `e2e/helpers.ts`의 것을 쓴다(접힘의 단일 소유자).
 - 게이트 단언 완화는 ①귀속 주석 ②정당한 파생 ③FAIL-first 증거 셋 모두
   있을 때만.
+- **`web/src/app.css` 의 `@theme` 토큰(색·모션·간격)을 건드렸으면 `npm run theme-check`
+  와 `node tools/token-catalog.mjs`(catalog.json 재생성·커밋)도 게이트다** (2026-09-02:
+  bg-hover 를 잉크 토큰으로 바꾼 뒤 로컬 go·typecheck·vitest·Playwright 432 전부
+  초록인 채로 CI 만 두 번 연속 빨갔다 — 첫 번째는 hex 전제, 두 번째는 카탈로그
+  불일치. 둘 다 CI 의 Theme check 잡만 본다).
 - 문서 사실성 가드: `tools/doc-checks.sh` (있으면 커밋 전 실행).
 - **origin 표면을 바꿨으면 `docs/SUPPORT_MATRIX.md`도 같은 커밋이다** (GDK-1300,
   2026-09-02). Jira·Linear·Built-in 세 열의 단일 소유자이고 README 둘은 링크만
