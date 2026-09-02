@@ -5,12 +5,6 @@
    * "Reset". Every value toggle writes the filters store (URL) → local refilter.
    */
   import { filters, type FacetValue } from '../../stores/filters.svelte'
-  import { views } from '../../stores/views.svelte'
-  import { write } from '../../stores/write.svelte'
-  import { me } from '../../stores/me.svelte'
-  import { emitJql } from '../../lib/api'
-  import { isHostedDemo, hasServerVerb } from '../../lib/config'
-  import { copyText } from '../../lib/copy-text'
   import { filterFields, negationOf, type MultiField, type NegationField, type RangeField } from '../../lib/view-config'
   import { t, fieldLabel } from '../../lib/i18n'
   import { onEscape, onOutsideClick } from '../../lib/dom-actions'
@@ -39,8 +33,6 @@
   let field = $state<Axis | null>(null)
   let dateField = $state<RangeField | null>(null)
   let valueQuery = $state('')
-  let saveOpen = $state(false)
-  let saveName = $state('')
 
   /** Whether the open axis has a negation twin (drives the per-value ⊘). */
   const negatable = $derived(!!field && !field.dynamic && !!negationOf(field.key as MultiField))
@@ -125,7 +117,6 @@
     open = false
     field = null
     dateField = null
-    saveOpen = false
   }
 
   // Spend Esc so one keystroke cannot also clear the detail panel.
@@ -134,67 +125,12 @@
   // svelte:window listener is registered first. The delegated onkeydown
   // below reaches the event while it still walks the focused trigger.
   function onEsc(e: KeyboardEvent) {
-    if (e.key !== 'Escape' || (!open && !saveOpen)) return
+    if (e.key !== 'Escape' || !open) return
     e.preventDefault()
     e.stopPropagation()
     closeAll()
   }
 
-  async function copyJql() {
-    if (isHostedDemo()) {
-      write.toast(t('filter.jqlNotAvailable'), 'info')
-      return
-    }
-    try {
-      const cfg = filters.currentConfig()
-      const res = await emitJql(cfg.filters, cfg.display, me.email)
-      if (!res.jql) {
-        write.toast(t('filter.jqlEmpty'), 'info')
-        return
-      }
-      if (!(await copyText(res.jql))) {
-        write.toast(t('clipboard.copyFailed'), 'error')
-        return
-      }
-      if (res.omitted?.length) {
-        write.toast(t('filter.jqlCopiedPartial', { omitted: res.omitted.join(', ') }), 'info')
-      } else {
-        write.toast(t('filter.jqlCopied'), 'success')
-      }
-    } catch {
-      write.toast(t('filter.jqlFailed'), 'error')
-    }
-  }
-
-  // GDK-437: the product picks the store. A server behind this bundle is
-  // where a view belongs (it follows the user across devices). The hosted
-  // demo has no server to write to, so it stays in this browser and says so.
-  const saveToServer = hasServerVerb('settings')
-
-  async function doSave() {
-    const name = saveName.trim()
-    if (!name) return
-    const config = filters.currentConfig()
-    if (saveToServer) {
-      try {
-        await views.addTeam(name, config)
-      } catch (e) {
-        // Never lose the view quietly: keep it in this browser and say so.
-        // The save did land (locally), so the dialog closes like a success —
-        // staying open would invite a second, duplicate personal save.
-        views.addPersonal(name, config)
-        write.toast(t('filter.saveServerFailed'), 'error')
-        console.warn('[filterbar] 서버 뷰 저장 실패, 브라우저 저장으로 폴백', e)
-        saveName = ''
-        saveOpen = false
-        return
-      }
-    } else {
-      views.addPersonal(name, config)
-    }
-    saveName = ''
-    saveOpen = false
-  }
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -202,7 +138,7 @@
   class="flex flex-wrap items-center gap-1.5"
   onkeydown={onEsc}
   use:onEscape={onEsc}
-  use:onOutsideClick={{ handler: closeAll, enabled: open || saveOpen }}
+  use:onOutsideClick={{ handler: closeAll, enabled: open }}
 >
   <!-- Active chips -->
   {#each filters.activeChips as chip (chip.field + (chip.value ?? ''))}
@@ -397,54 +333,6 @@
   </div>
 
   {#if filters.hasNarrowing}
-    <button
-      type="button"
-      class="inline-flex h-control-sm items-center rounded-md px-2 text-micro text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
-      onclick={() => void copyJql()}
-      data-testid="filter-copy-jql"
-      title={t('filter.copyJqlHelp')}
-    >
-      {t('filter.copyJql')}
-    </button>
-    <div class="relative">
-      <button
-        type="button"
-        class="inline-flex h-control-sm items-center rounded-md px-2 text-micro text-accent-text transition-colors hover:bg-accent-subtle/40"
-        onclick={() => (saveOpen = !saveOpen)}
-      >
-        {t('filter.saveAsView')}
-      </button>
-      {#if saveOpen}
-        <div
-          class="anim-enter absolute left-0 top-full z-30 mt-1 w-80 rounded-lg border border-border-strong bg-bg-elevated p-2 shadow-overlay"
-          data-testid="filter-save-popover"
-        >
-          <input
-            type="text"
-            bind:value={saveName}
-            placeholder={t('filter.viewName')}
-            class="mb-2 h-control-sm w-full rounded bg-bg-base px-2 text-body text-text-primary placeholder:text-text-muted focus:outline-none"
-            onkeydown={(e) => e.key === 'Enter' && doSave()}
-          />
-          <button
-            type="button"
-            class="h-control-sm w-full rounded bg-accent px-2 text-body font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-40"
-            disabled={!saveName.trim()}
-            data-testid="filter-save-view"
-            onclick={() => doSave()}
-          >
-            {t('filter.saveAsView')}
-          </button>
-          {#if !saveToServer}
-            <!-- Hosted demo: every non-GET is a 501 here, so the save stays
-                 browser-local and the popover says so. -->
-            <div class="mt-1.5 text-micro text-text-muted" data-testid="filter-save-local-hint">
-              {t('filter.saveDemoLocal')}
-            </div>
-          {/if}
-        </div>
-      {/if}
-    </div>
     {#if filters.hasUserChips}
       <button
         type="button"

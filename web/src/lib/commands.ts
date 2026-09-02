@@ -912,6 +912,16 @@ export const COMMANDS: readonly CommandDef[] = [
     },
   },
   {
+    id: 'a:copy-view-link',
+    chords: [],
+    palette: {
+      id: 'a:copy-view-link',
+      kind: 'always',
+      sort: 115,
+      labelKey: 'view.copyLink',
+    },
+  },
+  {
     id: 'a:sync-now',
     chords: [],
     palette: {

@@ -10,10 +10,11 @@ const gadakBin = path.join(here, '.tmp/gadak')
 const gadakHome = e2eHomeDir()
 
 test.describe('JQL paste', () => {
-  test('Enter on navigator JQL applies chips and Copy JQL emits them back', async ({
+  test('Enter on navigator JQL applies chips and Copy link carries them back as a navigator URL', async ({
     page,
   }) => {
     const errors = attachConsoleErrors(page)
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
     await gotoApp(page)
 
     const box = page.getByTestId('search-input')
@@ -21,19 +22,26 @@ test.describe('JQL paste', () => {
     await box.fill('project = NMA AND statusCategory = "In Progress"')
     await box.press('Enter')
 
-    await expect(page.getByTestId('filter-copy-jql')).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByTestId('view-copy-link')).toBeVisible({ timeout: 10_000 })
     await expect(page).toHaveURL(/pj=NMA/)
     await expect(page).toHaveURL(/sc=inprogress/)
 
     const emit = page.waitForResponse(
       (r) => r.url().includes('/jql/emit/') && r.request().method() === 'POST',
     )
-    await page.getByTestId('filter-copy-jql').click()
+    await page.getByTestId('view-copy-link').click()
     const res = await emit
     expect(res.ok()).toBeTruthy()
     const body = (await res.json()) as { jql: string }
     expect(body.jql).toContain('project = NMA')
     expect(body.jql).toMatch(/statusCategory = "In Progress"/)
+
+    // GDK-1343: the same three lines the issue detail copies — the origin's
+    // own address for this view (the navigator with the JQL), then the app.
+    const origin = new URL(page.url()).origin
+    const hash = new URL(page.url()).hash.replace(/^#\/?\??/, '')
+    const want = `https://nimbus.example.com/issues/?jql=${encodeURIComponent(body.jql)}\ngadak://view?${hash}\n${origin}/#/?${hash}`
+    await expect.poll(async () => page.evaluate(() => navigator.clipboard.readText())).toBe(want)
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })

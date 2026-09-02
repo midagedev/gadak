@@ -23,6 +23,7 @@ export interface PaletteActionHost {
   openIssueOrigin: (key: string) => void
   openNewIssue: () => void
   openSettings: () => void
+  copyViewLink: () => void
   openHistory: () => void
   openDocs: () => void
   toggleTerminal: () => void
@@ -72,6 +73,8 @@ function runAlways(id: string, host: PaletteActionHost): () => void {
   switch (id) {
     case 'a:settings':
       return host.openSettings
+    case 'a:copy-view-link':
+      return host.copyViewLink
     case 'a:history':
       return host.openHistory
     case 'a:docs':

@@ -46,30 +46,25 @@ export const list = {
     ko: '연 뒤에 바뀜',
     ja: '開いた後に変更あり',
   },
-  'filter.copyJql': {
-    en: 'Copy JQL',
-    ko: 'JQL 복사',
-    ja: 'JQL をコピー',
+  'filter.jqlNotAvailable': {
+    en: 'JQL needs the app or gadak serve',
+    ko: 'JQL은 앱 또는 gadak serve가 필요합니다',
+    ja: 'JQL にはアプリまたは gadak serve が必要です',
   },
-  'filter.copyJqlHelp': {
-    en: 'Copy this view as Jira JQL',
-    ko: '지금 뷰를 Jira JQL로 복사',
-    ja: 'このビューを Jira JQL としてコピー',
+  'filter.jqlFailed': {
+    en: 'Could not reach JQL. Check the connection and try again.',
+    ko: 'JQL에 연결하지 못했습니다. 연결을 확인한 뒤 다시 시도하세요.',
+    ja: 'JQL に到達できませんでした。接続を確認して再試行してください。',
   },
-  'filter.jqlCopied': {
-    en: 'Copied JQL',
-    ko: 'JQL을 복사했습니다',
-    ja: 'JQL をコピーしました',
+  'view.copyLink': {
+    en: 'Copy link to this view',
+    ko: '이 뷰 링크 복사',
+    ja: 'このビューのリンクをコピー',
   },
   'filter.jqlCopiedPartial': {
     en: 'Copied JQL (not in Jira: {omitted})',
     ko: 'JQL 복사 (Jira에 없는 항목: {omitted})',
     ja: 'JQL をコピーしました（Jira にない項目: {omitted}）',
-  },
-  'filter.jqlEmpty': {
-    en: 'Nothing here maps to JQL',
-    ko: 'JQL로 내보낼 필터가 없습니다',
-    ja: 'JQL に写せる項目がありません',
   },
   'filter.jqlApplied': {
     en: 'JQL filter applied',
@@ -86,18 +81,8 @@ export const list = {
     ko: 'JQL을 해석하지 못했습니다',
     ja: 'その JQL を解析できませんでした',
   },
-  'filter.jqlNotAvailable': {
-    en: 'JQL needs the app or gadak serve',
-    ko: 'JQL은 앱 또는 gadak serve가 필요합니다',
-    ja: 'JQL にはアプリまたは gadak serve が必要です',
-  },
   // Catch of emitJql/parseJql: json() throws ApiError on 4xx/5xx, fetch throws
   // on a dead connection. Patterned on write.jiraUnavailable.
-  'filter.jqlFailed': {
-    en: 'Could not reach JQL. Check the connection and try again.',
-    ko: 'JQL에 연결하지 못했습니다. 연결을 확인한 뒤 다시 시도하세요.',
-    ja: 'JQL に到達できませんでした。接続を確認して再試行してください。',
-  },
   // internal/jql/compile.go ErrNotJQL: URL has no jql= parameter.
   'filter.notJql': {
     en: 'URL has no jql= parameter',

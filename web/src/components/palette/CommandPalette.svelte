@@ -59,6 +59,7 @@
   import { runSyncNow } from '../../lib/sync-now'
   import { openIssueOrigin, openOriginUrl } from '../../lib/desktop-links'
   import { paletteActionItems } from '../../lib/command-palette'
+  import { copyViewLink } from '../list/copy-view-link'
   import type { IssueLite, Member, PageLite, SearchMatch } from '../../lib/types'
 import type { SettingsTab } from '../../lib/settings-tabs'
   import Icon, { type IconName } from '../ui/Icon.svelte'
@@ -629,6 +630,7 @@ import type { SettingsTab } from '../../lib/settings-tabs'
         openIssueOrigin: (key) => openIssueOrigin(key),
         openNewIssue: () => void write.openNewIssue(),
         openSettings: onOpenSettings,
+        copyViewLink: () => void copyViewLink(),
         openHistory: () => {
           // One show onto the column union (GDK-821) — whatever held the
           // column, feed included, is released by the same move.

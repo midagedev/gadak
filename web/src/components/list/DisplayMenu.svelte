@@ -4,6 +4,9 @@
    */
   import { t } from '../../lib/i18n'
   import { filters } from '../../stores/filters.svelte'
+  import { views } from '../../stores/views.svelte'
+  import { write } from '../../stores/write.svelte'
+  import { hasServerVerb } from '../../lib/config'
   import { onEscape, onOutsideClick } from '../../lib/dom-actions'
   import type { SortKey } from '../../lib/view-config'
   const BASE_SORTS: { k: SortKey; l: string }[] = [
@@ -27,6 +30,36 @@
   )
 
   let open = $state(false)
+  let saveOpen = $state(false)
+  let saveName = $state('')
+
+  // GDK-1343: saving a view is a display decision as much as a filter one —
+  // "All open, grouped by epic, by priority" has no chip to hang the door on.
+  // GDK-437: the product picks the store. A server behind this bundle is
+  // where a view belongs (it follows the user across devices). The hosted
+  // demo has no server to write to, so it stays in this browser and says so.
+  const saveToServer = hasServerVerb('settings')
+
+  async function doSave() {
+    const name = saveName.trim()
+    if (!name) return
+    const config = filters.currentConfig()
+    if (saveToServer) {
+      try {
+        await views.addTeam(name, config)
+      } catch (e) {
+        // Never lose the view quietly: keep it in this browser and say so.
+        views.addPersonal(name, config)
+        write.toast(t('filter.saveServerFailed'), 'error')
+        console.warn('[display-menu] 서버 뷰 저장 실패, 브라우저 저장으로 폴백', e)
+      }
+    } else {
+      views.addPersonal(name, config)
+    }
+    saveName = ''
+    saveOpen = false
+    open = false
+  }
 
   // Spend Esc so one keystroke cannot also clear the detail panel.
   // preventDefault is what DetailPanel declines; stopPropagation is what the
@@ -38,6 +71,7 @@
     e.preventDefault()
     e.stopPropagation()
     open = false
+    saveOpen = false
   }
 </script>
 
@@ -53,9 +87,12 @@
     class="inline-flex h-control items-center gap-1.5 rounded-md border border-border-strong/70 bg-bg-elevated px-2.5 text-body text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary"
     onclick={() => (open = !open)}
     title={t('sort.options')}
+    data-testid="display-menu"
   >
     <span>{t('sort.label')}</span>
-    <span class="text-text-muted">
+    <!-- The value is state, the palette door beside it is wayfinding: when the
+         toolbar runs short the value goes first, and the menu still says it. -->
+    <span class="text-text-muted @max-[1120px]:hidden">
       {[KEYS_SORT, RELEVANCE, ...BASE_SORTS].find((s) => s.k === filters.effectiveSort)?.l}
     </span>
   </button>
@@ -86,6 +123,41 @@
           {filters.display.dir === 'desc' ? t('sort.desc') : t('sort.asc')}
         </button>
       </div>
+
+      <div class="my-2 border-t border-border-subtle"></div>
+      {#if saveOpen}
+        <div data-testid="filter-save-popover">
+          <input
+            type="text"
+            bind:value={saveName}
+            placeholder={t('filter.viewName')}
+            class="mb-2 h-control-sm w-full rounded bg-bg-base px-2 text-body text-text-primary placeholder:text-text-muted focus:outline-none"
+            onkeydown={(e) => e.key === 'Enter' && doSave()}
+          />
+          <button
+            type="button"
+            class="h-control-sm w-full rounded bg-accent px-2 text-body font-medium text-white hover:opacity-90 disabled:opacity-40"
+            disabled={!saveName.trim()}
+            data-testid="filter-save-view"
+            onclick={() => doSave()}
+          >
+            {t('filter.saveAsView')}
+          </button>
+          {#if !saveToServer}
+            <div class="mt-1.5 text-micro text-text-muted" data-testid="filter-save-local-hint">
+              {t('filter.saveDemoLocal')}
+            </div>
+          {/if}
+        </div>
+      {:else}
+        <button
+          type="button"
+          class="flex h-control-sm w-full items-center rounded px-2 text-body text-accent-text hover:bg-accent-subtle/40"
+          onclick={() => (saveOpen = true)}
+        >
+          {t('filter.saveAsView')}
+        </button>
+      {/if}
     </div>
   {/if}
 </div>
