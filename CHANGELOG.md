@@ -2,7 +2,18 @@
 
 <sub>English · <a href="CHANGELOG.ko.md">한국어</a></sub>
 
-## Unreleased
+## v0.20.1 — 2026-09-03
+
+**A formatted body survives a markdown edit, and the toolbar is one door.**
+The editing source now carries a placeholder for every node markdown cannot
+say — a panel, a mention, an image, a coloured run — and the write puts each
+one back where its marker stands, so `gadak issue` → edit → `edit -m -` is
+lossless for an agent with a shell, and `--adf-file` is the raw path for one
+that wants the document itself. The list toolbar folds layout, sort, columns
+and "save as view" into one view-settings menu. Under those, a fix round:
+resolution on a Built-in close, the batch spelling of the edit flags, avatar
+initials, markers quoted in code, and the resize the kernel accepted but did
+not take.
 
 - **A Built-in workspace takes `close --resolution Duplicate`.** The seeded
   workflow's done transition now carries an optional resolution field on its
