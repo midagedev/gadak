@@ -23,7 +23,13 @@ import { listEssays } from '../lib/essays'
  */
 const SITE = 'https://gadak.dev'
 
-/** en path → the same page in ko. */
+/**
+ * en path → the same page in ko.
+ *
+ * /privacy/ is absent on purpose: it is the orphan page app-store listings
+ * point at (GDK-1380), not something a crawler should rank — no nav link, no
+ * sitemap line, no ko mirror.
+ */
 const PAGES: Array<{ en: string; ko: string; priority: string }> = [
   { en: '/', ko: '/ko/', priority: '1.0' },
   { en: '/install/', ko: '/ko/install/', priority: '0.8' },

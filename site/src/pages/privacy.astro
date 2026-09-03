@@ -1,0 +1,131 @@
+---
+import Base from '../layouts/Base.astro'
+// Orphan page on purpose: linked from nowhere on this site and absent from the
+// sitemap. It exists because app stores (Microsoft Store first, GDK-1380) ask
+// for a privacy-policy URL — the policy itself is the short version of
+// SECURITY.md, which stays the enforcement record. en-only: a store listing
+// needs one URL, and the store reviewer reads English.
+const security = 'https://github.com/midagedev/gadak/blob/main/SECURITY.md'
+const updated = '2026-09-03'
+---
+
+<Base
+  lang="en"
+  title="Privacy — gadak"
+  description="gadak has no account, no server, and no telemetry. What the app stores on your machine, the six places it can send bytes, and what this website records."
+  noAltLang
+>
+  <h1>Privacy</h1>
+  <p class="lede">
+    gadak is a local application. It mirrors an issue tracker you already have access to onto
+    your own disk and hands that mirror to tools you run yourself. There is no gadak account, no
+    gadak server, and no telemetry. Nothing you do in the app is reported to the maintainer.
+  </p>
+  <p class="note">
+    This page is the plain-language summary. The enforcement record — which file holds what, and
+    the line of code behind each claim — is <a href={security}>SECURITY.md</a>. Where the two
+    disagree, SECURITY.md is right. Last updated {updated}.
+  </p>
+
+  <h2 id="collect">What the maintainer collects</h2>
+  <p>
+    Nothing. The desktop app, the CLI, and the phone app send no usage data, crash reports,
+    identifiers, or content to the maintainer or to any analytics service. The maintainer has no
+    way to see that you installed gadak, which tracker you connected, or what it holds.
+  </p>
+
+  <h2 id="on-disk">What the app stores on your machine</h2>
+  <ul>
+    <li>
+      <strong>The mirror</strong> — a SQLite copy of the issues, comments, history, and wiki pages
+      your tracker account can already read, plus cached attachment bytes on demand. It is a
+      disposable cache: delete it and re-sync. Files are readable by your OS user only.
+    </li>
+    <li>
+      <strong>Your credential</strong> — the API token you typed at setup, in a config file with
+      owner-only permissions. It is sent only as the authorization header to the site you
+      configured, and is never written to the mirror, a log, or an error message.
+    </li>
+    <li>
+      <strong>Local history</strong> — which issues you opened and what you searched, kept in a
+      separate local file so it survives deleting the mirror. It is yours to export or delete.
+    </li>
+    <li>
+      <strong>A log file</strong> — diagnostic output with token values stripped before writing.
+      It never leaves the machine unless you paste it somewhere.
+    </li>
+    <li>
+      <strong>The built-in tracker</strong> — if you use gadak without an external tracker, the
+      issues you create live in one SQLite file in the workspace directory. That file is the only
+      copy anywhere; there is no cloud sync.
+    </li>
+  </ul>
+  <p>
+    Removing the gadak home directory removes all of the above. The macOS app additionally uses a
+    system web view to show tracker pages the mirror does not model; that view's cookie session
+    belongs to the operating system's web engine, and gadak neither reads nor stores it.
+  </p>
+
+  <h2 id="network">Where the app can send bytes</h2>
+  <p>Outbound traffic goes to exactly these destinations, and to no others:</p>
+  <ol>
+    <li>
+      <strong>The tracker you configured</strong> — your own Atlassian site, or Linear — over
+      HTTPS with your own token, to sync and to write back the comments, transitions, and edits
+      you make. The tracker's own privacy policy governs what happens there.
+    </li>
+    <li>
+      <strong>GitHub Releases</strong> — at most one anonymous request per day to check whether a
+      newer version exists. It carries no identifier and no local data, and can be turned off in
+      settings. Development builds never check.
+    </li>
+    <li>
+      <strong>A machine you paired with</strong> — if you bind a workspace to your own
+      <code>gadak serve</code> on another computer (typically over your private network), requests
+      go to that computer with the device token you minted there. That is your machine, not a
+      gadak-operated server.
+    </li>
+    <li>
+      <strong>Commands you invoke by hand</strong> — <code>gadak dev scan</code> runs the GitHub
+      CLI you already have configured, and <code>gadak dashboards lib add</code> downloads the one
+      URL you typed. Neither runs on a schedule.
+    </li>
+  </ol>
+  <p>
+    The local web UI listens on loopback only. The desktop app opens no network port at all.
+    Neither is reachable from other machines unless you configure it to be.
+  </p>
+
+  <h2 id="agents">Coding agents</h2>
+  <p>
+    gadak's purpose is to let an agent you run read your tracker's history. An agent that reads
+    the mirror will send what it reads to whatever model it talks to; that is the agent's data
+    flow, not gadak's, and it is the same exposure as pasting the issue into a chat window. If your
+    organization would not allow that, do not point an agent at that mirror.
+  </p>
+
+  <h2 id="website">This website</h2>
+  <p>
+    gadak.dev's marketing pages — this one included — load Cloudflare Web Analytics, a cookieless
+    page-view counter that stores nothing on your device and does not identify you across sites.
+    The live demo and the public backlog apps carry no analytics beacon. The site sets one
+    browser-storage key to remember your language choice, only after you pick one. Nothing here
+    asks for an account or an email address.
+  </p>
+
+  <h2 id="children">Children</h2>
+  <p>
+    gadak is a developer tool with no account and collects nothing, so there is no data about
+    anyone — of any age — for the maintainer to hold.
+  </p>
+
+  <h2 id="changes">Changes and contact</h2>
+  <p>
+    This page changes when the data flow changes, and the date at the top moves with it. The
+    project is maintained by one person; questions go to the
+    <a href="https://github.com/midagedev/gadak/issues">issue tracker</a>, and anything sensitive
+    to <a href="https://github.com/midagedev/gadak/security/advisories/new"
+      >private vulnerability reporting</a
+    >.
+  </p>
+</Base>
