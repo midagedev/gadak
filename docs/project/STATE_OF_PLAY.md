@@ -4,9 +4,26 @@
 "what the docs describe" and "what actually exists right now", written so a fresh
 session can start work without re-deriving anything.
 
-Last updated: 2026-08-26 — main at v0.18.1, **the patch where the terminal
-cleans up after itself**, same-day on top of **the release where the agent
-moves in** (0.18.0). `gadak serve` owns a PTY behind `/api/v1/terminal/` and one session core
+Last updated: 2026-09-03 — main at v0.20.0, **the release where the shell
+is in the window, and it is the issue's shell**: the terminal dock is a band
+across the whole window with a roster column on its left and an appearance
+of its own (dark under every theme, `follow` on request, a Settings →
+Terminal tab; the light palette declares its own ANSI sixteen), `gadak
+claim` typed in the pane names the roster tab after the issue, and the
+README and the landing show exactly that in gadak's own pane — the
+paper-terminal composites retired. A pass over the surface came with it
+(sidebar as a return path, one-row toolbar and 36px rows, one property list
+in the detail, one header band for every column screen, motion tokens,
+first-run copy), back works everywhere, and a mirror can leave for Linear
+(`migrate --to linear`), be backed up (`gadak backup`) or pair with the
+home origin's wiki. Two pre-tag audits ran — the GDK-1310 delta audit and
+GDK-1363 over the dock commits — and their findings landed before the tag
+(one keyboard regression, GDK-1364; the rest precision). The recording
+rigs migrate the demo mirror onto the built-in tracker so a claim on camera
+is a real write, which found migrate dropping status categories (GDK-1361).
+Under it, 0.18.1 (2026-08-26), **the patch where the terminal cleans up
+after itself**, same-day on top of **the release where the agent moves in**
+(0.18.0). `gadak serve` owns a PTY behind `/api/v1/terminal/` and one session core
 feeds three renderers — the web pane (xterm.js, the single web renderer since
 the ghostty-web default lost a measured shootout, GDK-1041 — parity on
 throughput, IME composition and alt-screen at 189 KB gzip heavier, so the
@@ -76,7 +93,7 @@ notify-only (banner + brew/dmg), and releases deliberately ship no
 rebuilt around `query` with error echoes, the three pipe contracts written
 down (`issues_full` + RECIPES, `gadak sql` stdout, `views open --keys -`),
 personal-row export/import, brew renamed so `gadak` is the app cask, and the
-first live benchmark (`docs/BENCHMARKS.md`). Last tagged: v0.19.3.
+first live benchmark (`docs/BENCHMARKS.md`). Last tagged: v0.20.0.
 
 ## In one paragraph
 

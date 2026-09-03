@@ -146,7 +146,7 @@ CLI 기동 포함, [방법론과 재측정 이력, gadak이 지는 행](docs/BEN
 
 </details>
 
-> **상태: 0.19, 아직 0.x입니다.** 동기화, 읽기 API, 쓰기 통과(write-through),
+> **상태: 0.20, 아직 0.x입니다.** 동기화, 읽기 API, 쓰기 통과(write-through),
 > 데스크톱, 웹, CLI, MCP가 실제 사이트에 대해 검증되어 있습니다.
 > [`CHANGELOG.ko.md`](CHANGELOG.ko.md).
 
