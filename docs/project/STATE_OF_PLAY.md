@@ -4,8 +4,18 @@
 "what the docs describe" and "what actually exists right now", written so a fresh
 session can start work without re-deriving anything.
 
-Last updated: 2026-09-03 — main at v0.20.0, **the release where the shell
-is in the window, and it is the issue's shell**: the terminal dock is a band
+Last updated: 2026-09-03 — main at v0.20.1, **the patch where a formatted
+body survives a markdown edit**: the editing source carries a placeholder
+for every node markdown cannot say (`<!-- adf:N:HASH … -->`, decision 0012
+addendum 1) and the write puts each back where its marker stands, so an
+agent's `gadak issue` → edit → `edit -m -` is lossless and `--adf-file` is
+the raw path; `gadak issue` prints markdown; the list toolbar is one
+view-settings menu; and a fix round closed resolution on a Built-in close,
+the batch spelling of the edit flags, avatar initials, markers quoted in
+code, and the terminal resize the kernel accepted but did not take (the
+week-old CI flake, caught by a read-back and fixed by re-issuing). Same-day
+on top of **the release where the shell is in the window, and it is the
+issue's shell** (0.20.0): the terminal dock is a band
 across the whole window with a roster column on its left and an appearance
 of its own (dark under every theme, `follow` on request, a Settings →
 Terminal tab; the light palette declares its own ANSI sixteen), `gadak
@@ -93,7 +103,7 @@ notify-only (banner + brew/dmg), and releases deliberately ship no
 rebuilt around `query` with error echoes, the three pipe contracts written
 down (`issues_full` + RECIPES, `gadak sql` stdout, `views open --keys -`),
 personal-row export/import, brew renamed so `gadak` is the app cask, and the
-first live benchmark (`docs/BENCHMARKS.md`). Last tagged: v0.20.0.
+first live benchmark (`docs/BENCHMARKS.md`). Last tagged: v0.20.1.
 
 ## In one paragraph
 
