@@ -4,147 +4,37 @@
 
 ## v0.20.1 — 2026-09-03
 
-**A formatted body survives a markdown edit, and the toolbar is one door.**
-The editing source now carries a placeholder for every node markdown cannot
-say — a panel, a mention, an image, a coloured run — and the write puts each
-one back where its marker stands, so `gadak issue` → edit → `edit -m -` is
-lossless for an agent with a shell, and `--adf-file` is the raw path for one
-that wants the document itself. The list toolbar folds layout, sort, columns
-and "save as view" into one view-settings menu. Under those, a fix round:
-resolution on a Built-in close, the batch spelling of the edit flags, avatar
-initials, markers quoted in code, and the resize the kernel accepted but did
-not take.
+**Bodies are markdown, and a formatted one survives the round trip.**
 
-- **A Built-in workspace takes `close --resolution Duplicate`.** The seeded
-  workflow's done transition now carries an optional resolution field on its
-  screen, as Cloud's default workflows do; issuetap screen-checks the way
-  Cloud does, so before this the flag bounced off "not on the appropriate
-  screen" — a Jira sentence about a screen this tracker does not have. A
-  workspace seeded before 0.20.1 keeps its old workflow and gets the refusal
-  in gadak's own words instead ([GDK-1347]).
-
-- `gadak edit --batch` takes the flags' spelling too: `label`, `component`
-  and `fix_version` are the same axes as `labels`, `components` and
-  `fix_versions`. Both spellings on one line is refused, not merged
-  ([GDK-1259]).
-
-- Avatar initials skip punctuation: the bot `Claude (build 1)` reads `CB`,
-  not `C(` ([GDK-1351]).
-
-- A placeholder marker quoted inside a code fence or a code span is text,
-  not a placeholder — the pre-write gate now reads the markdown the way the
-  substituting parser does, so a body that documents the markers (this
-  changelog, the skill) can be edited ([GDK-1398]).
-
-- **A terminal resize the kernel did not take is re-issued, not trusted.**
-  The desktop resize test flaked on CI for a week with the session believing
-  132×43 and the child answering 24 80. A read-back added this release
-  caught it in the act: TIOCSWINSZ returned success and TIOCGWINSZ on the
-  same master still read 80×24 (macOS arm64 runner). The resize owner now
-  reads the size back after every set and re-issues it, bounded, until the
-  kernel agrees; a size that never holds surfaces as an error instead of a
-  pane the shell disagrees with ([GDK-1192]).
-
-- **A formatted body can be edited as markdown without losing what
-  markdown cannot carry.** The editing source — `gadak issue`, the web
-  editor, `description_md` — now holds a placeholder for each such node:
-  `<!-- adf:1:… panel info -->` … `<!-- /adf:1 -->` around a panel's own
-  markdown, `<!-- adf:3:… mention @Dana -->` where a mention stands. Edit
-  the text around them and save: the write reads the body from the origin
-  and puts every node back where its marker is. Delete a marker and that
-  node goes, and the write says so; a marker from a body that changed since
-  you read it is refused, not written over. A draft with no markers at all
-  is still the plain replace `--force-plain` exists for. Coloured or
-  underlined runs are kept whole for now — their text is not editable in
-  place (decision 0012, addendum 1) ([GDK-1396]).
-
-- `gadak edit KEY --adf-file F` and `gadak comment KEY --adf-file F` send an
-  ADF document as it is — the lossless path for a body markdown cannot carry:
-  take `description_adf` from `gadak issue KEY --json`, change the document,
-  send it back. No format-loss guard runs, because no markdown is involved;
-  exclusive with `-m`. The page verbs had this since 0.17 ([GDK-1395]).
-
-- **`gadak issue` prints the markdown, not the flattened text.** The
-  description and every comment come out as the same markdown source the
-  web editor opens with — a heading is `##`, bold is `**`, a code block is
-  fenced — so what an agent reads is what `edit -m -` takes back, and the
-  round trip keeps the formatting instead of pressing it flat. `--json`
-  carries it as `description_md` and `body_md` beside the ADF ([GDK-1394]).
-
-- **One view-settings menu in the list toolbar** (sliders glyph) instead of
-  three controls: layout (list ⇄ board), sort and direction, visible columns
-  and "save as view" are one panel, because they were one object all along —
-  the view's display. The board toggle and the columns menu used to wear the
-  same three-column glyph a finger apart and read as one control. The panel
-  stays open while you adjust several things; the breakdown axis stays on the
-  breakdown strip beside the chips it governs. Layout is now two clicks away
-  instead of one ([GDK-1391]).
-
-- The breakdown axis for the tracker's own status is called "Status" and sits
-  right after "Progress", not "Jira status" as the last-but-one of fourteen —
-  a Built-in or Linear board has statuses too, and a reader who scanned for
-  the word stopped at the three buckets and reported the axis missing
-  ([GDK-1390]).
-
-- **Shells have names.** A new shell is "shell 3", not eight hex digits: the
-  server hands each session a creation ordinal it never reuses and the strip
-  says it in words ([GDK-1387]). Double-click a row, or press F2 on it, and
-  type a name of your own — Enter keeps, Esc drops, empty clears; the name
-  wins over the issue key on the row and the key stays beside it, because
-  the card-to-shell join reads the key, never the label ([GDK-1195]). And
-  the issue header grew a shell verb: press it on an issue with no shell and
-  the pane opens on a new one bound to that issue from its first prompt —
-  the binding `gadak claim` used to be the only way to make — press it on
-  an issue that has one and you are looking at that shell ([GDK-1388]).
-
-- **The detail reads every body as markdown, and the editor has a Preview.**
-  The server now decides what a body looks like: a description or comment
-  whose stored ADF is only typed text — an older `-m`, a migrated issue — is
-  read as the markdown it always was, so the 844 issues that rendered as one
-  grey wall since the cutover render as headings, lists and paragraphs with
-  no data touched; a Linear body, markdown on the wire, renders the same
-  way. A body Jira's editor formatted is shown as it is. The description
-  editor opens on the markdown the server hands it, the format-loss banner
-  names exactly what a save would drop (a panel, an inline image, a
-  mention) instead of refusing every heading, and both the description
-  editor and the comment composer have Write / Preview — the preview is the
-  document the save would store, rendered by the same server converter, so
-  the web carries no markdown parser of its own ([GDK-1385]).
-
-- Linear gets the formatting too: the writer serializes the document back
-  to markdown instead of flattening it to text, so a heading, a list or a
-  bold run typed into `comment` or `edit -m` on a Linear workspace arrives
-  in Linear as that markdown ([GDK-1386]).
-
-- **Bodies are markdown.** `create -m`, `edit -m`, `comment`, the page verbs,
-  the web description editor and comment composer all take markdown now and
-  send the ADF Jira and the Built-in tracker store — headings, lists,
-  blockquotes, fenced code, tables, bold, italics, strikethrough, links. A
-  blank line is a paragraph break and a single newline a line break, which
-  is also what turns the migrated walls back into their blocks. Reading a
-  body back for an edit returns the text as typed for a plain document and
-  an escaped serialization for a rich one, and the two directions are the
-  identity on that subset — pinned by golden tests. `edit -m` and `page edit`
-  refuse only what markdown cannot carry (panels, media, mentions, colours);
-  `--force-plain` and `--force` keep their names. The decision is
-  [`docs/decisions/0012`](docs/decisions/0012-markdown-is-the-editing-source.md)
-  ([GDK-1384], parent [GDK-1383]).
-
-- `migrate --from` carries every body as the origin's ADF, not as flattened
-  text: the Built-in tracker's fixture grew a `descriptionAdf` / `bodyAdf`
-  slot it stores verbatim, and the export fills it for descriptions,
-  comments, wiki pages and page comments. Before this, the 844 issues moved
-  at the cutover each arrived as one paragraph — headings, lists and blank
-  lines collapsed into a single text node — and the report called only code
-  blocks, media and tables a loss. The report now says what arrived
-  formatted ([GDK-1382]).
-
-- The Windows app has a Microsoft Store package: `desktop/build-windows.ps1
-  --msix` packs the same `gadak-desktop.exe` the zip ships into an unsigned
-  `.msix`, and the release workflow keeps it as an artifact for Partner
-  Center. The Store re-signs what it certifies, which is the one free route
-  past Smart App Control — the zip stays unsigned and unchanged, and nothing
-  is "on the Store" until a listing passes ([GDK-1380]).
+- Markdown in, ADF out. `create -m`, `edit -m`, `comment`, the page verbs and
+  the web editors take markdown — headings, lists, code, tables, links — and
+  store what Jira or the Built-in tracker holds
+  ([decision 0012](docs/decisions/0012-markdown-is-the-editing-source.md),
+  [GDK-1384], [GDK-1383]). The detail renders every body as markdown, so the
+  issues that showed as one grey wall since the cutover read as their blocks
+  again, and the editor has Write / Preview ([GDK-1385]). Linear gets the
+  same formatting on the wire ([GDK-1386]).
+- Lossless edit of a formatted body. `gadak issue` prints the markdown
+  ([GDK-1394]) with a placeholder for each node markdown cannot say — a
+  panel, a mention, an image, a coloured run — and `edit -m -` puts every
+  node back where its marker stands; delete a marker and that node goes, and
+  the write says so; a stale marker is refused ([GDK-1396]). `edit --adf-file`
+  and `comment --adf-file` send an ADF document as it is ([GDK-1395]).
+  `migrate --from` carries bodies as ADF, not flattened text ([GDK-1382]).
+- List toolbar: one view-settings menu for layout, sort, columns and "save
+  as view" — the board and columns buttons used to share a glyph
+  ([GDK-1391]). The status breakdown axis is "Status", second, on every
+  origin ([GDK-1390]).
+- Terminal: a shell is "shell 3", not eight hex digits; rename it with F2 or
+  a double-click; the issue header opens or focuses the issue's shell
+  ([GDK-1387], [GDK-1195], [GDK-1388]).
+- Windows: `build-windows.ps1 --msix` packs a Microsoft Store package; the
+  zip is unchanged ([GDK-1380]).
+- Fixes: `close --resolution` works on a new Built-in workspace
+  ([GDK-1347]); `edit --batch` takes `label` / `component` / `fix_version`
+  ([GDK-1259]); avatar initials skip punctuation ([GDK-1351]); placeholder
+  markers quoted in code are text ([GDK-1398]); a terminal resize the kernel
+  did not take is re-issued until it holds — the CI flake ([GDK-1192]).
 
 ## v0.20.0 — 2026-09-03
 
