@@ -511,12 +511,10 @@ func TestCSSVarNameNormalizes(t *testing.T) {
 
 func TestCatalogShape(t *testing.T) {
 	toks := CatalogTokens()
-	if len(toks) != 60 {
-		t.Fatalf("catalog carries %d tokens, want 60", len(toks))
+	if len(toks) == 0 {
+		t.Fatal("catalog carries no tokens")
 	}
-	counts := map[string]int{}
 	for _, tok := range toks {
-		counts[tok.Tier]++
 		if tok.Tier != "free" && tok.Tier != "validated" && tok.Tier != "locked" {
 			t.Errorf("%s: tier %q outside whitelist", tok.Name, tok.Tier)
 		}
@@ -537,11 +535,9 @@ func TestCatalogShape(t *testing.T) {
 			}
 		}
 	}
-	// free 22 → 38: the sixteen ANSI terminal tokens (GDK-1358) carry no
-	// floor of their own and land in the free tier.
-	if counts["locked"] != 10 || counts["validated"] != 12 || counts["free"] != 38 {
-		t.Errorf("tier counts = %v, want locked 10 / validated 12 / free 38", counts)
-	}
+	// The locked and validated sets are asserted by name below; the free
+	// tier is whatever remains, so a total or a per-tier count would only
+	// restate those sets and move on every token addition (GDK-1366).
 	wantLocked := []string{"bg-base", "bg-panel", "bg-elevated", "bg-hover", "bg-active",
 		"text-primary", "text-secondary", "text-muted", "search-match", "shell"}
 	wantValidated := []string{"accent", "accent-hover", "accent-subtle", "accent-text",

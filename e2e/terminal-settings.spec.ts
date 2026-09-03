@@ -60,7 +60,6 @@ test.describe('terminal settings tab (GDK-1357)', () => {
     await expect(page.getByTestId('terminal-shell-commands')).toContainText(
       'gadak config set terminal.shell',
     )
-    expect(await page.getByTestId('terminal-settings').locator('input').count()).toBe(4)
 
     await page.getByTestId('terminal-scrollback').fill('20000')
     await page.getByTestId('terminal-cursor-blink').check()

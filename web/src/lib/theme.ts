@@ -15,7 +15,7 @@
 import { getSettings } from './api'
 import { isHostedDemo } from './config'
 import type { MessageKey } from './i18n'
-import { queueSettingsPatch } from './settings-write'
+import { writeThroughLook } from './settings-write'
 import { themeStorageKey } from './storage'
 import { hydrateTerminalAppearance, readTerminalAppearance } from './terminal/appearance'
 
@@ -98,22 +98,13 @@ export function persistThemePreference(pref: ThemePreference): Promise<void> {
 }
 
 async function writeThroughTheme(pref: ThemePreference): Promise<void> {
-  try {
-    // The block also carries the terminal dock's appearance (GDK-1357);
-    // spread it so a theme click cannot reset that to its default.
-    await queueSettingsPatch((current) => ({
-      ...current,
-      appearance: { ...current.appearance, theme: pref },
-    }))
-  } catch {
-    try {
-      const { write } = await import('../stores/write.svelte')
-      const { t } = await import('./i18n')
-      write.toast(t('theme.savedLocally'), 'info')
-    } catch {
-      console.warn('gadak: theme saved locally only')
-    }
-  }
+  // The block also carries the terminal dock's appearance (GDK-1357);
+  // spread it so a theme click cannot reset that to its default.
+  await writeThroughLook(
+    (current) => ({ ...current, appearance: { ...current.appearance, theme: pref } }),
+    'theme.savedLocally',
+    'theme',
+  )
 }
 
 /**

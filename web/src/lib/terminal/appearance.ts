@@ -15,9 +15,10 @@
  * settings document, which the server owns.
  */
 
+import { TERMINAL_THEME_ATTR } from './protocol'
 import type { GadakSettings } from '../api'
 import type { MessageKey } from '../i18n'
-import { queueSettingsPatch } from '../settings-write'
+import { writeThroughLook } from '../settings-write'
 import { themeStorageKey } from '../storage'
 
 export const TERMINAL_APPEARANCES = [
@@ -28,7 +29,7 @@ export const TERMINAL_APPEARANCES = [
 export type TerminalAppearance = (typeof TERMINAL_APPEARANCES)[number]['name']
 
 /** The attribute on <html>. The stylesheet keys on its absence == dark. */
-export const TERMINAL_THEME_ATTR = 'data-terminal-theme'
+export { TERMINAL_THEME_ATTR }
 
 /** Missing or unknown values are dark (the product default). */
 export function parseTerminalAppearance(raw: unknown): TerminalAppearance {
@@ -74,22 +75,11 @@ export function applyTerminalAppearanceAtBoot(): void {
  *  sibling theme field, which the same block carries. */
 export async function persistTerminalAppearance(pref: TerminalAppearance): Promise<void> {
   setTerminalAppearance(pref)
-  try {
-    await queueSettingsPatch((current) => ({
-      ...current,
-      appearance: { ...current.appearance, terminal: pref },
-    }))
-  } catch {
-    // Same road as the theme picker: the look already applied locally,
-    // the server did not take it — say so once instead of failing silently.
-    try {
-      const { write } = await import('../../stores/write.svelte')
-      const { t } = await import('../i18n')
-      write.toast(t('settings.terminalSavedLocally'), 'info')
-    } catch {
-      console.warn('gadak: terminal appearance saved locally only')
-    }
-  }
+  await writeThroughLook(
+    (current) => ({ ...current, appearance: { ...current.appearance, terminal: pref } }),
+    'settings.terminalSavedLocally',
+    'terminal appearance',
+  )
 }
 
 /** After first paint, from the settings GET the theme hydrate already made:

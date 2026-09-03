@@ -40,7 +40,7 @@
     type SocketHandle,
     type UnavailableCause,
   } from '../../lib/terminal/session'
-  import {
+  import { TERMINAL_OVERLAY_ROSTER_PX,
     TERMINAL_MIN_HEIGHT_PX,
     TERMINAL_MIN_WIDTH_PX,
     terminalChrome,
@@ -562,7 +562,7 @@
 
 <aside
   class="flex min-h-0 w-full min-w-0 flex-row overflow-hidden bg-bg-base {overlay
-    ? 'fixed top-0 right-0 bottom-0 h-full border-l border-border-subtle'
+    ? 'terminal-sheet fixed top-0 right-0 bottom-0 h-full border-l border-border-subtle'
     : 'relative border-t border-border-subtle'}"
   class:select-none={dragging}
   style={overlay
@@ -591,6 +591,7 @@
   -->
   <div
     class="terminal-roster flex flex-none flex-col border-r border-border-subtle bg-bg-panel"
+    style:width={overlay ? `${TERMINAL_OVERLAY_ROSTER_PX}px` : undefined}
     data-testid="terminal-chrome"
   >
     <div class="flex h-7 flex-none items-center pr-2 pl-4">

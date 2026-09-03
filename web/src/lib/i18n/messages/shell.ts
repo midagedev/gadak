@@ -223,7 +223,7 @@ export const shell = {
   },
   'terminal.strip.state.ghost': {
     en: 'Unwatched',
-    ko: '유령',
+    ko: '보는 사람 없음',
     ja: '見ていない',
   },
   'terminal.strip.start': {

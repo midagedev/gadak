@@ -4,13 +4,13 @@
  */
 
 import {
-  TERMINAL_DEFAULT_HEIGHT_RATIO,
   TERMINAL_HEIGHT_KEY,
-  TERMINAL_MAX_HEIGHT_RATIO,
   TERMINAL_MIN_HEIGHT_PX,
   TERMINAL_OVERLAY_MAX_PX,
   TERMINAL_SPLIT_WITH_DETAIL_MIN_PX,
   terminalIsNarrow,
+  dockDefaultHeight,
+  dockMaxHeight,
 } from './layout'
 
 // Geometry constants live in ./layout (no runes there); re-exported because
@@ -30,18 +30,12 @@ function readStoredHeight(): number {
 
 function defaultHeight(): number {
   if (typeof window === 'undefined') return TERMINAL_MIN_HEIGHT_PX
-  return Math.max(
-    TERMINAL_MIN_HEIGHT_PX,
-    Math.round(window.innerHeight * TERMINAL_DEFAULT_HEIGHT_RATIO),
-  )
+  return dockDefaultHeight(window.innerHeight)
 }
 
 function maxHeight(): number {
   if (typeof window === 'undefined') return Number.MAX_SAFE_INTEGER
-  return Math.max(
-    TERMINAL_MIN_HEIGHT_PX,
-    Math.round(window.innerHeight * TERMINAL_MAX_HEIGHT_RATIO),
-  )
+  return dockMaxHeight(window.innerHeight)
 }
 
 class TerminalChrome {

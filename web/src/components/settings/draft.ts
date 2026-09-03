@@ -218,12 +218,14 @@ export function withTerminalTokens(
   const tokens: UITokens = { ...(ui?.tokens ?? {}) }
   const type = { ...(tokens.type ?? {}) }
   const fonts = { ...(tokens.fonts ?? {}) }
-  // Both arrive from <input type="number"> bindings, which hand back a
-  // number once the field holds one — so coerce before trimming.
-  const size = String(fontSizeText ?? '').trim()
+  // Text inputs (inputmode=numeric), so these are strings by contract — a
+  // type="number" binding once handed back a number here and the coercion
+  // hid it (v0.20 audit, GDK-1368). Out-of-range sizes are the server's
+  // to judge: it warns and saves (docs/CONFIGURATION.md).
+  const size = fontSizeText.trim()
   if (size) type.terminal = /^\d+(\.\d+)?$/.test(size) ? `${size}px` : size
   else delete type.terminal
-  const family = String(fontFamily ?? '').trim()
+  const family = fontFamily.trim()
   if (family) fonts['mono-terminal'] = family
   else delete fonts['mono-terminal']
   if (Object.keys(type).length) tokens.type = type

@@ -479,11 +479,10 @@ test.describe('terminal shots', () => {
   })
 
   /*
-   * 2026-09-02 — GDK-1352. The first open is a band, not a half-screen: with
-   * nothing stored, the dock takes TERMINAL_DEFAULT_HEIGHT_RATIO of the window
-   * (a quarter — the height the promo clips' paper terminal has always had).
-   * A constant with no check drifts back; this is the one that fails when it
-   * does (0.4 reads here as 40%, outside the band).
+   * 2026-09-02 — GDK-1352. The first open is a band, not a half-screen. The
+   * e2e that pinned the 22–28% band here proved one constant through a whole
+   * browser; it lives as a unit test now (web/src/lib/terminal/layout.test.ts,
+   * GDK-1376). The "not too tall" test above still measures the real dock.
    */
   /*
    * 2026-09-02 — GDK-1354. xterm 6 paints its theme background on the
@@ -505,17 +504,6 @@ test.describe('terminal shots', () => {
       pane.locator('.xterm-viewport').evaluate((el) => getComputedStyle(el).backgroundColor),
     ])
     expect(viewportBg, 'viewport ground is the pane ground').toBe(paneBg)
-  })
-
-  test('the dock opens as a band by default', async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 900 })
-    await boot(page)
-    await openPane(page)
-    const dockBox = await page.getByTestId('terminal-pane').boundingBox()
-    expect(dockBox, 'dock box').not.toBeNull()
-    const ratio = dockBox!.height / 900
-    expect(ratio, `dock opened at ${Math.round(ratio * 100)}% of the window`).toBeGreaterThan(0.22)
-    expect(ratio, `dock opened at ${Math.round(ratio * 100)}% of the window`).toBeLessThan(0.28)
   })
 
   /*

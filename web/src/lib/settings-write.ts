@@ -33,3 +33,25 @@ async function writeThrough(patch: (current: GadakSettings) => GadakSettings): P
   const current = await getSettings()
   await putSettings(patch(current))
 }
+
+/** A look write-through: the value already applied locally; if the server
+ *  does not take it, say so once with `toastKey` instead of failing
+ *  silently. One road for the theme picker and the dock appearance (they
+ *  had two copies of it — v0.20 audit, GDK-1377). */
+export async function writeThroughLook(
+  patch: (current: GadakSettings) => GadakSettings,
+  toastKey: 'theme.savedLocally' | 'settings.terminalSavedLocally',
+  warnLabel: string,
+): Promise<void> {
+  try {
+    await queueSettingsPatch(patch)
+  } catch {
+    try {
+      const { write } = await import('../stores/write.svelte')
+      const { t } = await import('./i18n')
+      write.toast(t(toastKey), 'info')
+    } catch {
+      console.warn(`gadak: ${warnLabel} saved locally only`)
+    }
+  }
+}

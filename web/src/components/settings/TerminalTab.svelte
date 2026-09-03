@@ -80,9 +80,8 @@
         <span class="text-micro text-text-secondary">{t('settings.terminalFontSize')}</span>
         <input
           class="{INPUT_BARE} w-24"
-          type="number"
-          min="9"
-          max="24"
+          type="text"
+          inputmode="numeric"
           placeholder="13"
           data-testid="terminal-font-size"
           bind:value={draft.terminalFontSizeText}
@@ -113,9 +112,8 @@
       <span class="text-micro text-text-secondary">{t('settings.terminalScrollback')}</span>
       <input
         class="{INPUT_BARE} w-full"
-        type="number"
-        min="200"
-        max="100000"
+        type="text"
+        inputmode="numeric"
         placeholder="5000"
         data-testid="terminal-scrollback"
         bind:value={draft.terminalScrollbackText}

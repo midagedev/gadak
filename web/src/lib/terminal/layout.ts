@@ -35,6 +35,22 @@ export const TERMINAL_DEFAULT_HEIGHT_RATIO = 0.25
  */
 export const TERMINAL_MAX_HEIGHT_RATIO = 0.7
 
+/** The dock's first-open height for a window this tall: a quarter, never
+ *  under the minimum. Pure, so it is a unit test, not an e2e (GDK-1376). */
+export function dockDefaultHeight(innerHeight: number): number {
+  return Math.max(TERMINAL_MIN_HEIGHT_PX, Math.round(innerHeight * TERMINAL_DEFAULT_HEIGHT_RATIO))
+}
+
+/** The dock's ceiling for a window this tall. */
+export function dockMaxHeight(innerHeight: number): number {
+  return Math.max(TERMINAL_MIN_HEIGHT_PX, Math.round(innerHeight * TERMINAL_MAX_HEIGHT_RATIO))
+}
+
+/** The roster column in the overlay regime (<900px): no sidebar above it to
+ *  align with, so a fixed narrow track. Owned here with the other pane
+ *  dimensions rather than as a CSS literal (GDK-1370). */
+export const TERMINAL_OVERLAY_ROSTER_PX = 160
+
 /*
  * Still the pane's minimum *width*, and still the number the narrow rule
  * below is derived from: an overlay pane covers the content track, so the

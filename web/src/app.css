@@ -795,9 +795,6 @@
     width: var(--layout-sidebar, 272px);
   }
 
-  [data-overlay] .terminal-roster {
-    width: 160px;
-  }
 
   /*
     The browser pane (desktop app).
@@ -1220,6 +1217,17 @@
     .browse-pane {
       --layout-sidebar: var(--layout-sidebar-narrow, 208px);
       left: var(--layout-sidebar, 272px);
+    }
+
+    /*
+      The terminal's overlay sheet (<900px, TerminalPane.svelte) sets its own
+      `left: var(--layout-sidebar)` inline and, like the browse pane, has no
+      sidebar ancestor to inherit the step from: without this it read the
+      root's 272px beside a 208px sidebar and left a 64px strip of content
+      showing between them (GDK-1371).
+    */
+    .terminal-sheet {
+      --layout-sidebar: var(--layout-sidebar-narrow, 208px);
     }
 
     .browse-reentry {

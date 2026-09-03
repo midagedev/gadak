@@ -288,16 +288,16 @@ test('app.css consumes the tokens and never restates their px', () => {
    * var() form.
    */
   const narrow = mediaBody('@media (max-width: 760px)')
-  const steps = [
-    ...narrow.body.matchAll(/--layout-sidebar:\s*var\(--layout-sidebar-narrow, 208px\)/g),
-  ]
-  expect(
-    steps.length,
-    'every narrow-step redefinition channels --layout-sidebar-narrow (GDK-849)',
-  ).toBe(4)
-  expect(narrow.body, 'no bare literal narrow step survives').not.toContain(
-    '--layout-sidebar: 208px',
-  )
+  // The property, not a count of consumers (GDK-1366): every redefinition
+  // of the step in the narrow block channels the override var, whatever
+  // surface it is on — sidebar, browse pane, roster, terminal sheet.
+  const decls = [...narrow.body.matchAll(/--layout-sidebar:\s*([^;]+);/g)].map((m) => m[1].trim())
+  expect(decls.length, 'the narrow block redefines the step somewhere').toBeGreaterThan(0)
+  for (const value of decls) {
+    expect(value, 'every narrow-step redefinition channels --layout-sidebar-narrow (GDK-849)').toBe(
+      'var(--layout-sidebar-narrow, 208px)',
+    )
+  }
   expect(
     CSS_CODE,
     'the four JS-owned track tokens are never defined as px anywhere (GDK-849 closed the narrow exception)',

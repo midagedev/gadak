@@ -301,12 +301,11 @@ async function createXtermRenderer(): Promise<BehaviorTerminalRenderer> {
   // just at construction. xterm takes a whole theme object at runtime, so
   // this is a replace, not a patch — chrome and ANSI slots alike, since
   // GDK-1358 made the sixteen tokens too.
-  const chromeWatch = watchChromeVars(
-    () => JSON.stringify(chromeTheme(scope)),
-    () => {
-      term.options.theme = chromeTheme(scope)
-    },
-  )
+  // Created in open(), once the pane's host exists: the tokens are read
+  // off that host (GDK-1357), so a watcher built here would seed its
+  // baseline from <html> and drop the first real change as "no change" —
+  // the v0.19 shape needed a sync() re-seed to paper over exactly that.
+  let chromeWatch: { stop(): void } | null = null
   // Exposed from creation, not open(): the hook mirrors the live terminal,
   // which exists before a host does (unit tests applyBehavior with no DOM).
   exposeTerm(term)
@@ -373,7 +372,13 @@ async function createXtermRenderer(): Promise<BehaviorTerminalRenderer> {
       term.open(host)
       scope = host
       term.options.theme = chromeTheme(scope)
-      chromeWatch.sync()
+      chromeWatch?.stop()
+      chromeWatch = watchChromeVars(
+        () => JSON.stringify(chromeTheme(scope)),
+        () => {
+          term.options.theme = chromeTheme(scope)
+        },
+      )
       if (term.element) {
         term.element.style.height = '100%'
         term.element.style.width = '100%'
@@ -395,7 +400,7 @@ async function createXtermRenderer(): Promise<BehaviorTerminalRenderer> {
       term.focus()
     },
     dispose() {
-      chromeWatch.stop()
+      chromeWatch?.stop()
       unData.dispose()
       unResize.dispose()
       fitAddon.dispose()

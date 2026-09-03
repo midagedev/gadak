@@ -1382,9 +1382,9 @@ export const settings = {
     ja: '文字',
   },
   'settings.terminalFontSize': {
-    en: 'Font size (px, 9–24)',
-    ko: '글자 크기 (px, 9–24)',
-    ja: '文字サイズ (px, 9–24)',
+    en: 'Font size (px)',
+    ko: '글자 크기 (px)',
+    ja: '文字サイズ (px)',
   },
   'settings.terminalFontFamily': {
     en: 'Font family',
@@ -1392,9 +1392,9 @@ export const settings = {
     ja: 'フォント',
   },
   'settings.terminalTextDesc': {
-    en: 'Empty means the default. A terminal that is already open keeps its text until it is opened again.',
-    ko: '비우면 기본값입니다. 이미 열린 터미널은 다시 열 때까지 이전 글자를 유지합니다.',
-    ja: '空欄は既定値です。すでに開いているターミナルは、次に開くまで以前の文字のままです。',
+    en: 'Saved with the form. Empty means the default; size between 9 and 24, larger or smaller saves with a warning. A terminal that is already open keeps its text until it is opened again.',
+    ko: '저장 버튼으로 반영됩니다. 비우면 기본값, 크기는 9–24 사이이며 벗어나면 경고와 함께 저장됩니다. 이미 열린 터미널은 다시 열 때까지 이전 글자를 유지합니다.',
+    ja: '保存で反映されます。空欄は既定値、サイズは 9〜24 で、外れると警告付きで保存されます。すでに開いているターミナルは、次に開くまで以前の文字のままです。',
   },
   'settings.terminalBehavior': {
     en: 'Behavior',
@@ -1407,9 +1407,9 @@ export const settings = {
     ja: 'スクロールバック (行)',
   },
   'settings.terminalScrollbackDesc': {
-    en: 'Empty means 5000. Between 200 and 100000.',
-    ko: '비우면 5000. 200–100000 사이.',
-    ja: '空欄は 5000。200〜100000 の範囲。',
+    en: 'Empty means 5000; between 200 and 100000, anything else is refused on Save.',
+    ko: '비우면 5000. 200–100000 사이이며 벗어나면 저장이 거절됩니다.',
+    ja: '空欄は 5000。200〜100000 の範囲で、外れると保存が拒否されます。',
   },
   'settings.terminalCursorBlink': {
     en: 'Blinking cursor',

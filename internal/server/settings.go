@@ -218,7 +218,12 @@ type settingsConfluenceDoc struct {
 }
 
 // settingsTerminalDoc is the terminal block as the settings document carries
-// it: the two display fields, stored values (0 / false = default). See the
+// it: the two display fields, stored values (0 / false = default) — unlike
+// appearance, which GET fills with the effective value. Chosen, not
+// accidental (GDK-1365): the form round-trips what is stored, so an empty
+// scrollback field stays "default" rather than freezing 5000 into the
+// config; the default number the placeholder shows is the one duplicate
+// that buys (config.DefaultTerminalScrollback). See the
 // Terminal field comment for why shell and workingDir are absent. Present
 // means the whole display pair is replaced — omit-to-preserve is block-
 // granular, like `ui`; a body with only scrollback resets cursorBlink.

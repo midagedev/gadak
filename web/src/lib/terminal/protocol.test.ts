@@ -106,7 +106,11 @@ describe('GDK-1109 chrome-variable parity (protocol ⟷ app.css ⟷ renderers)',
     }
     const src = readFileSync(resolve(HERE, 'renderer.ts'), 'utf8')
     expect(src, 'renderer.ts must read the ANSI slots through TERMINAL_ANSI_VARS').toContain(
-      'TERMINAL_ANSI_VARS[slot]',
+      'TERMINAL_ANSI_VARS',
+    )
+    // The property, not the loop's spelling: no slot is named by hand.
+    expect(src, 'renderer.ts must not spell an --color-ansi-* token itself').not.toContain(
+      "'--color-ansi-",
     )
   })
 
@@ -167,7 +171,6 @@ describe('GDK-1156 chrome watcher, without a document', () => {
       },
     )
     expect(reads).toBe(0)
-    expect(() => w.sync()).not.toThrow()
     expect(reads).toBe(0)
     expect(() => w.stop()).not.toThrow()
   })

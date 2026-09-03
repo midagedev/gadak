@@ -64,10 +64,7 @@ describe('terminal tab draft', () => {
     })
     // A unit the user typed themselves is passed through for the server to judge.
     expect(withTerminalTokens(undefined, '1.2rem', '').tokens?.type?.terminal).toBe('1.2rem')
-    // <input type="number"> binds a number, not a string (the e2e caught
-    // `e.trim is not a function` on Save).
-    expect(
-      withTerminalTokens(undefined, 15 as unknown as string, '').tokens?.type?.terminal,
-    ).toBe('15px')
+    // Text inputs bind strings (GDK-1368): a bare number gets its unit.
+    expect(withTerminalTokens(undefined, '15', '').tokens?.type?.terminal).toBe('15px')
   })
 })

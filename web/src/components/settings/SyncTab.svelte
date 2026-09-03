@@ -108,7 +108,7 @@
       {#if draft.syncPreset === -1}
         <input
           class="{INPUT_BARE} w-28"
-          type="number"
+          type="text" inputmode="numeric"
           min="15"
           step="1"
           bind:value={draft.syncCustomText}
@@ -145,7 +145,7 @@
       {#if draft.reconcilePreset === -1}
         <input
           class="{INPUT_BARE} w-28"
-          type="number"
+          type="text" inputmode="numeric"
           min="300"
           step="1"
           bind:value={draft.reconcileCustomText}
@@ -165,7 +165,7 @@
 
   <label class="flex max-w-[200px] flex-col gap-1">
     <span class="text-micro text-text-secondary">{t('settings.staleHours')}</span>
-    <input class={INPUT} type="number" min="1" bind:value={draft.staleText} />
+    <input class={INPUT} type="text" inputmode="numeric" min="1" bind:value={draft.staleText} />
     <span class="text-micro text-text-muted">
       {t('settings.staleHint')}
     </span>
