@@ -55,9 +55,19 @@ for f in "$DIR"/detail/*.json; do
   jq -e '(.attachments == []) and (.comments == [])
      and (.history == []) and (.bodies == {})' "$f" >/dev/null \
     || fail "other people's content survived the scrub in $f"
+  # The allowlist is decision 0012's markdown subset (internal/adf/adf.go
+  # markdownTypes + markdownMarks): since GDK-1385 the export renders a typed
+  # body as the markdown it is, so `bd ready` and **bold** arrive as code and
+  # strong marks. FAIL-first: the 2026-09-03 snapshot failed on GDK-1008 with
+  # "code strong" under the old doc/paragraph/text/hardBreak list. mention,
+  # media, inlineCard and every other origin-only node stay refused — those
+  # are the channels an account id, an attachment id or a site host leaks by.
   bad="$(jq -r '[.description_adf // {} | .. | objects | select(has("type")) | .type]
-     - ["doc","paragraph","text","hardBreak"] | unique | join(" ")' "$f")"
-  [ -z "$bad" ] || fail "description in $f carries node types beyond plain prose: $bad"
+     - ["doc","paragraph","text","hardBreak","codeBlock","heading","rule",
+        "bulletList","orderedList","listItem","blockquote",
+        "table","tableRow","tableHeader","tableCell",
+        "strong","em","code","strike","link"] | unique | join(" ")' "$f")"
+  [ -z "$bad" ] || fail "description in $f carries node types beyond the markdown subset: $bad"
   unpublished="$(jq -r --argjson pub "$PUBKEYS" \
      '[.linked_issues // [] | .[].key | select(. as $k | $pub | index($k) | not)] | unique | join(" ")' "$f")"
   [ -z "$unpublished" ] || fail "link in $f targets an unpublished issue: $unpublished"

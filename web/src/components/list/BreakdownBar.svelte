@@ -9,6 +9,9 @@
 
   const ALL_OPTIONS: { key: GroupBy; label: string }[] = [
     { key: 'status_category', label: t('group.byStatusCategory') },
+    // Right after the three-bucket axis: it is the same question asked finer,
+    // and last-but-one is where a reader stopped looking (GDK-1390).
+    { key: 'status', label: t('group.byStatus') },
     { key: 'product', label: t('group.byProduct') },
     { key: 'team_group', label: t('group.byTeam') },
     { key: 'assignee', label: t('group.byAssignee') },
@@ -20,7 +23,6 @@
     { key: 'qa_impact', label: t('group.byQaImpact') },
     { key: 'source_project', label: t('group.bySourceProject') },
     { key: 'epic', label: t('group.byEpic') },
-    { key: 'status', label: t('group.byStatus') },
     { key: 'none', label: t('group.sectionNone') },
   ]
   // Disabled-feature axes (team/product/QA impact) are omitted from the options.

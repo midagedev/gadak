@@ -4,6 +4,12 @@
 
 ## Unreleased
 
+- The breakdown axis for the tracker's own status is called "Status" and sits
+  right after "Progress", not "Jira status" as the last-but-one of fourteen —
+  a Built-in or Linear board has statuses too, and a reader who scanned for
+  the word stopped at the three buckets and reported the axis missing
+  ([GDK-1390]).
+
 - **Shells have names.** A new shell is "shell 3", not eight hex digits: the
   server hands each session a creation ordinal it never reuses and the strip
   says it in words ([GDK-1387]). Double-click a row, or press F2 on it, and
@@ -1486,3 +1492,4 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-1195]: https://gadak.dev/backlog/#/?ks=GDK-1195
 [GDK-1387]: https://gadak.dev/backlog/#/?ks=GDK-1387
 [GDK-1388]: https://gadak.dev/backlog/#/?ks=GDK-1388
+[GDK-1390]: https://gadak.dev/backlog/#/?ks=GDK-1390

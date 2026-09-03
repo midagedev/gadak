@@ -493,9 +493,9 @@ test.describe('hero desk demo', () => {
       .click()
     await page.keyboard.press('Escape')
 
-    // Then the board's own summary: section the list by Jira status.
+    // Then the board's own summary: section the list by status.
     await page.getByRole('button', { name: /Breakdown/ }).click()
-    await page.getByRole('button', { name: 'Jira status', exact: true }).click()
+    await page.getByRole('button', { name: 'Status', exact: true }).click()
     mark('bit6_grouped_status')
 
     if (DRY) {

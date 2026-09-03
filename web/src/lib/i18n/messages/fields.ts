@@ -523,10 +523,12 @@ export const fields = {
     ko: '에픽',
     ja: 'エピック',
   },
+  // The tracker's own status, whatever the origin (Jira, Linear, Built-in) —
+  // "Jira status" named one origin on every board (GDK-1390).
   'group.byStatus': {
-    en: 'Jira status',
-    ko: 'Jira 상태',
-    ja: 'Jira ステータス',
+    en: 'Status',
+    ko: '상태',
+    ja: 'ステータス',
   },
   'group.breakdown': {
     en: 'Breakdown',

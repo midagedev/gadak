@@ -4,6 +4,10 @@
 
 ## Unreleased
 
+- 트래커 자체 상태의 브레이크다운 축 이름이 "Jira 상태" 에서 "상태" 로 바뀌고 자리도
+  "진행 단계" 바로 뒤다 — 14개 중 13번째가 아니라. Built-in·Linear 보드에도 상태는
+  있고, "상태" 를 찾던 사람은 세 버킷에서 멈춰 축이 없다고 보고했다 ([GDK-1390]).
+
 - **셸에 이름이 있다.** 새 셸은 16진수 여덟 자가 아니라 "셸 3" 이다: 서버가 세션마다
   재사용하지 않는 생성 순번을 주고 스트립이 그것을 말로 읽는다 ([GDK-1387]). 행을
   더블클릭하거나 F2 를 눌러 원하는 이름을 치면 — Enter 는 확정, Esc 는 취소, 비우면
@@ -1430,3 +1434,4 @@ HTTP·sync·에이전트 계약을 담았습니다.
 [GDK-1195]: https://gadak.dev/backlog/#/?ks=GDK-1195
 [GDK-1387]: https://gadak.dev/backlog/#/?ks=GDK-1387
 [GDK-1388]: https://gadak.dev/backlog/#/?ks=GDK-1388
+[GDK-1390]: https://gadak.dev/backlog/#/?ks=GDK-1390
