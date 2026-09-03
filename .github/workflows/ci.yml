@@ -854,10 +854,6 @@ jobs:
           & $signtool sign /fd SHA256 /a /f $pfx /p ci $test
           if ($LASTEXITCODE -ne 0) { throw "signtool exited $LASTEXITCODE" }
           Import-PfxCertificate -FilePath $pfx -CertStoreLocation 'Cert:\LocalMachine\TrustedPeople' -Password $pw | Out-Null
-          # Server images may refuse sideloading (0x80073CFF); this is the
-          # documented policy switch, not a manifest problem.
-          New-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Appx' -Force | Out-Null
-          Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Appx' -Name AllowAllTrustedApps -Value 1 -Type DWord
           Add-AppxPackage -Path $test
           $pkg = Get-AppxPackage -Name $name
           if (-not $pkg) { throw "installed, but Get-AppxPackage $name found nothing" }
