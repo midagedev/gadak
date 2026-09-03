@@ -153,6 +153,14 @@ func TestMigrateLocalOriginRoundtrip(t *testing.T) {
 		t.Fatalf("text attachment bytes differ: %q", body)
 	}
 
+	// GDK-1382: the nasty body was written as one paragraph per line; the
+	// target must hold that structure, not one text node with newlines in it
+	// (before the fixture's ADF slot every migrated body arrived flattened).
+	if got := strings.TrimSpace(dstSQL(t,
+		"select json_array_length(json_extract(description_adf,'$.content')) from issues_full where summary = 'migrate roundtrip nasty body'")); got == "" || got == "1" {
+		t.Fatalf("migrated body flattened to %s top-level node(s); paragraph structure must survive", got)
+	}
+
 	// The key sequence continues where the source left off.
 	next := createIssue(t, "post-migrate issue")
 	if next != "STD-4" {

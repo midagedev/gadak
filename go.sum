@@ -24,6 +24,8 @@ github.com/midagedev/issuetap v0.0.0-20260901141140-d88a3931df85 h1:H0Pu8h8IAbDV
 github.com/midagedev/issuetap v0.0.0-20260901141140-d88a3931df85/go.mod h1:VI3sqskL2eqVH88g5jS9hAHTWPF8SJocH69p2/xh5Z0=
 github.com/midagedev/issuetap v0.0.0-20260901141459-03c8c28f05ba h1:GUlRFE4SITrvB5R0K/KUOWDm0PuKmld48OGTEaNud4I=
 github.com/midagedev/issuetap v0.0.0-20260901141459-03c8c28f05ba/go.mod h1:VI3sqskL2eqVH88g5jS9hAHTWPF8SJocH69p2/xh5Z0=
+github.com/midagedev/issuetap v0.0.0-20260903043728-916803b7b457 h1:pzdycbq/ID/A+MoVBX+QcTmrrECOZxDddX5HRRpUK9w=
+github.com/midagedev/issuetap v0.0.0-20260903043728-916803b7b457/go.mod h1:VI3sqskL2eqVH88g5jS9hAHTWPF8SJocH69p2/xh5Z0=
 github.com/ncruces/go-strftime v1.0.0 h1:HMFp8mLCTPp341M/ZnA4qaf7ZlsbTc+miZjCLOFAw7w=
 github.com/ncruces/go-strftime v1.0.0/go.mod h1:Fwc5htZGVVkseilnfgOVb9mKy6w1naJmn9CehxcKcls=
 github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec h1:W09IVJc94icq4NjY3clb7Lk8O1qJ8BdBEF8z0ibU0rE=

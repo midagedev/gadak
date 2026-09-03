@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/midagedev/gadak/internal/store"
@@ -165,8 +166,19 @@ func TestGhostUsersAndLossCounts(t *testing.T) {
 	if !ghost || len(st.MissingUsers) != 1 || st.MissingUsers[0] != "acc-gone" {
 		t.Fatalf("ghost user missing: users=%+v missing=%v", doc.Users, st.MissingUsers)
 	}
-	if st.LossCodeBlock != 1 || st.LossMedia != 1 || st.LossTable != 0 {
-		t.Fatalf("loss counts code=%d media=%d table=%d", st.LossCodeBlock, st.LossMedia, st.LossTable)
+	// GDK-1382: the same nodes, now counted as formatting carried through
+	// the fixture's ADF slot rather than as loss.
+	if st.FmtCodeBlock != 1 || st.FmtMedia != 1 || st.FmtTable != 0 {
+		t.Fatalf("formatting counts code=%d media=%d table=%d", st.FmtCodeBlock, st.FmtMedia, st.FmtTable)
+	}
+	var t1 Issue
+	for _, is := range doc.Issues {
+		if is.Key == "T-1" {
+			t1 = is
+		}
+	}
+	if !strings.Contains(t1.DescriptionADF, `"type":"codeBlock"`) {
+		t.Fatalf("T-1 must carry its description ADF verbatim (GDK-1382), got %q", t1.DescriptionADF)
 	}
 }
 

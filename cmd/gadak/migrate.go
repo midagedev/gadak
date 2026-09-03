@@ -339,9 +339,9 @@ func printMigrateReport(w *os.File, target, from string, st *migrate.Stats, veri
 			fmt.Fprintf(w, "  ! %s\n", e)
 		}
 	}
-	if st.LossCodeBlock+st.LossMedia+st.LossTable > 0 {
-		fmt.Fprintf(w, "formatting flattened to plain text: code blocks %d, media %d, tables %d (bodies migrate as text)\n",
-			st.LossCodeBlock, st.LossMedia, st.LossTable)
+	if st.FmtCodeBlock+st.FmtMedia+st.FmtTable > 0 {
+		fmt.Fprintf(w, "formatting carried as ADF: code blocks %d, tables %d, inline media %d (an image resolves by filename against its migrated attachment)\n",
+			st.FmtCodeBlock, st.FmtTable, st.FmtMedia)
 	}
 	if st.DevLinks > 0 || st.CustomIssues > 0 || st.SprintIssues > 0 {
 		fmt.Fprintf(w, "not migrated: dev links %d, issues with custom fields %d, issues with sprints %d\n",

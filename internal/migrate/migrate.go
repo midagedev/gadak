@@ -74,27 +74,31 @@ type IssueType struct {
 }
 
 type Issue struct {
-	Key         string       `json:"key"`
-	Summary     string       `json:"summary"`
-	Description string       `json:"description,omitempty"`
-	Project     string       `json:"project,omitempty"`
-	Type        string       `json:"type,omitempty"`   // id
-	Status      string       `json:"status,omitempty"` // id
-	Priority    string       `json:"priority,omitempty"`
-	Assignee    string       `json:"assignee,omitempty"`
-	Reporter    string       `json:"reporter,omitempty"`
-	Parent      string       `json:"parent,omitempty"`
-	Labels      []string     `json:"labels,omitempty"`
-	Components  []string     `json:"components,omitempty"`
-	FixVersions []string     `json:"fixVersions,omitempty"`
-	Duedate     string       `json:"duedate,omitempty"`
-	Resolution  string       `json:"resolution,omitempty"`
-	Created     string       `json:"created,omitempty"`
-	Updated     string       `json:"updated,omitempty"`
-	Comments    []Comment    `json:"comments,omitempty"`
-	Attachments []Attachment `json:"attachments,omitempty"`
-	Links       []Link       `json:"links,omitempty"`
-	History     []History    `json:"history,omitempty"`
+	Key         string `json:"key"`
+	Summary     string `json:"summary"`
+	Description string `json:"description,omitempty"`
+	// DescriptionADF is the origin's body as written — issuetap's fixture
+	// slot (descriptionAdf) stores it verbatim, so headings, lists and
+	// paragraph breaks arrive instead of one flattened text node (GDK-1382).
+	DescriptionADF string       `json:"descriptionAdf,omitempty"`
+	Project        string       `json:"project,omitempty"`
+	Type           string       `json:"type,omitempty"`   // id
+	Status         string       `json:"status,omitempty"` // id
+	Priority       string       `json:"priority,omitempty"`
+	Assignee       string       `json:"assignee,omitempty"`
+	Reporter       string       `json:"reporter,omitempty"`
+	Parent         string       `json:"parent,omitempty"`
+	Labels         []string     `json:"labels,omitempty"`
+	Components     []string     `json:"components,omitempty"`
+	FixVersions    []string     `json:"fixVersions,omitempty"`
+	Duedate        string       `json:"duedate,omitempty"`
+	Resolution     string       `json:"resolution,omitempty"`
+	Created        string       `json:"created,omitempty"`
+	Updated        string       `json:"updated,omitempty"`
+	Comments       []Comment    `json:"comments,omitempty"`
+	Attachments    []Attachment `json:"attachments,omitempty"`
+	Links          []Link       `json:"links,omitempty"`
+	History        []History    `json:"history,omitempty"`
 	// StatusCategory (new|inprogress|done) and PriorityRank are the
 	// mirror's contract axes — what a target with its own catalogs (Linear)
 	// maps from, since ids mean nothing there. Never emitted: the fixture
@@ -109,6 +113,7 @@ type Issue struct {
 type Comment struct {
 	Author  string `json:"author,omitempty"`
 	Body    string `json:"body"`
+	BodyADF string `json:"bodyAdf,omitempty"` // see Issue.DescriptionADF
 	Created string `json:"created,omitempty"`
 }
 
@@ -165,15 +170,17 @@ type Page struct {
 	When     string        `json:"when,omitempty"`
 	Author   string        `json:"author,omitempty"`
 	Body     string        `json:"body,omitempty"`
+	BodyADF  string        `json:"bodyAdf,omitempty"` // see Issue.DescriptionADF
 	Labels   []string      `json:"labels,omitempty"`
 	Parent   string        `json:"parent,omitempty"`
 	Comments []PageComment `json:"comments,omitempty"`
 }
 
 type PageComment struct {
-	Author string `json:"author,omitempty"`
-	Body   string `json:"body"`
-	When   string `json:"when,omitempty"`
+	Author  string `json:"author,omitempty"`
+	Body    string `json:"body"`
+	BodyADF string `json:"bodyAdf,omitempty"` // see Issue.DescriptionADF
+	When    string `json:"when,omitempty"`
 }
 
 // Options selects what leaves the mirror. Empty means everything mirrored.
@@ -203,11 +210,15 @@ type Stats struct {
 	ReopenSum int
 	EpicKeys  int
 
-	// Formatting nodes flattened to plain text by the fixture path
-	// (descriptions, comments and page bodies all load as adf.Doc(text)).
-	LossCodeBlock int
-	LossMedia     int
-	LossTable     int
+	// Formatting nodes carried through the fixture's ADF slot (GDK-1382 —
+	// before it, descriptions, comments and page bodies all loaded as
+	// adf.Doc(text) and these were the count of what flattening destroyed).
+	// Media is still worth a line: the node keeps the origin's file id, and
+	// the target resolves an inline image by filename against the migrated
+	// attachment, so a media node without a filename renders as a placeholder.
+	FmtCodeBlock int
+	FmtMedia     int
+	FmtTable     int
 
 	// Dropped because the other end is outside the migrated set.
 	DroppedLinks       int
@@ -334,7 +345,8 @@ func buildIssues(ctx context.Context, db *sql.DB, doc *Doc, st *Stats) error {
 		is.Labels = jsonStrings(labels)
 		is.Components = jsonStrings(comps)
 		is.FixVersions = jsonStrings(fixes)
-		countLoss(descADF, st)
+		is.DescriptionADF = descADF
+		countFormatting(descADF, st)
 		st.ReopenSum += reopen
 		if epic != "" {
 			st.EpicKeys++
@@ -399,7 +411,8 @@ func fillComments(ctx context.Context, db *sql.DB, itemID string, is *Issue, st 
 		if err := rows.Scan(&c.Author, &c.Body, &adf, &c.Created); err != nil {
 			return err
 		}
-		countLoss(adf, st)
+		c.BodyADF = adf
+		countFormatting(adf, st)
 		is.Comments = append(is.Comments, c)
 	}
 	st.Comments += len(is.Comments)
@@ -675,7 +688,8 @@ func buildPages(ctx context.Context, db *sql.DB, doc *Doc, st *Stats, want []str
 			return err
 		}
 		pg.Labels = jsonStrings(labels)
-		countLoss(adf, st)
+		pg.BodyADF = adf
+		countFormatting(adf, st)
 		doc.Pages = append(doc.Pages, pg)
 		inSet[pg.ID] = true
 		itemIDs = append(itemIDs, itemID)
@@ -705,7 +719,8 @@ func buildPages(ctx context.Context, db *sql.DB, doc *Doc, st *Stats, want []str
 				crows.Close()
 				return err
 			}
-			countLoss(adf, st)
+			c.BodyADF = adf
+			countFormatting(adf, st)
 			pg.Comments = append(pg.Comments, c)
 		}
 		err = crows.Err()
@@ -831,9 +846,10 @@ func isPrintableText(mime string, b []byte) bool {
 	return true
 }
 
-// countLoss walks one ADF document and counts the node kinds the fixture's
-// plain-text bodies cannot carry.
-func countLoss(adfJSON string, st *Stats) {
+// countFormatting walks one ADF document and counts the node kinds the
+// report names: the ones the plain-text slot could never carry, now carried
+// verbatim through the ADF slot (GDK-1382).
+func countFormatting(adfJSON string, st *Stats) {
 	if adfJSON == "" {
 		return
 	}
@@ -847,13 +863,13 @@ func countLoss(adfJSON string, st *Stats) {
 		case map[string]any:
 			switch v["type"] {
 			case "codeBlock":
-				st.LossCodeBlock++
+				st.FmtCodeBlock++
 			// Leaf media nodes only — mediaSingle/mediaGroup wrap a
 			// media child and counting both doubles the figure.
 			case "media", "mediaInline":
-				st.LossMedia++
+				st.FmtMedia++
 			case "table":
-				st.LossTable++
+				st.FmtTable++
 			}
 			for _, c := range v {
 				walk(c)

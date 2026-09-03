@@ -4,6 +4,15 @@
 
 ## Unreleased
 
+- `migrate --from` carries every body as the origin's ADF, not as flattened
+  text: the Built-in tracker's fixture grew a `descriptionAdf` / `bodyAdf`
+  slot it stores verbatim, and the export fills it for descriptions,
+  comments, wiki pages and page comments. Before this, the 844 issues moved
+  at the cutover each arrived as one paragraph — headings, lists and blank
+  lines collapsed into a single text node — and the report called only code
+  blocks, media and tables a loss. The report now says what arrived
+  formatted ([GDK-1382]).
+
 - The Windows app has a Microsoft Store package: `desktop/build-windows.ps1
   --msix` packs the same `gadak-desktop.exe` the zip ships into an unsigned
   `.msix`, and the release workflow keeps it as an artifact for Partner
@@ -1425,3 +1434,4 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-1360]: https://gadak.dev/backlog/#/?ks=GDK-1360
 [GDK-1361]: https://gadak.dev/backlog/#/?ks=GDK-1361
 [GDK-1362]: https://gadak.dev/backlog/#/?ks=GDK-1362
+[GDK-1382]: https://gadak.dev/backlog/#/?ks=GDK-1382

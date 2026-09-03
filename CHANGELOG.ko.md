@@ -4,6 +4,13 @@
 
 ## Unreleased
 
+- `migrate --from` 이 모든 본문을 평탄화한 텍스트가 아니라 origin 의 ADF 그대로
+  싣는다: Built-in 트래커의 fixture 에 `descriptionAdf` / `bodyAdf` 슬롯이 생겨
+  그대로 저장하고, export 는 설명·코멘트·위키 페이지·페이지 코멘트에 그것을
+  채운다. 그 전에는 컷오버로 옮긴 844건이 각각 문단 하나로 도착했다 — 헤딩·
+  목록·빈 줄이 텍스트 노드 하나로 뭉개졌고, 보고서는 코드 블록·미디어·표만
+  손실로 셌다. 이제 보고서는 서식이 무엇이 살아 도착했는지 말한다 ([GDK-1382]).
+
 - Windows 앱에 Microsoft Store 패키지가 생겼다: `desktop/build-windows.ps1
   --msix` 가 zip 이 싣는 것과 같은 `gadak-desktop.exe` 를 무서명 `.msix` 로
   묶고, 릴리스 워크플로가 그것을 Partner Center 용 아티팩트로 남긴다. Store 는
@@ -1379,3 +1386,4 @@ HTTP·sync·에이전트 계약을 담았습니다.
 [GDK-1360]: https://gadak.dev/backlog/#/?ks=GDK-1360
 [GDK-1361]: https://gadak.dev/backlog/#/?ks=GDK-1361
 [GDK-1362]: https://gadak.dev/backlog/#/?ks=GDK-1362
+[GDK-1382]: https://gadak.dev/backlog/#/?ks=GDK-1382

@@ -9,7 +9,7 @@ re-read after it lands.
 Every cell carries a footnote pointing at the code that makes it true — a
 `path:line` in this repository, or a line in the Built-in origin's
 compatibility inventory (module
-`github.com/midagedev/issuetap@v0.0.0-20260901141459-03c8c28f05ba`, cited
+`github.com/midagedev/issuetap@v0.0.0-20260903043728-916803b7b457`, cited
 below as `issuetap/docs/COMPATIBILITY.md`). A Built-in cell is never "same
 as Jira": it means the Jira REST verb exists and the Built-in origin
 implements the route.
@@ -368,7 +368,9 @@ Markers:
     (`cmd/gadak/migrate.go:89`).
 
 [^93]: The export's byte fetch uses the same passthrough route
-    (`cmd/gadak/migrate.go:105`).
+    (`cmd/gadak/migrate.go:105`). Bodies leave as the origin's ADF beside
+    their text (`internal/migrate/migrate.go:83`), so headings, lists and
+    paragraph breaks arrive as written (GDK-1382).
 
 [^94]: `--to linear --team KEY` sends a mirror's issues into a Linear team
     through the Linear workspace the command runs in (`cmd/gadak/migrate.go:56`,
@@ -378,7 +380,10 @@ Markers:
     behind and the report says so. Jira is not a destination.
 
 [^95]: The migrate command creates a fresh Built-in workspace as its target,
-    which must not exist yet (`cmd/gadak/migrate.go:23`).
+    which must not exist yet (`cmd/gadak/migrate.go:23`). The fixture's
+    `descriptionAdf` / `bodyAdf` slots are stored verbatim when they parse
+    as a document; a body without one is wrapped as a single paragraph
+    (`issuetap/internal/store/store.go`, `fixtureBody`; GDK-1382).
 
 [^96]: All three surfaces run against the mirror; the MCP tools expose no
     write verb on any origin (`internal/mcp/tools.go:24`), and `gadak_status`
