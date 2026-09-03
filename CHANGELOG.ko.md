@@ -4,6 +4,12 @@
 
 ## Unreleased
 
+- **`gadak issue` 가 눌린 평문이 아니라 마크다운을 찍는다.** 설명과 모든 코멘트가 웹
+  편집기가 여는 것과 같은 마크다운 원본으로 나온다 — 헤딩은 `##`, 굵게는 `**`, 코드
+  블록은 펜스 — 그래서 에이전트가 읽은 것이 곧 `edit -m -` 가 받는 것이고, 왕복이
+  서식을 눌러 버리지 않고 유지한다. `--json` 은 ADF 옆에 `description_md`·`body_md`
+  로 싣는다 ([GDK-1394]).
+
 - 툴바의 보드 버튼이 옆 컬럼 메뉴와 같은 세 기둥 글리프가 아니라 칸반 글리프를 단다 —
   손가락 하나 거리의 같은 표시 둘은 컨트롤 하나로 읽힌다. 뷰 컨트롤 넷을 설정 메뉴
   하나로 접는 것은 같은 이슈의 나머지이고 아직 열려 있다 ([GDK-1391]).
@@ -1440,3 +1446,4 @@ HTTP·sync·에이전트 계약을 담았습니다.
 [GDK-1388]: https://gadak.dev/backlog/#/?ks=GDK-1388
 [GDK-1390]: https://gadak.dev/backlog/#/?ks=GDK-1390
 [GDK-1391]: https://gadak.dev/backlog/#/?ks=GDK-1391
+[GDK-1394]: https://gadak.dev/backlog/#/?ks=GDK-1394

@@ -590,10 +590,10 @@ func printIssue(l store.IssueLite, d *store.Detail, dur store.Spans) {
 		kv(alias, fmt.Sprint(l.Custom[alias]))
 	}
 
-	desc := strings.TrimSpace(adf.PlainText(d.DescriptionADF))
-	if desc == "" {
-		desc = strings.TrimSpace(d.DescriptionText)
-	}
+	// The markdown source, not PlainText (GDK-1394): what this prints is
+	// what `edit -m -` takes back, so a heading read here must still be a
+	// heading after the round trip. Same owner as the web editor.
+	desc := strings.TrimSpace(d.DescriptionMD)
 	if desc != "" {
 		fmt.Printf("\ndescription\n%s\n", indent(desc))
 	} else {
@@ -605,10 +605,7 @@ func printIssue(l store.IssueLite, d *store.Detail, dur store.Spans) {
 	if len(d.Comments) > 0 {
 		fmt.Printf("\ncomments (%d)\n", len(d.Comments))
 		for _, c := range d.Comments {
-			body := strings.TrimSpace(c.Body)
-			if body == "" {
-				body = strings.TrimSpace(adf.PlainText(c.BodyADF))
-			}
+			body := strings.TrimSpace(c.BodyMD)
 			if mark := commentMark(c); mark != "" {
 				if body != "" {
 					body = mark + " " + body

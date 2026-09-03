@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"mime"
 	"mime/multipart"
@@ -15,6 +16,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/midagedev/gadak/internal/adf"
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/origin"
@@ -2835,5 +2837,80 @@ func TestIssueDeriveReportsAnIncompleteCategoryMap(t *testing.T) {
 	}
 	if strings.Contains(out, "every value above matches what the last sync wrote") {
 		t.Errorf("--derive claimed agreement while the category map was short:\n%s", out)
+	}
+}
+
+// GDK-1394: the text form prints the markdown source, so what an agent reads
+// is what `edit -m -` takes back. A heading must come out as `##`, bold as
+// `**`, and FromMarkdown of the printed text must be the stored document —
+// PlainText pressed all of that flat and made the CLI round trip lossy while
+// the web editor (same adf.Present) kept it.
+func TestIssuePrintsMarkdownSource(t *testing.T) {
+	mirror(t, "https://unused.example.com")
+	db, err := store.Open(filepath.Join(os.Getenv("GADAK_HOME"), "gadak.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rich := json.RawMessage(`{"type":"doc","version":1,"content":[` +
+		`{"type":"heading","attrs":{"level":2},"content":[{"type":"text","text":"Repro"}]},` +
+		`{"type":"paragraph","content":[{"type":"text","text":"run "},{"type":"text","text":"bd ready","marks":[{"type":"code"}]},{"type":"text","text":" twice"}]},` +
+		`{"type":"bulletList","content":[{"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","text":"second call "},{"type":"text","text":"drops","marks":[{"type":"strong"}]},{"type":"text","text":" the key"}]}]}]}]}`)
+	commentADF := json.RawMessage(`{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"seen on "},{"type":"text","text":"staging","marks":[{"type":"em"}]}]}]}`)
+	if _, err := db.UpsertIssues(context.Background(), store.Batch{
+		Records: []store.IssueRecord{{
+			Item: store.Item{
+				ID: "jira:1003", SourceID: "jira", Kind: "issue", ExternalID: "1003", Key: "NMB-3",
+				Title: "formatted body", BodyText: "Repro\nrun bd ready twice\nsecond call drops the key",
+				CreatedAt: "2026-08-01T00:00:00.000Z", UpdatedAt: "2026-08-01T00:00:00.000Z",
+			},
+			Issue: store.Issue{ProjectKey: "NMB", StatusCategory: "new", Status: "To Do", DescriptionADF: rich},
+			Comments: []store.Comment{{
+				ID: "jira:c-3", ExternalID: "c-3", Author: "Marco Reyes",
+				BodyADF: commentADF, BodyText: "seen on staging", CreatedAt: "2026-08-02T00:00:00.000Z",
+			}},
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := capture(t, func() error { return cmdIssue([]string{"NMB-3"}) })
+	if err != nil {
+		t.Fatalf("issue: %v", err)
+	}
+	wantDesc := "## Repro\n\nrun `bd ready` twice\n\n- second call **drops** the key"
+	if !strings.Contains(out, "\ndescription\n"+indent(wantDesc)+"\n") {
+		t.Fatalf("description must print as markdown source:\n%s", out)
+	}
+	if !strings.Contains(out, indent("seen on _staging_")) {
+		t.Fatalf("comment must print as markdown source:\n%s", out)
+	}
+	// The round trip: the printed source parses back to the stored document.
+	if got := string(adf.FromMarkdown(wantDesc)); got != string(rich) {
+		var a, b any
+		_ = json.Unmarshal([]byte(got), &a)
+		_ = json.Unmarshal(rich, &b)
+		if fmt.Sprint(a) != fmt.Sprint(b) {
+			t.Fatalf("printed source does not round-trip:\n got %s\nwant %s", got, rich)
+		}
+	}
+
+	out, err = capture(t, func() error { return cmdIssue([]string{"NMB-3", "--json"}) })
+	if err != nil {
+		t.Fatalf("issue --json: %v", err)
+	}
+	var doc struct {
+		DescriptionMD string `json:"description_md"`
+		Comments      []struct {
+			BodyMD string `json:"body_md"`
+		} `json:"comments"`
+	}
+	if err := json.Unmarshal([]byte(out), &doc); err != nil {
+		t.Fatalf("json: %v\n%s", err, out)
+	}
+	if doc.DescriptionMD != wantDesc || len(doc.Comments) != 1 || doc.Comments[0].BodyMD != "seen on _staging_" {
+		t.Fatalf("--json must carry description_md/body_md: %+v", doc)
 	}
 }

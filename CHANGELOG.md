@@ -4,6 +4,13 @@
 
 ## Unreleased
 
+- **`gadak issue` prints the markdown, not the flattened text.** The
+  description and every comment come out as the same markdown source the
+  web editor opens with — a heading is `##`, bold is `**`, a code block is
+  fenced — so what an agent reads is what `edit -m -` takes back, and the
+  round trip keeps the formatting instead of pressing it flat. `--json`
+  carries it as `description_md` and `body_md` beside the ADF ([GDK-1394]).
+
 - The board button in the toolbar wears a kanban glyph, not the same three
   columns as the columns menu beside it — two identical marks a finger apart
   read as one control. Folding the four view controls into one settings menu
@@ -1499,3 +1506,4 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-1388]: https://gadak.dev/backlog/#/?ks=GDK-1388
 [GDK-1390]: https://gadak.dev/backlog/#/?ks=GDK-1390
 [GDK-1391]: https://gadak.dev/backlog/#/?ks=GDK-1391
+[GDK-1394]: https://gadak.dev/backlog/#/?ks=GDK-1394

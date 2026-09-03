@@ -380,7 +380,8 @@ type DetailComment struct {
 	Author     string          `json:"author"`
 	AuthorID   string          `json:"author_id"`
 	BodyADF    json.RawMessage `json:"body_adf"`
-	Body       string          `json:"body"` // flattened; the client's fallback when ADF will not render
+	Body       string          `json:"body"`              // flattened; the client's fallback when ADF will not render
+	BodyMD     string          `json:"body_md,omitempty"` // adf.Present Source (GDK-1394)
 	CreatedAt  string          `json:"created_at"`
 	UpdatedAt  string          `json:"updated_at"`
 	// VisibilityType/VisibilityValue are empty when the origin sent no
@@ -440,11 +441,15 @@ type Detail struct {
 	// DescriptionText is items.body_text. Linear (and any source that does not
 	// store ADF) lands markdown/plain here; surfaces fall back to it when
 	// DescriptionADF is empty. Never stuff markdown into DescriptionADF.
-	DescriptionText string             `json:"description_text,omitempty"`
-	Comments        []DetailComment    `json:"comments"`
-	Attachments     []DetailAttachment `json:"attachments"`
-	History         []DetailChange     `json:"history"`
-	LinkedIssues    []DetailLink       `json:"linked_issues"`
+	DescriptionText string `json:"description_text,omitempty"`
+	// DescriptionMD is the markdown an editor opens with — adf.Present's
+	// Source, the one owner the web and the CLI share (GDK-1394). Derived on
+	// read, never stored: the mirror keeps the origin's shape.
+	DescriptionMD string             `json:"description_md,omitempty"`
+	Comments      []DetailComment    `json:"comments"`
+	Attachments   []DetailAttachment `json:"attachments"`
+	History       []DetailChange     `json:"history"`
+	LinkedIssues  []DetailLink       `json:"linked_issues"`
 	// RefPages are wiki pages this issue's body/comments mention (item_refs,
 	// target_kind=page). Only pages present in the mirror; empty omitted.
 	RefPages []PageLite `json:"ref_pages,omitempty"`
@@ -470,7 +475,7 @@ type Detail struct {
 // handler can answer 404 without importing database/sql.
 func (db *DB) Detail(ctx context.Context, key string) (*Detail, error) {
 	var itemID string
-	var adf *string
+	var descADF *string
 	var customJSON string
 	var bodyText string
 	var createdAt string
@@ -479,7 +484,7 @@ func (db *DB) Detail(ctx context.Context, key string) (*Detail, error) {
 		       COALESCE(it.created_at, '')
 		FROM issues i JOIN items it ON it.id = i.item_id
 		WHERE i.key = ?`, key).
-		Scan(&itemID, &adf, &customJSON, &bodyText, &createdAt); err != nil {
+		Scan(&itemID, &descADF, &customJSON, &bodyText, &createdAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
@@ -487,7 +492,7 @@ func (db *DB) Detail(ctx context.Context, key string) (*Detail, error) {
 	}
 	d := &Detail{
 		IssueKey:        key,
-		DescriptionADF:  rawOrNull(adf),
+		DescriptionADF:  rawOrNull(descADF),
 		DescriptionText: bodyText,
 		Comments:        []DetailComment{},
 		Attachments:     []DetailAttachment{},
@@ -498,6 +503,7 @@ func (db *DB) Detail(ctx context.Context, key string) (*Detail, error) {
 		Created: createdAt,
 	}
 	_ = json.Unmarshal([]byte(customJSON), &d.Custom)
+	d.DescriptionMD = adf.Present(d.DescriptionADF, d.DescriptionText).Source
 
 	if err := each(ctx, db.sql, `
 		SELECT id, COALESCE(external_id,''), COALESCE(author,''), COALESCE(author_id,''),
@@ -513,6 +519,7 @@ func (db *DB) Detail(ctx context.Context, key string) (*Detail, error) {
 				return err
 			}
 			c.BodyADF = rawOrNull(body)
+			c.BodyMD = adf.Present(c.BodyADF, c.Body).Source
 			c.JsdPublic = jsdPublicFromSQL(jsd)
 			d.Comments = append(d.Comments, c)
 			return nil
