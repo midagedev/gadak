@@ -28,6 +28,9 @@ func (p *ptyProc) resize(cols, rows uint16) error {
 	_, _ = cols, rows
 	return ErrUnsupportedPlatform
 }
+func (p *ptyProc) winsize() (cols, rows uint16, err error) {
+	return 0, 0, ErrUnsupportedPlatform
+}
 func (p *ptyProc) hangup() error      { return ErrUnsupportedPlatform }
 func (p *ptyProc) kill() error        { return ErrUnsupportedPlatform }
 func (p *ptyProc) wait() (int, error) { return -1, ErrUnsupportedPlatform }

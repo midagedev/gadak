@@ -4,6 +4,32 @@
 
 ## Unreleased
 
+- **A Built-in workspace takes `close --resolution Duplicate`.** The seeded
+  workflow's done transition now carries an optional resolution field on its
+  screen, as Cloud's default workflows do; issuetap screen-checks the way
+  Cloud does, so before this the flag bounced off "not on the appropriate
+  screen" — a Jira sentence about a screen this tracker does not have. A
+  workspace seeded before 0.20.1 keeps its old workflow and gets the refusal
+  in gadak's own words instead ([GDK-1347]).
+
+- `gadak edit --batch` takes the flags' spelling too: `label`, `component`
+  and `fix_version` are the same axes as `labels`, `components` and
+  `fix_versions`. Both spellings on one line is refused, not merged
+  ([GDK-1259]).
+
+- Avatar initials skip punctuation: the bot `Claude (build 1)` reads `CB`,
+  not `C(` ([GDK-1351]).
+
+- A placeholder marker quoted inside a code fence or a code span is text,
+  not a placeholder — the pre-write gate now reads the markdown the way the
+  substituting parser does, so a body that documents the markers (this
+  changelog, the skill) can be edited ([GDK-1398]).
+
+- The desktop resize test, when it fails, logs the size the kernel holds for
+  the pty beside the size the session believes it set. The CI flake has not
+  reproduced off the runner; this is the reading that tells a set that did
+  nothing from one the child never saw. Still open ([GDK-1192]).
+
 - **A formatted body can be edited as markdown without losing what
   markdown cannot carry.** The editing source — `gadak issue`, the web
   editor, `description_md` — now holds a placeholder for each such node:
@@ -1532,3 +1558,8 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-1394]: https://gadak.dev/backlog/#/?ks=GDK-1394
 [GDK-1395]: https://gadak.dev/backlog/#/?ks=GDK-1395
 [GDK-1396]: https://gadak.dev/backlog/#/?ks=GDK-1396
+[GDK-1347]: https://gadak.dev/backlog/#/?ks=GDK-1347
+[GDK-1259]: https://gadak.dev/backlog/#/?ks=GDK-1259
+[GDK-1351]: https://gadak.dev/backlog/#/?ks=GDK-1351
+[GDK-1398]: https://gadak.dev/backlog/#/?ks=GDK-1398
+[GDK-1192]: https://gadak.dev/backlog/#/?ks=GDK-1192

@@ -75,6 +75,10 @@ describe('initials / colorIndex', () => {
     expect(initials('김철수')).toBe('철수')
     expect(initials('Jane Doe')).toBe('JD')
     expect(initials('Jane')).toBe('JA')
+    // GDK-1351: a parenthesised bot suffix is a word, not a glyph.
+    expect(initials('Claude (build 1)')).toBe('CB')
+    expect(initials('Claude (1)')).toBe('C1')
+    expect(initials('Claude ()')).toBe('CL')
   })
 
   test('colorIndex is stable for a seed', () => {

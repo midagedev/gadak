@@ -122,6 +122,17 @@ func (p *ptyProc) resize(cols, rows uint16) error {
 	return err
 }
 
+// winsize reads the size the kernel holds for the pty back from the master
+// (TIOCGWINSZ) — the answer that says whether a resize the session believes
+// it applied is the one the child's tty carries (GDK-1192 diagnostics).
+func (p *ptyProc) winsize() (cols, rows uint16, err error) {
+	ws, err := pty.GetsizeFull(p.f)
+	if err != nil {
+		return 0, 0, err
+	}
+	return ws.Cols, ws.Rows, nil
+}
+
 func (p *ptyProc) hangup() error { return p.signalSession(syscall.SIGHUP) }
 func (p *ptyProc) kill() error   { return p.signalSession(syscall.SIGKILL) }
 

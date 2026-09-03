@@ -1090,6 +1090,28 @@ func TestEditWithoutFixVersionOmitsFixVersionsKey(t *testing.T) {
 	}
 }
 
+func TestEditBatchAcceptsTheFlagsSingularSpelling(t *testing.T) {
+	// GDK-1259: the flag is --label, the batch field was labels; a line in
+	// the flag's vocabulary is the same axis, and both at once is refused.
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+
+	withStdin(t, `{"key":"NMB-1","label":["+batch"]}`+"\n")
+	out, err := capture(t, func() error { return cmdEdit([]string{"--batch", "-"}) })
+	if err != nil {
+		t.Fatalf("edit --batch with label: %v\n%s", err, out)
+	}
+	body := f.bodies["PUT /issue/NMB-1"]
+	if string(putUpdateField(t, body, "labels")) != `[{"add":"batch"}]` {
+		t.Fatalf("singular label did not reach update.labels: %s", body)
+	}
+
+	obj := map[string]json.RawMessage{"label": json.RawMessage(`["+a"]`), "labels": json.RawMessage(`["+b"]`)}
+	if err := foldBatchSingulars(obj); err == nil || !strings.Contains(err.Error(), "same axis") {
+		t.Fatalf("label and labels on one line must be refused, got %v", err)
+	}
+}
+
 func TestEditFixVersionAmbiguousListsIDs(t *testing.T) {
 	f := newFakeJira(t)
 	f.versionsJSON = `[{"id":"10012","name":"v2.5"},{"id":"10099","name":"v2.5"}]`

@@ -132,7 +132,13 @@ export function initials(name: string | null | undefined, email?: string | null)
     const nm = src.replace(/\s+/g, '')
     return nm.length >= 2 ? nm.slice(-2) : nm
   }
-  const parts = src.split(/[\s._-]+/).filter(Boolean)
+  // A token is what starts with a letter or digit: 'Claude (build 1)' is
+  // C·B, not 'C(' (GDK-1351). Leading punctuation is stripped, an all-punctuation
+  // token drops out.
+  const parts = src
+    .split(/[\s._-]+/)
+    .map((p) => p.replace(/^[^\p{L}\p{N}]+/u, ''))
+    .filter(Boolean)
   if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase()
   return src.slice(0, 2).toUpperCase()
 }

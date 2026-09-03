@@ -413,7 +413,28 @@ func resolveEditType(ctx context.Context, cfg *config.Config, db *store.DB, c or
 	return typeRes.Value, nil
 }
 
-var editBatchFields = []string{"key", "summary", "description", "labels", "components", "fix_versions", "type", "priority", "due", "parent", "fields"}
+var editBatchFields = []string{"key", "summary", "description", "labels", "components", "fix_versions", "label", "component", "fix_version", "type", "priority", "due", "parent", "fields"}
+
+// batchSingulars: the flags say --label/--component/--fix-version, the batch
+// JSON said labels/components/fix_versions, and a line written in the flag's
+// vocabulary failed whole (GDK-1259). Either spelling is one axis; both on
+// one line is a contradiction, not a merge.
+var batchSingulars = map[string]string{"label": "labels", "component": "components", "fix_version": "fix_versions"}
+
+func foldBatchSingulars(obj map[string]json.RawMessage) error {
+	for one, many := range batchSingulars {
+		v, ok := obj[one]
+		if !ok {
+			continue
+		}
+		if _, both := obj[many]; both {
+			return fmt.Errorf("%s and %s name the same axis — send one", one, many)
+		}
+		obj[many] = v
+		delete(obj, one)
+	}
+	return nil
+}
 
 func runEditBatch(asJSON bool, base editChange) error {
 	return runWriteBatch("edit", asJSON, func(raw string) batchResult {
@@ -446,6 +467,9 @@ func runEditBatch(asJSON bool, base editChange) error {
 
 func overlayEditJSON(base editChange, obj map[string]json.RawMessage) (editChange, error) {
 	ch := base
+	if err := foldBatchSingulars(obj); err != nil {
+		return ch, err
+	}
 	if s, ok, err := jsonStringField(obj, "summary"); err != nil {
 		return ch, err
 	} else if ok {

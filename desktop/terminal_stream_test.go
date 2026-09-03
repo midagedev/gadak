@@ -365,6 +365,11 @@ func TestTerminalStreamResizeReachesChild(t *testing.T) {
 	t.Cleanup(func() {
 		if t.Failed() {
 			t.Logf("session info at failure: %+v", sess.Info())
+			// The kernel's own answer beside the session's belief: master
+			// reads 43x132 while the child says 24 80 is a propagation
+			// quirk; master also reads 24 80 is a set that did nothing.
+			cols, rows, err := sess.TTYSize()
+			t.Logf("tty size from the master at failure: %dx%d (err %v)", cols, rows, err)
 		}
 	})
 	conn.writeCtrl(t, map[string]any{"t": "resize", "cols": 132, "rows": 43})

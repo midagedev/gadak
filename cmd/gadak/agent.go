@@ -2293,7 +2293,7 @@ func applyTransition(ctx context.Context, c origin.Writer, cfg *config.Config, k
 		Fields:     fields,
 		Comment:    comment,
 	})
-	if err := formatTransitionError(err); err != nil {
+	if err := formatTransitionError(err, cfg); err != nil {
 		return transition.Result{}, err
 	}
 	return res, nil
@@ -2391,13 +2391,22 @@ func emitTransitionResult(ctx context.Context, cfg *config.Config, db *store.DB,
 
 // formatTransitionError adds CLI flag names to core refusals that do not
 // name them (the core is shared with REST).
-func formatTransitionError(err error) error {
+func formatTransitionError(err error, cfg *config.Config) error {
 	if err == nil {
 		return nil
 	}
 	var req *transition.RequiredFieldsError
 	if errors.As(err, &req) {
 		return fmt.Errorf("%w — pass --resolution NAME or --field resolution={\"id\":...}", req)
+	}
+	// A Built-in workflow seeded before 0.20.1 has no resolution on its done
+	// screen, and issuetap answers in Cloud's words — "not on the appropriate
+	// screen" sends a person to fix a screen this tracker does not have
+	// (GDK-1347). Say what it is.
+	var api *jira.APIError
+	if cfg != nil && cfg.OriginType() == config.OriginGadak && errors.As(err, &api) &&
+		strings.Contains(api.Errors["resolution"], "appropriate screen") {
+		return fmt.Errorf("this workspace's built-in workflow has no resolution field on the transition — run without --resolution (done sets the default resolution); workspaces created since 0.20.1 accept one (%w)", err)
 	}
 	return err
 }

@@ -265,7 +265,10 @@ Markers:
     (`internal/origin/linearwriter.go:73`).
 
 [^58]: `fields.resolution` and `update.comment` are honored, screen-checked
-    (`issuetap/docs/COMPATIBILITY.md:70`).
+    (`issuetap/docs/COMPATIBILITY.md:70`). The seeded workflow puts an optional
+    `resolution` on the done transition's screen (`internal/origin/origin.go:739`,
+    GDK-1347); a workspace seeded before 0.20.1 has none, and its screen 400 is
+    reworded in gadak's terms (`cmd/gadak/agent.go:2394`).
 
 [^59]: `PUT /issue/{key}/assignee` (`internal/jira/write.go:276`).
 

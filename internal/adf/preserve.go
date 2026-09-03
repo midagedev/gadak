@@ -7,6 +7,9 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/text"
 )
 
 // Placeholders (docs/decisions/0012, addendum 1; GDK-1396).
@@ -220,13 +223,41 @@ var (
 // HasPlaceholders reports whether src carries at least one placeholder — the
 // gate's question when a body has preserved nodes: none in the draft means a
 // plain replace, which stays refused without force.
+//
+// It reads the markdown the way the substituting parser does — a marker is
+// an HTML block or a raw-HTML run — so a marker quoted inside a code fence
+// or a code span is the text it is, not a placeholder. A line regex called
+// this documentation of the markers itself unpublishable (GDK-1398).
 func HasPlaceholders(src string) bool {
-	for _, line := range strings.Split(src, "\n") {
-		if openRe.MatchString(strings.TrimSpace(line)) {
-			return true
+	source := []byte(strings.ReplaceAll(src, "\r\n", "\n"))
+	root := md.Parser().Parse(text.NewReader(source))
+	c := &conv{src: source}
+	found := false
+	_ = ast.Walk(root, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if !entering {
+			return ast.WalkContinue, nil
 		}
-	}
-	return inlineOpenRe.MatchString(src)
+		var raw string
+		switch v := n.(type) {
+		case *ast.HTMLBlock:
+			raw = c.htmlBlockText(v)
+		case *ast.RawHTML:
+			var b strings.Builder
+			for i := 0; i < v.Segments.Len(); i++ {
+				seg := v.Segments.At(i)
+				b.Write(seg.Value(source))
+			}
+			raw = b.String()
+		default:
+			return ast.WalkContinue, nil
+		}
+		if inlineOpenRe.MatchString(raw) {
+			found = true
+			return ast.WalkStop, nil
+		}
+		return ast.WalkContinue, nil
+	})
+	return found
 }
 
 // RefusePlaceholders is the check every text→ADF entry point without a body

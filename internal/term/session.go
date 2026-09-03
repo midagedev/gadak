@@ -281,6 +281,21 @@ func (s *Session) Resize(cols, rows uint16) error {
 	return s.proc.resize(cols, rows)
 }
 
+// TTYSize is the size the kernel reports for the pty right now, read back
+// from the master. Info carries the size the session *believes* it set;
+// this is the size the child's tty actually has. The two disagree exactly
+// when a resize was accepted and did nothing, which is the CI flake GDK-1192
+// has not yet been caught doing from the inside.
+func (s *Session) TTYSize() (cols, rows uint16, err error) {
+	s.mu.Lock()
+	finished := s.finished
+	s.mu.Unlock()
+	if finished {
+		return 0, 0, ErrSessionClosed
+	}
+	return s.proc.winsize()
+}
+
 // Attach returns a reader that first yields the ring, then live output.
 // Attaching cancels a pending reap.
 func (s *Session) Attach() (*Attachment, error) {

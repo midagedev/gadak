@@ -4,6 +4,29 @@
 
 ## Unreleased
 
+- **Built-in 워크스페이스가 `close --resolution Duplicate` 를 받는다.** 시드 워크플로의
+  done 전환 화면에 선택 항목 resolution 이 들어갔다 — Cloud 기본 워크플로와 같다.
+  issuetap 은 Cloud 처럼 전환 필드를 화면으로 검사해서, 이전에는 플래그가 "not on the
+  appropriate screen" 에 튕겼다. 이 트래커에는 고칠 화면이 없는데 Jira 문장이 화면을
+  고치러 보내는 셈이었다. 0.20.1 이전에 만든 워크스페이스는 옛 워크플로를 그대로 두고,
+  거절 문장만 gadak 의 말로 바뀐다 ([GDK-1347]).
+
+- `gadak edit --batch` 가 플래그 어휘도 받는다: `label`·`component`·`fix_version` 은
+  `labels`·`components`·`fix_versions` 와 같은 축이다. 한 줄에 둘 다 있으면 합치지 않고
+  거절한다 ([GDK-1259]).
+
+- 아바타 이니셜이 구두점을 건너뛴다: 봇 `Claude (build 1)` 은 `C(` 가 아니라 `CB`
+  ([GDK-1351]).
+
+- 코드 펜스나 코드 스팬 안에 인용한 자리표시자 마커는 텍스트다 — 쓰기 전 게이트가
+  대체 파서와 같은 방식으로 마크다운을 읽어서, 마커를 설명하는 본문(이 CHANGELOG,
+  스킬)도 편집할 수 있다 ([GDK-1398]).
+
+- 데스크톱 리사이즈 테스트가 실패할 때 세션이 적용했다고 믿는 크기 옆에 커널이 pty 에
+  들고 있는 크기를 함께 찍는다. CI 플레이크는 러너 밖에서 재현되지 않았고, 이 값이
+  "적용됐는데 아무 일도 없었다" 와 "자식이 못 봤다" 를 가른다. 아직 열려 있다
+  ([GDK-1192]).
+
 - **서식 있는 본문을 마크다운으로 편집해도 마크다운이 못 담는 것을 잃지 않는다.**
   편집 원본 — `gadak issue`, 웹 편집기, `description_md` — 이 그런 노드마다
   자리표시자를 든다: 패널의 마크다운을 감싸는 `<!-- adf:1:… panel info -->` …
@@ -1468,3 +1491,8 @@ HTTP·sync·에이전트 계약을 담았습니다.
 [GDK-1394]: https://gadak.dev/backlog/#/?ks=GDK-1394
 [GDK-1395]: https://gadak.dev/backlog/#/?ks=GDK-1395
 [GDK-1396]: https://gadak.dev/backlog/#/?ks=GDK-1396
+[GDK-1347]: https://gadak.dev/backlog/#/?ks=GDK-1347
+[GDK-1259]: https://gadak.dev/backlog/#/?ks=GDK-1259
+[GDK-1351]: https://gadak.dev/backlog/#/?ks=GDK-1351
+[GDK-1398]: https://gadak.dev/backlog/#/?ks=GDK-1398
+[GDK-1192]: https://gadak.dev/backlog/#/?ks=GDK-1192

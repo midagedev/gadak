@@ -731,6 +731,12 @@ func localOriginFixture(projects []string) []byte {
 			fmt.Sprintf("%d", 10000+i), key, name)...)
 	}
 	b = append(b, "spaces:\n  - id: \"40000\"\n    key: "+DefaultSpaceKey+"\n    name: Local\n    type: global\n"...)
+	// The done transition carries an optional resolution field on its screen,
+	// as Cloud's default workflows do. issuetap screen-checks transition
+	// fields the way Cloud does, so without this line `close --resolution
+	// Duplicate` bounced off a Jira-worded 400 on a tracker that has no
+	// screens to fix (GDK-1347). 10003 is issuetap's seeded Done status.
+	b = append(b, "transitionScreens:\n  - status: \"10003\"\n    fields:\n      resolution: {}\n"...)
 	return b
 }
 

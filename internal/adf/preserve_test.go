@@ -130,6 +130,24 @@ func TestDeletingAPlaceholderDeletesTheNodeAndIsReported(t *testing.T) {
 	}
 }
 
+func TestHasPlaceholdersIgnoresMarkersQuotedInCode(t *testing.T) {
+	// GDK-1398: the documentation of the markers quotes them; a fence or a
+	// code span is text, and a body made of it must stay editable.
+	quoted := "The source holds `<!-- adf:1:deadbeef panel -->` per node.\n\n```\n<!-- adf:2:deadbeef mention @Dana -->\n<!-- /adf:2 -->\n```\n"
+	if HasPlaceholders(quoted) {
+		t.Fatalf("a marker inside code is not a placeholder:\n%s", quoted)
+	}
+	if err := RefusePlaceholders(quoted); err != nil {
+		t.Fatalf("RefusePlaceholders shares the parse: %v", err)
+	}
+	if !HasPlaceholders("- item\n\n  <!-- adf:1:deadbeef mediaSingle -->\n") {
+		t.Fatal("a real block marker under a list item is one")
+	}
+	if !HasPlaceholders("cc <!-- adf:3:deadbeef mention --> today") {
+		t.Fatal("a real inline marker is one")
+	}
+}
+
 func TestPlaceholderRefusals(t *testing.T) {
 	base := json.RawMessage(richKept)
 	kept := Preserved(base)
