@@ -1,6 +1,77 @@
 # Changelog
 
-<sub><a href="CHANGELOG.md">English</a> · 한국어 — 영문이 원본이며, 번역은 영문과 함께 갱신됩니다(마지막 동기화 2026-09-01).</sub>
+<sub><a href="CHANGELOG.md">English</a> · 한국어 — 영문이 원본이며, 번역은 영문과 함께 갱신됩니다(마지막 동기화 2026-09-03).</sub>
+
+## v0.20.0 — 2026-09-03
+
+**셸이 창 안에 있고, 그 셸은 이슈의 셸입니다.** 터미널 도크가 이제 창
+전체를 가로지르는 띠입니다 — 사이드바·리스트·도킹된 상세 아래 수평 이음매
+하나, 기본 높이는 창의 4분의 1, 너비는 모든 열([GDK-1352]). 세션 roster는
+그 왼쪽의 열이고 위 사이드바와 같은 폭이라, 창은 여전히 왼쪽이 내비게이션,
+오른쪽이 내용으로 읽힙니다([GDK-1355]). 그리고 도크는 자기 외양을 가집니다:
+앱 테마가 무엇이든 dark — xterm의 16색은 어두운 바탕용 팔레트라 종이 위에선
+9색이 3.0:1 아래로 떨어졌기 때문입니다. 앱 색을 따르고 싶으면 `follow`,
+그것과 글꼴·스크롤백·커서를 위한 **Settings → Terminal** 탭이
+생겼습니다([GDK-1357]). 라이트 팔레트는 자기 16색을 선언합니다 — 벽돌·이끼·
+황토·쪽빛·자두·청록, 두 white는 읽히는 회색 — 다른 토큰과 똑같이
+`ui.tokens.colors`로 덮어쓸 수 있습니다([GDK-1358]). 블록 커서는 채움이
+아니라 바탕 위의 잉크이고([GDK-1359]), pane은 마지막 행 아래까지 자기 바탕을
+칠합니다([GDK-1354]).
+
+그 pane에 친 `gadak claim`은 셸을 이슈에 묶고, roster 탭 이름이 키가 됩니다.
+README와 랜딩이 이제 정확히 그것을 gadak 자체 pane으로 보여 줍니다 — 종이
+터미널 합성은 은퇴했습니다([GDK-1353]).
+
+**표면을 한 번 훑었습니다.** 사이드바는 목차가 아니라 돌아가는 길입니다 —
+맨 위 워크스페이스 행, 조용한 섹션, 한 줄 푸터([GDK-1335]). 리스트 툴바는
+뷰를 좁히기 전까지 한 줄, 행은 36px, 오래된 나이는 상자 대신 숫자, 팔레트의
+문은 하나([GDK-1336]). 모든 열 화면 — 문서·스페이스·방문 기록·대시보드·피드
+— 가 헤더 띠 하나를 공유합니다([GDK-1339]). 상세는 바뀌는 것만 남긴 칩 행
+아래의 속성 목록 하나이고([GDK-1337]), 본문에는 타입 스케일과 넓게 읽기
+토글이 생겼고([GDK-1311]), 보드의 최근 행위자는 얼굴입니다([GDK-1338]). 모든
+컨트롤이 반응하고 160ms를 넘는 것은 없으며, hover는 바탕 위의 잉크
+워시입니다([GDK-1341]). "이 뷰 링크 복사"는 이슈 상세의 링크 복사가 이미
+하던 대로 Jira 내비게이터 URL을 먼저, 앱 링크를 뒤에 붙여 넣고([GDK-1343]),
+연 이슈의 키는 조용해지며 그 뒤에 바뀐 이슈에는 점이 붙고([GDK-1344]),
+breakdown 범례는 라벨을 조각으로 찌그러뜨리는 대신 `+N more`로
+접히며([GDK-1348]), *워크스페이스*로 전환은 팔레트 액션입니다([GDK-1340]).
+
+첫 실행은 "이슈가 어디에 있나요?"로 열리고 아무것도 미리 고르지 않으며,
+무엇을 묻기 전에 gadak이 무엇인지 먼저 말합니다. 내장 트래커에서는 빈
+리스트가 동기화를 약속하는 대신 첫 이슈를 청합니다([GDK-1342], [GDK-1345],
+[GDK-1286], [GDK-1287]).
+
+**뒤로가기가 어디서나 됩니다.** 모든 장소 이동 — 링크된 이슈, 사람, 뷰,
+검색어 — 이 history를 거치므로 브라우저의 뒤로 버튼이 말 그대로
+동작합니다([GDK-1296]). 이슈 링크는 자기 origin에서 열립니다 — 트래커별
+분기 하나, 서로 넘나드는 폴백 없이([GDK-1149], [GDK-1308]). 상세의 링크
+복사는 origin 페이지를 먼저 붙이고([GDK-1290]), 설정 대화상자는 탭을 바꿔도
+한 폭을 지키고([GDK-1291]), 전체화면 창은 Dock 클릭에도 전체화면에
+머물고([GDK-1294]), 이 기계에 없는 워크스페이스를 가리키는 `gadak://` 링크는
+앱을 404 페이지로 바꾸는 대신 대화상자로 거절됩니다([GDK-1309]). 디스커션
+#80과 이슈 #85 — @woojing 님 감사합니다.
+
+**떠나기와 지키기.** `migrate --to linear`가 미러를 Linear 팀으로,
+멱등하게 보냅니다([GDK-1265]). `gadak backup`이 serve가 도는 채로 내장
+트래커의 기록을 복사합니다([GDK-1277]). 페어링된 워크스페이스가 홈 origin의
+위키를 미러링하고([GDK-1276]), `pairing mint`는 결코 바인딩될 수 없는
+loopback 제안을 거절합니다([GDK-1266]). Confluence 동기화는 개인 스페이스만
+제외하므로 팀 스페이스 유형이 남습니다([GDK-1302]). `docs/SUPPORT_MATRIX.md`
+가 Jira·Linear·내장 트래커의 유일한 표이고 셀마다 인용이 있으며([GDK-1300]),
+내장 트래커는 CLI와 문서 어디서나 한 이름입니다([GDK-1285], [GDK-1288]).
+
+**고쳤습니다.** `edit -m -`가 빈 stdin을 받으면 설명을 지우는 대신
+거절합니다([GDK-1360]). 내장 트래커로의 `migrate`가 `status_catalog`가 채워진
+적 없는 미러에서 상태 이름은 다 옮기고 상태 카테고리는 다 잃었습니다 — Done과
+In Progress가 열린 이슈로 도착했고 `claim`이 착지할 진행 중 상태가
+없었습니다([GDK-1361]). 이름 붙은 워크스페이스의 pane에 친 쓰기가 더는
+`warning: workspace: … (from GADAK_WORKSPACE)`로 시작하지 않습니다 — 그 변수는
+serve가 창의 워크스페이스를 이름 붙이려 넣은 것입니다([GDK-1362]). 신선도 칩이
+Jira가 아니라 origin의 트래커를 말하고([GDK-1325]), 폰의 페어링 탭이
+Built-in이라 말합니다([GDK-1321]). 태그 전 감사가 찾은 결함 셋이 들어갔습니다:
+`init --replace-standalone`이 다시 받아들여지고, origin 페이지 없는 이슈가
+"Open in Built-in"을 더는 광고하지 않으며, `migrate --to linear`가 done 상태가
+canceled 하나뿐인 팀도 매핑합니다([GDK-1312], [GDK-1313], [GDK-1314]).
 
 ## v0.19.3 — 2026-09-02
 
@@ -1251,3 +1322,48 @@ HTTP·sync·에이전트 계약을 담았습니다.
 [GDK-1282]: https://gadak.dev/backlog/#/?ks=GDK-1282
 [GDK-1283]: https://gadak.dev/backlog/#/?ks=GDK-1283
 [GDK-1284]: https://gadak.dev/backlog/#/?ks=GDK-1284
+[GDK-1149]: https://gadak.dev/backlog/#/?ks=GDK-1149
+[GDK-1265]: https://gadak.dev/backlog/#/?ks=GDK-1265
+[GDK-1266]: https://gadak.dev/backlog/#/?ks=GDK-1266
+[GDK-1276]: https://gadak.dev/backlog/#/?ks=GDK-1276
+[GDK-1277]: https://gadak.dev/backlog/#/?ks=GDK-1277
+[GDK-1285]: https://gadak.dev/backlog/#/?ks=GDK-1285
+[GDK-1286]: https://gadak.dev/backlog/#/?ks=GDK-1286
+[GDK-1287]: https://gadak.dev/backlog/#/?ks=GDK-1287
+[GDK-1288]: https://gadak.dev/backlog/#/?ks=GDK-1288
+[GDK-1290]: https://gadak.dev/backlog/#/?ks=GDK-1290
+[GDK-1291]: https://gadak.dev/backlog/#/?ks=GDK-1291
+[GDK-1294]: https://gadak.dev/backlog/#/?ks=GDK-1294
+[GDK-1296]: https://gadak.dev/backlog/#/?ks=GDK-1296
+[GDK-1300]: https://gadak.dev/backlog/#/?ks=GDK-1300
+[GDK-1302]: https://gadak.dev/backlog/#/?ks=GDK-1302
+[GDK-1308]: https://gadak.dev/backlog/#/?ks=GDK-1308
+[GDK-1309]: https://gadak.dev/backlog/#/?ks=GDK-1309
+[GDK-1311]: https://gadak.dev/backlog/#/?ks=GDK-1311
+[GDK-1312]: https://gadak.dev/backlog/#/?ks=GDK-1312
+[GDK-1313]: https://gadak.dev/backlog/#/?ks=GDK-1313
+[GDK-1314]: https://gadak.dev/backlog/#/?ks=GDK-1314
+[GDK-1321]: https://gadak.dev/backlog/#/?ks=GDK-1321
+[GDK-1325]: https://gadak.dev/backlog/#/?ks=GDK-1325
+[GDK-1335]: https://gadak.dev/backlog/#/?ks=GDK-1335
+[GDK-1336]: https://gadak.dev/backlog/#/?ks=GDK-1336
+[GDK-1337]: https://gadak.dev/backlog/#/?ks=GDK-1337
+[GDK-1338]: https://gadak.dev/backlog/#/?ks=GDK-1338
+[GDK-1339]: https://gadak.dev/backlog/#/?ks=GDK-1339
+[GDK-1340]: https://gadak.dev/backlog/#/?ks=GDK-1340
+[GDK-1341]: https://gadak.dev/backlog/#/?ks=GDK-1341
+[GDK-1342]: https://gadak.dev/backlog/#/?ks=GDK-1342
+[GDK-1343]: https://gadak.dev/backlog/#/?ks=GDK-1343
+[GDK-1344]: https://gadak.dev/backlog/#/?ks=GDK-1344
+[GDK-1345]: https://gadak.dev/backlog/#/?ks=GDK-1345
+[GDK-1348]: https://gadak.dev/backlog/#/?ks=GDK-1348
+[GDK-1352]: https://gadak.dev/backlog/#/?ks=GDK-1352
+[GDK-1353]: https://gadak.dev/backlog/#/?ks=GDK-1353
+[GDK-1354]: https://gadak.dev/backlog/#/?ks=GDK-1354
+[GDK-1355]: https://gadak.dev/backlog/#/?ks=GDK-1355
+[GDK-1357]: https://gadak.dev/backlog/#/?ks=GDK-1357
+[GDK-1358]: https://gadak.dev/backlog/#/?ks=GDK-1358
+[GDK-1359]: https://gadak.dev/backlog/#/?ks=GDK-1359
+[GDK-1360]: https://gadak.dev/backlog/#/?ks=GDK-1360
+[GDK-1361]: https://gadak.dev/backlog/#/?ks=GDK-1361
+[GDK-1362]: https://gadak.dev/backlog/#/?ks=GDK-1362

@@ -2,6 +2,88 @@
 
 <sub>English · <a href="CHANGELOG.ko.md">한국어</a></sub>
 
+## v0.20.0 — 2026-09-03
+
+**The shell is in the window, and it is the issue's shell.** The terminal
+dock is a band across the whole window now — one horizontal seam under the
+sidebar, the list and a docked detail alike, a quarter of the height by
+default, every column of the width ([GDK-1352]). The session roster is a
+column on its left, as wide as the sidebar above it, so the window keeps
+reading as navigation on the left and content on the right ([GDK-1355]).
+And the dock has an appearance of its own: dark under every app theme,
+because xterm's sixteen are a dark-ground palette and nine of them fell
+under 3.0:1 on paper; `follow` if you want it in the app's colours, and a
+**Settings → Terminal** tab for that, the font, scrollback and the cursor
+([GDK-1357]). The light palette declares its own sixteen — brick, moss,
+ochre, indigo, plum, teal, readable greys for the two whites — as tokens
+like any other, overridable through `ui.tokens.colors` ([GDK-1358]); the
+block cursor is ink on its ground rather than a fill ([GDK-1359]); and the
+pane paints its ground under the last row too ([GDK-1354]).
+
+`gadak claim` typed in that pane binds the shell to the issue, and the
+roster tab is named by the key. The README and the landing show exactly
+that now, in gadak's own pane: the paper-terminal composites are retired
+([GDK-1353]).
+
+**A pass over the surface.** The sidebar is a return path, not a table of
+contents — a workspace row on top, quiet sections, one footer row
+([GDK-1335]). The list toolbar is one row until you narrow the view, rows
+are 36px, the stale age is a number rather than a box, and the palette has
+one door ([GDK-1336]). Every column screen — Documents, spaces, History,
+dashboards, the feed — shares one header band ([GDK-1339]). The detail is
+one property list under a chip row that keeps only what changes
+([GDK-1337]), its prose has a type scale and a wide-reading toggle
+([GDK-1311]), and the board's recent actors are faces ([GDK-1338]).
+Every control reacts and nothing takes longer than 160ms; hover is a wash
+of ink over whatever it sits on ([GDK-1341]). Copy link to this view pastes
+the Jira navigator URL first and the app links after, the way the issue
+detail's copy link already did ([GDK-1343]); the key of an issue you have
+opened goes quiet, and one changed since carries a dot ([GDK-1344]); the
+breakdown legend folds to `+N more` instead of squeezing labels to slivers
+([GDK-1348]); Switch to *workspace* is a palette action ([GDK-1340]).
+
+The first run opens on "where do your issues live?" with nothing
+preselected, says what gadak is before it asks for anything, and on the
+built-in tracker the empty list invites the first issue instead of
+promising a sync ([GDK-1342], [GDK-1345], [GDK-1286], [GDK-1287]).
+
+**Back works everywhere.** Every place change goes through history — a
+linked issue, a person, a view, a query — so the browser's back button does
+what it says ([GDK-1296]). Issue links open on their own origin, one branch
+per tracker with no fallback across them ([GDK-1149], [GDK-1308]); the
+detail's copy link pastes the origin's page first ([GDK-1290]); the
+settings dialog keeps one width across tabs ([GDK-1291]); a dock click on a
+fullscreen window stays fullscreen ([GDK-1294]); and a `gadak://` link
+naming a workspace this machine lacks is refused in a dialog instead of
+replacing the app with a 404 page ([GDK-1309]). Discussion #80 and issue
+#85 — thanks @woojing.
+
+**Leaving and keeping.** `migrate --to linear` sends a mirror into a Linear
+team, idempotently ([GDK-1265]). `gadak backup` copies the built-in
+tracker's record with the serve running ([GDK-1277]). A paired workspace
+mirrors the home origin's wiki ([GDK-1276]), and `pairing mint` refuses a
+loopback offer that could never bind ([GDK-1266]). Confluence sync excludes
+personal spaces only, so team space types stay ([GDK-1302]).
+`docs/SUPPORT_MATRIX.md` is the one table for Jira, Linear and the
+built-in tracker, a citation per cell ([GDK-1300]), and the built-in
+tracker is named once across the CLI and the docs ([GDK-1285],
+[GDK-1288]).
+
+**Fixed.** `edit -m -` refuses an empty stdin instead of clearing the
+description ([GDK-1360]). `migrate` onto the built-in tracker kept every
+status name and lost every status category on a mirror whose
+`status_catalog` had never been filled — Done and In Progress arrived as
+open issues, and `claim` had no in-progress state to land on
+([GDK-1361]). A write typed into a named workspace's pane no longer opens
+with `warning: workspace: … (from GADAK_WORKSPACE)` — the serve set that
+variable to name the window's own workspace ([GDK-1362]). The freshness
+chip names the origin's tracker, not Jira ([GDK-1325]); the phone's pairing
+tab says Built-in ([GDK-1321]). Three defects the pre-tag audit found are
+in: `init --replace-standalone` is accepted again, an issue with no origin
+page no longer advertises "Open in Built-in", and `migrate --to linear`
+maps a team whose only done state is canceled ([GDK-1312], [GDK-1313],
+[GDK-1314]).
+
 ## v0.19.3 — 2026-09-02
 
 **Two words for two questions.** A workspace answered "what kind are you?"
@@ -1286,3 +1368,48 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-1282]: https://gadak.dev/backlog/#/?ks=GDK-1282
 [GDK-1283]: https://gadak.dev/backlog/#/?ks=GDK-1283
 [GDK-1284]: https://gadak.dev/backlog/#/?ks=GDK-1284
+[GDK-1149]: https://gadak.dev/backlog/#/?ks=GDK-1149
+[GDK-1265]: https://gadak.dev/backlog/#/?ks=GDK-1265
+[GDK-1266]: https://gadak.dev/backlog/#/?ks=GDK-1266
+[GDK-1276]: https://gadak.dev/backlog/#/?ks=GDK-1276
+[GDK-1277]: https://gadak.dev/backlog/#/?ks=GDK-1277
+[GDK-1285]: https://gadak.dev/backlog/#/?ks=GDK-1285
+[GDK-1286]: https://gadak.dev/backlog/#/?ks=GDK-1286
+[GDK-1287]: https://gadak.dev/backlog/#/?ks=GDK-1287
+[GDK-1288]: https://gadak.dev/backlog/#/?ks=GDK-1288
+[GDK-1290]: https://gadak.dev/backlog/#/?ks=GDK-1290
+[GDK-1291]: https://gadak.dev/backlog/#/?ks=GDK-1291
+[GDK-1294]: https://gadak.dev/backlog/#/?ks=GDK-1294
+[GDK-1296]: https://gadak.dev/backlog/#/?ks=GDK-1296
+[GDK-1300]: https://gadak.dev/backlog/#/?ks=GDK-1300
+[GDK-1302]: https://gadak.dev/backlog/#/?ks=GDK-1302
+[GDK-1308]: https://gadak.dev/backlog/#/?ks=GDK-1308
+[GDK-1309]: https://gadak.dev/backlog/#/?ks=GDK-1309
+[GDK-1311]: https://gadak.dev/backlog/#/?ks=GDK-1311
+[GDK-1312]: https://gadak.dev/backlog/#/?ks=GDK-1312
+[GDK-1313]: https://gadak.dev/backlog/#/?ks=GDK-1313
+[GDK-1314]: https://gadak.dev/backlog/#/?ks=GDK-1314
+[GDK-1321]: https://gadak.dev/backlog/#/?ks=GDK-1321
+[GDK-1325]: https://gadak.dev/backlog/#/?ks=GDK-1325
+[GDK-1335]: https://gadak.dev/backlog/#/?ks=GDK-1335
+[GDK-1336]: https://gadak.dev/backlog/#/?ks=GDK-1336
+[GDK-1337]: https://gadak.dev/backlog/#/?ks=GDK-1337
+[GDK-1338]: https://gadak.dev/backlog/#/?ks=GDK-1338
+[GDK-1339]: https://gadak.dev/backlog/#/?ks=GDK-1339
+[GDK-1340]: https://gadak.dev/backlog/#/?ks=GDK-1340
+[GDK-1341]: https://gadak.dev/backlog/#/?ks=GDK-1341
+[GDK-1342]: https://gadak.dev/backlog/#/?ks=GDK-1342
+[GDK-1343]: https://gadak.dev/backlog/#/?ks=GDK-1343
+[GDK-1344]: https://gadak.dev/backlog/#/?ks=GDK-1344
+[GDK-1345]: https://gadak.dev/backlog/#/?ks=GDK-1345
+[GDK-1348]: https://gadak.dev/backlog/#/?ks=GDK-1348
+[GDK-1352]: https://gadak.dev/backlog/#/?ks=GDK-1352
+[GDK-1353]: https://gadak.dev/backlog/#/?ks=GDK-1353
+[GDK-1354]: https://gadak.dev/backlog/#/?ks=GDK-1354
+[GDK-1355]: https://gadak.dev/backlog/#/?ks=GDK-1355
+[GDK-1357]: https://gadak.dev/backlog/#/?ks=GDK-1357
+[GDK-1358]: https://gadak.dev/backlog/#/?ks=GDK-1358
+[GDK-1359]: https://gadak.dev/backlog/#/?ks=GDK-1359
+[GDK-1360]: https://gadak.dev/backlog/#/?ks=GDK-1360
+[GDK-1361]: https://gadak.dev/backlog/#/?ks=GDK-1361
+[GDK-1362]: https://gadak.dev/backlog/#/?ks=GDK-1362
