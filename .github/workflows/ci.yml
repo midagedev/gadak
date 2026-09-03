@@ -848,14 +848,17 @@ jobs:
           $pfx = Join-Path $env:RUNNER_TEMP 'ci-throwaway.pfx'
           $pw = ConvertTo-SecureString -String 'ci' -Force -AsPlainText
           Export-PfxCertificate -Cert $cert -FilePath $pfx -Password $pw | Out-Null
-          & $signtool sign /fd SHA256 /a /f $pfx /p ci $msix.FullName
+          # Sign a copy: the unsigned original is the Store upload artifact.
+          $test = Join-Path $env:RUNNER_TEMP $msix.Name
+          Copy-Item -LiteralPath $msix.FullName -Destination $test -Force
+          & $signtool sign /fd SHA256 /a /f $pfx /p ci $test
           if ($LASTEXITCODE -ne 0) { throw "signtool exited $LASTEXITCODE" }
           Import-PfxCertificate -FilePath $pfx -CertStoreLocation 'Cert:\LocalMachine\TrustedPeople' -Password $pw | Out-Null
           # Server images may refuse sideloading (0x80073CFF); this is the
           # documented policy switch, not a manifest problem.
           New-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Appx' -Force | Out-Null
           Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Appx' -Name AllowAllTrustedApps -Value 1 -Type DWord
-          Add-AppxPackage -Path $msix.FullName
+          Add-AppxPackage -Path $test
           $pkg = Get-AppxPackage -Name $name
           if (-not $pkg) { throw "installed, but Get-AppxPackage $name found nothing" }
           Write-Host ("installed {0} {1} ({2})" -f $pkg.Name, $pkg.Version, $pkg.Architecture)
@@ -865,6 +868,15 @@ jobs:
           Remove-AppxPackage -Package $pkg.PackageFullName
           Write-Host "msix install/uninstall — ok"
           exit 0
+
+      # The file Partner Center takes. The install check above signed a copy
+      # in RUNNER_TEMP, so this is the untouched unsigned package.
+      - name: Upload Store package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gadak-desktop-msix-x64
+          path: desktop/build/Gadak-*-windows-x64.msix
+          if-no-files-found: error
 
       # In a child process, not in this step's own runspace: a non-zero
       # $LASTEXITCODE left behind at the end of a pwsh step is what the runner
