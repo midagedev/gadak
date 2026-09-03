@@ -1,9 +1,6 @@
 /**
- * Terminal-pane hero for scratch/terminal-hero.mp4 (0.18).
- *
- * The artifact is deliberately not in docs/media: that directory is symlinked
- * into the website's public root, and the terminal is not announced on the
- * site or in the README while it ships Beta. See export-terminal.sh.
+ * Terminal-pane hero — docs/media/terminal-demo.mp4 (0.18 Beta take kept in
+ * scratch/; 0.20 puts it on the README and the landing). See export-terminal.sh.
  *
  * Every earlier split clip — agent.gif, tokens.gif — draws a *paper
  * terminal* beside an app iframe, because gadak had no terminal of its

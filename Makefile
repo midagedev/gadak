@@ -158,10 +158,10 @@ media-history: media-deps
 # Terminal hero (0.18): the shell inside the window. Retires the composite
 # the agent/tokens clips use — those draw a paper terminal beside an app
 # iframe because gadak had no terminal of its own.
-# Output is scratch/terminal-demo.mp4 (the live-Claude rig writes
-# scratch/terminal-hero.mp4), not $(MEDIA_DIR): the pane shipped Beta in 0.18
-# in 0.18 and is not announced on the site or in the README, and docs/media is
-# symlinked into the website's public root. See e2e/demo/export-terminal.sh.
+# Output is $(MEDIA_DIR)/terminal-demo.mp4 (the live-Claude rig writes
+# terminal-hero.mp4 beside it): 0.18 kept these bytes in scratch/ while the
+# pane shipped Beta; 0.20 put the pane on the README and the landing.
+# See e2e/demo/export-terminal.sh.
 media-terminal: media-deps
 	@echo "media-terminal: recording terminal-pane hero…"
 	rm -rf e2e/demo/test-results-terminal

@@ -1,5 +1,5 @@
 /**
- * Terminal-pane hero, live-Claude cut — scratch/terminal-hero.mp4 (0.18).
+ * Terminal-pane hero, live-Claude cut — docs/media/terminal-hero.mp4.
  *
  * Every earlier agent clip — agent.gif, claude-drive, claude-dashboards —
  * draws a *paper terminal* beside an app iframe, because gadak had no
@@ -24,10 +24,6 @@
  *   3. `claude` boots inside it
  *   4. "…담당한 이슈 중에 최근에 움직인 것 보여줘" — the list becomes that answer
  *   5. "이슈 라벨 비율 대시보드 만들어서 열어줘" — and the same pane paints a wall
- *
- * The artifact is deliberately not in docs/media: that directory is symlinked
- * into the website's public root, and the terminal is not announced on the
- * site or in the README while it ships Beta. See export-terminal.sh.
  *
  * Gated by GADAK_MEDIA=1, and driven by record-terminal-claude.sh — which
  * owns the serve, the isolated agent HOME and the frozen GADAK_HOME. Running

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Live-Claude terminal-pane hero → scratch/terminal-hero.mp4 (the 0.18
-# Twitter clip).
+# Live-Claude terminal-pane hero → docs/media/terminal-hero.mp4 (README
+# and landing since 0.20; GADAK_TERMINAL_OUT redirects a scratch take).
 #
 # Unlike record-claude-drive.sh this is NOT a composite: there is no VHS half.
 # Claude Code runs inside gadak's own terminal pane, so one Playwright

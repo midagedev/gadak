@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Find the Playwright video from the terminal take and emit one Twitter-ready
-# mp4 at scratch/terminal-hero.mp4.
+# mp4 in docs/media (GADAK_TERMINAL_OUT redirects a scratch take).
 #
 # Two deliberate differences from every other export script here:
 #
