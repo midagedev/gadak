@@ -33,8 +33,8 @@ const fieldFlagUsage = "configured field alias=value (repeatable); JSON is parse
 func cmdEdit(args []string) error {
 	fs := newFlagSet("edit")
 	summary := fs.String("summary", "", "replace the summary")
-	text := fs.String("m", "", "replace the description as plain text; `-` reads stdin; empty clears")
-	forcePlain := fs.Bool("force-plain", false, "with -m: replace or clear a description that has formatting anyway (the formatting is discarded)")
+	text := fs.String("m", "", "replace the description with markdown; `-` reads stdin; empty clears")
+	forcePlain := fs.Bool("force-plain", false, "with -m: replace or clear a description that has formatting markdown cannot carry (panels, media, mentions, colours) anyway — that formatting is discarded")
 	var labels labelFlags
 	fs.Var(&labels, "label", "`+name` or `-name` (repeatable)")
 	var components labelFlags
@@ -262,7 +262,7 @@ func applyEditChange(ctx context.Context, cfg *config.Config, db *store.DB, c or
 		fields["summary"] = strings.TrimSpace(ch.summary)
 	}
 	if ch.hasM {
-		// GDK-1001: a plain-text replace (or clear) of a description that
+		// GDK-1001: a markdown replace (or clear) of a description that
 		// carries formatting is data loss, so it is refused unless the user
 		// named the loss with --force-plain. The read is the origin's, not
 		// the mirror's — the mirror can be stale and this is a decision
@@ -611,7 +611,7 @@ func fixVersionUpdateOps(ctx context.Context, c origin.Writer, issueKey string, 
 // text, so before the PUT the current description is read from the origin —
 // never the mirror, which is a stale cache while this decision is about the
 // write's next instant — and the edit is refused when that description
-// carries formatting a plain-text replace would destroy. --force-plain
+// carries formatting a markdown replace would destroy. --force-plain
 // callers skip this entirely; so do Linear keys: a Linear description is
 // plain text end to end (linearWriter flattens ADF on the way in), and a Jira
 // description GET there would need an Atlassian credential a Linear-only
@@ -651,7 +651,7 @@ func guardDescriptionReplace(ctx context.Context, cfg *config.Config, src, key s
 	if clearing {
 		asked, verb = "-m ''", "clear"
 	}
-	return fmt.Errorf("description of %s has formatting (%s) that %s would destroy — re-run with --force-plain to %s it anyway",
+	return fmt.Errorf("description of %s has formatting markdown cannot carry (%s) that %s would destroy — re-run with --force-plain to %s it anyway",
 		key, strings.Join(loss, ", "), asked, verb)
 }
 

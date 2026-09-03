@@ -79,6 +79,10 @@ func TestIsSimpleRejectsMarksListsHeadings(t *testing.T) {
 }
 
 func TestFormatLoss(t *testing.T) {
+	// GDK-1384: the edit surface is markdown, so the subset markdown carries
+	// (marks strong/em/code/strike/link, headings, lists, tables with
+	// single-paragraph cells) is no longer loss. Loss is what has no
+	// markdown: panel, media, mention, status, textColor, …
 	table := `{"type":"doc","version":1,"content":[{"type":"table","content":[{"type":"tableRow","content":[` +
 		`{"type":"tableCell","content":[{"type":"paragraph","content":[{"type":"text","text":"c"}]}]}]}]}]}`
 	cases := []struct {
@@ -91,12 +95,16 @@ func TestFormatLoss(t *testing.T) {
 		{"plain paragraphs", `{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"a"}]}]}`, nil},
 		{"hardBreak is plain", `{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"a"},{"type":"hardBreak"}]}]}`, nil},
 		{"bare string is already plain", `"wiki markup"`, nil},
-		{"mark", `{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"b","marks":[{"type":"strong"}]}]}]}`, []string{"strong"}},
-		{"link mark names the mark", `{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"l","marks":[{"type":"link","attrs":{"href":"https://example.com"}}]}]}]}`, []string{"link"}},
-		{"table walks its rows and cells", table, []string{"table", "tableRow", "tableCell"}},
+		{"strong is markdown", `{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"b","marks":[{"type":"strong"}]}]}]}`, nil},
+		{"link is markdown", `{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"l","marks":[{"type":"link","attrs":{"href":"https://example.com"}}]}]}]}`, nil},
+		{"heading and list are markdown", `{"type":"doc","content":[{"type":"heading","attrs":{"level":2},"content":[{"type":"text","text":"h"}]},{"type":"bulletList","content":[{"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","text":"i"}]}]}]}]}`, nil},
+		{"table is markdown", table, nil},
+		{"textColor names the mark", `{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"b","marks":[{"type":"textColor","attrs":{"color":"#ff0000"}}]}]}]}`, []string{"textColor"}},
+		{"panel walks into its paragraph", `{"type":"doc","content":[{"type":"panel","attrs":{"panelType":"info"},"content":[{"type":"paragraph","content":[{"type":"text","text":"p"}]}]}]}`, []string{"panel"}},
 		{"mention", `{"type":"doc","content":[{"type":"paragraph","content":[{"type":"mention","attrs":{"id":"a","text":"@D"}}]}]}`, []string{"mention"}},
-		// Two tables in one doc: each kind appears once.
-		{"dedup keeps one of each kind", `{"type":"doc","content":[{"type":"table","content":[{"type":"tableRow"}]},{"type":"table","content":[{"type":"tableRow"}]}]}`, []string{"table", "tableRow"}},
+		{"media is loss down to the leaf", `{"type":"doc","content":[{"type":"mediaSingle","content":[{"type":"media","attrs":{"id":"x"}}]}]}`, []string{"mediaSingle", "media"}},
+		// Two panels in one doc: each kind appears once.
+		{"dedup keeps one of each kind", `{"type":"doc","content":[{"type":"panel","content":[{"type":"paragraph"}]},{"type":"panel","content":[{"type":"paragraph"}]}]}`, []string{"panel"}},
 		{"garbage is reported, never waved through", `not json`, []string{unreadableDescription}},
 	}
 

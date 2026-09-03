@@ -91,10 +91,11 @@ var simpleTypes = map[string]bool{
 	"doc": true, "paragraph": true, "text": true, "hardBreak": true, "codeBlock": true,
 }
 
-// IsSimple is the Go port of web/src/lib/adf.ts isSimpleAdf: empty/null is
-// simple; otherwise only doc/paragraph/text/hardBreak with no marks. A
-// plain-text replace of a non-simple document would drop formatting, so
-// callers refuse unless the user passed force.
+// IsSimple reports a document made of typed text only — doc / paragraph /
+// text / hardBreak / codeBlock, no marks: what an older jira.Doc or a
+// migration built from a string. Markdown() returns such a document's text
+// as typed (its `**` is the author's markdown); anything richer is
+// serialized. The format-loss gate is FormatLoss, not this.
 func IsSimple(raw string) bool {
 	if strings.TrimSpace(raw) == "" {
 		return true
@@ -125,11 +126,11 @@ func walkSimple(n simpleNode) bool {
 // not parse: the caller refuses rather than destroy a body it could not read.
 const unreadableDescription = "unreadable description JSON"
 
-// FormatLoss lists what a plain-text replace of raw would destroy: node types
-// outside the IsSimple set, plus mark names (strong, link, …), deduped in
-// first-appearance order — edit -m's refusal prints them so the user sees what
-// the replace would drop (GDK-1001). Empty means a plain-text replace loses
-// nothing. A bare string (the older wiki-markup shape PlainText passes
+// FormatLoss lists what a markdown replace of raw would destroy: node types
+// and mark names outside the markdown subset (panel, media, status, mention,
+// textColor, …), deduped in first-appearance order — edit -m's refusal
+// prints them so the user sees what the replace would drop (GDK-1001). Empty
+// means the body round-trips through markdown and a replace loses nothing. A bare string (the older wiki-markup shape PlainText passes
 // through) is already plain. A document that does not parse is reported,
 // never waved through.
 func FormatLoss(raw string) []string {
@@ -150,8 +151,21 @@ func FormatLoss(raw string) []string {
 	return out
 }
 
+// markdownTypes and markdownMarks are the node and mark kinds Markdown() and
+// FromMarkdown() carry both ways (markdown.go) — the set a markdown edit
+// preserves. FormatLoss names everything outside it.
+var markdownTypes = map[string]bool{
+	"doc": true, "paragraph": true, "text": true, "hardBreak": true, "codeBlock": true,
+	"heading": true, "rule": true, "bulletList": true, "orderedList": true, "listItem": true,
+	"blockquote": true, "table": true, "tableRow": true, "tableHeader": true, "tableCell": true,
+}
+
+var markdownMarks = map[string]bool{
+	"strong": true, "em": true, "code": true, "strike": true, "link": true,
+}
+
 func collectLoss(n simpleNode, seen map[string]bool, out *[]string) {
-	if !simpleTypes[n.Type] {
+	if !markdownTypes[n.Type] {
 		noteLoss(n.Type, seen, out)
 	}
 	for _, m := range n.Marks {
@@ -159,7 +173,9 @@ func collectLoss(n simpleNode, seen map[string]bool, out *[]string) {
 			Type string `json:"type"`
 		}
 		if json.Unmarshal(m, &mark) == nil && mark.Type != "" {
-			noteLoss(mark.Type, seen, out)
+			if !markdownMarks[mark.Type] {
+				noteLoss(mark.Type, seen, out)
+			}
 			continue
 		}
 		noteLoss("marks", seen, out)

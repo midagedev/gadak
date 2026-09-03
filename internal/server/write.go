@@ -1387,7 +1387,7 @@ func (s *server) handlePageEdit(w http.ResponseWriter, r *http.Request) {
 	case body.ADF != "":
 		doc = body.ADF
 	case body.Text != nil:
-		if !body.Force && !adf.IsSimple(doc) {
+		if !body.Force && len(adf.FormatLoss(doc)) > 0 {
 			fail(w, http.StatusConflict, "format_loss")
 			return
 		}

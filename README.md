@@ -248,11 +248,12 @@ Deliberate gaps on the write side, stated here so nobody finds them in
 production:
 
 - **`edit -m` refuses to destroy a formatted description.** `-m` writes
-  plain text; when the description currently on the origin carries
-  formatting a plain replace would drop — tables, headings, lists, links,
-  mentions — the edit stops and names what it found. `gadak edit KEY -m
-  … --force-plain` replaces it anyway. (`page edit -m` has the same
-  guard behind `--force`.)
+  markdown — headings, lists, tables, code, bold, links all round-trip —
+  but when the description currently on the origin carries formatting
+  markdown cannot hold (panels, inline media, mentions, colours) the edit
+  stops and names what it found. `gadak edit KEY -m … --force-plain`
+  replaces it anyway. (`page edit -m` has the same guard behind
+  `--force`.)
 - **No sprint verbs.** Sprint fields are mirrored (`sprint_id`,
   `sprint_name`, `sprint_state`; SQL and JQL query them), but moving an
   issue between sprints or editing a sprint happens in Jira.

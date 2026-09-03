@@ -36,11 +36,14 @@ func TestDocTurnsMentionsIntoNodes(t *testing.T) {
 	if err := json.Unmarshal([]byte(got), &doc); err != nil {
 		t.Fatalf("not valid ADF: %v", err)
 	}
-	if doc.Type != "doc" || doc.Version != 1 || len(doc.Content) != 2 {
+	// GDK-1384: the body is markdown — a single newline is a hardBreak inside
+	// one paragraph, not a second paragraph (a blank line would be).
+	if doc.Type != "doc" || doc.Version != 1 || len(doc.Content) != 1 {
 		t.Fatalf("shape: %+v", doc)
 	}
-	if doc.Content[1].Content[0].Text != "두 번째 줄 a@b.com" {
-		t.Fatalf("second line: %q", doc.Content[1].Content[0].Text)
+	inl := doc.Content[0].Content
+	if len(inl) != 4 || inl[0].Type != "mention" || inl[2].Type != "hardBreak" || inl[3].Text != "두 번째 줄 a@b.com" {
+		t.Fatalf("inline shape: %+v", inl)
 	}
 	// An empty body is still a legal document.
 	if !json.Valid(Doc("", nil)) {
@@ -59,7 +62,9 @@ func TestDocLeavesCodeQuotedMentionsAsText(t *testing.T) {
 	if n := strings.Count(span, `"type":"mention"`); n != 1 {
 		t.Fatalf("inline code span must not become a mention node (got %d): %s", n, span)
 	}
-	if !strings.Contains(span, "`@Dana`") {
+	// GDK-1384: the span is a text node carrying the code mark; the
+	// backticks are syntax, not text.
+	if !strings.Contains(span, `"marks":[{"type":"code"}],"text":"@Dana"`) {
 		t.Fatalf("code span text lost: %s", span)
 	}
 

@@ -4,6 +4,18 @@
 
 ## Unreleased
 
+- **본문은 마크다운이다.** `create -m`·`edit -m`·`comment`·page 동사·웹 설명
+  편집기·코멘트 작성기가 모두 마크다운을 받아 Jira 와 Built-in 트래커가
+  저장하는 ADF 로 보낸다 — 헤딩·목록·인용·펜스 코드·표·굵게·기울임·취소선·
+  링크. 빈 줄은 문단 경계, 단일 줄바꿈은 줄바꿈이고, 그 규칙이 옮겨온 벽들을
+  블록으로 되돌리기도 한다. 편집을 위해 본문을 되읽으면 평문 문서는 친 그대로,
+  서식 문서는 이스케이프한 직렬화로 돌아오며, 그 부분집합 안에서 두 방향은
+  항등이다 — 골든 테스트가 고정한다. `edit -m` 과 `page edit` 은 마크다운이
+  담지 못하는 것(패널·미디어·멘션·색)만 거절하고, `--force-plain`·`--force` 는
+  이름을 유지한다. 결정은
+  [`docs/decisions/0012`](docs/decisions/0012-markdown-is-the-editing-source.md)
+  ([GDK-1384], 부모 [GDK-1383]).
+
 - `migrate --from` 이 모든 본문을 평탄화한 텍스트가 아니라 origin 의 ADF 그대로
   싣는다: Built-in 트래커의 fixture 에 `descriptionAdf` / `bodyAdf` 슬롯이 생겨
   그대로 저장하고, export 는 설명·코멘트·위키 페이지·페이지 코멘트에 그것을
@@ -1387,3 +1399,5 @@ HTTP·sync·에이전트 계약을 담았습니다.
 [GDK-1361]: https://gadak.dev/backlog/#/?ks=GDK-1361
 [GDK-1362]: https://gadak.dev/backlog/#/?ks=GDK-1362
 [GDK-1382]: https://gadak.dev/backlog/#/?ks=GDK-1382
+[GDK-1383]: https://gadak.dev/backlog/#/?ks=GDK-1383
+[GDK-1384]: https://gadak.dev/backlog/#/?ks=GDK-1384

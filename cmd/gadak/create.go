@@ -24,7 +24,7 @@ const createUsage = "usage: gadak create [--] <SUMMARY> | --batch - [--project K
 
 // createBatchShape is the one-line reminder printed when a --batch line is
 // not an object we can file. Field names match createBatchLine.
-const createBatchShape = `{"summary": "...", "type"?: "...", "project"?: "...", "labels"?: [...], "description"?: "plain text", "attach"?: ["path", ...], "priority"?: "...", "parent"?: "ABC-1", "due"?: "YYYY-MM-DD", "fields"?: {"alias": value}}`
+const createBatchShape = `{"summary": "...", "type"?: "...", "project"?: "...", "labels"?: [...], "description"?: "markdown", "attach"?: ["path", ...], "priority"?: "...", "parent"?: "ABC-1", "due"?: "YYYY-MM-DD", "fields"?: {"alias": value}}`
 
 // labelFlags collects repeated --label values.
 type labelFlags []string
@@ -47,7 +47,7 @@ func cmdCreate(args []string) error {
 	fs.Var(&labels, "label", "label (repeatable)")
 	var attachFiles labelFlags
 	fs.Var(&attachFiles, "attach", "file to upload after create (repeatable)")
-	text := fs.String("m", "", "description as plain text; `-` reads it from stdin")
+	text := fs.String("m", "", "description as markdown; `-` reads it from stdin")
 	var fieldFlags labelFlags
 	fs.Var(&fieldFlags, "field", fieldFlagUsage)
 	asJSON := fs.Bool("json", false, "emit JSON")

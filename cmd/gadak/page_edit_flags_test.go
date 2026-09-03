@@ -45,7 +45,8 @@ func TestCmdPageEditRequiresPageID(t *testing.T) {
 // so CLI and REST judge the same documents.
 const (
 	cliWikiSimpleADF  = `{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"plain"}]}]}`
-	cliWikiComplexADF = `{"type":"doc","version":1,"content":[{"type":"heading","attrs":{"level":2},"content":[{"type":"text","text":"Steps"}]}]}`
+	cliWikiComplexADF = `{"type":"doc","version":1,"content":[{"type":"heading","attrs":{"level":2},"content":[{"type":"text","text":"Steps"}]},` +
+		`{"type":"panel","attrs":{"panelType":"info"},"content":[{"type":"paragraph","content":[{"type":"text","text":"note"}]}]}]}` // GDK-1384: a heading alone is markdown now; the panel is what a text replace would lose
 )
 
 // cliWikiOrigin is a Confluence stand-in for page-edit CLI tests. GET returns

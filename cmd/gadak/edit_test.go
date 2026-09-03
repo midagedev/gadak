@@ -116,8 +116,9 @@ import (
 // 37. Help / usage enumerate --type
 //     TestEditHelpListsTypeFlag
 //
-// -m vs formatted descriptions (GDK-1001 — a plain-text replace must not
-// silently destroy a table/heading/link body):
+// -m vs formatted descriptions (GDK-1001 — a markdown replace must not
+// silently destroy a panel/media/mention body; since GDK-1384 headings,
+// lists, tables and marks round-trip through markdown and are not loss):
 // 38. formatted current description + -m → refused, the node types and marks
 //     named, --force-plain offered; no PUT; the guard did read the origin
 //     TestEditMRefusesFormattedDescription
@@ -1833,14 +1834,15 @@ func TestEditHelpListsTypeFlag(t *testing.T) {
 	}
 }
 
-// formattedDescADF carries one of each loss class: a mark (strong), a table
-// (block structure), and a heading.
+// formattedDescADF carries one of each loss class markdown cannot hold
+// (GDK-1384 — strong, table and heading round-trip through markdown now and
+// are no longer loss): a mark (textColor), a block (panel), and a mention.
 const formattedDescADF = `{"type":"doc","version":1,"content":[` +
 	`{"type":"paragraph","content":[{"type":"text","text":"plain lead"},` +
-	`{"type":"text","text":"bold","marks":[{"type":"strong"}]}]},` +
-	`{"type":"table","content":[{"type":"tableRow","content":[` +
-	`{"type":"tableCell","content":[{"type":"paragraph","content":[{"type":"text","text":"cell"}]}]}]}]},` +
-	`{"type":"heading","attrs":{"level":2},"content":[{"type":"text","text":"Steps"}]}]}`
+	`{"type":"text","text":"red","marks":[{"type":"textColor","attrs":{"color":"#ff0000"}}]}]},` +
+	`{"type":"panel","attrs":{"panelType":"info"},"content":[` +
+	`{"type":"paragraph","content":[{"type":"text","text":"note"}]}]},` +
+	`{"type":"paragraph","content":[{"type":"mention","attrs":{"id":"acc","text":"@Dana"}}]}]}`
 
 // plainDescADF is exactly what jira.Doc emits for a two-line plain body.
 const plainDescADF = `{"type":"doc","version":1,"content":[` +
@@ -1891,7 +1893,7 @@ func TestEditMRefusesFormattedDescription(t *testing.T) {
 		t.Fatal("formatted description must refuse a plain-text replace")
 	}
 	msg := err.Error()
-	for _, want := range []string{"NMB-1", "table", "heading", "strong", "--force-plain"} {
+	for _, want := range []string{"NMB-1", "panel", "textColor", "mention", "--force-plain"} {
 		if !strings.Contains(msg, want) {
 			t.Errorf("refusal %q missing %q", msg, want)
 		}

@@ -435,8 +435,9 @@ source-vs-migrated count table (derived columns like `reopen_count`
 included). The source is read-only throughout and keeps working. The
 target must not exist yet; migrating never rebinds an existing workspace.
 `--projects A,B` / `--spaces X,Y` narrow the set, `--skip-attachments`
-skips the byte downloads. Bodies migrate as plain text; the report says
-how many code blocks / media / tables that flattened.
+skips the byte downloads. Bodies migrate as the origin's ADF, formatting
+included; the report counts the code blocks / tables / inline media that
+arrived (an inline image resolves by filename against its attachment).
 
 The second destination is Linear: `gadak --workspace <linear workspace>
 migrate --from <workspace> --to linear --team <KEY>` writes the issues into
@@ -566,7 +567,7 @@ gadak create Severity required --project NMB --type Task --field severity=High
 gadak attach NMB-140 screenshot.png trace.log
 gadak edit NMB-140 --summary "…" --label +regression --label -needs-triage --priority High --parent none
 gadak edit NMB-140 --type Task                # name, localized name, or id — same resolver as create --type
-gadak edit NMB-140 -m "plain-text body"       # plain replace; a formatted description refuses without --force-plain
+gadak edit NMB-140 -m "## Repro\n\n- step one"  # markdown replaces the body; formatting markdown cannot carry (panels, media, mentions) refuses without --force-plain
 gadak edit NMB-140 --component +SDK --component -Docs
 gadak edit NMB-140 --fix-version +v2.5 --fix-version -10012
 gadak edit NMB-140 --field severity=High

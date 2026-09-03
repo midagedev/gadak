@@ -4,6 +4,20 @@
 
 ## Unreleased
 
+- **Bodies are markdown.** `create -m`, `edit -m`, `comment`, the page verbs,
+  the web description editor and comment composer all take markdown now and
+  send the ADF Jira and the Built-in tracker store — headings, lists,
+  blockquotes, fenced code, tables, bold, italics, strikethrough, links. A
+  blank line is a paragraph break and a single newline a line break, which
+  is also what turns the migrated walls back into their blocks. Reading a
+  body back for an edit returns the text as typed for a plain document and
+  an escaped serialization for a rich one, and the two directions are the
+  identity on that subset — pinned by golden tests. `edit -m` and `page edit`
+  refuse only what markdown cannot carry (panels, media, mentions, colours);
+  `--force-plain` and `--force` keep their names. The decision is
+  [`docs/decisions/0012`](docs/decisions/0012-markdown-is-the-editing-source.md)
+  ([GDK-1384], parent [GDK-1383]).
+
 - `migrate --from` carries every body as the origin's ADF, not as flattened
   text: the Built-in tracker's fixture grew a `descriptionAdf` / `bodyAdf`
   slot it stores verbatim, and the export fills it for descriptions,
@@ -1435,3 +1449,5 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-1361]: https://gadak.dev/backlog/#/?ks=GDK-1361
 [GDK-1362]: https://gadak.dev/backlog/#/?ks=GDK-1362
 [GDK-1382]: https://gadak.dev/backlog/#/?ks=GDK-1382
+[GDK-1383]: https://gadak.dev/backlog/#/?ks=GDK-1383
+[GDK-1384]: https://gadak.dev/backlog/#/?ks=GDK-1384

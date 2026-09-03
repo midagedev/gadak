@@ -18,12 +18,6 @@ github.com/mattn/go-isatty v0.0.24 h1:tGZZoVgT/KiqK1c8ocVLeDS8BSWMRd47J3Lbz7vsRe
 github.com/mattn/go-isatty v0.0.24/go.mod h1:nMCL3Zebbrt45jsMDgnfIwz6ydEQApk5oEI3HqDio6A=
 github.com/mattn/go-runewidth v0.0.19 h1:v++JhqYnZuu5jSKrk9RbgF5v4CGUjqRfBm05byFGLdw=
 github.com/mattn/go-runewidth v0.0.19/go.mod h1:XBkDxAl56ILZc9knddidhrOlY5R/pDhgLpndooCuJAs=
-github.com/midagedev/issuetap v0.0.0-20260901105411-1a95c0e2dba1 h1:FqX/pHsl/p9XzXxYB6DC35va24t1b+mEzac8FrY0CwA=
-github.com/midagedev/issuetap v0.0.0-20260901105411-1a95c0e2dba1/go.mod h1:VI3sqskL2eqVH88g5jS9hAHTWPF8SJocH69p2/xh5Z0=
-github.com/midagedev/issuetap v0.0.0-20260901141140-d88a3931df85 h1:H0Pu8h8IAbDV04QRup51O4OMmrC7WuZ0fbaStFzNIiY=
-github.com/midagedev/issuetap v0.0.0-20260901141140-d88a3931df85/go.mod h1:VI3sqskL2eqVH88g5jS9hAHTWPF8SJocH69p2/xh5Z0=
-github.com/midagedev/issuetap v0.0.0-20260901141459-03c8c28f05ba h1:GUlRFE4SITrvB5R0K/KUOWDm0PuKmld48OGTEaNud4I=
-github.com/midagedev/issuetap v0.0.0-20260901141459-03c8c28f05ba/go.mod h1:VI3sqskL2eqVH88g5jS9hAHTWPF8SJocH69p2/xh5Z0=
 github.com/midagedev/issuetap v0.0.0-20260903043728-916803b7b457 h1:pzdycbq/ID/A+MoVBX+QcTmrrECOZxDddX5HRRpUK9w=
 github.com/midagedev/issuetap v0.0.0-20260903043728-916803b7b457/go.mod h1:VI3sqskL2eqVH88g5jS9hAHTWPF8SJocH69p2/xh5Z0=
 github.com/ncruces/go-strftime v1.0.0 h1:HMFp8mLCTPp341M/ZnA4qaf7ZlsbTc+miZjCLOFAw7w=
@@ -32,6 +26,8 @@ github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec h1:W09IVJc94
 github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec/go.mod h1:qqbHyh8v60DhA7CoWK5oRCqLrMHRGoxYCSS9EjAz6Eo=
 github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e h1:MRM5ITcdelLK2j1vwZ3Je0FKVCfqOLp5zO6trqMLYs0=
 github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e/go.mod h1:XV66xRDqSt+GTGFMVlhk3ULuV0y9ZmzeVGR4mloJI3M=
+github.com/yuin/goldmark v1.8.5 h1:r6N5afV5qj/5S4UTch8agZHJ8UxNCMwX7WjkkJam2NA=
+github.com/yuin/goldmark v1.8.5/go.mod h1:ip/1k0VRfGynBgxOz0yCqHrbZXhcjxyuS66Brc7iBKg=
 golang.org/x/mod v0.37.0 h1:vF1DjpVEshcIqoEaauuHebaLk1O1forxjxBaVn884JQ=
 golang.org/x/mod v0.37.0/go.mod h1:m8S8VeM9r4dzDwjrKO0a1sZP3YjeMamRRlD+fmR2Q/0=
 golang.org/x/sync v0.21.0 h1:HLII4xRRTtCRkxYp4HNFF0Js/Og6q2i++KXbg0gHCwM=

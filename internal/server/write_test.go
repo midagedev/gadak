@@ -2501,7 +2501,8 @@ func TestLocalOriginOriginPersistFailureIsNotCredentialRequired(t *testing.T) {
 
 const (
 	wikiSimpleADF  = `{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"plain"}]}]}`
-	wikiComplexADF = `{"type":"doc","version":1,"content":[{"type":"heading","attrs":{"level":2},"content":[{"type":"text","text":"Steps"}]}]}`
+	wikiComplexADF = `{"type":"doc","version":1,"content":[{"type":"heading","attrs":{"level":2},"content":[{"type":"text","text":"Steps"}]},` +
+		`{"type":"panel","attrs":{"panelType":"info"},"content":[{"type":"paragraph","content":[{"type":"text","text":"note"}]}]}]}` // GDK-1384: a heading alone is markdown now; the panel is what a text replace would lose
 )
 
 type wikiPageState struct {

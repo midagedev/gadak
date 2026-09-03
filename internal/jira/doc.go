@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"sort"
 	"strings"
+
+	"github.com/midagedev/gadak/internal/adf"
 )
 
 // Doc builds the ADF document a comment body has to be. The composer sends plain
@@ -208,6 +210,13 @@ func closingRunEnd(text string, j, n int, fences CodeRegions) int {
 
 // DocWithMedia is Doc plus inline images, appended after the text — where a
 // screenshot belongs in a comment that describes it.
+//
+// The text is markdown (docs/decisions/0012, GDK-1384): adf.MarkdownDoc
+// builds the blocks and marks, and this function then turns `@Display Name`
+// into mention nodes wherever the text is not code — a text node carrying
+// the code mark, or the body of a codeBlock, names data, not a person
+// (GDK-894). Which is the same judgment FindCodeRegions makes on the raw
+// text for the composer's candidate extraction, reached here structurally.
 func DocWithMedia(text string, mentions map[string]string, media []Media) json.RawMessage {
 	// Longest name first: "@김현" must not win over "@김현철".
 	names := make([]string, 0, len(mentions))
@@ -218,41 +227,10 @@ func DocWithMedia(text string, mentions map[string]string, media []Media) json.R
 	}
 	sort.Slice(names, func(i, j int) bool { return len(names[i]) > len(names[j]) })
 
-	normalized := strings.ReplaceAll(text, "\r\n", "\n")
-	// Region offsets are computed on the normalized text the loop below
-	// walks, so the two never disagree about where a byte sits.
-	fences := fenceRegions(normalized)
-	var code CodeRegions
+	doc := adf.MarkdownDoc(text)
+	content, _ := doc["content"].([]any)
 	if len(names) > 0 {
-		code = FindCodeRegions(normalized)
-	}
-	lines := strings.Split(normalized, "\n")
-	content := make([]any, 0, len(lines))
-	offset := 0
-	f := 0
-	for _, line := range lines {
-		for f < len(fences) && fences[f].End <= offset {
-			f++
-		}
-		// GDK-1178: a fenced block is one codeBlock node, not a paragraph per
-		// line. Anything else keeps every marker literal, and the issue
-		// detail's run button (GDK-380) keys on codeBlock.
-		if f < len(fences) && offset == fences[f].Start {
-			content = append(content, codeBlockNode(normalized[fences[f].Start:fences[f].End]))
-			offset += len(line) + 1
-			continue
-		}
-		if f < len(fences) && offset > fences[f].Start && offset < fences[f].End {
-			// A line inside a block already emitted.
-			offset += len(line) + 1
-			continue
-		}
-		para := map[string]any{"type": "paragraph"}
-		if nodes := inline(line, offset, code, names, mentions); len(nodes) > 0 {
-			para["content"] = nodes
-		}
-		content = append(content, para)
-		offset += len(line) + 1
+		content = mentionPass(content, names, mentions)
 	}
 	for _, m := range media {
 		if m.ID == "" {
@@ -270,28 +248,76 @@ func DocWithMedia(text string, mentions map[string]string, media []Media) json.R
 			"content": []any{map[string]any{"type": "media", "attrs": attrs}},
 		})
 	}
-	doc, err := json.Marshal(map[string]any{"type": "doc", "version": 1, "content": content})
+	if content == nil {
+		content = []any{}
+	}
+	doc["content"] = content
+	out, err := json.Marshal(doc)
 	if err != nil {
 		return json.RawMessage(`{"type":"doc","version":1,"content":[]}`)
 	}
-	return doc
+	return out
 }
 
-// inline splits one line into text and mention nodes. lineStart is the line's
-// offset in the whole text, so code regions — which can span lines — can be
-// tested against each `@` (GDK-894: a token the composer quoted as code must
-// not become a mention node here, whatever the mentions map says).
-func inline(line string, lineStart int, code CodeRegions, names []string, ids map[string]string) []any {
+// mentionPass walks the block tree and splits every non-code text node at
+// its `@Name` occurrences. A codeBlock's children and a text node with the
+// code mark are left alone.
+func mentionPass(nodes []any, names []string, ids map[string]string) []any {
+	out := make([]any, 0, len(nodes))
+	for _, n := range nodes {
+		m, ok := n.(map[string]any)
+		if !ok {
+			out = append(out, n)
+			continue
+		}
+		switch m["type"] {
+		case "codeBlock":
+			out = append(out, m)
+			continue
+		case "text":
+			if hasMark(m, "code") {
+				out = append(out, m)
+				continue
+			}
+			out = append(out, splitMentions(m, names, ids)...)
+			continue
+		}
+		if children, ok := m["content"].([]any); ok {
+			m["content"] = mentionPass(children, names, ids)
+		}
+		out = append(out, m)
+	}
+	return out
+}
+
+func hasMark(n map[string]any, kind string) bool {
+	marks, _ := n["marks"].([]any)
+	for _, mk := range marks {
+		if mm, ok := mk.(map[string]any); ok && mm["type"] == kind {
+			return true
+		}
+	}
+	return false
+}
+
+// splitMentions turns one text node into text and mention nodes. The text's
+// marks stay on its text pieces; a mention node carries none.
+func splitMentions(n map[string]any, names []string, ids map[string]string) []any {
+	line, _ := n["text"].(string)
 	nodes := []any{}
 	var buf strings.Builder
 	flush := func() {
 		if buf.Len() > 0 {
-			nodes = append(nodes, map[string]any{"type": "text", "text": buf.String()})
+			piece := map[string]any{"type": "text", "text": buf.String()}
+			if marks, ok := n["marks"]; ok {
+				piece["marks"] = marks
+			}
+			nodes = append(nodes, piece)
 			buf.Reset()
 		}
 	}
 	for i := 0; i < len(line); {
-		if line[i] == '@' && !code.Cover(lineStart+i) {
+		if line[i] == '@' {
 			if name := match(line[i+1:], names); name != "" {
 				flush()
 				nodes = append(nodes, map[string]any{
@@ -316,30 +342,4 @@ func match(rest string, names []string) string {
 		}
 	}
 	return ""
-}
-
-// codeBlockNode turns one fenced region — opening fence line through closing
-// fence line, as fenceRegions marks it — into an ADF codeBlock. The info
-// string becomes attrs.language when there is one; an empty block carries no
-// content, which is what ADF wants.
-func codeBlockNode(region string) map[string]any {
-	lines := strings.Split(region, "\n")
-	ch, openLen := fenceOpen(lines[0])
-	info := strings.TrimSpace(strings.TrimLeft(strings.TrimLeft(lines[0], " "), "`~"))
-	lines = lines[1:]
-	// Drop the closing fence when the region has one (an unclosed fence runs
-	// to the end of the text and has none).
-	if n := len(lines); n > 0 && ch != 0 && fenceClosed(lines[n-1], ch, openLen) {
-		lines = lines[:n-1]
-	}
-	node := map[string]any{"type": "codeBlock"}
-	if info != "" {
-		// Only the first word: CommonMark's info string can carry more, ADF's
-		// language attribute is one token.
-		node["attrs"] = map[string]any{"language": strings.Fields(info)[0]}
-	}
-	if body := strings.Join(lines, "\n"); body != "" {
-		node["content"] = []any{map[string]any{"type": "text", "text": body}}
-	}
-	return node
 }

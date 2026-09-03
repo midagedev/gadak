@@ -191,7 +191,7 @@ func cmdPageCreate(args []string) error {
 	space := fs.String("space", "", "space key (required)")
 	title := fs.String("title", "", "page title (required)")
 	parent := fs.String("parent", "", "parent page id (omitted = space root)")
-	text := fs.String("m", "", "body as plain text; `-` reads stdin")
+	text := fs.String("m", "", "body as markdown; `-` reads stdin")
 	adfFile := fs.String("adf-file", "", "body as an ADF JSON document file; wins over -m")
 	asJSON := fs.Bool("json", false, "emit JSON")
 	if wantsHelp(args) {
@@ -325,7 +325,7 @@ func formatPageSpaceError(ctx context.Context, wc *confluence.Client, space stri
 
 func cmdPageComment(args []string) error {
 	fs := newFlagSet("page comment")
-	text := fs.String("m", "", "comment body as plain text; `-` reads stdin")
+	text := fs.String("m", "", "comment body as markdown; `-` reads stdin")
 	adfFile := fs.String("adf-file", "", "comment body as an ADF JSON document file; wins over -m")
 	asJSON := fs.Bool("json", false, "emit JSON")
 	if wantsHelp(args) {
@@ -410,7 +410,7 @@ func cmdPageComment(args []string) error {
 func cmdPageEdit(args []string) error {
 	fs := newFlagSet("page edit")
 	title := fs.String("title", "", "new page title (omitted = keep)")
-	text := fs.String("m", "", "new body as plain text; `-` reads stdin. REPLACES the whole body; refused on a rich page unless --force (use --adf-file to keep formatting)")
+	text := fs.String("m", "", "new body as markdown; `-` reads stdin. REPLACES the whole body; refused when the page holds formatting markdown cannot carry unless --force (use --adf-file to keep it)")
 	appendBody := fs.Bool("append", false, "append -m's paragraphs to the current body instead of replacing it (keeps formatting, works on rich pages)")
 	adfFile := fs.String("adf-file", "", "new body as an ADF JSON document file; wins over -m")
 	version := fs.Int("version", 0, "base version for optimistic lock (the mirror's pages.version); omit to last-write-wins from origin HEAD")
@@ -491,7 +491,7 @@ func cmdPageEdit(args []string) error {
 		}
 		newADF = merged
 	case body != "":
-		if !*force && !adf.IsSimple(newADF) {
+		if !*force && len(adf.FormatLoss(newADF)) > 0 {
 			return fmt.Errorf("page edit: -m replaces the whole body and would drop this page's formatting; pass --adf-file to keep it, or --force to replace it")
 		}
 		newADF = string(jira.Doc(body, nil))
