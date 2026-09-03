@@ -305,7 +305,10 @@ Markers:
     (`internal/origin/linearwriter.go:157`, create `:324`) — headings,
     lists, tables and marks survive; panels, media and mentions degrade to
     text (GDK-1386). On every origin, `edit -m` refuses to destroy
-    formatting markdown cannot carry without `--force-plain`.
+    formatting markdown cannot carry without `--force-plain`; `edit
+    --adf-file` / `comment --adf-file` send a document as it is and skip
+    that guard (GDK-1395) — on Linear that document is still serialized to
+    markdown on the way in.
 
 [^72]: Any field outside Linear's editable set is refused
     (`internal/origin/linearwriter.go:190`).

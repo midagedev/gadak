@@ -259,7 +259,10 @@ Jira에 남습니다.
   현재 description에 마크다운이 담지 못하는 서식(패널, 인라인 미디어, 멘션,
   색)이 있으면 편집은 멈추고 무엇을 찾았는지 알려 줍니다. `gadak edit KEY -m
   … --force-plain`으로 그래도 교체할 수 있습니다. (`page edit -m`도 같은
-  가드를 `--force` 뒤에 두고 있습니다.)
+  가드를 `--force` 뒤에 두고 있습니다.) 그런 description을 잃는 것 없이
+  바꾸려면 `gadak issue KEY --json`의 `description_adf`를 받아 문서를 고친 뒤
+  `gadak edit KEY --adf-file F`로 그대로 되돌려 보냅니다 — `comment --adf-file
+  F`도 같은 방식으로 코멘트를 씁니다.
 - **스프린트 동사는 없습니다.** 스프린트 필드는 미러에 있습니다
   (`sprint_id`, `sprint_name`, `sprint_state`; SQL과 JQL로 질의), 하지만
   이슈를 스프린트 사이에서 옮기거나 스프린트를 편집하는 일은 Jira에서

@@ -253,7 +253,10 @@ production:
   markdown cannot hold (panels, inline media, mentions, colours) the edit
   stops and names what it found. `gadak edit KEY -m … --force-plain`
   replaces it anyway. (`page edit -m` has the same guard behind
-  `--force`.)
+  `--force`.) To change such a description without losing anything, take
+  the ADF from `gadak issue KEY --json` (`description_adf`), edit the
+  document, and send it back as it is with `gadak edit KEY --adf-file F` —
+  `comment --adf-file F` posts a comment the same way.
 - **No sprint verbs.** Sprint fields are mirrored (`sprint_id`,
   `sprint_name`, `sprint_state`; SQL and JQL query them), but moving an
   issue between sprints or editing a sprint happens in Jira.

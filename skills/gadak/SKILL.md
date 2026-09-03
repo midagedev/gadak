@@ -568,6 +568,7 @@ gadak attach NMB-140 screenshot.png trace.log
 gadak edit NMB-140 --summary "…" --label +regression --label -needs-triage --priority High --parent none
 gadak edit NMB-140 --type Task                # name, localized name, or id — same resolver as create --type
 gadak edit NMB-140 -m "## Repro\n\n- step one"  # markdown replaces the body; formatting markdown cannot carry (panels, media, mentions) refuses without --force-plain
+gadak issue NMB-140 --json | jq .description_adf > body.json && gadak edit NMB-140 --adf-file body.json   # the lossless path: the ADF back as it is, no guard (comment --adf-file too)
 gadak edit NMB-140 --component +SDK --component -Docs
 gadak edit NMB-140 --fix-version +v2.5 --fix-version -10012
 gadak edit NMB-140 --field severity=High

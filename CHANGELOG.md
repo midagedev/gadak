@@ -4,6 +4,12 @@
 
 ## Unreleased
 
+- `gadak edit KEY --adf-file F` and `gadak comment KEY --adf-file F` send an
+  ADF document as it is — the lossless path for a body markdown cannot carry:
+  take `description_adf` from `gadak issue KEY --json`, change the document,
+  send it back. No format-loss guard runs, because no markdown is involved;
+  exclusive with `-m`. The page verbs had this since 0.17 ([GDK-1395]).
+
 - **`gadak issue` prints the markdown, not the flattened text.** The
   description and every comment come out as the same markdown source the
   web editor opens with — a heading is `##`, bold is `**`, a code block is
@@ -1507,3 +1513,4 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-1390]: https://gadak.dev/backlog/#/?ks=GDK-1390
 [GDK-1391]: https://gadak.dev/backlog/#/?ks=GDK-1391
 [GDK-1394]: https://gadak.dev/backlog/#/?ks=GDK-1394
+[GDK-1395]: https://gadak.dev/backlog/#/?ks=GDK-1395

@@ -1998,6 +1998,7 @@ func wordEndOffsets(s string, n int) []int {
 func cmdComment(args []string) error {
 	fs := newFlagSet("comment")
 	text := fs.String("m", "", "comment body; `-` reads it from stdin")
+	adfFile := fs.String("adf-file", "", "comment body as an ADF JSON document file, sent to the origin as it is; exclusive with -m and positional text")
 	asJSON := fs.Bool("json", false, "emit JSON")
 	internal := fs.Bool("internal", false, "post as a JSM internal comment")
 	var visRaw labelFlags
@@ -2037,6 +2038,20 @@ func cmdComment(args []string) error {
 		}
 		body = strings.Join(pos[1:], " ")
 	}
+	if *adfFile != "" {
+		// GDK-1395: the raw round trip. The file is the whole body, so text
+		// beside it is a second body — refuse rather than pick.
+		if body != "" {
+			return usageError("comment", "usage: gadak comment: --adf-file is exclusive with -m and positional text — the file is the whole body")
+		}
+		doc, err := readADFFile(*adfFile)
+		if err != nil {
+			return fmt.Errorf("comment %s: %w", key, err)
+		}
+		return mutate(key, *asJSON, func(ctx context.Context, c origin.Writer, _ string) (map[string]any, error) {
+			return postCommentDoc(ctx, c, key, doc, vis, *internal)
+		})
+	}
 	if body == "-" {
 		buf, err := io.ReadAll(os.Stdin)
 		if err != nil {
@@ -2052,7 +2067,7 @@ func cmdComment(args []string) error {
 	})
 }
 
-const commentUsage = "usage: gadak comment <KEY> [<text> | -m <text|->] [--visibility role=NAME|group=NAME] [--internal] [--json] | --batch -"
+const commentUsage = "usage: gadak comment <KEY> [<text> | -m <text|-> | --adf-file F] [--visibility role=NAME|group=NAME] [--internal] [--json] | --batch -"
 
 var commentBatchFields = []string{"key", "body", "internal", "visibility"}
 
@@ -2063,7 +2078,14 @@ func postComment(ctx context.Context, c origin.Writer, key, body string, vis *ji
 	}
 	noticeResolvedMentions(resolved)
 	warnUnresolvedMentions(unresolved)
-	created, err := c.AddComment(ctx, key, jira.Doc(body, mentions), vis, internal)
+	return postCommentDoc(ctx, c, key, jira.Doc(body, mentions), vis, internal)
+}
+
+// postCommentDoc posts a finished ADF document — postComment's tail, and the
+// whole of --adf-file (GDK-1395), where no mention pass runs because the
+// document already says what it says.
+func postCommentDoc(ctx context.Context, c origin.Writer, key string, doc json.RawMessage, vis *jira.CommentVisibility, internal bool) (map[string]any, error) {
+	created, err := c.AddComment(ctx, key, doc, vis, internal)
 	if err != nil {
 		return nil, err
 	}

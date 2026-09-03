@@ -4,6 +4,12 @@
 
 ## Unreleased
 
+- `gadak edit KEY --adf-file F` 와 `gadak comment KEY --adf-file F` 가 ADF 문서를
+  그대로 보낸다 — 마크다운이 못 담는 본문의 무손실 경로: `gadak issue KEY --json` 의
+  `description_adf` 를 받아 문서를 고쳐 되돌려 보낸다. 마크다운이 끼지 않으니 서식
+  손실 가드는 돌지 않고, `-m` 과는 배타다. page 동사에는 0.17 부터 있던 것이다
+  ([GDK-1395]).
+
 - **`gadak issue` 가 눌린 평문이 아니라 마크다운을 찍는다.** 설명과 모든 코멘트가 웹
   편집기가 여는 것과 같은 마크다운 원본으로 나온다 — 헤딩은 `##`, 굵게는 `**`, 코드
   블록은 펜스 — 그래서 에이전트가 읽은 것이 곧 `edit -m -` 가 받는 것이고, 왕복이
@@ -1447,3 +1453,4 @@ HTTP·sync·에이전트 계약을 담았습니다.
 [GDK-1390]: https://gadak.dev/backlog/#/?ks=GDK-1390
 [GDK-1391]: https://gadak.dev/backlog/#/?ks=GDK-1391
 [GDK-1394]: https://gadak.dev/backlog/#/?ks=GDK-1394
+[GDK-1395]: https://gadak.dev/backlog/#/?ks=GDK-1395

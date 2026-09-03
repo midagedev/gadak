@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -24,7 +25,7 @@ import (
 	"github.com/midagedev/gadak/internal/transition"
 )
 
-const editUsage = "usage: gadak edit <KEY> [--summary S] [-m <text|->] [--force-plain] [--label +x|-x]... [--component +x|-x]... [--fix-version +id-or-name|-id-or-name]... [--type NAME-or-id] [--priority NAME-or-id] [--due YYYY-MM-DD|none] [--parent KEY|none] [--field alias=value]... [--json] | --batch -"
+const editUsage = "usage: gadak edit <KEY> [--summary S] [-m <text|->|--adf-file F] [--force-plain] [--label +x|-x]... [--component +x|-x]... [--fix-version +id-or-name|-id-or-name]... [--type NAME-or-id] [--priority NAME-or-id] [--due YYYY-MM-DD|none] [--parent KEY|none] [--field alias=value]... [--json] | --batch -"
 
 // fieldFlagUsage is the FlagSet description for create/edit --field.
 // Parse rule matches parseTransitionFieldFlags: JSON if valid, otherwise a string.
@@ -35,6 +36,7 @@ func cmdEdit(args []string) error {
 	summary := fs.String("summary", "", "replace the summary")
 	text := fs.String("m", "", "replace the description with markdown; `-` reads stdin; empty clears")
 	forcePlain := fs.Bool("force-plain", false, "with -m: replace or clear a description that has formatting markdown cannot carry (panels, media, mentions, colours) anyway — that formatting is discarded")
+	adfFile := fs.String("adf-file", "", "replace the description with an ADF JSON document file, sent to the origin as it is (the raw round trip: `gadak issue KEY --json` → description_adf → edit); exclusive with -m and --force-plain")
 	var labels labelFlags
 	fs.Var(&labels, "label", "`+name` or `-name` (repeatable)")
 	var components labelFlags
@@ -83,8 +85,15 @@ func cmdEdit(args []string) error {
 			hasField = true
 		}
 	})
+	hasADF := *adfFile != ""
+	if hasADF && (hasM || *forcePlain) {
+		return usageError("edit", "usage: gadak edit: --adf-file is exclusive with -m and --force-plain — the file is the whole description, sent as it is")
+	}
 
 	if *batch != "" {
+		if hasADF {
+			return usageError("edit", "usage: gadak edit: --adf-file is a single-key write; --batch takes description text per line")
+		}
 		if err := rejectBatchFlag(*batch, func() string {
 			if hasM {
 				return *text
@@ -110,8 +119,15 @@ func cmdEdit(args []string) error {
 	}
 	key := normalizeKey(pos[0])
 
-	if !hasSummary && !hasM && !hasLabel && !hasComponent && !hasFixVersion && !hasType && !hasPriority && !hasParent && !hasDue && !hasField {
+	if !hasSummary && !hasM && !hasADF && !hasLabel && !hasComponent && !hasFixVersion && !hasType && !hasPriority && !hasParent && !hasDue && !hasField {
 		return usageError("edit", editUsage)
+	}
+	var adfRaw json.RawMessage
+	if hasADF {
+		adfRaw, err = readADFFile(*adfFile)
+		if err != nil {
+			return fmt.Errorf("edit %s: %w", key, err)
+		}
 	}
 
 	body := *text
@@ -138,6 +154,7 @@ func cmdEdit(args []string) error {
 	}
 	ch.key = key
 	ch.forcePlain = *forcePlain
+	ch.adfRaw = adfRaw
 	// withKeyWriteSession (not mutate) so --type can verify the issue's
 	// project against the mirror before resolving createmeta; the tail is
 	// mutate's, unchanged.
@@ -159,7 +176,12 @@ type editChange struct {
 	clearDue, clearParent                                 bool
 	// forcePlain skips guardDescriptionReplace: the user told the plain
 	// replace to go ahead and drop the formatting (GDK-1001).
-	forcePlain                      bool
+	forcePlain bool
+	// adfRaw is --adf-file's document (GDK-1395): the user holds the ADF, so
+	// it replaces the description as it is and guardDescriptionReplace does
+	// not run — there is nothing markdown would drop when no markdown is
+	// involved. nil when -m (or nothing) was given.
+	adfRaw                          json.RawMessage
 	labels, components, fixVersions []string
 	labelOps, componentOps          []any
 	fieldRaws                       map[string]json.RawMessage
@@ -167,7 +189,7 @@ type editChange struct {
 }
 
 func (e editChange) empty() bool {
-	return !e.hasSummary && !e.hasM && !e.hasLabel && !e.hasComponent && !e.hasFixVersion && !e.hasType && !e.hasPriority && !e.hasParent && !e.hasDue && !e.hasField
+	return !e.hasSummary && !e.hasM && e.adfRaw == nil && !e.hasLabel && !e.hasComponent && !e.hasFixVersion && !e.hasType && !e.hasPriority && !e.hasParent && !e.hasDue && !e.hasField
 }
 
 func parseEditChange(hasSummary, hasM, hasLabel, hasComponent, hasFixVersion, hasType, hasPriority, hasParent, hasDue, hasField bool,
@@ -260,6 +282,9 @@ func applyEditChange(ctx context.Context, cfg *config.Config, db *store.DB, c or
 	update := map[string]any{}
 	if ch.hasSummary {
 		fields["summary"] = strings.TrimSpace(ch.summary)
+	}
+	if ch.adfRaw != nil {
+		fields["description"] = ch.adfRaw
 	}
 	if ch.hasM {
 		// GDK-1001: a markdown replace (or clear) of a description that
@@ -948,4 +973,22 @@ func formatAllowedValues(meta jira.FieldMeta) string {
 		parts = append(parts, label)
 	}
 	return strings.Join(parts, ", ")
+}
+
+// readADFFile reads --adf-file for edit and comment (GDK-1395): a JSON file
+// whose root is an ADF document. Only the root is checked — the origin is the
+// authority on the rest of the schema, and a wrong node fails there with the
+// origin's message rather than a second, weaker validator's here.
+func readADFFile(path string) (json.RawMessage, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var root struct {
+		Type string `json:"type"`
+	}
+	if !json.Valid(b) || json.Unmarshal(b, &root) != nil || root.Type != "doc" {
+		return nil, fmt.Errorf("%s is not an ADF document (a JSON object with \"type\": \"doc\")", path)
+	}
+	return json.RawMessage(bytes.TrimSpace(b)), nil
 }

@@ -2056,3 +2056,69 @@ func TestEditHelpListsForcePlainFlag(t *testing.T) {
 		t.Errorf("editUsage missing --force-plain: %s", editUsage)
 	}
 }
+
+// GDK-1395: --adf-file is the raw round trip. The file replaces the
+// description as it is, the format-loss guard does not run (no markdown is
+// involved, so nothing markdown could drop), and -m beside it is refused
+// rather than one of them silently winning.
+func TestEditADFFileSendsTheDocumentAsItIs(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	seedDescriptionADF(t, f, "NMB-1", formattedDescADF)
+	path := filepath.Join(t.TempDir(), "body.json")
+	doc := `{"type":"doc","version":1,"content":[{"type":"panel","attrs":{"panelType":"note"},"content":[{"type":"paragraph","content":[{"type":"text","text":"kept"}]}]}]}`
+	if err := os.WriteFile(path, []byte(doc+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := capture(t, func() error { return cmdEdit([]string{"NMB-1", "--adf-file", path}) }); err != nil {
+		t.Fatalf("edit --adf-file: %v", err)
+	}
+	body := f.bodies["PUT /issue/NMB-1"]
+	if !strings.Contains(body, `"panelType":"note"`) || !strings.Contains(body, `"text":"kept"`) {
+		t.Fatalf("PUT must carry the file's document: %s", body)
+	}
+	// The guard reads the origin before the PUT; the search after the PUT is
+	// the mirror refresh every write does. Order, not presence, is the claim.
+	for _, call := range f.calls {
+		if call == "PUT /issue/NMB-1" {
+			break
+		}
+		if call == "POST /search/jql" {
+			t.Fatalf("--adf-file must not run the markdown loss guard before the PUT: %v", f.calls)
+		}
+	}
+
+	_, err := capture(t, func() error { return cmdEdit([]string{"NMB-1", "--adf-file", path, "-m", "x"}) })
+	if err == nil || !strings.Contains(err.Error(), "exclusive") {
+		t.Fatalf("-m beside --adf-file must be refused, got %v", err)
+	}
+	if err := os.WriteFile(path, []byte(`{"type":"paragraph"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err = capture(t, func() error { return cmdEdit([]string{"NMB-1", "--adf-file", path}) })
+	if err == nil || !strings.Contains(err.Error(), "not an ADF document") {
+		t.Fatalf("a non-doc root must be refused, got %v", err)
+	}
+}
+
+func TestCommentADFFilePostsTheDocumentAsItIs(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	path := filepath.Join(t.TempDir(), "comment.json")
+	doc := `{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"mention","attrs":{"id":"acc-1","text":"@Dana"}},{"type":"text","text":" look"}]}]}`
+	if err := os.WriteFile(path, []byte(doc), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := capture(t, func() error { return cmdComment([]string{"NMB-1", "--adf-file", path}) }); err != nil {
+		t.Fatalf("comment --adf-file: %v", err)
+	}
+	body := f.bodies["POST /issue/NMB-1/comment"]
+	if !strings.Contains(body, `"type":"mention"`) || !strings.Contains(body, `"id":"acc-1"`) {
+		t.Fatalf("POST must carry the file's document: %s", body)
+	}
+	_, err := capture(t, func() error { return cmdComment([]string{"NMB-1", "--adf-file", path, "-m", "x"}) })
+	if err == nil || !strings.Contains(err.Error(), "exclusive") {
+		t.Fatalf("-m beside --adf-file must be refused, got %v", err)
+	}
+}
