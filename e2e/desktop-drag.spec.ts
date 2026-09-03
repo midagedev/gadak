@@ -73,8 +73,7 @@ test.describe('desktop drag regions', () => {
     const noDrag = [
       searchInput(page),
       page.getByTestId('search-help'),
-      page.getByRole('button', { name: 'Columns', exact: true }),
-      page.getByTitle('Sort options'),
+      page.getByTestId('view-settings'),
       page.getByRole('button', { name: '+ Filter', exact: true }),
       // Copy JQL is not on the bare view any more (GDK-1336: view actions
       // appear once the reader has narrowed the view); it inherits no-drag

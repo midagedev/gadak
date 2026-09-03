@@ -1,6 +1,6 @@
 <script lang="ts">
   /*
-   * Central list screen ([explore]) — SearchBox + FilterBar + DisplayMenu + list.
+   * Central list screen ([explore]) — SearchBox + FilterBar + ViewSettingsMenu + list.
    *  Server body-search hits merge above the local list as a "N body matches"
    *  section (plan §5.2).
    */
@@ -17,14 +17,12 @@
   import { bulk } from '../../stores/bulk.svelte'
   import SearchBox from './SearchBox.svelte'
   import FilterBar from './FilterBar.svelte'
-  import DisplayMenu from './DisplayMenu.svelte'
+  import ViewSettingsMenu from './ViewSettingsMenu.svelte'
   import CopyViewLink from './CopyViewLink.svelte'
-  import ColumnsMenu from './ColumnsMenu.svelte'
-  import BulkBar from './BulkBar.svelte'
+    import BulkBar from './BulkBar.svelte'
   import BreakdownBar from './BreakdownBar.svelte'
   import IssueList from './IssueList.svelte'
-  import LayoutToggle from './LayoutToggle.svelte'
-  import BoardView from '../board/BoardView.svelte'
+    import BoardView from '../board/BoardView.svelte'
   import IssueRow from './IssueRow.svelte'
   import MatchLine from './MatchLine.svelte'
   import SearchSection from './SearchSection.svelte'
@@ -108,7 +106,7 @@
          (GDK-201, 1120px) and glyphs painted over each other. Menus wrap
          under the field before anything overlaps. -->
     <!-- @container: the sort value yields first when the row runs short
-         (DisplayMenu), so the palette door keeps its name at 1280 (GDK-1343). -->
+         (ViewSettingsMenu), so the palette door keeps its name at 1280 (GDK-1343). -->
     <div class="@container flex flex-wrap items-center gap-2">
       <!-- One FilterBar instance in both states. While it is only the add-filter
            door it sits beside the field; once the reader has narrowed the view
@@ -121,9 +119,7 @@
         <div class="desktop-no-drag {filters.hasUserChips ? 'order-last min-w-0 basis-full' : 'flex-none'}">
           <FilterBar />
         </div>
-        <div class="desktop-no-drag"><LayoutToggle /></div>
-        <div class="desktop-no-drag"><ColumnsMenu /></div>
-        <div class="desktop-no-drag"><DisplayMenu /></div>
+        <div class="desktop-no-drag"><ViewSettingsMenu /></div>
         <div class="desktop-no-drag"><CopyViewLink /></div>
         <!-- The count is a label, not a control: it stays a grab surface. -->
         <div class="ml-auto flex items-center gap-2">
@@ -137,9 +133,7 @@
         <div class={filters.hasUserChips ? 'order-last min-w-0 basis-full' : 'flex-none'}>
           <FilterBar />
         </div>
-        <LayoutToggle />
-        <ColumnsMenu />
-        <DisplayMenu />
+        <ViewSettingsMenu />
         <CopyViewLink />
         <div class="ml-auto flex items-center gap-2">
           <FreshnessChip />

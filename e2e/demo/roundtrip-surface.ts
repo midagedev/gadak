@@ -41,8 +41,10 @@ export const BOARD_ROUTE = '/#/?sc=new,inprogress,done&g=status_category&ly=boar
  */
 export const LIST_ROUTE = '/#/?sc=new,inprogress,done&g=status_category'
 
-/** The list ⇄ board segmented control, and the list itself. */
-export function layoutBoardButton(page: Page): Locator {
+/** The list ⇄ board segment lives in the view-settings menu (GDK-1391); open it first. */
+export async function layoutBoardButton(page: Page): Promise<Locator> {
+  const menu = page.getByTestId('view-settings')
+  if ((await menu.getAttribute('aria-expanded')) !== 'true') await menu.click()
   return page.getByTestId('layout-board')
 }
 

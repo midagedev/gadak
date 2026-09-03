@@ -205,16 +205,16 @@ export const list = {
     ko: '현재 차수 연결',
     ja: '今ランにリンク',
   },
-  /* ── Sort / display / columns menu ── */
+  /* ── View settings menu (GDK-1391): layout / sort / columns / save view ── */
+  'view.settings': {
+    en: 'View settings',
+    ko: '보기 설정',
+    ja: '表示設定',
+  },
   'sort.label': {
     en: 'Sort',
     ko: '정렬',
     ja: '並べ替え',
-  },
-  'sort.options': {
-    en: 'Sort options',
-    ko: '정렬 옵션',
-    ja: '並べ替えオプション',
   },
   'sort.direction': {
     en: 'Sort direction',
@@ -265,16 +265,6 @@ export const list = {
     en: '↑ Asc',
     ko: '↑ 오름',
     ja: '↑ 昇順',
-  },
-  'columns.label': {
-    en: 'Columns',
-    ko: '컬럼',
-    ja: '列',
-  },
-  'columns.title': {
-    en: 'Choose columns',
-    ko: '표시할 컬럼 선택',
-    ja: '列を選ぶ',
   },
   'columns.exposed': {
     en: 'Visible columns',

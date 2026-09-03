@@ -46,7 +46,7 @@ test('Enter-saved view appears in a fresh browser on the same server', async ({ 
   await expect(pageA).toHaveURL(/cf=2026-01-01/, { timeout: 10_000 })
 
   // GDK-1343: Save as view lives in the Display (sort) menu.
-  await pageA.getByTestId('display-menu').click()
+  await pageA.getByTestId('view-settings').click()
   await pageA.getByRole('button', { name: 'Save as view' }).click()
   const popover = pageA.getByTestId('filter-save-popover')
   await expect(popover).toBeVisible()

@@ -18,7 +18,7 @@ test.describe('view delete arm', () => {
     await expect(page).toHaveURL(/cf=2026-01-01/, { timeout: 10_000 })
 
     // GDK-1343: Save as view lives in the Display (sort) menu.
-    await page.getByTestId('display-menu').click()
+    await page.getByTestId('view-settings').click()
     await page.getByRole('button', { name: en['filter.saveAsView'] }).click()
     await page.getByPlaceholder(en['filter.viewName']).fill(VIEW)
     await page.getByTestId('filter-save-view').click()

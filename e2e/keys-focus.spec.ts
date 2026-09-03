@@ -171,16 +171,16 @@ test.describe('keys view and ui-focus', () => {
  * open-cursor. keys-focus owns this (focus + key) rather than keys-order
  * (ks= grouping). lastKeyCmd is the permanent keymap debug surface.
  *
- * Covered with existing hooks only: filter-add, columns-menu, docs-documents
- * (testids) and Sort (title — DisplayMenu.svelte has no testid; we do not
- * add one). Breakdown is the same class but not in the audit's four.
+ * Covered with existing hooks only: filter-add, view-settings (columns and
+ * sort are one menu since GDK-1391) and docs-documents (testids). Breakdown
+ * is the same class but not in the audit's four.
  */
 function lastKeyCmd(page: Page): Promise<string | null> {
   return page.locator('html').getAttribute('data-last-key-cmd')
 }
 
 test.describe('Enter on focused chrome (GDK-276)', () => {
-  test('filter, columns, sort, and documents activate on Enter', async ({ page }) => {
+  test('filter, view settings, and documents activate on Enter', async ({ page }) => {
     const errors = attachConsoleErrors(page)
     // Below 1440 the detail overlay covers the list toolbar (list-menus-esc).
     await page.setViewportSize({ width: 1440, height: 900 })
@@ -199,24 +199,16 @@ test.describe('Enter on focused chrome (GDK-276)', () => {
     await page.keyboard.press('Escape')
     await expect(page.getByText('Properties', { exact: true })).toBeHidden()
 
-    const columns = page.getByTestId('columns-menu')
-    await columns.focus()
-    await expect(columns).toBeFocused()
+    const settings = page.getByTestId('view-settings')
+    await settings.focus()
+    await expect(settings).toBeFocused()
     await page.keyboard.press('Enter')
     await expect(page.getByText('Visible columns', { exact: true })).toBeVisible()
-    expect(await lastKeyCmd(page)).toBe('ignore')
-    await expect(page.getByTestId('issue-detail-panel')).not.toHaveClass(/is-open/)
-    await page.keyboard.press('Escape')
-    await expect(page.getByText('Visible columns', { exact: true })).toBeHidden()
-
-    const sort = page.getByTitle('Sort options')
-    await sort.focus()
-    await expect(sort).toBeFocused()
-    await page.keyboard.press('Enter')
     await expect(page.getByRole('button', { name: '↓ Desc', exact: true })).toBeVisible()
     expect(await lastKeyCmd(page)).toBe('ignore')
     await expect(page.getByTestId('issue-detail-panel')).not.toHaveClass(/is-open/)
     await page.keyboard.press('Escape')
+    await expect(page.getByText('Visible columns', { exact: true })).toBeHidden()
     await expect(page.getByRole('button', { name: '↓ Desc', exact: true })).toBeHidden()
 
     const docs = page.getByTestId('docs-documents')

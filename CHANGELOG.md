@@ -30,10 +30,14 @@
   round trip keeps the formatting instead of pressing it flat. `--json`
   carries it as `description_md` and `body_md` beside the ADF ([GDK-1394]).
 
-- The board button in the toolbar wears a kanban glyph, not the same three
-  columns as the columns menu beside it — two identical marks a finger apart
-  read as one control. Folding the four view controls into one settings menu
-  is the rest of that issue and is still open ([GDK-1391]).
+- **One view-settings menu in the list toolbar** (sliders glyph) instead of
+  three controls: layout (list ⇄ board), sort and direction, visible columns
+  and "save as view" are one panel, because they were one object all along —
+  the view's display. The board toggle and the columns menu used to wear the
+  same three-column glyph a finger apart and read as one control. The panel
+  stays open while you adjust several things; the breakdown axis stays on the
+  breakdown strip beside the chips it governs. Layout is now two clicks away
+  instead of one ([GDK-1391]).
 
 - The breakdown axis for the tracker's own status is called "Status" and sits
   right after "Progress", not "Jira status" as the last-but-one of fourteen —

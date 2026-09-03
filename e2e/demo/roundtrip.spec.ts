@@ -441,7 +441,7 @@ test.describe('roundtrip demo', () => {
     // nobody connected.
     mark('list_hold')
     await beat(page, 1400)
-    await layoutBoardButton(page).click()
+    await (await layoutBoardButton(page)).click()
     await boardReady(page)
     mark('board_on')
     await beat(page, 500)

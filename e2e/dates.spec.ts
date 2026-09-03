@@ -31,7 +31,7 @@ test.describe('date filters and due column', () => {
 
     await expect(page.locator('[data-col="due"]')).toHaveCount(0)
 
-    await page.getByTestId('columns-menu').click()
+    await page.getByTestId('view-settings').click()
     await page.getByTestId('column-toggle-due').click()
     await expect(page).toHaveURL(/cl=/, { timeout: 10_000 })
     await expect(page.locator('[data-col="due"]').first()).toBeAttached()

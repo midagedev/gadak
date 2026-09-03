@@ -152,6 +152,7 @@ test.describe('web UI demo', () => {
     await allOpen.click()
     await expect(page.getByTestId('issue-list-scroller')).toBeVisible()
     await beat(page, 1000)
+    await page.getByTestId('view-settings').click()
     await page.getByTestId('layout-board').click()
     await expect(page.getByTestId('board-column').first()).toBeVisible()
     await beat(page, 1800)

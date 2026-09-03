@@ -100,6 +100,7 @@ test.describe('history: places push (rule 1)', () => {
     expect(await activeViews(page)).not.toEqual(bootViews)
     expect(await historyLength(page)).toBe(len0 + 1)
 
+    await page.getByTestId('view-settings').click()
     await page.getByTestId('layout-board').click()
     await expect(page.getByTestId('board')).toBeVisible()
     await expect(page).not.toHaveURL(unassigned)
@@ -108,7 +109,7 @@ test.describe('history: places push (rule 1)', () => {
     await page.goBack()
     await expect(page).toHaveURL(unassigned)
     await expect(page.getByTestId('issue-list-scroller')).toBeVisible()
-    await expect(page.getByTestId('layout-list')).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.getByTestId('board')).toHaveCount(0)
 
     await page.goBack()
     await expect(page).toHaveURL(allOpen)

@@ -65,7 +65,7 @@ test.describe('motion layer (GDK-1341)', () => {
     const errors = attachConsoleErrors(page)
     await gotoApp(page)
 
-    const btn = page.getByRole('button', { name: 'Columns', exact: true })
+    const btn = page.getByTestId('view-settings')
     await expect(btn).toBeVisible()
     expect(await cssProp(btn, 'translate')).toBe('none')
 
@@ -75,7 +75,7 @@ test.describe('motion layer (GDK-1341)', () => {
     expect(await cssProp(btn, 'translate')).toBe('0px 1px')
     await page.mouse.up()
     expect(await cssProp(btn, 'translate')).toBe('none')
-    // The click still landed: the columns menu is open.
+    // The click still landed: the view-settings menu is open.
     await expect(page.locator('[data-testid^="column-toggle-"]').first()).toBeVisible()
     await page.keyboard.press('Escape')
 
@@ -105,7 +105,7 @@ test.describe('motion layer (GDK-1341)', () => {
       await page.emulateMedia({ reducedMotion: 'reduce' })
       await gotoApp(page)
 
-      const btn = page.getByRole('button', { name: 'Columns', exact: true })
+      const btn = page.getByTestId('view-settings')
       await expect(btn).toBeVisible()
       expect(
         await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches),

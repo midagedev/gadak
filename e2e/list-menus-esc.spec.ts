@@ -2,21 +2,18 @@ import { test, expect, type Page } from '@playwright/test'
 import { appConsoleErrors, attachConsoleErrors, gotoApp } from './helpers'
 
 /*
- * GDK-132: the three list-header menus (filter add / columns / sort) close on
- * Esc through the shared dom-actions owner, and spend the keystroke so the
- * detail panel below keeps its own.
+ * GDK-132: the list-header menus (filter add / view settings — columns and
+ * sort are one menu since GDK-1391) close on Esc through the shared
+ * dom-actions owner, and spend the keystroke so the detail panel below keeps
+ * its own.
  */
 
 function filterAdd(page: Page) {
   return page.getByRole('button', { name: '+ Filter', exact: true })
 }
 
-function columnsTrigger(page: Page) {
-  return page.getByRole('button', { name: 'Columns', exact: true })
-}
-
-function sortTrigger(page: Page) {
-  return page.getByTitle('Sort options')
+function settingsTrigger(page: Page) {
+  return page.getByTestId('view-settings')
 }
 
 function filterPanel(page: Page) {
@@ -41,23 +38,20 @@ test.describe('list-header menus close on Esc', () => {
     await page.keyboard.press('Escape')
     await expect(filterPanel(page)).toBeHidden()
 
-    await columnsTrigger(page).click()
+    await settingsTrigger(page).click()
     await expect(columnsPanel(page)).toBeVisible()
-    await page.keyboard.press('Escape')
-    await expect(columnsPanel(page)).toBeHidden()
-
-    await sortTrigger(page).click()
     await expect(sortPanel(page)).toBeVisible()
     await page.keyboard.press('Escape')
+    await expect(columnsPanel(page)).toBeHidden()
     await expect(sortPanel(page)).toBeHidden()
 
     expect(appConsoleErrors(errors), `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 
-  test('one Esc closes the columns menu and leaves the detail panel open', async ({ page }) => {
+  test('one Esc closes the view-settings menu and leaves the detail panel open', async ({ page }) => {
     const errors = attachConsoleErrors(page)
     // Docked three-track grid: below 1440 the panel overlays the toolbar and
-    // the Columns click never lands (narrow-viewport.spec.ts).
+    // the menu click never lands (narrow-viewport.spec.ts).
     await page.setViewportSize({ width: 1440, height: 900 })
     await gotoApp(page)
 
@@ -66,7 +60,7 @@ test.describe('list-header menus close on Esc', () => {
     await expect(panel).toBeVisible()
     await expect(panel).toHaveClass(/is-open/)
 
-    await columnsTrigger(page).click()
+    await settingsTrigger(page).click()
     await expect(columnsPanel(page)).toBeVisible()
 
     await page.keyboard.press('Escape')

@@ -140,8 +140,10 @@ test.describe('GDK-1175 status board', () => {
     const errors = attachConsoleErrors(page)
     await gotoApp(page)
 
-    // The toggle is the door: one click turns the list on screen into a board
-    // and the URL says so, which is what makes a board shareable.
+    // The layout segment in the view-settings menu (GDK-1391) is the door:
+    // one click turns the list on screen into a board and the URL says so,
+    // which is what makes a board shareable.
+    await page.getByTestId('view-settings').click()
     await page.getByTestId('layout-board').click()
     await expect(page.getByTestId('board')).toBeVisible()
     await expect(page).toHaveURL(/ly=board/)
@@ -160,7 +162,9 @@ test.describe('GDK-1175 status board', () => {
 
     await expect(page.getByTestId('board-card').first()).toBeVisible()
 
-    // Back to the list, and the param goes with it.
+    // Back to the list, and the param goes with it. (The breakdown click
+    // above was an outside click for the menu, so it opens again.)
+    await page.getByTestId('view-settings').click()
     await page.getByTestId('layout-list').click()
     await expect(page.getByTestId('board')).toHaveCount(0)
     await expect(page).not.toHaveURL(/ly=board/)

@@ -57,7 +57,7 @@
   const hiddenGroupCount = $derived(Math.max(0, rankedGroups.length - shownGroups.length))
 
   // Spend Esc so one keystroke cannot also clear the selection below — the
-  // same negotiation as the list-header menus (DisplayMenu): the delegated
+  // same negotiation as the list-header menu (ViewSettingsMenu): the delegated
   // onkeydown sees the key first while it walks the focused trigger, and
   // preventDefault (what the shell keymap honors) plus stopPropagation say
   // "spent here" to everything above.

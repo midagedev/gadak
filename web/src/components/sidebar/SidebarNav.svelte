@@ -207,7 +207,7 @@
   let historyLoading = $state(false)
 
   // Spend Esc so one keystroke cannot also reach the shell keymap — same
-  // negotiation as the list-header menus (DisplayMenu).
+  // negotiation as the list-header menu (ViewSettingsMenu).
   function onHistoryEsc(e: KeyboardEvent) {
     if (e.key !== 'Escape' || !historyOpen) return
     e.preventDefault()

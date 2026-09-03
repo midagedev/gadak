@@ -295,7 +295,7 @@ directly, and CI does not regenerate media.
 3. **NMA-123** open beside the list — title, priority, labels, reopen badge
 4. Sidebar **Documents** — Viewed, then one page open with its breadcrumb
    and the issues it cites
-5. Sidebar **All open**, then the **Board** layout toggle: the same open
+5. Sidebar **All open**, then **Board** in the view-settings menu: the same open
    work as status columns. (An Epics beat would repeat the boot frame now
    that the epic breakdown is the startup view — swapped 2026-09-02.)
 
