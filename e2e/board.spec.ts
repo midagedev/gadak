@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect, type Page, type Route } from '@playwright/test'
 import {
   DEMO_ISSUE_COUNT_EN_RE,
   appConsoleErrors,
@@ -44,6 +44,26 @@ interface Rig {
   move(key: string, category: string): void
 }
 
+/*
+ * GDK-1392: fetch the real response, edit its JSON, fulfill. A poll that is in
+ * flight when the test's last assertion passes reaches this handler after the
+ * context has started closing, and response.json() then throws "Test ended"
+ * into a test that had already won — so a closed context is a return, not a
+ * failure. Only that: an edit that throws still fails the test.
+ */
+async function rewrite<T>(route: Route, edit: (body: T) => void): Promise<void> {
+  let response: Awaited<ReturnType<Route['fetch']>>
+  let body: T
+  try {
+    response = await route.fetch()
+    body = (await response.json()) as T
+  } catch {
+    return
+  }
+  edit(body)
+  await route.fulfill({ response, json: body })
+}
+
 async function installRig(page: Page): Promise<Rig> {
   const state = {
     version: 'v0',
@@ -51,45 +71,40 @@ async function installRig(page: Page): Promise<Rig> {
     moved: null as { key: string; category: string } | null,
   }
 
-  await page.route('**/api/v1/issues/bootstrap/**', async (route) => {
-    const response = await route.fetch()
-    const body = (await response.json()) as { issues: IssueRow[] }
-    for (const row of body.issues) state.rows.set(row.issue_key, row)
-    await route.fulfill({ response, json: body })
-  })
+  await page.route('**/api/v1/issues/bootstrap/**', (route) =>
+    rewrite<{ issues: IssueRow[] }>(route, (body) => {
+      for (const row of body.issues) state.rows.set(row.issue_key, row)
+    }),
+  )
 
   await page.route(
     (url) => url.pathname.includes('/ui-focus/'),
-    async (route) => {
-      const response = await route.fetch()
-      const body = (await response.json()) as Record<string, unknown>
-      body.mirrorVersion = state.version
-      await route.fulfill({ response, json: body })
-    },
+    (route) =>
+      rewrite<Record<string, unknown>>(route, (body) => {
+        body.mirrorVersion = state.version
+      }),
   )
 
   await page.route(
     (url) => url.pathname.includes('/delta/'),
-    async (route) => {
-      const response = await route.fetch()
-      const body = (await response.json()) as { upserted?: IssueRow[] }
-      const m = state.moved
-      const base = m ? state.rows.get(m.key) : null
-      if (m && base) {
-        body.upserted = [
-          ...(body.upserted ?? []),
-          {
-            ...base,
-            status_category: m.category,
-            // A different id is what a real transition changes; the category
-            // alone would still pass, but this keeps the id path exercised.
-            status_id: `e2e-${m.category}`,
-            status: `moved to ${m.category}`,
-          },
-        ]
-      }
-      await route.fulfill({ response, json: body })
-    },
+    (route) =>
+      rewrite<{ upserted?: IssueRow[] }>(route, (body) => {
+        const m = state.moved
+        const base = m ? state.rows.get(m.key) : null
+        if (m && base) {
+          body.upserted = [
+            ...(body.upserted ?? []),
+            {
+              ...base,
+              status_category: m.category,
+              // A different id is what a real transition changes; the category
+              // alone would still pass, but this keeps the id path exercised.
+              status_id: `e2e-${m.category}`,
+              status: `moved to ${m.category}`,
+            },
+          ]
+        }
+      }),
   )
 
   return {

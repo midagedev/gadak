@@ -10,7 +10,9 @@
   import { LAYOUT_VALUES, type Layout } from '../../lib/view-config'
   import Icon, { type IconName } from '../ui/Icon.svelte'
 
-  const ICON: Record<Layout, IconName> = { list: 'list', board: 'columns' }
+  // Not `columns`: the columns menu beside this control wears that glyph, and
+  // two identical marks a finger apart read as one control (GDK-1391).
+  const ICON: Record<Layout, IconName> = { list: 'list', board: 'kanban' }
   const label = (l: Layout): string => (l === 'list' ? t('board.asList') : t('board.asBoard'))
 
   const current = $derived(filters.display.layout)

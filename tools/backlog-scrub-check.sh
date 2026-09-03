@@ -56,8 +56,8 @@ for f in "$DIR"/detail/*.json; do
      and (.history == []) and (.bodies == {})' "$f" >/dev/null \
     || fail "other people's content survived the scrub in $f"
   # The allowlist is decision 0012's markdown subset (internal/adf/adf.go
-  # markdownTypes + markdownMarks): since GDK-1385 the export renders a typed
-  # body as the markdown it is, so `bd ready` and **bold** arrive as code and
+  # markdownTypes + markdownMarks): the export reads the server's /detail/, and
+  # since GDK-1386 that derives a typed body as the markdown it is, so `bd ready` and **bold** arrive as code and
   # strong marks. FAIL-first: the 2026-09-03 snapshot failed on GDK-1008 with
   # "code strong" under the old doc/paragraph/text/hardBreak list. mention,
   # media, inlineCard and every other origin-only node stay refused — those

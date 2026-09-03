@@ -4,6 +4,11 @@
 
 ## Unreleased
 
+- The board button in the toolbar wears a kanban glyph, not the same three
+  columns as the columns menu beside it — two identical marks a finger apart
+  read as one control. Folding the four view controls into one settings menu
+  is the rest of that issue and is still open ([GDK-1391]).
+
 - The breakdown axis for the tracker's own status is called "Status" and sits
   right after "Progress", not "Jira status" as the last-but-one of fourteen —
   a Built-in or Linear board has statuses too, and a reader who scanned for
@@ -1493,3 +1498,4 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-1387]: https://gadak.dev/backlog/#/?ks=GDK-1387
 [GDK-1388]: https://gadak.dev/backlog/#/?ks=GDK-1388
 [GDK-1390]: https://gadak.dev/backlog/#/?ks=GDK-1390
+[GDK-1391]: https://gadak.dev/backlog/#/?ks=GDK-1391
