@@ -48,8 +48,8 @@ built-in tracker the empty list invites the first issue instead of
 promising a sync ([GDK-1342], [GDK-1345], [GDK-1286], [GDK-1287]).
 
 **Back works everywhere — the first inbound round, all of it shipped.**
-@woojing brought five reports in the first week the app was public
-(discussion #80, issue #85), and every one is in this release. Thank you.
+@woojing brought five reports (discussion #80, issue #85), and every one
+is in this release. Thank you.
 Every place change goes through history — a linked issue, a person, a view,
 a query — so the browser's back button does what it says ([GDK-1296]). The
 detail's copy link pastes the origin's page first ([GDK-1290]); the settings
