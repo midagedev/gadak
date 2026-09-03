@@ -233,6 +233,17 @@ instead of a hardcoded region that encoded the 0.19 side pane. Check the
 `--sheet` before a render: a cut a half-second early loses a card landing, a
 punch-in a half-second early zooms onto an empty spot.
 
+**Several takes, and a wipe.** A shot list may name several takes
+(`takes: {before, after}`) and give each segment its own camera; a segment can
+open on a frozen frame of another take and wipe this one in over it under the
+same camera (`wipe: {from, at, start, dur, dir, labels}`). That is the
+before/after cut: `e2e/demo/record-before-after.sh` builds the previous tag in
+a worktree, serves it and this checkout on the same demo fixture with a bare
+`/bin/sh` in the pane, records `before-after.spec.ts` against each, and cuts
+`before-after.shots.mjs` → `scratch/before-after/read.mp4`. The reveal starts
+on the side the beat's subject sits on (`dir: 'rtl'` for the detail panel);
+the version tags in the corners say which release is which.
+
 Framing takes use `e2e/demo/claude-stub.sh` as the pane's `claude`
 (`record-roundtrip.sh` without `--live`): the rig's gates pass in seconds and
 the camera can be re-shot in ~3 minutes. Every stub frame says STUB in its
@@ -659,6 +670,10 @@ e2e/demo/
   rt-marks.py            # mark → video seconds; lead from the pane_open luma cliff (rect-driven)
   claude-stub.sh         # the pane's `claude` on framing takes — says STUB, never shipped
   endcard.mjs            # end card PNG (ENDCARD_VERSION / ENDCARD_LINE)
+  before-after.spec.ts   # the same screens against two serves; marks + rects to proof.jsonl
+  before-after.config.ts # 1472×994, no webServer (record-before-after.sh owns both serves)
+  before-after.shots.mjs # shot list: wipes from the previous release into this one
+  record-before-after.sh # previous tag worktree + two serves + two takes + camera
   claude-drive.config.ts # 1880×720 flagship landscape, port 7796 (vertical 1080×1350 on 7795)
   claude-drive-web.spec.ts
   record-claude-drive.sh # VHS + Playwright, up to 3 live takes
