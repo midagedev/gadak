@@ -254,6 +254,8 @@ test.describe('command blocks in an issue body', () => {
     // Pressed again: the same shell, not a second one.
     await verb.click()
     await expect(page.getByTestId('terminal-pane')).toHaveAttribute('data-attached', 'true')
+    // Elapsed-threshold: a create round-trip lands well inside 1500ms, so the
+    // roster still reading one after that window is the assertion itself.
     await page.waitForTimeout(1500)
     expect((await sessions(page)).length).toBe(1)
 
