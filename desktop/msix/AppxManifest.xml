@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Microsoft Store package manifest (GDK-1380). desktop/build-windows.ps1 -msix
+  copies this file to the staging root, substitutes @VERSION@ and @ARCH@, and
+  runs makeappx over it.
+
+  Identity values are the ones Partner Center issued for the reserved name
+  and must match it byte for byte: Name, Publisher, PublisherDisplayName, and
+  the DisplayName below. A mismatch fails the upload, not certification.
+
+  The package is uploaded unsigned; the Store re-signs it with a Microsoft
+  certificate after certification, which is the whole reason this package
+  exists (docs/WINDOWS-SIGNING.md).
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap rescap">
+
+  <Identity
+    Name="midagedev.Gadak"
+    Publisher="CN=975F7A25-286C-49DE-BFAD-AF4A6C5EB7C7"
+    Version="@VERSION@"
+    ProcessorArchitecture="@ARCH@" />
+
+  <Properties>
+    <DisplayName>Gadak</DisplayName>
+    <PublisherDisplayName>midagedev</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+
+  <Dependencies>
+    <!-- 17763 = Windows 10 1809, the WebView2 Evergreen runtime floor. -->
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.22621.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="en-US" />
+    <Resource Language="ko-KR" />
+  </Resources>
+
+  <Applications>
+    <!-- Full-trust Win32 app: the same gadak-desktop.exe the portable zip
+         ships, unchanged. ~/.gadak lives under %USERPROFILE%, which MSIX does
+         not virtualize, so the Store app and the CLI zip share one mirror. -->
+    <Application Id="Gadak" Executable="gadak-desktop.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="Gadak"
+        Description="Your Jira, Confluence, or Linear mirrored into one local SQLite file — for you and your coding agent."
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png" />
+      <Extensions>
+        <!-- gadak:// — Windows launches the exe with the URI as its single
+             argument, which wails already treats as a deeplink. The runtime
+             HKCU registration in protocol_windows.go still runs on first
+             launch but lands in the package's private hive; this declaration
+             is the one Windows reads. -->
+        <uap:Extension Category="windows.protocol">
+          <uap:Protocol Name="gadak">
+            <uap:DisplayName>Gadak</uap:DisplayName>
+          </uap:Protocol>
+        </uap:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>

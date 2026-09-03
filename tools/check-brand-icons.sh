@@ -43,6 +43,18 @@ else
 	fi
 fi
 
+# The Store (MSIX) logo set is generated and committed the same way
+# (tools/brand/msix-assets.sh) and drifts the same way.
+msix_stamp="$repo/desktop/msix/Assets/SOURCE.sha256"
+if [ ! -f "$msix_stamp" ]; then
+	note "missing $msix_stamp — the MSIX logos record no source"
+elif [ -f "$src" ]; then
+	got=$(awk '$1 == "docs/media/logo.png" { print $2 }' "$msix_stamp")
+	if [ "$(sha256 "$src")" != "$got" ]; then
+		note "MSIX logos were generated from a different logo.png"
+	fi
+fi
+
 if [ -d "$appiconset" ]; then
 	for f in "$appiconset"/*.png; do
 		mirror="$ios/$(basename "$f")"
@@ -59,4 +71,4 @@ if [ "$fail" -ne 0 ]; then
 	exit 1
 fi
 
-echo "brand-icons: phone icons match docs/media/logo.png"
+echo "brand-icons: phone and MSIX icons match docs/media/logo.png"

@@ -20,6 +20,18 @@ enough download volume that publisher reputation would carry. Until then, the
 honest thing is a page that says which file you have and what the warning is,
 rather than a roadmap line promising a date.
 
+**The first condition has since been met from a direction this page did not
+list (2026-09-03, [GDK-1380]).** Microsoft Store developer registration is
+free now, and the Store re-signs every MSIX it certifies with a Microsoft
+certificate — no publisher certificate, and a Store-installed app is neither
+a SmartScreen download nor an unknown signer to Smart App Control. So the
+Windows app is being submitted there: `desktop/build-windows.ps1 --msix`
+packs the same `gadak-desktop.exe` as the zip into an unsigned `.msix` for
+Partner Center. Until a listing has passed certification, nothing below
+changes — the GitHub Release zip stays unsigned and this page still describes
+it. When it passes, this section becomes the install route for anyone Smart
+App Control blocks, and the zip stays for everyone else.
+
 This page is the place to check when Windows shows a warning. It is not a
 claim that the unsigned zip is “safe”. It is how to see **which file you
 have**, and what that warning actually is.
@@ -238,3 +250,4 @@ would close the desktop digest gap without a certificate. That is a CI
 change and is not in this round.
 
 [GDK-211]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-211
+[GDK-1380]: https://gadak.dev/backlog/#/?ks=GDK-1380

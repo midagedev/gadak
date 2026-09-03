@@ -2,6 +2,15 @@
 
 <sub><a href="CHANGELOG.md">English</a> · 한국어 — 영문이 원본이며, 번역은 영문과 함께 갱신됩니다(마지막 동기화 2026-09-03).</sub>
 
+## Unreleased
+
+- Windows 앱에 Microsoft Store 패키지가 생겼다: `desktop/build-windows.ps1
+  --msix` 가 zip 이 싣는 것과 같은 `gadak-desktop.exe` 를 무서명 `.msix` 로
+  묶고, 릴리스 워크플로가 그것을 Partner Center 용 아티팩트로 남긴다. Store 는
+  인증한 패키지를 자기 인증서로 재서명하는데, 그것이 Smart App Control 을
+  지나는 유일한 무료 경로다 — zip 은 그대로 무서명이고, 등록이 심사를 통과하기
+  전까지 "Store 에 있다"는 말은 어디에도 없다 ([GDK-1380]).
+
 ## v0.20.0 — 2026-09-03
 
 **셸이 창 안에 있고, 그 셸은 이슈의 셸입니다.** 터미널 도크가 이제 창
@@ -1028,6 +1037,7 @@ HTTP·sync·에이전트 계약을 담았습니다.
 [GDK-208]: https://gadak.dev/backlog/#/?ks=GDK-208
 [GDK-209]: https://gadak.dev/backlog/#/?ks=GDK-209
 [GDK-211]: https://gadak.dev/backlog/#/?ks=GDK-211
+[GDK-1380]: https://gadak.dev/backlog/#/?ks=GDK-1380
 [GDK-213]: https://gadak.dev/backlog/#/?ks=GDK-213
 [GDK-214]: https://gadak.dev/backlog/#/?ks=GDK-214
 [GDK-215]: https://gadak.dev/backlog/#/?ks=GDK-215
