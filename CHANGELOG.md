@@ -47,16 +47,18 @@ preselected, says what gadak is before it asks for anything, and on the
 built-in tracker the empty list invites the first issue instead of
 promising a sync ([GDK-1342], [GDK-1345], [GDK-1286], [GDK-1287]).
 
-**Back works everywhere.** Every place change goes through history — a
-linked issue, a person, a view, a query — so the browser's back button does
-what it says ([GDK-1296]). Issue links open on their own origin, one branch
-per tracker with no fallback across them ([GDK-1149], [GDK-1308]); the
-detail's copy link pastes the origin's page first ([GDK-1290]); the
-settings dialog keeps one width across tabs ([GDK-1291]); a dock click on a
+**Back works everywhere — the first inbound round, all of it shipped.**
+@woojing brought five reports in the first week the app was public
+(discussion #80, issue #85), and every one is in this release. Thank you.
+Every place change goes through history — a linked issue, a person, a view,
+a query — so the browser's back button does what it says ([GDK-1296]). The
+detail's copy link pastes the origin's page first ([GDK-1290]); the settings
+dialog keeps one width across tabs ([GDK-1291]); a dock click on a
 fullscreen window stays fullscreen ([GDK-1294]); and a `gadak://` link
 naming a workspace this machine lacks is refused in a dialog instead of
-replacing the app with a 404 page ([GDK-1309]). Discussion #80 and issue
-#85 — thanks @woojing.
+replacing the app with a 404 page ([GDK-1309]). Along the way, issue links
+open on their own origin, one branch per tracker with no fallback across
+them ([GDK-1149], [GDK-1308]).
 
 **Leaving and keeping.** `migrate --to linear` sends a mirror into a Linear
 team, idempotently ([GDK-1265]). `gadak backup` copies the built-in
