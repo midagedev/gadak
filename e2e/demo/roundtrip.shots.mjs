@@ -19,7 +19,7 @@ export default {
   maxZoom: 1.45,
 
   // Running order. X is unbroken from the list through the board toggle into
-  // the chaos hold; Y and Z are the two recoveries. Same bounds as the 0.19
+  // the chaos hold; Y and Z are the two recoveries. Same bounds as
   // cut-roundtrip.sh (0.19), which this file replaced.
   segments: [
     { name: 'open', in: ['list_hold', -0.2], out: ['a_enter', -0.4] },
