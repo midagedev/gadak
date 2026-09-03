@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/midagedev/gadak/internal/adf"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -368,6 +369,50 @@ func TestAddCommentPostsMarkdown(t *testing.T) {
 	}
 	if got.ID == "" {
 		t.Errorf("comment id empty: %+v", got)
+	}
+}
+
+// GDK-1386: the markdown a person typed reaches Linear as that markdown.
+// The server builds ADF from it (adf.FromMarkdown); the writer serializes
+// the document back (adf.Markdown) instead of flattening it to text, so
+// headings, lists and marks survive the round trip. FAIL-first on the
+// PlainText writer: the wire body was "Repro\nstep one\nstep two\nbold".
+func TestAddCommentAndDescriptionCarryMarkdown(t *testing.T) {
+	w, rec := testLinearWriter(t)
+	src := "## Repro\n\n- step one\n- step two\n\n**bold** and `code`"
+	doc := adf.FromMarkdown(src)
+	if _, err := w.AddComment(context.Background(), "FIX-1", doc, nil, false); err != nil {
+		t.Fatal(err)
+	}
+	var vars struct {
+		Input struct {
+			Body string `json:"body"`
+		} `json:"input"`
+	}
+	if err := json.Unmarshal(rec.lastVars, &vars); err != nil {
+		t.Fatalf("comment variables: %v: %s", err, rec.lastVars)
+	}
+	if vars.Input.Body != src {
+		t.Fatalf("comment body on the wire:\n%q\nwant the typed markdown\n%q", vars.Input.Body, src)
+	}
+
+	var docAny any
+	if err := json.Unmarshal(doc, &docAny); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.UpdateFields(context.Background(), "FIX-1", map[string]any{"description": docAny}); err != nil {
+		t.Fatal(err)
+	}
+	var upd struct {
+		Input struct {
+			Description string `json:"description"`
+		} `json:"input"`
+	}
+	if err := json.Unmarshal(rec.lastVars, &upd); err != nil {
+		t.Fatalf("update variables: %v: %s", err, rec.lastVars)
+	}
+	if upd.Input.Description != src {
+		t.Fatalf("description on the wire:\n%q\nwant the typed markdown\n%q", upd.Input.Description, src)
 	}
 }
 

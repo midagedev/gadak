@@ -88,10 +88,11 @@ func (w *linearWriter) AddComment(ctx context.Context, key string, body json.Raw
 	if err != nil {
 		return Comment{}, err
 	}
-	// The server builds the ADF from user text; Linear speaks markdown, so
-	// the text is lifted back out. Mentions and inline media degrade to
-	// their text — the files are attached to the issue either way.
-	cm, err := w.c.CreateComment(ctx, iss.ID, adf.PlainText(body))
+	// The server builds ADF from the user's markdown; Linear speaks
+	// markdown, so the document is serialized back (adf.Markdown — the
+	// identity on the markdown subset, GDK-1386). Mentions and inline media
+	// degrade to their text — the files are attached to the issue either way.
+	cm, err := w.c.CreateComment(ctx, iss.ID, adf.Markdown(body))
 	if err != nil {
 		return Comment{}, err
 	}
@@ -153,7 +154,7 @@ func (w *linearWriter) UpdateFields(ctx context.Context, key string, fields map[
 				if err != nil {
 					return err
 				}
-				text = adf.PlainText(raw)
+				text = adf.Markdown(raw)
 			}
 			upd.Description = &text
 		case "priority":
@@ -320,7 +321,7 @@ func (w *linearWriter) CreateIssue(ctx context.Context, fields map[string]any) (
 		if err != nil {
 			return "", err
 		}
-		in.Description = adf.PlainText(raw)
+		in.Description = adf.Markdown(raw)
 	}
 	if p, ok := fields["priority"]; ok && p != nil {
 		n, err := priorityID(p)

@@ -4,6 +4,10 @@
 
 ## Unreleased
 
+- Linear 도 서식을 받는다: writer 가 문서를 텍스트로 평탄화하지 않고 마크다운으로
+  다시 직렬화하므로, Linear 워크스페이스에서 `comment`·`edit -m` 에 친 헤딩·
+  목록·굵게가 Linear 에 그 마크다운으로 도착한다 ([GDK-1386]).
+
 - **본문은 마크다운이다.** `create -m`·`edit -m`·`comment`·page 동사·웹 설명
   편집기·코멘트 작성기가 모두 마크다운을 받아 Jira 와 Built-in 트래커가
   저장하는 ADF 로 보낸다 — 헤딩·목록·인용·펜스 코드·표·굵게·기울임·취소선·
@@ -1401,3 +1405,4 @@ HTTP·sync·에이전트 계약을 담았습니다.
 [GDK-1382]: https://gadak.dev/backlog/#/?ks=GDK-1382
 [GDK-1383]: https://gadak.dev/backlog/#/?ks=GDK-1383
 [GDK-1384]: https://gadak.dev/backlog/#/?ks=GDK-1384
+[GDK-1386]: https://gadak.dev/backlog/#/?ks=GDK-1386

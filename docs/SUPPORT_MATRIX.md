@@ -251,7 +251,9 @@ Markers:
     (`internal/jira/write.go:256`).
 
 [^54]: Neither visibility nor internal (`internal/origin/linearwriter.go:84`);
-    the body flattens ADF to plain text (`:91`).
+    the body is serialized back to markdown (`:95`, `adf.Markdown` — the
+    identity on the markdown subset, GDK-1386); mentions and inline media
+    degrade to their text.
 
 [^55]: `visibility` plus the `sd.public.comment` internal mapping
     (`issuetap/docs/COMPATIBILITY.md:75`).
@@ -299,10 +301,11 @@ Markers:
 [^70]: `fields.summary` / `fields.description` (`cmd/gadak/edit.go:305`,
     `internal/jira/write.go:286`).
 
-[^71]: A formatted description is flattened to plain text on write
-    (`internal/origin/linearwriter.go:155`). On every origin, `edit -m`
-    refuses to destroy a formatting-carrying description without
-    `--force-plain`.
+[^71]: The description is serialized back to markdown on write
+    (`internal/origin/linearwriter.go:157`, create `:324`) — headings,
+    lists, tables and marks survive; panels, media and mentions degrade to
+    text (GDK-1386). On every origin, `edit -m` refuses to destroy
+    formatting markdown cannot carry without `--force-plain`.
 
 [^72]: Any field outside Linear's editable set is refused
     (`internal/origin/linearwriter.go:190`).

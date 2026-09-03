@@ -4,6 +4,11 @@
 
 ## Unreleased
 
+- Linear gets the formatting too: the writer serializes the document back
+  to markdown instead of flattening it to text, so a heading, a list or a
+  bold run typed into `comment` or `edit -m` on a Linear workspace arrives
+  in Linear as that markdown ([GDK-1386]).
+
 - **Bodies are markdown.** `create -m`, `edit -m`, `comment`, the page verbs,
   the web description editor and comment composer all take markdown now and
   send the ADF Jira and the Built-in tracker store — headings, lists,
@@ -1451,3 +1456,4 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-1382]: https://gadak.dev/backlog/#/?ks=GDK-1382
 [GDK-1383]: https://gadak.dev/backlog/#/?ks=GDK-1383
 [GDK-1384]: https://gadak.dev/backlog/#/?ks=GDK-1384
+[GDK-1386]: https://gadak.dev/backlog/#/?ks=GDK-1386
