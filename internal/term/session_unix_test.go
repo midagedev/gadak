@@ -1113,6 +1113,48 @@ func TestResizeRetriesEINTR(t *testing.T) {
 	}
 }
 
+// GDK-1192: the set can return nil and not take (CI run 33736397672 read
+// 80x24 back from the master after a nil TIOCSWINSZ 132x43). The owner
+// re-issues until the kernel reads the size back, and a size that never
+// holds is an error — not a silent no-op the child answers old probes from.
+func TestResizeReissuesUntilTheKernelReadsItBack(t *testing.T) {
+	origSet, origGet := ptySetsize, ptyGetsize
+	t.Cleanup(func() { ptySetsize, ptyGetsize = origSet, origGet })
+	sets := 0
+	ptySetsize = func(_ *os.File, _ *pty.Winsize) error { sets++; return nil }
+	reads := 0
+	ptyGetsize = func(_ *os.File) (*pty.Winsize, error) {
+		reads++
+		if reads < 3 {
+			return &pty.Winsize{Cols: 80, Rows: 24}, nil // the set did not take, twice
+		}
+		return &pty.Winsize{Cols: 132, Rows: 43}, nil
+	}
+	p := &ptyProc{}
+	if err := p.resize(132, 43); err != nil {
+		t.Fatalf("resize = %v; want nil once the read-back matches", err)
+	}
+	if sets != 3 {
+		t.Errorf("Setsize called %d times; want 3 (re-issued after two stale read-backs)", sets)
+	}
+
+	ptyGetsize = func(_ *os.File) (*pty.Winsize, error) { return &pty.Winsize{Cols: 80, Rows: 24}, nil }
+	sets = 0
+	err := p.resize(132, 43)
+	if err == nil || !strings.Contains(err.Error(), "still reads 80x24") {
+		t.Fatalf("a size that never holds must surface, got %v", err)
+	}
+	if sets != resizeReadBackAttempts {
+		t.Errorf("Setsize called %d times; want %d bounded attempts", sets, resizeReadBackAttempts)
+	}
+
+	// A read-back that cannot be taken is not evidence: the set is trusted.
+	ptyGetsize = func(_ *os.File) (*pty.Winsize, error) { return nil, syscall.EBADF }
+	if err := p.resize(132, 43); err != nil {
+		t.Fatalf("unverifiable read-back must trust the set, got %v", err)
+	}
+}
+
 // A non-EINTR failure still surfaces (and still maps to ErrSessionClosed
 // once the PTY is gone — the closed-flag contract above is untouched).
 func TestResizeNonEINTRErrorSurfaces(t *testing.T) {

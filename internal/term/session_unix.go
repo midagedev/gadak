@@ -10,6 +10,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"syscall"
+	"time"
 
 	"github.com/creack/pty"
 )
@@ -95,9 +96,16 @@ func (p *ptyProc) pid() int {
 	return p.cmd.Process.Pid
 }
 
-// ptySetsize is the TIOCSWINSZ seam — a var so the EINTR contract is
-// testable without a way to interrupt a real ioctl on cue.
-var ptySetsize = pty.Setsize
+// ptySetsize / ptyGetsize are the TIOCSWINSZ / TIOCGWINSZ seams — vars so
+// the EINTR and read-back contracts are testable without a way to make a
+// real ioctl misbehave on cue.
+var (
+	ptySetsize = pty.Setsize
+	ptyGetsize = pty.GetsizeFull
+)
+
+// resizeReadBackAttempts bounds the set → read-back loop below.
+const resizeReadBackAttempts = 5
 
 func (p *ptyProc) resize(cols, rows uint16) error {
 	// TIOCSWINSZ rides creack/pty's raw syscall.Syscall, which the runtime
@@ -109,12 +117,40 @@ func (p *ptyProc) resize(cols, rows uint16) error {
 	// fourth recurrence of the resize flake — CI run 33212911928 attempt 1).
 	// EINTR means the kernel did not execute the request, so retrying is
 	// the contract, exactly as os.File does for its own syscalls.
+	//
+	// And the ioctl can return success without the size taking: CI run
+	// 33736397672 (macOS arm64) applied 132x43, got nil, and TIOCGWINSZ on
+	// the same master read 80x24 twenty-eight seconds later while the child
+	// kept answering 24 80 (GDK-1192, with the read-back diagnostic that
+	// landed one commit earlier). The kernel's answer is the only proof, so
+	// the set is verified by reading it back and re-issued until it holds;
+	// a size that never holds is an error, not a silent no-op.
+	// ponytail: five bounded attempts with a short backoff, not a theory of
+	// why darwin's ptmx drops the set — widen if the error line ever shows
+	// up in a CI log.
 	var err error
-	for {
-		err = ptySetsize(p.f, &pty.Winsize{Cols: cols, Rows: rows})
-		if !errors.Is(err, syscall.EINTR) {
+	for attempt := 0; ; attempt++ {
+		for {
+			err = ptySetsize(p.f, &pty.Winsize{Cols: cols, Rows: rows})
+			if !errors.Is(err, syscall.EINTR) {
+				break
+			}
+		}
+		if err != nil {
 			break
 		}
+		got, gerr := ptyGetsize(p.f)
+		if gerr != nil || (got.Cols == cols && got.Rows == rows) {
+			// Unverifiable is trusted: a read-back failure is not evidence
+			// the set was lost, and refusing here would turn every such pty
+			// into an unresizable one.
+			break
+		}
+		if attempt+1 >= resizeReadBackAttempts {
+			err = fmt.Errorf("term: resize to %dx%d accepted %d times but the pty still reads %dx%d", cols, rows, attempt+1, got.Cols, got.Rows)
+			break
+		}
+		time.Sleep(time.Duration(attempt+1) * 5 * time.Millisecond)
 	}
 	if err != nil && p.closed.Load() {
 		return ErrSessionClosed

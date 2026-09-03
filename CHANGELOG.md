@@ -25,10 +25,14 @@
   substituting parser does, so a body that documents the markers (this
   changelog, the skill) can be edited ([GDK-1398]).
 
-- The desktop resize test, when it fails, logs the size the kernel holds for
-  the pty beside the size the session believes it set. The CI flake has not
-  reproduced off the runner; this is the reading that tells a set that did
-  nothing from one the child never saw. Still open ([GDK-1192]).
+- **A terminal resize the kernel did not take is re-issued, not trusted.**
+  The desktop resize test flaked on CI for a week with the session believing
+  132×43 and the child answering 24 80. A read-back added this release
+  caught it in the act: TIOCSWINSZ returned success and TIOCGWINSZ on the
+  same master still read 80×24 (macOS arm64 runner). The resize owner now
+  reads the size back after every set and re-issues it, bounded, until the
+  kernel agrees; a size that never holds surfaces as an error instead of a
+  pane the shell disagrees with ([GDK-1192]).
 
 - **A formatted body can be edited as markdown without losing what
   markdown cannot carry.** The editing source — `gadak issue`, the web
