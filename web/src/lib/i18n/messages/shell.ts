@@ -236,6 +236,25 @@ export const shell = {
     ko: '새 셸',
     ja: '新しいシェル',
   },
+  // A readable default for an unnamed, unclaimed shell (GDK-1387): the
+  // server sends the creation ordinal, the client says it in words.
+  'terminal.strip.defaultName': {
+    en: 'shell {n}',
+    ko: '셸 {n}',
+    ja: 'シェル {n}',
+  },
+  // Rename (GDK-1195): double-click or F2 on a row; Enter keeps, Esc drops,
+  // an empty name returns the row to its issue key or default.
+  'terminal.strip.rename': {
+    en: 'Rename {name}',
+    ko: '{name} 이름 바꾸기',
+    ja: '{name} の名前を変更',
+  },
+  'terminal.strip.renameHint': {
+    en: 'Enter keeps · Esc cancels · empty clears',
+    ko: 'Enter 확정 · Esc 취소 · 비우면 기본 이름',
+    ja: 'Enter で確定 · Esc で取消 · 空で既定名',
+  },
   // The tab's × (GDK-1200): ends the session itself, as opposed to
   // terminal.close, which only closes the dock and leaves every shell alive.
   'terminal.strip.kill': {

@@ -54,6 +54,13 @@
 
   let { overlay = false }: { overlay?: boolean } = $props()
 
+  // An issue's surface asked for a shell while this pane is up (GDK-1388):
+  // the same new-shell verb the roster's + row runs, and startNew takes the
+  // request. On a pane that is still booting the boot create takes it.
+  $effect(() => {
+    if (terminalSessions.createRequest && newSession) newSession()
+  })
+
   type Status =
     | { kind: 'none' }
     | { kind: 'reconnecting' }
@@ -240,7 +247,10 @@
       // than this request, so it wins: the session is still created and the
       // strip still shows it, this pane just does not go there.
       const from = terminalSessions.selectedId
-      const doc = await createSession(cols, rows)
+      // A shell asked for from an issue's surface is bound at birth
+      // (GDK-1388); any other create takes nothing.
+      const req = terminalSessions.takeCreateRequest()
+      const doc = await createSession(cols, rows, req ? { issueKey: req.issueKey } : {})
       if (cancelled || terminalSessions.selectedId !== from) return
       // The create response is the one road terminal behavior reaches the
       // pane on (GDK-896 R2): apply before attaching, so the ring replay

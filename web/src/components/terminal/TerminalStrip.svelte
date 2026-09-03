@@ -34,7 +34,7 @@
    * the explicit end of that session, no confirmation, the same DELETE the
    * server has kept since GDK-922.
    */
-  import { onMount } from 'svelte'
+  import { onMount, tick } from 'svelte'
   import { relativeTime, t } from '../../lib/i18n'
   import Icon from '../ui/Icon.svelte'
   import { terminalSessions } from '../../lib/terminal/sessions.svelte'
@@ -56,8 +56,48 @@
   // Recomputed on every roster poll; Date.now() is read there rather than
   // ticked separately, so "running" is at most one poll stale and the strip
   // has no clock of its own to keep in step.
-  const rows = $derived(stripRows(terminalSessions.list, terminalSessions.selectedId, Date.now()))
+  // The default name is the creation ordinal said in words (GDK-1387); the
+  // server sends the number, this side the language.
+  const rows = $derived(
+    stripRows(terminalSessions.list, terminalSessions.selectedId, Date.now(), (n) =>
+      t('terminal.strip.defaultName', { n }),
+    ),
+  )
   const showEmpty = $derived(rows.length === 0 && offerStart)
+
+  // Rename (GDK-1195): one row at a time swaps its name span for an input.
+  // Double-click or F2 on the row starts it; Enter keeps, Esc drops, blur
+  // keeps (the pointer left, the intent did not); an empty name clears —
+  // the row falls back to its issue key or default. The row's <button> is
+  // replaced for the duration, because an <input> inside a <button> is not
+  // DOM a browser agrees on.
+  let renamingId: string | null = $state(null)
+  let renameDraft = $state('')
+  let renameEl: HTMLInputElement | null = $state(null)
+
+  async function startRename(id: string): Promise<void> {
+    const info = terminalSessions.list.find((s) => s.id === id)
+    renameDraft = info?.name ?? ''
+    renamingId = id
+    await tick()
+    renameEl?.focus()
+    renameEl?.select()
+  }
+
+  function cancelRename(): void {
+    renamingId = null
+    renameDraft = ''
+  }
+
+  async function commitRename(): Promise<void> {
+    const id = renamingId
+    if (!id) return
+    const next = renameDraft.trim()
+    const info = terminalSessions.list.find((s) => s.id === id)
+    cancelRename()
+    if (next === (info?.name ?? '')) return
+    await terminalSessions.rename(id, next)
+  }
 
   // Existing tokens only — this strip introduces no colour. reopen is the
   // app's "something wants you" ink, inprogress its "work is happening"
@@ -102,21 +142,59 @@
     </button>
   {:else}
     {#each rows as row (row.id)}
+      {#if renamingId === row.id}
+        <div
+          class="flex h-7 min-w-0 items-center gap-2 rounded-md bg-bg-active px-2"
+          data-testid="terminal-strip-row"
+          data-session-id={row.id}
+          data-renaming="true"
+        >
+          <span class="h-1.5 w-1.5 flex-none rounded-full {DOT[row.state]}"></span>
+          <input
+            bind:this={renameEl}
+            bind:value={renameDraft}
+            type="text"
+            maxlength="64"
+            data-testid="terminal-strip-rename"
+            aria-label={t('terminal.strip.rename', { name: row.label })}
+            title={t('terminal.strip.renameHint')}
+            placeholder={row.issueAside ?? row.label}
+            class="min-w-0 flex-1 rounded border border-accent bg-bg-base px-1 text-body text-text-primary outline-none"
+            onkeydown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                void commitRename()
+              } else if (e.key === 'Escape') {
+                e.preventDefault()
+                e.stopPropagation()
+                cancelRename()
+              }
+            }}
+            onblur={() => void commitRename()}
+          />
+        </div>
+      {:else}
       <button
         type="button"
         class="group flex h-7 min-w-0 cursor-pointer items-center gap-2 rounded-md px-2 text-left transition-colors hover:bg-bg-hover"
         class:bg-bg-active={row.selected}
         aria-current={row.selected ? 'true' : undefined}
         aria-label={t('terminal.strip.show', { name: row.label })}
-        title="{row.label} · {stateLabel(row.state)}{row.since
+        title="{row.label}{row.issueAside ? ` · ${row.issueAside}` : ''} · {stateLabel(row.state)}{row.since
           ? ` · ${relativeTime(row.since, 'compact')}`
           : ''}"
         data-testid="terminal-strip-row"
         data-session-id={row.id}
         data-state={row.state}
         data-selected={row.selected ? 'true' : 'false'}
-        data-issue-key={row.namedByIssue ? row.label : undefined}
+        data-issue-key={row.namedByIssue ? (row.issueAside ?? row.label) : undefined}
         onclick={() => terminalSessions.select(row.id)}
+        ondblclick={() => void startRename(row.id)}
+        onkeydown={(e) => {
+          if (e.key !== 'F2') return
+          e.preventDefault()
+          void startRename(row.id)
+        }}
         {@attach (el) => {
           // The selected row has to be on screen to be a selection you can
           // see; with many shells the roster scrolls past the dock's height.
@@ -131,6 +209,14 @@
           class:font-medium={row.namedByIssue}
           data-testid="terminal-strip-name">{row.label}</span
         >
+        {#if row.issueAside}
+          <!-- A person named the shell; the ticket it is on stays readable
+               beside the name (GDK-1195), in the sidebar's count column. -->
+          <span
+            class="flex-none font-mono text-micro text-text-muted group-hover:hidden group-focus-within:hidden"
+            data-testid="terminal-strip-issue">{row.issueAside}</span
+          >
+        {/if}
         {#if row.since}
           <!-- The same clock the title carries, in the column the sidebar
                keeps for its counts — so a glance tells which shell went
@@ -174,6 +260,7 @@
           <Icon name="x" size={10} />
         </span>
       </button>
+      {/if}
     {/each}
   {/if}
 </div>

@@ -125,15 +125,30 @@ export function normalizeSessionDoc(
   }
 }
 
-export async function createSession(cols: number, rows: number): Promise<SessionDoc> {
+/** What a create may carry besides its size (GDK-1388 / GDK-1195). */
+export interface CreateSessionExtra {
+  /** Bind the new shell to this issue from its first prompt. */
+  issueKey?: string
+  /** Label it at birth. */
+  name?: string
+}
+
+export async function createSession(
+  cols: number,
+  rows: number,
+  extra: CreateSessionExtra = {},
+): Promise<SessionDoc> {
   const url = `${terminalBase()}sessions/`
+  const body: Record<string, unknown> = { cols, rows }
+  if (extra.issueKey) body.issue_key = extra.issueKey
+  if (extra.name) body.name = extra.name
   let res: Response
   try {
     res = await fetch(url, {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cols, rows }),
+      body: JSON.stringify(body),
     })
   } catch {
     throw new TerminalHttpError(0, 'unreachable')

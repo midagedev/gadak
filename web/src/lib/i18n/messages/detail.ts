@@ -52,6 +52,18 @@ export const detail = {
     ko: '여기에는 {key}에 붙어 있는 셸이 없습니다. 터미널 패널에서 `gadak claim {key}`를 실행하면 붙습니다.',
     ja: 'ここには {key} に紐づいたシェルがありません。ターミナルパネルで `gadak claim {key}` を実行すると紐づきます。',
   },
+  // The header's shell verb (GDK-1388): enter the shell bound to this issue,
+  // or open a new one bound to it from its first prompt.
+  'detail.openShell': {
+    en: 'Open a shell for {key}',
+    ko: '{key}의 셸 열기',
+    ja: '{key} のシェルを開く',
+  },
+  'detail.enterShell': {
+    en: 'Show the shell on {key}',
+    ko: '{key}에 붙은 셸 보기',
+    ja: '{key} のシェルを表示',
+  },
   /* The mark's wording is the feature. A session binding is runtime state
      that dies with the serve, so what is actually known is "no shell *here*
      is on it" — never "this work is dead". Someone who reads the mark as the

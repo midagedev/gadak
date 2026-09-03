@@ -2,6 +2,7 @@ package term
 
 import (
 	"errors"
+	"strings"
 	"sync"
 	"time"
 )
@@ -145,6 +146,8 @@ type Session struct {
 	// that string's terminator depends on it (bell.go).
 	bells       bellScanner
 	issueKey    string
+	name        string
+	seq         int
 	closing     bool
 	finished    bool
 	exited      bool
@@ -190,10 +193,42 @@ func (s *Session) Info() Info {
 		Resizes:            s.resizes,
 		NeedsAttention:     s.attention,
 		IssueKey:           s.issueKey,
+		Name:               s.name,
+		Seq:                s.seq,
 	}
 	s.mu.Unlock()
 	return info
 }
+
+// MaxNameRunes bounds a session name. A roster row is one line; a name that
+// needs more than this is a note, not a name.
+const MaxNameRunes = 64
+
+// SetName gives this session the label a person chose for it (GDK-1195).
+// Whitespace is trimmed, the length capped at MaxNameRunes, and an empty
+// name clears — the row falls back to its issue key or its default. Runtime
+// state, like the issue key: it dies with the session.
+func (s *Session) SetName(name string) {
+	name = strings.TrimSpace(name)
+	if r := []rune(name); len(r) > MaxNameRunes {
+		name = string(r[:MaxNameRunes])
+	}
+	s.mu.Lock()
+	s.name = name
+	s.mu.Unlock()
+}
+
+// Name is the label a person gave this session, empty when none.
+func (s *Session) Name() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.name
+}
+
+// Seq is this session's creation ordinal within its manager, 1-based and
+// never reused (GDK-1387): "shell 3" stays "shell 3" after shells 1 and 2
+// are gone, so a name a person remembers does not move to another shell.
+func (s *Session) Seq() int { return s.seq }
 
 // SetIssueKey binds this session to the issue a claim in its shell took.
 // One session holds one issue at a time: a new key replaces the old, and an

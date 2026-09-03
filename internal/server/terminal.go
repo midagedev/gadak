@@ -71,6 +71,7 @@ func (s *server) registerTerminal(mux *http.ServeMux) {
 	termMux.HandleFunc("DELETE "+termBase+"sessions/{id}/{$}", s.handleTerminalDelete)
 	termMux.HandleFunc("GET "+termBase+"sessions/{id}/ws/{$}", s.handleTerminalWS)
 	termMux.HandleFunc("POST "+termBase+"sessions/{id}/issue/{$}", s.handleTerminalIssue)
+	termMux.HandleFunc("POST "+termBase+"sessions/{id}/name/{$}", s.handleTerminalName)
 	termMux.HandleFunc("POST "+termBase+"sessions/{id}/input/{$}", s.handleTerminalInput)
 	// The outer mux ends with the same catch-all (server.go): an unknown
 	// terminal path keeps the {"error":"not_found"} body the UI parses —
@@ -309,6 +310,12 @@ type terminalSessionDoc struct {
 type terminalCreateReq struct {
 	Cols uint16 `json:"cols"`
 	Rows uint16 `json:"rows"`
+	// IssueKey binds the session at creation — a shell opened from an
+	// issue's card or detail (GDK-1388). Name labels it (GDK-1195). Both
+	// optional; both are the same runtime state the /issue/ and /name/
+	// routes set later.
+	IssueKey string `json:"issue_key"`
+	Name     string `json:"name"`
 }
 
 func (s *server) handleTerminalCreate(w http.ResponseWriter, r *http.Request) {
@@ -368,6 +375,16 @@ func (s *server) handleTerminalCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	if tokenID != "" {
 		s.startTerminalRevokeWatch()
+	}
+	// A shell opened from an issue's card or detail is that issue's shell
+	// from its first prompt (GDK-1388) — the same binding `gadak claim`
+	// makes later, without waiting for a claim. A name at create is the
+	// same courtesy for the rename verb.
+	if k := strings.TrimSpace(req.IssueKey); k != "" {
+		sess.SetIssueKey(k)
+	}
+	if req.Name != "" {
+		sess.SetName(req.Name)
 	}
 	info := sess.Info()
 	log.Printf("server: terminal create: session %s", info.ID)
@@ -439,6 +456,36 @@ func (s *server) handleTerminalIssue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sess.SetIssueKey(req.IssueKey)
+	writeJSON(w, http.StatusOK, sess.Info())
+}
+
+// terminalNameReq is the rename body: a name, or empty to clear.
+type terminalNameReq struct {
+	Name string `json:"name"`
+}
+
+// handleTerminalName gives a session the label a person chose (GDK-1195).
+// Same shape and same rules as the issue binding above: plumbing only,
+// ownership answers 404, the reply is the updated Info row. The name never
+// touches issue_key — the card-to-shell join reads the key, not the label.
+func (s *server) handleTerminalName(w http.ResponseWriter, r *http.Request) {
+	tokenID := terminalTokenID(r)
+	body, err := io.ReadAll(io.LimitReader(r.Body, 4<<10))
+	if err != nil {
+		fail(w, http.StatusBadRequest, "invalid_body")
+		return
+	}
+	var req terminalNameReq
+	if err := json.Unmarshal(body, &req); err != nil {
+		fail(w, http.StatusBadRequest, "invalid_body")
+		return
+	}
+	sess, err := s.terminalManager().Get(r.PathValue("id"))
+	if err != nil || !terminalOwns(sess.TokenID(), tokenID) {
+		handleNotFound(w, r)
+		return
+	}
+	sess.SetName(req.Name)
 	writeJSON(w, http.StatusOK, sess.Info())
 }
 

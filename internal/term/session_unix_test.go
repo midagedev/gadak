@@ -158,6 +158,44 @@ func TestSessionIssueKeySetGetAndClear(t *testing.T) {
 	}
 }
 
+// GDK-1195 / GDK-1387: a person's name for a session is runtime state like
+// the issue key — set, replaced, cleared, trimmed and capped — and every
+// session carries a creation ordinal that is never reused, so the default
+// name built from it does not move to another shell when one dies.
+func TestSessionNameAndSeq(t *testing.T) {
+	m := testManager(t, Config{})
+	a := shellSession(t, m, Options{})
+	b := shellSession(t, m, Options{})
+	if a.Seq() != 1 || b.Seq() != 2 || a.Info().Seq != 1 || b.Info().Seq != 2 {
+		t.Fatalf("seq: a=%d b=%d (info %d %d)", a.Seq(), b.Seq(), a.Info().Seq, b.Info().Seq)
+	}
+	if got := a.Info().Name; got != "" {
+		t.Fatalf("fresh Info.Name = %q; want empty", got)
+	}
+	a.SetName("  fix-tax  ")
+	if got := a.Name(); got != "fix-tax" {
+		t.Fatalf("Name after set = %q; want trimmed", got)
+	}
+	if got := a.Info().Name; got != "fix-tax" {
+		t.Fatalf("Info.Name after set = %q", got)
+	}
+	long := strings.Repeat("가", MaxNameRunes+10)
+	a.SetName(long)
+	if got := []rune(a.Name()); len(got) != MaxNameRunes {
+		t.Fatalf("name not capped: %d runes", len(got))
+	}
+	a.SetName("")
+	if got := a.Name(); got != "" {
+		t.Fatalf("Name after clear = %q; want empty", got)
+	}
+	// Killing the first session does not hand its ordinal to the next one.
+	_ = a.Close()
+	c := shellSession(t, m, Options{})
+	if c.Seq() != 3 {
+		t.Fatalf("seq after a kill = %d; want 3 (never reused)", c.Seq())
+	}
+}
+
 // GDK-1158: two sessions in one manager each carry their own id in their
 // shell's environment. The variable names the session a command ran in, so
 // it must never degrade into a process-wide value — each pane's claim binds

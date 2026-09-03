@@ -187,6 +187,72 @@ test.describe('terminal session strip', () => {
    * onto the ×, Enter. The first cut of the roster column (GDK-1355) used
    * `hidden … focus-visible:flex`, and this test could not focus it.
    */
+  /*
+   * GDK-1387 / GDK-1195: an unclaimed shell has a name a person can say
+   * ("shell 3", from the server's creation ordinal), and a person can give it
+   * a better one — F2 or a double-click on the row, Enter keeps — without the
+   * issue binding moving: the key stays beside the name, and the row still
+   * says which issue it is on.
+   */
+  test('a shell has a readable default name, and F2 renames it (GDK-1387 / GDK-1195)', async ({
+    page,
+  }) => {
+    test.setTimeout(120_000)
+    const errors = await boot(page)
+    await openPane(page)
+    await expect(page.getByTestId('terminal-strip')).toHaveAttribute('data-count', '1', {
+      timeout: 20_000,
+    })
+    const [id] = await sessionIds(page)
+    expect(id).toBeTruthy()
+
+    // The default is words, not the id prefix.
+    const name = page.getByTestId('terminal-strip-name')
+    await expect(name).toHaveText(/^shell \d+$/)
+    await expect(name).not.toHaveText(new RegExp(id.slice(0, 8)))
+
+    // Bind an issue over REST — the row takes the key, as before.
+    const bind = await page.request.post(apiURL(`/api/v1/terminal/sessions/${id}/issue/`), {
+      data: { issue_key: 'NMB-140' },
+    })
+    expect(bind.ok()).toBe(true)
+    await expect(name).toHaveText('NMB-140', { timeout: 10_000 })
+
+    // F2 on the focused row opens the inline input; Enter keeps the name.
+    const row = page.getByTestId('terminal-strip-row')
+    await row.focus()
+    await page.keyboard.press('F2')
+    const input = page.getByTestId('terminal-strip-rename')
+    await expect(input).toBeVisible()
+    await expect(input).toBeFocused()
+    await input.fill('fix-tax')
+    await page.keyboard.press('Enter')
+    await expect(page.getByTestId('terminal-strip-rename')).toHaveCount(0)
+    await expect(page.getByTestId('terminal-strip-name')).toHaveText('fix-tax', { timeout: 10_000 })
+    // The issue stays: shown beside the name, and still the row's key.
+    await expect(page.getByTestId('terminal-strip-issue')).toHaveText('NMB-140')
+    await expect(page.getByTestId('terminal-strip-row')).toHaveAttribute('data-issue-key', 'NMB-140')
+    const list = await page.request.get(apiURL('/api/v1/terminal/sessions/'))
+    const body = (await list.json()) as { sessions: { id: string; name?: string; issue_key?: string }[] }
+    const mine = body.sessions.find((s) => s.id === id)
+    expect(mine?.name).toBe('fix-tax')
+    expect(mine?.issue_key).toBe('NMB-140')
+
+    // Esc drops a rename; an empty name clears back to the key.
+    await page.getByTestId('terminal-strip-row').dblclick()
+    await expect(page.getByTestId('terminal-strip-rename')).toBeVisible()
+    await page.keyboard.type('dropped')
+    await page.keyboard.press('Escape')
+    await expect(page.getByTestId('terminal-strip-name')).toHaveText('fix-tax')
+    await page.getByTestId('terminal-strip-row').dblclick()
+    await page.getByTestId('terminal-strip-rename').fill('')
+    await page.keyboard.press('Enter')
+    await expect(page.getByTestId('terminal-strip-name')).toHaveText('NMB-140', { timeout: 10_000 })
+    await expect(page.getByTestId('terminal-strip-issue')).toHaveCount(0)
+
+    expect(appConsoleErrors(errors), `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
   test('the × is reachable from the keyboard: Tab from the row, Enter kills', async ({
     page,
   }) => {

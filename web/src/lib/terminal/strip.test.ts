@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   nextSelectedAfterKill,
   RUNNING_WINDOW_MS,
+  sessionIssueAside,
   sessionLabel,
+  sessionNamedByIssue,
   sessionState,
   stripRows,
   type TerminalSessionInfo,
@@ -30,6 +32,25 @@ describe('sessionLabel (GDK-1153)', () => {
 
   it('does not ellipsize an id that is already short', () => {
     expect(sessionLabel({ id: 'abc' })).toBe('abc')
+  })
+
+  // GDK-1387: a server that sends the creation ordinal gets a readable
+  // default instead of hex; the caller's localized form is used.
+  it('builds a readable default from seq before falling back to the id', () => {
+    expect(sessionLabel(info({ seq: 3 }))).toBe('shell 3')
+    expect(sessionLabel(info({ seq: 3 }), (n) => `셸 ${n}`)).toBe('셸 3')
+    expect(sessionLabel(info({ seq: 0 }))).toBe('a1b2c3d4…')
+  })
+
+  // GDK-1195: a person's name wins over the issue key; the key stays beside
+  // it, and stays the thing the card-to-shell join reads.
+  it('prefers the name a person gave, with the issue key as an aside', () => {
+    const named = info({ name: 'fix-tax', issue_key: 'GDK-1195', seq: 2 })
+    expect(sessionLabel(named)).toBe('fix-tax')
+    expect(sessionIssueAside(named)).toBe('GDK-1195')
+    expect(sessionNamedByIssue(named)).toBe(true)
+    expect(sessionIssueAside(info({ issue_key: 'GDK-1195' }))).toBeNull()
+    expect(sessionLabel(info({ name: '   ', issue_key: 'GDK-1195' }))).toBe('GDK-1195')
   })
 })
 

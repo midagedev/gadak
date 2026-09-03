@@ -22,8 +22,10 @@
   import { openIssueOrigin } from '../../lib/desktop-links'
   import { issueOriginUrl } from '../../lib/issue-origin'
   import { formatSpan } from '../../lib/format'
-  import { shouldMarkUnattended } from '../../lib/issue-shells'
+  import { shellForIssue, shouldMarkUnattended } from '../../lib/issue-shells'
   import { shells } from '../../lib/issue-shells.svelte'
+  import { enterShell, terminalSessions } from '../../lib/terminal/sessions.svelte'
+  import { isHostedDemo } from '../../lib/config'
   import IssueBreadcrumb from './IssueBreadcrumb.svelte'
   import WatchButton from '../personal/WatchButton.svelte'
   import StatusTransition from '../write/StatusTransition.svelte'
@@ -50,6 +52,17 @@
   // only — nothing here or below it unclaims anything; see lib/issue-shells.ts
   // for why detecting death and recording it are different layers.
   const unattended = $derived(shouldMarkUnattended(issue, shells.sessions))
+
+  // The header's shell verb (GDK-1388): the shell already on this issue, or
+  // a new one bound to it from its first prompt — the same binding `gadak
+  // claim` would make later, without the claim. Hidden on the hosted demo,
+  // which has no serve to open a shell on.
+  const boundShell = $derived(shellForIssue(shells.sessions, issue.issue_key))
+  const canShell = $derived(!isHostedDemo())
+  function openShell(): void {
+    if (boundShell) enterShell(boundShell.id)
+    else terminalSessions.openNewFor(issue.issue_key)
+  }
 
   // "Waited 3d · In progress 5h" — the CLI durations line's numbers. Parts a
   // span cannot answer drop out; with none, the chip does not render.
@@ -202,6 +215,24 @@
           {/if}
         </svg>
       </button>
+      <!-- Shell (GDK-1388): enter the bound one, or open one bound to this issue. -->
+      {#if canShell}
+        <button
+          type="button"
+          onclick={openShell}
+          data-testid="issue-open-shell"
+          data-bound={boundShell ? 'true' : 'false'}
+          class="flex h-6 w-6 flex-none items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
+          aria-label={boundShell
+            ? t('detail.enterShell', { key: issue.issue_key })
+            : t('detail.openShell', { key: issue.issue_key })}
+          title={boundShell
+            ? t('detail.enterShell', { key: issue.issue_key })
+            : t('detail.openShell', { key: issue.issue_key })}
+        >
+          <Icon name="terminal" size={14} />
+        </button>
+      {/if}
       <!-- Watch -->
       <WatchButton issueKey={issue.issue_key} />
       <!-- Close -->

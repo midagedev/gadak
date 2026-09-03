@@ -103,6 +103,49 @@ class TerminalSessions {
   }
 
   /**
+   * Give a session the label a person chose (GDK-1195). Empty clears. The
+   * POST is the issue binding's sibling route; the refresh brings the new
+   * label to the strip on this tick rather than the next poll.
+   */
+  async rename(id: string, name: string): Promise<boolean> {
+    try {
+      const res = await fetch(`${terminalBase()}sessions/${encodeURIComponent(id)}/name/`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      })
+      if (!res.ok) return false
+    } catch {
+      return false
+    }
+    await this.refresh()
+    return true
+  }
+
+  /**
+   * A shell asked for from an issue's own surface (GDK-1388): the pane
+   * creates the next session bound to this key. Set here, consumed by the
+   * pane's create — one field, so the two cannot disagree about which issue
+   * the next shell is for. The pane reacts to the change; a closed dock is
+   * opened, and its boot create consumes the request.
+   */
+  createRequest = $state<{ issueKey: string; nonce: number } | null>(null)
+
+  openNewFor(issueKey: string): void {
+    this.createRequest = { issueKey, nonce: Date.now() }
+    if (!terminalChrome.open) terminalChrome.toggle()
+  }
+
+  /** The pane's half: take the pending request, if any, exactly once. */
+  takeCreateRequest(): { issueKey: string } | null {
+    const req = this.createRequest
+    if (!req) return null
+    this.createRequest = null
+    return { issueKey: req.issueKey }
+  }
+
+  /**
    * Start polling while a surface is watching. Reference-counted so two
    * surfaces (the strip and, later, anything else) share one poll rather
    * than racing two. Returns the stop.

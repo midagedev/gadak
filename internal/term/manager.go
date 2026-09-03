@@ -76,6 +76,8 @@ type Manager struct {
 	mu       sync.Mutex
 	sessions map[string]*Session
 	closed   bool
+	// seq is the creation ordinal handed to the next session (GDK-1387).
+	seq int
 }
 
 // New returns a Manager. It starts no goroutines: a Manager with no
@@ -180,6 +182,13 @@ type Info struct {
 	// with the session, and the durable record of "who claimed what when"
 	// is origin's own claim history (GDK-1158).
 	IssueKey string `json:"issue_key,omitempty"`
+	// Name is the label a person gave the session (GDK-1195), empty when
+	// none. Runtime state like IssueKey. Seq is the creation ordinal within
+	// this manager, 1-based and never reused (GDK-1387) — the client's
+	// default name ("shell 3") is built from it, so the server hardcodes
+	// no language.
+	Name string `json:"name,omitempty"`
+	Seq  int    `json:"seq"`
 }
 
 // Create spawns a shell under a PTY and returns its session.
@@ -232,6 +241,8 @@ func (m *Manager) Create(opts Options) (*Session, error) {
 		_ = proc.kill()
 		return nil, ErrSessionClosed
 	}
+	m.seq++
+	s.seq = m.seq
 	m.sessions[id] = s
 	m.mu.Unlock()
 

@@ -222,6 +222,44 @@ test.describe('command blocks in an issue body', () => {
     expect(appConsoleErrors(errors), `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 
+  /*
+   * GDK-1388: the header's shell verb. With no shell on the issue it opens
+   * the pane and creates one bound to the issue from its first prompt — the
+   * strip names it by the key with no claim having run — and pressed again
+   * it enters that shell instead of making another.
+   */
+  test('the header opens a shell bound to the issue, then re-enters it (GDK-1388)', async ({
+    page,
+  }) => {
+    test.setTimeout(120_000)
+    const errors = attachConsoleErrors(page)
+    await drainTerminalSessions(page)
+    await openIssue(page, LONE_ISSUE)
+
+    const verb = page.getByTestId('issue-open-shell')
+    await expect(verb).toBeVisible()
+    await expect(verb).toHaveAttribute('data-bound', 'false')
+    await verb.click()
+
+    await expect(page.getByTestId('terminal-pane')).toBeVisible()
+    await expect(page.getByTestId('terminal-pane')).toHaveAttribute('data-attached', 'true', {
+      timeout: 20_000,
+    })
+    await expect(page.getByTestId('terminal-strip-name')).toHaveText(LONE_ISSUE, { timeout: 10_000 })
+    await expect
+      .poll(async () => (await sessions(page)).map((s) => s.issue_key))
+      .toEqual([LONE_ISSUE])
+    await expect(verb).toHaveAttribute('data-bound', 'true', { timeout: 10_000 })
+
+    // Pressed again: the same shell, not a second one.
+    await verb.click()
+    await expect(page.getByTestId('terminal-pane')).toHaveAttribute('data-attached', 'true')
+    await page.waitForTimeout(1500)
+    expect((await sessions(page)).length).toBe(1)
+
+    expect(appConsoleErrors(errors), `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
   test('the unattended mark lands on the claim with no shell, not on the one with a shell', async ({
     page,
   }) => {

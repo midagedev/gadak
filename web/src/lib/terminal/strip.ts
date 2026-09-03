@@ -14,6 +14,11 @@ export interface TerminalSessionInfo {
   id: string
   /** The issue this session was claimed for; absent when none (GDK-1158). */
   issue_key?: string
+  /** The label a person gave it; absent when none (GDK-1195). */
+  name?: string
+  /** Creation ordinal within the serve, 1-based, never reused (GDK-1387).
+   *  Absent on an older server. */
+  seq?: number
   /** How many clients are watching. The pane is one of them. */
   attached?: number
   /** RFC3339; zero-valued for a session that has never printed. */
@@ -64,19 +69,40 @@ function instantMs(iso: string | undefined): number | null {
 }
 
 /**
- * What the row is called. The issue binding is the whole point of the strip
- * — "this terminal is this ticket's" — so it wins whenever it exists; the
- * id prefix is the fallback that at least tells two unnamed shells apart.
+ * What the row is called (GDK-1195 / GDK-1387). A name a person typed wins:
+ * it is the one label chosen for this shell. Then the issue binding — "this
+ * terminal is this ticket's" is the strip's whole point. Then a readable
+ * default built from the creation ordinal ("shell 3"), so two unnamed shells
+ * are told apart by something a person can say aloud; the id prefix remains
+ * only for a server too old to send `seq`.
+ *
+ * `defaultName` renders the ordinal — the caller passes the localized form,
+ * because this module has no `t` and the server hardcodes no language.
  */
-export function sessionLabel(info: TerminalSessionInfo): string {
+export function sessionLabel(
+  info: TerminalSessionInfo,
+  defaultName: (seq: number) => string = (n) => `shell ${n}`,
+): string {
+  const name = info.name?.trim()
+  if (name) return name
   const key = info.issue_key?.trim()
   if (key) return key
+  if (typeof info.seq === 'number' && info.seq > 0) return defaultName(info.seq)
   return info.id.length > SHORT_ID_CHARS ? `${info.id.slice(0, SHORT_ID_CHARS)}…` : info.id
 }
 
-/** True when this row has a claimed issue rather than a fallback id. */
+/** True when a claimed issue is on this row — bold in the strip, and the
+ *  key the card-to-shell join reads (never the label). */
 export function sessionNamedByIssue(info: TerminalSessionInfo): boolean {
   return !!info.issue_key?.trim()
+}
+
+/** The issue key to show beside a person's name, null when the label already
+ *  is the key or there is none. */
+export function sessionIssueAside(info: TerminalSessionInfo): string | null {
+  const key = info.issue_key?.trim()
+  if (!key) return null
+  return info.name?.trim() ? key : null
 }
 
 export function sessionState(info: TerminalSessionInfo, nowMs: number): TerminalSessionState {
@@ -94,6 +120,8 @@ export interface StripRow {
   id: string
   label: string
   namedByIssue: boolean
+  /** The claimed issue when the label is a person's name; null otherwise. */
+  issueAside: string | null
   state: TerminalSessionState
   /** ISO instant the row's elapsed reads from, null when it never printed. */
   since: string | null
@@ -112,11 +140,13 @@ export function stripRows(
   sessions: readonly TerminalSessionInfo[],
   selectedId: string | null,
   nowMs: number,
+  defaultName?: (seq: number) => string,
 ): StripRow[] {
   return sessions.map((info) => ({
     id: info.id,
-    label: sessionLabel(info),
+    label: sessionLabel(info, defaultName),
     namedByIssue: sessionNamedByIssue(info),
+    issueAside: sessionIssueAside(info),
     state: sessionState(info, nowMs),
     since: instantMs(info.last_output_at) === null ? null : (info.last_output_at ?? null),
     selected: info.id === selectedId,

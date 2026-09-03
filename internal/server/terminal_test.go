@@ -823,6 +823,72 @@ func TestTerminalSocketGoroutinesStopOnShutdown(t *testing.T) {
 // sits behind the same sub-mux gate and the same ownership rule as DELETE,
 // and it answers with the refreshed Info row the list surface already
 // serves.
+// GDK-1195: the rename route is the issue binding's sibling — same body
+// shape, same ownership rule, the Info row back — and it leaves issue_key
+// alone, because the card-to-shell join reads the key, not the label.
+func TestTerminalRename(t *testing.T) {
+	srv, _, _ := termServer(t)
+	id := createSession(t, srv, "", "")
+	if code, body := termRequest(t, srv, http.MethodPost, termBase+"sessions/"+id+"/issue/", `{"issue_key":"GDK-1195"}`, "", ""); code != http.StatusOK {
+		t.Fatalf("bind: %d %s", code, body)
+	}
+	code, body := termRequest(t, srv, http.MethodPost, termBase+"sessions/"+id+"/name/", `{"name":" fix-tax "}`, "", "")
+	if code != http.StatusOK {
+		t.Fatalf("rename: %d %s", code, body)
+	}
+	var info term.Info
+	if err := json.Unmarshal([]byte(body), &info); err != nil {
+		t.Fatalf("rename body %s: %v", body, err)
+	}
+	if info.Name != "fix-tax" || info.IssueKey != "GDK-1195" || info.Seq < 1 {
+		t.Fatalf("rename answered name=%q issue_key=%q seq=%d", info.Name, info.IssueKey, info.Seq)
+	}
+	code, body = termRequest(t, srv, http.MethodPost, termBase+"sessions/"+id+"/name/", `{"name":""}`, "", "")
+	if code != http.StatusOK || strings.Contains(body, `"name"`) {
+		t.Fatalf("clear: %d %s", code, body)
+	}
+	if code, _ := termRequest(t, srv, http.MethodPost, termBase+"sessions/nope/name/", `{"name":"x"}`, "", ""); code != http.StatusNotFound {
+		t.Fatalf("unknown session: %d, want 404", code)
+	}
+}
+
+// GDK-1388: a shell opened from an issue is that issue's shell from its
+// first prompt — the create body carries the key (and optionally a name),
+// and the list row shows both without any claim having run.
+func TestTerminalCreateBindsIssueAndName(t *testing.T) {
+	srv, _, _ := termServer(t)
+	code, body := termRequest(t, srv, http.MethodPost, termBase+"sessions/", `{"cols":80,"rows":24,"issue_key":" GDK-1388 ","name":"from the card"}`, "", "")
+	if code != http.StatusCreated && code != http.StatusOK {
+		t.Fatalf("create: %d %s", code, body)
+	}
+	var doc struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal([]byte(body), &doc); err != nil || doc.ID == "" {
+		t.Fatalf("create body %s: %v", body, err)
+	}
+	t.Cleanup(func() { termRequest(t, srv, http.MethodDelete, termBase+"sessions/"+doc.ID+"/", "", "", "") })
+	code, body = termRequest(t, srv, http.MethodGet, termBase+"sessions/", "", "", "")
+	if code != http.StatusOK {
+		t.Fatalf("list: %d %s", code, body)
+	}
+	var list struct {
+		Sessions []term.Info `json:"sessions"`
+	}
+	if err := json.Unmarshal([]byte(body), &list); err != nil {
+		t.Fatal(err)
+	}
+	for _, row := range list.Sessions {
+		if row.ID == doc.ID {
+			if row.IssueKey != "GDK-1388" || row.Name != "from the card" {
+				t.Fatalf("row issue_key=%q name=%q", row.IssueKey, row.Name)
+			}
+			return
+		}
+	}
+	t.Fatalf("no row for %s: %s", doc.ID, body)
+}
+
 func TestTerminalIssueBinding(t *testing.T) {
 	srv, _, _ := termServer(t)
 	id := createSession(t, srv, "", "")

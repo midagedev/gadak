@@ -4,6 +4,17 @@
 
 ## Unreleased
 
+- **Shells have names.** A new shell is "shell 3", not eight hex digits: the
+  server hands each session a creation ordinal it never reuses and the strip
+  says it in words ([GDK-1387]). Double-click a row, or press F2 on it, and
+  type a name of your own — Enter keeps, Esc drops, empty clears; the name
+  wins over the issue key on the row and the key stays beside it, because
+  the card-to-shell join reads the key, never the label ([GDK-1195]). And
+  the issue header grew a shell verb: press it on an issue with no shell and
+  the pane opens on a new one bound to that issue from its first prompt —
+  the binding `gadak claim` used to be the only way to make — press it on
+  an issue that has one and you are looking at that shell ([GDK-1388]).
+
 - **The detail reads every body as markdown, and the editor has a Preview.**
   The server now decides what a body looks like: a description or comment
   whose stored ADF is only typed text — an older `-m`, a migrated issue — is
@@ -1472,3 +1483,6 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-1384]: https://gadak.dev/backlog/#/?ks=GDK-1384
 [GDK-1386]: https://gadak.dev/backlog/#/?ks=GDK-1386
 [GDK-1385]: https://gadak.dev/backlog/#/?ks=GDK-1385
+[GDK-1195]: https://gadak.dev/backlog/#/?ks=GDK-1195
+[GDK-1387]: https://gadak.dev/backlog/#/?ks=GDK-1387
+[GDK-1388]: https://gadak.dev/backlog/#/?ks=GDK-1388
