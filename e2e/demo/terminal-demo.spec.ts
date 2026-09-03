@@ -17,7 +17,8 @@
  *
  * Beats:
  *   1. The list at rest — All open, on a real mirror
- *   2. ⌘K → "Terminal" opens the pane; the rail names it and marks it Beta
+ *   2. ⌘K → "Terminal" opens the pane
+ *      `gadak claim NMA-140` — the row moves, the roster tab takes the key
  *   3. `gadak sql … | gadak views open --keys -` — the answer becomes the
  *      list next to it
  *   4. `gadak views open --jql …` — the same promise from the query
@@ -131,6 +132,17 @@ test.describe('terminal demo', () => {
     // revert cannot quietly put it back into a recording.
     await expect(page.getByTestId('terminal-beta')).toHaveCount(0)
     await beat(page, 1100)
+
+    // Beat 2b — `gadak claim NMA-140`. The row moves to In Progress with an
+    // assignee and the roster tab becomes the key (GDK-1158): the shell is
+    // the issue's shell. A real write — the serve runs the mirror migrated
+    // onto the built-in tracker (GADAK_E2E_ORIGIN=builtin, e2e/serve.sh).
+    await typeLine(page, 'gadak claim NMA-140', 40)
+    await expect.poll(async () => readTerm(page), { timeout: 30_000 }).toContain('bound to session')
+    await expect(page.getByTestId('terminal-strip-name').first()).toHaveText('NMA-140', {
+      timeout: 15_000,
+    })
+    await beat(page, 1600)
 
     // Beat 3 — any answer you can compute is a view.
     await typeLine(page, STUCK_PIPE)

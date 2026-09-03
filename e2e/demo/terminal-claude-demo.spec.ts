@@ -19,7 +19,8 @@
  *
  * Beats:
  *   1. The list at rest — Epics, on a real mirror
- *   2. ⌘K → "Terminal" opens the pane; the rail names it and marks it Beta
+ *   2. ⌘K → "Terminal" opens the pane
+ *      `gadak claim NMA-140` — the row moves, the roster tab takes the key
  *   3. `claude` boots inside it
  *   4. "…담당한 이슈 중에 최근에 움직인 것 보여줘" — the list becomes that answer
  *   5. "이슈 라벨 비율 대시보드 만들어서 열어줘" — and the same pane paints a wall
@@ -169,6 +170,23 @@ test.describe('terminal claude demo', () => {
     // revert cannot quietly put it back into a recording.
     await expect(page.getByTestId('terminal-beta')).toHaveCount(0)
     await beat(page, 1200)
+
+    // Beat 2b — `gadak claim NMA-140`, typed by the person. Two things land
+    // at once and both are on camera: the row moves to In Progress with an
+    // assignee, and the roster tab stops being a session id and becomes the
+    // issue's key (GDK-1158) — this shell is now NMA-140's shell, and the
+    // agent about to start in it inherits that. Real write: the take runs
+    // on the built-in tracker (record-terminal-claude.sh), not the fixture's
+    // fake Jira.
+    await focusPane(page)
+    await page.keyboard.type('gadak claim NMA-140', { delay: 60 })
+    await beat(page, 500)
+    await page.keyboard.press('Enter')
+    await expect.poll(async () => readTerm(page), { timeout: 30_000 }).toContain('bound to session')
+    await expect(page.getByTestId('terminal-strip-name').first()).toHaveText('NMA-140', {
+      timeout: 15_000,
+    })
+    await beat(page, 1600)
 
     // Beat 3 — `claude`, in gadak's own shell. The TUI boot is the slow part;
     // the input box is what tells us it is ready to be typed into.

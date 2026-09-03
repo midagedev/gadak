@@ -281,9 +281,9 @@ Pins this binary and workspace into the registration.
 `~/.claude` already exists. A file gadak did not write is left in place.
 
 <p align="center">
-  <img src="docs/media/claude-drive.gif" alt="A live Claude Code session beside the app: asked to retint the workspace and build a chart dashboard, it runs gadak config and dashboards save, and the open tab picks up the new colors and renders the dashboard" width="900">
+  <img src="docs/media/terminal-hero.gif" alt="gadak's own terminal pane under the list: gadak claim NMA-140 moves the row to In Progress and the shell's tab takes the key; claude starts in that shell, a Korean prompt turns the list into Dana Whitfield's recently moved issues, and a second prompt saves and opens a label-ratio dashboard in the same window" width="900">
   <br>
-  <sub>What the skill buys: a live Claude Code session drives the same workspace you are looking at — colors and a chart dashboard land in the open tab, no reload. Recorded from <a href="tools/tapes/claude-drive.tape">tools/tapes/claude-drive.tape</a>.</sub>
+  <sub>The shell is in the window (⌘K → Terminal, or Ctrl+`). <code>gadak claim</code> binds it to the issue — the tab is named by the key — and a live Claude Code session started in it drives the board beside it: one Korean sentence becomes the list, the next one paints a wall. Nothing but the two prompts is scripted; the stretches where the agent is working are time-lapsed. Recorded from <a href="e2e/demo/terminal-claude-demo.spec.ts">e2e/demo/terminal-claude-demo.spec.ts</a> via <a href="e2e/demo/record-terminal-claude.sh">record-terminal-claude.sh</a>.</sub>
 </p>
 
 Both installs (and the Raycast one) are also buttons in the macOS app,
@@ -344,9 +344,9 @@ gadak views open --jql 'project = NMA AND resolution is EMPTY'
 ```
 
 <p align="center">
-  <img src="docs/media/agent.gif" alt="A terminal pipes gadak sql into gadak views open --keys - and the running app snaps to those five keys; then gadak views open --jql lands the same window on project, priority and unresolved chips" width="800">
+  <img src="docs/media/terminal-demo.gif" alt="In gadak's terminal pane, gadak claim names the shell's tab after the issue and moves the row; then gadak sql piped into gadak views open --keys - turns the list above into those five keys, and gadak views open --jql lands it on project, priority and unresolved chips" width="430">
   <br>
-  <sub><code>gadak views open</code> writes a one-shot hash; the running app or serve tab applies it. The recording adds a priority clause — in <code>--jql</code> a priority or status name is matched as the literal string your Jira stores, which is localized, so the example above leaves it out. Generated from <a href="e2e/demo/agent-demo.spec.ts">e2e/demo/agent-demo.spec.ts</a>.</sub>
+  <sub>Typed into gadak's own pane: <code>gadak claim</code> first, so the tab carries the issue's key, then the pipe and the JQL. <code>gadak views open</code> writes a one-shot hash; the list above applies it. The recording adds a priority clause — in <code>--jql</code> a priority or status name is matched as the literal string your Jira stores, which is localized, so the example above leaves it out. Generated from <a href="e2e/demo/terminal-demo.spec.ts">e2e/demo/terminal-demo.spec.ts</a> (<code>make media-terminal</code>).</sub>
 </p>
 
 When the answer is a wall rather than a list, author a dashboard — one HTML

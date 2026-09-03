@@ -79,11 +79,12 @@ export const strings = {
       skillLead: 'Hand the same mirror to your coding agent:',
       mcpLead: 'For MCP clients without a shell (Claude Desktop):',
       setupLink: 'Pasteable setup blocks for every tool → docs/AGENT_SETUP.md',
-      videoCaption: 'A question JQL cannot ask, answered from the local mirror.',
+      videoCaption:
+        'The shell is in the window: a claim names the tab after the issue, then a pipe and a JQL each become the list above it.',
       mcpCaption:
         'A live Claude Code session on the mirror: issues and wiki pages in one index — the join Jira and Confluence never make for you.',
       driveCaption:
-        'The skill in motion: asked for new colors and a chart dashboard, the agent runs gadak and both land in the open tab — no reload.',
+        'A live Claude Code session in that same pane: a Korean sentence becomes the list, the next one saves and opens a dashboard — the agent and the board it moves, in one window.',
       dashboardsCaption:
         'It builds the wall, and the wall links back. One HTML document plus named queries — and the keys the agent puts on it are real links, so a click lands on the issue instead of leaving the page.',
       tokensCaption:
@@ -202,11 +203,12 @@ export const strings = {
       skillLead: '같은 미러를 코딩 에이전트에게 넘기려면:',
       mcpLead: '셸이 없는 MCP 클라이언트(Claude Desktop)에는:',
       setupLink: '도구별 붙여넣기 블록 → docs/AGENT_SETUP.md',
-      videoCaption: 'JQL이 표현 못 하는 질문 하나를, 로컬 미러에서 답하기.',
+      videoCaption:
+        '셸이 창 안에 있습니다: claim 하나가 탭에 이슈 키를 붙이고, 파이프 하나와 JQL 하나가 차례로 위의 리스트가 됩니다.',
       mcpCaption:
         '미러 위의 실제 Claude Code 세션: 이슈와 위키 페이지가 하나의 인덱스 — Jira와 Confluence가 대신 만들어 주지 않는 조인.',
       driveCaption:
-        '스킬이 움직이는 모습: 새 색과 차트 대시보드를 부탁하자 에이전트가 gadak을 실행하고, 둘 다 리로드 없이 열린 탭에 내려앉습니다.',
+        '같은 pane 안의 실제 Claude Code 세션: 한국어 한 문장이 리스트가 되고, 다음 문장이 대시보드를 저장해 엽니다 — 에이전트와 그가 움직이는 보드가 한 창에.',
       dashboardsCaption:
         '벽을 세우고, 그 벽이 앱으로 되돌아옵니다. HTML 문서 하나에 이름 붙은 쿼리들 — 에이전트가 벽에 올린 키는 진짜 링크라, 누르면 페이지를 떠나는 대신 그 이슈가 열립니다.',
       tokensCaption:

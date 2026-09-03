@@ -131,11 +131,15 @@ const installHref = lang === 'en' ? '/install/' : '/ko/install/'
   <section class="agent">
     <h2>{t.agent.heading}</h2>
     <p>{t.agent.body}</p>
-    <figure class="media-pair">
+    <figure class="media-pair vertical">
+      {/* 0.20: the shell is in the window. The paper-terminal composite
+          (agent.mp4) retires; this is gadak's own pane under the list, a
+          claim naming the tab, then the pipe and the JQL. 4:5 cut, so it
+          takes the vertical cap like the other towers. */}
       <MediaSlot
-        slot={lang === 'en' ? 'agent round' : '에이전트 한 판'}
-        src="/media/agent.mp4"
-        poster="/media/agent-poster.png"
+        slot={lang === 'en' ? 'shell in the window' : '창 안의 셸'}
+        src="/media/terminal-demo.mp4"
+        poster="/media/terminal-demo-poster.png"
       />
       <figcaption>{t.agent.videoCaption}</figcaption>
     </figure>
@@ -159,16 +163,17 @@ gadak transition NMB-1042 done -m "shipped"`}
     </figure>
     <p>{t.agent.skillLead}</p>
     <Snippet code="gadak skill install" copyLabel={copyLabel} copiedLabel={copiedLabel} />
-    <figure class="media-pair vertical">
+    <figure class="media-pair">
       {/* v0.17.2 flagship (user call 2026-08-25): the claim is a command
-          changing the visible view — colors and a dashboard landing in an
-          open tab — so this exhibit plays the tape (GDK-751 motion rule).
-          The vertical 4:5 cut (user call, same day): terminal stacked over
-          the app reads better in a column than the wide split. */}
+          changing the visible view, so this exhibit plays a take (GDK-751
+          motion rule). 0.20 retires the VHS-beside-a-tab composite: Claude
+          Code runs in gadak's own pane and the board it moves is the one
+          above it, so the take is the window itself — 16:10, full column
+          width, no vertical cap. */}
       <MediaSlot
-        slot={lang === 'en' ? 'skill drive' : '스킬 드라이브'}
-        src="/media/claude-drive-vertical.mp4"
-        poster="/media/claude-drive-vertical-poster.png"
+        slot={lang === 'en' ? 'agent in the window' : '창 안의 에이전트'}
+        src="/media/terminal-hero.mp4"
+        poster="/media/terminal-hero-poster.png"
       />
       <figcaption>{t.agent.driveCaption}</figcaption>
     </figure>

@@ -17,6 +17,12 @@ if ! [[ "$PORT" =~ ^[1-9][0-9]*$ ]] || [ "$PORT" -gt 65535 ]; then
 fi
 # Already consumed as PORT. gadak serve/status log unknown GADAK_* names.
 unset GADAK_E2E_PORT
+# The other two e2e knobs are read below and then dropped for the same
+# reason: the pane shells inherit the serve's env, and an unknown GADAK_*
+# name is a warning line in the first frame of a recording.
+E2E_SHELL="${GADAK_E2E_SHELL:-}"
+E2E_ORIGIN="${GADAK_E2E_ORIGIN:-}"
+unset GADAK_E2E_SHELL GADAK_E2E_ORIGIN
 
 TMP="$ROOT/e2e/.tmp"
 HOME_DIR="$TMP/home-${PORT}"
@@ -83,10 +89,10 @@ EOF
 # $SHELL. `npm run test:e2e:wide-prompt` sets it to e2e/ci-shell.sh, which is
 # how the Linux CI runner's 24-column prompt — and the line wrapping that comes
 # with it — is reproduced on a developer's machine.
-if [ -n "${GADAK_E2E_SHELL:-}" ]; then
-  SHELL_ABS="$(cd "$(dirname "$GADAK_E2E_SHELL")" && pwd)/$(basename "$GADAK_E2E_SHELL")"
+if [ -n "$E2E_SHELL" ]; then
+  SHELL_ABS="$(cd "$(dirname "$E2E_SHELL")" && pwd)/$(basename "$E2E_SHELL")"
   if [ ! -x "$SHELL_ABS" ]; then
-    echo "[e2e] GADAK_E2E_SHELL=${GADAK_E2E_SHELL} is not an executable file" >&2
+    echo "[e2e] GADAK_E2E_SHELL=${E2E_SHELL} is not an executable file" >&2
     exit 1
   fi
   echo "[e2e] terminal.shell = ${SHELL_ABS} (GADAK_E2E_SHELL)"
@@ -224,8 +230,11 @@ DIGEST="$(bash "$ROOT/e2e/served-digest.sh")"
 # cannot see it — but it changes what the suite measures, and
 # reuseExistingServer would otherwise hand a wide-prompt run the server a
 # plain run left behind. Fold it in so the stamp mismatch says so out loud.
-if [ -n "${GADAK_E2E_SHELL:-}" ]; then
-  DIGEST="${DIGEST} shell=${GADAK_E2E_SHELL}"
+if [ -n "$E2E_SHELL" ]; then
+  DIGEST="${DIGEST} shell=${E2E_SHELL}"
+fi
+if [ -n "$E2E_ORIGIN" ]; then
+  DIGEST="${DIGEST} origin=${E2E_ORIGIN}"
 fi
 STAMP="${TMPDIR:-/tmp}/gadak-e2e-served-${PORT}.json"
 echo "[e2e] served worktree ${WORKTREE} digest ${DIGEST}"
@@ -242,5 +251,27 @@ echo "[e2e] serving on 127.0.0.1:${PORT} (GADAK_HOME=$GADAK_HOME)…"
 # the browser logs 502s and the console-hygiene spec fails.
 # --no-sync: the fixture credential is fake; starting the watch loop would
 # hammer a non-existent Jira and fail every tick.
+# GADAK_E2E_ORIGIN=builtin (recordings, GDK-1353): the take needs a write
+# that lands — `gadak claim` on camera — and the fixture credential cannot
+# reach any Jira. So the seeded mirror is migrated into a workspace on the
+# built-in tracker (`nimbus`, sidebar header reads the name and no host)
+# and the serve runs *that* workspace. GADAK_WORKSPACE is set on the exec,
+# not exported above it: the seeding and the FTS repair are the root
+# mirror's, and the pane shells inherit the serve's env (internal/term
+# Create), so a `gadak` typed in the pane lands on the same workspace the
+# window shows. The suite never sets this; its origin stays connected.
+if [ "$E2E_ORIGIN" = "builtin" ]; then
+  echo "[e2e] migrating the mirror into the built-in tracker (workspace nimbus)…"
+  rm -rf "$HOME_DIR/profiles/nimbus"
+  GADAK_HOME="$HOME_DIR" "$BIN" --workspace nimbus migrate --from default --skip-attachments >/dev/null
+  # The person at the keyboard is the origin's own user. A recording is
+  # usually started from a Claude Code session, whose CLAUDECODE=1 the pane
+  # would inherit and gadak's actor ladder would read as "this write is the
+  # agent's" (internal/config/actor.go) — measured: the claim's avatar came
+  # up "CC". Only the `claude` the take itself starts should carry that.
+  for v in "${!CLAUDE@}"; do unset "$v"; done
+  exec env GADAK_WORKSPACE=nimbus "$BIN" serve --addr 127.0.0.1:${PORT} --static dist/app --no-open --no-sync \
+    --import-attachments "$ROOT/examples/attachments"
+fi
 exec "$BIN" serve --addr 127.0.0.1:${PORT} --static dist/app --no-open --no-sync \
   --import-attachments "$ROOT/examples/attachments"

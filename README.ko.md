@@ -287,9 +287,9 @@ gadak mcp install claude
 자동으로 설치합니다. gadak이 쓰지 않은 파일은 그대로 둡니다.
 
 <p align="center">
-  <img src="docs/media/claude-drive.gif" alt="앱 옆의 라이브 Claude Code 세션: 워크스페이스를 다시 물들이고 차트 대시보드를 만들어 달라는 요청에 gadak config와 dashboards save를 실행하자, 열린 탭이 새 색을 입고 대시보드를 렌더한다" width="900">
+  <img src="docs/media/terminal-hero.gif" alt="리스트 아래 gadak 자체 터미널 pane: gadak claim NMA-140 으로 행이 In Progress 로 움직이고 셸 탭이 그 키를 이름으로 받는다; 그 셸에서 claude 가 뜨고, 한국어 프롬프트 하나에 리스트가 Dana Whitfield 의 최근 움직인 이슈로 바뀌고, 다음 프롬프트가 같은 창에 라벨 비율 대시보드를 저장해 연다" width="900">
   <br>
-  <sub>스킬이 사 주는 것: 라이브 Claude Code 세션이 지금 보고 있는 그 워크스페이스를 직접 몰아서, 색과 차트 대시보드가 리로드 없이 열린 탭에 내려앉습니다. <a href="tools/tapes/claude-drive.tape">tools/tapes/claude-drive.tape</a>로 녹화.</sub>
+  <sub>셸이 창 안에 있습니다(⌘K → Terminal, 또는 Ctrl+`). <code>gadak claim</code>이 셸을 이슈에 묶어 탭 이름이 키가 되고, 그 안에서 시작한 라이브 Claude Code 세션이 옆의 보드를 몹니다 — 한국어 한 문장이 리스트가 되고, 다음 문장이 벽을 그립니다. 프롬프트 두 줄 외엔 대본이 없고, 에이전트가 작업하는 구간은 빨리 감았습니다. <a href="e2e/demo/terminal-claude-demo.spec.ts">e2e/demo/terminal-claude-demo.spec.ts</a>를 <a href="e2e/demo/record-terminal-claude.sh">record-terminal-claude.sh</a>로 녹화.</sub>
 </p>
 
 두 설치(그리고 Raycast까지)는 macOS 앱에서는 버튼이기도 합니다. 설치
@@ -351,9 +351,9 @@ gadak views open --jql 'project = NMA AND resolution is EMPTY'
 ```
 
 <p align="center">
-  <img src="docs/media/agent.gif" alt="터미널이 gadak sql을 gadak views open --keys - 로 파이프하자 실행 중인 앱이 그 다섯 키로 즉시 이동하고, 이어서 gadak views open --jql이 같은 창을 프로젝트·우선순위·미해결 칩 위에 내려놓는다" width="800">
+  <img src="docs/media/terminal-demo.gif" alt="gadak 터미널 pane 안에서 gadak claim 이 셸 탭에 이슈 키를 붙이고 행을 움직인다; 이어 gadak sql 을 gadak views open --keys - 로 파이프하자 위 리스트가 그 다섯 키가 되고, gadak views open --jql 이 프로젝트·우선순위·미해결 칩 위에 내려놓는다" width="430">
   <br>
-  <sub><code>gadak views open</code>은 일회성 해시를 쓰고, 실행 중인 앱 또는 serve 탭이 그것을 적용합니다. 녹화본에는 우선순위 절이 하나 더 있습니다. <code>--jql</code>에서 우선순위·상태 이름은 내 Jira가 저장한 문자열 그대로 매칭되고 그 이름은 로케일마다 다르므로, 위 예시에서는 뺐습니다. <a href="e2e/demo/agent-demo.spec.ts">e2e/demo/agent-demo.spec.ts</a>가 생성.</sub>
+  <sub>gadak 자체 pane 에 친 것입니다: 먼저 <code>gadak claim</code>으로 탭이 이슈 키를 달고, 그다음 파이프와 JQL. <code>gadak views open</code>은 일회성 해시를 쓰고 위의 리스트가 그것을 적용합니다. 녹화본에는 우선순위 절이 하나 더 있습니다. <code>--jql</code>에서 우선순위·상태 이름은 내 Jira가 저장한 문자열 그대로 매칭되고 그 이름은 로케일마다 다르므로, 위 예시에서는 뺐습니다. <a href="e2e/demo/terminal-demo.spec.ts">e2e/demo/terminal-demo.spec.ts</a>가 생성(<code>make media-terminal</code>).</sub>
 </p>
 
 답이 목록이 아니라 벽이라면 대시보드를 저작하세요. HTML 문서 한 장과

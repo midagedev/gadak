@@ -4,20 +4,19 @@
 #
 # Two deliberate differences from every other export script here:
 #
-#   No gif.       This clip is for a Twitter post, not a README block. Twitter
-#                 transcodes an uploaded gif to mp4 anyway, and a 4 MB palette
-#                 gif would only throw away the typing.
-#   Not docs/media. site/public/media is a symlink onto docs/media, so anything
-#                 landing there is served by the website — reachable even with
-#                 no page linking it. The terminal is not announced on the site
-#                 or in the README yet (0.18 ships it Beta), so the bytes stay
-#                 in gitignored scratch/ and the harness stays committed. When
-#                 the pane goes public, point OUT_DIR at docs/media and
-#                 re-record; nothing else here changes.
+#   mp4 first.    The clip is a Twitter post as much as a README block, and
+#                 Twitter transcodes an uploaded gif to mp4 anyway; the gif
+#                 (palette two-pass, like export-agent.sh) exists because
+#                 GitHub renders no video in a README.
+#   docs/media.   0.18 shipped the pane Beta and kept these bytes in scratch/;
+#                 0.20 puts the pane on the README and the landing, so the
+#                 clips land where site/public/media (a symlink onto
+#                 docs/media) serves them. GADAK_TERMINAL_OUT still redirects
+#                 a scratch take.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-OUT_DIR="${GADAK_TERMINAL_OUT:-$ROOT/scratch}"
+OUT_DIR="${GADAK_TERMINAL_OUT:-$ROOT/docs/media}"
 RESULTS="${GADAK_TERMINAL_RESULTS:-$ROOT/e2e/demo/test-results-terminal}"
 mkdir -p "$OUT_DIR"
 
@@ -68,96 +67,78 @@ esac
 # thing this clip exists to show together.
 #
 # ── Pacing ──────────────────────────────────────────────────────────────
-# A long take is long because of real work, not dead air. The obvious move —
-# drop the static frames — was measured, and there are none to drop: with
-# mpdecimate over the frame minus the spinner band (crop=in_w:in_h*0.86:0:0)
-# only 471 of 6110 frames carried a change, but the still runs between them
-# were short enough that capping every hold at one second still left 180s of
-# 204s. The terminal is always scrolling.
+# A long take is long because of real work, not dead air — but to a viewer
+# the agent working *is* dead air: the board does not move, nobody types,
+# the transcript grows a line a second under a spinner. What a clip owes
+# the viewer is the payoffs either side of that at 1x.
 #
-# What a long take has instead is one very long stretch of the agent working,
-# with both payoffs in seconds either side of it. So the ramp is by beat:
-# everything a viewer has to read runs at 1x, and the working stretches become
-# a time-lapse.
+# dense-cut.py measures where those stretches are on *this* take (a live
+# model does not repeat its pacing, so a hand-tuned beat table is wrong the
+# moment the next take lands) and prints a filter that keeps the head of
+# each at 1x and time-lapses the rest. Two kinds: a still stretch (nothing
+# changes anywhere) and a working stretch (only the transcript changes).
+# Payoffs, typing and the answer text ship whole. Claude's own elapsed
+# counter goes out of step with the clip across the compressed parts; that
+# trade was taken knowingly (the beat-table ramp this replaces made it too).
 #
-# That trade is real — it puts Claude's own elapsed counter out of step with
-# the clip — which is why the ramp is *conditional*, not the default. Under
-# RAMP_ABOVE seconds the take ships whole, at 1x, with the clock and the clip
-# agreeing. Takes vary enormously: 204s while the skill was still sending the
-# agent hunting for an example file that was never installed beside it, 47s
-# once that example moved into the skill itself. The short take is the one to
-# want; the ramp is the net under it.
-RAMP_ABOVE=75
+# The regions are this config's geometry, so they live here, per shape:
+# the 16:10 hero has the dock at 340px under a 560px board, a 272px roster,
+# the TUI's input row two rows above the dock's floor and the spinner row
+# two rows above that. The 4:5 scripted take has no agent and no spinner,
+# so it gets the still rule over the whole frame — its reading holds are
+# under the floor and pass through unchanged.
+case "$SRC_DIM" in
+  1440x900) REGIONS=(--board 272:0:1168:560 --input 272:845:1168:32 --work 272:560:1168:240) ;;
+  *)        REGIONS=() ;;
+esac
+PLAN="$(python3 "$ROOT/e2e/demo/dense-cut.py" "$WEBM" --trim-head "$TRIM_HEAD" ${REGIONS[@]+"${REGIONS[@]}"})"
+FILTER="$(printf '%s\n' "$PLAN" | sed -n 1p)"
+OUT_LEN="$(printf '%s\n' "$PLAN" | sed -n 2p)"
+echo "export-terminal: dense cut → ${OUT_LEN}s"
 
-# Beats are *measured off this take*, never carried over. A live model does
-# not repeat its pacing, so a hand-tuned boundary table is wrong the moment
-# the next take lands. The script finds them instead.
-#
-# The two payoffs both change the right-hand column and nothing else does:
-# the list becomes the answer, and later the wall replaces the list. Scene
-# detection over that column alone reports exactly those. First one after the
-# boot is payoff A, last is payoff B.
-scene_times() {
-  ffmpeg -nostdin -ss "$TRIM_HEAD" -i "$1" \
-    -vf "crop=in_w*0.4:in_h:in_w*0.6:0,select='gt(scene,0.04)',metadata=print" \
-    -an -f null - 2>&1 | sed -n 's/.*pts_time:\([0-9.]*\).*/\1/p'
-}
-
-SRC_LEN="$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$WEBM")"
-USABLE="$(python3 -c "print(round($SRC_LEN - $TRIM_HEAD, 1))")"
-
-if python3 -c "import sys; sys.exit(0 if $USABLE > $RAMP_ABOVE else 1)"; then
-  # No mapfile: macOS ships bash 3.2 and this script has to run there.
-  SCENES=()
-  while IFS= read -r t; do SCENES+=("$t"); done < <(scene_times "$WEBM" | awk '$1 > 8')
-  if (( ${#SCENES[@]} < 2 )); then
-    echo "export-terminal: found ${#SCENES[@]} payoff scenes, want 2 — re-measure by hand" >&2
-    exit 1
-  fi
-  PAYOFF_A="${SCENES[0]}"
-  PAYOFF_B="${SCENES[$(( ${#SCENES[@]} - 1 ))]}"
-  echo "export-terminal: ${USABLE}s of take — ramping; payoffs at ${PAYOFF_A}s (list), ${PAYOFF_B}s (wall)"
-
-  # 1x head (list settle, palette, pane attach, `claude` boot — driven by the
-  # spec's own waits, not the model), time-lapse to just before the list turns
-  # over, 1x for the answer and the second prompt, time-lapse across the
-  # authoring stretch, 1x for the wall to the end. Aim one of these a second
-  # wrong and the cost is a second of spinner at the wrong rate — which is why
-  # a ramp is safe where the zoom it replaced was not: that one could miss a
-  # payoff outright.
-  B1_END=13
-  B2_END="$(python3 -c "print(max(14, $PAYOFF_A - 1.5))")"
-  B3_END="$(python3 -c "print($PAYOFF_A + 9)")"
-  B4_END="$(python3 -c "print(max($PAYOFF_A + 10, $PAYOFF_B - 3.5))")"
-  FAST_A=3.0
-  FAST_B=4.5
-
-  ffmpeg -y -ss "$TRIM_HEAD" -i "$WEBM" \
-    -an \
-    -filter_complex "\
-[0:v]fps=30,format=yuv420p,split=5[a][b][c][d][e]; \
-[a]trim=0:${B1_END},setpts=PTS-STARTPTS[s1]; \
-[b]trim=${B1_END}:${B2_END},setpts=(PTS-STARTPTS)/${FAST_A}[s2]; \
-[c]trim=${B2_END}:${B3_END},setpts=PTS-STARTPTS[s3]; \
-[d]trim=${B3_END}:${B4_END},setpts=(PTS-STARTPTS)/${FAST_B}[s4]; \
-[e]trim=start=${B4_END},setpts=PTS-STARTPTS[s5]; \
-[s1][s2][s3][s4][s5]concat=n=5:v=1:a=0,fps=30[v]" \
-    -map "[v]" \
-    -c:v libx264 -profile:v high -level 4.0 -preset slow -crf 21 \
-    -movflags +faststart \
-    "$OUT_DIR/$OUT_NAME"
-else
-  echo "export-terminal: ${USABLE}s of take — shipping it whole, at 1x"
-  ffmpeg -y -ss "$TRIM_HEAD" -i "$WEBM" \
-    -an \
-    -vf "fps=30,format=yuv420p" \
-    -c:v libx264 -profile:v high -level 4.0 -preset slow -crf 21 \
-    -movflags +faststart \
-    "$OUT_DIR/$OUT_NAME"
-fi
+ffmpeg -y -ss "$TRIM_HEAD" -i "$WEBM" \
+  -an \
+  -filter_complex "$FILTER" \
+  -map "[v]" \
+  -c:v libx264 -profile:v high -level 4.0 -preset slow -crf 21 \
+  -movflags +faststart \
+  "$OUT_DIR/$OUT_NAME"
 
 ffprobe -v error -select_streams v:0 \
   -show_entries stream=width,height,r_frame_rate,pix_fmt \
   -show_entries format=duration,size \
   -of default=noprint_wrappers=1 "$OUT_DIR/$OUT_NAME"
 ls -lh "$OUT_DIR/$OUT_NAME"
+
+# Poster: the first settled frame of the cut, at the mp4's own size — the
+# landing shows it before anyone presses play (same rule as every other
+# poster since ec39ea3a).
+STEM="${OUT_NAME%.mp4}"
+ffmpeg -y -v error -ss 0.2 -i "$OUT_DIR/$OUT_NAME" -frames:v 1 "$OUT_DIR/${STEM}-poster.png"
+
+# GIF for the README, from the *cut* mp4 so it carries the same pacing.
+# Width is the README's render width at 2x: the hero sits at 900 (→ 1200 is
+# plenty), the 4:5 cut at 430 (→ 860). Palette two-pass; the >8MB ladder is
+# export-agent.sh's.
+case "$SRC_DIM" in
+  1440x900) GIF_WIDTH=1200 ;;
+  *)        GIF_WIDTH=860 ;;
+esac
+PALETTE="$(mktemp "${TMPDIR:-/tmp}/gadak-terminal-palette.XXXXXX").png"
+trap 'rm -f "$PALETTE"' EXIT
+make_gif() {
+  local fps="$1" width="$2" colors="$3"
+  echo "export-terminal: gif fps=${fps} width=${width} colors=${colors}" >&2
+  ffmpeg -y -v error -i "$OUT_DIR/$OUT_NAME" \
+    -vf "fps=${fps},scale=${width}:-1:flags=lanczos,palettegen=max_colors=${colors}:stats_mode=diff" \
+    "$PALETTE"
+  ffmpeg -y -v error -i "$OUT_DIR/$OUT_NAME" -i "$PALETTE" \
+    -lavfi "fps=${fps},scale=${width}:-1:flags=lanczos[x];[x][1:v]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle" \
+    "$OUT_DIR/${STEM}.gif"
+}
+MAX_BYTES=$((8 * 1024 * 1024))
+gif_bytes() { wc -c <"$OUT_DIR/${STEM}.gif" | tr -d ' '; }
+make_gif 9 "$GIF_WIDTH" 128
+if (( $(gif_bytes) > MAX_BYTES )); then make_gif 8 "$GIF_WIDTH" 96; fi
+if (( $(gif_bytes) > MAX_BYTES )); then make_gif 8 $(( GIF_WIDTH * 3 / 4 )) 64; fi
+echo "export-terminal: wrote ${STEM}.gif ($(gif_bytes) bytes), ${STEM}-poster.png"

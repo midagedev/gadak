@@ -52,6 +52,11 @@ AGENT_HOME="$DRIVE_ROOT/agent"
 WORKSPACE="$AGENT_HOME/workspace"
 GADAK_HOME_DIR="$DRIVE_ROOT/gadak-home"
 BIN="$DRIVE_ROOT/bin/gadak"
+# The take's workspace is the seeded mirror migrated onto the built-in
+# tracker: the claim beat is a write, and the fixture's Jira credential
+# cannot land one. Rebuilt per take (see the loop), served by name, and
+# inherited by the pane shells through GADAK_WORKSPACE on the serve's env.
+WS="nimbus"
 ENV_SH="$ROOT/tools/tapes/.tmp/env-claude-drive.sh"
 OUT="$ROOT/e2e/.tmp/terminal-claude"
 RESULTS="$ROOT/e2e/.tmp/test-results-terminal-claude"
@@ -80,7 +85,7 @@ fi
 # every frame). So trust both candidates rather than guess which one this
 # build starts in. Additive — the workspace entry the tapes rely on is left
 # exactly as prepare wrote it.
-python3 - "$AGENT_HOME/.claude.json" "$GADAK_HOME_DIR" "$AGENT_HOME" <<'PY'
+python3 - "$AGENT_HOME/.claude.json" "$GADAK_HOME_DIR" "$GADAK_HOME_DIR/profiles/$WS" "$AGENT_HOME" <<'PY'
 import json, sys
 
 path, cwds = sys.argv[1], sys.argv[2:]
@@ -124,7 +129,7 @@ start_serve() {
   # above a starship prompt). /bin/sh with the e2e prompt fixture is a bare
   # `$`; NODE_EXTRA_CA_CERTS is the pair of mkcert warnings at claude boot.
   bash -c "set -a; . '$ENV_SH'; set +a; \
-      export SHELL=/bin/sh ENV='$ROOT/e2e/demo/prompt.sh'; unset ZDOTDIR NODE_EXTRA_CA_CERTS; \
+      export SHELL=/bin/sh ENV='$ROOT/e2e/demo/prompt.sh' GADAK_WORKSPACE='$WS'; unset ZDOTDIR NODE_EXTRA_CA_CERTS; \
       exec '$BIN' serve \
       --addr '127.0.0.1:${PORT}' --static '$ROOT/dist/app' --no-open --no-sync" \
     >"$OUT/serve.log" 2>&1 &
@@ -161,7 +166,7 @@ trap stop_serve EXIT
 # what proves beat 4, and this proves beat 5.
 validate_take() {
   local dash
-  dash="$(GADAK_HOME="$GADAK_HOME_DIR" "$BIN" dashboards list --json 2>/dev/null || true)"
+  dash="$(GADAK_HOME="$GADAK_HOME_DIR" "$BIN" --workspace "$WS" dashboards list --json 2>/dev/null || true)"
   if [[ -z "$dash" || "$dash" == "[]" ]]; then
     echo "record-terminal-claude: no dashboard saved in this take" >&2
     return 1
@@ -178,6 +183,12 @@ while (( take <= MAX_TAKES )); do
   # history all live in local.db, which the app recreates — deleting it is the
   # whole reset, and it needs no parsing of anything.
   rm -f "$GADAK_HOME_DIR"/local.db "$GADAK_HOME_DIR"/local.db-wal "$GADAK_HOME_DIR"/local.db-shm
+  # …and the workspace itself: the claim beat writes to the origin, so a
+  # second take would find NMA-140 already taken. A fresh migrate is the
+  # reset (about ten seconds), and it leaves the root mirror untouched.
+  rm -rf "$GADAK_HOME_DIR/profiles/$WS"
+  echo "record-terminal-claude: migrating the mirror onto the built-in tracker (workspace $WS)…"
+  GADAK_HOME="$GADAK_HOME_DIR" "$BIN" --workspace "$WS" migrate --from default --skip-attachments >"$OUT/migrate-${take}.log" 2>&1
 
   stop_serve
   start_serve

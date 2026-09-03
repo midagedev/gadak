@@ -34,8 +34,8 @@ each run with a fake credential.)
 | `docs/media/web-demo.mp4` | same recording, h264 | Twitter / LinkedIn / anywhere GIF is too heavy |
 | `docs/media/search.gif` | Playwright `e2e/demo/search-demo.spec.ts` | README — ⌘K All search (ignores filters) |
 | `docs/media/search.mp4` | same recording, h264 | Twitter / LinkedIn / anywhere GIF is too heavy |
-| `docs/media/agent.gif` | Playwright split `e2e/demo/agent-demo.spec.ts` | README — two beats: `sql` piped into `views open --keys -`, then `views open --jql`; the paper list follows both |
-| `docs/media/agent.mp4` | same recording, h264 | Twitter / LinkedIn / anywhere GIF is too heavy |
+| ~~`docs/media/agent.gif` / `agent.mp4`~~ (+`agent-poster.png`) — **removed 2026-09-03**: the paper-terminal composite is retired now that the shell is in the window (GDK-1353); `terminal-demo.*` below is the same two beats in gadak's own pane. The rig (`e2e/demo/agent-demo.spec.ts`, `make media-agent`) stays | was the README agent clip |
+| `docs/media/terminal-demo.mp4` (+`terminal-demo.gif`, `terminal-demo-poster.png`) | Playwright `e2e/demo/terminal-demo.spec.ts` via `terminal.config.ts` (`make media-terminal`; serve.sh with `GADAK_E2E_ORIGIN=builtin` — the mirror migrated onto the built-in tracker so the claim is a write that lands), cut by `e2e/demo/export-terminal.sh` | README + landing agent exhibit — gadak's own pane under the list: `gadak claim` names the tab after the issue and moves the row, then `sql` piped into `views open --keys -`, then `views open --jql`; 4:5 |
 | `docs/media/mcp.gif` | VHS tape `tools/tapes/mcp.tape` | README — Claude Code registers `gadak mcp` and answers a question JQL cannot express |
 | `docs/media/mcp.mp4` | same tape, second `Output` line | Twitter / LinkedIn / anywhere GIF is too heavy |
 | `docs/media/raycast.gif` | scripted live take `tools/record-raycast.sh` | README — Raycast searches the mirror per keystroke, Enter opens the hit via `gadak://` |
@@ -46,9 +46,8 @@ each run with a fake credential.)
 | `docs/media/dashboards.mp4` | same recording, h264 | Twitter / LinkedIn / anywhere GIF is too heavy |
 | `docs/media/tokens-vertical.mp4` | Playwright stacked `e2e/demo/tokens-demo.spec.ts` via `tokens-vertical.config.ts` | social/vertical, 4:5 for X feeds — README uses the landscape cut |
 | `docs/media/dashboards-vertical.mp4` | Playwright stacked `e2e/demo/dashboards-demo.spec.ts` via `dashboards-vertical.config.ts` | social/vertical, 4:5 for X feeds — README uses the landscape cut |
-| `docs/media/claude-drive.gif` | VHS `tools/tapes/claude-drive.tape` + Playwright serve tab | README — live Claude Code session (skill) retints an open tab and opens a chart dashboard |
-| `docs/media/claude-drive.mp4` | same take, h264 | Twitter / LinkedIn / anywhere GIF is too heavy |
-| `docs/media/claude-drive-vertical.mp4` | same tape + stacked chrome (`record-claude-drive.sh vertical`) | social/vertical, 4:5 — README uses the landscape cut |
+| ~~`docs/media/claude-drive.gif` / `claude-drive.mp4` / `claude-drive-vertical.mp4`~~ (+posters) — **removed 2026-09-03**: the VHS-beside-a-tab composite is retired (GDK-1353); `terminal-hero.*` below is the live session in gadak's own pane. The rig (`tools/tapes/claude-drive.tape`, `record-claude-drive.sh`) stays for the dashboards/tokens verticals | was the README skill clip and the landing skill-drive slot |
+| `docs/media/terminal-hero.mp4` (+`terminal-hero.gif`, `terminal-hero-poster.png`) | Playwright `e2e/demo/terminal-claude-demo.spec.ts` via `e2e/demo/record-terminal-claude.sh` (live Claude Code in the pane; isolated HOME + demo mirror migrated onto the built-in tracker per take; not in `make media`), cut by `export-terminal.sh` — `dense-cut.py` measures the take and time-lapses the stretches where only the transcript moves | README skill clip + landing skill drive — `gadak claim` binds the shell to NMA-140, `claude` starts in it, one Korean prompt becomes the list, the next saves and opens a dashboard; 16:10, the window itself |
 | `docs/media/claude-dashboards-vertical.mp4` | VHS `tools/tapes/claude-dashboards.tape` + the same serve tab (`record-claude-drive.sh vertical claude-dashboards`) | social/vertical, 4:5 — the dashboards half of the flagship, ending on a key clicked off the wall that opens the issue in the app (the `open` verb, GDK-854) |
 | `docs/media/claude-dashboards-vertical.gif` (+`-poster.png`) | 430-wide reduction of that mp4 | README — GitHub strips `<video>` from markdown (measured 2026-08-25 via `gh api /markdown`), so the README pair ships as GIF; the poster is the landing's still |
 | `docs/media/claude-tokens-vertical.mp4` | VHS `tools/tapes/claude-tokens.tape` + the same serve tab (`record-claude-drive.sh vertical claude-tokens`) | social/vertical, 4:5 — the team-look half: colours plus the dimension axes, including a token saved with a warning the agent then acts on (GDK-858) |
@@ -78,9 +77,9 @@ Current state:
 | search exhibit | `search.mp4` (+`search-poster.png`) | video kept, mp4 cropped to the palette+detail region (`export-search.sh`); the README `search.gif` stays full-frame |
 | group-by exhibit | `groupby-still.png` | still — assignee filter submenu with live counts over the epic-grouped list (2x, 1656×1110; reframed 2026-09-02 when the filter popover moved to the toolbar's right half) |
 | history exhibit | `history-still.png` | still — NMB-139 header badges + bot comment + changelog with the Reopened marker (2x, 876×1740; a 900-tall viewport since the 0.20 detail grew a breadcrumb and a taller composer) |
-| agent exhibit | `agent.mp4` | video kept as recorded — the command→view causality is the claim |
+| agent exhibit | `terminal-demo.mp4` (+`terminal-demo-poster.png`) | video — the command→view causality is the claim; 0.20 replaces the paper-terminal composite with gadak's own pane (4:5, vertical cap) |
 | agent proof | `mcp.mp4` (+`mcp-poster.png`) | video — the claim is a conversation flow, so the exhibit plays the tape (was `mcp-still.png` until the user call of 2026-08-24) |
-| skill drive | `claude-drive-vertical.mp4` (+`claude-drive-vertical-poster.png`) | video — a command changing the visible view (retint + dashboard landing in an open tab) is the motion rule's own example; added for v0.17.2, vertical 4:5 cut capped at 540px in the column (user calls 2026-08-25) |
+| skill drive | `terminal-hero.mp4` (+`terminal-hero-poster.png`) | video — a command changing the visible view is the motion rule's own example; 0.20 plays the live session inside gadak's own pane (16:10 at column width — the take is the window itself, so no vertical cap). Was `claude-drive-vertical.mp4` from v0.17.2 |
 
 Regenerate the two app stills against the standard e2e fixture (the history
 still needs serve.sh's NMB-139 enrichment):
@@ -112,8 +111,10 @@ the site by existing there. The landing references them via `MediaSlot still=…
 | `web-demo.mp4` | soft ≤ 8 MB | h264 `yuv420p` + `faststart` |
 | `search.gif` | **≤ 8 MB** (prefer ≤ 5 MB) | same README inline budget as the hero (900 px render) |
 | `search.mp4` | soft ≤ 8 MB | h264 `yuv420p` + `faststart` |
-| `agent.gif` | **≤ 8 MB** (prefer ≤ 5 MB) | same README inline budget as the hero |
-| `agent.mp4` | soft ≤ 8 MB | h264 `yuv420p` + `faststart` |
+| `terminal-demo.gif` | **≤ 8 MB** (prefer ≤ 5 MB) | 860-wide (README renders at 430) @ 9 fps, palette 2-pass; same >8 MB ladder as agent |
+| `terminal-demo.mp4` | soft ≤ 8 MB | 1080×1350 h264 `yuv420p` + `faststart` |
+| `terminal-hero.gif` | **≤ 8 MB** (prefer ≤ 5 MB) | 1200-wide (README renders at 900) @ 9 fps, palette 2-pass — a dark pane under a paper list is two palettes in one frame, so this one runs closest to the limit |
+| `terminal-hero.mp4` | soft ≤ 8 MB | 1440×900 h264 `yuv420p` + `faststart`; the working stretches are time-lapsed by `dense-cut.py`, never the payoffs or the typing |
 | `mcp.gif` | **≤ 3.5 MB** | VHS + `gifsicle -O3 --colors 64`; cut the idle tail if still over |
 | `mcp.mp4` | soft ≤ 8 MB | VHS `Output` (h264) |
 | `raycast.gif` | **≤ 3.5 MB** | dark overlay + small motion area compress well; 960 px @ 10 fps lands ~1 MB |
@@ -124,11 +125,8 @@ the site by existing there. The landing references them via `MediaSlot still=…
 | `dashboards.mp4` | soft ≤ 8 MB | h264 `yuv420p` + `faststart` |
 | `tokens-vertical.mp4` | soft ≤ 8 MB | 1080×1350 h264 `yuv420p` + `faststart`; no GIF (1080-wide GIF would miss the 8 MiB budget) |
 | `dashboards-vertical.mp4` | soft ≤ 8 MB | same 4:5 stack as tokens-vertical; no GIF |
-| `claude-drive.gif` | **≤ 8 MB** (prefer ≤ 5 MB) | split 1880×720 scaled to 1280 @ 9 fps, then `gifsicle -O3 --colors 64` |
-| `claude-drive.mp4` | soft ≤ 8 MB | h264 `yuv420p` + `faststart` |
-| `claude-drive-vertical.mp4` | soft ≤ 8 MB | 1080×1350 h264 `yuv420p` + `faststart`; no GIF |
-| `claude-dashboards-vertical.mp4` | soft ≤ 8 MB | same 4:5 stack as claude-drive-vertical; no GIF |
-| `claude-tokens-vertical.mp4` | soft ≤ 8 MB | same 4:5 stack as claude-drive-vertical |
+| `claude-dashboards-vertical.mp4` | soft ≤ 8 MB | 1080×1350 h264 `yuv420p` + `faststart`; no GIF |
+| `claude-tokens-vertical.mp4` | soft ≤ 8 MB | same 4:5 stack |
 | `claude-{dashboards,tokens}-vertical.gif` | soft ≤ 4 MB each | 430-wide @ 9 fps, `palettegen=max_colors=64:stats_mode=diff` then `gifsicle -O3 --colors 64`. 430 rather than 540: two of them sit side by side in one README row, and the pair has to fit the 900 px column the other exhibits use |
 | `scale.gif` | **≤ 8 MB** (prefer ≤ 5 MB) | same README inline budget as the hero |
 | `scale.mp4` | soft ≤ 8 MB | h264 `yuv420p` + `faststart`; camera work is a post-process crop, source pacing untouched |
@@ -138,7 +136,7 @@ the site by existing there. The landing references them via `MediaSlot still=…
 
 ### Current committed sizes (re-measure after regen)
 
-Measured 2026-09-02 via `ls -la docs/media/` + `ffprobe` (decimal MB = bytes/1e6):
+Measured 2026-09-03 via `ls -la docs/media/` + `ffprobe` (decimal MB = bytes/1e6):
 
 | Asset | Size | Bytes (`ls -la`) | Duration | Resolution / fps |
 | --- | --- | --- | --- | --- |
@@ -146,8 +144,10 @@ Measured 2026-09-02 via `ls -la docs/media/` + `ffprobe` (decimal MB = bytes/1e6
 | `web-demo.mp4` | 1.04 MB | 1042959 | 17.1 s | 1024×640 h264 |
 | `search.gif` | 3.66 MB | 3659975 | 7.4 s | 960×600 @ 9 fps |
 | `search.mp4` | 0.55 MB | 547850 | 7.4 s | 800×640 h264 |
-| `agent.gif` | 5.74 MB | 5737596 | 19.7 s | 960×758 @ 9 fps |
-| `agent.mp4` | 0.65 MB | 650789 | 19.7 s | 1024×808 h264 |
+| `terminal-demo.gif` | 5.70 MB | 5699598 | 23.0 s | 860×1075 @ 9 fps |
+| `terminal-demo.mp4` | 1.46 MB | 1461253 | 23.0 s | 1080×1350 h264 |
+| `terminal-hero.gif` | 7.40 MB | 7396608 | 37.0 s | 1200×750 @ 9 fps |
+| `terminal-hero.mp4` | 2.31 MB | 2305272 | 37.0 s | 1440×900 h264 (57.4 s take, dense cut) |
 | `mcp.gif` | 0.16 MB | 157323 | 24.8 s | 1080×620 @ 25 fps |
 | `mcp.mp4` | 0.18 MB | 176644 | 24.8 s | 1080×620 h264 |
 | `raycast.gif` | 0.98 MB | 982043 | 13.2 s | 960×579 @ 10 fps |
@@ -158,9 +158,6 @@ Measured 2026-09-02 via `ls -la docs/media/` + `ffprobe` (decimal MB = bytes/1e6
 | `dashboards.mp4` | 0.99 MB | 988500 | 38.3 s | 1744×672 h264 |
 | `tokens-vertical.mp4` | 1.34 MB | 1339418 | 26.9 s | 1080×1350 h264 |
 | `dashboards-vertical.mp4` | 1.88 MB | 1877890 | 37.4 s | 1080×1350 h264 |
-| `claude-drive.gif` | 4.02 MB | 4016952 | 26.7 s | 1280×490 @ 9 fps |
-| `claude-drive.mp4` | 1.40 MB | 1402635 | 26.7 s | 1880×720 h264 |
-| `claude-drive-vertical.mp4` | 1.88 MB | 1881536 | 27.8 s | 1080×1350 h264 |
 | `claude-dashboards-vertical.mp4` | 1.78 MB | 1776640 | 25.6 s | 1080×1350 h264 |
 | `claude-tokens-vertical.mp4` | 1.43 MB | 1428013 | 20.4 s | 1080×1350 h264 |
 | `claude-dashboards-vertical.gif` | 1.80 MB | 1797436 | 25.6 s | 430×538 @ 9 fps |
@@ -214,7 +211,9 @@ Individual targets:
 ```bash
 make media-web     # Playwright → webm → gif + mp4 (self-contained)
 make media-search  # Playwright: ⌘K All search → search.gif + search.mp4
-make media-agent   # Playwright split: sql \| views open --keys + paper list → gif + mp4
+make media-agent   # Playwright split: sql \| views open --keys + paper list → gif + mp4 (rig kept; the asset retired for terminal-demo)
+make media-terminal  # Playwright: gadak's own pane — claim, sql | views open --keys, --jql → terminal-demo.{mp4,gif,-poster.png}
+bash e2e/demo/record-terminal-claude.sh  # live Claude Code in the pane → terminal-hero.{mp4,gif,-poster.png} (not in `make media`; needs a Claude login; run `bash tools/tapes/prepare-claude-drive.sh --clean` after)
 make media-mcp     # VHS: claude mcp add + live Claude Code session on the mirror
 make media-prep    # build gadak + seed tools/tapes/.tmp from demo.db
 bash e2e/demo/record-promo.sh  # tokens + dashboards split (not in `make media`)
