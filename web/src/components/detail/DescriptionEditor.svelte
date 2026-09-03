@@ -3,16 +3,18 @@
    * Detail description: rendered from the ADF the server presents, edited as
    * markdown (docs/decisions/0012, GDK-1385). The server owns both halves:
    * `md` is the markdown the editor opens with — the text as typed for a
-   * plain body, an escaped serialization for a rich one — and `loss` names
-   * what a markdown save would drop (panel, media, mention, …). When loss
-   * is non-empty the editor still opens, but a banner names it and the save
-   * button says so — silent destruction is the thing this file exists to
-   * prevent. Preview renders the draft through POST preview/ so the web
-   * keeps no markdown parser of its own.
+   * plain body, an escaped serialization for a rich one, with a placeholder
+   * standing where each node markdown cannot carry is (GDK-1396) — and
+   * `loss` names those nodes' kinds. The save puts them back where their
+   * markers stand; a draft that lost every marker is the plain replace the
+   * server refuses (409 format_loss), and the banner then asks before the
+   * second save forces it — silent destruction is the thing this file
+   * exists to prevent. Preview renders the draft through POST preview/ with
+   * the body as its base, so the web keeps no markdown parser of its own.
    */
   import { t } from '../../lib/i18n'
   import type { AdfNode, DetailAttachment } from '../../lib/types'
-  import { previewMarkdown } from '../../lib/api'
+  import { ApiError, previewMarkdown } from '../../lib/api'
   import { write } from '../../stores/write.svelte'
   import { me } from '../../stores/me.svelte'
   import { isHostedDemo } from '../../lib/config'
@@ -43,6 +45,11 @@
   let busy = $state(false)
   let previewing = $state(false)
   let previewNode: AdfNode | null = $state(null)
+  let previewRefusal: string | null = $state(null)
+  /** The server refused the save: a marker the body cannot honour (its message). */
+  let refusal: string | null = $state(null)
+  /** 409 format_loss came back: every placeholder is gone; the next save forces. */
+  let confirmDrop = $state(false)
   let ta: HTMLTextAreaElement | null = $state(null)
 
   const lossFree = $derived(loss.length === 0)
@@ -65,6 +72,9 @@
     draft = source()
     previewing = false
     previewNode = null
+    previewRefusal = null
+    refusal = null
+    confirmDrop = false
     editing = true
     queueMicrotask(() => {
       if (!ta) return
@@ -78,16 +88,22 @@
     editing = false
     previewing = false
     previewNode = null
+    previewRefusal = null
+    refusal = null
+    confirmDrop = false
     draft = ''
   }
 
   async function showPreview() {
     if (!canPreview) return
     previewing = true
+    previewRefusal = null
     try {
-      previewNode = (await previewMarkdown(draft)).adf
-    } catch {
+      // The body is the base: its placeholders resolve as the save will.
+      previewNode = (await previewMarkdown(draft, lossFree ? null : node)).adf
+    } catch (e) {
       previewNode = null
+      if (e instanceof ApiError && e.code === 'placeholder') previewRefusal = e.message
     }
   }
 
@@ -98,16 +114,31 @@
 
   async function commit() {
     const next = draft
-    // Unchanged and nothing to lose: nothing to send. With loss, an unchanged
-    // save still PUTs — the explicit label is the confirmation to drop it.
-    if (lossFree && next.trim() === source().trim()) {
+    // Unchanged: nothing to send — with placeholders in place an unchanged
+    // save would write the same body back.
+    if (next.trim() === source().trim()) {
       cancel()
       return
     }
     busy = true
-    const ok = await write.setDescription(issueKey, next)
+    refusal = null
+    const r = await write.setDescription(issueKey, next, confirmDrop)
     busy = false
-    if (ok) cancel()
+    switch (r.kind) {
+      case 'ok':
+        cancel()
+        break
+      case 'format_loss':
+        // No placeholder survived: the banner names the drop and the save
+        // button becomes the explicit confirmation.
+        confirmDrop = true
+        break
+      case 'placeholder':
+        refusal = r.message
+        break
+      case 'failed':
+        break
+    }
   }
 
   function onEditorKeydown(e: KeyboardEvent) {
@@ -128,6 +159,7 @@
   data-testid="description-editor"
   data-description-editing={editing ? 'true' : 'false'}
   data-description-loss={lossFree ? 'none' : loss.join(',')}
+  data-description-confirm-drop={confirmDrop ? 'true' : 'false'}
 >
   {#if editing}
     <!-- Esc on the form (textarea or buttons) must preventDefault before
@@ -145,14 +177,32 @@
         cancel()
       }}
     >
-      {#if !lossFree}
+      {#if confirmDrop}
         <p
           class="flex items-start gap-2 rounded-md border border-status-stale/40 bg-status-stale/10 px-3 py-1.5 text-body text-status-stale"
           role="alert"
           data-testid="description-format-warn"
         >
           <Icon name="warning" size={14} class="mt-0.5 flex-none" />
+          <span>{t('write.descriptionAllDropped', { loss: loss.join(', ') })}</span>
+        </p>
+      {:else if !lossFree}
+        <p
+          class="flex items-start gap-2 rounded-md border border-border-subtle bg-bg-panel/60 px-3 py-1.5 text-body text-text-secondary"
+          data-testid="description-format-warn"
+        >
+          <Icon name="info" size={14} class="mt-0.5 flex-none text-text-muted" />
           <span>{t('write.descriptionFormatWarn', { loss: loss.join(', ') })}</span>
+        </p>
+      {/if}
+      {#if refusal}
+        <p
+          class="flex items-start gap-2 rounded-md border border-status-reopen/40 bg-status-reopen/10 px-3 py-1.5 text-body text-status-reopen"
+          role="alert"
+          data-testid="description-refusal"
+        >
+          <Icon name="warning" size={14} class="mt-0.5 flex-none" />
+          <span>{t('write.placeholderRefused', { message: refusal })}</span>
         </p>
       {/if}
       {#if canPreview}
@@ -189,7 +239,13 @@
           class="min-h-[8rem] rounded-md border border-border-subtle bg-bg-base px-2.5 py-1.5"
           data-testid="description-preview"
         >
-          <AdfContent node={previewNode} {issueKey} {attachments} emptyLabel={t('detail.noDescription')} />
+          {#if previewRefusal}
+            <p class="text-body text-status-reopen" data-testid="description-preview-refusal">
+              {t('write.previewRefused', { message: previewRefusal })}
+            </p>
+          {:else}
+            <AdfContent node={previewNode} {issueKey} {attachments} emptyLabel={t('detail.noDescription')} />
+          {/if}
         </div>
       {:else}
         <textarea
@@ -218,7 +274,7 @@
           data-testid="description-save"
           class="inline-flex h-control items-center rounded-md bg-accent px-3 text-body font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
         >
-          {busy ? t('common.saving') : lossFree ? t('common.save') : t('write.saveAsPlain')}
+          {busy ? t('common.saving') : confirmDrop ? t('write.saveAsPlain') : t('common.save')}
         </button>
       </div>
     </form>

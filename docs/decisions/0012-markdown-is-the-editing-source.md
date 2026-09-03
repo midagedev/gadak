@@ -81,3 +81,50 @@ keeper of a fourth body format.
   origin never had; `internal/sync/linear_test.go` forbids exactly that.
 - **A TypeScript markdown parser for live preview.** Two parsers drift; the
   loopback round trip costs nothing a person can feel.
+
+## Addendum 1 — placeholders for what markdown cannot carry (2026-09-03, GDK-1396)
+
+The decision above left one hole: a body holding a panel, an inline image,
+a mention, a status or a coloured run could only be edited from markdown by
+dropping those nodes (`--force-plain` / `force`) or by sending raw ADF
+(`--adf-file`, GDK-1395). Now the editing source carries a **placeholder**
+for each such node, and the write puts the node back.
+
+- **Grammar.** An HTML comment, which every markdown reader treats as
+  invisible and a person reads as a labelled marker:
+  `<!-- adf:N:HASH type hint -->` for an opaque node, inline or on its own
+  line; `<!-- adf:N:HASH type hint -->` … `<!-- /adf:N -->` around the
+  markdown of a container. `N` is the node's position in document order
+  among preserved nodes, `HASH` is FNV-1a of the node's JSON, the words
+  after it are a hint and are ignored on the way back (`internal/adf/
+  preserve.go`).
+- **Three classes.** Opaque leaves (mention, emoji, status, date, inlineCard,
+  media, extension, …) return exactly as they were. Containers (panel,
+  expand, nestedExpand) keep their attrs and take the markdown between their
+  markers as new content. A text run with a mark markdown lacks (textColor,
+  underline, subsup, alignment on a block) is opaque as a whole — editable
+  text under a preserved mark is a later step.
+- **Nothing is stored.** Markers exist only in the text an editor opens
+  (`adf.Present().Source`, `gadak issue`, the detail's `description_md`).
+  The write re-reads the body from the origin and substitutes from that —
+  the mirror stays the origin's shape, and a body that changed since it was
+  read fails the hash check and is refused, never rebuilt over someone
+  else's edit. Issues get an optimistic lock they never had.
+- **Deleting a marker deletes the node**, and the write says which
+  (`edit` on stderr, the server's `dropped`). A draft with **no** markers
+  over a body that has preserved nodes is still the plain replace GDK-1001
+  refuses: `--force-plain` / `force` keep their names and their meaning.
+- **Position rule.** A block node may stand under the document root or
+  under the type of node it sat under, nowhere else — Jira rejects a panel
+  in a list item, and the check names the marker before the origin does. A
+  block marker in running text is refused; in a table cell it is lifted
+  beside the cell's paragraph, which is the one place GFM has no block
+  syntax. An inline marker alone on a line becomes a paragraph.
+- **Preview** takes the body the draft came from (`base`) so its
+  placeholders resolve exactly as the save will.
+
+Rejected: storing a sidecar with the mirror (a converted copy the origin
+never had — the same reason Linear bodies are not pre-rendered); token
+syntax of our own (`{{adf:1}}`) that a markdown renderer would print
+verbatim; substituting from the mirror instead of the origin (silently
+last-write-wins over a concurrent edit).

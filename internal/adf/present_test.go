@@ -40,8 +40,10 @@ func TestPresentRichADFIsDisplayedAsIsAndNamesLoss(t *testing.T) {
 	if string(p.Display) != string(rich) {
 		t.Fatalf("rich ADF must be displayed verbatim")
 	}
-	if p.Source != "**note**" {
-		t.Fatalf("source serializes the rich body: %q", p.Source)
+	// GDK-1396: the panel stands in the source as a placeholder pair, its
+	// interior as markdown.
+	if !strings.HasPrefix(p.Source, "<!-- adf:1:") || !strings.HasSuffix(p.Source, " panel info -->\n\n**note**\n\n<!-- /adf:1 -->") {
+		t.Fatalf("source serializes the rich body with placeholders: %q", p.Source)
 	}
 	if len(p.Loss) != 1 || p.Loss[0] != "panel" {
 		t.Fatalf("loss must name the panel only (strong is markdown): %v", p.Loss)

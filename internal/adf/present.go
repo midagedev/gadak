@@ -14,7 +14,8 @@ type Presented struct {
 	// as it is.
 	Display json.RawMessage
 	// Source is the markdown an editor opens with: the typed text for a
-	// simple body, an escaped serialization for a rich one.
+	// simple body, an escaped serialization for a rich one — with a
+	// placeholder standing in for each node markdown cannot carry.
 	Source string
 	// Loss names what a markdown edit of this body would destroy — the
 	// nodes and marks outside the markdown subset. Empty when the body
@@ -35,7 +36,10 @@ func Present(raw json.RawMessage, text string) Presented {
 		src := Markdown(raw)
 		return Presented{Display: FromMarkdown(src), Source: src}
 	}
-	return Presented{Display: raw, Source: Markdown(raw), Loss: FormatLoss(string(raw))}
+	// Source carries a placeholder for every node markdown cannot hold
+	// (preserve.go, GDK-1396); Loss still names their kinds, so a UI can say
+	// what the markers stand for.
+	return Presented{Display: raw, Source: Source(raw), Loss: FormatLoss(string(raw))}
 }
 
 func isNull(raw json.RawMessage) bool {

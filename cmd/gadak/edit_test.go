@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/midagedev/gadak/internal/adf"
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/fields"
 	"github.com/midagedev/gadak/internal/jira"
@@ -2120,5 +2121,78 @@ func TestCommentADFFilePostsTheDocumentAsItIs(t *testing.T) {
 	_, err := capture(t, func() error { return cmdComment([]string{"NMB-1", "--adf-file", path, "-m", "x"}) })
 	if err == nil || !strings.Contains(err.Error(), "exclusive") {
 		t.Fatalf("-m beside --adf-file must be refused, got %v", err)
+	}
+}
+
+// GDK-1396: `gadak issue` prints a formatted description with placeholders;
+// `edit -m -` with that text puts the preserved nodes back where the markers
+// stand, so the round trip keeps the panel, the coloured run and the
+// mention while the plain text between them changes. A draft with none of
+// the markers is still the plain replace GDK-1001 refuses; a deleted marker
+// deletes its node and stderr says which.
+func TestEditMWithPlaceholdersKeepsThePreservedNodes(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	seedDescriptionADF(t, f, "NMB-1", formattedDescADF)
+	src := adf.Source(json.RawMessage(formattedDescADF))
+	kept := adf.Preserved(json.RawMessage(formattedDescADF))
+	if len(kept) != 3 || kept[0].Type != "textColor" || kept[1].Type != "panel" || kept[2].Type != "mention" {
+		t.Fatalf("fixture kept %+v", kept)
+	}
+
+	edited := strings.Replace(src, "plain lead", "edited lead", 1)
+	edited = strings.Replace(edited, "\n\nnote\n\n", "\n\nnote, **now**\n\n", 1)
+	if _, err := capture(t, func() error { return cmdEdit([]string{"NMB-1", "-m", edited}) }); err != nil {
+		t.Fatalf("edit with placeholders: %v\n%s", err, edited)
+	}
+	body := f.bodies["PUT /issue/NMB-1"]
+	for _, want := range []string{`"text":"edited lead"`, `"color":"#ff0000"`, `"panelType":"info"`, `"text":"now"`, `"id":"acc"`} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("PUT lacks %s: %s", want, body)
+		}
+	}
+
+	// Refusal message now points at the placeholders.
+	_, err := capture(t, func() error { return cmdEdit([]string{"NMB-1", "-m", "rewritten"}) })
+	if err == nil || !strings.Contains(err.Error(), "placeholders") || !strings.Contains(err.Error(), "--force-plain") {
+		t.Fatalf("plain replace must name the placeholder path, got %v", err)
+	}
+
+	// A stale marker is refused, not written over.
+	seedDescriptionADF(t, f, "NMB-1", strings.Replace(formattedDescADF, `"panelType":"info"`, `"panelType":"note"`, 1))
+	_, err = capture(t, func() error { return cmdEdit([]string{"NMB-1", "-m", src}) })
+	if err == nil || !strings.Contains(err.Error(), "changed since the body was read") {
+		t.Fatalf("stale placeholder must be refused, got %v", err)
+	}
+
+	// --force-plain with markers in the text: refused — nothing stands behind them.
+	_, err = capture(t, func() error { return cmdEdit([]string{"NMB-1", "-m", src, "--force-plain"}) })
+	if err == nil || !strings.Contains(err.Error(), "--force-plain replaces the body without reading it") {
+		t.Fatalf("force-plain with markers must be refused, got %v", err)
+	}
+}
+
+// GDK-1396: a placeholder has meaning only against the body it was read
+// from. create -m and comment -m have no such body, so a marker pasted into
+// them is refused instead of being stored as visible text.
+func TestCreateAndCommentRefuseStrayPlaceholders(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	marker := "<!-- adf:1:0badf00d panel info -->\n\ncloned\n\n<!-- /adf:1 -->"
+	_, err := capture(t, func() error {
+		return cmdCreate([]string{"cloned issue", "--project", "NMB", "--type", "Task", "-m", marker})
+	})
+	if err == nil || !strings.Contains(err.Error(), "placeholders") {
+		t.Fatalf("create -m with a marker must be refused, got %v", err)
+	}
+	if f.called("POST /issue") {
+		t.Fatalf("refused create still reached Jira: %v", f.calls)
+	}
+	_, err = capture(t, func() error { return cmdComment([]string{"NMB-1", "-m", marker}) })
+	if err == nil || !strings.Contains(err.Error(), "placeholders") {
+		t.Fatalf("comment -m with a marker must be refused, got %v", err)
+	}
+	if f.called("POST /issue/NMB-1/comment") {
+		t.Fatalf("refused comment still reached Jira: %v", f.calls)
 	}
 }

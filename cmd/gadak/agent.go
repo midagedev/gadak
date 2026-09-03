@@ -2072,6 +2072,9 @@ const commentUsage = "usage: gadak comment <KEY> [<text> | -m <text|-> | --adf-f
 var commentBatchFields = []string{"key", "body", "internal", "visibility"}
 
 func postComment(ctx context.Context, c origin.Writer, key, body string, vis *jira.CommentVisibility, internal bool) (map[string]any, error) {
+	if err := adf.RefusePlaceholders(body); err != nil {
+		return nil, fmt.Errorf("comment %s: %w", key, err)
+	}
 	mentions, resolved, unresolved, err := resolveCommentMentions(ctx, c, body)
 	if err != nil {
 		return nil, err

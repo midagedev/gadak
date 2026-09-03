@@ -604,6 +604,10 @@ func (s *server) handleComment(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, "invalid_body")
 		return
 	}
+	if err := adf.RefusePlaceholders(body.Text); err != nil {
+		failMsg(w, http.StatusConflict, "placeholder", err.Error())
+		return
+	}
 	if strings.TrimSpace(body.Text) == "" {
 		fail(w, http.StatusBadRequest, "text_required")
 		return
@@ -846,9 +850,18 @@ func (s *server) handleSummary(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// PUT <key>/description/ — {"description": markdown | null, "force": bool}.
+// The markdown becomes ADF; the placeholders the detail's description_md
+// carried put the body's preserved nodes back (adf, GDK-1396), read from the
+// origin now. A text with no placeholder over a body that has preserved
+// nodes is a plain replace: 409 format_loss unless force. A placeholder the
+// current body cannot honour (changed since read, unknown, misplaced) is
+// 409 placeholder with the reason in `message`. Deleted placeholders delete
+// their nodes and the response names them in `dropped`.
 func (s *server) handleDescription(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Description json.RawMessage `json:"description"`
+		Force       bool            `json:"force"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || len(body.Description) == 0 {
 		fail(w, http.StatusBadRequest, "invalid_body")
@@ -865,12 +878,80 @@ func (s *server) handleDescription(w http.ResponseWriter, r *http.Request) {
 		clear = text == ""
 	}
 	key := r.PathValue("key")
+	var doc json.RawMessage
+	var dropped []string
+	if !clear {
+		_, cfg, src, ok := s.keyWriter(w, r, key)
+		if !ok {
+			return
+		}
+		var err error
+		doc, dropped, err = descriptionFromMarkdown(r.Context(), cfg, src, key, text, body.Force)
+		if err != nil {
+			var pe *adf.PlaceholderError
+			switch {
+			case errors.As(err, &pe):
+				failMsg(w, http.StatusConflict, "placeholder", pe.Error())
+			case errors.Is(err, errFormatLoss):
+				fail(w, http.StatusConflict, "format_loss")
+			default:
+				failJira(w, r, cfg, err)
+			}
+			return
+		}
+	}
 	s.mutate(w, r, key, func(ctx context.Context, c origin.Writer) (map[string]any, error) {
 		if clear {
 			return nil, c.UpdateFields(ctx, key, map[string]any{"description": nil})
 		}
-		return nil, c.UpdateFields(ctx, key, map[string]any{"description": jira.Doc(text, nil)})
+		extra := map[string]any{}
+		if len(dropped) > 0 {
+			extra["dropped"] = dropped
+		}
+		return extra, c.UpdateFields(ctx, key, map[string]any{"description": doc})
 	})
+}
+
+// errFormatLoss: the text has no placeholders and the body has preserved
+// nodes — the plain replace GDK-1001 refuses without force.
+var errFormatLoss = errors.New("format_loss")
+
+// descriptionFromMarkdown is the server's half of the CLI's function of the
+// same name (cmd/gadak/edit.go): the ADF for a markdown description, with the
+// current body's preserved nodes back in place. dropped names the ones the
+// text no longer references ("panel #1").
+func descriptionFromMarkdown(ctx context.Context, cfg *config.Config, src, key, text string, force bool) (json.RawMessage, []string, error) {
+	if src == "linear" {
+		if adf.HasPlaceholders(text) {
+			return nil, nil, &adf.PlaceholderError{Msg: "a Linear body has no preserved nodes to put behind a placeholder — drop the markers"}
+		}
+		return jira.Doc(text, nil), nil, nil
+	}
+	cur, found, err := origin.CurrentDescription(ctx, cfg, key)
+	if err != nil {
+		return nil, nil, err
+	}
+	if !found || len(adf.Preserved(cur)) == 0 {
+		if adf.HasPlaceholders(text) {
+			return nil, nil, &adf.PlaceholderError{Msg: "the current description has no preserved nodes — drop the markers"}
+		}
+		return jira.Doc(text, nil), nil, nil
+	}
+	if !adf.HasPlaceholders(text) {
+		if !force {
+			return nil, nil, errFormatLoss
+		}
+		return jira.Doc(text, nil), nil, nil
+	}
+	doc, kept, err := adf.FromMarkdownWith(text, cur)
+	if err != nil {
+		return nil, nil, err
+	}
+	var dropped []string
+	for _, k := range kept {
+		dropped = append(dropped, fmt.Sprintf("%s #%d", k.Type, k.N))
+	}
+	return doc, dropped, nil
 }
 
 /* ── labels ── */
@@ -1065,6 +1146,10 @@ func (s *server) handleCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
 		fail(w, http.StatusBadRequest, "invalid_body")
+		return
+	}
+	if err := adf.RefusePlaceholders(p.DescriptionText); err != nil {
+		failMsg(w, http.StatusConflict, "placeholder", err.Error())
 		return
 	}
 	// Only the summary is required now that project and type resolve to
@@ -1387,11 +1472,27 @@ func (s *server) handlePageEdit(w http.ResponseWriter, r *http.Request) {
 	case body.ADF != "":
 		doc = body.ADF
 	case body.Text != nil:
-		if !body.Force && len(adf.FormatLoss(doc)) > 0 {
+		// GDK-1396: placeholders in the text put the page's preserved nodes
+		// back; none over a body that has them is the plain replace force
+		// exists for.
+		kept := adf.Preserved(json.RawMessage(doc))
+		switch {
+		case len(kept) == 0 && adf.HasPlaceholders(*body.Text):
+			failMsg(w, http.StatusConflict, "placeholder", "the current body has no preserved nodes — drop the markers")
+			return
+		case len(kept) > 0 && adf.HasPlaceholders(*body.Text):
+			next, _, err := adf.FromMarkdownWith(*body.Text, json.RawMessage(doc))
+			if err != nil {
+				failMsg(w, http.StatusConflict, "placeholder", err.Error())
+				return
+			}
+			doc = string(next)
+		case len(kept) > 0 && !body.Force:
 			fail(w, http.StatusConflict, "format_loss")
 			return
+		default:
+			doc = string(jira.Doc(*body.Text, nil))
 		}
-		doc = string(jira.Doc(*body.Text, nil))
 	}
 	next := cur.Version.Number + 1
 	if body.Version != nil {
@@ -1427,6 +1528,12 @@ func (s *server) handlePageCreate(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		fail(w, http.StatusBadRequest, "invalid_body")
 		return
+	}
+	if body.ADF == "" {
+		if err := adf.RefusePlaceholders(body.Text); err != nil {
+			failMsg(w, http.StatusConflict, "placeholder", err.Error())
+			return
+		}
 	}
 	if body.Space == "" || strings.TrimSpace(body.Title) == "" {
 		fail(w, http.StatusBadRequest, "space_and_title_required")
@@ -1470,6 +1577,12 @@ func (s *server) handlePageComment(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		fail(w, http.StatusBadRequest, "invalid_body")
 		return
+	}
+	if body.ADF == "" {
+		if err := adf.RefusePlaceholders(body.Text); err != nil {
+			failMsg(w, http.StatusConflict, "placeholder", err.Error())
+			return
+		}
 	}
 	wc, cfg, ok := s.wikiWriter(w)
 	if !ok {

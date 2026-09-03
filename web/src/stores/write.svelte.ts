@@ -45,6 +45,13 @@ import * as db from '../lib/db'
 
 const WRITE_META_MS = 15 * 60 * 1000 // write-meta reload interval
 
+/** setDescription's outcome: saved, refused for the editor to resolve, or failed (toasted). */
+export type DescriptionSaveResult =
+  | { kind: 'ok' }
+  | { kind: 'format_loss' }
+  | { kind: 'placeholder'; message: string }
+  | { kind: 'failed' }
+
 export type ToastKind = 'error' | 'info' | 'success'
 
 export interface ToastAction {
@@ -564,14 +571,50 @@ class WriteStore {
    * ADF; #writeIssue's invalidate() re-reads detail the same way setSummary
    * does. In-place section — no success toast (GDK-301).
    */
-  async setDescription(key: string, text: string | null): Promise<boolean> {
+  /**
+   * Save a markdown description (GDK-1396). The server puts the body's
+   * preserved nodes back where the text's placeholders stand; the two
+   * refusals it can answer with are the editor's to handle — `format_loss`
+   * (no placeholder left, a plain replace: ask, then `force`) and
+   * `placeholder` (a marker the current body cannot honour: show the
+   * message). Any other failure toasts here as before.
+   */
+  async setDescription(
+    key: string,
+    text: string | null,
+    force = false,
+  ): Promise<DescriptionSaveResult> {
     const next = text == null ? null : text.trim() || null
-    return this.#writeIssue(
+    let refusal: DescriptionSaveResult | null = null
+    let dropped: string[] | undefined
+    const ok = await this.#writeIssue(
       key,
       null,
-      () => api.setDescription(key, next),
+      async () => {
+        const res = await api.setDescription(key, next, force)
+        dropped = res.dropped
+        return res
+      },
       t('write.descriptionFailed'),
+      (e) => {
+        if (e instanceof ApiError && e.status === 409 && e.code === 'format_loss') {
+          refusal = { kind: 'format_loss' }
+          return
+        }
+        if (e instanceof ApiError && e.status === 409 && e.code === 'placeholder') {
+          refusal = { kind: 'placeholder', message: e.message }
+          return
+        }
+        this.#handleError(e, t('write.descriptionFailed'))
+      },
     )
+    if (ok) {
+      if (dropped?.length) {
+        this.toast(t('write.descriptionDropped', { dropped: dropped.join(', ') }), 'info')
+      }
+      return { kind: 'ok' }
+    }
+    return refusal ?? { kind: 'failed' }
   }
 
   /* ── QA field inline edit ── */

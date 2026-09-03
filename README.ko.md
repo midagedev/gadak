@@ -258,11 +258,17 @@ Jira에 남습니다.
   씁니다 — 제목·리스트·표·코드·굵게·링크는 모두 왕복합니다. 그러나 origin의
   현재 description에 마크다운이 담지 못하는 서식(패널, 인라인 미디어, 멘션,
   색)이 있으면 편집은 멈추고 무엇을 찾았는지 알려 줍니다. `gadak edit KEY -m
-  … --force-plain`으로 그래도 교체할 수 있습니다. (`page edit -m`도 같은
-  가드를 `--force` 뒤에 두고 있습니다.) 그런 description을 잃는 것 없이
-  바꾸려면 `gadak issue KEY --json`의 `description_adf`를 받아 문서를 고친 뒤
-  `gadak edit KEY --adf-file F`로 그대로 되돌려 보냅니다 — `comment --adf-file
-  F`도 같은 방식으로 코멘트를 씁니다.
+  … --force-plain`으로 그래도 교체할 수 있습니다. 그러나 `gadak issue KEY`는
+  그런 description을 각 노드 자리에 **자리표시자**를 세워 찍습니다 — 패널의
+  마크다운을 감싸는 `<!-- adf:1:… panel info -->` … `<!-- /adf:1 -->`, 멘션
+  자리의 `<!-- adf:3:… mention @Dana -->` — 마커 주위 텍스트를 고쳐 `edit -m -`로
+  보내면 각 노드가 마커 자리에 그대로 돌아옵니다. 마커를 지우면 그 노드가
+  사라지고(무엇이 사라졌는지 알려 줍니다), 읽은 뒤 바뀐 본문의 마커는 거절됩니다.
+  마커가 하나도 없는 텍스트는 `--force-plain`이 있는 이유인 평문 교체입니다.
+  (`page edit -m`도 같은 동작을 `--force` 뒤에 두고 있습니다.) raw 경로도
+  그대로입니다: `gadak issue KEY --json`의 `description_adf`를 받아 문서를 고친
+  뒤 `gadak edit KEY --adf-file F`로 되돌려 보냅니다 — `comment --adf-file F`도
+  같은 방식으로 코멘트를 씁니다.
 - **스프린트 동사는 없습니다.** 스프린트 필드는 미러에 있습니다
   (`sprint_id`, `sprint_name`, `sprint_state`; SQL과 JQL로 질의), 하지만
   이슈를 스프린트 사이에서 옮기거나 스프린트를 편집하는 일은 Jira에서

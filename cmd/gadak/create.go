@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/midagedev/gadak/internal/adf"
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/create"
 	"github.com/midagedev/gadak/internal/fields"
@@ -413,6 +414,9 @@ func createLinearOne(ctx context.Context, cfg *config.Config, c origin.Writer, p
 		"summary": summary,
 	}
 	if strings.TrimSpace(body) != "" {
+		if err := adf.RefusePlaceholders(body); err != nil {
+			return "", nil, fmt.Errorf("create: %w", err)
+		}
 		fields["description"] = jira.Doc(body, nil)
 	}
 	if p := strings.TrimSpace(priorityWant); p != "" {
@@ -508,6 +512,9 @@ func createOne(ctx context.Context, cfg *config.Config, c origin.Writer, project
 		"summary":   summary,
 	}
 	if strings.TrimSpace(body) != "" {
+		if err := adf.RefusePlaceholders(body); err != nil {
+			return "", nil, fmt.Errorf("create: %w", err)
+		}
 		fields["description"] = jira.Doc(body, nil)
 	}
 	if len(labels) > 0 {

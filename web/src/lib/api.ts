@@ -571,10 +571,16 @@ async function jsonW<T>(path: string, init?: RequestInit): Promise<T> {
     let jiraErrors: Record<string, unknown> | null = null
     let message = `${init?.method ?? 'GET'} ${path} → ${res.status}`
     try {
-      const body = (await res.json()) as { error?: string; jira_errors?: Record<string, unknown> }
+      const body = (await res.json()) as {
+        error?: string
+        message?: string
+        jira_errors?: Record<string, unknown>
+      }
       if (body.error) {
         code = body.error
-        message = body.error
+        // failMsg's reason (placeholder refusals, GDK-1396): the server's own
+        // wording, shown as it is.
+        message = body.message || body.error
       }
       if (body.jira_errors) jiraErrors = body.jira_errors
     } catch {
@@ -883,23 +889,35 @@ export function setSummary(issueKey: string, summary: string): Promise<IssueWrit
  * POST preview/ — render a markdown draft the way a save would store it.
  * The server owns the one converter (GDK-1385); the web keeps no parser.
  */
-export function previewMarkdown(text: string): Promise<{ adf: AdfNode | null }> {
+export function previewMarkdown(
+  text: string,
+  base: AdfNode | null = null,
+): Promise<{ adf: AdfNode | null }> {
+  // base: the body the draft was opened from, so its placeholders resolve
+  // the way the save will (GDK-1396). 409 placeholder names one that cannot.
   return jsonW<{ adf: AdfNode | null }>('preview/', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text }),
+    body: JSON.stringify(base ? { text, base } : { text }),
   })
 }
 
-/** PUT <key>/description/ — markdown; `null` or whitespace clears. Server builds the ADF. */
+/**
+ * PUT <key>/description/ — markdown; `null` or whitespace clears. Server
+ * builds the ADF and puts the body's preserved nodes back where the text's
+ * placeholders stand (GDK-1396). 409 format_loss: the text has no
+ * placeholder and the body has preserved nodes — `force` replaces anyway.
+ * 409 placeholder: a marker the current body cannot honour (message says).
+ */
 export function setDescription(
   issueKey: string,
   description: string | null,
+  force = false,
 ): Promise<IssueWriteResponse> {
   return jsonW<IssueWriteResponse>(`${encodeURIComponent(issueKey)}/description/`, {
     method: 'PUT',
     headers: JSON_HEADERS,
-    body: JSON.stringify({ description }),
+    body: JSON.stringify(force ? { description, force } : { description }),
   })
 }
 

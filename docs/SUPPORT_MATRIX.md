@@ -290,10 +290,10 @@ Markers:
 [^66]: Linear's 0-4 scale; clearing a priority maps to 0, "No priority"
     (`internal/origin/linearwriter.go:160`, `:32`).
 
-[^67]: `edit --due YYYY-MM-DD` → `fields.duedate` (`cmd/gadak/edit.go:314`);
+[^67]: `edit --due YYYY-MM-DD` → `fields.duedate` (`cmd/gadak/edit.go:355`);
     Linear takes the date as-is (`internal/origin/linearwriter.go:169`).
 
-[^68]: `edit --due none` → `fields.duedate = nil` (`cmd/gadak/edit.go:312`).
+[^68]: `edit --due none` → `fields.duedate = nil` (`cmd/gadak/edit.go:353`).
 
 [^69]: "clearing a due date is not supported yet"
     (`internal/origin/linearwriter.go:171`).
@@ -304,8 +304,11 @@ Markers:
 [^71]: The description is serialized back to markdown on write
     (`internal/origin/linearwriter.go:157`, create `:324`) — headings,
     lists, tables and marks survive; panels, media and mentions degrade to
-    text (GDK-1386). On every origin, `edit -m` refuses to destroy
-    formatting markdown cannot carry without `--force-plain`; `edit
+    text (GDK-1386). On Jira and Built-in, a body's nodes markdown cannot
+    carry stand as placeholders in the editing source and `edit -m` puts
+    them back (GDK-1396, decision 0012 addendum 1); a text with none over a
+    body that has them is refused without `--force-plain`. Linear bodies
+    have no such nodes, and a placeholder in a Linear edit is refused. `edit
     --adf-file` / `comment --adf-file` send a document as it is and skip
     that guard (GDK-1395) — on Linear that document is still serialized to
     markdown on the way in.

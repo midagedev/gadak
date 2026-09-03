@@ -382,13 +382,20 @@ test.describe('write-through', () => {
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 
-  // GDK-1385: the server names the loss (format_loss); a table is markdown
-  // now, so the mock carries a panel — what a markdown save cannot hold.
-  test('description: a panel ADF shows the format-loss banner and explicit save label', async ({
+  // GDK-1385/GDK-1396: the server names what markdown cannot carry
+  // (format_loss) and hands the editor a source with a placeholder standing
+  // for each such node (description_md). Saving with the marker kept sends the
+  // text as it is; a draft that lost every marker is refused (409
+  // format_loss), the banner turns into the drop confirmation, and the second
+  // save forces. A marker the body cannot honour (409 placeholder) is shown
+  // as the server's own words, and nothing closes.
+  test('description: placeholders — kept marker saves, lost marker asks, stale marker is refused', async ({
     page,
   }) => {
     const errors = attachConsoleErrors(page)
-    await captureIssue(page)
+    const { issue } = await captureIssue(page)
+    const marker = '<!-- adf:1:0badf00d panel info -->'
+    const source = `${marker}\n\nformatted note\n\n<!-- /adf:1 -->`
     await page.route(`**/api/v1/issues/${KEY}/detail/`, async (route) => {
       if (route.request().method() !== 'GET') return route.continue()
       const response = await route.fetch()
@@ -409,20 +416,71 @@ test.describe('write-through', () => {
         ],
       }
       body.format_loss = ['panel']
-      body.description_md = 'formatted note'
+      body.description_md = source
       await route.fulfill({ response, json: body })
+    })
+    const puts: { description?: string | null; force?: boolean }[] = []
+    let answer: 'ok' | 'format_loss' | 'placeholder' = 'ok'
+    await page.route(`**/api/v1/issues/${KEY}/description/`, async (route) => {
+      if (route.request().method() !== 'PUT') return route.continue()
+      const body = route.request().postDataJSON() as { description?: string | null; force?: boolean }
+      puts.push(body)
+      if (answer === 'format_loss' && !body.force) {
+        return route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ error: 'format_loss' }) })
+      }
+      if (answer === 'placeholder') {
+        return route.fulfill({
+          status: 409,
+          contentType: 'application/json',
+          body: JSON.stringify({ error: 'placeholder', message: 'placeholder adf:1: the panel here changed since the body was read — re-read it and edit from that' }),
+        })
+      }
+      await fulfillJSON(route, { issue })
     })
     const panel = await openIssue(page)
     const editor = panel.getByTestId('description-editor')
     await expect(editor).toBeVisible()
     await expect(editor).toHaveAttribute('data-description-loss', 'panel')
 
+    // 1. Marker kept: an informational banner, a plain Save, the text as sent.
     await editor.getByTestId('description-edit').click()
     await expect(editor).toHaveAttribute('data-description-editing', 'true')
     const banner = editor.getByTestId('description-format-warn')
-    await expect(banner).toBeVisible()
-    await expect(banner).toContainText('Saving will drop what markdown cannot carry: panel.')
+    await expect(banner).toContainText('Placeholders stand for what markdown cannot carry (panel).')
+    await expect(editor.getByTestId('description-save')).toHaveText('Save')
+    const input = editor.getByTestId('description-editor-input')
+    await expect(input).toHaveValue(source)
+    await input.fill(`${marker}\n\nedited note\n\n<!-- /adf:1 -->`)
+    await editor.getByTestId('description-save').click()
+    await expect.poll(() => puts.length).toBe(1)
+    expect(puts[0]).toEqual({ description: `${marker}\n\nedited note\n\n<!-- /adf:1 -->` })
+    await expect(editor).toHaveAttribute('data-description-editing', 'false')
+
+    // 2. Every marker gone: the server refuses once, the banner asks, the
+    //    second save carries force.
+    answer = 'format_loss'
+    await editor.getByTestId('description-edit').click()
+    await input.fill('plain rewrite')
+    await editor.getByTestId('description-save').click()
+    await expect.poll(() => puts.length).toBe(2)
+    await expect(editor).toHaveAttribute('data-description-editing', 'true')
+    await expect(editor).toHaveAttribute('data-description-confirm-drop', 'true')
+    await expect(banner).toContainText('Every placeholder is gone')
     await expect(editor.getByTestId('description-save')).toHaveText('Save and drop them')
+    await editor.getByTestId('description-save').click()
+    await expect.poll(() => puts.length).toBe(3)
+    expect(puts[2]).toEqual({ description: 'plain rewrite', force: true })
+    await expect(editor).toHaveAttribute('data-description-editing', 'false')
+
+    // 3. A stale marker: the refusal is shown in the server's words; the
+    //    editor stays open with the draft.
+    answer = 'placeholder'
+    await editor.getByTestId('description-edit').click()
+    await input.fill(`${marker}\n\nthird try\n\n<!-- /adf:1 -->`)
+    await editor.getByTestId('description-save').click()
+    await expect(editor.getByTestId('description-refusal')).toContainText('changed since the body was read')
+    await expect(editor).toHaveAttribute('data-description-editing', 'true')
+    await expect(input).toHaveValue(`${marker}\n\nthird try\n\n<!-- /adf:1 -->`)
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })

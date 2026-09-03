@@ -17,6 +17,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/midagedev/gadak/internal/adf"
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/origin"
@@ -118,6 +119,9 @@ func cmdMemoryAdd(args []string) error {
 		pageTitle = deriveMemoryTitle(body)
 	}
 
+	if err := adf.RefusePlaceholders(body); err != nil {
+		return fmt.Errorf("memory: %w", err)
+	}
 	created, _, mirrorStale, err := createPageViaOrigin(space, pageTitle, string(jira.Doc(body, nil)), "")
 	if err != nil {
 		return err

@@ -60,6 +60,9 @@ type fakeJira struct {
 	// linkTypesJSON overrides GET /issueLinkType. Empty keeps the Blocks
 	// catalog the CLI link tests use (GDK-19 / GDK-85).
 	linkTypesJSON string
+	// description, when set, is the ADF the search answers with for NMB-1 —
+	// what origin.CurrentDescription reads before a description write.
+	description string
 }
 
 func newFakeJira(t *testing.T) *fakeJira {
@@ -141,8 +144,12 @@ func (f *fakeJira) route(w http.ResponseWriter, r *http.Request) {
 			case f.newKey != "" && f.newKey != "NMB-1" && strings.Contains(jql, `"`+f.newKey+`"`):
 				key = f.newKey
 			}
+			desc := ""
+			if f.description != "" && key == "NMB-1" {
+				desc = `"description":` + f.description + `,`
+			}
 			_, _ = w.Write([]byte(`{"issues":[{"id":"` + id + `","key":"` + key + `","fields":{
-			"summary":"batch worker drops the last page",
+			"summary":"batch worker drops the last page",` + desc + `
 			"status":{"id":"10001","name":"완료","statusCategory":{"key":"done"}},
 			"project":{"key":"NMB"},"issuetype":{"id":"10004","name":"Bug"},
 			"labels":["batch"],"components":[{"name":"api"}],

@@ -60,16 +60,139 @@ func MarkdownDoc(src string) map[string]any {
 
 type conv struct {
 	src []byte
+	// Placeholder substitution (preserve.go). substitute is on for
+	// MarkdownDocWith; base is the current body's preserved nodes, used the
+	// markers consumed so far, parent the type of the block being filled,
+	// hoisted the block nodes a table cell's inline text referenced (a cell
+	// is one paragraph in GFM, so a block marker there is lifted beside it).
+	// err is the first placeholder error; the walk stops adding after it.
+	substitute bool
+	base       []Kept
+	used       map[int]bool
+	parent     string
+	inCell     bool
+	hoisted    []any
+	err        error
+}
+
+func (c *conv) fail(err error) {
+	if c.err == nil {
+		c.err = err
+	}
 }
 
 func (c *conv) blocks(parent ast.Node) []any {
+	out, _ := c.blocksIn(parent, c.parent)
+	return out
+}
+
+// blocksIn converts parent's children as blocks under parentType. With
+// substitution on, a placeholder line becomes its kept node, and a
+// container's open marker swallows the siblings up to its close marker as
+// the container's new content.
+func (c *conv) blocksIn(parent ast.Node, parentType string) ([]any, error) {
+	saved := c.parent
+	c.parent = parentType
+	defer func() { c.parent = saved }()
 	var out []any
 	for n := parent.FirstChild(); n != nil; n = n.NextSibling() {
+		if c.err != nil {
+			break
+		}
+		if hb, ok := n.(*ast.HTMLBlock); ok && c.substitute {
+			if num, hash, closing, isMarker := placeholderLine(c.htmlBlockText(hb)); isMarker {
+				if closing {
+					c.fail(&PlaceholderError{N: num, Msg: "close marker without its open marker"})
+					break
+				}
+				k, err := c.lookup(num, hash)
+				if err != nil {
+					c.fail(err)
+					break
+				}
+				block, next, err := c.keptBlock(k, n)
+				if err != nil {
+					c.fail(err)
+					break
+				}
+				out = append(out, block)
+				n = next
+				continue
+			}
+		}
 		if b := c.block(n); b != nil {
 			out = append(out, b...)
 		}
 	}
-	return out
+	return out, c.err
+}
+
+// keptBlock builds the node a block-position marker stands for. For a
+// container it converts the siblings after the marker up to the matching
+// close marker as the node's content and returns the close marker as the
+// node to continue after; for anything else it returns the marker itself.
+func (c *conv) keptBlock(k Kept, marker ast.Node) (map[string]any, ast.Node, error) {
+	node := keptMap(k)
+	if k.Inline {
+		// An inline node alone on its line: a paragraph of it.
+		return map[string]any{"type": "paragraph", "content": []any{node}}, marker, nil
+	}
+	if c.parent != "doc" && c.parent != k.Parent {
+		return nil, nil, &PlaceholderError{N: k.N, Msg: fmt.Sprintf("a %s sat under %s and cannot sit under %s", k.Type, k.Parent, c.parent)}
+	}
+	if !k.Container {
+		return node, marker, nil
+	}
+	saved := c.parent
+	c.parent = k.Type
+	defer func() { c.parent = saved }()
+	var content []any
+	for n := marker.NextSibling(); n != nil; n = n.NextSibling() {
+		if hb, ok := n.(*ast.HTMLBlock); ok {
+			if num, hash, closing, isMarker := placeholderLine(c.htmlBlockText(hb)); isMarker {
+				if closing {
+					if num != k.N {
+						return nil, nil, &PlaceholderError{N: num, Msg: fmt.Sprintf("close marker inside adf:%d, which is still open", k.N)}
+					}
+					if len(content) == 0 {
+						content = []any{map[string]any{"type": "paragraph"}}
+					}
+					node["content"] = content
+					return node, n, nil
+				}
+				inner, err := c.lookup(num, hash)
+				if err != nil {
+					return nil, nil, err
+				}
+				block, next, err := c.keptBlock(inner, n)
+				if err != nil {
+					return nil, nil, err
+				}
+				content = append(content, block)
+				n = next
+				continue
+			}
+		}
+		if b := c.block(n); b != nil {
+			content = append(content, b...)
+		}
+		if c.err != nil {
+			return nil, nil, c.err
+		}
+	}
+	return nil, nil, &PlaceholderError{N: k.N, Msg: fmt.Sprintf("open marker without its close marker (%s)", closeMarker(k.N))}
+}
+
+func (c *conv) htmlBlockText(v *ast.HTMLBlock) string {
+	var b strings.Builder
+	for i := 0; i < v.Lines().Len(); i++ {
+		seg := v.Lines().At(i)
+		b.Write(seg.Value(c.src))
+	}
+	if v.HasClosure() {
+		b.Write(v.ClosureLine.Value(c.src))
+	}
+	return strings.TrimRight(b.String(), "\n")
 }
 
 func (c *conv) block(n ast.Node) []any {
@@ -89,7 +212,8 @@ func (c *conv) block(n ast.Node) []any {
 	case *ast.CodeBlock:
 		return []any{withContent(map[string]any{"type": "codeBlock"}, c.codeText(v))}
 	case *ast.Blockquote:
-		return []any{withContent(map[string]any{"type": "blockquote"}, c.blocks(n))}
+		inner, _ := c.blocksIn(n, "blockquote")
+		return []any{withContent(map[string]any{"type": "blockquote"}, inner)}
 	case *ast.List:
 		node := map[string]any{"type": "bulletList"}
 		if v.IsOrdered() {
@@ -97,19 +221,12 @@ func (c *conv) block(n ast.Node) []any {
 		}
 		return []any{withContent(node, c.blocks(n))}
 	case *ast.ListItem:
-		return []any{withContent(map[string]any{"type": "listItem"}, c.blocks(n))}
+		inner, _ := c.blocksIn(n, "listItem")
+		return []any{withContent(map[string]any{"type": "listItem"}, inner)}
 	case *ast.HTMLBlock:
 		// Raw HTML is text: nothing this package emits is rendered as HTML.
-		var b strings.Builder
-		for i := 0; i < v.Lines().Len(); i++ {
-			seg := v.Lines().At(i)
-			b.Write(seg.Value(c.src))
-		}
-		if v.HasClosure() {
-			b.Write(v.ClosureLine.Value(c.src))
-		}
-		s := strings.TrimRight(b.String(), "\n")
-		return []any{withContent(map[string]any{"type": "paragraph"}, textNode(s, nil))}
+		// (A placeholder line was taken by blocksIn before reaching here.)
+		return []any{withContent(map[string]any{"type": "paragraph"}, textNode(c.htmlBlockText(v), nil))}
 	case *extast.Table:
 		return []any{withContent(map[string]any{"type": "table"}, c.blocks(n))}
 	case *extast.TableHeader:
@@ -123,8 +240,23 @@ func (c *conv) block(n ast.Node) []any {
 func (c *conv) cells(row ast.Node, kind string) []any {
 	var out []any
 	for cell := row.FirstChild(); cell != nil; cell = cell.NextSibling() {
-		para := withContent(map[string]any{"type": "paragraph"}, c.inlines(cell, nil))
-		out = append(out, map[string]any{"type": kind, "content": []any{para}})
+		c.inCell, c.hoisted = true, nil
+		saved := c.parent
+		c.parent = kind
+		inl := c.inlines(cell, nil)
+		if len(c.hoisted) > 0 {
+			// ponytail: a hoisted block lands after the cell's paragraph
+			// whatever its original position; a cell with a block before its
+			// text comes back reordered. Positional markers if it matters.
+			// The writer joined the cell's paragraph and its block markers
+			// with spaces; the block is a sibling again, so the spaces go.
+			inl = trimEdgeSpace(inl)
+		}
+		para := withContent(map[string]any{"type": "paragraph"}, inl)
+		content := append([]any{para}, c.hoisted...)
+		c.parent = saved
+		c.inCell, c.hoisted = false, nil
+		out = append(out, map[string]any{"type": kind, "content": content})
 	}
 	return out
 }
@@ -205,6 +337,29 @@ func (c *conv) inlines(parent ast.Node, marks []any) []any {
 			for i := 0; i < v.Segments.Len(); i++ {
 				seg := v.Segments.At(i)
 				b.Write(seg.Value(c.src))
+			}
+			if c.substitute {
+				if num, hash, closing, isMarker := placeholderLine(b.String()); isMarker {
+					if closing {
+						c.fail(&PlaceholderError{N: num, Msg: "close marker in running text — a container's markers stand on their own lines"})
+						continue
+					}
+					k, err := c.lookup(num, hash)
+					if err != nil {
+						c.fail(err)
+						continue
+					}
+					if !k.Inline {
+						if c.inCell {
+							c.hoisted = append(c.hoisted, keptMap(k))
+							continue
+						}
+						c.fail(&PlaceholderError{N: k.N, Msg: fmt.Sprintf("a %s is a block — its marker stands on a line of its own", k.Type)})
+						continue
+					}
+					out = append(out, keptMap(k))
+					continue
+				}
 			}
 			out = append(out, textNode(b.String(), marks)...)
 		default:
@@ -326,17 +481,29 @@ func hasEmptyParagraph(ns []node) bool {
 	return false
 }
 
+// node is the typed walk shape. omitempty on every field but type: a kept
+// node (preserve.go) is re-marshalled from this and must come out as the
+// origin sent it — no "text":"" on a panel, no "attrs":null on a paragraph.
 type node struct {
 	Type    string         `json:"type"`
-	Text    string         `json:"text"`
-	Attrs   map[string]any `json:"attrs"`
-	Marks   []node         `json:"marks"`
-	Content []node         `json:"content"`
+	Text    string         `json:"text,omitempty"`
+	Attrs   map[string]any `json:"attrs,omitempty"`
+	Marks   []node         `json:"marks,omitempty"`
+	Content []node         `json:"content,omitempty"`
 }
+
+func textReader(b []byte) text.Reader { return text.NewReader(b) }
 
 type writer struct {
 	escape bool
 	inItem int // >0 while rendering a listItem's blocks
+	// placeholders: a node markdown cannot carry becomes a marker
+	// (preserve.go) instead of its flattened label; kept collects them in
+	// the order the markers are numbered. cur is the type of the block whose
+	// content is being rendered — a kept node's Parent.
+	placeholders bool
+	kept         []Kept
+	cur          string
 	// lines: the document is an older jira.Doc — one paragraph per typed
 	// line, an empty paragraph where the line was blank — so blocks are
 	// separated by a newline, not a blank line, and the typed text comes
@@ -375,10 +542,21 @@ func (w *writer) blocks(ns []node, prefix string) string {
 	return b.String()
 }
 
+// blocksUnder is blocks with the parent type recorded for kept nodes.
+func (w *writer) blocksUnder(parent string, ns []node, prefix string) string {
+	saved := w.cur
+	w.cur = parent
+	defer func() { w.cur = saved }()
+	return w.blocks(ns, prefix)
+}
+
 func (w *writer) block(n node, prefix string, index int) string {
+	if w.placeholders && preservedBlock(n) {
+		return w.keepBlock(n, prefix)
+	}
 	switch n.Type {
 	case "paragraph":
-		return prefixLines(w.inlines(n.Content), prefix)
+		return prefixLines(w.inlinesUnder("paragraph", n.Content), prefix)
 	case "heading":
 		level := attrInt(n.Attrs, "level", 1)
 		if level < 1 {
@@ -387,7 +565,7 @@ func (w *writer) block(n node, prefix string, index int) string {
 		if level > 6 {
 			level = 6
 		}
-		return prefixLines(strings.Repeat("#", level)+" "+strings.ReplaceAll(w.inlines(n.Content), "\n", " "), prefix)
+		return prefixLines(strings.Repeat("#", level)+" "+strings.ReplaceAll(w.inlinesUnder("heading", n.Content), "\n", " "), prefix)
 	case "rule":
 		return prefix + "---"
 	case "codeBlock":
@@ -402,7 +580,7 @@ func (w *writer) block(n node, prefix string, index int) string {
 		lang, _ := n.Attrs["language"].(string)
 		return prefixLines(fence+lang+"\n"+body+"\n"+fence, prefix)
 	case "blockquote":
-		return w.blocks(n.Content, prefix+"> ")
+		return w.blocksUnder("blockquote", n.Content, prefix+"> ")
 	case "bulletList":
 		var items []string
 		for _, li := range n.Content {
@@ -423,11 +601,28 @@ func (w *writer) block(n node, prefix string, index int) string {
 		return prefix + w.inlines([]node{n})
 	default:
 		// Unknown block (panel, expand, extension, …): its blocks, flattened.
+		// (Only without placeholders — with them, preservedBlock caught it.)
 		if len(n.Content) > 0 && isBlock(n.Content[0].Type) {
-			return w.blocks(n.Content, prefix)
+			return w.blocksUnder(n.Type, n.Content, prefix)
 		}
-		return prefixLines(w.inlines(n.Content), prefix)
+		return prefixLines(w.inlinesUnder(n.Type, n.Content), prefix)
 	}
+}
+
+// keepBlock renders a preserved block: a marker line for an opaque node, an
+// open marker, its content as markdown and a close marker for a container.
+func (w *writer) keepBlock(n node, prefix string) string {
+	open := w.keep(n, w.cur, false)
+	k := w.kept[len(w.kept)-1]
+	if !k.Container {
+		return prefix + open
+	}
+	inner := strings.TrimRight(w.blocksUnder(n.Type, n.Content, prefix), "\n")
+	sep := strings.TrimRight(prefix, " ")
+	if inner == "" {
+		return prefix + open + "\n" + sep + "\n" + prefix + closeMarker(k.N)
+	}
+	return prefix + open + "\n" + sep + "\n" + inner + "\n" + sep + "\n" + prefix + closeMarker(k.N)
 }
 
 func isBlock(t string) bool {
@@ -443,7 +638,7 @@ func isBlock(t string) bool {
 func (w *writer) listItem(li node, marker, prefix string) string {
 	indent := strings.Repeat(" ", len(marker))
 	w.inItem++
-	body := w.blocks(li.Content, prefix+indent)
+	body := w.blocksUnder("listItem", li.Content, prefix+indent)
 	w.inItem--
 	if body == "" {
 		return prefix + marker + "\n"
@@ -466,9 +661,12 @@ func (w *writer) table(n node, prefix string) string {
 				header = true
 			}
 			var parts []string
+			saved := w.cur
+			w.cur = cell.Type
 			for _, c := range cell.Content {
 				parts = append(parts, strings.ReplaceAll(w.block(c, "", 0), "\n", " "))
 			}
+			w.cur = saved
 			cells = append(cells, strings.ReplaceAll(strings.Join(parts, " "), "|", "\\|"))
 		}
 		rows = append(rows, cells)
@@ -520,9 +718,21 @@ func prefixLines(s, prefix string) string {
 
 // inlines renders inline nodes: marks become delimiters, hardBreak a newline,
 // a mention its @label, everything else its visible text.
+// inlinesUnder is inlines with the parent type recorded for kept nodes.
+func (w *writer) inlinesUnder(parent string, ns []node) string {
+	saved := w.cur
+	w.cur = parent
+	defer func() { w.cur = saved }()
+	return w.inlines(ns)
+}
+
 func (w *writer) inlines(ns []node) string {
 	var b strings.Builder
 	for _, n := range ns {
+		if w.placeholders && preservedInline(n) {
+			b.WriteString(w.keep(n, w.cur, true))
+			continue
+		}
 		switch n.Type {
 		case "text":
 			b.WriteString(w.marked(n))
@@ -694,4 +904,28 @@ func kinds(raw json.RawMessage) string {
 	}
 	walk(d, 0)
 	return strings.Join(out, "\n")
+}
+
+// trimEdgeSpace strips leading space from the first text node and trailing
+// space from the last, dropping either if that empties it.
+func trimEdgeSpace(nodes []any) []any {
+	if len(nodes) == 0 {
+		return nodes
+	}
+	if m, ok := nodes[0].(map[string]any); ok && m["type"] == "text" {
+		m["text"] = strings.TrimLeft(m["text"].(string), " ")
+		if m["text"] == "" {
+			nodes = nodes[1:]
+		}
+	}
+	if len(nodes) == 0 {
+		return nil
+	}
+	if m, ok := nodes[len(nodes)-1].(map[string]any); ok && m["type"] == "text" {
+		m["text"] = strings.TrimRight(m["text"].(string), " ")
+		if m["text"] == "" {
+			nodes = nodes[:len(nodes)-1]
+		}
+	}
+	return nodes
 }

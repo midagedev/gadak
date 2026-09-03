@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/midagedev/gadak/internal/adf"
 	"github.com/midagedev/gadak/internal/store"
 )
 
@@ -98,8 +99,86 @@ func TestDetailPresentsBodiesAsMarkdown(t *testing.T) {
 	if len(d.FormatLoss) != 1 || d.FormatLoss[0] != "panel" {
 		t.Fatalf("format_loss = %v, want [panel]", d.FormatLoss)
 	}
-	if d.DescriptionMD != "note" {
+	// GDK-1396: the panel stands in the source as a placeholder pair.
+	if !strings.HasPrefix(d.DescriptionMD, "<!-- adf:1:") || !strings.HasSuffix(d.DescriptionMD, " panel info -->\n\nnote\n\n<!-- /adf:1 -->") {
 		t.Fatalf("rich source: %q", d.DescriptionMD)
+	}
+}
+
+// GDK-1396: a description PUT whose text carries the detail's placeholders
+// puts the preserved nodes back; one that carries none over a body that has
+// them is 409 format_loss unless forced; a placeholder the body cannot
+// honour is 409 placeholder with the reason; a deleted placeholder is named
+// in `dropped`. Preview resolves placeholders against the base it is sent.
+func TestDescriptionPlaceholdersRoundTrip(t *testing.T) {
+	f, h, _ := writable(t)
+	rich := `{"type":"doc","version":1,"content":[` +
+		`{"type":"panel","attrs":{"panelType":"info"},"content":[{"type":"paragraph","content":[{"type":"text","text":"note"}]}]},` +
+		`{"type":"paragraph","content":[{"type":"text","text":"cc "},{"type":"mention","attrs":{"id":"acc","text":"@Dana"}}]}]}`
+	f.description = rich
+	src := adf.Source(json.RawMessage(rich))
+	kept := adf.Preserved(json.RawMessage(rich))
+	if len(kept) != 2 {
+		t.Fatalf("fixture: %d kept", len(kept))
+	}
+
+	put := func(body string) *httptest.ResponseRecorder {
+		b, _ := json.Marshal(map[string]any{"description": body})
+		return send(t, h, http.MethodPut, apiBase+"NMB-1/description/", string(b))
+	}
+	// No placeholders: the plain replace, refused.
+	if rec := put("rewritten"); rec.Code != http.StatusConflict || !strings.Contains(rec.Body.String(), "format_loss") {
+		t.Fatalf("plain replace over preserved nodes → %d %s", rec.Code, rec.Body.String())
+	}
+	// Placeholders kept, interior edited.
+	edited := strings.Replace(src, "note", "edited note", 1)
+	rec := put(edited)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("placeholder save → %d: %s", rec.Code, rec.Body.String())
+	}
+	sent := string(f.bodies["PUT /issue/NMB-1"])
+	for _, want := range []string{`"panelType":"info"`, `"text":"edited note"`, `"id":"acc"`} {
+		if !strings.Contains(sent, want) {
+			t.Fatalf("PUT lacks %s: %s", want, sent)
+		}
+	}
+	if strings.Contains(rec.Body.String(), `"dropped"`) {
+		t.Fatalf("nothing was dropped: %s", rec.Body.String())
+	}
+	// The mention's placeholder deleted: the node goes, and the response says so.
+	rec = put(strings.Replace(src, "cc <!-- adf:2:"+kept[1].Hash+" mention @Dana -->", "cc nobody", 1))
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"dropped":["mention #2"]`) {
+		t.Fatalf("dropped mention → %d %s", rec.Code, rec.Body.String())
+	}
+	if sent := string(f.bodies["PUT /issue/NMB-1"]); strings.Contains(sent, `"mention"`) {
+		t.Fatalf("deleted mention came back: %s", sent)
+	}
+	// A stale placeholder: the body changed since it was read.
+	f.description = strings.Replace(rich, `"panelType":"info"`, `"panelType":"error"`, 1)
+	rec = put(src)
+	if rec.Code != http.StatusConflict || !strings.Contains(rec.Body.String(), `"placeholder"`) || !strings.Contains(rec.Body.String(), "changed since") {
+		t.Fatalf("stale placeholder → %d %s", rec.Code, rec.Body.String())
+	}
+	// force: the plain replace, allowed.
+	b, _ := json.Marshal(map[string]any{"description": "rewritten", "force": true})
+	if rec := send(t, h, http.MethodPut, apiBase+"NMB-1/description/", string(b)); rec.Code != http.StatusOK {
+		t.Fatalf("forced replace → %d %s", rec.Code, rec.Body.String())
+	}
+
+	// Preview with the base resolves; without it, a placeholder is refused.
+	pb, _ := json.Marshal(map[string]any{"text": src, "base": json.RawMessage(rich)})
+	req := testRequest(http.MethodPost, apiBase+"preview/", strings.NewReader(string(pb)))
+	req.Header.Set("Content-Type", "application/json")
+	prec := httptest.NewRecorder()
+	h.ServeHTTP(prec, req)
+	if prec.Code != http.StatusOK || !strings.Contains(prec.Body.String(), `"panelType":"info"`) {
+		t.Fatalf("preview with base → %d %s", prec.Code, prec.Body.String())
+	}
+	pb, _ = json.Marshal(map[string]any{"text": src})
+	prec = httptest.NewRecorder()
+	h.ServeHTTP(prec, testRequest(http.MethodPost, apiBase+"preview/", strings.NewReader(string(pb))))
+	if prec.Code != http.StatusConflict {
+		t.Fatalf("preview without base → %d %s", prec.Code, prec.Body.String())
 	}
 }
 
@@ -126,5 +205,19 @@ func TestPreviewRendersMarkdownAsADF(t *testing.T) {
 	h.ServeHTTP(rec, testRequest(http.MethodPost, apiBase+"preview/", strings.NewReader(`not json`)))
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("garbage body: status %d", rec.Code)
+	}
+}
+
+// GDK-1396: a comment or a new issue has no body to substitute from, so a
+// marker in its text is 409 placeholder, never stored as visible text.
+func TestCommentAndCreateRefuseStrayPlaceholders(t *testing.T) {
+	f, h, _ := writable(t)
+	marker := "<!-- adf:1:0badf00d mention @Dana --> look"
+	b, _ := json.Marshal(map[string]any{"text": marker})
+	if rec := send(t, h, http.MethodPost, apiBase+"NMB-1/comment/", string(b)); rec.Code != http.StatusConflict || !strings.Contains(rec.Body.String(), `"placeholder"`) {
+		t.Fatalf("comment with a marker → %d %s", rec.Code, rec.Body.String())
+	}
+	if f.called("POST /issue/NMB-1/comment") {
+		t.Fatalf("refused comment still reached the origin: %v", f.calls)
 	}
 }

@@ -4,6 +4,16 @@
 
 ## Unreleased
 
+- **서식 있는 본문을 마크다운으로 편집해도 마크다운이 못 담는 것을 잃지 않는다.**
+  편집 원본 — `gadak issue`, 웹 편집기, `description_md` — 이 그런 노드마다
+  자리표시자를 든다: 패널의 마크다운을 감싸는 `<!-- adf:1:… panel info -->` …
+  `<!-- /adf:1 -->`, 멘션 자리의 `<!-- adf:3:… mention @Dana -->`. 그 주위 텍스트를
+  고쳐 저장하면 쓰기가 origin 에서 본문을 읽어 각 노드를 마커 자리에 되돌려 놓는다.
+  마커를 지우면 그 노드가 사라지고 쓰기가 그렇게 말한다; 읽은 뒤 바뀐 본문의 마커는
+  덮어쓰지 않고 거절한다. 마커가 하나도 없는 초안은 여전히 `--force-plain` 이
+  있는 이유인 평문 교체다. 색·밑줄 런은 당장은 통째로 보존된다 — 그 텍스트는 제자리
+  편집이 안 된다 (결정 0012 부록 1) ([GDK-1396]).
+
 - `gadak edit KEY --adf-file F` 와 `gadak comment KEY --adf-file F` 가 ADF 문서를
   그대로 보낸다 — 마크다운이 못 담는 본문의 무손실 경로: `gadak issue KEY --json` 의
   `description_adf` 를 받아 문서를 고쳐 되돌려 보낸다. 마크다운이 끼지 않으니 서식
@@ -1454,3 +1464,4 @@ HTTP·sync·에이전트 계약을 담았습니다.
 [GDK-1391]: https://gadak.dev/backlog/#/?ks=GDK-1391
 [GDK-1394]: https://gadak.dev/backlog/#/?ks=GDK-1394
 [GDK-1395]: https://gadak.dev/backlog/#/?ks=GDK-1395
+[GDK-1396]: https://gadak.dev/backlog/#/?ks=GDK-1396

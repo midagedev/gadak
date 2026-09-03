@@ -4,6 +4,19 @@
 
 ## Unreleased
 
+- **A formatted body can be edited as markdown without losing what
+  markdown cannot carry.** The editing source — `gadak issue`, the web
+  editor, `description_md` — now holds a placeholder for each such node:
+  `<!-- adf:1:… panel info -->` … `<!-- /adf:1 -->` around a panel's own
+  markdown, `<!-- adf:3:… mention @Dana -->` where a mention stands. Edit
+  the text around them and save: the write reads the body from the origin
+  and puts every node back where its marker is. Delete a marker and that
+  node goes, and the write says so; a marker from a body that changed since
+  you read it is refused, not written over. A draft with no markers at all
+  is still the plain replace `--force-plain` exists for. Coloured or
+  underlined runs are kept whole for now — their text is not editable in
+  place (decision 0012, addendum 1) ([GDK-1396]).
+
 - `gadak edit KEY --adf-file F` and `gadak comment KEY --adf-file F` send an
   ADF document as it is — the lossless path for a body markdown cannot carry:
   take `description_adf` from `gadak issue KEY --json`, change the document,
@@ -1514,3 +1527,4 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-1391]: https://gadak.dev/backlog/#/?ks=GDK-1391
 [GDK-1394]: https://gadak.dev/backlog/#/?ks=GDK-1394
 [GDK-1395]: https://gadak.dev/backlog/#/?ks=GDK-1395
+[GDK-1396]: https://gadak.dev/backlog/#/?ks=GDK-1396

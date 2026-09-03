@@ -836,6 +836,8 @@ export interface CreatedComment {
 
 /** Common write response — latest IssueLite. */
 export interface IssueWriteResponse {
+  /** Preserved nodes the saved text no longer referenced — deleted by this write (GDK-1396), e.g. "panel #1". */
+  dropped?: string[]
   issue: IssueLite
 }
 

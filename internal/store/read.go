@@ -812,7 +812,10 @@ type PageDetail struct {
 	// BodyText is BodyADF flattened by adf.PlainText — the same walker FTS
 	// indexes. Always present (empty when the body is empty) so a text client
 	// does not have to parse ADF.
-	BodyText string        `json:"body_text"`
+	BodyText string `json:"body_text"`
+	// BodyMD is the markdown an editor opens with — adf.Present's Source,
+	// placeholders included (GDK-1394/GDK-1396). Derived on read, never stored.
+	BodyMD   string        `json:"body_md,omitempty"`
 	Comments []PageComment `json:"comments"`
 	// RefIssueKeys are issue keys this page's body mentions (item_refs). Only
 	// issues present in the mirror, sorted ascending. Empty omitted.
@@ -986,6 +989,7 @@ func (db *DB) PageDetail(ctx context.Context, key string) (*PageDetail, error) {
 	d.Labels = parseArray(&labels)
 	d.BodyADF = rawOrNull(bodyADF)
 	d.BodyText = adf.PlainText(d.BodyADF)
+	d.BodyMD = adf.Present(d.BodyADF, d.BodyText).Source
 	d.Comments = []PageComment{}
 	if err := each(ctx, db.sql, `
 		SELECT COALESCE(author, ''), COALESCE(created_at, ''),

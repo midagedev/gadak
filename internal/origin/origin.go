@@ -3,6 +3,7 @@ package origin
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -731,4 +732,32 @@ func localOriginFixture(projects []string) []byte {
 	}
 	b = append(b, "spaces:\n  - id: \"40000\"\n    key: "+DefaultSpaceKey+"\n    name: Local\n    type: global\n"...)
 	return b
+}
+
+// CurrentDescription reads KEY's description as the origin holds it right
+// now — never the mirror, which is a stale cache while a decision about the
+// write's next instant is being made (GDK-1001, GDK-1396: the markdown
+// loss guard and placeholder substitution both work from this). found is
+// false when the origin returned no row for the key; the write that follows
+// is then the authority on whether the issue exists.
+func CurrentDescription(ctx context.Context, cfg *config.Config, key string) (raw json.RawMessage, found bool, err error) {
+	c, err := Client(cfg)
+	if err != nil {
+		return nil, false, err
+	}
+	err = c.Search(ctx, fmt.Sprintf("key = %q", key), []string{"description"}, false, func(issues []jira.Issue) error {
+		for _, iss := range issues {
+			if iss.Key != key {
+				continue
+			}
+			found = true
+			raw = iss.Fields.Description
+			return nil
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, false, err
+	}
+	return raw, found, nil
 }

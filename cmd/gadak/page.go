@@ -101,7 +101,9 @@ func printPage(p store.PageDetail) {
 	if len(p.Labels) > 0 {
 		kv("labels", strings.Join(p.Labels, ", "))
 	}
-	if body := strings.TrimSpace(p.BodyText); body != "" {
+	// The markdown source, placeholders included (GDK-1394/1396): what this
+	// prints is what `page edit -m -` takes back.
+	if body := strings.TrimSpace(p.BodyMD); body != "" {
 		fmt.Printf("\nbody\n%s\n", indent(body))
 	} else {
 		fmt.Printf("\nbody (none)\n")
@@ -192,7 +194,7 @@ func cmdPageCreate(args []string) error {
 	title := fs.String("title", "", "page title (required)")
 	parent := fs.String("parent", "", "parent page id (omitted = space root)")
 	text := fs.String("m", "", "body as markdown; `-` reads stdin")
-	adfFile := fs.String("adf-file", "", "body as an ADF JSON document file; wins over -m")
+	adfFile := fs.String("doc-file", "", "body as an ADF JSON document file; wins over -m")
 	asJSON := fs.Bool("json", false, "emit JSON")
 	if wantsHelp(args) {
 		fmt.Fprint(os.Stdout, formatHelp("page", fs))
@@ -203,7 +205,7 @@ func cmdPageCreate(args []string) error {
 		return err
 	}
 	if len(rest) != 0 {
-		return fmt.Errorf("page create: unexpected argument %q (usage: gadak page create --space KEY --title T [-m <text|->|--adf-file F] [--parent ID])", rest[0])
+		return fmt.Errorf("page create: unexpected argument %q (usage: gadak page create --space KEY --title T [-m <text|->|--doc-file F] [--parent ID])", rest[0])
 	}
 	if *space == "" || *title == "" {
 		return fmt.Errorf("page create: --space and --title are required")
@@ -217,7 +219,7 @@ func cmdPageCreate(args []string) error {
 		}
 		body = string(buf)
 	}
-	adf := ""
+	doc := ""
 	if *adfFile != "" {
 		b, err := os.ReadFile(*adfFile)
 		if err != nil {
@@ -226,13 +228,16 @@ func cmdPageCreate(args []string) error {
 		if !json.Valid(b) {
 			return fmt.Errorf("page create: %s is not valid JSON (an ADF document)", *adfFile)
 		}
-		adf = string(b)
+		doc = string(b)
 	}
-	if adf == "" {
-		adf = string(jira.Doc(body, nil))
+	if doc == "" {
+		if err := adf.RefusePlaceholders(body); err != nil {
+			return fmt.Errorf("page create: %w", err)
+		}
+		doc = string(jira.Doc(body, nil))
 	}
 
-	created, detail, mirrorStale, err := createPageViaOrigin(*space, *title, adf, *parent)
+	created, detail, mirrorStale, err := createPageViaOrigin(*space, *title, doc, *parent)
 	if err != nil {
 		return err
 	}
@@ -326,7 +331,7 @@ func formatPageSpaceError(ctx context.Context, wc *confluence.Client, space stri
 func cmdPageComment(args []string) error {
 	fs := newFlagSet("page comment")
 	text := fs.String("m", "", "comment body as markdown; `-` reads stdin")
-	adfFile := fs.String("adf-file", "", "comment body as an ADF JSON document file; wins over -m")
+	adfFile := fs.String("doc-file", "", "comment body as an ADF JSON document file; wins over -m")
 	asJSON := fs.Bool("json", false, "emit JSON")
 	if wantsHelp(args) {
 		fmt.Fprint(os.Stdout, formatHelp("page", fs))
@@ -337,7 +342,7 @@ func cmdPageComment(args []string) error {
 		return err
 	}
 	if len(rest) != 1 {
-		return fmt.Errorf("page comment: exactly one page id (usage: gadak page comment <ID> -m <text|-> | --adf-file F)")
+		return fmt.Errorf("page comment: exactly one page id (usage: gadak page comment <ID> -m <text|-> | --doc-file F)")
 	}
 	id := rest[0]
 	body := *text
@@ -348,7 +353,7 @@ func cmdPageComment(args []string) error {
 		}
 		body = string(buf)
 	}
-	adf := ""
+	doc := ""
 	if *adfFile != "" {
 		b, err := os.ReadFile(*adfFile)
 		if err != nil {
@@ -357,13 +362,16 @@ func cmdPageComment(args []string) error {
 		if !json.Valid(b) {
 			return fmt.Errorf("page comment: %s is not valid JSON (an ADF document)", *adfFile)
 		}
-		adf = string(b)
+		doc = string(b)
 	}
-	if adf == "" {
+	if doc == "" {
 		if body == "" {
-			return fmt.Errorf("page comment: nothing to post — pass -m or --adf-file")
+			return fmt.Errorf("page comment: nothing to post — pass -m or --doc-file")
 		}
-		adf = string(jira.Doc(body, nil))
+		if err := adf.RefusePlaceholders(body); err != nil {
+			return fmt.Errorf("page comment: %w", err)
+		}
+		doc = string(jira.Doc(body, nil))
 	}
 	warnWorkspaceIfEnv()
 
@@ -379,7 +387,7 @@ func cmdPageComment(args []string) error {
 		return err
 	}
 	ctx := context.Background()
-	cm, err := wc.AddPageComment(ctx, id, adf)
+	cm, err := wc.AddPageComment(ctx, id, doc)
 	if err != nil {
 		return err
 	}
@@ -491,10 +499,14 @@ func cmdPageEdit(args []string) error {
 		}
 		newADF = merged
 	case body != "":
-		if !*force && len(adf.FormatLoss(newADF)) > 0 {
-			return fmt.Errorf("page edit: -m replaces the whole body and would drop this page's formatting; pass --adf-file to keep it, or --force to replace it")
+		doc, dropped, err := bodyFromMarkdown(body, newADF, *force)
+		if err != nil {
+			return fmt.Errorf("page edit: %w", err)
 		}
-		newADF = string(jira.Doc(body, nil))
+		if len(dropped) > 0 {
+			fmt.Fprintf(os.Stderr, "page edit %s: dropped %s\n", id, describeKept(dropped))
+		}
+		newADF = doc
 	}
 	next := cur.Version.Number + 1
 	if *version > 0 {
@@ -558,6 +570,9 @@ func appendParagraphs(curADF, text string) (string, error) {
 	var add struct {
 		Content []json.RawMessage `json:"content"`
 	}
+	if err := adf.RefusePlaceholders(text); err != nil {
+		return "", err
+	}
 	// jira.Doc always emits a valid document; the unmarshal is a guard, not
 	// a reachable branch.
 	if err := json.Unmarshal([]byte(string(jira.Doc(text, nil))), &add); err != nil {
@@ -576,4 +591,28 @@ func appendParagraphs(curADF, text string) (string, error) {
 		return "", err
 	}
 	return string(out), nil
+}
+
+// bodyFromMarkdown is a page's `-m` body as ADF (GDK-1396): the current
+// body's preserved nodes go back where the text's placeholders stand; a text
+// with no placeholders over a body that has preserved nodes is the whole-
+// body replace that is refused without --force.
+func bodyFromMarkdown(text, current string, force bool) (string, []adf.Kept, error) {
+	if len(adf.Preserved(json.RawMessage(current))) == 0 {
+		if adf.HasPlaceholders(text) {
+			return "", nil, fmt.Errorf("the text carries placeholders but the current body has no preserved nodes — drop the markers")
+		}
+		return string(jira.Doc(text, nil)), nil, nil
+	}
+	if !adf.HasPlaceholders(text) {
+		if !force {
+			return "", nil, fmt.Errorf("-m replaces the whole body and would drop this page's formatting; `gadak page get` prints it with placeholders — keep the markers, pass --adf-file, or --force to replace it")
+		}
+		return string(jira.Doc(text, nil)), nil, nil
+	}
+	doc, dropped, err := adf.FromMarkdownWith(text, json.RawMessage(current))
+	if err != nil {
+		return "", nil, err
+	}
+	return string(doc), dropped, nil
 }

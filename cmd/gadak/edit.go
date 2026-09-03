@@ -292,7 +292,10 @@ func applyEditChange(ctx context.Context, cfg *config.Config, db *store.DB, c or
 		// named the loss with --force-plain. The read is the origin's, not
 		// the mirror's — the mirror can be stale and this is a decision
 		// about the write's next instant.
-		if !ch.forcePlain {
+		// A draft that carries placeholders is not a plain replace — its
+		// preserved nodes go back in descriptionFromMarkdown, which also
+		// refuses a stale or misplaced marker (GDK-1396).
+		if !ch.forcePlain && !adf.HasPlaceholders(ch.body) {
 			if err := guardDescriptionReplace(ctx, cfg, src, key, strings.TrimSpace(ch.body) == ""); err != nil {
 				return err
 			}
@@ -300,7 +303,11 @@ func applyEditChange(ctx context.Context, cfg *config.Config, db *store.DB, c or
 		if strings.TrimSpace(ch.body) == "" {
 			fields["description"] = nil
 		} else {
-			fields["description"] = jira.Doc(ch.body, nil)
+			doc, err := descriptionFromMarkdown(ctx, cfg, src, key, ch.body, ch.forcePlain)
+			if err != nil {
+				return err
+			}
+			fields["description"] = doc
 		}
 	}
 	if ch.hasLabel {
@@ -645,39 +652,74 @@ func guardDescriptionReplace(ctx context.Context, cfg *config.Config, src, key s
 	if src == "linear" {
 		return nil
 	}
-	c, err := origin.Client(cfg)
-	if err != nil {
-		return err
-	}
-	var loss []string
-	found := false
-	err = c.Search(ctx, fmt.Sprintf("key = %q", key), []string{"description"}, false, func(issues []jira.Issue) error {
-		for _, iss := range issues {
-			if iss.Key != key {
-				continue
-			}
-			found = true
-			loss = adf.FormatLoss(string(iss.Fields.Description))
-			return nil
-		}
-		return nil
-	})
+	cur, found, err := origin.CurrentDescription(ctx, cfg, key)
 	if err != nil {
 		// A current description that could not be read aborts the edit:
 		// "could not verify" is not "nothing to destroy".
 		return fmt.Errorf("refusing to change %s's description without reading it first: %w", key, err)
 	}
-	if !found || len(loss) == 0 {
+	if !found {
 		// No row came back: the origin, not this guard, is the authority on
 		// whether the issue exists — the PUT answers that.
 		return nil
 	}
-	asked, verb := "-m", "replace"
-	if clearing {
-		asked, verb = "-m ''", "clear"
+	loss := adf.FormatLoss(string(cur))
+	if len(loss) == 0 {
+		return nil
 	}
-	return fmt.Errorf("description of %s has formatting markdown cannot carry (%s) that %s would destroy — re-run with --force-plain to %s it anyway",
-		key, strings.Join(loss, ", "), asked, verb)
+	if clearing {
+		return fmt.Errorf("description of %s has formatting markdown cannot carry (%s) that -m '' would destroy — re-run with --force-plain to clear it anyway",
+			key, strings.Join(loss, ", "))
+	}
+	return fmt.Errorf("description of %s has formatting markdown cannot carry (%s) that -m would destroy — `gadak issue %s` prints it with placeholders; edit that text and keep the markers, or re-run with --force-plain to replace it anyway",
+		key, strings.Join(loss, ", "), key)
+}
+
+// descriptionFromMarkdown builds the ADF an `edit -m` sends (GDK-1396). The
+// body's preserved nodes — what `gadak issue` printed as placeholders — are
+// read from the origin now and put back where the markers stand; a draft
+// that carries none of them while the body has some is the plain replace
+// GDK-1001 refuses (guardDescriptionReplace ran already unless forcePlain).
+// Deleted markers delete their nodes, and stderr says which. --force-plain
+// and Linear skip the origin read: a marker in that text has nothing behind
+// it and is refused rather than written as text.
+func descriptionFromMarkdown(ctx context.Context, cfg *config.Config, src, key, body string, forcePlain bool) (json.RawMessage, error) {
+	if src == "linear" || forcePlain {
+		if adf.HasPlaceholders(body) {
+			if src == "linear" {
+				return nil, fmt.Errorf("edit %s: the text carries placeholders, and a Linear body has no preserved nodes to put behind them — drop the markers", key)
+			}
+			return nil, fmt.Errorf("edit %s: the text carries placeholders; --force-plain replaces the body without reading it, so drop the flag to keep them (or drop the markers)", key)
+		}
+		return jira.Doc(body, nil), nil
+	}
+	cur, found, err := origin.CurrentDescription(ctx, cfg, key)
+	if err != nil {
+		return nil, fmt.Errorf("refusing to change %s's description without reading it first: %w", key, err)
+	}
+	if !found || len(adf.Preserved(cur)) == 0 {
+		if adf.HasPlaceholders(body) {
+			return nil, fmt.Errorf("edit %s: the text carries placeholders but the current description has no preserved nodes — drop the markers", key)
+		}
+		return jira.Doc(body, nil), nil
+	}
+	doc, dropped, err := adf.FromMarkdownWith(body, cur)
+	if err != nil {
+		return nil, fmt.Errorf("edit %s: %w", key, err)
+	}
+	if len(dropped) > 0 {
+		fmt.Fprintf(os.Stderr, "edit %s: dropped %s\n", key, describeKept(dropped))
+	}
+	return doc, nil
+}
+
+// describeKept is "panel #1, mention #3" — what a dropped-node notice names.
+func describeKept(ks []adf.Kept) string {
+	parts := make([]string, 0, len(ks))
+	for _, k := range ks {
+		parts = append(parts, fmt.Sprintf("%s #%d", k.Type, k.N))
+	}
+	return strings.Join(parts, ", ")
 }
 
 func projectKeyFromIssueKey(key string) string {

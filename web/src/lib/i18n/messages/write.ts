@@ -188,14 +188,34 @@ export const write = {
     ja: '説明を更新できませんでした。再試行してください。',
   },
   'write.descriptionFormatWarn': {
-    en: 'Saving will drop what markdown cannot carry: {loss}.',
-    ko: '저장하면 마크다운이 담지 못하는 것이 사라집니다: {loss}.',
-    ja: '保存すると Markdown が持てないものが失われます: {loss}。',
+    en: 'Placeholders stand for what markdown cannot carry ({loss}). Keep a marker to keep its part; delete it to remove that part.',
+    ko: '마크다운이 담지 못하는 것({loss})은 자리표시자로 서 있습니다. 마커를 두면 그 부분이 남고, 지우면 그 부분이 사라집니다.',
+    ja: 'Markdown が持てないもの（{loss}）はプレースホルダーとして立っています。マーカーを残せばその部分は残り、消せば消えます。',
+  },
+  'write.descriptionAllDropped': {
+    en: 'Every placeholder is gone — saving replaces the whole body and drops {loss}.',
+    ko: '자리표시자가 모두 없어졌습니다 — 저장하면 본문 전체가 교체되고 {loss} 이(가) 사라집니다.',
+    ja: 'プレースホルダーがすべて消えています — 保存すると本文全体が置き換わり、{loss} が失われます。',
   },
   'write.saveAsPlain': {
     en: 'Save and drop them',
     ko: '버리고 저장',
     ja: '捨てて保存',
+  },
+  'write.placeholderRefused': {
+    en: 'Not saved: {message}',
+    ko: '저장되지 않았습니다: {message}',
+    ja: '保存されませんでした: {message}',
+  },
+  'write.previewRefused': {
+    en: 'No preview: {message}',
+    ko: '미리보기 없음: {message}',
+    ja: 'プレビューなし: {message}',
+  },
+  'write.descriptionDropped': {
+    en: 'Saved; removed {dropped}.',
+    ko: '저장했습니다. {dropped} 을(를) 제거했습니다.',
+    ja: '保存しました。{dropped} を削除しました。',
   },
   'write.tabWrite': {
     en: 'Write',

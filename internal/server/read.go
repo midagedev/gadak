@@ -705,12 +705,30 @@ func rawOrNull(raw json.RawMessage) json.RawMessage {
 // handlePreview renders a markdown draft the way a save would store it —
 // the editor's Preview tab (GDK-1385). One converter, server-side; the web
 // keeps no markdown parser of its own.
+// POST preview/ — {"text": markdown, "base": ADF | omitted}. base is the
+// body the draft was opened from; with it, the draft's placeholders resolve
+// to that body's preserved nodes exactly as a save would (GDK-1396), and a
+// placeholder it cannot honour is 409 placeholder with the reason.
 func (s *server) handlePreview(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Text string `json:"text"`
+		Text string          `json:"text"`
+		Base json.RawMessage `json:"base"`
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&body); err != nil {
 		fail(w, http.StatusBadRequest, "invalid_body")
+		return
+	}
+	if len(body.Base) > 0 && string(body.Base) != "null" {
+		doc, _, err := adf.FromMarkdownWith(body.Text, body.Base)
+		if err != nil {
+			failMsg(w, http.StatusConflict, "placeholder", err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"adf": doc})
+		return
+	}
+	if adf.HasPlaceholders(body.Text) {
+		failMsg(w, http.StatusConflict, "placeholder", "a placeholder needs the body it came from; send it as base")
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"adf": adf.FromMarkdown(body.Text)})

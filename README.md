@@ -251,11 +251,17 @@ production:
   markdown — headings, lists, tables, code, bold, links all round-trip —
   but when the description currently on the origin carries formatting
   markdown cannot hold (panels, inline media, mentions, colours) the edit
-  stops and names what it found. `gadak edit KEY -m … --force-plain`
-  replaces it anyway. (`page edit -m` has the same guard behind
-  `--force`.) To change such a description without losing anything, take
-  the ADF from `gadak issue KEY --json` (`description_adf`), edit the
-  document, and send it back as it is with `gadak edit KEY --adf-file F` —
+  stops and names what it found. But `gadak issue KEY` prints that
+  description with a **placeholder** standing where each such node is —
+  `<!-- adf:1:… panel info -->` … `<!-- /adf:1 -->` around a panel's own
+  markdown, `<!-- adf:3:… mention @Dana -->` for a mention — so edit the
+  text around the markers and `edit -m -` puts every node back where its
+  marker stands. Delete a marker to remove that node (the edit says which);
+  a marker from a body that changed since you read it is refused. A text
+  with no markers at all is the plain replace `--force-plain` exists for.
+  (`page edit -m` has the same behaviour behind `--force`.) The raw path
+  stays: take `description_adf` from `gadak issue KEY --json`, edit the
+  document, send it back as it is with `gadak edit KEY --adf-file F` —
   `comment --adf-file F` posts a comment the same way.
 - **No sprint verbs.** Sprint fields are mirrored (`sprint_id`,
   `sprint_name`, `sprint_state`; SQL and JQL query them), but moving an
