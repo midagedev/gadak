@@ -333,9 +333,18 @@ export interface DetailResponse {
   development_opinion: string
   /** Body-role custom field values (ADF documents) keyed by alias. Older servers omit. */
   bodies?: Record<string, AdfNode | string | null>
+  /**
+   * The document to render. Since GDK-1385 the server derives it: a body
+   * whose ADF is typed text, or a Linear markdown body, arrives parsed as
+   * markdown; a rich body arrives as the origin holds it.
+   */
   description_adf: AdfNode | null
   /** Plain/markdown body when description_adf is empty (Linear). Older servers omit. */
   description_text?: string
+  /** Markdown the editor opens with (GDK-1385). Older servers omit. */
+  description_md?: string
+  /** Node/mark kinds a markdown save would drop (panel, media, mention, …). Empty = none. */
+  format_loss?: string[]
   attachments: DetailAttachment[]
   comments: DetailComment[]
   history: HistoryEntry[]

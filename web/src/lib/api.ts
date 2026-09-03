@@ -39,6 +39,7 @@ import type {
   ViewsResponse,
   WatchesResponse,
   WriteMeta,
+  AdfNode,
 } from './types'
 
 // Runtime config (built artifacts stay tenant-neutral).
@@ -878,7 +879,19 @@ export function setSummary(issueKey: string, summary: string): Promise<IssueWrit
   })
 }
 
-/** PUT <key>/description/ — plain text; `null` or whitespace clears. Server wraps ADF. */
+/**
+ * POST preview/ — render a markdown draft the way a save would store it.
+ * The server owns the one converter (GDK-1385); the web keeps no parser.
+ */
+export function previewMarkdown(text: string): Promise<{ adf: AdfNode | null }> {
+  return jsonW<{ adf: AdfNode | null }>('preview/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }),
+  })
+}
+
+/** PUT <key>/description/ — markdown; `null` or whitespace clears. Server builds the ADF. */
 export function setDescription(
   issueKey: string,
   description: string | null,

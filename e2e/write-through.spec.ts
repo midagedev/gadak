@@ -350,7 +350,7 @@ test.describe('write-through', () => {
 
     const editor = panel.getByTestId('description-editor')
     await expect(editor).toBeVisible()
-    await expect(editor).toHaveAttribute('data-description-simple', 'true')
+    await expect(editor).toHaveAttribute('data-description-loss', 'none')
     await expect(editor).toHaveAttribute('data-description-editing', 'false')
 
     let put: { description?: string | null } | null = null
@@ -382,7 +382,9 @@ test.describe('write-through', () => {
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 
-  test('description: a table ADF shows the format-loss banner and explicit save label', async ({
+  // GDK-1385: the server names the loss (format_loss); a table is markdown
+  // now, so the mock carries a panel — what a markdown save cannot hold.
+  test('description: a panel ADF shows the format-loss banner and explicit save label', async ({
     page,
   }) => {
     const errors = attachConsoleErrors(page)
@@ -390,45 +392,37 @@ test.describe('write-through', () => {
     await page.route(`**/api/v1/issues/${KEY}/detail/`, async (route) => {
       if (route.request().method() !== 'GET') return route.continue()
       const response = await route.fetch()
-      const body = (await response.json()) as { description_adf?: unknown }
+      const body = (await response.json()) as {
+        description_adf?: unknown
+        format_loss?: string[]
+        description_md?: string
+      }
       body.description_adf = {
         type: 'doc',
         version: 1,
         content: [
           {
-            type: 'table',
-            content: [
-              {
-                type: 'tableRow',
-                content: [
-                  {
-                    type: 'tableCell',
-                    content: [
-                      {
-                        type: 'paragraph',
-                        content: [{ type: 'text', text: 'formatted cell' }],
-                      },
-                    ],
-                  },
-                ],
-              },
-            ],
+            type: 'panel',
+            attrs: { panelType: 'info' },
+            content: [{ type: 'paragraph', content: [{ type: 'text', text: 'formatted note' }] }],
           },
         ],
       }
+      body.format_loss = ['panel']
+      body.description_md = 'formatted note'
       await route.fulfill({ response, json: body })
     })
     const panel = await openIssue(page)
     const editor = panel.getByTestId('description-editor')
     await expect(editor).toBeVisible()
-    await expect(editor).toHaveAttribute('data-description-simple', 'false')
+    await expect(editor).toHaveAttribute('data-description-loss', 'panel')
 
     await editor.getByTestId('description-edit').click()
     await expect(editor).toHaveAttribute('data-description-editing', 'true')
     const banner = editor.getByTestId('description-format-warn')
     await expect(banner).toBeVisible()
-    await expect(banner).toContainText('Saving will remove formatting and embeds.')
-    await expect(editor.getByTestId('description-save')).toHaveText('Save as plain text')
+    await expect(banner).toContainText('Saving will drop what markdown cannot carry: panel.')
+    await expect(editor.getByTestId('description-save')).toHaveText('Save and drop them')
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })

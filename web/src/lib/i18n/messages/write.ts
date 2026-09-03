@@ -188,14 +188,29 @@ export const write = {
     ja: '説明を更新できませんでした。再試行してください。',
   },
   'write.descriptionFormatWarn': {
-    en: 'Saving will remove formatting and embeds.',
-    ko: '저장하면 서식·임베드가 제거됩니다.',
-    ja: '保存すると書式と埋め込みが取り除かれます。',
+    en: 'Saving will drop what markdown cannot carry: {loss}.',
+    ko: '저장하면 마크다운이 담지 못하는 것이 사라집니다: {loss}.',
+    ja: '保存すると Markdown が持てないものが失われます: {loss}。',
   },
   'write.saveAsPlain': {
-    en: 'Save as plain text',
-    ko: '평문으로 저장',
-    ja: 'プレーンテキストとして保存',
+    en: 'Save and drop them',
+    ko: '버리고 저장',
+    ja: '捨てて保存',
+  },
+  'write.tabWrite': {
+    en: 'Write',
+    ko: '쓰기',
+    ja: '書く',
+  },
+  'write.tabPreview': {
+    en: 'Preview',
+    ko: '미리보기',
+    ja: 'プレビュー',
+  },
+  'write.markdownHint': {
+    en: 'Markdown — headings, lists, **bold**, `code`, ``` fences',
+    ko: '마크다운 — 헤딩, 목록, **굵게**, `코드`, ``` 펜스',
+    ja: 'Markdown — 見出し、リスト、**太字**、`コード`、``` フェンス',
   },
   'write.titleRequired': {
     en: 'Title cannot be empty.',

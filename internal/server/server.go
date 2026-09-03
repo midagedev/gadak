@@ -198,6 +198,7 @@ func newServer(db *store.DB, cfg *config.Config, cache *attachcache.Cache, profi
 	mux.HandleFunc("GET "+apiBase+"update/{$}", s.handleGetUpdate)
 	mux.HandleFunc("POST "+apiBase+"update/{$}", s.handlePostUpdate)
 	mux.HandleFunc("GET "+apiBase+"search/{$}", s.handleSearch)
+	mux.HandleFunc("POST "+apiBase+"preview/{$}", s.handlePreview)
 	mux.HandleFunc("GET "+apiBase+"ui-focus/{$}", s.handleUIFocus)
 	mux.HandleFunc("GET "+apiBase+"jql/{$}", s.handleJql)
 	mux.HandleFunc("POST "+apiBase+"jql/{$}", s.handleJql)

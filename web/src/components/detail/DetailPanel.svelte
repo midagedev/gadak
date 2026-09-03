@@ -308,6 +308,8 @@
                 issueKey={key}
                 node={detailForKey.description_adf}
                 fallback={detailForKey.description_text}
+                md={detailForKey.description_md ?? null}
+                loss={detailForKey.format_loss ?? []}
                 attachments={detailForKey.attachments}
               />
             {/key}

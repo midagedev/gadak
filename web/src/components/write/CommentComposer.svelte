@@ -18,6 +18,9 @@
   import { commentDraftKey } from '../../lib/storage'
   import Icon from '../ui/Icon.svelte'
   import CommentSubmitFooter from './CommentSubmitFooter.svelte'
+  import AdfContent from '../detail/AdfContent.svelte'
+  import { previewMarkdown } from '../../lib/api'
+  import type { AdfNode } from '../../lib/types'
 
   /** onsubmitted fires after a comment commits — the quick-comment dialog closes on it. */
   let { issueKey, onsubmitted }: { issueKey: string; onsubmitted?: () => void } = $props()
@@ -209,6 +212,23 @@
     attachments = attachments.filter((a) => a.id !== id)
   }
 
+  /* ── Preview (GDK-1385): the draft rendered the way a save stores it ── */
+  let previewing = $state(false)
+  let previewNode: AdfNode | null = $state(null)
+  async function togglePreview() {
+    if (previewing) {
+      previewing = false
+      queueMicrotask(() => ta?.focus())
+      return
+    }
+    previewing = true
+    try {
+      previewNode = (await previewMarkdown(text)).adf
+    } catch {
+      previewNode = null
+    }
+  }
+
   /* ── Submit ── */
 
   async function submit() {
@@ -232,6 +252,8 @@
       queueMicrotask(autosize)
     } else {
       clearDraft(issueKey)
+      previewing = false
+      previewNode = null
       onsubmitted?.()
     }
   }
@@ -327,6 +349,14 @@
     <!-- GDK-1148: a local-origin/paired workspace is anonymous yet its writes
          pass through the origin (originWritable) — the credential placeholder
          would tell a working writer to go get a token. -->
+    {#if previewing}
+      <div
+        class="min-h-[3.5rem] rounded-md border border-border-subtle bg-bg-base px-2.5 py-1.5 text-body text-text-secondary"
+        data-testid="comment-preview"
+      >
+        <AdfContent node={previewNode} {issueKey} emptyLabel={t('write.commentPlaceholder')} />
+      </div>
+    {/if}
     <textarea
       bind:this={ta}
       bind:value={text}
@@ -335,6 +365,7 @@
       onkeydown={onKeydown}
       onpaste={onPaste}
       rows="2"
+      hidden={previewing}
       data-testid="comment-composer"
       placeholder={me.identified || isHostedDemo() || originWritable()
         ? t('write.commentPlaceholder')
@@ -405,7 +436,13 @@
     </div>
   {/if}
 
-  <CommentSubmitFooter busy={busy} disabled={busy || !canSubmit} onclick={submit}>
+  <CommentSubmitFooter
+    busy={busy}
+    disabled={busy || !canSubmit}
+    onclick={submit}
+    previewing={previewing}
+    onpreview={isHostedDemo() ? undefined : togglePreview}
+  >
     {#snippet leading()}
       <input
         bind:this={fileInput}

@@ -4,6 +4,20 @@
 
 ## Unreleased
 
+- **The detail reads every body as markdown, and the editor has a Preview.**
+  The server now decides what a body looks like: a description or comment
+  whose stored ADF is only typed text — an older `-m`, a migrated issue — is
+  read as the markdown it always was, so the 844 issues that rendered as one
+  grey wall since the cutover render as headings, lists and paragraphs with
+  no data touched; a Linear body, markdown on the wire, renders the same
+  way. A body Jira's editor formatted is shown as it is. The description
+  editor opens on the markdown the server hands it, the format-loss banner
+  names exactly what a save would drop (a panel, an inline image, a
+  mention) instead of refusing every heading, and both the description
+  editor and the comment composer have Write / Preview — the preview is the
+  document the save would store, rendered by the same server converter, so
+  the web carries no markdown parser of its own ([GDK-1385]).
+
 - Linear gets the formatting too: the writer serializes the document back
   to markdown instead of flattening it to text, so a heading, a list or a
   bold run typed into `comment` or `edit -m` on a Linear workspace arrives
@@ -1457,3 +1471,4 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-1383]: https://gadak.dev/backlog/#/?ks=GDK-1383
 [GDK-1384]: https://gadak.dev/backlog/#/?ks=GDK-1384
 [GDK-1386]: https://gadak.dev/backlog/#/?ks=GDK-1386
+[GDK-1385]: https://gadak.dev/backlog/#/?ks=GDK-1385

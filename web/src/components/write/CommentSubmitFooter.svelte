@@ -8,6 +8,7 @@
   import type { Snippet } from 'svelte'
   import { t } from '../../lib/i18n'
   import { modifierSymbol } from '../../lib/unified-search'
+  import Icon from '../ui/Icon.svelte'
 
   let {
     busy,
@@ -16,6 +17,8 @@
     buttonType = 'button',
     submitTestId,
     leading,
+    previewing = false,
+    onpreview,
   }: {
     busy: boolean
     disabled: boolean
@@ -23,11 +26,29 @@
     buttonType?: 'button' | 'submit'
     submitTestId?: string
     leading?: Snippet
+    /** Write/Preview toggle (GDK-1385); absent when the composer cannot render one. */
+    previewing?: boolean
+    onpreview?: () => void
   } = $props()
 </script>
 
 <div class="flex items-center justify-end gap-2">
   {@render leading?.()}
+  {#if onpreview}
+    <button
+      type="button"
+      onclick={onpreview}
+      aria-pressed={previewing}
+      data-testid="comment-preview-toggle"
+      class="inline-flex h-control items-center gap-1.5 rounded-md border border-border-strong px-2 text-body text-text-secondary transition-colors hover:text-text-primary {previewing
+        ? 'bg-bg-hover text-text-primary'
+        : ''}"
+      title={previewing ? t('write.tabWrite') : t('write.tabPreview')}
+    >
+      <Icon name={previewing ? 'pen' : 'eye'} size={13} />
+      {previewing ? t('write.tabWrite') : t('write.tabPreview')}
+    </button>
+  {/if}
   <kbd
     data-testid="comment-shortcut"
     class="rounded border border-border-subtle px-1 text-micro text-text-muted"

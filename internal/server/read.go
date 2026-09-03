@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/midagedev/gadak/internal/adf"
 	"log"
 	"net/http"
 	"regexp"
@@ -334,9 +335,18 @@ type linkedIssue struct {
 }
 
 type detailResponse struct {
-	IssueKey        string             `json:"issue_key"`
+	IssueKey string `json:"issue_key"`
+	// DescriptionADF is the document to render — the origin's ADF when it
+	// carries formatting, otherwise the body's text read as markdown
+	// (adf.Present, GDK-1385). DescriptionMD is what the editor opens with;
+	// FormatLoss names what saving that markdown would drop (empty when the
+	// body round-trips). The mirror itself is untouched: Linear's ADF column
+	// stays empty, a migrated wall stays one paragraph — only the response
+	// is derived.
 	DescriptionADF  json.RawMessage    `json:"description_adf"`
 	DescriptionText string             `json:"description_text,omitempty"`
+	DescriptionMD   string             `json:"description_md"`
+	FormatLoss      []string           `json:"format_loss"`
 	Attachments     []detailAttachment `json:"attachments"`
 	Comments        []detailComment    `json:"comments"`
 	History         []historyEntry     `json:"history"`
@@ -488,10 +498,16 @@ func (s *server) handleDetail(w http.ResponseWriter, r *http.Request) {
 		Now:        time.Now(),
 	})
 
+	desc := adf.Present(d.DescriptionADF, d.DescriptionText)
+	if desc.Loss == nil {
+		desc.Loss = []string{}
+	}
 	res := detailResponse{
 		IssueKey:        d.IssueKey,
-		DescriptionADF:  d.DescriptionADF,
+		DescriptionADF:  rawOrNull(desc.Display),
 		DescriptionText: d.DescriptionText,
+		DescriptionMD:   desc.Source,
+		FormatLoss:      desc.Loss,
 		Attachments:     make([]detailAttachment, 0, len(d.Attachments)),
 		Comments:        make([]detailComment, 0, len(d.Comments)),
 		History:         make([]historyEntry, 0, len(d.History)),
@@ -568,7 +584,7 @@ func (s *server) handleDetail(w http.ResponseWriter, r *http.Request) {
 			AuthorAccountID:   nilIfEmpty(c.AuthorID),
 			AuthorAccountType: nilIfEmpty(view.accountTypeByAccount[c.AuthorID]),
 			Body:              c.Body, // the client's fallback when the ADF will not render
-			RawBody:           c.BodyADF,
+			RawBody:           rawOrNull(adf.Present(c.BodyADF, c.Body).Display),
 			CreatedAt:         nilIfEmpty(c.CreatedAt),
 		})
 	}
@@ -668,7 +684,36 @@ func (s *server) handlePageDetailKey(w http.ResponseWriter, r *http.Request, key
 		fail(w, http.StatusNotFound, "not_found")
 		return
 	}
+	// The same derivation as issue bodies (GDK-1385): a page written as
+	// typed text renders as the markdown it is.
+	d.BodyADF = rawOrNull(adf.Present(d.BodyADF, d.BodyText).Display)
+	for i := range d.Comments {
+		d.Comments[i].BodyADF = rawOrNull(adf.Present(d.Comments[i].BodyADF, d.Comments[i].BodyText).Display)
+	}
 	writeJSON(w, http.StatusOK, d)
+}
+
+// rawOrNull keeps the JSON contract of description_adf / raw_body / body_adf:
+// an absent document serializes as null, never as an empty string.
+func rawOrNull(raw json.RawMessage) json.RawMessage {
+	if len(raw) == 0 {
+		return json.RawMessage("null")
+	}
+	return raw
+}
+
+// handlePreview renders a markdown draft the way a save would store it —
+// the editor's Preview tab (GDK-1385). One converter, server-side; the web
+// keeps no markdown parser of its own.
+func (s *server) handlePreview(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Text string `json:"text"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&body); err != nil {
+		fail(w, http.StatusBadRequest, "invalid_body")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"adf": adf.FromMarkdown(body.Text)})
 }
 
 /* ── derived view (members, group index, status categories) ── */
