@@ -250,15 +250,18 @@ if ($wantMsix) {
     # so the manifest carries (major+1).minor.patch.0: 0.20.0 → 1.20.0.0,
     # and a future 1.0.0 → 2.0.0.0 stays monotonic, which matters because
     # the Store rejects any upload lower than one it has accepted. A
-    # git-describe suffix (0.20.0-33-gabc) is dropped; a non-semver stamp
-    # (0.0.0-dev) still yields a valid 1.0.0.0 so a dev pack can be tested.
+    # git-describe suffix (0.20.0-33-gabc) is dropped. A stamp with no
+    # semver at all — 0.0.0-dev, or the bare hash a shallow CI checkout
+    # without tags produces — yields 1.0.0.0 so the pack can still be built
+    # and install-tested; the Store never sees one of those, the release
+    # job checks out with tags.
     # ponytail: the +1 is a one-way door once the first package is accepted;
     # never "fix" it back to the semver major.
     function Get-MsixVersion {
         param([string]$Stamp)
         if ($Stamp -notmatch '^(\d+)\.(\d+)\.(\d+)') {
-            [Console]::Error.WriteLine("build-windows: cannot derive a Store version from '$Stamp'")
-            exit 1
+            [Console]::Error.WriteLine("build-windows: no semver in stamp '$Stamp'; manifest version 1.0.0.0 (untagged build, not for the Store)")
+            return '1.0.0.0'
         }
         return ('{0}.{1}.{2}.0' -f ([int]$Matches[1] + 1), [int]$Matches[2], [int]$Matches[3])
     }
