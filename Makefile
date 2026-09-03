@@ -93,6 +93,7 @@ MEDIA_DIR := docs/media
 brand:
 	node tools/brand/render.mjs
 	bash tools/brand/mobile-icons.sh
+	bash tools/brand/msix-assets.sh
 	bash tools/check-brand-icons.sh
 
 # media-mcp is deliberately not here: it needs vhs and a Claude Code login,

@@ -2,6 +2,15 @@
 
 <sub>English · <a href="CHANGELOG.ko.md">한국어</a></sub>
 
+## Unreleased
+
+- The Windows app has a Microsoft Store package: `desktop/build-windows.ps1
+  --msix` packs the same `gadak-desktop.exe` the zip ships into an unsigned
+  `.msix`, and the release workflow keeps it as an artifact for Partner
+  Center. The Store re-signs what it certifies, which is the one free route
+  past Smart App Control — the zip stays unsigned and unchanged, and nothing
+  is "on the Store" until a listing passes ([GDK-1380]).
+
 ## v0.20.0 — 2026-09-03
 
 **The shell is in the window, and it is the issue's shell.** The terminal
@@ -1076,6 +1085,7 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-208]: https://gadak.dev/backlog/#/?ks=GDK-208
 [GDK-209]: https://gadak.dev/backlog/#/?ks=GDK-209
 [GDK-211]: https://gadak.dev/backlog/#/?ks=GDK-211
+[GDK-1380]: https://gadak.dev/backlog/#/?ks=GDK-1380
 [GDK-213]: https://gadak.dev/backlog/#/?ks=GDK-213
 [GDK-214]: https://gadak.dev/backlog/#/?ks=GDK-214
 [GDK-215]: https://gadak.dev/backlog/#/?ks=GDK-215

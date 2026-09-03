@@ -7,12 +7,21 @@
 # What still needs Windows is Authenticode signing (GDK-211) and any
 # WebView2 runtime/bootstrap installer work; this script does neither.
 #
-# Usage: desktop/build-windows.ps1 [--arch x64|arm64] [--archive]
+# Usage: desktop/build-windows.ps1 [--arch x64|arm64] [--archive] [--msix]
 #
 # Exit 64 = usage / unknown argument
-#      69 = a required tool is missing
+#      69 = a required tool is missing (go; makeappx.exe for --msix)
 #       1 = dist/app missing or a build step failed
-#       0 = portable directory written (and the zip, if --archive)
+#       0 = portable directory written (and the zip / msix, if asked)
+#
+# --msix (GDK-1380) additionally packs the same directory into an UNSIGNED
+# Gadak-<ver>-windows-<x64|arm64>.msix for Microsoft Store submission, from
+# desktop/msix/AppxManifest.xml and the committed desktop/msix/Assets/. It
+# needs makeappx.exe (Windows SDK), so it is a Windows-host output — the
+# portable directory and zip still cross-compile from anywhere. The Store
+# re-signs the package with a Microsoft certificate after certification;
+# the file this script writes is not installable as-is and is never a
+# GitHub Release asset.
 #
 # This script must not emit gadak-desktop-<os>-<arch>.zip — v0.14.0 apps
 # match that name exactly and would self-swap (same rule as
@@ -44,7 +53,7 @@
 $ErrorActionPreference = 'Stop'
 
 function Usage {
-    [Console]::Error.WriteLine('usage: desktop/build-windows.ps1 [--arch x64|arm64] [--archive]')
+    [Console]::Error.WriteLine('usage: desktop/build-windows.ps1 [--arch x64|arm64] [--archive] [--msix]')
     exit 64
 }
 
@@ -57,12 +66,14 @@ function Need {
 }
 
 $wantArchive = $false
+$wantMsix = $false
 $archArg = $null
 for ($i = 0; $i -lt $args.Count; $i++) {
     $arg = [string]$args[$i]
     switch ($arg) {
         { $_ -in @('-h', '--help') } { Usage }
         { $_ -in @('--archive', '-Archive', '-archive') } { $wantArchive = $true }
+        { $_ -in @('--msix', '-Msix', '-msix') } { $wantMsix = $true }
         { $_ -in @('--arch', '-Arch', '-arch') } {
             if ($i + 1 -ge $args.Count) {
                 [Console]::Error.WriteLine('build-windows: --arch needs x64 or arm64')
@@ -232,6 +243,93 @@ finally {
 }
 
 Write-Host "built $bundle ($version, $fileArch)"
+
+if ($wantMsix) {
+    # Store package version: four numeric parts, the fourth reserved (0) and
+    # the first non-zero — Partner Center refuses a 0.x major. gadak is 0.x,
+    # so the manifest carries (major+1).minor.patch.0: 0.20.0 → 1.20.0.0,
+    # and a future 1.0.0 → 2.0.0.0 stays monotonic, which matters because
+    # the Store rejects any upload lower than one it has accepted. A
+    # git-describe suffix (0.20.0-33-gabc) is dropped. A stamp with no
+    # semver at all — 0.0.0-dev, or the bare hash a shallow CI checkout
+    # without tags produces — yields 1.0.0.0 so the pack can still be built
+    # and install-tested; the Store never sees one of those, the release
+    # job checks out with tags.
+    # ponytail: the +1 is a one-way door once the first package is accepted;
+    # never "fix" it back to the semver major.
+    function Get-MsixVersion {
+        param([string]$Stamp)
+        if ($Stamp -notmatch '^(\d+)\.(\d+)\.(\d+)') {
+            [Console]::Error.WriteLine("build-windows: no semver in stamp '$Stamp'; manifest version 1.0.0.0 (untagged build, not for the Store)")
+            return '1.0.0.0'
+        }
+        return ('{0}.{1}.{2}.0' -f ([int]$Matches[1] + 1), [int]$Matches[2], [int]$Matches[3])
+    }
+
+    # makeappx.exe ships in the Windows SDK, not on PATH; take the newest kit.
+    $makeappx = Get-Command makeappx.exe -ErrorAction SilentlyContinue
+    if ($null -eq $makeappx) {
+        $kits = ${env:ProgramFiles(x86)}
+        if ([string]::IsNullOrEmpty($kits)) { $kits = $env:ProgramFiles }
+        $candidates = @()
+        if (-not [string]::IsNullOrEmpty($kits)) {
+            $candidates = @(Get-ChildItem -Path (Join-Path $kits 'Windows Kits\10\bin') -Directory -Filter '10.*' -ErrorAction SilentlyContinue |
+                Sort-Object { [version]$_.Name } -Descending |
+                ForEach-Object { Join-Path $_.FullName 'x64\makeappx.exe' } |
+                Where-Object { Test-Path -LiteralPath $_ })
+        }
+        if ($candidates.Count -eq 0) {
+            [Console]::Error.WriteLine('build-windows: missing makeappx.exe (Windows SDK) — --msix needs a Windows host')
+            exit 69
+        }
+        $makeappx = Get-Command $candidates[0]
+    }
+
+    $msixDir = Join-Path $here 'msix'
+    $manifestSrc = Join-Path $msixDir 'AppxManifest.xml'
+    $assetsSrc = Join-Path $msixDir 'Assets'
+    foreach ($p in @($manifestSrc, $assetsSrc)) {
+        if (-not (Test-Path -LiteralPath $p)) {
+            [Console]::Error.WriteLine("build-windows: missing $p")
+            exit 1
+        }
+    }
+
+    # Stage = the portable directory + Assets + the substituted manifest.
+    # makeappx wants the manifest named exactly AppxManifest.xml at the root.
+    $stage = Join-Path $out ("msix-stage-{0}" -f $fileArch)
+    if (Test-Path -LiteralPath $stage) {
+        Remove-Item -LiteralPath $stage -Recurse -Force
+    }
+    New-Item -ItemType Directory -Path $stage | Out-Null
+    Copy-Item -Path (Join-Path $bundle '*') -Destination $stage -Recurse
+    Copy-Item -Path $assetsSrc -Destination (Join-Path $stage 'Assets') -Recurse
+    Remove-Item -LiteralPath (Join-Path $stage 'Assets\SOURCE.sha256') -Force -ErrorAction SilentlyContinue
+    $msixVersion = Get-MsixVersion -Stamp $verStamp
+    $manifest = Get-Content -LiteralPath $manifestSrc -Raw
+    $manifest = $manifest.Replace('@VERSION@', $msixVersion).Replace('@ARCH@', $fileArch)
+    if ($manifest -match '@[A-Z]+@') {
+        [Console]::Error.WriteLine("build-windows: unsubstituted placeholder in AppxManifest.xml: $($Matches[0])")
+        exit 1
+    }
+    # UTF-8 without BOM: makeappx reads the declaration, not a BOM.
+    [System.IO.File]::WriteAllText((Join-Path $stage 'AppxManifest.xml'), $manifest, (New-Object System.Text.UTF8Encoding $false))
+
+    $msixPath = Join-Path $out ('Gadak-{0}-windows-{1}.msix' -f $verStamp, $fileArch)
+    if (Test-Path -LiteralPath $msixPath) {
+        Remove-Item -LiteralPath $msixPath -Force
+    }
+    & $makeappx.Source pack /d $stage /p $msixPath /o
+    if ($LASTEXITCODE -ne 0) {
+        [Console]::Error.WriteLine("build-windows: makeappx pack exited $LASTEXITCODE")
+        exit 1
+    }
+    if (-not (Test-Path -LiteralPath $msixPath) -or ((Get-Item -LiteralPath $msixPath).Length -le 0)) {
+        [Console]::Error.WriteLine("build-windows: msix was not written: $msixPath")
+        exit 1
+    }
+    Write-Host "packed $msixPath (manifest version $msixVersion, unsigned — Store re-signs)"
+}
 
 if (-not $wantArchive) {
     exit 0

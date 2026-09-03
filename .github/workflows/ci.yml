@@ -786,9 +786,12 @@ jobs:
       - name: Build the web UI
         run: npm run build
 
+      # --msix packs the same directory a second time as the Store package
+      # (GDK-1380) — one compile, two outputs; the Windows job is CI's
+      # critical path (GDK-1036) and a second build would double it.
       - name: Pack the Windows app
         shell: pwsh
-        run: ./desktop/build-windows.ps1
+        run: ./desktop/build-windows.ps1 --msix
 
       - name: The packed tree carries both binaries
         shell: pwsh
@@ -816,6 +819,60 @@ jobs:
       - name: Protocol handler tests
         working-directory: desktop
         run: go test ./... -run 'Protocol' -count=1
+
+      # makeappx validates the manifest schema; only an install proves the
+      # identity, the full-trust entry point and the protocol declaration
+      # are accepted. The Store re-signs with its own certificate, so here
+      # a throwaway self-signed certificate with the same Publisher CN
+      # stands in — trusted by this runner only, for the length of the step.
+      # Last in the job on purpose: deploying a package that declares
+      # windows.protocol registers the scheme in this user's hive, and the
+      # HKCU assertion above must keep measuring the pack script alone. The
+      # GUI is not launched.
+      - name: The msix installs under its declared identity
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $msix = Get-ChildItem -Path desktop/build -File -Filter 'Gadak-*-windows-x64.msix' | Select-Object -First 1
+          if (-not $msix) { throw "build-windows.ps1 --msix produced no .msix" }
+          $manifest = Select-Xml -Path desktop/msix/AppxManifest.xml -XPath '/*[local-name()="Package"]/*[local-name()="Identity"]' | Select-Object -First 1
+          $publisher = $manifest.Node.Publisher
+          $name = $manifest.Node.Name
+          $kit = Get-ChildItem -Path "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Directory -Filter '10.*' |
+            Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1
+          $signtool = Join-Path $kit.FullName 'x64\signtool.exe'
+          if (-not (Test-Path -LiteralPath $signtool)) { throw "no signtool.exe under $($kit.FullName)" }
+          $cert = New-SelfSignedCertificate -Type Custom -Subject $publisher -KeyUsage DigitalSignature `
+            -FriendlyName 'gadak ci throwaway' -CertStoreLocation 'Cert:\CurrentUser\My' `
+            -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3', '2.5.29.19={text}')
+          $pfx = Join-Path $env:RUNNER_TEMP 'ci-throwaway.pfx'
+          $pw = ConvertTo-SecureString -String 'ci' -Force -AsPlainText
+          Export-PfxCertificate -Cert $cert -FilePath $pfx -Password $pw | Out-Null
+          # Sign a copy: the unsigned original is the Store upload artifact.
+          $test = Join-Path $env:RUNNER_TEMP $msix.Name
+          Copy-Item -LiteralPath $msix.FullName -Destination $test -Force
+          & $signtool sign /fd SHA256 /a /f $pfx /p ci $test
+          if ($LASTEXITCODE -ne 0) { throw "signtool exited $LASTEXITCODE" }
+          Import-PfxCertificate -FilePath $pfx -CertStoreLocation 'Cert:\LocalMachine\TrustedPeople' -Password $pw | Out-Null
+          Add-AppxPackage -Path $test
+          $pkg = Get-AppxPackage -Name $name
+          if (-not $pkg) { throw "installed, but Get-AppxPackage $name found nothing" }
+          Write-Host ("installed {0} {1} ({2})" -f $pkg.Name, $pkg.Version, $pkg.Architecture)
+          if ($pkg.Publisher -ne $publisher) { throw "publisher drifted: $($pkg.Publisher) vs manifest $publisher" }
+          $installed = Join-Path $pkg.InstallLocation 'gadak-desktop.exe'
+          if (-not (Test-Path -LiteralPath $installed)) { throw "package has no gadak-desktop.exe at $installed" }
+          Remove-AppxPackage -Package $pkg.PackageFullName
+          Write-Host "msix install/uninstall — ok"
+          exit 0
+
+      # The file Partner Center takes. The install check above signed a copy
+      # in RUNNER_TEMP, so this is the untouched unsigned package.
+      - name: Upload Store package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gadak-desktop-msix-x64
+          path: desktop/build/Gadak-*-windows-x64.msix
+          if-no-files-found: error
 
       # In a child process, not in this step's own runspace: a non-zero
       # $LASTEXITCODE left behind at the end of a pwsh step is what the runner

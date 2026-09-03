@@ -284,12 +284,15 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if (-not (Test-Path -LiteralPath dist/app)) { throw "dist/app missing" }
 
-      - name: Pack Windows portable zips
+      # --msix adds the unsigned Store package next to each zip (GDK-1380).
+      # It is a workflow artifact only, never a Release asset: unsigned, it
+      # is not installable, and the Store re-signs it after certification.
+      - name: Pack Windows portable zips and Store packages
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          ./desktop/build-windows.ps1 --arch x64 --archive
-          ./desktop/build-windows.ps1 --arch arm64 --archive
+          ./desktop/build-windows.ps1 --arch x64 --archive --msix
+          ./desktop/build-windows.ps1 --arch arm64 --archive --msix
 
       # Recurrence gate (same decision as the macOS job, 2026-08-15):
       # v0.14.0 apps match gadak-desktop-<os>-<arch>.zip exactly and would
@@ -327,6 +330,16 @@ jobs:
           name: gadak-desktop-windows
           path: |
             desktop/build/Gadak-*-windows-*.zip
+          if-no-files-found: error
+
+      # For the maintainer to download and submit in Partner Center. The
+      # Release step below filters on *.zip and never sees these.
+      - name: Upload Store package artifact (unsigned msix)
+        uses: actions/upload-artifact@v4
+        with:
+          name: gadak-desktop-msix
+          path: |
+            desktop/build/Gadak-*-windows-*.msix
           if-no-files-found: error
 
       - name: Attach zip to GitHub Release
