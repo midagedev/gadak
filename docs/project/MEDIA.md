@@ -54,7 +54,7 @@ each run with a fake credential.)
 | `docs/media/claude-tokens-vertical.gif` (+`-poster.png`) | 430-wide reduction of that mp4 | README — same reason as the dashboards GIF |
 | `docs/media/scale.mp4` (+`scale.gif`, `scale-poster.png`) | Playwright `e2e/demo/scale-demo.spec.ts` + post-process camera work `e2e/demo/export-scale.sh` (`make media-scale` — deliberately outside the `make media` aggregate: the committed artifacts are what the site ships) | landing flagship — record-time counts focus over a 20k-issue snapshot |
 | ~~`docs/media/hero.mp4`~~ (+`hero-poster.png`) — **removed 2026-09-02**: the phone app is not shipped, so no public surface shows it (user call). The rig stays: `e2e/demo/record-hero.sh` (desk take `record-hero-desk.sh` + phone take `record-hero-phone.sh` inside its away-wait, cut by `cut-hero.sh`) needs a live Claude Code login AND a booted iOS simulator with a dev build of the phone app | was the 0.19 hero — one serve, one terminal session: the desk hands work to an agent, a phone closes an issue while the chair is empty, the desk comes back to the scrollback and the board. Re-shoot and re-add when the phone app ships |
-| `docs/media/roundtrip.mp4` (+`roundtrip-poster.png`) | Playwright `e2e/demo/roundtrip.spec.ts` via `e2e/demo/record-roundtrip.sh --live --dark`, cut by `e2e/demo/cut-roundtrip.sh`. Like the hero, not in `make media` and not reproducible from a checkout alone — the four shells run a live Claude Code login against `e2e/demo/shop-fixture/`; nothing in the terminals is scripted, so takes vary and the rig retries until the beat contract holds | the 0.19 release cut — four shells bound to four issues investigate on their own (tabs named by issue key in the bottom dock), and clicking a card's session brings that shell back, findings standing, then another |
+| `docs/media/roundtrip.mp4` (+`roundtrip-poster.png`) | Playwright `e2e/demo/roundtrip.spec.ts` via `e2e/demo/record-roundtrip.sh --live`, cut by `e2e/demo/camera.mjs e2e/demo/roundtrip.shots.mjs` (the camera layer, below). Like the hero, not in `make media` and not reproducible from a checkout alone — the four shells run a live Claude Code login against `e2e/demo/shop-fixture/`; nothing in the terminals is scripted, so takes vary and the rig retries until the beat contract holds | the 0.20 release cut — four shells bound to four issues investigate on their own (the roster column of the dock names them by key), the camera punches in on a card and the shell it brings back, findings standing, then the same from ⌘K |
 | `docs/media/groupby.gif` / `groupby.mp4` (+`groupby-poster.png`) | Playwright `e2e/demo/groupby-demo.spec.ts` via `e2e/demo/export-groupby.sh` | group-by exhibit motion cut — the landing exhibit itself ships the still below |
 | `docs/media/groupby-still.png` | `e2e/demo/site-stills.mjs` | landing group-by exhibit (2x still; see the landing policy table) |
 | `docs/media/history.gif` / `history.mp4` (+`history-poster.png`) | Playwright `e2e/demo/history-demo.spec.ts` via `e2e/demo/export-history.sh` | history exhibit motion cut — the landing exhibit itself ships the still below |
@@ -193,6 +193,50 @@ point anyone who wants a light asset at the MP4.
 change the GIF's 25 fps frame table. `make media-mcp` finishes the take with
 `gifsicle -O3 --colors 64` when `gifsicle` is on `PATH`, which roughly halves
 the file with no visible loss on a 64-colour paper theme.
+
+## The camera layer (GDK-1381)
+
+A cut used to be segments of one take, full frame. `e2e/demo/camera.mjs` adds
+a camera over a marked take: the spec's marks carry the rect of what each beat
+is about (`markAt(name, locator)` in `roundtrip.spec.ts`), a shot list next to
+the spec (`roundtrip.shots.mjs`) says in mark names where the camera arrives
+and when, and the compositor renders the frames — eased punch-ins and pans,
+motion blur, the end-card dissolve, the poster. No coordinate lives in the
+shot list, so a reshoot moves the marks and the camera follows.
+
+```bash
+node e2e/demo/camera.mjs e2e/demo/roundtrip.shots.mjs --dry    # timeline + camera keys, no render
+node e2e/demo/camera.mjs e2e/demo/roundtrip.shots.mjs --sheet  # one stamped frame per mark and per camera arrival
+node e2e/demo/camera.mjs e2e/demo/roundtrip.shots.mjs          # the cut
+```
+
+Three rules it encodes, each from a measured failure:
+
+- **The zoom is legibility, not decoration.** release-video.md's post-mortem:
+  body text at ~1.1% of frame height is unreadable on a phone. A punch-in on
+  the card or the roster is how a beat gets its text to readable size while
+  the establishing frames stay whole.
+- **Source pixels are the ceiling.** Playwright's screencast records CSS px at
+  1× whatever `deviceScaleFactor` says (measured 2026-09-03: DPR 2 with a 2×
+  video size padded the 1× frame with grey). Every zoom enlarges the capture,
+  so `maxZoom` in the shot list is a budget checked on the sheet, and the
+  recording stays at the viewport's own size — one resample in the compositor
+  rather than one in the recorder and another in post.
+- **Blur is the camera's, and holds are crisp.** Each frame averages K
+  sub-samples of the camera transform across a 180° shutter; a still camera
+  renders one sample. The sub-samples read the neighbouring source frame when
+  the shutter crosses a frame boundary, so a fast pan does not strobe.
+
+The lead between the spec's clock and the recorder's still comes from
+`rt-marks.py` — now from the pane's own rect (the `pane_open` mark carries it)
+instead of a hardcoded region that encoded the 0.19 side pane. Check the
+`--sheet` before a render: a cut a half-second early loses a card landing, a
+punch-in a half-second early zooms onto an empty spot.
+
+Framing takes use `e2e/demo/claude-stub.sh` as the pane's `claude`
+(`record-roundtrip.sh` without `--live`): the rig's gates pass in seconds and
+the camera can be re-shot in ~3 minutes. Every stub frame says STUB in its
+first line — it is for the sheet, never for a viewer.
 
 ## Regenerate everything
 
@@ -608,6 +652,13 @@ e2e/demo/
   record-vertical.sh     # unattended vertical regen (mp4 only)
   export-vertical.sh     # webm → *-vertical.mp4, no GIF
   promo-split.ts         # paper terminal + iframe chrome (landscape + vertical)
+  roundtrip.spec.ts      # four shells, four issues; marks (+ rects via markAt) to proof.jsonl
+  record-roundtrip.sh    # seed + serve + take; --live runs real Claude Code, else claude-stub.sh
+  roundtrip.shots.mjs    # shot list: segments and camera arrivals, keyed by mark names
+  camera.mjs             # marked take + shot list → eased zoom/pan, motion blur, end card, poster
+  rt-marks.py            # mark → video seconds; lead from the pane_open luma cliff (rect-driven)
+  claude-stub.sh         # the pane's `claude` on framing takes — says STUB, never shipped
+  endcard.mjs            # end card PNG (ENDCARD_VERSION / ENDCARD_LINE)
   claude-drive.config.ts # 1880×720 flagship landscape, port 7796 (vertical 1080×1350 on 7795)
   claude-drive-web.spec.ts
   record-claude-drive.sh # VHS + Playwright, up to 3 live takes

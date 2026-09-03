@@ -22,6 +22,10 @@ import { chromium } from '@playwright/test'
 import { resolve } from 'node:path'
 
 const out = resolve(process.argv[2] || 'scratch/roundtrip/endcard.png')
+// The version and the G1 line are the film's, not this file's: each cut passes
+// its own (ENDCARD_VERSION / ENDCARD_LINE), and the defaults are the latest.
+const VERSION = process.env.ENDCARD_VERSION || '0.20'
+const LINE = process.env.ENDCARD_LINE || 'every card has its shell. every shell knows its issue.'
 
 const html = `<!doctype html><meta charset="utf-8"><style>
   html,body{margin:0;height:100%;background:#0e0d0c}
@@ -34,8 +38,8 @@ const html = `<!doctype html><meta charset="utf-8"><style>
   .url{margin-top:64px;font-size:38px;color:#cfc0a4;letter-spacing:.01em;
        font-family:ui-monospace,Menlo,monospace}
 </style>
-<div class="name">gadak <em>0.19</em></div>
-<div class="line">every terminal knows its issue.</div>
+<div class="name">gadak <em>${VERSION}</em></div>
+<div class="line">${LINE}</div>
 <div class="url">github.com/midagedev/gadak</div>`
 
 const b = await chromium.launch()

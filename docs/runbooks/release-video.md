@@ -117,3 +117,16 @@ Two more things that survived the same post-mortem:
 - **Say the name.** 26 seconds went by without the word *gadak* appearing at
   a readable size, and without a URL. Reach spent on an unnamed product is
   reach thrown away.
+
+### Addendum 2026-09-03 — the camera is part of shooting
+
+The post-mortem's fix was a smaller viewport. The 0.20 cut adds the other
+lever: a camera layer over the take (`e2e/demo/camera.mjs`, MEDIA.md "The
+camera layer") that punches in on the rect each beat is about. The
+establishing frames stay whole; the beat's text is enlarged only while the
+beat is on. Two constraints travel with it. The capture is 1× CSS px, so the
+zoom budget is small and checked on the contact sheet, not assumed. And the
+blur belongs to the camera, never to a hold — a soft hold spends the
+legibility the zoom bought. Shot lists are written in mark names, so the
+camera is not a reason to retime a take by hand.
+

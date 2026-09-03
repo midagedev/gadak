@@ -1,17 +1,20 @@
 #!/usr/bin/env bash
-# The 0.19 round-trip take (GDK-1159) → scratch/roundtrip/take1.webm
+# The round-trip take (GDK-1159, re-shot for 0.20 under GDK-1253)
+#   → scratch/roundtrip/take-<scheme>.webm + e2e/.tmp/roundtrip/proof-<scheme>.jsonl
 #
-#   "A command typed in the terminal moves the card on the board, right there
-#    — the shell and the tracker are one screen."
+#   "Every card has its shell. Every shell knows its issue."
 #
-# No live model, no simulator, no credential drive. Everything on camera is a
-# `gadak` CLI write against a standalone workspace, which is the point of this
-# rig rather than an economy: a retake costs seconds, so the loop that makes
-# the film good (shoot → contact sheet → retime → shoot again) is affordable.
+# Two modes of the same spec. `--live` is the shipped cut: four real Claude
+# Code sessions read really-broken code (e2e/demo/shop-fixture). Without it
+# the pane's `claude` is e2e/demo/claude-stub.sh — a FRAMING take whose every
+# frame says STUB — so the loop that makes the film good (shoot → sheet →
+# retime the camera → shoot again) costs ~3 minutes instead of ~15.
+# The cut itself is e2e/demo/camera.mjs over e2e/demo/roundtrip.shots.mjs.
 #
 # Usage:
-#   bash e2e/demo/record-roundtrip.sh              # light take
-#   bash e2e/demo/record-roundtrip.sh --dark       # dark take, for comparison
+#   bash e2e/demo/record-roundtrip.sh              # light framing take (stub claude)
+#   bash e2e/demo/record-roundtrip.sh --live       # the real thing (Claude login)
+#   bash e2e/demo/record-roundtrip.sh --dark       # dark scheme, for comparison
 #   bash e2e/demo/record-roundtrip.sh --frames-only [video]
 #                                                  # re-extract keyframes only
 #
@@ -353,6 +356,7 @@ BODIES
 # ── The serve, owned by the hero rig ───────────────────────────────────────
 SERVE_PID=""
 stop_serve() {
+  rm -f "$(dirname "$GADAK_BIN")/claude"   # the framing stub, never left on a shared PATH
   [[ -n "$SERVE_PID" ]] && kill "$SERVE_PID" 2>/dev/null || true
   local pids
   pids="$(lsof -tiTCP:"$PORT" -sTCP:LISTEN 2>/dev/null || true)"
@@ -369,10 +373,28 @@ trap stop_serve EXIT
 # The film's last beat is "the line I typed was one"; that only lands if the
 # board starts human. hero's seed function is not touched — the actor is
 # inherited by the child that runs it.
+# The actor ladder attributes a write to "Claude Code" when CLAUDECODE is in
+# the environment — which it is whenever this rig is launched from a Claude
+# Code session. The seed and the serve are children of this shell, so unset
+# it here or every card wears a CC chip from frame one (measured 2026-09-03:
+# a framing take launched from a lead session had CC on all fifteen cards).
+for v in "${!CLAUDE@}"; do unset "$v"; done
+
 SERVE_ARGS=(--serve-only)
+# Without --live the pane's `claude` is e2e/demo/claude-stub.sh: the spec's
+# boot/ask/answer gates pass in seconds and a framing or camera change re-shoots
+# in ~3 minutes. e2e/.tmp is first on the serve-only PTY PATH (record-hero-desk.sh),
+# which is also why the stub is REMOVED again on exit and before any live take:
+# the terminal-hero rigs put the same directory on their PATH, and a stub left
+# there would shadow the real `claude` in a public take.
+STUB="$(dirname "$GADAK_BIN")/claude"
+rm -f "$STUB"
 if [[ -n "$LIVE" ]]; then
   prepare_live
   SERVE_ARGS+=(--skip-prepare)
+else
+  cp "$ROOT/e2e/demo/claude-stub.sh" "$STUB"
+  echo "record-roundtrip: framing take — \`claude\` in the pane is the STUB, not for viewers"
 fi
 
 echo "record-roundtrip: seeding + serving via record-hero-desk.sh --serve-only…"

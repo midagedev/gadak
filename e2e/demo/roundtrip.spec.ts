@@ -73,14 +73,14 @@
  * selectors: every "which pixels say so" question lives in
  * ./roundtrip-surface.ts, so the day the kanban board lands (GDK-761) the
  * climax is re-shot by swapping that one module. Seeding, recording and the
- * cut pipeline (record-roundtrip.sh / cut-roundtrip.sh) are the third,
+ * cut pipeline (record-roundtrip.sh / camera.mjs) are the third,
  * already-separate piece and do not move either.
  *
  * Marks: every beat appends {mark, epoch_ms, note} to $GADAK_RT_PROOF (JSONL);
  * record-roundtrip.sh turns them into video-relative seconds for the keyframes
- * and cut-roundtrip.sh reads the same file for its cut list.
+ * and camera.mjs reads the same file for its cut and camera.
  */
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect, type Locator, type Page } from '@playwright/test'
 import { appendFileSync, rmSync, writeFileSync } from 'node:fs'
 import { forceLocale, readTerm } from '../helpers'
 import {
@@ -103,9 +103,21 @@ const TARGET_KEY = process.env.GADAK_RT_TARGET || 'STD-7'
 const PROOF = process.env.GADAK_RT_PROOF || ''
 
 
-function mark(name: string, note = ''): void {
+function mark(name: string, note = '', extra: Record<string, unknown> = {}): void {
   if (!PROOF) return
-  appendFileSync(PROOF, `${JSON.stringify({ mark: name, epoch_ms: Date.now(), note })}\n`)
+  appendFileSync(PROOF, `${JSON.stringify({ mark: name, epoch_ms: Date.now(), note, ...extra })}\n`)
+}
+
+/**
+ * A mark that also says WHERE: the target's box in CSS px. The camera layer
+ * (camera.mjs, GDK-1381) punches in on these, so the shot list never holds a
+ * coordinate — a reshoot moves the marks and the camera follows. `start`
+ * carries the viewport so the compositor can scale CSS px to take px.
+ */
+async function markAt(name: string, target: Locator, note = ''): Promise<void> {
+  if (!PROOF) return
+  const box = await target.boundingBox()
+  mark(name, note, box ? { rect: { x: box.x, y: box.y, w: box.width, h: box.height } } : {})
 }
 
 /** Pause between beats so a human can read the frame. */
@@ -318,7 +330,7 @@ test.describe('roundtrip demo', () => {
     // the strip exactly and the roster still reads as "I left work in all of
     // these".
 
-    if (PROOF) mark('start')
+    if (PROOF) mark('start', '', { viewport: page.viewportSize() ? { w: page.viewportSize()!.width, h: page.viewportSize()!.height } : undefined })
     // The set-up runs on the LIST, because that is where the film opens
     // (maker's call): a flat roster of work, the dock already holding four
     // shells, and then one click stands the same issues up as a board. Going
@@ -338,8 +350,9 @@ test.describe('roundtrip demo', () => {
     await expect(pane).toHaveAttribute('data-attached', 'true', { timeout: 30_000 })
     // Not a beat — the clock mark. rt-marks.py finds the offset between the
     // spec's wall clock and the recorder's by looking for the luma cliff the
-    // pane makes when it opens, and it needs this mark to compare against.
-    mark('pane_open')
+    // pane makes when it opens, and it needs this mark to compare against —
+    // the rect tells it WHERE to look for the cliff, whatever the dock's shape.
+    await markAt('pane_open', pane)
     await beat(page, 800)
 
     // How much each shell had printed at the moment it was asked, keyed by
@@ -468,6 +481,12 @@ test.describe('roundtrip demo', () => {
     await beat(page, 600)
     await beat(page, 1000)
     mark('chaos')
+    // Camera targets for the chaos hold: the roster (four keys), the dock,
+    // and the board — cause and effect are stacked, so the camera can frame
+    // "issues above, their shells below" and then the roster alone.
+    await markAt('roster', page.getByTestId('terminal-strip'))
+    await markAt('dock', pane)
+    await markAt('board', page.getByTestId('board'))
     await beat(page, 1800)
 
     // ── RECOVERY A ───────────────────────────────────────────────────────
@@ -506,7 +525,7 @@ test.describe('roundtrip demo', () => {
         }, { timeout: 20_000, intervals: [200] })
         .toBeGreaterThan(0)
       shown.push((await readTerm(page)).trim())
-      mark(`${tag}_replay`, `key=${key}`)
+      await markAt(`${tag}_replay`, tab, `key=${key}`)
       // Long enough to actually read the investigation that is sitting there
       // — the payoff of this beat is the words, not the switch.
       await beat(page, 4200)
@@ -525,7 +544,8 @@ test.describe('roundtrip demo', () => {
       const target = page.locator(`[data-board-key="${CREW[0].key}"]`)
       const box = await target.boundingBox()
       expect(box, 'the card is not in the DOM').toBeTruthy()
-      mark('a_enter')
+      await markAt('a_enter', target)
+      await markAt('a_tab', sessionTab(page, CREW[0].key))
       // Travelled, not warped: hover() teleports the pointer and reads as a
       // jump cut. The glyph is hover-revealed, so the pointer has to arrive
       // and stay before there is anything to click.
@@ -553,6 +573,7 @@ test.describe('roundtrip demo', () => {
       const row = paletteShellRow(page)
       await expect(row).toBeVisible({ timeout: 20_000 })
       await expect(row).toContainText(CREW[1].key)
+      await markAt('b_row', palette)
       // The row is the beat — it has to be readable before it is taken.
       await beat(page, 1100)
       await row.click()
