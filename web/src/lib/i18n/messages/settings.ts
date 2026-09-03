@@ -28,8 +28,8 @@ export const settings = {
   },
   'settings.tabTeams': {
     en: 'Teams',
-    ko: '팀/그룹',
-    ja: 'チーム / グループ',
+    ko: '팀',
+    ja: 'チーム',
   },
   'settings.tabMembers': {
     en: 'Members',
@@ -38,8 +38,8 @@ export const settings = {
   },
   'settings.tabFields': {
     en: 'Fields',
-    ko: '필드 매핑',
-    ja: 'フィールドマップ',
+    ko: '필드',
+    ja: 'フィールド',
   },
   'settings.tabIntegrations': {
     en: 'Integrations',
@@ -578,7 +578,7 @@ export const settings = {
   },
   'settings.featureTeamsDesc': {
     en: 'Group members into teams for filters and grouping — configure rules in the Teams tab',
-    ko: '멤버를 팀으로 묶어 필터·그룹핑 — 팀/그룹 탭에서 규칙 설정',
+    ko: '멤버를 팀으로 묶어 필터·그룹핑 — 팀 탭에서 규칙 설정',
     ja: 'メンバーをチームにまとめてフィルターとグループ化に使います — チーム / グループタブで規則を設定',
   },
   'settings.qaDashboardUrl': {
@@ -1353,8 +1353,13 @@ export const settings = {
   },
   'settings.terminalAppearance': {
     en: 'Appearance',
-    ko: '외양',
+    ko: '외관',
     ja: '外観',
+  },
+  'settings.terminalSavedLocally': {
+    en: 'Saved on this device only. The server did not take the terminal appearance.',
+    ko: '이 기기에만 저장됨. 서버에 터미널 외관을 쓰지 못했습니다.',
+    ja: 'このデバイスにだけ保存されました。サーバーはターミナルの外観を受け取りませんでした。',
   },
   'settings.terminalAppearanceDark': {
     en: 'Dark, under every theme',

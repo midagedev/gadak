@@ -1104,6 +1104,14 @@ func TestSettingsCatalogCoversPUTFields(t *testing.T) {
 	if !want["appearance"] {
 		t.Fatal("settingsDoc is missing appearance — PUT cannot carry the theme")
 	}
+	// settingsDoc.Appearance is the storage struct itself, so every field
+	// added to config.Appearance becomes paired-PUT-settable and GET-emitted
+	// the moment it exists. Pin the two that were reviewed; a third must be
+	// admitted here on purpose, not by omission (GDK-1069 shape, v0.20 audit).
+	at := reflect.TypeOf(config.Appearance{})
+	if at.NumField() != 2 || at.Field(0).Name != "Theme" || at.Field(1).Name != "Terminal" {
+		t.Fatalf("config.Appearance fields changed (%d) — review each new one against PUT /settings/ before admitting it here", at.NumField())
+	}
 	have := map[string]bool{}
 	for _, s := range config.Settings() {
 		if s.Root != "" {

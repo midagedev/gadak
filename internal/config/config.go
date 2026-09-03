@@ -1130,12 +1130,16 @@ func (c *Config) EffectiveTheme() string {
 }
 
 // EffectiveTerminalAppearance is the terminal dock's appearance with the
-// default filled: "dark" unless the block says "follow" (GDK-1357).
+// default filled: "dark" unless the block says "follow" (GDK-1357). A stored
+// value that is neither — a hand-edited config.json — reads as dark too,
+// the way the web parses it; handing the raw string on made the theme
+// picker echo it back on its next PUT and take a 400 for a field it never
+// touched (v0.20 audit, GDK-1363).
 func (c *Config) EffectiveTerminalAppearance() string {
-	if c == nil || c.Appearance == nil || c.Appearance.Terminal == "" {
-		return TerminalAppearanceDark
+	if c != nil && c.Appearance != nil && c.Appearance.Terminal == TerminalAppearanceFollow {
+		return TerminalAppearanceFollow
 	}
-	return c.Appearance.Terminal
+	return TerminalAppearanceDark
 }
 
 // EffectiveLocale is the origin's display-name language (GDK-597). Empty

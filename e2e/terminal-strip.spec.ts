@@ -181,6 +181,47 @@ test.describe('terminal session strip', () => {
   })
 
   /*
+   * GDK-1364: the × is hover-revealed, and revealed by opacity, not display —
+   * a display:none element is out of the tab order, so a "focus-visible"
+   * class on it can never fire. The keyboard path is: focus the row, Tab
+   * onto the ×, Enter. The first cut of the roster column (GDK-1355) used
+   * `hidden … focus-visible:flex`, and this test could not focus it.
+   */
+  test('the × is reachable from the keyboard: Tab from the row, Enter kills', async ({
+    page,
+  }) => {
+    test.setTimeout(120_000)
+    const errors = await boot(page)
+    await openPane(page)
+    const [firstId] = await sessionIds(page)
+    expect(firstId).toBeTruthy()
+    await page.getByTestId('terminal-new').click()
+    await expect(page.getByTestId('terminal-strip')).toHaveAttribute('data-count', '2', {
+      timeout: 20_000,
+    })
+    const secondId = (await sessionIds(page)).find((id) => id !== firstId)
+    const rowTwo = page.locator(
+      `[data-testid="terminal-strip-row"][data-session-id="${secondId}"]`,
+    )
+    // The click above left the pointer where "+ New shell" was — which is
+    // where the new row now sits, so the × would be hover-revealed by
+    // accident and this test would pass on a display:none control
+    // (measured: it did). Park the pointer first; the keyboard is on its own.
+    await page.mouse.move(0, 0)
+    await expect(rowTwo).toHaveAttribute('data-selected', 'true', { timeout: 20_000 })
+    await rowTwo.focus()
+    await page.keyboard.press('Tab')
+    await expect(rowTwo.getByTestId('terminal-strip-kill')).toBeFocused()
+    await page.keyboard.press('Enter')
+    await expect(rowTwo).toHaveCount(0, { timeout: 20_000 })
+    await expect
+      .poll(async () => sessionIds(page), 'the DELETE should have reached the server')
+      .toEqual([firstId])
+
+    expect(appConsoleErrors(errors), `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  /*
    * GDK-1200: a tab's × ends that session — the client finally calls the
    * DELETE the server has kept since GDK-922. Killing the shown session
    * must hand the pane to a neighbour, not leave it attached to a shell

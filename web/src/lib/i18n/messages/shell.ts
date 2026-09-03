@@ -309,9 +309,9 @@ export const shell = {
     ja: '設定',
   },
   'sidebar.serverSettings': {
-    en: 'Server settings (projects, features, teams, field map)',
-    ko: '서버 설정 (프로젝트·기능·팀·필드 매핑)',
-    ja: 'サーバー設定（プロジェクト、機能、チーム、フィールドマップ）',
+    en: 'Server settings (projects, features, teams, fields)',
+    ko: '서버 설정 (프로젝트·기능·팀·필드)',
+    ja: 'サーバー設定（プロジェクト、機能、チーム、フィールド）',
   },
   'sidebar.jiraCreds': {
     en: 'Jira credentials',

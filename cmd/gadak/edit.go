@@ -128,7 +128,7 @@ func cmdEdit(args []string) error {
 		// success line as the only output. Clearing stays available, spelled
 		// as itself.
 		if strings.TrimSpace(body) == "" {
-			return fmt.Errorf("edit %s: -m - read an empty stdin — the description would be cleared; pass -m '' to clear it on purpose", key)
+			return fmt.Errorf("edit %s: -m - read an empty stdin — the description would be cleared; pass -m '' to clear it on purpose (--force-plain too if it is formatted)", key)
 		}
 	}
 	ch, err := parseEditChange(hasSummary, hasM, hasLabel, hasComponent, hasFixVersion, hasType, hasPriority, hasParent, hasDue, hasField,

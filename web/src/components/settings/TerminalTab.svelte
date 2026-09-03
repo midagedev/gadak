@@ -13,6 +13,7 @@
    *    binary the next terminal runs. The CLI on this machine sets them.
    */
   import { t } from '../../lib/i18n'
+  import { copyText } from '../../lib/copy-text'
   import {
     TERMINAL_APPEARANCES,
     parseTerminalAppearance,
@@ -20,7 +21,7 @@
     readTerminalAppearance,
     type TerminalAppearance,
   } from '../../lib/terminal/appearance'
-  import { INPUT_BARE, SELECT_BARE, SELECT_CHEVRON } from './controls'
+  import { INPUT_BARE, SELECT_BARE, SELECT_CHEVRON, COPY_BTN } from './controls'
   import type { SettingsDraft } from './draft'
   import Icon from '../ui/Icon.svelte'
 
@@ -33,14 +34,24 @@
     void persistTerminalAppearance(next)
     appearance = next
   }
+  const SHELL_COMMANDS = 'gadak config set terminal.shell /bin/zsh\ngadak config set terminal.workingDir /path/to/work'
+  let copiedShell = $state(false)
+  async function copyShellCommands(): Promise<void> {
+    if (await copyText(SHELL_COMMANDS)) {
+      copiedShell = true
+      setTimeout(() => {
+        copiedShell = false
+      }, 1500)
+    }
+  }
 </script>
 
 <div class="flex flex-col gap-5" data-testid="terminal-settings">
   <section class="flex flex-col gap-2">
-    <div class="text-micro font-medium tracking-wide text-text-muted uppercase">
-      {t('settings.terminalAppearance')}
-    </div>
     <label class="flex max-w-[280px] flex-col gap-1">
+      <span class="text-micro font-medium tracking-wide text-text-muted uppercase">
+        {t('settings.terminalAppearance')}
+      </span>
       <span class="relative flex">
         <select
           class="{SELECT_BARE} w-full"
@@ -130,7 +141,14 @@
     <p class="text-micro leading-relaxed text-text-muted">{t('settings.terminalShellDesc')}</p>
     <pre
       class="overflow-x-auto rounded-md border border-border-subtle bg-bg-panel px-3 py-2 font-mono text-micro text-text-secondary"
-      data-testid="terminal-shell-commands">gadak config set terminal.shell /bin/zsh
-gadak config set terminal.workingDir /path/to/work</pre>
+      data-testid="terminal-shell-commands">{SHELL_COMMANDS}</pre>
+    <!-- Every other tab that shows a CLI command puts the copy button beside
+         it (SyncTab, DevicesTab, IntegrationsTab); this one had none until
+         the v0.20 audit read it. -->
+    <div>
+      <button type="button" class={COPY_BTN} onclick={() => void copyShellCommands()}>
+        {copiedShell ? t('settings.copied') : t('settings.copy')}
+      </button>
+    </div>
   </section>
 </div>

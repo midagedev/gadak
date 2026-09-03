@@ -138,7 +138,7 @@
                the two want the same slot, and the verb wins while the
                pointer is there. -->
           <span
-            class="flex-none text-micro text-text-muted tabular-nums group-hover:hidden"
+            class="flex-none text-micro text-text-muted tabular-nums group-hover:hidden group-focus-within:hidden"
             data-testid="terminal-strip-since">{relativeTime(row.since, 'compact')}</span
           >
         {/if}
@@ -147,14 +147,19 @@
              the role and the keys itself — the BoardCard.svelte precedent.
              Both handlers stop propagation: ending a session is not
              selecting its row. On a ghost the same DELETE is just tidying a
-             shell that already has nobody (GDK-1200). -->
+             shell that already has nobody (GDK-1200). Revealed by opacity,
+             never by display: a display:none element is out of the tab
+             order, so `hidden … focus-visible:flex` can never fire — the
+             column's first cut did that and the × was mouse-only until the
+             v0.20 audit read it (GDK-1364). The clock above yields the slot
+             on hover and while the × has focus. -->
         <span
           role="button"
           tabindex="0"
           data-testid="terminal-strip-kill"
           aria-label={t('terminal.strip.kill', { name: row.label })}
           title={t('terminal.strip.kill', { name: row.label })}
-          class="hidden h-4 w-4 flex-none items-center justify-center rounded text-text-muted group-hover:flex hover:bg-bg-hover hover:text-text-primary focus-visible:flex"
+          class="flex h-4 w-4 flex-none items-center justify-center rounded text-text-muted opacity-0 transition-opacity group-hover:opacity-100 hover:bg-bg-hover hover:text-text-primary focus-visible:opacity-100"
           onclick={(e) => {
             e.stopPropagation()
             void terminalSessions.kill(row.id)

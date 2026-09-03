@@ -219,7 +219,9 @@ type settingsConfluenceDoc struct {
 
 // settingsTerminalDoc is the terminal block as the settings document carries
 // it: the two display fields, stored values (0 / false = default). See the
-// Terminal field comment for why shell and workingDir are absent.
+// Terminal field comment for why shell and workingDir are absent. Present
+// means the whole display pair is replaced — omit-to-preserve is block-
+// granular, like `ui`; a body with only scrollback resets cursorBlink.
 type settingsTerminalDoc struct {
 	Scrollback  int  `json:"scrollback"`
 	CursorBlink bool `json:"cursorBlink"`

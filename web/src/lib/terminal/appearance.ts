@@ -85,7 +85,7 @@ export async function persistTerminalAppearance(pref: TerminalAppearance): Promi
     try {
       const { write } = await import('../../stores/write.svelte')
       const { t } = await import('../i18n')
-      write.toast(t('theme.savedLocally'), 'info')
+      write.toast(t('settings.terminalSavedLocally'), 'info')
     } catch {
       console.warn('gadak: terminal appearance saved locally only')
     }

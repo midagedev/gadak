@@ -474,12 +474,12 @@
       "name": "ansi-white",
       "cssVar": "--color-ansi-white",
       "tier": "free",
-      "description": "color token; light orange family (#6f6656)",
+      "description": "color token; light orange family (#6a6152)",
       "rules": [
         "hex"
       ],
       "values": {
-        "light": "#6f6656",
+        "light": "#6a6152",
         "dark": "#d3d7cf",
         "ember": "#d3d7cf",
         "ink": "#d3d7cf"

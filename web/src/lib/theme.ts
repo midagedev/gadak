@@ -17,7 +17,7 @@ import { isHostedDemo } from './config'
 import type { MessageKey } from './i18n'
 import { queueSettingsPatch } from './settings-write'
 import { themeStorageKey } from './storage'
-import { hydrateTerminalAppearance } from './terminal/appearance'
+import { hydrateTerminalAppearance, readTerminalAppearance } from './terminal/appearance'
 
 export const THEMES = [
   { name: 'light', labelKey: 'theme.light' satisfies MessageKey },
@@ -123,10 +123,14 @@ async function writeThroughTheme(pref: ThemePreference): Promise<void> {
 export async function hydrateThemeFromServer(): Promise<void> {
   if (isHostedDemo()) return
   const localBefore = readThemePreference()
+  const terminalBefore = readTerminalAppearance()
   try {
     const settings = await getSettings()
     if (!settings.appearance) return
-    hydrateTerminalAppearance(settings)
+    // Same rule as the theme below: a click made while this GET was in
+    // flight is newer than the answer, and its own PUT is already on the
+    // way — do not revert it locally (v0.20 audit, GDK-1363).
+    if (readTerminalAppearance() === terminalBefore) hydrateTerminalAppearance(settings)
     const remote = parseThemePreference(settings.appearance.theme)
     if (readThemePreference() !== localBefore) return
     if (remote !== localBefore) setThemePreference(remote)
