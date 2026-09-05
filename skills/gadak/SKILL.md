@@ -557,6 +557,9 @@ gadak comment NMB-140 -m "done" --internal    # JSM internal
 gadak transition NMB-140                      # list tokens this credential can fire
 gadak transition NMB-140 "In Review"
 gadak transition NMB-140 done                 # status category: new | inprogress | done
+# Prefer the name or the category token over a number: on the built-in tracker
+# transition ids (1..n) and status ids (3, 10000, …) overlap, so a bare number
+# is refused as ambiguous — the refusal names both readings.
 gadak close NMB-140                           # same as transition KEY done; already done is a no-op
 gadak transition NMB-140 done --resolution "Won't Do" -m "fixed in 1.2"
 gadak assign NMB-140 dana@example.com         # email, display name, or accountId; `-` unassigns. Ambiguous names are refused with the candidates.

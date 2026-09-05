@@ -54,8 +54,14 @@ func PickTransition(key, want string, list []Transition) (string, error) {
 			}
 		}
 		if len(others) > 0 {
-			return "", fmt.Errorf("%q matches a transition id and a different target status id on %s — transition id: %s; target status id: %s",
-				want, key, FormatTransition(*idHit), JoinTransitions(others))
+			// GDK-1305: on the built-in tracker transition ids (1..n) and
+			// status ids (3, 10000, …) overlap for every small workflow, so a
+			// bare number lands here every time. The refusal stays — picking
+			// the transition id would move an issue whose user typed the
+			// status_id they read in SQL — but it names the two forms that
+			// cannot collide.
+			return "", fmt.Errorf("%q matches a transition id and a different target status id on %s — transition id: %s; target status id: %s\nsay it by name (%q) or by status category (%s) — a bare number is ambiguous when transition ids and status ids overlap",
+				want, key, FormatTransition(*idHit), JoinTransitions(others), idHit.Name, strings.Join(ReachableCategories(list), "|"))
 		}
 		return idHit.ID, nil
 	}

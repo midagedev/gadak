@@ -280,6 +280,8 @@ func TestTransitionIDAndStatusIDCollisionRefuses(t *testing.T) {
 		`"10003" matches a transition id and a different target status id on NMB-1`,
 		"transition id: Start work (id 10003, → 진행 중 [status_id 3])",
 		"target status id: Close (id 41, → 완료 [status_id 10003])",
+		// GDK-1305: the refusal names the forms that cannot collide.
+		`say it by name ("Start work") or by status category (inprogress|done)`,
 	} {
 		if !strings.Contains(msg, want) {
 			t.Errorf("error %q missing %q", msg, want)
