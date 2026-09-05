@@ -622,7 +622,8 @@ On a **paired** workspace (`status --json` has `pairing`), writes go to the
 home serve, not Atlassian. Its mirror carries the home origin's wiki too
 (every team space, personal excluded); if `status --json` says the wiki pass is skipped as
 not configured, the workspace was paired before that was the default —
-`gadak config set confluence.enabled true` turns it on.
+`gadak config set wiki.enabled true` turns it on (`wiki.*` is the alias the
+CLI takes for the stored `confluence.*` paths; stderr names the stored one).
 
 Never write to the SQLite file. A row written directly is destroyed by the
 next sync, on either kind.

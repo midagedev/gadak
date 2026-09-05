@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -400,6 +401,9 @@ func Settings() []Setting {
 // per token and bury the rest of the table); they resolve here from the
 // four ui.tokens.<axis>.<name> templates.
 func SettingByPath(path string) (Setting, bool) {
+	if canonical, ok := settingAliases[path]; ok {
+		path = canonical
+	}
 	for _, s := range buildSettings() {
 		if s.Path == path {
 			return s, true
@@ -409,6 +413,35 @@ func SettingByPath(path string) (Setting, bool) {
 		return uiTokenLeafSetting(axis, name), true
 	}
 	return Setting{}, false
+}
+
+// settingAliases are second spellings of a stored path. The wiki source is
+// keyed `confluence` because that is the file's field and the Atlassian
+// product it started as — but the Built-in tracker's wiki is not
+// Confluence, and every other surface (Settings → Sources, `gadak page`,
+// `gadak wiki`, the skill) calls it the wiki. A user on a paired workspace
+// typed `wiki` and `spaces` first and got "unknown path" twice (GDK-1289).
+// The stored key does not move: aliases resolve here, the echo prints the
+// canonical path, and `config list` keeps one row per fact.
+var settingAliases = map[string]string{
+	"wiki":         "confluence",
+	"wiki.enabled": "confluence.enabled",
+	"wiki.spaces":  "confluence.spaces",
+}
+
+// SettingAliases returns "alias → canonical" pairs in a stable order, for
+// the unknown-path listing.
+func SettingAliases() []string {
+	keys := make([]string, 0, len(settingAliases))
+	for k := range settingAliases {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	out := make([]string, len(keys))
+	for i, k := range keys {
+		out[i] = k + " → " + settingAliases[k]
+	}
+	return out
 }
 
 // SettingPaths returns catalog paths in catalog order.
@@ -944,14 +977,14 @@ func buildSettings() []Setting {
 		{
 			Path:        "confluence",
 			Root:        "confluence",
-			Description: "wiki-page source: {enabled, spaces}; empty spaces = every team space (personal excluded)",
+			Description: "wiki-page source: {enabled, spaces}; empty spaces = every team space (personal excluded); alias: wiki",
 			Get:         getConfluence,
 			Set:         setConfluence,
 		},
 		{
 			Path:        "confluence.enabled",
 			Root:        "confluence",
-			Description: "wiki-page mirror on/off",
+			Description: "wiki-page mirror on/off; alias: wiki.enabled",
 			Get:         func(c *Config) any { return c.Confluence != nil },
 			Set: func(c *Config, raw json.RawMessage) error {
 				b, err := decodeBool(raw, "confluence.enabled")
@@ -968,7 +1001,7 @@ func buildSettings() []Setting {
 		{
 			Path:        "confluence.spaces",
 			Root:        "confluence",
-			Description: "mirrored Confluence space keys (rejected while the source is off)",
+			Description: "mirrored wiki space keys (rejected while the source is off); alias: wiki.spaces",
 			Get: func(c *Config) any {
 				if c.Confluence == nil {
 					return []string{}

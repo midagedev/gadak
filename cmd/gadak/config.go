@@ -100,11 +100,23 @@ func configGet(args []string) error {
 	if !ok {
 		return unknownConfigPath(pos[0])
 	}
+	noteConfigAlias(pos[0], s.Path)
 	cfg, err := config.Load()
 	if err != nil {
 		return err
 	}
 	return writeConfigValue(*asJSON, s.Path, s.Get(cfg))
+}
+
+// noteConfigAlias says on stderr which stored path an alias resolved to
+// (GDK-1289): stdout keeps its value-only contract, and the user who typed
+// `wiki.enabled` learns that the file's key is `confluence.enabled` without
+// being refused. Silent when the path was already the stored one.
+func noteConfigAlias(typed, stored string) {
+	if typed == stored {
+		return
+	}
+	fmt.Fprintf(os.Stderr, "%s is stored as %s\n", typed, stored)
 }
 
 func configSet(args []string) error {
@@ -130,6 +142,7 @@ func configSet(args []string) error {
 	if !ok {
 		return unknownConfigPath(path)
 	}
+	noteConfigAlias(path, s.Path)
 	cfg, err := config.Load()
 	if err != nil {
 		return err
@@ -283,7 +296,8 @@ func parseConfigValue(s string) json.RawMessage {
 func unknownConfigPath(path string) error {
 	return &exitCodeError{
 		code: 64,
-		msg:  fmt.Sprintf("unknown config path %q — valid:\n  %s", path, strings.Join(config.SettingPaths(), "\n  ")),
+		msg: fmt.Sprintf("unknown config path %q — valid:\n  %s\naliases:\n  %s", path,
+			strings.Join(config.SettingPaths(), "\n  "), strings.Join(config.SettingAliases(), "\n  ")),
 	}
 }
 

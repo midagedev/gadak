@@ -382,3 +382,55 @@ func TestConfigSetProjectsWarnsOfflineAgainstMirror(t *testing.T) {
 		t.Fatalf("stored %v", saved.Projects)
 	}
 }
+
+// GDK-1289: the wiki source is stored as `confluence`, but that is the
+// Atlassian product's name, not the Built-in tracker's wiki. The words a
+// user types first — wiki, wiki.enabled, wiki.spaces — resolve to the
+// stored path; the echo prints the canonical one so the file's key is
+// learned, and the unknown-path listing names the aliases.
+func TestConfigWikiAliasesResolveToConfluence(t *testing.T) {
+	configHome(t)
+	out, errOut, err := captureErr(t, func() error {
+		return cmdConfig([]string{"set", "wiki.enabled", "true"})
+	})
+	if err != nil {
+		t.Fatalf("set wiki.enabled: %v", err)
+	}
+	if strings.TrimSpace(out) != "true" {
+		t.Fatalf("stdout keeps the value-only echo, got %q", out)
+	}
+	if !strings.Contains(errOut, "wiki.enabled is stored as confluence.enabled") {
+		t.Fatalf("stderr should name the stored path, got %q", errOut)
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Confluence == nil {
+		t.Fatal("wiki.enabled true left the confluence block absent")
+	}
+	out, errOut, err = captureErr(t, func() error {
+		return cmdConfig([]string{"set", "wiki.spaces", `["ENG"]`})
+	})
+	if err != nil || !strings.Contains(errOut, "stored as confluence.spaces") {
+		t.Fatalf("set wiki.spaces: out=%q errOut=%q err=%v", out, errOut, err)
+	}
+	out, errOut, err = captureErr(t, func() error {
+		return cmdConfig([]string{"get", "wiki", "--json"})
+	})
+	if err != nil || !strings.Contains(out, `"ENG"`) || !strings.Contains(errOut, "wiki is stored as confluence") {
+		t.Fatalf("get wiki: out=%q errOut=%q err=%v", out, errOut, err)
+	}
+	_, errOut, err = captureErr(t, func() error {
+		return cmdConfig([]string{"get", "confluence.enabled"})
+	})
+	if err != nil || errOut != "" {
+		t.Fatalf("the stored path itself gets no alias note: errOut=%q err=%v", errOut, err)
+	}
+	_, err = capture(t, func() error {
+		return cmdConfig([]string{"get", "spaces"})
+	})
+	if err == nil || !strings.Contains(err.Error(), "wiki.spaces → confluence.spaces") {
+		t.Fatalf("unknown-path listing should name the aliases: %v", err)
+	}
+}

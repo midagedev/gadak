@@ -346,7 +346,7 @@ the in-process origin seeds) so the wiki pass is on for a new built-in-tracker
 workspace. Pairing writes the block with `spaces` empty — every global space
 the home origin lists — so a paired workspace mirrors the home machine's wiki
 too; a workspace paired before that was the default turns it on with
-`gadak config set confluence.enabled true`.
+`gadak config set wiki.enabled true` (an alias of the stored `confluence.enabled`).
 
 ## Two sites at once
 
