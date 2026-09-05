@@ -9,14 +9,14 @@ const releases = 'https://github.com/midagedev/gadak/releases/latest'
 <Base
   lang="ko"
   title="설치 — gadak"
-  description="gadak 설치: Homebrew(macOS·Linux), Windows 릴리즈 zip, 첫 실행과 에이전트 연결까지."
+  description="gadak 설치: Homebrew(macOS·Linux), Windows 릴리스 zip, 처음 실행과 에이전트 연결까지."
 >
   <h1>{t.install.heading}</h1>
   <p class="lede">
-    플랫폼 골라 한 줄 실행하고, <a href="#first-run">처음 실행</a>으로 넘어가면 됩니다. Atlassian
-    사이트에 연결하려면
-    <a href="https://id.atlassian.com/manage-profile/security/api-tokens">API 토큰</a> 하나면 되고
-    (같은 사이트의 Jira·Confluence를 함께 커버합니다), 내장 트래커는 계정 자체가 필요
+    플랫폼에 맞는 한 줄을 실행한 뒤 <a href="#first-run">처음 실행</a>으로 넘어가면 됩니다. Atlassian
+    사이트에 연결할 때 필요한 것은
+    <a href="https://id.atlassian.com/manage-profile/security/api-tokens">API 토큰</a> 하나입니다
+    (같은 사이트의 Jira와 Confluence에 함께 쓰입니다). 내장 트래커는 계정 자체가 필요
     없습니다.
   </p>
 
@@ -24,44 +24,44 @@ const releases = 'https://github.com/midagedev/gadak/releases/latest'
   <p>데스크톱 앱, CLI 포함:</p>
   <Snippet code="brew install --cask midagedev/tap/gadak" copyLabel="복사" copiedLabel="복사됨" />
   <p>
-    CLI만 — 같은 UI를 브라우저 탭에서 <code>gadak serve</code>로:
+    CLI만 설치하고 같은 UI를 <code>gadak serve</code>로 브라우저 탭에서 열려면:
   </p>
   <Snippet code="brew install midagedev/tap/gadak-cli" copyLabel="복사" copiedLabel="복사됨" />
   <p class="note">
-    Homebrew가 없다면 <a href={releases}>최신 릴리즈</a>의
+    Homebrew가 없다면 <a href={releases}>최신 릴리스</a>에서
     <code>Gadak-&lt;version&gt;-arm64.dmg</code>(서명·공증 완료)를 받으면 됩니다.
   </p>
 
   <h2 id="linux">Linux</h2>
   <Snippet code="brew install midagedev/tap/gadak-cli" copyLabel="복사" copiedLabel="복사됨" />
   <p class="note">
-    Homebrew 없이: <a href={releases}>최신 릴리즈</a>에서 아키텍처에 맞는 타볼을 받아
+    Homebrew 없이 설치하려면 <a href={releases}>최신 릴리스</a>에서 아키텍처에 맞는 tarball을 받아
     <code>gadak</code>을 <code>PATH</code>에 두면 됩니다.
   </p>
 
   <h2 id="windows">Windows</h2>
   <p>
-    <a href={releases}>최신 릴리즈</a>에서
+    <a href={releases}>최신 릴리스</a>에서
     <code>gadak_&lt;version&gt;_windows_amd64.zip</code>(또는 <code>windows_arm64</code>)을 받아
-    풀고 <code>gadak.exe</code>를 <code>PATH</code>에 두세요. 이 경로가 가장 확실합니다.
+    풀고 <code>gadak.exe</code>를 <code>PATH</code>에 두세요. 이 방법이 가장 확실합니다.
   </p>
   <p class="note">
-    데스크톱 zip(<code>Gadak-&lt;version&gt;-windows-x64.zip</code>)은 아직 미서명이라
-    SmartScreen이나 Smart App Control이 막을 수 있습니다 — 바이러스 검출이 아니라 서명 부재
-    경고이니, 그 경우 위의 CLI zip을 쓰세요. 자세한 내용과 sha256 확인 방법:
+    데스크톱 zip(<code>Gadak-&lt;version&gt;-windows-x64.zip</code>)은 아직 서명이 없어서
+    SmartScreen이나 Smart App Control이 막을 수 있습니다. 바이러스가 검출된 것이 아니라 서명이
+    없다는 경고이므로, 막히면 위의 CLI zip을 쓰세요. 자세한 내용과 sha256 확인 방법:
     <a href="https://github.com/midagedev/gadak/blob/main/docs/WINDOWS-SIGNING.md"
       >WINDOWS-SIGNING.md</a
     >.
   </p>
 
   <h2 id="first-run">처음 실행</h2>
-  <p>회사 Jira에 연결 (사이트·이메일·토큰·프로젝트를 차례로 묻습니다):</p>
+  <p>회사 Jira에 연결합니다 (사이트, 이메일, 토큰, 프로젝트를 차례로 묻습니다):</p>
   <Snippet
     code={`gadak init && gadak sync && gadak serve`}
     copyLabel="복사"
     copiedLabel="복사됨"
   />
-  <p>또는 계정 없이 내장 트래커로 시작:</p>
+  <p>계정 없이 내장 트래커로 시작하려면:</p>
   <Snippet
     code={`gadak init --local
 gadak create "방금 생각난 일"
@@ -70,20 +70,20 @@ gadak serve`}
     copiedLabel="복사됨"
   />
   <p class="note">
-    어느 쪽이든 <code>gadak serve</code>가 주소를 출력합니다 —
-    <code>http://gadak.localhost:7777</code>을 열어 이슈가 보이면 설치 검증 끝입니다.
+    어느 쪽이든 <code>gadak serve</code>가 주소를 출력합니다.
+    <code>http://gadak.localhost:7777</code>을 열어 이슈가 보이면 설치는 끝난 것입니다.
   </p>
 
   <h2 id="scope">무엇을 미러링할지</h2>
   <p>
-    직접 고릅니다. 설치했다는 이유만으로 사이트 전체를 내려받는 일은 없습니다. Confluence 위키는
-    <strong>요청하기 전까지 꺼져 있고</strong>, 켤 때는 스페이스를 지정합니다:
+    미러링할 범위는 직접 고릅니다. 설치했다고 사이트 전체를 내려받지는 않습니다. Confluence 위키는
+    <strong>켜기 전까지 꺼져 있고</strong>, 켤 때 스페이스를 지정합니다:
   </p>
   <Snippet code="gadak init --spaces ENG,PROD" copyLabel="복사" copiedLabel="복사됨" />
   <p class="note">
-    Jira도 같은 방식입니다 — <code>--projects ENG,PROD</code>, 비워 두면 계정이 볼 수 있는 모든
-    프로젝트. 둘 다 설정 → 소스에 픽커가 있어서, 지금 좁게 잡아 둔 범위를 나중에 무엇도 다시
-    실행하지 않고 넓힐 수 있습니다.
+    Jira도 같습니다. <code>--projects ENG,PROD</code>로 지정하고, 비워 두면 계정이 볼 수 있는 모든
+    프로젝트를 받습니다. 둘 다 설정 → 소스에서 다시 고를 수 있어서, 지금은 좁게 잡아 두고 나중에
+    아무것도 다시 실행하지 않고 범위를 넓힐 수 있습니다.
   </p>
 
   <h2 id="agents">에이전트 연결</h2>
@@ -92,7 +92,7 @@ gadak serve`}
   <p>셸이 없는 MCP 클라이언트(Claude Desktop)에는:</p>
   <Snippet code="claude mcp add gadak -- gadak mcp" copyLabel="복사" copiedLabel="복사됨" />
   <p class="note">
-    연결 후 에이전트가 할 수 있는 일:
+    연결한 뒤 에이전트가 할 수 있는 일:
     <a href="https://github.com/midagedev/gadak/blob/main/docs/AGENT_SETUP.md">AGENT_SETUP.md</a>.
   </p>
 </Base>
