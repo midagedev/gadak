@@ -87,13 +87,18 @@ test.describe('create fields (GDK-254)', () => {
     )
 
     let posted: CreateBody | null = null
+    // The mocked create answers with a key the fixture holds: the dialog
+    // opens the created issue afterwards (selection.select → detail GET),
+    // and a key the server does not know 404s in the console — a race the
+    // CI runner lost twice (GDK-1295). Write-through puts the real issue in
+    // the mirror before it answers, so an existing key is the honest shape.
     await page.route('**/api/v1/issues/create/', async (route) => {
       if (route.request().method() !== 'POST') return route.continue()
       posted = route.request().postDataJSON() as CreateBody
       await fulfillJSON(route, {
         issue: {
           ...template,
-          issue_key: 'GDK-254',
+          issue_key: 'NMB-1',
           summary: posted.summary,
           issue_type: 'Task',
           source_project: 'NMB',
@@ -144,7 +149,7 @@ test.describe('create fields (GDK-254)', () => {
       await fulfillJSON(route, {
         issue: {
           ...template,
-          issue_key: 'GDK-254b',
+          issue_key: 'NMB-10',
           summary: posted.summary,
           issue_type: 'Task',
           source_project: 'NMB',
