@@ -51,7 +51,11 @@ because Partner Center refuses a 0.x major — see the comment in the script;
 that mapping is a one-way door once the Store has accepted a package. The
 output is unsigned on purpose: the Store re-signs with a Microsoft
 certificate after certification, so the file is for Partner Center, not for
-users ([GDK-1380]).
+users ([GDK-1380]). The manifest also declares an app-execution alias for
+`gadak.exe`, so a Store install puts `gadak` on `PATH`
+(`%LOCALAPPDATA%\Microsoft\WindowsApps\gadak.exe`) — the zip never needed
+one — and the three UI languages (en-US, ko-KR, ja-JP), each of which needs a
+listing in Partner Center.
 
 The Windows directory name uses the Windows pack labels (`x64`, `arm64`), not
 the macOS dmg labels (`amd64`, `arm64`) or the AppImage / `uname -m` labels

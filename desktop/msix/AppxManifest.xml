@@ -15,8 +15,10 @@
 <Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
+  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
-  IgnorableNamespaces="uap rescap">
+  IgnorableNamespaces="uap uap3 desktop rescap">
 
   <Identity
     Name="midagedev.Gadak"
@@ -36,8 +38,13 @@
   </Dependencies>
 
   <Resources>
+    <!-- The three languages the UI speaks (web/src/lib/i18n, GDK-626). Each
+         declared language needs a Partner Center listing in that language;
+         the web layer picks the locale from the OS language itself, so these
+         rows are the Store's knowledge of it, not resource files. -->
     <Resource Language="en-US" />
     <Resource Language="ko-KR" />
+    <Resource Language="ja-JP" />
   </Resources>
 
   <Applications>
@@ -62,6 +69,19 @@
             <uap:DisplayName>Gadak</uap:DisplayName>
           </uap:Protocol>
         </uap:Extension>
+        <!-- `gadak` on PATH for a Store install. The package carries the same
+             gadak.exe as the zip, but under WindowsApps\<identity>\ no shell
+             finds it; this alias makes Windows materialise
+             %LOCALAPPDATA%\Microsoft\WindowsApps\gadak.exe on install and
+             remove it on uninstall (the CI msix install step asks it for its
+             version). Executable here is the CLI, not the Application's
+             gadak-desktop.exe — the same shape Windows Terminal uses for wt.exe.
+             A zip gadak.exe already on PATH wins or loses by PATH order. -->
+        <uap3:Extension Category="windows.appExecutionAlias" Executable="gadak.exe" EntryPoint="Windows.FullTrustApplication">
+          <uap3:AppExecutionAlias>
+            <desktop:ExecutionAlias Alias="gadak.exe" />
+          </uap3:AppExecutionAlias>
+        </uap3:Extension>
       </Extensions>
     </Application>
   </Applications>

@@ -821,8 +821,8 @@ jobs:
         run: go test ./... -run 'Protocol' -count=1
 
       # makeappx validates the manifest schema; only an install proves the
-      # identity, the full-trust entry point and the protocol declaration
-      # are accepted. The Store re-signs with its own certificate, so here
+      # identity, the full-trust entry point, the protocol declaration and the
+      # app-execution alias are accepted. The Store re-signs with its own certificate, so here
       # a throwaway self-signed certificate with the same Publisher CN
       # stands in — trusted by this runner only, for the length of the step.
       # Last in the job on purpose: deploying a package that declares
@@ -861,7 +861,20 @@ jobs:
           if ($pkg.Publisher -ne $publisher) { throw "publisher drifted: $($pkg.Publisher) vs manifest $publisher" }
           $installed = Join-Path $pkg.InstallLocation 'gadak-desktop.exe'
           if (-not (Test-Path -LiteralPath $installed)) { throw "package has no gadak-desktop.exe at $installed" }
+          # The Store install must put the CLI on PATH (GDK app-execution
+          # alias, 0.20.2): Windows materialises a declared alias as
+          # %LOCALAPPDATA%\Microsoft\WindowsApps\gadak.exe on install. The
+          # zip's gadak.exe never had this problem; the Store package did —
+          # its gadak.exe sat under WindowsApps\<identity>\ where no shell
+          # looks. Asking the alias for its version proves it points at the
+          # packaged CLI, not that a file merely exists.
+          $alias = Join-Path $env:LOCALAPPDATA 'Microsoft\WindowsApps\gadak.exe'
+          if (-not (Test-Path -LiteralPath $alias)) { throw "install created no app-execution alias at $alias (manifest declares no windows.appExecutionAlias for gadak.exe?)" }
+          $aliasOut = & $alias version 2>&1 | Out-String
+          if ($LASTEXITCODE -ne 0) { throw "alias gadak.exe version exited ${LASTEXITCODE}: $aliasOut" }
+          Write-Host ("alias gadak.exe -> " + $aliasOut.Trim())
           Remove-AppxPackage -Package $pkg.PackageFullName
+          if (Test-Path -LiteralPath $alias) { throw "alias $alias survived Remove-AppxPackage" }
           Write-Host "msix install/uninstall — ok"
           exit 0
 
