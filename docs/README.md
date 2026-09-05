@@ -7,6 +7,7 @@ document answers.
 
 - [README.md](../README.md): what is gadak, and how do I try it?
 - [INSTALL.md](INSTALL.md): how do I install the CLI or the app?
+- [SHOWCASE.md](SHOWCASE.md): what does it look like in motion? The window, the launcher, and agents driving both, on camera
 - [DESKTOP.md](DESKTOP.md): when do I want the desktop window instead of `gadak serve`?
 - [AGENT_SETUP.md](AGENT_SETUP.md): how do I give a coding agent access (one paste per tool)?
 - [MCP.md](MCP.md): how do I wire MCP on a host that has no shell?
