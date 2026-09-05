@@ -2,6 +2,38 @@
 
 <sub>English · <a href="CHANGELOG.ko.md">한국어</a></sub>
 
+## v0.20.2 — 2026-09-06
+
+**The Windows app is on the Microsoft Store, and a fix round.**
+
+- Windows: the desktop app is on the
+  [Microsoft Store](https://apps.microsoft.com/detail/9NZW91TXH36G) — the
+  Store signs it, so neither SmartScreen nor Smart App Control objects, and
+  every install guide leads with it ([GDK-1380]). `gadak-desktop.exe` is a
+  GUI-subsystem image at last: no console window beside the app (every zip
+  since 0.16 and the first Store package had one), and the pack refuses to
+  ship one again. The Store package declares an app-execution alias, so a
+  Store install puts `gadak` on `PATH`, and ja-JP as a third language.
+- Linear: relations are mirrored as `links` — blocks, duplicate, related —
+  so the linked-issues panel and the blockers recipes work on a Linear
+  workspace ([GDK-1299]).
+- Terminal: an issue key printed under the resting pointer is clickable at
+  once, not after the mouse moves ([GDK-1172]).
+- `wiki`, `wiki.enabled` and `wiki.spaces` are aliases of the `confluence.*`
+  config paths, and `config get`/`set` says where the value lives
+  ([GDK-1289]).
+- List: one field, one name — the breakdown axes read the same labels as the
+  filter and the columns ([GDK-1399]); the link-type catalog is fetched once
+  per workspace, so a linked issue's direction phrase no longer flashes its
+  bare type name on every open ([GDK-1297]).
+- Fixes: a Confluence page-version write that fails degrades the mirror
+  instead of killing the wiki pass ([GDK-1307]); the transition refusal for
+  a number that is both a transition id and a status id names the two forms
+  that cannot collide ([GDK-1305]); two CI flakes — the pairing mint test
+  and the create-dialog e2e ([GDK-1306], [GDK-1295]).
+- Docs: the window speaks English, Korean and Japanese, and the READMEs and
+  install pages now say so.
+
 ## v0.20.1 — 2026-09-03
 
 **Bodies are markdown, and a formatted one survives the round trip.**
@@ -1468,3 +1500,12 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-1351]: https://gadak.dev/backlog/#/?ks=GDK-1351
 [GDK-1398]: https://gadak.dev/backlog/#/?ks=GDK-1398
 [GDK-1192]: https://gadak.dev/backlog/#/?ks=GDK-1192
+[GDK-1299]: https://gadak.dev/backlog/#/?ks=GDK-1299
+[GDK-1172]: https://gadak.dev/backlog/#/?ks=GDK-1172
+[GDK-1289]: https://gadak.dev/backlog/#/?ks=GDK-1289
+[GDK-1399]: https://gadak.dev/backlog/#/?ks=GDK-1399
+[GDK-1297]: https://gadak.dev/backlog/#/?ks=GDK-1297
+[GDK-1307]: https://gadak.dev/backlog/#/?ks=GDK-1307
+[GDK-1305]: https://gadak.dev/backlog/#/?ks=GDK-1305
+[GDK-1306]: https://gadak.dev/backlog/#/?ks=GDK-1306
+[GDK-1295]: https://gadak.dev/backlog/#/?ks=GDK-1295

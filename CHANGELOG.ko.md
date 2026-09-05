@@ -2,6 +2,36 @@
 
 <sub><a href="CHANGELOG.md">English</a> · 한국어 — 영문이 원본이며, 번역은 영문과 함께 갱신됩니다(마지막 동기화 2026-09-03).</sub>
 
+## v0.20.2 — 2026-09-06
+
+**Windows 앱이 Microsoft Store에 올라갔고, 결함을 한 차례 걷어냈습니다.**
+
+- Windows 데스크톱 앱이
+  [Microsoft Store](https://apps.microsoft.com/detail/9NZW91TXH36G)에 있다.
+  Store가 서명해 주므로 SmartScreen도 Smart App Control도 막지 않고, 설치
+  안내는 어디서나 Store를 먼저 가리킨다 ([GDK-1380]). `gadak-desktop.exe`가
+  드디어 GUI 서브시스템 이미지다. 앱 옆에 뜨던 빈 콘솔 창(0.16 이후 모든 zip과
+  첫 Store 패키지에 있었다)이 사라졌고, 팩 스크립트가 다시는 그런 파일을 내지
+  않도록 막는다. Store 패키지는 실행 별칭을 선언해 Store 설치에서도 `gadak`이
+  `PATH`에 오르고, 세 번째 언어로 ja-JP를 선언한다.
+- Linear의 관계(blocks·duplicate·related)가 `links`로 미러된다. Linear
+  워크스페이스에서 연결 이슈 패널과 블로커 레시피가 동작한다 ([GDK-1299]).
+- 터미널에서 포인터가 쉬고 있는 행에 찍힌 이슈 키가 마우스를 움직이기 전에도
+  바로 클릭된다 ([GDK-1172]).
+- `wiki`, `wiki.enabled`, `wiki.spaces`가 `confluence.*` 설정 경로의 별칭이고,
+  `config get`/`set`이 값이 어디에 저장되는지 알려 준다 ([GDK-1289]).
+- 목록에서 같은 필드는 같은 이름이다. 브레이크다운 축이 필터·컬럼과 같은
+  라벨을 읽는다 ([GDK-1399]). 링크 타입 카탈로그를 워크스페이스당 한 번만
+  받아, 연결 이슈의 방향 문구가 열 때마다 타입 이름으로 깜빡이던 것이 없어졌다
+  ([GDK-1297]).
+- 수정한 것. Confluence 페이지 버전 쓰기가 실패해도 위키 패스를 죽이지 않고
+  미러만 조금 덜 채운다 ([GDK-1307]). transition id와 status id가 겹치는
+  숫자를 거절할 때, 겹치지 않는 두 형태(이름·카테고리)를 함께 알려 준다
+  ([GDK-1305]). CI 플레이크 둘, 페어링 mint 테스트와 생성 대화상자 e2e
+  ([GDK-1306], [GDK-1295]).
+- 문서. 화면이 영어·한국어·일본어로 뜬다는 사실을 README와 설치 페이지에
+  적었다.
+
 ## v0.20.1 — 2026-09-03
 
 **본문은 마크다운이고, 서식 있는 본문도 왕복해서 그대로 돌아옵니다.**
@@ -1419,3 +1449,12 @@ HTTP·sync·에이전트 계약을 담았습니다.
 [GDK-1351]: https://gadak.dev/backlog/#/?ks=GDK-1351
 [GDK-1398]: https://gadak.dev/backlog/#/?ks=GDK-1398
 [GDK-1192]: https://gadak.dev/backlog/#/?ks=GDK-1192
+[GDK-1299]: https://gadak.dev/backlog/#/?ks=GDK-1299
+[GDK-1172]: https://gadak.dev/backlog/#/?ks=GDK-1172
+[GDK-1289]: https://gadak.dev/backlog/#/?ks=GDK-1289
+[GDK-1399]: https://gadak.dev/backlog/#/?ks=GDK-1399
+[GDK-1297]: https://gadak.dev/backlog/#/?ks=GDK-1297
+[GDK-1307]: https://gadak.dev/backlog/#/?ks=GDK-1307
+[GDK-1305]: https://gadak.dev/backlog/#/?ks=GDK-1305
+[GDK-1306]: https://gadak.dev/backlog/#/?ks=GDK-1306
+[GDK-1295]: https://gadak.dev/backlog/#/?ks=GDK-1295
