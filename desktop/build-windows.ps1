@@ -213,11 +213,19 @@ $env:CGO_ENABLED = '0'
 $env:GOOS = 'windows'
 $env:GOARCH = $goarch
 
+# -H windowsgui marks the PE as a GUI-subsystem image. Without it Windows
+# treats the app as a console program and opens an empty console window
+# beside every launch — Start menu, taskbar pin, gadak:// link, the Store
+# tile alike. Every zip from 0.16 through 0.20.1 shipped that way, and the
+# 0.20.1 Store package was verified on a Windows 11 machine with the black
+# window on screen (2026-09-05). The subsystem gate below keeps it from
+# coming back. Logs are unaffected: the app writes them under the gadak
+# home (applog.Install in desktop/main.go), not to stderr.
 $desktopOut = Join-Path $bundle 'gadak-desktop.exe'
 Push-Location (Join-Path $repo 'desktop')
 try {
     & go build -tags 'desktop,production' -trimpath `
-        -ldflags "-s -w -X main.appVersion=$verStamp" `
+        -ldflags "-s -w -H windowsgui -X main.appVersion=$verStamp" `
         -o $desktopOut .
     if ($LASTEXITCODE -ne 0) {
         exit 1
@@ -240,6 +248,52 @@ try {
 }
 finally {
     Pop-Location
+}
+
+# PE subsystem gate. The app must be a GUI image (2) — the console
+# subsystem (3) is the black-window defect above — and the CLI must stay a
+# console image, or `gadak sql` in a terminal would print nothing. Read
+# from the PE optional header directly (offset e_lfanew → 'PE\0\0', then
+# +24 into the optional header, +68 to Subsystem; the field sits at the
+# same place for PE32 and PE32+), so the gate needs no SDK tool and runs
+# on the cross-compile host too.
+function Get-PESubsystem {
+    param([string]$Path)
+    $fs = [System.IO.File]::OpenRead($Path)
+    try {
+        $head = New-Object byte[] 4096
+        $n = $fs.Read($head, 0, $head.Length)
+        if ($n -lt 0x40) { throw "$Path is too short to be a PE image" }
+        $peOff = [BitConverter]::ToInt32($head, 0x3c)
+        if ($peOff + 24 + 70 -gt $n) { throw "$Path PE header lies beyond the first 4 KiB" }
+        $sig = [System.Text.Encoding]::ASCII.GetString($head, $peOff, 2)
+        if ($sig -ne 'PE' -or $head[$peOff + 2] -ne 0 -or $head[$peOff + 3] -ne 0) {
+            throw "$Path has no PE signature at e_lfanew"
+        }
+        return [BitConverter]::ToUInt16($head, $peOff + 24 + 68)
+    }
+    finally {
+        $fs.Dispose()
+    }
+}
+
+$subsystemNames = @{ 2 = 'WINDOWS_GUI'; 3 = 'WINDOWS_CUI' }
+$subsystemWant = @{ 'gadak-desktop.exe' = 2; 'gadak.exe' = 3 }
+$subsystemBad = @()
+foreach ($exe in $subsystemWant.Keys | Sort-Object) {
+    $got = Get-PESubsystem (Join-Path $bundle $exe)
+    $gotName = if ($subsystemNames.ContainsKey([int]$got)) { $subsystemNames[[int]$got] } else { 'unknown' }
+    Write-Host ("  {0}: subsystem={1} ({2})" -f $exe, $got, $gotName)
+    if ([int]$got -ne $subsystemWant[$exe]) {
+        $subsystemBad += ("{0} is subsystem {1} ({2}), want {3} ({4})" -f $exe, $got, $gotName, $subsystemWant[$exe], $subsystemNames[$subsystemWant[$exe]])
+    }
+}
+if ($subsystemBad.Count -gt 0) {
+    foreach ($line in $subsystemBad) {
+        [Console]::Error.WriteLine("build-windows: PE subsystem gate: $line")
+    }
+    [Console]::Error.WriteLine('build-windows: a console-subsystem gadak-desktop.exe opens an empty console window beside the app; keep -H windowsgui in its ldflags')
+    exit 1
 }
 
 Write-Host "built $bundle ($version, $fileArch)"
