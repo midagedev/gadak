@@ -14,6 +14,7 @@ const t = strings[lang]
 const copyLabel = t.copy.label
 const copiedLabel = t.copy.copied
 const installHref = lang === 'en' ? '/install/' : '/ko/install/'
+const storeHref = 'https://apps.microsoft.com/detail/9NZW91TXH36G'
 ---
 
 <Base lang={lang} title={t.title} description={t.description}>
@@ -133,6 +134,7 @@ const installHref = lang === 'en' ? '/install/' : '/ko/install/'
     <Snippet code="brew install --cask midagedev/tap/gadak" copyLabel={copyLabel} copiedLabel={copiedLabel} />
     <p>{t.install.cliOnly}</p>
     <Snippet code="brew install midagedev/tap/gadak-cli" copyLabel={copyLabel} copiedLabel={copiedLabel} />
+    <p>{t.install.windowsBefore} <a href={storeHref}>Microsoft Store</a>{t.install.windowsAfter}</p>
     <p>{t.install.firstRun}</p>
     <Snippet code="gadak init && gadak sync && gadak serve" copyLabel={copyLabel} copiedLabel={copiedLabel} />
     <p class="note"><a href={installHref}>{lang === 'en' ? 'All platforms →' : '모든 플랫폼 →'}</a></p>

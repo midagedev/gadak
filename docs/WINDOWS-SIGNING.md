@@ -25,12 +25,13 @@ list (2026-09-03, [GDK-1380]).** Microsoft Store developer registration is
 free now, and the Store re-signs every MSIX it certifies with a Microsoft
 certificate — no publisher certificate, and a Store-installed app is neither
 a SmartScreen download nor an unknown signer to Smart App Control. So the
-Windows app is being submitted there: `desktop/build-windows.ps1 --msix`
-packs the same `gadak-desktop.exe` as the zip into an unsigned `.msix` for
-Partner Center. Until a listing has passed certification, nothing below
-changes — the GitHub Release zip stays unsigned and this page still describes
-it. When it passes, this section becomes the install route for anyone Smart
-App Control blocks, and the zip stays for everyone else.
+Windows app went there: `desktop/build-windows.ps1 --msix` packs the same
+`gadak-desktop.exe` as the zip into an unsigned `.msix` for Partner Center.
+**The listing passed certification on 2026-09-05 and is live:
+<https://apps.microsoft.com/detail/9NZW91TXH36G>.** That is the install route for anyone
+Smart App Control blocks ([INSTALL.md](INSTALL.md#desktop-app-windows)). The
+GitHub Release zip stays unsigned for everyone else, and the rest of this page
+still describes that zip.
 
 This page is the place to check when Windows shows a warning. It is not a
 claim that the unsigned zip is “safe”. It is how to see **which file you
@@ -153,7 +154,9 @@ must match. If you cannot reach the API, you do not have a digest to compare
 
 ## If Windows blocks the desktop exe
 
-Use the CLI zip from the same release (the row that *is* in `checksums.txt`),
+Install the app from the [Microsoft Store](https://apps.microsoft.com/detail/9NZW91TXH36G) instead — the Store's
+signature is the one neither dialog objects to. Or use the CLI zip from the
+same release (the row that *is* in `checksums.txt`),
 put `gadak.exe` on `PATH`, then `gadak init && gadak sync && gadak serve`.
 That is the documented CLI fallback on every release since 0.16
 ([INSTALL.md](INSTALL.md#desktop-app-windows)). Do not disable Smart App
@@ -229,9 +232,10 @@ is the accurate policy; [NETWORK.md](NETWORK.md) is the operating manual.
 
 ## Roadmap
 
-1. **Now:** unsigned Windows zips; this page; CLI `checksums.txt`; desktop
-   zip digest only via the GitHub Releases API. SmartScreen / Smart App
-   Control behave as above.
+1. **Now:** the Store-signed app on the Microsoft Store ([GDK-1380]);
+   unsigned Windows zips; this page; CLI `checksums.txt`; desktop zip digest
+   only via the GitHub Releases API. SmartScreen / Smart App Control behave
+   as above for the zips.
 2. **Apply** to [SignPath Foundation’s OSS program](https://signpath.org/apply.html)
    (draft answers and a pre-submit checklist:
    [runbooks/signpath-application.md](runbooks/signpath-application.md)).

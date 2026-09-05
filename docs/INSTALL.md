@@ -92,8 +92,10 @@ download `gadak_<version>_linux_amd64.tar.gz` (or `linux_arm64`) and
 
 From the [latest release](https://github.com/midagedev/gadak/releases/latest),
 download `gadak_<version>_windows_amd64.zip` (or `windows_arm64`) and
-`checksums.txt`. Unzip, put `gadak.exe` on `PATH`. This is the reliable
-Windows route on every release since 0.16.
+`checksums.txt`. Unzip, put `gadak.exe` on `PATH`. This is the CLI route on
+every release since 0.16; the window itself installs from the Microsoft Store
+(next section), which carries the same `gadak.exe` but does not put it on
+`PATH`.
 
 ```powershell
 gadak init
@@ -114,7 +116,16 @@ instead of `gadak init` / `gadak sync` above.
 
 ### Desktop app (Windows)
 
-Every release since 0.16 attaches a Windows portable zip:
+The window is on the **[Microsoft Store](https://apps.microsoft.com/detail/9NZW91TXH36G)** (certified
+2026-09-05, [GDK-1380]). Install it there when you can: the Store signs the
+package with a Microsoft certificate, so it is neither a SmartScreen download
+nor an unknown signer to Smart App Control, and it updates through the Store.
+It is the same `gadak-desktop.exe` as the zip below and reads the same
+`%USERPROFILE%\.gadak`, so the Store app and the CLI zip share one mirror.
+The Store package does not put `gadak.exe` on `PATH` — for the command line,
+add the [Windows CLI](#windows-cli) zip.
+
+Every release since 0.16 also attaches a Windows portable zip:
 `Gadak-<version>-windows-x64.zip` or `Gadak-<version>-windows-arm64.zip`.
 Unzip and run `gadak-desktop.exe`. The pack is a directory (the two exes at
 the root), not an installer — every release since 0.16 has shipped with no
@@ -131,8 +142,8 @@ install the runtime from
 The build is **unsigned**, and that is a decision rather than a gap
 ([GDK-211], reasoning in [WINDOWS-SIGNING.md](WINDOWS-SIGNING.md)): a fresh
 certificate would not silence SmartScreen straight away, and Smart App Control
-cannot be bypassed per app at all. So the compensation is documentation plus
-the [Windows CLI](#windows-cli) zip above, both of which work today.
+cannot be bypassed per app at all. So the compensation is the Store listing
+above, this documentation, and the [Windows CLI](#windows-cli) zip.
 
 Windows may show one of two dialogs. Neither is a virus finding:
 
@@ -147,7 +158,8 @@ Windows may show one of two dialogs. Neither is a virus finding:
   Smart App Control for one app**
   ([Smart App Control FAQ](https://support.microsoft.com/en-us/windows/smart-app-control-frequently-asked-questions-285ea03d-fa88-4d56-882e-6698afdb7003)),
   and the dialog matches: there is no *Run anyway*. Do **not** turn Smart App
-  Control off. Use the [Windows CLI](#windows-cli) zip instead.
+  Control off. Install from the [Microsoft Store](https://apps.microsoft.com/detail/9NZW91TXH36G) instead, or use the
+  [Windows CLI](#windows-cli) zip.
 
 Launching the exe from a script rather than Explorer shows **no dialog at
 all** — PowerShell or `cmd` gets `An Application Control policy has blocked
@@ -426,3 +438,4 @@ also what the test suite and the README's clips run against, so what you see is
 what CI checks.
 
 [GDK-211]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-211
+[GDK-1380]: https://gadak.dev/backlog/#/?ks=GDK-1380

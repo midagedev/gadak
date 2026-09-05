@@ -62,12 +62,14 @@ Jira 사이트에는 [API 토큰](https://id.atlassian.com/manage-profile/securi
 `gadak --workspace <새> migrate --from <기존>`으로 동기화된 미러를 그 위로
 옮길 수 있습니다. `--to linear`를 붙이면 Linear 팀으로 갑니다.
 
-**Windows:** [최신 릴리스](https://github.com/midagedev/gadak/releases/latest)에서
+**Windows:** 데스크톱 앱은 [Microsoft Store](https://apps.microsoft.com/detail/9NZW91TXH36G)에 있습니다.
+Store가 서명해 주므로 SmartScreen도 Smart App Control도 막지 않습니다. CLI는
+[최신 릴리스](https://github.com/midagedev/gadak/releases/latest)에서
 `gadak_<version>_windows_amd64.zip`(또는 `arm64`)을 받아 풀고 `gadak.exe`를
-`PATH`에 두세요. 데스크톱 zip(`Gadak-<version>-windows-x64.zip`)은 서명되어
-있지 않습니다. SmartScreen이 막는 것은 바이러스 판정이 아니라 서명이
-없어서입니다([이유](docs/WINDOWS-SIGNING.md)). CLI zip을 쓰고, Smart App
-Control은 끄지 마세요.
+`PATH`에 두세요. 릴리스의 데스크톱 zip(`Gadak-<version>-windows-x64.zip`)은
+여전히 서명이 없습니다. SmartScreen이 막는 것은 바이러스 판정이 아니라 서명이
+없어서입니다([이유](docs/WINDOWS-SIGNING.md)). 막히면 Store에서 설치하고, Smart
+App Control은 끄지 마세요.
 
 서명된 dmg, 리눅스 tarball, 다른 컴퓨터와 페어링(`gadak --workspace laptop init
 --pairing-code-stdin`), Docker, 업그레이드는 [`docs/INSTALL.md`](docs/INSTALL.md)에

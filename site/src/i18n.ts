@@ -24,7 +24,7 @@ export const strings = {
       videoCaption: 'A 20,000-issue mirror. Search as fast as you can type. Recorded, not animated.',
       doors: {
         installTitle: 'Install',
-        installSub: 'One Homebrew line. macOS app, CLI for Linux and Windows.',
+        installSub: 'Homebrew on macOS, the Microsoft Store on Windows, a CLI for Linux.',
         demoTitle: 'Live demo',
         demoSub: '534 issues in your browser. No install, no account.',
       },
@@ -86,6 +86,8 @@ export const strings = {
       heading: 'Install',
       macosApp: 'The desktop app, CLI included:',
       cliOnly: 'CLI only:',
+      windowsBefore: 'On Windows, the desktop app is on the',
+      windowsAfter: '.',
       firstRun: 'Connect to your team\'s Jira (asks for site, email, token, projects):',
     },
     footer: {
@@ -115,7 +117,7 @@ export const strings = {
       videoCaption: '이슈 2만 건 미러에서 타이핑하는 속도로 검색합니다. 애니메이션이 아니라 실제 화면을 녹화한 것입니다.',
       doors: {
         installTitle: '설치',
-        installSub: 'Homebrew 한 줄. macOS는 앱, Linux·Windows는 CLI.',
+        installSub: 'macOS는 Homebrew, Windows는 Microsoft Store, Linux는 CLI.',
         demoTitle: '라이브 데모',
         demoSub: '이슈 534건을 브라우저에서 바로. 설치도 계정도 없습니다.',
       },
@@ -177,6 +179,8 @@ export const strings = {
       heading: '설치',
       macosApp: '데스크톱 앱, CLI 포함:',
       cliOnly: 'CLI만:',
+      windowsBefore: 'Windows 데스크톱 앱은',
+      windowsAfter: '에 있습니다.',
       firstRun: '회사 Jira에 연결합니다 (사이트, 이메일, 토큰, 프로젝트를 차례로 묻습니다):',
     },
     footer: {

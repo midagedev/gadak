@@ -26,11 +26,14 @@ instead — which is also where you grab the window to move it.
 Gadak.app to Applications. The dmg is Developer ID-signed and notarized
 (Apple Silicon).
 
-**Windows (every release since 0.16).** Download `Gadak-<version>-windows-x64.zip` or
-`Gadak-<version>-windows-arm64.zip` from the same release, unzip, run
-`gadak-desktop.exe`. Unsigned by decision, not by omission — [GDK-211], reasoning in
-[WINDOWS-SIGNING.md](WINDOWS-SIGNING.md). If Windows blocks the
-exe, use the CLI zip and `gadak serve`. Do not turn Smart App Control off.
+**Windows.** The app is on the [Microsoft Store](https://apps.microsoft.com/detail/9NZW91TXH36G) — Store-signed,
+so SmartScreen and Smart App Control let it through. Every release since 0.16
+also attaches `Gadak-<version>-windows-x64.zip` or
+`Gadak-<version>-windows-arm64.zip`: unzip, run `gadak-desktop.exe`. That zip
+is unsigned by decision, not by omission — [GDK-211], reasoning in
+[WINDOWS-SIGNING.md](WINDOWS-SIGNING.md). If Windows blocks the exe, install
+from the Store, or use the CLI zip and `gadak serve`. Do not turn Smart App
+Control off.
 The wording and the CLI fallback live in
 [INSTALL.md](INSTALL.md#desktop-app-windows).
 

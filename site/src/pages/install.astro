@@ -4,12 +4,13 @@ import Snippet from '../components/Snippet.astro'
 import { strings } from '../i18n'
 const t = strings.en
 const releases = 'https://github.com/midagedev/gadak/releases/latest'
+const store = 'https://apps.microsoft.com/detail/9NZW91TXH36G'
 ---
 
 <Base
   lang="en"
   title={`Install — gadak`}
-  description="Install gadak: the macOS app and CLI via Homebrew, a Linux CLI via Homebrew or a release tarball, and Windows release zips."
+  description="Install gadak: the macOS app and CLI via Homebrew, a Linux CLI via Homebrew or a release tarball, and Windows via the Microsoft Store or release zips."
 >
   <h1>{t.install.heading}</h1>
   <p class="lede">
@@ -40,14 +41,18 @@ const releases = 'https://github.com/midagedev/gadak/releases/latest'
 
   <h2 id="windows">Windows</h2>
   <p>
-    From the <a href={releases}>latest release</a>, download
-    <code>gadak_&lt;version&gt;_windows_amd64.zip</code> (or <code>windows_arm64</code>), unzip,
-    put <code>gadak.exe</code> on <code>PATH</code>. This is the reliable route.
+    The desktop app is on the <a href={store}>Microsoft Store</a>. The Store signs it, so neither
+    SmartScreen nor Smart App Control gets in the way, and it updates through the Store.
+  </p>
+  <p>
+    For the CLI, download <code>gadak_&lt;version&gt;_windows_amd64.zip</code> (or
+    <code>windows_arm64</code>) from the <a href={releases}>latest release</a>, unzip, and put
+    <code>gadak.exe</code> on <code>PATH</code>.
   </p>
   <p class="note">
-    The desktop zip (<code>Gadak-&lt;version&gt;-windows-x64.zip</code>) is currently unsigned — if
+    The release's desktop zip (<code>Gadak-&lt;version&gt;-windows-x64.zip</code>) is unsigned — if
     SmartScreen or Smart App Control blocks it, that is the missing signature, not a virus finding;
-    use the CLI zip above. Details and how to check the sha256:
+    install from the Store instead. Details and how to check the sha256:
     <a href="https://github.com/midagedev/gadak/blob/main/docs/WINDOWS-SIGNING.md"
       >WINDOWS-SIGNING.md</a
     >.

@@ -60,12 +60,14 @@ them. No Atlassian account? `gadak init --local` starts a workspace on the
 built-in tracker, and `gadak --workspace <new> migrate --from <old>` later carries a
 synced mirror onto it — or into a Linear team with `--to linear`.
 
-**Windows:** `gadak_<version>_windows_amd64.zip` (or `arm64`) from the
+**Windows:** the desktop app is on the [Microsoft Store](https://apps.microsoft.com/detail/9NZW91TXH36G) — the
+Store signs it, so neither SmartScreen nor Smart App Control objects. For the
+CLI, take `gadak_<version>_windows_amd64.zip` (or `arm64`) from the
 [latest release](https://github.com/midagedev/gadak/releases/latest), unzip,
-put `gadak.exe` on `PATH`. The desktop zip (`Gadak-<version>-windows-x64.zip`)
-is unsigned — a SmartScreen block is a missing signature, not a virus finding
-([why](docs/WINDOWS-SIGNING.md)); use the CLI zip, and do not turn Smart App
-Control off.
+put `gadak.exe` on `PATH`. The release's desktop zip
+(`Gadak-<version>-windows-x64.zip`) stays unsigned — a SmartScreen block is a
+missing signature, not a virus finding ([why](docs/WINDOWS-SIGNING.md)); if it
+blocks, install from the Store, and do not turn Smart App Control off.
 
 The signed dmg, the Linux tarball, pairing a second machine
 (`gadak --workspace laptop init --pairing-code-stdin`), Docker, upgrades:

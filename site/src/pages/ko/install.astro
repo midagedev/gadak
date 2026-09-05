@@ -4,12 +4,13 @@ import Snippet from '../../components/Snippet.astro'
 import { strings } from '../../i18n'
 const t = strings.ko
 const releases = 'https://github.com/midagedev/gadak/releases/latest'
+const store = 'https://apps.microsoft.com/detail/9NZW91TXH36G'
 ---
 
 <Base
   lang="ko"
   title="설치 — gadak"
-  description="gadak 설치: Homebrew(macOS·Linux), Windows 릴리스 zip, 처음 실행과 에이전트 연결까지."
+  description="gadak 설치: Homebrew(macOS·Linux), Windows는 Microsoft Store와 릴리스 zip, 처음 실행과 에이전트 연결까지."
 >
   <h1>{t.install.heading}</h1>
   <p class="lede">
@@ -41,14 +42,18 @@ const releases = 'https://github.com/midagedev/gadak/releases/latest'
 
   <h2 id="windows">Windows</h2>
   <p>
-    <a href={releases}>최신 릴리스</a>에서
+    데스크톱 앱은 <a href={store}>Microsoft Store</a>에 있습니다. Store가 서명해 주므로
+    SmartScreen도 Smart App Control도 막지 않고, 업데이트도 Store가 해 줍니다.
+  </p>
+  <p>
+    CLI는 <a href={releases}>최신 릴리스</a>에서
     <code>gadak_&lt;version&gt;_windows_amd64.zip</code>(또는 <code>windows_arm64</code>)을 받아
-    풀고 <code>gadak.exe</code>를 <code>PATH</code>에 두세요. 이 방법이 가장 확실합니다.
+    풀고 <code>gadak.exe</code>를 <code>PATH</code>에 두세요.
   </p>
   <p class="note">
-    데스크톱 zip(<code>Gadak-&lt;version&gt;-windows-x64.zip</code>)은 아직 서명이 없어서
+    릴리스의 데스크톱 zip(<code>Gadak-&lt;version&gt;-windows-x64.zip</code>)은 여전히 서명이 없어서
     SmartScreen이나 Smart App Control이 막을 수 있습니다. 바이러스가 검출된 것이 아니라 서명이
-    없다는 경고이므로, 막히면 위의 CLI zip을 쓰세요. 자세한 내용과 sha256 확인 방법:
+    없다는 경고이므로, 막히면 Store에서 설치하세요. 자세한 내용과 sha256 확인 방법:
     <a href="https://github.com/midagedev/gadak/blob/main/docs/WINDOWS-SIGNING.md"
       >WINDOWS-SIGNING.md</a
     >.
