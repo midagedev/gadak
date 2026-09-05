@@ -6,12 +6,18 @@ import type { Message } from '../types'
 
 export const fields = {
   /* ── Fields (filter / form labels) ── */
-  // GDK-831: 분류 is the team-grouping word (settings.featureTeams); the
-  // status axis is 카테고리, matching en Category / ja カテゴリ.
+  // The three-bucket status axis (new / in progress / done). One word on
+  // every surface — filter properties, columns, the breakdown bar — because
+  // a field that wears two names reads as absent: a user looking for the
+  // status axis in 0.20.0 reported it missing when the filter said
+  // "Category" and the breakdown said "Progress" (GDK-1399). "Progress" is
+  // the word that says what the buckets are; "Category" said only that
+  // they were buckets. GDK-831 still holds: 분류 stays the team-grouping
+  // word (settings.featureTeams), so the Korean is 진행 단계, not 분류.
   'field.status_category': {
-    en: 'Category',
-    ko: '카테고리',
-    ja: 'カテゴリ',
+    en: 'Progress',
+    ko: '진행 단계',
+    ja: '進捗',
   },
   'field.status': {
     en: 'Status',
@@ -458,77 +464,24 @@ export const fields = {
     ko: '섹션 없음',
     ja: 'セクションなし',
   },
-  'group.byStatusCategory': {
-    en: 'Progress',
-    ko: '진행 단계',
-    ja: '進捗',
-  },
+  // Breakdown axes that are fields (status_category, status, assignee,
+  // priority, type …) have no key of their own: BreakdownBar labels them
+  // with fieldLabel(), the same owner the filter properties and the columns
+  // read (GDK-1399). Only axes with no field twin are named here.
   'group.byProduct': {
     en: 'Product',
     ko: '제품',
     ja: '製品',
-  },
-  'group.byTeam': {
-    en: 'Team',
-    ko: '팀',
-    ja: 'チーム',
-  },
-  'group.byAssignee': {
-    en: 'Assignee',
-    ko: '담당자',
-    ja: '担当者',
-  },
-  'group.byActor': {
-    en: 'Actor',
-    ko: '작업자',
-    ja: '実行者',
   },
   'group.noActor': {
     en: 'No actors',
     ko: '작업자 없음',
     ja: '実行者なし',
   },
-  'group.byPriority': {
-    en: 'Priority',
-    ko: '우선순위',
-    ja: '優先度',
-  },
-  'group.bySeverity': {
-    en: 'Severity',
-    ko: '심각도',
-    ja: '重大度',
-  },
-  'group.byType': {
-    en: 'Type',
-    ko: '유형',
-    ja: 'タイプ',
-  },
-  'group.byDevTestResult': {
-    en: 'Dev test result',
-    ko: '개발 테스트 결과',
-    ja: '開発テスト結果',
-  },
-  'group.byQaImpact': {
-    en: 'QA impact',
-    ko: 'QA 영향',
-    ja: 'QA 影響',
-  },
-  'group.bySourceProject': {
-    en: 'Source project',
-    ko: '복제 원본',
-    ja: 'ソースプロジェクト',
-  },
   'group.byEpic': {
     en: 'Epic',
     ko: '에픽',
     ja: 'エピック',
-  },
-  // The tracker's own status, whatever the origin (Jira, Linear, Built-in) —
-  // "Jira status" named one origin on every board (GDK-1390).
-  'group.byStatus': {
-    en: 'Status',
-    ko: '상태',
-    ja: 'ステータス',
   },
   'group.breakdown': {
     en: 'Breakdown',

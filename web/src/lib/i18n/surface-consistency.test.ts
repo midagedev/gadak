@@ -330,3 +330,41 @@ describe('GDK-652 EmptyState icons: omissions filled', () => {
     expect(failures, failures.join('\n')).toEqual([])
   })
 })
+
+describe('GDK-1399 one field, one name: the breakdown axes read fieldLabel()', () => {
+  // The status axis said "Category" in the filter properties and "Progress"
+  // in the breakdown bar, and a user reported the field missing (0.20.0).
+  // The owner of a field's on-screen name is fieldLabel(); an axis that is
+  // a field must go through it, not carry a `group.by*` twin that drifts.
+  const BREAKDOWN = join(HERE, '../../components/list/BreakdownBar.svelte')
+
+  test('no breakdown axis whose key is a field carries its own catalog label', () => {
+    const src = readFileSync(BREAKDOWN, 'utf8')
+    const axes = [...src.matchAll(/\{ key: '([a-z_]+)', label: t\('([a-zA-Z.]+)'\) \}/g)]
+    expect(axes.length, 'the option list should still be parsed').toBeGreaterThan(0)
+    const drift = axes
+      .filter(([, key]) => `field.${key}` in en)
+      .map(([, key, msg]) => `${key} labelled by ${msg}; field.${key} exists — use fieldLabel('${key}')`)
+    expect(drift).toEqual([])
+  })
+
+  test('no group.by* key duplicates a field label in any locale', () => {
+    // A twin that says the same thing today is the one that drifts
+    // tomorrow; the catalog keeps only the axes that have no field.
+    const fieldValues = new Map<string, string>()
+    for (const [locale, table] of CATALOGS) {
+      for (const [key, value] of Object.entries(table)) {
+        if (key.startsWith('field.')) fieldValues.set(`${locale}:${value}`, key)
+      }
+    }
+    const twins: string[] = []
+    for (const [locale, table] of CATALOGS) {
+      for (const [key, value] of Object.entries(table)) {
+        if (!key.startsWith('group.by')) continue
+        const twin = fieldValues.get(`${locale}:${value}`)
+        if (twin) twins.push(`${locale} ${key}="${value}" duplicates ${twin}`)
+      }
+    }
+    expect(twins).toEqual([])
+  })
+})

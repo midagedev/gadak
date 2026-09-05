@@ -1,27 +1,32 @@
 <script lang="ts">
   /* Section the list by a chosen field and summarize top distribution in one line. */
-  import { t } from '../../lib/i18n'
+  import { fieldLabel, t } from '../../lib/i18n'
   import { filters } from '../../stores/filters.svelte'
   import { categoryMetaOf } from '../../lib/format'
   import { onEscape, onOutsideClick } from '../../lib/dom-actions'
   import { groupByEnabled, type GroupBy } from '../../lib/view-config'
   import Icon, { type IconName } from '../ui/Icon.svelte'
 
+  // An axis that is a field wears the field's name — fieldLabel(), the same
+  // owner the filter properties and the columns read. A field that said
+  // "Category" in the filter and "Progress" here read as missing to a user
+  // looking for it (GDK-1399); one owner cannot drift. Only axes with no
+  // field twin (product, epic, none) carry a label of their own.
   const ALL_OPTIONS: { key: GroupBy; label: string }[] = [
-    { key: 'status_category', label: t('group.byStatusCategory') },
+    { key: 'status_category', label: fieldLabel('status_category') },
     // Right after the three-bucket axis: it is the same question asked finer,
     // and last-but-one is where a reader stopped looking (GDK-1390).
-    { key: 'status', label: t('group.byStatus') },
+    { key: 'status', label: fieldLabel('status') },
     { key: 'product', label: t('group.byProduct') },
-    { key: 'team_group', label: t('group.byTeam') },
-    { key: 'assignee', label: t('group.byAssignee') },
-    { key: 'actor', label: t('group.byActor') },
-    { key: 'priority', label: t('group.byPriority') },
-    { key: 'severity', label: t('group.bySeverity') },
-    { key: 'issue_type', label: t('group.byType') },
-    { key: 'development_test_result', label: t('group.byDevTestResult') },
-    { key: 'qa_impact', label: t('group.byQaImpact') },
-    { key: 'source_project', label: t('group.bySourceProject') },
+    { key: 'team_group', label: fieldLabel('team_group') },
+    { key: 'assignee', label: fieldLabel('assignee') },
+    { key: 'actor', label: fieldLabel('actor') },
+    { key: 'priority', label: fieldLabel('priority') },
+    { key: 'severity', label: fieldLabel('severity') },
+    { key: 'issue_type', label: fieldLabel('issue_type') },
+    { key: 'development_test_result', label: fieldLabel('development_test_result') },
+    { key: 'qa_impact', label: fieldLabel('qa_impact') },
+    { key: 'source_project', label: fieldLabel('source_project') },
     { key: 'epic', label: t('group.byEpic') },
     { key: 'none', label: t('group.sectionNone') },
   ]
@@ -31,7 +36,8 @@
   let open = $state(false)
 
   const currentLabel = $derived(
-    OPTIONS.find((option) => option.key === filters.display.group_by)?.label ?? t('group.byStatusCategory'),
+    OPTIONS.find((option) => option.key === filters.display.group_by)?.label ??
+      fieldLabel('status_category'),
   )
   const rankedGroups = $derived.by(() =>
     filters.display.group_by === 'none'
