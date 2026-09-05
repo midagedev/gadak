@@ -877,7 +877,19 @@ func collectPageVersions(ctx context.Context, c *confluence.Client, db *store.DB
 	if len(rows) == 0 {
 		return nil
 	}
-	return db.ReplacePageVersions(ctx, itemID, rows)
+	if err := db.ReplacePageVersions(ctx, itemID, rows); err != nil {
+		if ctx.Err() != nil {
+			return err
+		}
+		// GDK-1307: the item can be gone by now — a second sync process on
+		// the same mirror (an older app beside a newer CLI, with a different
+		// space scope) prunes it between UpsertPages and this write, and the
+		// page_versions→items FOREIGN KEY refuses. That is a missing stamp,
+		// not a broken pass; the next pass over the page re-fetches it.
+		opts.logf("confluence: page versions %s: write stamps: %v", pageID, err)
+		return nil
+	}
+	return nil
 }
 
 // commentsOnlyPass finds pages whose comments changed without a body edit.
