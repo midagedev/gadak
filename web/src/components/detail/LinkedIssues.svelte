@@ -8,11 +8,12 @@
   import { writeErrorMessage } from '../../lib/i18n/en'
   import type { LinkedIssue } from '../../lib/types'
   import { ApiError, createIssueLink, getIssueLinkTypes, type IssueLinkType } from '../../lib/api'
-  import { isHostedDemo, originWritable } from '../../lib/config'
+  import { cacheScopeId, isHostedDemo, originWritable } from '../../lib/config'
   import { invalidate } from '../../lib/detail-cache.svelte'
   import { selection } from '../../stores/selection.svelte'
   import { issues } from '../../stores/issues.svelte'
   import { write } from '../../stores/write.svelte'
+  import { linkTypeCatalog } from '../../stores/link-types.svelte'
 
   let { linked }: { linked: LinkedIssue[] } = $props()
 
@@ -81,6 +82,11 @@
   // catalog exactly there. The hosted demo stays in: loadTypes serves it a
   // canned catalog without touching the network, so skipping it there would
   // empty the demo's type list to fix console noise it never had.
+  //
+  // The catalog is a workspace asset, so the first answer is held per
+  // scope (stores/link-types) and every later detail open reads it in the
+  // same turn — refetching per issue emptied the rows first and flashed the
+  // bare type name before the direction phrase came back (GDK-1297).
   $effect(() => {
     const k = issueKey
     if (!k || linear) return
@@ -97,15 +103,27 @@
 
   async function loadTypes(k: string) {
     catalogFor = k
-    types = []
     selectedType = ''
+    // Held for this workspace already: same turn, no empty frame, no fetch.
+    const held = linkTypeCatalog.get(cacheScopeId())
+    if (held) {
+      setTypes(held)
+      return
+    }
+    types = []
     if (isHostedDemo()) {
-      setTypes([{ id: '10000', name: 'Blocks', inward: 'is blocked by', outward: 'blocks' }])
+      const canned = [{ id: '10000', name: 'Blocks', inward: 'is blocked by', outward: 'blocks' }]
+      linkTypeCatalog.set(cacheScopeId(), canned)
+      setTypes(canned)
       return
     }
     try {
       const res = await getIssueLinkTypes(k)
-      setTypes(res.link_types ?? [])
+      const rows = res.link_types ?? []
+      // An answer is held, an empty one included; a failure is not, so the
+      // next open retries exactly as before.
+      linkTypeCatalog.set(cacheScopeId(), rows)
+      setTypes(rows)
     } catch {
       setTypes([])
     }

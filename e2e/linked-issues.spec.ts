@@ -118,6 +118,35 @@ test.describe('linked issues', () => {
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 
+  test('the link-type catalog is fetched once per workspace, not once per issue (GDK-1297)', async ({
+    page,
+  }) => {
+    // The catalog is a workspace asset. Refetching it on every detail open
+    // emptied the rows first, so each open flashed the bare type name
+    // ("Blocks") before the direction phrase ("is blocked by") came back.
+    // One fetch for the pair below; the second open reads what the first
+    // one already holds and never shows the bare name.
+    const errors = attachConsoleErrors(page)
+    let fetches = 0
+    await page.route('**/api/v1/issues/*/linktypes/', async (route) => {
+      if (route.request().method() !== 'GET') return route.continue()
+      fetches++
+      await fulfillJSON(route, CATALOG)
+    })
+    const panel = await gotoIssue(page, BLOCKED)
+    const links = panel.getByTestId('linked-issues')
+    await expect(links.getByRole('button').filter({ hasText: BLOCKER })).toContainText(
+      'is blocked by',
+    )
+    expect(fetches).toBe(1)
+
+    await links.getByRole('button').filter({ hasText: BLOCKER }).click()
+    await expect(panel.getByRole('link', { name: BLOCKER, exact: true })).toBeVisible()
+    await expect(links.getByRole('button').filter({ hasText: BLOCKED })).toContainText('blocks')
+    expect(fetches, 'the second detail open must not refetch the catalog').toBe(1)
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
   test('back returns to the issue the link was followed from (GDK-1292)', async ({ page }) => {
     const errors = attachConsoleErrors(page)
     await page.route('**/api/v1/issues/*/linktypes/', async (route) => {
