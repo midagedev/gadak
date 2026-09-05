@@ -69,6 +69,9 @@ put `gadak.exe` on `PATH`. The release's desktop zip
 missing signature, not a virus finding ([why](docs/WINDOWS-SIGNING.md)); if it
 blocks, install from the Store, and do not turn Smart App Control off.
 
+The window is in English, Korean or Japanese — it follows the browser or OS
+language, and Settings switches it.
+
 The signed dmg, the Linux tarball, pairing a second machine
 (`gadak --workspace laptop init --pairing-code-stdin`), Docker, upgrades:
 [`docs/INSTALL.md`](docs/INSTALL.md).

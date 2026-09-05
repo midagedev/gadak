@@ -71,6 +71,9 @@ Store가 서명해 주므로 SmartScreen도 Smart App Control도 막지 않습�
 없어서입니다([이유](docs/WINDOWS-SIGNING.md)). 막히면 Store에서 설치하고, Smart
 App Control은 끄지 마세요.
 
+화면은 영어·한국어·일본어로 뜹니다. 브라우저나 OS 언어를 따르고, 설정에서
+바꿀 수 있습니다.
+
 서명된 dmg, 리눅스 tarball, 다른 컴퓨터와 페어링(`gadak --workspace laptop init
 --pairing-code-stdin`), Docker, 업그레이드는 [`docs/INSTALL.md`](docs/INSTALL.md)에
 있습니다.
