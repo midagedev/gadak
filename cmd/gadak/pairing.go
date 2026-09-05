@@ -171,15 +171,7 @@ func pairingMint(args []string) error {
 // URL nobody checked. No tailscale, or any failure: no hint, the refusal
 // stands alone. A local exec, not an outbound request.
 func tailnetMintHint(label, scope string) string {
-	if _, err := exec.LookPath("tailscale"); err != nil {
-		return ""
-	}
-	// 5s: tailscale answers in milliseconds when its daemon is up; the
-	// bound is for a wedged daemon, and macOS's first exec of a fresh
-	// binary can itself take a second or two.
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	out, err := exec.CommandContext(ctx, "tailscale", "status", "--json").Output()
+	out, err := tailnetStatusJSON()
 	if err != nil {
 		return ""
 	}
@@ -198,6 +190,24 @@ func tailnetMintHint(label, scope string) string {
 		cmd += " --scope " + scope
 	}
 	return fmt.Sprintf("\ntry: %s --endpoint https://%s", cmd, dns)
+}
+
+// tailnetStatusJSON is `tailscale status --json` as a seam: the CLI's
+// answer when tailscale is on PATH, an error when it is not or the daemon
+// does not answer. A test swaps it for a stub instead of planting a shell
+// script on PATH — that script's fork ran past the 5s bound on a machine
+// saturated by two Playwright suites and made the hint assertion flaky
+// (GDK-1306); the hint's wording is what the test owns, not the fork.
+var tailnetStatusJSON = func() ([]byte, error) {
+	if _, err := exec.LookPath("tailscale"); err != nil {
+		return nil, err
+	}
+	// 5s: tailscale answers in milliseconds when its daemon is up; the
+	// bound is for a wedged daemon, and macOS's first exec of a fresh
+	// binary can itself take a second or two.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	return exec.CommandContext(ctx, "tailscale", "status", "--json").Output()
 }
 
 // writePairingMintOutput is the device-mint output contract (GDK-456).

@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -1389,8 +1390,10 @@ func TestPairingMintRefusesDiscoveredLoopbackEndpoint(t *testing.T) {
 	if err := serveaddr.Write(runDir, addr, ""); err != nil {
 		t.Fatal(err)
 	}
-	// No tailscale on PATH: the refusal alone, no completed-command hint.
-	t.Setenv("PATH", t.TempDir())
+	// No tailscale: the refusal alone, no completed-command hint. The
+	// status probe is stubbed rather than a script planted on PATH — the
+	// fork of that script is what ran past its bound under load (GDK-1306).
+	stubTailnetStatus(t, nil, errors.New("tailscale: not on PATH"))
 
 	out, _, err := captureErr(t, func() error {
 		return cmdPairing([]string{"mint", "--label", "laptop"})
@@ -1412,15 +1415,9 @@ func TestPairingMintRefusesDiscoveredLoopbackEndpoint(t *testing.T) {
 		t.Fatalf("refused mint left tokens: %+v (%v)", toks, err)
 	}
 
-	// With tailscale on PATH, the refusal completes the command for the user
-	// from Self.DNSName (trailing dot dropped) — suggested, never adopted.
-	bin := t.TempDir()
-	fake := filepath.Join(bin, "tailscale")
-	script := "#!/bin/sh\necho '{\"Self\":{\"DNSName\":\"home.example.ts.net.\"}}'\n"
-	if err := os.WriteFile(fake, []byte(script), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("PATH", bin)
+	// With tailscale answering, the refusal completes the command for the
+	// user from Self.DNSName (trailing dot dropped) — suggested, never adopted.
+	stubTailnetStatus(t, []byte(`{"Self":{"DNSName":"home.example.ts.net."}}`), nil)
 	_, _, err = captureErr(t, func() error {
 		return cmdPairing([]string{"mint", "--label", "laptop", "--scope", "serve"})
 	})
@@ -1430,4 +1427,14 @@ func TestPairingMintRefusesDiscoveredLoopbackEndpoint(t *testing.T) {
 	if !strings.Contains(err.Error(), "gadak pairing mint --label laptop --scope serve --endpoint https://home.example.ts.net") {
 		t.Fatalf("hint must be the completed command: %v", err)
 	}
+}
+
+// stubTailnetStatus replaces the `tailscale status --json` seam for one
+// test (GDK-1306): what tailscale would have printed, or the error that
+// stands for "not installed / daemon wedged".
+func stubTailnetStatus(t *testing.T, out []byte, err error) {
+	t.Helper()
+	prev := tailnetStatusJSON
+	tailnetStatusJSON = func() ([]byte, error) { return out, err }
+	t.Cleanup(func() { tailnetStatusJSON = prev })
 }
