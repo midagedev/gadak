@@ -17,14 +17,18 @@ const installHref = lang === 'en' ? '/install/' : '/ko/install/'
 ---
 
 <Base lang={lang} title={t.title} description={t.description}>
-  {/* Hero: the promise first. Speed is the product; prove it in the same
-      viewport with the recorded flagship, not a rendered mockup. */}
+  {/* Five sections, in the order a reader decides: the promise and one
+      recording, the measurement, one exhibit of the daily loop, the agent
+      surface with one recording, then trust and install. Everything else
+      that used to be here is a gallery now — docs/SHOWCASE.md — so the
+      landing stays one screen per idea (user call 2026-09-05). */}
   <section class="hero">
     <p class="eyebrow">{t.hero.eyebrow}</p>
     <h1>{t.hero.heading}</h1>
     <p class="lede">{t.hero.lede}</p>
     <div class="doors">
       <Door primary href={installHref} title={t.hero.doors.installTitle} sub={t.hero.doors.installSub} />
+      <Door href="/demo/" title={t.hero.doors.demoTitle} sub={t.hero.doors.demoSub} />
     </div>
     <figure class="flagship">
       <MediaSlot
@@ -39,9 +43,8 @@ const installHref = lang === 'en' ? '/install/' : '/ko/install/'
 
   <Thread label={t.speed.label} />
 
-  {/* Measurements right under the hero: the video says "fast", the table
-      says how much, against the thing people wait on today. The REST
-      comparison is the claim — same question, two runtimes. */}
+  {/* The video says "fast"; the table says how much, against the thing
+      people wait on today. Same question, two runtimes. */}
   <section class="speed">
     <h2>{t.speed.heading}</h2>
     <table>
@@ -70,21 +73,11 @@ const installHref = lang === 'en' ? '/install/' : '/ko/install/'
       {t.speed.note}
       <a href="https://github.com/midagedev/gadak/blob/main/docs/BENCHMARKS.md">docs/BENCHMARKS.md</a>.
     </p>
-    <p class="note strong">{t.speed.localHeading} — {t.speed.localNote}</p>
-  </section>
-
-  {/* The live demo, one scroll below the numbers: the door is here for the
-      reader who wants to touch it, not the one skimming the fold. */}
-  <section class="demo">
-    <h2>{t.demo.heading}</h2>
-    <p>{t.demo.body}</p>
-    <a class="demo-cta" href="/demo/">{t.demo.cta}</a>
   </section>
 
   <Thread label={t.ux.label} />
 
-  {/* The daily loop: three exhibits, each a real recording or an honest
-      placeholder until its take lands. Alternating text/media, no card grid. */}
+  {/* One exhibit for the daily loop: search is the one everybody hits. */}
   <section class="exhibit">
     <div class="text">
       <h2>{t.ux.search.heading}</h2>
@@ -97,79 +90,14 @@ const installHref = lang === 'en' ? '/install/' : '/ko/install/'
     />
   </section>
 
-  {/* Stills, not videos (GDK-751): these two claims read from one frame, so
-      each ships a core-region crop at recorded glyph scale instead of a
-      full-screen clip. */}
-  <section class="exhibit stacked">
-    <div class="text">
-      <h2>{t.ux.group.heading}</h2>
-      <p>{t.ux.group.body}</p>
-    </div>
-    <MediaSlot
-      slot={lang === 'en' ? 'group-by' : '묶기'}
-      still="/media/groupby-still.png"
-      alt={t.ux.group.alt}
-      displayWidth={828}
-    />
-  </section>
-
-  <section class="exhibit stacked">
-    <div class="text">
-      <h2>{t.ux.history.heading}</h2>
-      <p>{t.ux.history.body}</p>
-    </div>
-    <MediaSlot
-      slot={lang === 'en' ? 'history' : '히스토리'}
-      still="/media/history-still.png"
-      alt={t.ux.history.alt}
-      displayWidth={440}
-    />
-  </section>
-
   <Thread label={t.agent.label} />
 
   <section class="agent">
     <h2>{t.agent.heading}</h2>
     <p>{t.agent.body}</p>
-    <figure class="media-pair vertical">
-      {/* 0.20: the shell is in the window. The paper-terminal composite
-          (agent.mp4) retires; this is gadak's own pane under the list, a
-          claim naming the tab, then the pipe and the JQL. 4:5 cut, so it
-          takes the vertical cap like the other towers. */}
-      <MediaSlot
-        slot={lang === 'en' ? 'shell in the window' : '창 안의 셸'}
-        src="/media/terminal-demo.mp4"
-        poster="/media/terminal-demo-poster.png"
-      />
-      <figcaption>{t.agent.videoCaption}</figcaption>
-    </figure>
-    <Snippet
-      code={`gadak create NMB "Ship the export" --field team=platform
-gadak claim NMB-1042
-gadak transition NMB-1042 done -m "shipped"`}
-      copyLabel={copyLabel}
-      copiedLabel={copiedLabel}
-    />
     <figure class="media-pair">
-      {/* The recorded Claude Code tape from the README (user call 2026-08-24):
-          the claim here is a conversation flow, not a single frame, so this
-          exhibit plays the tape rather than a still. */}
-      <MediaSlot
-        slot={lang === 'en' ? 'live MCP session' : '라이브 MCP 세션'}
-        src="/media/mcp.mp4"
-        poster="/media/mcp-poster.png"
-      />
-      <figcaption>{t.agent.mcpCaption}</figcaption>
-    </figure>
-    <p>{t.agent.skillLead}</p>
-    <Snippet code="gadak skill install" copyLabel={copyLabel} copiedLabel={copiedLabel} />
-    <figure class="media-pair">
-      {/* v0.17.2 flagship (user call 2026-08-25): the claim is a command
-          changing the visible view, so this exhibit plays a take (GDK-751
-          motion rule). 0.20 retires the VHS-beside-a-tab composite: Claude
-          Code runs in gadak's own pane and the board it moves is the one
-          above it, so the take is the window itself — 16:10, full column
-          width, no vertical cap. */}
+      {/* The window itself: Claude Code in gadak's own pane, and the board
+          it moves is the one above it. 16:10, full column width. */}
       <MediaSlot
         slot={lang === 'en' ? 'agent in the window' : '창 안의 에이전트'}
         src="/media/terminal-hero.mp4"
@@ -177,32 +105,14 @@ gadak transition NMB-1042 done -m "shipped"`}
       />
       <figcaption>{t.agent.driveCaption}</figcaption>
     </figure>
-    {/* v0.17.3: two takes from the same rig, each following one job to the
-        end — the flagship above asks for both at once and cannot hold on
-        either. Side by side rather than stacked: three 4:5 towers in a row
-        would be the whole section, and the pair reads as one composition. */}
-    <div class="media-diptych">
-      <figure class="media-pair">
-        <MediaSlot
-          slot={lang === 'en' ? 'a wall it can build' : '에이전트가 만드는 대시보드'}
-          src="/media/claude-dashboards-vertical.mp4"
-          poster="/media/claude-dashboards-vertical-poster.png"
-        />
-        <figcaption>{t.agent.dashboardsCaption}</figcaption>
-      </figure>
-      <figure class="media-pair">
-        <MediaSlot
-          slot={lang === 'en' ? 'a look it can change' : '에이전트가 바꾸는 테마'}
-          src="/media/claude-tokens-vertical.mp4"
-          poster="/media/claude-tokens-vertical-poster.png"
-        />
-        <figcaption>{t.agent.tokensCaption}</figcaption>
-      </figure>
-    </div>
+    <p>{t.agent.skillLead}</p>
+    <Snippet code="gadak skill install" copyLabel={copyLabel} copiedLabel={copiedLabel} />
     <p>{t.agent.mcpLead}</p>
     <Snippet code="claude mcp add gadak -- gadak mcp" copyLabel={copyLabel} copiedLabel={copiedLabel} />
     <p class="note">
       <a href="https://github.com/midagedev/gadak/blob/main/docs/AGENT_SETUP.md">{t.agent.setupLink}</a>
+      <br />
+      <a href="https://github.com/midagedev/gadak/blob/main/docs/SHOWCASE.md">{t.agent.showcaseLink}</a>
     </p>
   </section>
 
@@ -213,17 +123,6 @@ gadak transition NMB-1042 done -m "shipped"`}
     <ul>
       {t.origin.points.map((point) => <li>{point}</li>)}
     </ul>
-  </section>
-
-  <Thread />
-
-  <section class="workspace">
-    <h2>{t.workspace.heading}</h2>
-    <p>{t.workspace.body}</p>
-    <p>{t.workspace.localOriginLead}</p>
-    <Snippet code="gadak init --local" copyLabel={copyLabel} copiedLabel={copiedLabel} />
-    <p>{t.workspace.secondLead}</p>
-    <Snippet code="gadak --workspace side init" copyLabel={copyLabel} copiedLabel={copiedLabel} />
   </section>
 
   <Thread />
@@ -347,26 +246,6 @@ gadak transition NMB-1042 done -m "shipped"`}
     color: var(--ink-3);
     margin: 0.9rem 0 0;
   }
-  .speed .note.strong {
-    color: var(--ink-2);
-  }
-  .demo {
-    text-align: center;
-    margin-top: 4rem;
-  }
-  .demo-cta {
-    display: inline-block;
-    margin: 0.5rem 0 0;
-    padding: 0.65rem 1.4rem;
-    border: 1px solid var(--accent);
-    border-radius: var(--radius);
-    color: var(--accent);
-    font-weight: 600;
-    text-decoration: none;
-  }
-  .demo-cta:hover {
-    background: var(--accent-subtle);
-  }
 
   .exhibit {
     display: grid;
@@ -375,17 +254,9 @@ gadak transition NMB-1042 done -m "shipped"`}
     align-items: start;
   }
   @media (min-width: 46rem) {
-    .exhibit:not(.stacked) {
+    .exhibit {
       grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
     }
-  }
-  /* Stills stack: the crop renders at its native 1x width (MediaSlot
-     displayWidth), centered, so recorded glyphs keep their size. */
-  .exhibit.stacked {
-    gap: 0.5rem;
-  }
-  .exhibit.stacked .text {
-    max-width: 58ch;
   }
   .exhibit h2 {
     font-size: 1.25rem;
@@ -416,43 +287,13 @@ gadak transition NMB-1042 done -m "shipped"`}
     font-size: 0.875rem;
     line-height: 1.7;
   }
-  .caption {
-    font-size: 0.875rem !important;
-    color: var(--ink-3) !important;
-    margin-top: 1.25rem !important;
-  }
   .media-pair {
     margin: 1.5rem 0;
   }
-
-  /* A 4:5 tape at column width would tower over the text — cap it and
-     center; 540px keeps the recorded glyphs at roughly 1x. */
-  .media-pair.vertical {
-    max-width: 540px;
-    margin-inline: auto;
-  }
-
-  /* Two 4:5 tapes as one exhibit. They are read as a pair — "a wall it can
-     build" beside "a look it can change" — so they share a row until the
-     column is too narrow for the terminal band to stay legible, and then
-     they stack at full width rather than shrinking further. */
-  .media-diptych {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1.25rem;
-    align-items: start;
-    margin: 1.5rem 0;
-  }
-  .media-diptych .media-pair {
-    margin: 0;
-    min-width: 0;
-  }
-  @media (max-width: 720px) {
-    .media-diptych {
-      grid-template-columns: 1fr;
-      max-width: 540px;
-      margin-inline: auto;
-    }
+  .agent .note {
+    font-size: 0.875rem;
+    color: var(--ink-3);
+    line-height: 1.8;
   }
 
   .origin ul {
