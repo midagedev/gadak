@@ -146,6 +146,32 @@ issues**, and that is the honest state.
   only in `raw` if the sync stores it; exposing them is a product decision
   with a schema change attached (lead's), not a connector decision.
 
+### `links` ← `Issue.relations` / `Issue.inverseRelations` (GDK-1299)
+
+Relations come nested on the issue, two connections with the same node type
+(`IssueRelation { id type issue relatedIssue }`; `IssueRelationType` is
+`blocks | duplicate | related | similar`, introspected live 2026-09-06). Which
+end is "me" is the connection, not the node: in `relations` this issue is
+`issue` and owns the relation; in `inverseRelations` another issue owns it
+and this one is `relatedIssue`.
+
+- `relations` → `links.direction = 'outward'`, target = `relatedIssue.identifier`;
+  `inverseRelations` → `'inward'`, target = `issue.identifier`. Same split as
+  a Jira `issuelinks` payload (outwardIssue / inwardIssue), so the blocked
+  issue carries the inward `Blocks` row and `gadak ready` needs no Linear
+  branch.
+- `links.type` is the Jira-default name for the same idea — `blocks` →
+  `Blocks`, `duplicate` → `Duplicate`, `related` → `Relates`, `similar` →
+  `Similar` — so one recipe reads both origins (`docs/RECIPES.md` keys on
+  `'Blocks'`) and `migrate --to linear` (`linearRelationType`, lowercases and
+  folds) inverts it. An enum value outside those four is stored as Linear
+  spells it, not folded into `Relates`.
+- First inline page (`RelationsPageSize`, 50) per connection; `HasNextPage`
+  is counted and logged by the sync pass, no follow-up fetch yet.
+- **Not mapped**: relation ids (the mirror's `links` has no id column — same
+  as Jira; `unlink` resolves live), and the write half (`gadak link` on a
+  Linear workspace still refuses with `ErrNoIssueLinks`).
+
 ### Comments ← `Issue.comments` (nested connection, markdown bodies)
 
 Comments come **nested on the issue** (`comments(first: N) { pageInfo nodes

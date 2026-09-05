@@ -143,6 +143,34 @@ type Issue struct {
 	// Attachments is the first inline page (AttachmentsPageSize).
 	// CompleteAttachments follows HasNextPage the same way comments do.
 	Attachments AttachmentConn `json:"attachments"`
+
+	// Relations are the relations this issue owns — it is `issue`, the
+	// other side is `relatedIssue` — and InverseRelations the ones another
+	// issue owns that point here. The mirror stores the first as outward
+	// links and the second as inward, the way a Jira issuelinks payload
+	// splits into outwardIssue / inwardIssue (GDK-1299). First inline page
+	// each (RelationsPageSize); HasNextPage is counted by the sync pass so
+	// truncation is observable, never silent.
+	Relations        RelationConn `json:"relations"`
+	InverseRelations RelationConn `json:"inverseRelations"`
+}
+
+// RelationConn is the connection shape of Issue.relations and
+// Issue.inverseRelations.
+type RelationConn struct {
+	PageInfo PageInfo        `json:"pageInfo"`
+	Nodes    []IssueRelation `json:"nodes"`
+}
+
+// IssueRelation is one IssueRelation node. Type is the IssueRelationType
+// enum — blocks, duplicate, related, similar (introspected live
+// 2026-09-06). `issue` owns the relation; for `blocks` it is the blocker,
+// for `duplicate` the issue Linear moved into its Duplicate state.
+type IssueRelation struct {
+	ID           string    `json:"id"`
+	Type         string    `json:"type"`
+	Issue        ParentRef `json:"issue"`
+	RelatedIssue ParentRef `json:"relatedIssue"`
 }
 
 // IssueConnection and its siblings are the standard Linear connection shape.

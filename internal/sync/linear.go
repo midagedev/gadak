@@ -82,7 +82,7 @@ func RunLinear(ctx context.Context, cfg *config.Config, db *store.DB, opts Optio
 func runLinearPass(ctx context.Context, c *linear.Client, cfg *config.Config, db *store.DB, opts Options, state store.SyncState, res *Result) error {
 	var maxUTC string // Linear stamps are ISO-8601 UTC ms: lexicographic max is chronological
 	unknownTypes := map[string]int{}
-	var commentsTruncated, labelsTruncated, attachmentsTruncated int
+	var commentsTruncated, labelsTruncated, attachmentsTruncated, relationsTruncated int
 	seen := map[string]bool{}
 
 	page := func(issues []linear.Issue) error {
@@ -122,6 +122,9 @@ func runLinearPass(ctx context.Context, c *linear.Client, cfg *config.Config, db
 			}
 			if iss.Attachments.PageInfo.HasNextPage {
 				attachmentsTruncated++
+			}
+			if iss.Relations.PageInfo.HasNextPage || iss.InverseRelations.PageInfo.HasNextPage {
+				relationsTruncated++
 			}
 			gk := strconv.Itoa(iss.Priority) + "\x00" + iss.PriorityLabel
 			g, ok := groups[gk]
@@ -187,6 +190,9 @@ func runLinearPass(ctx context.Context, c *linear.Client, cfg *config.Config, db
 	}
 	if attachmentsTruncated > 0 {
 		opts.logf("linear: %d issues have more than %d attachments — extra attachments are not mirrored", attachmentsTruncated, linear.AttachmentsPageSize)
+	}
+	if relationsTruncated > 0 {
+		opts.logf("linear: %d issues have more than %d relations in one direction — extra links are not mirrored", relationsTruncated, linear.RelationsPageSize)
 	}
 	for _, typ := range sortedKeys(unknownTypes) {
 		opts.logf("linear: unknown workflow state type %q on %d issues — mirrored as status_category new", typ, unknownTypes[typ])
@@ -270,6 +276,21 @@ func buildLinearRecord(iss linear.Issue, cat string) store.IssueRecord {
 	}
 
 	rec := store.IssueRecord{Item: item, Issue: issue}
+	// Relations → links (GDK-1299). The relation this issue owns is its
+	// outward link (blocks: I block the target; duplicate: I duplicate the
+	// target); one owned by another issue and pointing here is inward — the
+	// same split a Jira issuelinks payload makes, so the blocked issue
+	// carries the inward Blocks row and `gadak ready` reads it unchanged.
+	for _, rel := range iss.Relations.Nodes {
+		if k := rel.RelatedIssue.Identifier; k != "" {
+			rec.Links = append(rec.Links, store.Link{Type: linearLinkType(rel.Type), Direction: "outward", TargetKey: k})
+		}
+	}
+	for _, rel := range iss.InverseRelations.Nodes {
+		if k := rel.Issue.Identifier; k != "" {
+			rec.Links = append(rec.Links, store.Link{Type: linearLinkType(rel.Type), Direction: "inward", TargetKey: k})
+		}
+	}
 	for _, cm := range iss.Comments.Nodes {
 		sc := store.Comment{
 			ID:         LinearSourceID + ":" + cm.ID,
@@ -296,6 +317,26 @@ func buildLinearRecord(iss linear.Issue, cat string) store.IssueRecord {
 		})
 	}
 	return rec
+}
+
+// linearLinkType names a Linear relation type the way the mirror's Jira
+// rows are named, so one recipe reads both: `links.type = 'Blocks'` in
+// docs/RECIPES.md, the detail's linked-issues panel, and migrate's inverse
+// (linearRelationType lowercases and folds the same three). An enum value
+// this table does not know is kept as Linear spells it rather than folded
+// into Relates — a new relation kind should show up, not hide.
+func linearLinkType(relationType string) string {
+	switch relationType {
+	case "blocks":
+		return "Blocks"
+	case "duplicate":
+		return "Duplicate"
+	case "related":
+		return "Relates"
+	case "similar":
+		return "Similar"
+	}
+	return relationType
 }
 
 func attachmentSizeMime(meta map[string]any) (int64, string) {

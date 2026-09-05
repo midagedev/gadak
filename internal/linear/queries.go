@@ -81,6 +81,13 @@ const LabelsPageSize = 50
 // AttachmentsPageSize is the inline attachment page on every issue row.
 const AttachmentsPageSize = 50
 
+// RelationsPageSize is the inline page on Issue.relations and
+// Issue.inverseRelations (GDK-1299). Same contract as the three above:
+// HasNextPage marks the cut and the sync pass counts it. No follow-up
+// fetch yet — an issue related to more than fifty others is a shape none of
+// the measured workspaces have, and the count will say when one does.
+const RelationsPageSize = 50
+
 // commentSelection is the comment node's field set, shared by the inline
 // comments connection on issue queries and the commentCreate payload so the
 // write path cannot drift from the read path on what a Comment is. The
@@ -183,7 +190,39 @@ var issueSelection = `
         }
         nodes {` + attachmentSelection + `
         }
+      }
+      relations(first: ` + strconv.Itoa(RelationsPageSize) + `) {
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+        nodes {` + relationSelection + `
+        }
+      }
+      inverseRelations(first: ` + strconv.Itoa(RelationsPageSize) + `) {
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+        nodes {` + relationSelection + `
+        }
       }`
+
+// relationSelection is one IssueRelation node: the type and both ends by
+// identifier — that is all the mirror's links table holds (GDK-1299). The
+// two connections carry the same selection because Linear's relation node
+// is the same type from either end; which end is "me" is the connection.
+const relationSelection = `
+          id
+          type
+          issue {
+            id
+            identifier
+          }
+          relatedIssue {
+            id
+            identifier
+          }`
 
 // queryIssues pages issues oldest-updated-first. Filter carries the
 // incremental-sync watermark (updatedAt.gte) and the team scope; both were

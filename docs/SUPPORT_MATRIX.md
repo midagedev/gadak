@@ -30,7 +30,7 @@ Markers:
 | **Read** · comments | ✅[^9] | ✅[^10] | ✅[^9] |
 | **Read** · attachment bytes | ✅[^11] | ✅[^12] | ◐[^13] |
 | **Read** · history → `status_changed_at`, time-in-status, `reopen_count` | ✅[^14] | —[^15] | ✅[^16] |
-| **Read** · issue links | ✅[^17] | —[^18] | ✅[^19] |
+| **Read** · issue links | ✅[^17] | ✅[^106] | ✅[^19] |
 | **Read** · remote issue links / cross-workspace refs (`ref`) | —[^20] | —[^20] | ◐[^21] |
 | **Read** · development-panel links (`dev`) | ◐[^22] | —[^23] | ✅[^24] |
 | **Read** · labels | ✅[^25] | ✅[^26] | ✅[^25] |
@@ -129,9 +129,8 @@ Markers:
 [^17]: `issuelinks` in the issue payload plus the link-type catalog
     (`internal/jira/write.go:234`, `:212`).
 
-[^18]: Linear relations are not mirrored, and the write half refuses with
-    `ErrNoIssueLinks` (`internal/origin/writer.go:101`); syncing relations is
-    GDK-1299 (in flight).
+[^18]: The write half refuses with `ErrNoIssueLinks`
+    (`internal/origin/writer.go:101`); reading relations is [^106].
 
 [^19]: Link-type catalog and both-direction elements
     (`issuetap/docs/COMPATIBILITY.md:59`, `:75`).
@@ -441,3 +440,8 @@ this table from the code instead of maintaining it by hand is GDK-1301.
     issue copy-link takes on the Built-in origin. No stand-in.
 [^105]: The Built-in tracker's page is this app: app lines only
     (`web/src/lib/view-link.ts:49`).
+
+[^106]: `Issue.relations` / `inverseRelations` in the issue query
+    (`internal/linear/queries.go:89`) land as outward / inward `links` rows
+    named like the Jira ones — Blocks, Duplicate, Relates
+    (`internal/sync/linear.go:286`); GDK-1299.

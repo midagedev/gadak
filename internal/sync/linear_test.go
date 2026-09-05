@@ -885,3 +885,113 @@ func TestRunLinearFullSyncRefusesToEmptyMirror(t *testing.T) {
 		t.Fatal("empty upstream must not wipe the linear mirror")
 	}
 }
+
+// TestRunLinearMirrorsRelations (GDK-1299): Issue.relations become outward
+// links and Issue.inverseRelations inward ones, named like the Jira rows so
+// the recipes, the linked-issues panel and `gadak ready` read them
+// unchanged. Before this the query never asked for relations and a Linear
+// workspace's links table was empty for good.
+func TestRunLinearMirrorsRelations(t *testing.T) {
+	conn := func(nodes ...map[string]any) map[string]any {
+		if nodes == nil {
+			nodes = []map[string]any{}
+		}
+		return map[string]any{
+			"pageInfo": map[string]any{"hasNextPage": false, "endCursor": nil},
+			"nodes":    nodes,
+		}
+	}
+	rel := func(id, typ, issue, related string) map[string]any {
+		return map[string]any{
+			"id": id, "type": typ,
+			"issue":        map[string]any{"id": "i-" + issue, "identifier": issue},
+			"relatedIssue": map[string]any{"id": "i-" + related, "identifier": related},
+		}
+	}
+	// FIX-1 blocks FIX-2 and duplicates FIX-3 (it owns both relations);
+	// FIX-4 relates to FIX-1 and owns that one, so FIX-1 sees it inverse;
+	// FIX-9 is a key this page does not carry — the row is still stored,
+	// target_key is text, the join at read time decides.
+	nodes := []map[string]any{
+		linearNode("FIX-1", "1", "unstarted", "Todo", 0, "No priority", map[string]any{
+			"relations": conn(
+				rel("r1", "blocks", "FIX-1", "FIX-2"),
+				rel("r2", "duplicate", "FIX-1", "FIX-3"),
+				rel("r5", "similar", "FIX-1", "FIX-9"),
+				rel("r6", "brand-new-kind", "FIX-1", "FIX-9"),
+			),
+			"inverseRelations": conn(rel("r3", "related", "FIX-4", "FIX-1")),
+		}),
+		linearNode("FIX-2", "2", "started", "In Progress", 2, "High", map[string]any{
+			"relations":        conn(),
+			"inverseRelations": conn(rel("r1", "blocks", "FIX-1", "FIX-2")),
+		}),
+		linearNode("FIX-4", "4", "unstarted", "Todo", 0, "No priority", map[string]any{
+			"relations":        conn(rel("r3", "related", "FIX-4", "FIX-1")),
+			"inverseRelations": conn(),
+		}),
+	}
+	srv := linearGraphQL(t, map[string]string{"": linearIssuesResponse(t, nodes)})
+	t.Cleanup(srv.Close)
+	db := newMirror(t)
+	if _, err := RunLinear(context.Background(), linearTestConfig(), db.DB, Options{LinearClient: testLinearClient(t, srv)}); err != nil {
+		t.Fatal(err)
+	}
+
+	rows, err := db.Query(`
+		SELECT i.key, l.type, l.direction, l.target_key
+		FROM links l JOIN issues i ON i.item_id = l.item_id
+		ORDER BY i.key, l.direction, l.type, l.target_key`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var got []string
+	for rows.Next() {
+		var key, typ, dir, target string
+		if err := rows.Scan(&key, &typ, &dir, &target); err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, key+" "+dir+" "+typ+" → "+target)
+	}
+	want := []string{
+		"FIX-1 inward Relates → FIX-4",
+		"FIX-1 outward Blocks → FIX-2",
+		"FIX-1 outward Duplicate → FIX-3",
+		"FIX-1 outward Similar → FIX-9",
+		"FIX-1 outward brand-new-kind → FIX-9",
+		"FIX-2 inward Blocks → FIX-1",
+		"FIX-4 outward Relates → FIX-1",
+	}
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("links rows:\n got %q\nwant %q", got, want)
+	}
+}
+
+// TestLinearIssueQueryAsksForRelations pins the query text: the whole
+// GDK-1299 defect was a selection that never mentioned relations, and a
+// fixture-driven test cannot notice a field the stub is not asked for.
+func TestLinearIssueQueryAsksForRelations(t *testing.T) {
+	var asked string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Query string `json:"query"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&req)
+		if strings.Contains(req.Query, "issues(") {
+			asked = req.Query
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(linearIssuesResponse(t, nil)))
+	}))
+	t.Cleanup(srv.Close)
+	db := newMirror(t)
+	if _, err := RunLinear(context.Background(), linearTestConfig(), db.DB, Options{LinearClient: testLinearClient(t, srv)}); err != nil {
+		t.Fatal(err)
+	}
+	for _, field := range []string{"relations(first: 50)", "inverseRelations(first: 50)", "relatedIssue {"} {
+		if !strings.Contains(asked, field) {
+			t.Errorf("issues query does not ask for %q:\n%s", field, asked)
+		}
+	}
+}
