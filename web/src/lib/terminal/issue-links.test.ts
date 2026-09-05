@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { findIssueKeyMatches, knownProjectKeys } from './issue-links'
+import {
+  findIssueKeyMatches,
+  knownProjectKeys,
+  linkAnswerIsStale,
+  nudgeRowOffset,
+  rowFromPointer,
+} from './issue-links'
 
 const MIRROR = ['GDK', 'NMB', 'OPS']
 
@@ -76,5 +82,37 @@ describe('knownProjectKeys (GDK-1177)', () => {
 
   it('ignores a malformed key', () => {
     expect([...knownProjectKeys([], [{ issue_key: '-3' }, { issue_key: 'X' }])]).toEqual([])
+  })
+})
+
+describe('GDK-1172 resting-pointer stale answer', () => {
+  it('rowFromPointer maps a client y onto the viewport row, and null off the screen', () => {
+    // 24 rows over a 480px screen starting at y=100: 20px cells.
+    expect(rowFromPointer(100, 100, 480, 24)).toBe(0)
+    expect(rowFromPointer(119.9, 100, 480, 24)).toBe(0)
+    expect(rowFromPointer(120, 100, 480, 24)).toBe(1)
+    expect(rowFromPointer(579.9, 100, 480, 24)).toBe(23)
+    expect(rowFromPointer(99, 100, 480, 24)).toBeNull()
+    expect(rowFromPointer(580, 100, 480, 24)).toBeNull()
+    expect(rowFromPointer(120, 100, 0, 24)).toBeNull()
+    expect(rowFromPointer(120, 100, 480, 0)).toBeNull()
+  })
+
+  it('nudgeRowOffset bounces down, up from the last row, nowhere in a one-row terminal', () => {
+    expect(nudgeRowOffset(0, 24)).toBe(1)
+    expect(nudgeRowOffset(10, 24)).toBe(1)
+    expect(nudgeRowOffset(23, 24)).toBe(-1)
+    expect(nudgeRowOffset(0, 1)).toBe(0)
+  })
+
+  it('linkAnswerIsStale: same line with new text is stale — the parked-pointer case', () => {
+    // The pointer rested on line 7 while it was empty; the key printed there.
+    expect(linkAnswerIsStale({ y: 7, text: '' }, 7, 'GDK-1172')).toBe(true)
+    // A prompt redrawn with the same text is not.
+    expect(linkAnswerIsStale({ y: 7, text: '$ ' }, 7, '$ ')).toBe(false)
+    // A different line is the Linkifier's own business.
+    expect(linkAnswerIsStale({ y: 7, text: '' }, 8, 'GDK-1172')).toBe(false)
+    // Nothing answered yet, nothing cached.
+    expect(linkAnswerIsStale(null, 7, 'GDK-1172')).toBe(false)
   })
 })

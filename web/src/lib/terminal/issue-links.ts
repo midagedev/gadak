@@ -77,3 +77,65 @@ export function knownProjectKeys(
   }
   return keys
 }
+
+/*
+ * GDK-1172 — the resting-pointer stale answer.
+ *
+ * xterm 6.0.0's Linkifier asks a provider once per buffer line and keeps
+ * that answer for as long as the pointer stays on the line: _handleHover
+ * takes the cached branch whenever position.y equals _activeLine, and only
+ * a link that was *found* subscribes to viewport changes. A pointer resting
+ * on an empty row when a key is printed there therefore clicks on "no
+ * links" until it leaves the row. There is no public invalidation, but the
+ * cache keys on the pointer's cell, so a mousemove through a neighbouring
+ * row and back makes the next hover a fresh ask. The renderer does that
+ * nudge; these three functions are the decision, kept pure so vitest can
+ * pin it without a DOM.
+ */
+
+/** What the provider last answered: the 1-based buffer line and the text it
+ *  saw there. */
+export interface LinkRowAnswer {
+  y: number
+  text: string
+}
+
+/**
+ * The 0-based viewport row under a pointer, or null when the pointer is
+ * off the screen element. `screenTop`/`screenHeight` are the screen
+ * element's client rect; `rows` is the terminal's row count — the screen is
+ * exactly rows × cell height tall, which is why no cell metric is needed.
+ */
+export function rowFromPointer(
+  clientY: number,
+  screenTop: number,
+  screenHeight: number,
+  rows: number,
+): number | null {
+  if (rows <= 0 || screenHeight <= 0) return null
+  const rel = clientY - screenTop
+  if (rel < 0 || rel >= screenHeight) return null
+  return Math.min(rows - 1, Math.floor((rel / screenHeight) * rows))
+}
+
+/** The row to bounce through: the one below, or above when the pointer is
+ *  on the last row. Always a different row from the pointer's own, and
+ *  always inside the screen. A one-row terminal has nowhere to go. */
+export function nudgeRowOffset(row: number, rows: number): -1 | 1 | 0 {
+  if (rows < 2) return 0
+  return row >= rows - 1 ? -1 : 1
+}
+
+/**
+ * Whether the provider's last answer is stale for the line under the
+ * pointer: same buffer line, different text. A different line is not
+ * stale — the Linkifier asks afresh on its own when the pointer changes
+ * rows — and no answer at all means nothing is cached.
+ */
+export function linkAnswerIsStale(
+  answer: LinkRowAnswer | null,
+  y: number,
+  text: string,
+): boolean {
+  return answer !== null && answer.y === y && answer.text !== text
+}

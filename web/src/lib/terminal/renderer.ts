@@ -22,7 +22,13 @@ import {
   type TerminalAnsiSlot,
 } from './protocol'
 import type { TerminalRenderer } from './protocol'
-import { findIssueKeyMatches } from './issue-links'
+import {
+  findIssueKeyMatches,
+  linkAnswerIsStale,
+  nudgeRowOffset,
+  rowFromPointer,
+  type LinkRowAnswer,
+} from './issue-links'
 
 export { createUtf8StreamDecoder }
 export type { TerminalRenderer }
@@ -338,10 +344,14 @@ async function createXtermRenderer(): Promise<BehaviorTerminalRenderer> {
      * not add one.
      */
     registerIssueLinks({ projects, open }) {
+      // Every answer is remembered against its buffer line so the render
+      // hook below can tell when xterm is holding a stale one (GDK-1172).
+      let answered: LinkRowAnswer | null = null
       const disposable = term.registerLinkProvider({
         provideLinks(bufferLineNumber, callback) {
           const line = term.buffer.active.getLine(bufferLineNumber - 1)
-          const text = line?.translateToString(true)
+          const text = line?.translateToString(true) ?? ''
+          answered = { y: bufferLineNumber, text }
           if (!text) {
             callback(undefined)
             return
@@ -363,7 +373,60 @@ async function createXtermRenderer(): Promise<BehaviorTerminalRenderer> {
           )
         },
       })
-      return () => disposable.dispose()
+      /*
+       * GDK-1172 — a key printed on the row the pointer is resting on is
+       * not clickable until the pointer leaves the row. xterm 6.0.0's
+       * Linkifier keeps a provider's answer for as long as the pointer stays
+       * on the line (_handleHover takes the cached branch when position.y
+       * equals _activeLine), and only a link that was *found* subscribes to
+       * viewport changes — a cached "no links" outlives the line it was
+       * true of. Measured 2026-08-30 under the CI runner's shell: the focus
+       * click parks the pointer on an empty row, the key lands on it, the
+       * click opens nothing for 20s (e2e/terminal-strip.spec.ts).
+       *
+       * There is no public invalidation, but the cache keys on the
+       * pointer's cell: a mousemove through a neighbouring row and back at
+       * the pointer makes the next hover a fresh ask. Done only when the
+       * line under the pointer changed since it was answered, so idle
+       * output and a moving pointer cost nothing. Real pointer positions
+       * only — the two synthetic moves must not become the pointer.
+       */
+      const el = term.element
+      const screen = () => el?.querySelector<HTMLElement>('.xterm-screen') ?? null
+      let pointer: { x: number; y: number } | null = null
+      const onMove = (ev: MouseEvent) => {
+        if (ev.isTrusted) pointer = { x: ev.clientX, y: ev.clientY }
+      }
+      const onLeave = () => {
+        pointer = null
+      }
+      el?.addEventListener('mousemove', onMove)
+      el?.addEventListener('mouseleave', onLeave)
+      const unRender = term.onRender(({ start, end }) => {
+        if (!pointer || !answered) return
+        const s = screen()
+        if (!s) return
+        const rect = s.getBoundingClientRect()
+        const row = rowFromPointer(pointer.y, rect.top, rect.height, term.rows)
+        if (row === null || row < start || row > end) return
+        const y = term.buffer.active.viewportY + row + 1
+        const text = term.buffer.active.getLine(y - 1)?.translateToString(true) ?? ''
+        if (!linkAnswerIsStale(answered, y, text)) return
+        const step = nudgeRowOffset(row, term.rows)
+        if (step === 0) return
+        const cell = rect.height / term.rows
+        for (const clientY of [pointer.y + step * cell, pointer.y]) {
+          s.dispatchEvent(
+            new MouseEvent('mousemove', { clientX: pointer.x, clientY, bubbles: true }),
+          )
+        }
+      })
+      return () => {
+        unRender.dispose()
+        el?.removeEventListener('mousemove', onMove)
+        el?.removeEventListener('mouseleave', onLeave)
+        disposable.dispose()
+      }
     },
     open(host: HTMLElement) {
       host.setAttribute('data-gadak-editable', '')

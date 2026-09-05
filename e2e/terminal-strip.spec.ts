@@ -467,28 +467,19 @@ test.describe('terminal session strip', () => {
     const x = box!.x + box!.width / 2
     const y = box!.y + box!.height / 2
     /*
-     * The pointer arrives across a neighbouring row, not out of nowhere.
-     *
-     * xterm asks a link provider once per buffer line and keeps the answer
-     * against that line: Linkifier._handleHover takes the cached branch
-     * whenever the pointer's row equals `_activeLine`, and that branch never
-     * calls provideLinks again (@xterm/xterm 6.0.0). typeLine's focus click
-     * already parked the pointer on a row of the freshly opened pane — a row
-     * that was empty then, so the cached answer for it is "no links". On a
-     * shell that prints no startup banner the key lands on exactly that row,
-     * and the click below would consult that stale answer and open nothing.
-     *
-     * Measured 2026-08-30 with e2e/ci-shell.sh (`npm run
-     * test:e2e:wide-prompt`), which is the CI runner's shell: without this
-     * first move the detail panel stayed hidden for the full 20s — the same
-     * failure the Linux CI job had and macOS never did, because Apple's bash
-     * prints a three-line deprecation banner that pushed the key one row
-     * further down. One row up is always a different line from the key's own
-     * (the echoed command line sits above it), so the hover that follows is
-     * always a fresh ask.
+     * The pointer is still where typeLine's focus click parked it — on a
+     * row of the freshly opened pane that was empty then, and on a shell
+     * that prints no startup banner (e2e/ci-shell.sh, the CI runner's) the
+     * key lands on exactly that row. That is the GDK-1172 trap: xterm
+     * 6.0.0 asks a link provider once per buffer line and keeps the answer
+     * for as long as the pointer stays on the line, so the cached "no
+     * links" would make this click open nothing. The renderer now re-asks
+     * when the line under the resting pointer changes (renderer.ts,
+     * registerIssueLinks), so the click goes straight in — no detour over a
+     * neighbouring row. Measured 2026-08-30 without the fix under `npm run
+     * test:e2e:wide-prompt`: the detail panel stayed hidden for the full
+     * 20s. Keep this a direct click; the detour would hide a regression.
      */
-    await page.mouse.move(x, y - box!.height)
-    await page.mouse.move(x, y)
     await page.mouse.click(x, y)
 
     const panel = page.getByTestId('issue-detail-panel')
