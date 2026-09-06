@@ -8,10 +8,10 @@ import { attachConsoleErrors, e2eHomeDir, gotoApp } from './helpers'
  * Main-column occupancy: "show the issue list" must drop docs / space / feed.
  *
  * Contract → assertion
- *  1. DOCS → Assigned to me → docs-view gone, issue-list-scroller visible
+ *  1. DOCS → My issues (built-in) → docs-view gone, issue-list-scroller visible
  *  2. DOCS → All open → same (already worked via applyView)
  *  3. DOCS → ui-focus `pj=NMA&sc=inprogress` → list + chips
- *  4. space → Assigned to me → same as (1)
+ *  4. space → My issues (built-in) → same as (1)
  *  5. DOCS → palette issue pick → panel opens, docs-view stays (selection contract)
  */
 
@@ -37,15 +37,18 @@ async function expectIssueList(page: Page): Promise<void> {
 }
 
 test.describe('issue list takes the main column', () => {
-  test('DOCS → Assigned to me shows the issue list', async ({ page }) => {
+  test('DOCS → My issues shows the issue list', async ({ page }) => {
     const errors = attachConsoleErrors(page)
     await gotoApp(page)
     await openDocuments(page)
 
-    await page.getByRole('button', { name: 'Assigned to me' }).click()
+    // The legacy "Assigned to me" row is gone (2026-09-07 sidebar
+    // subtraction); the built-in My issues view is that question's one
+    // owner, and its config serialises the mine flag, not an assignee.
+    await page.locator('aside').getByRole('button', { name: 'My issues' }).click()
     await expectIssueList(page)
     expect(page.url()).not.toContain('docs=1')
-    await expect(page).toHaveURL(/as=/)
+    await expect(page).toHaveURL(/[#?&]fl=mine(&|$)/)
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
@@ -78,7 +81,7 @@ test.describe('issue list takes the main column', () => {
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 
-  test('space → Assigned to me shows the issue list', async ({ page }) => {
+  test('space → My issues shows the issue list', async ({ page }) => {
     const errors = attachConsoleErrors(page)
     await gotoApp(page)
 
@@ -86,10 +89,10 @@ test.describe('issue list takes the main column', () => {
     await page.getByTestId('docs-section').getByTestId('docs-space').filter({ hasText: 'ENG' }).click()
     await expect(page.getByTestId('space-docs-view')).toBeVisible()
 
-    await page.getByRole('button', { name: 'Assigned to me' }).click()
+    await page.locator('aside').getByRole('button', { name: 'My issues' }).click()
     await expectIssueList(page)
     expect(page.url()).not.toContain('space=')
-    await expect(page).toHaveURL(/as=/)
+    await expect(page).toHaveURL(/[#?&]fl=mine(&|$)/)
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })

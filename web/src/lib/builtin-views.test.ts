@@ -1,23 +1,6 @@
 import { describe, expect, test } from 'vitest'
-import { startOfWeekMonday } from './calendar'
 import { builtinViews } from './builtin-views'
 import { configToParams } from './view-config'
-
-describe('builtinViews (moved from e2e/dates.spec.ts)', () => {
-  test('resolved-week serialises to rf= (resolved_from), not uf=', () => {
-    const view = builtinViews().find((v) => v.id === 'resolved-week')
-    expect(view, 'resolved-week builtin must exist').toBeTruthy()
-    const monday = startOfWeekMonday()
-    expect(view!.config.filters.status_category).toEqual(['done'])
-    expect(view!.config.filters.resolved_from).toBe(monday)
-    expect(view!.config.filters.updated_from).toBeNull()
-    const params = configToParams(view!.config)
-    expect(params.rf).toBe(monday)
-    expect(params.rf).toMatch(/^\d{4}-\d{2}-\d{2}$/)
-    expect(params.uf).toBeNull()
-    expect(params.sc).toBe('done')
-  })
-})
 
 /*
  * team-flow pack: the "Aging in progress" built-in view.
@@ -79,8 +62,10 @@ describe('builtinViews: aging-in-progress (team-flow pack)', () => {
  * contributor first, steward second; G4: the arrangement is the coaching).
  *
  * Contract ↔ assertion table (clause → assertion names):
- *  C3 ten views, exact stance partition in spec order
- *     ten views in the spec order, mine stance first
+ *  C3 seven views, exact stance partition in spec order (2026-09-07
+ *     subtraction: recently-updated / stale / resolved-week deleted,
+ *     all-open / unassigned-new moved mine → team)
+ *     seven views in the spec order, mine stance first
  *     exactly my-work and delegated need identity
  *  C6 my-work is tenant-neutral — the identity flag + status_category only
  *     my-work: mine flag, open categories, urgent-first priority sort
@@ -90,20 +75,21 @@ describe('builtinViews: aging-in-progress (team-flow pack)', () => {
  * FAIL-first 2026-09-06: against the pre-change list every test in this
  * block failed — builtinViews() had eight views, no stance/needsIdentity
  * fields, and find('my-work')/find('delegated') returned undefined.
+ * FAIL-first 2026-09-07 (sidebar subtraction): the pre-change list was ten
+ * views with a 5+5 partition (all-open, unassigned-new, recently-updated
+ * mine; stale, resolved-week team) — the seven-view partition below failed
+ * against it on shape, not just counts.
  */
 describe('builtinViews: my-work pack stances', () => {
-  test('ten views in the spec order, mine stance first', () => {
+  test('seven views in the spec order, mine stance first', () => {
     expect(builtinViews().map((v) => [v.id, v.stance])).toEqual([
       ['my-work', 'mine'],
       ['delegated', 'mine'],
-      ['all-open', 'mine'],
-      ['unassigned-new', 'mine'],
-      ['recently-updated', 'mine'],
+      ['all-open', 'team'],
+      ['unassigned-new', 'team'],
       ['aging-in-progress', 'team'],
-      ['stale', 'team'],
       ['reopened', 'team'],
       ['epic-breakdown', 'team'],
-      ['resolved-week', 'team'],
     ])
   })
 

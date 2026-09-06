@@ -18,8 +18,8 @@ const SHOT = join(SHOT_DIR, 'my-work.png')
  *
  * Contract ↔ assertion table (clause → assertion names):
  *  C2/C3 anonymous: stance labels stay, identity views are absent (not
- *      disabled), the eight team/plain views remain
- *      anonymous sidebar: labels yes, identity rows no, eight rows by name
+ *      disabled), the five team views remain
+ *      anonymous sidebar: team label yes, mine label and identity rows no, five rows by name
  *      stance labels are rows of text, not buttons
  *  C1 person-match is the only mine-rule (sidebar count == list == SQL)
  *      identified sidebar lists My issues 46 / Handed off 25
@@ -33,7 +33,7 @@ const SHOT = join(SHOT_DIR, 'my-work.png')
  *      aging-in-progress opens on the oldest in-status issue
  *
  * FAIL-first: unit siblings hold the pure halves (view-config.test.ts flags +
- * sort round-trip, builtin-views.test.ts ten views/partition, startup-view
+ * sort round-trip, builtin-views.test.ts seven views/partition, startup-view
  * .test.ts precedence, filters-actor.test.ts evaluation) and failed against
  * the pre-change source 2026-09-06 (21 red). In the browser the same change
  * reads as: no stance labels, no My issues / Handed off rows, first-run
@@ -92,14 +92,16 @@ function sidebarButton(page: Page, name: string): Locator {
 }
 
 test.describe('my-work pack: sidebar stances and identity views', () => {
-  test('anonymous sidebar: labels yes, identity rows no, eight rows by name', async ({ page }) => {
+  test('anonymous sidebar: team label yes, mine label and identity rows no, five rows by name', async ({ page }) => {
     const errors = attachConsoleErrors(page)
     await mockAuthMe(page, { email: null })
     await gotoApp(page)
 
-    // Both stance labels are present — the sections' reading exists even
-    // when "mine" does not.
-    await expect(page.getByTestId('sidebar-stance-mine')).toBeVisible()
+    // The team label is present; the mine label is not — since the
+    // 2026-09-07 subtraction both mine views need an identity, and a stance
+    // with nothing under it draws no heading (before: "MY WORK" stood empty
+    // directly above "TEAM FLOW" for an anonymous reader).
+    await expect(page.getByTestId('sidebar-stance-mine')).toHaveCount(0)
     await expect(page.getByTestId('sidebar-stance-team')).toBeVisible()
 
     // Identity views are absent, not disabled (C3): no row, no count, nothing
@@ -107,18 +109,26 @@ test.describe('my-work pack: sidebar stances and identity views', () => {
     await expect(sidebarButton(page, 'My issues')).toHaveCount(0)
     await expect(sidebarButton(page, 'Handed off')).toHaveCount(0)
 
-    // The other eight views are all there, by accessible name.
+    // The five team views are all there, by accessible name (all-open and
+    // unassigned-new moved mine → team in the 2026-09-07 subtraction —
+    // nothing about an unassigned issue is mine, and the open pool is the
+    // team's).
     for (const name of [
       'All open',
       'Unassigned new',
-      'Recently updated',
       'Aging in progress',
-      'Stale',
       'Reopened',
       'Epics',
-      'Resolved this week',
     ]) {
       await expect(sidebarButton(page, name), name).toBeVisible()
+    }
+
+    // FAIL-first for the subtraction: the three deleted built-ins (recently-
+    // updated = all-open under the default sort, stale = a flag over the
+    // aging pool, resolved-week = the retro's closed cell) must leave zero
+    // rows — against the pre-change sidebar each found one.
+    for (const name of ['Recently updated', 'Stale', 'Resolved this week']) {
+      await expect(sidebarButton(page, name), name).toHaveCount(0)
     }
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])

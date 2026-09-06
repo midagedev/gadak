@@ -579,16 +579,6 @@ export const shell = {
     ko: '진행 중 이슈를 에픽으로 묶어 보기',
     ja: '未解決の課題をエピックでグループ化',
   },
-  'view.stale.name': {
-    en: 'Stale',
-    ko: '정체 이슈',
-    ja: '滞留',
-  },
-  'view.stale.hint': {
-    en: 'Stuck in one status too long',
-    ko: '한 상태에 오래 머문 이슈',
-    ja: '同じステータスに長く留まっている',
-  },
   'view.agingInProgress.name': {
     en: 'Aging in progress',
     ko: '오래된 진행 중',
@@ -600,26 +590,6 @@ export const shell = {
     en: 'In progress · longest in status first',
     ko: '진행 중 · 한 상태에 가장 오래 머문 순',
     ja: '進行中 · 同じステータスに最も長く留まっている順',
-  },
-  'view.recentlyUpdated.name': {
-    en: 'Recently updated',
-    ko: '최근 갱신',
-    ja: '最近の更新',
-  },
-  'view.recentlyUpdated.hint': {
-    en: 'Open · newest updates',
-    ko: '미해결 · 갱신 최신순',
-    ja: '未解決 · 最新の更新',
-  },
-  'view.resolvedWeek.name': {
-    en: 'Resolved this week',
-    ko: '이번 주 해결됨',
-    ja: '今週解決',
-  },
-  'view.resolvedWeek.hint': {
-    en: 'Resolved since Monday',
-    ko: '월요일 이후 해결',
-    ja: '月曜以降に解決',
   },
   'view.unnamed': {
     en: 'Untitled view',

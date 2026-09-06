@@ -4,6 +4,14 @@
  * Presets shown under the sidebar "Built-in views" section. Each holds a full
  * ViewConfig (filters + display) and is applied wholesale via filters.applyConfig.
  *
+ * Seven built-ins in two stances (THEORY.md "Two stances"): mine holds the
+ * contributor's two questions — what do I do now (My issues), what am I
+ * waiting on (Handed off); team holds the pool, the intake, and the exception
+ * surfaces. The 2026-09-07 subtraction took ten down to seven: recently-updated
+ * was all-open under the default sort (updated desc), stale was a flag over
+ * the pool the aging view already orders, resolved-week was the retro's
+ * closed cell, and all-open / unassigned-new moved to the team stance.
+ *
  * Discipline: presets use **tenant-neutral axes only**.
  *  - status_category (new/inprogress/done), unassigned, reopened, stale, resolved_from
  *    mean the same thing on every Jira.
@@ -11,12 +19,11 @@
  *    (and even by account language), so baking them into a preset yields empty
  *    results elsewhere. Users save those as personal/team views themselves.
  *
- * Date-dependent views (resolved this week) recompute at call time, so they are
- * exposed as a function.
+ * Exposed as a function so names and hints resolve in the current locale at
+ * call time.
  */
 
 import { t } from './i18n'
-import { startOfWeekMonday } from './calendar'
 import { emptyConfig, type ViewConfig } from './view-config'
 import type { IconName } from '../components/ui/Icon.svelte'
 
@@ -41,11 +48,6 @@ export interface BuiltinView {
   config: ViewConfig
 }
 
-/** ISO date (YYYY-MM-DD) of this week's Monday 00:00 in the viewer zone. */
-function startOfWeekISO(): string {
-  return startOfWeekMonday()
-}
-
 /** Config assembly helper — start from empty config, overwrite partials. */
 function make(over: {
   filters?: Partial<ViewConfig['filters']>
@@ -59,8 +61,9 @@ function make(over: {
 
 export function builtinViews(): BuiltinView[] {
   return [
-    /* ── mine stance: the contributor's views (G4: the first screen is
-     * "my work"; unit = the issue, question = "what do I do now"). ── */
+    /* ── mine stance: the contributor's two questions (G4: the first screen
+     * is "my work"; unit = the issue) — what do I do now, and what am I
+     * waiting on. ── */
     {
       // The contributor's front door: open issues assigned to this account,
       // urgent first. Tenant-neutral by construction — the only constraint
@@ -93,38 +96,31 @@ export function builtinViews(): BuiltinView[] {
         display: { sort: 'updated', dir: 'asc' },
       }),
     },
+    /* ── team stance: the steward's views (unit = the distribution; the
+     * exception surfaces, not the list — THEORY.md "Two stances"). ── */
     {
+      // Team-side since 2026-09-07: the whole open pool is the team's, not
+      // mine — this is the steward's ground floor.
       id: 'all-open',
       icon: 'inbox',
       name: t('view.allOpen.name'),
       hint: t('view.allOpen.hint'),
-      stance: 'mine',
+      stance: 'team',
       config: make({ filters: { status_category: ['new', 'inprogress'] } }),
     },
     {
+      // Team-side since 2026-09-07: intake is a team surface — an unassigned
+      // issue is nobody's yet.
       id: 'unassigned-new',
       icon: 'plus-circle',
       name: t('view.unassignedNew.name'),
       hint: t('view.unassignedNew.hint'),
-      stance: 'mine',
+      stance: 'team',
       config: make({
         filters: { unassigned: true, status_category: ['new'] },
         display: { sort: 'created', dir: 'desc' },
       }),
     },
-    {
-      id: 'recently-updated',
-      icon: 'zap',
-      name: t('view.recentlyUpdated.name'),
-      hint: t('view.recentlyUpdated.hint'),
-      stance: 'mine',
-      config: make({
-        filters: { status_category: ['new', 'inprogress'] },
-        display: { sort: 'updated', dir: 'desc' },
-      }),
-    },
-    /* ── team stance: the steward's views (unit = the distribution; the
-     * exception surfaces, not the list — THEORY.md "Two stances"). ── */
     {
       // Steward view (THEORY.md T4/G4): the aging tail of in-progress work,
       // longest underway first — the arrangement is the coaching, no
@@ -141,14 +137,6 @@ export function builtinViews(): BuiltinView[] {
         filters: { status_category: ['inprogress'] },
         display: { sort: 'started', dir: 'asc' },
       }),
-    },
-    {
-      id: 'stale',
-      icon: 'clock',
-      name: t('view.stale.name'),
-      hint: t('view.stale.hint'),
-      stance: 'team',
-      config: make({ filters: { stale: true }, display: { sort: 'updated', dir: 'asc' } }),
     },
     {
       id: 'reopened',
@@ -174,17 +162,6 @@ export function builtinViews(): BuiltinView[] {
       config: make({
         filters: { status_category: ['new', 'inprogress'] },
         display: { group_by: 'epic' },
-      }),
-    },
-    {
-      id: 'resolved-week',
-      icon: 'check-circle',
-      name: t('view.resolvedWeek.name'),
-      hint: t('view.resolvedWeek.hint'),
-      stance: 'team',
-      config: make({
-        filters: { status_category: ['done'], resolved_from: startOfWeekISO() },
-        display: { sort: 'updated', dir: 'desc' },
       }),
     },
   ]

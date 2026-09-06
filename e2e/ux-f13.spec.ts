@@ -78,13 +78,16 @@ test.describe('F13 sidebar freshness and section affordances', () => {
     await expect(header).toHaveAttribute('title', en['sidebar.sectionReorderHint'])
 
     // Non-collapsible personalization blocks are not SidebarSection: no grip.
-    // The label div, not the "My issues" built-in view button below it
-    // (my-work pack): getByText alone resolves to both.
-    const myIssues = page.getByText(en['personal.myIssues'], { exact: true }).and(page.locator('div'))
-    await expect(myIssues).toBeVisible()
-    await expect(myIssues.locator('xpath=ancestor::div[1]').getByTestId('sidebar-section-grip')).toHaveCount(
-      0,
-    )
+    // The Feed row carries the same clause the removed "My Issues" heading
+    // did (2026-09-07 sidebar subtraction): it lives in the personalization
+    // block, which must not grow a grip. Aside-scoped and role-matched —
+    // not the "My issues" built-in view button below it (my-work pack),
+    // which lives inside the builtin SidebarSection.
+    const feedRow = page.locator('aside').getByRole('button', { name: 'Feed' })
+    await expect(feedRow).toBeVisible()
+    await expect(
+      feedRow.locator('xpath=ancestor::div[1]').getByTestId('sidebar-section-grip'),
+    ).toHaveCount(0)
 
     await page.locator('aside.issue-sidebar').screenshot({ path: '/tmp/f13-shots/483-sidebar-hover-grip.png' })
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])

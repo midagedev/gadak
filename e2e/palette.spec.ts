@@ -209,9 +209,11 @@ test.describe('command palette', () => {
     await expect(rows.source).toContainText('NMA')
 
     // A built-in answers with its written hint instead of a filter count.
-    await page.keyboard.type('Stale', { delay: 20 })
+    // (Aging since the 2026-09-07 sidebar subtraction deleted the stale
+    // built-in view — the stale filter chip and palette toggle remain.)
+    await page.keyboard.type('Aging', { delay: 20 })
     const builtin = palette.getByRole('option', { name: /Built-in view/ }).first()
-    await expect(builtin).toContainText('Stuck in one status too long')
+    await expect(builtin).toContainText('In progress · longest in status first')
     await expect(builtin.locator('svg')).toHaveCount(1)
 
     expect(

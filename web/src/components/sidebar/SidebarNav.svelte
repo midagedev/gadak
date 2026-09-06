@@ -746,12 +746,18 @@
                  screen is "my work" (G4). The labels name the two readings;
                  they are rows of text, not buttons. -->
             {#each [{ stance: 'mine', label: t('sidebar.stanceMine'), testid: 'sidebar-stance-mine' }, { stance: 'team', label: t('sidebar.stanceTeam'), testid: 'sidebar-stance-team' }] as s (s.stance)}
+              <!-- A stance with nothing visible under it draws no label: since
+                   the 2026-09-07 subtraction both mine views need an identity,
+                   so an anonymous reader would otherwise see "MY WORK" as an
+                   empty heading directly above "TEAM FLOW". -->
+              {#if visibleBuiltins.some((v) => v.stance === s.stance)}
               <div
                 data-testid={s.testid}
                 class="px-3 pb-0.5 pt-2 text-micro uppercase tracking-wide text-text-muted"
               >
                 {s.label}
               </div>
+              {/if}
               {#each visibleBuiltins.filter((v) => v.stance === s.stance) as v (v.id)}
                 <!-- aria-current rides the same condition as the paint: the class
                      is decoration, the attribute is the contract e2e and screen

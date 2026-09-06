@@ -43,21 +43,21 @@ export const personal = {
     ja: '自分の課題の変化 + 自分宛メンションのコメント',
   },
   'personal.needCredentials': {
-    en: 'Set credentials to see assigned, reported, and mentions →',
-    ko: '자격증명을 설정하면 내 담당·보고·멘션이 여기 모입니다 →',
-    ja: '資格情報を設定すると、担当・報告・メンションがここに集まります →',
+    en: 'Set credentials to see your feed and reported issues →',
+    ko: '자격증명을 설정하면 피드와 내가 보고한 이슈가 여기 모입니다 →',
+    ja: '資格情報を設定すると、フィードと自分が報告した課題がここに集まります →',
   },
   'personal.demoNoIdentity': {
-    en: 'Personal views need a Jira identity — not available in the demo',
-    ko: '개인 뷰는 Jira 신원이 필요해 데모에서는 표시되지 않습니다',
-    ja: '個人ビューには Jira の身元が必要で、デモでは利用できません',
+    en: 'The personal feed needs a Jira identity — not available in the demo',
+    ko: '개인 피드는 Jira 신원이 필요해 데모에서는 표시되지 않습니다',
+    ja: '個人フィードには Jira の身元が必要で、デモでは利用できません',
   },
   /* GDK-1122: local-origin has no credential to offer a dialog for, so this
      note replaces the needCredentials CTA there. */
   'personal.localOriginNoIdentity': {
-    en: 'Personal views need an identity — this workspace runs without an account',
-    ko: '개인 뷰는 신원이 필요해 계정 없이 쓰는 워크스페이스에서는 표시되지 않습니다',
-    ja: '個人ビューには身元が必要で、アカウントなしで使うワークスペースでは利用できません',
+    en: 'The personal feed needs an identity — this workspace runs without an account',
+    ko: '개인 피드는 신원이 필요해 계정 없이 쓰는 워크스페이스에서는 표시되지 않습니다',
+    ja: '個人フィードには身元が必要で、アカウントなしで使うワークスペースでは利用できません',
   },
   'personal.favoriteAria': {
     en: 'Favorite {key}',
