@@ -134,6 +134,17 @@ were unanimous:
 
 For gadak, single-user and fully local, the surviving axes are: recently
 viewed (local), recently updated (`updated_at`), author, favorites.
+
+**First-screen precedence (0.21).** "Viewed wins the default" above and
+THEORY.md G4 ("the first screen is my work") name different defaults, and
+the shipped order in `web/src/lib/startup-view.ts` is the resolution: URL view
+params → the last-used view → the team-group preset → **my work**, when an
+identity exists and it has open assigned issues → the Epic breakdown
+(GDK-100) → all open. Recently viewed is not a landing view in that order;
+it stays the return path (the Feed and `gadak recents`), and the resume card
+carries the per-issue half. Open decision, registered as a GDK draft on
+2026-09-06: whether the anonymous / zero-assigned fallback should become
+recently viewed, as this section would have it, or stay the Epic breakdown.
 "Popular", "following", "shared with me" have no meaning here and are
 deliberately absent. Tree hierarchy is kept for *orientation once a document
 is open* (breadcrumbs), not as the primary way to *find* one. The local

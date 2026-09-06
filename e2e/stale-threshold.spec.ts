@@ -24,7 +24,16 @@ const KEY = 'NMB-5' // fixture: in progress, status_changed_at 2026-06-05 → mo
 const LIST_ROW = `[data-testid="issue-list-scroller"] [data-issue-key="${KEY}"]`
 const STALE_MARK = `${LIST_ROW} [data-col="stale"] [data-stale-band]`
 
-type IssueRow = Record<string, unknown> & { status_changed_at?: string | null }
+type IssueRow = Record<string, unknown> & { started_at?: string | null; status_changed_at?: string | null }
+
+/** The clock the row's age reads (view-config workAge): started_at when the
+ *  mirror knows when work started, else status_changed_at — and the plain
+ *  title names which (2026-09-07). */
+function ageClock(row: IssueRow): { stamp: string; phrase: string } {
+  return row.started_at
+    ? { stamp: row.started_at, phrase: 'days since work started' }
+    : { stamp: row.status_changed_at ?? '', phrase: 'days in this status' }
+}
 type FlowBody = { flow?: { cycle_p85_hours: number; samples: number } }
 
 /** Installs the passthrough mocks and returns the fixture's own row for
@@ -85,7 +94,7 @@ test.describe('learned stale threshold', () => {
     await openRow(page)
 
     // Compute the exact expectation from the fixture's own stamp.
-    const stamp = row.status_changed_at ?? ''
+    const { stamp, phrase } = ageClock(row)
     const ageHours = (Date.now() - Date.parse(stamp)) / 3_600_000
     expect(ageHours, 'fixture row must be far past 72h for this assertion').toBeGreaterThan(72)
     const days = Math.max(1, Math.round(ageHours / 24))
@@ -95,9 +104,9 @@ test.describe('learned stale threshold', () => {
     const mark = page.locator(STALE_MARK)
     await expect(mark).toBeVisible()
     await expect(mark).toHaveAttribute('data-stale-band', band)
-    // Byte-for-byte the pre-change title: the rule is only named when it
-    // was learned.
-    await expect(mark).toHaveAttribute('title', `${days} days in this status`)
+    // The plain title: the rule is only named when it was learned; the
+    // clock (started vs status) is always named.
+    await expect(mark).toHaveAttribute('title', `${days} ${phrase}`)
     await expect(mark).not.toHaveAttribute('title', /85%/)
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
@@ -108,7 +117,7 @@ test.describe('learned stale threshold', () => {
     const row = await mockFlow(page, { cycle_p85_hours: 1, samples: 5 })
     await openRow(page)
 
-    const stamp = row.status_changed_at ?? ''
+    const { stamp, phrase } = ageClock(row)
     const ageHours = (Date.now() - Date.parse(stamp)) / 3_600_000
     const days = Math.max(1, Math.round(ageHours / 24))
     const ratio = ageHours / 72
@@ -117,7 +126,7 @@ test.describe('learned stale threshold', () => {
     const mark = page.locator(STALE_MARK)
     await expect(mark).toBeVisible()
     await expect(mark).toHaveAttribute('data-stale-band', band)
-    await expect(mark).toHaveAttribute('title', `${days} days in this status`)
+    await expect(mark).toHaveAttribute('title', `${days} ${phrase}`)
     await expect(mark).not.toHaveAttribute('title', /85%/)
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])

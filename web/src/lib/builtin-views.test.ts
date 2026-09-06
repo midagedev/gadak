@@ -27,17 +27,18 @@ describe('builtinViews (moved from e2e/dates.spec.ts)', () => {
  *      empty default: status/priority/issue_type/jira_project empty, no flags,
  *      no text query. [FAIL-first 2026-09-06: find(id) returned undefined →
  *      "aging-in-progress builtin must exist" failed before the entry existed]
- *  C4  sort is status_changed asc — longest in status first. The my-work pack
- *      added 'status_changed' to SORT_KEY_VALUES, so the view reads the real
- *      axis and the old "updated-at is the closest existing proxy" comment is
- *      gone. The pre-my-work assertion (sort 'updated', s omitted) was the
- *      proxy's pin; it is *replaced*, not relaxed — FAIL-first re-run
- *      2026-09-06: old code failed here (sort was 'updated').
+ *  C4  sort is started asc — longest underway first (work item age, the
+ *      flow canon's clock: THEORY.md T4). History of this pin: 'updated' was
+ *      the proxy; the my-work pack replaced it with 'status_changed'
+ *      (FAIL-first 2026-09-06: old code failed, sort was 'updated'); the
+ *      second literature round replaced that with 'started' (FAIL-first
+ *      2026-09-07: sort was 'status_changed', which reset at every hand-off
+ *      inside progress). Each replacement is a new contract, not a relaxation.
  *  C5  name/hint resolve to non-empty copy in the default locale (en);
  *      en/ko/ja parity is catalog.test.ts's gate, exercised by the i18n suite.
  */
 describe('builtinViews: aging-in-progress (team-flow pack)', () => {
-  test('exists, tenant-neutral, longest-in-status first via status_changed', () => {
+  test('exists, tenant-neutral, longest-underway first via started', () => {
     const view = builtinViews().find((v) => v.id === 'aging-in-progress')
     expect(view, 'aging-in-progress builtin must exist').toBeTruthy()
 
@@ -56,14 +57,14 @@ describe('builtinViews: aging-in-progress (team-flow pack)', () => {
     expect(f.delegated).toBe(false)
     expect(f.q).toBe('')
 
-    // G4: the arrangement is the coaching — oldest status change first.
-    expect(view!.config.display.sort).toBe('status_changed')
+    // G4: the arrangement is the coaching — oldest start first.
+    expect(view!.config.display.sort).toBe('started')
     expect(view!.config.display.dir).toBe('asc')
 
-    // URL form: sc=inprogress, s=status_changed, d=asc.
+    // URL form: sc=inprogress, s=started, d=asc.
     const params = configToParams(view!.config)
     expect(params.sc).toBe('inprogress')
-    expect(params.s).toBe('status_changed')
+    expect(params.s).toBe('started')
     expect(params.d).toBe('asc')
 
     // Copy keys resolve (missing keys render as the key itself).

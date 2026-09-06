@@ -645,6 +645,11 @@ export const shell = {
     ko: '상태 경과순',
     ja: 'ステータス経過順',
   },
+  'sort.started': {
+    en: 'Time since started',
+    ko: '착수 경과순',
+    ja: '着手経過順',
+  },
 
   /* ── Keyboard shortcuts cheat sheet (?) ── */
   'shortcuts.title': {

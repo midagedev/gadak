@@ -439,6 +439,18 @@ export const list = {
     ko: '이 상태로 {n}일째 — 최근 90일간 완료된 {s}건의 85%보다 깁니다 ({p}일)',
     ja: 'このステータスで {n}日 — 直近90日に完了した {s}件の85%より長くかかっています ({p}日)',
   },
+  // The started-clock twins (2026-09-07): when the mirror knows when work
+  // started (started_at), the age is work item age, and the title says so.
+  'list.staleDaysStarted': {
+    en: '{n} days since work started',
+    ko: '착수 후 {n}일째',
+    ja: '着手から {n}日',
+  },
+  'list.staleDaysStartedLearned': {
+    en: '{n} days since work started — longer than 85% of the {s} issues finished in the last 90 days ({p} days)',
+    ko: '착수 후 {n}일째 — 최근 90일간 완료된 {s}건의 85%보다 깁니다 ({p}일)',
+    ja: '着手から {n}日 — 直近90日に完了した {s}件の85%より長くかかっています ({p}日)',
+  },
   'list.staleDaysShort': {
     en: '{n}d',
     ko: '{n}일',

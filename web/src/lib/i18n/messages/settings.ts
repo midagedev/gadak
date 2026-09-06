@@ -237,9 +237,9 @@ export const settings = {
     ja: '滞留のしきい値（時間）',
   },
   'settings.staleHint': {
-    en: 'Open issues in the same status longer than this are marked stale. Empty learns the line from the workspace: the 85th-percentile cycle time of issues finished in the last 90 days, 72 hours until ten have finished.',
-    ko: '현재 상태에 이 시간 이상 머문 미해결 이슈를 지연으로 표시합니다. 비워 두면 기준을 워크스페이스에서 배웁니다. 최근 90일간 완료된 이슈의 사이클 타임 85번째 백분위수를 쓰고, 완료가 열 건이 되기 전까지는 72시간입니다.',
-    ja: '同じステータスにこれより長くいる未解決課題を滞留とマークします。空欄にするとワークスペースから学習します。直近90日に完了した課題のサイクルタイムの85パーセンタイルを使い、完了が10件になるまでは72時間です。',
+    en: 'Open issues underway longer than this are marked stale — since work started, or since the last status change when it has not started. Empty learns the line from the workspace: the 85th-percentile cycle time of issues finished in the last 90 days, 72 hours until eleven have finished.',
+    ko: '이 시간보다 오래 진행 중인 미해결 이슈를 지연으로 표시합니다. 착수 시점부터 재고, 착수 전이면 마지막 상태 변경부터 잽니다. 비워 두면 기준을 워크스페이스에서 배웁니다. 최근 90일간 완료된 이슈의 사이클 타임 85번째 백분위수를 쓰고, 완료가 열한 건이 되기 전까지는 72시간입니다.',
+    ja: 'これより長く進行中の未解決課題を滞留とマークします。着手時点から数え、未着手なら最後のステータス変更から数えます。空欄にするとワークスペースから学習します。直近90日に完了した課題のサイクルタイムの85パーセンタイルを使い、完了が11件になるまでは72時間です。',
   },
   'settings.staleLearnedPlaceholder': {
     en: 'learned (72 until enough data)',

@@ -299,3 +299,56 @@ describe('status_category group order (my-work pack)', () => {
     expect(groups.map((g) => g.key)).toEqual(['inprogress', 'new', 'done'])
   })
 })
+
+describe('started sort (second literature round, 2026-09-07)', () => {
+  /*
+   * Work item age reads started_at first (the flow canon's clock), and falls
+   * back to status_changed_at for an issue that has not started or an origin
+   * with no history. FAIL-first: against the pre-change comparator 'started'
+   * was not a SortKey at all (parseConfig dropped it); against a comparator
+   * that read status_changed_at only, the first test put A before B.
+   */
+  const keyOf = (i: IssueLite): string => i.issue_key
+  const rows = [
+    issue({
+      issue_key: 'A',
+      summary: 'moved to review yesterday, underway since June',
+      started_at: '2026-06-01T00:00:00.000Z',
+      status_changed_at: '2026-09-05T00:00:00.000Z',
+      updated_at: '2026-09-05T00:00:00.000Z',
+    }),
+    issue({
+      issue_key: 'B',
+      summary: 'started in August, still in its first status',
+      started_at: '2026-08-01T00:00:00.000Z',
+      status_changed_at: '2026-08-01T00:00:00.000Z',
+      updated_at: '2026-08-02T00:00:00.000Z',
+    }),
+    issue({
+      issue_key: 'C',
+      summary: 'no start recorded: the status clock stands in',
+      started_at: null,
+      status_changed_at: '2026-07-01T00:00:00.000Z',
+      updated_at: '2026-07-02T00:00:00.000Z',
+    }),
+    issue({
+      issue_key: 'D',
+      summary: 'nothing known',
+      started_at: null,
+      status_changed_at: null,
+      updated_at: '2026-09-01T00:00:00.000Z',
+    }),
+  ]
+
+  test('asc: oldest start first, the status clock fills a missing start, nothing-known last', () => {
+    expect(sortIssues(rows, 'started', 'asc').map(keyOf)).toEqual(['A', 'C', 'B', 'D'])
+  })
+
+  test('desc: newest start first, nothing-known still last', () => {
+    expect(sortIssues(rows, 'started', 'desc').map(keyOf)).toEqual(['B', 'C', 'A', 'D'])
+  })
+
+  test("status_changed is untouched: A's yesterday hand-off sorts it last among the stamped", () => {
+    expect(sortIssues(rows, 'status_changed', 'asc').map(keyOf)).toEqual(['C', 'B', 'A', 'D'])
+  })
+})

@@ -127,9 +127,11 @@ export function builtinViews(): BuiltinView[] {
      * exception surfaces, not the list — THEORY.md "Two stances"). ── */
     {
       // Steward view (THEORY.md T4/G4): the aging tail of in-progress work,
-      // longest in status first — the arrangement is the coaching, no
-      // sentence. status_changed is the real axis; the old updated-at proxy
-      // is retired.
+      // longest underway first — the arrangement is the coaching, no
+      // sentence. 'started' is work item age (since started_at, the flow
+      // canon's clock — 2026-09-07); it replaced status_changed, which reset
+      // at every hand-off inside progress, and before that the updated-at
+      // proxy.
       id: 'aging-in-progress',
       icon: 'hourglass',
       name: t('view.agingInProgress.name'),
@@ -137,7 +139,7 @@ export function builtinViews(): BuiltinView[] {
       stance: 'team',
       config: make({
         filters: { status_category: ['inprogress'] },
-        display: { sort: 'status_changed', dir: 'asc' },
+        display: { sort: 'started', dir: 'asc' },
       }),
     },
     {

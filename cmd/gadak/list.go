@@ -45,7 +45,7 @@ func runList(name string, args []string) error {
 	all := fs.Bool("all", false, "include done issues (default hides them)")
 	var ready *bool
 	if name != "ready" {
-		ready = fs.Bool("ready", false, "only issues no open blocker holds back")
+		ready = fs.Bool("ready", false, "only issues no recorded open blocker holds back (block links are typed far less consistently than epic links)")
 	}
 	if wantsHelp(args) {
 		fmt.Fprint(os.Stdout, formatHelp(name, fs))

@@ -316,6 +316,8 @@ func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {
 		Changelog:       r.Changelog,
 		Categories:      b.Categories,
 		CurrentCategory: r.Issue.StatusCategory,
+		CreatedAt:       it.CreatedAt,
+		NoHistory:       b.NoHistory,
 		Priority:        r.Issue.Priority,
 		Priorities:      b.Priorities,
 		Comments:        r.Comments,

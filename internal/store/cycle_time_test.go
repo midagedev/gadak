@@ -35,6 +35,20 @@ package store
  * The empty-catalog fallback and category-by-id coverage above now exercise
  * the upsert path that writes the columns (Categories feed Derive), which
  * is where those rules moved.
+ *
+ * 2026-09-07 (second literature round, research A #5 and the critical
+ * review): two rule changes, both mirrored into the oracle so the
+ * equivalence stays the theorem —
+ *   reopened issues leave the SAMPLE (`reopen_count = 0`): a done→not-done
+ *     transition anywhere in the history excludes the item; its cycle_hours
+ *     stays stored, the percentile just no longer sees it
+ *     .............................................. TestEdgeCasesSkippedIssues (case 4)
+ *   born in progress: an issue whose oldest status entry LEAVES an
+ *     in-progress category started at created_at, not at a later re-entry
+ *     .............................................. TestColumnReadMatchesWalkOracle (seed 19)
+ * FAIL-first: against the pre-change source TestEdgeCasesSkippedIssues
+ * reported samples = 2 (the reopened issue counted), and the demo-fixture
+ * equivalence read 47 column samples against 55 walk samples.
  */
 
 import (
@@ -199,11 +213,12 @@ func TestEmptyCatalogFallsBackToIssueRows(t *testing.T) {
 //   - finished before `since`                                   → skipped
 //   - reopened after finishing and never re-finished (the only
 //     done entry precedes the first in-progress entry)          → skipped
-//   - done, reopened, done again: the FIRST in-progress entry to
-//     the LATEST done entry is the cycle (whole history)        → 30h
+//   - done, reopened, done again: cycle_hours holds the whole
+//     history (30h) but the SAMPLE excludes it — reopen_count = 0
+//     (2026-09-07; before that it counted and made p85 = 30h)   → skipped
 //   - an ordinary control issue                                 → 2h
 //
-// Two samples {2h, 30h}: rank (85*2+99)/100 = 2 → p85 = 30h.
+// One sample {2h}: rank (85*1+99)/100 = 1 → p85 = 2h.
 func TestEdgeCasesSkippedIssues(t *testing.T) {
 	db := openTemp(t)
 	ctx := context.Background()
@@ -261,11 +276,11 @@ func TestEdgeCasesSkippedIssues(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if samples != 2 {
-		t.Fatalf("samples = %d, want 2 (issues 1-3 have no measurable cycle)", samples)
+	if samples != 1 {
+		t.Fatalf("samples = %d, want 1 (issues 1-3 have no measurable cycle; 4 was reopened)", samples)
 	}
-	if p85 != 30 {
-		t.Fatalf("p85 = %v, want 30 (rank (85*2+99)/100 = 2 over {2h, 30h})", p85)
+	if p85 != 2 {
+		t.Fatalf("p85 = %v, want 2 (the control issue is the whole sample)", p85)
 	}
 }
 
@@ -345,18 +360,27 @@ func (db *DB) cycleTimeP85HoursOracle(ctx context.Context, since time.Time, done
 		hasStart        bool
 		latestDone      time.Time
 		hasDone         bool
+		// 2026-09-07 rule mirrors (see the file header): a done→not-done
+		// entry anywhere excludes the item; an oldest entry that LEAVES an
+		// in-progress category means the issue was born in progress and
+		// started at created_at.
+		reopened       bool
+		seenFirst      bool
+		bornInProgress bool
+		created        time.Time
+		hasCreated     bool
 	}
 	walks := map[string]*cycleWalk{}
 	if err := each(ctx, db.sql, `
-		SELECT c.item_id, COALESCE(c.at,''), COALESCE(c.to_id,''), COALESCE(it.source_id,'')
+		SELECT c.item_id, COALESCE(c.at,''), COALESCE(c.from_id,''), COALESCE(c.to_id,''), COALESCE(it.source_id,''), COALESCE(it.created_at,'')
 		FROM changelog c
 		JOIN items it ON it.id = c.item_id
 		WHERE it.kind = 'issue' AND c.field = 'status'
 		  AND c.at IS NOT NULL AND c.at <> ''
 		ORDER BY c.at, c.id`,
 		func(rows *sql.Rows) error {
-			var item, at, toID, source string
-			if err := rows.Scan(&item, &at, &toID, &source); err != nil {
+			var item, at, fromID, toID, source, created string
+			if err := rows.Scan(&item, &at, &fromID, &toID, &source, &created); err != nil {
 				return err
 			}
 			t, ok := parseStamp(at)
@@ -367,6 +391,14 @@ func (db *DB) cycleTimeP85HoursOracle(ctx context.Context, since time.Time, done
 			if w == nil {
 				w = &cycleWalk{}
 				walks[item] = w
+			}
+			if !w.seenFirst {
+				w.seenFirst = true
+				w.bornInProgress = categoryOf(source, fromID) == CategoryInProgress
+				w.created, w.hasCreated = parseStamp(created)
+			}
+			if categoryOf(source, fromID) == CategoryDone && categoryOf(source, toID) != CategoryDone {
+				w.reopened = true
 			}
 			switch categoryOf(source, toID) {
 			case CategoryInProgress:
@@ -387,7 +419,10 @@ func (db *DB) cycleTimeP85HoursOracle(ctx context.Context, since time.Time, done
 
 	cycles := make([]float64, 0, len(walks))
 	for item, w := range walks {
-		if !w.hasStart || !w.hasDone || !w.latestDone.After(w.firstInprogress) {
+		if w.bornInProgress && w.hasCreated {
+			w.firstInprogress, w.hasStart = w.created, true
+		}
+		if w.reopened || !w.hasStart || !w.hasDone || !w.latestDone.After(w.firstInprogress) {
 			continue
 		}
 		// DIVERGENCE POINT (the only one): Derive nulls cycle_hours for an

@@ -17,6 +17,7 @@ import {
   hasAnyFilter,
   isReopen,
   isStale,
+  workAge,
   matchesIdFirst,
   missingStatusCategorySeen,
   MULTI_FIELDS,
@@ -854,5 +855,50 @@ describe('status_changed sort key', () => {
 
   test('SORT_KEY_VALUES owns the key (isSortKey reads the array)', () => {
     expect(SORT_KEY_VALUES).toContain('status_changed')
+  })
+})
+
+describe('workAge — the started clock (second literature round, 2026-09-07)', () => {
+  /*
+   * Contract ↔ assertion:
+   *   started_at present → hours since it, basis 'started'   (FAIL-first: the
+   *       pre-change statusAgeHours read status_changed_at and answered ~1h)
+   *   no started_at → status_changed_at, basis 'status'      (unchanged behaviour)
+   *   neither → updated_at, basis 'status'                    (unchanged behaviour)
+   *   nothing → 0 / 'none', never stale                      (unchanged behaviour)
+   *   isStale follows the started clock: 11 days underway, moved to review an
+   *       hour ago, is stale under 72h                        (FAIL-first: was not)
+   */
+  const ago = (hours: number): string => new Date(Date.now() - hours * 3_600_000).toISOString()
+  const row = (over: Partial<IssueLite>): IssueLite =>
+    ({ status: 'x', status_category: 'inprogress', ...over }) as IssueLite
+
+  afterEach(() => {
+    setStaleFlowSource(() => null)
+    staleSetting.hours = 72
+  })
+
+  test('started_at wins and names its basis', () => {
+    const a = workAge(row({ started_at: ago(264), status_changed_at: ago(1), updated_at: ago(1) }))
+    expect(a.basis).toBe('started')
+    expect(a.hours).toBeGreaterThan(263)
+    expect(a.hours).toBeLessThan(265)
+  })
+
+  test('without a start the status clock stands in, then updated_at, then nothing', () => {
+    expect(workAge(row({ started_at: null, status_changed_at: ago(48), updated_at: ago(1) })).basis).toBe('status')
+    expect(workAge(row({ started_at: null, status_changed_at: null, updated_at: ago(30) })).hours).toBeGreaterThan(29)
+    expect(workAge(row({ started_at: null, status_changed_at: null, updated_at: null }))).toEqual({
+      hours: 0,
+      basis: 'none',
+    })
+    expect(isStale(row({ started_at: null, status_changed_at: null, updated_at: null }))).toBe(false)
+  })
+
+  test('isStale reads work item age: eleven days underway is stale the morning after a hand-off', () => {
+    staleSetting.hours = 72
+    expect(isStale(row({ started_at: ago(264), status_changed_at: ago(1), updated_at: ago(1) }))).toBe(true)
+    // The same hand-off with no recorded start is one hour in status: not stale.
+    expect(isStale(row({ started_at: null, status_changed_at: ago(1), updated_at: ago(1) }))).toBe(false)
   })
 })

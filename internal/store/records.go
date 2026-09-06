@@ -303,6 +303,12 @@ type Batch struct {
 	// rows) and cached into link_types. open_blockers resolves which types
 	// block from this catalog, never from a hardcoded display name.
 	LinkTypes []LinkType
+	// NoHistory marks a batch from an origin that supplies no changelog
+	// (Linear). Derive then refuses to infer a start from an empty history:
+	// started_at stays NULL for issues with no transition into progress
+	// instead of guessing created_at. Jira and the built-in origin leave it
+	// false — their empty changelog means "never moved".
+	NoHistory bool
 	Records   []IssueRecord
 	// Force rewrites rows whose updated_at is unchanged. Off, an unchanged row
 	// is skipped entirely, which is what keeps an incremental re-run from

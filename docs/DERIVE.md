@@ -66,7 +66,7 @@ otherwise depend on site-specific naming keys on `statusCategory` instead.
 | `reopen_reason` | Body text of the earliest comment created at or after `reopened_at`, capped at 1000 bytes on a rune boundary. A heuristic: it surfaces the explanation on teams where whoever reopens says why in a comment. Empty when never reopened or no comment followed |
 | `cloned_from` | Target of an outward link whose type name contains "clone" (Jira's default "Cloners" type) — the clone is the issue that displays "clones \<origin\>", so the origin sits behind the outward direction. Caveat: link type names are site configuration created in the site's language — a non-English clone type derives nothing, and there is no language-stable id to key on. The read API also exposes `source_project`, the key's project prefix |
 | `epic_key` | Key of the nearest `hierarchy_level = 1` ancestor reachable via `parent_key` within two hops (the parent, else the grandparent); NULL when there is none |
-| `started_at` | Timestamp of the oldest changelog transition whose target category is `inprogress`; NULL when the issue never entered progress |
+| `started_at` | Timestamp of the oldest changelog transition whose target category is `inprogress` — or `created_at` when the issue was **born in progress** (its oldest status entry leaves an in-progress category, or it has no status history on an origin that supplies one and sits in progress now). NULL when the issue never entered progress, and always NULL on an origin that supplies no history (Linear): an empty changelog there says nothing about where the issue began, and a guessed start would be a confident wrong number |
 | `cycle_hours` | `resolved_at` minus `started_at` in hours, stored only while the issue is `done` now and the span is positive; NULL otherwise |
 | `last_activity_at` | Newest of the item's `updated_at`, the newest changelog entry and the newest comment — a string max, because ISO-8601 UTC stamps compare lexicographically; NULL when all three are absent |
 | `open_blockers` | Count of inward links of a blocking type whose target issue is in the mirror and not `done`. Which types block resolves through the cached `link_types` catalog (`lower(name) = 'blocks'` or `lower(outward) LIKE 'block%'`), never a hardcoded display name; a target outside the mirror is not blocking — unknown must not hold work back. Recomputed on every batch for the batch's keys plus every issue holding an inward link at one of them, and swept whole-table after a full sync |
@@ -271,9 +271,12 @@ above, which is "how long since the last status change".
 
 ```sql min=1
 -- Cycle time p85, nearest-rank, over issues resolved in the last 90 days
+-- that were never reopened (the SLE sample; reopened items keep their
+-- cycle_hours but take an unusual path and leave the percentile)
 WITH done AS (
   SELECT cycle_hours FROM issues
   WHERE status_category = 'done' AND cycle_hours IS NOT NULL
+    AND reopen_count = 0
     AND resolved_at >= date('now', '-90 day')
 )
 SELECT ROUND(cycle_hours, 1) AS p85_cycle_hours, (SELECT COUNT(*) FROM done) AS samples
@@ -284,8 +287,14 @@ LIMIT 1 OFFSET (SELECT (85 * COUNT(*) + 99) / 100 - 1 FROM done);
 The rank arithmetic `(85·n+99)/100` is nearest-rank in integers — the same
 idiom the Retro section of RECIPES.md uses and `internal/retro` computes, kept
 in lockstep so a SQL answer and a Go answer cannot drift apart on rounding.
-`cycle_hours` is stored only for issues done now with a positive span, so the
-pool is exactly the population the old changelog walk built.
+`cycle_hours` is stored only for issues done now with a positive span. The
+`reopen_count = 0` clause is the sample rule, not the column rule: a reopened
+and re-finished issue keeps its whole-history `cycle_hours` (that is the
+fact), but the flow canon keeps items that took an unusual path out of the
+service-level sample — under gadak's elapsed definition the parked interval
+would otherwise stretch the percentile every team compares its age against.
+`CycleTimeP85Hours` (the learned stale threshold) and the retro's cycle rows
+apply the same clause.
 
 ```sql min=1
 -- Neglected: open issues silent for 7 days or more

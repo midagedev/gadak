@@ -29,8 +29,9 @@ Markers:
 | **Read** · `--jql` / pasted Jira URL | ✅[^7] | ✅[^8] | ✅[^7] |
 | **Read** · comments | ✅[^9] | ✅[^10] | ✅[^9] |
 | **Read** · attachment bytes | ✅[^11] | ✅[^12] | ◐[^13] |
-| **Read** · history → `status_changed_at`, time-in-status, `reopen_count` | ✅[^14] | —[^15] | ✅[^16] |
+| **Read** · history → `status_changed_at`, `reopen_count`, `started_at` / `cycle_hours` (time-in-status computed, never stored) | ✅[^14] | —[^15] | ✅[^16] |
 | **Read** · issue links | ✅[^17] | ✅[^106] | ✅[^19] |
+| **Read** · `gadak ready` / `open_blockers` — blocking-link catalog | ✅[^107] | ✅[^108] | ✅[^109] |
 | **Read** · remote issue links / cross-workspace refs (`ref`) | —[^20] | —[^20] | ◐[^21] |
 | **Read** · development-panel links (`dev`) | ◐[^22] | —[^23] | ✅[^24] |
 | **Read** · labels | ✅[^25] | ✅[^26] | ✅[^25] |
@@ -116,12 +117,20 @@ Markers:
     route the migrate export uses (`cmd/gadak/migrate.go:105`).
 
 [^14]: Changelog events (`internal/jira/client.go:206`) feed
-    `status_changed_at` and `reopen_count`; time-in-status is computed from
+    `status_changed_at` and `reopen_count`, and since v43 `started_at` /
+    `cycle_hours` — all four derive from the same history in one owner
+    (`internal/store/derive.go`); time-in-status is computed from
     `status_changed_at`, never stored as a column
     (`specs/000-product/data-model.md`).
 
-[^15]: Linear's read path carries no state history — `status_changed_at` and
-    `reopen_count` stay NULL (`internal/sync/linear.go:46`, `:223`).
+[^15]: Linear's read path carries no state history — `status_changed_at`,
+    `reopen_count`, `started_at` and `cycle_hours` stay NULL
+    (`internal/sync/linear.go:46`, `:223`). Every Linear batch says so
+    (`Batch.NoHistory`, `internal/sync/linear.go:144`, `:412`), which is what
+    stops the born-in-progress rule from guessing a start off an empty
+    changelog. Linear does expose `startedAt` / `completedAt` on the issue
+    itself; reading those into the flow columns is the open follow-up, not
+    yet done.
 
 [^16]: The origin keeps a changelog and serves it
     (`issuetap/docs/COMPATIBILITY.md:71`); the same columns derive from it.
@@ -445,3 +454,19 @@ this table from the code instead of maintaining it by hand is GDK-1301.
     (`internal/linear/queries.go:89`) land as outward / inward `links` rows
     named like the Jira ones — Blocks, Duplicate, Relates
     (`internal/sync/linear.go:286`); GDK-1299.
+
+[^107]: The link-type catalog is fetched once per sync run
+    (`internal/sync/sync.go:244`) and cached into `link_types`; `open_blockers`
+    resolves which types block from that catalog, never a hardcoded name
+    (`internal/store/flow.go:81`, `:156`), and `gadak ready` reads the column
+    (`cmd/gadak/list.go:119`). "Ready" means no *recorded* open blocker —
+    block links are typed far less consistently than epic links.
+
+[^108]: Linear has one blocking relation and no site catalog to fetch; a fixed
+    one-row catalog rides every Linear batch (`internal/sync/linear.go:349`),
+    so the same column and verb work over the relations GDK-1299 mirrored as
+    `links` ([^106]).
+
+[^109]: The origin serves a link-type catalog
+    (`issuetap/docs/COMPATIBILITY.md:59`); the column and the verb are the
+    Jira path (`internal/store/flow.go:156`).

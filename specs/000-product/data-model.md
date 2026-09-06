@@ -173,7 +173,7 @@ part of the `issues` view). Joined to `items` on `item_id`.
 | `raw` | TEXT (JSON) | Full source payload. Escape hatch; not a contract |
 | `reopen_reason` | TEXT | Derived (v3): first comment at/after the last reopen. Heuristic; `''` when none |
 | `cloned_from` | TEXT | Derived (v3): key of the clone origin. `''` when not a clone |
-| `started_at` | TEXT | Derived (v43): first transition into an `inprogress` category. NULL when the issue never entered progress. A stamp, not a duration — aging against it is the reader's query |
+| `started_at` | TEXT | Derived (v43): first transition into an `inprogress` category, or `created_at` for an issue born in progress (oldest status entry leaves progress, or no history on a history-bearing origin and in progress now). NULL when the issue never entered progress, and always NULL on Linear (no history to read). A stamp, not a duration — aging against it is the reader's query |
 | `cycle_hours` | REAL | Derived (v43): `resolved_at` − `started_at` in hours, stored only while `status_category = 'done'` and the span is positive; NULL otherwise. The `CycleTimeP85Hours` rule, stored instead of walked |
 | `last_activity_at` | TEXT | Derived (v43): newest of the item's `updated_at`, the newest changelog entry and the newest comment (ISO-8601 UTC strings compare lexicographically). NULL when all three are absent |
 | `open_blockers` | INTEGER | Derived (v43): inward links of a blocking type whose target issue is in the mirror and not `done`. Recomputed per batch (batch keys plus issues holding inward links at them) and swept whole-table after a full sync. NOT NULL, default 0 |

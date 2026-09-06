@@ -16,6 +16,14 @@ const CategoryDone = "done"
 // carry only status ids, so the id -> category map has to come from the site's
 // status list, which the connector supplies per batch.
 type DeriveInput struct {
+	// CreatedAt is the item's creation stamp (ISO-8601 UTC). An issue born
+	// into an in-progress status has no transition to find, so its start is
+	// its creation — see the started_at rule below.
+	CreatedAt string
+	// NoHistory says the origin supplies no changelog at all (Linear), so an
+	// empty Changelog carries no information about the initial status and the
+	// born-in-progress rule must not guess from CurrentCategory.
+	NoHistory       bool
 	Changelog       []ChangeEntry
 	Categories      map[string]string // status id -> new | inprogress | done
 	CurrentCategory string            // the issue's category right now
@@ -100,6 +108,30 @@ func Derive(in DeriveInput) Derived {
 		// because a priority edit is activity too: entries are sorted, so the
 		// last non-empty At wins.
 		d.LastActivityAt = &at
+	}
+
+	// Born in progress (2026-09-07, flow canon: work item age counts from the
+	// moment work started): an issue created straight into an in-progress
+	// status never has a transition INTO progress, so the loop above leaves
+	// started_at empty — or, worse, pins it to a later re-entry (In Progress →
+	// Review → In Progress). The earliest known category decides: the from-side
+	// of the oldest status entry when there is one, else the current category
+	// when the origin does supply a history and this issue simply has none. An
+	// origin with no history (Linear) is excluded — an empty changelog there
+	// says nothing about where the issue began, and a guessed start would be a
+	// confident wrong number where NULL is the honest one.
+	if !in.NoHistory && in.CreatedAt != "" {
+		initial := in.CurrentCategory
+		for _, e := range entries {
+			if e.Field == "status" && e.At != "" {
+				initial = in.Categories[e.FromID]
+				break
+			}
+		}
+		if initial == CategoryInProgress {
+			at := in.CreatedAt
+			d.StartedAt = &at
+		}
 	}
 
 	// A resolution that was undone is not a resolution date.

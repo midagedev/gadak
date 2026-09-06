@@ -160,6 +160,11 @@ export const SORT_KEY_VALUES = [
   // (THEORY.md T4). Asc = longest in status first; a missing stamp sorts
   // last in both directions (no evidence, not "oldest").
   'status_changed',
+  // When work started (started_at, v43; status_changed_at when the mirror
+  // has no start) — work item age in the flow canon's sense (THEORY.md T4,
+  // second literature round 2026-09-07). Asc = longest underway first; a
+  // missing stamp sorts last in both directions.
+  'started',
   'due',
   'priority',
   'reopen_count',
@@ -946,29 +951,56 @@ export function deployStateOf(issue: IssueLite): DeployState {
   return issue.deploy_status?.state ?? 'none'
 }
 
+/** Which clock a row's age reads: since work started, since the current
+ *  status began, or nothing known. */
+export type AgeBasis = 'started' | 'status' | 'none'
+
 /**
- * Hours spent in the current status. Prefer status_changed_at; fall back to updated_at.
- * 0 when both are missing — no evidence, so do not count as stale.
+ * Work item age (THEORY.md T4; flow canon: age counts from the moment work
+ * started, one running clock — not from the last status change). Basis, in
+ * order: `started_at` (v43 — first entry into progress, or creation for an
+ * issue born in progress); `status_changed_at` when the issue has not started
+ * or the origin supplies no history (Linear); `updated_at` as the last
+ * resort. 0 / 'none' when nothing is known — no evidence, so never stale.
+ *
+ * 2026-09-07: this replaced statusAgeHours (current-status age). On a
+ * multi-stage workflow (In Progress → Review → QA) the status clock reset at
+ * every hand-off, so an issue eleven days underway read as one day old the
+ * morning after it moved to review — and the learned threshold it is compared
+ * against (p85 of started→resolved) never measured status time at all.
  */
-export function statusAgeHours(issue: IssueLite): number {
-  const iso = issue.status_changed_at ?? issue.updated_at
-  if (!iso) return 0
-  const t = Date.parse(iso)
-  return Number.isFinite(t) ? Math.max(0, (Date.now() - t) / 3_600_000) : 0
+export function workAge(issue: IssueLite): { hours: number; basis: AgeBasis } {
+  const pick: Array<[string | null | undefined, AgeBasis]> = [
+    [issue.started_at, 'started'],
+    [issue.status_changed_at, 'status'],
+    [issue.updated_at, 'status'],
+  ]
+  for (const [iso, basis] of pick) {
+    if (!iso) continue
+    const t = Date.parse(iso)
+    if (Number.isFinite(t)) return { hours: Math.max(0, (Date.now() - t) / 3_600_000), basis }
+  }
+  return { hours: 0, basis: 'none' }
 }
 
-/** Stale check: not done + hours in current status exceed the effective
- * threshold (staleThresholdHoursEffective). */
+/** workAge's hours alone, for callers that only compare. */
+export function workAgeHours(issue: IssueLite): number {
+  return workAge(issue).hours
+}
+
+/** Stale check: not done + work item age exceeds the effective threshold
+ * (staleThresholdHoursEffective). */
 export function isStale(issue: IssueLite): boolean {
   if (effectiveCategory(issue) === 'done') return false
-  return statusAgeHours(issue) > staleThresholdHoursEffective()
+  return workAgeHours(issue) > staleThresholdHoursEffective()
 }
 
 /* ── learned stale threshold (flow) ──
  *
  * The effective threshold has exactly one owner, here. Precedence:
  *   1. the workspace's learned flow — p85 cycle time, sent by the server
- *      only when no threshold is set and ≥10 finished issues vouch for it;
+ *      only when no threshold is set and at least CycleP85MinSamples
+ *      (eleven) finished, never-reopened issues vouch for it;
  *   2. the explicit staleThresholdHours setting;
  *   3. 72 (config.ts DEFAULTS fills the same value for a missing field).
  *

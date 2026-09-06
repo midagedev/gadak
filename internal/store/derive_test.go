@@ -350,3 +350,55 @@ func TestMigrateV40RecomputesClonedFrom(t *testing.T) {
 		t.Fatalf("cloned_from after v40 = %v, want origin empty and clone → NMB-1", got)
 	}
 }
+
+// TestDeriveBornInProgress pins the 2026-09-07 started_at rule for issues
+// created straight into an in-progress status — no transition INTO progress
+// exists, so before this rule started_at was NULL (or, with a later
+// re-entry, pinned to that re-entry). Contract ↔ assertion:
+//
+//	no entries, current in progress, history known → created_at     (FAIL-first: was nil)
+//	oldest entry leaves in progress (→ done)        → created_at,    (FAIL-first: was nil;
+//	    and cycle_hours spans creation → done                         cycle was nil too)
+//	in progress → review → in progress (re-entry)   → created_at     (FAIL-first: was the re-entry)
+//	oldest entry leaves NEW (the ordinary path)     → the transition (unchanged)
+//	no entries, current NEW                         → nil            (unchanged)
+//	NoHistory (Linear), current in progress         → nil            (the guard: no guessing)
+func TestDeriveBornInProgress(t *testing.T) {
+	cats := map[string]string{"1": "new", "3": "inprogress", "4": "inprogress", "5": "done"}
+	created := "2026-07-01T00:00:00.000Z"
+	sc := func(at, from, to string) ChangeEntry {
+		return ChangeEntry{At: at, Field: "status", FromID: from, ToID: to}
+	}
+	cases := []struct {
+		name      string
+		in        DeriveInput
+		wantStart *string
+		wantCycle bool
+	}{
+		{"no entries, in progress", DeriveInput{CreatedAt: created, Categories: cats, CurrentCategory: "inprogress"}, str(created), false},
+		{"born in progress, then done", DeriveInput{CreatedAt: created, Categories: cats, CurrentCategory: "done",
+			Changelog: []ChangeEntry{sc("2026-07-03T00:00:00.000Z", "3", "5")}}, str(created), true},
+		{"re-entry does not move the start", DeriveInput{CreatedAt: created, Categories: cats, CurrentCategory: "inprogress",
+			Changelog: []ChangeEntry{sc("2026-07-02T00:00:00.000Z", "3", "4"), sc("2026-07-04T00:00:00.000Z", "4", "3")}}, str(created), false},
+		{"ordinary path from new", DeriveInput{CreatedAt: created, Categories: cats, CurrentCategory: "inprogress",
+			Changelog: []ChangeEntry{sc("2026-07-02T00:00:00.000Z", "1", "3")}}, str("2026-07-02T00:00:00.000Z"), false},
+		{"no entries, new", DeriveInput{CreatedAt: created, Categories: cats, CurrentCategory: "new"}, nil, false},
+		{"no history origin: no guess", DeriveInput{CreatedAt: created, Categories: cats, CurrentCategory: "inprogress", NoHistory: true}, nil, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := Derive(c.in)
+			switch {
+			case got.StartedAt == nil && c.wantStart == nil:
+			case got.StartedAt == nil || c.wantStart == nil || *got.StartedAt != *c.wantStart:
+				t.Fatalf("started_at = %v, want %v", deref(got.StartedAt), deref(c.wantStart))
+			}
+			if (got.CycleHours != nil) != c.wantCycle {
+				t.Fatalf("cycle_hours present = %v, want %v", got.CycleHours != nil, c.wantCycle)
+			}
+			if c.wantCycle && *got.CycleHours != 48 {
+				t.Fatalf("cycle_hours = %v, want 48 (creation to done)", *got.CycleHours)
+			}
+		})
+	}
+}

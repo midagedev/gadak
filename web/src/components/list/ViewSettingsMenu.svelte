@@ -35,6 +35,8 @@
     { k: 'created', l: t('sort.created') },
     // Aging axis (my-work pack): asc = longest in status first.
     { k: 'status_changed', l: t('sort.statusChanged') },
+    // Work item age (flow canon): asc = longest underway first.
+    { k: 'started', l: t('sort.started') },
     { k: 'due', l: t('sort.due') },
     { k: 'priority', l: t('sort.priority') },
     { k: 'reopen_count', l: t('sort.reopenCount') },

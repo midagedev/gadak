@@ -141,6 +141,7 @@ func runLinearPass(ctx context.Context, c *linear.Client, cfg *config.Config, db
 				Categories: cats,
 				Priorities: linearRankList(g.id, g.label),
 				LinkTypes:  linearLinkTypeCatalog,
+				NoHistory:  true,
 				Records:    g.recs,
 			})
 			if err != nil {
@@ -408,6 +409,7 @@ func SyncLinearIssue(ctx context.Context, db *store.DB, c *linear.Client, key st
 		Categories: map[string]string{},
 		Priorities: linearRankList(iss.Priority, iss.PriorityLabel),
 		LinkTypes:  linearLinkTypeCatalog,
+		NoHistory:  true,
 		Records:    []store.IssueRecord{buildLinearRecord(iss, cat)},
 		Force:      true,
 	}

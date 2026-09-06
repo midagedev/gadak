@@ -30,6 +30,15 @@ const CycleP85MinSamples = 11
 // drag the percentile down; this deliberately diverges from Durations'
 // span(), which clamps).
 //
+// `reopen_count = 0` (2026-09-07, second literature round): an issue that
+// was finished, reopened and finished again carries the parked interval in
+// cycle_hours — under gadak's elapsed definition that is one long cycle,
+// which neither Jira's control chart nor Swarmia would report, and the flow
+// canon keeps items that took an unusual path out of the SLE sample. Their
+// cycle_hours stays stored (the column is the fact); only this sample —
+// the one that becomes the learned stale threshold — leaves them out. The
+// retro's cycle rows apply the same clause so the two never disagree.
+//
 // The changelog walk this replaced lives on in cycle_time_test.go as the
 // oracle the column read is proven equal against — on a seeded fixture and
 // on a migrated copy of examples/demo.db. If the two ever disagree, the
@@ -47,7 +56,7 @@ func (db *DB) CycleTimeP85Hours(ctx context.Context, since time.Time) (float64, 
 	sinceStr := since.UTC().Format("2006-01-02T15:04:05.000") + "Z"
 	rows, err := db.sql.QueryContext(ctx, `
 		SELECT cycle_hours FROM issues_raw
-		WHERE resolved_at >= ? AND cycle_hours IS NOT NULL
+		WHERE resolved_at >= ? AND cycle_hours IS NOT NULL AND reopen_count = 0
 		ORDER BY cycle_hours`, sinceStr)
 	if err != nil {
 		return 0, 0, err

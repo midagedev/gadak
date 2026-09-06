@@ -101,7 +101,7 @@
     staleThresholdHoursEffective,
     staleThresholdLearned,
     staleThresholdSamples,
-    statusAgeHours,
+    workAge,
   } from '../../lib/view-config'
   import PriorityIcon from './PriorityIcon.svelte'
   import Avatar from './Avatar.svelte'
@@ -131,17 +131,20 @@
   const catMeta = $derived(categoryMetaOf(cat))
   const isFavorite = $derived(favorites.keys.has(issue.issue_key))
   const isWatching = $derived(watches.keys.has(issue.issue_key))
-  // Stale (time in current status). Badge is day-based — floor at 1 so sub-day reads "day 1".
+  // Stale (work item age: since started_at when known, else since the current
+  // status began — view-config workAge). Badge is day-based — floor at 1 so
+  // sub-day reads "day 1".
   // Weight follows magnitude (multiples of the effective threshold — learned
   // or set, same ratios). A single maximum-emphasis chip on every stale row
   // warns about nothing.
   const stale = $derived(isStale(issue))
-  const staleDays = $derived(Math.max(1, Math.round(statusAgeHours(issue) / 24)))
+  const age = $derived(workAge(issue))
+  const staleDays = $derived(Math.max(1, Math.round(age.hours / 24)))
   const staleBand = $derived.by((): 'quiet' | 'mid' | 'loud' | null => {
     if (!stale) return null
     const threshold = staleThresholdHoursEffective()
     if (!(threshold > 0)) return 'loud'
-    const ratio = statusAgeHours(issue) / threshold
+    const ratio = age.hours / threshold
     if (ratio <= 2) return 'quiet'
     if (ratio <= 4) return 'mid'
     return 'loud'
@@ -478,12 +481,12 @@
           class="flex flex-none items-center gap-1 px-0.5 text-micro tabular-nums {staleBandClass}"
           data-stale-band={staleBand}
           title={staleThresholdLearned()
-            ? t('list.staleDaysLearned', {
+            ? t(age.basis === 'started' ? 'list.staleDaysStartedLearned' : 'list.staleDaysLearned', {
                 n: staleDays,
                 p: Math.max(1, Math.round(staleThresholdHoursEffective() / 24)),
                 s: staleThresholdSamples(),
               })
-            : t('list.staleDays', { n: staleDays })}
+            : t(age.basis === 'started' ? 'list.staleDaysStarted' : 'list.staleDays', { n: staleDays })}
         >
           <!-- The mark the string used to carry as an emoji. Same treatment as the
                reopen badge beside it: currentColor, so it stays inside the badge's

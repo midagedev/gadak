@@ -1012,13 +1012,21 @@ export function sortIssues(
     switch (sort) {
       case 'created':
         return cmpStr(a.created_at, b.created_at, d)
-      case 'status_changed': {
-        // Age in the current status (T4): asc = longest in status first —
-        // aging-in-progress reads this way. A missing/unparseable stamp is
+      case 'status_changed':
+      case 'started': {
+        // Age (T4): asc = longest first. 'status_changed' is age in the
+        // current status; 'started' is work item age — since started_at, the
+        // flow canon's clock (2026-09-07), falling back to status_changed_at
+        // for an issue that has not started or an origin with no history.
+        // aging-in-progress reads 'started'. A missing/unparseable stamp is
         // "no evidence", not "oldest": last in both directions. Ties fall to
         // newest updated_at so the top of the list stays the live work.
+        const stamp =
+          sort === 'started'
+            ? (it: IssueLite): string => it.started_at ?? it.status_changed_at ?? ''
+            : (it: IssueLite): string => it.status_changed_at ?? ''
         const at = (it: IssueLite): number => {
-          const t = Date.parse(it.status_changed_at ?? '')
+          const t = Date.parse(stamp(it))
           return Number.isFinite(t) ? t : Number.NaN
         }
         const av = at(a)

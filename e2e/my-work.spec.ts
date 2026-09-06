@@ -27,8 +27,9 @@ const SHOT = join(SHOT_DIR, 'my-work.png')
  *  C5 first-run precedence (aria-current is the sidebar contract)
  *      first run identified lands on My issues
  *      first run anonymous lands on the epic breakdown
- *  C4 aging reads status_changed asc — expected order computed from the
- *      fixture's own bootstrap body, never hardcoded
+ *  C4 aging reads started asc (work item age: started_at, else
+ *      status_changed_at — 2026-09-07, was status_changed) — expected order
+ *      computed from the fixture's own bootstrap body, never hardcoded
  *      aging-in-progress opens on the oldest in-status issue
  *
  * FAIL-first: unit siblings hold the pure halves (view-config.test.ts flags +
@@ -61,6 +62,7 @@ const DANA_DELEGATED = 60
 type BootRow = {
   issue_key: string
   status_category?: string | null
+  started_at?: string | null
   status_changed_at?: string | null
   updated_at?: string | null
 }
@@ -208,24 +210,27 @@ test.describe('my-work pack: first-run landing (aria-current is the contract)', 
   })
 })
 
-test.describe('my-work pack: aging on the real status_changed axis', () => {
-  test('aging-in-progress opens on the oldest in-status issue', async ({ page }) => {
+test.describe('my-work pack: aging on the started axis', () => {
+  test('aging-in-progress opens on the longest-underway issue', async ({ page }) => {
     const errors = attachConsoleErrors(page)
     await mockAuthMe(page, DANA_ME)
     const boot = await captureBootstrap(page)
 
     // Expected order from the fixture's own rows: among in-progress issues
-    // with a parseable stamp, the oldest status_changed_at first (ties →
-    // newest updated_at); missing stamps sort last in both directions.
+    // with a parseable stamp, the oldest start first — started_at, else
+    // status_changed_at, the 'started' comparator's rule (ties → newest
+    // updated_at); missing stamps sort last in both directions.
+    const stampOf = (it: BootRow): string => it.started_at ?? it.status_changed_at ?? ''
     const inProgress = boot.filter((it) => it.status_category === 'inprogress')
     expect(inProgress.length, 'fixture must have in-progress rows').toBeGreaterThan(0)
-    const stamped = inProgress.filter((it) => {
-      const t = Date.parse(it.status_changed_at ?? '')
-      return Number.isFinite(t)
-    })
+    const stamped = inProgress.filter((it) => Number.isFinite(Date.parse(stampOf(it))))
+    expect(
+      stamped.some((it) => it.started_at),
+      'the v43 fixture must carry started_at on in-progress rows',
+    ).toBe(true)
     const expectedFirst = stamped.reduce((best, it) => {
-      const bt = Date.parse(best.status_changed_at!)
-      const itT = Date.parse(it.status_changed_at!)
+      const bt = Date.parse(stampOf(best))
+      const itT = Date.parse(stampOf(it))
       if (itT !== bt) return itT < bt ? it : best
       // Tie: newest updated_at wins (the comparator's second key).
       return (it.updated_at ?? '') > (best.updated_at ?? '') ? it : best

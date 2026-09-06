@@ -232,18 +232,20 @@ func (db *DB) RecomputeOpenBlockers(ctx context.Context) error {
 // links, no priority list), so only the three new columns are written back.
 func backfillFlow(tx *sql.Tx) error {
 	irows, err := tx.Query(`
-		SELECT ir.item_id, COALESCE(it.source_id,''), COALESCE(ir.status_category,''), COALESCE(it.updated_at,'')
-		FROM issues_raw ir JOIN items it ON it.id = ir.item_id`)
+		SELECT ir.item_id, COALESCE(it.source_id,''), COALESCE(ir.status_category,''), COALESCE(it.updated_at,''),
+		       COALESCE(it.created_at,''), COALESCE(s.kind,'')
+		FROM issues_raw ir JOIN items it ON it.id = ir.item_id
+		LEFT JOIN sources s ON s.id = it.source_id`)
 	if err != nil {
 		return err
 	}
 	type issueRow struct {
-		itemID, source, category, updated string
+		itemID, source, category, updated, created, kind string
 	}
 	var issues []issueRow
 	for irows.Next() {
 		var r issueRow
-		if err := irows.Scan(&r.itemID, &r.source, &r.category, &r.updated); err != nil {
+		if err := irows.Scan(&r.itemID, &r.source, &r.category, &r.updated, &r.created, &r.kind); err != nil {
 			irows.Close()
 			return err
 		}
@@ -314,8 +316,12 @@ func backfillFlow(tx *sql.Tx) error {
 			Changelog:       entries,
 			Categories:      cats[r.source],
 			CurrentCategory: r.category,
-			Comments:        comments,
-			UpdatedAt:       r.updated,
+			CreatedAt:       r.created,
+			// Linear supplies no changelog (internal/sync/linear.go sets
+			// Batch.NoHistory); the backfill reads the same fact off the source row.
+			NoHistory: r.kind == "linear",
+			Comments:  comments,
+			UpdatedAt: r.updated,
 		})
 		if _, err := tx.Exec(`
 			UPDATE issues_raw SET started_at = ?, cycle_hours = ?, last_activity_at = ?
