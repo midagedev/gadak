@@ -25,6 +25,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -85,10 +86,15 @@ func demoFixture(t *testing.T, seed bool) (string, *sql.DB) {
 // key. FAIL-first: before the key fields existed this had nothing to read;
 // against a compute that counted and keyed on different loops it fails on
 // the first bucket where the two disagree.
+//
+// cycle extension (2026-09-07): CycleKeys has no count field — its length
+// IS the week's sample size, so the invariant is existence: CycleP50 and
+// CycleP85 are non-nil exactly when the slice is non-empty. FAIL-first
+// against the pre-change source: the fields did not exist (compile error).
 func TestRetroCountsEqualKeyLengths(t *testing.T) {
 	_, db := demoFixture(t, true)
 
-	rep, err := Compute(context.Background(), db, store.FeedIdentity{}, 8*7*24*time.Hour, time.Now())
+	rep, err := Compute(context.Background(), db, store.FeedIdentity{}, 8*7*24*time.Hour, time.Now(), Options{})
 	if err != nil {
 		t.Fatalf("Compute: %v", err)
 	}
@@ -112,7 +118,11 @@ func TestRetroCountsEqualKeyLengths(t *testing.T) {
 		if len(b.MismatchKeys) != b.Mismatch {
 			t.Fatalf("bucket %d mismatch = %d, %d keys", bi, b.Mismatch, len(b.MismatchKeys))
 		}
-		for _, ks := range [][]string{b.ClosedKeys, b.InProgressKeys, b.MismatchKeys} {
+		if (b.CycleP50 == nil) != (len(b.CycleKeys) == 0) || (b.CycleP85 == nil) != (len(b.CycleKeys) == 0) {
+			t.Fatalf("bucket %d cycle: p50/p85 = %v/%v with %d keys — values exist exactly when keys do",
+				bi, b.CycleP50, b.CycleP85, len(b.CycleKeys))
+		}
+		for _, ks := range [][]string{b.ClosedKeys, b.InProgressKeys, b.MismatchKeys, b.CycleKeys} {
 			for i := 1; i < len(ks); i++ {
 				if ks[i-1] > ks[i] {
 					t.Fatalf("bucket %d keys not sorted: %v", bi, ks)
@@ -126,6 +136,9 @@ func TestRetroCountsEqualKeyLengths(t *testing.T) {
 		}
 		if b.Mismatch != len(jb.Keys.Mismatch) && len(jb.Keys.Mismatch) != MaxJSONKeys {
 			t.Fatalf("bucket %d JSON mismatch %d keys vs count %d", bi, len(jb.Keys.Mismatch), b.Mismatch)
+		}
+		if len(jb.Keys.Cycle) != len(b.CycleKeys) && len(jb.Keys.Cycle) != MaxJSONKeys {
+			t.Fatalf("bucket %d JSON cycle %d keys vs %d", bi, len(jb.Keys.Cycle), len(b.CycleKeys))
 		}
 	}
 }
@@ -183,6 +196,11 @@ func TestRetroSourceKeysNeverOnDisplayName(t *testing.T) {
 // answering the current week — the live issues columns and the changelog walk
 // through status_catalog — must agree on the demo fixture: same item set,
 // same per-item transition time.
+//
+// max extension (2026-09-07): wip age max comes from the same ages list as
+// p85 in both branches, so the two methods must agree on it too — max over
+// the live per-item times equals max over the walk per-item times. FAIL-first
+// against the pre-change source: WipMax did not exist (compile error).
 func TestRetroCurrentWeekDualMethodAgree(t *testing.T) {
 	_, db := demoFixture(t, true)
 	now := time.Now()
@@ -270,6 +288,31 @@ func TestRetroCurrentWeekDualMethodAgree(t *testing.T) {
 			t.Fatalf("item %s: status_changed_at %s, last status changelog row %s", item, liveAt, walkAt)
 		}
 	}
+
+	// The max the two methods would print: the oldest age each sees.
+	liveMax, walkMax := 0.0, 0.0
+	for _, at := range live {
+		if d := now.Sub(at).Hours() / 24; d > liveMax {
+			liveMax = d
+		}
+	}
+	for _, at := range walkInProg {
+		if d := now.Sub(at).Hours() / 24; d > walkMax {
+			walkMax = d
+		}
+	}
+	if liveMax != walkMax {
+		t.Fatalf("wip age max: issues rows say %.6f days, changelog walk says %.6f", liveMax, walkMax)
+	}
+	// And Compute's own current-week cell is that same max, not a third value.
+	rep := computePinned(t, db, store.FeedIdentity{}, 21*24*time.Hour, now)
+	last := rep.Buckets[len(rep.Buckets)-1]
+	if !last.Partial || last.WipMax == nil {
+		t.Fatalf("current partial week should carry wip age max: %+v", last)
+	}
+	if math.Abs(*last.WipMax-liveMax) > 1e-9 {
+		t.Fatalf("wip age max: Compute %.6f, dual-method %.6f", *last.WipMax, liveMax)
+	}
 }
 
 /* ── session fixtures ── */
@@ -329,10 +372,10 @@ func bucketContaining(t *testing.T, rep Report, at time.Time) *Bucket {
 }
 
 // computePinned computes against the fixture with a pinned clock, so the
-// session math does not depend on the wall clock of the run.
+// session math does not depend on the wall clock of the run. Default Options.
 func computePinned(t *testing.T, db *sql.DB, me store.FeedIdentity, since time.Duration, now time.Time) Report {
 	t.Helper()
-	rep, err := Compute(context.Background(), db, me, since, now)
+	rep, err := Compute(context.Background(), db, me, since, now, Options{})
 	if err != nil {
 		t.Fatalf("Compute: %v", err)
 	}
@@ -459,4 +502,248 @@ func TestRetroSessionsResumeOnFixture(t *testing.T) {
 			t.Fatalf("sessions = %d, want 2 (unknown + ui are one person, 31m gap splits)", b.Sessions)
 		}
 	})
+}
+
+/* ── session gap parameter, cycle rows, old mirrors ── */
+
+// TestFormatGap — contract ↔ assertion map: whole-minute durations render in
+// the trimmed form the footer prints; everything else keeps Duration.String().
+// FAIL-first: before FormatGap existed the footer hardcoded "exceeds 30m"
+// regardless of the effective gap.
+func TestFormatGap(t *testing.T) {
+	for in, want := range map[time.Duration]string{
+		30 * time.Minute:  "30m",
+		90 * time.Minute:  "1h30m",
+		60 * time.Minute:  "1h",
+		24 * time.Hour:    "24h",
+		5 * time.Minute:   "5m",
+		45 * time.Minute:  "45m",
+		90 * time.Second:  "1m30s", // sub-5m never reaches the footer via the parser; Duration.String() verbatim
+		50 * time.Second:  "50s",   // must not trim to "5"
+		105 * time.Minute: "1h45m",
+	} {
+		if got := FormatGap(in); got != want {
+			t.Errorf("FormatGap(%v) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+// TestRetroSessionGapParameter — contract ↔ assertion map:
+//
+//	A1 the split gap is Compute's, not the constant's: 6m-spaced reads are
+//	   three sessions at gap=5m and two at the 30m default
+//	A2 the definitions footer prints the effective gap (30m default, 45m told)
+//	A3 zero Options is the default — the shipped callers' posture
+//
+// FAIL-first: before Options existed the split read the SessionGap constant,
+// so the 6m pair was one session under any argument and the footer said 30m
+// unconditionally.
+func TestRetroSessionGapParameter(t *testing.T) {
+	now := time.Now().Truncate(time.Second)
+	a0 := now.Add(-4 * 24 * time.Hour)
+
+	dir, db := demoFixture(t, false)
+	_, key := pickItem(t, db)
+	injectVisit(t, dir, a0, store.VisitKindIssue, key, store.VisitSourceUI)
+	injectVisit(t, dir, a0.Add(6*time.Minute), store.VisitKindIssue, key, store.VisitSourceUI)
+	injectVisit(t, dir, a0.Add(40*time.Minute), store.VisitKindIssue, key, store.VisitSourceUI)
+
+	rep5, err := Compute(context.Background(), db, store.FeedIdentity{}, 21*24*time.Hour, now, Options{SessionGap: 5 * time.Minute})
+	if err != nil {
+		t.Fatalf("Compute gap=5m: %v", err)
+	}
+	rep30, err := Compute(context.Background(), db, store.FeedIdentity{}, 21*24*time.Hour, now, Options{})
+	if err != nil {
+		t.Fatalf("Compute default gap: %v", err)
+	}
+	b5 := bucketContaining(t, rep5, a0)
+	b30 := bucketContaining(t, rep30, a0)
+	// A1 — the two numbers the delegation spec asked to see side by side.
+	t.Logf("sessions at gap 5m = %d, at gap 30m = %d", b5.Sessions, b30.Sessions)
+	if b5.Sessions != 3 {
+		t.Fatalf("gap 5m: sessions = %d, want 3 (6m and 34m both exceed 5m)", b5.Sessions)
+	}
+	if b30.Sessions != 2 {
+		t.Fatalf("gap 30m: sessions = %d, want 2 (6m stays one session, 34m splits)", b30.Sessions)
+	}
+	if b5.Sessions == b30.Sessions {
+		t.Fatalf("the gap must move the count: %d vs %d", b5.Sessions, b30.Sessions)
+	}
+	// A2
+	defs30 := rep30.JSON().Definitions
+	if !strings.Contains(defs30["sessions"], "exceeds 30m") {
+		t.Fatalf("default definitions line: %q", defs30["sessions"])
+	}
+	rep45, err := Compute(context.Background(), db, store.FeedIdentity{}, 21*24*time.Hour, now, Options{SessionGap: 45 * time.Minute})
+	if err != nil {
+		t.Fatalf("Compute gap=45m: %v", err)
+	}
+	defs45 := rep45.JSON().Definitions
+	if !strings.Contains(defs45["sessions"], "exceeds 45m") {
+		t.Fatalf("45m definitions line: %q", defs45["sessions"])
+	}
+	// A3: a zero Options report renders the default gap in its footer, not "0s".
+	empty := Report{Buckets: Buckets(now, 14*24*time.Hour)}
+	for _, d := range empty.Definitions() {
+		if d[0] == "sessions" && !strings.Contains(d[1], "exceeds 30m") {
+			t.Fatalf("hand-built Report must render the default gap: %q", d[1])
+		}
+	}
+}
+
+// TestRetroCycleRowsMatchColumnReads — contract ↔ assertion map:
+//
+//	A1 value: per bucket, p50/p85 equal Median/P85 of the column read
+//	   (resolved_at window-bounded as ISOMilli strings, cycle_hours not
+//	   null, reopen_count = 0), days = hours/24
+//	A2 nil/dash: a bucket with no sample has both nil and no keys
+//	A3 the reopen clause bites: at least one fixture issue with
+//	   cycle_hours set is excluded by reopen_count != 0 (9 of 56 on the
+//	   shipped fixture), so a compute that forgot the clause cannot pass A1
+//	   on a week holding one
+//
+// FAIL-first: before this round the fields did not exist (compile error);
+// the assertion exists to fail against a compute that drops the reopen
+// clause or window-compares parsed times against local-midnight edges.
+func TestRetroCycleRowsMatchColumnReads(t *testing.T) {
+	_, db := demoFixture(t, true)
+	now := time.Now().Truncate(time.Second)
+
+	rep, err := Compute(context.Background(), db, store.FeedIdentity{}, 12*7*24*time.Hour, now, Options{})
+	if err != nil {
+		t.Fatalf("Compute: %v", err)
+	}
+
+	type sample struct {
+		resolved string
+		days     float64
+	}
+	var all []sample
+	var excludedByReopen int
+	rows, err := db.Query(`SELECT COALESCE(resolved_at,''), cycle_hours, COALESCE(reopen_count,0) FROM issues`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for rows.Next() {
+		var resolved string
+		var hours sql.NullFloat64
+		var reopen int
+		if err := rows.Scan(&resolved, &hours, &reopen); err != nil {
+			rows.Close()
+			t.Fatal(err)
+		}
+		if !hours.Valid || resolved == "" {
+			continue
+		}
+		if reopen != 0 {
+			excludedByReopen++
+			continue
+		}
+		all = append(all, sample{resolved: resolved, days: hours.Float64 / 24})
+	}
+	rows.Close()
+	if excludedByReopen == 0 {
+		t.Log("fixture carries no reopened-with-cycle rows; A3 is vacuous on this snapshot")
+	}
+
+	bucketsWithSamples := 0
+	for bi, b := range rep.Buckets {
+		fromStr := b.From.UTC().Format(config.ISOMilli)
+		toStr := b.To.UTC().Format(config.ISOMilli)
+		var cycles []float64
+		for _, s := range all {
+			if s.resolved >= fromStr && s.resolved < toStr {
+				cycles = append(cycles, s.days)
+			}
+		}
+		if len(cycles) > 0 {
+			bucketsWithSamples++
+			if b.CycleP50 == nil || b.CycleP85 == nil {
+				t.Fatalf("bucket %d has %d samples but a cycle cell is nil", bi, len(cycles))
+			}
+			wantP50, _ := Median(cycles)
+			wantP85, _ := P85(cycles)
+			if math.Abs(*b.CycleP50-wantP50) > 1e-9 || math.Abs(*b.CycleP85-wantP85) > 1e-9 {
+				t.Fatalf("bucket %d cycle: got p50=%.6f p85=%.6f, column read says %.6f/%.6f",
+					bi, *b.CycleP50, *b.CycleP85, wantP50, wantP85)
+			}
+			if len(b.CycleKeys) != len(cycles) {
+				t.Fatalf("bucket %d: %d samples, %d keys", bi, len(cycles), len(b.CycleKeys))
+			}
+		} else if b.CycleP50 != nil || b.CycleP85 != nil || len(b.CycleKeys) != 0 {
+			t.Fatalf("bucket %d has no samples but carries cycle values or keys", bi)
+		}
+	}
+	if bucketsWithSamples == 0 {
+		t.Fatal("no bucket in a 12w window carries cycle samples; A1 is vacuous on this fixture")
+	}
+}
+
+// TestRetroOldMirrorCycleDash — contract ↔ assertion map:
+//
+//	A1 on user_version < 43 Compute returns no error (the missing column
+//	   never reaches SQL)
+//	A2 every bucket's cycle cells are nil with no keys — the dash
+//	A3 the footer adds the migration line, same shape as the
+//	   status_catalog one
+//
+// FAIL-first: before the version gate the cycle SELECT would run and error
+// ("no such column: cycle_hours") on a v42 mirror — the gate is what turns
+// the crash into the dash.
+func TestRetroOldMirrorCycleDash(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "gadak.db")
+	raw, err := os.ReadFile(filepath.Join("..", "..", "examples", "demo.db"))
+	if err != nil {
+		t.Fatalf("read demo.db: %v", err)
+	}
+	if err := os.WriteFile(path, raw, 0o600); err != nil {
+		t.Fatalf("copy demo.db: %v", err)
+	}
+	wdb, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := wdb.Exec(`PRAGMA user_version = 42`); err != nil {
+		wdb.Close()
+		t.Fatalf("pin user_version 42: %v", err)
+	}
+	wdb.Close()
+	if err := store.EnsureLocal(path); err != nil {
+		t.Fatalf("EnsureLocal: %v", err)
+	}
+	db, err := store.OpenReadOnly(path)
+	if err != nil {
+		t.Fatalf("open read-only: %v", err)
+	}
+	defer db.Close()
+
+	rep, err := Compute(context.Background(), db, store.FeedIdentity{}, 8*7*24*time.Hour, time.Now(), Options{})
+	if err != nil {
+		t.Fatalf("A1: Compute on a pre-v43 mirror must not error: %v", err)
+	}
+	if !rep.CycleUnavailable {
+		t.Fatal("CycleUnavailable should be set on a pre-v43 mirror")
+	}
+	for bi, b := range rep.Buckets {
+		if b.CycleP50 != nil || b.CycleP85 != nil || len(b.CycleKeys) != 0 {
+			t.Fatalf("A2: bucket %d carries cycle values on a pre-v43 mirror", bi)
+		}
+	}
+	joined := ""
+	for _, d := range rep.Definitions() {
+		joined += d[0] + ": " + d[1] + "\n"
+	}
+	if !strings.Contains(joined, "cycle: mirror predates cycle_hours — run gadak sync to migrate") {
+		t.Fatalf("A3: migration footer line missing:\n%s", joined)
+	}
+	// The cycle row definitions still print — the row exists, the data does not.
+	if !strings.Contains(joined, "cycle p50: ") || !strings.Contains(joined, "cycle p85: ") {
+		t.Fatalf("cycle row definitions missing:\n%s", joined)
+	}
+	// The rest of the report still computed on the same mirror.
+	last := rep.Buckets[len(rep.Buckets)-1]
+	if last.InProg == nil {
+		t.Fatal("the in-progress row should still compute on a pre-v43 mirror")
+	}
 }

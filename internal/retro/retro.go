@@ -1,7 +1,8 @@
 // Package retro computes the weekly retrospective docs/project/THEORY.md
 // calls its instrument: one table, read from the mirror plus local.db,
-// definitions printed under the numbers every time. Six rows: sessions,
-// resume (median), wip age p85, in progress, closed, mismatch. Columns are
+// definitions printed under the numbers every time. Nine rows: sessions,
+// resume (median), wip age p85, wip age max, in progress, closed,
+// cycle p50, cycle p85, mismatch. Columns are
 // ISO weeks (Monday 00:00 local, oldest left, the current partial week last)
 // and a change column against the previous week. Everything is a read: the
 // mirror, the status_catalog lookup, and local.visits; nothing here writes
@@ -45,8 +46,31 @@ const MaxSinceDays = 365
 // than this after the previous one starts a new session. Exactly the gap is
 // still the same session — strictly greater, so a test can sit on the line.
 // Exported because the server's session strip (internal/server/read.go)
-// walks the same boundary — one owner for the rule.
+// walks the same boundary — one owner for the rule. It is also the default
+// of the --session-gap parameter and of Options.SessionGap; Compute is free
+// to be told a different one.
 const SessionGap = 30 * time.Minute
+
+// MinSessionGap and MaxSessionGap bound the --session-gap parameter. Below
+// five minutes a session is every coffee refill; above a day the split has
+// stopped meaning anything weekly. Both bounds are named in ParseSessionGap's
+// error so a rejected value says which wall it hit.
+const (
+	MinSessionGap = 5 * time.Minute
+	MaxSessionGap = 24 * time.Hour
+)
+
+// cycleHoursVersion is the migration that added issues_raw.cycle_hours
+// (schemaV43) — the same bound cmd/gadak's openBlockersVersion marks. Below
+// it the column is absent, not stale: the cycle rows cannot even be queried,
+// so they print a dash and the footer says why, never an error.
+const cycleHoursVersion = 43
+
+// Options is the tunable half of Compute; the zero value is every default.
+// SessionGap zero or negative means the SessionGap constant (30m).
+type Options struct {
+	SessionGap time.Duration
+}
 
 // MaxJSONKeys caps each key array of the JSON document. It matches
 // internal/jql MaxKeys, the ceiling a keys view may open, so a cell that
@@ -109,6 +133,43 @@ func ParseSince(s string) (time.Duration, error) {
 	return time.Duration(days) * 24 * time.Hour, nil
 }
 
+// ParseSessionGap accepts a Go duration (30m, 1h30m, 90m) between
+// MinSessionGap and MaxSessionGap, naming both bounds in every rejection —
+// the same posture as ParseSince: a usage error the caller wraps, never a
+// silent default.
+func ParseSessionGap(s string) (time.Duration, error) {
+	raw := strings.TrimSpace(s)
+	d, err := time.ParseDuration(raw)
+	if err != nil {
+		return 0, fmt.Errorf("--session-gap wants a Go duration between %s and %s (for example 30m, 1h30m), got %q",
+			FormatGap(MinSessionGap), FormatGap(MaxSessionGap), raw)
+	}
+	if d < MinSessionGap || d > MaxSessionGap {
+		return 0, fmt.Errorf("--session-gap is bounded to %s..%s (got %s)",
+			FormatGap(MinSessionGap), FormatGap(MaxSessionGap), FormatGap(d))
+	}
+	return d, nil
+}
+
+// FormatGap is the trimmed duration the definitions footer prints:
+// time.Duration.String() would say 30m0s and 1h0m0s; the footer says 30m and
+// 1h. Whole-minute gaps (the only kind the bounds admit) collapse to their
+// shortest form, anything else keeps Duration.String().
+func FormatGap(d time.Duration) string {
+	if d >= time.Minute && d%time.Minute == 0 {
+		h, m := d/time.Hour, (d%time.Hour)/time.Minute
+		switch {
+		case h > 0 && m > 0:
+			return fmt.Sprintf("%dh%dm", h, m)
+		case h > 0:
+			return fmt.Sprintf("%dh", h)
+		default:
+			return fmt.Sprintf("%dm", m)
+		}
+	}
+	return d.String()
+}
+
 /* ── buckets ── */
 
 // Bucket is one ISO week column: From is Monday 00:00 local; the last
@@ -125,16 +186,22 @@ type Bucket struct {
 	ResumeK  int      // sessions in this bucket that had a write
 	ResumeN  int      // sessions in this bucket
 	WipP85   *float64 // days, nearest-rank 85th percentile
+	WipMax   *float64 // days, the oldest in-progress issue at week end
 	InProg   *int
 	Closed   *int
+	CycleP50 *float64 // days, median cycle of the week's closures
+	CycleP85 *float64 // days, nearest-rank 85th percentile of the same
 	Mismatch int
 
 	// The issue keys behind the counts, sorted by key, one entry per
 	// counted item (mismatch: per counted comment), so each count is the
-	// length of its slice.
+	// length of its slice. CycleKeys has no count field of its own: its
+	// length is the week's sample size, and CycleP50/CycleP85 exist exactly
+	// when it is non-empty.
 	ClosedKeys     []string
 	InProgressKeys []string
 	MismatchKeys   []string
+	CycleKeys      []string
 }
 
 // Label is the bucket's column title and the name --open reports:
@@ -219,6 +286,14 @@ type Report struct {
 	CLIFallback  bool // no ui/unknown visits; sessions came from cli rows
 	SelfResolved bool // a FeedIdentity was available for resume
 	CatalogEmpty bool // status_catalog has no rows
+
+	// SessionGap is the effective split gap Compute ran with. Definitions
+	// prints it; zero or negative (a hand-built Report) renders the default.
+	SessionGap time.Duration
+	// CycleUnavailable marks a mirror whose schema predates cycle_hours
+	// (user_version < 43): every cycle cell is a dash and the footer says
+	// how to fix it, in the same shape as CatalogEmpty.
+	CycleUnavailable bool
 }
 
 /* ── loading and computing ── */
@@ -249,10 +324,30 @@ func parseTime(s string) (time.Time, bool) {
 
 // Compute reads the mirror plus local.visits and fills the buckets. db is
 // a handle on the mirror with local.db attached (store.OpenReadOnly gives
-// the CLI one; the server opens its own the same way).
-func Compute(ctx context.Context, db *sql.DB, me store.FeedIdentity, since time.Duration, now time.Time) (Report, error) {
+// the CLI one; the server opens its own the same way). opts carries the
+// tunables; the zero Options is the shipped default (SessionGap constant).
+func Compute(ctx context.Context, db *sql.DB, me store.FeedIdentity, since time.Duration, now time.Time, opts Options) (Report, error) {
 	rep := Report{Buckets: Buckets(now, since)}
 	rep.SelfResolved = me != store.FeedIdentity{}
+	gap := opts.SessionGap
+	if gap <= 0 {
+		gap = SessionGap
+	}
+	rep.SessionGap = gap
+
+	// Schema gate, read once: below v43 issues_raw has no cycle_hours, and
+	// querying it would error. The cycle rows degrade to dashes for the whole
+	// report instead (footer line), the same posture as an empty catalog. A
+	// failed PRAGMA read is an error, not an old mirror — it must not print
+	// "run gadak sync to migrate" over a transient I/O fault (lead review
+	// 2026-09-07).
+	var schemaVersion int
+	if err := db.QueryRowContext(ctx, `PRAGMA user_version`).Scan(&schemaVersion); err != nil {
+		return rep, fmt.Errorf("retro: read schema version: %w", err)
+	}
+	if schemaVersion < cycleHoursVersion {
+		rep.CycleUnavailable = true
+	}
 	first := rep.Buckets[0].From
 
 	// Visits: epoch-scoped, prefiltered by day prefix (ISOMilli starts with
@@ -276,7 +371,7 @@ func Compute(ctx context.Context, db *sql.DB, me store.FeedIdentity, since time.
 		// window that follows a read just outside it by less than the gap is
 		// the same session, not a new one at the window edge. Sessions that
 		// start before the first bucket are dropped by the bucket loop.
-		if !ok || t.Before(first.Add(-SessionGap)) || t.After(now) {
+		if !ok || t.Before(first.Add(-gap)) || t.After(now) {
 			continue
 		}
 		visits = append(visits, visit{kind: kind, key: key, source: source, at: t})
@@ -330,6 +425,43 @@ func Compute(ctx context.Context, db *sql.DB, me store.FeedIdentity, since time.
 		return rep, err
 	}
 	srows.Close()
+
+	// Cycle columns (v43): what the cycle rows read. resolved_at and
+	// cycle_hours are frozen at close by Derive, so this is a column read,
+	// not a changelog walk. reopen_count = 0 is the sample rule the flow
+	// canon sets (a reopened-and-refinished issue parks time inside its
+	// cycle_hours) and store.CycleTimeP85Hours applies the same clause —
+	// the footer and DERIVE.md state it identically.
+	type cycleRow struct {
+		resolved string
+		hours    float64
+		reopen   int
+	}
+	issCycle := map[string]cycleRow{}
+	if !rep.CycleUnavailable {
+		cyrows, err := db.QueryContext(ctx, `SELECT item_id, COALESCE(resolved_at,''), cycle_hours, COALESCE(reopen_count,0) FROM issues`)
+		if err != nil {
+			return rep, err
+		}
+		for cyrows.Next() {
+			var item, resolved string
+			var hours sql.NullFloat64
+			var reopen int
+			if err := cyrows.Scan(&item, &resolved, &hours, &reopen); err != nil {
+				cyrows.Close()
+				return rep, err
+			}
+			if !hours.Valid || resolved == "" {
+				continue
+			}
+			issCycle[item] = cycleRow{resolved: resolved, hours: hours.Float64, reopen: reopen}
+		}
+		if err := cyrows.Err(); err != nil {
+			cyrows.Close()
+			return rep, err
+		}
+		cyrows.Close()
+	}
 
 	// status_catalog: status id -> category, scoped per source because two
 	// sources can reuse one id.
@@ -472,7 +604,7 @@ func Compute(ctx context.Context, db *sql.DB, me store.FeedIdentity, since time.
 	}
 	var sessions []session
 	for i, v := range counted {
-		newSession := i == 0 || v.at.Sub(counted[i-1].at) > SessionGap
+		newSession := i == 0 || v.at.Sub(counted[i-1].at) > gap
 		if newSession {
 			sessions = append(sessions, session{start: v.at, issueKeys: map[string]bool{}})
 		}
@@ -536,6 +668,9 @@ func Compute(ctx context.Context, db *sql.DB, me store.FeedIdentity, since time.
 			if p, ok := P85(ages); ok {
 				b.WipP85 = &p
 			}
+			if m, ok := Max(ages); ok {
+				b.WipMax = &m
+			}
 		} else if !rep.CatalogEmpty {
 			// A finished week answers from the changelog: the last status row
 			// at or before week end, mapped through status_catalog.
@@ -557,6 +692,9 @@ func Compute(ctx context.Context, db *sql.DB, me store.FeedIdentity, since time.
 			b.InProg = &n
 			if p, ok := P85(ages); ok {
 				b.WipP85 = &p
+			}
+			if m, ok := Max(ages); ok {
+				b.WipMax = &m
 			}
 		}
 
@@ -584,12 +722,45 @@ func Compute(ctx context.Context, db *sql.DB, me store.FeedIdentity, since time.
 			}
 		}
 
+		// Cycle rows: the closures of the week that are done now and were
+		// never reopened, by resolved_at. Bucket edges are local midnight and
+		// the stamps are UTC ISOMilli, so both sides format to ISOMilli and
+		// compare as strings — the same bound convention the closed hand SQL
+		// in RECIPES.md states.
+		if !rep.CycleUnavailable {
+			fromStr := b.From.UTC().Format(config.ISOMilli)
+			toStr := b.To.UTC().Format(config.ISOMilli)
+			var cycles []float64
+			for item, ci := range issCycle {
+				if ci.reopen != 0 || ci.resolved < fromStr || ci.resolved >= toStr {
+					continue
+				}
+				cycles = append(cycles, ci.hours/24)
+				b.CycleKeys = append(b.CycleKeys, itemByID[item].key)
+			}
+			if len(cycles) > 0 {
+				if m, ok := Median(cycles); ok {
+					b.CycleP50 = &m
+				}
+				if p, ok := P85(cycles); ok {
+					b.CycleP85 = &p
+				}
+			}
+		}
+
 		for _, c := range comments {
 			if c.at.Before(b.From) || !c.at.Before(b.To) {
 				continue
 			}
 			if issCategory[c.item] == "" || issCategory[c.item] == store.CategoryDone {
 				continue // not an issue, or done now
+			}
+			// Recency: a done-word claim that predates the issue's last
+			// status change was answered by that change — only a claim newer
+			// than the change is a live mismatch. Comments without a stamp
+			// never reach this loop (dropped at load), so commentOK is true.
+			if !ClaimStands(c.at, true, issChangedAt[c.item]) {
+				continue
 			}
 			if HasDoneWord(c.body) {
 				b.Mismatch++
@@ -599,6 +770,7 @@ func Compute(ctx context.Context, db *sql.DB, me store.FeedIdentity, since time.
 		sort.Strings(b.ClosedKeys)
 		sort.Strings(b.InProgressKeys)
 		sort.Strings(b.MismatchKeys)
+		sort.Strings(b.CycleKeys)
 	}
 	return rep, nil
 }
@@ -665,6 +837,26 @@ func lastStatusCategory(rows []statusRow, cat map[string]string, sourceID string
 		}
 	}
 	return ""
+}
+
+// ClaimStands reports whether a done-word comment is a live claim: it is
+// newer than the issue's last status change. A comment that predates the
+// change was answered by it — the structure moved after the prose — and is
+// not a mismatch now. No recorded status change means nothing answered the
+// claim, so it stands; a comment with no usable stamp cannot be shown to
+// be newer, so it does not.
+//
+// The web mirror of this signal (web/src/lib/done-words.ts) implements the
+// same truth table; keep the two in lockstep.
+func ClaimStands(commentAt time.Time, commentOK bool, statusChangedAt string) bool {
+	if !commentOK {
+		return false
+	}
+	statusChanged, ok := parseTime(statusChangedAt)
+	if !ok {
+		return true
+	}
+	return commentAt.After(statusChanged)
 }
 
 // HasDoneWord reports whether a comment claims the work is finished.
@@ -868,6 +1060,21 @@ func P85(vals []float64) (float64, bool) {
 	return s[rank-1], true
 }
 
+// Max is the largest value, for wip age max beside wip age p85 — the tail
+// the percentile smooths over.
+func Max(vals []float64) (float64, bool) {
+	if len(vals) == 0 {
+		return 0, false
+	}
+	m := vals[0]
+	for _, v := range vals[1:] {
+		if v > m {
+			m = v
+		}
+	}
+	return m, true
+}
+
 /* ── rendering ── */
 
 // FormatSeconds is the resume cell: 4m 10s / 1h 02m / 45s. Exported for
@@ -891,8 +1098,12 @@ func FormatSeconds(secs float64) string {
 // the empty-catalog note) are rows with their own names so both surfaces
 // print the same strings.
 func (r Report) Definitions() [][2]string {
+	gap := r.SessionGap
+	if gap <= 0 {
+		gap = SessionGap
+	}
 	defs := [][2]string{
-		{"sessions", "person reads — visits with source ui or unknown — split where the gap to the previous read exceeds 30m; a session counts in the week it started"},
+		{"sessions", fmt.Sprintf("person reads — visits with source ui or unknown — split where the gap to the previous read exceeds %s; a session counts in the week it started", FormatGap(gap))},
 	}
 	if r.CLIFallback {
 		defs = append(defs, [2]string{"sessions source", "sessions from cli visits (no ui reads recorded)"})
@@ -906,13 +1117,19 @@ func (r Report) Definitions() [][2]string {
 	}
 	defs = append(defs,
 		[2]string{"wip age p85", "nearest-rank 85th percentile of the days an issue had been in progress at week end"},
+		[2]string{"wip age max", "the oldest in-progress issue at week end, in days"},
 		[2]string{"in progress", "issues in progress at week end"},
 		[2]string{"closed", "issues that entered a done status during the week (status ids resolved through status_catalog)"},
-		[2]string{"mismatch", "comments claiming the work is finished on issues not done now (heuristic: a done-word standing on its own, negations and quoted text excluded)"},
-		[2]string{"change", "percentage for resume and wip age p85, signed count for the rest; n/a when the previous week has no value"},
+		[2]string{"cycle p50", "median of cycle_hours — first entry into progress to the latest done entry (DERIVE.md) — in days, over issues resolved during the week that are done now and were never reopened (reopen_count = 0)"},
+		[2]string{"cycle p85", "nearest-rank 85th percentile of cycle_hours — first entry into progress to the latest done entry (DERIVE.md) — in days, over issues resolved during the week that are done now and were never reopened (reopen_count = 0)"},
+		[2]string{"mismatch", "comments claiming the work is finished on issues not done now (heuristic: a done-word standing on its own, negations and quoted text excluded; only comments newer than the issue's last status change count)"},
+		[2]string{"change", "percentage for resume, wip age and cycle rows, signed count for the rest; n/a when the previous week has no value"},
 	)
 	if r.CatalogEmpty {
-		defs = append(defs, [2]string{"status_catalog", "empty — weeks before the current one show no value for wip age p85 and in progress, and closed shows none everywhere; a sync fills the table"})
+		defs = append(defs, [2]string{"status_catalog", "empty — weeks before the current one show no value for wip age p85, wip age max and in progress, and closed shows none everywhere; a sync fills the table"})
+	}
+	if r.CycleUnavailable {
+		defs = append(defs, [2]string{"cycle", "mirror predates cycle_hours — run gadak sync to migrate"})
 	}
 	return defs
 }
@@ -943,7 +1160,7 @@ func changeCount(prev, cur *int) string {
 	return fmt.Sprintf("%+d", *cur-*prev)
 }
 
-// Table renders the text output: header row, six metric rows, then the
+// Table renders the text output: header row, the metric rows, then the
 // definitions footer — every time, in every invocation.
 func (r Report) Table() string {
 	buckets := r.Buckets
@@ -1003,6 +1220,14 @@ func (r Report) Table() string {
 			return fmt.Sprintf("%.1fd", *buckets[i].WipP85)
 		},
 		pct(func(b *Bucket) *float64 { return b.WipP85 }))
+	metricRow("wip age max",
+		func(i int) string {
+			if buckets[i].WipMax == nil {
+				return "—"
+			}
+			return fmt.Sprintf("%.1fd", *buckets[i].WipMax)
+		},
+		pct(func(b *Bucket) *float64 { return b.WipMax }))
 	metricRow("in progress",
 		func(i int) string {
 			if buckets[i].InProg == nil {
@@ -1019,6 +1244,22 @@ func (r Report) Table() string {
 			return strconv.Itoa(*buckets[i].Closed)
 		},
 		func(i int) string { return changeCount(buckets[i-1].Closed, buckets[i].Closed) })
+	metricRow("cycle p50",
+		func(i int) string {
+			if buckets[i].CycleP50 == nil {
+				return "—"
+			}
+			return fmt.Sprintf("%.1fd", *buckets[i].CycleP50)
+		},
+		pct(func(b *Bucket) *float64 { return b.CycleP50 }))
+	metricRow("cycle p85",
+		func(i int) string {
+			if buckets[i].CycleP85 == nil {
+				return "—"
+			}
+			return fmt.Sprintf("%.1fd", *buckets[i].CycleP85)
+		},
+		pct(func(b *Bucket) *float64 { return b.CycleP85 }))
 	metricRow("mismatch",
 		func(i int) string { return strconv.Itoa(buckets[i].Mismatch) },
 		func(i int) string { return changeInt(buckets[i-1].Mismatch, buckets[i].Mismatch) })
@@ -1063,6 +1304,7 @@ type BucketKeys struct {
 	Closed        []string `json:"closed"`
 	InProgress    []string `json:"in progress"`
 	Mismatch      []string `json:"mismatch"`
+	Cycle         []string `json:"cycle"`
 	KeysTruncated bool     `json:"keys_truncated,omitempty"`
 }
 
@@ -1075,8 +1317,11 @@ type BucketJSON struct {
 	Sessions   int        `json:"sessions"`
 	Resume     *float64   `json:"resume (median)"`
 	WipP85     *float64   `json:"wip age p85"`
+	WipMax     *float64   `json:"wip age max"`
 	InProgress *int       `json:"in progress"`
 	Closed     *int       `json:"closed"`
+	CycleP50   *float64   `json:"cycle p50"`
+	CycleP85   *float64   `json:"cycle p85"`
 	Mismatch   int        `json:"mismatch"`
 	Keys       BucketKeys `json:"keys"`
 }
@@ -1122,8 +1367,10 @@ func (r Report) JSON() Doc {
 		j.Keys.Closed, truncated = capKeys(b.ClosedKeys)
 		j.Keys.InProgress, _ = capKeys(b.InProgressKeys)
 		j.Keys.Mismatch, _ = capKeys(b.MismatchKeys)
+		j.Keys.Cycle, _ = capKeys(b.CycleKeys)
 		if truncated || len(b.ClosedKeys) > MaxJSONKeys ||
-			len(b.InProgressKeys) > MaxJSONKeys || len(b.MismatchKeys) > MaxJSONKeys {
+			len(b.InProgressKeys) > MaxJSONKeys || len(b.MismatchKeys) > MaxJSONKeys ||
+			len(b.CycleKeys) > MaxJSONKeys {
 			j.Keys.KeysTruncated = true
 		}
 		if b.Resume != nil {
@@ -1133,6 +1380,18 @@ func (r Report) JSON() Doc {
 		if b.WipP85 != nil {
 			v := round(*b.WipP85)
 			j.WipP85 = &v
+		}
+		if b.WipMax != nil {
+			v := round(*b.WipMax)
+			j.WipMax = &v
+		}
+		if b.CycleP50 != nil {
+			v := round(*b.CycleP50)
+			j.CycleP50 = &v
+		}
+		if b.CycleP85 != nil {
+			v := round(*b.CycleP85)
+			j.CycleP85 = &v
 		}
 		out.Buckets = append(out.Buckets, j)
 	}

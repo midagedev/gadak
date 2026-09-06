@@ -74,6 +74,26 @@ export function hasDoneWord(text: string): boolean {
   return false
 }
 
+/**
+ * A done-word comment is a live claim only while nothing has answered it: it
+ * must be newer than the issue's last status change. A comment that predates
+ * the change was read and acted on — the structure moved after the prose, so
+ * it is not a mismatch now. No recorded status change means nothing answered
+ * the claim, so it stands; a comment with no usable stamp cannot be shown to
+ * be newer, so it does not. Lockstep with Go's retro.ClaimStands, truth table
+ * for truth table (2026-09-07).
+ */
+export function claimStands(
+  commentAt: string | null | undefined,
+  statusChangedAt: string | null | undefined,
+): boolean {
+  const c = Date.parse(commentAt ?? '')
+  if (!Number.isFinite(c)) return false
+  const s = Date.parse(statusChangedAt ?? '')
+  if (!Number.isFinite(s)) return true
+  return c > s
+}
+
 /** Markdown quote lines and fenced code blocks are someone else's words. */
 function stripQuotedAndCode(body: string): string {
   const out: string[] = []

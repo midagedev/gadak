@@ -14,7 +14,7 @@
   import { me } from '../../stores/me.svelte'
   import { issues } from '../../stores/issues.svelte'
   import { effectiveCategory } from '../../lib/view-config'
-  import { hasDoneWord } from '../../lib/done-words'
+  import { claimStands, hasDoneWord } from '../../lib/done-words'
   import { relativeTime, absoluteTime } from './format'
   // The list's Avatar, not a detail-local one: a person must wear the same
   // name-derived color here that they wear in every row behind this panel.
@@ -102,6 +102,9 @@
     if (!newest || newest.comment_id.startsWith('temp-')) return false
     if (!hasDoneWord(newest.body)) return false
     if (!issueRow || effectiveCategory(issueRow) === 'done') return false
+    // A claim the last status change already answered is not a mismatch —
+    // the comment must be newer than status_changed_at (claimStands).
+    if (!claimStands(newest.created_at, issueRow.status_changed_at)) return false
     // Same identity gate as the reply button beside it — the click opens a
     // write surface.
     if (!me.identified) return false

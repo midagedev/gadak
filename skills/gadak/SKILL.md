@@ -94,9 +94,13 @@ whether comments claim work is done on issues that are not — run `gadak retro`
 before writing any status prose: it reads the mirror and `local.db`, prints one
 ISO-week column per week with a change column, and prints the definition of
 every row under the numbers, so a claim can be checked against the exact rule
-that produced it. `gadak retro --json` emits the same numbers for scripting,
-and `gadak retro --open closed --week 1` opens the issues behind a cell in the
-running app (with `--json`, prints the keys only).
+that produced it. The table also carries wip age max (the oldest in-progress
+issue, beside the p85) and cycle p50/p85 (how long the week's closures took,
+never-reopened issues only). `gadak retro --json` emits the same numbers for
+scripting, `--session-gap 45m` moves the read-gap that splits sessions (5m to
+24h), and `gadak retro --open closed --week 1` opens the issues behind a cell
+in the running app (with `--json`, prints the keys only; `--open cycle`
+follows a week's cycle samples).
 
 ## Which origin you are talking to
 
@@ -327,11 +331,14 @@ be checked without a second query. `--limit N`, `--json`, `--csv`,
 `--no-header` behave like `gadak sql`; `--all` includes done issues.
 
 `gadak ready` (or `gadak list --ready`) narrows that list to issues no
-open blocker holds back: an inward blocking link whose target issue is not
-done disqualifies. That is the `open_blockers` column (a mirror read, no
-origin call) — which link types block resolves through the mirror's
-`link_types` catalog, the same vocabulary `gadak link --type` resolves,
-never a hardcoded name. On a mirror whose schema predates the column, a
+*recorded* open blocker holds back: an inward blocking link whose target
+issue is not done disqualifies. That is the `open_blockers` column (a
+mirror read, no origin call) — which link types block resolves through the
+mirror's `link_types` catalog, the same vocabulary `gadak link --type`
+resolves, never a hardcoded name. Block links are typed far less
+consistently than epic links (Relates is the default), so "ready" means
+nothing recorded blocks it, not that nothing does. On a mirror whose schema
+predates the column, a
 stderr notice says so and the plain open list is shown; an empty "nothing
 ready" would be a stronger and wronger claim.
 

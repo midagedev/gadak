@@ -33,6 +33,16 @@ func (s *server) handleRetro(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	// session_gap: the same parser and the same sentence as the CLI flag;
+	// absent means the 30m default.
+	sessionGap := retro.SessionGap
+	if gapRaw := strings.TrimSpace(r.URL.Query().Get("session_gap")); gapRaw != "" {
+		sessionGap, err = retro.ParseSessionGap(gapRaw)
+		if err != nil {
+			fail(w, http.StatusBadRequest, err.Error())
+			return
+		}
+	}
 	// ReadOnly() is the store's own read-only accessor: mode=ro handle with
 	// local.db attached, the same view `gadak retro` computes against, so
 	// this endpoint cannot take the mirror's write lock either.
@@ -42,7 +52,7 @@ func (s *server) handleRetro(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer db.Close()
-	rep, err := retro.Compute(r.Context(), db, store.FeedIdentityOf(s.config()), since, time.Now())
+	rep, err := retro.Compute(r.Context(), db, store.FeedIdentityOf(s.config()), since, time.Now(), retro.Options{SessionGap: sessionGap})
 	if err != nil {
 		serverError(w, r, err)
 		return

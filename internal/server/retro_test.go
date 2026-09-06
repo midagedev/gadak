@@ -7,6 +7,11 @@ package server
 //	   key lengths over the wire)
 //	C2 bad since is a 400 carrying the parse error            → TestRetroEndpoint
 //	C3 store failure is a 500 (serverError path, shared)       → not re-tested here
+//	C4 session_gap: same parser and sentence as the CLI flag,
+//	   400 below the bound, effective gap in definitions      → TestRetroEndpoint
+//	C5 the flow rows ride along: wip age max and cycle p50/p85
+//	   in the bucket shape, cycle values exactly when the
+//	   sample list is non-empty                               → TestRetroEndpoint
 //
 // FAIL-first: before the route existed this test got a 404 from
 // handleNotFound; the handler file and the registration are what turn it
@@ -39,14 +44,19 @@ func TestRetroEndpoint(t *testing.T) {
 	}
 	var doc struct {
 		Buckets []struct {
-			Partial    bool `json:"partial"`
-			InProgress *int `json:"in progress"`
-			Closed     *int `json:"closed"`
-			Mismatch   int  `json:"mismatch"`
+			Partial    bool     `json:"partial"`
+			InProgress *int     `json:"in progress"`
+			Closed     *int     `json:"closed"`
+			WipP85     *float64 `json:"wip age p85"`
+			WipMax     *float64 `json:"wip age max"`
+			CycleP50   *float64 `json:"cycle p50"`
+			CycleP85   *float64 `json:"cycle p85"`
+			Mismatch   int      `json:"mismatch"`
 			Keys       struct {
 				Closed     []string `json:"closed"`
 				InProgress []string `json:"in progress"`
 				Mismatch   []string `json:"mismatch"`
+				Cycle      []string `json:"cycle"`
 			} `json:"keys"`
 		} `json:"buckets"`
 		Definitions map[string]string `json:"definitions"`
@@ -78,6 +88,17 @@ func TestRetroEndpoint(t *testing.T) {
 	if len(last.Keys.InProgress) != 1 || last.Keys.InProgress[0] != "NMB-1" {
 		t.Fatalf("partial week in-progress keys = %v, want [NMB-1]", last.Keys.InProgress)
 	}
+	// The fixture's one in-progress issue has a status change (2026-07-03),
+	// so the ages list behind the partial week's wip rows is non-empty: p85
+	// and max exist together or not at all — they come from the same list.
+	// FAIL-first: before the wip age max row existed the field was absent
+	// from this struct and from the document.
+	if (last.WipP85 == nil) != (last.WipMax == nil) {
+		t.Fatalf("partial week wip p85/max = %v/%v — both derive from one ages list", last.WipP85, last.WipMax)
+	}
+	if last.WipMax == nil {
+		t.Fatal("partial week wip age max should exist: NMB-1 is in progress with a status change")
+	}
 	for bi, b := range doc.Buckets {
 		if b.Closed != nil && len(b.Keys.Closed) != *b.Closed {
 			t.Fatalf("bucket %d closed = %v, %d keys", bi, *b.Closed, len(b.Keys.Closed))
@@ -88,12 +109,32 @@ func TestRetroEndpoint(t *testing.T) {
 		if len(b.Keys.Mismatch) != b.Mismatch {
 			t.Fatalf("bucket %d mismatch = %d, %d keys", bi, b.Mismatch, len(b.Keys.Mismatch))
 		}
+		// C5: the cycle sample list is the whole story — no count field rides
+		// along, so p50 and p85 exist exactly when it is non-empty. The empty
+		// array must still be [], not null.
+		if b.Keys.Cycle == nil {
+			t.Fatalf("bucket %d keys.cycle must marshal as [], not null", bi)
+		}
+		if (b.CycleP50 == nil) != (len(b.Keys.Cycle) == 0) || (b.CycleP85 == nil) != (len(b.Keys.Cycle) == 0) {
+			t.Fatalf("bucket %d cycle p50/p85 = %v/%v with %d keys — values exist exactly when keys do",
+				bi, b.CycleP50, b.CycleP85, len(b.Keys.Cycle))
+		}
 	}
 
-	// Default since: same document without the parameter.
+	// Default since: same document without the parameter — and the default
+	// session gap names itself in the footer (30m).
 	rec = get(t, h, apiBase+"retro/", nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("default since: %d %s", rec.Code, rec.Body.String())
+	}
+	var defaults struct {
+		Definitions map[string]string `json:"definitions"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &defaults); err != nil {
+		t.Fatalf("decode default document: %v", err)
+	}
+	if !strings.Contains(defaults.Definitions["sessions"], "exceeds 30m") {
+		t.Fatalf("default definitions[sessions] should carry the 30m gap: %q", defaults.Definitions["sessions"])
 	}
 
 	// A bad since is a 400 that carries the parse error text.
@@ -103,5 +144,30 @@ func TestRetroEndpoint(t *testing.T) {
 	}
 	if body := rec.Body.String(); !strings.Contains(body, "--since wants") {
 		t.Fatalf("400 body must carry the parse error text: %s", body)
+	}
+
+	// session_gap (C4): the same parser and the same sentence as the CLI
+	// flag. Below the bound it is a 400 naming both walls; told 45m it runs
+	// and the footer prints the effective gap. FAIL-first: before the
+	// parameter existed the query string was ignored entirely.
+	rec = get(t, h, apiBase+"retro/?session_gap=1m", nil)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("session_gap=1m: %d %s", rec.Code, rec.Body.String())
+	}
+	if body := rec.Body.String(); !strings.Contains(body, "5m") || !strings.Contains(body, "24h") {
+		t.Fatalf("400 body must name both bounds: %s", body)
+	}
+	rec = get(t, h, apiBase+"retro/?session_gap=45m", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("session_gap=45m: %d %s", rec.Code, rec.Body.String())
+	}
+	var told struct {
+		Definitions map[string]string `json:"definitions"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &told); err != nil {
+		t.Fatalf("decode 45m document: %v", err)
+	}
+	if !strings.Contains(told.Definitions["sessions"], "exceeds 45m") {
+		t.Fatalf("session_gap=45m definitions[sessions]: %q", told.Definitions["sessions"])
 	}
 }

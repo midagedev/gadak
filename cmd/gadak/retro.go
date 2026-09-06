@@ -20,15 +20,19 @@ import (
 	"github.com/midagedev/gadak/internal/store"
 )
 
-const retroUsageLine = "usage: gadak retro [--since 14d|<N>d|<N>w] [--json] [--open closed|in-progress|mismatch [--week N]] [--no-open]"
+const retroUsageLine = "usage: gadak retro [--since 14d|<N>d|<N>w] [--session-gap 30m] [--json] [--open closed|in-progress|mismatch|cycle [--week N]] [--no-open]"
 
 // retroDefaultSince is two ISO weeks, enough for a "this week against last
 // week" read without paging.
 const retroDefaultSince = "14d"
 
+// retroDefaultSessionGap matches retro.SessionGap; stated as a string so the
+// help text and the parser see the same value.
+const retroDefaultSessionGap = "30m"
+
 // retroOpenMetrics are the --open values, in help order. Each names a cell
 // of the table by its row.
-var retroOpenMetrics = []string{"closed", "in-progress", "mismatch"}
+var retroOpenMetrics = []string{"closed", "in-progress", "mismatch", "cycle"}
 
 // retroBucketKeys is the key set behind one cell.
 func retroBucketKeys(b retro.Bucket, metric string) []string {
@@ -39,6 +43,8 @@ func retroBucketKeys(b retro.Bucket, metric string) []string {
 		return b.InProgressKeys
 	case "mismatch":
 		return b.MismatchKeys
+	case "cycle":
+		return b.CycleKeys
 	}
 	return nil
 }
@@ -46,8 +52,9 @@ func retroBucketKeys(b retro.Bucket, metric string) []string {
 func cmdRetro(args []string) error {
 	fs := newFlagSet("retro")
 	sinceFlag := fs.String("since", retroDefaultSince, "how far back the table reaches: 14d, 30d, 4w (1 to 365 days)")
+	sessionGapFlag := fs.String("session-gap", retroDefaultSessionGap, "split sessions where the gap to the previous read exceeds this: a Go duration, 5m to 24h (30m, 1h30m)")
 	asJSON := fs.Bool("json", false, "emit the same numbers as one JSON document")
-	openFlag := fs.String("open", "", "open the issues behind one cell in the running app: closed|in-progress|mismatch")
+	openFlag := fs.String("open", "", "open the issues behind one cell in the running app: closed|in-progress|mismatch|cycle")
 	weekFlag := fs.Int("week", 0, "which week --open reads: 0 = the current partial week, 1 = the last full week")
 	noOpenFlag := fs.Bool("no-open", false, "with --open: write the hash only; do not open a window")
 	if wantsHelp(args) {
@@ -62,6 +69,10 @@ func cmdRetro(args []string) error {
 		return usageError("retro", retroUsageLine)
 	}
 	since, err := retro.ParseSince(*sinceFlag)
+	if err != nil {
+		return usageError("retro", err.Error())
+	}
+	sessionGap, err := retro.ParseSessionGap(*sessionGapFlag)
 	if err != nil {
 		return usageError("retro", err.Error())
 	}
@@ -106,7 +117,7 @@ func cmdRetro(args []string) error {
 		fmt.Fprintf(os.Stderr, "warning: could not read the workspace config; resume counts any author on visited issues: %v\n", cfgErr)
 		me = store.FeedIdentity{}
 	}
-	rep, err := retro.Compute(context.Background(), db, me, since, time.Now())
+	rep, err := retro.Compute(context.Background(), db, me, since, time.Now(), retro.Options{SessionGap: sessionGap})
 	if err != nil {
 		return err
 	}

@@ -469,17 +469,18 @@ needs no join at all and `= 0` is exactly the `gadak ready` filter.
 
 ## Retro
 
-**The two `gadak retro` rows with the most machinery, by hand.** `gadak
-retro` prints the weekly table (sessions, resume, wip age p85, in progress,
-closed, mismatch) with a definition under every row; these two are the ones
-worth re-deriving when a number looks wrong. Both key on status ids through
-`status_catalog` or on `status_category` — never on the display name beside
-them, which is zero rows on an account that names statuses in another
-language. The mirror stores UTC timestamps, while retro's week edges are
-local midnight, so a hand query states the bound in UTC: for the ISO week
-starting Monday 2026-08-24 in a UTC+9 workspace, the bound is
-`2026-08-23T15:00:00.000Z` (`gadak retro --json` prints the same edges in
-the local zone as RFC 3339).
+**The three `gadak retro` rows with the most machinery, by hand.** `gadak
+retro` prints the weekly table (sessions, resume, wip age p85, wip age max,
+in progress, closed, cycle p50, cycle p85, mismatch) with a definition under
+every row; these three are the ones worth re-deriving when a number looks
+wrong. They key on status ids through `status_catalog`, on `status_category`,
+or on frozen flow columns (`resolved_at`, `cycle_hours`) — never on the
+display name beside them, which is zero rows on an account that names
+statuses in another language. The mirror stores UTC timestamps, while
+retro's week edges are local midnight, so a hand query states the bound in
+UTC: for the ISO week starting Monday 2026-08-24 in a UTC+9 workspace, the
+bound is `2026-08-23T15:00:00.000Z` (`gadak retro --json` prints the same
+edges in the local zone as RFC 3339).
 
 `closed` — issues that entered a done status during the week (the row they
 came from must not already be done, so a reopen-and-close week counts once,
@@ -520,9 +521,39 @@ order by days
 limit 1 offset ((85 * (select count(*) from ages) + 99) / 100 - 1)
 ```
 
-Both equal the `gadak retro --json` numbers on `examples/demo.db` once
-`status_catalog` is seeded (the shipped fixture carries none — a sync fills
-it); `retro_test.go` asserts the equality on the seeded copy.
+`cycle p85` — how long the week's closures took from first entry into
+progress to the latest done entry (`cycle_hours`, frozen at close by
+DERIVE.md), in days. The `reopen_count = 0` clause is the sample rule, the
+same one the row's definition states: a reopened-and-refinished issue parks
+its idle interval inside `cycle_hours`, and the sample this row wants is
+normal-path work. The week is the ISO week starting Monday 2026-08-31 in a
+UTC+9 workspace; the sample count rides along so a zero-sample week answers
+`0`, not an empty result:
+
+```sql
+with cycles as (
+  select cycle_hours / 24.0 as days
+  from issues
+  where resolved_at >= '2026-08-30T15:00:00.000Z'
+    and resolved_at <  '2026-09-06T15:00:00.000Z'
+    and cycle_hours is not null
+    and reopen_count = 0
+)
+select round(days, 1) as cycle_p85_days, (select count(*) from cycles) as samples
+from cycles
+order by days
+limit 1 offset ((85 * (select count(*) from cycles) + 99) / 100 - 1)
+```
+
+On the shipped snapshot the samples are all sub-minute synthetic spans, so
+the percentile rounds to 0.0d here; the sample count moves whenever the
+fixture is regenerated, and the sample rule is the part worth checking.
+
+All three equal the `gadak retro --json` numbers on `examples/demo.db` —
+the first two once `status_catalog` is seeded (the shipped fixture carries
+none — a sync fills it), the cycle row without any seeding because it reads
+the frozen columns directly; `retro_test.go` asserts the equality on the
+seeded copy.
 
 ## This sprint
 

@@ -21,7 +21,7 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, test } from 'vitest'
-import { DONE_WORDS, hasDoneWord } from './done-words'
+import { DONE_WORDS, claimStands, hasDoneWord } from './done-words'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 // The Go owner of the done-word list moved mid-round (uncommitted, parallel
@@ -121,5 +121,33 @@ describe('hasDoneWord (HasDoneWord parity)', () => {
     ['   ', false],
   ])('hasDoneWord(%j) === %s', (body, want) => {
     expect(hasDoneWord(body)).toBe(want)
+  })
+})
+
+describe('claimStands — the recency guard (2026-09-07), lockstep with retro.ClaimStands', () => {
+  /*
+   * Truth table, row for row the Go owner's:
+   *   comment unparseable                          → false
+   *   status_changed_at empty / unparseable        → true  (nothing answered the claim)
+   *   comment before the status change             → false (the change answered it)
+   *   comment at exactly the status change         → false (equal is not newer)
+   *   comment after the status change              → true
+   * FAIL-first: the pre-change CommentList offered "Move to done" on the
+   * "before" row — an old "merged" on an issue since moved back to review.
+   */
+  test.each<[string | null | undefined, string | null | undefined, boolean]>([
+    [null, '2026-09-01T00:00:00.000Z', false],
+    ['not a date', '2026-09-01T00:00:00.000Z', false],
+    ['2026-09-02T00:00:00.000Z', null, true],
+    ['2026-09-02T00:00:00.000Z', '', true],
+    ['2026-09-02T00:00:00.000Z', 'garbage', true],
+    ['2026-08-31T00:00:00.000Z', '2026-09-01T00:00:00.000Z', false],
+    ['2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z', false],
+    ['2026-09-01T00:00:00.001Z', '2026-09-01T00:00:00.000Z', true],
+    // +09:00 and Z spellings compare by instant, not by string.
+    ['2026-09-01T09:00:00.000+09:00', '2026-09-01T00:00:00.000Z', false],
+    ['2026-09-01T09:00:01.000+09:00', '2026-09-01T00:00:00.000Z', true],
+  ])('claimStands(%j, %j) === %s', (comment, status, want) => {
+    expect(claimStands(comment, status)).toBe(want)
   })
 })
