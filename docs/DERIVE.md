@@ -167,6 +167,21 @@ an elapsed-time column; `cycle_hours` is a span frozen at close, not a running
 clock; `last_activity_at` is a stamp the reader ages against now. None of them
 is `time_in_status`, and none accrues between syncs.
 
+The flow canon agrees rather than merely permitting it: the Kanban Guide's
+cycle time is *elapsed* time between start and finish, one running clock, and
+per-status durations are an analysis performed on the changelog, not a stored
+fact.
+
+**Which cycle time `cycle_hours` is.** Three definitions are in circulation and
+gadak measures the first. gadak: elapsed wall clock from the first entry into
+an in-progress category to the resolution — the Kanban Guide's definition, and
+the only one derivable without deciding which statuses count as active. Jira's
+control chart: the *sum* of time in the statuses you select, so a reopened
+issue's second pass is added to the first. Swarmia: time in In Progress only,
+so a three-month postponement between two weeks of work reports two weeks. A
+reader comparing gadak's number to either of those is looking at a definitional
+gap, not a defect.
+
 ## Queries
 
 Every runnable `sql` fence below is executed verbatim by

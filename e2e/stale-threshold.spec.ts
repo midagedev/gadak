@@ -73,7 +73,8 @@ test.describe('learned stale threshold', () => {
     // 1h threshold, ~2200h row: far past every band edge.
     await expect(mark).toHaveAttribute('data-stale-band', 'loud')
     // G7: the title says what the line is and where it came from.
-    await expect(mark).toHaveAttribute('title', /85% of issues finished in the last 90 days/)
+    // The sample count rides in the title beside the number (G7).
+    await expect(mark).toHaveAttribute('title', /85% of the 20 issues finished in the last 90 days/)
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })

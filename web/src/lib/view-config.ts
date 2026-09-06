@@ -997,8 +997,10 @@ export function setStaleFlowSource(fn: StaleFlowSource): void {
 
 /** Mirrors store.CycleP85MinSamples — the same bar the server applies
  *  before sending flow, re-checked here so a mocked or stale payload with a
- *  thin sample cannot lower the threshold on its own. */
-const FLOW_MIN_SAMPLES = 10
+ *  thin sample cannot lower the threshold on its own. Eleven because
+ *  nearest-rank p85 is the maximum observation at n ≤ 6; the reason lives in
+ *  full beside the Go constant. */
+const FLOW_MIN_SAMPLES = 11
 
 function effectiveStaleThreshold(): { hours: number; learned: boolean } {
   const flow = staleFlowSource()
@@ -1019,6 +1021,15 @@ export function staleThresholdHoursEffective(): number {
  *  than set or defaulted — the hover title names the rule only when true. */
 export function staleThresholdLearned(): boolean {
   return effectiveStaleThreshold().learned
+}
+
+/** How many finished issues the learned threshold stands on — the hover
+ *  title carries it beside the number, because a percentile without its
+ *  sample size is a claim without its basis (G7). Zero when the threshold
+ *  was not learned; the title only asks for it when it was. */
+export function staleThresholdSamples(): number {
+  const flow = staleFlowSource()
+  return effectiveStaleThreshold().learned && flow ? flow.samples : 0
 }
 
 /** Whether any filter is active (for save-view button). Callers decide whether to exclude q. */

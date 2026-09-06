@@ -9,7 +9,15 @@ import (
 // a distribution rather than a coincidence. The server omits the flow block
 // below it (read.go flowFields), and the client ignores a carried flow below
 // it, so a mocked or hand-written payload cannot lower the bar either.
-const CycleP85MinSamples = 10
+//
+// Eleven, not ten (2026-09-06, second literature round): nearest-rank p85
+// returns the maximum observation at n ≤ 6 and the second-largest at n ≤ 13,
+// so a thin sample quotes an outlier as a percentile. The flow canon's own
+// landmarks are five points for a credible median, eleven before the range
+// says anything, and about twenty for useful limits (ProKanban, "How much
+// data do I need to start forecasting?"); eleven is the first of those that
+// this number can honestly stand on.
+const CycleP85MinSamples = 11
 
 // CycleTimeP85Hours is the learned half of the stale threshold: how long the
 // slowest 15% of recently finished work actually took, in hours. Since v43 it

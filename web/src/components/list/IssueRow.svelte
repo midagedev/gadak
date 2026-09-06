@@ -100,6 +100,7 @@
     isStale,
     staleThresholdHoursEffective,
     staleThresholdLearned,
+    staleThresholdSamples,
     statusAgeHours,
   } from '../../lib/view-config'
   import PriorityIcon from './PriorityIcon.svelte'
@@ -480,6 +481,7 @@
             ? t('list.staleDaysLearned', {
                 n: staleDays,
                 p: Math.max(1, Math.round(staleThresholdHoursEffective() / 24)),
+                s: staleThresholdSamples(),
               })
             : t('list.staleDays', { n: staleDays })}
         >

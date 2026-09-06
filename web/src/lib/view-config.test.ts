@@ -694,6 +694,16 @@ describe('learned stale threshold (flow)', () => {
     expect(staleThresholdLearned()).toBe(false)
   })
 
+  test('flow at the old ten-sample bar is ignored (the floor is eleven)', () => {
+    // Ten was the first shipped floor; the second literature round raised it
+    // to eleven because nearest-rank p85 returns the maximum observation at
+    // n ≤ 6. This row fails against a floor of ten.
+    staleSetting.hours = 48
+    setStaleFlowSource(() => flow(400, 10))
+    expect(staleThresholdHoursEffective()).toBe(48)
+    expect(staleThresholdLearned()).toBe(false)
+  })
+
   test('flow below the sample minimum is ignored', () => {
     staleSetting.hours = 48
     setStaleFlowSource(() => flow(400, 9))
@@ -703,7 +713,7 @@ describe('learned stale threshold (flow)', () => {
 
   test('flow at exactly the sample minimum is learned', () => {
     staleSetting.hours = 48
-    setStaleFlowSource(() => flow(400, 10))
+    setStaleFlowSource(() => flow(400, 11))
     expect(staleThresholdHoursEffective()).toBe(400)
     expect(staleThresholdLearned()).toBe(true)
   })
