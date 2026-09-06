@@ -27,7 +27,9 @@ Gadak.app to Applications. The dmg is Developer ID-signed and notarized
 (Apple Silicon).
 
 **Windows.** The app is on the [Microsoft Store](https://apps.microsoft.com/detail/9NZW91TXH36G) — Store-signed,
-so SmartScreen and Smart App Control let it through. Every release since 0.16
+so SmartScreen and Smart App Control let it through, and since 0.20.2 the
+Store package puts the `gadak` command on `PATH` too (an app-execution
+alias), so a Store install is the CLI as well. Every release since 0.16
 also attaches `Gadak-<version>-windows-x64.zip` or
 `Gadak-<version>-windows-arm64.zip`: unzip, run `gadak-desktop.exe`. That zip
 is unsigned by decision, not by omission — [GDK-211], reasoning in

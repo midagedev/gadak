@@ -61,8 +61,10 @@ built-in tracker, and `gadak --workspace <new> migrate --from <old>` later carri
 synced mirror onto it — or into a Linear team with `--to linear`.
 
 **Windows:** the desktop app is on the [Microsoft Store](https://apps.microsoft.com/detail/9NZW91TXH36G) — the
-Store signs it, so neither SmartScreen nor Smart App Control objects. For the
-CLI, take `gadak_<version>_windows_amd64.zip` (or `arm64`) from the
+Store signs it, so neither SmartScreen nor Smart App Control objects, and a
+Store install puts the `gadak` command on `PATH` as well (since 0.20.2). For
+the CLI without the Store, take `gadak_<version>_windows_amd64.zip` (or
+`arm64`) from the
 [latest release](https://github.com/midagedev/gadak/releases/latest), unzip,
 put `gadak.exe` on `PATH`. The release's desktop zip
 (`Gadak-<version>-windows-x64.zip`) stays unsigned — a SmartScreen block is a

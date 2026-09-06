@@ -90,12 +90,15 @@ download `gadak_<version>_linux_amd64.tar.gz` (or `linux_arm64`) and
 
 ### Windows CLI
 
-From the [latest release](https://github.com/midagedev/gadak/releases/latest),
+The [Microsoft Store](https://apps.microsoft.com/detail/9NZW91TXH36G) app
+(next section) is the CLI too: since 0.20.2 the Store package declares an
+app-execution alias, so a Store install puts `gadak` on `PATH` and a new
+terminal answers `gadak version`. The zip is for a machine without the Store,
+or for the CLI without the window. From the
+[latest release](https://github.com/midagedev/gadak/releases/latest),
 download `gadak_<version>_windows_amd64.zip` (or `windows_arm64`) and
-`checksums.txt`. Unzip, put `gadak.exe` on `PATH`. This is the CLI route on
-every release since 0.16; the window itself installs from the Microsoft Store
-(next section), which carries the same `gadak.exe` but does not put it on
-`PATH`.
+`checksums.txt`. Unzip, put `gadak.exe` on `PATH`. This has been the CLI route
+on every release since 0.16.
 
 ```powershell
 gadak init
@@ -122,8 +125,18 @@ package with a Microsoft certificate, so it is neither a SmartScreen download
 nor an unknown signer to Smart App Control, and it updates through the Store.
 It is the same `gadak-desktop.exe` as the zip below and reads the same
 `%USERPROFILE%\.gadak`, so the Store app and the CLI zip share one mirror.
-The Store package does not put `gadak.exe` on `PATH` — for the command line,
-add the [Windows CLI](#windows-cli) zip.
+Since 0.20.2 the Store package also carries `gadak` onto `PATH` through an
+app-execution alias (`desktop/msix/AppxManifest.xml`), so a Store install
+needs no [Windows CLI](#windows-cli) zip — open a new terminal after the
+install and `gadak version` answers. From a terminal the same package installs
+with
+
+```powershell
+winget install 9NZW91TXH36G -s msstore
+```
+
+(`winget search gadak -s msstore` finds it; the msstore source does not
+answer `--id` searches for Store product ids.)
 
 Every release since 0.16 also attaches a Windows portable zip:
 `Gadak-<version>-windows-x64.zip` or `Gadak-<version>-windows-arm64.zip`.

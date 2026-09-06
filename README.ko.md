@@ -63,7 +63,8 @@ Jira 사이트에는 [API 토큰](https://id.atlassian.com/manage-profile/securi
 옮길 수 있습니다. `--to linear`를 붙이면 Linear 팀으로 갑니다.
 
 **Windows:** 데스크톱 앱은 [Microsoft Store](https://apps.microsoft.com/detail/9NZW91TXH36G)에 있습니다.
-Store가 서명해 주므로 SmartScreen도 Smart App Control도 막지 않습니다. CLI는
+Store가 서명해 주므로 SmartScreen도 Smart App Control도 막지 않고, 0.20.2부터는
+Store 설치가 `gadak` 명령까지 `PATH`에 올려 줍니다. Store 없이 CLI만 쓰려면
 [최신 릴리스](https://github.com/midagedev/gadak/releases/latest)에서
 `gadak_<version>_windows_amd64.zip`(또는 `arm64`)을 받아 풀고 `gadak.exe`를
 `PATH`에 두세요. 릴리스의 데스크톱 zip(`Gadak-<version>-windows-x64.zip`)은

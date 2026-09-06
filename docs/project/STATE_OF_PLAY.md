@@ -6,11 +6,13 @@ session can start work without re-deriving anything.
 
 Last updated: 2026-09-06 — main at v0.20.2, **the patch where the Windows
 app is on the Microsoft Store**: the Store-signed package (product
-9NZW91TXH36G, certified 2026-09-05) is the Windows install route in every
-guide, `gadak-desktop.exe` is a GUI-subsystem image at last (the console
-window beside the app since 0.16 is gone, and the pack asserts the
-subsystem), the Store manifest declares a `gadak.exe` app-execution alias
-and ja-JP; Linear relations mirror as `links`; a terminal key under the
+9NZW91TXH36G, certified 2026-09-05; the Store has served the 0.20.2
+package since 2026-09-06, `winget` finds it under the msstore source, and a
+Store install on the verification box put `gadak` on `PATH`) is the Windows
+install route in every guide, `gadak-desktop.exe` is a GUI-subsystem image
+at last (the console window beside the app since 0.16 is gone, and the pack
+asserts the subsystem), the Store manifest declares a `gadak.exe`
+app-execution alias and ja-JP; Linear relations mirror as `links`; a terminal key under the
 resting pointer clicks at once; `wiki.*` config aliases; one name per field
 in the list and one link-type catalog per workspace; and a fix round closed
 the Confluence page-version FK death under two sync processes, the
