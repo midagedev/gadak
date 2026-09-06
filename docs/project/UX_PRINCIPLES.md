@@ -13,7 +13,8 @@ surface this document already owns — currently the contained browser
 source, the claim was dropped. Owner decisions name their spec. Sources are
 collected at the end. (Established 2026-08-06, from a survey of Linear,
 Superhuman, Raycast, Notion, Confluence, Outline, Google Drive, Slab, and
-clig.dev. §11–§13 added 2026-08-14.)
+clig.dev. §11–§13 added 2026-08-14; §14 added 2026-09-06 from the
+literature review in `THEORY.md`.)
 
 ## 1. Speed is a budget, not a feature
 
@@ -218,6 +219,42 @@ favorites (§6). The components this constrains are the browse **tab strip**
 (`BrowseHost`, `data-testid="browse-reentry"`). Neither may become a second
 sidebar. The success metric is retrievals that needed no tab, not tab count.
 
+## 14. Coaching grammar: facts about the work, never advice about the person
+
+Owner direction, 2026-09-06: gadak should help the user get work done, not
+only find issues — and never overtly. `THEORY.md` carries the evidence; the
+short form is that more than a third of measured feedback interventions
+*lowered* performance, and the effect worsens as attention moves from the
+task to the self (Kluger & DeNisi 1996), while arrangement — defaults, order,
+weight — changes behaviour without provoking reactance, even when disclosed
+(Thaler & Sunstein 2008; Loewenstein et al. 2015). Every signal, card, or
+meta line a UI round adds is measured against these ten rules:
+
+- **G1** The subject is an issue, a queue, an epic — never the user.
+  "In progress for 12 days", not "you have too much in progress".
+- **G2** State the fact; put the verb on a button beside it, never in the
+  sentence.
+- **G3** Speak only at boundaries — session start, opening an issue, just
+  before a transition, choosing a priority. Never mid-edit, mid-read, or
+  in the terminal.
+- **G4** Try order, density and weight before adding a sentence.
+- **G5** Every signal has a dim peripheral form and a central form with a
+  numeric promotion condition. Colour is the last resort; red is not used.
+- **G6** Friction, never a block: a count, not a confirm dialog.
+- **G7** A one-line basis on hover for every signal; dismissal is remembered
+  per signal and scope and never re-asked.
+- **G8** Count unprompted handling; past a threshold the signal stays
+  peripheral. Coaching succeeds by disappearing.
+- **G9** Progress is visible where the user goes on purpose. No push, no
+  streaks, no scores, no rankings, no praise.
+- **G10** When the user asks the agent, the answer carries age, blockers and
+  who is waiting — asked-for is an answer, not an interruption. Coaching
+  content lives in `skills/gadak/SKILL.md`.
+
+There is no coaching-intensity setting (§4): if the grammar is right, none is
+needed. The seven boundaries where gadak is allowed to speak are tabulated in
+`THEORY.md`; outside them it says nothing.
+
 ---
 
 ## What already embodies this (keep, and defend)
@@ -265,3 +302,5 @@ Secondary (interviews; quote as spoken views, not documented rules):
 
 Owner decisions (§11–§13):
 [`specs/001-dedicated-browser/spec.md`](../../specs/001-dedicated-browser/spec.md) (2026-08-14)
+
+Coaching grammar (§14): the sources are listed in [`THEORY.md`](THEORY.md).

@@ -212,6 +212,8 @@ the command that checks it: [`PROMISES.md`](docs/PROMISES.md).
 
 [`CONTRIBUTING.md`](.github/CONTRIBUTING.md), and
 [`docs/project/GOOD_FIRST_ISSUES.md`](docs/project/GOOD_FIRST_ISSUES.md) to start.
+Why the next features are the ones they are, with sources:
+[`docs/project/THEORY.md`](docs/project/THEORY.md).
 Bug reports need your Jira deployment type (Cloud), the gadak commit, and the
 command you ran. Never paste real issue data, tokens, or site URLs into a
 public issue. Commit `GDK-nnn` keys resolve on the

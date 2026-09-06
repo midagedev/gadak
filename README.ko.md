@@ -218,7 +218,8 @@ RECIPES 쿼리들, `gadak sql`의 stdout, `gadak views open --keys -`)뿐이며,
 
 [`CONTRIBUTING.md`](.github/CONTRIBUTING.md)를 보고,
 [`docs/project/GOOD_FIRST_ISSUES.md`](docs/project/GOOD_FIRST_ISSUES.md)에서
-시작하세요. 버그 리포트에는 Jira 배포 유형(Cloud), gadak 커밋, 실행한 명령이
+시작하세요. 다음 기능이 왜 그것들인지는 출처와 함께
+[`docs/project/THEORY.md`](docs/project/THEORY.md)(영문)에 있습니다. 버그 리포트에는 Jira 배포 유형(Cloud), gadak 커밋, 실행한 명령이
 필요합니다. 실제 이슈 데이터, 토큰, 사이트 URL은 공개 이슈에 절대 붙여 넣지
 마세요. 커밋의 `GDK-nnn` 키는 [공개 백로그](https://gadak.dev/backlog/)로
 이어집니다. 등록은 [GitHub 이슈](https://github.com/midagedev/gadak/issues)로
