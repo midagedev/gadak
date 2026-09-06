@@ -91,6 +91,15 @@ export interface ViewFilters {
   reopened: boolean
   unassigned: boolean
   stale: boolean
+  /**
+   * Identity flags (my-work pack): evaluated through person-match.ts, never a
+   * bare email compare. `mine` = assigned to this account; `delegated` =
+   * reported by this account and held by someone else. Unidentified, both
+   * match nothing — an empty list, never the whole pool. URL tokens ride the
+   * same `fl` list as the other flags.
+   */
+  mine: boolean
+  delegated: boolean
   // Date ranges (ISO date, inclusive). null = unset
   created_from: string | null
   created_to: string | null
@@ -147,6 +156,10 @@ export type Layout = (typeof LAYOUT_VALUES)[number]
 export const SORT_KEY_VALUES = [
   'updated',
   'created',
+  // When the current status began (status_changed_at) — the aging axis
+  // (THEORY.md T4). Asc = longest in status first; a missing stamp sorts
+  // last in both directions (no evidence, not "oldest").
+  'status_changed',
   'due',
   'priority',
   'reopen_count',
@@ -388,7 +401,7 @@ export function groupByEnabled(by: GroupBy): boolean {
   return !f || feature(f)
 }
 
-const FLAG_FIELDS = ['reopened', 'unassigned', 'stale'] as const
+const FLAG_FIELDS = ['reopened', 'unassigned', 'stale', 'mine', 'delegated'] as const
 export type FlagField = (typeof FLAG_FIELDS)[number]
 
 /* ── Defaults ── */
@@ -437,6 +450,8 @@ export function emptyFilters(): ViewFilters {
     reopened: false,
     unassigned: false,
     stale: false,
+    mine: false,
+    delegated: false,
     created_from: null,
     created_to: null,
     updated_from: null,
@@ -510,6 +525,7 @@ export function filtersMatchIgnoringQuery(a: ViewFilters, b: ViewFilters): boole
     if (!sameMembers(a[field], b[field])) return false
   }
   if (a.reopened !== b.reopened || a.unassigned !== b.unassigned || a.stale !== b.stale) return false
+  if (a.mine !== b.mine || a.delegated !== b.delegated) return false
   for (const axis of RANGE_AXES) {
     if (a[`${axis}_from`] !== b[`${axis}_from`] || a[`${axis}_to`] !== b[`${axis}_to`]) return false
   }
@@ -542,6 +558,8 @@ export function subtractFilters(current: ViewFilters, origin: ViewFilters): View
   out.reopened = current.reopened && !origin.reopened
   out.unassigned = current.unassigned && !origin.unassigned
   out.stale = current.stale && !origin.stale
+  out.mine = current.mine && !origin.mine
+  out.delegated = current.delegated && !origin.delegated
   for (const axis of RANGE_AXES) {
     if (current[`${axis}_from`] === origin[`${axis}_from`] && current[`${axis}_to`] === origin[`${axis}_to`]) {
       continue
@@ -691,6 +709,8 @@ export function parseView(params: URLSearchParams): { config: ViewConfig; keys: 
   f.reopened = flags.includes('reopened')
   f.unassigned = flags.includes('unassigned')
   f.stale = flags.includes('stale')
+  f.mine = flags.includes('mine')
+  f.delegated = flags.includes('delegated')
   f.created_from = params.get(RANGE_KEY.created_from)
   f.created_to = params.get(RANGE_KEY.created_to)
   f.updated_from = params.get(RANGE_KEY.updated_from)
@@ -759,6 +779,8 @@ export function configToParams(config: ViewConfig): Record<string, string | null
   if (f.reopened) flags.push('reopened')
   if (f.unassigned) flags.push('unassigned')
   if (f.stale) flags.push('stale')
+  if (f.mine) flags.push('mine')
+  if (f.delegated) flags.push('delegated')
   out[FLAG_KEY] = flags.length ? flags.join(',') : null
 
   out[RANGE_KEY.created_from] = f.created_from || null
@@ -1006,7 +1028,7 @@ export function hasAnyFilter(f: ViewFilters): boolean {
   // the negation keys.
   for (const field of NEGATION_FIELDS) if ((f[field] ?? []).length) return true
   for (const alias in f.fields) if (f.fields[alias].length) return true
-  if (f.reopened || f.unassigned || f.stale) return true
+  if (f.reopened || f.unassigned || f.stale || f.mine || f.delegated) return true
   if (
     f.created_from ||
     f.created_to ||

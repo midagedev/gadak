@@ -25,6 +25,19 @@ export interface BuiltinView {
   icon: IconName // Line glyph, drawn by components/ui/Icon.svelte
   name: string
   hint?: string
+  /**
+   * The two reading stances (THEORY.md "Two stances"): `mine` = contributor
+   * (my issues — execution), `team` = steward (the team's issues —
+   * supervision). The sidebar renders one label row per stance, mine first;
+   * the first screen is a mine-stance view (G4).
+   */
+  stance: 'mine' | 'team'
+  /**
+   * True when the view's filters are identity flags: without an identified
+   * account the list is empty, so the sidebar and palette hide the row
+   * entirely (absent, not disabled — an anonymous reader has no "mine").
+   */
+  needsIdentity?: boolean
   config: ViewConfig
 }
 
@@ -46,11 +59,46 @@ function make(over: {
 
 export function builtinViews(): BuiltinView[] {
   return [
+    /* ── mine stance: the contributor's views (G4: the first screen is
+     * "my work"; unit = the issue, question = "what do I do now"). ── */
+    {
+      // The contributor's front door: open issues assigned to this account,
+      // urgent first. Tenant-neutral by construction — the only constraint
+      // beside the open categories is the `mine` flag, which person-match
+      // evaluates per identity; nothing here names a status or priority.
+      id: 'my-work',
+      icon: 'user',
+      name: t('view.myWork.name'),
+      hint: t('view.myWork.hint'),
+      stance: 'mine',
+      needsIdentity: true,
+      config: make({
+        filters: { mine: true, status_category: ['inprogress', 'new'] },
+        // Urgent first: priority_rank lower = more urgent, so asc is
+        // urgent-first. Groups read in progress → new (IN_RANK).
+        display: { group_by: 'status_category', sort: 'priority', dir: 'asc' },
+      }),
+    },
+    {
+      // The delegation ledger: issues this account reported and someone else
+      // holds, quietest first — the waiting list reads by silence (T3).
+      id: 'delegated',
+      icon: 'arrow-up-right',
+      name: t('view.delegated.name'),
+      hint: t('view.delegated.hint'),
+      stance: 'mine',
+      needsIdentity: true,
+      config: make({
+        filters: { delegated: true, status_category: ['inprogress', 'new'] },
+        display: { sort: 'updated', dir: 'asc' },
+      }),
+    },
     {
       id: 'all-open',
       icon: 'inbox',
       name: t('view.allOpen.name'),
       hint: t('view.allOpen.hint'),
+      stance: 'mine',
       config: make({ filters: { status_category: ['new', 'inprogress'] } }),
     },
     {
@@ -58,9 +106,57 @@ export function builtinViews(): BuiltinView[] {
       icon: 'plus-circle',
       name: t('view.unassignedNew.name'),
       hint: t('view.unassignedNew.hint'),
+      stance: 'mine',
       config: make({
         filters: { unassigned: true, status_category: ['new'] },
         display: { sort: 'created', dir: 'desc' },
+      }),
+    },
+    {
+      id: 'recently-updated',
+      icon: 'zap',
+      name: t('view.recentlyUpdated.name'),
+      hint: t('view.recentlyUpdated.hint'),
+      stance: 'mine',
+      config: make({
+        filters: { status_category: ['new', 'inprogress'] },
+        display: { sort: 'updated', dir: 'desc' },
+      }),
+    },
+    /* ── team stance: the steward's views (unit = the distribution; the
+     * exception surfaces, not the list — THEORY.md "Two stances"). ── */
+    {
+      // Steward view (THEORY.md T4/G4): the aging tail of in-progress work,
+      // longest in status first — the arrangement is the coaching, no
+      // sentence. status_changed is the real axis; the old updated-at proxy
+      // is retired.
+      id: 'aging-in-progress',
+      icon: 'hourglass',
+      name: t('view.agingInProgress.name'),
+      hint: t('view.agingInProgress.hint'),
+      stance: 'team',
+      config: make({
+        filters: { status_category: ['inprogress'] },
+        display: { sort: 'status_changed', dir: 'asc' },
+      }),
+    },
+    {
+      id: 'stale',
+      icon: 'clock',
+      name: t('view.stale.name'),
+      hint: t('view.stale.hint'),
+      stance: 'team',
+      config: make({ filters: { stale: true }, display: { sort: 'updated', dir: 'asc' } }),
+    },
+    {
+      id: 'reopened',
+      icon: 'rotate-ccw',
+      name: t('view.reopened.name'),
+      hint: t('view.reopened.hint'),
+      stance: 'team',
+      config: make({
+        filters: { reopened: true },
+        display: { sort: 'reopen_count', dir: 'desc' },
       }),
     },
     {
@@ -72,51 +168,10 @@ export function builtinViews(): BuiltinView[] {
       icon: 'layers',
       name: t('view.epicBreakdown.name'),
       hint: t('view.epicBreakdown.hint'),
+      stance: 'team',
       config: make({
         filters: { status_category: ['new', 'inprogress'] },
         display: { group_by: 'epic' },
-      }),
-    },
-    {
-      id: 'reopened',
-      icon: 'rotate-ccw',
-      name: t('view.reopened.name'),
-      hint: t('view.reopened.hint'),
-      config: make({
-        filters: { reopened: true },
-        display: { sort: 'reopen_count', dir: 'desc' },
-      }),
-    },
-    {
-      id: 'stale',
-      icon: 'clock',
-      name: t('view.stale.name'),
-      hint: t('view.stale.hint'),
-      config: make({ filters: { stale: true }, display: { sort: 'updated', dir: 'asc' } }),
-    },
-    {
-      // Steward view (THEORY.md T4/G4): the aging tail of in-progress work,
-      // longest-waiting first — the arrangement is the coaching, no sentence.
-      // Sort is 'updated' asc because ViewDisplay has no status_changed_at
-      // axis (that column feeds the stale flag instead); oldest update is the
-      // closest existing proxy for oldest in status.
-      id: 'aging-in-progress',
-      icon: 'hourglass',
-      name: t('view.agingInProgress.name'),
-      hint: t('view.agingInProgress.hint'),
-      config: make({
-        filters: { status_category: ['inprogress'] },
-        display: { sort: 'updated', dir: 'asc' },
-      }),
-    },
-    {
-      id: 'recently-updated',
-      icon: 'zap',
-      name: t('view.recentlyUpdated.name'),
-      hint: t('view.recentlyUpdated.hint'),
-      config: make({
-        filters: { status_category: ['new', 'inprogress'] },
-        display: { sort: 'updated', dir: 'desc' },
       }),
     },
     {
@@ -124,6 +179,7 @@ export function builtinViews(): BuiltinView[] {
       icon: 'check-circle',
       name: t('view.resolvedWeek.name'),
       hint: t('view.resolvedWeek.hint'),
+      stance: 'team',
       config: make({
         filters: { status_category: ['done'], resolved_from: startOfWeekISO() },
         display: { sort: 'updated', dir: 'desc' },

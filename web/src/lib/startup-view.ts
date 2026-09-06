@@ -2,12 +2,15 @@
  * First-view decision at boot.
  *
  * Priority: URL view params > last-used view (localStorage) > own group preset
- * > first-run Epic breakdown > all-open. Hosted demo lands on the built-in
- * Epic breakdown before even the last-used view. A first run on one's own
- * site (no saved view — onboarding just ended) gets the same Epic breakdown
- * instead of a bare Jira replica (GDK-100); from the second run the last
- * view wins. The decision is pure; App supplies URL/storage/identity and
- * applies the resulting config.
+ * > first-run my-work (identified, with assigned work) > first-run Epic
+ * breakdown > all-open. Hosted demo lands on the built-in Epic breakdown
+ * before even the last-used view. A first run on one's own site (no saved
+ * view — onboarding just ended) opens on "my work" when there is a signed-in
+ * account with open issues — the contributor's first screen before any
+ * sentence is added (G4, THEORY.md "Two stances") — and on the Epic
+ * breakdown otherwise, instead of a bare Jira replica (GDK-100); from the
+ * second run the last view wins. The decision is pure; App supplies
+ * URL/storage/identity and applies the resulting config.
  */
 
 import { emptyConfig, parseConfig, type ViewConfig } from './view-config'
@@ -19,6 +22,12 @@ export interface StartupViewInput {
   lastViewKey: string | null
   teamGroupEnabled: boolean
   group: string | null
+  /** auth/me answered with an identity (App waits for authChecked first). */
+  identified: boolean
+  /** The my-work built-in's config, when the catalog has one. */
+  myWork: ViewConfig | undefined
+  /** Open issues assigned to this identity (person-match), computed by App. */
+  myWorkCount: number
 }
 
 export type StartupDecision = { kind: 'keep-url' } | { kind: 'apply'; config: ViewConfig }
@@ -51,9 +60,16 @@ export function decideStartupView(input: StartupViewInput): StartupDecision {
     return { kind: 'apply', config: groupPresetConfig(input.group) }
   }
 
-  // First run (nothing above matched): show the product's question, not a
-  // Jira replica. The group preset stays above this — personalization beats
+  // First run (nothing above matched): the contributor's own work is the
+  // question a first screen should answer — urgent-first, before any
+  // sentence is added (G4). Zero assigned work has nothing to show, and an
+  // anonymous reader has no "mine", so both fall through to the Epic
+  // breakdown. The group preset stays above this — personalization beats
   // the generic default (GDK-100).
+  if (input.identified && input.myWork && input.myWorkCount > 0) {
+    return { kind: 'apply', config: input.myWork }
+  }
+
   if (input.epicBreakdown) {
     return { kind: 'apply', config: input.epicBreakdown }
   }

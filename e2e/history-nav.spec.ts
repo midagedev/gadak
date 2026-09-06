@@ -277,8 +277,9 @@ test.describe('history: arriving by link', () => {
     expect(await historyLength(page)).toBe(len1)
 
     // The default view at boot is written in place too: back from the first
-    // screen does not land on an unfiltered pool.
-    await gotoApp(page)
+    // screen does not land on an unfiltered pool. startup: 'product' — the
+    // helper's Epics click would be a second entry of its own.
+    await gotoApp(page, { startup: 'product' })
     const len2 = await historyLength(page)
     expect(len2).toBe(len1 + 1)
 

@@ -185,7 +185,7 @@ export async function forceLocale(page: Page, locale: 'en' | 'ko' = 'en'): Promi
 }
 
 /** Boot the SPA and wait until the issue list is hydrated. */
-export async function gotoApp(page: Page): Promise<void> {
+export async function gotoApp(page: Page, opts: { startup?: 'epics' | 'product' } = {}): Promise<void> {
   await forceLocale(page, 'en')
   await page.goto('/')
   await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 30_000 })
@@ -200,6 +200,30 @@ export async function gotoApp(page: Page): Promise<void> {
   // so keyboard tests start after that commit. (GDK-39)
   await expect(page).toHaveURL(/[#?&]sc=/, { timeout: 30_000 })
   await expect(page.getByTestId('list-count')).not.toHaveText(DEMO_ISSUE_COUNT_EN)
+  // The fixture's account (dana@example.com) has open work, so the product's
+  // first-run rule (startup-view.ts: identified + assigned work → My issues)
+  // lands every fresh context on Dana's 46 issues. The specs that call this
+  // helper were written against the Epics breakdown — the first-run default
+  // before that rule (GDK-100) — and search or click issues outside Dana's
+  // set. Restore that view through the sidebar, the same click a person
+  // would make, so "the list" still means the whole open pool. A spec whose
+  // subject is the startup decision itself asks for `startup: 'product'`
+  // and sees the rule undisturbed (my-work.spec.ts).
+  if (opts.startup !== 'product' && /[#?&]fl=mine(&|$)/.test(page.url())) {
+    const mineCount = await page.getByTestId('list-count').textContent()
+    await page.locator('aside').getByRole('button', { name: 'Epics' }).click()
+    await expect(page).toHaveURL(/[#?&]g=epic/, { timeout: 30_000 })
+    await expect(page).not.toHaveURL(/[#?&]fl=mine(&|$)/)
+    // The view change is a second boot commit for the list (resetCursor on
+    // viewKey): wait for the refiltered count, not just the hash, so a key
+    // pressed right after this helper lands on the Epics list, not on the
+    // one being torn down.
+    await expect(page.getByTestId('list-count')).not.toHaveText(mineCount ?? '')
+    // The click leaves focus on the sidebar button; a spec's next Enter would
+    // press it again instead of opening the cursor row. Boot leaves nothing
+    // focused, so restore that.
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
+  }
 }
 
 /**

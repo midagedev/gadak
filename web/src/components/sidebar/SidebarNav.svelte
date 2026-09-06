@@ -111,6 +111,12 @@
 
   const builtins = builtinViews()
 
+  // Identity views (my-work pack) are absent, not disabled, for an anonymous
+  // reader: an empty "mine" list under a working row is a question with no
+  // answer (G5). $derived so identity arriving after the first render —
+  // auth/me is slower than bootstrap — adds the rows in place.
+  const visibleBuiltins = $derived(builtins.filter((v) => !v.needsIdentity || me.identified))
+
   /** Apply view = give ListView the column, then the filters. */
   function applyView(config: ViewConfig) {
     showIssueList(config, true)
@@ -158,7 +164,7 @@
     const counts = new Map<string, number>()
     // GDK-153: skip the six-view refilter while this section is collapsed.
     if (sidebarSections.collapsedIds.includes('builtin')) return counts
-    for (const view of builtins) {
+    for (const view of visibleBuiltins) {
       counts.set(view.id, filterIssues(issues.allIssues, view.config.filters).length)
     }
     return counts
@@ -735,36 +741,48 @@
       {#each visibleIds as id (id)}
         {#if id === 'builtin'}
           <SidebarSection id="builtin" label={t('sidebar.builtinViews')} {visibleIds} {drag}>
-            {#each builtins as v (v.id)}
-              <!-- aria-current rides the same condition as the paint: the class
-                   is decoration, the attribute is the contract e2e and screen
-                   readers read (GDK-613). -->
-              <button
-                type="button"
-                class="flex h-7 w-full items-center gap-2 rounded-md px-3 text-left text-body transition-colors {activeBuiltin ===
-                v.id
-                  ? 'bg-bg-active text-text-primary'
-                  : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
-                aria-current={activeBuiltin === v.id ? 'true' : undefined}
-                title={v.hint}
-                onclick={() => applyView(v.config)}
+            <!-- Two stances (THEORY.md "Two stances"): the contributor's views
+                 above, the steward's below — mine first, because the first
+                 screen is "my work" (G4). The labels name the two readings;
+                 they are rows of text, not buttons. -->
+            {#each [{ stance: 'mine', label: t('sidebar.stanceMine'), testid: 'sidebar-stance-mine' }, { stance: 'team', label: t('sidebar.stanceTeam'), testid: 'sidebar-stance-team' }] as s (s.stance)}
+              <div
+                data-testid={s.testid}
+                class="px-3 pb-0.5 pt-2 text-micro uppercase tracking-wide text-text-muted"
               >
-                <!-- The icon is orientation, not content: it stays a tier below the
-                     label it sits next to, and only rises with the row it marks. -->
-                <Icon
-                  name={v.icon}
-                  size={14}
-                  class={activeBuiltin === v.id ? 'text-text-secondary' : 'text-text-muted'}
-                />
-                <span class="min-w-0 flex-1 truncate">{v.name}</span>
-                <!-- A column of zeros on an empty mirror says nothing seven
-                     times; the counts return with the first issue (GDK-1342). -->
-                {#if issues.pool.size}
-                  <span class="flex-none font-mono text-micro tabular-nums text-text-muted">
-                    {formatNumber(builtinCounts.get(v.id) ?? 0)}
-                  </span>
-                {/if}
-              </button>
+                {s.label}
+              </div>
+              {#each visibleBuiltins.filter((v) => v.stance === s.stance) as v (v.id)}
+                <!-- aria-current rides the same condition as the paint: the class
+                     is decoration, the attribute is the contract e2e and screen
+                     readers read (GDK-613). -->
+                <button
+                  type="button"
+                  class="flex h-7 w-full items-center gap-2 rounded-md px-3 text-left text-body transition-colors {activeBuiltin ===
+                  v.id
+                    ? 'bg-bg-active text-text-primary'
+                    : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
+                  aria-current={activeBuiltin === v.id ? 'true' : undefined}
+                  title={v.hint}
+                  onclick={() => applyView(v.config)}
+                >
+                  <!-- The icon is orientation, not content: it stays a tier below the
+                       label it sits next to, and only rises with the row it marks. -->
+                  <Icon
+                    name={v.icon}
+                    size={14}
+                    class={activeBuiltin === v.id ? 'text-text-secondary' : 'text-text-muted'}
+                  />
+                  <span class="min-w-0 flex-1 truncate">{v.name}</span>
+                  <!-- A column of zeros on an empty mirror says nothing seven
+                       times; the counts return with the first issue (GDK-1342). -->
+                  {#if issues.pool.size}
+                    <span class="flex-none font-mono text-micro tabular-nums text-text-muted">
+                      {formatNumber(builtinCounts.get(v.id) ?? 0)}
+                    </span>
+                  {/if}
+                </button>
+              {/each}
             {/each}
           </SidebarSection>
         {:else if id === 'jira'}

@@ -111,7 +111,14 @@ const REMOVED_SCOPE_KEYS = [
  * (gadak team export/import), not saved-view sharing. Allowlisted 2026-08-23
  * so this gate stays on the saved-view vocabulary the issue named.
  */
-const TEAM_VOCAB_ALLOWED = new Set(['sidebar.serverSettings'])
+/*
+ * sidebar.stanceTeam ("Team flow") is the steward-stance heading over the
+ * built-in views (THEORY.md "Two stances"), not a saved-view scope — no save
+ * path hangs off it. Allowlisted 2026-09-06 (r2-views review) for the same
+ * reason as serverSettings: the word is about who the view serves, not where
+ * a saved view is stored.
+ */
+const TEAM_VOCAB_ALLOWED = new Set(['sidebar.serverSettings', 'sidebar.stanceTeam'])
 
 const TEAM_VOCAB_RE = /\bteams?\b|팀|チーム/i
 

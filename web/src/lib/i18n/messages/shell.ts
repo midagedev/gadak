@@ -509,6 +509,36 @@ export const shell = {
     ja: 'API token の期限切れ',
   },
   /* ── Builtin views ── */
+  'view.myWork.name': {
+    en: 'My issues',
+    ko: '내 이슈',
+    ja: '自分の課題',
+  },
+  'view.myWork.hint': {
+    en: 'Open issues assigned to this account, most urgent first; the stale mark carries the age',
+    ko: '이 계정에 배정된 미해결 이슈. 급한 것부터, 나이는 지연 표시가 말한다',
+    ja: 'このアカウントに割り当てられた未解決課題。緊急度順、経過日数は滞留マークが示す',
+  },
+  'view.delegated.name': {
+    en: 'Handed off',
+    ko: '내가 맡긴 것',
+    ja: '任せた課題',
+  },
+  'view.delegated.hint': {
+    en: 'Open issues this account reported and someone else holds, quietest first',
+    ko: '이 계정이 만들고 다른 사람이 들고 있는 미해결 이슈. 오래 조용한 것부터',
+    ja: 'このアカウントが作成し他の人が担当する未解決課題。長く動きのないものから',
+  },
+  'sidebar.stanceMine': {
+    en: 'My work',
+    ko: '내 일',
+    ja: '自分の仕事',
+  },
+  'sidebar.stanceTeam': {
+    en: 'Team flow',
+    ko: '팀의 흐름',
+    ja: 'チームの流れ',
+  },
   'view.allOpen.name': {
     en: 'All open',
     ko: '전체 미해결',
@@ -565,9 +595,11 @@ export const shell = {
     ja: '長く進行中',
   },
   'view.agingInProgress.hint': {
-    en: 'In progress · oldest updates first',
-    ko: '진행 중 · 가장 오래된 갱신 순',
-    ja: '進行中 · 最も古い更新から',
+    // The my-work pack moved this view from the updated-at proxy to the real
+    // status_changed axis — the hint follows the sort it names (2026-09-06).
+    en: 'In progress · longest in status first',
+    ko: '진행 중 · 한 상태에 가장 오래 머문 순',
+    ja: '進行中 · 同じステータスに最も長く留まっている順',
   },
   'view.recentlyUpdated.name': {
     en: 'Recently updated',
@@ -593,6 +625,25 @@ export const shell = {
     en: 'Untitled view',
     ko: '이름 없는 뷰',
     ja: '無題のビュー',
+  },
+  /* ── my-work pack chips + sort label. These would sit beside
+   * filter.flagStale / sort.* in messages/list.ts, but that file belongs to
+   * a parallel round this commit must not touch — so they live here, in the
+   * same terse register as their siblings ('Stale' / '정체' / '滞留'). ── */
+  'filter.flagMine': {
+    en: 'Mine',
+    ko: '내 이슈',
+    ja: '自分の課題',
+  },
+  'filter.flagDelegated': {
+    en: 'Handed off',
+    ko: '내가 맡긴 것',
+    ja: '任せた',
+  },
+  'sort.statusChanged': {
+    en: 'Time in status',
+    ko: '상태 경과순',
+    ja: 'ステータス経過順',
   },
 
   /* ── Keyboard shortcuts cheat sheet (?) ── */

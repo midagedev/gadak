@@ -482,8 +482,10 @@ import type { SettingsTab } from '../../lib/settings-tabs'
       })
     }
     // A built-in carries a written hint, which says what it opens better than a
-    // count of its filters ever could.
+    // count of its filters ever could. Identity views are absent for an
+    // anonymous reader — same rule as the sidebar (my-work pack).
     for (const v of builtinViews()) {
+      if (v.needsIdentity && !me.identified) continue
       push(`vb:${v.id}`, v.name, viewSub(t('palette.viewBuiltin'), v.hint ?? ''), v.config, v.icon)
     }
     for (const v of views.personal) {

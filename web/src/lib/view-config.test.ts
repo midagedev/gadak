@@ -13,6 +13,8 @@ import {
   effectiveCategory,
   emptyConfig,
   filterFields,
+  filtersMatchIgnoringQuery,
+  hasAnyFilter,
   isReopen,
   isStale,
   matchesIdFirst,
@@ -25,8 +27,10 @@ import {
   parseView,
   prioritySortRank,
   setStaleFlowSource,
+  SORT_KEY_VALUES,
   staleThresholdHoursEffective,
   staleThresholdLearned,
+  subtractFilters,
   type ViewConfig,
 } from './view-config'
 
@@ -171,6 +175,8 @@ describe('view-config URL contract', () => {
           c.filters.reopened = true
           c.filters.unassigned = true
           c.filters.stale = true
+          c.filters.mine = true
+          c.filters.delegated = true
           c.filters.fields = { story_points: ['8'] }
           c.display.columns = orderColumns(['stale', 'assignee', 'labels'])
           c.display.group_by = 'assignee'
@@ -734,5 +740,109 @@ describe('learned stale threshold (flow)', () => {
     expect(isStale(done)).toBe(false)
     setStaleFlowSource(() => null)
     expect(isStale(done)).toBe(false)
+  })
+})
+
+/* ── my-work pack: identity flags + status_changed sort ──
+ *
+ * Contract coverage (clause → assertion names):
+ *
+ *   C1 mine/delegated are first-class flag citizens (one `fl` token each,
+ *      exactly stale's ride)
+ *     mine/delegated round-trip through the fl list like stale
+ *     each flag alone round-trips; URL parse reads the shared list
+ *   equality/diff/any (chip and view-origin machinery must see the flags)
+ *     filtersMatchIgnoringQuery distinguishes mine/delegated on/off
+ *     subtractFilters keeps only user-added mine/delegated
+ *     hasAnyFilter counts the identity flags
+ *   C4 status_changed is a URL SortKey
+ *     status_changed parses from s= and serializes back
+ *     SORT_KEY_VALUES owns the key (isSortKey reads the array)
+ *
+ * FAIL-first 2026-09-06: against the pre-change module every test in this
+ * block failed — emptyFilters() had no mine/delegated fields, parseView
+ * dropped the tokens, configToParams never emitted them, and
+ * isSortKey('status_changed') was false (SORT_KEY_VALUES had no such key).
+ */
+describe('my-work pack: identity flags', () => {
+  test('mine/delegated round-trip through the fl list like stale', () => {
+    const c = normalized((cfg) => {
+      cfg.filters.stale = true
+      cfg.filters.mine = true
+      cfg.filters.delegated = true
+    })
+    expect(paramsOf(c).get('fl')).toBe('stale,mine,delegated')
+    expect(roundTrip(c)).toEqual(c)
+  })
+
+  test('each flag alone round-trips; URL parse reads the shared list', () => {
+    for (const flag of ['mine', 'delegated'] as const) {
+      const c = normalized((cfg) => {
+        cfg.filters[flag] = true
+      })
+      expect(paramsOf(c).get('fl')).toBe(flag)
+      expect(roundTrip(c)).toEqual(c)
+    }
+    const parsed = parseConfig(new URLSearchParams('fl=mine,delegated'))
+    expect(parsed.filters.mine).toBe(true)
+    expect(parsed.filters.delegated).toBe(true)
+    expect(parsed.filters.stale).toBe(false)
+    expect(parsed.filters.reopened).toBe(false)
+  })
+
+  test('filtersMatchIgnoringQuery distinguishes mine/delegated on/off', () => {
+    const mine = normalized((c) => {
+      c.filters.mine = true
+    }).filters
+    const delegated = normalized((c) => {
+      c.filters.delegated = true
+    }).filters
+    const plain = normalized(() => {}).filters
+    expect(filtersMatchIgnoringQuery(mine, plain)).toBe(false)
+    expect(filtersMatchIgnoringQuery(delegated, plain)).toBe(false)
+    expect(filtersMatchIgnoringQuery(mine, delegated)).toBe(false)
+    expect(filtersMatchIgnoringQuery(mine, { ...mine })).toBe(true)
+  })
+
+  test('subtractFilters keeps only user-added mine/delegated', () => {
+    const origin = normalized((c) => {
+      c.filters.mine = true
+    }).filters
+    const current = normalized((c) => {
+      c.filters.mine = true
+      c.filters.delegated = true
+    }).filters
+    const diff = subtractFilters(current, origin)
+    expect(diff.mine, 'view-default mine is not a user chip').toBe(false)
+    expect(diff.delegated).toBe(true)
+  })
+
+  test('hasAnyFilter counts the identity flags', () => {
+    expect(hasAnyFilter(normalized((c) => {
+      c.filters.mine = true
+    }).filters)).toBe(true)
+    expect(hasAnyFilter(normalized((c) => {
+      c.filters.delegated = true
+    }).filters)).toBe(true)
+  })
+})
+
+describe('status_changed sort key', () => {
+  test('status_changed parses from s= and serializes back', () => {
+    const parsed = parseConfig(new URLSearchParams('s=status_changed&d=asc'))
+    expect(parsed.display.sort).toBe('status_changed')
+    expect(parsed.display.dir).toBe('asc')
+    const c = normalized((cfg) => {
+      cfg.display.sort = 'status_changed'
+      cfg.display.dir = 'asc'
+    })
+    // Non-default sort earns the param (the configToParams rule).
+    expect(paramsOf(c).get('s')).toBe('status_changed')
+    expect(paramsOf(c).get('d')).toBe('asc')
+    expect(roundTrip(c)).toEqual(c)
+  })
+
+  test('SORT_KEY_VALUES owns the key (isSortKey reads the array)', () => {
+    expect(SORT_KEY_VALUES).toContain('status_changed')
   })
 })

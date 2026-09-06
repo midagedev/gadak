@@ -43,6 +43,7 @@ import {
   prioritySortRank,
   type NormalizedKeys,
   type ColumnKey,
+  type FlagField,
   type GroupBy,
   type Layout,
   type MultiField,
@@ -53,6 +54,7 @@ import {
   type ViewConfig,
   type ViewFilters,
 } from '../lib/view-config'
+import { assignedTo, delegatedBy, type PersonRef } from '../lib/person-match'
 import { inRange as calendarInRange, localZone, type CalendarZone } from '../lib/calendar'
 import * as api from '../lib/api'
 import {
@@ -328,9 +330,12 @@ class FiltersStore {
    *  is noise — turn it off.
    */
   scopedToMe = $derived.by(() => {
+    const f = this.#config.filters
+    // The mine flag (my-work pack) is the view-side statement of the same
+    // scoping — the whole list is already "assigned to me".
+    if (f.mine) return true
     const mine = [me.accountId, me.email].filter((v): v is string => !!v)
     if (!mine.length) return false
-    const f = this.#config.filters
     const has = (arr: string[]) => arr.some((x) => mine.some((v) => sameIdentity(x, v)))
     return has(f.assignee_email) || has(f.reporter_email)
   })
@@ -421,7 +426,7 @@ class FiltersStore {
     this.#apply(c)
   }
 
-  toggleFlag(flag: 'reopened' | 'unassigned' | 'stale'): void {
+  toggleFlag(flag: FlagField): void {
     const c = this.snapshot()
     c.filters[flag] = !c.filters[flag]
     this.#apply(c)
@@ -751,6 +756,16 @@ export function filterIssues(
 ): IssueLite[] {
   const raw = f.q.trim()
   const needle = raw.toLowerCase()
+  // Identity flags (my-work pack): person-match owns "is this issue mine" —
+  // id first, then email. Computed once per pass and only when a flag asks,
+  // so the no-flag hot loop stays byte-identical. Reading `me` here inside a
+  // $derived tracks it: identity arriving after the first render re-runs the
+  // pass (counts and list follow). Unidentified matches nothing — an empty
+  // list, never the whole pool.
+  const identity =
+    f.mine || f.delegated
+      ? { known: me.identified, ref: { accountId: me.accountId, email: me.email } as PersonRef }
+      : null
   const out: IssueLite[] = []
   for (const it of all) {
     // Include narrows, the `_not` twin subtracts (GDK-771: every visible
@@ -833,6 +848,8 @@ export function filterIssues(
     if (f.reopened && !(it.reopen_count > 0)) continue
     if (f.unassigned && hasIssuePerson(it, 'assignee')) continue
     if (f.stale && !isStale(it)) continue
+    if (f.mine && !(identity?.known && assignedTo(it, identity.ref))) continue
+    if (f.delegated && !(identity?.known && delegatedBy(it, identity.ref))) continue
 
     if (
       (f.created_from || f.created_to) &&
@@ -995,6 +1012,25 @@ export function sortIssues(
     switch (sort) {
       case 'created':
         return cmpStr(a.created_at, b.created_at, d)
+      case 'status_changed': {
+        // Age in the current status (T4): asc = longest in status first —
+        // aging-in-progress reads this way. A missing/unparseable stamp is
+        // "no evidence", not "oldest": last in both directions. Ties fall to
+        // newest updated_at so the top of the list stays the live work.
+        const at = (it: IssueLite): number => {
+          const t = Date.parse(it.status_changed_at ?? '')
+          return Number.isFinite(t) ? t : Number.NaN
+        }
+        const av = at(a)
+        const bv = at(b)
+        const aMiss = !Number.isFinite(av)
+        const bMiss = !Number.isFinite(bv)
+        if (aMiss && bMiss) return cmpStr(a.updated_at, b.updated_at, -1)
+        if (aMiss) return 1
+        if (bMiss) return -1
+        const diff = (av - bv) * d
+        return diff !== 0 ? diff : cmpStr(a.updated_at, b.updated_at, -1)
+      }
       case 'due':
         return cmpStr(a.duedate ?? '', b.duedate ?? '', d)
       case 'reopen_count': {
@@ -1280,6 +1316,8 @@ function buildChips(
   if (f.reopened) chips.push({ kind: 'flag', field: 'reopened', label: t('filter.flagReopened') })
   if (f.unassigned) chips.push({ kind: 'flag', field: 'unassigned', label: t('filter.flagUnassigned') })
   if (f.stale) chips.push({ kind: 'flag', field: 'stale', label: t('filter.flagStale') })
+  if (f.mine) chips.push({ kind: 'flag', field: 'mine', label: t('filter.flagMine') })
+  if (f.delegated) chips.push({ kind: 'flag', field: 'delegated', label: t('filter.flagDelegated') })
   if (f.created_from || f.created_to)
     chips.push({ kind: 'range', field: 'created', label: t('filter.chipCreatedRange', { from: f.created_from ?? '', to: f.created_to ?? '' }) })
   if (f.updated_from || f.updated_to)

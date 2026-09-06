@@ -42,7 +42,8 @@
 
   /** Where the demo banner sends people who want the real thing. */
   const REPO_URL = 'https://github.com/midagedev/gadak'
-  import { parseView, VIEW_PARAM_KEYS } from './lib/view-config'
+  import { effectiveCategory, parseView, VIEW_PARAM_KEYS } from './lib/view-config'
+  import { assignedTo } from './lib/person-match'
   import { COLUMN_PARAM, OTHER_PARAM, PANEL_PARAM } from './lib/place-dimension'
   import { builtinViews } from './lib/builtin-views'
   import { STORAGE_KEYS } from './lib/storage'
@@ -475,14 +476,26 @@
   })
 
   // ── Smart default: once. Never override URL view params. ──
-  //  Priority: URL > last-used view (localStorage) > own group preset.
+  //  Priority: URL > last-used view (localStorage) > own group preset >
+  //  first-run my-work > Epic breakdown > all-open (decideStartupView).
   //  Hosted demo only: Epic breakdown instead of all-open (see applyStartupView).
-  //  Wait until members + auth check finish so group matching can work.
+  //  Wait until members + auth check finish so group matching and the
+  //  first-run my-work decision both work.
   let startupDone = false
   $effect(() => {
     if (startupDone) return
     if (!issues.ready || !me.authChecked) return
     startupDone = true
+    // First-run my-work count (computed once, here): open issues assigned to
+    // this identity — person-match owns "mine", never a bare email compare.
+    // Same rule as the my-work view's filters, so the count the decision sees
+    // is the count the view would show.
+    const meRef = { accountId: me.accountId, email: me.email }
+    const myWorkCount = me.identified
+      ? [...issues.pool.values()].filter(
+          (it) => effectiveCategory(it) !== 'done' && assignedTo(it, meRef),
+        ).length
+      : 0
     const startupInput = {
       urlHasViewParam: VIEW_PARAM_KEYS.some((k) => router.params.get(k)),
       // Dual-gate so gadak serve / the desktop app keep the existing default
@@ -493,6 +506,9 @@
       lastViewKey: readLastViewKey(LAST_VIEW_KEY),
       teamGroupEnabled: feature('teamGroups'),
       group: me.group,
+      identified: me.identified,
+      myWork: builtinViews().find((v) => v.id === 'my-work')?.config,
+      myWorkCount,
     }
     applyStartupView(startupInput, (c) => {
       // Boot, not a move: the default view rewrites the entry the tab opened

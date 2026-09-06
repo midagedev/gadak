@@ -33,6 +33,8 @@
   const BASE_SORTS: { k: SortKey; l: string }[] = [
     { k: 'updated', l: t('sort.updated') },
     { k: 'created', l: t('sort.created') },
+    // Aging axis (my-work pack): asc = longest in status first.
+    { k: 'status_changed', l: t('sort.statusChanged') },
     { k: 'due', l: t('sort.due') },
     { k: 'priority', l: t('sort.priority') },
     { k: 'reopen_count', l: t('sort.reopenCount') },

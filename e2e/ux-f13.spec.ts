@@ -78,7 +78,9 @@ test.describe('F13 sidebar freshness and section affordances', () => {
     await expect(header).toHaveAttribute('title', en['sidebar.sectionReorderHint'])
 
     // Non-collapsible personalization blocks are not SidebarSection: no grip.
-    const myIssues = page.getByText(en['personal.myIssues'], { exact: true })
+    // The label div, not the "My issues" built-in view button below it
+    // (my-work pack): getByText alone resolves to both.
+    const myIssues = page.getByText(en['personal.myIssues'], { exact: true }).and(page.locator('div'))
     await expect(myIssues).toBeVisible()
     await expect(myIssues.locator('xpath=ancestor::div[1]').getByTestId('sidebar-section-grip')).toHaveCount(
       0,
