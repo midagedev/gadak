@@ -1,16 +1,17 @@
 <script lang="ts">
-  import { t, fieldLabel } from '../../lib/i18n'
-  import Icon from '../ui/Icon.svelte'
+  import { t, fieldLabel, formatTimeOfDay, locale } from '../../lib/i18n'
+  import Icon, { type IconName } from '../ui/Icon.svelte'
   import ColumnHeader from '../ui/ColumnHeader.svelte'
   import type { FeedFocus, FeedItem } from '../../lib/types'
   import { selection } from '../../stores/selection.svelte'
   import { me } from '../../stores/me.svelte'
   import { write } from '../../stores/write.svelte'
-  import { relativeTime, absTime } from '../../lib/format'
+  import { absTime } from '../../lib/format'
   import EmptyState from '../list/EmptyState.svelte'
   import LoadingState from '../ui/LoadingState.svelte'
   import { createSkeletonGrace } from '../../lib/skeleton-grace.svelte'
   import { groupFeedItems, groupKindCounts, type FeedGroup } from './feed-groups'
+  import { feedDaySections, feedDayLabelText } from './feed-days'
 
   const skeleton = createSkeletonGrace(
     () => me.feedLoading && !me.feedLoaded,
@@ -44,6 +45,19 @@
     mention: t('feed.whyMention'),
   }
 
+  // One glyph per event kind — information (what kind of thing happened),
+  // not decoration (UX §5). Only names that already exist in Icon.svelte;
+  // a kind with no fitting glyph gets none, never a new icon.
+  const EVENT_ICONS: Partial<Record<FeedItem['event_type'], IconName>> = {
+    created: 'plus-circle', // a new thing born (PersonPanel's "add" uses it too)
+    status_changed: 'zap', // unused elsewhere; the instant something moved
+    reopened: 'rotate-ccw', // spoken for as "reopened" across the app
+    assigned: 'user', // a person, same reading as "Assigned" in MyIssuesNav
+    comment_added: 'message-square',
+    attachment_added: 'paperclip',
+    fields_changed: 'pen', // an edit, next to the "Field change" label
+  }
+
   function payloadString(item: FeedItem, key: string): string {
     const value = item.payload[key]
     return typeof value === 'string' ? value : ''
@@ -51,8 +65,10 @@
 
   function eventDetail(item: FeedItem): string {
     if (item.event_type === 'comment_added') {
-      const excerpt = payloadString(item, 'excerpt')
-      return item.actor_name ? `${item.actor_name}: ${excerpt}` : excerpt
+      // The actor has its own span on the second line — the excerpt must
+      // not repeat it (the `Dana: ` prefix was the only place the actor
+      // appeared before the who-did-what line existed).
+      return payloadString(item, 'excerpt')
     }
     if (item.event_type === 'attachment_added') {
       return payloadString(item, 'filename')
@@ -103,11 +119,24 @@
   // (GDK-1058) — pure function in feed-groups.ts, unit-pinned there.
   const groups = $derived(groupFeedItems(me.feedItems))
 
-  // Expanded groups (local). Keyed by group representative id.
+  // Day sections above the groups (feed-days.ts) — the feed reads as
+  // days, the way History does. Pure, order-preserving, unit-pinned there.
+  const sections = $derived(feedDaySections(groups))
+
+  // Expanded groups (local). Keyed by group representative id, so
+  // expansion survives the section wrap above and a tab (focus) switch.
   let expanded = $state<Record<number, boolean>>({})
 
   function reasonsOf(items: FeedItem[]): string[] {
     return [...new Set(items.flatMap((item) => item.reasons))]
+  }
+
+  // The collapsed row names an actor only when the whole group is one
+  // person's work — two actors behind one row would claim one did it all.
+  function sharedActor(items: FeedItem[]): string {
+    const first = items[0]?.actor_name ?? ''
+    if (!first) return ''
+    return items.every((item) => item.actor_name === first) ? first : ''
   }
 
   // Expand a collapsed group and mark all its events read.
@@ -199,6 +228,7 @@
       {#snippet feedRow(item: FeedItem)}
         {@const unread = !item.read_at}
         {@const detail = eventDetail(item)}
+        {@const glyph = EVENT_ICONS[item.event_type]}
         <button
           type="button"
           class="group flex w-full items-start gap-2.5 border-b border-border-subtle/60 px-4 py-2.5 text-left transition-colors {selection.selectedKey ===
@@ -221,10 +251,16 @@
                   : 'text-text-secondary'}"
               >{item.summary}</span>
               <span class="flex-none text-micro text-text-muted" title={absTime(item.occurred_at)}>
-                {relativeTime(item.occurred_at)}
+                {item.occurred_at ? formatTimeOfDay(item.occurred_at) : ''}
               </span>
             </div>
             <div class="mt-1 flex min-w-0 items-center gap-1.5 text-micro">
+              {#if glyph}
+                <Icon name={glyph} size={12} class="text-text-muted" />
+              {/if}
+              {#if item.actor_name}
+                <span class="flex-none font-medium text-text-secondary">{item.actor_name}</span>
+              {/if}
               <span class="flex-none text-text-secondary">{EVENT_LABELS[item.event_type]}</span>
               {#if detail}
                 <span class="truncate text-text-muted">{detail}</span>
@@ -242,66 +278,97 @@
         </button>
       {/snippet}
 
-      {#each groups as group (group.id)}
-        {#if group.items.length === 1 || expanded[group.id]}
-          {#each group.items as item (item.id)}
-            {@render feedRow(item)}
-          {/each}
-        {:else}
-          {@const rep = group.items[0]}
-          {@const kinds = groupKindCounts(group.items)}
-          {@const anyUnread = group.items.some((entry) => !entry.read_at)}
-          <button
-            type="button"
-            class="group flex w-full items-start gap-2.5 border-b border-border-subtle/60 px-4 py-2.5 text-left transition-colors {anyUnread
-              ? 'bg-accent/[0.045] hover:bg-bg-hover'
-              : 'hover:bg-bg-hover'}"
-            onclick={() => openGroup(group)}
-          >
-            <span class="mt-2 flex h-2 w-2 flex-none items-center justify-center">
-              {#if anyUnread}<span class="h-1.5 w-1.5 rounded-full bg-accent"></span>{/if}
-            </span>
-            <div class="min-w-0 flex-1">
-              <div class="flex items-center gap-2">
-                <span class="flex-none font-mono text-micro text-text-muted">{rep.issue_key}</span>
-                <span
-                  class="min-w-0 flex-1 truncate text-body {anyUnread
-                    ? 'font-medium text-text-primary'
-                    : 'text-text-secondary'}"
-                >{rep.summary}</span>
-                <span class="flex-none text-micro text-text-muted" title={absTime(rep.occurred_at)}>
-                  {relativeTime(rep.occurred_at)}
-                </span>
-              </div>
-              <div class="mt-1 flex min-w-0 items-center gap-1.5 text-micro">
-                <Icon name="chevron-right" size={12} class="text-text-muted" />
-                {#if kinds.length === 1}
-                  <span class="flex-none text-text-secondary">{EVENT_LABELS[rep.event_type]}</span>
-                  <span class="flex-none rounded bg-bg-elevated px-1 py-0.5 text-micro font-medium text-text-secondary">
-                    ×{group.items.length}
+      {#each sections as section, sectionIndex (section.key + ':' + sectionIndex)}
+        <!-- Day header: History's day header made sticky (GroupHeader's
+             floating treatment) — microcap muted label + thin rule, the
+             base surface at 95% behind it so rows scroll under it, not
+             through it. Contrast stays below the rows (UX §5). The each
+             key carries the index because sections are runs: a feed
+             whose order interleaves days can show one day twice, and
+             duplicate keys are legal data here. data-day is the semantic
+             key e2e reads. locale() ('en'|'ko'|'ja') is itself a valid
+             BCP 47 tag for Intl, and the three shipped locales have no
+             regional weekday/month variance — so it formats exactly what
+             localeTag() would for these options. -->
+        <div
+          data-testid="feed-day"
+          data-day={section.key}
+          class="sticky top-0 z-10 flex h-row items-end gap-2 bg-bg-base/95 px-4 pb-1.5 backdrop-blur border-b border-border-subtle"
+        >
+          <span class="truncate text-micro font-medium uppercase tracking-wide text-text-muted">
+            {feedDayLabelText(section.label, t, locale())}
+          </span>
+          <span class="h-px flex-1 self-center bg-border-subtle"></span>
+          <span class="text-micro tabular-nums text-text-muted">{section.total}</span>
+          {#if section.unread > 0}
+            <span class="text-micro tabular-nums text-accent-text">{section.unread}</span>
+          {/if}
+        </div>
+        {#each section.groups as group (group.id)}
+          {#if group.items.length === 1 || expanded[group.id]}
+            {#each group.items as item (item.id)}
+              {@render feedRow(item)}
+            {/each}
+          {:else}
+            {@const rep = group.items[0]}
+            {@const kinds = groupKindCounts(group.items)}
+            {@const anyUnread = group.items.some((entry) => !entry.read_at)}
+            {@const actor = sharedActor(group.items)}
+            <button
+              type="button"
+              class="group flex w-full items-start gap-2.5 border-b border-border-subtle/60 px-4 py-2.5 text-left transition-colors {anyUnread
+                ? 'bg-accent/[0.045] hover:bg-bg-hover'
+                : 'hover:bg-bg-hover'}"
+              onclick={() => openGroup(group)}
+            >
+              <span class="mt-2 flex h-2 w-2 flex-none items-center justify-center">
+                {#if anyUnread}<span class="h-1.5 w-1.5 rounded-full bg-accent"></span>{/if}
+              </span>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-2">
+                  <span class="flex-none font-mono text-micro text-text-muted">{rep.issue_key}</span>
+                  <span
+                    class="min-w-0 flex-1 truncate text-body {anyUnread
+                      ? 'font-medium text-text-primary'
+                      : 'text-text-secondary'}"
+                  >{rep.summary}</span>
+                  <span class="flex-none text-micro text-text-muted" title={absTime(rep.occurred_at)}>
+                    {rep.occurred_at ? formatTimeOfDay(rep.occurred_at) : ''}
                   </span>
-                {:else}
-                  <!-- GDK-1058: a mixed run names each kind (×count when a
-                       kind repeats), so the collapsed row says what happened,
-                       not just how much. -->
-                  {#each kinds as kind (kind.type)}
-                    <span class="flex-none text-text-secondary">
-                      {EVENT_LABELS[kind.type]}{kind.count > 1 ? ` ×${kind.count}` : ''}
-                    </span>
-                  {/each}
-                {/if}
-                <span class="min-w-2 flex-1"></span>
-                {#each reasonsOf(group.items) as reason (reason)}
-                  {#if REASON_LABELS[reason]}
-                    <span class="flex-none rounded bg-bg-elevated px-1.5 py-0.5 text-micro text-text-muted">
-                      {REASON_LABELS[reason]}
-                    </span>
+                </div>
+                <div class="mt-1 flex min-w-0 items-center gap-1.5 text-micro">
+                  <Icon name="chevron-right" size={12} class="text-text-muted" />
+                  {#if actor}
+                    <span class="flex-none font-medium text-text-secondary">{actor}</span>
                   {/if}
-                {/each}
+                  {#if kinds.length === 1}
+                    <span class="flex-none text-text-secondary">{EVENT_LABELS[rep.event_type]}</span>
+                    <span class="flex-none rounded bg-bg-elevated px-1 py-0.5 text-micro font-medium text-text-secondary">
+                      ×{group.items.length}
+                    </span>
+                  {:else}
+                    <!-- GDK-1058: a mixed run names each kind (×count when a
+                         kind repeats), so the collapsed row says what happened,
+                         not just how much. -->
+                    {#each kinds as kind (kind.type)}
+                      <span class="flex-none text-text-secondary">
+                        {EVENT_LABELS[kind.type]}{kind.count > 1 ? ` ×${kind.count}` : ''}
+                      </span>
+                    {/each}
+                  {/if}
+                  <span class="min-w-2 flex-1"></span>
+                  {#each reasonsOf(group.items) as reason (reason)}
+                    {#if REASON_LABELS[reason]}
+                      <span class="flex-none rounded bg-bg-elevated px-1.5 py-0.5 text-micro text-text-muted">
+                        {REASON_LABELS[reason]}
+                      </span>
+                    {/if}
+                  {/each}
+                </div>
               </div>
-            </div>
-          </button>
-        {/if}
+            </button>
+          {/if}
+        {/each}
       {/each}
     {/if}
   </div>

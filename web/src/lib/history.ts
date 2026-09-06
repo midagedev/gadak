@@ -45,7 +45,10 @@ export function visitId(kind: HistoryVisitKind, key: string): string {
   return `${kind}:${key}`
 }
 
-function startOfLocalDay(d: Date): Date {
+// Exported for feed-days.ts (the feed's day sections): it needs the same
+// day-start arithmetic for its 2..6-day weekday window, and a second copy
+// of the concept beside dateGroup is how the two drift.
+export function startOfLocalDay(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate())
 }
 

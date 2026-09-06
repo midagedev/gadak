@@ -37,7 +37,10 @@ describe('GDK-1055 feed field names go through the catalog owner', () => {
 
   test('PersonalFeed maps payload.fields through fieldLabel, never raw', () => {
     const src = readFileSync(FEED, 'utf8')
-    expect(src).toMatch(/import \{ t, fieldLabel \} from '\.\.\/\.\.\/lib\/i18n'/)
+    // The import list grew (formatTimeOfDay, locale — the day-sections
+    // round); what stays pinned is that fieldLabel comes from the i18n
+    // owner, leading the list as before.
+    expect(src).toMatch(/import \{ t, fieldLabel(, \w+)* \} from '\.\.\/\.\.\/lib\/i18n'/)
     // Both branches (payload.fields[] and legacy changes[].label) map.
     expect(src).toMatch(/typeof f === 'string' \? fieldLabel\(f\) : ''/)
     expect(src).toMatch(/typeof label === 'string' \? fieldLabel\(label\) : ''/)
@@ -63,5 +66,49 @@ describe('GDK-1066 a failed feed load is failure copy, never the empty copy', ()
     expect(src).toMatch(/t\('feed\.loadFailed'\)/)
     expect(empty, 'the empty branch must survive for success + zero rows').toBeGreaterThan(-1)
     expect(failure).toBeLessThan(empty)
+  })
+})
+
+/*
+ * The feed reads as days: sticky day sections (feed-days.ts), rows that
+ * show time-of-day (the day is in the header), and a who-did-what second
+ * line (UX §6). Source-reading, like the GDK-1055 block above — the unit
+ * project has no svelte plugin. FAIL-first per case: against the
+ * pre-round PersonalFeed each of these greps misses (no feed-day header,
+ * `actor_name}: ${excerpt}` still present, relativeTime on both rows).
+ */
+describe('the feed reads as days', () => {
+  test('the source builds sections and renders the sticky day header', () => {
+    const src = readFileSync(FEED, 'utf8')
+    // The layer exists and is fed by feed-groups' output, not me.feedItems
+    // directly — the day layer sits above the collapse layer.
+    expect(src).toMatch(/import \{ feedDaySections, feedDayLabelText \} from '\.\/feed-days'/)
+    expect(src).toMatch(/feedDaySections\(groups\)/)
+    // The header itself, with its sticky treatment and semantic day key.
+    expect(src).toContain('data-testid="feed-day"')
+    expect(src).toContain('data-day={section.key}')
+    expect(src).toMatch(/sticky top-0 z-10/)
+  })
+
+  test("the comment detail drops the actor prefix — the actor has its own span", () => {
+    const src = readFileSync(FEED, 'utf8')
+    // The pre-round line prefixed the excerpt because the actor appeared
+    // nowhere else; with a who-did-what line it would say the name twice.
+    expect(src).not.toContain('item.actor_name}: ${excerpt}')
+    expect(src).toMatch(
+      /if \(item\.event_type === 'comment_added'\) \{[\s\S]*?return payloadString\(item, 'excerpt'\)/,
+    )
+    // And the actor really did move to its own span on the second line.
+    expect(src).toContain('{item.actor_name}')
+  })
+
+  test('rows show time-of-day, not relative time', () => {
+    const src = readFileSync(FEED, 'utf8')
+    // relativeTime is fully gone from the component — both row snippets
+    // and the import (the day is in the header now, so "2h ago" inside a
+    // day section would repeat it less precisely).
+    expect(src).not.toContain('relativeTime')
+    expect(src).toContain('formatTimeOfDay(item.occurred_at)')
+    expect(src).toContain('formatTimeOfDay(rep.occurred_at)')
   })
 })
