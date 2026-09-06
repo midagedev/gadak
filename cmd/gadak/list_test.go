@@ -19,7 +19,7 @@ import (
 	"github.com/midagedev/gadak/internal/origin"
 )
 
-const listHeader = "key\tpriority\tpriority_rank\tstatus\tupdated_at\tsummary"
+const listHeader = "key\tpriority\tpriority_rank\tstatus\tage_days\tupdated_at\tsummary"
 
 func listKeys(t *testing.T, out string) []string {
 	t.Helper()
@@ -30,8 +30,8 @@ func listKeys(t *testing.T, out string) []string {
 	keys := make([]string, 0, len(lines)-1)
 	for _, ln := range lines[1:] {
 		f := strings.Split(ln, "\t")
-		if len(f) != 6 {
-			t.Fatalf("row %q does not have 6 tab-separated fields:\n%s", ln, out)
+		if len(f) != 7 {
+			t.Fatalf("row %q does not have 7 tab-separated fields:\n%s", ln, out)
 		}
 		keys = append(keys, f[0])
 	}

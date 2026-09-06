@@ -21,8 +21,9 @@ import (
 
 // nextRecipeSQL is the help-example priority pick. Quoted by `gadak next`
 // when that recipe is missing, and by recipes/next help examples. Keep this
-// the single copy.
-const nextRecipeSQL = `select key, priority_rank, status, summary from issues_full where status_category != 'done' order by priority_rank, updated_at desc limit 10`
+// the single copy. The age column is ageDaysColumn from list.go — the same
+// expression the built-in list carries, one owner.
+const nextRecipeSQL = `select key, priority_rank, status, ` + ageDaysColumn + `, summary from issues_full where status_category != 'done' order by priority_rank, updated_at desc limit 10`
 
 const (
 	recipesUsage     = `usage: gadak recipes [list|save|run|show|rm]`

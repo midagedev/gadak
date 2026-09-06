@@ -3,7 +3,11 @@ package main
 // gadak list — the default open-issues read: status_category != 'done',
 // priority_rank first with updated_at desc breaking ties, 30 rows. Priority
 // appears twice on purpose — the display name for reading, priority_rank so
-// the sort can be checked against the output itself. `ready` (the --ready
+// the sort can be checked against the output itself. age_days (days in the
+// current status, computed from status_changed_at on issues_full — time in
+// status is never a stored column) rides after status in every row, so an
+// answer to "what next" can carry age as a fact about the issue
+// (docs/project/THEORY.md T4/G10). `ready` (the --ready
 // flag, or the top-level alias) narrows the same list to issues no open
 // blocker holds back; the blocking link type resolves through the origin's
 // link-type catalog, never a hardcoded 'Blocks' — link-type names are
@@ -21,10 +25,18 @@ import (
 )
 
 const (
-	listUsage        = `usage: gadak list [--limit N] [--all] [--ready] [--json|--csv|--no-header]`
-	readyUsage       = `usage: gadak ready [--limit N] [--json|--csv|--no-header]`
+	listUsage  = `usage: gadak list [--limit N] [--all] [--ready] [--json|--csv|--no-header]`
+	readyUsage = `usage: gadak ready [--limit N] [--json|--csv|--no-header]`
+	// ageDaysColumn is the age signal every open-issues read carries: days
+	// in the current status, rounded to one decimal, NULL (an empty TSV
+	// cell) when the mirror has no status_changed_at. Computed from
+	// status_changed_at on issues_full — never stored. Single owner of the
+	// expression: listColumns and nextRecipeSQL (recipes.go) both build on
+	// it, the same idiom docs/MIRROR.md and internal/mcp/tools.go teach.
+	ageDaysColumn = `round(julianday('now') - julianday(status_changed_at), 1) as age_days`
+
 	defaultListLimit = 30
-	listColumns      = "key, priority, priority_rank, status, updated_at, summary"
+	listColumns      = "key, priority, priority_rank, status, " + ageDaysColumn + ", updated_at, summary"
 )
 
 func cmdList(args []string) error  { return runList("list", args) }

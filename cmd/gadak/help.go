@@ -451,7 +451,7 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak issue", "gadak sql"},
 	},
 	"list": {
-		summary: "open issues from the local mirror, priority rank first — the default read before any query; done is hidden, updated_at breaks ties",
+		summary: "open issues from the local mirror, priority rank first — the default read before any query; done is hidden, updated_at breaks ties, age_days is how long each issue has been in its current status",
 		usage: "gadak [--workspace <name>] list [--limit N] [--all] [--ready]\n" +
 			"[--json|--csv|--no-header]",
 		options: []helpOption{
@@ -471,7 +471,7 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak ready", "gadak next", "gadak sql", "gadak search"},
 	},
 	"ready": {
-		summary: "alias of list --ready — open issues no open blocker holds back (an inward Blocks link to an unfinished issue disqualifies)",
+		summary: "alias of list --ready — open issues no open blocker holds back (an inward Blocks link to an unfinished issue disqualifies); rows carry age_days, how long each issue has been in its current status",
 		usage:   "gadak [--workspace <name>] ready [--limit N] [--json|--csv|--no-header]",
 		options: []helpOption{
 			{name: "limit", desc: "maximum rows to list (default 30)"},
@@ -545,7 +545,7 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak recents", "gadak list"},
 	},
 	"next": {
-		summary: "run the recipe named next, or the built-in list default when none is saved (a stderr line says which) — a report, not occupancy (claiming is an origin write)",
+		summary: "run the recipe named next, or the built-in list default when none is saved (a stderr line says which; its rows carry age_days, how long each issue has been in its current status) — a report, not occupancy (claiming is an origin write)",
 		usage:   "gadak [--workspace <name>] next [--json|--csv|--no-header]",
 		options: []helpOption{
 			{name: "json", desc: "emit one JSON object per row"},

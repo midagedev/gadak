@@ -128,7 +128,7 @@ func TestNextWithoutRecipeFallsBackToDefault(t *testing.T) {
 	if !strings.Contains(stderr, "gadak recipes save next") {
 		t.Fatalf("stderr missing the save command:\n%s", stderr)
 	}
-	if !strings.Contains(stdout, "key\tpriority\tpriority_rank\tstatus\tupdated_at\tsummary") {
+	if !strings.Contains(stdout, "key\tpriority\tpriority_rank\tstatus\tage_days\tupdated_at\tsummary") {
 		t.Fatalf("stdout missing the default list header:\n%s", stdout)
 	}
 	// The generic runner keeps the old refusal: the fallback belongs to the

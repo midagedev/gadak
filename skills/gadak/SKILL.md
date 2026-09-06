@@ -347,7 +347,7 @@ command on stderr. This is a report, not occupancy — claiming still goes
 through the origin (`gadak claim`).
 
 ```bash
-gadak recipes save next "select key, priority_rank, status, summary from issues_full where status_category != 'done' order by priority_rank, updated_at desc limit 10"
+gadak recipes save next "select key, priority_rank, status, round(julianday('now') - julianday(status_changed_at), 1) as age_days, summary from issues_full where status_category != 'done' order by priority_rank, updated_at desc limit 10"
 gadak next                          # saved recipe, or the built-in default
 gadak pick                          # same command, the changelog's name
 gadak recipes run next --json       # the runner: still an error when unsaved
@@ -356,6 +356,20 @@ gadak recipes show next | gadak recipes save next -m -
 gadak recipes                       # name, updated_at, sql preview
 gadak recipes rm next
 ```
+
+### When asked what to do next
+
+Run `gadak ready` (`gadak next` when a recipe is saved); the rows carry
+`age_days`, days in the current status. Answer with facts about the issues,
+in the order the list gives: key, summary, `age_days` as "in progress for N
+days" — "waiting N days" when `status_category` is `new`. For the top pick,
+say whether anything blocks it (`gadak ready` already excludes blocked
+issues; when it degraded — the stderr notice — say so) and who is waiting
+on it: the "What does this issue block?" query in docs/RECIPES.md, keyed on
+link direction. Do not prescribe — the subject of every sentence is an
+issue, never a person; no ranking of people, no praise. The answer carries
+age, blockers, and who waits, and nothing else (docs/project/THEORY.md,
+G1/G10).
 
 `gadak search "…"` is the shortcut when a query is overkill; `--json` includes a
 `pages` array, and every hit says which field matched. If the user pastes Jira
