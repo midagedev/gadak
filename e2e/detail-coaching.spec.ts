@@ -1,5 +1,6 @@
 import { mkdirSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { expect, test, type Page, type Route } from '@playwright/test'
 import { attachConsoleErrors, forceLocale, gotoApp, searchInput } from './helpers'
 
@@ -49,9 +50,12 @@ import { attachConsoleErrors, forceLocale, gotoApp, searchInput } from './helper
 // The lead's scratchpad for this round's vision review (spec Part E). The
 // screenshots are not opened by this round; the vision verdict is the
 // lead's.
+// Repo scratch by default (gitignored, CI-safe — a Linux runner has no
+// /private and cannot mkdir a macOS session scratchpad; the first CI run of
+// this spec failed exactly there), overridable so a round routes the capture
+// to its own scratchpad for the lead's vision review — my-work.spec's pattern.
 const SCRATCH =
-  process.env.GADAK_R2_DETAIL_SHOTS ??
-  '/private/tmp/claude-501/-Users-hckim-repo-gadak/81fcf87a-30ae-4dfe-b1b8-136881ca42b7/scratchpad/r2-detail'
+  process.env.GADAK_R2_DETAIL_SHOTS ?? join(dirname(fileURLToPath(import.meta.url)), '../scratch')
 
 const KEY_NEW = 'NMB-1' // fixture: Backlog (new), assignee demo-priya — not Dana
 const KEY_PROG = 'NMB-5' // fixture: In Progress, 0 comments, status row enters progress → both spans
