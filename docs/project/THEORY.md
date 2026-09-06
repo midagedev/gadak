@@ -181,7 +181,7 @@ this table gadak says nothing.
 | Boundary | Fact shown | Adjacent action | Promotion to centre | Rules |
 |---|---|---|---|---|
 | Session start | Resume card: what changed since my last visit | Open where I left off | Only when something changed; otherwise no card | G3 G1 |
-| Opening an issue | One meta line: age · last change · blockers | Transition · comment (existing UI) | Always dim; bold (not coloured) past the p85 age | G1 G5 |
+| Opening an issue | One meta line: age · last change · blockers | Transition · comment (existing UI) | Always dim; past the p85 age, weight and amber on the glyph and digits only — no box, no red (the GDK-1336 decision) | G1 G5 |
 | Just before moving to in-progress | Small "in progress: n" count | none | Only when n ≥ the user's recent median + 1 | G6 G2 |
 | Choosing a priority | Distribution mini-bar inside the picker | none | Always, quietly | G4 G2 |
 | Writing a done-word comment | Inline "Move to Done" | Transition | Done vocabulary detected on an unfinished issue; one dismissal silences it for that issue | G2 G7 |
