@@ -52,25 +52,37 @@ visible when you come back.
 **T4 — Age is the risk.** Little's law: WIP = throughput × cycle time.
 Adding in-progress work lengthens every item's cycle time. Of the flow
 metrics, *work item age* is the only one that speaks about work still in
-progress (Vacanti 2015); an in-progress issue past the team's usual 85th
-percentile cycle time is not going to be late — it already is. DeGrandis's
-five time thieves (too much WIP, unknown dependencies, unplanned work,
-conflicting priorities, neglected work) all leave traces in Jira data.
+progress (Vacanti 2015); an in-progress issue whose *age* has passed the 85th
+percentile *cycle time of the team's finished work* is not going to be late —
+it already is. Both sides of that comparison matter: age is measured on work
+in flight, the percentile on work that finished (the aging chart's reading,
+ActionableAgile). DeGrandis's five time thieves (too much WIP, unknown
+dependencies, unplanned work, conflicting priorities, neglected work) all
+leave traces in Jira data.
 
 **T5 — The ticket is a boundary object.** A developer reads an issue as a
 task, a manager as progress, an agent as a node in a state machine. Objects
 that several communities read differently yet coordinate through work only
 when they carry structure all sides can read (Star & Griesemer 1989). Hence
-`status_category` and `links` outrank prose, and a ticket whose comments say
-"done" while its status does not is itself a defect signal. Issue trackers
-are communication hubs before they are databases (Bertram et al. 2010).
+`status_category` and `links` outrank prose *as keys* — not as the truer
+record — and a ticket whose comments say "done" while its status does not is a
+*candidate* defect signal, guarded and never counted as a fact (Aranda &
+Venolia 2009 found tracker records erroneous or misleading in seven of ten
+reconstructed cases). Issue trackers are communication hubs before they are
+databases (Bertram et al. 2010).
 
 **T6 — The agent is a teammate.** Automation that takes work away leaves the
 person least able to intervene exactly when it fails (Bainbridge 1983);
 trust must be calibrated to what the automation actually did (Lee & See
-2004). Agents in gadak read the same mirror and write through the same
-origin as the person — a structural precondition already met. What is still
-missing is one place where a person sees what the agent changed.
+2004); how much the machine decides on its own is a choice on a scale, not a
+convention (Parasuraman, Sheridan & Wickens 2000). Agents in gadak read the
+same mirror and write through the same origin as the person — a structural
+precondition already met. Two things are still missing: a **preview** of the
+write an agent is about to make, and one place where a person sees what it
+changed. Four risks name themselves: complacency under load, loss of the
+out-of-the-loop reader's awareness, WIP inflation by claiming (T4), and
+attribution laundering — on a Jira or Linear origin the agent writes under a
+person's credential and the origin cannot tell the two apart.
 
 ## Two stances
 
@@ -158,9 +170,13 @@ The rules, each with the compliant form first and the violation second:
   a one-line basis on hover ("p85 cycle time 9d; this issue 12d"). Dismissal
   is remembered per signal and per scope and never re-asked. Transparency
   costs nothing (Loewenstein et al. 2015).
-- **G8 Withdraw as the user learns.** Count the times a signal was shown and
-  the user handled it unprompted; past a threshold the signal stays
-  peripheral. Coaching succeeds by disappearing.
+- **G8 Withdraw as the user learns.** Per signal kind and scope, count how
+  often it was shown and how often the user handled it unprompted — meaning
+  the condition the signal names stopped being true in the same session *and*
+  the signal's own affordance was not clicked. After three consecutive, the
+  signal drops from its central form to its peripheral one; it is never
+  deleted, the layout never moves, and it is not re-promoted within fourteen
+  days. Coaching succeeds by disappearing (Carroll & Carrithers 1984).
 - **G9 Show progress, never a score.** Issues closed this week and a shorter
   age tail live where the user goes on purpose (the team-flow view). No
   push, no streaks, no rankings, no "well done".
@@ -180,11 +196,11 @@ this table gadak says nothing.
 
 | Boundary | Fact shown | Adjacent action | Promotion to centre | Rules |
 |---|---|---|---|---|
-| Session start | Resume card: what changed since my last visit | Open where I left off | Only when something changed; otherwise no card | G3 G1 |
-| Opening an issue | One meta line: age · last change · blockers | Transition · comment (existing UI) | Always dim; past the p85 age, weight and amber on the glyph and digits only — no box, no red (the GDK-1336 decision) | G1 G5 |
+| Session start | Session strip: what changed since my previous *session* of reads | Open the changed items as a list | Only when something changed; otherwise no strip. One utterance per session — the count is latched at load and never increments, which is what keeps it awareness and not notification | G3 G1 |
+| Opening an issue | One meta line: age · last change · blockers, and the resume card — what changed since my previous visit *to this issue* | Transition · comment (existing UI) | Always dim; past the p85 age, weight and amber on the glyph and digits only — no box, no red (the GDK-1336 decision) | G1 G5 |
 | Just before moving to in-progress | Small "in progress: n" count | none | Only when n ≥ the user's recent median + 1 | G6 G2 |
 | Choosing a priority | Distribution mini-bar inside the picker | none | Always, quietly | G4 G2 |
-| Writing a done-word comment | Inline "Move to Done" | Transition | Done vocabulary detected on an unfinished issue; one dismissal silences it for that issue | G2 G7 |
+| Writing a done-word comment | Inline "Move to Done" | Transition | Done vocabulary detected on an unfinished issue **after the guards**: word boundaries for the English words, a negation check for the CJK ones (미/未/불/非 before, 되지 않 after), quotes and code fences stripped, questions rejected, and the comment newer than `status_changed_at`. One dismissal silences it for that issue. The affordance costs one dismissal when wrong, so ~75–85% precision is enough here — the same match is **not** good enough to be counted for a steward | G2 G7 |
 | Opening the team-flow view | Age tail · neglected · delegation ledger · closed this week | Per issue | None — the user came here | G9 G3 |
 | Asking the agent | Age, blockers, who is waiting, inside the answer | The user decides | Only when asked; `skills/gadak/SKILL.md` fixes the answer shape | G10 |
 
@@ -256,9 +272,12 @@ come from the mirror and `local.db`; there is no telemetry.
 
 1. **Resume time** — session start to first meaningful write — falls after
    the resume card ships. If it does not, T2's implementation is wrong.
-2. **The age tail** — p85 of in-progress age — shortens once the flow pack
-   and neglected detection are visible. Visibility alone changes behaviour
-   (T4).
+2. **Items over the line** — the count, or share, of in-progress issues whose
+   age exceeds the finished-work p85 — falls once the flow pack and neglected
+   detection are visible. (Not the p85 *of in-progress age*: that number is
+   dominated by whichever few items are oldest, and it moves when an old item
+   finishes for reasons unrelated to visibility.) Visibility alone changes
+   behaviour (T4).
 3. **Priority entropy** widens after the diagnosis ships, or that team
    already uses priority as an order.
 4. **Structure/prose mismatch** — done-word comments on unfinished issues —
@@ -275,9 +294,13 @@ This is a literature review, not a user study or an experiment. Interruption
 and resumption findings come largely from laboratories and single-organisation
 observation; their transfer is an assumption. Empirical work on Jira
 specifically is thin and mostly on public open-source datasets (Montgomery,
-Lüders & Maalej 2022). Literature on agents as tracker users barely exists;
-T6 is an extrapolation from automation and human–AI interaction research.
-That is why the predictions above exist.
+Lüders & Maalej 2022), and what exists says the record is *machine-stable*,
+not complete: every bug history Aranda & Venolia rebuilt omitted something,
+and the rationale usually left no trace at all. Literature on agents as
+tracker users was thin when this file was written and no longer is — three
+vendors shipped agent identities into trackers during 2025–26, and 2026
+studies measure agentic pull requests at scale — so T6 rests on practice as
+well as on automation research. That is why the predictions above exist.
 
 ## Sources
 
@@ -285,11 +308,13 @@ Adams, Costa, Jung & Choudhury 2015, *Mindless computing*, UbiComp ·
 Amabile & Kramer 2011, *The Progress Principle* ·
 Amershi et al. 2019, *Guidelines for Human-AI Interaction*, CHI ·
 Anderson 2010, *Kanban* ·
+Aranda & Venolia 2009, *The secret life of bugs*, ICSE ·
 Bainbridge 1983, *Ironies of automation*, Automatica 19(6) ·
 Baysal, Holmes & Godfrey 2014, *No issue left behind*, FSE ·
 Bertram, Voida, Greenberg & Walker 2010, *Communication, collaboration, and bugs*, CSCW ·
 Brehm 1966, *A Theory of Psychological Reactance* ·
 Caddy, Treude, Wagner & Barr 2024, *The role of surprisal in issue trackers*, EMSE ·
+Carroll & Carrithers 1984, *Training wheels in a user interface*, CACM 27(8) ·
 Clark & Brennan 1991, *Grounding in communication* ·
 Cowan 2001, *The magical number 4*, BBS 24 ·
 Cox, Gould, Cecchinato, Iacovides & Renfree 2016, *Design frictions for mindful interactions*, CHI EA ·
@@ -314,6 +339,7 @@ Mackworth 1948, *The breakdown of vigilance during prolonged visual search*, QJE
 Montgomery, Lüders & Maalej 2022, *An alternative issue tracking dataset of public Jira repositories*, MSR ·
 Noda, Storey, Forsgren & Greiler 2023, *DevEx: what actually drives productivity*, ACM Queue 21(2) ·
 Parnin & Rugaber 2011, *Resumption strategies for interrupted programming tasks*, Software Quality Journal 19 ·
+Parasuraman, Sheridan & Wickens 2000, *A model for types and levels of human interaction with automation*, IEEE SMC-A 30(3) ·
 Pirolli & Card 1999, *Information foraging*, Psychological Review 106(4) ·
 Pousman & Stasko 2006, *A taxonomy of ambient information systems*, AVI ·
 Reinertsen 2009, *The Principles of Product Development Flow* ·
