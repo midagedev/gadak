@@ -64,8 +64,12 @@ otherwise depend on site-specific naming keys on `statusCategory` instead.
 | `items.body_text` | ADF flattened to plain text, plus any custom fields configured as body text. It lives on the spine, not on `issues`, because it is what FTS indexes |
 | `comment_count` | Number of rows in `comments` for the issue |
 | `reopen_reason` | Body text of the earliest comment created at or after `reopened_at`, capped at 1000 bytes on a rune boundary. A heuristic: it surfaces the explanation on teams where whoever reopens says why in a comment. Empty when never reopened or no comment followed |
-| `cloned_from` | Target of an inward link whose type name contains "clone" (Jira's default "Cloners" type). Caveat: link type names are site configuration created in the site's language — a non-English clone type derives nothing, and there is no language-stable id to key on. The read API also exposes `source_project`, the key's project prefix |
+| `cloned_from` | Target of an outward link whose type name contains "clone" (Jira's default "Cloners" type) — the clone is the issue that displays "clones \<origin\>", so the origin sits behind the outward direction. Caveat: link type names are site configuration created in the site's language — a non-English clone type derives nothing, and there is no language-stable id to key on. The read API also exposes `source_project`, the key's project prefix |
 | `epic_key` | Key of the nearest `hierarchy_level = 1` ancestor reachable via `parent_key` within two hops (the parent, else the grandparent); NULL when there is none |
+| `started_at` | Timestamp of the oldest changelog transition whose target category is `inprogress`; NULL when the issue never entered progress |
+| `cycle_hours` | `resolved_at` minus `started_at` in hours, stored only while the issue is `done` now and the span is positive; NULL otherwise |
+| `last_activity_at` | Newest of the item's `updated_at`, the newest changelog entry and the newest comment — a string max, because ISO-8601 UTC stamps compare lexicographically; NULL when all three are absent |
+| `open_blockers` | Count of inward links of a blocking type whose target issue is in the mirror and not `done`. Which types block resolves through the cached `link_types` catalog (`lower(name) = 'blocks'` or `lower(outward) LIKE 'block%'`), never a hardcoded display name; a target outside the mirror is not blocking — unknown must not hold work back. Recomputed on every batch for the batch's keys plus every issue holding an inward link at one of them, and swept whole-table after a full sync |
 
 A status id the site's status list does not cover counts as **not** `done`.
 That direction is deliberate: it can only miss a reopen, never invent one.
@@ -120,6 +124,16 @@ every upsert batch, on purpose: parent chains can resolve only after later rows
 arrive, so both reverse-arriving batches and children of unchanged parents need
 a second look.
 
+**The flow columns are stamps and counts, not live durations.**
+`started_at`, `cycle_hours`, `last_activity_at` and `open_blockers` exist so the
+questions THEORY.md calls aging, cycle time, silence and readiness are filters
+(`WHERE started_at IS NOT NULL`, `ORDER BY last_activity_at`) instead of
+changelog walks. They are values the last sync observed — none of them ticks.
+`last_activity_at` is a stamp, and "how long silent" is the reader's query
+against now; `cycle_hours` is frozen at close because the issue is done;
+`open_blockers` recomputes when links or target statuses move, which is a sync
+event, not a clock. See also *time-in-status is not a column* below.
+
 **`item_refs` rows outlive their targets.** `item_refs` (a table, not a column)
 holds cross-references extracted from text at upsert time: page bodies → issue
 keys, issue bodies and comments → wiki page ids. Four patterns are recognized —
@@ -147,6 +161,11 @@ mistake. Two shapes cover what people actually ask:
   now (the "sitting" query below).
 - How long was spent **per** status, over the issue's life? — walk the
   changelog: each `field = 'status'` entry runs until the next one (or now).
+
+The flow columns (v43) do not change that verdict. `started_at` is a stamp, not
+an elapsed-time column; `cycle_hours` is a span frozen at close, not a running
+clock; `last_activity_at` is a stamp the reader ages against now. None of them
+is `time_in_status`, and none accrues between syncs.
 
 ## Queries
 
@@ -218,6 +237,68 @@ WHERE status_category = 'inprogress'
 ORDER BY days DESC LIMIT 20;
 ```
 
+The four fences below are the flow layer (v43): aging, cycle time, silence and
+readiness as column reads. Each one replaces a changelog walk of the same
+question — `started_at` for aging, `cycle_hours` for cycle time,
+`last_activity_at` for silence, `open_blockers` for readiness.
+
+```sql min=1
+-- Aging: how long since work started, for in-progress issues
+SELECT key, status, ROUND(julianday('now') - julianday(started_at), 1) AS days_started
+FROM issues
+WHERE status_category = 'inprogress' AND started_at IS NOT NULL
+ORDER BY days_started DESC LIMIT 20;
+```
+
+`started_at` is the first transition into an in-progress category, so this is
+"how long has this been underway" — a different question than the sitting query
+above, which is "how long since the last status change".
+
+```sql min=1
+-- Cycle time p85, nearest-rank, over issues resolved in the last 90 days
+WITH done AS (
+  SELECT cycle_hours FROM issues
+  WHERE status_category = 'done' AND cycle_hours IS NOT NULL
+    AND resolved_at >= date('now', '-90 day')
+)
+SELECT ROUND(cycle_hours, 1) AS p85_cycle_hours, (SELECT COUNT(*) FROM done) AS samples
+FROM done ORDER BY cycle_hours
+LIMIT 1 OFFSET (SELECT (85 * COUNT(*) + 99) / 100 - 1 FROM done);
+```
+
+The rank arithmetic `(85·n+99)/100` is nearest-rank in integers — the same
+idiom the Retro section of RECIPES.md uses and `internal/retro` computes, kept
+in lockstep so a SQL answer and a Go answer cannot drift apart on rounding.
+`cycle_hours` is stored only for issues done now with a positive span, so the
+pool is exactly the population the old changelog walk built.
+
+```sql min=1
+-- Neglected: open issues silent for 7 days or more
+SELECT key, status, ROUND(julianday('now') - julianday(last_activity_at), 1) AS days_silent
+FROM issues
+WHERE status_category != 'done' AND last_activity_at IS NOT NULL
+  AND julianday('now') - julianday(last_activity_at) >= 7
+ORDER BY days_silent DESC LIMIT 20;
+```
+
+The threshold here is 7 days. Pick your own by changing the `7` — the column
+is a stamp, so the definition of neglected stays a query-time decision.
+`last_activity_at` is the newest of the item's updated stamp, the newest
+changelog entry and the newest comment, so a priority edit or a status move
+counts as activity even when no comment follows.
+
+```sql min=1
+-- Ready: open issues no open blocker holds back
+SELECT key, status, priority_rank, open_blockers
+FROM issues
+WHERE status_category != 'done' AND open_blockers = 0
+ORDER BY priority_rank, key LIMIT 20;
+```
+
+`open_blockers` counts inward links of a blocking type whose target is in the
+mirror and not done. This is the filter behind `gadak ready` — same column,
+same rule, one owner (`internal/store/flow.go`).
+
 ```sql min=1
 -- Time in status per status, from the changelog — no stored column exists.
 -- Groups by to_id (stable); MAX(to_value) only picks a display label.
@@ -257,6 +338,8 @@ the spine's primary key is `items.id`, and `key` exists on both tables.
 | --- | --- |
 | every changelog-derived field above | `Derive` in `internal/store/derive.go` |
 | `epic_key` | `recomputeEpicKeys` in `internal/store/write.go` |
+| `open_blockers` | `recomputeOpenBlockers` in `internal/store/flow.go` |
+| `link_types` catalog cache | `cacheLinkTypeCatalog` in `internal/store/flow.go` |
 | `item_refs` extraction and rewrite | `internal/store/refs.go` |
 | view wiring (`issues_full`, migrations) | `internal/store/schema.go` |
 

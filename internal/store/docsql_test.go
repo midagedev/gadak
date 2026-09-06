@@ -241,10 +241,11 @@ func TestDerivedColumnsDocumented(t *testing.T) {
 			missing = append(missing, col)
 		}
 	}
-	// Two lists on purpose: epic_key is recomputed by a table-wide UPDATE, not
-	// carried by Derived, and item_refs is a table rather than a column — the
-	// struct walk cannot see either, so they are asserted literally.
-	for _, col := range []string{"epic_key", "item_refs"} {
+	// Two lists on purpose: epic_key and open_blockers are recomputed by a
+	// table-wide UPDATE, not carried by Derived, and item_refs is a table
+	// rather than a column — the struct walk cannot see any of them, so they
+	// are asserted literally.
+	for _, col := range []string{"epic_key", "item_refs", "open_blockers"} {
 		if !strings.Contains(doc, col) {
 			missing = append(missing, col)
 		}

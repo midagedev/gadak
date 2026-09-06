@@ -56,9 +56,13 @@ func SyncIssue(ctx context.Context, cfg *config.Config, db *store.DB, key string
 	if err := db.UpsertSource(ctx, store.Source{ID: SourceID, Kind: KindJira, BaseURL: c.BaseURL()}); err != nil {
 		return err
 	}
-	// ponytail: two metadata calls per write. They are what keeps reopen_count and
-	// priority_rank identical to a scheduled sync's; give them a TTL cache if
-	// writes ever get chatty enough to matter.
+	// ponytail: three metadata calls per write. They are what keeps
+	// reopen_count, priority_rank and open_blockers identical to a scheduled
+	// sync's; give them a TTL cache if writes ever get chatty enough to
+	// matter. The link-type catalog is deliberately not a fourth: the paged
+	// sync pass refreshes link_types once per run, open_blockers resolves
+	// through the cached rows (with the documented 'Blocks' fallback), and a
+	// write-through's POST already knows the link type it just resolved.
 	cats, err := c.Statuses(ctx)
 	if err != nil {
 		return err

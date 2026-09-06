@@ -3,7 +3,7 @@ package store
 // migrations are applied in order and the index+1 is the schema version. A
 // released migration is never edited; a schema change is a new entry at the end
 // plus a documented row in specs/000-product/data-model.md.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39, schemaV40, schemaV41, schemaV42}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39, schemaV40, schemaV41, schemaV42, schemaV43}
 
 // itemsFTSCreate is the canonical items_fts DDL, spliced into schemaV1 so a
 // fresh database is born matching it (GDK-444: an inline copy in V1 lagged at
@@ -876,4 +876,37 @@ CREATE TABLE remote_links (
   PRIMARY KEY (item_id, id)
 );
 CREATE INDEX remote_links_item ON remote_links(item_id);
+`
+
+// schemaV43 adds the flow layer: the questions docs/project/THEORY.md calls
+// aging, cycle time, silence and readiness become column reads instead of
+// changelog walks. started_at / cycle_hours / last_activity_at are Derive
+// columns (derive.go) — backfilled for existing rows by backfillFlow, the
+// same hook shape as v15/v16. open_blockers is recomputed by
+// recomputeOpenBlockers (flow.go) — backfilled by its full sweep. link_types
+// caches the origin's issue-link-type catalog the way status_catalog does,
+// so "which link types block" is answered from the mirror, not by a live
+// origin read. Both views are recreated (issues first) per the v41 NOTE:
+// they expand * at CREATE VIEW time.
+const schemaV43 = `
+ALTER TABLE issues_raw ADD COLUMN started_at TEXT;
+ALTER TABLE issues_raw ADD COLUMN cycle_hours REAL;
+ALTER TABLE issues_raw ADD COLUMN last_activity_at TEXT;
+ALTER TABLE issues_raw ADD COLUMN open_blockers INTEGER NOT NULL DEFAULT 0;
+
+CREATE TABLE link_types (
+  source_id TEXT NOT NULL,
+  id        TEXT NOT NULL,
+  name      TEXT NOT NULL,
+  inward    TEXT NOT NULL DEFAULT '',
+  outward   TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY (source_id, id)
+);
+
+DROP VIEW issues_full;
+DROP VIEW issues;
+CREATE VIEW issues AS
+  SELECT it.title AS summary, i.*, COALESCE(it.body_text, '') AS description_text
+  FROM issues_raw i JOIN items it ON it.id = i.item_id;
+CREATE VIEW issues_full AS SELECT * FROM issues;
 `

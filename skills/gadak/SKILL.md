@@ -327,12 +327,13 @@ be checked without a second query. `--limit N`, `--json`, `--csv`,
 `--no-header` behave like `gadak sql`; `--all` includes done issues.
 
 `gadak ready` (or `gadak list --ready`) narrows that list to issues no
-open blocker holds back: an inward Blocks link whose target issue is not
-done disqualifies. The blocking link type resolves against the origin's
-link-type catalog — the same vocabulary `gadak link --type` resolves —
-never a hardcoded name. When no catalog can answer (no credential, offline,
-Linear), a stderr notice says so and the plain open list is shown; an empty
-"nothing ready" would be a stronger and wronger claim.
+open blocker holds back: an inward blocking link whose target issue is not
+done disqualifies. That is the `open_blockers` column (a mirror read, no
+origin call) — which link types block resolves through the mirror's
+`link_types` catalog, the same vocabulary `gadak link --type` resolves,
+never a hardcoded name. On a mirror whose schema predates the column, a
+stderr notice says so and the plain open list is shown; an empty "nothing
+ready" would be a stronger and wronger claim.
 
 ```bash
 gadak list                          # open issues, priority rank first

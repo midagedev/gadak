@@ -457,7 +457,7 @@ var helps = map[string]cmdHelp{
 		options: []helpOption{
 			{name: "limit", desc: "maximum rows to list (default 30)"},
 			{name: "all", desc: "include done issues (default hides them)"},
-			{name: "ready", desc: "only issues no open blocker holds back: an inward Blocks link whose target is not done disqualifies. The blocking link type resolves against the origin's link-type catalog (one read; in-process when the origin is gadak's own); when no catalog can answer, a stderr notice says so and the filter is skipped"},
+			{name: "ready", desc: "only issues no open blocker holds back: an inward blocking link whose target is not done disqualifies (the open_blockers column; which types block resolves through the mirror's link-type catalog). On a mirror whose schema predates that column, a stderr notice says so and the filter is skipped until the next sync migrates it"},
 			{name: "json", desc: "emit one JSON object per row"},
 			{name: "csv", desc: "emit CSV with a header row"},
 			{name: "no-header", desc: "omit the TSV/CSV header row (no-op with --json)"},
@@ -471,7 +471,7 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak ready", "gadak next", "gadak sql", "gadak search"},
 	},
 	"ready": {
-		summary: "alias of list --ready — open issues no open blocker holds back (an inward Blocks link to an unfinished issue disqualifies); rows carry age_days, how long each issue has been in its current status",
+		summary: "alias of list --ready — open issues no open blocker holds back (an inward blocking link to an unfinished issue disqualifies; the open_blockers column, read from the mirror); rows carry age_days, how long each issue has been in its current status",
 		usage:   "gadak [--workspace <name>] ready [--limit N] [--json|--csv|--no-header]",
 		options: []helpOption{
 			{name: "limit", desc: "maximum rows to list (default 30)"},

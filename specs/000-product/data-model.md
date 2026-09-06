@@ -173,6 +173,10 @@ part of the `issues` view). Joined to `items` on `item_id`.
 | `raw` | TEXT (JSON) | Full source payload. Escape hatch; not a contract |
 | `reopen_reason` | TEXT | Derived (v3): first comment at/after the last reopen. Heuristic; `''` when none |
 | `cloned_from` | TEXT | Derived (v3): key of the clone origin. `''` when not a clone |
+| `started_at` | TEXT | Derived (v43): first transition into an `inprogress` category. NULL when the issue never entered progress. A stamp, not a duration — aging against it is the reader's query |
+| `cycle_hours` | REAL | Derived (v43): `resolved_at` − `started_at` in hours, stored only while `status_category = 'done'` and the span is positive; NULL otherwise. The `CycleTimeP85Hours` rule, stored instead of walked |
+| `last_activity_at` | TEXT | Derived (v43): newest of the item's `updated_at`, the newest changelog entry and the newest comment (ISO-8601 UTC strings compare lexicographically). NULL when all three are absent |
+| `open_blockers` | INTEGER | Derived (v43): inward links of a blocking type whose target issue is in the mirror and not `done`. Recomputed per batch (batch keys plus issues holding inward links at them) and swept whole-table after a full sync. NOT NULL, default 0 |
 
 Indexes: `(project_key, status_category)`, `(assignee_id)`, `(updated_at)`,
 `(status_category, updated_at)`, `(reopen_count)`, `(key)` — the last one serves
@@ -402,6 +406,26 @@ mirrored issue *currently* sat in that status. Origin reference data — a wipe
 costs one re-sync — and not time-in-status values, which stay deliberately
 absent: `gadak issue`'s wait/progress line computes them from the changelog at
 read time (GDK-591).
+
+## `link_types` (v43)
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `source_id` | TEXT | `jira` (PK with `id`) |
+| `id` | TEXT | Origin-minted link-type id (Jira: numeric string; Linear: the fixed `blocks`) |
+| `name` | TEXT | Display name — localizes per account; not a join key |
+| `inward` | TEXT | Inward phrase, e.g. `is blocked by` |
+| `outward` | TEXT | Outward phrase, e.g. `blocks` |
+
+The origin's issue-link-type catalog, fetched once per sync run (not per batch
+page) and cached here — the same contract as `status_catalog`: origin reference
+data, a wipe costs one re-sync. Linear has exactly one link type, so its
+connector attaches a synthetic row (`blocks` / `is blocked by` / `blocks`) and
+the phrase columns are stable by construction. This table answers "which link
+types block" for `issues.open_blockers` (`lower(name) = 'blocks'` or
+`lower(outward) LIKE 'block%'`) — never a hardcoded display name. A source with
+no rows here (a mirror that has not yet run a post-v43 sync) falls back to the
+literal `'Blocks'`; an empty-but-present catalog genuinely blocks nothing.
 
 ## `users` (v36)
 
@@ -660,7 +684,8 @@ CREATE VIEW issues_full AS SELECT * FROM issues;
 
 History: the view was born as `issues_full` and rebuilt whenever storage
 gained a column (v12 hierarchy_level/epic_key, v23 description_text, v27
-resolution_id, v30 sprint_*, v31 fix_version_ids, v32 security_level_*),
+resolution_id, v30 sprint_*, v31 fix_version_ids, v32 security_level_*, v43
+started_at/cycle_hours/last_activity_at/open_blockers),
 because SQLite expands `i.*` at CREATE VIEW time — an `ALTER TABLE` alone
 would hide new columns from it. That rule still holds, doubled: a migration
 that adds a storage column must recreate **both** views, `issues` first.

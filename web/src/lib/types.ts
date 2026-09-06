@@ -104,6 +104,17 @@ export interface IssueLite {
   reopened_at: string | null
   reopen_reason: string | null
 
+  /** Flow columns (v43, derived server-side — DERIVE.md). `started_at` is the
+   *  first in-progress transition; `cycle_hours` is resolved−started kept only
+   *  while the issue is done now; `last_activity_at` is the newest of item
+   *  stamp, changelog and comments; `open_blockers` counts inward blocking
+   *  links whose target is in the mirror and not done. Older servers omit all
+   *  four; nothing renders them yet (this round is the mirror + recipes). */
+  started_at?: string | null
+  last_activity_at?: string | null
+  cycle_hours?: number | null
+  open_blockers?: number
+
   comment_count: number
   dev_project_number: string | null
   related_project_number: string | null

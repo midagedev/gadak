@@ -196,6 +196,19 @@ type Link struct {
 	TargetKey string
 }
 
+// LinkType is one row of the origin's issue-link-type catalog (Jira
+// GET /issueLinkType; Linear has one, "blocks", so its connector attaches a
+// synthetic row). The connector fetches it once per sync run and the store
+// caches it in link_types — the same contract as status_catalog: origin
+// reference data, a wipe costs one re-sync. ID is the stable key;
+// Name/Inward/Outward are the display phrases, which localize per account.
+type LinkType struct {
+	ID      string
+	Name    string
+	Inward  string
+	Outward string
+}
+
 // UserAccount is one row of the origin's account catalog (GDK-590). The
 // connector collects every user payload the sync already reads — assignee,
 // reporter, creator, comment/changelog/attachment authors — and the store
@@ -279,13 +292,18 @@ type VersionRow struct {
 	ReleaseDate string
 }
 
-// Batch is one page of sync output. Categories and Priorities come from the
-// site's own metadata endpoints (which are not localized) and feed the derived
-// field rules.
+// Batch is one page of sync output. Categories, Priorities and LinkTypes come
+// from the site's own metadata endpoints (which are not localized) and feed
+// the derived field rules.
 type Batch struct {
 	Categories map[string]string // status id -> status category
 	Priorities []string          // priority display names, most urgent first
-	Records    []IssueRecord
+	// LinkTypes is the origin's issue-link-type catalog, fetched once per
+	// sync run (not per batch page — every batch of the run attaches the same
+	// rows) and cached into link_types. open_blockers resolves which types
+	// block from this catalog, never from a hardcoded display name.
+	LinkTypes []LinkType
+	Records   []IssueRecord
 	// Force rewrites rows whose updated_at is unchanged. Off, an unchanged row
 	// is skipped entirely, which is what keeps an incremental re-run from
 	// bumping sync_state.version.

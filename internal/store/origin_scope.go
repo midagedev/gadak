@@ -114,6 +114,11 @@ var originScopedTables = []tableRule{
 	// onto the new origin's categories.
 	{table: "status_catalog", scope: scopeMirror,
 		dropForSource: `DELETE FROM status_catalog WHERE source_id = ?`},
+	// link_types is the cached origin issue-link-type catalog (v43). Names are
+	// the new origin's vocabulary for open_blockers; keeping a retired
+	// origin's rows would resolve blocking types the new site never defined.
+	{table: "link_types", scope: scopeMirror,
+		dropForSource: `DELETE FROM link_types WHERE source_id = ?`},
 	// users is the cached origin account catalog (GDK-590). account ids are
 	// origin-minted; keeping them across a replacement would attribute the
 	// new origin's history to the retired origin's accounts.

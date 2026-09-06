@@ -100,6 +100,20 @@ func (f *fakeSite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Write(statusesJSON(f.lang))
 	case r.URL.Path == "/rest/api/3/priority":
 		w.Write([]byte(`[{"id":"1","name":"Highest"},{"id":"2","name":"High"},{"id":"3","name":"Medium"},{"id":"4","name":"Low"}]`))
+	case r.URL.Path == "/rest/api/3/issueLinkType":
+		// v43: the paged pass fetches the link-type catalog once per run.
+		// The name localizes like the status catalog does; the outward phrase
+		// stays "blocks" because that is the phrase open_blockers matches a
+		// localized blocking type by (never the display name).
+		name := "Blocks"
+		inward := "is blocked by"
+		if f.lang == "ko" {
+			name, inward = "차단", "차단됨"
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"issueLinkTypes": []map[string]any{
+			{"id": "10000", "name": name, "inward": inward, "outward": "blocks"},
+			{"id": "10001", "name": "Relates", "inward": "relates to", "outward": "relates to"},
+		}})
 	case r.URL.Path == "/rest/api/3/field":
 		f.fieldHits++
 		cat := f.fieldCatalog
@@ -404,6 +418,31 @@ func lite(t *testing.T, db *mirror, key string) store.IssueLite {
 type mirror struct {
 	*store.DB
 	path string
+}
+
+// TestSyncCachesLinkTypeCatalog (v43, r3 flow layer): the paged pass fetches
+// the origin's link-type catalog once per run and the batch caches it, so
+// open_blockers resolves blocking types from the mirror — never a live
+// origin read. FAIL-first: before the catalog attach, a full run leaves
+// link_types empty and open_blockers would answer only through the 'Blocks'
+// fallback.
+func TestSyncCachesLinkTypeCatalog(t *testing.T) {
+	site := newSite(t, "en")
+	client := site.start()
+	db := newMirror(t)
+
+	if _, err := Run(context.Background(), testConfig(), db.DB, Options{Full: true, Client: client}); err != nil {
+		t.Fatal(err)
+	}
+	var name, inward, outward string
+	if err := db.DB.QueryRow(
+		`SELECT name, inward, outward FROM link_types WHERE source_id = ? AND id = '10000'`, SourceID,
+	).Scan(&name, &inward, &outward); err != nil {
+		t.Fatalf("link_types after a full sync: %v", err)
+	}
+	if name != "Blocks" || inward != "is blocked by" || outward != "blocks" {
+		t.Fatalf("catalog row = %q/%q/%q, want Blocks / is blocked by / blocks", name, inward, outward)
+	}
 }
 
 func newMirror(t *testing.T) *mirror {

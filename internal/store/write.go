@@ -42,9 +42,35 @@ func (db *DB) UpsertIssues(ctx context.Context, b Batch) (int, error) {
 		// callback from the start, and a counter captured out here would count
 		// the abandoned attempt's rows too (GDK-305).
 		changed = 0
+		// A batch with no Categories (a catalog fetch that failed mid-run)
+		// must not write NULL flow columns: derive through the mirror's own
+		// status_catalog cache, falling back to the issue-row reconstruction
+		// — the same categoriesForSource rule the migration backfill uses.
+		// The scoped copy keeps cacheStatusCatalog below persisting only
+		// what a connector actually reported.
+		derive := b
+		if len(b.Categories) == 0 {
+			cats, err := categoriesForSource(tx, b.Records[0].Item.SourceID)
+			if err != nil {
+				return nil, err
+			}
+			if cats == nil {
+				cats = map[string]string{}
+			}
+			// The batch's own rows are catalog evidence too — the same
+			// (status_id, status_category) pair the reconstruction reads,
+			// available before the rows land. Without it, the first issue
+			// of a status would derive NULLs while teaching the map.
+			for _, r := range b.Records {
+				if r.Issue.StatusID != "" && r.Issue.StatusCategory != "" {
+					cats[r.Issue.StatusID] = r.Issue.StatusCategory
+				}
+			}
+			derive.Categories = cats
+		}
 		sources := map[string]bool{}
 		for _, r := range b.Records {
-			ok, err := upsertRecord(tx, b, r)
+			ok, err := upsertRecord(tx, derive, r)
 			if err != nil {
 				return nil, fmt.Errorf("%s: %w", r.Item.Key, err)
 			}
@@ -83,6 +109,18 @@ func (db *DB) UpsertIssues(ctx context.Context, b Batch) (int, error) {
 		}
 		if err := cacheUserCatalog(tx, b); err != nil {
 			return nil, err
+		}
+		if err := cacheLinkTypeCatalog(tx, b); err != nil {
+			return nil, err
+		}
+		// Batch keys plus every issue holding an inward link at one of them:
+		// a page that carries the blocker but not the blocked issue must
+		// still move the blocked row's open_blockers (C4). The full sweep at
+		// the end of a full sync (RecomputeOpenBlockers) covers the rest.
+		if len(b.Records) > 0 {
+			if err := recomputeOpenBlockers(tx, b.Records[0].Item.SourceID, batchKeys); err != nil {
+				return nil, err
+			}
 		}
 		return mapKeys(sources), nil
 	})
@@ -282,6 +320,7 @@ func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {
 		Priorities:      b.Priorities,
 		Comments:        r.Comments,
 		Links:           r.Links,
+		UpdatedAt:       it.UpdatedAt,
 	})
 
 	is := r.Issue
@@ -297,8 +336,9 @@ func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {
 			status_changed_at, resolved_at, reopen_count, reopened_at, reopen_reason,
 			assignee_changed_at, comment_count, description_adf, custom, raw, cloned_from,
 			hierarchy_level, sprint_id, sprint_name, sprint_state,
-			security_level_id, security_level)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+			security_level_id, security_level,
+			started_at, cycle_hours, last_activity_at, open_blockers)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		it.ID, it.Key, nz(is.ProjectKey), nz(is.IssueType), nz(is.IssueTypeID),
 		nz(is.Status), nz(is.StatusID), nz(is.StatusCategory), nz(is.Priority), is.PriorityID, d.PriorityRank,
 		nz(is.Assignee), nz(is.AssigneeID), nz(is.AssigneeEmail), nz(is.Reporter),
@@ -311,6 +351,7 @@ func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {
 		jsonObject(is.Custom), jsonRaw(is.Raw), d.ClonedFrom,
 		is.HierarchyLevel, nzInt64(is.SprintID), nz(is.SprintName), nz(is.SprintState),
 		nz(is.SecurityLevelID), nz(is.SecurityLevel),
+		d.StartedAt, d.CycleHours, d.LastActivityAt, 0,
 	); err != nil {
 		return false, err
 	}
@@ -925,6 +966,12 @@ func (db *DB) DeleteItems(ctx context.Context, sourceID string, keys []string) (
 		// Children still carry parent_key of a deleted epic; scoped
 		// recompute walks those keys (json_each, not the missing row).
 		if err := recomputeEpicKeys(tx, keys); err != nil {
+			return nil, err
+		}
+		// A deleted blocker leaves its target outside the mirror, which is
+		// not blocking (flow.go) — the blocked issues' counts must drop.
+		// Same widening as the epic recompute.
+		if err := recomputeOpenBlockers(tx, sourceID, keys); err != nil {
 			return nil, err
 		}
 		return []string{sourceID}, nil

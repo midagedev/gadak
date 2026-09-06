@@ -31,7 +31,8 @@ var documentedColumns = map[string][]string{
 		"assignee_changed_at", "comment_count", "description_adf", "custom", "raw",
 		"reopen_reason", "cloned_from", "hierarchy_level", "epic_key", "priority_id", "resolution_id",
 		"sprint_id", "sprint_name", "sprint_state", "fix_version_ids",
-		"security_level_id", "security_level"},
+		"security_level_id", "security_level",
+		"started_at", "cycle_hours", "last_activity_at", "open_blockers"},
 	// issues is the agent view since schemaV41 (GDK-1258): summary +
 	// issues_raw.* + description_text (items.body_text). issues_full is its
 	// compatibility alias — one of the three 0.x promises.
@@ -45,6 +46,7 @@ var documentedColumns = map[string][]string{
 		"reopen_reason", "cloned_from", "hierarchy_level", "epic_key", "priority_id", "resolution_id",
 		"sprint_id", "sprint_name", "sprint_state", "fix_version_ids",
 		"security_level_id", "security_level",
+		"started_at", "cycle_hours", "last_activity_at", "open_blockers",
 		"description_text"},
 	"issues_full": {"summary", "item_id", "key", "project_key", "issue_type", "issue_type_id",
 		"status", "status_id", "status_category", "priority", "priority_rank",
@@ -56,6 +58,7 @@ var documentedColumns = map[string][]string{
 		"reopen_reason", "cloned_from", "hierarchy_level", "epic_key", "priority_id", "resolution_id",
 		"sprint_id", "sprint_name", "sprint_state", "fix_version_ids",
 		"security_level_id", "security_level",
+		"started_at", "cycle_hours", "last_activity_at", "open_blockers",
 		"description_text"},
 	"versions": {"id", "project_key", "name", "released", "archived", "release_date"},
 	"comments": {"id", "item_id", "external_id", "author", "author_id",

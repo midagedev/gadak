@@ -452,12 +452,17 @@ func TestRetroOpenCell(t *testing.T) {
 	})
 	t.Run("empty cell says so on stderr and exits 0", func(t *testing.T) {
 		sqlDemoHome(t)
-		// Week 0 (the partial week) is the stable empty mismatch cell: the
-		// demo fixture's comments end 2026-08-31, so the partial week never
-		// carries one, whenever this test runs. A fixed week index would
-		// slide as the calendar moves.
+		// Ask the report which mismatch cell is empty instead of asserting a
+		// fact about the fixture's newest comment. The old premise — "the
+		// fixture's comments end 2026-08-31, so week 0 never carries one" —
+		// was both calendar-transient and incompatible with `make
+		// demo-fixture`, which every schema migration runs: the v43
+		// regeneration moved the newest comment into week 0 and turned this
+		// green test red without a line of retro code changing. (2026-09-06,
+		// r3-flow-layer review.)
+		week := emptyMismatchWeek(t)
 		stdout, stderr, err := captureBoth(t, func() error {
-			return cmdRetro([]string{"--open", "mismatch"})
+			return cmdRetro([]string{"--open", "mismatch", "--week", strconv.Itoa(week)})
 		})
 		if err != nil {
 			t.Fatalf("empty cell must exit 0, got %v (out %q, err %q)", err, stdout, stderr)
@@ -469,4 +474,32 @@ func TestRetroOpenCell(t *testing.T) {
 			t.Fatalf("empty cell must open nothing and print nothing: %q", stdout)
 		}
 	})
+}
+
+// emptyMismatchWeek returns a week index whose mismatch bucket holds no keys,
+// read from `retro --json` on whatever fixture is in the tree. Skips when
+// every week carries one — that is a fixture worth knowing about, not a
+// failure of the empty-cell behaviour under test.
+func emptyMismatchWeek(t *testing.T) int {
+	t.Helper()
+	out, err := capture(t, func() error { return cmdRetro([]string{"--json"}) })
+	if err != nil {
+		t.Fatalf("retro --json: %v\n%s", err, out)
+	}
+	var doc struct {
+		Buckets []struct {
+			Keys map[string][]string `json:"keys"`
+		} `json:"buckets"`
+	}
+	if err := json.Unmarshal([]byte(out), &doc); err != nil {
+		t.Fatalf("retro --json is not a document: %v\n%s", err, out)
+	}
+	// Same mapping cmdRetro uses: week 0 is the last bucket, 1 the one before.
+	for i := len(doc.Buckets) - 1; i >= 0; i-- {
+		if len(doc.Buckets[i].Keys["mismatch"]) == 0 {
+			return len(doc.Buckets) - 1 - i
+		}
+	}
+	t.Skip("every week in this fixture carries a mismatch; no empty cell to exercise")
+	return 0
 }

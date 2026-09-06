@@ -180,6 +180,12 @@ func pageListWhere(space string) string {
 	return q
 }
 
+// sqlLiteral quotes s as a SQLite string literal. Values here come from CLI
+// arguments (--space) and similar user input, so the quoting is not optional.
+func sqlLiteral(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", "''") + "'"
+}
+
 // errNoPageCredential is the empty-home refusal the page write verbs share
 // (GDK-943): a workspace with no origin cannot edit pages. Sentence owner
 // is config.ErrNotConfigured; the addendum is the wiki's, because a page

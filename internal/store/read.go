@@ -95,6 +95,16 @@ type IssueLite struct {
 	// sources.base_url carries no workspace slug. Clients accept only an
 	// absolute http(s) value here — the same rule as `gadak open`.
 	URL string `json:"url,omitempty"`
+	// Flow columns (v43, Derive-owned — DERIVE.md). StartedAt is the first
+	// in-progress transition; CycleHours is resolved−started kept only while
+	// the issue is done now; LastActivityAt is the newest of item stamp,
+	// changelog and comments; OpenBlockers counts inward blocking links whose
+	// target is in the mirror and not done. Nil/0 mean "not observed", never
+	// "unknown" — clients can filter on them directly.
+	StartedAt      *string  `json:"started_at"`
+	LastActivityAt *string  `json:"last_activity_at"`
+	CycleHours     *float64 `json:"cycle_hours"`
+	OpenBlockers   int      `json:"open_blockers"`
 }
 
 // MarshalJSON adds `key` as an alias of `issue_key` so JSON surfaces and
@@ -149,7 +159,8 @@ const issueLiteSelect = `
 	       COALESCE(i.reopen_reason, ''), COALESCE(i.cloned_from, ''), i.comment_count,
 	       COALESCE(i.custom, '{}'), COALESCE(it.source_id, ''),
 	       i.sprint_id, i.sprint_name, i.sprint_state,
-	       i.security_level_id, i.security_level, COALESCE(it.url, '')
+	       i.security_level_id, i.security_level, COALESCE(it.url, ''),
+	       i.started_at, i.last_activity_at, i.cycle_hours, i.open_blockers
 	FROM issues i JOIN items it ON it.id = i.item_id`
 
 // ErrKeyAmbiguous means one key exists under more than one source (a Jira
@@ -332,6 +343,7 @@ func (db *DB) issueLites(ctx context.Context, query string, args ...any) ([]Issu
 			&custom, &v.Source,
 			&v.SprintID, &v.SprintName, &v.SprintState,
 			&v.SecurityLevelID, &v.SecurityLevel, &v.URL,
+			&v.StartedAt, &v.LastActivityAt, &v.CycleHours, &v.OpenBlockers,
 		); err != nil {
 			return nil, err
 		}

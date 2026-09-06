@@ -140,6 +140,7 @@ func runLinearPass(ctx context.Context, c *linear.Client, cfg *config.Config, db
 			changed, err := db.UpsertIssues(ctx, store.Batch{
 				Categories: cats,
 				Priorities: linearRankList(g.id, g.label),
+				LinkTypes:  linearLinkTypeCatalog,
 				Records:    g.recs,
 			})
 			if err != nil {
@@ -339,6 +340,18 @@ func linearLinkType(relationType string) string {
 	return relationType
 }
 
+// linearLinkTypeCatalog is the whole link-type catalog Linear has: one
+// blocking relation, fixed vocabulary, no site configuration to fetch. It is
+// attached to every Linear batch so open_blockers resolves from the mirror's
+// link_types table the same way a Jira mirror does — same contract, synthetic
+// row instead of a GET.
+var linearLinkTypeCatalog = []store.LinkType{{
+	ID:      "blocks",
+	Name:    "Blocks",
+	Inward:  "is blocked by",
+	Outward: "blocks",
+}}
+
 func attachmentSizeMime(meta map[string]any) (int64, string) {
 	if meta == nil {
 		return 0, ""
@@ -394,6 +407,7 @@ func SyncLinearIssue(ctx context.Context, db *store.DB, c *linear.Client, key st
 	batch := store.Batch{
 		Categories: map[string]string{},
 		Priorities: linearRankList(iss.Priority, iss.PriorityLabel),
+		LinkTypes:  linearLinkTypeCatalog,
 		Records:    []store.IssueRecord{buildLinearRecord(iss, cat)},
 		Force:      true,
 	}

@@ -7,21 +7,15 @@ package main
 // current status, computed from status_changed_at on issues_full — time in
 // status is never a stored column) rides after status in every row, so an
 // answer to "what next" can carry age as a fact about the issue
-// (docs/project/THEORY.md T4/G10). `ready` (the --ready
-// flag, or the top-level alias) narrows the same list to issues no open
-// blocker holds back; the blocking link type resolves through the origin's
-// link-type catalog, never a hardcoded 'Blocks' — link-type names are
-// per-account like status names, and a renamed type would silently
-// misfilter.
+// (docs/project/THEORY.md T4/G10). `ready` (the --ready flag, or the
+// top-level alias) narrows the same list to issues no open blocker holds
+// back: the open_blockers column (v43), recomputed by the store whenever
+// links or target statuses move — a pure mirror read, no origin call.
 
 import (
-	"context"
+	"database/sql"
 	"fmt"
 	"os"
-	"strings"
-
-	"github.com/midagedev/gadak/internal/config"
-	"github.com/midagedev/gadak/internal/origin"
 )
 
 const (
@@ -51,7 +45,7 @@ func runList(name string, args []string) error {
 	all := fs.Bool("all", false, "include done issues (default hides them)")
 	var ready *bool
 	if name != "ready" {
-		ready = fs.Bool("ready", false, "only issues no open blocker holds back (one origin link-type read)")
+		ready = fs.Bool("ready", false, "only issues no open blocker holds back")
 	}
 	if wantsHelp(args) {
 		fmt.Fprint(os.Stdout, formatHelp(name, fs))
@@ -79,7 +73,7 @@ func runList(name string, args []string) error {
 	warnIfStale(db)
 	blocker := ""
 	if wantReady {
-		blocker = readyBlockerFilter()
+		blocker = readyBlockerFilter(db)
 	}
 	return writeSQLQuery(db, listSQL(*limit, *all, blocker), sqlOutput{JSON: *asJSON, CSV: *asCSV, NoHeader: *noHeader})
 }
@@ -107,50 +101,29 @@ func listSQL(limit int, all bool, blocker string) string {
 
 func listDefaultSQL(limit int) string { return listSQL(limit, false, "") }
 
-// readyBlockerFilter resolves the blocking link type the way `gadak link
-// --type blocks` does — against the origin's link-type catalog
-// (origin.ResolveLinkType), because the mirror stores link types by name
-// only. When no catalog can answer (no credential, offline, Linear, or no
-// blocks-like type in the account), ready degrades on purpose: one stderr
-// line, then the plain open list. Returning empty instead would read as
-// "nothing is ready" — a stronger and wronger claim than "blockers not
-// filtered"; silently dropping the filter would make ready a hidden alias
-// of list. The announcement keeps the degradation honest.
-func readyBlockerFilter() string {
-	warn := func(err error) {
-		fmt.Fprintf(os.Stderr, "ready: blocking link type unresolved (%v) — blockers not filtered, showing all open issues\n", err)
-	}
-	cfg, err := config.Load()
-	if err != nil {
-		warn(err)
+// readyBlockerFilter is ready's whole filter in one clause: the
+// open_blockers column (v43), which the store recomputes whenever links or
+// target statuses move (internal/store/flow.go) and which resolves the
+// blocking link types through the mirror's own link_types catalog — never a
+// hardcoded display name. Before v43 this verb did a live origin read per
+// invocation (one GET /issueLinkType per `ready`) to resolve the type name;
+// the column made that path dead and it is gone.
+//
+// The one case the column cannot answer is a mirror whose schema predates
+// v43 — a mirror no post-upgrade sync has migrated, so the column is not
+// just stale but absent. That keeps the old degradation posture: one stderr
+// line, then the plain open list, because an empty "nothing ready" would be
+// a stronger and wronger claim than "blockers not filtered", and silently
+// dropping the filter would make ready a hidden alias of list. The next
+// `gadak sync` migrates the mirror and the notice disappears.
+func readyBlockerFilter(db *sql.DB) string {
+	var have int
+	if err := db.QueryRow(`PRAGMA user_version`).Scan(&have); err != nil || have < openBlockersVersion {
+		fmt.Fprintln(os.Stderr, "ready: mirror schema predates open_blockers — run `gadak sync` to migrate; blockers not filtered, showing all open issues")
 		return ""
 	}
-	c, err := origin.Client(cfg)
-	if err != nil {
-		warn(err)
-		return ""
-	}
-	catalog, err := c.IssueLinkTypes(context.Background())
-	if err != nil {
-		warn(err)
-		return ""
-	}
-	lt, _, err := origin.ResolveLinkType("Blocks", catalog)
-	if err != nil {
-		warn(err)
-		return ""
-	}
-	return fmt.Sprintf(
-		" and not exists (select 1 from links l join issues_full b on b.key = l.target_key"+
-			" where l.item_id = f.item_id and l.type = %s and l.direction = 'inward'"+
-			" and b.status_category != 'done')",
-		sqlLiteral(lt.Name),
-	)
+	return " and f.open_blockers = 0"
 }
 
-// sqlLiteral quotes s as a SQLite string literal. The value comes from the
-// origin catalog rather than the user, but a renamed link type can still
-// carry an apostrophe.
-func sqlLiteral(s string) string {
-	return "'" + strings.ReplaceAll(s, "'", "''") + "'"
-}
+// openBlockersVersion is the migration that added issues_raw.open_blockers.
+const openBlockersVersion = 43

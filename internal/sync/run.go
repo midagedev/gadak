@@ -243,6 +243,13 @@ func runSource(
 		if err = db.RecomputeEpicKeys(ctx); err != nil {
 			return res, err
 		}
+		// open_blockers has the same shape: a page that neither carries the
+		// blocker nor the blocked issue (a link added on the origin, a target
+		// finished outside this page's window) leaves both sides stale, and
+		// the batch-scoped recompute cannot see it. One whole-table sweep.
+		if err = db.RecomputeOpenBlockers(ctx); err != nil {
+			return res, err
+		}
 	}
 
 	elapsed := time.Since(started).Round(time.Second)

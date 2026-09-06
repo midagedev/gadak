@@ -220,12 +220,15 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 		}
 	}
 
-	// Status and priority catalogs load lazily, on the first page that has an
-	// issue to process: a quiet incremental tick — every hit answered by the
-	// stamp gate — spends no catalog requests (GDK-1075). A load failure still
-	// fails the pass through the page callback's error path.
+	// Status, priority and link-type catalogs load lazily, on the first page
+	// that has an issue to process: a quiet incremental tick — every hit
+	// answered by the stamp gate — spends no catalog requests (GDK-1075). A
+	// load failure still fails the pass through the page callback's error
+	// path. Link types ride the same lazy load: every batch of the run
+	// attaches the same rows, one GET per run, not per page.
 	var cats map[string]string
 	var prios []string
+	var linkTypes []store.LinkType
 	loadCatalogs := func() error {
 		if cats != nil {
 			return nil
@@ -235,7 +238,18 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 			return err
 		}
 		prios, err = c.Priorities(ctx)
-		return err
+		if err != nil {
+			return err
+		}
+		jlts, err := c.IssueLinkTypes(ctx)
+		if err != nil {
+			return err
+		}
+		linkTypes = make([]store.LinkType, 0, len(jlts))
+		for _, lt := range jlts {
+			linkTypes = append(linkTypes, store.LinkType{ID: lt.ID, Name: lt.Name, Inward: lt.Inward, Outward: lt.Outward})
+		}
+		return nil
 	}
 
 	if opts.sprintField == nil {
@@ -291,7 +305,7 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 		if err := loadCatalogs(); err != nil {
 			return err
 		}
-		batch := store.Batch{Categories: cats, Priorities: prios, Records: make([]store.IssueRecord, 0, len(issues))}
+		batch := store.Batch{Categories: cats, Priorities: prios, LinkTypes: linkTypes, Records: make([]store.IssueRecord, 0, len(issues))}
 		// A locale rewrite must go through the upsert's change detector: the
 		// origin's `updated` did not move (nothing in the origin changed —
 		// only our language did), but every display-name column did. Force is

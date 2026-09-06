@@ -99,6 +99,14 @@ func buildInto(tmp string, opts Options) error {
 		return err
 	}
 
+	// The link-type catalog rides along for the same reason: open_blockers
+	// resolves its vocabulary through it, so a snapshot of a localized site
+	// (blocking type named 차단) keeps answering "what is blocked" instead of
+	// silently counting nothing under the 'Blocks' fallback.
+	if err := copyLinkTypes(src, tx); err != nil {
+		return err
+	}
+
 	issues, err := loadIssues(src)
 	if err != nil {
 		return err
@@ -496,6 +504,40 @@ func copySpaces(src *sql.DB, tx *sql.Tx) error {
 		}
 	}
 	return nil
+}
+
+// copyLinkTypes copies the origin's issue-link-type catalog (v43) — origin
+// reference data like spaces, and the vocabulary open_blockers resolves
+// through. Without it a snapshot of a localized site falls back to the
+// literal 'Blocks' and counts nothing.
+func copyLinkTypes(src *sql.DB, tx *sql.Tx) error {
+	ok, err := tableExists(src, "link_types")
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return nil
+	}
+	rows, err := src.Query(`
+		SELECT source_id, id, name, inward, outward FROM link_types
+		ORDER BY source_id, id`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var sourceID, id, name, inward, outward string
+		if err := rows.Scan(&sourceID, &id, &name, &inward, &outward); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(
+			`INSERT OR IGNORE INTO link_types (source_id, id, name, inward, outward) VALUES (?,?,?,?,?)`,
+			sourceID, id, name, inward, outward,
+		); err != nil {
+			return err
+		}
+	}
+	return rows.Err()
 }
 
 func copyItemRefs(src *sql.DB, tx *sql.Tx, keptIDs map[string]bool) error {

@@ -3,11 +3,14 @@
 package snapshot
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/midagedev/gadak/internal/store"
 
 	_ "modernc.org/sqlite"
 )
@@ -85,6 +88,25 @@ func Build(opts Options) (Result, error) {
 	}()
 
 	if err := buildInto(tmp, opts); err != nil {
+		return zero, err
+	}
+
+	// The column-bag copier drops the flow columns by design: issueColumns is
+	// the destination's static list, and spread moves the very stamps a
+	// copied started_at / cycle_hours / last_activity_at would disagree with.
+	// They land at their DEFAULT and are re-derived from the destination's
+	// own spread rows here (store.BackfillFlow, the v43 migration hook), so
+	// the shipped flow columns always agree with the timestamps the snapshot
+	// actually carries. open_blockers rides the same call's full sweep.
+	sdb, err := store.Open(tmp)
+	if err != nil {
+		return zero, err
+	}
+	if err := sdb.BackfillFlow(context.Background()); err != nil {
+		_ = sdb.Close()
+		return zero, fmt.Errorf("backfill flow columns: %w", err)
+	}
+	if err := sdb.Close(); err != nil {
 		return zero, err
 	}
 

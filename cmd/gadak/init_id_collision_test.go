@@ -33,6 +33,9 @@ func (s *collisionSite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`[{"id":"3","name":"In Progress","statusCategory":{"key":"indeterminate"}}]`))
 	case "/rest/api/3/priority":
 		_, _ = w.Write([]byte(`[{"id":"3","name":"Medium"}]`))
+	case "/rest/api/3/issueLinkType":
+		// v43: the paged pass fetches the link-type catalog once per run.
+		_, _ = w.Write([]byte(`{"issueLinkTypes":[{"id":"10000","name":"Blocks","inward":"is blocked by","outward":"blocks"}]}`))
 	case "/rest/api/3/field":
 		_, _ = w.Write([]byte(`[]`))
 	case "/rest/api/3/filter/my":

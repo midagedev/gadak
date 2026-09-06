@@ -23,6 +23,10 @@ type DeriveInput struct {
 	Priorities      []string // site priority names, most urgent first
 	Comments        []Comment
 	Links           []Link
+	// UpdatedAt is the item's updated stamp (items.updated_at). It feeds
+	// last_activity_at — the mirror's own notion of when the origin last
+	// touched the issue, which can outrank every changelog entry.
+	UpdatedAt string
 }
 
 // Derived holds the columns gadak computes because the source does not provide
@@ -38,6 +42,19 @@ type Derived struct {
 	CommentCount      int
 	PriorityRank      int
 	ClonedFrom        string
+	// StartedAt is the first transition into an in-progress category. Nil
+	// when the issue never entered progress (cycle_hours is nil with it).
+	StartedAt *string
+	// CycleHours is ResolvedAt minus StartedAt in hours, kept only while the
+	// issue is done now and the span is positive — the CycleTimeP85Hours
+	// rule, stored instead of walked. Nil otherwise.
+	CycleHours *float64
+	// LastActivityAt is the newest of the item's updated stamp, the newest
+	// changelog entry and the newest comment. Nil when all three are absent.
+	// ISO-8601 UTC strings compare lexicographically, so "newest" is a string
+	// max. Not a live duration: it is a stamp, and aging against it is the
+	// reader's query.
+	LastActivityAt *string
 }
 
 // Derive computes every derived field in one pass over the issue's changelog.
@@ -60,12 +77,15 @@ func Derive(in DeriveInput) Derived {
 		if e.At == "" {
 			continue
 		}
+		at := e.At
 		switch e.Field {
 		case "status":
-			at := e.At
 			d.StatusChangedAt = &at
 			from := in.Categories[e.FromID]
 			to := in.Categories[e.ToID]
+			if to == CategoryInProgress && d.StartedAt == nil {
+				d.StartedAt = &at
+			}
 			if to == CategoryDone {
 				d.ResolvedAt = &at
 			}
@@ -74,14 +94,46 @@ func Derive(in DeriveInput) Derived {
 				d.ReopenedAt = &at
 			}
 		case "assignee":
-			at := e.At
 			d.AssigneeChangedAt = &at
 		}
+		// LastActivityAt seeds from the newest changelog entry — any field,
+		// because a priority edit is activity too: entries are sorted, so the
+		// last non-empty At wins.
+		d.LastActivityAt = &at
 	}
 
 	// A resolution that was undone is not a resolution date.
 	if in.CurrentCategory != CategoryDone {
 		d.ResolvedAt = nil
+	}
+	// Cycle time only exists for a finished issue with a measurable span —
+	// the CycleTimeP85Hours rule, so the stored column and any later walk of
+	// the same changelog cannot disagree. A non-positive span (reopened,
+	// never re-finished) is not a cycle and must not drag a percentile down.
+	if in.CurrentCategory == CategoryDone && d.StartedAt != nil && d.ResolvedAt != nil {
+		if start, ok := parseStamp(*d.StartedAt); ok {
+			if done, ok := parseStamp(*d.ResolvedAt); ok {
+				if hours := done.Sub(start).Hours(); hours > 0 {
+					d.CycleHours = &hours
+				}
+			}
+		}
+	}
+	// The item's own updated stamp and the newest comment compete with the
+	// changelog for last_activity_at. All stamps are ISO-8601 UTC, so the
+	// comparison is a string max.
+	if in.UpdatedAt != "" && (d.LastActivityAt == nil || in.UpdatedAt > *d.LastActivityAt) {
+		at := in.UpdatedAt
+		d.LastActivityAt = &at
+	}
+	for _, c := range in.Comments {
+		if c.CreatedAt == "" {
+			continue
+		}
+		if d.LastActivityAt == nil || c.CreatedAt > *d.LastActivityAt {
+			at := c.CreatedAt
+			d.LastActivityAt = &at
+		}
 	}
 	if d.ReopenedAt != nil {
 		d.ReopenReason = reopenReason(in.Comments, *d.ReopenedAt)
