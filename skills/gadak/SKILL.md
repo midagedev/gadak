@@ -94,7 +94,9 @@ whether comments claim work is done on issues that are not — run `gadak retro`
 before writing any status prose: it reads the mirror and `local.db`, prints one
 ISO-week column per week with a change column, and prints the definition of
 every row under the numbers, so a claim can be checked against the exact rule
-that produced it. `gadak retro --json` emits the same numbers for scripting.
+that produced it. `gadak retro --json` emits the same numbers for scripting,
+and `gadak retro --open closed --week 1` opens the issues behind a cell in the
+running app (with `--json`, prints the keys only).
 
 ## Which origin you are talking to
 

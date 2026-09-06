@@ -532,15 +532,19 @@ var helps = map[string]cmdHelp{
 	},
 	"retro": {
 		summary: "weekly retrospective from the mirror and local.db — sessions, resume time, wip age, closures, done-word mismatch by ISO week, definitions printed under the numbers",
-		usage:   "gadak [--workspace <name>] retro [--since 14d|<N>d|<N>w] [--json]",
+		usage:   "gadak [--workspace <name>] retro [--since 14d|<N>d|<N>w] [--json] [--open closed|in-progress|mismatch [--week N]] [--no-open]",
 		options: []helpOption{
 			{name: "since", desc: "how far back the table reaches: 14d, 30d, 4w (1 to 365 days; default 14d)"},
-			{name: "json", desc: "emit the same numbers as one JSON document (buckets plus definitions)"},
+			{name: "json", desc: "emit the same numbers as one JSON document (buckets plus definitions; each bucket also carries the keys behind its counts)"},
+			{name: "open", desc: "open the issues behind one cell in the running app — closed, in-progress or mismatch — through the same path views open --keys takes; with --json, print the keys document only"},
+			{name: "week", desc: "which week --open reads: 0 = the current partial week (default), 1 = the last full week; out of range is a usage error"},
+			{name: "no-open", desc: "with --open: write the hash only; do not open a window"},
 		},
 		examples: []string{
 			"gadak retro",
 			"gadak retro --since 8w",
 			"gadak retro --json",
+			"gadak retro --open closed --week 1",
 		},
 		seeAlso: []string{"gadak recents", "gadak list"},
 	},

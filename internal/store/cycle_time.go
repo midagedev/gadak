@@ -30,8 +30,8 @@ const CycleP85MinSamples = 10
 // issue rows. An id neither maps reads as not-done, same as Derive.
 //
 // The percentile is nearest-rank with integer arithmetic, rank
-// (85n+99)/100 — the formula cmd/gadak/retro.go retroP85 owns. retroP85
-// lives in package main, so it cannot be imported; keep the two in lockstep.
+// (85n+99)/100 — the formula internal/retro P85 owns (it moved out of
+// cmd/gadak with the whole compute). Keep the two in lockstep.
 func (db *DB) CycleTimeP85Hours(ctx context.Context, since time.Time) (float64, int, error) {
 	// status_catalog: (source, status id) -> category, scoped per source the
 	// way retro.go scopes its walk.

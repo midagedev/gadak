@@ -167,7 +167,6 @@ func viewsOpen(args []string) error {
 	}
 
 	var hash, label string
-	var keys []string
 	// Clauses the saved view could not compile. Carried out of the switch so
 	// the opened view repeats what `views save` said once (GDK-504): the
 	// listing shows the requested JQL, so nothing else tells the caller the
@@ -175,19 +174,11 @@ func viewsOpen(args []string) error {
 	var unsupported []string
 	switch {
 	case keysRaw != "":
-		keys, err = readKeysFlag(keysRaw)
+		keys, err := readKeysFlag(keysRaw)
 		if err != nil {
 			return err
 		}
-		if err := jql.CheckKeyLimit(len(keys)); err != nil {
-			return err
-		}
-		if len(keys) == 0 {
-			return usageError("views", `usage: gadak views open --keys 'KEY,KEY' | --keys -`)
-		}
-		f := jql.EmptyFilter()
-		f.Keys = keys
-		hash, label = jql.Hash(f, jql.Display{Layout: *layoutFlag}), "keys"
+		return openKeysView(keys, *layoutFlag, *noOpenFlag, *asJSON)
 	case jqlRaw != "":
 		h, err := hashFromJQL(jqlRaw, *layoutFlag)
 		if err != nil {
@@ -214,7 +205,29 @@ func viewsOpen(args []string) error {
 		hash, label = v.Hash, v.Name
 		unsupported = v.Unsupported
 	}
+	return focusViewHash(hash, label, nil, *noOpenFlag, *asJSON, unsupported)
+}
 
+// openKeysView is the whole --keys path of `views open`: build the
+// keys-only view hash and focus it in the running app. `retro --open`
+// arrives here too, so the two verbs cannot drift on how keys reach the app.
+func openKeysView(keys []string, layout string, noOpen, asJSON bool) error {
+	if err := jql.CheckKeyLimit(len(keys)); err != nil {
+		return err
+	}
+	if len(keys) == 0 {
+		return usageError("views", `usage: gadak views open --keys 'KEY,KEY' | --keys -`)
+	}
+	f := jql.EmptyFilter()
+	f.Keys = keys
+	hash := jql.Hash(f, jql.Display{Layout: layout})
+	return focusViewHash(hash, "keys", keys, noOpen, asJSON, nil)
+}
+
+// focusViewHash is the shared opening tail of `views open`: write the hash
+// for the running UI, resolve where it lands, open what there is to open,
+// and report the same fields on both output paths.
+func focusViewHash(hash, label string, keys []string, noOpen, asJSON bool, unsupported []string) error {
 	if len(unsupported) > 0 {
 		fmt.Fprintf(os.Stderr, "warning: view %q applies less than its JQL — skipped %s\n",
 			label, strings.Join(unsupported, "; "))
@@ -222,7 +235,7 @@ func viewsOpen(args []string) error {
 	if err := uifocus.Write(hash); err != nil {
 		return err
 	}
-	skipOpen := *noOpenFlag || envNoOpen()
+	skipOpen := noOpen || envNoOpen()
 	// G4: always resolve the URL (even under --no-open); only launch when asked.
 	web, serveDbg := resolveServeFocus(hash)
 	link := deepLinkURL(config.Profile(), hash)
@@ -243,7 +256,7 @@ func viewsOpen(args []string) error {
 				fmt.Fprintf(os.Stderr, "warning: %v\n", ferr)
 				desk = false
 			} else {
-				if !*asJSON {
+				if !asJSON {
 					fmt.Printf("hash\t%s\n", hash)
 				}
 				return ferr
@@ -265,7 +278,7 @@ func viewsOpen(args []string) error {
 	if len(keys) > 0 {
 		out["keys"] = keys
 	}
-	if *asJSON {
+	if asJSON {
 		return json.NewEncoder(os.Stdout).Encode(out)
 	}
 	fmt.Printf("hash\t%s\n", hash)

@@ -4,23 +4,22 @@ package main
 // names its test here (or the package that owns it), two assertions minimum:
 // the happy path and the violation or boundary beside it.
 //
-//	C1 RecordVisit source contract            → internal/store/local_visits_source_test.go
-//	   (TestRecordVisitSourcePersisted, TestRecordVisitSourceRejected)
-//	C2 table and --json agree on demo.db      → TestRetroDemoDBTableAndJSONAgree
-//	C3 closed + wip age p85 equal the RECIPES
-//	   hand SQL on the demo fixture           → TestRetroClosedAndWipMatchHandSQL
-//	C4 no display-name keying in the new code → TestRetroSourceKeysNeverOnDisplayName
+//	C1 table and --json agree on demo.db, byte-identical
+//	   after the move to internal/retro (plus the keys
+//	   object)                               → TestRetroDemoDBTableAndJSONAgree
+//	C2 every count equals its key set's
+//	   length                                → internal/retro TestRetroCountsEqualKeyLengths
+//	   (and per-bucket in JSON here)
+//	C3 --open reuses the views open --keys path → TestRetroOpenCell +
+//	   views_test.go TestViewsOpenKeysJSON (unchanged and green)
+//	C4 no display-name keying                 → internal/retro TestRetroSourceKeysNeverOnDisplayName
 //	C5 definitions every run, no second
 //	   person in the output                   → TestRetroDefinitionsAndGrammar
 //	C6 --since validation, --json shape,
-//	   unknown flag is a usage error          → TestRetroSinceValidation (+ shape in C2)
-//	C7 a V6 local.db migrates to 7            → internal/store TestLocalV6MigratesToV7KeepsOldRows
-//	C8 help and usage cover retro             → help_test.go TestHelpCoversAllCommands,
+//	   unknown flag is a usage error          → TestRetroSinceValidation (+ shape in C1)
+//	C7 a V6 local.db migrates to 7             → internal/store TestLocalV6MigratesToV7KeepsOldRows
+//	C8 help and usage cover retro              → help_test.go TestHelpCoversAllCommands,
 //	                                            TestUsageListsEveryCommand
-//
-// The session fixtures below pin their anchor at now minus 4 days: the demo
-// snapshot carries writes up to 2026-08-31, so every injected visit and write
-// lands strictly after all real fixture activity and nothing pre-empts them.
 
 import (
 	"database/sql"
@@ -37,7 +36,7 @@ import (
 	_ "modernc.org/sqlite"
 
 	"github.com/midagedev/gadak/internal/config"
-	"github.com/midagedev/gadak/internal/store"
+	"github.com/midagedev/gadak/internal/retro"
 )
 
 // retroSixRows are the row names of the table and the keys of one JSON bucket,
@@ -47,7 +46,7 @@ var retroSixRows = []string{
 }
 
 // retroSeedCatalog fills status_catalog the way a sync does, from the issues
-// rows themselves. The shipped demo fixture carries zero rows; the C3 and
+// rows themselves. The shipped demo fixture carries zero rows; the closed and
 // dual-method tests need the mapping.
 func retroSeedCatalog(t *testing.T) {
 	t.Helper()
@@ -162,18 +161,28 @@ func TestRetroDemoDBTableAndJSONAgree(t *testing.T) {
 			t.Fatalf("bucket from %s is a %s, want Monday", from, ts.Weekday())
 		}
 	}
-	// JSON bucket shape: exactly the nine keys, six named after the rows.
+	// JSON bucket shape: from/to/partial + the six rows + the keys object.
 	first := jsonBuckets[0]
-	if len(first) != 9 {
-		t.Fatalf("bucket object has %d keys, want 9: %v", len(first), first)
+	if len(first) != 10 {
+		t.Fatalf("bucket object has %d keys, want 10: %v", len(first), first)
 	}
-	for _, name := range append([]string{"from", "to", "partial"}, retroSixRows...) {
+	for _, name := range append([]string{"from", "to", "partial", "keys"}, retroSixRows...) {
 		if _, ok := first[name]; !ok {
 			t.Fatalf("bucket object lacks key %q: %v", name, first)
 		}
 	}
+	keysObj, ok := first["keys"].(map[string]any)
+	if !ok {
+		t.Fatalf("keys is not an object: %v", first["keys"])
+	}
+	for _, name := range []string{"closed", "in progress", "mismatch"} {
+		if _, ok := keysObj[name].([]any); !ok {
+			t.Fatalf("keys object lacks array %q: %v", name, keysObj)
+		}
+	}
 
-	// Cell-by-cell: the table and the JSON document are the same numbers.
+	// Cell-by-cell: the table and the JSON document are the same numbers,
+	// and every count is the length of its key array (C2 over the wire).
 	resumeSuffix := regexp.MustCompile(` \([0-9]+ of [0-9]+\)$`)
 	rowByName := map[string][]string{}
 	for _, row := range grid[1:] {
@@ -192,7 +201,7 @@ func TestRetroDemoDBTableAndJSONAgree(t *testing.T) {
 			t.Fatalf("bucket %d mismatch: table %q vs JSON %v", bi, cell("mismatch"), b["mismatch"])
 		}
 		resumeCell := resumeSuffix.ReplaceAllString(cell("resume (median)"), "")
-		if v, ok := num("resume (median)"); ok && resumeCell != formatRetroSeconds(v) ||
+		if v, ok := num("resume (median)"); ok && resumeCell != retro.FormatSeconds(v) ||
 			!ok && resumeCell != "—" {
 			t.Fatalf("bucket %d resume: table %q vs JSON %v", bi, resumeCell, b["resume (median)"])
 		}
@@ -205,6 +214,17 @@ func TestRetroDemoDBTableAndJSONAgree(t *testing.T) {
 			if v, ok := num(row); ok && c != strconv.Itoa(int(v)) || !ok && c != "—" {
 				t.Fatalf("bucket %d %s: table %q vs JSON %v", bi, row, c, b[row])
 			}
+		}
+		keys := b["keys"].(map[string]any)
+		keyLen := func(name string) int { return len(keys[name].([]any)) }
+		if v, ok := num("closed"); ok && keyLen("closed") != int(v) && keyLen("closed") != retro.MaxJSONKeys {
+			t.Fatalf("bucket %d closed = %d, %d keys", bi, int(v), keyLen("closed"))
+		}
+		if v, ok := num("in progress"); ok && keyLen("in progress") != int(v) && keyLen("in progress") != retro.MaxJSONKeys {
+			t.Fatalf("bucket %d in progress = %d, %d keys", bi, int(v), keyLen("in progress"))
+		}
+		if v, ok := num("mismatch"); !ok || keyLen("mismatch") != int(v) && keyLen("mismatch") != retro.MaxJSONKeys {
+			t.Fatalf("bucket %d mismatch = %d, %d keys", bi, int(v), keyLen("mismatch"))
 		}
 	}
 
@@ -300,117 +320,6 @@ limit 1 offset ((85 * (select count(*) from ages) + 99) / 100 - 1)`
 	}
 }
 
-// TestRetroCurrentWeekDualMethodAgree is the spec clause that the two ways of
-// answering the current week — the live issues columns and the changelog walk
-// through status_catalog — must agree on the demo fixture: same item set,
-// same per-item transition time.
-func TestRetroCurrentWeekDualMethodAgree(t *testing.T) {
-	sqlDemoHome(t)
-	retroSeedCatalog(t)
-	db := retroOpenRO(t)
-	now := time.Now()
-
-	live := map[string]time.Time{}
-	rows, err := db.Query(`SELECT item_id, status_changed_at FROM issues WHERE status_category = 'inprogress'`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for rows.Next() {
-		var item, at string
-		if err := rows.Scan(&item, &at); err != nil {
-			rows.Close()
-			t.Fatal(err)
-		}
-		ts, ok := parseRetroTime(at)
-		if !ok {
-			rows.Close()
-			t.Fatalf("unparseable status_changed_at %q on %s", at, item)
-		}
-		live[item] = ts
-	}
-	rows.Close()
-	if len(live) == 0 {
-		t.Fatal("demo fixture has no in-progress issues; dual-method check is vacuous")
-	}
-
-	cat := map[string]string{}
-	crows, err := db.Query(`SELECT COALESCE(source_id,''), COALESCE(status_id,''), COALESCE(category,'') FROM status_catalog`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for crows.Next() {
-		var source, id, category string
-		if err := crows.Scan(&source, &id, &category); err != nil {
-			crows.Close()
-			t.Fatal(err)
-		}
-		cat[source+"\x00"+id] = category
-	}
-	crows.Close()
-
-	// Ordered scan, later rows overwrite: each item keeps its last status row.
-	type lastRow struct {
-		at     time.Time
-		toID   string
-		source string
-	}
-	walk := map[string]lastRow{}
-	wrows, err := db.Query(`SELECT c.item_id, c.at, c.to_id, COALESCE(it.source_id,'')
-		FROM changelog c JOIN items it ON it.id = c.item_id
-		WHERE c.field = 'status' ORDER BY c.item_id, c.at, c.id`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for wrows.Next() {
-		var item, at, toID, source string
-		if err := wrows.Scan(&item, &at, &toID, &source); err != nil {
-			wrows.Close()
-			t.Fatal(err)
-		}
-		ts, ok := parseRetroTime(at)
-		if !ok || ts.After(now) {
-			continue
-		}
-		walk[item] = lastRow{at: ts, toID: toID, source: source}
-	}
-	wrows.Close()
-
-	walkInProg := map[string]time.Time{}
-	for item, row := range walk {
-		if cat[row.source+"\x00"+row.toID] == store.CategoryInProgress {
-			walkInProg[item] = row.at
-		}
-	}
-	if len(walkInProg) != len(live) {
-		t.Fatalf("in-progress at now: issues rows say %d, changelog walk says %d", len(live), len(walkInProg))
-	}
-	for item, liveAt := range live {
-		walkAt, ok := walkInProg[item]
-		if !ok {
-			t.Fatalf("item %s in progress per issues rows but not per the changelog walk", item)
-		}
-		if !liveAt.Equal(walkAt) {
-			t.Fatalf("item %s: status_changed_at %s, last status changelog row %s", item, liveAt, walkAt)
-		}
-	}
-}
-
-// TestRetroSourceKeysNeverOnDisplayName is C4: the new read path keys on ids
-// and categories, never on the localized display name. Positive control
-// beside it, so the assertion cannot pass on an empty file.
-func TestRetroSourceKeysNeverOnDisplayName(t *testing.T) {
-	src, err := os.ReadFile("retro.go")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(string(src), "status = '") {
-		t.Fatal("retro.go keys on a status display name; use status_id or status_category")
-	}
-	if !strings.Contains(string(src), "status_category") {
-		t.Fatal("positive control failed: retro.go does not mention status_category at all")
-	}
-}
-
 func TestRetroDefinitionsAndGrammar(t *testing.T) {
 	sqlDemoHome(t)
 	table := retroTable(t, []string{"--since", "8w"})
@@ -445,14 +354,14 @@ func TestRetroSinceValidation(t *testing.T) {
 		" 8w ": 56 * 24 * time.Hour, // surrounding space is trimmed
 	}
 	for in, want := range valid {
-		got, err := parseRetroSince(in)
+		got, err := retro.ParseSince(in)
 		if err != nil || got != want {
-			t.Errorf("parseRetroSince(%q) = %v, %v; want %v", in, got, err, want)
+			t.Errorf("retro.ParseSince(%q) = %v, %v; want %v", in, got, err, want)
 		}
 	}
 	for _, in := range []string{"3x", "", "0d", "366d", "53w", "14", "d", "-1d", "1.5d", "w"} {
-		if got, err := parseRetroSince(in); err == nil {
-			t.Errorf("parseRetroSince(%q) = %v, want an error", in, got)
+		if got, err := retro.ParseSince(in); err == nil {
+			t.Errorf("retro.ParseSince(%q) = %v, want an error", in, got)
 		}
 	}
 
@@ -472,209 +381,92 @@ func TestRetroSinceValidation(t *testing.T) {
 	}
 }
 
-/* ── session fixtures ── */
-
-// retroFixtureHome prepares a demo fixture home with a local.db present.
-func retroFixtureHome(t *testing.T) string {
-	t.Helper()
-	sqlDemoHome(t)
-	mirror := filepath.Join(os.Getenv("GADAK_HOME"), "gadak.db")
-	if err := store.EnsureLocal(mirror); err != nil {
-		t.Fatalf("EnsureLocal: %v", err)
-	}
-	return mirror
-}
-
-// retroInjectVisit writes a visit row straight into local.db.
-func retroInjectVisit(t *testing.T, at time.Time, kind, key, source string) {
-	t.Helper()
-	db, err := sql.Open("sqlite", "file:"+filepath.Join(os.Getenv("GADAK_HOME"), "local.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-	if _, err := db.Exec(`INSERT INTO visits (kind, key, viewed_at, source) VALUES (?, ?, ?, ?)`,
-		kind, key, at.UTC().Format(config.ISOMilli), source); err != nil {
-		t.Fatalf("inject visit: %v", err)
-	}
-}
-
-// retroInjectChange writes one changelog row on an existing item.
-func retroInjectChange(t *testing.T, at time.Time, item, authorID string) {
-	t.Helper()
-	db, err := sql.Open("sqlite", "file:"+filepath.Join(os.Getenv("GADAK_HOME"), "gadak.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-	if _, err := db.Exec(`INSERT INTO changelog (id, item_id, at, author, author_id, field, from_value, from_id, to_value, to_id)
-		VALUES (?, ?, ?, ?, ?, 'priority', '', '', '', '')`,
-		"retro-fx-"+authorID+"-"+at.UTC().Format("150405.000"), item,
-		at.UTC().Format(config.ISOMilli), "Retro Fixture", authorID); err != nil {
-		t.Fatalf("inject changelog: %v", err)
-	}
-}
-
-// retroPickItem returns a real fixture issue item id and its key.
-func retroPickItem(t *testing.T) (item, key string) {
-	t.Helper()
-	db := retroOpenRO(t)
-	if err := db.QueryRow(`SELECT it.id, it.key FROM items it
-		JOIN issues i ON i.item_id = it.id
-		WHERE it.kind = 'issue' AND COALESCE(it.key,'') <> ''
-		ORDER BY it.key LIMIT 1`).Scan(&item, &key); err != nil {
-		t.Fatalf("pick item: %v", err)
-	}
-	return item, key
-}
-
-// retroBucketContaining finds the bucket whose [From, To) holds at.
-func retroBucketContaining(t *testing.T, rep retroReport, at time.Time) *retroBucket {
-	t.Helper()
-	for i := range rep.buckets {
-		if !at.Before(rep.buckets[i].From) && at.Before(rep.buckets[i].To) {
-			return &rep.buckets[i]
-		}
-	}
-	t.Fatalf("no bucket holds %s (buckets start %s)", at, rep.buckets[0].From)
-	return nil
-}
-
-// retroComputePinned opens the fixture read-only and computes with a pinned
-// clock, so the session math does not depend on the wall clock of the run.
-func retroComputePinned(t *testing.T, me store.FeedIdentity, since time.Duration, now time.Time) retroReport {
-	t.Helper()
-	db, err := openReadOnly()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-	rep, err := computeRetro(db, me, since, now)
-	if err != nil {
-		t.Fatalf("computeRetro: %v", err)
-	}
-	return rep
-}
-
-func TestRetroSessionsResumeOnFixture(t *testing.T) {
-	// Anchor: 4 days back is after every write the demo snapshot carries, so
-	// the only visits and writes inside the windows below are the injected ones.
-	now := time.Now().Truncate(time.Second)
-	a0 := now.Add(-4 * 24 * time.Hour)
-
-	t.Run("sessions without any own write render as — (0 of n), not a bare dash", func(t *testing.T) {
-		// FAIL-first: before the cell carried the count, this bucket rendered
-		// "—", indistinguishable from a week with no sessions at all.
-		retroFixtureHome(t)
-		item, key := retroPickItem(t)
-		retroInjectVisit(t, a0, store.VisitKindIssue, key, store.VisitSourceUI)
-		retroInjectChange(t, a0.Add(time.Minute), item, "someone-else") // not self
-
-		me := store.FeedIdentity{AccountID: "test-self"}
-		rep := retroComputePinned(t, me, 21*24*time.Hour, now)
-		b := retroBucketContaining(t, rep, a0)
-		if b.ResumeN != 1 || b.ResumeK != 0 || b.Resume != nil {
-			t.Fatalf("ResumeN/K/Resume = %d/%d/%v, want 1/0/nil", b.ResumeN, b.ResumeK, b.Resume)
-		}
-		if !strings.Contains(rep.table(), "— (0 of 1)") {
-			t.Fatalf("table lacks the 0-of-n resume cell:\n%s", rep.table())
+// TestRetroOpenCell is Part B: --open follows one cell to the issues behind
+// it through the views open --keys path (C3). FAIL-first: before this round
+// the flag did not exist and every subtest died on the unknown flag.
+func TestRetroOpenCell(t *testing.T) {
+	t.Run("--week without --open is a usage error", func(t *testing.T) {
+		out, err := capture(t, func() error { return cmdRetro([]string{"--week", "1"}) })
+		if err == nil || !strings.Contains(err.Error(), "--week only applies to --open") {
+			t.Fatalf("--week alone: %v (out %q)", err, out)
 		}
 	})
-
-	t.Run("own write, exact 30m boundary stays one session", func(t *testing.T) {
-		retroFixtureHome(t)
-		item, key := retroPickItem(t)
-		retroInjectVisit(t, a0, store.VisitKindIssue, key, store.VisitSourceUI)
-		retroInjectVisit(t, a0.Add(30*time.Minute), store.VisitKindIssue, key, store.VisitSourceUI)             // exactly the gap: same session
-		retroInjectVisit(t, a0.Add(60*time.Minute+time.Second), store.VisitKindIssue, key, store.VisitSourceUI) // 30m1s after the previous visit: new session
-		retroInjectChange(t, a0.Add(time.Minute), item, "someone-else")                                         // not self: must be skipped
-		retroInjectChange(t, a0.Add(5*time.Minute), item, "test-self")
-
-		me := store.FeedIdentity{AccountID: "test-self"}
-		rep := retroComputePinned(t, me, 21*24*time.Hour, now)
-		b := retroBucketContaining(t, rep, a0)
-		if b.Sessions != 2 {
-			t.Fatalf("sessions = %d, want 2 (exactly 30m is the same session, 30m1s splits)", b.Sessions)
-		}
-		if b.ResumeN != 2 {
-			t.Fatalf("ResumeN = %d, want 2", b.ResumeN)
-		}
-		if b.ResumeK != 1 {
-			t.Fatalf("ResumeK = %d, want 1 (only the first session has an own write)", b.ResumeK)
-		}
-		if b.Resume == nil || *b.Resume != 300 {
-			t.Fatalf("resume = %v, want 300s (the 5m self write; the other-author write at 1m is not own)", b.Resume)
-		}
-		if rep.cliFallback {
-			t.Fatal("cliFallback should be false with ui visits present")
-		}
-		// Session without a write is excluded from the median but counted in n:
-		// the footer branch line for the sessions source names ui+unknown.
-		var srcLine string
-		for _, d := range rep.definitions() {
-			if d[0] == "sessions source" {
-				srcLine = d[1]
-			}
-		}
-		if !strings.Contains(srcLine, "sessions from ui+unknown visits") {
-			t.Fatalf("sessions source line: %q", srcLine)
+	t.Run("--no-open without --open is a usage error", func(t *testing.T) {
+		out, err := capture(t, func() error { return cmdRetro([]string{"--no-open"}) })
+		if err == nil || !strings.Contains(err.Error(), "--no-open only applies to --open") {
+			t.Fatalf("--no-open alone: %v (out %q)", err, out)
 		}
 	})
-
-	t.Run("cli-only fallback, unresolved self counts any author on visited issues", func(t *testing.T) {
-		retroFixtureHome(t)
-		visited, vkey := retroPickItem(t)
-		var other string
-		db := retroOpenRO(t)
-		if err := db.QueryRow(`SELECT it.id FROM items it JOIN issues i ON i.item_id = it.id
-			WHERE it.kind = 'issue' AND it.id <> ? ORDER BY it.key LIMIT 1`, visited).Scan(&other); err != nil {
-			t.Fatalf("pick other item: %v", err)
-		}
-		retroInjectVisit(t, a0, store.VisitKindIssue, vkey, store.VisitSourceCLI)
-		retroInjectVisit(t, a0.Add(40*time.Minute), store.VisitKindIssue, vkey, store.VisitSourceCLI) // 40m gap: two sessions
-		retroInjectChange(t, a0.Add(30*time.Second), other, "someone-else")                           // wrong issue: ignored
-		retroInjectChange(t, a0.Add(time.Minute), visited, "someone-else")                            // visited issue: counts (unresolved self)
-
-		rep := retroComputePinned(t, store.FeedIdentity{}, 21*24*time.Hour, now)
-		b := retroBucketContaining(t, rep, a0)
-		if !rep.cliFallback {
-			t.Fatal("cliFallback should be true when only cli visits exist")
-		}
-		if b.Sessions != 2 {
-			t.Fatalf("sessions = %d, want 2", b.Sessions)
-		}
-		if b.ResumeK != 1 || b.ResumeN != 2 {
-			t.Fatalf("ResumeK/N = %d/%d, want 1/2", b.ResumeK, b.ResumeN)
-		}
-		if b.Resume == nil || *b.Resume != 60 {
-			t.Fatalf("resume = %v, want 60s (first write on a visited issue; the write on the unvisited issue does not count)", b.Resume)
-		}
-		defs := rep.definitions()
-		joined := ""
-		for _, d := range defs {
-			joined += d[0] + ": " + d[1] + "\n"
-		}
-		if !strings.Contains(joined, "sessions from cli visits (no ui reads recorded)") {
-			t.Fatalf("cli fallback footer missing:\n%s", joined)
-		}
-		if !strings.Contains(joined, "self: unresolved — any author on visited issues") {
-			t.Fatalf("unresolved-self footer missing:\n%s", joined)
+	t.Run("--open value is validated naming the three cells", func(t *testing.T) {
+		out, err := capture(t, func() error { return cmdRetro([]string{"--open", "bogus"}) })
+		if err == nil || !strings.Contains(err.Error(), "closed, in-progress, mismatch") {
+			t.Fatalf("--open bogus: %v (out %q)", err, out)
 		}
 	})
-
-	t.Run("unknown source counts with the person", func(t *testing.T) {
-		retroFixtureHome(t)
-		_, key := retroPickItem(t)
-		retroInjectVisit(t, a0, store.VisitKindIssue, key, "")                                      // pre-V7 row: unknown, still the person
-		retroInjectVisit(t, a0.Add(31*time.Minute), store.VisitKindIssue, key, store.VisitSourceUI) // 31m gap: two sessions
-
-		rep := retroComputePinned(t, store.FeedIdentity{}, 21*24*time.Hour, now)
-		b := retroBucketContaining(t, rep, a0)
-		if rep.cliFallback {
-			t.Fatal("unknown-source visits must not trigger the cli fallback")
+	t.Run("week out of range names the range", func(t *testing.T) {
+		sqlDemoHome(t)
+		out, err := capture(t, func() error { return cmdRetro([]string{"--open", "closed", "--week", "5"}) })
+		// The range's top depends on the weekday the test runs on; the error
+		// must name the range and the offending week, whatever the top is.
+		if err == nil || !strings.Contains(err.Error(), "--week 5 is out of range 0..") {
+			t.Fatalf("out of range: %v (out %q)", err, out)
 		}
-		if b.Sessions != 2 {
-			t.Fatalf("sessions = %d, want 2 (unknown + ui are one person, 31m gap splits)", b.Sessions)
+	})
+	t.Run("--json --open prints the keys document only", func(t *testing.T) {
+		sqlDemoHome(t)
+		out, err := capture(t, func() error {
+			return cmdRetro([]string{"--open", "in-progress", "--json"})
+		})
+		if err != nil {
+			t.Fatalf("open --json: %v\n%s", err, out)
+		}
+		var doc struct {
+			Metric string   `json:"metric"`
+			Week   int      `json:"week"`
+			Keys   []string `json:"keys"`
+		}
+		if err := json.Unmarshal([]byte(out), &doc); err != nil {
+			t.Fatalf("keys document decode: %v\n%s", err, out)
+		}
+		if doc.Metric != "in-progress" || doc.Week != 0 {
+			t.Fatalf("metric/week = %q/%d, want in-progress/0\n%s", doc.Metric, doc.Week, out)
+		}
+		if len(doc.Keys) == 0 {
+			t.Fatalf("current partial week has in-progress keys on the demo fixture:\n%s", out)
+		}
+		if strings.Contains(out, "hash") {
+			t.Fatalf("--json --open must not open or print a hash:\n%s", out)
+		}
+	})
+	t.Run("--open --no-open writes the hash through the views open path", func(t *testing.T) {
+		sqlDemoHome(t)
+		out, err := capture(t, func() error {
+			return cmdRetro([]string{"--open", "in-progress", "--week", "0", "--no-open"})
+		})
+		if err != nil {
+			t.Fatalf("open --no-open: %v\n%s", err, out)
+		}
+		if !strings.Contains(out, "hash\t") {
+			t.Fatalf("no hash line:\n%s", out)
+		}
+	})
+	t.Run("empty cell says so on stderr and exits 0", func(t *testing.T) {
+		sqlDemoHome(t)
+		// Week 0 (the partial week) is the stable empty mismatch cell: the
+		// demo fixture's comments end 2026-08-31, so the partial week never
+		// carries one, whenever this test runs. A fixed week index would
+		// slide as the calendar moves.
+		stdout, stderr, err := captureBoth(t, func() error {
+			return cmdRetro([]string{"--open", "mismatch"})
+		})
+		if err != nil {
+			t.Fatalf("empty cell must exit 0, got %v (out %q, err %q)", err, stdout, stderr)
+		}
+		if !strings.Contains(stderr, "retro: mismatch in week ") || !strings.Contains(stderr, "has no issues") {
+			t.Fatalf("empty-cell stderr missing: %q (stdout %q)", stderr, stdout)
+		}
+		if stdout != "" {
+			t.Fatalf("empty cell must open nothing and print nothing: %q", stdout)
 		}
 	})
 }

@@ -193,6 +193,8 @@ func newServer(db *store.DB, cfg *config.Config, cache *attachcache.Cache, profi
 	// rejects as ambiguous.
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET "+apiBase+"bootstrap/{$}", s.handleBootstrap)
+	// Weekly retro document (same compute as `gadak retro`), read-only.
+	mux.HandleFunc("GET "+apiBase+"retro/{$}", s.handleRetro)
 	mux.HandleFunc("GET "+apiBase+"delta/{$}", s.handleDelta)
 	// Update snapshot + user-initiated force check. Literals beat {key}/{action}/.
 	mux.HandleFunc("GET "+apiBase+"update/{$}", s.handleGetUpdate)
