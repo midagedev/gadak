@@ -15,8 +15,10 @@
   import { ApiError } from '../../lib/api'
   import { write } from '../../stores/write.svelte'
   import { me } from '../../stores/me.svelte'
+  import { issues } from '../../stores/issues.svelte'
   import { recentOf } from '../../lib/recency'
   import { effectiveCategory } from '../../lib/view-config'
+  import { assignedTo } from '../../lib/person-match'
   import { onEscape, onOutsideClick } from '../../lib/dom-actions'
 
   let { issue }: { issue: IssueLite } = $props()
@@ -189,6 +191,42 @@
   }
 
   const canEdit = $derived(me.identified)
+
+  /* ── Coaching, M3 (G6) ──
+     A transition into in-progress carries the reader's other in-progress
+     count — the fact the decision rests on, as dim tabular meta. No warning
+     icon, no confirm: the count never blocks the click. Ownership goes
+     through the one rule (person-match.assignedTo: id first, then email);
+     anonymous or zero renders nothing, because a count that cannot see the
+     reader would be a wrong count. The current issue is excluded — the
+     question is what else is already on the plate. */
+  const meRef = $derived({ accountId: me.accountId, email: me.email })
+  const wipCount = $derived.by(() => {
+    if (!me.identified) return 0
+    let n = 0
+    for (const it of issues.pool.values()) {
+      if (it.issue_key === issue.issue_key) continue
+      if (effectiveCategory(it) === 'inprogress' && assignedTo(it, meRef)) n++
+    }
+    return n
+  })
+  // Composed here, not in the each body below: the loop variable `t` shadows
+  // the i18n `t` inside that block.
+  const wipLabel = $derived(wipCount > 0 ? t('detail.wipCount', { n: wipCount }) : '')
+  const wipWhy = t('detail.wipCountWhy')
+
+  /* Coaching, M2 receive end: CommentList's "Move to done" asks this menu to
+     open (write.requestTransitionMenu — same nonce bridge as replyRequest).
+     Consumed here, never left set, so a remount cannot auto-open on a stale
+     request; the pick itself still goes through the menu's own write path. */
+  let lastMenuNonce = 0
+  $effect(() => {
+    const req = write.transitionMenuRequest
+    if (!req || req.key !== issue.issue_key || req.n === lastMenuNonce) return
+    lastMenuNonce = req.n
+    write.transitionMenuRequest = null
+    if (!open) void toggle()
+  })
 </script>
 
 <!-- Outside click closes. The boundary is this root rather than the list below,
@@ -287,6 +325,15 @@
               <span class="flex-none text-micro text-text-muted">…</span>
             {:else if t.to_status && t.to_status !== t.name}
               <span class="flex-none text-micro text-text-muted">→ {t.to_status}</span>
+            {/if}
+            {#if effectiveCategory(t.to_category) === 'inprogress' && wipCount > 0}
+              <span
+                class="flex-none text-micro text-text-muted tabular-nums"
+                data-testid="transition-wip-count"
+                title={wipWhy}
+              >
+                {wipLabel}
+              </span>
             {/if}
           </button>
         {/each}

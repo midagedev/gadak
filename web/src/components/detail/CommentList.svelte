@@ -12,6 +12,9 @@
   import type { DetailAttachment, DetailComment } from '../../lib/types'
   import { write } from '../../stores/write.svelte'
   import { me } from '../../stores/me.svelte'
+  import { issues } from '../../stores/issues.svelte'
+  import { effectiveCategory } from '../../lib/view-config'
+  import { hasDoneWord } from '../../lib/done-words'
   import { relativeTime, absoluteTime } from './format'
   // The list's Avatar, not a detail-local one: a person must wear the same
   // name-derived color here that they wear in every row behind this panel.
@@ -82,6 +85,34 @@
     }
     return out
   })
+
+  /* ── Coaching, M2 (G2) ──
+     The newest comment says done — with the Go retro's own done-word
+     vocabulary (done-words.ts, lockstep with cmd/gadak/retro.go) — while the
+     issue's status does not. The offer is a quiet verb on the comment's own
+     row header: one click opens the header's existing status menu (write's
+     transitionMenuRequest bridge), so no new write path exists. Only the
+     newest comment counts, and an optimistic temp- newest falls back to
+     nothing rather than to the comment above it — the button claims "the
+     latest comment says done", and a stale done-word on an older comment
+     would be a different claim. */
+  const issueRow = $derived(issues.pool.get(issueKey))
+  const newest = $derived(all.length > 0 ? all[all.length - 1] : null)
+  const showMoveToDone = $derived.by(() => {
+    if (!newest || newest.comment_id.startsWith('temp-')) return false
+    if (!hasDoneWord(newest.body)) return false
+    if (!issueRow || effectiveCategory(issueRow) === 'done') return false
+    // Same identity gate as the reply button beside it — the click opens a
+    // write surface.
+    if (!me.identified) return false
+    return true
+  })
+  const moveToDoneWhy = $derived(
+    issueRow ? t('detail.moveToDoneWhy', { status: issueRow.status }) : '',
+  )
+  function moveToDone(): void {
+    write.requestTransitionMenu(issueKey)
+  }
 </script>
 
 {#if all.length > 0}
@@ -115,6 +146,17 @@
             <span class="text-micro text-text-muted" title={absoluteTime(c.created_at)}>
               {relativeTime(c.created_at)}
             </span>
+            {#if showMoveToDone && c.comment_id === newest?.comment_id}
+              <!-- Always visible, unlike the reply beside it: the mismatch is
+                   the reason this row is interesting at all (C2). -->
+              <button
+                type="button"
+                class="rounded px-1.5 py-0.5 text-micro text-text-muted transition hover:bg-bg-hover hover:text-text-primary"
+                onclick={moveToDone}
+                data-testid="comment-move-to-done"
+                title={moveToDoneWhy}>{t('detail.moveToDone')}</button
+              >
+            {/if}
             {#if me.identified && c.author_account_id && !c.comment_id.startsWith('temp-')}
               <button
                 type="button"
@@ -145,8 +187,21 @@
           {#if !head}
             <!-- Its own line, left-aligned with the body: a right-aligned or
                  inline time would eat into the text column the prescription
-                 protects. Same tier as the group header's time, never brighter. -->
-            <div class="mb-1 text-micro text-text-muted">{relativeTime(c.created_at)}</div>
+                 protects. Same tier as the group header's time, never brighter.
+                 The done-word button rides this line when the newest comment
+                 is a grouped continuation (M2). -->
+            <div class="mb-1 flex items-center gap-2 text-micro text-text-muted">
+              <span>{relativeTime(c.created_at)}</span>
+              {#if showMoveToDone && c.comment_id === newest?.comment_id}
+                <button
+                  type="button"
+                  class="rounded px-1.5 py-0.5 text-micro text-text-muted transition hover:bg-bg-hover hover:text-text-primary"
+                  onclick={moveToDone}
+                  data-testid="comment-move-to-done"
+                  title={moveToDoneWhy}>{t('detail.moveToDone')}</button
+                >
+              {/if}
+            </div>
           {/if}
           <div class="text-body leading-relaxed text-text-secondary">
             <AdfContent node={c.raw_body} {issueKey} {attachments} fallback={c.body} emptyLabel={t('detail.emptyComment')} />

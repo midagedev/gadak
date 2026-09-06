@@ -144,6 +144,12 @@ fi
 # be a fallback set when status_category was absent. Lowercase 'done' /
 # 'resolved' / 'closed' are not listed — they are also category keys or
 # other-field values (RangeField 'resolved', GitHub PR 'closed').
+#
+# Excluded (2026-09-06, r2-detail review): web/src/lib/done-words.ts. Its
+# '완료' is not a status name keyed for logic — it is the comment-text
+# heuristic list `gadak retro` calls mismatch (internal/retro DoneWords, kept
+# in lockstep by web/src/lib/done-words.test.ts). Matching a comment body is
+# the point of that file; nothing in it compares a status/priority/type.
 name_hits="$(
   grep -RInE \
     --include='*.ts' --include='*.svelte' \
@@ -167,6 +173,7 @@ name_hits="$(
     -e "['\"]완료['\"]" \
     web/src/lib web/src/components web/src/stores \
     | grep -v '/i18n/' \
+    | grep -v 'web/src/lib/done-words.ts' \
     || true
 )"
 if [[ -n "$name_hits" ]]; then

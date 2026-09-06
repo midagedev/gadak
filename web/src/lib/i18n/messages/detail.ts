@@ -291,6 +291,14 @@ export const detail = {
     ko: '진행 {span}',
     ja: '進行中 {span}',
   },
+  // Coaching, M1 (THEORY.md "Opening an issue", G7): the durations chip's
+  // hover-only baseline — the learned team p85 the stale mark already uses.
+  // Visible text of the chip is unchanged; this is the "say why on hover" half.
+  'detail.teamP85': {
+    en: 'team p85 {d}d (issues finished in the last 90 days)',
+    ko: '팀 p85 {d}일 (최근 90일간 완료된 이슈)',
+    ja: 'チーム p85 {d}日（直近90日に完了した課題）',
+  },
   'detail.priorityShort': {
     en: 'Prio {p}',
     ko: '우선 {p}',
@@ -360,6 +368,39 @@ export const detail = {
     en: 'Reply to this comment',
     ko: '이 코멘트에 답글',
     ja: 'このコメントに返信',
+  },
+  // Coaching, M2 (THEORY.md "Writing a done-word comment", G2+G7): the verb
+  // lives on the button; the hover states the fact that earned it. {status}
+  // is the issue's current status name.
+  'detail.moveToDone': {
+    en: 'Move to done',
+    ko: '완료로 이동',
+    ja: '完了に移動',
+  },
+  'detail.moveToDoneWhy': {
+    en: 'The latest comment says done; the status is still {status}',
+    ko: '마지막 코멘트는 완료를 말하는데 상태는 아직 {status}',
+    ja: '最新のコメントは完了を示しているが、ステータスはまだ {status}',
+  },
+  // Coaching, M3 (THEORY.md "Just before moving to in-progress", G6): the
+  // count is the whole message — no warning icon, no confirm. {n} is the
+  // in-progress issue count for this account.
+  'detail.wipCount': {
+    en: 'in progress: {n}',
+    ko: '진행 중 {n}건',
+    ja: '進行中 {n}件',
+  },
+  'detail.wipCountWhy': {
+    en: 'Open in-progress issues assigned to this account',
+    ko: '이 계정에 배정된 진행 중 이슈',
+    ja: 'このアカウントに割り当てられた進行中の課題',
+  },
+  // Coaching, M4 (THEORY.md "Choosing a priority", G4): the distribution's
+  // hover basis. No judgement text — the reader decides.
+  'detail.priorityShare': {
+    en: '{n} of the {total} open issues in this view ({pct}%)',
+    ko: '이 뷰의 미해결 이슈 {total}건 중 {n}건 ({pct}%)',
+    ja: 'このビューの未解決課題 {total}件のうち {n}件（{pct}%）',
   },
   'detail.enlarge': {
     en: 'Enlarge {name}',

@@ -137,6 +137,22 @@ class WriteStore {
     this.replyRequest = { issueKey, user, nonce: ++this.#replyNonce }
   }
 
+  /**
+   * Transition-menu bridge, same shape as replyRequest. CommentList's
+   * "Move to done" (done-word coaching, THEORY.md "Writing a done-word
+   * comment") sets this; the header's StatusTransition opens itself when the
+   * key is its own issue. The click stays a read — the menu it opens is the
+   * existing one, so no new write path is created. nonce detects re-requests;
+   * consumers null the field once served so a remount never auto-opens.
+   */
+  transitionMenuRequest = $state<{ key: string; n: number } | null>(null)
+  #transitionMenuNonce = 0
+
+  /** Ask the header's status menu to open for this issue. */
+  requestTransitionMenu(issueKey: string): void {
+    this.transitionMenuRequest = { key: issueKey, n: ++this.#transitionMenuNonce }
+  }
+
   #toastId = 0
   #tmpId = 0
   #writeMetaTimer: ReturnType<typeof setInterval> | null = null

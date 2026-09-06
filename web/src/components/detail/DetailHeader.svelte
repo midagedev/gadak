@@ -18,10 +18,12 @@
   import { selection } from '../../stores/selection.svelte'
   import { reading } from '../../stores/reading.svelte'
   import { favorites } from '../../stores/favorites.svelte'
+  import { issues } from '../../stores/issues.svelte'
   import { write } from '../../stores/write.svelte'
   import { openIssueOrigin } from '../../lib/desktop-links'
   import { issueOriginUrl } from '../../lib/issue-origin'
   import { formatSpan } from '../../lib/format'
+  import { effectiveCategory } from '../../lib/view-config'
   import { shellForIssue, shouldMarkUnattended } from '../../lib/issue-shells'
   import { shells } from '../../lib/issue-shells.svelte'
   import { enterShell, terminalSessions } from '../../lib/terminal/sessions.svelte'
@@ -73,6 +75,19 @@
     ]
       .filter(Boolean)
       .join(' · '),
+  )
+
+  // Coaching, M1 (G7): the chip's hover baseline. When the workspace has a
+  // learned flow and this issue is still open, the title appends the team's
+  // p85 cycle — the same number the stale mark's threshold comes from, so the
+  // reader can ask "is 5h in progress fast for us?" without a sentence on the
+  // chip. Visible text is unchanged; days, floor 1, from cycle_p85_hours.
+  const durationsTitle = $derived(
+    issues.flow && effectiveCategory(issue) !== 'done'
+      ? `${durationsLabel} · ${t('detail.teamP85', {
+          d: Math.max(1, Math.round(issues.flow.cycle_p85_hours / 24)),
+        })}`
+      : durationsLabel,
   )
 
   // Same hash the CLI's deepLinkURL / composeServeURL pass through:
@@ -304,11 +319,13 @@
       </span>
     {/if}
 
-    <!-- Lifecycle spans (GDK-590): waited / in-progress, from the changelog -->
+    <!-- Lifecycle spans (GDK-590): waited / in-progress, from the changelog.
+         title carries the p85 baseline only as hover text (M1, C6). -->
     {#if durationsLabel}
       <span
         class="rounded-md bg-bg-elevated px-2 py-0.5 text-text-secondary"
         data-testid="duration-chip"
+        title={durationsTitle}
       >
         {durationsLabel}
       </span>
