@@ -77,6 +77,11 @@ var neverExportConfigFields = []string{
 	// (GDK-586). Whose shell is running is not team consensus, and a shared
 	// slug would merge every importer's agent into one origin account.
 	"Actor",
+	// Retro tunes how *this person's* reads (local.db visits, never
+	// exported) split into sessions for `gadak retro` (2026-09-07,
+	// retro.sessionGap). A reading habit is per-person, like Notify — not a
+	// team threshold the way StaleThresholdHours is.
+	"Retro",
 	// Locale names the language of this profile's local-origin origin snapshot
 	// (GDK-597) — the same per-machine character as Kind: the origin the
 	// setting describes is not part of a team file, and language is the

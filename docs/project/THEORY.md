@@ -82,7 +82,14 @@ write an agent is about to make, and one place where a person sees what it
 changed. Four risks name themselves: complacency under load, loss of the
 out-of-the-loop reader's awareness, WIP inflation by claiming (T4), and
 attribution laundering — on a Jira or Linear origin the agent writes under a
-person's credential and the origin cannot tell the two apart.
+person's credential and the origin cannot tell the two apart. The last one
+is closed on the write side since 0.21: an agent-authored comment or new
+issue on those origins ends with one line, `— via gadak · <actor>`
+(`internal/origin/trailer.go`; `actor.trailer false` turns it off), the
+built-in origin records the actor as the author outright, and the web path
+never stamps a person's write. The line is what "unreviewed agent writes"
+in `docs/RECIPES.md` keys on — the first half of the missing place where a
+person sees what the agent changed.
 
 ## Two stances
 

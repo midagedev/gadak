@@ -14,6 +14,20 @@ import (
 type ActorConfig struct {
 	Slug string `json:"slug,omitempty"`
 	Name string `json:"name,omitempty"`
+
+	// Trailer turns off the Jira/Linear attribution line (nil = true, the
+	// default): with an actor resolved and the origin unable to record one,
+	// agent-authored comments and new issues carry one trailing
+	// "— via gadak · <actor>" line (origin.ActorTrailer). The switch is also
+	// the switch for any ledger derived from the line — a trailer-less
+	// ledger would be a fact that exists nowhere in the origin.
+	Trailer *bool `json:"trailer,omitempty"`
+}
+
+// ActorTrailerEnabled is the actor.trailer switch: true unless explicitly
+// false. Nil-safe — a config that failed to load keeps the default.
+func (c *Config) ActorTrailerEnabled() bool {
+	return c == nil || c.Actor == nil || c.Actor.Trailer == nil || *c.Actor.Trailer
 }
 
 // Actor sources, in ladder order. status reports which rung answered so an
@@ -94,6 +108,16 @@ func ResolveActor(cfg *Config) (ResolvedActor, bool) {
 		return ResolvedActor{Slug: slug, Name: "Claude Code", Source: ActorSourceAuto}, true
 	}
 	return ResolvedActor{}, false
+}
+
+// actorOrZero is the current actor block by value, so the actor.trailer
+// leaf setter starts from what is stored (a trailer flip must not drop a
+// configured slug, and a slug-only block must not fabricate a name).
+func (c *Config) actorOrZero() ActorConfig {
+	if c == nil || c.Actor == nil {
+		return ActorConfig{}
+	}
+	return *c.Actor
 }
 
 // ValidateActor is the `gadak config set actor` rule: empty slug clears the

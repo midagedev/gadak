@@ -52,7 +52,7 @@ func retroBucketKeys(b retro.Bucket, metric string) []string {
 func cmdRetro(args []string) error {
 	fs := newFlagSet("retro")
 	sinceFlag := fs.String("since", retroDefaultSince, "how far back the table reaches: 14d, 30d, 4w (1 to 365 days)")
-	sessionGapFlag := fs.String("session-gap", retroDefaultSessionGap, "split sessions where the gap to the previous read exceeds this: a Go duration, 5m to 24h (30m, 1h30m)")
+	sessionGapFlag := fs.String("session-gap", retroDefaultSessionGap, "split sessions where the gap to the previous read exceeds this: a Go duration, 5m to 24h (30m, 1h30m; default: retro.sessionGap or 30m)")
 	asJSON := fs.Bool("json", false, "emit the same numbers as one JSON document")
 	openFlag := fs.String("open", "", "open the issues behind one cell in the running app: closed|in-progress|mismatch|cycle")
 	weekFlag := fs.Int("week", 0, "which week --open reads: 0 = the current partial week, 1 = the last full week")
@@ -72,8 +72,25 @@ func cmdRetro(args []string) error {
 	if err != nil {
 		return usageError("retro", err.Error())
 	}
-	sessionGap, err := retro.ParseSessionGap(*sessionGapFlag)
+	// Config is loaded here (once — identity below reuses it) because the
+	// session gap's default is config-owned now: an unset flag falls back to
+	// retro.sessionGap, a given flag still wins.
+	cfg, cfgErr := config.Load()
+	gapRaw := *sessionGapFlag
+	gapFromFlag := false
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "session-gap" {
+			gapFromFlag = true
+		}
+	})
+	if !gapFromFlag {
+		gapRaw = cfg.EffectiveRetroSessionGap()
+	}
+	sessionGap, err := retro.ParseSessionGap(gapRaw)
 	if err != nil {
+		if !gapFromFlag {
+			err = fmt.Errorf("config retro.sessionGap: %w", err)
+		}
 		return usageError("retro", err.Error())
 	}
 	weekSet := false
@@ -108,10 +125,10 @@ func cmdRetro(args []string) error {
 	defer db.Close()
 	warnIfStale(db)
 
-	// Self identity comes from the same config the feed uses. Missing config
-	// is a warning, not a failure: resume degrades to any-author writes on
-	// visited issues and the footer names the branch.
-	cfg, cfgErr := config.Load()
+	// Self identity comes from the same config the session gap read (loaded
+	// above the flag handling). Missing config is a warning, not a failure:
+	// resume degrades to any-author writes on visited issues and the footer
+	// names the branch.
 	me := store.FeedIdentityOf(cfg)
 	if cfgErr != nil {
 		fmt.Fprintf(os.Stderr, "warning: could not read the workspace config; resume counts any author on visited issues: %v\n", cfgErr)

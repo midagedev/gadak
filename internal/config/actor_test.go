@@ -170,3 +170,26 @@ func TestSettingGetSetActor(t *testing.T) {
 		t.Fatalf("display-name slug accepted: %v", err)
 	}
 }
+
+// ActorTrailerEnabled — contract ↔ assertion (FAIL-first: before the field
+// existed every config read as true, so the explicit-false row failed):
+// nil config / nil block / nil switch are all true; only an explicit false
+// is false.
+func TestActorTrailerEnabled(t *testing.T) {
+	f := false
+	cases := []struct {
+		name string
+		cfg  *Config
+		want bool
+	}{
+		{"nil config", nil, true},
+		{"nil block", &Config{}, true},
+		{"nil switch", &Config{Actor: &ActorConfig{Slug: "claude:x"}}, true},
+		{"explicit false", &Config{Actor: &ActorConfig{Trailer: &f}}, false},
+	}
+	for _, tc := range cases {
+		if got := tc.cfg.ActorTrailerEnabled(); got != tc.want {
+			t.Errorf("%s: ActorTrailerEnabled = %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}

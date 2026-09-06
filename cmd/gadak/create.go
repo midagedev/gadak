@@ -222,7 +222,7 @@ func cmdCreateBatch(projectFlag, typeFlag, defaultBody, defaultPriority, default
 				if routed, rerr := origin.ResolveCreateSource(ctx, cfg, db, want); rerr != nil {
 					return fmt.Errorf("line %d: %w", lineNo, rerr)
 				} else if routed != src {
-					nw, werr := origin.WriterFor(cfg, routed)
+					nw, werr := writerForAgentWrite(cfg, routed)
 					if werr != nil {
 						return fmt.Errorf("line %d: %w", lineNo, werr)
 					}

@@ -1519,6 +1519,21 @@ func (e writeNotMirroredError) Error() string {
 	return fmt.Sprintf("write applied to %s, but it is not in the mirror — is it outside the configured projects?", e.Key)
 }
 
+// writerForAgentWrite is the CLI's WriterFor mint: the actor-trailer
+// decorator over origin.WriterFor, so every agent-authored comment,
+// transition comment, and created issue on a Jira or Linear origin carries
+// the "— via gadak · <actor>" line when an actor resolves (origin.WithActorTrailer
+// owns every no-wrap rule: no actor, actor.trailer false, built-in origin).
+// withCreateSession, withKeyWriteSession and create --batch's per-line
+// reroute all mint here — three sites, one helper, no drift.
+func writerForAgentWrite(cfg *config.Config, src string) (origin.Writer, error) {
+	w, err := origin.WriterFor(cfg, src)
+	if err != nil {
+		return nil, err
+	}
+	return origin.WithActorTrailer(w, cfg), nil
+}
+
 // withCreateSession is create's write session: HasCredential (which counts
 // a Linear apiKey) then WriterFor routed by --project / Linear-only.
 // Mutate uses withKeyWriteSession — it already has a key.
@@ -1542,7 +1557,7 @@ func withCreateSession(project string, fn func(context.Context, *config.Config, 
 	if err != nil {
 		return err
 	}
-	c, err := origin.WriterFor(cfg, src)
+	c, err := writerForAgentWrite(cfg, src)
 	if err != nil {
 		return origin.FoldPairedError(cfg, err)
 	}
@@ -1575,7 +1590,7 @@ func withKeyWriteSession(key string, fn func(context.Context, *config.Config, *s
 	if src != "linear" && !cfg.HasAtlassianCredential() {
 		return errNoCredential
 	}
-	c, err := origin.WriterFor(cfg, src)
+	c, err := writerForAgentWrite(cfg, src)
 	if err != nil {
 		return origin.FoldPairedError(cfg, err)
 	}

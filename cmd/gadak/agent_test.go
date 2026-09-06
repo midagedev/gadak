@@ -371,6 +371,14 @@ func mirror(t *testing.T, site string) *config.Config {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
 	config.SetProfile("")
+	// Pin the actor ladder's ambient rungs: a test run under Claude Code
+	// inherits CLAUDECODE=1, and since the actor trailer round (2026-09-07)
+	// an auto-detected actor stamps every comment body these tests assert
+	// on. CI has neither marker, so this pin only makes local runs agree
+	// with it — trailer tests set their own GADAK_ACTOR on top.
+	t.Setenv("CLAUDECODE", "")
+	t.Setenv("CLAUDE_CODE_SESSION_ID", "")
+	t.Setenv("GADAK_ACTOR", "")
 
 	db, err := store.Open(filepath.Join(home, "gadak.db"))
 	if err != nil {

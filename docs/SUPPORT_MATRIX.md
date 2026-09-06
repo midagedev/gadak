@@ -247,16 +247,23 @@ Markers:
     (`cmd/gadak/agent.go:2779`); the web has no origin link and copy-link
     pastes app links only.
 
-[^50]: `POST /issue` (`internal/jira/write.go:331`).
+[^50]: `POST /issue` (`internal/jira/write.go:331`). A CLI (agent) create
+    ends the description with the actor trailer `— via gadak · <actor>`
+    (`internal/origin/trailer.go:50`, off with `actor.trailer false`); the web
+    create does not (`internal/server/write.go:217`).
 
 [^51]: Create works; assignee, labels, parent, and issue type are refused on
     create (`internal/origin/linearwriter.go:297`, `cmd/gadak/create.go:377`).
+    The CLI create carries the same actor trailer as Jira[^50], rendered to
+    markdown with the body.
 
 [^52]: `issuetap/docs/COMPATIBILITY.md:75`, with the same parent-hierarchy
     rule.
 
 [^53]: ADF body with optional visibility and internal flag
-    (`internal/jira/write.go:256`).
+    (`internal/jira/write.go:256`). A CLI (agent) comment carries the actor
+    trailer as its last paragraph (`internal/origin/trailer.go:107`); the web
+    comment does not — the person is the author.
 
 [^54]: Neither visibility nor internal (`internal/origin/linearwriter.go:84`);
     the body is serialized back to markdown (`:95`, `adf.Markdown` — the
@@ -267,7 +274,9 @@ Markers:
     (`issuetap/docs/COMPATIBILITY.md:75`).
 
 [^56]: `POST /issue/{key}/transitions` with fields and comment
-    (`internal/jira/write.go:116`).
+    (`internal/jira/write.go:116`). A transition comment from the CLI carries
+    the actor trailer (`internal/origin/trailer.go:111`); a transition without
+    a comment gains none.
 
 [^57]: Linear transitions carry no screen fields
     (`internal/origin/linearwriter.go:73`).

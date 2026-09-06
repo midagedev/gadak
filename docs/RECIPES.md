@@ -295,6 +295,61 @@ For `kind = 'page'` the ref is the origin page id (`items.key` — what
 event as the `created:` row. On a Jira Cloud workspace the same
 query works with the Atlassian `accountId` as the author id.
 
+**The Jira/Linear variant: the trailer, not the author column.** On those
+origins the write goes out under a person's credential, so `author_id`
+cannot tell an agent's comment from the person's — the attribution lives
+in the body as the one trailing line gadak appends
+(`— via gadak · <actor>`, `gadak config set actor.trailer false` turns it
+off). The line is a literal gadak wrote, not a display name a tenant
+localizes or renames, so filtering on `body_text` is not the display-name
+trap — never extend these fences to `status`/`priority` names, which are.
+Agent-authored comments in the last 7 days, grouped by the actor the
+trailer names:
+
+```sql
+select substr(body_text, instr(body_text, '— via gadak · ') + 14) as actor,
+       count(*) as comments
+from comments
+where body_text like '%— via gadak · %'
+  and created_at >= datetime('now', '-7 days')
+group by actor
+order by comments desc
+```
+
+(The `+ 14` walks past the marker itself — `— via gadak · ` is 14
+characters — leaving `Claude Code (claude:354bff2b)`-shaped text to group
+by. A body quoting the marker mid-text groups under the quote; the
+newest-comment fence below does not have that ambiguity.)
+
+**Unreviewed agent writes** — issues whose *newest* comment is
+agent-authored and nothing followed it: no later comment, no later
+changelog entry. The first steward exception the theory names: an agent
+said something on an issue and no person has touched the issue since.
+
+```sql
+select i.key, i.summary, c.created_at as last_agent_comment,
+       substr(c.body_text, instr(c.body_text, '— via gadak · ') + 14) as actor
+from issues_full i
+join comments c on c.item_id = i.item_id
+where c.body_text like '%— via gadak · %'
+  and c.created_at = (
+    select max(c2.created_at) from comments c2 where c2.item_id = c.item_id
+  )
+  and not exists (
+    select 1 from comments c3
+    where c3.item_id = c.item_id and c3.created_at > c.created_at
+  )
+  and not exists (
+    select 1 from changelog g
+    where g.item_id = c.item_id and g.at > c.created_at
+  )
+order by c.created_at
+```
+
+Both fences return 0 rows on the demo snapshot — it predates the trailer —
+which is itself the check that the filter keys on the literal, not on
+something every body matches.
+
 ## Flow
 
 The steward's questions — what is aging, what is neglected, what a person

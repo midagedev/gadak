@@ -98,7 +98,8 @@ that produced it. The table also carries wip age max (the oldest in-progress
 issue, beside the p85) and cycle p50/p85 (how long the week's closures took,
 never-reopened issues only). `gadak retro --json` emits the same numbers for
 scripting, `--session-gap 45m` moves the read-gap that splits sessions (5m to
-24h), and `gadak retro --open closed --week 1` opens the issues behind a cell
+24h; the default gap is the `retro.sessionGap` config key, 30m unset), and
+`gadak retro --open closed --week 1` opens the issues behind a cell
 in the running app (with `--json`, prints the keys only; `--open cycle`
 follows a week's cycle samples).
 
@@ -533,8 +534,12 @@ Claude Code is detected automatically — no export needed; each session
 writes as `claude:<session prefix>`. A slug is a stable identity: pick one
 per agent and keep it across sessions. The machine's fallback lives in
 `gadak config set actor '{"slug":"grok:aa11","name":"Grok"}'` (the env
-value wins over it). The actor reaches only the built-in tracker —
-never a Jira Cloud site or any other outbound request. Without one,
+value wins over it). On the built-in tracker the actor is the recorded
+author of the write. On a Jira or Linear origin — where the write goes out
+under a person's credential — agent-authored comments and new issues
+instead carry one trailing line, `— via gadak · <actor>`, on by default and
+off with `gadak config set actor.trailer false` (`gadak status` shows the
+switch on the actor row). Without an actor,
 writes attribute to the workspace's default user, exactly as before.
 
 The attribution is queryable — "what did the previous session leave" is

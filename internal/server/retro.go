@@ -10,6 +10,7 @@ package server
 // now), so a conditional GET would be a lie half the time.
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -34,7 +35,7 @@ func (s *server) handleRetro(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// session_gap: the same parser and the same sentence as the CLI flag;
-	// absent means the 30m default.
+	// absent means the config default (retro.sessionGap, itself 30m unset).
 	sessionGap := retro.SessionGap
 	if gapRaw := strings.TrimSpace(r.URL.Query().Get("session_gap")); gapRaw != "" {
 		sessionGap, err = retro.ParseSessionGap(gapRaw)
@@ -42,6 +43,13 @@ func (s *server) handleRetro(w http.ResponseWriter, r *http.Request) {
 			fail(w, http.StatusBadRequest, err.Error())
 			return
 		}
+	} else if v := strings.TrimSpace(s.config().EffectiveRetroSessionGap()); v != "" {
+		d, gerr := retro.ParseSessionGap(v)
+		if gerr != nil {
+			fail(w, http.StatusBadRequest, fmt.Sprintf("config retro.sessionGap: %v", gerr))
+			return
+		}
+		sessionGap = d
 	}
 	// ReadOnly() is the store's own read-only accessor: mode=ro handle with
 	// local.db attached, the same view `gadak retro` computes against, so

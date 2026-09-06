@@ -31,6 +31,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/retro"
 )
 
@@ -169,5 +170,54 @@ func TestRetroEndpoint(t *testing.T) {
 	}
 	if !strings.Contains(told.Definitions["sessions"], "exceeds 45m") {
 		t.Fatalf("session_gap=45m definitions[sessions]: %q", told.Definitions["sessions"])
+	}
+}
+
+// The session gap's config default (retro.sessionGap) — contract ↔
+// assertion (FAIL-first: before the handler read the config, an absent
+// session_gap parameter always computed with 30m, so the 45m row failed):
+// absent parameter + retro.sessionGap=45m → footer 45m; an explicit
+// session_gap parameter still beats the config; a bad stored value is a
+// 400 naming the config key.
+func TestRetroEndpointSessionGapConfigDefault(t *testing.T) {
+	db, cfg := fixture(t)
+	cfg.Retro = &config.RetroConfig{SessionGap: "45m"}
+	h := New(db, cfg)
+
+	rec := get(t, h, apiBase+"retro/", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("config gap: %d %s", rec.Code, rec.Body.String())
+	}
+	var doc struct {
+		Definitions map[string]string `json:"definitions"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &doc); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if !strings.Contains(doc.Definitions["sessions"], "exceeds 45m") {
+		t.Fatalf("config sessionGap=45m must reach the footer: %q", doc.Definitions["sessions"])
+	}
+
+	// The parameter still beats the config.
+	rec = get(t, h, apiBase+"retro/?session_gap=15m", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("session_gap=15m: %d %s", rec.Code, rec.Body.String())
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &doc); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if !strings.Contains(doc.Definitions["sessions"], "exceeds 15m") {
+		t.Fatalf("parameter must beat the config: %q", doc.Definitions["sessions"])
+	}
+
+	// A bad stored value is a 400 that names the config key.
+	cfg.Retro = &config.RetroConfig{SessionGap: "banana"}
+	h = New(db, cfg)
+	rec = get(t, h, apiBase+"retro/", nil)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("bad stored gap: %d %s", rec.Code, rec.Body.String())
+	}
+	if body := rec.Body.String(); !strings.Contains(body, "retro.sessionGap") {
+		t.Fatalf("400 must name the config key: %s", body)
 	}
 }

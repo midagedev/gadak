@@ -225,6 +225,10 @@ type Config struct {
 	// which config cannot import without a cycle).
 	Memory *MemoryConfig `json:"memory,omitempty"`
 
+	// Retro is the retrospective tunables block (the --session-gap flag's
+	// guide-based default, user-settable). Nil means every default.
+	Retro *RetroConfig `json:"retro,omitempty"`
+
 	// Confluence, when non-nil, enables the wiki-page mirror (second source).
 	// Spaces empty means every *global* space — not every space the account can
 	// see, which is what this comment used to claim and what a warning written
@@ -326,6 +330,32 @@ type MemoryConfig struct {
 type LinearConfig struct {
 	APIKey  string   `json:"apiKey,omitempty"`
 	TeamIDs []string `json:"teamIds,omitempty"`
+}
+
+// RetroConfig is the retrospective tunables block. SessionGap is the
+// read-gap that splits person reads into sessions, as a Go duration string
+// ("45m"); empty means the 30m default. The parser and its bounds have one
+// owner, retro.ParseSessionGap — every read path parses this value through
+// it, so a stored value this package admitted still cannot split wrongly.
+type RetroConfig struct {
+	SessionGap string `json:"sessionGap,omitempty"`
+}
+
+// DefaultRetroSessionGap is what an unset retro.sessionGap means. The CLI
+// flag's fallback and the server endpoint's absent-parameter default both
+// read EffectiveRetroSessionGap, so this string is the default's only home.
+const DefaultRetroSessionGap = "30m"
+
+// EffectiveRetroSessionGap is the session-split gap retro runs with when
+// nothing more specific was asked. Nil-safe.
+func (c *Config) EffectiveRetroSessionGap() string {
+	if c == nil || c.Retro == nil {
+		return DefaultRetroSessionGap
+	}
+	if v := strings.TrimSpace(c.Retro.SessionGap); v != "" {
+		return v
+	}
+	return DefaultRetroSessionGap
 }
 
 // FieldSpec is one logical custom field. Jira creates a separate field id per

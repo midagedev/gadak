@@ -86,6 +86,8 @@ func TestSettingsCatalogHasRequiredPaths(t *testing.T) {
 		"notify",
 		"updateCheck",
 		"devStatus",
+		"actor.trailer",
+		"retro.sessionGap",
 	} {
 		if !paths[want] {
 			t.Errorf("catalog missing %q", want)
@@ -434,5 +436,111 @@ func TestApplyTerminalDisplayKeepsShellAndDir(t *testing.T) {
 	}
 	if c.Terminal != nil {
 		t.Fatalf("all-default block must store nil, got %+v", c.Terminal)
+	}
+}
+
+// actor.trailer — contract ↔ assertion (FAIL-first: before the key existed
+// SettingByPath missed and both the default-get and the set failed):
+// default true; false stores on a block that may not exist yet (the actor
+// itself can come from env/auto-detect — empty slug is legal there); true
+// back drops an otherwise-empty block instead of persisting {}.
+func TestSettingGetSetActorTrailer(t *testing.T) {
+	s, ok := SettingByPath("actor.trailer")
+	if !ok {
+		t.Fatal("actor.trailer not in the settings catalog")
+	}
+	if !strings.Contains(s.Description, "via gadak") || !strings.Contains(s.Description, "default true") {
+		t.Errorf("description must name the trailer line and the default: %q", s.Description)
+	}
+	c := &Config{}
+	if got := s.Get(c); got != true {
+		t.Fatalf("default get = %#v, want true", got)
+	}
+	if err := s.Set(c, json.RawMessage(`false`)); err != nil {
+		t.Fatal(err)
+	}
+	if c.Actor == nil || c.Actor.Trailer == nil || *c.Actor.Trailer != false {
+		t.Fatalf("stored %+v", c.Actor)
+	}
+	if got := s.Get(c); got != false {
+		t.Fatalf("get after set = %#v", got)
+	}
+	// A slug set beside it survives a trailer flip (the slug goes through
+	// the actor root path, the switch through this leaf).
+	root, ok := SettingByPath("actor")
+	if !ok {
+		t.Fatal("actor not in the settings catalog")
+	}
+	if err := root.Set(c, json.RawMessage(`"claude:354bff2b|Claude Code"`)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Set(c, json.RawMessage(`false`)); err != nil {
+		t.Fatal(err)
+	}
+	if c.Actor.Slug != "claude:354bff2b" {
+		t.Fatalf("trailer flip dropped the slug: %+v", c.Actor)
+	}
+	// Back to true: with the slug present the block stays; the switch is nil.
+	if err := s.Set(c, json.RawMessage(`true`)); err != nil {
+		t.Fatal(err)
+	}
+	if c.Actor == nil || c.Actor.Trailer != nil || c.Actor.Slug != "claude:354bff2b" {
+		t.Fatalf("true must clear the switch, not the block: %+v", c.Actor)
+	}
+	// And on a block that only ever held the switch, true drops it entirely.
+	c = &Config{}
+	if err := s.Set(c, json.RawMessage(`false`)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Set(c, json.RawMessage(`true`)); err != nil {
+		t.Fatal(err)
+	}
+	if c.Actor != nil {
+		t.Fatalf("all-zero block must store nil, got %+v", c.Actor)
+	}
+}
+
+// retro.sessionGap — contract ↔ assertion (FAIL-first: before the key
+// existed the default-get failed and the 45m set errored as unknown path):
+// default 30m; 45m stores; storing the default drops the block; the same
+// bounds as retro.ParseSessionGap reject outside 5m..24h, naming them.
+func TestSettingGetSetRetroSessionGap(t *testing.T) {
+	s, ok := SettingByPath("retro.sessionGap")
+	if !ok {
+		t.Fatal("retro.sessionGap not in the settings catalog")
+	}
+	if !strings.Contains(s.Description, "5m to 24h") || !strings.Contains(s.Description, "30m") {
+		t.Errorf("description must name the bounds and the default: %q", s.Description)
+	}
+	c := &Config{}
+	if got := s.Get(c); got != "30m" {
+		t.Fatalf("default get = %#v, want 30m", got)
+	}
+	if err := s.Set(c, json.RawMessage(`"45m"`)); err != nil {
+		t.Fatal(err)
+	}
+	if c.Retro == nil || c.Retro.SessionGap != "45m" {
+		t.Fatalf("stored %+v", c.Retro)
+	}
+	if got := s.Get(c); got != "45m" {
+		t.Fatalf("get after set = %#v", got)
+	}
+	if got := c.EffectiveRetroSessionGap(); got != "45m" {
+		t.Fatalf("effective = %q", got)
+	}
+	if err := s.Set(c, json.RawMessage(`"30m"`)); err != nil {
+		t.Fatal(err)
+	}
+	if c.Retro != nil {
+		t.Fatalf("the default must store nil, got %+v", c.Retro)
+	}
+	for _, bad := range []string{`"1m"`, `"25h"`, `"banana"`, `"0"`} {
+		if err := s.Set(c, json.RawMessage(bad)); err == nil || !strings.Contains(err.Error(), "5m and 24h") {
+			t.Fatalf("bad value %s accepted: %v", bad, err)
+		}
+	}
+	// Nil config keeps the default (a failed config.Load reads as unset).
+	if got := (*Config)(nil).EffectiveRetroSessionGap(); got != "30m" {
+		t.Fatalf("nil config effective = %q", got)
 	}
 }

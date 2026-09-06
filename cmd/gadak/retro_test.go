@@ -682,3 +682,45 @@ func emptyMismatchWeek(t *testing.T) int {
 	t.Skip("every week in this fixture carries a mismatch; no empty cell to exercise")
 	return 0
 }
+
+// The session gap's config default (retro.sessionGap) — contract ↔
+// assertion (FAIL-first: before the config read existed the footer always
+// printed 30m with the flag unset, so the 45m row failed):
+//
+//	C9 unset flag + retro.sessionGap=45m → footer "exceeds 45m"
+//	   TestRetroSessionGapConfigDefault
+//	C10 --session-gap 15m beats the config's 45m  → TestRetroSessionGapConfigDefault
+//	C11 an invalid stored value is a usage error naming the config key
+//	   TestRetroSessionGapConfigDefault
+func TestRetroSessionGapConfigDefault(t *testing.T) {
+	sqlDemoHome(t)
+	cfg := &config.Config{Retro: &config.RetroConfig{SessionGap: "45m"}}
+	if err := cfg.Save(); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+
+	out := retroTable(t, []string{})
+	if !strings.Contains(out, "exceeds 45m") {
+		t.Fatalf("config sessionGap=45m must reach the footer:\n%s", out)
+	}
+
+	// The flag, when given, still wins.
+	out = retroTable(t, []string{"--session-gap", "15m"})
+	if !strings.Contains(out, "exceeds 15m") {
+		t.Fatalf("--session-gap 15m must beat the config:\n%s", out)
+	}
+	if strings.Contains(out, "exceeds 45m") {
+		t.Fatalf("config value leaked past an explicit flag:\n%s", out)
+	}
+
+	// A bad stored value is refused with the config key named, not blamed
+	// on the flag the user never passed.
+	cfg.Retro = &config.RetroConfig{SessionGap: "banana"}
+	if err := cfg.Save(); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+	_, err := capture(t, func() error { return cmdRetro([]string{}) })
+	if err == nil || !strings.Contains(err.Error(), "retro.sessionGap") {
+		t.Fatalf("bad stored gap must error naming the config key: %v", err)
+	}
+}

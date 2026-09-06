@@ -3391,3 +3391,28 @@ func TestCreateIssueReportsOrigin(t *testing.T) {
 		t.Fatalf("origin = %v, want jira; body %s", got, rec.Body.String())
 	}
 }
+
+// The web write path never carries the actor trailer — contract ↔
+// assertion. A serve launched from a Claude Code shell auto-detects an
+// actor (CLAUDECODE=1 / GADAK_ACTOR here), and the browser's human writes
+// must not be stamped: the person is the author, the trailer would say
+// otherwise. FAIL-first: this test is green today precisely because
+// writerFor calls origin.WriterFor directly — route the server through
+// origin.WithActorTrailer and the "via gadak" row below fails.
+func TestWebCommentCarriesNoActorTrailer(t *testing.T) {
+	f, h, _ := writable(t)
+	t.Setenv("GADAK_ACTOR", "claude:test|Claude Test")
+	t.Setenv("CLAUDECODE", "1")
+
+	rec := send(t, h, http.MethodPost, apiBase+"NMB-1/comment/", `{"text":"a person wrote this"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	sent := string(f.bodies["POST /issue/NMB-1/comment"])
+	if strings.Contains(sent, "via gadak") {
+		t.Fatalf("web comment was stamped with the actor trailer: %s", sent)
+	}
+	if !strings.Contains(sent, "a person wrote this") {
+		t.Fatalf("comment text missing: %s", sent)
+	}
+}

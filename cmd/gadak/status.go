@@ -187,7 +187,14 @@ func cmdStatus(args []string) error {
 		if actor.Name != "" && actor.Name != actor.Slug {
 			line += " — " + actor.Name
 		}
-		fmt.Printf("%-18s %s (%s)\n", "actor", line, actor.Source)
+		// The actor.trailer switch beside the identity, so a person can see
+		// whether Jira/Linear writes will carry the attribution line (the
+		// built-in origin records the actor as the author instead).
+		trailer := "off"
+		if cfg.ActorTrailerEnabled() {
+			trailer = "on"
+		}
+		fmt.Printf("%-18s %s (%s) · trailer %s\n", "actor", line, actor.Source, trailer)
 	}
 	if loc, ok := st["locale"].(string); ok {
 		fmt.Printf("%-18s %s\n", "locale", loc)

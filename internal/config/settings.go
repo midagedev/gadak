@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/midagedev/gadak/internal/config/tokencheck"
 )
@@ -74,6 +75,35 @@ func ValidateMemorySpace(s string) (string, error) {
 		return "", fmt.Errorf("memory.space must be one space key (got %q)", s)
 	}
 	return s, nil
+}
+
+// The retro session-gap bounds mirror retro.MinSessionGap / MaxSessionGap.
+// config cannot import internal/retro (retro imports config — a cycle), so
+// the pair is restated here for the set-time check only; every read path
+// parses the stored value through retro.ParseSessionGap, the bounds' one
+// owner, so a drift between the two can only ever change when a mistake is
+// caught, never how a session splits.
+const (
+	minRetroSessionGap = 5 * time.Minute
+	maxRetroSessionGap = 24 * time.Hour
+)
+
+// ValidateRetroSessionGap accepts empty (unset: the 30m default), or a Go
+// duration between 5m and 24h — retro.ParseSessionGap's range. The default
+// value itself stores as empty so an untouched config persists no block.
+func ValidateRetroSessionGap(s string) (string, error) {
+	raw := strings.TrimSpace(s)
+	if raw == "" {
+		return "", nil
+	}
+	d, err := time.ParseDuration(raw)
+	if err != nil || d < minRetroSessionGap || d > maxRetroSessionGap {
+		return "", fmt.Errorf("retro.sessionGap wants a Go duration between 5m and 24h (for example 30m, 1h30m), got %q", raw)
+	}
+	if d == 30*time.Minute {
+		return "", nil // the default is not persisted
+	}
+	return raw, nil
 }
 
 // projectKeyRe is the Jira Cloud project-key shape: 2–10 uppercase
@@ -748,6 +778,30 @@ func buildSettings() []Setting {
 				return nil
 			},
 		),
+		{
+			Path: "retro.sessionGap",
+			Root: "retro",
+			Description: "the read-gap that splits person reads into sessions for gadak retro and the " +
+				"retro endpoint: a Go duration, 5m to 24h (empty = 30m; the --session-gap flag and the " +
+				"session_gap parameter override it per run)",
+			Get: func(c *Config) any { return c.EffectiveRetroSessionGap() },
+			Set: func(c *Config, raw json.RawMessage) error {
+				s, err := decodeString(raw, "retro.sessionGap")
+				if err != nil {
+					return err
+				}
+				v, err := ValidateRetroSessionGap(s)
+				if err != nil {
+					return err
+				}
+				if v == "" {
+					c.Retro = nil
+					return nil
+				}
+				c.Retro = &RetroConfig{SessionGap: v}
+				return nil
+			},
+		},
 		boolDefaultTrue("notify", "notify",
 			"OS desktop notifications from the watch loop (default true)",
 			func(c *Config) bool { return c.NotifyEnabled() },
@@ -816,7 +870,45 @@ func buildSettings() []Setting {
 				if err != nil {
 					return err
 				}
+				if v == nil {
+					c.Actor = nil
+					return nil
+				}
+				// The whole-block set replaces, but a trailer the same object
+				// carried must survive it — dropping it here would silently
+				// flip the attribution line back on. The shorthand form never
+				// carries one.
+				v.Trailer = in.Trailer
 				c.Actor = v
+				return nil
+			},
+		},
+		{
+			Path: "actor.trailer",
+			Root: "actor",
+			Description: "stamp agent-authored comments and new issues on a Jira or Linear origin with " +
+				"\"— via gadak · <actor>\" (the built-in origin records the actor as the author instead; default true)",
+			Get: func(c *Config) any { return c.ActorTrailerEnabled() },
+			Set: func(c *Config, raw json.RawMessage) error {
+				b, err := decodeBool(raw, "actor.trailer")
+				if err != nil {
+					return err
+				}
+				next := c.actorOrZero()
+				if b {
+					next.Trailer = nil
+				} else {
+					f := false
+					next.Trailer = &f
+				}
+				// The block may exist for the switch alone (the actor itself can
+				// come from GADAK_ACTOR or auto-detection); an all-zero result
+				// stores nothing, same as every default-valued leaf here.
+				if next == (ActorConfig{}) {
+					c.Actor = nil
+					return nil
+				}
+				c.Actor = &next
 				return nil
 			},
 		},
