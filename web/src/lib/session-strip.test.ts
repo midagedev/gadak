@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { en, ja, ko } from './i18n/catalog'
-import { changedSince, stripLabel, viewKeys } from './session-strip'
+import { SESSION_GAP_MS, changedSince, relatchBoundary, stripLabel, viewKeys } from './session-strip'
 import { KEYS_CAP } from './view-config'
 import type { IssueLite } from './types'
 
@@ -170,5 +170,34 @@ describe('stripLabel', () => {
       expect(tokens(ko[key]).join('\0'), `ko.${key}`).toBe(tokens(en[key]).join('\0'))
       expect(tokens(ja[key]).join('\0'), `ja.${key}`).toBe(tokens(en[key]).join('\0'))
     }
+  })
+})
+
+describe('relatchBoundary — a hidden tab comes back to a new session (research F #24)', () => {
+  /*
+   * FAIL-first: the pre-change component had no re-latch at all — a tab
+   * hidden overnight never spoke again while `gadak retro` counted two
+   * sessions. The pure rule: hidden longer than the session gap → the
+   * boundary is the moment it went hidden; shorter → null; never hidden →
+   * null. The gap mirrors internal/retro SessionGap (30m).
+   */
+  const hidden = Date.parse('2026-09-07T00:00:00.000Z')
+
+  test('the gap is the retro session gap, 30 minutes', () => {
+    expect(SESSION_GAP_MS).toBe(30 * 60 * 1000)
+  })
+
+  test('longer than the gap → the hidden moment, as ISO', () => {
+    expect(relatchBoundary(hidden, hidden + SESSION_GAP_MS + 1)).toBe('2026-09-07T00:00:00.000Z')
+  })
+
+  test('at or under the gap → null (same session, nothing to re-say)', () => {
+    expect(relatchBoundary(hidden, hidden + SESSION_GAP_MS)).toBeNull()
+    expect(relatchBoundary(hidden, hidden + 60_000)).toBeNull()
+  })
+
+  test('never hidden, or an unusable stamp → null', () => {
+    expect(relatchBoundary(null, hidden)).toBeNull()
+    expect(relatchBoundary(Number.NaN, hidden)).toBeNull()
   })
 })

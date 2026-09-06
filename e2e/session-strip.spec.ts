@@ -28,6 +28,11 @@ const SHOT = join(SHOT_DIR, 'session-strip.png')
  *      issues — the click applies a keys view and nothing else — and the
  *      strip is gone for the tab's life.
  *   G7 (a) asserts the hover title is non-empty (the absolute boundary time).
+ *   RL (e) re-latch (research F #24, 2026-09-07): a tab hidden longer than
+ *      the session gap comes back to a new session — the strip speaks once
+ *      more, about what changed while it was hidden. FAIL-first: the
+ *      pre-change component had no visibilitychange listener; (e) timed out
+ *      waiting for a strip that never appeared.
  *
  * FAIL-first: against the pre-round tree (no SessionStrip mount in ListView)
  * case (a) fails at its first assertion — getByTestId('session-strip') never
@@ -158,6 +163,66 @@ test.describe('session strip', () => {
 
     await expect(page.getByTestId('list-count')).toBeVisible()
     await expect(page.getByTestId('session-strip')).toHaveCount(0)
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  test('(e) hidden longer than the session gap, the strip re-latches on return', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    // No boundary at load — the strip is absent, as in (b).
+    const served = await mockLastSession(page, (boot) => {
+      const { last_session_ended_at: _l, ...rest } = boot
+      return rest
+    })
+    // Delta passthrough with one injected change once armed: an issue whose
+    // updated_at moved to "now" — what arrives while a tab is hidden. The
+    // real server still answers; only the upserted list and server_time are
+    // touched, and only for the one poll that follows the return.
+    let inject: IssueRow | null = null
+    await page.route(
+      (url) => url.pathname.includes('/delta/'),
+      async (route) => {
+        const response = await route.fetch()
+        const body = (await response.json()) as { server_time: string; upserted?: IssueRow[] } & Record<
+          string,
+          unknown
+        >
+        if (inject) {
+          body.upserted = [...(body.upserted ?? []), inject]
+          body.server_time = new Date().toISOString()
+          inject = null
+        }
+        await route.fulfill({ response, json: body })
+      },
+    )
+    await gotoApp(page)
+    await expect(page.getByTestId('list-count')).toBeVisible()
+    await expect(page.getByTestId('session-strip')).toHaveCount(0)
+
+    // Hide the tab. visibilityState is a getter on Document.prototype; an own
+    // property on the instance shadows it, and the component reads it on the
+    // event itself.
+    await page.evaluate(() => {
+      Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' })
+      document.dispatchEvent(new Event('visibilitychange'))
+    })
+    // Overnight: the page's clock jumps past the session gap (30m).
+    await page.evaluate((ms) => {
+      const real = Date.now
+      Date.now = () => real() + ms
+    }, 31 * 60 * 1000)
+    // Something changed while hidden — stamped after the hidden moment.
+    const victim = (served().issues ?? [])[0]
+    expect(victim, 'fixture must have an issue to change').toBeTruthy()
+    inject = { ...victim, updated_at: new Date(Date.now() + 60_000).toISOString() }
+
+    await page.evaluate(() => {
+      Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' })
+      document.dispatchEvent(new Event('visibilitychange'))
+    })
+
+    const strip = page.getByTestId('session-strip')
+    await expect(strip).toBeVisible()
+    await expect(strip).toContainText('1 issue changed')
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 

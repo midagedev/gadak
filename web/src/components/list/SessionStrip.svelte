@@ -1,5 +1,6 @@
 <script module>
-  import type { SessionDelta } from '../../lib/session-strip'
+  import { relatchBoundary, type SessionDelta } from '../../lib/session-strip'
+  import { issues } from '../../stores/issues.svelte'
 
   /*
    * Session strip ([list]) — tab-scoped state. The strip speaks once, at the
@@ -12,6 +13,34 @@
   let snapshot: { since: string; delta: SessionDelta | null } | null = $state(null)
   let dismissed = $state(false)
   let computed = false
+
+  /*
+   * Re-latch (research F #24, 2026-09-07): a tab hidden longer than the
+   * session gap comes back to a NEW session, so the latch opens once more —
+   * the boundary is the moment the tab went hidden (the previous session's
+   * last read), and the snapshot waits for the refresh the return triggers
+   * (lastSync moves) so changes that landed while hidden are in the pool.
+   * Still one utterance per real session; a short hide is the same session
+   * and re-says nothing.
+   */
+  let relatch: { since: string; lastSync: string } | null = $state(null)
+  let hiddenAt: number | null = null
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') {
+        hiddenAt = Date.now()
+        return
+      }
+      const since = relatchBoundary(hiddenAt, Date.now())
+      hiddenAt = null
+      if (!since) return
+      relatch = { since, lastSync: issues.lastSync }
+      snapshot = null
+      dismissed = false
+      computed = false
+      void issues.refresh()
+    })
+  }
 </script>
 
 <script lang="ts">
@@ -34,7 +63,6 @@
   import { changedSince, stripLabel, viewKeys } from '../../lib/session-strip'
   import { emptyConfig } from '../../lib/view-config'
   import { filters } from '../../stores/filters.svelte'
-  import { issues } from '../../stores/issues.svelte'
   import { me } from '../../stores/me.svelte'
 
   // Wait for the boundary and the identity in one order-independent pass:
@@ -44,8 +72,11 @@
   // ever recomputing.
   $effect(() => {
     if (computed) return
-    const since = issues.lastSessionEndedAt
+    const since = relatch?.since ?? issues.lastSessionEndedAt
     if (!since || !me.authChecked) return
+    // After a re-latch, wait for the return's refresh to land — the pool at
+    // the moment of return may predate what changed while the tab was hidden.
+    if (relatch && issues.lastSync === relatch.lastSync) return
     computed = true
     snapshot = {
       since,

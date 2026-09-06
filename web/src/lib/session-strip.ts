@@ -24,6 +24,30 @@ import { assignedTo, type PersonRef } from './person-match'
 import type { IssueLite } from './types'
 import { normalizeKeys } from './view-config'
 
+/** The session gap, mirroring internal/retro SessionGap (30m) — one session
+ *  rule on both sides. A tab hidden longer than this comes back to a new
+ *  session (research F #24, 2026-09-07). */
+export const SESSION_GAP_MS = 30 * 60 * 1000
+
+/**
+ * Re-latch (2026-09-07): a tab left open overnight never spoke again, while
+ * `gadak retro` correctly counted two sessions. When the tab was hidden at
+ * `hiddenAtMs` and is visible again at `nowMs`, the boundary of the new
+ * session is the moment it went hidden — the last read of the previous one —
+ * but only when the gap exceeded the session gap; otherwise null (the same
+ * session, nothing to re-say). Still one utterance per real session: the
+ * component recomputes its snapshot once on this boundary and latches again.
+ */
+export function relatchBoundary(
+  hiddenAtMs: number | null,
+  nowMs: number,
+  gapMs = SESSION_GAP_MS,
+): string | null {
+  if (hiddenAtMs === null || !Number.isFinite(hiddenAtMs)) return null
+  if (nowMs - hiddenAtMs <= gapMs) return null
+  return new Date(hiddenAtMs).toISOString()
+}
+
 /** The strip's frozen answer: which issues changed and how many are mine. */
 export interface SessionDelta {
   /** Changed issue keys in pool order. Uncapped — the label counts every
