@@ -405,6 +405,13 @@ export const list = {
     ko: '이 상태로 {n}일째',
     ja: 'このステータスで {n}日',
   },
+  // Hover title when the threshold was learned, not set — the row names its
+  // rule (G7): what the 85% line is and where it came from.
+  'list.staleDaysLearned': {
+    en: '{n} days in this status — longer than 85% of issues finished in the last 90 days ({p} days)',
+    ko: '이 상태로 {n}일째 — 최근 90일간 완료된 이슈의 85%보다 깁니다 ({p}일)',
+    ja: 'このステータスで {n}日 — 直近90日に完了した課題の85%より長くかかっています ({p}日)',
+  },
   'list.staleDaysShort': {
     en: '{n}d',
     ko: '{n}일',

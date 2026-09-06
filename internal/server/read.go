@@ -123,6 +123,10 @@ type bootstrapResponse struct {
 	LatestVersion string `json:"latest_version,omitempty"`
 	ReleaseURL    string `json:"release_url,omitempty"`
 	ReleaseNotes  string `json:"release_notes,omitempty"`
+	// Flow is the learned stale threshold (flowFields). Absent when the
+	// workspace has no distribution to learn from, or when a threshold is
+	// set explicitly — the one precedence decision this server owns.
+	Flow *flowOut `json:"flow,omitempty"`
 }
 
 type deltaResponse struct {
@@ -142,6 +146,9 @@ type deltaResponse struct {
 	LatestVersion string `json:"latest_version,omitempty"`
 	ReleaseURL    string `json:"release_url,omitempty"`
 	ReleaseNotes  string `json:"release_notes,omitempty"`
+	// Flow rides the delta for the same reason the specs do: the threshold
+	// moves with the workspace, not with the tab's birth.
+	Flow *flowOut `json:"flow,omitempty"`
 }
 
 /* ── bootstrap / delta ── */
@@ -180,6 +187,7 @@ func (s *server) handleBootstrap(w http.ResponseWriter, r *http.Request) {
 		LatestVersion:  latest,
 		ReleaseURL:     releaseURL,
 		ReleaseNotes:   releaseNotes,
+		Flow:           s.flowFields(r.Context()),
 	})
 }
 
@@ -203,6 +211,37 @@ func (s *server) fieldSpecsOut() []fieldSpecOut {
 		out = append(out, fieldSpecOut{Alias: sp.Alias, Label: label, Role: role, Kind: sp.Kind})
 	}
 	return out
+}
+
+// flowOut is the learned stale threshold: the p85 cycle time of the issues
+// finished in the last 90 days. Absent unless the mirror has
+// store.CycleP85MinSamples finished issues AND staleThresholdHours is unset.
+//
+// The unset check is the point: webConfig (settings.go) normalizes an unset
+// threshold to 72 on the wire and loadConfig spreads the same default, so the
+// client cannot tell unset from an explicit 72 — this fill, which reads the
+// raw config, is the single owner of that precedence. A store error is logged
+// and leaves the block absent; flow is an enrichment and never fails the
+// bootstrap or delta it rides on.
+type flowOut struct {
+	CycleP85Hours float64 `json:"cycle_p85_hours"`
+	Samples       int     `json:"samples"`
+}
+
+// flowFields computes the flow block for bootstrap/delta. nil means absent.
+func (s *server) flowFields(ctx context.Context) *flowOut {
+	if s.config().StaleThresholdHours > 0 {
+		return nil
+	}
+	p85, samples, err := s.db.CycleTimeP85Hours(ctx, time.Now().Add(-90*24*time.Hour))
+	if err != nil {
+		log.Printf("server: flow cycle p85: %v", err)
+		return nil
+	}
+	if samples < store.CycleP85MinSamples {
+		return nil
+	}
+	return &flowOut{CycleP85Hours: p85, Samples: samples}
 }
 
 // fieldUsageOut is project → alias → filled from the field_usage table. Never
@@ -258,6 +297,7 @@ func (s *server) handleDelta(w http.ResponseWriter, r *http.Request) {
 		LatestVersion:  latest,
 		ReleaseURL:     releaseURL,
 		ReleaseNotes:   releaseNotes,
+		Flow:           s.flowFields(r.Context()),
 	}
 	// members ride along only when the client's hash is stale.
 	if r.URL.Query().Get("mv") != view.membersVersion {

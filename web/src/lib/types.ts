@@ -405,6 +405,15 @@ export interface FieldSpec {
   kind?: string
 }
 
+/** Learned flow (the stale threshold's evidence): p85 cycle time of issues
+ *  finished in the last 90 days, with the sample count that vouches for it.
+ *  The server sends it only when no threshold is set and the mirror has at
+ *  least ten finished issues; older servers omit it. */
+export interface FlowSummary {
+  cycle_p85_hours: number
+  samples: number
+}
+
 export interface BootstrapResponse {
   server_time: string
   sync_version: number
@@ -422,6 +431,9 @@ export interface BootstrapResponse {
   release_url?: string
   /** GitHub release body. Absent or empty → banner stays a link, no dialog. */
   release_notes?: string
+  /** Learned stale threshold; absent when unset-setting precedence leaves
+   *  nothing to learn (see FlowSummary). Older servers omit. */
+  flow?: FlowSummary
 }
 
 /** GET `delta/?since=&mv=` response. */
@@ -441,6 +453,9 @@ export interface DeltaResponse {
   release_url?: string
   /** GitHub release body. Absent or empty → banner stays a link, no dialog. */
   release_notes?: string
+  /** Same learned flow as bootstrap — the threshold moves with the
+   *  workspace, not with the tab's birth. Absent clears a carried value. */
+  flow?: FlowSummary
 }
 
 /** Which column of the full-text index a hit came from, and the text around it.

@@ -14,13 +14,14 @@
  */
 
 import { SvelteMap } from 'svelte/reactivity'
-import type { FieldSpec, IssueLite, Member, SyncHealth, SyncSourceHealth } from '../lib/types'
+import type { FieldSpec, FlowSummary, IssueLite, Member, SyncHealth, SyncSourceHealth } from '../lib/types'
 import * as api from '../lib/api'
 import * as db from '../lib/db'
 import { applyCacheScopeDebug, isHostedDemo } from '../lib/config'
 import { invalidate, invalidateAll } from '../lib/detail-cache.svelte'
 import { reachability } from '../lib/reachability.svelte'
 import { externalMoves, movedExternally } from '../lib/board-moves.svelte'
+import { setStaleFlowSource } from '../lib/view-config'
 import type { CacheMeta } from '../lib/types'
 
 const POLL_MS = 15_000
@@ -62,6 +63,10 @@ class IssuesStore {
   lastSync = $state('')
   /** Per-source (Jira/Qase/members) server health. Cached so first paint can show it. */
   syncHealth = $state<SyncHealth | null>(null)
+  /** Learned stale threshold (bootstrap/delta flow). In-memory only — the
+   *  72h default covers first paint after a reload until bootstrap lands.
+   *  Absent on the wire clears it: the workspace lost its distribution. */
+  flow = $state<FlowSummary | null>(null)
   /** Discovered custom fields (bootstrap field_specs). Drives detail rows and filter axes. */
   fieldSpecs = $state<FieldSpec[]>([])
   /** project → alias → filled count. Which fields a board actually uses. */
@@ -259,6 +264,7 @@ class IssuesStore {
     this.#membersVersion = data.members_version ?? ''
     this.#etag = etag ?? `"in-${data.sync_version}"`
     this.syncHealth = data.sync_health
+    this.flow = data.flow ?? null
     this.fieldSpecs = data.field_specs ?? []
     this.fieldUsage = data.field_usage ?? {}
     this.latestVersion = data.latest_version ?? ''
@@ -283,6 +289,10 @@ class IssuesStore {
     // Same omitempty contract as bootstrap: absent means no newer release.
     this.latestVersion = delta.latest_version ?? ''
     this.releaseUrl = delta.release_url ?? ''
+    // Same for flow — absent clears a carried value, so a threshold that
+    // stopped being learnable (setting set, samples thinned) reverts within
+    // one poll.
+    this.flow = delta.flow ?? null
     await this.applyDelta(
       delta.upserted,
       delta.deleted_keys,
@@ -513,3 +523,10 @@ class IssuesStore {
 
 /** App-wide singleton. Import anywhere: `import { issues } from '../stores/issues.svelte'`. */
 export const issues = new IssuesStore()
+
+// view-config owns the effective stale threshold but must stay runes-free
+// (the vitest unit project imports it without the svelte plugin), so it
+// reads the learned flow through this registration rather than an import.
+// Reading the $state proxy inside the closure is tracked like a direct
+// read — stale marks and band ratios re-derive when a delta moves flow.
+setStaleFlowSource(() => issues.flow)

@@ -165,7 +165,14 @@
 
   <label class="flex max-w-[200px] flex-col gap-1">
     <span class="text-micro text-text-secondary">{t('settings.staleHours')}</span>
-    <input class={INPUT} type="text" inputmode="numeric" min="1" bind:value={draft.staleText} />
+    <input
+      class={INPUT}
+      type="text"
+      inputmode="numeric"
+      min="1"
+      placeholder={t('settings.staleLearnedPlaceholder')}
+      bind:value={draft.staleText}
+    />
     <span class="text-micro text-text-muted">
       {t('settings.staleHint')}
     </span>

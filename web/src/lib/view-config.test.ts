@@ -1,10 +1,10 @@
 import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { describe, expect, test } from 'vitest'
+import { afterEach, describe, expect, test, vi } from 'vitest'
 import { en } from './i18n/en'
 import { ko } from './i18n/ko'
-import type { IssueLite } from './types'
+import type { FlowSummary, IssueLite } from './types'
 import {
   KEYS_CAP,
   configToParams,
@@ -14,6 +14,7 @@ import {
   emptyConfig,
   filterFields,
   isReopen,
+  isStale,
   matchesIdFirst,
   missingStatusCategorySeen,
   MULTI_FIELDS,
@@ -23,8 +24,24 @@ import {
   parseConfig,
   parseView,
   prioritySortRank,
+  setStaleFlowSource,
+  staleThresholdHoursEffective,
+  staleThresholdLearned,
   type ViewConfig,
 } from './view-config'
+
+// staleThresholdHours holder for the learned-threshold tests below. The mock
+// keeps every other config value real and defaults to the true DEFAULTS value
+// (72), so the rest of this file sees unmocked behaviour. config.ts exposes
+// no setter — `current` is module-private — so this is the only handle.
+const staleSetting = vi.hoisted(() => ({ hours: 72 }))
+vi.mock('./config', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./config')>()
+  return {
+    ...actual,
+    config: () => ({ ...actual.config(), staleThresholdHours: staleSetting.hours }),
+  }
+})
 
 /*
  * GDK-35 contract coverage (clause → assertion names):
@@ -595,5 +612,127 @@ describe('actor axis (GDK-590)', () => {
     // g=actor parses back; unknown axes still fall to the default.
     const parsed = parseConfig(new URLSearchParams('g=actor'))
     expect(parsed.display.group_by).toBe('actor')
+  })
+})
+
+/* ── Learned stale threshold (flow) ──
+ *
+ * Contract coverage (clause → assertion names):
+ *
+ *   C1/C2 precedence: valid flow → setting → 72
+ *     learned flow wins over a positive setting
+ *     no flow, DEFAULTS setting is 72
+ *     setting 48 with no flow is kept verbatim
+ *     flow below the sample minimum is ignored
+ *     flow at exactly the sample minimum is learned
+ *     flow with a non-positive cycle is ignored
+ *   C2 unset + no flow is byte-for-byte the old behaviour
+ *     no flow, DEFAULTS setting is 72 (same read path isStale always used)
+ *   isStale flips with the learned threshold, both directions
+ *     100h is fresh under a learned 400h, stale under 72
+ *     50h is stale under a learned 1h, fresh under 72
+ *     500h is stale under a learned 400h
+ *     done is never stale, learned or not
+ *
+ * The precedence direction (flow over setting) is the corrected half of the
+ * task spec: the client cannot distinguish an unset setting from an explicit
+ * 72 (webConfig normalizes unset → default on the wire), so the server —
+ * which reads the raw config — never sends flow alongside an explicit
+ * setting. A flow that arrives therefore implies "no setting". See the
+ * block comment in view-config.ts.
+ *
+ * FAIL-first: pre-change this block failed at import — none of
+ * staleThresholdHoursEffective / staleThresholdLearned / setStaleFlowSource
+ * were exported, and isStale read config().staleThresholdHours directly, so
+ * the flow cases asserted behaviour the module did not have.
+ */
+describe('learned stale threshold (flow)', () => {
+  const flow = (cycle_p85_hours: number, samples: number): FlowSummary => ({
+    cycle_p85_hours,
+    samples,
+  })
+  /** In-progress issue whose status_changed_at is `hours` old, stamped off
+   *  Date.now() so the arithmetic is exact without fake timers. */
+  const aged = (hours: number): IssueLite =>
+    ({
+      status: '어떤 상태든',
+      status_category: 'inprogress',
+      status_changed_at: new Date(Date.now() - hours * 3_600_000).toISOString(),
+    }) as IssueLite
+
+  afterEach(() => {
+    setStaleFlowSource(() => null)
+    staleSetting.hours = 72
+  })
+
+  test('learned flow wins over a positive setting', () => {
+    // The one case that cannot occur through a compliant server (it
+    // suppresses flow when a setting exists) — pinned anyway so the
+    // precedence the client owns is explicit, not accidental.
+    staleSetting.hours = 48
+    setStaleFlowSource(() => flow(400, 20))
+    expect(staleThresholdHoursEffective()).toBe(400)
+    expect(staleThresholdLearned()).toBe(true)
+  })
+
+  test('no flow, DEFAULTS setting is 72', () => {
+    setStaleFlowSource(() => null)
+    expect(staleThresholdHoursEffective()).toBe(72)
+    expect(staleThresholdLearned()).toBe(false)
+  })
+
+  test('setting 48 with no flow is kept verbatim', () => {
+    staleSetting.hours = 48
+    setStaleFlowSource(() => null)
+    expect(staleThresholdHoursEffective()).toBe(48)
+    expect(staleThresholdLearned()).toBe(false)
+  })
+
+  test('flow below the sample minimum is ignored', () => {
+    staleSetting.hours = 48
+    setStaleFlowSource(() => flow(400, 9))
+    expect(staleThresholdHoursEffective()).toBe(48)
+    expect(staleThresholdLearned()).toBe(false)
+  })
+
+  test('flow at exactly the sample minimum is learned', () => {
+    staleSetting.hours = 48
+    setStaleFlowSource(() => flow(400, 10))
+    expect(staleThresholdHoursEffective()).toBe(400)
+    expect(staleThresholdLearned()).toBe(true)
+  })
+
+  test('flow with a non-positive cycle is ignored', () => {
+    setStaleFlowSource(() => flow(0, 20))
+    expect(staleThresholdHoursEffective()).toBe(72)
+    setStaleFlowSource(() => flow(-3, 20))
+    expect(staleThresholdHoursEffective()).toBe(72)
+  })
+
+  test('100h is fresh under a learned 400h, stale under 72', () => {
+    setStaleFlowSource(() => flow(400, 20))
+    expect(isStale(aged(100))).toBe(false)
+    setStaleFlowSource(() => null)
+    expect(isStale(aged(100))).toBe(true)
+  })
+
+  test('50h is stale under a learned 1h, fresh under 72', () => {
+    setStaleFlowSource(() => flow(1, 20))
+    expect(isStale(aged(50))).toBe(true)
+    setStaleFlowSource(() => null)
+    expect(isStale(aged(50))).toBe(false)
+  })
+
+  test('500h is stale under a learned 400h', () => {
+    setStaleFlowSource(() => flow(400, 20))
+    expect(isStale(aged(500))).toBe(true)
+  })
+
+  test('done is never stale, learned or not', () => {
+    const done = { ...aged(500), status_category: 'done' } as IssueLite
+    setStaleFlowSource(() => flow(1, 20))
+    expect(isStale(done)).toBe(false)
+    setStaleFlowSource(() => null)
+    expect(isStale(done)).toBe(false)
   })
 })

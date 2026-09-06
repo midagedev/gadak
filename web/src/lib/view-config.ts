@@ -14,7 +14,7 @@
 
 import { config, feature, type GadakFeatures } from './config'
 import { columnLabel, type ColumnLabelKey } from './i18n'
-import type { DeployState, HistoryEntry, IssueLite } from './types'
+import type { DeployState, FlowSummary, HistoryEntry, IssueLite } from './types'
 
 /* ── Filter state ── */
 
@@ -935,10 +935,68 @@ export function statusAgeHours(issue: IssueLite): number {
   return Number.isFinite(t) ? Math.max(0, (Date.now() - t) / 3_600_000) : 0
 }
 
-/** Stale check: not done + hours in current status exceed config.staleThresholdHours. */
+/** Stale check: not done + hours in current status exceed the effective
+ * threshold (staleThresholdHoursEffective). */
 export function isStale(issue: IssueLite): boolean {
   if (effectiveCategory(issue) === 'done') return false
-  return statusAgeHours(issue) > config().staleThresholdHours
+  return statusAgeHours(issue) > staleThresholdHoursEffective()
+}
+
+/* ── learned stale threshold (flow) ──
+ *
+ * The effective threshold has exactly one owner, here. Precedence:
+ *   1. the workspace's learned flow — p85 cycle time, sent by the server
+ *      only when no threshold is set and ≥10 finished issues vouch for it;
+ *   2. the explicit staleThresholdHours setting;
+ *   3. 72 (config.ts DEFAULTS fills the same value for a missing field).
+ *
+ * The order of 1 and 2 is deliberate and rests on a server contract: the
+ * client cannot tell an unset setting from an explicit 72 (webConfig
+ * normalizes unset → default on the wire), so the server — which reads the
+ * raw config — suppresses flow whenever a threshold is explicitly set. A
+ * flow that arrives therefore implies "no setting"; a setting that is
+ * positive when no flow arrived is the operator's escape hatch (UX §4).
+ *
+ * The flow value reaches this module by registration, not import:
+ * view-config must stay importable from the runes-free vitest unit project,
+ * so the store (which is .svelte.ts) calls setStaleFlowSource at module
+ * scope. Reading the $state proxy inside the registered closure is tracked
+ * the same as a direct read — the derived values that call
+ * staleThresholdHoursEffective stay reactive.
+ */
+
+/** Reads the current learned flow, or null when there is none. */
+type StaleFlowSource = () => FlowSummary | null
+let staleFlowSource: StaleFlowSource = () => null
+/** Registers the flow source. The issues store calls this at module scope. */
+export function setStaleFlowSource(fn: StaleFlowSource): void {
+  staleFlowSource = fn
+}
+
+/** Mirrors store.CycleP85MinSamples — the same bar the server applies
+ *  before sending flow, re-checked here so a mocked or stale payload with a
+ *  thin sample cannot lower the threshold on its own. */
+const FLOW_MIN_SAMPLES = 10
+
+function effectiveStaleThreshold(): { hours: number; learned: boolean } {
+  const flow = staleFlowSource()
+  if (flow && flow.samples >= FLOW_MIN_SAMPLES && flow.cycle_p85_hours > 0) {
+    return { hours: flow.cycle_p85_hours, learned: true }
+  }
+  return { hours: config().staleThresholdHours, learned: false }
+}
+
+/** The stale threshold in force right now: the learned p85 when the
+ *  workspace has one, else the setting (whose default is 72). The single
+ *  owner — isStale and the band ratios both call this, never a second copy. */
+export function staleThresholdHoursEffective(): number {
+  return effectiveStaleThreshold().hours
+}
+
+/** Whether the effective threshold was learned from the workspace rather
+ *  than set or defaulted — the hover title names the rule only when true. */
+export function staleThresholdLearned(): boolean {
+  return effectiveStaleThreshold().learned
 }
 
 /** Whether any filter is active (for save-view button). Callers decide whether to exclude q. */

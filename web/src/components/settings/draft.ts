@@ -157,7 +157,11 @@ export function toDraft(s: GadakSettings, features: FeatureFlags = NO_FEATURES):
     confluenceConfigured: s.confluence !== undefined,
     confluenceOn: s.confluence !== undefined,
     spaces: [...(s.confluence?.spaces ?? [])],
-    staleText: String(s.staleThresholdHours ?? 72),
+    // 0/absent is "unset": the stale threshold is then learned from the
+    // workspace (p85 cycle time, bootstrap `flow`). The form shows it empty
+    // and saves it back as 0 — writing 72 here would pin the threshold and
+    // silently switch the learning off on the next unrelated save.
+    staleText: s.staleThresholdHours && s.staleThresholdHours > 0 ? String(s.staleThresholdHours) : '',
     qaDashboardUrl: s.qaDashboardUrl ?? '',
     features: { ...features, ...(s.features ?? {}) },
     syncPreset,
@@ -279,7 +283,7 @@ export function toSettings(d: SettingsDraft, projectsPickerReady: boolean): Gada
       enabled: d.confluenceOn || d.spaces.length > 0,
       spaces: d.confluenceOn || d.spaces.length > 0 ? [...d.spaces] : [],
     },
-    staleThresholdHours: Number.isFinite(hours) && hours > 0 ? hours : 72,
+    staleThresholdHours: Number.isFinite(hours) && hours > 0 ? hours : 0,
     syncIntervalSec: resolveInterval(d.syncPreset, d.syncCustomText),
     reconcileIntervalSec: resolveInterval(d.reconcilePreset, d.reconcileCustomText),
     qaDashboardUrl: d.qaDashboardUrl.trim(),

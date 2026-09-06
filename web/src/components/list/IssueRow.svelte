@@ -95,9 +95,13 @@
   import { calendarDay } from '../../lib/calendar'
   import Marks from '../ui/Marks.svelte'
   import { matchEvidence } from '../../lib/search-match'
-  import { config } from '../../lib/config'
   import { labelChipTint, typeChipTint } from '../../stores/ui-tokens.svelte'
-  import { isStale, statusAgeHours } from '../../lib/view-config'
+  import {
+    isStale,
+    staleThresholdHoursEffective,
+    staleThresholdLearned,
+    statusAgeHours,
+  } from '../../lib/view-config'
   import PriorityIcon from './PriorityIcon.svelte'
   import Avatar from './Avatar.svelte'
   import Icon from '../ui/Icon.svelte'
@@ -127,13 +131,14 @@
   const isFavorite = $derived(favorites.keys.has(issue.issue_key))
   const isWatching = $derived(watches.keys.has(issue.issue_key))
   // Stale (time in current status). Badge is day-based — floor at 1 so sub-day reads "day 1".
-  // Weight follows magnitude (multiples of the configured threshold). A single
-  // maximum-emphasis chip on every stale row warns about nothing.
+  // Weight follows magnitude (multiples of the effective threshold — learned
+  // or set, same ratios). A single maximum-emphasis chip on every stale row
+  // warns about nothing.
   const stale = $derived(isStale(issue))
   const staleDays = $derived(Math.max(1, Math.round(statusAgeHours(issue) / 24)))
   const staleBand = $derived.by((): 'quiet' | 'mid' | 'loud' | null => {
     if (!stale) return null
-    const threshold = config().staleThresholdHours
+    const threshold = staleThresholdHoursEffective()
     if (!(threshold > 0)) return 'loud'
     const ratio = statusAgeHours(issue) / threshold
     if (ratio <= 2) return 'quiet'
@@ -471,7 +476,12 @@
         <span
           class="flex flex-none items-center gap-1 px-0.5 text-micro tabular-nums {staleBandClass}"
           data-stale-band={staleBand}
-          title={t('list.staleDays', { n: staleDays })}
+          title={staleThresholdLearned()
+            ? t('list.staleDaysLearned', {
+                n: staleDays,
+                p: Math.max(1, Math.round(staleThresholdHoursEffective() / 24)),
+              })
+            : t('list.staleDays', { n: staleDays })}
         >
           <!-- The mark the string used to carry as an emoji. Same treatment as the
                reopen badge beside it: currentColor, so it stays inside the badge's
