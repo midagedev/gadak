@@ -434,6 +434,11 @@ export interface BootstrapResponse {
   /** Learned stale threshold; absent when unset-setting precedence leaves
    *  nothing to learn (see FlowSummary). Older servers omit. */
   flow?: FlowSummary
+  /** Where the previous session of person reads ended (server LastSessionEnd,
+   *  gap 30m) — the session strip's boundary. Bootstrap only: delta never
+   *  carries it, because the boundary is the tab's birth. Absent when there
+   *  is no previous session. Older servers omit. */
+  last_session_ended_at?: string
 }
 
 /** GET `delta/?since=&mv=` response. */

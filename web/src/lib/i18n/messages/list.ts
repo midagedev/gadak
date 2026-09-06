@@ -405,6 +405,30 @@ export const list = {
     ko: '이 상태로 {n}일째',
     ja: 'このステータスで {n}日',
   },
+  // Session strip ([list]) — one quiet line above the list saying what
+  // changed since the previous session (spec r2-session; THEORY.md "Session
+  // start"). G1: the subject is the issues, never the reader — no you/your,
+  // no 당신/님 (C3). Singular is its own key (no plural infrastructure).
+  'list.sessionSince': {
+    en: 'Since last session {ago}',
+    ko: '지난 세션 이후 {ago}',
+    ja: '前回のセッション以降 {ago}',
+  },
+  'list.sessionChanged': {
+    en: '{n} issues changed',
+    ko: '이슈 {n}건 변경',
+    ja: '{n}件の課題が変更',
+  },
+  'list.sessionChangedOne': {
+    en: '1 issue changed',
+    ko: '이슈 1건 변경',
+    ja: '1件の課題が変更',
+  },
+  'list.sessionMine': {
+    en: '{k} of them assigned here',
+    ko: '그중 이 계정 배정 {k}건',
+    ja: 'うちこのアカウント担当 {k}件',
+  },
   // Hover title when the threshold was learned, not set — the row names its
   // rule (G7): what the 85% line is and where it came from.
   'list.staleDaysLearned': {

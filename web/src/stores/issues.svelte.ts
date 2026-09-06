@@ -67,6 +67,10 @@ class IssuesStore {
    *  72h default covers first paint after a reload until bootstrap lands.
    *  Absent on the wire clears it: the workspace lost its distribution. */
   flow = $state<FlowSummary | null>(null)
+  /** Previous session's last person read (bootstrap last_session_ended_at) —
+   *  the session strip's boundary. Set from bootstrap only; delta never
+   *  touches it: the boundary is this tab's birth (G3). */
+  lastSessionEndedAt = $state<string | null>(null)
   /** Discovered custom fields (bootstrap field_specs). Drives detail rows and filter axes. */
   fieldSpecs = $state<FieldSpec[]>([])
   /** project → alias → filled count. Which fields a board actually uses. */
@@ -265,6 +269,7 @@ class IssuesStore {
     this.#etag = etag ?? `"in-${data.sync_version}"`
     this.syncHealth = data.sync_health
     this.flow = data.flow ?? null
+    this.lastSessionEndedAt = data.last_session_ended_at ?? null
     this.fieldSpecs = data.field_specs ?? []
     this.fieldUsage = data.field_usage ?? {}
     this.latestVersion = data.latest_version ?? ''

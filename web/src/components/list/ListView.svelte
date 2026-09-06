@@ -21,6 +21,7 @@
   import CopyViewLink from './CopyViewLink.svelte'
     import BulkBar from './BulkBar.svelte'
   import BreakdownBar from './BreakdownBar.svelte'
+  import SessionStrip from './SessionStrip.svelte'
   import IssueList from './IssueList.svelte'
     import BoardView from '../board/BoardView.svelte'
   import IssueRow from './IssueRow.svelte'
@@ -144,6 +145,14 @@
       {/if}
     </div>
   </div>
+  {/if}
+
+  <!-- Session strip: one quiet line about what changed since the previous
+       session, above every other list chrome. Hidden while onboarding for
+       the same reason the toolbar is (GDK-299 F6): query chrome undercuts
+       the wizard. -->
+  {#if !needsOnboarding}
+    <SessionStrip />
   {/if}
 
   <!-- Bulk bar (only when something is selected) -->

@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -930,6 +931,72 @@ func (db *DB) LastVisits(ctx context.Context, kind, key string, n int) ([]Visit,
 		out = append(out, v)
 	}
 	return out, rows.Err()
+}
+
+// lastSessionVisitsBound caps the rows LastSessionEnd walks: the newest
+// person reads, newest first. A person reading more than this inside the
+// current session (the only place the walk can continue) is not a shape the
+// product has; the bound keeps the read O(bound) whatever the history file
+// holds. LocalRetention prunes the table long before 2000 rows of one session
+// can accumulate.
+const lastSessionVisitsBound = 2000
+
+// LastSessionEnd returns the viewed_at of the newest person read that is not
+// part of the session containing `now` — i.e. where the previous session
+// ended. nil when there is no previous session (zero visits, or only the
+// current session's reads).
+//
+// The session rule is retro's (cmd/gadak/retro.go retroSessionGap): person
+// reads are visits with source ui or the empty pre-V7 source, and a gap to
+// the previous read *exceeding* `gap` starts a new session — exactly `gap` is
+// still the same session. The current session is the chain walked backwards
+// from `now` while every step is ≤ gap (the chain may be empty); a mid-session
+// tab reload only lengthens that chain, so the boundary stays the previous
+// session's last read. Person reads only, and LastVisits' epoch clause for
+// the same GDK-418 reason: a visit from a replaced origin is not this
+// workspace's session.
+func (db *DB) LastSessionEnd(ctx context.Context, now time.Time, gap time.Duration) (*time.Time, error) {
+	if gap <= 0 {
+		return nil, errors.New("gap must be > 0")
+	}
+	rows, err := db.sql.QueryContext(ctx, `
+		SELECT viewed_at
+		FROM local.visits
+		WHERE source IN ('ui','') AND origin_epoch = `+currentEpochSQL+`
+		ORDER BY viewed_at DESC, id DESC
+		LIMIT ?`, lastSessionVisitsBound)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	// Parse then re-sort: viewed_at is ISOMilli UTC in practice, where string
+	// order is time order, but rows written by older builds (parseStamp's
+	// RFC3339 fallback) must not be walked in string order.
+	var stamps []time.Time
+	for rows.Next() {
+		var at string
+		if err := rows.Scan(&at); err != nil {
+			return nil, err
+		}
+		if t, ok := parseStamp(at); ok {
+			stamps = append(stamps, t)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	sort.SliceStable(stamps, func(i, j int) bool { return stamps[j].Before(stamps[i]) })
+	prev := now
+	for _, t := range stamps {
+		if prev.Sub(t) <= gap {
+			// Same session as `now`'s chain — keep walking.
+			prev = t
+			continue
+		}
+		// First read before a >gap break: the previous session's newest read.
+		return &t, nil
+	}
+	return nil, nil
 }
 
 // PruneLocalHistory deletes visit/search rows older than LocalRetention.

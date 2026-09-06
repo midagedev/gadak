@@ -19,6 +19,7 @@ import (
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/retro"
 	"github.com/midagedev/gadak/internal/store"
 )
 
@@ -127,6 +128,13 @@ type bootstrapResponse struct {
 	// workspace has no distribution to learn from, or when a threshold is
 	// set explicitly — the one precedence decision this server owns.
 	Flow *flowOut `json:"flow,omitempty"`
+	// LastSessionEndedAt is where the previous session of person reads ended
+	// (LastSessionEnd, gap 30m — retro's session rule): the session strip's
+	// boundary. Absent when there is no previous session or local.db is
+	// unreadable; the strip is an enrichment and never fails the bootstrap.
+	// Bootstrap only — delta does not carry it, because the boundary is the
+	// tab's birth, not a fact that moves with the mirror.
+	LastSessionEndedAt string `json:"last_session_ended_at,omitempty"`
 }
 
 type deltaResponse struct {
@@ -175,19 +183,28 @@ func (s *server) handleBootstrap(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	latest, releaseURL, releaseNotes := s.updateFields()
+	// The session strip's boundary. flowFields' rule: a local.db error is
+	// logged and leaves the enrichment absent — bootstrap never fails on it.
+	var lastSessionEnd string
+	if end, err := s.db.LastSessionEnd(r.Context(), time.Now(), retro.SessionGap); err != nil {
+		log.Printf("server: last session end: %v", err)
+	} else if end != nil {
+		lastSessionEnd = end.UTC().Format(config.ISOMilli)
+	}
 	writeJSON(w, http.StatusOK, bootstrapResponse{
-		ServerTime:     store.Now(),
-		SyncVersion:    st.Version,
-		Members:        view.members,
-		MembersVersion: view.membersVersion,
-		Issues:         view.issues(lites),
-		SyncHealth:     s.health(r.Context(), st),
-		FieldSpecs:     s.fieldSpecsOut(),
-		FieldUsage:     s.fieldUsageOut(r.Context()),
-		LatestVersion:  latest,
-		ReleaseURL:     releaseURL,
-		ReleaseNotes:   releaseNotes,
-		Flow:           s.flowFields(r.Context()),
+		ServerTime:         store.Now(),
+		SyncVersion:        st.Version,
+		Members:            view.members,
+		MembersVersion:     view.membersVersion,
+		Issues:             view.issues(lites),
+		SyncHealth:         s.health(r.Context(), st),
+		FieldSpecs:         s.fieldSpecsOut(),
+		FieldUsage:         s.fieldUsageOut(r.Context()),
+		LatestVersion:      latest,
+		ReleaseURL:         releaseURL,
+		ReleaseNotes:       releaseNotes,
+		Flow:               s.flowFields(r.Context()),
+		LastSessionEndedAt: lastSessionEnd,
 	})
 }
 
