@@ -1,7 +1,7 @@
 /*
  * C1 is the whole reason this file exists: the TS list must stay
- * byte-identical to the Go owner (cmd/gadak/retro.go retroDoneWords), and the
- * matching rule must stay behaviour-identical to retroHasDoneWord.
+ * byte-identical to the Go owner (internal/retro/retro.go DoneWords), and the
+ * matching rule must stay behaviour-identical to HasDoneWord.
  *
  * Contract table (spec C1–C7; only C1 lives here — C2–C7 are pinned by
  * e2e/detail-coaching.spec.ts, which names its own rows):
@@ -37,8 +37,9 @@ const RETRO_GO_CANDIDATES = [
 // Editing a word here and not there (or vice versa) is exactly the failure
 // the next two tests exist to catch.
 const GO_SLICE_TEXT = `"done", "fixed", "merged", "resolved", "shipped",
-	"완료", "해결", "머지",
-	"完了", "修正済み", "対応済み",`
+	"완료", "해결", "머지", "반영", "배포",
+	"完了", "修正済み", "対応済み",
+	"已完成", "已解决", "已修复",`
 
 /** Pull the string literals out of a Go `[]string{…}` block. */
 function parseGoSlice(block: string): string[] {
@@ -74,19 +75,49 @@ describe('done-words (C1: lockstep with cmd/gadak/retro.go)', () => {
   })
 })
 
-describe('hasDoneWord (retroHasDoneWord parity)', () => {
-  // Same matching rule as retro.go:660-671 — blank never matches, lowercase
-  // folding, substring containment with no word boundaries.
+describe('hasDoneWord (HasDoneWord parity)', () => {
+  /*
+   * Guard for guard with the Go owner. The negation rows are the ones that
+   * matter: every `false` below was `true` under the first shipped rule
+   * (plain substring containment, 2026-09-06), which pointed the signal at
+   * exactly the comments saying the work is NOT finished.
+   */
   test.each([
+    // claims
     ['Merged and deployed, closing this.', true],
     ['this PR was MERGED a moment ago', true], // case folds like strings.ToLower
-    ['작업 완료 — QA까지 확인했습니다', true], // CJK containment
+    ['작업 완료 — QA까지 확인했습니다', true],
     ['対応済み as of comment 4', true],
-    ['UNDONE — reconsidering the approach', true], // substring, not word match — same as Go
+    ['已解决，已上线', true], // Simplified Chinese, added with the guards
+    ['스테이징에 반영했습니다', true],
+    ['resolved the crash in 1.2', true],
+    // English word boundaries
+    ['abandoned this approach', false], // contains "done"
+    ['UNDONE — reconsidering the approach', false],
+    ['unresolved, still digging', false],
+    ['unmerged as of this morning', false],
+    // English negators
+    ['not fixed yet', false],
+    ['it isn\'t fixed', false],
+    ['never merged', false],
+    // CJK negation, prefix and suffix
+    ['미완료', false],
+    ['아직 미완료입니다', false],
+    ['완료되지 않음', false],
+    ['未完了のまま', false],
+    ['対応済みではない', false],
+    ['해결 안 됨', false],
+    // a question is not a claim
+    ['is this done?', false],
+    ['이거 완료됐나요?', false],
+    // quoted and fenced text is someone else's word
+    ['> done\nnot from my side', false],
+    ['```\ndone\n```', false],
+    // unchanged
     ['incomplete', false],
     ['still fixing the edge case', false],
     ['not yet — waiting on review', false],
-    ['', false], // strings.TrimSpace(body) == "" → false
+    ['', false],
     ['   ', false],
   ])('hasDoneWord(%j) === %s', (body, want) => {
     expect(hasDoneWord(body)).toBe(want)

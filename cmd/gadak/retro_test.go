@@ -338,8 +338,12 @@ func TestRetroDefinitionsAndGrammar(t *testing.T) {
 			t.Fatalf("definition for %q missing from the footer:\n%s", name, table)
 		}
 	}
-	// The heuristic row says it is one, in the footer, every run.
-	if !strings.Contains(table, "(heuristic: done-words in comments on unfinished issues)") {
+	// The heuristic row says it is one, in the footer, every run. The
+	// wording follows the rule: since the guards landed (2026-09-06) the
+	// match is a standing-alone done word with negations and quotes
+	// excluded, not plain containment, and a reader deciding whether to
+	// trust the count needs the footer to say so.
+	if !strings.Contains(table, "(heuristic: ") || !strings.Contains(table, "negations and quoted text excluded)") {
 		t.Fatalf("mismatch heuristic footer missing:\n%s", table)
 	}
 }

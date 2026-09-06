@@ -31,6 +31,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/store"
@@ -54,13 +56,35 @@ const MaxJSONKeys = 500
 // DoneWords is the mismatch heuristic: a comment containing one of these
 // on an issue that is not done now. A heuristic, not a parser — the row says
 // so in its definition, and the words cover the languages this workspace
-// writes (English, Korean, Japanese). CJK matching is substring containment;
-// the words are long enough that false hits inside other words are rare.
+// writes (English, Korean, Japanese, Chinese).
+//
+// Matching is HasDoneWord's job, not a plain Contains: an English word must
+// stand on its own (2026-09-06 — "abandoned" contains "done", "unresolved"
+// contains "resolved"), and a CJK word must not be carrying a negation
+// prefix ("미완료" contains "완료", "未完了" contains "完了"). Both classes
+// pointed the signal backwards, at exactly the comments saying the work is
+// NOT finished.
 var DoneWords = []string{
 	"done", "fixed", "merged", "resolved", "shipped",
-	"완료", "해결", "머지",
+	"완료", "해결", "머지", "반영", "배포",
 	"完了", "修正済み", "対応済み",
+	"已完成", "已解决", "已修复",
 }
+
+// negationPrefixes are the one-character CJK negations that glue to the
+// front of a done word and reverse it. Korean and Japanese negate this way,
+// so a prefix check is the whole guard for those languages.
+var negationPrefixes = []rune{'미', '未', '불', '非', '无', '無'}
+
+// negationSuffixes follow a done word and reverse it at a distance: Korean
+// "완료되지 않았다", Japanese "対応済みではない". Only the text immediately
+// after the match is examined, so a later sentence cannot cancel an earlier
+// claim.
+var negationSuffixes = []string{"되지 않", "하지 않", "지 않", "안 됨", "안됨", "ではない", "されていない", "していない", "ていない"}
+
+// englishNegators cancel an English done word when they sit just before it:
+// "not fixed", "isn't done", "never merged".
+var englishNegators = []string{"not", "n't", "no", "never", "isn't", "wasn't", "aren't", "yet"}
 
 var sinceRe = regexp.MustCompile(`^([0-9]+)([dw])$`)
 
@@ -643,15 +667,170 @@ func lastStatusCategory(rows []statusRow, cat map[string]string, sourceID string
 	return ""
 }
 
-// HasDoneWord is the mismatch substring test, lowercased for the
-// English words and untouched for CJK (ToLower is a no-op there).
+// HasDoneWord reports whether a comment claims the work is finished.
+//
+// It is a guarded match, not a substring test. Plain containment read every
+// negation as its opposite — measured on the shipped rule, "미완료",
+// "완료되지 않음", "未完了", "not fixed", "unresolved", "unmerged",
+// "abandoned" and "is this done?" all came back true, and each of those is a
+// comment saying the work is NOT done. The guards, in the order they run:
+//
+//   - a question is not a claim: a body whose last sentence ends in "?" or
+//     "？" is rejected outright;
+//   - quoted lines (Markdown "> ") and fenced code blocks are stripped —
+//     quoting someone else's "done" is not saying it;
+//   - an English word must stand alone (word boundaries), so "abandoned"
+//     and "unresolved" no longer carry "done" and "resolved";
+//   - a CJK word must not carry a negation prefix (미 未 불 非 无 無) or be
+//     followed by a negation ("되지 않", "ではない").
+//
+// The result is a candidate, never a fact (THEORY.md T5). It is precise
+// enough for an affordance that costs one dismissal when wrong; a count
+// shown to a steward needs more than this.
 func HasDoneWord(body string) bool {
-	if strings.TrimSpace(body) == "" {
+	text := stripQuotedAndCode(body)
+	if strings.TrimSpace(text) == "" {
 		return false
 	}
-	low := strings.ToLower(body)
+	if endsWithQuestion(text) {
+		return false
+	}
+	low := strings.ToLower(text)
 	for _, w := range DoneWords {
-		if strings.Contains(low, w) {
+		if isASCIIWord(w) {
+			if matchEnglishWord(low, w) {
+				return true
+			}
+			continue
+		}
+		if matchCJKWord(text, w) {
+			return true
+		}
+	}
+	return false
+}
+
+// stripQuotedAndCode removes Markdown quote lines and fenced code blocks.
+// A comment that quotes an earlier "done" is reporting, not claiming.
+func stripQuotedAndCode(body string) string {
+	var out []string
+	inFence := false
+	for _, line := range strings.Split(body, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
+			inFence = !inFence
+			continue
+		}
+		if inFence || strings.HasPrefix(trimmed, ">") {
+			continue
+		}
+		out = append(out, line)
+	}
+	return strings.Join(out, "\n")
+}
+
+// endsWithQuestion reports whether the body's last non-empty sentence is a
+// question. "is this done?" asks; it does not claim.
+func endsWithQuestion(text string) bool {
+	t := strings.TrimRight(strings.TrimSpace(text), " \t)]\"'”’")
+	return strings.HasSuffix(t, "?") || strings.HasSuffix(t, "？")
+}
+
+// isASCIIWord distinguishes the English vocabulary from the CJK one: the
+// two need different match rules, and the word itself says which it is.
+func isASCIIWord(w string) bool {
+	for _, r := range w {
+		if r > unicode.MaxASCII {
+			return false
+		}
+	}
+	return true
+}
+
+// matchEnglishWord finds w standing on its own — letters and digits on
+// either side disqualify — and rejects it when a negator sits just before.
+func matchEnglishWord(low, w string) bool {
+	for i := 0; i+len(w) <= len(low); i++ {
+		if low[i:i+len(w)] != w {
+			continue
+		}
+		if i > 0 && isWordByte(low[i-1]) {
+			continue
+		}
+		if end := i + len(w); end < len(low) && isWordByte(low[end]) {
+			continue
+		}
+		if englishNegatedBefore(low[:i]) {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
+func isWordByte(b byte) bool {
+	return b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z' || b >= '0' && b <= '9'
+}
+
+// englishNegatedBefore looks at the last few words before a match. Three is
+// the window: "not yet fixed" and "is not fixed" both negate, a sentence
+// two clauses back does not.
+func englishNegatedBefore(before string) bool {
+	fields := strings.Fields(before)
+	if len(fields) > 3 {
+		fields = fields[len(fields)-3:]
+	}
+	for _, f := range fields {
+		f = strings.Trim(f, ".,;:!?()[]\"'")
+		for _, n := range englishNegators {
+			if f == n || (strings.HasSuffix(n, "n't") && strings.HasSuffix(f, "n't")) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// matchCJKWord finds w and rejects it when a negation prefix precedes it or
+// a negation follows it. Case is untouched: ToLower is a no-op on CJK.
+func matchCJKWord(text, w string) bool {
+	for i := 0; i+len(w) <= len(text); i++ {
+		if text[i:i+len(w)] != w {
+			continue
+		}
+		if negatedPrefix(text[:i]) {
+			continue
+		}
+		if negatedSuffix(text[i+len(w):]) {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
+func negatedPrefix(before string) bool {
+	r, _ := utf8.DecodeLastRuneInString(before)
+	if r == utf8.RuneError {
+		return false
+	}
+	for _, n := range negationPrefixes {
+		if r == n {
+			return true
+		}
+	}
+	return false
+}
+
+// negatedSuffix looks at the text immediately after the word, anchored: the
+// negation has to start right there (spaces aside), so "완료되지 않았다" is
+// caught and a negation in the next sentence is never borrowed. Anchoring is
+// the whole bound — no byte window, which is also what keeps this rule
+// expressible identically in the TypeScript copy, where indices are UTF-16.
+func negatedSuffix(after string) bool {
+	rest := strings.TrimLeft(after, " \t")
+	for _, n := range negationSuffixes {
+		if strings.HasPrefix(rest, n) {
 			return true
 		}
 	}
@@ -729,7 +908,7 @@ func (r Report) Definitions() [][2]string {
 		[2]string{"wip age p85", "nearest-rank 85th percentile of the days an issue had been in progress at week end"},
 		[2]string{"in progress", "issues in progress at week end"},
 		[2]string{"closed", "issues that entered a done status during the week (status ids resolved through status_catalog)"},
-		[2]string{"mismatch", "comments containing a done-word on issues not done now (heuristic: done-words in comments on unfinished issues)"},
+		[2]string{"mismatch", "comments claiming the work is finished on issues not done now (heuristic: a done-word standing on its own, negations and quoted text excluded)"},
 		[2]string{"change", "percentage for resume and wip age p85, signed count for the rest; n/a when the previous week has no value"},
 	)
 	if r.CatalogEmpty {
