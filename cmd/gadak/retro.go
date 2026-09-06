@@ -796,6 +796,13 @@ func (r retroReport) table() string {
 
 	resumeCell := func(b retroBucket) string {
 		if b.Resume == nil {
+			// Sessions happened but none wrote: the definition promises k of
+			// n, and "— (0 of 3)" is the reader's only way to tell "no
+			// sessions" from "sessions without a write" (real workspace,
+			// 2026-09-06: a bare dash next to sessions=1 read as a bug).
+			if b.ResumeN > 0 {
+				return fmt.Sprintf("— (0 of %d)", b.ResumeN)
+			}
 			return "—"
 		}
 		s := formatRetroSeconds(*b.Resume)

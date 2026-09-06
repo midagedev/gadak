@@ -562,6 +562,25 @@ func TestRetroSessionsResumeOnFixture(t *testing.T) {
 	now := time.Now().Truncate(time.Second)
 	a0 := now.Add(-4 * 24 * time.Hour)
 
+	t.Run("sessions without any own write render as — (0 of n), not a bare dash", func(t *testing.T) {
+		// FAIL-first: before the cell carried the count, this bucket rendered
+		// "—", indistinguishable from a week with no sessions at all.
+		retroFixtureHome(t)
+		item, key := retroPickItem(t)
+		retroInjectVisit(t, a0, store.VisitKindIssue, key, store.VisitSourceUI)
+		retroInjectChange(t, a0.Add(time.Minute), item, "someone-else") // not self
+
+		me := store.FeedIdentity{AccountID: "test-self"}
+		rep := retroComputePinned(t, me, 21*24*time.Hour, now)
+		b := retroBucketContaining(t, rep, a0)
+		if b.ResumeN != 1 || b.ResumeK != 0 || b.Resume != nil {
+			t.Fatalf("ResumeN/K/Resume = %d/%d/%v, want 1/0/nil", b.ResumeN, b.ResumeK, b.Resume)
+		}
+		if !strings.Contains(rep.table(), "— (0 of 1)") {
+			t.Fatalf("table lacks the 0-of-n resume cell:\n%s", rep.table())
+		}
+	})
+
 	t.Run("own write, exact 30m boundary stays one session", func(t *testing.T) {
 		retroFixtureHome(t)
 		item, key := retroPickItem(t)
