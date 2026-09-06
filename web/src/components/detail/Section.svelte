@@ -20,15 +20,18 @@
   let {
     title,
     count = undefined,
+    id = undefined,
     children,
   }: {
     title: string
     count?: number | undefined
+    /** Stable anchor for scroll targets (the resume card → History). */
+    id?: string | undefined
     children?: Snippet
   } = $props()
 </script>
 
-<section class="px-5 py-4">
+<section id={id} class="px-5 py-4">
   <h3 class="mb-3 flex items-center gap-2 text-micro font-medium uppercase tracking-wide text-text-muted">
     <span class="flex-none">{title}</span>
     {#if count !== undefined}

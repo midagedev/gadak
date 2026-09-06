@@ -363,6 +363,12 @@ export interface DetailResponse {
    *  Absent when the changelog cannot answer — the chip renders nothing. */
   wait_ms?: number | null
   progress_ms?: number | null
+  /** Newest prior `ui` visit of this issue (ISO). Absent when it was never
+   *  opened in the app — or when local.db could not be read. */
+  last_visited_at?: string | null
+  /** The person read before that — the delta boundary when last_visited_at
+   *  is this very open. Absent when there was no earlier visit. */
+  previous_visit_at?: string | null
   /** Cross-workspace / external pointers (GDK-1032). Omitted when empty. */
   refs?: IssueRef[]
 }

@@ -889,6 +889,49 @@ func (db *DB) recentVisits(ctx context.Context, kind string, limit int) ([]Recen
 	return out, rows.Err()
 }
 
+// LastVisits returns the newest n visits of one (kind, key), newest first —
+// the two rows the issue detail turns into last/previous_visit_at. Person
+// reads only: source ui, or the empty source of a row recorded before V7
+// (unknown counts with the person — the same rule `gadak retro`'s sessions
+// use). Agent cli reads are excluded on purpose: a terminal `gadak issue`
+// run is not the reader returning. RecentVisits' epoch clause for the same
+// reason — a visit from a replaced origin names a key the current origin
+// may re-mint (GDK-418).
+func (db *DB) LastVisits(ctx context.Context, kind, key string, n int) ([]Visit, error) {
+	switch kind {
+	case VisitKindIssue, VisitKindPage:
+	default:
+		return nil, fmt.Errorf("kind must be %q or %q", VisitKindIssue, VisitKindPage)
+	}
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return nil, errors.New("key required")
+	}
+	if n <= 0 {
+		return nil, errors.New("n must be > 0")
+	}
+	rows, err := db.sql.QueryContext(ctx, `
+		SELECT id, kind, key, viewed_at, source
+		FROM local.visits
+		WHERE kind = ? AND key = ? AND source IN ('ui','')
+			AND origin_epoch = `+currentEpochSQL+`
+		ORDER BY viewed_at DESC, id DESC
+		LIMIT ?`, kind, key, n)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []Visit{}
+	for rows.Next() {
+		var v Visit
+		if err := rows.Scan(&v.ID, &v.Kind, &v.Key, &v.ViewedAt, &v.Source); err != nil {
+			return nil, err
+		}
+		out = append(out, v)
+	}
+	return out, rows.Err()
+}
+
 // PruneLocalHistory deletes visit/search rows older than LocalRetention.
 // Called from the same pass as tombstone expiry (DeleteItems).
 func (db *DB) PruneLocalHistory(ctx context.Context) error {

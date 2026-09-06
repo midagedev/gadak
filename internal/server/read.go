@@ -368,6 +368,14 @@ type detailResponse struct {
 	// answer: the detail chip renders nothing, never a 0.
 	WaitMs     *int64 `json:"wait_ms,omitempty"`
 	ProgressMs *int64 `json:"progress_ms,omitempty"`
+	// LastVisitedAt / PreviousVisitAt are the two newest person reads of this
+	// issue from local.db (store.LastVisits: ui or pre-V7 unknown — agent cli
+	// reads are not the reader returning). The resume card diffs history and
+	// comments against PreviousVisitAt, because LastVisitedAt may be this
+	// very open. Absent when the issue was never opened in the app or
+	// local.db cannot be read — never a zero value.
+	LastVisitedAt   *string `json:"last_visited_at,omitempty"`
+	PreviousVisitAt *string `json:"previous_visit_at,omitempty"`
 	// Refs are cross-workspace / external pointers, each carrying the
 	// target's live state when this machine mirrors that workspace
 	// (GDK-1032). Empty omits.
@@ -525,6 +533,17 @@ func (s *server) handleDetail(w http.ResponseWriter, r *http.Request) {
 	if spans.Progress != nil {
 		ms := spans.Progress.Milliseconds()
 		res.ProgressMs = &ms
+	}
+	// The resume card's boundary: the two newest person reads. local.db is a
+	// personal-history cache, not origin data — a read error logs and leaves
+	// both absent rather than failing the detail.
+	if visits, err := s.db.LastVisits(r.Context(), store.VisitKindIssue, key, 2); err != nil {
+		log.Printf("server: detail last visits %s: %v", key, err)
+	} else if len(visits) > 0 {
+		res.LastVisitedAt = &visits[0].ViewedAt
+		if len(visits) > 1 {
+			res.PreviousVisitAt = &visits[1].ViewedAt
+		}
 	}
 	for alias := range view.bodyAliases {
 		val, ok := d.Custom[alias]

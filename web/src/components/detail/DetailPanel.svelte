@@ -41,6 +41,7 @@
   import DescriptionEditor from './DescriptionEditor.svelte'
   import AttachmentGallery from './AttachmentGallery.svelte'
   import Section from './Section.svelte'
+  import ResumeCard from './ResumeCard.svelte'
   import EpicProgress from './EpicProgress.svelte'
   import CommentList from './CommentList.svelte'
   import CommentComposer from '../write/CommentComposer.svelte'
@@ -285,6 +286,11 @@
           </div>
         {/if}
       {:else}
+        <!-- Resume card: what changed since this issue was last opened.
+             Renders nothing without a previous visit or without a delta —
+             the absence is the design (spec w1-resume). Sits before the
+             divide-y group so no separator rides under it. -->
+        <ResumeCard detail={detailForKey} />
         <!-- Detail body -->
         <div class="anim-enter divide-y divide-border-subtle">
           <!-- Direct children of the open issue: epic rollup when the pool has
@@ -353,9 +359,9 @@
             <CommentComposer bind:this={composer} issueKey={key} />
           </Section>
 
-          <!-- History -->
+          <!-- History. id is the resume card's scroll target. -->
           {#if detailForKey.history.length > 0}
-            <Section title={t('detail.history')} count={detailForKey.history.length}>
+            <Section id="detail-history-section" title={t('detail.history')} count={detailForKey.history.length}>
               <HistoryTimeline history={detailForKey.history} />
             </Section>
           {/if}

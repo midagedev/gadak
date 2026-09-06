@@ -93,6 +93,48 @@ export const detail = {
     ko: '변경 이력',
     ja: '履歴',
   },
+  /* ── Resume card (spec w1-resume): what changed since this issue was last
+   * opened. G1/G5 — the subject stays the issue, the form stays dim meta. */
+  'detail.resume.sinceOpened': {
+    en: 'Since last opened {ago}',
+    ko: '마지막 열람 {ago}',
+    ja: '最終閲覧 {ago}',
+  },
+  'detail.resume.statusChanges': {
+    en: '{n} status changes',
+    ko: '상태 변경 {n}건',
+    ja: 'ステータス変更 {n}件',
+  },
+  'detail.resume.statusChangeOne': {
+    en: '{n} status change',
+    ko: '상태 변경 {n}건',
+    ja: 'ステータス変更 {n}件',
+  },
+  'detail.resume.newComments': {
+    en: '{n} new comments',
+    ko: '새 코멘트 {n}건',
+    ja: '新着コメント {n}件',
+  },
+  'detail.resume.newCommentOne': {
+    en: '{n} new comment',
+    ko: '새 코멘트 {n}건',
+    ja: '新着コメント {n}件',
+  },
+  'detail.resume.assigneeChanged': {
+    en: 'assignee changed',
+    ko: '담당자 변경',
+    ja: '担当者変更',
+  },
+  'detail.resume.otherChanges': {
+    en: '{n} other changes',
+    ko: '기타 변경 {n}건',
+    ja: 'その他の変更 {n}件',
+  },
+  'detail.resume.otherChangeOne': {
+    en: '{n} other change',
+    ko: '기타 변경 {n}건',
+    ja: 'その他の変更 {n}件',
+  },
   'detail.links': {
     en: 'Linked issues',
     ko: '연결 이슈',
