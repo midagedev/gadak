@@ -99,7 +99,7 @@ func TestOpenReadOnlySelectsLocal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.RecordVisit(context.Background(), "issue", "NMB-1"); err != nil {
+	if _, err := db.RecordVisit(context.Background(), "issue", "NMB-1", VisitSourceUI); err != nil {
 		t.Fatal(err)
 	}
 	db.Close()
@@ -150,7 +150,7 @@ func TestRawReadOnlyConnectionSeesLocal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.RecordVisit(context.Background(), "issue", "NMB-9"); err != nil {
+	if _, err := db.RecordVisit(context.Background(), "issue", "NMB-9", VisitSourceUI); err != nil {
 		t.Fatal(err)
 	}
 	db.Close()
@@ -172,10 +172,10 @@ func TestRawReadOnlyConnectionSeesLocal(t *testing.T) {
 func TestRecordVisitIsAppendOnly(t *testing.T) {
 	db := openTemp(t)
 	ctx := context.Background()
-	if _, err := db.RecordVisit(ctx, "issue", "NMB-1"); err != nil {
+	if _, err := db.RecordVisit(ctx, "issue", "NMB-1", VisitSourceUI); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.RecordVisit(ctx, "issue", "NMB-1"); err != nil {
+	if _, err := db.RecordVisit(ctx, "issue", "NMB-1", VisitSourceUI); err != nil {
 		t.Fatal(err)
 	}
 	var n int
@@ -270,7 +270,7 @@ func TestLocalDBSurvivesMirrorDelete(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.RecordVisit(context.Background(), "issue", "NMB-keep"); err != nil {
+	if _, err := db.RecordVisit(context.Background(), "issue", "NMB-keep", VisitSourceUI); err != nil {
 		t.Fatal(err)
 	}
 	db.Close()
@@ -332,11 +332,11 @@ func TestLocalDBFileMode0600(t *testing.T) {
 func TestHistoryListCursorAndKind(t *testing.T) {
 	db := openTemp(t)
 	ctx := context.Background()
-	if _, err := db.RecordVisit(ctx, "issue", "NMB-1"); err != nil {
+	if _, err := db.RecordVisit(ctx, "issue", "NMB-1", VisitSourceUI); err != nil {
 		t.Fatal(err)
 	}
 	time.Sleep(2 * time.Millisecond)
-	if _, err := db.RecordVisit(ctx, "page", "622723"); err != nil {
+	if _, err := db.RecordVisit(ctx, "page", "622723", VisitSourceUI); err != nil {
 		t.Fatal(err)
 	}
 	time.Sleep(2 * time.Millisecond)
@@ -402,7 +402,7 @@ func TestRecentVisits(t *testing.T) {
 	ctx := context.Background()
 	visit := func(kind, key string) {
 		t.Helper()
-		if _, err := db.RecordVisit(ctx, kind, key); err != nil {
+		if _, err := db.RecordVisit(ctx, kind, key, VisitSourceUI); err != nil {
 			t.Fatal(err)
 		}
 		time.Sleep(2 * time.Millisecond) // distinct viewed_at, as in the History test
@@ -450,7 +450,7 @@ func TestRecentVisitsSkipsRetiredEpoch(t *testing.T) {
 		VALUES ('issue', 'OLD-1', '2026-08-22T00:00:00.000Z', 0)`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.RecordVisit(ctx, "issue", "NEW-1"); err != nil {
+	if _, err := db.RecordVisit(ctx, "issue", "NEW-1", VisitSourceUI); err != nil {
 		t.Fatal(err)
 	}
 	rows, err := db.RecentVisits(ctx, 20)
@@ -464,7 +464,7 @@ func TestRecentVisitsSkipsRetiredEpoch(t *testing.T) {
 
 func TestRecordVisitRejectsBadKind(t *testing.T) {
 	db := openTemp(t)
-	_, err := db.RecordVisit(context.Background(), "ticket", "NMB-1")
+	_, err := db.RecordVisit(context.Background(), "ticket", "NMB-1", VisitSourceUI)
 	if err == nil || !strings.Contains(err.Error(), "kind") {
 		t.Fatalf("got %v, want kind error", err)
 	}
@@ -1123,7 +1123,7 @@ func TestHistoryWritesIndependentOfMirrorWriteLock(t *testing.T) {
 		{
 			name: "visit",
 			write: func() error {
-				_, err := db.RecordVisit(ctx, VisitKindIssue, "NMB-1")
+				_, err := db.RecordVisit(ctx, VisitKindIssue, "NMB-1", VisitSourceUI)
 				return err
 			},
 			check: func() error {
@@ -1196,7 +1196,7 @@ func TestRecordVisitErrorNamesLocalDB(t *testing.T) {
 	if err := raw.Close(); err != nil {
 		t.Fatal(err)
 	}
-	_, err = db.RecordVisit(context.Background(), VisitKindIssue, "NMB-1")
+	_, err = db.RecordVisit(context.Background(), VisitKindIssue, "NMB-1", VisitSourceUI)
 	if err == nil || !strings.Contains(err.Error(), "local.db") {
 		t.Fatalf("got %v, want error naming local.db", err)
 	}

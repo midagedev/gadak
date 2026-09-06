@@ -32,7 +32,9 @@ func (s *server) handlePostVisit(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, "key_required")
 		return
 	}
-	v, err := s.db.RecordVisit(r.Context(), body.Kind, body.Key)
+	// The server decides the source: the POST body has no field for it, so a
+	// client can never claim to be something other than the UI.
+	v, err := s.db.RecordVisit(r.Context(), body.Kind, body.Key, store.VisitSourceUI)
 	if err != nil {
 		serverError(w, r, err)
 		return

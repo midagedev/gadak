@@ -650,6 +650,13 @@ func isSelfActor(me FeedIdentity, authorID, author string) bool {
 	return false
 }
 
+// IsSelfActor is isSelfActor for read paths outside the store (gadak retro's
+// resume row): the identity rule stays in one place instead of a second copy
+// that can drift.
+func IsSelfActor(me FeedIdentity, authorID, author string) bool {
+	return isSelfActor(me, authorID, author)
+}
+
 // mentionHit walks ADF JSON for mention nodes whose attrs.id matches accountID.
 // Disabled when accountID is empty.
 func mentionHit(bodyADF, accountID string) bool {

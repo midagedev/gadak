@@ -295,6 +295,63 @@ For `kind = 'page'` the ref is the origin page id (`items.key` — what
 event as the `created:` row. On a Jira Cloud workspace the same
 query works with the Atlassian `accountId` as the author id.
 
+## Retro
+
+**The two `gadak retro` rows with the most machinery, by hand.** `gadak
+retro` prints the weekly table (sessions, resume, wip age p85, in progress,
+closed, mismatch) with a definition under every row; these two are the ones
+worth re-deriving when a number looks wrong. Both key on status ids through
+`status_catalog` or on `status_category` — never on the display name beside
+them, which is zero rows on an account that names statuses in another
+language. The mirror stores UTC timestamps, while retro's week edges are
+local midnight, so a hand query states the bound in UTC: for the ISO week
+starting Monday 2026-08-24 in a UTC+9 workspace, the bound is
+`2026-08-23T15:00:00.000Z` (`gadak retro --json` prints the same edges in
+the local zone as RFC 3339).
+
+`closed` — issues that entered a done status during the week (the row they
+came from must not already be done, so a reopen-and-close week counts once,
+not twice):
+
+```sql
+select count(distinct c.item_id) as closed
+from changelog c
+join items it on it.id = c.item_id
+join status_catalog done
+  on done.source_id = it.source_id and done.status_id = c.to_id
+ and done.category = 'done'
+left join status_catalog prev
+  on prev.source_id = it.source_id and prev.status_id = c.from_id
+ and prev.category = 'done'
+where c.field = 'status'
+  and c.at >= '2026-08-23T15:00:00.000Z'
+  and c.at <  '2026-08-30T15:00:00.000Z'
+  and prev.status_id is null
+```
+
+`wip age p85` — the 85th percentile of how long the issues now in progress
+have been in progress (the current-week column; a finished week needs the
+changelog walk retro does — the last status row at or before week end,
+mapped through `status_catalog`). Nearest-rank with integer arithmetic,
+the same `(85n+99)/100` retro uses — float percentiles land a hair high on
+round counts:
+
+```sql
+with ages as (
+  select julianday('now') - julianday(status_changed_at) as days
+  from issues_full
+  where status_category = 'inprogress'
+)
+select round(days, 1) as wip_age_p85
+from ages
+order by days
+limit 1 offset ((85 * (select count(*) from ages) + 99) / 100 - 1)
+```
+
+Both equal the `gadak retro --json` numbers on `examples/demo.db` once
+`status_catalog` is seeded (the shipped fixture carries none — a sync fills
+it); `retro_test.go` asserts the equality on the seeded copy.
+
 ## This sprint
 
 **My open work in the active sprint.** Key on `sprint_state` (or `sprint_id`),

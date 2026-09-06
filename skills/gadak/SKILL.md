@@ -88,6 +88,14 @@ gadak recents                    # kind, key, viewed_at — TSV with a header
 gadak recents --json --limit 50
 ```
 
+When the question is how the work itself went — sessions, how long before a
+session produced its first write, how old the in-progress tail is, what closed,
+whether comments claim work is done on issues that are not — run `gadak retro`
+before writing any status prose: it reads the mirror and `local.db`, prints one
+ISO-week column per week with a change column, and prints the definition of
+every row under the numbers, so a claim can be checked against the exact rule
+that produced it. `gadak retro --json` emits the same numbers for scripting.
+
 ## Which origin you are talking to
 
 Two questions, not one. Same CLI verbs either way.

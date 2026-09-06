@@ -34,7 +34,7 @@ const LocalRetention = 180 * 24 * time.Hour
 
 // localMigrations is independent of the mirror's migrations slice. Index+1 is
 // PRAGMA user_version on local.db.
-var localMigrations = []string{localSchemaV1, localSchemaV2, localSchemaV3, localSchemaV4, localSchemaV5, localSchemaV6}
+var localMigrations = []string{localSchemaV1, localSchemaV2, localSchemaV3, localSchemaV4, localSchemaV5, localSchemaV6, localSchemaV7}
 
 const localSchemaV1 = `
 CREATE TABLE visits (
@@ -152,6 +152,17 @@ CREATE TABLE dashboards (
   created_at TEXT,
   updated_at TEXT
 );
+`
+
+// localSchemaV7 separates person reads from agent reads. visits gains a
+// source column naming the surface that caused the read: cli (a gadak
+// command), ui (the web client's POST), mcp (reserved; no surface records
+// it yet). The empty default is a row recorded before V7 — source unknown —
+// and wherever person reads are separated from agent reads, unknown counts
+// with the person. No index: the only new predicate (source IN ...) rides
+// the visits_viewed_at range scan of a weekly read, not a lookup.
+const localSchemaV7 = `
+ALTER TABLE visits ADD COLUMN source TEXT NOT NULL DEFAULT '';
 `
 
 func init() {
@@ -445,12 +456,26 @@ func validVisitKind(k string) bool {
 	return k == VisitKindIssue || k == VisitKindPage
 }
 
+// Visit sources: the surface that caused the read. Decided by the recorder
+// (the CLI knows it is the CLI; the server knows the request is its UI), so
+// a client can never claim one — the POST body does not carry source.
+const (
+	VisitSourceCLI = "cli"
+	VisitSourceUI  = "ui"
+	VisitSourceMCP = "mcp"
+)
+
+func validVisitSource(s string) bool {
+	return s == VisitSourceCLI || s == VisitSourceUI || s == VisitSourceMCP
+}
+
 // Visit is one append-only view event.
 type Visit struct {
 	ID       int64  `json:"id"`
 	Kind     string `json:"kind"`
 	Key      string `json:"key"`
 	ViewedAt string `json:"viewed_at"`
+	Source   string `json:"source"`
 }
 
 // Search is one append-only search execution. OpenedKind/OpenedKey name the
@@ -517,7 +542,9 @@ func (db *DB) withLocalWrite(ctx context.Context, fn func(*sql.Tx) error) error 
 // The insert uses a dedicated local.db connection so a writer holding the
 // mirror (BEGIN IMMEDIATE / _txlock=immediate) does not block recording
 // (GDK-753). Reads that join visits to the mirror stay on the ATTACH path.
-func (db *DB) RecordVisit(ctx context.Context, kind, key string) (Visit, error) {
+// source is decided here, once, from the caller's identity: the CLI passes
+// cli, the server passes ui — never anything a request body named.
+func (db *DB) RecordVisit(ctx context.Context, kind, key, source string) (Visit, error) {
 	var zero Visit
 	if !validVisitKind(kind) {
 		return zero, fmt.Errorf("kind must be %q or %q", VisitKindIssue, VisitKindPage)
@@ -526,11 +553,14 @@ func (db *DB) RecordVisit(ctx context.Context, kind, key string) (Visit, error) 
 	if key == "" {
 		return zero, errors.New("key required")
 	}
+	if !validVisitSource(source) {
+		return zero, errors.New(`source must be "cli", "ui" or "mcp"`)
+	}
 	at := Now()
 	var id int64
 	err := db.withLocalWrite(ctx, func(tx *sql.Tx) error {
-		res, err := tx.ExecContext(ctx, `INSERT INTO visits (kind, key, viewed_at, origin_epoch)
-			VALUES (?,?,?,`+currentEpochSQLOnLocal+`)`, kind, key, at)
+		res, err := tx.ExecContext(ctx, `INSERT INTO visits (kind, key, viewed_at, origin_epoch, source)
+			VALUES (?,?,?,`+currentEpochSQLOnLocal+`,?)`, kind, key, at, source)
 		if err != nil {
 			return err
 		}
@@ -540,7 +570,7 @@ func (db *DB) RecordVisit(ctx context.Context, kind, key string) (Visit, error) 
 	if err != nil {
 		return zero, err
 	}
-	return Visit{ID: id, Kind: kind, Key: key, ViewedAt: at}, nil
+	return Visit{ID: id, Kind: kind, Key: key, ViewedAt: at, Source: source}, nil
 }
 
 // RecordSearch appends one search. openedKind/openedKey may both be empty, or

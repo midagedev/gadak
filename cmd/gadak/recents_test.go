@@ -210,7 +210,7 @@ func seedAndReadTwoIssues(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	if _, err := db.RecordVisit(context.Background(), store.VisitKindPage, "987654"); err != nil {
+	if _, err := db.RecordVisit(context.Background(), store.VisitKindPage, "987654", store.VisitSourceUI); err != nil {
 		t.Fatal(err)
 	}
 }

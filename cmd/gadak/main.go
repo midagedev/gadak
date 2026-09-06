@@ -171,6 +171,7 @@ Reading the mirror (no network; see docs/MIRROR.md):
   ready      open issues nothing open blocks (alias of list --ready)   [--limit N] [--json|--csv|--no-header]
   recents    keys read recently, newest first   [--limit N] [--json]
   recent     alias of recents             [--limit N] [--json]
+  retro      weekly retrospective table       [--since 14d|<N>d|<N>w] [--json]
   views      list/open Jira filters      [list|show|open|save]  (alias: view)
   sql        read-only SQL               [--json|--csv] [--no-header] "select ..."
   recipes    named read-only SQL         [list|save|run|show|rm]
@@ -441,6 +442,7 @@ var commands = map[string]func([]string) error{
 	"recents":         cmdRecents,
 	"ref":             cmdRef,
 	"recipes":         cmdRecipes,
+	"retro":           cmdRetro,
 	"search":          cmdSearch,
 	"serve":           cmdServe,
 	"show":            cmdIssue, // blind sessions reached for show first; alias of issue

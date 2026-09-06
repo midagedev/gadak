@@ -338,7 +338,7 @@ func cmdIssue(args []string) error {
 // search rule that governs the server ("Search query text is not written to
 // the process log") governs the CLI too.
 func recordVisitBestEffort(db *store.DB, kind, key string) {
-	if _, err := db.RecordVisit(context.Background(), kind, key); err != nil {
+	if _, err := db.RecordVisit(context.Background(), kind, key, store.VisitSourceCLI); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: could not record this visit in local history: %v\n", err)
 	}
 }

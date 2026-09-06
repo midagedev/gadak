@@ -530,6 +530,20 @@ var helps = map[string]cmdHelp{
 		},
 		seeAlso: []string{"gadak next", "gadak sql", "gadak search"},
 	},
+	"retro": {
+		summary: "weekly retrospective from the mirror and local.db — sessions, resume time, wip age, closures, done-word mismatch by ISO week, definitions printed under the numbers",
+		usage:   "gadak [--workspace <name>] retro [--since 14d|<N>d|<N>w] [--json]",
+		options: []helpOption{
+			{name: "since", desc: "how far back the table reaches: 14d, 30d, 4w (1 to 365 days; default 14d)"},
+			{name: "json", desc: "emit the same numbers as one JSON document (buckets plus definitions)"},
+		},
+		examples: []string{
+			"gadak retro",
+			"gadak retro --since 8w",
+			"gadak retro --json",
+		},
+		seeAlso: []string{"gadak recents", "gadak list"},
+	},
 	"next": {
 		summary: "run the recipe named next, or the built-in list default when none is saved (a stderr line says which) — a report, not occupancy (claiming is an origin write)",
 		usage:   "gadak [--workspace <name>] next [--json|--csv|--no-header]",

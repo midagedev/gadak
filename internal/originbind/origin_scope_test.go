@@ -104,7 +104,7 @@ func TestConversionLeavesNoRowBoundToTheOldOrigin(t *testing.T) {
 	}
 	// History is protected data (data-model.md names it), so this row must
 	// survive in the file — it just must stop resolving against a new mirror.
-	if _, err := db.RecordVisit(ctx, store.VisitKindIssue, "STD-1"); err != nil {
+	if _, err := db.RecordVisit(ctx, store.VisitKindIssue, "STD-1", store.VisitSourceUI); err != nil {
 		t.Fatal(err)
 	}
 	db.Close()
