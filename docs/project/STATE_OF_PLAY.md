@@ -4,8 +4,19 @@
 "what the docs describe" and "what actually exists right now", written so a fresh
 session can start work without re-deriving anything.
 
-Last updated: 2026-09-03 — main at v0.20.1, **the patch where a formatted
-body survives a markdown edit**: the editing source carries a placeholder
+Last updated: 2026-09-06 — main at v0.20.2, **the patch where the Windows
+app is on the Microsoft Store**: the Store-signed package (product
+9NZW91TXH36G, certified 2026-09-05) is the Windows install route in every
+guide, `gadak-desktop.exe` is a GUI-subsystem image at last (the console
+window beside the app since 0.16 is gone, and the pack asserts the
+subsystem), the Store manifest declares a `gadak.exe` app-execution alias
+and ja-JP; Linear relations mirror as `links`; a terminal key under the
+resting pointer clicks at once; `wiki.*` config aliases; one name per field
+in the list and one link-type catalog per workspace; and a fix round closed
+the Confluence page-version FK death under two sync processes, the
+transition id/status-id refusal's recourse, and two CI flakes. On top of
+**the patch where a formatted body survives a markdown edit** (0.20.1):
+the editing source carries a placeholder
 for every node markdown cannot say (`<!-- adf:N:HASH … -->`, decision 0012
 addendum 1) and the write puts each back where its marker stands, so an
 agent's `gadak issue` → edit → `edit -m -` is lossless and `--adf-file` is
@@ -103,7 +114,7 @@ notify-only (banner + brew/dmg), and releases deliberately ship no
 rebuilt around `query` with error echoes, the three pipe contracts written
 down (`issues_full` + RECIPES, `gadak sql` stdout, `views open --keys -`),
 personal-row export/import, brew renamed so `gadak` is the app cask, and the
-first live benchmark (`docs/BENCHMARKS.md`). Last tagged: v0.20.1.
+first live benchmark (`docs/BENCHMARKS.md`). Last tagged: v0.20.2.
 
 ## In one paragraph
 
