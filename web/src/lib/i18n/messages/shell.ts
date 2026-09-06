@@ -559,6 +559,16 @@ export const shell = {
     ko: '한 상태에 오래 머문 이슈',
     ja: '同じステータスに長く留まっている',
   },
+  'view.agingInProgress.name': {
+    en: 'Aging in progress',
+    ko: '오래된 진행 중',
+    ja: '長く進行中',
+  },
+  'view.agingInProgress.hint': {
+    en: 'In progress · oldest updates first',
+    ko: '진행 중 · 가장 오래된 갱신 순',
+    ja: '進行中 · 最も古い更新から',
+  },
   'view.recentlyUpdated.name': {
     en: 'Recently updated',
     ko: '최근 갱신',

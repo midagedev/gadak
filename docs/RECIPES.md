@@ -295,6 +295,192 @@ For `kind = 'page'` the ref is the origin page id (`items.key` — what
 event as the `created:` row. On a Jira Cloud workspace the same
 query works with the Atlassian `accountId` as the author id.
 
+## Flow
+
+The steward's questions — what is aging, what is neglected, what a person
+handed to others and hears nothing about, how priority is distributed, who
+waits on whom (`docs/project/THEORY.md`, tenet T4: age is the risk). The
+row is always an issue; people appear as columns, never as rankings. Weekly
+throughput and closed-count live in **Resolution throughput by week** (Team
+shape) and the Retro section — this pack is the live tail, not the report.
+One clock caveat covers every fence here, the one `docs/MIRROR.md` states
+for its stuck query: *the built-in tracker's clock can sit far behind wall
+time (GDK-369); `julianday('now')` then mis-ages rows.* The demo snapshot's
+own clock is frozen in August 2026, so its ages drift up a day per day —
+read them as a shape, not a number.
+
+**Aging in progress, oldest first, with the p85 line.** The age that matters
+is time in the current status — the same axis retro's `wip age p85` reads —
+so this is the *What has been stuck in progress the longest?* query with the
+whole tail kept, plus the percentile that turns it into a judgement: an
+in-progress issue past the set's own 85th percentile is not going to be
+late, it already is. The p85 rides as a column, nearest-rank in the same
+integer `(85n+99)/100` form the Retro section derives:
+
+```sql
+with ages as (
+  select key, summary, assignee,
+         julianday('now') - julianday(status_changed_at) as days
+  from issues_full
+  where status_category = 'inprogress'
+),
+ranked as (
+  select ages.*, row_number() over (order by days) as rn,
+         count(*) over () as n
+  from ages
+)
+select key, round(days, 1) as age_days, assignee,
+       round(max(case when rn = (85 * n + 99) / 100 then days end) over (), 1)
+         as wip_age_p85
+from ranked
+order by days desc
+```
+
+144 rows on the demo snapshot, p85 ≈ 83 days as of early September 2026
+(it drifts — the fixture's clock is frozen). The better threshold is the
+*cycle-time* p85, how long completed work actually took; that walk reads the
+changelog, whose status values are bare ids, so it needs `status_catalog`
+(the shipped demo fixture carries none — a sync fills it) and returns zero
+rows there. First entry into an in-progress status to last entry into a done
+one, over the issues now done:
+
+```sql
+with started as (
+  select c.item_id, min(c.at) as started_at
+  from changelog c
+  join items it on it.id = c.item_id
+  join status_catalog sc
+    on sc.source_id = it.source_id and sc.status_id = c.to_id
+   and sc.category = 'inprogress'
+  where c.field = 'status'
+  group by c.item_id
+),
+finished as (
+  select c.item_id, max(c.at) as finished_at
+  from changelog c
+  join items it on it.id = c.item_id
+  join status_catalog sc
+    on sc.source_id = it.source_id and sc.status_id = c.to_id
+   and sc.category = 'done'
+  where c.field = 'status'
+    and c.item_id in (select item_id from issues where status_category = 'done')
+  group by c.item_id
+),
+cycle as (
+  select julianday(f.finished_at) - julianday(s.started_at) as days
+  from started s join finished f on f.item_id = s.item_id
+)
+select round(days, 1) as cycle_time_p85
+from cycle
+order by days
+limit 1 offset ((85 * (select count(*) from cycle) + 99) / 100 - 1)
+```
+
+**Neglected: in progress, silent for a week.** DeGrandis's fifth time thief
+is *neglected work* — started, then touched by no field change and no
+comment for 7 days. Silence is computed, not stored: last activity is the
+newer of the newest changelog row and the newest comment, falling back to
+creation when an issue has neither:
+
+```sql
+with last_touch as (
+  select item_id, max(at) as last_at from changelog group by item_id
+  union all
+  select item_id, max(created_at) from comments group by item_id
+),
+silence as (
+  select item_id, max(last_at) as last_activity from last_touch group by item_id
+)
+select i.key, i.summary, i.assignee,
+       round(julianday('now')
+             - julianday(coalesce(s.last_activity, i.created_at)), 1) as days_silent
+from issues_full i
+left join silence s on s.item_id = i.item_id
+where i.status_category = 'inprogress'
+  and julianday(coalesce(s.last_activity, i.created_at)) < julianday('now', '-7 day')
+order by julianday(coalesce(s.last_activity, i.created_at)) asc
+```
+
+143 of the snapshot's 144 in-progress issues qualify — its history stops in
+August 2026, which is itself the demonstration of why this list is worth
+having.
+
+**The delegation ledger: what one person reported and others hold, by
+silence.** The reporter's side of the queue — open issues `:me` filed that
+someone else, or no one, is carrying — the quietest first. The row is the
+issue and the assignee is a column: a ledger, not a leaderboard. Swap in
+your own account id — `gadak status --json` prints the current one under
+`actor.slug`, and `select account_id, name from users` lists the mirror's
+(empty on the shipped demo fixture, like `status_catalog`):
+
+```sql
+with last_touch as (
+  select item_id, max(at) as last_at from changelog group by item_id
+  union all
+  select item_id, max(created_at) from comments group by item_id
+),
+silence as (
+  select item_id, max(last_at) as last_activity from last_touch group by item_id
+)
+select i.key, i.summary, i.assignee,
+       round(julianday('now')
+             - julianday(coalesce(s.last_activity, i.created_at)), 1)
+         as days_since_activity
+from issues_full i
+left join silence s on s.item_id = i.item_id
+where i.status_category != 'done'
+  and i.reporter_id = 'demo-dana'
+  and (i.assignee_id is null or i.assignee_id != i.reporter_id)
+order by days_since_activity desc
+```
+
+With `demo-dana` (Dana Whitfield) this is 60 rows on the snapshot, the
+quietest at 94.5 days.
+
+**Priority distribution — is priority carrying information?** Open issues
+by `priority_rank` (1 = most urgent, 0 = unset), the display `priority`
+joined for reading only. No threshold in the SQL — the reader judges: when
+one rank holds most rows, priority is a label, not an order, and every
+sort-by-priority is sorting by noise:
+
+```sql
+select priority_rank, priority, count(*) as issues,
+       round(100.0 * count(*) / sum(count(*)) over (), 1) as pct
+from issues_full
+where status_category != 'done'
+group by priority_rank
+order by priority_rank
+```
+
+On the snapshot Medium holds 53.5% of the 368 open issues.
+
+**Who waits on whom.** The Blockers section's *every open issue an open
+blocker holds back* query answers what is blocked; this one adds the column
+a steward escalates with — who holds the blocker, and how long it has been
+sitting. Link direction and the type caveat are that section's: on the
+blocked issue the row is `inward`, and `type` is the origin's link-type
+name (`Blocks`, `Duplicate`, `Relates`, …) — `gadak ready` resolves the
+blocking type against the origin's catalog instead of a literal. The target
+join stays a left join, so a blocker outside the mirror is never known-done:
+
+```sql
+select i.key as waiting, i.priority_rank,
+       l.target_key as blocker, t.assignee as held_by,
+       round(julianday('now') - julianday(t.status_changed_at), 1)
+         as blocker_age_days
+from links l
+join issues_full i on i.item_id = l.item_id
+left join issues_full t on t.key = l.target_key
+where l.type = 'Blocks' and l.direction = 'inward'
+  and i.status_category != 'done'
+  and (t.status_category is null or t.status_category != 'done')
+order by i.priority_rank, i.key
+```
+
+Five pairs on the snapshot; NMA-26 has sat in progress unassigned for ~73
+days while NMS-7 waits on it. An empty `blocker_age_days` means the target
+records no status transition — no evidence, not fresh.
+
 ## Retro
 
 **The two `gadak retro` rows with the most machinery, by hand.** `gadak

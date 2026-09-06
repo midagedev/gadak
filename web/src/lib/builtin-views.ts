@@ -95,6 +95,21 @@ export function builtinViews(): BuiltinView[] {
       config: make({ filters: { stale: true }, display: { sort: 'updated', dir: 'asc' } }),
     },
     {
+      // Steward view (THEORY.md T4/G4): the aging tail of in-progress work,
+      // longest-waiting first — the arrangement is the coaching, no sentence.
+      // Sort is 'updated' asc because ViewDisplay has no status_changed_at
+      // axis (that column feeds the stale flag instead); oldest update is the
+      // closest existing proxy for oldest in status.
+      id: 'aging-in-progress',
+      icon: 'hourglass',
+      name: t('view.agingInProgress.name'),
+      hint: t('view.agingInProgress.hint'),
+      config: make({
+        filters: { status_category: ['inprogress'] },
+        display: { sort: 'updated', dir: 'asc' },
+      }),
+    },
+    {
       id: 'recently-updated',
       icon: 'zap',
       name: t('view.recentlyUpdated.name'),
