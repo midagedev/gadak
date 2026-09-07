@@ -11,11 +11,11 @@ import (
 // web UI: AND across fields, OR within a field. Instants use the process
 // local calendar (same default as the web owner).
 func Match(it Issue, f Filter) bool {
-	return MatchIn(it, f, calendar.Local())
+	return matchIn(it, f, calendar.Local())
 }
 
-// MatchIn is Match with an explicit calendar zone. Tests pin Asia/Seoul.
-func MatchIn(it Issue, f Filter, z calendar.Zone) bool {
+// matchIn is Match with an explicit calendar zone. Tests pin Asia/Seoul.
+func matchIn(it Issue, f Filter, z calendar.Zone) bool {
 	if len(f.JiraProject) > 0 && !containsFold(f.JiraProject, it.Project) {
 		return false
 	}

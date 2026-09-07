@@ -26,9 +26,9 @@ import (
 // Add per-child repair (compare comment counts from the scan) if that
 // happens in practice.
 
-// MigrateLabel marks every issue this path creates — the workspace-side
+// migrateLabel marks every issue this path creates — the workspace-side
 // signal that a row came from a migration, independent of the footer.
-const MigrateLabel = "gadak-migrate"
+const migrateLabel = "gadak-migrate"
 
 // LinearOptions scopes ToLinear.
 type LinearOptions struct {
@@ -242,7 +242,7 @@ func ToLinear(ctx context.Context, client *linear.Client, doc *Doc, st *Stats, o
 		typeName[t.ID] = t.Name
 	}
 	var comments, parents, attachments, assigned, collapsed, historyRows int
-	labelSet := map[string]bool{MigrateLabel: true}
+	labelSet := map[string]bool{migrateLabel: true}
 	cats := map[string]bool{}
 	ranks := map[int]bool{}
 	for _, is := range issues {
@@ -468,7 +468,7 @@ func ToLinear(ctx context.Context, client *linear.Client, doc *Doc, st *Stats, o
 			}
 			p, _ := linearPriority(is.PriorityRank)
 			in.Priority = &p
-			in.LabelIDs = []string{labelID[strings.ToLower(MigrateLabel)]}
+			in.LabelIDs = []string{labelID[strings.ToLower(migrateLabel)]}
 			for _, l := range is.Labels {
 				in.LabelIDs = append(in.LabelIDs, labelID[strings.ToLower(l)])
 			}

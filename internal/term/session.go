@@ -200,18 +200,18 @@ func (s *Session) Info() Info {
 	return info
 }
 
-// MaxNameRunes bounds a session name. A roster row is one line; a name that
+// maxNameRunes bounds a session name. A roster row is one line; a name that
 // needs more than this is a note, not a name.
-const MaxNameRunes = 64
+const maxNameRunes = 64
 
 // SetName gives this session the label a person chose for it (GDK-1195).
-// Whitespace is trimmed, the length capped at MaxNameRunes, and an empty
+// Whitespace is trimmed, the length capped at maxNameRunes, and an empty
 // name clears — the row falls back to its issue key or its default. Runtime
 // state, like the issue key: it dies with the session.
 func (s *Session) SetName(name string) {
 	name = strings.TrimSpace(name)
-	if r := []rune(name); len(r) > MaxNameRunes {
-		name = string(r[:MaxNameRunes])
+	if r := []rune(name); len(r) > maxNameRunes {
+		name = string(r[:maxNameRunes])
 	}
 	s.mu.Lock()
 	s.name = name

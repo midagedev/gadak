@@ -2,10 +2,10 @@ package jirafields
 
 import "github.com/midagedev/gadak/internal/jira"
 
-// EditKind maps a Jira field schema onto the editors the UI has. A field
+// editKind maps a Jira field schema onto the editors the UI has. A field
 // whose schema is none of them has no editor and is left out of editmeta.
 // textarea is deliberately empty: Cloud v3 stores it as ADF, not a string.
-func EditKind(m jira.FieldMeta) string {
+func editKind(m jira.FieldMeta) string {
 	switch {
 	case m.Schema.Type == "option":
 		return "option"
@@ -26,7 +26,7 @@ func EditKind(m jira.FieldMeta) string {
 }
 
 // ResolveEditable is the editmeta field-key interpreter: first candidate
-// present in meta whose schema EditKind understands, or whose fallbackKind
+// present in meta whose schema editKind understands, or whose fallbackKind
 // (the configured spec kind) can stand in. CLI edit, REST GET/PATCH fields,
 // `gadak issue --editmeta`, and create --field all go through here.
 func ResolveEditable(candidates []string, meta map[string]jira.FieldMeta, fallbackKind string) (id, kind string, ok bool) {
@@ -35,7 +35,7 @@ func ResolveEditable(candidates []string, meta map[string]jira.FieldMeta, fallba
 		if !present {
 			continue
 		}
-		k := EditKind(m)
+		k := editKind(m)
 		if k == "" {
 			k = fallbackKind
 		}

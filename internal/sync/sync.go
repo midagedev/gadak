@@ -779,6 +779,13 @@ func syncScope(cfg *config.Config) string {
 	}
 }
 
+// errRefuseEmpty is the one author of the reconcile refusal. Every connector's
+// reconcile calls it; none hand-writes the sentence, and it carries no function
+// name — the caller's context, not the string, says which pass refused.
+func errRefuseEmpty(gone int) error {
+	return fmt.Errorf("upstream reported no issues in scope while the mirror holds %d; refusing to empty it", gone)
+}
+
 // reconcile proves absence, which a search over an `updated >=` window cannot.
 // It is a separate pass because its cost scales with total issue count.
 // Empty projects means the whole visible site is in scope: every mirrored key
@@ -816,7 +823,7 @@ func reconcile(ctx context.Context, c *jira.Client, db *store.DB, projects []str
 		return 0, nil
 	}
 	if len(upstream) == 0 {
-		return 0, fmt.Errorf("reconcile: upstream reported no issues in scope while the mirror holds %d; refusing to empty it", len(gone))
+		return 0, errRefuseEmpty(len(gone))
 	}
 	opts.logf("reconcile: %d keys vanished upstream", len(gone))
 	return db.DeleteItems(ctx, SourceID, gone)

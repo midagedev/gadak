@@ -9,7 +9,7 @@ import (
 func TestAssessTokenExpiryBoundaries(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, 8, 15, 12, 0, 0, 0, time.UTC)
-	at := func(d time.Duration) string { return FormatTokenTime(now.Add(d)) }
+	at := func(d time.Duration) string { return formatTokenTime(now.Add(d)) }
 	day := 24 * time.Hour
 
 	cases := []struct {
@@ -30,7 +30,7 @@ func TestAssessTokenExpiryBoundaries(t *testing.T) {
 		{name: "4 days", expires: at(4 * day), source: TokenExpirySourceUser, wantState: TokenExpiryExpiring, wantDays: intp(4), wantPhrase: "expires in 4 days"},
 		{name: "3 days urgent", expires: at(3 * day), source: TokenExpirySourceUser, wantState: TokenExpiryExpiring, wantDays: intp(3), wantUrgent: true, wantPhrase: "expires in 3 days"},
 		{name: "0 days remaining (1h left)", expires: at(time.Hour), source: TokenExpirySourceUser, wantState: TokenExpiryExpiring, wantDays: intp(0), wantUrgent: true, wantPhrase: "expires today"},
-		{name: "0 days expired (exactly now)", expires: FormatTokenTime(now), source: TokenExpirySourceUser, wantState: TokenExpiryExpired, wantDays: intp(0), wantPhrase: "API token expired"},
+		{name: "0 days expired (exactly now)", expires: formatTokenTime(now), source: TokenExpirySourceUser, wantState: TokenExpiryExpired, wantDays: intp(0), wantPhrase: "API token expired"},
 		{name: "-1 day", expires: at(-1 * day), source: TokenExpirySourceUser, wantState: TokenExpiryExpired, wantDays: intp(-1), wantPhrase: "expired 1 day ago"},
 		{name: "-1 day assumed hedges", expires: at(-1 * day), source: TokenExpirySourceAssumed, wantState: TokenExpiryExpired, wantDays: intp(-1), wantHedge: true, wantPhrase: "expired 1 day ago"},
 	}
@@ -74,7 +74,7 @@ func TestAssessTokenExpiryBoundaries(t *testing.T) {
 
 func TestParseTokenExpiresAt(t *testing.T) {
 	t.Parallel()
-	got, err := ParseTokenExpiresAt("2026-12-31")
+	got, err := parseTokenExpiresAt("2026-12-31")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,14 +83,14 @@ func TestParseTokenExpiresAt(t *testing.T) {
 		t.Fatalf("date-only = %s, want %s", got, want)
 	}
 	rfc := "2026-08-20T09:15:00.000Z"
-	got, err = ParseTokenExpiresAt(rfc)
+	got, err = parseTokenExpiresAt(rfc)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if FormatTokenTime(got) != rfc {
-		t.Fatalf("round-trip %q → %q", rfc, FormatTokenTime(got))
+	if formatTokenTime(got) != rfc {
+		t.Fatalf("round-trip %q → %q", rfc, formatTokenTime(got))
 	}
-	if _, err := ParseTokenExpiresAt("31/12/2026"); err == nil {
+	if _, err := parseTokenExpiresAt("31/12/2026"); err == nil {
 		t.Fatal("expected error for slash date")
 	}
 }

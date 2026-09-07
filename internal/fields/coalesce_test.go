@@ -43,11 +43,11 @@ func TestDisplayValueShapes(t *testing.T) {
 		{float64(7), float64(7)},
 	}
 	for _, c := range cases {
-		if got := DisplayValue(c.in); got != c.want {
-			t.Errorf("DisplayValue(%#v) = %#v, want %#v", c.in, got, c.want)
+		if got := displayValue(c.in); got != c.want {
+			t.Errorf("displayValue(%#v) = %#v, want %#v", c.in, got, c.want)
 		}
 	}
-	arr := DisplayValue([]any{map[string]any{"value": "Chrome"}, map[string]any{"value": "Safari"}})
+	arr := displayValue([]any{map[string]any{"value": "Chrome"}, map[string]any{"value": "Safari"}})
 	list, ok := arr.([]string)
 	if !ok || len(list) != 2 || list[0] != "Chrome" || list[1] != "Safari" {
 		t.Errorf("array = %#v", arr)

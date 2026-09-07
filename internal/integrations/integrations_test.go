@@ -13,7 +13,7 @@ import (
 	"github.com/midagedev/gadak/internal/clitool"
 )
 
-// stubNoClaude makes List/ListFor skip the MCP probe. Catalogue tests
+// stubNoClaude makes List/listFor skip the MCP probe. Catalogue tests
 // whose subject is not the probe must call this; TestMCPProbe* install
 // their own lookPath. Matches the existing lookPath + t.Cleanup idiom.
 func stubNoClaude(t *testing.T) {
@@ -28,14 +28,14 @@ func stubNoClaude(t *testing.T) {
 	t.Cleanup(func() { lookPath = prev })
 }
 
-// Catalogue tests that call List/ListFor without stubNoClaude used to hit a
+// Catalogue tests that call List/listFor without stubNoClaude used to hit a
 // real `claude mcp get gadak` (Linux Raycast row, 2s). Probe tests replace
 // lookPath themselves; anyone else resolving "claude" is a missed stub.
 func TestMain(m *testing.M) {
 	orig := lookPath
 	lookPath = func(name string) (string, error) {
 		if name == "claude" {
-			panic("List/ListFor resolved claude without stubNoClaude; TestMCPProbe* must install their own lookPath")
+			panic("List/listFor resolved claude without stubNoClaude; TestMCPProbe* must install their own lookPath")
 		}
 		return orig(name)
 	}
@@ -49,11 +49,11 @@ func TestListOrderAndDetectFlip(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("GADAK_HOME", gadakHome)
 
-	items := ListFor("darwin")
+	items := listFor("darwin")
 	if len(items) != 4 {
 		t.Fatalf("len=%d want 4", len(items))
 	}
-	if items[0].ID != IDCommandLineTool || items[1].ID != IDRaycast || items[2].ID != IDSkill || items[3].ID != IDMCPClaude {
+	if items[0].ID != idCommandLineTool || items[1].ID != idRaycast || items[2].ID != idSkill || items[3].ID != idMCPClaude {
 		t.Fatalf("order %q %q %q %q", items[0].ID, items[1].ID, items[2].ID, items[3].ID)
 	}
 	if items[0].Command != "gadak install-cli" {
@@ -89,7 +89,7 @@ func TestListOrderAndDetectFlip(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	items = ListFor("darwin")
+	items = listFor("darwin")
 	if items[1].Installed == nil || !*items[1].Installed {
 		t.Fatalf("raycast after touch: %v", items[1].Installed)
 	}
@@ -105,18 +105,18 @@ func TestListOrderAndDetectFlip(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(gadakHome, "raycast-extension", "node_modules"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	items = ListFor("darwin")
+	items = listFor("darwin")
 	if strings.Contains(items[1].Detail, "incomplete") {
 		t.Fatalf("raycast detail should be clean with node_modules present, got %q", items[1].Detail)
 	}
 }
 
 func TestInstallArgs(t *testing.T) {
-	args, ok := InstallArgs(IDSkill)
+	args, ok := InstallArgs(idSkill)
 	if !ok || strings.Join(args, " ") != "skill install claude" {
 		t.Fatalf("skill args=%v ok=%v", args, ok)
 	}
-	args, ok = InstallArgs(IDCommandLineTool)
+	args, ok = InstallArgs(idCommandLineTool)
 	if !ok || len(args) != 1 || args[0] != "install-cli" {
 		t.Fatalf("cli args=%v ok=%v want [install-cli]", args, ok)
 	}
@@ -138,7 +138,7 @@ func TestCommandLineToolDetectFlip(t *testing.T) {
 	t.Setenv("PATH", empty)
 	fileIsExec = func(string) bool { return false }
 
-	item := itemByID(t, List(), IDCommandLineTool)
+	item := itemByID(t, List(), idCommandLineTool)
 	if item.Installed == nil || *item.Installed {
 		t.Fatalf("empty PATH: installed=%v want false", item.Installed)
 	}
@@ -156,7 +156,7 @@ func TestCommandLineToolDetectFlip(t *testing.T) {
 	}
 	t.Setenv("PATH", dir)
 
-	item = itemByID(t, List(), IDCommandLineTool)
+	item = itemByID(t, List(), idCommandLineTool)
 	if item.Installed == nil || !*item.Installed {
 		t.Fatalf("PATH gadak: installed=%v want true", item.Installed)
 	}
@@ -167,7 +167,7 @@ func TestCommandLineToolDetectFlip(t *testing.T) {
 	// Fallback: LookPath misses, a well-known path is executable.
 	lookPath = func(string) (string, error) { return "", os.ErrNotExist }
 	fileIsExec = func(p string) bool { return p == "/usr/local/bin/gadak" }
-	item = itemByID(t, List(), IDCommandLineTool)
+	item = itemByID(t, List(), idCommandLineTool)
 	if item.Installed == nil || !*item.Installed {
 		t.Fatalf("fallback: installed=%v want true", item.Installed)
 	}
@@ -406,19 +406,19 @@ func TestLookPathDefaultIsExecLookPath(t *testing.T) {
 }
 
 // Raycast does not exist on Windows. The catalog must not offer a row whose
-// Install button can run (GDK-244). ListFor is the GOOS seam so this pins
+// Install button can run (GDK-244). listFor is the GOOS seam so this pins
 // the Windows catalog on a Linux/macOS CI host.
 func TestListForWindowsOmitsRaycast(t *testing.T) {
 	stubNoClaude(t)
-	items := ListFor("windows")
+	items := listFor("windows")
 	ids := make([]string, len(items))
 	for i, it := range items {
 		ids[i] = it.ID
-		if it.ID == IDRaycast {
+		if it.ID == idRaycast {
 			t.Fatalf("windows catalog must not include raycast: %+v", it)
 		}
 	}
-	want := []string{IDCommandLineTool, IDSkill, IDMCPClaude}
+	want := []string{idCommandLineTool, idSkill, idMCPClaude}
 	if len(ids) != len(want) {
 		t.Fatalf("windows ids=%v want %v", ids, want)
 	}
@@ -431,26 +431,26 @@ func TestListForWindowsOmitsRaycast(t *testing.T) {
 
 func TestListForDarwinKeepsRaycast(t *testing.T) {
 	stubNoClaude(t)
-	items := ListFor("darwin")
+	items := listFor("darwin")
 	if len(items) != 4 {
 		t.Fatalf("darwin len=%d want 4", len(items))
 	}
-	if items[1].ID != IDRaycast {
+	if items[1].ID != idRaycast {
 		t.Fatalf("darwin order %v", []string{items[0].ID, items[1].ID, items[2].ID, items[3].ID})
 	}
 }
 
 func TestInstallArgsForWindowsRejectsRaycast(t *testing.T) {
-	if args, ok := InstallArgsFor(IDRaycast, "windows"); ok {
+	if args, ok := InstallArgsFor(idRaycast, "windows"); ok {
 		t.Fatalf("windows must not install raycast, args=%v", args)
 	}
-	if _, ok := InstallArgsFor(IDSkill, "windows"); !ok {
+	if _, ok := InstallArgsFor(idSkill, "windows"); !ok {
 		t.Fatal("skill must still be installable on windows")
 	}
-	if _, ok := InstallArgsFor(IDCommandLineTool, "windows"); !ok {
+	if _, ok := InstallArgsFor(idCommandLineTool, "windows"); !ok {
 		t.Fatal("command-line-tool must still be installable on windows")
 	}
-	if _, ok := InstallArgsFor(IDRaycast, "darwin"); !ok {
+	if _, ok := InstallArgsFor(idRaycast, "darwin"); !ok {
 		t.Fatal("darwin must still install raycast")
 	}
 }
@@ -460,15 +460,15 @@ func TestInstallArgsForWindowsRejectsRaycast(t *testing.T) {
 // Install button is guaranteed to fail. Same reasoning as GDK-244 on Windows.
 func TestInstallArgsForLinuxRejectsRaycast(t *testing.T) {
 	stubNoClaude(t)
-	if args, ok := InstallArgsFor(IDRaycast, "linux"); ok {
+	if args, ok := InstallArgsFor(idRaycast, "linux"); ok {
 		t.Fatalf("linux must not install raycast, args=%v", args)
 	}
-	for _, item := range ListFor("linux") {
-		if item.ID == IDRaycast {
+	for _, item := range listFor("linux") {
+		if item.ID == idRaycast {
 			t.Fatal("linux catalog must not list raycast")
 		}
 	}
-	if _, ok := InstallArgsFor(IDSkill, "linux"); !ok {
+	if _, ok := InstallArgsFor(idSkill, "linux"); !ok {
 		t.Fatal("skill must still be installable on linux")
 	}
 }
@@ -476,18 +476,18 @@ func TestInstallArgsForLinuxRejectsRaycast(t *testing.T) {
 func TestListMatchesListForThisGOOS(t *testing.T) {
 	stubNoClaude(t)
 	got := List()
-	want := ListFor(runtime.GOOS)
+	want := listFor(runtime.GOOS)
 	if len(got) != len(want) {
-		t.Fatalf("List len=%d ListFor(%s) len=%d", len(got), runtime.GOOS, len(want))
+		t.Fatalf("List len=%d listFor(%s) len=%d", len(got), runtime.GOOS, len(want))
 	}
 	for i := range got {
 		if got[i].ID != want[i].ID {
-			t.Fatalf("List[%d]=%q ListFor=%q", i, got[i].ID, want[i].ID)
+			t.Fatalf("List[%d]=%q listFor=%q", i, got[i].ID, want[i].ID)
 		}
 	}
 }
 
-// TestCataloguePathDoesNotExecClaude is the class gate: List/ListFor must
+// TestCataloguePathDoesNotExecClaude is the class gate: List/listFor must
 // not spawn a subprocess. A poison claude on PATH is exec'd if lookPath
 // still resolves (the pre-fix catalogue tests) or if production stops
 // honoring the lookPath seam and shells out.
@@ -503,11 +503,11 @@ func TestCataloguePathDoesNotExecClaude(t *testing.T) {
 	stubNoClaude(t)
 
 	_ = List()
-	_ = ListFor("darwin")
-	_ = ListFor("windows")
-	_ = ListFor("linux")
+	_ = listFor("darwin")
+	_ = listFor("windows")
+	_ = listFor("linux")
 
 	if _, err := os.Stat(marker); err == nil {
-		t.Fatal("catalogue List/ListFor must not exec claude")
+		t.Fatal("catalogue List/listFor must not exec claude")
 	}
 }

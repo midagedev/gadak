@@ -118,9 +118,9 @@ var statusCategoryValues = map[string]bool{"new": true, "inprogress": true, "don
 // into a dump site; 256 is far above any real label.
 const maxDataColorKeyLen = 256
 
-// EffectiveTokenColors merges the palette-agnostic and palette-scoped
+// effectiveTokenColors merges the palette-agnostic and palette-scoped
 // overrides for one palette (theme wins). Nil maps are fine.
-func (u *UIConfig) EffectiveTokenColors(palette string) map[string]string {
+func (u *UIConfig) effectiveTokenColors(palette string) map[string]string {
 	if u == nil {
 		return nil
 	}
@@ -198,7 +198,7 @@ func ValidateUIConfig(u *UIConfig) (warns []tokencheck.Violation, err error) {
 	if u == nil {
 		return nil, nil
 	}
-	if err := ValidateDataColors(u.DataColors); err != nil {
+	if err := validateDataColors(u.DataColors); err != nil {
 		return warns, err
 	}
 	catalogued := map[string]bool{}
@@ -284,7 +284,7 @@ func ValidateUIConfig(u *UIConfig) (warns []tokencheck.Violation, err error) {
 		})
 	}
 	for _, palette := range u.knownPalettes() {
-		overrides := u.EffectiveTokenColors(palette)
+		overrides := u.effectiveTokenColors(palette)
 		if len(overrides) == 0 {
 			continue
 		}
@@ -341,10 +341,10 @@ func ValidateUIConfig(u *UIConfig) (warns []tokencheck.Violation, err error) {
 	return warns, nil
 }
 
-// ValidateDataColors enforces the family/key/value rules. The value rule is
+// validateDataColors enforces the family/key/value rules. The value rule is
 // hex only — data inks are decorative (dots, chip text), not grounds, so no
 // contrast floor applies; the token tiers carry the legibility contract.
-func ValidateDataColors(dc map[string]map[string]string) error {
+func validateDataColors(dc map[string]map[string]string) error {
 	if len(dc) == 0 {
 		return nil
 	}
@@ -439,7 +439,7 @@ func UITokenVars(u *UIConfig) (vars map[string]map[string]string, warns []tokenc
 		return vars, nil
 	}
 	for _, palette := range tokencheck.CatalogPalettes() {
-		for name, value := range u.EffectiveTokenColors(palette) {
+		for name, value := range u.effectiveTokenColors(palette) {
 			_, known := tokencheck.TierOf(name)
 			cssVar := "--color-" + strings.TrimPrefix(strings.TrimSpace(name), "--color-")
 			switch {

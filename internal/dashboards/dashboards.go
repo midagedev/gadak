@@ -54,9 +54,9 @@ const NamePattern = `[a-z0-9][a-z0-9_-]{0,63}`
 
 var nameRe = regexp.MustCompile(`^` + NamePattern + `$`)
 
-// ValidName is the datasource-name rule: a name is a URL-path-safe token
+// validName is the datasource-name rule: a name is a URL-path-safe token
 // (it becomes a path segment on /data/{name}/) starting alphanumeric.
-func ValidName(name string) bool { return nameRe.MatchString(name) }
+func validName(name string) bool { return nameRe.MatchString(name) }
 
 // ParseConfig decodes and validates a stored config document. It is strict
 // on purpose: every field it accepts is a field render/data must honor, so
@@ -90,7 +90,7 @@ func ParseConfig(raw []byte) (Config, error) {
 			return Config{}, fmt.Errorf("dashboard config: datasources must be an object: %w", err)
 		}
 		for name, item := range items {
-			if !ValidName(name) {
+			if !validName(name) {
 				return Config{}, fmt.Errorf("datasource name %q must match %s", name, NamePattern)
 			}
 			src, err := parseSource(item)
@@ -215,8 +215,8 @@ type Result struct {
 // single-user tool, not a quota: a triage wall wants thousands of rows long
 // before anyone writes a query that returns them.
 const (
-	MaxRows     = 10000
-	MaxRowBytes = 2 << 20 // 2 MiB of marshaled row payload
+	maxRows     = 10000
+	maxRowBytes = 2 << 20 // 2 MiB of marshaled row payload
 )
 
 // rowSink accumulates rows under the two ceilings. A row is always added
@@ -235,7 +235,7 @@ func (s *rowSink) columns(cols []string) {
 
 func (s *rowSink) add(row []any) bool {
 	// true when the caller must stop reading — a ceiling was hit.
-	if len(s.res.Rows) >= MaxRows {
+	if len(s.res.Rows) >= maxRows {
 		s.truncated = true
 		return true
 	}
@@ -244,7 +244,7 @@ func (s *rowSink) add(row []any) bool {
 	if err == nil {
 		s.size += len(b)
 	}
-	if s.size >= MaxRowBytes {
+	if s.size >= maxRowBytes {
 		s.truncated = true
 		return true
 	}

@@ -12,7 +12,7 @@ import (
 	"github.com/midagedev/gadak/internal/atomicfile"
 )
 
-// RemoteRel is the profile-relative file holding this workspace's stored
+// remoteRel is the profile-relative file holding this workspace's stored
 // pairing credential: the workspace's origin is a remote gadak serve, and
 // this is how to reach and authenticate it.
 //
@@ -21,7 +21,7 @@ import (
 // server's token store is a separate file: config.json is what settings
 // surfaces read and rewrite; a credential file has one writer, the pairing
 // path. The token is plaintext here because the client must present it.
-const RemoteRel = "remote-origin.json"
+const remoteRel = "remote-origin.json"
 
 // Remote is the stored client side of a pairing: where the home serve is,
 // the device token, and the label the home shows in `pairing list`.
@@ -37,7 +37,7 @@ func RemotePath(dir string) string {
 	if dir == "" {
 		return ""
 	}
-	return filepath.Join(dir, RemoteRel)
+	return filepath.Join(dir, remoteRel)
 }
 
 // LoadRemote reads the stored pairing credential. Missing file is
@@ -56,10 +56,10 @@ func LoadRemote(dir string) (*Remote, error) {
 	}
 	var r Remote
 	if err := json.Unmarshal(data, &r); err != nil {
-		return nil, fmt.Errorf("pairing: %s: %w", RemoteRel, err)
+		return nil, fmt.Errorf("pairing: %s: %w", remoteRel, err)
 	}
 	if strings.TrimSpace(r.Endpoint) == "" || r.Token == "" {
-		return nil, fmt.Errorf("pairing: %s is incomplete; re-pair with gadak init --pairing-code", RemoteRel)
+		return nil, fmt.Errorf("pairing: %s is incomplete; re-pair with gadak init --pairing-code", remoteRel)
 	}
 	return &r, nil
 }

@@ -10,10 +10,10 @@ import (
 	"github.com/midagedev/gadak/internal/store"
 )
 
-// WatchRestartPause is how long WatchLoop idles after a return (fatal auth,
+// watchRestartPause is how long WatchLoop idles after a return (fatal auth,
 // unexpected error) before re-entering. Frozen workspaces skip inside Watch
 // itself (GDK-541). Tests may shrink this.
-var WatchRestartPause = 30 * time.Second
+var watchRestartPause = 30 * time.Second
 
 // watchFn is WatchLoop's inner call. Production is Watch; tests replace it.
 // Unexported so callers cannot inject a different Watch.
@@ -38,7 +38,7 @@ func WatchLoop(ctx context.Context, cfg *config.Config, db *store.DB, opts Optio
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(WatchRestartPause):
+		case <-time.After(watchRestartPause):
 		}
 		if opts.Reload != nil {
 			next, rerr := opts.Reload()

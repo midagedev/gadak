@@ -24,8 +24,8 @@ func TestEditKind(t *testing.T) {
 		var m jira.FieldMeta
 		m.Schema.Type = tc.typ
 		m.Schema.Items = tc.items
-		if got := EditKind(m); got != tc.want {
-			t.Errorf("EditKind(%s/%s)=%q want %q", tc.typ, tc.items, got, tc.want)
+		if got := editKind(m); got != tc.want {
+			t.Errorf("editKind(%s/%s)=%q want %q", tc.typ, tc.items, got, tc.want)
 		}
 	}
 }
@@ -57,8 +57,8 @@ func TestResolveEditablePicksEditableCandidate(t *testing.T) {
 	var textarea jira.FieldMeta
 	textarea.Schema.Type = "string"
 	textarea.Schema.Custom = "com.atlassian.jira.plugin.system.customfieldtypes:textarea"
-	if got := EditKind(textarea); got != "" {
-		t.Fatalf("textarea EditKind=%q, want empty (excluded this slice)", got)
+	if got := editKind(textarea); got != "" {
+		t.Fatalf("textarea editKind=%q, want empty (excluded this slice)", got)
 	}
 	// None present.
 	if _, _, ok := ResolveEditable([]string{"customfield_x"}, meta, ""); ok {

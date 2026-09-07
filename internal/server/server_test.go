@@ -1398,8 +1398,8 @@ func TestSnapshotSyncMatchesProgressEndpoint(t *testing.T) {
 	db, cfg := fixture(t)
 	h := New(db, cfg)
 	httpDoc := decode[progressResponse](t, get(t, h, apiBase+"sync/progress/", nil))
-	snap := h.SnapshotSync()
+	snap := h.snapshotSync()
 	if snap != httpDoc {
-		t.Fatalf("SnapshotSync %+v != GET sync/progress/ %+v", snap, httpDoc)
+		t.Fatalf("snapshotSync %+v != GET sync/progress/ %+v", snap, httpDoc)
 	}
 }

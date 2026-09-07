@@ -188,7 +188,7 @@ func TestInlineAttachments(t *testing.T) {
 		{Filename: "b.bin", MimeType: "application/octet-stream", ContentID: "2"},
 		{Filename: "gone.txt", MimeType: "text/plain", ContentID: "3"},
 		{Filename: "linear.png", MimeType: "image/png", ContentID: "4", SourceURL: "https://uploads.linear.app/x"},
-		{Filename: "huge.bin", ContentID: "5", Size: MaxAttachmentBytes + 1},
+		{Filename: "huge.bin", ContentID: "5", Size: maxAttachmentBytes + 1},
 	}}}}
 	st := &Stats{}
 	bin := []byte{0x00, 0xFF, 0x10}

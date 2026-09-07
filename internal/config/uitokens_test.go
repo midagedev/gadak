@@ -145,7 +145,7 @@ func TestApplyUIConfigPerPaletteJudging(t *testing.T) {
 // its palette, leaves other palettes alone, and tolerates nil blocks.
 func TestEffectiveTokenColorsMerge(t *testing.T) {
 	var nilUI *UIConfig
-	if got := nilUI.EffectiveTokenColors("light"); got != nil {
+	if got := nilUI.effectiveTokenColors("light"); got != nil {
 		t.Errorf("nil config must yield nil, got %v", got)
 	}
 	u := &UIConfig{
@@ -154,23 +154,23 @@ func TestEffectiveTokenColorsMerge(t *testing.T) {
 			"dark": {Colors: map[string]string{"accent": "#9a6be0"}},
 		},
 	}
-	light := u.EffectiveTokenColors("light")
+	light := u.effectiveTokenColors("light")
 	if light["accent"] != "#7a4bd0" || light["lozenge-red"] != "#e05050" {
 		t.Errorf("light merge wrong: %v", light)
 	}
-	dark := u.EffectiveTokenColors("dark")
+	dark := u.effectiveTokenColors("dark")
 	if dark["accent"] != "#9a6be0" {
 		t.Errorf("theme overlay must win: %v", dark)
 	}
 	if dark["lozenge-red"] != "#e05050" {
 		t.Errorf("palette-agnostic token must carry into themed palette: %v", dark)
 	}
-	ember := u.EffectiveTokenColors("ember")
+	ember := u.effectiveTokenColors("ember")
 	if ember["accent"] != "#7a4bd0" {
 		t.Errorf("untouched palette must see base overrides: %v", ember)
 	}
 	noTokens := &UIConfig{TokensByTheme: map[string]*UITokens{"dark": {Colors: map[string]string{"accent": "#9a6be0"}}}}
-	if got := noTokens.EffectiveTokenColors("light"); len(got) != 0 {
+	if got := noTokens.effectiveTokenColors("light"); len(got) != 0 {
 		t.Errorf("nil Tokens must not break merge: %v", got)
 	}
 }
@@ -346,15 +346,15 @@ func TestValidateDataColorsKeys(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := ValidateDataColors(tc.dc)
+			err := validateDataColors(tc.dc)
 			if tc.wantErr == "" {
 				if err != nil {
-					t.Fatalf("ValidateDataColors: unexpected error: %v", err)
+					t.Fatalf("validateDataColors: unexpected error: %v", err)
 				}
 				return
 			}
 			if err == nil {
-				t.Fatalf("ValidateDataColors accepted %v", tc.dc)
+				t.Fatalf("validateDataColors accepted %v", tc.dc)
 			}
 			if !strings.Contains(err.Error(), tc.wantErr) {
 				t.Fatalf("error = %q, want substring %q", err.Error(), tc.wantErr)

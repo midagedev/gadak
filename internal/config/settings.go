@@ -41,9 +41,9 @@ func ValidateDefaultIssueTypeID(s string) (string, error) {
 	return s, nil
 }
 
-// ValidateDefaultIssueType stores an optional display label. Resolution
+// validateDefaultIssueType stores an optional display label. Resolution
 // never reads this value.
-func ValidateDefaultIssueType(s string) (string, error) {
+func validateDefaultIssueType(s string) (string, error) {
 	return strings.TrimSpace(s), nil
 }
 
@@ -61,12 +61,12 @@ func ValidateDefaultProject(s string) (string, error) {
 	return s, nil
 }
 
-// ValidateMemorySpace accepts empty (unset) or one space key with no
+// validateMemorySpace accepts empty (unset) or one space key with no
 // whitespace. Existence is not checked here — the origin answers that on
 // the next write (the space-catalog error names what is actually
 // available), and the mirrored-spaces warning lives in the catalog
 // description instead.
-func ValidateMemorySpace(s string) (string, error) {
+func validateMemorySpace(s string) (string, error) {
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return "", nil
@@ -88,10 +88,10 @@ const (
 	maxRetroSessionGap = 24 * time.Hour
 )
 
-// ValidateRetroSessionGap accepts empty (unset: the 30m default), or a Go
+// validateRetroSessionGap accepts empty (unset: the 30m default), or a Go
 // duration between 5m and 24h — retro.ParseSessionGap's range. The default
 // value itself stores as empty so an untouched config persists no block.
-func ValidateRetroSessionGap(s string) (string, error) {
+func validateRetroSessionGap(s string) (string, error) {
 	raw := strings.TrimSpace(s)
 	if raw == "" {
 		return "", nil
@@ -179,9 +179,9 @@ func ValidateTheme(s string) (string, error) {
 // back to English.
 var localeValues = map[string]bool{"": true, "en": true, "ko": true, "ja": true, "de": true}
 
-// ValidateLocale accepts "", en, ko, ja, de (GDK-597). Empty stores as the
+// validateLocale accepts "", en, ko, ja, de (GDK-597). Empty stores as the
 // zero value so the default is not persisted.
-func ValidateLocale(s string) (string, error) {
+func validateLocale(s string) (string, error) {
 	s = strings.TrimSpace(s)
 	if !localeValues[s] {
 		return "", fmt.Errorf("locale must be one of en, ko, ja, de (or empty for English), not %q", s)
@@ -196,11 +196,11 @@ const (
 	TerminalAppearanceFollow = "follow"
 )
 
-// ValidateTerminalAppearance accepts empty or "dark" (both store as the zero
+// validateTerminalAppearance accepts empty or "dark" (both store as the zero
 // value — dark is the default) and "follow". Anything else is refused by
 // name: a stored value the web does not know would leave the dock in
 // whatever the CSS default is, silently.
-func ValidateTerminalAppearance(s string) (string, error) {
+func validateTerminalAppearance(s string) (string, error) {
 	s = strings.TrimSpace(s)
 	switch s {
 	case "", TerminalAppearanceDark:
@@ -223,7 +223,7 @@ func ApplyAppearance(c *Config, a Appearance) error {
 	if err != nil {
 		return err
 	}
-	terminal, err := ValidateTerminalAppearance(a.Terminal)
+	terminal, err := validateTerminalAppearance(a.Terminal)
 	if err != nil {
 		return err
 	}
@@ -257,11 +257,11 @@ const (
 	MaxTerminalScrollback = 100000
 )
 
-// ValidateTerminalShell accepts empty (unset: $SHELL, else /bin/sh) or an
+// validateTerminalShell accepts empty (unset: $SHELL, else /bin/sh) or an
 // absolute path. Existence is not checked — the config may be edited on
 // another machine or before the shell is installed; a missing shell
 // surfaces at create time, not here.
-func ValidateTerminalShell(s string) (string, error) {
+func validateTerminalShell(s string) (string, error) {
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return "", nil
@@ -272,10 +272,10 @@ func ValidateTerminalShell(s string) (string, error) {
 	return s, nil
 }
 
-// ValidateTerminalWorkingDir accepts empty (unset: the workspace work dir)
+// validateTerminalWorkingDir accepts empty (unset: the workspace work dir)
 // or an absolute path. Existence is not checked here; create falls back to
 // the default with a log line when the directory is missing.
-func ValidateTerminalWorkingDir(s string) (string, error) {
+func validateTerminalWorkingDir(s string) (string, error) {
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return "", nil
@@ -286,8 +286,8 @@ func ValidateTerminalWorkingDir(s string) (string, error) {
 	return s, nil
 }
 
-// ValidateTerminalScrollback accepts 0 (default) or [200, 100000] lines.
-func ValidateTerminalScrollback(n int) (int, error) {
+// validateTerminalScrollback accepts 0 (default) or [200, 100000] lines.
+func validateTerminalScrollback(n int) (int, error) {
 	if n == 0 {
 		return 0, nil
 	}
@@ -298,23 +298,23 @@ func ValidateTerminalScrollback(n int) (int, error) {
 	return n, nil
 }
 
-// ApplyTerminal is the PUT settings / `gadak config set terminal*` rule.
+// applyTerminal is the PUT settings / `gadak config set terminal*` rule.
 // Every field is validated; the block is stored nil when every field is
 // its default, so an untouched config never carries it (zero-value =
 // defaults, no migration).
-func ApplyTerminal(c *Config, t TerminalConfig) error {
+func applyTerminal(c *Config, t TerminalConfig) error {
 	if c == nil {
 		return fmt.Errorf("nil config")
 	}
-	shell, err := ValidateTerminalShell(t.Shell)
+	shell, err := validateTerminalShell(t.Shell)
 	if err != nil {
 		return err
 	}
-	dir, err := ValidateTerminalWorkingDir(t.WorkingDir)
+	dir, err := validateTerminalWorkingDir(t.WorkingDir)
 	if err != nil {
 		return err
 	}
-	scrollback, err := ValidateTerminalScrollback(t.Scrollback)
+	scrollback, err := validateTerminalScrollback(t.Scrollback)
 	if err != nil {
 		return err
 	}
@@ -343,7 +343,7 @@ func ApplyTerminalDisplay(c *Config, scrollback int, cursorBlink bool) error {
 	next := c.terminalOrZero()
 	next.Scrollback = scrollback
 	next.CursorBlink = cursorBlink
-	return ApplyTerminal(c, next)
+	return applyTerminal(c, next)
 }
 
 // ValidateIntervals is the PUT / gadak config rule for the two watch periods.
@@ -668,7 +668,7 @@ func buildSettings() []Setting {
 				if err := json.Unmarshal(raw, &t); err != nil {
 					return fmt.Errorf(`terminal must be an object {"shell": "/bin/zsh", "workingDir": "/tmp", "scrollback": 5000, "cursorBlink": false}`)
 				}
-				return ApplyTerminal(c, t)
+				return applyTerminal(c, t)
 			},
 		},
 		{
@@ -682,13 +682,13 @@ func buildSettings() []Setting {
 				if err != nil {
 					return err
 				}
-				v, err := ValidateTerminalShell(s)
+				v, err := validateTerminalShell(s)
 				if err != nil {
 					return err
 				}
 				next := c.terminalOrZero()
 				next.Shell = v
-				return ApplyTerminal(c, next)
+				return applyTerminal(c, next)
 			},
 		},
 		{
@@ -702,26 +702,26 @@ func buildSettings() []Setting {
 				if err != nil {
 					return err
 				}
-				v, err := ValidateTerminalWorkingDir(s)
+				v, err := validateTerminalWorkingDir(s)
 				if err != nil {
 					return err
 				}
 				next := c.terminalOrZero()
 				next.WorkingDir = v
-				return ApplyTerminal(c, next)
+				return applyTerminal(c, next)
 			},
 		},
 		intSetting("terminal.scrollback", "terminal",
 			"scrollback lines a terminal pane keeps (0 = default 5000; 200–100000 when set)",
 			func(c *Config) int { return c.EffectiveTerminal().Scrollback },
 			func(c *Config, n int) error {
-				v, err := ValidateTerminalScrollback(n)
+				v, err := validateTerminalScrollback(n)
 				if err != nil {
 					return err
 				}
 				next := c.terminalOrZero()
 				next.Scrollback = v
-				return ApplyTerminal(c, next)
+				return applyTerminal(c, next)
 			},
 		),
 		{
@@ -736,7 +736,7 @@ func buildSettings() []Setting {
 				}
 				next := c.terminalOrZero()
 				next.CursorBlink = b
-				return ApplyTerminal(c, next)
+				return applyTerminal(c, next)
 			},
 		},
 		intSetting("syncIntervalSec", "syncIntervalSec",
@@ -790,7 +790,7 @@ func buildSettings() []Setting {
 				if err != nil {
 					return err
 				}
-				v, err := ValidateRetroSessionGap(s)
+				v, err := validateRetroSessionGap(s)
 				if err != nil {
 					return err
 				}
@@ -926,7 +926,7 @@ func buildSettings() []Setting {
 				if err != nil {
 					return err
 				}
-				v, err := ValidateLocale(s)
+				v, err := validateLocale(s)
 				if err != nil {
 					return err
 				}
@@ -1044,7 +1044,7 @@ func buildSettings() []Setting {
 				if err != nil {
 					return err
 				}
-				v, err := ValidateDefaultIssueType(s)
+				v, err := validateDefaultIssueType(s)
 				if err != nil {
 					return err
 				}
@@ -1123,7 +1123,7 @@ func buildSettings() []Setting {
 				if err != nil {
 					return err
 				}
-				v, err := ValidateMemorySpace(s)
+				v, err := validateMemorySpace(s)
 				if err != nil {
 					return err
 				}
@@ -1734,14 +1734,14 @@ func dimDiscoveryNames() map[string][]string {
 	return out
 }
 
-// DimCatalogEntry is one row of the read-only dimension-token discovery
+// dimCatalogEntry is one row of the read-only dimension-token discovery
 // catalog — the sibling of tokencheck.CatalogToken on the color side.
 // Min/Max read null where a relation owns the bound (row-excerpt,
 // detail-max) or the token is locked, mirroring the embedded DimToken;
 // Relations is always present, [] when the token stands alone, like the
 // color catalog's rules field. Locked tokens (docked-min) stay in the
 // same list, tier-marked — the color catalog's locked notation.
-type DimCatalogEntry struct {
+type dimCatalogEntry struct {
 	Axis      string   `json:"axis"`
 	Name      string   `json:"name"`
 	CSSVar    string   `json:"cssVar"`
@@ -1805,7 +1805,7 @@ func dimNumber(unit string, v float64) string {
 // names sorted within an axis, every field from tokencheck.DimTokenOf —
 // the embedded name list contributes names only. Each relation sentence
 // rides on both participants: overriding either side can break the pair.
-func dimCatalogEntries() []DimCatalogEntry {
+func dimCatalogEntries() []dimCatalogEntry {
 	relations := map[string][]string{}
 	for _, r := range dimRelationSpecs {
 		s := dimRelationSentence(r.axis, r.a, r.b, r.kind, r.add, r.because)
@@ -1813,7 +1813,7 @@ func dimCatalogEntries() []DimCatalogEntry {
 		relations[r.axis+"\x00"+r.b] = append(relations[r.axis+"\x00"+r.b], s)
 	}
 	names := dimDiscoveryNames()
-	out := []DimCatalogEntry{}
+	out := []dimCatalogEntry{}
 	for _, axis := range tokencheck.DimAxes() {
 		for _, name := range names[axis] {
 			tok, ok := tokencheck.DimTokenOf(axis, name)
@@ -1826,7 +1826,7 @@ func dimCatalogEntries() []DimCatalogEntry {
 			if rel == nil {
 				rel = []string{}
 			}
-			out = append(out, DimCatalogEntry{
+			out = append(out, dimCatalogEntry{
 				Axis:      axis,
 				Name:      name,
 				CSSVar:    tok.CSSVar,

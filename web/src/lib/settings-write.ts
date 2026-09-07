@@ -15,7 +15,7 @@ let chain: Promise<void> = Promise.resolve()
 /** Apply `patch` to the current document and PUT the result. Rejects with the
  *  transport error; the chain itself survives a failure. Hosted demo has no
  *  settings server, so it resolves without a request. */
-export function queueSettingsPatch(
+function queueSettingsPatch(
   patch: (current: GadakSettings) => GadakSettings,
 ): Promise<void> {
   const run = chain.then(

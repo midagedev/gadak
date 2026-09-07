@@ -49,7 +49,7 @@ func sessionProfile(t *testing.T, dbPath, profile string, frames ...string) []rp
 	}
 	in := strings.Join(frames, "\n") + "\n"
 	var out bytes.Buffer
-	srv := New(dbPath, profile, "test")
+	srv := &Server{DBPath: dbPath, Profile: profile, Version: "test"}
 	if err := srv.Serve(strings.NewReader(in), &out); err != nil {
 		t.Fatalf("Serve: %v", err)
 	}
@@ -95,8 +95,8 @@ func TestProtocolRoundTrip(t *testing.T) {
 		Capabilities map[string]any `json:"capabilities"`
 	}
 	mustResult(t, resps[0], &init)
-	if init.ProtocolVersion != ProtocolVersion {
-		t.Errorf("protocolVersion = %q, want %q", init.ProtocolVersion, ProtocolVersion)
+	if init.ProtocolVersion != protocolVersion {
+		t.Errorf("protocolVersion = %q, want %q", init.ProtocolVersion, protocolVersion)
 	}
 	if init.ServerInfo.Name != "gadak" {
 		t.Errorf("serverInfo.name = %q", init.ServerInfo.Name)
@@ -897,7 +897,7 @@ func TestStdoutIsOnlyJSONRPC(t *testing.T) {
 	in := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}` + "\n" +
 		`{"jsonrpc":"2.0","id":2,"method":"tools/list"}` + "\n"
 	var out bytes.Buffer
-	if err := New(db, "", "test").Serve(strings.NewReader(in), &out); err != nil {
+	if err := (&Server{DBPath: db, Version: "test"}).Serve(strings.NewReader(in), &out); err != nil {
 		t.Fatal(err)
 	}
 	for i, line := range strings.Split(strings.TrimSpace(out.String()), "\n") {
@@ -1110,7 +1110,7 @@ func TestIssueTruncatesCommentsUnderByteCap(t *testing.T) {
 
 func TestMarshalIssueResultFitsByDroppingOldestComments(t *testing.T) {
 	// Unit path with an injected cap (production stays 256KiB).
-	s := New("", "", "test")
+	s := &Server{Version: "test"}
 	s.resultByteCap = 900
 	comments := make([]store.DetailComment, 8)
 	for i := range comments {
@@ -1157,7 +1157,7 @@ func TestMarshalIssueResultFitsByDroppingOldestComments(t *testing.T) {
 }
 
 func TestMarshalIssueResultErrorsWhenStillOverCap(t *testing.T) {
-	s := New("", "", "test")
+	s := &Server{Version: "test"}
 	s.resultByteCap = 200
 	body := map[string]any{
 		"issue_key":       "NMA-1",

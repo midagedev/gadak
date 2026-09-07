@@ -149,14 +149,14 @@ func TestParseConfigRejects(t *testing.T) {
 func TestParseConfigNameRule(t *testing.T) {
 	valid := []string{"a", "0", "open", "open-by-status", "v2_counts", strings.Repeat("n", 64)}
 	for _, name := range valid {
-		if !ValidName(name) {
-			t.Errorf("ValidName(%q) = false, want true", name)
+		if !validName(name) {
+			t.Errorf("validName(%q) = false, want true", name)
 		}
 	}
 	invalid := []string{"", "-lead", "_x", "Upper", "has space", "한글", strings.Repeat("n", 65)}
 	for _, name := range invalid {
-		if ValidName(name) {
-			t.Errorf("ValidName(%q) = true, want false", name)
+		if validName(name) {
+			t.Errorf("validName(%q) = true, want false", name)
 		}
 	}
 	for _, name := range []string{"Upper", "-lead", strings.Repeat("n", 65)} {
@@ -381,8 +381,8 @@ func TestExecuteSQLTruncation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("row cap query: %v", err)
 	}
-	if len(res.Rows) != MaxRows || !res.Truncated {
-		t.Fatalf("rows = %d truncated = %v; want %d, true", len(res.Rows), res.Truncated, MaxRows)
+	if len(res.Rows) != maxRows || !res.Truncated {
+		t.Fatalf("rows = %d truncated = %v; want %d, true", len(res.Rows), res.Truncated, maxRows)
 	}
 
 	// Byte cap: hex(zeroblob(50000)) is a ~100 KiB string per row, so the

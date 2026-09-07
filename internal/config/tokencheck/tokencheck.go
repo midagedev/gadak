@@ -175,8 +175,8 @@ func hex2oklab(hex string) [3]float64 {
 	}
 }
 
-// DEok is the OKLab Euclidean distance between two hex colors.
-func DEok(a, b string) float64 {
+// dEok is the OKLab Euclidean distance between two hex colors.
+func dEok(a, b string) float64 {
 	A, B := hex2oklab(a), hex2oklab(b)
 	return math.Hypot(A[0]-B[0], math.Hypot(A[1]-B[1], A[2]-B[2]))
 }
@@ -191,9 +191,9 @@ var deutM = [3][3]float64{
 	{-0.01182, 0.04294, 0.968881},
 }
 
-// Deut maps a hex color through the deuteranopia simulation and returns the
+// deut maps a hex color through the deuteranopia simulation and returns the
 // resulting hex (channels clamped and rounded, like theme-check rgb2hex).
-func Deut(hex string) string {
+func deut(hex string) string {
 	rgb, _ := parseHex(hex)
 	var out [3]float64
 	for i, row := range deutM {
@@ -507,7 +507,7 @@ func checkStatusPairs(eff map[string]string, overridden map[string]bool) []Viola
 		for j := i + 1; j < len(statusTokens); j++ {
 			a, b := statusTokens[i], statusTokens[j]
 			ah, bh := eff[a], eff[b]
-			if n := DEok(ah, bh); n < pairNormal {
+			if n := dEok(ah, bh); n < pairNormal {
 				vs = append(vs, Violation{
 					Token:    blame(overridden, a, b),
 					Rule:     "status-pair",
@@ -518,7 +518,7 @@ func checkStatusPairs(eff map[string]string, overridden map[string]bool) []Viola
 						trimStatus(a), trimStatus(b), ah, bh, n),
 				})
 			}
-			d := DEok(Deut(ah), Deut(bh))
+			d := dEok(deut(ah), deut(bh))
 			if d < pairDeut {
 				vs = append(vs, Violation{
 					Token:    blame(overridden, a, b),
@@ -527,7 +527,7 @@ func checkStatusPairs(eff map[string]string, overridden map[string]bool) []Viola
 					Measured: fmt.Sprintf("%.4f", d),
 					Floor:    "0.04",
 					Message: fmt.Sprintf("status inks %s/%s (%s/%s) ΔEok %.4f < 0.04 under deuteranopia (%s/%s simulated) — applied, but deutan readers lose the pair",
-						trimStatus(a), trimStatus(b), ah, bh, d, Deut(ah), Deut(bh)),
+						trimStatus(a), trimStatus(b), ah, bh, d, deut(ah), deut(bh)),
 				})
 			}
 		}

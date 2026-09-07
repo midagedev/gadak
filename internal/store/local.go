@@ -29,9 +29,9 @@ import (
 // Never sent to Jira, never copied by snapshot (a separate file, not a table).
 const localDBFile = "local.db"
 
-// LocalRetention is how long raw visit/search events are kept. Counts older
+// localRetention is how long raw visit/search events are kept. Counts older
 // than this window are not rolled up — derive from whatever is still here.
-const LocalRetention = 180 * 24 * time.Hour
+const localRetention = 180 * 24 * time.Hour
 
 // localMigrations is independent of the mirror's migrations slice. Index+1 is
 // PRAGMA user_version on local.db.
@@ -59,7 +59,7 @@ CREATE INDEX searches_searched_at ON searches(searched_at);
 `
 
 // localSchemaV2 is recent-use history (picker ranking: assignee, transition,
-// create-type, …). Newest-first, de-duped, cap RecentCap per kind — the same
+// create-type, …). Newest-first, de-duped, cap recentCap per kind — the same
 // contract the web localStorage helper used to own alone.
 const localSchemaV2 = `
 CREATE TABLE recents (
@@ -228,14 +228,12 @@ func attachLocalHook(conn sqlite.ExecQuerierContext, dsn string) error {
 	return nil
 }
 
-// localAttachReuses counts silent re-ATTACHes of schema `local`. Process-wide
-// because the hook is registered on the driver, not on a *DB. Same shape as
-// WriteBusyRetries: atomic, free when unread, no logs.
+// localAttachReuses counts silent re-ATTACHes of schema `local` — how many
+// times attachLocalHook found the schema already present and skipped the
+// failure log. Process-wide because the hook is registered on the driver, not
+// on a *DB. Same shape as WriteBusyRetries: atomic, free when unread, no logs.
+// Read by this package's tests; nothing in production reads it.
 var localAttachReuses atomic.Uint64
-
-// LocalAttachReuses is how many times attachLocalHook found schema `local`
-// already present and skipped the failure log.
-func LocalAttachReuses() uint64 { return localAttachReuses.Load() }
 
 // localNewerSchemaWarned is path → struct{} of local.db files that have
 // already logged the "schema newer than this build" notice this process.
@@ -246,15 +244,11 @@ func LocalAttachReuses() uint64 { return localAttachReuses.Load() }
 var localNewerSchemaWarned sync.Map
 
 // localNewerSchemaWarnsSuppressed counts duplicate notices that were not
-// printed. Process-wide because EnsureLocal runs on every Open/OpenReadOnly.
-// Same shape as LocalAttachReuses: atomic, free when unread, no logs.
+// printed — how many times migrateLocal skipped a repeat of the newer-schema
+// notice for a path already warned. Process-wide because EnsureLocal runs on
+// every Open/OpenReadOnly. Same shape as localAttachReuses: atomic, free when
+// unread, no logs. Read by this package's tests; nothing in production reads it.
 var localNewerSchemaWarnsSuppressed atomic.Uint64
-
-// LocalNewerSchemaWarnsSuppressed is how many times migrateLocal skipped a
-// repeat of the newer-schema notice for a path already warned.
-func LocalNewerSchemaWarnsSuppressed() uint64 {
-	return localNewerSchemaWarnsSuppressed.Load()
-}
 
 // warnLocalNewerSchema logs the downgrade notice once per local.db path.
 // The file is left as-is (reads of tables this build knows still work);
@@ -937,7 +931,7 @@ func (db *DB) LastVisits(ctx context.Context, kind, key string, n int) ([]Visit,
 // person reads, newest first. A person reading more than this inside the
 // current session (the only place the walk can continue) is not a shape the
 // product has; the bound keeps the read O(bound) whatever the history file
-// holds. LocalRetention prunes the table long before 2000 rows of one session
+// holds. localRetention prunes the table long before 2000 rows of one session
 // can accumulate.
 const lastSessionVisitsBound = 2000
 
@@ -999,10 +993,10 @@ func (db *DB) LastSessionEnd(ctx context.Context, now time.Time, gap time.Durati
 	return nil, nil
 }
 
-// PruneLocalHistory deletes visit/search rows older than LocalRetention.
+// PruneLocalHistory deletes visit/search rows older than localRetention.
 // Called from the same pass as tombstone expiry (DeleteItems).
 func (db *DB) PruneLocalHistory(ctx context.Context) error {
-	cutoff := time.Now().UTC().Add(-LocalRetention).Format(config.ISOMilli)
+	cutoff := time.Now().UTC().Add(-localRetention).Format(config.ISOMilli)
 	return db.write(ctx, func(tx *sql.Tx) error {
 		return pruneLocalHistoryTx(ctx, tx, cutoff)
 	})
@@ -1016,8 +1010,8 @@ func pruneLocalHistoryTx(ctx context.Context, tx *sql.Tx, cutoff string) error {
 	return err
 }
 
-// RecentCap is the per-kind ceiling. Matches web/src/lib/recency.ts MAX.
-const RecentCap = 10
+// recentCap is the per-kind ceiling. Matches web/src/lib/recency.ts MAX.
+const recentCap = 10
 
 // Recent is one (kind, value) pair in local.recents. Unlike visits, the same
 // pair is one row: recording it again only moves used_at to now.
@@ -1027,7 +1021,7 @@ type Recent struct {
 	UsedAt string `json:"used_at"`
 }
 
-// RecordRecent puts value at the front of kind (de-dup, cap RecentCap).
+// RecordRecent puts value at the front of kind (de-dup, cap recentCap).
 // Empty kind or value is refused. Kind is an opaque string — same names the
 // web helper already used (assignee, transition:<project>, create-type:<project>, …).
 func (db *DB) RecordRecent(ctx context.Context, kind, value string) (Recent, error) {
@@ -1084,7 +1078,7 @@ func (db *DB) Recents(ctx context.Context, kind string) ([]Recent, error) {
 
 // AbsorbRecents merges a localStorage dump into local.recents. Existing
 // server rows stay in front (they are already the owner); incoming values
-// not already present fill the remainder, still capped at RecentCap per kind.
+// not already present fill the remainder, still capped at recentCap per kind.
 // Incoming slices are newest-first, same as recentOf().
 func (db *DB) AbsorbRecents(ctx context.Context, kinds map[string][]string) error {
 	if len(kinds) == 0 {
@@ -1110,7 +1104,7 @@ func (db *DB) AbsorbRecents(ctx context.Context, kinds map[string][]string) erro
 }
 
 // ImportRecents upserts export-file rows. File used_at wins for a (kind, value)
-// pair; each kind is then trimmed to RecentCap newest. Local-only pairs stay
+// pair; each kind is then trimmed to recentCap newest. Local-only pairs stay
 // if they still fit in the cap.
 func (db *DB) ImportRecents(ctx context.Context, items []Recent) error {
 	if len(items) == 0 {
@@ -1166,8 +1160,8 @@ func recentsKindTx(ctx context.Context, tx *sql.Tx, kind string) ([]string, erro
 }
 
 func mergeRecentValues(existing, incoming []string) []string {
-	seen := make(map[string]bool, RecentCap)
-	out := make([]string, 0, RecentCap)
+	seen := make(map[string]bool, recentCap)
+	out := make([]string, 0, recentCap)
 	add := func(v string) bool {
 		v = strings.TrimSpace(v)
 		if v == "" || seen[v] {
@@ -1175,7 +1169,7 @@ func mergeRecentValues(existing, incoming []string) []string {
 		}
 		seen[v] = true
 		out = append(out, v)
-		return len(out) < RecentCap
+		return len(out) < recentCap
 	}
 	for _, v := range existing {
 		if !add(v) {
@@ -1226,10 +1220,10 @@ func trimRecentsKind(ctx context.Context, tx *sql.Tx, kind string) error {
 		return err
 	}
 	rows.Close()
-	if len(ids) <= RecentCap {
+	if len(ids) <= recentCap {
 		return nil
 	}
-	for _, id := range ids[RecentCap:] {
+	for _, id := range ids[recentCap:] {
 		if _, err := tx.ExecContext(ctx, `DELETE FROM local.recents WHERE id = ?`, id); err != nil {
 			return err
 		}

@@ -470,7 +470,7 @@ func TestRemoteRoundTrip(t *testing.T) {
 	if err := SaveRemote(dir, in); err != nil {
 		t.Fatal(err)
 	}
-	fi, err := os.Stat(filepath.Join(dir, RemoteRel))
+	fi, err := os.Stat(filepath.Join(dir, remoteRel))
 	if err != nil {
 		t.Fatal(err)
 	}

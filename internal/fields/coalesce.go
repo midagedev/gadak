@@ -87,7 +87,7 @@ func Coalesce(specs []SpecIDs, extra map[string]json.RawMessage) map[string]any 
 				continue
 			}
 			if s.Role != "body" {
-				v = DisplayValue(v)
+				v = displayValue(v)
 				if !IsFilledAny(v) {
 					continue
 				}
@@ -102,15 +102,15 @@ func Coalesce(specs []SpecIDs, extra map[string]json.RawMessage) map[string]any 
 	return out
 }
 
-// DisplayValue flattens a raw Jira field value onto display text: option
+// displayValue flattens a raw Jira field value onto display text: option
 // `{value}`, version/component `{name}`, user `{displayName}` become their
 // string; arrays flatten element-wise; scalars pass through unchanged.
-func DisplayValue(v any) any {
+func displayValue(v any) any {
 	switch t := v.(type) {
 	case []any:
 		out := make([]string, 0, len(t))
 		for _, el := range t {
-			if s, ok := DisplayValue(el).(string); ok && s != "" {
+			if s, ok := displayValue(el).(string); ok && s != "" {
 				out = append(out, s)
 			}
 		}

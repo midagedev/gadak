@@ -638,10 +638,10 @@ func TestInRangeKSTCreatedFrom(t *testing.T) {
 	it := Issue{CreatedAt: "2026-08-17T16:00:00.000Z"}
 	f := EmptyFilter()
 	f.CreatedFrom = &from
-	if !MatchIn(it, f, z) {
+	if !matchIn(it, f, z) {
 		t.Fatal("2026-08-18 01:00 KST stored as 2026-08-17T16:00:00.000Z must match created_from=2026-08-18")
 	}
-	if MatchIn(it, f, calendar.UTC()) {
+	if matchIn(it, f, calendar.UTC()) {
 		t.Fatal("UTC calendar day is the 17th; must not match from=18")
 	}
 }
@@ -1144,13 +1144,13 @@ func TestNotInRoundTripAndMatch(t *testing.T) {
 		}
 	}
 	// Exclude wins: a Done issue and a noise-labeled issue are both out.
-	if MatchIn(Issue{Status: "Done"}, res.Filters, calendar.UTC()) {
+	if matchIn(Issue{Status: "Done"}, res.Filters, calendar.UTC()) {
 		t.Errorf("Done issue must be excluded")
 	}
-	if MatchIn(Issue{Status: "Open", Labels: []string{"noise", "keep"}}, res.Filters, calendar.UTC()) {
+	if matchIn(Issue{Status: "Open", Labels: []string{"noise", "keep"}}, res.Filters, calendar.UTC()) {
 		t.Errorf("noise-labeled issue must be excluded")
 	}
-	if !MatchIn(Issue{Status: "Open", Labels: []string{"keep"}}, res.Filters, calendar.UTC()) {
+	if !matchIn(Issue{Status: "Open", Labels: []string{"keep"}}, res.Filters, calendar.UTC()) {
 		t.Errorf("clean issue must pass")
 	}
 }

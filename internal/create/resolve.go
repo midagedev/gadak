@@ -266,8 +266,8 @@ func MetaForWithCatalog(ctx context.Context, c CreateMetaSource, meta []origin.C
 	return MetaFor(catalog, project, cfg)
 }
 
-// ProjectKeys is the createable project-key list from a createmeta payload.
-func ProjectKeys(meta []origin.CreateMetaProject) []string {
+// projectKeys is the createable project-key list from a createmeta payload.
+func projectKeys(meta []origin.CreateMetaProject) []string {
 	out := make([]string, 0, len(meta))
 	seen := map[string]bool{}
 	for _, p := range meta {
@@ -283,7 +283,7 @@ func ProjectKeys(meta []origin.CreateMetaProject) []string {
 
 // FormatProjectKeys is the "KEY, KEY" list used in project-resolution errors.
 func FormatProjectKeys(meta []origin.CreateMetaProject) string {
-	return strings.Join(ProjectKeys(meta), ", ")
+	return strings.Join(projectKeys(meta), ", ")
 }
 
 func availableProjectsSuffix(meta []origin.CreateMetaProject) string {
@@ -302,7 +302,7 @@ func FillNeedProject(err error, catalog []origin.CreateMetaProject) error {
 	if !errors.As(err, &np) || np == nil || len(np.Configured) > 0 {
 		return err
 	}
-	keys := ProjectKeys(catalog)
+	keys := projectKeys(catalog)
 	if len(keys) == 0 {
 		return err
 	}

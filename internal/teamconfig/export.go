@@ -124,17 +124,17 @@ func MarshalDocument(doc Document) ([]byte, error) {
 		return nil, err
 	}
 	raw = append(raw, '\n')
-	if err := ScanBytesForCredentials(raw); err != nil {
+	if err := scanBytesForCredentials(raw); err != nil {
 		return nil, err
 	}
 	return raw, nil
 }
 
-// ScanBytesForCredentials returns an error if raw contains a known secret shape
+// scanBytesForCredentials returns an error if raw contains a known secret shape
 // (Atlassian API token, Bearer/Basic, GitHub/Slack tokens, PEM private key).
 // Email addresses are intentionally not scanned — --with-members may include them.
 // Reuses internal/secretscan so this and snapshot generation cannot drift apart.
-func ScanBytesForCredentials(raw []byte) error {
+func scanBytesForCredentials(raw []byte) error {
 	if name := secretscan.Match(string(raw)); name != "" {
 		return fmt.Errorf("refusing to write team config: credential-shaped string detected (pattern=%s)", name)
 	}

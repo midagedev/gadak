@@ -20,10 +20,10 @@ import (
 // IDs are part of the GET/POST contract. Order of List is fixed:
 // command-line-tool, raycast (darwin only), skill, mcp-claude.
 const (
-	IDCommandLineTool = "command-line-tool"
-	IDRaycast         = "raycast"
-	IDSkill           = "skill"
-	IDMCPClaude       = "mcp-claude"
+	idCommandLineTool = "command-line-tool"
+	idRaycast         = "raycast"
+	idSkill           = "skill"
+	idMCPClaude       = "mcp-claude"
 )
 
 // mcpProbeTimeout is the production probe budget. Tests may assign a
@@ -64,12 +64,12 @@ type Item struct {
 // Non-macOS hosts omit raycast — Raycast does not exist there, and a row
 // whose Install button can run would lie (GDK-244, GDK-354).
 func List() []Item {
-	return ListFor(runtime.GOOS)
+	return listFor(runtime.GOOS)
 }
 
-// ListFor is List with an explicit GOOS so the Windows catalog can be
+// listFor is List with an explicit GOOS so the Windows catalog can be
 // pinned on any host (same shape as clitool.ResolveFor).
-func ListFor(goos string) []Item {
+func listFor(goos string) []Item {
 	items := []Item{commandLineToolItem()}
 	if raycastOffered(goos) {
 		items = append(items, raycastItem())
@@ -95,16 +95,16 @@ func InstallArgs(id string) ([]string, bool) {
 // InstallArgsFor is InstallArgs with an explicit GOOS.
 func InstallArgsFor(id, goos string) ([]string, bool) {
 	switch id {
-	case IDCommandLineTool:
+	case idCommandLineTool:
 		return []string{"install-cli"}, true
-	case IDRaycast:
+	case idRaycast:
 		if !raycastOffered(goos) {
 			return nil, false
 		}
 		return []string{"raycast", "install"}, true
-	case IDSkill:
+	case idSkill:
 		return []string{"skill", "install", "claude"}, true
-	case IDMCPClaude:
+	case idMCPClaude:
 		return []string{"mcp", "install", "claude"}, true
 	default:
 		return nil, false
@@ -115,7 +115,7 @@ func commandLineToolItem() Item {
 	path, ok := resolveGadak(lookPath, fileIsExec)
 	if !ok {
 		return Item{
-			ID:           IDCommandLineTool,
+			ID:           idCommandLineTool,
 			Title:        "Command line tool",
 			Installed:    boolPtr(false),
 			Detail:       "not on PATH",
@@ -124,7 +124,7 @@ func commandLineToolItem() Item {
 		}
 	}
 	return Item{
-		ID:           IDCommandLineTool,
+		ID:           idCommandLineTool,
 		Title:        "Command line tool",
 		Installed:    boolPtr(true),
 		Detail:       clitool.TildeHome(path),
@@ -150,7 +150,7 @@ func raycastItem() Item {
 		detail += " (incomplete — node_modules missing, run install again)"
 	}
 	return Item{
-		ID:           IDRaycast,
+		ID:           idRaycast,
 		Title:        "Raycast extension",
 		Installed:    boolPtr(installed),
 		Detail:       detail,
@@ -162,7 +162,7 @@ func raycastItem() Item {
 func skillItem() Item {
 	dest := skillPath()
 	return Item{
-		ID:           IDSkill,
+		ID:           idSkill,
 		Title:        "Claude Code skill",
 		Installed:    boolPtr(fileExists(dest)),
 		Detail:       clitool.TildeHome(dest),
@@ -177,7 +177,7 @@ func mcpClaudeItem() Item {
 	if err != nil || path == "" {
 		prereq.Message = "claude CLI is not on PATH"
 		return Item{
-			ID:           IDMCPClaude,
+			ID:           idMCPClaude,
 			Title:        "Claude Desktop MCP",
 			Installed:    nil,
 			Detail:       "claude CLI not found",
@@ -196,7 +196,7 @@ func mcpClaudeItem() Item {
 		}
 	}
 	return Item{
-		ID:           IDMCPClaude,
+		ID:           idMCPClaude,
 		Title:        "Claude Desktop MCP",
 		Installed:    installed,
 		Detail:       detail,

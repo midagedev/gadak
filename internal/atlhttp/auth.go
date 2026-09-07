@@ -48,8 +48,8 @@ func Auth(prefix string) error {
 	return AuthError{Prefix: prefix}
 }
 
-// AuthFromStatus returns Auth(prefix) for 401/403, nil otherwise.
-func AuthFromStatus(status int, prefix string) error {
+// authFromStatus returns Auth(prefix) for 401/403, nil otherwise.
+func authFromStatus(status int, prefix string) error {
 	if status == http.StatusUnauthorized || status == http.StatusForbidden {
 		return Auth(prefix)
 	}
@@ -64,7 +64,7 @@ func Do(ctx context.Context, cfg Config, method, path string, payload []byte, ha
 	if err != nil {
 		return status, data, err
 	}
-	if authErr := AuthFromStatus(status, cfg.ErrPrefix); authErr != nil {
+	if authErr := authFromStatus(status, cfg.ErrPrefix); authErr != nil {
 		statusLine := fmt.Sprintf("%d %s", status, http.StatusText(status))
 		return status, data, fmt.Errorf("%s %s: %w (%s)", method, path, authErr, statusLine)
 	}

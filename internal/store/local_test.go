@@ -515,7 +515,7 @@ func TestRecordRecentDedupCapAndOrder(t *testing.T) {
 		t.Fatalf("after re-record old: %+v", got)
 	}
 
-	for i := 0; i < RecentCap+3; i++ {
+	for i := 0; i < recentCap+3; i++ {
 		time.Sleep(time.Millisecond)
 		if _, err := db.RecordRecent(ctx, "label", "l"+string(rune('a'+i))); err != nil {
 			t.Fatal(err)
@@ -525,8 +525,8 @@ func TestRecordRecentDedupCapAndOrder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(labels) != RecentCap {
-		t.Fatalf("label count = %d, want %d", len(labels), RecentCap)
+	if len(labels) != recentCap {
+		t.Fatalf("label count = %d, want %d", len(labels), recentCap)
 	}
 }
 
@@ -639,7 +639,7 @@ func TestAttachReuseIsSilent(t *testing.T) {
 			return nil, fmt.Errorf("unexpected query %q", q)
 		},
 	}
-	before := LocalAttachReuses()
+	before := localAttachReuses.Load()
 	got := captureLog(t, func() {
 		if err := attachLocalHook(conn, "file:"+path); err != nil {
 			t.Errorf("hook: %v", err)
@@ -648,8 +648,8 @@ func TestAttachReuseIsSilent(t *testing.T) {
 	if strings.Contains(got, "ATTACH local.db") {
 		t.Fatalf("reuse path logged %q", got)
 	}
-	if LocalAttachReuses() != before+1 {
-		t.Fatalf("LocalAttachReuses %d → %d, want +1", before, LocalAttachReuses())
+	if localAttachReuses.Load() != before+1 {
+		t.Fatalf("localAttachReuses %d → %d, want +1", before, localAttachReuses.Load())
 	}
 
 	// Same connection, real driver: hook already attached on Open; calling it
@@ -660,7 +660,7 @@ func TestAttachReuseIsSilent(t *testing.T) {
 	}
 	t.Cleanup(func() { live.Close() })
 	live.sql.SetMaxOpenConns(1)
-	before = LocalAttachReuses()
+	before = localAttachReuses.Load()
 	got = captureLog(t, func() {
 		if err := attachLocalHook(sqlExecQuerier{live.sql}, "file:"+path); err != nil {
 			t.Errorf("live hook: %v", err)
@@ -669,8 +669,8 @@ func TestAttachReuseIsSilent(t *testing.T) {
 	if strings.Contains(got, "ATTACH local.db") {
 		t.Fatalf("live reuse path logged %q", got)
 	}
-	if LocalAttachReuses() != before+1 {
-		t.Fatalf("live LocalAttachReuses %d → %d, want +1", before, LocalAttachReuses())
+	if localAttachReuses.Load() != before+1 {
+		t.Fatalf("live localAttachReuses %d → %d, want +1", before, localAttachReuses.Load())
 	}
 }
 
@@ -726,7 +726,7 @@ func TestAttachFailureIsReported(t *testing.T) {
 			return nil, fmt.Errorf("unexpected query %q", q)
 		},
 	}
-	before := LocalAttachReuses()
+	before := localAttachReuses.Load()
 	got = captureLog(t, func() {
 		if err := attachLocalHook(conn, "file:"+okPath); err != nil {
 			t.Errorf("hook: %v", err)
@@ -735,8 +735,8 @@ func TestAttachFailureIsReported(t *testing.T) {
 	if !strings.Contains(got, "ATTACH local.db") {
 		t.Fatalf("genuine failure with reuse-shaped prose was swallowed; log=%q", got)
 	}
-	if LocalAttachReuses() != before {
-		t.Fatalf("LocalAttachReuses moved on a real failure: %d → %d", before, LocalAttachReuses())
+	if localAttachReuses.Load() != before {
+		t.Fatalf("localAttachReuses moved on a real failure: %d → %d", before, localAttachReuses.Load())
 	}
 }
 
@@ -759,7 +759,7 @@ func TestLocalAttachDoesNotSniffDriverProse(t *testing.T) {
 func TestNewerLocalDBWarnsOncePerPath(t *testing.T) {
 	path := newerLocalFixture(t, len(localMigrations)+1)
 	local := LocalPath(path)
-	before := LocalNewerSchemaWarnsSuppressed()
+	before := localNewerSchemaWarnsSuppressed.Load()
 	got := captureLog(t, func() {
 		openReadOnlyQuery(t, path)
 		openReadOnlyQuery(t, path)
@@ -780,8 +780,8 @@ func TestNewerLocalDBWarnsOncePerPath(t *testing.T) {
 	if !strings.Contains(got, "--workspace") || !strings.Contains(got, "GADAK_HOME") {
 		t.Errorf("message must name --workspace / GADAK_HOME; log=%q", got)
 	}
-	if gotn := LocalNewerSchemaWarnsSuppressed(); gotn != before+1 {
-		t.Errorf("LocalNewerSchemaWarnsSuppressed %d → %d, want +1", before, gotn)
+	if gotn := localNewerSchemaWarnsSuppressed.Load(); gotn != before+1 {
+		t.Errorf("localNewerSchemaWarnsSuppressed %d → %d, want +1", before, gotn)
 	}
 }
 
@@ -789,7 +789,7 @@ func TestNewerLocalDBWarnsOncePerPath(t *testing.T) {
 func TestNewerLocalDBWarnsSeparatelyPerPath(t *testing.T) {
 	pathA := newerLocalFixture(t, len(localMigrations)+1)
 	pathB := newerLocalFixture(t, len(localMigrations)+1)
-	before := LocalNewerSchemaWarnsSuppressed()
+	before := localNewerSchemaWarnsSuppressed.Load()
 	got := captureLog(t, func() {
 		openReadOnlyQuery(t, pathA)
 		openReadOnlyQuery(t, pathB)
@@ -800,7 +800,7 @@ func TestNewerLocalDBWarnsSeparatelyPerPath(t *testing.T) {
 	if !strings.Contains(got, LocalPath(pathA)) || !strings.Contains(got, LocalPath(pathB)) {
 		t.Errorf("each path must appear; log=%q", got)
 	}
-	if gotn := LocalNewerSchemaWarnsSuppressed(); gotn != before {
+	if gotn := localNewerSchemaWarnsSuppressed.Load(); gotn != before {
 		t.Errorf("two distinct first-seen paths must not suppress; %d → %d", before, gotn)
 	}
 }

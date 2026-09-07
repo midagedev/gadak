@@ -15,10 +15,10 @@ import (
 func restoreWatchLoop(t *testing.T) {
 	t.Helper()
 	origFn := watchFn
-	origPause := WatchRestartPause
+	origPause := watchRestartPause
 	t.Cleanup(func() {
 		watchFn = origFn
-		WatchRestartPause = origPause
+		watchRestartPause = origPause
 	})
 }
 
@@ -26,7 +26,7 @@ func restoreWatchLoop(t *testing.T) {
 // the process loop — WatchLoop re-enters until ctx is cancelled.
 func TestWatchLoopReentersOnWatchError(t *testing.T) {
 	restoreWatchLoop(t)
-	WatchRestartPause = time.Millisecond
+	watchRestartPause = time.Millisecond
 
 	var mu sync.Mutex
 	n := 0
@@ -66,10 +66,10 @@ func TestWatchLoopReentersOnWatchError(t *testing.T) {
 }
 
 // TestWatchLoopReturnsOnCancelDuringWatch: cancelling ctx while Watch is
-// blocked must return without waiting out WatchRestartPause.
+// blocked must return without waiting out watchRestartPause.
 func TestWatchLoopReturnsOnCancelDuringWatch(t *testing.T) {
 	restoreWatchLoop(t)
-	WatchRestartPause = time.Hour
+	watchRestartPause = time.Hour
 
 	entered := make(chan struct{})
 	watchFn = func(ctx context.Context, _ *config.Config, _ *store.DB, _ Options) error {
@@ -100,10 +100,10 @@ func TestWatchLoopReturnsOnCancelDuringWatch(t *testing.T) {
 }
 
 // TestWatchLoopReturnsOnCancelDuringPause: cancelling ctx during the restart
-// pause must return immediately, not after WatchRestartPause.
+// pause must return immediately, not after watchRestartPause.
 func TestWatchLoopReturnsOnCancelDuringPause(t *testing.T) {
 	restoreWatchLoop(t)
-	WatchRestartPause = time.Hour
+	watchRestartPause = time.Hour
 
 	logged := make(chan struct{}, 1)
 	watchFn = func(context.Context, *config.Config, *store.DB, Options) error {
@@ -146,7 +146,7 @@ func TestWatchLoopReturnsOnCancelDuringPause(t *testing.T) {
 // Watch entry sees.
 func TestWatchLoopReloadAppliesOnNextEntry(t *testing.T) {
 	restoreWatchLoop(t)
-	WatchRestartPause = time.Millisecond
+	watchRestartPause = time.Millisecond
 
 	const initial = "http://initial.example.invalid"
 	const reloaded = "http://reloaded.example.invalid"
@@ -194,7 +194,7 @@ func TestWatchLoopReloadAppliesOnNextEntry(t *testing.T) {
 // goes there instead of the process-wide logger.
 func TestWatchLoopLogReceivesStopMessage(t *testing.T) {
 	restoreWatchLoop(t)
-	WatchRestartPause = time.Hour
+	watchRestartPause = time.Hour
 
 	var mu sync.Mutex
 	var logs []string

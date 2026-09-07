@@ -10,7 +10,7 @@ import (
 
 func TestZeroRowDisplayNameWarning(t *testing.T) {
 	q := `SELECT key FROM issues WHERE status = 'In Progress'`
-	if got := ZeroRowDisplayNameWarning(q, 0); got != ZeroRowWarning {
+	if got := ZeroRowDisplayNameWarning(q, 0); got != zeroRowWarning {
 		t.Fatalf("0-row display-name: %q", got)
 	}
 	if got := ZeroRowDisplayNameWarning(q, 2); got != "" {

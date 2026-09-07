@@ -110,7 +110,7 @@ func TestLibAddRoundTrip(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, lib.ID)); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("cache file survived rm: %v", err)
 	}
-	if _, err := LibLookup(dir, lib.ID); !errors.Is(err, ErrLibNotFound) {
+	if _, err := libLookup(dir, lib.ID); !errors.Is(err, ErrLibNotFound) {
 		t.Fatalf("lookup after rm = %v, want ErrLibNotFound", err)
 	}
 	if err := LibRemove(dir, lib.ID); !errors.Is(err, ErrLibNotFound) {
@@ -254,7 +254,7 @@ func TestLibAddReplaceFlow(t *testing.T) {
 	if _, _, err := LibAdd(context.Background(), dir, url, false, addNow()); err == nil || !strings.Contains(err.Error(), "--replace") {
 		t.Fatalf("upstream change accepted silently: %v", err)
 	}
-	if _, err := LibLookup(dir, first.ID); err != nil {
+	if _, err := libLookup(dir, first.ID); err != nil {
 		t.Fatalf("old entry vanished during refused add: %v", err)
 	}
 
@@ -266,7 +266,7 @@ func TestLibAddReplaceFlow(t *testing.T) {
 	if second.ID == first.ID {
 		t.Fatalf("changed bytes kept the same id — the pin did not move")
 	}
-	if _, err := LibLookup(dir, first.ID); !errors.Is(err, ErrLibNotFound) {
+	if _, err := libLookup(dir, first.ID); !errors.Is(err, ErrLibNotFound) {
 		t.Fatalf("old entry survived --replace: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(dir, first.ID)); !errors.Is(err, os.ErrNotExist) {

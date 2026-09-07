@@ -10,14 +10,14 @@ import (
 )
 
 func TestInstallMethodForWindowsIsCopy(t *testing.T) {
-	if got := installMethodFor("windows"); got != MethodCopy {
-		t.Fatalf("installMethodFor(windows) = %q, want %q", got, MethodCopy)
+	if got := installMethodFor("windows"); got != methodCopy {
+		t.Fatalf("installMethodFor(windows) = %q, want %q", got, methodCopy)
 	}
 	if got := destBaseFor("windows"); got != "gadak.exe" {
 		t.Fatalf("destBaseFor(windows) = %q, want %q", got, "gadak.exe")
 	}
-	if got := installMethodFor("darwin"); got != MethodSymlink {
-		t.Fatalf("installMethodFor(darwin) = %q, want %q", got, MethodSymlink)
+	if got := installMethodFor("darwin"); got != methodSymlink {
+		t.Fatalf("installMethodFor(darwin) = %q, want %q", got, methodSymlink)
 	}
 	if got := destBaseFor("linux"); got != "gadak" {
 		t.Fatalf("destBaseFor(linux) = %q, want %q", got, "gadak")
@@ -101,7 +101,7 @@ func TestDefaultDirForWindows(t *testing.T) {
 	t.Run("localappdata_set", func(t *testing.T) {
 		base := t.TempDir()
 		t.Setenv("LOCALAPPDATA", base)
-		got, err := DefaultDirFor("/usr/bin:"+filepath.Join("C:", "Windows"), "windows")
+		got, err := defaultDirFor("/usr/bin:"+filepath.Join("C:", "Windows"), "windows")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -118,7 +118,7 @@ func TestDefaultDirForWindows(t *testing.T) {
 		t.Setenv("LOCALAPPDATA", "")
 		t.Setenv("HOME", home)
 		t.Setenv("USERPROFILE", home)
-		got, err := DefaultDirFor("", "windows")
+		got, err := defaultDirFor("", "windows")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -294,8 +294,8 @@ func TestResolveForWindowsPlansCopy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p.Method != MethodCopy {
-		t.Fatalf("Method = %q, want %q", p.Method, MethodCopy)
+	if p.Method != methodCopy {
+		t.Fatalf("Method = %q, want %q", p.Method, methodCopy)
 	}
 	if filepath.Base(p.Dest) != "gadak.exe" {
 		t.Fatalf("Dest base = %q, want gadak.exe (Dest=%q)", filepath.Base(p.Dest), p.Dest)

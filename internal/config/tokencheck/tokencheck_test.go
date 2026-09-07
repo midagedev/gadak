@@ -177,8 +177,8 @@ func TestGoldenVectorsDeltaEok(t *testing.T) {
 		t.Fatalf("deltaEok vectors: %d < 20", len(v.DeltaEok))
 	}
 	for i, d := range v.DeltaEok {
-		assertClose(t, fmt.Sprintf("dEok[%d] %s/%s", i, d.A, d.B), DEok(d.A, d.B), d.DeltaEok)
-		assertClose(t, fmt.Sprintf("dEok-deut[%d] %s/%s", i, d.A, d.B), DEok(Deut(d.A), Deut(d.B)), d.DeltaEokDeuteranopia)
+		assertClose(t, fmt.Sprintf("dEok[%d] %s/%s", i, d.A, d.B), dEok(d.A, d.B), d.DeltaEok)
+		assertClose(t, fmt.Sprintf("dEok-deut[%d] %s/%s", i, d.A, d.B), dEok(deut(d.A), deut(d.B)), d.DeltaEokDeuteranopia)
 	}
 }
 
@@ -201,7 +201,7 @@ func TestGoldenVectorsDeut(t *testing.T) {
 		t.Fatal("deut vectors empty")
 	}
 	for i, d := range v.Deut {
-		if got := Deut(d.Hex); got != d.Deuteranopia {
+		if got := deut(d.Hex); got != d.Deuteranopia {
 			t.Errorf("deut[%d] %s: got %s, want %s — matrix substituted or transposed?", i, d.Hex, got, d.Deuteranopia)
 		}
 	}
@@ -424,7 +424,7 @@ func TestThreeDigitExpansion(t *testing.T) {
 	if Contrast("#abc", "#ffffff") != Contrast("#aabbcc", "#ffffff") {
 		t.Error("#abc must expand to #aabbcc (digit doubling), not 0xabc padding")
 	}
-	if Deut("#f00") != Deut("#ff0000") {
+	if deut("#f00") != deut("#ff0000") {
 		t.Error("deut: #abc-style expansion inconsistent")
 	}
 }

@@ -19,9 +19,9 @@ import (
 	"github.com/midagedev/gadak/internal/store"
 )
 
-// RefScheme is the URL form of a cross-workspace pointer. Kept in step with
+// refScheme is the URL form of a cross-workspace pointer. Kept in step with
 // cmd/gadak's refScheme — the CLI writes these and the server reads them.
-const RefScheme = "gadak://"
+const refScheme = "gadak://"
 
 // detailRef is one reference as the client sees it.
 type detailRef struct {
@@ -78,10 +78,10 @@ func hydrateRefs(ctx context.Context, links []store.RemoteLink) []detailRef {
 // parseRefURL splits gadak://<workspace>/<KEY>. Any other URL is a plain
 // external pointer with nothing local to read.
 func parseRefURL(url string) (workspace, key string, ok bool) {
-	if !strings.HasPrefix(url, RefScheme) {
+	if !strings.HasPrefix(url, refScheme) {
 		return "", "", false
 	}
-	ws, k, found := strings.Cut(strings.TrimPrefix(url, RefScheme), "/")
+	ws, k, found := strings.Cut(strings.TrimPrefix(url, refScheme), "/")
 	if !found || ws == "" || k == "" {
 		return "", "", false
 	}

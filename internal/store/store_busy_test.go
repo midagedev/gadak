@@ -226,7 +226,7 @@ func TestWriteBusyErrorIncludesHolderHint(t *testing.T) {
 	if !sqliteBusy(err) {
 		t.Fatalf("want busy, got %v", err)
 	}
-	if !strings.Contains(err.Error(), BusyHolderHint) {
+	if !strings.Contains(err.Error(), busyHolderHint) {
 		t.Fatalf("write busy missing holder hint: %v", err)
 	}
 	// Two attempts × 50ms plus 50ms backoff, not a second write() cycle.
@@ -239,7 +239,7 @@ func TestWithBusyHintPreservesCodeAndIsIdempotent(t *testing.T) {
 	t.Parallel()
 	busy := codeErr{code: 5, msg: "database is locked (5) (SQLITE_BUSY)"}
 	got := WithBusyHint(busy)
-	if !strings.Contains(got.Error(), BusyHolderHint) {
+	if !strings.Contains(got.Error(), busyHolderHint) {
 		t.Fatalf("hint missing: %v", got)
 	}
 	if !sqliteBusy(got) {

@@ -508,7 +508,7 @@ func TestRetroSessionsResumeOnFixture(t *testing.T) {
 
 // TestFormatGap — contract ↔ assertion map: whole-minute durations render in
 // the trimmed form the footer prints; everything else keeps Duration.String().
-// FAIL-first: before FormatGap existed the footer hardcoded "exceeds 30m"
+// FAIL-first: before formatGap existed the footer hardcoded "exceeds 30m"
 // regardless of the effective gap.
 func TestFormatGap(t *testing.T) {
 	for in, want := range map[time.Duration]string{
@@ -522,8 +522,8 @@ func TestFormatGap(t *testing.T) {
 		50 * time.Second:  "50s",   // must not trim to "5"
 		105 * time.Minute: "1h45m",
 	} {
-		if got := FormatGap(in); got != want {
-			t.Errorf("FormatGap(%v) = %q, want %q", in, got, want)
+		if got := formatGap(in); got != want {
+			t.Errorf("formatGap(%v) = %q, want %q", in, got, want)
 		}
 	}
 }
@@ -593,7 +593,7 @@ func TestRetroSessionGapParameter(t *testing.T) {
 
 // TestRetroCycleRowsMatchColumnReads — contract ↔ assertion map:
 //
-//	A1 value: per bucket, p50/p85 equal Median/P85 of the column read
+//	A1 value: per bucket, p50/p85 equal median/P85 of the column read
 //	   (resolved_at window-bounded as ISOMilli strings, cycle_hours not
 //	   null, reopen_count = 0), days = hours/24
 //	A2 nil/dash: a bucket with no sample has both nil and no keys
@@ -661,7 +661,7 @@ func TestRetroCycleRowsMatchColumnReads(t *testing.T) {
 			if b.CycleP50 == nil || b.CycleP85 == nil {
 				t.Fatalf("bucket %d has %d samples but a cycle cell is nil", bi, len(cycles))
 			}
-			wantP50, _ := Median(cycles)
+			wantP50, _ := median(cycles)
 			wantP85, _ := P85(cycles)
 			if math.Abs(*b.CycleP50-wantP50) > 1e-9 || math.Abs(*b.CycleP85-wantP85) > 1e-9 {
 				t.Fatalf("bucket %d cycle: got p50=%.6f p85=%.6f, column read says %.6f/%.6f",

@@ -53,7 +53,7 @@ func TestGetReleasesLockDuringOpen(t *testing.T) {
 	// Alpha is inside construction. If r.mu is still held, this fails
 	// immediately — that is the pre-fix shape (FAIL-first, 2026-08-19).
 	if !reg.mu.TryLock() {
-		t.Fatal("Get still holds r.mu during construction — one profile's store.Open serialises every other Get/EnsureWatch/Close")
+		t.Fatal("Get still holds r.mu during construction — one profile's store.Open serialises every other Get/ensureWatch/Close")
 	}
 	reg.mu.Unlock()
 

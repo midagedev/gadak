@@ -10,9 +10,9 @@ import (
 // relations and labels. Same discipline as write.go — every call is a user
 // action routed through the origin, ids never display names.
 
-// RelationTypes is Linear's IssueRelationType enum (introspected
+// relationTypes is Linear's IssueRelationType enum (introspected
 // 2026-09-02). CreateRelation refuses anything else before the wire.
-var RelationTypes = map[string]bool{"blocks": true, "duplicate": true, "related": true, "similar": true}
+var relationTypes = map[string]bool{"blocks": true, "duplicate": true, "related": true, "similar": true}
 
 // CreateRelation links two issues: issueID <typ> relatedID (for "blocks",
 // issueID blocks relatedID). Linear materializes the inverse itself.
@@ -20,7 +20,7 @@ func (c *Client) CreateRelation(ctx context.Context, issueID, relatedID, typ str
 	if issueID == "" || relatedID == "" {
 		return errors.New("linear: issueId and relatedIssueId are required")
 	}
-	if !RelationTypes[typ] {
+	if !relationTypes[typ] {
 		return fmt.Errorf("linear: relation type %q is not one of blocks|duplicate|related|similar", typ)
 	}
 	var res struct {

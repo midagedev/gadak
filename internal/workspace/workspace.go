@@ -29,7 +29,7 @@ var errRegistryClosed = errors.New("workspace: registry closed")
 // watchRescanInterval is how often WatchAll re-scans profiles for a credential
 // that appeared after boot (CLI `gadak init` while serve is already running).
 // Onboarding does not wait for this: the workspace handler's sync starter
-// calls EnsureWatch as soon as connect saves a token.
+// calls ensureWatch as soon as connect saves a token.
 const watchRescanInterval = 30 * time.Second
 
 // workspaceNameRe is the only allowed shape for /w/<name>/ segments.
@@ -57,7 +57,7 @@ type Registry struct {
 	// or insert; construction (config.LoadFor, store.Open, attachcache.New,
 	// server.NewWorkspace) and Close of discarded or snapshotted entries run
 	// with the lock released. Holding it across disk IO serialises every
-	// other profile's Get/EnsureWatch/Close behind one migration.
+	// other profile's Get/ensureWatch/Close behind one migration.
 	mu      sync.Mutex
 	entries map[string]*Entry
 	flights map[string]*openFlight
@@ -69,7 +69,7 @@ type Registry struct {
 	owningOrigin map[string]*originFlight
 
 	// Watch ownership (D8): one loop per credentialed non-primary profile.
-	// WatchAll arms these; EnsureWatch / the rescan ticker start loops when
+	// WatchAll arms these; ensureWatch / the rescan ticker start loops when
 	// a credential appears later. watching prevents a double start.
 	watching      map[string]bool
 	watchCtx      context.Context
@@ -205,7 +205,7 @@ func (r *Registry) Get(name string) (*Entry, error) {
 	}
 	// First open after CLI init: start Watch if a credential is already on disk
 	// and WatchAll has armed the owner. Per-request path after this is a map hit.
-	r.EnsureWatch(name)
+	r.ensureWatch(name)
 	return e, nil
 }
 
@@ -300,7 +300,7 @@ func (r *Registry) construct(name string) (*Entry, error) {
 	profileName := name
 	// Same seam as the primary serve handler: first successful onboarding
 	// connect starts this profile's Watch exactly once (server-side Once).
-	h.SetSyncStarter(func() { r.EnsureWatch(profileName) })
+	h.SetSyncStarter(func() { r.ensureWatch(profileName) })
 	return &Entry{Handler: h, DB: db, Cfg: cfg}, nil
 }
 
@@ -375,9 +375,9 @@ func (r *Registry) Handler(spa http.Handler, version string) http.HandlerFunc {
 	}
 }
 
-// ListEntry is one item in GET /api/v1/workspaces. Never carries Token or
+// listEntry is one item in GET /api/v1/workspaces. Never carries Token or
 // Email — only site URL and project keys for the picker.
-type ListEntry struct {
+type listEntry struct {
 	Name     string   `json:"name"`
 	Site     string   `json:"site,omitempty"`
 	Projects []string `json:"projects,omitempty"`
@@ -392,13 +392,13 @@ func ListHandler() http.HandlerFunc {
 		primary := config.Profile()
 		primaryName := config.NormalizeProfile(primary)
 
-		var list []ListEntry
+		var list []listEntry
 
 		// Active (serve) profile first.
 		if cfg, err := config.LoadFor(primary); err != nil {
-			list = append(list, ListEntry{Name: primaryName, Active: true, Error: "unreadable"})
+			list = append(list, listEntry{Name: primaryName, Active: true, Error: "unreadable"})
 		} else {
-			list = append(list, ListEntry{
+			list = append(list, listEntry{
 				Name:     primaryName,
 				Site:     cfg.Site,
 				Projects: cfg.Projects,
@@ -417,10 +417,10 @@ func ListHandler() http.HandlerFunc {
 			}
 			cfg, err := config.LoadFor(name)
 			if err != nil {
-				list = append(list, ListEntry{Name: name, Error: "unreadable"})
+				list = append(list, listEntry{Name: name, Error: "unreadable"})
 				continue
 			}
-			list = append(list, ListEntry{
+			list = append(list, listEntry{
 				Name:     name,
 				Site:     cfg.Site,
 				Projects: cfg.Projects,
@@ -442,7 +442,7 @@ func sameProfile(a, b string) bool {
 // WatchAll arms the credential-appearance owner and starts a loop for every
 // profile that already has a credential, skipping primary (its caller already
 // watches that one). Returns the profile names that got a loop. Subsequent
-// credentials (onboarding connect, or a later EnsureWatches / rescan) start
+// credentials (onboarding connect, or a later ensureWatches / rescan) start
 // through the same owner and cannot double-start. Log receives status lines;
 // never pass secrets into it — only profile names are logged from here.
 func (r *Registry) WatchAll(ctx context.Context, primary string, logf func(string)) []string {
@@ -462,17 +462,17 @@ func (r *Registry) WatchAll(ctx context.Context, primary string, logf func(strin
 	}
 	r.mu.Unlock()
 
-	started := r.EnsureWatches()
+	started := r.ensureWatches()
 	if startRescan {
 		go r.rescanLoop(ctx)
 	}
 	return started
 }
 
-// EnsureWatches is the single "credential appeared" scan: start a Watch for
+// ensureWatches is the single "credential appeared" scan: start a Watch for
 // every non-primary profile that now has a credential and does not already
 // have a loop. Returns the names that were started this call.
-func (r *Registry) EnsureWatches() []string {
+func (r *Registry) ensureWatches() []string {
 	if r == nil {
 		return nil
 	}
@@ -488,17 +488,17 @@ func (r *Registry) EnsureWatches() []string {
 	}
 	var started []string
 	for _, name := range names {
-		if r.EnsureWatch(name) {
+		if r.ensureWatch(name) {
 			started = append(started, name)
 		}
 	}
 	return started
 }
 
-// EnsureWatch starts this profile's Watch if WatchAll has armed the owner, the
+// ensureWatch starts this profile's Watch if WatchAll has armed the owner, the
 // profile now has a credential, and no loop is already running. Idempotent.
 // LoadFor and store.Open run with r.mu released.
-func (r *Registry) EnsureWatch(name string) bool {
+func (r *Registry) ensureWatch(name string) bool {
 	if r == nil {
 		return false
 	}
@@ -516,7 +516,7 @@ func (r *Registry) EnsureWatch(name string) bool {
 	if err != nil || !cfg.HasCredential() {
 		return false
 	}
-	// Frozen workspaces refuse pulls (GDK-181). Stay quiet: EnsureWatches is
+	// Frozen workspaces refuse pulls (GDK-181). Stay quiet: ensureWatches is
 	// on a rescan loop and a log line here would fire every scan.
 	if cfg.SyncFrozen() {
 		return false
@@ -584,13 +584,13 @@ func (r *Registry) rescanLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-tick.C:
-			_ = r.EnsureWatches()
+			_ = r.ensureWatches()
 			r.EnsureOrigins()
 		}
 	}
 }
 
-// watchReadyLocked reports whether EnsureWatch may proceed past the
+// watchReadyLocked reports whether ensureWatch may proceed past the
 // in-memory gates. Caller holds r.mu. Does not touch disk.
 func (r *Registry) watchReadyLocked(name string) bool {
 	if r.closed {

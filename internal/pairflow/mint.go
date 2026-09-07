@@ -426,14 +426,14 @@ func Rows(dir string, now time.Time) ([]Row, error) {
 	}
 	rows := make([]Row, 0, len(toks))
 	for _, m := range toks {
-		rows = append(rows, RowFrom(m, now))
+		rows = append(rows, rowFrom(m, now))
 	}
 	return rows, nil
 }
 
-// RowFrom shapes one stored token. The 8-char hash prefix is the same
+// rowFrom shapes one stored token. The 8-char hash prefix is the same
 // floor revoke accepts.
-func RowFrom(m pairing.Meta, now time.Time) Row {
+func rowFrom(m pairing.Meta, now time.Time) Row {
 	last := "-"
 	if m.LastUsedAt != nil {
 		last = m.LastUsedAt.UTC().Format(rowTime)

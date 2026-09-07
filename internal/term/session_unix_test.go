@@ -179,9 +179,9 @@ func TestSessionNameAndSeq(t *testing.T) {
 	if got := a.Info().Name; got != "fix-tax" {
 		t.Fatalf("Info.Name after set = %q", got)
 	}
-	long := strings.Repeat("가", MaxNameRunes+10)
+	long := strings.Repeat("가", maxNameRunes+10)
 	a.SetName(long)
-	if got := []rune(a.Name()); len(got) != MaxNameRunes {
+	if got := []rune(a.Name()); len(got) != maxNameRunes {
 		t.Fatalf("name not capped: %d runes", len(got))
 	}
 	a.SetName("")

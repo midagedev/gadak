@@ -28,8 +28,8 @@ const (
 // How Install places Dest. Windows copies: creating a symlink needs Developer
 // Mode or elevation, so the default path fails. Unix keeps a symlink.
 const (
-	MethodSymlink = "symlink"
-	MethodCopy    = "copy"
+	methodSymlink = "symlink"
+	methodCopy    = "copy"
 )
 
 // Plan is the result of Resolve: where to install, what is there, and whether
@@ -47,7 +47,7 @@ type Plan struct {
 	ExistingKind   string
 	ExistingTarget string // absolute path for symlinks; empty otherwise
 
-	// Method is MethodSymlink or MethodCopy. Set by ResolveFor from goos.
+	// Method is methodSymlink or methodCopy. Set by ResolveFor from goos.
 	Method string
 }
 
@@ -56,9 +56,9 @@ type Plan struct {
 // desktop windowChromeFor).
 func installMethodFor(goos string) string {
 	if goos == "windows" {
-		return MethodCopy
+		return methodCopy
 	}
-	return MethodSymlink
+	return methodSymlink
 }
 
 // destBaseFor is the filename under the install directory. Windows PATH
@@ -107,7 +107,7 @@ func ResolveFor(source, dirFlag, pathEnv, goos string) (Plan, error) {
 		p.Status = StatusLinked
 		return p, nil
 	}
-	if p.Method == MethodCopy && kind == "file" {
+	if p.Method == methodCopy && kind == "file" {
 		same, sameErr := sameRegularFile(dest, source)
 		if sameErr != nil {
 			return Plan{}, fmt.Errorf("compare %s: %w", TildeHome(dest), sameErr)
@@ -155,10 +155,10 @@ var DesktopExePathFile string
 
 // DefaultDir chooses an install directory when --dir is omitted.
 func DefaultDir(pathEnv string) (string, error) {
-	return DefaultDirFor(pathEnv, runtime.GOOS)
+	return defaultDirFor(pathEnv, runtime.GOOS)
 }
 
-// DefaultDirFor is DefaultDir with an explicit GOOS so the Windows
+// defaultDirFor is DefaultDir with an explicit GOOS so the Windows
 // default can be tested on any host (same shape as installMethodFor).
 //
 // Unix order:
@@ -168,7 +168,7 @@ func DefaultDir(pathEnv string) (string, error) {
 //
 // Windows: %LOCALAPPDATA%\Programs\gadak (empty LOCALAPPDATA →
 // UserHomeDir + AppData\Local). Unix candidates are not considered.
-func DefaultDirFor(pathEnv, goos string) (string, error) {
+func defaultDirFor(pathEnv, goos string) (string, error) {
 	if goos == "windows" {
 		return defaultDirWindows()
 	}
@@ -246,7 +246,7 @@ func Install(p Plan, force bool) error {
 		return permissionHint(fmt.Errorf("inspect %s: %w", TildeHome(p.Dest), err), p.Dest)
 	}
 
-	if p.Method == MethodCopy {
+	if p.Method == methodCopy {
 		if err := installCopy(p.Source, p.Dest); err != nil {
 			return permissionHint(fmt.Errorf("copy %s from %s: %w", TildeHome(p.Dest), TildeHome(p.Source), err), p.Dest)
 		}
@@ -266,12 +266,12 @@ func Install(p Plan, force bool) error {
 func (p Plan) PrintStatusLine() string {
 	switch p.Status {
 	case StatusMissing:
-		if p.Method == MethodCopy {
+		if p.Method == methodCopy {
 			return "status:  missing (would copy)"
 		}
 		return "status:  missing (would create symlink)"
 	case StatusLinked:
-		if p.Method == MethodCopy {
+		if p.Method == methodCopy {
 			return "status:  already installed (same copy)"
 		}
 		return "status:  already installed (same target)"
@@ -287,7 +287,7 @@ func (p Plan) PrintStatusLine() string {
 
 // InstalledLine is printed after a successful Install.
 func (p Plan) InstalledLine() string {
-	if p.Method == MethodCopy {
+	if p.Method == methodCopy {
 		return fmt.Sprintf("installed: %s (copy of %s)", TildeHome(p.Dest), TildeHome(p.Source))
 	}
 	return fmt.Sprintf("installed: %s → %s", TildeHome(p.Dest), TildeHome(p.Source))
@@ -295,7 +295,7 @@ func (p Plan) InstalledLine() string {
 
 // AlreadyInstalledLine is printed when Status is already linked/copied.
 func (p Plan) AlreadyInstalledLine() string {
-	if p.Method == MethodCopy {
+	if p.Method == methodCopy {
 		return fmt.Sprintf("already installed: %s (copy of %s)", TildeHome(p.Dest), TildeHome(p.Source))
 	}
 	return fmt.Sprintf("already installed: %s → %s", TildeHome(p.Dest), TildeHome(p.Source))

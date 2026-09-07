@@ -351,7 +351,7 @@ func TestWatchAllStopsOnCancel(t *testing.T) {
 
 func TestWatchingClearedWhenWatchReturns(t *testing.T) {
 	// GDK-541: watching[name] must clear when Watch returns, otherwise
-	// EnsureWatch skips forever.
+	// ensureWatch skips forever.
 	setupHome(t)
 	seedProfile(t, "loop", &config.Config{
 		Site: "http://127.0.0.1:1", Email: "a@example.invalid", Token: "test-token",
@@ -419,7 +419,7 @@ func watchingHas(names []string, want string) bool {
 }
 
 // D8: a profile that gains a credential after WatchAll must get a loop when
-// EnsureWatches runs (the single "credential appeared" scan). Today WatchAll
+// ensureWatches runs (the single "credential appeared" scan). Today WatchAll
 // is boot-only, so this fails until the rescan owner exists.
 func TestWatchStartsWhenCredentialAppearsAfterBoot(t *testing.T) {
 	setupHome(t)
@@ -440,16 +440,16 @@ func TestWatchStartsWhenCredentialAppearsAfterBoot(t *testing.T) {
 	seedProfile(t, "late", &config.Config{
 		Site: "http://127.0.0.1:1", Email: "a@example.invalid", Token: "test-token",
 	})
-	got := reg.EnsureWatches()
+	got := reg.ensureWatches()
 	if !watchingHas(got, "late") {
-		t.Fatalf("EnsureWatches after credential appeared: started %v, watching %v", got, watchingNames(reg))
+		t.Fatalf("ensureWatches after credential appeared: started %v, watching %v", got, watchingNames(reg))
 	}
 	if !watchingHas(watchingNames(reg), "late") {
-		t.Fatalf("watching missing late after EnsureWatches: %v", watchingNames(reg))
+		t.Fatalf("watching missing late after ensureWatches: %v", watchingNames(reg))
 	}
 	// Second scan must not start another loop.
-	if again := reg.EnsureWatches(); len(again) != 0 {
-		t.Fatalf("second EnsureWatches started %v", again)
+	if again := reg.ensureWatches(); len(again) != 0 {
+		t.Fatalf("second ensureWatches started %v", again)
 	}
 }
 

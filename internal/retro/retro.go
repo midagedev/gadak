@@ -39,8 +39,8 @@ import (
 	"github.com/midagedev/gadak/internal/store"
 )
 
-// MaxSinceDays caps --since at one year of weeks.
-const MaxSinceDays = 365
+// maxSinceDays caps --since at one year of weeks.
+const maxSinceDays = 365
 
 // SessionGap splits person reads into sessions: a counted visit more
 // than this after the previous one starts a new session. Exactly the gap is
@@ -117,7 +117,7 @@ var sinceRe = regexp.MustCompile(`^([0-9]+)([dw])$`)
 func ParseSince(s string) (time.Duration, error) {
 	m := sinceRe.FindStringSubmatch(strings.TrimSpace(s))
 	if m == nil {
-		return 0, fmt.Errorf("--since wants <N>d or <N>w (for example 14d, 30d, 8w), 1 to %d days", MaxSinceDays)
+		return 0, fmt.Errorf("--since wants <N>d or <N>w (for example 14d, 30d, 8w), 1 to %d days", maxSinceDays)
 	}
 	n, err := strconv.Atoi(m[1])
 	if err != nil || n < 1 {
@@ -127,8 +127,8 @@ func ParseSince(s string) (time.Duration, error) {
 	if m[2] == "w" {
 		days = 7 * n
 	}
-	if days > MaxSinceDays {
-		return 0, fmt.Errorf("--since is capped at %d days (got %d)", MaxSinceDays, days)
+	if days > maxSinceDays {
+		return 0, fmt.Errorf("--since is capped at %d days (got %d)", maxSinceDays, days)
 	}
 	return time.Duration(days) * 24 * time.Hour, nil
 }
@@ -142,20 +142,20 @@ func ParseSessionGap(s string) (time.Duration, error) {
 	d, err := time.ParseDuration(raw)
 	if err != nil {
 		return 0, fmt.Errorf("--session-gap wants a Go duration between %s and %s (for example 30m, 1h30m), got %q",
-			FormatGap(MinSessionGap), FormatGap(MaxSessionGap), raw)
+			formatGap(MinSessionGap), formatGap(MaxSessionGap), raw)
 	}
 	if d < MinSessionGap || d > MaxSessionGap {
 		return 0, fmt.Errorf("--session-gap is bounded to %s..%s (got %s)",
-			FormatGap(MinSessionGap), FormatGap(MaxSessionGap), FormatGap(d))
+			formatGap(MinSessionGap), formatGap(MaxSessionGap), formatGap(d))
 	}
 	return d, nil
 }
 
-// FormatGap is the trimmed duration the definitions footer prints:
+// formatGap is the trimmed duration the definitions footer prints:
 // time.Duration.String() would say 30m0s and 1h0m0s; the footer says 30m and
 // 1h. Whole-minute gaps (the only kind the bounds admit) collapse to their
 // shortest form, anything else keeps Duration.String().
-func FormatGap(d time.Duration) string {
+func formatGap(d time.Duration) string {
 	if d >= time.Minute && d%time.Minute == 0 {
 		h, m := d/time.Hour, (d%time.Hour)/time.Minute
 		switch {
@@ -638,7 +638,7 @@ func Compute(ctx context.Context, db *sql.DB, me store.FeedIdentity, since time.
 				b.ResumeK++
 			}
 		}
-		if med, ok := Median(resumes); ok {
+		if med, ok := median(resumes); ok {
 			b.Resume = &med
 		}
 	}
@@ -739,7 +739,7 @@ func Compute(ctx context.Context, db *sql.DB, me store.FeedIdentity, since time.
 				b.CycleKeys = append(b.CycleKeys, itemByID[item].key)
 			}
 			if len(cycles) > 0 {
-				if m, ok := Median(cycles); ok {
+				if m, ok := median(cycles); ok {
 					b.CycleP50 = &m
 				}
 				if p, ok := P85(cycles); ok {
@@ -1029,9 +1029,9 @@ func negatedSuffix(after string) bool {
 	return false
 }
 
-// Median is the middle value, or the mean of the two middle values for
+// median is the middle value, or the mean of the two middle values for
 // an even count.
-func Median(vals []float64) (float64, bool) {
+func median(vals []float64) (float64, bool) {
 	if len(vals) == 0 {
 		return 0, false
 	}
@@ -1103,7 +1103,7 @@ func (r Report) Definitions() [][2]string {
 		gap = SessionGap
 	}
 	defs := [][2]string{
-		{"sessions", fmt.Sprintf("person reads — visits with source ui or unknown — split where the gap to the previous read exceeds %s; a session counts in the week it started", FormatGap(gap))},
+		{"sessions", fmt.Sprintf("person reads — visits with source ui or unknown — split where the gap to the previous read exceeds %s; a session counts in the week it started", formatGap(gap))},
 	}
 	if r.CLIFallback {
 		defs = append(defs, [2]string{"sessions source", "sessions from cli visits (no ui reads recorded)"})

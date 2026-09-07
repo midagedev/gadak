@@ -74,7 +74,7 @@ var libIDRe = regexp.MustCompile(`^` + LibIDPattern + `$`)
 // loader (a hand-edited manifest must not smuggle a path through the id).
 func ValidLibID(id string) bool { return libIDRe.MatchString(id) }
 
-// ErrLibNotFound is returned by LibLookup/LibRemove for an id the manifest
+// ErrLibNotFound is returned by libLookup/LibRemove for an id the manifest
 // does not carry. The serve route answers 404 on it, like the vendor route.
 var ErrLibNotFound = errors.New("lib not found")
 
@@ -179,8 +179,8 @@ func LibList(dir string) ([]Lib, error) {
 	return loadManifest(dir)
 }
 
-// LibLookup resolves one id to its manifest entry.
-func LibLookup(dir, id string) (Lib, error) {
+// libLookup resolves one id to its manifest entry.
+func libLookup(dir, id string) (Lib, error) {
 	libs, err := loadManifest(dir)
 	if err != nil {
 		return Lib{}, err
@@ -409,7 +409,7 @@ func LibReadVerified(dir, id string) (Lib, []byte, error) {
 	if !ValidLibID(id) {
 		return Lib{}, nil, fmt.Errorf("%w: %s", ErrLibNotFound, id)
 	}
-	entry, err := LibLookup(dir, id)
+	entry, err := libLookup(dir, id)
 	if err != nil {
 		return Lib{}, nil, err
 	}

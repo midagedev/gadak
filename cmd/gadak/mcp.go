@@ -44,7 +44,7 @@ func cmdMCP(args []string) error {
 	if _, err := os.Stat(path); err != nil {
 		mcp.Logf("no mirror at %s — tools will error until you run `gadak init && gadak sync`", path)
 	}
-	srv := mcp.New(path, config.Profile(), version)
+	srv := &mcp.Server{DBPath: path, Profile: config.Profile(), Version: version}
 	ctx, cancel := context.WithCancel(context.Background())
 	var wg sync.WaitGroup
 	db := startMCPSyncLoop(ctx, &wg, path, noSync)

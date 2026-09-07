@@ -171,16 +171,16 @@ func AsRemoteLinker(cfg *config.Config, w Writer) (RemoteLinker, error) {
 	if !ok {
 		return nil, ErrNoRemoteLinks
 	}
-	if !HasRemoteLinks(cfg, w) {
+	if !hasRemoteLinks(cfg, w) {
 		return nil, ErrNoRemoteLinks
 	}
 	return v, nil
 }
 
-// HasRemoteLinks reports an issuetap-backed origin — local-origin
+// hasRemoteLinks reports an issuetap-backed origin — local-origin
 // (in-process) or paired (the home serve's passthrough). Single owner of
 // the write gate: the CLI verbs ask here.
-func HasRemoteLinks(cfg *config.Config, w any) bool {
+func hasRemoteLinks(cfg *config.Config, w any) bool {
 	rt, ok := clientTransport(w)
 	if !ok {
 		return false
@@ -188,7 +188,7 @@ func HasRemoteLinks(cfg *config.Config, w any) bool {
 	return TransportIsEmbedded(rt) || TransportIsServe(rt)
 }
 
-// SyncFetchesRemoteLinks is deliberately narrower than HasRemoteLinks: the
+// SyncFetchesRemoteLinks is deliberately narrower than hasRemoteLinks: the
 // remote-link read is one request per issue, which is free in-process and
 // one tailnet round-trip per issue on a paired workspace — a full sync of a
 // thousand-issue mirror would pay a thousand of them for a feature most

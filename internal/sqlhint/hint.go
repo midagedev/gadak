@@ -15,9 +15,9 @@ import (
 	"strings"
 )
 
-// ZeroRowWarning is the sentence both surfaces print when a query compared a
+// zeroRowWarning is the sentence both surfaces print when a query compared a
 // display-name column and returned nothing.
-const ZeroRowWarning = "zero rows with a display-name filter; status/priority/type are localized — retry with status_category, priority_rank, or issue_type_id"
+const zeroRowWarning = "zero rows with a display-name filter; status/priority/type are localized — retry with status_category, priority_rank, or issue_type_id"
 
 // displayNameFilterRe matches a comparison against a display-name column:
 // status, issue_type (also the Jira-API spelling issuetype), or priority.
@@ -26,7 +26,7 @@ const ZeroRowWarning = "zero rows with a display-name filter; status/priority/ty
 // `_…` where the pattern requires `=`, and a leading `_` is not a boundary.
 var displayNameFilterRe = regexp.MustCompile(`(?i)\b(status|issue_type|issuetype|priority)\s*=`)
 
-// ZeroRowDisplayNameWarning returns ZeroRowWarning when rowCount is 0 and
+// ZeroRowDisplayNameWarning returns zeroRowWarning when rowCount is 0 and
 // query compares a localized display-name column. Comments are stripped
 // first so a commented example is not a filter.
 func ZeroRowDisplayNameWarning(query string, rowCount int) string {
@@ -36,7 +36,7 @@ func ZeroRowDisplayNameWarning(query string, rowCount int) string {
 	if !displayNameFilterRe.MatchString(StripComments(query)) {
 		return ""
 	}
-	return ZeroRowWarning
+	return zeroRowWarning
 }
 
 // hintTables are the agent-facing relations whose columns we offer as

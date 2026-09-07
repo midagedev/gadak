@@ -3,7 +3,6 @@ package sync
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sort"
 	"strconv"
 
@@ -494,7 +493,7 @@ func reconcileLinear(ctx context.Context, c *linear.Client, db *store.DB, cfg *c
 		return 0, nil
 	}
 	if len(upstream) == 0 {
-		return 0, fmt.Errorf("reconcile: upstream reported no issues in scope while the mirror holds %d; refusing to empty it", len(gone))
+		return 0, errRefuseEmpty(len(gone))
 	}
 	opts.logf("linear reconcile: %d keys vanished upstream", len(gone))
 	return db.DeleteItems(ctx, LinearSourceID, gone)

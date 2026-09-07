@@ -20,10 +20,10 @@ import (
 	"github.com/midagedev/gadak/internal/store"
 )
 
-// ProtocolVersion is the MCP protocol version this server speaks. When a client
+// protocolVersion is the MCP protocol version this server speaks. When a client
 // requests a different version we still answer with this one and do not reject
 // the session (MCP version negotiation).
-const ProtocolVersion = "2025-03-26"
+const protocolVersion = "2025-03-26"
 
 // JSON-RPC 2.0 error codes used by the protocol layer.
 const (
@@ -34,7 +34,10 @@ const (
 	codeInternalError  = -32603
 )
 
-// Server is a stdio MCP session bound to one mirror database.
+// Server is a stdio MCP session bound to one mirror database. Callers build it
+// as a literal; the database is opened on first tool call, so initialize /
+// tools/list work even when the mirror is missing (the tool then returns a
+// clear isError message).
 type Server struct {
 	DBPath  string
 	Profile string
@@ -47,13 +50,6 @@ type Server struct {
 
 	mu sync.Mutex
 	db *store.DB
-}
-
-// New constructs a server. The database is opened on first tool call so
-// initialize / tools/list work even when the mirror is missing (the tool then
-// returns a clear isError message).
-func New(dbPath, profile, version string) *Server {
-	return &Server{DBPath: dbPath, Profile: profile, Version: version}
 }
 
 // Serve reads newline-delimited JSON-RPC messages from in and writes responses
@@ -155,7 +151,7 @@ func (s *Server) handleInitialize(msg rpcRequest) *rpcResponse {
 		version = "dev"
 	}
 	result := map[string]any{
-		"protocolVersion": ProtocolVersion,
+		"protocolVersion": protocolVersion,
 		"capabilities": map[string]any{
 			"tools": map[string]any{},
 		},

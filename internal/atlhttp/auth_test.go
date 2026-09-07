@@ -48,7 +48,7 @@ func TestAuthErrorUnwrapsAndNamesSource(t *testing.T) {
 
 func TestAuthFromStatus(t *testing.T) {
 	for _, code := range []int{http.StatusUnauthorized, http.StatusForbidden} {
-		err := AuthFromStatus(code, "jira")
+		err := authFromStatus(code, "jira")
 		if err == nil {
 			t.Fatalf("status %d: want Auth", code)
 		}
@@ -60,7 +60,7 @@ func TestAuthFromStatus(t *testing.T) {
 		}
 	}
 	for _, code := range []int{200, 400, 404, 429, 500} {
-		if err := AuthFromStatus(code, "jira"); err != nil {
+		if err := authFromStatus(code, "jira"); err != nil {
 			t.Fatalf("status %d: got %v, want nil", code, err)
 		}
 	}

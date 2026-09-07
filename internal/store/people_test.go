@@ -250,8 +250,8 @@ func TestCommentsByAuthorLimitCap(t *testing.T) {
 	if res.Total != 210 {
 		t.Fatalf("total = %d, want 210", res.Total)
 	}
-	if len(res.Comments) != CommentsByAuthorDefaultLimit {
-		t.Errorf("default limit: got %d, want %d", len(res.Comments), CommentsByAuthorDefaultLimit)
+	if len(res.Comments) != commentsByAuthorDefaultLimit {
+		t.Errorf("default limit: got %d, want %d", len(res.Comments), commentsByAuthorDefaultLimit)
 	}
 
 	// Cap at max even when caller asks for more.
@@ -259,8 +259,8 @@ func TestCommentsByAuthorLimitCap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(res.Comments) != CommentsByAuthorMaxLimit {
-		t.Errorf("max cap: got %d, want %d", len(res.Comments), CommentsByAuthorMaxLimit)
+	if len(res.Comments) != commentsByAuthorMaxLimit {
+		t.Errorf("max cap: got %d, want %d", len(res.Comments), commentsByAuthorMaxLimit)
 	}
 }
 

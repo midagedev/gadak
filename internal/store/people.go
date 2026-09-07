@@ -10,8 +10,8 @@ const commentSnippetRunes = 160
 
 // People-axis comment list defaults (GET people/{author_id}/comments/).
 const (
-	CommentsByAuthorDefaultLimit = 50
-	CommentsByAuthorMaxLimit     = 200
+	commentsByAuthorDefaultLimit = 50
+	commentsByAuthorMaxLimit     = 200
 )
 
 // AuthorComment is one row in GET people/{author_id}/comments/.
@@ -40,10 +40,10 @@ func (db *DB) CommentsByAuthor(ctx context.Context, authorID string, limit int) 
 		return out, nil
 	}
 	if limit <= 0 {
-		limit = CommentsByAuthorDefaultLimit
+		limit = commentsByAuthorDefaultLimit
 	}
-	if limit > CommentsByAuthorMaxLimit {
-		limit = CommentsByAuthorMaxLimit
+	if limit > commentsByAuthorMaxLimit {
+		limit = commentsByAuthorMaxLimit
 	}
 
 	if err := db.sql.QueryRowContext(ctx,

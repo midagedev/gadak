@@ -241,9 +241,9 @@ type Stats struct {
 	UnnamedStatuses []string // history-only status ids with no display name
 }
 
-// MaxAttachmentBytes caps one inlined file. The fixture is a YAML document
+// maxAttachmentBytes caps one inlined file. The fixture is a YAML document
 // read into memory; a file past this stays metadata-only and is reported.
-const MaxAttachmentBytes = 16 << 20
+const maxAttachmentBytes = 16 << 20
 
 // Build reads the mirror and assembles the fixture document. db must be a
 // mirror connection (read-only is fine); nothing is written.
@@ -806,7 +806,7 @@ func InlineAttachments(ctx context.Context, doc *Doc, fetch Fetch, st *Stats) {
 			case a.SourceURL != "":
 				st.AttachSkipURL++
 				continue
-			case a.Size > MaxAttachmentBytes:
+			case a.Size > maxAttachmentBytes:
 				st.AttachTooLarge++
 				continue
 			}
@@ -820,7 +820,7 @@ func InlineAttachments(ctx context.Context, doc *Doc, fetch Fetch, st *Stats) {
 			case status != 200:
 				st.AttachErrors = append(st.AttachErrors,
 					fmt.Sprintf("%s (%s): origin status %d", a.Filename, doc.Issues[i].Key, status))
-			case len(body) > MaxAttachmentBytes:
+			case len(body) > maxAttachmentBytes:
 				st.AttachTooLarge++
 			default:
 				if isPrintableText(a.MimeType, body) {

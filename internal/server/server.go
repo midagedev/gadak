@@ -496,11 +496,11 @@ func (h *Handler) CheckNow(ctx context.Context, cacheDir string) UpdateStatus {
 	return h.s.checkNow(ctx, cacheDir)
 }
 
-// SnapshotSync is the debug document for "what background work is running
+// snapshotSync is the debug document for "what background work is running
 // right now": the same one-shot job + activity picture that
 // GET /api/v1/issues/sync/progress/ already returns. No new endpoint — that
 // GET already carries it; this is the in-process form.
-func (h *Handler) SnapshotSync() progressResponse {
+func (h *Handler) snapshotSync() progressResponse {
 	if h == nil || h.s == nil {
 		return progressResponse{}
 	}

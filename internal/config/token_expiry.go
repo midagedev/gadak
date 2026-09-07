@@ -64,13 +64,13 @@ func AssessTokenExpiry(now time.Time, expiresAt, source string) TokenExpiry {
 	if raw == "" {
 		return TokenExpiry{State: TokenExpiryUnknown}
 	}
-	exp, err := ParseTokenExpiresAt(raw)
+	exp, err := parseTokenExpiresAt(raw)
 	if err != nil {
 		return TokenExpiry{State: TokenExpiryUnknown}
 	}
 	src := strings.TrimSpace(source)
 	out := TokenExpiry{
-		ExpiresAt: FormatTokenTime(exp),
+		ExpiresAt: formatTokenTime(exp),
 		Source:    src,
 	}
 	remaining := exp.Sub(now)
@@ -85,13 +85,13 @@ func AssessTokenExpiry(now time.Time, expiresAt, source string) TokenExpiry {
 	default:
 		out.State = TokenExpiryOK
 	}
-	out.Message = out.WarningLine()
+	out.Message = out.warningLine()
 	return out
 }
 
-// WarningLine is the English sentence status and sync_health surface.
+// warningLine is the English sentence status and sync_health surface.
 // Empty when there is nothing to warn about.
-func (e TokenExpiry) WarningLine() string {
+func (e TokenExpiry) warningLine() string {
 	switch e.State {
 	case TokenExpiryExpiring:
 		return "API token " + expiringWhen(e.DaysLeft) + e.hedge() + tokenExpiryRemedy
@@ -144,10 +144,10 @@ func expiredWhen(days *int) string {
 	}
 }
 
-// ParseTokenExpiresAt accepts a calendar date (YYYY-MM-DD, from an HTML date
+// parseTokenExpiresAt accepts a calendar date (YYYY-MM-DD, from an HTML date
 // input or Atlassian's create dialog) or an RFC3339 timestamp. Date-only
 // values are midnight UTC that day.
-func ParseTokenExpiresAt(raw string) (time.Time, error) {
+func parseTokenExpiresAt(raw string) (time.Time, error) {
 	s := strings.TrimSpace(raw)
 	if s == "" {
 		return time.Time{}, fmt.Errorf("empty expiry date")
@@ -165,8 +165,8 @@ func ParseTokenExpiresAt(raw string) (time.Time, error) {
 	return time.Time{}, fmt.Errorf("invalid expiry date %q (want YYYY-MM-DD or RFC3339)", s)
 }
 
-// FormatTokenTime writes the on-disk / JSON form (UTC, millisecond).
-func FormatTokenTime(t time.Time) string {
+// formatTokenTime writes the on-disk / JSON form (UTC, millisecond).
+func formatTokenTime(t time.Time) string {
 	return t.UTC().Format(TokenTimeFormat)
 }
 
@@ -180,22 +180,22 @@ func (c *Config) ApplyTokenExpiry(userRaw, verifiedAt string) error {
 	}
 	userRaw = strings.TrimSpace(userRaw)
 	if userRaw != "" {
-		t, err := ParseTokenExpiresAt(userRaw)
+		t, err := parseTokenExpiresAt(userRaw)
 		if err != nil {
 			return err
 		}
-		c.TokenExpiresAt = FormatTokenTime(t)
+		c.TokenExpiresAt = formatTokenTime(t)
 		c.TokenExpirySource = TokenExpirySourceUser
 		return nil
 	}
 	if strings.TrimSpace(verifiedAt) == "" {
 		return nil
 	}
-	base, err := ParseTokenExpiresAt(verifiedAt)
+	base, err := parseTokenExpiresAt(verifiedAt)
 	if err != nil {
 		return err
 	}
-	c.TokenExpiresAt = FormatTokenTime(base.AddDate(0, 0, TokenDefaultLifetimeDays))
+	c.TokenExpiresAt = formatTokenTime(base.AddDate(0, 0, TokenDefaultLifetimeDays))
 	c.TokenExpirySource = TokenExpirySourceAssumed
 	return nil
 }

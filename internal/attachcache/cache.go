@@ -25,9 +25,9 @@ import (
 	"time"
 )
 
-// DefaultMaxBytes bounds the cache. Attachments are usually screenshots, so a
+// defaultMaxBytes bounds the cache. Attachments are usually screenshots, so a
 // few hundred megabytes holds a working set of thousands.
-const DefaultMaxBytes int64 = 512 << 20
+const defaultMaxBytes int64 = 512 << 20
 
 // maxEntryBytes skips files too large to be worth caching for a UI that only
 // renders images, PDFs, and short clips inline.
@@ -83,13 +83,13 @@ type fill struct {
 	err error
 }
 
-// New opens (and creates) a cache directory. maxBytes <= 0 means DefaultMaxBytes.
+// New opens (and creates) a cache directory. maxBytes <= 0 means defaultMaxBytes.
 func New(dir string, maxBytes int64) (*Cache, error) {
 	if dir == "" {
 		return nil, errors.New("attachcache: empty directory")
 	}
 	if maxBytes <= 0 {
-		maxBytes = DefaultMaxBytes
+		maxBytes = defaultMaxBytes
 	}
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
