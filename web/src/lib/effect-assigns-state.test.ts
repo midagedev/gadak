@@ -203,24 +203,18 @@ const ALLOWED: Exception[] = [
    * store's own method (stores/triage.svelte.ts), not a same-file helper,
    * and the audit's `\bname(` matched straight past the dot. */
   {
-    file: 'components/detail/FieldEditor.svelte',
-    name: 'close',
-    why: 'outside-click wiring: close() is what the registered pointerdown handler does with its event — dismissal on click-away, not a synchronization',
-  },
-  {
     file: 'components/detail/LinkedIssues.svelte',
     name: 'loadTypes',
     why: 'per-key catalog fetch: the writes are the request result and its same-turn reset — IO has no input to derive from',
   },
   {
+    // GDK-1565/GDK-1566 (2026-09-08): the Esc listener and the outside-click
+    // effects became claims on lib/dom-actions.ts, so the two closeMenu
+    // entries and FieldEditor's close entry went with them. What remains is
+    // the catalog fetch the open menu triggers.
     file: 'components/list/BulkBar.svelte',
-    name: 'closeMenu',
-    why: 'a failed priorities GET closes the menu from the .then callback — the request outcome decides, not a dependency change',
-  },
-  {
-    file: 'components/list/BulkBar.svelte',
-    name: 'closeMenu',
-    why: 'the shell Esc ladder: closeMenu() is the key event’s outcome, spent here before the detail panel sees it (registration-order reason at the effect)',
+    name: 'loadSitePriorities',
+    why: 'the priority menu opening starts the site catalog GET; priorityLoad is that fetch’s progress output (loading/error), the same IO reason as the data/errorKind/loading entries below',
   },
   {
     file: 'components/list/IssueList.svelte',
