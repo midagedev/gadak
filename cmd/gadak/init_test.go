@@ -16,6 +16,7 @@ import (
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/pairing"
+	"github.com/midagedev/gadak/internal/skillinstall"
 )
 
 // clearCredentialEnv treats every GADAK_* / SCRY_* init source as unset.
@@ -1226,7 +1227,12 @@ func TestInitLocalOriginSkillSkippedWithoutClaudeDir(t *testing.T) {
 	}
 }
 
+// TestInitLocalOriginSkillConflictPreservesFile stamps the release version:
+// the destination already holds a file, and only a release build gets as far
+// as the conflict refusal (GDK-1539). The dev-build path stops one step
+// earlier and is covered by TestInitLocalOriginDevBuildLeavesInstalledSkillAlone.
 func TestInitLocalOriginSkillConflictPreservesFile(t *testing.T) {
+	releaseVersionForTest(t)
 	home := isolateHomeWithClaude(t)
 	t.Setenv("GADAK_HOME", home)
 	clearCredentialEnv(t)
@@ -1268,6 +1274,7 @@ func TestInitLocalOriginSkillConflictPreservesFile(t *testing.T) {
 }
 
 func TestInitLocalOriginHumanSkillInstalledLine(t *testing.T) {
+	releaseVersionForTest(t)
 	home := isolateHomeWithClaude(t)
 	t.Setenv("GADAK_HOME", home)
 	clearCredentialEnv(t)
@@ -1288,6 +1295,52 @@ func TestInitLocalOriginHumanSkillInstalledLine(t *testing.T) {
 	if _, err := os.Stat(skillDestUnder(home)); err != nil {
 		t.Fatalf("SKILL.md missing: %v", err)
 	}
+}
+
+// TestInitLocalOriginDevBuildLeavesInstalledSkillAlone is GDK-1539's measured
+// symptom, driven through the verb that produced it. `gadak init --local` in a
+// scratch profile replaced a planted, gadak-written copy in the real HOME with
+// the working tree's SKILL.md — and unlike the daily sync (GDK-1531) this path
+// has no rate limit, so it did it again on every init. The test binary carries
+// the dev version, which is the whole point: this is what a checkout build now
+// does.
+func TestInitLocalOriginDevBuildLeavesInstalledSkillAlone(t *testing.T) {
+	if !skillinstall.IsDevBuild(version) {
+		t.Fatalf("the test binary should carry the dev version, got %q", version)
+	}
+	home := isolateHomeWithClaude(t)
+	t.Setenv("GADAK_HOME", t.TempDir()) // the scratch profile of the incident
+	clearCredentialEnv(t)
+	config.SetProfile("")
+	t.Cleanup(func() {
+		_ = origin.Close()
+		config.SetProfile("")
+	})
+
+	dest := skillDestUnder(home)
+	autoSyncSeedStaleCopy(t, dest)
+	before, err := os.ReadFile(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out, stderr, err := captureErr(t, func() error {
+		return cmdInit([]string{"--local", "--json"})
+	})
+	if err != nil {
+		t.Fatalf("init must not fail: %v\nstdout=%s\nstderr=%s", err, out, stderr)
+	}
+	if skill, _ := initJSONSkill(t, out); skill != "skipped" {
+		t.Fatalf("skill = %q, want skipped; out=%s", skill, out)
+	}
+	after, err := os.ReadFile(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Fatal("init from a dev build replaced the installed skill")
+	}
+	assertDevSkillRefusal(t, stderr)
 }
 
 func TestInitConnectedAutoInstallsSkillWhenClaudeDirExists(t *testing.T) {

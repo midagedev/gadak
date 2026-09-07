@@ -303,6 +303,48 @@ func claudeDirExists() bool {
 	return err == nil && st.IsDir()
 }
 
+// ---------------------------------------------------------------------------
+// A binary built from a checkout does not write over a real agent home
+// (GDK-1531, GDK-1539)
+//
+// A dev build's embedded SKILL.md is whatever the working tree happens to hold
+// — often an uncommitted draft, mid-edit. Measured 2026-09-07, such a draft
+// landed in the developer's own ~/.claude/skills/gadak/SKILL.md by two
+// different routes: the daily auto-sync (GDK-1531) and autoInstallSkill on
+// `gadak init --local` (GDK-1539), which has no rate limit at all and so
+// overwrote the copy on every init / pairing / install-cli.
+//
+// Both routes are *unattended* writes — the user typed `init`, not `skill
+// install` — so both ask the same question in the same place rather than each
+// carrying its own copy of the rule; a third such path is one call away from
+// inheriting it. An explicit `gadak skill install` is the deliberate act and is
+// never gated: that is the escape hatch the refusal line names.
+//
+// The rule a dev build follows is create, never replace. A machine with no
+// skill installed loses nothing by getting one; a machine that already has one
+// is exactly where a working-tree draft destroys something.
+// ---------------------------------------------------------------------------
+
+// skillAutoWriteAllowed reports whether an unattended skill write may go ahead
+// against what is at dest, printing the single refusal line on w when it may
+// not. verb names the write being declined ("syncing" for the daily hook,
+// "replacing" for auto-install), so the line reads for the path the user took.
+func skillAutoWriteAllowed(w io.Writer, dest, verb string) bool {
+	if !skillinstall.IsDevBuild(version) {
+		return true
+	}
+	// A destination this classifier cannot read — a directory in the way, a
+	// permission error — is not a copy the guard is protecting. Let it through
+	// so the caller's own error path reports the failure once, in its words.
+	status, _, err := skillDestStatus(dest, gadak.SkillMarkdown())
+	if err != nil || status == skillinstall.StatusMissing {
+		return true
+	}
+	fmt.Fprintf(w, "skill: dev build — not %s %s (run gadak skill install to do it on purpose)\n",
+		verb, clitool.TildeHome(filepath.Dir(dest)))
+	return false
+}
+
 // autoInstallSkill writes the embedded Claude Code skill into the user-level
 // dest when ~/.claude already exists. force is always false: a file gadak
 // did not write is left in place. The return is one of "installed",
@@ -321,6 +363,10 @@ func autoInstallSkill(w io.Writer) string {
 	if err != nil {
 		fmt.Fprintf(w, "warning: skill auto-install: %v\n", err)
 		return "failed"
+	}
+	// GDK-1539: a dev build may create the copy but never replace one.
+	if !skillAutoWriteAllowed(w, dest, "replacing") {
+		return "skipped"
 	}
 	err = installSkill(io.Discard, gadak.SkillMarkdown(), dest, false, false)
 	if err == nil {
@@ -479,14 +525,14 @@ func maybeAutoSyncSkill(w io.Writer, cmd string) {
 	// the stamp lives under GADAK_HOME while the destination lives under HOME,
 	// so any probe that isolates one and not the other hands the hook a fresh
 	// day. The version is what actually separates "gadak shipped this" from
-	// "someone is editing this right now", so that is what the hook asks.
+	// "someone is editing this right now", so that is what the guard asks.
 	//
-	// The line prints here rather than at the top of the function so it costs
-	// a day's stamp and appears only when a sync would really have happened —
-	// once a day at most, and never for a machine with no skill installed.
-	if skillinstall.IsDevBuild(version) {
-		fmt.Fprintf(w, "skill: dev build — not syncing %s (run gadak skill install to do it on purpose)\n",
-			clitool.TildeHome(filepath.Dir(dest)))
+	// The question is asked here rather than at the top of the function so the
+	// refusal costs a day's stamp and appears only when a sync would really
+	// have happened — once a day at most, and never for a machine with no
+	// skill installed. skillAutoWriteAllowed is the shared owner (GDK-1539);
+	// reaching it with status "stale" it always sees a copy in place.
+	if !skillAutoWriteAllowed(w, dest, "syncing") {
 		return
 	}
 	// installSkill reuses the same classifier, the same atomic write and the

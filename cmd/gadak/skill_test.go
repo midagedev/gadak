@@ -743,7 +743,14 @@ func TestAutoInstallSkillInstallsMissing(t *testing.T) {
 	}
 }
 
+// The three tests below plant a copy at the destination before auto-install
+// runs, which is the case only a release build is allowed to write over
+// (GDK-1539) — so each stamps the release version, the same way the auto-sync
+// tests do. The dev-build half of the same three cases is at the end of this
+// file. The two above need no stamp: they never reach the guard, one because
+// ~/.claude is absent and one because the destination is empty.
 func TestAutoInstallSkillIdenticalIsInstalled(t *testing.T) {
+	releaseVersionForTest(t)
 	home := isolateHomeWithClaude(t)
 	dest := skillDestUnder(home)
 	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
@@ -766,6 +773,7 @@ func TestAutoInstallSkillIdenticalIsInstalled(t *testing.T) {
 }
 
 func TestAutoInstallSkillUpdatesStaleCopy(t *testing.T) {
+	releaseVersionForTest(t)
 	home := isolateHomeWithClaude(t)
 	dest := skillDestUnder(home)
 	prev := []byte("---\nname: gadak\ndescription: previous\n---\n\n# older\n")
@@ -786,6 +794,7 @@ func TestAutoInstallSkillUpdatesStaleCopy(t *testing.T) {
 }
 
 func TestAutoInstallSkillConflictDoesNotOverwrite(t *testing.T) {
+	releaseVersionForTest(t)
 	home := isolateHomeWithClaude(t)
 	dest := skillDestUnder(home)
 	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
@@ -1393,5 +1402,181 @@ func TestSkillDescriptionFitsHostBudget(t *testing.T) {
 		if !strings.Contains(desc, must) {
 			t.Errorf("description no longer mentions %q:\n%s", must, desc)
 		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// GDK-1539 — the auto-install paths obey the same rule as the daily sync.
+//
+// GDK-1531 closed the once-a-day hook. The other unattended write is
+// autoInstallSkill, reached from `gadak init` (init.go:466 / init.go:520),
+// pairing (pairing.go:491) and `gadak install-cli` (install_cli.go:65 / :75),
+// and it has no rate limit at all — measured 2026-09-07, `gadak init --local`
+// in a scratch profile replaced a planted, gadak-written copy in HOME with the
+// working tree's SKILL.md, on that run and on every run after it.
+//
+// The rule a dev build follows is create, never replace: an empty destination
+// still gets the skill, a destination that already holds one is left alone
+// with one line on stderr. `gadak skill install` is unaffected — that one the
+// user typed on purpose, and it is what the line names.
+// ---------------------------------------------------------------------------
+
+// devSkillRefusalLine is the stderr sentence auto-install leaves when it
+// declines. It is named once rather than retyped in each test so a reworded
+// line fails in one place.
+const devSkillRefusalLine = "skill: dev build — not replacing"
+
+// assertDevSkillRefusal checks the one line and the escape hatch it must name.
+func assertDevSkillRefusal(t *testing.T, stderr string) {
+	t.Helper()
+	if !strings.Contains(stderr, devSkillRefusalLine) {
+		t.Fatalf("the refusal must be announced; got:\n%s", stderr)
+	}
+	if !strings.Contains(stderr, "gadak skill install") {
+		t.Fatalf("the line must name the deliberate way to do it; got:\n%s", stderr)
+	}
+	if strings.Contains(stderr, "--force") {
+		t.Fatalf("a dev build must not suggest --force: forcing would overwrite the copy this guard protects:\n%s", stderr)
+	}
+}
+
+// TestAutoInstallSkillDevBuildLeavesOurStaleCopyAlone is the measured symptom.
+// A copy gadak installed earlier — the one case where the classifier says
+// "ours, and behind" and a release build silently updates it — is exactly the
+// developer's own installed skill, and a checkout build must not replace it
+// with whatever is in the tree right now.
+func TestAutoInstallSkillDevBuildLeavesOurStaleCopyAlone(t *testing.T) {
+	if !skillinstall.IsDevBuild(version) {
+		t.Fatalf("the test binary should carry the dev version, got %q", version)
+	}
+	home := isolateHomeWithClaude(t)
+	dest := skillDestUnder(home)
+	autoSyncSeedStaleCopy(t, dest)
+	before, err := os.ReadFile(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	if got := autoInstallSkill(&buf); got != "skipped" {
+		t.Fatalf("status = %q, want skipped; buf=%q", got, buf.String())
+	}
+
+	after, err := os.ReadFile(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Fatal("a dev build replaced the installed skill")
+	}
+	assertDevSkillRefusal(t, buf.String())
+}
+
+// TestAutoInstallSkillDevBuildLeavesForeignCopyAlone — a file gadak did not
+// write was already safe, but it now stops one step earlier, so the user is
+// told the reason that actually applies. Suggesting --force here would be
+// wrong twice over: it is not the refusal they hit, and running it from a
+// checkout is the very write this closes.
+func TestAutoInstallSkillDevBuildLeavesForeignCopyAlone(t *testing.T) {
+	home := isolateHomeWithClaude(t)
+	dest := skillDestUnder(home)
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	old := []byte("user-authored skill body\n")
+	if err := os.WriteFile(dest, old, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	if got := autoInstallSkill(&buf); got != "skipped" {
+		t.Fatalf("status = %q, want skipped; buf=%q", got, buf.String())
+	}
+	raw, err := os.ReadFile(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(raw, old) {
+		t.Fatal("a dev build overwrote the user's file")
+	}
+	assertDevSkillRefusal(t, buf.String())
+}
+
+// TestAutoInstallSkillDevBuildLeavesIdenticalCopyAlone draws the cut where the
+// closure put it: "is there a copy", not "would the bytes change". On a dev
+// build an identical copy means the installed skill *is* the working tree's
+// draft — the incident state, not a healthy one — so auto-install stops
+// claiming it and says the same thing it says for every other copy.
+func TestAutoInstallSkillDevBuildLeavesIdenticalCopyAlone(t *testing.T) {
+	home := isolateHomeWithClaude(t)
+	dest := skillDestUnder(home)
+	if err := installSkill(io.Discard, gadak.SkillMarkdown(), dest, false, false); err != nil {
+		t.Fatalf("seed identical copy: %v", err)
+	}
+	var buf bytes.Buffer
+	if got := autoInstallSkill(&buf); got != "skipped" {
+		t.Fatalf("status = %q, want skipped; buf=%q", got, buf.String())
+	}
+	got, err := os.ReadFile(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, gadak.SkillMarkdown()) {
+		t.Fatal("the identical path mutated the file")
+	}
+	assertDevSkillRefusal(t, buf.String())
+}
+
+// TestAutoInstallSkillDevBuildInstallsIntoEmptyDest is the other half of the
+// rule, and the reason it is "create, never replace" rather than "never
+// write": a contributor who has just built gadak and runs `init` still gets a
+// working skill. The receipt says where it came from, so `gadak doctor` can
+// tell them it is a draft (GDK-1531).
+func TestAutoInstallSkillDevBuildInstallsIntoEmptyDest(t *testing.T) {
+	home := isolateHomeWithClaude(t)
+	dest := skillDestUnder(home)
+
+	var buf bytes.Buffer
+	if got := autoInstallSkill(&buf); got != "installed" {
+		t.Fatalf("status = %q, want installed; buf=%q", got, buf.String())
+	}
+	if buf.Len() != 0 {
+		t.Fatalf("an install nobody had to be warned about must be silent, got %q", buf.String())
+	}
+	got, err := os.ReadFile(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, gadak.SkillMarkdown()) {
+		t.Fatal("bytes differ from embed")
+	}
+	r, ok := readSkillReceipt(filepath.Dir(dest))
+	if !ok {
+		t.Fatal("no receipt after a dev-build auto-install")
+	}
+	if r.Source != skillinstall.SourceDevTree {
+		t.Fatalf("receipt source = %q, want %q — doctor cannot warn about a draft it cannot see", r.Source, skillinstall.SourceDevTree)
+	}
+}
+
+// TestAutoInstallSkillDevBuildStillReportsUnreadableDest — the guard classifies
+// the destination before it decides, so it must not swallow the failures the
+// caller already reports. A directory where SKILL.md belongs is neither a copy
+// to protect nor an install that can succeed: it stays "failed" with a warning,
+// not a quiet "dev build" line.
+func TestAutoInstallSkillDevBuildStillReportsUnreadableDest(t *testing.T) {
+	home := isolateHomeWithClaude(t)
+	if err := os.MkdirAll(skillDestUnder(home), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	if got := autoInstallSkill(&buf); got != "failed" {
+		t.Fatalf("status = %q, want failed; buf=%q", got, buf.String())
+	}
+	if !strings.Contains(buf.String(), "warning:") {
+		t.Fatalf("failed must warn on the writer:\n%s", buf.String())
+	}
+	if strings.Contains(buf.String(), devSkillRefusalLine) {
+		t.Fatalf("the dev line must not stand in for a real failure:\n%s", buf.String())
 	}
 }

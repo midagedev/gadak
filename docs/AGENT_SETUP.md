@@ -225,7 +225,11 @@ Building gadak from a checkout? That binary's embedded skill is whatever is in
 your working tree, so the once-a-day refresh never runs from it: instead of
 pushing an unreviewed draft into your own agent it prints
 `skill: dev build — not syncing ~/.claude/skills/gadak`, once, and leaves the
-installed copy alone. `gadak skill install` still works — that one you typed on
+installed copy alone. The installs that come along with another command —
+`gadak init`, pairing, `gadak install-cli` — follow the same rule from a
+checkout: they create the skill if you have none, and if one is already there
+they leave it and say `skill: dev build — not replacing …` instead.
+`gadak skill install` still works — that one you typed on
 purpose — but the receipt beside the file then records `source: dev-tree` plus
 the short git hash, and `gadak doctor` says
 `skill: current (~/.claude/skills/gadak/SKILL.md, dev-tree 3f2ab1c)` so a draft

@@ -406,6 +406,7 @@ func TestInstallCLIAutoInstallsSkillWhenClaudeDirExists(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("install-cli unsupported on windows")
 	}
+	releaseVersionForTest(t)
 	home := isolateHomeWithClaude(t)
 	source, dir := seedInstallCLI(t)
 	var buf bytes.Buffer
@@ -475,10 +476,14 @@ func TestInstallCLISkillSkippedWithoutClaudeDirKeepsNextStep(t *testing.T) {
 	}
 }
 
+// TestInstallCLISkillConflictPreservesFile stamps the release version: the
+// conflict refusal is only reached when the binary is allowed to write over an
+// existing copy at all, which a dev build is not (GDK-1539).
 func TestInstallCLISkillConflictPreservesFile(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("install-cli unsupported on windows")
 	}
+	releaseVersionForTest(t)
 	home := isolateHomeWithClaude(t)
 	dest := skillDestUnder(home)
 	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
