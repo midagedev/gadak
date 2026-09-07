@@ -207,6 +207,48 @@ func TestNotifyAfterSyncUnsupportedStillBootstraps(t *testing.T) {
 	}
 }
 
+// GDK-1580 seam: a nil Options.notifier means the process default — the
+// shell's injected Notifier when one was installed, OSNotifier otherwise.
+// FAIL-first on the pre-seam code, which hardcoded OSNotifier{} in the
+// nil branch: the injected fake recorded no delivery.
+func TestNotifyAfterSyncUsesDefaultNotifierWhenNil(t *testing.T) {
+	db := openSyncDB(t)
+	now := time.Now().UTC().Format(config.ISOMilli)
+	seedFeedIssue(t, db, "NMB-7", "acc-me", []store.Comment{{
+		ID: "jira:c-seam", ExternalID: "c-seam", Author: "Marco", AuthorID: "acc-m",
+		BodyText: "x", CreatedAt: now, UpdatedAt: now,
+	}})
+	past := time.Now().UTC().Add(-time.Hour).Format(config.ISOMilli)
+	if err := db.SetLastNotifiedAt(context.Background(), SourceID, past); err != nil {
+		t.Fatal(err)
+	}
+	n := &fakeNotifier{}
+	SetDefaultNotifier(n)
+	t.Cleanup(func() { SetDefaultNotifier(nil) })
+	cfg := &config.Config{Email: "me@example.com", AccountID: "acc-me"}
+	if err := notifyAfterSync(context.Background(), db, cfg, nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(n.calls) != 1 {
+		t.Fatalf("nil Options.notifier must deliver via the injected default, got %+v", n.calls)
+	}
+}
+
+func TestDefaultNotifierInjectionAndRestore(t *testing.T) {
+	if _, ok := DefaultNotifier().(OSNotifier); !ok {
+		t.Fatalf("DefaultNotifier() = %T, want OSNotifier when nothing is injected", DefaultNotifier())
+	}
+	n := &fakeNotifier{}
+	SetDefaultNotifier(n)
+	if DefaultNotifier() != Notifier(n) {
+		t.Fatalf("DefaultNotifier() = %T, want the injected %T", DefaultNotifier(), n)
+	}
+	SetDefaultNotifier(nil)
+	if _, ok := DefaultNotifier().(OSNotifier); !ok {
+		t.Fatalf("SetDefaultNotifier(nil) must restore OSNotifier, got %T", DefaultNotifier())
+	}
+}
+
 func TestOSNotifyCommandSupportMatchesSupported(t *testing.T) {
 	cases := map[string]bool{
 		"darwin":  true,

@@ -6,21 +6,68 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
+	"sync"
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/store"
 )
 
-// notifier delivers one OS desktop notification. Implementations must never
-// panic; callers treat every error as non-fatal and continue the sync loop.
+// Notifier delivers one OS desktop notification. Exported since GDK-1580 so
+// a shell can replace the osascript/notify-send default: desktop injects a
+// wails notifications adapter via SetDefaultNotifier at startup, and the
+// CLI keeps OSNotifier untouched. Implementations must never panic; callers
+// treat every error as non-fatal and continue the sync loop.
 //
 // Supported is the delivery capability: false means Notify will not actually
 // alert anyone (Windows and other no-op platforms). notifyAfterSync must not
 // advance last_notified_at in that case — skipped events stay pending for a
-// later implementation (Windows toast).
-type notifier interface {
+// later implementation.
+//
+// Supported must be cheap and side-effect-free — the settings handler asks
+// it per request (NotifySupported below) and must not hang on a permission
+// prompt. Work that can block (service startup, authorization) belongs in
+// Notify.
+type Notifier interface {
 	Notify(title, body string) error
 	Supported() bool
+}
+
+// defaultNotifier is the process-wide fallback for a nil Options.notifier.
+// Desktop is the only writer: main() injects its wails adapter once, before
+// any watch cycle or settings request can read it. A mutex (not atomic.Value)
+// because the concrete type differs between the CLI default and the injected
+// adapter, and atomic.Value panics on exactly that.
+var (
+	defaultNotifierMu sync.RWMutex
+	defaultNotifier   Notifier
+)
+
+// SetDefaultNotifier replaces the fallback notifier. Pass nil to restore
+// OSNotifier. Write-once at process start is the intended use; later writes
+// race only the read-side lock, never correctness of an in-flight Notify.
+func SetDefaultNotifier(n Notifier) {
+	defaultNotifierMu.Lock()
+	defer defaultNotifierMu.Unlock()
+	defaultNotifier = n
+}
+
+// DefaultNotifier is what a nil Options.notifier means: the injected shell
+// notifier when one was installed, OSNotifier otherwise (the CLI path).
+func DefaultNotifier() Notifier {
+	defaultNotifierMu.RLock()
+	defer defaultNotifierMu.RUnlock()
+	if defaultNotifier != nil {
+		return defaultNotifier
+	}
+	return OSNotifier{}
+}
+
+// NotifySupported answers "can this process fire a real OS notification"
+// for surfaces that only surface the fact (settings runtimeInfo). It is the
+// injected notifier's capability when one exists — on desktop that is true
+// for Windows too, which GOOS-derived logic always got wrong (GDK-1580).
+func NotifySupported() bool {
+	return DefaultNotifier().Supported()
 }
 
 // OSNotifier uses the platform's desktop-notification command.
@@ -52,7 +99,7 @@ func (OSNotifier) Supported() bool {
 	return osNotifyCommand(runtime.GOOS, "", "") != nil
 }
 
-// Notify implements notifier.
+// Notify implements Notifier.
 func (OSNotifier) Notify(title, body string) error {
 	cmd := osNotifyCommand(runtime.GOOS, title, body)
 	if cmd == nil {
@@ -68,12 +115,12 @@ func (OSNotifier) Notify(title, body string) error {
 //
 // First successful pass with an empty watermark seeds last_notified_at to now
 // without notifying, so a long mirror history does not dump on login.
-func notifyAfterSync(ctx context.Context, db *store.DB, cfg *config.Config, n notifier) error {
+func notifyAfterSync(ctx context.Context, db *store.DB, cfg *config.Config, n Notifier) error {
 	if cfg == nil || !cfg.NotifyEnabled() {
 		return nil
 	}
 	if n == nil {
-		n = OSNotifier{}
+		n = DefaultNotifier()
 	}
 	st, err := db.SyncState(ctx, SourceID)
 	if err != nil {

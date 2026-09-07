@@ -251,8 +251,8 @@ func TestSettingsRuntimeReadOnlyNoSecrets(t *testing.T) {
 	if rt.GadakVersion == "" {
 		t.Fatal("gadakVersion empty")
 	}
-	if rt.OsNotifySupported != (gadaksync.OSNotifier{}.Supported()) {
-		t.Fatalf("osNotifySupported %v, want OSNotifier.Supported()", rt.OsNotifySupported)
+	if rt.OsNotifySupported != gadaksync.NotifySupported() {
+		t.Fatalf("osNotifySupported %v, want NotifySupported()", rt.OsNotifySupported)
 	}
 	if rt.DBSizeBytes <= 0 || rt.DBSizeHuman == "" || rt.DBSizeHuman == "—" {
 		t.Fatalf("db size bytes=%d human=%q", rt.DBSizeBytes, rt.DBSizeHuman)
@@ -376,6 +376,43 @@ func TestSettingsRuntimeCountsMatchIssueLites(t *testing.T) {
 		t.Fatalf("TableCount(issues) = %d, want %d", ti, wantIssues)
 	}
 }
+
+// GDK-1580: osNotifySupported follows the injected notifier, not GOOS.
+// The desktop shell injects a wails adapter (true on Windows too); the
+// settings UI learns that from this field, and the field learns it from
+// the sync package's process-wide seam. FAIL-first on the pre-seam code,
+// which hardcoded OSNotifier{}.Supported(): injecting an unsupported stub
+// still answered true on darwin.
+func TestSettingsOsNotifySupportedFollowsInjectedNotifier(t *testing.T) {
+	t.Setenv("GADAK_HOME", t.TempDir())
+	db, cfg := fixture(t)
+	h := New(db, cfg)
+
+	gadaksync.SetDefaultNotifier(stubNotifier{supported: false})
+	t.Cleanup(func() { gadaksync.SetDefaultNotifier(nil) })
+
+	rt := decode[settingsDoc](t, get(t, h, apiBase+"settings/", nil)).Runtime
+	if rt == nil {
+		t.Fatal("runtime missing")
+	}
+	if rt.OsNotifySupported {
+		t.Fatal("osNotifySupported true, want the injected notifier's false")
+	}
+
+	gadaksync.SetDefaultNotifier(stubNotifier{supported: true})
+	rt = decode[settingsDoc](t, get(t, h, apiBase+"settings/", nil)).Runtime
+	if rt == nil {
+		t.Fatal("runtime missing")
+	}
+	if !rt.OsNotifySupported {
+		t.Fatal("osNotifySupported false, want the injected notifier's true")
+	}
+}
+
+type stubNotifier struct{ supported bool }
+
+func (stubNotifier) Notify(title, body string) error { return nil }
+func (s stubNotifier) Supported() bool               { return s.supported }
 
 // GDK-349: false is the Windows no-op. omitempty would drop it and the UI
 // would treat an old-server omission as "supported" (hide the browser toggle).

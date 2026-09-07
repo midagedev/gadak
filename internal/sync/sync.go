@@ -76,8 +76,10 @@ type Options struct {
 	// LinearClient is for tests; nil builds one from cfg when Linear is configured.
 	LinearClient *linear.Client
 	// notifier delivers OS desktop alerts for new personal-feed events after
-	// each successful Watch cycle. Nil uses OSNotifier. Never aborts the loop.
-	notifier notifier
+	// each successful Watch cycle. Nil uses the package default: the shell's
+	// injected Notifier when SetDefaultNotifier ran (desktop's wails adapter,
+	// GDK-1580), else OSNotifier. Never aborts the loop.
+	notifier Notifier
 	// Reload re-reads the config at the top of each watch cycle. Nil keeps the
 	// config Watch was called with. A reload error is logged and the previous
 	// config stays in use: a momentarily unreadable file must not stop the mirror.

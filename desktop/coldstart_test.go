@@ -3,7 +3,7 @@ package main
 import "testing"
 
 // The launcher that broke (cmd/gadak/views.go startWindowsDesktopImpl) starts
-// the exe with exactly one argument — the gadak:// URL. wails v3.0.0-beta.12
+// the exe with exactly one argument — the gadak:// URL. wails v3.0.0-beta.17
 // treats that shape as ApplicationLaunchedWithUrl on Windows and on GTK4
 // Linux (wailsapp/wails#6000, landed in beta.10).
 const launcherURL = "gadak://view?issue=NMB-1"
@@ -67,7 +67,7 @@ func TestColdStartDecisionFor(t *testing.T) {
 		},
 		{
 			// Was argv under v3.0.0-beta.9 (GTK4 run() did not emit).
-			// wailsapp/wails#6000 landed in beta.10; this pin is beta.12,
+			// wailsapp/wails#6000 landed in beta.10; this pin is beta.17,
 			// so Linux matches Windows: one-arg :// URL is event-only.
 			name:             "linux one-arg is event (GTK4 emits since #6000 / beta.10)",
 			goos:             "linux",

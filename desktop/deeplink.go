@@ -35,7 +35,7 @@ import (
 // (GDK-293): Windows and GTK4 Linux both do, when wails sees a single
 // "://" argument (pkg/application/application_windows.go and
 // application_linux.go in the pinned wails module — the Linux emit landed
-// in beta.10 via wailsapp/wails#6000 and this module pins beta.12). Any
+// in beta.10 via wailsapp/wails#6000 and this module pins beta.17). Any
 // other argv shape gets no event, so argv is applied instead. The same
 // split is in the platform table in README.md.
 

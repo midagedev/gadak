@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -10,22 +10,46 @@ import { inDialScope } from './dial-scope'
  * allowlist are two spellings of one fact, and this file is what turns
  * their drift into a red test. It reads the capability JSON itself — not a
  * restatement — and asks both sides the same questions.
+ *
+ * GDK-1581 widened the corpus from one file to a directory: default.json
+ * (every target, ts.net only) plus dev-loopback.json (loopback, pinned to
+ * non-iOS platforms so the App Store binary's ACL never carries it). The
+ * verdict parity below runs against the UNION of their allow entries; the
+ * corpus-shape block pins the split itself — exact file set, exact
+ * permission identifiers, exact allow sets per file, and exact platforms —
+ * because a third file or a new permission would widen what the phone may
+ * dial without any row here going red.
  */
 
 const HERE = dirname(fileURLToPath(import.meta.url))
-const CAPABILITY = join(HERE, '../../src-tauri/capabilities/default.json')
+const CAPABILITIES_DIR = join(HERE, '../../src-tauri/capabilities')
 
 interface CapabilityDoc {
+  identifier?: string
+  platforms?: string[]
   permissions: Array<{ identifier?: string; allow?: Array<{ url?: string }> } | string>
 }
 
-function httpAllowUrls(): string[] {
-  const doc = JSON.parse(readFileSync(CAPABILITY, 'utf8')) as CapabilityDoc
+function readCapabilityDocs(): Map<string, CapabilityDoc> {
+  const names = readdirSync(CAPABILITIES_DIR)
+    .filter((n) => n.endsWith('.json'))
+    .sort()
+  const docs = new Map<string, CapabilityDoc>()
+  for (const name of names) {
+    const doc = JSON.parse(readFileSync(join(CAPABILITIES_DIR, name), 'utf8')) as CapabilityDoc
+    expect(doc.permissions, `${name} must carry permissions`).toBeDefined()
+    docs.set(name, doc)
+  }
+  expect(docs.size, 'the capability corpus is exactly two files').toBe(2)
+  return docs
+}
+
+function httpAllowUrls(doc: CapabilityDoc): string[] {
   const entry = doc.permissions.find(
     (p): p is { identifier?: string; allow?: Array<{ url?: string }> } =>
       typeof p === 'object' && p.identifier === 'http:default',
   )
-  expect(entry, 'capabilities/default.json must grant http:default').toBeDefined()
+  expect(entry, 'capability must grant http:default').toBeDefined()
   const urls = (entry?.allow ?? [])
     .map((a) => a.url)
     .filter((u): u is string => typeof u === 'string')
@@ -33,15 +57,21 @@ function httpAllowUrls(): string[] {
   return urls
 }
 
+const unionAllowUrls = (): string[] => {
+  const urls: string[] = []
+  for (const doc of readCapabilityDocs().values()) urls.push(...httpAllowUrls(doc))
+  return urls
+}
+
 /*
- * Minimal URLPattern stand-in for the shapes the capability file uses.
+ * Minimal URLPattern stand-in for the shapes the capability files use.
  *
  * Why not the real URLPattern: the repo's Node is pinned by .nvmrc to 20,
  * which has no global URLPattern (measured: v20.19.0 `typeof URLPattern`
  * is 'undefined'; the unflagged global arrives in Node 24), and neither the
  * root nor the mobile package.json carries a urlpattern polyfill. The round
  * spec forbids a new dependency, so the matcher lives here and covers
- * exactly what default.json writes:
+ * exactly what the capability files write:
  *   - shape `<scheme>://<host>` or `<scheme>://<host>:<port>`
  *   - host: a literal, or `*.<suffix>` where `*` spans dots —
  *     `deep.home.example.ts.net` matches `*.ts.net`, the bare apex
@@ -50,7 +80,7 @@ function httpAllowUrls(): string[] {
  *     GDK-1048 trap), `*` admits any port including the default, a literal
  *     admits itself
  * Semantics were measured against Node 24's URLPattern (see the round
- * report). Any new shape in default.json makes the parse assertion below
+ * report). Any new shape in the corpus makes the parse assertion below
  * fail first, so this matcher cannot silently under-match.
  */
 function capabilityVerdict(pattern: string, testUrl: string): boolean {
@@ -74,11 +104,13 @@ function capabilityVerdict(pattern: string, testUrl: string): boolean {
 }
 
 const allowedByCapability = (url: string): boolean =>
-  httpAllowUrls().some((p) => capabilityVerdict(p, url))
+  unionAllowUrls().some((p) => capabilityVerdict(p, url))
 
-describe('dial scope: TS predicate and http:default agree', () => {
+const sorted = (xs: string[]): string[] => [...xs].sort()
+
+describe('dial scope: TS predicate and the capability corpus agree', () => {
   // Third column pins intent; the capability column is derived from the
-  // file, the predicate column from the module — all three must agree.
+  // files, the predicate column from the module — all three must agree.
   const TABLE: Array<[url: string, expected: boolean]> = [
     ['https://h.ts.net/', true],
     ['https://h.ts.net:8443/', true], // the GDK-1048 row: tailscale serve on 8443
@@ -102,8 +134,8 @@ describe('dial scope: TS predicate and http:default agree', () => {
     }
   })
 
-  it('every allow entry in the file is a shape this gate understands', () => {
-    for (const pattern of httpAllowUrls()) {
+  it('every allow entry in the corpus is a shape this gate understands', () => {
+    for (const pattern of unionAllowUrls()) {
       expect(() => capabilityVerdict(pattern, 'https://probe.invalid/'), pattern).not.toThrow()
     }
   })
@@ -112,10 +144,68 @@ describe('dial scope: TS predicate and http:default agree', () => {
     // A new capability entry with no in-scope table row would pass verdict
     // parity vacuously — the TS predicate could simply never admit it. Each
     // entry must own at least one true row.
-    for (const pattern of httpAllowUrls()) {
+    for (const pattern of unionAllowUrls()) {
       const owns = TABLE.some(([url, expected]) => expected && capabilityVerdict(pattern, url))
       expect(owns, `allow entry ${pattern} must back at least one in-scope row`).toBe(true)
     }
+  })
+})
+
+describe('capability corpus shape: what the shipped ACL is made of (GDK-1581)', () => {
+  it('the union of allow entries mirrors the TS predicate entry for entry', () => {
+    // The mirror direction of the verdict table: not just "the predicate
+    // agrees with the files", but "the files say exactly what the predicate
+    // says" — nothing granted that the predicate refuses, nothing refused
+    // that the predicate grants.
+    expect(sorted(unionAllowUrls())).toEqual([
+      'http://127.0.0.1:*',
+      'http://localhost:*',
+      'https://*.ts.net:*',
+    ])
+  })
+
+  it('the corpus is exactly default.json + dev-loopback.json, by identifier', () => {
+    const docs = readCapabilityDocs()
+    expect(sorted([...docs.keys()])).toEqual(['default.json', 'dev-loopback.json'])
+    const ids = sorted([...docs.values()].map((d) => d.identifier ?? ''))
+    expect(ids).toEqual(['default', 'dev-loopback'])
+  })
+
+  it('the permission identifier set is exactly the four grants', () => {
+    const ids = new Set<string>()
+    for (const doc of readCapabilityDocs().values()) {
+      for (const p of doc.permissions) {
+        ids.add(typeof p === 'string' ? p : (p.identifier ?? ''))
+      }
+    }
+    expect(sorted([...ids])).toEqual([
+      'barcode-scanner:default',
+      'core:default',
+      'http:default',
+      'websocket:default',
+    ])
+  })
+
+  it('default.json (the shipped ACL) is ts.net only — no loopback', () => {
+    const docs = readCapabilityDocs()
+    const def = docs.get('default.json')
+    expect(def).toBeDefined()
+    expect(sorted(httpAllowUrls(def!))).toEqual(['https://*.ts.net:*'])
+    // And the split is real: loopback lives only in dev-loopback.json.
+    const dev = docs.get('dev-loopback.json')
+    expect(dev).toBeDefined()
+    expect(sorted(httpAllowUrls(dev!))).toEqual(['http://127.0.0.1:*', 'http://localhost:*'])
+  })
+
+  it('dev-loopback is pinned to non-iOS targets only', () => {
+    const dev = readCapabilityDocs().get('dev-loopback.json')
+    expect(dev?.platforms, 'dev-loopback must name its platforms').toBeDefined()
+    // Spellings are tauri-utils' Target serde names (platform.rs): macOS
+    // and iOS are camelCase, the rest lowercase. The security claim under
+    // test is the absence of iOS — that is what keeps loopback out of the
+    // App Store binary's ACL (Tauri has no dev/release capability split).
+    expect(sorted(dev!.platforms!)).toEqual(['android', 'linux', 'macOS', 'windows'])
+    expect(dev!.platforms!).not.toContain('iOS')
   })
 })
 

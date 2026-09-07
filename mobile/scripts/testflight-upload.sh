@@ -316,6 +316,31 @@ else
     printf '  ok   %-30s absent from the shipped bundle\n' "demo-tour"
 fi
 
+# 9. The shipped dial scope (GDK-1581). Tauri's ACL codegen compiles the
+#    capability allow-entries into the binary as string literals, so the
+#    grep can ask the binary itself what it may dial. ts.net must be there;
+#    loopback must not be — dev-loopback.json is pinned to non-iOS targets
+#    precisely so this binary cannot carry it. The two checks are a pair:
+#    any encoding change that hides the loopback literals would also hide
+#    the ts.net one, so the presence check turns a vacuous pass into a loud
+#    fail. UNVERIFIED THIS ROUND: authored on a runner with no signing
+#    identity — the first real --bump run owns the confirmation.
+main_bin="$app_bundle/$(plist_get CFBundleExecutable)"
+[ -f "$main_bin" ] || main_bin="$(/usr/bin/find "$app_bundle" -maxdepth 1 -type f -perm -111 | head -1)"
+[ -n "$main_bin" ] || fail "the app bundle has no main executable to scan"
+if /usr/bin/grep -aqF 'https://*.ts.net:*' "$main_bin"; then
+    printf '  ok   %-30s compiled into the shipped ACL\n' "ts.net dial scope"
+else
+    printf '  FAIL %-30s allow entry missing from the binary\n' "ts.net dial scope"
+    verify_failed=1
+fi
+if /usr/bin/grep -aqF 'http://127.0.0.1:*' "$main_bin" || /usr/bin/grep -aqF 'http://localhost:*' "$main_bin"; then
+    printf '  FAIL %-30s loopback reached the shipped ACL (dev capability leaked into iOS)\n' "loopback dial scope"
+    verify_failed=1
+else
+    printf '  ok   %-30s absent from the shipped ACL\n' "loopback dial scope"
+fi
+
 [ "$verify_failed" -eq 0 ] || fail "the .ipa does not satisfy the submission contract (nothing was uploaded)"
 
 # ------------------------------------------------------ validate and upload

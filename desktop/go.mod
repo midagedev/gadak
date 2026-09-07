@@ -4,34 +4,20 @@ go 1.26.4
 
 replace github.com/midagedev/gadak => ../
 
-// wails v3.0.0-beta.12 plus wailsapp/wails#6006, nothing else. The tag is
-// the upstream tag with those two commits cherry-picked
-// (github.com/midagedev/wails, branch gadak/v3.0.0-beta.12); `git diff
-// v3.0.0-beta.12..v3.0.0-beta.12-gadak.1` is 10 lines in one file.
-//
-// Why: webview_window_windows.go registers a "*" WebResourceRequested
-// filter for asset serving, so on Windows EVERY request the WebView makes
-// runs through edge.Chromium's handler — and that handler called
-// log.Fatal(err) when args.GetRequest() failed. One transient COM failure
-// on one request killed gadak, skipping deferred cleanup, and log.Fatal
-// does not even reach the error callback wails' own SetErrorCallback
-// configures. The PR drops the request and logs instead.
-//
-// The PR is open and unblocked (its only review comment was addressed and
-// resolved the same day) — it is waiting on a maintainer, and gadak is not.
-// DELETE THIS REPLACE when it merges into a beta we take: the fork branch
-// exists only to carry it, and every wails bump has to redo it (fetch the
-// new tag, cherry-pick, tag as -gadak.N) until then.
-replace github.com/wailsapp/wails/v3 => github.com/midagedev/wails/v3 v3.0.0-beta.12-gadak.1
+// Pure upstream pin since v3.0.0-beta.17: the fork's only cargo,
+// wailsapp/wails#6006 (WebResourceRequested handler log.Fatal on a
+// transient COM failure), merged upstream in the beta.13..beta.17 range,
+// so the replace is gone and this file names an upstream tag only.
 
 require (
 	github.com/midagedev/gadak v0.0.0
-	github.com/wailsapp/wails/v3 v3.0.0-beta.12
+	github.com/wailsapp/wails/v3 v3.0.0-beta.17
 	golang.org/x/sys v0.47.0
 	modernc.org/sqlite v1.56.0
 )
 
 require (
+	git.sr.ht/~jackmordaunt/go-toast/v2 v2.0.3 // indirect
 	github.com/adrg/xdg v0.5.3 // indirect
 	github.com/clipperhouse/stringish v0.1.1 // indirect
 	github.com/clipperhouse/uax29/v2 v2.5.0 // indirect

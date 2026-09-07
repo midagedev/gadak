@@ -197,9 +197,11 @@ type runtimeInfo struct {
 	DefaultSyncIntervalSec      int `json:"defaultSyncIntervalSec"`
 	DefaultReconcileIntervalSec int `json:"defaultReconcileIntervalSec"`
 	// OsNotifySupported is whether this process can fire a real OS desktop
-	// notification (macOS osascript, Linux notify-send). Always sent — false
-	// is meaningful (Windows no-op) so it must not use omitempty. Owner is
-	// sync.OSNotifier.Supported; the settings UI must not re-derive it from GOOS.
+	// notification (macOS osascript, Linux notify-send — or, when a shell
+	// injected one, that notifier: desktop's wails adapter, also true on
+	// Windows). Always sent — false is meaningful so it must not use
+	// omitempty. Owner is sync.NotifySupported; the settings UI must not
+	// re-derive it from GOOS.
 	OsNotifySupported bool `json:"osNotifySupported"`
 	// ApiUsage is our process's outbound Jira call volume (today + 7-day
 	// rollup), not Jira's remaining rate-limit budget. Omitted only if the
@@ -595,7 +597,7 @@ func (s *server) runtimeInfo(ctx context.Context) *runtimeInfo {
 		GadakVersion:                Version,
 		DefaultSyncIntervalSec:      config.DefaultSyncIntervalSec,
 		DefaultReconcileIntervalSec: config.DefaultReconcileIntervalSec,
-		OsNotifySupported:           gadaksync.OSNotifier{}.Supported(),
+		OsNotifySupported:           gadaksync.NotifySupported(),
 	}
 	if d, err := config.DirFor(s.profile); err == nil {
 		info.ConfigPath = filepath.Join(d, "config.json")

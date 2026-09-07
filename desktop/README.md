@@ -99,7 +99,7 @@ exe path changes. To remove it: `gadak-desktop.exe --unregister-gadak-protocol`.
 
 ### Linux build prerequisites
 
-wails v3 (`v3.0.0-beta.12`, `desktop/go.mod`) compiles the Linux host with
+wails v3 (`v3.0.0-beta.17`, `desktop/go.mod`) compiles the Linux host with
 `#cgo pkg-config: gtk4 webkitgtk-6.0`. `CGO_ENABLED=0` does not compile (see
 the comment on the desktop job in `.github/workflows/ci.yml`). Do not pass
 `-tags gtk3`: that is the webkit2gtk 4.1 legacy stack, and wails plans to
@@ -128,7 +128,7 @@ only the directory tree for the same reason.
 
 ### Windows build prerequisites
 
-wails v3 (`v3.0.0-beta.12`, `desktop/go.mod`) talks to WebView2 over COM. The
+wails v3 (`v3.0.0-beta.17`, `desktop/go.mod`) talks to WebView2 over COM. The
 pack script sets `CGO_ENABLED=0`. This script has not been executed on a
 Windows machine in this repository (the authoring runner is darwin).
 
@@ -150,7 +150,7 @@ includes the Evergreen runtime and that many Windows 10 machines already
 have it via Edge; **this repository has not checked either claim on a
 Windows machine.**
 
-What happens if the runtime is missing is taken from the wails v3.0.0-beta.12
+What happens if the runtime is missing is taken from the wails v3.0.0-beta.17
 source this module links, **not from launching `gadak-desktop.exe` on a
 machine without WebView2** (that has not been done):
 

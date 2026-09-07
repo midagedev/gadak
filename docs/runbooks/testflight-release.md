@@ -122,6 +122,7 @@ would not tell you at all:
 | `NSCameraUsageDescription` present | the QR pairing scanner is killed by iOS on first use without it |
 | an app icon is compiled into the bundle | TestFlight rejects an icon-less build after the upload |
 | no `demo-tour` string in the shipped bundle | `src/lib/demo-tour.ts` drives the store and the DOM with no user input. Vite is *expected* to drop it (the dynamic import sits behind `import.meta.env.DEV`); expected is not verified, so the gate greps the shipped binary for its arming token |
+| ts.net allow entry present, loopback absent, in the binary's ACL (GDK-1581) | the capability files are what the App Store binary may dial. `dev-loopback.json` is pinned to non-iOS targets so the `.ipa` cannot carry loopback; this greps the compiled binary for both literals. Authored unverified — the first real `--bump` run owns the confirmation |
 
 A failed check aborts before anything is uploaded.
 

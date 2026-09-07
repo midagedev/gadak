@@ -32,7 +32,7 @@ func TestProtocolWindowsRoundTrip(t *testing.T) {
 		}
 	})
 
-	rewrote, err := registerProtocolScheme(scheme, exe)
+	rewrote, err := registerProtocolScheme(scheme, exe, windowsRegistryState{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,7 +47,7 @@ func TestProtocolWindowsRoundTrip(t *testing.T) {
 		t.Fatalf("command %q, want %q", got, want)
 	}
 
-	rewrote, err = registerProtocolScheme(scheme, exe)
+	rewrote, err = registerProtocolScheme(scheme, exe, windowsRegistryState{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +56,7 @@ func TestProtocolWindowsRoundTrip(t *testing.T) {
 	}
 
 	moved := `D:\Other\gadak-desktop.exe`
-	rewrote, err = registerProtocolScheme(scheme, moved)
+	rewrote, err = registerProtocolScheme(scheme, moved, windowsRegistryState{})
 	if err != nil {
 		t.Fatal(err)
 	}

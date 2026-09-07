@@ -35,6 +35,7 @@ import (
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/integrations"
 	"github.com/midagedev/gadak/internal/server"
+	gadaksync "github.com/midagedev/gadak/internal/sync"
 	"github.com/midagedev/gadak/internal/workspace"
 )
 
@@ -89,8 +90,8 @@ type coldStartDecision struct {
 //   - darwin: event only. LaunchServices delivers the URL as an Apple Event;
 //     applying argv as well would navigate twice.
 //   - windows: event when wails will emit ApplicationLaunchedWithUrl — that
-//     is len(args)==2 and args[1] contains "://" (wails v3.0.0-beta.12
-//     pkg/application/application_windows.go:159-162). Every other argv
+//     is len(args)==2 and args[1] contains "://" (wails v3.0.0-beta.17
+//     pkg/application/application_windows.go:160-169). Every other argv
 //     shape is ignored by wails, so argv is the fallback.
 //   - linux: same as windows. GTK4 run() in this pin
 //     (application_linux.go:91-99) emits the event for that argv shape
@@ -115,8 +116,8 @@ func coldStartDecisionFor(goos string, args []string) coldStartDecision {
 	}
 }
 
-// wailsEmitsLaunchURL is the argv shape wails v3.0.0-beta.12 special-cases
-// on Windows (application_windows.go:159-162) and on GTK4 Linux
+// wailsEmitsLaunchURL is the argv shape wails v3.0.0-beta.17 special-cases
+// on Windows (application_windows.go:160-169) and on GTK4 Linux
 // (application_linux.go:91-99; wailsapp/wails#6000 landed in beta.10).
 // GTK3 has the same check; this pin compiles GTK4.
 func wailsEmitsLaunchURL(args []string) bool {
@@ -288,6 +289,13 @@ func run() error {
 	})
 
 	openURL = app.Browser.OpenURL
+	// GDK-1580: sync's feed alerts ride the wails notifications service —
+	// Windows toasts, UNNotification on a bundled macOS build, D-Bus on
+	// Linux. internal/sync cannot import wails (root module), so the
+	// adapter goes through the package-level default-notifier seam; the
+	// CLI's osascript/notify-send default is untouched. Lazy: nothing
+	// native runs until the first watch cycle or settings request asks.
+	gadaksync.SetDefaultNotifier(newWailsNotifier())
 	// The terminal pane's transport (GDK-892). There is no TCP listener here,
 	// so its WebSocket cannot open; this carries the same bytes over a wails
 	// GoStream. Body in terminal_stream.go.
@@ -440,7 +448,13 @@ func run() error {
 	})
 	showDeepLinkRefusal = func(text string) {
 		// Show dispatches through InvokeSync; off the caller's goroutine so
-		// a delivery on the main thread cannot wait on itself.
+		// a delivery on the main thread cannot wait on itself. Re-checked
+		// against the v3.0.0-beta.17 source (GDK-1229): #6026 changed
+		// dispatchOnMainThread to schedule the callback on the run loop
+		// (mainthread_darwin.go) so queued work is delivered even while a
+		// modal runs — but InvokeSync still waits on a WaitGroup
+		// (mainthread.go), and a main thread parked in wg.Wait() services
+		// no run loop. The wrapper stays load-bearing.
 		go app.Dialog.Warning().SetTitle("Gadak").SetMessage(text).AttachToWindow(window).Show()
 	}
 	// ApplicationLaunchedWithUrl: macOS Apple Event (first launch and
@@ -722,7 +736,7 @@ func mainWindowOptions() application.WebviewWindowOptions {
 
 		// Windows creates the HWND with an empty HMENU unless this is set
 		// or a per-window Windows.Menu is supplied
-		// (wails v3.0.0-beta.12, webview_window_windows.go:447-464), so
+		// (wails v3.0.0-beta.17, webview_window_windows.go:447-464), so
 		// without it the app menu we build above never reaches the window.
 		// Linux is documented the same way and already falls back on its
 		// own; darwin ignores the flag, since its app menu is always

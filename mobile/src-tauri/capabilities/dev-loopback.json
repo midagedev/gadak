@@ -1,0 +1,16 @@
+{
+  "$schema": "../gen/schemas/mobile-schema.json",
+  "identifier": "dev-loopback",
+  "description": "Loopback dial scope for every target except iOS (GDK-1581). Tauri v2 resolves capability files identically for dev and build (tauri-utils acl/build.rs parse_capabilities globs the directory for both), so there is no dev-only capability — `platforms` is the only lever that keeps these entries out of the App Store binary while non-iOS development builds keep them. Nothing on iOS needs them: dev rides window.fetch through the vite scheme proxy (lib/api.ts pickFetch never loads plugin-http when IS_DEV), and a packaged phone has no peer on its own 127.0.0.1 — the historical justification was 'dev and USB', and no USB feature exists. src/lib/dial-scope.test.ts unions this file with default.json and pins that union to the TS predicate entry for entry.",
+  "windows": ["main"],
+  "platforms": ["macOS", "windows", "linux", "android"],
+  "permissions": [
+    {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "http://127.0.0.1:*" },
+        { "url": "http://localhost:*" }
+      ]
+    }
+  ]
+}
