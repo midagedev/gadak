@@ -37,10 +37,18 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * The versioned prefix every request path hangs off — the same one the
+ * server builds its attachment content_urls on (internal/server). Exported
+ * so AdfBody can turn a rendered attachment URL back into a requestBlob
+ * path without a second literal.
+ */
+export const API_V1 = '/api/v1/'
+
 /** Joins the API base with a relative path — exported for tests. */
 export function apiUrl(endpoint: string, path: string, dev: boolean = IS_DEV): string {
   const base = dev ? '' : endpoint.replace(/\/+$/, '')
-  return `${base}/api/v1/${path}`
+  return `${base}${API_V1}${path}`
 }
 
 /** Builds request headers — exported for tests. Bearer only when a token exists. */
@@ -78,17 +86,11 @@ interface RequestOpts {
 }
 
 /**
- * Core request. Throws ApiError('endpoint_out_of_scope') before dialing
- * when the packaged session endpoint sits outside the `http:default`
- * capability scope — the refusal the plugin would make anyway, named
- * instead of swallowed (GDK-1048: this used to surface as 'network', with
- * zero requests in the serve log to tell the two apart). ApiError('network')
- * when the server is unreachable, ApiError(code) for `{"error": code}`
- * bodies; returns the envelope otherwise (304 comes back with body null).
+ * Shared transport core: URL, scope refusal, headers, dial, error mapping.
+ * Everything except the body parse, which differs by kind — request() reads
+ * JSON, requestBlob() reads bytes. Throwing is the same in both: see request.
  */
-export async function request<T>(path: string, opts: RequestOpts = {}): Promise<Envelope<T>> {
-  // The demo session's whole transport branch (GDK-1051): demo.ts owns it.
-  if (isDemoSession()) return demoRequest<T>(path, opts)
+async function dial(path: string, opts: RequestOpts): Promise<Response> {
   const s = opts.session ?? session
   const dev = opts.dev ?? IS_DEV
   const url = apiUrl(s.endpoint, path, dev)
@@ -108,8 +110,7 @@ export async function request<T>(path: string, opts: RequestOpts = {}): Promise<
   } catch {
     throw new ApiError('network', 0)
   }
-  if (res.status === 304) return { status: 304, etag: res.headers.get('ETag'), body: null }
-  if (!res.ok) {
+  if (res.status !== 304 && !res.ok) {
     let code = 'internal_error'
     try {
       const doc = (await res.json()) as { error?: unknown }
@@ -119,6 +120,23 @@ export async function request<T>(path: string, opts: RequestOpts = {}): Promise<
     }
     throw new ApiError(code, res.status)
   }
+  return res
+}
+
+/**
+ * Core request. Throws ApiError('endpoint_out_of_scope') before dialing
+ * when the packaged session endpoint sits outside the `http:default`
+ * capability scope — the refusal the plugin would make anyway, named
+ * instead of swallowed (GDK-1048: this used to surface as 'network', with
+ * zero requests in the serve log to tell the two apart). ApiError('network')
+ * when the server is unreachable, ApiError(code) for `{"error": code}`
+ * bodies; returns the envelope otherwise (304 comes back with body null).
+ */
+export async function request<T>(path: string, opts: RequestOpts = {}): Promise<Envelope<T>> {
+  // The demo session's whole transport branch (GDK-1051): demo.ts owns it.
+  if (isDemoSession()) return demoRequest<T>(path, opts)
+  const res = await dial(path, opts)
+  if (res.status === 304) return { status: 304, etag: res.headers.get('ETag'), body: null }
   let body: T
   try {
     body = (await res.json()) as T
@@ -126,6 +144,22 @@ export async function request<T>(path: string, opts: RequestOpts = {}): Promise<
     throw new ApiError('bad_response', res.status)
   }
   return { status: res.status, etag: res.headers.get('ETag'), body }
+}
+
+/**
+ * Attachment bytes through the same road as JSON (GDK-1497): one dial, so
+ * scope refusals and error codes are identical for both kinds. The demo
+ * session has no attachment bytes — its bundle is JSON only — so it refuses
+ * rather than pretending.
+ */
+export async function requestBlob(path: string, opts: RequestOpts = {}): Promise<Blob> {
+  if (isDemoSession()) throw new ApiError('not_found', 404)
+  const res = await dial(path, opts)
+  try {
+    return await res.blob()
+  } catch {
+    throw new ApiError('network', 0)
+  }
 }
 
 /** Server codes → copy. Never includes server text or the token. */

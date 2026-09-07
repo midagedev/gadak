@@ -1,7 +1,8 @@
 <script lang="ts">
   import Screen from '../ui/Screen.svelte'
+  import AdfBody from '../ui/AdfBody.svelte'
   import { app, closeIssue, openIssue } from '../lib/store.svelte'
-  import { bodyParagraphs, relTime, spaceLabel } from '../lib/domain'
+  import { relTime, spaceLabel } from '../lib/domain'
   import { request, ApiError } from '../lib/api'
   import { t } from '../lib/i18n'
   import type { PageDetail as PageDetailDoc, PageLite } from '../lib/types'
@@ -31,7 +32,7 @@
     if (space) out.push(t('docs.metaIn', { space }))
     return out
   })
-  const paragraphs = $derived(bodyParagraphs(detail?.body_text ?? ''))
+  const hasBody = $derived(!!(detail?.body_adf || (detail?.body_text ?? '').trim()))
   const comments = $derived(detail?.comments ?? [])
   const refs = $derived(detail?.ref_issue_keys ?? [])
 
@@ -90,10 +91,8 @@
           <span class="g w1"></span><span class="g w2"></span><span class="g w3"></span>
         </div>
       {:else}
-        {#if paragraphs.length > 0}
-          {#each paragraphs as p, i (i)}
-            <p class="para">{p}</p>
-          {/each}
+        {#if hasBody}
+          <AdfBody doc={detail.body_adf} fallback={detail.body_text} />
         {:else}
           <p class="none">{t('doc.noContent')}</p>
         {/if}
@@ -106,7 +105,7 @@
                 <span class="c-author">{(c.author ?? '').trim() || t('detail.unknownAuthor')}</span>
                 <span class="c-when">{relTime(c.created_at, app.now)}</span>
               </p>
-              <p class="c-body">{c.body_text}</p>
+              <AdfBody doc={c.body_adf} fallback={c.body_text} />
             </div>
           {/each}
         {/if}
@@ -180,12 +179,6 @@
   .body {
     padding: 0 16px;
   }
-  .para {
-    margin: 0 0 12px;
-    color: var(--color-text-secondary);
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-  }
   .none {
     margin: 4px 0 0;
     font-size: var(--text-micro);
@@ -231,12 +224,6 @@
   .c-when {
     font-size: var(--text-micro);
     color: var(--color-text-muted);
-  }
-  .c-body {
-    margin: 0;
-    color: var(--color-text-secondary);
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
   }
   .tail {
     height: 16px;

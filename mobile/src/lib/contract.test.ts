@@ -128,7 +128,8 @@ describe('GDK-906 Detail F2 — one control, catalog copy, honest empty', () => 
 
   it('paints an empty page body with doc.noContent instead of a hole', () => {
     expect(page).toContain("t('doc.noContent')")
-    const body = page.indexOf('paragraphs')
+    // GDK-1497: the body branch is hasBody + AdfBody (was `paragraphs`).
+    const body = page.indexOf('hasBody')
     const empty = page.indexOf("t('doc.noContent')")
     const comments = page.indexOf("t('doc.comments')")
     expect(body).toBeGreaterThan(-1)
@@ -167,7 +168,8 @@ describe('GDK-887 document rows and page detail', () => {
 
   it('puts comments after the page body and has no composer', () => {
     const page = markup('screens/PageDetail.svelte')
-    const body = page.indexOf('paragraphs')
+    // GDK-1497: the body is AdfBody now (was `paragraphs`).
+    const body = page.indexOf('AdfBody')
     const comments = page.indexOf("t('doc.comments')")
     expect(body).toBeGreaterThan(-1)
     expect(comments).toBeGreaterThan(body)

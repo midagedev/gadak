@@ -80,3 +80,6 @@ e2e/demo/test-results-issue-command-shots/
 
 # CPython bytecode from the media editors (e2e/demo/edit-claude-drive.py et al.)
 __pycache__/
+
+# Phone e2e captures for vision rounds (mobile/e2e/a1-captures.spec.ts) — artifacts, not sources.
+mobile/e2e/.shots/

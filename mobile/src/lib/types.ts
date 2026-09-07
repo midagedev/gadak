@@ -10,6 +10,15 @@
  */
 export type { ViewConfig, ViewFilters } from '../../../web/src/lib/view-config'
 
+/**
+ * ADF shapes, imported as types from the desktop's wire definition so there
+ * is one meaning of "a description document" and "an attachment row". The
+ * phone renders them through the same renderer (web/src/lib/adf.ts), fed by
+ * the `*_adf` fields below (GDK-1497). Also type-only: erased at build.
+ */
+import type { AdfNode, DetailAttachment } from '../../../web/src/lib/types'
+export type { AdfNode, DetailAttachment }
+
 export interface IssueLite {
   issue_key: string
   summary: string
@@ -57,7 +66,9 @@ export interface DetailComment {
   comment_id: string
   author: string | null
   created_at: string | null
-  /** Plain-text fallback body — the phone renders text, never raw ADF. */
+  /** Raw ADF body (GDK-1497) — the phone renders it via AdfBody. */
+  raw_body?: AdfNode | null
+  /** Plain-text fallback for a comment that has no ADF. */
   body: string
 }
 
@@ -71,7 +82,11 @@ export interface LinkedIssue {
 
 export interface DetailResponse {
   issue_key: string
+  /** Raw ADF description (GDK-1497) — the phone renders it via AdfBody. */
+  description_adf?: AdfNode | null
   description_text?: string
+  /** Mirrored attachments: media nodes in the ADF resolve against these. */
+  attachments?: DetailAttachment[]
   comments: DetailComment[]
   linked_issues: LinkedIssue[]
 }
@@ -122,12 +137,16 @@ export interface PageLite {
 export interface PageComment {
   author: string
   created_at: string
-  /** Plain-text body — the phone renders text, never raw ADF. */
+  /** Raw ADF body (GDK-1497) — the phone renders it via AdfBody. */
+  body_adf?: AdfNode | null
+  /** Plain-text fallback for a comment that has no ADF. */
   body_text: string
 }
 
 /** GET `pages/{key}/` — PageLite plus flattened body and comments. */
 export interface PageDetail extends PageLite {
+  /** Raw ADF body (GDK-1497) — the phone renders it via AdfBody. */
+  body_adf?: AdfNode | null
   /** ADF flattened by the same walker FTS indexes. Empty when the body is empty. */
   body_text: string
   comments: PageComment[]

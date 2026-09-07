@@ -8,6 +8,7 @@
   import { t } from '../../lib/i18n'
   import type { AdfNode, DetailAttachment } from '../../lib/types'
   import { renderAdf, renderCommandBody } from '../../lib/adf'
+  import { config, jiraBrowseUrl } from '../../lib/config'
   import { issueCommandBlocks } from '../../lib/issue-commands'
   import { placeInShell, shellForIssue } from '../../lib/issue-shells'
   import { shells } from '../../lib/issue-shells.svelte'
@@ -34,7 +35,17 @@
     commands?: boolean
   } = $props()
 
-  const html = $derived(renderAdf(node, { issueKey, attachments, commands }))
+  // adf.ts is config-free (GDK-1497): the web passes its own runtime config
+  // in as options, so the same renderer serves surfaces without the store.
+  const html = $derived(
+    renderAdf(node, {
+      issueKey,
+      attachments,
+      commands,
+      browseUrl: jiraBrowseUrl,
+      apiBase: config().apiBase,
+    }),
+  )
   const hasHtml = $derived(html.trim().length > 0)
   const hasFallback = $derived(!!fallback && fallback.trim().length > 0)
   // A markdown body (Linear) has no ADF at all; its fences still deserve the

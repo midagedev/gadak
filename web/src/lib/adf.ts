@@ -15,7 +15,6 @@
  */
 
 import { t } from './i18n'
-import { config, jiraBrowseUrl } from './config'
 import { commandTextOf, isRunnableCommand, splitFencedBody } from './issue-commands'
 import type { AdfNode, DetailAttachment } from './types'
 
@@ -25,6 +24,20 @@ export interface AdfRenderOptions {
   issueKey?: string
   /** Map of Jira media UUID/filename → local attachment proxy URL. */
   attachments?: DetailAttachment[]
+  /**
+   * Issue key → origin-tracker browse URL (the web's `jiraBrowseUrl`). This
+   * module is pure: the one runtime-config dependency it had moved here as a
+   * callback so surfaces without the web's config store (the phone) can render
+   * with the same vocabulary (GDK-1497). Absent → null, exactly what
+   * jiraBrowseUrl returns with no site configured — plain text, no link.
+   */
+  browseUrl?: (issueKey: string) => string | null
+  /**
+   * API base that attachment `content_url`s are validated against
+   * (safeMediaUrl's whitelist). The web passes `config().apiBase`; any surface
+   * whose attachment URLs share the `/api/v1/issues/` prefix passes that.
+   */
+  apiBase?: string
   /**
    * Offer a ▶ on single-line code blocks (GDK-1162). Off by default and set
    * only for the issue *body*: a comment thread is a conversation, and a
@@ -58,10 +71,10 @@ function safeHref(url: unknown): string | null {
  * and the remainder must look like `<issueKey>/attachments/<id>/content/`. Dots and
  * extra slashes are rejected, so `..` traversal and `//host` protocol-relative URLs fail.
  */
-function safeMediaUrl(url: unknown): string | null {
+function safeMediaUrl(url: unknown, apiBase: string | undefined): string | null {
   if (typeof url !== 'string') return null
   const trimmed = url.trim()
-  const base = config().apiBase
+  const base = apiBase ?? ''
   if (!base || !trimmed.startsWith(base)) return null
   const tail = trimmed.slice(base.length)
   return /^[A-Za-z0-9_-]+\/attachments\/[A-Za-z0-9_-]+\/content\/$/.test(tail) ? esc(trimmed) : null
@@ -148,8 +161,8 @@ function findAttachment(node: AdfNode, opts: AdfRenderOptions): DetailAttachment
   return null
 }
 
-function renderAttachment(attachment: DetailAttachment, compact = false): string {
-  const src = safeMediaUrl(attachment.content_url)
+function renderAttachment(attachment: DetailAttachment, opts: AdfRenderOptions, compact = false): string {
+  const src = safeMediaUrl(attachment.content_url, opts.apiBase)
   if (!src) return ''
   const name = esc(attachment.filename || t('common.attachmentFile'))
   const id = esc(attachment.id)
@@ -338,9 +351,9 @@ function renderNode(node: AdfNode, opts: AdfRenderOptions): string {
 
     case 'media': {
       const attachment = findAttachment(node, opts)
-      if (attachment) return renderAttachment(attachment)
+      if (attachment) return renderAttachment(attachment, opts)
       const name = attrStr(node, 'alt') ?? t('common.attachmentFile')
-      const link = opts.issueKey ? jiraBrowseUrl(opts.issueKey) : null
+      const link = opts.issueKey && opts.browseUrl ? opts.browseUrl(opts.issueKey) : null
       const label = t('detail.attachmentLabel', { name: esc(name) })
       return link
         ? `<a class="adf-media" href="${esc(link)}" target="_blank" rel="noopener noreferrer">${label}</a>`
@@ -349,7 +362,7 @@ function renderNode(node: AdfNode, opts: AdfRenderOptions): string {
 
     case 'mediaInline': {
       const attachment = findAttachment(node, opts)
-      if (attachment) return renderAttachment(attachment, true)
+      if (attachment) return renderAttachment(attachment, opts, true)
       const name = attrStr(node, 'alt')
       const label = name
         ? t('detail.attachmentLabel', { name: esc(name) })

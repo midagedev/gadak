@@ -1,6 +1,7 @@
 <script lang="ts">
   import Screen from '../ui/Screen.svelte'
   import Sheet from '../ui/Sheet.svelte'
+  import AdfBody from '../ui/AdfBody.svelte'
   import { app, closeIssue, openIssue, sync } from '../lib/store.svelte'
   import { overlayComments, pendingComment, relTime, spineToken } from '../lib/domain'
   import { request, errorMessage, ApiError } from '../lib/api'
@@ -202,13 +203,18 @@
               <span class="c-author">{c.author ?? t('detail.unknownAuthor')}</span>
               <span class="c-when">{relTime(c.created_at, app.now)}</span>
             </p>
-            <p class="c-body">{c.body}</p>
+            <AdfBody doc={c.raw_body} fallback={c.body} {issueKey} attachments={detail.attachments} />
           </div>
         {/each}
 
         <h3>{t('detail.description')}</h3>
-        {#if detail.description_text}
-          <p class="desc">{detail.description_text}</p>
+        {#if detail.description_adf || detail.description_text}
+          <AdfBody
+            doc={detail.description_adf}
+            fallback={detail.description_text}
+            {issueKey}
+            attachments={detail.attachments}
+          />
         {:else}
           <p class="none">{t('detail.noDescription')}</p>
         {/if}
@@ -440,12 +446,6 @@
   .body {
     padding: 0 16px;
   }
-  .desc {
-    margin: 4px 0 0;
-    color: var(--color-text-secondary);
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-  }
   .none {
     margin: 4px 0 0;
     font-size: var(--text-micro);
@@ -522,12 +522,6 @@
   .c-when {
     font-size: var(--text-micro);
     color: var(--color-text-muted);
-  }
-  .c-body {
-    margin: 0;
-    color: var(--color-text-secondary);
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
   }
   .tail {
     height: 16px;
