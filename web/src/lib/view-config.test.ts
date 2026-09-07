@@ -29,6 +29,7 @@ import {
   prioritySortRank,
   setStaleFlowSource,
   SORT_KEY_VALUES,
+  staleBandFor,
   staleThresholdHoursEffective,
   staleThresholdLearned,
   subtractFilters,
@@ -751,6 +752,51 @@ describe('learned stale threshold (flow)', () => {
     expect(isStale(done)).toBe(false)
     setStaleFlowSource(() => null)
     expect(isStale(done)).toBe(false)
+  })
+})
+
+/* ── stale band boundaries (GDK-1571) ──
+ *
+ * The band ratios had one owner in code (IssueRow's $derived) and a second
+ * copy in e2e/stale-threshold.spec.ts, so the boundary values — exactly 2×
+ * and exactly 4× the threshold — were asserted by nobody: the spec's
+ * re-written formula agreed with the component's by construction, not by
+ * measurement. staleBandFor is now the single owner; these pin the edges
+ * the e2e used to skip, and the e2e pins the DOM by calling this function.
+ *
+ * FAIL-first: pre-change this block failed at import — staleBandFor did not
+ * exist (the same shape the learned-threshold block above documents).
+ */
+describe('stale band boundaries (GDK-1571)', () => {
+  const band = (ageHours: number, thresholdHours = 72) => staleBandFor(true, ageHours, thresholdHours)
+
+  test('exactly 2x the threshold is quiet; one past it is mid', () => {
+    expect(band(144)).toBe('quiet')
+    expect(band(144.0001)).toBe('mid')
+  })
+
+  test('exactly 4x the threshold is mid; one past it is loud', () => {
+    expect(band(288)).toBe('mid')
+    expect(band(288.0001)).toBe('loud')
+  })
+
+  test('the edges scale with the threshold, learned or set', () => {
+    // A learned 1h: 2h is quiet, 4h is mid, 4h+ε is loud.
+    expect(band(2, 1)).toBe('quiet')
+    expect(band(4, 1)).toBe('mid')
+    expect(band(4.0001, 1)).toBe('loud')
+    // A set 48: the edges are 96 and 192.
+    expect(band(96, 48)).toBe('quiet')
+    expect(band(192, 48)).toBe('mid')
+  })
+
+  test('a row that is not stale has no band at any age', () => {
+    expect(staleBandFor(false, 10_000, 72)).toBeNull()
+  })
+
+  test('a non-positive threshold cannot grade: everything stale is loud', () => {
+    expect(band(1, 0)).toBe('loud')
+    expect(band(1, -5)).toBe('loud')
   })
 })
 

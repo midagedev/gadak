@@ -1,5 +1,6 @@
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
 import {
+  cappedCount,
   colorIndex,
   formatSpan,
   highlightSegments,
@@ -179,5 +180,22 @@ describe('formatSpan', () => {
   test('zero and negative clamp to 0s, never a negative chip', () => {
     expect(formatSpan(0)).toBe('0s')
     expect(formatSpan(-5)).toBe('0s')
+  })
+})
+
+/* GDK-1590: one cap formatter for every unread surface — the pill, the tab
+ * strip and the sidebar row must print the same quantity the same way. */
+describe('cappedCount (GDK-1590)', () => {
+  test('the raw number through the cap, then cap+', () => {
+    expect(cappedCount(0)).toBe('0')
+    expect(cappedCount(1)).toBe('1')
+    expect(cappedCount(99)).toBe('99')
+    expect(cappedCount(100)).toBe('99+')
+    expect(cappedCount(293)).toBe('99+')
+  })
+
+  test('the cap is a parameter, not a second formatter', () => {
+    expect(cappedCount(10, 9)).toBe('9+')
+    expect(cappedCount(9, 9)).toBe('9')
   })
 })

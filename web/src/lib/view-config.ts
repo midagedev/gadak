@@ -1064,6 +1064,29 @@ export function staleThresholdSamples(): number {
   return effectiveStaleThreshold().learned && flow ? flow.samples : 0
 }
 
+/**
+ * The band weights a stale mark carries (GDK-1336 ratios, GDK-1571 single
+ * owner): quiet through 2× the threshold in force, mid through 4×, loud
+ * beyond. Pure arithmetic on given hours, so the boundary cases — exactly
+ * 2×, exactly 4× — are unit-pinned without a clock, and the e2e computes
+ * its expectation by calling this rather than re-writing the ratios (the
+ * second copy is what left the edges asserted by nobody). null when the
+ * row is not stale; a non-positive threshold cannot grade anything, so
+ * everything stale is loud (the pre-extraction behaviour).
+ */
+export function staleBandFor(
+  stale: boolean,
+  ageHours: number,
+  thresholdHours: number,
+): 'quiet' | 'mid' | 'loud' | null {
+  if (!stale) return null
+  if (!(thresholdHours > 0)) return 'loud'
+  const ratio = ageHours / thresholdHours
+  if (ratio <= 2) return 'quiet'
+  if (ratio <= 4) return 'mid'
+  return 'loud'
+}
+
 /** Whether any filter is active (for save-view button). Callers decide whether to exclude q. */
 export function hasAnyFilter(f: ViewFilters): boolean {
   for (const field of MULTI_FIELDS) if (f[field].length) return true

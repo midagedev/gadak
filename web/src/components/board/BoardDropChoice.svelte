@@ -9,13 +9,17 @@
   import { boardDrag } from '../../lib/board-drag.svelte'
   import { effectiveCategory } from '../../lib/view-config'
   import { onEscape, onOutsideClick } from '../../lib/dom-actions'
+  import { onMount } from 'svelte'
 
   let { choice }: { choice: NonNullable<typeof boardDrag.choice> } = $props()
 
   let listEl = $state<HTMLDivElement | null>(null)
 
   // Focus the first option so Enter answers and Escape declines, keyboard-only.
-  $effect(() => {
+  // onMount (GDK-1585): listEl is only read inside the queued microtask, so
+  // the $effect had zero tracked reads — a run-once with effect clothing.
+  // Mount says that in the open.
+  onMount(() => {
     queueMicrotask(() => listEl?.querySelector('button')?.focus())
   })
 

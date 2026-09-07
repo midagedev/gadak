@@ -25,6 +25,19 @@ export function absTime(iso: string | null): string {
   return i18nAbsTime(iso)
 }
 
+/* ── Count caps ── */
+
+/**
+ * Unread-count display: the raw number through the cap, then "cap+" (GDK-1590).
+ * One formatter because the feed shows the same count on three surfaces —
+ * header pill, tab strip, sidebar row — and two formats on one screen ("99+"
+ * beside "293") read as two different quantities. String, not number: past
+ * the cap the "+" is part of the value.
+ */
+export function cappedCount(n: number, cap = 99): string {
+  return n > cap ? `${cap}+` : `${n}`
+}
+
 /* ── Lifecycle spans (detail duration chip) ── */
 
 /**

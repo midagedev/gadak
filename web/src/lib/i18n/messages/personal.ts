@@ -116,6 +116,12 @@ export const personal = {
     ko: '안 읽은 활동 {n}건',
     ja: '未読 {n}件',
   },
+  // GDK-1590: the feed day header's total (title beside the bare number).
+  'feed.dayTotal': {
+    en: '{n} events',
+    ko: '활동 {n}건',
+    ja: '活動 {n}件',
+  },
   'feed.filterAll': {
     en: 'All',
     ko: '전체',

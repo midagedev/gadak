@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import {
   LAYOUT_DETAIL_MIN_PX,
@@ -9,6 +12,8 @@ import {
   layoutTokenStyle,
   subscribeViewportRegime,
 } from './viewport-regime'
+
+const HERE = dirname(fileURLToPath(import.meta.url))
 
 describe('viewport docked floor (GDK-766)', () => {
   test('track mins sum to VIEWPORT_DOCKED_MIN_PX (±0)', () => {
@@ -107,5 +112,51 @@ describe('layout dim overrides (GDK-842 chunk 3)', () => {
 
     unsub()
     expect(mqls[1].listeners.size).toBe(0)
+  })
+})
+
+/*
+ * GDK-1585: the overlay chrome is declarative. applyOverlayChrome — the
+ * post-render DOM walk that set inert/role/aria-modal by class and testid —
+ * is gone; the same DOM result must now come from props on the three frames
+ * App renders. The runtime half (the list really goes inert, Esc closes) is
+ * measured by e2e/narrow-viewport.spec.ts (GDK-201); this pins that the
+ * declarative half exists and the walker is not reborn — a mount-based unit
+ * is not possible in the runes-free node project (see effect-assigns-state).
+ */
+describe('overlay chrome is props on the shell (GDK-1585)', () => {
+  const root = join(HERE, '..', '..')
+  const SRC = {
+    regime: readFileSync(join(root, 'src/lib/viewport-regime.ts'), 'utf8'),
+    sidebar: readFileSync(join(root, 'src/components/shell/Sidebar.svelte'), 'utf8'),
+    main: readFileSync(join(root, 'src/components/shell/MainColumn.svelte'), 'utf8'),
+    panel: readFileSync(join(root, 'src/components/shell/RightPanel.svelte'), 'utf8'),
+    app: readFileSync(join(root, 'src/App.svelte'), 'utf8'),
+  }
+
+  test('the imperative walker is gone from viewport-regime', () => {
+    expect(SRC.regime.includes('applyOverlayChrome')).toBe(false)
+    expect(SRC.regime.includes('focus-trap')).toBe(false)
+  })
+
+  test('the background frames carry inert as a prop', () => {
+    expect(SRC.sidebar).toMatch(/inert\?: boolean/)
+    expect(SRC.sidebar).toMatch(/\{inert\}/)
+    expect(SRC.main).toMatch(/inert\?: boolean/)
+    expect(SRC.main).toMatch(/\{inert\}/)
+  })
+
+  test('the panel frame is a dialog while modal: role, aria-modal, trap', () => {
+    expect(SRC.panel).toMatch(/modal\?: boolean/)
+    expect(SRC.panel).toMatch(/role=\{modal \? 'dialog' : undefined\}/)
+    expect(SRC.panel).toMatch(/aria-modal=\{modal \? 'true' : undefined\}/)
+    expect(SRC.panel).toMatch(/use:trapWhileModal=\{modal\}/)
+  })
+
+  test('App drives the chrome with the overlay verdict alone', () => {
+    expect(SRC.app).toMatch(/<Sidebar inert=\{overlayModal\}>/)
+    expect(SRC.app).toMatch(/<MainColumn inert=\{overlayModal\}>/)
+    expect(SRC.app).toMatch(/<RightPanel open=\{panelOpen\} modal=\{overlayModal\}>/)
+    expect(SRC.app.includes('applyOverlayChrome')).toBe(false)
   })
 })

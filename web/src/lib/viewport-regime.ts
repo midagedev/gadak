@@ -27,8 +27,6 @@
  * in force, so the invariant survives a user sidebar of 300px (floor 1128).
  */
 
-import { trapFocus } from './focus-trap'
-
 export const LAYOUT_SIDEBAR_PX = 272
 export const LAYOUT_LIST_MIN_PX = 390
 export const LAYOUT_DETAIL_MIN_PX = 438
@@ -200,34 +198,5 @@ export function applyLayoutDimOverrides(
     teardownMedia()
     for (const fn of listeners) subscribeViewportRegime(fn)
   }
-  refreshLayoutTokenInstall()
-}
-
-/**
- * Apply the overlay-modal chrome (inert background, dialog role, focus trap)
- * or strip it. Caller must invoke the returned cleanup on the next change.
- */
-export function applyOverlayChrome(layout: HTMLElement, modal: boolean): () => void {
-  const sidebar = layout.querySelector<HTMLElement>('.issue-sidebar')
-  const main = layout.querySelector<HTMLElement>('.issue-main-column')
-  const panelEl = layout.querySelector<HTMLElement>('[data-testid="issue-detail-panel"]')
-  if (sidebar) sidebar.inert = modal
-  if (main) main.inert = modal
-  if (panelEl) {
-    if (modal) {
-      panelEl.setAttribute('role', 'dialog')
-      panelEl.setAttribute('aria-modal', 'true')
-    } else {
-      panelEl.removeAttribute('role')
-      panelEl.removeAttribute('aria-modal')
-    }
-  }
-  const trapped = modal && panelEl ? trapFocus(panelEl) : null
-  return () => {
-    trapped?.destroy()
-    if (sidebar) sidebar.inert = false
-    if (main) main.inert = false
-    panelEl?.removeAttribute('role')
-    panelEl?.removeAttribute('aria-modal')
-  }
+    refreshLayoutTokenInstall()
 }

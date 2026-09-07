@@ -173,12 +173,20 @@
   //
   // An index, not scrollIntoView — the row being scrolled to is outside the
   // window, so there is no element to scroll into view.
+  //
+  // GDK-1586: the request is consumed only when it could be honored. The
+  // author's group can be narrowed out of `rows` by the docs filter, and a
+  // clear on index < 0 lost the request silently — "not in this view" read
+  // as "done". Unspent, it fires when the author tab next opens on rows
+  // that contain the group.
   $effect(() => {
     const author = pages.focusAuthor
     if (!author || tab !== 'author' || !list) return
     const index = rows.findIndex((r) => r.kind === 'header' && r.author === author)
-    if (index >= 0) list.scrollToIndex(index)
-    pages.focusAuthor = null
+    if (index >= 0) {
+      list.scrollToIndex(index)
+      pages.focusAuthor = null
+    }
   })
 
   // Re-snapshot the token-sourced heights on invalidation; tear the

@@ -15,16 +15,14 @@
   import { t, relativeTime, absTime } from '../../lib/i18n'
   import { config, isHostedDemo, isLocalOrigin, originTrackerName } from '../../lib/config'
   import { mirrorLabel } from '../../lib/mirror-status'
+  import { subscribeWallClock } from '../../lib/clock.svelte'
 
-  /** Relabel cadence. relativeTime is minute-granular below the hour, so a 1s
-      tick would re-render 59 times to print the same string. */
-  const TICK_MS = 10_000
-
+  /** Relabel cadence rides the app's one wall clock (GDK-1584) — its 10s
+      tick is this chip's own cadence and the module's shortest consumer.
+      relativeTime is minute-granular below the hour, so a 1s tick would
+      re-render 59 times to print the same string. */
   let tick = $state(0)
-  onMount(() => {
-    const id = setInterval(() => (tick += 1), TICK_MS)
-    return () => clearInterval(id)
-  })
+  onMount(() => subscribeWallClock(() => (tick += 1)))
 
   const health = $derived(issues.mirrorHealth)
   const syncedAt = $derived(health?.synced_at ?? null)

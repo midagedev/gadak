@@ -94,13 +94,23 @@ describe('the updated-time accent tracks the wall clock (GDK-617a)', () => {
     expect(isFresh).toContain('24 * 60 * 60 * 1000')
   })
 
-  test('the tick is an interval started on mount and cleaned up on unmount', () => {
+  // GDK-1584 rewrite of the GDK-617a pin. The protected behavior is
+  // unchanged — the tick state exists, mount starts the ticking, unmount
+  // stops it — but the timer is no longer the row's own: a private interval
+  // per row meant ~41 of them on a 900px list, so the row subscribes to the
+  // one wall clock (lib/clock.svelte.ts) and hands onMount the unsubscribe
+  // as its cleanup. FAIL-first: the pre-change assertion (a setInterval
+  // inside an onMount body) went red the moment the subscription landed; a
+  // private interval coming back is the no-component-interval lint's to
+  // catch now, not this pin's.
+  test('the tick rides the shared wall clock, subscribed on mount', () => {
     const tick = declarator('tick')
     expect(tick, 'no tick $state in IssueRow.svelte').toBeDefined()
     expect(tick).toMatch(/\$state/)
-    const clock = onMountBodies().filter((body) => body.includes('setInterval'))
-    expect(clock, 'no onMount in IssueRow.svelte starts an interval for the clock').toHaveLength(1)
-    expect(clock[0]).toMatch(/clearInterval/)
+    const clock = onMountBodies().filter((body) => body.includes('subscribeWallClock'))
+    expect(clock, 'no onMount in IssueRow.svelte subscribes the clock tick').toHaveLength(1)
+    // Arrow body, not a block: the unsubscribe IS onMount's cleanup return.
+    expect(clock[0]).toMatch(/\(\) => subscribeWallClock\(/)
   })
 })
 

@@ -83,6 +83,7 @@
    */
   import { onMount } from 'svelte'
   import { t, columnLabel, type ColumnLabelKey } from '../../lib/i18n'
+  import { subscribeWallClock } from '../../lib/clock.svelte'
   import type { SearchMatch } from '../../lib/types'
   import { filters } from '../../stores/filters.svelte'
   import { issues } from '../../stores/issues.svelte'
@@ -98,6 +99,7 @@
   import { labelChipTint, typeChipTint } from '../../stores/ui-tokens.svelte'
   import {
     isStale,
+    staleBandFor,
     staleThresholdHoursEffective,
     staleThresholdLearned,
     staleThresholdSamples,
@@ -140,15 +142,9 @@
   const stale = $derived(isStale(issue))
   const age = $derived(workAge(issue))
   const staleDays = $derived(Math.max(1, Math.round(age.hours / 24)))
-  const staleBand = $derived.by((): 'quiet' | 'mid' | 'loud' | null => {
-    if (!stale) return null
-    const threshold = staleThresholdHoursEffective()
-    if (!(threshold > 0)) return 'loud'
-    const ratio = age.hours / threshold
-    if (ratio <= 2) return 'quiet'
-    if (ratio <= 4) return 'mid'
-    return 'loud'
-  })
+  // Band ratios are view-config's (staleBandFor, GDK-1571): one owner, and
+  // the e2e asserts the DOM against the same function instead of a copy.
+  const staleBand = $derived(staleBandFor(stale, age.hours, staleThresholdHoursEffective()))
   // GDK-1336: band weight is text weight and amber opacity — no box. The
   // bordered chip was the loudest trailing element on every stale row, and
   // on a list where most rows are stale it read as a column of badges
@@ -247,16 +243,11 @@
   // Recency: updates within 24h pull the time label up to accent. Date.now()
   // is not a dependency a $derived can see, so without a tick the accent
   // freezes at mount — a list left open overnight keeps yesterday's "fresh".
-  // The question is already answered repo-wide (FreshnessChip): a tick state
-  // the derivation re-reads. Cadence: this value can only flip once per 24h,
-  // so a minute is already tighter than the chip's 10s-on-minute-text
-  // standard, and the virtual list mounts only its slice, so ticks scale
-  // with what is on screen, not with the rows behind the window.
+  // The tick rides the app's one wall clock (lib/clock.svelte.ts, GDK-1584):
+  // this used to be a private 60s setInterval per row, and a 900px list
+  // mounted ~41 of them.
   let tick = $state(0)
-  onMount(() => {
-    const id = setInterval(() => (tick += 1), 60_000)
-    return () => clearInterval(id)
-  })
+  onMount(() => subscribeWallClock(() => (tick += 1)))
   const isFresh = $derived.by(() => {
     void tick // re-read the wall clock every tick
     if (!issue.updated_at) return false

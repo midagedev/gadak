@@ -190,9 +190,252 @@ const ALLOWED: Exception[] = [
     'detail',
     'detailError',
   ),
+  /* ── GDK-1583 one-hop findings (2026-09-08) ──
+   *
+   * Each entry names the HELPER the effect calls; its writes ride the
+   * finding message. Every file below sits outside the round that extended
+   * the scan (write/, detail/, list/BulkBar, list/IssueList,
+   * list/SearchSection, lib/resource.svelte.ts, mobile/src) — converting
+   * these to derivations or moving the writes out belongs to their owning
+   * rounds, so the entries keep the gate readable until then (lead
+   * follow-up list in that round's report). The audit scan's 17th finding
+   * (BulkBar:212) is deliberately absent: `triage.closeMenu()` is the triage
+   * store's own method (stores/triage.svelte.ts), not a same-file helper,
+   * and the audit's `\bname(` matched straight past the dot. */
+  {
+    file: 'components/detail/FieldEditor.svelte',
+    name: 'close',
+    why: 'outside-click wiring: close() is what the registered pointerdown handler does with its event — dismissal on click-away, not a synchronization',
+  },
+  {
+    file: 'components/detail/LinkedIssues.svelte',
+    name: 'loadTypes',
+    why: 'per-key catalog fetch: the writes are the request result and its same-turn reset — IO has no input to derive from',
+  },
+  {
+    file: 'components/list/BulkBar.svelte',
+    name: 'closeMenu',
+    why: 'a failed priorities GET closes the menu from the .then callback — the request outcome decides, not a dependency change',
+  },
+  {
+    file: 'components/list/BulkBar.svelte',
+    name: 'closeMenu',
+    why: 'the shell Esc ladder: closeMenu() is the key event’s outcome, spent here before the detail panel sees it (registration-order reason at the effect)',
+  },
+  {
+    file: 'components/list/IssueList.svelte',
+    name: 'scrollToRow',
+    why: 'cursor-follow scrolling writes scroller.scrollTop — the position is this effect’s output, the same reason as the scrollTop entry above',
+  },
+  {
+    file: 'components/list/SearchSection.svelte',
+    name: 'snap',
+    why: 'rAF/resize measurement: capPx is the measured height clamp written on each layout pass — a clock-shaped output, not a derivation',
+  },
+  {
+    file: 'components/write/CommentComposer.svelte',
+    name: 'autosize',
+    why: 'textarea autosize on the microtask after draft hydration — ta.style.height is a DOM measurement applied; the $state is only the element handle',
+  },
+  {
+    file: 'components/write/CommentComposer.svelte',
+    name: 'closeMention',
+    why: 'per-key draft hydration resets the mention popup beside text/mentions — the same IO-reset reason as the entries above',
+  },
+  {
+    file: 'components/write/CommentComposer.svelte',
+    name: 'autosize',
+    why: 'the reply request prefixes a mention into the draft and autosizes in the .then — an edit to the person’s text, which no derivation may own',
+  },
+  {
+    file: 'components/write/NewIssueDialog.svelte',
+    name: 'applyDefaults',
+    why: 'opening the form writes the inferred project/type defaults once — a reset the state transition demands (defaultsApplied latch)',
+  },
+  {
+    file: 'components/write/NewIssueDialog.svelte',
+    name: 'beginCreateFieldsLoad',
+    why: 'create-meta fetch per (project,type): the site comment already owns the split — “I/O stays an $effect; writes live in beginCreateFieldsLoad”',
+  },
+  {
+    file: 'components/write/StatusTransition.svelte',
+    name: 'toggle',
+    why: 'the nonce-requested menu open resets remote/source/fieldDraft and opens — an event outcome with a latch, not a value with inputs',
+  },
+  {
+    file: 'lib/resource.svelte.ts',
+    name: 'load',
+    why: 'the module IS the key→request sync; load() is its fetch half — the same reason as the data/errorKind/loading entries above',
+  },
+  {
+    file: 'mobile/src/screens/Shell.svelte',
+    name: 'activate',
+    why: 'tab activation drives the attach lifecycle and status is its progress output — the untrack comment at the helper owns why it cannot be a derivation',
+  },
+  {
+    file: 'mobile/src/screens/Shell.svelte',
+    name: 'refreshRoster',
+    why: 'the roster poll the sheet-open effect owns on an interval — rows arrive from the network on a timer',
+  },
+  {
+    file: 'mobile/src/screens/Shell.svelte',
+    name: 'closeSheet',
+    why: 'a tab switch away closes the sheet — a navigation reset, idempotent by design (comment at the effect)',
+  },
 ]
 
-export type Finding = { file: string; line: number; name: string }
+export type Finding = { file: string; line: number; name: string; writes?: string[] }
+
+/** Index of the `{` that opens a function declaration's body, or -1 when the
+ *  signature never closes onto one (a comment, a bare overload). Three
+ *  shapes have to be stepped over first, all present in this corpus: object
+ *  typed parameters (`(views: { id: string }[])` — the first `{` is not the
+ *  body), return annotations (`): Promise<void> {`), and object literal
+ *  return types (`): { n: number } | null {`). The rule that separates a
+ *  type's braces from the body's: inside a return type a `{` continues the
+ *  type only where a type is expected (after `:` `|` `&` `,` `<` `=>`);
+ *  after an identifier, `)`, `]`, `>` or `}` the next `{` is the body
+ *  (GDK-1583). Generic parameters (`function f<T>(…)`) are not matched —
+ *  the declaration regex keys on `name(`, same boundary the audit had. */
+function bodyBraceAfterParams(src: string, from: number): number {
+  let depth = 1 // `from` sits just past the declaration's `(`
+  let i = from
+  while (i < src.length) {
+    const c = src[i]
+    const n = src[i + 1]
+    if (c === '/' && n === '/') {
+      const e = src.indexOf('\n', i)
+      if (e < 0) return -1
+      i = e
+      continue
+    }
+    if (c === '/' && n === '*') {
+      const e = src.indexOf('*/', i + 2)
+      if (e < 0) return -1
+      i = e + 2
+      continue
+    }
+    if (c === "'" || c === '"' || c === '`') {
+      const q = c
+      i++
+      while (i < src.length) {
+        if (src[i] === '\\') {
+          i += 2
+          continue
+        }
+        if (src[i] === q) break
+        i++
+      }
+      i++
+      continue
+    }
+    if (c === '(') depth++
+    else if (c === ')') {
+      depth--
+      if (depth === 0) {
+        i++
+        break
+      }
+    }
+    i++
+  }
+  // Optional return annotation: `): Type {`. Walk type tokens; a top-level
+  // `{` opens a type literal only where a type may continue, else it is
+  // the body.
+  while (i < src.length && /\s/.test(src[i])) i++
+  if (src[i] === ':') {
+    let last = ':' // last significant char before the next token
+    i++
+    for (; i < src.length; i++) {
+      const c = src[i]
+      if (/\s/.test(c)) continue
+      if (c === '(' || c === '[') {
+        depth++
+        last = c
+      } else if (c === ')' || c === ']') {
+        depth--
+        last = c
+      } else if (c === '{') {
+        if (depth === 0 && !':|&,<'.includes(last) && !(last === '=' && src[i - 2] === '>')) {
+          return i // body — the type cannot continue here
+        }
+        const close = matchBrace(src, i)
+        i = close // the loop's i++ moves past the group
+        last = '}'
+      } else if (c === '}') {
+        // Unbalanced inside the walk: the signature is malformed.
+        return -1
+      } else if (c === ';') {
+        return -1 // overload signature with no body
+      } else {
+        if (c === '=' && src[i + 1] === '>') {
+          last = '='
+          i++
+        } else {
+          last = c
+        }
+      }
+    }
+    return -1
+  }
+  return src[i] === '{' ? i : -1
+}
+
+/*
+ * GDK-1583: the lexical-scope-only scan could not see an effect that writes
+ * rune state through a same-file `function` helper — the worst instance was
+ * CommentComposer's hydration effect carrying five ALLOWED entries while
+ * closeMention() wrote four more names the list never knew. The scan now
+ * resolves those calls ONE hop deep.
+ *
+ * Depth is exactly one on purpose, and the boundary is the helper table:
+ * only `function` declarations of the same file are entered (an imported or
+ * arrow-const helper is another file's or another shape's business), and a
+ * helper calling a second writing helper is not followed — the reader is
+ * pointed at the helper the effect names, which is where the fix lands.
+ *
+ * Two deliberate asymmetries with assignmentsIn, both measured against the
+ * audit's 17 live findings:
+ *  - effect bodies are scanned for CALLS without blankClosures: a call the
+ *    effect schedules through a callback is still a call this effect causes
+ *    (mobile Shell's roster poll schedules refreshRoster() inside the
+ *    interval arrow). The event-handler exemption stays where it always
+ *    was — on the WRITE, judged where the write happens.
+ *  - helper bodies are read without blanking closures either, for the same
+ *    reason: the helper's own callbacks are part of what calling it does.
+ */
+function writingHelpers(
+  src: string,
+  names: string[],
+): { name: string; writes: string[] }[] {
+  const out: { name: string; writes: string[] }[] = []
+  const decl = /function\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/g
+  let m: RegExpExecArray | null
+  while ((m = decl.exec(src))) {
+    const brace = bodyBraceAfterParams(src, m.index + m[0].length)
+    if (brace < 0) continue
+    const close = matchBrace(src, brace)
+    const body = stripStringsAndComments(src.slice(brace + 1, close))
+    const writes = names.filter((name) =>
+      new RegExp(String.raw`\b${name}(?:\.[A-Za-z_][A-Za-z0-9_]*)*\s*=(?!=)`).test(body),
+    )
+    if (writes.length > 0) out.push({ name: m[1]!, writes })
+  }
+  return out
+}
+
+/** Calls an effect body makes to a known writing helper. One hit per helper
+ *  (the first call site is the reported line); `.`-qualified and `#`-private
+ *  method calls are not the helper, and neither is a declaration. */
+function helperCalls(body: string, helperNames: string[]): { name: string; offset: number }[] {
+  const code = stripStringsAndComments(body)
+  const hits: { name: string; offset: number }[] = []
+  for (const name of helperNames) {
+    const m = new RegExp(String.raw`(?<![.\w#])${name}\s*\(`).exec(code)
+    if (m) hits.push({ name, offset: m.index })
+  }
+  return hits
+}
 
 function runeNames(src: string): string[] {
   const names: string[] = []
@@ -347,9 +590,20 @@ export function scanSource(src: string, file: string): Finding[] {
   const names = runeNames(src)
   const rel = relative(REPO, file)
   const findings: Finding[] = []
+  const helpers = writingHelpers(src, names)
+  const helperNames = helpers.map((h) => h.name)
   for (const { body, open } of effectBodies(src)) {
     for (const hit of assignmentsIn(body, names)) {
       findings.push({ file: rel, line: lineAt(src, open + 1 + hit.offset), name: hit.name })
+    }
+    for (const call of helperCalls(body, helperNames)) {
+      const helper = helpers.find((h) => h.name === call.name)!
+      findings.push({
+        file: rel,
+        line: lineAt(src, open + 1 + call.offset),
+        name: call.name,
+        writes: helper.writes,
+      })
     }
   }
   return findings
@@ -361,7 +615,13 @@ export function scanFiles(paths: string[]): Finding[] {
 
 function format(findings: Finding[]): string {
   if (findings.length === 0) return '(none)'
-  return findings.map((f) => `${f.file}:${f.line} assigns ${f.name}`).join('\n')
+  return findings
+    .map((f) =>
+      f.writes
+        ? `${f.file}:${f.line} calls ${f.name}() which writes ${f.writes.join(', ')}`
+        : `${f.file}:${f.line} assigns ${f.name}`,
+    )
+    .join('\n')
 }
 
 /** Drop at most one finding per entry — the exception is one effect, not a
@@ -521,10 +781,109 @@ describe('GDK-692 no $effect writes $state/$derived in scanned files', () => {
     }))
     expect(withoutAllowed(three)).toHaveLength(1)
   })
+
+  /*
+   * GDK-1583: the one-hop contract, pinned from both sides. The worst live
+   * instance (CommentComposer) wrote four names through closeMention() that
+   * no exception knew about; the hop makes that visible again. Depth is
+   * exactly one, and only same-file `function` declarations are entered —
+   * the audit scan this replaced also matched `triage.closeMenu()` straight
+   * past the dot and counted a store method as BulkBar's helper, which is
+   * the false positive the lookbehind here refuses.
+   */
+  test('an effect writing through a same-file helper is a finding (one hop)', () => {
+    const src = [
+      '<script lang="ts">',
+      '  let open = $state(false)',
+      '  $effect(() => {',
+      '    close()',
+      '  })',
+      '  function close() {',
+      '    open = false',
+      '  }',
+      '</script>',
+    ].join('\n')
+    const findings = scanSource(src, join(WEB_SRC, 'components/sample.svelte'))
+    expect(findings).toHaveLength(1)
+    expect(findings[0]!.name).toBe('close')
+    expect(findings[0]!.writes).toEqual(['open'])
+    // The reported line is the call inside the effect, where the fix lands.
+    expect(findings[0]!.line).toBe(4)
+  })
+
+  test('a call to a function from another file is not followed', () => {
+    const src = [
+      '<script lang="ts">',
+      '  let open = $state(false)',
+      '  $effect(() => {',
+      '    closeAway()',
+      '  })',
+      '</script>',
+    ].join('\n')
+    expect(scanSource(src, join(WEB_SRC, 'components/sample.svelte'))).toEqual([])
+  })
+
+  test('a helper calling a second writing helper is not followed (depth one)', () => {
+    const src = [
+      '<script lang="ts">',
+      '  let open = $state(false)',
+      '  $effect(() => {',
+      '    outer()',
+      '  })',
+      '  function outer() {',
+      '    inner()',
+      '  }',
+      '  function inner() {',
+      '    open = false',
+      '  }',
+      '</script>',
+    ].join('\n')
+    // outer() writes nothing itself, so the effect's one hop sees nothing.
+    expect(scanSource(src, join(WEB_SRC, 'components/sample.svelte'))).toEqual([])
+  })
+
+  test('a method call is not the helper, and scheduled calls still are', () => {
+    const src = [
+      '<script lang="ts">',
+      '  let open = $state(false)',
+      '  const store = { close() { /* another file’s code */ } }',
+      '  $effect(() => {',
+      '    store.close()',
+      '    queueMicrotask(() => close())',
+      '  })',
+      '  function close() {',
+      '    open = false',
+      '  }',
+      '</script>',
+    ].join('\n')
+    const findings = scanSource(src, join(WEB_SRC, 'components/sample.svelte'))
+    expect(findings).toHaveLength(1)
+    expect(findings[0]!.name).toBe('close')
+  })
 })
 
-describe('GDK-692 confluence save payload follows the two-input rule', () => {
-  test('spaces selected with the switch off save as enabled with those spaces', () => {
+/* GDK-1586: a DocsView pin. It lives here for the same reason the SourcesTab
+ * source contract below does — the unit project is runes-free and cannot
+ * mount a .svelte file, and lib/ is the shared owner of cross-component
+ * source pins. A dedicated docs test file would be the better home the day
+ * one exists. */
+describe('GDK-1586 focusAuthor is consumed only when it lands', () => {
+  test('DocsView clears the request inside the index >= 0 branch', () => {
+    const src = readFileSync(join(WEB_SRC, 'components/docs/DocsView.svelte'), 'utf8')
+    // The scroll AND the consume are one transaction: a group the docs
+    // filter narrowed out of `rows` must leave the request unspent.
+    expect(src).toMatch(
+      /if \(index >= 0\) \{\s*\n\s*list\.scrollToIndex\(index\)\s*\n\s*pages\.focusAuthor = null\s*\n\s*\}/,
+    )
+    // The unguarded shape this replaces — the clear one line below a
+    // single-statement if — must not come back.
+    expect(src).not.toMatch(
+      /if \(index >= 0\) list\.scrollToIndex\(index\)\s*\n\s*pages\.focusAuthor = null/,
+    )
+  })
+})
+
+describe('GDK-692 confluence save payload follows the two-input rule', () => {  test('spaces selected with the switch off save as enabled with those spaces', () => {
     const d = emptyDraft()
     d.confluenceOn = false
     d.spaces = ['ENG']

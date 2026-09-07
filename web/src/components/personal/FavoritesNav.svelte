@@ -4,6 +4,7 @@
   import { onMount } from 'svelte'
   import type { IssueLite, PageLite } from '../../lib/types'
   import { absTime } from '../../lib/format'
+  import { subscribeWallClock } from '../../lib/clock.svelte'
   import { issues } from '../../stores/issues.svelte'
   import { pages } from '../../stores/pages.svelte'
   import { selection } from '../../stores/selection.svelte'
@@ -36,10 +37,9 @@
   let dragOverKey = $state<string | null>(null)
   let suppressClickKey = $state<string | null>(null)
 
-  onMount(() => {
-    const timer = window.setInterval(() => (now = Date.now()), 30_000)
-    return () => window.clearInterval(timer)
-  })
+  // Seen-times relabel off the app's one wall clock (GDK-1584) — this used
+  // to be a private 30s setInterval beside the chip's 10s and the row's 60s.
+  onMount(() => subscribeWallClock(() => (now = Date.now())))
 
   const favoriteItems = $derived.by(() => {
     const visitByKey = new Map(me.recentIssues.map((visit) => [visit.key, visit]))

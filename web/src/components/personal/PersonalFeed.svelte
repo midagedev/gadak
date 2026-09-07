@@ -6,7 +6,7 @@
   import { selection } from '../../stores/selection.svelte'
   import { me } from '../../stores/me.svelte'
   import { write } from '../../stores/write.svelte'
-  import { absTime } from '../../lib/format'
+  import { absTime, cappedCount } from '../../lib/format'
   import EmptyState from '../list/EmptyState.svelte'
   import LoadingState from '../ui/LoadingState.svelte'
   import { createSkeletonGrace } from '../../lib/skeleton-grace.svelte'
@@ -152,7 +152,7 @@
       <span
         class="min-w-5 rounded-full bg-accent px-1.5 py-0.5 text-center text-micro font-semibold text-white"
       >
-        {me.feedUnread.all > 99 ? '99+' : me.feedUnread.all}
+        {cappedCount(me.feedUnread.all)}
       </span>
     {/if}
 
@@ -172,7 +172,7 @@
           onclick={() => selectFocus(tab.key)}
         >
           {tab.label}
-          {#if count > 0}<span class="text-micro text-accent-text">{count}</span>{/if}
+          {#if count > 0}<span class="text-micro text-accent-text">{cappedCount(count)}</span>{/if}
         </button>
       {/each}
     </div>
@@ -299,9 +299,18 @@
             {feedDayLabelText(section.label, t, locale())}
           </span>
           <span class="h-px flex-1 self-center bg-border-subtle"></span>
-          <span class="text-micro tabular-nums text-text-muted">{section.total}</span>
+          <!-- GDK-1590: two bare numbers side by side said nothing a hover could
+               confirm — the total and the unread share the header row, so each
+               carries its one-line title (G7; color was the only carrier). -->
+          <span
+            class="text-micro tabular-nums text-text-muted"
+            title={t('feed.dayTotal', { n: section.total })}>{section.total}</span
+          >
           {#if section.unread > 0}
-            <span class="text-micro tabular-nums text-accent-text">{section.unread}</span>
+            <span
+              class="text-micro tabular-nums text-accent-text"
+              title={t('feed.unreadCount', { n: section.unread })}>{section.unread}</span
+            >
           {/if}
         </div>
         {#each section.groups as group (group.id)}

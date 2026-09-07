@@ -78,7 +78,6 @@
   import { t } from './lib/i18n'
   import { bindPaletteOpener, bindShortcutsOpener } from './lib/unified-search'
   import {
-    applyOverlayChrome,
     isOverlayModal,
     layoutTokenStyle,
     readViewportRegime,
@@ -521,6 +520,20 @@
     // line — after it, the list becomes a keyboard target and a later hash
     // write is a user view change (resets the cursor).
     triage.noteStartupViewApplied()
+    // GDK-1586: a keep-url boot still showed a view — the URL's — and the
+    // key is named lastView, so the arrived view is saved here. The persist
+    // effect below only fires on a viewKey *change*, and keep-url never
+    // moves viewKey (nothing is applied), so without this write the link's
+    // view is lost on the next boot. untrack: viewKey is hot (q= typing),
+    // and this effect must not subscribe to it.
+    if (startupInput.urlHasViewParam) {
+      const vk = untrack(() => filters.viewKey)
+      try {
+        localStorage.setItem(LAST_VIEW_KEY, vk)
+      } catch {
+        /* noop */
+      }
+    }
     // lastViewKey apply writes the capped ks; recover given from the stored string.
     if (
       !startupInput.urlHasViewParam &&
@@ -622,7 +635,6 @@
    */
   let viewportRegime = $state<ViewportRegime>(readViewportRegime())
   const overlayModal = $derived(isOverlayModal(viewportRegime, panelOpen))
-  let layoutEl = $state<HTMLElement | null>(null)
 
   /*
    * The terminal is the fourth surface wanting a share of this row, and it is
@@ -635,12 +647,10 @@
     terminalChrome.setDetailDocked(panelOpen && viewportRegime === 'docked')
   })
 
-  $effect(() => {
-    const el = layoutEl
-    const modal = overlayModal
-    if (!el) return
-    return applyOverlayChrome(el, modal)
-  })
+  /* GDK-1585: the overlay chrome is declarative now. `overlayModal` goes to
+   * the frames as props — Sidebar/MainColumn `inert`, RightPanel `modal`
+   * (role, aria-modal, focus trap) — where a post-render walk used to reach
+   * into the rendered DOM by class and testid after the fact. */
 
   function closeOpenPanel(): void {
     const t = panel.target
@@ -822,9 +832,8 @@
       data-viewport-regime={viewportRegime}
       style={layoutTokenStyle()}
       data-detail-wide={panelOpen && reading.wide}
-      bind:this={layoutEl}
     >
-      <Sidebar>
+      <Sidebar inert={overlayModal}>
         {#snippet children()}
           <SidebarNav
             onOpenSettings={(tab) => {
@@ -871,7 +880,7 @@
         style="grid-column: 2; grid-row: 1"
         data-testid="terminal-split"
       >
-        <MainColumn>
+        <MainColumn inert={overlayModal}>
           {#snippet children()}
             {@render columnBody()}
           {/snippet}
@@ -890,7 +899,7 @@
         </div>
       {/if}
 
-      <RightPanel open={panelOpen}>
+      <RightPanel open={panelOpen} modal={overlayModal}>
         {#snippet children()}
           <DetailPanel />
           <DocumentPanel />

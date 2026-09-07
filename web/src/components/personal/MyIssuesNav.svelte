@@ -16,6 +16,7 @@
   import { write } from '../../stores/write.svelte'
   import { feature } from '../../lib/config'
   import { isHostedDemo, isLocalOriginWorkspace } from '../../lib/config'
+  import { cappedCount } from '../../lib/format'
   import Icon from '../ui/Icon.svelte'
 
   // Without feed, hide the row — no panel to open.
@@ -42,7 +43,7 @@
       {#if feedUnreadCount}
         <span
           class="flex h-4 min-w-4 flex-none items-center justify-center rounded-full bg-accent-subtle px-1.5 font-mono text-micro font-semibold tabular-nums text-accent-text"
-          >{feedUnreadCount > 99 ? '99+' : feedUnreadCount}</span
+          >{cappedCount(feedUnreadCount)}</span
         >
       {/if}
     </button>
