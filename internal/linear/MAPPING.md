@@ -204,6 +204,13 @@ and this one is `relatedIssue`.
   spells it, not folded into `Relates`.
 - First inline page (`RelationsPageSize`, 50) per connection; `HasNextPage`
   is counted and logged by the sync pass, no follow-up fetch yet.
+- The two connections are sent **whole**, so an empty one means "no
+  relations", never "unchanged": a relation deleted in Linear leaves the
+  mirror on the next pass that carries the issue, because the store replaces
+  an issue's child lists rather than merging them (`childTables` in
+  `internal/store/write.go` lists `links`). Pinned by
+  `TestRunLinearRelationRemovalClearsLinks` — it also asserts `open_blockers`
+  drops with the row, so the mirror cannot forget the link but keep the count.
 - **Not mapped**: relation ids (the mirror's `links` has no id column — same
   as Jira; `unlink` resolves live), and the write half (`gadak link` on a
   Linear workspace still refuses with `ErrNoIssueLinks`).

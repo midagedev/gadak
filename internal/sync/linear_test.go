@@ -1063,3 +1063,113 @@ func TestLinearIssueQueryAsksForRelations(t *testing.T) {
 		}
 	}
 }
+
+// TestRunLinearRelationRemovalClearsLinks (GDK-1299): the mirror is a cache
+// of the origin, so a relation deleted in Linear must be gone from `links`
+// after the next sync — not merely absent from new rows. The delete is the
+// store's child-list replacement (`childTables` in internal/store/write.go
+// lists `links`), and nothing in the Linear pass may route around it: the
+// pass must keep sending the issue's *whole* relation set, so an empty
+// connection means "none", never "unchanged". FAIL-first: dropping `links`
+// from that childTables slice leaves the pass-1 rows behind and this test
+// reports 2 surviving rows.
+//
+// The second pass is incremental (the mirror is non-empty), which is the
+// case that matters: a full pass would rewrite the row anyway.
+func TestRunLinearRelationRemovalClearsLinks(t *testing.T) {
+	conn := func(nodes ...map[string]any) map[string]any {
+		if nodes == nil {
+			nodes = []map[string]any{}
+		}
+		return map[string]any{
+			"pageInfo": map[string]any{"hasNextPage": false, "endCursor": nil},
+			"nodes":    nodes,
+		}
+	}
+	blocks := map[string]any{
+		"id": "r1", "type": "blocks",
+		"issue":        map[string]any{"id": "i-FIX-31", "identifier": "FIX-31"},
+		"relatedIssue": map[string]any{"id": "i-FIX-32", "identifier": "FIX-32"},
+	}
+	countLinks := func(db *mirror) int {
+		t.Helper()
+		var n int
+		if err := db.QueryRow(`SELECT COUNT(*) FROM links`).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+
+	// Pass 1: FIX-31 blocks FIX-32, seen from both ends.
+	withRelation := []map[string]any{
+		linearNode("FIX-31", "1", "unstarted", "Todo", 0, "No priority", map[string]any{
+			"relations":        conn(blocks),
+			"inverseRelations": conn(),
+		}),
+		linearNode("FIX-32", "2", "unstarted", "Todo", 0, "No priority", map[string]any{
+			"relations":        conn(),
+			"inverseRelations": conn(blocks),
+		}),
+	}
+	srv1 := linearGraphQL(t, map[string]string{"": linearIssuesResponse(t, withRelation)})
+	t.Cleanup(srv1.Close)
+	db := newMirror(t)
+	if _, err := RunLinear(context.Background(), linearTestConfig(), db.DB, Options{LinearClient: testLinearClient(t, srv1)}); err != nil {
+		t.Fatal(err)
+	}
+	if n := countLinks(db); n != 2 {
+		t.Fatalf("after the first sync links = %d rows, want 2 (outward on FIX-31, inward on FIX-32)", n)
+	}
+
+	// Pass 2: the relation is deleted in Linear. Both ends come back with
+	// empty connections and a later updatedAt, which is what the origin
+	// sends once someone removes the relation.
+	withoutRelation := []map[string]any{
+		linearNode("FIX-31", "1", "unstarted", "Todo", 0, "No priority", map[string]any{
+			"relations":        conn(),
+			"inverseRelations": conn(),
+			"updatedAt":        "2026-08-19T01:00:00.000Z",
+		}),
+		linearNode("FIX-32", "2", "unstarted", "Todo", 0, "No priority", map[string]any{
+			"relations":        conn(),
+			"inverseRelations": conn(),
+			"updatedAt":        "2026-08-19T02:00:00.000Z",
+		}),
+	}
+	srv2 := linearGraphQL(t, map[string]string{"": linearIssuesResponse(t, withoutRelation)})
+	t.Cleanup(srv2.Close)
+	res, err := RunLinear(context.Background(), linearTestConfig(), db.DB, Options{LinearClient: testLinearClient(t, srv2)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Full {
+		t.Fatal("second pass must be incremental — the removal case that matters")
+	}
+	if n := countLinks(db); n != 0 {
+		rows, qerr := db.Query(`SELECT item_id, type, direction, target_key FROM links`)
+		if qerr != nil {
+			t.Fatal(qerr)
+		}
+		defer rows.Close()
+		var stale []string
+		for rows.Next() {
+			var id, typ, dir, target string
+			if err := rows.Scan(&id, &typ, &dir, &target); err != nil {
+				t.Fatal(err)
+			}
+			stale = append(stale, dir+" "+typ+" → "+target)
+		}
+		t.Fatalf("links = %d rows after the relation was removed upstream, want 0; survivors: %q", n, stale)
+	}
+
+	// open_blockers must move with the links: FIX-32 was blocked, and a
+	// mirror that forgets the link but keeps the count is the same defect
+	// one derivation later.
+	var blocked int
+	if err := db.QueryRow(`SELECT open_blockers FROM issues_raw WHERE key = 'FIX-32'`).Scan(&blocked); err != nil {
+		t.Fatal(err)
+	}
+	if blocked != 0 {
+		t.Fatalf("FIX-32 open_blockers = %d after its blocker link was removed, want 0", blocked)
+	}
+}

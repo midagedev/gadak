@@ -465,9 +465,9 @@ this table from the code instead of maintaining it by hand is GDK-1301.
     (`web/src/lib/view-link.ts:49`).
 
 [^106]: `Issue.relations` / `inverseRelations` in the issue query
-    (`internal/linear/queries.go:89`) land as outward / inward `links` rows
+    (`internal/linear/queries.go:197`) land as outward / inward `links` rows
     named like the Jira ones — Blocks, Duplicate, Relates
-    (`internal/sync/linear.go:286`); GDK-1299.
+    (`internal/sync/linear.go:328`); GDK-1299.
 
 [^107]: The link-type catalog is fetched once per sync run
     (`internal/sync/sync.go:244`) and cached into `link_types`; `open_blockers`
