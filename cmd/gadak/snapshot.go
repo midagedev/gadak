@@ -81,6 +81,14 @@ func cmdSnapshot(args []string) error {
 	}
 	if *scale > 0 {
 		extra += fmt.Sprintf(", scale %d", *scale)
+		// GDK-1558: clones rotate assignee and priority through the source's
+		// own values, weighted so the output keeps the source's shape. Saying
+		// so here is what makes "did it rotate, and over what" answerable from
+		// the command that did it rather than from SQLite.
+		if res.Assignees > 0 && res.Priorities > 0 {
+			extra += fmt.Sprintf(" (%d assignees × %d priorities, histogram-weighted over %d)",
+				res.Assignees, res.Priorities, res.SequenceLen)
+		}
 	}
 	fmt.Printf("snapshot %s: %d issues, %d comments, %d changelog%s (%s)\n",
 		res.Path, res.Issues, res.Comments, res.Changelog, extra, formatBytes(res.Bytes))

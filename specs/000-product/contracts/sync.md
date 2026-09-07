@@ -169,5 +169,10 @@ last reconcile's tally is published as `status --json` `reconcile`.
   Jira assigns `created` at insert time and seeded demo data is otherwise all
   created within minutes of itself.
 - Optionally scales volume by cloning issues with new keys, for benchmarking the
-  10k-issue latency target without needing a 10k-issue Jira site.
+  10k-issue latency target without needing a 10k-issue Jira site. Clones rotate
+  assignee and priority through the source's own value pools, so a filtered
+  slice is a mix of sources rather than one issue repeated; the rotation is
+  weighted by how often the source uses each value, so the snapshot keeps the
+  source's facet shape instead of flattening it. Content, status and timestamps
+  stay the source's (spread aside).
 - Refuses to write if any credential-shaped string is found in the output.

@@ -35,6 +35,13 @@ type Result struct {
 	Spread    time.Duration
 	Scale     int
 	Bytes     int64
+	// Facet rotation (GDK-1558), zero when nothing was cloned: the size of the
+	// two value pools the clones rotate through and the length of the weighted
+	// sequence (one entry per source issue). Reported so "did the rotation
+	// happen, and over what" is answered by the command that did it.
+	Assignees   int
+	Priorities  int
+	SequenceLen int
 }
 
 // Build creates a new shareable database at opts.Out from opts.From.
@@ -87,7 +94,8 @@ func Build(opts Options) (Result, error) {
 		_ = os.Remove(tmp + "-shm")
 	}()
 
-	if err := buildInto(tmp, opts); err != nil {
+	rot, err := buildInto(tmp, opts)
+	if err != nil {
 		return zero, err
 	}
 
@@ -152,6 +160,10 @@ func Build(opts Options) (Result, error) {
 		Spread:    opts.Spread,
 		Scale:     opts.Scale,
 		Bytes:     info.Size(),
+
+		Assignees:   rot.assignees,
+		Priorities:  rot.priorities,
+		SequenceLen: rot.sequenceLen,
 	}, nil
 }
 
@@ -192,6 +204,62 @@ type plannedIssue struct {
 	srcLo, srcHi, dstLo, dstHi time.Time
 	useMap                     bool
 	zeroSpan                   bool
+	// Facet rotation (GDK-1558): non-nil on clones only. A clone keeps its
+	// source's title, body, comments, status and changelog, so without this a
+	// filtered slice — "my Highest issues in progress" — is one issue repeated
+	// as many times as the source was cloned. Both bags are values the source
+	// itself carries; nothing is invented.
+	rotAssignee *assigneeTriple
+	rotPriority *priorityTriple
+}
+
+// assigneeTriple is the (assignee, assignee_id, assignee_email) bag rotated
+// onto clones. The unassigned bag is a pool member like any other when the
+// source has unassigned issues.
+type assigneeTriple struct {
+	name, id, email nullText
+}
+
+// priorityTriple is the (priority, priority_id, priority_rank) bag rotated
+// onto clones. priority_id is empty in sources whose origin never sent ids
+// (examples/demo.db is one) — the pool carries whatever the source has and
+// fabricates nothing.
+type priorityTriple struct {
+	name, id nullText
+	rank     int
+}
+
+// nullText keeps a nullable TEXT column's NULL apart from its empty string.
+// issues_raw.assignee is nullable and "unassigned" is NULL there, never the
+// empty string — a rotation that wrote the empty string instead would quietly
+// stop matching every `assignee IS NULL` filter in the product while every
+// count stayed right. Comparable, so it can be a pool map key.
+type nullText struct {
+	s     string
+	valid bool
+}
+
+func textOf(v any) nullText {
+	if v == nil {
+		return nullText{}
+	}
+	return nullText{s: asString(v), valid: true}
+}
+
+// value is what goes back into the column bag: nil for NULL, so insertRow
+// falls through to notNullDefaults exactly as a missing source value would.
+func (n nullText) value() any {
+	if !n.valid {
+		return nil
+	}
+	return n.s
+}
+
+func (n nullText) less(o nullText) bool {
+	if n.s != o.s {
+		return n.s < o.s
+	}
+	return !n.valid && o.valid
 }
 
 type issueRow struct {

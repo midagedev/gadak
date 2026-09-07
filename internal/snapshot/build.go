@@ -47,56 +47,57 @@ func migratedCopy(path string) (string, func(), error) {
 	return tmp, cleanup, nil
 }
 
-func buildInto(tmp string, opts Options) error {
+func buildInto(tmp string, opts Options) (rotationStats, error) {
+	var rot rotationStats
 	// Fresh schema via the same migration path as a live mirror.
 	sdb, err := store.Open(tmp)
 	if err != nil {
-		return err
+		return rot, err
 	}
 	schemaVer := sdb.SchemaVersion()
 	if err := sdb.Close(); err != nil {
-		return err
+		return rot, err
 	}
 
 	srcPath, srcCleanup, err := migratedCopy(opts.From)
 	if err != nil {
-		return err
+		return rot, err
 	}
 	defer srcCleanup()
 	src, err := openSQLite(srcPath, true)
 	if err != nil {
-		return fmt.Errorf("open source: %w", err)
+		return rot, fmt.Errorf("open source: %w", err)
 	}
 	defer src.Close()
 
 	dst, err := openSQLite(tmp, false)
 	if err != nil {
-		return err
+		return rot, err
 	}
 	defer dst.Close()
 
 	// Prefer a single-file output.
 	if _, err := dst.Exec(`PRAGMA journal_mode=DELETE`); err != nil {
-		return err
+		return rot, err
 	}
 	if _, err := dst.Exec(`PRAGMA foreign_keys=ON`); err != nil {
-		return err
+		return rot, err
 	}
 
 	tx, err := dst.Begin()
 	if err != nil {
-		return err
+		return rot, err
 	}
 	defer tx.Rollback()
 
 	if err := copySources(src, tx, opts.Now); err != nil {
-		return err
+		return rot, err
 	}
 
 	// Spaces are source metadata (no personal/credential payload beyond names).
 	// Copy before pages so joins in readers always resolve when the source had them.
 	if err := copySpaces(src, tx); err != nil {
-		return err
+		return rot, err
 	}
 
 	// The link-type catalog rides along for the same reason: open_blockers
@@ -104,12 +105,12 @@ func buildInto(tmp string, opts Options) error {
 	// (blocking type named 차단) keeps answering "what is blocked" instead of
 	// silently counting nothing under the 'Blocks' fallback.
 	if err := copyLinkTypes(src, tx); err != nil {
-		return err
+		return rot, err
 	}
 
 	issues, err := loadIssues(src)
 	if err != nil {
-		return err
+		return rot, err
 	}
 
 	// Stable order: created_at, then key.
@@ -122,7 +123,7 @@ func buildInto(tmp string, opts Options) error {
 
 	children, err := loadChildren(src)
 	if err != nil {
-		return err
+		return rot, err
 	}
 
 	// Item ids present in the destination (originals + pages). Used for links
@@ -130,7 +131,8 @@ func buildInto(tmp string, opts Options) error {
 	keptIDs := map[string]bool{}
 
 	// Expand to scale target by cycling originals. Empty source → no issues.
-	planned := planIssues(issues, opts.Scale)
+	planned, rotated := planIssues(issues, opts.Scale)
+	rot = rotated
 	applySpread(planned, opts.Spread, opts.Now)
 
 	// Key allocator for clones.
@@ -146,20 +148,20 @@ func buildInto(tmp string, opts Options) error {
 			keptIDs[itemID] = true
 		}
 		if err := insertIssueBundle(tx, p, itemID, key, children); err != nil {
-			return fmt.Errorf("write %s: %w", key, err)
+			return rot, fmt.Errorf("write %s: %w", key, err)
 		}
 	}
 
 	// Original links only (clone links skipped — avoids dangling target_keys).
 	if err := copyOriginalLinks(src, tx, planned); err != nil {
-		return err
+		return rot, err
 	}
 
 	// Documents: kind=page items + pages projection + their comments.
 	// No scale/clone (scale is an issue-volume tool); timestamps kept as source.
 	pages, err := loadPages(src)
 	if err != nil {
-		return err
+		return rot, err
 	}
 	sort.SliceStable(pages, func(i, j int) bool {
 		if pages[i].createdAt != pages[j].createdAt {
@@ -170,24 +172,24 @@ func buildInto(tmp string, opts Options) error {
 	for _, p := range pages {
 		keptIDs[p.itemID] = true
 		if err := insertPageBundle(tx, p, children); err != nil {
-			return fmt.Errorf("write page %s: %w", p.key, err)
+			return rot, fmt.Errorf("write page %s: %w", p.key, err)
 		}
 	}
 
 	// Cross-refs only for items that actually landed (originals + all pages).
 	if err := copyItemRefs(src, tx, keptIDs); err != nil {
-		return err
+		return rot, err
 	}
 
 	if err := writeSyncState(tx, src, schemaVer); err != nil {
-		return err
+		return rot, err
 	}
 	if err := tx.Commit(); err != nil {
-		return err
+		return rot, err
 	}
 	// Ensure no WAL leftovers for a clean rename.
 	_, _ = dst.Exec(`PRAGMA journal_mode=DELETE`)
-	return nil
+	return rot, nil
 }
 
 func copySources(src *sql.DB, tx *sql.Tx, now time.Time) error {
@@ -616,6 +618,23 @@ func insertIssueBundle(tx *sql.Tx, p plannedIssue, itemID, key string, ch childr
 		} else if asString(issue["assignee_changed_at"]) != "" {
 			issue["assignee_changed_at"] = mapOrEven(asString(issue["assignee_changed_at"]), &p, 0, 1)
 		}
+	}
+
+	// GDK-1558: clones carry a rotated assignee and priority so a slice
+	// narrowed to one pair is not one title repeated. Both bags come from the
+	// source's own values (internal/snapshot/clone.go, assigneePool /
+	// priorityPool); originals get nil here and keep what they had. Status,
+	// resolution, reporter, labels, comments and changelog stay the source's —
+	// only these six columns move.
+	if a := p.rotAssignee; a != nil {
+		issue["assignee"] = a.name.value()
+		issue["assignee_id"] = a.id.value()
+		issue["assignee_email"] = a.email.value()
+	}
+	if pr := p.rotPriority; pr != nil {
+		issue["priority"] = pr.name.value()
+		issue["priority_id"] = pr.id.value()
+		issue["priority_rank"] = pr.rank
 	}
 
 	// Destination may have columns the source lacks (reopen_reason, cloned_from).

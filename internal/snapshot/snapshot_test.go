@@ -522,6 +522,188 @@ func TestScale(t *testing.T) {
 	}
 }
 
+// TestScaleClonesMixSlices is the gate for GDK-1558. A clone keeps its
+// source's title, body, comments, status and changelog, so if it also kept the
+// source's assignee and priority then a slice narrowed to one (assignee,
+// priority) pair — which is what the "My issues" view is — held one title
+// repeated once per clone. Measured on the shipped 20k snapshot before the
+// fix: the (Dana Whitfield, Highest, inprogress) cell was 37 rows and one
+// distinct summary.
+//
+// The rotation that breaks that up must not flatten the source's shape while
+// doing it: a flat cycle through the pools gives every value an equal share,
+// which turned the demo's Medium-heavy priority menu near-uniform. So this
+// asserts both halves — cells mix sources, AND the output histogram is the
+// source's.
+func TestScaleClonesMixSlices(t *testing.T) {
+	src := seedSource(t, seedOpts{facetMix: true})
+	out := filepath.Join(t.TempDir(), "snap.db")
+	now := time.Date(2026, 8, 5, 12, 0, 0, 0, time.UTC)
+	// 8 sources, 56 clones — a whole number of rounds (7 per source), which is
+	// what makes the expected share drift exactly zero rather than merely
+	// small. The 1.0pp tolerance below is therefore slack, not a fudge: a
+	// rotation that ignores the weights lands ~28pp out (measured on this
+	// seed against the flat-cycle version).
+	const scale = 64
+	const tolerancePP = 1.0
+	if _, err := Build(Options{From: src, Out: out, Scale: scale, Seed: 1, Now: now}); err != nil {
+		t.Fatal(err)
+	}
+
+	type facets struct{ assignee, assigneeID, assigneeEmail, priority, priorityID, rank string }
+	type row struct {
+		id, title string
+		clone     bool
+		f         facets
+	}
+	read := func(path string) []row {
+		db := openRO(t, path)
+		defer db.Close()
+		// A NULL and an empty string must not read alike: "unassigned" is NULL
+		// in issues_raw.assignee, and a rotation that turned it into the empty
+		// string would break every `assignee IS NULL` filter without moving a
+		// single count.
+		rows, err := db.Query(`
+			SELECT it.id, it.title,
+			       CASE WHEN ir.assignee       IS NULL THEN '<null>' ELSE ir.assignee       END,
+			       CASE WHEN ir.assignee_id    IS NULL THEN '<null>' ELSE ir.assignee_id    END,
+			       CASE WHEN ir.assignee_email IS NULL THEN '<null>' ELSE ir.assignee_email END,
+			       CASE WHEN ir.priority       IS NULL THEN '<null>' ELSE ir.priority       END,
+			       CASE WHEN ir.priority_id    IS NULL THEN '<null>' ELSE ir.priority_id    END,
+			       CAST(ir.priority_rank AS TEXT)
+			FROM issues_raw ir JOIN items it ON it.id = ir.item_id
+			ORDER BY it.id`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rows.Close()
+		var out []row
+		for rows.Next() {
+			var r row
+			if err := rows.Scan(&r.id, &r.title, &r.f.assignee, &r.f.assigneeID, &r.f.assigneeEmail,
+				&r.f.priority, &r.f.priorityID, &r.f.rank); err != nil {
+				t.Fatal(err)
+			}
+			r.clone = strings.HasPrefix(r.id, "snap:clone:")
+			out = append(out, r)
+		}
+		if err := rows.Err(); err != nil {
+			t.Fatal(err)
+		}
+		return out
+	}
+
+	srcRows := read(src)
+	if len(srcRows) < 3 {
+		t.Fatalf("seed has %d issues; the mixing assertion needs at least 3", len(srcRows))
+	}
+	srcFacet := map[string]facets{} // title → its source bag
+	people := map[facets]int{}      // assignee bag → source rows carrying it
+	prios := map[facets]int{}       // priority bag → source rows carrying it
+	assigneeOnly := func(f facets) facets {
+		return facets{assignee: f.assignee, assigneeID: f.assigneeID, assigneeEmail: f.assigneeEmail}
+	}
+	priorityOnly := func(f facets) facets {
+		return facets{priority: f.priority, priorityID: f.priorityID, rank: f.rank}
+	}
+	for _, r := range srcRows {
+		if _, dup := srcFacet[r.title]; dup {
+			t.Fatalf("seed title %q is not unique; the gate keys sources by title", r.title)
+		}
+		srcFacet[r.title] = r.f
+		people[assigneeOnly(r.f)]++
+		prios[priorityOnly(r.f)]++
+	}
+	if len(people) < 2 || len(prios) < 2 {
+		t.Fatalf("seed pools too small to rotate: %d assignees, %d priorities", len(people), len(prios))
+	}
+
+	got := read(out)
+	if len(got) != scale {
+		t.Fatalf("output has %d issues, want %d", len(got), scale)
+	}
+
+	outPeople := map[facets]int{}
+	outPrios := map[facets]int{}
+	cells := map[[2]string]map[string]bool{} // (assignee, priority) → distinct source titles
+	cellRows := map[[2]string]int{}
+	originals := 0
+	for _, r := range got {
+		want, known := srcFacet[r.title]
+		if !known {
+			t.Fatalf("output title %q is not one of the source's — clones must not invent titles", r.title)
+		}
+		// (c) Originals are never rotated.
+		if !r.clone {
+			originals++
+			if r.f != want {
+				t.Errorf("original %s (%s): facets %+v, want the source's %+v", r.id, r.title, r.f, want)
+			}
+		}
+		// (d) Nothing invented: every bag came out of the source's pools.
+		if people[assigneeOnly(r.f)] == 0 {
+			t.Errorf("%s: assignee %q/%q/%q is not in the source's pool", r.title, r.f.assignee, r.f.assigneeID, r.f.assigneeEmail)
+		}
+		if prios[priorityOnly(r.f)] == 0 {
+			t.Errorf("%s: priority %q/%q/%q is not in the source's pool", r.title, r.f.priority, r.f.priorityID, r.f.rank)
+		}
+		outPeople[assigneeOnly(r.f)]++
+		outPrios[priorityOnly(r.f)]++
+		cell := [2]string{r.f.assignee, r.f.priority}
+		if cells[cell] == nil {
+			cells[cell] = map[string]bool{}
+		}
+		cells[cell][r.title] = true
+		cellRows[cell]++
+	}
+	if originals != len(srcRows) {
+		t.Errorf("output holds %d originals, want %d", originals, len(srcRows))
+	}
+
+	// (a) No cell of any size worth looking at is one source repeated.
+	for cell, titles := range cells {
+		rows := cellRows[cell]
+		if rows < 4 {
+			continue
+		}
+		want := min(rows, 3)
+		if len(titles) < want {
+			t.Errorf("cell assignee=%q priority=%q: %d rows but only %d distinct source(s), want >= %d",
+				cell[0], cell[1], rows, len(titles), want)
+		}
+	}
+
+	// (b) The output keeps the source's shape.
+	checkShares := func(what string, srcCount, outCount map[facets]int, label func(facets) string) {
+		for bag, n := range srcCount {
+			srcShare := float64(n) / float64(len(srcRows)) * 100
+			outShare := float64(outCount[bag]) / float64(len(got)) * 100
+			if drift := outShare - srcShare; drift > tolerancePP || drift < -tolerancePP {
+				t.Errorf("%s %s: source %.2f%%, output %.2f%% (drift %+.2fpp, tolerance ±%.1fpp)",
+					what, label(bag), srcShare, outShare, drift, tolerancePP)
+			}
+		}
+	}
+	checkShares("assignee", people, outPeople, func(f facets) string { return f.assignee })
+	checkShares("priority", prios, outPrios, func(f facets) string { return f.priority })
+
+	// The symptom itself: the narrow slice the flagship clip opens on.
+	one := srcFacet["Idempotency retry drops key"]
+	db := openRO(t, out)
+	defer db.Close()
+	var distinct, total int
+	if err := db.QueryRow(`
+		SELECT COUNT(DISTINCT it.title), COUNT(*)
+		FROM issues_raw ir JOIN items it ON it.id = ir.item_id
+		WHERE ir.assignee = ? AND ir.priority = ?`, one.assignee, one.priority).Scan(&distinct, &total); err != nil {
+		t.Fatal(err)
+	}
+	if distinct < 2 {
+		t.Errorf("slice assignee=%q priority=%q: %d rows but %d distinct title(s) — the slice is one issue repeated",
+			one.assignee, one.priority, total, distinct)
+	}
+}
+
 func TestCredentialRejected(t *testing.T) {
 	src := seedSource(t, seedOpts{withSecret: true})
 	out := filepath.Join(t.TempDir(), "snap.db")
@@ -563,9 +745,16 @@ func TestForceOverwrite(t *testing.T) {
 type seedOpts struct {
 	withPersonal   bool
 	withSecret     bool
-	withPages      bool
 	withPageSecret bool
+	withPages      bool
 	spreadish      bool
+	// facetMix (GDK-1558) grows the seed from 2 issues to 8 with a deliberately
+	// lopsided facet histogram — assignee NULL×4 / Ada×3 / Bo×1, priority
+	// High×1 / Medium×5 / Low×2 — because the two-issue seed cannot express
+	// what the clone rotation has to preserve: three or more sources per cell,
+	// and a shape that a flat cycle visibly flattens. Off by default, so every
+	// other test still sees the original two issues.
+	facetMix bool
 }
 
 func seedSource(t *testing.T, o seedOpts) string {
@@ -660,6 +849,46 @@ func seedSource(t *testing.T, o seedOpts) string {
 			},
 		},
 	}
+	if o.facetMix {
+		// Six more issues, distinct titles, so the source carries the
+		// histogram documented on seedOpts.facetMix. NMB-3 and NMB-4 share
+		// (Ada, Medium) — two sources in one cell is the shape the shipped
+		// fixture had and the rotation has to break up.
+		extra := []struct {
+			key, title, assignee, assigneeID, priority string
+		}{
+			{"NMB-3", "Retry storm on the payout worker", "Ada", "acc-ada", "Medium"},
+			{"NMB-4", "Webhook signature check is case sensitive", "Ada", "acc-ada", "Medium"},
+			{"NMB-5", "Ledger export drops the final page", "", "", "Medium"},
+			{"NMB-6", "Stale cursor after a partial sync", "", "", "Medium"},
+			{"NMB-7", "Audit log omits the actor on bulk edits", "", "", "Low"},
+			{"NMB-8", "Settings page loses focus on save", "Bo", "acc-bo", "Low"},
+		}
+		for i, e := range extra {
+			created := base.Add(time.Duration(48+i*6) * time.Hour)
+			rec := store.IssueRecord{
+				Item: store.Item{
+					ID: fmt.Sprintf("jira:1000%d", i+3), SourceID: "jira", Kind: "issue",
+					ExternalID: fmt.Sprintf("1000%d", i+3),
+					Key:        e.key, Title: e.title, BodyText: "Seeded for facet rotation.",
+					Author: "Reporter", AuthorID: "acc-r",
+					CreatedAt: fmtT(created), UpdatedAt: fmtT(created.Add(time.Hour)),
+				},
+				Issue: store.Issue{
+					ProjectKey: "NMB", IssueType: "Task", IssueTypeID: "10002",
+					Status: "To Do", StatusID: "1", StatusCategory: "new",
+					Priority: e.priority, Assignee: e.assignee, AssigneeID: e.assigneeID,
+					Reporter: "Reporter", ReporterID: "acc-r",
+					DescriptionADF: emptyADF,
+				},
+			}
+			if e.assignee != "" {
+				rec.Issue.AssigneeEmail = strings.ToLower(e.assignee) + "@example.invalid"
+			}
+			batch.Records = append(batch.Records, rec)
+		}
+	}
+
 	if _, err := db.UpsertIssues(context.Background(), batch); err != nil {
 		t.Fatal(err)
 	}
