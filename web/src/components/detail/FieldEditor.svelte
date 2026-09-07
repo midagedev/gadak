@@ -51,6 +51,7 @@
   let inputEl = $state<HTMLInputElement | null>(null)
   let triggerEl = $state<HTMLButtonElement | null>(null)
   let menuEl = $state<HTMLDivElement | null>(null)
+  let rootEl = $state<HTMLDivElement | null>(null)
   let draftText = $state('')
   let menuTop = $state(0)
   let menuLeft = $state(0)
@@ -73,6 +74,31 @@
     }
   }
 
+  function close() {
+    // A closed picker hands focus back to its trigger, as dialogs do to their
+    // opener (focus-trap) — but only when the picker still holds it, so
+    // closing on an outside click never steals focus from where the user
+    // moved it. The menu is portaled to document.body, so "inside this
+    // picker" spans two subtrees: the root (trigger) and the menu.
+    const active = document.activeElement
+    if (rootEl?.contains(active) || menuEl?.contains(active)) triggerEl?.focus()
+    open = false
+  }
+
+  // Spend Esc so one keystroke cannot also clear the detail panel.
+  // preventDefault is what DetailPanel declines; stopPropagation is what the
+  // shell keymap needs — it does not read defaultPrevented, and its
+  // svelte:window listener is registered first. The menu is portaled to
+  // document.body, so onkeydown rides BOTH containers a focused Esc can walk
+  // — the root (trigger) and the menu itself; the window-level use:onEscape
+  // used to preventDefault too late, after DetailPanel's listener had run.
+  function onEsc(e: KeyboardEvent) {
+    if (e.key !== 'Escape' || !open) return
+    e.preventDefault()
+    e.stopPropagation()
+    close()
+  }
+
   $effect(() => {
     if (!open) return
     function onDown(e: MouseEvent) {
@@ -83,7 +109,7 @@
       // the same testid mounted twice (two editors open at once) would have
       // a selector answer for the other one's menu.
       if (menuEl && path.includes(menuEl)) return
-      open = false
+      close()
     }
     window.addEventListener('mousedown', onDown)
     return () => window.removeEventListener('mousedown', onDown)
@@ -148,7 +174,7 @@
 
   async function toggle() {
     if (open) {
-      open = false
+      close()
       return
     }
     if (!isSystemDue && !(await write.ensureEditMeta(key))) return
@@ -171,7 +197,7 @@
       [field]: opt ? opt.value : null,
     } as Partial<IssueLite>)
     busy = false
-    if (ok) open = false
+    if (ok) close()
   }
 
   function currentSelectedIds(): string[] {
@@ -192,7 +218,7 @@
     busy = true
     const ok = await write.setField(key, field, ids, { [field]: names } as Partial<IssueLite>)
     busy = false
-    if (ok) open = false
+    if (ok) close()
   }
 
   interface Cand {
@@ -272,7 +298,7 @@
         : ({ [field]: c ? c.display_name : null } as Partial<IssueLite>)
     const ok = await write.setField(key, field, c ? c.account_id : null, patch)
     busy = false
-    if (ok) open = false
+    if (ok) close()
   }
 
   async function commitScalar() {
@@ -281,7 +307,7 @@
       if (parsed === 'invalid') return
       const current = values[0] ?? ''
       if ((parsed ?? '') === current) {
-        open = false
+        close()
         return
       }
       busy = true
@@ -289,7 +315,7 @@
         [field]: parsed,
       } as Partial<IssueLite>)
       busy = false
-      if (ok) open = false
+      if (ok) close()
       return
     }
     if (kind === 'date') {
@@ -297,7 +323,7 @@
       const iso = next || null
       const current = values[0] ?? ''
       if ((iso ?? '') === current) {
-        open = false
+        close()
         return
       }
       busy = true
@@ -305,13 +331,13 @@
         ? await write.setDuedate(key, iso)
         : await write.setField(key, field, iso, { [field]: iso } as Partial<IssueLite>)
       busy = false
-      if (ok) open = false
+      if (ok) close()
       return
     }
     const next = draftText
     const current = values[0] ?? ''
     if (next === current) {
-      open = false
+      close()
       return
     }
     busy = true
@@ -320,7 +346,7 @@
       [field]: value,
     } as Partial<IssueLite>)
     busy = false
-    if (ok) open = false
+    if (ok) close()
   }
 
   async function clearDate() {
@@ -329,7 +355,7 @@
       ? await write.setDuedate(key, null)
       : await write.setField(key, field, null, { [field]: null } as Partial<IssueLite>)
     busy = false
-    if (ok) open = false
+    if (ok) close()
   }
 
   function onScalarKeydown(e: KeyboardEvent) {
@@ -369,13 +395,13 @@
     }
     const current = values[0] ?? ''
     if ((next ?? '') === current) {
-      open = false
+      close()
       return
     }
     busy = true
     const ok = await write.setField(key, field, next, { parent_key: next })
     busy = false
-    if (ok) open = false
+    if (ok) close()
   }
 
   function onParentKeydown(e: KeyboardEvent) {
@@ -389,7 +415,13 @@
   const canEdit = $derived(me.identified)
 </script>
 
-<div class="relative inline-block w-full">
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div
+  class="relative inline-block w-full"
+  bind:this={rootEl}
+  onkeydown={onEsc}
+  use:onEscape={onEsc}
+>
   <button
     type="button"
     bind:this={triggerEl}
@@ -431,10 +463,8 @@
     <div
       bind:this={menuEl}
       use:portal
-      use:onEscape={(e) => {
-        e.preventDefault()
-        open = false
-      }}
+      onkeydown={onEsc}
+      tabindex="-1"
       class="anim-enter fixed z-40 max-h-72 w-60 overflow-y-auto rounded-lg border border-border-strong bg-bg-elevated py-1 shadow-overlay"
       style="top: {menuTop}px; left: {menuLeft}px"
       role="listbox"
@@ -512,7 +542,7 @@
           <div class="mt-1 flex items-center justify-end gap-2 border-t border-border-subtle px-2 pt-1.5">
             <button
               type="button"
-              onclick={() => (open = false)}
+              onclick={close}
               disabled={busy}
               class="rounded px-2 py-1 text-micro text-text-muted hover:bg-bg-hover disabled:opacity-50"
             >

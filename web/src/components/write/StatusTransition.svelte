@@ -30,6 +30,8 @@
   let loadError = $state<string | null>(null)
   let busyId = $state<string | null>(null)
   let listEl = $state<HTMLDivElement | null>(null)
+  let triggerEl = $state<HTMLButtonElement | null>(null)
+  let rootEl = $state<HTMLDivElement | null>(null)
   let collecting = $state<Transition | null>(null)
   let fieldDraft = $state<Record<string, string>>({})
 
@@ -73,9 +75,27 @@
   })
 
   function closeMenu() {
+    // A closed picker hands focus back to its trigger, as dialogs do to their
+    // opener (focus-trap) — but only when the picker still holds it, so
+    // closing on an outside click never steals focus from where the user
+    // moved it.
+    if (rootEl?.contains(document.activeElement)) triggerEl?.focus()
     open = false
     collecting = null
     fieldDraft = {}
+  }
+
+  // Spend Esc so one keystroke cannot also clear the detail panel.
+  // preventDefault is what DetailPanel declines; stopPropagation is what the
+  // shell keymap needs — it does not read defaultPrevented, and its
+  // svelte:window listener is registered first. The delegated onkeydown
+  // below reaches the event while it still walks the trigger or the open
+  // menu (ViewSettingsMenu's shape).
+  function onEsc(e: KeyboardEvent) {
+    if (e.key !== 'Escape' || !open) return
+    e.preventDefault()
+    e.stopPropagation()
+    closeMenu()
   }
 
   async function toggle() {
@@ -232,10 +252,18 @@
 <!-- Outside click closes. The boundary is this root rather than the list below,
      so the trigger counts as inside — otherwise the mousedown that closes and
      the click that reopens would cancel each other out. -->
-<div class="relative inline-block" use:onOutsideClick={{ handler: closeMenu, enabled: open }}>
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div
+  class="relative inline-block"
+  bind:this={rootEl}
+  onkeydown={onEsc}
+  use:onEscape={onEsc}
+  use:onOutsideClick={{ handler: closeMenu, enabled: open }}
+>
   <button
     type="button"
     onclick={toggle}
+    bind:this={triggerEl}
     data-testid="status-transition"
     class="group inline-flex items-center gap-1.5 rounded-md bg-bg-elevated px-2 py-0.5 text-micro font-medium text-text-secondary transition-colors hover:bg-bg-hover"
     aria-haspopup="listbox"
@@ -259,7 +287,6 @@
   {#if open}
     <div
       bind:this={listEl}
-      use:onEscape={closeMenu}
       class="anim-enter absolute left-0 top-full z-30 mt-1 max-h-72 w-52 overflow-y-auto rounded-lg border border-border-strong bg-bg-elevated py-1 shadow-overlay"
       role="listbox"
     >

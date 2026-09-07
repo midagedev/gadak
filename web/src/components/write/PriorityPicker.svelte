@@ -19,6 +19,8 @@
   let loading = $state(false)
   let busy = $state(false)
   let listEl = $state<HTMLDivElement | null>(null)
+  let triggerEl = $state<HTMLButtonElement | null>(null)
+  let rootEl = $state<HTMLDivElement | null>(null)
 
   const meta = $derived(priorityMeta(issue.priority_rank, issue.priority))
   const canEdit = $derived(me.identified)
@@ -58,9 +60,32 @@
     }
   }
 
+  function close() {
+    // A closed picker hands focus back to its trigger, as dialogs do to their
+    // opener (focus-trap) — but only when the picker still holds it, so
+    // closing on an outside click never steals focus from where the user
+    // moved it.
+    if (rootEl?.contains(document.activeElement)) triggerEl?.focus()
+    open = false
+  }
+
+  // Spend Esc so one keystroke cannot also clear the detail panel.
+  // preventDefault is what DetailPanel declines; stopPropagation is what the
+  // shell keymap needs — it does not read defaultPrevented, and its
+  // svelte:window listener is registered first. The delegated onkeydown
+  // below reaches the event while it still walks the trigger or the open
+  // menu (ViewSettingsMenu's shape). The window-level use:onEscape used to
+  // preventDefault too late — after DetailPanel's listener had already run.
+  function onEsc(e: KeyboardEvent) {
+    if (e.key !== 'Escape' || !open) return
+    e.preventDefault()
+    e.stopPropagation()
+    close()
+  }
+
   async function toggle() {
     if (open) {
-      open = false
+      close()
       return
     }
     if (!(await write.ensureWritableFor(issue.issue_key))) return
@@ -70,7 +95,7 @@
       const ok = await write.loadPrioritiesFor(issue.issue_key)
       loading = false
       if (!ok) {
-        open = false
+        close()
         return
       }
     }
@@ -79,23 +104,27 @@
 
   async function pick(p: PriorityOption | null) {
     if (p && p.name === issue.priority) {
-      open = false
+      close()
       return
     }
     if (!p && !issue.priority) {
-      open = false
+      close()
       return
     }
     busy = true
     const ok = await write.setPriority(issue.issue_key, p)
     busy = false
-    if (ok) open = false
+    if (ok) close()
   }
 </script>
 
+<!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
   class="relative inline-block"
-  use:onOutsideClick={{ handler: () => (open = false), enabled: open }}
+  bind:this={rootEl}
+  onkeydown={onEsc}
+  use:onEscape={onEsc}
+  use:onOutsideClick={{ handler: close, enabled: open }}
 >
   <!-- One option's distribution share (M4): a mini bar scaled to the widest
        rank, and the count. Null (nothing at this rank, or an empty view)
@@ -119,6 +148,7 @@
   <button
     type="button"
     onclick={toggle}
+    bind:this={triggerEl}
     data-testid="priority-picker"
     class="group inline-flex items-center gap-1.5 rounded-md bg-bg-elevated px-2 py-0.5 text-micro font-medium text-text-secondary transition-colors hover:bg-bg-hover"
     aria-haspopup="listbox"
@@ -151,10 +181,6 @@
   {#if open}
     <div
       bind:this={listEl}
-      use:onEscape={(e) => {
-        e.preventDefault()
-        open = false
-      }}
       class="anim-enter absolute left-0 top-full z-30 mt-1 max-h-72 w-48 overflow-y-auto rounded-lg border border-border-strong bg-bg-elevated py-1 shadow-overlay"
       role="listbox"
       aria-label={t('common.priority')}

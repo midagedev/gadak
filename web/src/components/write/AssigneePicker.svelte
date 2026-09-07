@@ -40,7 +40,7 @@
     search: (q) => searchUsersFor(issue.issue_key, q),
     onError: (e) => {
       if (e instanceof ApiError && e.code === 'credential_required') {
-        open = false
+        close()
         write.openSettings()
       }
     },
@@ -49,6 +49,8 @@
   const searching = $derived(userSearch.searching)
   const serverUsers = $derived(userSearch.results)
   let inputEl: HTMLInputElement | null = $state(null)
+  let triggerEl: HTMLButtonElement | null = $state(null)
+  let rootEl: HTMLDivElement | null = $state(null)
 
   const hasAssignee = $derived(Boolean(issue.assignee_id || issue.assignee || issue.assignee_email))
 
@@ -79,6 +81,28 @@
     }),
   )
 
+  function close() {
+    // A closed picker hands focus back to its trigger, as dialogs do to their
+    // opener (focus-trap) — but only when the picker still holds it, so
+    // closing on an outside click never steals focus from where the user
+    // moved it.
+    if (rootEl?.contains(document.activeElement)) triggerEl?.focus()
+    open = false
+  }
+
+  // Spend Esc so one keystroke cannot also clear the detail panel.
+  // preventDefault is what DetailPanel declines; stopPropagation is what the
+  // shell keymap needs — it does not read defaultPrevented, and its
+  // svelte:window listener is registered first. The delegated onkeydown
+  // below reaches the event while it still walks the trigger or the open
+  // popover (ViewSettingsMenu's shape).
+  function onEsc(e: KeyboardEvent) {
+    if (e.key !== 'Escape' || !open) return
+    e.preventDefault()
+    e.stopPropagation()
+    close()
+  }
+
   async function openPicker() {
     if (!(await write.ensureWritableFor(issue.issue_key))) return
     open = true
@@ -90,7 +114,7 @@
     busy = true
     const ok = await write.assign(issue.issue_key, user)
     busy = false
-    if (ok) open = false
+    if (ok) close()
   }
 
   async function pickCand(c: AssigneeCand) {
@@ -163,17 +187,23 @@
 <!-- Outside click closes. The boundary is this root rather than the panel
      below, so the trigger counts as inside — otherwise the mousedown that
      closes and the click that reopens would cancel each other out. -->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
   class="relative flex items-center gap-1.5"
-  use:onOutsideClick={{ handler: () => (open = false), enabled: open }}
+  bind:this={rootEl}
+  onkeydown={onEsc}
+  use:onEscape={onEsc}
+  use:onOutsideClick={{ handler: close, enabled: open }}
 >
   {#if !bare}<span class="w-12 flex-none text-text-muted">{t('write.assigneeLabel')}</span>{/if}
   <button
     type="button"
     onclick={openPicker}
+    bind:this={triggerEl}
     data-testid="assignee-picker"
     class="group flex items-center gap-1.5 rounded-md px-1 py-0.5 text-left transition-colors hover:bg-bg-hover"
     title={me.identified ? t('write.changeAssignee') : (issue.assignee ?? t('common.unassigned'))}
+    aria-expanded={open}
     disabled={busy}
   >
     {#if hasAssignee}
@@ -196,7 +226,6 @@
 
   {#if open}
     <div
-      use:onEscape={() => (open = false)}
       class="anim-enter absolute left-12 top-full z-30 mt-1 w-64 rounded-lg border border-border-strong bg-bg-elevated shadow-overlay"
       role="dialog"
       aria-label={t('write.pickAssignee')}
