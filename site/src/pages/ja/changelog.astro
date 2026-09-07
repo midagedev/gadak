@@ -1,18 +1,19 @@
 ---
-import Base from '../layouts/Base.astro'
-import { renderChangelog, changelogIsFallback } from '../lib/changelog'
-import { strings } from '../i18n'
-import '../styles/changelog.css'
+// ja scaffold — English body until the lead writes the Japanese (GDK-1500)
+import Base from '../../layouts/Base.astro'
+import { renderChangelog, changelogIsFallback } from '../../lib/changelog'
+import { strings } from '../../i18n'
+import '../../styles/changelog.css'
 
-const t = strings.en
-const { html, releases } = await renderChangelog('en')
+const t = strings.ja
+const { html, releases } = await renderChangelog('ja')
 const dated = releases.filter((r) => r.date)
 
-// Two things a search engine can use and a reader cannot see: the software
-// itself (so a "gadak" query can show what it is and that it is free), and
-// the releases as a dated list (so a version query has something to match).
-// Every field here is read off the changelog or off package facts — nothing
-// asserted for the crawler that is not also true on the page.
+// Same two objects as the English page (src/pages/changelog.astro), pointed
+// at the ja URLs, following the ko page's pattern. inLanguage is what keeps
+// the mirrored pages from reading as duplicates of one another. The body
+// renders the English CHANGELOG.md on purpose (no CHANGELOG.ja.md) and says
+// so below — GDK-1500.
 const jsonLd = JSON.stringify([
   {
     '@context': 'https://schema.org',
@@ -20,10 +21,11 @@ const jsonLd = JSON.stringify([
     name: 'gadak',
     applicationCategory: 'DeveloperApplication',
     operatingSystem: 'macOS, Linux, Windows',
-    url: 'https://gadak.dev/',
-    downloadUrl: 'https://gadak.dev/install/',
+    inLanguage: 'ja',
+    url: 'https://gadak.dev/ja/',
+    downloadUrl: 'https://gadak.dev/ja/install/',
     softwareVersion: dated[0]?.label.replace(/^v/, ''),
-    releaseNotes: 'https://gadak.dev/changelog/',
+    releaseNotes: 'https://gadak.dev/ja/changelog/',
     sameAs: 'https://github.com/midagedev/gadak',
     offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
   },
@@ -35,14 +37,14 @@ const jsonLd = JSON.stringify([
       '@type': 'ListItem',
       position: i + 1,
       name: r.label,
-      url: `https://gadak.dev/changelog/#${r.id}`,
+      url: `https://gadak.dev/ja/changelog/#${r.id}`,
     })),
   },
 ])
 ---
 
 <Base
-  lang="en"
+  lang="ja"
   title="Changelog — gadak release notes"
   description="Every gadak release, in the words of the person who shipped it — rendered from the repository's CHANGELOG.md, with issue keys linking into the public backlog."
   ogType="article"
@@ -55,7 +57,7 @@ const jsonLd = JSON.stringify([
       {t.changelog.source}{' '}
       <a href="https://github.com/midagedev/gadak/blob/main/CHANGELOG.md">View on GitHub</a>
     </p>
-    {changelogIsFallback('en') && <p class="note">{t.changelog.fallbackNote}</p>}
+    {changelogIsFallback('ja') && <p class="note">{t.changelog.fallbackNote}</p>}
 
     {
       dated.length > 0 && (

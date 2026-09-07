@@ -4,7 +4,7 @@ import Door from '../components/Door.astro'
 import Thread from '../components/Thread.astro'
 import MediaSlot from '../components/MediaSlot.astro'
 import Snippet from '../components/Snippet.astro'
-import { strings, type Locale } from '../i18n'
+import { strings, pathFor, type Locale } from '../i18n'
 
 interface Props {
   lang: Locale
@@ -13,7 +13,7 @@ const { lang } = Astro.props
 const t = strings[lang]
 const copyLabel = t.copy.label
 const copiedLabel = t.copy.copied
-const installHref = lang === 'en' ? '/install/' : '/ko/install/'
+const installHref = pathFor(lang, '/install/')
 const storeHref = 'https://apps.microsoft.com/detail/9NZW91TXH36G'
 ---
 
@@ -33,7 +33,7 @@ const storeHref = 'https://apps.microsoft.com/detail/9NZW91TXH36G'
     </div>
     <figure class="flagship">
       <MediaSlot
-        slot={lang === 'en' ? 'flagship · 20k mirror' : '플래그십 · 2만 건 미러'}
+        slot={t.landing.flagshipSlot}
         src="/media/scale.mp4"
         poster="/media/scale-poster.png"
         autoplay
@@ -85,7 +85,7 @@ const storeHref = 'https://apps.microsoft.com/detail/9NZW91TXH36G'
       <p>{t.ux.search.body}</p>
     </div>
     <MediaSlot
-      slot={lang === 'en' ? 'search' : '검색'}
+      slot={t.landing.searchSlot}
       src="/media/search.mp4"
       poster="/media/search-poster.png"
     />
@@ -100,7 +100,7 @@ const storeHref = 'https://apps.microsoft.com/detail/9NZW91TXH36G'
       {/* The window itself: Claude Code in gadak's own pane, and the board
           it moves is the one above it. 16:10, full column width. */}
       <MediaSlot
-        slot={lang === 'en' ? 'agent in the window' : '창 안의 에이전트'}
+        slot={t.landing.agentSlot}
         src="/media/terminal-hero.mp4"
         poster="/media/terminal-hero-poster.png"
       />
@@ -137,7 +137,7 @@ const storeHref = 'https://apps.microsoft.com/detail/9NZW91TXH36G'
     <p>{t.install.windowsBefore} <a href={storeHref}>Microsoft Store</a>{t.install.windowsAfter}</p>
     <p>{t.install.firstRun}</p>
     <Snippet code="gadak init && gadak sync && gadak serve" copyLabel={copyLabel} copiedLabel={copiedLabel} />
-    <p class="note"><a href={installHref}>{lang === 'en' ? 'All platforms →' : '모든 플랫폼 →'}</a></p>
+    <p class="note"><a href={installHref}>{t.landing.allPlatforms}</a></p>
   </section>
 </Base>
 

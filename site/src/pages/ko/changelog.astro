@@ -1,6 +1,6 @@
 ---
 import Base from '../../layouts/Base.astro'
-import { renderChangelog } from '../../lib/changelog'
+import { renderChangelog, changelogIsFallback } from '../../lib/changelog'
 import { strings } from '../../i18n'
 import '../../styles/changelog.css'
 
@@ -54,6 +54,7 @@ const jsonLd = JSON.stringify([
       {t.changelog.source}{' '}
       <a href="https://github.com/midagedev/gadak/blob/main/CHANGELOG.ko.md">GitHub에서 보기</a>
     </p>
+    {changelogIsFallback('ko') && <p class="note">{t.changelog.fallbackNote}</p>}
 
     {
       dated.length > 0 && (

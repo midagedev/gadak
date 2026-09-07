@@ -1,8 +1,14 @@
-export type Locale = 'en' | 'ko'
+// The site's locales in one place: en at the root, the rest under their own
+// prefix (pathFor below). Every locale-aware surface — layout, sitemap,
+// switcher, banners — iterates this list, so a fourth locale is a list entry
+// plus copy, not another ternary.
+export const LOCALES = ['en', 'ko', 'ja'] as const
+export type Locale = (typeof LOCALES)[number]
 
 export const strings = {
   en: {
     htmlLang: 'en',
+    ogLocale: 'en_US',
     title: 'gadak — Same Jira. No waiting.',
     description:
       'The Jira your company already runs — issues and the Confluence wiki — mirrored into one local SQLite file. Search lands in milliseconds on 20,000 issues. Reads never touch the network.',
@@ -81,6 +87,9 @@ export const strings = {
         'public backlog, so a line here can be read all the way back to what asked for it.',
       source: 'Rendered from CHANGELOG.md in the repository.',
       jumpLabel: 'Jump to a version',
+      // Renders only on locales whose changelog falls back to the English
+      // file (changelogIsFallback); never on en itself.
+      fallbackNote: 'This changelog is published in English.',
     },
     install: {
       heading: 'Install',
@@ -90,6 +99,14 @@ export const strings = {
       windowsAfter: '.',
       firstRun: 'Connect to your team\'s Jira (asks for site, email, token, projects):',
     },
+    // The landing's locale-varying fragments (MediaSlot labels, the
+    // all-platforms link) — kept here so the component holds no copy.
+    landing: {
+      flagshipSlot: 'flagship · 20k mirror',
+      searchSlot: 'search',
+      agentSlot: 'agent in the window',
+      allPlatforms: 'All platforms →',
+    },
     footer: {
       builtBy: 'Built by',
       whereBytes: 'Where the bytes go',
@@ -97,6 +114,7 @@ export const strings = {
   },
   ko: {
     htmlLang: 'ko',
+    ogLocale: 'ko_KR',
     title: 'gadak — 같은 Jira, 기다림 없이.',
     description:
       '회사에서 쓰는 Jira의 이슈와 Confluence 위키를 로컬 SQLite 파일 하나에 미러링합니다. 이슈 2만 건에서도 검색은 밀리초 안에 끝나고, 읽기는 네트워크를 타지 않습니다.',
@@ -174,6 +192,9 @@ export const strings = {
         '여기 한 줄에서 그 일을 요청한 이슈까지 거슬러 읽을 수 있습니다.',
       source: '저장소의 CHANGELOG.ko.md를 그대로 렌더링합니다. 영문판이 원본입니다.',
       jumpLabel: '버전으로 이동',
+      // Renders only on locales whose changelog falls back to the English
+      // file (changelogIsFallback) — never here.
+      fallbackNote: 'This changelog is published in English.',
     },
     install: {
       heading: '설치',
@@ -183,11 +204,147 @@ export const strings = {
       windowsAfter: '에 있습니다.',
       firstRun: '회사 Jira에 연결합니다 (사이트, 이메일, 토큰, 프로젝트를 차례로 묻습니다):',
     },
+    landing: {
+      flagshipSlot: '플래그십 · 2만 건 미러',
+      searchSlot: '검색',
+      agentSlot: '창 안의 에이전트',
+      allPlatforms: '모든 플랫폼 →',
+    },
     footer: {
       builtBy: '만든 사람',
       whereBytes: '데이터가 어디로 가는지',
     },
   },
+  // ja — scaffold: English copy until the lead writes the Japanese (GDK-1500). Structure is final; every value below is a placeholder.
+  ja: {
+    htmlLang: 'ja',
+    ogLocale: 'ja_JP',
+    title: 'gadak — Same Jira. No waiting.',
+    description:
+      'The Jira your company already runs — issues and the Confluence wiki — mirrored into one local SQLite file. Search lands in milliseconds on 20,000 issues. Reads never touch the network.',
+    nav: { demo: 'Live demo', changelog: 'Changelog', essays: 'Essays', install: 'Install', github: 'GitHub' },
+    copy: { label: 'Copy', copied: 'Copied' },
+    ogImageAlt:
+      'gadak — Same Jira. No waiting. Your team’s Jira and its Confluence wiki, mirrored into one local SQLite file.',
+    langName: '日本語',
+    langBanner: {
+      offer: 'This page is also available in English.',
+      cta: 'View in English →',
+      dismiss: 'Dismiss',
+    },
+    hero: {
+      eyebrow: 'gadak',
+      heading: 'Same Jira. No waiting.',
+      lede:
+        'Your team’s Jira — and its Confluence wiki — mirrored into one local SQLite file on this machine. Search lands in milliseconds, history reads like a document, and the page never spins. Jira stays the source of truth — you just stop waiting on it.',
+      videoCaption: 'A 20,000-issue mirror. Search as fast as you can type. Recorded, not animated.',
+      doors: {
+        installTitle: 'Install',
+        installSub: 'Homebrew on macOS, the Microsoft Store on Windows, a CLI for Linux.',
+        demoTitle: 'Live demo',
+        demoSub: '534 issues in your browser. No install, no account.',
+      },
+    },
+    speed: {
+      label: 'Fast is a measurement, not an adjective',
+      heading: 'The same question, asked two ways',
+      note: 'Measured 2026-08-26 against a live Atlassian Cloud site (a real work project, 3,296 issues), not a synthetic fixture. gadak numbers include full CLI process startup. Method, re-measurement history, and the honest where-gadak-loses table:',
+      rows: [
+        { what: 'Simple filter, 100 issues', value: '583 ms', alt: '19 ms', ratio: '31×' },
+        { what: 'One issue + full changelog', value: '710 ms', alt: '28 ms', ratio: '25×' },
+        { what: 'Free-text search', value: '543 ms', alt: '41 ms', ratio: '13×' },
+        { what: 'Open issues per epic (GROUP BY)', value: '4,761 ms — 8 API pages', alt: '22 ms — one query', ratio: '214×' },
+        { what: 'A count over the change history', value: 'not expressible', alt: '14 ms', ratio: '—' },
+        { what: 'Rate limit', value: '429 + Retry-After', alt: 'none — your own disk', ratio: '—' },
+      ],
+      colRest: 'Jira REST API',
+      colGadak: 'gadak',
+    },
+    ux: {
+      label: 'The daily loop',
+      search: {
+        heading: 'Search that keeps up with typing',
+        body:
+          'One palette over everything — titles, bodies, comments, even the wiki. Prefix matches land locally before you finish the word; full-text lands right behind them. No spinner, no round trip.',
+      },
+    },
+    agent: {
+      label: 'For the people building with agents',
+      heading: 'One vocabulary between you and the agent',
+      body:
+        'The CLI doubles as the agent interface: create, claim, transition — verbs an agent can run while you watch the same board. An MCP server covers clients without a shell. Writes go through to the origin; reads come off the local mirror. And every agent write is attributed: its comments and linked PRs carry the bot’s name in the same thread your team reads.',
+      skillLead: 'Hand the same mirror to your coding agent:',
+      mcpLead: 'For MCP clients without a shell (Claude Desktop):',
+      setupLink: 'Pasteable setup blocks for every tool → docs/AGENT_SETUP.md',
+      driveCaption:
+        'A live Claude Code session in that same pane: a Korean sentence becomes the list, the next one saves and opens a dashboard — the agent and the board it moves, in one window.',
+      showcaseLink: 'More recordings — dashboards, a team theme, a launcher, a live MCP session → docs/SHOWCASE.md',
+    },
+    origin: {
+      label: 'Why this is safe to try',
+      heading: 'Jira stays the source of truth',
+      points: [
+        'Writes pass through to Jira first; the mirror refreshes after the origin accepts.',
+        'The mirror is disposable — delete it and re-sync to rebuild it from the origin.',
+        'No telemetry. The only network calls are the ones you configured.',
+        'Credentials never reach SQLite, a log, or a snapshot.',
+      ],
+    },
+    changelog: {
+      heading: 'Changelog',
+      lede:
+        'Every release, in the words of the person who shipped it. Issue keys link into the ' +
+        'public backlog, so a line here can be read all the way back to what asked for it.',
+      source: 'Rendered from CHANGELOG.md in the repository.',
+      jumpLabel: 'Jump to a version',
+      // Not a placeholder like the rest: this one already renders (the ja
+      // page reads the English changelog), so the sentence is real copy.
+      fallbackNote: 'This changelog is published in English.',
+    },
+    install: {
+      heading: 'Install',
+      macosApp: 'The desktop app, CLI included:',
+      cliOnly: 'CLI only:',
+      windowsBefore: 'On Windows, the desktop app is on the',
+      windowsAfter: '.',
+      firstRun: 'Connect to your team\'s Jira (asks for site, email, token, projects):',
+    },
+    landing: {
+      flagshipSlot: 'flagship · 20k mirror',
+      searchSlot: 'search',
+      agentSlot: 'agent in the window',
+      allPlatforms: 'All platforms →',
+    },
+    footer: {
+      builtBy: 'Built by',
+      whereBytes: 'Where the bytes go',
+    },
+  },
 } satisfies Record<Locale, Record<string, unknown>>
 
 export type Strings = (typeof strings)['en']
+
+/** '' for the default locale, '/ko' / '/ja' for the prefixed ones. */
+export function localePrefix(l: Locale): string {
+  return l === 'en' ? '' : `/${l}`
+}
+
+/** The same page in another locale: pathFor('ko', '/') is '/ko/', pathFor('ko', '/install/') is '/ko/install/', pathFor('en', x) is x. */
+export function pathFor(l: Locale, enPath: string): string {
+  if (l === 'en') return enPath
+  return `${localePrefix(l)}${enPath === '/' ? '/' : enPath}`
+}
+
+// Matches a locale prefix only as a full first segment, so /essays/ or a
+// hypothetical /kotlin/ page is never stripped.
+const NON_DEFAULT_PREFIX = new RegExp(`^/(?:${LOCALES.filter((l) => l !== 'en').join('|')})(?=/|$)`)
+
+/** Strips any locale prefix: '/ja/install/' → '/install/', '/ko/' → '/'. */
+export function enPathOf(pathname: string): string {
+  return pathname.replace(NON_DEFAULT_PREFIX, '') || '/'
+}
+
+/** LOCALES minus `l`, in LOCALES order. */
+export function otherLocales(l: Locale): Locale[] {
+  return LOCALES.filter((x) => x !== l)
+}

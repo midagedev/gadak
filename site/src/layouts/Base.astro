@@ -1,6 +1,6 @@
 ---
 import '../styles/tokens.css'
-import { strings, type Locale } from '../i18n'
+import { LOCALES, strings, otherLocales, pathFor, enPathOf, type Locale } from '../i18n'
 
 interface Props {
   lang: Locale
@@ -11,28 +11,24 @@ interface Props {
   /** JSON-LD, already stringified by the page. Emitted verbatim in <head>. */
   jsonLd?: string
   /**
-   * This page has no mirror in the other locale (the essays are en-only).
+   * This page has no mirror in the other locales (the essays are en-only).
    * The head then claims no hreflang alternates — an alternate that 404s is
-   * worse than none — the language banner stays hidden (the page is not
-   * offered in ko), and the header switcher falls back to the other
-   * locale's home instead of a dead path.
+   * worse than none — no language banner is rendered (the page is not
+   * offered in any other locale), and the header switcher links to each
+   * other locale's home instead of a dead path.
    */
   noAltLang?: boolean
 }
 const { lang, title, description, ogType = 'website', jsonLd, noAltLang = false } = Astro.props
 const t = strings[lang]
 const origin = Astro.site ? Astro.site.href.replace(/\/$/, '') : ''
-// The mirror page in the other language. en '/' ↔ ko '/ko/', en '/install/' ↔ ko '/ko/install/'.
-const altLang: Locale = lang === 'en' ? 'ko' : 'en'
-const ta = strings[altLang]
-const enPath = lang === 'en' ? Astro.url.pathname : Astro.url.pathname.replace(/^\/ko/, '') || '/'
-const altPath = noAltLang
-  ? altLang === 'ko'
-    ? '/ko/'
-    : '/'
-  : lang === 'en'
-    ? `/ko${Astro.url.pathname === '/' ? '/' : Astro.url.pathname}`
-    : enPath
+// This page's en path — the single source every locale's mirror derives
+// from: en '/' ↔ ko '/ko/' ↔ ja '/ja/', en '/install/' ↔ '/ko/install/' ….
+const enPath = enPathOf(Astro.url.pathname)
+const others = otherLocales(lang)
+// Where the switcher and banners point for locale l: that locale's copy of
+// this page, or its home when this page exists in no other locale.
+const switchHref = (l: Locale) => (noAltLang ? pathFor(l, '/') : pathFor(l, enPath))
 ---
 
 <!doctype html>
@@ -47,10 +43,9 @@ const altPath = noAltLang
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={`${origin}${Astro.url.pathname}`} />
-    <meta property="og:locale" content={lang === 'en' ? 'en_US' : 'ko_KR'} />
-    {!noAltLang && (
-      <meta property="og:locale:alternate" content={lang === 'en' ? 'ko_KR' : 'en_US'} />
-    )}
+    <meta property="og:locale" content={t.ogLocale} />
+    {!noAltLang &&
+      others.map((l) => <meta property="og:locale:alternate" content={strings[l].ogLocale} />)}
     <meta property="og:image" content={`${origin}/og.png`} />
     <meta property="og:image:width" content="1280" />
     <meta property="og:image:height" content="640" />
@@ -62,8 +57,9 @@ const altPath = noAltLang
     <link rel="canonical" href={`${origin}${Astro.url.pathname}`} />
     {!noAltLang && (
       <>
-        <link rel="alternate" hreflang={lang} href={Astro.url} />
-        <link rel="alternate" hreflang={altLang} href={`${origin}${altPath}`} />
+        {LOCALES.map((l) => (
+          <link rel="alternate" hreflang={l} href={`${origin}${pathFor(l, enPath)}`} />
+        ))}
         <link rel="alternate" hreflang="x-default" href={`${origin}${enPath}`} />
       </>
     )}
@@ -84,20 +80,25 @@ const altPath = noAltLang
   </head>
   <body>
     {/* Locale suggestion, never a forced redirect: static and hidden; the
-        inline script below reveals it only when the browser's primary
-        language matches the other page and no explicit choice is stored. */}
-    {!noAltLang && (
-    <div class="lang-banner" id="lang-banner" hidden>
-      <div class="lang-banner-inner">
-        <span>{ta.langBanner.offer}</span>
-        <a data-lang-choice={altLang} href={altPath}>{ta.langBanner.cta}</a>
-        <button type="button" id="lang-banner-dismiss" aria-label={ta.langBanner.dismiss}>×</button>
-      </div>
-    </div>
-    )}
+        inline script below reveals at most one — the visitor's own locale —
+        only when the browser's primary language matches one of the other
+        locales and no explicit choice is stored. */}
+    {!noAltLang &&
+      others.map((l) => {
+        const b = strings[l]
+        return (
+          <div class="lang-banner" data-lang-banner={l} hidden>
+            <div class="lang-banner-inner">
+              <span>{b.langBanner.offer}</span>
+              <a data-lang-choice={l} href={switchHref(l)}>{b.langBanner.cta}</a>
+              <button type="button" data-lang-banner-dismiss aria-label={b.langBanner.dismiss}>×</button>
+            </div>
+          </div>
+        )
+      })}
     <header>
       <nav>
-        <a class="wordmark" href={lang === 'en' ? '/' : '/ko/'}>gadak</a>
+        <a class="wordmark" href={pathFor(lang, '/')}>gadak</a>
         <div class="links">
           <a href="/demo/">{t.nav.demo}</a>
           {/* The raw backlog app stays deployed (CHANGELOG issue links point
@@ -106,13 +107,15 @@ const altPath = noAltLang
               on GitHub: the releases are the strongest evidence this site has
               that the thing is alive, and sending that traffic away spends it
               somewhere else. */}
-          <a href={lang === 'en' ? '/changelog/' : '/ko/changelog/'}>{t.nav.changelog}</a>
-          {/* Essays are en-only canonical: one URL from both locales,
+          <a href={pathFor(lang, '/changelog/')}>{t.nav.changelog}</a>
+          {/* Essays are en-only canonical: one URL from every locale,
               like the GitHub link. */}
           <a href="/essays/">{t.nav.essays}</a>
-          <a href={lang === 'en' ? '/install/' : '/ko/install/'}>{t.nav.install}</a>
+          <a href={pathFor(lang, '/install/')}>{t.nav.install}</a>
           <a href="https://github.com/midagedev/gadak">{t.nav.github}</a>
-          <a data-lang-choice={altLang} href={altPath}>{ta.langName}</a>
+          {others.map((l) => (
+            <a data-lang-choice={l} href={switchHref(l)}>{strings[l].langName}</a>
+          ))}
         </div>
       </nav>
     </header>
@@ -127,7 +130,7 @@ const altPath = noAltLang
         <a href="https://github.com/midagedev/gadak/blob/main/SECURITY.md">{t.footer.whereBytes}</a>
       </div>
     </footer>
-    <script is:inline define:vars={{ pageLang: lang, altLang }}>
+    <script is:inline define:vars={{ pageLang: lang, others }}>
       // Language memory: any [data-lang-choice] click (nav switcher, banner
       // CTA) records an explicit choice; the banner shows only before one
       // exists, so detection never overrides the user.
@@ -151,12 +154,15 @@ const altPath = noAltLang
         })
         if (read()) return
         var primary = ((navigator.languages && navigator.languages[0]) || navigator.language || '').toLowerCase()
-        var wants = primary.indexOf('ko') === 0 ? 'ko' : 'en'
-        if (wants !== altLang) return
-        var banner = document.getElementById('lang-banner')
-        var dismiss = document.getElementById('lang-banner-dismiss')
+        var wants = primary.split('-')[0]
+        // Reveal at most one banner: the copy in the locale the browser
+        // actually asked for. A primary language this page has no other
+        // copy in (or a stored choice) means no banner at all.
+        if (others.indexOf(wants) === -1) return
+        var banner = document.querySelector('[data-lang-banner="' + wants + '"]')
         if (!banner) return
         banner.hidden = false
+        var dismiss = banner.querySelector('[data-lang-banner-dismiss]')
         if (dismiss)
           dismiss.addEventListener('click', function () {
             banner.hidden = true

@@ -21,6 +21,14 @@ import type { Locale } from '../i18n'
 const FILES: Record<Locale, string> = {
   en: '../../../CHANGELOG.md',
   ko: '../../../CHANGELOG.ko.md',
+  // No CHANGELOG.ja.md exists: the ja page deliberately shows the English
+  // changelog (GDK-1500) and says so on the page (changelogIsFallback).
+  ja: '../../../CHANGELOG.md',
+}
+
+/** True when this locale's page renders the English file — only ja today. */
+export function changelogIsFallback(lang: Locale): boolean {
+  return lang !== 'en' && FILES[lang] === FILES.en
 }
 
 /**
