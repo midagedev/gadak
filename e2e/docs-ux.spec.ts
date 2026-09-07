@@ -886,7 +886,7 @@ test.describe('sync status is one sentence', () => {
     // the sync-history entry and must not repeat the chip.
     await expect(page.getByTestId('freshness-chip')).toContainText(expected, { timeout: 20_000 })
     await expect(page.getByTestId('docs-empty-cta')).toContainText(expected)
-    await expect(page.getByTestId('sidebar-sync-now')).toContainText('Sync history')
+    await expect(page.getByTestId('sidebar-sync-now')).toContainText('Sync log')
     await expect(page.getByTestId('sidebar-sync-now')).not.toContainText(expected)
   })
 
@@ -898,7 +898,7 @@ test.describe('sync status is one sentence', () => {
     await expect(page.getByTestId('freshness-chip')).toContainText('Syncing issues · 6,932', {
       timeout: 20_000,
     })
-    await expect(page.getByTestId('sidebar-sync-now')).toContainText('Sync history')
+    await expect(page.getByTestId('sidebar-sync-now')).toContainText('Sync log')
     await expect(page.getByTestId('sidebar-sync-now')).not.toContainText('Syncing issues')
   })
 
@@ -940,7 +940,7 @@ test.describe('sync status at rest', () => {
     await expect(chip).not.toHaveAttribute('data-state', 'syncing', { timeout: 30_000 })
     const rowText = ((await row.textContent()) ?? '').trim()
     const chipText = ((await chip.textContent()) ?? '').trim()
-    expect(rowText).toBe('Sync history')
+    expect(rowText).toBe('Sync log')
     expect(chipText).not.toBe(rowText)
     // The verdict travels with the age on the chip: "delayed" alone never
     // says how far behind, and an age alone never says that being behind

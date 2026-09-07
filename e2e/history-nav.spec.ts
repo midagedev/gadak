@@ -89,6 +89,11 @@ test.describe('history: places push (rule 1)', () => {
   test('a view change and a layout change each leave one entry', async ({ page }) => {
     const errors = attachConsoleErrors(page)
     await gotoApp(page)
+    // gotoApp lands on the open pool by its address (no sidebar row lit since
+    // the Epics built-in was cut, GDK-1493) — start from a view row so both
+    // "before" values are a view the sidebar owns.
+    await page.locator('aside').getByRole('button', { name: en['view.allOpen.name'] }).click()
+    await expect(page.locator('aside nav button[aria-current="true"]').first()).toBeVisible()
     const allOpen = page.url()
     const bootViews = await activeViews(page)
     expect(bootViews.length).toBeGreaterThan(0)

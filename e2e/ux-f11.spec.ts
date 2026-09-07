@@ -24,7 +24,9 @@ function boxesOverlap(
 async function addProjectChip(page: Page, project: string): Promise<void> {
   await page.getByTestId('filter-add').click()
   await page.getByTestId('filter-axis-jira_project').click()
-  await page.getByRole('button', { name: new RegExp(`^${project}\\b`) }).click()
+  // The value row by its data attribute — an issue row in the list behind the
+  // popover is also a button whose name starts with the project key.
+  await page.locator(`[data-testid="filter-value-row"][data-filter-value="${project}"]`).click()
   await page.keyboard.press('Escape')
 }
 
@@ -133,6 +135,11 @@ test.describe('F11 search / filter / empty state', () => {
   }) => {
     const errors = attachConsoleErrors(page)
     await gotoApp(page)
+    // Stand on a view the sidebar owns (gotoApp lands on the pool by address
+    // since the Epics built-in was cut, GDK-1493).
+    await page.locator('aside').getByRole('button', { name: en['view.allOpen.name'] }).click()
+    await expect(page).toHaveURL(/[#?&]sc=new%2Cinprogress/)
+    await expect(page).not.toHaveURL(/[#?&]g=epic/)
 
     const input = searchInput(page)
     await input.click()
@@ -147,8 +154,8 @@ test.describe('F11 search / filter / empty state', () => {
     await expect(input).toHaveValue('')
     await expect(page.getByText(en['list.noMatchTitle'], { exact: true })).toHaveCount(0)
     await expect(page.getByTestId('issue-list-scroller').locator('[role="button"]').first()).toBeVisible()
-    // Boot default is the Epics breakdown since GDK-100; clearing returns to it.
-    await expect(page.getByRole('button', { name: /Epics/ })).toHaveAttribute(
+    // The view is All open (chosen below); clearing returns to it, not to a bare pool.
+    await expect(page.locator('aside').getByRole('button', { name: en['view.allOpen.name'] })).toHaveAttribute(
       'aria-current',
       'true',
     )
@@ -179,9 +186,14 @@ test.describe('F11 search / filter / empty state', () => {
   }) => {
     const errors = attachConsoleErrors(page)
     await gotoApp(page)
+    // Stand on a view the sidebar owns (gotoApp lands on the pool by address
+    // since the Epics built-in was cut, GDK-1493).
+    await page.locator('aside').getByRole('button', { name: en['view.allOpen.name'] }).click()
+    await expect(page).toHaveURL(/[#?&]sc=new%2Cinprogress/)
+    await expect(page).not.toHaveURL(/[#?&]g=epic/)
 
-    // Boot default is the Epics breakdown since GDK-100; clearing returns to it.
-    await expect(page.getByRole('button', { name: /Epics/ })).toHaveAttribute(
+    // The view is All open (chosen below); clearing returns to it, not to a bare pool.
+    await expect(page.locator('aside').getByRole('button', { name: en['view.allOpen.name'] })).toHaveAttribute(
       'aria-current',
       'true',
     )
@@ -195,8 +207,8 @@ test.describe('F11 search / filter / empty state', () => {
 
     await page.getByTestId('filter-clear').click()
     await expect(page.getByTestId('filter-chip')).toHaveCount(0)
-    // Boot default is the Epics breakdown since GDK-100; clearing returns to it.
-    await expect(page.getByRole('button', { name: /Epics/ })).toHaveAttribute(
+    // The view is All open (chosen below); clearing returns to it, not to a bare pool.
+    await expect(page.locator('aside').getByRole('button', { name: en['view.allOpen.name'] })).toHaveAttribute(
       'aria-current',
       'true',
     )

@@ -4,13 +4,19 @@
  * Presets shown under the sidebar "Built-in views" section. Each holds a full
  * ViewConfig (filters + display) and is applied wholesale via filters.applyConfig.
  *
- * Seven built-ins in two stances (THEORY.md "Two stances"): mine holds the
+ * Five built-ins in two stances (THEORY.md "Two stances"): mine holds the
  * contributor's two questions — what do I do now (My issues), what am I
- * waiting on (Handed off); team holds the pool, the intake, and the exception
- * surfaces. The 2026-09-07 subtraction took ten down to seven: recently-updated
- * was all-open under the default sort (updated desc), stale was a flag over
- * the pool the aging view already orders, resolved-week was the retro's
- * closed cell, and all-open / unassigned-new moved to the team stance.
+ * waiting on (Handed off); team holds the pool (All open), the intake
+ * (Unassigned new) and the one exception surface no Jira can show on its own
+ * (Reopened). Two subtractions on 2026-09-07 took ten down to five (GDK-1493):
+ * recently-updated was all-open under the default sort, stale was a flag over
+ * the in-progress pool, resolved-week was the retro's closed cell, aging
+ * in-progress was the in-progress pool with a sort (its count was the board
+ * column's, its name promised a subset), and the epic breakdown was a layout
+ * of the open pool that only means something on a site that uses a hierarchy.
+ * The rule that decided: a built-in earns its row by being impactful on every
+ * site regardless of that site's conventions; everything else is a view the
+ * user saves (`gadak views save`, Jira filters).
  *
  * Discipline: presets use **tenant-neutral axes only**.
  *  - status_category (new/inprogress/done), unassigned, reopened, stale, resolved_from
@@ -122,23 +128,9 @@ export function builtinViews(): BuiltinView[] {
       }),
     },
     {
-      // Steward view (THEORY.md T4/G4): the aging tail of in-progress work,
-      // longest underway first — the arrangement is the coaching, no
-      // sentence. 'started' is work item age (since started_at, the flow
-      // canon's clock — 2026-09-07); it replaced status_changed, which reset
-      // at every hand-off inside progress, and before that the updated-at
-      // proxy.
-      id: 'aging-in-progress',
-      icon: 'hourglass',
-      name: t('view.agingInProgress.name'),
-      hint: t('view.agingInProgress.hint'),
-      stance: 'team',
-      config: make({
-        filters: { status_category: ['inprogress'] },
-        display: { sort: 'started', dir: 'asc' },
-      }),
-    },
-    {
+      // The one exception surface no Jira shows on its own: reopen_count is
+      // derived from the changelog while syncing, so this view exists only
+      // here — and means the same thing on every site.
       id: 'reopened',
       icon: 'rotate-ccw',
       name: t('view.reopened.name'),
@@ -147,21 +139,6 @@ export function builtinViews(): BuiltinView[] {
       config: make({
         filters: { reopened: true },
         display: { sort: 'reopen_count', dir: 'desc' },
-      }),
-    },
-    {
-      // group_by is tenant-neutral: epic_key is derived from the hierarchy,
-      // never from a site-specific type name.
-      id: 'epic-breakdown',
-      // Layers, not a compass: the view's whole content is a list sectioned by
-      // epic, and a stack says "grouped" where a compass would say "explore".
-      icon: 'layers',
-      name: t('view.epicBreakdown.name'),
-      hint: t('view.epicBreakdown.hint'),
-      stance: 'team',
-      config: make({
-        filters: { status_category: ['new', 'inprogress'] },
-        display: { group_by: 'epic' },
       }),
     },
   ]

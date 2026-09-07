@@ -50,21 +50,6 @@ test.describe('epic hierarchy', () => {
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 
-  test('the Epics built-in view opens the open backlog grouped by epic in one click', async ({
-    page,
-  }) => {
-    const errors = attachConsoleErrors(page)
-    await gotoApp(page)
-
-    await page.getByRole('button', { name: 'Epics' }).click()
-
-    const headers = page.getByTestId('group-header')
-    await expect(headers.first()).toContainText('NMA-174')
-    await expect(headers.first()).toContainText('REST API correctness')
-
-    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
-  })
-
   test('breakdown chip jumps to its section, and the header key opens the epic', async ({
     page,
   }) => {

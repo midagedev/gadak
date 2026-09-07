@@ -32,11 +32,6 @@ export const personal = {
     ko: '내 담당',
     ja: '自分の担当',
   },
-  'personal.myReporter': {
-    en: 'Reported by me',
-    ko: '내가 보고',
-    ja: '自分が報告',
-  },
   'personal.feedHint': {
     en: 'Changes on my issues + comments that mention me',
     ko: '내 이슈 변화 + 나를 멘션한 코멘트',

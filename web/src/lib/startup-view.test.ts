@@ -3,15 +3,17 @@ import { emptyConfig, parseConfig, type ViewConfig } from './view-config'
 import {
   applyStartupView,
   decideStartupView,
+  demoStartupConfig,
   startupViewTick,
   type StartupViewInput,
 } from './startup-view'
+import { builtinViews } from './builtin-views'
 
 function input(over: Partial<StartupViewInput> = {}): StartupViewInput {
   return {
     urlHasViewParam: false,
     hostedDemo: false,
-    epicBreakdown: undefined,
+    demoView: undefined,
     lastViewKey: null,
     teamGroupEnabled: false,
     group: null,
@@ -22,10 +24,17 @@ function input(over: Partial<StartupViewInput> = {}): StartupViewInput {
   }
 }
 
+/** The hosted demo's landing shape: the open pool grouped by epic. */
 function epicConfig(): ViewConfig {
   const c = emptyConfig()
   c.filters.status_category = ['new', 'inprogress']
   c.display.group_by = 'epic'
+  return c
+}
+
+function allOpen(): ViewConfig {
+  const c = emptyConfig()
+  c.filters.status_category = ['new', 'inprogress']
   return c
 }
 
@@ -36,7 +45,7 @@ describe('decideStartupView', () => {
         input({
           urlHasViewParam: true,
           hostedDemo: true,
-          epicBreakdown: epicConfig(),
+          demoView: epicConfig(),
           lastViewKey: 'q=foo',
           teamGroupEnabled: true,
           group: 'platform',
@@ -45,15 +54,15 @@ describe('decideStartupView', () => {
     ).toEqual({ kind: 'keep-url' })
   })
 
-  test('hosted demo with an epic-breakdown preset applies that config', () => {
+  test('hosted demo with a landing config applies it', () => {
     const epic = epicConfig()
-    expect(decideStartupView(input({ hostedDemo: true, epicBreakdown: epic }))).toEqual({
+    expect(decideStartupView(input({ hostedDemo: true, demoView: epic }))).toEqual({
       kind: 'apply',
       config: epic,
     })
   })
 
-  test('hosted demo without the preset falls through to last-used / group / all-open', () => {
+  test('hosted demo without a landing config falls through to last-used / group / all-open', () => {
     const allOpen = emptyConfig()
     allOpen.filters.status_category = ['new', 'inprogress']
     expect(decideStartupView(input({ hostedDemo: true }))).toEqual({
@@ -120,29 +129,33 @@ describe('decideStartupView', () => {
     ).toEqual({ kind: 'apply', config: parseConfig(new URLSearchParams('q=foo')) })
   })
 
-  test('first run on a self site lands on the epic breakdown (GDK-100)', () => {
-    const epic = epicConfig()
-    expect(decideStartupView(input({ epicBreakdown: epic }))).toEqual({
+  test('first run on a self site lands on all open', () => {
+    // GDK-100 made this the Epic breakdown; GDK-1493 (2026-09-07) removed
+    // that built-in — a layout of the open pool that needs a hierarchy the
+    // site may not use — so the anonymous first run is the pool itself.
+    expect(decideStartupView(input({}))).toEqual({ kind: 'apply', config: allOpen() })
+  })
+
+  test('the last-used view beats the first-run pool', () => {
+    expect(decideStartupView(input({ lastViewKey: 'q=foo' }))).toEqual({
       kind: 'apply',
-      config: epic,
+      config: parseConfig(new URLSearchParams('q=foo')),
     })
   })
 
-  test('the last-used view beats the first-run epic breakdown', () => {
-    expect(decideStartupView(input({ epicBreakdown: epicConfig(), lastViewKey: 'q=foo' }))).toEqual(
-      { kind: 'apply', config: parseConfig(new URLSearchParams('q=foo')) },
-    )
-  })
-
-  test('the group preset beats the first-run epic breakdown — personalization over the generic default', () => {
+  test('the group preset beats the first-run pool — personalization over the generic default', () => {
     const group = emptyConfig()
     group.filters.team_group = ['platform']
     group.filters.status_category = ['new', 'inprogress']
-    expect(
-      decideStartupView(
-        input({ epicBreakdown: epicConfig(), teamGroupEnabled: true, group: 'platform' }),
-      ),
-    ).toEqual({ kind: 'apply', config: group })
+    expect(decideStartupView(input({ teamGroupEnabled: true, group: 'platform' }))).toEqual({
+      kind: 'apply',
+      config: group,
+    })
+  })
+
+  test('demoStartupConfig is the open pool grouped by epic, and not a built-in', () => {
+    expect(demoStartupConfig()).toEqual(epicConfig())
+    expect(builtinViews().some((v) => v.config.display.group_by === 'epic')).toBe(false)
   })
 })
 
@@ -178,34 +191,32 @@ describe('decideStartupView: first-run my-work (my-work pack)', () => {
     const myWork = myWorkConfig()
     expect(
       decideStartupView(
-        input({ identified: true, myWork, myWorkCount: 46, epicBreakdown: epicConfig() }),
+        input({ identified: true, myWork, myWorkCount: 46 }),
       ),
     ).toEqual({ kind: 'apply', config: myWork })
   })
 
-  test('first run, identified, zero assigned work → epic breakdown', () => {
+  test('first run, identified, zero assigned work → all open', () => {
     expect(
-      decideStartupView(
-        input({ identified: true, myWork: myWorkConfig(), myWorkCount: 0, epicBreakdown: epicConfig() }),
-      ),
-    ).toEqual({ kind: 'apply', config: epicConfig() })
+      decideStartupView(input({ identified: true, myWork: myWorkConfig(), myWorkCount: 0 })),
+    ).toEqual({ kind: 'apply', config: allOpen() })
   })
 
-  test('first run, not identified → epic breakdown (identity gate lives here)', () => {
+  test('first run, not identified → all open (identity gate lives here)', () => {
     // App guards the count behind identified, but the decision itself must
     // not open an identity view for an anonymous reader even if a caller
     // passed a stale count.
     expect(
       decideStartupView(
-        input({ identified: false, myWork: myWorkConfig(), myWorkCount: 5, epicBreakdown: epicConfig() }),
+        input({ identified: false, myWork: myWorkConfig(), myWorkCount: 5 }),
       ),
-    ).toEqual({ kind: 'apply', config: epicConfig() })
+    ).toEqual({ kind: 'apply', config: allOpen() })
   })
 
-  test('first run without the my-work preset → epic breakdown', () => {
+  test('first run without the my-work preset → all open', () => {
     expect(
-      decideStartupView(input({ identified: true, myWork: undefined, myWorkCount: 46, epicBreakdown: epicConfig() })),
-    ).toEqual({ kind: 'apply', config: epicConfig() })
+      decideStartupView(input({ identified: true, myWork: undefined, myWorkCount: 46 })),
+    ).toEqual({ kind: 'apply', config: allOpen() })
   })
 
   test('the last-used view beats the first-run my-work', () => {
@@ -233,11 +244,11 @@ describe('decideStartupView: first-run my-work (my-work pack)', () => {
     ).toEqual({ kind: 'apply', config: group })
   })
 
-  test('hosted demo still lands on the epic breakdown before my-work', () => {
+  test('hosted demo still lands on its own config before my-work', () => {
     const epic = epicConfig()
     expect(
       decideStartupView(
-        input({ hostedDemo: true, epicBreakdown: epic, identified: true, myWork: myWorkConfig(), myWorkCount: 46 }),
+        input({ hostedDemo: true, demoView: epic, identified: true, myWork: myWorkConfig(), myWorkCount: 46 }),
       ),
     ).toEqual({ kind: 'apply', config: epic })
   })

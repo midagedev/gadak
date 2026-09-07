@@ -22,7 +22,7 @@
   import { pushHash, router } from './lib/router.svelte'
   import { bindParam, bindParams } from './lib/url-sync.svelte'
   import { createGlobalKeyHandler } from './lib/keymap.svelte'
-  import { applyStartupView, readLastViewKey } from './lib/startup-view'
+  import { applyStartupView, demoStartupConfig, readLastViewKey } from './lib/startup-view'
   import { feature, hasServerVerb, isHostedDemo, loadConfig } from './lib/config'
   import { pollUIFocus } from './lib/api'
   import {
@@ -502,7 +502,7 @@
       // even if config.json is wrong: VITE_HOSTED_DEMO is compile-time;
       // isHostedDemo() is the runtime config.json flag.
       hostedDemo: import.meta.env.VITE_HOSTED_DEMO === '1' && isHostedDemo(),
-      epicBreakdown: builtinViews().find((v) => v.id === 'epic-breakdown')?.config,
+      demoView: demoStartupConfig(),
       lastViewKey: readLastViewKey(LAST_VIEW_KEY),
       teamGroupEnabled: feature('teamGroups'),
       group: me.group,
@@ -524,7 +524,7 @@
     // lastViewKey apply writes the capped ks; recover given from the stored string.
     if (
       !startupInput.urlHasViewParam &&
-      !(startupInput.hostedDemo && startupInput.epicBreakdown) &&
+      !(startupInput.hostedDemo && startupInput.demoView) &&
       startupInput.lastViewKey
     ) {
       filters.notifyKeysCapped(parseView(new URLSearchParams(startupInput.lastViewKey)).keys)

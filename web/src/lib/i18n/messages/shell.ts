@@ -403,9 +403,12 @@ export const shell = {
     ja: '今すぐ同期',
   },
   'sidebar.syncHistory': {
-    en: 'Sync history',
-    ko: '동기화 내역',
-    ja: '同期履歴',
+    // "Sync log", not "Sync history": the RECENT block three rows below has
+    // its own History door (visits, history.title), and one word for two
+    // things in one column read as one thing (2026-09-07, GDK-1493).
+    en: 'Sync log',
+    ko: '동기화 기록',
+    ja: '同期ログ',
   },
   'sidebar.syncHistoryTitle': {
     en: 'Click for recent sync runs',
@@ -568,28 +571,6 @@ export const shell = {
     en: 'Reopened after done',
     ko: '완료 후 다시 열린 이슈',
     ja: '完了後に再び開いた課題',
-  },
-  'view.epicBreakdown.name': {
-    en: 'Epics',
-    ko: '에픽별 보기',
-    ja: 'エピック',
-  },
-  'view.epicBreakdown.hint': {
-    en: 'Open issues grouped by epic',
-    ko: '진행 중 이슈를 에픽으로 묶어 보기',
-    ja: '未解決の課題をエピックでグループ化',
-  },
-  'view.agingInProgress.name': {
-    en: 'Aging in progress',
-    ko: '오래된 진행 중',
-    ja: '長く進行中',
-  },
-  'view.agingInProgress.hint': {
-    // The my-work pack moved this view from the updated-at proxy to the real
-    // status_changed axis — the hint follows the sort it names (2026-09-06).
-    en: 'In progress · longest in status first',
-    ko: '진행 중 · 한 상태에 가장 오래 머문 순',
-    ja: '進行中 · 同じステータスに最も長く留まっている順',
   },
   'view.unnamed': {
     en: 'Untitled view',

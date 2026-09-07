@@ -209,11 +209,11 @@ test.describe('command palette', () => {
     await expect(rows.source).toContainText('NMA')
 
     // A built-in answers with its written hint instead of a filter count.
-    // (Aging since the 2026-09-07 sidebar subtraction deleted the stale
-    // built-in view — the stale filter chip and palette toggle remain.)
-    await page.keyboard.type('Aging', { delay: 20 })
+    // (Reopened: the one exception surface that survived both 2026-09-07
+    // subtractions — stale, then aging, left; the filter chips remain.)
+    await page.keyboard.type('Reopen', { delay: 20 })
     const builtin = palette.getByRole('option', { name: /Built-in view/ }).first()
-    await expect(builtin).toContainText('In progress · longest in status first')
+    await expect(builtin).toContainText('Reopened after done')
     await expect(builtin.locator('svg')).toHaveCount(1)
 
     expect(

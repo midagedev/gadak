@@ -305,15 +305,17 @@ directly, and CI does not regenerate media.
 
 ~20 s of readable motion, viewport **1024×640** @ `deviceScaleFactor: 2`:
 
-1. Boot — the epic breakdown (the startup view whenever the mirror has
-   epics, `startup-view.ts`), 534 issues in the sidebar, labels on the rows
+1. Boot — the open pool grouped by epic (the hosted demo's own landing,
+   `demoStartupConfig()` in `startup-view.ts`; the Epics built-in itself
+   left the sidebar with GDK-1493), 534 issues in the sidebar, labels on
+   the rows
 2. Instant local search (`pagination`) with per-keystroke narrowing and `<mark>`
 3. **NMA-123** open beside the list — title, priority, labels, reopen badge
 4. Sidebar **Documents** — Viewed, then one page open with its breadcrumb
    and the issues it cites
 5. Sidebar **All open**, then **Board** in the view-settings menu: the same open
-   work as status columns. (An Epics beat would repeat the boot frame now
-   that the epic breakdown is the startup view — swapped 2026-09-02.)
+   work as status columns. (An epic-grouping beat would repeat the boot
+   frame — swapped 2026-09-02.)
 
 The in-app Jira/Confluence pane is desktop-only (a native WKWebView). This
 clip is the browser tab against `examples/demo.db`. The spaces tree was

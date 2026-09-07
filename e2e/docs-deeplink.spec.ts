@@ -262,6 +262,11 @@ test.describe('document screens survive a reload and a link', () => {
     const body = (await res.json()) as { pages: { key: string }[] }
 
     await gotoApp(page)
+    // gotoApp leaves a fresh context on the epic-grouped pool, which has had
+    // no sidebar row since GDK-1493 — so stand on a view the sidebar marks
+    // before measuring whether it keeps marking it.
+    await page.locator('aside').getByRole('button', { name: 'All open' }).click()
+    await expect(page).not.toHaveURL(/[#?&]g=epic/)
     const before = await activeSidebarView(page)
     expect(before.length).toBeGreaterThan(0)
     const viewUrl = page.url()

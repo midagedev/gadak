@@ -73,7 +73,10 @@ test.describe('sidebar view highlight follows the main column', () => {
 
   test('cold boot list still tints the startup view', async ({ page }) => {
     const errors = attachConsoleErrors(page)
-    await gotoApp(page)
+    // The startup rule itself is under test (identified + assigned work →
+    // My issues), so do not let gotoApp steer to the pool-by-address, which
+    // lights no sidebar row (GDK-1493).
+    await gotoApp(page, { startup: 'product' })
     await expect(page.getByTestId('issue-list-scroller')).toBeVisible()
     expect((await activeSidebarView(page)).length).toBeGreaterThan(0)
 

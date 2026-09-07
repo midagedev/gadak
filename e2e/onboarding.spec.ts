@@ -283,9 +283,11 @@ test.describe('first-run onboarding', () => {
     await expect(page.getByTestId('onboarding')).toBeHidden()
     await expect(page.getByText('Ship the first mirrored issue')).toBeVisible()
 
-    // First run (no saved view yet) lands on the epic breakdown, not a bare
-    // all-open replica (GDK-100). The view key is in the hash.
-    await expect(page).toHaveURL(/g=epic/)
+    // First run (no saved view yet) lands on All open (GDK-1493: the Epics
+    // breakdown left the built-ins; the hosted demo alone still groups by
+    // epic). The view key is in the hash.
+    await expect(page).toHaveURL(/[#?&]sc=new%2Cinprogress/)
+    await expect(page).not.toHaveURL(/g=epic/)
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })

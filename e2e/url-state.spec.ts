@@ -42,9 +42,7 @@ async function activeSidebarView(page: Page): Promise<string[]> {
     .locator('aside nav button[aria-current="true"]:not([data-testid^="docs-"])')
     .allInnerTexts()
   // Anchor at the label so a view one day named "Feed…" is not swept out too.
-  return rows.filter(
-    (r) => !r.startsWith(en['personal.myReporter']) && !r.startsWith(en['common.feed']),
-  )
+  return rows.filter((r) => !r.startsWith(en['common.feed']))
 }
 
 /*
@@ -89,21 +87,23 @@ test.describe('place params', () => {
     const errors = attachConsoleErrors(page)
     await gotoApp(page)
 
-    // "Reported by me" opens the feed on the reporter focus — presence says
-    // open, the value says which slice.
-    await page.getByRole('button', { name: en['personal.myReporter'] }).click()
+    // The Feed row opens the feed on the all focus — presence says open, the
+    // value says which slice. (The "Reported by me" row that opened the
+    // reporter focus left the sidebar with GDK-1493; that focus is the feed
+    // screen's own toggle, and a link below reaches it cold.)
+    await page.getByRole('button', { name: en['common.feed'] }).click()
     await expect(feedClose(page)).toBeVisible()
-    await expect(page).toHaveURL(/feed=reporter/)
+    await expect(page).toHaveURL(/feed=all/)
 
     await page.reload()
     await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 30_000 })
     await expect(feedClose(page)).toBeVisible()
-    await expect(page).toHaveURL(/feed=reporter/)
+    await expect(page).toHaveURL(/feed=all/)
 
     // A link built by hand opens the other focus from a cold start.
-    await gotoParams(page, 'feed=all')
+    await gotoParams(page, 'feed=reporter')
     await expect(feedClose(page)).toBeVisible()
-    await expect(page).toHaveURL(/feed=all/)
+    await expect(page).toHaveURL(/feed=reporter/)
 
     // Back to the list takes the param with it.
     await feedClose(page).click()
@@ -187,6 +187,10 @@ test.describe('place params', () => {
      */
     const errors = attachConsoleErrors(page)
     await gotoApp(page)
+    // gotoApp lands on the pool by address (no sidebar row lit since the
+    // Epics built-in was cut, GDK-1493) — stand on a view the sidebar owns.
+    await page.locator('aside').getByRole('button', { name: 'All open' }).click()
+    await expect(page).not.toHaveURL(/[#?&]g=epic/)
     const before = await activeSidebarView(page)
     expect(before.length).toBeGreaterThan(0)
     const viewUrl = page.url()

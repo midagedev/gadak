@@ -30,11 +30,11 @@ const ctx = await browser.newContext({
 })
 const page = await ctx.newPage()
 
-// --- groupby-still: Epics view, assignee filter submenu with live counts ---
-await page.goto(base + '/#/')
+// --- groupby-still: the open pool grouped by epic, assignee filter submenu ---
+// The grouping is reached by its address: the Epics built-in left the
+// sidebar with GDK-1493 (2026-09-07), the layout did not.
+await page.goto(base + '/#/?sc=new%2Cinprogress&g=epic')
 await page.getByTestId('issue-list-scroller').waitFor({ timeout: 30000 })
-await page.waitForTimeout(800)
-await page.getByText('Epics', { exact: true }).first().click()
 await page.waitForTimeout(1200)
 await page.getByText('+ Filter', { exact: true }).first().click()
 await page.waitForTimeout(400)

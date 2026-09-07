@@ -86,8 +86,12 @@ async function walkIssueKeys(scroller: Locator): Promise<string[]> {
   return [...seen]
 }
 
-test.describe('team-flow: Aging in progress built-in view', () => {
-  test('sidebar lists it; clicking shows exactly the in-progress set', async ({ page }) => {
+test.describe('team-flow: the in-progress set by address', () => {
+  // The Aging in progress built-in left the sidebar on 2026-09-07 (GDK-1493:
+  // a team's in-progress pile is an org-convention question). The address
+  // that view wrote — sc=inprogress — is still the contract this test holds:
+  // exactly the fixture's in-progress issues, nothing else.
+  test('sc=inprogress shows exactly the in-progress set', async ({ page }) => {
     const errors = attachConsoleErrors(page)
     await gotoApp(page)
 
@@ -101,13 +105,8 @@ test.describe('team-flow: Aging in progress built-in view', () => {
     )
     expect(expected.size, 'demo fixture must carry in-progress issues').toBeGreaterThan(0)
 
-    // The sidebar lists the view under Built-in views. No `exact`: the row's
-    // accessible name also carries its issue count ("Aging in progress 144").
-    const button = page.getByRole('button', { name: 'Aging in progress' })
-    await expect(button).toBeVisible()
-    await button.click()
-
-    // Only the tenant-neutral axis moves: sc=inprogress in the URL.
+    // Only the tenant-neutral axis is set: sc=inprogress in the URL.
+    await page.goto('/#/?sc=inprogress')
     await expect(page).toHaveURL(/[#?&]sc=inprogress/, { timeout: 10_000 })
 
     // The list settles on the expected count before the walk reads it.

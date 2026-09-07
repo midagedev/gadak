@@ -96,7 +96,7 @@ test.describe('F7 UX defects', () => {
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 
-  test('GDK-460: freshness copy lives on the chip; the sidebar is Sync history', async ({
+  test('GDK-460: freshness copy lives on the chip; the sidebar is Sync log', async ({
     page,
   }) => {
     const errors = attachConsoleErrors(page)

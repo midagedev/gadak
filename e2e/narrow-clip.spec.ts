@@ -146,10 +146,11 @@ test.describe('stale chip at container ≤1100', () => {
     await waitListRows(page)
 
     // The identified fixture account boots on its own 46 issues (my-work
-    // pack); the audit's row lives in the open pool, so open the Epics view
-    // first — the ko label, since this spec pins the ko locale.
-    await page.locator('aside').getByRole('button', { name: '에픽별 보기' }).click()
+    // pack); the audit's row lives in the open pool, so open the pool grouped
+    // by epic by its address (the Epics built-in left the sidebar, GDK-1493).
+    await page.goto('/#/?sc=new%2Cinprogress&g=epic')
     await expect(page).toHaveURL(/[#?&]g=epic/, { timeout: 30_000 })
+    await waitListRows(page)
 
     // Search view is where the audit cropped "35일" (SSO login fails).
     const search = searchInput(page)

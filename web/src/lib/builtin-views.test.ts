@@ -3,69 +3,15 @@ import { builtinViews } from './builtin-views'
 import { configToParams } from './view-config'
 
 /*
- * team-flow pack: the "Aging in progress" built-in view.
- *
- * Contract ↔ assertion table (spec C1–C6; the rows this file can see):
- *  C2/C4 tenant-neutral filters — only status_category, every other axis the
- *      empty default: status/priority/issue_type/jira_project empty, no flags,
- *      no text query. [FAIL-first 2026-09-06: find(id) returned undefined →
- *      "aging-in-progress builtin must exist" failed before the entry existed]
- *  C4  sort is started asc — longest underway first (work item age, the
- *      flow canon's clock: THEORY.md T4). History of this pin: 'updated' was
- *      the proxy; the my-work pack replaced it with 'status_changed'
- *      (FAIL-first 2026-09-06: old code failed, sort was 'updated'); the
- *      second literature round replaced that with 'started' (FAIL-first
- *      2026-09-07: sort was 'status_changed', which reset at every hand-off
- *      inside progress). Each replacement is a new contract, not a relaxation.
- *  C5  name/hint resolve to non-empty copy in the default locale (en);
- *      en/ko/ja parity is catalog.test.ts's gate, exercised by the i18n suite.
- */
-describe('builtinViews: aging-in-progress (team-flow pack)', () => {
-  test('exists, tenant-neutral, longest-underway first via started', () => {
-    const view = builtinViews().find((v) => v.id === 'aging-in-progress')
-    expect(view, 'aging-in-progress builtin must exist').toBeTruthy()
-
-    const f = view!.config.filters
-    expect(f.status_category).toEqual(['inprogress'])
-    // Tenant neutrality: no site-specific axis may ride along.
-    expect(f.status).toEqual([])
-    expect(f.priority).toEqual([])
-    expect(f.issue_type).toEqual([])
-    expect(f.jira_project).toEqual([])
-    expect(f.labels).toEqual([])
-    expect(f.reopened).toBe(false)
-    expect(f.unassigned).toBe(false)
-    expect(f.stale).toBe(false)
-    expect(f.mine).toBe(false)
-    expect(f.delegated).toBe(false)
-    expect(f.q).toBe('')
-
-    // G4: the arrangement is the coaching — oldest start first.
-    expect(view!.config.display.sort).toBe('started')
-    expect(view!.config.display.dir).toBe('asc')
-
-    // URL form: sc=inprogress, s=started, d=asc.
-    const params = configToParams(view!.config)
-    expect(params.sc).toBe('inprogress')
-    expect(params.s).toBe('started')
-    expect(params.d).toBe('asc')
-
-    // Copy keys resolve (missing keys render as the key itself).
-    expect(view!.name.length).toBeGreaterThan(0)
-    expect(view!.name).not.toBe('view.agingInProgress.name')
-    expect(view!.hint!.length).toBeGreaterThan(0)
-  })
-})
-
-/*
  * my-work pack: two stances in the built-in views (THEORY.md "Two stances" —
  * contributor first, steward second; G4: the arrangement is the coaching).
  *
  * Contract ↔ assertion table (clause → assertion names):
- *  C3 seven views, exact stance partition in spec order (2026-09-07
- *     subtraction: recently-updated / stale / resolved-week deleted,
- *     all-open / unassigned-new moved mine → team)
- *     seven views in the spec order, mine stance first
+ *  C3 five views, exact stance partition in spec order (2026-09-07
+ *     subtractions: recently-updated / stale / resolved-week deleted,
+ *     all-open / unassigned-new moved mine → team; then aging-in-progress /
+ *     epic-breakdown deleted — GDK-1493)
+ *     five views in the spec order, mine stance first
  *     exactly my-work and delegated need identity
  *  C6 my-work is tenant-neutral — the identity flag + status_category only
  *     my-work: mine flag, open categories, urgent-first priority sort
@@ -81,16 +27,27 @@ describe('builtinViews: aging-in-progress (team-flow pack)', () => {
  * against it on shape, not just counts.
  */
 describe('builtinViews: my-work pack stances', () => {
-  test('seven views in the spec order, mine stance first', () => {
+  test('five views in the spec order, mine stance first', () => {
+    // FAIL-first 2026-09-07 (GDK-1493): the pre-change list had seven —
+    // aging-in-progress and epic-breakdown sat in the team stance.
     expect(builtinViews().map((v) => [v.id, v.stance])).toEqual([
       ['my-work', 'mine'],
       ['delegated', 'mine'],
       ['all-open', 'team'],
       ['unassigned-new', 'team'],
-      ['aging-in-progress', 'team'],
       ['reopened', 'team'],
-      ['epic-breakdown', 'team'],
     ])
+  })
+
+  test('nothing site-shaped is a built-in: no view groups by epic or sorts by an age proxy', () => {
+    // GDK-1493: a built-in earns its row by meaning the same thing on every
+    // site. group_by epic needs a hierarchy the site may not use; the aging
+    // view was the in-progress pool under a sort — a saved view's job.
+    for (const v of builtinViews()) {
+      expect(v.config.display.group_by, v.id).not.toBe('epic')
+      expect(v.id).not.toBe('aging-in-progress')
+      expect(v.id).not.toBe('epic-breakdown')
+    }
   })
 
   test('exactly my-work and delegated need identity', () => {

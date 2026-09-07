@@ -92,7 +92,7 @@ function sidebarButton(page: Page, name: string): Locator {
 }
 
 test.describe('my-work pack: sidebar stances and identity views', () => {
-  test('anonymous sidebar: team label yes, mine label and identity rows no, five rows by name', async ({ page }) => {
+  test('anonymous sidebar: team label yes, mine label and identity rows no, three rows by name', async ({ page }) => {
     const errors = attachConsoleErrors(page)
     await mockAuthMe(page, { email: null })
     await gotoApp(page)
@@ -109,25 +109,28 @@ test.describe('my-work pack: sidebar stances and identity views', () => {
     await expect(sidebarButton(page, 'My issues')).toHaveCount(0)
     await expect(sidebarButton(page, 'Handed off')).toHaveCount(0)
 
-    // The five team views are all there, by accessible name (all-open and
-    // unassigned-new moved mine → team in the 2026-09-07 subtraction —
+    // The three team views are all there, by accessible name (all-open and
+    // unassigned-new moved mine → team in the first 2026-09-07 subtraction —
     // nothing about an unassigned issue is mine, and the open pool is the
     // team's).
-    for (const name of [
-      'All open',
-      'Unassigned new',
-      'Aging in progress',
-      'Reopened',
-      'Epics',
-    ]) {
+    for (const name of ['All open', 'Unassigned new', 'Reopened']) {
       await expect(sidebarButton(page, name), name).toBeVisible()
     }
 
-    // FAIL-first for the subtraction: the three deleted built-ins (recently-
-    // updated = all-open under the default sort, stale = a flag over the
-    // aging pool, resolved-week = the retro's closed cell) must leave zero
-    // rows — against the pre-change sidebar each found one.
-    for (const name of ['Recently updated', 'Stale', 'Resolved this week']) {
+    // FAIL-first for both subtractions: the deleted built-ins must leave zero
+    // rows — against the pre-change sidebar each found one. First cut:
+    // recently-updated (all-open under the default sort), stale (a flag over
+    // the in-progress pool), resolved-week (the retro's closed cell). Second
+    // cut (GDK-1493): aging-in-progress (the in-progress pool with a sort —
+    // its count was the board column's) and the epic breakdown (a layout of
+    // the open pool that needs a hierarchy the site may not use).
+    for (const name of [
+      'Recently updated',
+      'Stale',
+      'Resolved this week',
+      'Aging in progress',
+      'Epics',
+    ]) {
       await expect(sidebarButton(page, name), name).toHaveCount(0)
     }
 
@@ -193,7 +196,7 @@ test.describe('my-work pack: identified sidebar and the mine list', () => {
     await mockAuthMe(page, DANA_ME)
     await captureBootstrap(page)
     // The capture is of the My issues view however it is reached; gotoApp
-    // steers a fresh context to Epics, so open it by the sidebar row.
+    // steers a fresh context to the epic-grouped pool, so open it by the row.
     await sidebarButton(page, 'My issues').click()
     await expect(page.getByTestId('list-count')).toContainText(String(DANA_MINE))
     await page.screenshot({ path: SHOT, animations: 'disabled' })
@@ -206,7 +209,7 @@ test.describe('my-work pack: first-run landing (aria-current is the contract)', 
     const errors = attachConsoleErrors(page)
     await mockAuthMe(page, DANA_ME)
     // startup: 'product' — this test is about the first-run rule itself, so
-    // the helper must not steer the fresh context back to the Epics view.
+    // the helper must not steer the fresh context back to the grouped pool.
     await gotoApp(page, { startup: 'product' })
     // Fresh context ⇒ no last-used view; identified + 46 assigned ⇒ my-work.
     await expect(page.getByTestId('list-count')).toContainText(String(DANA_MINE))
@@ -214,49 +217,14 @@ test.describe('my-work pack: first-run landing (aria-current is the contract)', 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 
-  test('first run anonymous lands on the epic breakdown', async ({ page }) => {
+  test('first run anonymous lands on All open', async ({ page }) => {
     const errors = attachConsoleErrors(page)
-    // Anonymous (the 200 {email:null} shape): no "mine", so the pre-my-work
-    // first-run default holds — the epic breakdown, unchanged.
+    // Anonymous (the 200 {email:null} shape): no "mine", so the first-run
+    // fallback is the open pool. Until GDK-1493 it was the Epic breakdown;
+    // that built-in is gone, and the pool is the team's ground floor.
     await mockAuthMe(page, { email: null })
-    await gotoApp(page)
-    await expect(sidebarButton(page, 'Epics')).toHaveAttribute('aria-current', 'true')
-    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
-  })
-})
-
-test.describe('my-work pack: aging on the started axis', () => {
-  test('aging-in-progress opens on the longest-underway issue', async ({ page }) => {
-    const errors = attachConsoleErrors(page)
-    await mockAuthMe(page, DANA_ME)
-    const boot = await captureBootstrap(page)
-
-    // Expected order from the fixture's own rows: among in-progress issues
-    // with a parseable stamp, the oldest start first — started_at, else
-    // status_changed_at, the 'started' comparator's rule (ties → newest
-    // updated_at); missing stamps sort last in both directions.
-    const stampOf = (it: BootRow): string => it.started_at ?? it.status_changed_at ?? ''
-    const inProgress = boot.filter((it) => it.status_category === 'inprogress')
-    expect(inProgress.length, 'fixture must have in-progress rows').toBeGreaterThan(0)
-    const stamped = inProgress.filter((it) => Number.isFinite(Date.parse(stampOf(it))))
-    expect(
-      stamped.some((it) => it.started_at),
-      'the v43 fixture must carry started_at on in-progress rows',
-    ).toBe(true)
-    const expectedFirst = stamped.reduce((best, it) => {
-      const bt = Date.parse(stampOf(best))
-      const itT = Date.parse(stampOf(it))
-      if (itT !== bt) return itT < bt ? it : best
-      // Tie: newest updated_at wins (the comparator's second key).
-      return (it.updated_at ?? '') > (best.updated_at ?? '') ? it : best
-    })
-
-    await sidebarButton(page, 'Aging in progress').click()
-    await expect(page.getByTestId('list-count')).toContainText(String(inProgress.length))
-
-    const firstRow = page.locator(`${SCROLLER} [data-issue-key]`).first()
-    await expect(firstRow).toHaveAttribute('data-issue-key', expectedFirst.issue_key)
-
+    await gotoApp(page, { startup: 'product' })
+    await expect(sidebarButton(page, 'All open')).toHaveAttribute('aria-current', 'true')
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 })
