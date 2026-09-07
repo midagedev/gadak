@@ -96,9 +96,9 @@
   const thread = $derived(overlayComments(detail?.comments ?? [], pending))
 
   /*
-   * Resume card (GDK-1495 ③) — one line above the thread saying what changed
-   * since this issue was last opened. Rides the detail response already
-   * loaded: no fetch of its own, one pass, the desk's own diff
+   * Resume card (GDK-1495 ③) — a tinted card above the thread saying what
+   * changed since this issue was last opened. Rides the detail response
+   * already loaded: no fetch of its own, one pass, the desk's own diff
    * (lib/domain resumeSince/resumeChanges → web resume-card).
    *
    * Rendered only when the serve knows of a previous read AND something
@@ -107,8 +107,10 @@
    * posts no visit of its own yet, so on a workspace nobody opens at a desk
    * both visit fields stay absent and this stays silent, which is honest.
    *
-   * Dismissal is local to this screen: the desk's card reveals the change
-   * log, and the phone has no change log to reveal yet.
+   * Dismissal is local to this screen, and explicit: the desk's card is a
+   * button whose click reveals the change log, and the phone has no change
+   * log to reveal — so the card is not a button at all, and carries its own
+   * × instead of quietly swallowing a tap on its sentence.
    */
   let resumeDismissed = $state(false)
   const resumeSinceAt = $derived(detail ? resumeSince(detail) : null)
@@ -551,9 +553,15 @@
         </div>
       {:else}
         {#if resumeText}
-          <button class="resume" data-testid="resume-card" onclick={() => (resumeDismissed = true)}>
-            {resumeText}
-          </button>
+          <div class="resume" data-testid="resume-card">
+            <span class="resume-text">{resumeText}</span>
+            <button
+              type="button"
+              class="resume-x"
+              aria-label={t('detail.resume.dismiss')}
+              onclick={() => (resumeDismissed = true)}>×</button
+            >
+          </div>
         {/if}
         <h3>{t('detail.comments')} <span class="h-n">{thread.length}</span></h3>
         {#if thread.length === 0}
@@ -1101,22 +1109,54 @@
     font-family: var(--font-mono);
     font-weight: 400;
   }
-  /* One line by contract: the card truncates rather than wrapping — a
-     wrapped card is twice the chips' height and reads as a block, not a
-     line (the desk's own vision FIX, 2026-09-06). */
+  /* A card, not a line (vision FIX 2026-09-07). Ported one-for-one from the
+     desk it read as the session strip's twin: a bare grey sentence with no
+     edge, no tint and no way out but tapping the sentence. The desk's chip
+     form is the fix — bg-elevated, a small radius, secondary ink — carried
+     onto a phone, where the tap target has to be explicit because the card
+     shares the scroll with the thread it sits above.
+
+     Two lines, not one: at 402px "3 status changes, 2 new comments and
+     assignee changed" does not fit on a line, and the ellipsis eats the
+     specific half. Two, then stop — a taller block would read as chrome. */
   .resume {
-    display: block;
+    display: flex;
+    align-items: flex-start;
+    gap: 4px;
     width: 100%;
     margin: 8px 0 0;
-    padding: 4px 0;
-    text-align: left;
+    padding: 8px 4px 8px 10px;
+    border-radius: 8px;
+    background: var(--color-bg-elevated);
     font-size: var(--text-micro);
-    color: var(--color-text-muted);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    color: var(--color-text-secondary);
   }
-  .resume:active {
+  .resume-text {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    flex: 1 1 auto;
+    min-width: 0;
+    /* Centres a one- or two-line sentence against the 44pt dismiss beside
+       it, which the negative margins below pull out to the card's edges. */
+    padding: 6px 0;
+    overflow: hidden;
+  }
+  .resume-x {
+    display: flex;
+    flex: none;
+    width: var(--spacing-control);
+    height: var(--spacing-control);
+    margin: -8px 0;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    color: var(--color-text-muted);
+    font-size: var(--text-body);
+    line-height: 1;
+  }
+  .resume-x:active {
     background: var(--color-bg-hover);
   }
 

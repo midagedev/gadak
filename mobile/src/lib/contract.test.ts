@@ -489,3 +489,103 @@ describe('GDK-1495 A4 — the 0.21 concepts are the desktop’s rules, imported'
     expect(script.slice(at, at + 600)).not.toMatch(/request\(|fetch\(/)
   })
 })
+
+describe('GDK-1495 A4 vision FIX — the five points the blind judge sent back', () => {
+  const row = markup('ui/Row.svelte')
+  const rowSrc = read('ui/Row.svelte')
+  const issuesSrc = read('screens/Issues.svelte')
+  const detail = markup('screens/Detail.svelte')
+  const detailSrc = read('screens/Detail.svelte')
+  const sheet = read('ui/ScopeSheet.svelte')
+  const domain = read('lib/domain.ts')
+
+  it('① the age rides the meta line beside the key, not the title baseline', () => {
+    // The judge counted 8 of 11 summaries truncated with the age and the
+    // date both on the title baseline. The age is meta — it belongs on the
+    // meta line, which already truncates by design; the date stays. Measured
+    // by a4-captures on the demo fixture: the title gains 23px (306 → 329),
+    // which is the chip and its gap, so this is a placement contract, not a
+    // truncation one. What still costs the title width is the date.
+    const line1 = row.indexOf('class="line1"')
+    const line2 = row.indexOf('class="line2"')
+    const age = row.indexOf('class="age"')
+    expect(line1).toBeGreaterThan(-1)
+    expect(line2).toBeGreaterThan(line1)
+    expect(age).toBeGreaterThan(line2)
+    const when = row.indexOf('class="when"')
+    expect(when).toBeGreaterThan(line1)
+    expect(when).toBeLessThan(line2)
+    // Still data, never a control (GDK-906), and still naming its own rule.
+    expect(row.slice(row.lastIndexOf('<', age), age)).toBe('<span ')
+    expect(row).toMatch(/class="age"[\s\S]{0,80}title=\{rowAgeTitle\(issue\)\}/)
+  })
+
+  it('② only the loud band carries colour; mid falls back to the meta greys', () => {
+    // Three bands photographed as two: mid was the stale amber at 0.8, which
+    // reads as the same dark brown as loud. Colour ladder only — the ratios
+    // stay where the desk's workAge put them.
+    const style = rowSrc.slice(rowSrc.indexOf('<style>'))
+    const midAt = style.indexOf(".age[data-age-band='mid']")
+    expect(midAt).toBeGreaterThan(-1)
+    const midRule = style.slice(midAt, style.indexOf('}', midAt))
+    expect(midRule).not.toMatch(/--color-status-stale/)
+    expect(midRule).toMatch(/--color-text-(muted|secondary)/)
+    expect(midRule).not.toMatch(/opacity/)
+    const loudAt = style.indexOf(".age[data-age-band='loud']")
+    expect(loudAt).toBeGreaterThan(-1)
+    expect(style.slice(loudAt, style.indexOf('}', loudAt))).toMatch(/--color-status-stale/)
+    expect(domain).toMatch(/ratio <= 2\) return 'quiet'/)
+    expect(domain).toMatch(/ratio <= 4\) return 'mid'/)
+  })
+
+  it('③ the session strip may run to two lines rather than lose its fact', () => {
+    // "1 of them assigned …" truncated away the most specific half of the
+    // sentence. Two lines when it needs them, one quiet line when it fits.
+    const style = issuesSrc.slice(issuesSrc.indexOf('<style>'))
+    const at = style.indexOf('.session {')
+    expect(at).toBeGreaterThan(-1)
+    const rule = style.slice(at, style.indexOf('}', at))
+    expect(rule).toMatch(/line-clamp:\s*2/)
+    expect(rule).not.toMatch(/white-space:\s*nowrap/)
+  })
+
+  it('④ the resume card is a card: bounded, tinted, two lines, with a dismiss', () => {
+    // It rendered as a bare grey line indistinguishable from the strip, and
+    // offered no way out but tapping the sentence itself.
+    const style = detailSrc.slice(detailSrc.indexOf('<style>'))
+    const at = style.indexOf('.resume {')
+    expect(at).toBeGreaterThan(-1)
+    const rule = style.slice(at, style.indexOf('}', at))
+    expect(rule).toMatch(/border-radius:\s*8px/)
+    expect(rule).toMatch(/background:\s*var\(--color-bg-(elevated|panel)\)/)
+    expect(rule).toMatch(/padding:/)
+    const textAt = style.indexOf('.resume-text {')
+    expect(textAt).toBeGreaterThan(-1)
+    expect(style.slice(textAt, style.indexOf('}', textAt))).toMatch(/line-clamp:\s*2/)
+    // An explicit dismiss at the iOS touch floor, labelled from the catalog.
+    expect(detail).toMatch(/class="resume-x"/)
+    expect(detail).toMatch(/aria-label=\{t\('detail\.resume\.dismiss'\)\}/)
+    const xAt = style.indexOf('.resume-x {')
+    expect(xAt).toBeGreaterThan(-1)
+    const xRule = style.slice(xAt, style.indexOf('}', xAt))
+    expect(xRule).toMatch(/width:\s*var\(--spacing-control\)/)
+    expect(xRule).toMatch(/height:\s*var\(--spacing-control\)/)
+    expect(detail).toMatch(/resumeDismissed = true/)
+  })
+
+  it('⑤ the five built-ins read as one section, Assigned to me among them', () => {
+    // It sat alone under MY ISSUES while the other four wore stance
+    // sub-labels under VIEWS, so the desk's one built-in set read as two
+    // groups. Assigned to me is a contributor-stance built-in like the
+    // rest — same section, under the same stance sub-label.
+    const at = domain.indexOf('id: SCOPE_ME')
+    expect(at).toBeGreaterThan(-1)
+    const push = domain.slice(at, domain.indexOf('})', at))
+    expect(push).toMatch(/section: 'builtin'/)
+    expect(push).toMatch(/stance: 'mine'/)
+    expect(domain).not.toMatch(/ScopeSection = 'me'/)
+    // The picker no longer draws a heading of its own for it.
+    expect(sheet).not.toMatch(/personal\.myIssues/)
+    expect(sheet).toMatch(/ORDER: ScopeSection\[\] = \['builtin', 'views', 'filters', 'docs'\]/)
+  })
+})

@@ -135,6 +135,15 @@ export const detail = {
     ko: '기타 변경 {n}건',
     ja: 'その他の変更 {n}件',
   },
+  /* The phone's card carries an explicit × (GDK-1495 A4 vision FIX): the
+   * desk's card is dismissed by leaving the issue, the phone's sits in the
+   * scroll and needs a way out that is not the sentence itself. Label only —
+   * the desk has no such control and asks for no such key. */
+  'detail.resume.dismiss': {
+    en: 'Dismiss',
+    ko: '닫기',
+    ja: '閉じる',
+  },
   'detail.links': {
     en: 'Linked issues',
     ko: '연결 이슈',

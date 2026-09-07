@@ -102,12 +102,17 @@ describe('GDK-885 the picker wears the desktop section headings', () => {
   const sheet = code(join(srcDir, 'ui/ScopeSheet.svelte'))
 
   it('uses the sidebar keys, not phone-authored section labels', () => {
+    // `personal.myIssues` left this list with the section it headed (vision
+    // FIX 2026-09-07: Assigned to me folded into the built-ins under their
+    // stance sub-label). The claim is unchanged — every heading the picker
+    // draws is a desktop key — and the two stance keys are now among them.
     for (const key of [
-      'personal.myIssues',
       'sidebar.builtinViews',
       'sidebar.myViews',
       'sidebar.jiraFilters',
       'sidebar.docs',
+      'sidebar.stanceMine',
+      'sidebar.stanceTeam',
     ]) {
       expect(sheet, `ScopeSheet is missing ${key}`).toContain(key)
     }

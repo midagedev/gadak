@@ -16,6 +16,7 @@ import {
   setFlow,
   SESSION_GAP_MS,
   SCOPE_ALL_OPEN,
+  SCOPE_ME,
   type Scope,
 } from './domain'
 import type { DetailResponse, IssueLite, Me } from './types'
@@ -281,15 +282,19 @@ describe('the five built-in views (GDK-1495 ④)', () => {
   ]
 
   it('offers the desk’s five, under the desk’s names, in the desk’s order', () => {
+    // Assigned to me joined this section (vision FIX 2026-09-07) and leads
+    // it in the mine stance, so the desk's five are what follow it. Same
+    // assertion, offset by one row that contract.test.ts ⑤ pins.
     const builtin = buildScopes([], [], me).filter((s) => s.section === 'builtin')
-    expect(builtin.map((s) => s.id)).toEqual([
+    expect(builtin[0].id).toBe(SCOPE_ME)
+    expect(builtin.slice(1).map((s) => s.id)).toEqual([
       'builtin:my-work',
       'builtin:delegated',
       SCOPE_ALL_OPEN,
       'builtin:unassigned-new',
       'builtin:reopened',
     ])
-    expect(builtin.map((s) => s.name)).toEqual([
+    expect(builtin.slice(1).map((s) => s.name)).toEqual([
       'My issues',
       'Handed off',
       'All open',

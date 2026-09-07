@@ -29,15 +29,19 @@
    * is the team's flow. The phone wears the same two, from the same keys —
    * without them the picker runs five unrelated names together right under
    * a heading that is itself a view's name (GDK-1495 ④).
+   *
+   * "Assigned to me" is inside that section too, first in the `mine` stance
+   * (vision FIX 2026-09-07 — buildScopes owns the placement). It had a
+   * heading of its own above the built-ins, which split one set into two
+   * groups for the reader.
    */
   const STANCE: Record<'mine' | 'team', string> = {
     mine: 'sidebar.stanceMine',
     team: 'sidebar.stanceTeam',
   }
 
-  const ORDER: ScopeSection[] = ['me', 'builtin', 'views', 'filters', 'docs']
+  const ORDER: ScopeSection[] = ['builtin', 'views', 'filters', 'docs']
   const HEADING: Record<ScopeSection, string> = {
-    me: 'personal.myIssues',
     builtin: 'sidebar.builtinViews',
     views: 'sidebar.myViews',
     filters: 'sidebar.jiraFilters',

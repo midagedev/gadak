@@ -187,9 +187,11 @@ describe('buildScopes', () => {
       me,
     )
     // Sections in order, one row named per section beyond the built-ins
-    // (whose five names awareness.test.ts pins).
+    // (whose five names awareness.test.ts pins). Assigned to me is a
+    // built-in itself since the vision FIX 2026-09-07 — six rows in that
+    // section now, and the assertion below moves with it.
     expect(list.map((s) => s.section)).toEqual([
-      'me',
+      'builtin',
       'builtin',
       'builtin',
       'builtin',
@@ -198,8 +200,8 @@ describe('buildScopes', () => {
       'views',
       'filters',
     ])
+    expect(scopeOf(list, SCOPE_ME).name).toBe('Assigned to me')
     expect(list.filter((s) => s.section !== 'builtin').map((s) => [s.section, s.name])).toEqual([
-      ['me', 'Assigned to me'],
       ['views', 'Stale bugs'],
       ['filters', 'Sprint board'],
     ])
@@ -552,9 +554,10 @@ describe('documents scopes (GDK-887)', () => {
       me,
       pages,
     )
+    // Six built-ins, not five plus a 'me' section (vision FIX 2026-09-07).
+    // The claim under test is the tail — Documents comes last.
     expect(list.map((s) => s.section)).toEqual([
-      'me',
-      ...Array(5).fill('builtin'),
+      ...Array(6).fill('builtin'),
       'views',
       'filters',
       'docs',

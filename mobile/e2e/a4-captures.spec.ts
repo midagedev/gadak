@@ -171,12 +171,42 @@ test('captures the A4 awareness surfaces for the vision round', async ({ page })
   const strip = page.locator('[data-testid="session-strip"]')
   await strip.waitFor()
   console.log(`[a4] session strip reads: ${JSON.stringify(await strip.innerText())}`)
+  const stripLines = await strip.evaluate((el) => {
+    // Content box only — the 6px vertical padding would round a two-line
+    // strip up to three and make the clamp look broken.
+    const cs = getComputedStyle(el)
+    const inner =
+      el.getBoundingClientRect().height - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom)
+    return Math.round(inner / parseFloat(cs.lineHeight))
+  })
+  console.log(`[a4] session strip renders on ${stripLines} line(s) (clamp is 2)`)
   const ages = page.locator('.pane:not(.off) button.row .age')
   await ages.first().waitFor()
   const bands = await page.locator('.pane:not(.off) button.row .age').evaluateAll((els) =>
-    els.map((el) => el.getAttribute('data-age-band')),
+    els.map((el) => `${el.textContent?.trim()}:${el.getAttribute('data-age-band')}`),
   )
-  console.log(`[a4] ${bands.length} rows wear an age; bands: ${JSON.stringify(bands)}`)
+  console.log(`[a4] ${bands.length} rows wear an age; band per row: ${JSON.stringify(bands)}`)
+  // The measurement behind the FIX that moved the age off the title line:
+  // the judge counted 8 of 11 summaries truncated when the age and the date
+  // shared that line. Reported every run so a later round cannot re-take the
+  // width without the number saying so.
+  const truncated = await page
+    .locator('.pane:not(.off) button.row .summary')
+    .evaluateAll((els) => {
+      const cut = (list: Element[]) => list.filter((el) => el.scrollWidth > el.clientWidth + 1).length
+      const above = els.filter((el) => el.getBoundingClientRect().top < window.innerHeight)
+      return {
+        total: els.length,
+        cut: cut(els),
+        onScreen: above.length,
+        cutOnScreen: cut(above),
+        titleWidth: Math.round(els[0]?.getBoundingClientRect().width ?? 0),
+      }
+    })
+  console.log(
+    `[a4] summaries truncated: ${truncated.cutOnScreen}/${truncated.onScreen} on the first screen,` +
+      ` ${truncated.cut}/${truncated.total} in the list; title width ${truncated.titleWidth}px`,
+  )
   await page.screenshot({
     path: join(SHOT_DIR, 'a4-issues-session-and-age.png'),
     fullPage: true,
@@ -184,11 +214,18 @@ test('captures the A4 awareness surfaces for the vision round', async ({ page })
   })
   console.log(`[a4] shot ${join(SHOT_DIR, 'a4-issues-session-and-age.png')}`)
 
-  // (b) The scope sheet: the desk's five built-ins under the desk's heading.
+  // (b) The scope sheet: the built-in set — Assigned to me and the desk's
+  // five — under one heading, split only by the desk's two stance labels.
   await page.locator('.head button.scope').click()
   await page.locator('.sheet button.row').first().waitFor()
   const names = await page.locator('.sheet button.row').allInnerTexts()
   console.log(`[a4] scope sheet rows: ${JSON.stringify(names)}`)
+  // Headings and sub-labels in document order: one section heading before
+  // the built-in set, not two (vision FIX 2026-09-07).
+  const headings = await page
+    .locator('.sheet .section, .sheet .stance')
+    .evaluateAll((els) => els.map((el) => `${el.className}:${el.textContent?.trim()}`))
+  console.log(`[a4] scope sheet headings: ${JSON.stringify(headings)}`)
   await expect(page.locator('.sheet')).toContainText('Team flow')
   await page.screenshot({
     path: join(SHOT_DIR, 'a4-scope-sheet.png'),
@@ -208,7 +245,23 @@ test('captures the A4 awareness surfaces for the vision round', async ({ page })
   await page.locator('button.back').waitFor()
   const card = page.locator('[data-testid="resume-card"]')
   await card.waitFor()
-  console.log(`[a4] resume card reads: ${JSON.stringify(await card.innerText())}`)
+  console.log(`[a4] resume card reads: ${JSON.stringify(await card.locator('.resume-text').innerText())}`)
+  // The card is a card now (vision FIX 2026-09-07): bounded, tinted, with an
+  // explicit dismiss at the touch floor. Logged, not judged — the photograph
+  // is still what the vision round reads.
+  const box = await card.evaluate((el) => {
+    const cs = getComputedStyle(el)
+    const x = el.querySelector('.resume-x')
+    const xr = x?.getBoundingClientRect()
+    return {
+      height: Math.round(el.getBoundingClientRect().height),
+      background: cs.backgroundColor,
+      radius: cs.borderRadius,
+      dismiss: xr ? `${Math.round(xr.width)}×${Math.round(xr.height)}` : 'MISSING',
+      dismissLabel: x?.getAttribute('aria-label') ?? 'MISSING',
+    }
+  })
+  console.log(`[a4] resume card box: ${JSON.stringify(box)}`)
   await page.screenshot({
     path: join(SHOT_DIR, 'a4-detail-resume.png'),
     fullPage: true,

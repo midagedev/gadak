@@ -162,6 +162,9 @@
    * also *arranges* — it turns the changed keys into a view — but the phone
    * has no keys view to turn them into yet, and a control that pretends to
    * one would be the lie the picker's disabled rows exist to avoid.
+   *
+   * It may run to two lines on a 402px phone rather than truncate its own
+   * second half; see the .session rule below.
    */
   const sessionText = $derived(
     app.session.delta && !app.session.dismissed && app.session.boundary
@@ -514,10 +517,16 @@
     min-height: var(--spacing-control);
     padding: 0 16px;
   }
-  /* One line, never two: the strip truncates rather than wrapping — a
-     wrapped strip is a block, and a block above the list reads as chrome. */
+  /* Two lines at most, one whenever it fits (vision FIX 2026-09-07). The
+     desk's one-line rule was written for a panel three times this wide; on
+     402px it cut "1 of them assigned to you" off at the ellipsis, losing the
+     most specific fact in the sentence. A block above the list still reads
+     as chrome — so the clamp is 2, not none. */
   .session {
-    display: block;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
     width: 100%;
     padding: 6px 16px;
     text-align: left;
@@ -525,8 +534,6 @@
     font-size: var(--text-micro);
     color: var(--color-text-muted);
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
   .session:active {
     background: var(--color-bg-hover);

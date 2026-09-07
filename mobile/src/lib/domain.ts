@@ -276,8 +276,17 @@ export function groupByPriority(sorted: IssueLite[]): PrioritySection[] {
 
 /* ── Scopes: the heading is the current scope's name (DESIGN.md §2) ── */
 
-/** Which picker section a scope belongs to; also the order they render in. */
-export type ScopeSection = 'me' | 'builtin' | 'views' | 'filters' | 'docs'
+/**
+ * Which picker section a scope belongs to; also the order they render in.
+ *
+ * "Assigned to me" used to hold a section of its own here. It reads as one
+ * of the desk's built-ins — the contributor's first question — and a section
+ * for a single row put a heading between it and the four views it belongs
+ * with, so the one built-in set photographed as two groups (vision FIX
+ * 2026-09-07). It is a `builtin` in the `mine` stance now, and the stance
+ * sub-label the section already draws is the heading it needed.
+ */
+export type ScopeSection = 'builtin' | 'views' | 'filters' | 'docs'
 
 /** The desktop's hardcoded "Assigned to me" — not a saved view (personal.go sends none). */
 export const SCOPE_ME = 'me'
@@ -481,14 +490,22 @@ export function buildScopes(
   pages: PageLite[] = [],
 ): Scope[] {
   const out: Scope[] = []
+  /*
+   * The desk's hardcoded "Assigned to me" leads the built-in section in the
+   * contributor stance (vision FIX 2026-09-07 — it is one of the built-ins,
+   * not a group of one above them). It keeps `filters: null`: it is not a
+   * stored ViewConfig but the phone's own assignee match against `me`, which
+   * is why buildList and scopeCount still branch on its id.
+   */
   if (hasIdentity(me)) {
     out.push({
       id: SCOPE_ME,
-      section: 'me',
+      section: 'builtin',
       kind: 'issues',
       name: t('personal.myAssignee'),
       filters: null,
       unsupported: [],
+      stance: 'mine',
     })
   }
   /*
