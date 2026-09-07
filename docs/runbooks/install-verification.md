@@ -150,11 +150,15 @@ destination observable without a screen — is worth its own item.)
 
 ---
 
-## Windows — the portable zip
+## Windows — the Store package
 
-0.16+ ships `Gadak-<ver>-windows-x64.zip` (and `-arm64`): a directory with the
-two exes at the root, not an installer. It is **unsigned** — that is a recorded
-decision, not an oversight ([GDK-211]), and `docs/INSTALL.md` says so.
+Since 0.20.2 the Windows route in every guide is the **Microsoft Store**
+package (product `9NZW91TXH36G`, [GDK-1380]) — Store-signed, and the same
+`gadak-desktop.exe` as the zip. Two of its surfaces are consumed by the OS from
+the manifest, not from anything the app does at runtime, so they are exactly
+the class that can be wrong with CI green: the `windows.protocol` declaration
+and the `gadak.exe` app-execution alias (`desktop/msix/AppxManifest.xml`).
+Verify them on the installed package.
 
 Reachable over ssh with PowerShell. Set the code page first or Korean-locale
 error text arrives as mojibake:
@@ -162,6 +166,62 @@ error text arrives as mojibake:
 ```powershell
 chcp 65001 > $null
 ```
+
+The second moment for this artifact is later than the tag: the Store serves the
+new package only after certification, and `winget` sees it later still (the
+0.20.2 package was certified 2026-09-05 and served from 2026-09-06). Before
+that, `winget show 9NZW91TXH36G -s msstore` still reports the previous version
+— that is propagation, not a failed publish. `winget search --id … -s msstore`
+answers "not found" for this source even when the product exists; use `search
+gadak` or `show <id>`.
+
+```powershell
+# 1. Install the way docs/INSTALL.md says. This is the user's path — no zip,
+#    no Expand-Archive, no mark-of-the-web.
+winget install 9NZW91TXH36G -s msstore
+Get-AppxPackage midagedev.Gadak | Select-Object Name,Version,Architecture,InstallLocation
+#   want: Version 1.<minor>.<patch>.0 matching the release, and an
+#   InstallLocation under WindowsApps — nothing under the user's profile
+
+# 2. The app-execution alias. Windows materialises this on install; if it is
+#    missing, the manifest's uap3 extension did not take, whatever CI said.
+Get-Command gadak | Select-Object Source
+#   want: %LOCALAPPDATA%\Microsoft\WindowsApps\gadak.exe
+gadak version      # in a NEW shell — want the release version, not an older zip's
+#   A zip gadak.exe already on PATH wins or loses by PATH order; if `version`
+#   disagrees with the package, `where.exe gadak` shows which one answered.
+
+# 3. gadak:// binds to the package, not to a leftover zip copy. The runtime
+#    HKCU registration still runs on first launch but lands in the package's
+#    private hive, so the HKCU probe from the zip section says nothing here;
+#    the OS reads the manifest declaration. Ask the shell association instead.
+Get-AppxPackage midagedev.Gadak | Get-AppxPackageManifest |
+  ForEach-Object { $_.Package.Applications.Application.Extensions.Extension } |
+  Where-Object { $_.Category -eq 'windows.protocol' } |
+  ForEach-Object { $_.Protocol.Name }
+#   want: gadak
+
+# 4. Cold and warm, same shape as the zip section (step 7 below) — the process
+#    name is still gadak-desktop, but its Path must be under WindowsApps.
+```
+
+What the Store package does **not** get from the zip section: the Authenticode
+and mark-of-the-web steps (the Store signs and delivers it), the runtime HKCU
+registration probe (private hive), and the Smart App Control dialog path (a
+Store-signed package is not an unknown signer — if SAC still blocks it, that is
+a finding, record it as one; confirmed clean on a SAC-enforcing host is still
+an open item on [GDK-1380]). If the Store host is the same machine as a zip
+verification, uninstall one before testing the other — two `gadak.exe` on
+`PATH` and two protocol handlers turn every result into a PATH-order question.
+
+## Windows — the portable zip
+
+The zip is the route for a machine without the Store, and it is still shipped:
+`Gadak-<ver>-windows-x64.zip` (and `-arm64`), a directory with the two exes at
+the root, not an installer. It is **unsigned** — that is a recorded decision,
+not an oversight ([GDK-211]), and `docs/INSTALL.md` says so.
+
+Same host, same `chcp 65001` as above.
 
 ```powershell
 # 1. Fetch and verify what can be verified. The desktop zip is deliberately NOT
@@ -334,5 +394,6 @@ defect. Friction that is not a defect still gets filed: a verification host is
 one of the few places where the install is observed at all.
 
 [GDK-211]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-211
+[GDK-1380]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-1380
 [GDK-700]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-700
 [GDK-745]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-745
