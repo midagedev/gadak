@@ -316,9 +316,9 @@ export const shell = {
     ja: '1行を送る',
   },
   'terminal.strip.sendPlaceholder': {
-    en: 'One line — you press Enter',
-    ko: '한 줄 — Enter는 직접',
-    ja: '1行 — Enter は自分で',
+    en: 'One line',
+    ko: '한 줄',
+    ja: '1行',
   },
   'terminal.strip.sendPlaced': {
     en: 'Placed in {name}. Press Enter there to run it.',
