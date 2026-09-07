@@ -47,7 +47,8 @@ each run with a fake credential.)
 | `docs/media/tokens-vertical.mp4` | Playwright stacked `e2e/demo/tokens-demo.spec.ts` via `tokens-vertical.config.ts` | social/vertical, 4:5 for X feeds — README uses the landscape cut |
 | `docs/media/dashboards-vertical.mp4` | Playwright stacked `e2e/demo/dashboards-demo.spec.ts` via `dashboards-vertical.config.ts` | social/vertical, 4:5 for X feeds — README uses the landscape cut |
 | ~~`docs/media/claude-drive.gif` / `claude-drive.mp4` / `claude-drive-vertical.mp4`~~ (+posters) — **removed 2026-09-03**: the VHS-beside-a-tab composite is retired (GDK-1353); `terminal-hero.*` below is the live session in gadak's own pane. The rig (`tools/tapes/claude-drive.tape`, `record-claude-drive.sh`) stays for the dashboards/tokens verticals | was the README skill clip and the landing skill-drive slot |
-| `docs/media/terminal-hero.mp4` (+`terminal-hero.gif`, `terminal-hero-poster.png`) | Playwright `e2e/demo/terminal-claude-demo.spec.ts` via `e2e/demo/record-terminal-claude.sh` (live Claude Code in the pane; isolated HOME + demo mirror migrated onto the built-in tracker per take; not in `make media`), cut by `export-terminal.sh` — `dense-cut.py` measures the take and time-lapses the stretches where only the transcript moves | README skill clip + landing skill drive — `gadak claim` binds the shell to NMA-140, `claude` starts in it, one Korean prompt becomes the list, the next saves and opens a dashboard; 16:10, the window itself |
+| `docs/media/terminal-hero.mp4` (+`terminal-hero.gif`, `terminal-hero-poster.png`) | Playwright `e2e/demo/terminal-claude-demo.spec.ts` via `e2e/demo/record-terminal-claude.sh` (live Claude Code in the pane; isolated HOME + demo mirror migrated onto the built-in tracker per take; not in `make media`), cut by `export-terminal.sh` — `dense-cut.py` measures the take and time-lapses the stretches where only the transcript moves | README skill clip + landing skill drive — `gadak claim` binds the shell to NMA-140, `claude` starts in it, one typed prompt becomes the list, the next saves and opens a dashboard; 16:10, the window itself |
+| `docs/media/terminal-hero.ko.mp4` / `terminal-hero.ja.mp4` (+`terminal-hero.<loc>.gif`, `terminal-hero-poster.<loc>.png`) | same rig under `GADAK_MEDIA_LOCALE=ko\|ja` — the drive's mirror copy translated by `tools/demo-i18n/apply.py` before the take, the chrome from that locale's catalog, the prompts written in that language | landing skill drive for `/ko/` and `/ja/` (`MEDIA_LOCALES` in `site/src/i18n.ts` turns each on once it is recorded); one language end to end except the gadak CLI and Claude's TUI, which have no i18n |
 | `docs/media/claude-dashboards-vertical.mp4` | VHS `tools/tapes/claude-dashboards.tape` + the same serve tab (`record-claude-drive.sh vertical claude-dashboards`) | social/vertical, 4:5 — the dashboards half of the flagship, ending on a key clicked off the wall that opens the issue in the app (the `open` verb, GDK-854) |
 | `docs/media/claude-dashboards-vertical.gif` (+`-poster.png`) | 430-wide reduction of that mp4 (`e2e/demo/export-vertical-gif.sh`) | README — GitHub strips `<video>` from markdown (measured 2026-08-25 via `gh api /markdown`), so the README pair ships as GIF; the poster is the landing's still |
 | `docs/media/claude-tokens-vertical.mp4` | VHS `tools/tapes/claude-tokens.tape` + the same serve tab (`record-claude-drive.sh vertical claude-tokens`) | social/vertical, 4:5 — the team-look half: colours plus the dimension axes, including a token saved with a warning the agent then acts on (GDK-858) |
@@ -79,7 +80,7 @@ Current state:
 | history exhibit | `history-still.png` | still — NMB-139 header badges + bot comment + changelog with the Reopened marker (2x, 876×1740; a 900-tall viewport since the 0.20 detail grew a breadcrumb and a taller composer) |
 | agent exhibit | `terminal-demo.mp4` (+`terminal-demo-poster.png`) | video — the command→view causality is the claim; 0.20 replaces the paper-terminal composite with gadak's own pane (4:5, vertical cap) |
 | agent proof | `mcp.mp4` (+`mcp-poster.png`) | video — the claim is a conversation flow, so the exhibit plays the tape (was `mcp-still.png` until the user call of 2026-08-24) |
-| skill drive | `terminal-hero.mp4` (+`terminal-hero-poster.png`) | video — a command changing the visible view is the motion rule's own example; 0.20 plays the live session inside gadak's own pane (16:10 at column width — the take is the window itself, so no vertical cap). Was `claude-drive-vertical.mp4` from v0.17.2 |
+| skill drive | `terminal-hero.mp4` (+`terminal-hero-poster.png`), per locale via `mediaFor` | video — a command changing the visible view is the motion rule's own example; 0.20 plays the live session inside gadak's own pane (16:10 at column width — the take is the window itself, so no vertical cap). Was `claude-drive-vertical.mp4` from v0.17.2 |
 
 **Posters.** Every `*-poster.png` is a frame of its own mp4, at the mp4's
 size — the landing shows it until someone presses play. The default is the
@@ -163,9 +164,55 @@ locale there is what turns a recorded variant on, and `tools/doc-checks.sh`
 check 40 fails when a listed locale has no file in `docs/media/`, so neither
 half can land alone.
 
-`terminal-hero.mp4` deliberately has no variants: the CLI has no i18n and
-Claude's TUI is English, so a `ja` take would change two prompt strings inside
-an otherwise identical English frame — and it costs a live-model take.
+**`terminal-hero.mp4` gets a take per language too** (user decision
+2026-09-07, reversing the "deliberately has no variants" note this paragraph
+replaces). The old reasoning was that a `ja` take would only change two prompt
+strings inside an otherwise identical English frame; with the fixture
+translated (GDK-1556) that is no longer what changes. Each take is one
+language end to end — the chrome from that locale's catalog, the mirror
+translated on the drive's copy, and the two prompts written *in* that language
+rather than translated from the English pair
+(`e2e/demo/terminal-claude-demo.spec.ts` `PROMPTS`). What stays English in all
+three is what is not ours to translate: the gadak CLI has no i18n
+(`gadak claim NMA-140`, `bound to session`) and Claude Code's TUI is English.
+
+```bash
+bash e2e/demo/record-terminal-claude.sh                        # en
+GADAK_MEDIA_LOCALE=ko bash e2e/demo/record-terminal-claude.sh  # → terminal-hero.ko.{mp4,gif}, terminal-hero-poster.ko.png
+GADAK_MEDIA_LOCALE=ja bash e2e/demo/record-terminal-claude.sh
+```
+
+The recorder is the single owner of the translation for this clip, because
+this take has no `make media-*` target to hold it: after
+`prepare-claude-drive.sh` seeds `$GADAK_HOME_DIR/gadak.db` from
+`examples/demo.db`, a non-`en` run applies
+`tools/demo-i18n/apply.py <that copy> <locale>` **before** the per-take
+`migrate --from default`, so the `nimbus` workspace each take is recorded
+against is translated at the origin and not just in the chrome. It prints
+which locale and which strings file it used, and it drops a
+`.gadak-media-locale` beside the drive so a `--skip-prepare` run cannot
+translate a Korean mirror into Japanese (it refuses and tells you to re-seed).
+`examples/demo.db` is untouched — apply.py refuses it by path.
+
+One thing the translation cannot carry across that hop, and the recorder
+closes separately: **the catalog display names are the origin's, not the
+mirror's.** issuetap stores status / type / priority as ids and overlays the
+names in its own language, so a workspace migrated from a Korean mirror still
+serves `In Progress` and `Epic` (measured 2026-09-08). The knob is the
+workspace's own language (GDK-597), so a non-`en` run does
+`gadak --workspace nimbus config set locale <loc>` after the migrate and syncs
+once — `sync` sees the change and rebuilds the mirror. Two names stay English
+after that and are not a leak: priority names (`Highest`…`Lowest`, which gadak
+keeps English like a live `ko` Cloud site) and the two board statuses issuetap
+leaves untranslated in every locale (`Backlog`, `Selected for Development`).
+
+The palette beat is the one place the take's language reaches the *mechanism*
+rather than the pixels: the spec types the terminal action's own label
+(`palette.actionTerminal` — `Terminal` / `터미널` / `ターミナル`) because the
+palette matches action rows by case-insensitive substring over the rendered
+label, and typing the whole label also makes it an exact action match, which
+hoists the action block so Enter is locale-stable (GDK-300). A hard-coded
+`terminal` matches nothing under ko/ja.
 
 **`og.png` is the fourth asset in this set,** even though it is a Node render
 rather than a recording. Its tagline is baked into the pixels, so
@@ -370,7 +417,7 @@ make media-web     # Playwright → webm → gif + mp4 (self-contained)
 make media-search  # Playwright: ⌘K All search → search.gif + search.mp4
 make media-agent   # Playwright split: sql \| views open --keys + paper list → gif + mp4 (rig kept; the asset retired for terminal-demo)
 make media-terminal  # Playwright: gadak's own pane — claim, sql | views open --keys, --jql → terminal-demo.{mp4,gif,-poster.png}
-bash e2e/demo/record-terminal-claude.sh  # live Claude Code in the pane → terminal-hero.{mp4,gif,-poster.png} (not in `make media`; needs a Claude login; run `bash tools/tapes/prepare-claude-drive.sh --clean` after)
+bash e2e/demo/record-terminal-claude.sh  # live Claude Code in the pane → terminal-hero.{mp4,gif,-poster.png} (not in `make media`; needs a Claude login; GADAK_MEDIA_LOCALE=ko|ja for the localized takes; run `bash tools/tapes/prepare-claude-drive.sh --clean` after)
 make media-mcp     # VHS: claude mcp add + live Claude Code session on the mirror
 make media-prep    # build gadak + seed tools/tapes/.tmp from demo.db
 bash e2e/demo/record-promo.sh  # tokens + dashboards split (not in `make media`)

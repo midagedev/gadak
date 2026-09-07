@@ -52,13 +52,57 @@ SRC_DIM="$(probe_dim "$WEBM")"
 # scripted pipe-and-JQL take is the 4:5 social cut (terminal.config.ts).
 # Each ships under its own name so one cannot overwrite the other.
 case "$SRC_DIM" in
-  1440x900)  OUT_NAME="terminal-hero.mp4" ;;
-  1080x1350) OUT_NAME="terminal-demo.mp4" ;;
+  1440x900)  STEM="terminal-hero" ;;
+  1080x1350) STEM="terminal-demo" ;;
   *)
     echo "export-terminal: source ${SRC_DIM}, want 1440x900 (claude take) or 1080x1350 (scripted take)" >&2
     exit 1
     ;;
 esac
+
+# The hero carries the product's own UI *and* a translated mirror in its
+# pixels, so it is a per-language asset like search and scale (GDK-1501 /
+# GDK-1556): en keeps the bare names, ko and ja get the tag as the last
+# segment before the extension — which is the shape site/src/i18n.ts
+# mediaFor() asks the page for. The 4:5 scripted take is a shell demo whose
+# only chrome is the CLI, and the CLI has no i18n, so it stays one file.
+TAG=""
+if [[ "$STEM" == "terminal-hero" ]]; then
+  LOCALE="${GADAK_MEDIA_LOCALE:-en}"
+  case "$LOCALE" in
+    en) TAG="" ;;
+    ko|ja) TAG=".$LOCALE" ;;
+    *) echo "export-terminal: GADAK_MEDIA_LOCALE must be en|ko|ja, got '$LOCALE'" >&2; exit 2 ;;
+  esac
+  # The take has to say which language it is. Running this by hand over a
+  # results directory an earlier take of another locale left behind produced
+  # an mp4 full of English pixels under a Japanese name, and nothing said so
+  # (measured 2026-09-07 on export-search.sh, the sibling this check is
+  # copied from). record-terminal-claude.sh rm -rf's the directory per take,
+  # so the failure only reaches a hand-run export — which is the form
+  # MEDIA.md teaches. terminal-claude-demo.spec.ts writes the stamp; a
+  # mismatch stops here.
+  STAMP="$RESULTS/.gadak-media-locale"
+  if [[ ! -f "$STAMP" ]]; then
+    echo "export-terminal: $RESULTS carries no locale stamp -- it predates GDK-1501 or was not written by terminal-claude-demo.spec.ts." >&2
+    echo "  re-record: GADAK_MEDIA_LOCALE=$LOCALE bash e2e/demo/record-terminal-claude.sh" >&2
+    exit 3
+  fi
+  TOOK="$(tr -d '[:space:]' <"$STAMP")"
+  if [[ "$TOOK" != "$LOCALE" ]]; then
+    echo "export-terminal: the take under $RESULTS was recorded in '$TOOK', not '$LOCALE' -- exporting it would name ${TOOK} pixels 'terminal-hero.$LOCALE.mp4'." >&2
+    echo "  re-record: GADAK_MEDIA_LOCALE=$LOCALE bash e2e/demo/record-terminal-claude.sh" >&2
+    exit 3
+  fi
+  echo "export-terminal: locale $LOCALE → ${STEM}${TAG}.mp4, ${STEM}${TAG}.gif, ${STEM}-poster${TAG}.png"
+fi
+OUT_NAME="${STEM}${TAG}.mp4"
+GIF_NAME="${STEM}${TAG}.gif"
+# The poster keeps `-poster` glued to the stem and takes the locale tag last,
+# the way export-search.sh writes search-poster.ja.png — not the
+# `${OUT_NAME%.mp4}-poster.png` shape, which would have produced
+# terminal-hero.ja-poster.png and a site asking for a file nobody wrote.
+POSTER_NAME="${STEM}-poster${TAG}.png"
 
 # No camera work. The 4:5 cut needed a zoom because a portrait crop of a
 # three-column app leaves the terminal too small to read, and the zoom was
@@ -116,8 +160,7 @@ ls -lh "$OUT_DIR/$OUT_NAME"
 # summons the pane, so its first frame shows neither the shell nor the board
 # (both 2026-09-07 posters were the palette over a blurred list). The last
 # frame is the payoff: the view the agent produced, the pane under it.
-STEM="${OUT_NAME%.mp4}"
-ffmpeg -y -v error -sseof -0.3 -i "$OUT_DIR/$OUT_NAME" -frames:v 1 "$OUT_DIR/${STEM}-poster.png"
+ffmpeg -y -v error -sseof -0.3 -i "$OUT_DIR/$OUT_NAME" -frames:v 1 "$OUT_DIR/$POSTER_NAME"
 
 # GIF for the README, from the *cut* mp4 so it carries the same pacing.
 # Width is the README's render width at 2x: the hero sits at 900 (→ 1200 is
@@ -137,11 +180,11 @@ make_gif() {
     "$PALETTE"
   ffmpeg -y -v error -i "$OUT_DIR/$OUT_NAME" -i "$PALETTE" \
     -lavfi "fps=${fps},scale=${width}:-1:flags=lanczos[x];[x][1:v]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle" \
-    "$OUT_DIR/${STEM}.gif"
+    "$OUT_DIR/$GIF_NAME"
 }
 MAX_BYTES=$((8 * 1024 * 1024))
-gif_bytes() { wc -c <"$OUT_DIR/${STEM}.gif" | tr -d ' '; }
+gif_bytes() { wc -c <"$OUT_DIR/$GIF_NAME" | tr -d ' '; }
 make_gif 9 "$GIF_WIDTH" 128
 if (( $(gif_bytes) > MAX_BYTES )); then make_gif 8 "$GIF_WIDTH" 96; fi
 if (( $(gif_bytes) > MAX_BYTES )); then make_gif 8 $(( GIF_WIDTH * 3 / 4 )) 64; fi
-echo "export-terminal: wrote ${STEM}.gif ($(gif_bytes) bytes), ${STEM}-poster.png"
+echo "export-terminal: wrote $GIF_NAME ($(gif_bytes) bytes), $POSTER_NAME"

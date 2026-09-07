@@ -32,11 +32,11 @@ const storeHref = 'https://apps.microsoft.com/detail/9NZW91TXH36G'
       <Door href="/demo/" title={t.hero.doors.demoTitle} sub={t.hero.doors.demoSub} />
     </div>
     <figure class="flagship">
-      {/* The two clips below carry localized UI in their pixels, so each
-          asks mediaFor for this locale's cut and falls back to the English
-          take until that cut is recorded (MEDIA_LOCALES in i18n.ts). The
-          agent clip further down does not: its frame is a shell, and the
-          CLI has no i18n to localize. */}
+      {/* Every clip on this page carries localized UI in its pixels — the
+          agent one further down included, since its ko and ja takes are one
+          language end to end — so each asks mediaFor for this locale's cut
+          and falls back to the English take until that cut is recorded
+          (MEDIA_LOCALES in i18n.ts). */}
       <MediaSlot
         slot={t.landing.flagshipSlot}
         src={mediaFor(lang, '/media/scale.mp4')}
@@ -103,11 +103,17 @@ const storeHref = 'https://apps.microsoft.com/detail/9NZW91TXH36G'
     <p>{t.agent.body}</p>
     <figure class="media-pair">
       {/* The window itself: Claude Code in gadak's own pane, and the board
-          it moves is the one above it. 16:10, full column width. */}
+          it moves is the one above it. 16:10, full column width.
+
+          Localized like the two clips above since 2026-09-07: each locale's
+          take is one language end to end — chrome, mirror and the prompts
+          typed into the pane — so this asks mediaFor for this locale's cut
+          and falls back to the English take until it is recorded
+          (MEDIA_LOCALES in i18n.ts). */}
       <MediaSlot
         slot={t.landing.agentSlot}
-        src="/media/terminal-hero.mp4"
-        poster="/media/terminal-hero-poster.png"
+        src={mediaFor(lang, '/media/terminal-hero.mp4')}
+        poster={mediaFor(lang, '/media/terminal-hero-poster.png')}
       />
       <figcaption>{t.agent.driveCaption}</figcaption>
     </figure>

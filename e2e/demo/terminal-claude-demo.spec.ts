@@ -12,31 +12,67 @@
  * is Claude's own choice, and the list and the dashboard beside them are the
  * app reacting to what Claude actually wrote.
  *
- * The prompts are Korean on purpose. The mirror is English (examples/demo.db)
- * and the UI is English, so a Korean sentence landing on the right five rows
- * is the clip's second claim: the words you ask in are yours, the board is
- * still the team's.
+ * **The claim is "the agent in the window, in your language."** Through
+ * 2026-09-07 this clip was one global take — English UI, English mirror,
+ * Korean prompts — and its second claim was the mismatch itself: a Korean
+ * sentence landing on an English board. That is not the claim any more. Each
+ * locale gets its own take and each take is one language end to end: the
+ * chrome from that locale's catalog, the mirror translated on the drive copy
+ * (tools/demo-i18n/apply.py, GDK-1556), and the prompts written in it. The
+ * Korean viewer is not shown a translation of someone else's demo.
+ *
+ * What stays English in every take, because it is not ours to translate: the
+ * gadak CLI has no i18n (`bound to session` is its own output) and Claude
+ * Code's TUI is English (`Welcome to Claude Code`). Those two are asserted as
+ * literals; everything the *app* renders is read out of the catalog.
  *
  * Beats:
- *   1. The list at rest — Epics, on a real mirror
- *   2. ⌘K → "Terminal" opens the pane
+ *   1. The list at rest — Epics, on a real mirror, in this take's language
+ *   2. ⌘K → the Terminal action, named in this locale, opens the pane
  *      `gadak claim NMA-140` — the row moves, the roster tab takes the key
  *   3. `claude` boots inside it
- *   4. "…담당한 이슈 중에 최근에 움직인 것 보여줘" — the list becomes that answer
- *   5. "이슈 라벨 비율 대시보드 만들어서 열어줘" — and the same pane paints a wall
+ *   4. the first prompt — the list becomes that answer
+ *   5. the second prompt — and the same pane paints a wall
  *
  * Gated by GADAK_MEDIA=1, and driven by record-terminal-claude.sh — which
- * owns the serve, the isolated agent HOME and the frozen GADAK_HOME. Running
- * this config on its own attaches to whatever is on the port and will record
- * the operator's real home directory into the frame.
+ * owns the serve, the isolated agent HOME, the frozen GADAK_HOME and the
+ * translation applied to it. Running this config on its own attaches to
+ * whatever is on the port and will record the operator's real home directory
+ * into the frame.
  *
  * Viewport and video size must stay 1440×900 (terminal-claude.config.ts) or
  * Playwright letterboxes the capture.
  */
-import { test, expect, type Page } from '@playwright/test'
-import { forceLocale } from '../helpers'
+import { test, expect, type Page, type TestInfo } from '@playwright/test'
+import { writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import { catalogFor, forceLocale, mediaLocale, MEDIA_LOCALE_STAMP } from '../helpers'
+import type { Locale } from '../../web/src/lib/i18n/types'
 
 const isMedia = !!process.env.GADAK_MEDIA
+
+/**
+ * The UI language this take records in (GADAK_MEDIA_LOCALE, default en).
+ *
+ * The chrome below is read out of that locale's catalog rather than restated
+ * as an English literal, and the mirror under it is the translated copy
+ * record-terminal-claude.sh applied to the drive's gadak.db for this locale.
+ */
+const LOCALE = mediaLocale()
+const t = catalogFor(LOCALE)
+
+/**
+ * Stamp the locale beside the take, the way search-demo.spec.ts does.
+ *
+ * Measured 2026-09-07 on the sibling clip: running an export by hand with
+ * GADAK_MEDIA_LOCALE=ja over a results directory left by an earlier English
+ * take produced an mp4 full of English pixels under a Japanese name, and
+ * nothing said so. The take now carries its own language, and
+ * export-terminal.sh refuses a mismatch.
+ */
+async function stampLocale(testInfo: TestInfo): Promise<void> {
+  await writeFile(join(testInfo.project.outputDir, MEDIA_LOCALE_STAMP), `${LOCALE}\n`, 'utf8')
+}
 
 /** Pause between beats so a human can read the frame. */
 async function beat(page: Page, ms = 700): Promise<void> {
@@ -72,7 +108,12 @@ async function focusPane(page: Page): Promise<void> {
  */
 async function ask(page: Page, prompt: string): Promise<void> {
   await focusPane(page)
-  await page.keyboard.type(prompt, { delay: 55 })
+  // A Korean or Japanese sentence is about half the characters of the
+  // English one, and keyboard.type has no IME — every character lands
+  // finished. 55ms per character reads as typing in English and as a paste
+  // in ko/ja; 90ms puts the three takes' typing time within a second of each
+  // other and lets a native viewer read the sentence as it forms.
+  await page.keyboard.type(prompt, { delay: LOCALE === 'en' ? 55 : 90 })
   await beat(page, 900)
   await page.keyboard.press('Enter')
 }
@@ -103,27 +144,50 @@ async function readTerm(page: Page): Promise<string> {
 }
 
 /**
- * The two prompts. Korean, and phrased the way someone actually asks — no
- * key, no JQL, no column names.
+ * The two prompts, per locale. Phrased the way someone actually asks — no
+ * key, no JQL, no column names — and each one written in its own language
+ * rather than translated from the English line.
  *
- * The name is spelled in full on purpose. Take 1 asked for "다나" and Claude
- * stopped to ask which one it meant: the demo config's identity is
- * dana@example.com, the assignee in the mirror is Dana Whitfield, and the
- * changelog entries on those issues were written by Alex Kim. It was right to
- * ask, and a clarifying question is the one thing a 40-second clip has no
- * room for. Ambiguity in the prompt is the recorder's bug, not the model's.
+ * The name is spelled in full on purpose, and that holds in all three. Take 1
+ * asked for "다나" and Claude stopped to ask which one it meant: the demo
+ * config's identity is dana@example.com, the assignee in the mirror is Dana
+ * Whitfield, and the changelog entries on those issues were written by Alex
+ * Kim. It was right to ask, and a clarifying question is the one thing a
+ * 40-second clip has no room for. Ambiguity in the prompt is the recorder's
+ * bug, not the model's. The name stays Latin in the ko and ja takes because
+ * that is what the mirror's assignee field says — the fixture translation
+ * covers the prose, not the people.
+ *
+ * "open it" is load-bearing in all three, not politeness — "열어줘",
+ * "開いて". Take 1 authored and saved a dashboard and stopped there, which is
+ * the correct reading of "만들어줘" / "make one" and leaves the clip ending on
+ * a terminal. `dashboards open` is what takes the column, and it is a
+ * separate verb the skill teaches.
  */
-const ASK_ACTIVITY = 'Dana Whitfield이 담당한 이슈 중에 최근에 움직인 것 보여줘'
-// "열어줘" is load-bearing, not politeness. Take 1 authored and saved a
-// dashboard and stopped there, which is the correct reading of "만들어줘" and
-// leaves the clip ending on a terminal. `dashboards open` is what takes the
-// column, and it is a separate verb the skill teaches.
-const ASK_DASHBOARD = '이슈 라벨 비율 대시보드 만들어서 열어줘'
+const PROMPTS: Record<Locale, { activity: string; dashboard: string }> = {
+  en: {
+    activity: "Show me Dana Whitfield's issues that moved recently",
+    dashboard: 'Make a dashboard of issue label ratios and open it',
+  },
+  ko: {
+    activity: 'Dana Whitfield이 담당한 이슈 중에 최근에 움직인 것 보여줘',
+    dashboard: '이슈 라벨 비율 대시보드 만들어서 열어줘',
+  },
+  ja: {
+    activity: 'Dana Whitfield が担当している課題のうち、最近動いたものを見せて',
+    dashboard: '課題ラベルの比率をダッシュボードにして開いて',
+  },
+}
+const ASK_ACTIVITY = PROMPTS[LOCALE].activity
+const ASK_DASHBOARD = PROMPTS[LOCALE].dashboard
 
 test.describe('terminal claude demo', () => {
   test.skip(!isMedia, 'GADAK_MEDIA=1 only — media pipeline recording')
 
-  test('the agent is in the window: two Korean prompts move the board', async ({ page }) => {
+  test('the agent is in the window: two prompts in this locale move the board', async ({
+    page,
+  }, testInfo) => {
+    await stampLocale(testInfo)
     // The pane's stored width is per-browser, and a fresh recording context
     // has none — the default ratio would open it at 634px here, and the take
     // wants the width to be a decision rather than a ratio. 640 is also the
@@ -137,23 +201,43 @@ test.describe('terminal claude demo', () => {
         /* private mode */
       }
     })
-    await forceLocale(page, 'en')
+    await forceLocale(page, LOCALE)
 
     // Beat 1 — the list at rest.
     await page.goto('/#/')
     await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 30_000 })
     await expect(page.getByTestId('issue-list-scroller')).toBeVisible({ timeout: 30_000 })
     const atRest = await page.getByTestId('list-count').textContent()
-    await beat(page, 1600)
+    // Into the take log: beat 4's contract is "the count changed", and a
+    // rejected take is unreadable without knowing what it was at rest.
+    console.log(`terminal-claude: locale ${LOCALE}, list at rest = ${JSON.stringify(atRest)}`)
+    // 2000, not 1600: the first thing a ko/ja viewer checks is whether the
+    // chips and headers are really their language. The head is time-lapsed
+    // by dense-cut.py anyway, so the hold costs the cut little.
+    await beat(page, 2000)
 
-    // Beat 2 — ⌘K, "Terminal", Enter. The chord (Ctrl+`) is the shortcut a
-    // regular carries; the palette is how the pane is *discovered*, and it
-    // says on camera that this is a first-class command, not a hidden key.
+    // Beat 2 — ⌘K, the Terminal action, Enter. The chord (Ctrl+`) is the
+    // shortcut a regular carries; the palette is how the pane is *discovered*,
+    // and it says on camera that this is a first-class command, not a hidden
+    // key.
+    //
+    // What gets typed is the action's own label in this locale
+    // (palette.actionTerminal — en "Terminal", ko "터미널", ja "ターミナル"),
+    // because the palette matches action rows by case-insensitive substring
+    // over the rendered label (CommandPalette.svelte `matches`). Typing the
+    // whole label also makes it an *exact* action match
+    // (`isExactActionMatch`), which hoists the action block above docs and
+    // issues so Enter is locale-stable (GDK-300). A hard-coded "terminal"
+    // matches nothing under ko/ja and the take would stall at ⌘K.
     await page.keyboard.press('ControlOrMeta+k')
-    const palette = page.getByRole('dialog', { name: 'Command palette' })
+    const palette = page.getByRole('dialog', { name: t['palette.title'] })
     await expect(palette).toBeVisible()
     await beat(page, 700)
-    await page.keyboard.type('terminal', { delay: 60 })
+    // "Terminal" is 8 characters, "터미널" 3, "ターミナル" 5 — at one delay
+    // the discovery beat would be a third as long in Korean. The per-character
+    // delay is derived from the label so the typing lasts ~480ms everywhere.
+    const label = t['palette.actionTerminal']
+    await page.keyboard.type(label, { delay: Math.max(60, Math.round(480 / label.length)) })
     await expect(palette.getByTestId('palette-action-terminal')).toBeVisible()
     await beat(page, 900)
     await page.keyboard.press('Enter')
@@ -174,18 +258,28 @@ test.describe('terminal claude demo', () => {
     // agent about to start in it inherits that. Real write: the take runs
     // on the built-in tracker (record-terminal-claude.sh), not the fixture's
     // fake Jira.
+    //
+    // The command, the key and `bound to session` are English in all three
+    // takes: the CLI has no i18n, and pretending otherwise in a recording
+    // would be the one false frame in the clip.
     await focusPane(page)
     await page.keyboard.type('gadak claim NMA-140', { delay: 60 })
     await beat(page, 500)
     await page.keyboard.press('Enter')
     await expect.poll(async () => readTerm(page), { timeout: 30_000 }).toContain('bound to session')
+    // Two facts land here and they get a hold each: first the row moving to
+    // In Progress on the board (the payoff a ko/ja viewer can read — the CLI
+    // line above it is English in every take), then the roster tab taking
+    // the key.
+    await beat(page, 900)
     await expect(page.getByTestId('terminal-strip-name').first()).toHaveText('NMA-140', {
       timeout: 15_000,
     })
-    await beat(page, 1600)
+    await beat(page, 1200)
 
     // Beat 3 — `claude`, in gadak's own shell. The TUI boot is the slow part;
-    // the input box is what tells us it is ready to be typed into.
+    // the input box is what tells us it is ready to be typed into. Claude
+    // Code's own chrome is English wherever the take is recorded.
     await focusPane(page)
     await page.keyboard.type('claude', { delay: 90 })
     await beat(page, 500)
@@ -195,9 +289,9 @@ test.describe('terminal claude demo', () => {
       .toMatch(/Welcome to Claude Code|for shortcuts|\? for shortcuts/i)
     await beat(page, 2000)
 
-    // Beat 4 — a Korean sentence becomes the list. What Claude runs to get
-    // there is its own; the skill teaches `views open`, and the app is
-    // watching that handoff.
+    // Beat 4 — a sentence in the viewer's own language becomes the list. What
+    // Claude runs to get there is its own; the skill teaches `views open`,
+    // and the app is watching that handoff.
     await ask(page, ASK_ACTIVITY)
     await expect(page.getByTestId('list-count')).not.toHaveText(atRest ?? '', {
       timeout: 300_000,
@@ -214,7 +308,8 @@ test.describe('terminal claude demo', () => {
     // saved and opened a dashboard whose every card read "undefined" and
     // "NaN%" — the datasource SQL was right and the page never got the rows.
     // A contract that only asks "is a dashboard open" passes that take, so
-    // this asks what the eye asks.
+    // this asks what the eye asks. Both patterns hold in a translated take:
+    // they come from the renderer, not from the fixture's prose.
     const wall = page.frameLocator('[data-testid="dashboard-frame"]').locator('body')
     await expect(wall).toContainText(/\d/, { timeout: 60_000 })
     await expect(wall).not.toContainText(/undefined|NaN/i)

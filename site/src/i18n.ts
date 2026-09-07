@@ -355,13 +355,19 @@ export function pathFor(l: Locale, enPath: string): string {
 export const MEDIA_LOCALES: Record<string, readonly Exclude<Locale, 'en'>[]> = {
   // The share card is a Node render, not a recording — all three exist.
   '/media/og.png': ['ko', 'ja'],
-  // The two landing clips and their posters. Recording them is a separate
-  // round (GDK-1501): until the files land, this stays ['ko','ja']-free and
-  // every locale is served the English take.
+  // The three landing clips and their posters. Every one of them carries the
+  // product's own UI — and, since GDK-1556, a mirror translated into the same
+  // language — in its pixels, so each is a per-language asset. The hero
+  // joined this list on 2026-09-07 (the user reversed "terminal-hero has no
+  // variants"): its ko and ja takes are one language end to end, prompts
+  // included. Recording them is a separate round: until the files land, an
+  // entry stays ['ko','ja']-free and every locale is served the English take.
   '/media/scale.mp4': [],
   '/media/scale-poster.png': [],
   '/media/search.mp4': [],
   '/media/search-poster.png': [],
+  '/media/terminal-hero.mp4': [],
+  '/media/terminal-hero-poster.png': [],
 }
 
 /**
@@ -373,7 +379,7 @@ export const MEDIA_LOCALES: Record<string, readonly Exclude<Locale, 'en'>[]> = {
  * A path with no cut in this locale — and every path in `en` — comes back
  * unchanged, so a caller never has to know which is which. A path missing
  * from MEDIA_LOCALES entirely is also returned unchanged: an asset that is
- * one file in every language (terminal-hero, the stills) needs no entry.
+ * one file in every language (the app stills, the CLI shots) needs no entry.
  */
 export function mediaFor(lang: Locale, path: string): string {
   if (lang === 'en') return path

@@ -23,8 +23,17 @@
 # Live model. Requires ffmpeg, Playwright chromium, and a Claude Code login.
 # Not part of `make media` — same reason as media-mcp and claude-drive.
 #
+# One take per language (GDK-1501 / GDK-1556). GADAK_MEDIA_LOCALE picks it,
+# and it drives all three halves at once: the spec pins the UI from it
+# (e2e/helpers.ts mediaLocale → forceLocale), this script applies that
+# locale's fixture translation to the drive's mirror copy so the board under
+# the localized chrome is in the same language, and export-terminal.sh reads
+# it to name what it writes. Unset is `en` — the committed English fixture,
+# untranslated.
+#
 # Usage:
-#   bash e2e/demo/record-terminal-claude.sh                # prepare + record
+#   bash e2e/demo/record-terminal-claude.sh                # prepare + record (en)
+#   GADAK_MEDIA_LOCALE=ko bash e2e/demo/record-terminal-claude.sh
 #   bash e2e/demo/record-terminal-claude.sh --skip-prepare # reuse the home
 #
 # Run `bash tools/tapes/prepare-claude-drive.sh --clean` afterwards — the
@@ -62,6 +71,25 @@ OUT="$ROOT/e2e/.tmp/terminal-claude"
 RESULTS="$ROOT/e2e/.tmp/test-results-terminal-claude"
 MAX_TAKES="${TERMINAL_CLAUDE_MAX_TAKES:-3}"
 
+# The language of this take. Validated here rather than left to the spec's
+# own throw, because the two halves that follow (the translation applied to
+# the mirror, and the export's filenames) both key on it and a typo would
+# otherwise reach them as "en".
+LOCALE="${GADAK_MEDIA_LOCALE:-en}"
+case "$LOCALE" in
+  en|ko|ja) ;;
+  *) echo "record-terminal-claude: GADAK_MEDIA_LOCALE must be en|ko|ja, got '$LOCALE'" >&2; exit 2 ;;
+esac
+export GADAK_MEDIA_LOCALE="$LOCALE"
+STRINGS="${GADAK_DEMO_I18N_STRINGS:-$ROOT/examples/demo-i18n/$LOCALE.json}"
+# Which language the drive's mirror is currently in. prepare-claude-drive.sh
+# re-seeds it from examples/demo.db (English) and this file is dropped then;
+# a translated seed writes it. --skip-prepare over a mirror already translated
+# into *another* language is the one unrecoverable case — apply.py keys the
+# display names by their English values, so a ja pass over a ko mirror would
+# translate the prose and leave the priorities Korean. Refuse instead.
+SEED_STAMP="$DRIVE_ROOT/.gadak-media-locale"
+
 command -v ffmpeg >/dev/null || { echo "record-terminal-claude: ffmpeg required" >&2; exit 1; }
 command -v ffprobe >/dev/null || { echo "record-terminal-claude: ffprobe required" >&2; exit 1; }
 command -v claude >/dev/null || { echo "record-terminal-claude: claude CLI required" >&2; exit 1; }
@@ -72,9 +100,46 @@ mkdir -p "$OUT"
 if [[ -z "$SKIP_PREPARE" ]]; then
   echo "record-terminal-claude: preparing isolated HOME + frozen GADAK_HOME…"
   bash tools/tapes/prepare-claude-drive.sh
+  # The mirror is a fresh copy of examples/demo.db again, so whatever the
+  # last run translated it into is gone.
+  rm -f "$SEED_STAMP"
 fi
 [[ -f "$ENV_SH" ]] || { echo "record-terminal-claude: $ENV_SH missing — run without --skip-prepare" >&2; exit 1; }
 [[ -x "$BIN" ]] || { echo "record-terminal-claude: $BIN missing — run without --skip-prepare" >&2; exit 1; }
+
+# ── The mirror speaks the take's language (GDK-1556) ─────────────────────
+# prepare-claude-drive.sh seeds $GADAK_HOME_DIR/gadak.db from
+# examples/demo.db, which is English and must stay English — the whole e2e
+# suite keys on its strings, and apply.py refuses to edit it in place for
+# exactly that reason. The copy on the drive is not the fixture, so the
+# translation goes there, once, before the per-take `migrate --from default`
+# below rebuilds the nimbus workspace from it. Every take therefore sees a
+# translated origin, not just a translated shell.
+#
+# The saved-filter string e2e/serve.sh localises ('Open in NMA') has no
+# counterpart here: prepare-claude-drive.sh inserts nothing of its own into
+# the mirror — its only writes are the sync_state / items / sources
+# timestamps (tools/tapes/prepare-claude-drive.sh:110) — so the fixture is
+# the whole of what the frame reads.
+SEEDED="en"
+[[ -f "$SEED_STAMP" ]] && SEEDED="$(tr -d '[:space:]' <"$SEED_STAMP")"
+if [[ "$SEEDED" != "en" && "$SEEDED" != "$LOCALE" ]]; then
+  echo "record-terminal-claude: the drive mirror at $GADAK_HOME_DIR is already translated to '$SEEDED', not '$LOCALE'." >&2
+  echo "  re-run without --skip-prepare to re-seed it from examples/demo.db first." >&2
+  exit 3
+fi
+if [[ "$LOCALE" == "en" ]]; then
+  echo "record-terminal-claude: locale en — recording over the committed English fixture, no translation applied"
+else
+  [[ -f "$STRINGS" ]] || {
+    echo "record-terminal-claude: locale $LOCALE has no translation file at $STRINGS" >&2
+    echo "  write it (tools/demo-i18n/extract.py documents the ids) or point GADAK_DEMO_I18N_STRINGS at a partial one." >&2
+    exit 2
+  }
+  echo "record-terminal-claude: locale $LOCALE — applying $STRINGS to $GADAK_HOME_DIR/gadak.db"
+  python3 tools/demo-i18n/apply.py "$GADAK_HOME_DIR/gadak.db" "$LOCALE" --strings "$STRINGS"
+  printf '%s\n' "$LOCALE" >"$SEED_STAMP"
+fi
 
 # prepare-claude-drive.sh trusts the *tape's* cwd (its agent workspace), but
 # the pane does not open there. Where it opens has moved once already —
@@ -176,7 +241,7 @@ validate_take() {
 
 take=1
 while (( take <= MAX_TAKES )); do
-  echo "record-terminal-claude: === take ${take}/${MAX_TAKES} ==="
+  echo "record-terminal-claude: === take ${take}/${MAX_TAKES} (locale ${LOCALE}) ==="
   rm -rf "$RESULTS"
   # Each take starts clean: a dashboard left by take 1 would pass take 2's
   # contract without the agent doing anything. Dashboards, visits and search
@@ -189,6 +254,26 @@ while (( take <= MAX_TAKES )); do
   rm -rf "$GADAK_HOME_DIR/profiles/$WS"
   echo "record-terminal-claude: migrating the mirror onto the built-in tracker (workspace $WS)…"
   GADAK_HOME="$GADAK_HOME_DIR" "$BIN" --workspace "$WS" migrate --from default --skip-attachments >"$OUT/migrate-${take}.log" 2>&1
+
+  # The fixture translation covers the mirror's *prose* — titles,
+  # descriptions, comments, pages. The catalog display names (status, issue
+  # type) do not survive the hop onto the built-in tracker: issuetap stores
+  # ids and overlays the names in the origin's own language, so a migrated
+  # workspace serves English ones whatever the source said. Measured
+  # 2026-09-08 on a ko drive: 진행 중 titles under `In Progress` / `Epic`
+  # chips. The knob is the workspace's own (GDK-597), and `sync` notices the
+  # change and rebuilds ("locale changed en → ko: rebuilding the mirror").
+  #
+  # Two things stay English on purpose and are not a miss here: priority
+  # names (Highest…Lowest — gadak keeps them English like a live ko Cloud
+  # site) and the two board statuses issuetap leaves untranslated in every
+  # locale (`Backlog`, `Selected for Development`). Both are the origin
+  # modelling Jira, not the take leaking its recorder's language.
+  if [[ "$LOCALE" != "en" ]]; then
+    echo "record-terminal-claude: workspace $WS locale → $LOCALE (display names follow it)"
+    GADAK_HOME="$GADAK_HOME_DIR" "$BIN" --workspace "$WS" config set locale "$LOCALE" >>"$OUT/migrate-${take}.log" 2>&1
+    GADAK_HOME="$GADAK_HOME_DIR" "$BIN" --workspace "$WS" sync >>"$OUT/migrate-${take}.log" 2>&1
+  fi
 
   stop_serve
   start_serve
