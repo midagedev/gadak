@@ -1213,20 +1213,10 @@ func (r Report) Table() string {
 		func(i int) string { return resumeCell(buckets[i]) },
 		pct(func(b *Bucket) *float64 { return b.Resume }))
 	metricRow("wip age p85",
-		func(i int) string {
-			if buckets[i].WipP85 == nil {
-				return "—"
-			}
-			return fmt.Sprintf("%.1fd", *buckets[i].WipP85)
-		},
+		func(i int) string { return daysCell(buckets[i].WipP85) },
 		pct(func(b *Bucket) *float64 { return b.WipP85 }))
 	metricRow("wip age max",
-		func(i int) string {
-			if buckets[i].WipMax == nil {
-				return "—"
-			}
-			return fmt.Sprintf("%.1fd", *buckets[i].WipMax)
-		},
+		func(i int) string { return daysCell(buckets[i].WipMax) },
 		pct(func(b *Bucket) *float64 { return b.WipMax }))
 	metricRow("in progress",
 		func(i int) string {
@@ -1245,20 +1235,10 @@ func (r Report) Table() string {
 		},
 		func(i int) string { return changeCount(buckets[i-1].Closed, buckets[i].Closed) })
 	metricRow("cycle p50",
-		func(i int) string {
-			if buckets[i].CycleP50 == nil {
-				return "—"
-			}
-			return fmt.Sprintf("%.1fd", *buckets[i].CycleP50)
-		},
+		func(i int) string { return daysCell(buckets[i].CycleP50) },
 		pct(func(b *Bucket) *float64 { return b.CycleP50 }))
 	metricRow("cycle p85",
-		func(i int) string {
-			if buckets[i].CycleP85 == nil {
-				return "—"
-			}
-			return fmt.Sprintf("%.1fd", *buckets[i].CycleP85)
-		},
+		func(i int) string { return daysCell(buckets[i].CycleP85) },
 		pct(func(b *Bucket) *float64 { return b.CycleP85 }))
 	metricRow("mismatch",
 		func(i int) string { return strconv.Itoa(buckets[i].Mismatch) },
@@ -1344,8 +1324,26 @@ func capKeys(keys []string) ([]string, bool) {
 	return keys[:MaxJSONKeys], true
 }
 
+// roundDays is the one rounding every day-valued metric passes through —
+// JSON emits it, and the table formats it with %.1f. They used to disagree:
+// JSON rounded to three decimals while the table printed the raw float, so a
+// week whose oldest WIP was 89.6499 days read "89.6d" beside a JSON 89.65
+// (which `%.1f` renders as 89.7). Any reader that re-derives the table cell
+// from the JSON — cmd/gadak's agreement test did — saw them drift whenever
+// the demo fixture's age crossed such a boundary (time-dependent, CI
+// 2026-09-07). Three decimals stay: the JSON contract is unchanged.
+func roundDays(v float64) float64 { return math.Round(v*1000) / 1000 }
+
+// daysCell prints a day-valued metric the way JSON rounds it, or a dash.
+func daysCell(p *float64) string {
+	if p == nil {
+		return "—"
+	}
+	return fmt.Sprintf("%.1fd", roundDays(*p))
+}
+
 func (r Report) JSON() Doc {
-	round := func(v float64) float64 { return math.Round(v*1000) / 1000 }
+	round := roundDays
 	out := Doc{
 		Buckets:     make([]BucketJSON, 0, len(r.Buckets)),
 		Definitions: map[string]string{},

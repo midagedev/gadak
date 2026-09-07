@@ -747,3 +747,45 @@ func TestRetroOldMirrorCycleDash(t *testing.T) {
 		t.Fatal("the in-progress row should still compute on a pre-v43 mirror")
 	}
 }
+
+// TestTableAndJSONRoundDaysTheSameWay — the table printed `%.1fd` of the raw
+// day count while JSON rounded to three decimals first, so a value such as
+// 89.6499 read "89.6d" in one and 89.65 in the other, and `%.1f` of that
+// 89.65 (a float just above the half) is "89.7d". The cmd/gadak agreement
+// test re-formats the JSON value and so failed whenever the demo fixture's
+// age landed on such a boundary (CI 2026-09-07, PR #93 — time-dependent,
+// because WIP age is measured against now). One rounding owner for both
+// surfaces closes the class. FAIL-first: red on the raw-`%.1f` table.
+func TestTableAndJSONRoundDaysTheSameWay(t *testing.T) {
+	now := time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)
+	v := 89.6499
+	rep := Report{Buckets: []Bucket{{From: now.AddDate(0, 0, -7), To: now, WipMax: &v, WipP85: &v, CycleP50: &v, CycleP85: &v}}}
+	doc := rep.JSON()
+	table := rep.Table()
+	for _, row := range []struct {
+		name string
+		json *float64
+	}{
+		{"wip age p85", doc.Buckets[0].WipP85},
+		{"wip age max", doc.Buckets[0].WipMax},
+		{"cycle p50", doc.Buckets[0].CycleP50},
+		{"cycle p85", doc.Buckets[0].CycleP85},
+	} {
+		want := fmt.Sprintf("%.1fd", *row.json)
+		var line string
+		for _, l := range strings.Split(table, "\n") {
+			if l == "definitions:" {
+				break // the footer restates every row name
+			}
+			if strings.HasPrefix(l, row.name) {
+				line = l
+			}
+		}
+		if line == "" {
+			t.Fatalf("table has no %q row:\n%s", row.name, table)
+		}
+		if !strings.Contains(line, want) {
+			t.Errorf("%s: table row %q does not carry the JSON value formatted (%s)", row.name, line, want)
+		}
+	}
+}
