@@ -32,7 +32,7 @@
     sessionLine,
     SCOPE_ALL_OPEN,
     SCOPE_DOCS_UPDATED,
-    SCOPE_ME,
+    SCOPE_MY_WORK,
     type Scope,
   } from '../lib/domain'
 
@@ -58,7 +58,7 @@
 
   const scopes = $derived(buildScopes(app.views, app.sources, app.me, app.pages))
   const scope = $derived<Scope>(
-    resolveScope(scopes, app.scopeId) ?? {
+    resolveScope(scopes, app.scopeId, app.me) ?? {
       id: SCOPE_ALL_OPEN,
       section: 'builtin',
       kind: 'issues',
@@ -228,7 +228,7 @@
     </div>
     {#if offlineBanner}
       <p class="offline">{t('app.offlineBanner')}</p>
-    {:else if view.fellBack && hasIdentity(app.me) && scope.id === SCOPE_ME}
+    {:else if view.fellBack && hasIdentity(app.me) && scope.id === SCOPE_MY_WORK}
       <p class="note">Nothing open is assigned to you.</p>
     {:else if view.fellBack}
       <p class="note">This serve has no identity to filter by.</p>
@@ -279,7 +279,7 @@
         <span class="n">{section.issues.length}</span>
       </div>
       {#each section.issues as issue (issue.issue_key)}
-        <Row {issue} showAssignee={view.scopeId !== SCOPE_ME} />
+        <Row {issue} showAssignee={view.scopeId !== SCOPE_MY_WORK} />
       {/each}
     {/each}
     <div class="foot" aria-hidden="true"></div>

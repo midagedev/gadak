@@ -16,7 +16,7 @@ edge that follows an issue from its row into its detail page.
 
 | Job | Screen | Budget |
 |---|---|---|
-| "What's on my plate?" | Issues (default tab), scope **Assigned to me** | glance — no taps |
+| "What's on my plate?" | Issues (default tab), scope **My issues** | glance — no taps |
 | "What moved while I was away?" | Issues, glance strip above the queue (GDK-871) | 0 taps |
 | "Show me the view I named at the desk" | Issues, scope picker on the heading | 1 tap |
 | "What's in this space / what changed in the wiki?" | Issues, Documents section of the same picker | 1 tap |
@@ -53,7 +53,7 @@ Three tabs + one push layer. No hamburger, no drawer, no nested stacks.
 **The tab is the object, the heading is the scope.** The desktop has no name
 for its list screen — its main column is titled by the current view's name.
 The phone adopts that model exactly: the tab says *Issues*, and the `<h1>`
-says whichever scope is showing (Assigned to me, All open, or a name the
+says whichever scope is showing (My issues, All open, or a name the
 developer typed at the desk). Linear, Gmail and Apple Mail all title the list
 with the current scope; none of them names it after a metaphor. That is why
 there is no "Queue" and no Mine/All toggle: both were words the phone
@@ -68,7 +68,7 @@ invented, and the heading tells the truth without either.
 │ Issues  │ Search  │ Shell  │ Pairing│  tab bar, bottom, always visible
 └────┬────┴────┬────┴────────┴────────┘  (Shell only once paired, §10)
      ├─► Scope picker (bottom sheet, opened by the heading)
-     │     My issues · Built-in · My views · Jira filters · Documents
+     │     Built-in views · My views · Jira filters · Documents
      └────► Detail (push, slides over tabs) — issue or page
                 └─► Transition sheet (issues only)
                 └─► linked issue / mentioned issue (replaces, back → list)
@@ -89,8 +89,9 @@ out; system back = the same edge):
 | Page detail | doc-row tap (Issues/Search) · search page hit | ← back button (top-left, 44pt) → the tab that opened it |
 | Transition sheet | status chip in Detail | scrim tap · Cancel · apply |
 
-The picker's sections are the desk's own, in the desk's order: My issues
-(Assigned to me) · Built-in views (All open) · My views · Jira filters ·
+The picker's sections are the desk's own, in the desk's order: Built-in views
+(the desk's five — My issues, Handed off, All open, Unassigned new, Reopened,
+under the desk's two stance sub-labels) · My views · Jira filters ·
 Documents. Documents is a section in this same sheet, never a fourth tab:
 the whole-mirror plate is named **Updated** (`docs.tabUpdated`) — the desk's
 all-documents surface is tabbed Viewed / Updated / Authors, and the phone
@@ -131,7 +132,7 @@ Dimensions are mobile-owned (`@theme` override after the import):
   `.type-subject`; `--font-mono` for issue keys and counts (identifiers look
   like identifiers); `--font-sans` for everything else.
 - The aesthetic risk, named: a serif ledger heading with a mono folio count
-  ("Assigned to me ·42") on a *phone tool*. It is what makes a capture of this
+  ("My issues ·42") on a *phone tool*. It is what makes a capture of this
   app unmistakably gadak and not a Tailwind template; if it reads as a
   newspaper gimmick in captures, the fallback is `.type-subject` on Detail
   titles only. The heading is also a control, so it carries a muted chevron
@@ -174,8 +175,8 @@ thing, the phone does not author a second one — a different word for the same
 thing *is* the defect, not a style preference.
 
 The consequence is concrete: the tab is `doc.issues`, the default heading is
-`personal.myAssignee`, the fallback heading is `view.allOpen.name`, the picker
-sections are `personal.myIssues` / `sidebar.builtinViews` / `sidebar.myViews` /
+`view.myWork.name`, the fallback heading is `view.allOpen.name`, the picker
+sections are `sidebar.builtinViews` / `sidebar.myViews` /
 `sidebar.jiraFilters` / `sidebar.docs`, the whole-mirror documents plate is
 `docs.tabUpdated` (desk structure → phone row: Updated, not an invented "All
 documents"), sync is `sidebar.syncNow`, and every sheet's dismiss is
@@ -242,12 +243,15 @@ the transition *action* lives with compose and send.
 - **Issues** is one list under one scope, sorted `priority_rank` asc (unset
   ranks last), then `updated_at` desc, grouped by priority with the display
   name as the section label (display-only; logic never keys on it). Scopes:
-  *Assigned to me* (assignee_id = me.account_id, else email match, open only)
-  · *All open* · the desk's saved views · the desk's imported Jira filters,
-  read from `GET issues/views/` alongside bootstrap. The last-used scope id
-  lives in `localStorage`; a scope that has since been deleted falls back
-  silently, and an empty *Assigned to me* — or no identity at all — falls back
-  to *All open* **and says why**.
+  the desk's five built-in views, applied in memory from the shared catalog
+  (`web/src/lib/builtin-views.ts`) · the desk's saved views · the desk's
+  imported Jira filters, read from `GET issues/views/` alongside bootstrap.
+  The phone authors no scope of its own — a phone-written *Assigned to me*
+  asked `my-work`'s question a second time and the picker showed both rows
+  with the same count (GDK-1542). The last-used scope id lives in
+  `localStorage`; a scope that has since been deleted falls back silently,
+  and an empty *My issues* — or no identity at all — falls back to *All open*
+  **and says why**.
 - **Applying a view is in-memory over the snapshot.** The phone honors only
   the axes an `IssueLite` can answer: `status_category` (+`_not`),
   `assignee_email` (+`_not`, account id first then email), `unassigned`,
@@ -399,7 +403,7 @@ Consequences and the division of labor:
 Product voice, sentence case, verbs on buttons ("Pair", "Send", "Unpair").
 Jira vocabulary only (§8 UX_PRINCIPLES): status, priority, comment,
 transition — no invented nouns. **Names come from the catalog, not from
-here** (§3.6): "Issues", "Assigned to me", "All open", "Sync now", "Cancel"
+here** (§3.6): "Issues", "My issues", "All open", "Sync now", "Cancel"
 and the picker's section labels are `t()` calls and are Korean and Japanese
 without further work. What is still authored here is the connective prose,
 in English: the Search and Pairing tab labels, "Offline — showing the last

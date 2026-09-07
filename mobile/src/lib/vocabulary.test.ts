@@ -14,7 +14,7 @@ import { describe, expect, it, vi } from 'vitest'
  *     imported from ten places — or, worse, copied into one.
  *  3. A ko-locale run of the scope builder. A hardcoded English string passes
  *     an English eye and fails this: the desk's word for the default plate is
- *     내 담당, and only t() knows that.
+ *     내 이슈, and only t() knows that.
  */
 
 const srcDir = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -71,7 +71,7 @@ describe('GDK-884 the phone does not invent nouns', () => {
     vi.resetModules()
     try {
       const { locale, t } = await import('./i18n')
-      const { buildScopes, SCOPE_ALL_OPEN, SCOPE_DOCS_UPDATED, SCOPE_ME } = await import('./domain')
+      const { buildScopes, SCOPE_ALL_OPEN, SCOPE_DOCS_UPDATED, SCOPE_MY_WORK } = await import('./domain')
       expect(locale()).toBe('ko')
       const pages = [
         {
@@ -87,7 +87,7 @@ describe('GDK-884 the phone does not invent nouns', () => {
         },
       ]
       const scopes = buildScopes([], [], { email: 'dev@example.com', account_id: 'acct-1', name: 'Dev' }, pages)
-      expect(scopes.find((s) => s.id === SCOPE_ME)?.name).toBe('내 담당')
+      expect(scopes.find((s) => s.id === SCOPE_MY_WORK)?.name).toBe('내 이슈')
       expect(scopes.find((s) => s.id === SCOPE_ALL_OPEN)?.name).toBe('전체 미해결')
       expect(t('sidebar.docs')).toBe('문서')
       expect(scopes.find((s) => s.id === SCOPE_DOCS_UPDATED)?.name).toBe('최근 갱신')
@@ -104,8 +104,9 @@ describe('GDK-885 the picker wears the desktop section headings', () => {
   it('uses the sidebar keys, not phone-authored section labels', () => {
     // `personal.myIssues` left this list with the section it headed (vision
     // FIX 2026-09-07: Assigned to me folded into the built-ins under their
-    // stance sub-label). The claim is unchanged — every heading the picker
-    // draws is a desktop key — and the two stance keys are now among them.
+    // stance sub-label; the row itself left with GDK-1542). The claim is
+    // unchanged — every heading the picker draws is a desktop key — and the
+    // two stance keys are now among them.
     for (const key of [
       'sidebar.builtinViews',
       'sidebar.myViews',

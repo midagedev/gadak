@@ -1,14 +1,18 @@
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { describe, it, expect } from 'vitest'
 import {
   applyFilters,
   bodyParagraphs,
   buildList,
   buildScopes,
+  defaultScopeId,
   docsSpaceScopeId,
   effectiveCategory,
   groupByPriority,
-  isMine,
   matchLocal,
+  migrateScopeId,
   mergeSearch,
   openIssues,
   overlayComments,
@@ -17,10 +21,11 @@ import {
   relTime,
   resolveScope,
   scopeCount,
+  scopeIssues,
   scopePages,
   SCOPE_ALL_OPEN,
   SCOPE_DOCS_UPDATED,
-  SCOPE_ME,
+  SCOPE_MY_WORK,
   sortIssues,
   sortPages,
   spaceLabel,
@@ -30,6 +35,8 @@ import {
 } from './domain'
 import { t } from './i18n'
 import type { DetailComment, IssueLite, Me, PageLite, SavedViewDoc, SourceViewDoc } from './types'
+
+const here = dirname(fileURLToPath(import.meta.url))
 
 // Fixture keys use STD-* (never GDK-*: repo doc-checks scans test files).
 function issue(over: Partial<IssueLite> & { issue_key: string }): IssueLite {
@@ -69,17 +76,24 @@ describe('openIssues', () => {
   })
 })
 
-describe('isMine', () => {
-  it('prefers account id over email', () => {
-    const byId = issue({ issue_key: 'STD-3', assignee_id: 'acct-1', assignee_email: 'other@x.com' })
-    expect(isMine(byId, me)).toBe(true)
+/*
+ * "Is this issue mine?" is the shared `mine` flag now — person-match's
+ * isSamePerson, reached through matchesFilters (GDK-1542). The phone's own
+ * isMine carried these three claims until then; they are unchanged, only the
+ * owner is.
+ */
+describe('the mine flag (web/src/lib/person-match.ts)', () => {
+  const mine = (rows: IssueLite[], who: Me | null) =>
+    applyFilters(rows, { mine: true }, who).map((i) => i.issue_key)
+
+  it('matches on account id whatever the email says', () => {
+    expect(mine([issue({ issue_key: 'STD-3', assignee_id: 'acct-1', assignee_email: 'other@x.com' })], me)).toEqual(['STD-3'])
   })
   it('falls back to email when ids are missing', () => {
-    const byEmail = issue({ issue_key: 'STD-4', assignee_email: 'dev@example.com' })
-    expect(isMine(byEmail, me)).toBe(true)
+    expect(mine([issue({ issue_key: 'STD-4', assignee_email: 'dev@example.com' })], me)).toEqual(['STD-4'])
   })
   it('is never mine without an identity', () => {
-    expect(isMine(issue({ issue_key: 'STD-5', assignee_id: 'acct-1' }), null)).toBe(false)
+    expect(mine([issue({ issue_key: 'STD-5', assignee_id: 'acct-1' })], null)).toEqual([])
   })
 })
 
@@ -159,25 +173,26 @@ describe('effectiveCategory', () => {
 })
 
 describe('buildScopes', () => {
-  it('names the two hardcoded scopes from the desktop catalog, never its own words', () => {
+  it('names the built-in scopes from the desktop catalog, never its own words', () => {
     const list = buildScopes([], [], me)
-    expect(scopeOf(list, SCOPE_ME).name).toBe(t('personal.myAssignee'))
-    expect(scopeOf(list, SCOPE_ME).name).toBe('Assigned to me')
+    expect(scopeOf(list, SCOPE_MY_WORK).name).toBe(t('view.myWork.name'))
+    expect(scopeOf(list, SCOPE_MY_WORK).name).toBe('My issues')
     expect(scopeOf(list, SCOPE_ALL_OPEN).name).toBe(t('view.allOpen.name'))
     expect(scopeOf(list, SCOPE_ALL_OPEN).name).toBe('All open')
   })
 
-  it('offers Assigned to me only when the serve has an identity', () => {
-    // GDK-1495 ④: the built-in section is now the desk's five, and the two
-    // identity views are absent (not disabled) for the same reason this one
-    // is — an anonymous reader has no "mine". Which five and in what order
-    // is awareness.test.ts's business; this one is about identity.
+  it('offers the identity views only when the serve has an identity', () => {
+    // GDK-1495 ④: the built-in section is the desk's five, and the two
+    // identity views are absent, not disabled — an anonymous reader has no
+    // "mine". Which five and in what order is awareness.test.ts's business;
+    // this one is about identity.
     const ids = buildScopes([], [], null).map((s) => s.id)
-    expect(ids).not.toContain(SCOPE_ME)
-    expect(ids).not.toContain('builtin:my-work')
+    expect(ids).not.toContain(SCOPE_MY_WORK)
     expect(ids).not.toContain('builtin:delegated')
     expect(ids).toContain(SCOPE_ALL_OPEN)
-    expect(buildScopes([], [], me).map((s) => s.id)).toContain(SCOPE_ME)
+    expect(buildScopes([], [], me).map((s) => s.id)).toContain(SCOPE_MY_WORK)
+    // The retired phone-authored row (GDK-1542) is offered under no identity.
+    expect(buildScopes([], [], me).map((s) => s.id)).not.toContain('me')
   })
 
   it('sections saved views and imported Jira filters apart', () => {
@@ -187,11 +202,9 @@ describe('buildScopes', () => {
       me,
     )
     // Sections in order, one row named per section beyond the built-ins
-    // (whose five names awareness.test.ts pins). Assigned to me is a
-    // built-in itself since the vision FIX 2026-09-07 — six rows in that
-    // section now, and the assertion below moves with it.
+    // (whose five names awareness.test.ts pins). Five, not six: the phone's
+    // own "Assigned to me" was my-work asked twice and left with GDK-1542.
     expect(list.map((s) => s.section)).toEqual([
-      'builtin',
       'builtin',
       'builtin',
       'builtin',
@@ -200,7 +213,7 @@ describe('buildScopes', () => {
       'views',
       'filters',
     ])
-    expect(scopeOf(list, SCOPE_ME).name).toBe('Assigned to me')
+    expect(scopeOf(list, SCOPE_MY_WORK).name).toBe('My issues')
     expect(list.filter((s) => s.section !== 'builtin').map((s) => [s.section, s.name])).toEqual([
       ['views', 'Stale bugs'],
       ['filters', 'Sprint board'],
@@ -307,9 +320,9 @@ describe('buildList', () => {
   ]
   const scopes = (who: Me | null) => buildScopes([savedView('v1', 'Done work', { status_category: ['done'] })], [], who)
 
-  it('Assigned to me filters to my open issues', () => {
-    const v = buildList(rows, me, scopeOf(scopes(me), SCOPE_ME))
-    expect(v.scopeId).toBe(SCOPE_ME)
+  it('My issues filters to my open issues', () => {
+    const v = buildList(rows, me, scopeOf(scopes(me), SCOPE_MY_WORK))
+    expect(v.scopeId).toBe(SCOPE_MY_WORK)
     expect(v.fellBack).toBe(false)
     expect(v.total).toBe(1)
     expect(v.sections[0].issues[0].issue_key).toBe('STD-30')
@@ -317,7 +330,7 @@ describe('buildList', () => {
 
   it('falls back to All open, honestly flagged, when nothing is mine', () => {
     const stranger: Me = { email: 'other@example.com', account_id: 'acct-9', name: null }
-    const v = buildList(rows, stranger, scopeOf(scopes(stranger), SCOPE_ME))
+    const v = buildList(rows, stranger, scopeOf(scopes(stranger), SCOPE_MY_WORK))
     expect(v.scopeId).toBe(SCOPE_ALL_OPEN)
     expect(v.fellBack).toBe(true)
     expect(v.total).toBe(2)
@@ -350,11 +363,31 @@ describe('resolveScope', () => {
   })
 
   it('falls back silently when the saved view is gone', () => {
-    expect(resolveScope(list, 'view:deleted')?.id).toBe(SCOPE_ME)
+    expect(resolveScope(list, 'view:deleted', me)?.id).toBe(SCOPE_MY_WORK)
   })
 
   it('never restores a scope the phone refuses', () => {
-    expect(resolveScope(list, 'view:v2')?.id).toBe(SCOPE_ME)
+    expect(resolveScope(list, 'view:v2', me)?.id).toBe(SCOPE_MY_WORK)
+  })
+
+  it('falls back to the open pool when there is no identity (GDK-1542)', () => {
+    // Without an identity my-work is not offered at all, so the named
+    // default resolves to the pool — the desk's first-run rule.
+    const anon = buildScopes([savedView('v2', 'By label', { labels: ['x'] })], [], null)
+    expect(resolveScope(anon, 'view:v2', null)?.id).toBe(SCOPE_ALL_OPEN)
+    expect(defaultScopeId(null)).toBe(SCOPE_ALL_OPEN)
+    expect(defaultScopeId(me)).toBe(SCOPE_MY_WORK)
+  })
+
+  it('resolves a scope id an older build stored (GDK-1542)', () => {
+    // 'me' was the phone's hardcoded row. It now names the view that asks
+    // the same question, not a row that no longer exists.
+    expect(migrateScopeId('me')).toBe(SCOPE_MY_WORK)
+    expect(resolveScope(list, migrateScopeId('me'), me)?.id).toBe(SCOPE_MY_WORK)
+    // Every other stored id passes through untouched.
+    expect(migrateScopeId('view:v1')).toBe('view:v1')
+    expect(migrateScopeId(SCOPE_ALL_OPEN)).toBe(SCOPE_ALL_OPEN)
+    expect(migrateScopeId(SCOPE_DOCS_UPDATED)).toBe(SCOPE_DOCS_UPDATED)
   })
 })
 
@@ -371,7 +404,7 @@ describe('scopeCount (GDK-886)', () => {
   )
 
   it('counts each scope in memory', () => {
-    expect(scopeCount(rows, me, scopeOf(list, SCOPE_ME))).toBe(2)
+    expect(scopeCount(rows, me, scopeOf(list, SCOPE_MY_WORK))).toBe(2)
     expect(scopeCount(rows, me, scopeOf(list, SCOPE_ALL_OPEN))).toBe(3)
   })
 
@@ -554,10 +587,10 @@ describe('documents scopes (GDK-887)', () => {
       me,
       pages,
     )
-    // Six built-ins, not five plus a 'me' section (vision FIX 2026-09-07).
+    // Five built-ins — the desk's, and only the desk's (GDK-1542).
     // The claim under test is the tail — Documents comes last.
     expect(list.map((s) => s.section)).toEqual([
-      ...Array(6).fill('builtin'),
+      ...Array(5).fill('builtin'),
       'views',
       'filters',
       'docs',
@@ -585,5 +618,95 @@ describe('bodyParagraphs', () => {
     expect(bodyParagraphs('')).toEqual([])
     expect(bodyParagraphs('  \n\n  ')).toEqual([])
     expect(bodyParagraphs('one\n\ntwo\nthree')).toEqual(['one', 'two\nthree'])
+  })
+})
+
+/* ── GDK-1542: the retired predicate and the catalog view agree ──
+ *
+ * The phone's "Assigned to me" was `openIssues(rows).filter(isMine)`; the row
+ * that replaces it is the desk's `my-work` view applied in memory. The two
+ * must select the same issues or the substitution silently changed what the
+ * contributor sees. Run over the committed demo snapshot (534 real rows,
+ * mobile/public/demo/bootstrap.json — the same bytes the in-app demo serves)
+ * rather than a hand-built fixture, so the proof covers the shapes the phone
+ * actually meets: null ids, null emails, done rows, aliased categories.
+ */
+describe('the retired me-predicate ≡ builtin:my-work (GDK-1542)', () => {
+  const boot = JSON.parse(
+    readFileSync(join(here, '../../public/demo/bootstrap.json'), 'utf8'),
+  ) as { issues: IssueLite[] }
+  // Alex Kim, the demo identity with the most assigned rows.
+  const alex: Me = { email: 'demo@example.com', account_id: 'demo-alex', name: 'Alex Kim' }
+
+  /** The predicate domain.ts carried until this round, verbatim. */
+  const wasMine = (i: IssueLite, who: Me): boolean => {
+    if (who.account_id && i.assignee_id) return i.assignee_id === who.account_id
+    if (who.email && i.assignee_email) return i.assignee_email === who.email
+    return false
+  }
+
+  it('selects the identical rows on the committed demo snapshot', () => {
+    const before = openIssues(boot.issues)
+      .filter((i) => wasMine(i, alex))
+      .map((i) => i.issue_key)
+      .sort()
+    const scope = scopeOf(buildScopes([], [], alex), SCOPE_MY_WORK)
+    const after = (scopeIssues(boot.issues, alex, scope) ?? []).map((i) => i.issue_key).sort()
+    expect(before.length, 'the fixture must exercise the predicate').toBeGreaterThan(0)
+    expect(after).toEqual(before)
+  })
+})
+
+/* ── GDK-1542: the built-in section carries no duplicate row ──
+ *
+ * Recurrence prevention for the defect this round closed: the sheet showed
+ * "Assigned to me 42" and "My issues 42" side by side — one hardcoded phone
+ * predicate and one shared catalog view asking the identical question. The
+ * two were indistinguishable by their `filters` (the hardcoded one carried
+ * `null`), so the guard is over what each row *selects*: no two built-ins
+ * may pick the same set of keys on a fixture where every built-in has a
+ * distinct, non-empty answer. FAIL-first on the pre-fix source — `me` and
+ * `builtin:my-work` both selected ['STD-1'].
+ */
+describe('no duplicate built-in scope (GDK-1542)', () => {
+  // One row per built-in, so an accidental empty∩empty collision cannot make
+  // this pass for the wrong reason; the non-empty assertion below pins that.
+  const rows = [
+    issue({ issue_key: 'STD-1', status_category: 'inprogress', assignee_id: 'acct-1', reporter_id: 'acct-1' }),
+    issue({ issue_key: 'STD-2', status_category: 'inprogress', assignee_id: 'acct-2', reporter_id: 'acct-1' }),
+    issue({ issue_key: 'STD-3', status_category: 'new' }),
+    issue({ issue_key: 'STD-4', status_category: 'inprogress', assignee_id: 'acct-2', reopen_count: 2 }),
+    issue({ issue_key: 'STD-5', status_category: 'done', assignee_id: 'acct-1', reporter_id: 'acct-1' }),
+  ]
+
+  const builtins = () => buildScopes([], [], me).filter((s) => s.section === 'builtin')
+
+  it('no two built-ins select the same rows', () => {
+    const seen = new Map<string, string>()
+    for (const scope of builtins()) {
+      const keys = (scopeIssues(rows, me, scope) ?? []).map((i) => i.issue_key).sort()
+      expect(keys.length, `${scope.id} selects nothing — the fixture cannot judge it`).toBeGreaterThan(0)
+      const sig = keys.join(',')
+      const twin = seen.get(sig)
+      expect(twin, `${scope.id} and ${twin} are the same question under two names`).toBeUndefined()
+      seen.set(sig, scope.id)
+    }
+  })
+
+  it('no two built-ins carry the same filters', () => {
+    // The cheap structural half: identical stored configs are a duplicate
+    // even before any row exists. `null` is its own signature — a built-in
+    // without filters would be a hardcoded predicate again.
+    const sig = (f: Partial<Record<string, unknown>> | null) =>
+      f === null
+        ? 'null'
+        : JSON.stringify(Object.fromEntries(Object.entries(f).sort(([a], [b]) => a.localeCompare(b))))
+    const seen = new Map<string, string>()
+    for (const scope of builtins()) {
+      const s = sig(scope.filters as Partial<Record<string, unknown>> | null)
+      const twin = seen.get(s)
+      expect(twin, `${scope.id} and ${twin} carry identical filters`).toBeUndefined()
+      seen.set(s, scope.id)
+    }
   })
 })

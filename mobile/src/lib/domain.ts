@@ -110,16 +110,13 @@ export function openIssues(issues: IssueLite[]): IssueLite[] {
   return issues.filter((i) => effectiveCategory(i) !== 'done')
 }
 
-/**
- * Mine = assigned to the paired identity. Account id wins (stable across
- * localized names); email is the fallback for mirrors that predate ids.
+/*
+ * "Is this issue mine?" has one owner, and it is not this file: `isSamePerson`
+ * in web/src/lib/person-match.ts, reached through `matchesFilters`' `mine`
+ * flag. A second local predicate lived here until GDK-1542 and answered
+ * slightly differently (case-sensitive email, no id→email fallthrough), which
+ * is how the phone came to offer the same question twice.
  */
-export function isMine(issue: IssueLite, me: Me | null): boolean {
-  if (!me) return false
-  if (me.account_id && issue.assignee_id) return issue.assignee_id === me.account_id
-  if (me.email && issue.assignee_email) return issue.assignee_email === me.email
-  return false
-}
 
 /** True when the serve knows who its user is at all. */
 export function hasIdentity(me: Me | null): boolean {
@@ -279,17 +276,22 @@ export function groupByPriority(sorted: IssueLite[]): PrioritySection[] {
 /**
  * Which picker section a scope belongs to; also the order they render in.
  *
- * "Assigned to me" used to hold a section of its own here. It reads as one
- * of the desk's built-ins — the contributor's first question — and a section
- * for a single row put a heading between it and the four views it belongs
- * with, so the one built-in set photographed as two groups (vision FIX
- * 2026-09-07). It is a `builtin` in the `mine` stance now, and the stance
- * sub-label the section already draws is the heading it needed.
+ * "Assigned to me" used to hold a section of its own here, then a row of its
+ * own inside `builtin` (vision FIX 2026-09-07). It is gone entirely now
+ * (GDK-1542): it was the desk's `my-work` view asked a second time by a
+ * hardcoded phone predicate, and the sheet showed both — same count, two
+ * names. The phone's "mine" is `builtin:my-work`, whose filters come from
+ * the shared catalog like every other built-in's.
  */
 export type ScopeSection = 'builtin' | 'views' | 'filters' | 'docs'
 
-/** The desktop's hardcoded "Assigned to me" — not a saved view (personal.go sends none). */
-export const SCOPE_ME = 'me'
+/**
+ * The desktop builtin `my-work` — the phone's "mine". Not a hardcoded
+ * predicate: `web/src/lib/builtin-views.ts` owns what it selects
+ * (`{mine: true, status_category: ['inprogress', 'new']}`), and
+ * `matchesFilters` applies it through the same person-match the desk uses.
+ */
+export const SCOPE_MY_WORK = 'builtin:my-work'
 /** The desktop builtin `all-open`, which the phone already ran as its "All". */
 export const SCOPE_ALL_OPEN = 'builtin:all-open'
 /**
@@ -480,8 +482,9 @@ export function applyFilters(
 
 /**
  * The picker's scope list, in section order. Names come from the desktop —
- * the catalog for the two hardcoded scopes, the developer's own text for the
- * rest. The phone invents nothing here.
+ * the built-in catalog for the five, the i18n catalog for the documents
+ * plate, the developer's own text for saved views and imported filters. The
+ * phone invents nothing here.
  */
 export function buildScopes(
   views: SavedViewDoc[],
@@ -491,27 +494,11 @@ export function buildScopes(
 ): Scope[] {
   const out: Scope[] = []
   /*
-   * The desk's hardcoded "Assigned to me" leads the built-in section in the
-   * contributor stance (vision FIX 2026-09-07 — it is one of the built-ins,
-   * not a group of one above them). It keeps `filters: null`: it is not a
-   * stored ViewConfig but the phone's own assignee match against `me`, which
-   * is why buildList and scopeCount still branch on its id.
-   */
-  if (hasIdentity(me)) {
-    out.push({
-      id: SCOPE_ME,
-      section: 'builtin',
-      kind: 'issues',
-      name: t('personal.myAssignee'),
-      filters: null,
-      unsupported: [],
-      stance: 'mine',
-    })
-  }
-  /*
    * The desk's five built-ins (GDK-1495 ④), in the desk's order and under
    * the desk's names — two in the contributor stance, three in the steward's
    * (web/src/lib/builtin-views.ts owns which five and what each one filters).
+   * Five, not six: the phone's own "Assigned to me" row was `my-work` asked
+   * twice and left with GDK-1542.
    * The phone consumes the `filters` half only: grouping and sort are the
    * phone's own (priority sections, DESIGN.md §5), and there is no URL here
    * for the desk's `fl=` parameters to travel in — the same config is
@@ -594,22 +581,49 @@ export function buildScopes(
   return out
 }
 
-/** The scope the app should paint: the wanted one, else the first offered. */
-export function resolveScope(scopes: Scope[], wantId: string | null): Scope | null {
-  const hit = scopes.find((s) => s.id === wantId && s.unsupported.length === 0)
+/**
+ * The scope a phone with nothing stored opens on — the desk's first-run rule
+ * (web/src/lib/startup-view.ts:86: my-work when identified *and* holding open
+ * assigned work, else the open pool). The phone takes the identity half here;
+ * the count half it cannot take, because the want is fixed before any
+ * snapshot exists. It says the same thing later instead: an empty my-work
+ * paints All open with `fellBack` and the screen says why (buildList below),
+ * so a first run with no assigned work still lands on the pool — one frame
+ * later than the desk, and out loud.
+ */
+export function defaultScopeId(me: Me | null): string {
+  return hasIdentity(me) ? SCOPE_MY_WORK : SCOPE_ALL_OPEN
+}
+
+/**
+ * Rewrites a scope id persisted by an older build (GDK-1542). The one owner
+ * of that mapping: the phone's hardcoded `'me'` was the desk's `my-work`
+ * asked twice, so a phone that had it stored lands on the row that answers
+ * the same question rather than falling back to the pool.
+ */
+export function migrateScopeId(stored: string): string {
+  return stored === 'me' ? SCOPE_MY_WORK : stored
+}
+
+/**
+ * The scope the app should paint: the wanted one, else the default for this
+ * identity, else the first offered. The default is named rather than taken
+ * positionally — the first supported row happens to be it today, and that is
+ * an accident of catalog order, not a decision.
+ */
+export function resolveScope(scopes: Scope[], wantId: string | null, me: Me | null = null): Scope | null {
+  const ok = (s: Scope) => s.unsupported.length === 0
+  const hit = scopes.find((s) => s.id === wantId && ok(s))
   if (hit) return hit
   // A deleted (or newly unsupported) saved view falls back silently.
-  return scopes.find((s) => s.unsupported.length === 0) ?? null
+  const fallbackId = defaultScopeId(me)
+  return scopes.find((s) => s.id === fallbackId && ok(s)) ?? scopes.find(ok) ?? null
 }
 
 /** Rows a scope selects, before sorting. Null for a scope the phone refuses. */
 export function scopeIssues(issues: IssueLite[], me: Me | null, scope: Scope): IssueLite[] | null {
   if (scope.kind === 'pages') return null
   if (scope.unsupported.length > 0) return null
-  if (scope.id === SCOPE_ME) {
-    if (!hasIdentity(me)) return null
-    return openIssues(issues).filter((i) => isMine(i, me))
-  }
   if (scope.id === SCOPE_ALL_OPEN) return openIssues(issues)
   return scope.filters ? applyFilters(issues, scope.filters, me) : null
 }
@@ -661,7 +675,7 @@ export function bodyParagraphs(text: string): string[] {
 export interface IssueListView {
   sections: PrioritySection[]
   total: number
-  /** The scope actually painted — an empty "Assigned to me" falls back. */
+  /** The scope actually painted — an empty My issues falls back. */
   scopeId: string
   /** True when the fallback fired, so the screen can say why. */
   fellBack: boolean
@@ -673,13 +687,12 @@ export function buildList(issues: IssueLite[], me: Me | null, scope: Scope): Iss
     return { sections: [], total: 0, scopeId: scope.id, fellBack: false }
   }
   const rows = scopeIssues(issues, me, scope)
-  if (scope.id === SCOPE_ME && rows !== null && rows.length > 0) {
-    const sorted = sortIssues(rows)
-    return { sections: groupByPriority(sorted), total: rows.length, scopeId: SCOPE_ME, fellBack: false }
-  }
-  if (rows === null || (scope.id === SCOPE_ME && rows.length === 0)) {
+  if (rows === null || (scope.id === SCOPE_MY_WORK && rows.length === 0)) {
     // No identity, an empty plate, or a scope the phone refuses: All open,
     // said out loud rather than an empty screen under someone else's name.
+    // Only My issues gets the empty-plate fallback: it is the phone's default
+    // scope, so an empty one is a first-run condition, not a chosen filter —
+    // an empty saved view is what the developer asked for and stays empty.
     const open = sortIssues(openIssues(issues))
     return {
       sections: groupByPriority(open),

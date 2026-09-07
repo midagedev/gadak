@@ -387,7 +387,7 @@
           {#if app.me?.email && app.me?.name}
             <p class="sub">{app.me.email}</p>
           {/if}
-          <p class="sub">{t('personal.myAssignee')} filters to this identity.</p>
+          <p class="sub">{t('view.myWork.name')} filters to this identity.</p>
         {:else}
           <p class="line">
             <span class="quiet"

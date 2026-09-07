@@ -584,16 +584,18 @@ describe('GDK-1495 A4 vision FIX — the five points the blind judge sent back',
     expect(detail).toMatch(/resumeDismissed = true/)
   })
 
-  it('⑤ the five built-ins read as one section, Assigned to me among them', () => {
-    // It sat alone under MY ISSUES while the other four wore stance
-    // sub-labels under VIEWS, so the desk's one built-in set read as two
-    // groups. Assigned to me is a contributor-stance built-in like the
-    // rest — same section, under the same stance sub-label.
-    const at = domain.indexOf('id: SCOPE_ME')
+  it('⑤ the five built-ins read as one section, and there is no sixth', () => {
+    // A phone-authored "Assigned to me" sat alone under MY ISSUES while the
+    // other four wore stance sub-labels under VIEWS, so the desk's one
+    // built-in set read as two groups; folding it in left two rows with the
+    // same count. It is gone (GDK-1542) — the section is the shared
+    // catalog's five, and nothing else may push into it.
+    const at = domain.indexOf("section: 'builtin'")
     expect(at).toBeGreaterThan(-1)
-    const push = domain.slice(at, domain.indexOf('})', at))
-    expect(push).toMatch(/section: 'builtin'/)
-    expect(push).toMatch(/stance: 'mine'/)
+    // The only `section: 'builtin'` in the file is inside the catalog loop.
+    expect(domain.split("section: 'builtin'")).toHaveLength(2)
+    expect(domain.slice(0, at)).toMatch(/for \(const view of builtinViews\(\)\) \{/)
+    expect(domain).not.toMatch(/SCOPE_ME/)
     expect(domain).not.toMatch(/ScopeSection = 'me'/)
     // The picker no longer draws a heading of its own for it.
     expect(sheet).not.toMatch(/personal\.myIssues/)

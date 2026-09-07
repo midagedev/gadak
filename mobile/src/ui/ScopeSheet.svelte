@@ -30,10 +30,10 @@
    * without them the picker runs five unrelated names together right under
    * a heading that is itself a view's name (GDK-1495 ④).
    *
-   * "Assigned to me" is inside that section too, first in the `mine` stance
-   * (vision FIX 2026-09-07 — buildScopes owns the placement). It had a
-   * heading of its own above the built-ins, which split one set into two
-   * groups for the reader.
+   * The section holds exactly those five. A phone-authored "Assigned to me"
+   * led it until GDK-1542, first under a heading of its own and then inside
+   * the `mine` stance — either way it was `my-work` asked a second time, and
+   * the sheet showed the two rows with the same count.
    */
   const STANCE: Record<'mine' | 'team', string> = {
     mine: 'sidebar.stanceMine',
