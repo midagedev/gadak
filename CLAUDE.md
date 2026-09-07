@@ -75,7 +75,11 @@ hard-won 목록)와 `AGENTS.md`(스키마·쿼리)가 원본이다.
   게이트다** — `mobile/e2e/`(Playwright, 402×874 + 셸 6종)는 위 세 명령이
   전혀 보지 않는데 CI Mobile 잡은 돌린다 (2026-08-29: dev 셸 자동 채택이
   "페어링 없으면 탭 3개" 계약을 깼고, 로컬 go·web e2e 378·mobile vitest·
-  check·lint:ios가 전부 초록인 채로 CI에서 8개가 빨갰다). GDK-1540부터 이
+  check·lint:ios가 전부 초록인 채로 CI에서 8개가 빨갰다). 반대 방향도 있다:
+  **폰에서 i18n 키의 마지막 사용처를 지우면 웹 `npm run test:unit`이
+  게이트다** — `web/src/lib/i18n/catalog.test.ts`가 미사용 키를 빨강으로
+  만든다 (2026-09-07 GDK-1542: mobile만 건드린 커밋이 CI Frontend unit만
+  적색, 로컬 mobile 게이트 넷은 초록). GDK-1540부터 이
   게이트는 dev 서버가 아니라 **빌드된 번들**(`vite preview`)을 찍는다 — 다른
   라운드의 편집이 스펙 중간에 리로드를 일으키지 않고, 포트는
   `GADAK_MOBILE_E2E_PORT`/`GADAK_MOBILE_API_PORT`(기본 5182/7899)로 라운드마다

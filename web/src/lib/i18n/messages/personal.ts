@@ -27,11 +27,6 @@ export const personal = {
     ko: '연 항목이 여기에 쌓입니다',
     ja: '開いたものがここに並びます',
   },
-  'personal.myAssignee': {
-    en: 'Assigned to me',
-    ko: '내 담당',
-    ja: '自分の担当',
-  },
   'personal.feedHint': {
     en: 'Changes on my issues + comments that mention me',
     ko: '내 이슈 변화 + 나를 멘션한 코멘트',
