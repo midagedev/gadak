@@ -14,7 +14,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { SERVE_ORIGIN } from '../playwright.config'
 
-const SHOT_DIR = join(dirname(fileURLToPath(import.meta.url)), '.shots')
+const SHOT_DIR = process.env.A1_SHOT_DIR ?? join(dirname(fileURLToPath(import.meta.url)), '.shots')
 
 type AdfNode = { type?: string; content?: AdfNode[] }
 type IssueLite = { issue_key: string; comment_count: number }
@@ -99,6 +99,10 @@ async function richestPage(): Promise<{ key: string; kinds: number }> {
 }
 
 test('captures the ADF issue and page bodies for the vision round', async ({ page }) => {
+  // Capture-only (v0.21 release audit, capture-hygiene finding): this whole
+  // spec exists to photograph surfaces for a vision round. It runs when that
+  // round asks by naming the directory, and is skipped otherwise.
+  test.skip(!process.env.A1_SHOT_DIR, 'capture-only; set A1_SHOT_DIR to run')
   mkdirSync(SHOT_DIR, { recursive: true })
   const issue = await richestIssue()
   const wiki = await richestPage()

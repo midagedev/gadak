@@ -155,3 +155,55 @@ test.describe('server search says why it matched', () => {
     })
   }
 })
+
+function boxesOverlap(
+  a: { x: number; y: number; width: number; height: number },
+  b: { x: number; y: number; width: number; height: number },
+): boolean {
+  return !(
+    a.x + a.width <= b.x ||
+    b.x + b.width <= a.x ||
+    a.y + a.height <= b.y ||
+    b.y + b.height <= a.y
+  )
+}
+
+/*
+ * Moved from ux-f11.spec.ts (v0.21 audit ladder round); its /tmp capture was
+ * deleted with the move. The help panel is a search-surface contract.
+ */
+test.describe('search help panel (GDK-473)', () => {
+  test('help panel at 1280px clears the chip row and stays short', async ({
+    page,
+  }) => {
+    const errors = attachConsoleErrors(page)
+    await page.setViewportSize({ width: 1280, height: 800 })
+    await gotoApp(page)
+
+    await page.getByTestId('search-help').click()
+    const panel = page.getByTestId('search-help-panel')
+    await expect(panel).toBeVisible()
+
+    const panelBox = await panel.boundingBox()
+    const addBox = await page.getByTestId('filter-add').boundingBox()
+    expect(panelBox, 'search-help-panel must render').toBeTruthy()
+    expect(addBox, 'filter-add must render').toBeTruthy()
+    expect(
+      boxesOverlap(panelBox!, addBox!),
+      'help panel overlaps +Filter at 1280px',
+    ).toBe(false)
+
+    const chips = page.getByTestId('filter-chip')
+    const chipCount = await chips.count()
+    for (let i = 0; i < chipCount; i++) {
+      const chipBox = await chips.nth(i).boundingBox()
+      if (!chipBox) continue
+      expect(boxesOverlap(panelBox!, chipBox), `help panel overlaps chip ${i}`).toBe(false)
+    }
+
+    await expect(panel).not.toContainText(/Tokens:/)
+    await expect(panel.getByTestId('search-help-shortcuts')).toBeVisible()
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+})

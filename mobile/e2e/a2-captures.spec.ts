@@ -33,7 +33,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { SERVE_ORIGIN } from '../playwright.config'
 
-const SHOT_DIR = join(dirname(fileURLToPath(import.meta.url)), '.shots')
+const SHOT_DIR = process.env.A2_SHOT_DIR ?? join(dirname(fileURLToPath(import.meta.url)), '.shots')
 
 /** The Jira default set, used by both mocks so they cannot disagree. */
 const PRIORITY_CATALOG = [
@@ -82,6 +82,10 @@ async function pickIssue(): Promise<string> {
 }
 
 test('captures the A2 write surfaces for the vision round', async ({ page }) => {
+  // Capture-only (v0.21 release audit, capture-hygiene finding): this whole
+  // spec exists to photograph surfaces for a vision round. It runs when that
+  // round asks by naming the directory, and is skipped otherwise.
+  test.skip(!process.env.A2_SHOT_DIR, 'capture-only; set A2_SHOT_DIR to run')
   mkdirSync(SHOT_DIR, { recursive: true })
   const issueKey = await pickIssue()
 

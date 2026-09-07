@@ -4,16 +4,23 @@
 import { expect, test, type Page } from '@playwright/test'
 import { mkdirSync } from 'node:fs'
 import { SERVE_ORIGIN } from '../playwright.config'
+// The repo-root owner of the buffer walk (GDK-1567). This file's old local
+// copy did not stitch xterm's wrapped rows — the exact fork the owner exists
+// to prevent. term-read.ts is import-free so it typechecks under mobile's
+// own @playwright/test install too.
+import { readTerm } from '../../e2e/term-read'
 
-const SHOT_DIR = '/tmp/gadak-865c'
-
-type TermHook = {
-  buffer: {
-    active: {
-      length: number
-      getLine: (y: number) => { translateToString: (trimRight?: boolean) => string } | undefined
-    }
-  }
+/**
+ * Evidence captures for this file are env-gated (v0.21 release audit,
+ * capture-hygiene finding): they used to write /tmp/gadak-865c/ on every run
+ * — a machine-local path no other consumer can rely on. Set SHELL_SHOT_DIR
+ * to take them.
+ */
+async function shootShell(page: Page, file: string): Promise<void> {
+  const dir = process.env.SHELL_SHOT_DIR
+  if (!dir) return
+  mkdirSync(dir, { recursive: true })
+  await page.screenshot({ path: `${dir}/${file}`, fullPage: true })
 }
 
 async function waitPaired(page: Page): Promise<void> {
@@ -45,19 +52,6 @@ async function openShell(page: Page): Promise<void> {
   await expect(page.getByTestId('terminal-pane')).toBeVisible()
   await expect(page.getByTestId('terminal-pane')).toHaveAttribute('data-attached', 'true', {
     timeout: 20_000,
-  })
-}
-
-async function readTerm(page: Page): Promise<string> {
-  return page.evaluate(() => {
-    const t = (window as unknown as { __gadakTerm?: TermHook }).__gadakTerm
-    if (!t) return ''
-    const buf = t.buffer.active
-    const lines: string[] = []
-    for (let i = 0; i < buf.length; i++) {
-      lines.push(buf.getLine(i)?.translateToString(true) ?? '')
-    }
-    return lines.join('\n')
   })
 }
 
@@ -118,8 +112,7 @@ test.describe('shell tab', () => {
     await typeLine(page, "printf 'gdk865-echo\\n'")
     await expect.poll(async () => readTerm(page), { timeout: 20_000 }).toContain('gdk865-echo')
 
-    mkdirSync(SHOT_DIR, { recursive: true })
-    await page.screenshot({ path: `${SHOT_DIR}/shell-keyboard-down.png`, fullPage: true })
+    await shootShell(page, 'shell-keyboard-down.png')
   })
 
   test('a key-bar Ctrl+c interrupts a running command', async ({ page }) => {
@@ -197,16 +190,19 @@ test.describe('shell tab', () => {
     expect(geo.navTop, 'nav top').not.toBeNull()
     expect(geo.barBottom! <= geo.navTop! + 1, 'key bar above the tab bar').toBe(true)
 
-    mkdirSync(SHOT_DIR, { recursive: true })
-    await page.evaluate(() => {
-      const bar = document.querySelector<HTMLElement>('[data-testid="key-bar"]')
-      if (bar) bar.style.transform = 'translateY(-280px)'
-    })
-    await page.screenshot({ path: `${SHOT_DIR}/shell-keyboard-up.png`, fullPage: true })
-    await page.evaluate(() => {
-      const bar = document.querySelector<HTMLElement>('[data-testid="key-bar"]')
-      if (bar) bar.style.transform = ''
-    })
+    // The keyboard-up capture needs the bar translated out of frame for one
+    // shot; the whole dance is skipped when no round asked for captures.
+    if (process.env.SHELL_SHOT_DIR) {
+      await page.evaluate(() => {
+        const bar = document.querySelector<HTMLElement>('[data-testid="key-bar"]')
+        if (bar) bar.style.transform = 'translateY(-280px)'
+      })
+      await shootShell(page, 'shell-keyboard-up.png')
+      await page.evaluate(() => {
+        const bar = document.querySelector<HTMLElement>('[data-testid="key-bar"]')
+        if (bar) bar.style.transform = ''
+      })
+    }
   })
 
   test('an ended shell is a calm line with a next action, never a toast', async ({ page }) => {
@@ -232,7 +228,6 @@ test.describe('shell tab', () => {
     await expect(page.getByTestId('terminal-status')).toHaveJSProperty('tagName', 'BUTTON')
     await expect(page.locator('[role="status"]')).toHaveCount(0)
 
-    mkdirSync(SHOT_DIR, { recursive: true })
-    await page.screenshot({ path: `${SHOT_DIR}/shell-ended.png`, fullPage: true })
+    await shootShell(page, 'shell-ended.png')
   })
 })

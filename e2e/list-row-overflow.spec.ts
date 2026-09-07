@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test'
-import { attachConsoleErrors, forceLocale, DEMO_ISSUE_COUNT_EN_RE } from './helpers'
+import { attachConsoleErrors, forceLocale, gotoApp, DEMO_ISSUE_COUNT_EN_RE } from './helpers'
+import { VIEWPORT_DOCKED_MIN_PX } from '../web/src/lib/viewport-regime'
 
 /*
  * GDK-1046: with the detail panel open, no trailing slot may paint past the
@@ -120,8 +121,16 @@ type PastProbe = {
 
 /** Every visible trailing slot of every in-view row that paints past the
  *  scroller's right edge (beyond the tolerance), plus row liveness counts.
- *  An empty `past` list is the contract. */
-async function trailPastScroller(page: Page): Promise<PastProbe> {
+ *  An empty `past` list is the contract.
+ *
+ *  This file owns the trailing-vs-scroller width axis (v0.21 audit ladder
+ *  round): narrow-clip.spec.ts's two probes of the same axis moved here, so
+ *  the walk lives once. Its old probe also compared b.right against
+ *  innerWidth — dropped as subsumed: the scroller box lives inside the
+ *  viewport, so anything past the viewport edge is past the scroller's. The
+ *  moved rungs keep their own 0.5px slack (below) rather than GDK-1046's
+ *  granted 1px; the default stays 1. */
+async function trailPastScroller(page: Page, tol: number = PAST_TOLERANCE_PX): Promise<PastProbe> {
   return page.evaluate((tol) => {
     const round = (n: number) => Math.round(n * 10) / 10
     const scroller = document.querySelector<HTMLElement>('[data-testid="issue-list-scroller"]')
@@ -153,7 +162,7 @@ async function trailPastScroller(page: Page): Promise<PastProbe> {
       }
     }
     return { rows, rowW, past }
-  }, PAST_TOLERANCE_PX)
+  }, tol)
 }
 
 /** Closed-panel boot at the same pinned column set. 1440 closed is the 76px
@@ -256,6 +265,66 @@ async function expectCountersInsideSlot(page: Page, width: number, label: string
     `${label}: two-digit (+99) counters past their labels slot at ${width}: ${JSON.stringify(twoDigit.clipped)}`,
   ).toEqual([])
 }
+
+/* ── The narrow rungs (GDK-766, moved from narrow-clip.spec.ts) ──
+ * The same trailing axis at the two narrow layouts the 2026-08-24 hosted-demo
+ * audit photographed: 740 closed (the audit's silent-cut case — flex-none
+ * slots + overflow:hidden cut avatar/updated) and the docked floor itself
+ * with the panel open. narrow-clip.spec.ts keeps the 1100 seam measurement
+ * (list column vs panel edge — a different axis) and its other probes. */
+test.describe('row trailing @740 closed (GDK-766)', () => {
+  test.use({ viewport: { width: 740, height: 900 } })
+
+  test('visible trail cells stay inside the list scroller', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    await gotoApp(page)
+    await expect(
+      page.getByTestId('issue-list-scroller').locator('[data-issue-key]').first(),
+    ).toBeVisible({ timeout: 30_000 })
+    const probe = await trailPastScroller(page, 0.5)
+    expect(probe.rows, 'need rendered rows in view').toBeGreaterThan(0)
+    expect(
+      probe.past,
+      `rowW=${probe.rowW}: trail slots past the scroller at 740: ${JSON.stringify(probe.past)}`,
+    ).toEqual([])
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+})
+
+test.describe('row trailing @1100 docked, panel open (GDK-766)', () => {
+  test.use({ viewport: { width: VIEWPORT_DOCKED_MIN_PX, height: 900 } })
+
+  test('visible trail cells stay inside the narrowed list column', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    await gotoApp(page)
+    const rows = page.locator('[data-testid="issue-list-scroller"] [data-issue-key]')
+    await rows.first().waitFor({ timeout: 30_000 })
+    await rows.nth(1).click()
+    await expect(
+      page.locator('[data-testid="issue-layout"][data-detail-open="true"]'),
+    ).toBeVisible()
+    await expect(page.getByTestId('issue-detail-panel')).toHaveClass(/is-open/)
+    // Panel width is locked immediately; opacity/transform slide 160ms.
+    // Wait on the resting grid track, not a duration.
+    await expect
+      .poll(async () =>
+        page.locator('[data-testid="issue-layout"]').evaluate((el) => {
+          const panel = el.querySelector<HTMLElement>('[data-testid="issue-detail-panel"]')
+          if (!panel) return 0
+          return Math.round(panel.getBoundingClientRect().width)
+        }),
+      )
+      .toBeGreaterThan(400)
+
+    const probe = await trailPastScroller(page, 0.5)
+    expect(probe.rows, 'need rendered rows in view').toBeGreaterThan(0)
+    expect(
+      probe.past,
+      `rowW=${probe.rowW}: trail slots past the list scroller at docked ${VIEWPORT_DOCKED_MIN_PX}: ${JSON.stringify(probe.past)}`,
+    ).toEqual([])
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+})
 
 for (const width of [1280, 1440]) {
   test.describe(`detail panel open @${width}`, () => {

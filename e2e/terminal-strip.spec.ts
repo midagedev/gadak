@@ -666,12 +666,14 @@ test.describe('terminal session strip', () => {
   })
 })
 
-const SHOT_DIR = join(
-  dirname(fileURLToPath(import.meta.url)),
-  '..',
-  'scratch',
-  'terminal-strip-shots',
-)
+const SHOT_DIR =
+  process.env.TERMINAL_STRIP_SHOT_DIR ??
+  join(
+    dirname(fileURLToPath(import.meta.url)),
+    '..',
+    'scratch',
+    'terminal-strip-shots',
+  )
 
 /*
  * The strip's own captures, next to the pane's (terminal.spec.ts). The three
@@ -691,6 +693,11 @@ test.describe('terminal strip shots', () => {
   })
 
   test('capture none, one, three', async ({ page }) => {
+    // Capture-only (v0.21 release audit, capture-hygiene finding): it writes
+    // three PNGs + MANIFEST nobody in CI consumes. It runs when a vision
+    // round asks for the shots by naming the directory, and is skipped
+    // otherwise.
+    test.skip(!process.env.TERMINAL_STRIP_SHOT_DIR, 'capture-only; set TERMINAL_STRIP_SHOT_DIR to run')
     test.setTimeout(180_000)
     mkdirSync(SHOT_DIR, { recursive: true })
     const hash = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()

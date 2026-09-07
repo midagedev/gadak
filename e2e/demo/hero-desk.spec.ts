@@ -83,6 +83,7 @@
 import { test, expect, type Page } from '@playwright/test'
 import { appendFileSync } from 'node:fs'
 import { forceLocale } from '../helpers'
+import { readTerm } from '../term-read'
 
 const isMedia = !!process.env.GADAK_MEDIA
 const DRY = !!process.env.GADAK_HERO_DRY_RUN
@@ -170,31 +171,6 @@ async function ask(page: Page, prompt: string): Promise<void> {
   await page.keyboard.type(prompt, { delay: 55 })
   await beat(page, 900)
   await page.keyboard.press('Enter')
-}
-
-/** The whole terminal buffer, as text. */
-async function readTerm(page: Page): Promise<string> {
-  return page.evaluate(() => {
-    const t = (
-      window as unknown as {
-        __gadakTerm?: {
-          buffer: {
-            active: {
-              length: number
-              getLine: (y: number) => { translateToString: (t?: boolean) => string } | undefined
-            }
-          }
-        }
-      }
-    ).__gadakTerm
-    if (!t) return ''
-    const buf = t.buffer.active
-    const lines: string[] = []
-    for (let i = 0; i < buf.length; i++) {
-      lines.push(buf.getLine(i)?.translateToString(true) ?? '')
-    }
-    return lines.join('\n')
-  })
 }
 
 /** Live session rows from the serve (internal/server/terminal.go:373-386).

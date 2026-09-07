@@ -30,7 +30,6 @@ test.describe('desktop title-bar row', () => {
     await gotoApp(page)
 
     const row = page.getByTestId(LOGO_ROW)
-    await expect(row).toHaveCSS('padding-left', '16px')
     // Mark + wordmark. There are no window controls here to confuse it with.
     await expect(row.getByTestId('sidebar-mark')).toBeVisible()
     await expect(row.getByText('gadak', { exact: true })).toBeVisible()

@@ -47,6 +47,7 @@ import { test, expect, type Page, type TestInfo } from '@playwright/test'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { catalogFor, forceLocale, mediaLocale, MEDIA_LOCALE_STAMP } from '../helpers'
+import { readTerm } from '../term-read'
 import type { Locale } from '../../web/src/lib/i18n/types'
 
 const isMedia = !!process.env.GADAK_MEDIA
@@ -116,31 +117,6 @@ async function ask(page: Page, prompt: string): Promise<void> {
   await page.keyboard.type(prompt, { delay: LOCALE === 'en' ? 55 : 90 })
   await beat(page, 900)
   await page.keyboard.press('Enter')
-}
-
-/** The whole terminal buffer, as text. */
-async function readTerm(page: Page): Promise<string> {
-  return page.evaluate(() => {
-    const t = (
-      window as unknown as {
-        __gadakTerm?: {
-          buffer: {
-            active: {
-              length: number
-              getLine: (y: number) => { translateToString: (t?: boolean) => string } | undefined
-            }
-          }
-        }
-      }
-    ).__gadakTerm
-    if (!t) return ''
-    const buf = t.buffer.active
-    const lines: string[] = []
-    for (let i = 0; i < buf.length; i++) {
-      lines.push(buf.getLine(i)?.translateToString(true) ?? '')
-    }
-    return lines.join('\n')
-  })
 }
 
 /**

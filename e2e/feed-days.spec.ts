@@ -1,18 +1,22 @@
 import { mkdirSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 import { test, expect, type Page, type Route } from '@playwright/test'
 import { attachConsoleErrors, forceLocale, DEMO_ISSUE_COUNT_EN_RE } from './helpers'
 import { en } from '../web/src/lib/i18n/en'
 import type { FeedItem } from '../web/src/lib/types'
 
-// Where feed-days.png lands: repo scratch by default (gitignored,
-// CI-safe), overridable so this round can route the capture to its own
-// session scratchpad for the lead's vision review — the same pattern
-// session-strip.spec.ts uses.
-const SHOT_DIR =
-  process.env.FEED_SHOT_DIR ?? join(dirname(fileURLToPath(import.meta.url)), '../scratch')
-const SHOT = join(SHOT_DIR, 'feed-days.png')
+/**
+ * The capture for the separate vision round is env-gated (v0.21 release
+ * audit, capture-hygiene finding): it used to write scratch/feed-days.png on
+ * every run, so CI paid for a capture nobody looked at and the scratch tree
+ * filled on behavior-only runs. Set FEED_SHOT_DIR to take it.
+ */
+async function shootFeedDays(page: Page): Promise<void> {
+  const dir = process.env.FEED_SHOT_DIR
+  if (!dir) return
+  mkdirSync(dir, { recursive: true })
+  await page.screenshot({ path: join(dir, 'feed-days.png'), animations: 'disabled' })
+}
 
 /*
  * The feed reads as days (2026-09-07): sticky day sections above the
@@ -246,9 +250,8 @@ test.describe('feed day sections', () => {
     expect(secondLine).toContain(en['feed.kindComment'])
     expect(secondLine).not.toContain('Dana: ')
 
-    // The capture for the separate vision round — written, never judged here.
-    mkdirSync(SHOT_DIR, { recursive: true })
-    await page.screenshot({ path: SHOT, animations: 'disabled' })
+    // The capture for the separate vision round — taken, never judged here.
+    await shootFeedDays(page)
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })

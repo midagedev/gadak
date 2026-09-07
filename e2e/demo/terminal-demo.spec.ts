@@ -27,6 +27,7 @@
  */
 import { test, expect, type Page } from '@playwright/test'
 import { attachConsoleErrors, forceLocale } from '../helpers'
+import { readTerm } from '../term-read'
 
 const isMedia = !!process.env.GADAK_MEDIA
 
@@ -61,30 +62,6 @@ async function typeLine(page: Page, line: string, delay = 26): Promise<void> {
   await page.keyboard.type(line, { delay })
   await beat(page, 500)
   await page.keyboard.press('Enter')
-}
-
-async function readTerm(page: Page): Promise<string> {
-  return page.evaluate(() => {
-    const t = (
-      window as unknown as {
-        __gadakTerm?: {
-          buffer: {
-            active: {
-              length: number
-              getLine: (y: number) => { translateToString: (t?: boolean) => string } | undefined
-            }
-          }
-        }
-      }
-    ).__gadakTerm
-    if (!t) return ''
-    const buf = t.buffer.active
-    const lines: string[] = []
-    for (let i = 0; i < buf.length; i++) {
-      lines.push(buf.getLine(i)?.translateToString(true) ?? '')
-    }
-    return lines.join('\n')
-  })
 }
 
 const STUCK_PIPE =

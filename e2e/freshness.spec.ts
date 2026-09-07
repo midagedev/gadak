@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test'
 import { attachConsoleErrors, forceLocale, gotoApp } from './helpers'
+import { en } from '../web/src/lib/i18n/en'
 
 /*
  * Freshness chip: the mirror↔Jira leg made visible in the list header.
@@ -19,6 +20,17 @@ type Source = {
 
 function isoAgo(ms: number): string {
   return new Date(Date.now() - ms).toISOString()
+}
+
+/** Sidebar's Sync log row → the history popover (moved with the GDK-486
+ *  tests from ux-f13.spec.ts). */
+async function openSyncHistory(page: Page) {
+  const row = page.getByTestId('sidebar-sync-now')
+  await expect(row).toBeVisible()
+  await row.click()
+  const popover = page.getByTestId('sync-history-popover')
+  await expect(popover).toBeVisible()
+  return popover
 }
 
 function bootstrapWith(sources: Source[]) {
@@ -257,6 +269,80 @@ test.describe('freshness chip', () => {
     ).toBeVisible({ timeout: 10_000 })
     // The write path's replace-token dialog, opened without ever writing.
     await expect(page.getByRole('dialog', { name: 'Jira credentials' })).toBeVisible()
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  /*
+   * Moved from ux-f7.spec.ts / ux-f13.spec.ts (v0.21 audit ladder round): the
+   * chip-versus-sidebar copy split and the popover's Last checked line are the
+   * same surface as the tone cases above. The /tmp/fNN-shots captures they
+   * carried were deleted with the move.
+   */
+  test('GDK-460: freshness copy lives on the chip; the sidebar is Sync log', async ({
+    page,
+  }) => {
+    const errors = attachConsoleErrors(page)
+    await gotoApp(page)
+    const chip = page.getByTestId('freshness-chip')
+    const row = page.getByTestId('sidebar-sync-now')
+    await expect(chip).not.toHaveAttribute('data-state', 'syncing', { timeout: 30_000 })
+
+    await expect(row).toContainText(en['sidebar.syncHistory'])
+    await expect(row).not.toContainText(/Sync delayed|Synced |ago/)
+    const chipText = ((await chip.textContent()) ?? '').trim()
+    expect(chipText.length, 'the chip still names the mirror age').toBeGreaterThan(0)
+    expect(chipText).not.toBe(en['sidebar.syncHistory'])
+    // Chip click is sync (now, or retry after a failed pass). Either sentence
+    // is the chip's job; the sidebar's is the history popover.
+    await expect(chip).toHaveAttribute('title', /Click to (sync now|retry)/)
+
+    await row.click()
+    const popover = page.getByTestId('sync-history-popover')
+    await expect(popover).toBeVisible()
+    await expect(popover).toContainText(en['sidebar.syncHistory'])
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  test('GDK-486: popover Last checked reads the same origin as the chip', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    await page.setViewportSize({ width: 1280, height: 800 })
+    await gotoApp(page)
+
+    const chip = page.getByTestId('freshness-chip')
+    const row = page.getByTestId('sidebar-sync-now')
+    await expect(chip).not.toHaveAttribute('data-state', 'syncing', { timeout: 30_000 })
+    // The row stays the history entry; Last checked lives in the popover.
+    await expect(row).toContainText(en['sidebar.syncHistory'])
+    await expect(row).not.toContainText(/Last checked/)
+
+    const popover = await openSyncHistory(page)
+    const line = popover.getByTestId('sync-history-last-checked')
+    await expect(line).toBeVisible()
+    const prefix = en['sidebar.syncLastChecked'].split('{when}')[0]
+    await expect(line).toContainText(prefix)
+    await expect(line).toHaveText(/Last checked .+/)
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  test('GDK-486: a server without last_checked_at hides the line', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    await page.setViewportSize({ width: 1280, height: 800 })
+    await gotoApp(page)
+
+    await page.route('**/api/v1/issues/sync/runs/**', async (route) => {
+      if (route.request().url().includes('source=confluence')) return route.continue()
+      const res = await route.fetch()
+      const doc = (await res.json()) as { last_checked_at?: unknown; runs?: unknown }
+      delete doc.last_checked_at
+      return route.fulfill({ json: doc })
+    })
+
+    const popover = await openSyncHistory(page)
+    await expect(popover.getByTestId('sync-history-last-checked')).toHaveCount(0)
+    await expect(popover).toContainText(en['sidebar.syncHistory'])
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })

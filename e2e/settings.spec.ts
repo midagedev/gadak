@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { apiURL, attachConsoleErrors, gotoApp, openServerSettings, DEMO_ISSUE_COUNT_EN_RE } from './helpers'
+import { en } from '../web/src/lib/i18n/en'
 
 const SETTINGS_URL = apiURL('/api/v1/issues/settings/')
 
@@ -186,6 +187,24 @@ test.describe('settings copy contracts', () => {
     await expect(projects).toBeVisible()
     await expect(projects.getByTestId('scope-empty')).toContainText('every project')
   })
+
+  // Moved from ux-f12.spec.ts (v0.21 audit ladder round); its /tmp capture
+  // was deleted with the move.
+  test('GDK-476: settings lead names the job, not a file path', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    await page.setViewportSize({ width: 1280, height: 800 })
+    await gotoApp(page)
+    await openServerSettings(page)
+
+    const dialog = page.getByRole('dialog', { name: 'Settings' })
+    const lead = dialog.getByTestId('settings-intro')
+    await expect(lead).toBeVisible()
+    await expect(lead).toHaveText(en['settings.intro'])
+    await expect(lead).not.toContainText('config.json')
+    await expect(lead).not.toContainText('~/.gadak')
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
 })
 
 test.describe('settings about tab', () => {
@@ -272,5 +291,132 @@ test.describe('sources tab scope-list retry (GDK-1061)', () => {
     await dialog.getByRole('button', { name: 'Sources', exact: true }).click()
     await expect(picker).toBeVisible()
     expect(spacesCalls, 'space list requests: 1 failed + 1 retry, no refetch after').toBe(2)
+  })
+})
+
+/*
+ * Moved from ux-f12.spec.ts (v0.21 audit ladder round): the sources tab's
+ * hung-list and Confluence-confirm states, beside the retry case above. The
+ * /tmp/f12-shots captures were deleted with the move.
+ */
+test.describe('sources tab failure states (GDK-476)', () => {
+  test('a hung sources list leaves Loading for an error + manual keys', async ({
+    page,
+  }) => {
+    const errors = attachConsoleErrors(page)
+    const API = apiURL('/api/v1/issues/')
+    /*
+     * The two numbers below are the contract, not tuning. The site lists are
+     * held for HOLD_MS while the client gives up after TIMEOUT_MS, and the
+     * error UI has to arrive inside that gap. The eventual 5xx renders the
+     * same UI, so the gap is measured (below) rather than left to an expect
+     * budget — assertion order decides when a budget starts, and a budget
+     * that starts after HOLD_MS has already elapsed proves nothing.
+     */
+    const TIMEOUT_MS = 250
+    const HOLD_MS = 3_000
+    // Test-only: production SCOPE_LIST_MS is 8_000 (SettingsDialog.svelte).
+    await page.addInitScript((ms) => {
+      ;(window as unknown as { __gadakTestFetchTimeoutMs?: number }).__gadakTestFetchTimeoutMs = ms
+    }, TIMEOUT_MS)
+    // Fixture Jira is fake — GET meta/write/ otherwise holds teardown on a
+    // createmeta DNS miss (~15s). Same fulfill shape as duedate.spec.ts.
+    await page.route(`${API}meta/write/`, async (route) => {
+      if (route.request().method() !== 'GET') return route.continue()
+      await route.fulfill({
+        json: {
+          transitions: {},
+          create_meta: { projects: [] },
+          updated_at: '2026-08-18T00:00:00.000Z',
+        },
+      })
+    })
+    await gotoApp(page)
+    // Hang the two site lists, then answer — that is the GDK-476 shape, and
+    // the only way scopeListSignal() actually fires. Not route.abort(): a
+    // network throw is what GDK-477 reads as "gadak serve is gone", which
+    // raises offline-banner and pins teardown ~15s waiting for it to clear.
+    // The hold is longer than the 250ms hook above and short enough that
+    // teardown does not wait on it.
+    await page.route(
+      (url) =>
+        url.pathname.includes('/projects/available') || url.pathname.includes('/settings/spaces'),
+      async (route) => {
+        await new Promise((r) => setTimeout(r, HOLD_MS))
+        await route.fulfill({ status: 500, json: { error: 'unavailable' } })
+      },
+    )
+    await openServerSettings(page)
+    const dialog = page.getByRole('dialog', { name: 'Settings' })
+    const sources = dialog.getByTestId('settings-sources')
+    const clickedAt = Date.now()
+    await dialog.getByRole('button', { name: 'Sources', exact: true }).click()
+    await expect(sources.getByTestId('scope-spaces-error')).toBeVisible()
+    const errorAfterMs = Date.now() - clickedAt
+
+    await expect(sources.getByTestId('scope-projects-fallback')).toBeVisible()
+    await expect(sources.getByText(en['settings.projectsManual'])).toBeVisible({
+      timeout: 12_000,
+    })
+    // GDK-476 itself: "Loading the list…" has to go away without the site.
+    await expect(sources.getByText(en['settings.scopeLoading'])).toHaveCount(0)
+    // The client timeout is what cleared it, not the request finally answering.
+    expect(
+      errorAfterMs,
+      `sources error took ${errorAfterMs}ms; the lists were held ${HOLD_MS}ms, so anything at or past that is the response, not the ${TIMEOUT_MS}ms client timeout`,
+    ).toBeLessThan(HOLD_MS)
+    await expect(sources.getByTestId('scope-spaces-error')).toHaveText(
+      en['settings.spacesUnavailable'],
+    )
+    // Client timeout on the site list is not "gadak serve is gone".
+    await expect(page.getByTestId('offline-banner')).toHaveCount(0)
+
+    expect(
+      errors.filter((e) => !e.includes('ERR_FAILED') && !e.includes('Failed to load resource')),
+      `console errors:\n${errors.join('\n')}`,
+    ).toEqual([])
+  })
+
+  test('turning Confluence on for every space needs a second click', async ({
+    page,
+  }) => {
+    const errors = attachConsoleErrors(page)
+    const API = apiURL('/api/v1/issues/')
+    await page.route(`${API}settings/`, (route) =>
+      route.fulfill({ json: { projects: ['NMB'], staleThresholdHours: 72 } }),
+    )
+    await page.route(`${API}projects/available/`, (route) =>
+      route.fulfill({
+        json: {
+          projects: [{ key: 'NMB', name: 'Nimbus Backend', projectTypeKey: 'software' }],
+          truncated: false,
+        },
+      }),
+    )
+    await page.route(`${API}settings/spaces/`, (route) =>
+      route.fulfill({
+        json: { spaces: [], all_global_when_empty: false, enabled: false },
+      }),
+    )
+
+    await gotoApp(page)
+    await openServerSettings(page)
+    const dialog = page.getByRole('dialog', { name: 'Settings' })
+    await dialog.getByRole('button', { name: 'Sources', exact: true }).click()
+
+    const confluence = dialog.getByTestId('sources-confluence')
+    const turnOn = confluence.getByTestId('confluence-turn-on')
+    await expect(turnOn).toHaveText(en['settings.confluenceTurnOnAll'])
+
+    await turnOn.click()
+    await expect(turnOn).toHaveText(en['settings.confluenceTurnOnAllConfirm'])
+    await expect(confluence.getByTestId('confluence-all-warning')).toHaveCount(0)
+    await expect(confluence.getByTestId('confluence-turn-off')).toHaveCount(0)
+
+    await turnOn.click()
+    await expect(confluence.getByTestId('confluence-all-warning')).toBeVisible()
+    await expect(confluence.getByTestId('confluence-turn-off')).toBeVisible()
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 })

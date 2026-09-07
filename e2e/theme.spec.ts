@@ -112,8 +112,12 @@ test.describe('theme', () => {
     request,
   }) => {
     // The registry contract is "token block in app.css + entry in THEMES".
-    // This is the end of that promise: a name in THEMES with no CSS block would
-    // sit in the picker and select to nothing, which no unit test can see.
+    // The static half of that promise — every THEMES entry has a 6-hex ground
+    // in app.css, no two palettes share one, and the continuity hexes stay
+    // pinned — lives in web/src/lib/theme-links.test.ts. What only a browser
+    // can see is painted here: each name selects in the picker and paints a
+    // ground of its own (a block the CSS never applies would select to
+    // nothing).
     await page.emulateMedia({ colorScheme: 'light' })
     await gotoApp(page)
     const picker = await themePicker(page)
@@ -126,9 +130,6 @@ test.describe('theme', () => {
       expect(collision, `${theme.name} and ${collision?.[0]} paint the same ground ${base}`).toBeUndefined()
       seen.set(theme.name, base)
     }
-    expect(seen.get('dark')).toBe(DARK.base)
-    expect(seen.get('ink')).toBe(INK.base)
-    expect(seen.get('ember')).toBe(EMBER.base)
     await waitServerTheme(request, THEMES[THEMES.length - 1].name)
   })
 

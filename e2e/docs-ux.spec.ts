@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test'
 import { apiURL, attachConsoleErrors, gotoApp, openServerSettings, walkRows } from './helpers'
+import { en } from '../web/src/lib/i18n/en'
 
 const PAGES_URL = apiURL('/api/v1/issues/pages/')
 
@@ -955,5 +956,52 @@ test.describe('sync status at rest', () => {
       return el.getBoundingClientRect().right <= line.getBoundingClientRect().right + 1
     })
     expect(fits).toBe(true)
+  })
+})
+
+/*
+ * Moved from ux-f12.spec.ts (v0.21 audit ladder round); its /tmp capture was
+ * deleted with the move. The docs empty-state copy above is what a 503 must
+ * never stand in for — failure is not emptiness.
+ */
+test.describe('docs load failure (GDK-1054)', () => {
+  test('a 503 docs index is an error line, never the empty copy', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    await page.setViewportSize({ width: 1280, height: 800 })
+    await page.route('**/api/v1/issues/pages/**', (route) =>
+      route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: '{"error":"service unavailable"}',
+      }),
+    )
+    await gotoApp(page)
+    // Deep link: with the index failed the sidebar swaps its DOCS section for
+    // the empty CTA, so the view is reached the way a shared link arrives.
+    await page.goto('/?docs=1')
+    await expect(page.getByTestId('docs-view')).toBeVisible()
+    await expect(page.getByTestId('docs-load-error')).toBeVisible()
+    await expect(page.getByTestId('docs-load-error')).toContainText(en['docs.loadFailed'])
+    // Failure is not emptiness: neither empty copy may stand in for a 503.
+    await expect(page.getByText(en['docs.viewedEmpty'], { exact: false })).toHaveCount(0)
+    await expect(page.getByText(en['docs.recentEmpty'], { exact: false })).toHaveCount(0)
+    // No banner assertion here, on purpose: with only pages/ failing, the
+    // deep-link reload's own pool sync succeeds and marks the server back up
+    // (the strip is one-owner — a later successful sync clears it, exactly
+    // like a transient GDK-477 abort). The docs surface's own signal is the
+    // error line above; the strip's 5xx case is offline-banner.spec.ts.
+
+    await page.unrouteAll({ behavior: 'ignoreErrors' })
+    await page.getByRole('button', { name: en['common.retry'] }).click()
+    // Recovered: rows on the Updated tab (Viewed is legitimately empty in a
+    // fresh context — it holds only this browser's own visits).
+    await page.locator('[data-testid="docs-tab"][data-tab="updated"]').click()
+    await expect(page.getByTestId('doc-row').first()).toBeVisible()
+    await expect(page.getByTestId('docs-load-error')).toHaveCount(0)
+
+    expect(
+      errors.filter((e) => !e.includes('Failed to load resource')),
+      `console errors:\n${errors.join('\n')}`,
+    ).toEqual([])
   })
 })

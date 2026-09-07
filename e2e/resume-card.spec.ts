@@ -1,14 +1,20 @@
 import { mkdirSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 import { test, expect, type Page } from '@playwright/test'
 import { attachConsoleErrors, gotoApp, searchInput } from './helpers'
 
-// Where resume-card.png lands: repo scratch by default (gitignored, CI-safe),
-// overridable so a round can route the capture to its own session scratchpad
-// for the lead's vision review — the same pattern team-flow.spec.ts uses.
-const SHOT_DIR = process.env.RESUME_CARD_SHOT_DIR ?? join(dirname(fileURLToPath(import.meta.url)), '../scratch')
-const SHOT = join(SHOT_DIR, 'resume-card.png')
+/**
+ * The capture for the lead's vision review is env-gated (v0.21 release
+ * audit, capture-hygiene finding): it used to write scratch/resume-card.png
+ * on every run, so CI paid for a capture nobody looked at and the scratch
+ * tree filled on behavior-only runs. Set RESUME_CARD_SHOT_DIR to take it.
+ */
+async function shootResumeCard(page: Page): Promise<void> {
+  const dir = process.env.RESUME_CARD_SHOT_DIR
+  if (!dir) return
+  mkdirSync(dir, { recursive: true })
+  await page.screenshot({ path: join(dir, 'resume-card.png') })
+}
 
 /*
  * Resume card e2e (spec w1-resume, Part C). Clause table — the clauses this
@@ -130,8 +136,7 @@ test.describe('resume card', () => {
     await expect(history).toBeVisible()
     // Capture BEFORE the click: after it the panel has scrolled to History
     // and the card is out of frame (vision FIX 2026-09-06, framing not render).
-    mkdirSync(SHOT_DIR, { recursive: true })
-    await page.screenshot({ path: SHOT })
+    await shootResumeCard(page)
     await card.click()
     await expect
       .poll(async () => {

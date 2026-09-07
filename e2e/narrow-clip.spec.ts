@@ -18,6 +18,9 @@ import { VIEWPORT_DOCKED_MIN_PX } from '../web/src/lib/viewport-regime'
  *      and wins — the hourglass stays, and a 44px slot clips "13일"/"35일".
  *   2. Row trailing: flex-none slots + .issue-main-column overflow:hidden
  *      silently cut avatar / updated at 740 and at the 1100 docked seam.
+ *      (v0.21 audit ladder round: the trailing axis moved to
+ *      list-row-overflow.spec.ts, the width-axis owner; what stays here is
+ *      the 1100 seam itself — list column vs panel edge.)
  *   3. Demo banner: HostedLinks was position:absolute, so GitHub/About
  *      painted over "Run it on your own Jira →" at en 800.
  *
@@ -31,14 +34,6 @@ import { VIEWPORT_DOCKED_MIN_PX } from '../web/src/lib/viewport-regime'
  * an inline style generated from the TS constants, so the unit owns the
  * whole chain). What stays here is painted geometry.
  */
-
-type TrailOverflow = {
-  key: string
-  col: string
-  right: number
-  scrollerRight: number
-  viewportW: number
-}
 
 type StaleProbe = {
   text: string
@@ -76,39 +71,6 @@ async function probeStale(page: Page): Promise<StaleProbe[]> {
       })
     }
     return out
-  })
-}
-
-async function trailOverflows(page: Page): Promise<TrailOverflow[]> {
-  return page.evaluate(() => {
-    const scroller = document.querySelector<HTMLElement>('[data-testid="issue-list-scroller"]')
-    if (!scroller) return []
-    const sbox = scroller.getBoundingClientRect()
-    const hits: TrailOverflow[] = []
-    for (const row of scroller.querySelectorAll<HTMLElement>('[data-issue-key]')) {
-      const r = row.getBoundingClientRect()
-      if (r.bottom < 0 || r.top > innerHeight) continue
-      const trail = row.querySelector<HTMLElement>('[data-testid="issue-row-trail"]')
-      if (!trail) continue
-      for (const child of [...trail.children] as HTMLElement[]) {
-        const s = getComputedStyle(child)
-        if (s.display === 'none' || s.visibility === 'hidden') continue
-        const b = child.getBoundingClientRect()
-        if (b.width < 1) continue
-        // 0.5px: subpixel from deviceScaleFactor. Past the scroller or the
-        // viewport is the silent-cut the audit photographed.
-        if (b.right > sbox.right + 0.5 || b.right > innerWidth + 0.5) {
-          hits.push({
-            key: row.dataset.issueKey ?? '',
-            col: child.dataset.col ?? child.className.toString().slice(0, 40),
-            right: Math.round(b.right * 10) / 10,
-            scrollerRight: Math.round(sbox.right * 10) / 10,
-            viewportW: innerWidth,
-          })
-        }
-      }
-    }
-    return hits
   })
 }
 
@@ -181,25 +143,17 @@ test.describe('stale chip at container ≤1100', () => {
   })
 })
 
-test.describe('row trailing at 740', () => {
-  test.use({ viewport: { width: 740, height: 900 } })
-
-  test('visible trail cells stay inside the list scroller', async ({ page }) => {
-    const errors = attachConsoleErrors(page)
-    await gotoApp(page)
-    await waitListRows(page)
-    const hits = await trailOverflows(page)
-    expect(hits, `trail cells past the scroller/viewport at 740: ${JSON.stringify(hits)}`).toEqual(
-      [],
-    )
-    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
-  })
-})
-
-test.describe('row trailing at docked 1100', () => {
+/*
+ * The 1100 docked seam — the part of the old "row trailing at docked 1100"
+ * test that is NOT the trailing axis: the list column must end where the
+ * panel begins, so the narrowed list never paints under the docked panel.
+ * The trailing-cells-vs-scroller half of that test moved to
+ * list-row-overflow.spec.ts (the width-axis owner) as the @1100 rung.
+ */
+test.describe('docked 1100 seam', () => {
   test.use({ viewport: { width: VIEWPORT_DOCKED_MIN_PX, height: 900 } })
 
-  test('visible trail cells stay inside the list column (not the panel seam)', async ({ page }) => {
+  test('the list column ends at the panel edge, not under it', async ({ page }) => {
     const errors = attachConsoleErrors(page)
     await gotoApp(page)
     await waitListRows(page)
@@ -220,12 +174,6 @@ test.describe('row trailing at docked 1100', () => {
         }),
       )
       .toBeGreaterThan(400)
-
-    const hits = await trailOverflows(page)
-    expect(
-      hits,
-      `trail cells past the list scroller at docked ${VIEWPORT_DOCKED_MIN_PX}: ${JSON.stringify(hits)}`,
-    ).toEqual([])
 
     const seam = await page.evaluate(() => {
       const scroller = document.querySelector<HTMLElement>('[data-testid="issue-list-scroller"]')

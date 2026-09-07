@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test'
 import { attachConsoleErrors, gotoApp, searchInput } from './helpers'
+import { en } from '../web/src/lib/i18n/en'
 
 /**
  * Overlay the served config document for this page — the same mock pattern
@@ -12,6 +13,21 @@ async function serveConfigOverride(page: Page, extra: Record<string, unknown>): 
     const doc = (await res.json()) as Record<string, unknown>
     await route.fulfill({ response: res, json: { ...doc, ...extra } })
   })
+}
+
+/** Search the key and open its panel. Exact row via data-issue-key (moved
+ *  from ux-f12.spec.ts): hasText('NMA-1') also matches NMA-10/-100, and
+ *  which comes first depends on the boot view's ordering (GDK-100). */
+async function openIssueByKey(page: Page, key: string) {
+  const input = searchInput(page)
+  await input.fill(key)
+  await page
+    .locator(`[data-testid="issue-list-scroller"] [data-issue-key="${key}"]`)
+    .first()
+    .click()
+  const panel = page.getByTestId('issue-detail-panel')
+  await expect(panel).toBeVisible()
+  return panel
 }
 
 test.describe('detail', () => {
@@ -353,6 +369,74 @@ test.describe('detail', () => {
     await expect.poll(async () => page.evaluate(() => navigator.clipboard.readText())).toBe(want)
 
     await expect(page.getByTestId('toast')).toContainText('Copied')
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  /*
+   * Moved from ux-f7.spec.ts / ux-f12.spec.ts (v0.21 audit ladder round): the
+   * audit-placement ux-fNN files were dissolved by surface; both of these are
+   * detail-panel contracts. The /tmp/fNN-shots captures were deleted with the
+   * move.
+   */
+  test('GDK-462: Esc in the comment composer blurs; the next Esc closes', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    await gotoApp(page)
+    const panel = await openIssueByKey(page, 'NMB-110')
+
+    const composer = panel.getByTestId('comment-composer')
+    await expect(composer).toBeVisible()
+    await composer.fill('f7-esc-draft-must-survive')
+    await expect(composer).toBeFocused()
+
+    await page.keyboard.press('Escape')
+    await expect(panel).toBeVisible()
+    await expect(composer).not.toBeFocused()
+    await expect(composer).toHaveValue('f7-esc-draft-must-survive')
+
+    await page.keyboard.press('Escape')
+    await expect(panel).toBeHidden()
+
+    const reopened = await openIssueByKey(page, 'NMB-110')
+    await expect(reopened.getByTestId('comment-composer')).toHaveValue('f7-esc-draft-must-survive')
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  test('GDK-475: zero comments are counted once; shortcut lives on one kbd', async ({
+    page,
+  }) => {
+    const errors = attachConsoleErrors(page)
+    await page.setViewportSize({ width: 1280, height: 800 })
+    await gotoApp(page)
+    // Flat view: the epic-grouped boot default (GDK-100) can leave the
+    // searched row outside the virtual scroller, so the click never lands.
+    await page.getByRole('button', { name: /All open/ }).click()
+    const panel = await openIssueByKey(page, 'NMA-1')
+
+    const comments = panel.getByRole('heading', { name: 'Comments' })
+    await expect(comments).toBeVisible()
+    await expect(comments).toHaveText(/Comments\s*0/)
+    await expect(panel.getByText('No comments', { exact: true })).toHaveCount(0)
+
+    const composer = panel.getByTestId('comment-composer')
+    await expect(composer).toHaveAttribute('placeholder', en['write.commentPlaceholder'])
+    expect(en['write.commentPlaceholder']).not.toMatch(/⌘Enter|@mention/)
+
+    const shortcut = panel.getByTestId('comment-shortcut')
+    await expect(shortcut).toHaveCount(1)
+    // GDK-354 / F-1: kbd is the platform modifier + the ↵ glyph the cheat
+    // sheet prints (GDK-621) — not a catalog string hard-coding ⌘Enter on
+    // every OS. Same platform test as modifierSymbol() in
+    // web/src/lib/unified-search.ts. GDK-826: the catalog equality (every
+    // locale '{mod} ↵', never a literal ⌘) is owned by
+    // surface-consistency.test.ts, not re-asserted here.
+    const mod = await page.evaluate(() =>
+      /Mac|iP(hone|ad)/.test(navigator.platform) ? '⌘' : 'Ctrl',
+    )
+    const label = `${mod} ↵`
+    await expect(shortcut).toHaveText(label)
+    await expect(panel.getByText(label)).toHaveCount(1)
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })

@@ -1,16 +1,21 @@
 import { mkdirSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 import { test, expect, type Page, type Route } from '@playwright/test'
 import { KEYS_CAP } from '../web/src/lib/view-config'
 import { attachConsoleErrors, gotoApp } from './helpers'
 
-// Where session-strip.png lands: repo scratch by default (gitignored,
-// CI-safe), overridable so a round can route the capture to its own session
-// scratchpad for the lead's vision review — the same pattern
-// resume-card.spec.ts uses.
-const SHOT_DIR = process.env.SESSION_STRIP_SHOT_DIR ?? join(dirname(fileURLToPath(import.meta.url)), '../scratch')
-const SHOT = join(SHOT_DIR, 'session-strip.png')
+/**
+ * The capture for the lead's vision review is env-gated (v0.21 release
+ * audit, capture-hygiene finding): it used to write scratch/session-strip.png
+ * on every run, so CI paid for a capture nobody looked at and the scratch
+ * tree filled on behavior-only runs. Set SESSION_STRIP_SHOT_DIR to take it.
+ */
+async function shootSessionStrip(page: Page): Promise<void> {
+  const dir = process.env.SESSION_STRIP_SHOT_DIR
+  if (!dir) return
+  mkdirSync(dir, { recursive: true })
+  await page.screenshot({ path: join(dir, 'session-strip.png') })
+}
 
 /*
  * Session strip e2e (spec r2-session, Part C). Clause table — the clauses
@@ -135,8 +140,7 @@ test.describe('session strip', () => {
     expect((await strip.getAttribute('title')) ?? '').not.toBe('')
 
     // Capture BEFORE the click: after it the strip is gone by design.
-    mkdirSync(SHOT_DIR, { recursive: true })
-    await page.screenshot({ path: SHOT })
+    await shootSessionStrip(page)
 
     // C5: the click applies exactly the changed keys (KEYS_CAP-capped) — no
     // status filter, no query, nothing else.

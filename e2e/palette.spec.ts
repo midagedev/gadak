@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { apiURL, attachConsoleErrors, gotoApp, searchInput, DEMO_ISSUE_COUNT_EN_RE } from './helpers'
+import { en } from '../web/src/lib/i18n/en'
 
 test.describe('command palette', () => {
   test('Cmd+K opens it, typing stays local, Enter opens the issue detail', async ({ page }) => {
@@ -405,5 +406,62 @@ test.describe('command palette', () => {
       await expect(page).toHaveURL(/settings=workspaces/)
       expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
     })
+  })
+
+  /*
+   * Moved from ux-f7.spec.ts / ux-f11.spec.ts (v0.21 audit ladder round): the
+   * audit-placement ux-fNN files were dissolved by surface; these are palette
+   * contracts. The /tmp/fNN-shots captures they carried were deleted with the
+   * move — captures are env-gated now, not inline writes.
+   */
+  test('GDK-461: zero palette matches do not default Enter to create', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    await gotoApp(page)
+    await expect(page.getByTestId('freshness-chip')).not.toHaveAttribute('data-state', 'syncing', {
+      timeout: 30_000,
+    })
+
+    await page.keyboard.press('ControlOrMeta+k')
+    const palette = page.getByRole('dialog', { name: 'Command palette' })
+    await expect(palette).toBeVisible()
+    await palette.getByRole('combobox').fill('zzzznotanissue999')
+
+    await expect(palette.getByTestId('palette-unified-empty')).toBeVisible()
+    const createNow = palette.getByTestId('palette-create-now')
+    await expect(createNow).toBeVisible()
+    await expect(createNow).toHaveAttribute('aria-selected', 'false')
+    await expect(palette.locator('[role="option"][aria-selected="true"]')).toHaveCount(0)
+    // One create entry: the typed-summary row. New issue is the empty-query
+    // action and must not be force-appended beside it.
+    await expect(palette.getByTestId('palette-new-issue')).toHaveCount(0)
+
+    await page.keyboard.press('Enter')
+    await expect(palette).toBeVisible()
+    await expect(page.getByRole('dialog', { name: /new issue/i })).toHaveCount(0)
+
+    await page.keyboard.press('ArrowDown')
+    await expect(createNow).toHaveAttribute('aria-selected', 'true')
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  test('GDK-472: palette entry names its scope; empty palette is one phrase', async ({
+    page,
+  }) => {
+    const errors = attachConsoleErrors(page)
+    await gotoApp(page)
+
+    const entry = page.getByTestId('palette-open')
+    await expect(entry).toContainText('Search everything')
+    await expect(entry.locator('kbd')).toBeVisible()
+
+    await entry.click()
+    const palette = page.getByRole('dialog', { name: 'Command palette' })
+    await expect(palette).toBeVisible()
+    const box = palette.getByRole('combobox')
+    await expect(box).toHaveAttribute('placeholder', en['palette.placeholder'])
+    await expect(palette.getByTestId('palette-empty-hint')).toHaveCount(0)
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 })

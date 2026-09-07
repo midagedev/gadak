@@ -46,7 +46,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { SERVE_ORIGIN } from '../playwright.config'
 
-const SHOT_DIR = join(dirname(fileURLToPath(import.meta.url)), '.shots')
+const SHOT_DIR = process.env.A4_SHOT_DIR ?? join(dirname(fileURLToPath(import.meta.url)), '.shots')
 
 /** The fixture's own busiest account — see note 2. */
 const IDENTITY = { email: 'demo@example.com', account_id: 'demo-alex', name: 'Alex Kim' }
@@ -121,6 +121,10 @@ async function pickResumeIssue(): Promise<{ key: string; visitedAt: string }> {
 }
 
 test('captures the A4 awareness surfaces for the vision round', async ({ page }) => {
+  // Capture-only (v0.21 release audit, capture-hygiene finding): this whole
+  // spec exists to photograph surfaces for a vision round. It runs when that
+  // round asks by naming the directory, and is skipped otherwise.
+  test.skip(!process.env.A4_SHOT_DIR, 'capture-only; set A4_SHOT_DIR to run')
   mkdirSync(SHOT_DIR, { recursive: true })
   const resume = await pickResumeIssue()
   const boundary = new Date(Date.now() - 3 * 24 * 3600 * 1000).toISOString()

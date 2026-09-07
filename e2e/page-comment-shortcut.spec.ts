@@ -7,8 +7,9 @@ import { en } from '../web/src/lib/i18n/en'
  * chip the issue composer does (UX_PRINCIPLES §3 — the shortcut lives
  * where the action is). The chord is write.commentShortcut interpolated
  * with the platform modifier, not a page-local spelling. Issue-composer
- * chip text is locked in ux-f12.spec.ts; this spec locks the page surface
- * to that same catalog key.
+ * chip text is locked in detail.spec.ts (GDK-475, moved there from the
+ * dissolved ux-f12.spec.ts); this spec locks the page surface to that same
+ * catalog key.
  */
 
 async function openDocFromTree(page: Page, title: string): Promise<void> {
@@ -46,7 +47,7 @@ test.describe('GDK-650 page comment shortcut', () => {
     // GDK-826: the catalog equality (every locale '{mod} ↵', never a
     // literal ⌘) is owned by surface-consistency.test.ts. The browser half
     // kept here is the wiring: the chip interpolates the catalog's {mod}
-    // with the platform modifier, same as modifierSymbol() / ux-f12.
+    // with the platform modifier, same as modifierSymbol() / detail.spec.ts.
     const mod = await page.evaluate(() =>
       /Mac|iP(hone|ad)/.test(navigator.platform) ? '⌘' : 'Ctrl',
     )

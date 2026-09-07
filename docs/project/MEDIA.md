@@ -443,6 +443,18 @@ make brand         # logo, wordmarks, favicons, OG card
 Outputs land in `docs/media/`. Commit them — the README references the paths
 directly, and CI does not regenerate media.
 
+Evidence captures for a vision round are a different pipeline from these
+clips. The e2e specs that shoot still PNGs for review (the terminal pane and
+strip, my-work, feed-days, the phone's a1–a4 packs) never write them as a
+side effect of a normal run: each takes its shots only when the round names
+a directory through that spec's `*_SHOT_DIR` env var —
+`TERMINAL_SHOT_DIR=shots/ npx playwright test e2e/terminal.spec.ts` for a
+capture-only test, `FEED_SHOT_DIR=shots/ … e2e/feed-days.spec.ts` for an
+inline one (procedure and both shapes: `e2e/README.md`). `make media*` and
+the VHS tapes under `tools/tapes/` drive only the `e2e/demo/*` recording
+configs, which produce the videos above and none of those PNGs — so no media
+target sets a `*_SHOT_DIR`.
+
 ## What each recording shows
 
 ### Web UI (`web-demo`)

@@ -6,15 +6,26 @@
  *  2. Reorder sections, reload → order kept
  *  3. A collapsed section's header stays visible with aria-expanded=false
  */
+import { mkdirSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { test, expect, type Page } from '@playwright/test'
 import { attachConsoleErrors, gotoApp, DEMO_ISSUE_COUNT_EN_RE } from './helpers'
+import { en } from '../web/src/lib/i18n/en'
 
-const here = path.dirname(fileURLToPath(import.meta.url))
-const SHOT_COLLAPSED = path.join(here, '../scratch/gdk-434-sidebar-collapsed.png')
-const SHOT_EXPANDED = path.join(here, '../scratch/gdk-434-sidebar-expanded.png')
+/**
+ * Evidence captures for this file are env-gated (v0.21 release audit,
+ * capture-hygiene finding): they used to write ../scratch/gdk-434-*.png on
+ * every run, so CI paid for captures nobody looked at and the scratch tree
+ * filled on behavior-only runs. Set SIDEBAR_SHOT_DIR to take them.
+ */
+async function shootSidebar(page: Page, file: string): Promise<void> {
+  const dir = process.env.SIDEBAR_SHOT_DIR
+  if (!dir) return
+  mkdirSync(dir, { recursive: true })
+  await page.locator('aside.issue-sidebar').screenshot({ path: path.join(dir, file) })
+}
 
 function sectionHeader(page: Page, id: string) {
   return page.getByTestId(`sidebar-section-header-${id}`)
@@ -120,14 +131,14 @@ test.describe('sidebar section collapse and order', () => {
     await expect(header).toHaveAttribute('aria-expanded', 'true')
     await expect(sectionBody(page, 'builtin')).toBeVisible()
 
-    await page.locator('aside.issue-sidebar').screenshot({ path: SHOT_EXPANDED })
+    await shootSidebar(page, 'gdk-434-sidebar-expanded.png')
 
     await header.click()
     await expect(header).toHaveAttribute('aria-expanded', 'false')
     await expect(header).toBeVisible()
     await expect(sectionBody(page, 'builtin')).toBeHidden()
 
-    await page.locator('aside.issue-sidebar').screenshot({ path: SHOT_COLLAPSED })
+    await shootSidebar(page, 'gdk-434-sidebar-collapsed.png')
 
     await reloadSidebar(page)
 
@@ -314,5 +325,42 @@ test.describe('GDK-1081 window tall enough for the whole rail shows every row', 
         `${name}: bottom ${r!.bottom} clipped by the scroller bottom ${geo.scrollBottom}`,
       ).toBeLessThanOrEqual(geo.scrollBottom + 1)
     }
+  })
+})
+
+/*
+ * Moved from ux-f13.spec.ts (v0.21 audit ladder round): the audit-placement
+ * ux-fNN files were dissolved by surface — this is a sidebar-section contract.
+ * Its /tmp capture was deleted with the move.
+ */
+test.describe('section affordances (GDK-483)', () => {
+  test('reorderable section headers show a grip on hover', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    await page.setViewportSize({ width: 1280, height: 800 })
+    await gotoApp(page)
+
+    const header = page.getByTestId('sidebar-section-header-builtin')
+    await expect(header).toBeVisible()
+    const grip = header.getByTestId('sidebar-section-grip')
+    await expect(grip).toBeAttached()
+    await expect(grip).toHaveCSS('opacity', '0')
+
+    await header.hover()
+    await expect(grip).toHaveCSS('opacity', '1')
+    await expect(header).toHaveAttribute('title', en['sidebar.sectionReorderHint'])
+
+    // Non-collapsible personalization blocks are not SidebarSection: no grip.
+    // The Feed row carries the same clause the removed "My Issues" heading
+    // did (2026-09-07 sidebar subtraction): it lives in the personalization
+    // block, which must not grow a grip. Aside-scoped and role-matched —
+    // not the "My issues" built-in view button below it (my-work pack),
+    // which lives inside the builtin SidebarSection.
+    const feedRow = page.locator('aside').getByRole('button', { name: 'Feed' })
+    await expect(feedRow).toBeVisible()
+    await expect(
+      feedRow.locator('xpath=ancestor::div[1]').getByTestId('sidebar-section-grip'),
+    ).toHaveCount(0)
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 })

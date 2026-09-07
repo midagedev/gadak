@@ -14,7 +14,9 @@ import {
   readTerm,
 } from './helpers'
 
-const SHOT_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'scratch', 'terminal-shots')
+const SHOT_DIR =
+  process.env.TERMINAL_SHOT_DIR ??
+  join(dirname(fileURLToPath(import.meta.url)), '..', 'scratch', 'terminal-shots')
 
 async function boot(page: Page): Promise<string[]> {
   const errors = attachConsoleErrors(page)
@@ -555,6 +557,10 @@ test.describe('terminal shots', () => {
   })
 
   test('capture split, exited, overlay, dark', async ({ page }) => {
+    // Capture-only (v0.21 release audit, capture-hygiene finding): it writes
+    // four PNGs + MANIFEST nobody in CI consumes. It runs when a vision round
+    // asks for the shots by naming the directory, and is skipped otherwise.
+    test.skip(!process.env.TERMINAL_SHOT_DIR, 'capture-only; set TERMINAL_SHOT_DIR to run')
     test.setTimeout(90_000)
     mkdirSync(SHOT_DIR, { recursive: true })
     const hash = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()

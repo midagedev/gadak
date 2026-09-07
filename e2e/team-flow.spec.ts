@@ -16,23 +16,28 @@
  *  C2  rows are read from the same DOM the other view specs read:
  *      [data-issue-key] under issue-list-scroller, scroll-accumulated
  *      (the list is virtualised; counting the DOM would count the window).
- *  —   Artifact: aging-view.png for the lead's vision review. This spec
- *      writes it and never judges it.
+ *  —   Artifact: aging-view.png for the lead's vision review, taken only
+ *      when TEAM_FLOW_SHOT_DIR is set. This spec writes it and never
+ *      judges it.
  */
 import { mkdirSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 
-import { test, expect, type Locator } from '@playwright/test'
+import { test, expect, type Locator, type Page } from '@playwright/test'
 import { apiURL, attachConsoleErrors, gotoApp } from './helpers'
 
-const here = dirname(fileURLToPath(import.meta.url))
-
-// Where aging-view.png lands: repo scratch by default (gitignored, CI-safe —
-// a Linux runner has no /private), overridable so a round can route the
-// capture to its own session scratchpad for the lead's vision review.
-const SHOT_DIR = process.env.TEAM_FLOW_SHOT_DIR ?? join(here, '../scratch')
-const SHOT = join(SHOT_DIR, 'aging-view.png')
+/**
+ * The artifact for the lead's vision review is env-gated (v0.21 release
+ * audit, capture-hygiene finding): it used to write scratch/aging-view.png on
+ * every run, so CI paid for a capture nobody looked at and the scratch tree
+ * filled on behavior-only runs. Set TEAM_FLOW_SHOT_DIR to take it.
+ */
+async function shootAgingView(page: Page): Promise<void> {
+  const dir = process.env.TEAM_FLOW_SHOT_DIR
+  if (!dir) return
+  mkdirSync(dir, { recursive: true })
+  await page.screenshot({ path: join(dir, 'aging-view.png') })
+}
 
 type BootRow = { issue_key: string; status_category?: string }
 
@@ -118,9 +123,8 @@ test.describe('team-flow: the in-progress set by address', () => {
     const shown = await walkIssueKeys(page.getByTestId('issue-list-scroller'))
     expect(new Set(shown), 'the view shows exactly the in-progress issues').toEqual(expected)
 
-    // Artifact for the lead's vision review — written, never judged here.
-    mkdirSync(SHOT_DIR, { recursive: true })
-    await page.screenshot({ path: SHOT })
+    // Artifact for the lead's vision review — taken, never judged here.
+    await shootAgingView(page)
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })

@@ -45,7 +45,10 @@ want=(
   "@esbuild/win32-x64"
 )
 
-for lock in package-lock.json site/package-lock.json; do
+# mobile/ carries its own lockfile (own tsconfig, own install) and its e2e
+# builds a bundle through vite on the same CI runner (GDK-1540), so it prunes
+# the same way the root one did (v0.21 release audit: unwired-script finding).
+for lock in package-lock.json site/package-lock.json mobile/package-lock.json; do
   [[ -f "$lock" ]] || continue
   for pkg in "${want[@]}"; do
     # site/ does not depend on every family; only require a platform when the

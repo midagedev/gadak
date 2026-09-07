@@ -2228,4 +2228,111 @@ if [[ -n "$i18n_missing" ]]; then
 fi
 ok "every MEDIA_LOCALES locale has its examples/demo-i18n/<locale>.json"
 
+# ── 42. A script that calls itself a gate is wired into something that runs ─
+# (v0.21 release audit: unwired-script finding). check-lockfile-platforms.sh and ci-status-test.sh both existed
+# with "gate" in their own headers and nothing anywhere executing them — an
+# unrun guard is a comment. The rule scans only the automation surfaces
+# (Makefile, .github/workflows/, this file, other tools/*.sh); a README
+# mention is documentation, not wiring. One transitive level is allowed so a
+# fixture test can vouch for its subject (ci-status-test.sh runs
+# ci-status.sh): deeper chains are where unwired scripts hide, so one is the
+# ceiling. tools/*-test.sh is required wiring even with no "gate" wording —
+# a test that never runs is the illusion of safety in its purest form.
+#
+# FAIL-first (2026-09-08, measured on the pre-wiring tree):
+#   "FAIL: scripts that call themselves gates but are wired into nothing:
+#    tools/check-lockfile-platforms.sh
+#    tools/ci-status-test.sh
+#    tools/ci-status.sh" — exit 1.
+#   With checks 43-44 below running the first two, all three pass (the third
+#   transitively, through ci-status-test.sh).
+unwired=$(
+  python3 - <<'GATEPY'
+from pathlib import Path
+import re
+
+tools = sorted(Path("tools").glob("*.sh"))
+if not tools:
+    print("(no tools/*.sh found — is this the repo root?)")
+    raise SystemExit(0)
+
+def leading_comment(path: Path) -> str:
+    out = []
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        if not line.startswith("#"):
+            break
+        out.append(line)
+    return "\n".join(out)
+
+automation = ["Makefile"]
+automation += [str(p) for p in Path(".github/workflows").glob("*.yml")]
+automation += [str(p) for p in Path(".github/workflows").glob("*.yaml")]
+automation.append("tools/doc-checks.sh")
+automation += [str(p) for p in tools]
+
+def executable_text(path: str) -> str:
+    """Corpus text with comment lines blanked — Makefile/bash/yaml all use #.
+    A script named in a comment is not wired; only executable lines count
+    (measured: with comments counted, this check passed while the only
+    reference was the section header announcing the run)."""
+    out = []
+    for line in Path(path).read_text(encoding="utf-8", errors="replace").splitlines():
+        out.append("" if line.lstrip().startswith("#") else line)
+    return "\n".join(out)
+
+corpus = {p: executable_text(p) for p in automation if Path(p).is_file()}
+
+def references(name: str, corpus_path: str) -> bool:
+    text = corpus.get(corpus_path, "")
+    if Path(corpus_path).name == name:
+        return False  # a script naming itself is not wiring
+    return name in text
+
+# The run surfaces: anything whose own execution makes a reference real.
+run_surfaces = ["Makefile", "tools/doc-checks.sh"] + [
+    p for p in automation if p.startswith(".github/workflows/")
+]
+directly_wired = {t.name for t in tools if any(references(t.name, p) for p in run_surfaces)}
+
+for t in tools:
+    name = t.name
+    header = leading_comment(t)
+    calls_itself_gate = re.search(r"\bgates?\b", header, re.I) is not None or "게이트" in header
+    is_test_script = name.endswith("-test.sh")
+    if not (calls_itself_gate or is_test_script):
+        continue
+    wired = name in directly_wired or any(
+        references(name, p) and Path(p).name in directly_wired for p in automation
+    )
+    if not wired:
+        why = "gate" if calls_itself_gate and not is_test_script else (
+            "gate + fixture test" if calls_itself_gate else "fixture test (tools/*-test.sh)"
+        )
+        print(f"tools/{name}  [{why}]")
+GATEPY
+)
+if [[ -n "$unwired" ]]; then
+  fail "scripts that call themselves gates but are wired into nothing:"$'\n'"$unwired"$'\n'"wire them into the Makefile, .github/workflows/, or this file — or stop calling them gates in their own headers"
+fi
+ok "every gate-worded tools/*.sh (and every tools/*-test.sh) is wired into something that runs"
+
+# ── 43. check-lockfile-platforms.sh actually runs (v0.21 release audit: unwired-script finding) ────────────────
+# The script had existed since the 2026-08-26 incident with nothing executing
+# it; check 42 above would have kept re-flagging it. Carried the way check 35
+# carries check-promises.sh: this file runs in CI's "Documentation factuality"
+# step, so the delegated run is the wiring.
+bash tools/check-lockfile-platforms.sh
+
+# ── 44. ci-status-test.sh actually runs (v0.21 release audit: unwired-script finding) ──────────────────────────
+# Same unwired-script class, plus the *-test.sh rule from check 42: a fixture
+# test that never runs guards nothing. Offline by construction (fake gh on
+# PATH, fixtures under tools/ci-status-fixtures/). Cases 7-8 walk the parent
+# commit, which a CI shallow checkout (actions/checkout depth 1) does not
+# have — say the skip out loud rather than failing there or silently passing.
+if git rev-parse --verify -q "HEAD^" >/dev/null 2>&1; then
+  bash tools/ci-status-test.sh
+else
+  echo "note: the ci-status fixture test is skipped — shallow checkout has no HEAD^, and its parent look-back cases (7-8) need real history. Full run locally or with fetch-depth: 0."
+fi
+
 echo "doc-checks: all passed"
