@@ -2,13 +2,13 @@ package origin
 
 import (
 	"go/ast"
-	"go/parser"
-	"go/token"
-	"io/fs"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/midagedev/gadak/internal/archlint"
 )
 
 // TestNoDirectJiraNewOutsideOrigin is the structural lock: "this workspace's
@@ -24,31 +24,14 @@ func TestNoDirectJiraNewOutsideOrigin(t *testing.T) {
 	root := filepath.Clean(filepath.Join(filepath.Dir(thisFile), "..", ".."))
 
 	var hits []string
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			name := d.Name()
-			switch name {
-			case ".git", "vendor", "node_modules", "dist", "testdata", "scratch", ".claude":
-				return fs.SkipDir
-			}
+	err := archlint.Walk(root, func(af *archlint.File) error {
+		if strings.HasSuffix(af.Rel, "_test.go") {
 			return nil
 		}
-		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+		if allowedJiraNewFile(af.Rel) {
 			return nil
 		}
-		rel, err := filepath.Rel(root, path)
-		if err != nil {
-			return err
-		}
-		// Windows separators would not appear here; still normalize.
-		rel = filepath.ToSlash(rel)
-		if allowedJiraNewFile(rel) {
-			return nil
-		}
-		hits = append(hits, findJiraNewCalls(t, path, rel)...)
+		hits = append(hits, findJiraNewCalls(t, af)...)
 		return nil
 	})
 	if err != nil {
@@ -71,12 +54,11 @@ func allowedJiraNewFile(rel string) bool {
 	return false
 }
 
-func findJiraNewCalls(t *testing.T, path, rel string) []string {
+func findJiraNewCalls(t *testing.T, af *archlint.File) []string {
 	t.Helper()
-	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, path, nil, 0)
+	f, fset, err := af.AST()
 	if err != nil {
-		t.Fatalf("parse %s: %v", rel, err)
+		t.Fatalf("parse %s: %v", af.Rel, err)
 		return nil
 	}
 	var jiraName string
@@ -109,22 +91,8 @@ func findJiraNewCalls(t *testing.T, path, rel string) []string {
 			return true
 		}
 		pos := fset.Position(call.Pos())
-		hits = append(hits, filepath.ToSlash(rel)+":"+itoa(pos.Line))
+		hits = append(hits, filepath.ToSlash(af.Rel)+":"+strconv.Itoa(pos.Line))
 		return true
 	})
 	return hits
-}
-
-func itoa(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	var b [12]byte
-	i := len(b)
-	for n > 0 {
-		i--
-		b[i] = byte('0' + n%10)
-		n /= 10
-	}
-	return string(b[i:])
 }

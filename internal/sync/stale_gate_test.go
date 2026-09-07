@@ -2,15 +2,15 @@ package sync
 
 import (
 	"go/ast"
-	"go/parser"
 	"go/token"
-	"io/fs"
 	"path/filepath"
 	"runtime"
 	"sort"
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/midagedev/gadak/internal/archlint"
 )
 
 // mirrorStaleSentenceOwner is the only production file allowed to contain
@@ -41,29 +41,13 @@ func TestMirrorStaleClassHasOneOwner(t *testing.T) {
 
 	sentenceHits := map[string][]string{}
 	wireHits := map[string][]string{}
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			switch d.Name() {
-			case ".git", "vendor", "node_modules", "dist", "testdata", "scratch", ".claude":
-				return fs.SkipDir
-			}
+	err := archlint.Walk(root, func(af *archlint.File) error {
+		if strings.HasSuffix(af.Rel, "_test.go") {
 			return nil
 		}
-		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-			return nil
-		}
-		rel, err := filepath.Rel(root, path)
+		f, fset, err := af.AST()
 		if err != nil {
-			return err
-		}
-		rel = filepath.ToSlash(rel)
-		fset := token.NewFileSet()
-		f, err := parser.ParseFile(fset, path, nil, 0)
-		if err != nil {
-			t.Fatalf("parse %s: %v", rel, err)
+			t.Fatalf("parse %s: %v", af.Rel, err)
 		}
 		ast.Inspect(f, func(n ast.Node) bool {
 			lit, ok := n.(*ast.BasicLit)
@@ -75,12 +59,12 @@ func TestMirrorStaleClassHasOneOwner(t *testing.T) {
 				return true
 			}
 			pos := fset.Position(lit.Pos())
-			loc := rel + ":" + strconv.Itoa(pos.Line)
+			loc := af.Rel + ":" + strconv.Itoa(pos.Line)
 			if strings.Contains(s, "did not refresh") {
-				sentenceHits[rel] = append(sentenceHits[rel], loc)
+				sentenceHits[af.Rel] = append(sentenceHits[af.Rel], loc)
 			}
 			if strings.Contains(s, "write_applied_mirror_stale") {
-				wireHits[rel] = append(wireHits[rel], loc)
+				wireHits[af.Rel] = append(wireHits[af.Rel], loc)
 			}
 			return true
 		})

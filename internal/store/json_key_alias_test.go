@@ -2,11 +2,12 @@ package store
 
 import (
 	"encoding/json"
-	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/midagedev/gadak/internal/archlint"
 )
 
 // TestIssueKeyAliasOnWire is the GDK-255 seal for store JSON types: issue_key
@@ -72,39 +73,24 @@ func TestIssueKeyStructTagsUseHelper(t *testing.T) {
 		"internal/server/terminal.go": "handleTerminalIssue",
 	}
 	var unexpected []string
-	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			base := d.Name()
-			if strings.HasPrefix(base, ".") || base == "vendor" || base == "node_modules" || base == "scratch" || base == "dist" || base == "examples" {
-				return filepath.SkipDir
-			}
+	err := archlint.Walk(root, func(af *archlint.File) error {
+		if strings.HasSuffix(af.Rel, "_test.go") {
 			return nil
 		}
-		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-			return nil
-		}
-		body, err := os.ReadFile(path)
+		body, err := af.Src()
 		if err != nil {
 			return err
 		}
 		if !strings.Contains(string(body), `json:"issue_key"`) {
 			return nil
 		}
-		rel, err := filepath.Rel(root, path)
-		if err != nil {
-			rel = path
-		}
-		rel = filepath.ToSlash(rel)
-		need, ok := allowed[rel]
+		need, ok := allowed[af.Rel]
 		if !ok {
-			unexpected = append(unexpected, rel)
+			unexpected = append(unexpected, af.Rel)
 			return nil
 		}
 		if !strings.Contains(string(body), need) {
-			t.Errorf("%s has json:\"issue_key\" but does not contain %s", rel, need)
+			t.Errorf("%s has json:\"issue_key\" but does not contain %s", af.Rel, need)
 		}
 		return nil
 	})

@@ -4,9 +4,6 @@ import (
 	"context"
 	"errors"
 	"go/ast"
-	"go/parser"
-	"go/token"
-	"io/fs"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -14,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/midagedev/gadak/internal/archlint"
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/linear"
 	"github.com/midagedev/gadak/internal/store"
@@ -33,29 +31,14 @@ func TestRefreshIssueOwnerIsUnique(t *testing.T) {
 	root := filepath.Clean(filepath.Join(filepath.Dir(thisFile), "..", ".."))
 
 	var hits []string
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			switch d.Name() {
-			case ".git", "vendor", "node_modules", "dist", "testdata", "scratch", ".claude":
-				return fs.SkipDir
-			}
+	err := archlint.Walk(root, func(af *archlint.File) error {
+		if strings.HasSuffix(af.Rel, "_test.go") {
 			return nil
 		}
-		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+		if allowedRefreshOwnerFile(af.Rel) {
 			return nil
 		}
-		rel, err := filepath.Rel(root, path)
-		if err != nil {
-			return err
-		}
-		rel = filepath.ToSlash(rel)
-		if allowedRefreshOwnerFile(rel) {
-			return nil
-		}
-		hits = append(hits, findWriteThroughTailCopies(t, path, rel)...)
+		hits = append(hits, findWriteThroughTailCopies(t, af)...)
 		return nil
 	})
 	if err != nil {
@@ -234,12 +217,11 @@ func allowedRefreshOwnerFile(rel string) bool {
 	return rel == "internal/sync/refresh.go"
 }
 
-func findWriteThroughTailCopies(t *testing.T, path, rel string) []string {
+func findWriteThroughTailCopies(t *testing.T, af *archlint.File) []string {
 	t.Helper()
-	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, path, nil, 0)
+	f, fset, err := af.AST()
 	if err != nil {
-		t.Fatalf("parse %s: %v", rel, err)
+		t.Fatalf("parse %s: %v", af.Rel, err)
 		return nil
 	}
 	originName, syncName := importNames(f)
@@ -257,7 +239,7 @@ func findWriteThroughTailCopies(t *testing.T, path, rel string) []string {
 		if fn.Recv != nil {
 			name = recvName(fn) + "." + name
 		}
-		hits = append(hits, filepath.ToSlash(rel)+":"+strconv.Itoa(pos.Line)+" "+name)
+		hits = append(hits, filepath.ToSlash(af.Rel)+":"+strconv.Itoa(pos.Line)+" "+name)
 	}
 	return hits
 }

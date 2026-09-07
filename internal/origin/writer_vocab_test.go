@@ -6,6 +6,7 @@ import (
 	"go/token"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"testing"
 
 	"github.com/midagedev/gadak/internal/jira"
@@ -59,7 +60,7 @@ func TestWriterInterfaceOmitsJiraTypes(t *testing.T) {
 				if len(m.Names) > 0 {
 					name = m.Names[0].Name
 				}
-				hits = append(hits, filepath.Base(pos.Filename)+":"+itoa(pos.Line)+" "+ts.Name.Name+"."+name+" jira."+sel.Sel.Name)
+				hits = append(hits, filepath.Base(pos.Filename)+":"+strconv.Itoa(pos.Line)+" "+ts.Name.Name+"."+name+" jira."+sel.Sel.Name)
 				return true
 			})
 		}

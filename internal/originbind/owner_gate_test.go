@@ -2,13 +2,14 @@ package originbind
 
 import (
 	"go/ast"
-	"go/parser"
 	"go/token"
-	"io/fs"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/midagedev/gadak/internal/archlint"
 )
 
 // TestNoDirectKindClearOutsideOriginbind is the structural lock: clearing
@@ -26,29 +27,14 @@ func TestNoDirectKindClearOutsideOriginbind(t *testing.T) {
 	root := filepath.Clean(filepath.Join(filepath.Dir(thisFile), "..", ".."))
 
 	var hits []string
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			switch d.Name() {
-			case ".git", "vendor", "node_modules", "dist", "testdata", "scratch", ".claude":
-				return fs.SkipDir
-			}
+	err := archlint.Walk(root, func(af *archlint.File) error {
+		if strings.HasSuffix(af.Rel, "_test.go") {
 			return nil
 		}
-		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+		if strings.HasPrefix(af.Rel, "internal/originbind/") {
 			return nil
 		}
-		rel, err := filepath.Rel(root, path)
-		if err != nil {
-			return err
-		}
-		rel = filepath.ToSlash(rel)
-		if strings.HasPrefix(rel, "internal/originbind/") {
-			return nil
-		}
-		hits = append(hits, findKindClearAssignments(t, path, rel)...)
+		hits = append(hits, findKindClearAssignments(t, af)...)
 		return nil
 	})
 	if err != nil {
@@ -60,12 +46,11 @@ func TestNoDirectKindClearOutsideOriginbind(t *testing.T) {
 	}
 }
 
-func findKindClearAssignments(t *testing.T, path, rel string) []string {
+func findKindClearAssignments(t *testing.T, af *archlint.File) []string {
 	t.Helper()
-	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, path, nil, 0)
+	f, fset, err := af.AST()
 	if err != nil {
-		t.Fatalf("parse %s: %v", rel, err)
+		t.Fatalf("parse %s: %v", af.Rel, err)
 		return nil
 	}
 	var hits []string
@@ -90,23 +75,9 @@ func findKindClearAssignments(t *testing.T, path, rel string) []string {
 				continue
 			}
 			pos := fset.Position(as.Pos())
-			hits = append(hits, rel+":"+itoa(pos.Line))
+			hits = append(hits, af.Rel+":"+strconv.Itoa(pos.Line))
 		}
 		return true
 	})
 	return hits
-}
-
-func itoa(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	var b [12]byte
-	i := len(b)
-	for n > 0 {
-		i--
-		b[i] = byte('0' + n%10)
-		n /= 10
-	}
-	return string(b[i:])
 }

@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -36,7 +37,7 @@ func TestSampleIssueKeysDeterministicAndStratified(t *testing.T) {
 	add := func(proj string, n int) {
 		for i := 0; i < n; i++ {
 			rows = append(rows, issueSampleRow{
-				Key:        proj + "-" + itoa(i+1),
+				Key:        proj + "-" + strconv.Itoa(i+1),
 				ProjectKey: proj,
 				CreatedAt:  "2020-01-01T00:00:00.000Z", // overwritten below for span
 			})
@@ -279,18 +280,6 @@ func TestFieldsApplyRecordsAppliedAt(t *testing.T) {
 	}
 }
 
-func itoa(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	var digits []byte
-	for n > 0 {
-		digits = append([]byte{byte('0' + n%10)}, digits...)
-		n /= 10
-	}
-	return string(digits)
-}
-
 func sprintfCreated(i int) string {
 	// Lexicographically ordered timestamps.
 	return "2020-01-" + pad2(i%28+1) + "T00:00:00.000Z"
@@ -298,7 +287,7 @@ func sprintfCreated(i int) string {
 
 func pad2(n int) string {
 	if n < 10 {
-		return "0" + itoa(n)
+		return "0" + strconv.Itoa(n)
 	}
-	return itoa(n)
+	return strconv.Itoa(n)
 }

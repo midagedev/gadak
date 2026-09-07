@@ -43,7 +43,7 @@ func TestSourceCarriesAPlaceholderPerPreservedNodeAndRoundTrips(t *testing.T) {
 		if k.Type != wantKinds[i] || k.N != i+1 {
 			t.Fatalf("kept[%d] = %s #%d, want %s #%d", i, k.Type, k.N, wantKinds[i], i+1)
 		}
-		if !strings.Contains(src, "<!-- adf:"+itoa(k.N)+":"+k.Hash+" "+k.Type) {
+		if !strings.Contains(src, "<!-- adf:"+strconv.Itoa(k.N)+":"+k.Hash+" "+k.Type) {
 			t.Fatalf("source lacks the marker for %s #%d:\n%s", k.Type, k.N, src)
 		}
 	}
@@ -235,5 +235,3 @@ func TestSimpleAndSubsetBodiesHaveNoPlaceholders(t *testing.T) {
 		t.Fatalf("Source on a simple doc must be the typed text: %q", Source(simple))
 	}
 }
-
-func itoa(n int) string { return strconv.Itoa(n) }

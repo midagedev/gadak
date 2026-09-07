@@ -2,9 +2,7 @@ package main
 
 import (
 	"go/ast"
-	"go/parser"
 	"go/token"
-	"io/fs"
 	"net/http"
 	"path/filepath"
 	"runtime"
@@ -12,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/midagedev/gadak/internal/archlint"
 	"github.com/midagedev/gadak/internal/httppolicy"
 )
 
@@ -36,29 +35,14 @@ func TestLinearEndpointStubsDoNotReturnRetryableStatus(t *testing.T) {
 	root := filepath.Clean(filepath.Join(filepath.Dir(thisFile), "..", ".."))
 
 	var hits []string
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			switch d.Name() {
-			case ".git", "vendor", "node_modules", "dist", "testdata", "scratch", ".claude":
-				return fs.SkipDir
-			}
+	err := archlint.Walk(root, func(af *archlint.File) error {
+		if !strings.HasSuffix(af.Rel, "_test.go") {
 			return nil
 		}
-		if !strings.HasSuffix(path, "_test.go") {
+		if !strings.HasPrefix(af.Rel, "cmd/gadak/") && !strings.HasPrefix(af.Rel, "internal/") {
 			return nil
 		}
-		rel, err := filepath.Rel(root, path)
-		if err != nil {
-			return err
-		}
-		rel = filepath.ToSlash(rel)
-		if !strings.HasPrefix(rel, "cmd/gadak/") && !strings.HasPrefix(rel, "internal/") {
-			return nil
-		}
-		hits = append(hits, findLinearEndpointRetryableStubs(t, path, rel)...)
+		hits = append(hits, findLinearEndpointRetryableStubs(t, af)...)
 		return nil
 	})
 	if err != nil {
@@ -99,12 +83,11 @@ var retryableHTTPStatusName = map[string]int{
 	"StatusGatewayTimeout":      http.StatusGatewayTimeout,
 }
 
-func findLinearEndpointRetryableStubs(t *testing.T, path, rel string) []string {
+func findLinearEndpointRetryableStubs(t *testing.T, af *archlint.File) []string {
 	t.Helper()
-	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, path, nil, 0)
+	f, fset, err := af.AST()
 	if err != nil {
-		t.Fatalf("parse %s: %v", rel, err)
+		t.Fatalf("parse %s: %v", af.Rel, err)
 		return nil
 	}
 	var hits []string
@@ -122,7 +105,7 @@ func findLinearEndpointRetryableStubs(t *testing.T, path, rel string) []string {
 			if code, ok := retryableStatusCall(n); ok {
 				pos := fset.Position(n.Pos())
 				name := fn.Name.Name
-				retryAt = append(retryAt, rel+":"+strconv.Itoa(pos.Line)+" "+name+" HTTP "+strconv.Itoa(code))
+				retryAt = append(retryAt, af.Rel+":"+strconv.Itoa(pos.Line)+" "+name+" HTTP "+strconv.Itoa(code))
 			}
 			return true
 		})
