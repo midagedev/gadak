@@ -52,6 +52,10 @@ gadak status --json
 
 A `last_error` field means the last sync failed. A quiet project's `watermark`
 stalls on its own, so treat an old watermark as "possibly behind", not "broken".
+The `reconcile` field answers the harder question — whether the mirror holds
+what the origin holds. It carries the origin's own key count for the configured
+scope at the last reconcile, alongside how many rows that pass had to fetch and
+delete; compare `reconcile.upstream_keys` with `issues`.
 `watermark` / `sync_count` / `last_error` / `first_sync_at` are the issue-source
 row: Jira when that source has run, Linear when Linear is the only issue source
 that has (`status --json` `sources.jira` / `sources.linear` for the per-source
@@ -347,6 +351,11 @@ gadak pairing revoke laptop                       # home only
 
 Pairing turns the wiki pass on with `confluence.spaces` empty, so the paired
 mirror carries every global space the home origin lists alongside its issues.
+A workspace that carries an *explicit* list from an origin it no longer talks
+to (a pre-v0.20.0 pairing, or a `gadak migrate` into a new tracker) mirrors
+zero pages until that list is cleared with `gadak config set confluence.spaces
+"[]"` — the pass now fails and names the keys instead of reporting an empty
+success ([runbook](runbooks/confluence-space-scope.md)).
 Do not combine `--pairing-code-stdin` with `--local` or a site token.
 `_home` is the home machine's routing token, not a device (`revoke` refuses
 it; `mint --label _home` rotates). Details: [SECURITY.md](../SECURITY.md).

@@ -149,7 +149,14 @@ func cmdMigrate(args []string) error {
 	if err != nil {
 		return err
 	}
-	fillErr, err := originbind.SeedLocalOrigin(tcfg, strings.Join(stats.Projects, ","), stats.Spaces,
+	// GDK-1484: the migrated workspace's wiki scope comes from this export,
+	// never from the local-origin default. An export with no wiki page hands
+	// over an empty list — "every space this origin has" — because the LOC
+	// key the default would leave behind belongs to the source origin and is
+	// not in the one this import just seeded: the pass would 404 it and
+	// mirror zero pages on every run, silently before GDK-1484.
+	wiki := &config.ConfluenceConfig{Spaces: stats.Spaces}
+	fillErr, err := originbind.SeedLocalOrigin(tcfg, strings.Join(stats.Projects, ","), wiki,
 		func() (*store.DB, func() error, error) {
 			p, err := config.DBPathFor(target)
 			if err != nil {

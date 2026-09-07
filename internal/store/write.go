@@ -1142,7 +1142,30 @@ type SyncState struct {
 	// Locale is the origin locale the jira source's display names were
 	// fetched under (GDK-597). NULL (pre-v35 mirror) reads as "" = English.
 	Locale string `json:"locale,omitempty"`
+	// ScopeHash is the configured scope signature this source last mirrored
+	// under (GDK-1400). Empty means unrecorded — a pre-v44 mirror, or a
+	// source that has never run — and forces nothing.
+	ScopeHash string `json:"scope_hash,omitempty"`
+	// Reconcile is the last two-way reconcile's tally. Zero At means no
+	// reconcile has run since the mirror reached v44.
+	Reconcile ReconcileStats `json:"reconcile"`
 }
+
+// ReconcileStats is one two-way reconcile pass's tally: how many keys the
+// origin holds in scope, how many of them the mirror was missing and this
+// pass fetched, and how many mirror rows were gone upstream and deleted.
+// UpstreamKeys is the number `gadak status` compares the mirror's own count
+// against — the comparison that took a second machine to make in the field
+// (GDK-1400).
+type ReconcileStats struct {
+	At             string `json:"at,omitempty"`
+	UpstreamKeys   int    `json:"upstream_keys"`
+	MissingFetched int    `json:"missing_fetched"`
+	GoneDeleted    int    `json:"gone_deleted"`
+}
+
+// Ran reports whether a reconcile pass has recorded a tally here.
+func (r ReconcileStats) Ran() bool { return r.At != "" }
 
 // SyncState reads the state for one source. A source that has never synced
 // returns a zero state, not an error.
@@ -1150,14 +1173,19 @@ func (db *DB) SyncState(ctx context.Context, sourceID string) (SyncState, error)
 	s := SyncState{SourceID: sourceID, SchemaVersion: db.schemaVersion}
 	var wm *string
 	var loc *string
+	var scope, reconciledAt *string
 	err := db.sql.QueryRowContext(ctx, `
 		SELECT st.watermark, st.version, st.last_full_sync_at, st.last_error,
 		       st.schema_version, src.synced_at,
-		       st.first_sync_at, st.sync_count, st.last_notified_at, st.locale
+		       st.first_sync_at, st.sync_count, st.last_notified_at, st.locale,
+		       st.scope_hash, st.reconcile_at,
+		       st.reconcile_upstream_keys, st.reconcile_missing_fetched, st.reconcile_gone_deleted
 		FROM sync_state st LEFT JOIN sources src ON src.id = st.source_id
 		WHERE st.source_id = ?`, sourceID).
 		Scan(&wm, &s.Version, &s.LastFullSyncAt, &s.LastError, &s.SchemaVersionRow, &s.SyncedAt,
-			&s.FirstSyncAt, &s.SyncCount, &s.LastNotifiedAt, &loc)
+			&s.FirstSyncAt, &s.SyncCount, &s.LastNotifiedAt, &loc,
+			&scope, &reconciledAt,
+			&s.Reconcile.UpstreamKeys, &s.Reconcile.MissingFetched, &s.Reconcile.GoneDeleted)
 	if errors.Is(err, sql.ErrNoRows) {
 		return s, nil
 	}
@@ -1169,6 +1197,12 @@ func (db *DB) SyncState(ctx context.Context, sourceID string) (SyncState, error)
 	}
 	if loc != nil {
 		s.Locale = *loc
+	}
+	if scope != nil {
+		s.ScopeHash = *scope
+	}
+	if reconciledAt != nil {
+		s.Reconcile.At = *reconciledAt
 	}
 	// The column is the schema at last sync/migration write; PRAGMA
 	// user_version is the mirror. Publishing the column under
@@ -1219,6 +1253,10 @@ type SyncResult struct {
 	// under (GDK-597). Empty leaves the stored marker alone — an error
 	// path or a source that does not localize must not clobber it.
 	Locale string
+	// Scope records the configured scope signature this pass mirrored under
+	// (GDK-1400). Empty leaves the stored signature alone, so a source that
+	// has no scope concept never clobbers another's.
+	Scope string
 }
 
 // RecordSync stores the run's bookkeeping. It does not bump `version`: a run
@@ -1247,8 +1285,8 @@ func (db *DB) RecordSync(ctx context.Context, sourceID string, r SyncResult) err
 	return db.write(ctx, func(tx *sql.Tx) error {
 		if _, err := tx.Exec(`
 			INSERT INTO sync_state (source_id, watermark, last_full_sync_at, last_error, schema_version,
-			                       first_sync_at, sync_count, locale)
-			VALUES (?,?,?,?,?,?,?,?)
+			                       first_sync_at, sync_count, locale, scope_hash)
+			VALUES (?,?,?,?,?,?,?,?,?)
 			ON CONFLICT(source_id) DO UPDATE SET
 				watermark = CASE
 					WHEN excluded.watermark IS NOT NULL
@@ -1261,14 +1299,73 @@ func (db *DB) RecordSync(ctx context.Context, sourceID string, r SyncResult) err
 					WHEN excluded.first_sync_at IS NOT NULL AND sync_state.first_sync_at IS NULL
 					THEN excluded.first_sync_at ELSE sync_state.first_sync_at END,
 				sync_count = sync_state.sync_count + excluded.sync_count,
-				locale = COALESCE(excluded.locale, sync_state.locale)`,
-			sourceID, nz(r.Watermark), fullAt, errText, db.schemaVersion, firstAt, inc, nz(r.Locale)); err != nil {
+				locale = COALESCE(excluded.locale, sync_state.locale),
+				scope_hash = COALESCE(excluded.scope_hash, sync_state.scope_hash)`,
+			sourceID, nz(r.Watermark), fullAt, errText, db.schemaVersion, firstAt, inc, nz(r.Locale), nz(r.Scope)); err != nil {
 			return err
 		}
 		if r.Err != nil {
 			return nil
 		}
 		_, err := tx.Exec(`UPDATE sources SET synced_at = ? WHERE id = ?`, Now(), sourceID)
+		return err
+	})
+}
+
+// CountIssuesInScope counts the issues one source mirrors under a project
+// scope — the mirror's half of the divergence probe (GDK-1400), matched
+// against the count the origin reports for the same scope. An empty projects
+// list means the whole source, which is what an empty `projects` config means
+// to the sync pass. Project keys compare case-insensitively: the config
+// carries whatever the user typed and the origin's own casing is canonical.
+//
+// It is a COUNT, not a listing, because it runs on every incremental tick: a
+// mirror with a hundred thousand issues must not load them all to answer
+// "how many".
+func (db *DB) CountIssuesInScope(ctx context.Context, sourceID string, projects []string) (int, error) {
+	q := `SELECT COUNT(*) FROM issues_raw i JOIN items it ON it.id = i.item_id
+	      WHERE it.source_id = ? AND it.kind = 'issue' AND it.key != ''`
+	args := []any{sourceID}
+	var ph []string
+	for _, p := range projects {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		ph = append(ph, "?")
+		args = append(args, strings.ToUpper(p))
+	}
+	if len(ph) > 0 {
+		q += ` AND upper(COALESCE(i.project_key, '')) IN (` + strings.Join(ph, ",") + `)`
+	}
+	var n int
+	err := db.sql.QueryRowContext(ctx, q, args...).Scan(&n)
+	return n, err
+}
+
+// RecordReconcile stores one two-way reconcile pass's tally. It is a separate
+// write from RecordSync because the reconcile runs after it: the watermark and
+// last_error belong to the search pass, and the counts belong to the key scan
+// that followed. Like RecordSync it never bumps `version` — a reconcile that
+// changed no rows must leave the ETag alone, and the upserts and deletes it
+// did make bumped it themselves.
+func (db *DB) RecordReconcile(ctx context.Context, sourceID string, r ReconcileStats) error {
+	at := r.At
+	if at == "" {
+		at = Now()
+	}
+	return db.write(ctx, func(tx *sql.Tx) error {
+		_, err := tx.Exec(`
+			INSERT INTO sync_state (source_id, schema_version, version,
+			                       reconcile_at, reconcile_upstream_keys,
+			                       reconcile_missing_fetched, reconcile_gone_deleted)
+			VALUES (?,?,0,?,?,?,?)
+			ON CONFLICT(source_id) DO UPDATE SET
+				reconcile_at = excluded.reconcile_at,
+				reconcile_upstream_keys = excluded.reconcile_upstream_keys,
+				reconcile_missing_fetched = excluded.reconcile_missing_fetched,
+				reconcile_gone_deleted = excluded.reconcile_gone_deleted`,
+			sourceID, db.schemaVersion, at, r.UpstreamKeys, r.MissingFetched, r.GoneDeleted)
 		return err
 	})
 }

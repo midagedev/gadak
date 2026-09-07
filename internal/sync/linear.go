@@ -79,6 +79,18 @@ func RunLinear(ctx context.Context, cfg *config.Config, db *store.DB, opts Optio
 // skeleton. One Issues call per configured team id (or one unscoped call),
 // committed page by page; the watermark moves only over committed pages.
 func runLinearPass(ctx context.Context, c *linear.Client, cfg *config.Config, db *store.DB, opts Options, state store.SyncState, res *Result) error {
+	// Scope change (GDK-1400): one watermark per source_id, not per team.
+	// Adding a team leaves everything that team already had behind a cursor
+	// that has passed it. Same owner and same reasoning as the Jira pass —
+	// the store-side signature catches every path that widens the scope, not
+	// just the command that is supposed to.
+	scope := scopeSignature(cfg.Linear.TeamIDs)
+	if !res.Full && state.ScopeHash != "" && state.ScopeHash != scope {
+		res.Full = true
+		opts.logf("linear: scope changed %s → %s: one full pass — an incremental one cannot see what the new scope already had (GDK-1400)",
+			state.ScopeHash, scope)
+	}
+
 	var maxUTC string // Linear stamps are ISO-8601 UTC ms: lexicographic max is chronological
 	unknownTypes := map[string]int{}
 	var commentsTruncated, labelsTruncated, attachmentsTruncated, relationsTruncated int
@@ -200,22 +212,45 @@ func runLinearPass(ctx context.Context, c *linear.Client, cfg *config.Config, db
 	}
 
 	res.Watermark = maxUTC
-	if err := db.RecordSync(ctx, LinearSourceID, store.SyncResult{Watermark: maxUTC, FullSync: res.Full}); err != nil {
+	if err := db.RecordSync(ctx, LinearSourceID, store.SyncResult{Watermark: maxUTC, FullSync: res.Full, Scope: scope}); err != nil {
 		return err
 	}
 	if opts.Reconcile || res.Full {
+		var stats store.ReconcileStats
 		upstream := seen
 		if !res.Full {
-			listed, err := listLinearIdentifiers(ctx, c, cfg)
+			// Direction two of the divergence probe (GDK-1400). A full pass
+			// mirrored everything it listed, so only the incremental path can
+			// be missing rows the origin holds.
+			mine, err := db.KeysBySource(ctx, LinearSourceID)
+			if err != nil {
+				return err
+			}
+			have := make(map[string]bool, len(mine))
+			for _, k := range mine {
+				have[k] = true
+			}
+			listed, fetched, err := listLinearIdentifiers(ctx, c, cfg, have, page)
 			if err != nil {
 				return record(ctx, cfg, db, LinearSourceID, err)
 			}
-			upstream = listed
+			upstream, stats.MissingFetched = listed, fetched
+			if fetched > 0 {
+				opts.logf("linear reconcile: %s upstream keys the mirror was missing — fetched", formatCount(fetched))
+			}
 		}
+		stats.UpstreamKeys = len(upstream)
 		deleted, err := reconcileLinear(ctx, c, db, cfg, upstream, opts)
 		res.Deleted = deleted
+		stats.GoneDeleted = deleted
 		if err != nil {
 			return record(ctx, cfg, db, LinearSourceID, err)
+		}
+		opts.logf("linear reconcile: %s upstream keys · %s fetched missing · %s deleted gone",
+			formatCount(stats.UpstreamKeys), formatCount(stats.MissingFetched), formatCount(stats.GoneDeleted))
+		// Bookkeeping must never fail the sync that produced it.
+		if rerr := db.RecordReconcile(ctx, LinearSourceID, stats); rerr != nil {
+			opts.logf("linear reconcile: tally not stored: %v", rerr)
 		}
 	}
 	return nil
@@ -439,24 +474,45 @@ func SyncLinearIssue(ctx context.Context, db *store.DB, c *linear.Client, key st
 
 // listLinearIdentifiers is a complete listing (no watermark) for incremental
 // reconcile. Full sync uses the identifiers collected during the pass.
-func listLinearIdentifiers(ctx context.Context, c *linear.Client, cfg *config.Config) (map[string]bool, error) {
+//
+// It is also direction two of the two-way divergence probe (GDK-1400). The
+// listing already carries every issue in full, so an identifier the mirror has
+// never seen is committed from the page in hand rather than costing a second
+// fetch — Linear's answer to the Jira pass's keyed re-fetch. commit is the
+// pass's own page pipeline, which is what makes a row that arrives this way
+// identical to one an ordinary pass produced. have is the mirror's key set and
+// is updated as rows are committed, so an issue listed under two teams is
+// committed once. A nil have or commit means "list only", the pre-GDK-1400
+// behaviour.
+func listLinearIdentifiers(ctx context.Context, c *linear.Client, cfg *config.Config, have map[string]bool, commit func([]linear.Issue) error) (map[string]bool, int, error) {
 	out := map[string]bool{}
+	fetched := 0
 	teams := cfg.Linear.TeamIDs
 	if len(teams) == 0 {
 		teams = []string{""}
 	}
 	for _, teamID := range teams {
 		err := c.Issues(ctx, linear.IssueOpts{TeamID: teamID}, func(issues []linear.Issue) error {
+			var missing []linear.Issue
 			for _, iss := range issues {
 				out[iss.Identifier] = true
+				if have == nil || commit == nil || have[iss.Identifier] {
+					continue
+				}
+				have[iss.Identifier] = true
+				missing = append(missing, iss)
 			}
-			return nil
+			if len(missing) == 0 {
+				return nil
+			}
+			fetched += len(missing)
+			return commit(missing)
 		})
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 	}
-	return out, nil
+	return out, fetched, nil
 }
 
 // reconcileLinear deletes linear-source rows whose keys are not in upstream.

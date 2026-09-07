@@ -106,6 +106,11 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 	}
 
 	spaces := cfg.Confluence.Spaces
+	// GDK-1484: path ② only — which configured keys the origin actually has.
+	// Path ① builds its scope from the origin's own listing, so it cannot
+	// name a space the origin does not have.
+	var configured, resolved int
+	var missing []string
 	if len(spaces) == 0 {
 		listed, err := c.Spaces(ctx)
 		if err != nil {
@@ -148,6 +153,7 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 			if key == "" {
 				continue
 			}
+			configured++
 			s, err := c.Space(ctx, key)
 			if err != nil {
 				// A bad/restricted key is skippable; a rejected credential is
@@ -156,8 +162,10 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 					return record(ctx, cfg, db, ConfluenceSourceID, err)
 				}
 				opts.logf("confluence: space %s: %v", key, err)
+				missing = append(missing, key)
 				continue
 			}
+			resolved++
 			row := store.SpaceRow{Key: s.Key, Name: s.Name, Kind: s.Type}
 			if row.Key == "" {
 				row.Key = key
@@ -181,6 +189,31 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 	if joined != nil {
 		if err := db.UpsertSpaces(ctx, ConfluenceSourceID, []store.SpaceRow{*joined}); err != nil {
 			return err
+		}
+	}
+	// GDK-1484: a configured space the origin does not have mirrors nothing,
+	// and every later pass repeats that for free. One operator line names the
+	// keys; when NOTHING in the scope resolved, the pass fails instead of
+	// reporting a zero-page success — no amount of syncing repairs a stale
+	// space list, and the measured host reported success 81 times in a row
+	// with confluence.spaces still naming the local-origin default (LOC)
+	// after `gadak migrate` replaced that origin's content.
+	if len(missing) > 0 {
+		inScope := resolved
+		if joined != nil {
+			// memory.space is a real, resolvable member of the scope
+			// (joinMemorySpace) — the pass still has something to mirror.
+			inScope++
+		}
+		head := fmt.Sprintf("confluence: %d of %d configured spaces exist upstream (%s)",
+			resolved, configured, strings.Join(missing, ", "))
+		if inScope > 0 {
+			opts.logf("%s — those keys mirror nothing", head)
+		} else {
+			opts.logf(`%s — no page mirrored; run `+"`"+`gadak config set confluence.spaces "[]"`+"`"+` to mirror every space the origin has`, head)
+			return record(ctx, cfg, db, ConfluenceSourceID, fmt.Errorf(
+				`sync: %d of %d configured confluence spaces exist upstream (%s) — no page mirrored; run: gadak config set confluence.spaces "[]"`,
+				resolved, configured, strings.Join(missing, ", ")))
 		}
 	}
 	if len(spaces) == 0 {

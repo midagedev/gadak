@@ -204,6 +204,23 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 	// Local-origin only: a connected workspace's language is the Atlassian
 	// account's, not this setting. A NULL marker (pre-v35 mirror) reads as
 	// "" — same effective value as "en", so upgrading does not rebuild.
+	// Scope change (GDK-1400): the incremental floor is one watermark per
+	// source_id, not per project. Adding a project to the scope therefore
+	// leaves every issue that project already had behind a cursor that has
+	// long passed them — invisible to every future incremental pass. The
+	// store-side signature is the owner rather than `config set projects`
+	// because it catches every path that widens scope: the command, a
+	// hand-edited config.json, a workspace copied from another machine, a
+	// team config pushed in. An unrecorded signature (a pre-v44 mirror)
+	// forces nothing — this pass records it, and the two-way reconcile
+	// covers that mirror in the meantime.
+	scope := scopeSignature(cfg.Projects)
+	if !res.Full && state.ScopeHash != "" && state.ScopeHash != scope {
+		res.Full = true
+		opts.logf("scope changed %s → %s: one full pass — an incremental one cannot see what the new scope already had (GDK-1400)",
+			state.ScopeHash, scope)
+	}
+
 	syncedLocale := ""
 	localeRebuild := false
 	if cfg.HasLocalOrigin() {
@@ -428,18 +445,58 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 	if skips := devStatusSkips.Swap(0); skips > 0 {
 		opts.logf("dev-status: skipped on %d issues (the panel read is best-effort — Cloud marks the API internal)", skips)
 	}
-	if err := db.RecordSync(ctx, SourceID, store.SyncResult{Watermark: maxRaw, FullSync: res.Full, Locale: syncedLocale}); err != nil {
+	if err := db.RecordSync(ctx, SourceID, store.SyncResult{Watermark: maxRaw, FullSync: res.Full, Locale: syncedLocale, Scope: scope}); err != nil {
 		return err
 	}
 
-	if opts.Reconcile || res.Full {
+	// Divergence probe (GDK-1400). An incremental pass asks the origin
+	// `updated >= watermark`, so a row that entered the origin carrying an
+	// older stamp is invisible to it — forever, not until the next tick. The
+	// hourly reconcile repairs that, but an hour of a silently short mirror is
+	// an hour of wrong answers, and the field case ran for six days. One
+	// request closes the gap: ask the origin how many issues the scope holds
+	// and compare it with what the mirror holds. They agree on a level mirror,
+	// and a disagreement is the one symptom this defect has.
+	//
+	// The cost is one approximate-count per tick — the same endpoint a full
+	// pass already calls for its progress denominator — against the simplest
+	// JQL there is (`project in (…)`). The escalation costs the key scan the
+	// hourly reconcile would have paid anyway, brought forward. An origin whose
+	// count is approximate enough to disagree with a level mirror would
+	// reconcile every tick instead of hourly; that is the trade this makes, and
+	// it is bounded by the reconcile's own cost, never by a full refetch.
+	reconcileNow := opts.Reconcile || res.Full
+	if !reconcileNow && diverged(ctx, c, db, cfg, opts) {
+		reconcileNow = true
+	}
+
+	if reconcileNow {
 		// Version catalog is a cache of GET /project/{key}/versions. Full and
 		// reconcile refresh it; an incremental tick must not (GDK-532).
 		syncVersionCatalog(ctx, c, db, cfg, opts)
-		deleted, err := reconcile(ctx, c, db, cfg.Projects, opts)
-		res.Deleted = deleted
+		// The missing-key fetch is the same page pipeline the search pass
+		// uses — same field list, same build, same upsert — asked for an
+		// explicit key set instead of a window. It deliberately runs after
+		// RecordSync: these rows carry stamps behind the watermark and must
+		// never drag it backwards, and max() would ignore them anyway.
+		fetchMissing := func(ctx context.Context, keys []string) (int, error) {
+			before := res.Fetched
+			for _, batch := range keyBatches(keys) {
+				beginSearch(fmt.Sprintf("reconcile: fetching %s missing", formatCount(len(batch))), "", false)
+				if err := c.Search(ctx, keyInJQL(batch), fieldIDs, true, page); err != nil {
+					return res.Fetched - before, err
+				}
+			}
+			return res.Fetched - before, nil
+		}
+		stats, err := reconcile(ctx, c, db, cfg.Projects, opts, fetchMissing)
+		res.Deleted = stats.GoneDeleted
 		if err != nil {
 			return record(ctx, cfg, db, SourceID, err)
+		}
+		// Bookkeeping must never fail the sync that produced it.
+		if rerr := db.RecordReconcile(ctx, SourceID, stats); rerr != nil {
+			opts.logf("reconcile: tally not stored: %v", rerr)
 		}
 	}
 
@@ -610,6 +667,30 @@ func approxCount(ctx context.Context, c *jira.Client, jql string) (int, bool) {
 		return 0, false
 	}
 	return n, true
+}
+
+// diverged asks whether the origin and the mirror disagree about how many
+// issues the configured scope holds. It is the incremental pass's cheap
+// standing question (GDK-1400): the counts match on a level mirror, and no
+// other symptom of a row hidden behind the watermark is visible from this
+// side. A count the origin will not answer is not a divergence — the probe
+// stays silent and the hourly reconcile remains the backstop.
+func diverged(ctx context.Context, c *jira.Client, db *store.DB, cfg *config.Config, opts Options) bool {
+	upstream, ok := approxCount(ctx, c, reconcileJQL(cfg.Projects))
+	if !ok {
+		return false
+	}
+	have, err := db.CountIssuesInScope(ctx, SourceID, cfg.Projects)
+	if err != nil {
+		opts.logf("divergence probe: mirror count unavailable: %v", err)
+		return false
+	}
+	if upstream == have {
+		return false
+	}
+	opts.logf("divergence probe: the origin reports %s issues in scope, the mirror holds %s — reconciling now (GDK-1400)",
+		formatCount(upstream), formatCount(have))
+	return true
 }
 
 // Watch runs incremental sync on an interval and reconcile on a longer one. A
@@ -790,23 +871,47 @@ func errRefuseEmpty(gone int) error {
 // It is a separate pass because its cost scales with total issue count.
 // Empty projects means the whole visible site is in scope: every mirrored key
 // not returned upstream is a candidate for deletion.
-func reconcile(ctx context.Context, c *jira.Client, db *store.DB, projects []string, opts Options) (int, error) {
+//
+// It is a two-way divergence probe (GDK-1400). The key scan already knows
+// every key the origin holds in scope, so both directions are free of extra
+// wire cost: mirror rows the origin no longer has are deleted, and origin keys
+// the mirror never received are fetched through fetchMissing. That second
+// direction is what closes the class of defect where a row enters the origin
+// carrying an `updated` stamp behind the mirror's watermark — a bulk import, a
+// widened scope, a restored persist file. No incremental search over
+// `updated >= watermark` can ever see such a row, and until this pass had the
+// other direction the only repair was an operator running `gadak sync --full`.
+// The watch loop reconciles hourly, so a follower now self-heals unattended.
+//
+// fetchMissing may be nil (a caller with no way to fetch); the probe then
+// reports the divergence without repairing it. It returns how many rows
+// actually landed, which is not always how many were asked for — a key the
+// scan can see and the search cannot (a permission edge) would otherwise be
+// reported as repaired every hour while the mirror stayed short.
+func reconcile(ctx context.Context, c *jira.Client, db *store.DB, projects []string, opts Options, fetchMissing func(context.Context, []string) (int, error)) (store.ReconcileStats, error) {
+	var stats store.ReconcileStats
 	upstream := map[string]bool{}
+	var upstreamOrder []string
 	jql := reconcileJQL(projects)
 	// summary rather than an empty list: the key comes back regardless, and an
 	// empty `fields` is the one thing Jira may answer with every field.
 	if err := c.Search(ctx, jql, []string{"summary"}, false, func(issues []jira.Issue) error {
 		for _, iss := range issues {
+			if iss.Key == "" || upstream[iss.Key] {
+				continue
+			}
 			upstream[iss.Key] = true
+			upstreamOrder = append(upstreamOrder, iss.Key)
 		}
 		return nil
 	}); err != nil {
-		return 0, err
+		return stats, err
 	}
+	stats.UpstreamKeys = len(upstream)
 
 	lites, err := db.IssueLites(ctx)
 	if err != nil {
-		return 0, err
+		return stats, err
 	}
 	allProjects := len(projects) == 0
 	inScope := map[string]bool{}
@@ -819,14 +924,79 @@ func reconcile(ctx context.Context, c *jira.Client, db *store.DB, projects []str
 			gone = append(gone, l.IssueKey)
 		}
 	}
-	if len(gone) == 0 {
-		return 0, nil
+
+	// Direction two: origin keys with no mirror row. The mirror-side set is
+	// this connector's keys only — a key another connector mirrored is that
+	// connector's row, and re-fetching it here would give one key two owners.
+	mine, err := db.KeysBySource(ctx, SourceID)
+	if err != nil {
+		return stats, err
 	}
-	if len(upstream) == 0 {
-		return 0, errRefuseEmpty(len(gone))
+	have := make(map[string]bool, len(mine))
+	for _, k := range mine {
+		have[k] = true
 	}
-	opts.logf("reconcile: %d keys vanished upstream", len(gone))
-	return db.DeleteItems(ctx, SourceID, gone)
+	var missing []string
+	for _, k := range upstreamOrder {
+		if !have[k] {
+			missing = append(missing, k)
+		}
+	}
+	if len(missing) > 0 && fetchMissing != nil {
+		opts.logf("reconcile: %s upstream keys the mirror is missing — fetching", formatCount(len(missing)))
+		landed, err := fetchMissing(ctx, missing)
+		stats.MissingFetched = landed
+		if err != nil {
+			return stats, err
+		}
+		if landed < len(missing) {
+			opts.logf("reconcile: %s of %s missing keys did not come back — the key scan can see them and the search cannot",
+				formatCount(len(missing)-landed), formatCount(len(missing)))
+		}
+	}
+
+	if len(gone) > 0 {
+		if len(upstream) == 0 {
+			return stats, errRefuseEmpty(len(gone))
+		}
+		deleted, err := db.DeleteItems(ctx, SourceID, gone)
+		if err != nil {
+			return stats, err
+		}
+		stats.GoneDeleted = deleted
+	}
+	// One line, both directions, always — a quiet "0 missing · 0 gone" is the
+	// answer to "is this mirror level with its origin?", and the field
+	// diagnosis needed a second machine to get it.
+	opts.logf("reconcile: %s upstream keys · %s fetched missing · %s deleted gone",
+		formatCount(stats.UpstreamKeys), formatCount(stats.MissingFetched), formatCount(stats.GoneDeleted))
+	return stats, nil
+}
+
+// keyBatchSize is how many keys go into one `key in (...)` clause. Jira Cloud
+// accepts far more, but JQL travels in a request body that both Cloud and
+// issuetap parse in one piece, and a smaller clause means a failed batch
+// re-reads less.
+const keyBatchSize = 100
+
+// keyInJQL is the Search clause for a keyed fetch: exactly these issues, in no
+// particular order. It carries no project filter — the keys are the filter,
+// and they were just proven in scope by the reconcile key scan.
+func keyInJQL(keys []string) string {
+	return fmt.Sprintf("key in (%s)", quoteList(keys))
+}
+
+// keyBatches splits keys into keyBatchSize-sized clauses.
+func keyBatches(keys []string) [][]string {
+	var out [][]string
+	for i := 0; i < len(keys); i += keyBatchSize {
+		end := i + keyBatchSize
+		if end > len(keys) {
+			end = len(keys)
+		}
+		out = append(out, keys[i:end])
+	}
+	return out
 }
 
 // sourceNS is the id-namespace prefix for one connector. Local-origin
@@ -1293,6 +1463,35 @@ func incrementalJQL(projects []string, watermark string) string {
 	}
 	return fmt.Sprintf("project in (%s) AND updated >= %q ORDER BY updated ASC",
 		quoteList(projects), floor)
+}
+
+// scopeSignature fingerprints a source's configured scope — Jira project keys,
+// Linear team ids — so a later pass can tell whether the scope it is mirroring
+// under is the one the stored watermark was earned under (GDK-1400). Order and
+// spelling of the configured list must not matter, so the list is normalised
+// and sorted; the signature is stored verbatim rather than hashed because a
+// human reading sync_state during a divergence hunt is exactly who needs it.
+//
+// "*" is the unscoped scope (every project the credential can see). It is a
+// real value, not the absence of one: an empty string means "never recorded",
+// which is a pre-v44 mirror, and those two must not be confused — one is a
+// scope that can change, the other is a fact we do not have.
+func scopeSignature(scope []string) string {
+	out := make([]string, 0, len(scope))
+	seen := map[string]bool{}
+	for _, v := range scope {
+		v = strings.TrimSpace(v)
+		if v == "" || seen[v] {
+			continue
+		}
+		seen[v] = true
+		out = append(out, v)
+	}
+	if len(out) == 0 {
+		return "*"
+	}
+	sort.Strings(out)
+	return strings.Join(out, ",")
 }
 
 // reconcileJQL is the Search clause for the reconcile key scan. Empty projects

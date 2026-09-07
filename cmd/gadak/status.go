@@ -40,7 +40,8 @@ func cmdStatus(args []string) error {
 	jiraSS, jiraErr := db.SyncState(ctx, "jira")
 	linearSS, linearErr := db.SyncState(ctx, "linear")
 	confSS, confErr := db.SyncState(ctx, "confluence")
-	if ss, err := db.IssueSyncState(ctx); err == nil {
+	issueSS, issueSSErr := db.IssueSyncState(ctx)
+	if ss := issueSS; issueSSErr == nil {
 		st["watermark"] = ss.Watermark
 		st["version"] = ss.Version
 		st["schema_version"] = ss.SchemaVersion // live PRAGMA; SyncState is the owner (GDK-526)
@@ -53,6 +54,13 @@ func cmdStatus(args []string) error {
 		}
 		if ss.FirstSyncAt != nil && *ss.FirstSyncAt != "" {
 			st["first_sync_at"] = *ss.FirstSyncAt
+		}
+		// GDK-1400: the origin-side key count from the last two-way
+		// reconcile. Diagnosing the field case meant pairing a second
+		// machine to the same origin to learn that number; it is the one
+		// fact that says whether this mirror holds what its origin holds.
+		if ss.Reconcile.Ran() {
+			st["reconcile"] = reconcileJSON(ss.Reconcile)
 		}
 	}
 	if jiraErr == nil && linearErr == nil {
@@ -179,6 +187,11 @@ func cmdStatus(args []string) error {
 	printSourceSyncedAt("jira", jiraSS, jiraErr)
 	printSourceSyncedAt("linear", linearSS, linearErr)
 	printSourceSyncedAt("confluence", confSS, confErr)
+	if issueSSErr == nil {
+		if line := formatReconcileLine(issueSS.Reconcile, time.Now()); line != "" {
+			fmt.Printf("%-18s %s\n", "reconcile", line)
+		}
+	}
 	if frozen, ok := st["frozen"].(bool); ok && frozen {
 		fmt.Printf("%-18s %v\n", "frozen", true)
 	}
@@ -303,6 +316,12 @@ func syncStateJSON(ss store.SyncState) map[string]any {
 		"version":    ss.Version,
 		"sync_count": ss.SyncCount,
 	}
+	if ss.ScopeHash != "" {
+		m["scope_hash"] = ss.ScopeHash
+	}
+	if ss.Reconcile.Ran() {
+		m["reconcile"] = reconcileJSON(ss.Reconcile)
+	}
 	if ss.SyncedAt != nil && *ss.SyncedAt != "" {
 		m["synced_at"] = *ss.SyncedAt
 	}
@@ -316,6 +335,32 @@ func syncStateJSON(ss store.SyncState) map[string]any {
 		m["first_sync_at"] = *ss.FirstSyncAt
 	}
 	return m
+}
+
+// reconcileJSON publishes the last two-way reconcile's tally (GDK-1400).
+// upstream_keys is the origin's own count for the configured scope, so
+// comparing it with `issues` answers "is this mirror level with its origin?"
+// — the question that previously took a second machine paired to the same
+// origin to answer.
+func reconcileJSON(r store.ReconcileStats) map[string]any {
+	return map[string]any{
+		"at":              r.At,
+		"upstream_keys":   r.UpstreamKeys,
+		"missing_fetched": r.MissingFetched,
+		"gone_deleted":    r.GoneDeleted,
+	}
+}
+
+// formatReconcileLine is the human row for the same tally. Empty when no
+// reconcile has run: a line of zeroes would read as "checked, all level",
+// which is the opposite of "never checked".
+func formatReconcileLine(r store.ReconcileStats, now time.Time) string {
+	if !r.Ran() {
+		return ""
+	}
+	return fmt.Sprintf("%s upstream · %s fetched missing · %s deleted · %s",
+		formatIntComma(r.UpstreamKeys), formatIntComma(r.MissingFetched),
+		formatIntComma(r.GoneDeleted), relativeAge(r.At, now))
 }
 
 // wikiPathStatus reports whether the wiki sync pass will run for this
@@ -338,6 +383,13 @@ func wikiPathStatus(cfg *config.Config) map[string]any {
 		return out
 	}
 	out["path"] = "on"
+	// GDK-1484: the configured scope, beside the pages count the caller
+	// already prints. A stale explicit list mirrors nothing and says nothing;
+	// naming it here is what turns `pages 0` into a readable sentence. Empty
+	// means every space the origin has, which has no stale form.
+	if len(cfg.Confluence.Spaces) > 0 {
+		out["spaces"] = cfg.Confluence.Spaces
+	}
 	return out
 }
 
@@ -353,6 +405,9 @@ func formatWikiStatusLine(wiki map[string]any) string {
 	line := path
 	if r, ok := wiki["reason"].(string); ok && r != "" {
 		line += " (" + r + ")"
+	}
+	if sp, ok := wiki["spaces"].([]string); ok && len(sp) > 0 {
+		line += " · configured spaces: " + strings.Join(sp, ", ")
 	}
 	if le, ok := wiki["last_error"].(string); ok && le != "" {
 		line += "; last_error " + le

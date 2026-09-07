@@ -909,11 +909,23 @@ func TestIncrementalRerunIsANoOp(t *testing.T) {
 		t.Errorf("re-run fetched %d changed %d unchanged %d, want 0/0/3", res.Fetched, res.Changed, res.Skips)
 	}
 	// The quiet tick's whole request budget: sprint-field resolve, the search
-	// pages (3 issues at pageSize 2 → 2 pages), and the filter import. A new
-	// per-tick request must show up here and be argued for, not drift in
-	// (status/priority catalogs and approximate-count used to be four more).
-	if got := site.hits - hitsBefore; got != 4 {
-		t.Errorf("quiet incremental tick spent %d requests, want 4", got)
+	// pages (3 issues at pageSize 2 → 2 pages), the divergence probe's
+	// approximate-count, and the filter import. A new per-tick request must
+	// show up here and be argued for, not drift in (status/priority catalogs
+	// used to be two more).
+	//
+	// Re-pinned 4 → 5 on 2026-09-07 for GDK-1400, and this is the argument.
+	// The fifth request is one approximate-count over `project in (…)`,
+	// compared against the mirror's own count for the same scope. It buys the
+	// only symptom this defect has: a row that entered the origin carrying an
+	// `updated` stamp behind the watermark is invisible to `updated >=`
+	// forever, and the field case ran six days at 134 of 1,399 issues with
+	// every tick reporting success. GDK-1075 removed a per-tick count for
+	// budget; that count is exactly the signal it traded away. An escalation
+	// costs the key scan the hourly reconcile would have paid anyway.
+	// Equality, not a ceiling: a sixth request must still fail here.
+	if got := site.hits - hitsBefore; got != 5 {
+		t.Errorf("quiet incremental tick spent %d requests, want 5", got)
 	}
 	after, _ := db.SyncState(context.Background(), SourceID)
 	if after.Version != before.Version {

@@ -3,7 +3,7 @@ package store
 // migrations are applied in order and the index+1 is the schema version. A
 // released migration is never edited; a schema change is a new entry at the end
 // plus a documented row in specs/000-product/data-model.md.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39, schemaV40, schemaV41, schemaV42, schemaV43}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39, schemaV40, schemaV41, schemaV42, schemaV43, schemaV44}
 
 // itemsFTSCreate is the canonical items_fts DDL, spliced into schemaV1 so a
 // fresh database is born matching it (GDK-444: an inline copy in V1 lagged at
@@ -909,4 +909,26 @@ CREATE VIEW issues AS
   SELECT it.title AS summary, i.*, COALESCE(it.body_text, '') AS description_text
   FROM issues_raw i JOIN items it ON it.id = i.item_id;
 CREATE VIEW issues_full AS SELECT * FROM issues;
+`
+
+// schemaV44 (GDK-1400) gives sync_state the two facts the field diagnosis
+// needed and could not get. scope_hash is the configured scope this source
+// last mirrored under: the incremental floor is one watermark per source_id,
+// not per project, so widening the scope leaves the new project's existing
+// issues behind a cursor that already passed them. Comparing the signature on
+// the store side catches every path that widens scope — `config set projects`,
+// a hand-edited config.json, a copied workspace — instead of one command.
+// NULL (a pre-v44 mirror) reads as "unrecorded" and forces nothing; the first
+// pass after the upgrade records it.
+//
+// The reconcile_* columns are the last two-way reconcile's tally. They exist
+// so `gadak status` can answer "does the mirror hold what the origin holds?"
+// without a full pass — the question that took a second machine to answer in
+// the field.
+const schemaV44 = `
+ALTER TABLE sync_state ADD COLUMN scope_hash TEXT;
+ALTER TABLE sync_state ADD COLUMN reconcile_at TEXT;
+ALTER TABLE sync_state ADD COLUMN reconcile_upstream_keys INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE sync_state ADD COLUMN reconcile_missing_fetched INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE sync_state ADD COLUMN reconcile_gone_deleted INTEGER NOT NULL DEFAULT 0;
 `

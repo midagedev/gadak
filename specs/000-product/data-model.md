@@ -655,6 +655,11 @@ from `saved_views`, which are authored in gadak.
 | `sync_count` | INTEGER | Successful sync runs. Failed runs leave it alone |
 | `last_notified_at` | TEXT | OS desktop-notification watermark. Independent of `feed_reads` — delivering an alert must not mark the feed read |
 | `locale` | TEXT | Origin locale the jira source's display names were fetched under (v35, GDK-597). The sync pass compares it with the configured locale and rebuilds when they differ — names are cached and incremental sync would otherwise keep the old language. NULL (pre-v35) reads as `""` = English |
+| `scope_hash` | TEXT | Configured scope this source last mirrored under (v44, GDK-1400) — sorted project keys, or `*` for the unscoped whole account. The watermark is one cursor per source, not per project, so widening the scope strands everything the new project already had behind it; the next pass compares the signature and goes full when it differs. NULL (pre-v44) means unrecorded and forces nothing |
+| `reconcile_at` | TEXT | When the last two-way reconcile finished. NULL means none has since the mirror reached v44 |
+| `reconcile_upstream_keys` | INTEGER | Keys the origin held in scope at that reconcile — the number `gadak status` compares the mirror's own count against |
+| `reconcile_missing_fetched` | INTEGER | Keys that reconcile found upstream and the mirror was missing, and fetched. Nonzero means the mirror had silently diverged |
+| `reconcile_gone_deleted` | INTEGER | Mirror rows that reconcile found gone upstream, and deleted |
 
 The `version` counter is what lets `bootstrap` answer `304 Not Modified` without
 hashing the whole mirror. It moves only when row content changed, which is what

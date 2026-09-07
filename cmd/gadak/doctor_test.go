@@ -1230,3 +1230,93 @@ func TestDoctorSchemaAuditDetectsFrankenstein(t *testing.T) {
 		}
 	}
 }
+
+// TestDoctorConfluenceSpacesNotOnOrigin is FAIL-first for GDK-1484: a
+// configured wiki space the origin never resolved leaves no row in the
+// spaces catalog, so the mirror itself can answer "this key mirrors
+// nothing" without a network call. Counts only — the key stays out of the
+// paste-safe document (TestDoctorRedaction's rule); `gadak status` names it.
+func TestDoctorConfluenceSpacesNotOnOrigin(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	t.Setenv("HOME", home)
+	config.SetProfile("")
+
+	ctx := context.Background()
+	db, err := store.Open(filepath.Join(home, "gadak.db"))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if err := db.UpsertSource(ctx, store.Source{ID: "confluence", Kind: "confluence", BaseURL: "https://example.atlassian.net/wiki"}); err != nil {
+		t.Fatalf("source: %v", err)
+	}
+	// The catalog the pass wrote: only the space the origin actually has.
+	if err := db.UpsertSpaces(ctx, "confluence", []store.SpaceRow{{Key: "GDK", Name: "Gadak", Kind: "global"}}); err != nil {
+		t.Fatalf("spaces: %v", err)
+	}
+	// A pass has run — without that the mirror cannot answer at all.
+	if err := db.RecordSync(ctx, "confluence", store.SyncResult{}); err != nil {
+		t.Fatalf("record sync: %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	cfg := &config.Config{
+		Site: "https://example.atlassian.net", Email: "someone@example.com", Token: "token",
+		// The stale local-origin default that survived a change of origin.
+		Confluence: &config.ConfluenceConfig{Spaces: []string{"LOCSTALE"}},
+	}
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := capture(t, func() error { return cmdDoctor(nil) })
+	if err != nil {
+		t.Fatalf("doctor: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "confluence_spaces:") {
+		t.Fatalf("human output missing confluence_spaces line:\n%s", out)
+	}
+	if !strings.Contains(out, "configured=1") || !strings.Contains(out, "not_on_origin=1") {
+		t.Fatalf("confluence_spaces line missing counts:\n%s", out)
+	}
+	if strings.Contains(out, "LOCSTALE") {
+		t.Errorf("space key leaked into the paste-safe document:\n%s", out)
+	}
+
+	raw, err := capture(t, func() error { return cmdDoctor([]string{"--json"}) })
+	if err != nil {
+		t.Fatalf("doctor --json: %v\n%s", err, raw)
+	}
+	if strings.Contains(raw, "LOCSTALE") {
+		t.Errorf("space key leaked into the JSON document: %s", raw)
+	}
+	var rep struct {
+		ConfluenceSpaces *struct {
+			Configured  int `json:"configured"`
+			NotOnOrigin int `json:"not_on_origin"`
+		} `json:"confluence_spaces"`
+	}
+	if err := json.Unmarshal([]byte(raw), &rep); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, raw)
+	}
+	if rep.ConfluenceSpaces == nil {
+		t.Fatal("json missing confluence_spaces on a scope the origin does not have")
+	}
+	if got := *rep.ConfluenceSpaces; got.Configured != 1 || got.NotOnOrigin != 1 {
+		t.Fatalf("confluence_spaces = %+v, want 1/1", got)
+	}
+
+	// Control: a scope the catalog knows is not a mismatch — field omitted.
+	cfg.Confluence = &config.ConfluenceConfig{Spaces: []string{"GDK"}}
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+	raw2, err := capture(t, func() error { return cmdDoctor([]string{"--json"}) })
+	if err != nil {
+		t.Fatalf("doctor --json: %v\n%s", err, raw2)
+	}
+	if strings.Contains(raw2, "confluence_spaces") {
+		t.Errorf("confluence_spaces present when every configured key is in the catalog: %s", raw2)
+	}
+}

@@ -59,10 +59,15 @@ type MirrorOpener func() (db *store.DB, release func() error, err error)
 // The origin flush (origin.Close) is deliberately NOT here: it is the CLI
 // process-exit path. A serve holds the origin session for its lifetime.
 //
-// spaces is the wiki space set the workspace syncs; nil keeps the seeded
-// default (LOC). migrate passes the space keys its fixture carries, so the
-// first fill mirrors them instead of a space the fixture does not contain.
-func SeedLocalOrigin(cfg *config.Config, projectsCSV string, spaces []string, openMirror MirrorOpener) (fillErr error, err error) {
+// wiki is the workspace's Confluence config. nil keeps the seeded default
+// (the LOC space this seed also creates). A non-nil value is written verbatim,
+// which is how `gadak migrate` hands over the scope its export carries — and,
+// when the export carries no wiki page at all, an EMPTY space list meaning
+// "every space this origin has". The default must not survive into a migrated
+// workspace: LOC belongs to the origin the export came from, and the new
+// origin does not have it, so the wiki pass would 404 that one key and mirror
+// zero pages on every run (GDK-1484).
+func SeedLocalOrigin(cfg *config.Config, projectsCSV string, wiki *config.ConfluenceConfig, openMirror MirrorOpener) (fillErr error, err error) {
 	cfg.Kind = config.KindLocalOrigin
 	cfg.Site = ""
 	cfg.Email = ""
@@ -72,8 +77,8 @@ func SeedLocalOrigin(cfg *config.Config, projectsCSV string, spaces []string, op
 	cfg.TokenExpiresAt = ""
 	cfg.TokenExpirySource = ""
 	cfg.AccountID = ""
-	if len(spaces) > 0 {
-		cfg.Confluence = &config.ConfluenceConfig{Spaces: append([]string{}, spaces...)}
+	if wiki != nil {
+		cfg.Confluence = &config.ConfluenceConfig{Spaces: append([]string{}, wiki.Spaces...)}
 	} else {
 		cfg.Confluence = origin.DefaultConfluenceConfig()
 	}

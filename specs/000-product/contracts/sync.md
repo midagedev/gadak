@@ -142,6 +142,20 @@ display language and ignores `Accept-Language`. Two consequences:
 reconcile pass on a longer one (default 3600 s). `gadak serve` runs the
 same loop inside the server process so a single command is enough for normal use.
 
+Reconcile is a two-way divergence probe. It lists every key the origin holds in
+scope, deletes mirror rows that are gone upstream, and fetches upstream keys the
+mirror never received. That second direction exists because the incremental pass
+asks the origin `updated >= watermark`: a row that enters the origin carrying an
+older stamp — a bulk import that preserved original timestamps, an origin
+restored from a backup — is invisible to every future incremental pass, not just
+the next one. Each incremental pass also runs a one-request count probe and
+escalates to a reconcile immediately when the origin and the mirror disagree
+about how many issues the scope holds, so the repair usually lands on the next
+tick rather than the next hour. Widening the scope — adding a project or a
+Linear team — forces one full pass, because the stored watermark was earned
+under the old scope and has already passed everything the new one brings. The
+last reconcile's tally is published as `status --json` `reconcile`.
+
 ## Snapshot generation
 
 `gadak snapshot <out.db>` produces a shareable database for demos and tests:

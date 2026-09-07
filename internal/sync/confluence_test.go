@@ -2063,3 +2063,73 @@ func TestConfluenceMemorySpaceJoinsFromListing(t *testing.T) {
 		t.Errorf("missing join log, got %v", logs)
 	}
 }
+
+// TestConfluenceEveryConfiguredSpaceMissingIsNotSilentSuccess is the GDK-1484
+// regression: a workspace whose confluence.spaces still names a space the
+// origin does not have (the local-origin default LOC surviving a `gadak
+// migrate` or a pairing) mirrored zero pages and reported success — 81 syncs
+// in a row on the measured host. Every configured key failing its lookup is a
+// configuration fault no further sync can repair, so the pass must fail, name
+// the missing keys, and leave the repair command in sync_state.last_error
+// where `gadak status` and `gadak doctor` already read it.
+func TestConfluenceEveryConfiguredSpaceMissingIsNotSilentSuccess(t *testing.T) {
+	f := newConfFixture(t)
+	f.spaces = []map[string]any{
+		{"key": "AAA", "name": "Alpha", "type": "global"},
+	}
+	client := f.start()
+	db := newMirror(t)
+	cfg := confCfg([]string{"LOC"})
+	var logs []string
+	res, err := RunConfluence(context.Background(), cfg, db.DB, Options{
+		Full: true, ConfluenceClient: client,
+		Log: func(line string) { logs = append(logs, line) },
+	})
+	if err == nil {
+		t.Fatalf("pass reported success with %d pages while every configured space is missing", res.Fetched)
+	}
+	for _, want := range []string{"0 of 1", "LOC", `confluence.spaces "[]"`} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error %q does not carry %q", err.Error(), want)
+		}
+	}
+	joined := strings.Join(logs, "\n")
+	if !strings.Contains(joined, "0 of 1 configured spaces exist upstream") {
+		t.Errorf("no operator log line about the missing scope; got:\n%s", joined)
+	}
+	st, serr := db.SyncState(context.Background(), ConfluenceSourceID)
+	if serr != nil {
+		t.Fatal(serr)
+	}
+	if st.LastError == nil || !strings.Contains(*st.LastError, "LOC") {
+		t.Fatalf("last_error = %v, want the missing-scope sentence", st.LastError)
+	}
+}
+
+// TestConfluenceSomeConfiguredSpacesMissingStillSyncs keeps the partial case
+// on the pre-GDK-1484 contract: one bad key among good ones is logged and
+// skipped, and the pass still succeeds — the good spaces are mirrored.
+func TestConfluenceSomeConfiguredSpacesMissingStillSyncs(t *testing.T) {
+	f := newConfFixture(t)
+	f.spaces = []map[string]any{
+		{"key": "AAA", "name": "Alpha", "type": "global"},
+	}
+	f.pages = map[string]*confPage{"1001": f.pages["1001"], "1002": f.pages["1002"]}
+	client := f.start()
+	db := newMirror(t)
+	cfg := confCfg([]string{"AAA", "LOC"})
+	var logs []string
+	res, err := RunConfluence(context.Background(), cfg, db.DB, Options{
+		Full: true, ConfluenceClient: client,
+		Log: func(line string) { logs = append(logs, line) },
+	})
+	if err != nil {
+		t.Fatalf("partial miss must not fail the pass: %v", err)
+	}
+	if res.Fetched < 1 {
+		t.Fatalf("fetched = %d, want ≥ 1", res.Fetched)
+	}
+	if !strings.Contains(strings.Join(logs, "\n"), "1 of 2 configured spaces exist upstream") {
+		t.Errorf("no partial-scope log line; got:\n%s", strings.Join(logs, "\n"))
+	}
+}

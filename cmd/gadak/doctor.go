@@ -71,6 +71,26 @@ type doctorReport struct {
 	APIUsage         doctorAPIUsage          `json:"api_usage"`
 	Workspace        doctorWorkspace         `json:"workspace"`
 	Logs             doctorLogs              `json:"logs"`
+	// ConfluenceSpaces is the config↔mirror wiki-scope signature (GDK-1484),
+	// as counts only — the keys stay out of this paste-safe document, the
+	// same rule ProjectsMismatch follows. Nil when the signature is absent.
+	ConfluenceSpaces *doctorConfluenceSpaces `json:"confluence_spaces,omitempty"`
+	// MirrorShort is the mirror-vs-origin shortfall (GDK-1400): the origin
+	// held more issues in scope at the last two-way reconcile than the mirror
+	// holds now. Counts only, no keys — the same paste-safe rule
+	// ProjectsMismatch follows. Nil when the mirror is level, is ahead, or no
+	// reconcile has run.
+	MirrorShort *doctorMirrorShort `json:"mirror_short,omitempty"`
+}
+
+// doctorMirrorShort is the count-only view of a mirror that holds less than
+// its origin does. It is the standing form of the question the GDK-1400 field
+// case needed a second machine to answer: that host reported a healthy sync
+// on every tick while holding 134 of its origin's 1,399 issues.
+type doctorMirrorShort struct {
+	Mirror   int    `json:"mirror"`
+	Upstream int    `json:"upstream"`
+	At       string `json:"at"`
 }
 
 // doctorLogs is the process log file Install opens under the gadak home.
@@ -459,6 +479,14 @@ func collectDoctor() doctorReport {
 		}
 	}
 
+	if cs := collectConfluenceSpaces(db); cs != nil {
+		rep.ConfluenceSpaces = cs
+	}
+
+	if ms := collectMirrorShort(db); ms != nil {
+		rep.MirrorShort = ms
+	}
+
 	return rep
 }
 
@@ -810,6 +838,12 @@ func formatDoctorText(r doctorReport) string {
 
 	line("custom_fields", formatDoctorCustomFields(r.CustomFields))
 	line("confluence", r.Confluence)
+	if r.MirrorShort != nil {
+		line("mirror_short", formatDoctorMirrorShort(*r.MirrorShort))
+	}
+	if r.ConfluenceSpaces != nil {
+		line("confluence_spaces", formatDoctorConfluenceSpaces(*r.ConfluenceSpaces))
+	}
 	line("credential", r.Credential)
 	line("site", r.Site)
 	line("email", r.Email)
@@ -1172,4 +1206,113 @@ func errorKind(code int, raw string) string {
 	default:
 		return "error"
 	}
+}
+
+// doctorConfluenceSpaces is the count-only view of the config↔mirror wiki
+// scope (GDK-1484): configured space keys the spaces catalog does not hold.
+// The pass writes a catalog row only for a key the origin resolved, so a
+// configured key with no row is one the origin does not have — the shape a
+// local-origin default (LOC) takes after `gadak migrate` or a pairing builds
+// a new origin under the old config. No network call: doctor stays offline
+// and fast, and the mirror already carries the answer. Which keys those are
+// never enters doctor output; `gadak status` names them.
+type doctorConfluenceSpaces struct {
+	Configured  int `json:"configured"`    // non-empty keys in confluence.spaces
+	NotOnOrigin int `json:"not_on_origin"` // of those, keys with no catalog row
+}
+
+// collectConfluenceSpaces returns nil when there is nothing to say: the wiki
+// source is off, the scope is the empty list (every space the origin has, so
+// it cannot name a missing one), the pass has never run (the catalog is
+// empty for a reason that is not a mismatch — the offline equivalent of the
+// "skipped" a network check would report), or every configured key resolved.
+func collectConfluenceSpaces(db *store.DB) *doctorConfluenceSpaces {
+	cfg, err := config.Load()
+	if err != nil || cfg == nil || cfg.Confluence == nil || len(cfg.Confluence.Spaces) == 0 {
+		return nil
+	}
+	ctx := context.Background()
+	ss, err := db.SyncState(ctx, syncer.ConfluenceSourceID)
+	if err != nil || ss.SyncCount == 0 {
+		return nil
+	}
+	rows, err := db.Query(`SELECT key FROM spaces WHERE source_id = ?`, syncer.ConfluenceSourceID)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+	known := map[string]bool{}
+	for rows.Next() {
+		var k string
+		if err := rows.Scan(&k); err != nil {
+			return nil
+		}
+		known[k] = true
+	}
+	if err := rows.Err(); err != nil {
+		return nil
+	}
+	out := &doctorConfluenceSpaces{}
+	for _, k := range cfg.Confluence.Spaces {
+		if strings.TrimSpace(k) == "" {
+			continue
+		}
+		out.Configured++
+		if !known[k] {
+			out.NotOnOrigin++
+		}
+	}
+	if out.NotOnOrigin == 0 {
+		return nil
+	}
+	return out
+}
+
+// formatDoctorConfluenceSpaces names the verdict and the way out without
+// naming keys — `gadak status` prints the configured list (GDK-1484).
+func formatDoctorConfluenceSpaces(s doctorConfluenceSpaces) string {
+	return fmt.Sprintf(`configured=%d not_on_origin=%d — the origin has no space under those keys, so nothing is mirrored for them; `+
+		"`gadak status`"+` names them; fix with: gadak config set confluence.spaces "[]"`,
+		s.Configured, s.NotOnOrigin)
+}
+
+// collectMirrorShort compares what the mirror holds against what the origin
+// reported at the last two-way reconcile (GDK-1400). A short mirror is silent
+// by nature — every incremental pass over `updated >= watermark` succeeds and
+// reports nothing wrong — so this is the only standing surface that names it.
+// Reads are best-effort: no reconcile yet, an unreadable config, or a failed
+// count reports nothing rather than a half verdict. A mirror that is level or
+// ahead is not a finding: ahead means rows outside the reconcile's scope, and
+// deciding those are surplus is the reconcile's job, not doctor's.
+func collectMirrorShort(db *store.DB) *doctorMirrorShort {
+	ctx := context.Background()
+	ss, err := db.IssueSyncState(ctx)
+	if err != nil || !ss.Reconcile.Ran() {
+		return nil
+	}
+	var projects []string
+	if ss.SourceID == syncer.SourceID {
+		// Jira's reconcile scope is the configured project list. A config we
+		// cannot read means we cannot name the scope, and an unscoped count
+		// compared against a scoped one is not a verdict.
+		cfg, cerr := config.Load()
+		if cerr != nil || cfg == nil {
+			return nil
+		}
+		projects = cfg.Projects
+	}
+	have, err := db.CountIssuesInScope(ctx, ss.SourceID, projects)
+	if err != nil || have >= ss.Reconcile.UpstreamKeys {
+		return nil
+	}
+	return &doctorMirrorShort{Mirror: have, Upstream: ss.Reconcile.UpstreamKeys, At: ss.Reconcile.At}
+}
+
+// formatDoctorMirrorShort names the verdict and the way out. The repair is
+// automatic — the hourly reconcile fetches what is missing — so the line says
+// how to make it happen now rather than presenting a manual fix as the only
+// one.
+func formatDoctorMirrorShort(m doctorMirrorShort) string {
+	return fmt.Sprintf("mirror=%d upstream=%d (at %s) — the origin held more than this mirror does; the hourly reconcile fetches the difference, or force it now with: gadak sync --full",
+		m.Mirror, m.Upstream, m.At)
 }

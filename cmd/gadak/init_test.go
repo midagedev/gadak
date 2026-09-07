@@ -1347,3 +1347,40 @@ func TestInitPairedAutoInstallsSkillWhenClaudeDirExists(t *testing.T) {
 		t.Fatalf("SKILL.md missing after paired init: %v", err)
 	}
 }
+
+// TestInitPairedWritesWikiScopeForTheHomeOrigin is the GDK-1484 pairing half.
+// A paired workspace has no site of its own and cannot see which space keys
+// the home machine seeded, so the only honest scope is the empty list —
+// every team space the home origin lists. The block must also be present:
+// its absence is the wiki off switch, and a paired workspace that mirrored
+// issues while reporting its wiki as not configured is what GDK-1276 fixed.
+// Neither may regress into the local-origin default (LOC), which belongs to
+// an origin this workspace does not own.
+func TestInitPairedWritesWikiScopeForTheHomeOrigin(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	clearCredentialEnv(t)
+	config.SetProfile("")
+	t.Cleanup(func() { config.SetProfile("") })
+
+	srv, _ := pairingOriginServe(t, http.StatusOK)
+	offer := mustOffer(t, pairing.Offer{
+		V: pairing.OfferV1, Endpoint: srv.URL, Token: "pair-token-wiki", Label: "laptop",
+	})
+	if out, err := capture(t, func() error {
+		return cmdInit([]string{"--pairing-code", offer, "--json"})
+	}); err != nil {
+		t.Fatalf("init --pairing-code: %v\n%s", err, out)
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Confluence == nil {
+		t.Fatalf("confluence block missing after pairing — the wiki pass would be off and `gadak status` would say not configured")
+	}
+	if len(cfg.Confluence.Spaces) != 0 {
+		t.Fatalf("confluence.spaces = %v after pairing; want the empty list (every space the home origin lists), never %q",
+			cfg.Confluence.Spaces, origin.DefaultSpaceKey)
+	}
+}
