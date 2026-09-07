@@ -48,6 +48,7 @@ census-p1
 ci
 cli
 community
+confluence
 contract
 contributor
 cycle3
