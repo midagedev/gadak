@@ -307,6 +307,76 @@ describe('GDK-1497 A2 — the header is a control surface', () => {
     }
   })
 
+  // GDK-1497 A2 vision round (2026-09-07): the judge could not tell which
+  // row was current. The priority sheet's mark was a leading glyph the
+  // fixture never triggers, and the assignee sheet had none at all — only
+  // an accent tint, which is Cancel's and every link's colour on this
+  // screen, so it read as "actionable", not "current".
+  const detailMarkupOnly = markup('screens/Detail.svelte')
+  const sheetOf = (openFlag: string): string => {
+    const at = detailMarkupOnly.indexOf(`{#if ${openFlag}}`)
+    expect(at).toBeGreaterThan(-1)
+    return detailMarkupOnly.slice(at, detailMarkupOnly.indexOf('{/if}\n\n', at))
+  }
+
+  it('marks the current row with a shape, not with the link colour', () => {
+    const styles = detail.slice(detail.indexOf('<style>'))
+    // The tint was the only marker; a tick that a colour rule can outvote
+    // is not a marker.
+    expect(styles).not.toMatch(/\.t-row\.current\s+\.t-name\s*\{/)
+    expect(detailMarkupOnly).toMatch(/\{#snippet currentTick\(\)\}/)
+    for (const flag of ['assigneeOpen', 'priorityOpen']) {
+      const sheet = sheetOf(flag)
+      // Both sheets render the one snippet — no second, divergent glyph.
+      expect(sheet.match(/@render currentTick\(\)/g)?.length).toBe(2)
+      // …and every render sits after its row's text, i.e. on the trailing
+      // edge. A leading tick shifts the label and reads as a bullet.
+      for (const row of sheet.split('<button').slice(1)) {
+        const tick = row.indexOf('@render currentTick()')
+        if (tick === -1) continue
+        expect(tick).toBeGreaterThan(row.indexOf('class="t-text"'))
+      }
+    }
+  })
+
+  it('marks the clearing row when the issue carries no value', () => {
+    // Unassigned / None are rows like any other: if that is the current
+    // value, the sheet says so.
+    expect(detail).toMatch(/const unassignedNow = \$derived\(!lite\?\.assignee_id\)/)
+    expect(detail).toMatch(/const priorityNone = \$derived\(/)
+    expect(sheetOf('assigneeOpen')).toMatch(/class:current=\{unassignedNow\}/)
+    expect(sheetOf('priorityOpen')).toMatch(/class:current=\{priorityNone\}/)
+  })
+
+  it('puts the assignee search above the rows it filters', () => {
+    const sheet = sheetOf('assigneeOpen')
+    expect(sheet).toContain('class="search"')
+    expect(sheet.indexOf('class="search"')).toBeLessThan(sheet.indexOf('class="t-row"'))
+  })
+
+  it('leaves one Cancel on the description sheet and arms its Save', () => {
+    // The Sheet header owns Cancel; the action row owns the primary action
+    // only, wearing the composer's armed fill (GDK-934 tokens, no new
+    // colours). The format_loss branch keeps its own Cancel — that one
+    // backs out of the replace prompt, not out of the sheet.
+    const sheet = sheetOf('descOpen')
+    const rest = sheet.slice(sheet.indexOf('{:else}'))
+    expect(rest).toMatch(/class="save" class:armed=/)
+    expect(rest).not.toContain('class="ghost"')
+    const styles = detail.slice(detail.indexOf('<style>'))
+    expect(styles.match(/\.save\.armed\s*\{[^}]+\}/)?.[0]).toMatch(
+      /background:\s*var\(--color-accent\)/,
+    )
+  })
+
+  it('does not give a loading placeholder the same class as a button', () => {
+    // .ghost was both the text-button rule and the skeleton wrapper; the
+    // later wrapper rule silently overrode display/padding on every Cancel.
+    const styles = detail.slice(detail.indexOf('<style>'))
+    expect(styles.match(/^\s*\.ghost\s*\{/gm)?.length).toBe(1)
+    expect(detailMarkupOnly).not.toMatch(/<div class="ghost"/)
+  })
+
   it('routes header writes through the typed wrappers, not request bodies', () => {
     // Screens hold no request bodies (the wrappers own them); Detail only
     // picks values and paints the returned issue.

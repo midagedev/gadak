@@ -89,6 +89,12 @@
   /** Accent fill only when this control can send (GDK-934). Empty or writes-off recedes. */
   const sendArmed = $derived(!writesOff && (comment.trim() !== '' || sending))
 
+  /** The clearing rows are "current" only when the issue really carries no
+   *  value — an empty id is the mirror's "unknown", not "none" (types.ts:39
+   *  pins that contract for priority_id), so an id-less row marks nothing. */
+  const unassignedNow = $derived(!lite?.assignee_id)
+  const priorityNone = $derived(Boolean(lite) && !lite?.priority_id && !lite?.priority)
+
   /** Assignee sheet rows beyond the clearing one: me, the current assignee,
    *  then what the search brought — deduped by account id. */
   const assigneeCandidates = $derived.by<
@@ -508,7 +514,7 @@
       {#if detailError}
         <p class="error">{detailError}</p>
       {:else if !detail}
-        <div class="ghost" aria-hidden="true">
+        <div class="skel" aria-hidden="true">
           <span class="g w1"></span><span class="g w2"></span><span class="g w3"></span>
         </div>
       {:else}
@@ -604,6 +610,16 @@
     {/snippet}
   </Screen>
 
+  <!-- The current value's mark, one owner for both pick sheets. It is a
+       shape, not a colour: the row's text stays primary so the mark reads as
+       "this is what the issue has", never as "this is the actionable one"
+       (the accent is the Cancel/link colour on this screen). -->
+  {#snippet currentTick()}
+    <svg class="tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M20 6 9 17l-5-5" />
+    </svg>
+  {/snippet}
+
   {#if sheetOpen}
     <Sheet title="Move status" onclose={() => (sheetOpen = false)}>
       <div class="t-list">
@@ -636,32 +652,10 @@
   {#if assigneeOpen}
     <Sheet title={t('write.pickAssignee')} onclose={() => (assigneeOpen = false)}>
       <div class="pick-list">
-        <button class="t-row" disabled={applyingId !== null} onclick={() => void pickAssignee(null)}>
-          <span class="t-text">
-            <span class="t-name">{t('common.unassigned')}</span>
-            {#if failedRow === 'unassigned' && rowError}
-              <span class="t-err">{rowError}</span>
-            {/if}
-          </span>
-        </button>
-        {#each assigneeCandidates as c (c.id)}
-          <button
-            class="t-row"
-            class:current={lite?.assignee_id === c.accountId}
-            disabled={applyingId !== null}
-            onclick={() => void pickAssignee(c.accountId)}
-          >
-            <span class="t-text">
-              <span class="t-name">{c.label}</span>
-              {#if c.sub}
-                <span class="t-to">{c.sub}</span>
-              {/if}
-              {#if failedRow === c.id && rowError}
-                <span class="t-err">{rowError}</span>
-              {/if}
-            </span>
-          </button>
-        {/each}
+        <!-- The field sits above what it filters: the rows below it are the
+             result of what is typed here, and a filter under its own results
+             reads as an afterthought. Row order stays Unassigned → me →
+             current → results. -->
         <div class="search">
           <input
             value={userQuery}
@@ -675,6 +669,42 @@
             <p class="none">{t('write.userNotFound')}</p>
           {/if}
         </div>
+        <button
+          class="t-row"
+          class:current={unassignedNow}
+          aria-current={unassignedNow ? 'true' : undefined}
+          disabled={applyingId !== null}
+          onclick={() => void pickAssignee(null)}
+        >
+          <span class="t-text">
+            <span class="t-name">{t('common.unassigned')}</span>
+            {#if failedRow === 'unassigned' && rowError}
+              <span class="t-err">{rowError}</span>
+            {/if}
+          </span>
+          {#if unassignedNow}{@render currentTick()}{/if}
+        </button>
+        {#each assigneeCandidates as c (c.id)}
+          {@const current = Boolean(lite?.assignee_id) && lite?.assignee_id === c.accountId}
+          <button
+            class="t-row"
+            class:current
+            aria-current={current ? 'true' : undefined}
+            disabled={applyingId !== null}
+            onclick={() => void pickAssignee(c.accountId)}
+          >
+            <span class="t-text">
+              <span class="t-name">{c.label}</span>
+              {#if c.sub}
+                <span class="t-to">{c.sub}</span>
+              {/if}
+              {#if failedRow === c.id && rowError}
+                <span class="t-err">{rowError}</span>
+              {/if}
+            </span>
+            {#if current}{@render currentTick()}{/if}
+          </button>
+        {/each}
       </div>
     </Sheet>
   {/if}
@@ -687,33 +717,37 @@
         {:else if prioritiesError}
           <p class="error">{prioritiesError}</p>
         {:else if priorities && lite}
-          <button class="t-row" disabled={applyingId !== null} onclick={() => void pickPriority(null)}>
+          <button
+            class="t-row"
+            class:current={priorityNone}
+            aria-current={priorityNone ? 'true' : undefined}
+            disabled={applyingId !== null}
+            onclick={() => void pickPriority(null)}
+          >
             <span class="t-text">
               <span class="t-name">{t('common.none')}</span>
               {#if failedRow === 'none' && rowError}
                 <span class="t-err">{rowError}</span>
               {/if}
             </span>
+            {#if priorityNone}{@render currentTick()}{/if}
           </button>
           {#each priorities as p (p.id)}
-            {@const current = lite.priority_id === p.id}
+            {@const current = Boolean(lite.priority_id) && lite.priority_id === p.id}
             <button
               class="t-row"
               class:current
+              aria-current={current ? 'true' : undefined}
               disabled={applyingId !== null}
               onclick={() => void pickPriority(p.id)}
             >
-              {#if current}
-                <svg class="tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="M20 6 9 17l-5-5" />
-                </svg>
-              {/if}
               <span class="t-text">
                 <span class="t-name">{p.name}</span>
                 {#if failedRow === p.id && rowError}
                   <span class="t-err">{rowError}</span>
                 {/if}
               </span>
+              {#if current}{@render currentTick()}{/if}
             </button>
           {/each}
           {#if priorities.length === 0}
@@ -744,11 +778,13 @@
           {#if descError}
             <p class="error">{descError}</p>
           {/if}
+          <!-- One Cancel per sheet: the Sheet header already carries it, so
+               this row holds only the primary action, and it wears the same
+               armed fill the composer's Send does (GDK-934 tokens). -->
           <div class="desc-actions">
-            <button class="save" disabled={descSaving} onclick={() => void saveDescription(false)}>
+            <button class="save" class:armed={!writesOff} disabled={descSaving} onclick={() => void saveDescription(false)}>
               {t('common.save')}
             </button>
-            <button class="ghost" onclick={() => (descOpen = false)}>{t('common.cancel')}</button>
           </div>
         {/if}
       </div>
@@ -944,6 +980,12 @@
     background: var(--color-bg-elevated);
     color: var(--color-text-primary);
   }
+  /* Same pair the composer's Send uses (GDK-934): resting Save is elevated
+     bg, the armed one is the accent fill — no new colours. */
+  .save.armed {
+    background: var(--color-accent);
+    color: var(--color-bg-base);
+  }
   .save:disabled {
     opacity: 0.45;
   }
@@ -1078,7 +1120,10 @@
     height: 16px;
   }
 
-  .ghost {
+  /* Was also called .ghost, which silently overrode the .ghost BUTTON rule
+     above (display/padding) for every Cancel on this screen — a loading
+     placeholder and a text button are not the same thing. */
+  .skel {
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -1187,13 +1232,14 @@
     font-weight: 400;
     color: var(--color-status-reopen);
   }
-  .t-row.current .t-name {
-    color: var(--color-accent-text);
-  }
+  /* The current row is marked by the tick alone. It used to be tinted with
+     --color-accent-text, which is also Cancel's and every link's colour on
+     this screen, so the row read as "tap me" rather than "this is current". */
   .tick {
     flex: none;
-    width: 14px;
-    height: 14px;
+    margin-left: auto;
+    width: 16px;
+    height: 16px;
     color: var(--color-accent-text);
   }
   .pick-list {
@@ -1203,9 +1249,9 @@
     flex-direction: column;
   }
   .search {
-    border-top: 1px solid var(--color-border-subtle);
-    padding: 8px;
-    margin-top: 4px;
+    border-bottom: 1px solid var(--color-border-subtle);
+    padding: 4px 8px 8px;
+    margin-bottom: 4px;
   }
   .search input {
     width: 100%;

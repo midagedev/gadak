@@ -15,6 +15,18 @@
 //     because the honest fixture closes that sheet before any row can
 //     render. The mock is labeled in the log, fulfils only that one GET,
 //     and the priority WRITE is never exercised here.
+//
+// One more measured fixture truth (2026-09-07, GET /api/v1/issues/bootstrap/
+// on the demo home): every row answers `priority_id: ""` — the demo db is
+// scrubbed of priority ids (examples/demo.db `issues_full.priority_id` is ''
+// on all 534 rows). The sheet keys the current row on that id, as it must
+// (CLAUDE.md bans keying on display names), so on the raw fixture NO row can
+// carry the current-value mark and the cut would photograph a sheet that
+// looks like it has no current value. The bootstrap route below therefore
+// gives the ONE photographed issue the catalog id whose name it already
+// displays, which makes the mocked world self-consistent instead of
+// self-contradicting. It is labeled in the log, it touches one field of one
+// issue, and no other capture reads it.
 import { expect, test } from '@playwright/test'
 import { mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -22,6 +34,15 @@ import { fileURLToPath } from 'node:url'
 import { SERVE_ORIGIN } from '../playwright.config'
 
 const SHOT_DIR = join(dirname(fileURLToPath(import.meta.url)), '.shots')
+
+/** The Jira default set, used by both mocks so they cannot disagree. */
+const PRIORITY_CATALOG = [
+  { id: '1', name: 'Highest' },
+  { id: '2', name: 'High' },
+  { id: '3', name: 'Medium' },
+  { id: '4', name: 'Low' },
+  { id: '5', name: 'Lowest' },
+]
 
 type IssueLite = { issue_key: string; assignee: string | null; assignee_id: string | null }
 type DetailDoc = { issue_key: string; description_md?: string; description_text?: string }
@@ -63,6 +84,23 @@ async function pickIssue(): Promise<string> {
 test('captures the A2 write surfaces for the vision round', async ({ page }) => {
   mkdirSync(SHOT_DIR, { recursive: true })
   const issueKey = await pickIssue()
+
+  // See the header note: the demo db carries no priority ids, so give the
+  // photographed issue the catalog id it already displays. One field, one
+  // issue; everything else passes through untouched.
+  await page.route('**/api/v1/issues/bootstrap/', async (route) => {
+    const res = await route.fetch()
+    const body = (await res.json()) as { issues: Array<Record<string, unknown>> }
+    const row = body.issues.find((i) => i.issue_key === issueKey)
+    const match = PRIORITY_CATALOG.find((p) => p.name === row?.priority)
+    if (row && match && !row.priority_id) {
+      row.priority_id = match.id
+      console.log(
+        `[a2] bootstrap route: ${issueKey}.priority_id "" → ${match.id} (${match.name}) — fixture carries no priority ids`,
+      )
+    }
+    await route.fulfill({ response: res, json: body })
+  })
 
   await page.goto('/')
   await page.locator('nav.safe-bottom').waitFor()
@@ -126,15 +164,7 @@ test('captures the A2 write surfaces for the vision round', async ({ page }) => 
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({
-        priorities: [
-          { id: '1', name: 'Highest' },
-          { id: '2', name: 'High' },
-          { id: '3', name: 'Medium' },
-          { id: '4', name: 'Low' },
-          { id: '5', name: 'Lowest' },
-        ],
-      }),
+      body: JSON.stringify({ priorities: PRIORITY_CATALOG }),
     })
   })
   await page.locator('.meta .m-btn').nth(0).click()
