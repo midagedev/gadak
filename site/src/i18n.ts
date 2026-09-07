@@ -360,14 +360,15 @@ export const MEDIA_LOCALES: Record<string, readonly Exclude<Locale, 'en'>[]> = {
   // language — in its pixels, so each is a per-language asset. The hero
   // joined this list on 2026-09-07 (the user reversed "terminal-hero has no
   // variants"): its ko and ja takes are one language end to end, prompts
-  // included. Recording them is a separate round: until the files land, an
-  // entry stays ['ko','ja']-free and every locale is served the English take.
-  '/media/scale.mp4': [],
-  '/media/scale-poster.png': [],
-  '/media/search.mp4': [],
-  '/media/search-poster.png': [],
-  '/media/terminal-hero.mp4': [],
-  '/media/terminal-hero-poster.png': [],
+  // included. An entry without a locale serves that locale the English take;
+  // doc-checks #40/#41 keep a listed locale, its files and its fixture
+  // translation together.
+  '/media/scale.mp4': ['ko', 'ja'],
+  '/media/scale-poster.png': ['ko', 'ja'],
+  '/media/search.mp4': ['ko', 'ja'],
+  '/media/search-poster.png': ['ko', 'ja'],
+  '/media/terminal-hero.mp4': ['ko', 'ja'],
+  '/media/terminal-hero-poster.png': ['ko', 'ja'],
 }
 
 /**

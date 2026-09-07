@@ -144,9 +144,9 @@ gadak mcp install claude
 ```
 
 <p align="center">
-  <img src="docs/media/terminal-hero.gif" alt="리스트 아래 gadak 자체 터미널. gadak claim NMA-140 으로 행이 In Progress 로 움직이고 셸 탭이 그 키를 이름으로 받는다. 그 셸에서 claude 가 뜨고, 한국어 프롬프트 하나에 리스트가 Dana Whitfield 의 최근 움직인 이슈로 바뀌고, 다음 프롬프트가 같은 창에 라벨 비율 대시보드를 저장해 연다" width="900">
+  <img src="docs/media/terminal-hero.ko.gif" alt="리스트 아래 gadak 자체 터미널. gadak claim NMA-140 으로 행이 진행 중으로 움직이고 셸 탭이 그 키를 이름으로 받는다. 그 셸에서 claude 가 뜨고, 한국어 프롬프트 하나에 리스트가 Dana Whitfield 의 최근 움직인 이슈로 바뀌고, 다음 프롬프트가 같은 창에 라벨 비율 대시보드를 저장해 연다" width="900">
   <br>
-  <sub>앱 창 안에서 셸이 열립니다(⌘K → Terminal, 또는 Ctrl+`). <code>gadak claim</code>이 셸을 이슈에 묶어 탭 이름이 이슈 키가 되고, 그 안에서 시작한 라이브 Claude Code 세션이 옆의 보드를 움직입니다. 한국어 한 문장이 리스트가 되고, 다음 문장이 대시보드를 그립니다. 프롬프트 두 줄 외에는 대본이 없고, 에이전트가 작업하는 구간은 빨리 감았습니다. <a href="e2e/demo/terminal-claude-demo.spec.ts">e2e/demo/terminal-claude-demo.spec.ts</a>를 <a href="e2e/demo/record-terminal-claude.sh">record-terminal-claude.sh</a>로 녹화했습니다.</sub>
+  <sub>앱 창 안에서 셸이 열립니다(⌘K → 터미널, 또는 Ctrl+`). <code>gadak claim</code>이 셸을 이슈에 묶어 탭 이름이 이슈 키가 되고, 그 안에서 시작한 라이브 Claude Code 세션이 옆의 보드를 움직입니다. 한 문장이 리스트가 되고, 다음 문장이 대시보드를 그립니다. 화면·트래커·프롬프트가 전부 한국어인 테이크이고, 프롬프트 두 줄 외에는 대본이 없습니다. 에이전트가 작업하는 구간은 빨리 감았습니다. <a href="e2e/demo/terminal-claude-demo.spec.ts">e2e/demo/terminal-claude-demo.spec.ts</a>를 <a href="e2e/demo/record-terminal-claude.sh">record-terminal-claude.sh</a>로 녹화했습니다.</sub>
 </p>
 
 규칙 둘이 가치의 대부분을 만듭니다. 필터는 `status_category`와

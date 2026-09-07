@@ -278,19 +278,29 @@ the site by existing there. The landing references them via `MediaSlot still=…
 
 ### Current committed sizes (re-measure after regen)
 
-Measured 2026-09-07 via `ls -la docs/media/` + `ffprobe` (decimal MB = bytes/1e6):
+Measured 2026-09-08 (landing clips and their ko/ja takes; the rest 2026-09-07) via `ls -la docs/media/` + `ffprobe` (decimal MB = bytes/1e6):
 
 | Asset | Size | Bytes (`ls -la`) | Duration | Resolution / fps |
 | --- | --- | --- | --- | --- |
-| `scale.mp4` | 2.88 MB | 2876600 | 15.9 s | 1280×800 h264 |
+| `scale.mp4` | 3.71 MB | 3709401 | 16.8 s | 1280×800 h264 |
+| `scale.ko.mp4` | 3.13 MB | 3133049 | 16.7 s | 1280×800 h264 |
+| `scale.ja.mp4` | 3.54 MB | 3542381 | 16.8 s | 1280×800 h264 |
 | `web-demo.gif` | 7.27 MB | 7270874 | 17.5 s | 960×600 @ 8 fps |
 | `web-demo.mp4` | 1.13 MB | 1129740 | 17.4 s | 1024×640 h264 |
-| `search.gif` | 3.88 MB | 3880973 | 7.5 s | 960×600 @ 9 fps |
-| `search.mp4` | 0.58 MB | 584893 | 7.5 s | 800×640 h264 |
+| `search.gif` | 3.80 MB | 3799776 | 7.5 s | 960×600 @ 9 fps |
+| `search.ko.gif` | 3.26 MB | 3255114 | 7.0 s | 960×600 @ 9 fps |
+| `search.ja.gif` | 3.68 MB | 3679754 | 6.7 s | 960×600 @ 9 fps |
+| `search.mp4` | 0.58 MB | 579219 | 7.6 s | 800×640 h264 |
+| `search.ko.mp4` | 0.49 MB | 490206 | 7.0 s | 800×640 h264 |
+| `search.ja.mp4` | 0.54 MB | 542353 | 6.6 s | 800×640 h264 |
 | `terminal-demo.gif` | 6.91 MB | 6907679 | 23.0 s | 860×1075 @ 9 fps |
 | `terminal-demo.mp4` | 1.80 MB | 1795187 | 23.0 s | 1080×1350 h264 |
-| `terminal-hero.gif` | 8.15 MB | 8145462 | 40.8 s | 1200×750 @ 8 fps |
-| `terminal-hero.mp4` | 2.70 MB | 2699138 | 40.7 s | 1440×900 h264 |
+| `terminal-hero.gif` | 4.42 MB | 4423872 | 41.5 s | 900×563 @ 8 fps |
+| `terminal-hero.ko.gif` | 8.26 MB | 8256343 | 47.8 s | 1200×750 @ 8 fps |
+| `terminal-hero.ja.gif` | 5.89 MB | 5892073 | 58.8 s | 900×563 @ 8 fps |
+| `terminal-hero.mp4` | 2.87 MB | 2873862 | 41.5 s | 1440×900 h264 |
+| `terminal-hero.ko.mp4` | 2.88 MB | 2882560 | 47.7 s | 1440×900 h264 |
+| `terminal-hero.ja.mp4` | 3.88 MB | 3876298 | 58.8 s | 1440×900 h264 |
 | `mcp.gif` | 0.22 MB | 216496 | 24.7 s | 1080×620 @ 25 fps |
 | `mcp.mp4` | 0.23 MB | 229806 | 24.7 s | 1080×620 h264 |
 | `raycast.gif` | 0.98 MB | 982043 | 13.2 s | 960×579 @ 10 fps |
@@ -306,8 +316,9 @@ Measured 2026-09-07 via `ls -la docs/media/` + `ffprobe` (decimal MB = bytes/1e6
 | `claude-dashboards-vertical.gif` | 1.14 MB | 1142165 | 24.2 s | 430×538 @ 9 fps |
 | `claude-tokens-vertical.gif` | 0.67 MB | 665354 | 8.2 s | 430×538 @ 9 fps |
 | `roundtrip.mp4` | 3.29 MB | 3292613 | 21.2 s | 1920×1296 h264 |
-| `scale.gif` | 3.98 MB | 3977202 | 15.9 s | 960×600 @ 8 fps |
-| `scale.mp4` | 2.88 MB | 2876600 | 15.9 s | 1280×800 h264 |
+| `scale.gif` | 3.29 MB | 3285128 | 16.9 s | 800×500 @ 7 fps |
+| `scale.ko.gif` | 3.73 MB | 3728589 | 16.6 s | 960×600 @ 8 fps |
+| `scale.ja.gif` | 2.88 MB | 2881125 | 16.7 s | 800×500 @ 7 fps |
 | `groupby.gif` | 3.38 MB | 3378460 | 7.1 s | 900×563 @ 8 fps |
 | `groupby.mp4` | 0.88 MB | 877523 | 7.1 s | 1280×800 h264 |
 | `history.gif` | 3.71 MB | 3706184 | 10.7 s | 960×600 @ 9 fps |

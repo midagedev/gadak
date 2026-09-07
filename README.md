@@ -140,9 +140,9 @@ gadak mcp install claude
 ```
 
 <p align="center">
-  <img src="docs/media/terminal-hero.gif" alt="gadak's own terminal pane under the list: gadak claim NMA-140 moves the row to In Progress and the shell's tab takes the key; claude starts in that shell, a Korean prompt turns the list into Dana Whitfield's recently moved issues, and a second prompt saves and opens a label-ratio dashboard in the same window" width="900">
+  <img src="docs/media/terminal-hero.gif" alt="gadak's own terminal pane under the list: gadak claim NMA-140 moves the row to In Progress and the shell's tab takes the key; claude starts in that shell, one prompt turns the list into Dana Whitfield's recently moved issues, and a second prompt saves and opens a label-ratio dashboard in the same window" width="900">
   <br>
-  <sub>The shell is in the window (⌘K → Terminal, or Ctrl+`). <code>gadak claim</code> binds it to the issue — the tab is named by the key — and a live Claude Code session started in it drives the board beside it: one Korean sentence becomes the list, the next one paints a dashboard. Nothing but the two prompts is scripted; the stretches where the agent is working are time-lapsed. Recorded from <a href="e2e/demo/terminal-claude-demo.spec.ts">e2e/demo/terminal-claude-demo.spec.ts</a> via <a href="e2e/demo/record-terminal-claude.sh">record-terminal-claude.sh</a>.</sub>
+  <sub>The shell is in the window (⌘K → Terminal, or Ctrl+`). <code>gadak claim</code> binds it to the issue — the tab is named by the key — and a live Claude Code session started in it drives the board beside it: one sentence becomes the list, the next one paints a dashboard. Nothing but the two prompts is scripted; the stretches where the agent is working are time-lapsed. The Korean and Japanese READMEs carry the same take recorded in their own language — UI, tracker and prompts. Recorded from <a href="e2e/demo/terminal-claude-demo.spec.ts">e2e/demo/terminal-claude-demo.spec.ts</a> via <a href="e2e/demo/record-terminal-claude.sh">record-terminal-claude.sh</a>.</sub>
 </p>
 
 Two rules carry most of the value. Filter on `status_category` and

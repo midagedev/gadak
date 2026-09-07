@@ -519,7 +519,9 @@ export const list = {
   'list.searchPlaceholder': {
     en: 'Search this list — key, title, @assignee…',
     ko: '이 목록에서 검색 — 키·제목·@담당자…',
-    ja: 'この一覧を検索 — キー・タイトル・@担当者…',
+    // Three characters shorter than the literal rendering: at the 1024px
+    // search take the input clipped the ko-length string mid-word (@担当|者).
+    ja: '一覧を検索 — キー・タイトル・@担当者…',
   },
   'list.searchPlaceholderShort': {
     en: 'Search this list…',

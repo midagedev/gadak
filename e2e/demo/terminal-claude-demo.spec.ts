@@ -171,7 +171,11 @@ const PROMPTS: Record<Locale, { activity: string; dashboard: string }> = {
   },
   ko: {
     activity: 'Dana Whitfield이 담당한 이슈 중에 최근에 움직인 것 보여줘',
-    dashboard: '이슈 라벨 비율 대시보드 만들어서 열어줘',
+    // "비율 대시보드" alone read as a *count* chart three takes out of three
+    // (2026-09-08: 12개 라벨 · 이슈 640건, no percentages), while the en and
+    // ja lines got ratios first time. Korean 비율 is looser than "ratio" —
+    // 백분율 is the word that pins it, and the contract below insists on it.
+    dashboard: '이슈 라벨별 비율을 백분율로 보여주는 대시보드 만들어서 열어줘',
   },
   ja: {
     activity: 'Dana Whitfield が担当している課題のうち、最近動いたものを見せて',
@@ -313,6 +317,12 @@ test.describe('terminal claude demo', () => {
     const wall = page.frameLocator('[data-testid="dashboard-frame"]').locator('body')
     await expect(wall).toContainText(/\d/, { timeout: 60_000 })
     await expect(wall).not.toContainText(/undefined|NaN/i)
+    // The prompt asked for *ratios*. The first ko take (2026-09-08) saved and
+    // opened a chart of bare counts under the title "12개 라벨 · 이슈 640건" —
+    // every gate above passed, and the poster showed a Korean visitor an
+    // answer to a different question. A ratio chart carries a percent sign;
+    // a take without one is rejected here and retried, in every locale.
+    await expect(wall).toContainText('%')
     await beat(page, 4000)
   })
 })
