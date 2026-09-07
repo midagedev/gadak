@@ -206,3 +206,40 @@ as the system ANSI page).
 # After desktop/build-windows.ps1 has written the portable directory:
 tools/winsmoke.ps1 -BundleDir desktop\\build\\Gadak-<ver>-x64 -OutDir $env:TEMP\\gadak-winsmoke\\out
 ```
+
+## `staticcheck.sh`
+
+Runs [staticcheck](https://staticcheck.dev) over both Go modules (root and
+`desktop/`, which has its own `go.mod`) under GOOS darwin, linux and windows,
+and reports only what every analysed GOOS agrees on (GDK-1463).
+
+The matrix is the point. staticcheck analyses one GOOS at a time, so a function
+whose only caller sits behind a `//go:build <other-goos>` tag looks like dead
+code: a darwin-only run calls `parseProcStartTime` (`internal/term/`, called
+from `members_linux.go`) and `protocolDefaultIcon` (`desktop/`, called from
+`protocol_windows.go`) unused, and both are false. Findings that appear under
+some but not all GOOS are printed under a **platform-only (informational)**
+heading with the GOOS they came from, and never fail the run.
+
+`ST1005` is excluded: gadak's error strings are Korean sentences that start
+with a Latin word, and `internal/mcp/tools.go` echoes a multi-line protocol
+string on purpose.
+
+A `(module, GOOS)` pair that the host cannot cross-compile is skipped with a
+note rather than reported — `desktop/` pulls wails, whose linux backend is cgo,
+so `GOOS=linux` cannot be analysed from macOS and `GOOS=darwin` cannot be from
+the linux CI runner. A compile error in a path **inside** this repo is a real
+break and fails; one in the module cache is the skip. Either way the run
+contributes no findings, because an incomplete package set would demote real
+ones by accident.
+
+```bash
+tools/staticcheck.sh               # exit 1 on cross-platform findings
+tools/staticcheck.sh --warn-only   # always exit 0 — what CI runs today
+tools/staticcheck.sh --goos darwin # one GOOS, to reproduce a single finding
+tools/staticcheck.sh --self-test   # classifier vs fixtures; no toolchain needed
+```
+
+Requires `go install honnef.co/go/tools/cmd/staticcheck@latest` (the script
+prints that line and exits 2 if the binary is missing). CI pins the version and
+runs `--warn-only` in the `Staticcheck (warning-only)` job.
