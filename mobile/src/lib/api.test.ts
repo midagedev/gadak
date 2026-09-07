@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { apiUrl, apiHeaders, request, ApiError, errorMessage, isPairingDead, type FetchLike } from './api'
+import { apiUrl, absoluteApiUrl, apiHeaders, request, ApiError, errorMessage, isPairingDead, type FetchLike } from './api'
 
 function fakeFetch(status: number, body: unknown, headers: Record<string, string> = {}): {
   fn: FetchLike
@@ -21,6 +21,34 @@ describe('apiUrl', () => {
     expect(apiUrl('https://home.example.ts.net/', 'auth/me/', false)).toBe(
       'https://home.example.ts.net/api/v1/auth/me/',
     )
+  })
+})
+
+describe('absoluteApiUrl', () => {
+  // GDK-1503: a file chip's tap copies this string. It must resolve where it
+  // is pasted, which a bare path does not.
+  it('dev resolves the proxy path against the page origin', () => {
+    expect(
+      absoluteApiUrl('issues/STD-1/attachments/9/content/', {
+        endpoint: 'https://home.example.ts.net',
+        dev: true,
+        origin: 'http://127.0.0.1:5182',
+      }),
+    ).toBe('http://127.0.0.1:5182/api/v1/issues/STD-1/attachments/9/content/')
+  })
+  it('packaged keeps the paired endpoint apiUrl joined', () => {
+    expect(
+      absoluteApiUrl('issues/STD-1/attachments/9/content/', {
+        endpoint: 'https://home.example.ts.net/',
+        dev: false,
+        origin: 'http://127.0.0.1:5182',
+      }),
+    ).toBe('https://home.example.ts.net/api/v1/issues/STD-1/attachments/9/content/')
+  })
+  it('never emits a doubled slash when the origin carries one', () => {
+    expect(
+      absoluteApiUrl('auth/me/', { endpoint: '', dev: true, origin: 'http://127.0.0.1:5182/' }),
+    ).toBe('http://127.0.0.1:5182/api/v1/auth/me/')
   })
 })
 

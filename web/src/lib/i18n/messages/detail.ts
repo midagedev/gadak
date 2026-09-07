@@ -412,6 +412,41 @@ export const detail = {
     ko: '{name} 재생',
     ja: '{name} を再生',
   },
+  /*
+   * Phone attachment affordances (GDK-1503). The packaged app has no opener
+   * plugin and no outbound host but the paired endpoint, so a video's bytes
+   * arrive on tap through the same road images use and a file chip can only
+   * hand the reader a link. These say which of those is happening.
+   */
+  'detail.attachmentTapToPlay': {
+    en: 'Tap to play',
+    ko: '눌러서 재생',
+    ja: 'タップで再生',
+  },
+  'detail.attachmentLoading': {
+    en: 'Loading…',
+    ko: '불러오는 중…',
+    ja: '読み込み中…',
+  },
+  'detail.attachmentLoadFailed': {
+    en: 'Could not load — tap to retry',
+    ko: '불러오지 못했습니다 — 다시 누르면 재시도합니다',
+    ja: '読み込めませんでした — タップで再試行します',
+  },
+  // The chip's title, and the only promise the phone can keep for a file it
+  // cannot open or save: the link goes to the clipboard.
+  'detail.attachmentCopiesLink': {
+    en: 'Copies the link',
+    ko: '링크를 복사합니다',
+    ja: 'リンクをコピーします',
+  },
+  // The full-screen image viewer's own control. `common` has no Close and
+  // this round does not own that file.
+  'detail.viewerClose': {
+    en: 'Close',
+    ko: '닫기',
+    ja: '閉じる',
+  },
   'detail.attachmentLabel': {
     en: 'Attachment: {name}',
     ko: '첨부: {name}',

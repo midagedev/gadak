@@ -58,6 +58,28 @@ export function apiUrl(endpoint: string, path: string, dev: boolean = IS_DEV): s
   return `${base}${API_V1}${path}`
 }
 
+/**
+ * The same join, resolved so the result still means something outside this
+ * WebView (GDK-1503). apiUrl() answers "what do I dial", and in dev that is
+ * a bare path because the vite proxy is same-origin — but a *copied* link is
+ * pasted somewhere else, where a path resolves against the wrong host or
+ * nothing at all. Dev resolves it against the page origin (the proxy is the
+ * serve), packaged against the paired endpoint apiUrl already joined.
+ *
+ * The session is module-private, which is why this lives here and not in the
+ * one caller; endpoint/dev/origin are test seams, same as apiUrl's `dev`.
+ */
+export function absoluteApiUrl(
+  path: string,
+  opts: { endpoint?: string; dev?: boolean; origin?: string } = {},
+): string {
+  const dev = opts.dev ?? IS_DEV
+  const url = apiUrl(opts.endpoint ?? session.endpoint, path, dev)
+  if (!url.startsWith('/')) return url
+  const origin = opts.origin ?? (typeof location === 'undefined' ? '' : location.origin)
+  return `${origin.replace(/\/+$/, '')}${url}`
+}
+
 /** Builds request headers — exported for tests. Bearer only when a token exists. */
 export function apiHeaders(token: string | null, hasBody: boolean): Record<string, string> {
   const h: Record<string, string> = {}
