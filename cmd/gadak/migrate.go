@@ -363,6 +363,14 @@ func printMigrateReport(w *os.File, target, from string, st *migrate.Stats, veri
 	if st.DroppedPageParents > 0 {
 		fmt.Fprintf(w, "page parents outside the migrated set: %d dropped\n", st.DroppedPageParents)
 	}
+	// GDK-1491: where the priorities came from. An id-less mirror used to
+	// land every issue on the target's default with no line here at all.
+	if st.PriorityIDsDerived {
+		fmt.Fprintf(w, "priorities: the source mirror carries no priority ids — catalog derived from priority_rank, issues keyed by rank\n")
+	}
+	if st.PriorityDefaulted > 0 {
+		fmt.Fprintf(w, "issues with no priority in the source (land on the target default): %d\n", st.PriorityDefaulted)
+	}
 	if len(st.MissingUsers) > 0 {
 		fmt.Fprintf(w, "accounts no longer in the user catalog (kept as ghost users): %s\n", strings.Join(st.MissingUsers, ", "))
 	}

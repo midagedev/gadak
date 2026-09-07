@@ -110,6 +110,7 @@ macos
 marketing
 mcp
 media
+migrate
 mentor-roadmap
 mobile
 multi-origin

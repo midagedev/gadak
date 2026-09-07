@@ -154,6 +154,12 @@ test.describe('terminal demo', () => {
     await typeLine(page, JQL_LINE)
     await expect.poll(async () => readTerm(page), { timeout: 30_000 }).toContain('pj=NMA')
     await expect(page.getByTestId('list-count')).toBeVisible()
+    // Rows, not just chips: the take shipped from 2026-09-03 to 2026-09-07
+    // ended on "No issues match" — the migrated origin had every issue on
+    // the default priority (GDK-1491) and a visible list-count of 0 passed.
+    await expect(
+      page.locator('[data-testid="issue-list-scroller"] [data-issue-key]').first(),
+    ).toBeVisible({ timeout: 10_000 })
     await beat(page, 2400)
 
     // Beat 5 — the pane closes, the view it produced stays.

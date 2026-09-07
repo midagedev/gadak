@@ -250,3 +250,86 @@ func TestStatusCategoriesSurviveEmptyCatalog(t *testing.T) {
 		t.Fatalf("categories with an empty status_catalog: %v, want 3→indeterminate, 10001→done", got)
 	}
 }
+
+// GDK-1491: a mirror whose rows carry a priority name and priority_rank but
+// no priority_id (the snapshot-built demo fixture; rows synced before ids
+// were mirrored) used to export an empty catalog and issues with no priority,
+// so the target put every one of them on its default — the terminal-demo
+// take shipped ending on "No issues match" for that reason. priority_rank is
+// the contract axis: the rank becomes the id, and Rule 1 (numeric-id order)
+// is rank order by construction.
+func seedIDLessMirror(t *testing.T) string {
+	t.Helper()
+	path := seedMirror(t)
+	rw, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("open rw: %v", err)
+	}
+	// The seed's ranks are 0 (no site priority list on the batch); set the
+	// ranks the names imply and drop the ids, which is the id-less shape.
+	for _, stmt := range []string{
+		`UPDATE issues_raw SET priority_id = ''`,
+		`UPDATE issues_raw SET priority_rank = 5 WHERE key = 'T-1'`, // Lowest
+		`UPDATE issues_raw SET priority_rank = 1 WHERE key = 'T-2'`, // Highest
+		`UPDATE issues_raw SET priority_rank = 0, priority = '' WHERE key = 'T-3'`,
+	} {
+		if _, err := rw.Exec(stmt); err != nil {
+			t.Fatalf("%s: %v", stmt, err)
+		}
+	}
+	if err := rw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func buildFrom(t *testing.T, path string) (*Doc, *Stats) {
+	t.Helper()
+	sqlDB, err := store.OpenReadOnly(path)
+	if err != nil {
+		t.Fatalf("open ro: %v", err)
+	}
+	t.Cleanup(func() { _ = sqlDB.Close() })
+	doc, st, err := Build(context.Background(), sqlDB, Options{})
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	return doc, st
+}
+
+func TestIDLessMirrorDerivesPrioritiesFromRank(t *testing.T) {
+	doc, _ := buildFrom(t, seedIDLessMirror(t))
+	var got []string
+	for _, p := range doc.Priorities {
+		got = append(got, p.ID+"="+p.Name)
+	}
+	want := []string{"1=Highest", "5=Lowest"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("priorities %v, want %v (rank is the id, the row's name is the name)", got, want)
+	}
+	byKey := map[string]Issue{}
+	for _, is := range doc.Issues {
+		byKey[is.Key] = is
+	}
+	if byKey["T-2"].Priority != "1" || byKey["T-1"].Priority != "5" {
+		t.Fatalf("issue priorities T-2=%q T-1=%q, want 1 and 5", byKey["T-2"].Priority, byKey["T-1"].Priority)
+	}
+	if byKey["T-3"].Priority != "" {
+		t.Fatalf("T-3 has no priority in the source and must leave with none, got %q", byKey["T-3"].Priority)
+	}
+}
+
+func TestIDLessMirrorIsReported(t *testing.T) {
+	_, st := buildFrom(t, seedIDLessMirror(t))
+	if !st.PriorityIDsDerived {
+		t.Fatal("PriorityIDsDerived false on an id-less mirror — the report would say nothing")
+	}
+	if st.PriorityDefaulted != 1 {
+		t.Fatalf("PriorityDefaulted %d, want 1 (T-3)", st.PriorityDefaulted)
+	}
+	// The id path is untouched: a mirror with ids derives nothing.
+	_, st2 := build(t)
+	if st2.PriorityIDsDerived || st2.PriorityDefaulted != 0 {
+		t.Fatalf("mirror with ids: derived=%v defaulted=%d, want false/0", st2.PriorityIDsDerived, st2.PriorityDefaulted)
+	}
+}

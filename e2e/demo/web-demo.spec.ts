@@ -155,6 +155,11 @@ test.describe('web UI demo', () => {
     await page.getByTestId('view-settings').click()
     await page.getByTestId('layout-board').click()
     await expect(page.getByTestId('board-column').first()).toBeVisible()
+    // The menu stays open after the pick; the board is the payoff, so close
+    // it — the 2026-09-07 take had the popover over the columns for its
+    // whole last three seconds.
+    await page.keyboard.press('Escape')
+    await expect(page.getByTestId('layout-board')).toBeHidden()
     await beat(page, 1800)
 
     await expect(listCount(page)).toBeVisible()

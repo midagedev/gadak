@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 )
@@ -105,6 +106,11 @@ type Issue struct {
 	// path carries the ids and rebuilds both from its catalogs.
 	StatusCategory string `json:"-"`
 	PriorityRank   int    `json:"-"`
+	// PriorityName is the row's display name — the fallback the catalog is
+	// derived from when the mirror carries no priority ids at all
+	// (GDK-1491: a snapshot-built fixture, rows synced before ids were
+	// mirrored). Never emitted; the fixture path carries ids.
+	PriorityName string `json:"-"`
 	// AssigneeEmail is the row's own email column — the fallback when the
 	// users catalog has no row for the account (scrubbed fixtures).
 	AssigneeEmail string `json:"-"`
@@ -239,6 +245,14 @@ type Stats struct {
 
 	MissingUsers    []string // referenced account ids absent from the users catalog
 	UnnamedStatuses []string // history-only status ids with no display name
+
+	// Priority provenance (GDK-1491). PriorityIDsDerived is set when the
+	// source mirror carried no priority ids at all and the catalog was
+	// derived from priority_rank instead; PriorityDefaulted counts issues
+	// that leave with no priority and so land on the target's default —
+	// the silent outcome every row used to have on an id-less mirror.
+	PriorityIDsDerived bool
+	PriorityDefaulted  int
 }
 
 // maxAttachmentBytes caps one inlined file. The fixture is a YAML document
@@ -319,7 +333,8 @@ func buildIssues(ctx context.Context, db *sql.DB, doc *Doc, st *Stats) error {
 		       COALESCE(created_at,''), COALESCE(updated_at,''),
 		       COALESCE(reopen_count,0), COALESCE(epic_key,''),
 		       COALESCE(custom,''), COALESCE(sprint_id,0),
-		       COALESCE(status_category,''), COALESCE(priority_rank,0), COALESCE(assignee_email,'')
+		       COALESCE(status_category,''), COALESCE(priority_rank,0), COALESCE(assignee_email,''),
+		       COALESCE(priority,'')
 		FROM issues_full WHERE project_key IN (`+marks+`) ORDER BY key`, args...)
 	if err != nil {
 		return err
@@ -339,7 +354,7 @@ func buildIssues(ctx context.Context, db *sql.DB, doc *Doc, st *Stats) error {
 			&is.Assignee, &is.Reporter, &is.Parent,
 			&labels, &comps, &fixes, &is.Duedate, &is.Resolution,
 			&is.Created, &is.Updated, &reopen, &epic, &custom, &sprintID,
-			&is.StatusCategory, &is.PriorityRank, &is.AssigneeEmail); err != nil {
+			&is.StatusCategory, &is.PriorityRank, &is.AssigneeEmail, &is.PriorityName); err != nil {
 			return err
 		}
 		is.Labels = jsonStrings(labels)
@@ -493,6 +508,52 @@ func fillHistory(ctx context.Context, db *sql.DB, itemID string, is *Issue, st *
 	return rows.Err()
 }
 
+// derivePriorityIDs closes the id-less mirror case (GDK-1491). The fixture
+// path keys an issue's priority by id, and a mirror whose rows carry a
+// priority name and priority_rank but no id — the snapshot-built demo
+// fixture, rows synced before ids were mirrored — used to export every
+// issue with an empty priority and an empty catalog, so the target assigned
+// its default to all of them and the report said nothing. The migrated
+// terminal-demo take ended on "No issues match" for that reason.
+//
+// When no row in the export carries an id, priority_rank is the contract
+// axis (the Linear path already maps from it): each ranked issue gets the
+// rank as its id, the catalog is those ranks with the rows' own display
+// names, and numeric-id order is rank order — Rule 1 holds by construction.
+// A mixed mirror (some ids, some empty) keeps the id path untouched; its
+// empty rows are counted, not guessed. Either way every issue that still
+// leaves without a priority is counted in PriorityDefaulted, so the outcome
+// is in the report instead of in the target's default.
+func derivePriorityIDs(doc *Doc, st *Stats, prioIDs map[string]bool, prios map[string]string) {
+	anyID := false
+	for i := range doc.Issues {
+		if doc.Issues[i].Priority != "" {
+			anyID = true
+			break
+		}
+	}
+	if !anyID {
+		for i := range doc.Issues {
+			is := &doc.Issues[i]
+			if is.PriorityRank <= 0 {
+				continue
+			}
+			id := strconv.Itoa(is.PriorityRank)
+			is.Priority = id
+			prioIDs[id] = true
+			if prios[id] == "" && is.PriorityName != "" {
+				prios[id] = is.PriorityName
+			}
+			st.PriorityIDsDerived = true
+		}
+	}
+	for i := range doc.Issues {
+		if doc.Issues[i].Priority == "" {
+			st.PriorityDefaulted++
+		}
+	}
+}
+
 // buildCatalogs derives statuses / priorities / issue types from the rows
 // already selected into doc.Issues, so the catalogs and the issues cannot
 // disagree.
@@ -580,6 +641,7 @@ func buildCatalogs(ctx context.Context, db *sql.DB, doc *Doc, st *Stats) error {
 		`SELECT DISTINCT priority_id, priority FROM issues_full WHERE priority_id != ''`, prios); err != nil {
 		return err
 	}
+	derivePriorityIDs(doc, st, prioIDs, prios)
 	ids := sortedKeys(prioIDs)
 	sort.Slice(ids, func(i, j int) bool {
 		a, b := ids[i], ids[j]
