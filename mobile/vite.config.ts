@@ -36,6 +36,57 @@ function serveDevPort(): string {
 
 const SERVE_DEV_ORIGIN = `http://127.0.0.1:${serveDevPort()}`
 
+/**
+ * What the dev server must not watch (GDK-1526).
+ *
+ * The watch root is mobile/, which also holds the whole test harness — the
+ * Playwright specs, their two configs, the captures they save, Playwright's
+ * output dir and the vitest units. A write to a .ts file in that root
+ * reloads the page, and a reload throws the app back to its first screen
+ * under every spec still running, so one edit lands as a pile of unrelated
+ * click timeouts. None of these files is app source; none may reload the app.
+ *
+ * Measured 2026-09-07 on vite 6.4.3, a dev server with a chromium client
+ * attached (an empty module graph reports nothing, which is why an earlier
+ * clientless probe read as "no reload" everywhere):
+ *   e2e/viewport.spec.ts re-saved  → page reload
+ *   playwright.config.ts re-saved  → page reload
+ *   src/lib/types.ts re-saved      → page reload   (wanted — app source)
+ *   src/screens/Search.svelte      → hmr update, no reload
+ *   test-results/<x>/trace.zip     → no reload
+ *   e2e/.shots/<x>.png             → no reload
+ * So the trace/screenshot output named in the ticket is not a trigger: vite
+ * already ships '**\/test-results/**' in its own default ignore list
+ * (node_modules/vite/dist/node/chunks/dep-Dm0c1Wj2.js:27542; user globs are
+ * appended to that list, not substituted for it) and a .png nothing imports
+ * matches no module. The trigger that does fire is the harness *sources*.
+ * test-results/ is listed here anyway so this function, not a vite default
+ * that may change, is the single owner of the boundary.
+ *
+ * The vitest units are the one entry that has to be conditional. Vitest
+ * builds its own file watcher from this very option, so ignoring the units
+ * unconditionally leaves `vitest --watch` deaf to an edited test — measured
+ * the same day: with the glob the edit produced no output at all, without it
+ * the same edit printed "RERUN". Under vitest the units stay watched; under
+ * the app's dev server they do not.
+ *
+ * Kept narrow on purpose: src/, index.html and the shared tokens in
+ * web/src/ must keep reloading. mobile/src/lib/watch-boundary.test.ts
+ * asserts both directions of that, and mobile/e2e/reload-isolation.spec.ts
+ * proves the behaviour against a live server.
+ */
+export function watchIgnored(env: NodeJS.ProcessEnv = process.env): string[] {
+  return [
+    '**/src-tauri/**',
+    '**/e2e/**', // Playwright specs + the .shots captures they write
+    '**/shots/**', // the capture harness testDir (shots.config.ts)
+    '**/test-results/**', // Playwright outputDir (also a vite default)
+    '**/playwright.config.ts', // the gate's own config, which sits beside the app's
+    '**/shots.config.ts', // and the capture harness's
+    ...(env.VITEST ? [] : ['**/*.test.ts']), // vitest units, unless vitest is the one watching
+  ]
+}
+
 export default defineConfig({
   plugins: [svelte(), tailwindcss()],
   clearScreen: false,
@@ -63,7 +114,7 @@ export default defineConfig({
         },
       },
     },
-    watch: { ignored: ['**/src-tauri/**'] },
+    watch: { ignored: watchIgnored() },
   },
   envPrefix: ['VITE_', 'TAURI_ENV_'],
   build: {

@@ -53,6 +53,20 @@ export default defineConfig({
       reuseExistingServer: true,
       timeout: 60_000,
       cwd: mobileDir,
+      // Pipe vite's log into the run (GDK-1526). A full reload resets the
+      // app under whatever spec is in flight, and the spec then dies on a
+      // click timeout that says nothing about the reload — so the one line
+      // that explains a whole red gate, `page reload <file>`, has to be in
+      // the same log as the failures. It earned that on its first run: two
+      // viewport specs timed out at 90 s each and the log named the cause
+      // three lines up, a burst of `page reload` for files another process
+      // was rewriting mid-gate. Vite logs no requests, so this adds its
+      // banner and little else. Two limits worth knowing: nothing is piped
+      // when reuseExistingServer adopts a vite someone else started (the log
+      // belongs to that terminal), and the lines only reach a terminal
+      // through the `list` reporter — the set above uses it both locally and
+      // in CI, so both print `[WebServer] … page reload <file>` as it lands.
+      stdout: 'pipe',
     },
   ],
   projects: [{ name: 'chromium', use: { browserName: 'chromium' } }],
