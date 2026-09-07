@@ -265,6 +265,44 @@ jobs:
           [ "$rows" -gt 0 ] || { echo "epic GROUP BY (the linked demo query) returned 0 rows" >&2; exit 1; }
           echo "snapshot portable: fts_hits=$hits epic_rows=$rows"
 
+  staticcheck:
+    name: Staticcheck (warning-only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # What decides whether a finding fails the run or is a build-tag
+      # artefact is the script's classifier, not staticcheck. It runs over
+      # fixtures, needs no toolchain, and takes a second.
+      - name: staticcheck.sh self-test
+        run: bash tools/staticcheck.sh --self-test
+
+      # Pinned on purpose: staticcheck gains checks between releases, and
+      # @latest would turn a new check into a CI change nobody made.
+      - name: Install staticcheck
+        run: |
+          go install honnef.co/go/tools/cmd/staticcheck@v0.7.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      # --warn-only while the existing findings are triaged (GDK-1463): this
+      # job reports and never fails. Dropping the flag is what makes it a gate.
+      #
+      # GTK4/WebKitGTK is deliberately not installed. Without it the desktop
+      # module cannot be analysed under GOOS=linux or darwin, and the script
+      # skips both with a note and analyses GOOS=windows — worth more than a
+      # second copy of the mirror-flaky apt step in this file for a job that
+      # cannot fail. The root module gets all three either way.
+      - name: staticcheck over the GOOS matrix
+        run: bash tools/staticcheck.sh --warn-only
+
   e2e:
     name: Playwright E2E
     runs-on: ubuntu-latest

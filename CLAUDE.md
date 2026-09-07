@@ -56,6 +56,13 @@ hard-won 목록)와 `AGENTS.md`(스키마·쿼리)가 원본이다.
   게이트다**: `cd desktop && go mod tidy && go build ./...`. 2026-08-23
   GDK-635에서 internal/ 신규 패키지의 runewidth import가 desktop go.sum에
   없어 데스크톱 CI 3개 잡이 빨갛게 됐다 — 로컬 go 전체는 초록이었다.
+- **Go 정적 분석은 `bash tools/staticcheck.sh`이고 반드시 GOOS 매트릭스다**
+  (GDK-1463). darwin 단독 실행은 `//go:build` 반대편에서만 호출되는 함수를
+  U1000 죽은 코드로 오탐한다(`parseProcStartTime`·`protocolDefaultIcon`
+  실측). 세 GOOS가 모두 동의한 것만 실패이고 나머지는 informational로
+  인쇄된다. ST1005는 제외(한국어 에러 문장·의도된 다중행 프로토콜 에코).
+  CI 잡 `Staticcheck (warning-only)`은 `--warn-only`라 아직 게이트가 아니다
+  — 남은 cross-platform 12건을 정리한 뒤 플래그를 떼는 것이 게이트화다.
 - 웹: `make typecheck` (svelte-check). e2e: Playwright, CI 세트는
   `e2e/*.spec.ts`(demo/·hosted/·perf/ 제외 — `e2e/playwright.config.ts`).
 - **`mobile/`은 루트 게이트가 보지 않는다** — 자기 tsconfig·자기 lockfile을
