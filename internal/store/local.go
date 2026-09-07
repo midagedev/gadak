@@ -940,7 +940,7 @@ const lastSessionVisitsBound = 2000
 // ended. nil when there is no previous session (zero visits, or only the
 // current session's reads).
 //
-// The session rule is retro's (cmd/gadak/retro.go retroSessionGap): person
+// The session rule is retro's (internal/retro/retro.go SessionGap): person
 // reads are visits with source ui or the empty pre-V7 source, and a gap to
 // the previous read *exceeding* `gap` starts a new session — exactly `gap` is
 // still the same session. The current session is the chain walked backwards

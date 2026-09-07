@@ -9,7 +9,6 @@ package jira
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -127,27 +126,15 @@ func (c *Client) Raw(ctx context.Context, method, path string, body []byte, muta
 	return atlhttp.DoRaw(ctx, c.transport(), method, path, body, len(body) > 0, mutating)
 }
 
+// call is the JSON envelope over atlhttp.Call; the only Jira-specific half
+// is how a non-2xx status maps to an error (apiError: the parsed
+// errorMessages/errors document, falling back to the status line).
 func (c *Client) call(ctx context.Context, method, path string, body, out any, mutating bool) error {
-	var payload []byte
-	hasBody := body != nil
-	if hasBody {
-		var err error
-		if payload, err = json.Marshal(body); err != nil {
-			return err
-		}
-	}
-	status, data, err := atlhttp.Do(ctx, c.transport(), method, path, payload, hasBody, mutating)
-	if err != nil {
-		return err
-	}
-	if status >= 300 {
-		statusLine := fmt.Sprintf("%d %s", status, http.StatusText(status))
-		return apiError(method, path, status, statusLine, data)
-	}
-	if out == nil || len(data) == 0 {
-		return nil
-	}
-	return json.Unmarshal(data, out)
+	return atlhttp.Call(ctx, c.transport(), method, path, body, out, mutating,
+		func(status int, data []byte) error {
+			statusLine := fmt.Sprintf("%d %s", status, http.StatusText(status))
+			return apiError(method, path, status, statusLine, data)
+		})
 }
 
 // snippet is kept for write.go error formatting; logic lives in atlhttp.

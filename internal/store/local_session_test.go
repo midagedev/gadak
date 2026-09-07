@@ -2,7 +2,7 @@ package store
 
 // LastSessionEnd (spec r2-session, Part A) — the session strip's boundary:
 // where the previous session of person reads ended. The rule is retro's
-// (cmd/gadak/retro.go): person reads are visits with source ui or the empty
+// (internal/retro/retro.go SessionGap): person reads are visits with source ui or the empty
 // pre-V7 source, and a gap to the previous read *exceeding* 30 minutes starts
 // a new session — exactly 30m is still the same session. Clause table:
 //

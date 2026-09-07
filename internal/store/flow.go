@@ -32,46 +32,39 @@ import (
 // and the same column recomputed at migration cannot disagree.
 func categoriesForSource(tx *sql.Tx, sourceID string) (map[string]string, error) {
 	cats := map[string]string{}
-	rows, err := tx.Query(`
+	if err := txEach(tx, `
 		SELECT COALESCE(status_id,''), COALESCE(category,'')
-		FROM status_catalog WHERE source_id = ?`, sourceID)
-	if err != nil {
+		FROM status_catalog WHERE source_id = ?`,
+		func(rows *sql.Rows) error {
+			var id, cat string
+			if err := rows.Scan(&id, &cat); err != nil {
+				return err
+			}
+			cats[id] = cat
+			return nil
+		}, sourceID); err != nil {
 		return nil, err
 	}
-	for rows.Next() {
-		var id, cat string
-		if err := rows.Scan(&id, &cat); err != nil {
-			rows.Close()
-			return nil, err
-		}
-		cats[id] = cat
-	}
-	if err := rows.Err(); err != nil {
-		rows.Close()
-		return nil, err
-	}
-	rows.Close()
 	if len(cats) > 0 {
 		return cats, nil
 	}
-	rows, err = tx.Query(`
+	if err := txEach(tx, `
 		SELECT COALESCE(i.status_id,''), COALESCE(i.status_category,'')
 		FROM issues_raw i JOIN items it ON it.id = i.item_id
 		WHERE it.source_id = ?
 		  AND i.status_id IS NOT NULL AND i.status_id != ''
-		  AND i.status_category IS NOT NULL AND i.status_category != ''`, sourceID)
-	if err != nil {
+		  AND i.status_category IS NOT NULL AND i.status_category != ''`,
+		func(rows *sql.Rows) error {
+			var id, cat string
+			if err := rows.Scan(&id, &cat); err != nil {
+				return err
+			}
+			cats[id] = cat
+			return nil
+		}, sourceID); err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	for rows.Next() {
-		var id, cat string
-		if err := rows.Scan(&id, &cat); err != nil {
-			return nil, err
-		}
-		cats[id] = cat
-	}
-	return cats, rows.Err()
+	return cats, nil
 }
 
 // cacheLinkTypeCatalog merges the batch's link-type rows into link_types,
@@ -111,25 +104,23 @@ func blockingLinkTypeNames(tx *sql.Tx, sourceID string) ([]string, error) {
 	if have == 0 {
 		return []string{"Blocks"}, nil
 	}
-	rows, err := tx.Query(`
+	var out []string
+	if err := txEach(tx, `
 		SELECT name FROM link_types
 		WHERE source_id = ? AND (lower(name) = 'blocks' OR lower(outward) LIKE 'block%')`,
-		sourceID)
-	if err != nil {
+		func(rows *sql.Rows) error {
+			var name string
+			if err := rows.Scan(&name); err != nil {
+				return err
+			}
+			if name != "" {
+				out = append(out, name)
+			}
+			return nil
+		}, sourceID); err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	var out []string
-	for rows.Next() {
-		var name string
-		if err := rows.Scan(&name); err != nil {
-			return nil, err
-		}
-		if name != "" {
-			out = append(out, name)
-		}
-	}
-	return out, rows.Err()
+	return out, nil
 }
 
 // openBlockersSelect is the count behind issues_raw.open_blockers: inward
@@ -189,34 +180,11 @@ func recomputeOpenBlockers(tx *sql.Tx, sourceID string, keys []string) error {
 // RecomputeOpenBlockers rewrites open_blockers for every issue of every
 // source. A full sync calls this once after the last page, beside
 // RecomputeEpicKeys: page-scoped recomputes cannot see a link the origin
-// added to an issue no page carried.
+// added to an issue no page carried. The walk itself is
+// recomputeOpenBlockersAllSources — the same function the v43 migration
+// hook's closing sweep runs, so the two cannot disagree (GDK-1576).
 func (db *DB) RecomputeOpenBlockers(ctx context.Context) error {
-	return db.write(ctx, func(tx *sql.Tx) error {
-		rows, err := tx.Query(`SELECT DISTINCT source_id FROM items WHERE kind = 'issue'`)
-		if err != nil {
-			return err
-		}
-		var srcs []string
-		for rows.Next() {
-			var src string
-			if err := rows.Scan(&src); err != nil {
-				rows.Close()
-				return err
-			}
-			srcs = append(srcs, src)
-		}
-		if err := rows.Err(); err != nil {
-			rows.Close()
-			return err
-		}
-		rows.Close()
-		for _, src := range srcs {
-			if err := recomputeOpenBlockers(tx, src, nil); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
+	return db.write(ctx, recomputeOpenBlockersAllSources)
 }
 
 // backfillFlow is the v43 migration hook (the v15/v16 shape): derive
@@ -231,31 +199,25 @@ func (db *DB) RecomputeOpenBlockers(ctx context.Context) error {
 // and Derive's inputs here are deliberately lean (no comment bodies, no
 // links, no priority list), so only the three new columns are written back.
 func backfillFlow(tx *sql.Tx) error {
-	irows, err := tx.Query(`
-		SELECT ir.item_id, COALESCE(it.source_id,''), COALESCE(ir.status_category,''), COALESCE(it.updated_at,''),
-		       COALESCE(it.created_at,''), COALESCE(s.kind,'')
-		FROM issues_raw ir JOIN items it ON it.id = ir.item_id
-		LEFT JOIN sources s ON s.id = it.source_id`)
-	if err != nil {
-		return err
-	}
 	type issueRow struct {
 		itemID, source, category, updated, created, kind string
 	}
 	var issues []issueRow
-	for irows.Next() {
-		var r issueRow
-		if err := irows.Scan(&r.itemID, &r.source, &r.category, &r.updated, &r.created, &r.kind); err != nil {
-			irows.Close()
-			return err
-		}
-		issues = append(issues, r)
-	}
-	if err := irows.Err(); err != nil {
-		irows.Close()
+	if err := txEach(tx, `
+		SELECT ir.item_id, COALESCE(it.source_id,''), COALESCE(ir.status_category,''), COALESCE(it.updated_at,''),
+		       COALESCE(it.created_at,''), COALESCE(s.kind,'')
+		FROM issues_raw ir JOIN items it ON it.id = ir.item_id
+		LEFT JOIN sources s ON s.id = it.source_id`,
+		func(rows *sql.Rows) error {
+			var r issueRow
+			if err := rows.Scan(&r.itemID, &r.source, &r.category, &r.updated, &r.created, &r.kind); err != nil {
+				return err
+			}
+			issues = append(issues, r)
+			return nil
+		}); err != nil {
 		return err
 	}
-	irows.Close()
 
 	cats := map[string]map[string]string{}
 	catSources := map[string]bool{}
@@ -273,44 +235,32 @@ func backfillFlow(tx *sql.Tx) error {
 
 	for _, r := range issues {
 		entries := []ChangeEntry{}
-		lrows, err := tx.Query(`
+		if err := txEach(tx, `
 			SELECT COALESCE(field,''), COALESCE(at,''), COALESCE(from_id,''), COALESCE(to_id,'')
-			FROM changelog WHERE item_id = ?`, r.itemID)
-		if err != nil {
+			FROM changelog WHERE item_id = ?`,
+			func(rows *sql.Rows) error {
+				var e ChangeEntry
+				if err := rows.Scan(&e.Field, &e.At, &e.FromID, &e.ToID); err != nil {
+					return err
+				}
+				entries = append(entries, e)
+				return nil
+			}, r.itemID); err != nil {
 			return err
 		}
-		for lrows.Next() {
-			var e ChangeEntry
-			if err := lrows.Scan(&e.Field, &e.At, &e.FromID, &e.ToID); err != nil {
-				lrows.Close()
-				return err
-			}
-			entries = append(entries, e)
-		}
-		if err := lrows.Err(); err != nil {
-			lrows.Close()
-			return err
-		}
-		lrows.Close()
 
 		comments := []Comment{}
-		mrows, err := tx.Query(`SELECT COALESCE(created_at,'') FROM comments WHERE item_id = ?`, r.itemID)
-		if err != nil {
+		if err := txEach(tx, `SELECT COALESCE(created_at,'') FROM comments WHERE item_id = ?`,
+			func(rows *sql.Rows) error {
+				var at string
+				if err := rows.Scan(&at); err != nil {
+					return err
+				}
+				comments = append(comments, Comment{CreatedAt: at})
+				return nil
+			}, r.itemID); err != nil {
 			return err
 		}
-		for mrows.Next() {
-			var at string
-			if err := mrows.Scan(&at); err != nil {
-				mrows.Close()
-				return err
-			}
-			comments = append(comments, Comment{CreatedAt: at})
-		}
-		if err := mrows.Err(); err != nil {
-			mrows.Close()
-			return err
-		}
-		mrows.Close()
 
 		d := Derive(DeriveInput{
 			Changelog:       entries,
@@ -333,27 +283,24 @@ func backfillFlow(tx *sql.Tx) error {
 	return recomputeOpenBlockersAllSources(tx)
 }
 
-// recomputeOpenBlockersAllSources is RecomputeOpenBlockers's loop on an
-// existing transaction, for callers already inside one (the migration hook).
+// recomputeOpenBlockersAllSources is the whole-table open_blockers sweep,
+// on an existing transaction: RecomputeOpenBlockers and the v43 migration
+// hook's closing sweep (backfillFlow) both call this one function, so the
+// public recompute and the backfill cannot land different counts
+// (GDK-1576).
 func recomputeOpenBlockersAllSources(tx *sql.Tx) error {
-	rows, err := tx.Query(`SELECT DISTINCT source_id FROM items WHERE kind = 'issue'`)
-	if err != nil {
-		return err
-	}
 	var srcs []string
-	for rows.Next() {
-		var src string
-		if err := rows.Scan(&src); err != nil {
-			rows.Close()
-			return err
-		}
-		srcs = append(srcs, src)
-	}
-	if err := rows.Err(); err != nil {
-		rows.Close()
+	if err := txEach(tx, `SELECT DISTINCT source_id FROM items WHERE kind = 'issue'`,
+		func(rows *sql.Rows) error {
+			var src string
+			if err := rows.Scan(&src); err != nil {
+				return err
+			}
+			srcs = append(srcs, src)
+			return nil
+		}); err != nil {
 		return err
 	}
-	rows.Close()
 	for _, src := range srcs {
 		if err := recomputeOpenBlockers(tx, src, nil); err != nil {
 			return err

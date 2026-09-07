@@ -326,6 +326,9 @@ func parseTime(s string) (time.Time, bool) {
 // a handle on the mirror with local.db attached (store.OpenReadOnly gives
 // the CLI one; the server opens its own the same way). opts carries the
 // tunables; the zero Options is the shipped default (SessionGap constant).
+// Each table walks in its own loader below the function — one
+// defer rows.Close() and one rows.Err() per walk, not three close sites on
+// every error branch (GDK-1575).
 func Compute(ctx context.Context, db *sql.DB, me store.FeedIdentity, since time.Duration, now time.Time, opts Options) (Report, error) {
 	rep := Report{Buckets: Buckets(now, since)}
 	rep.SelfResolved = me != store.FeedIdentity{}
@@ -350,235 +353,59 @@ func Compute(ctx context.Context, db *sql.DB, me store.FeedIdentity, since time.
 	}
 	first := rep.Buckets[0].From
 
-	// Visits: epoch-scoped, prefiltered by day prefix (ISOMilli starts with
-	// the date, so a string bound is a real bound), then filtered exactly on
-	// parsed times — bucket edges are local midnight and the strings are UTC.
-	dayPrefix := first.UTC().AddDate(0, 0, -1).Format("2006-01-02")
-	var visits []visit
-	vrows, err := db.QueryContext(ctx, `SELECT COALESCE(kind,''), COALESCE(key,''), COALESCE(viewed_at,''), COALESCE(source,'')
-		FROM local.visits WHERE origin_epoch = `+epochSQL+` AND viewed_at >= ?`, dayPrefix)
+	// Visits: epoch-scoped, prefiltered by day prefix, then filtered
+	// exactly on parsed times — loadVisits owns the clauses.
+	visits, err := loadVisits(ctx, db, first, now, gap)
 	if err != nil {
 		return rep, err
 	}
-	for vrows.Next() {
-		var kind, key, at, source string
-		if err := vrows.Scan(&kind, &key, &at, &source); err != nil {
-			vrows.Close()
-			return rep, err
-		}
-		t, ok := parseTime(at)
-		// Keep one session gap before the first bucket: a read inside the
-		// window that follows a read just outside it by less than the gap is
-		// the same session, not a new one at the window edge. Sessions that
-		// start before the first bucket are dropped by the bucket loop.
-		if !ok || t.Before(first.Add(-gap)) || t.After(now) {
-			continue
-		}
-		visits = append(visits, visit{kind: kind, key: key, source: source, at: t})
-	}
-	if err := vrows.Err(); err != nil {
-		vrows.Close()
-		return rep, err
-	}
-	vrows.Close()
 
 	// Items and issues: the key<->item and item<->category maps every other
 	// pass walks.
-	itemByID := map[string]item{}
-	keyItems := map[string][]string{}
-	irows, err := db.QueryContext(ctx, `SELECT id, COALESCE(source_id,''), COALESCE(kind,''), COALESCE(key,'') FROM items`)
+	itemByID, keyItems, err := loadItems(ctx, db)
 	if err != nil {
 		return rep, err
 	}
-	for irows.Next() {
-		var it item
-		if err := irows.Scan(&it.id, &it.sourceID, &it.kind, &it.key); err != nil {
-			irows.Close()
-			return rep, err
-		}
-		itemByID[it.id] = it
-		keyItems[it.key] = append(keyItems[it.key], it.id)
-	}
-	if err := irows.Err(); err != nil {
-		irows.Close()
-		return rep, err
-	}
-	irows.Close()
-
-	issCategory := map[string]string{}
-	issChangedAt := map[string]string{}
-	srows, err := db.QueryContext(ctx, `SELECT item_id, COALESCE(status_category,''), COALESCE(status_changed_at,'') FROM issues`)
+	issCategory, issChangedAt, err := loadIssues(ctx, db)
 	if err != nil {
 		return rep, err
 	}
-	for srows.Next() {
-		var id, cat, changed string
-		if err := srows.Scan(&id, &cat, &changed); err != nil {
-			srows.Close()
-			return rep, err
-		}
-		issCategory[id] = cat
-		issChangedAt[id] = changed
-	}
-	if err := srows.Err(); err != nil {
-		srows.Close()
-		return rep, err
-	}
-	srows.Close()
 
-	// Cycle columns (v43): what the cycle rows read. resolved_at and
-	// cycle_hours are frozen at close by Derive, so this is a column read,
-	// not a changelog walk. reopen_count = 0 is the sample rule the flow
-	// canon sets (a reopened-and-refinished issue parks time inside its
-	// cycle_hours) and store.CycleTimeP85Hours applies the same clause —
-	// the footer and DERIVE.md state it identically.
-	type cycleRow struct {
-		resolved string
-		hours    float64
-		reopen   int
-	}
-	issCycle := map[string]cycleRow{}
+	// Cycle columns (v43), only when the schema has them — see the schema
+	// gate above. cycleRow's comment travels with the type below.
+	var issCycle map[string]cycleRow
 	if !rep.CycleUnavailable {
-		cyrows, err := db.QueryContext(ctx, `SELECT item_id, COALESCE(resolved_at,''), cycle_hours, COALESCE(reopen_count,0) FROM issues`)
-		if err != nil {
+		if issCycle, err = loadCycles(ctx, db); err != nil {
 			return rep, err
 		}
-		for cyrows.Next() {
-			var item, resolved string
-			var hours sql.NullFloat64
-			var reopen int
-			if err := cyrows.Scan(&item, &resolved, &hours, &reopen); err != nil {
-				cyrows.Close()
-				return rep, err
-			}
-			if !hours.Valid || resolved == "" {
-				continue
-			}
-			issCycle[item] = cycleRow{resolved: resolved, hours: hours.Float64, reopen: reopen}
-		}
-		if err := cyrows.Err(); err != nil {
-			cyrows.Close()
-			return rep, err
-		}
-		cyrows.Close()
 	}
 
 	// status_catalog: status id -> category, scoped per source because two
 	// sources can reuse one id.
-	cat := map[string]string{}
-	crows, err := db.QueryContext(ctx, `SELECT COALESCE(source_id,''), COALESCE(status_id,''), COALESCE(category,'') FROM status_catalog`)
+	cat, err := loadStatusCatalog(ctx, db)
 	if err != nil {
 		return rep, err
 	}
-	for crows.Next() {
-		var source, id, category string
-		if err := crows.Scan(&source, &id, &category); err != nil {
-			crows.Close()
-			return rep, err
-		}
-		cat[source+"\x00"+id] = category
-	}
-	if err := crows.Err(); err != nil {
-		crows.Close()
-		return rep, err
-	}
-	crows.Close()
 	rep.CatalogEmpty = len(cat) == 0
 
 	// Status changelog, whole history before now: wip age and closed walk it
 	// backwards from each week end.
-	statusByItem := map[string][]statusRow{}
-	clog, err := db.QueryContext(ctx, `SELECT item_id, COALESCE(id,''), COALESCE(at,''), COALESCE(from_id,''), COALESCE(to_id,'')
-		FROM changelog WHERE field = 'status'`)
+	statusByItem, err := loadStatusLog(ctx, db, now)
 	if err != nil {
 		return rep, err
-	}
-	for clog.Next() {
-		var item, id, at, fromID, toID string
-		if err := clog.Scan(&item, &id, &at, &fromID, &toID); err != nil {
-			clog.Close()
-			return rep, err
-		}
-		t, ok := parseTime(at)
-		if !ok || t.After(now) {
-			continue
-		}
-		statusByItem[item] = append(statusByItem[item], statusRow{at: t, fromID: fromID, toID: toID, seq: id})
-	}
-	if err := clog.Err(); err != nil {
-		clog.Close()
-		return rep, err
-	}
-	clog.Close()
-	for item := range statusByItem {
-		rows := statusByItem[item]
-		sort.SliceStable(rows, func(i, j int) bool {
-			if rows[i].at.Equal(rows[j].at) {
-				return rows[i].seq < rows[j].seq
-			}
-			return rows[i].at.Before(rows[j].at)
-		})
-		statusByItem[item] = rows
 	}
 
 	// Writes (any changelog field) and comments, window-prefiltered the same
 	// way visits were: resume needs them between session starts, mismatch
 	// needs comment bodies inside each week.
-	writePrefix := first.UTC().AddDate(0, 0, -1).Format("2006-01-02")
-	var writes []write
-	var comments []comment
-	wrows, err := db.QueryContext(ctx, `SELECT item_id, COALESCE(at,''), COALESCE(author,''), COALESCE(author_id,'')
-		FROM changelog WHERE at >= ?`, writePrefix)
+	writes, err := loadWrites(ctx, db, first, now)
 	if err != nil {
 		return rep, err
 	}
-	for wrows.Next() {
-		var w write
-		var at string
-		if err := wrows.Scan(&w.item, &at, &w.author, &w.authorID); err != nil {
-			wrows.Close()
-			return rep, err
-		}
-		t, ok := parseTime(at)
-		if !ok || t.Before(first) || t.After(now) {
-			continue
-		}
-		w.at = t
-		writes = append(writes, w)
-	}
-	if err := wrows.Err(); err != nil {
-		wrows.Close()
-		return rep, err
-	}
-	wrows.Close()
-
-	mrows, err := db.QueryContext(ctx, `SELECT item_id, COALESCE(created_at,''), COALESCE(author,''), COALESCE(author_id,''), COALESCE(body_text,'')
-		FROM comments WHERE created_at >= ?`, writePrefix)
+	comments, err := loadComments(ctx, db, first, now)
 	if err != nil {
 		return rep, err
 	}
-	for mrows.Next() {
-		var c comment
-		var at string
-		if err := mrows.Scan(&c.item, &at, &c.author, &c.authorID, &c.body); err != nil {
-			mrows.Close()
-			return rep, err
-		}
-		t, ok := parseTime(at)
-		if !ok || t.Before(first) || t.After(now) {
-			continue
-		}
-		c.at = t
-		comments = append(comments, c)
-	}
-	if err := mrows.Err(); err != nil {
-		mrows.Close()
-		return rep, err
-	}
-	mrows.Close()
-
-	sort.SliceStable(writes, func(i, j int) bool { return writes[i].at.Before(writes[j].at) })
-	sort.SliceStable(comments, func(i, j int) bool { return comments[i].at.Before(comments[j].at) })
 
 	/* sessions */
 
@@ -773,6 +600,239 @@ func Compute(ctx context.Context, db *sql.DB, me store.FeedIdentity, since time.
 		sort.Strings(b.CycleKeys)
 	}
 	return rep, nil
+}
+
+/* ── per-table loaders ──
+   Compute's reads, one function per table. Each owns its query end to
+   end: defer rows.Close() at the top, one rows.Err() at the bottom, no
+   close site on the error branches (GDK-1575). */
+
+// loadVisits reads the epoch-scoped person/agent visits from one session
+// gap before the first bucket to now, prefiltered by day prefix
+// (ISOMilli starts with the date, so a string bound is a real bound) and
+// filtered exactly on parsed times — bucket edges are local midnight and
+// the strings are UTC. One session gap before the first bucket is kept: a
+// read inside the window that follows a read just outside it by less than
+// the gap is the same session, not a new one at the window edge. Sessions
+// that start before the first bucket are dropped by the bucket loop.
+func loadVisits(ctx context.Context, db *sql.DB, first, now time.Time, gap time.Duration) ([]visit, error) {
+	rows, err := db.QueryContext(ctx, `SELECT COALESCE(kind,''), COALESCE(key,''), COALESCE(viewed_at,''), COALESCE(source,'')
+		FROM local.visits WHERE origin_epoch = `+epochSQL+` AND viewed_at >= ?`,
+		first.UTC().AddDate(0, 0, -1).Format("2006-01-02"))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var visits []visit
+	for rows.Next() {
+		var kind, key, at, source string
+		if err := rows.Scan(&kind, &key, &at, &source); err != nil {
+			return nil, err
+		}
+		t, ok := parseTime(at)
+		if !ok || t.Before(first.Add(-gap)) || t.After(now) {
+			continue
+		}
+		visits = append(visits, visit{kind: kind, key: key, source: source, at: t})
+	}
+	return visits, rows.Err()
+}
+
+// loadItems reads the id<->item and key<->items maps every other pass
+// walks.
+func loadItems(ctx context.Context, db *sql.DB) (map[string]item, map[string][]string, error) {
+	rows, err := db.QueryContext(ctx, `SELECT id, COALESCE(source_id,''), COALESCE(kind,''), COALESCE(key,'') FROM items`)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+	itemByID := map[string]item{}
+	keyItems := map[string][]string{}
+	for rows.Next() {
+		var it item
+		if err := rows.Scan(&it.id, &it.sourceID, &it.kind, &it.key); err != nil {
+			return nil, nil, err
+		}
+		itemByID[it.id] = it
+		keyItems[it.key] = append(keyItems[it.key], it.id)
+	}
+	return itemByID, keyItems, rows.Err()
+}
+
+// loadIssues reads the live per-issue status columns: category now, and
+// the stamp of the last status change (mismatch recency).
+func loadIssues(ctx context.Context, db *sql.DB) (map[string]string, map[string]string, error) {
+	rows, err := db.QueryContext(ctx, `SELECT item_id, COALESCE(status_category,''), COALESCE(status_changed_at,'') FROM issues`)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+	issCategory := map[string]string{}
+	issChangedAt := map[string]string{}
+	for rows.Next() {
+		var id, cat, changed string
+		if err := rows.Scan(&id, &cat, &changed); err != nil {
+			return nil, nil, err
+		}
+		issCategory[id] = cat
+		issChangedAt[id] = changed
+	}
+	return issCategory, issChangedAt, rows.Err()
+}
+
+// cycleRow is the cycle columns (v43). resolved_at and cycle_hours are
+// frozen at close by Derive, so this is a column read, not a changelog
+// walk. reopen_count = 0 is the sample rule the flow canon sets (a
+// reopened-and-refinished issue parks time inside its cycle_hours) and
+// store.CycleTimeP85Hours applies the same clause — the footer and
+// DERIVE.md state it identically.
+type cycleRow struct {
+	resolved string
+	hours    float64
+	reopen   int
+}
+
+// loadCycles reads the cycle columns for every issue; rows without a
+// resolved stamp or a cycle are absent, not errors. Compute skips the
+// walk entirely when the mirror predates cycle_hours (its schema gate).
+func loadCycles(ctx context.Context, db *sql.DB) (map[string]cycleRow, error) {
+	rows, err := db.QueryContext(ctx, `SELECT item_id, COALESCE(resolved_at,''), cycle_hours, COALESCE(reopen_count,0) FROM issues`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	issCycle := map[string]cycleRow{}
+	for rows.Next() {
+		var item, resolved string
+		var hours sql.NullFloat64
+		var reopen int
+		if err := rows.Scan(&item, &resolved, &hours, &reopen); err != nil {
+			return nil, err
+		}
+		if !hours.Valid || resolved == "" {
+			continue
+		}
+		issCycle[item] = cycleRow{resolved: resolved, hours: hours.Float64, reopen: reopen}
+	}
+	return issCycle, rows.Err()
+}
+
+// loadStatusCatalog reads status_catalog: status id -> category, scoped
+// per source because two sources can reuse one id.
+func loadStatusCatalog(ctx context.Context, db *sql.DB) (map[string]string, error) {
+	rows, err := db.QueryContext(ctx, `SELECT COALESCE(source_id,''), COALESCE(status_id,''), COALESCE(category,'') FROM status_catalog`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	cat := map[string]string{}
+	for rows.Next() {
+		var source, id, category string
+		if err := rows.Scan(&source, &id, &category); err != nil {
+			return nil, err
+		}
+		cat[source+"\x00"+id] = category
+	}
+	return cat, rows.Err()
+}
+
+// loadStatusLog reads the status changelog, whole history before now:
+// wip age and closed walk it backwards from each week end. Rows come
+// back sorted per item — seq, the changelog id, is the deterministic
+// tie-break for equal at.
+func loadStatusLog(ctx context.Context, db *sql.DB, now time.Time) (map[string][]statusRow, error) {
+	rows, err := db.QueryContext(ctx, `SELECT item_id, COALESCE(id,''), COALESCE(at,''), COALESCE(from_id,''), COALESCE(to_id,'')
+		FROM changelog WHERE field = 'status'`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	statusByItem := map[string][]statusRow{}
+	for rows.Next() {
+		var item, id, at, fromID, toID string
+		if err := rows.Scan(&item, &id, &at, &fromID, &toID); err != nil {
+			return nil, err
+		}
+		t, ok := parseTime(at)
+		if !ok || t.After(now) {
+			continue
+		}
+		statusByItem[item] = append(statusByItem[item], statusRow{at: t, fromID: fromID, toID: toID, seq: id})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	for item := range statusByItem {
+		hist := statusByItem[item]
+		sort.SliceStable(hist, func(i, j int) bool {
+			if hist[i].at.Equal(hist[j].at) {
+				return hist[i].seq < hist[j].seq
+			}
+			return hist[i].at.Before(hist[j].at)
+		})
+		statusByItem[item] = hist
+	}
+	return statusByItem, nil
+}
+
+// loadWrites and loadComments read the two write streams for the window,
+// day-prefix prefiltered the same way loadVisits prefilters: resume needs
+// writes between session starts, mismatch needs comment bodies inside
+// each week. Both come back sorted by time.
+func loadWrites(ctx context.Context, db *sql.DB, first, now time.Time) ([]write, error) {
+	rows, err := db.QueryContext(ctx, `SELECT item_id, COALESCE(at,''), COALESCE(author,''), COALESCE(author_id,'')
+		FROM changelog WHERE at >= ?`, first.UTC().AddDate(0, 0, -1).Format("2006-01-02"))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var writes []write
+	for rows.Next() {
+		var w write
+		var at string
+		if err := rows.Scan(&w.item, &at, &w.author, &w.authorID); err != nil {
+			return nil, err
+		}
+		t, ok := parseTime(at)
+		if !ok || t.Before(first) || t.After(now) {
+			continue
+		}
+		w.at = t
+		writes = append(writes, w)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	sort.SliceStable(writes, func(i, j int) bool { return writes[i].at.Before(writes[j].at) })
+	return writes, nil
+}
+
+func loadComments(ctx context.Context, db *sql.DB, first, now time.Time) ([]comment, error) {
+	rows, err := db.QueryContext(ctx, `SELECT item_id, COALESCE(created_at,''), COALESCE(author,''), COALESCE(author_id,''), COALESCE(body_text,'')
+		FROM comments WHERE created_at >= ?`, first.UTC().AddDate(0, 0, -1).Format("2006-01-02"))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var comments []comment
+	for rows.Next() {
+		var c comment
+		var at string
+		if err := rows.Scan(&c.item, &at, &c.author, &c.authorID, &c.body); err != nil {
+			return nil, err
+		}
+		t, ok := parseTime(at)
+		if !ok || t.Before(first) || t.After(now) {
+			continue
+		}
+		c.at = t
+		comments = append(comments, c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	sort.SliceStable(comments, func(i, j int) bool { return comments[i].at.Before(comments[j].at) })
+	return comments, nil
 }
 
 // sessionResume walks the merged write streams in time order for the

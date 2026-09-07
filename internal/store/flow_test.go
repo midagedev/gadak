@@ -331,6 +331,63 @@ func TestBackfillFlowWithStatusCatalog(t *testing.T) {
 // not the fallback), and an empty catalog (the documented 'Blocks' literal).
 // FAIL-first: against pre-v43 code there is no link_types table and no
 // recompute to call.
+// TestRecomputeOpenBlockersMatchesBackfill pins the identity the one-line
+// delegation buys: RecomputeOpenBlockers and the v43 migration hook's
+// closing sweep (backfillFlow) now call the same function,
+// recomputeOpenBlockersAllSources, so running the public recompute over a
+// just-backfilled mirror must not move a single open_blockers row. This is
+// an equality assertion — there is no pre-change red to show; the
+// structural guarantee is the shared call site, which the diff itself is
+// (GDK-1576).
+func TestRecomputeOpenBlockersMatchesBackfill(t *testing.T) {
+	// Open migrates v42→v43, which runs backfillFlow — including its
+	// closing open_blockers sweep.
+	db, err := Open(seedFlowV42(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	type blkRow struct {
+		key string
+		n   int
+	}
+	snapshot := func() []blkRow {
+		t.Helper()
+		rows, err := db.Query(`SELECT key, open_blockers FROM issues_raw ORDER BY key`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rows.Close()
+		var out []blkRow
+		for rows.Next() {
+			var r blkRow
+			if err := rows.Scan(&r.key, &r.n); err != nil {
+				t.Fatal(err)
+			}
+			out = append(out, r)
+		}
+		if err := rows.Err(); err != nil {
+			t.Fatal(err)
+		}
+		return out
+	}
+	before := snapshot()
+	if err := db.RecomputeOpenBlockers(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	after := snapshot()
+	if len(after) != len(before) {
+		t.Fatalf("row count moved: %d → %d", len(before), len(after))
+	}
+	for i := range before {
+		if before[i] != after[i] {
+			t.Fatalf("RecomputeOpenBlockers moved a row the backfill had written: %s %d → %d",
+				before[i].key, before[i].n, after[i].n)
+		}
+	}
+}
+
 func TestRecomputeOpenBlockersResolvesCatalogNames(t *testing.T) {
 	db, err := Open(filepath.Join(t.TempDir(), "gadak.db"))
 	if err != nil {

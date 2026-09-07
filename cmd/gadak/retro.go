@@ -20,15 +20,11 @@ import (
 	"github.com/midagedev/gadak/internal/store"
 )
 
-const retroUsageLine = "usage: gadak retro [--since 14d|<N>d|<N>w] [--session-gap 30m] [--json] [--open closed|in-progress|mismatch|cycle [--week N]] [--no-open]"
+const retroUsageLine = "usage: gadak retro [--since 14d|<N>d|<N>w] [--session-gap " + config.DefaultRetroSessionGap + "] [--json] [--open closed|in-progress|mismatch|cycle [--week N]] [--no-open]"
 
 // retroDefaultSince is two ISO weeks, enough for a "this week against last
 // week" read without paging.
 const retroDefaultSince = "14d"
-
-// retroDefaultSessionGap matches retro.SessionGap; stated as a string so the
-// help text and the parser see the same value.
-const retroDefaultSessionGap = "30m"
 
 // retroOpenMetrics are the --open values, in help order. Each names a cell
 // of the table by its row.
@@ -52,7 +48,7 @@ func retroBucketKeys(b retro.Bucket, metric string) []string {
 func cmdRetro(args []string) error {
 	fs := newFlagSet("retro")
 	sinceFlag := fs.String("since", retroDefaultSince, "how far back the table reaches: 14d, 30d, 4w (1 to 365 days)")
-	sessionGapFlag := fs.String("session-gap", retroDefaultSessionGap, "split sessions where the gap to the previous read exceeds this: a Go duration, 5m to 24h (30m, 1h30m; default: retro.sessionGap or 30m)")
+	sessionGapFlag := fs.String("session-gap", config.DefaultRetroSessionGap, "split sessions where the gap to the previous read exceeds this: a Go duration, 5m to 24h ("+config.DefaultRetroSessionGap+", 1h30m; default: retro.sessionGap or "+config.DefaultRetroSessionGap+")")
 	asJSON := fs.Bool("json", false, "emit the same numbers as one JSON document")
 	openFlag := fs.String("open", "", "open the issues behind one cell in the running app: closed|in-progress|mismatch|cycle")
 	weekFlag := fs.Int("week", 0, "which week --open reads: 0 = the current partial week, 1 = the last full week")

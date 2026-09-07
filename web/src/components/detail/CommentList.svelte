@@ -88,7 +88,7 @@
 
   /* ── Coaching, M2 (G2) ──
      The newest comment says done — with the Go retro's own done-word
-     vocabulary (done-words.ts, lockstep with cmd/gadak/retro.go) — while the
+     vocabulary (done-words.ts, lockstep with internal/retro/retro.go DoneWords) — while the
      issue's status does not. The offer is a quiet verb on the comment's own
      row header: one click opens the header's existing status menu (write's
      transitionMenuRequest bridge), so no new write path exists. Only the

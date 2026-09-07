@@ -14,7 +14,7 @@ import { attachConsoleErrors, forceLocale, gotoApp, searchInput } from './helper
  * hover, nothing blocks a click.
  *
  * Contract table (spec C1–C7 ↔ the assertion that pins each):
- *   C1 done-word list lockstep with cmd/gadak/retro.go → done-words.test.ts
+ *   C1 done-word list lockstep with internal/retro/retro.go DoneWords → done-words.test.ts
  *      (embeds the Go slice and parses the live Go source; not reachable
  *      from a browser spec).
  *   C2 newest-comment-only / not-done / click opens the *existing* menu →

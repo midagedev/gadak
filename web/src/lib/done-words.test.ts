@@ -24,18 +24,12 @@ import { describe, expect, test } from 'vitest'
 import { DONE_WORDS, claimStands, hasDoneWord } from './done-words'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
-// The Go owner of the done-word list moved mid-round (uncommitted, parallel
-// work in this tree): cmd/gadak/retro.go `retroDoneWords` → internal/retro/
-// retro.go `DoneWords`, word list unchanged. Parse every candidate that
-// exists so the lockstep holds on both sides of that landing.
-const RETRO_GO_CANDIDATES = [
-  join(HERE, '../../../internal/retro/retro.go'),
-  join(HERE, '../../../cmd/gadak/retro.go'),
-] as const
+// The Go owner of the done-word list: internal/retro/retro.go `DoneWords`.
+const RETRO_GO = join(HERE, '../../../internal/retro/retro.go')
 
-// internal/retro/retro.go:57 (cmd/gadak/retro.go:53 pre-move), verbatim.
-// Editing a word here and not there (or vice versa) is exactly the failure
-// the next two tests exist to catch.
+// internal/retro/retro.go DoneWords, verbatim. Editing a word here and not
+// there (or vice versa) is exactly the failure the next two tests exist to
+// catch.
 const GO_SLICE_TEXT = `"done", "fixed", "merged", "resolved", "shipped",
 	"완료", "해결", "머지", "반영", "배포",
 	"完了", "修正済み", "対応済み",
@@ -46,32 +40,23 @@ function parseGoSlice(block: string): string[] {
   return [...block.matchAll(/"([^"]*)"/g)].map((m) => m[1])
 }
 
-describe('done-words (C1: lockstep with cmd/gadak/retro.go)', () => {
+describe('done-words (C1: lockstep with internal/retro/retro.go)', () => {
   test('DONE_WORDS matches the embedded Go slice word for word', () => {
     expect([...DONE_WORDS]).toEqual(parseGoSlice(GO_SLICE_TEXT))
   })
 
   test('DONE_WORDS matches the live Go slice word for word', () => {
-    const decl = /var (?:retroDoneWords|DoneWords) = \[\]string\{/
-    let checked = 0
-    for (const path of RETRO_GO_CANDIDATES) {
-      let src: string
-      try {
-        src = readFileSync(path, 'utf8')
-      } catch {
-        continue // candidate absent in this tree state
-      }
-      const start = src.search(decl)
-      if (start < 0) continue // this file does not own the list
-      const open = src.indexOf('{', start)
-      const close = src.indexOf('}', open)
-      expect(close, `${path} done-words block must close`).toBeGreaterThan(open)
-      expect([...DONE_WORDS], `${path} is a lockstep copy`).toEqual(
-        parseGoSlice(src.slice(open + 1, close)),
-      )
-      checked++
+    const src = readFileSync(RETRO_GO, 'utf8')
+    const start = src.search(/var DoneWords = \[\]string\{/)
+    if (start < 0) {
+      throw new Error(`${RETRO_GO} no longer owns the done-word list — update this test's citation`)
     }
-    expect(checked, 'the Go owner must exist in exactly one of the candidates').toBeGreaterThan(0)
+    const open = src.indexOf('{', start)
+    const close = src.indexOf('}', open)
+    expect(close, `${RETRO_GO} done-words block must close`).toBeGreaterThan(open)
+    expect([...DONE_WORDS], `${RETRO_GO} is a lockstep copy`).toEqual(
+      parseGoSlice(src.slice(open + 1, close)),
+    )
   })
 })
 

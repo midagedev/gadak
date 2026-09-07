@@ -341,21 +341,23 @@ type RetroConfig struct {
 	SessionGap string `json:"sessionGap,omitempty"`
 }
 
-// defaultRetroSessionGap is what an unset retro.sessionGap means. The CLI
-// flag's fallback and the server endpoint's absent-parameter default both
-// read EffectiveRetroSessionGap, so this string is the default's only home.
-const defaultRetroSessionGap = "30m"
+// DefaultRetroSessionGap is what an unset retro.sessionGap means. Every
+// surface that prints or defaults the gap names this constant — the CLI
+// flag's default and usage line (cmd/gadak/retro.go) and
+// EffectiveRetroSessionGap below — so the value lives in this file alone.
+const DefaultRetroSessionGap = "30m"
 
 // EffectiveRetroSessionGap is the session-split gap retro runs with when
-// nothing more specific was asked. Nil-safe.
+// nothing more specific was asked: the stored retro.sessionGap, else
+// DefaultRetroSessionGap. Nil-safe.
 func (c *Config) EffectiveRetroSessionGap() string {
 	if c == nil || c.Retro == nil {
-		return defaultRetroSessionGap
+		return DefaultRetroSessionGap
 	}
 	if v := strings.TrimSpace(c.Retro.SessionGap); v != "" {
 		return v
 	}
-	return defaultRetroSessionGap
+	return DefaultRetroSessionGap
 }
 
 // FieldSpec is one logical custom field. Jira creates a separate field id per
