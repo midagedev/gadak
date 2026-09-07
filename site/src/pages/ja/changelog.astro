@@ -1,5 +1,4 @@
 ---
-// ja scaffold — English body until the lead writes the Japanese (GDK-1500)
 import Base from '../../layouts/Base.astro'
 import { renderChangelog, changelogIsFallback } from '../../lib/changelog'
 import { strings } from '../../i18n'
@@ -45,8 +44,8 @@ const jsonLd = JSON.stringify([
 
 <Base
   lang="ja"
-  title="Changelog — gadak release notes"
-  description="Every gadak release, in the words of the person who shipped it — rendered from the repository's CHANGELOG.md, with issue keys linking into the public backlog."
+  title="変更履歴 — gadakのリリースノート"
+  description="gadakのすべてのリリースを、出荷した本人の言葉で。リポジトリのCHANGELOG.mdから描画し、課題キーは公開バックログにリンクします。本文は英語です。"
   ogType="article"
   jsonLd={jsonLd}
 >
@@ -55,7 +54,7 @@ const jsonLd = JSON.stringify([
     <p class="lede">{t.changelog.lede}</p>
     <p class="note">
       {t.changelog.source}{' '}
-      <a href="https://github.com/midagedev/gadak/blob/main/CHANGELOG.md">View on GitHub</a>
+      <a href="https://github.com/midagedev/gadak/blob/main/CHANGELOG.md">GitHubで見る</a>
     </p>
     {changelogIsFallback('ja') && <p class="note">{t.changelog.fallbackNote}</p>}
 
