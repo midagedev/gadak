@@ -168,7 +168,16 @@ describe('buildScopes', () => {
   })
 
   it('offers Assigned to me only when the serve has an identity', () => {
-    expect(buildScopes([], [], null).map((s) => s.id)).toEqual([SCOPE_ALL_OPEN])
+    // GDK-1495 ④: the built-in section is now the desk's five, and the two
+    // identity views are absent (not disabled) for the same reason this one
+    // is — an anonymous reader has no "mine". Which five and in what order
+    // is awareness.test.ts's business; this one is about identity.
+    const ids = buildScopes([], [], null).map((s) => s.id)
+    expect(ids).not.toContain(SCOPE_ME)
+    expect(ids).not.toContain('builtin:my-work')
+    expect(ids).not.toContain('builtin:delegated')
+    expect(ids).toContain(SCOPE_ALL_OPEN)
+    expect(buildScopes([], [], me).map((s) => s.id)).toContain(SCOPE_ME)
   })
 
   it('sections saved views and imported Jira filters apart', () => {
@@ -177,9 +186,20 @@ describe('buildScopes', () => {
       [jiraFilter('s1', 'Sprint board', { jira_project: ['STD'] })],
       me,
     )
-    expect(list.map((s) => [s.section, s.name])).toEqual([
+    // Sections in order, one row named per section beyond the built-ins
+    // (whose five names awareness.test.ts pins).
+    expect(list.map((s) => s.section)).toEqual([
+      'me',
+      'builtin',
+      'builtin',
+      'builtin',
+      'builtin',
+      'builtin',
+      'views',
+      'filters',
+    ])
+    expect(list.filter((s) => s.section !== 'builtin').map((s) => [s.section, s.name])).toEqual([
       ['me', 'Assigned to me'],
-      ['builtin', 'All open'],
       ['views', 'Stale bugs'],
       ['filters', 'Sprint board'],
     ])
@@ -532,7 +552,15 @@ describe('documents scopes (GDK-887)', () => {
       me,
       pages,
     )
-    expect(list.map((s) => s.section)).toEqual(['me', 'builtin', 'views', 'filters', 'docs', 'docs', 'docs'])
+    expect(list.map((s) => s.section)).toEqual([
+      'me',
+      ...Array(5).fill('builtin'),
+      'views',
+      'filters',
+      'docs',
+      'docs',
+      'docs',
+    ])
   })
 
   it('counts pages in memory, keyed on space_key', () => {

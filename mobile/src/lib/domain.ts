@@ -5,6 +5,8 @@
 import { collator, t, type MessageKey } from './i18n'
 import type {
   DetailComment,
+  DetailResponse,
+  FlowSummary,
   IssueLite,
   Me,
   PageLite,
@@ -12,6 +14,69 @@ import type {
   SourceViewDoc,
   ViewFilters,
 } from './types'
+
+/*
+ * ── The 0.21 awareness rules, borrowed whole (GDK-1495 / GDK-1497 A4) ──
+ *
+ * The session boundary, the work-item age and its threshold, the resume
+ * diff and the five built-in views are *decisions*, and the desktop already
+ * owns every one of them. The phone imports the functions rather than
+ * re-spelling them: two surfaces that disagree about when an issue is stale,
+ * or about how long a session lasts, are worse than either answer alone.
+ *
+ * These modules are pure — no fetch, no DOM, no store reads. `view-config`
+ * reaches `lib/config` for the *set* threshold, which on the phone is the
+ * shared DEFAULTS object (72h) because no config.json is ever loaded here;
+ * that is the desktop's own precedence step 3, so the phone lands on the
+ * same number for the same reason. The phone's boundary gate
+ * (web-boundary.test.ts) bans importing that config store directly, and this
+ * file does not — it registers its flow source through the seam view-config
+ * exposes for exactly this (`setStaleFlowSource`).
+ *
+ * The one adaptation is the row shape: the phone's `IssueLite` is a subset of
+ * the desktop's (types.ts — "the phone only parses what it paints"), with the
+ * same field names. Every borrowed predicate reads only fields the phone
+ * carries, so the seam is a cast at the call, made once, here.
+ */
+import type { IssueLite as WebIssueLite } from '../../../web/src/lib/types'
+import {
+  isStale,
+  setStaleFlowSource,
+  staleThresholdHoursEffective,
+  staleThresholdLearned,
+  staleThresholdSamples,
+  workAge,
+  type AgeBasis,
+} from '../../../web/src/lib/view-config'
+import {
+  changedSince,
+  relatchBoundary,
+  stripLabel,
+  SESSION_GAP_MS,
+  type SessionDelta,
+} from '../../../web/src/lib/session-strip'
+import {
+  pickSince,
+  resumeDelta,
+  resumeLabel,
+  type ResumeDelta,
+} from '../../../web/src/lib/resume-card'
+import { isSamePerson, type PersonRef } from '../../../web/src/lib/person-match'
+import { builtinViews } from '../../../web/src/lib/builtin-views'
+
+export { relatchBoundary, SESSION_GAP_MS }
+export type { AgeBasis, ResumeDelta, SessionDelta }
+
+/** The one seam: a phone row read as the desktop row it is a subset of. */
+function asWebRow(issue: IssueLite): WebIssueLite {
+  return issue as unknown as WebIssueLite
+}
+
+/** The paired identity as person-match's reference. Null stays null. */
+function personRef(me: Me | null): PersonRef | null {
+  if (!me) return null
+  return { accountId: me.account_id, email: me.email }
+}
 
 /**
  * Fold the aliases Jira and the older web mappers emit into the three
@@ -59,6 +124,116 @@ export function isMine(issue: IssueLite, me: Me | null): boolean {
 /** True when the serve knows who its user is at all. */
 export function hasIdentity(me: Me | null): boolean {
   return !!me && (!!me.account_id || !!me.email)
+}
+
+/* ── ② row age: the work clock, and the line it is measured against ── */
+
+/**
+ * Registers where the learned threshold comes from. Called once by the store
+ * with a reader over the live bootstrap payload, so the age bands stay
+ * reactive without this module knowing the store exists. `null` returns the
+ * phone to the shared default.
+ */
+export function setFlow(flow: FlowSummary | null): void {
+  setStaleFlowSource(() => flow)
+}
+
+/** Work-item age and which clock it read: started_at, else the status
+ *  clock, else nothing. The desktop's `workAge`, verbatim. */
+export function rowAge(issue: IssueLite): { hours: number; basis: AgeBasis } {
+  return workAge(asWebRow(issue))
+}
+
+/** Whether the row has been underway longer than the threshold in force.
+ *  Done is never stale, however old. */
+export function rowIsStale(issue: IssueLite): boolean {
+  return isStale(asWebRow(issue))
+}
+
+/** The badge's number. Day-based, floored at 1 so sub-day reads "day 1". */
+export function rowAgeDays(issue: IssueLite): number {
+  return Math.max(1, Math.round(rowAge(issue).hours / 24))
+}
+
+/**
+ * Weight follows magnitude, in multiples of the effective threshold — the
+ * desktop's ratios (GDK-1336). Null when the row is not stale: a single
+ * maximum-emphasis mark on every row warns about nothing.
+ */
+export function rowAgeBand(issue: IssueLite): 'quiet' | 'mid' | 'loud' | null {
+  if (!rowIsStale(issue)) return null
+  const threshold = staleThresholdHoursEffective()
+  if (!(threshold > 0)) return 'loud'
+  const ratio = rowAge(issue).hours / threshold
+  if (ratio <= 2) return 'quiet'
+  if (ratio <= 4) return 'mid'
+  return 'loud'
+}
+
+/**
+ * The row names its own rule (G7): which clock the number came from, and —
+ * when the threshold was learned rather than defaulted — what the 85% line
+ * is and how many finished issues it stands on.
+ */
+export function rowAgeTitle(issue: IssueLite): string {
+  const n = rowAgeDays(issue)
+  const started = rowAge(issue).basis === 'started'
+  if (!staleThresholdLearned()) {
+    return t(started ? 'list.staleDaysStarted' : 'list.staleDays', { n })
+  }
+  return t(started ? 'list.staleDaysStartedLearned' : 'list.staleDaysLearned', {
+    n,
+    p: Math.max(1, Math.round(staleThresholdHoursEffective() / 24)),
+    s: staleThresholdSamples(),
+  })
+}
+
+/* ── ① session strip: what changed since the previous session ── */
+
+/**
+ * The frozen answer for one session: which rows moved after the boundary and
+ * how many of them are this account's. Null when nothing moved — the caller
+ * renders no strip, never an empty one.
+ */
+export function sessionDelta(
+  issues: IssueLite[],
+  since: string,
+  me: Me | null,
+): SessionDelta | null {
+  return changedSince(issues.map(asWebRow), since, personRef(me))
+}
+
+/** The one line, from the desktop catalog. `ago` is already formatted. */
+export function sessionLine(delta: SessionDelta, ago: string, me: Me | null): string {
+  return stripLabel(delta, ago, t, delta.mine > 0 ? personRef(me) : null)
+}
+
+/* ── ③ resume card: what changed since this issue was last opened ── */
+
+/**
+ * The diff boundary: the previous person read of this issue, or null when
+ * there is none. The serve sends the two newest `ui` visits; the newest may
+ * be this very open on a desk that is looking at the same issue, which is
+ * what the freshness window in `pickSince` is for.
+ */
+export function resumeSince(detail: DetailResponse): string | null {
+  return pickSince(detail.last_visited_at, detail.previous_visit_at)
+}
+
+/** Counts what happened after `since`. Null when nothing did. */
+export function resumeChanges(
+  detail: DetailResponse,
+  since: string | null,
+): ResumeDelta | null {
+  return resumeDelta(
+    { history: detail.history ?? [], comments: (detail.comments ?? []) as never },
+    since,
+  )
+}
+
+/** The card's one line, from the desktop catalog. `ago` is already formatted. */
+export function resumeLine(delta: ResumeDelta, ago: string): string {
+  return resumeLabel(delta, ago, t)
 }
 
 /** Rank 0 means the mirror never saw a priority — sort those last, not first. */
@@ -142,6 +317,13 @@ export interface Scope {
    * Keyed on `space_key`, never on the display name.
    */
   spaceKey?: string | null
+  /**
+   * Which reading stance a built-in belongs to (THEORY.md "Two stances"):
+   * `mine` is the contributor's question, `team` the steward's. Only the
+   * built-in section carries it, and only to wear the desk's own sub-labels
+   * inside that section — grouping, never filtering.
+   */
+  stance?: 'mine' | 'team'
 }
 
 /**
@@ -161,6 +343,13 @@ const HONORED_AXES = new Set([
   'priority',
   'jira_project',
   'jira_project_not',
+  // The three identity/exception flags the built-in views are made of
+  // (GDK-1495 ④). `mine` and `delegated` need the paired identity, which
+  // `matchesFilters` takes; without one they select nothing, exactly as the
+  // desk's do. `reopened` needs only the row's own derived count.
+  'mine',
+  'delegated',
+  'reopened',
 ])
 
 function axisIsSet(value: unknown): boolean {
@@ -234,7 +423,25 @@ function matchesMulti(include: string[], exclude: string[], value: string): bool
 const NONE: string[] = []
 
 /** True when the row satisfies every honored axis of a stored view. */
-export function matchesFilters(issue: IssueLite, f: Partial<ViewFilters>): boolean {
+export function matchesFilters(
+  issue: IssueLite,
+  f: Partial<ViewFilters>,
+  me: Me | null = null,
+): boolean {
+  // The identity flags first: they are the cheapest refusal, and without an
+  // identity they refuse everything rather than quietly widening the view.
+  if (f.mine || f.delegated) {
+    const ref = personRef(me)
+    if (!ref) return false
+    const assigned = isSamePerson(issue.assignee_id, issue.assignee_email, ref)
+    if (f.mine && !assigned) return false
+    if (f.delegated) {
+      const reported = isSamePerson(issue.reporter_id ?? null, issue.reporter_email ?? null, ref)
+      if (!reported || assigned) return false
+    }
+  }
+  if (f.reopened && issue.reopen_count <= 0) return false
+
   const cat = effectiveCategory(issue)
   const sc = f.status_category ?? NONE
   if (sc.length && !sc.includes(cat)) return false
@@ -254,8 +461,12 @@ export function matchesFilters(issue: IssueLite, f: Partial<ViewFilters>): boole
 }
 
 /** In-memory apply over the snapshot — no server round trip (plan §5, move 2). */
-export function applyFilters(issues: IssueLite[], f: Partial<ViewFilters>): IssueLite[] {
-  return issues.filter((i) => matchesFilters(i, f))
+export function applyFilters(
+  issues: IssueLite[],
+  f: Partial<ViewFilters>,
+  me: Me | null = null,
+): IssueLite[] {
+  return issues.filter((i) => matchesFilters(i, f, me))
 }
 
 /**
@@ -280,14 +491,33 @@ export function buildScopes(
       unsupported: [],
     })
   }
-  out.push({
-    id: SCOPE_ALL_OPEN,
-    section: 'builtin',
-    kind: 'issues',
-    name: t('view.allOpen.name'),
-    filters: null,
-    unsupported: [],
-  })
+  /*
+   * The desk's five built-ins (GDK-1495 ④), in the desk's order and under
+   * the desk's names — two in the contributor stance, three in the steward's
+   * (web/src/lib/builtin-views.ts owns which five and what each one filters).
+   * The phone consumes the `filters` half only: grouping and sort are the
+   * phone's own (priority sections, DESIGN.md §5), and there is no URL here
+   * for the desk's `fl=` parameters to travel in — the same config is
+   * applied in memory instead.
+   *
+   * The two identity views are absent, not disabled, without an identity:
+   * an anonymous reader has no "mine" (the desk hides them for the same
+   * reason). All-open keeps its existing id so a phone that has one stored
+   * lands on the same row after the update.
+   */
+  for (const view of builtinViews()) {
+    if (view.needsIdentity && !hasIdentity(me)) continue
+    const filters = view.config.filters
+    out.push({
+      id: view.id === 'all-open' ? SCOPE_ALL_OPEN : `builtin:${view.id}`,
+      section: 'builtin',
+      kind: 'issues',
+      name: view.name,
+      filters,
+      unsupported: unsupportedAxes(filters),
+      stance: view.stance,
+    })
+  }
   for (const v of views) {
     const filters = v.config?.filters ?? null
     out.push({
@@ -364,7 +594,7 @@ export function scopeIssues(issues: IssueLite[], me: Me | null, scope: Scope): I
     return openIssues(issues).filter((i) => isMine(i, me))
   }
   if (scope.id === SCOPE_ALL_OPEN) return openIssues(issues)
-  return scope.filters ? applyFilters(issues, scope.filters) : null
+  return scope.filters ? applyFilters(issues, scope.filters, me) : null
 }
 
 /** Match count for a picker row (GDK-886). Null = the row is disabled. */

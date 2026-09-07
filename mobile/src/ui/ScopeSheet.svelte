@@ -23,6 +23,18 @@
     onclose: () => void
   } = $props()
 
+  /*
+   * Inside the built-in section the desk draws two stance rows before their
+   * views (THEORY.md "Two stances", SidebarNav): what do I do now, and what
+   * is the team's flow. The phone wears the same two, from the same keys —
+   * without them the picker runs five unrelated names together right under
+   * a heading that is itself a view's name (GDK-1495 ④).
+   */
+  const STANCE: Record<'mine' | 'team', string> = {
+    mine: 'sidebar.stanceMine',
+    team: 'sidebar.stanceTeam',
+  }
+
   const ORDER: ScopeSection[] = ['me', 'builtin', 'views', 'filters', 'docs']
   const HEADING: Record<ScopeSection, string> = {
     me: 'personal.myIssues',
@@ -60,9 +72,12 @@
   <div class="list">
     {#each groups as group (group.section)}
       <div class="section">{group.heading}</div>
-      {#each shown(group.section, group.rows) as scope (scope.id)}
+      {#each shown(group.section, group.rows) as scope, i (scope.id)}
         {@const blocked = scope.unsupported.length > 0}
         {@const n = counts.get(scope.id) ?? null}
+        {#if scope.stance && scope.stance !== group.rows[i - 1]?.stance}
+          <div class="stance">{t(STANCE[scope.stance] as Parameters<typeof t>[0])}</div>
+        {/if}
         <button
           class="row"
           class:on={scope.id === current}
@@ -98,6 +113,11 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.04em;
+    color: var(--color-text-muted);
+  }
+  .stance {
+    padding: 8px 8px 2px;
+    font-size: var(--text-micro);
     color: var(--color-text-muted);
   }
   .row {

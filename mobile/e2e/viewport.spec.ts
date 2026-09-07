@@ -96,7 +96,10 @@ async function walkAll(page: Page): Promise<Measure[]> {
   await page.locator('button.cancel').waitFor()
   await settleSheet(page)
   report.push(await measure(page, 'scope-sheet'))
-  await page.getByRole('button', { name: /cancel/i }).first().click()
+  // The scope sheet grew (five built-in views, GDK-1495): the role query
+  // resolves to the full-bleed scrim first, whose centre now sits behind the
+  // panel. button.cancel is what every other call site here already uses.
+  await page.locator('button.cancel').click()
   await page.locator('button.cancel').waitFor({ state: 'hidden' })
 
   await page.locator('.pane:not(.off) button.row').first().click()

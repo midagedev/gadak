@@ -4,7 +4,16 @@
 
 import { configureApi, request, isPairingDead, ApiError } from './api'
 import { setDemoSession } from './demo'
-import { SCOPE_ME, feedAfterRead, type FeedResponse, type MarkFeedReadResponse } from './domain'
+import {
+  SCOPE_ME,
+  feedAfterRead,
+  relatchBoundary,
+  sessionDelta,
+  setFlow,
+  type FeedResponse,
+  type MarkFeedReadResponse,
+  type SessionDelta,
+} from './domain'
 import {
   getActiveHostId,
   hasHostsDoc,
@@ -30,6 +39,7 @@ import { probeShellPairing } from './terminal/api'
 import { serveTokenOf, terminalTokenOf, OfferScopeError, type OfferToken } from './offer'
 import type {
   BootstrapResponse,
+  FlowSummary,
   IssueLite,
   Me,
   PageLite,
@@ -107,6 +117,29 @@ export const app = $state({
   terminal: null as PairMeta | null,
   /** Ticks every 30s so relative times stay honest while the app is open. */
   now: new Date(),
+
+  /**
+   * The learned stale threshold the serve sent with the last bootstrap
+   * (GDK-1495 ②). Null → the row age falls back to the shared default. Read
+   * through the seam registered below, never by screens.
+   */
+  flow: null as FlowSummary | null,
+
+  /**
+   * The session strip's latch (GDK-1495 ①). `boundary` is where the previous
+   * session of person reads ended — the serve's on the first bootstrap, and
+   * the moment the app went away on a re-latch. `delta` is a *snapshot*
+   * frozen the moment the boundary and a pool first meet: a value that grew
+   * with every later sync would make the strip an interruption instead of a
+   * session-start reading. `computed` is what makes it a snapshot; the whole
+   * latch is reset only by a real re-latch.
+   */
+  session: {
+    boundary: null as string | null,
+    delta: null as SessionDelta | null,
+    computed: false,
+    dismissed: false,
+  },
 })
 
 /**
@@ -136,6 +169,39 @@ export function issuesBootKind(s: {
   if (!s.loaded) return 'skeleton'
   if (s.offline && !showOfflineBanner(s)) return 'failed'
   return 'ready'
+}
+
+/* ── session strip latch (GDK-1495 ①) ── */
+
+/**
+ * Freezes the strip's answer, once per session. Called after every bootstrap
+ * lands, because three things must be in hand at the same moment and they
+ * arrive in no fixed order: the boundary (bootstrap), the pool (bootstrap),
+ * and the identity (auth/me, which the mine count needs). The `computed`
+ * guard is what makes the result a snapshot rather than a running total.
+ */
+function latchSession(): void {
+  if (app.session.computed) return
+  if (!app.session.boundary || app.issues.length === 0) return
+  app.session.computed = true
+  app.session.delta = sessionDelta(app.issues, app.session.boundary, app.me)
+}
+
+/**
+ * A new session begins (GDK-1495 ①): the app was away longer than the
+ * session gap, so the previous session ended when it went away. Clears the
+ * latch so the strip speaks once more — with the pool the return's own sync
+ * is about to refresh, not the one from before the app was hidden.
+ */
+function relatchSession(hiddenAtMs: number | null): void {
+  const since = relatchBoundary(hiddenAtMs, Date.now())
+  if (!since) return
+  app.session = { boundary: since, delta: null, computed: false, dismissed: false }
+}
+
+/** The strip is a reading, and reading it is done with (tap = dismiss). */
+export function dismissSessionStrip(): void {
+  app.session.dismissed = true
 }
 
 /**
@@ -360,6 +426,17 @@ export async function sync(): Promise<void> {
     const res = await request<BootstrapResponse>('issues/bootstrap/', { etag })
     if (res.status !== 304 && res.body) {
       app.issues = res.body.issues
+      // The learned threshold the age bands read (GDK-1495 ②). Absent means
+      // "nothing to learn from" — the desktop's own default takes over.
+      app.flow = res.body.flow ?? null
+      setFlow(app.flow)
+      // The session boundary rides bootstrap only, and only claims the latch
+      // when nothing has claimed it yet: a re-latch is a *newer* session than
+      // anything the serve can know about, so it must not be overwritten by
+      // the refresh the return itself triggers.
+      if (res.body.last_session_ended_at && !app.session.boundary) {
+        app.session.boundary = res.body.last_session_ended_at
+      }
       etag = res.etag
       writeJSON(scopedKey(CACHE_KEY), {
         etag,
@@ -407,6 +484,8 @@ export async function sync(): Promise<void> {
     } catch {
       // Keep whatever was painted; no feed answered → no strip this cycle.
     }
+    // After identity, because the mine count needs it.
+    latchSession()
     app.loaded = true
     app.offline = false
     app.lastSyncAt = new Date()
@@ -637,6 +716,12 @@ function resetSessionState(): void {
   app.detail = null
   app.tab = 'issues'
   app.terminal = null
+  // The boundary and the threshold belong to the host being left, not to the
+  // next one (GDK-1495): a strip latched on one workspace must not speak on
+  // another's pool.
+  app.flow = null
+  setFlow(null)
+  app.session = { boundary: null, delta: null, computed: false, dismissed: false }
   etag = null
 }
 
@@ -867,8 +952,17 @@ export function startClock(): () => void {
   const id = setInterval(() => {
     app.now = new Date()
   }, 30_000)
+  // The app's away-time, owned here because this is already the one place
+  // that hears the app leave and come back (GDK-1495 ①).
+  let hiddenAt: number | null = null
   const onVisible = () => {
+    if (document.visibilityState === 'hidden') {
+      hiddenAt = Date.now()
+      return
+    }
     if (document.visibilityState === 'visible') {
+      relatchSession(hiddenAt)
+      hiddenAt = null
       app.now = new Date()
       void sync()
     }

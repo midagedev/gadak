@@ -400,3 +400,92 @@ describe('GDK-1497 A2 — the create sheet on the Issues screen', () => {
     expect(issues).toMatch(/t\('common\.project'\)/)
   })
 })
+
+describe('GDK-1495 A4 — the 0.21 concepts are the desktop’s rules, imported', () => {
+  const domain = read('lib/domain.ts')
+  const row = markup('ui/Row.svelte')
+  const issues = markup('screens/Issues.svelte')
+  const detail = markup('screens/Detail.svelte')
+
+  it('imports every awareness rule from its desktop owner, and re-spells none', () => {
+    // The seam, as a gate: a later round that finds the import awkward and
+    // types the rule out by hand is the failure this catches. Each pair is
+    // (symbol, owning module) — the phone may adapt the call, never the rule.
+    for (const [symbol, owner] of [
+      ['workAge', 'lib/view-config'],
+      ['isStale', 'lib/view-config'],
+      ['staleThresholdHoursEffective', 'lib/view-config'],
+      ['setStaleFlowSource', 'lib/view-config'],
+      ['relatchBoundary', 'lib/session-strip'],
+      ['changedSince', 'lib/session-strip'],
+      ['stripLabel', 'lib/session-strip'],
+      ['pickSince', 'lib/resume-card'],
+      ['resumeDelta', 'lib/resume-card'],
+      ['resumeLabel', 'lib/resume-card'],
+      ['builtinViews', 'lib/builtin-views'],
+    ] as const) {
+      const at = domain.indexOf(symbol)
+      expect(at, `domain.ts does not mention ${symbol}`).toBeGreaterThan(-1)
+      expect(domain, `${symbol} is not imported from web/src/${owner}`).toMatch(
+        new RegExp(`import[^]{0,400}\\b${symbol}\\b[^]{0,400}web/src/${owner.replace('/', '\\/')}'`),
+      )
+    }
+    // The two numbers a copy would have to spell out: the session gap and
+    // the p85 sample bar. Neither may appear as a literal on this side.
+    expect(domain).not.toMatch(/30\s*\*\s*60\s*\*\s*1000/)
+    expect(domain).not.toMatch(/CycleP85MinSamples|FLOW_MIN_SAMPLES/)
+  })
+
+  it('② the row wears the work-item age as data, never as a control', () => {
+    expect(row).toMatch(/rowIsStale\(issue\)/)
+    expect(row).toMatch(/rowAgeDays\(issue\)/)
+    expect(row).toMatch(/t\('list\.staleDaysShort'/)
+    // GDK-906: the header chip is data. So is this one — a span with a
+    // title, not a button that filters.
+    const at = row.indexOf('class="age"')
+    expect(at).toBeGreaterThan(-1)
+    expect(row.slice(row.lastIndexOf('<', at), at)).toBe('<span ')
+  })
+
+  it('① the session strip is the list’s first line, above the glance strip', () => {
+    const strip = issues.indexOf('data-testid="session-strip"')
+    const glance = issues.indexOf('<GlanceStrip')
+    expect(strip).toBeGreaterThan(-1)
+    expect(glance).toBeGreaterThan(-1)
+    expect(strip).toBeLessThan(glance)
+    expect(issues).toMatch(/sessionLine\(/)
+  })
+
+  it('① the latch has one owner, and one visibility listener feeds it', () => {
+    const store = read('lib/store.svelte.ts')
+    // The away-clock and the re-latch live where the app already hears it
+    // leave and return; a second visibilitychange listener for the strip is
+    // the drift this catches.
+    expect(store.match(/addEventListener\('visibilitychange'/g)?.length).toBe(1)
+    expect(store).toMatch(/visibilityState === 'hidden'/)
+    expect(store).toMatch(/relatchBoundary\(hiddenAtMs, Date\.now\(\)\)/)
+    // The count is a snapshot: one guard, set before it is filled, so a
+    // later sync cannot grow it.
+    const at = store.indexOf('function latchSession')
+    expect(at).toBeGreaterThan(-1)
+    const fn = store.slice(at, store.indexOf('\n}', at))
+    expect(fn).toMatch(/if \(app\.session\.computed\) return/)
+    expect(fn.indexOf('app.session.computed = true')).toBeLessThan(fn.indexOf('app.session.delta ='))
+    // Leaving a host takes its boundary and its threshold with it.
+    const reset = store.slice(store.indexOf('function resetSessionState'))
+    expect(reset.slice(0, reset.indexOf('\n}'))).toMatch(/app\.session = \{/)
+  })
+
+  it('③ the resume card sits above the comments, and dismisses locally', () => {
+    const card = detail.indexOf('data-testid="resume-card"')
+    const comments = detail.indexOf("t('detail.comments')")
+    expect(card).toBeGreaterThan(-1)
+    expect(card).toBeLessThan(comments)
+    expect(detail).toMatch(/resumeDismissed/)
+    // No fetch of its own: the card rides the detail response already loaded.
+    const script = read('screens/Detail.svelte')
+    const at = script.indexOf('const resumeSinceAt')
+    expect(at).toBeGreaterThan(-1)
+    expect(script.slice(at, at + 600)).not.toMatch(/request\(|fetch\(/)
+  })
+})

@@ -19,6 +19,15 @@ export type { ViewConfig, ViewFilters } from '../../../web/src/lib/view-config'
 import type { AdfNode, DetailAttachment } from '../../../web/src/lib/types'
 export type { AdfNode, DetailAttachment }
 
+/**
+ * The two 0.21 awareness shapes, also type-only from the desktop's wire
+ * definition (GDK-1495): the learned flow the stale threshold reads, and one
+ * changelog entry the resume card counts. Same rule as above — one meaning
+ * per wire shape, erased at build.
+ */
+import type { FlowSummary, HistoryEntry } from '../../../web/src/lib/types'
+export type { FlowSummary, HistoryEntry }
+
 export interface IssueLite {
   issue_key: string
   summary: string
@@ -48,6 +57,23 @@ export interface IssueLite {
   comment_count: number
   reopen_count: number
   duedate: string | null
+  /**
+   * Reporter identity, the delegation ledger's half of person-match
+   * (GDK-1495 ④): `delegated` = reported by this account, held by someone
+   * else. Id first, email as the fallback for mirrors that predate ids —
+   * never the display name.
+   */
+  reporter_id?: string | null
+  reporter_email?: string | null
+  /**
+   * The two clocks the row age reads, in the desktop's order (GDK-1495 ②,
+   * web view-config `workAge`): `started_at` is the first entry into
+   * progress (v43, derived server-side), `status_changed_at` is when the
+   * current status began. Both null on rows the origin gives no history
+   * for; `updated_at` above is the last resort.
+   */
+  started_at?: string | null
+  status_changed_at?: string | null
 }
 
 export interface Me {
@@ -60,6 +86,19 @@ export interface BootstrapResponse {
   server_time: string
   sync_version: number
   issues: IssueLite[]
+  /**
+   * The learned stale threshold (p85 cycle time). Sent only when the
+   * workspace has a distribution to learn from and no threshold is set —
+   * the server owns that precedence. Absent → the row age falls back to the
+   * shared default (GDK-1495 ②).
+   */
+  flow?: FlowSummary
+  /**
+   * Where the previous session of person reads ended (server LastSessionEnd,
+   * gap 30m) — the session strip's boundary (GDK-1495 ①). Bootstrap only:
+   * the delta never carries it. Absent when there is no previous session.
+   */
+  last_session_ended_at?: string
 }
 
 export interface DetailComment {
@@ -95,6 +134,20 @@ export interface DetailResponse {
   attachments?: DetailAttachment[]
   comments: DetailComment[]
   linked_issues: LinkedIssue[]
+  /**
+   * The changelog, as the resume card counts it (GDK-1495 ③): entries newer
+   * than the previous visit become status changes, an assignee change, or
+   * "other". The phone does not render the log itself yet.
+   */
+  history?: HistoryEntry[]
+  /**
+   * The two newest person reads of this issue from the serve's local.db.
+   * Absent when the issue was never opened in an app, or local.db cannot be
+   * read — never a zero value. The phone posts no visit of its own, so on a
+   * phone-only workspace both stay absent and no card renders.
+   */
+  last_visited_at?: string
+  previous_visit_at?: string
 }
 
 export interface TransitionDoc {

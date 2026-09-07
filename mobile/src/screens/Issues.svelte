@@ -11,7 +11,16 @@
   import { ApiError, errorMessage } from '../lib/api'
   import { createIssue, getCreateMeta } from '../lib/writes'
   import type { CreateMetaProject } from '../lib/types'
-  import { app, issuesBootKind, openIssue, setScope, showOfflineBanner, sync, switchTab } from '../lib/store.svelte'
+  import {
+    app,
+    dismissSessionStrip,
+    issuesBootKind,
+    openIssue,
+    setScope,
+    showOfflineBanner,
+    sync,
+    switchTab,
+  } from '../lib/store.svelte'
   import {
     buildList,
     buildScopes,
@@ -20,6 +29,7 @@
     resolveScope,
     scopeCount,
     scopePages,
+    sessionLine,
     SCOPE_ALL_OPEN,
     SCOPE_DOCS_UPDATED,
     SCOPE_ME,
@@ -140,6 +150,25 @@
     }
   }
 
+  /*
+   * The session strip (GDK-1495 ①): one quiet line saying what changed since
+   * the previous session — the first thing above the list, before the glance
+   * strip, because it is the reading the return itself is for. Everything it
+   * decides lives in the store (the latch and its snapshot) and in the
+   * desktop's own rules; this is the line and the tap.
+   *
+   * Absence is the design: no boundary, no changes, or dismissed → nothing
+   * renders and there is no empty state. The tap dismisses. The desk's strip
+   * also *arranges* — it turns the changed keys into a view — but the phone
+   * has no keys view to turn them into yet, and a control that pretends to
+   * one would be the lie the picker's disabled rows exist to avoid.
+   */
+  const sessionText = $derived(
+    app.session.delta && !app.session.dismissed && app.session.boundary
+      ? sessionLine(app.session.delta, relTime(app.session.boundary, app.now), app.me)
+      : '',
+  )
+
   const syncLabel = $derived(
     app.syncing ? 'syncing' : app.lastSyncAt ? relTime(app.lastSyncAt.toISOString(), app.now) : '—',
   )
@@ -202,6 +231,12 @@
       <p class="note">This serve has no identity to filter by.</p>
     {/if}
   {/snippet}
+
+  {#if sessionText}
+    <button class="session" data-testid="session-strip" onclick={dismissSessionStrip}>
+      {sessionText}
+    </button>
+  {/if}
 
   <!-- GDK-871: the glance strip — first band under the heading, above every
        plate, scope-independent (the feed is a person's, not a scope's). It
@@ -478,6 +513,23 @@
     font-size: var(--text-body);
     min-height: var(--spacing-control);
     padding: 0 16px;
+  }
+  /* One line, never two: the strip truncates rather than wrapping — a
+     wrapped strip is a block, and a block above the list reads as chrome. */
+  .session {
+    display: block;
+    width: 100%;
+    padding: 6px 16px;
+    text-align: left;
+    border-bottom: 1px solid var(--color-border-subtle);
+    font-size: var(--text-micro);
+    color: var(--color-text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .session:active {
+    background: var(--color-bg-hover);
   }
   .foot {
     height: 24px;

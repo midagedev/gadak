@@ -3,7 +3,15 @@
   import Sheet from '../ui/Sheet.svelte'
   import AdfBody from '../ui/AdfBody.svelte'
   import { app, closeIssue, openIssue, sync } from '../lib/store.svelte'
-  import { overlayComments, pendingComment, relTime, spineToken } from '../lib/domain'
+  import {
+    overlayComments,
+    pendingComment,
+    relTime,
+    resumeChanges,
+    resumeLine,
+    resumeSince,
+    spineToken,
+  } from '../lib/domain'
   import { request, errorMessage, ApiError } from '../lib/api'
   import {
     setDescription,
@@ -86,6 +94,30 @@
   let pending = $state<DetailComment | null>(null)
 
   const thread = $derived(overlayComments(detail?.comments ?? [], pending))
+
+  /*
+   * Resume card (GDK-1495 ③) — one line above the thread saying what changed
+   * since this issue was last opened. Rides the detail response already
+   * loaded: no fetch of its own, one pass, the desk's own diff
+   * (lib/domain resumeSince/resumeChanges → web resume-card).
+   *
+   * Rendered only when the serve knows of a previous read AND something
+   * happened after it. No previous visit → no card; nothing changed → no
+   * card; and no empty state either — the absence is the reading. The phone
+   * posts no visit of its own yet, so on a workspace nobody opens at a desk
+   * both visit fields stay absent and this stays silent, which is honest.
+   *
+   * Dismissal is local to this screen: the desk's card reveals the change
+   * log, and the phone has no change log to reveal yet.
+   */
+  let resumeDismissed = $state(false)
+  const resumeSinceAt = $derived(detail ? resumeSince(detail) : null)
+  const resumeDelta = $derived(detail ? resumeChanges(detail, resumeSinceAt) : null)
+  const resumeText = $derived(
+    resumeDelta && resumeSinceAt && !resumeDismissed
+      ? resumeLine(resumeDelta, relTime(resumeSinceAt, app.now))
+      : '',
+  )
   /** Accent fill only when this control can send (GDK-934). Empty or writes-off recedes. */
   const sendArmed = $derived(!writesOff && (comment.trim() !== '' || sending))
 
@@ -518,6 +550,11 @@
           <span class="g w1"></span><span class="g w2"></span><span class="g w3"></span>
         </div>
       {:else}
+        {#if resumeText}
+          <button class="resume" data-testid="resume-card" onclick={() => (resumeDismissed = true)}>
+            {resumeText}
+          </button>
+        {/if}
         <h3>{t('detail.comments')} <span class="h-n">{thread.length}</span></h3>
         {#if thread.length === 0}
           <p class="none">No comments yet — yours starts the thread.</p>
@@ -1063,6 +1100,24 @@
   .h-n {
     font-family: var(--font-mono);
     font-weight: 400;
+  }
+  /* One line by contract: the card truncates rather than wrapping — a
+     wrapped card is twice the chips' height and reads as a block, not a
+     line (the desk's own vision FIX, 2026-09-06). */
+  .resume {
+    display: block;
+    width: 100%;
+    margin: 8px 0 0;
+    padding: 4px 0;
+    text-align: left;
+    font-size: var(--text-micro);
+    color: var(--color-text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .resume:active {
+    background: var(--color-bg-hover);
   }
 
   .linked {
