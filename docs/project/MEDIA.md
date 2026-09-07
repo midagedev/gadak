@@ -150,35 +150,36 @@ Measured 2026-09-07 via `ls -la docs/media/` + `ffprobe` (decimal MB = bytes/1e6
 
 | Asset | Size | Bytes (`ls -la`) | Duration | Resolution / fps |
 | --- | --- | --- | --- | --- |
-| `web-demo.gif` | 7.29 MB | 7287984 | 17.5 s | 960×600 @ 8 fps |
-| `web-demo.mp4` | 1.14 MB | 1140503 | 17.5 s | 1024×640 h264 |
-| `search.gif` | 3.65 MB | 3645004 | 7.4 s | 960×600 @ 9 fps |
-| `search.mp4` | 0.55 MB | 548096 | 7.5 s | 800×640 h264 |
-| `terminal-demo.gif` | 7.37 MB | 7373813 | 22.6 s | 860×1075 @ 9 fps |
-| `terminal-demo.mp4` | 1.74 MB | 1740965 | 22.6 s | 1080×1350 h264 |
-| `terminal-hero.gif` | 4.26 MB | 4263918 | 42.3 s | 900×563 @ 8 fps |
-| `terminal-hero.mp4` | 2.94 MB | 2935713 | 42.2 s | 1440×900 h264 |
+| `scale.mp4` | 2.88 MB | 2876600 | 15.9 s | 1280×800 h264 |
+| `web-demo.gif` | 7.27 MB | 7270874 | 17.5 s | 960×600 @ 8 fps |
+| `web-demo.mp4` | 1.13 MB | 1129740 | 17.4 s | 1024×640 h264 |
+| `search.gif` | 3.88 MB | 3880973 | 7.5 s | 960×600 @ 9 fps |
+| `search.mp4` | 0.58 MB | 584893 | 7.5 s | 800×640 h264 |
+| `terminal-demo.gif` | 6.91 MB | 6907679 | 23.0 s | 860×1075 @ 9 fps |
+| `terminal-demo.mp4` | 1.80 MB | 1795187 | 23.0 s | 1080×1350 h264 |
+| `terminal-hero.gif` | 8.15 MB | 8145462 | 40.8 s | 1200×750 @ 8 fps |
+| `terminal-hero.mp4` | 2.70 MB | 2699138 | 40.7 s | 1440×900 h264 |
 | `mcp.gif` | 0.22 MB | 216496 | 24.7 s | 1080×620 @ 25 fps |
 | `mcp.mp4` | 0.23 MB | 229806 | 24.7 s | 1080×620 h264 |
 | `raycast.gif` | 0.98 MB | 982043 | 13.2 s | 960×579 @ 10 fps |
 | `raycast.mp4` | 0.26 MB | 255880 | 13.2 s | 1088×656 h264 |
-| `tokens.gif` | 3.28 MB | 3283247 | 26.4 s | 1280×493 @ 9 fps |
-| `tokens.mp4` | 0.82 MB | 817258 | 26.4 s | 1744×672 h264 |
-| `dashboards.gif` | 4.58 MB | 4583960 | 40.9 s | 1280×493 @ 9 fps |
-| `dashboards.mp4` | 1.29 MB | 1288441 | 40.9 s | 1744×672 h264 |
+| `tokens.gif` | 3.37 MB | 3369213 | 27.3 s | 1280×493 @ 9 fps |
+| `tokens.mp4` | 0.82 MB | 820558 | 27.3 s | 1744×672 h264 |
+| `dashboards.gif` | 4.74 MB | 4737813 | 41.4 s | 1280×493 @ 9 fps |
+| `dashboards.mp4` | 1.19 MB | 1185722 | 41.4 s | 1744×672 h264 |
 | `tokens-vertical.mp4` | 1.34 MB | 1339418 | 26.9 s | 1080×1350 h264 |
 | `dashboards-vertical.mp4` | 1.88 MB | 1877890 | 37.4 s | 1080×1350 h264 |
-| `claude-dashboards-vertical.mp4` | 1.36 MB | 1356608 | 24.3 s | 1080×1350 h264 |
-| `claude-tokens-vertical.mp4` | 1.27 MB | 1270700 | 18.0 s | 1080×1350 h264 |
-| `claude-dashboards-vertical.gif` | 1.06 MB | 1055412 | 24.3 s | 430×538 @ 9 fps |
-| `claude-tokens-vertical.gif` | 1.38 MB | 1378951 | 18.0 s | 430×538 @ 9 fps |
+| `claude-dashboards-vertical.mp4` | 1.49 MB | 1485156 | 24.2 s | 1080×1350 h264 |
+| `claude-tokens-vertical.mp4` | 0.63 MB | 633094 | 8.2 s | 1080×1350 h264 |
+| `claude-dashboards-vertical.gif` | 1.14 MB | 1142165 | 24.2 s | 430×538 @ 9 fps |
+| `claude-tokens-vertical.gif` | 0.67 MB | 665354 | 8.2 s | 430×538 @ 9 fps |
 | `roundtrip.mp4` | 3.29 MB | 3292613 | 21.2 s | 1920×1296 h264 |
-| `scale.gif` | 2.92 MB | 2924092 | 16.0 s | 800×500 @ 7 fps |
-| `scale.mp4` | 3.00 MB | 3004016 | 16.0 s | 1280×800 h264 |
-| `groupby.gif` | 3.34 MB | 3343670 | 7.1 s | 900×563 @ 8 fps |
-| `groupby.mp4` | 0.84 MB | 844611 | 7.1 s | 1280×800 h264 |
-| `history.gif` | 3.83 MB | 3827061 | 9.6 s | 960×600 @ 8 fps |
-| `history.mp4` | 0.87 MB | 868446 | 9.7 s | 1280×800 h264 |
+| `scale.gif` | 3.98 MB | 3977202 | 15.9 s | 960×600 @ 8 fps |
+| `scale.mp4` | 2.88 MB | 2876600 | 15.9 s | 1280×800 h264 |
+| `groupby.gif` | 3.38 MB | 3378460 | 7.1 s | 900×563 @ 8 fps |
+| `groupby.mp4` | 0.88 MB | 877523 | 7.1 s | 1280×800 h264 |
+| `history.gif` | 3.71 MB | 3706184 | 10.7 s | 960×600 @ 9 fps |
+| `history.mp4` | 0.77 MB | 767353 | 10.7 s | 1280×800 h264 |
 
 ## Readability comes first, and it costs bytes
 
