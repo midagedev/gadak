@@ -101,11 +101,11 @@ func cmdSync(args []string) error {
 			if err != nil {
 				return err
 			}
-			if syncStale(deref(st.SyncedAt, ""), deref(st.LastError, ""), now, staleEvery) {
+			if syncStale(derefOrEmpty(st.SyncedAt, ""), derefOrEmpty(st.LastError, ""), now, staleEvery) {
 				return nil
 			}
 			*run = false
-			fresh = append(fresh, id+" synced "+relativeAge(deref(st.SyncedAt, ""), now))
+			fresh = append(fresh, id+" synced "+relativeAge(derefOrEmpty(st.SyncedAt, ""), now))
 			return nil
 		}
 		if err := skipFresh(syncer.SourceID, &runJira); err != nil {

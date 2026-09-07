@@ -26,7 +26,6 @@ import (
 	"os/exec"
 	"runtime"
 	"slices"
-	"sort"
 	"strings"
 	"time"
 	"unicode"
@@ -189,10 +188,16 @@ func lookup(db *store.DB, keys []string) ([]store.IssueLite, error) {
 // confirmation a write prints. Tab-separated for the same reason `sql` is:
 // `cut -f1` has to work.
 func summaryLine(l store.IssueLite) string {
-	return strings.Join([]string{l.IssueKey, l.Status, deref(l.Assignee, "(unassigned)"), l.Summary}, "\t")
+	return strings.Join([]string{l.IssueKey, l.Status, derefOrEmpty(l.Assignee, "(unassigned)"), l.Summary}, "\t")
 }
 
-func deref(s *string, fallback string) string {
+// derefOrEmpty derefs and folds: nil AND a stored empty string both take
+// the fallback. That fold is what "(unassigned)" and the deriveNull
+// markers below rely on — a stored "" is a value the display replaces.
+// The name says so since GDK-1579: an earlier same-named `deref` sibling
+// in internal/dashboards kept "" (nil-only), and two helpers with one
+// name and different truth tables hid which side a binding rode.
+func derefOrEmpty(s *string, fallback string) string {
 	if s == nil || *s == "" {
 		return fallback
 	}
@@ -384,7 +389,7 @@ func loadIssueDocs(db *store.DB, keys []string) ([]issueDoc, []string, error) {
 			Detail:    d,
 			LinkedPRs: linkedPRsJSON(d),
 			durations: store.Durations(store.DurationsInput{
-				Created:    deref(l.CreatedAt, ""),
+				Created:    derefOrEmpty(l.CreatedAt, ""),
 				Changelog:  d.History,
 				Categories: cats,
 				Now:        time.Now(),
@@ -555,34 +560,34 @@ func printIssue(l store.IssueLite, d *store.Detail, dur store.Spans) {
 	kv("project", l.ProjectKey)
 	kv("type", l.IssueType)
 	kv("status", fmt.Sprintf("%s (%s)", l.Status, l.StatusCategory))
-	kv("priority", deref(l.Priority, ""))
-	kv("assignee", deref(l.Assignee, "(unassigned)"))
-	kv("reporter", deref(l.Reporter, ""))
-	kv("parent", deref(l.ParentKey, ""))
-	kv("epic", deref(l.EpicKey, ""))
+	kv("priority", derefOrEmpty(l.Priority, ""))
+	kv("assignee", derefOrEmpty(l.Assignee, "(unassigned)"))
+	kv("reporter", derefOrEmpty(l.Reporter, ""))
+	kv("parent", derefOrEmpty(l.ParentKey, ""))
+	kv("epic", derefOrEmpty(l.EpicKey, ""))
 	kv("labels", strings.Join(l.Labels, ", "))
 	kv("components", strings.Join(l.Components, ", "))
 	kv("fix versions", strings.Join(l.FixVersions, ", "))
-	kv("duedate", deref(l.Duedate, ""))
-	kv("resolution", deref(l.Resolution, ""))
+	kv("duedate", derefOrEmpty(l.Duedate, ""))
+	kv("resolution", derefOrEmpty(l.Resolution, ""))
 	// Restricted issues only: kv skips empty, so unrestricted rows stay
 	// indistinguishable in the text form. Prefer the display name; fall
 	// back to the id when the origin sent id without name.
-	if name := deref(l.SecurityLevel, ""); name != "" {
+	if name := derefOrEmpty(l.SecurityLevel, ""); name != "" {
 		kv("security", name)
 	} else {
-		kv("security", deref(l.SecurityLevelID, ""))
+		kv("security", derefOrEmpty(l.SecurityLevelID, ""))
 	}
-	kv("created", deref(l.CreatedAt, ""))
-	kv("updated", deref(l.UpdatedAt, ""))
-	kv("status since", deref(l.StatusChangedAt, ""))
-	kv("resolved", deref(l.ResolvedAt, ""))
+	kv("created", derefOrEmpty(l.CreatedAt, ""))
+	kv("updated", derefOrEmpty(l.UpdatedAt, ""))
+	kv("status since", derefOrEmpty(l.StatusChangedAt, ""))
+	kv("resolved", derefOrEmpty(l.ResolvedAt, ""))
 	// Computed from the changelog, never stored (data-model.md keeps
 	// time-in-status absent); kv skips the whole line when neither span
 	// exists — an issue that never entered progress has nothing to say.
 	kv("durations", dur.Line())
 	if l.ReopenCount > 0 {
-		kv("reopens", fmt.Sprintf("%d (last %s)", l.ReopenCount, deref(l.ReopenedAt, "?")))
+		kv("reopens", fmt.Sprintf("%d (last %s)", l.ReopenCount, derefOrEmpty(l.ReopenedAt, "?")))
 	}
 	// Sorted: map order would make two runs on the same issue differ.
 	aliases := slices.Sorted(maps.Keys(l.Custom))
@@ -825,7 +830,7 @@ func deriveInput(l store.IssueLite, d *store.Detail, c *deriveContext) store.Der
 	in := store.DeriveInput{
 		Categories:      c.categories,
 		CurrentCategory: l.StatusCategory,
-		Priority:        deref(l.Priority, ""),
+		Priority:        derefOrEmpty(l.Priority, ""),
 		Priorities:      c.priorities,
 	}
 	for _, h := range d.History {
@@ -941,7 +946,7 @@ func printDerivation(l store.IssueLite, d *store.Detail) error {
 	}
 
 	fmt.Println()
-	fmt.Printf("status_changed_at = %s\n", deref(got.StatusChangedAt, deriveNull))
+	fmt.Printf("status_changed_at = %s\n", derefOrEmpty(got.StatusChangedAt, deriveNull))
 	fmt.Println("  the newest changelog row whose field is status" + rowRef(statusRow))
 
 	fmt.Printf("reopen_count = %d\n", got.ReopenCount)
@@ -953,14 +958,14 @@ func printDerivation(l store.IssueLite, d *store.Detail) error {
 		fmt.Println("  none — nothing left the done category")
 	}
 
-	fmt.Printf("reopened_at = %s\n", deref(got.ReopenedAt, deriveNull))
+	fmt.Printf("reopened_at = %s\n", derefOrEmpty(got.ReopenedAt, deriveNull))
 	if got.ReopenedAt == nil {
 		fmt.Println("  no reopen row above")
 	} else {
 		fmt.Println("  the newest of the reopen rows above")
 	}
 
-	fmt.Printf("resolved_at = %s\n", deref(got.ResolvedAt, deriveNull))
+	fmt.Printf("resolved_at = %s\n", derefOrEmpty(got.ResolvedAt, deriveNull))
 	switch {
 	case resolvedRow == "":
 		fmt.Println("  no changelog row ever moved this issue into category done")
@@ -974,7 +979,7 @@ func printDerivation(l store.IssueLite, d *store.Detail) error {
 	fmt.Printf("reopen_reason = %s\n", oneLine(got.ReopenReason, "(empty)"))
 	printReopenReason(in.Comments, got)
 
-	fmt.Printf("assignee_changed_at = %s\n", deref(got.AssigneeChangedAt, deriveNull))
+	fmt.Printf("assignee_changed_at = %s\n", derefOrEmpty(got.AssigneeChangedAt, deriveNull))
 	fmt.Println("  the newest changelog row whose field is assignee" + rowRef(assigneeRow))
 
 	fmt.Printf("comment_count = %d\n", got.CommentCount)
@@ -982,7 +987,7 @@ func printDerivation(l store.IssueLite, d *store.Detail) error {
 
 	fmt.Printf("priority_rank = %d\n", got.PriorityRank)
 	fmt.Printf("  1-based position of %q in the site's %d-priority list; 0 means unset or\n",
-		deref(l.Priority, ""), len(c.priorities))
+		derefOrEmpty(l.Priority, ""), len(c.priorities))
 	fmt.Println("  not on the list. Sort on this, never on the priority name")
 
 	fmt.Printf("cloned_from = %s\n", orNone(got.ClonedFrom))
@@ -1075,7 +1080,7 @@ func printReopenReason(comments []store.Comment, got store.Derived) {
 		if c.CreatedAt == "" || c.CreatedAt < *got.ReopenedAt || c.BodyText != got.ReopenReason {
 			continue
 		}
-		fmt.Printf("  comment %s by %s at %s\n", deref(&c.ExternalID, c.ID), c.Author, c.CreatedAt)
+		fmt.Printf("  comment %s by %s at %s\n", derefOrEmpty(&c.ExternalID, c.ID), c.Author, c.CreatedAt)
 		break
 	}
 	fmt.Println(indent(got.ReopenReason))
@@ -1097,10 +1102,10 @@ func printClonedFrom(links []store.DetailLink, clonedFrom string) {
 // UPDATE store.recomputeEpicKeys runs after every upsert batch; re-deciding the
 // winner here would be the second derivation this command exists to prevent.
 func printEpicKey(l store.IssueLite, c *deriveContext) {
-	fmt.Printf("epic_key = %s\n", deref(l.EpicKey, deriveNull))
+	fmt.Printf("epic_key = %s\n", derefOrEmpty(l.EpicKey, deriveNull))
 	fmt.Println("  the nearest hierarchy_level = 1 ancestor along parent_key, computed in SQL")
 	fmt.Println("  after every upsert batch — shown here from the stored chain, not recomputed")
-	stored := deref(l.EpicKey, "")
+	stored := derefOrEmpty(l.EpicKey, "")
 	for _, hop := range c.chain {
 		label := fmt.Sprintf("  %s (hierarchy_level %d)", hop.key, hop.level)
 		switch {
@@ -1128,14 +1133,14 @@ func printAgreement(l store.IssueLite, got store.Derived) {
 		long          bool
 	}
 	pairs := []pair{
-		{name: "status_changed_at", stored: deref(l.StatusChangedAt, deriveNull), fresh: deref(got.StatusChangedAt, deriveNull)},
-		{name: "resolved_at", stored: deref(l.ResolvedAt, deriveNull), fresh: deref(got.ResolvedAt, deriveNull)},
+		{name: "status_changed_at", stored: derefOrEmpty(l.StatusChangedAt, deriveNull), fresh: derefOrEmpty(got.StatusChangedAt, deriveNull)},
+		{name: "resolved_at", stored: derefOrEmpty(l.ResolvedAt, deriveNull), fresh: derefOrEmpty(got.ResolvedAt, deriveNull)},
 		{name: "reopen_count", stored: fmt.Sprint(l.ReopenCount), fresh: fmt.Sprint(got.ReopenCount)},
-		{name: "reopened_at", stored: deref(l.ReopenedAt, deriveNull), fresh: deref(got.ReopenedAt, deriveNull)},
-		{name: "reopen_reason", stored: deref(l.ReopenReason, ""), fresh: got.ReopenReason, long: true},
+		{name: "reopened_at", stored: derefOrEmpty(l.ReopenedAt, deriveNull), fresh: derefOrEmpty(got.ReopenedAt, deriveNull)},
+		{name: "reopen_reason", stored: derefOrEmpty(l.ReopenReason, ""), fresh: got.ReopenReason, long: true},
 		{name: "comment_count", stored: fmt.Sprint(l.CommentCount), fresh: fmt.Sprint(got.CommentCount)},
 		{name: "priority_rank", stored: fmt.Sprint(l.PriorityRank), fresh: fmt.Sprint(got.PriorityRank)},
-		{name: "cloned_from", stored: deref(l.ClonedFrom, deriveNull), fresh: orNone(got.ClonedFrom)},
+		{name: "cloned_from", stored: derefOrEmpty(l.ClonedFrom, deriveNull), fresh: orNone(got.ClonedFrom)},
 	}
 	var differ []pair
 	for _, p := range pairs {
@@ -1361,19 +1366,7 @@ func searchJQL(query string, limit int, asJSON, emitOnly, force bool) error {
 	if err != nil {
 		return err
 	}
-	peopleIssues := make([]jql.Issue, len(peopleRows))
-	for i, p := range peopleRows {
-		peopleIssues[i] = jql.Issue{
-			Assignee:      p.AssigneeName,
-			AssigneeEmail: p.AssigneeEmail,
-			AssigneeID:    p.AssigneeID,
-			Reporter:      p.ReporterName,
-			ReporterEmail: p.ReporterEmail,
-			ReporterID:    p.ReporterID,
-		}
-	}
-	people := jql.PeopleFromIssues(peopleIssues)
-	jql.ResolvePeople(&parsed, people, opts.Email)
+	jql.ResolvePeople(&parsed, store.ActorPeople(peopleRows), opts.Email)
 
 	if emitOnly {
 		if asJSON {
@@ -1397,11 +1390,11 @@ func searchJQL(query string, limit int, asJSON, emitOnly, force bool) error {
 	}
 	matched := make([]store.IssueLite, 0)
 	for _, l := range lites {
-		if jql.Match(jqlIssue(l), parsed.Filters) {
+		if jql.Match(store.LiteToIssue(l), parsed.Filters) {
 			matched = append(matched, l)
 		}
 	}
-	sortJQL(matched, parsed.Display)
+	store.SortDisplay(matched, parsed.Display)
 	if limit > 0 && len(matched) > limit {
 		matched = matched[:limit]
 	}
@@ -1437,70 +1430,6 @@ func configuredEmail() string {
 		return ""
 	}
 	return cfg.Email
-}
-
-func jqlIssue(l store.IssueLite) jql.Issue {
-	return jql.Issue{
-		Key:            l.IssueKey,
-		ParentKey:      deref(l.ParentKey, ""),
-		Project:        l.ProjectKey,
-		Status:         l.Status,
-		StatusCategory: l.StatusCategory,
-		Type:           l.IssueType,
-		Priority:       deref(l.Priority, ""),
-		Assignee:       deref(l.Assignee, ""),
-		AssigneeEmail:  deref(l.AssigneeEmail, ""),
-		AssigneeID:     deref(l.AssigneeID, ""),
-		Reporter:       deref(l.Reporter, ""),
-		ReporterEmail:  deref(l.ReporterEmail, ""),
-		Labels:         l.Labels,
-		Components:     l.Components,
-		FixVersions:    l.FixVersions,
-		CreatedAt:      deref(l.CreatedAt, ""),
-		UpdatedAt:      deref(l.UpdatedAt, ""),
-		Duedate:        deref(l.Duedate, ""),
-		ResolvedAt:     deref(l.ResolvedAt, ""),
-		SprintID:       sprintIDString(l.SprintID),
-		SprintState:    deref(l.SprintState, ""),
-	}
-}
-
-func sprintIDString(id *int64) string {
-	if id == nil {
-		return ""
-	}
-	return fmt.Sprintf("%d", *id)
-}
-
-func sortJQL(list []store.IssueLite, d jql.Display) {
-	dir := 1
-	if d.Dir != "asc" {
-		dir = -1
-	}
-	lessTime := func(a, b *string) bool {
-		av, bv := deref(a, ""), deref(b, "")
-		if dir < 0 {
-			return av > bv
-		}
-		return av < bv
-	}
-	sort.SliceStable(list, func(i, j int) bool {
-		a, b := list[i], list[j]
-		switch d.Sort {
-		case "created":
-			return lessTime(a.CreatedAt, b.CreatedAt)
-		case "priority":
-			if a.PriorityRank != b.PriorityRank {
-				if dir < 0 {
-					return a.PriorityRank < b.PriorityRank
-				}
-				return a.PriorityRank > b.PriorityRank
-			}
-			return deref(a.UpdatedAt, "") > deref(b.UpdatedAt, "")
-		default:
-			return lessTime(a.UpdatedAt, b.UpdatedAt)
-		}
-	})
 }
 
 /* ── writes ── */

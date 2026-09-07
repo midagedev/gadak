@@ -83,6 +83,10 @@ func emptyViewConfig() json.RawMessage {
 	return json.RawMessage(`{"filters":{},"display":{"group_by":"status_category"}}`)
 }
 
+// peopleFromDB builds the resolver roster from the mirror rows sync already
+// holds. It rides store.LiteToIssue (the one lite→jql mapping, GDK-1574)
+// even though PeopleFromIssues only reads the person columns — a private
+// seven-field copy here is exactly how the CLI copy drifted (GDK-1564).
 func peopleFromDB(ctx context.Context, db *store.DB) []jql.Person {
 	lites, err := db.IssueLites(ctx)
 	if err != nil {
@@ -90,22 +94,7 @@ func peopleFromDB(ctx context.Context, db *store.DB) []jql.Person {
 	}
 	issues := make([]jql.Issue, len(lites))
 	for i, l := range lites {
-		issues[i] = jql.Issue{
-			ParentKey:     derefPtr(l.ParentKey),
-			Assignee:      derefPtr(l.Assignee),
-			AssigneeEmail: derefPtr(l.AssigneeEmail),
-			AssigneeID:    derefPtr(l.AssigneeID),
-			Reporter:      derefPtr(l.Reporter),
-			ReporterEmail: derefPtr(l.ReporterEmail),
-			ReporterID:    derefPtr(l.ReporterID),
-		}
+		issues[i] = store.LiteToIssue(l)
 	}
 	return jql.PeopleFromIssues(issues)
-}
-
-func derefPtr(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
 }

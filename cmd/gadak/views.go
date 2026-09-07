@@ -483,18 +483,7 @@ func peopleFromStore(db *store.DB) []jql.Person {
 	if err != nil {
 		return nil
 	}
-	issues := make([]jql.Issue, len(people))
-	for i, p := range people {
-		issues[i] = jql.Issue{
-			Assignee:      p.AssigneeName,
-			AssigneeEmail: p.AssigneeEmail,
-			AssigneeID:    p.AssigneeID,
-			Reporter:      p.ReporterName,
-			ReporterEmail: p.ReporterEmail,
-			ReporterID:    p.ReporterID,
-		}
-	}
-	return jql.PeopleFromIssues(issues)
+	return store.ActorPeople(people)
 }
 
 func compactJQL(s string) string {

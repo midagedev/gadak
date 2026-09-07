@@ -22,7 +22,6 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
-	"sort"
 	"strings"
 	"time"
 
@@ -317,7 +316,7 @@ func ExecuteJQL(ctx context.Context, db *store.DB, me jql.Identity, query string
 	if err != nil {
 		return Result{}, err
 	}
-	jql.ResolveIdentity(&parsed, actorsToPeople(people), me)
+	jql.ResolveIdentity(&parsed, store.ActorPeople(people), me)
 	if len(parsed.Applied) == 0 && len(parsed.Unsupported) > 0 {
 		return Result{}, fmt.Errorf("cannot apply JQL — %s", strings.Join(parsed.Unsupported, "; "))
 	}
@@ -327,11 +326,11 @@ func ExecuteJQL(ctx context.Context, db *store.DB, me jql.Identity, query string
 	}
 	matched := make([]store.IssueLite, 0, len(lites))
 	for _, l := range lites {
-		if jql.Match(liteToIssue(l), parsed.Filters) {
+		if jql.Match(store.LiteToIssue(l), parsed.Filters) {
 			matched = append(matched, l)
 		}
 	}
-	sortDisplay(matched, parsed.Display)
+	store.SortDisplay(matched, parsed.Display)
 	sink := &rowSink{}
 	sink.columns(jqlColumns)
 	for _, l := range matched {
@@ -352,99 +351,15 @@ func ExecuteJQL(ctx context.Context, db *store.DB, me jql.Identity, query string
 	return sink.result(warning), nil
 }
 
-// The three helpers below are the package-boundary copies this feature
-// could not import: their originals live in package main (cmd/gadak) or in
-// the server package, and internal/jql deliberately does not import store
-// (its own doc comment says so). Each copy cites its sibling; if a third
-// surface needs one, promote that helper to a shared home first.
-
-// liteToIssue maps a mirror row onto jql's neutral shape. Sibling:
-// jqlIssue in cmd/gadak/agent.go (searchJQL's match step).
-func liteToIssue(l store.IssueLite) jql.Issue {
-	return jql.Issue{
-		Key:            l.IssueKey,
-		ParentKey:      deref(l.ParentKey, ""),
-		Project:        l.ProjectKey,
-		Status:         l.Status,
-		StatusCategory: l.StatusCategory,
-		Type:           l.IssueType,
-		Priority:       deref(l.Priority, ""),
-		Assignee:       deref(l.Assignee, ""),
-		AssigneeEmail:  deref(l.AssigneeEmail, ""),
-		AssigneeID:     deref(l.AssigneeID, ""),
-		Reporter:       deref(l.Reporter, ""),
-		ReporterEmail:  deref(l.ReporterEmail, ""),
-		ReporterID:     deref(l.ReporterID, ""),
-		Labels:         l.Labels,
-		Components:     l.Components,
-		FixVersions:    l.FixVersions,
-		CreatedAt:      deref(l.CreatedAt, ""),
-		UpdatedAt:      deref(l.UpdatedAt, ""),
-		Duedate:        deref(l.Duedate, ""),
-		ResolvedAt:     deref(l.ResolvedAt, ""),
-		SprintID:       sprintIDString(l.SprintID),
-		SprintState:    deref(l.SprintState, ""),
-	}
-}
-
-// actorsToPeople turns the narrow actor projection into ResolveIdentity's
-// input. Sibling: peopleFromActors in internal/server/jql.go.
-func actorsToPeople(people []store.ActorPerson) []jql.Person {
-	issues := make([]jql.Issue, len(people))
-	for i, p := range people {
-		issues[i] = jql.Issue{
-			Assignee:      p.AssigneeName,
-			AssigneeEmail: p.AssigneeEmail,
-			AssigneeID:    p.AssigneeID,
-			Reporter:      p.ReporterName,
-			ReporterEmail: p.ReporterEmail,
-			ReporterID:    p.ReporterID,
-		}
-	}
-	return jql.PeopleFromIssues(issues)
-}
-
-// sortDisplay applies the parsed ORDER BY. Sibling: sortJQL in
-// cmd/gadak/agent.go — same ordering semantics (dir defaults to desc,
-// priority tiebreaks on updated_at) so a JQL dashboard and `gadak search
-// --jql` list the same order.
-func sortDisplay(list []store.IssueLite, d jql.Display) {
-	dir := 1
-	if d.Dir != "asc" {
-		dir = -1
-	}
-	lessTime := func(a, b *string) bool {
-		av, bv := deref(a, ""), deref(b, "")
-		if dir < 0 {
-			return av > bv
-		}
-		return av < bv
-	}
-	sort.SliceStable(list, func(i, j int) bool {
-		a, b := list[i], list[j]
-		switch d.Sort {
-		case "created":
-			return lessTime(a.CreatedAt, b.CreatedAt)
-		case "priority":
-			if a.PriorityRank != b.PriorityRank {
-				if dir < 0 {
-					return a.PriorityRank < b.PriorityRank
-				}
-				return a.PriorityRank > b.PriorityRank
-			}
-			return deref(a.UpdatedAt, "") > deref(b.UpdatedAt, "")
-		default:
-			return lessTime(a.UpdatedAt, b.UpdatedAt)
-		}
-	})
-}
-
-func sprintIDString(id *int64) string {
-	if id == nil {
-		return ""
-	}
-	return fmt.Sprintf("%d", *id)
-}
+// The jql binding this package rides (lite mapping, actor roster, ORDER BY
+// sort) has one owner since GDK-1574: internal/store's jqlbind.go, shared
+// with `gadak search --jql`, the server parse endpoint, and views. This
+// package used to carry sibling copies of all three; the CLI's copy of the
+// lite mapping dropped ReporterID and shipped as GDK-1564 while this one
+// was correct. A surface needing a different binding changes jqlbind.go
+// for everyone — re-copying it here is the mistake this note replaced.
+// The "same order as `gadak search --jql`" half of the old sibling note is
+// now a gate: TestSearchJQLOrdersLikeDashboardJQL in cmd/gadak.
 
 func deref(p *string, fallback string) string {
 	if p == nil {

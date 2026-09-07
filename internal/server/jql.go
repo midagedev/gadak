@@ -48,7 +48,7 @@ func (s *server) handleJql(w http.ResponseWriter, r *http.Request) {
 	if res.Error == "" {
 		// Six narrow columns, not the whole IssueLite set (GDK-756; CLI GDK-748).
 		if people, err := s.db.QueryActorPeople(r.Context()); err == nil {
-			jql.ResolveIdentity(&res, peopleFromActors(people), me)
+			jql.ResolveIdentity(&res, store.ActorPeople(people), me)
 			res.JQL, res.Omitted = jql.Emit(res.Filters, res.Display, jql.EmitOpts{Email: me.Email, AccountID: me.AccountID})
 		}
 	}
@@ -82,19 +82,4 @@ func configuredIdentity(s *server, email string) jql.Identity {
 		me.AccountID = cfg.AccountID
 	}
 	return me
-}
-
-func peopleFromActors(people []store.ActorPerson) []jql.Person {
-	issues := make([]jql.Issue, len(people))
-	for i, p := range people {
-		issues[i] = jql.Issue{
-			Assignee:      p.AssigneeName,
-			AssigneeEmail: p.AssigneeEmail,
-			AssigneeID:    p.AssigneeID,
-			Reporter:      p.ReporterName,
-			ReporterEmail: p.ReporterEmail,
-			ReporterID:    p.ReporterID,
-		}
-	}
-	return jql.PeopleFromIssues(issues)
 }
