@@ -180,6 +180,15 @@ ON CONFLICT(day) DO UPDATE SET
   last_throttled_at = excluded.last_throttled_at;
 SQL
 
+# A ko/ja media take (GADAK_MEDIA_LOCALE, e2e/helpers.ts mediaLocale) records a
+# translated mirror (GDK-1556); the seeded Jira filter is the one string above
+# that lives in this script rather than in the fixture, so it follows the
+# locale here. The e2e suite never sets the variable and keeps 'Open in NMA'.
+case "${GADAK_MEDIA_LOCALE:-en}" in
+  ko) sqlite3 "$DB" "UPDATE source_queries SET name = 'NMA 진행 중' WHERE id = 'jira:e2e-open-nma'" ;;
+  ja) sqlite3 "$DB" "UPDATE source_queries SET name = 'NMA 進行中' WHERE id = 'jira:e2e-open-nma'" ;;
+esac
+
 # GDK-590: one agent worker with real touches. The demo snapshot predates the
 # bot surface entirely (no users rows, no dev_links, every comment human), so
 # the badge / actor filter / linked-by / duration chip specs have nothing to

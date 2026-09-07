@@ -1172,7 +1172,7 @@ export const settings = {
   },
   'settings.rulesFirstWins': {
     en: 'first match wins',
-    ko: '첫 매치가 이깁니다',
+    ko: '먼저 일치한 규칙이 적용됩니다',
     ja: '最初の一致が勝ちます',
   },
   'settings.rulesDetail': {
@@ -1475,17 +1475,17 @@ export const settings = {
   },
   'palette.matchBody': {
     en: 'Body match',
-    ko: '본문 매치',
+    ko: '본문 일치',
     ja: '本文一致',
   },
   'palette.matchComment': {
     en: 'Comment match',
-    ko: '코멘트 매치',
+    ko: '코멘트 일치',
     ja: 'コメント一致',
   },
   'palette.matchTitle': {
     en: 'Title match',
-    ko: '제목 매치',
+    ko: '제목 일치',
     ja: 'タイトル一致',
   },
   'palette.seeMore': {
@@ -1817,7 +1817,7 @@ export const settings = {
   'sync.settledOk': {
     en: 'Synced {when}',
     ko: '{when} 동기화됨',
-    ja: '{when} に同期',
+    ja: '{when}同期',
   },
   'sync.settledDelayedWhen': {
     en: 'Sync delayed · {when}',

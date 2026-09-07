@@ -228,7 +228,7 @@ export const common = {
   },
   'common.watch': {
     en: 'Watch',
-    ko: '워치',
+    ko: '지켜보기',
     ja: 'ウォッチ',
   },
   'common.watching': {
@@ -266,6 +266,13 @@ export const common = {
     en: 'yesterday',
     ko: '어제',
     ja: '昨日',
+  },
+  // Seconds exist only for the detail duration chip (formatSpan): relative
+  // time never goes below "just now".
+  'time.second': {
+    en: '{n}s',
+    ko: '{n}초',
+    ja: '{n}秒',
   },
   'time.minute': {
     en: '{n}m',

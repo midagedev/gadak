@@ -102,7 +102,7 @@ export const list = {
   'filter.searchField': {
     en: 'Search {field}',
     ko: '{field} 검색',
-    ja: '{field} を検索',
+    ja: '{field}を検索',
   },
   'filter.chipFieldValue': {
     en: '{field}: {value}',
@@ -114,12 +114,12 @@ export const list = {
   'filter.chipFieldValueNot': {
     en: '{field}: {neg} {value}',
     ko: '{field}: {value} {neg}',
-    ja: '{field}: {neg} {value}',
+    ja: '{field}: {value} {neg}',
   },
   'filter.chipNegWord': {
     en: 'not',
     ko: '제외',
-    ja: '除外',
+    ja: '以外',
   },
   'filter.chipKeys': {
     en: '{n} keys',
@@ -289,7 +289,7 @@ export const list = {
   },
   'list.bodyMatchCount': {
     en: '{n} body matches · "{q}"',
-    ko: '본문 매치 {n}건 · "{q}"',
+    ko: '본문 일치 {n}건 · "{q}"',
     ja: '本文一致 {n}件 · "{q}"',
   },
   'list.emptyTitle': {

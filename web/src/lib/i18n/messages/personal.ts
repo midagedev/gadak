@@ -24,7 +24,7 @@ export const personal = {
   },
   'personal.recentEmpty': {
     en: 'What you open appears here',
-    ko: '연 항목이 여기에 쌓입니다',
+    ko: '열어본 항목이 여기에 표시됩니다',
     ja: '開いたものがここに並びます',
   },
   'personal.feedHint': {
@@ -188,7 +188,7 @@ export const personal = {
   },
   'feed.whyWatch': {
     en: 'Watching',
-    ko: '워치',
+    ko: '지켜보기',
     ja: 'ウォッチ',
   },
   'feed.whyMention': {

@@ -38,12 +38,15 @@ export function formatSpan(ms: number | null | undefined): string {
   // Negative clamps to zero, same as the server's span(): a jittered stamp
   // reads "now", not "-1s".
   const s = ms <= 0 ? 0 : Math.floor(ms / 1000)
-  if (s < 60) return `${s}s`
+  // Units come from the catalog, the same keys the compact relative time
+  // uses — a Korean chip reads 1분, not 1m (seen in the ko landing take,
+  // 2026-09-07). The number is still the CLI's.
+  if (s < 60) return t('time.second', { n: s })
   const m = Math.floor(s / 60)
-  if (m < 60) return `${m}m`
+  if (m < 60) return t('time.minute', { n: m })
   const h = Math.floor(m / 60)
-  if (h < 24) return `${h}h`
-  return `${Math.floor(h / 24)}d`
+  if (h < 24) return t('time.hour', { n: h })
+  return t('time.day', { n: Math.floor(h / 24) })
 }
 
 /* ── Search-term highlighting ── */

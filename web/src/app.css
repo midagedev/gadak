@@ -279,7 +279,25 @@
    into @layer theme, which any unlayered rule outranks, while the user's own
    font override (user-tokens.ts, also unlayered and appended later) still
    beats this one — an explicit choice outranks a locale default. */
+/* CJK line breaking (ko/ja landing takes, 2026-09-07): a Korean wiki body
+   broke inside a word (엔드포|인트) and a Japanese one opened a line with ー.
+   keep-all breaks Hangul at spaces only — overflow-wrap: anywhere keeps a
+   long URL or key from pushing the column; line-break: strict applies the
+   kinsoku set (no ー・small kana・closing brackets at a line start). Locale
+   comes from documentElement.lang, the same hook the font stacks use. The
+   uppercase utility is Latin display styling: on a CJK page it turns the
+   one Latin word in a heading into JIRA 필터, so it is switched off here at
+   its single owner rather than per heading. */
+:lang(ko) {
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+:lang(ko) .uppercase,
+:lang(ja) .uppercase {
+  text-transform: none;
+}
 :lang(ja) {
+  line-break: strict;
   --font-sans:
     -apple-system, BlinkMacSystemFont, system-ui, 'Hiragino Sans', 'Hiragino Kaku Gothic ProN',
     'Yu Gothic', YuGothic, Meiryo, 'Noto Sans CJK JP', 'Noto Sans JP', 'Apple SD Gothic Neo',

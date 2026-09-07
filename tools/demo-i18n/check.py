@@ -5,6 +5,7 @@
 
 Fails (exit 1) when:
   - an id in the source has no translation (unless --partial: then only ids present are checked)
+  - one English string is rendered more than one way (catalog: ids excluded; the majority wins)
   - a translation has an id the source does not (a typo that would silently never apply)
   - a translation is still the English text, when the source has letters to translate
     (pure keys / URLs / numbers / code are allowed to stay)
@@ -92,6 +93,27 @@ def main() -> int:
                 bad.append((k, "still English")); continue
             if not SCRIPT[locale].search(t):
                 bad.append((k, f"no {locale} script")); continue
+    # One English string, one rendering. The fixture repeats its boilerplate
+    # (the "Expected: … / Actual: … / Impact: …" description template, the
+    # stock comments) across hundreds of issues, and the sharded translation
+    # rendered the same sentence up to nine ways — visible on camera as two
+    # neighbouring search hits quoting one comment differently (vision
+    # verdict 2026-09-07, findings 10–11). Catalog names are one id each and
+    # are excluded; the majority rendering is the one every id must carry.
+    by_source: dict[str, dict[str, list[str]]] = {}
+    for k in ids:
+        if k.startswith("catalog:") or k not in tr or k not in src:
+            continue
+        by_source.setdefault(src[k], {}).setdefault(tr[k], []).append(k)
+    for source, renderings in by_source.items():
+        if len(renderings) < 2:
+            continue
+        majority = max(renderings, key=lambda r: (len(renderings[r]), r))
+        for r, ks in renderings.items():
+            if r == majority:
+                continue
+            for k in ks:
+                bad.append((k, f"inconsistent: source rendered {len(renderings)} ways; majority is {majority[:60]!r}"))
     for k, why in bad:
         print(f"FAIL {k}: {why}")
     checked = len(list(ids))

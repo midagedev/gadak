@@ -602,7 +602,7 @@ export const shell = {
   },
   'view.delegated.name': {
     en: 'Handed off',
-    ko: '내가 맡긴 것',
+    ko: '맡긴 이슈',
     ja: '任せた課題',
   },
   'view.delegated.hint': {
@@ -623,7 +623,7 @@ export const shell = {
   'view.allOpen.name': {
     en: 'All open',
     ko: '전체 미해결',
-    ja: '未解決すべて',
+    ja: 'すべての未解決',
   },
   'view.allOpen.hint': {
     en: 'New + in progress',
@@ -633,7 +633,7 @@ export const shell = {
   'view.unassignedNew.name': {
     en: 'Unassigned new',
     ko: '미할당 신규',
-    ja: '未割り当ての未着手',
+    ja: '未割り当ての新規',
   },
   'view.unassignedNew.hint': {
     en: 'New with no assignee',
@@ -666,7 +666,7 @@ export const shell = {
   },
   'filter.flagDelegated': {
     en: 'Handed off',
-    ko: '내가 맡긴 것',
+    ko: '맡긴 이슈',
     ja: '任せた',
   },
   'sort.statusChanged': {

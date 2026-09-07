@@ -310,7 +310,7 @@ export const detail = {
   },
   'detail.priorityShort': {
     en: 'Prio {p}',
-    ko: '우선 {p}',
+    ko: '우선순위 {p}',
     ja: '優先度 {p}',
   },
   'detail.severityShort': {
