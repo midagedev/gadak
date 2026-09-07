@@ -49,9 +49,9 @@ each run with a fake credential.)
 | ~~`docs/media/claude-drive.gif` / `claude-drive.mp4` / `claude-drive-vertical.mp4`~~ (+posters) — **removed 2026-09-03**: the VHS-beside-a-tab composite is retired (GDK-1353); `terminal-hero.*` below is the live session in gadak's own pane. The rig (`tools/tapes/claude-drive.tape`, `record-claude-drive.sh`) stays for the dashboards/tokens verticals | was the README skill clip and the landing skill-drive slot |
 | `docs/media/terminal-hero.mp4` (+`terminal-hero.gif`, `terminal-hero-poster.png`) | Playwright `e2e/demo/terminal-claude-demo.spec.ts` via `e2e/demo/record-terminal-claude.sh` (live Claude Code in the pane; isolated HOME + demo mirror migrated onto the built-in tracker per take; not in `make media`), cut by `export-terminal.sh` — `dense-cut.py` measures the take and time-lapses the stretches where only the transcript moves | README skill clip + landing skill drive — `gadak claim` binds the shell to NMA-140, `claude` starts in it, one Korean prompt becomes the list, the next saves and opens a dashboard; 16:10, the window itself |
 | `docs/media/claude-dashboards-vertical.mp4` | VHS `tools/tapes/claude-dashboards.tape` + the same serve tab (`record-claude-drive.sh vertical claude-dashboards`) | social/vertical, 4:5 — the dashboards half of the flagship, ending on a key clicked off the wall that opens the issue in the app (the `open` verb, GDK-854) |
-| `docs/media/claude-dashboards-vertical.gif` (+`-poster.png`) | 430-wide reduction of that mp4 | README — GitHub strips `<video>` from markdown (measured 2026-08-25 via `gh api /markdown`), so the README pair ships as GIF; the poster is the landing's still |
+| `docs/media/claude-dashboards-vertical.gif` (+`-poster.png`) | 430-wide reduction of that mp4 (`e2e/demo/export-vertical-gif.sh`) | README — GitHub strips `<video>` from markdown (measured 2026-08-25 via `gh api /markdown`), so the README pair ships as GIF; the poster is the landing's still |
 | `docs/media/claude-tokens-vertical.mp4` | VHS `tools/tapes/claude-tokens.tape` + the same serve tab (`record-claude-drive.sh vertical claude-tokens`) | social/vertical, 4:5 — the team-look half: colours plus the dimension axes, including a token saved with a warning the agent then acts on (GDK-858) |
-| `docs/media/claude-tokens-vertical.gif` (+`-poster.png`) | 430-wide reduction of that mp4 | README — same reason as the dashboards GIF |
+| `docs/media/claude-tokens-vertical.gif` (+`-poster.png`) | 430-wide reduction of that mp4 (`e2e/demo/export-vertical-gif.sh`) | README — same reason as the dashboards GIF |
 | `docs/media/scale.mp4` (+`scale.gif`, `scale-poster.png`) | Playwright `e2e/demo/scale-demo.spec.ts` + post-process camera work `e2e/demo/export-scale.sh` (`make media-scale` — deliberately outside the `make media` aggregate: the committed artifacts are what the site ships) | landing flagship — record-time counts focus over a 20k-issue snapshot |
 | ~~`docs/media/hero.mp4`~~ (+`hero-poster.png`) — **removed 2026-09-02**: the phone app is not shipped, so no public surface shows it (user call). The rig stays: `e2e/demo/record-hero.sh` (desk take `record-hero-desk.sh` + phone take `record-hero-phone.sh` inside its away-wait, cut by `cut-hero.sh`) needs a live Claude Code login AND a booted iOS simulator with a dev build of the phone app | was the 0.19 hero — one serve, one terminal session: the desk hands work to an agent, a phone closes an issue while the chair is empty, the desk comes back to the scrollback and the board. Re-shoot and re-add when the phone app ships |
 | `docs/media/roundtrip.mp4` (+`roundtrip-poster.png`) | Playwright `e2e/demo/roundtrip.spec.ts` via `e2e/demo/record-roundtrip.sh --live`, cut by `e2e/demo/camera.mjs e2e/demo/roundtrip.shots.mjs` (the camera layer, below). Like the hero, not in `make media` and not reproducible from a checkout alone — the four shells run a live Claude Code login against `e2e/demo/shop-fixture/`; nothing in the terminals is scripted, so takes vary and the rig retries until the beat contract holds | the 0.20 release cut — four shells bound to four issues investigate on their own (the roster column of the dock names them by key), the camera punches in on a card and the shell it brings back, findings standing, then the same from ⌘K |
@@ -80,6 +80,16 @@ Current state:
 | agent exhibit | `terminal-demo.mp4` (+`terminal-demo-poster.png`) | video — the command→view causality is the claim; 0.20 replaces the paper-terminal composite with gadak's own pane (4:5, vertical cap) |
 | agent proof | `mcp.mp4` (+`mcp-poster.png`) | video — the claim is a conversation flow, so the exhibit plays the tape (was `mcp-still.png` until the user call of 2026-08-24) |
 | skill drive | `terminal-hero.mp4` (+`terminal-hero-poster.png`) | video — a command changing the visible view is the motion rule's own example; 0.20 plays the live session inside gadak's own pane (16:10 at column width — the take is the window itself, so no vertical cap). Was `claude-drive-vertical.mp4` from v0.17.2 |
+
+**Posters.** Every `*-poster.png` is a frame of its own mp4, at the mp4's
+size — the landing shows it until someone presses play. The default is the
+first settled frame (`-ss 0.2`, ec39ea3a). The two terminal cuts are the
+exception (`export-terminal.sh`, 2026-09-07): a terminal take opens on the ⌘K
+palette that summons the pane, so its first frame shows neither the shell nor
+the board — both posters were the palette over a blurred list. Those two take
+the **last** frame (`-sseof -0.3`): the view the agent produced, the pane under
+it. Re-cut a clip and its poster moves with it; a poster older than its mp4 is
+a stale poster.
 
 Regenerate the two app stills against the standard e2e fixture (the history
 still needs serve.sh's NMB-139 enrichment):
@@ -136,33 +146,39 @@ the site by existing there. The landing references them via `MediaSlot still=…
 
 ### Current committed sizes (re-measure after regen)
 
-Measured 2026-09-03 via `ls -la docs/media/` + `ffprobe` (decimal MB = bytes/1e6):
+Measured 2026-09-07 via `ls -la docs/media/` + `ffprobe` (decimal MB = bytes/1e6):
 
 | Asset | Size | Bytes (`ls -la`) | Duration | Resolution / fps |
 | --- | --- | --- | --- | --- |
-| `web-demo.gif` | 7.73 MB | 7725746 | 17.1 s | 960×600 @ 9 fps |
-| `web-demo.mp4` | 1.04 MB | 1042959 | 17.1 s | 1024×640 h264 |
-| `search.gif` | 3.66 MB | 3659975 | 7.4 s | 960×600 @ 9 fps |
-| `search.mp4` | 0.55 MB | 547850 | 7.4 s | 800×640 h264 |
-| `terminal-demo.gif` | 5.70 MB | 5699598 | 23.0 s | 860×1075 @ 9 fps |
-| `terminal-demo.mp4` | 1.46 MB | 1461253 | 23.0 s | 1080×1350 h264 |
-| `terminal-hero.gif` | 7.40 MB | 7396608 | 37.0 s | 1200×750 @ 9 fps |
-| `terminal-hero.mp4` | 2.31 MB | 2305272 | 37.0 s | 1440×900 h264 (57.4 s take, dense cut) |
-| `mcp.gif` | 0.16 MB | 157323 | 24.8 s | 1080×620 @ 25 fps |
-| `mcp.mp4` | 0.18 MB | 176644 | 24.8 s | 1080×620 h264 |
+| `web-demo.gif` | 7.29 MB | 7287984 | 17.5 s | 960×600 @ 8 fps |
+| `web-demo.mp4` | 1.14 MB | 1140503 | 17.5 s | 1024×640 h264 |
+| `search.gif` | 3.65 MB | 3645004 | 7.4 s | 960×600 @ 9 fps |
+| `search.mp4` | 0.55 MB | 548096 | 7.5 s | 800×640 h264 |
+| `terminal-demo.gif` | 7.37 MB | 7373813 | 22.6 s | 860×1075 @ 9 fps |
+| `terminal-demo.mp4` | 1.74 MB | 1740965 | 22.6 s | 1080×1350 h264 |
+| `terminal-hero.gif` | 4.26 MB | 4263918 | 42.3 s | 900×563 @ 8 fps |
+| `terminal-hero.mp4` | 2.94 MB | 2935713 | 42.2 s | 1440×900 h264 |
+| `mcp.gif` | 0.22 MB | 216496 | 24.7 s | 1080×620 @ 25 fps |
+| `mcp.mp4` | 0.23 MB | 229806 | 24.7 s | 1080×620 h264 |
 | `raycast.gif` | 0.98 MB | 982043 | 13.2 s | 960×579 @ 10 fps |
 | `raycast.mp4` | 0.26 MB | 255880 | 13.2 s | 1088×656 h264 |
-| `tokens.gif` | 3.97 MB | 3966234 | 26.0 s | 1280×493 @ 9 fps |
-| `tokens.mp4` | 0.92 MB | 916969 | 26.0 s | 1744×672 h264 |
-| `dashboards.gif` | 2.91 MB | 2909844 | 38.3 s | 1280×493 @ 9 fps |
-| `dashboards.mp4` | 0.99 MB | 988500 | 38.3 s | 1744×672 h264 |
+| `tokens.gif` | 3.28 MB | 3283247 | 26.4 s | 1280×493 @ 9 fps |
+| `tokens.mp4` | 0.82 MB | 817258 | 26.4 s | 1744×672 h264 |
+| `dashboards.gif` | 4.58 MB | 4583960 | 40.9 s | 1280×493 @ 9 fps |
+| `dashboards.mp4` | 1.29 MB | 1288441 | 40.9 s | 1744×672 h264 |
 | `tokens-vertical.mp4` | 1.34 MB | 1339418 | 26.9 s | 1080×1350 h264 |
 | `dashboards-vertical.mp4` | 1.88 MB | 1877890 | 37.4 s | 1080×1350 h264 |
-| `claude-dashboards-vertical.mp4` | 1.78 MB | 1776640 | 25.6 s | 1080×1350 h264 |
-| `claude-tokens-vertical.mp4` | 1.43 MB | 1428013 | 20.4 s | 1080×1350 h264 |
-| `claude-dashboards-vertical.gif` | 1.80 MB | 1797436 | 25.6 s | 430×538 @ 9 fps |
-| `claude-tokens-vertical.gif` | 1.39 MB | 1391483 | 20.4 s | 430×538 @ 9 fps |
+| `claude-dashboards-vertical.mp4` | 1.36 MB | 1356608 | 24.3 s | 1080×1350 h264 |
+| `claude-tokens-vertical.mp4` | 1.27 MB | 1270700 | 18.0 s | 1080×1350 h264 |
+| `claude-dashboards-vertical.gif` | 1.06 MB | 1055412 | 24.3 s | 430×538 @ 9 fps |
+| `claude-tokens-vertical.gif` | 1.38 MB | 1378951 | 18.0 s | 430×538 @ 9 fps |
 | `roundtrip.mp4` | 3.29 MB | 3292613 | 21.2 s | 1920×1296 h264 |
+| `scale.gif` | 2.92 MB | 2924092 | 16.0 s | 800×500 @ 7 fps |
+| `scale.mp4` | 3.00 MB | 3004016 | 16.0 s | 1280×800 h264 |
+| `groupby.gif` | 3.34 MB | 3343670 | 7.1 s | 900×563 @ 8 fps |
+| `groupby.mp4` | 0.84 MB | 844611 | 7.1 s | 1280×800 h264 |
+| `history.gif` | 3.83 MB | 3827061 | 9.6 s | 960×600 @ 8 fps |
+| `history.mp4` | 0.87 MB | 868446 | 9.7 s | 1280×800 h264 |
 
 ## Readability comes first, and it costs bytes
 

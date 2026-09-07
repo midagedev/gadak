@@ -110,11 +110,14 @@ ffprobe -v error -select_streams v:0 \
   -of default=noprint_wrappers=1 "$OUT_DIR/$OUT_NAME"
 ls -lh "$OUT_DIR/$OUT_NAME"
 
-# Poster: the first settled frame of the cut, at the mp4's own size — the
-# landing shows it before anyone presses play (same rule as every other
-# poster since ec39ea3a).
+# Poster: the LAST settled frame of the cut, at the mp4's own size — the
+# landing shows it before anyone presses play. The other exports take the
+# first frame (ec39ea3a), but a terminal take opens on the ⌘K palette that
+# summons the pane, so its first frame shows neither the shell nor the board
+# (both 2026-09-07 posters were the palette over a blurred list). The last
+# frame is the payoff: the view the agent produced, the pane under it.
 STEM="${OUT_NAME%.mp4}"
-ffmpeg -y -v error -ss 0.2 -i "$OUT_DIR/$OUT_NAME" -frames:v 1 "$OUT_DIR/${STEM}-poster.png"
+ffmpeg -y -v error -sseof -0.3 -i "$OUT_DIR/$OUT_NAME" -frames:v 1 "$OUT_DIR/${STEM}-poster.png"
 
 # GIF for the README, from the *cut* mp4 so it carries the same pacing.
 # Width is the README's render width at 2x: the hero sits at 900 (→ 1200 is
