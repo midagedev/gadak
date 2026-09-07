@@ -67,13 +67,13 @@ export const write = {
     ja: '作成メタデータを読み込めませんでした。接続を確認して再試行してください。',
   },
   'write.issueCreated': {
-    en: 'Created {key}.',
-    ko: '{key} 이슈를 생성했습니다.',
-    ja: '{key} を作成しました。',
+    en: 'Created {key}',
+    ko: '{key} 이슈를 만들었습니다',
+    ja: '{key} を作成しました',
   },
   'write.issueCreatedFilled': {
     en: 'Created {key} · {type} · {project}',
-    ko: '{key} · {type} · {project} 이슈를 만들었습니다.',
+    ko: '{key} · {type} · {project} 이슈를 만들었습니다',
     ja: '{key} · {type} · {project} を作成しました',
   },
   'write.needToken': {
@@ -213,14 +213,14 @@ export const write = {
     ja: 'プレビューなし: {message}',
   },
   'write.descriptionDropped': {
-    en: 'Saved; removed {dropped}.',
-    ko: '저장했습니다. {dropped} 을(를) 제거했습니다.',
+    en: 'Saved; removed {dropped}',
+    ko: '{dropped}을(를) 빼고 저장했습니다',
     ja: '保存しました。{dropped} を削除しました。',
   },
   'write.tabWrite': {
     en: 'Write',
     ko: '쓰기',
-    ja: '書く',
+    ja: '書き込み',
   },
   'write.tabPreview': {
     en: 'Preview',
@@ -273,9 +273,9 @@ export const write = {
     ja: 'コメントを投稿できませんでした。再試行してください。',
   },
   'write.commentPosted': {
-    en: 'Posted comment on {key}.',
-    ko: '{key}에 코멘트를 등록했습니다.',
-    ja: '{key} にコメントを投稿しました。',
+    en: 'Posted comment on {key}',
+    ko: '{key}에 코멘트를 등록했습니다',
+    ja: '{key} にコメントを投稿しました',
   },
   'write.attachFailed': {
     en: 'Attachment upload failed: {name}',
@@ -283,9 +283,9 @@ export const write = {
     ja: '添付のアップロードに失敗しました: {name}',
   },
   'write.credSaved': {
-    en: 'Jira credentials saved.',
-    ko: 'Jira 자격증명을 저장했습니다.',
-    ja: 'Jira 資格情報を保存しました。',
+    en: 'Jira credentials saved',
+    ko: 'Jira 자격증명을 저장했습니다',
+    ja: 'Jira 資格情報を保存しました',
   },
   'write.credSaveFailed': {
     en: 'Could not save credentials.',
@@ -293,9 +293,9 @@ export const write = {
     ja: '資格情報を保存できませんでした。',
   },
   'write.credDeleted': {
-    en: 'Jira credentials deleted.',
-    ko: 'Jira 자격증명을 삭제했습니다.',
-    ja: 'Jira 資格情報を削除しました。',
+    en: 'Jira credentials deleted',
+    ko: 'Jira 자격증명을 삭제했습니다',
+    ja: 'Jira 資格情報を削除しました',
   },
   'write.credDeleteFailed': {
     en: 'Could not delete credentials.',
@@ -494,7 +494,7 @@ export const write = {
   },
   'onboarding.intro': {
     en: 'gadak keeps a local copy of your tracker, so reading is instant and works offline. Setup happens here, no terminal needed; the last step is optional.',
-    ko: 'gadak 은 트래커의 로컬 사본을 들고 있어 읽기가 즉시, 오프라인에서도 됩니다. 설정은 여기서 끝나고 터미널은 필요 없습니다. 마지막 단계는 선택입니다.',
+    ko: 'gadak은 트래커의 로컬 사본을 들고 있어 읽기가 즉시, 오프라인에서도 됩니다. 설정은 여기서 끝나고 터미널은 필요 없습니다. 마지막 단계는 선택입니다.',
     ja: 'gadak はトラッカーのローカルコピーを持つので、読み取りは即時でオフラインでも動きます。セットアップはここで完了し、ターミナルは不要です。最後のステップは任意です。',
   },
   'onboarding.stepOf': {

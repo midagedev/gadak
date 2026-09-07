@@ -23,6 +23,7 @@
   import { t, type MessageKey } from '../../lib/i18n'
   import { copyText } from '../../lib/copy-text'
   import LoadingState from '../ui/LoadingState.svelte'
+  import { createSkeletonGrace } from '../../lib/skeleton-grace.svelte'
   import { ADD_BTN, COPY_BTN, INPUT, SELECT, SELECT_CHEVRON } from './controls'
 
   interface DeviceRow {
@@ -49,6 +50,9 @@
   /** not_configured | paired_away | null — why the mint form is disabled. */
   let unavailable = $state<string | null>(null)
   let loading = $state(true)
+  /** Device list reads the local app over loopback; inside the grace this
+   *  surface paints nothing (GDK-1481). */
+  const loadingGrace = createSkeletonGrace(() => loading && devices.length === 0 && !unavailable)
   let loadError = $state<string | null>(null)
 
   let label = $state('')
@@ -206,7 +210,9 @@
   {/if}
 
   {#if loading && devices.length === 0 && !unavailable}
-    <LoadingState label={t('settings.devicesLoading')} />
+    <div class="h-full" data-skeleton={loadingGrace.attr}>
+      {#if loadingGrace.visible}<LoadingState label={t('settings.devicesLoading')} />{/if}
+    </div>
   {:else if devices.length === 0}
     {#if !loadError && !unavailable}
       <p class="py-6 text-center text-text-muted">{t('settings.devicesEmpty')}</p>

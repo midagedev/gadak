@@ -117,7 +117,7 @@ test.describe('write-through', () => {
     // fold), so a success toast is the honest feedback.
     const toast = page.getByTestId('toast').and(page.getByRole('status'))
     await expect(toast).toBeVisible()
-    await expect(toast).toContainText('Posted comment on NMB-110.')
+    await expect(toast).toContainText('Posted comment on NMB-110')
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })

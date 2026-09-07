@@ -198,7 +198,7 @@ export const settings = {
   },
   'settings.sourcesApplyHint': {
     en: 'Saving starts a full sync immediately.',
-    ko: '저장하면 전체 동기화를 바로 시작합니다',
+    ko: '저장하면 전체 동기화를 바로 시작합니다.',
     ja: '保存するとすぐに全同期が始まります。',
   },
   'settings.scopeLoading': {
@@ -368,7 +368,7 @@ export const settings = {
   },
   'pairing.noIdentityLocal': {
     en: 'No identity — this serve is on the {tracker} tracker, so {issues} opens on {view}.',
-    ko: '신원 없음 — 이 serve 는 {tracker} 트래커라서 {issues}가 {view}로 열립니다.',
+    ko: '신원 없음 — 이 serve는 {tracker} 트래커라서 {issues}가 {view}로 열립니다.',
     ja: 'アイデンティティなし — この serve は{tracker}トラッカーなので、{issues}は{view}で開きます。',
   },
   'settings.workspaceLocalOrigin': {
@@ -725,7 +725,7 @@ export const settings = {
   'settings.devicesIntro': {
     en: 'Pair a phone or another gadak with this workspace: mint a pairing offer, let the device scan its QR, and revoke any device here once it is gone.',
     ko: '휴대폰이나 다른 gadak를 이 워크스페이스에 연결합니다: 페어링 오퍼를 발급해 기기가 QR을 스캔하게 하고, 떠난 기기는 여기서 해지하세요.',
-    ja: 'スマホや別のgadakをこのワークスペースに組み込みます：ペアリングオファーを発行して端末にQRをスキャンさせ、いなくなった端末はここで失効させます。',
+    ja: 'スマホや別の gadak をこのワークスペースに組み込みます：ペアリングオファーを発行して端末に QR をスキャンさせ、いなくなった端末はここで失効させます。',
   },
   'settings.devicesLoadFailed': {
     en: 'Could not read the device list from the app. Try again, or check the desktop app.',
@@ -780,7 +780,7 @@ export const settings = {
   'settings.devicesScopeOrigin': {
     en: 'Tracker passthrough (another gadak)',
     ko: '트래커 패스스루 (다른 gadak)',
-    ja: 'トラッカーパススルー（別のgadak）',
+    ja: 'トラッカーパススルー（別の gadak）',
   },
   'settings.devicesScopeLocalRouting': {
     en: 'This machine (routing key)',
@@ -805,7 +805,7 @@ export const settings = {
   'settings.devicesEndpointHint': {
     en: 'Empty uses the live serve address of this machine.',
     ko: '비워 두면 이 머신의 실행 중인 serve 주소를 사용합니다.',
-    ja: '空欄にすると、このマシンの稼働中のserveアドレスを使います。',
+    ja: '空欄にすると、このマシンの稼働中の serve アドレスを使います。',
   },
   'settings.devicesTtlLabel': {
     en: 'Lifetime',
@@ -855,7 +855,7 @@ export const settings = {
   'settings.devicesQrAlt': {
     en: 'Pairing QR code',
     ko: '페어링 QR 코드',
-    ja: 'ペアリングQRコード',
+    ja: 'ペアリング QR コード',
   },
   'settings.devicesErrLabelRequired': {
     en: 'Name the device first.',
@@ -901,11 +901,6 @@ export const settings = {
     en: 'Revoke',
     ko: '해지',
     ja: '失効',
-  },
-  'settings.devicesRevoked': {
-    en: 'Revoked {label}.',
-    ko: '{label} 해지됨.',
-    ja: '{label} を失効させました。',
   },
   'settings.devicesHomeRowHint': {
     en: 'The routing key of this machine. Rotate it from the terminal: gadak pairing mint --label _home',
@@ -982,7 +977,7 @@ export const settings = {
   'settings.workspacesActiveHint': {
     en: 'This is the workspace this serve is running on. Stop serve first, then remove it from a terminal.',
     ko: '현재 serve가 이 워크스페이스 위에서 돌고 있습니다. serve를 멈춘 뒤 터미널에서 삭제하세요.',
-    ja: 'このserveはこのワークスペース上で動いています。先にserveを止め、端末から削除してください。',
+    ja: 'この serve はこのワークスペース上で動いています。先に serve を止め、端末から削除してください。',
   },
   'settings.workspacesNameLabel': {
     en: 'Workspace name',
@@ -1032,12 +1027,12 @@ export const settings = {
   'settings.workspacesPairFailed': {
     en: 'Could not register the workspace. Try again.',
     ko: '워크스페이스를 등록하지 못했습니다. 다시 시도하세요.',
-    ja: 'ワークスペースを登録できませんでした。もう一度お試しください。',
+    ja: 'ワークスペースを登録できませんでした。再試行してください。',
   },
   'settings.workspacesCreateFailed': {
     en: 'Could not create the workspace. Try again.',
     ko: '워크스페이스를 만들지 못했습니다. 다시 시도하세요.',
-    ja: 'ワークスペースを作成できませんでした。もう一度お試しください。',
+    ja: 'ワークスペースを作成できませんでした。再試行してください。',
   },
   'settings.workspacesErrExists': {
     en: 'A workspace named {name} already exists.',
@@ -1053,6 +1048,14 @@ export const settings = {
     en: 'Workspace management is available from a local browser only.',
     ko: '워크스페이스 관리는 로컬 브라우저에서만 할 수 있습니다.',
     ja: 'ワークスペースの管理はローカルブラウザからのみ行えます。',
+  },
+  // The workspaces surface says Remove everywhere else (title, failure toast,
+  // advisories); the row button and the confirm button used common.delete and
+  // were the only two Deletes on it. (GDK-1478)
+  'settings.workspacesRemove': {
+    en: 'Remove',
+    ko: '삭제',
+    ja: '削除',
   },
   'settings.workspacesRemoveTitle': {
     en: 'Remove workspace',
@@ -1072,7 +1075,7 @@ export const settings = {
   'settings.workspacesRemoveFailed': {
     en: 'Could not remove the workspace. Try again.',
     ko: '워크스페이스를 삭제하지 못했습니다. 다시 시도하세요.',
-    ja: 'ワークスペースを削除できませんでした。もう一度お試しください。',
+    ja: 'ワークスペースを削除できませんでした。再試行してください。',
   },
   'settings.workspacesAdvisories': {
     en: 'After this removal:',
@@ -1513,7 +1516,7 @@ export const settings = {
   },
   'palette.sectionViews': {
     en: 'Views',
-    ko: '저장된 뷰',
+    ko: '뷰',
     ja: 'ビュー',
   },
   'palette.actionSwitchWorkspace': {
@@ -1561,7 +1564,7 @@ export const settings = {
   // second half of that was never true — a server view is yours too.
   'palette.viewSaved': {
     en: 'Saved view',
-    ko: '저장 뷰',
+    ko: '저장한 뷰',
     ja: '保存ビュー',
   },
   'palette.viewSource': {

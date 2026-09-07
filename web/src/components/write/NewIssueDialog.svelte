@@ -34,6 +34,7 @@
   import Icon from '../ui/Icon.svelte'
   import DialogShell from '../ui/DialogShell.svelte'
   import LoadingState from '../ui/LoadingState.svelte'
+  import { createSkeletonGrace } from '../../lib/skeleton-grace.svelte'
 
   type WriteDialogState = 'loading' | 'need-token' | 'meta-failed' | 'form'
 
@@ -69,6 +70,11 @@
     if (write.writeMetaLoaded) return 'meta-failed'
     return 'loading'
   })
+
+  /** The grace delays the skeleton, never the read: recency and the credential
+   *  check settle locally, and the Jira meta fetch behind the same flag keeps
+   *  showing its wait once the grace elapses (GDK-1481). */
+  const loadingGrace = createSkeletonGrace(() => writeState === 'loading')
 
   let projectKey = $state('')
   let issueTypeId = $state('')
@@ -408,7 +414,9 @@
   footerClass="mt-1 flex flex-none flex-col gap-2 border-t border-border-subtle px-5 py-3"
 >
     {#if writeState === 'loading'}
-      <LoadingState label={t('common.loading')} />
+      <div class="h-full" data-skeleton={loadingGrace.attr}>
+        {#if loadingGrace.visible}<LoadingState label={t('common.loading')} />{/if}
+      </div>
     {:else if writeState === 'need-token'}
       <div class="flex flex-col items-center gap-3 px-5 py-8 text-center">
         <p class="text-body text-status-reopen">{t('write.needToken')}</p>

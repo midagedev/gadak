@@ -61,6 +61,7 @@
   import Icon from '../ui/Icon.svelte'
   import DialogShell from '../ui/DialogShell.svelte'
   import LoadingState from '../ui/LoadingState.svelte'
+  import { createSkeletonGrace } from '../../lib/skeleton-grace.svelte'
 
   // `tab` is bindable so the `settings=` URL binding in App can read which tab
   // is open and set one on arrival; the default matches every open before the
@@ -93,6 +94,9 @@
   const showDevices = TABS.some(([id]) => id === 'devices')
 
   let loading = $state(true)
+  /** Settings reads the local config over loopback; inside the grace it must
+   *  paint nothing at all, the same as every column view (GDK-1481). */
+  const loadingGrace = createSkeletonGrace(() => loading)
   let saving = $state(false)
   let error = $state<string | null>(null)
 
@@ -365,7 +369,9 @@
     data-testid="settings-scroll"
   >
       {#if loading}
-        <LoadingState />
+        <div class="h-full" data-skeleton={loadingGrace.attr}>
+          {#if loadingGrace.visible}<LoadingState />{/if}
+        </div>
       {:else}
         <!-- The runtime mirror (read-only instance facts) is the Sync tab's
              own footer now, not a block above every tab: repeated on all seven

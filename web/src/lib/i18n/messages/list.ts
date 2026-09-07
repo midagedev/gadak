@@ -335,9 +335,9 @@ export const list = {
     ja: '再試行',
   },
   'list.bodyOnlyTitle': {
-    en: 'No local matches — found in body',
-    ko: '로컬 매치는 없지만 본문에서 찾았습니다',
-    ja: 'ローカル一致はありません — 本文で見つかりました',
+    en: 'No issues match — found in body',
+    ko: '조건에 맞는 이슈는 없고, 본문에서 찾았습니다',
+    ja: '一致する課題はありません — 本文で見つかりました',
   },
   'list.bodyOnlyHint': {
     en: "See the 'Body matches' section above.",
@@ -579,9 +579,9 @@ export const list = {
     ja: 'ドキュメント {n}件 · "{q}"',
   },
   'list.docOnlyTitle': {
-    en: 'No issues matched — found in documents',
-    ko: '이슈 매치는 없지만 문서에서 찾았습니다',
-    ja: '課題の一致はありません — ドキュメントで見つかりました',
+    en: 'No issues match — found in documents',
+    ko: '조건에 맞는 이슈는 없고, 문서에서 찾았습니다',
+    ja: '一致する課題はありません — ドキュメントで見つかりました',
   },
   'list.docOnlyHint': {
     en: "See the 'Documents' section above.",
@@ -641,7 +641,7 @@ export const list = {
   },
   'bulk.onSelection': {
     en: 'On selection',
-    ko: '선택에 있음',
+    ko: '선택한 이슈에',
     ja: '選択に対して',
   },
   'bulk.typeALabel': {
@@ -706,7 +706,7 @@ export const list = {
   'board.dropChoose': {
     en: 'Choose a transition',
     ko: '전환 선택',
-    ja: '遷移を選択',
+    ja: 'トランジションを選択',
   },
   // The transitions GET never answered, so no transition id exists to attempt
   // and nothing dimmed anything (GDK-1221). Multi-sentence failure copy, so it
@@ -714,6 +714,6 @@ export const list = {
   'board.dropTransitionsFailed': {
     en: 'Could not load transitions, so the card cannot move. Check the connection and try again.',
     ko: '전환 목록을 가져오지 못해 카드를 옮길 수 없습니다. 연결을 확인한 뒤 다시 시도하세요.',
-    ja: '遷移を読み込めなかったため、カードを移動できません。接続を確認して再試行してください。',
+    ja: 'トランジションを読み込めなかったため、カードを移動できません。接続を確認して再試行してください。',
   },
 } as const satisfies Record<string, Message>

@@ -465,7 +465,7 @@ export const shell = {
   },
   'freshness.titleFresh': {
     en: 'Mirror pulled from {tracker} {when}. Click to sync now.',
-    ko: '{tracker}에서 미러를 {when} 가져왔습니다. 클릭하면 지금 동기화합니다.',
+    ko: '{when} {tracker}에서 가져온 미러입니다. 클릭하면 지금 동기화합니다.',
     ja: '{tracker} からミラーを {when} 取得しました。クリックで今すぐ同期します。',
   },
   'freshness.titleFreshLocal': {
@@ -1051,7 +1051,7 @@ export const shell = {
   'app.hosts.scan': {
     en: 'Scan QR instead',
     ko: '대신 QR 스캔',
-    ja: '代わりにQRをスキャン',
+    ja: '代わりに QR をスキャン',
   },
   'app.hosts.errEmpty': {
     en: 'Paste the offer line first.',
@@ -1061,7 +1061,7 @@ export const shell = {
   'app.hosts.errVersion': {
     en: 'This offer is from a newer gadak. Update the app, then pair.',
     ko: '이 오퍼는 더 최신 gadak에서 만들어졌습니다. 앱을 업데이트한 뒤 페어링하세요.',
-    ja: 'このオファーは新しいgadakからのものです。アプリを更新してからペアリングしてください。',
+    ja: 'このオファーは新しい gadak からのものです。アプリを更新してからペアリングしてください。',
   },
   'app.hosts.errBad': {
     en: 'That does not look like a pairing offer. Copy the whole line from `gadak pairing mint`.',

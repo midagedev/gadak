@@ -23,6 +23,7 @@
   import { t, type MessageKey } from '../../lib/i18n'
   import { copyText } from '../../lib/copy-text'
   import LoadingState from '../ui/LoadingState.svelte'
+  import { createSkeletonGrace } from '../../lib/skeleton-grace.svelte'
   import {
     actionLabelKind,
     fetchIntegrations,
@@ -41,6 +42,9 @@
 
   let items = $state<IntegrationItem[]>([])
   let loading = $state(true)
+  /** Integration probes are local; a probe that settles inside the grace
+   *  must paint no skeleton (GDK-1481). */
+  const loadingGrace = createSkeletonGrace(() => loading && items.length === 0)
   let error = $state<string | null>(null)
 
   /** What this session's install attempt did, per row. */
@@ -251,7 +255,9 @@
   {/if}
 
   {#if loading && items.length === 0}
-    <LoadingState label={t('settings.integrationsLoading')} />
+    <div class="h-full" data-skeleton={loadingGrace.attr}>
+      {#if loadingGrace.visible}<LoadingState label={t('settings.integrationsLoading')} />{/if}
+    </div>
   {:else if items.length === 0}
     {#if !error}
       <p class="py-6 text-center text-text-muted">{t('settings.integrationsEmpty')}</p>

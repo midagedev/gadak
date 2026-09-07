@@ -351,7 +351,7 @@ const DIALOGS: DialogRow[] = [
     id: 'workspaces-remove',
     hasCommit: true,
     dismissLabel: en['common.cancel'],
-    primaryLabel: en['common.delete'],
+    primaryLabel: en['settings.workspacesRemove'],
     open: async (page) => {
       await stubWorkspacesRemove(page)
       await gotoApp(page)

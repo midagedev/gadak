@@ -31,12 +31,16 @@
   import * as api from '../../lib/api'
   import type { WorkspaceInfo } from '../../lib/api'
   import LoadingState from '../ui/LoadingState.svelte'
+  import { createSkeletonGrace } from '../../lib/skeleton-grace.svelte'
   import DialogShell from '../ui/DialogShell.svelte'
   import { trapFocus } from '../../lib/focus-trap'
   import { ADD_BTN, COPY_BTN, INPUT } from './controls'
 
   let rows = $state<WorkspaceInfo[]>([])
   let loading = $state(true)
+  /** The workspace list is a loopback read; a list that lands inside the
+   *  grace must paint no skeleton at all (GDK-1481). */
+  const loadingGrace = createSkeletonGrace(() => loading && rows.length === 0)
   let loadError = $state(false)
   /** GET answered 403 — this browser is remote, the whole tab is one notice. */
   let remoteBlocked = $state(false)
@@ -292,7 +296,9 @@
     {/if}
 
     {#if loading && rows.length === 0}
-      <LoadingState label={t('settings.workspacesLoading')} />
+      <div class="h-full" data-skeleton={loadingGrace.attr}>
+        {#if loadingGrace.visible}<LoadingState label={t('settings.workspacesLoading')} />{/if}
+      </div>
     {:else if rows.length === 0}
       {#if !loadError}
         <p class="py-6 text-center text-text-muted">{t('settings.workspacesEmpty')}</p>
@@ -341,7 +347,7 @@
                     onclick={() => void beginRemove(row)}
                     data-testid="workspaces-remove-{row.name}"
                   >
-                    {t('common.delete')}
+                    {t('settings.workspacesRemove')}
                   </button>
                 {/if}
               </td>
@@ -568,7 +574,7 @@
               onclick={() => void commitRemove()}
               data-testid="workspaces-remove-confirm"
             >
-              {t('common.delete')}
+              {t('settings.workspacesRemove')}
             </button>
           {/if}
         {/if}
