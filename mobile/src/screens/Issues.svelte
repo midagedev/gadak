@@ -6,8 +6,12 @@
   import GlanceStrip from '../ui/GlanceStrip.svelte'
   import Skeleton from '../ui/Skeleton.svelte'
   import ScopeSheet from '../ui/ScopeSheet.svelte'
+  import Sheet from '../ui/Sheet.svelte'
   import { t } from '../lib/i18n'
-  import { app, issuesBootKind, setScope, showOfflineBanner, sync, switchTab } from '../lib/store.svelte'
+  import { ApiError, errorMessage } from '../lib/api'
+  import { createIssue, getCreateMeta } from '../lib/writes'
+  import type { CreateMetaProject } from '../lib/types'
+  import { app, issuesBootKind, openIssue, setScope, showOfflineBanner, sync, switchTab } from '../lib/store.svelte'
   import {
     buildList,
     buildScopes,
@@ -27,6 +31,20 @@
   // (Issues), the heading is the current scope, and the heading is the
   // control that changes it (DESIGN.md §2, GDK-885).
   let pickerOpen = $state(false)
+
+  /* ── Create sheet (GDK-1497 A2). This screen owns its own writes-off
+   *  state — Detail's is per-screen by design, and no global store. The
+   *  sheet stays readable when writes are off; only its action recedes. */
+  let createOpen = $state(false)
+  let createSummary = $state('')
+  let createDesc = $state('')
+  let createProject = $state('')
+  let projects = $state<CreateMetaProject[]>([])
+  let metaLoaded = $state(false)
+  let createWritesOff = $state(false)
+  let writesOffSentence = $state<string | null>(null)
+  let createError = $state<string | null>(null)
+  let creating = $state(false)
 
   const scopes = $derived(buildScopes(app.views, app.sources, app.me, app.pages))
   const scope = $derived<Scope>(
@@ -58,6 +76,68 @@
   function pick(id: string): void {
     setScope(id)
     pickerOpen = false
+  }
+
+  /** Projects the sheet may file under — subtask-only projects cannot take
+   *  a top-level create, and the phone never asks for an issue type (the
+   *  server resolves the default). */
+  const creatableProjects = $derived(
+    projects.filter((p) => (p.issue_types ?? []).some((ty) => !ty.subtask)),
+  )
+
+  function openCreate(): void {
+    createOpen = true
+    createError = null
+    if (metaLoaded || createWritesOff) return
+    void (async () => {
+      try {
+        const res = await getCreateMeta()
+        projects = res.projects
+        const list = creatableProjects
+        if (list.length > 1) createProject = list[0].key
+        metaLoaded = true
+      } catch (err) {
+        if (err instanceof ApiError && err.code === 'credential_required') {
+          // The same sentence the Detail composer shows; the sheet stays
+          // readable — the person can still read what they meant to file.
+          createWritesOff = true
+          writesOffSentence = errorMessage(err)
+          return
+        }
+        // A serve whose catalog cannot be read still creates: with one
+        // project (the common case) there is nothing to ask.
+        metaLoaded = true
+      }
+    })()
+  }
+
+  async function createTheIssue(): Promise<void> {
+    const summary = createSummary.trim()
+    if (summary === '' || creating || createWritesOff) return
+    creating = true
+    createError = null
+    try {
+      const res = await createIssue({
+        summary,
+        ...(createDesc.trim() !== '' ? { description_text: createDesc } : {}),
+        ...(createProject !== '' ? { project_key: createProject } : {}),
+      })
+      createOpen = false
+      createSummary = ''
+      createDesc = ''
+      createProject = creatableProjects[0]?.key ?? ''
+      void sync()
+      openIssue(res.issue.issue_key)
+    } catch (err) {
+      if (err instanceof ApiError && err.code === 'credential_required') {
+        createWritesOff = true
+        writesOffSentence = errorMessage(err)
+        return
+      }
+      createError = errorMessage(err)
+    } finally {
+      creating = false
+    }
   }
 
   const syncLabel = $derived(
@@ -95,6 +175,18 @@
         </button>
       </h1>
       <span class="spacer"></span>
+      <button
+        class="new"
+        onclick={openCreate}
+        aria-label={t('write.newIssue')}
+        aria-haspopup="dialog"
+        aria-expanded={createOpen}
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M5 12h14" />
+          <path d="M12 5v14" />
+        </svg>
+      </button>
       <button class="fresh" onclick={() => void sync()} aria-label={t('sidebar.syncNow')}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class:spin={app.syncing} aria-hidden="true">
           <path d="M21 12a9 9 0 1 1-2.6-6.3" /><path d="M21 3v6h-6" />
@@ -166,6 +258,52 @@
   />
 {/if}
 
+{#if createOpen}
+  <!-- The project question appears only when the serve offers more than
+       one project — one-project serves (and the fixture) file into the
+       default without asking, and the type is always the server's default. -->
+  <Sheet title={t('write.newIssue')} onclose={() => (createOpen = false)}>
+    <div class="create">
+      {#if writesOffSentence}
+        <p class="off-note">{writesOffSentence}</p>
+      {/if}
+      <label class="lbl" for="create-summary">{t('write.issueTitle')}</label>
+      <input
+        id="create-summary"
+        bind:value={createSummary}
+        placeholder={t('write.issueTitle')}
+        enterkeyhint="next"
+        disabled={createWritesOff}
+      />
+      <label class="lbl" for="create-desc">{t('detail.description')}</label>
+      <textarea
+        id="create-desc"
+        bind:value={createDesc}
+        placeholder={t('write.descriptionPlain')}
+        disabled={createWritesOff}
+      ></textarea>
+      {#if metaLoaded && creatableProjects.length > 1}
+        <label class="lbl" for="create-project">{t('common.project')}</label>
+        <select id="create-project" bind:value={createProject} disabled={createWritesOff}>
+          {#each creatableProjects as p (p.key)}
+            <option value={p.key}>{p.key} · {p.name}</option>
+          {/each}
+        </select>
+      {/if}
+      <button
+        class="go"
+        disabled={creating || createSummary.trim() === '' || createWritesOff}
+        onclick={() => void createTheIssue()}
+      >
+        {creating ? 'Creating…' : t('write.newIssue')}
+      </button>
+      {#if createError}
+        <p class="err">{createError}</p>
+      {/if}
+    </div>
+  </Sheet>
+{/if}
+
 <style>
   .head {
     display: flex;
@@ -226,6 +364,77 @@
   .fresh svg {
     width: 14px;
     height: 14px;
+  }
+  /* The create action (GDK-1497 A2): a 44pt square beside the sync state,
+     drawn heavier than .fresh because it acts on the tracker, not the
+     mirror. */
+  .new {
+    flex: none;
+    align-self: center;
+    width: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-text-primary);
+  }
+  .new svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .create {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 4px 16px 16px;
+  }
+  .lbl {
+    margin: 6px 0 0;
+    font-size: var(--text-micro);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-muted);
+  }
+  .create input,
+  .create textarea,
+  .create select {
+    min-height: var(--spacing-control);
+    padding: 6px 12px;
+    background: var(--color-bg-base);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: 6px;
+    font: inherit;
+  }
+  .create textarea {
+    min-height: 96px;
+  }
+  .create input:disabled,
+  .create textarea:disabled,
+  .create select:disabled {
+    opacity: 0.45;
+  }
+  .go {
+    min-height: var(--spacing-control);
+    margin-top: 8px;
+    padding: 0 16px;
+    border-radius: 6px;
+    font-weight: 600;
+    background: var(--color-accent);
+    color: var(--color-bg-base);
+  }
+  .go:disabled {
+    opacity: 0.45;
+  }
+  .err {
+    margin: 6px 0 0;
+    font-size: var(--text-micro);
+    color: var(--color-status-reopen);
+  }
+  .off-note {
+    margin: 2px 0 0;
+    font-size: var(--text-micro);
+    color: var(--color-status-stale);
   }
   .fresh svg.spin {
     animation: spin 1.2s linear infinite;

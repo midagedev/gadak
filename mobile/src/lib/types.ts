@@ -84,6 +84,12 @@ export interface DetailResponse {
   issue_key: string
   /** Raw ADF description (GDK-1497) — the phone renders it via AdfBody. */
   description_adf?: AdfNode | null
+  /**
+   * The description as markdown — the format the editor writes back
+   * (GDK-1497 A2). Always present on current serves; older ones predate
+   * the field, and the editor falls back to description_text.
+   */
+  description_md?: string
   description_text?: string
   /** Mirrored attachments: media nodes in the ADF resolve against these. */
   attachments?: DetailAttachment[]
@@ -209,3 +215,57 @@ export interface PairMeta {
   label: string
   expires_at: string
 }
+
+/* ── Writes (internal/server/write.go) — the subset the phone sends ── */
+
+/** One site priority (GET `<key>/priorities/`). Names follow the account language. */
+export interface PriorityDoc {
+  id: string
+  name: string
+}
+
+export interface PrioritiesResponse {
+  priorities: PriorityDoc[]
+}
+
+/** One assignee candidate (GET `<key>/users/?q=`). */
+export interface UserDoc {
+  account_id: string
+  display_name: string
+  email: string | null
+  avatar_url: string | null
+  active: boolean
+}
+
+export interface UsersResponse {
+  users: UserDoc[]
+}
+
+/** GET create-meta/ — projects whose issue types the phone may file under. */
+export interface CreateMetaProject {
+  key: string
+  name: string
+  /** The phone never asks for a type (the server resolves the default), so
+   *  this only tells whether a project offers any non-subtask type at all. */
+  issue_types: Array<{ id: string; name: string; subtask?: boolean }>
+}
+
+export interface CreateMetaResponse {
+  projects: CreateMetaProject[]
+}
+
+/** POST create/ payload — summary required, everything else optional. */
+export interface CreateIssuePayload {
+  project_key?: string
+  issue_type?: string
+  summary: string
+  description_text?: string
+}
+
+/** Every PUT/POST write answers with the issue as the origin now holds it. */
+export interface IssueWriteResponse {
+  issue: IssueLite
+  /** Preserved nodes the save dropped (the phone does not warn yet). */
+  dropped?: string[]
+}
+

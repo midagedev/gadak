@@ -3,15 +3,24 @@
   import { fly, fade } from 'svelte/transition'
   import { t } from '../lib/i18n'
   import { systemBack } from '../lib/back'
+  import { keyboardInset } from '../lib/keyboard'
 
   // Bottom sheet: scrim + rising panel, thumb territory. The bottom inset
   // is a property of where the sheet sits (app.css: .detail-layer .sheet),
   // not a class the caller remembers to pass.
+  //
+  // `tall` is for sheets whose content is a writing surface (the
+  // description editor): the panel claims most of the screen instead of
+  // the picker's 70%. keyboardInset rides every sheet now — in WKWebView
+  // the software keyboard overlays the layout viewport, so an input near
+  // the panel's bottom would sit under it without the translate. It is a
+  // no-op without a VisualViewport (headless capture, desktop browsers).
   let {
     title,
     onclose,
+    tall = false,
     children,
-  }: { title: string; onclose: () => void; children: Snippet } = $props()
+  }: { title: string; onclose: () => void; tall?: boolean; children: Snippet } = $props()
 
   $effect(() => {
     return systemBack.registerSheet(onclose)
@@ -27,10 +36,12 @@
 ></button>
 <div
   class="sheet"
+  class:tall
   role="dialog"
   aria-modal="true"
   aria-label={title}
   transition:fly={{ y: 320, duration: 240 }}
+  use:keyboardInset
 >
   <div class="grab" aria-hidden="true"></div>
   <div class="head">
@@ -64,6 +75,9 @@
     max-height: 70%;
     display: flex;
     flex-direction: column;
+  }
+  .sheet.tall {
+    max-height: 92%;
   }
   .grab {
     flex: none;

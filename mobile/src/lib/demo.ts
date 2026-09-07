@@ -37,8 +37,20 @@ function errorResponse(code: string, status: number): Response {
 }
 
 /** `issues/<KEY>/detail/` — a Jira-shaped key, so the URL cannot wander. */
+const KEY = '[A-Za-z][A-Za-z0-9]*-[0-9]+'
 const DETAIL_PATH = /^issues\/([A-Za-z][A-Za-z0-9]*-[0-9]+)\/detail\/$/
 const TRANSITIONS_PATH = /^issues\/[A-Za-z][A-Za-z0-9]*-[0-9]+\/transitions\/$/
+/**
+ * Origin-catalog reads the A2 write controls fetch (GDK-1497): per-key
+ * priorities and users, plus create-meta. The in-app demo has no origin at
+ * all, and the credential-less serve these mirrors answers all of them
+ * 409 credential_required (write.go client()) — so the demo branch says the
+ * same, and the sheets degrade through their existing writes-off road
+ * instead of a misleading "no priorities on this site".
+ */
+const CATALOG_PATHS = new RegExp(
+  `^issues/(${KEY}/priorities/|${KEY}/users/(\\?.*)?|create-meta/)$`,
+)
 
 /** Bundled-file URLs; null means the path gets a synthesized response. */
 function demoAssetUrl(path: string): string | null {
@@ -77,6 +89,10 @@ function demoSynthetic(path: string): Response {
     // The transitions sheet exists only to fire a write. Answering it with
     // the serve's own write refusal rides Detail's existing writes-off
     // degradation (409 credential_required) instead of inventing a code.
+    return errorResponse('credential_required', 409)
+  }
+  if (CATALOG_PATHS.test(path)) {
+    // Same refusal, same road, for the A2 write sheets' catalog reads.
     return errorResponse('credential_required', 409)
   }
   // v1 demo has no wiki pages, and search is local-first over the snapshot:

@@ -271,3 +271,62 @@ describe('GDK-935 row folio is one grammar', () => {
     expect(row).not.toMatch(/relTime\(issue\.updated_at/)
   })
 })
+
+describe('GDK-1497 A2 — the header is a control surface', () => {
+  const detail = read('screens/Detail.svelte')
+
+  it("wires the assignee sheet's Unassigned row through setAssignee(issueKey, null)", () => {
+    // The wire body {"account_id":null} is pinned in writes.test.ts against
+    // a fake transport; this pins the other half of the chain — that the
+    // row the person taps hands pickAssignee a literal null, and that the
+    // picker's one exit is the typed wrapper (a row that looked clearing
+    // but PUTs the current id would pass every transport test).
+    const at = detail.indexOf('async function pickAssignee')
+    expect(at).toBeGreaterThan(-1)
+    const pickFn = detail.slice(at, detail.indexOf('\n  }', at))
+    expect(pickFn).toMatch(/setAssignee\(issueKey, accountId\)/)
+    expect(detail).toMatch(/void pickAssignee\(null\)/)
+    expect(detail).toMatch(/t\('common\.unassigned'\)/)
+  })
+
+  it('clears priority through the None row and marks the current one', () => {
+    const at = detail.indexOf('async function pickPriority')
+    expect(at).toBeGreaterThan(-1)
+    expect(detail.slice(at, detail.indexOf('\n  }', at))).toMatch(/setPriority\(issueKey, priorityId\)/)
+    expect(detail).toMatch(/void pickPriority\(null\)/)
+    expect(detail).toMatch(/t\('common\.none'\)/)
+    expect(detail).toMatch(/lite\.priority_id === p\.id/)
+  })
+
+  it('keeps the writes-off degradation on every new control, like the composer', () => {
+    // One owner per screen (GDK-933): the sticky flag disables the header
+    // controls too, and no control bypasses it.
+    for (const fn of ['openAssignee', 'openPriority', 'editSummary', 'editDescription']) {
+      const at = detail.indexOf(`function ${fn}`)
+      expect(detail.slice(at, detail.indexOf('\n  }', at))).toMatch(/writesOff/)
+    }
+  })
+
+  it('routes header writes through the typed wrappers, not request bodies', () => {
+    // Screens hold no request bodies (the wrappers own them); Detail only
+    // picks values and paints the returned issue.
+    expect(detail).not.toMatch(/method:\s*['"]PUT/)
+  })
+})
+
+describe('GDK-1497 A2 — the create sheet on the Issues screen', () => {
+  const issues = read('screens/Issues.svelte')
+
+  it('posts through createIssue and lands on the new issue', () => {
+    const at = issues.indexOf('async function createTheIssue')
+    expect(at).toBeGreaterThan(-1)
+    const fn = issues.slice(at, issues.indexOf('\n  }', at))
+    expect(fn).toMatch(/createIssue\(/)
+    expect(fn).toMatch(/openIssue\(res\.issue\.issue_key\)/)
+  })
+
+  it('asks for a project only when the serve offers more than one', () => {
+    expect(issues).toMatch(/creatableProjects\.length > 1/)
+    expect(issues).toMatch(/t\('common\.project'\)/)
+  })
+})

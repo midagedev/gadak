@@ -207,6 +207,20 @@ export const write = {
     ko: '저장되지 않았습니다: {message}',
     ja: '保存されませんでした: {message}',
   },
+  // GDK-1497 A2: the phone's description editor is a plain textarea — when
+  // the body holds formatting markdown cannot carry, the 409 format_loss
+  // ask is one sentence plus a Replace button (force re-PUT), not the
+  // desktop's placeholder-keeping workflow.
+  'write.descriptionForceAsk': {
+    en: 'This description holds formatting the phone cannot keep. Save anyway?',
+    ko: '이 설명에는 폰에서 지킬 수 없는 서식이 들어 있습니다. 서식을 버리고 저장할까요?',
+    ja: 'この説明には、この端末では保持できない書式が含まれています。書式を捨てて保存しますか？',
+  },
+  'write.descriptionReplace': {
+    en: 'Replace',
+    ko: '서식 버리고 저장',
+    ja: '書式を捨てて保存',
+  },
   'write.previewRefused': {
     en: 'No preview: {message}',
     ko: '미리보기 없음: {message}',

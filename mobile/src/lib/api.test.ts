@@ -92,6 +92,28 @@ describe('request', () => {
     expect(h['Content-Type']).toBe('application/json')
     expect(calls[0].init.body).toBe('{"transition_id":"31"}')
   })
+
+  it('carries the message field on 409 placeholder, and errorMessage never echoes it', async () => {
+    // write.go:894 failMsg(409, "placeholder", …) — the one error body whose
+    // text is meant for the person (the description editor shows it). It
+    // rides ApiError.serverMessage, not the generic copy.
+    const { fn } = fakeFetch(409, { error: 'placeholder', message: 'the table marker cannot return' })
+    const err: unknown = await request('issues/STD-1/description/', {
+      session,
+      method: 'PUT',
+      body: { description: 'x' },
+      fetchFn: fn,
+    }).then(
+      () => undefined,
+      (e) => e,
+    )
+    expect(err).toMatchObject({
+      code: 'placeholder',
+      status: 409,
+      serverMessage: 'the table marker cannot return',
+    })
+    expect(errorMessage(err)).not.toContain('the table marker cannot return')
+  })
 })
 
 describe('error copy', () => {

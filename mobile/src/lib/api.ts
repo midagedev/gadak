@@ -29,9 +29,16 @@ export function configureApi(s: ApiSession): void {
 }
 
 export class ApiError extends Error {
+  /**
+   * The `message` field of a `{"error": code, "message": text}` body, when
+   * the server sent one. Only the placeholder refusal (409) carries text a
+   * person should read; errorMessage() never echoes it, and the one caller
+   * that shows it (the description editor) marks it as the server's words.
+   */
   constructor(
     public code: string,
     public status: number,
+    public serverMessage: string | null = null,
   ) {
     super(code)
   }
@@ -83,6 +90,8 @@ interface RequestOpts {
   dev?: boolean
   /** Test seam. */
   fetchFn?: FetchLike
+  /** Caller-initiated abort (the assignee search's debounced keystrokes). */
+  signal?: AbortSignal
 }
 
 /**
@@ -106,19 +115,25 @@ async function dial(path: string, opts: RequestOpts): Promise<Response> {
       method: opts.method ?? 'GET',
       headers,
       body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+      signal: opts.signal,
     })
-  } catch {
+  } catch (err) {
+    // A caller-initiated abort is not a network verdict; the caller already
+    // knows (it aborted) and drops the result by sequence, not by error.
+    if (opts.signal?.aborted) throw err
     throw new ApiError('network', 0)
   }
   if (res.status !== 304 && !res.ok) {
     let code = 'internal_error'
+    let serverMessage: string | null = null
     try {
-      const doc = (await res.json()) as { error?: unknown }
+      const doc = (await res.json()) as { error?: unknown; message?: unknown }
       if (typeof doc.error === 'string' && doc.error !== '') code = doc.error
+      if (typeof doc.message === 'string' && doc.message !== '') serverMessage = doc.message
     } catch {
       // Non-JSON error body (a proxy page, an empty reply): keep the generic code.
     }
-    throw new ApiError(code, res.status)
+    throw new ApiError(code, res.status, serverMessage)
   }
   return res
 }
