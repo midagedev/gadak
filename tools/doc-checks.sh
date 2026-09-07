@@ -2096,4 +2096,86 @@ if [[ -n "$matrix_drift" ]]; then
 fi
 ok "docs/SUPPORT_MATRIX.md keeps its shape; the READMEs link to it"
 
+# ── 40. Every /media/ path the site asks for resolves to a file (GDK-1501) ─
+# The site serves docs/media through a symlink the build creates
+# (Makefile `site:`), so a reference to a file that does not exist costs
+# nothing at build time — Astro copies a directory, it does not resolve the
+# strings inside a component. The page just renders a broken <video> or a
+# poster-less black rectangle, and the only instrument was a person opening
+# gadak.dev. This is that instrument.
+#
+# Two halves. First, every literal /media/<file> under site/src must exist in
+# docs/media/. Second, every locale listed in MEDIA_LOCALES must have its own
+# cut on disk: that map is what makes Landing.astro serve a Japanese clip, so
+# an entry added before the recording lands would ship a 404, and a recording
+# that lands without the entry ships the English take to everyone.
+#
+# FAIL-first (2026-09-07, both halves measured on this tree):
+#   - a reference to a file that is not there: Landing.astro's poster changed
+#     to /media/scale-poster-missing.png →
+#     "FAIL: the site references media that is not in docs/media/:
+#      site/src/components/Landing.astro: /media/scale-poster-missing.png" — exit 1
+#   - a locale claimed before its recording exists: MEDIA_LOCALES entry
+#     '/media/scale.mp4': ['ja'] with no docs/media/scale.ja.mp4 →
+#     "FAIL: MEDIA_LOCALES claims locale cuts that are not in docs/media/:
+#      /media/scale.mp4 [ja] -> docs/media/scale.ja.mp4" — exit 1
+#   - as shipped: green.
+media_missing=$(
+  python3 - <<'MEDIAPY'
+from pathlib import Path
+import re
+
+media = Path("docs/media")
+for path in sorted(Path("site/src").rglob("*")):
+    if not path.is_file() or path.suffix not in {".astro", ".ts", ".js", ".md", ".css"}:
+        continue
+    # A reference, not prose: the path sits in quotes and ends in a file
+    # extension. Comments in these files write docs/media/og.<lang>.png
+    # and similar, and a bare /media/ grep reads those as broken links.
+    # (Template literals still quote the path itself -- Base.astro's
+    # og:image is mediaFor(lang, '/media/og.png') inside the backticks.)
+    # NOTE: every string below is single-quoted and the double quote is
+    # spelled chr(34). This heredoc lives inside $( ... ), and bash scans
+    # for the closing paren counting quote characters even through a quoted
+    # heredoc -- an odd number of them here is a syntax error in the whole
+    # file, not a python problem.
+    QUOTED = '(?<=[' + chr(39) + chr(34) + '])/media/([A-Za-z0-9._-]+[.][A-Za-z0-9]{2,4})'
+    refs = set(re.findall(QUOTED, path.read_text(encoding='utf-8')))
+    for ref in sorted(refs):
+        if not (media / ref).is_file():
+            print(f"{path}: /media/{ref}")
+MEDIAPY
+)
+if [[ -n "$media_missing" ]]; then
+  fail "the site references media that is not in docs/media/:"$'\n'"$media_missing"
+fi
+
+locale_missing=$(
+  python3 - <<'LOCALEPY'
+from pathlib import Path
+import re
+
+src = Path("site/src/i18n.ts").read_text(encoding="utf-8")
+m = re.search(r"export const MEDIA_LOCALES[^=]*=\s*\{(.*?)\n\}", src, re.S)
+if not m:
+    print("site/src/i18n.ts: no MEDIA_LOCALES map -- mediaFor() has no owner")
+    raise SystemExit(0)
+
+media = Path("docs/media")
+entries = re.findall(r"'(/media/[^']+)':\s*\[([^\]]*)\]", m.group(1))
+if not entries:
+    print("site/src/i18n.ts: MEDIA_LOCALES has no entries -- did the shape change?")
+for ref, locs in entries:
+    stem, _, ext = ref.rpartition(".")
+    for loc in re.findall(r"'([a-z]{2})'", locs):
+        want = f"{stem[len('/media/'):]}.{loc}.{ext}"
+        if not (media / want).is_file():
+            print(f"{ref} [{loc}] -> docs/media/{want}")
+LOCALEPY
+)
+if [[ -n "$locale_missing" ]]; then
+  fail "MEDIA_LOCALES claims locale cuts that are not in docs/media/:"$'\n'"$locale_missing"
+fi
+ok "every /media/ path under site/src resolves, and every MEDIA_LOCALES cut exists"
+
 echo "doc-checks: all passed"

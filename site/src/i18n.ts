@@ -1,3 +1,5 @@
+import { TAGLINE } from './tagline.js'
+
 // The site's locales in one place: en at the root, the rest under their own
 // prefix (pathFor below). Every locale-aware surface — layout, sitemap,
 // switcher, banners — iterates this list, so a fourth locale is a list entry
@@ -24,7 +26,7 @@ export const strings = {
     },
     hero: {
       eyebrow: 'gadak',
-      heading: 'Same Jira. No waiting.',
+      heading: TAGLINE.en.heading,
       lede:
         'Your team\u2019s Jira — and its Confluence wiki — mirrored into one local SQLite file on this machine. Search lands in milliseconds, history reads like a document, and the page never spins. Jira stays the source of truth — you just stop waiting on it.',
       videoCaption: 'A 20,000-issue mirror. Search as fast as you can type. Recorded, not animated.',
@@ -129,7 +131,7 @@ export const strings = {
     },
     hero: {
       eyebrow: 'gadak',
-      heading: '같은 Jira, 기다림 없이.',
+      heading: TAGLINE.ko.heading,
       lede:
         '회사에서 이미 쓰는 Jira를 Confluence 위키까지 이 컴퓨터의 SQLite 파일 하나에 미러링합니다. 검색은 밀리초 안에 끝나고, 히스토리는 문서처럼 읽히고, 로딩 스피너는 보이지 않습니다. 원본은 여전히 Jira입니다. 기다리는 시간만 사라집니다.',
       videoCaption: '이슈 2만 건 미러에서 타이핑하는 속도로 검색합니다. 애니메이션이 아니라 실제 화면을 녹화한 것입니다.',
@@ -233,7 +235,7 @@ export const strings = {
     },
     hero: {
       eyebrow: 'gadak',
-      heading: '同じJira。待ち時間なし。',
+      heading: TAGLINE.ja.heading,
       lede:
         'チームのJiraとそのConfluence Wikiを、この端末のSQLiteファイル1つにミラーします。検索はミリ秒で返り、履歴は文書のように読め、ページが回り続けることはありません。正本はJiraのまま。ただ、待たなくなるだけです。',
       videoCaption: '2万件の課題のミラー。打つ速さのまま検索が返ります。録画です。アニメーションではありません。',
@@ -331,6 +333,54 @@ export function localePrefix(l: Locale): string {
 export function pathFor(l: Locale, enPath: string): string {
   if (l === 'en') return enPath
   return `${localePrefix(l)}${enPath === '/' ? '/' : enPath}`
+}
+
+/**
+ * Which media files have a cut of their own per locale, and in which
+ * locales that cut exists.
+ *
+ * Declared, never probed. `site/public/media` is a symlink the build creates
+ * (Makefile `site:`), so at authoring time there is no directory to look in,
+ * and a build that silently fell back because a file was missing is exactly
+ * the failure mode this map exists to make loud: `tools/doc-checks.sh` reads
+ * it and fails when a listed locale has no file in `docs/media/`.
+ *
+ * `en` is never listed — it is the bare filename every entry derives from.
+ * Adding a locale here is what turns a recorded variant on; recording it and
+ * forgetting this map ships the English clip, and listing it here without the
+ * recording turns the doc-check red. Either way, nothing silent.
+ *
+ * Keys are the exact path the page asks for, so the entry greps.
+ */
+export const MEDIA_LOCALES: Record<string, readonly Exclude<Locale, 'en'>[]> = {
+  // The share card is a Node render, not a recording — all three exist.
+  '/media/og.png': ['ko', 'ja'],
+  // The two landing clips and their posters. Recording them is a separate
+  // round (GDK-1501): until the files land, this stays ['ko','ja']-free and
+  // every locale is served the English take.
+  '/media/scale.mp4': [],
+  '/media/scale-poster.png': [],
+  '/media/search.mp4': [],
+  '/media/search-poster.png': [],
+}
+
+/**
+ * The path to `file` for `lang`: the locale tag goes in as the last segment
+ * before the extension, so `/media/scale.mp4` becomes `/media/scale.ja.mp4`
+ * and `/media/scale-poster.png` becomes `/media/scale-poster.ja.png`. The
+ * export scripts write exactly that shape (`e2e/demo/export-scale.sh`).
+ *
+ * A path with no cut in this locale — and every path in `en` — comes back
+ * unchanged, so a caller never has to know which is which. A path missing
+ * from MEDIA_LOCALES entirely is also returned unchanged: an asset that is
+ * one file in every language (terminal-hero, the stills) needs no entry.
+ */
+export function mediaFor(lang: Locale, path: string): string {
+  if (lang === 'en') return path
+  if (!MEDIA_LOCALES[path]?.includes(lang)) return path
+  const dot = path.lastIndexOf('.')
+  if (dot <= path.lastIndexOf('/')) return path
+  return `${path.slice(0, dot)}.${lang}${path.slice(dot)}`
 }
 
 // Matches a locale prefix only as a full first segment, so /essays/ or a

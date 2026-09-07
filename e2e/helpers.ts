@@ -3,6 +3,8 @@ import { existsSync, readdirSync, readFileSync, unlinkSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { expect, type ConsoleMessage, type Locator, type Page } from '@playwright/test'
+import { en, ja, ko, type MessageKey } from '../web/src/lib/i18n/catalog'
+import { LOCALES, type Locale } from '../web/src/lib/i18n/types'
 
 const E2E_DIR = dirname(fileURLToPath(import.meta.url))
 const DEFAULT_E2E_PORT = '7877'
@@ -168,10 +170,49 @@ export default function globalSetup(): void {
 }
 
 /**
+ * The UI locale a media take records in: GADAK_MEDIA_LOCALE, default en.
+ *
+ * Single owner for the demo rig's language handle. The specs read it to pin
+ * the UI and to key their assertions; e2e/demo/export-*.sh read the same
+ * variable to name the files they write, so one export cannot land under a
+ * name the other half of the pipeline never chose. An unknown value is a
+ * typo that would otherwise record a silently English clip, so it throws.
+ */
+/**
+ * Filename the demo specs drop beside a take to record the language it was
+ * shot in, and the export scripts read back before naming anything. Same
+ * shape as the served-artifact stamp: the pipeline's two halves run minutes
+ * apart from different shells, so the take has to carry its own identity.
+ */
+export const MEDIA_LOCALE_STAMP = '.gadak-media-locale'
+
+export function mediaLocale(): Locale {
+  const raw = process.env.GADAK_MEDIA_LOCALE
+  if (raw === undefined || raw === '') return 'en'
+  const hit = LOCALES.find((l) => l === raw)
+  if (!hit) {
+    throw new Error(
+      `GADAK_MEDIA_LOCALE must be one of ${LOCALES.join(' | ')}, got ${JSON.stringify(raw)}`,
+    )
+  }
+  return hit
+}
+
+/**
+ * That locale's message table. A demo spec asserting on chrome text reads
+ * the string through this rather than restating an English translation:
+ * the catalog is the thing the UI renders from, so a spec keyed to it
+ * cannot go stale against a copy edit, and it holds in every locale.
+ */
+export function catalogFor(locale: Locale): Record<MessageKey, string> {
+  return { en, ko, ja }[locale]
+}
+
+/**
  * Seed locale only when unset so catalog assertions match en.ts by default,
  * without clobbering a user-driven setLocale() across reloads (locale.spec).
  */
-export async function forceLocale(page: Page, locale: 'en' | 'ko' = 'en'): Promise<void> {
+export async function forceLocale(page: Page, locale: Locale = 'en'): Promise<void> {
   clearUIFocus()
   await page.addInitScript((loc) => {
     try {

@@ -8,6 +8,39 @@ OUT_DIR="$ROOT/docs/media"
 RESULTS="$ROOT/e2e/demo/test-results-scale"
 mkdir -p "$OUT_DIR"
 
+# The locale this take recorded in — the same variable scale-demo.spec.ts
+# read to pin the UI (e2e/helpers.ts mediaLocale). en writes the bare names;
+# every other locale gets the tag as the last segment before the extension,
+# which is the shape site/src/i18n.ts mediaFor() asks the page for.
+LOCALE="${GADAK_MEDIA_LOCALE:-en}"
+case "$LOCALE" in
+  en) TAG="" ;;
+  ko|ja) TAG=".$LOCALE" ;;
+  *) echo "export-scale: GADAK_MEDIA_LOCALE must be en|ko|ja, got '$LOCALE'" >&2; exit 2 ;;
+esac
+# The take has to say which language it is. Running this by hand over a
+# results directory left by an earlier take of another locale produced an
+# mp4 full of English pixels under a Japanese name, and nothing said so
+# (measured 2026-09-07). `make media-scale` rm -rf's the directory first, so
+# the failure only reaches a hand-run export -- which is what MEDIA.md
+# documents. The spec writes this stamp; a mismatch stops here.
+STAMP="$RESULTS/.gadak-media-locale"
+if [[ ! -f "$STAMP" ]]; then
+  echo "export-scale: $RESULTS carries no locale stamp -- it predates GDK-1501 or was not written by scale-demo.spec.ts." >&2
+  echo "  re-record: GADAK_MEDIA_LOCALE=$LOCALE make media-scale" >&2
+  exit 3
+fi
+TOOK="$(tr -d '[:space:]' <"$STAMP")"
+if [[ "$TOOK" != "$LOCALE" ]]; then
+  echo "export-scale: the take under $RESULTS was recorded in '$TOOK', not '$LOCALE' -- exporting it would name English pixels 'scale.$LOCALE.mp4'." >&2
+  echo "  re-record: GADAK_MEDIA_LOCALE=$LOCALE make media-scale" >&2
+  exit 3
+fi
+MP4="$OUT_DIR/scale${TAG}.mp4"
+GIF="$OUT_DIR/scale${TAG}.gif"
+POSTER="$OUT_DIR/scale-poster${TAG}.png"
+echo "export-scale: locale $LOCALE → $(basename "$MP4"), $(basename "$GIF"), $(basename "$POSTER")"
+
 WEBM="$(find "$RESULTS" -type f -name 'video.webm' | head -n 1 || true)"
 if [[ -z "${WEBM}" ]]; then
   echo "export-scale: no video.webm under $RESULTS" >&2
@@ -48,7 +81,7 @@ ffmpeg -y -ss "$TRIM_HEAD" -i "$WEBM" \
   -vf "zoompan=z='${ZOOM}':x='${ZX}':y='${ZY}':d=1:s=1280x800:fps=25,format=yuv420p" \
   -c:v libx264 -preset medium -crf 20 \
   -movflags +faststart \
-  "$OUT_DIR/scale.mp4"
+  "$MP4"
 
 # Same budget ladder as export-groupby.sh: fps/colors before width.
 # Ceiling is 4 MB (site hero slot).
@@ -65,20 +98,27 @@ make_gif() {
     "$PALETTE"
   ffmpeg -y -ss "$TRIM_HEAD" -i "$WEBM" -i "$PALETTE" \
     -lavfi "fps=${fps},scale=${width}:-1:flags=lanczos[x];[x][1:v]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle" \
-    "$OUT_DIR/scale.gif"
+    "$GIF"
 }
 
 # Same budget ladder as export-groupby.sh: fps/colors before width.
 # Ceiling is 4 MB (site hero slot).
 make_gif "$FPS" "$WIDTH" 128
-SIZE="$(stat -f %z "$OUT_DIR/scale.gif")"
+SIZE="$(stat -f %z "$GIF")"
 if [[ "$SIZE" -gt 4194304 ]]; then
   make_gif 8 "$WIDTH" 96
 fi
-SIZE="$(stat -f %z "$OUT_DIR/scale.gif")"
+SIZE="$(stat -f %z "$GIF")"
 if [[ "$SIZE" -gt 4194304 ]]; then
   make_gif 7 800 96
 fi
 
+# The poster, cut from the mp4 this run just wrote. It used to be an ad-hoc
+# ffmpeg line in MEDIA.md that a person ran from memory, which is how a
+# locale variant would ship with no poster at all, or with the English one
+# still sitting under it — nothing in the repo would have said so. First
+# settled frame (-ss 0.2, ec39ea3a); the clip is already head-trimmed above,
+# so 0.2s in is the settled list, not the boot skeleton.
+ffmpeg -y -v error -ss 0.2 -i "$MP4" -frames:v 1 "$POSTER"
 
-ls -lh "$OUT_DIR/scale.gif" "$OUT_DIR/scale.mp4"
+ls -lh "$GIF" "$MP4" "$POSTER"

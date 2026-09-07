@@ -90,6 +90,8 @@ MEDIA_DIR := docs/media
 # it at build time (desktop/build-app.sh), the web icons are rendered
 # beside it, and the phone app's set is generated here. Needs the mobile
 # workspace installed (npm ci --prefix mobile) for the tauri CLI.
+# render.mjs writes the share card once per site locale (docs/media/og.png
+# for en, og.ko.png, og.ja.png) — the copy comes from site/src/tagline.js.
 brand:
 	node tools/brand/render.mjs
 	bash tools/brand/mobile-icons.sh
@@ -127,9 +129,13 @@ media-web: media-deps
 	GADAK_MEDIA=1 ./node_modules/.bin/playwright test --config e2e/demo/playwright.config.ts
 	bash e2e/demo/export-video.sh
 
+# GADAK_MEDIA_LOCALE=ko|ja records the same take under that UI language and
+# writes search.<lang>.{mp4,gif} + search-poster.<lang>.png; unset means en
+# and the bare names. Same variable for media-scale below (e2e/helpers.ts
+# mediaLocale is the single owner, e2e/demo/export-search.sh names the files).
 media-search: media-deps
 	@mkdir -p $(MEDIA_DIR)
-	@echo "media-search: recording unified-search palette demo…"
+	@echo "media-search: recording unified-search palette demo (locale $${GADAK_MEDIA_LOCALE:-en})…"
 	rm -rf e2e/demo/test-results-search
 	GADAK_MEDIA=1 ./node_modules/.bin/playwright test --config e2e/demo/search.config.ts
 	bash e2e/demo/export-search.sh
@@ -178,7 +184,7 @@ media-scale: media-deps
 	@echo "media-scale: generating 20k snapshot from examples/demo.db…"
 	GADAK_HOME=e2e/.tmp/home ./e2e/.tmp/gadak snapshot e2e/.tmp/demo-scale.db \
 		--from examples/demo.db --scale 20000 --spread 180d --force >/dev/null
-	@echo "media-scale: recording scale flagship…"
+	@echo "media-scale: recording scale flagship (locale $${GADAK_MEDIA_LOCALE:-en})…"
 	rm -rf e2e/demo/test-results-scale
 	GADAK_MEDIA=1 GADAK_SEED_DB="$$(pwd)/e2e/.tmp/demo-scale.db" \
 		./node_modules/.bin/playwright test --config e2e/demo/scale.config.ts

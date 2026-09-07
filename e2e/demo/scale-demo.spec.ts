@@ -19,10 +19,47 @@
  * Gated by GADAK_MEDIA=1. Viewport and video size must stay 1280×800
  * (see scale.config.ts) or Playwright letterboxes the capture.
  */
-import { test, expect, type Page } from '@playwright/test'
-import { attachConsoleErrors, forceLocale } from '../helpers'
+import { test, expect, type Page, type TestInfo } from '@playwright/test'
+import { writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import { attachConsoleErrors, catalogFor, forceLocale, mediaLocale, MEDIA_LOCALE_STAMP } from '../helpers'
 
 const isMedia = !!process.env.GADAK_MEDIA
+
+/**
+ * The UI language this take records in (GADAK_MEDIA_LOCALE, default en).
+ * Everything the app itself renders is read out of that locale's catalog
+ * below — a translated string is never restated here. What stays English is
+ * what the *fixture* carries: priority and status display names (High, In
+ * Progress) and issue titles come from the mirror, not the catalog, and a
+ * Japanese team's Jira shows them in English too. That is the honest frame
+ * to record, not a translated fixture.
+ */
+const LOCALE = mediaLocale()
+const t = catalogFor(LOCALE)
+
+/** A catalog string as a literal pattern — ja and ko copy is not regex. */
+const literal = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+/** A count string from the catalog, with {n} opened up to the scaled number. */
+function countText(key: 'sidebar.issueCount', n: string): RegExp {
+  return new RegExp(literal(t[key]).replace('\\{n\\}', n).replace(/ /g, '\\s+'))
+}
+
+/**
+ * Stamp the locale beside the take.
+ *
+ * Measured 2026-09-07: running `bash e2e/demo/export-scale.sh` with
+ * GADAK_MEDIA_LOCALE=ja over a results directory left by an earlier English
+ * take produced scale.ja.mp4 with English pixels in it, and nothing said so
+ * — the export script only ever looked for a video.webm. `make media-scale`
+ * happens to rm -rf the directory first, so the failure only reaches you
+ * when you run the export by hand, which is exactly what MEDIA.md documents.
+ * The take now says which language it is, and the export refuses a mismatch.
+ */
+async function stampLocale(testInfo: TestInfo): Promise<void> {
+  await writeFile(join(testInfo.project.outputDir, MEDIA_LOCALE_STAMP), `${LOCALE}\n`, 'utf8')
+}
 
 /** Pause between beats so a human can read the UI. */
 async function beat(page: Page, ms = 700): Promise<void> {
@@ -33,20 +70,23 @@ async function beat(page: Page, ms = 700): Promise<void> {
 test.describe('scale demo', () => {
   test.skip(!isMedia, 'GADAK_MEDIA=1 only — media pipeline recording')
 
-  test('20,000-issue mirror: search, open, regroup, filter', async ({ page }) => {
+  test('20,000-issue mirror: search, open, regroup, filter', async ({ page }, testInfo) => {
+    await stampLocale(testInfo)
     const errors = attachConsoleErrors(page)
-    await forceLocale(page, 'en')
+    await forceLocale(page, LOCALE)
     await page.goto('/#/')
     await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 60_000 })
     await expect(page.getByTestId('issue-list-scroller')).toBeVisible({ timeout: 60_000 })
     // The scale is the claim, so the count must be on screen before anything
     // moves. Locale-formatted ("20,000 issues"); the regex takes both separators.
-    await expect(page.getByText(/20[,.]?000\s+issues/).first()).toBeVisible({ timeout: 60_000 })
+    await expect(page.getByText(countText('sidebar.issueCount', '20[,.]?000')).first()).toBeVisible({
+      timeout: 60_000,
+    })
     await beat(page, 1400)
 
     // ── Beat 1: search at typing speed ──
     await page.keyboard.press('ControlOrMeta+k')
-    const palette = page.getByRole('dialog', { name: 'Command palette' })
+    const palette = page.getByRole('dialog', { name: t['palette.title'] })
     await expect(palette).toBeVisible()
     await beat(page, 600)
 
@@ -78,8 +118,8 @@ test.describe('scale demo', () => {
 
     // ── Beat 2: regroup by assignee (Breakdown menu, same affordance as
     // groupby-demo.spec.ts — the menu, not a URL param) ──
-    await page.getByRole('button', { name: /Breakdown/ }).click()
-    const option = page.getByRole('button', { name: 'Assignee', exact: true })
+    await page.getByRole('button', { name: new RegExp(literal(t['group.breakdown'])) }).click()
+    const option = page.getByRole('button', { name: t['field.assignee'], exact: true })
     await expect(option).toBeVisible()
     await beat(page, 500)
     await option.click()
@@ -106,7 +146,12 @@ test.describe('scale demo', () => {
     await beat(page, 400)
     await nmbRow.getByTestId('filter-value-exclude').click()
     await page.keyboard.press('Escape')
-    await expect(page.getByTestId('filter-chip').filter({ hasText: /not/i })).toBeVisible()
+    // The exclusion reads as a word inside the chip ("not NMB"), and that
+    // word is translated. Assert on the axis the chip carries in the DOM
+    // instead — jira_project_not is the negation field's own name
+    // (web/src/lib/view-config.ts NEGATION_FIELDS), so this holds in every
+    // locale and says which chip it means.
+    await expect(page.locator('[data-testid="filter-chip"][data-filter-field="jira_project_not"]')).toBeVisible()
     await beat(page, 900)
 
     // 2) Priority = High — the menu's facet counts are now computed over
@@ -138,9 +183,10 @@ test.describe('scale demo', () => {
     await beat(page, 600)
     await progressOption.click()
     await page.keyboard.press('Escape')
-    // Multi-picks summarize as "Status: 3" (count, not value list), so match
-    // the axis label, not the value.
-    await expect(page.getByTestId('filter-chip').filter({ hasText: /^Status:/ })).toBeVisible()
+    // Multi-picks summarize as "Status: 3" (count, not value list) under a
+    // translated axis label, so the chip is identified by the axis it
+    // carries in the DOM rather than by any of that text.
+    await expect(page.locator('[data-testid="filter-chip"][data-filter-field="status"]')).toBeVisible()
     const listCount = page.getByTestId('list-count')
     await expect(listCount).not.toHaveText(/20[,.]?000/, { timeout: 30_000 })
     // Hold: three chips + the narrowed count together.

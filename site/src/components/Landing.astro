@@ -4,7 +4,7 @@ import Door from '../components/Door.astro'
 import Thread from '../components/Thread.astro'
 import MediaSlot from '../components/MediaSlot.astro'
 import Snippet from '../components/Snippet.astro'
-import { strings, pathFor, type Locale } from '../i18n'
+import { strings, pathFor, mediaFor, type Locale } from '../i18n'
 
 interface Props {
   lang: Locale
@@ -32,10 +32,15 @@ const storeHref = 'https://apps.microsoft.com/detail/9NZW91TXH36G'
       <Door href="/demo/" title={t.hero.doors.demoTitle} sub={t.hero.doors.demoSub} />
     </div>
     <figure class="flagship">
+      {/* The two clips below carry localized UI in their pixels, so each
+          asks mediaFor for this locale's cut and falls back to the English
+          take until that cut is recorded (MEDIA_LOCALES in i18n.ts). The
+          agent clip further down does not: its frame is a shell, and the
+          CLI has no i18n to localize. */}
       <MediaSlot
         slot={t.landing.flagshipSlot}
-        src="/media/scale.mp4"
-        poster="/media/scale-poster.png"
+        src={mediaFor(lang, '/media/scale.mp4')}
+        poster={mediaFor(lang, '/media/scale-poster.png')}
         autoplay
       />
       <figcaption>{t.hero.videoCaption}</figcaption>
@@ -86,8 +91,8 @@ const storeHref = 'https://apps.microsoft.com/detail/9NZW91TXH36G'
     </div>
     <MediaSlot
       slot={t.landing.searchSlot}
-      src="/media/search.mp4"
-      poster="/media/search-poster.png"
+      src={mediaFor(lang, '/media/search.mp4')}
+      poster={mediaFor(lang, '/media/search-poster.png')}
     />
   </section>
 

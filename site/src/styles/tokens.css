@@ -105,7 +105,32 @@ pre {
 
 /* Japanese line breaking: strict kinsoku, so a line never starts with ー or
    a small kana. Default browser breaking allowed it on /ja/install/ twice
-   (GDK-1500 vision round). Scoped to the locale — en and ko are unaffected. */
+   (GDK-1500 vision round). Scoped to the locale — en and ko are unaffected.
+
+   Japanese faces (GDK-1533): the stack above names Pretendard and the Hangul
+   gothics and no Japanese face at all, so the /ja/ pages drew kana and 課 in
+   Pretendard and Apple SD Gothic Neo — Korean shapes — and dropped the
+   shinjitai those lack onto PingFang SC. Measured 2026-09-07 with
+   tools/font-probe.mjs (`--surface site`); re-run it after touching either
+   stack.
+
+   Pretendard goes *behind* the Japanese faces here, unlike every other
+   locale. It is not only a Hangul font — its dynamic subset carries kana,
+   measured, so leaving it in front would keep drawing あ and ア. The price
+   is that Latin on a /ja/ page is set in the Japanese face rather than
+   Pretendard; the CJK is the larger share of that page and the wrong shapes
+   are the defect being closed. The Hangul gothic stays at the tail: Korean
+   text on a Japanese page is still Korean, and fallback reaches it per
+   glyph. */
 html[lang='ja'] {
   line-break: strict;
+  --font-sans: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', YuGothic, Meiryo,
+    'Noto Sans CJK JP', 'Noto Sans JP', 'Pretendard Variable', Pretendard, -apple-system,
+    BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', 'Apple SD Gothic Neo', sans-serif;
+  /* macOS already lands a Japanese face here through last-resort fallback
+     (measured: Osaka). The named entry is for the machines where it does
+     not — a Linux build with fonts-noto-cjk, or any host carrying D2Coding,
+     whose Korean glyphs would otherwise win the whole CJK range. */
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Noto Sans Mono CJK JP', 'D2Coding',
+    monospace;
 }

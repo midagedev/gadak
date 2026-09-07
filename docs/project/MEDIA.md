@@ -91,6 +91,66 @@ the **last** frame (`-sseof -0.3`): the view the agent produced, the pane under
 it. Re-cut a clip and its poster moves with it; a poster older than its mp4 is
 a stale poster.
 
+The grab is **inside the export scripts**, not a command anyone runs from
+memory. `export-scale.sh` and `export-search.sh` cut their poster from the mp4
+they just wrote, in the same run (GDK-1501, 2026-09-07); before that the two
+landing posters were an ad-hoc ffmpeg line documented only here, which is how
+a locale variant could ship with the English poster still under it and nothing
+in the repo would say so.
+
+## Locale variants (GDK-1501)
+
+The two landing clips carry the product's own UI in their pixels, so each is a
+per-language asset. One variable drives the whole pipeline:
+
+```bash
+GADAK_MEDIA_LOCALE=ja make media-search   # → search.ja.mp4, search.ja.gif, search-poster.ja.png
+GADAK_MEDIA_LOCALE=ko make media-scale    # → scale.ko.mp4,  scale.ko.gif,  scale-poster.ko.png
+make media-search                          # unset = en = the bare names
+```
+
+`e2e/helpers.ts` `mediaLocale()` owns the variable: the spec reads it to pin
+the UI (`forceLocale`) and to key every assertion that touches translated
+chrome against that locale's message catalog, and `export-*.sh` reads the same
+value to name what it writes. The locale tag is always the **last segment
+before the extension** — `scale.ja.mp4`, `scale-poster.ja.png` — which is the
+shape `site/src/i18n.ts` `mediaFor()` asks the page for.
+
+A take carries its own language. The spec writes `.gadak-media-locale` into
+the results directory, and the export script refuses to name anything if that
+stamp disagrees with `GADAK_MEDIA_LOCALE` (exit 3). This is not hypothetical:
+running `export-scale.sh` with `GADAK_MEDIA_LOCALE=ja` over the directory an
+earlier English take left behind produced a `scale.ja.mp4` full of English
+pixels, and nothing said so (measured 2026-09-07). `make media-scale` clears
+the directory first, so only a hand-run export could hit it — which is the
+form this document teaches.
+
+What stays English inside a `ko`/`ja` take is the fixture: issue titles,
+priority and status display names come from the mirror, not the catalog. A
+Korean or Japanese team runs English tickets under localized chrome too, so
+that is the honest frame; a translated fixture would make the mirror less
+believable, not more.
+
+`site/src/i18n.ts` `MEDIA_LOCALES` decides which cut a page actually gets. It
+is a declared map, never a filesystem probe — `site/public/media` is a symlink
+the build creates, so there is nothing to look in at authoring time. Adding a
+locale there is what turns a recorded variant on, and `tools/doc-checks.sh`
+check 40 fails when a listed locale has no file in `docs/media/`, so neither
+half can land alone.
+
+`terminal-hero.mp4` deliberately has no variants: the CLI has no i18n and
+Claude's TUI is English, so a `ja` take would change two prompt strings inside
+an otherwise identical English frame — and it costs a live-model take.
+
+**`og.png` is the fourth asset in this set,** even though it is a Node render
+rather than a recording. Its tagline is baked into the pixels, so
+`tools/brand/render.mjs` writes it once per locale: `og.png` (en), `og.ko.png`,
+`og.ja.png`. The copy is `site/src/tagline.js`, the same object the landing
+headline reads, so the card and the page cannot disagree. `make brand` runs the
+loop. The `proof` row along the bottom exists only for `en`; the renderer omits
+it rather than setting an English strip under a Japanese headline, and adding a
+`proof` array to a locale turns the row on there with no renderer change.
+
 Regenerate the two app stills against the standard e2e fixture (the history
 still needs serve.sh's NMB-139 enrichment):
 

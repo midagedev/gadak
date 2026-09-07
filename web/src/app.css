@@ -257,6 +257,54 @@
   color-scheme: dark;
 }
 
+/* ── Japanese faces (GDK-1532) ──
+   Font fallback is per glyph, so the stacks above — which name the Hangul
+   gothics and no Japanese face at all — drew every kana and most kanji in
+   Apple SD Gothic Neo and dropped the shinjitai it lacks (担·当·検) onto
+   PingFang SC. Measured 2026-09-07 with tools/font-probe.mjs; run it after
+   touching any stack here.
+
+   Scoped, never a global reorder: putting a Japanese face ahead of the
+   Korean ones for everybody would give Korean hanja Japanese shapes, which
+   is the same defect pointed the other way. i18n/index.ts syncs
+   documentElement.lang to 'ja-JP', and :lang(ja) matches that.
+
+   The Korean faces stay in the list *behind* the Japanese ones: Hangul on a
+   Japanese page is still Korean, and per-glyph fallback reaches them on its
+   own. Family order is macOS current (Hiragino Sans) → macOS classic
+   (Hiragino Kaku Gothic ProN, what this machine has) → Windows (Yu Gothic,
+   Meiryo) → Linux/CI (Noto Sans CJK JP, package fonts-noto-cjk).
+
+   Unlayered on purpose, like the color-scheme rules above: @theme compiles
+   into @layer theme, which any unlayered rule outranks, while the user's own
+   font override (user-tokens.ts, also unlayered and appended later) still
+   beats this one — an explicit choice outranks a locale default. */
+:lang(ja) {
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, system-ui, 'Hiragino Sans', 'Hiragino Kaku Gothic ProN',
+    'Yu Gothic', YuGothic, Meiryo, 'Noto Sans CJK JP', 'Noto Sans JP', 'Apple SD Gothic Neo',
+    'Noto Sans CJK KR', 'Noto Sans KR', 'Malgun Gothic', 'Segoe UI', sans-serif;
+  /* Display keeps the Korean decision (a gothic, not a mincho): New York has
+     no CJK, and falling to a serif Japanese face would read like a newspaper
+     next to a Hangul title that deliberately does not. */
+  --font-display:
+    'New York', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', YuGothic, Meiryo,
+    'Noto Sans CJK JP', 'Noto Sans JP', 'Apple SD Gothic Neo', 'Noto Sans CJK KR', 'Noto Sans KR',
+    'Malgun Gothic', 'Iowan Old Style', ui-serif, Palatino, Georgia, serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono',
+    'Noto Sans Mono CJK JP', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic',
+    'Apple SD Gothic Neo', 'Noto Sans CJK KR', 'Malgun Gothic', monospace;
+  /* Menlo stays first (GDK-1043: it is what makes the xterm cell join by
+     overshoot). The Japanese faces go where the Hangul gothics go — behind
+     every mono face, ahead of the generic — so the Latin grid is untouched
+     and only the CJK glyphs move. */
+  --font-mono-terminal:
+    Menlo, ui-monospace, SFMono-Regular, 'SF Mono', Consolas, 'Liberation Mono',
+    'Noto Sans Mono CJK JP', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic',
+    'Apple SD Gothic Neo', 'Noto Sans CJK KR', 'Malgun Gothic', monospace;
+}
+
 @layer base {
   /*
     Theme mechanism (design §5.1). @theme above keeps the light values.
