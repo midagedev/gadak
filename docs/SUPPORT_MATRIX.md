@@ -29,7 +29,7 @@ Markers:
 | **Read** · `--jql` / pasted Jira URL | ✅[^7] | ✅[^8] | ✅[^7] |
 | **Read** · comments | ✅[^9] | ✅[^10] | ✅[^9] |
 | **Read** · attachment bytes | ✅[^11] | ✅[^12] | ◐[^13] |
-| **Read** · history → `status_changed_at`, `reopen_count`, `started_at` / `cycle_hours` (time-in-status computed, never stored) | ✅[^14] | —[^15] | ✅[^16] |
+| **Read** · history → `status_changed_at`, `reopen_count`, `started_at` / `cycle_hours` (time-in-status computed, never stored) | ✅[^14] | ◐[^15] | ✅[^16] |
 | **Read** · issue links | ✅[^17] | ✅[^106] | ✅[^19] |
 | **Read** · `gadak ready` / `open_blockers` — blocking-link catalog | ✅[^107] | ✅[^108] | ✅[^109] |
 | **Read** · remote issue links / cross-workspace refs (`ref`) | —[^20] | —[^20] | ◐[^21] |
@@ -124,13 +124,18 @@ Markers:
     (`specs/000-product/data-model.md`).
 
 [^15]: Linear's read path carries no state history — `status_changed_at`,
-    `reopen_count`, `started_at` and `cycle_hours` stay NULL
-    (`internal/sync/linear.go:46`, `:223`). Every Linear batch says so
-    (`Batch.NoHistory`, `internal/sync/linear.go:144`, `:412`), which is what
+    `reopen_count` and `reopened_at` stay NULL
+    (`internal/sync/linear.go:46`). Every Linear batch says so
+    (`Batch.NoHistory`, `internal/sync/linear.go:144`, `:430`), which is what
     stops the born-in-progress rule from guessing a start off an empty
-    changelog. Linear does expose `startedAt` / `completedAt` on the issue
-    itself; reading those into the flow columns is the open follow-up, not
-    yet done.
+    changelog. The flow columns do fill: the issue's own `startedAt` /
+    `completedAt` / `canceledAt` stamps ride the batch as Derive hints
+    (`internal/sync/linear.go:287`), and the NoHistory hint rule fills
+    `started_at` / `resolved_at` / `cycle_hours` from them
+    (`internal/store/derive.go:153`). A stamp is not a timeline — no
+    synthetic changelog comes from it. An existing mirror row fills when its
+    Linear `updated_at` next moves; a full sync re-reads but does not
+    rewrite unchanged rows (`Batch.Force` is write-through only).
 
 [^16]: The origin keeps a changelog and serves it
     (`issuetap/docs/COMPATIBILITY.md:71`); the same columns derive from it.

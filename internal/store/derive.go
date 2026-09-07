@@ -35,6 +35,16 @@ type DeriveInput struct {
 	// last_activity_at — the mirror's own notion of when the origin last
 	// touched the issue, which can outrank every changelog entry.
 	UpdatedAt string
+	// StartedAtHint / ResolvedAtHint are the flow stamps an origin with no
+	// changelog carries on the issue itself (Linear: Issue.startedAt, and
+	// completedAt — else canceledAt — as the finish), ISO-8601 UTC or empty.
+	// They are consulted only under NoHistory: an origin that supplies a
+	// changelog derives both columns from transitions and ignores them. They
+	// are stamps, not history — status_changed_at, reopen_count and
+	// reopened_at never come from them, and the undone-resolution and
+	// positive-span rules below still run after them.
+	StartedAtHint  string
+	ResolvedAtHint string
 }
 
 // Derived holds the columns gadak computes because the source does not provide
@@ -132,6 +142,21 @@ func Derive(in DeriveInput) Derived {
 			at := in.CreatedAt
 			d.StartedAt = &at
 		}
+	}
+
+	// Flow hints (Linear): an origin with no changelog still stamps the two
+	// instants on the issue itself, and those stamps are the whole truth
+	// available — the transition rules above had nothing to say. The
+	// timeline columns (status_changed_at, reopen_count, reopened_at) stay
+	// untouched: a stamp is not a transition, and no synthetic history is
+	// invented from it.
+	if in.NoHistory && in.StartedAtHint != "" {
+		at := in.StartedAtHint
+		d.StartedAt = &at
+	}
+	if in.NoHistory && in.ResolvedAtHint != "" {
+		at := in.ResolvedAtHint
+		d.ResolvedAt = &at
 	}
 
 	// A resolution that was undone is not a resolution date.

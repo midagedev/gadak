@@ -3,7 +3,10 @@
 Each file is a real GraphQL response from the Linear API (captured 2026-08-18,
 personal API key, with the exact query constants this package ships), scrubbed
 so it carries no person- or workspace-identifying value. Shape is real;
-identity is not.
+identity is not. One later edit is authored, not captured: on 2026-09-07
+`issues_page1.json` gained `startedAt` / `completedAt` / `canceledAt` values
+and FIX-1 moved to the started state, so the flow-column hints have a
+fixture to exercise (the field shape itself was verified live).
 
 | File | Captured with | What it exercises |
 | --- | --- | --- |

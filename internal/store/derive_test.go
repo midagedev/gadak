@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"path/filepath"
+	"reflect"
+	"strconv"
 	"testing"
 )
 
@@ -401,4 +403,85 @@ func TestDeriveBornInProgress(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestDeriveFlowHints pins the NoHistory hint rule (Linear): the issue's own
+// startedAt / completedAt stamps fill started_at and resolved_at only under
+// NoHistory, never touch the timeline columns, and the undone-resolution and
+// positive-span guards still run after them.
+//
+//	hints, done now                        → both filled, cycle spans them (FAIL-first: all NULL)
+//	hints, in progress now (undone)        → resolved/cycle nulled by the guard, start kept
+//	NoHistory, no hints                    → the honest NULL (unchanged)
+//	hints, NoHistory false, real changelog → Derived identical to no hints (hints ignored)
+//	non-positive span                      → cycle stays NULL, stamps set
+func TestDeriveFlowHints(t *testing.T) {
+	cats := map[string]string{"1": "new", "3": "inprogress", "5": "done"}
+	start := "2026-07-01T08:00:00.000Z"
+	done := "2026-07-02T08:00:00.000Z"
+
+	// Completed Linear issue: both hints land, cycle_hours spans them, and no
+	// timeline column was invented from a stamp.
+	got := Derive(DeriveInput{NoHistory: true, Categories: cats, CurrentCategory: "done",
+		StartedAtHint: start, ResolvedAtHint: done})
+	if deref(got.StartedAt) != start || got.StartedAt == nil {
+		t.Fatalf("started_at = %v, want the StartedAtHint", deref(got.StartedAt))
+	}
+	if deref(got.ResolvedAt) != done || got.ResolvedAt == nil {
+		t.Fatalf("resolved_at = %v, want the ResolvedAtHint", deref(got.ResolvedAt))
+	}
+	if got.CycleHours == nil || *got.CycleHours != 24 {
+		t.Fatalf("cycle_hours = %v, want 24", derefFloat(got.CycleHours))
+	}
+	if got.StatusChangedAt != nil || got.ReopenCount != 0 || got.ReopenedAt != nil || got.ReopenReason != "" {
+		t.Fatalf("hints fabricated timeline columns: %+v", got)
+	}
+
+	// Completed then reopened (not done now): the undone-resolution guard
+	// still runs after the hint — resolved_at/cycle_hours nulled, start kept.
+	got = Derive(DeriveInput{NoHistory: true, Categories: cats, CurrentCategory: "inprogress",
+		StartedAtHint: start, ResolvedAtHint: done})
+	if deref(got.StartedAt) != start || got.StartedAt == nil {
+		t.Fatalf("started_at = %v, want the hint kept", deref(got.StartedAt))
+	}
+	if got.ResolvedAt != nil || got.CycleHours != nil {
+		t.Fatalf("undone resolution survived: resolved=%v cycle=%v", deref(got.ResolvedAt), derefFloat(got.CycleHours))
+	}
+
+	// NoHistory without hints stays the honest NULL — the guard case that
+	// predates the hints must not regress.
+	got = Derive(DeriveInput{NoHistory: true, Categories: cats, CurrentCategory: "inprogress"})
+	if got.StartedAt != nil || got.ResolvedAt != nil || got.CycleHours != nil {
+		t.Fatalf("no-hint NoHistory derived flow columns: %+v", got)
+	}
+
+	// Hints on an origin WITH history are ignored: over a real changelog the
+	// Derived output is identical with and without them.
+	changelog := []ChangeEntry{
+		{At: "2026-07-01T00:00:00.000Z", Field: "status", FromID: "1", ToID: "3"},
+		{At: "2026-07-05T00:00:00.000Z", Field: "status", FromID: "3", ToID: "5"},
+	}
+	with := Derive(DeriveInput{Categories: cats, CurrentCategory: "done", Changelog: changelog,
+		StartedAtHint: "1999-01-01T00:00:00.000Z", ResolvedAtHint: "1999-02-01T00:00:00.000Z"})
+	without := Derive(DeriveInput{Categories: cats, CurrentCategory: "done", Changelog: changelog})
+	if !reflect.DeepEqual(with, without) {
+		t.Fatalf("hints changed a changelog derive:\nwith:    %+v\nwithout: %+v", with, without)
+	}
+
+	// A non-positive span is not a cycle, stamps or not.
+	got = Derive(DeriveInput{NoHistory: true, Categories: cats, CurrentCategory: "done",
+		StartedAtHint: start, ResolvedAtHint: start})
+	if got.StartedAt == nil || got.ResolvedAt == nil {
+		t.Fatalf("stamps missing: %+v", got)
+	}
+	if got.CycleHours != nil {
+		t.Fatalf("zero-span cycle_hours = %v, want NULL", derefFloat(got.CycleHours))
+	}
+}
+
+func derefFloat(f *float64) string {
+	if f == nil {
+		return "<nil>"
+	}
+	return strconv.FormatFloat(*f, 'g', -1, 64)
 }

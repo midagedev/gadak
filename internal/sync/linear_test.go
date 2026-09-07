@@ -94,8 +94,8 @@ func TestRunLinearMirrorsFixtures(t *testing.T) {
 	}
 
 	one := lite(t, db, "FIX-1")
-	if one.StatusCategory != "new" {
-		t.Errorf("FIX-1 status_category = %q, want new (state type unstarted)", one.StatusCategory)
+	if one.StatusCategory != "inprogress" {
+		t.Errorf("FIX-1 status_category = %q, want inprogress (state type started)", one.StatusCategory)
 	}
 	if one.PriorityRank != 0 {
 		t.Errorf("FIX-1 priority_rank = %d, want 0 (No priority)", one.PriorityRank)
@@ -106,13 +106,33 @@ func TestRunLinearMirrorsFixtures(t *testing.T) {
 	if got := db.column(t, "issues_full", "status_category", "FIX-3"); got != "new" {
 		t.Errorf("issues_full FIX-3 status_category = %q", got)
 	}
-	// NULL is honest: no history fetched this round, so no status_changed_at,
-	// no resolved_at, reopen_count 0. description_adf must stay empty —
-	// Linear bodies are markdown, not ADF.
-	for _, col := range []string{"status_changed_at", "resolved_at"} {
+	// Flow columns from the issue's own stamps: startedAt fills started_at on a
+	// NoHistory origin, completedAt/canceledAt fill resolved_at and cycle_hours
+	// (FIX-4 spans 13:30 → 16:00, 2.5h). FIX-1 sits in progress now, so its
+	// undone resolution stays NULL.
+	if got := db.column(t, "issues", "started_at", "FIX-1"); got != "2026-08-18T14:00:00.000Z" {
+		t.Errorf("FIX-1 started_at = %q, want the Linear startedAt stamp", got)
+	}
+	if got := db.column(t, "issues", "started_at", "FIX-4"); got != "2026-08-18T13:30:00.000Z" {
+		t.Errorf("FIX-4 started_at = %q, want the Linear startedAt stamp", got)
+	}
+	if got := db.column(t, "issues", "resolved_at", "FIX-4"); got != "2026-08-18T16:00:00.000Z" {
+		t.Errorf("FIX-4 resolved_at = %q, want the Linear completedAt stamp", got)
+	}
+	if got := db.column(t, "issues", "cycle_hours", "FIX-4"); got != "2.5" {
+		t.Errorf("FIX-4 cycle_hours = %q, want 2.5 (13:30 → 16:00)", got)
+	}
+	// NULL is still honest for what no stamp can answer: no history fetched
+	// this round, so no status_changed_at, no reopened_at, reopen_count 0 —
+	// and FIX-1 (in progress now) keeps resolved_at NULL. description_adf
+	// must stay empty — Linear bodies are markdown, not ADF.
+	for _, col := range []string{"status_changed_at", "resolved_at", "reopened_at"} {
 		if got := db.column(t, "issues", col, "FIX-1"); got != "" {
 			t.Errorf("issues.%s = %q, want NULL (Linear history not mirrored)", col, got)
 		}
+	}
+	if got := db.column(t, "issues", "reopen_count", "FIX-1"); got != "0" {
+		t.Errorf("issues.reopen_count = %q, want 0", got)
 	}
 	if got := db.column(t, "issues", "description_adf", "FIX-1"); got != "" {
 		t.Errorf("description_adf = %q, want empty — markdown must not pose as ADF", got)
@@ -176,6 +196,7 @@ func linearNode(key, id, stateType, stateName string, prio int, prioLabel string
 func TestRunLinearMapping(t *testing.T) {
 	nodes := []map[string]any{
 		linearNode("FIX-11", "1", "started", "In Progress", 1, "Urgent", map[string]any{
+			"startedAt": "2026-08-02T00:00:00.000Z",
 			"comments": map[string]any{
 				"pageInfo": map[string]any{"hasNextPage": false, "endCursor": nil},
 				"nodes": []map[string]any{{
@@ -187,8 +208,15 @@ func TestRunLinearMapping(t *testing.T) {
 			"assignee": map[string]any{"id": "u1", "name": "Fixture User", "displayName": "Fix User", "email": "u@example.invalid"},
 			"parent":   map[string]any{"id": "p1", "identifier": "FIX-1"},
 		}),
-		linearNode("FIX-12", "2", "completed", "Done", 4, "Low", nil),
-		linearNode("FIX-13", "3", "duplicate", "Duplicate", 2, "High", nil),
+		// FIX-12: completed with both stamps — cycle_hours spans them.
+		linearNode("FIX-12", "2", "completed", "Done", 4, "Low", map[string]any{
+			"startedAt": "2026-08-01T02:00:00.000Z", "completedAt": "2026-08-01T05:30:00.000Z",
+		}),
+		// FIX-13: canceled (maps to done) with only canceledAt set — the
+		// completedAt-or-canceledAt fallback.
+		linearNode("FIX-13", "3", "duplicate", "Duplicate", 2, "High", map[string]any{
+			"startedAt": "2026-08-01T01:00:00.000Z", "canceledAt": "2026-08-01T03:00:00.000Z",
+		}),
 		linearNode("FIX-14", "4", "triage", "Triage", 3, "Medium", nil),
 		// Open enum: a type this build has never heard of must land as new,
 		// loudly, never silently something else.
@@ -234,6 +262,46 @@ func TestRunLinearMapping(t *testing.T) {
 	}
 	if got := db.column(t, "issues", "security_level_id", "FIX-11"); got != "" {
 		t.Errorf("security_level_id = %q, want empty (Linear has none — no synthetic constants)", got)
+	}
+	// Flow columns from the issue's own stamps — hints on a NoHistory origin,
+	// never a changelog. FIX-11 is in progress now, so no resolved_at/cycle;
+	// FIX-12 completed (both stamps, 3.5h); FIX-13 canceled (canceledAt only,
+	// completedAt is null → the fallback fills resolved_at, 2h).
+	if got := db.column(t, "issues", "started_at", "FIX-11"); got != "2026-08-02T00:00:00.000Z" {
+		t.Errorf("FIX-11 started_at = %q, want the Linear startedAt stamp", got)
+	}
+	if got := db.column(t, "issues", "resolved_at", "FIX-11"); got != "" {
+		t.Errorf("FIX-11 resolved_at = %q, want NULL (not done now)", got)
+	}
+	if got := db.column(t, "issues", "started_at", "FIX-12"); got != "2026-08-01T02:00:00.000Z" {
+		t.Errorf("FIX-12 started_at = %q, want the Linear startedAt stamp", got)
+	}
+	if got := db.column(t, "issues", "resolved_at", "FIX-12"); got != "2026-08-01T05:30:00.000Z" {
+		t.Errorf("FIX-12 resolved_at = %q, want the Linear completedAt stamp", got)
+	}
+	if got := db.column(t, "issues", "cycle_hours", "FIX-12"); got != "3.5" {
+		t.Errorf("FIX-12 cycle_hours = %q, want 3.5 (02:00 → 05:30)", got)
+	}
+	if got := db.column(t, "issues", "started_at", "FIX-13"); got != "2026-08-01T01:00:00.000Z" {
+		t.Errorf("FIX-13 started_at = %q, want the Linear startedAt stamp", got)
+	}
+	if got := db.column(t, "issues", "resolved_at", "FIX-13"); got != "2026-08-01T03:00:00.000Z" {
+		t.Errorf("FIX-13 resolved_at = %q, want the canceledAt stamp (canceled maps to done)", got)
+	}
+	if got := db.column(t, "issues", "cycle_hours", "FIX-13"); got != "2" {
+		t.Errorf("FIX-13 cycle_hours = %q, want 2 (01:00 → 03:00)", got)
+	}
+	// Stamps never fabricate a timeline: status_changed_at / reopened_at stay
+	// NULL and reopen_count 0 even on the completed shapes.
+	for _, key := range []string{"FIX-12", "FIX-13"} {
+		for _, col := range []string{"status_changed_at", "reopened_at"} {
+			if got := db.column(t, "issues", col, key); got != "" {
+				t.Errorf("%s %s = %q, want NULL (stamps are not history)", key, col, got)
+			}
+		}
+		if got := db.column(t, "issues", "reopen_count", key); got != "0" {
+			t.Errorf("%s reopen_count = %q, want 0 (stamps are not history)", key, got)
+		}
 	}
 	detail, err := db.Detail(context.Background(), "FIX-11")
 	if err != nil || len(detail.Comments) != 1 || !strings.Contains(detail.Comments[0].Body, "markdown") {

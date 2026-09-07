@@ -228,8 +228,9 @@ func runLinearPass(ctx context.Context, c *linear.Client, cfg *config.Config, db
 // stay empty — Linear has no such concepts and synthetic constants are
 // forbidden; description and comments
 // are markdown and land in body_text only, never in the ADF columns; no
-// changelog is supplied, so status_changed_at / resolved_at / reopen_count
-// derive to NULL/0.
+// changelog is supplied, so status_changed_at / reopen_count / reopened_at
+// derive to NULL/0, while started_at / resolved_at / cycle_hours fill from
+// the issue's own stamps as Derive hints (NoHistory is what consults them).
 func buildLinearRecord(iss linear.Issue, cat string) store.IssueRecord {
 	item := store.Item{
 		ID:         LinearSourceID + ":" + iss.ID,
@@ -278,6 +279,13 @@ func buildLinearRecord(iss linear.Issue, cat string) store.IssueRecord {
 	}
 
 	rec := store.IssueRecord{Item: item, Issue: issue}
+	// Flow hints: Linear stamps the two instants on the issue itself, and the
+	// NoHistory batch carries them into Derive (sync/linear batches never
+	// include a changelog). canceledAt stands in for completedAt on canceled
+	// / duplicate issues — both map to status_category done — and when both
+	// are set the completion wins.
+	rec.StartedAtHint = iss.StartedAt
+	rec.ResolvedAtHint = firstNonEmpty(iss.CompletedAt, iss.CanceledAt)
 	// Relations → links (GDK-1299). The relation this issue owns is its
 	// outward link (blocks: I block the target; duplicate: I duplicate the
 	// target); one owned by another issue and pointing here is inward — the
@@ -319,6 +327,16 @@ func buildLinearRecord(iss linear.Issue, cat string) store.IssueRecord {
 		})
 	}
 	return rec
+}
+
+// firstNonEmpty returns a, or b when a is empty — the completedAt-else-
+// canceledAt pick for the resolved-at hint. Linear uses null for "not set",
+// which decodes to the empty string, so empty is the only absence there is.
+func firstNonEmpty(a, b string) string {
+	if a != "" {
+		return a
+	}
+	return b
 }
 
 // linearLinkType names a Linear relation type the way the mirror's Jira

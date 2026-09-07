@@ -16,13 +16,16 @@
           "createdAt": "2026-08-18T13:18:31.131Z",
           "updatedAt": "2026-08-18T13:18:31.131Z",
           "archivedAt": null,
+          "startedAt": "2026-08-18T14:00:00.000Z",
+          "completedAt": null,
+          "canceledAt": null,
           "priority": 0,
           "priorityLabel": "No priority",
           "dueDate": null,
           "state": {
-            "id": "00000000-0000-4000-8000-000000000002",
-            "name": "Todo",
-            "type": "unstarted",
+            "id": "00000000-0000-4000-8000-000000000008",
+            "name": "In Progress",
+            "type": "started",
             "position": 1
           },
           "team": {
@@ -54,13 +57,16 @@
           "createdAt": "2026-08-18T13:18:31.131Z",
           "updatedAt": "2026-08-18T13:18:31.131Z",
           "archivedAt": null,
+          "startedAt": "2026-08-18T13:30:00.000Z",
+          "completedAt": "2026-08-18T16:00:00.000Z",
+          "canceledAt": null,
           "priority": 0,
           "priorityLabel": "No priority",
           "dueDate": null,
           "state": {
-            "id": "00000000-0000-4000-8000-000000000002",
-            "name": "Todo",
-            "type": "unstarted",
+            "id": "00000000-0000-4000-8000-000000000010",
+            "name": "Done",
+            "type": "completed",
             "position": 1
           },
           "team": {

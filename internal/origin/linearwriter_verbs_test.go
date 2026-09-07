@@ -467,7 +467,9 @@ func TestTransitionsMapLinearStates(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Fixture issue is on Todo (unstarted). That state is omitted.
+	// Fixture issue is on In Progress (started) since the flow-hint fixture
+	// edit of 2026-09-07 (issues_page1.json FIX-1 carries startedAt). That
+	// state is omitted.
 	if len(list) != 5 {
 		t.Fatalf("transitions = %d, want 5 (catalog minus current)", len(list))
 	}
@@ -478,15 +480,15 @@ func TestTransitionsMapLinearStates(t *testing.T) {
 			t.Errorf("transition missing id: %+v", tr)
 		}
 	}
-	if byName["Todo"] != "" {
-		t.Error("current Todo state was offered as a self-transition")
+	if byName["In Progress"] != "" {
+		t.Error("current In Progress state was offered as a self-transition")
 	}
 	want := map[string]string{
-		"In Progress": "indeterminate",
-		"Done":        "done",
-		"Canceled":    "done",
-		"Duplicate":   "done",
-		"Backlog":     "new",
+		"Todo":      "new",
+		"Done":      "done",
+		"Canceled":  "done",
+		"Duplicate": "done",
+		"Backlog":   "new",
 	}
 	for name, cat := range want {
 		if byName[name] != cat {

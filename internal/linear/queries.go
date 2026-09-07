@@ -137,6 +137,9 @@ var issueSelection = `
       createdAt
       updatedAt
       archivedAt
+      startedAt
+      completedAt
+      canceledAt
       priority
       priorityLabel
       dueDate

@@ -125,14 +125,50 @@ them (a bounded inline fetch would truncate silently; the comments inline
 page avoids this by exposing `HasNextPage`). **What Linear sync must do**
 (GDK-262+ design): fetch `history` per issue (or `stateHistory`) with cursor
 follow-up, feed the existing `Derive` path. Until then: leave
-`status_changed_at` NULL — **time-in-status will not exist for Linear
-issues**, and that is the honest state.
+`status_changed_at` and the reopen columns NULL — **time-in-status will not
+exist for Linear issues**, and that is the honest state. (The flow columns
+`started_at` / `resolved_at` / `cycle_hours` no longer wait for this: they
+fill from the issue's own stamps — next section.)
 
-- Related verified fields that could shortcut some of this later:
-  `Issue.startedAt` / `completedAt` / `canceledAt` (work-start / completion /
-  cancellation instants, set per state type). `completedAt`+`canceledAt` can
-  fill `resolved_at` without history — but not `status_changed_at`, and not
-  reopens.
+### `started_at` / `cycle_hours` ← `Issue.startedAt` / `completedAt` / `canceledAt` (flow hints)
+
+Linear carries the two flow instants on the issue itself: `startedAt` (the
+work-start instant, set when the issue entered a started state) and
+`completedAt` / `canceledAt` (the finish, set on completion or
+cancellation). They feed the flow columns as **hints** on the `NoHistory`
+batch (`buildLinearRecord` in `internal/sync/linear.go`, consumed by the
+hint rule in `internal/store/derive.go`):
+
+- `startedAt` → `started_at`
+- `completedAt`, else `canceledAt` when `completedAt` is null →
+  `resolved_at` (canceled and duplicate both map to `status_category =
+  done`; when both stamps are set the completion wins)
+- `cycle_hours` spans the two under the same done-now and positive-span
+  rules as every origin
+
+`Derive` consults the hints only under `NoHistory` — an origin that
+supplies a changelog derives both columns from transitions and ignores
+them. What the stamps do **not** fill: `status_changed_at`, `reopen_count`,
+`reopened_at` stay NULL/0. A stamp is not a transition, and no synthetic
+changelog is invented from it — that remains the `stateHistory`/`history`
+follow-up above.
+
+**Open question (unverified).** Whether Linear resets `startedAt` when an
+issue leaves and re-enters a started state, or keeps the first entry. If it
+keeps the first, the column matches gadak's Jira rule (oldest entry into
+progress); if it resets, a re-entered Linear issue reports its latest
+start. No live API call was available to settle this — check the first live
+workspace (the issue's state history in Linear's own UI against
+`started_at`) before comparing per-issue numbers across origins.
+
+**Fill timing on an existing mirror.** The hints ride the normal upsert,
+whose change detector skips a row whose `updated_at` is unchanged — even on
+`gadak sync --full` (measured on a seeded mirror: a full pass over an
+unchanged issue reports `changed = 0` and leaves `started_at` NULL;
+`Batch.Force` is set by write-through, never by a Linear sync pass). A row
+fills the next time its Linear `updated_at` moves (any upstream edit), on a
+write-through from gadak, or on a mirror rebuild — the mirror holds no raw
+stamps to backfill from.
 
 ### `parent_key` / `epic_key` ← `Issue.parent`; Project/Cycle ← **unmapped**
 

@@ -323,6 +323,8 @@ func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {
 		Comments:        r.Comments,
 		Links:           r.Links,
 		UpdatedAt:       it.UpdatedAt,
+		StartedAtHint:   r.StartedAtHint,
+		ResolvedAtHint:  r.ResolvedAtHint,
 	})
 
 	is := r.Issue

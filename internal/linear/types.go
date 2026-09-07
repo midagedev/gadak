@@ -108,7 +108,9 @@ type ParentRef struct {
 
 // Issue is one row of the issues connection. Timestamps are Linear's verbatim
 // ISO-8601 UTC strings with milliseconds (the format the mirror stores
-// unmodified). ArchivedAt is empty for live issues.
+// unmodified). ArchivedAt is empty for live issues. StartedAt / CompletedAt /
+// CanceledAt are empty when Linear has them null — they feed the flow-column
+// hints (started_at, resolved_at), not stored columns of their own.
 type Issue struct {
 	ID            string `json:"id"`
 	Identifier    string `json:"identifier"`
@@ -119,6 +121,9 @@ type Issue struct {
 	CreatedAt     string `json:"createdAt"`
 	UpdatedAt     string `json:"updatedAt"`
 	ArchivedAt    string `json:"archivedAt"`
+	StartedAt     string `json:"startedAt"`
+	CompletedAt   string `json:"completedAt"`
+	CanceledAt    string `json:"canceledAt"`
 	Priority      int    `json:"priority"`
 	PriorityLabel string `json:"priorityLabel"`
 	DueDate       string `json:"dueDate"`

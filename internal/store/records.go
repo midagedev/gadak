@@ -242,6 +242,13 @@ type IssueRecord struct {
 	DevLinks *DevLinksUpdate
 	// RemoteLinks follows the same nil-skips contract (GDK-1032).
 	RemoteLinks *RemoteLinksUpdate
+	// StartedAtHint / ResolvedAtHint carry the origin's own flow stamps into
+	// Derive's NoHistory path (Linear: Issue.startedAt, and completedAt —
+	// else canceledAt — as the finish). Inputs to the derive pass, not
+	// stored columns: the mirror schema has no slot for the raw stamps, so
+	// they re-arrive with every batch that carries the row.
+	StartedAtHint  string
+	ResolvedAtHint string
 }
 
 // Page is the document projection (one row in the pages table). Field names
@@ -305,9 +312,9 @@ type Batch struct {
 	LinkTypes []LinkType
 	// NoHistory marks a batch from an origin that supplies no changelog
 	// (Linear). Derive then refuses to infer a start from an empty history:
-	// started_at stays NULL for issues with no transition into progress
-	// instead of guessing created_at. Jira and the built-in origin leave it
-	// false — their empty changelog means "never moved".
+	// started_at stays NULL for issues with no transition into progress and
+	// no StartedAtHint, instead of guessing created_at. Jira and the built-in
+	// origin leave it false — their empty changelog means "never moved".
 	NoHistory bool
 	Records   []IssueRecord
 	// Force rewrites rows whose updated_at is unchanged. Off, an unchanged row
