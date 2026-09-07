@@ -625,6 +625,24 @@ export const settings = {
     ko: '설치되지 않음',
     ja: '未インストール',
   },
+  // GDK-1514: a skill row carries the same word `gadak doctor` prints. Two of
+  // the four already have a pill — current is Installed, missing is Not
+  // installed — so only the two the old boolean could not say are new.
+  'settings.integrationStale': {
+    en: 'Update available',
+    ko: '업데이트 있음',
+    ja: '更新あり',
+  },
+  'settings.integrationConflict': {
+    en: 'Your own copy',
+    ko: '직접 만든 사본',
+    ja: '自分で置いたコピー',
+  },
+  'settings.integrationConflictHint': {
+    en: 'The file there is not one gadak wrote, so installing will not overwrite it. Run the command with --force in a terminal to replace it.',
+    ko: 'gadak이 쓴 파일이 아니라서 설치해도 덮어쓰지 않습니다. 바꾸려면 터미널에서 --force를 붙여 실행하세요.',
+    ja: 'そこにあるのは gadak が書いたファイルではないため、インストールしても上書きしません。置き換えるにはターミナルで --force を付けて実行してください。',
+  },
   'settings.integrationUnknown': {
     en: 'Status unknown',
     ko: '상태 불명',

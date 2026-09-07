@@ -5,12 +5,15 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"testing"
 	"time"
 
+	gadak "github.com/midagedev/gadak"
 	"github.com/midagedev/gadak/internal/clitool"
+	"github.com/midagedev/gadak/internal/skillinstall"
 )
 
 // stubNoClaude makes List/listFor skip the MCP probe. Catalogue tests
@@ -42,37 +45,83 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+// fakeSkillEnv points the skill rows at a throwaway home. It is a seam and
+// not an environment variable on purpose: nothing in this package may resolve
+// to the developer's real ~/.claude — and CODEX_HOME in particular is a user
+// preference, never a fence (orca's tripwire: the Codex binary ignores the
+// USERPROFILE sandbox on Windows).
+func fakeSkillEnv(t *testing.T, home string) {
+	t.Helper()
+	prev := skillEnv
+	skillEnv = func() skillinstall.Env {
+		return skillinstall.Env{
+			Home:   home,
+			Cwd:    filepath.Join(home, "work"),
+			Getenv: func(string) string { return "" },
+		}
+	}
+	t.Cleanup(func() { skillEnv = prev })
+}
+
+// mkConfigDir makes a host's configuration directory look lived-in. An empty
+// directory is not evidence (skillinstall.Present ignores OS droppings), so
+// the marker file is the point.
+func mkConfigDir(t *testing.T, home string, parts ...string) {
+	t.Helper()
+	dir := filepath.Join(append([]string{home}, parts...)...)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "config.json"), []byte("{}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func ids(items []Item) []string {
+	out := make([]string, len(items))
+	for i, it := range items {
+		out[i] = it.ID
+	}
+	return out
+}
+
 func TestListOrderAndDetectFlip(t *testing.T) {
 	stubNoClaude(t)
 	home := t.TempDir()
 	gadakHome := filepath.Join(home, ".gadak")
 	t.Setenv("HOME", home)
 	t.Setenv("GADAK_HOME", gadakHome)
+	fakeSkillEnv(t, home)
+	mkConfigDir(t, home, ".claude")
 
 	items := listFor("darwin")
-	if len(items) != 4 {
-		t.Fatalf("len=%d want 4", len(items))
-	}
-	if items[0].ID != idCommandLineTool || items[1].ID != idRaycast || items[2].ID != idSkill || items[3].ID != idMCPClaude {
-		t.Fatalf("order %q %q %q %q", items[0].ID, items[1].ID, items[2].ID, items[3].ID)
+	// cli, raycast, skill-claude, skill-agents (always), mcp-claude.
+	want := []string{idCommandLineTool, idRaycast, "skill-claude", "skill-agents", idMCPClaude}
+	if got := ids(items); !reflect.DeepEqual(got, want) {
+		t.Fatalf("ids=%v want %v", got, want)
 	}
 	if items[0].Command != "gadak install-cli" {
 		t.Fatalf("cli command=%q", items[0].Command)
 	}
-	if items[1].Installed == nil || *items[1].Installed {
-		t.Fatalf("raycast want false, got %v", items[1].Installed)
+	raycast := itemByID(t, items, idRaycast)
+	if raycast.Installed == nil || *raycast.Installed {
+		t.Fatalf("raycast want false, got %v", raycast.Installed)
 	}
-	if items[2].Installed == nil || *items[2].Installed {
-		t.Fatalf("skill want false, got %v", items[2].Installed)
+	if raycast.Detail != "~/.gadak/raycast-extension" {
+		t.Fatalf("raycast detail=%q", raycast.Detail)
 	}
-	if items[2].Prerequisite != nil {
-		t.Fatalf("skill prerequisite=%v want nil", items[2].Prerequisite)
+	skill := itemByID(t, items, "skill-claude")
+	if skill.Installed == nil || *skill.Installed {
+		t.Fatalf("skill want false, got %v", skill.Installed)
 	}
-	if items[1].Detail != "~/.gadak/raycast-extension" {
-		t.Fatalf("raycast detail=%q", items[1].Detail)
+	if skill.Status != skillinstall.StatusMissing {
+		t.Fatalf("skill status=%q want missing", skill.Status)
 	}
-	if items[2].Detail != "~/.claude/skills/gadak/SKILL.md" {
-		t.Fatalf("skill detail=%q", items[2].Detail)
+	if skill.Prerequisite != nil {
+		t.Fatalf("skill prerequisite=%v want nil", skill.Prerequisite)
+	}
+	if want := clitool.TildeHome(filepath.Join(home, ".claude", "skills", "gadak", "SKILL.md")); skill.Detail != want {
+		t.Fatalf("skill detail=%q want %q", skill.Detail, want)
 	}
 
 	if err := os.MkdirAll(filepath.Join(gadakHome, "raycast-extension"), 0o755); err != nil {
@@ -81,40 +130,179 @@ func TestListOrderAndDetectFlip(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(gadakHome, "raycast-extension", "package.json"), []byte("{}\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	dest := filepath.Join(home, ".claude", "skills", "gadak", "SKILL.md")
-	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(dest, []byte("# gadak\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	writeSkill(t, home, ".claude", gadak.SkillMarkdown())
 
 	items = listFor("darwin")
-	if items[1].Installed == nil || !*items[1].Installed {
-		t.Fatalf("raycast after touch: %v", items[1].Installed)
+	raycast = itemByID(t, items, idRaycast)
+	if raycast.Installed == nil || !*raycast.Installed {
+		t.Fatalf("raycast after touch: %v", raycast.Installed)
 	}
-	if items[2].Installed == nil || !*items[2].Installed {
-		t.Fatalf("skill after touch: %v", items[2].Installed)
+	skill = itemByID(t, items, "skill-claude")
+	if skill.Installed == nil || !*skill.Installed {
+		t.Fatalf("skill after touch: %v", skill.Installed)
+	}
+	if skill.Status != "current" {
+		t.Fatalf("skill status=%q want current", skill.Status)
 	}
 
 	// package.json without node_modules is an interrupted install: still
 	// installed (Update re-runs the verb) but the detail says so.
-	if !strings.Contains(items[1].Detail, "node_modules missing") {
-		t.Fatalf("raycast detail should flag missing node_modules, got %q", items[1].Detail)
+	if !strings.Contains(raycast.Detail, "node_modules missing") {
+		t.Fatalf("raycast detail should flag missing node_modules, got %q", raycast.Detail)
 	}
 	if err := os.MkdirAll(filepath.Join(gadakHome, "raycast-extension", "node_modules"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	items = listFor("darwin")
-	if strings.Contains(items[1].Detail, "incomplete") {
-		t.Fatalf("raycast detail should be clean with node_modules present, got %q", items[1].Detail)
+	raycast = itemByID(t, listFor("darwin"), idRaycast)
+	if strings.Contains(raycast.Detail, "incomplete") {
+		t.Fatalf("raycast detail should be clean with node_modules present, got %q", raycast.Detail)
+	}
+}
+
+// writeSkill puts content at <home>/<configDir>/skills/gadak/SKILL.md and
+// returns the directory it wrote into.
+func writeSkill(t *testing.T, home, configDir string, content []byte) string {
+	t.Helper()
+	dir := filepath.Join(home, configDir, "skills", "gadak")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), content, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+// A host gadak cannot find gets no row at all — the Raycast rule (GDK-1513).
+// The one exception is .agents: the shared root every agentskills.io host
+// reads is worth offering before any particular host is installed.
+func TestSkillRowsFollowConfigDirs(t *testing.T) {
+	stubNoClaude(t)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("GADAK_HOME", filepath.Join(home, ".gadak"))
+	fakeSkillEnv(t, home)
+	mkConfigDir(t, home, ".codex")
+
+	want := []string{idCommandLineTool, idRaycast, "skill-codex", "skill-agents", idMCPClaude}
+	if got := ids(listFor("darwin")); !reflect.DeepEqual(got, want) {
+		t.Fatalf("only ~/.codex: ids=%v want %v", got, want)
+	}
+	wantWin := []string{idCommandLineTool, "skill-codex", "skill-agents", idMCPClaude}
+	if got := ids(listFor("windows")); !reflect.DeepEqual(got, wantWin) {
+		t.Fatalf("windows: ids=%v want %v", got, wantWin)
+	}
+
+	// Every host present: the rows follow skillinstall's table order.
+	for _, parts := range [][]string{{".claude"}, {".agents"}, {".cursor"}, {".gemini"}, {".config", "opencode"}, {".grok"}} {
+		mkConfigDir(t, home, parts...)
+	}
+	wantAll := []string{idCommandLineTool, idRaycast}
+	for _, c := range skillinstall.Clients() {
+		wantAll = append(wantAll, skillRowID(c.Name))
+	}
+	wantAll = append(wantAll, idMCPClaude)
+	if got := ids(listFor("darwin")); !reflect.DeepEqual(got, wantAll) {
+		t.Fatalf("all hosts: ids=%v want %v", got, wantAll)
+	}
+}
+
+// A directory holding nothing but what the operating system wrote is not
+// evidence that a host is installed (orca's .DS_Store lesson, ported into
+// skillinstall.Present).
+func TestSkillRowsIgnoreOSDroppings(t *testing.T) {
+	stubNoClaude(t)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("GADAK_HOME", filepath.Join(home, ".gadak"))
+	fakeSkillEnv(t, home)
+	if err := os.MkdirAll(filepath.Join(home, ".cursor"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(home, ".cursor", ".DS_Store"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, it := range listFor("darwin") {
+		if it.ID == "skill-cursor" {
+			t.Fatalf("a Finder visit must not offer a Cursor row: %+v", it)
+		}
+	}
+}
+
+// The row's status is the word `gadak doctor` uses, from the same classifier.
+// The stale case is the one that used to lie: `Installed: fileExists(dest)`
+// called a three-release-old file installed while doctor called it stale
+// (GDK-1514).
+func TestSkillRowStatusPerState(t *testing.T) {
+	stubNoClaude(t)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("GADAK_HOME", filepath.Join(home, ".gadak"))
+	fakeSkillEnv(t, home)
+	mkConfigDir(t, home, ".claude")
+
+	row := func() Item { return itemByID(t, listFor("darwin"), "skill-claude") }
+
+	if got := row(); got.Status != skillinstall.StatusMissing || got.Installed == nil || *got.Installed {
+		t.Fatalf("nothing there: status=%q installed=%v want missing/false", got.Status, got.Installed)
+	}
+
+	writeSkill(t, home, ".claude", gadak.SkillMarkdown())
+	if got := row(); got.Status != "current" || got.Installed == nil || !*got.Installed {
+		t.Fatalf("embedded copy: status=%q installed=%v want current/true", got.Status, got.Installed)
+	}
+
+	// gadak's own copy from an earlier release: different bytes, and the
+	// receipt beside them proves gadak wrote them.
+	older := []byte("---\nname: gadak\ndescription: an older release\n---\n\nold body\n")
+	dir := writeSkill(t, home, ".claude", older)
+	if err := skillinstall.WriteReceipt(dir, skillinstall.Digest(older), "0.0.0-test"); err != nil {
+		t.Fatal(err)
+	}
+	if got := row(); got.Status != skillinstall.StatusStale || got.Installed == nil || !*got.Installed {
+		t.Fatalf("stale copy: status=%q installed=%v want stale/true — this is the state fileExists could not see", got.Status, got.Installed)
+	}
+
+	// The user's own file: gadak did not write it, and only --force replaces
+	// it. Still installed — something is there — but not gadak's.
+	if err := os.Remove(filepath.Join(dir, skillinstall.ReceiptName)); err != nil {
+		t.Fatal(err)
+	}
+	if got := row(); got.Status != skillinstall.StatusConflict || got.Installed == nil || !*got.Installed {
+		t.Fatalf("hand-edited copy: status=%q installed=%v want conflict/true", got.Status, got.Installed)
+	}
+}
+
+// Non-skill rows carry no status word, and the field leaves the wire when it
+// is empty so those rows are byte-identical to what they always were.
+func TestNonSkillRowsHaveNoStatus(t *testing.T) {
+	stubNoClaude(t)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("GADAK_HOME", filepath.Join(home, ".gadak"))
+	fakeSkillEnv(t, home)
+
+	for _, it := range listFor("darwin") {
+		isSkill := strings.HasPrefix(it.ID, skillIDPrefix)
+		if isSkill == (it.Status == "") {
+			t.Fatalf("row %q: status=%q (skill row=%v)", it.ID, it.Status, isSkill)
+		}
+	}
+	b, err := json.Marshal(Item{ID: "x"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(b), `"status"`) {
+		t.Fatalf("empty status must not reach the wire: %s", b)
 	}
 }
 
 func TestInstallArgs(t *testing.T) {
+	// The pre-GDK-1513 id still runs the default client: a window open across
+	// the upgrade, or a stored id, posts "skill" and must not 404.
 	args, ok := InstallArgs(idSkill)
 	if !ok || strings.Join(args, " ") != "skill install claude" {
-		t.Fatalf("skill args=%v ok=%v", args, ok)
+		t.Fatalf("legacy skill args=%v ok=%v", args, ok)
 	}
 	args, ok = InstallArgs(idCommandLineTool)
 	if !ok || len(args) != 1 || args[0] != "install-cli" {
@@ -125,8 +313,41 @@ func TestInstallArgs(t *testing.T) {
 	}
 }
 
+// One argv per host, and never --project: the app has no notion of the
+// working directory the user means (GDK-1513).
+func TestInstallArgsPerSkillHost(t *testing.T) {
+	for _, client := range skillinstall.Clients() {
+		id := skillRowID(client.Name)
+		args, ok := InstallArgs(id)
+		if !ok {
+			t.Fatalf("%s: not installable", id)
+		}
+		want := []string{"skill", "install", client.Name}
+		if !reflect.DeepEqual(args, want) {
+			t.Fatalf("%s: args=%v want %v", id, args, want)
+		}
+		for _, a := range args {
+			if strings.HasPrefix(a, "--") {
+				t.Fatalf("%s: argv must carry no flags, got %v", id, args)
+			}
+		}
+		// Windows has every skill host Windows can have; the GOOS seam is
+		// Raycast's alone.
+		if _, ok := InstallArgsFor(id, "windows"); !ok {
+			t.Fatalf("%s: must still be installable on windows", id)
+		}
+	}
+	if _, ok := InstallArgs("skill-nosuchhost"); ok {
+		t.Fatal("an unknown host behind the skill- prefix must not be installable")
+	}
+	if _, ok := InstallArgs(skillIDPrefix); ok {
+		t.Fatal("a bare prefix must not be installable")
+	}
+}
+
 func TestCommandLineToolDetectFlip(t *testing.T) {
 	stubNoClaude(t)
+	fakeSkillEnv(t, t.TempDir())
 	oldExec := fileIsExec
 	t.Cleanup(func() {
 		fileIsExec = oldExec
@@ -410,6 +631,9 @@ func TestLookPathDefaultIsExecLookPath(t *testing.T) {
 // the Windows catalog on a Linux/macOS CI host.
 func TestListForWindowsOmitsRaycast(t *testing.T) {
 	stubNoClaude(t)
+	home := t.TempDir()
+	fakeSkillEnv(t, home)
+	mkConfigDir(t, home, ".claude")
 	items := listFor("windows")
 	ids := make([]string, len(items))
 	for i, it := range items {
@@ -418,7 +642,7 @@ func TestListForWindowsOmitsRaycast(t *testing.T) {
 			t.Fatalf("windows catalog must not include raycast: %+v", it)
 		}
 	}
-	want := []string{idCommandLineTool, idSkill, idMCPClaude}
+	want := []string{idCommandLineTool, "skill-claude", "skill-agents", idMCPClaude}
 	if len(ids) != len(want) {
 		t.Fatalf("windows ids=%v want %v", ids, want)
 	}
@@ -431,12 +655,15 @@ func TestListForWindowsOmitsRaycast(t *testing.T) {
 
 func TestListForDarwinKeepsRaycast(t *testing.T) {
 	stubNoClaude(t)
+	home := t.TempDir()
+	fakeSkillEnv(t, home)
+	mkConfigDir(t, home, ".claude")
 	items := listFor("darwin")
-	if len(items) != 4 {
-		t.Fatalf("darwin len=%d want 4", len(items))
+	if len(items) != 5 {
+		t.Fatalf("darwin len=%d want 5: %v", len(items), ids(items))
 	}
 	if items[1].ID != idRaycast {
-		t.Fatalf("darwin order %v", []string{items[0].ID, items[1].ID, items[2].ID, items[3].ID})
+		t.Fatalf("darwin order %v", ids(items))
 	}
 }
 
@@ -460,6 +687,9 @@ func TestInstallArgsForWindowsRejectsRaycast(t *testing.T) {
 // Install button is guaranteed to fail. Same reasoning as GDK-244 on Windows.
 func TestInstallArgsForLinuxRejectsRaycast(t *testing.T) {
 	stubNoClaude(t)
+	home := t.TempDir()
+	fakeSkillEnv(t, home)
+	mkConfigDir(t, home, ".claude")
 	if args, ok := InstallArgsFor(idRaycast, "linux"); ok {
 		t.Fatalf("linux must not install raycast, args=%v", args)
 	}
@@ -475,6 +705,9 @@ func TestInstallArgsForLinuxRejectsRaycast(t *testing.T) {
 
 func TestListMatchesListForThisGOOS(t *testing.T) {
 	stubNoClaude(t)
+	home := t.TempDir()
+	fakeSkillEnv(t, home)
+	mkConfigDir(t, home, ".claude")
 	got := List()
 	want := listFor(runtime.GOOS)
 	if len(got) != len(want) {
@@ -501,6 +734,7 @@ func TestCataloguePathDoesNotExecClaude(t *testing.T) {
 	}
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	stubNoClaude(t)
+	fakeSkillEnv(t, t.TempDir())
 
 	_ = List()
 	_ = listFor("darwin")
