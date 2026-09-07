@@ -219,9 +219,18 @@ const storeHref = 'https://apps.microsoft.com/detail/9NZW91TXH36G'
   .speed td.rest {
     color: var(--ink-3);
   }
+  /* A minimum gutter between the two value columns. Both are right-aligned,
+     so the column's widest cell always ends flush at the column edge, and
+     without this the gadak cell touches the Jira cell in that row: measured
+     on the ja page at 1280, "429 + Retry-After" ran into 「なし — 自分の
+     ディスク」 as one token (GDK-1500 vision round). Only the gadak side
+     needs it — the Jira cell's left neighbour is the left-aligned label,
+     which carries its own padding-right — and every pixel here comes out
+     of the label column: 1.25rem on both sides wrapped two English labels. */
   .speed td.gadak {
     color: var(--ink);
     font-weight: 600;
+    padding-left: 1rem;
   }
   .speed td.ratio {
     color: var(--accent);

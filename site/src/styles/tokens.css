@@ -102,3 +102,10 @@ pre {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+/* Japanese line breaking: strict kinsoku, so a line never starts with ー or
+   a small kana. Default browser breaking allowed it on /ja/install/ twice
+   (GDK-1500 vision round). Scoped to the locale — en and ko are unaffected. */
+html[lang='ja'] {
+  line-break: strict;
+}
