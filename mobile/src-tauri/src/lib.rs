@@ -16,9 +16,9 @@
 // swapping the backend (e.g. for an official keychain plugin when one
 // ships) means editing this file alone.
 //
-// barcode-scanner and notification are registered for their later UI
-// chunks (A-pair QR scan, A-feed local notifications); nothing calls them
-// yet. The camera usage string rides in Info.ios.plist.
+// barcode-scanner is the QR pairing scan: src/screens/PairGate.svelte and
+// src/screens/PairingTab.svelte import the plugin where the scan starts.
+// The camera usage string rides in Info.ios.plist.
 use tauri_plugin_secure_storage::{OptionsRequest, SecureStorageExt};
 
 /// Secure-store entry for the serve-scope pairing token. Frozen: renaming
@@ -140,7 +140,6 @@ pub fn run() {
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_websocket::init())
         .plugin(tauri_plugin_secure_storage::init())
-        .plugin(tauri_plugin_notification::init())
         .invoke_handler(tauri::generate_handler![token_get, token_set, token_del]);
 
     // Mobile-only crate (its lib is #![cfg(mobile)] — an empty shell on
