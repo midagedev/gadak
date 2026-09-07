@@ -43,6 +43,12 @@ type Request struct {
 	Resolution string
 	Fields     map[string]any
 	Comment    string
+	// StatusUse is an optional read of the local mirror: how many issues sit
+	// in statusID right now. It is consulted only to break a tie between two
+	// destination statuses that display the same name in the same category
+	// (GDK-1356) — never to decide what Target means. nil is fine, and is
+	// what a caller without a mirror handle passes.
+	StatusUse func(statusID string) int
 }
 
 // Result is a successful Apply. Changed is false when Target was a category
@@ -54,8 +60,8 @@ type Result struct {
 
 // issueStatusReader is GET /issue/{key}?fields=status,assignee — the origin
 // truth claim already uses. Optional so Linear (no method) keeps the old
-// pick-miss error instead of inventing a new request. Looked up only after
-// PickTransition fails a category token.
+// pick-miss error instead of inventing a new request. Read once per
+// category-token target and never for a named or id target.
 type issueStatusReader interface {
 	IssueStatus(ctx context.Context, key string) (jira.Status, *jira.User, error)
 }
@@ -102,7 +108,7 @@ func Apply(ctx context.Context, o Origin, cfg *config.Config, req Request) (Resu
 	if err != nil {
 		return Result{}, err
 	}
-	id, noop, pickErr, err := resolveTransition(ctx, o, req.Key, req.Target, list)
+	id, noop, pickErr, err := resolveTransition(ctx, o, req.Key, req.Target, list, req.StatusUse)
 	if err != nil {
 		return Result{}, err
 	}
@@ -141,13 +147,15 @@ func Apply(ctx context.Context, o Origin, cfg *config.Config, req Request) (Resu
 // transition id when one would fire (changed=true), or the category no-op
 // (changed=false, empty id). It exists so a dry-run cannot drift from the
 // real write — both run resolveTransition. A pick miss that is not a no-op
-// returns the pick error.
-func Preview(ctx context.Context, o Origin, key, target string) (id string, changed bool, err error) {
+// returns the pick error. statusUse is Request.StatusUse: a dry run that
+// skipped it could name a different transition id than the write, which is
+// the one thing a dry run must not do.
+func Preview(ctx context.Context, o Origin, key, target string, statusUse func(statusID string) int) (id string, changed bool, err error) {
 	list, err := o.Transitions(ctx, key)
 	if err != nil {
 		return "", false, err
 	}
-	id, noop, pickErr, err := resolveTransition(ctx, o, key, target, list)
+	id, noop, pickErr, err := resolveTransition(ctx, o, key, target, list, statusUse)
 	if err != nil {
 		return "", false, err
 	}
@@ -161,49 +169,50 @@ func Preview(ctx context.Context, o Origin, key, target string) (id string, chan
 }
 
 // resolveTransition is the one owner of "what does this target mean right
-// now". It picks against list, and gates a category-token target on the
-// origin's current status in BOTH pick outcomes: a miss (the workflow offers
-// nothing toward that category — the GDK-500 no-op) and a hit (a self-loop
-// workflow keeps a done→done transition available while the issue is already
-// done, so a retry would fire again and double-post its comment — GDK-632,
-// caught on a real site). Category targets cost one IssueStatus read per
-// write; named/id targets never pay it. pickErr is non-nil only when the
-// pick missed and the miss is not a no-op; err is an origin failure.
-func resolveTransition(ctx context.Context, o Origin, key, target string, list []jira.Transition) (id string, noop bool, pickErr, err error) {
-	id, perr := jira.PickTransition(key, target, list)
-	if _, isCategory := jira.StatusCategoryToken(target); isCategory {
-		there, nerr := alreadyInCategory(ctx, o, key, target)
+// now". It gates a category-token target on the origin's current status in
+// BOTH pick outcomes: a miss (the workflow offers nothing toward that
+// category — the GDK-500 no-op) and a hit (a self-loop workflow keeps a
+// done→done transition available while the issue is already done, so a retry
+// would fire again and double-post its comment — GDK-632, caught on a real
+// site). That same read is what tells the pick which duplicate destination
+// the issue already sits in (GDK-1356), so the fold costs no extra call.
+// Category targets cost one IssueStatus read per write; named/id targets
+// never pay it. pickErr is non-nil only when the pick missed and the miss is
+// not a no-op; err is an origin failure.
+func resolveTransition(ctx context.Context, o Origin, key, target string, list []jira.Transition, statusUse func(string) int) (id string, noop bool, pickErr, err error) {
+	opt := jira.PickOptions{StatusUse: statusUse}
+	if token, isCategory := jira.StatusCategoryToken(target); isCategory {
+		st, ok, nerr := currentStatus(ctx, o, key)
 		if nerr != nil {
 			return "", false, nil, nerr
 		}
-		if there {
-			return "", true, nil, nil
+		if ok {
+			opt.CurrentStatusID = st.ID
+			if cat, known := statuscat.KnownCategory(st.StatusCategory.Key); known && cat == token {
+				return "", true, nil, nil
+			}
 		}
 	}
+	picked, perr := jira.PickTransitionWith(key, target, list, opt)
 	if perr != nil {
 		return "", false, perr, nil
 	}
-	return id, false, nil, nil
+	return picked, false, nil, nil
 }
 
-func alreadyInCategory(ctx context.Context, o Origin, key, target string) (bool, error) {
-	token, ok := jira.StatusCategoryToken(target)
-	if !ok {
-		return false, nil
-	}
+// currentStatus reads the issue's status from the origin. ok is false when
+// the origin has no such verb (Linear), which leaves both the no-op gate and
+// the duplicate fold with one less fact rather than inventing a request.
+func currentStatus(ctx context.Context, o Origin, key string) (jira.Status, bool, error) {
 	r, ok := o.(issueStatusReader)
 	if !ok {
-		return false, nil
+		return jira.Status{}, false, nil
 	}
 	st, _, err := r.IssueStatus(ctx, key)
 	if err != nil {
-		return false, err
+		return jira.Status{}, false, err
 	}
-	cat, ok := statuscat.KnownCategory(st.StatusCategory.Key)
-	if !ok || cat != token {
-		return false, nil
-	}
-	return true, nil
+	return st, true, nil
 }
 
 func byID(list []jira.Transition, id string) jira.Transition {

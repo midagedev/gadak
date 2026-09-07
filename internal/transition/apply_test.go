@@ -401,7 +401,7 @@ func TestApplyCategorySelfLoopIsNoop(t *testing.T) {
 
 func TestPreviewCategorySelfLoopIsNoop(t *testing.T) {
 	s := &stubOrigin{list: []jira.Transition{doneClose()}, status: doneStatus()}
-	id, changed, err := Preview(context.Background(), s, "NMB-1", "done")
+	id, changed, err := Preview(context.Background(), s, "NMB-1", "done", nil)
 	if err != nil {
 		t.Fatalf("preview: %v", err)
 	}

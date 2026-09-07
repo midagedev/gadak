@@ -597,6 +597,11 @@ gadak transition NMB-140 done                 # status category: new | inprogres
 # Prefer the name or the category token over a number: on the built-in tracker
 # transition ids (1..n) and status ids (3, 10000, …) overlap, so a bare number
 # is refused as ambiguous — the refusal names both readings.
+# A category token folds destinations you could not have told apart: two
+# statuses with the same display name in the same category count as one, and
+# the one the project actually uses wins. Two destinations with *different*
+# names still refuse and name every reading, including the folded ones —
+# `gadak transition NMB-140` lists them before you try to write.
 gadak close NMB-140                           # same as transition KEY done; already done is a no-op
 gadak transition NMB-140 done --resolution "Won't Do" -m "fixed in 1.2"
 gadak assign NMB-140 dana@example.com         # email, display name, or accountId; `-` unassigns. Ambiguous names are refused with the candidates.

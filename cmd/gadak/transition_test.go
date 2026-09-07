@@ -19,6 +19,14 @@ import (
 //  2. Two or more transitions into the same category → refuse, list them.
 //     TestTransitionCategorySingleMatchExecutes
 //     TestTransitionCategoryAmbiguousRefuses
+//     2a. (GDK-1356) Two of those landing on destinations that share a
+//     display name and a category are one landing, not two: they fold, and
+//     the mirror's status usage breaks the tie. Distinguishable names still
+//     refuse, now naming the folded members too.
+//     TestTransitionCategoryFoldsSameNamedDuplicates
+//     TestTransitionCategoryRefusalNamesFoldedDuplicates
+//     TestTransitionBatchDryRunFoldsLikeTheWrite
+//     TestTransitionListNamesSameNamedDuplicates
 //  3. Match order is transition id, then target status id, then name,
 //     then target status name, then category.
 //     TestTransitionIDBeatsCategory
@@ -43,6 +51,7 @@ import (
 //	status name   TestTransitionMatchesByNameAndReportsAlternatives, TestTransitionEnglishDoneNameSkipsAmbiguity
 //	category      TestTransitionCategoryTokensAccepted
 //	ambiguous     TestTransitionCategoryAmbiguousRefuses
+//	duplicates    TestTransitionCategoryFoldsSameNamedDuplicates
 //	no match      TestTransitionNoMatchHintsReachableCategories
 //	category 0    TestTransitionCategoryZeroMatchHintsOthers
 //
@@ -815,5 +824,125 @@ func TestTransitionFieldJSONAndString(t *testing.T) {
 	}
 	if fields["environment"] != "staging" {
 		t.Fatalf("environment %v, want string staging", fields["environment"])
+	}
+}
+
+// ── GDK-1356: same-named destinations fold ────────────────────────────────
+//
+// The gdk workspace carries two statuses both displayed "In Progress"
+// (status_id 10001 and 3) — residue of the 2026-09-01 cutover that merged a
+// Jira workflow into the built-in tracker's default catalog. Measured with
+// `gadak --workspace gdk transition GDK-1356 --json`:
+//
+//	{"id":"1","name":"In Progress","to":{"id":"10001",…}}
+//	{"id":"2","name":"In Review",  "to":{"id":"10002",…}}
+//	{"id":"3","name":"Done",       "to":{"id":"10003",…}}
+//	{"id":"4","name":"In Progress","to":{"id":"3",    …}}
+//
+// Before the fold, `transition KEY inprogress` refused with three readings,
+// so an agent had to memorise a transition id — breaking the skill's own
+// contract that the stable value it reads (status_category) is the value it
+// may write.
+
+// dupToDo makes the fake report a category-new current status, so the
+// inprogress token is a real move rather than the GDK-632 self-loop no-op.
+func dupToDo(t *testing.T, f *fakeJira) {
+	t.Helper()
+	f.issueStatusJSON = `{"fields":{"status":{"id":"10000","name":"To Do","statusCategory":{"key":"new"}},
+		"assignee":{"accountId":"acc-hc","displayName":"Dana Whitfield"}}}`
+}
+
+// Two destinations the reader cannot tell apart are one destination: fold and
+// fire. FAIL-first — the pre-fix source refuses this as ambiguous.
+func TestTransitionCategoryFoldsSameNamedDuplicates(t *testing.T) {
+	f := withTransitions(t, `{"transitions":[
+		{"id":"1","name":"In Progress","to":{"id":"10001","name":"In Progress","statusCategory":{"key":"indeterminate"}}},
+		{"id":"3","name":"Done","to":{"id":"10003","name":"Done","statusCategory":{"key":"done"}}},
+		{"id":"4","name":"In Progress","to":{"id":"3","name":"In Progress","statusCategory":{"key":"indeterminate"}}}]}`)
+	dupToDo(t, f)
+	if _, err := capture(t, func() error { return cmdTransition([]string{"NMB-1", "inprogress"}) }); err != nil {
+		t.Fatalf("same-named duplicates must fold: %v", err)
+	}
+	// The seeded mirror holds NMB-1 in status_id 3 and nothing in 10001, so
+	// the tiebreak is the id the project actually uses — not payload order,
+	// which would have answered 1.
+	if got := postedTransitionID(t, f, "NMB-1"); got != "4" {
+		t.Fatalf("posted %q, want 4 (status_id 3, the id the mirror shows in use)", got)
+	}
+}
+
+// The dry run resolves the same id as the write, tiebreak included.
+func TestTransitionBatchDryRunFoldsLikeTheWrite(t *testing.T) {
+	f := withTransitions(t, `{"transitions":[
+		{"id":"1","name":"In Progress","to":{"id":"10001","name":"In Progress","statusCategory":{"key":"indeterminate"}}},
+		{"id":"4","name":"In Progress","to":{"id":"3","name":"In Progress","statusCategory":{"key":"indeterminate"}}}]}`)
+	dupToDo(t, f)
+	withStdin(t, `{"key":"NMB-1","target":"inprogress"}`+"\n")
+	out, err := capture(t, func() error {
+		return cmdTransition([]string{"--batch", "-", "--dry-run", "--json"})
+	})
+	if err != nil {
+		t.Fatalf("dry-run: %v\n%s", err, out)
+	}
+	mustNotTransition(t, f, "NMB-1")
+	rows := parseJSONEnvelope(t, out)
+	if len(rows) != 1 || !rows[0].OK || rows[0].TransitionID != "4" {
+		t.Fatalf("dry-run row %+v from %q", rows, out)
+	}
+}
+
+// The full gdk shape still refuses — In Review is a reading a person can tell
+// apart from In Progress — but with two readings instead of three, and it
+// says where the third went so a reader who saw id 4 in `gadak transition
+// KEY` does not conclude gadak stopped seeing it.
+func TestTransitionCategoryRefusalNamesFoldedDuplicates(t *testing.T) {
+	f := withTransitions(t, `{"transitions":[
+		{"id":"1","name":"In Progress","to":{"id":"10001","name":"In Progress","statusCategory":{"key":"indeterminate"}}},
+		{"id":"2","name":"In Review","to":{"id":"10002","name":"In Review","statusCategory":{"key":"indeterminate"}}},
+		{"id":"3","name":"Done","to":{"id":"10003","name":"Done","statusCategory":{"key":"done"}}},
+		{"id":"4","name":"In Progress","to":{"id":"3","name":"In Progress","statusCategory":{"key":"indeterminate"}}}]}`)
+	dupToDo(t, f)
+	_, err := capture(t, func() error { return cmdTransition([]string{"NMB-1", "inprogress"}) })
+	if err == nil {
+		t.Fatal("two distinguishable readings must still refuse")
+	}
+	mustNotTransition(t, f, "NMB-1")
+	msg := err.Error()
+	for _, want := range []string{
+		`transition "inprogress" is ambiguous on NMB-1`,
+		"2 transitions land there",
+		"In Review (id 2, → In Review [status_id 10002])",
+		"folded into those",
+		"In Progress (id 4, → In Progress [status_id 3])",
+	} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("error %q missing %q", msg, want)
+		}
+	}
+	if strings.Contains(msg, "3 transitions land there") {
+		t.Errorf("the duplicate must not be counted as a third reading: %q", msg)
+	}
+}
+
+// `gadak transition KEY` names the duplicates before anyone tries to write
+// through them, so "why is this ambiguous" is one read-only command.
+func TestTransitionListNamesSameNamedDuplicates(t *testing.T) {
+	withTransitions(t, `{"transitions":[
+		{"id":"1","name":"In Progress","to":{"id":"10001","name":"In Progress","statusCategory":{"key":"indeterminate"}}},
+		{"id":"2","name":"In Review","to":{"id":"10002","name":"In Review","statusCategory":{"key":"indeterminate"}}},
+		{"id":"4","name":"In Progress","to":{"id":"3","name":"In Progress","statusCategory":{"key":"indeterminate"}}}]}`)
+	out, err := capture(t, func() error { return cmdTransition([]string{"NMB-1"}) })
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	for _, want := range []string{
+		"same destination name",
+		`"In Progress"`,
+		"status_id 10001",
+		"status_id 3",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("listing %q missing %q", out, want)
+		}
 	}
 }

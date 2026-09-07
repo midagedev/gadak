@@ -2292,7 +2292,7 @@ func readTransitionComment(text string) (string, error) {
 
 func applyTransitionWrite(key, want, resolution string, fields map[string]any, comment string, asJSON bool) error {
 	return withKeyWriteSession(key, func(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src string) error {
-		res, err := applyTransition(ctx, c, cfg, key, want, resolution, fields, comment)
+		res, err := applyTransition(ctx, c, cfg, db, key, want, resolution, fields, comment)
 		if err != nil {
 			return err
 		}
@@ -2300,13 +2300,45 @@ func applyTransitionWrite(key, want, resolution string, fields map[string]any, c
 	})
 }
 
-func applyTransition(ctx context.Context, c origin.Writer, cfg *config.Config, key, want, resolution string, fields map[string]any, comment string) (transition.Result, error) {
+// mirrorStatusUse answers "how many issues does this project actually hold in
+// that status", from the mirror, which is local and free. It is the tiebreak
+// between two destination statuses that display the same name in the same
+// category (GDK-1356): the gdk workspace carries an In Progress the 2026-09-01
+// cutover left behind with zero issues in it, beside the In Progress the board
+// shows. nil when there is no mirror or no project key to scope by — the pick
+// then falls back to payload order.
+func mirrorStatusUse(ctx context.Context, db *store.DB, key string) func(string) int {
+	project, _, ok := strings.Cut(key, "-")
+	if db == nil || !ok || project == "" {
+		return nil
+	}
+	seen := map[string]int{}
+	return func(statusID string) int {
+		if n, ok := seen[statusID]; ok {
+			return n
+		}
+		var n int
+		if err := db.QueryRowContext(ctx,
+			`SELECT count(*) FROM issues WHERE project_key = ? AND status_id = ?`,
+			project, statusID).Scan(&n); err != nil {
+			// A mirror this read cannot answer is not a reason to refuse the
+			// write: zero leaves payload order deciding, which is where the
+			// tiebreak started.
+			n = 0
+		}
+		seen[statusID] = n
+		return n
+	}
+}
+
+func applyTransition(ctx context.Context, c origin.Writer, cfg *config.Config, db *store.DB, key, want, resolution string, fields map[string]any, comment string) (transition.Result, error) {
 	res, err := transition.Apply(ctx, c, cfg, transition.Request{
 		Key:        key,
 		Target:     want,
 		Resolution: resolution,
 		Fields:     fields,
 		Comment:    comment,
+		StatusUse:  mirrorStatusUse(ctx, db, key),
 	})
 	if err := formatTransitionError(err, cfg); err != nil {
 		return transition.Result{}, err
@@ -2351,9 +2383,9 @@ func runTransitionBatch(asJSON, dryRun bool, resolutionDefault string, fieldsDef
 		if dryRun {
 			var id string
 			var changed bool
-			err = withKeyWriteSession(key, func(ctx context.Context, _ *config.Config, _ *store.DB, c origin.Writer, _ string) error {
+			err = withKeyWriteSession(key, func(ctx context.Context, _ *config.Config, db *store.DB, c origin.Writer, _ string) error {
 				var perr error
-				id, changed, perr = transition.Preview(ctx, c, key, want)
+				id, changed, perr = transition.Preview(ctx, c, key, want, mirrorStatusUse(ctx, db, key))
 				return perr
 			})
 			if err != nil {
@@ -2363,7 +2395,7 @@ func runTransitionBatch(asJSON, dryRun bool, resolutionDefault string, fieldsDef
 		}
 		var changed bool
 		err = withKeyWriteSession(key, func(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src string) error {
-			res, err := applyTransition(ctx, c, cfg, key, want, resolution, fields, comment)
+			res, err := applyTransition(ctx, c, cfg, db, key, want, resolution, fields, comment)
 			if err != nil {
 				return err
 			}
@@ -2439,6 +2471,10 @@ func listTransitions(key string, asJSON bool) error {
 				"key":         key,
 				"transitions": jsonList(list),
 				"categories":  jsonList(jira.ReachableCategories(list)),
+				// duplicate_destinations names the groups a category token
+				// folds (GDK-1356), so a shell-less agent can see why two rows
+				// look identical without attempting a write to find out.
+				"duplicate_destinations": jsonList(jira.DuplicateDestinations(list)),
 			})
 		}
 		if len(list) == 0 {
@@ -2448,6 +2484,9 @@ func listTransitions(key string, asJSON bool) error {
 		fmt.Printf("available: %s\n", jira.JoinTransitions(list))
 		if cats := jira.ReachableCategories(list); len(cats) > 0 {
 			fmt.Printf("also accepts a status category: %s\n", strings.Join(cats, ", "))
+		}
+		if dup := jira.FormatDuplicateDestinations(list); dup != "" {
+			fmt.Printf("same destination name and category, so a category token folds them into one — say a transition id or a target status id to pick a particular one:\n%s\n", dup)
 		}
 		return nil
 	})

@@ -774,7 +774,7 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak create", "gadak init"},
 	},
 	"transition": {
-		summary: "change issue status; accepts transition id, target status id, name, target status name, or status category new|inprogress|done; already in that category is a no-op",
+		summary: "change issue status; accepts transition id, target status id, name, target status name, or status category new|inprogress|done; already in that category is a no-op; a category token folds destinations that share a display name and refuses the rest by name",
 		usage: "gadak [--workspace <name>] transition <KEY>\n" +
 			"<transition-id|status-id|name|new|inprogress|done>\n" +
 			"[--resolution name|id] [--field key=JSON]... [-m text] [--json] | --batch - [--dry-run]",
