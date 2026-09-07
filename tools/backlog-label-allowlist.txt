@@ -2,17 +2,17 @@
 #
 #
 # A whitelist, and the direction is the point. A label is uncontrolled
+# handles, attached to roadmap items derived from a simulated advisory panel.
+# issue. This file is the review step. Adding a label here is a decision that
 # Labels allowed to appear in the public backlog snapshot (GDK-389).
 # One label per line, `#` comments and blank lines ignored.
 # Publishing them would have asserted that identifiable people advised this
-# Why it exists (2026-08-20): seven labels in this project were real people's
-# handles, attached to roadmap items derived from a simulated advisory panel.
-# issue. This file is the review step. Adding a label here is a decision that
 # roadmap. They are now `lens-*` — the axis, not the person — and the mapping
 # stays private. A denylist would not have caught the next name; this does.
 # the `public` label, the label vocabulary gets it here.
 # the word itself is publishable — the summary already got that decision via
 # vocabulary: whatever anyone types in Jira ships to the public site with the
+# Why it exists (2026-08-20): seven labels in this project were real people's
 0.19.1
 a11y
 agent
@@ -22,6 +22,7 @@ agent-surface
 agent-tasklist
 agent-ux
 agents
+api
 architecture
 audit-go
 audit-shells
@@ -55,10 +56,12 @@ cycle3
 dashboards
 datacenter
 dates
+debug
 debuggability
 decision
 deferred
 demo
+design
 desktop
 diagnostics
 distribution
@@ -110,8 +113,8 @@ macos
 marketing
 mcp
 media
-migrate
 mentor-roadmap
+migrate
 mobile
 multi-origin
 naming
@@ -120,11 +123,13 @@ omarchy
 onboarding
 ops
 packaging
+pairing
 perf
 performance
 phase0-launch
 phase1-sep
 phase2-quarter
+phone
 pipe
 post-launch
 privacy
@@ -145,8 +150,11 @@ schema
 search
 security
 serve
+server
 sidebar
 simplify
+site
+skill
 snapshot
 standalone
 storage
@@ -175,7 +183,3 @@ windows
 workspace
 write-gap
 xplat
-pairing
-phone
-skill
-site
