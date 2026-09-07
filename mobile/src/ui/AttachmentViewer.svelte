@@ -73,11 +73,13 @@
        bar below match. No hex appears here; app.css keeps every *theme*
        color.
 
-       0.97, not the desktop's /90: the desk sits on a dark app while the
-       phone's light theme is cream, so the same alpha leaves twice as much
-       behind. Measured on mobile/e2e/.shots/attach-image-viewer.png, the
-       page behind spans 1–7 of 255 at this value. */
-    background: rgb(0 0 0 / 0.97);
+       Opaque, not the desktop's /90: the desk sits on a dark app while the
+       phone's light theme is cream. At 0.97 the page behind measured 1–7 of
+       255 on mobile/e2e/.shots/attach-image-viewer.png — and a blind vision
+       judge read the description paragraphs word for word through it
+       (GDK-1503 vision round). Seven levels of near-black is legible text on
+       a phone panel; a plate that must hide the page is solid. */
+    background: rgb(0 0 0);
   }
   .bar {
     flex: none;
