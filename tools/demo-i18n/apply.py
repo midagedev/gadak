@@ -97,7 +97,9 @@ def main() -> int:
             if p[2] == "title": d["title"] = v
             else: d["nodes"][int(p[3])] = v
         elif p[0] == "comment":
-            comments.setdefault((p[1], p[2]), {})[int(p[3])] = v
+            # The comment id itself carries a colon ("jira:10358"), so the
+            # node index is the last segment and the id is everything between.
+            comments.setdefault((p[1], ":".join(p[2:-1])), {})[int(p[-1])] = v
         elif p[0] == "page":
             d = pages.setdefault(p[1], {"title": None, "nodes": {}})
             if p[2] == "title": d["title"] = v

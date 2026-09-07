@@ -10,16 +10,20 @@ Fails (exit 1) when:
     (pure keys / URLs / numbers / code are allowed to stay)
   - a translation carries no script of its locale (Hangul for ko; kana or kanji for ja)
     when the source has letters
-  - issue keys (NMB-12), URLs, backtick spans, or digit runs present in the source are
-    missing from the translation — those are wire facts, not prose
+  - issue keys (NMB-12), URLs or backtick spans differ from the source, or a digit run of
+    the source is missing from the translation — those are wire facts, not prose
 Each failing id is printed with its reason; counts at the end.
 """
 import json, re, sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-KEY = re.compile(r"\b[A-Z][A-Z0-9]+-\d+\b")
-URL = re.compile(r"https?://\S+")
+# Lookarounds, not \b: a key glued to Hangul/kana ("NMA-151을", "NMA-151が") is
+# still the key — \b treats the CJK letter as a word character and misses it.
+KEY = re.compile(r"(?<![A-Za-z0-9])[A-Z][A-Z0-9]+-\d+(?!\d)")
+# A URL stops at whitespace or at the first CJK letter: "https://x.example/ 을"
+# and "https://x.example/を" carry the same URL, the particle is prose.
+URL = re.compile(r"(?:https?|wss?)://[^\s가-힣぀-ヿ一-鿿「」（）、。]+")
 CODE = re.compile(r"`[^`]+`")
 DIGITS = re.compile(r"\d+")
 LETTERS = re.compile(r"[A-Za-z]")
@@ -31,13 +35,21 @@ SCRIPT = {
 LATIN_OK = {"SDK", "REST", "API", "Auth", "Webhooks", "Nimbus", "NMB", "NMA", "NMS", "OK", "API", "UI", "ID", "URL", "JSON", "CSV", "SSO", "IdP", "OAuth", "SAML", "S3", "CDN", "SLA", "SLO", "P0", "P1", "P2", "QA", "CI", "PR", "Slack", "Stripe", "GitHub", "Datadog", "PagerDuty", "Sentry", "Redis", "Postgres", "Kafka", "gRPC", "GraphQL", "HTTP", "TLS", "DNS", "IP", "SQL", "iOS", "Android", "macOS", "Windows", "Linux", "Chrome", "Safari", "Firefox", "Terraform", "Kubernetes", "Docker", "AWS", "GCP", "Azure"}
 
 def facts(s: str):
-    return (sorted(KEY.findall(s)), sorted(URL.findall(s)), sorted(CODE.findall(s)), sorted(DIGITS.findall(s)))
+    # A sentence-final "." after a URL is punctuation, not part of the URL.
+    urls = sorted(u.rstrip(".,;:!?)") for u in URL.findall(s))
+    return (sorted(KEY.findall(s)), urls, sorted(CODE.findall(s)), sorted(DIGITS.findall(s)))
+
+FILEISH = re.compile(r"^[\w-]+\.[a-z0-9]{1,5}$")  # context.svg, retention.md
 
 def needs_translation(src: str) -> bool:
     if not LETTERS.search(src):
         return False
+    # A source that is already in a CJK script (the fixture carries a Korean
+    # wiki page) is not English to translate; the translator may leave it.
+    if any(rx.search(src) for rx in SCRIPT.values()):
+        return False
     stripped = KEY.sub("", URL.sub("", CODE.sub("", src)))
-    words = [w for w in re.findall(r"[A-Za-z][A-Za-z0-9.+/-]*", stripped)]
+    words = [w for w in re.findall(r"[A-Za-z][A-Za-z0-9.+/-]*", stripped) if not FILEISH.match(w)]
     if not words:
         return False
     if all(w in LATIN_OK for w in words):
@@ -69,8 +81,12 @@ def main() -> int:
         s, t = src[k], tr[k]
         if not isinstance(t, str) or t.strip() == "":
             bad.append((k, "empty")); continue
-        if facts(s) != facts(t):
-            bad.append((k, f"facts changed: {facts(s)} -> {facts(t)}")); continue
+        fs, ft = facts(s), facts(t)
+        # Keys, URLs and code spans: exact multiset. Digit runs: the source's
+        # must all survive; the translation may add its own (a spelled-out
+        # "two" becoming "2건" is a translation, not a changed fact).
+        if fs[:3] != ft[:3] or any(ft[3].count(d) < fs[3].count(d) for d in set(fs[3])):
+            bad.append((k, f"facts changed: {fs} -> {ft}")); continue
         if needs_translation(s):
             if t.strip() == s.strip():
                 bad.append((k, "still English")); continue
