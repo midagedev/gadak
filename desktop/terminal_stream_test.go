@@ -47,7 +47,7 @@ func TestWebviewRequestsReachTheAPIAsInProcess(t *testing.T) {
 		got = append(got, r)
 		w.WriteHeader(http.StatusNoContent)
 	})
-	h := fallbackHandler(api, nil, nil, nil, newBrowseTabs(), nil)
+	h := fallbackHandler(api, nil, nil, nil, newBrowseTabs())
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/terminal/sessions/", nil)
 	// What the webview really sends, both parts of it.

@@ -44,7 +44,7 @@ func TestServedIndexHasOneRuntimeJS(t *testing.T) {
 	ui := fstest.MapFS{
 		"index.html": &fstest.MapFile{Data: []byte("<!doctype html><html><head></head><body>spa</body></html>")},
 	}
-	h := assetHandler(ui, fallbackHandler(http.NotFoundHandler(), ui, nil, nil, newBrowseTabs(), nil))
+	h := assetHandler(ui, fallbackHandler(http.NotFoundHandler(), ui, nil, nil, newBrowseTabs()))
 	for _, p := range []string{"/", "/index.html", "/issues/NMA-1"} {
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, httptest.NewRequest("GET", p, nil))

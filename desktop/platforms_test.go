@@ -173,7 +173,7 @@ func TestDesktopCommentsDoNotRestateStalePlatformFacts(t *testing.T) {
 		path    string
 		phrases []string
 	}{
-		{"deeplink.go", []string{"on other platforms the events", "simply never fire"}},
+		{"deeplink.go", []string{"on other platforms the events", "simply never fire", "GTK4 Linux never does"}},
 		{"embed_other.go", []string{"The desktop app ships for macOS only today"}},
 		{"fatal_windows.go", []string{"wails has no dialog helper"}},
 		{"README.md", []string{"does not set an `ErrorHandler`", "No workspace switcher"}},

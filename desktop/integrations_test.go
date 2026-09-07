@@ -14,7 +14,7 @@ import (
 )
 
 func integrationsMux() http.Handler {
-	return fallbackHandler(http.NotFoundHandler(), nil, nil, nil, newBrowseTabs(), nil)
+	return fallbackHandler(http.NotFoundHandler(), nil, nil, nil, newBrowseTabs())
 }
 
 func TestIntegrationsGETOrderAndDetect(t *testing.T) {

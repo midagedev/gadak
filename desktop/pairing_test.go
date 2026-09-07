@@ -29,7 +29,7 @@ import (
 )
 
 func pairingMuxForTest() http.Handler {
-	return fallbackHandler(http.NotFoundHandler(), nil, nil, nil, newBrowseTabs(), nil)
+	return fallbackHandler(http.NotFoundHandler(), nil, nil, nil, newBrowseTabs())
 }
 
 // localOriginDesktopHome stands up a temp GADAK_HOME holding a local-origin
