@@ -1,6 +1,5 @@
 import { mkdirSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 import { expect, test, type Page, type Route } from '@playwright/test'
 import { attachConsoleErrors, forceLocale, gotoApp, searchInput } from './helpers'
 
@@ -47,15 +46,16 @@ import { attachConsoleErrors, forceLocale, gotoApp, searchInput } from './helper
  * appended comment, auth/me, GET transitions/, GET priorities/).
  */
 
-// The lead's scratchpad for this round's vision review (spec Part E). The
-// screenshots are not opened by this round; the vision verdict is the
-// lead's.
-// Repo scratch by default (gitignored, CI-safe — a Linux runner has no
-// /private and cannot mkdir a macOS session scratchpad; the first CI run of
-// this spec failed exactly there), overridable so a round routes the capture
-// to its own scratchpad for the lead's vision review — my-work.spec's pattern.
-const SCRATCH =
-  process.env.GADAK_R2_DETAIL_SHOTS ?? join(dirname(fileURLToPath(import.meta.url)), '../scratch')
+// The vision round's captures (spec Part E) are env-gated (GDK-1570): the
+// screenshot is taken only when a round names DETAIL_COACHING_SHOT_DIR, and a
+// normal run — CI included — writes nothing. e2e/capture-guard.unit.ts
+// holds every CI spec to this shape.
+async function shootDetail(page: Page, name: string): Promise<void> {
+  const dir = process.env.DETAIL_COACHING_SHOT_DIR
+  if (!dir) return
+  mkdirSync(dir, { recursive: true })
+  await page.screenshot({ path: join(dir, name), animations: 'disabled' })
+}
 
 const KEY_NEW = 'NMB-1' // fixture: Backlog (new), assignee demo-priya — not Dana
 const KEY_PROG = 'NMB-5' // fixture: In Progress, 0 comments, status row enters progress → both spans
@@ -234,8 +234,7 @@ test.describe('detail coaching moments', () => {
     await button.click()
     await expect(page.getByRole('option', { name: TRANSITION.name })).toBeVisible()
 
-    mkdirSync(SCRATCH, { recursive: true })
-    await page.screenshot({ path: join(SCRATCH, 'move-to-done.png'), animations: 'disabled' })
+    await shootDetail(page, 'move-to-done.png')
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
@@ -401,8 +400,7 @@ test.describe('detail coaching moments', () => {
       new RegExp(`^\\d+ of the ${openTotal} open issues in this view \\(\\d+%\\)$`),
     )
 
-    mkdirSync(SCRATCH, { recursive: true })
-    await page.screenshot({ path: join(SCRATCH, 'priority-share.png'), animations: 'disabled' })
+    await shootDetail(page, 'priority-share.png')
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })

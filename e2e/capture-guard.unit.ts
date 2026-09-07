@@ -40,14 +40,7 @@ const GUARD_WINDOW = 8
  * forever: an entry whose file no longer trips the lint is stale and fails
  * the second test below, so the list can only shrink.
  */
-const PENDING: Record<string, string> = {
-  'e2e/detail-coaching.spec.ts':
-    'owned by a parallel round this session — read-only here, its scratch captures are theirs to gate',
-  'mobile/e2e/a6-captures.spec.ts':
-    'outside this round’s write whitelist — same capture-only shape as a1/a2/a4, needs the same skip guard',
-  'mobile/e2e/a7-captures.spec.ts':
-    'outside this round’s write whitelist — same capture-only shape as a1/a2/a4, needs the same skip guard',
-}
+const PENDING: Record<string, string> = {}
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {

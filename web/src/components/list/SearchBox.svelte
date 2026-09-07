@@ -49,7 +49,7 @@
    * GDK-1056: a docked detail panel or a terminal split shrinks this input
    * without touching the viewport, so the placeholder switch measures the
    * field itself — the full copy renders only where it actually fits. Same
-   * font recipe the e2e fits-check uses (e2e/ux-f7.spec.ts); +8px slack so
+   * font recipe the e2e fits-check uses (e2e/search-placeholder.spec.ts); +8px slack so
    * sub-pixel rounding at the boundary cannot flicker the switch.
    */
   let narrowPlaceholder = $state(false)

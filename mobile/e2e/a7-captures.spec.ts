@@ -21,11 +21,21 @@
 // and the chip must carry the stamp that makes its tap a copy.
 import { expect, test, type Page } from '@playwright/test'
 import { mkdirSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 import { SERVE_ORIGIN, UI_ORIGIN } from '../playwright.config'
 
-const SHOT_DIR = join(dirname(fileURLToPath(import.meta.url)), '.shots')
+// The captures are env-gated (GDK-1570): the three tests are behaviour
+// tests first — video without src, chip with the copy stamp, viewer opens —
+// and photograph the close only when a vision round names A7_SHOT_DIR.
+// e2e/capture-guard.unit.ts holds every CI spec to this shape.
+async function shootA7(page: Page, name: string): Promise<void> {
+  const dir = process.env.A7_SHOT_DIR
+  if (!dir) return
+  mkdirSync(dir, { recursive: true })
+  await page.waitForLoadState('networkidle').catch(() => {})
+  await page.screenshot({ path: join(dir, name), animations: 'disabled' })
+  console.log(`[a7] shot ${join(dir, name)}`)
+}
 
 type Attachment = {
   id: string
@@ -155,7 +165,6 @@ async function openIssue(page: Page, key: string): Promise<void> {
 }
 
 test('a video waits to be asked, and a file chip says it copies', async ({ page }) => {
-  mkdirSync(SHOT_DIR, { recursive: true })
   const { key } = await issueWithImage()
   console.log(`[a7] issue ${key} — one real image, one synthetic video, one synthetic file`)
   await withSyntheticMedia(page, key)
@@ -180,12 +189,7 @@ test('a video waits to be asked, and a file chip says it copies', async ({ page 
   await expect(chip).toContainText('migration-notes.pdf')
 
   await poster.scrollIntoViewIfNeeded()
-  await page.waitForLoadState('networkidle').catch(() => {})
-  await page.screenshot({
-    path: join(SHOT_DIR, 'attach-video-chip.png'),
-    animations: 'disabled',
-  })
-  console.log(`[a7] shot ${join(SHOT_DIR, 'attach-video-chip.png')}`)
+  await shootA7(page, 'attach-video-chip.png')
 
   // What the chip's tap actually puts on the clipboard: an absolute URL,
   // not the path the renderer wrote. In dev the paired endpoint is empty and
@@ -235,7 +239,6 @@ test('a tapped video takes the bytes and plays them', async ({ page }) => {
 })
 
 test('a loaded image opens the full-screen viewer', async ({ page }) => {
-  mkdirSync(SHOT_DIR, { recursive: true })
   const { key } = await issueWithImage()
   await openIssue(page, key)
 
@@ -256,12 +259,7 @@ test('a loaded image opens the full-screen viewer', async ({ page }) => {
   await expect(viewer.locator('img')).toHaveAttribute('src', /^blob:/)
   expect(await viewer.locator('img').getAttribute('src')).toBe(await img.getAttribute('src'))
   await expect(viewer).toContainText(name)
-  await page.waitForLoadState('networkidle').catch(() => {})
-  await page.screenshot({
-    path: join(SHOT_DIR, 'attach-image-viewer.png'),
-    animations: 'disabled',
-  })
-  console.log(`[a7] shot ${join(SHOT_DIR, 'attach-image-viewer.png')}`)
+  await shootA7(page, 'attach-image-viewer.png')
 
   // Close returns to the body, not to the list.
   await viewer.locator('button.close').click()

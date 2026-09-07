@@ -16,7 +16,9 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { SERVE_ORIGIN } from '../playwright.config'
 
-const SHOT_DIR = join(dirname(fileURLToPath(import.meta.url)), '.shots')
+// Capture-only spec (GDK-1570): it runs when a vision round names the
+// directory through A6_SHOT_DIR and is skipped otherwise, like a1/a2/a4.
+const SHOT_DIR = process.env.A6_SHOT_DIR ?? join(dirname(fileURLToPath(import.meta.url)), '.shots')
 
 function makeTerminalOffer(label: string): string {
   const doc = JSON.stringify({
@@ -99,6 +101,7 @@ test.describe('A6 captures', () => {
   })
 
   test('the session sheet, with one named shell and one bound to an issue', async ({ page }) => {
+    test.skip(!process.env.A6_SHOT_DIR, 'capture-only; set A6_SHOT_DIR to run')
     mkdirSync(SHOT_DIR, { recursive: true })
     const key = await anIssueKey(page)
     console.log(`[a6] binding a shell to ${key}`)
@@ -148,6 +151,7 @@ test.describe('A6 captures', () => {
   })
 
   test('sticky Ctrl armed and locked, as two fills', async ({ page }) => {
+    test.skip(!process.env.A6_SHOT_DIR, 'capture-only; set A6_SHOT_DIR to run')
     mkdirSync(SHOT_DIR, { recursive: true })
     await page.goto('/', { waitUntil: 'domcontentloaded' })
     await waitPaired(page)

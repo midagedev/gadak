@@ -4,7 +4,7 @@
  *
  * vitest is node, no svelte plugin — importing the .svelte file fails
  * (SearchBox.test.ts). Rendered arrow/hover behaviour is Playwright's
- * (e2e/ux-f7.spec.ts GDK-461).
+ * (e2e/palette.spec.ts GDK-461).
  */
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
