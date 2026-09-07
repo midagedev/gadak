@@ -65,6 +65,20 @@ class TerminalSessions {
   }
 
   /**
+   * The issue the shown session is claimed for, or null (GDK-1465). The
+   * keymap's Ctrl+Shift+O read: it used to scrape `data-issue-key` off the
+   * selected tab, which is TerminalStrip's projection of exactly this — a
+   * second copy of an answer this class already owns, and unreadable when
+   * the strip has not painted. Closed while the pane is, for the same reason
+   * cycle() is: the tab the chord speaks about is not on screen, and the
+   * chord's contract is a no-op, not a surprise open.
+   */
+  selectedIssueKey(): string | null {
+    if (!terminalChrome.open) return null
+    return this.selected?.issue_key?.trim() || null
+  }
+
+  /**
    * Move the selection one session along the roster (GDK-1250): the strip's
    * own order, wrapping at both ends. False — nothing moved — when the pane
    * is closed or fewer than two sessions are alive; a selection the roster

@@ -53,6 +53,19 @@
   import IssueRefs from './IssueRefs.svelte'
   import DeployTimeline from './DeployTimeline.svelte'
 
+  /*
+   * The History section's anchor, declared and consumed in this file only
+   * (GDK-1467). ResumeCard used to spell the same string and scroll the
+   * element itself; the section belongs to this subtree, so the card now
+   * asks and this does the moving. e2e still addresses it as
+   * `#detail-history-section` — that hook is unchanged, it simply is no
+   * longer what joins two components together.
+   */
+  const HISTORY_SECTION_ID = 'detail-history-section'
+  function revealHistory(): void {
+    document.getElementById(HISTORY_SECTION_ID)?.scrollIntoView({ block: 'start' })
+  }
+
   const key = $derived(selection.selectedKey)
   // Local-pool row for instant header (may be missing: linked issues not in pool)
   const lite = $derived(key ? issues.get(key) : undefined)
@@ -290,7 +303,7 @@
              Renders nothing without a previous visit or without a delta —
              the absence is the design (spec w1-resume). Sits before the
              divide-y group so no separator rides under it. -->
-        <ResumeCard detail={detailForKey} />
+        <ResumeCard detail={detailForKey} onreveal={revealHistory} />
         <!-- Detail body -->
         <div class="anim-enter divide-y divide-border-subtle">
           <!-- Direct children of the open issue: epic rollup when the pool has
@@ -361,7 +374,7 @@
 
           <!-- History. id is the resume card's scroll target. -->
           {#if detailForKey.history.length > 0}
-            <Section id="detail-history-section" title={t('detail.history')} count={detailForKey.history.length}>
+            <Section id={HISTORY_SECTION_ID} title={t('detail.history')} count={detailForKey.history.length}>
               <HistoryTimeline history={detailForKey.history} />
             </Section>
           {/if}

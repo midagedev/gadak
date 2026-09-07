@@ -25,6 +25,7 @@
   import { selection } from '../../stores/selection.svelte'
   import { widenToServerSearch } from '../../lib/server-search'
   import { showIssueList } from '../../lib/show-issue-list'
+  import { NARROW_FIELD_TESTID } from '../../lib/commands'
   import EmptyState from '../list/EmptyState.svelte'
   import LoadingState from '../ui/LoadingState.svelte'
   import VirtualRows from '../ui/VirtualRows.svelte'
@@ -240,7 +241,7 @@
           oninput={(e) => (history.filterText = (e.currentTarget as HTMLInputElement).value)}
           onkeydown={onFilterKey}
           type="text"
-          data-testid="history-filter-input"
+          data-testid={NARROW_FIELD_TESTID.history}
           data-enter="widen"
           placeholder={t('history.filterPlaceholder')}
           aria-label={t('history.filterLabel')}

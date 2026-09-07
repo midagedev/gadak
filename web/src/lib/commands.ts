@@ -14,6 +14,21 @@ import type { MessageKey } from './i18n/catalog'
 
 export type { MessageKey }
 
+/*
+ * The DOM hooks a keyboard command reaches for, and the single owner of
+ * those strings (GDK-1466). Both sides import from here: keymap.svelte.ts
+ * builds the querySelector, and the component that paints the element binds
+ * its `data-testid` to the same constant. They were hand-spelled in a dozen
+ * components until then, which made a rename a silent runtime break — every
+ * key that focuses a field or clicks a chip would have gone dead with the
+ * compiler and the type checker green, and only e2e standing between that
+ * and a release. SearchBox had written the hazard down at its palette
+ * button before it was closed.
+ *
+ * A test hook doing runtime duty is not ideal, but one owner for the string
+ * is what makes it survivable: the element's identity is declared once and
+ * consumed twice, so the two cannot drift.
+ */
 export const NARROW_FIELD_TESTID = {
   history: 'history-filter-input',
   docs: 'docs-filter-input',

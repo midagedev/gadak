@@ -20,6 +20,7 @@
   import { effectiveCategory } from '../../lib/view-config'
   import { assignedTo } from '../../lib/person-match'
   import { onEscape, onOutsideClick } from '../../lib/dom-actions'
+  import { DETAIL_TESTID } from '../../lib/commands'
 
   let { issue }: { issue: IssueLite } = $props()
 
@@ -264,7 +265,7 @@
     type="button"
     onclick={toggle}
     bind:this={triggerEl}
-    data-testid="status-transition"
+    data-testid={DETAIL_TESTID.status}
     class="group inline-flex items-center gap-1.5 rounded-md bg-bg-elevated px-2 py-0.5 text-micro font-medium text-text-secondary transition-colors hover:bg-bg-hover"
     aria-haspopup="listbox"
     aria-expanded={open}

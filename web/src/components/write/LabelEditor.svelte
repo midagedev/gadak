@@ -12,6 +12,7 @@
   import { write } from '../../stores/write.svelte'
   import { recentOf } from '../../lib/recency'
   import { onEscape, onOutsideClick } from '../../lib/dom-actions'
+  import { DETAIL_TESTID } from '../../lib/commands'
   import Icon from '../ui/Icon.svelte'
 
   /** bare: no inline label — the caller's <dt> names the row (GDK-1337). */
@@ -149,7 +150,7 @@
         oninput={onTyped}
         onkeydown={onKeydown}
         type="text"
-        data-testid="label-editor-input"
+        data-testid={DETAIL_TESTID.labelInput}
         placeholder={t('write.addLabel')}
         disabled={busy}
         class="h-[22px] w-36 flex-none rounded border border-border-strong bg-bg-base px-1.5 text-body text-text-primary outline-none placeholder:text-text-muted focus:border-accent disabled:opacity-50"
@@ -157,7 +158,7 @@
     {:else if issue.labels.length === 0}
       <button
         type="button"
-        data-testid="label-editor-add"
+        data-testid={DETAIL_TESTID.labelAdd}
         onclick={() => void openAdd()}
         class="rounded-md px-1 py-0.5 text-left text-text-muted italic transition-colors hover:bg-bg-hover hover:text-text-primary"
       >
@@ -166,7 +167,7 @@
     {:else}
       <button
         type="button"
-        data-testid="label-editor-add"
+        data-testid={DETAIL_TESTID.labelAdd}
         onclick={() => void openAdd()}
         class="flex h-5 w-5 flex-none items-center justify-center rounded text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
         title={t('write.addLabel')}

@@ -13,6 +13,7 @@
   import Icon from '../ui/Icon.svelte'
   import { t } from '../../lib/i18n'
   import { widenToServerSearch } from '../../lib/server-search'
+  import { NARROW_FIELD_TESTID } from '../../lib/commands'
   import { pages } from '../../stores/pages.svelte'
 
   let { value = $bindable('') }: { value?: string } = $props()
@@ -50,7 +51,7 @@
     bind:value
     onkeydown={onKeydown}
     type="text"
-    data-testid="docs-filter-input"
+    data-testid={NARROW_FIELD_TESTID.docs}
     data-enter="widen"
     placeholder={t('docs.filterPlaceholder')}
     aria-label={t('docs.filterLabel')}

@@ -23,6 +23,7 @@
   import { me } from '../../stores/me.svelte'
   import { recentOf } from '../../lib/recency'
   import { onEscape, onOutsideClick } from '../../lib/dom-actions'
+  import { DETAIL_TESTID } from '../../lib/commands'
   // The list's Avatar: a person wears the same name-derived color here that
   // they wear in every row behind this popover.
   import Avatar from '../list/Avatar.svelte'
@@ -200,7 +201,7 @@
     type="button"
     onclick={openPicker}
     bind:this={triggerEl}
-    data-testid="assignee-picker"
+    data-testid={DETAIL_TESTID.assignee}
     class="group flex items-center gap-1.5 rounded-md px-1 py-0.5 text-left transition-colors hover:bg-bg-hover"
     title={me.identified ? t('write.changeAssignee') : (issue.assignee ?? t('common.unassigned'))}
     aria-expanded={open}

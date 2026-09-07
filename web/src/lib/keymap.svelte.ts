@@ -240,18 +240,31 @@ function dispatchKeyCommand(e: KeyboardEvent, cmd: KeyCommand, host: GlobalKeyHo
     }
     /*
      * GDK-1251: the selected session's binding, through the same verb the
-     * pane's own link activation uses — selection.select (GDK-1160). The
-     * tab carries its session's key as an attribute (TerminalStrip), so the
-     * roster module need not be imported here; an unbound or missing tab is
-     * the no-op the spec names.
+     * pane's own link activation uses — selection.select (GDK-1160). An
+     * unbound session, or no pane at all, is the no-op the spec names.
+     *
+     * The roster is asked, not the DOM (GDK-1465). This used to read the
+     * selected tab's `data-issue-key`, which is the strip's projection of
+     * the very field the roster holds — so the chord answered from a copy,
+     * and only while that copy happened to be painted. Same dynamic import
+     * as the cycle chords above, and for the same reason.
+     *
+     * preventDefault is unconditional and synchronous, which the DOM read
+     * did not have to be. A default cannot be taken back from inside the
+     * resolve — by then the browser has already decided what Ctrl+Shift+O
+     * means to it (a bookmark manager, in two of them) — so the choice is
+     * between claiming the chord always and claiming it never. The cycle
+     * chords above claim it always and return false when nothing moved;
+     * this is the same chord in the same family, and a bound shortcut the
+     * app lists in its own sheet should not fall through to the browser on
+     * the tick a session happens to be unbound.
      */
     case 'terminal-open-issue': {
-      const key = document
-        .querySelector<HTMLElement>('[data-testid="terminal-strip-row"][data-selected="true"]')
-        ?.getAttribute('data-issue-key')
-      if (!key) return
       e.preventDefault()
-      host.selection.select(key)
+      void import('./terminal/sessions.svelte').then(({ terminalSessions }) => {
+        const key = terminalSessions.selectedIssueKey()
+        if (key) host.selection.select(key)
+      })
       return
     }
     case 'close-shortcuts':
