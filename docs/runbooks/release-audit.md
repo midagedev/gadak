@@ -172,6 +172,24 @@ different people.
    closed, parent closed with a one-paragraph summary of what got simpler.
    Update this runbook with anything the cycle taught.
 
+What past cycles taught (keep this list short; delete a line once the
+procedure above absorbs it):
+
+- **`staticcheck` must run per `GOOS`.** A darwin-only run in the v0.21
+  audit reported two functions as dead (`U1000`) that are called from
+  `//go:build linux` and `_windows.go` files; `GOOS=linux` / `GOOS=windows`
+  runs were clean. A dead-code finding without the platform matrix is a
+  hypothesis (v0.21, axes 1 and 4 disagreed until the second run).
+- **A read-only round that starts `gadak serve` in the foreground hangs
+  forever**, and the harness reports "idle" — kill the serve child, not the
+  round; the round resumes and reports (v0.21, axis 6, 19 minutes lost).
+- Audit rounds read the tree while fix rounds may be writing to it; the
+  `git status` paragraph in a report describes other rounds' work, not the
+  audit's — read the findings, ignore that paragraph.
+- Findings the six axes deliver in duplicate (the same dead plugin from
+  axes 3 and 4, the same over-export from axes 1 and 4) are a good sign, not
+  noise: merge them in triage and register once.
+
 ## Version pins at tag time
 
 The version owner is `git describe --tags --abbrev=0`. After a tag,

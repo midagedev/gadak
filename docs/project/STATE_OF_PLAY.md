@@ -179,7 +179,7 @@ snapshot, not assumed.
   `GADAK_PROFILE` keep separate credentials and mirrors under
   `~/.gadak/profiles/x/` — this is how one machine points at a work site and the
   demo site at once.
-- `web/` — the Svelte app. Feature flags (`feed/push/deploy/qa/teamGroups`)
+- `web/` — the Svelte app. Feature flags (`feed/deploy/qa/teamGroups`)
   actually gate their surfaces; staleness comes from `status_changed_at`; i18n
   catalogs live in `web/src/lib/i18n/`.
 - `tools/seed-demo` — Go port of the demo-site seeder (the Python original is
