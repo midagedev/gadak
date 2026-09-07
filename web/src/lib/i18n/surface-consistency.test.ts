@@ -280,22 +280,25 @@ describe('GDK-652 back-arrow: one key for the arrow-left close', () => {
 })
 
 describe('GDK-652 bulk bar kbd chips match palette ∩ keymap', () => {
-  test('BulkBar chips s/a/l/Esc in the comment-shortcut class; no p chip', () => {
+  test('BulkBar chips s/p/a/l/Esc in the comment-shortcut class', () => {
     const footer = readFileSync(COMMENT_FOOTER, 'utf8')
     expect(footer).toContain(KBD_CHIP_CLASS)
 
     const bar = readFileSync(BULK_BAR, 'utf8')
     expect(bar).toContain(KBD_CHIP_CLASS)
-    for (const glyph of ['s', 'a', 'l', 'Esc']) {
+    // GDK-1587 (2026-09-08): p joins the chip row — it was the one triage key
+    // with no palette entry and no chip, and the previous assertion here
+    // pinned that gap in place ("palette does not teach p on triage items").
+    for (const glyph of ['s', 'p', 'a', 'l', 'Esc']) {
       expect(bar, `missing kbd ${glyph}`).toMatch(
         new RegExp(`<kbd[^>]*>\\s*${glyph}\\s*</kbd>`),
       )
     }
-    expect(bar, 'palette does not teach p on triage items').not.toMatch(/<kbd[^>]*>\s*p\s*<\/kbd>/)
 
     const registry = readFileSync(COMMANDS, 'utf8')
     expect(registry).toContain("type: 'clear-bulk'")
     expect(registry).toContain("chords: [{ key: 's' }]")
+    expect(registry).toContain("chords: [{ key: 'p' }]")
     expect(registry).toContain("chords: [{ key: 'a' }]")
     expect(registry).toContain("chords: [{ key: 'l' }]")
     expect(registry).toContain("chords: [{ key: 'p' }]")

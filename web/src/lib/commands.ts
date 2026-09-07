@@ -760,6 +760,18 @@ export const COMMANDS: readonly CommandDef[] = [
     chords: [{ key: 'p' }],
     when: hasListTarget,
     dispatch: () => ({ type: 'request-menu', menu: 'priority' }),
+    // GDK-1587: the fourth triage key was the only one the palette did not
+    // teach — s/a/l carried a palette entry and a bulk-bar kbd chip, p did
+    // neither, though it opened the menu all along (§3: every action the app
+    // can do is registered in the palette).
+    palette: {
+      id: 'a:triage-priority',
+      kind: 'triage-menu',
+      sort: 15,
+      kbd: 'p',
+      labelKey: 'palette.actionTriagePriority',
+      menu: 'priority',
+    },
     help: { group: 'list', kbd: 'p', labelKey: 'shortcuts.listPriority', sort: 70 },
   },
   {

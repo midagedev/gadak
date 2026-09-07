@@ -530,7 +530,7 @@
     </div>
 
     <!-- {t('bulk.changePriority')} -->
-    <div class="relative flex-none">
+    <div class="relative flex flex-none items-center gap-1">
       <button
         type="button"
         onclick={() => toggleMenu('priority')}
@@ -539,6 +539,7 @@
       >
         {t('bulk.changePriority')}
       </button>
+      <kbd aria-hidden="true" class="rounded border border-border-subtle px-1 text-micro text-text-muted">p</kbd>
       {#if menu === 'priority'}
         <div
           class="anim-enter absolute left-0 top-full z-30 mt-1 max-h-72 w-48 overflow-y-auto rounded-lg border border-border-strong bg-bg-elevated py-1 shadow-overlay"

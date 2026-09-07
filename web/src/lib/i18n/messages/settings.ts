@@ -1721,6 +1721,11 @@ export const settings = {
     ko: '상태 변경 · {target}',
     ja: 'ステータスを変更 · {target}',
   },
+  'palette.actionTriagePriority': {
+    en: 'Change priority · {target}',
+    ko: '우선순위 변경 · {target}',
+    ja: '優先度を変更 · {target}',
+  },
   'palette.actionTriageAssignee': {
     en: 'Change assignee · {target}',
     ko: '담당자 변경 · {target}',
