@@ -54,7 +54,10 @@ ok() {
 # still lives in each check — this prelude owns the walk, nothing else.
 #
 # Measured on this tree: enumeration 1.78s per rglob walk → 0.76s once.
-FILE_CENSUS="$(mktemp -t gadak-doc-checks-census)"
+# mktemp portability: GNU mktemp (the CI runner) requires the X's in the
+# template; macOS accepts a bare -t prefix. The bare form passed every local
+# run and failed the first CI run of 2473dc62 ("too few X's in template").
+FILE_CENSUS="$(mktemp "${TMPDIR:-/tmp}/gadak-doc-checks-census.XXXXXX")"
 trap 'rm -f "$FILE_CENSUS"' EXIT
 python3 - "$FILE_CENSUS" <<'CENSUSPY'
 import os
