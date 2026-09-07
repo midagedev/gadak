@@ -139,3 +139,16 @@ The census row at `:83` ("`gadak edit` does not send `fields/` … No CLI verb")
 is superseded: the CLI now PATCHes `{key}/fields/` through the origin. REST
 still has no issue-link endpoint (`internal/server/server.go` has no
 `…/link/` route); `gadak link` is CLI-only.
+
+## Addendum (2026-09-07) — pasteboard through the wails runtime, not a route
+
+The Pasteboard row above names `POST /desktop/clipboard`. That route is gone
+(GDK-1470): the desktop branch of `web/src/lib/copy-text.ts` imports the
+`/wails/runtime.js` module the app already injects into every page it serves
+and calls `Clipboard.SetText`, which is the same Go call the route used to
+make. The row's verdict — **justified desktop**, a terminal already has a
+clipboard — is unchanged; only the transport moved from a hand-rolled HTTP
+handler to the framework's own binding. One narrowing rides along and is
+written at the top of `copy-text.ts`: the runtime binding discards the
+pasteboard's own bool, so `false` on desktop now means the bridge refused,
+not that the pasteboard did.

@@ -32,10 +32,12 @@ import (
 //
 // Nothing here is macOS-specific in Go terms. Which GOOS emits
 // ApplicationLaunchedWithUrl is owned by coldStartDecisionFor in main.go
-// (GDK-293): Windows does, when wails sees a single "://" argument
-// (pkg/application/application_windows.go in the pinned wails module);
-// GTK4 Linux never does, so argv is applied instead. The same split is
-// in the platform table in README.md.
+// (GDK-293): Windows and GTK4 Linux both do, when wails sees a single
+// "://" argument (pkg/application/application_windows.go and
+// application_linux.go in the pinned wails module — the Linux emit landed
+// in beta.10 via wailsapp/wails#6000 and this module pins beta.12). Any
+// other argv shape gets no event, so argv is applied instead. The same
+// split is in the platform table in README.md.
 
 // errUnsupportedAction reports a well-formed link naming something this build
 // does not implement. It is deliberately distinct from a malformed link: the

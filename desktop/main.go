@@ -263,9 +263,7 @@ func run() error {
 					return fmt.Errorf("browser not ready")
 				}
 				return openURL(u)
-			}, browse, func(text string) bool {
-				return application.Get().Clipboard.SetText(text)
-			})),
+			}, browse)),
 		},
 		SingleInstance: &application.SingleInstanceOptions{
 			// Per profile, not global: one window per mirror, and a second
@@ -826,7 +824,14 @@ func normalizeWebviewPeer(r *http.Request) {
 // the route (503) — it is bound to app.Browser.OpenURL after the application
 // exists. browse is the in-app browser pane registry; before bind() its routes
 // answer 503 the same way.
-func fallbackHandler(api http.Handler, ui fs.FS, reg *workspace.Registry, openURL func(string) error, browse *browseTabs, setClipboard func(string) bool) http.Handler {
+//
+// There is no clipboard route: the pasteboard is the wails runtime's own
+// binding. Every index.html this handler serves carries /wails/runtime.js
+// (injectWailsRuntime), so the desktop branch of web/src/lib/copy-text.ts
+// imports it and calls Clipboard.SetText — the same message this process
+// would have received (GDK-1470). navigator.clipboard stays dead in the
+// webview (GDK-178); it is the transport, not the route, that was needed.
+func fallbackHandler(api http.Handler, ui fs.FS, reg *workspace.Registry, openURL func(string) error, browse *browseTabs) http.Handler {
 	mux := http.NewServeMux()
 	// The v3 webview has no new-window delegate, so target="_blank" clicks die
 	// inside it (upstream tracker: wailsapp/wails#5043). The web bundle (in
@@ -857,31 +862,6 @@ func fallbackHandler(api http.Handler, ui fs.FS, reg *workspace.Registry, openUR
 		if err := openURL(u.String()); err != nil {
 			log.Printf("open in browser: %v", err)
 			http.Error(w, `{"error":"open_failed"}`, http.StatusInternalServerError)
-			return
-		}
-		w.WriteHeader(http.StatusNoContent)
-	})
-	// navigator.clipboard is dead inside the wails webview — measured on the
-	// installed 0.15 build: writeText rejected while the UI's old
-	// catch-and-confirm toast still said "copied" (GDK-178). The web bundle
-	// (desktop mode only, lib/copy-text.ts) posts the text here and the app
-	// writes the system pasteboard, the same call install_cli.go uses. Only
-	// the webview can reach this — there is no TCP listener.
-	mux.HandleFunc("POST /desktop/clipboard", func(w http.ResponseWriter, r *http.Request) {
-		if setClipboard == nil {
-			http.Error(w, `{"error":"unavailable"}`, http.StatusServiceUnavailable)
-			return
-		}
-		var body struct {
-			Text string `json:"text"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Text == "" {
-			http.Error(w, `{"error":"bad_request"}`, http.StatusBadRequest)
-			return
-		}
-		if !setClipboard(body.Text) {
-			log.Printf("clipboard: SetText refused %d bytes", len(body.Text))
-			http.Error(w, `{"error":"clipboard_failed"}`, http.StatusInternalServerError)
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
