@@ -177,3 +177,4 @@ write-gap
 xplat
 pairing
 phone
+skill
