@@ -473,3 +473,30 @@ describe('GDK-652 onboarding first-sync copy matches the running-sync verb', () 
     expect(onboarding).not.toContain("t('onboarding.syncing')")
   })
 })
+
+describe('GDK-1588 toast copy ends the same way in every locale', () => {
+  // Toasts are one surface; the 2026-09-08 release audit measured 16 keys
+  // ending in a terminator and 11 not, identically in all three locales. The
+  // key set is derived from the call sites, not listed here, so a new
+  // `write.toast(t('…'))` joins the contract the moment it is written.
+  // A toast ends in a sentence terminator, an ellipsis (something is still
+  // running), or an interpolation / closing paren (the value is the tail).
+  const TERMINAL = /(?:[.!?…。]|\}|[)）])$/
+  test('every write.toast(t(key)) key ends in a terminator, ellipsis, or value in en, ko and ja', () => {
+    const keys = new Set<string>()
+    for (const file of walkSourceFiles(WEB_SRC)) {
+      const src = readFileSync(file, 'utf8')
+      for (const m of src.matchAll(/write\.toast\(\s*t\(\s*'([^']+)'/g)) keys.add(m[1])
+    }
+    expect(keys.size).toBeGreaterThan(20)
+    const failures: string[] = []
+    for (const key of [...keys].sort()) {
+      for (const [locale, table] of [['en', en], ['ko', ko], ['ja', ja]] as const) {
+        const text = (table as Record<string, string>)[key]
+        if (text === undefined) continue // catalog completeness is another test's job
+        if (!TERMINAL.test(text)) failures.push(`${locale} ${key}=${JSON.stringify(text)}`)
+      }
+    }
+    expect(failures, failures.join('\n')).toEqual([])
+  })
+})

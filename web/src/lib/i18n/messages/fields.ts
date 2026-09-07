@@ -417,7 +417,7 @@ export const fields = {
   'group.noStatus': {
     en: '(no status)',
     ko: '(상태 없음)',
-    ja: '(ステータスなし)',
+    ja: '（ステータスなし）',
   },
   'group.noPriority': {
     en: 'No priority',

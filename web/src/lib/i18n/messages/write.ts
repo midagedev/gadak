@@ -227,8 +227,8 @@ export const write = {
     ja: 'プレビューなし: {message}',
   },
   'write.descriptionDropped': {
-    en: 'Saved; removed {dropped}',
-    ko: '{dropped}을(를) 빼고 저장했습니다',
+    en: 'Saved; removed {dropped}.',
+    ko: '{dropped}을(를) 빼고 저장했습니다.',
     ja: '保存しました。{dropped} を削除しました。',
   },
   'write.tabWrite': {
@@ -462,7 +462,7 @@ export const write = {
   'jiraSettings.tokenReplace': {
     en: '(only when replacing)',
     ko: '(교체 시에만 입력)',
-    ja: '(差し替えるときだけ)',
+    ja: '（差し替えるときだけ）',
   },
   'jiraSettings.replaceToken': {
     en: 'Replace token',
@@ -595,7 +595,7 @@ export const write = {
   },
   'onboarding.errRejected': {
     en: 'Jira rejected that email and token. Check both and try again.',
-    ko: 'Jira가 이메일/토큰을 거부했습니다. 둘 다 확인해 주세요.',
+    ko: 'Jira가 이메일/토큰을 거부했습니다. 둘 다 확인하세요.',
     ja: 'Jira がそのメールとトークンを拒否しました。両方を確認して再試行してください。',
   },
   // Only fires now when the pasted token actually carries the ATCTT prefix
@@ -615,7 +615,7 @@ export const write = {
     ja: 'スコープ付きトークン（「Create API token with scopes」）は Atlassian のクラウド API 向けで、サイト URL には使えません — id.atlassian.com を開き、貼ったトークンがスコープ付きなら、スコープなしで作り直してください。',
   },
   'onboarding.errSite': {
-    en: 'Enter your Jira site URL, for example https://your-team.atlassian.net.',
+    en: 'Enter your Jira site URL, for example https://your-team.atlassian.net',
     ko: 'Jira 사이트 URL을 입력하세요. 예: https://your-team.atlassian.net',
     ja: 'Jira サイト URL を入力してください。例: https://your-team.atlassian.net',
   },

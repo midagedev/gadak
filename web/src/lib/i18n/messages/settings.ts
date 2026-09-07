@@ -720,7 +720,7 @@ export const settings = {
   },
   'settings.integrationNoExit': {
     en: 'The output stopped before the command reported a status, so whether it worked is unknown. Re-check to ask again.',
-    ko: '명령이 상태를 알리기 전에 출력이 끊겼습니다. 성공했는지 알 수 없으니 다시 확인해 주세요.',
+    ko: '명령이 상태를 알리기 전에 출력이 끊겼습니다. 성공했는지 알 수 없으니 다시 확인하세요.',
     ja: 'コマンドが状態を報告する前に出力が止まったため、成功したかは不明です。再確認してもう一度聞いてください。',
   },
   'settings.integrationOkUndetected': {
@@ -994,8 +994,8 @@ export const settings = {
   },
   'settings.workspacesActiveHint': {
     en: 'This is the workspace this serve is running on. Stop serve first, then remove it from a terminal.',
-    ko: '현재 serve가 이 워크스페이스 위에서 돌고 있습니다. serve를 멈춘 뒤 터미널에서 삭제하세요.',
-    ja: 'この serve はこのワークスペース上で動いています。先に serve を止め、端末から削除してください。',
+    ko: '현재 serve가 이 워크스페이스 위에서 돌고 있습니다. serve를 멈춘 뒤 터미널에서 제거하세요.',
+    ja: 'この serve はこのワークスペース上で動いています。先に serve を止め、端末から解除してください。',
   },
   'settings.workspacesNameLabel': {
     en: 'Workspace name',
@@ -1072,13 +1072,13 @@ export const settings = {
   // were the only two Deletes on it. (GDK-1478)
   'settings.workspacesRemove': {
     en: 'Remove',
-    ko: '삭제',
-    ja: '削除',
+    ko: '제거',
+    ja: '解除',
   },
   'settings.workspacesRemoveTitle': {
     en: 'Remove workspace',
-    ko: '워크스페이스 삭제',
-    ja: 'ワークスペースを削除',
+    ko: '워크스페이스 제거',
+    ja: 'ワークスペースを解除',
   },
   'settings.workspacesDestroyLabel': {
     en: 'Also destroy the tracker data file (the only copy of this tracker)',
@@ -1092,8 +1092,8 @@ export const settings = {
   },
   'settings.workspacesRemoveFailed': {
     en: 'Could not remove the workspace. Try again.',
-    ko: '워크스페이스를 삭제하지 못했습니다. 다시 시도하세요.',
-    ja: 'ワークスペースを削除できませんでした。再試行してください。',
+    ko: '워크스페이스를 제거하지 못했습니다. 다시 시도하세요.',
+    ja: 'ワークスペースを解除できませんでした。再試行してください。',
   },
   'settings.workspacesAdvisories': {
     en: 'After this removal:',
@@ -1188,7 +1188,7 @@ export const settings = {
   'settings.groupQueryHint': {
     en: "Optional. One SELECT or WITH returning (issue key, group). Empty group = unclassified. NULL or a missing key falls through to the rules above, then the assignee's member group. Runs when the list is rebuilt, not on each keystroke. Site-specific logic belongs here, not in the binary.",
     ko: '선택. (이슈 키, 그룹)을 돌려주는 SELECT/WITH 하나. 빈 그룹은 미분류, NULL이거나 빠진 키는 위 규칙 → 담당자 멤버 그룹으로 넘어갑니다. 목록을 다시 만들 때만 실행되며 키 입력마다 돌지 않습니다. 사이트 고유 로직은 바이너리가 아니라 여기에 둡니다.',
-    ja: '任意。 (課題キー, グループ) を返す SELECT または WITH ひとつ。空のグループは未分類。NULL や欠けたキーは上の規則、その次に担当者のメンバーグループへ落ちます。一覧を再構築するときに走り、キー入力のたびに走りません。サイト固有のロジックはバイナリではなくここに置きます。',
+    ja: '任意。（課題キー、グループ）を返す SELECT または WITH ひとつ。空のグループは未分類。NULL や欠けたキーは上の規則、その次に担当者のメンバーグループへ落ちます。一覧を再構築するときに走り、キー入力のたびに走りません。サイト固有のロジックはバイナリではなくここに置きます。',
   },
   'settings.projectsCol': {
     en: 'Projects',
@@ -1430,7 +1430,7 @@ export const settings = {
   'settings.terminalScrollback': {
     en: 'Scrollback (lines)',
     ko: '스크롤백 (줄)',
-    ja: 'スクロールバック (行)',
+    ja: 'スクロールバック（行）',
   },
   'settings.terminalScrollbackDesc': {
     en: 'Empty means 5000; between 200 and 100000, anything else is refused on Save.',
@@ -1620,8 +1620,8 @@ export const settings = {
     ja: '{n}件のフィルター',
   },
   'palette.actionCreateIssue': {
-    en: 'Create "{summary}"',
-    ko: '"{summary}" 이슈 만들기',
+    en: 'Create “{summary}”',
+    ko: '‘{summary}’ 이슈 만들기',
     ja: '「{summary}」を作成',
   },
   'palette.actionSettings': {

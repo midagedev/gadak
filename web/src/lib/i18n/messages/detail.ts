@@ -274,9 +274,9 @@ export const detail = {
   // (`filter.saveServerFailed` in list.ts is the standard); hints and
   // local-origin sentences keep theirs. (GDK-1226)
   'clipboard.copyFailed': {
-    en: 'Could not copy — the clipboard refused the write',
-    ko: '복사하지 못했습니다 — 클립보드가 쓰기를 거부했습니다',
-    ja: 'コピーできませんでした — クリップボードが書き込みを拒否しました',
+    en: 'Could not copy — the clipboard refused the write.',
+    ko: '복사하지 못했습니다 — 클립보드가 쓰기를 거부했습니다.',
+    ja: 'コピーできませんでした — クリップボードが書き込みを拒否しました。',
   },
   'detail.reopened': {
     en: 'Reopened',
@@ -371,7 +371,7 @@ export const detail = {
   'detail.emptyComment': {
     en: '(empty comment)',
     ko: '(빈 코멘트)',
-    ja: '(空のコメント)',
+    ja: '（空のコメント）',
   },
   'detail.replyToComment': {
     en: 'Reply to this comment',

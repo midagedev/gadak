@@ -27,9 +27,9 @@ export const list = {
     ja: 'ビューとして保存',
   },
   'filter.saveServerFailed': {
-    en: 'Server save failed — saved in this browser instead',
-    ko: '서버 저장에 실패해 이 브라우저에 저장했습니다',
-    ja: 'サーバー保存に失敗したため、このブラウザに保存しました',
+    en: 'Server save failed — saved in this browser instead.',
+    ko: '서버 저장에 실패해 이 브라우저에 저장했습니다.',
+    ja: 'サーバー保存に失敗したため、このブラウザに保存しました。',
   },
   'filter.saveDemoLocal': {
     en: 'The demo keeps views in this browser',
@@ -47,9 +47,9 @@ export const list = {
     ja: '開いた後に変更あり',
   },
   'filter.jqlNotAvailable': {
-    en: 'JQL needs the app or gadak serve',
-    ko: 'JQL은 앱 또는 gadak serve가 필요합니다',
-    ja: 'JQL にはアプリまたは gadak serve が必要です',
+    en: 'JQL needs the app or gadak serve.',
+    ko: 'JQL은 앱 또는 gadak serve가 필요합니다.',
+    ja: 'JQL にはアプリまたは gadak serve が必要です。',
   },
   'filter.jqlFailed': {
     en: 'Could not reach JQL. Check the connection and try again.',
@@ -67,9 +67,9 @@ export const list = {
     ja: 'JQL をコピーしました（Jira にない項目: {omitted}）',
   },
   'filter.jqlApplied': {
-    en: 'JQL filter applied',
-    ko: 'JQL 필터를 적용했습니다',
-    ja: 'JQL フィルターを適用しました',
+    en: 'JQL filter applied.',
+    ko: 'JQL 필터를 적용했습니다.',
+    ja: 'JQL フィルターを適用しました。',
   },
   'filter.jqlPartial': {
     en: 'Applied, except: {clauses}',
@@ -85,9 +85,9 @@ export const list = {
   // on a dead connection. Patterned on write.jiraUnavailable.
   // internal/jql/compile.go ErrNotJQL: URL has no jql= parameter.
   'filter.notJql': {
-    en: 'URL has no jql= parameter',
-    ko: 'URL에 jql= 파라미터가 없습니다',
-    ja: 'URL に jql= パラメータがありません',
+    en: 'URL has no jql= parameter.',
+    ko: 'URL에 jql= 파라미터가 없습니다.',
+    ja: 'URL に jql= パラメータがありません。',
   },
   'filter.remove': {
     en: 'Remove filter',
@@ -288,9 +288,9 @@ export const list = {
     ja: '{n}件',
   },
   'list.bodyMatchCount': {
-    en: '{n} body matches · "{q}"',
-    ko: '본문 일치 {n}건 · "{q}"',
-    ja: '本文一致 {n}件 · "{q}"',
+    en: '{n} body matches · “{q}”',
+    ko: '본문 일치 {n}건 · ‘{q}’',
+    ja: '本文一致 {n}件 · 「{q}」',
   },
   'list.emptyTitle': {
     en: 'No issues',
@@ -340,8 +340,8 @@ export const list = {
     ja: '一致する課題はありません — 本文で見つかりました',
   },
   'list.bodyOnlyHint': {
-    en: "See the 'Body matches' section above.",
-    ko: "위 '본문 매치' 섹션을 확인하세요.",
+    en: 'See the “Body matches” section above.',
+    ko: '위 ‘본문 일치’ 섹션을 확인하세요.',
     ja: '上の「本文一致」セクションを見てください。',
   },
   'list.noMatchTitle': {
@@ -549,9 +549,9 @@ export const list = {
     ja: 'Enter で開く',
   },
   'omnibox.issueMissing': {
-    en: '{key} is not in the mirror',
-    ko: '미러에 {key}가 없습니다',
-    ja: '{key} はミラーにありません',
+    en: '{key} is not in the mirror.',
+    ko: '미러에 {key}가 없습니다.',
+    ja: '{key} はミラーにありません。',
   },
   'list.searchFailed': {
     en: 'Could not search body text. Check the connection and try again.',
@@ -576,9 +576,9 @@ export const list = {
     ja: 'コメント内',
   },
   'list.docMatchCount': {
-    en: '{n} documents · "{q}"',
-    ko: '문서 {n}건 · "{q}"',
-    ja: 'ドキュメント {n}件 · "{q}"',
+    en: '{n} documents · “{q}”',
+    ko: '문서 {n}건 · ‘{q}’',
+    ja: 'ドキュメント {n}件 · 「{q}」',
   },
   'list.docOnlyTitle': {
     en: 'No issues match — found in documents',
@@ -586,8 +586,8 @@ export const list = {
     ja: '一致する課題はありません — ドキュメントで見つかりました',
   },
   'list.docOnlyHint': {
-    en: "See the 'Documents' section above.",
-    ko: "위 '문서' 섹션을 확인하세요.",
+    en: 'See the “Documents” section above.',
+    ko: '위 ‘문서’ 섹션을 확인하세요.',
     ja: '上の「ドキュメント」セクションを見てください。',
   },
   /* ── Bulk bar ── */

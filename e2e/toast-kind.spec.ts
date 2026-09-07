@@ -54,7 +54,7 @@ test.describe('toast kind without colour', () => {
 
     const success = page.getByTestId('toast').and(page.getByRole('status'))
     await expect(success).toBeVisible()
-    await expect(success).toContainText('JQL filter applied')
+    await expect(success).toContainText('JQL filter applied.')
     const icon = success.getByTestId('toast-icon')
     await expect(icon).toBeVisible()
     await expect(icon.locator('svg')).toBeVisible()

@@ -64,7 +64,7 @@ export const common = {
   'common.defaultParen': {
     en: '(default)',
     ko: '(기본)',
-    ja: '(既定)',
+    ja: '（既定）',
   },
   'common.unknown': {
     en: 'Unknown',

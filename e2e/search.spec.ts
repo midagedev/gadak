@@ -62,7 +62,7 @@ test.describe('server search says why it matched', () => {
     await input.fill('reproduced')
     await input.press('Enter')
 
-    await expect(page.getByText(/body matches · "reproduced"/)).toBeVisible()
+    await expect(page.getByText(/body matches · “reproduced”/)).toBeVisible()
 
     const snippet = page.locator('[data-testid="match-snippet"][data-match-field="comment"]').first()
     await expect(snippet).toBeVisible()
