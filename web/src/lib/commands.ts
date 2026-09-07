@@ -94,6 +94,13 @@ export interface KeyContext {
   pageSelected: boolean
   personSelected: boolean
   /**
+   * The origin has pages this build can open ("Open in {tracker}" is a real
+   * shortcut). Read by help rows, not by dispatch — the `o` chord fires the
+   * same everywhere and the failure path is the caller's; what the flag
+   * decides is whether the cheat sheet advertises the chord at all (GDK-1589).
+   */
+  originOpenable: boolean
+  /**
    * False until the list has absorbed the boot-time first view commit.
    * j/k/x in that window are held, not applied to the unfiltered pool.
    */
@@ -166,6 +173,7 @@ export function keyContext(over: Partial<KeyContext> = {}): KeyContext {
     bulkActive: false,
     pageSelected: false,
     personSelected: false,
+    originOpenable: true,
     ...over,
   }
 }
@@ -213,7 +221,10 @@ export type KeyScope =
   | 'overlay-docs'
 
 export interface Chord {
-  /** ev.key — the printed character. Omitted on a code chord. */
+  /** ev.key — the printed character. Omitted on a code chord. The 'Escape'
+   *  spelling below is binding data, not a keydown guard: keymap compares it
+   *  against ctx.key, and the handler-side counterpart is isEscapeKey in
+   *  lib/dom-actions.ts (GDK-1565 — the one sanctioned literal outside it). */
   key?: string
   /** meta OR ctrl, matching ⌘K / Ctrl+K. */
   mod?: boolean
@@ -242,6 +253,14 @@ export interface HelpRow {
   kbd: string
   labelKey: MessageKey
   sort: number
+  /**
+   * The row is a shortcut only in some contexts — the same context the
+   * resolver sees (GDK-1589). "Esc ← back" is only a shortcut while the
+   * browse pane is open; "Open in {tracker}" only on an origin that has
+   * pages. helpSections hides the row when this declines; without a ctx
+   * (registry dumps, collectLabelKeys) every row stays.
+   */
+  when?: (ctx: KeyContext) => boolean
 }
 
 export type PaletteKind =
@@ -508,8 +527,24 @@ export const COMMANDS: readonly CommandDef[] = [
       labelKey: 'detail.openJira',
     },
     help: [
-      { group: 'list', kbd: 'o', labelKey: 'detail.openJira', sort: 40 },
-      { group: 'detail', kbd: 'o', labelKey: 'shortcuts.detailOpenJira', sort: 10 },
+      // The two origin-page rows carry the context gate; doc.openSource is
+      // the docs viewer's own view-source row and is a shortcut wherever
+      // docs open, origin or not (this is also exactly what the dialog's old
+      // endsWith('OpenJira') filter said — GDK-1313, now in the registry).
+      {
+        group: 'list',
+        kbd: 'o',
+        labelKey: 'detail.openJira',
+        sort: 40,
+        when: (ctx) => ctx.originOpenable,
+      },
+      {
+        group: 'detail',
+        kbd: 'o',
+        labelKey: 'shortcuts.detailOpenJira',
+        sort: 10,
+        when: (ctx) => ctx.originOpenable,
+      },
       { group: 'detail', kbd: 'o', labelKey: 'doc.openSource', sort: 20 },
     ],
   },
@@ -519,7 +554,9 @@ export const COMMANDS: readonly CommandDef[] = [
     chords: [{ key: 'Escape' }],
     when: (ctx) => ctx.browsePaneOpen,
     dispatch: () => ({ type: 'hide-browse' }),
-    help: { group: 'global', kbd: 'Esc', labelKey: 'browse.back', sort: 50 },
+    // Same gate as the chord: "Esc ← back" is not a global shortcut, it is
+    // the browse pane's — the sheet only says so while one is open (GDK-1589).
+    help: { group: 'global', kbd: 'Esc', labelKey: 'browse.back', sort: 50, when: (ctx) => ctx.browsePaneOpen },
   },
   {
     id: 'clear-bulk',
@@ -544,6 +581,29 @@ export const COMMANDS: readonly CommandDef[] = [
     help: { group: 'list', kbd: 'Esc', labelKey: 'shortcuts.clearSelection', sort: 110 },
   },
   /*
+   * GDK-1565: a page/person panel over a column view is the topmost surface,
+   * so Esc closes it first — close-docs/close-history used to match with a
+   * panel open (their when-chain never excluded it), closing the column
+   * view under a still-open panel. Esc-only chords, siblings of the 'x'
+   * entries below, so the x chord's behavior is untouched. No help row:
+   * closing the top surface is what Esc means everywhere else in the
+   * ladder (close-feed/close-dashboard precedent).
+   */
+  {
+    id: 'clear-page-esc',
+    scope: 'page',
+    chords: [{ key: 'Escape' }],
+    when: (ctx) => escFreeOfBrowseMenu(ctx) && !ctx.bulkActive && ctx.pageSelected,
+    dispatch: () => ({ type: 'clear-page' }),
+  },
+  {
+    id: 'clear-person-esc',
+    scope: 'person',
+    chords: [{ key: 'Escape' }],
+    when: (ctx) => escFreeOfBrowseMenu(ctx) && !ctx.bulkActive && !ctx.pageSelected && ctx.personSelected,
+    dispatch: () => ({ type: 'clear-person' }),
+  },
+  /*
    * GDK-945, axis B: the overlay terminal joins the Esc ladder — but only
    * when the VT does not hold the keystroke. A focused terminal's Esc is
    * the PTY's (vim, less, fzf), so keyFromTerminalHost refuses the key even
@@ -563,6 +623,8 @@ export const COMMANDS: readonly CommandDef[] = [
       escFreeOfBrowseMenu(ctx) &&
       !ctx.bulkActive &&
       !ctx.detailOpen &&
+      !ctx.pageSelected &&
+      !ctx.personSelected &&
       ctx.terminalOverlayOpen &&
       !ctx.keyFromTerminalHost,
     dispatch: () => ({ type: 'close-terminal-overlay' }),
@@ -575,6 +637,8 @@ export const COMMANDS: readonly CommandDef[] = [
       escFreeOfBrowseMenu(ctx) &&
       !ctx.bulkActive &&
       !ctx.detailOpen &&
+      !ctx.pageSelected &&
+      !ctx.personSelected &&
       !ctx.terminalOverlayOpen &&
       ctx.feedBlocksNarrow,
     dispatch: () => ({ type: 'close-feed' }),
@@ -595,6 +659,8 @@ export const COMMANDS: readonly CommandDef[] = [
       escFreeOfBrowseMenu(ctx) &&
       !ctx.bulkActive &&
       !ctx.detailOpen &&
+      !ctx.pageSelected &&
+      !ctx.personSelected &&
       !ctx.terminalOverlayOpen &&
       !ctx.feedBlocksNarrow &&
       ctx.dashboardOpen,
@@ -608,6 +674,8 @@ export const COMMANDS: readonly CommandDef[] = [
       escFreeOfBrowseMenu(ctx) &&
       !ctx.bulkActive &&
       !ctx.detailOpen &&
+      !ctx.pageSelected &&
+      !ctx.personSelected &&
       !ctx.terminalOverlayOpen &&
       !ctx.feedBlocksNarrow &&
       !ctx.dashboardOpen &&
@@ -622,6 +690,8 @@ export const COMMANDS: readonly CommandDef[] = [
       escFreeOfBrowseMenu(ctx) &&
       !ctx.bulkActive &&
       !ctx.detailOpen &&
+      !ctx.pageSelected &&
+      !ctx.personSelected &&
       !ctx.terminalOverlayOpen &&
       !ctx.feedBlocksNarrow &&
       !ctx.dashboardOpen &&
@@ -1089,11 +1159,13 @@ export interface HelpSectionView {
   rows: { kbd: string; labelKey: MessageKey }[]
 }
 
-export function helpSections(mod: string): HelpSectionView[] {
+export function helpSections(mod: string, ctx?: KeyContext): HelpSectionView[] {
   return HELP_GROUPS.map((group) => {
     const rows = COMMANDS.flatMap((cmd) =>
       helpRowsOf(cmd)
-        .filter((row) => row.group === group.id)
+        // A gated row is listed only where it is a shortcut; no ctx means
+        // the registry view (every row — the palette and the unit tests).
+        .filter((row) => row.group === group.id && (!ctx || row.when?.(ctx) !== false))
         .map((row) => ({
           kbd: formatHelpKbd(row.kbd, mod),
           labelKey: row.labelKey,

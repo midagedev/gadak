@@ -11,6 +11,7 @@
   import { onMount } from 'svelte'
   import { createCompositionCommit } from '../../lib/composition-commit'
   import { trapFocus } from '../../lib/focus-trap'
+  import { isEscapeKey } from '../../lib/dom-actions'
   import {
     formatNumber,
     formatTimeOfDay,
@@ -870,7 +871,7 @@ import type { SettingsTab } from '../../lib/settings-tabs'
     if ((e.isComposing || ime.composing) && e.key === 'Enter') {
       return
     }
-    if (e.key === 'Escape') {
+    if (isEscapeKey(e)) {
       e.preventDefault()
       closePalette()
     } else if (e.key === 'ArrowDown') {

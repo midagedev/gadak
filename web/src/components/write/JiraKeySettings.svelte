@@ -11,6 +11,7 @@
   import { write } from '../../stores/write.svelte'
   import { absoluteTime } from '../detail/format'
   import { trapFocus } from '../../lib/focus-trap'
+  import { ESC_TIER, isEscapeKey, onEscape } from '../../lib/dom-actions'
   import DialogShell from '../ui/DialogShell.svelte'
 
   const API_TOKEN_URL = 'https://id.atlassian.com/manage-profile/security/api-tokens'
@@ -60,12 +61,17 @@
     write.closeSettings()
   }
 
-  function onKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape') close()
+  // A dialog-tier claim on the Esc stack: this dialog outranks the surface
+  // under it, and acting spends the key so the detail panel below keeps its
+  // own Esc (GDK-1565 — the old window listener ran after the panel's and
+  // left the key unspent, closing both on one keystroke).
+  function onEsc(e: KeyboardEvent) {
+    if (isEscapeKey(e)) {
+      e.preventDefault()
+      close()
+    }
   }
 </script>
-
-<svelte:window onkeydown={onKeydown} />
 
 <DialogShell
   title={t('jiraSettings.heading')}
@@ -77,7 +83,10 @@
   onSubmit={submit}
   footerClass="mt-1 flex flex-none items-center justify-between gap-2 border-t border-border-subtle px-5 py-3"
 >
-  <div class="scroll-region flex min-h-0 flex-1 flex-col gap-3 px-5 pt-4">
+  <div
+    class="scroll-region flex min-h-0 flex-1 flex-col gap-3 px-5 pt-4"
+    use:onEscape={{ handler: onEsc, priority: ESC_TIER.dialog, label: 'jira-key-settings' }}
+  >
     <p class="text-body leading-relaxed text-text-muted">
       <!-- intro3 already ends in "Atlassian"; the line break below is the space
            before the link, so no literal belongs here. -->

@@ -31,7 +31,7 @@
   import { cacheEpoch, getDetailCached, invalidate } from '../../lib/detail-cache.svelte'
   import { createResource } from '../../lib/resource.svelte'
   import { createSkeletonGrace } from '../../lib/skeleton-grace.svelte'
-  import { onEscape } from '../../lib/dom-actions'
+  import { ESC_TIER, onEscape } from '../../lib/dom-actions'
   import { shells } from '../../lib/issue-shells.svelte'
   import { issueOriginUrl } from '../../lib/issue-origin'
   import DetailHeader from './DetailHeader.svelte'
@@ -104,9 +104,10 @@
   // Esc to close, unless this Esc was already spent — the shell gives the first
   // one back to a live multi-selection and BulkBar to an open popover, and
   // closing the panel in the same keystroke would cost the user a batch they
-  // are still assembling. defaultPrevented is the signal rather than reading the
-  // stores: listener order is registration order, and this one registers last
-  // (on selection), so by the time it runs the stores are already cleared.
+  // are still assembling. defaultPrevented is the spend convention: the
+  // dialog/menu/overlay claims above this surface tier act first in the
+  // stack's walk (lib/dom-actions.ts, GDK-1565), so by the time this claim
+  // runs the key tells the truth about who already took it.
   //
   // GDK-462: a focused composer preventDefault+blurs; this listener then arms
   // so the *next* Esc can close. A non-empty draft with no focus spends one
@@ -175,7 +176,11 @@
 </script>
 
 {#if key}
-  <div class="flex h-full flex-col text-text-primary" use:onEscape={onEscapeKey} data-skeleton={skeleton.attr}>
+  <div
+    class="flex h-full flex-col text-text-primary"
+    use:onEscape={{ handler: onEscapeKey, priority: ESC_TIER.surface, label: 'detail-panel' }}
+    data-skeleton={skeleton.attr}
+  >
     <!-- Header — outside the scroll, so it is pinned by structure. -->
     <div class="relative z-10 flex-none bg-bg-panel">
       {#if lite}

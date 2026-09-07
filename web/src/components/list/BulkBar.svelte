@@ -40,7 +40,10 @@
   import { recentOf } from '../../lib/recency'
   import { priorityMeta } from '../../lib/format'
   import { effectiveCategory } from '../../lib/view-config'
-  import { onOutsideClick } from '../../lib/dom-actions'
+  import { ESC_TIER, isEscapeKey, onEscape, onOutsideClick } from '../../lib/dom-actions'
+  import { MenuOriginTimeout, withMenuTimeout } from '../../lib/menu-loading'
+  import { createSkeletonGrace } from '../../lib/skeleton-grace.svelte'
+  import LoadingState from '../ui/LoadingState.svelte'
   import Avatar from './Avatar.svelte'
 
   const menu = $derived(triage.menu)
@@ -213,21 +216,39 @@
     if (!bulk.active && triage.menu) triage.closeMenu()
   })
 
+  // ── Site priority wait (GDK-1566) ──
   // Catalog load matches PriorityPicker: GET priorities/ (or demo synthesis),
   // never the filter facet. Keyboard `p` opens the menu before this runs.
-  // Loading UI keys on write.prioritiesLoaded, not a local flag: finishing the
-  // GET writes that state and would re-run this effect, cancelling a local
-  // `loading = false` and leaving the menu stuck on "Loading…".
+  // The wait is grace-governed and capped at MENU_ORIGIN_TIMEOUT_MS — an
+  // unreachable origin (measured 502 at 15.02 s) used to hold the menu on a
+  // bare "Loading…" the whole time. There is no cached stand-in for the site
+  // catalog (this GET is what would populate it), so the cap's answer is the
+  // failure sentence + Retry; a late success still lands in the store and
+  // the rows take over (write.prioritiesLoaded wins in the template).
+  let priorityLoad = $state<'idle' | 'loading' | 'error'>('idle')
+  const priorityGrace = createSkeletonGrace(() => priorityLoad === 'loading')
+
+  function loadSitePriorities(): void {
+    priorityLoad = 'loading'
+    void withMenuTimeout(write.loadPriorities()).then(
+      (ok) => {
+        // ok=false is the gate or a refused GET — store already dialoged or
+        // toasted it; the old behavior on this path was to close, and is.
+        if (!ok) closeMenu()
+        else priorityLoad = 'idle'
+      },
+      (e) => {
+        if (e instanceof MenuOriginTimeout) priorityLoad = 'error'
+        else throw e
+      },
+    )
+  }
+
   $effect(() => {
     if (menu !== 'priority') return
     if (write.prioritiesLoaded) return
-    let cancelled = false
-    void write.loadPriorities().then((ok) => {
-      if (!cancelled && !ok) closeMenu()
-    })
-    return () => {
-      cancelled = true
-    }
+    if (priorityLoad !== 'idle') return
+    loadSitePriorities()
   })
 
   /** Concurrency-3 batch. fn tallies each key's outcome itself. */
@@ -414,26 +435,23 @@
     labelQuery = next
   }
 
-  // Escape closes an open menu. Escape with no menu open is the shell's (it drops
-  // the selection) — handling it here too would clear the selection in the same
-  // keystroke that closed the popover. This one stays on window because the
-  // assignee search box has focus while its menu is open.
+  // Escape closes an open menu. Escape with no menu open is the shell's (it
+  // drops the selection) — handling it here too would clear the selection in
+  // the same keystroke that closed the popover.
   //
-  // It also stays an $effect rather than becoming a use:onEscape on the bar
-  // below, and the difference is registration order: DetailPanel declines an Esc
-  // this one has already spent, which only works while this listener is the
-  // earlier of the two. An action would bind when the bar appears — after the
-  // panel, whenever rows are picked with an issue already open — and the panel
-  // would then close on the keystroke that was meant for the popover.
-  $effect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key !== 'Escape' || !menu) return
-      e.preventDefault() // spend the Esc here so the detail panel keeps its own
-      closeMenu()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  })
+  // This used to be an $effect adding a window listener, held there (not on
+  // the bar below) because delivery was registration order and the bar binds
+  // after the detail panel whenever rows are picked with an issue open
+  // (GDK-1565's root cause, in miniature). The claim stack makes the order
+  // explicit — menu tier outranks surface tier — so the claim now hangs on
+  // the bar like its outside-click sibling, and an issue picked with the
+  // panel open can no longer race it. While a menu is open the shell keymap
+  // declines Esc entirely (escFreeOfBrowseMenu), so this claim acts alone.
+  function onMenuEsc(e: KeyboardEvent) {
+    if (!isEscapeKey(e) || !menu) return
+    e.preventDefault() // spend the Esc here so the detail panel keeps its own
+    closeMenu()
+  }
 </script>
 
 {#snippet assigneeRow(c: AssigneeCand)}
@@ -463,6 +481,7 @@
   <div
     data-testid="bulk-bar"
     class="anim-enter flex flex-none items-center gap-2 border-b border-border-strong/70 bg-bg-elevated px-4 py-2 text-body"
+    use:onEscape={{ handler: onMenuEsc, priority: ESC_TIER.menu, label: 'bulk-menu' }}
     use:onOutsideClick={{ handler: closeMenu, enabled: !!menu, defer: true }}
   >
     <span class="flex-none font-medium text-text-primary">{t('list.selectedCount', { n: bulk.count })}</span>
@@ -483,16 +502,20 @@
         <div
           class="anim-enter absolute left-0 top-full z-30 mt-1 max-h-72 w-56 overflow-y-auto rounded-lg border border-border-strong bg-bg-elevated py-1 shadow-overlay"
           role="listbox"
+          aria-label={t('bulk.changeStatus')}
           data-testid="bulk-status-menu"
         >
           {#if statusOptions.length === 0}
             <div class="px-3 py-2 text-micro text-text-muted">{t('bulk.noCommonTransitions')}</div>
           {:else}
             {#each statusOptions as opt (opt.to_status)}
+              <!-- aria-selected = the whole selection already at this status
+                   (the run would skip every issue) — the "current value" of a
+                   multi-target listbox, mirroring runStatus's skip test. -->
               <button
                 type="button"
                 role="option"
-                aria-selected="false"
+                aria-selected={selectedIssues.every((it) => it.status === opt.to_status)}
                 onclick={() => runStatus(opt)}
                 class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-body text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
               >
@@ -523,13 +546,29 @@
           aria-label={t('common.priority')}
           data-testid="bulk-priority-menu"
         >
-          {#if !write.prioritiesLoaded}
-            <div class="px-3 py-2 text-micro text-text-muted">{t('common.loading')}</div>
+          {#if !write.prioritiesLoaded && priorityLoad === 'loading'}
+            <div data-skeleton={priorityGrace.attr}>
+              {#if priorityGrace.visible}<LoadingState compact />{/if}
+            </div>
+          {:else if !write.prioritiesLoaded}
+            <div class="flex flex-col gap-1 px-3 py-2">
+              <p class="text-micro text-status-reopen" data-testid="menu-load-error">
+                {t('write.prioritiesFailed')}
+              </p>
+              <button
+                type="button"
+                data-testid="menu-load-retry"
+                onclick={loadSitePriorities}
+                class="self-start text-micro font-medium text-accent-text hover:underline"
+              >
+                {t('common.retry')}
+              </button>
+            </div>
           {:else}
             <button
               type="button"
               role="option"
-              aria-selected="false"
+              aria-selected={selectedIssues.every((it) => !it.priority && !it.priority_id)}
               onclick={() => runPriority(null)}
               class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-body text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
             >
@@ -538,10 +577,12 @@
             </button>
             {#each write.priorities as p, i (p.id)}
               {@const opt = priorityMeta(i + 1, p.name)}
+              <!-- Same "current value" convention as the none row: selected =
+                   every issue already carries this id (runPriority skips all). -->
               <button
                 type="button"
                 role="option"
-                aria-selected="false"
+                aria-selected={selectedIssues.every((it) => it.priority_id === p.id)}
                 onclick={() => runPriority(p)}
                 class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-body text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
               >
@@ -569,9 +610,15 @@
       </button>
       <kbd aria-hidden="true" class="rounded border border-border-subtle px-1 text-micro text-text-muted">a</kbd>
       {#if menu === 'assignee'}
+        <!-- One role for all four dropdowns: listbox (GDK-1591). The dialog
+             role on this one and the labels menu below was the accident of
+             their filter input — but all four are the same interaction (open,
+             pick one option, close), and a screen reader hearing "dialog"
+             expects Esc-focus-trap semantics these never had. The input stays
+             a filter for the list, not a dialog field. -->
         <div
           class="anim-enter absolute left-0 top-full z-30 mt-1 w-64 rounded-lg border border-border-strong bg-bg-elevated shadow-overlay"
-          role="dialog"
+          role="listbox"
           aria-label={t('write.pickAssignee')}
           data-testid="bulk-assignee-menu"
           data-cand-source={assigneeSearching ? 'search' : 'local'}
@@ -639,7 +686,7 @@
       {#if menu === 'labels'}
         <div
           class="anim-enter absolute left-0 top-full z-30 mt-1 w-64 rounded-lg border border-border-strong bg-bg-elevated shadow-overlay"
-          role="dialog"
+          role="listbox"
           aria-label={t('bulk.pickLabel')}
           data-testid="bulk-labels-menu"
         >

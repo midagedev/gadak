@@ -70,6 +70,25 @@ const READ_PATH: { name: string; file: string; comment: string }[] = [
     file: join(WEB_SRC, 'components/terminal/TerminalPane.svelte'),
     comment: 'POST session + socket open can take seconds; sibling of dashboard grace',
   },
+  {
+    // GDK-1566: the menu catalog fetches (site priorities, per-issue
+    // priorities, origin transitions) joined the grace family — an
+    // unreachable origin used to hold the menu open on a bare "Loading…"
+    // for the full connect timeout.
+    name: 'bulk priority menu',
+    file: join(WEB_SRC, 'components/list/BulkBar.svelte'),
+    comment: 'site priority catalog GET; cap via MENU_ORIGIN_TIMEOUT_MS, not the connect timeout',
+  },
+  {
+    name: 'priority menu',
+    file: join(WEB_SRC, 'components/write/PriorityPicker.svelte'),
+    comment: 'per-issue priority catalog GET; sibling of the bulk bar grace',
+  },
+  {
+    name: 'status menu',
+    file: join(WEB_SRC, 'components/write/StatusTransition.svelte'),
+    comment: 'origin transitions GET; sibling of the priority picker grace',
+  },
 ]
 
 /**

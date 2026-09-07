@@ -18,6 +18,7 @@
   import { ApiError } from '../../lib/api'
   import { createUserSearch } from '../../lib/user-search.svelte'
   import { trapFocus } from '../../lib/focus-trap'
+  import { ESC_TIER, isEscapeKey, onEscape } from '../../lib/dom-actions'
   import { write } from '../../stores/write.svelte'
   import { selection } from '../../stores/selection.svelte'
   import { issues } from '../../stores/issues.svelte'
@@ -365,12 +366,15 @@
   function close() {
     write.closeNewIssue()
   }
-  function onKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape') close()
+  // Dialog-tier claim on the Esc stack, acting-and-spending so the surface
+  // under it keeps its own Esc (GDK-1565).
+  function onEsc(e: KeyboardEvent) {
+    if (isEscapeKey(e)) {
+      e.preventDefault()
+      close()
+    }
   }
 </script>
-
-<svelte:window onkeydown={onKeydown} />
 
 {#snippet formFooter()}
   {#if extraRequired.length}
@@ -413,6 +417,10 @@
   footer={writeState === 'form' ? formFooter : undefined}
   footerClass="mt-1 flex flex-none flex-col gap-2 border-t border-border-subtle px-5 py-3"
 >
+  <!-- display:contents — this wrapper exists only to anchor the dialog's Esc
+       claim in the dialog's own template (actions do not go on components);
+       it contributes no box to the form/flex layout it wraps. -->
+  <div class="contents" use:onEscape={{ handler: onEsc, priority: ESC_TIER.dialog, label: 'new-issue' }}>
     {#if writeState === 'loading'}
       <div class="h-full" data-skeleton={loadingGrace.attr}>
         {#if loadingGrace.visible}<LoadingState label={t('common.loading')} />{/if}
@@ -626,4 +634,5 @@
         {/if}
         </div>
     {/if}
+  </div>
 </DialogShell>

@@ -17,6 +17,7 @@
     type TimelineEntry,
   } from '../../lib/history'
   import { emptyConfig } from '../../lib/view-config'
+  import { isEscapeKey } from '../../lib/dom-actions'
   import { onRowMetricsInvalidated, rowMetrics } from '../../lib/row-metrics'
   import { history } from '../../stores/history.svelte'
   import { column } from '../../stores/column.svelte'
@@ -172,7 +173,7 @@
       // closeHistory is this screen's leave (the close button); showIssueList
       // would also apply a ViewConfig, which widen does not want.
       widenToServerSearch(filterText, () => pages.closeHistory())
-    } else if (e.key === 'Escape') {
+    } else if (isEscapeKey(e)) {
       e.preventDefault()
       if (filterText) history.filterText = ''
       else (e.target as HTMLElement).blur()

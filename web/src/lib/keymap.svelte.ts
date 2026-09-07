@@ -194,6 +194,9 @@ function contextFromEvent(e: KeyboardEvent, host: GlobalKeyHost): KeyContext {
     bulkActive: host.bulk.active,
     pageSelected: Boolean(host.pages.selectedKey),
     personSelected: Boolean(host.person.selectedEmail),
+    // Dispatch never consults this (help rows only, GDK-1589) — the resolver
+    // is not the place to ask the origin anything, so it says "open".
+    originOpenable: true,
   }
 }
 

@@ -19,13 +19,22 @@
   import { recentOf } from '../../lib/recency'
   import { effectiveCategory } from '../../lib/view-config'
   import { assignedTo } from '../../lib/person-match'
-  import { onEscape, onOutsideClick } from '../../lib/dom-actions'
+  import { ESC_TIER, isEscapeKey, onEscape, onOutsideClick } from '../../lib/dom-actions'
+  import { withMenuTimeout } from '../../lib/menu-loading'
+  import { createSkeletonGrace } from '../../lib/skeleton-grace.svelte'
   import { DETAIL_TESTID } from '../../lib/commands'
+  import LoadingState from '../ui/LoadingState.svelte'
 
   let { issue }: { issue: IssueLite } = $props()
 
   let open = $state(false)
   let loading = $state(false)
+  // GDK-1566: the fallback GET proxies to the origin — grace-governed wait,
+  // capped at the shared MENU_ORIGIN_TIMEOUT_MS, so a stalled origin answers
+  // with the failure sentence + Retry instead of a bare "Loading…" for its
+  // whole upstream timeout (measured 15 s). Transitions have no cached
+  // stand-in: the local map was already empty when this GET started.
+  const loadGrace = createSkeletonGrace(() => loading, () => issue.issue_key)
   let remote = $state<Transition[] | null>(null) // fallback GET result
   let source = $state<'local' | 'remote'>('local')
   let loadError = $state<string | null>(null)
@@ -86,14 +95,13 @@
     fieldDraft = {}
   }
 
-  // Spend Esc so one keystroke cannot also clear the detail panel.
-  // preventDefault is what DetailPanel declines; stopPropagation is what the
-  // shell keymap needs — it does not read defaultPrevented, and its
-  // svelte:window listener is registered first. The delegated onkeydown
-  // below reaches the event while it still walks the trigger or the open
-  // menu (ViewSettingsMenu's shape).
+  // Menu-tier claim on the Esc stack (GDK-1565): the picker outranks the
+  // surface it sits on, and acting spends the key so the detail panel keeps
+  // its own Esc. The delegated onkeydown below is the same handler one
+  // phase early — it sees the key while it still walks the picker, where its
+  // stopPropagation shields the shell keymap without the tier's help.
   function onEsc(e: KeyboardEvent) {
-    if (e.key !== 'Escape' || !open) return
+    if (!isEscapeKey(e) || !open) return
     e.preventDefault()
     e.stopPropagation()
     closeMenu()
@@ -129,7 +137,7 @@
     source = 'remote'
     loadError = null
     try {
-      const res = await api.getTransitions(issue.issue_key)
+      const res = await withMenuTimeout(api.getTransitions(issue.issue_key))
       remote = res.transitions
       focusFirst()
     } catch (e) {
@@ -258,7 +266,7 @@
   class="relative inline-block"
   bind:this={rootEl}
   onkeydown={onEsc}
-  use:onEscape={onEsc}
+  use:onEscape={{ handler: onEsc, priority: ESC_TIER.menu, label: 'status-transition' }}
   use:onOutsideClick={{ handler: closeMenu, enabled: open }}
 >
   <button
@@ -292,9 +300,21 @@
       role="listbox"
     >
       {#if loading}
-        <div class="px-3 py-2 text-micro text-text-muted">{t('common.loading')}</div>
+        <div data-skeleton={loadGrace.attr}>
+          {#if loadGrace.visible}<LoadingState compact />{/if}
+        </div>
       {:else if loadError}
-        <div class="px-3 py-2 text-body text-status-reopen">{loadError}</div>
+        <div class="flex flex-col gap-1 px-3 py-2">
+          <p class="text-body text-status-reopen" data-testid="menu-load-error">{loadError}</p>
+          <button
+            type="button"
+            data-testid="menu-load-retry"
+            onclick={() => void loadRemote()}
+            class="self-start text-micro font-medium text-accent-text hover:underline"
+          >
+            {t('common.retry')}
+          </button>
+        </div>
       {:else if collecting}
         <div class="px-2 py-1.5" data-testid="transition-required-fields">
           <div class="px-1 pb-1.5 text-body text-text-secondary">{collecting.name}</div>

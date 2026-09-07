@@ -9,6 +9,7 @@
   import { tick } from 'svelte'
   import { t } from '../../lib/i18n'
   import { trapFocus } from '../../lib/focus-trap'
+  import { ESC_TIER, isEscapeKey, onEscape } from '../../lib/dom-actions'
   import { issues } from '../../stores/issues.svelte'
   import CommentComposer from './CommentComposer.svelte'
   import DialogShell from '../ui/DialogShell.svelte'
@@ -27,16 +28,17 @@
     })
   })
 
+  // Dialog-tier claim on the Esc stack (GDK-1565). No defaultPrevented
+  // decline by design: triage.spec pins one Esc closing this dialog even
+  // from the focused composer, whose draft-arm spend must not shield it.
   function onKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape') {
+    if (isEscapeKey(e)) {
       e.preventDefault()
       e.stopPropagation()
       onclose()
     }
   }
 </script>
-
-<svelte:window onkeydown={onKeydown} />
 
 <DialogShell
   ariaLabel={t('triage.commentOn', { key: issueKey })}
@@ -54,7 +56,7 @@
       {issue?.summary ?? ''}
     </span>
   {/snippet}
-  <div class="px-4 pb-3 pt-1">
+  <div class="px-4 pb-3 pt-1" use:onEscape={{ handler: onKeydown, priority: ESC_TIER.dialog, label: 'quick-comment' }}>
     <CommentComposer bind:this={composer} {issueKey} onsubmitted={onclose} />
   </div>
 </DialogShell>

@@ -13,9 +13,10 @@
  * breakdown-esc.spec.ts for this round's defect.
  *
  * Known and deliberate exceptions, so the sweep below stays honest:
- *  - FieldEditor keeps one hand-rolled mousedown listener: its boundary is
- *    two nodes (trigger + menu portaled to document.body), which the
- *    single-node action cannot express.
+ *  - FieldEditor's two-node boundary (trigger + menu portaled to
+ *    document.body) used to be the one sanctioned hand-roll; since
+ *    onOutsideClick grew `alsoInside` (GDK-1585) the action expresses it and
+ *    the exception is gone — the sweep allows nothing.
  *  - ScopePicker still carries a svelte:document hand-roll of its own —
  *    outside this round's whitelist (GDK-630).
  *
@@ -160,6 +161,22 @@ describe('outside-close has one owner (GDK-617c)', () => {
       'no element in SidebarNav.svelte hosts use:onOutsideClick + use:onEscape around trigger and popover',
     ).toBeDefined()
   })
+
+  test('FieldEditor: the portaled menu stays inside the boundary via alsoInside (GDK-1585)', () => {
+    const { source, nodes } = load('components/detail/FieldEditor.svelte')
+    const trigger = nodes.find(
+      (n) => n.type === 'RegularElement' && testId(n) === 'field-editor-trigger',
+    )
+    expect(trigger, 'no [data-testid="field-editor-trigger"] in FieldEditor.svelte').toBeDefined()
+    expect(
+      boundaryOf(nodes, (n) => n === trigger),
+      'no element in FieldEditor.svelte hosts use:onOutsideClick + use:onEscape around the trigger',
+    ).toBeDefined()
+    expect(
+      source.includes('alsoInside'),
+      'the portaled menu is not expressed as onOutsideClick alsoInside — the hand-roll is back',
+    ).toBe(true)
+  })
 })
 
 describe('a component does not find its own child by a global selector (GDK-617b)', () => {
@@ -211,7 +228,7 @@ describe('a component does not find its own child by a global selector (GDK-617b
 })
 
 describe('class blockade: window-level outside-close is dom-actions territory', () => {
-  test("no component but FieldEditor attaches its own mousedown outside-close", () => {
+  test('no component attaches its own mousedown outside-close', () => {
     const files = readdirSync(WEB_SRC, { recursive: true, encoding: 'utf8' }).filter((f) =>
       f.endsWith('.svelte'),
     )
@@ -220,9 +237,10 @@ describe('class blockade: window-level outside-close is dom-actions territory', 
     const offenders: string[] = []
     for (const rel of files) {
       const source = readFileSync(join(WEB_SRC, rel), 'utf8')
-      // window.addEventListener('mousedown', …) is the owner's signature;
-      // FieldEditor's two-node boundary is the one sanctioned exception.
-      if (/addEventListener\((['"])mousedown\1/.test(source) && !rel.endsWith('FieldEditor.svelte')) {
+      // window.addEventListener('mousedown', …) is the owner's signature.
+      // FieldEditor's two-node boundary was the last sanctioned exception
+      // and moved to onOutsideClick's alsoInside (GDK-1585) — zero now.
+      if (/addEventListener\((['"])mousedown\1/.test(source)) {
         offenders.push(rel)
       }
     }

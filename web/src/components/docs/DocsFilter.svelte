@@ -13,6 +13,7 @@
   import Icon from '../ui/Icon.svelte'
   import { t } from '../../lib/i18n'
   import { widenToServerSearch } from '../../lib/server-search'
+  import { isEscapeKey } from '../../lib/dom-actions'
   import { NARROW_FIELD_TESTID } from '../../lib/commands'
   import { pages } from '../../stores/pages.svelte'
 
@@ -31,7 +32,7 @@
     if (e.key === 'Enter') {
       e.preventDefault()
       searchEverything()
-    } else if (e.key === 'Escape') {
+    } else if (isEscapeKey(e)) {
       e.preventDefault()
       if (value) value = ''
       else inputEl?.blur()

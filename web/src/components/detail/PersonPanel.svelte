@@ -26,7 +26,7 @@
   import { showIssueList } from '../../lib/show-issue-list'
   import { emptyConfig, type ViewConfig } from '../../lib/view-config'
   import type { AuthorComment, IssueLite } from '../../lib/types'
-  import { onEscape } from '../../lib/dom-actions'
+  import { ESC_TIER, onEscape } from '../../lib/dom-actions'
   import { createSkeletonGrace } from '../../lib/skeleton-grace.svelte'
   // The list's Avatar, not detail/'s: the panel owner must wear the same
   // name-derived color the rows repeat, or the identity link breaks.
@@ -107,7 +107,7 @@
     class="flex h-full flex-col text-text-primary"
     data-testid="person-panel"
     data-skeleton={skeleton.attr}
-    use:onEscape={onEscapeKey}
+    use:onEscape={{ handler: onEscapeKey, priority: ESC_TIER.surface, label: 'person-panel' }}
   >
     <!-- Header — outside the scroll (see DetailPanel). -->
     <div class="relative z-10 flex-none bg-bg-panel">

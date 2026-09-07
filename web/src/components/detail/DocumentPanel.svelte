@@ -19,7 +19,7 @@
   import { openOriginUrl } from '../../lib/desktop-links'
   import { createResource } from '../../lib/resource.svelte'
   import { createSkeletonGrace } from '../../lib/skeleton-grace.svelte'
-  import { onEscape } from '../../lib/dom-actions'
+  import { ESC_TIER, onEscape } from '../../lib/dom-actions'
   import type { PageDetail } from '../../lib/types'
   import AdfContent from './AdfContent.svelte'
   import RelatedIssues from './RelatedIssues.svelte'
@@ -135,7 +135,7 @@
     class="flex h-full flex-col text-text-primary"
     data-testid="doc-panel"
     data-skeleton={skeleton.attr}
-    use:onEscape={onEscapeKey}
+    use:onEscape={{ handler: onEscapeKey, priority: ESC_TIER.surface, label: 'doc-panel' }}
   >
     <!-- Header — outside the scroll (see DetailPanel). -->
     <div class="relative z-10 flex-none bg-bg-panel">

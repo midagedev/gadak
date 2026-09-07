@@ -22,7 +22,7 @@
   import { write } from '../../stores/write.svelte'
   import { fieldEnabled, type MultiField } from '../../lib/view-config'
   import { paletteShortcutLabel, requestOpenPalette, requestOpenShortcuts } from '../../lib/unified-search'
-  import { onEscape, onOutsideClick } from '../../lib/dom-actions'
+  import { ESC_TIER, isEscapeKey, onEscape, onOutsideClick } from '../../lib/dom-actions'
   import { createCompositionCommit } from '../../lib/composition-commit'
   import { NARROW_FIELD_TESTID } from '../../lib/commands'
   import Icon from '../ui/Icon.svelte'
@@ -303,7 +303,7 @@
           if (!handled) applyServerSearchOutcome(await filters.runServerSearch())
         })()
       }
-    } else if (e.key === 'Escape') {
+    } else if (isEscapeKey(e)) {
       e.preventDefault()
       if (helpOpen) {
         // The help is over the field; the first Esc gives that slot back
@@ -402,9 +402,13 @@
   <!-- Help (tapped `?`) / token autocomplete / jump — one slot under the field -->
   {#if helpOpen}
     <div
-      use:onEscape={(e) => {
-        e.preventDefault()
-        helpOpen = false
+      use:onEscape={{
+        handler: (e) => {
+          e.preventDefault()
+          helpOpen = false
+        },
+        priority: ESC_TIER.menu,
+        label: 'search-help',
       }}
       class="anim-enter absolute left-0 top-full z-30 mt-10 w-full max-w-md rounded-lg border border-border-strong bg-bg-elevated p-2 text-body leading-relaxed text-text-secondary shadow-overlay"
       data-testid="search-help-panel"

@@ -18,7 +18,7 @@
   import { issues } from '../../stores/issues.svelte'
   import { write } from '../../stores/write.svelte'
   import { me } from '../../stores/me.svelte'
-  import { onEscape } from '../../lib/dom-actions'
+  import { ESC_TIER, isEscapeKey, onEscape, onOutsideClick } from '../../lib/dom-actions'
   import Avatar from '../list/Avatar.svelte'
   import Icon from '../ui/Icon.svelte'
 
@@ -85,35 +85,23 @@
     open = false
   }
 
-  // Spend Esc so one keystroke cannot also clear the detail panel.
-  // preventDefault is what DetailPanel declines; stopPropagation is what the
-  // shell keymap needs — it does not read defaultPrevented, and its
-  // svelte:window listener is registered first. The menu is portaled to
-  // document.body, so onkeydown rides BOTH containers a focused Esc can walk
-  // — the root (trigger) and the menu itself; the window-level use:onEscape
-  // used to preventDefault too late, after DetailPanel's listener had run.
+  // Menu-tier claim on the Esc stack (GDK-1565): the open editor outranks
+  // the surface it sits on, and acting spends the key so the detail panel
+  // keeps its own Esc. The menu is portaled to document.body, so onkeydown
+  // rides BOTH containers a focused Esc can walk — the root (trigger) and
+  // the menu itself.
   function onEsc(e: KeyboardEvent) {
-    if (e.key !== 'Escape' || !open) return
+    if (!isEscapeKey(e) || !open) return
     e.preventDefault()
     e.stopPropagation()
     close()
   }
 
-  $effect(() => {
-    if (!open) return
-    function onDown(e: MouseEvent) {
-      const path = e.composedPath()
-      if (triggerEl && path.includes(triggerEl)) return
-      // The menu is portaled to document.body, so it is not a DOM child of
-      // this component — reach it by reference, never by a global selector:
-      // the same testid mounted twice (two editors open at once) would have
-      // a selector answer for the other one's menu.
-      if (menuEl && path.includes(menuEl)) return
-      close()
-    }
-    window.addEventListener('mousedown', onDown)
-    return () => window.removeEventListener('mousedown', onDown)
-  })
+  // Outside click lives on the same action the other pickers use, with the
+  // portaled menu as a second "inside" node (onOutsideClick's alsoInside —
+  // GDK-1585). By reference, never by a global selector: the same testid
+  // mounted twice (two editors open at once) would have a selector answer
+  // for the other one's menu.
 
   let query = $state('')
   let parentQuery = $state('')
@@ -420,7 +408,8 @@
   class="relative inline-block w-full"
   bind:this={rootEl}
   onkeydown={onEsc}
-  use:onEscape={onEsc}
+  use:onEscape={{ handler: onEsc, priority: ESC_TIER.menu, label: 'field-editor' }}
+  use:onOutsideClick={{ handler: close, enabled: open, alsoInside: () => menuEl }}
 >
   <button
     type="button"

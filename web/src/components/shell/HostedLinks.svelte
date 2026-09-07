@@ -5,7 +5,7 @@
    * an absolutely positioned root painted over the banner CTA at 800px (GDK-766).
    * Copy stays English — the public demo has no i18n.
    */
-  import { onEscape, onOutsideClick } from '../../lib/dom-actions'
+  import { ESC_TIER, isEscapeKey, onEscape, onOutsideClick } from '../../lib/dom-actions'
 
   const REPO = 'https://github.com/midagedev/gadak'
   const DEMO_VIDEO = `${import.meta.env.BASE_URL}web-demo.mp4`
@@ -27,7 +27,7 @@
   // shell keymap needs — it does not read defaultPrevented, and its
   // svelte:window listener is registered first.
   function onEsc(e: KeyboardEvent) {
-    if (e.key !== 'Escape' || !open) return
+    if (!isEscapeKey(e) || !open) return
     e.preventDefault()
     e.stopPropagation()
     open = false
@@ -39,7 +39,7 @@
   class="relative z-20 flex flex-none items-center gap-2"
   data-testid="hosted-links"
   onkeydown={onEsc}
-  use:onEscape={onEsc}
+  use:onEscape={{ handler: onEsc, priority: ESC_TIER.menu, label: 'hosted-links' }}
   use:onOutsideClick={{ handler: () => (open = false), enabled: open }}
 >
   <a

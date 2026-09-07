@@ -34,6 +34,7 @@
   import { createSkeletonGrace } from '../../lib/skeleton-grace.svelte'
   import DialogShell from '../ui/DialogShell.svelte'
   import { trapFocus } from '../../lib/focus-trap'
+  import { ESC_TIER, isEscapeKey, onEscape } from '../../lib/dom-actions'
   import { ADD_BTN, COPY_BTN, INPUT } from './controls'
 
   let rows = $state<WorkspaceInfo[]>([])
@@ -97,21 +98,20 @@
 
   onMount(() => {
     void load()
-    // The confirm dialog lives inside the settings dialog, which also listens
-    // for Escape on the window (bubble phase). Stopping the key in the
-    // capture phase is what keeps one Esc closing only the confirm — bubble
-    // listeners never run — while a plain Esc with no confirm open passes
-    // through and closes the settings dialog as before.
-    window.addEventListener('keydown', onCaptureKeydown, { capture: true })
-    return () => window.removeEventListener('keydown', onCaptureKeydown, { capture: true })
   })
 
-  function onCaptureKeydown(e: KeyboardEvent): void {
-    if (confirm && e.key === 'Escape') {
-      e.preventDefault()
-      e.stopPropagation()
-      confirm = null
-    }
+  // The confirm dialog lives inside the settings dialog, whose own Esc claim
+  // is bubble-phase and dialog-tier. This capture claim sits one rung lower
+  // (nestedConfirm) yet runs first because capture precedes bubble; its
+  // stopPropagation then keeps the settings dialog's claim from hearing the
+  // key — one Esc closes only the confirm. A plain Esc with no confirm open
+  // never reaches this handler (the claim lives inside {#if confirm}), so it
+  // closes the settings dialog as before.
+  function onConfirmEsc(e: KeyboardEvent): void {
+    if (!isEscapeKey(e)) return
+    e.preventDefault()
+    e.stopPropagation()
+    confirm = null
   }
 
   async function create(): Promise<void> {
@@ -515,7 +515,10 @@
       trap={trapFocus}
       panelClass="max-w-lg"
     >
-      <div class="flex flex-col gap-2 px-5 py-4">
+      <div
+        class="flex flex-col gap-2 px-5 py-4"
+        use:onEscape={{ handler: onConfirmEsc, phase: 'capture', priority: ESC_TIER.nestedConfirm, label: 'workspaces-confirm' }}
+      >
         {#if confirm.busy && confirm.refusal === null}
           <p class="text-micro text-text-muted">{t('settings.workspacesLoading')}</p>
         {:else}

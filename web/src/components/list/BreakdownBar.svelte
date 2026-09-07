@@ -3,7 +3,7 @@
   import { fieldLabel, t } from '../../lib/i18n'
   import { filters } from '../../stores/filters.svelte'
   import { categoryMetaOf } from '../../lib/format'
-  import { onEscape, onOutsideClick } from '../../lib/dom-actions'
+  import { ESC_TIER, isEscapeKey, onEscape, onOutsideClick } from '../../lib/dom-actions'
   import { groupByEnabled, type GroupBy } from '../../lib/view-config'
   import Icon, { type IconName } from '../ui/Icon.svelte'
 
@@ -62,13 +62,14 @@
   const shownGroups = $derived(rankedGroups.slice(0, maxChips))
   const hiddenGroupCount = $derived(Math.max(0, rankedGroups.length - shownGroups.length))
 
-  // Spend Esc so one keystroke cannot also clear the selection below — the
-  // same negotiation as the list-header menu (ViewSettingsMenu): the delegated
-  // onkeydown sees the key first while it walks the focused trigger, and
-  // preventDefault (what the shell keymap honors) plus stopPropagation say
-  // "spent here" to everything above.
+  // Menu-tier claim on the Esc stack (GDK-1565): the open chip menu
+  // outranks the surface under it, and acting spends the key so one Esc
+  // cannot also clear the selection below. The delegated onkeydown sees the
+  // key first while it walks the focused trigger, and preventDefault (what
+  // the shell keymap honors) plus stopPropagation say "spent here" to
+  // everything above.
   function onEsc(e: KeyboardEvent) {
-    if (e.key !== 'Escape' || !open) return
+    if (!isEscapeKey(e) || !open) return
     e.preventDefault()
     e.stopPropagation()
     open = false
@@ -122,7 +123,7 @@
   <div
     class="relative flex-none"
     onkeydown={onEsc}
-    use:onEscape={onEsc}
+    use:onEscape={{ handler: onEsc, priority: ESC_TIER.menu, label: 'breakdown-bar' }}
     use:onOutsideClick={{ handler: () => (open = false), enabled: open }}
   >
     <button

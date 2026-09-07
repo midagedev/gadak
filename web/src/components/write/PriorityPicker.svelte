@@ -11,21 +11,40 @@
   import { filters } from '../../stores/filters.svelte'
   import { priorityMeta } from '../../lib/format'
   import { effectiveCategory } from '../../lib/view-config'
-  import { onEscape, onOutsideClick } from '../../lib/dom-actions'
+  import { ESC_TIER, isEscapeKey, onEscape, onOutsideClick } from '../../lib/dom-actions'
+  import { MenuOriginTimeout, withMenuTimeout } from '../../lib/menu-loading'
+  import { createSkeletonGrace } from '../../lib/skeleton-grace.svelte'
   import { DETAIL_TESTID } from '../../lib/commands'
+  import LoadingState from '../ui/LoadingState.svelte'
 
   let { issue }: { issue: IssueLite } = $props()
 
   let open = $state(false)
-  let loading = $state(false)
   let busy = $state(false)
   let listEl = $state<HTMLDivElement | null>(null)
   let triggerEl = $state<HTMLButtonElement | null>(null)
   let rootEl = $state<HTMLDivElement | null>(null)
 
+  /* ── Origin wait (GDK-1566) ──
+     The per-key catalog proxies to the origin; an unreachable one held the
+     menu on a bare "Loading…" for its whole upstream timeout (measured 15 s).
+     The wait obeys the shared skeleton grace, ends at the shared cap
+     (MENU_ORIGIN_TIMEOUT_MS), and what replaces it is an answer: the site
+     catalog stands in — labeled with the offline note — when one exists,
+     otherwise the catalog's failure sentence and a Retry. A late per-key
+     success still lands in the store; `options` flips to it and the note
+     drops on its own. */
+  let load = $state<'idle' | 'loading' | 'cached' | 'error'>('idle')
+  const loadGrace = createSkeletonGrace(() => load === 'loading', () => issue.issue_key)
+
   const meta = $derived(priorityMeta(issue.priority_rank, issue.priority))
   const canEdit = $derived(me.identified)
-  const options = $derived(write.prioritiesFor(issue.issue_key))
+  // Cached fallback = site rows while the per-key answer is missing.
+  const options = $derived(
+    load === 'cached' && !write.hasPrioritiesFor(issue.issue_key)
+      ? write.priorities
+      : write.prioritiesFor(issue.issue_key),
+  )
 
   /* ── Coaching, M4 (G4) ──
      The distribution the reader is about to enter: each option carries a mini
@@ -70,18 +89,34 @@
     open = false
   }
 
-  // Spend Esc so one keystroke cannot also clear the detail panel.
-  // preventDefault is what DetailPanel declines; stopPropagation is what the
-  // shell keymap needs — it does not read defaultPrevented, and its
-  // svelte:window listener is registered first. The delegated onkeydown
-  // below reaches the event while it still walks the trigger or the open
-  // menu (ViewSettingsMenu's shape). The window-level use:onEscape used to
-  // preventDefault too late — after DetailPanel's listener had already run.
+  // Menu-tier claim on the Esc stack (GDK-1565): the picker outranks the
+  // surface it sits on, and acting spends the key so the detail panel keeps
+  // its own Esc. The delegated onkeydown below is the same handler one
+  // phase early — it sees the key while it still walks the picker, where its
+  // stopPropagation shields the shell keymap without the tier's help.
   function onEsc(e: KeyboardEvent) {
-    if (e.key !== 'Escape' || !open) return
+    if (!isEscapeKey(e) || !open) return
     e.preventDefault()
     e.stopPropagation()
     close()
+  }
+
+  /** Load the per-key catalog under the shared cap; sets the wait state. */
+  async function loadOptions(): Promise<void> {
+    load = 'loading'
+    try {
+      const ok = await withMenuTimeout(write.loadPrioritiesFor(issue.issue_key))
+      if (!ok) {
+        // Gate refusal or a refused GET — the store already dialoged/toasted
+        // it; the old behavior on this path was to close, and still is.
+        close()
+        return
+      }
+      load = 'idle'
+    } catch (e) {
+      if (!(e instanceof MenuOriginTimeout)) throw e
+      load = write.priorities.length ? 'cached' : 'error'
+    }
   }
 
   async function toggle() {
@@ -91,15 +126,7 @@
     }
     if (!(await write.ensureWritableFor(issue.issue_key))) return
     open = true
-    if (!write.hasPrioritiesFor(issue.issue_key)) {
-      loading = true
-      const ok = await write.loadPrioritiesFor(issue.issue_key)
-      loading = false
-      if (!ok) {
-        close()
-        return
-      }
-    }
+    if (!write.hasPrioritiesFor(issue.issue_key)) await loadOptions()
     queueMicrotask(() => listEl?.querySelector('button')?.focus())
   }
 
@@ -124,7 +151,7 @@
   class="relative inline-block"
   bind:this={rootEl}
   onkeydown={onEsc}
-  use:onEscape={onEsc}
+  use:onEscape={{ handler: onEsc, priority: ESC_TIER.menu, label: 'priority-picker' }}
   use:onOutsideClick={{ handler: close, enabled: open }}
 >
   <!-- One option's distribution share (M4): a mini bar scaled to the widest
@@ -186,8 +213,24 @@
       role="listbox"
       aria-label={t('common.priority')}
     >
-      {#if loading}
-        <div class="px-3 py-2 text-micro text-text-muted">{t('common.loading')}</div>
+      {#if load === 'loading'}
+        <div data-skeleton={loadGrace.attr}>
+          {#if loadGrace.visible}<LoadingState compact />{/if}
+        </div>
+      {:else if load === 'error'}
+        <div class="flex flex-col gap-1 px-3 py-2">
+          <p class="text-micro text-status-reopen" data-testid="menu-load-error">
+            {t('write.prioritiesFailed')}
+          </p>
+          <button
+            type="button"
+            data-testid="menu-load-retry"
+            onclick={() => void loadOptions()}
+            class="self-start text-micro font-medium text-accent-text hover:underline"
+          >
+            {t('common.retry')}
+          </button>
+        </div>
       {:else}
         <button
           type="button"
@@ -221,6 +264,16 @@
         {/each}
         {#if options.length === 0}
           <div class="px-3 py-2 text-micro text-text-muted">{t('write.noPriorities')}</div>
+        {/if}
+        {#if load === 'cached' && !write.hasPrioritiesFor(issue.issue_key)}
+          <!-- The rows above are the site catalog standing in for the
+               per-key answer the origin never gave (GDK-1566). -->
+          <div
+            class="border-t border-border-subtle px-3 py-1.5 text-micro text-text-muted"
+            data-testid="menu-cached-note"
+          >
+            {t('app.offlineBanner')}
+          </div>
         {/if}
       {/if}
     </div>

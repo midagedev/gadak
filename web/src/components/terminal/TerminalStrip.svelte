@@ -38,6 +38,7 @@
   import { relativeTime, t } from '../../lib/i18n'
   import Icon from '../ui/Icon.svelte'
   import { terminalSessions } from '../../lib/terminal/sessions.svelte'
+  import { isEscapeKey } from '../../lib/dom-actions'
   import { stripRows, type TerminalSessionState } from '../../lib/terminal/strip'
 
   let {
@@ -164,7 +165,7 @@
               if (e.key === 'Enter') {
                 e.preventDefault()
                 void commitRename()
-              } else if (e.key === 'Escape') {
+              } else if (isEscapeKey(e)) {
                 e.preventDefault()
                 e.stopPropagation()
                 cancelRename()

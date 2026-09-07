@@ -20,6 +20,7 @@ import * as api from './api'
 import type { IssueLite, Transition } from './types'
 import { transitionsInto, dropVerdict } from './board-drag'
 import { effectiveCategory } from './view-config'
+import { isEscapeKey } from './dom-actions'
 import { t } from './i18n'
 import { isHostedDemo } from './config'
 import { filters } from '../stores/filters.svelte'
@@ -185,7 +186,7 @@ class BoardDrag {
 
   /** Escape drops the drag and keeps the key from any surface underneath. */
   #onKey = (e: KeyboardEvent): void => {
-    if (e.key !== 'Escape' || !this.#armed) return
+    if (!isEscapeKey(e) || !this.#armed) return
     e.preventDefault()
     e.stopPropagation()
     this.#end()

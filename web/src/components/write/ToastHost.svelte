@@ -12,11 +12,11 @@
    *  top toast and spends the key there (GDK-829), so the surface
    *  underneath keeps its own Esc.
    */
-  import { onMount } from 'svelte'
   import { write, type ToastKind } from '../../stores/write.svelte'
   import { mediaViewer } from '../../stores/media-viewer.svelte'
   import { openIssueOrigin } from '../../lib/desktop-links'
   import { isEditableTarget } from '../../lib/keymap.svelte'
+  import { ESC_TIER, isEscapeKey, onEscape } from '../../lib/dom-actions'
   import Icon, { type IconName } from '../ui/Icon.svelte'
 
   const TOAST_ICON: Record<ToastKind, IconName> = {
@@ -33,34 +33,32 @@
     }
   })
 
-  // Capture, and stopPropagation, for the same reasons MediaViewer does (it
-  // mounts after App's keymap, this host after App's window template): the
-  // dialogs' <svelte:window> Esc handlers do not check defaultPrevented, so
-  // only stopping the event keeps one Esc from closing a toast *and* the
-  // dialog under it. Declines: an already-spent key, an Esc typed into a
-  // field (the keymap's own convention), the media viewer (z-70 sits above
-  // this stack and registers its capture listener later), and an empty
-  // stack — then the Esc flows through the existing chain untouched.
-  onMount(() => {
-    function onWin(e: KeyboardEvent) {
-      if (e.key !== 'Escape' || e.defaultPrevented) return
-      if (isEditableTarget(e.target)) return
-      if (mediaViewer.attachment) return
-      const top = write.toasts[write.toasts.length - 1]
-      if (!top) return
-      e.preventDefault()
-      e.stopPropagation()
-      write.dismissToast(top.id)
-    }
-    window.addEventListener('keydown', onWin, true)
-    return () => window.removeEventListener('keydown', onWin, true)
-  })
+  // A capture claim, one tier under the media viewer's, on the shared Esc
+  // stack (lib/dom-actions.ts). stopPropagation stays this handler's own
+  // choice: stopping the phase at window keeps the bubble walk (and so the
+  // dialogs below) from hearing the key — one Esc dismisses the toast and
+  // nothing else. Declines: an already-spent key, an Esc typed into a field
+  // (the keymap's own convention), the media viewer (tier-redundant now that
+  // overlay outranks toast, kept because the handler owns its own declines),
+  // and an empty stack — then the Esc flows through the existing chain
+  // untouched.
+  function onToastEsc(e: KeyboardEvent) {
+    if (!isEscapeKey(e) || e.defaultPrevented) return
+    if (isEditableTarget(e.target)) return
+    if (mediaViewer.attachment) return
+    const top = write.toasts[write.toasts.length - 1]
+    if (!top) return
+    e.preventDefault()
+    e.stopPropagation()
+    write.dismissToast(top.id)
+  }
 </script>
 
 <div
   bind:this={hostEl}
   class="pointer-events-none fixed bottom-4 right-4 z-[60] flex flex-col items-end gap-2"
   data-testid="toast-host"
+  use:onEscape={{ handler: onToastEsc, phase: 'capture', priority: ESC_TIER.toast, label: 'toast-host' }}
 >
   {#each write.toasts as toast (toast.id)}
     <div

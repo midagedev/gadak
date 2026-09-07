@@ -14,7 +14,7 @@
   import { views } from '../../stores/views.svelte'
   import { write } from '../../stores/write.svelte'
   import { hasServerVerb } from '../../lib/config'
-  import { onEscape, onOutsideClick } from '../../lib/dom-actions'
+  import { ESC_TIER, isEscapeKey, onEscape, onOutsideClick } from '../../lib/dom-actions'
   import {
     LAYOUT_VALUES,
     columnCatalog,
@@ -102,13 +102,13 @@
     saveOpen = false
   }
 
-  // Spend Esc so one keystroke cannot also clear the detail panel.
-  // preventDefault is what DetailPanel declines; stopPropagation is what the
-  // shell keymap needs — it does not read defaultPrevented, and its
-  // svelte:window listener is registered first. The delegated onkeydown
-  // below reaches the event while it still walks the focused trigger.
+  // Menu-tier claim on the Esc stack (GDK-1565): the open header menu
+  // outranks the surface under it, and acting spends the key so the detail
+  // panel keeps its own Esc. The delegated onkeydown below is the same
+  // handler one phase early — it sees the key while it still walks the
+  // trigger, where its stopPropagation shields the shell keymap.
   function onEsc(e: KeyboardEvent) {
-    if (e.key !== 'Escape' || !open) return
+    if (!isEscapeKey(e) || !open) return
     e.preventDefault()
     e.stopPropagation()
     close()
@@ -119,7 +119,7 @@
 <div
   class="relative"
   onkeydown={onEsc}
-  use:onEscape={onEsc}
+  use:onEscape={{ handler: onEsc, priority: ESC_TIER.menu, label: 'view-settings' }}
   use:onOutsideClick={{ handler: close, enabled: open }}
 >
   <button

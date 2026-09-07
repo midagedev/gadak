@@ -7,7 +7,7 @@
   import { filters, type FacetValue } from '../../stores/filters.svelte'
   import { filterFields, negationOf, type MultiField, type NegationField, type RangeField } from '../../lib/view-config'
   import { t, fieldLabel } from '../../lib/i18n'
-  import { onEscape, onOutsideClick } from '../../lib/dom-actions'
+  import { ESC_TIER, isEscapeKey, onEscape, onOutsideClick } from '../../lib/dom-actions'
   import Icon from '../ui/Icon.svelte'
 
   /** One pickable axis: a static field or a discovered custom-field alias. */
@@ -125,7 +125,7 @@
   // svelte:window listener is registered first. The delegated onkeydown
   // below reaches the event while it still walks the focused trigger.
   function onEsc(e: KeyboardEvent) {
-    if (e.key !== 'Escape' || !open) return
+    if (!isEscapeKey(e) || !open) return
     e.preventDefault()
     e.stopPropagation()
     closeAll()
@@ -137,7 +137,7 @@
 <div
   class="flex flex-wrap items-center gap-1.5"
   onkeydown={onEsc}
-  use:onEscape={onEsc}
+  use:onEscape={{ handler: onEsc, priority: ESC_TIER.menu, label: 'filter-bar' }}
   use:onOutsideClick={{ handler: closeAll, enabled: open }}
 >
   <!-- Active chips -->

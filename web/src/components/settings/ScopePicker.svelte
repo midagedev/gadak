@@ -22,6 +22,7 @@
    */
   import type { Snippet } from 'svelte'
   import { t } from '../../lib/i18n'
+  import { isEscapeKey } from '../../lib/dom-actions'
   import Icon from '../ui/Icon.svelte'
   import { INPUT } from './controls'
 
@@ -100,7 +101,7 @@
         add(pick.value)
         open = true
       }
-    } else if (e.key === 'Escape') {
+    } else if (isEscapeKey(e)) {
       // Stop here: the settings dialog closes on Escape, and closing the whole
       // dialog to dismiss a dropdown would lose every unsaved edit.
       e.preventDefault()

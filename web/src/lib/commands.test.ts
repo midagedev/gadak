@@ -124,6 +124,38 @@ describe('dumpKey', () => {
     const detail = sections.find((s) => s.titleKey === 'shortcuts.sectionDetail')
     expect(detail?.rows.map((r) => r.kbd)).toEqual(['o', 'o', 's', 'p', 'a', 'l', 'c'])
   })
+
+  /*
+   * GDK-1589: a help row is a claim about a context, and the registry — not
+   * the dialog — says which context. "Esc ← back" is the browse pane's own
+   * shortcut; "Open in {tracker}" is only a shortcut on an origin with pages
+   * (GDK-1313). The dialog used to filter rows by labelKey suffix; now the
+   * same gate lives on the row and helpSections applies it when a ctx is
+   * passed. No ctx (registry dumps, collectLabelKeys) still lists every row.
+   */
+  test('help rows appear only in the contexts they are shortcuts of (GDK-1589)', () => {
+    const labels = (ctx: ReturnType<typeof keyContext>) =>
+      helpSections('⌘', ctx).flatMap((s) => s.rows.map((r) => r.labelKey))
+
+    // A plain list view: no browse pane open, so "Esc ← back" is not a
+    // shortcut the sheet may advertise.
+    expect(labels(keyContext({}))).not.toContain('browse.back')
+    // With the pane open it is.
+    expect(labels(keyContext({ browsePaneOpen: true }))).toContain('browse.back')
+    // No ctx: the registry view keeps every row (the test above pins this
+    // unfiltered census for browse.back's group too).
+    expect(helpSections('⌘').flatMap((s) => s.rows.map((r) => r.labelKey))).toContain('browse.back')
+
+    // A tracker with no origin pages does not advertise "open there".
+    const builtin = labels(keyContext({ originOpenable: false }))
+    expect(builtin).not.toContain('detail.openJira')
+    expect(builtin).not.toContain('shortcuts.detailOpenJira')
+    // doc.openSource is the docs viewer's own row and stays.
+    expect(builtin).toContain('doc.openSource')
+    // The default context (real tracker) advertises all three.
+    expect(labels(keyContext({}))).toContain('detail.openJira')
+    expect(labels(keyContext({}))).toContain('shortcuts.detailOpenJira')
+  })
 })
 
 describe('registry matches previous keymap contracts', () => {
@@ -143,7 +175,7 @@ describe('registry matches previous keymap contracts', () => {
    * Esc before any column view — the X button and Ctrl+` remain the ways to
    * close it from inside the VT, where Esc is the PTY's, not chrome's.
    */
-  test('the Esc ladder order is browse, bulk, detail, terminal overlay, feed, dashboard, history, docs (GDK-945)', () => {
+  test('the Esc ladder order is browse, bulk, detail, page/person panel, terminal overlay, feed, dashboard, history, docs (GDK-945)', () => {
     const escLadder = COMMANDS.filter((c) => c.chords.some((ch) => !ch.mod && ch.key === 'Escape')).map(
       (c) => c.id,
     )
@@ -151,11 +183,26 @@ describe('registry matches previous keymap contracts', () => {
       'hide-browse',
       'clear-bulk',
       'clear-selection-esc',
+      'clear-page-esc',
+      'clear-person-esc',
       'close-terminal-overlay',
       'close-feed',
       'close-dashboard',
       'close-history',
       'close-docs',
     ])
+  })
+
+  /*
+   * GDK-1565: a page/person panel over a column view is the topmost surface,
+   * so Esc closes it first — close-docs/close-history used to match with a
+   * panel open (their when-chain never excluded it), closing the column view
+   * under a still-open panel. Bulk keeps its turn above both panels.
+   */
+  test('Esc closes a page/person panel before the column view under it (GDK-1565)', () => {
+    expect(resolveGlobalKey(keyContext({ key: 'Escape', pageSelected: true, docsOpen: true })).type).toBe('clear-page')
+    expect(resolveGlobalKey(keyContext({ key: 'Escape', personSelected: true, docsOpen: true })).type).toBe('clear-person')
+    expect(resolveGlobalKey(keyContext({ key: 'Escape', pageSelected: true, historyView: true })).type).toBe('clear-page')
+    expect(resolveGlobalKey(keyContext({ key: 'Escape', pageSelected: true, bulkActive: true })).type).toBe('clear-bulk')
   })
 })

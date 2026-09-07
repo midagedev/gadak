@@ -8,7 +8,7 @@
   import type { IssueLite } from '../../lib/types'
   import { write } from '../../stores/write.svelte'
   import { me } from '../../stores/me.svelte'
-  import { onEscape } from '../../lib/dom-actions'
+  import { ESC_TIER, isEscapeKey, onEscape } from '../../lib/dom-actions'
 
   let { issue }: { issue: IssueLite } = $props()
 
@@ -57,7 +57,7 @@
     if (e.key === 'Enter') {
       e.preventDefault()
       void commit()
-    } else if (e.key === 'Escape') {
+    } else if (isEscapeKey(e)) {
       e.preventDefault()
       cancel()
     }
@@ -69,9 +69,13 @@
     <input
       bind:this={inputEl}
       bind:value={draft}
-      use:onEscape={(e) => {
-        e.preventDefault()
-        cancel()
+      use:onEscape={{
+        handler: (e) => {
+          e.preventDefault()
+          cancel()
+        },
+        priority: ESC_TIER.menu,
+        label: 'title-editor',
       }}
       onkeydown={onKeydown}
       onblur={() => {

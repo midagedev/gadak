@@ -8,7 +8,7 @@
   import { t } from '../../lib/i18n'
   import { boardDrag } from '../../lib/board-drag.svelte'
   import { effectiveCategory } from '../../lib/view-config'
-  import { onEscape, onOutsideClick } from '../../lib/dom-actions'
+  import { ESC_TIER, onEscape, onOutsideClick } from '../../lib/dom-actions'
   import { onMount } from 'svelte'
 
   let { choice }: { choice: NonNullable<typeof boardDrag.choice> } = $props()
@@ -31,9 +31,13 @@
 
 <div
   bind:this={listEl}
-  use:onEscape={(e) => {
-    e.preventDefault()
-    boardDrag.dismissChoice()
+  use:onEscape={{
+    handler: (e) => {
+      e.preventDefault()
+      boardDrag.dismissChoice()
+    },
+    priority: ESC_TIER.menu,
+    label: 'board-drop-choice',
   }}
   use:onOutsideClick={{ handler: () => boardDrag.dismissChoice() }}
   data-testid="board-drop-choice"

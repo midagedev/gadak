@@ -6,10 +6,12 @@
    */
   import { t } from '../../lib/i18n'
   import { trapFocus } from '../../lib/focus-trap'
-  import { helpSections } from '../../lib/commands'
+  import { helpSections, keyContext } from '../../lib/commands'
   import { modifierSymbol } from '../../lib/unified-search'
   import { config, originTrackerName } from '../../lib/config'
   import { ORIGIN_GADAK } from '../../lib/workspace'
+  import { browse } from '../../lib/browse.svelte'
+  import { ESC_TIER, isEscapeKey, onEscape } from '../../lib/dom-actions'
   import DialogShell from '../ui/DialogShell.svelte'
 
   let { onclose }: { onclose: () => void } = $props()
@@ -17,28 +19,35 @@
   // The origin rows name the tracker ("Open the issue in {tracker}"); the
   // placeholder is inert on every other row.
   const params = { tracker: originTrackerName() }
-  // GDK-1313: the built-in tracker has no origin page, so the rows that
-  // advertise opening one are not shortcuts here — they would name an
-  // action that does nothing.
-  const hasOriginPages = config().originType !== ORIGIN_GADAK
-  const sections = helpSections(modifierSymbol())
-    .map((section) => ({
-      title: t(section.titleKey),
-      rows: section.rows
-        .filter((row) => hasOriginPages || !row.labelKey.endsWith('OpenJira'))
-        .map((row) => [row.kbd, t(row.labelKey, params)] as [string, string]),
-    }))
-    .filter((section) => section.rows.length > 0)
+  // The same context the resolver sees, with the two facts this sheet reads:
+  // whether the browse pane is open (Esc ← back is its shortcut) and whether
+  // this origin has pages the `o` chord can open. The registry's `when`
+  // gates own the hiding now — GDK-1589 replaced the dialog's own
+  // labelKey.endsWith('OpenJira') string filter (the GDK-1313 workaround).
+  const ctx = $derived(
+    keyContext({
+      browsePaneOpen: browse.paneOpen,
+      originOpenable: config().originType !== ORIGIN_GADAK,
+    }),
+  )
+  const sections = $derived(
+    helpSections(modifierSymbol(), ctx)
+      .map((section) => ({
+        title: t(section.titleKey),
+        rows: section.rows.map((row) => [row.kbd, t(row.labelKey, params)] as [string, string]),
+      }))
+      .filter((section) => section.rows.length > 0),
+  )
 
+  // Dialog-tier claim on the Esc stack, acting-and-spending so the surface
+  // under it keeps its own Esc (GDK-1565).
   function onKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape') {
+    if (isEscapeKey(e)) {
       e.preventDefault()
       onclose()
     }
   }
 </script>
-
-<svelte:window onkeydown={onKeydown} />
 
 <DialogShell
   title={t('shortcuts.title')}
@@ -49,7 +58,10 @@
   panelClass="anim-pop max-h-[80vh] max-w-lg"
   headerClass="flex flex-none flex-col border-b border-border-subtle px-4 py-3"
 >
-  <div class="scroll-region min-h-0 flex-1 px-4 py-3">
+  <div
+    class="scroll-region min-h-0 flex-1 px-4 py-3"
+    use:onEscape={{ handler: onKeydown, priority: ESC_TIER.dialog, label: 'shortcuts' }}
+  >
     {#each sections as section (section.title)}
       <div class="mb-3 last:mb-0">
         <div class="mb-1 text-micro font-medium uppercase tracking-wide text-text-muted">

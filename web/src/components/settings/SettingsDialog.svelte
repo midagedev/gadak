@@ -58,6 +58,7 @@
   import WorkspacesTab from './WorkspacesTab.svelte'
   import AboutTab from './AboutTab.svelte'
   import { trapFocus } from '../../lib/focus-trap'
+  import { ESC_TIER, isEscapeKey, onEscape } from '../../lib/dom-actions'
   import Icon from '../ui/Icon.svelte'
   import DialogShell from '../ui/DialogShell.svelte'
   import LoadingState from '../ui/LoadingState.svelte'
@@ -300,8 +301,15 @@
     write.openSettings()
   }
 
+  // Dialog-tier claim on the Esc stack, acting-and-spending so the surface
+  // under it keeps its own Esc (GDK-1565). ScopePicker and WorkspacesTab's
+  // confirm still outrank it where they must — element-level handlers beat
+  // window claims, and the confirm's capture claim runs first by phase.
   function onKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape') onclose()
+    if (isEscapeKey(e)) {
+      e.preventDefault()
+      onclose()
+    }
   }
 
   // Instant apply + write-through to this workspace's settings. Not the
@@ -315,8 +323,6 @@
     themePref = next
   }
 </script>
-
-<svelte:window onkeydown={onKeydown} />
 
 <!-- 92vh, not 88: the Sync tab runs THIS MIRROR plus four groups plus the
      personal-token entry point, and at 88vh the entry point sat 35px below
@@ -367,6 +373,7 @@
     class="scroll-region min-h-0 flex-1 px-5 pt-4 text-body"
     style="--scroll-pad-bottom: 1rem"
     data-testid="settings-scroll"
+    use:onEscape={{ handler: onKeydown, priority: ESC_TIER.dialog, label: 'settings' }}
   >
       {#if loading}
         <div class="h-full" data-skeleton={loadingGrace.attr}>

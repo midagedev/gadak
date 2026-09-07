@@ -11,7 +11,7 @@
   import { issues } from '../../stores/issues.svelte'
   import { write } from '../../stores/write.svelte'
   import { recentOf } from '../../lib/recency'
-  import { onEscape, onOutsideClick } from '../../lib/dom-actions'
+  import { ESC_TIER, isEscapeKey, onEscape, onOutsideClick } from '../../lib/dom-actions'
   import { DETAIL_TESTID } from '../../lib/commands'
   import Icon from '../ui/Icon.svelte'
 
@@ -94,7 +94,7 @@
     if (e.key === 'Enter' || e.key === ',') {
       e.preventDefault()
       void add(suggestions[0] ?? typed)
-    } else if (e.key === 'Escape') {
+    } else if (isEscapeKey(e)) {
       // Spend the key so the detail panel behind this row stays open.
       e.preventDefault()
       closeAdd()
@@ -180,9 +180,13 @@
 
   {#if adding && (suggestions.length > 0 || canCreate)}
     <div
-      use:onEscape={(e) => {
-        e.preventDefault()
-        closeAdd()
+      use:onEscape={{
+        handler: (e) => {
+          e.preventDefault()
+          closeAdd()
+        },
+        priority: ESC_TIER.menu,
+        label: 'label-editor',
       }}
       class="absolute left-12 top-full z-30 mt-1 w-56 rounded-lg border border-border-strong bg-bg-elevated py-1 shadow-overlay"
       aria-label={t('common.labels')}

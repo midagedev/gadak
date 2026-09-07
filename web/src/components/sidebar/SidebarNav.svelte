@@ -39,7 +39,7 @@
   import { dashboards } from '../../stores/dashboards.svelte'
   import { builtinViews } from '../../lib/builtin-views'
   import { configToParams, type ViewConfig } from '../../lib/view-config'
-  import { onEscape, onOutsideClick } from '../../lib/dom-actions'
+  import { ESC_TIER, isEscapeKey, onEscape, onOutsideClick } from '../../lib/dom-actions'
   import { terminalChrome } from '../../lib/terminal/pane.svelte'
   import MyIssuesNav from '../personal/MyIssuesNav.svelte'
   import FavoritesNav from '../personal/FavoritesNav.svelte'
@@ -94,7 +94,7 @@
   }
 
   function onNotesKeydown(e: KeyboardEvent) {
-    if (!notesOpen || !issues.latestVersion || e.key !== 'Escape') return
+    if (!notesOpen || !issues.latestVersion || !isEscapeKey(e)) return
     e.preventDefault()
     closeNotes()
   }
@@ -215,7 +215,7 @@
   // Spend Esc so one keystroke cannot also reach the shell keymap — same
   // negotiation as the list-header menu (ViewSettingsMenu).
   function onHistoryEsc(e: KeyboardEvent) {
-    if (e.key !== 'Escape' || !historyOpen) return
+    if (!isEscapeKey(e) || !historyOpen) return
     e.preventDefault()
     e.stopPropagation()
     historyOpen = false
@@ -300,7 +300,7 @@
     localOriginHowOpen = false
   }
   function onSwitcherEsc(e: KeyboardEvent) {
-    if (e.key !== 'Escape' || !switcherOpen) return
+    if (!isEscapeKey(e) || !switcherOpen) return
     e.preventDefault()
     e.stopPropagation()
     closeSwitcher()
@@ -450,7 +450,7 @@
     <div
       class="relative flex-none px-2 pt-1"
       onkeydown={onSwitcherEsc}
-      use:onEscape={onSwitcherEsc}
+      use:onEscape={{ handler: onSwitcherEsc, priority: ESC_TIER.menu, label: 'workspace-switcher' }}
       use:onOutsideClick={{ handler: closeSwitcher, enabled: switcherOpen }}
     >
       <button
@@ -610,7 +610,7 @@
     <div
       class="relative inline-block"
       onkeydown={onHistoryEsc}
-      use:onEscape={onHistoryEsc}
+      use:onEscape={{ handler: onHistoryEsc, priority: ESC_TIER.menu, label: 'sync-history' }}
       use:onOutsideClick={{ handler: () => (historyOpen = false), enabled: historyOpen }}
     >
       <button

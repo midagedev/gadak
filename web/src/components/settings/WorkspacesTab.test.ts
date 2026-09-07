@@ -203,7 +203,20 @@ describe('GDK-1096 WorkspacesTab render contract', () => {
   })
 
   test('Esc closes only the confirm dialog while one is open', () => {
-    expect(src).toMatch(/addEventListener\('keydown', onCaptureKeydown, \{ capture: true \}\)/)
+    // GDK-1565 (2026-09-08): the hand-rolled capture listener became a claim
+    // on the ordered Esc stack (lib/dom-actions.ts). Same contract, new
+    // mechanism: the claim is capture-phase so it beats the settings dialog's
+    // bubble claim even at a lower tier, and its stopPropagation keeps the
+    // outer claim from hearing the key. FAIL-first: the old addEventListener
+    // pin failed against the migrated source before this re-authoring
+    // (npm run test:unit, this suite, 2026-09-08).
+    expect(src).toMatch(
+      /use:onEscape=\{\{ handler: onConfirmEsc, phase: 'capture', priority: ESC_TIER\.nestedConfirm, label: 'workspaces-confirm' \}\}/,
+    )
+    const fn = src.slice(src.indexOf('function onConfirmEsc'))
+    expect(fn).toMatch(/isEscapeKey\(e\)/)
+    expect(fn).toMatch(/e\.stopPropagation\(\)/)
+    expect(fn).toMatch(/confirm = null/)
   })
 
   test('workspace state is component-only — nothing persisted', () => {

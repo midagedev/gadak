@@ -9,7 +9,8 @@
    *  - Submit via write.submitComment() optimistic; clear on success, restore text on fail.
    */
   import { t } from '../../lib/i18n'
-  import { onMount, tick } from 'svelte'
+  import { tick } from 'svelte'
+  import { ESC_TIER, isEscapeKey, onEscape } from '../../lib/dom-actions'
   import { write } from '../../stores/write.svelte'
   import { me } from '../../stores/me.svelte'
   import { createUserSearch } from '../../lib/user-search.svelte'
@@ -276,13 +277,13 @@
         void pickMention(mResults[mIndex])
         return
       }
-      if (e.key === 'Escape') {
+      if (isEscapeKey(e)) {
         e.preventDefault()
         closeMention()
         return
       }
     }
-    if (e.key === 'Escape') {
+    if (isEscapeKey(e)) {
       // GDK-462: a destructive default is forbidden. Esc blurs; it does not
       // close the panel or clear the draft. DetailPanel / keymap honour
       // defaultPrevented.
@@ -321,24 +322,23 @@
 
   const canSubmit = $derived((text.trim().length > 0 || attachments.length > 0) && uploading === 0)
 
-  // Capture phase so an unfocused non-empty draft spends Esc before the
-  // shell keymap (registered on bubble at App mount) closes the panel.
-  onMount(() => {
-    function onWin(e: KeyboardEvent) {
-      if (e.key !== 'Escape' || e.defaultPrevented) return
-      if (ta && document.activeElement === ta) return
-      if (!text.trim() || escConsumed) return
-      e.preventDefault()
-      escConsumed = true
-    }
-    window.addEventListener('keydown', onWin, true)
-    return () => window.removeEventListener('keydown', onWin, true)
-  })
+  // A capture claim (draft tier, the lowest) so an unfocused non-empty draft
+  // spends Esc before the shell keymap (registered on bubble at App mount)
+  // closes the panel. The spend, not a close: the first Esc just arms — the
+  // draft's own two-Esc contract (GDK-462).
+  function onDraftEsc(e: KeyboardEvent) {
+    if (!isEscapeKey(e) || e.defaultPrevented) return
+    if (ta && document.activeElement === ta) return
+    if (!text.trim() || escConsumed) return
+    e.preventDefault()
+    escConsumed = true
+  }
 </script>
 
 <div
   class="mt-3 flex flex-col gap-1.5"
   role="group"
+  use:onEscape={{ handler: onDraftEsc, phase: 'capture', priority: ESC_TIER.draft, label: 'comment-draft' }}
   ondragover={(e) => {
     e.preventDefault()
     dragOver = true

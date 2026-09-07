@@ -18,7 +18,7 @@
   import { write } from '../../stores/write.svelte'
   import { me } from '../../stores/me.svelte'
   import { isHostedDemo } from '../../lib/config'
-  import { onEscape } from '../../lib/dom-actions'
+  import { ESC_TIER, isEscapeKey, onEscape } from '../../lib/dom-actions'
   import Icon from '../ui/Icon.svelte'
   import AdfContent from './AdfContent.svelte'
 
@@ -142,7 +142,7 @@
   }
 
   function onEditorKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape') {
+    if (isEscapeKey(e)) {
       e.preventDefault()
       cancel()
       return
@@ -172,9 +172,13 @@
         void commit()
       }}
       onkeydown={onEditorKeydown}
-      use:onEscape={(e) => {
-        e.preventDefault()
-        cancel()
+      use:onEscape={{
+        handler: (e) => {
+          e.preventDefault()
+          cancel()
+        },
+        priority: ESC_TIER.menu,
+        label: 'description-editor',
       }}
     >
       {#if confirmDrop}
