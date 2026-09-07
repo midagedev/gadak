@@ -96,10 +96,24 @@ async function pickFetch(): Promise<FetchLike> {
   return mod.fetch as FetchLike
 }
 
+/**
+ * The session strip's boundary — where the previous session of person reads
+ * ended (GDK-1537). It rides a header, not the bootstrap body, because the
+ * body is exactly what a conditional GET does not get: a phone that already
+ * holds the issue set sends If-None-Match, receives a bodiless 304, and used
+ * to learn nothing — so the strip went missing on the one morning nothing had
+ * changed. Absent (undefined/null) on a demo bundle and on a serve older than
+ * 0.21.
+ */
+export const SESSION_BOUNDARY_HEADER = 'X-Gadak-Session-Boundary'
+
 export interface Envelope<T> {
   status: number
   etag: string | null
   body: T | null
+  /** SESSION_BOUNDARY_HEADER, when the answer carried one. Optional: the
+   *  demo branch synthesizes envelopes with no headers to read. */
+  sessionBoundary?: string | null
 }
 
 interface RequestOpts {
@@ -173,14 +187,17 @@ export async function request<T>(path: string, opts: RequestOpts = {}): Promise<
   // The demo session's whole transport branch (GDK-1051): demo.ts owns it.
   if (isDemoSession()) return demoRequest<T>(path, opts)
   const res = await dial(path, opts)
-  if (res.status === 304) return { status: 304, etag: res.headers.get('ETag'), body: null }
+  const sessionBoundary = res.headers.get(SESSION_BOUNDARY_HEADER)
+  if (res.status === 304) {
+    return { status: 304, etag: res.headers.get('ETag'), body: null, sessionBoundary }
+  }
   let body: T
   try {
     body = (await res.json()) as T
   } catch {
     throw new ApiError('bad_response', res.status)
   }
-  return { status: res.status, etag: res.headers.get('ETag'), body }
+  return { status: res.status, etag: res.headers.get('ETag'), body, sessionBoundary }
 }
 
 /**

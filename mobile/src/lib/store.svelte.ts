@@ -5,8 +5,9 @@
 import { configureApi, request, isPairingDead, ApiError } from './api'
 import { setDemoSession } from './demo'
 import {
-  SCOPE_ME,
+  SCOPE_MY_WORK,
   feedAfterRead,
+  migrateScopeId,
   relatchBoundary,
   sessionDelta,
   setFlow,
@@ -99,8 +100,14 @@ export const app = $state({
    * never an error chrome (optional surface, DESIGN.md §1).
    */
   feed: null as FeedResponse | null,
-  /** Last scope the user picked; the heading is this scope's name. */
-  scopeId: SCOPE_ME as string,
+  /**
+   * Last scope the user picked; the heading is this scope's name. The first
+   * run wants My issues — the desk's first-run rule (GDK-1542). It is a
+   * *want*, evaluated at module load before auth/me has answered, so the
+   * identity condition lives in `resolveScope`/`defaultScopeId`: without an
+   * identity the row is not offered and All open is what paints.
+   */
+  scopeId: SCOPE_MY_WORK as string,
   /**
    * True once the first bootstrap attempt has settled — cache restore,
    * successful sync, or a failed sync that is not pairing-dead. Distinct
@@ -185,6 +192,19 @@ function latchSession(): void {
   if (!app.session.boundary || app.issues.length === 0) return
   app.session.computed = true
   app.session.delta = sessionDelta(app.issues, app.session.boundary, app.me)
+}
+
+/**
+ * Claims the session boundary, once (GDK-1537). Only when nothing has claimed
+ * it yet: a re-latch is a *newer* session than anything the serve can know
+ * about, so it must not be overwritten by the refresh the return itself
+ * triggers — and the serve's own answer moves too, once this phone sits idle
+ * past the session gap. `null` is not a claim (no previous session on record,
+ * a demo bundle, or a serve older than 0.21).
+ */
+function claimSessionBoundary(at: string | null): void {
+  if (!at || app.session.boundary) return
+  app.session.boundary = at
 }
 
 /**
@@ -405,7 +425,9 @@ async function enterPaired(meta: PairMeta, token: string): Promise<void> {
     app.pages = cachedPages.pages ?? []
   }
   const scope = readJSON<string>(scopedKey(SCOPE_KEY))
-  if (typeof scope === 'string' && scope !== '') app.scopeId = scope
+  // A scope id an older build wrote may name a row that no longer exists
+  // (GDK-1542): domain.ts owns that mapping, not this reader.
+  if (typeof scope === 'string' && scope !== '') app.scopeId = migrateScopeId(scope)
   app.phase = 'paired'
   await loadTerminal()
   void sync()
@@ -424,19 +446,21 @@ export async function sync(): Promise<void> {
   app.syncing = true
   try {
     const res = await request<BootstrapResponse>('issues/bootstrap/', { etag })
+    // Outside the 304 guard on purpose (GDK-1537): the boundary rides a
+    // response header precisely so a cold start against an unchanged mirror
+    // — 304, no body — still learns where the previous session ended. The
+    // claim is once-only for the same reason the body's was: a re-latch is a
+    // newer session than any the serve can know about.
+    claimSessionBoundary(res.sessionBoundary ?? null)
     if (res.status !== 304 && res.body) {
       app.issues = res.body.issues
       // The learned threshold the age bands read (GDK-1495 ②). Absent means
       // "nothing to learn from" — the desktop's own default takes over.
       app.flow = res.body.flow ?? null
       setFlow(app.flow)
-      // The session boundary rides bootstrap only, and only claims the latch
-      // when nothing has claimed it yet: a re-latch is a *newer* session than
-      // anything the serve can know about, so it must not be overwritten by
-      // the refresh the return itself triggers.
-      if (res.body.last_session_ended_at && !app.session.boundary) {
-        app.session.boundary = res.body.last_session_ended_at
-      }
+      // The body field is the fallback for a serve older than 0.21, which
+      // sends no header. Kept for one release; 0.22 may drop it.
+      claimSessionBoundary(res.body.last_session_ended_at ?? null)
       etag = res.etag
       writeJSON(scopedKey(CACHE_KEY), {
         etag,
@@ -708,7 +732,7 @@ function resetSessionState(): void {
   app.sources = []
   app.pages = []
   app.feed = null
-  app.scopeId = SCOPE_ME
+  app.scopeId = SCOPE_MY_WORK
   app.loaded = false
   app.offline = false
   app.lastSyncAt = null

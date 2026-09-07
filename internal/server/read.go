@@ -161,6 +161,48 @@ type deltaResponse struct {
 
 /* ── bootstrap / delta ── */
 
+// sessionBoundaryHeader carries the session strip's boundary — where the
+// previous session of person reads ended — on every issues-sync answer, 200
+// and 304 alike.
+//
+// GDK-1537: the boundary rode the bootstrap body only, so a client holding an
+// unchanged issue set sent If-None-Match, got a bodiless 304, and kept a
+// cached body that predates this session. The strip then went missing exactly
+// on the morning nothing had happened overnight. The web has the same hole one
+// step further out: a warm tab syncs by delta and never asks bootstrap again,
+// so the boundary never reaches it at all.
+//
+// A header is the right seat. It is legal on a 304 (RFC 9110 §15.4.5), it costs
+// one line, and it keeps the ETag about the issue set: the boundary comes from
+// local.visits, which the mirror's sync version knows nothing about, so folding
+// it into the ETag would force a full re-hydration at the start of every
+// session. The body field stays for 0.21 so a client older than this server
+// keeps working; 0.22 may drop it, when every shipped client reads the header.
+const sessionBoundaryHeader = "X-Gadak-Session-Boundary"
+
+// setSessionBoundary computes the strip's boundary and puts it on the
+// response. The single owner: bootstrap and delta both call it, and bootstrap
+// calls it *before* the conditional branch so the 304 carries it too. The
+// returned string is the same value, for the body field bootstrap still fills.
+//
+// "" means absent, and then no header is set at all — an empty header would
+// make "no previous session" indistinguishable from "a server that forgot".
+// A local.db error is logged and leaves it absent: the strip is an enrichment
+// and never fails the response it rides on (flowFields' rule).
+func (s *server) setSessionBoundary(w http.ResponseWriter, r *http.Request) string {
+	end, err := s.db.LastSessionEnd(r.Context(), time.Now(), retro.SessionGap)
+	if err != nil {
+		log.Printf("server: last session end: %v", err)
+		return ""
+	}
+	if end == nil {
+		return ""
+	}
+	at := end.UTC().Format(config.ISOMilli)
+	w.Header().Set(sessionBoundaryHeader, at)
+	return at
+}
+
 func (s *server) handleBootstrap(w http.ResponseWriter, r *http.Request) {
 	st, err := s.db.SyncState(r.Context(), sourceID)
 	if err != nil {
@@ -168,6 +210,9 @@ func (s *server) handleBootstrap(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("ETag", etag(st.Version))
+	// Before the conditional branch on purpose (GDK-1537): a 304 has no body,
+	// and the boundary is not part of what the ETag validates.
+	lastSessionEnd := s.setSessionBoundary(w, r)
 	if etagMatches(r.Header.Get("If-None-Match"), st.Version) {
 		w.WriteHeader(http.StatusNotModified)
 		return
@@ -183,14 +228,6 @@ func (s *server) handleBootstrap(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	latest, releaseURL, releaseNotes := s.updateFields()
-	// The session strip's boundary. flowFields' rule: a local.db error is
-	// logged and leaves the enrichment absent — bootstrap never fails on it.
-	var lastSessionEnd string
-	if end, err := s.db.LastSessionEnd(r.Context(), time.Now(), retro.SessionGap); err != nil {
-		log.Printf("server: last session end: %v", err)
-	} else if end != nil {
-		lastSessionEnd = end.UTC().Format(config.ISOMilli)
-	}
 	writeJSON(w, http.StatusOK, bootstrapResponse{
 		ServerTime:         store.Now(),
 		SyncVersion:        st.Version,
@@ -303,6 +340,13 @@ func (s *server) handleDelta(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	latest, releaseURL, releaseNotes := s.updateFields()
+	// The header, not the body (GDK-1537): a warm web tab hydrates from
+	// IndexedDB and then syncs by delta forever, so bootstrap's seat never
+	// reaches it. The body key stays absent — a delta-carried *field* would
+	// move the boundary under a long-lived tab, which is the thing the
+	// "bootstrap only" rule was protecting. Both clients latch the first
+	// value they see, so a header that moves cannot move the strip.
+	s.setSessionBoundary(w, r)
 	res := deltaResponse{
 		ServerTime:     store.Now(),
 		Upserted:       view.issues(upserted),

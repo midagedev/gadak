@@ -67,6 +67,19 @@ Request header: `If-None-Match: "sv-<version>"` (optional).
   Cloud Connect, `atlassian`/`customer` for humans) and `is_bot` is derived
   from it — the one judgement, never a display-name guess. Both are omitted
   for accounts the catalog has no type for.
+- `X-Gadak-Session-Boundary: <ISOMilli>` is where the previous session of
+  person reads ended — the session strip's boundary, computed from `local.db`
+  visits by the same session rule `gadak retro` splits by. It is a **header**,
+  set on 200 and on 304 alike and on `delta/` too, because it has nothing to do
+  with the issue set the ETag validates: a client holding an unchanged mirror
+  gets a bodiless 304, and a warm tab syncs by delta and never asks `bootstrap/`
+  again (GDK-1537). Omitted entirely when there is no previous session or
+  `local.db` is unreadable — the strip is an enrichment and never fails the
+  response. The `last_session_ended_at` body field carries the same value on
+  `bootstrap/` 200s and is kept for one release for older clients. Being a
+  header makes it inspectable on its own: `curl -sI
+  <base>/api/v1/issues/bootstrap/` answers "what boundary would this serve
+  send?" without fetching the mirror.
 - `sync_health.status` is one of `healthy` / `stale` / `failed` / `missing`, and
   `message` is `"ok"` when nothing is wrong (the client suppresses that line).
   It is server text in one language; the client localizes only the status label.
@@ -89,6 +102,10 @@ Request header: `If-None-Match: "sv-<version>"` (optional).
 - `members` is omitted (`null`) when `mv` matches the current hash.
 - `deleted_keys` **must** be correct. The client removes those rows from
   IndexedDB; a missed deletion leaves a tombstone visible forever.
+- `X-Gadak-Session-Boundary` rides this response too (see `bootstrap/`). The
+  body never carries `last_session_ended_at`: a field here would move the
+  boundary under a long-lived tab, which is why it is a header the client
+  claims once.
 - Polled every 15 s by the client and on tab focus.
 
 ### `GET <key>/detail/` — R

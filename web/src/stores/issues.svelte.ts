@@ -67,9 +67,9 @@ class IssuesStore {
    *  72h default covers first paint after a reload until bootstrap lands.
    *  Absent on the wire clears it: the workspace lost its distribution. */
   flow = $state<FlowSummary | null>(null)
-  /** Previous session's last person read (bootstrap last_session_ended_at) —
-   *  the session strip's boundary. Set from bootstrap only; delta never
-   *  touches it: the boundary is this tab's birth (G3). */
+  /** Previous session's last person read — the session strip's boundary.
+   *  Claimed once per tab (#claimSessionBoundary), from the
+   *  X-Gadak-Session-Boundary header that rides every sync answer. */
   lastSessionEndedAt = $state<string | null>(null)
   /** Discovered custom fields (bootstrap field_specs). Drives detail rows and filter axes. */
   fieldSpecs = $state<FieldSpec[]>([])
@@ -248,9 +248,28 @@ class IssuesStore {
     return true
   }
 
+  /**
+   * The session strip's boundary, claimed once per tab (GDK-1537).
+   *
+   * Once, because the boundary is this tab's birth (G3) and the server's
+   * answer moves: sit idle past the session gap and the same header starts
+   * naming a later read. The strip component latches its own snapshot too,
+   * but the store is where "does not move mid-session" belongs — a second
+   * latch in a component is a rule nobody else can see.
+   *
+   * `null` is not a claim: a server that sends no boundary (none on record,
+   * or one older than this client) must not overwrite one already held.
+   */
+  #claimSessionBoundary(at: string | null): void {
+    if (!at || this.lastSessionEndedAt) return
+    this.lastSessionEndedAt = at
+  }
+
   async #bootstrap(): Promise<void> {
     const res = await api.getBootstrap(this.#etag)
     if (res.status === 'not_modified') {
+      // The whole point of the header: a 304 has no body to read it from.
+      this.#claimSessionBoundary(res.sessionBoundary)
       this.ready = true
       return
     }
@@ -269,7 +288,9 @@ class IssuesStore {
     this.#etag = etag ?? `"in-${data.sync_version}"`
     this.syncHealth = data.sync_health
     this.flow = data.flow ?? null
-    this.lastSessionEndedAt = data.last_session_ended_at ?? null
+    // Header first, body as the fallback for a server older than 0.21 — the
+    // body field is kept for one release and may go in 0.22.
+    this.#claimSessionBoundary(res.sessionBoundary ?? data.last_session_ended_at ?? null)
     this.fieldSpecs = data.field_specs ?? []
     this.fieldUsage = data.field_usage ?? {}
     this.latestVersion = data.latest_version ?? ''
@@ -287,7 +308,11 @@ class IssuesStore {
 
   async #deltaSync(): Promise<void> {
     if (!this.lastSync) return this.#bootstrap()
-    const delta = await api.getDelta(this.lastSync, this.#membersVersion)
+    const { data: delta, sessionBoundary } = await api.getDelta(this.lastSync, this.#membersVersion)
+    // A warm tab hydrates from IndexedDB and syncs by delta from then on, so
+    // this is the only door the boundary comes through for a returning
+    // visitor (GDK-1537). Claim-once is what keeps a 15s poll from moving it.
+    this.#claimSessionBoundary(sessionBoundary)
     // Discovery may run server-side long after this tab bootstrapped.
     if (delta.field_specs) this.fieldSpecs = delta.field_specs
     if (delta.field_usage) this.fieldUsage = delta.field_usage

@@ -139,11 +139,34 @@ async function json<T>(path: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T
 }
 
+/* ── session boundary (GDK-1537) ── */
+
+/**
+ * Where the previous session of person reads ended — the session strip's
+ * boundary, sent by the server on every issues-sync answer.
+ *
+ * It rides a header rather than the bootstrap body because the body is
+ * exactly what a conditional GET does not get: a client holding an unchanged
+ * issue set sends If-None-Match, receives a bodiless 304, and used to learn
+ * nothing — so the strip went missing on the one morning nothing had changed.
+ * A warm tab is worse off still: it hydrates from IndexedDB and then syncs by
+ * delta forever, never asking bootstrap again. The header answers both,
+ * because it is on both responses and on both status codes.
+ *
+ * `null` means the server sent no boundary (no previous session, an
+ * unreadable local.db, or a server older than this client).
+ */
+export const SESSION_BOUNDARY_HEADER = 'X-Gadak-Session-Boundary'
+
+function sessionBoundaryOf(res: Response): string | null {
+  return res.headers.get(SESSION_BOUNDARY_HEADER)
+}
+
 /* ── bootstrap (ETag / 304) ── */
 
 export type BootstrapResult =
-  | { status: 'ok'; data: BootstrapResponse; etag: string | null }
-  | { status: 'not_modified' }
+  | { status: 'ok'; data: BootstrapResponse; etag: string | null; sessionBoundary: string | null }
+  | { status: 'not_modified'; sessionBoundary: string | null }
 
 /**
  * Load all issues + members. Pass prior `etag` (If-None-Match) to get `not_modified` on 304.
@@ -153,25 +176,34 @@ export async function getBootstrap(etag?: string | null): Promise<BootstrapResul
   const headers = new Headers()
   if (etag) headers.set('If-None-Match', etag)
   const res = await raw('bootstrap/', { headers })
-  if (res.status === 304) return { status: 'not_modified' }
+  if (res.status === 304) return { status: 'not_modified', sessionBoundary: sessionBoundaryOf(res) }
   if (!res.ok) throw new ApiError(res.status, `GET bootstrap/ → ${res.status}`)
   return {
     status: 'ok',
     data: (await res.json()) as BootstrapResponse,
     etag: res.headers.get('ETag'),
+    sessionBoundary: sessionBoundaryOf(res),
   }
 }
 
 /* ── delta ── */
 
+export interface DeltaResult {
+  data: DeltaResponse
+  /** The session boundary header, which the delta body never carries. */
+  sessionBoundary: string | null
+}
+
 /**
  * Changes since `since`. Pass prior `membersVersion` so the server can omit members
  * when the hash matches (payload diet). Without it, server always includes members.
  */
-export function getDelta(since: string, membersVersion?: string): Promise<DeltaResponse> {
+export async function getDelta(since: string, membersVersion?: string): Promise<DeltaResult> {
   let path = `delta/?since=${encodeURIComponent(since)}`
   if (membersVersion) path += `&mv=${encodeURIComponent(membersVersion)}`
-  return json<DeltaResponse>(path)
+  const res = await raw(path)
+  if (!res.ok) throw new ApiError(res.status, `GET ${path} → ${res.status}`)
+  return { data: (await res.json()) as DeltaResponse, sessionBoundary: sessionBoundaryOf(res) }
 }
 
 /* ── detail (on demand) ── */

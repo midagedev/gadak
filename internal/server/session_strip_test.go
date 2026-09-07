@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"testing"
 	"time"
@@ -158,5 +159,162 @@ func TestDeltaOmitsLastSessionEnd(t *testing.T) {
 	}
 	if v, ok := raw["last_session_ended_at"]; ok {
 		t.Fatalf("delta carries last_session_ended_at (%s); the boundary rides bootstrap only", v)
+	}
+}
+
+/*
+ * GDK-1537 — the boundary must survive a 304.
+ *
+ * The body-only contract above has a hole the clauses above cannot see: a
+ * client that already holds the issue set sends If-None-Match, the server
+ * answers 304 with no body at all, and the boundary — which has nothing to do
+ * with the issue set, being computed from local.visits — goes missing exactly
+ * on the cold start against an unchanged mirror. The strip is then absent on
+ * the one morning nothing happened overnight.
+ *
+ * The closure is a response header, legal on 304 (RFC 9110 §15.4.5) and set
+ * before the conditional branch. It is not folded into the ETag on purpose:
+ * the ETag is about the issue set, and a boundary in it would force a full
+ * re-hydration at the start of every session.
+ *
+ *   C9 the 200 carries X-Gadak-Session-Boundary, equal to the body field —
+ *      TestBootstrapBoundaryHeaderMatchesBody
+ *   C9 the 304 carries the same header —
+ *      TestBootstrapBoundaryHeaderSurvives304
+ *   C9 absent means absent on both codes (no empty header) —
+ *      TestBootstrapBoundaryHeaderAbsentWithoutVisits
+ *   C9 the delta carries the header too, because a warm web tab syncs by
+ *      delta and never asks bootstrap again — TestDeltaCarriesBoundaryHeader
+ *      (the body key stays absent there: TestDeltaOmitsLastSessionEnd)
+ *   C9 a HEAD answers it, so `curl -sI …/issues/bootstrap/` is the operator's
+ *      one-line probe — TestBootstrapBoundaryHeaderOnHEAD
+ *
+ * FAIL-first evidence: on the pre-change source all four fail with an empty
+ * header (server-1537-prechange.out in this round's scratchpad).
+ */
+
+func TestBootstrapBoundaryHeaderMatchesBody(t *testing.T) {
+	db, cfg, path := fixtureAt(t)
+	h := New(db, cfg)
+	prev := time.Now().UTC().Add(-2 * time.Hour)
+	seedVisit(t, path, prev, store.VisitSourceUI)
+
+	rec := get(t, h, apiBase+"bootstrap/", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("bootstrap status = %d", rec.Code)
+	}
+	body := decode[bootstrapResponse](t, rec)
+	got := rec.Header().Get(sessionBoundaryHeader)
+	if got == "" {
+		t.Fatalf("%s absent on 200 with a previous session on record", sessionBoundaryHeader)
+	}
+	if got != body.LastSessionEndedAt {
+		t.Fatalf("%s = %q, body last_session_ended_at = %q; one value, two seats",
+			sessionBoundaryHeader, got, body.LastSessionEndedAt)
+	}
+	if _, err := time.Parse(config.ISOMilli, got); err != nil {
+		t.Fatalf("%s %q is not ISOMilli: %v", sessionBoundaryHeader, got, err)
+	}
+}
+
+func TestBootstrapBoundaryHeaderSurvives304(t *testing.T) {
+	db, cfg, path := fixtureAt(t)
+	h := New(db, cfg)
+	seedVisit(t, path, time.Now().UTC().Add(-2*time.Hour), store.VisitSourceUI)
+
+	first := get(t, h, apiBase+"bootstrap/", nil)
+	if first.Code != http.StatusOK {
+		t.Fatalf("bootstrap status = %d", first.Code)
+	}
+	etag := first.Header().Get("ETag")
+	if etag == "" {
+		t.Fatal("bootstrap sent no ETag; the 304 path cannot be exercised")
+	}
+	want := first.Header().Get(sessionBoundaryHeader)
+	if want == "" {
+		t.Fatalf("sanity: %s absent on the 200", sessionBoundaryHeader)
+	}
+
+	second := get(t, h, apiBase+"bootstrap/", map[string]string{"If-None-Match": etag})
+	if second.Code != http.StatusNotModified {
+		t.Fatalf("conditional bootstrap status = %d, want 304", second.Code)
+	}
+	if n := second.Body.Len(); n != 0 {
+		t.Fatalf("304 carried a %d-byte body; the header is the only seat left", n)
+	}
+	if got := second.Header().Get(sessionBoundaryHeader); got != want {
+		t.Fatalf("%s on 304 = %q, want the 200's %q — a cold start against an "+
+			"unchanged mirror must still learn the boundary",
+			sessionBoundaryHeader, got, want)
+	}
+}
+
+func TestBootstrapBoundaryHeaderAbsentWithoutVisits(t *testing.T) {
+	db, cfg := fixture(t)
+	h := New(db, cfg)
+
+	first := get(t, h, apiBase+"bootstrap/", nil)
+	if first.Code != http.StatusOK {
+		t.Fatalf("bootstrap status = %d", first.Code)
+	}
+	if _, ok := first.Header()[http.CanonicalHeaderKey(sessionBoundaryHeader)]; ok {
+		t.Fatalf("%s present with no visits: %q", sessionBoundaryHeader, first.Header().Get(sessionBoundaryHeader))
+	}
+	etag := first.Header().Get("ETag")
+	second := get(t, h, apiBase+"bootstrap/", map[string]string{"If-None-Match": etag})
+	if second.Code != http.StatusNotModified {
+		t.Fatalf("conditional bootstrap status = %d, want 304", second.Code)
+	}
+	if _, ok := second.Header()[http.CanonicalHeaderKey(sessionBoundaryHeader)]; ok {
+		t.Fatalf("%s present on 304 with no visits: %q", sessionBoundaryHeader, second.Header().Get(sessionBoundaryHeader))
+	}
+}
+
+// The operator's probe. `curl -sI <base>/api/v1/issues/bootstrap/` is now the
+// one-line answer to "what boundary would this serve send?" — before this
+// round the value was only reachable by fetching and parsing a whole
+// bootstrap body, and on a 304 it was not reachable at all. ServeMux's `GET`
+// pattern matches HEAD, so the probe costs nothing; this pins that, because a
+// documented probe nobody tests is a hypothesis.
+func TestBootstrapBoundaryHeaderOnHEAD(t *testing.T) {
+	db, cfg, path := fixtureAt(t)
+	h := New(db, cfg)
+	seedVisit(t, path, time.Now().UTC().Add(-2*time.Hour), store.VisitSourceUI)
+
+	want := get(t, h, apiBase+"bootstrap/", nil).Header().Get(sessionBoundaryHeader)
+	if want == "" {
+		t.Fatalf("sanity: %s absent on the GET", sessionBoundaryHeader)
+	}
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, testRequest(http.MethodHead, apiBase+"bootstrap/", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("HEAD bootstrap status = %d; `curl -sI` is the documented probe", rec.Code)
+	}
+	if got := rec.Header().Get(sessionBoundaryHeader); got != want {
+		t.Fatalf("%s on HEAD = %q, want %q", sessionBoundaryHeader, got, want)
+	}
+}
+
+func TestDeltaCarriesBoundaryHeader(t *testing.T) {
+	db, cfg, path := fixtureAt(t)
+	h := New(db, cfg)
+	seedVisit(t, path, time.Now().UTC().Add(-2*time.Hour), store.VisitSourceUI)
+
+	boot := get(t, h, apiBase+"bootstrap/", nil)
+	want := boot.Header().Get(sessionBoundaryHeader)
+	if want == "" {
+		t.Fatalf("sanity: %s absent on bootstrap", sessionBoundaryHeader)
+	}
+	body := decode[bootstrapResponse](t, boot)
+
+	rec := get(t, h, apiBase+"delta/?since="+body.ServerTime, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("delta status = %d", rec.Code)
+	}
+	if got := rec.Header().Get(sessionBoundaryHeader); got != want {
+		t.Fatalf("%s on delta = %q, want %q — a warm tab syncs by delta and "+
+			"never asks bootstrap again, so the boundary must ride it",
+			sessionBoundaryHeader, got, want)
 	}
 }

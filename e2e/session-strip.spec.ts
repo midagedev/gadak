@@ -28,6 +28,9 @@ const SHOT = join(SHOT_DIR, 'session-strip.png')
  *      issues — the click applies a keys view and nothing else — and the
  *      strip is gone for the tab's life.
  *   G7 (a) asserts the hover title is non-empty (the absolute boundary time).
+ *   C9 (f) GDK-1537: the boundary rides X-Gadak-Session-Boundary, so a
+ *      returning tab — warm IndexedDB, delta path, no bootstrap body to read
+ *      — still hears it. See the case's own comment for the measurement.
  *   RL (e) re-latch (research F #24, 2026-09-07): a tab hidden longer than
  *      the session gap comes back to a new session — the strip speaks once
  *      more, about what changed while it was hidden. FAIL-first: the
@@ -46,7 +49,10 @@ const SHOT = join(SHOT_DIR, 'session-strip.png')
  */
 
 const BOOTSTRAP_ROUTE = '**/api/v1/issues/bootstrap/'
+const DELTA_ROUTE = '**/api/v1/issues/delta/**'
 const AUTH_ME_ROUTE = '**/api/v1/auth/me/**'
+/** Lower-case: Playwright's Route.headers() keys are normalized. */
+const SESSION_BOUNDARY_HEADER = 'x-gadak-session-boundary'
 
 type IssueRow = Record<string, unknown> & {
   issue_key: string
@@ -256,6 +262,90 @@ test.describe('session strip', () => {
 
     const text = (await strip.textContent()) ?? ''
     expect(text).toContain(`${k} of them assigned here`)
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  /*
+   * (f) GDK-1537 — the returning visitor.
+   *
+   * Every case above opens a fresh context, so the app bootstraps and the
+   * boundary arrives in the body. That is the *first* visit. On the second
+   * one, IndexedDB already holds the pool and the cursor, so the store takes
+   * the delta path (stores/issues.svelte.ts #sync: pool.size > 0 && lastSync)
+   * — and if the mirror has not moved, a bootstrap would answer 304 with no
+   * body anyway. Either way the body was the wrong seat, and the strip went
+   * missing on the one morning nothing had changed.
+   *
+   * The boundary now rides X-Gadak-Session-Boundary on both endpoints and
+   * both status codes. This case is the end-to-end proof: load once with no
+   * boundary anywhere (so the cache is warm and the strip silent), then load
+   * again with only the header, and the strip must speak.
+   *
+   * FAIL-first: on the pre-change tree the second load ends with 0 strips —
+   * neither api.getBootstrap nor api.getDelta read a header.
+   */
+  test('(f) a returning tab with a warm cache still learns the boundary — header, not body', async ({
+    page,
+  }) => {
+    const errors = attachConsoleErrors(page)
+    const since = thirtyDaysAgo()
+
+    // ① First visit: no boundary in the body, none in the header. The pool
+    //    lands in IndexedDB; the strip stays silent (case (b)'s contract).
+    const strip1 = async (route: Route): Promise<void> => {
+      const response = await route.fetch()
+      const headers = { ...response.headers() }
+      delete headers[SESSION_BOUNDARY_HEADER]
+      if (response.status() !== 200) {
+        await route.fulfill({ response, headers })
+        return
+      }
+      const { last_session_ended_at: _l, ...rest } = (await response.json()) as BootBody
+      await route.fulfill({ response, headers, json: rest })
+    }
+    const stripHeaderOnly = async (route: Route): Promise<void> => {
+      const response = await route.fetch()
+      const headers = { ...response.headers() }
+      delete headers[SESSION_BOUNDARY_HEADER]
+      await route.fulfill({ response, headers })
+    }
+    await page.route(BOOTSTRAP_ROUTE, strip1)
+    await page.route(DELTA_ROUTE, stripHeaderOnly)
+    await gotoApp(page)
+    await expect(page.getByTestId('list-count')).toBeVisible()
+    await expect(page.getByTestId('session-strip')).toHaveCount(0)
+
+    // ② Second visit, same context: the cache is warm. The boundary exists
+    //    only as a header now — the body is stripped on both endpoints, so
+    //    nothing but the header can put the strip on screen.
+    await page.unroute(BOOTSTRAP_ROUTE, strip1)
+    await page.unroute(DELTA_ROUTE, stripHeaderOnly)
+    let bootstrapHits = 0
+    let deltaHits = 0
+    const inject =
+      (count: () => void) =>
+      async (route: Route): Promise<void> => {
+        count()
+        const response = await route.fetch()
+        const headers = { ...response.headers(), [SESSION_BOUNDARY_HEADER]: since }
+        if (response.status() !== 200) {
+          await route.fulfill({ response, headers })
+          return
+        }
+        const { last_session_ended_at: _l, ...rest } = (await response.json()) as BootBody
+        await route.fulfill({ response, headers, json: rest })
+      }
+    await page.route(BOOTSTRAP_ROUTE, inject(() => bootstrapHits++))
+    await page.route(DELTA_ROUTE, inject(() => deltaHits++))
+
+    await gotoApp(page)
+
+    const strip = page.getByTestId('session-strip')
+    await expect(strip, 'the returning tab must still hear the boundary').toBeVisible()
+    await expect(strip).toContainText('Since last session')
+    // The measurement this case exists for: a warm start reaches the server
+    // through delta, which is why the header rides that response too.
+    expect(deltaHits, `bootstrap hits ${bootstrapHits}, delta hits ${deltaHits}`).toBeGreaterThan(0)
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 })

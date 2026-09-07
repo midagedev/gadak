@@ -17,6 +17,7 @@ import { request } from './api'
 import { getActiveHostId, hostIdForEndpoint, listHosts, setActiveHostId, upsertHostFromPairing } from './hosts'
 import { tokenGet, tokenSet } from './secure'
 import { decodeOffer } from './offer'
+import { SCOPE_MY_WORK } from './domain'
 import {
   app,
   boot,
@@ -72,6 +73,7 @@ function resetApp(): void {
   app.lastSyncAt = null
   app.detail = null
   app.tab = 'issues'
+  app.session = { boundary: null, delta: null, computed: false, dismissed: false }
 }
 
 beforeEach(() => {
@@ -676,6 +678,16 @@ describe('switchHost() — per-host caches never cross (GDK-1097 B2)', () => {
     expect(app.issues.map((i) => i.issue_key)).toEqual(['STD-A1'])
   })
 
+  it('restores a scope id an older build stored (GDK-1542)', async () => {
+    // The phone's hardcoded "Assigned to me" was `my-work` asked a second
+    // time; a phone updating across that change has `'me'` on disk and must
+    // land on the row that answers the same question, not on the pool.
+    const a = await seedHost(EP_A, 'desk A', 'STD-A1')
+    mem.set(`gadak.issues.scope@${a}`, JSON.stringify('me'))
+    await bootOn(a)
+    expect(app.scopeId).toBe(SCOPE_MY_WORK)
+  })
+
   it("unpair() forgets the active host's documents at both addresses", async () => {
     const a = await seedHost(EP_A, 'desk A', 'STD-A1')
     // Bare-key residue from before the B2 rename — unpair must take both.
@@ -723,5 +735,87 @@ describe('switchHost() — per-host caches never cross (GDK-1097 B2)', () => {
     expect(mem.get(`gadak.dev.token@${a}`)).toBeDefined()
     expect(app.phase).toBe('paired')
     expect(app.issues.map((i) => i.issue_key)).toEqual(['STD-A1'])
+  })
+})
+
+/*
+ * GDK-1537 — the session boundary must survive a 304.
+ *
+ * A phone that already holds the issue set sends If-None-Match and gets a
+ * bodiless 304. The boundary rode that body, so the strip went missing on the
+ * one morning nothing had changed — the cold start against an unchanged
+ * mirror. It now rides X-Gadak-Session-Boundary, which a 304 carries, and the
+ * store claims it outside the 304 guard.
+ *
+ * FAIL-first: on the pre-change store the first case leaves
+ * app.session.boundary null (the claim sat inside `if (res.status !== 304)`)
+ * — mobile-1537-prechange.out in this round's scratchpad.
+ */
+describe('sync() — the session boundary rides a header, so a 304 still carries it (GDK-1537)', () => {
+  const BOUNDARY = '2026-09-06T22:00:00.000Z'
+
+  /** bootstrap answers `boot`; every other path answers empty. */
+  function serve(boot: Record<string, unknown>): void {
+    vi.mocked(request).mockImplementation(async (path: string) => {
+      if (path === 'issues/bootstrap/') return boot as never
+      if (path === 'auth/me/') return { status: 200, etag: null, body: null } as never
+      if (path === 'issues/views/') return { status: 200, etag: null, body: { views: [], source: [] } } as never
+      if (path === 'issues/pages/') return { status: 200, etag: null, body: { pages: [] } } as never
+      throw new Error(`unexpected path ${path}`)
+    })
+  }
+
+  it('claims the boundary from a 304, where there is no body to read it from', async () => {
+    // The cold start's shape: a cached pool already painted, an ETag that
+    // still matches, and nothing new on the mirror.
+    app.issues = [issue({ issue_key: 'STD-1' })]
+    app.loaded = true
+    serve({ status: 304, etag: '"sv-1"', body: null, sessionBoundary: BOUNDARY })
+
+    await sync()
+
+    expect(app.session.boundary).toBe(BOUNDARY)
+    // And the latch fired: the strip has an answer, not just a boundary.
+    expect(app.session.computed).toBe(true)
+  })
+
+  it('falls back to the body field when the serve is older than the header', async () => {
+    serve({
+      status: 200,
+      etag: '"sv-1"',
+      body: {
+        issues: [issue({ issue_key: 'STD-2' })],
+        server_time: '2026-09-07T00:00:00Z',
+        sync_version: 1,
+        last_session_ended_at: BOUNDARY,
+      },
+    })
+
+    await sync()
+
+    expect(app.session.boundary).toBe(BOUNDARY)
+  })
+
+  it('does not overwrite a re-latch: the first claim wins for the session', async () => {
+    // relatchSession() set a boundary the serve cannot know about, and the
+    // return itself triggers this sync.
+    const relatched = '2026-09-07T08:00:00.000Z'
+    app.session = { boundary: relatched, delta: null, computed: false, dismissed: false }
+    app.issues = [issue({ issue_key: 'STD-3' })]
+    serve({ status: 304, etag: '"sv-1"', body: null, sessionBoundary: BOUNDARY })
+
+    await sync()
+
+    expect(app.session.boundary).toBe(relatched)
+  })
+
+  it('a serve that sends no boundary at all leaves the strip silent', async () => {
+    app.issues = [issue({ issue_key: 'STD-4' })]
+    serve({ status: 304, etag: '"sv-1"', body: null, sessionBoundary: null })
+
+    await sync()
+
+    expect(app.session.boundary).toBeNull()
+    expect(app.session.delta).toBeNull()
   })
 })
