@@ -186,6 +186,10 @@ func TestPairingMintRefusals(t *testing.T) {
 		code       string
 	}{
 		{"terminal scope", `{"label":"sh","scope":"terminal","endpoint":"http://192.0.2.10:7877"}`, 400, "bad_scope"},
+		// GDK-1498 pin: the CLI's comma list must not smuggle terminal
+		// through this surface — the equality check refuses any string
+		// that is not exactly one of the two single scopes.
+		{"terminal riding a scope list", `{"label":"x","scope":"serve,terminal","endpoint":"http://192.0.2.10:7877"}`, 400, "bad_scope"},
 		{"made-up scope", `{"label":"x","scope":"admin","endpoint":"http://192.0.2.10:7877"}`, 400, "bad_scope"},
 		{"reserved label", `{"label":"_home","scope":"serve","endpoint":"http://192.0.2.10:7877"}`, 400, "reserved_label"},
 		{"empty label", `{"label":"  ","scope":"serve"}`, 400, "label_required"},

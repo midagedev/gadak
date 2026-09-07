@@ -16,10 +16,12 @@ vi.mock('./api', async (importOriginal) => {
 import { request } from './api'
 import { getActiveHostId, hostIdForEndpoint, listHosts, setActiveHostId, upsertHostFromPairing } from './hosts'
 import { tokenGet, tokenSet } from './secure'
+import { decodeOffer } from './offer'
 import {
   app,
   boot,
   issuesBootKind,
+  pair,
   removeRosterHost,
   searchPaint,
   showOfflineBanner,
@@ -221,6 +223,77 @@ describe('unpair() — forgetting the server forgets the shell too', () => {
     expect(await tokenGet('terminal')).toBeNull()
     expect(mem.get('gadak.pairing.meta.terminal')).toBeUndefined()
     expect(app.terminal).toBeNull()
+  })
+})
+
+describe('pair() — one v2 offer stores every token (GDK-1498)', () => {
+  // The offer is built through the real decoder so the test rides the
+  // same base64url+JSON path production takes; token values are fixtures,
+  // never real credentials, and assertions on slots are presence/equality
+  // against those fixtures only.
+  const ENDPOINT = 'http://192.0.2.10:7911'
+  const answer = () => ({ status: 200, etag: null, body: {} }) as never
+
+  function v2Line(entries: string): string {
+    return Buffer.from(
+      JSON.stringify({ v: 2, endpoint: ENDPOINT, expires_at: '2027-06-30T09:00:00Z', label: 'desk', tokens: JSON.parse(entries) }),
+    ).toString('base64url')
+  }
+
+  it('a serve,terminal offer fills both slots, the shell meta, and arms app.terminal', async () => {
+    vi.mocked(request).mockResolvedValue(answer())
+    const offer = decodeOffer(
+      v2Line(`[{"scope":"serve","token":"v2-serve-fixture"},{"scope":"terminal","token":"v2-term-fixture"}]`),
+    )
+
+    await pair(offer)
+
+    const hostId = await hostIdForEndpoint(ENDPOINT)
+    expect(listHosts().some((h) => h.id === hostId)).toBe(true)
+    expect(await tokenGet('serve', hostId ?? undefined)).toBe('v2-serve-fixture')
+    expect(await tokenGet('terminal', hostId ?? undefined)).toBe('v2-term-fixture')
+    // The shell meta sits in the active host's namespace (hostKey's `@`
+    // separator) — the address loadTerminal() reads, so the Shell tab
+    // survives the relaunch without a second scan.
+    const termMeta = mem.get(`gadak.pairing.meta.terminal@${hostId}`)
+    expect(termMeta).toContain(ENDPOINT)
+    expect(app.terminal?.endpoint).toBe(ENDPOINT)
+    expect(app.meta?.label).toBe('desk')
+    // PairingTab's second-step mint hint is hidden by this same state.
+    expect(app.terminal).not.toBeNull()
+  })
+
+  it('a v1 offer still pairs exactly as before — serve slot only, no shell', async () => {
+    vi.mocked(request).mockResolvedValue(answer())
+    const offer = decodeOffer(
+      Buffer.from(JSON.stringify({ v: 1, endpoint: ENDPOINT, token: 'v1-fixture', label: 'desk' })).toString(
+        'base64url',
+      ),
+    )
+
+    await pair(offer)
+
+    const hostId = await hostIdForEndpoint(ENDPOINT)
+    expect(await tokenGet('serve', hostId ?? undefined)).toBe('v1-fixture')
+    expect(await tokenGet('terminal', hostId ?? undefined)).toBeNull()
+    expect(app.terminal).toBeNull()
+  })
+
+  it('a terminal-only v2 offer is refused naming the scope, storing nothing', async () => {
+    vi.mocked(request).mockResolvedValue(answer())
+    const offer = decodeOffer(v2Line(`[{"scope":"terminal","token":"v2-term-fixture"}]`))
+
+    await expect(pair(offer)).rejects.toThrow(/terminal/)
+
+    // Nothing was written: no probe round trip, no slot, no roster row.
+    // (hostIdForEndpoint is a pure derivation, so the roster — not the id
+    // — is what proves absence.)
+    expect(vi.mocked(request)).not.toHaveBeenCalled()
+    const hostId = await hostIdForEndpoint(ENDPOINT)
+    expect(listHosts().some((h) => h.id === hostId)).toBe(false)
+    expect(await tokenGet('terminal', hostId ?? undefined)).toBeNull()
+    expect(app.terminal).toBeNull()
+    expect(app.meta?.label).toBe('test') // resetApp's sentinel — untouched
   })
 })
 

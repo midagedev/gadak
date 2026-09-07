@@ -141,6 +141,11 @@ func handlePairingMint(w http.ResponseWriter, r *http.Request) {
 	if scope == "" {
 		scope = pairing.ScopeServe // the phone is the common case here
 	}
+	// Exactly the two single scopes, terminal excluded in any form: a
+	// comma list ("serve,terminal") fails this equality too, by design —
+	// this surface's mint form offers a scope dropdown, not a text field,
+	// and a terminal-scope token (alone or riding a list) opens a shell,
+	// which the Devices tab does not hand out. The CLI mints those.
 	if scope != pairing.ScopeOrigin && scope != pairing.ScopeServe {
 		writePairingErr(w, http.StatusBadRequest, "bad_scope")
 		return
@@ -255,7 +260,18 @@ func handlePairingRevoke(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	writePairingJSON(w, map[string]any{"revoked": meta.Label, "hash_prefix": meta.Hash[:8]})
+	// A label selector closes every token of the device (GDK-1498: a
+	// device is one label) — the response says how many went, additive
+	// for the single-token case the tab has always shown.
+	resp := map[string]any{"revoked": meta[0].Label, "hash_prefix": meta[0].Hash[:8], "count": len(meta)}
+	if len(meta) > 1 {
+		scopes := make([]string, len(meta))
+		for i, m := range meta {
+			scopes[i] = m.Scope
+		}
+		resp["scopes"] = scopes
+	}
+	writePairingJSON(w, resp)
 }
 
 // pairingUnavailable classifies the two workspace states that cannot own

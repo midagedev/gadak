@@ -59,7 +59,7 @@ func TestMintListRevokeRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if revoked.Label != "laptop" || revoked.RevokedAt == nil {
+	if len(revoked) != 1 || revoked[0].Label != "laptop" || revoked[0].RevokedAt == nil {
 		t.Fatalf("revoke returned %+v", revoked)
 	}
 	if _, err := Revoke(dir, "laptop", now.Add(2*time.Minute)); err == nil {
@@ -75,7 +75,7 @@ func TestMintListRevokeRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("revoking the re-minted label: %v", err)
 	}
-	if again.RevokedAt == nil || !again.CreatedAt.Equal(now.Add(3*time.Minute)) {
+	if len(again) != 1 || again[0].RevokedAt == nil || !again[0].CreatedAt.Equal(now.Add(3*time.Minute)) {
 		t.Fatalf("revoked %+v, want the newer mint", again)
 	}
 }
@@ -193,7 +193,7 @@ func TestRevokeByHashPrefix(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Hash != a.Hash {
+	if len(got) != 1 || got[0].Hash != a.Hash {
 		t.Fatalf("revoked %+v, want %s", got, a.Hash)
 	}
 }
@@ -221,7 +221,7 @@ func TestRevokeAmbiguousPrefixRefused(t *testing.T) {
 	}
 	// A longer prefix still separates them.
 	got, err := Revoke(dir, "abcdef010000", now)
-	if err != nil || got.Label != "one" {
+	if err != nil || len(got) != 1 || got[0].Label != "one" {
 		t.Fatalf("longer prefix: %+v, %v", got, err)
 	}
 }
@@ -486,5 +486,115 @@ func TestRemoteRoundTrip(t *testing.T) {
 	}
 	if out.PairedAt == "" {
 		t.Fatal("PairedAt should be stamped on save")
+	}
+}
+
+// TestRevokeByLabelCoversEveryScopeOfTheDevice (GDK-1498): a device is one
+// label that may hold several scopes, so an exact-label selector revokes
+// every live token carrying that label and returns them all — not an
+// ambiguity error. Seeded through a direct store write because the
+// pre-change mint cannot produce the shape (MintScoped refuses a duplicate
+// live label), and that refusal is exactly why the seeded state was
+// unreachable-but-wrong to guess about.
+func TestRevokeByLabelCoversEveryScopeOfTheDevice(t *testing.T) {
+	dir := t.TempDir()
+	now := time.Date(2026, 9, 7, 12, 0, 0, 0, time.UTC)
+	seed := []Meta{
+		{Label: "phone", Scope: ScopeServe, Hash: strings.Repeat("a", 64), CreatedAt: now, ExpiresAt: now.Add(time.Hour)},
+		{Label: "phone", Scope: ScopeTerminal, Hash: strings.Repeat("b", 64), CreatedAt: now, ExpiresAt: now.Add(time.Hour)},
+		{Label: "tablet", Scope: ScopeServe, Hash: strings.Repeat("c", 64), CreatedAt: now, ExpiresAt: now.Add(time.Hour)},
+	}
+	if err := mutateStore(dir, func(doc *storeDoc) error {
+		doc.Tokens = append(doc.Tokens, seed...)
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Revoke(dir, "phone", now.Add(time.Minute))
+	if err != nil {
+		t.Fatalf("revoking a device by its label: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("revoke by label returned %d tokens, want both of the device's: %+v", len(got), got)
+	}
+	for _, m := range got {
+		if m.Label != "phone" || m.RevokedAt == nil {
+			t.Fatalf("revoked row %+v — want both phone tokens revoked", m)
+		}
+	}
+	toks, err := List(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	live := 0
+	for _, m := range toks {
+		if m.RevokedAt == nil {
+			live++
+			if m.Label == "phone" {
+				t.Fatalf("a phone token survived its own label's revoke: %+v", m)
+			}
+		}
+	}
+	if live != 1 {
+		t.Fatalf("%d live tokens after the revoke, want only the tablet: %+v", live, toks)
+	}
+}
+
+// TestMintScopedMulti (GDK-1498): one label, several scopes, one store
+// write. The refusal cases are structural: a duplicate scope in the list
+// and a label another live device owns — and the label conflict must
+// leave nothing behind, because half a device is a pairing the phone
+// cannot complete.
+func TestMintScopedMulti(t *testing.T) {
+	dir := t.TempDir()
+	now := time.Date(2026, 9, 7, 12, 0, 0, 0, time.UTC)
+	tokens, metas, err := MintScopedMulti(dir, "phone", []string{ScopeServe, ScopeTerminal}, time.Hour, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tokens) != 2 || len(metas) != 2 {
+		t.Fatalf("multi mint returned %d tokens, %d metas", len(tokens), len(metas))
+	}
+	scopes := map[string]bool{}
+	for _, m := range metas {
+		if m.Label != "phone" {
+			t.Fatalf("meta label %q — every token of the device shares the label", m.Label)
+		}
+		scopes[m.Scope] = true
+	}
+	if !scopes[ScopeServe] || !scopes[ScopeTerminal] {
+		t.Fatalf("minted scopes %v", scopes)
+	}
+	for i, tok := range tokens {
+		if v, m, err := AuthorizeMeta(dir, tok, now.Add(time.Minute)); err != nil || v != VerdictAccept || m.Scope != metas[i].Scope {
+			t.Fatalf("token %d (%s) does not authorize under its own scope: %v, %+v, %v", i, metas[i].Scope, v, m, err)
+		}
+	}
+	toks, err := List(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(toks) != 2 {
+		t.Fatalf("store holds %d tokens after a 2-scope mint, want 2 (one write, not two rows per scope)", len(toks))
+	}
+
+	// Duplicate scope in the list is refused before anything is minted.
+	if _, _, err := MintScopedMulti(dir, "copy", []string{ScopeServe, ScopeServe}, time.Hour, now); err == nil {
+		t.Fatal("duplicate scope in one mint must be refused")
+	}
+	// An empty scope list is a usage bug, not a no-op.
+	if _, _, err := MintScopedMulti(dir, "none", nil, time.Hour, now); err == nil {
+		t.Fatal("empty scope list must be refused")
+	}
+	// A label another live device owns is refused — atomically.
+	if _, _, err := MintScopedMulti(dir, "phone", []string{ScopeServe, ScopeTerminal}, time.Hour, now.Add(time.Minute)); err == nil {
+		t.Fatal("a live label must not be re-minted")
+	}
+	toks, err = List(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(toks) != 2 {
+		t.Fatalf("a refused multi mint left %d tokens behind — the whole device commits or nothing", len(toks))
 	}
 }

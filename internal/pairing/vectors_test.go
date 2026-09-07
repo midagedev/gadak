@@ -18,6 +18,7 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -54,8 +55,8 @@ func TestOfferVectorsValid(t *testing.T) {
 			if c.Want == nil {
 				t.Fatalf("valid case %s has no want value", c.Name)
 			}
-			if got != *c.Want {
-				t.Fatalf("case %s decoded %+v, want %+v", c.Name, got, *c.Want)
+			if !reflect.DeepEqual(got, normalizeVectorWant(*c.Want)) {
+				t.Fatalf("case %s decoded %+v, want %+v", c.Name, got, normalizeVectorWant(*c.Want))
 			}
 		})
 	}
@@ -96,6 +97,17 @@ func TestOfferVectorsHostileHugeLabel(t *testing.T) {
 	if len(got.Label) != 100*1024 {
 		t.Fatalf("huge label decode lost bytes: %d", len(got.Label))
 	}
+}
+
+// normalizeVectorWant gives a want value the same normalization a decode
+// applies: a v1 want's single token becomes its one-entry list, so the
+// stored v1 wants keep expressing the payload (one token, no list) while
+// comparing equal to the decoded offer.
+func normalizeVectorWant(w Offer) Offer {
+	if w.V == OfferV1 && w.Token != "" && w.Tokens == nil {
+		w.Tokens = []OfferToken{{Scope: "", Token: w.Token}}
+	}
+	return w
 }
 
 func loadOfferVectors(t *testing.T) offerVectors {
@@ -153,12 +165,39 @@ func TestRegenerateOfferVectors(t *testing.T) {
 		V        int    `json:"v"`
 		Endpoint string `json:"endpoint"`
 		Token    string `json:"token"`
-	}{V: 2, Endpoint: "https://home.example.ts.net", Token: "offer-vector-token-v2"})
+	}{V: 3, Endpoint: "https://home.example.ts.net", Token: "offer-vector-token-v3"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	// A document cut mid-string: base64 survives, the JSON does not.
 	truncated := `{"v":1,"endpoint":"https://home.example.ts.net","token":"offer-vec`
+	// v2 (GDK-1498): one token per scope, no top-level token. Two scopes
+	// is the phone's shape (serve + terminal); three adds origin in
+	// canonical order. The invalid documents are raw JSON because the
+	// struct+encoder refuse to produce them — that refusal is the product
+	// behavior; these vectors prove the decoder says the same thing when
+	// handed one anyway.
+	v2Two := Offer{
+		V:         OfferV2,
+		Endpoint:  "https://home.example.ts.net",
+		ExpiresAt: "2027-06-30T09:00:00Z",
+		Label:     "phone",
+		Tokens: []OfferToken{
+			{Scope: ScopeServe, Token: "offer-v2-serve"},
+			{Scope: ScopeTerminal, Token: "offer-v2-terminal"},
+		},
+	}
+	v2Three := Offer{
+		V:         OfferV2,
+		Endpoint:  "https://home.example.ts.net",
+		ExpiresAt: "2027-06-30T09:00:00Z",
+		Label:     "laptop",
+		Tokens: []OfferToken{
+			{Scope: ScopeOrigin, Token: "offer-v2-origin"},
+			{Scope: ScopeServe, Token: "offer-v2-serve"},
+			{Scope: ScopeTerminal, Token: "offer-v2-terminal"},
+		},
+	}
 
 	out := offerVectors{
 		Comment: "Golden vectors for the pairing offer line, shared by internal/pairing (Go) and mobile/src/lib/offer.ts (TypeScript). Regenerate with: go test ./internal/pairing/ -run TestRegenerateOfferVectors -update",
@@ -166,13 +205,19 @@ func TestRegenerateOfferVectors(t *testing.T) {
 			{Name: "full", Offer: mustEncodeVector(t, full), Want: &full, Note: "all five fields round-trip"},
 			{Name: "minimal", Offer: mustEncodeVector(t, minimal), Want: &minimal, Note: "expires_at and label are empty strings"},
 			{Name: "aging_unknown_fields", Offer: mustEncodeVectorDoc(t, agingDoc), Want: &aging, Note: "aging: unknown keys from a newer minter are ignored"},
+			{Name: "v2_two_scopes", Offer: mustEncodeVector(t, v2Two), Want: &v2Two, Note: "v2: one scan carries the phone's serve and terminal tokens"},
+			{Name: "v2_three_scopes", Offer: mustEncodeVector(t, v2Three), Want: &v2Three, Note: "v2: all three scopes, canonical order"},
 		},
 		Invalid: []offerVector{
 			{Name: "whitespace_only", Offer: "  \n\t ", ErrorContains: "pairing offer: empty", Note: "hostile: blank paste"},
 			{Name: "forged_base64", Offer: "### not base64 at all ###", ErrorContains: "pairing offer: not base64url", Note: "hostile: characters outside the base64url alphabet"},
 			{Name: "truncated_document", Offer: mustEncodeVectorDoc(t, []byte(truncated)), ErrorContains: "pairing offer: malformed document", Note: "corruption: the line was cut mid-document"},
-			{Name: "version_2", Offer: mustEncodeVectorDoc(t, versioned), ErrorContains: "pairing offer: version 2 is not supported", Note: "hostile: explicit refusal naming the version, never a best-effort parse"},
+			{Name: "version_3", Offer: mustEncodeVectorDoc(t, versioned), ErrorContains: "pairing offer: version 3 is not supported", Note: "hostile: explicit refusal naming the version, never a best-effort parse"},
 			{Name: "missing_endpoint", Offer: mustEncodeVectorDoc(t, []byte(`{"v":1,"token":"offer-vector-token-noep"}`)), ErrorContains: "pairing offer: no endpoint", Note: "corruption: required field absent"},
+			{Name: "v2_no_tokens", Offer: mustEncodeVectorDoc(t, []byte(`{"v":2,"endpoint":"https://home.example.ts.net","tokens":[]}`)), ErrorContains: "pairing offer: v2 carries no tokens", Note: "v2 corruption: the list exists but is empty"},
+			{Name: "v2_top_level_token", Offer: mustEncodeVectorDoc(t, []byte(`{"v":2,"endpoint":"https://home.example.ts.net","token":"offer-vector-token-stray","tokens":[{"scope":"serve","token":"offer-v2-serve"}]}`)), ErrorContains: "pairing offer: v2 carries its tokens as a list", Note: "v2 corruption: a top-level token is the v1 shape"},
+			{Name: "v2_entry_no_token", Offer: mustEncodeVectorDoc(t, []byte(`{"v":2,"endpoint":"https://home.example.ts.net","tokens":[{"scope":"serve"}]}`)), ErrorContains: "pairing offer: a v2 token entry has no token", Note: "v2 corruption: an entry names its scope but carries no credential"},
+			{Name: "v2_duplicate_scope", Offer: mustEncodeVectorDoc(t, []byte(`{"v":2,"endpoint":"https://home.example.ts.net","tokens":[{"scope":"serve","token":"offer-v2-serve"},{"scope":"serve","token":"offer-v2-serve-2"}]}`)), ErrorContains: "pairing offer: v2 carries two tokens for scope \"serve\"", Note: "v2 corruption: one scope, two credentials — which one wins must never be a question"},
 		},
 	}
 	data, err := json.MarshalIndent(out, "", "  ")

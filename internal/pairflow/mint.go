@@ -24,6 +24,7 @@ import (
 	"image/png"
 	"net"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -79,11 +80,57 @@ func ParseTTL(s string) (time.Duration, error) {
 	}
 }
 
+// scopeOrder is the canonical order a multi-scope offer lists its tokens
+// in. Order carries no meaning — a consumer picks scopes by name — but a
+// stable order keeps two mints of the same scope set byte-identical,
+// which is what makes a golden vector of one possible.
+var scopeOrder = map[string]int{
+	pairing.ScopeOrigin:   0,
+	pairing.ScopeServe:    1,
+	pairing.ScopeTerminal: 2,
+}
+
+// ParseScopeList parses --scope: one scope, or a comma list like
+// "serve,terminal" (GDK-1498 — one offer, one token per scope). Members
+// are trimmed, validated against the three real scopes, and returned in
+// canonical order, so "terminal,serve" and "serve,terminal" mint the same
+// offer. Duplicates are refused: the offer carries one token per scope,
+// so a repeated name cannot mean two different tokens.
+func ParseScopeList(s string) ([]string, error) {
+	parts := strings.Split(s, ",")
+	scopes := make([]string, 0, len(parts))
+	seen := make(map[string]bool, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		switch p {
+		case pairing.ScopeOrigin, pairing.ScopeServe, pairing.ScopeTerminal:
+		default:
+			return nil, fmt.Errorf("unknown scope %q: want origin (a paired gadak riding the passthrough), serve (a paired client reading the mirror REST), terminal (a shell on this machine), or a comma list like serve,terminal", p)
+		}
+		if seen[p] {
+			return nil, fmt.Errorf("scope %q appears twice in --scope: list each scope once — the offer carries one token per scope", p)
+		}
+		seen[p] = true
+		scopes = append(scopes, p)
+	}
+	if len(scopes) == 0 {
+		return nil, errors.New("empty --scope: want origin, serve, terminal, or a comma list like serve,terminal")
+	}
+	sort.Slice(scopes, func(i, j int) bool { return scopeOrder[scopes[i]] < scopeOrder[scopes[j]] })
+	return scopes, nil
+}
+
 // MintResult is everything a mint produced. The offer is a credential: it
 // exists here and in the caller output, never in a log or an error.
 type MintResult struct {
 	Offer, Label, Scope, Endpoint, ExpiresAt string
 	Meta                                     pairing.Meta
+	// Scopes is every scope the offer carries and Metas the matching
+	// store rows, in the offer's order (GDK-1498 multi-scope mint). A
+	// single-scope mint has one entry each and keeps using the scalar
+	// fields above — the readers that predate multi-scope keep working.
+	Scopes []string
+	Metas  []pairing.Meta
 	// LoopbackWarning says the explicit endpoint is a loopback address —
 	// only a device on this machine can reach it. The caller renders its
 	// own copy. (A discovered loopback endpoint is refused instead:
@@ -177,29 +224,9 @@ func MintDevice(dir string, cfg *config.Config, label, scope, ttl, endpoint stri
 			return MintResult{}, err
 		}
 	}
-	// Resolve the endpoint before minting: a mint without a reachable
-	// endpoint is an orphan token nobody can use, and it would already
-	// have flipped the gate on.
-	ep := strings.TrimRight(strings.TrimSpace(endpoint), "/")
-	discovered := ep == ""
-	if discovered {
-		ep = AdvertisedEndpoint(cfg)
-		if ep == "" {
-			return MintResult{}, errors.New("no live serve found for this profile; start `gadak serve` first or pass --endpoint <url>")
-		}
-	}
-	u, err := url.Parse(ep)
-	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
-		return MintResult{}, fmt.Errorf("bad endpoint %q: want an http(s) URL", ep)
-	}
-	loopback := isLoopbackHost(u.Hostname())
-	// GDK-1266: the serve binds loopback by default, so the discovered
-	// endpoint is one only this machine can dial — an offer carrying it
-	// can never work on the device it is labelled for. Refuse before the
-	// token exists. An explicit loopback --endpoint is the caller saying
-	// "this machine" and is allowed (flagged, below).
-	if discovered && loopback {
-		return MintResult{}, &LoopbackEndpointError{Endpoint: ep}
+	ep, loopback, err := resolveDeviceEndpoint(cfg, endpoint)
+	if err != nil {
+		return MintResult{}, err
 	}
 	token, meta, err := pairing.MintScoped(dir, label, scope, ttlDur, now)
 	if err != nil {
@@ -222,8 +249,132 @@ func MintDevice(dir string, cfg *config.Config, label, scope, ttl, endpoint stri
 		Endpoint:        ep,
 		ExpiresAt:       pairing.FormatExpiry(meta.ExpiresAt),
 		Meta:            meta,
+		Scopes:          []string{scope},
+		Metas:           []pairing.Meta{meta},
 		LoopbackWarning: loopback,
 	}
+	return finishMint(res, dir, cfg, ep, now)
+}
+
+// MintDeviceMulti is the multi-scope device-mint flow (GDK-1498): one
+// offer, one token per scope, one device. A single-scope list delegates
+// to MintDevice so a single-scope offer stays the byte-identical v1 line
+// every existing pairer was promised (GDK-799). scopes is re-validated
+// here — canonicalized and duplicate-free — because this function is the
+// structural owner, not a trusted callee.
+func MintDeviceMulti(dir string, cfg *config.Config, label string, scopes []string, ttl, endpoint string, now time.Time) (MintResult, error) {
+	if len(scopes) == 0 {
+		return MintResult{}, errors.New("pairing mint needs at least one scope")
+	}
+	if len(scopes) == 1 {
+		return MintDevice(dir, cfg, label, scopes[0], ttl, endpoint, now)
+	}
+	label = strings.TrimSpace(label)
+	if label == "" {
+		return MintResult{}, errors.New("pairing mint requires --label NAME")
+	}
+	// The label check runs before the delegation above only for the
+	// multi-scope path; single-scope delegates it to MintDevice. _home
+	// cannot reach here (its scope is forced local-routing in the store),
+	// but the refusal keeps the two paths saying the same thing.
+	if label == pairing.HomeLabel {
+		return MintResult{}, fmt.Errorf("%s is the machine routing key, not a device label — mint devices under any other name", pairing.HomeLabel)
+	}
+	seen := make(map[string]bool, len(scopes))
+	for _, scope := range scopes {
+		switch scope {
+		case pairing.ScopeOrigin, pairing.ScopeServe, pairing.ScopeTerminal:
+		default:
+			return MintResult{}, fmt.Errorf("unknown scope %q: want origin (a paired gadak riding the passthrough), serve (a paired client reading the mirror REST), terminal (a shell on this machine), or a comma list like serve,terminal", scope)
+		}
+		if seen[scope] {
+			return MintResult{}, fmt.Errorf("scope %q appears twice in --scope: list each scope once — the offer carries one token per scope", scope)
+		}
+		seen[scope] = true
+	}
+	ordered := append([]string(nil), scopes...)
+	sort.Slice(ordered, func(i, j int) bool { return scopeOrder[ordered[i]] < scopeOrder[ordered[j]] })
+	ttlDur := DefaultTTL
+	if strings.TrimSpace(ttl) != "" {
+		var err error
+		ttlDur, err = ParseTTL(ttl)
+		if err != nil {
+			return MintResult{}, err
+		}
+	}
+	ep, loopback, err := resolveDeviceEndpoint(cfg, endpoint)
+	if err != nil {
+		return MintResult{}, err
+	}
+	tokens, metas, err := pairing.MintScopedMulti(dir, label, ordered, ttlDur, now)
+	if err != nil {
+		return MintResult{}, err
+	}
+	entries := make([]pairing.OfferToken, len(ordered))
+	for i, scope := range ordered {
+		entries[i] = pairing.OfferToken{Scope: scope, Token: tokens[i]}
+	}
+	offer, err := pairing.EncodeOffer(pairing.Offer{
+		V:         pairing.OfferV2,
+		Endpoint:  ep,
+		ExpiresAt: pairing.FormatExpiry(metas[0].ExpiresAt),
+		Label:     label,
+		Tokens:    entries,
+	})
+	if err != nil {
+		return MintResult{}, err
+	}
+	res := MintResult{
+		Offer:           offer,
+		Label:           label,
+		Scope:           strings.Join(ordered, ","),
+		Endpoint:        ep,
+		ExpiresAt:       pairing.FormatExpiry(metas[0].ExpiresAt),
+		Meta:            metas[0],
+		Scopes:          ordered,
+		Metas:           metas,
+		LoopbackWarning: loopback,
+	}
+	return finishMint(res, dir, cfg, ep, now)
+}
+
+// resolveDeviceEndpoint is the endpoint half both mint flows share:
+// discover, validate, and refuse a discovered loopback (GDK-1266) — the
+// shared half is why a multi-scope mint cannot drift from a single one on
+// which URL the offer carries.
+func resolveDeviceEndpoint(cfg *config.Config, endpoint string) (string, bool, error) {
+	// Resolve the endpoint before minting: a mint without a reachable
+	// endpoint is an orphan token nobody can use, and it would already
+	// have flipped the gate on.
+	ep := strings.TrimRight(strings.TrimSpace(endpoint), "/")
+	discovered := ep == ""
+	if discovered {
+		ep = AdvertisedEndpoint(cfg)
+		if ep == "" {
+			return "", false, errors.New("no live serve found for this profile; start `gadak serve` first or pass --endpoint <url>")
+		}
+	}
+	u, err := url.Parse(ep)
+	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
+		return "", false, fmt.Errorf("bad endpoint %q: want an http(s) URL", ep)
+	}
+	loopback := isLoopbackHost(u.Hostname())
+	// GDK-1266: the serve binds loopback by default, so the discovered
+	// endpoint is one only this machine can dial — an offer carrying it
+	// can never work on the device it is labelled for. Refuse before the
+	// token exists. An explicit loopback --endpoint is the caller saying
+	// "this machine" and is allowed (flagged by the caller).
+	if discovered && loopback {
+		return "", false, &LoopbackEndpointError{Endpoint: ep}
+	}
+	return ep, loopback, nil
+}
+
+// finishMint runs the step that can fail after the tokens exist — the
+// _home routing-token guard — keeping the offer in the result either way:
+// the plaintext exists exactly once, in the caller output, or the minted
+// token would be stranded unrecoverable.
+func finishMint(res MintResult, dir string, cfg *config.Config, ep string, now time.Time) (MintResult, error) {
 	// The _home routing token is a local-origin home concern: its local
 	// writes ride the passthrough this serve fronts. A connected
 	// workspace writes go straight to its site, and the routing file
@@ -469,9 +620,12 @@ func GateOpen(dir string, now time.Time) bool {
 
 // Revoke is the store call the CLI and desktop share: selector is an exact
 // label or a hash prefix of at least 8 hex characters (what Rows prints).
-// The _home refusal and ambiguity wording live in internal/pairing —
-// callers classify by that error, they do not rewrite it.
-func Revoke(dir, selector string, now time.Time) (pairing.Meta, error) {
+// A label selector revokes every live token carrying it — a device is one
+// label (GDK-1498) — so the plural return; a hash prefix still selects
+// exactly one. The _home refusal and ambiguity wording live in
+// internal/pairing — callers classify by that error, they do not rewrite
+// it.
+func Revoke(dir, selector string, now time.Time) ([]pairing.Meta, error) {
 	return pairing.Revoke(dir, selector, now)
 }
 

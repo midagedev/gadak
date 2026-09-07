@@ -123,19 +123,29 @@ Revocation is per device: `gadak pairing revoke laptop` cuts one machine off
 without touching the others.
 
 A **phone companion** (GDK-797) is not a second workspace — it is a REST
-client of a home serve's mirror. `gadak pairing mint --label phone --scope
-serve` works on any workspace kind (a Jira home included, GDK-798; its
-origin passthrough stays closed regardless): the token opens the whole
-mirror REST — everything the local web UI can call — and is refused on the
-origin passthrough, exactly as an origin token is refused on the mirror.
-Non-API paths stay behind the host guard.
+client of a home serve's mirror. One mint arms the whole phone — the two
+scans it used to need, one offer:
 
-The **terminal** (GDK-862/GDK-863) is the third scope: `gadak pairing mint
---label phone-shell --scope terminal` opens the PTY sessions of the
-terminal pane and nothing else — never the mirror, never the passthrough —
-and because a leaked terminal token leaks the machine rather than a copy of
-its data, it is never a default and revoking it closes the shells it
-already opened ([`SECURITY.md`](../SECURITY.md#the-local-server)).
+```bash
+gadak pairing mint --label phone --scope serve,terminal --endpoint https://<machine>.<tailnet>.ts.net
+```
+
+The offer carries one token per scope under one label. The serve token
+opens the whole mirror REST — everything the local web UI can call — on any
+workspace kind (a Jira home included, GDK-798; its origin passthrough stays
+closed regardless), and is refused on the origin passthrough, exactly as an
+origin token is refused on the mirror. The terminal token arms the phone's
+shell pane. One scan stores both; `gadak pairing revoke phone` retires the
+device — every token under that label — in one call. Non-API paths stay
+behind the host guard.
+
+The **terminal** (GDK-862/GDK-863) is the third scope: a terminal token
+opens the PTY sessions of the terminal pane and nothing else — never the
+mirror, never the passthrough — and because a leaked terminal token leaks
+the machine rather than a copy of its data, it is never a default — plain
+`gadak pairing mint` issues no shell token — and revoking it closes the
+shells it already opened
+([`SECURITY.md`](../SECURITY.md#the-local-server)).
 
 ### Tailscale is the intended transport
 

@@ -27,6 +27,7 @@ import {
   migrateHostKeys,
 } from './host-keys'
 import { probeShellPairing } from './terminal/api'
+import { serveTokenOf, terminalTokenOf, OfferScopeError, type OfferToken } from './offer'
 import type {
   BootstrapResponse,
   IssueLite,
@@ -455,20 +456,60 @@ export async function markGlanceAllRead(): Promise<void> {
 /**
  * Commits a decoded offer: probe the server first, store the token only on
  * success. Throws ApiError for the caller's error copy.
+ *
+ * A v2 offer (GDK-1498) carries one token per scope from one mint, and one
+ * scan pairs the whole device: the serve entry is this session's
+ * credential, and a terminal entry lands in the terminal slot (the same
+ * two writes pairTerminal would make) so the shell is armed without the
+ * second scan. The terminal token is stored as-minted, no second probe —
+ * the shell gate judges it on connect, and the offer already proved the
+ * serve side. A v1 offer has one token whose scope the payload cannot
+ * name; it goes to the serve slot exactly as before.
  */
-export async function pair(offer: { endpoint: string; token: string; expires_at: string; label: string }): Promise<void> {
+export async function pair(offer: {
+  endpoint: string
+  token: string
+  expires_at: string
+  label: string
+  tokens?: OfferToken[]
+}): Promise<void> {
+  const serveToken = serveTokenOf(offer)
+  if (serveToken === null) {
+    // Refuse before anything is written. A terminal-only offer is a real
+    // thing (the desktop's second-step flow prints those) but it opens a
+    // shell, not the mirror — this is the front door's field.
+    if (terminalTokenOf(offer) !== null) {
+      throw new OfferScopeError(
+        'This offer carries only a terminal token: it opens a shell on the desktop, not the issue mirror. Mint a serve-scope offer (`gadak pairing mint --label phone --scope serve,terminal`) and pair again.',
+      )
+    }
+    throw new OfferScopeError(
+      'This offer carries no token for the issue mirror. Mint a serve-scope offer on the desktop and pair again.',
+    )
+  }
   // Probe with the offered credential before storing anything.
-  await request<Me>('auth/me/', { session: { endpoint: offer.endpoint, token: offer.token } })
+  await request<Me>('auth/me/', { session: { endpoint: offer.endpoint, token: serveToken } })
   // Roster commit (GDK-1097 B1): host row, then the token in that host's
   // slot, then the active pointer — the pointer never leads the token,
   // so "active is set" always implies "its slot holds the token".
   const host = await upsertHostFromPairing({ endpoint: offer.endpoint, label: offer.label })
-  await tokenSet(offer.token, 'serve', host.id)
+  await tokenSet(serveToken, 'serve', host.id)
   setActiveHostId(host.id)
   const meta: PairMeta = { endpoint: offer.endpoint, label: offer.label, expires_at: offer.expires_at }
   writeJSON(hostKey(META_KEY, host.id), meta)
   drop(UNPAIRED_KEY)
-  await enterPaired(meta, offer.token)
+  // The terminal half of a v2 offer, if it carries one: same slot and
+  // meta pairTerminal writes, so loadTerminal() arms the Shell tab on the
+  // next boot — and PairingTab's second-step mint hint disappears because
+  // app.terminal is set, not by a special case.
+  const termToken = terminalTokenOf(offer)
+  if (termToken !== null) {
+    await tokenSet(termToken, 'terminal', host.id)
+    writeJSON(scopedKey(TERM_META_KEY), meta)
+    terminalToken = termToken
+    app.terminal = meta
+  }
+  await enterPaired(meta, serveToken)
 }
 
 export async function unpair(): Promise<void> {
@@ -714,20 +755,24 @@ async function loadTerminal(): Promise<void> {
 /**
  * Probe the scanned offer against the terminal gate, then store. A serve
  * token is 403 scope_rejected here and must not land in the Keychain.
+ * A v2 offer is read by its terminal entry (GDK-1498); a v1 offer's
+ * single token is used as-is, exactly as before.
  */
 export async function pairTerminal(offer: {
   endpoint: string
   token: string
   expires_at: string
   label: string
+  tokens?: OfferToken[]
 }): Promise<void> {
-  await probeShellPairing(offer.endpoint, offer.token)
+  const termToken = terminalTokenOf(offer) ?? offer.token
+  await probeShellPairing(offer.endpoint, termToken)
   // Roster commit: host row, then the terminal token in that host's slot.
   // The active pointer belongs to the serve session (boot reads the serve
   // token from the active host's slot) — it is claimed only when nothing
   // else is active.
   const host = await upsertHostFromPairing({ endpoint: offer.endpoint, label: offer.label })
-  await tokenSet(offer.token, 'terminal', host.id)
+  await tokenSet(termToken, 'terminal', host.id)
   if (getActiveHostId() === null) setActiveHostId(host.id)
   const meta: PairMeta = {
     endpoint: offer.endpoint,
@@ -737,7 +782,7 @@ export async function pairTerminal(offer: {
   // Written under the namespace the pointer answers for — the active host's,
   // which is this host when the claim above fired (B2).
   writeJSON(scopedKey(TERM_META_KEY), meta)
-  terminalToken = offer.token
+  terminalToken = termToken
   app.terminal = meta
 }
 

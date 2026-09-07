@@ -2,7 +2,7 @@
   import Screen from '../ui/Screen.svelte'
   import { t } from '../lib/i18n'
   import { app, enterDemo, pair } from '../lib/store.svelte'
-  import { decodeOffer, OfferError } from '../lib/offer'
+  import { decodeOffer, OfferError, OfferScopeError } from '../lib/offer'
   import { errorMessage } from '../lib/api'
 
   // The unpaired app IS this screen — pairing is the front door, not a
@@ -32,7 +32,14 @@
       const offer = decodeOffer(offerLine)
       await pair(offer)
     } catch (err) {
-      error = err instanceof OfferError ? offerCopy(err) : errorMessage(err)
+      // OfferScopeError: decoded fine, carries no mirror token — its
+      // message is the user's sentence (authored in lib/offer.ts).
+      error =
+        err instanceof OfferScopeError
+          ? err.message
+          : err instanceof OfferError
+            ? offerCopy(err)
+            : errorMessage(err)
     } finally {
       busy = false
     }

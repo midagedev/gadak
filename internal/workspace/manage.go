@@ -167,9 +167,18 @@ func createPaired(w http.ResponseWriter, in createWorkspaceDoc, dir string) {
 		manageFailDetail(w, http.StatusBadRequest, "invalid_offer", err.Error())
 		return
 	}
+	// A v2 offer carries one token per scope (GDK-1498); a workspace binds
+	// with the serve token (or origin, pre-v2), never the terminal one —
+	// same rule as initPaired in cmd/gadak. The refusal names the scope
+	// without quoting the payload, so it can travel to the web as-is.
+	token, err := offer.ConsumerToken()
+	if err != nil {
+		manageFailDetail(w, http.StatusBadRequest, "invalid_offer", err.Error())
+		return
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	me, err := origin.VerifyPaired(ctx, offer.Endpoint, offer.Token)
+	me, err := origin.VerifyPaired(ctx, offer.Endpoint, token)
 	if err != nil {
 		if errors.Is(err, jira.ErrAuth) {
 			log.Printf("workspaces: pair %s: the serve refused this token", in.Name)
@@ -190,7 +199,7 @@ func createPaired(w http.ResponseWriter, in createWorkspaceDoc, dir string) {
 	// LoadFor contract is the local-origin branch's (dir-bound empty Config).
 	if err := pairing.SaveRemote(dir, pairing.Remote{
 		Endpoint: offer.Endpoint,
-		Token:    offer.Token,
+		Token:    token,
 		Label:    offer.Label,
 	}); err != nil {
 		log.Printf("workspaces: pair %s: save pairing: %v", in.Name, err)

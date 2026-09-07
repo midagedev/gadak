@@ -13,7 +13,7 @@
     removeRosterHost,
   } from '../lib/store.svelte'
   import { relTime, hasIdentity } from '../lib/domain'
-  import { decodeOffer, OfferError } from '../lib/offer'
+  import { decodeOffer, OfferError, OfferScopeError } from '../lib/offer'
   import { ApiError, errorMessage } from '../lib/api'
   import { getActiveHostId, listHosts, type KnownHost } from '../lib/hosts'
 
@@ -137,7 +137,14 @@
       addHostOpen = false
       refreshRoster()
     } catch (err) {
-      addError = err instanceof OfferError ? addOfferCopy(err) : errorMessage(err)
+      // OfferScopeError: decoded fine, carries no mirror token — its
+      // message is the user's sentence (authored in lib/offer.ts).
+      addError =
+        err instanceof OfferScopeError
+          ? err.message
+          : err instanceof OfferError
+            ? addOfferCopy(err)
+            : errorMessage(err)
     } finally {
       addBusy = false
     }

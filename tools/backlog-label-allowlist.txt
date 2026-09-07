@@ -175,3 +175,5 @@ windows
 workspace
 write-gap
 xplat
+pairing
+phone

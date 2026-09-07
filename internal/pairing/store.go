@@ -174,6 +174,47 @@ func MintScoped(dir, label, scope string, ttl time.Duration, now time.Time) (str
 	return token, meta, nil
 }
 
+// MintScopedMulti mints one token per scope under one label in a single
+// store write — GDK-1498's offer-v2 shape, where a device is one label
+// carrying several scoped credentials. scopes must be non-empty and
+// duplicate-free, and the label-conflict check runs against tokens
+// already in the store, not the siblings being minted — the whole device
+// commits or nothing does, so a crash cannot strand half a phone.
+func MintScopedMulti(dir, label string, scopes []string, ttl time.Duration, now time.Time) ([]string, []Meta, error) {
+	if len(scopes) == 0 {
+		return nil, nil, errors.New("pairing: mint needs at least one scope")
+	}
+	seen := make(map[string]bool, len(scopes))
+	for _, scope := range scopes {
+		if seen[scope] {
+			return nil, nil, fmt.Errorf("pairing: scope %q listed twice in one mint", scope)
+		}
+		seen[scope] = true
+	}
+	tokens := make([]string, len(scopes))
+	metas := make([]Meta, len(scopes))
+	for i, scope := range scopes {
+		tok, meta, err := prepareMint(label, scope, ttl, now)
+		if err != nil {
+			return nil, nil, err
+		}
+		tokens[i], metas[i] = tok, meta
+	}
+	err := mutateStore(dir, func(doc *storeDoc) error {
+		for _, m := range doc.Tokens {
+			if m.Label == metas[0].Label && m.Active(now) {
+				return fmt.Errorf("pairing: an active token labeled %q already exists; revoke it first or pick another label", metas[0].Label)
+			}
+		}
+		doc.Tokens = append(doc.Tokens, metas...)
+		return nil
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	return tokens, metas, nil
+}
+
 // Rotate replaces every live token with label by a newly minted one in a
 // single store write, so pairing list never shows two live rows with the
 // same name. Used for the home routing token: mint + revoke of the previous
@@ -256,20 +297,23 @@ func List(dir string) ([]Meta, error) {
 	return out, nil
 }
 
-// Revoke revokes the token selected by exact label or hash prefix and
-// returns it. Refuses ambiguities instead of guessing, and refuses an
-// already-revoked token rather than no-op'ing silently. Revoked entries
-// stay in the store as audit history but never stand as candidates: a
-// re-minted label revokes by label again, pointed at the live mint.
-func Revoke(dir, selector string, now time.Time) (Meta, error) {
+// Revoke revokes the token(s) selected by exact label or hash prefix and
+// returns them. A device is one label (GDK-1498: one offer carries its
+// every scope), so an exact label revokes every live token with that
+// label; a hash prefix still selects exactly one and refuses
+// ambiguities. Refuses an already-revoked token rather than no-op'ing
+// silently. Revoked entries stay in the store as audit history but never
+// stand as candidates: a re-minted label revokes by label again, pointed
+// at the live mint.
+func Revoke(dir, selector string, now time.Time) ([]Meta, error) {
 	selector = strings.TrimSpace(selector)
 	if selector == "" {
-		return Meta{}, errors.New("pairing: revoke needs a label or hash prefix")
+		return nil, errors.New("pairing: revoke needs a label or hash prefix")
 	}
 	if selector == HomeLabel {
-		return Meta{}, revokeHomeError()
+		return nil, revokeHomeError()
 	}
-	var out Meta
+	var out []Meta
 	err := mutateStore(dir, func(doc *storeDoc) error {
 		var byLabel, byPrefix []int
 		revoked := false
@@ -287,27 +331,28 @@ func Revoke(dir, selector string, now time.Time) (Meta, error) {
 				byPrefix = append(byPrefix, i)
 			}
 		}
-		cands := byLabel
-		if len(cands) == 0 {
+		var cands []int
+		switch {
+		case len(byLabel) > 0:
+			cands = byLabel
+		case len(byPrefix) == 1:
 			cands = byPrefix
-		}
-		switch len(cands) {
-		case 0:
+		case len(byPrefix) > 1:
+			return fmt.Errorf("pairing: %q matches %d tokens; revoke by a longer hash prefix", selector, len(byPrefix))
+		default:
 			if revoked {
 				return fmt.Errorf("pairing: token %q is already revoked", selector)
 			}
 			return fmt.Errorf("pairing: no token matches %q", selector)
-		case 1:
-		default:
-			return fmt.Errorf("pairing: %q matches %d tokens; revoke by a longer hash prefix", selector, len(cands))
-		}
-		i := cands[0]
-		if doc.Tokens[i].Label == HomeLabel {
-			return revokeHomeError()
 		}
 		t := now.UTC()
-		doc.Tokens[i].RevokedAt = &t
-		out = doc.Tokens[i]
+		for _, i := range cands {
+			if doc.Tokens[i].Label == HomeLabel {
+				return revokeHomeError()
+			}
+			doc.Tokens[i].RevokedAt = &t
+			out = append(out, doc.Tokens[i])
+		}
 		return nil
 	})
 	return out, err

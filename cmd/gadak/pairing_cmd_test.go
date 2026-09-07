@@ -3,9 +3,11 @@ package main
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -465,15 +467,20 @@ func TestInitPairingCodeWritesNothingOnUnreachableServe(t *testing.T) {
 
 func TestInitPairingCodeRejectsUnknownVersion(t *testing.T) {
 	srv, _ := pairingOriginServe(t, http.StatusOK)
-	offer := mustOffer(t, pairing.Offer{
-		V: 2, Endpoint: srv.URL, Token: "pair-token-1", Label: "laptop",
-	})
+	// v2 is a known version since GDK-1498, so the unknown-version probe
+	// climbs to 3 — the refusal class (name the version, never
+	// best-effort) is what this test owns. The line is forged by hand:
+	// the encoder refuses to emit an unknown version, which is exactly
+	// the guarantee under test, so the hostile document has to come from
+	// outside it.
+	offer := base64.RawURLEncoding.EncodeToString([]byte(fmt.Sprintf(
+		`{"v":3,"endpoint":%q,"token":"pair-token-1","label":"laptop"}`, srv.URL)))
 	dir := emptyHome(t)
 
 	_, _, err := captureErr(t, func() error {
 		return cmdInit([]string{"--pairing-code", offer})
 	})
-	if err == nil || !strings.Contains(err.Error(), "version 2") {
+	if err == nil || !strings.Contains(err.Error(), "version 3") {
 		t.Fatalf("unknown version must be an explicit refusal naming it, got %v", err)
 	}
 	if rem, err := pairing.LoadRemote(dir); err != nil || rem != nil {
@@ -1437,4 +1444,103 @@ func stubTailnetStatus(t *testing.T, out []byte, err error) {
 	prev := tailnetStatusJSON
 	tailnetStatusJSON = func() ([]byte, error) { return out, err }
 	t.Cleanup(func() { tailnetStatusJSON = prev })
+}
+
+// v2OfferLine builds a v2 offer line from raw JSON entries so tests can
+// express shapes the current Offer struct cannot (GDK-1498).
+func v2OfferLine(t *testing.T, endpoint, entries string) string {
+	t.Helper()
+	doc := fmt.Sprintf(`{"v":2,"endpoint":%q,"expires_at":"","label":"home","tokens":[%s]}`, endpoint, entries)
+	return base64.RawURLEncoding.EncodeToString([]byte(doc))
+}
+
+// TestPairingMintMultiScopeCLI (GDK-1498): --scope serve,terminal mints
+// one token per scope under one label and prints exactly one offer line.
+// The offer-shape assertions (v2, both scopes, no top-level token) live in
+// the decode contract; this pins the CLI surface and the store shape.
+func TestPairingMintMultiScopeCLI(t *testing.T) {
+	dir := pairingHome(t)
+
+	out, _, err := captureErr(t, func() error {
+		return cmdPairing([]string{"mint", "--label", "phone", "--scope", "serve,terminal", "--ttl", "1h", "--endpoint", "http://127.0.0.1:9"})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	if len(lines) != 1 || strings.TrimSpace(lines[0]) == "" {
+		t.Fatalf("multi mint stdout must be exactly the offer line, got %q", out)
+	}
+	toks, err := pairing.List(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	scopes := map[string]bool{}
+	for _, m := range toks {
+		if m.Label == "phone" && m.RevokedAt == nil {
+			scopes[m.Scope] = true
+		}
+	}
+	if len(scopes) != 2 || !scopes[pairing.ScopeServe] || !scopes[pairing.ScopeTerminal] {
+		t.Fatalf("multi mint left %+v, want one live serve and one live terminal token under the one label", toks)
+	}
+
+	// `pairing revoke phone` removes the whole device — both scopes.
+	if _, _, err := captureErr(t, func() error {
+		return cmdPairing([]string{"revoke", "phone"})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	toks, err = pairing.List(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range toks {
+		if m.Label == "phone" && m.RevokedAt == nil {
+			t.Fatalf("a phone token survived `revoke phone`: %+v", m)
+		}
+	}
+}
+
+// TestInitPairingCodeV2UsesServeToken (GDK-1498): a v2 offer carries
+// several scoped tokens; `init --pairing-code` binds with the serve one
+// when present, else origin — and never the terminal token.
+func TestInitPairingCodeV2UsesServeToken(t *testing.T) {
+	srv, gotAuth := pairingOriginServe(t, http.StatusOK)
+	offer := v2OfferLine(t, srv.URL,
+		`{"scope":"origin","token":"tok-origin"},{"scope":"serve","token":"tok-serve"},{"scope":"terminal","token":"tok-term"}`)
+	dir := emptyHome(t)
+
+	_, _, err := captureErr(t, func() error {
+		return cmdInit([]string{"--pairing-code", offer})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if *gotAuth != "Bearer tok-serve" {
+		t.Fatalf("verify sent %q, want the serve token as Bearer", *gotAuth)
+	}
+	rem, err := pairing.LoadRemote(dir)
+	if err != nil || rem == nil || rem.Token != "tok-serve" {
+		t.Fatalf("stored remote = %+v (%v) — want the serve token, never the terminal one", rem, err)
+	}
+}
+
+// TestInitPairingCodeV2TerminalOnlyRefused (GDK-1498): a v2 offer whose
+// only token is terminal-scoped cannot bind a workspace — the refusal
+// names the scope, and nothing is stored.
+func TestInitPairingCodeV2TerminalOnlyRefused(t *testing.T) {
+	srv, _ := pairingOriginServe(t, http.StatusOK)
+	offer := v2OfferLine(t, srv.URL, `{"scope":"terminal","token":"tok-term"}`)
+	dir := emptyHome(t)
+
+	_, _, err := captureErr(t, func() error {
+		return cmdInit([]string{"--pairing-code", offer})
+	})
+	if err == nil || !strings.Contains(err.Error(), "terminal") {
+		t.Fatalf("terminal-only v2 offer must be refused naming the scope, got %v", err)
+	}
+	if rem, err := pairing.LoadRemote(dir); err != nil || rem != nil {
+		t.Fatalf("terminal token must never be stored: %+v (%v)", rem, err)
+	}
 }

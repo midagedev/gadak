@@ -100,11 +100,11 @@ var helps = map[string]cmdHelp{
 	},
 	"pairing": {
 		summary: "manage the device tokens that gate a home serve's origin passthrough (origin scope), mirror REST (serve scope), and terminal (terminal scope); a paired remote machine binds with `gadak init --pairing-code`",
-		usage: "gadak [--workspace <name>] pairing mint --label NAME [--scope origin|serve|terminal] [--ttl 90d] [--endpoint URL] [--no-qr] [--json]\n" +
+		usage: "gadak [--workspace <name>] pairing mint --label NAME [--scope origin|serve|terminal|comma list, e.g. serve,terminal] [--ttl 90d] [--endpoint URL] [--no-qr] [--json]\n" +
 			"| pairing list [--json] | pairing revoke <label|hash-prefix>",
 		options: []helpOption{
 			{name: "label", desc: "device name shown in `gadak pairing list` (required, unique among active tokens)"},
-			{name: "scope", desc: "what the token opens: origin (default) rides the origin passthrough for a paired gadak; serve opens the whole mirror REST for a paired client such as a phone companion; terminal opens a shell on this machine (the terminal pane) and nothing else — never a default, you have to type it. Each scope is refused on the other two surfaces. A leaked serve token leaks this workspace's data; a leaked terminal token leaks the machine, so give it a short --ttl and revoke it when the device is done — revoking closes the shells it opened"},
+			{name: "scope", desc: "what the token opens: origin (default) rides the origin passthrough for a paired gadak; serve opens the whole mirror REST for a paired client such as a phone companion; terminal opens a shell on this machine (the terminal pane) and nothing else — never a default, you have to type it. A comma list (serve,terminal) mints one token per scope into one offer — one scan pairs the whole device, and `pairing revoke <label>` revokes every token of it. Each scope is refused on the other two surfaces. A leaked serve token leaks this workspace's data; a leaked terminal token leaks the machine, so give it a short --ttl and revoke it when the device is done — revoking closes the shells it opened"},
 			{name: "ttl", desc: "token lifetime: <N><d|h|m|s>, e.g. 90d (default) or 12h"},
 			{name: "endpoint", desc: "URL remote devices reach this serve at; default is this machine's live serve address, refused when that is loopback (it is, unless serve runs --allow-remote) — pass your tailnet URL"},
 			{name: "no-qr", desc: "skip the scannable QR mint draws below the offer line — the phone app scans it instead of copy-paste. Drawn only when stderr is a terminal and the code fits its width; --json, NO_COLOR, and TERM=dumb never draw one"},
@@ -114,6 +114,7 @@ var helps = map[string]cmdHelp{
 			"gadak pairing mint --label laptop",
 			"gadak pairing mint --label agent --ttl 12h --endpoint https://<machine>.<tailnet>.ts.net",
 			"gadak pairing mint --label phone --scope serve --endpoint https://<machine>.<tailnet>.ts.net",
+			"gadak pairing mint --label phone --scope serve,terminal --ttl 12h --endpoint https://<machine>.<tailnet>.ts.net  # one offer: mirror + shell",
 			"gadak pairing mint --label phone-shell --scope terminal --ttl 12h --endpoint https://<machine>.<tailnet>.ts.net",
 			"gadak pairing mint --label laptop --json",
 			"gadak pairing list",

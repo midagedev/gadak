@@ -39,7 +39,7 @@ import (
 	"github.com/midagedev/gadak/internal/store"
 )
 
-const pairingUsage = "usage: gadak pairing mint --label NAME [--scope origin|serve|terminal] [--ttl 90d] [--endpoint URL] [--no-qr] [--json] | pairing list [--json] | pairing revoke <label|hash-prefix>"
+const pairingUsage = "usage: gadak pairing mint --label NAME [--scope origin|serve|terminal|comma list, e.g. serve,terminal] [--ttl 90d] [--endpoint URL] [--no-qr] [--json] | pairing list [--json] | pairing revoke <label|hash-prefix>"
 
 // pairingRevokeUsage is the revoke selector: exact label, or a hash prefix
 // of at least minPrefix (8) hex characters — pairing list prints 8, longer
@@ -102,7 +102,7 @@ func pairingMint(args []string) error {
 	// The 90-day default has one owner: pairflow.DefaultTTL.
 	ttlDefault := pairflow.DefaultTTLFlag()
 	label := fs.String("label", "", "device name shown in `gadak pairing list` (required)")
-	scope := fs.String("scope", "origin", "what the token opens: origin = origin passthrough for a paired gadak (default), serve = the mirror REST for a paired client (a phone companion), terminal = a shell on this machine (never a default — see `gadak help pairing`)")
+	scope := fs.String("scope", "origin", "what the token opens: origin = origin passthrough for a paired gadak (default), serve = the mirror REST for a paired client (a phone companion), terminal = a shell on this machine (never a default — see `gadak help pairing`); a comma list (serve,terminal) mints one token per scope into one offer — one scan pairs the whole device")
 	ttlFlag := fs.String("ttl", ttlDefault, "token lifetime: <N><d|h|m|s>, e.g. 90d or 12h")
 	endpoint := fs.String("endpoint", "", "URL remote devices reach this serve at (default: this machine's live serve address — refused when that is loopback, which it is unless serve runs --allow-remote)")
 	asJSON := fs.Bool("json", false, "emit JSON")
@@ -111,15 +111,14 @@ func pairingMint(args []string) error {
 		return err
 	}
 	// Flag-surface validation keeps the CLI's exact error strings; the
-	// flow re-validates inside pairflow.MintDevice (structural owner), so
-	// the desktop gets the same rules without this file.
+	// flow re-validates inside pairflow (structural owner), so the desktop
+	// gets the same rules without this file.
 	if strings.TrimSpace(*label) == "" {
 		return errors.New("pairing mint requires --label NAME")
 	}
-	switch strings.TrimSpace(*scope) {
-	case pairing.ScopeOrigin, pairing.ScopeServe, pairing.ScopeTerminal:
-	default:
-		return fmt.Errorf("unknown --scope %q: want origin (a paired gadak riding the passthrough), serve (a paired client reading the mirror REST), or terminal (a shell on this machine)", strings.TrimSpace(*scope))
+	scopes, err := pairflow.ParseScopeList(*scope)
+	if err != nil {
+		return err
 	}
 	if _, err := parseTTL(*ttlFlag); err != nil {
 		return err
@@ -137,7 +136,9 @@ func pairingMint(args []string) error {
 		// stdout stays empty (cannot be piped into init --pairing-code).
 		return pairingMintHome(dir, cfg, strings.TrimRight(strings.TrimSpace(*endpoint), "/"))
 	}
-	res, err := pairflow.MintDevice(dir, cfg, *label, strings.TrimSpace(*scope), *ttlFlag, *endpoint, time.Now())
+	// A single scope delegates to the v1 path inside pairflow; a list
+	// mints one token per scope under one label (GDK-1498).
+	res, err := pairflow.MintDeviceMulti(dir, cfg, *label, scopes, *ttlFlag, *endpoint, time.Now())
 	var lb *pairflow.LoopbackEndpointError
 	if errors.As(err, &lb) {
 		// GDK-1266: usage class (EX_USAGE) — nothing was minted; the fix is
@@ -212,36 +213,51 @@ var tailnetStatusJSON = func() ([]byte, error) {
 
 // writePairingMintOutput is the device-mint output contract (GDK-456).
 // Default: stdout is exactly the offer line (pipe target). --json: one
-// JSON object on stdout with the same offer plus label/scope/endpoint/
-// expires_at. Human stderr says what the token is for — which machine
-// consumes it depends on the scope; the offer is reusable until expiry
-// (not "shown once"). On a terminal the offer is also drawn as a
-// scannable QR after the hints (GDK-1047) — decoration on top of the
-// contract, never part of it: it cannot fail the mint, and `_home`
-// rotation (pairingMintHome) never reaches this function.
+// JSON object on stdout with the same offer plus label/scope/scopes/
+// endpoint/expires_at (scope is the joined list for a multi-scope mint —
+// scopes is the list). Human stderr says what each token is for — which
+// machine consumes it depends on the scope, and a multi-scope offer says
+// it per scope; the offer is reusable until expiry (not "shown once").
+// The revoke prescription names the label for a multi-scope device (a
+// hash prefix would revoke only one of its tokens, leaving the device
+// half-paired) and the hash prefix for a single-scope mint, which is the
+// tighter selector when the label might be re-minted. On a terminal the
+// offer is also drawn as a scannable QR after the hints (GDK-1047) —
+// decoration on top of the contract, never part of it: it cannot fail
+// the mint, and `_home` rotation (pairingMintHome) never reaches this
+// function.
 func writePairingMintOutput(asJSON, noQR bool, res pairflow.MintResult) error {
 	if asJSON {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetEscapeHTML(false)
 		return enc.Encode(struct {
-			Offer     string `json:"offer"`
-			Label     string `json:"label"`
-			Scope     string `json:"scope"`
-			Endpoint  string `json:"endpoint"`
-			ExpiresAt string `json:"expires_at"`
-		}{res.Offer, res.Label, res.Scope, res.Endpoint, res.ExpiresAt})
+			Offer     string   `json:"offer"`
+			Label     string   `json:"label"`
+			Scope     string   `json:"scope"`
+			Scopes    []string `json:"scopes"`
+			Endpoint  string   `json:"endpoint"`
+			ExpiresAt string   `json:"expires_at"`
+		}{res.Offer, res.Label, res.Scope, res.Scopes, res.Endpoint, res.ExpiresAt})
 	}
 	fmt.Println(res.Offer)
-	switch res.Scope {
-	case pairing.ScopeServe:
-		fmt.Fprintln(os.Stderr, pairingMintServeHint())
-	case pairing.ScopeTerminal:
-		fmt.Fprintln(os.Stderr, pairingMintTerminalHint())
-	default:
-		fmt.Fprintln(os.Stderr, pairingMintRemoteHint(res.Label))
+	// One hint per scope the offer carries (a single-scope mint lists one).
+	for _, scope := range res.Scopes {
+		switch scope {
+		case pairing.ScopeServe:
+			fmt.Fprintln(os.Stderr, pairingMintServeHint())
+		case pairing.ScopeTerminal:
+			fmt.Fprintln(os.Stderr, pairingMintTerminalHint())
+		default:
+			fmt.Fprintln(os.Stderr, pairingMintRemoteHint(res.Label))
+		}
 	}
-	fmt.Fprintf(os.Stderr, "paired device %q — offer reusable until %s; revoke with: gadak pairing revoke %s\n",
-		res.Label, res.ExpiresAt, res.Meta.Hash[:8])
+	if len(res.Scopes) > 1 {
+		fmt.Fprintf(os.Stderr, "paired device %q (%d tokens: %s) — offer reusable until %s; revoke the whole device with: gadak pairing revoke %s\n",
+			res.Label, len(res.Scopes), strings.Join(res.Scopes, ", "), res.ExpiresAt, res.Label)
+	} else {
+		fmt.Fprintf(os.Stderr, "paired device %q — offer reusable until %s; revoke with: gadak pairing revoke %s\n",
+			res.Label, res.ExpiresAt, res.Meta.Hash[:8])
+	}
 	if shouldDrawQR(pairingStderrIsTerminal(), noQR, asJSON,
 		os.Getenv("NO_COLOR") != "", os.Getenv("TERM") == "dumb") {
 		// The QR's own errors (a fixed "content too long" class string
@@ -388,11 +404,23 @@ func pairingRevoke(args []string) error {
 	if err != nil {
 		return err
 	}
-	meta, err := pairflow.Revoke(dir, rest[0], time.Now())
+	metas, err := pairflow.Revoke(dir, rest[0], time.Now())
 	if err != nil {
 		return err
 	}
-	fmt.Printf("revoked %q (%s)\n", meta.Label, meta.Hash[:8])
+	if len(metas) == 1 {
+		fmt.Printf("revoked %q (%s)\n", metas[0].Label, metas[0].Hash[:8])
+	} else {
+		// A device is one label carrying several scopes (GDK-1498): a
+		// label revoke closed every token of it, and the sentence says
+		// which scopes went, because "revoked phone (a1b2c3d4)" for a
+		// two-token device would read as one token gone.
+		scopes := make([]string, len(metas))
+		for i, m := range metas {
+			scopes[i] = m.Scope
+		}
+		fmt.Printf("revoked %q (%d tokens: %s)\n", metas[0].Label, len(metas), strings.Join(scopes, ", "))
+	}
 	if line := pairingGateOpenLine(dir); line != "" {
 		fmt.Fprintln(os.Stderr, line)
 	}
@@ -430,9 +458,17 @@ func initPaired(cfg *config.Config, code string, fromStdin bool, jsonOut bool) e
 	if cfg.HasLocalOrigin() || cfg.Site != "" || cfg.Email != "" || cfg.Token != "" {
 		return errors.New("this workspace already owns an origin; pair into a fresh workspace: gadak --workspace <name> init --pairing-code …")
 	}
+	// A v2 offer carries one token per scope; a workspace binds with the
+	// serve token (or origin, pre-v2), never the terminal one — a shell
+	// is not a workspace. A v1 offer's single token is used as-is, the
+	// payload cannot say which surface it opens and the serve judges.
+	token, err := offer.ConsumerToken()
+	if err != nil {
+		return err
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	me, err := origin.VerifyPaired(ctx, offer.Endpoint, offer.Token)
+	me, err := origin.VerifyPaired(ctx, offer.Endpoint, token)
 	if err != nil {
 		if errors.Is(err, jira.ErrAuth) {
 			return errors.New("the serve answered but refused this pairing token (401) — ask the home machine to mint a fresh offer")
@@ -441,7 +477,7 @@ func initPaired(cfg *config.Config, code string, fromStdin bool, jsonOut bool) e
 	}
 	if err := pairing.SaveRemote(dir, pairing.Remote{
 		Endpoint: offer.Endpoint,
-		Token:    offer.Token,
+		Token:    token,
 		Label:    offer.Label,
 	}); err != nil {
 		return err

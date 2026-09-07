@@ -36,6 +36,52 @@
         "label": ""
       },
       "note": "aging: unknown keys from a newer minter are ignored"
+    },
+    {
+      "name": "v2_two_scopes",
+      "offer": "eyJ2IjoyLCJlbmRwb2ludCI6Imh0dHBzOi8vaG9tZS5leGFtcGxlLnRzLm5ldCIsImV4cGlyZXNfYXQiOiIyMDI3LTA2LTMwVDA5OjAwOjAwWiIsImxhYmVsIjoicGhvbmUiLCJ0b2tlbnMiOlt7InNjb3BlIjoic2VydmUiLCJ0b2tlbiI6Im9mZmVyLXYyLXNlcnZlIn0seyJzY29wZSI6InRlcm1pbmFsIiwidG9rZW4iOiJvZmZlci12Mi10ZXJtaW5hbCJ9XX0",
+      "want": {
+        "v": 2,
+        "endpoint": "https://home.example.ts.net",
+        "expires_at": "2027-06-30T09:00:00Z",
+        "label": "phone",
+        "tokens": [
+          {
+            "scope": "serve",
+            "token": "offer-v2-serve"
+          },
+          {
+            "scope": "terminal",
+            "token": "offer-v2-terminal"
+          }
+        ]
+      },
+      "note": "v2: one scan carries the phone's serve and terminal tokens"
+    },
+    {
+      "name": "v2_three_scopes",
+      "offer": "eyJ2IjoyLCJlbmRwb2ludCI6Imh0dHBzOi8vaG9tZS5leGFtcGxlLnRzLm5ldCIsImV4cGlyZXNfYXQiOiIyMDI3LTA2LTMwVDA5OjAwOjAwWiIsImxhYmVsIjoibGFwdG9wIiwidG9rZW5zIjpbeyJzY29wZSI6Im9yaWdpbiIsInRva2VuIjoib2ZmZXItdjItb3JpZ2luIn0seyJzY29wZSI6InNlcnZlIiwidG9rZW4iOiJvZmZlci12Mi1zZXJ2ZSJ9LHsic2NvcGUiOiJ0ZXJtaW5hbCIsInRva2VuIjoib2ZmZXItdjItdGVybWluYWwifV19",
+      "want": {
+        "v": 2,
+        "endpoint": "https://home.example.ts.net",
+        "expires_at": "2027-06-30T09:00:00Z",
+        "label": "laptop",
+        "tokens": [
+          {
+            "scope": "origin",
+            "token": "offer-v2-origin"
+          },
+          {
+            "scope": "serve",
+            "token": "offer-v2-serve"
+          },
+          {
+            "scope": "terminal",
+            "token": "offer-v2-terminal"
+          }
+        ]
+      },
+      "note": "v2: all three scopes, canonical order"
     }
   ],
   "invalid": [
@@ -58,9 +104,9 @@
       "note": "corruption: the line was cut mid-document"
     },
     {
-      "name": "version_2",
-      "offer": "eyJ2IjoyLCJlbmRwb2ludCI6Imh0dHBzOi8vaG9tZS5leGFtcGxlLnRzLm5ldCIsInRva2VuIjoib2ZmZXItdmVjdG9yLXRva2VuLXYyIn0",
-      "error_contains": "pairing offer: version 2 is not supported",
+      "name": "version_3",
+      "offer": "eyJ2IjozLCJlbmRwb2ludCI6Imh0dHBzOi8vaG9tZS5leGFtcGxlLnRzLm5ldCIsInRva2VuIjoib2ZmZXItdmVjdG9yLXRva2VuLXYzIn0",
+      "error_contains": "pairing offer: version 3 is not supported",
       "note": "hostile: explicit refusal naming the version, never a best-effort parse"
     },
     {
@@ -68,6 +114,30 @@
       "offer": "eyJ2IjoxLCJ0b2tlbiI6Im9mZmVyLXZlY3Rvci10b2tlbi1ub2VwIn0",
       "error_contains": "pairing offer: no endpoint",
       "note": "corruption: required field absent"
+    },
+    {
+      "name": "v2_no_tokens",
+      "offer": "eyJ2IjoyLCJlbmRwb2ludCI6Imh0dHBzOi8vaG9tZS5leGFtcGxlLnRzLm5ldCIsInRva2VucyI6W119",
+      "error_contains": "pairing offer: v2 carries no tokens",
+      "note": "v2 corruption: the list exists but is empty"
+    },
+    {
+      "name": "v2_top_level_token",
+      "offer": "eyJ2IjoyLCJlbmRwb2ludCI6Imh0dHBzOi8vaG9tZS5leGFtcGxlLnRzLm5ldCIsInRva2VuIjoib2ZmZXItdmVjdG9yLXRva2VuLXN0cmF5IiwidG9rZW5zIjpbeyJzY29wZSI6InNlcnZlIiwidG9rZW4iOiJvZmZlci12Mi1zZXJ2ZSJ9XX0",
+      "error_contains": "pairing offer: v2 carries its tokens as a list",
+      "note": "v2 corruption: a top-level token is the v1 shape"
+    },
+    {
+      "name": "v2_entry_no_token",
+      "offer": "eyJ2IjoyLCJlbmRwb2ludCI6Imh0dHBzOi8vaG9tZS5leGFtcGxlLnRzLm5ldCIsInRva2VucyI6W3sic2NvcGUiOiJzZXJ2ZSJ9XX0",
+      "error_contains": "pairing offer: a v2 token entry has no token",
+      "note": "v2 corruption: an entry names its scope but carries no credential"
+    },
+    {
+      "name": "v2_duplicate_scope",
+      "offer": "eyJ2IjoyLCJlbmRwb2ludCI6Imh0dHBzOi8vaG9tZS5leGFtcGxlLnRzLm5ldCIsInRva2VucyI6W3sic2NvcGUiOiJzZXJ2ZSIsInRva2VuIjoib2ZmZXItdjItc2VydmUifSx7InNjb3BlIjoic2VydmUiLCJ0b2tlbiI6Im9mZmVyLXYyLXNlcnZlLTIifV19",
+      "error_contains": "pairing offer: v2 carries two tokens for scope \"serve\"",
+      "note": "v2 corruption: one scope, two credentials — which one wins must never be a question"
     }
   ]
 }

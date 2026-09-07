@@ -559,3 +559,74 @@ func TestManageCreatePairedRefusals(t *testing.T) {
 		t.Fatalf("serve_unreachable wrote a profile: %v", err)
 	}
 }
+
+// manageOfferV2 mints a v2 offer (GDK-1498) with the given scoped tokens,
+// through EncodeOffer like manageOffer.
+func manageOfferV2(t *testing.T, endpoint string, tokens ...pairing.OfferToken) string {
+	t.Helper()
+	offer, err := pairing.EncodeOffer(pairing.Offer{
+		V:         pairing.OfferV2,
+		Endpoint:  endpoint,
+		Label:     "web-tab",
+		ExpiresAt: "2030-01-01T00:00:00Z",
+		Tokens:    tokens,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return offer
+}
+
+// A v2 offer carrying serve+terminal binds the workspace with the serve
+// token — the terminal one never reaches the credential file (GDK-1498;
+// the same rule initPaired applies on the CLI door). Before the fix this
+// path read offer.Token, which a v2 offer leaves empty.
+func TestManageCreatePairedV2UsesServeToken(t *testing.T) {
+	setupHome(t)
+	h := manageMux(New())
+
+	ts := managePairHome(t, http.StatusOK)
+	offer := manageOfferV2(t, ts.URL,
+		pairing.OfferToken{Scope: pairing.ScopeServe, Token: "test-device-token"},
+		pairing.OfferToken{Scope: pairing.ScopeTerminal, Token: "test-shell-token"},
+	)
+	rec := manageSend(t, h, http.MethodPost, "/api/v1/workspaces",
+		`{"name":"laptop2","kind":"paired","offer":"`+offer+`"}`)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	manageAssertNoEcho(t, rec, offer)
+	rem, err := pairing.LoadRemote(manageDir(t, "laptop2"))
+	if err != nil || rem == nil {
+		t.Fatalf("remote credential missing after create: %v", err)
+	}
+	if rem.Token != "test-device-token" {
+		t.Fatalf("credential file holds %q, want the serve token", rem.Token)
+	}
+}
+
+// A v2 offer with only a terminal token is refused as invalid_offer before
+// any network call or write — a shell is not a workspace.
+func TestManageCreatePairedV2TerminalOnlyRefused(t *testing.T) {
+	setupHome(t)
+	h := manageMux(New())
+
+	offer := manageOfferV2(t, "https://home.example.ts.net",
+		pairing.OfferToken{Scope: pairing.ScopeTerminal, Token: "test-shell-token"},
+	)
+	rec := manageSend(t, h, http.MethodPost, "/api/v1/workspaces",
+		`{"name":"laptop3","kind":"paired","offer":"`+offer+`"}`)
+	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "invalid_offer") {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "terminal-scoped") {
+		t.Fatalf("detail does not name the scope: %s", rec.Body.String())
+	}
+	manageAssertNoEcho(t, rec, offer)
+	if strings.Contains(rec.Body.String(), "test-shell-token") {
+		t.Fatalf("response echoes the terminal token")
+	}
+	if _, err := os.Stat(manageDir(t, "laptop3")); !os.IsNotExist(err) {
+		t.Fatalf("profile dir created for a refused offer (stat err=%v)", err)
+	}
+}
