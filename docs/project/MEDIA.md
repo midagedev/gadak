@@ -295,10 +295,10 @@ Measured 2026-09-08 (landing clips and their ko/ja takes; the rest 2026-09-07) v
 | `search.ja.mp4` | 0.54 MB | 542353 | 6.6 s | 800×640 h264 |
 | `terminal-demo.gif` | 6.91 MB | 6907679 | 23.0 s | 860×1075 @ 9 fps |
 | `terminal-demo.mp4` | 1.80 MB | 1795187 | 23.0 s | 1080×1350 h264 |
-| `terminal-hero.gif` | 4.42 MB | 4423872 | 41.5 s | 900×563 @ 8 fps |
+| `terminal-hero.gif` | 5.37 MB | 5372717 | 44.9 s | 900×563 @ 8 fps |
 | `terminal-hero.ko.gif` | 8.26 MB | 8256343 | 47.8 s | 1200×750 @ 8 fps |
 | `terminal-hero.ja.gif` | 5.89 MB | 5892073 | 58.8 s | 900×563 @ 8 fps |
-| `terminal-hero.mp4` | 2.87 MB | 2873862 | 41.5 s | 1440×900 h264 |
+| `terminal-hero.mp4` | 3.44 MB | 3436388 | 44.9 s | 1440×900 h264 |
 | `terminal-hero.ko.mp4` | 2.88 MB | 2882560 | 47.7 s | 1440×900 h264 |
 | `terminal-hero.ja.mp4` | 3.88 MB | 3876298 | 58.8 s | 1440×900 h264 |
 | `mcp.gif` | 0.22 MB | 216496 | 24.7 s | 1080×620 @ 25 fps |

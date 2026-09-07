@@ -189,6 +189,22 @@ procedure above absorbs it):
 - Findings the six axes deliver in duplicate (the same dead plugin from
   axes 3 and 4, the same over-export from axes 1 and 4) are a good sign, not
   noise: merge them in triage and register once.
+- **A census must exclude `.claude/worktrees/`.** Agent worktrees are whole
+  repo copies under the tree; a count that includes them triples every
+  duplicate and invents "orphan" files (v0.21 second pass, axis 5's first
+  numbers).
+- **Fix rounds as large, disjoint, file-whitelisted chunks, one worktree
+  each, all on one harness** closed 28 sub-issues in seven rounds inside two
+  hours (v0.21 second pass). The class to expect at merge is a gate one
+  round extends catching another round's migration — the effect-write gate
+  widened by the Svelte round flagged the Esc rewrite the UX round made —
+  and the lead reconciles it in its own commit (register with a reason, or
+  drop the stale entry), never by loosening the gate.
+- **Review and merge a round the moment it finishes.** A waiter armed over
+  every log wakes only when the last one ends; poll the run list, and land
+  each round through `git -C <main-tree> merge --ff-only` — a merge run from
+  the worktree's own cwd merges the branch into itself and pushes nothing
+  (happened twice in the v0.21 second pass).
 
 ## Version pins at tag time
 
