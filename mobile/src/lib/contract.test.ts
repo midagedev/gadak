@@ -506,6 +506,13 @@ describe('GDK-1495 A4 vision FIX — the five points the blind judge sent back',
     // by a4-captures on the demo fixture: the title gains 23px (306 → 329),
     // which is the chip and its gap, so this is a placement contract, not a
     // truncation one. What still costs the title width is the date.
+    //
+    // GDK-1543, 2026-09-07: and so the date followed it. The 23px the chip
+    // gave back left 11 of the 12 first-screen summaries still cut; moving
+    // the date off line 1 gave the summary the row's whole 370px content
+    // box. This assertion is not loosened — it is re-pointed: the date is
+    // still pinned to exactly one line, the meta line, and line 1 is now
+    // asserted to hold nothing but the summary.
     const line1 = row.indexOf('class="line1"')
     const line2 = row.indexOf('class="line2"')
     const age = row.indexOf('class="age"')
@@ -513,8 +520,12 @@ describe('GDK-1495 A4 vision FIX — the five points the blind judge sent back',
     expect(line2).toBeGreaterThan(line1)
     expect(age).toBeGreaterThan(line2)
     const when = row.indexOf('class="when"')
-    expect(when).toBeGreaterThan(line1)
-    expect(when).toBeLessThan(line2)
+    expect(when).toBeGreaterThan(line2)
+    // Line 1 is the sentence and nothing else: between the two lines sits
+    // the summary span and its close, no third element.
+    const line1Markup = row.slice(line1, line2)
+    expect(line1Markup).toMatch(/class="summary"/)
+    expect(line1Markup.match(/<span /g)?.length).toBe(2)
     // Still data, never a control (GDK-906), and still naming its own rule.
     expect(row.slice(row.lastIndexOf('<', age), age)).toBe('<span ')
     expect(row).toMatch(/class="age"[\s\S]{0,80}title=\{rowAgeTitle\(issue\)\}/)

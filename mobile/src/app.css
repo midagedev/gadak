@@ -37,7 +37,7 @@
   */
   --text-terminal: 13px;
 
-  --spacing-row: 56px; /* queue row: ≥44pt target, 12+ rows per screen */
+  --spacing-row: 56px; /* queue row minimum: ≥44pt target; 9–12 rows per screen (a title may wrap once, GDK-1543) */
   --spacing-control: 44px; /* iOS touch floor on every control — not the web's 32px */
   --spacing-control-sm: 32px; /* visual chip only; buttons must not use this as a tap size */
 }

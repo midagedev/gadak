@@ -40,7 +40,6 @@
   <span class="text">
     <span class="line1">
       <span class="summary">{issue.summary}</span>
-      <span class="when">{folioDate(issue.updated_at)}</span>
     </span>
     <span class="line2">
       <span class="key">{issue.issue_key}</span>
@@ -54,6 +53,7 @@
           >{t('list.staleDaysShort', { n: ageDays })}</span
         >
       {/if}
+      <span class="when">{folioDate(issue.updated_at)}</span>
     </span>
   </span>
 </button>
@@ -101,21 +101,39 @@
   .line1 {
     display: flex;
     align-items: baseline;
-    gap: 8px;
     min-width: 0;
   }
+  /* Two lines, then stop (GDK-1543 step 3). Reclaiming the date's 41px took
+     the first screen from 11 cut titles to 10 — the fixture's summaries are
+     simply longer than one 370px line, so width alone could not pay for the
+     readability. A second line pays for it: 0/9 cut on the first screen,
+     0/42 in the list. The row keeps `min-height: var(--spacing-row)`, so a
+     one-line row does not shrink and the list's rhythm survives. */
   .summary {
     flex: 1 1 auto;
     min-width: 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
+    white-space: normal;
     color: var(--color-text-primary);
   }
+  /* GDK-1543, 2026-09-07: the date left line 1. The A4 round measured what
+     the age chip cost the title (23px) and named what actually held the rest
+     — the date column, which took a fixed slice of the title's line and cut
+     11 of the 12 first-screen summaries. The date is meta like the key and
+     the count are: it belongs on the line that truncates by design, and the
+     summary gets the row's full width back (329px → 370px measured on the
+     demo fixture at 402px; the first screen went 11/12 cut → 10/12 on width
+     alone). Right-aligned so the dates still read as a column, `flex: none`
+     so the meta items yield first. */
   .when {
     flex: none;
-    font-size: var(--text-micro);
-    color: var(--color-text-muted);
+    margin-left: auto;
+    padding-left: 6px;
     font-variant-numeric: tabular-nums;
   }
   /* GDK-1336's rule, kept: band weight is text weight and amber, no box.
@@ -128,7 +146,8 @@
      fixture at 402px (a4-captures logs it every run): the title went 306px →
      329px and the list's truncated summaries 39/42 → 37/42. The 23px is the
      chip and its gap, not the ~150px the verdict estimated — what actually
-     holds the rest of that width is the date, which stays.
+     held the rest of that width was the date, and GDK-1543 moved it here
+     too (see `.when`).
 
      Three bands, drawn as three (same FIX): mid was the stale amber at 0.8
      and photographed as the same dark brown as loud, so the ladder read as
@@ -161,9 +180,13 @@
     font-family: var(--font-mono);
     flex: none;
   }
+  /* The meta line's one truncating breath: the key never shortens, the date
+     and the age hold their width, and these yield first (GDK-1543). */
   .m {
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
   }
   .sep {
     flex: none;

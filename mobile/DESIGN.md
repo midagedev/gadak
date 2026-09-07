@@ -140,8 +140,11 @@ Dimensions are mobile-owned (`@theme` override after the import):
 
 ### 3.3 Space & density
 4pt grid (4/8/12/16/24/32), 16px screen gutter. Issue rows are **56px**
-(≥44pt target, two lines: summary + meta). On the iPhone 17 Pro viewport that
-yields 12–13 rows per screen — a two-digit ledger, not a card feed. No
+minimum (≥44pt target, summary + meta line); a summary may take a second line
+before it clamps (GDK-1543 — the date left the summary's line and width alone
+still cut 10 of 12 first-screen titles on the demo fixture). On the iPhone 17
+Pro viewport that yields 9 rows per screen when every title wraps, 12 when
+none does — still a ledger, not a card feed. No
 cards, no shadows in lists; hairline `border-subtle` separators only. The
 scope picker is the same dialect: section labels in the list's micro caps,
 44pt rows, counts right-aligned in mono, no panel fills.
@@ -426,7 +429,8 @@ and pair again."), never apologize, never quote server internals.
   `127.0.0.1:5182`. Not `e2e/`'s `127.0.0.1:7877` and not `e2e/.tmp/home` —
   demo makes its own temp home. Asserts horizontal overflow
   0, `nav.safe-bottom` flush to the viewport bottom, no input/textarea under
-  16px, ≥12 issue rows per screen (before **and** after the scope picker has
+  16px, ≥9 issue rows per screen — the two-line clamp's bound, GDK-1543 — and
+  ≥12 page rows (before **and** after the scope picker has
   been opened), a visible escape (tab bar, `button.back`, or sheet Cancel),
   and no visible button under 44pt (GDK-867). Sheets are measured after their
   rise finishes: a rect read off a mid-transform composited layer at DPR 3

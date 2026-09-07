@@ -193,7 +193,14 @@ test('captures the A4 awareness surfaces for the vision round', async ({ page })
   const truncated = await page
     .locator('.pane:not(.off) button.row .summary')
     .evaluateAll((els) => {
-      const cut = (list: Element[]) => list.filter((el) => el.scrollWidth > el.clientWidth + 1).length
+      // Cut either way (GDK-1543): the summary is a two-line clamp now, and
+      // a clamped box overflows in HEIGHT, not width — a width-only probe
+      // would read every clamped title as whole and turn the assertion
+      // below into a tautology.
+      const cut = (list: Element[]) =>
+        list.filter(
+          (el) => el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1,
+        ).length
       const above = els.filter((el) => el.getBoundingClientRect().top < window.innerHeight)
       return {
         total: els.length,
@@ -207,6 +214,18 @@ test('captures the A4 awareness surfaces for the vision round', async ({ page })
     `[a4] summaries truncated: ${truncated.cutOnScreen}/${truncated.onScreen} on the first screen,` +
       ` ${truncated.cut}/${truncated.total} in the list; title width ${truncated.titleWidth}px`,
   )
+  // GDK-1543, 2026-09-07: date left line 1 and the summary took two lines;
+  // 11/12 cut on the first screen → 0/9, and 37/42 in the list → 0/42
+  // (the first screen holds fewer rows because the rows are taller). The log
+  // line above was a report nobody had to keep true; these two are the
+  // contract. A later round may put something back on the title baseline
+  // only by making these numbers say it is affordable.
+  expect(truncated.cutOnScreen).toBeLessThanOrEqual(3)
+  // The whole content box: 402px viewport − the row's 16px side padding ×2
+  // = 370px, which the summary now owns alone (no gap, no date column).
+  // Asserted at 370 − 4 for sub-pixel and scrollbar slack. Measured 370px
+  // after the move, 329px before it.
+  expect(truncated.titleWidth).toBeGreaterThanOrEqual(366)
   await page.screenshot({
     path: join(SHOT_DIR, 'a4-issues-session-and-age.png'),
     fullPage: true,
