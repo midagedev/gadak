@@ -28,14 +28,14 @@
     actionLabelKind,
     fetchIntegrations,
     installBlocked,
-    integrationStatus,
+    integrationPill,
     newInstallStream,
     postInstall,
     postRunNote,
     readInstallStream,
     startFailureOutcome,
     type IntegrationItem,
-    type IntegrationStatus,
+    type IntegrationPillState,
     type InstallStreamState,
   } from '../../lib/integrations'
   import { ADD_BTN, COPY_BTN } from './controls'
@@ -67,7 +67,7 @@
   /** Log panels, so a live stream keeps its tail in view. */
   const logEls: Record<string, HTMLElement | undefined> = {}
 
-  const STATUS_LABEL: Record<IntegrationStatus, MessageKey> = {
+  const STATUS_LABEL: Record<IntegrationPillState, MessageKey> = {
     checking: 'settings.integrationChecking',
     running: 'settings.integrationRunning',
     failed: 'settings.integrationFailed',
@@ -75,9 +75,13 @@
     installed: 'settings.integrationInstalled',
     'not-installed': 'settings.integrationNotInstalled',
     unknown: 'settings.integrationUnknown',
+    // A skill row says which kind of installed it is: gadak's own copy from an
+    // earlier release, or a file gadak did not write (GDK-1514).
+    'skill-stale': 'settings.integrationStale',
+    'skill-conflict': 'settings.integrationConflict',
   }
 
-  const STATUS_DOT: Record<IntegrationStatus, string> = {
+  const STATUS_DOT: Record<IntegrationPillState, string> = {
     checking: 'bg-status-inprogress',
     running: 'bg-status-inprogress animate-pulse',
     failed: 'bg-status-reopen',
@@ -90,6 +94,11 @@
     // is actionable, "unknown" is a question — the dot should split them at a
     // scan, not just the label (vision verdict 2026-08-17).
     unknown: 'bg-status-stale',
+    // Amber: there is a copy and it works, it is just behind.
+    'skill-stale': 'bg-status-stale',
+    // Not a failure and not a gap — a file the install will refuse to touch.
+    // It reads as a stop, because the button alone will not clear it.
+    'skill-conflict': 'bg-status-reopen',
   }
 
   const ACTION_LABEL = {
@@ -106,14 +115,15 @@
     'ok-undetected': 'settings.integrationOkUndetected',
   } as const satisfies Record<string, MessageKey>
 
-  function statusOf(item: IntegrationItem): IntegrationStatus {
+  function statusOf(item: IntegrationItem): IntegrationPillState {
     const run = runs[item.id]
-    return integrationStatus({
+    return integrationPill({
       loading,
       running: (run?.running ?? false) || (run?.foreignRunning ?? false),
       installed: item.installed,
       failedExit: run?.exitCode ?? null,
       resultUnknown: run?.resultUnknown ?? false,
+      skillStatus: item.status,
     })
   }
 
@@ -337,6 +347,15 @@
             data-testid="integration-prereq-{item.id}"
           >
             {item.prerequisite.message || t('settings.integrationPrereq')}
+          </p>
+        {/if}
+
+        {#if status === 'skill-conflict'}
+          <!-- The Install button cannot clear this one: gadak refuses to
+               overwrite a file it did not write, and the app has no --force to
+               offer. Say what the file is and where the way out is. -->
+          <p class="mt-1.5 text-micro leading-relaxed text-text-secondary" data-testid="integration-conflict-hint-{item.id}">
+            {t('settings.integrationConflictHint')}
           </p>
         {/if}
 

@@ -19,6 +19,7 @@ import {
   feedInstallStream,
   fetchIntegrations,
   installBlocked,
+  integrationPill,
   integrationStatus,
   isVisibleSettingsTab,
   newInstallStream,
@@ -75,6 +76,9 @@ describe('normalizeIntegrations', () => {
       id: 'raycast',
       title: 'Raycast extension',
       installed: true,
+      // A row with no skill verdict carries none: `status` is omitted on the
+      // wire for everything but a skill row.
+      status: null,
       detail: '~/.gadak/raycast-extension',
       command: 'gadak raycast install',
       prerequisite: { ok: true, message: '' },
@@ -120,6 +124,32 @@ describe('normalizeIntegrations', () => {
     expect(items[0].prerequisite).toEqual({ ok: false, message: 'Install the CLI first.' })
     expect(items[1].prerequisite).toBeNull()
     expect(items[2].prerequisite).toBeNull()
+  })
+
+  test('the four skill words survive; anything else is dropped', () => {
+    // GDK-1514: a skill row carries the same word `gadak doctor` prints. A
+    // word this build does not know has no pill and no translation, so it is
+    // dropped — `installed` still answers the main question.
+    const items = normalizeIntegrations({
+      items: [
+        { ...WIRE_ITEM, id: 'skill-claude', status: 'current' },
+        { ...WIRE_ITEM, id: 'skill-codex', status: 'stale' },
+        { ...WIRE_ITEM, id: 'skill-agents', status: 'missing' },
+        { ...WIRE_ITEM, id: 'skill-grok', status: 'conflict' },
+        { ...WIRE_ITEM, id: 'skill-future', status: 'newer-known' },
+        { ...WIRE_ITEM, id: 'raycast', status: 42 },
+        { ...WIRE_ITEM, id: 'mcp-claude' },
+      ],
+    })
+    expect(items.map((i) => i.status)).toEqual([
+      'current',
+      'stale',
+      'missing',
+      'conflict',
+      null,
+      null,
+      null,
+    ])
   })
 
   test('a body that is not a list is an empty list, not a crash', () => {
@@ -401,6 +431,60 @@ describe('integrationStatus', () => {
 })
 
 /*
+ * The skill pill (GDK-1514). Before this, a skill row had one boolean, so a
+ * copy three releases behind wore the same check mark as a current one while
+ * `gadak doctor` called it stale. The row now carries the server's word and
+ * the pill has to show it — without losing the session's own precedence,
+ * which is about what just happened rather than what is on disk.
+ */
+describe('integrationPill', () => {
+  const base = { loading: false, running: false, installed: null, failedExit: null } as const
+
+  test('a stale copy is installed, and says so — it is not a plain check mark', () => {
+    expect(integrationPill({ ...base, installed: true, skillStatus: 'stale' })).toBe('skill-stale')
+  })
+
+  test("a file gadak did not write reads as the user's own copy", () => {
+    expect(integrationPill({ ...base, installed: true, skillStatus: 'conflict' })).toBe(
+      'skill-conflict',
+    )
+  })
+
+  test('current and missing keep the pills they always had', () => {
+    expect(integrationPill({ ...base, installed: true, skillStatus: 'current' })).toBe('installed')
+    expect(integrationPill({ ...base, installed: false, skillStatus: 'missing' })).toBe(
+      'not-installed',
+    )
+  })
+
+  test('a row with no skill word is exactly integrationStatus', () => {
+    for (const installed of [true, false, null] as const) {
+      const input = { ...base, installed }
+      expect(integrationPill(input)).toBe(integrationStatus(input))
+      expect(integrationPill({ ...input, skillStatus: null })).toBe(integrationStatus(input))
+    }
+  })
+
+  test('what just happened still outranks what is on disk', () => {
+    // The file is stale, but a run is in flight / just failed / gave no
+    // verdict. Showing the stored word there is the lie that makes people
+    // click twice.
+    expect(integrationPill({ ...base, running: true, installed: true, skillStatus: 'stale' })).toBe(
+      'running',
+    )
+    expect(integrationPill({ ...base, failedExit: 13, installed: true, skillStatus: 'stale' })).toBe(
+      'failed',
+    )
+    expect(
+      integrationPill({ ...base, resultUnknown: true, installed: true, skillStatus: 'stale' }),
+    ).toBe('result-unknown')
+    expect(integrationPill({ ...base, loading: true, installed: true, skillStatus: 'stale' })).toBe(
+      'checking',
+    )
+  })
+})
+
+/*
  * What the card says once an attempt is over. The dangerous branch is the third
  * one: the command reported success and the re-check still cannot see it.
  */
@@ -487,6 +571,7 @@ describe('installBlocked', () => {
     id: 'x',
     title: 'X',
     installed: false,
+    status: null,
     detail: '',
     command,
     prerequisite,

@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"testing"
@@ -22,6 +23,10 @@ func TestIntegrationsGETOrderAndDetect(t *testing.T) {
 	gadakHome := filepath.Join(home, ".gadak")
 	t.Setenv("HOME", home)
 	t.Setenv("GADAK_HOME", gadakHome)
+	// CODEX_HOME is a user preference the destination table honours, so pin it
+	// inside the throwaway home: a developer who has it set must not turn
+	// their own ~/.codex into a row in this test.
+	t.Setenv("CODEX_HOME", filepath.Join(home, ".codex"))
 
 	h := integrationsMux()
 	get := func() []map[string]any {
@@ -40,51 +45,71 @@ func TestIntegrationsGETOrderAndDetect(t *testing.T) {
 		if err := json.Unmarshal(rec.Body.Bytes(), &doc); err != nil {
 			t.Fatalf("json: %v\n%s", err, rec.Body.String())
 		}
-		wantN := 4
-		if runtime.GOOS == "windows" {
-			wantN = 3
-		}
-		if len(doc.Items) != wantN {
-			t.Fatalf("len(items)=%d want %d: %s", len(doc.Items), wantN, rec.Body.String())
-		}
 		return doc.Items
 	}
+	idsOf := func(items []map[string]any) []string {
+		out := make([]string, len(items))
+		for i, it := range items {
+			out[i], _ = it["id"].(string)
+		}
+		return out
+	}
 
+	// An empty home has no skill host on it, so no host row is offered — the
+	// Raycast rule (GDK-1513). ~/.agents is the exception: the shared root
+	// every agentskills.io host reads is worth offering before any particular
+	// host is installed.
 	items := get()
-	wantIDs := []string{"command-line-tool", "raycast", "skill", "mcp-claude"}
-	wantCmd := []string{"gadak install-cli", "gadak raycast install", "gadak skill install claude", "gadak mcp install claude"}
+	want := []string{"command-line-tool", "raycast", "skill-agents", "mcp-claude"}
+	wantCmd := map[string]string{
+		"command-line-tool": "gadak install-cli",
+		"raycast":           "gadak raycast install",
+		"skill-agents":      "gadak skill install agents",
+		"skill-claude":      "gadak skill install claude",
+		"mcp-claude":        "gadak mcp install claude",
+	}
 	if runtime.GOOS == "windows" {
-		wantIDs = []string{"command-line-tool", "skill", "mcp-claude"}
-		wantCmd = []string{"gadak install-cli", "gadak skill install claude", "gadak mcp install claude"}
+		want = []string{"command-line-tool", "skill-agents", "mcp-claude"}
 	}
-	for i, id := range wantIDs {
-		if items[i]["id"] != id {
-			t.Fatalf("items[%d].id=%v want %s", i, items[i]["id"], id)
-		}
-		if items[i]["command"] != wantCmd[i] {
-			t.Fatalf("items[%d].command=%v want %s", i, items[i]["command"], wantCmd[i])
-		}
+	if got := idsOf(items); !reflect.DeepEqual(got, want) {
+		t.Fatalf("ids=%v want %v", got, want)
 	}
-	byID := map[string]map[string]any{}
-	for _, it := range items {
-		id, _ := it["id"].(string)
-		byID[id] = it
+	byID := func(items []map[string]any) map[string]map[string]any {
+		out := map[string]map[string]any{}
+		for _, it := range items {
+			id, _ := it["id"].(string)
+			out[id] = it
+		}
+		return out
+	}
+	rows := byID(items)
+	for _, id := range want {
+		if rows[id]["command"] != wantCmd[id] {
+			t.Fatalf("%s command=%v want %s", id, rows[id]["command"], wantCmd[id])
+		}
 	}
 	if runtime.GOOS != "windows" {
-		if byID["raycast"]["installed"] != false {
-			t.Fatalf("raycast installed=%v want false", byID["raycast"]["installed"])
+		if rows["raycast"]["installed"] != false {
+			t.Fatalf("raycast installed=%v want false", rows["raycast"]["installed"])
 		}
-		if byID["raycast"]["detail"] != "~/.gadak/raycast-extension" {
-			t.Fatalf("raycast detail=%v", byID["raycast"]["detail"])
+		if rows["raycast"]["detail"] != "~/.gadak/raycast-extension" {
+			t.Fatalf("raycast detail=%v", rows["raycast"]["detail"])
 		}
-	} else if _, ok := byID["raycast"]; ok {
+		// Only skill rows carry a status word.
+		if _, ok := rows["raycast"]["status"]; ok {
+			t.Fatalf("raycast must carry no status: %v", rows["raycast"])
+		}
+	} else if _, ok := rows["raycast"]; ok {
 		t.Fatal("windows GET must not include raycast")
 	}
-	if byID["skill"]["installed"] != false {
-		t.Fatalf("skill installed=%v want false", byID["skill"]["installed"])
+	if rows["skill-agents"]["installed"] != false {
+		t.Fatalf("skill-agents installed=%v want false", rows["skill-agents"]["installed"])
 	}
-	if byID["skill"]["prerequisite"] != nil {
-		t.Fatalf("skill prerequisite=%v want null", byID["skill"]["prerequisite"])
+	if rows["skill-agents"]["status"] != "missing" {
+		t.Fatalf("skill-agents status=%v want missing", rows["skill-agents"]["status"])
+	}
+	if rows["skill-agents"]["prerequisite"] != nil {
+		t.Fatalf("skill prerequisite=%v want null", rows["skill-agents"]["prerequisite"])
 	}
 
 	if err := os.MkdirAll(filepath.Join(gadakHome, "raycast-extension"), 0o755); err != nil {
@@ -97,23 +122,35 @@ func TestIntegrationsGETOrderAndDetect(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(skill), 0o755); err != nil {
 		t.Fatal(err)
 	}
+	// Not gadak's bytes and no receipt beside them: this is the user's own
+	// file, which the app must report as a conflict rather than as an install
+	// it can quietly overwrite (GDK-1514).
 	if err := os.WriteFile(skill, []byte("# gadak\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
 	items = get()
-	byID = map[string]map[string]any{}
-	for _, it := range items {
-		id, _ := it["id"].(string)
-		byID[id] = it
+	rows = byID(items)
+	wantAfter := []string{"command-line-tool", "raycast", "skill-claude", "skill-agents", "mcp-claude"}
+	if runtime.GOOS == "windows" {
+		wantAfter = []string{"command-line-tool", "skill-claude", "skill-agents", "mcp-claude"}
+	}
+	if got := idsOf(items); !reflect.DeepEqual(got, wantAfter) {
+		t.Fatalf("after touch: ids=%v want %v", got, wantAfter)
 	}
 	if runtime.GOOS != "windows" {
-		if byID["raycast"]["installed"] != true {
-			t.Fatalf("raycast after touch: installed=%v want true", byID["raycast"]["installed"])
+		if rows["raycast"]["installed"] != true {
+			t.Fatalf("raycast after touch: installed=%v want true", rows["raycast"]["installed"])
 		}
 	}
-	if byID["skill"]["installed"] != true {
-		t.Fatalf("skill after touch: installed=%v want true", byID["skill"]["installed"])
+	if rows["skill-claude"]["installed"] != true {
+		t.Fatalf("skill-claude after touch: installed=%v want true", rows["skill-claude"]["installed"])
+	}
+	if rows["skill-claude"]["status"] != "conflict" {
+		t.Fatalf("skill-claude after touch: status=%v want conflict", rows["skill-claude"]["status"])
+	}
+	if rows["skill-claude"]["command"] != wantCmd["skill-claude"] {
+		t.Fatalf("skill-claude command=%v", rows["skill-claude"]["command"])
 	}
 }
 
@@ -172,6 +209,48 @@ func TestIntegrationsPOSTStreamsOutput(t *testing.T) {
 	}
 	if lastLine(got) != "exit=0" {
 		t.Fatalf("last line %q want exit=0\n%s", lastLine(got), got)
+	}
+}
+
+// One route per host, and the pre-GDK-1513 id still answers. The argv is the
+// single owner of what an install does — the app implements nothing itself.
+func TestIntegrationsPOSTPerHostArgv(t *testing.T) {
+	script := filepath.Join(t.TempDir(), "gadak")
+	body := "#!/bin/sh\necho \"args: $*\"\nexit 0\n"
+	if err := os.WriteFile(script, []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("GADAK_DESKTOP_CLI", script)
+
+	for id, want := range map[string]string{
+		"skill":          "args: skill install claude", // legacy alias
+		"skill-claude":   "args: skill install claude",
+		"skill-codex":    "args: skill install codex",
+		"skill-agents":   "args: skill install agents",
+		"skill-cursor":   "args: skill install cursor",
+		"skill-gemini":   "args: skill install gemini",
+		"skill-opencode": "args: skill install opencode",
+		"skill-grok":     "args: skill install grok",
+	} {
+		rec := httptest.NewRecorder()
+		integrationsMux().ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/desktop/integrations/"+id+"/install", nil))
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s: POST %d %s", id, rec.Code, rec.Body.String())
+		}
+		got := rec.Body.String()
+		if !strings.Contains(got, want) {
+			t.Fatalf("%s: want %q in:\n%s", id, want, got)
+		}
+		// Never --project: the app has no working directory to mean.
+		if strings.Contains(got, "--project") {
+			t.Fatalf("%s: argv must not carry --project:\n%s", id, got)
+		}
+	}
+
+	rec := httptest.NewRecorder()
+	integrationsMux().ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/desktop/integrations/skill-nosuchhost/install", nil))
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("unknown host: %d want 404 %s", rec.Code, rec.Body.String())
 	}
 }
 

@@ -13,18 +13,54 @@ import (
 	"sync"
 	"time"
 
+	gadak "github.com/midagedev/gadak"
 	"github.com/midagedev/gadak/internal/clitool"
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/skillinstall"
 )
 
 // IDs are part of the GET/POST contract. Order of List is fixed:
-// command-line-tool, raycast (darwin only), skill, mcp-claude.
+// command-line-tool, raycast (darwin only), one row per skill host, mcp-claude.
 const (
 	idCommandLineTool = "command-line-tool"
 	idRaycast         = "raycast"
-	idSkill           = "skill"
 	idMCPClaude       = "mcp-claude"
+
+	// idSkill is the single skill row gadak listed before GDK-1513. List no
+	// longer emits it — there is a row per host now, `skill-<client>` — but the
+	// install route still answers to it, and must keep doing so: a desktop
+	// window left open across an upgrade, or a UI that stored the id, posts
+	// the id it was handed. It runs the default client's install, which is
+	// exactly what the old row ran.
+	idSkill = "skill"
+
+	// skillIDPrefix + a skillinstall client name is a skill row's id.
+	skillIDPrefix = "skill-"
+
+	// universalSkillClient is the one host offered whether or not it is
+	// already on the machine: ~/.agents is the shared root every
+	// agentskills.io host reads, so it is worth installing before any
+	// particular host is, and stays worth it afterwards. orca reaches the
+	// same conclusion from the other side — its per-agent table always
+	// includes the universal key so an unmapped agent still gets the skill.
+	universalSkillClient = "agents"
 )
+
+// skillRowID is the catalog id for one skill host.
+func skillRowID(client string) string { return skillIDPrefix + client }
+
+// skillEnv is the process environment the destination table reads. It is the
+// installer's own (skillinstall.OSEnv, os.UserHomeDir), so Settings and
+// `gadak skill install` resolve the same home — a $HOME override the installer
+// ignores must not make Settings call an installed skill missing (GDK-352).
+//
+// A var so tests build a hermetic Env rather than reaching for the real home.
+var skillEnv = skillinstall.OSEnv
+
+// skillContent is the embedded SKILL.md. Same accessor `gadak doctor` reads
+// (cmd/gadak/doctor.go collectSkillStatus) — the app and doctor must classify
+// the same bytes or they will disagree about the same file.
+var skillContent = gadak.SkillMarkdown
 
 // mcpProbeTimeout is the production probe budget. Tests may assign a
 // shorter value and restore it with t.Cleanup.
@@ -51,16 +87,24 @@ type Prerequisite struct {
 
 // Item is one row of GET /desktop/integrations.
 type Item struct {
-	ID           string        `json:"id"`
-	Title        string        `json:"title"`
-	Installed    *bool         `json:"installed"`
+	ID        string `json:"id"`
+	Title     string `json:"title"`
+	Installed *bool  `json:"installed"`
+	// Status is the skill verdict for a skill row — one of "current",
+	// "stale", "missing", "conflict" — and "" for every other row. It is the
+	// same word `gadak doctor` prints, from the same classifier
+	// (skillinstall.DestStatus), so the two can no longer disagree about one
+	// file (GDK-1514). Installed is derived from it and never the other way
+	// round: a stale copy is installed *and* out of date, which one boolean
+	// cannot say.
+	Status       string        `json:"status,omitempty"`
 	Detail       string        `json:"detail"`
 	Command      string        `json:"command"`
 	Prerequisite *Prerequisite `json:"prerequisite"`
 }
 
 // List returns the catalog rows for this host's GOOS, in contract order:
-// command-line-tool, raycast (darwin only), skill, mcp-claude.
+// command-line-tool, raycast (darwin only), the skill rows, mcp-claude.
 // Non-macOS hosts omit raycast — Raycast does not exist there, and a row
 // whose Install button can run would lie (GDK-244, GDK-354).
 func List() []Item {
@@ -74,8 +118,8 @@ func listFor(goos string) []Item {
 	if raycastOffered(goos) {
 		items = append(items, raycastItem())
 	}
-	items = append(items, skillItem(), mcpClaudeItem())
-	return items
+	items = append(items, skillItems()...)
+	return append(items, mcpClaudeItem())
 }
 
 // raycastOffered is the single owner of "does this OS get a Raycast row".
@@ -103,12 +147,28 @@ func InstallArgsFor(id, goos string) ([]string, bool) {
 		}
 		return []string{"raycast", "install"}, true
 	case idSkill:
-		return []string{"skill", "install", "claude"}, true
+		// The pre-GDK-1513 id, kept working: it ran the default client and
+		// still does.
+		return skillInstallArgs(skillinstall.DefaultClient), true
 	case idMCPClaude:
 		return []string{"mcp", "install", "claude"}, true
 	default:
+		if name, found := strings.CutPrefix(id, skillIDPrefix); found {
+			if client, known := skillinstall.Lookup(name); known {
+				return skillInstallArgs(client.Name), true
+			}
+		}
 		return nil, false
 	}
+}
+
+// skillInstallArgs is the argv for one host, and the only place the app
+// composes a skill install. Never --project: the app has no notion of the
+// working directory the user means. The integrations tab is a settings
+// surface; a project install belongs where the project is, which is a
+// terminal (GDK-1513).
+func skillInstallArgs(client string) []string {
+	return []string{"skill", "install", client}
 }
 
 func commandLineToolItem() Item {
@@ -159,16 +219,75 @@ func raycastItem() Item {
 	}
 }
 
-func skillItem() Item {
-	dest := skillPath()
-	return Item{
-		ID:           idSkill,
-		Title:        "Claude Code skill",
-		Installed:    boolPtr(fileExists(dest)),
-		Detail:       clitool.TildeHome(dest),
-		Command:      "gadak skill install claude",
-		Prerequisite: nil,
+// skillItems is one row per agent host that loads gadak's skill, in
+// skillinstall's table order (GDK-1513).
+//
+// A host is offered only when its configuration directory is on this machine.
+// That is the Raycast rule applied seven times: a row whose Install button
+// writes a SKILL.md into a directory nothing reads is a button that lies. The
+// test is the directory and not a binary on PATH, because several of these
+// hosts ship as IDE extensions or as apps with no command of their own —
+// skillinstall.Present is the single owner of that signal, and it ignores the
+// .DS_Store a single Finder visit leaves behind.
+//
+// The .agents row is the exception and is always offered; see
+// universalSkillClient.
+func skillItems() []Item {
+	env := skillEnv()
+	content := skillContent()
+	items := make([]Item, 0, len(skillinstall.Clients()))
+	for _, client := range skillinstall.Clients() {
+		if client.Name != universalSkillClient && !client.Present(env) {
+			continue
+		}
+		items = append(items, skillItem(client, env, content))
 	}
+	return items
+}
+
+// skillItem is one host's row: where its copy goes, and what is there now.
+func skillItem(client skillinstall.Client, env skillinstall.Env, content []byte) Item {
+	item := Item{
+		ID:      skillRowID(client.Name),
+		Title:   client.Label + " skill",
+		Command: "gadak " + strings.Join(skillInstallArgs(client.Name), " "),
+	}
+	dest, err := client.HomeDest(env)
+	if err != nil {
+		// No resolvable home: nothing to inspect, so nothing to promise.
+		// Installed stays null — the pill reads "unknown" and points at the
+		// command, which reports the same failure in its own words. The
+		// detail is the documented location, ~ and all, because that is what
+		// the user has to recognise on their own machine.
+		item.Detail = client.HomeDoc()
+		return item
+	}
+	item.Detail = clitool.TildeHome(dest)
+	status, _, err := skillinstall.DestStatus(dest, content)
+	if err != nil {
+		// A directory where the file should be, or an unreadable one. Same
+		// answer as above: unknown, and let the command say why.
+		return item
+	}
+	item.Status = skillStatusWord(status)
+	// Every word except "missing" means a copy is there. "Installed" alone
+	// would call a three-release-old file current, which is the disagreement
+	// with `gadak doctor` this row exists to end (GDK-1514).
+	item.Installed = boolPtr(status != skillinstall.StatusMissing)
+	return item
+}
+
+// skillStatusWord renames the installer's "identical" to "current", the word
+// a report reads better with; the other three are already right.
+//
+// It is a copy of cmd/gadak/doctor.go's skillStatusWord because package main
+// cannot be imported. The words themselves are contract and live in
+// skillinstall; a StatusWord there would leave one owner (noted for the lead).
+func skillStatusWord(installStatus string) string {
+	if installStatus == skillinstall.StatusIdentical {
+		return "current"
+	}
+	return installStatus
 }
 
 func mcpClaudeItem() Item {
@@ -218,18 +337,6 @@ func raycastExtDir() string {
 		return filepath.Join(home, config.DirName, clitool.RaycastExtDirName)
 	}
 	return dir
-}
-
-// skillPath mirrors cmd/gadak/skill.go resolveSkillDest default:
-// ~/.claude/skills/gadak/SKILL.md. Same home resolution (UserHomeDir) as the
-// installer — a $HOME override the installer ignores (Git Bash, GDK-352)
-// must not make Settings call an installed skill missing.
-func skillPath() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return filepath.Join(".claude", "skills", "gadak", "SKILL.md")
-	}
-	return filepath.Join(home, ".claude", "skills", "gadak", "SKILL.md")
 }
 
 // resolveGadak is LookPath("gadak"), then gadakFallbackPaths.

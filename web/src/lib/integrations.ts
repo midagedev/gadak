@@ -3,7 +3,8 @@
  * (GDK-185).
  *
  * The tab lists the agent surfaces gadak can install into (Raycast extension,
- * Claude Code skill, MCP server), says whether each one is already there, and
+ * one skill row per agent host on this machine, MCP server), says whether each
+ * one is already there — and for a skill row, which kind of there — and
  * runs the install without hiding the command. The install answers as a
  * plain-text stream whose last line is `exit=<code>`, so the exit status is
  * data on the wire rather than something the UI infers from silence.
@@ -35,6 +36,23 @@ export interface IntegrationPrerequisite {
   message: string
 }
 
+/**
+ * The four words a skill row carries (GDK-1514). They are the server's, from
+ * the same classifier `gadak doctor` prints, so the app and the CLI can no
+ * longer disagree about one file:
+ *
+ *   current   the bytes gadak would install are already there
+ *   stale     gadak's own copy, from an earlier release
+ *   missing   nothing there
+ *   conflict  a file gadak did not write — only `--force` replaces it
+ *
+ * `installed` alone cannot say the middle two, which is why the row carries
+ * both: a three-release-old file is installed *and* out of date.
+ */
+export type SkillStatus = 'current' | 'stale' | 'missing' | 'conflict'
+
+const SKILL_STATUSES: readonly string[] = ['current', 'stale', 'missing', 'conflict']
+
 export interface IntegrationItem {
   id: string
   title: string
@@ -44,6 +62,13 @@ export interface IntegrationItem {
    * thing, so the two are kept apart all the way to the pill.
    */
   installed: boolean | null
+  /**
+   * The skill verdict for a skill row, null for every other row and for a
+   * word this build does not know. An unknown word is dropped rather than
+   * shown: the pill would have no translation for it, and `installed` still
+   * answers the question the row is mainly asked.
+   */
+  status: SkillStatus | null
   /** Where it lives / what was detected. A path, usually. */
   detail: string
   /** The command the install button runs, shown on screen. */
@@ -53,6 +78,10 @@ export interface IntegrationItem {
 
 function asString(v: unknown): string {
   return typeof v === 'string' ? v : ''
+}
+
+function asSkillStatus(v: unknown): SkillStatus | null {
+  return typeof v === 'string' && SKILL_STATUSES.includes(v) ? (v as SkillStatus) : null
 }
 
 function normalizePrerequisite(v: unknown): IntegrationPrerequisite | null {
@@ -69,8 +98,10 @@ function normalizePrerequisite(v: unknown): IntegrationPrerequisite | null {
  * `GET /desktop/integrations` body → items, in the order the server sent them.
  *
  * The order is the server's (command-line-tool, then raycast when the host
- * offers it, skill, mcp-claude): it is the reading order of the setup, so
- * the UI must not re-sort it. Only macOS offers raycast. Anything unusable is
+ * offers it, one row per skill host it can find, mcp-claude): it is the
+ * reading order of the setup, so the UI must not re-sort it. Only macOS
+ * offers raycast, and a skill host the machine does not have gets no row at
+ * all — so the list is not the same length twice. Anything unusable is
  * dropped rather than drawn as a nameless card.
  */
 export function normalizeIntegrations(body: unknown): IntegrationItem[] {
@@ -87,6 +118,7 @@ export function normalizeIntegrations(body: unknown): IntegrationItem[] {
       id,
       title: asString(e.title) || id,
       installed: typeof e.installed === 'boolean' ? e.installed : null,
+      status: asSkillStatus(e.status),
       detail: asString(e.detail),
       command: asString(e.command),
       prerequisite: normalizePrerequisite(e.prerequisite),
@@ -323,6 +355,38 @@ export function integrationStatus(input: IntegrationStatusInput): IntegrationSta
   if (input.installed === true) return 'installed'
   if (input.installed === false) return 'not-installed'
   return 'unknown'
+}
+
+/**
+ * The pill a skill row shows. Two of the four words already have a pill —
+ * `current` is Installed and `missing` is Not installed, which is what those
+ * pills have always meant — so only the two states the old boolean could not
+ * express get one of their own.
+ */
+export type IntegrationPillState = IntegrationStatus | 'skill-stale' | 'skill-conflict'
+
+/**
+ * Fold the skill verdict into the pill.
+ *
+ * The session's own precedence still wins: a run in flight, a non-zero exit
+ * and a run with no verdict are all about what just happened, and the file on
+ * disk is about to change or has changed unobserved. The stored word only
+ * speaks once those are done — which is exactly when the row's job is to say
+ * *which kind* of installed this is.
+ */
+export function integrationPill(
+  input: IntegrationStatusInput & { skillStatus?: SkillStatus | null },
+): IntegrationPillState {
+  const base = integrationStatus(input)
+  if (base !== 'installed' && base !== 'not-installed' && base !== 'unknown') return base
+  switch (input.skillStatus ?? null) {
+    case 'stale':
+      return 'skill-stale'
+    case 'conflict':
+      return 'skill-conflict'
+    default:
+      return base
+  }
 }
 
 /**
