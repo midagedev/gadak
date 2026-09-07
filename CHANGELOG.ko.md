@@ -1,6 +1,49 @@
 # Changelog
 
-<sub><a href="CHANGELOG.md">English</a> · 한국어 — 영문이 원본이며, 번역은 영문과 함께 갱신됩니다(마지막 동기화 2026-09-03).</sub>
+<sub><a href="CHANGELOG.md">English</a> · 한국어 — 영문이 원본이며, 번역은 영문과 함께 갱신됩니다(마지막 동기화 2026-09-08).</sub>
+
+## v0.21.0 — 2026-09-08
+
+**자리를 비운 사이 무슨 일이 있었는지 미러가 말해 줍니다.** 상태 변경·코멘트·
+열어본 기록은 이미 미러에 있으니, 0.21은 돌아와서 묻는 질문 — 뭐가 바뀌었나,
+이건 얼마나 묵었나, 이번 주는 빨라졌나 — 에 그 데이터로 답합니다. 숫자 옆에
+정의가 붙고, 판단하는 문장은 없습니다. 전부 미러를 읽기만 하며, 새로 밖으로
+나가는 것은 없습니다.
+
+- **`gadak retro`** — 주간 회고. 세션 수, 복귀까지 걸린 시간, 진행 중인
+  일이 얼마나 오래됐는지, 무엇이 닫히고 얼마나 걸렸는지, 그리고 *불일치*
+  (마지막 코멘트는 끝났다는데 상태는 아닌 이슈). 모든 행에 정의가 같이
+  찍히고, `--open`은 그 칸 뒤의 이슈들을 앱에 띄웁니다.
+- **마지막으로 본 뒤로.** 리스트가 흐린 한 줄로 열립니다 — *바뀐 이슈 7 ·
+  그중 내 것 2*. 상세 패널은 그 이슈를 마지막으로 연 뒤 무엇이 움직였는지
+  말합니다. 기준은 내 이전 세션입니다.
+- **내 팀의 숫자로 잰 나이.** 정체 표시의 기준은 워크스페이스의 최근 90일
+  사이클 타임에서 배웁니다. `list`·`ready`·`next`에 `age_days`가 붙고, 기간
+  칩에 마우스를 올리면 팀의 p85가 보이며, 열린 상태 아래 끝났다는 코멘트가
+  있으면 *완료로 이동*을 조용히 제안합니다.
+- **내장 뷰 다섯 개** ([GDK-1493]): 내 이슈, 맡긴 이슈, 전체 미해결, 미할당
+  신규, 재오픈 이슈. Aging·Epics·Stale 등은 사이드바에서 빠졌습니다 —
+  *뷰로 저장* 한 번이면 돌아옵니다.
+- **에이전트가 쓴 것은 그렇다고 적습니다.** CLI에서 Jira Cloud·Linear에 쓴
+  코멘트·전환·이슈 끝에 *— via gadak · 이름*이 붙어, 사람의 자격증명을 빌린
+  에이전트의 쓰기를 팀이 구분할 수 있습니다. `actor.trailer=false`로 끕니다.
+- **스킬을 일곱 호스트에 설치** ([GDK-1508]): `gadak skill install --client
+  codex|agents|cursor|gemini|opencode|grok`, 기존 `claude`와 함께.
+- **일본어**: 사이트가 `/ja/`에서 읽히고, 앱은 `:lang(ja)`에서 일본어 글꼴을
+  고르며, 라이브 Claude 히어로를 포함한 랜딩 클립 전부가 그 언어의 미러
+  위에서 en·ko·ja로 찍혔습니다 ([GDK-1500], [GDK-1501]).
+- **폰(TestFlight)**: 설명·코멘트·위키가 데스크와 같게 렌더되고, 담당자·
+  우선순위·제목·설명을 헤더에서 편집하며, 페어링 스캔 한 번에 토큰 둘이
+  들어옵니다 ([GDK-1497], [GDK-1498]).
+
+**수정.** serve 호스트의 미러가 `--full` 전까지 origin과 어긋날 수 있었습니다.
+이제 양방향으로 맞추고 `doctor`가 짧은 미러를 알립니다 ([GDK-1400]).
+`gadak transition KEY inprogress`가 표시 이름이 같은 두 목적지를 거절하지
+않습니다 ([GDK-1356]). 터미널을 클릭해 포커스만 줘도 포인터 아래 키가 열리던
+일이 없습니다 ([GDK-1186]). `gadak migrate`가 우선순위 id 없는 미러에서도
+우선순위를 지킵니다 ([GDK-1491]). Esc 한 번은 패널이 아니라 피커만 닫습니다
+([GDK-1401]). *마지막으로 본 뒤로* 줄이 조용한 아침에 사라지지 않습니다
+([GDK-1537]).
 
 ## v0.20.2 — 2026-09-06
 
@@ -1458,3 +1501,15 @@ HTTP·sync·에이전트 계약을 담았습니다.
 [GDK-1305]: https://gadak.dev/backlog/#/?ks=GDK-1305
 [GDK-1306]: https://gadak.dev/backlog/#/?ks=GDK-1306
 [GDK-1295]: https://gadak.dev/backlog/#/?ks=GDK-1295
+[GDK-1186]: https://gadak.dev/backlog/#/?ks=GDK-1186
+[GDK-1356]: https://gadak.dev/backlog/#/?ks=GDK-1356
+[GDK-1400]: https://gadak.dev/backlog/#/?ks=GDK-1400
+[GDK-1401]: https://gadak.dev/backlog/#/?ks=GDK-1401
+[GDK-1491]: https://gadak.dev/backlog/#/?ks=GDK-1491
+[GDK-1493]: https://gadak.dev/backlog/#/?ks=GDK-1493
+[GDK-1497]: https://gadak.dev/backlog/#/?ks=GDK-1497
+[GDK-1498]: https://gadak.dev/backlog/#/?ks=GDK-1498
+[GDK-1500]: https://gadak.dev/backlog/#/?ks=GDK-1500
+[GDK-1501]: https://gadak.dev/backlog/#/?ks=GDK-1501
+[GDK-1508]: https://gadak.dev/backlog/#/?ks=GDK-1508
+[GDK-1537]: https://gadak.dev/backlog/#/?ks=GDK-1537

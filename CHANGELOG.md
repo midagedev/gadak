@@ -2,6 +2,52 @@
 
 <sub>English · <a href="CHANGELOG.ko.md">한국어</a></sub>
 
+## v0.21.0 — 2026-09-08
+
+**The mirror tells you what happened while you were away.** Every status
+change, comment and visit is already in the mirror, so 0.21 answers the
+questions you ask on coming back — what changed, how long has this sat, did
+we get faster — from that data, in numbers with their definition beside
+them. Everything here is read-only over the mirror. Nothing new leaves the
+machine.
+
+- **`gadak retro`** — a weekly retrospective: sessions, resume time, how old
+  the work in progress is, what closed and how long it took, and *mismatch*
+  (the newest comment says done, the status does not). Every row prints its
+  definition; `--open` puts the issues behind a cell on the app.
+- **Since you were last here.** The list opens with one dim line — *7 changed
+  · 2 of them yours* — and the detail panel says what moved on that issue
+  since you last opened it. The boundary is your own previous session.
+- **Age from your own numbers.** The stale mark learns its threshold from the
+  workspace's last 90 days of cycle times; `list`, `ready` and `next` carry
+  `age_days`; the durations chip shows the team's p85 on hover; a done-sounding
+  comment under an open status offers *Move to done*.
+- **Five built-in views** ([GDK-1493]): My issues, Handed off, All open,
+  Unassigned new, Reopened. Aging, Epics, Stale and the rest leave the
+  sidebar — they are one *Save as view* away.
+- **Agent writes say so.** A comment, transition or issue written from the
+  CLI against Jira Cloud or Linear ends with *— via gadak · Name*, so a team
+  can tell an agent's write from the person whose credential it used.
+  `actor.trailer=false` turns it off.
+- **The skill installs on seven hosts** ([GDK-1508]): `gadak skill install
+  --client codex|agents|cursor|gemini|opencode|grok` beside `claude`.
+- **Japanese**: the site reads at `/ja/`, the app picks Japanese type under
+  `:lang(ja)`, and every landing clip — including the live-Claude hero — is
+  recorded in en, ko and ja over a mirror in that language ([GDK-1500],
+  [GDK-1501]).
+- **Phone (TestFlight)**: descriptions, comments and wiki pages render like the
+  desk; assignee, priority, summary and description are edited from the
+  header; one pairing scan carries both tokens ([GDK-1497], [GDK-1498]).
+
+**Fixes.** A serve host's mirror could drift from its origin until `--full`;
+reconcile now looks both ways and `doctor` flags a short mirror
+([GDK-1400]). `gadak transition KEY inprogress` no longer refuses two
+destinations with one display name ([GDK-1356]). Clicking the terminal to
+focus it no longer opens the key under the pointer ([GDK-1186]). `gadak
+migrate` keeps priorities when the mirror has no priority ids ([GDK-1491]).
+One Esc closes a picker, not the panel ([GDK-1401]). The *since you were
+last here* line no longer vanishes on a quiet morning ([GDK-1537]).
+
 ## v0.20.2 — 2026-09-06
 
 **The Windows app is on the Microsoft Store, and a fix round.**
@@ -1509,3 +1555,15 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-1305]: https://gadak.dev/backlog/#/?ks=GDK-1305
 [GDK-1306]: https://gadak.dev/backlog/#/?ks=GDK-1306
 [GDK-1295]: https://gadak.dev/backlog/#/?ks=GDK-1295
+[GDK-1186]: https://gadak.dev/backlog/#/?ks=GDK-1186
+[GDK-1356]: https://gadak.dev/backlog/#/?ks=GDK-1356
+[GDK-1400]: https://gadak.dev/backlog/#/?ks=GDK-1400
+[GDK-1401]: https://gadak.dev/backlog/#/?ks=GDK-1401
+[GDK-1491]: https://gadak.dev/backlog/#/?ks=GDK-1491
+[GDK-1493]: https://gadak.dev/backlog/#/?ks=GDK-1493
+[GDK-1497]: https://gadak.dev/backlog/#/?ks=GDK-1497
+[GDK-1498]: https://gadak.dev/backlog/#/?ks=GDK-1498
+[GDK-1500]: https://gadak.dev/backlog/#/?ks=GDK-1500
+[GDK-1501]: https://gadak.dev/backlog/#/?ks=GDK-1501
+[GDK-1508]: https://gadak.dev/backlog/#/?ks=GDK-1508
+[GDK-1537]: https://gadak.dev/backlog/#/?ks=GDK-1537
