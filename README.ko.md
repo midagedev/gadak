@@ -133,8 +133,11 @@ gadak이 존재하는 이유의 절반입니다. 레퍼런스는 **[docs/MIRROR.
 gadak skill install
 ```
 
-스키마와 쿼리 패턴이 스킬 하나로 들어가고, 별도 프로세스는 없습니다. 셸이
-없는 호스트(Claude Desktop)에서는 같은 미러가 MCP 서버가 됩니다:
+스키마와 쿼리 패턴이 스킬 하나로 들어가고, 별도 프로세스는 없습니다. 위
+명령은 Claude Code에 설치합니다. 다른 호스트에는 이름을 붙이면 같은 파일이
+그 자리에 들어갑니다 — `gadak skill install codex`, 그리고 cursor·gemini·
+opencode·grok도 같습니다. 셸이 없는 호스트(Claude Desktop)에서는 같은
+미러가 MCP 서버가 됩니다:
 
 ```bash
 gadak mcp install claude
