@@ -15,6 +15,7 @@ import (
 	gadak "github.com/midagedev/gadak"
 	"github.com/midagedev/gadak/internal/applog"
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/skillinstall"
 	"github.com/midagedev/gadak/internal/store"
 )
 
@@ -1487,5 +1488,137 @@ func TestDoctorFindsAProjectScopeCodexInstall(t *testing.T) {
 	}
 	if strings.Contains(raw, proj) {
 		t.Errorf("the report leaked the working directory:\n%s", raw)
+	}
+}
+
+// TestDoctorNamesADevTreeSkillCopy — GDK-1531. `current` alone was what let an
+// uncommitted working-tree SKILL.md sit in the developer's agent home looking
+// like a shipped release: doctor compared bytes against the running binary and
+// both came from the same checkout, so of course they matched. The receipt
+// beside the file is the only record of which kind of binary wrote it, and
+// doctor now reads it — in the JSON per host, and in the summary line.
+func TestDoctorNamesADevTreeSkillCopy(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("GADAK_HOME", home)
+	t.Setenv("CODEX_HOME", "")
+	config.SetProfile("")
+	t.Chdir(home)
+
+	dir := filepath.Join(home, ".claude", "skills", "gadak")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	dest := filepath.Join(dir, "SKILL.md")
+	if err := os.WriteFile(dest, gadak.SkillMarkdown(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// The receipt a checkout build leaves: the digest of the bytes on disk,
+	// the dev version, and the tree it came from.
+	receipt := skillinstall.Receipt{
+		SHA256:       skillinstall.Digest(gadak.SkillMarkdown()),
+		GadakVersion: skillinstall.DevVersion,
+		InstalledAt:  "2026-09-07T09:12:34Z",
+		Source:       skillinstall.SourceDevTree,
+		Revision:     "ac8e154+",
+	}
+	raw, err := json.Marshal(receipt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, skillinstall.ReceiptName), raw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := capture(t, func() error { return cmdDoctor([]string{"--json"}) })
+	if err != nil {
+		t.Fatalf("doctor --json: %v", err)
+	}
+	var rep doctorReport
+	if err := json.Unmarshal([]byte(out), &rep); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out)
+	}
+	var claude *doctorSkillHost
+	for i := range rep.Skill.Hosts {
+		if rep.Skill.Hosts[i].Client == "claude" {
+			claude = &rep.Skill.Hosts[i]
+		}
+	}
+	if claude == nil {
+		t.Fatalf("no claude row: %+v", rep.Skill.Hosts)
+	}
+	if claude.Status != "current" {
+		t.Errorf("status = %q, want current — the bytes really do match", claude.Status)
+	}
+	if claude.Source != skillinstall.SourceDevTree {
+		t.Errorf("source = %q, want %q", claude.Source, skillinstall.SourceDevTree)
+	}
+	if claude.InstalledByVersion != skillinstall.DevVersion {
+		t.Errorf("installed_by_version = %q, want %q", claude.InstalledByVersion, skillinstall.DevVersion)
+	}
+	if claude.Revision != "ac8e154+" {
+		t.Errorf("revision = %q, want ac8e154+", claude.Revision)
+	}
+	if line := formatDoctorSkill(rep.Skill); !strings.Contains(line, "dev-tree ac8e154+") {
+		t.Errorf("summary line hides the dev-tree copy: %q", line)
+	}
+}
+
+// TestDoctorSkillReceiptMustDescribeTheFileOnDisk — a receipt belongs to the
+// bytes it names. After a hand edit the receipt beside the file is the
+// *previous* copy's, and reporting its provenance as this file's would be the
+// same lie in the other direction (GDK-1531).
+func TestDoctorSkillReceiptMustDescribeTheFileOnDisk(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("GADAK_HOME", home)
+	t.Setenv("CODEX_HOME", "")
+	config.SetProfile("")
+	t.Chdir(home)
+
+	dir := filepath.Join(home, ".claude", "skills", "gadak")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	mine := []byte("---\nname: gadak\ndescription: my own house rules\n---\n\nask me first\n")
+	if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), mine, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := json.Marshal(skillinstall.Receipt{
+		SHA256:       skillinstall.Digest(gadak.SkillMarkdown()), // the copy this replaced
+		GadakVersion: skillinstall.DevVersion,
+		Source:       skillinstall.SourceDevTree,
+		Revision:     "ac8e154+",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, skillinstall.ReceiptName), raw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := capture(t, func() error { return cmdDoctor([]string{"--json"}) })
+	if err != nil {
+		t.Fatalf("doctor --json: %v", err)
+	}
+	var rep doctorReport
+	if err := json.Unmarshal([]byte(out), &rep); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out)
+	}
+	for _, h := range rep.Skill.Hosts {
+		if h.Client != "claude" {
+			continue
+		}
+		if h.Status != "conflict" {
+			t.Errorf("status = %q, want conflict", h.Status)
+		}
+		if h.Source != "" || h.InstalledByVersion != "" || h.Revision != "" {
+			t.Errorf("a stale receipt was reported as this file's provenance: %+v", h)
+		}
+	}
+	if line := formatDoctorSkill(rep.Skill); strings.Contains(line, "dev-tree") {
+		t.Errorf("summary line claims provenance it does not have: %q", line)
 	}
 }

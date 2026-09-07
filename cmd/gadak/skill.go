@@ -364,7 +364,8 @@ func printSkillAutoResult(status string) {
 // The boundaries are the installer's classifier, unchanged and reused:
 // `conflict` (a copy gadak did not write — the issue's "foreign") and
 // `missing` (no skill installed) are never touched here. Creating a skill
-// uninvited is init / `skill install`'s job.
+// uninvited is init / `skill install`'s job. A fourth boundary is the binary
+// rather than the file: a dev build never syncs (GDK-1531, below).
 // ---------------------------------------------------------------------------
 
 // skillAutoSyncStampName is the once-a-day rate-limit stamp, JSON like the
@@ -469,6 +470,23 @@ func maybeAutoSyncSkill(w io.Writer, cmd string) {
 	content := gadak.SkillMarkdown()
 	status, _, err := skillDestStatus(dest, content)
 	if err != nil || status != "stale" {
+		return
+	}
+	// GDK-1531: a binary built from a checkout must not push its working-tree
+	// SKILL.md into a real agent home. Measured 2026-09-07: a round running
+	// `go run ./cmd/gadak …` replaced the developer's installed skill with an
+	// uncommitted draft. The rate-limit stamp did not stop it, and could not:
+	// the stamp lives under GADAK_HOME while the destination lives under HOME,
+	// so any probe that isolates one and not the other hands the hook a fresh
+	// day. The version is what actually separates "gadak shipped this" from
+	// "someone is editing this right now", so that is what the hook asks.
+	//
+	// The line prints here rather than at the top of the function so it costs
+	// a day's stamp and appears only when a sync would really have happened —
+	// once a day at most, and never for a machine with no skill installed.
+	if skillinstall.IsDevBuild(version) {
+		fmt.Fprintf(w, "skill: dev build — not syncing %s (run gadak skill install to do it on purpose)\n",
+			clitool.TildeHome(filepath.Dir(dest)))
 		return
 	}
 	// installSkill reuses the same classifier, the same atomic write and the

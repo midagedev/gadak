@@ -175,6 +175,15 @@ type doctorSkillHost struct {
 	Status string `json:"status"` // current | stale | conflict | missing
 	Scope  string `json:"scope"`  // user | project
 	Path   string `json:"path"`   // tilde-abbreviated (user) or literal relative (project)
+	// Source, InstalledByVersion and Revision come from the receipt beside the
+	// file (GDK-1531). They answer "current according to which gadak?": a copy
+	// a checkout build wrote reads `dev-tree`, so a working-tree draft can no
+	// longer sit in an agent home looking like a shipped release. Absent when
+	// no receipt describes the bytes on disk — a hand-edited file keeps the
+	// receipt of the copy it replaced, and that receipt is not about it.
+	Source             string `json:"source,omitempty"`               // release | dev-tree
+	InstalledByVersion string `json:"installed_by_version,omitempty"` // the receipt's gadak_version
+	Revision           string `json:"revision,omitempty"`             // short git hash, "+" if the tree was dirty
 }
 
 // doctorMCP reports whether gadak is registered as an MCP server. Only the
@@ -601,24 +610,43 @@ func skillHostStatus(client skillinstall.Client, env skillinstall.Env, content [
 	userDest, userErr := client.HomeDest(env)
 	if userErr == nil {
 		host.Path = tildeHome(userDest)
-		if status, _, err := skillinstall.DestStatus(userDest, content); err == nil && status != skillinstall.StatusMissing {
+		if status, existing, err := skillinstall.DestStatus(userDest, content); err == nil && status != skillinstall.StatusMissing {
 			host.Status = skillStatusWord(status)
+			addSkillReceiptFacts(&host, userDest, existing)
 			return host, true
 		}
 	}
 	if client.HasProjectScope() {
 		if projDest, err := client.ProjectDest(env); err == nil {
-			if status, _, err := skillinstall.DestStatus(projDest, content); err == nil && status != skillinstall.StatusMissing {
-				return doctorSkillHost{
+			if status, existing, err := skillinstall.DestStatus(projDest, content); err == nil && status != skillinstall.StatusMissing {
+				proj := doctorSkillHost{
 					Client: client.Name,
 					Status: skillStatusWord(status),
 					Scope:  "project",
 					Path:   client.ProjectRelDir(),
-				}, true
+				}
+				addSkillReceiptFacts(&proj, projDest, existing)
+				return proj, true
 			}
 		}
 	}
 	return host, false
+}
+
+// addSkillReceiptFacts copies the receipt's provenance onto a host row, but
+// only when the receipt describes the bytes that are actually there. Identity
+// is the content hash, the same rule the installer's classifier uses: a file
+// somebody edited by hand still has the previous copy's receipt lying beside
+// it, and reporting that receipt as this file's provenance would be a lie of
+// exactly the kind GDK-1531 is about.
+func addSkillReceiptFacts(host *doctorSkillHost, dest string, existing []byte) {
+	r, ok := skillinstall.ReadReceipt(filepath.Dir(dest))
+	if !ok || r.SHA256 != skillinstall.Digest(existing) {
+		return
+	}
+	host.Source = r.SourceWord()
+	host.InstalledByVersion = r.GadakVersion
+	host.Revision = r.Revision
 }
 
 // skillStatusWord renames the installer's "identical" to the word a report
@@ -635,9 +663,15 @@ func skillStatusWord(installStatus string) string {
 // helps. With several, the paths stop fitting and the host names are what the
 // user needs: `current (claude, codex) · missing (agents)`.
 func formatDoctorSkill(s doctorSkill) string {
+	marker := devTreeMarker(s.Hosts)
 	if len(s.Hosts) <= 1 {
-		if s.Path != "" {
+		switch {
+		case s.Path != "" && marker != "":
+			return s.Status + " (" + s.Path + ", " + marker + ")"
+		case s.Path != "":
 			return s.Status + " (" + s.Path + ")"
+		case marker != "":
+			return s.Status + " (" + marker + ")"
 		}
 		return s.Status
 	}
@@ -652,7 +686,30 @@ func formatDoctorSkill(s doctorSkill) string {
 			parts = append(parts, w+" ("+strings.Join(names, ", ")+")")
 		}
 	}
+	if marker != "" {
+		parts = append(parts, marker)
+	}
 	return strings.Join(parts, " · ")
+}
+
+// devTreeMarker is the suffix that keeps a "current" verdict honest: the copy
+// the agent loads is byte-identical to this binary's skill, but this binary was
+// built from somebody's checkout, so "current" says nothing about whether the
+// text was ever reviewed (GDK-1531). It names the revision when the receipt
+// recorded one, so `skill: current (dev-tree ac8e154+)` is enough to go find
+// the build — the trailing "+" means that tree had uncommitted changes.
+func devTreeMarker(hosts []doctorSkillHost) string {
+	marker := ""
+	for _, h := range hosts {
+		if h.Source != skillinstall.SourceDevTree {
+			continue
+		}
+		if h.Revision != "" {
+			return skillinstall.SourceDevTree + " " + h.Revision
+		}
+		marker = skillinstall.SourceDevTree
+	}
+	return marker
 }
 
 // doctorSkillWord maps the installer's four-way classification onto the three

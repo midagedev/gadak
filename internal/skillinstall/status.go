@@ -86,6 +86,30 @@ type Receipt struct {
 	SHA256       string `json:"sha256"`
 	GadakVersion string `json:"gadak_version"`
 	InstalledAt  string `json:"installed_at"`
+	// Source and Revision say which *kind* of binary wrote the copy
+	// (GDK-1531): a cut release, or one built from a checkout, and in the
+	// second case the short git hash it came from. Before these fields a
+	// working-tree SKILL.md installed by a `go run` build was indistinguishable
+	// from a shipped one — `gadak doctor` called it "current" and nobody could
+	// see that what the agent loaded had never been reviewed.
+	//
+	// Both are omitempty: a receipt written before this release has neither,
+	// and SourceWord backfills the first from GadakVersion.
+	Source   string `json:"source,omitempty"`
+	Revision string `json:"revision,omitempty"`
+}
+
+// SourceWord is the receipt's provenance, backfilled for the receipts that
+// predate the field: those recorded a version, and the version already says
+// whether the binary was a release. "" only for a receipt with neither.
+func (r Receipt) SourceWord() string {
+	if r.Source != "" {
+		return r.Source
+	}
+	if r.GadakVersion == "" {
+		return ""
+	}
+	return SourceFor(r.GadakVersion)
 }
 
 // LegacyDigests are the SHA-256 digests of every skills/gadak/SKILL.md gadak
@@ -145,12 +169,17 @@ func ReadReceipt(dir string) (Receipt, bool) {
 }
 
 // WriteReceipt records digest as what gadak just wrote into dir. version is the
-// binary's version string, kept for the human who opens the file.
+// binary's version string, kept for the human who opens the file — and, through
+// SourceFor, the single input to the provenance word. The caller never decides
+// "is this a dev build": it passes its version and this file answers, so the
+// receipt and the auto-sync gate can never disagree (GDK-1531).
 func WriteReceipt(dir, digest, version string) error {
 	raw, err := json.MarshalIndent(Receipt{
 		SHA256:       digest,
 		GadakVersion: version,
 		InstalledAt:  time.Now().UTC().Format(time.RFC3339),
+		Source:       SourceFor(version),
+		Revision:     BuildRevision(),
 	}, "", "  ")
 	if err != nil {
 		return err

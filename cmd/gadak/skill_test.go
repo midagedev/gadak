@@ -832,48 +832,89 @@ func TestAutoInstallSkillFailedWhenDestIsDirectory(t *testing.T) {
 // main()'s dispatch path, so these tests drive the real binary.
 // ---------------------------------------------------------------------------
 
+// gadakTestReleaseVersion is what these tests stamp into the CLI they build.
+// The auto-sync hook now asks whether the binary is a release before it writes
+// anything (GDK-1531), so a test binary left at the "0.0.0-dev" default would
+// silently stop exercising the feature it was written for. Anything that is
+// not the dev placeholder does; the digits are arbitrary.
+const gadakTestReleaseVersion = "9.9.9"
+
 var (
-	gadakTestBinOnce sync.Once
-	gadakTestBin     string
-	gadakTestBinErr  error
+	gadakTestBins   sync.Map // version string → *gadakTestBin
+	gadakTestBinsMu sync.Mutex
 )
 
-// buildGadakTestBin builds the CLI once per test run. The auto-sync hook is
+type gadakTestBinEntry struct {
+	path string
+	err  error
+}
+
+// buildGadakTestBin builds the CLI stamped as a release. The auto-sync hook is
 // wired in main(), which no in-process call reaches — only the built binary
-// proves the wiring. go's caches sit under the real home, so the build gets
-// the home TestMain replaced (Go's exec keeps the last duplicate env entry).
+// proves the wiring.
 func buildGadakTestBin(t *testing.T) string {
 	t.Helper()
-	gadakTestBinOnce.Do(func() {
-		_, thisFile, _, _ := runtime.Caller(0)
-		dir, err := os.MkdirTemp("", "gadak-skill-autosync-bin-*")
-		if err != nil {
-			gadakTestBinErr = err
-			return
+	return buildGadakTestBinVersion(t, gadakTestReleaseVersion)
+}
+
+// buildGadakDevTestBin builds the CLI with no version ldflag, so it carries the
+// "0.0.0-dev" default exactly as `go build ./cmd/gadak` in a checkout does.
+func buildGadakDevTestBin(t *testing.T) string {
+	t.Helper()
+	return buildGadakTestBinVersion(t, "")
+}
+
+// buildGadakTestBinVersion builds the CLI once per version per test run. An
+// empty version leaves main.version at its default. go's caches sit under the
+// real home, so the build gets the home TestMain replaced (Go's exec keeps the
+// last duplicate env entry).
+func buildGadakTestBinVersion(t *testing.T, version string) string {
+	t.Helper()
+	gadakTestBinsMu.Lock()
+	defer gadakTestBinsMu.Unlock()
+	if v, ok := gadakTestBins.Load(version); ok {
+		e := v.(*gadakTestBinEntry)
+		if e.err != nil {
+			t.Fatalf("cannot build the CLI for the auto-sync tests: %v", e.err)
 		}
-		bin := filepath.Join(dir, "gadak")
-		build := exec.Command("go", "build", "-o", bin, ".")
-		build.Dir = filepath.Dir(thisFile)
-		build.Env = append(os.Environ(),
-			"HOME="+gadakTestOrigHome,
-			"USERPROFILE="+gadakTestOrigHome,
-		)
-		if out, err := build.CombinedOutput(); err != nil {
-			gadakTestBinErr = fmt.Errorf("go build: %w\n%s", err, out)
-			return
-		}
-		gadakTestBin = bin
-	})
-	if gadakTestBinErr != nil {
-		t.Fatalf("cannot build the CLI for the auto-sync tests: %v", gadakTestBinErr)
+		return e.path
 	}
-	return gadakTestBin
+	e := &gadakTestBinEntry{}
+	gadakTestBins.Store(version, e)
+
+	_, thisFile, _, _ := runtime.Caller(0)
+	dir, err := os.MkdirTemp("", "gadak-skill-autosync-bin-*")
+	if err != nil {
+		e.err = err
+		t.Fatalf("cannot build the CLI for the auto-sync tests: %v", err)
+	}
+	bin := filepath.Join(dir, "gadak")
+	args := []string{"build", "-o", bin}
+	if version != "" {
+		args = append(args, "-ldflags=-X main.version="+version)
+	}
+	args = append(args, ".")
+	build := exec.Command("go", args...)
+	build.Dir = filepath.Dir(thisFile)
+	build.Env = append(os.Environ(),
+		"HOME="+gadakTestOrigHome,
+		"USERPROFILE="+gadakTestOrigHome,
+	)
+	if out, berr := build.CombinedOutput(); berr != nil {
+		e.err = fmt.Errorf("go build: %w\n%s", berr, out)
+		t.Fatalf("cannot build the CLI for the auto-sync tests: %v", e.err)
+	}
+	e.path = bin
+	return bin
 }
 
 func removeGadakTestBin() {
-	if gadakTestBin != "" {
-		_ = os.RemoveAll(filepath.Dir(gadakTestBin))
-	}
+	gadakTestBins.Range(func(_, v any) bool {
+		if e, ok := v.(*gadakTestBinEntry); ok && e.path != "" {
+			_ = os.RemoveAll(filepath.Dir(e.path))
+		}
+		return true
+	})
 }
 
 // runGadakTestBin runs one subcommand the way a user would and returns
@@ -881,12 +922,27 @@ func removeGadakTestBin() {
 // t.Setenv HOME / GADAK_HOME reach the child.
 func runGadakTestBin(t *testing.T, args ...string) (stdout, stderr string, err error) {
 	t.Helper()
-	cmd := exec.Command(buildGadakTestBin(t), args...)
+	return runGadakBin(t, buildGadakTestBin(t), args...)
+}
+
+func runGadakBin(t *testing.T, bin string, args ...string) (stdout, stderr string, err error) {
+	t.Helper()
+	cmd := exec.Command(bin, args...)
 	var out, errBuf bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &errBuf
 	err = cmd.Run()
 	return out.String(), errBuf.String(), err
+}
+
+// releaseVersionForTest stamps the in-process `version` var as a release for
+// one test. The in-process auto-sync entry points read that var, and the test
+// binary itself is always "0.0.0-dev" (GDK-1531).
+func releaseVersionForTest(t *testing.T) {
+	t.Helper()
+	prev := version
+	version = gadakTestReleaseVersion
+	t.Cleanup(func() { version = prev })
 }
 
 // autoSyncSeedStaleCopy plants what an older gadak left behind: the previous
@@ -1044,6 +1100,7 @@ func TestSkillAutoSyncSwallowsUnwritableSkillDir(t *testing.T) {
 // command, so the rate limit short-circuits before any skill I/O. A stamp
 // from yesterday does not rate-limit today.
 func TestSkillAutoSyncRateLimitIsOncePerDay(t *testing.T) {
+	releaseVersionForTest(t)
 	home := isolateHomeWithClaude(t)
 	gadakHome := t.TempDir()
 	t.Setenv("GADAK_HOME", gadakHome)
@@ -1139,6 +1196,165 @@ func TestSkillAutoSyncDoesNotInstallMissing(t *testing.T) {
 	}
 	if _, err := os.Stat(skillDestUnder(home)); !os.IsNotExist(err) {
 		t.Fatalf("auto-sync created a skill uninvited: %v", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// GDK-1531 — a dev build never syncs into a real agent home.
+//
+// Measured 2026-09-07 09:12:34Z: a checkout build replaced the developer's
+// installed ~/.claude/skills/gadak/SKILL.md with the working tree's
+// uncommitted copy, and the receipt it left (gadak_version 0.0.0-dev) made the
+// draft look like a shipped release to every later classifier. The rate-limit
+// stamp did not stop it and could not: the stamp lives under GADAK_HOME while
+// the destination lives under HOME, so a probe that isolates one and not the
+// other hands the hook a fresh day. The version is the discriminator.
+// ---------------------------------------------------------------------------
+
+// TestSkillAutoSyncSkippedOnDevBuild is the in-process contract: with a stale
+// copy planted — the one case the hook does write for — a dev build leaves the
+// bytes alone, says so once, and still spends the day's stamp so the line
+// cannot become a per-command nag.
+func TestSkillAutoSyncSkippedOnDevBuild(t *testing.T) {
+	if !skillinstall.IsDevBuild(version) {
+		t.Fatalf("the test binary should carry the dev version, got %q", version)
+	}
+	home := isolateHomeWithClaude(t)
+	gadakHome := t.TempDir()
+	t.Setenv("GADAK_HOME", gadakHome)
+	dest := skillDestUnder(home)
+	autoSyncSeedStaleCopy(t, dest)
+	before, err := os.ReadFile(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	maybeAutoSyncSkill(&buf, "version")
+
+	after, err := os.ReadFile(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Fatal("a dev build rewrote the installed skill")
+	}
+	if !strings.Contains(buf.String(), "skill: dev build — not syncing") {
+		t.Fatalf("the skip must be announced once; got:\n%s", buf.String())
+	}
+	if !strings.Contains(buf.String(), "gadak skill install") {
+		t.Fatalf("the line must name the deliberate way to do it; got:\n%s", buf.String())
+	}
+	if _, ok := readAutoSyncStampForTest(t, gadakHome); !ok {
+		t.Fatal("the skip must still spend the day's stamp, or the line prints on every command")
+	}
+
+	// Same day again: silent.
+	buf.Reset()
+	maybeAutoSyncSkill(&buf, "version")
+	if buf.Len() != 0 {
+		t.Fatalf("the second check of the day must be silent, got:\n%s", buf.String())
+	}
+}
+
+// TestSkillAutoSyncDevBuildSaysNothingWhenNothingWouldChange — the line is not
+// a banner. A copy already identical to the embed is not a sync the hook would
+// have done, so a dev build has nothing to report.
+func TestSkillAutoSyncDevBuildSilentWhenCurrent(t *testing.T) {
+	home := isolateHomeWithClaude(t)
+	t.Setenv("GADAK_HOME", t.TempDir())
+	dest := skillDestUnder(home)
+	if err := installSkill(io.Discard, gadak.SkillMarkdown(), dest, false, false); err != nil {
+		t.Fatalf("seed current copy: %v", err)
+	}
+	var buf bytes.Buffer
+	maybeAutoSyncSkill(&buf, "version")
+	if buf.Len() != 0 {
+		t.Fatalf("nothing to sync must be silent, got:\n%s", buf.String())
+	}
+}
+
+// TestSkillAutoSyncDevBinaryLeavesInstalledCopyAlone drives the real dispatch
+// path with a binary built exactly as `go build ./cmd/gadak` builds it — the
+// shape of the incident. The in-process test above cannot prove the wiring;
+// only the built binary does.
+func TestSkillAutoSyncDevBinaryLeavesInstalledCopyAlone(t *testing.T) {
+	home := isolateHomeWithClaude(t)
+	t.Setenv("GADAK_HOME", t.TempDir())
+	dest := skillDestUnder(home)
+	autoSyncSeedStaleCopy(t, dest)
+	before, err := os.ReadFile(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	stdout, stderr, err := runGadakBin(t, buildGadakDevTestBin(t), "version")
+	if err != nil {
+		t.Fatalf("gadak version: %v\nstderr:\n%s", err, stderr)
+	}
+	if got := strings.TrimSpace(stdout); got != skillinstall.DevVersion {
+		t.Fatalf("the dev test binary must carry the dev version, got %q", got)
+	}
+	after, err := os.ReadFile(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Fatal("a `go build` binary rewrote the installed skill on an ordinary subcommand")
+	}
+	if !strings.Contains(stderr, "skill: dev build — not syncing") {
+		t.Fatalf("the skip must reach stderr; got:\n%s", stderr)
+	}
+}
+
+// TestSkillInstallOnDevBuildIsExplicitAndHonest — `gadak skill install` is a
+// command the developer typed, so a dev build still installs. What changes is
+// the receipt: it records dev-tree, so nothing downstream can mistake the copy
+// for one gadak shipped.
+func TestSkillInstallOnDevBuildRecordsDevTreeReceipt(t *testing.T) {
+	if !skillinstall.IsDevBuild(version) {
+		t.Fatalf("the test binary should carry the dev version, got %q", version)
+	}
+	home := isolateHomeWithClaude(t)
+	dest := skillDestUnder(home)
+	if err := installSkill(io.Discard, gadak.SkillMarkdown(), dest, false, false); err != nil {
+		t.Fatalf("install: %v", err)
+	}
+	r, ok := readSkillReceipt(filepath.Dir(dest))
+	if !ok {
+		t.Fatal("no receipt after an install")
+	}
+	if r.Source != skillinstall.SourceDevTree {
+		t.Fatalf("receipt source = %q, want %q", r.Source, skillinstall.SourceDevTree)
+	}
+	if r.SourceWord() != skillinstall.SourceDevTree {
+		t.Fatalf("receipt SourceWord = %q", r.SourceWord())
+	}
+	// Revision is best-effort: -buildvcs=false and builds from outside a
+	// checkout stamp none, and the tests must pass in both.
+	if rev := skillinstall.BuildRevision(); rev != "" && r.Revision != rev {
+		t.Fatalf("receipt revision = %q, want %q", r.Revision, rev)
+	}
+}
+
+// TestSkillReleaseInstallRecordsReleaseSource — the same install from a cut
+// release records the other word, so `dev-tree` means something.
+func TestSkillInstallOnReleaseRecordsReleaseSource(t *testing.T) {
+	releaseVersionForTest(t)
+	home := isolateHomeWithClaude(t)
+	dest := skillDestUnder(home)
+	if err := installSkill(io.Discard, gadak.SkillMarkdown(), dest, false, false); err != nil {
+		t.Fatalf("install: %v", err)
+	}
+	r, ok := readSkillReceipt(filepath.Dir(dest))
+	if !ok {
+		t.Fatal("no receipt after an install")
+	}
+	if r.Source != skillinstall.SourceRelease {
+		t.Fatalf("receipt source = %q, want %q", r.Source, skillinstall.SourceRelease)
+	}
+	if r.GadakVersion != gadakTestReleaseVersion {
+		t.Fatalf("receipt gadak_version = %q, want %q", r.GadakVersion, gadakTestReleaseVersion)
 	}
 }
 

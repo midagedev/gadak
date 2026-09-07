@@ -221,6 +221,18 @@ so brew installs work without a checkout.
 missing (agents)` — so "did that install land?" is one command, and it names
 the host it found rather than assuming Claude Code.
 
+Building gadak from a checkout? That binary's embedded skill is whatever is in
+your working tree, so the once-a-day refresh never runs from it: instead of
+pushing an unreviewed draft into your own agent it prints
+`skill: dev build — not syncing ~/.claude/skills/gadak`, once, and leaves the
+installed copy alone. `gadak skill install` still works — that one you typed on
+purpose — but the receipt beside the file then records `source: dev-tree` plus
+the short git hash, and `gadak doctor` says
+`skill: current (~/.claude/skills/gadak/SKILL.md, dev-tree 3f2ab1c)` so a draft
+can never sit there looking like a release. A `+` on the hash means that tree
+had uncommitted changes. `gadak doctor --json` carries the same facts per host
+as `source`, `installed_by_version` and `revision`.
+
 ### Or install it as a Claude Code plugin
 
 The repository is also a plugin marketplace, so the same skill installs
