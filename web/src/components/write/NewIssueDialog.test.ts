@@ -10,10 +10,91 @@
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { parse } from 'svelte/compiler'
 import { describe, expect, test } from 'vitest'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const SRC = readFileSync(join(HERE, 'NewIssueDialog.svelte'), 'utf8')
+
+/*
+ * GDK-1474: the priority <option> contract below used to be a regex over the
+ * literal markup, /<option value=\{p\.id\}>\{p\.name\}<\/option>/. That
+ * matches one spelling: a wrapped line, an added class, or a space between
+ * the tags fails a test about ids-versus-display-names. The claim — the
+ * option's value is the catalog id and its label is the catalog name — is a
+ * property of the element node, so it is read off the AST instead.
+ *
+ * The rest of this file stays source-reading on purpose: those assertions
+ * are absences (no hardcoded 'Highest', no disabled= on submit, no fallback
+ * GET) and the absence of a node is not something a walk can be pointed at.
+ */
+type AnyNode = { type: string } & Record<string, unknown>
+
+function isNode(value: unknown): value is AnyNode {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as { type?: unknown }).type === 'string'
+  )
+}
+
+const CHILD_KEYS = [
+  'fragment',
+  'nodes',
+  'consequent',
+  'alternate',
+  'body',
+  'pending',
+  'then',
+  'catch',
+  'fallback',
+] as const
+
+function walkTemplate(node: unknown, visit: (n: AnyNode) => void): void {
+  if (Array.isArray(node)) {
+    for (const child of node) walkTemplate(child, visit)
+    return
+  }
+  if (!isNode(node)) return
+  visit(node)
+  for (const key of CHILD_KEYS) walkTemplate(node[key], visit)
+}
+
+/** `p.id` for a non-computed member chain; undefined for anything else. */
+function memberPath(node: unknown): string | undefined {
+  if (!isNode(node)) return undefined
+  if (node.type === 'Identifier') return String(node.name)
+  if (node.type === 'MemberExpression' && node.computed === false) {
+    const object = memberPath(node.object)
+    const property = memberPath(node.property)
+    return object && property ? `${object}.${property}` : undefined
+  }
+  return undefined
+}
+
+/** Every <option> as "value expression → text the option renders". */
+function optionShapes(): { value: string | undefined; label: string }[] {
+  const ast = parse(SRC, { modern: true, filename: 'NewIssueDialog.svelte' }) as unknown as {
+    fragment: unknown
+  }
+  const shapes: { value: string | undefined; label: string }[] = []
+  walkTemplate(ast.fragment, (node) => {
+    if (node.type !== 'RegularElement' || node.name !== 'option') return
+    const attr = (node.attributes as AnyNode[]).find(
+      (a) => a.type === 'Attribute' && a.name === 'value',
+    )
+    const tag = attr?.value
+    const value = isNode(tag) && tag.type === 'ExpressionTag' ? memberPath(tag.expression) : undefined
+    const kids = ((node.fragment as AnyNode | undefined)?.nodes ?? []) as AnyNode[]
+    const label = kids
+      .map((c) =>
+        c.type === 'ExpressionTag' ? `{${memberPath(c.expression) ?? '?'}}` : String(c.data ?? ''),
+      )
+      .join('')
+    shapes.push({ value, label })
+  })
+  return shapes
+}
 
 describe('NewIssueDialog create payload (GDK-248)', () => {
   test('does not hardcode Jira default priority display names', () => {
@@ -27,7 +108,7 @@ describe('NewIssueDialog create payload (GDK-248)', () => {
   })
 
   test('select values are catalog ids and labels are catalog names', () => {
-    expect(SRC).toMatch(/<option value=\{p\.id\}>\{p\.name\}<\/option>/)
+    expect(optionShapes()).toContainEqual({ value: 'p.id', label: '{p.name}' })
   })
 
   test('submit sends priority_id and does not send a priority name key', () => {

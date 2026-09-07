@@ -19,6 +19,16 @@ import { defineConfig } from 'vitest/config'
 // buildGroups live in filters.svelte.ts. docs-empty.test.ts imports the
 // docs-empty store, which uses $state in a class.
 //
+// GDK-1475 measured the alternative — give `unit` the plugin and delete both
+// lists. It is not free: four alternating paired runs on this tree put the
+// merged config about 7% above the split on CPU time (min 31.3s vs 29.2s,
+// every merged sample above every split sample but one), so the split stays.
+// The two lists below are hand-kept and must agree: a file dropped from one
+// and not added to the other stops being run anywhere, with nothing red to
+// say so. e2e/vitest-project-routing.unit.ts is what says so — it asserts
+// that every web/src test file is claimed by exactly one project and that no
+// list entry names a file that has been renamed away.
+//
 // Use test.env, not vite `define`. Vitest's deleteDefineConfig copies
 // import.meta.env.* defines onto process.env, so a hosted-project define
 // would turn the adapter on for the unit project too.

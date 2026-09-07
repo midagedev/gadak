@@ -15,12 +15,44 @@
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { parse } from 'svelte/compiler'
 import { describe, expect, test } from 'vitest'
 import { fieldLabel } from '../../lib/i18n'
 import { en, ja, ko } from '../../lib/i18n/catalog'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const TIMELINE = join(HERE, 'HistoryTimeline.svelte')
+
+/*
+ * GDK-1474: the import assertion below used to be a regex over one spelling
+ * of the import line, so adding a second name to it — which the sibling
+ * PersonalFeed.test.ts had already been through once — would fail a test
+ * about something else entirely. Read from the AST instead; the contract is
+ * "fieldLabel is bound from the i18n owner", not the order of a list.
+ */
+type AnyNode = { type: string } & Record<string, unknown>
+
+/** Named bindings this component imports from `specifier`. */
+function namedImports(path: string, filename: string, specifier: string): string[] {
+  const ast = parse(readFileSync(path, 'utf8'), { modern: true, filename }) as unknown as {
+    instance: { content: { body: AnyNode[] } } | null
+    module: { content: { body: AnyNode[] } } | null
+  }
+  const names: string[] = []
+  for (const part of [ast.instance, ast.module]) {
+    for (const node of part?.content.body ?? []) {
+      if (node.type !== 'ImportDeclaration') continue
+      const source = node.source as { value?: unknown } | undefined
+      if (source?.value !== specifier) continue
+      for (const spec of (node.specifiers ?? []) as AnyNode[]) {
+        if (spec.type !== 'ImportSpecifier') continue
+        const imported = spec.imported as { name?: unknown } | undefined
+        if (typeof imported?.name === 'string') names.push(imported.name)
+      }
+    }
+  }
+  return names
+}
 
 describe('GDK-1065 history timeline field labels go through the catalog owner', () => {
   test('fieldLabel resolves the ids the changelog ships', () => {
@@ -47,7 +79,9 @@ describe('GDK-1065 history timeline field labels go through the catalog owner', 
 
   test('HistoryTimeline routes e.field through the shared fieldLabel, never a local mapping', () => {
     const src = readFileSync(TIMELINE, 'utf8')
-    expect(src).toMatch(/import \{ t, fieldLabel \} from '\.\.\/\.\.\/lib\/i18n'/)
+    expect(namedImports(TIMELINE, 'HistoryTimeline.svelte', '../../lib/i18n')).toContain(
+      'fieldLabel',
+    )
     expect(src).toContain('fieldLabel(e.field)')
     // The pre-GDK-1065 local mapping must stay gone.
     expect(src).not.toMatch(/function fieldLabel/)

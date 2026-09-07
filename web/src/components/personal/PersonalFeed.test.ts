@@ -12,12 +12,47 @@
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { parse } from 'svelte/compiler'
 import { describe, expect, test } from 'vitest'
 import { fieldLabel } from '../../lib/i18n'
 import { en, ja, ko } from '../../lib/i18n/catalog'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const FEED = join(HERE, 'PersonalFeed.svelte')
+
+/*
+ * GDK-1474: "does this component get fieldLabel from the i18n owner" used to
+ * be /import \{ t, fieldLabel(, \w+)* \} from '\.\.\/\.\.\/lib\/i18n'/ — one
+ * spelling of one line, order included. It had already broken once and been
+ * generalised, and the comment above it recorded the repair; the next name
+ * added to that list, or a line the formatter wraps, breaks it again. The
+ * binding is one tier down, in the module's import declarations, so it is
+ * read there: order-independent, wrap-independent, and blind to a match
+ * inside a comment.
+ */
+type AnyNode = { type: string } & Record<string, unknown>
+
+/** Named bindings this component imports from `specifier`. */
+function namedImports(path: string, filename: string, specifier: string): string[] {
+  const ast = parse(readFileSync(path, 'utf8'), { modern: true, filename }) as unknown as {
+    instance: { content: { body: AnyNode[] } } | null
+    module: { content: { body: AnyNode[] } } | null
+  }
+  const names: string[] = []
+  for (const part of [ast.instance, ast.module]) {
+    for (const node of part?.content.body ?? []) {
+      if (node.type !== 'ImportDeclaration') continue
+      const source = node.source as { value?: unknown } | undefined
+      if (source?.value !== specifier) continue
+      for (const spec of (node.specifiers ?? []) as AnyNode[]) {
+        if (spec.type !== 'ImportSpecifier') continue
+        const imported = spec.imported as { name?: unknown } | undefined
+        if (typeof imported?.name === 'string') names.push(imported.name)
+      }
+    }
+  }
+  return names
+}
 
 describe('GDK-1055 feed field names go through the catalog owner', () => {
   test('fieldLabel resolves the raw changelog ids the feed ships', () => {
@@ -37,10 +72,9 @@ describe('GDK-1055 feed field names go through the catalog owner', () => {
 
   test('PersonalFeed maps payload.fields through fieldLabel, never raw', () => {
     const src = readFileSync(FEED, 'utf8')
-    // The import list grew (formatTimeOfDay, locale — the day-sections
-    // round); what stays pinned is that fieldLabel comes from the i18n
-    // owner, leading the list as before.
-    expect(src).toMatch(/import \{ t, fieldLabel(, \w+)* \} from '\.\.\/\.\.\/lib\/i18n'/)
+    // fieldLabel comes from the i18n owner. Where it sits in the import list
+    // is not the contract, so the list is not pinned — only the binding.
+    expect(namedImports(FEED, 'PersonalFeed.svelte', '../../lib/i18n')).toContain('fieldLabel')
     // Both branches (payload.fields[] and legacy changes[].label) map.
     expect(src).toMatch(/typeof f === 'string' \? fieldLabel\(f\) : ''/)
     expect(src).toMatch(/typeof label === 'string' \? fieldLabel\(label\) : ''/)
@@ -82,7 +116,9 @@ describe('the feed reads as days', () => {
     const src = readFileSync(FEED, 'utf8')
     // The layer exists and is fed by feed-groups' output, not me.feedItems
     // directly — the day layer sits above the collapse layer.
-    expect(src).toMatch(/import \{ feedDaySections, feedDayLabelText \} from '\.\/feed-days'/)
+    expect(namedImports(FEED, 'PersonalFeed.svelte', './feed-days')).toEqual(
+      expect.arrayContaining(['feedDaySections', 'feedDayLabelText']),
+    )
     expect(src).toMatch(/feedDaySections\(groups\)/)
     // The header itself, with its sticky treatment and semantic day key.
     expect(src).toContain('data-testid="feed-day"')

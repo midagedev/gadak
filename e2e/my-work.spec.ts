@@ -184,6 +184,11 @@ test.describe('my-work pack: identified sidebar and the mine list', () => {
   })
 
   test('screenshot for the lead vision review (written, never judged here)', async ({ page }) => {
+    // GDK-1476: capture-only — it writes a PNG nobody in CI consumes, and its
+    // only assertion (console clean) is already made by the two tests above on
+    // the same view. It runs when a vision round asks for the shot by naming
+    // the directory, and is skipped otherwise.
+    test.skip(!process.env.MY_WORK_SHOT_DIR, 'capture-only; set MY_WORK_SHOT_DIR to run')
     const errors = attachConsoleErrors(page)
     await mockAuthMe(page, DANA_ME)
     await captureBootstrap(page)
