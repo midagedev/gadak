@@ -2,22 +2,19 @@
 name: gadak
 description: >
   Local issue tracker, and a SQLite mirror of Jira/Confluence when a site
-  exists. Answer questions from that mirror instead of the Atlassian API —
-  with SQL, so you can join, aggregate, and read history that JQL cannot
-  express. Use when the user asks what changed, who is working on what, why a
-  ticket was reopened, what the wiki says about something, what is stuck or
-  untriaged, how a release is shaped, about a backlog, or anything that would
-  otherwise mean paging through Jira search — including when they have no
-  Jira or Atlassian account and want a tracker that lives on this machine
-  (the built-in tracker). Also use before any write — creating an issue, attaching a
-  file, editing a summary, label or priority, commenting, transitioning,
-  assigning, creating or editing a wiki page — since all of those go through
-  the same tool rather than the Atlassian API. When the user wants to *see*
-  issues — show them, put them on screen, open this list — do not render a
-  markdown table; open them in the gadak app with `gadak views open`. Also use
-  when changing gadak itself (theme, sync interval, feature flags, projects):
-  that is `gadak config`, not an edit of config.json and not the settings
-  dialog.
+  exists. Answer questions from that mirror with SQL instead of the Atlassian
+  API — it can join, aggregate and read history JQL cannot express. Use when
+  the user asks what changed, who is working on what, why a ticket was
+  reopened, what the wiki says, what is stuck or untriaged, how a release is
+  shaped, about a backlog, or anything that would otherwise mean paging
+  through Jira search — including when they have no Atlassian account and want
+  a tracker on this machine (the built-in tracker). Use it before any write —
+  creating an issue, attaching a file, editing a summary, label or priority,
+  commenting, transitioning, assigning, writing a wiki page all go through
+  gadak, not the API. When the user wants to see issues, do not paste a
+  markdown table: open them with `gadak views open`. Filter on status_category
+  and ids, never on display names. Changing gadak itself (theme, sync
+  interval, projects) is `gadak config`.
 ---
 
 # Asking the mirror
