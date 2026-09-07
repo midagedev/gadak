@@ -262,6 +262,84 @@ export const shell = {
     ko: '{name} 세션 종료',
     ja: 'セッション {name} を終了',
   },
+  // The phone's session sheet (GDK-1497 A6). Everything above is reused
+  // verbatim — the two surfaces must call the same shell the same thing —
+  // and these are only the verbs a thumb needs that a pointer does not: the
+  // desktop renames in place on a tab, binds by opening a shell *from* an
+  // issue, and pastes into the pane it is looking at. None of those gestures
+  // exists on a 402pt screen holding one socket at a time.
+  'terminal.strip.actions': {
+    en: 'Actions for {name}',
+    ko: '{name} 작업',
+    ja: '{name} の操作',
+  },
+  'terminal.strip.namePlaceholder': {
+    en: 'Name',
+    ko: '이름',
+    ja: '名前',
+  },
+  // The verb strip's own words. terminal.strip.rename / .kill stay the
+  // accessible names — they carry the row's label, which a button 44pt wide
+  // cannot show and a screen reader must hear.
+  'terminal.strip.renameVerb': {
+    en: 'Rename',
+    ko: '이름 바꾸기',
+    ja: '名前を変更',
+  },
+  'terminal.strip.killVerb': {
+    en: 'End',
+    ko: '종료',
+    ja: '終了',
+  },
+  'terminal.strip.bind': {
+    en: 'Issue',
+    ko: '이슈',
+    ja: '課題',
+  },
+  'terminal.strip.bindPlaceholder': {
+    en: 'Issue key',
+    ko: '이슈 키',
+    ja: '課題キー',
+  },
+  'terminal.strip.bindClear': {
+    en: 'Unbind',
+    ko: '연결 해제',
+    ja: '紐づけを解除',
+  },
+  // The place-a-line route (GDK-1162). The phone holds one socket, so this
+  // is the only way to reach a shell it is not showing — and the sentence
+  // has to say that Enter is still the person's, because the route
+  // deliberately refuses to press it.
+  'terminal.strip.send': {
+    en: 'Send a line',
+    ko: '한 줄 보내기',
+    ja: '1行を送る',
+  },
+  'terminal.strip.sendPlaceholder': {
+    en: 'One line — you press Enter',
+    ko: '한 줄 — Enter는 직접',
+    ja: '1行 — Enter は自分で',
+  },
+  'terminal.strip.sendPlaced': {
+    en: 'Placed in {name}. Press Enter there to run it.',
+    ko: '{name}에 넣었습니다. 실행은 그 셸에서 Enter를 누르세요.',
+    ja: '{name} に置きました。実行はそのシェルで Enter を押してください。',
+  },
+  'terminal.strip.killConfirm': {
+    en: 'End this shell?',
+    ko: '이 셸을 끝낼까요?',
+    ja: 'このシェルを終了しますか？',
+  },
+  'terminal.strip.failed': {
+    en: 'The host refused that.',
+    ko: '호스트가 거절했습니다.',
+    ja: 'ホストに拒否されました。',
+  },
+  'terminal.strip.empty': {
+    en: 'No shells are running.',
+    ko: '실행 중인 셸이 없습니다.',
+    ja: '実行中のシェルはありません。',
+  },
   // The dashboard surface (GDK-782). notFound: the id arrived (link, uifocus)
   // but the row is gone — `gadak dashboards rm` or another workspace. Both
   // states name the next action (GDK-827): a dead end that only states

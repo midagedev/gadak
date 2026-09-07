@@ -105,3 +105,80 @@ describe('GDK-953 — clear is not an emission', () => {
     expect(modifierIdForBarKey('clear')).toBeNull()
   })
 })
+
+/*
+ * GDK-951 — locked must not read as armed at arm's length.
+ *
+ * Both states used to paint the same ground (--color-accent-subtle) and the
+ * same ink (--color-accent-text), and differ only in a stroke: a 1px inset
+ * ring against a 2px bottom rule. At the distance a phone is actually held,
+ * with a thumb over the key, one stroke weight against another is not a
+ * state — a person cannot tell "the next letter is Ctrl-something" from
+ * "every letter is Ctrl-something until I say stop", which is the difference
+ * between ^C and a shell full of control bytes.
+ *
+ * So the axis this pins is FILL, not stroke: the two classes must paint
+ * different grounds, and locked must invert its glyph against that ground.
+ * A stroke-only difference passes every colour-contrast check and still
+ * fails the only question the strip is asked.
+ *
+ * Source contract, in this directory's established style (there is no DOM
+ * mount harness under mobile/src). Tokens only — the strings asserted are
+ * var() names, so a palette change moves both states together and this
+ * gate keeps holding.
+ */
+describe('GDK-951 — armed and locked differ in fill, not only in stroke', () => {
+  /** The declaration block of a single CSS rule, by selector. */
+  function ruleBody(selector: string): string {
+    const at = keybar.indexOf(`${selector} {`)
+    expect(at, `KeyBar.svelte must declare ${selector}`).toBeGreaterThan(-1)
+    return keybar.slice(at + selector.length + 2, keybar.indexOf('}', at))
+  }
+
+  /** One property's value inside a rule body, or null when unset. */
+  function decl(body: string, prop: string): string | null {
+    const m = new RegExp(`(?:^|;|\\n)\\s*${prop}\\s*:\\s*([^;]+);`).exec(body)
+    return m ? m[1].trim() : null
+  }
+
+  const armed = ruleBody('.key.armed')
+  const locked = ruleBody('.key.locked')
+
+  it('both states paint a ground, and the two grounds are not the same', () => {
+    const a = decl(armed, 'background')
+    const l = decl(locked, 'background')
+    expect(a, 'armed must declare a background').not.toBeNull()
+    expect(l, 'locked must declare a background').not.toBeNull()
+    expect(l, 'locked and armed must not share one fill').not.toBe(a)
+  })
+
+  it('locked inverts its glyph against its own fill; armed keeps accent ink on a tint', () => {
+    // The pair is theme-safe by construction: --color-accent-text is the
+    // accent thread that always contrasts the ground, --color-bg-base is
+    // always the ground, so the inversion holds in light, dark, ink and
+    // ember without a fifth colour being invented for it.
+    expect(decl(locked, 'background')).toBe('var(--color-accent-text)')
+    expect(decl(locked, 'color')).toBe('var(--color-bg-base)')
+    expect(decl(armed, 'background')).toBe('var(--color-accent-subtle)')
+    expect(decl(armed, 'color')).toBe('var(--color-accent-text)')
+  })
+
+  it('no new colour: every value in either state is a token', () => {
+    for (const [name, body] of [
+      ['armed', armed],
+      ['locked', locked],
+    ] as const) {
+      expect(body, `${name} must not carry a hex literal`).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
+      expect(body, `${name} must not carry an rgb()/hsl() literal`).not.toMatch(/\b(rgb|hsl)a?\(/)
+    }
+  })
+
+  it('the state survives a stroke being removed — fill alone still separates them', () => {
+    // Strip every box-shadow and the two blocks must still disagree. This
+    // is the exact regression: a future round tidying the shadows away
+    // would have silently restored the defect.
+    const noStroke = (s: string): string => s.replace(/box-shadow\s*:[^;]+;/g, '')
+    expect(noStroke(locked).trim()).not.toBe(noStroke(armed).trim())
+    expect(decl(noStroke(locked), 'background')).not.toBe(decl(noStroke(armed), 'background'))
+  })
+})

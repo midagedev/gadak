@@ -1,13 +1,23 @@
 <script module lang="ts">
-  // Session id kept across tab switches and app backgrounds so a reattach
-  // replays the ring (desktop pane does the same in session.ts).
-  let keptSessionId: string | null = null
+  // Which session the pane is showing — kept across tab switches and app
+  // backgrounds so a reattach replays the ring (desktop pane does the same,
+  // in sessions.svelte.ts). Since GDK-1497 A6 this is a *selection*, not the
+  // only session there is: the serve has been multi-session since GDK-864,
+  // and this was the last thing on the phone that assumed otherwise.
+  //
+  // Reactive, and module-scoped: reactive because the header and the sheet
+  // now render *from* it, so a plain `let` would leave both showing the
+  // previous shell until some other signal happened to re-run them; module
+  // -scoped because it must outlive the component, which unmounts on a tab
+  // switch. One owner of the answer, and the phone mounts one Shell.
+  let keptSessionId = $state<string | null>(null)
 </script>
 
 <script lang="ts">
   import { onMount, untrack } from 'svelte'
   import Screen from '../ui/Screen.svelte'
   import KeyBar from '../ui/KeyBar.svelte'
+  import Sheet from '../ui/Sheet.svelte'
   import { t } from '../lib/i18n'
   import { app, terminalSession } from '../lib/store.svelte'
   import {
@@ -15,6 +25,19 @@
     TERMINAL_CURSOR_BLINK_FALLBACK,
     TERMINAL_SCROLLBACK_FALLBACK,
   } from '../lib/terminal/api'
+  import {
+    bindSessionIssue,
+    deleteSession,
+    listSessions,
+    nextSelectedAfterKill,
+    placeSessionInput,
+    renameSession,
+    ROSTER_POLL_MS,
+    sessionLabel,
+    stripRows,
+    type StripRow,
+    type TerminalSessionInfo,
+  } from '../lib/terminal/sessions'
   import { openShellSocket } from '../lib/terminal/transport'
   import {
     StickyModifiers,
@@ -83,6 +106,76 @@
 
   const heading = $derived(machineName())
 
+  /* ── The roster (GDK-1497 A6) ────────────────────────────────────────────
+   *
+   * The serve has answered GET sessions/ since GDK-864 and the phone never
+   * asked. It asks now, and the answer is what the header and the sheet are
+   * both derived from — there is no second copy of "what shells exist".
+   *
+   * One socket at a time stays the rule (DESIGN.md §10: one pane, one
+   * keyboard, one thumb). Switching closes the current stream and attaches
+   * the chosen one; the serve's 256 KiB reconnect ring is replayed on
+   * attach, so what comes back is the tail of that session, not a local
+   * per-session scrollback. The phone keeps one xterm instance and resets it
+   * on every attach, so scrollback *older* than the ring does not survive a
+   * switch — the renderer has no per-session buffer to keep it in, and
+   * giving it one is a bigger change than this round (reported).
+   */
+  let roster = $state<TerminalSessionInfo[]>([])
+  /** False until a list has come back — "no shells" must not paint at boot. */
+  let rosterLoaded = $state(false)
+  let sheetOpen = $state(false)
+  /** Which row has its action drawer open, and which verb it is showing. */
+  let openRowId = $state<string | null>(null)
+  let rowMode = $state<'menu' | 'rename' | 'issue' | 'send' | 'kill'>('menu')
+  let draft = $state('')
+  /** One line of feedback under the open row: a placement, or a refusal. */
+  let rowNotice = $state<string | null>(null)
+  let rowBusy = $state(false)
+  /** Ticks the rows' relative state (running / quiet) while the sheet is up. */
+  let rosterAt = $state(Date.now())
+
+  const defaultName = (n: number): string => t('terminal.strip.defaultName', { n })
+
+  /** The four row states, in the desktop's words (strip.ts decides which). */
+  const STATE_KEYS = {
+    needs: 'terminal.strip.state.needs',
+    running: 'terminal.strip.state.running',
+    quiet: 'terminal.strip.state.quiet',
+    ghost: 'terminal.strip.state.ghost',
+  } as const
+
+  const rows = $derived<StripRow[]>(stripRows(roster, keptSessionId, rosterAt, defaultName))
+
+  /** The shown session's row, when the roster has caught up with it. */
+  const current = $derived(roster.find((s) => s.id === keptSessionId) ?? null)
+  const currentLabel = $derived(current ? sessionLabel(current, defaultName) : null)
+  const currentIssue = $derived(current?.issue_key?.trim() || null)
+
+  /**
+   * The issue the app has open, when it has one — the desktop binds by
+   * opening a shell *from* an issue and this is the phone's nearest thing
+   * (store.svelte.ts `app.detail`). In practice it is almost always null
+   * here: the detail layer paints over the whole tab column (App.svelte), so
+   * reaching the Terminal tab means the detail was closed, and closeIssue()
+   * nulls it. It is read anyway rather than invented — when it is set, the
+   * key field opens already filled — and the missing piece (a last-viewed
+   * issue the store remembers) is reported, not added to the store here.
+   */
+  const openIssueKey = $derived(app.detail?.kind === 'issue' ? app.detail.key : null)
+
+  async function refreshRoster(): Promise<void> {
+    try {
+      roster = await listSessions(terminalSession())
+      rosterLoaded = true
+      rosterAt = Date.now()
+    } catch {
+      // Keep the last roster. The pane's own socket is the authority on
+      // whether the host is reachable; a list that lost one race must not
+      // blank the sheet under a thumb.
+    }
+  }
+
   function machineName(): string {
     const label = app.terminal?.label?.trim()
     if (label) return label
@@ -97,6 +190,18 @@
 
   let renderer: PhoneTerminalRenderer | null = null
   let socket: SocketHandle | null = null
+  /**
+   * Which attachment is the pane's (GDK-1497 A6). Every socket callback
+   * closes over the id it was opened for, so a socket the pane has left
+   * behind still knows how to reconnect itself — and before switching
+   * existed there was only ever one, so nothing had to say which. With a
+   * switch there always are two for a moment: the old close arrives after
+   * the new attach, `phase` is 'live', and the old handler would schedule a
+   * reconnect to the session the person just navigated away from. This
+   * counter is the single owner of "is this socket still ours"; every
+   * handler below reads it before touching pane state.
+   */
+  let socketSeq = 0
   let ro: ResizeObserver | null = null
   let stopSettle: (() => void) | null = null
   let fitTimer: ReturnType<typeof setTimeout> | undefined
@@ -124,6 +229,9 @@
   }
 
   const detachSocket = () => {
+    // Bump first: close() can call back synchronously, and a stale handler
+    // that runs before the counter moves is exactly the race this closes.
+    socketSeq += 1
     socket?.close()
     socket = null
     attached = false
@@ -308,17 +416,25 @@
     renderer?.applyBehavior({ scrollback: doc.scrollback, cursorBlink: doc.cursorBlink })
     keptSessionId = doc.id
     attachSocket(doc.id, { afterCreate: true })
+    void refreshRoster()
   }
 
   function attachSocket(id: string, opts: { afterCreate: boolean; recreateOnFail?: boolean }): void {
     detachSocket()
     let opened = false
     phase = 'live'
+    // This attachment's ticket. `mine()` is false the moment anything else
+    // detaches or attaches — a switch, a tab leaving, an unmount — and every
+    // handler below leads with it, so a socket the pane no longer holds can
+    // neither paint into the renderer nor schedule its own return.
+    const mySeq = ++socketSeq
+    const mine = (): boolean => mySeq === socketSeq
     const session = terminalSession()
     const handle = openShellSocket(
       id,
       {
         onOpen() {
+          if (!mine()) return
           opened = true
           if (openTimer !== undefined) {
             clearTimeout(openTimer)
@@ -348,14 +464,18 @@
           stopSettle = settleResize(sendResize)
         },
         onBytes(data) {
+          if (!mine()) return
           renderer?.write(data)
         },
         onExit(code) {
+          if (!mine()) return
           phase = 'ended'
           status = { kind: 'exited', code }
           keptSessionId = null
+          void refreshRoster()
         },
         onDropped(reason) {
+          if (!mine()) return
           phase = 'ended'
           status = { kind: 'dropped', reason: coerceDroppedReason(reason) }
           if (reason === 'token_revoked' || reason === 'server_shutdown' || reason === 'idle_timeout') {
@@ -363,6 +483,7 @@
           }
         },
         onClose(neverOpened) {
+          if (!mine()) return
           attached = false
           if (cancelled || phase === 'ended' || phase === 'unavailable') return
           if (document.visibilityState === 'hidden') {
@@ -437,6 +558,173 @@
     keptSessionId = null
   }
 
+  /* ── The session verbs (GDK-1497 A6) ─────────────────────────────────────
+   *
+   * Every one of these goes through lib/terminal/sessions.ts, which is the
+   * single owner of the routes and of the bodies. Nothing here builds a URL
+   * or names a wire field; this file only decides what the pane does with
+   * the answer.
+   */
+
+  /**
+   * Move the pane onto a session. One socket: the current stream ends first,
+   * and the epoch above keeps the outgoing one from reconnecting itself.
+   */
+  function attachTo(id: string): void {
+    if (id === keptSessionId && attached) return
+    clearTimers()
+    reconnectAttempt = 0
+    reconnectSince = 0
+    keptSessionId = id
+    status = { kind: 'connecting' }
+    phase = 'live'
+    // afterCreate:false — the POST was somebody else's, possibly weeks of
+    // uptime ago, so a socket that never opens here is a reconnect case and
+    // not a "the host refused to start a shell" verdict.
+    attachSocket(id, { afterCreate: false })
+  }
+
+  /** A row was tapped: show that session, and get out of the way. */
+  function switchTo(id: string): void {
+    closeSheet()
+    attachTo(id)
+  }
+
+  /** `+` — a new shell, and the pane moves to it. */
+  async function createAndSwitch(): Promise<void> {
+    closeSheet()
+    clearTimers()
+    detachSocket()
+    reconnectAttempt = 0
+    reconnectSince = 0
+    keptSessionId = null
+    status = { kind: 'connecting' }
+    phase = 'live'
+    try {
+      await startNew()
+    } catch (err) {
+      onCreateFail(err)
+    }
+  }
+
+  /**
+   * End a session on purpose. The selection moves first and synchronously —
+   * to the right-hand neighbour when the ended one is the shown one — so the
+   * pane has already left before the shell is torn down (the desktop's
+   * nextSelectedAfterKill, shared). Killing the last one leaves the pane on
+   * its own ended line rather than an empty sheet with nothing to say.
+   */
+  async function killRow(id: string): Promise<void> {
+    const next = nextSelectedAfterKill(
+      roster.map((s) => s.id),
+      id,
+      keptSessionId,
+    )
+    const wasShown = id === keptSessionId
+    if (wasShown && next === null) {
+      // Set the end state before the socket closes: the close handler reads
+      // `phase` to decide whether to reconnect, and this shell is not coming
+      // back.
+      phase = 'ended'
+      status = { kind: 'dropped', reason: 'closed' }
+      keptSessionId = null
+      clearTimers()
+      detachSocket()
+    }
+    const ended = await run(id, () => deleteSession(id, terminalSession()))
+    await refreshRoster()
+    // A refusal keeps the drawer open on its own line: closing it here would
+    // wipe the only thing that says the shell is still running.
+    if (!ended) return
+    // The sheet stays open: ending one shell of several is a housekeeping
+    // gesture, and closing the list under the thumb that just used it is the
+    // opposite of what the next tap wants.
+    closeRow()
+    if (wasShown && next !== null) attachTo(next)
+  }
+
+  async function renameRow(id: string): Promise<void> {
+    const name = draft
+    if (await run(id, () => renameSession(id, name, terminalSession()))) {
+      await refreshRoster()
+      closeRow()
+    }
+  }
+
+  async function bindRow(id: string, key: string): Promise<void> {
+    if (await run(id, () => bindSessionIssue(id, key, terminalSession()))) {
+      await refreshRoster()
+      closeRow()
+    }
+  }
+
+  /**
+   * Place a line in a shell without being its socket (GDK-1162).
+   *
+   * This is the one verb here that is not a convenience: the phone holds a
+   * single socket, so a line for a session it is not showing has no other
+   * road. Keystrokes are unaffected — they keep going over the socket, and
+   * this route refuses a newline, so Enter stays a thing a person presses in
+   * front of the line they can read.
+   */
+  async function sendRow(id: string, name: string): Promise<void> {
+    const text = draft
+    if (await run(id, () => placeSessionInput(id, text, terminalSession()))) {
+      draft = ''
+      rowNotice = t('terminal.strip.sendPlaced', { name })
+      await refreshRoster()
+    }
+  }
+
+  /** One in-flight verb, with the refusal surfaced on the row that asked. */
+  async function run(id: string, verb: () => Promise<unknown>): Promise<boolean> {
+    rowBusy = true
+    rowNotice = null
+    try {
+      await verb()
+      return true
+    } catch (err) {
+      // The server's own words when it sent any (`message` on failMsg —
+      // input_not_a_line explains itself better than this app could), the
+      // generic line otherwise. Never the raw code, never the token.
+      const detail = err instanceof ApiError ? err.serverMessage : null
+      rowNotice = detail?.trim() || t('terminal.strip.failed')
+      openRowId = id
+      return false
+    } finally {
+      rowBusy = false
+    }
+  }
+
+  function openSheet(): void {
+    sheetOpen = true
+    closeRow()
+    void refreshRoster()
+  }
+
+  function closeSheet(): void {
+    sheetOpen = false
+    closeRow()
+  }
+
+  function closeRow(): void {
+    openRowId = null
+    rowMode = 'menu'
+    draft = ''
+    rowNotice = null
+  }
+
+  /** Open a row's drawer on one verb, with the field primed for it. */
+  function openRow(row: StripRow, mode: typeof rowMode): void {
+    openRowId = row.id
+    rowMode = mode
+    rowNotice = null
+    const info = roster.find((s) => s.id === row.id)
+    if (mode === 'rename') draft = info?.name?.trim() ?? ''
+    else if (mode === 'issue') draft = info?.issue_key?.trim() || openIssueKey || ''
+    else draft = ''
+  }
+
   async function ensureRenderer(): Promise<boolean> {
     if (renderer) return true
     if (!hostEl) return false
@@ -490,6 +778,9 @@
     })
     if (!(await ensureRenderer())) return
     if (seq !== actSeq || cancelled) return
+    // The header names the session, not just the machine, so the roster is
+    // read once on every activation — not only when the sheet opens.
+    void refreshRoster()
     try {
       if (keptSessionId) {
         attachSocket(keptSessionId, { afterCreate: false, recreateOnFail: true })
@@ -780,6 +1071,26 @@
     }
   })
 
+  // The roster poll runs only while the sheet is up (GDK-1497 A6). The
+  // desktop polls for as long as its pane is open; this list travels over a
+  // tailnet on a battery, and the one row a closed sheet still shows — the
+  // attached session's own label — changes only when this device changes it,
+  // in which case the verb refreshes.
+  $effect(() => {
+    if (!sheetOpen) return
+    const timer = setInterval(() => void refreshRoster(), ROSTER_POLL_MS)
+    return () => clearInterval(timer)
+  })
+
+  // A tab switch away closes the sheet. The condition reads app.tab only and
+  // never sheetOpen, which this writes: an effect that reads the state it
+  // sets is a loop waiting for a second writer, and the guard it would buy
+  // is worth nothing — closeSheet is idempotent.
+  $effect(() => {
+    if (app.tab === 'shell') return
+    closeSheet()
+  })
+
   onMount(() => {
     document.addEventListener('visibilitychange', onVisibility)
     return () => {
@@ -798,6 +1109,28 @@
   {#snippet header()}
     <div class="head">
       <h1 class="type-subject">{heading}</h1>
+      <!-- The way into the roster, and the only place the pane says which
+           shell it is showing. Absent until a list has come back, so it
+           never claims "1" before it has asked. -->
+      {#if rosterLoaded}
+        <button
+          type="button"
+          class="sessions"
+          data-testid="shell-sessions"
+          aria-label={t('terminal.strip.list')}
+          aria-haspopup="dialog"
+          aria-expanded={sheetOpen}
+          onclick={openSheet}
+        >
+          {#if currentLabel}
+            <span class="cur">{currentLabel}</span>
+          {/if}
+          {#if currentIssue && currentIssue !== currentLabel}
+            <span class="key">{currentIssue}</span>
+          {/if}
+          <span class="count">{roster.length}</span>
+        </button>
+      {/if}
     </div>
   {/snippet}
 
@@ -889,12 +1222,351 @@
   {/snippet}
 </Screen>
 
+<!--
+  The session sheet (GDK-1497 A6). Outside <Screen> on purpose: Sheet is
+  absolutely positioned and the nearest positioned ancestor is `.tabs`
+  (App.svelte), which is the geometry app.css already documents for a sheet
+  that ends at the tab bar rather than at the home indicator.
+
+  Every destructive step is inside this sheet, including the confirmation.
+  The browser's own blocking dialog is never used anywhere in this app: it is
+  unthemed, untranslated by our catalog, and on iOS it reads as the OS asking
+  rather than gadak. Ending a shell asks in the row it belongs to.
+-->
+{#if sheetOpen}
+  <Sheet title={t('terminal.strip.list')} onclose={closeSheet}>
+    <div class="roster" data-testid="session-sheet">
+      <button
+        type="button"
+        class="new"
+        data-testid="session-new"
+        onclick={() => void createAndSwitch()}
+      >
+        <span class="plus" aria-hidden="true">+</span>
+        {t('terminal.strip.new')}
+      </button>
+
+      {#if rows.length === 0}
+        <p class="empty">{t('terminal.strip.empty')}</p>
+      {/if}
+
+      {#each rows as row (row.id)}
+        <div
+          class="entry"
+          class:on={row.selected}
+          data-testid="session-row"
+          data-session-id={row.id}
+          data-state={row.state}
+        >
+          <div class="line">
+            <button
+              type="button"
+              class="pick"
+              aria-label={t('terminal.strip.show', { name: row.label })}
+              aria-current={row.selected ? 'true' : undefined}
+              onclick={() => switchTo(row.id)}
+            >
+              <span class="dot" data-state={row.state} aria-hidden="true"></span>
+              <span class="label" class:bound={row.namedByIssue}>{row.label}</span>
+              {#if row.issueAside}
+                <span class="key">{row.issueAside}</span>
+              {/if}
+              <span class="state">{t(STATE_KEYS[row.state])}</span>
+            </button>
+            <button
+              type="button"
+              class="more"
+              data-testid="session-more"
+              aria-label={t('terminal.strip.actions', { name: row.label })}
+              aria-expanded={openRowId === row.id}
+              onclick={() => (openRowId === row.id ? closeRow() : openRow(row, 'menu'))}
+            >
+              <span aria-hidden="true">⋯</span>
+            </button>
+          </div>
+
+          {#if openRowId === row.id}
+            <div class="drawer">
+              {#if rowMode === 'menu'}
+                <div class="verbs">
+                  <button
+                    type="button"
+                    data-testid="verb-rename"
+                    aria-label={t('terminal.strip.rename', { name: row.label })}
+                    onclick={() => openRow(row, 'rename')}
+                  >
+                    {t('terminal.strip.renameVerb')}
+                  </button>
+                  <button type="button" data-testid="verb-issue" onclick={() => openRow(row, 'issue')}>
+                    {t('terminal.strip.bind')}
+                  </button>
+                  <button type="button" data-testid="verb-send" onclick={() => openRow(row, 'send')}>
+                    {t('terminal.strip.send')}
+                  </button>
+                  <button
+                    type="button"
+                    class="danger"
+                    data-testid="verb-kill"
+                    aria-label={t('terminal.strip.kill', { name: row.label })}
+                    onclick={() => openRow(row, 'kill')}
+                  >
+                    {t('terminal.strip.killVerb')}
+                  </button>
+                </div>
+              {:else if rowMode === 'kill'}
+                <div class="verbs confirm">
+                  <span class="ask">{t('terminal.strip.killConfirm')}</span>
+                  <button
+                    type="button"
+                    class="danger"
+                    data-testid="session-kill-confirm"
+                    disabled={rowBusy}
+                    onclick={() => void killRow(row.id)}
+                  >
+                    {t('terminal.strip.killVerb')}
+                  </button>
+                  <button type="button" onclick={closeRow}>{t('common.cancel')}</button>
+                </div>
+              {:else}
+                <form
+                  class="field"
+                  onsubmit={(e) => {
+                    e.preventDefault()
+                    if (rowMode === 'rename') void renameRow(row.id)
+                    else if (rowMode === 'issue') void bindRow(row.id, draft)
+                    else void sendRow(row.id, row.label)
+                  }}
+                >
+                  <input
+                    bind:value={draft}
+                    data-testid="session-field"
+                    autocomplete="off"
+                    autocapitalize={rowMode === 'issue' ? 'characters' : 'off'}
+                    autocorrect="off"
+                    spellcheck="false"
+                    placeholder={rowMode === 'rename'
+                      ? t('terminal.strip.namePlaceholder')
+                      : rowMode === 'issue'
+                        ? t('terminal.strip.bindPlaceholder')
+                        : t('terminal.strip.sendPlaceholder')}
+                  />
+                  <button type="submit" class="go" data-testid="session-submit" disabled={rowBusy}>
+                    {rowMode === 'send' ? t('terminal.strip.send') : t('common.save')}
+                  </button>
+                  {#if rowMode === 'issue' && row.namedByIssue}
+                    <button type="button" disabled={rowBusy} onclick={() => void bindRow(row.id, '')}>
+                      {t('terminal.strip.bindClear')}
+                    </button>
+                  {/if}
+                  <button type="button" onclick={closeRow}>{t('common.cancel')}</button>
+                </form>
+              {/if}
+              {#if rowNotice}
+                <p class="notice" data-testid="session-notice" role="status">{rowNotice}</p>
+              {/if}
+            </div>
+          {/if}
+        </div>
+      {/each}
+    </div>
+  </Sheet>
+{/if}
+
 <style>
   .head {
     display: flex;
     align-items: baseline;
+    gap: 10px;
     padding: 12px 0 10px;
     min-width: 0;
+  }
+  /* The roster's door. Reads as a label, not a button chrome: what it says
+     is which shell is on screen, and the count is the only hint that there
+     are others. */
+  .sessions {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 55%;
+    padding: 0 8px;
+    border-radius: 6px;
+    background: var(--color-bg-elevated);
+    font-size: var(--text-micro);
+    color: var(--color-text-secondary);
+    min-width: 0;
+  }
+  .sessions .cur {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+  }
+  .sessions .count {
+    flex: none;
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--color-text-muted);
+  }
+  .key {
+    flex: none;
+    font-family: var(--font-mono);
+    font-size: var(--text-micro);
+    color: var(--color-accent-text);
+    white-space: nowrap;
+  }
+
+  /* ── The session sheet ── */
+  .roster {
+    overflow-y: auto;
+    padding: 0 8px 8px;
+  }
+  .new {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 6px 8px;
+    color: var(--color-accent-text);
+    text-align: left;
+  }
+  .new .plus {
+    font-family: var(--font-mono);
+    font-size: var(--text-title);
+    line-height: 1;
+  }
+  .empty {
+    margin: 0;
+    padding: 12px 8px;
+    font-size: var(--text-body);
+    color: var(--color-text-muted);
+  }
+  .entry {
+    border-radius: 8px;
+  }
+  .entry.on {
+    background: var(--color-bg-elevated);
+  }
+  .line {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .pick {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    padding: 6px 8px;
+    text-align: left;
+  }
+  .more {
+    flex: none;
+    width: var(--spacing-control);
+    color: var(--color-text-muted);
+    font-size: var(--text-title);
+    line-height: 1;
+  }
+  /* The four states carry a colour *and* a shape of their own: `needs` is
+     the only one that is a request, so it is the only filled ring. Colour
+     alone would be the defect GDK-951 is about, one surface over. */
+  .dot {
+    flex: none;
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--color-text-muted);
+  }
+  .dot[data-state='needs'] {
+    background: var(--color-status-reopen);
+    box-shadow: 0 0 0 3px var(--color-accent-subtle);
+  }
+  .dot[data-state='running'] {
+    background: var(--color-status-inprogress);
+  }
+  .dot[data-state='ghost'] {
+    background: none;
+    box-shadow: inset 0 0 0 1px var(--color-border-strong);
+  }
+  .label {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--color-text-primary);
+  }
+  .label.bound {
+    font-family: var(--font-mono);
+  }
+  .entry.on .label {
+    font-weight: 600;
+  }
+  .state {
+    flex: none;
+    font-size: var(--text-micro);
+    color: var(--color-text-muted);
+  }
+  .drawer {
+    padding: 0 8px 8px;
+  }
+  .verbs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .verbs button {
+    padding: 0 12px;
+    border-radius: 6px;
+    background: var(--color-bg-panel);
+    box-shadow: inset 0 0 0 1px var(--color-border-subtle);
+    font-size: var(--text-micro);
+    color: var(--color-text-secondary);
+  }
+  .verbs button.danger {
+    color: var(--color-status-reopen);
+  }
+  .verbs.confirm .ask {
+    display: flex;
+    align-items: center;
+    font-size: var(--text-micro);
+    color: var(--color-text-secondary);
+  }
+  .field {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+  .field input {
+    flex: 1 1 160px;
+    min-width: 0;
+    min-height: var(--spacing-control);
+    padding: 0 10px;
+    border-radius: 6px;
+    border: 1px solid var(--color-border-strong);
+    background: var(--color-bg-base);
+    /* --text-body is 16px by token: below that iOS zooms a focused field. */
+    font-size: var(--text-body);
+  }
+  .field button {
+    padding: 0 12px;
+    border-radius: 6px;
+    font-size: var(--text-micro);
+    color: var(--color-text-secondary);
+  }
+  .field button.go {
+    color: var(--color-accent-text);
+    font-weight: 600;
+  }
+  .field button:disabled {
+    opacity: 0.45;
+  }
+  .notice {
+    margin: 6px 0 0;
+    font-size: var(--text-micro);
+    color: var(--color-text-secondary);
   }
   h1 {
     margin: 0;

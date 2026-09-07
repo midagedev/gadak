@@ -4,8 +4,10 @@
 
   // Strip above the keyboard (DESIGN.md §10.3). Every control is a 44pt
   // target (`--spacing-control`). Ctrl/Alt show idle / armed / locked as
-  // three states: colour plus a shape (inset ring vs bottom rule), because
-  // a colour-only state was a defect in this review cycle.
+  // three states, separated by FILL first and a shape second (GDK-951):
+  // armed is a tint under an accent ring, locked is a solid accent pill with
+  // an inverted glyph. Colour alone was a defect in an earlier review cycle;
+  // stroke weight alone was the defect after that one.
   let {
     mods,
     onkey,
@@ -95,16 +97,35 @@
     font-size: var(--text-micro);
     color: var(--color-text-secondary);
   }
+  /*
+    GDK-951 — armed and locked are told apart by FILL, not by stroke weight.
+    They used to share a ground (--color-accent-subtle) and an ink
+    (--color-accent-text) and differ only in a 1px inset ring against a 2px
+    bottom rule, which at the distance a phone is held, under a thumb, is
+    not a state at all: "the next letter is Ctrl-something" and "every
+    letter is Ctrl-something until I say stop" looked the same.
+
+    armed keeps the tint with the accent ring on it. locked inverts: the
+    accent thread becomes the ground and the glyph becomes the page.
+    --color-accent-text / --color-bg-base is the theme-safe pair for that —
+    the first is the accent value that always contrasts the ground, the
+    second always is the ground — so the inversion holds in light, dark,
+    ink and ember (computed ≥8:1 in all four) with no new colour.
+  */
   .key.armed {
     color: var(--color-accent-text);
     background: var(--color-accent-subtle);
     box-shadow: inset 0 0 0 1px var(--color-accent);
   }
   .key.locked {
-    color: var(--color-accent-text);
-    background: var(--color-accent-subtle);
+    color: var(--color-bg-base);
+    background: var(--color-accent-text);
     font-weight: 600;
-    box-shadow: inset 0 -2px 0 var(--color-accent);
+    /* The fill is inset by the bar's own colour, so locked reads as a solid
+       pill sitting in the cell rather than a cell that changed colour — a
+       shape as well as a fill, which is what input-machines.test.ts has
+       required of both states since GDK-953. */
+    box-shadow: inset 0 0 0 2px var(--color-bg-panel);
   }
   .key:disabled {
     /* Sibling idiom (.act:disabled, .status:disabled): visibly off, not

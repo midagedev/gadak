@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { readBufferOffset, readBufferType, readMouseTrackingMode } from './renderer'
+import { fontFamily, readBufferOffset, readBufferType, readMouseTrackingMode } from './renderer'
 import { TERMINAL_CHROME_VARS } from '../../../../web/src/lib/terminal/protocol'
 
 /*
@@ -127,5 +127,65 @@ describe('GDK-900 — nothing focusable in the shell is under the iOS zoom floor
     expect(body, '--text-body backs the IME field (.ime in Shell.svelte)').toBeGreaterThanOrEqual(
       IOS_ZOOM_FLOOR_PX,
     )
+  })
+})
+
+/*
+ * GDK-1131 — the phone terminal reads the terminal font token.
+ *
+ * GDK-1043 split --font-mono-terminal off from --font-mono on the web for a
+ * measured reason: WebKit resolves ui-monospace to SF Mono, whose box-glyph
+ * ink (15.31css at 13px) undershoots the 16css cell xterm derives, leaving a
+ * 1px seam at every row boundary; Menlo joins by overshoot on both engines.
+ * --font-mono still leads with ui-monospace, on purpose — it is the app-wide
+ * face, where box grids never occur.
+ *
+ * The phone's renderer kept reading --font-mono, so the surface where box
+ * drawing actually matters — a full-screen TUI on a 48-column phone grid —
+ * was the one surface still riding the seam, and nothing was red about it.
+ * The token is imported into this bundle already (mobile/src/app.css line 13
+ * imports web/src/app.css through the same Tailwind pipeline), so this was
+ * only ever a missing read.
+ *
+ * Pinned as an injectable reader, the same shape as terminalFontSize: the
+ * unit project runs in node with no stylesheet, so the token cannot be
+ * measured here — but which token is asked for, in which order, can.
+ */
+describe('GDK-1131 — the terminal font stack comes from --font-mono-terminal', () => {
+  it('prefers the terminal token over the app-wide mono face', () => {
+    const read = (name: string): string =>
+      name === '--font-mono-terminal'
+        ? 'Menlo, ui-monospace, monospace'
+        : 'ui-monospace, SFMono-Regular, monospace'
+    expect(fontFamily(read)).toBe('Menlo, ui-monospace, monospace')
+  })
+
+  it('falls back to --font-mono when the terminal token is unset', () => {
+    // An older stylesheet, or a build that has not picked up app.css yet.
+    const read = (name: string): string =>
+      name === '--font-mono-terminal' ? '' : 'ui-monospace, SFMono-Regular, monospace'
+    expect(fontFamily(read)).toBe('ui-monospace, SFMono-Regular, monospace')
+  })
+
+  it('falls back to a literal stack when neither token resolves', () => {
+    const stack = fontFamily(() => '')
+    expect(stack).not.toBe('')
+    expect(stack).toContain('monospace')
+  })
+
+  it('the live renderer asks for the font through this reader, not a private literal', () => {
+    // The construction site is what shipped the defect: `fontFamily()` used
+    // to read --font-mono directly and hand xterm a hardcoded SF Mono stack
+    // beneath it.
+    expect(rendererSrc).toContain('fontFamily: fontFamily()')
+    expect(rendererSrc).toContain("read('--font-mono-terminal')")
+  })
+
+  it('the token this file asks for is the one app.css actually declares', () => {
+    // Guards the rename class: a web-side token rename would otherwise drop
+    // the phone silently back to the fallback, which is the whole shape of
+    // GDK-1109 one directory over.
+    const appCss = readFileSync(join(here, '..', '..', '..', '..', 'web', 'src', 'app.css'), 'utf8')
+    expect(appCss).toMatch(/--font-mono-terminal:/)
   })
 })

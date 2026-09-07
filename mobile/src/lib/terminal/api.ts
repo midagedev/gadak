@@ -8,6 +8,7 @@
 // the terminal slot must learn that here, not from a shell that never opens.
 
 import { request, ApiError, type ApiSession, type FetchLike } from '../api'
+import type { TerminalSessionInfo } from '../../../../web/src/lib/terminal/strip'
 
 /**
  * Terminal behavior the create response carries (GDK-896 R3; the web
@@ -50,18 +51,33 @@ export function normalizeSessionDoc(raw: RawSessionDoc): SessionDoc {
 /** A listed session row — the server's term.Info: identity, geometry, and
  *  process facts. Behavior never travels on this shape (GDK-896 R3: it
  *  rides the create response only — internal/server/terminal.go answers
- *  list with term.Info), so no behavior field is claimed here. */
-export interface ListedSessionDoc {
-  id: string
-  pid: number
-  cols: number
-  rows: number
+ *  list with term.Info), so no behavior field is claimed here.
+ *
+ *  The identity half of the row is TerminalSessionInfo, the web strip's
+ *  declaration of the same wire shape (web/src/lib/terminal/strip.ts) —
+ *  name, issue binding, ordinal, liveness. This used to declare four
+ *  fields of its own, which is why the phone could list sessions and still
+ *  had nothing to call one (GDK-1497 A6): a row the type says is
+ *  `{id,pid,cols,rows}` cannot be labelled, however much the server sent.
+ *  Geometry is optional here because term.Info's zero values are legal and
+ *  nothing on the phone reads them. */
+export type ListedSessionDoc = TerminalSessionInfo & {
+  pid?: number
+  cols?: number
+  rows?: number
+}
+
+/** The one owner of a terminal session URL path. `sub` names a sub-route
+ *  ('name' | 'issue' | 'input'); ./sessions.ts builds every verb through
+ *  this so a route cannot be spelled twice. */
+export function sessionPath(id?: string, sub?: string): string {
+  if (id === undefined) return 'terminal/sessions/'
+  const base = `terminal/sessions/${encodeURIComponent(id)}/`
+  return sub === undefined ? base : `${base}${sub}/`
 }
 
 function pathFor(id?: string): string {
-  return id === undefined
-    ? 'terminal/sessions/'
-    : `terminal/sessions/${encodeURIComponent(id)}/`
+  return sessionPath(id)
 }
 
 export async function createShellSession(
