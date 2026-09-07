@@ -209,6 +209,116 @@ export function catalogFor(locale: Locale): Record<MessageKey, string> {
 }
 
 /**
+ * The translation file a media take's fixture was built from (GDK-1556).
+ *
+ * `examples/demo-i18n/<locale>.json` is the committed one; the Makefile's
+ * `GADAK_DEMO_I18N_STRINGS` override points both halves at the same other
+ * file, so a spec always reads the strings that were actually applied to the
+ * mirror it is looking at. `en` is the source list itself — the fixture is
+ * English, so `en.json` *is* what the frame shows.
+ */
+export function fixtureStringsPath(locale: Locale = mediaLocale()): string {
+  const root = join(E2E_DIR, '..')
+  if (locale === 'en') return join(root, 'examples/demo-i18n/en.json')
+  const override = process.env.GADAK_DEMO_I18N_STRINGS
+  if (override) return override
+  return join(root, `examples/demo-i18n/${locale}.json`)
+}
+
+const fixtureStringCache = new Map<string, Record<string, string>>()
+
+function fixtureStrings(path: string): Record<string, string> {
+  const hit = fixtureStringCache.get(path)
+  if (hit) return hit
+  const parsed = JSON.parse(readFileSync(path, 'utf8')) as { strings?: Record<string, string> }
+  if (!parsed.strings) throw new Error(`${path}: no "strings" object — not a demo-i18n file`)
+  fixtureStringCache.set(path, parsed.strings)
+  return parsed.strings
+}
+
+/**
+ * What the *fixture* reads on camera, in the locale this take records in.
+ *
+ * The two landing clips record a translated mirror (GDK-1556): the Makefile
+ * copies examples/demo.db, runs tools/demo-i18n/apply.py over the copy, and
+ * seeds the take from that. So a recording assertion about a priority name or
+ * a status name cannot be an English literal — it reads the same id the
+ * translation is keyed by (`catalog:priority:High`, `catalog:status:3`;
+ * tools/demo-i18n/extract.py documents the id families).
+ *
+ * A locale file that does not carry the id falls back to `en.json`, which is
+ * exactly what apply.py does to the db: an id with no translation stays
+ * English there too. That is what makes a partial translation file usable.
+ *
+ * Only *recordings* may key on a display name, and only to assert what the
+ * frame shows. Product logic keys on status_category / status_id /
+ * priority_rank / issue_type_id (CLAUDE.md), and so do the locators here —
+ * `data-filter-value` for the status axis is the status id.
+ */
+export function fixtureString(id: string, locale: Locale = mediaLocale()): string {
+  const strings = fixtureStrings(fixtureStringsPath(locale))
+  const hit = strings[id]
+  if (hit !== undefined) return hit
+  const source = fixtureStrings(fixtureStringsPath('en'))
+  const fallback = source[id]
+  if (fallback === undefined) {
+    throw new Error(`unknown fixture string id ${JSON.stringify(id)} — see tools/demo-i18n/extract.py`)
+  }
+  return fallback
+}
+
+/**
+ * The token the scale flagship types into the palette, per locale.
+ *
+ * It has to exist across titles, bodies and comments of the cloned rows, so
+ * it is a word the fixture's own prose uses — English `retry`, and whatever
+ * the translators settled on for it (the shard brief fixes 리트라이→재시도 for
+ * ko and リトライ for ja, so the same word recurs across the mirror rather
+ * than drifting per document).
+ *
+ * Verified 2026-09-07 through the app's own search, not a raw FTS MATCH:
+ * unicode61 does not segment Japanese, so `items_fts MATCH 'リトライ'` is 0
+ * rows while `GET issues/search/?q=リトライ` is 8 issues + 2 pages — the CJK
+ * path goes through the cjk_bigram column (internal/store/cjk.go). ko 재시도
+ * is 8 issues; en retry, 8.
+ */
+export const MEDIA_SEARCH_TOKEN: Record<Locale, string> = {
+  en: 'retry',
+  ko: '재시도',
+  ja: 'リトライ',
+}
+
+/**
+ * The token the search take types, in two halves.
+ *
+ * That clip exists to show All search reaching past local title matching, so
+ * the token has to satisfy three measured properties on the mirror this take
+ * records over: no issue or page *title* carries it (local matching cannot see
+ * it), no wiki *body* carries it (a doc row would outrank the issues and Enter
+ * would land on a page, not the NMA issue the clip ends on), and enough
+ * comments carry it that the unified section fills. `prefix` is typed first
+ * and still has local hits; the rest of the word clears that section.
+ *
+ * Measured 2026-09-07 on the applied fixtures — first unified row / its match
+ * field, via the palette itself:
+ *   en `workaround`   0 titles, 2 issue bodies, 31 comments, 0 pages → NMA-36, comment
+ *   ko `임시 방편`     0 titles, 0 issue bodies, 15 comments, 0 pages → NMA-36, comment
+ *   ja `回避策`        0 titles, 2 issue bodies, 31 comments, 0 pages → NMA-36, comment
+ * — the same issue the English take lands on, in all three.
+ *
+ * `우회` was the first ko candidate and is wrong: a PROD brief's *body* uses
+ * it ("초대가 회사 IdP를 우회하면"), so the selected row came up
+ * `palette-unified-doc` and Enter opened a wiki page instead of NMA-36.
+ * Prefix title hits (the local section the second half clears): en 103,
+ * ko 20, ja 44.
+ */
+export const MEDIA_COMMENT_TOKEN: Record<Locale, { token: string; prefix: string }> = {
+  en: { token: 'workaround', prefix: 'work' },
+  ko: { token: '임시 방편', prefix: '임시' },
+  ja: { token: '回避策', prefix: '回' },
+}
+
+/**
  * Seed locale only when unset so catalog assertions match en.ts by default,
  * without clobbering a user-driven setLocale() across reloads (locale.spec).
  */

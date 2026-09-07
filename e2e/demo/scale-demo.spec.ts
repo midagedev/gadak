@@ -22,24 +22,57 @@
 import { test, expect, type Page, type TestInfo } from '@playwright/test'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { attachConsoleErrors, catalogFor, forceLocale, mediaLocale, MEDIA_LOCALE_STAMP } from '../helpers'
+import {
+  attachConsoleErrors,
+  catalogFor,
+  fixtureString,
+  forceLocale,
+  mediaLocale,
+  MEDIA_LOCALE_STAMP,
+  MEDIA_SEARCH_TOKEN,
+} from '../helpers'
 
 const isMedia = !!process.env.GADAK_MEDIA
 
 /**
  * The UI language this take records in (GADAK_MEDIA_LOCALE, default en).
- * Everything the app itself renders is read out of that locale's catalog
- * below — a translated string is never restated here. What stays English is
- * what the *fixture* carries: priority and status display names (High, In
- * Progress) and issue titles come from the mirror, not the catalog, and a
- * Japanese team's Jira shows them in English too. That is the honest frame
- * to record, not a translated fixture.
+ *
+ * Two sources of text, and neither is restated here as a literal. Everything
+ * the app renders comes out of that locale's message catalog (`t`). Everything
+ * the *mirror* carries — issue titles, priority and status display names —
+ * comes out of the fixture translation the Makefile applied to the copy this
+ * take is recorded over (`fixtureString`, GDK-1556): the whole frame is in one
+ * language, so a Korean take reads 높음 / 진행 중, not High / In Progress.
  */
 const LOCALE = mediaLocale()
 const t = catalogFor(LOCALE)
 
 /** A catalog string as a literal pattern — ja and ko copy is not regex. */
 const literal = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+/**
+ * A value row in an open filter menu, by the value it carries in the DOM.
+ *
+ * GDK-1557: `getByRole('button', { name: /^High\b/ })` resolved to two
+ * elements under ko and ja and one under en — measured on the priority menu,
+ * 2026-09-07. The second is the row's ⊘ button, whose aria-label is
+ * `filter.excludeValue`: English puts the verb first ("Exclude High
+ * (Alt-click)") but ko is "{value} 제외 (Alt+클릭)" and ja "{value} を除外
+ * (Alt+クリック)", so in those languages the exclude button's name *starts*
+ * with the value too. An accessible-name prefix is only unique in the one
+ * language whose word order happens to put the label last.
+ *
+ * So the row is addressed by `data-filter-value` (FilterBar.svelte:290-291) —
+ * the facet's own value, not a rendered label. For the status axis that is
+ * the status id, which is what CLAUDE.md says to key on; for priority this
+ * fixture carries no priority ids, so the value is the display name and the
+ * translation supplies it.
+ */
+const valueRow = (menu: ReturnType<Page['locator']>, value: string) =>
+  menu.locator(`[data-testid="filter-value-row"][data-filter-value=${JSON.stringify(value)}]`)
+
+/** In Progress in this fixture. The id is the wire; the name is translated. */
+const IN_PROGRESS_STATUS_ID = '3'
 
 /** A count string from the catalog, with {n} opened up to the scaled number. */
 function countText(key: 'sidebar.issueCount', n: string): RegExp {
@@ -90,24 +123,27 @@ test.describe('scale demo', () => {
     await expect(palette).toBeVisible()
     await beat(page, 600)
 
-    // 'retry' exists across titles, bodies and comments of the cloned rows
-    // (source: the PR row e2e/serve.sh injects on NMB-139, titled
-    // "fix(NMB-139): retry budget for upload", and that thread — not the
-    // issue's own summary, which is about notification digests). On the
-    // scaled mirror the first unified hit is usually a local title match,
-    // so the snippet element is optional — the hit must carry the token.
-    await page.keyboard.type('retry', { delay: 70 })
+    // The token exists across titles, bodies and comments of the cloned rows
+    // — English 'retry' (source: the PR row e2e/serve.sh injects on NMB-139,
+    // titled "fix(NMB-139): retry budget for upload", and that thread), and
+    // the word the translated mirror uses for it in ko/ja (helpers.ts
+    // MEDIA_SEARCH_TOKEN). On the scaled mirror the first unified hit is
+    // usually a local title match, so the snippet element is optional — the
+    // hit must carry the token.
+    const token = MEDIA_SEARCH_TOKEN[LOCALE]
+    const tokenRE = new RegExp(literal(token), 'i')
+    await page.keyboard.type(token, { delay: 70 })
     const unified = palette.getByTestId('palette-unified-issue').first()
     await expect(unified).toBeVisible({ timeout: 10_000 })
-    await expect(unified).toContainText(/retry/i)
+    await expect(unified).toContainText(tokenRE)
     await beat(page, 1200)
 
     await page.keyboard.press('Enter')
     await expect(palette).toBeHidden()
     // The top hit on the scaled mirror is the "SDK Retry" postmortem
     // document — unified search covers the wiki too. Either surface is a
-    // valid landing; assert a retry-titled heading is on screen.
-    await expect(page.getByRole('heading', { name: /retry/i }).first()).toBeVisible()
+    // valid landing; assert a token-titled heading is on screen.
+    await expect(page.getByRole('heading', { name: tokenRE }).first()).toBeVisible()
     await beat(page, 1400)
 
     // Back to the list for the breakdown beat. Escape closes the detail
@@ -155,31 +191,38 @@ test.describe('scale demo', () => {
     await beat(page, 900)
 
     // 2) Priority = High — the menu's facet counts are now computed over
-    // the NMB-excluded slice, and picking High narrows again.
+    // the NMB-excluded slice, and picking High narrows again. This fixture
+    // carries no priority ids (a pre-GDK-1491 scrub), so the facet value is
+    // the display name and the translation is what the row is keyed by.
+    const HIGH = fixtureString('catalog:priority:High')
     await page.getByTestId('filter-add').click()
     await page.getByTestId('filter-axis-priority').click()
     const menuH = page.locator('.anim-enter').first()
     await expect(menuH).toBeVisible()
-    const high = menuH.getByRole('button', { name: /^High\b/ })
+    const high = valueRow(menuH, HIGH)
     await expect(high).toBeVisible()
+    // What the frame shows, in this take's language.
+    await expect(high).toContainText(HIGH)
     await beat(page, 600)
     await high.click()
     await page.keyboard.press('Escape')
-    await expect(page.getByTestId('filter-chip').filter({ hasText: 'High' })).toBeVisible()
+    await expect(page.getByTestId('filter-chip').filter({ hasText: HIGH })).toBeVisible()
     await beat(page, 900)
 
     // 3) Status = In Progress on top of both. The axis is `status` (the
     // concrete one), not status_category: on the all-open view the category
     // picks are the view highlight, not chips (GDK-479), so a category pick
-    // would not read on camera. The value buttons carry no
-    // testid, so scope to the open menu (the anim-enter popover) before
-    // the role lookup — otherwise a list row with matching aria wins.
+    // would not read on camera. The status facet's value is the status id
+    // (measured: data-filter-value="3" for In Progress), which is the handle
+    // CLAUDE.md says to key on and is the same in every language; the
+    // translated display name is only asserted as what the frame shows.
     await page.getByTestId('filter-add').click()
     await page.getByTestId('filter-axis-status').click()
     const menu = page.locator('.anim-enter').first()
     await expect(menu).toBeVisible()
-    const progressOption = menu.getByRole('button', { name: /^In Progress/ }).first()
+    const progressOption = valueRow(menu, IN_PROGRESS_STATUS_ID)
     await expect(progressOption).toBeVisible()
+    await expect(progressOption).toContainText(fixtureString(`catalog:status:${IN_PROGRESS_STATUS_ID}`))
     await beat(page, 600)
     await progressOption.click()
     await page.keyboard.press('Escape')

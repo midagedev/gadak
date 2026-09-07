@@ -2178,4 +2178,54 @@ if [[ -n "$locale_missing" ]]; then
 fi
 ok "every /media/ path under site/src resolves, and every MEDIA_LOCALES cut exists"
 
+# ── 41. Every locale that ships a clip has a fixture translation (GDK-1556) ─
+# A localized recording is two files, not one: the cut in docs/media/ (check 40
+# above) and the translation of the mirror it was recorded over. Without the
+# second, `make media-search` for that locale is a hard error at record time —
+# which is the right failure, but it lands on whoever tries to re-record rather
+# than on whoever added the locale. This puts it on the commit.
+#
+# Only the locales MEDIA_LOCALES actually serves are required: listing one
+# there is what turns a variant on, so it is the same both-halves rule the
+# check above applies to the video files. Entries that are not recordings are
+# named below rather than inferred, so a *new clip* is covered by default and
+# only a new Node render has to be declared -- the safe direction.
+#
+# FAIL-first (2026-09-07, measured on this tree with '/media/scale.mp4': ['ko']
+# in site/src/i18n.ts and no examples/demo-i18n/ko.json):
+#   "FAIL: MEDIA_LOCALES serves a locale with no fixture translation:
+#    /media/scale.mp4 [ko] -> examples/demo-i18n/ko.json" — exit 1.
+#   With the file present, and as shipped (no non-en locale listed): green.
+i18n_missing=$(
+  python3 - <<'I18NPY'
+from pathlib import Path
+import re
+
+# Not recordings: nothing here is shot over the demo mirror, so no translation
+# of that mirror applies. og.png is a Node render (tools/brand/render.mjs) whose
+# copy comes from site/src/tagline.js.
+NOT_RECORDED = {"/media/og.png"}
+
+src = Path("site/src/i18n.ts").read_text(encoding="utf-8")
+m = re.search(r"export const MEDIA_LOCALES[^=]*=\s*\{(.*?)\n\}", src, re.S)
+if not m:
+    print("site/src/i18n.ts: no MEDIA_LOCALES map -- mediaFor() has no owner")
+    raise SystemExit(0)
+
+for ref, locs in re.findall(r"'(/media/[^']+)':\s*\[([^\]]*)\]", m.group(1)):
+    if ref in NOT_RECORDED:
+        continue
+    for loc in re.findall(r"'([a-z]{2})'", locs):
+        if loc == "en":
+            continue
+        want = Path(f"examples/demo-i18n/{loc}.json")
+        if not want.is_file():
+            print(f"{ref} [{loc}] -> {want}")
+I18NPY
+)
+if [[ -n "$i18n_missing" ]]; then
+  fail "MEDIA_LOCALES serves a locale with no fixture translation:"$'\n'"$i18n_missing"$'\n'"write it with tools/demo-i18n/extract.py + a translation, gate with tools/demo-i18n/check.py"
+fi
+ok "every MEDIA_LOCALES locale has its examples/demo-i18n/<locale>.json"
+
 echo "doc-checks: all passed"

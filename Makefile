@@ -1,5 +1,6 @@
 .PHONY: build test vet typecheck theme-check bench scan docker plugins-test \
-	media media-web media-search media-agent media-groupby media-scale media-mcp media-prep media-deps brand \
+	media media-web media-search media-agent media-groupby media-scale media-mcp media-prep media-deps \
+	media-fixture brand \
 	hosted-demo hosted-demo-test
 
 build:
@@ -122,6 +123,51 @@ media-prep: media-deps
 	@command -v vhs >/dev/null || { echo "media-prep: vhs required (brew install vhs)" >&2; exit 1; }
 	bash tools/tapes/prepare.sh
 
+# ── The translated fixture a localized take records over (GDK-1556) ────────
+# The landing clips carry the product UI in their pixels and are recorded per
+# locale (GADAK_MEDIA_LOCALE; e2e/helpers.ts mediaLocale is the single owner).
+# The mirror *under* that chrome is translated too — issue titles, bodies,
+# comments, wiki pages, status/priority/type/component display names — so the
+# frame is a Korean or Japanese team's tracker rather than English tickets in
+# localized chrome.
+#
+# examples/demo.db is never touched: the e2e suite keys on its English strings
+# and must stay green. The translation is applied to a copy at
+# e2e/.tmp/demo-<locale>.db, and both media targets seed from that copy —
+# media-search through GADAK_SEED_DB (e2e/serve.sh), media-scale through
+# `gadak snapshot --from`. This recipe is the single owner of that copy;
+# MEDIA_FIXTURE_DB below is the single owner of which mirror a take reads.
+#
+# GADAK_DEMO_I18N_STRINGS overrides the translation file (a partial file while
+# the full one is still being written). e2e/helpers.ts fixtureStringsPath()
+# reads the same variable, so the specs assert the strings that were actually
+# applied to the db they are looking at.
+#
+# en changes nothing: no copy, no apply, and MEDIA_FIXTURE_DB is
+# examples/demo.db — the same path e2e/serve.sh defaults GADAK_SEED_DB to.
+MEDIA_FIXTURE_DB = $$(if [ "$${GADAK_MEDIA_LOCALE:-en}" = "en" ]; then echo "$$(pwd)/examples/demo.db"; else echo "$$(pwd)/e2e/.tmp/demo-$${GADAK_MEDIA_LOCALE}.db"; fi)
+
+media-fixture:
+	@set -e; \
+	locale="$${GADAK_MEDIA_LOCALE:-en}"; \
+	if [ "$$locale" = "en" ]; then \
+		echo "media-fixture: locale en — recording over examples/demo.db unchanged"; \
+		exit 0; \
+	fi; \
+	strings="$${GADAK_DEMO_I18N_STRINGS:-examples/demo-i18n/$$locale.json}"; \
+	if [ ! -f "$$strings" ]; then \
+		echo "media-fixture: GADAK_MEDIA_LOCALE=$$locale needs the fixture translation $$strings, which does not exist." >&2; \
+		echo "media-fixture: write the id list with 'python3 tools/demo-i18n/extract.py' (examples/demo-i18n/en.json is the source), translate it," >&2; \
+		echo "media-fixture: gate it with 'python3 tools/demo-i18n/check.py $$locale', or point GADAK_DEMO_I18N_STRINGS=<file> at a partial one." >&2; \
+		exit 1; \
+	fi; \
+	mkdir -p e2e/.tmp; \
+	copy="e2e/.tmp/demo-$$locale.db"; \
+	cp -f examples/demo.db "$$copy"; \
+	rm -f "$$copy-wal" "$$copy-shm"; \
+	echo "media-fixture: $$strings → $$copy"; \
+	python3 tools/demo-i18n/apply.py "$$copy" "$$locale" --strings "$$strings"
+
 media-web: media-deps
 	@mkdir -p $(MEDIA_DIR)
 	@echo "media-web: recording Playwright demo…"
@@ -133,11 +179,15 @@ media-web: media-deps
 # writes search.<lang>.{mp4,gif} + search-poster.<lang>.png; unset means en
 # and the bare names. Same variable for media-scale below (e2e/helpers.ts
 # mediaLocale is the single owner, e2e/demo/export-search.sh names the files).
-media-search: media-deps
+# media-fixture translates the mirror for that locale first (GDK-1556) and
+# MEDIA_FIXTURE_DB names it; for en that is examples/demo.db, which is what
+# e2e/serve.sh defaults GADAK_SEED_DB to.
+media-search: media-deps media-fixture
 	@mkdir -p $(MEDIA_DIR)
 	@echo "media-search: recording unified-search palette demo (locale $${GADAK_MEDIA_LOCALE:-en})…"
 	rm -rf e2e/demo/test-results-search
-	GADAK_MEDIA=1 ./node_modules/.bin/playwright test --config e2e/demo/search.config.ts
+	GADAK_MEDIA=1 GADAK_SEED_DB="$(MEDIA_FIXTURE_DB)" \
+		./node_modules/.bin/playwright test --config e2e/demo/search.config.ts
 	bash e2e/demo/export-search.sh
 
 media-agent: media-deps
@@ -176,14 +226,16 @@ media-terminal: media-deps
 	bash e2e/demo/export-terminal.sh
 
 # Scale flagship: the 20k-issue mirror (site hero). Deterministic — the
-# snapshot is regenerated from examples/demo.db (seed 1) each take, never
+# snapshot is regenerated from MEDIA_FIXTURE_DB (seed 1) each take — the
+# committed fixture for en, the translated copy otherwise — and never
 # committed (300+ MB). Not in the `media` aggregate for the same size reason;
 # the committed artifacts (scale.gif/mp4) are what the site ships.
-media-scale: media-deps
+media-scale: media-deps media-fixture
 	@mkdir -p $(MEDIA_DIR) e2e/.tmp
-	@echo "media-scale: generating 20k snapshot from examples/demo.db…"
+	@echo "media-scale: generating 20k snapshot from $(MEDIA_FIXTURE_DB)…"
+	CGO_ENABLED=0 go build -o e2e/.tmp/gadak ./cmd/gadak
 	GADAK_HOME=e2e/.tmp/home ./e2e/.tmp/gadak snapshot e2e/.tmp/demo-scale.db \
-		--from examples/demo.db --scale 20000 --spread 180d --force >/dev/null
+		--from "$(MEDIA_FIXTURE_DB)" --scale 20000 --spread 180d --force >/dev/null
 	@echo "media-scale: recording scale flagship (locale $${GADAK_MEDIA_LOCALE:-en})…"
 	rm -rf e2e/demo/test-results-scale
 	GADAK_MEDIA=1 GADAK_SEED_DB="$$(pwd)/e2e/.tmp/demo-scale.db" \

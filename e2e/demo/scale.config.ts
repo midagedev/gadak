@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test'
+import { apiURL, e2eServePort } from '../helpers'
 
 /**
  * Scale flagship recording — the 20k-issue mirror, search at typing speed.
@@ -6,8 +7,11 @@ import { defineConfig, devices } from '@playwright/test'
  * pick up this video.webm by accident.
  *
  * Run via `make media-scale` (sets GADAK_MEDIA=1 and GADAK_SEED_DB to the
- * snapshot it generated). Viewport 1280×800 matches the C1 contract.
+ * snapshot it generated — scaled from the translated mirror for a ko/ja
+ * take, GDK-1556). Viewport 1280×800 matches the C1 contract.
  */
+const e2ePort = e2eServePort()
+
 export default defineConfig({
   testDir: '.',
   testMatch: 'scale-demo.spec.ts',
@@ -20,7 +24,7 @@ export default defineConfig({
   expect: { timeout: 60_000 },
   outputDir: 'test-results-scale',
   use: {
-    baseURL: 'http://127.0.0.1:7877',
+    baseURL: apiURL(),
     locale: 'en-US',
     colorScheme: 'light',
     viewport: { width: 1280, height: 800 },
@@ -39,8 +43,8 @@ export default defineConfig({
   webServer: {
     // GADAK_SEED_DB is exported by `make media-scale`; a bare config run
     // would record over the 534-issue fixture and the count assert fails.
-    command: 'GADAK_SEED_DB="$GADAK_SEED_DB" GADAK_FRESHEN=1 bash e2e/serve.sh',
-    url: 'http://127.0.0.1:7877/healthz',
+    command: `GADAK_E2E_PORT=${e2ePort} GADAK_SEED_DB="$GADAK_SEED_DB" GADAK_FRESHEN=1 bash e2e/serve.sh`,
+    url: apiURL('/healthz'),
     reuseExistingServer: false,
     timeout: 300_000,
     cwd: '../..',

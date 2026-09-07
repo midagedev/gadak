@@ -125,11 +125,36 @@ pixels, and nothing said so (measured 2026-09-07). `make media-scale` clears
 the directory first, so only a hand-run export could hit it — which is the
 form this document teaches.
 
-What stays English inside a `ko`/`ja` take is the fixture: issue titles,
-priority and status display names come from the mirror, not the catalog. A
-Korean or Japanese team runs English tickets under localized chrome too, so
-that is the honest frame; a translated fixture would make the mirror less
-believable, not more.
+**The fixture is translated too (GDK-1556).** The mirror under the localized
+chrome — issue titles, descriptions, comments, wiki pages, and the status,
+priority, type and component display names — is in the take's language, so the
+whole frame is one language rather than English tickets under Korean menus.
+The translation is `examples/demo-i18n/<locale>.json` (`{"strings": {"<id>":
+"<text>"}}`; `tools/demo-i18n/extract.py` documents the ids and writes the
+English source list, `check.py` is its gate). It is applied at record time to a
+*copy*: `make media-fixture` — a prerequisite of both clip targets and the
+single owner of this step — copies `examples/demo.db` to
+`e2e/.tmp/demo-<locale>.db`, runs `tools/demo-i18n/apply.py` over the copy, and
+the take is seeded from it (`GADAK_SEED_DB` for search, `gadak snapshot --from`
+for scale). **`examples/demo.db` is never touched**: the e2e suite keys on its
+English strings. `en` copies nothing and records over the committed fixture.
+
+A locale listed in `MEDIA_LOCALES` needs its translation file. Recording a
+non-`en` locale without one is a hard error naming the missing file, and
+`tools/doc-checks.sh` check 41 fails on the map entry — the same both-halves
+rule as the recordings themselves. `GADAK_DEMO_I18N_STRINGS=<file>` overrides
+the file (a partial one while a translation is being written); `e2e/helpers.ts`
+`fixtureStringsPath()` reads the same variable, so a spec always asserts the
+strings that were actually applied to the mirror it is looking at.
+
+The specs read fixture text through `fixtureString('catalog:priority:High')`
+rather than as English literals, and the word each clip types into the palette
+is per locale (`MEDIA_SEARCH_TOKEN` for scale, `MEDIA_COMMENT_TOKEN` for
+search, both in `e2e/helpers.ts` with the measured title/body/comment/page
+counts that make each one the right token). Only a recording may key on a
+display name, and only to assert what the frame shows; the locators still use
+the wire handle — the status axis row is found by `data-filter-value="3"`, the
+status id.
 
 `site/src/i18n.ts` `MEDIA_LOCALES` decides which cut a page actually gets. It
 is a declared map, never a filesystem probe — `site/public/media` is a symlink
