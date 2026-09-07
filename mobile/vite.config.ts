@@ -3,6 +3,7 @@ import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 import { svelte } from '@sveltejs/vite-plugin-svelte'
 import tailwindcss from '@tailwindcss/vite'
+import { mobileAPIPort } from './e2e/serve'
 
 // The gadak design tokens live in web/src/app.css and are imported from
 // mobile/src/app.css — referenced, never copied. That file sits outside the
@@ -22,22 +23,22 @@ const host = process.env.TAURI_DEV_HOST
 //
 // The port is env-openable: a second serve on another port — a parallel
 // workspace with its own home — can back a phone dev harness without
-// editing this file. GADAK_SERVE_PORT follows GADAK_E2E_PORT's
-// single-owner pattern (e2e/helpers.ts e2eServePort); unset is 7899, the
-// default every script that starts a demo for this proxy still uses.
-function serveDevPort(): string {
-  const raw = process.env.GADAK_SERVE_PORT
-  if (raw === undefined || raw === '') return '7899'
-  if (!/^[1-9][0-9]*$/.test(raw) || Number(raw) > 65535) {
-    throw new Error(`GADAK_SERVE_PORT must be an integer 1-65535, got ${JSON.stringify(raw)}`)
-  }
-  return raw
-}
-
-const SERVE_DEV_ORIGIN = `http://127.0.0.1:${serveDevPort()}`
+// editing this file. The single owner of that value is mobile/e2e/serve.ts
+// (GDK-1540): GADAK_MOBILE_API_PORT, with the older GADAK_SERVE_PORT still
+// honoured and 7899 when neither is set. It has to be the same owner the
+// Playwright configs read, because `vite preview` serves the gate's bundle
+// and inherits this very proxy (preview.proxy ?? server.proxy) — a proxy
+// aimed at a port the gate did not start is a silent mis-serve.
+const SERVE_DEV_ORIGIN = `http://127.0.0.1:${mobileAPIPort()}`
 
 /**
  * What the dev server must not watch (GDK-1526).
+ *
+ * Scope note (GDK-1540): this list now protects `npm run dev` only. The
+ * viewport gate and the capture harness no longer run a dev server at all —
+ * they build the bundle and serve it with `vite preview`
+ * (mobile/e2e/gate-serve.sh), which has no watcher, because no ignore glob
+ * could fence off the reload an *app source* edit is supposed to cause.
  *
  * The watch root is mobile/, which also holds the whole test harness — the
  * Playwright specs, their two configs, the captures they save, Playwright's

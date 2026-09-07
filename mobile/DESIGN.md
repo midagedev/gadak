@@ -419,8 +419,9 @@ and pair again."), never apologize, never quote server internals.
 
 - **Dev demo tour** is opt-in. Open the DEV origin with `?demo-tour` (any
   value). A file probe at `/__demo-tour__` was abandoned: `mobile/public/`
-  does not exist, and vite's SPA fallback answers every unmatched path with
-  `index.html` and 200, so the tour ran on every `npm run dev` boot. Packaged
+  did not exist then (it holds the demo snapshot now), and vite's SPA
+  fallback answers every unmatched path with `index.html` and 200, so the
+  tour ran on every `npm run dev` boot. Packaged
   builds never run it (`import.meta.env.DEV` in `lib/demo-tour.ts`). `npm test`
   covers the disarmed path; the viewport gate walks a boot with nothing armed.
 - **iOS contract (§4.1–4.2)** — `npm run lint:ios`. Only `src/app.css` may
@@ -428,10 +429,27 @@ and pair again."), never apologize, never quote server internals.
   under `src/` (a comment that names the ban is not a unit).
 - **Viewport geometry** — `npm run viewport-gate` (from `mobile/`; also
   `bash mobile/scripts/viewport-gate.sh` from the repo root). Playwright at
-  402×874 against `gadak demo --addr 127.0.0.1:7899` (vite's `/api` proxy —
-  target port `GADAK_SERVE_PORT`, default 7899) and vite on
-  `127.0.0.1:5182`. Not `e2e/`'s `127.0.0.1:7877` and not `e2e/.tmp/home` —
-  demo makes its own temp home. Asserts horizontal overflow
+  402×874 against `gadak demo` and a **built** bundle: the gate runs
+  `vite build --mode development` into `$TMPDIR/gadak-mobile-gate-<ui port>`
+  and serves it with `vite preview` (`mobile/e2e/gate-serve.sh`), which
+  inherits the `/api` proxy from `server.proxy` but has no file watcher
+  (GDK-1540). A dev server reloads the page whenever `mobile/src` or the
+  `web/src` modules the phone imports change, and in a tree where more than
+  one round is working that reload lands mid-spec and kills it on a click
+  timeout that names nothing; a built bundle cannot. `npm run dev` is
+  untouched — the developer loop still wants the watcher. Ports are
+  `GADAK_MOBILE_E2E_PORT` (UI, default 5182) and `GADAK_MOBILE_API_PORT`
+  (demo, default 7899, still readable as `GADAK_SERVE_PORT`), owned by
+  `mobile/e2e/serve.ts` and read by both `playwright.config.ts` and
+  `shots.config.ts`, so two gates run side by side by giving one of them its
+  own pair. `reuseExistingServer` stays on but the bundle carries a stamp
+  (`gadak-gate-stamp.json`: worktree, commit, dirty flag, source digest) and
+  `globalSetup` refuses a server from another tree or commit rather than
+  photographing it — the same contract as `e2e/helpers.ts`
+  `assertServedArtifact`. The gate prints one line at start:
+  `served <outDir> stamp <sha>[+dirty] ui :<port> api :<port>`. Not `e2e/`'s
+  `127.0.0.1:7877` and not `e2e/.tmp/home` — demo makes its own temp home.
+  Asserts horizontal overflow
   0, `nav.safe-bottom` flush to the viewport bottom, no input/textarea under
   16px, ≥9 issue rows per screen — the two-line clamp's bound, GDK-1543 — and
   ≥12 page rows (before **and** after the scope picker has

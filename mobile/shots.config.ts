@@ -1,6 +1,7 @@
 import { defineConfig } from '@playwright/test'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { gateWebServers, mobileAPIPort, mobileUIPort, UI_ORIGIN } from './e2e/serve'
 
 /*
  * Capture harness, separate from the gate (GDK-904).
@@ -9,8 +10,17 @@ import { fileURLToPath } from 'node:url'
  * fails. This one produces pictures for a review round and asserts almost
  * nothing, so the two must not share a testDir — a capture walk that a CI
  * runner executes is wasted minutes, and a gate that a review round skips
- * is a gate nobody runs. Same ports, same fixture, same viewport; only
- * testDir and the reporter differ.
+ * is a gate nobody runs. Same fixture and same viewport; only testDir and
+ * the reporter differ.
+ *
+ * The servers themselves come from mobile/e2e/serve.ts, shared with the gate
+ * (GDK-1540). That file is the single owner of both ports and of the stamp
+ * that says which worktree built the bundle. Before it, this config and the
+ * gate's each hardcoded 5182/7899 with `reuseExistingServer: true`, so a
+ * capture walk started while a gate was up quietly photographed whatever
+ * that gate's tree was serving — and on a dev server, an edit under either
+ * tree reloaded the page under both. Run a walk beside a gate by giving one
+ * of them GADAK_MOBILE_E2E_PORT / GADAK_MOBILE_API_PORT.
  *
  * Run: npm run shots -- --grep <label>   (or bare, for the whole walk)
  * Out: scratch/mobile-shots/<cycle>/ with a MANIFEST naming the source
@@ -18,10 +28,8 @@ import { fileURLToPath } from 'node:url'
  *      (incident: stale-capture-vision-fix).
  */
 const mobileDir = dirname(fileURLToPath(import.meta.url))
-const repoRoot = join(mobileDir, '..')
 
-export const UI_ORIGIN = 'http://127.0.0.1:5182'
-export const SERVE_ORIGIN = 'http://127.0.0.1:7899'
+export { SERVE_ORIGIN, UI_ORIGIN } from './e2e/serve'
 
 export default defineConfig({
   testDir: './shots',
@@ -32,6 +40,8 @@ export default defineConfig({
   reporter: 'list',
   timeout: 180_000,
   expect: { timeout: 20_000 },
+  globalSetup: join(mobileDir, 'e2e', 'serve.ts'),
+  outputDir: join(mobileDir, 'test-results', `shots-${mobileUIPort()}-${mobileAPIPort()}`),
   use: {
     baseURL: UI_ORIGIN,
     viewport: { width: 402, height: 874 },
@@ -42,22 +52,6 @@ export default defineConfig({
     trace: 'off',
     screenshot: 'off',
   },
-  webServer: [
-    {
-      command:
-        'CGO_ENABLED=0 go build -o /tmp/gadak-mobile-viewport ./cmd/gadak && /tmp/gadak-mobile-viewport demo --addr 127.0.0.1:7899 --no-open',
-      url: `${SERVE_ORIGIN}/healthz`,
-      reuseExistingServer: true,
-      timeout: 180_000,
-      cwd: repoRoot,
-    },
-    {
-      command: 'npx vite --port 5182 --strictPort --host 127.0.0.1',
-      url: `${UI_ORIGIN}/`,
-      reuseExistingServer: true,
-      timeout: 60_000,
-      cwd: mobileDir,
-    },
-  ],
+  webServer: gateWebServers(),
   projects: [{ name: 'chromium', use: { browserName: 'chromium' } }],
 })
