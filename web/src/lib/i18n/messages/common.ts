@@ -148,11 +148,6 @@ export const common = {
     ko: '라벨',
     ja: 'ラベル',
   },
-  'common.attachment': {
-    en: 'Attachment',
-    ko: '첨부',
-    ja: '添付',
-  },
   'common.attachmentFile': {
     en: 'Attachment',
     ko: '첨부 파일',

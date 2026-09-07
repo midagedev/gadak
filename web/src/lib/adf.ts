@@ -161,6 +161,28 @@ function findAttachment(node: AdfNode, opts: AdfRenderOptions): DetailAttachment
   return null
 }
 
+/**
+ * The chip for a media node the mirror could not resolve to an attachment.
+ *
+ * One owner for both `media` and `mediaInline` (GDK-1505). The two arms used
+ * to decide this apart and disagreed. `media` wrapped the name in
+ * `detail.attachmentLabel` ("Attachment: {name}") unconditionally, so a node
+ * with no `alt` fed the placeholder in *as* the name and the chip read
+ * "Attachment: Attachment" — measured on the demo fixture, NMB-110. The
+ * prefix earns its place only when a real name follows it; with no name the
+ * honest chip is the bare word, in that reader's own locale.
+ *
+ * A blank or all-whitespace `alt` is no name either — the same empty prefix
+ * by another route. The name that is emitted is still the author's untrimmed
+ * string; only the "is there a name at all" question trims.
+ */
+function unresolvedMediaLabel(node: AdfNode): string {
+  const alt = attrStr(node, 'alt')
+  return alt && alt.trim()
+    ? t('detail.attachmentLabel', { name: esc(alt) })
+    : esc(t('common.attachmentFile'))
+}
+
 function renderAttachment(attachment: DetailAttachment, opts: AdfRenderOptions, compact = false): string {
   const src = safeMediaUrl(attachment.content_url, opts.apiBase)
   if (!src) return ''
@@ -352,9 +374,8 @@ function renderNode(node: AdfNode, opts: AdfRenderOptions): string {
     case 'media': {
       const attachment = findAttachment(node, opts)
       if (attachment) return renderAttachment(attachment, opts)
-      const name = attrStr(node, 'alt') ?? t('common.attachmentFile')
       const link = opts.issueKey && opts.browseUrl ? opts.browseUrl(opts.issueKey) : null
-      const label = t('detail.attachmentLabel', { name: esc(name) })
+      const label = unresolvedMediaLabel(node)
       return link
         ? `<a class="adf-media" href="${esc(link)}" target="_blank" rel="noopener noreferrer">${label}</a>`
         : `<span class="adf-media">${label}</span>`
@@ -363,11 +384,9 @@ function renderNode(node: AdfNode, opts: AdfRenderOptions): string {
     case 'mediaInline': {
       const attachment = findAttachment(node, opts)
       if (attachment) return renderAttachment(attachment, opts, true)
-      const name = attrStr(node, 'alt')
-      const label = name
-        ? t('detail.attachmentLabel', { name: esc(name) })
-        : esc(t('common.attachment'))
-      return `<span class="adf-media">${label}</span>`
+      // Inline media sits inside a text run, so it stays a span: there is no
+      // linked variant here, only the same label the block form carries.
+      return `<span class="adf-media">${unresolvedMediaLabel(node)}</span>`
     }
 
     default:

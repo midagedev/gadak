@@ -1,5 +1,6 @@
-import { describe, expect, test } from 'vitest'
+import { describe, expect, test, vi } from 'vitest'
 import { renderAdf, renderCommandBody } from './adf'
+import { initLocale } from './i18n'
 import type { AdfNode, DetailAttachment } from './types'
 
 const doc = (...content: AdfNode[]): AdfNode => ({
@@ -152,5 +153,84 @@ describe('runtime config comes in as options (GDK-1497)', () => {
         browseUrl: () => null,
       }),
     ).not.toContain('<a')
+  })
+})
+
+describe('an unresolved media node with no alt (GDK-1505)', () => {
+  // Measured on the demo fixture, NMB-110's comment: a media node the mirror
+  // could not resolve and that carries no `alt` rendered as the chip
+  // "Attachment: Attachment" — the placeholder was being fed in as the name.
+  // The prefix earns its place only when a real name follows it.
+  const media = (attrs?: Record<string, unknown>): AdfNode =>
+    ({ type: 'media', ...(attrs ? { attrs } : {}) }) as AdfNode
+  const mediaInline = (attrs?: Record<string, unknown>): AdfNode =>
+    ({ type: 'mediaInline', ...(attrs ? { attrs } : {}) }) as AdfNode
+  const browse = { issueKey: 'STD-7', browseUrl: (k: string) => `https://team.example.net/b/${k}` }
+  const anchor = (body: string) =>
+    `<a class="adf-media" href="https://team.example.net/b/STD-7"` +
+    ` target="_blank" rel="noopener noreferrer">${body}</a>`
+
+  test('the chip is the bare word, in both node kinds and both link variants', () => {
+    expect(renderAdf(doc(media()))).toBe('<span class="adf-media">Attachment</span>')
+    expect(renderAdf(doc(media()), browse)).toBe(anchor('Attachment'))
+    expect(renderAdf(doc(mediaInline()))).toBe('<span class="adf-media">Attachment</span>')
+    // mediaInline sits inside a paragraph's text run and has never linked out;
+    // a browseUrl does not change that, only the label it carries.
+    expect(renderAdf(doc(mediaInline()), browse)).toBe('<span class="adf-media">Attachment</span>')
+  })
+
+  test('an alt that is empty or all whitespace is no name either', () => {
+    expect(renderAdf(doc(media({ alt: '' })))).toBe('<span class="adf-media">Attachment</span>')
+    expect(renderAdf(doc(media({ alt: '   ' })))).toBe('<span class="adf-media">Attachment</span>')
+    expect(renderAdf(doc(mediaInline({ alt: '' })))).toBe(
+      '<span class="adf-media">Attachment</span>',
+    )
+  })
+
+  test('a real name still gets the prefixed label', () => {
+    expect(renderAdf(doc(media({ alt: 'gone.png' })))).toBe(
+      '<span class="adf-media">Attachment: gone.png</span>',
+    )
+    expect(renderAdf(doc(media({ alt: 'gone.png' })), browse)).toBe(anchor('Attachment: gone.png'))
+    expect(renderAdf(doc(mediaInline({ alt: 'gone.png' })))).toBe(
+      '<span class="adf-media">Attachment: gone.png</span>',
+    )
+  })
+
+  test('the bare word is each locale’s own, not an English one', () => {
+    // English hides this defect: the bare word and the file-name placeholder
+    // are spelled the same there. ko and ja are where the two arms disagreed.
+    // Storage stub follows i18n/locale-detect.test.ts.
+    const mem = new Map<string, string>()
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => mem.get(k) ?? null,
+      setItem: (k: string, v: string) => {
+        mem.set(k, v)
+      },
+      removeItem: (k: string) => {
+        mem.delete(k)
+      },
+      clear: () => mem.clear(),
+      key: (i: number) => [...mem.keys()][i] ?? null,
+      get length() {
+        return mem.size
+      },
+    })
+    vi.stubGlobal('navigator', { language: 'en-US' })
+    try {
+      for (const [loc, word] of [
+        ['ko', '첨부 파일'],
+        ['ja', '添付ファイル'],
+      ] as const) {
+        mem.set('gadak_locale', loc)
+        initLocale()
+        expect(renderAdf(doc(media())), loc).toBe(`<span class="adf-media">${word}</span>`)
+        expect(renderAdf(doc(mediaInline())), loc).toBe(`<span class="adf-media">${word}</span>`)
+      }
+    } finally {
+      mem.set('gadak_locale', 'en')
+      initLocale()
+      vi.unstubAllGlobals()
+    }
   })
 })
