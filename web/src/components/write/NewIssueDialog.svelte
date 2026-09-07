@@ -356,7 +356,7 @@
     submitting = false
     if (res.ok && res.key) {
       write.closeNewIssue()
-      selection.select(res.key)
+      selection.select(res.key, 'create')
     } else {
       submitError = res.error ?? t('write.createFailed')
     }

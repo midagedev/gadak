@@ -88,7 +88,7 @@
       suppressClickKey = null
       return
     }
-    selection.select(key)
+    selection.select(key, 'favorites')
   }
 
   function selectPage(key: string): void {

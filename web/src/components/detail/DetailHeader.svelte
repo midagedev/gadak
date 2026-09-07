@@ -139,7 +139,7 @@
              feed header (PersonalFeed); X and the scrim still close. -->
         <button
           type="button"
-          onclick={() => selection.clear()}
+          onclick={() => selection.clear('detail-back')}
           data-testid="issue-detail-back"
           class="flex h-6 w-6 flex-none items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
           aria-label={t('feed.backToList')}
@@ -253,7 +253,7 @@
       <!-- Close -->
       <button
         type="button"
-        onclick={() => selection.clear()}
+        onclick={() => selection.clear('detail-close')}
         data-testid="issue-detail-close"
         class="flex h-6 w-6 flex-none items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
         aria-label={t('common.closeEsc')}

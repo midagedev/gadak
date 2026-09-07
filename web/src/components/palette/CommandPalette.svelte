@@ -178,7 +178,7 @@ import type { SettingsTab } from '../../lib/settings-tabs'
       sub: issue.summary,
       subSegs: needle ? highlightSegments(issue.summary, raw) : undefined,
       mono: true,
-      run: () => selection.select(issue.issue_key),
+      run: () => selection.select(issue.issue_key, 'palette'),
     }
   }
 
@@ -735,7 +735,7 @@ import type { SettingsTab } from '../../lib/settings-tabs'
             section: 'unified' as const,
             label: hit.key,
             mono: true,
-            run: () => selection.select(hit.key),
+            run: () => selection.select(hit.key, 'palette'),
           }
       item.id = `u:i:${hit.key}`
       item.testid = 'palette-unified-issue'

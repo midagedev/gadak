@@ -39,7 +39,7 @@
       type="button"
       class="flex-none font-mono text-micro font-semibold text-accent-text transition-colors hover:underline"
       title={t('group.openEpic')}
-      onclick={() => selection.select(group.key)}
+      onclick={() => selection.select(group.key, 'group-header')}
     >{group.prefix}</button>
   {/if}
   <span class="truncate text-micro font-medium uppercase tracking-wide text-text-muted">

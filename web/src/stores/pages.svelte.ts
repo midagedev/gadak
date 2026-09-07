@@ -380,12 +380,12 @@ class PagesStore {
   /** Open a page. The visit joins the same recent list as issues, so the palette
    *  can offer both without a second history to keep. */
   select(key: string): void {
-    panel.show('doc', key)
+    panel.show('doc', key, 'pages.select')
     me.recordRecent(key, 'doc')
   }
 
   clear(): void {
-    panel.close('doc')
+    panel.close('doc', 'pages.clear')
   }
 
   /* ── Main-column document views (tabbed list, or one space) ── */

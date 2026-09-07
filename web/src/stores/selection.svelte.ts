@@ -6,7 +6,7 @@
 // from there rather than held here. Opening an issue therefore closes an open
 // document or person by construction, with nothing to clear.
 
-import { panel } from './panel.svelte'
+import { panel, type PanelVia } from './panel.svelte'
 
 class SelectionStore {
 	#key = $derived(panel.keyOf('issue'))
@@ -15,17 +15,20 @@ class SelectionStore {
 		return this.#key
 	}
 
-	select(key: string) {
-		panel.show('issue', key)
+	/* `via` is the surface that asked, carried through to the panel's debug
+	 * trace (GDK-1186). Not a behaviour knob — nothing here branches on it —
+	 * so a caller that forgets one still compiles and shows up as `?`. */
+	select(key: string, via: PanelVia = '?') {
+		panel.show('issue', key, via)
 	}
 
-	clear() {
-		panel.close('issue')
+	clear(via: PanelVia = '?') {
+		panel.close('issue', via)
 	}
 
-	toggle(key: string) {
-		if (this.selectedKey === key) panel.close('issue')
-		else panel.show('issue', key)
+	toggle(key: string, via: PanelVia = '?') {
+		if (this.selectedKey === key) panel.close('issue', via)
+		else panel.show('issue', key, via)
 	}
 }
 

@@ -135,7 +135,13 @@ export interface GlobalKeyHost {
     requestMenu: (menu: TriageMenuKey) => unknown
     openComment: (key: string) => void
   }
-  selection: { selectedKey: string | null; select: (key: string) => void; clear: () => void }
+  // `via` names the chord in the panel's debug trace (GDK-1186); it is the
+  // store's optional tag, restated here because this host type is structural.
+  selection: {
+    selectedKey: string | null
+    select: (key: string, via?: string) => void
+    clear: (via?: string) => void
+  }
   pages: {
     historyView: boolean
     open: boolean
@@ -263,7 +269,7 @@ function dispatchKeyCommand(e: KeyboardEvent, cmd: KeyCommand, host: GlobalKeyHo
       e.preventDefault()
       void import('./terminal/sessions.svelte').then(({ terminalSessions }) => {
         const key = terminalSessions.selectedIssueKey()
-        if (key) host.selection.select(key)
+        if (key) host.selection.select(key, 'chord:terminal-open-issue')
       })
       return
     }
@@ -295,7 +301,7 @@ function dispatchKeyCommand(e: KeyboardEvent, cmd: KeyCommand, host: GlobalKeyHo
     case 'open-cursor':
       if (!cursorKey) return
       e.preventDefault()
-      host.selection.select(cursorKey)
+      host.selection.select(cursorKey, 'chord:open-cursor')
       return
     case 'open-origin':
       e.preventDefault()
@@ -311,7 +317,7 @@ function dispatchKeyCommand(e: KeyboardEvent, cmd: KeyCommand, host: GlobalKeyHo
       return
     case 'clear-selection':
       e.preventDefault()
-      host.selection.clear()
+      host.selection.clear('chord:close-detail')
       return
     case 'close-docs':
       e.preventDefault()

@@ -196,7 +196,7 @@
       <li>
         <button
           type="button"
-          onclick={() => selection.select(l.key)}
+          onclick={() => selection.select(l.key, 'linked-issues')}
           class="group flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-bg-hover"
         >
           <span class="mt-px flex-none text-micro text-text-muted">{label(l)}</span>

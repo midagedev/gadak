@@ -45,7 +45,7 @@
         class="flex min-w-0 shrink items-baseline gap-1 text-text-secondary transition-colors hover:text-text-primary hover:underline"
         title={a.summary ?? a.key}
         data-testid="issue-breadcrumb-ancestor"
-        onclick={() => selection.select(a.key)}
+        onclick={() => selection.select(a.key, 'breadcrumb')}
       >
         <span class="flex-none font-mono">{a.key}</span>
         {#if a.summary}

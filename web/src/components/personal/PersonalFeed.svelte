@@ -112,7 +112,7 @@
 
   function openItem(item: FeedItem) {
     void me.markEventRead(item.event_id)
-    selection.select(item.issue_key)
+    selection.select(item.issue_key, 'feed')
   }
 
   // Collapse consecutive events of one issue (same day) into one row group

@@ -4,6 +4,7 @@ import {
   knownProjectKeys,
   linkAnswerIsStale,
   nudgeRowOffset,
+  paneHeldFocus,
   rowFromPointer,
 } from './issue-links'
 
@@ -114,5 +115,27 @@ describe('GDK-1172 resting-pointer stale answer', () => {
     expect(linkAnswerIsStale({ y: 7, text: '' }, 8, 'GDK-1172')).toBe(false)
     // Nothing answered yet, nothing cached.
     expect(linkAnswerIsStale(null, 7, 'GDK-1172')).toBe(false)
+  })
+})
+
+describe('paneHeldFocus (GDK-1186)', () => {
+  /** A pane whose subtree is the listed nodes. */
+  const pane = (...inside: unknown[]) => ({ contains: (n: unknown) => inside.includes(n) })
+  const textarea = { id: 'xterm-helper-textarea' }
+  const stripRow = { id: 'terminal-strip-row' }
+
+  it('is true when the keyboard was already inside the pane', () => {
+    expect(paneHeldFocus(pane(textarea), textarea)).toBe(true)
+  })
+
+  it('is false when the focus was somewhere else — the click that focuses it', () => {
+    // The recording's own gesture: a strip row was clicked, then the pane.
+    expect(paneHeldFocus(pane(textarea), stripRow)).toBe(false)
+  })
+
+  it('is false with nothing focused, and with no pane at all', () => {
+    expect(paneHeldFocus(pane(textarea), null)).toBe(false)
+    expect(paneHeldFocus(pane(textarea), undefined)).toBe(false)
+    expect(paneHeldFocus(null, textarea)).toBe(false)
   })
 })

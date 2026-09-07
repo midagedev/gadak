@@ -122,7 +122,7 @@
   // Otherwise the selection→URL effect can clear `issue` while selection is empty.
 
   const initialIssueKey = router.params.get(PANEL_PARAM.issue)
-  if (initialIssueKey) selection.select(initialIssueKey)
+  if (initialIssueKey) selection.select(initialIssueKey, 'deeplink')
 
   /*
    * The document screens, restored the same way.
@@ -570,7 +570,7 @@
   bindParam({
     param: 'issue',
     read: () => selection.selectedKey,
-    write: (key) => (key ? selection.select(key) : selection.clear()),
+    write: (key) => (key ? selection.select(key, 'url') : selection.clear('url')),
   })
 
   bindParam({
@@ -644,7 +644,7 @@
 
   function closeOpenPanel(): void {
     const t = panel.target
-    if (t) panel.close(t.kind)
+    if (t) panel.close(t.kind, 'esc')
   }
 
   // The third right-panel kind, in the shape of the two above it: the value is

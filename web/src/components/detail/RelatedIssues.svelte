@@ -62,7 +62,7 @@
         data-testid="related-issue-row"
         data-issue-key={row.key}
         title={row.issue?.summary ?? row.key}
-        onclick={() => selection.select(row.key)}
+        onclick={() => selection.select(row.key, 'related')}
         class="group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-bg-hover"
       >
         <!-- The dot's box is kept even when the pool cannot fill it, so the key

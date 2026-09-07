@@ -82,7 +82,7 @@ export function tryOpenNativeLink(href: string): boolean {
   const issueKey = extractBrowseKey(href)
   if (issueKey) {
     if (issues.pool.has(issueKey)) {
-      selection.select(issueKey)
+      selection.select(issueKey, 'omnibox-link')
       return true
     }
     return false
@@ -107,7 +107,7 @@ export async function applyOmniboxAction(
     case 'text':
       return false
     case 'issue':
-      selection.select(action.key)
+      selection.select(action.key, 'omnibox')
       return true
     case 'issue-miss':
       write.toast(t('omnibox.issueMissing', { key: action.key }), 'info')

@@ -203,7 +203,7 @@
 
   function applySug(s: Sug) {
     if (s.kind === 'jump') {
-      selection.select(s.value)
+      selection.select(s.value, 'search')
       return
     }
     if (s.kind === 'flag') {
@@ -296,7 +296,7 @@
     if (e.key === 'Enter') {
       e.preventDefault()
       if (showJump && jumpKey) {
-        selection.select(jumpKey)
+        selection.select(jumpKey, 'search-jump')
       } else if (text.trim()) {
         void (async () => {
           const handled = await applyOmniboxAction(classifyOmnibox(text), applyJql)
@@ -451,7 +451,7 @@
         class="flex w-full items-center gap-2 rounded bg-bg-active px-2 py-1 text-left text-body text-text-primary"
         onmousedown={(e) => {
           e.preventDefault()
-          if (jumpKey) selection.select(jumpKey)
+          if (jumpKey) selection.select(jumpKey, 'search-jump')
         }}
       >
         <span class="font-mono text-accent-text">{jumpKey}</span>

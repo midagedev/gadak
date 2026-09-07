@@ -439,7 +439,7 @@
       // existing verb — there is no second route to an issue here.
       stopIssueLinks = renderer.registerIssueLinks({
         projects: paneProjectKeys,
-        open: (key) => selection.select(key),
+        open: (key) => selection.select(key, 'terminal-link'),
       })
       ro = new ResizeObserver(scheduleFit)
       ro.observe(hostEl)

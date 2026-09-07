@@ -296,7 +296,7 @@
       bulk.toggle(issue.issue_key)
       return
     }
-    selection.toggle(issue.issue_key)
+    selection.toggle(issue.issue_key, 'list-row')
   }
 </script>
 
@@ -348,7 +348,7 @@
     : (e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault()
-          selection.toggle(issue.issue_key)
+          selection.toggle(issue.issue_key, 'list-row-key')
         }
       }}
 >
@@ -729,7 +729,7 @@
           class="max-w-[84px] truncate rounded px-1.5 py-0.5 font-mono text-micro text-text-muted transition-colors hover:bg-bg-elevated hover:text-accent-text"
           data-testid="epic-chip"
           title={t('list.fieldValue', { field: t('common.epic'), value: epicSummary ?? epicKey })}
-          onclick={stop(() => selection.select(epicKey))}
+          onclick={stop(() => selection.select(epicKey, 'list-row-epic'))}
         >
           {epicKey}
         </button>

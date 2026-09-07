@@ -26,6 +26,7 @@ import {
   findIssueKeyMatches,
   linkAnswerIsStale,
   nudgeRowOffset,
+  paneHeldFocus,
   rowFromPointer,
   type LinkRowAnswer,
 } from './issue-links'
@@ -347,6 +348,25 @@ async function createXtermRenderer(): Promise<BehaviorTerminalRenderer> {
       // Every answer is remembered against its buffer line so the render
       // hook below can tell when xterm is holding a stale one (GDK-1172).
       let answered: LinkRowAnswer | null = null
+      /*
+       * GDK-1186 — did the pane already hold the keyboard when this gesture
+       * started? Recorded at mousedown and read back in `activate`, because
+       * by the time xterm fires that (mouseup) this very click has moved the
+       * focus the answer depends on. The listener is registered in the
+       * capture phase on the terminal's own root, which is the one place
+       * that sees the press before any of xterm's handlers — including the
+       * one that focuses its helper textarea. `false` until the first press
+       * of the pane's life, which is exactly right: nothing has focused it
+       * yet. The rule itself is issue-links.paneHeldFocus.
+       */
+      let focusHeldAtPress = false
+      const onPress = () => {
+        focusHeldAtPress = paneHeldFocus(
+          term.element ?? null,
+          typeof document === 'undefined' ? null : document.activeElement,
+        )
+      }
+      term.element?.addEventListener('mousedown', onPress, true)
       const disposable = term.registerLinkProvider({
         provideLinks(bufferLineNumber, callback) {
           const line = term.buffer.active.getLine(bufferLineNumber - 1)
@@ -368,7 +388,14 @@ async function createXtermRenderer(): Promise<BehaviorTerminalRenderer> {
                 start: { x: m.start + 1, y: bufferLineNumber },
                 end: { x: m.end, y: bufferLineNumber },
               },
-              activate: () => open(m.key),
+              // The focus click is not a link click (GDK-1186). Refusing
+              // here rather than withholding the link keeps the underline
+              // and the pointer cursor honest: the key IS a link, and the
+              // next click — the pane now holds the keyboard — opens it.
+              activate: () => {
+                if (!focusHeldAtPress) return
+                open(m.key)
+              },
             })),
           )
         },
@@ -425,6 +452,7 @@ async function createXtermRenderer(): Promise<BehaviorTerminalRenderer> {
         unRender.dispose()
         el?.removeEventListener('mousemove', onMove)
         el?.removeEventListener('mouseleave', onLeave)
+        term.element?.removeEventListener('mousedown', onPress, true)
         disposable.dispose()
       }
     },

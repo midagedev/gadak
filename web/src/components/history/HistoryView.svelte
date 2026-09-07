@@ -145,7 +145,7 @@
       return
     }
     if (entry.kind === 'page') pages.select(entry.key)
-    else selection.select(entry.key)
+    else selection.select(entry.key, 'history')
   }
 
   /**

@@ -21,7 +21,7 @@
 export const DEBUG_ATTRS_KEY = 'gadak_debug_attrs'
 
 /** Closed set: every debug attribute this app publishes is named here. */
-export type DebugAttrName = 'detailCache' | 'lastDashOpen'
+export type DebugAttrName = 'detailCache' | 'lastDashOpen' | 'panelOpen'
 
 let enabledMemo: boolean | null = null
 

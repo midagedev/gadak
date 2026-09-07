@@ -82,7 +82,7 @@
 
   function openComment(c: AuthorComment): void {
     if (c.kind === 'page') pages.select(c.key)
-    else selection.select(c.key)
+    else selection.select(c.key, 'person-panel')
   }
 
   // Same negotiation as DetailPanel: decline an Esc another listener already

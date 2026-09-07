@@ -134,7 +134,7 @@
       commentEscArmedFor = key
       return
     }
-    selection.clear()
+    selection.clear('esc')
   }
 
   // detail must match the current key (avoid showing previous detail mid-switch)
@@ -202,7 +202,7 @@
             {#if overlay}
               <button
                 type="button"
-                onclick={() => selection.clear()}
+                onclick={() => selection.clear('detail-back')}
                 data-testid="issue-detail-back"
                 class="flex h-6 w-6 flex-none items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
                 aria-label={t('feed.backToList')}
@@ -227,7 +227,7 @@
           </div>
           <button
             type="button"
-            onclick={() => selection.clear()}
+            onclick={() => selection.clear('detail-close')}
             class="flex h-6 w-6 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
             aria-label={t('common.closeEsc')}
             title={t('common.closeEsc')}

@@ -75,7 +75,7 @@
           <button
             type="button"
             data-testid="epic-child-row"
-            onclick={() => selection.select(child.issue_key)}
+            onclick={() => selection.select(child.issue_key, 'epic-progress')}
             class="group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-bg-hover"
           >
             <span

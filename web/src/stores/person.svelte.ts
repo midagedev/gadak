@@ -62,7 +62,7 @@ class PersonStore {
   /** Open a person. `identity` is account id when known, else email. */
   select(identity: string): void {
     if (!identity || this.selectedEmail === identity) return
-    panel.show('person', identity)
+    panel.show('person', identity, 'person.select')
     this.comments = []
     this.total = 0
     this.error = null
@@ -70,7 +70,7 @@ class PersonStore {
   }
 
   clear(): void {
-    panel.close('person')
+    panel.close('person', 'person.clear')
   }
 
   /** Drop what was loaded for whoever was open. */

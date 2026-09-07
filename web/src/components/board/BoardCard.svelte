@@ -106,7 +106,7 @@
   onclick={() => {
     // A finished drag ends in a click on this same button; it was a drop, not a select.
     if (boardDrag.consumeClick()) return
-    selection.toggle(issue.issue_key)
+    selection.toggle(issue.issue_key, 'board-card')
   }}
 >
   <!-- Shell edge. Absolute so it never joins the flow the FLIP measures. -->

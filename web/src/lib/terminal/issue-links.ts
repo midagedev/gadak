@@ -139,3 +139,41 @@ export function linkAnswerIsStale(
 ): boolean {
   return answer !== null && answer.y === y && answer.text !== text
 }
+
+/*
+ * GDK-1186 — the click that gives the pane the keyboard is not a link click.
+ *
+ * xterm activates a link on mouseup wherever the pointer happens to be, and
+ * a terminal is a surface people click *at* rather than *on*: to start
+ * typing, to put the caret back, to drop a selection. Every one of those
+ * gestures lands on some cell, and after GDK-1172 a key that scrolled under
+ * a resting pointer is live from the moment it prints — so a click meant for
+ * the pane opens whatever issue happens to be under it. Measured: a detail
+ * panel the person never asked for, standing over a board column, with no
+ * card ever clicked (e2e/terminal-link-focus.spec.ts).
+ *
+ * The rule is the one every window manager already taught: the first click
+ * into a surface that does not hold the keyboard *activates* it, and nothing
+ * inside it. Once the pane holds focus, a click on a key means what it says.
+ * That leaves GDK-1172's promise intact — the pointer never has to move —
+ * and costs one click only when the pane was not where you were working.
+ *
+ * The question is asked at mousedown, because by mouseup the click has
+ * already moved the focus it is being judged against.
+ */
+
+/** Just enough of an element to answer "is the focus in here". */
+export interface FocusScope {
+  contains(other: unknown): boolean
+}
+
+/**
+ * Whether the pane already held the keyboard when a press landed in it.
+ * `pane` is the terminal's own root, `active` is `document.activeElement` at
+ * that instant; either being absent means no, which is the safe answer — a
+ * link that does not open is a click away from opening.
+ */
+export function paneHeldFocus(pane: FocusScope | null, active: unknown): boolean {
+  if (pane === null || active === null || active === undefined) return false
+  return pane.contains(active)
+}
