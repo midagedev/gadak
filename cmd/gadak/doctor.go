@@ -21,6 +21,7 @@ import (
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/originbind"
+	"github.com/midagedev/gadak/internal/skillinstall"
 	"github.com/midagedev/gadak/internal/store"
 	syncer "github.com/midagedev/gadak/internal/sync"
 )
@@ -141,8 +142,14 @@ type doctorWorkspace struct {
 	Frozen       bool   `json:"frozen"`
 }
 
-// doctorSkill answers "is my Claude Code skill current?" without the user
-// having to diff files by hand. Identity is the content hash, never mtime.
+// doctorSkill answers "is my agent's skill current?" without the user having
+// to diff files by hand. Identity is the content hash, never mtime.
+//
+// Status/Scope/Path summarise the whole machine in the three fields this report
+// has always had: the first host that has a copy, in table order. Hosts carries
+// the per-host detail (GDK-1508) — before it, a user who had correctly
+// installed the skill for Codex was told "missing", because doctor only ever
+// looked at ~/.claude.
 type doctorSkill struct {
 	Status string `json:"status"` // missing | stale | current
 	Scope  string `json:"scope"`  // user | project
@@ -151,6 +158,23 @@ type doctorSkill struct {
 	// "why did/didn't it update?" is one line. Same convention as
 	// sync.*.synced_at: "never" before the first check.
 	LastAutoCheck string `json:"last_auto_check"`
+	// Hosts is one row per agent host gadak can see: every host with a copy
+	// installed, plus every host whose configuration directory says it is on
+	// this machine. A host that is neither is left out rather than listed as
+	// missing — a row nobody can act on is noise.
+	Hosts []doctorSkillHost `json:"hosts,omitempty"`
+}
+
+// doctorSkillHost is one host's verdict. Status here keeps the installer's own
+// fourth word, conflict, which the summary line folds into stale: for the
+// summary either one means "what the agent loads is not this binary's skill",
+// but a JSON consumer can tell "behind" from "yours, and gadak will not touch
+// it" without running `skill install --print`.
+type doctorSkillHost struct {
+	Client string `json:"client"` // claude | codex | agents | …
+	Status string `json:"status"` // current | stale | conflict | missing
+	Scope  string `json:"scope"`  // user | project
+	Path   string `json:"path"`   // tilde-abbreviated (user) or literal relative (project)
 }
 
 // doctorMCP reports whether gadak is registered as an MCP server. Only the
@@ -530,30 +554,105 @@ func formatDoctorProjectsMismatch(m doctorProjectsMismatch) string {
 
 func collectSkillStatus() doctorSkill {
 	content := gadak.SkillMarkdown()
+	env := skillinstall.OSEnv()
 
-	userDest, userErr := resolveSkillDest(false, "")
-	if userErr == nil {
-		if status, _, err := skillDestStatus(userDest, content); err == nil && status != "missing" {
-			return doctorSkill{Status: doctorSkillWord(status), Scope: "user", Path: tildeHome(userDest)}
+	out := doctorSkill{}
+	for _, client := range skillinstall.Clients() {
+		host, found := skillHostStatus(client, env, content)
+		// Always report the default client: "no skill anywhere" still needs a
+		// path to tell the user where one would go.
+		if !found && client.Name != skillinstall.DefaultClient && !client.Present(env) {
+			continue
+		}
+		out.Hosts = append(out.Hosts, host)
+	}
+
+	// The summary triple is the first host that actually has a copy, in table
+	// order — so a machine with only Codex set up reports Codex rather than the
+	// Claude path it does not use.
+	for _, h := range out.Hosts {
+		if h.Status != skillinstall.StatusMissing {
+			out.Status = doctorSkillWord(h.Status)
+			out.Scope = h.Scope
+			out.Path = h.Path
+			return out
 		}
 	}
-	// Nothing at the user scope — a `--project` install still counts. Report it
-	// with the literal relative path: printing the working directory would put
-	// the user's project name in a report meant to be pasted in public.
-	if projDest, err := resolveSkillDest(true, ""); err == nil {
-		if status, _, err := skillDestStatus(projDest, content); err == nil && status != "missing" {
-			return doctorSkill{
-				Status: doctorSkillWord(status),
-				Scope:  "project",
-				Path:   filepath.Join(".claude", "skills", "gadak", "SKILL.md"),
+	out.Status = skillinstall.StatusMissing
+	out.Scope = "user"
+	out.Path = "unknown"
+	for _, h := range out.Hosts {
+		if h.Client == skillinstall.DefaultClient {
+			out.Path = h.Path
+		}
+	}
+	return out
+}
+
+// skillHostStatus classifies one host: user scope first, then project scope for
+// the hosts that have one. found says whether a copy exists anywhere for it.
+//
+// A project install is reported with the literal relative path. Printing the
+// working directory would put the user's project name into a report whose
+// banner promises it is safe to paste in public.
+func skillHostStatus(client skillinstall.Client, env skillinstall.Env, content []byte) (doctorSkillHost, bool) {
+	host := doctorSkillHost{Client: client.Name, Status: skillinstall.StatusMissing, Scope: "user", Path: "unknown"}
+
+	userDest, userErr := client.HomeDest(env)
+	if userErr == nil {
+		host.Path = tildeHome(userDest)
+		if status, _, err := skillinstall.DestStatus(userDest, content); err == nil && status != skillinstall.StatusMissing {
+			host.Status = skillStatusWord(status)
+			return host, true
+		}
+	}
+	if client.HasProjectScope() {
+		if projDest, err := client.ProjectDest(env); err == nil {
+			if status, _, err := skillinstall.DestStatus(projDest, content); err == nil && status != skillinstall.StatusMissing {
+				return doctorSkillHost{
+					Client: client.Name,
+					Status: skillStatusWord(status),
+					Scope:  "project",
+					Path:   client.ProjectRelDir(),
+				}, true
 			}
 		}
 	}
-	path := "unknown"
-	if userErr == nil {
-		path = tildeHome(userDest)
+	return host, false
+}
+
+// skillStatusWord renames the installer's "identical" to the word a report
+// reads better with. The other three are already the right words.
+func skillStatusWord(installStatus string) string {
+	if installStatus == skillinstall.StatusIdentical {
+		return "current"
 	}
-	return doctorSkill{Status: "missing", Scope: "user", Path: path}
+	return installStatus
+}
+
+// formatDoctorSkill is the one summary line. With a single known host it is
+// what it has always been — the status and the path, which is the detail that
+// helps. With several, the paths stop fitting and the host names are what the
+// user needs: `current (claude, codex) · missing (agents)`.
+func formatDoctorSkill(s doctorSkill) string {
+	if len(s.Hosts) <= 1 {
+		if s.Path != "" {
+			return s.Status + " (" + s.Path + ")"
+		}
+		return s.Status
+	}
+	byStatus := map[string][]string{}
+	for _, h := range s.Hosts {
+		w := doctorSkillWord(h.Status)
+		byStatus[w] = append(byStatus[w], h.Client)
+	}
+	var parts []string
+	for _, w := range []string{"current", "stale", skillinstall.StatusMissing} {
+		if names := byStatus[w]; len(names) > 0 {
+			parts = append(parts, w+" ("+strings.Join(names, ", ")+")")
+		}
+	}
+	return strings.Join(parts, " · ")
 }
 
 // doctorSkillWord maps the installer's four-way classification onto the three
@@ -561,8 +660,11 @@ func collectSkillStatus() doctorSkill {
 // stale because either way what the agent loads is not this binary's skill;
 // `gadak skill install --print` is the command that tells the two apart.
 func doctorSkillWord(installStatus string) string {
-	if installStatus == "identical" {
+	switch installStatus {
+	case skillinstall.StatusIdentical, "current":
 		return "current"
+	case skillinstall.StatusMissing:
+		return skillinstall.StatusMissing
 	}
 	return "stale"
 }
@@ -848,11 +950,7 @@ func formatDoctorText(r doctorReport) string {
 	line("site", r.Site)
 	line("email", r.Email)
 
-	if r.Skill.Path != "" {
-		line("skill", r.Skill.Status+" ("+r.Skill.Path+")")
-	} else {
-		line("skill", r.Skill.Status)
-	}
+	line("skill", formatDoctorSkill(r.Skill))
 	if r.Skill.LastAutoCheck != "" {
 		line("skill.last_auto_check", r.Skill.LastAutoCheck)
 	}

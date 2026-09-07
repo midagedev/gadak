@@ -130,7 +130,9 @@ one paste per host: [`docs/AGENT_SETUP.md`](docs/AGENT_SETUP.md).
 gadak skill install
 ```
 
-Schema and query patterns, no extra process. For hosts without a shell
+Schema and query patterns, no extra process. That installs for Claude Code;
+name another host to install the same file there — `gadak skill install codex`,
+and the same for cursor, gemini, opencode and grok. For hosts without a shell
 (Claude Desktop), the same mirror is an MCP server:
 
 ```bash

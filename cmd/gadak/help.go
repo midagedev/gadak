@@ -890,24 +890,24 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak skill install", "gadak sql", "gadak issue", "gadak status", "gadak profiles"},
 	},
 	"skill": {
-		summary: "install the Claude Code skill (schema + query patterns; no MCP process)",
-		usage: "gadak skill install [client] [--project] [--dir <path>]\n" +
-			"[--print] [--force]",
+		summary: "install the agent skill (schema + query patterns; no MCP process)",
+		usage: "gadak skill install [claude|codex|agents|cursor|gemini|opencode|grok]\n" +
+			"[--project] [--dir <path>] [--print] [--force]",
 		options: []helpOption{
-			{name: "project", desc: "install into ./.claude/skills/gadak/ under the current directory"},
+			{name: "project", desc: "install under the current directory (.claude/skills/ for claude, .agents/skills/ for codex and agents)"},
 			{name: "dir", desc: "install into PATH/gadak/SKILL.md (overrides default and --project)"},
 			{name: "print", desc: "print the install plan without writing"},
 			{name: "force", desc: "overwrite when the existing file differs from the embedded skill"},
 		},
 		examples: []string{
 			"gadak skill install",
-			"gadak skill install claude",
+			"gadak skill install codex",
+			"gadak skill install codex --project",
 			"gadak skill install --print",
-			"gadak skill install --project",
 			"gadak skill install --dir /tmp/skills-preview --print",
 			"gadak skill install --force",
 		},
-		seeAlso: []string{"gadak mcp install", "gadak sql", "gadak issue"},
+		seeAlso: []string{"gadak mcp install", "gadak doctor", "gadak sql", "gadak issue"},
 	},
 	"snapshot": {
 		summary: "write a shareable copy of the mirror (no personal tables, no credentials)",

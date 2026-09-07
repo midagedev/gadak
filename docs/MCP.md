@@ -24,8 +24,10 @@ MCP is deliberately not the primary interface. Every tool schema is context the
 model must read before it can act; SQL is not a guess about which questions will
 be asked. Use MCP only when the host cannot run `gadak` as a subprocess with a
 normal argv/stdio pipe for one-shot commands. If the agent has a shell and you
-want schema/query knowledge without a server process, prefer
-`gadak skill install` (Claude Code skill) — see [`docs/AGENT_SETUP.md`](AGENT_SETUP.md).
+want schema/query knowledge without a server process, prefer the skill —
+`gadak skill install <client>`, where the client is Claude Code, Codex, Cursor,
+Gemini CLI, OpenCode or grok. The same file serves all of them; only the path
+differs. See [`docs/AGENT_SETUP.md`](AGENT_SETUP.md).
 
 ## Start
 
@@ -85,7 +87,7 @@ Other clients never exec — they only print (`raycast` prints form values; see
 | Client | Command | What it prints |
 | --- | --- | --- |
 | cursor | `gadak mcp install cursor` | Cursor MCP config to paste (`.cursor/mcp.json`) |
-| codex | `gadak mcp install codex` | Codex MCP config to paste (`~/.codex/config.toml`) |
+| codex | `gadak mcp install codex` | Codex MCP config to paste (`~/.codex/config.toml`) — but Codex loads skills, so `gadak skill install codex` is usually the better route |
 | raycast | `gadak mcp install raycast` | values to fill into Raycast's Install New Server form |
 | json | `gadak mcp install json` | `mcpServers` JSON snippet only |
 

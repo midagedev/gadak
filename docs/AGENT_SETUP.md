@@ -126,6 +126,11 @@ view. Do not describe chips to the user; set them.
 
 ## Codex — `AGENTS.md` (repo root)
 
+Codex loads skills, so `gadak skill install codex` is the shorter route and the
+one to prefer — see [The skill](#the-skill-preferred-when-the-agent-has-a-shell)
+below. This block is for a repository that wants the instruction in the file
+everyone on the team already reads.
+
 ```markdown
 ## Jira access
 
@@ -144,41 +149,77 @@ tool surface. Two install paths:
 
 | | **Skill** (`gadak skill install`) | **MCP** (`gadak mcp install`) |
 | --- | --- | --- |
-| Best when | The agent has a shell (Claude Code, etc.) | The host has **no** shell (Claude Desktop, some IDE hosts) |
+| Best when | The agent has a shell and loads skills (Claude Code, Codex, Cursor, Gemini CLI, OpenCode, grok) | The host has **no** shell (Claude Desktop, some IDE hosts) |
 | What you get | One folder of docs, loaded only when relevant | A stdio server + always-on tool schemas in context |
 | Cost | Cheap on context; agent runs `gadak sql` / `gadak issue` itself | Tool definitions occupy context every turn |
 
-If the agent has a shell, `gadak skill install` is the path. MCP
+If the agent has a shell, `gadak skill install <client>` is the path. MCP
 (`gadak mcp install claude`) is for hosts without a shell (Claude Desktop).
 They do not conflict — the skill teaches SQL/CLI; MCP is a separate
 read-only tool surface — but a shell agent does not need MCP.
 
-## Claude Code skill (preferred when the agent has a shell)
+## The skill (preferred when the agent has a shell)
 
-When `~/.claude` already exists, `gadak init` and `gadak install-cli` write
-`~/.claude/skills/gadak/SKILL.md` themselves. A file gadak did not write is
-left in place; `gadak skill install --force` overwrites it. If `~/.claude`
-is absent, those commands skip the skill and (for `install-cli`) still print
-`gadak skill install` as the next step.
+The skill is one file, and it is the same file for every host. Codex, Cursor,
+Gemini CLI, OpenCode and grok all read a `skills/<name>/SKILL.md` directory the
+way Claude Code does — measured, not assumed: gadak's own `SKILL.md` was copied
+byte-for-byte into Codex and read back out of `codex debug prompt-input`. So a
+client selects a path and nothing else.
 
 ```bash
 gadak skill install
 ```
 
-That writes `~/.claude/skills/gadak/SKILL.md`. Flags:
+That is Claude Code, the default. Name any other host to install it there —
+`gadak skill install codex`, `gadak skill install cursor`, and so on:
+
+| Client | Home (default) | `--project` | Confirm it loaded |
+| --- | --- | --- | --- |
+| `claude` | `~/.claude/skills/gadak/` | `.claude/skills/gadak/` | `/skills` in a new session |
+| `codex` | `$CODEX_HOME/skills/gadak/`, else `~/.codex/skills/gadak/` | `.agents/skills/gadak/` | `codex debug prompt-input` lists gadak inside `<skills_instructions>` |
+| `agents` | `~/.agents/skills/gadak/` | `.agents/skills/gadak/` | whatever the host provides; this is the shared convention, not one product |
+| `cursor` | `~/.cursor/skills/gadak/` | — | the skill appears in Cursor's skill list |
+| `gemini` | `~/.gemini/skills/gadak/` | — | the skill appears in the CLI's skill list |
+| `opencode` | `~/.config/opencode/skills/gadak/` | — | the skill appears in OpenCode's skill list |
+| `grok` | `~/.grok/skills/gadak/` | — | the skill appears in the CLI's skill list |
+
+`agents` is the row that serves several hosts at once: `~/.agents/skills` is the
+shared discovery root the [agentskills.io](https://agentskills.io) convention
+describes, and Codex reads it too.
+
+The four hosts with no `--project` entry read a *rules file* in a repository
+(`.cursor/rules/gadak.mdc`, `gemini-extension.json`, a plugin under
+`.opencode/`), not a skill directory, so `--project` refuses for them and says
+so. Install those at the home scope, or write the file yourself with `--dir`.
+
+Hosts that only ever load an always-on instruction file — Copilot, Windsurf,
+Cline, Kiro, Amp, and the `AGENTS.md` family — are not installable this way at
+all. Paste the block from the top of this page instead, or use
+`gadak mcp install <client>`.
+
+When `~/.claude` already exists, `gadak init` and `gadak install-cli` write
+`~/.claude/skills/gadak/SKILL.md` themselves. A file gadak did not write is
+left in place; `gadak skill install --force` overwrites it. If `~/.claude`
+is absent, those commands skip the skill and (for `install-cli`) still print
+`gadak skill install` as the next step. Auto-install and the once-a-day refresh
+only ever touch the Claude Code copy — the other hosts are installed on request.
+
+Flags:
 
 | Flag | Effect |
 | --- | --- |
-| `--project` | install into `./.claude/skills/gadak/` (current working directory) |
-| `--dir PATH` | install into `PATH/gadak/SKILL.md` (overrides default and `--project`) |
+| `--project` | install under the current directory instead of the home directory (see the table) |
+| `--dir PATH` | install into `PATH/gadak/SKILL.md` (overrides the client's default and `--project`) |
 | `--print` | print the install plan without writing |
 | `--force` | overwrite a SKILL.md gadak did not write (hand-edited or your own) |
 
 Restart the agent or open a new session so it picks up the skill. The skill
 body is embedded in the binary (same as `skills/gadak/SKILL.md` in the repo),
-so brew installs work without a checkout. Only Claude Code is supported by
-`skill install` today; other agents: `gadak mcp install <client>` or copy
-`SKILL.md` yourself.
+so brew installs work without a checkout.
+
+`gadak doctor` reports the skill per host — `skill: current (claude, codex) ·
+missing (agents)` — so "did that install land?" is one command, and it names
+the host it found rather than assuming Claude Code.
 
 ### Or install it as a Claude Code plugin
 

@@ -17,6 +17,7 @@ import (
 	"time"
 
 	gadak "github.com/midagedev/gadak"
+	"github.com/midagedev/gadak/internal/skillinstall"
 )
 
 // gadakTestOrigHome is the developer/CI home TestMain replaced. The auto-sync
@@ -379,25 +380,248 @@ func TestSkillInstallPrintNoWrite(t *testing.T) {
 	}
 }
 
-func TestSkillInstallUnsupportedClient(t *testing.T) {
-	err := cmdSkillInstall([]string{"cursor"})
-	if err == nil {
-		t.Fatal("expected error for cursor")
+// TestSkillInstallUnknownClient — GDK-1508 turned the old blanket refusal
+// ("only Claude Code is supported") into a table, so what must still be refused
+// is a host that loads an always-on rules file rather than a skill directory.
+func TestSkillInstallUnknownClient(t *testing.T) {
+	for _, name := range []string{"windsurf", "copilot", "kiro"} {
+		err := cmdSkillInstall([]string{name, "--print"})
+		if err == nil {
+			t.Fatalf("expected an error for %s", name)
+		}
+		s := err.Error()
+		if !strings.Contains(s, name) {
+			t.Errorf("error should name the client: %v", err)
+		}
+		if !strings.Contains(s, "mcp install") && !strings.Contains(s, "SKILL.md") {
+			t.Errorf("error should guide to mcp or copy: %v", err)
+		}
+		for _, supported := range skillinstall.Names() {
+			if !strings.Contains(s, supported) {
+				t.Errorf("error should list the supported client %q: %v", supported, err)
+			}
+		}
 	}
-	s := err.Error()
-	if !strings.Contains(s, "cursor") {
-		t.Errorf("error should name client: %v", err)
+}
+
+// TestSkillInstallEveryClientLandsInItsOwnHome — the installed bytes are
+// identical for every host (the GDK-1508 investigation read gadak's own
+// SKILL.md back out of Codex verbatim), so what a client selects is a path and
+// nothing else. This walks the whole table rather than a sample: a new host
+// that resolves somewhere nobody loads would install happily and report
+// success.
+//
+// Containment is HOME, not CODEX_HOME. CODEX_HOME is cleared rather than
+// pointed somewhere, because orca's tripwire records the Codex binary ignoring
+// the equivalent sandbox on Windows — it is a preference to honour, not a fence.
+func TestSkillInstallEveryClientLandsInItsOwnHome(t *testing.T) {
+	home := isolateHome(t)
+	t.Setenv("CODEX_HOME", "")
+	t.Chdir(t.TempDir())
+
+	want := map[string]string{
+		"claude":   filepath.Join(home, ".claude", "skills", "gadak", "SKILL.md"),
+		"codex":    filepath.Join(home, ".codex", "skills", "gadak", "SKILL.md"),
+		"agents":   filepath.Join(home, ".agents", "skills", "gadak", "SKILL.md"),
+		"cursor":   filepath.Join(home, ".cursor", "skills", "gadak", "SKILL.md"),
+		"gemini":   filepath.Join(home, ".gemini", "skills", "gadak", "SKILL.md"),
+		"opencode": filepath.Join(home, ".config", "opencode", "skills", "gadak", "SKILL.md"),
+		"grok":     filepath.Join(home, ".grok", "skills", "gadak", "SKILL.md"),
 	}
-	if !strings.Contains(s, "mcp install") && !strings.Contains(s, "SKILL.md") {
-		t.Errorf("error should guide to mcp or copy: %v", err)
+	names := skillinstall.Names()
+	if len(names) != len(want) {
+		t.Fatalf("skill table has %d clients, this test covers %d", len(names), len(want))
 	}
 
-	err = cmdSkillInstall([]string{"codex", "--print"})
-	if err == nil {
-		t.Fatal("expected error for codex")
+	for _, name := range names {
+		client, ok := skillinstall.Lookup(name)
+		if !ok {
+			t.Fatalf("%s vanished from the table", name)
+		}
+		dest, err := resolveSkillDestFor(client, false, "")
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if dest != want[name] {
+			t.Errorf("%s dest = %q, want %q", name, dest, want[name])
+		}
+		var buf bytes.Buffer
+		if err := installSkill(&buf, gadak.SkillMarkdown(), dest, false, false); err != nil {
+			t.Fatalf("%s install: %v", name, err)
+		}
+		got, err := os.ReadFile(dest)
+		if err != nil {
+			t.Fatalf("%s read: %v", name, err)
+		}
+		if !bytes.Equal(got, gadak.SkillMarkdown()) {
+			t.Errorf("%s: installed bytes differ from the embed", name)
+		}
+		if !strings.HasPrefix(buf.String(), "installed:") {
+			t.Errorf("%s first install said %q, want installed:", name, buf.String())
+		}
+
+		// Running it again is a no-op, not a conflict.
+		buf.Reset()
+		if err := installSkill(&buf, gadak.SkillMarkdown(), dest, false, false); err != nil {
+			t.Fatalf("%s re-install: %v", name, err)
+		}
+		if !strings.Contains(buf.String(), "already installed") {
+			t.Errorf("%s second install said %q", name, buf.String())
+		}
 	}
-	if !strings.Contains(err.Error(), "codex") {
-		t.Errorf("error should name codex: %v", err)
+}
+
+// TestSkillInstallCodexUpgradeAndConflict — every new host inherits the
+// receipt, so an upgrade of gadak's own copy is an "updated:" and only a file
+// gadak did not write needs --force. Proven on codex, the host GDK-1508 was
+// opened for.
+func TestSkillInstallCodexUpgradeAndConflict(t *testing.T) {
+	isolateHome(t)
+	t.Setenv("CODEX_HOME", "")
+	codex, ok := skillinstall.Lookup("codex")
+	if !ok {
+		t.Fatal("no codex client")
+	}
+	dest, err := resolveSkillDestFor(codex, false, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// An older gadak installed here: same installer, so it left a receipt.
+	prev := append([]byte("# older gadak skill\n"), gadak.SkillMarkdown()...)
+	var buf bytes.Buffer
+	if err := installSkill(&buf, prev, dest, false, false); err != nil {
+		t.Fatal(err)
+	}
+	buf.Reset()
+	if err := installSkill(&buf, gadak.SkillMarkdown(), dest, false, false); err != nil {
+		t.Fatalf("upgrade of our own copy must not need --force: %v", err)
+	}
+	if !strings.HasPrefix(buf.String(), "updated:") {
+		t.Errorf("upgrade said %q, want updated:", buf.String())
+	}
+
+	// The user edits it. Now it is theirs, and the refusal stands.
+	if err := os.WriteFile(dest, []byte("---\nname: gadak\n---\nmy own notes\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	buf.Reset()
+	err = installSkill(&buf, gadak.SkillMarkdown(), dest, false, false)
+	if err == nil {
+		t.Fatal("want a conflict refusal for a hand-edited file")
+	}
+	if !strings.Contains(err.Error(), "--force") {
+		t.Errorf("refusal should name --force: %v", err)
+	}
+	buf.Reset()
+	if err := installSkill(&buf, gadak.SkillMarkdown(), dest, true, false); err != nil {
+		t.Fatalf("--force: %v", err)
+	}
+	got, err := os.ReadFile(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, gadak.SkillMarkdown()) {
+		t.Error("--force did not overwrite")
+	}
+}
+
+// TestSkillInstallProjectScopePerClient — codex and agents read
+// <cwd>/.agents/skills, measured against codex-cli 0.147.0. The rules-file
+// hosts refuse --project and say which format they read instead, because "no"
+// without that is one more round trip for a user who is already guessing.
+func TestSkillInstallProjectScopePerClient(t *testing.T) {
+	root := t.TempDir()
+	t.Chdir(root)
+
+	for _, name := range []string{"codex", "agents"} {
+		client, ok := skillinstall.Lookup(name)
+		if !ok {
+			t.Fatalf("no %s client", name)
+		}
+		dest, err := resolveSkillDestFor(client, true, "")
+		if err != nil {
+			t.Fatalf("%s --project: %v", name, err)
+		}
+		want := filepath.Join(root, ".agents", "skills", "gadak", "SKILL.md")
+		if dest != want {
+			t.Errorf("%s project dest = %q, want %q", name, dest, want)
+		}
+	}
+
+	for _, name := range []string{"cursor", "gemini", "opencode", "grok"} {
+		err := cmdSkillInstall([]string{name, "--project", "--print"})
+		if err == nil {
+			t.Fatalf("%s --project should be refused", name)
+		}
+		if !strings.Contains(err.Error(), "--project") || !strings.Contains(err.Error(), name) {
+			t.Errorf("%s refusal should name the flag and the client: %v", name, err)
+		}
+		if _, statErr := os.Stat(filepath.Join(root, "."+name)); !os.IsNotExist(statErr) {
+			t.Errorf("%s --project created something despite refusing", name)
+		}
+	}
+
+	// --dir still overrides everything, including a host that has no project
+	// scope at all — that is the seam for a host gadak has not measured.
+	cursor, _ := skillinstall.Lookup("cursor")
+	dest, err := resolveSkillDestFor(cursor, true, filepath.Join(root, "anywhere"))
+	if err != nil {
+		t.Fatalf("--dir with --project: %v", err)
+	}
+	if want := filepath.Join(root, "anywhere", "gadak", "SKILL.md"); dest != want {
+		t.Errorf("--dir dest = %q, want %q", dest, want)
+	}
+}
+
+// TestSkillInstallPrintNamesTheClient — with seven clients the destination
+// alone no longer says which host a plan is for.
+func TestSkillInstallPrintNamesTheClient(t *testing.T) {
+	root := t.TempDir()
+	out := captureStdout(t, func() {
+		if err := cmdSkillInstall([]string{"codex", "--print", "--dir", root}); err != nil {
+			t.Fatalf("cmdSkillInstall: %v", err)
+		}
+	})
+	if !strings.Contains(out, "client:") || !strings.Contains(out, "codex") {
+		t.Errorf("--print should name the client:\n%s", out)
+	}
+	if _, err := os.Stat(filepath.Join(root, "gadak")); !os.IsNotExist(err) {
+		t.Error("--print must not write")
+	}
+}
+
+// captureStdout runs fn with os.Stdout redirected and returns what it printed.
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := os.Stdout
+	os.Stdout = w
+	fn()
+	_ = w.Close()
+	os.Stdout = old
+	var buf bytes.Buffer
+	if _, err := buf.ReadFrom(r); err != nil {
+		t.Fatal(err)
+	}
+	_ = r.Close()
+	return buf.String()
+}
+
+// TestSkillHelpListsEveryClient — a host that is installable but undocumented
+// is a host nobody finds.
+func TestSkillHelpListsEveryClient(t *testing.T) {
+	out := captureStdout(t, printSkillHelp)
+	for _, c := range skillinstall.Clients() {
+		if !strings.Contains(out, c.Name) {
+			t.Errorf("--help does not list client %q:\n%s", c.Name, out)
+		}
+		if !strings.Contains(out, c.HomeDoc()) {
+			t.Errorf("--help does not give %q its path %q", c.Name, c.HomeDoc())
+		}
 	}
 }
 
@@ -915,5 +1139,43 @@ func TestSkillAutoSyncDoesNotInstallMissing(t *testing.T) {
 	}
 	if _, err := os.Stat(skillDestUnder(home)); !os.IsNotExist(err) {
 		t.Fatalf("auto-sync created a skill uninvited: %v", err)
+	}
+}
+
+// TestSkillDescriptionFitsHostBudget — GDK-1506. Every host keeps the skill's
+// `name` and `description` resident in the system prompt and reads the body
+// only when the skill fires, so the description is the only part of the file
+// with a hard budget. Codex truncates it at 1024 characters. That was measured
+// here against codex-cli 0.147.0 with `codex debug prompt-input`, not read in a
+// document, and it is silent: gadak's 1194-character description was injected
+// cut off mid-sentence, and the sentence it cut was the one that says to open
+// issues in the app rather than paste a markdown table.
+//
+// The assertion is on bytes, which is the strictest reading — a description
+// under 1024 bytes is under 1024 runes too, whichever unit the host counts —
+// and it is deliberately tighter than the limit so an edit has somewhere to go.
+func TestSkillDescriptionFitsHostBudget(t *testing.T) {
+	const (
+		codexTruncatesAt = 1024
+		budget           = 1000
+	)
+	desc, ok := skillinstall.FrontmatterDescription(gadak.SkillMarkdown())
+	if !ok {
+		t.Fatal("the embedded skill has no frontmatter description — every host requires name + description")
+	}
+	if n := len(desc); n >= codexTruncatesAt {
+		t.Errorf("description is %d bytes; Codex truncates at %d, so the tail is silently dropped", n, codexTruncatesAt)
+	}
+	if n := len([]rune(desc)); n > budget {
+		t.Errorf("description is %d characters; the budget is %d (Codex cuts at %d)", n, budget, codexTruncatesAt)
+	}
+
+	// The description is the whole trigger surface: it is what a host reads
+	// when deciding whether to load the body at all. Trimming it must not cost
+	// the three things it has to promise.
+	for _, must := range []string{"SQL", "gadak views open", "status_category"} {
+		if !strings.Contains(desc, must) {
+			t.Errorf("description no longer mentions %q:\n%s", must, desc)
+		}
 	}
 }

@@ -1320,3 +1320,172 @@ func TestDoctorConfluenceSpacesNotOnOrigin(t *testing.T) {
 		t.Errorf("confluence_spaces present when every configured key is in the catalog: %s", raw2)
 	}
 }
+
+// TestDoctorFindsACodexOnlyInstall — GDK-1508. doctor used to look at
+// ~/.claude and nowhere else, so a user who had correctly installed the skill
+// for Codex was told "missing" and, following that advice, installed it a
+// second time for an agent they do not run.
+//
+// CODEX_HOME is cleared rather than pointed at a scratch directory: the home
+// here is what contains the test, and orca's tripwire records the Codex binary
+// ignoring the equivalent sandbox on Windows.
+func TestDoctorFindsACodexOnlyInstall(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("GADAK_HOME", home)
+	t.Setenv("CODEX_HOME", "")
+	config.SetProfile("")
+	t.Chdir(home)
+
+	human, err := capture(t, func() error { return cmdDoctor(nil) })
+	if err != nil {
+		t.Fatalf("doctor: %v\n%s", err, human)
+	}
+	if got := doctorValue(t, human, "skill"); !strings.HasPrefix(got, "missing") {
+		t.Fatalf("empty home: skill = %q, want missing", got)
+	}
+
+	dest := filepath.Join(home, ".codex", "skills", "gadak", "SKILL.md")
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dest, gadak.SkillMarkdown(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	human, err = capture(t, func() error { return cmdDoctor(nil) })
+	if err != nil {
+		t.Fatalf("doctor: %v", err)
+	}
+	if got := doctorValue(t, human, "skill"); !strings.HasPrefix(got, "current") {
+		t.Errorf("codex-only install: skill = %q, want current", got)
+	}
+	if !strings.Contains(human, "codex") {
+		t.Errorf("the skill line should name the host it found:\n%s", human)
+	}
+}
+
+// TestDoctorReportsEverySkillHost — the per-host array, and the rule that keeps
+// the summary line one line: a host with a copy or a configuration directory
+// gets a row, a host that has neither is left out rather than listed as
+// missing.
+func TestDoctorReportsEverySkillHost(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("GADAK_HOME", home)
+	t.Setenv("CODEX_HOME", "")
+	config.SetProfile("")
+	t.Chdir(home)
+
+	// claude: current. codex: one byte behind, and no receipt, so the
+	// installer calls it a conflict — the file is the user's.
+	// agents: present on the machine, nothing installed.
+	// grok, cursor, gemini, opencode: not on this machine at all.
+	writeAt := func(rel string, body []byte) {
+		p := filepath.Join(home, rel)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, body, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeAt(filepath.Join(".claude", "skills", "gadak", "SKILL.md"), gadak.SkillMarkdown())
+	writeAt(filepath.Join(".codex", "skills", "gadak", "SKILL.md"), append(append([]byte{}, gadak.SkillMarkdown()...), '\n'))
+	writeAt(filepath.Join(".agents", "marker"), []byte("x"))
+
+	raw, err := capture(t, func() error { return cmdDoctor([]string{"--json"}) })
+	if err != nil {
+		t.Fatalf("doctor --json: %v", err)
+	}
+	var rep doctorReport
+	if err := json.Unmarshal([]byte(raw), &rep); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, raw)
+	}
+	got := map[string]doctorSkillHost{}
+	for _, h := range rep.Skill.Hosts {
+		got[h.Client] = h
+	}
+	if len(got) != 3 {
+		t.Fatalf("hosts = %+v, want claude, codex and agents only", rep.Skill.Hosts)
+	}
+	if h := got["claude"]; h.Status != "current" || h.Scope != "user" || h.Path != "~/.claude/skills/gadak/SKILL.md" {
+		t.Errorf("claude host = %+v", h)
+	}
+	// conflict, not stale: nothing gadak wrote is at that path, so gadak will
+	// not replace it without --force. The summary line folds it into stale.
+	if h := got["codex"]; h.Status != "conflict" || h.Path != "~/.codex/skills/gadak/SKILL.md" {
+		t.Errorf("codex host = %+v", h)
+	}
+	if h := got["agents"]; h.Status != "missing" || h.Path != "~/.agents/skills/gadak/SKILL.md" {
+		t.Errorf("agents host = %+v", h)
+	}
+	if !strings.Contains(raw, `"hosts"`) || !strings.Contains(raw, `"client"`) {
+		t.Errorf("JSON report missing the hosts array:\n%s", raw)
+	}
+
+	human, err := capture(t, func() error { return cmdDoctor(nil) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	line := doctorValue(t, human, "skill")
+	if !strings.Contains(line, "current (claude)") || !strings.Contains(line, "stale (codex)") || !strings.Contains(line, "missing (agents)") {
+		t.Errorf("summary line = %q, want the hosts grouped by verdict", line)
+	}
+	if strings.Contains(line, "\n") {
+		t.Errorf("the summary must stay one line: %q", line)
+	}
+}
+
+// TestDoctorFindsAProjectScopeCodexInstall — .agents/skills is what Codex walks
+// up to find, so a repo that carries the skill counts as installed even with an
+// empty home.
+func TestDoctorFindsAProjectScopeCodexInstall(t *testing.T) {
+	home := t.TempDir()
+	proj := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("GADAK_HOME", home)
+	t.Setenv("CODEX_HOME", "")
+	config.SetProfile("")
+	t.Chdir(proj)
+
+	dest := filepath.Join(proj, ".agents", "skills", "gadak", "SKILL.md")
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dest, gadak.SkillMarkdown(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	raw, err := capture(t, func() error { return cmdDoctor([]string{"--json"}) })
+	if err != nil {
+		t.Fatalf("doctor --json: %v", err)
+	}
+	var rep doctorReport
+	if err := json.Unmarshal([]byte(raw), &rep); err != nil {
+		t.Fatal(err)
+	}
+	var codex *doctorSkillHost
+	for i := range rep.Skill.Hosts {
+		if rep.Skill.Hosts[i].Client == "codex" {
+			codex = &rep.Skill.Hosts[i]
+		}
+	}
+	if codex == nil {
+		t.Fatalf("no codex row: %+v", rep.Skill.Hosts)
+	}
+	if codex.Status != "current" || codex.Scope != "project" {
+		t.Errorf("codex host = %+v, want a current project install", codex)
+	}
+	// The path is the literal relative one: the banner promises this report is
+	// safe to paste, and an absolute path would carry the project's name.
+	if codex.Path != filepath.Join(".agents", "skills", "gadak", "SKILL.md") {
+		t.Errorf("project path = %q, want the literal relative path", codex.Path)
+	}
+	if strings.Contains(raw, proj) {
+		t.Errorf("the report leaked the working directory:\n%s", raw)
+	}
+}
