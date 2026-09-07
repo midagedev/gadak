@@ -40,6 +40,7 @@ blocked
 brew
 browse-pane
 bug
+builtin-origin
 carryover-v0.15
 census
 census-p0
@@ -69,8 +70,10 @@ extensibility
 filmable
 fixture
 flake
+flaky
 follow-up
 gate
+gates
 ghostty
 github
 go
@@ -85,7 +88,10 @@ inbound
 inbound-persona
 invariant
 issuetap
+ja
 jira-gap
+keyboard
+ko
 launch
 lens-agent
 lens-bench
@@ -99,6 +105,7 @@ linux
 local-first
 locale
 look
+macos
 marketing
 mcp
 media
@@ -127,11 +134,15 @@ raycast
 refactor
 release
 release-0.19
+release-0.20.2
+release-0.21
 release-audit
 research
 roadmap
+schema
 search
 security
+serve
 simplify
 snapshot
 standalone
@@ -143,6 +154,7 @@ test
 tests
 theme
 tooling
+tools
 tracker-origin
 trust
 ui
@@ -160,4 +172,3 @@ windows
 workspace
 write-gap
 xplat
-flaky
