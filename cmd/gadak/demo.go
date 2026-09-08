@@ -61,7 +61,7 @@ func importAttachmentsInto(dir, cacheDir, site, profile, dbPath string) (attachc
 	if err != nil {
 		return attachcache.ImportStats{}, err
 	}
-	cache, err := attachcache.New(cacheDir, 0)
+	cache, err := attachcache.New(cacheDir, 0, 0)
 	if err != nil {
 		return attachcache.ImportStats{}, err
 	}

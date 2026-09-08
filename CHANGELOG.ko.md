@@ -2,6 +2,31 @@
 
 <sub><a href="CHANGELOG.md">English</a> · 한국어 — 영문이 원본이며, 번역은 영문과 함께 갱신됩니다(마지막 동기화 2026-09-08).</sub>
 
+## Unreleased
+
+- **실제 크기의 첨부파일.** origin 이 gadak 자체 트래커인 워크스페이스에서
+  첨부 바이트가 데이터베이스 안이 아니라 옆 디렉터리에, 내용마다 파일 하나로
+  저장됩니다. 업로드는 흘려 넣고 다운로드는 흘려 내보내니 통째로 메모리에
+  담기는 자리가 사라졌고 — CLI(`gadak attach`, `gadak attach get`)도 앱도 —
+  origin 에서 브라우저까지 전 구간이 `Range` 를 답하므로 영상 탐색이
+  동작합니다. 업로드 상한은 상수가 아니라 설정입니다:
+  `gadak config set attachmentMaxMB <n>`, 기본값 1 GiB(고정 32 MiB 에서).
+  ([GDK-1617])
+- **persist 의 첫 마이그레이션.** 이 빌드로 빌트인 워크스페이스를 열면 첨부
+  바이트가 한 번 밖으로 옮겨지고, 옮기기 전 사본이 `issuetap.db.pre-v2.bak`
+  으로 옆에 남습니다. serve 가 떠 있어도 안전하고, 두 프로세스가 동시에
+  닿아도 한 번만 실행됩니다. 사용자가 할 일은 없습니다.
+- **스크린샷이 다시 스크린샷으로 보입니다.** `gadak attach` 가 모든 업로드를
+  `application/octet-stream` 으로 선언하고 있었습니다 — `multipart.CreateFormFile`
+  의 고정 기본값입니다. 들은 대로 저장하는 origin 에서는 PNG 도 MP4 도 같은
+  범용 타입으로 남아, 앱이 썸네일과 플레이어 대신 파일 한 줄을 보여 줬습니다.
+  이제 타입은 파일명에서 옵니다.
+- **`gadak backup` 이 아카이브가 됩니다.** 지금까지는 SQLite 파일 하나였고,
+  첨부가 디렉터리로 나가면 그건 첨부가 통째로 빠진 백업이 됩니다 — 그렇다고
+  말해 주는 것도 없이. 이제 출력은 둘 다 담은 `.tar` 이고, 데이터베이스가
+  참조하는 바이트가 디스크에 없으면 아카이브를 쓰지 않고 거절합니다. 복원은
+  `docs/runbooks/backup-restore.md`. ([GDK-1277])
+
 ## v0.21.0 — 2026-09-08
 
 **자리를 비운 사이 무슨 일이 있었는지 미러가 말해 줍니다.** 상태 변경·코멘트·
@@ -1513,3 +1538,4 @@ HTTP·sync·에이전트 계약을 담았습니다.
 [GDK-1501]: https://gadak.dev/backlog/#/?ks=GDK-1501
 [GDK-1508]: https://gadak.dev/backlog/#/?ks=GDK-1508
 [GDK-1537]: https://gadak.dev/backlog/#/?ks=GDK-1537
+[GDK-1617]: https://gadak.dev/backlog/#/?ks=GDK-1617

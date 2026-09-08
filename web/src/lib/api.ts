@@ -1048,6 +1048,15 @@ export interface SettingsRuntime {
   dbPath: string
   dbSizeBytes: number
   dbSizeHuman: string
+  originPath?: string
+  originSizeBytes?: number
+  originSizeHuman?: string
+  attachmentsPath?: string
+  attachmentsBytes?: number
+  attachmentsHuman?: string
+  attachmentsFileCount?: number
+  attachmentCount?: number
+  attachmentsOldestAt?: string
   dbModifiedAt?: string | null
   configPath: string
   issueCount: number

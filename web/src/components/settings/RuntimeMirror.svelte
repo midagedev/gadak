@@ -106,6 +106,52 @@
       </div>
     </dd>
 
+    {#if runtime.originPath}
+      <dt class="text-text-muted">{t('settings.runtimeOrigin')}</dt>
+      <dd class="min-w-0" data-testid="runtime-origin">
+        <div class="flex flex-wrap items-center gap-1.5">
+          <span class="break-all font-mono text-text-primary">{runtime.originPath}</span>
+          <button type="button" class={COPY_BTN} onclick={() => copyValue('origin', runtime.originPath ?? '')}>
+            {copiedKey === 'origin' ? t('settings.copied') : t('settings.copy')}
+          </button>
+        </div>
+        <div class="mt-0.5 text-text-muted">
+          {runtime.originSizeHuman}
+          · {t('settings.runtimeOriginNote')}
+        </div>
+      </dd>
+    {/if}
+
+    {#if runtime.attachmentsHuman}
+      <dt class="text-text-muted">{t('settings.runtimeAttachments')}</dt>
+      <dd class="min-w-0" data-testid="runtime-attachments">
+        <div class="flex flex-wrap items-center gap-1.5">
+          {#if runtime.attachmentsPath}
+            <span class="break-all font-mono text-text-primary">{runtime.attachmentsPath}</span>
+            <button
+              type="button"
+              class={COPY_BTN}
+              onclick={() => copyValue('attachments', runtime.attachmentsPath ?? '')}
+            >
+              {copiedKey === 'attachments' ? t('settings.copied') : t('settings.copy')}
+            </button>
+          {:else}
+            <span class="text-text-primary">{t('settings.runtimeAttachmentsRemote')}</span>
+          {/if}
+        </div>
+        <div class="mt-0.5 text-text-muted">
+          {runtime.attachmentsHuman}
+          · {t('settings.runtimeAttachmentsCount', {
+            n: runtime.attachmentCount ?? 0,
+            files: runtime.attachmentsFileCount ?? 0,
+          })}
+          {#if runtime.attachmentsOldestAt}
+            · {t('settings.runtimeAttachmentsSince', { date: runtime.attachmentsOldestAt.slice(0, 10) })}
+          {/if}
+        </div>
+      </dd>
+    {/if}
+
     <dt class="text-text-muted">{t('settings.runtimeConfig')}</dt>
     <dd class="min-w-0">
       <div class="flex flex-wrap items-center gap-1.5">

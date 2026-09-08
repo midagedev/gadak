@@ -136,7 +136,7 @@ func cmdExportStatic(args []string) error {
 		return fmt.Errorf("import attachments: %w", err)
 	}
 	logAttachmentImport("export-static: attachment import", stats)
-	cache, err := attachcache.New(cacheDir, 0)
+	cache, err := attachcache.New(cacheDir, 0, 0)
 	if err != nil {
 		return err
 	}

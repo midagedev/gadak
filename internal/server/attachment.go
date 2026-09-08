@@ -1,7 +1,6 @@
 package server
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -69,7 +68,7 @@ func (s *server) handleAttachment(w http.ResponseWriter, r *http.Request) {
 		// is the snapshot-import key bug, not a cold cache.
 		log.Printf("server: attachment cache miss id=%s issue=%s: %s", id, issueKey, s.cache.MissReason(ck, id))
 		err := s.cache.Fill(ck, func() (io.ReadCloser, attachcache.Meta, error) {
-			res, err := s.fetchAttachment(r.Context(), cfg, issueKey, id)
+			res, err := s.fetchAttachment(r.Context(), cfg, issueKey, id, nil)
 			if err != nil {
 				return nil, attachcache.Meta{}, err
 			}
@@ -101,7 +100,10 @@ func (s *server) handleAttachment(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	res, err := s.fetchAttachment(r.Context(), cfg, issueKey, id)
+	// Too large for the cache, or the cache is off: stream it, and pass the
+	// browser's Range through so seeking in a video works on the path that
+	// does not go through the cache either (GDK-1617).
+	res, err := s.fetchAttachment(r.Context(), cfg, issueKey, id, rangeHeaders(r))
 	switch {
 	case errors.Is(err, errAttachmentAuth):
 		fail(w, http.StatusConflict, "credential_rejected")
@@ -121,16 +123,46 @@ func (s *server) handleAttachment(w http.ResponseWriter, r *http.Request) {
 	}
 	defer res.Body.Close()
 
+	if res.StatusCode == http.StatusNotModified {
+		// 304 carries no body, and RFC 9110 says not to send
+		// Content-Length or Content-Type with one.
+		if et := res.Header.Get("ETag"); et != "" {
+			w.Header().Set("ETag", et)
+		}
+		w.Header().Set("Cache-Control", "private, max-age=300")
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
 	ct := contentTypeOf(res)
 	w.Header().Set("Content-Type", ct)
-	if cl := res.Header.Get("Content-Length"); cl != "" {
-		w.Header().Set("Content-Length", cl)
+	for _, h := range []string{"Content-Length", "Content-Range", "Accept-Ranges", "ETag"} {
+		if v := res.Header.Get(h); v != "" {
+			w.Header().Set(h, v)
+		}
 	}
 	w.Header().Set("Cache-Control", "private, max-age=300")
 	setAttachmentGuards(w, ct)
+	if res.StatusCode != http.StatusOK {
+		w.WriteHeader(res.StatusCode)
+	}
 	if _, err := io.Copy(w, res.Body); err != nil {
 		log.Printf("server: attachment stream: %v", err)
 	}
+}
+
+// rangeHeaders is the subset of a client's request the upstream may act on.
+// Nothing else is forwarded: this is a proxy for bytes, not for the request.
+func rangeHeaders(r *http.Request) http.Header {
+	var out http.Header
+	for _, h := range []string{"Range", "If-Range", "If-None-Match"} {
+		if v := r.Header.Get(h); v != "" {
+			if out == nil {
+				out = http.Header{}
+			}
+			out.Set(h, v)
+		}
+	}
+	return out
 }
 
 // serveCached answers from disk. Reports whether it wrote a response.
@@ -206,7 +238,7 @@ func (s *server) warmAttachments(cfg *config.Config, issueKey string, atts []det
 				ck := s.attachmentCacheKey(issueKey, id)
 				log.Printf("server: attachment warm miss id=%s issue=%s: %s", id, issueKey, s.cache.MissReason(ck, id))
 				if err := s.cache.Fill(ck, func() (io.ReadCloser, attachcache.Meta, error) {
-					res, err := s.fetchAttachment(context.Background(), cfg, issueKey, id)
+					res, err := s.fetchAttachment(context.Background(), cfg, issueKey, id, nil)
 					if err != nil {
 						return nil, attachcache.Meta{}, err
 					}
@@ -260,7 +292,7 @@ func writeOriginDenied(w http.ResponseWriter, e *originDeniedError) {
 }
 
 // fetchAttachment performs the one call that leaves this process.
-func (s *server) fetchAttachment(ctx context.Context, cfg *config.Config, issueKey, id string) (*http.Response, error) {
+func (s *server) fetchAttachment(ctx context.Context, cfg *config.Config, issueKey, id string, hdr http.Header) (*http.Response, error) {
 	sourceID, contentURL, err := s.db.AttachmentOrigin(ctx, issueKey, id)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
@@ -269,6 +301,7 @@ func (s *server) fetchAttachment(ctx context.Context, cfg *config.Config, issueK
 		return nil, err
 	}
 	if sourceID == "linear" {
+		_ = hdr // Linear content URLs are pre-signed; Range is not passed on.
 		if !isLinearUploadsURL(contentURL) {
 			// GDK-560: do not fetch an arbitrary stored URL (SSRF).
 			return nil, errAttachmentMissing
@@ -286,7 +319,7 @@ func (s *server) fetchAttachment(ctx context.Context, cfg *config.Config, issueK
 	// the streaming path below stays for a connected site, where the bytes
 	// really are remote and can be large.
 	if cfg.OriginType() == config.OriginGadak {
-		return s.fetchBuiltInAttachment(ctx, cfg, id)
+		return s.fetchBuiltInAttachment(ctx, cfg, id, hdr)
 	}
 	target := strings.TrimRight(cfg.Site, "/") + "/rest/api/3/attachment/content/" + url.PathEscape(id)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
@@ -297,6 +330,11 @@ func (s *server) fetchAttachment(ctx context.Context, cfg *config.Config, issueK
 	// Authorization header on a cross-host redirect, which is exactly right: the
 	// token must not travel to the media host.
 	req.SetBasicAuth(cfg.Email, cfg.Token)
+	for k, vs := range hdr {
+		for _, v := range vs {
+			req.Header.Add(k, v)
+		}
+	}
 	res, err := proxyClient.Do(req)
 	if err != nil {
 		return nil, err
@@ -377,7 +415,15 @@ func mapAttachmentStatus(res *http.Response, passDenied bool) (*http.Response, e
 	case res.StatusCode == http.StatusNotFound:
 		res.Body.Close()
 		return nil, errAttachmentMissing
-	case res.StatusCode != http.StatusOK:
+	case res.StatusCode == http.StatusNotModified:
+		// The browser revalidated and the origin said the bytes are
+		// unchanged. This proxy forwards If-None-Match now, so 304 is a
+		// normal answer on the streaming path — and mapping it to an
+		// error turned every second view of a large video into a 502
+		// (GDK-1617). Not an error, and it has no body.
+		return res, nil
+	case res.StatusCode != http.StatusOK && res.StatusCode != http.StatusPartialContent:
+		// 206 is a success too: it is what a Range request asks for.
 		res.Body.Close()
 		return nil, fmt.Errorf("attachment: upstream status %d", res.StatusCode)
 	}
@@ -413,36 +459,22 @@ func inlineSafe(contentType string) bool {
 
 // fetchBuiltInAttachment reads bytes from gadak's own tracker through
 // origin.Client, which resolves to the in-process origin or the paired home
-// serve without this file knowing which. The answer is buffered rather than
-// streamed: in-process the bytes are already local, and a paired serve is
-// one hop away — the size ceiling that matters is the cache's, and
-// attachcache.TooLarge still applies to what the caller does with this.
-func (s *server) fetchBuiltInAttachment(ctx context.Context, cfg *config.Config, id string) (*http.Response, error) {
+// serve without this file knowing which.
+//
+// Streamed, not buffered. The origin holds files a real workspace's size
+// (measured: 22% of 19,076 attachments over 8 MiB, the largest 884 MiB) now
+// that its bytes live on disk rather than in a BLOB (GDK-1617), and the
+// origin labels them properly and answers Range — so hdr is passed through
+// and the response is handed back exactly as it came, 206 included.
+func (s *server) fetchBuiltInAttachment(ctx context.Context, cfg *config.Config, id string, hdr http.Header) (*http.Response, error) {
 	c, err := origin.Client(cfg)
 	if err != nil {
 		return nil, err
 	}
-	status, body, err := c.Raw(ctx, http.MethodGet,
-		"/rest/api/3/attachment/content/"+url.PathEscape(id), nil, false)
+	res, err := c.Stream(ctx, http.MethodGet,
+		"/rest/api/3/attachment/content/"+url.PathEscape(id), hdr)
 	if err != nil {
 		return nil, err
 	}
-	switch {
-	case status == http.StatusUnauthorized, status == http.StatusForbidden:
-		return nil, errAttachmentAuth
-	case status == http.StatusNotFound:
-		return nil, errAttachmentMissing
-	case status < 200 || status >= 300:
-		return nil, fmt.Errorf("attachment %s: HTTP %d", id, status)
-	}
-	res := &http.Response{
-		StatusCode:    http.StatusOK,
-		Header:        http.Header{},
-		Body:          io.NopCloser(bytes.NewReader(body)),
-		ContentLength: int64(len(body)),
-	}
-	// The origin does not label these; the renderer sniffs, and the mirror
-	// row carries the mime the origin recorded at upload.
-	res.Header.Set("Content-Type", "application/octet-stream")
-	return res, nil
+	return mapAttachmentStatus(res, false)
 }

@@ -44,7 +44,7 @@ func attachmentFixture(t *testing.T) (http.Handler, *attachcache.Cache, *atomic.
 	cfg.Email = "dana@example.com"
 	cfg.Token = "token"
 
-	cache, err := attachcache.New(t.TempDir(), 0)
+	cache, err := attachcache.New(t.TempDir(), 0, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +101,7 @@ func TestCachedAttachmentSurvivesCredentialRemoval(t *testing.T) {
 
 func TestUncachedAttachmentWithoutCredentialAsksForOne(t *testing.T) {
 	db, _ := fixture(t)
-	cache, err := attachcache.New(t.TempDir(), 0)
+	cache, err := attachcache.New(t.TempDir(), 0, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +118,7 @@ func TestUncachedAttachmentWithoutCredentialAsksForOne(t *testing.T) {
 // profile's site becomes B (cache key includes site identity).
 func TestAttachmentCacheMissesAfterSiteSwitch(t *testing.T) {
 	db, cfg := fixture(t)
-	cache, err := attachcache.New(t.TempDir(), 0)
+	cache, err := attachcache.New(t.TempDir(), 0, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -553,7 +553,7 @@ func TestCachedSvgIsForcedToDownload(t *testing.T) {
 	}))
 	t.Cleanup(jira.Close)
 	cfg.Site, cfg.Email, cfg.Token = jira.URL, "dana@example.com", "token"
-	cache, err := attachcache.New(t.TempDir(), 0)
+	cache, err := attachcache.New(t.TempDir(), 0, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

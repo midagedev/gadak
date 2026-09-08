@@ -43,6 +43,7 @@ var neverExportConfigFields = []string{
 	"TokenExpirySource",
 	"AccountID",
 	"AttachmentCacheMB",
+	"AttachmentMaxMB",
 	"SyncIntervalSec",
 	"ReconcileIntervalSec",
 	"Notify",

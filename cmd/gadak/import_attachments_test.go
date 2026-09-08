@@ -39,7 +39,7 @@ func TestImportAttachmentsIntoUsesReaderKey(t *testing.T) {
 		t.Fatalf("stats %+v", stats)
 	}
 
-	cache, err := attachcache.New(cacheDir, 0)
+	cache, err := attachcache.New(cacheDir, 0, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +104,7 @@ func TestImportAttachmentsIntoEmptySiteKeepsLegacyKey(t *testing.T) {
 	if stats.Seeded != 1 {
 		t.Fatalf("stats %+v", stats)
 	}
-	cache, err := attachcache.New(cacheDir, 0)
+	cache, err := attachcache.New(cacheDir, 0, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

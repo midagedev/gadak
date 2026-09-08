@@ -52,12 +52,12 @@ func TestGDK343SecondProcessSeesFirstWrite(t *testing.T) {
 // process is allowed to come back (origin.Close contract).
 func TestGDK343ConstructAfterClose(t *testing.T) {
 	persist := filepath.Join(t.TempDir(), filepath.FromSlash(PersistRel))
-	a, err := constructBuiltIn(persist, nil, config.ResolvedActor{}, "en")
+	a, err := constructBuiltIn(persist, nil, config.ResolvedActor{}, "en", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
 	closeSession(a)
-	b, err := constructBuiltIn(persist, nil, config.ResolvedActor{}, "en")
+	b, err := constructBuiltIn(persist, nil, config.ResolvedActor{}, "en", 0)
 	if err != nil {
 		t.Fatalf("construct after close: %v", err)
 	}

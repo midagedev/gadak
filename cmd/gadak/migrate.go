@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -115,7 +116,22 @@ func cmdMigrate(args []string) error {
 				*from, cerr, stats.Attachments, *from)
 		} else {
 			migrate.InlineAttachments(ctx, doc, func(ctx context.Context, id string) (int, []byte, error) {
-				return client.Raw(ctx, "GET", "/rest/api/3/attachment/content/"+url.PathEscape(id), nil, false)
+				// Stream, not Raw: Raw reads through a 64 MiB
+				// io.LimitReader, which on a large attachment returns a
+				// truncated prefix with no error — the same silent loss
+				// GDK-1614 fixed on the upload side, on the migrate side
+				// (GDK-1617). The seed document still holds the bytes
+				// base64 in memory; that ceiling is GDK-1618.
+				res, err := client.Stream(ctx, "GET", "/rest/api/3/attachment/content/"+url.PathEscape(id), nil)
+				if err != nil {
+					return 0, nil, err
+				}
+				defer res.Body.Close()
+				b, err := io.ReadAll(res.Body)
+				if err != nil {
+					return res.StatusCode, nil, err
+				}
+				return res.StatusCode, b, nil
 			}, stats)
 		}
 	}

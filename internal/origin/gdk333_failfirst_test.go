@@ -17,7 +17,7 @@ import (
 // second construct succeeded, and B already saw A's issue.
 func TestGDK333FailFirstTwoSessionsInvisible(t *testing.T) {
 	persist := filepath.Join(t.TempDir(), filepath.FromSlash(PersistRel))
-	a, err := constructBuiltIn(persist, nil, config.ResolvedActor{}, "en")
+	a, err := constructBuiltIn(persist, nil, config.ResolvedActor{}, "en", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,7 +36,7 @@ func TestGDK333FailFirstTwoSessionsInvisible(t *testing.T) {
 		t.Fatalf("key %q", key)
 	}
 
-	b, err := constructBuiltIn(persist, nil, config.ResolvedActor{}, "en")
+	b, err := constructBuiltIn(persist, nil, config.ResolvedActor{}, "en", 0)
 	if err != nil {
 		t.Fatalf("second constructBuiltIn: %v", err)
 	}

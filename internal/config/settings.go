@@ -962,6 +962,18 @@ func buildSettings() []Setting {
 				return nil
 			},
 		),
+		intSetting("attachmentMaxMB", "attachmentMaxMB",
+			"largest attachment in megabytes: the built-in origin's upload cap and the byte cache's per-file ceiling (0 = defaults, 1024 and 64; negative = no cap)",
+			func(c *Config) int { return c.AttachmentMaxMB },
+			func(c *Config, n int) error {
+				// A negative value passes through as "no cap" — the origin
+				// implements it, and clamping it to 0 here silently meant
+				// the 1 GiB default instead, so the knob advertised a range
+				// it could not reach (GDK-1617 review).
+				c.AttachmentMaxMB = n
+				return nil
+			},
+		),
 		{
 			Path:        "features",
 			Root:        "features",

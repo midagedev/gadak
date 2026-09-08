@@ -507,14 +507,16 @@ func openBuiltInSession(cfg *config.Config) (*session, error) {
 
 	var projects []string
 	var locale string
+	var maxAttach int64
 	if cfg != nil {
 		projects = cfg.Projects
 		locale = cfg.EffectiveLocale()
+		maxAttach = int64(cfg.AttachmentMaxMB) << 20
 	} else {
 		locale = "en"
 	}
 	actor, _ := config.ResolveActor(cfg)
-	s, err := constructBuiltIn(persist, projects, actor, locale)
+	s, err := constructBuiltIn(persist, projects, actor, locale, maxAttach)
 
 	mu.Lock()
 	delete(flights, persist)
@@ -550,7 +552,7 @@ func openBuiltInSession(cfg *config.Config) (*session, error) {
 // non-empty: passing it explicitly keeps the persist file's own locale
 // field from winning — gadak owns the workspace language; the persist is
 // the origin's state.
-func constructBuiltIn(persist string, projects []string, actor config.ResolvedActor, locale string) (*session, error) {
+func constructBuiltIn(persist string, projects []string, actor config.ResolvedActor, locale string, maxAttachment int64) (*session, error) {
 	sessionsConstructed.Add(1)
 	if err := os.MkdirAll(filepath.Dir(persist), 0o700); err != nil {
 		return nil, fmt.Errorf("origin: persist dir: %w", err)
@@ -568,6 +570,11 @@ func constructBuiltIn(persist string, projects []string, actor config.ResolvedAc
 		// …and it speaks the workspace's language for display names, with
 		// Cloud fidelity: priority names stay English (GDK-597).
 		Locale: locale,
+		// 0 keeps issuetap's own default (1 GiB). The number is the user's
+		// (`gadak config set attachmentMaxMB`) because the right ceiling
+		// depends on the disk and on who can reach this origin — a paired
+		// home serve has more than one actor behind it (GDK-1617).
+		MaxAttachmentBytes: maxAttachment,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("origin: issuetap: %w", err)

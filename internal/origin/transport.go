@@ -6,11 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
+	"runtime/debug"
+	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 
 	"github.com/midagedev/gadak/internal/config"
@@ -48,9 +51,86 @@ func (t *handlerTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 			req.Header.Set("X-Issuetap-Actor-Name", t.actorName)
 		}
 	}
-	rec := httptest.NewRecorder()
-	t.h.ServeHTTP(rec, req)
-	return rec.Result(), nil
+	return serveStreaming(t.h, req), nil
+}
+
+// serveStreaming runs an in-process handler and hands back the response
+// while its body is still being written. httptest.NewRecorder buffers the
+// whole response first, which is fine for a JSON document and wrong for
+// attachment bytes: a built-in origin holds files a real workspace's size
+// (measured: largest 884 MiB), and buffering one whole is exactly the
+// ceiling GDK-1617 removed on the origin side.
+//
+// The handler runs on its own goroutine writing into a pipe, so the caller
+// reads at its own pace and the handler blocks until it does. The caller
+// MUST close the body — that is what unblocks a handler mid-write — which
+// every path through http.Client already does.
+func serveStreaming(h http.Handler, req *http.Request) *http.Response {
+	pr, pw := io.Pipe()
+	rw := &pipeResponseWriter{hdr: http.Header{}, pw: pw, ready: make(chan struct{})}
+	go func() {
+		defer func() {
+			rw.start(http.StatusOK) // a handler that wrote nothing still has a status
+			// CloseWithError so a reader mid-body sees the panic rather
+			// than a clean EOF that looks like a short file — and then
+			// stop. Re-panicking here kills the process: this goroutine
+			// has nothing above it, where the recorder this replaced ran
+			// the handler on the caller's stack, inside net/http's own
+			// recover. A store panic used to cost one dropped request.
+			if p := recover(); p != nil {
+				log.Printf("origin: handler panic: %v\n%s", p, debug.Stack())
+				pw.CloseWithError(fmt.Errorf("origin: handler panic: %v", p))
+				return
+			}
+			pw.Close()
+		}()
+		h.ServeHTTP(rw, req)
+	}()
+	<-rw.ready
+	res := &http.Response{
+		StatusCode:    rw.code,
+		Status:        fmt.Sprintf("%d %s", rw.code, http.StatusText(rw.code)),
+		Proto:         "HTTP/1.1",
+		ProtoMajor:    1,
+		ProtoMinor:    1,
+		Header:        rw.hdr,
+		Body:          pr,
+		Request:       req,
+		ContentLength: -1,
+	}
+	if n, err := strconv.ParseInt(rw.hdr.Get("Content-Length"), 10, 64); err == nil {
+		res.ContentLength = n
+	}
+	return res
+}
+
+// pipeResponseWriter is the handler's side of that pipe. Headers and status
+// are frozen at the first Write or WriteHeader, which is when ready closes
+// and the caller gets its *http.Response.
+type pipeResponseWriter struct {
+	hdr   http.Header
+	pw    *io.PipeWriter
+	code  int
+	once  sync.Once
+	ready chan struct{}
+}
+
+func (w *pipeResponseWriter) Header() http.Header { return w.hdr }
+
+func (w *pipeResponseWriter) WriteHeader(code int) { w.start(code) }
+
+func (w *pipeResponseWriter) Write(b []byte) (int, error) {
+	w.start(http.StatusOK)
+	return w.pw.Write(b)
+}
+
+func (w *pipeResponseWriter) Flush() {}
+
+func (w *pipeResponseWriter) start(code int) {
+	w.once.Do(func() {
+		w.code = code
+		close(w.ready)
+	})
 }
 
 // serveOriginTransport rewrites a site-relative Jira/Confluence request

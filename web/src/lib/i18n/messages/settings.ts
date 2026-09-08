@@ -401,6 +401,36 @@ export const settings = {
     ko: '로컬 사본 DB',
     ja: 'ローカルコピーのデータベース',
   },
+  'settings.runtimeOrigin': {
+    en: 'Built-in tracker',
+    ko: '내장 트래커',
+    ja: '内蔵トラッカー',
+  },
+  'settings.runtimeOriginNote': {
+    en: 'The record, not a copy — this is what a backup saves.',
+    ko: '사본이 아니라 원본입니다 — 백업이 저장하는 것이 이쪽입니다.',
+    ja: 'コピーではなく原本です — バックアップが保存するのはこちらです。',
+  },
+  'settings.runtimeAttachments': {
+    en: 'Attachment files',
+    ko: '첨부 파일',
+    ja: '添付ファイル',
+  },
+  'settings.runtimeAttachmentsCount': {
+    en: '{n} attachments in {files} files',
+    ko: '첨부 {n}건, 파일 {files}개',
+    ja: '添付 {n}件・ファイル {files}件',
+  },
+  'settings.runtimeAttachmentsSince': {
+    en: 'oldest {date}',
+    ko: '가장 오래된 것 {date}',
+    ja: '最も古い添付 {date}',
+  },
+  'settings.runtimeAttachmentsRemote': {
+    en: 'on the paired machine',
+    ko: '페어링된 기계에 있습니다',
+    ja: 'ペアリング先のマシンにあります',
+  },
   'settings.runtimeConfig': {
     en: 'Config file',
     ko: '설정 파일',

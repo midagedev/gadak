@@ -2,6 +2,33 @@
 
 <sub>English · <a href="CHANGELOG.ko.md">한국어</a></sub>
 
+## Unreleased
+
+- **Attachments the size of real ones.** On a workspace whose origin is
+  gadak's own tracker, attachment bytes now live in a directory beside the
+  database rather than inside it, one content-addressed file each. Uploads
+  stream in and downloads stream out, so nothing is buffered whole any more
+  — on the CLI (`gadak attach`, `gadak attach get`) or in the app — and
+  seeking in a video works, because the whole path from the origin to the
+  browser answers `Range` now. The upload cap is settings rather than a
+  constant: `gadak config set attachmentMaxMB <n>`, default 1 GiB, up from a
+  hard-coded 32 MiB. ([GDK-1617])
+- **The first persist migration.** Opening a built-in workspace with this
+  build moves its attachment bytes out of the database once, and keeps the
+  pre-migration copy beside it as `issuetap.db.pre-v2.bak`. It is safe to run
+  with a serve up, and two processes reaching it at once migrate it once.
+  Nothing is asked of you.
+- **Screenshots look like screenshots again.** `gadak attach` declared every
+  upload as `application/octet-stream` — `multipart.CreateFormFile`'s
+  hardcoded default — so an origin that keeps what it is told stored a PNG
+  and an MP4 under the same generic type, and the app showed a file row
+  instead of a thumbnail and a player. The type now comes from the filename.
+- **`gadak backup` is an archive now.** It was one SQLite file; attachment
+  bytes moving to a directory would have made that a backup with every
+  attachment missing and nothing saying so. The output is a `.tar` holding
+  both, and it refuses to write one if the database references bytes that are
+  not on disk. `docs/runbooks/backup-restore.md` has the restore. ([GDK-1277])
+
 ## v0.21.0 — 2026-09-08
 
 **The mirror tells you what happened while you were away.** Every status
@@ -1567,3 +1594,4 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-1501]: https://gadak.dev/backlog/#/?ks=GDK-1501
 [GDK-1508]: https://gadak.dev/backlog/#/?ks=GDK-1508
 [GDK-1537]: https://gadak.dev/backlog/#/?ks=GDK-1537
+[GDK-1617]: https://gadak.dev/backlog/#/?ks=GDK-1617
