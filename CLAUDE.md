@@ -64,6 +64,15 @@ hard-won 목록)와 `AGENTS.md`(스키마·쿼리)가 원본이다.
   인쇄된다. ST1005는 제외(한국어 에러 문장·의도된 다중행 프로토콜 에코).
   CI 잡 `Staticcheck (warning-only)`은 `--warn-only`라 아직 게이트가 아니다
   — 남은 cross-platform 12건을 정리한 뒤 플래그를 떼는 것이 게이트화다.
+- **OS별 경로·카탈로그를 만드는 Go 코드는 `goos`를 인자로 받고 세 GOOS를
+  테스트로 잰다** (2026-09-08, 런 34233540027). `integrations.listFor(goos)`
+  가 goos 카탈로그를 약속하는데 Claude Desktop 행만 런타임 바인딩 helper를
+  불러 **호스트의 경로**를 답했다 — darwin 에서는 요청과 답이 우연히 같아서
+  로컬 go 전체가 초록이고, Linux CI 에서만 `~/.config/Claude` 로 죽는다.
+  `…For(goos, …)` 씨임을 만들어 놓고 정작 그 행이 안 쓰는 것이 실제 형태였다.
+  테스트는 한 GOOS 만 재지 말고 darwin·linux·windows 셋을 같은 호스트에서
+  전부 재고, 실패 메시지에 **어느 goos 를 물었는지** 적는다(그게 없으면 CI
+  실패가 경로 형식 문제처럼 읽힌다).
 - 웹: `make typecheck` (svelte-check). e2e: Playwright, CI 세트는
   `e2e/*.spec.ts`(demo/·hosted/·perf/ 제외 — `e2e/playwright.config.ts`).
 - **`mobile/`은 루트 게이트가 보지 않는다** — 자기 tsconfig·자기 lockfile을
