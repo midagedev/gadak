@@ -130,6 +130,7 @@ const switchHref = (l: Locale) => (noAltLang ? pathFor(l, '/') : pathFor(l, enPa
         <a href="https://github.com/midagedev">midagedev</a> ·
         <a href="https://github.com/midagedev/gadak">GitHub</a> ·
         <a href="https://github.com/midagedev/gadak/blob/main/SECURITY.md">{t.footer.whereBytes}</a>
+        <p class="name-note">{t.footer.nameNote}</p>
       </div>
     </footer>
     <script is:inline define:vars={{ pageLang: lang, others }}>
@@ -255,6 +256,12 @@ const switchHref = (l: Locale) => (noAltLang ? pathFor(l, '/') : pathFor(l, enPa
   footer {
     border-top: 1px solid var(--border);
     margin-top: 5rem;
+  }
+  /* Enough space that the sentence reads as its own note rather than the
+     link row's second line — at 0.5rem the two shared a rhythm and only
+     colour told them apart (vision round 2026-09-08). */
+  footer .name-note {
+    margin: 0.85rem 0 0;
   }
   footer .inner {
     max-width: var(--measure);

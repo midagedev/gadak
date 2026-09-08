@@ -14,8 +14,9 @@
  * search result or a reshared link nothing about what the tool is, and
  * promised no waiting for operations that still wait on sync. The three
  * headings differ on purpose — the editions are parallel, not translated —
- * and each says what its reader came looking for. "Follow the thread." stays
- * the brand line; it does not have to explain the product.
+ * and each says what its reader came looking for. The brand line (README
+ * line 12, fact ledger §1) sits under the wordmark; it does not have to
+ * explain the product.
  *
  * `proof` is the row of three claims along the bottom of the card. It exists
  * only for `en` on purpose: nobody has authored the Korean or Japanese

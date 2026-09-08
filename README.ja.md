@@ -9,7 +9,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License"></a>
 </p>
 
-<p align="center"><b>Follow the thread.</b></p>
+<p align="center"><b>Find the thread in your backlog.</b></p>
 
 <p align="center"><sub><a href="README.md">English</a> · <a href="README.ko.md">한국어</a> · 日本語</sub></p>
 
@@ -65,7 +65,7 @@ SQL を書き換えて、そのまま試せます。続きのクエリは [docs/
 | 変更履歴に対するカウント | JQL では表現できない (クロールで約 28 分) | 14 ms | — |
 | レート制限 (キャッシュの読み取り) | 429 と Retry-After | なし | — |
 
-gadak が負ける行もあります。最初のフル同期には時間がかかり (上のサイトで 10.6 分)、キャッシュは
+最初のフル同期には時間がかかり (上のサイトで 10.6 分)、キャッシュは
 同期間隔 1 回ぶん遅れます。更新のないサイトを監視する場合の計測値も、測定方法や再測定の履歴と
 あわせて [docs/BENCHMARKS.md](docs/BENCHMARKS.md) に載せています。
 
@@ -281,7 +281,8 @@ Atlassian Cloud、Linear、アプリに同梱の内蔵トラッカーを、共�
 3. `gadak views open --keys -` の意味
 
 開発が止まったとしても、キャッシュは gadak なしで読める形式のまま手元に残り、Apache-2.0 の
-コードも残ります。Jira 側のデータには何も起きません。リリースと issue の扱いは
+コードも残ります。Jira 側のデータには何も起きません。名前は、絡まった糸の一本を表す韓国語
+「가닥」に由来します。リリースと issue の扱いは
 [docs/MAINTENANCE.md](docs/MAINTENANCE.md)、難しい質問への答えは [docs/FAQ.md](docs/FAQ.md) にあります。
 
 ## 試用結果とバグ報告

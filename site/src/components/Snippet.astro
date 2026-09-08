@@ -113,4 +113,15 @@ const multiline = code.includes('\n')
       padding-top: 2.4rem;
     }
   }
+  /* Phone widths: the longest one-line command (39 characters) was clipped
+     mid-token at 0.875rem with nothing to say it continued. Smaller type
+     fits it whole; the SQL block still scrolls, which is what a two-line
+     query should do. */
+  @media (max-width: 26rem) {
+    pre {
+      font-size: 0.75rem;
+      padding-left: 0.9rem;
+      padding-right: 0.9rem;
+    }
+  }
 </style>

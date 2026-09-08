@@ -142,7 +142,8 @@ export interface Strings {
     links: ReadonlyArray<{ href: string; label: string }>
   }
   landing: { flagshipSlot: string; searchSlot: string; agentSlot: string; allPlatforms: string }
-  footer: { builtBy: string; whereBytes: string }
+  /** `nameNote` is the one sentence the name gets, and the only place it is explained (fact ledger §1). */
+  footer: { builtBy: string; whereBytes: string; nameNote: string }
 }
 
 const GITHUB = 'https://github.com/midagedev/gadak'
@@ -195,14 +196,14 @@ export const strings: Record<Locale, Strings> = {
     speed: {
       label: 'Local reads compared with the Jira REST API',
       heading: 'The same questions, measured',
-      note: 'Measured 2026-08-26 against a live Atlassian Cloud site (a real work project, 3,296 issues). Medians; gadak numbers include full CLI process startup. A first full sync of that site took 10.6 minutes, and the mirror trails Jira by one sync interval. Method, re-measurements, and the rows where gadak loses: ',
+      note: 'Measured 2026-08-26 against a live Atlassian Cloud site (a real work project, 3,296 issues). Medians; gadak numbers include full CLI process startup. The epic count took 8 API pages aggregated client-side against one query here; the history count has no native aggregate and takes about 28 minutes to crawl and count client-side; the rate-limit row is about reads, which stay local. A first full sync of that site took 10.6 minutes, and the mirror trails Jira by one sync interval. Method, re-measurements, and the rows where gadak loses: ',
       rows: [
         { what: 'Simple filter, 100 issues', value: '583 ms', alt: '19 ms', ratio: '31×' },
         { what: 'One issue + full changelog', value: '710 ms', alt: '28 ms', ratio: '25×' },
         { what: 'Free-text search', value: '543 ms', alt: '41 ms', ratio: '13×' },
-        { what: 'Open issues per epic (GROUP BY)', value: '4,761 ms — 8 API pages', alt: '22 ms — one query', ratio: '214×' },
-        { what: 'A count over the change history', value: 'no native aggregate; ≈ 28 min of crawling', alt: '14 ms', ratio: '—' },
-        { what: 'Rate limit on mirror reads', value: '429 + Retry-After', alt: 'none; reads stay local', ratio: '—' },
+        { what: 'Open issues per epic (GROUP BY)', value: '4,761 ms', alt: '22 ms', ratio: '214×' },
+        { what: 'A count over the change history', value: 'no native aggregate', alt: '14 ms', ratio: '—' },
+        { what: 'Rate limit on mirror reads', value: '429 + Retry-After', alt: 'none', ratio: '—' },
       ],
       colRest: 'Jira REST API',
       colGadak: 'gadak',
@@ -307,7 +308,7 @@ export const strings: Record<Locale, Strings> = {
       label: 'Report what happened',
       heading: 'If you used it on your own project, say so',
       body:
-        'Tell us what question gadak answered, and whether you used it again. A report that it was slow or wrong is as useful as one that it worked. GitHub issues reach the maintainer directly.',
+        'Tell us what question gadak answered, and whether you used it again. If it was slow or gave a wrong answer, that is the report to send. GitHub issues reach the maintainer directly.',
       caution: 'Keep real issue data, tokens, and site URLs out of public reports.',
       links: [{ href: `${GITHUB}/issues`, label: 'Open a GitHub issue' }],
     },
@@ -322,6 +323,7 @@ export const strings: Record<Locale, Strings> = {
     footer: {
       builtBy: 'Built by',
       whereBytes: 'Where the bytes go',
+      nameNote: 'gadak is Korean for a strand — a thread drawn from a tangle.',
     },
   },
   ko: {
@@ -465,6 +467,7 @@ export const strings: Record<Locale, Strings> = {
     footer: {
       builtBy: '만든 사람',
       whereBytes: '데이터가 어디로 가는지',
+      nameNote: "이름은 얽힌 실에서 한 줄기를 뜻하는 '가닥'에서 따왔습니다.",
     },
   },
   ja: {
@@ -599,7 +602,7 @@ export const strings: Record<Locale, Strings> = {
       label: 'フィードバック',
       heading: '試した結果を教えてください',
       body:
-        '検索や集計で試した結果、困った点、導入を見送った理由も GitHub issue で教えてください。どんな質問に gadak で答えたか、その後も使ったかが分かると助かります。遅かった、間違っていたという報告も、うまく動いた報告と同じくらい役に立ちます。',
+        '検索や集計で試した結果、困った点、導入を見送った理由も GitHub issue で教えてください。どんな質問に gadak で答えたか、その後も使ったかが分かると助かります。遅かった、間違っていたという場合も、そのまま書いてください。',
       caution: '実際の課題データ、API トークン、サイト URL は載せないでください。',
       links: [{ href: `${GITHUB}/issues`, label: 'GitHub issue を開く' }],
     },
@@ -612,6 +615,7 @@ export const strings: Record<Locale, Strings> = {
     footer: {
       builtBy: '作者:',
       whereBytes: 'バイトの行き先',
+      nameNote: '名前は、絡まった糸の一本を表す韓国語「가닥」に由来します。',
     },
   },
 }

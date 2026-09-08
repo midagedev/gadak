@@ -366,8 +366,18 @@ const layout = t.layout
     font-family: var(--font-mono);
     white-space: nowrap;
   }
+  .speed:not(.compare) table {
+    table-layout: fixed;
+  }
   .speed:not(.compare) td.what {
-    width: 38%;
+    width: 40%;
+  }
+  .speed:not(.compare) td.rest,
+  .speed:not(.compare) td.gadak {
+    width: 22%;
+  }
+  .speed:not(.compare) td.ratio {
+    width: 16%;
   }
   .speed td.what {
     text-align: left;
@@ -524,8 +534,8 @@ const layout = t.layout
     position: relative;
     color: var(--ink-2);
   }
-  .connect code,
-  .status code {
+  .connect li :global(code),
+  .status li :global(code) {
     font-family: var(--font-mono);
     font-size: 0.875em;
     white-space: nowrap;

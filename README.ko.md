@@ -9,7 +9,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License"></a>
 </p>
 
-<p align="center"><b>Follow the thread.</b></p>
+<p align="center"><b>Find the thread in your backlog.</b></p>
 
 <p align="center"><sub><a href="README.md">English</a> · 한국어 · <a href="README.ja.md">日本語</a></sub></p>
 
@@ -184,7 +184,7 @@ Linear로 옮길 때는 `--to linear`를 붙입니다. 다른 컴퓨터와 페�
 
 **상태: 0.21, 아직 0.x입니다.** 동기화와 읽기 API, Jira를 먼저 거치는 쓰기,
 데스크톱·웹·CLI·MCP를 실제 사이트에서 확인했습니다. 지금은 한 사람이 만듭니다.
-라이선스는 Apache-2.0.
+라이선스는 Apache-2.0. 이름은 얽힌 실에서 한 줄기를 뜻하는 '가닥'에서 따왔습니다.
 
 0.x에서 호환성을 유지하는 범위는 [data-model.md](specs/000-product/data-model.md)의
 셋입니다. `issues_full`과 RECIPES 쿼리, `gadak sql`의 stdout 형식, `gadak views

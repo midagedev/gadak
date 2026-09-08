@@ -19,7 +19,17 @@ storage and type, attribution, MCP clients, read exceptions, deletions).
 
 ## 1. Identity
 
-- Name **gadak**. Tagline "Follow the thread."
+- Name **gadak**. Brand line **"Find the thread in your backlog."** — under
+  the wordmark at the top of all three READMEs, and the one string identical
+  in every edition. It replaced "Follow the thread." on 2026-09-08 (brand
+  round, GDK-1601): the old line read as a stock phrase to anyone who did not
+  know the name is the Korean word 가닥, a strand pulled out of a tangle, and
+  it named nothing the reader has. The new one gives the metaphor an object.
+  It is positioning, not a promise that every answer is in the cache.
+- **The name may be explained once, in one sentence, and never above the first
+  useful example** — the landing footer and the READMEs' maintainer section are
+  the places. English: "gadak is Korean for a strand — a thread drawn from a
+  tangle." Do not make pronunciation a prerequisite for the demo.
 - License **Apache-2.0** (`LICENSE`, `NOTICE`).
 - One binary. **No gadak account.**
 - Maintainer: one person, currently.
@@ -369,8 +379,8 @@ landing (`site/src/i18n.ts`) and all three READMEs.
 - **The hero names the job, not a feeling.** "Same Jira. No waiting." told a
   reader arriving from a search result nothing about the tool and promised no
   waiting for operations that still wait on sync. Each edition's heading says
-  what its reader came for (`site/src/tagline.js`); "Follow the thread." stays
-  the brand line and does not explain the product.
+  what its reader came for (`site/src/tagline.js`); the brand line (§1) sits
+  under the wordmark and does not explain the product.
 - **Prove it before asking for a token.** The canonical query (§7) and the
   Datasette Lite link sit on the landing, not only in the README, wherever
   the edition leads with SQL.

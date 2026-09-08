@@ -9,7 +9,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License"></a>
 </p>
 
-<p align="center"><b>Follow the thread.</b></p>
+<p align="center"><b>Find the thread in your backlog.</b></p>
 
 <p align="center"><sub>English · <a href="README.ko.md">한국어</a> · <a href="README.ja.md">日本語</a></sub></p>
 
@@ -229,7 +229,8 @@ and MCP are verified against a live site. The project currently has one
 maintainer. During 0.x, compatibility is promised for three things, listed in
 [data-model.md](specs/000-product/data-model.md): `issues_full` and the
 RECIPES queries, `gadak sql` stdout, and `gadak views open --keys -`. The
-license is Apache-2.0, and the mirror is ordinary SQLite. What you do not have
+license is Apache-2.0, and the mirror is ordinary SQLite. The name is Korean:
+gadak (가닥) is a strand — a thread drawn out of a tangle. What you do not have
 to take on trust, each with the command that checks it:
 [`docs/PROMISES.md`](docs/PROMISES.md).
 
