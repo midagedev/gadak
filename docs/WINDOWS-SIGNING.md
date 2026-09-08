@@ -219,15 +219,14 @@ unknown publisher.
 ### Privacy (runtime network)
 
 gadak does not phone home on install. Outbound destinations are enumerated
-in [SECURITY.md](../SECURITY.md) (five: your configured tracker, optional
-anonymous GitHub Releases version check, Linear when configured, a paired
-home serve when configured, and user-invoked `gh` from `gadak dev scan`).
-There is no telemetry.
+in [SECURITY.md](../SECURITY.md) (five: your configured tracker, Linear when
+configured, a paired home serve when configured, user-invoked `gh` from
+`gadak dev scan`, and a library download you asked for). There is no
+telemetry.
 
 SignPath’s canned one-liner (“will not transfer any information to other
-networked systems unless specifically requested…”) is **not** an exact
-description of the default build: the version check is on unless
-`updateCheck: false` (or a dev build). The destination list in SECURITY.md
+networked systems unless specifically requested…”) describes this build: every
+destination in SECURITY.md is one the user configured or asked for. That list
 is the accurate policy; [NETWORK.md](NETWORK.md) is the operating manual.
 
 ## Roadmap

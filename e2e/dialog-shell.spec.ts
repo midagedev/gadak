@@ -83,20 +83,6 @@ async function stubCreateMeta(page: Page): Promise<void> {
   })
 }
 
-/** Same delta inject as e2e/update-notice.spec.ts. */
-async function injectNotesDelta(page: Page): Promise<void> {
-  const latest = '0.99.0'
-  const release = `https://github.com/midagedev/gadak/releases/tag/v${latest}`
-  const notes = 'Fixed the flaky upload.\nSecond line.'
-  await page.route((url) => url.pathname.includes('/delta/'), async (route) => {
-    const response = await route.fetch()
-    const body = (await response.json()) as Record<string, unknown>
-    await route.fulfill({
-      response,
-      json: { ...body, latest_version: latest, release_url: release, release_notes: notes },
-    })
-  })
-}
 
 async function flushDelta(page: Page): Promise<void> {
   await page.evaluate(() => {
@@ -331,21 +317,6 @@ const DIALOGS: DialogRow[] = [
       await page.keyboard.press('c')
     },
     locate: (page) => page.getByTestId('quick-comment'),
-  },
-  {
-    id: 'update-notes',
-    hasCommit: false,
-    dismissLabel: null,
-    primaryLabel: null,
-    open: async (page) => {
-      await injectNotesDelta(page)
-      await gotoApp(page)
-      await flushDelta(page)
-      const notice = page.getByTestId('update-notice')
-      await expect(notice).toBeVisible()
-      await notice.click()
-    },
-    locate: (page) => page.getByTestId('update-notes'),
   },
   {
     id: 'workspaces-remove',

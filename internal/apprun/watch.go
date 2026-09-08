@@ -17,21 +17,12 @@ import (
 // on fatal auth and would leave the process alive with sync permanently
 // stopped.
 //
-// noSync skips the watch loops but still starts the update check (serve
-// --no-sync). Desktop always passes false.
+// noSync skips the watch loops (serve --no-sync). Desktop always passes
+// false.
 func (rt *Runtime) StartWatch(ctx context.Context, noSync bool) {
 	if rt == nil || rt.API == nil {
 		return
 	}
-	// Optional once-a-day GitHub release check (opt-out via updateCheck: false).
-	// Independent of Jira credentials; silent on failure. Always called:
-	// StartUpdateCheck records cacheDir even when disabled so CheckNow knows
-	// where the file lives (serve already did this; desktop had an extra
-	// UpdateCheckEnabled guard that the method already applies internally).
-	if dir, err := config.Dir(); err == nil {
-		rt.API.StartUpdateCheck(ctx, dir)
-	}
-
 	if noSync {
 		return
 	}

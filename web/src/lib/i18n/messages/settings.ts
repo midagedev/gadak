@@ -336,30 +336,10 @@ export const settings = {
     ko: '24시간',
     ja: '24時間',
   },
-  'settings.updateTitle': {
-    en: 'Update',
-    ko: '업데이트',
-    ja: '更新',
-  },
-  'settings.updateReleaseNotes': {
-    en: 'Release notes',
-    ko: '릴리스 노트',
-    ja: 'リリースノート',
-  },
-  'settings.updateCurrent': {
-    en: 'This build is the latest published release.',
-    ko: '이 빌드가 게시된 최신 릴리스입니다.',
-    ja: 'このビルドが公開済みの最新リリースです。',
-  },
-  'settings.updateFailed': {
-    en: 'Could not check for updates.',
-    ko: '업데이트를 확인하지 못했습니다.',
-    ja: '更新を確認できませんでした。',
-  },
-  'settings.updateDev': {
-    en: 'Dev build — update check skipped.',
-    ko: '개발 빌드 — 업데이트 확인을 건너뜁니다.',
-    ja: '開発ビルド — 更新確認をスキップしました。',
+  'settings.upgradeTitle': {
+    en: 'Upgrade',
+    ko: '업그레이드',
+    ja: 'アップグレード',
   },
   'settings.thisMirror': {
     en: 'This local copy',

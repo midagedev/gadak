@@ -437,11 +437,6 @@ export interface BootstrapResponse {
   field_specs?: FieldSpec[]
   /** project → alias → filled count. Older servers omit. */
   field_usage?: Record<string, Record<string, number>>
-  /** Set only when a newer release than the running build is published. */
-  latest_version?: string
-  release_url?: string
-  /** GitHub release body. Absent or empty → banner stays a link, no dialog. */
-  release_notes?: string
   /** Learned stale threshold; absent when unset-setting precedence leaves
    *  nothing to learn (see FlowSummary). Older servers omit. */
   flow?: FlowSummary
@@ -464,11 +459,6 @@ export interface DeltaResponse {
   /** Discovery output; a delta-only tab must still learn about it. Older servers omit. */
   field_specs?: FieldSpec[]
   field_usage?: Record<string, Record<string, number>>
-  /** Set only when a newer release than the running build is published. */
-  latest_version?: string
-  release_url?: string
-  /** GitHub release body. Absent or empty → banner stays a link, no dialog. */
-  release_notes?: string
   /** Same learned flow as bootstrap — the threshold moves with the
    *  workspace, not with the tab's birth. Absent clears a carried value. */
   flow?: FlowSummary

@@ -192,7 +192,7 @@ export const strings: Record<Locale, Strings> = {
       points: [
         'Writes pass through to Jira first; the mirror refreshes after the origin accepts.',
         'The mirror is disposable — delete it and re-sync to rebuild it from the origin.',
-        'No telemetry, no analytics, no gadak account. gadak talks to your Jira site, plus one anonymous version check a day that you can switch off.',
+        'No telemetry, no analytics, no gadak account. gadak talks to your Jira site and to nothing else.',
         'Credentials never reach SQLite, a log, or a snapshot.',
       ],
     },
@@ -301,7 +301,7 @@ export const strings: Record<Locale, Strings> = {
       points: [
         '쓰기는 먼저 Jira로 가고, Jira가 받아들인 뒤에야 캐시가 갱신됩니다.',
         '캐시는 이 컴퓨터 안의 SQLite 파일 하나입니다. 지워도 되고, 다시 동기화하면 그대로 다시 만들어집니다.',
-        '텔레메트리는 없습니다. 밖으로 나가는 요청은 회사 Jira, 그리고 하루 한 번 익명 버전 확인뿐입니다. 버전 확인은 끌 수 있습니다.',
+        '텔레메트리는 없습니다. 밖으로 나가는 요청은 회사 Jira뿐입니다.',
         '자격 증명은 캐시에도, 로그에도, 스냅샷에도 남지 않습니다.',
       ],
     },
@@ -416,7 +416,7 @@ export const strings: Record<Locale, Strings> = {
       label: '導入前に確認したいこと',
       heading: '外に出る通信は、自分で設定したものだけ',
       points: [
-        'テレメトリはありません。gadak が出す通信は、自分の Atlassian サイトと、1 日 1 回までの匿名バージョン確認 (設定でオフにできます) だけです。ほかの通信先は、自分でそのコマンドを打ったときにしか発生しません。',
+        'テレメトリはありません。gadak が出す通信は、自分の Atlassian サイトだけです。ほかの通信先は、自分でそのコマンドを打ったときにしか発生しません。',
         'APIトークンは ~/.gadak/config.json にモード0600で置かれ、自分のサイトへのAuthorizationヘッダーにしか使われません。ログにも、キャッシュにも、スナップショットにも入りません。',
         'キャッシュの実体は、この端末の中のSQLiteファイル1つです。いつ消しても構いません。もう一度同期すれば、そのまま作り直せます。',
         '書き込みは先にJiraへ通します。Jiraが受け付けてから、キャッシュが更新されます。届かなかった書き込みをキャッシュに溜めることはありません。',

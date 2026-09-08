@@ -118,12 +118,6 @@ type bootstrapResponse struct {
 	// detail panel shows, which filter axes exist, per current project scope.
 	FieldSpecs []fieldSpecOut            `json:"field_specs"`
 	FieldUsage map[string]map[string]int `json:"field_usage"`
-	// LatestVersion / ReleaseURL / ReleaseNotes are set only when a cached
-	// GitHub release is newer than the running build (server.Version).
-	// Absent otherwise. Notes are the GitHub body (plain text on the client).
-	LatestVersion string `json:"latest_version,omitempty"`
-	ReleaseURL    string `json:"release_url,omitempty"`
-	ReleaseNotes  string `json:"release_notes,omitempty"`
 	// Flow is the learned stale threshold (flowFields). Absent when the
 	// workspace has no distribution to learn from, or when a threshold is
 	// set explicitly — the one precedence decision this server owns.
@@ -148,12 +142,6 @@ type deltaResponse struct {
 	// must still learn about a discovery that ran after its bootstrap.
 	FieldSpecs []fieldSpecOut            `json:"field_specs"`
 	FieldUsage map[string]map[string]int `json:"field_usage"`
-	// LatestVersion / ReleaseURL / ReleaseNotes come from updateFields — the
-	// same source bootstrap uses. Absent when the server does not know of a
-	// newer release.
-	LatestVersion string `json:"latest_version,omitempty"`
-	ReleaseURL    string `json:"release_url,omitempty"`
-	ReleaseNotes  string `json:"release_notes,omitempty"`
 	// Flow rides the delta for the same reason the specs do: the threshold
 	// moves with the workspace, not with the tab's birth.
 	Flow *flowOut `json:"flow,omitempty"`
@@ -227,7 +215,6 @@ func (s *server) handleBootstrap(w http.ResponseWriter, r *http.Request) {
 		serverError(w, r, err)
 		return
 	}
-	latest, releaseURL, releaseNotes := s.updateFields()
 	writeJSON(w, http.StatusOK, bootstrapResponse{
 		ServerTime:         store.Now(),
 		SyncVersion:        st.Version,
@@ -237,9 +224,6 @@ func (s *server) handleBootstrap(w http.ResponseWriter, r *http.Request) {
 		SyncHealth:         s.health(r.Context(), st),
 		FieldSpecs:         s.fieldSpecsOut(),
 		FieldUsage:         s.fieldUsageOut(r.Context()),
-		LatestVersion:      latest,
-		ReleaseURL:         releaseURL,
-		ReleaseNotes:       releaseNotes,
 		Flow:               s.flowFields(r.Context()),
 		LastSessionEndedAt: lastSessionEnd,
 	})
@@ -339,7 +323,6 @@ func (s *server) handleDelta(w http.ResponseWriter, r *http.Request) {
 		serverError(w, r, err)
 		return
 	}
-	latest, releaseURL, releaseNotes := s.updateFields()
 	// The header, not the body (GDK-1537): a warm web tab hydrates from
 	// IndexedDB and then syncs by delta forever, so bootstrap's seat never
 	// reaches it. The body key stays absent — a delta-carried *field* would
@@ -355,9 +338,6 @@ func (s *server) handleDelta(w http.ResponseWriter, r *http.Request) {
 		SyncHealth:     s.health(r.Context(), st),
 		FieldSpecs:     s.fieldSpecsOut(),
 		FieldUsage:     s.fieldUsageOut(r.Context()),
-		LatestVersion:  latest,
-		ReleaseURL:     releaseURL,
-		ReleaseNotes:   releaseNotes,
 		Flow:           s.flowFields(r.Context()),
 	}
 	// members ride along only when the client's hash is stale.

@@ -230,13 +230,6 @@ Current ship shape is **arm64 only** (`Gadak-<ver>-arm64.dmg`). A universal
 The dmg (or `brew install --cask gadak`) is how you install, and how you
 upgrade. The app does not download a replacement bundle or swap itself.
 
-It does the same once-a-day anonymous GitHub Releases lookup as `gadak serve`
-(`internal/selfupdate`, cached on disk as `update-check.json`). When the
-cached tag is newer than the running build, the sidebar shows a banner that
-links to the release notes. `updateCheck: false` turns the lookup off — that
-is the only GitHub traffic, so the opt-out restores outbound traffic to Jira
-only. Dev builds (`dev` / `0.0.0-dev`) never check.
-
 Install a newer build with:
 
 ```bash

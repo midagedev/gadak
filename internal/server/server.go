@@ -38,7 +38,6 @@ import (
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/linear"
 	"github.com/midagedev/gadak/internal/origin"
-	"github.com/midagedev/gadak/internal/selfupdate"
 	"github.com/midagedev/gadak/internal/store"
 	"github.com/midagedev/gadak/internal/term"
 )
@@ -74,24 +73,6 @@ type server struct {
 	// cache holds attachment bytes on disk. nil disables caching and every view
 	// proxies, which is the pre-cache behavior.
 	cache *attachcache.Cache
-
-	// updateMu protects the GitHub release snapshot used by bootstrap and
-	// delta (same source — see updateFields). Separate from mu so a release
-	// check never contends with derived views.
-	updateMu   sync.Mutex
-	updateInfo selfupdate.Info
-	updateOK   bool
-	// updateCacheDir is where selfupdate writes update-check.json. Set by
-	// StartUpdateCheck / CheckNow so POST update/ can find it.
-	updateCacheDir string
-	// updateLastAttempt is the last Check call (success or fail). Distinct
-	// from Info.CheckedAt, which is only written on a successful fetch.
-	updateLastAttempt time.Time
-	// updateLastUser* is the last Check for Updates / POST update/ result.
-	// Background checks never touch these — silent failure stays silent.
-	updateLastUserAt     time.Time
-	updateLastUserStatus string
-	updateLastUserErr    string
 
 	// syncStarter starts the background sync loop after a first-run credential
 	// is saved via PUT onboarding/connect/. Set once by cmdServe when serve
@@ -144,7 +125,7 @@ type server struct {
 	termWatchOnce sync.Once
 }
 
-// Handler is the HTTP API plus optional update-check control. It implements
+// Handler is the HTTP API. It implements
 // http.Handler; mount it at "/api/".
 type Handler struct {
 	mux     *http.ServeMux
@@ -197,8 +178,6 @@ func newServer(db *store.DB, cfg *config.Config, cache *attachcache.Cache, profi
 	mux.HandleFunc("GET "+apiBase+"retro/{$}", s.handleRetro)
 	mux.HandleFunc("GET "+apiBase+"delta/{$}", s.handleDelta)
 	// Update snapshot + user-initiated force check. Literals beat {key}/{action}/.
-	mux.HandleFunc("GET "+apiBase+"update/{$}", s.handleGetUpdate)
-	mux.HandleFunc("POST "+apiBase+"update/{$}", s.handlePostUpdate)
 	mux.HandleFunc("GET "+apiBase+"search/{$}", s.handleSearch)
 	mux.HandleFunc("POST "+apiBase+"preview/{$}", s.handlePreview)
 	mux.HandleFunc("GET "+apiBase+"ui-focus/{$}", s.handleUIFocus)
@@ -452,50 +431,6 @@ func (h *Handler) Close() error {
 	return h.Shutdown(ctx)
 }
 
-// StartUpdateCheck runs a GitHub release lookup immediately and every 24h.
-// Results feed latest_version / release_url on bootstrap and delta when the
-// running build is older. Records cacheDir even when disabled so a later
-// user-initiated CheckNow still knows where the file lives. The background
-// loop is a no-op when cfg.UpdateCheckEnabled() is false. Safe with no
-// credential (Jira-independent). Background errors are silent.
-func (h *Handler) StartUpdateCheck(ctx context.Context, cacheDir string) {
-	if h == nil || h.s == nil {
-		return
-	}
-	h.s.setUpdateCacheDir(cacheDir)
-	if !h.s.config().UpdateCheckEnabled() {
-		return
-	}
-	go h.s.loopUpdateCheck(ctx, cacheDir)
-}
-
-// UpdateStatus is GET/POST update/ and CheckNow: what the server currently
-// knows about the latest published release, plus the outcome of a
-// user-initiated check when one has run.
-type UpdateStatus struct {
-	Current         string `json:"current"`
-	Latest          string `json:"latest,omitempty"`
-	URL             string `json:"release_url,omitempty"`
-	Notes           string `json:"release_notes,omitempty"`
-	NotesLen        int    `json:"release_notes_len"`
-	CheckedAt       string `json:"checked_at,omitempty"`
-	Newer           bool   `json:"newer,omitempty"`
-	Status          string `json:"status,omitempty"` // newer|current|error|dev — this CheckNow
-	Error           string `json:"error,omitempty"`
-	LastUserCheckAt string `json:"last_user_check_at,omitempty"`
-	LastUserStatus  string `json:"last_user_status,omitempty"`
-}
-
-// CheckNow bypasses the 24h disk cache, hits GitHub once, and records the
-// result for GET update/ and for bootstrap/delta. Background checks stay
-// silent; this path is the one that reports current / error / dev.
-func (h *Handler) CheckNow(ctx context.Context, cacheDir string) UpdateStatus {
-	if h == nil || h.s == nil {
-		return UpdateStatus{Current: Version, Status: "error", Error: "check_failed"}
-	}
-	return h.s.checkNow(ctx, cacheDir)
-}
-
 // snapshotSync is the debug document for "what background work is running
 // right now": the same one-shot job + activity picture that
 // GET /api/v1/issues/sync/progress/ already returns. No new endpoint — that
@@ -505,164 +440,6 @@ func (h *Handler) snapshotSync() progressResponse {
 		return progressResponse{}
 	}
 	return h.s.syncProgressResponse()
-}
-
-// setUpdateInfo stores a release snapshot (tests and the background loop).
-func (s *server) setUpdateInfo(info selfupdate.Info, ok bool) {
-	s.updateMu.Lock()
-	defer s.updateMu.Unlock()
-	s.updateInfo = info
-	s.updateOK = ok
-}
-
-func (s *server) setUpdateCacheDir(dir string) {
-	s.updateMu.Lock()
-	defer s.updateMu.Unlock()
-	if dir != "" {
-		s.updateCacheDir = dir
-	}
-}
-
-func (s *server) getUpdateCacheDir() string {
-	s.updateMu.Lock()
-	defer s.updateMu.Unlock()
-	return s.updateCacheDir
-}
-
-func (s *server) noteUpdateAttempt() {
-	s.updateMu.Lock()
-	defer s.updateMu.Unlock()
-	s.updateLastAttempt = time.Now().UTC()
-}
-
-func (s *server) recordUserCheck(at time.Time, status, errCode string) {
-	s.updateMu.Lock()
-	defer s.updateMu.Unlock()
-	s.updateLastUserAt = at
-	s.updateLastUserStatus = status
-	s.updateLastUserErr = errCode
-}
-
-// updateFields is the single owner of latest_version / release_url /
-// release_notes for both bootstrap and delta. Empty strings omit via json
-// omitempty. Filling only one document was the GDK-214 defect.
-func (s *server) updateFields() (latest, url, notes string) {
-	s.updateMu.Lock()
-	info, ok := s.updateInfo, s.updateOK
-	s.updateMu.Unlock()
-	if !ok || !selfupdate.Newer(Version, info.Latest) {
-		return "", "", ""
-	}
-	return info.Latest, info.URL, info.Notes
-}
-
-func (s *server) snapshotUpdate() UpdateStatus {
-	s.updateMu.Lock()
-	info, ok := s.updateInfo, s.updateOK
-	attempt := s.updateLastAttempt
-	userAt := s.updateLastUserAt
-	userStatus := s.updateLastUserStatus
-	userErr := s.updateLastUserErr
-	s.updateMu.Unlock()
-
-	out := UpdateStatus{Current: Version}
-	if ok {
-		out.Latest = info.Latest
-		out.URL = info.URL
-		out.Notes = info.Notes
-		out.NotesLen = len(info.Notes)
-		out.CheckedAt = info.CheckedAt
-		out.Newer = selfupdate.Newer(Version, info.Latest)
-	}
-	if out.CheckedAt == "" && !attempt.IsZero() {
-		out.CheckedAt = attempt.UTC().Format(time.RFC3339)
-	}
-	if !userAt.IsZero() {
-		out.LastUserCheckAt = userAt.UTC().Format(time.RFC3339)
-		out.LastUserStatus = userStatus
-		out.Error = userErr
-	}
-	return out
-}
-
-func (s *server) checkNow(ctx context.Context, cacheDir string) UpdateStatus {
-	if cacheDir != "" {
-		s.setUpdateCacheDir(cacheDir)
-	}
-	cacheDir = s.getUpdateCacheDir()
-	now := time.Now().UTC()
-	out := UpdateStatus{Current: Version}
-
-	if Version == "" || Version == "0.0.0-dev" {
-		out.Status = "dev"
-		s.recordUserCheck(now, "dev", "")
-		return out
-	}
-	if cacheDir == "" {
-		out.Status = "error"
-		out.Error = "check_failed"
-		s.recordUserCheck(now, "error", "check_failed")
-		return out
-	}
-
-	// Drop the 24h cache so Check hits the network — selfupdate owns the
-	// filename, so a rename there cannot leave this silently pointing at a
-	// file that no longer exists.
-	_ = selfupdate.DropCache(cacheDir)
-
-	s.noteUpdateAttempt()
-	info, ok := selfupdate.Check(ctx, cacheDir, Version, true)
-	if !ok {
-		out.Status = "error"
-		out.Error = "check_failed"
-		s.recordUserCheck(now, "error", "check_failed")
-		return out
-	}
-	s.setUpdateInfo(info, true)
-	out.Latest = info.Latest
-	out.URL = info.URL
-	out.Notes = info.Notes
-	out.NotesLen = len(info.Notes)
-	out.CheckedAt = info.CheckedAt
-	if selfupdate.Newer(Version, info.Latest) {
-		out.Status = "newer"
-		out.Newer = true
-	} else {
-		out.Status = "current"
-	}
-	s.recordUserCheck(now, out.Status, "")
-	out.LastUserCheckAt = now.Format(time.RFC3339)
-	out.LastUserStatus = out.Status
-	return out
-}
-
-func (s *server) handleGetUpdate(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, s.snapshotUpdate())
-}
-
-func (s *server) handlePostUpdate(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, s.checkNow(r.Context(), ""))
-}
-
-func (s *server) loopUpdateCheck(ctx context.Context, cacheDir string) {
-	run := func() {
-		s.noteUpdateAttempt()
-		info, ok := selfupdate.Check(ctx, cacheDir, Version, s.config().UpdateCheckEnabled())
-		if ok {
-			s.setUpdateInfo(info, true)
-		}
-	}
-	run()
-	t := time.NewTicker(24 * time.Hour)
-	defer t.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-t.C:
-			run()
-		}
-	}
 }
 
 // WebConfig renders the config document the UI fetches before mount

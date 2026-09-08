@@ -47,7 +47,6 @@ var neverExportConfigFields = []string{
 	"SyncIntervalSec",
 	"ReconcileIntervalSec",
 	"Notify",
-	"UpdateCheck",
 	"Appearance",
 	// Default project/type are site- and project-bound ids (plus an optional
 	// display label). Another account's createmeta will not share those type

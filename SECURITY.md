@@ -5,7 +5,7 @@ mirror to tools you run yourself. That sentence is the whole threat model, so
 this document walks it end to end: what moves where, what never moves, and
 where in the code each claim is enforced — check the source, not our word.
 
-In a hurry: [`PROMISES.md`](docs/PROMISES.md) is eight of those claims with the
+In a hurry: [`PROMISES.md`](docs/PROMISES.md) is eleven of those claims with the
 command that checks each one.
 
 ## Reporting a vulnerability
@@ -82,43 +82,35 @@ flowchart LR
     UI["Browser UI"]
     Agent["Your coding agent<br/>(gadak sql / MCP)"]
   end
-  GH["GitHub Releases<br/>(version check, optional)"]
   Jira -->|"HTTPS, your token"| DB
   Wiki -->|"HTTPS, your token"| DB
   DB --> Serve --> UI
   DB --> Agent
   UI -->|"writes"| Serve -->|"writes"| Jira
-  Serve -.->|"1 anonymous GET/day"| GH
 ```
 
-Outbound traffic is exactly six destinations:
+Outbound traffic is exactly five destinations:
 
 1. **Your own Atlassian site**, authenticated with your API token, for sync
    and write-through. Attachment bytes are proxied on demand and may be
    cached under the profile directory; credentials never travel with them.
-2. **GitHub Releases**, at most one anonymous version-check GET per day
-   to `https://api.github.com/repos/midagedev/gadak/releases/latest`
-   (`internal/selfupdate/selfupdate.go` `APIBase`), cached on disk, carrying
-   no identifier and no local data. That lookup feeds the sidebar
-   banner; it does not download a desktop zip or swap the app. `updateCheck:
-   false` turns it off; dev builds never check.
-3. **Linear**, when a workspace has a Linear source: GraphQL to
+2. **Linear**, when a workspace has a Linear source: GraphQL to
    `api.linear.app` (`internal/linear/client.go`; the API key is sent bare in
    `Authorization`, not as Bearer) and, for file attach, a signed PUT to the
    `uploadUrl` Linear returns (typically `uploads.linear.app`;
    `internal/origin/linearwriter.go` — the PUT carries Linear's signed
    headers and no API key).
-4. **Pairing home serve**, when this workspace is bound with
+3. **Pairing home serve**, when this workspace is bound with
    `gadak init --pairing-code`: HTTP(S) to the advertised serve endpoint with
    `Authorization: Bearer <device token>`
    (`internal/origin/transport.go` `newRemoteOriginTransport`). The
    destination is the user's own machine (or tailnet), not a gadak-operated
    server.
-5. **User-invoked gh**, only when you run `gadak dev scan`: the binary
+4. **User-invoked gh**, only when you run `gadak dev scan`: the binary
    execs `gh pr list --json …` (`cmd/gadak/dev.go`). gadak does not call
    GitHub's HTTP API itself; `gh` uses whatever host and credential the user
    already configured. `dev link` does not exec `gh`.
-6. **User-invoked library download**, only when you run
+5. **User-invoked library download**, only when you run
    `gadak dashboards lib add <url>`: one GET to the exact URL typed
    (`internal/dashboards/libs.go`), https only — plain http is refused
    unless the host is localhost or an IP literal — at most 3 redirects with

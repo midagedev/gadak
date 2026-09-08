@@ -91,10 +91,9 @@ workspace) rather than assuming the pipe is private.
 
 Run the grep in [`SECURITY.md`](../SECURITY.md#data-flow) — every
 outbound request constructor in the tree resolves to one of six destinations:
-your own Atlassian site; GitHub Releases (`api.github.com` version check, off
-by config, never in dev builds); Linear (`api.linear.app` GraphQL and a signed
-PUT to `uploads.linear.app`); a pairing home serve; user-invoked `gh`; and a
-library download you asked for. Loopback is gadak talking to itself and is
+your own Atlassian site; Linear (`api.linear.app` GraphQL and a signed PUT to
+`uploads.linear.app`); a pairing home serve; user-invoked `gh`; and a library
+download you asked for. Loopback is gadak talking to itself and is
 not on that list.
 
 ## How it compares

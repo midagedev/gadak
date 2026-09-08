@@ -23,7 +23,6 @@ const IMPORTER_ROW: Record<string, string> = {
   'ShortcutsDialog.svelte': 'shortcuts',
   'JiraKeySettings.svelte': 'jira-credentials', // file name predates the dialog id
   'QuickComment.svelte': 'quick-comment',
-  'SidebarNav.svelte': 'update-notes', // hosts the update-notes modal
   'WorkspacesTab.svelte': 'workspaces-remove', // the nested removal confirm
 }
 

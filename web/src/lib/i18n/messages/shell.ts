@@ -470,11 +470,6 @@ export const shell = {
     ko: '동기화 지연',
     ja: '同期遅延',
   },
-  'sidebar.updateAvailable': {
-    en: 'gadak {version} is out — release notes',
-    ko: 'gadak {version} 업데이트가 나왔습니다 — 릴리스 노트 보기',
-    ja: 'gadak {version} が公開されています — リリースノート',
-  },
   'sidebar.syncNow': {
     en: 'Sync now',
     ko: '지금 동기화',

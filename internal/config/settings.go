@@ -802,7 +802,7 @@ func buildSettings() []Setting {
 				return nil
 			},
 		},
-		boolDefaultTrue("notify", "notify",
+		boolSetting("notify", "notify",
 			"OS desktop notifications from the watch loop (default true)",
 			func(c *Config) bool { return c.NotifyEnabled() },
 			func(c *Config, b bool) {
@@ -812,18 +812,6 @@ func buildSettings() []Setting {
 				}
 				f := false
 				c.Notify = &f
-			},
-		),
-		boolDefaultTrue("updateCheck", "updateCheck",
-			"once-per-day GitHub release lookup (default true)",
-			func(c *Config) bool { return c.UpdateCheckEnabled() },
-			func(c *Config, b bool) {
-				if b {
-					c.UpdateCheck = nil
-					return
-				}
-				f := false
-				c.UpdateCheck = &f
 			},
 		),
 		{
@@ -1324,7 +1312,9 @@ func intSetting(path, root, desc string, get func(*Config) int, set func(*Config
 	}
 }
 
-func boolDefaultTrue(path, root, desc string, get func(*Config) bool, set func(*Config, bool)) Setting {
+// boolSetting is a plain bool catalog entry. It carries no default of its
+// own — the getter and setter closures own that.
+func boolSetting(path, root, desc string, get func(*Config) bool, set func(*Config, bool)) Setting {
 	return Setting{
 		Path:        path,
 		Root:        root,

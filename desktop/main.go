@@ -66,7 +66,8 @@ func main() {
 		return
 	}
 	// Same assignment cmd/gadak/main.go makes. "dev" is this file's default;
-	// selfupdate.Check only skips the CLI default ("0.0.0-dev").
+	// the server reports the CLI default ("0.0.0-dev") for an unstamped
+	// build.
 	if appVersion == "" || appVersion == "dev" {
 		server.Version = "0.0.0-dev"
 	} else {
@@ -328,20 +329,6 @@ func run() error {
 				}
 				applyDeepLink("gadak://view?settings=sync")
 			})
-		gadakMenu.Add("Check for Updates…").
-			OnClick(func(*application.Context) {
-				// Network I/O off the click path. Settings opens after the
-				// check so GET update/ already has the result.
-				go func() {
-					if dir, err := config.Dir(); err == nil {
-						_ = api.CheckNow(context.Background(), dir)
-					}
-					if window == nil || applyDeepLink == nil {
-						return
-					}
-					applyDeepLink("gadak://view?settings=sync")
-				}()
-			})
 		gadakMenu.AddSeparator()
 		gadakMenu.AddRole(application.ServicesMenu)
 		gadakMenu.AddSeparator()
@@ -480,9 +467,6 @@ func run() error {
 		})
 
 	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
-		// Sidebar banner only (internal/selfupdate). updateCheck: false
-		// silences it; StartUpdateCheck also no-ops internally when disabled.
-		// Installing an update is brew cask / a new dmg — no in-app swap.
 		// WatchLoop re-entry and the onboarding starter live in apprun
 		// (GDK-663); this event is when desktop starts them — serve starts
 		// immediately after mux construction.

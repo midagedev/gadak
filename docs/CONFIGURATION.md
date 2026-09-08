@@ -80,9 +80,9 @@ need JSON. A value of `-` reads stdin.
 An unknown path exits **64** and prints every valid path. Credentials
 (`site`, `email`, `token`) are not catalog paths — use `gadak init`.
 
-`gadak config list` is the live catalog (48 paths). Five of them are not
+`gadak config list` is the live catalog (59 paths). Four of them are not
 on the Settings PUT document and are not on the Settings form: `notify`,
-`updateCheck`, `attachmentCacheMB`, and the read-only discovery surfaces
+`attachmentCacheMB`, and the read-only discovery surfaces
 `ui.tokens.catalog` / `ui.tokens.dim-catalog` (see below). PUT leaves
 those untouched (it copies the live file, then overwrites the fields it
 knows). The `ui.tokens.<axis>` and `ui.tokens.<axis>.<name>` paths are
@@ -464,7 +464,6 @@ is nothing to say, and a client-supplied value is ignored.
 | `syncIntervalSec` | int (seconds) | `0` → **60** | Settings → Sync (presets / custom) / `gadak config` | Next watch tick; no process restart |
 | `reconcileIntervalSec` | int (seconds) | `0` → **3600** | Settings → Sync (presets / custom) / `gadak config` | Next watch tick; no process restart |
 | `notify` | bool | **true** when absent | `gadak config set notify` / `config.json` (not on Settings UI or Settings PUT) | Next watch-loop tick; OS desktop alerts for new personal-feed events |
-| `updateCheck` | bool | **true** when absent | `gadak config set updateCheck` / `config.json` (not on Settings UI or Settings PUT) | Next `sync` / `status` / `serve` / desktop start; once-per-day GitHub release lookup (cached under the profile directory on disk). Set `false` to opt out — no GitHub version check; outbound stays your configured origins |
 | `attachmentCacheMB` | int | `0` → package **512** | `gadak config set attachmentCacheMB` / `config.json` (not on Settings UI or Settings PUT) | Cap (MB) for the on-disk cache opened when a workspace mounts; `0` becomes the package default |
 | `confluence` | object or absent | absent = wiki mirror off. `gadak init --local` writes the block scoped to `LOC`; pairing writes it with `spaces` empty (every team space of the home origin — anything but personal). The CLI also takes `wiki` / `wiki.enabled` / `wiki.spaces` for the three paths and names the stored one on stderr — the Built-in tracker's wiki is not Confluence, and the file key is the one that does not move (GDK-1289) | Settings → Sources / `gadak config set confluence` (or `wiki`) | Next wiki pass |
 | `linear` | object or absent | absent = Linear source off. `apiKey` (personal API key, sent bare in the Authorization header) turns the source on; writes to Linear-owned keys route through it | edit `config.json` (no Settings surface yet) | Next `sync --source linear` |
@@ -601,20 +600,6 @@ the issue title only — never comment text. Set `"notify": false` in
 never write `feed_reads`. `GET settings/` reports the capability as
 `runtime.osNotifySupported` (always present; false is meaningful).
 
-### Update check
-
-Once a day, `gadak sync` (after a successful run), `gadak status`, `gadak
-serve`, and the desktop app may query GitHub's public releases API for this
-project and cache the answer under that profile's directory on disk
-(`update-check.json`). The request carries no account identifiers. Dev
-builds (`0.0.0-dev`) never check. Network errors and rate limits are silent.
-Set `"updateCheck": false` in `config.json`, or `gadak config set updateCheck
-false`, to disable the lookup entirely (no GitHub version check; outbound
-stays your configured origins — Atlassian, Linear if enabled, pairing home,
-user-invoked `gh`). The lookup only feeds the sidebar
-banner; installing an update is `brew upgrade --cask gadak`, a new dmg, or
-replacing the Windows portable-zip directory with a newer zip.
-
 ---
 
 ## Read-only `runtime` on `GET settings/`
@@ -650,7 +635,7 @@ list. Credentials and per-machine prefs are never included.
 | `projects` | `site`, `email`, `token` |
 | `fields`, `bodyFields` | `account_id`, `tokenOwner`, `tokenVerifiedAt` |
 | `groupRules`, `groupQuery`, `groupLabels`, `groupColors`, `productByGroup` | `syncIntervalSec`, `reconcileIntervalSec` |
-| `features`, `qaDashboardUrl`, `staleThresholdHours` | `notify`, `updateCheck`, `attachmentCacheMB` |
+| `features`, `qaDashboardUrl`, `staleThresholdHours` | `notify`, `attachmentCacheMB` |
 | `members` only with `export --with-members` (emails; stderr warns) | personal machine intervals / notification prefs |
 | saved views (`name` + `config`; new ids on import) | view `id` / timestamps |
 
@@ -690,13 +675,12 @@ file wins; local-only rows stay (`cmd/gadak/import.go` `applyPersonalExport`).
 | Sync loop process | Start/stop `gadak serve` (default when credentialed; `--no-sync` opts out) or `gadak sync --watch` |
 | Keep serve across reboots | `gadak install-service` (launchd / systemd user); `--uninstall` removes it |
 | OS desktop notifications | `gadak config set notify false` (default on) |
-| GitHub release lookup | `gadak config set updateCheck false` (default on) |
 | Attachment cache cap | `gadak config set attachmentCacheMB` (`0` = package default 512) |
 
 There is no remaining day-to-day operational knob that only lives in a hand
 edit of the JSON file. Settings and `gadak config` share
-`internal/config/settings.go`; `notify`, `updateCheck`, and
-`attachmentCacheMB` are on `gadak config` only (not on Settings PUT). Direct
+`internal/config/settings.go`; `notify` and `attachmentCacheMB` are on
+`gadak config` only (not on Settings PUT). Direct
 file edit still works for automation and recovery.
 
 ### Unattended `gadak init`

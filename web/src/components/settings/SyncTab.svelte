@@ -1,12 +1,9 @@
 <script lang="ts">
   /* How often the mirror refreshes, and how old is "stale". */
-  import { onMount } from 'svelte'
   import { t } from '../../lib/i18n'
   import { config, isBuiltInWorkspace, surface } from '../../lib/config'
   import { copyText } from '../../lib/copy-text'
   import { upgradeCta } from '../../lib/upgrade-cta'
-  import { issues } from '../../stores/issues.svelte'
-  import { write } from '../../stores/write.svelte'
   import Icon from '../ui/Icon.svelte'
   import type { SettingsRuntime } from '../../lib/api'
   import { INPUT, INPUT_BARE, SELECT_BARE, SELECT_CHEVRON, ADD_BTN, COPY_BTN } from './controls'
@@ -15,44 +12,8 @@
 
   const onDesktop = surface() === 'desktop'
 
-  type UpdateDoc = {
-    latest?: string
-    release_url?: string
-    newer?: boolean
-    last_user_check_at?: string
-    last_user_status?: string
-  }
-
   const cta = $derived(upgradeCta(config().os))
   let copiedCmd = $state(false)
-  let lastUserAt = ''
-
-  async function pullUpdate(): Promise<void> {
-    try {
-      const res = await fetch(config().apiBase + 'update/', { credentials: 'same-origin' })
-      if (!res.ok) return
-      const data = (await res.json()) as UpdateDoc
-      // Apply only when newer — never clear a delta-injected banner.
-      if (data.newer && data.latest) {
-        issues.applyUpdateInfo(data.latest, data.release_url ?? '')
-      }
-      if (!data.last_user_check_at || data.last_user_check_at === lastUserAt) return
-      const age = Date.now() - Date.parse(data.last_user_check_at)
-      if (!Number.isFinite(age) || age < 0 || age >= 15_000) return
-      lastUserAt = data.last_user_check_at
-      if (data.last_user_status === 'current') write.toast(t('settings.updateCurrent'), 'success')
-      else if (data.last_user_status === 'error') write.toast(t('settings.updateFailed'), 'error')
-      else if (data.last_user_status === 'dev') write.toast(t('settings.updateDev'), 'info')
-    } catch {
-      /* snapshot is advisory */
-    }
-  }
-
-  onMount(() => {
-    void pullUpdate()
-    const id = setInterval(() => void pullUpdate(), 2000)
-    return () => clearInterval(id)
-  })
 
   async function copyCmd(): Promise<void> {
     if (!cta.command) return
@@ -205,42 +166,26 @@
   </div>
   {/if}
 
-  <section
-    class="rounded-md border border-border-subtle bg-bg-base/60 px-3 py-2.5"
-    data-testid="settings-update"
-  >
-    <div class="mb-2 text-micro font-medium uppercase tracking-wide text-text-muted">
-      {t('settings.updateTitle')}
-    </div>
-    {#if issues.latestVersion}
-      <p class="text-micro text-text-primary">
-        {t('sidebar.updateAvailable', { version: issues.latestVersion })}
-      </p>
-      {#if issues.releaseUrl}
-        <a
-          href={issues.releaseUrl}
-          target="_blank"
-          rel="noreferrer"
-          class="mt-1 inline-block text-micro text-accent-text hover:underline"
-          data-testid="settings-update-link"
-        >
-          {t('settings.updateReleaseNotes')}
-        </a>
-      {/if}
-    {/if}
-    <!-- Command comes from upgradeCta — the single owner. A new package
-         path is a row there, not another os === branch here. -->
-    {#if cta.command}
-      <div class="mt-2 flex flex-wrap items-center gap-1.5">
-        <span class="font-mono text-micro text-text-primary" data-testid="settings-update-brew"
+  {#if cta.command}
+    <section
+      class="rounded-md border border-border-subtle bg-bg-base/60 px-3 py-2.5"
+      data-testid="settings-upgrade"
+    >
+      <div class="mb-2 text-micro font-medium uppercase tracking-wide text-text-muted">
+        {t('settings.upgradeTitle')}
+      </div>
+      <!-- Command comes from upgradeCta — the single owner. A new package
+           path is a row there, not another os === branch here. -->
+      <div class="flex flex-wrap items-center gap-1.5">
+        <span class="font-mono text-micro text-text-primary" data-testid="settings-upgrade-cmd"
           >{cta.command}</span
         >
         <button type="button" class={COPY_BTN} onclick={() => void copyCmd()}>
           {copiedCmd ? t('settings.copied') : t('settings.copy')}
         </button>
       </div>
-    {/if}
-  </section>
+    </section>
+  {/if}
 
   <!-- Read-only facts about the mirror these intervals drive: last pull,
        watermark, size, last error. Under the controls, because the controls are

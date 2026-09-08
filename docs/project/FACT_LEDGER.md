@@ -184,18 +184,16 @@ share makes this the first question (review round 2026-09-08).
 ## 11. Safety claims (each is checkable; do not soften, do not add)
 
 - **No telemetry**, no analytics, no gadak account or server.
-- **Outbound traffic is exactly six destinations**, and `SECURITY.md` is the
-  authority for the list (`docs/PROMISES.md` promise 2 pins the same six, and
+- **Outbound traffic is exactly five destinations**, and `SECURITY.md` is the
+  authority for the list (`docs/PROMISES.md` promise 2 pins the same five, and
   `tools/doc-checks.sh` check 8 asserts the two files agree). Do not
   paraphrase this list shorter — an edition that enumerates must enumerate
-  all six:
+  all five:
   1. the reader's own Atlassian site, for sync
-  2. GitHub Releases, at most one anonymous version-check GET per day
-     (`updateCheck: false` turns it off — `internal/config/config.go:191`)
-  3. Linear, when a workspace has a Linear source
-  4. a paired home `serve`, when the workspace is bound to one
-  5. `gh`, only when the reader runs `gadak dev scan`
-  6. a library download, only when the reader asks for one
+  2. Linear, when a workspace has a Linear source
+  3. a paired home `serve`, when the workspace is bound to one
+  4. `gh`, only when the reader runs `gadak dev scan`
+  5. a library download, only when the reader asks for one
   **Loopback is not on that list** — it is a local bind, not an outbound
   destination. `docs/NETWORK.md` walks every connection and its off switch.
 - Reads do not open a connection. The exceptions are four origin-asking verbs:
@@ -209,12 +207,16 @@ share makes this the first question (review round 2026-09-08).
   lives in `~/.gadak/config.json`, written atomically with mode `0600`, and is
   sent only as the `Authorization` header to the reader's own site
   (`SECURITY.md`, "The credential").
-- **Do not write "the only network calls are the ones you configured."** It
-  contradicts the list above: the version check is on unless turned off
-  (`internal/config/config.go` `UpdateCheckEnabled` returns true when the key
-  is absent), so a fresh install makes one call the reader did not configure.
-  An edition that compresses the six destinations must name the version check
-  and its off switch (review round 2026-09-08 found this on two landings).
+- **"gadak only talks to what you configured" is true** (GDK-1626,
+  2026-09-08). It was not before: gadak used to look for a new version on
+  GitHub once a day unless the reader turned that off, so a fresh install made
+  one call nobody had asked for, and the review round that day found the claim
+  on two landings. That lookup is gone — there is no update check, no
+  `updateCheck` setting, and no `internal/selfupdate`. **Do not restore the
+  absence as copy**: the front door does not say gadak "does not check for
+  updates," because a page that announces what it does not do is advertising,
+  not information. Upgrading is `brew upgrade` / a new dmg / a newer zip, and
+  that is all a reader needs.
 - The 0.x contract is **three promises**, not the whole schema:
   `issues_full` + the RECIPES queries, `gadak sql` stdout format, and
   `gadak views open --keys -` semantics

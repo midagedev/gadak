@@ -15,7 +15,6 @@ import (
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/origin"
-	"github.com/midagedev/gadak/internal/selfupdate"
 	"github.com/midagedev/gadak/internal/store"
 	syncer "github.com/midagedev/gadak/internal/sync"
 )
@@ -175,7 +174,6 @@ func cmdSync(args []string) error {
 			kind, cres.Fetched, cres.PageBodies, cres.PageSkips, cres.Changed, cres.Watermark)
 	}
 	printProjectScopeWarnings(cfg, db)
-	printUpdateNotice(cfg, false)
 	return nil
 }
 
@@ -215,26 +213,4 @@ func translateFrozen(err error) error {
 		return frozenSyncError()
 	}
 	return err
-}
-
-// printUpdateNotice prints a one-line brew upgrade hint when a newer release
-// is known. withURL adds the release page on a second line (status). Failures
-// and opt-out are silent — this is courtesy, not a feature path.
-func printUpdateNotice(cfg *config.Config, withURL bool) {
-	if cfg == nil || !cfg.UpdateCheckEnabled() {
-		return
-	}
-	dir, err := config.Dir()
-	if err != nil {
-		return
-	}
-	info, ok := selfupdate.Check(context.Background(), dir, version, true)
-	if !ok || !selfupdate.Newer(version, info.Latest) {
-		return
-	}
-	fmt.Printf("update: v%s available (running v%s) — brew upgrade midagedev/tap/gadak\n",
-		info.Latest, version)
-	if withURL && info.URL != "" {
-		fmt.Println(info.URL)
-	}
 }

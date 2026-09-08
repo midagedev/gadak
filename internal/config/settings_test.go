@@ -84,7 +84,6 @@ func TestSettingsCatalogHasRequiredPaths(t *testing.T) {
 		"staleThresholdHours",
 		"projects",
 		"notify",
-		"updateCheck",
 		"devStatus",
 		"actor.trailer",
 		"retro.sessionGap",

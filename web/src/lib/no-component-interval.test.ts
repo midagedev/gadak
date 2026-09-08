@@ -5,11 +5,11 @@
  * FavoritesNav each carried one; at --spacing-row 36px and OVERSCAN 8 that
  * is ~41 intervals for one 900px list) and fails here.
  *
- * The three entries below are data polls, not wall clocks — a 2s sync
- * status, an onboarding pairing poll, a 1s browse progress report — and
+ * The two entries below are data polls, not wall clocks — an onboarding
+ * pairing poll and a 1s browse progress report — and
  * cannot ride the shared 10s tick: a poll owns its cadence. They predate
  * this gate and sit in files outside the round that wrote it
- * (settings/SyncTab, shell/Onboarding, browse/BrowsePane); the honest home
+ * (shell/Onboarding, browse/BrowsePane); the honest home
  * for each is a store module, the way lib/browse.svelte.ts and
  * lib/terminal/sessions.svelte.ts already own theirs. Until those rounds
  * move them they are enumerated with reasons, so the debt is visible in the
@@ -28,10 +28,6 @@ type Exception = { file: string; why: string }
 /** Each suppresses every hit in its file — a poll moves wholesale or not at
  *  all, so per-line bookkeeping would only invite half-moves. */
 const ALLOWED: Exception[] = [
-  {
-    file: 'settings/SyncTab.svelte',
-    why: '2s sync-status poll while the tab is open — a data cadence, not a wall clock; belongs in a store module',
-  },
   {
     file: 'shell/Onboarding.svelte',
     why: 'pairing-status poll at POLL_MS — a data cadence, not a wall clock; belongs in a store module',

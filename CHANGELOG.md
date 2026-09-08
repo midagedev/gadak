@@ -4,6 +4,16 @@
 
 ## Unreleased
 
+- **gadak no longer looks for its own updates.** It used to ask GitHub once a
+  day whether a newer release existed, unless you turned that off. That was
+  the one outbound connection nobody had asked for, and it made the sentence
+  the front door wanted to say — gadak talks to your tracker and to nothing
+  else — false by one footnote. The lookup is gone: no background check, no
+  `updateCheck` setting, no sidebar banner. Outbound destinations go from six
+  to five, and `docs/PROMISES.md` is eleven claims rather than twelve.
+  Upgrading is what it always was — `brew upgrade`, a new dmg, a newer zip —
+  and Settings → Sync still shows the command for your platform. ([GDK-1626])
+
 - **Attachments the size of real ones.** On a workspace whose origin is
   gadak's own tracker, attachment bytes now live in a directory beside the
   database rather than inside it, one content-addressed file each. Uploads
@@ -1595,3 +1605,4 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-1508]: https://gadak.dev/backlog/#/?ks=GDK-1508
 [GDK-1537]: https://gadak.dev/backlog/#/?ks=GDK-1537
 [GDK-1617]: https://gadak.dev/backlog/#/?ks=GDK-1617
+[GDK-1626]: https://gadak.dev/backlog/#/?ks=GDK-1626

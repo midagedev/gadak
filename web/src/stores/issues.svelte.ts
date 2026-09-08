@@ -76,8 +76,6 @@ class IssuesStore {
   /** project → alias → filled count. Which fields a board actually uses. */
   fieldUsage = $state<Record<string, Record<string, number>>>({})
   /** Newer published release, when the server's daily check found one. */
-  latestVersion = $state('')
-  releaseUrl = $state('')
   /** Boot failure (usually auth). Blocks UI only when there is no cache (render-before-auth). */
   error = $state<string | null>(null)
   /**
@@ -293,8 +291,6 @@ class IssuesStore {
     this.#claimSessionBoundary(res.sessionBoundary ?? data.last_session_ended_at ?? null)
     this.fieldSpecs = data.field_specs ?? []
     this.fieldUsage = data.field_usage ?? {}
-    this.latestVersion = data.latest_version ?? ''
-    this.releaseUrl = data.release_url ?? ''
     this.ready = true
 
     // Persist (memory pool is already current even if this fails — works without IndexedDB)
@@ -317,8 +313,6 @@ class IssuesStore {
     if (delta.field_specs) this.fieldSpecs = delta.field_specs
     if (delta.field_usage) this.fieldUsage = delta.field_usage
     // Same omitempty contract as bootstrap: absent means no newer release.
-    this.latestVersion = delta.latest_version ?? ''
-    this.releaseUrl = delta.release_url ?? ''
     // Same for flow — absent clears a carried value, so a threshold that
     // stopped being learnable (setting set, samples thinned) reverts within
     // one poll.
@@ -505,12 +499,6 @@ class IssuesStore {
    */
   async refresh(): Promise<boolean> {
     return this.#sync()
-  }
-
-  /** Apply a newer-release snapshot (GET update/ after a user-initiated check). */
-  applyUpdateInfo(latest: string, url: string): void {
-    this.latestVersion = latest
-    this.releaseUrl = url
   }
 
   /** Convenience lookup. */

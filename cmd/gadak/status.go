@@ -12,7 +12,6 @@ import (
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/origin"
-	"github.com/midagedev/gadak/internal/selfupdate"
 	"github.com/midagedev/gadak/internal/store"
 	syncer "github.com/midagedev/gadak/internal/sync"
 )
@@ -160,19 +159,6 @@ func cmdStatus(args []string) error {
 		wiki["last_error"] = *confSS.LastError
 	}
 	st["wiki"] = wiki
-	var updateInfo selfupdate.Info
-	var updateOK bool
-	if cfg != nil && cfg.UpdateCheckEnabled() {
-		if dir, err := config.Dir(); err == nil {
-			updateInfo, updateOK = selfupdate.Check(context.Background(), dir, version, true)
-			if updateOK && selfupdate.Newer(version, updateInfo.Latest) {
-				st["update"] = map[string]string{
-					"latest": updateInfo.Latest,
-					"url":    updateInfo.URL,
-				}
-			}
-		}
-	}
 
 	if *asJSON {
 		return json.NewEncoder(os.Stdout).Encode(st)
@@ -223,13 +209,6 @@ func cmdStatus(args []string) error {
 	}
 	if tokenExpiry.Message != "" {
 		fmt.Println(tokenExpiry.Message)
-	}
-	if updateOK && selfupdate.Newer(version, updateInfo.Latest) {
-		fmt.Printf("update: v%s available (running v%s) — brew upgrade midagedev/tap/gadak\n",
-			updateInfo.Latest, version)
-		if updateInfo.URL != "" {
-			fmt.Println(updateInfo.URL)
-		}
 	}
 	if len(notMirrored) > 0 {
 		fmt.Printf("%-18s %s\n", "configured, not in the mirror", strings.Join(notMirrored, ", "))

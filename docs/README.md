@@ -16,7 +16,7 @@ document answers.
 
 ## Before you depend on it
 
-- [PROMISES.md](PROMISES.md): nine claims, each with one command you can run in a clone to check it
+- [PROMISES.md](PROMISES.md): eleven claims, each with one command you can run in a clone to check it
 - [MAINTENANCE.md](MAINTENANCE.md): how this project is run — response times, what gets merged, what happens if it stops
 - [../SECURITY.md](../SECURITY.md): the threat model, every outbound destination, and how to report a hole
 

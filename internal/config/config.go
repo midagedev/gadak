@@ -193,11 +193,6 @@ type Config struct {
 	// Pointer so omitempty can distinguish "unset" from explicit false.
 	Notify *bool `json:"notify,omitempty"`
 
-	// UpdateCheck enables the once-per-day GitHub release lookup that surfaces
-	// a newer version on sync/status/serve bootstrap. Default true when absent;
-	// set false to opt out (restores the prior "outbound is only Jira" model).
-	UpdateCheck *bool `json:"updateCheck,omitempty"`
-
 	// Appearance is the look of the web/desktop UI. Nil (or empty Theme) means
 	// "system" and is not written — the default is not persisted. A pointer so
 	// encoding/json omitempty can drop the block; a zero struct would write {}.
@@ -1154,14 +1149,6 @@ func (c *Config) NotifyEnabled() bool {
 		return true
 	}
 	return *c.Notify
-}
-
-// UpdateCheckEnabled is true unless the user set updateCheck: false. Absent means on.
-func (c *Config) UpdateCheckEnabled() bool {
-	if c == nil || c.UpdateCheck == nil {
-		return true
-	}
-	return *c.UpdateCheck
 }
 
 // EffectiveTheme is the UI theme id. Empty on disk means "system".
