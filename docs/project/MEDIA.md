@@ -201,10 +201,11 @@ names in its own language, so a workspace migrated from a Korean mirror still
 serves `In Progress` and `Epic` (measured 2026-09-08). The knob is the
 workspace's own language (GDK-597), so a non-`en` run does
 `gadak --workspace nimbus config set locale <loc>` after the migrate and syncs
-once — `sync` sees the change and rebuilds the mirror. Two names stay English
-after that and are not a leak: priority names (`Highest`…`Lowest`, which gadak
-keeps English like a live `ko` Cloud site) and the two board statuses issuetap
-leaves untranslated in every locale (`Backlog`, `Selected for Development`).
+once — `sync` sees the change and rebuilds the mirror. Priority names follow
+too since GDK-1596 (the ko hero's `우선순위 Medium` was the measured miss);
+the two board statuses issuetap leaves untranslated in every locale
+(`Backlog`, `Selected for Development`) are the origin modelling Jira, not a
+leak.
 
 The palette beat is the one place the take's language reaches the *mechanism*
 rather than the pixels: the spec types the terminal action's own label
@@ -296,11 +297,11 @@ Measured 2026-09-08 (landing clips and their ko/ja takes; the rest 2026-09-07) v
 | `terminal-demo.gif` | 6.91 MB | 6907679 | 23.0 s | 860×1075 @ 9 fps |
 | `terminal-demo.mp4` | 1.80 MB | 1795187 | 23.0 s | 1080×1350 h264 |
 | `terminal-hero.gif` | 5.37 MB | 5372717 | 44.9 s | 900×563 @ 8 fps |
-| `terminal-hero.ko.gif` | 7.88 MB | 7883477 | 44.5 s | 1200×750 @ 8 fps |
-| `terminal-hero.ja.gif` | 5.30 MB | 5301582 | 45.4 s | 900×563 @ 8 fps |
+| `terminal-hero.ko.gif` | 7.03 MB | 7028342 | 43.0 s | 1200×750 @ 8 fps |
+| `terminal-hero.ja.gif` | 4.66 MB | 4658302 | 46.9 s | 900×563 @ 8 fps |
 | `terminal-hero.mp4` | 3.44 MB | 3436388 | 44.9 s | 1440×900 h264 |
-| `terminal-hero.ko.mp4` | 2.64 MB | 2642117 | 44.5 s | 1440×900 h264 |
-| `terminal-hero.ja.mp4` | 3.16 MB | 3163126 | 45.4 s | 1440×900 h264 |
+| `terminal-hero.ko.mp4` | 2.45 MB | 2452346 | 43.0 s | 1440×900 h264 |
+| `terminal-hero.ja.mp4` | 3.21 MB | 3213258 | 46.9 s | 1440×900 h264 |
 | `mcp.gif` | 0.22 MB | 216496 | 24.7 s | 1080×620 @ 25 fps |
 | `mcp.mp4` | 0.23 MB | 229806 | 24.7 s | 1080×620 h264 |
 | `raycast.gif` | 0.98 MB | 982043 | 13.2 s | 960×579 @ 10 fps |
