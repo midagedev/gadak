@@ -149,8 +149,8 @@ if [[ -z "$tag" ]]; then
   ok "no tag reachable — version guard skipped"
 else
   minor="${tag#v}"; minor="${minor%.*}"   # v0.14.0 → 0.14
-  for f in README.md README.ko.md; do
-    if ! grep -qE "(Status|상태): ${minor}(,| )" "$f"; then
+  for f in README.md README.ko.md README.ja.md; do
+    if ! grep -qE "(Status|상태|状態): ${minor}(,|、| )" "$f"; then
       fail "$f status line does not say ${minor} (latest tag ${tag})"
     fi
   done
@@ -367,7 +367,7 @@ ok "derived-field rule table lives only in docs/DERIVE.md"
 # documents no per-app override, and this project must not offer "turn
 # Smart App Control off" as a workaround (once offered, someone will).
 win_zip_missing=""
-for f in README.md README.ko.md docs/INSTALL.md docs/DESKTOP.md; do
+for f in README.md README.ko.md README.ja.md docs/INSTALL.md docs/DESKTOP.md; do
   grep -q 'windows-x64' "$f" || win_zip_missing+="  $f: no windows-x64 asset name"$'\n'
 done
 if [[ -n "$win_zip_missing" ]]; then
@@ -381,7 +381,7 @@ if ! grep -q 'GDK-211' docs/INSTALL.md; then
 fi
 sac_off="$(
   grep -nEi 'turn(ing)?[[:space:]]+((smart[[:space:]]+app[[:space:]]+control)|SAC)[[:space:]]+off|disable[[:space:]]+((smart[[:space:]]+app[[:space:]]+control)|SAC)|스마트[[:space:]]*앱[[:space:]]*제어를[[:space:]]*끄' \
-    README.md README.ko.md docs/INSTALL.md docs/DESKTOP.md \
+    README.md README.ko.md README.ja.md docs/INSTALL.md docs/DESKTOP.md \
     || true
 )"
 # The docs must mention the prohibition. A line that says "Do not turn …
@@ -1102,7 +1102,7 @@ ok "docs/INSTALL.md and README.md name init --local"
 # specs/**, internal/**. Agent-instruction files pay context for every link and
 # have no reader to advertise to; decisions are append-only by their own rule.
 BACKLOG_ARCHIVE="examples/backlog-snapshot.tar.gz"
-READER_DOCS=(CHANGELOG.md CHANGELOG.ko.md README.md README.ko.md
+READER_DOCS=(CHANGELOG.md CHANGELOG.ko.md README.md README.ko.md README.ja.md
   docs/ARCHITECTURE.md docs/DERIVE.md docs/DESKTOP.md docs/INSTALL.md
   docs/project/ROADMAP.md docs/project/STATE_OF_PLAY.md desktop/README.md)
 if [[ -f "$BACKLOG_ARCHIVE" ]] && command -v jq >/dev/null; then
@@ -1129,7 +1129,7 @@ fi
 # below had 0 hits for pairing-code-stdin; SKILL.md line 221 said
 # `views save` kept a named view "in the mirror" and named local.db 0 times.
 pairing_missing=""
-for f in README.md README.ko.md docs/INSTALL.md docs/MIRROR.md skills/gadak/SKILL.md; do
+for f in README.md README.ko.md README.ja.md docs/INSTALL.md docs/MIRROR.md skills/gadak/SKILL.md; do
   if ! grep -q 'pairing-code-stdin' "$f"; then
     pairing_missing+="  $f: no --pairing-code-stdin"$'\n'
   fi
@@ -1663,7 +1663,7 @@ else:
     figures = set(re.findall(r"\d[\d,]*(?:\.\d+)?\s*ms", latest))
     figures |= set(re.findall(r"\d[\d,]*×", latest))
     figures = {f.replace(" ", "") for f in figures}
-    for path in ("README.md", "README.ko.md"):
+    for path in ("README.md", "README.ko.md", "README.ja.md"):
         text = Path(path).read_text()
         rows = [
             ln
@@ -1733,7 +1733,7 @@ def code_lines(body):
 
 
 # (a) one fence must not offer two installs of the same kind.
-for name in ("README.md", "README.ko.md", "docs/INSTALL.md"):
+for name in ("README.md", "README.ko.md", "README.ja.md", "docs/INSTALL.md"):
     text = Path(name).read_text()
     for i, body in enumerate(fences(text), 1):
         n = sum(1 for ln in code_lines(body) if re.search(r"\bbrew\s+install\b", ln))
@@ -1746,7 +1746,7 @@ VERB = re.compile(
     r"^\s*(?:\S*/)?gadak(?:\s+--(?:workspace|profile)\s+\S+)?\s+"
     r"(?:mcp\s+install|skill\s+install|install-cli)\b"
 )
-targets = sorted(Path("docs").glob("*.md")) + [Path("README.md"), Path("README.ko.md")]
+targets = sorted(Path("docs").glob("*.md")) + [Path("README.md"), Path("README.ko.md"), Path("README.ja.md")]
 for path in targets:
     text = path.read_text()
     for i, body in enumerate(fences(text), 1):
@@ -1835,7 +1835,7 @@ FENCE = re.compile(r"```[^\n]*\n(.*?)```", re.S)
 ARCHIVE = re.compile(r"(?:gadak_|Gadak-)\d+\.\d+\.\d+[_-]")
 
 fails = []
-targets = [Path("README.md"), Path("README.ko.md")] + sorted(Path("docs").rglob("*.md"))
+targets = [Path("README.md"), Path("README.ko.md"), Path("README.ja.md")] + sorted(Path("docs").rglob("*.md"))
 for path in targets:
     for block in FENCE.findall(path.read_text()):
         for m in ARCHIVE.finditer(block):
@@ -2082,7 +2082,7 @@ defined = set(re.findall(r"^\[\^([0-9]+)\]:", text, re.M))
 for n in sorted(used - defined, key=int):
     print(f"footnote [^{n}] is used in a cell but never defined")
 
-for f in ("README.md", "README.ko.md"):
+for f in ("README.md", "README.ko.md", "README.ja.md"):
     body = Path(f).read_text()
     if "docs/SUPPORT_MATRIX.md" not in body:
         print(f"{f}: no link to docs/SUPPORT_MATRIX.md — the matrix needs its readers")

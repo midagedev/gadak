@@ -11,7 +11,7 @@
 
 <p align="center"><b>Follow the thread.</b></p>
 
-<p align="center"><sub>English · <a href="README.ko.md">한국어</a></sub></p>
+<p align="center"><sub>English · <a href="README.ko.md">한국어</a> · <a href="README.ja.md">日本語</a></sub></p>
 
 A local SQLite file of your Jira — so "which epic is stuck?" is one query, not an unaskable one.
 

@@ -11,7 +11,7 @@
 
 <p align="center"><b>Follow the thread.</b></p>
 
-<p align="center"><sub><a href="README.md">English</a> · 한국어 — 영문이 원본이며, 이 문서는 영문과 함께 갱신됩니다.</sub></p>
+<p align="center"><sub><a href="README.md">English</a> · 한국어 · <a href="README.ja.md">日本語</a> — 영문이 원본이며, 이 문서는 영문과 함께 갱신됩니다.</sub></p>
 
 내 Jira를 로컬 SQLite 파일 하나로 만듭니다. "어느 에픽이 막혀 있지?"가
 물을 수 없는 질문이 아니라 쿼리 한 줄이 됩니다.
