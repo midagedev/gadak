@@ -199,7 +199,7 @@ type doctorSkillHost struct {
 // a document the banner promises is safe to paste.
 type doctorMCP struct {
 	Status string `json:"status"`          // absent | registered
-	Scope  string `json:"scope,omitempty"` // user | local | project | other
+	Scope  string `json:"scope,omitempty"` // user | local | project | other | claude-desktop
 	Path   string `json:"path,omitempty"`  // tilde-abbreviated config path
 }
 
@@ -787,6 +787,20 @@ func collectMCPStatus() doctorMCP {
 	if cfg, ok := readClaudeMCPConfig(".mcp.json"); ok {
 		if _, found := cfg.MCPServers["gadak"]; found {
 			return doctorMCP{Status: "registered", Scope: "project", Path: ".mcp.json"}
+		}
+	}
+	// Claude Desktop is a different app with its own config file, and it has
+	// no shell — `gadak mcp install claude-desktop` is the only way in, and
+	// nothing above can see the result. Reporting "absent" to someone whose
+	// registration is fine was a false negative (GDK-1643). The scope is its
+	// own value: borrowing user/local/project would drop which host it is,
+	// which is the one thing this branch exists to say. Host-bound path on
+	// purpose — doctor reports on the machine it runs on.
+	if path, err := clitool.ClaudeDesktopConfigPath(); err == nil {
+		if cfg, ok := readClaudeMCPConfig(path); ok {
+			if _, found := cfg.MCPServers["gadak"]; found {
+				return doctorMCP{Status: "registered", Scope: "claude-desktop", Path: tildeHome(path)}
+			}
 		}
 	}
 	return doctorMCP{Status: "absent"}

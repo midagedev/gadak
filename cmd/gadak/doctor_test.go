@@ -14,6 +14,7 @@ import (
 
 	gadak "github.com/midagedev/gadak"
 	"github.com/midagedev/gadak/internal/applog"
+	"github.com/midagedev/gadak/internal/clitool"
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/skillinstall"
 	"github.com/midagedev/gadak/internal/store"
@@ -1620,5 +1621,54 @@ func TestDoctorSkillReceiptMustDescribeTheFileOnDisk(t *testing.T) {
 	}
 	if line := formatDoctorSkill(rep.Skill); strings.Contains(line, "dev-tree") {
 		t.Errorf("summary line claims provenance it does not have: %q", line)
+	}
+}
+
+// A registration that lives only in Claude Desktop's own config is still a
+// registration. doctor read Claude Code's two files and nothing else, so it
+// answered "absent" to exactly the host `gadak mcp install claude-desktop`
+// exists for (GDK-1643).
+func TestCollectMCPStatusClaudeDesktopOnly(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("APPDATA", filepath.Join(home, "AppData", "Roaming"))
+	t.Setenv("XDG_CONFIG_HOME", "")
+	// Somewhere with no .mcp.json, so the project branch cannot answer.
+	t.Chdir(t.TempDir())
+
+	if got := collectMCPStatus(); got.Status != "absent" {
+		t.Fatalf("nothing registered anywhere: %+v", got)
+	}
+
+	// Ask the path's owner rather than spelling it out: the file sits in a
+	// different place per OS and this test runs on more than one. A literal
+	// darwin path here would be green on a Mac and red on CI — the shape of
+	// run 34233540027.
+	path, err := clitool.ClaudeDesktopConfigPath()
+	if err != nil {
+		t.Fatalf("config path: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	const reg = `{"mcpServers":{"gadak":{"command":"gadak","args":["mcp"]}}}`
+	if err := os.WriteFile(path, []byte(reg), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got := collectMCPStatus()
+	if got.Status != "registered" || got.Scope != "claude-desktop" {
+		t.Errorf("claude-desktop only = %+v, want registered/claude-desktop", got)
+	}
+	if got.Path != tildeHome(path) {
+		t.Errorf("path = %q, want %q", got.Path, tildeHome(path))
+	}
+
+	// Claude Code's own registration still answers first when both exist:
+	// the new branch is a fallback, not a reordering.
+	if err := os.WriteFile(filepath.Join(home, ".claude.json"), []byte(reg), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got := collectMCPStatus(); got.Scope != "user" {
+		t.Errorf("both registered = %+v, want scope user", got)
 	}
 }

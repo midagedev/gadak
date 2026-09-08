@@ -278,6 +278,10 @@ into `claude_desktop_config.json` itself, because Claude Desktop has no shell
 to run the CLI from. Restart Claude Desktop after installing; it reads the
 file at startup.
 
+`gadak doctor` reads that file too, and names the host it found the
+registration in: `mcp: registered (~/Library/Application Support/Claude/claude_desktop_config.json, claude-desktop)`.
+A registration that exists only there used to report `mcp: absent`.
+
 To pin a named workspace:
 
 ```bash
