@@ -11,210 +11,311 @@
 
 <p align="center"><b>Follow the thread.</b></p>
 
-<p align="center"><sub><a href="README.md">English</a> · <a href="README.ko.md">한국어</a> · 日本語 — 英語版が原本で、この文書は英語版と一緒に更新されます。</sub></p>
+<p align="center"><sub><a href="README.md">English</a> · <a href="README.ko.md">한국어</a> · 日本語</sub></p>
 
-自分の Jira を、ローカルの SQLite ファイルひとつにします。「止まっているエピックはどれ?」が、
-訊けない質問ではなく、クエリ 1 行になります。
+JQL に `GROUP BY` はありません。「未完了の課題が多いエピックはどれか」を Jira で数えようとすると、
+検索 API を 8 ページぶんめくり、返ってきた行を自分のコードで集計することになります。実測で
+4,761 ms かかりました。同じ Jira を手元の SQLite ファイルに写しておけば、同じ答えが SQL 1 本、
+22 ms で返ってきます。
 
-gadak は Jira *と* Confluence を、課題・コメント・履歴・wiki ページまで、このコンピューターの
-SQLite ファイルひとつにミラーします。すべてがひとつのインデックスに入り、検索にネットワークは
-要りません。[デスクトップアプリ](docs/DESKTOP.md)かブラウザーのタブでトリアージするか、
-コーディングエージェントに SQL で訊かせて、同じウィンドウに答えを出させてください。
-バイナリーはひとつ、gadak のアカウントはありません。
+gadak は、その SQLite ファイルを作り、更新し続けるためのツールです。Jira と Confluence にある
+課題・コメント・変更履歴・wiki ページが、使っているマシンの中のファイル 1 つに入り、まとめて
+検索できるようになります。ファイルができたあとの読み取りは、ネットワークに一度も出ません。
+バイナリは 1 つで、gadak のアカウントはありません。
 
-**ミラーは捨ててよいキャッシュです。** このプロジェクトが明日止まっても、ディレクトリーを
-ひとつ削除すれば終わりで、失うものはありません。正本は Jira にあります。
+## まず動くものを見る
+
+インストールもアカウントも要りません。[ライブデモ](https://gadak.dev/demo/)を開くと、
+534 件の課題がブラウザーの中で動きます。
+
+<details>
+<summary>▶ 20 秒の GIF (収録は英語)</summary>
 
 <p align="center">
-  <a href="https://gadak.dev/demo/"><b>▶&nbsp; ライブデモを開く</b></a>
-  &nbsp;—&nbsp; 534 件の課題を、いまブラウザーで。
+  <img src="docs/media/web-demo.gif" alt="入力するほどリストが絞り込まれ、課題がラベル・優先度・再オープンのバッジと一緒に開き、ドキュメントとボードが同じウィンドウに並ぶ" width="900">
   <br>
-  <a href="CHANGELOG.md">Changelog</a>
-  &nbsp;—&nbsp; 何が出たか (英語)。
+  <sub>デモのスナップショットから <a href="e2e/demo/web-demo.spec.ts">e2e/demo/web-demo.spec.ts</a> で生成した 20 秒です。この収録だけは英語で、3 つの言語版で共通です。</sub>
 </p>
 
-## インストール
+</details>
 
-macOS アプリ、CLI 同梱:
-
-```bash
-brew install --cask midagedev/tap/gadak
-```
-
-CLI だけ入れて、同じ UI を `gadak serve` でブラウザーのタブに開くなら:
-
-```bash
-brew install midagedev/tap/gadak-cli
-```
-
-Jira に接続してから、`gadak serve` が表示するアドレス (`http://gadak.localhost:7777`) を
-開きます:
-
-```bash
-gadak init && gadak sync && gadak serve
-```
-
-Jira サイトには [API トークン](https://id.atlassian.com/manage-profile/security/api-tokens)が
-ひとつ必要で、同じサイトの Jira と Confluence の両方に使われます。**何をミラーするかは自分で
-選びます。** Jira は `--projects` で、wiki は `--spaces` で絞り込み、wiki はスペースを指定する
-までオフのままです。Atlassian アカウントがないなら、`gadak init --local` が内蔵トラッカーの
-ワークスペースを作ります。あとから `gadak --workspace <new> migrate --from <old>` で同期済みの
-ミラーをそこへ運べますし、`--to linear` なら Linear のチームへ運べます。
-
-**Windows:** デスクトップアプリは [Microsoft Store](https://apps.microsoft.com/detail/9NZW91TXH36G)
-にあります。Store が署名するので SmartScreen も Smart App Control も止めず、Store からの
-インストールは `gadak` コマンドも `PATH` に載せます (0.20.2 から)。Store を使わず CLI だけ
-なら、[最新リリース](https://github.com/midagedev/gadak/releases/latest)から
-`gadak_<version>_windows_amd64.zip` (または `arm64`) を取り、展開して `gadak.exe` を `PATH`
-に置きます。リリースのデスクトップ zip (`Gadak-<version>-windows-x64.zip`) は未署名のままです。
-SmartScreen が止めるのは署名がないからで、ウイルス検出ではありません
-([理由](docs/WINDOWS-SIGNING.md))。止められたら Store からインストールしてください。
-Smart App Control をオフにはしないでください。
-
-ウィンドウの表示は英語・韓国語・日本語です。ブラウザーか OS の言語に従い、設定で切り替えられます。
-
-署名済みの dmg、Linux の tarball、2 台目のペアリング
-(`gadak --workspace laptop init --pairing-code-stdin`)、Docker、アップグレードは
-[`docs/INSTALL.md`](docs/INSTALL.md) にあります。
-
-## 要点
+## JQL では書けない質問
 
 ```bash
 gadak sql "select epic_key, count(*) from issues_full where resolved_at is null
            and epic_key <> '' group by epic_key order by 2 desc"
 ```
 
-JQL に `GROUP BY` はありません。「本当に止まっているエピックはどれか」は難しい質問ではなく、
-データがファイルになるまでは訊けない質問です。[`docs/RECIPES.md`](docs/RECIPES.md) に続きが
-あり、[Datasette Lite はこのクエリをデモのスナップショット上でブラウザーの中で実行します](<https://lite.datasette.io/?url=https%3A%2F%2Fraw.githubusercontent.com%2Fmidagedev%2Fgadak%2Fmain%2Fexamples%2Fdemo.db#/demo?sql=select+epic_key%2C+count(*)+from+issues_full+where+resolved_at+is+null+and+epic_key+%3C%3E+''+group+by+epic_key+order+by+2+desc>)。
-何もインストールせずに。
+エピックごとに未完了の課題を数えるだけの SQL です。同じことを REST API でやるなら、ページを
+めくって自分で足すしかありません。ページサイズを超えると、API から返ってくるのは行だけで、
+集計は返ってきません。
 
-2026-08-26 に実際の Cloud サイトで測定 (課題 3,296 件、中央値、CLI の起動時間を含む):
+続きのクエリは [docs/RECIPES.md](docs/RECIPES.md) にあります。上の SQL は、何もインストール
+せずに [Datasette Lite でデモのスナップショットに対して実行](<https://lite.datasette.io/?url=https%3A%2F%2Fraw.githubusercontent.com%2Fmidagedev%2Fgadak%2Fmain%2Fexamples%2Fdemo.db#/demo?sql=select+epic_key%2C+count(*)+from+issues_full+where+resolved_at+is+null+and+epic_key+%3C%3E+''+group+by+epic_key+order+by+2+desc>)できます。
+SQL を書き換えて、そのまま試せます。
 
-| 質問 | REST API | `gadak` | |
+## 計測値
+
+2026-08-26 に、実際に業務で使っている Atlassian Cloud のサイト (課題 3,296 件) に対して
+測りました。数値は中央値で、gadak 側は CLI プロセスの起動時間を含みます。
+
+| 質問 | REST API | `gadak` | 倍率 |
 | --- | ---: | ---: | ---: |
 | 単純なフィルター、課題 100 件 | 583 ms | 19 ms | 31× |
-| 課題 1 件と、その全履歴 | 710 ms | 28 ms | 25× |
+| 課題 1 件と、その全変更履歴 | 710 ms | 28 ms | 25× |
 | 全文検索 | 543 ms | 41 ms | 13× |
-| **エピックごとの未完了件数 (`GROUP BY`)** | 4,761 ms — API 8 ページをクライアント側で集計 | 22 ms — クエリ 1 本 | **214×** |
-| 変更履歴に対するカウント | 表現できない — クロールに約 28 分 | 14 ms | — |
+| **エピックごとの未完了件数 (`GROUP BY`)** | 4,761 ms (API 8 ページをクライアント側で集計) | 22 ms (クエリ 1 本) | **214×** |
+| 変更履歴に対するカウント | JQL では表現できない (クロールで約 28 分) | 14 ms | — |
+| レート制限 | 429 と Retry-After | なし (自分のディスク) | — |
 
-ページサイズを超えると、JQL の答えは遅くなるのではなく、訊けなくなります。API は行を渡すだけで、
-集計は渡しません。測定方法、再測定の履歴、そして gadak が負ける行 (最初のフル同期、静かな
-サイトでの監視ティック、同期間隔ひとつ分の遅れ) は [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md)
+gadak が負ける行もあります。最初のフル同期には時間がかかり、ミラーの内容は同期間隔 1 回ぶん
+遅れます。変化のないサイトに対する監視ティックの計測も含めて、測定方法と再測定の履歴は
+[docs/BENCHMARKS.md](docs/BENCHMARKS.md) に載せています。
+
+## 手元に残るもの
+
+同じミラーを 3 つの入口から使えます。
+
+- **デスクトップアプリ** ([docs/DESKTOP.md](docs/DESKTOP.md))
+- **ブラウザーのタブ**。CLI だけ入れて `gadak serve` を実行すると、同じ UI が
+  `http://gadak.localhost:7777` に開きます。
+- **CLI**。`gadak sql` の結果をパイプで次のコマンドにつなげます。
+
+シェルのないホスト (Claude Desktop など) からは、同じミラーを MCP サーバーとして使えます。
+画面の表示言語は 3 つ (英語・韓国語・日本語) で、ブラウザーか OS の設定に従い、設定画面で
+切り替えられます。
+
+**ミラーはいつ削除しても大丈夫です。** 元データは Jira 側に残っているので、ディレクトリを 1 つ
+消しても失うものはなく、`gadak sync` で作り直せます。書き込みは先に Jira 側へ届き、受け付け
+られてからミラーに反映されます。
+
+## インストール
+
+### macOS
+
+デスクトップアプリ (CLI 同梱):
+
+```bash
+brew install --cask midagedev/tap/gadak
+```
+
+CLI だけ入れる場合:
+
+```bash
+brew install midagedev/tap/gadak-cli
+```
+
+### Windows
+
+デスクトップアプリは [Microsoft Store](https://apps.microsoft.com/detail/9NZW91TXH36G) から
+入れてください。Store 側で署名されるので、SmartScreen も Smart App Control も警告を出しません。
+Store からインストールすると、`gadak` コマンドも `PATH` に入ります (0.20.2 以降)。
+
+Store を使わず CLI だけ欲しい場合は、[最新リリース](https://github.com/midagedev/gadak/releases/latest)
+の `gadak_<version>_windows_amd64.zip` (Arm なら `gadak_<version>_windows_arm64.zip`) を展開し、
+`gadak.exe` を `PATH` に置きます。
+
+リリースページのデスクトップ zip (`Gadak-<version>-windows-x64.zip`) には署名がありません。
+SmartScreen に止められた場合、それは署名がないという意味で、ウイルスが見つかったという意味では
+ありません ([docs/WINDOWS-SIGNING.md](docs/WINDOWS-SIGNING.md))。止められたら Store から
+入れ直してください。Smart App Control をオフにする必要はなく、オフにしないでください。
+
+### Jira につなぐ
+
+接続して同期し、`gadak serve` が表示するアドレス (`http://gadak.localhost:7777`) を開きます:
+
+```bash
+gadak init && gadak sync && gadak serve
+```
+
+必要なのは Jira サイトの [API トークン](https://id.atlassian.com/manage-profile/security/api-tokens)
+1 つで、同じサイトの Jira と Confluence の両方に効きます。写す範囲は自分で決めます。Jira は
+`--projects`、wiki は `--spaces` で絞り、スペースを指定するまで wiki は同期されません。
+
+### Atlassian のアカウントがない場合
+
+`gadak init --local` で、内蔵トラッカーのワークスペースが作られます。ワークスペースを移すときは
+`gadak --workspace <new> migrate --from <old>` で同期済みのミラーを運べます。移行先を Linear の
+チームにするなら `--to linear` です。
+
+### 2 台目のマシン
+
+ノート PC など 2 台目は、`gadak --workspace laptop init --pairing-code-stdin` でペアリングします。
+署名済み dmg、Linux、コンテナでの実行、アップグレードの手順は [docs/INSTALL.md](docs/INSTALL.md)
 にあります。
 
-<details>
-<summary>▶ 紙のリストを 20 秒で (GIF)</summary>
+## セキュリティと外部通信
 
-<p align="center">
-  <img src="docs/media/web-demo.gif" alt="入力するほど紙のリストが絞り込まれ、課題がラベル・優先度・再オープンのバッジと一緒に開き、ドキュメントとボードが同じウィンドウにある" width="900">
-  <br>
-  <sub>ウィンドウを 20 秒で。<a href="e2e/demo/web-demo.spec.ts">e2e/demo/web-demo.spec.ts</a> がデモのスナップショットから生成しました。</sub>
-</p>
+社内の課題データを手元に写すツールなので、導入前に確認したい点をここにまとめます。根拠は
+[SECURITY.md](SECURITY.md) が原本で、主張ごとに該当するソースファイルのパスが添えてあります。
+接続先ごとの条件とオフにする方法は [docs/NETWORK.md](docs/NETWORK.md) に 1 つずつ書いてあります。
 
-</details>
+### テレメトリはありません
 
-> **状態: 0.21、まだ 0.x です。** 同期、読み取り API、書き込み (write-through)、デスクトップ、
-> ウェブ、CLI、MCP は実際のサイトに対して検証されています。[`CHANGELOG.md`](CHANGELOG.md)。
+gadak から外に出る通信は、[SECURITY.md](SECURITY.md) に挙げた 6 か所だけです。5 番と 6 番は
+自分でそのコマンドを打ったときにしか起きません。
 
-## エージェントのために
+1. 自分の Atlassian サイト (同期のため)
+2. GitHub Releases (1 日 1 回までの匿名バージョン確認。`updateCheck: false` でオフ)
+3. Linear (ワークスペースに Linear のソースがあるとき)
+4. ペアリングした home 側の `gadak serve` (ペアリングしたときだけ)
+5. `gh` (`gadak dev scan` を実行したときだけ)
+6. ライブラリのダウンロード (自分で要求したときだけ)
 
-gadak がある理由の半分はこれです。リファレンス: **[docs/MIRROR.md](docs/MIRROR.md)**。
-ホストごとに貼り付けひとつ: [`docs/AGENT_SETUP.md`](docs/AGENT_SETUP.md)。
+ループバックはこの一覧には入りません。外に出る接続ではなく、自分のマシンの中で待ち受ける
+バインドだからです。
+
+インストール時、エラー時、定期実行のどこにも、gadak の運営者へ何かを送る経路はありません。
+gadak のサーバーというものが存在しないためです。
+
+### 読み取りはネットワークに出ません
+
+`gadak sql`、`gadak search`、`gadak issue`、MCP のツール、web UI の一覧と詳細は、手元の SQLite
+ファイルだけを読みます。接続を開かないので、レート制限に当たることも、機内でつながらないことも
+ありません。例外は接続先に訊く必要がある動詞で、`gadak issue --editmeta` と `gadak fields`
+(編集できる項目の問い合わせ)、`gadak api` (素通しのリクエスト)、添付ファイルの表示 (その場で
+取得) の 4 つです。
+
+書き込みはミラーに溜めません。接続先に届かなかった書き込みは、その場で失敗として返ります。
+
+### 認証情報
+
+**API トークンは、SQLite・ログ・スナップショットの 3 か所のどこにも書き込まれません。** ミラーの
+ファイルをそのまま誰かに渡しても、その中にトークンは含まれていません。信用しなくてよいこと、
+つまり自分のマシンで確かめられることは、確認用のコマンドと一緒に
+[docs/PROMISES.md](docs/PROMISES.md) に 12 項目まとめてあります。
+
+### エージェントと外部モデル
+
+**コーディングエージェントにミラーを読ませると、読んだ内容はそのエージェントが話している
+モデルへ送られます。** gadak からは何も送信されません。エージェントに見せてよい範囲だけを
+写すように、`--projects` と `--spaces` で絞ってください。
+
+## コーディングエージェントから使う
+
+gadak がある理由の半分はエージェントです。リファレンスは [docs/MIRROR.md](docs/MIRROR.md)、
+ホストごとに 1 つ貼り付ければ済む設定は [docs/AGENT_SETUP.md](docs/AGENT_SETUP.md) にあります。
+エージェントがこの上に作ったもの (ダッシュボード、チーム用のテーマ、ランチャー、ライブの MCP
+セッション) の録画は [docs/SHOWCASE.md](docs/SHOWCASE.md) に集めています。
+
+### スキルを入れる
 
 ```bash
 gadak skill install
 ```
 
-スキーマとクエリのパターンが入り、追加のプロセスはありません。これは Claude Code 向けの
-インストールです。別のホストを名指しすれば同じファイルがそこに入ります: `gadak skill install codex`、
-同様に cursor、gemini、opencode、grok。シェルのないホスト (Claude Desktop) には、同じミラーが
-MCP サーバーになります:
+Claude Code にスキーマとクエリのパターンが入ります。追加のプロセスは動きません。別のホストには
+名前を付けて同じファイルを入れられます: `gadak skill install codex`、同様に `cursor`、`gemini`、
+`opencode`、`grok`。
+
+### MCP で使う
+
+シェルのないホスト (Claude Desktop) には、同じミラーを MCP サーバーとして登録します:
 
 ```bash
 gadak mcp install claude
 ```
 
 <p align="center">
-  <img src="docs/media/terminal-hero.ja.gif" alt="リストの下に gadak 自身のターミナル。gadak claim NMA-140 で行が進行中に動き、シェルのタブがそのキーを名前に受け取る。そのシェルで claude が起動し、日本語のプロンプトひとつでリストが Dana Whitfield の最近動いた課題に変わり、次のプロンプトが同じウィンドウにラベル比率のダッシュボードを保存して開く" width="900">
+  <img src="docs/media/terminal-hero.ja.gif" alt="リストの下に gadak 自身のターミナル。gadak claim NMA-140 で行が進行中に動き、シェルのタブがその課題キーを名前に受け取る。そのシェルで claude が起動し、日本語のプロンプト 1 つでリストが Dana Whitfield の最近動いた課題に変わり、次のプロンプトが同じウィンドウにラベル比率のダッシュボードを保存して開く" width="900">
   <br>
-  <sub>シェルはウィンドウの中にあります (⌘K → ターミナル、または Ctrl+`)。<code>gadak claim</code> がシェルを課題に結び、タブの名前が課題キーになります。その中で始めたライブの Claude Code セッションが隣のボードを動かします。一文がリストになり、次の一文がダッシュボードを描きます。画面・トラッカー・プロンプトのすべてが日本語のテイクで、プロンプト 2 行のほかに台本はありません。エージェントが作業している区間は早送りです。<a href="e2e/demo/terminal-claude-demo.spec.ts">e2e/demo/terminal-claude-demo.spec.ts</a> を <a href="e2e/demo/record-terminal-claude.sh">record-terminal-claude.sh</a> で収録しました。</sub>
+  <sub>シェルはウィンドウの中にあります (⌘K → ターミナル、または Ctrl+`)。<code>gadak claim</code> でシェルと課題が結び付き、タブの名前が課題キーになります。その中で始めたライブの Claude Code セッションが、隣のボードを動かします。1 文目でリストが変わり、2 文目でダッシュボードが開きます。画面からプロンプトまで、すべて日本語のテイクです。プロンプト 2 行のほかに台本はありません。エージェントが作業している区間は早送りです。<a href="e2e/demo/terminal-claude-demo.spec.ts">e2e/demo/terminal-claude-demo.spec.ts</a> を <a href="e2e/demo/record-terminal-claude.sh">record-terminal-claude.sh</a> で収録しました。</sub>
 </p>
 
-価値の大半は 2 つのルールにあります。フィルターは `status_category` と `priority_rank` に
-かけ、表示名にはかけないこと。Jira は表示名をアカウントごとに翻訳するので、`priority = High`
-は韓国語のサイトでは黙って 0 行になります。そして SQL が答え、ウィンドウが見せること:
-`gadak sql --no-header "…" | gadak views open --keys -` はエージェントの答えをあなたの画面に
-置き、`gadak views open --jql '…'` は貼り付けた JQL をチップとして着地させます。書き込み
-(`create`、`edit`、`comment`、`transition`、`claim`、`link`、wiki の `page` 動詞) はミラーが
-更新される前に正本を通り、エージェントの書き込みにはすべてエージェントの名前が付きます。
+### 効く 2 つのルール
 
-エージェントがこの上に作ったもの (ダッシュボード、チームのテーマ、ランチャー、ライブの MCP
-セッション) は録画のギャラリーにあります: [`docs/SHOWCASE.md`](docs/SHOWCASE.md)。
+1. **フィルターは `status_category` と `priority_rank` にかけ、表示名にはかけない。** 表示名は
+   アカウントの言語ごとに翻訳されるので、`priority = High` は韓国語のアカウントでは 0 行になり、
+   エラーも出ません。
+2. **答えは SQL で出し、見せるのはウィンドウに任せる。** `gadak sql --no-header "…" | gadak views open --keys -`
+   で、エージェントが出した答えをそのまま自分の画面に並べられます。`gadak views open --jql '…'`
+   なら、貼り付けた JQL がチップになって並びます。
 
-**あなたのミラーを読むエージェントは、読んだものを自分が話すモデルへ送ります。** gadak 自体は
-何も送りません ([`SECURITY.md`](SECURITY.md))。エージェントに見せてよい範囲にミラーを絞って
-ください。gadak がネットワークに触れる場所 (同期、書き込み、ペアリング) は
-[`docs/NETWORK.md`](docs/NETWORK.md) がすべての接続とそのオフスイッチを一つずつ説明します。
+### 書き込み
 
-## 対応範囲
+`create`、`edit`、`comment`、`transition`、`claim`、`link`、wiki の `page` 系の動詞は、先に
+接続先 (Jira) へ届き、受け付けられてからミラーに反映されます。エージェントからの書き込みには、
+すべてそのエージェントの名前が付きます。
 
-3 つの正本、1 組の動詞: Atlassian Cloud、Linear (ワークスペース設定の `"linear"` ブロックと
-`gadak sync --source linear`)、そしてアプリと一緒に持ち歩く内蔵トラッカー。読み取り、書き込み、
-階層、wiki、添付、履歴、ボードのレイアウトは 3 つすべてで動きます。各正本が何を拒むかは、
-すべてのセルにコードの引用を付けた表ひとつにあります: [`docs/SUPPORT_MATRIX.md`](docs/SUPPORT_MATRIX.md)。
-どの正本にもないものが 3 つ: UI としてのスプリント、Jira のダッシュボード、Jira の通知受信箱。
-これらは Jira に残ります。
+## 対応しているトラッカー
 
-## そのほか
+接続先 (origin) は 3 つで、動詞は 1 組です。
 
-**向く場面 / 向かない場面。** 毎日の検索の速さ、トラッカー *と* wiki の上のエージェント、
-オフラインでの読み取りには向きます。スプリント計画、管理作業、UI のページエディター、1 分の
-遅れも許せない場面は Jira に残してください。[`docs/CONCEPT.md`](docs/CONCEPT.md#good-fit-bad-fit)。
+- Atlassian Cloud
+- Linear (ワークスペース設定の `"linear"` ブロックと `gadak sync --source linear`)
+- アプリに同梱の内蔵トラッカー
 
-**仕組み。** バイナリーひとつ、SQLite ファイルひとつ。差分同期に、突き合わせのパスを加えます。
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)。拡張機能や Forge アプリにしなかった理由:
-[`docs/decisions/0003-local-process.md`](docs/decisions/0003-local-process.md)。
+読み取り、書き込み、階層、wiki、添付、履歴、ボードのレイアウトは 3 つすべてで動きます。接続先
+ごとに拒まれる操作は、セルごとにコードの参照を付けた 1 枚の表
+[docs/SUPPORT_MATRIX.md](docs/SUPPORT_MATRIX.md) にあります。どの接続先にもないものが 3 つ
+あります。UI としてのスプリント、Jira のダッシュボード、Jira の通知受信箱で、これらは Jira 側で
+使い続けることになります。
 
-**比較。** jira-cli はコマンドごとにライブの API と話します。Rovo MCP も両方のソースを
-検索しますが、ホスト型です: 集計はなく、オフラインもなく、呼び出しごとにトークンを使います。
-[`docs/FAQ.md`](docs/FAQ.md#how-it-compares)。
+## 向いている場面、向かない場面
 
-**自分のものにする。** 設定、エンリッチメント、SQL の 2 軸で、フォークはいりません:
-[`docs/EXTENDING.md`](docs/EXTENDING.md)。
+向いている場面:
+
+- 毎日の検索を速くしたい
+- トラッカーと wiki の両方をエージェントに読ませたい
+- オフラインでも読みたい
+
+向かない場面:
+
+- スプリント計画と管理作業
+- UI の中でページを編集したい
+- 1 分の遅れが問題になる
+
+詳しくは [docs/CONCEPT.md](docs/CONCEPT.md#good-fit-bad-fit)、他のツールとの比較は
+[docs/FAQ.md](docs/FAQ.md#how-it-compares) にあります。
+
+## いまの状態
+
+> **状態: 0.21、まだ 0.x です。** 同期、読み取り API、write-through の書き込み、デスクトップ、
+> ウェブ、CLI、MCP は、実際のサイトに対して検証しています。変更履歴は
+> [CHANGELOG.md](CHANGELOG.md) にあり、英語で公開しています。
+
+0.x の間に互換性を約束している範囲は、次の 3 つです。原本は
+[specs/000-product/data-model.md](specs/000-product/data-model.md) にあります。
+
+1. `issues_full` と [docs/RECIPES.md](docs/RECIPES.md) のクエリ
+2. `gadak sql` の標準出力の形式
+3. `gadak views open --keys -` の意味
+
+メンテナーは現在 1 人です。それを踏まえて判断してください。開発が止まったとしても、手元に
+残るのは普通の SQLite ファイルと Apache-2.0 のコードで、Jira 側のデータには何も起きません。
+難しい質問への答えは [docs/FAQ.md](docs/FAQ.md) にあります。
 
 ## ドキュメント
 
-- [`CHANGELOG.md`](CHANGELOG.md) — 何が出たか (英語 / [한국어](CHANGELOG.ko.md))
-- [`docs/INSTALL.md`](docs/INSTALL.md) · [`docs/DESKTOP.md`](docs/DESKTOP.md) — インストール、初回起動、デスクトップアプリ
-- [`docs/SHOWCASE.md`](docs/SHOWCASE.md) — ウィンドウ、ランチャー、その両方を動かすエージェントを、カメラで
-- [`docs/MIRROR.md`](docs/MIRROR.md) · [`docs/MCP.md`](docs/MCP.md) · [`docs/AGENT_SETUP.md`](docs/AGENT_SETUP.md) — SQL、CLI、REST、MCP、ホストごとに貼り付けひとつ
-- [`docs/RECIPES.md`](docs/RECIPES.md) · [`docs/DASHBOARDS.md`](docs/DASHBOARDS.md) — JQL では訊けない質問を SQL で。エージェントが書いたダッシュボード
-- [`SECURITY.md`](SECURITY.md) · [`docs/FAQ.md`](docs/FAQ.md) · [`MAINTENANCE.md`](docs/MAINTENANCE.md) — 脅威モデル、サイトへの負荷、誰が保守しているか
-- [`docs/README.md`](docs/README.md) — そのほかのドキュメント
+- [CHANGELOG.md](CHANGELOG.md): 何が出たか。英語で公開しています (韓国語版は [CHANGELOG.ko.md](CHANGELOG.ko.md))
+- [docs/INSTALL.md](docs/INSTALL.md) · [docs/DESKTOP.md](docs/DESKTOP.md): インストール、初回起動、デスクトップアプリ
+- [docs/MIRROR.md](docs/MIRROR.md) · [docs/MCP.md](docs/MCP.md) · [docs/AGENT_SETUP.md](docs/AGENT_SETUP.md): SQL、CLI、REST、MCP と、ホスト別の設定
+- [docs/RECIPES.md](docs/RECIPES.md) · [docs/DASHBOARDS.md](docs/DASHBOARDS.md): JQL では書けない質問の SQL と、エージェントが書いたダッシュボード
+- [docs/SHOWCASE.md](docs/SHOWCASE.md): ウィンドウ、ランチャー、エージェントの録画
+- [SECURITY.md](SECURITY.md) · [docs/NETWORK.md](docs/NETWORK.md) · [docs/PROMISES.md](docs/PROMISES.md): 脅威モデル、すべての接続先、確認用のコマンド
+- [docs/BENCHMARKS.md](docs/BENCHMARKS.md) · [docs/SUPPORT_MATRIX.md](docs/SUPPORT_MATRIX.md): 計測方法と、接続先ごとの対応表
+- [docs/FAQ.md](docs/FAQ.md) · [docs/MAINTENANCE.md](docs/MAINTENANCE.md): よくある質問、リリースと issue の扱い、誰が保守しているか
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · [docs/decisions/0003-local-process.md](docs/decisions/0003-local-process.md): 仕組みと、ローカルプロセスが必要な理由
+- [docs/EXTENDING.md](docs/EXTENDING.md): フォークせずに自分の環境に合わせる方法
+- [docs/WINDOWS-SIGNING.md](docs/WINDOWS-SIGNING.md): Windows の署名について
+- [docs/README.md](docs/README.md): そのほかのドキュメント
 
-## 誰が作っているか
+## バグ報告とコントリビューション
 
-いまは 1 人です。それを天秤に載せてください。反対側にはこうあります: ミラーは自分の Jira の
-捨ててよいキャッシュで、0.x の契約は [data-model.md](specs/000-product/data-model.md) の 3 つの
-約束 (`issues_full` と RECIPES のクエリ、`gadak sql` の標準出力、`gadak views open --keys -`)、
-ライセンスは Apache-2.0、ファイルはただの SQLite です。難しい質問は
-[`docs/FAQ.md`](docs/FAQ.md) に。信用しなくてよいことは、それを確かめるコマンドと一緒に
-[`PROMISES.md`](docs/PROMISES.md) に。
+報告は [GitHub issue](https://github.com/midagedev/gadak/issues) へお願いします。メンテナーが
+[公開バックログ](https://gadak.dev/backlog/)へミラーし、コミットメッセージの `GDK-nnn` は
+そこで開けます。バグ報告には次の 3 つを入れてください。
 
-## コントリビューションとフィードバック
+1. Jira のデプロイ種別 (Cloud)
+2. gadak のコミット
+3. 実行したコマンド
 
-[`CONTRIBUTING.md`](.github/CONTRIBUTING.md) と、始めるなら
-[`docs/project/GOOD_FIRST_ISSUES.md`](docs/project/GOOD_FIRST_ISSUES.md)。次の機能がなぜそれなのかは、
-出典つきで [`docs/project/THEORY.md`](docs/project/THEORY.md)。
-バグ報告には Jira のデプロイ種別 (Cloud)、gadak のコミット、実行したコマンドが必要です。
-実際の課題データ、トークン、サイトの URL を公開の issue に貼らないでください。コミットの
-`GDK-nnn` キーは[公開バックログ](https://gadak.dev/backlog/)で解決します。何かを報告するには
-[GitHub issue](https://github.com/midagedev/gadak/issues) を開いてください。メンテナーがそこへ
-ミラーします。エージェントと一緒に gadak を使っていて引っかかったら、訊いた質問とエージェントが
-したことを issue に書いてください。
+公開の issue には、実際の課題データを貼らないでください。API トークンとサイトの URL も同じです。
+エージェントと一緒に使っていて引っかかったときは、投げた質問と、エージェントがしたことをそのまま
+issue に書いてください。コードで参加するなら [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md) と
+[docs/project/GOOD_FIRST_ISSUES.md](docs/project/GOOD_FIRST_ISSUES.md) から。次に作る機能が
+なぜそれなのかは、出典付きで [docs/project/THEORY.md](docs/project/THEORY.md) にあります。
 
 ## ライセンス
 
-Apache-2.0。`LICENSE` と `NOTICE` を参照してください。
+Apache-2.0 です。`LICENSE` と `NOTICE` を参照してください。

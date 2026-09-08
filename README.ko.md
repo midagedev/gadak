@@ -11,225 +11,201 @@
 
 <p align="center"><b>Follow the thread.</b></p>
 
-<p align="center"><sub><a href="README.md">English</a> · 한국어 · <a href="README.ja.md">日本語</a> — 영문이 원본이며, 이 문서는 영문과 함께 갱신됩니다.</sub></p>
+<p align="center"><sub><a href="README.md">English</a> · 한국어 · <a href="README.ja.md">日本語</a></sub></p>
 
-내 Jira를 로컬 SQLite 파일 하나로 만듭니다. "어느 에픽이 막혀 있지?"가
-물을 수 없는 질문이 아니라 쿼리 한 줄이 됩니다.
+지라를 쓰기 싫은데 어쩔 수 없이 써야 되는 분들을 위한 앱입니다. 저도
+당사자인데, 지라 자체는 좋아합니다. 외부와 단절된 이슈 카드 안에 혼자 고요히
+작업하는 걸 싫어할 사람은 흔치 않을 겁니다. 다만 크롬에 지라 탭이 잔뜩 쌓여
+피곤해지는 일도 겸사겸사 해소하고 싶었습니다. 컨셉은 처음부터 한 줄입니다.
+로컬 사본으로 빠르게 쓰는 지라, 에이전트에서 읽기는 그냥 SQLite 파일로, 암것도
+수집해 가지 않음.
 
-gadak은 Jira *그리고* Confluence를 이슈, 코멘트, 히스토리, 위키 문서까지 이
-컴퓨터의 SQLite 파일 하나로 미러링합니다. 전부 한 인덱스에 들어가고, 검색은
-네트워크 없이 끝납니다. [데스크톱 앱](docs/DESKTOP.md)이나 브라우저 탭에서
-트리아지하고, 코딩 에이전트에게는 SQL로 묻고 같은 창에 답을 띄우게 하세요.
-바이너리 하나면 되고, gadak 계정은 없습니다.
+gadak은 Jira와 Confluence(이슈·코멘트·히스토리·위키 페이지)를 이 컴퓨터의
+SQLite 파일 하나로 미러링하고, 읽기는 네트워크를 타지 않습니다. 데스크톱 앱,
+`gadak serve`가 여는 브라우저 탭, CLI, 셸 없는 호스트용 MCP 네 표면이 같은
+파일을 봅니다. 바이너리 하나, gadak 계정 없음. **미러는 버려도 되는
+캐시입니다.** 디렉터리를 지워도 잃는 게 없고 원본은 여전히 Jira입니다. 쓰기는
+origin이 먼저 받은 뒤 미러가 따라 갱신됩니다.
 
-**미러는 버려도 되는 캐시입니다.** 이 프로젝트가 내일 멈춰도 디렉터리 하나를
-지우면 끝이고, 잃는 것은 없습니다. 원본은 Jira에 있습니다.
+## 먼저 눌러 보기
 
-<p align="center">
-  <a href="https://gadak.dev/demo/"><b>▶&nbsp; 라이브 데모 열기</b></a>
-  &nbsp;—&nbsp; 이슈 534개, 지금 바로 브라우저에서.
-  <br>
-  <a href="CHANGELOG.ko.md">체인지로그</a>
-  &nbsp;—&nbsp; 무엇이 나왔는지.
-</p>
+[라이브 데모](https://gadak.dev/demo/)에 이슈 534개가 들어 있습니다. 설치도
+계정도 없이 브라우저에서 열리니, 트윗에서 본 주장을 확인하는 데는 이쪽이
+빠릅니다.
 
-## 설치
-
-macOS 앱, CLI 포함:
-
-```bash
-brew install --cask midagedev/tap/gadak
-```
-
-CLI만 설치하고 같은 UI를 `gadak serve`로 브라우저 탭에서 열려면:
-
-```bash
-brew install midagedev/tap/gadak-cli
-```
-
-Jira에 연결한 뒤 `gadak serve`가 출력하는 주소(`http://gadak.localhost:7777`)를
-엽니다:
-
-```bash
-gadak init && gadak sync && gadak serve
-```
-
-Jira 사이트에는 [API 토큰](https://id.atlassian.com/manage-profile/security/api-tokens)
-하나가 필요하고, 그 토큰이 같은 사이트의 Jira와 Confluence에 함께 쓰입니다.
-**무엇을 미러링할지는 직접 고릅니다.** Jira는 `--projects`로, 위키는
-`--spaces`로 좁히고, 위키는 스페이스를 지정하기 전까지 꺼져 있습니다. Atlassian
-계정이 없다면 `gadak init --local`로 내장 트래커 워크스페이스를 시작하고, 나중에
-`gadak --workspace <새> migrate --from <기존>`으로 동기화된 미러를 그 위로
-옮길 수 있습니다. `--to linear`를 붙이면 Linear 팀으로 갑니다.
-
-**Windows:** 데스크톱 앱은 [Microsoft Store](https://apps.microsoft.com/detail/9NZW91TXH36G)에 있습니다.
-Store가 서명해 주므로 SmartScreen도 Smart App Control도 막지 않고, 0.20.2부터는
-Store 설치가 `gadak` 명령까지 `PATH`에 올려 줍니다. Store 없이 CLI만 쓰려면
-[최신 릴리스](https://github.com/midagedev/gadak/releases/latest)에서
-`gadak_<version>_windows_amd64.zip`(또는 `arm64`)을 받아 풀고 `gadak.exe`를
-`PATH`에 두세요. 릴리스의 데스크톱 zip(`Gadak-<version>-windows-x64.zip`)은
-여전히 서명이 없습니다. SmartScreen이 막는 것은 바이러스 판정이 아니라 서명이
-없어서입니다([이유](docs/WINDOWS-SIGNING.md)). 막히면 Store에서 설치하고, Smart
-App Control은 끄지 마세요.
-
-화면은 영어·한국어·일본어로 뜹니다. 브라우저나 OS 언어를 따르고, 설정에서
-바꿀 수 있습니다.
-
-서명된 dmg, 리눅스 tarball, 다른 컴퓨터와 페어링(`gadak --workspace laptop init
---pairing-code-stdin`), Docker, 업그레이드는 [`docs/INSTALL.md`](docs/INSTALL.md)에
-있습니다.
-
-## 핵심
+주장의 핵심은 쿼리 한 줄입니다. JQL에는 `GROUP BY`가 없어서 "어느 에픽에 열린
+이슈가 몰려 있나"는 API로 8페이지를 받아 클라이언트에서 세야 합니다. 파일이
+되면 이렇게 됩니다:
 
 ```bash
 gadak sql "select epic_key, count(*) from issues_full where resolved_at is null
            and epic_key <> '' group by epic_key order by 2 desc"
 ```
 
-JQL에는 `GROUP BY`가 없습니다. 데이터가 파일이 되기 전까지 "어느 에픽이 실제로
-막혀 있나"는 어려운 질문이 아니라 **물을 수 없는** 질문입니다. 나머지 레시피는
-[`docs/RECIPES.md`](docs/RECIPES.md)에 있고, [Datasette Lite가 데모 스냅샷에서
-이 쿼리를 브라우저 안에서 실행해
+[Datasette Lite가 데모 스냅샷에서 같은 쿼리를 브라우저 안에서 돌려
 줍니다](<https://lite.datasette.io/?url=https%3A%2F%2Fraw.githubusercontent.com%2Fmidagedev%2Fgadak%2Fmain%2Fexamples%2Fdemo.db#/demo?sql=select+epic_key%2C+count(*)+from+issues_full+where+resolved_at+is+null+and+epic_key+%3C%3E+''+group+by+epic_key+order+by+2+desc>).
-설치할 것은 없습니다.
+나머지 쿼리는 [`docs/RECIPES.md`](docs/RECIPES.md).
 
-2026-08-26에 실제 Cloud 사이트(이슈 3,296개)에서 측정한 값입니다. 중앙값이고
-CLI 기동 시간을 포함합니다:
+## 숫자 한 장
 
-| 질문 | REST API | `gadak` | |
+2026-08-26, 실제 Atlassian Cloud 사이트(이슈 3,296개)에서 잰 중앙값입니다.
+gadak 쪽은 CLI 프로세스 기동까지 포함한 시간입니다.
+
+| 질문 | REST API | gadak | |
 | --- | ---: | ---: | ---: |
 | 단순 필터 100건 | 583 ms | 19 ms | 31× |
 | 이슈 하나 + 전체 히스토리 | 710 ms | 28 ms | 25× |
-| 자유 텍스트 검색 | 543 ms | 41 ms | 13× |
-| **에픽별 열린 이슈 (`GROUP BY`)** | 4,761 ms, API 8페이지를 받아 클라이언트에서 집계 | 22 ms, 쿼리 한 번 | **214×** |
-| 변경 이력을 걸치는 집계 | JQL로는 표현 불가, 순회하면 약 28분 | 14 ms | — |
+| 에픽별 열린 이슈 (`GROUP BY`) | 4,761 ms | 22 ms | 214× |
+| 변경 이력을 걸치는 집계 | JQL로 표현 불가, 순회하면 약 28분 | 14 ms | |
 
-페이지 크기를 넘어서면 JQL의 답은 느린 정도가 아니라 아예 물을 수 없는 것이
-됩니다. API는 행은 주지만 집계는 주지 않습니다. 측정 방법과 재측정 이력,
-그리고 gadak이 더 느린 행(첫 전체 동기화, 조용한 사이트의 watch 틱, 동기화
-주기만큼의 지연)은 [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md)에 있습니다.
+gadak이 지는 행도 있습니다. 첫 전체 동기화가 그렇고, 동기화 주기만큼은 늘
+낡아 있습니다. 측정 방법과 그 행들은 [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md).
 
-<details>
-<summary>▶ 종이 리스트 20초 투어 (GIF)</summary>
+## 설치
+
+macOS 앱(CLI 포함):
+
+```bash
+brew install --cask midagedev/tap/gadak
+```
+
+CLI만:
+
+```bash
+brew install midagedev/tap/gadak-cli
+```
+
+첫 실행. `gadak serve`가 찍는 주소는 `http://gadak.localhost:7777`입니다:
+
+```bash
+gadak init && gadak sync && gadak serve
+```
+
+필요한 건 Jira [API 토큰](https://id.atlassian.com/manage-profile/security/api-tokens)
+하나이고, 같은 사이트의 Confluence도 그 토큰으로 갑니다. 범위는 직접
+정합니다. `--projects`로 Jira를, `--spaces`로 위키를 좁히고, 스페이스를
+지정하기 전까지 위키는 꺼져 있습니다. Atlassian 계정이 없으면
+`gadak init --local`이 내장 트래커로 시작하고, 나중에
+`gadak --workspace <새> migrate --from <기존>`으로 옮깁니다(`--to linear`도
+됩니다). 다른 컴퓨터와 페어링은
+`gadak --workspace laptop init --pairing-code-stdin`. 화면은 한국어로
+뜹니다(브라우저·OS 언어를 따르고, 설정에서 바꿉니다). dmg, 리눅스 tarball,
+Docker, 업그레이드는 [`docs/INSTALL.md`](docs/INSTALL.md).
+
+**Windows.** 데스크톱 앱은 [Microsoft Store](https://apps.microsoft.com/detail/9NZW91TXH36G)에
+있습니다. Store가 서명하니 SmartScreen도 Smart App Control도 막지 않고,
+0.20.2부터 Store 설치가 `gadak`을 `PATH`에 올립니다. Store 없이 CLI만 쓰려면
+[최신 릴리스](https://github.com/midagedev/gadak/releases/latest)의
+`gadak_<version>_windows_amd64.zip`(또는 `arm64`)을 풉니다. 릴리스의
+데스크톱 zip(`Gadak-<version>-windows-x64.zip`)은 아직 서명이 없어서
+SmartScreen이 막습니다. 바이러스 판정이 아니라 서명 부재입니다
+([`docs/WINDOWS-SIGNING.md`](docs/WINDOWS-SIGNING.md)). 그때는 Store로 가고,
+Smart App Control은 끄지 마세요.
+
+## 에이전트
 
 <p align="center">
-  <img src="docs/media/web-demo.gif" alt="타이핑할수록 종이 리스트가 좁혀지고, 이슈가 라벨·우선순위·리오픈 배지와 함께 열리며, 문서와 보드가 같은 창에 있다" width="900">
+  <img src="docs/media/terminal-hero.ko.gif" alt="리스트 아래 gadak 자체 터미널. gadak claim NMA-140 으로 행이 진행 중으로 움직이고 셸 탭이 그 키를 이름으로 받는다. 그 셸에서 claude 가 뜨고, 한국어 프롬프트 하나에 리스트가 Dana Whitfield 의 최근 움직인 이슈로 바뀌고, 다음 프롬프트가 같은 창에 라벨 비율 대시보드를 저장해 연다" width="900">
   <br>
-  <sub>창을 20초 동안 담았습니다. <a href="e2e/demo/web-demo.spec.ts">e2e/demo/web-demo.spec.ts</a>가 데모 스냅샷에서 생성했습니다.</sub>
+  <sub>앱 창 안의 셸(⌘K → 터미널, 또는 Ctrl+`)에서 <code>gadak claim</code>이 탭을 이슈 키에 묶고, 그 안에서 시작한 Claude Code 세션이 옆의 보드를 움직입니다. 화면·트래커·프롬프트 전부 한국어 세션이고, 프롬프트 두 줄 외에는 대본이 없습니다. 에이전트가 일하는 구간은 빨리 감았습니다. <a href="e2e/demo/terminal-claude-demo.spec.ts">e2e/demo/terminal-claude-demo.spec.ts</a>를 <a href="e2e/demo/record-terminal-claude.sh">record-terminal-claude.sh</a>로 녹화했습니다.</sub>
 </p>
-
-</details>
-
-> **상태: 0.21, 아직 0.x입니다.** 동기화, 읽기 API, 쓰기 통과(write-through),
-> 데스크톱, 웹, CLI, MCP가 실제 사이트에 대해 검증되어 있습니다.
-> [`CHANGELOG.ko.md`](CHANGELOG.ko.md).
-
-## 에이전트를 위해
-
-gadak이 존재하는 이유의 절반입니다. 레퍼런스는 **[docs/MIRROR.md](docs/MIRROR.md)**,
-호스트별 설정은 [`docs/AGENT_SETUP.md`](docs/AGENT_SETUP.md)에 있습니다.
 
 ```bash
 gadak skill install
 ```
 
-스키마와 쿼리 패턴이 스킬 하나로 들어가고, 별도 프로세스는 없습니다. 위
-명령은 Claude Code에 설치합니다. 다른 호스트에는 이름을 붙이면 같은 파일이
-그 자리에 들어갑니다 — `gadak skill install codex`, 그리고 cursor·gemini·
-opencode·grok도 같습니다. 셸이 없는 호스트(Claude Desktop)에서는 같은
-미러가 MCP 서버가 됩니다:
+Claude Code에 스킬 하나로 들어가고, 별도 프로세스는 없습니다. `gadak skill
+install codex`처럼 이름을 붙이면 cursor·gemini·opencode·grok에도 같은 파일이
+들어갑니다. 셸이 없는 Claude Desktop에서는 MCP 서버가 됩니다:
 
 ```bash
 gadak mcp install claude
 ```
 
-<p align="center">
-  <img src="docs/media/terminal-hero.ko.gif" alt="리스트 아래 gadak 자체 터미널. gadak claim NMA-140 으로 행이 진행 중으로 움직이고 셸 탭이 그 키를 이름으로 받는다. 그 셸에서 claude 가 뜨고, 한국어 프롬프트 하나에 리스트가 Dana Whitfield 의 최근 움직인 이슈로 바뀌고, 다음 프롬프트가 같은 창에 라벨 비율 대시보드를 저장해 연다" width="900">
-  <br>
-  <sub>앱 창 안에서 셸이 열립니다(⌘K → 터미널, 또는 Ctrl+`). <code>gadak claim</code>이 셸을 이슈에 묶어 탭 이름이 이슈 키가 되고, 그 안에서 시작한 라이브 Claude Code 세션이 옆의 보드를 움직입니다. 한 문장이 리스트가 되고, 다음 문장이 대시보드를 그립니다. 화면·트래커·프롬프트가 전부 한국어인 테이크이고, 프롬프트 두 줄 외에는 대본이 없습니다. 에이전트가 작업하는 구간은 빨리 감았습니다. <a href="e2e/demo/terminal-claude-demo.spec.ts">e2e/demo/terminal-claude-demo.spec.ts</a>를 <a href="e2e/demo/record-terminal-claude.sh">record-terminal-claude.sh</a>로 녹화했습니다.</sub>
-</p>
+규칙 둘이 가치의 대부분입니다. 첫째, 필터는 `status_category`와
+`priority_rank`로 겁니다. Jira가 계정 언어마다 표시 이름을 번역해서
+`priority = High`는 한국어 계정에서 소리 없이 0행입니다. 둘째, SQL이 답하고
+창이 보여 줍니다. `gadak sql --no-header "…" | gadak views open --keys -`가
+에이전트의 답을 제 화면에 띄우고, `gadak views open --jql '…'`은 붙여 넣은
+JQL을 칩으로 내려놓습니다.
 
-규칙 둘이 가치의 대부분을 만듭니다. 필터는 `status_category`와
-`priority_rank`로 걸고, 표시 이름으로는 걸지 마세요. Jira가 계정 언어마다 그
-이름을 번역하기 때문에 `priority = High`는 한국어 계정에서 소리 없이 0행을
-돌려줍니다. 그리고 SQL이 답하고 창이 보여 줍니다. `gadak sql --no-header "…" |
-gadak views open --keys -`가 에이전트의 답을 내 화면에 띄우고, `gadak views
-open --jql '…'`은 붙여 넣은 JQL을 칩으로 내려놓습니다. 쓰기(`create`, `edit`,
-`comment`, `transition`, `claim`, `link`, 위키의 `page` 동사)는 origin을 거친
-뒤 미러가 갱신되고, 에이전트가 쓴 것에는 에이전트의 이름이 남습니다.
+쓰기(`create`, `edit`, `comment`, `transition`, `claim`, `link`, 위키 `page`)는
+origin을 거친 뒤 미러가 갱신되고, 에이전트가 쓴 것에는 에이전트 이름이
+남습니다. 미러를 읽는 에이전트는 읽은 것을 자기 모델로 보냅니다. gadak 자신은
+아무것도 보내지 않으니([`SECURITY.md`](SECURITY.md)) 에이전트가 봐도 되는
+범위로 미러를 좁히세요. 연결 하나하나와 끄는 스위치는
+[`docs/NETWORK.md`](docs/NETWORK.md), 레퍼런스는
+[`docs/MIRROR.md`](docs/MIRROR.md).
 
-에이전트가 그 위에 만든 것들, 즉 대시보드, 팀 테마, 런처, 라이브 MCP 세션은
-녹화본 모음으로 따로 두었습니다: [`docs/SHOWCASE.md`](docs/SHOWCASE.md).
+## 만들지 않기로 한 것
 
-**미러를 읽는 에이전트는 읽은 것을 자기가 쓰는 모델로 보냅니다.** gadak
-자신은 아무것도 보내지 않습니다([`SECURITY.md`](SECURITY.md)). 에이전트가
-봐도 되는 범위로 미러를 좁히세요. gadak이 네트워크를 *실제로* 쓰는
-지점(동기화, 쓰기, 페어링)은 [`docs/NETWORK.md`](docs/NETWORK.md)가 연결
-하나하나와 그것을 끄는 방법까지 짚어 줍니다.
+0.21부터 미러가 이미 갖고 있던 히스토리로 "자리를 비운 사이 뭐가 바뀌었나"를
+계산합니다. 그 신호 하나하나가 원하지 않는 기능에서 한 걸음 거리였습니다.
 
-## 무엇을 커버하나
+- **점수 없음.** `gadak retro`는 이번 주 닫힌 이슈 수와 사이클 타임을 찍지만
+  사람별 열이 없고 순위를 매기지 않습니다. 문장의 주어는 늘 이슈입니다.
+- **알림 없음.** 세션 줄, 재개 카드, 나이 표시, *완료로 이동* 버튼은 다음에
+  시선이 갈 자리에서 기다립니다. 할 말이 없는 아침에는 세션 줄이 뜨지
+  않습니다.
+- **고정 SLA 없음.** 정체 기준은 최근 90일간 팀이 완료한 이슈의 사이클 타임
+  p85입니다. 완료가 11건이 되기 전까지만 72시간으로 물러나고, 설정 화면이 그
+  사실을 적어 둡니다.
+- **밖으로 나가는 것 없음.** retro도 학습된 기준도 디스크의 파일 두 개에서
+  계산됩니다. 보낼 계정 자체가 없습니다.
 
-origin 셋에 동사는 한 벌입니다. Atlassian Cloud, Linear(워크스페이스 설정의
-`"linear"` 블록과 `gadak sync --source linear`), 그리고 앱과 함께 다니는 내장
-트래커입니다. 읽기, 쓰기, 계층, 위키, 첨부, 히스토리, 보드 레이아웃은 셋
-모두에서 되고, 각 origin이 무엇을 거절하는지는 셀마다 근거 코드를 인용한 표
-하나에 들어 있습니다: [`docs/SUPPORT_MATRIX.md`](docs/SUPPORT_MATRIX.md). 어느
-origin에도 없는 것이 셋 있습니다. UI로서의 스프린트, Jira 대시보드, Jira
-알림함입니다. 그 일은 Jira에 남습니다.
+어느 origin에도 없는 것이 셋 있습니다. UI로서의 스프린트, Jira 대시보드, Jira
+알림함. 그 일은 Jira에 남기고, 스프린트 계획이나 1분의 지연도 안 되는 일도
+마찬가지입니다. origin은 Atlassian Cloud, Linear(`gadak sync --source
+linear`), 내장 트래커 셋이고 동사는 한 벌입니다. 각 origin이 무엇을
+거절하는지는 셀마다 코드를 인용한
+[`docs/SUPPORT_MATRIX.md`](docs/SUPPORT_MATRIX.md)에 있습니다.
 
-## 나머지
+## 틀렸던 것 하나
 
-**맞는 곳 / 안 맞는 곳.** 매일 겪는 검색 지연, 트래커*와* 위키를 함께 보는
-에이전트, 오프라인 읽기에는 맞습니다. 스프린트 계획, 관리자 작업, UI의 페이지
-편집기, 그리고 1분의 지연도 허용되지 않는 일은 Jira에 남기세요.
-[`docs/CONCEPT.md`](docs/CONCEPT.md#good-fit-bad-fit).
+완료어 판정의 첫 판은 부분 문자열 매칭이었습니다. "abandoned" 안의 "done",
+"미완료" 안의 "완료"를 잡아서, 아직 안 끝났다고 말하는 코멘트를 정확히
+가리켰습니다. 신호가 거꾸로 나간 겁니다. 수정은 가드였습니다. 영어 단어는
+홀로 서야 하고, CJK 완료어 앞뒤에 부정이 붙으면 안 되고, 인용문과 코드
+펜스는 벗겨 내고, 마지막 상태 변경보다 새로운 코멘트만 셉니다. 테스트 표가
+옛 규칙에서 먼저 실패한 뒤 새 규칙에서 통과했고, retro의 그 행은 정의 안에
+*휴리스틱*이라고 적어 두었습니다.
 
-**동작 원리.** 바이너리 하나, SQLite 파일 하나. 증분 동기화에 정합성 보정
-패스가 붙습니다. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). 왜 확장
-프로그램이나 Forge 앱이 아닌지는
-[`docs/decisions/0003-local-process.md`](docs/decisions/0003-local-process.md)에
-있습니다.
+## 상태
 
-**비교.** jira-cli는 명령마다 라이브 API를 호출합니다. Rovo MCP도 두 소스를
-함께 검색하지만 호스팅형입니다. 집계가 안 되고, 오프라인에서 안 되며, 호출마다
-토큰이 나갑니다. [`docs/FAQ.md`](docs/FAQ.md#how-it-compares).
+**상태: 0.21, 아직 0.x입니다.** 동기화, 읽기 API, 쓰기 통과, 데스크톱, 웹,
+CLI, MCP가 실제 사이트에서 검증돼 있습니다. 지금은 한 사람이 만듭니다. 0.x가
+약속하는 것은 [data-model.md](specs/000-product/data-model.md)의 셋뿐입니다.
+`issues_full`과 RECIPES 쿼리, `gadak sql`의 stdout 형식, `gadak views open
+--keys -`의 의미. 자격증명은 SQLite·로그·스냅샷 어디에도 들어가지 않습니다.
+믿지 않아도 되는 것은 항목마다 확인 명령과 함께
+[`docs/PROMISES.md`](docs/PROMISES.md)에, 무엇이 나왔는지는
+[`CHANGELOG.ko.md`](CHANGELOG.ko.md)에. 라이선스는 Apache-2.0(`LICENSE`,
+`NOTICE`). 조금씩 쓸만해지고 있습니다.
 
-**내 것으로 만들기.** 설정, 확장 데이터, SQL. 포크 없이 두 축으로:
-[`docs/EXTENDING.md`](docs/EXTENDING.md).
+## 한 줄 남겨 주세요
+
+gadak에는 텔레메트리가 없습니다. 그래서 누가 쓰는지, 계속 쓰는지를 저는
+숫자로 알 수 없고 앞으로도 그렇습니다. 버그 제보와 UI 지적은 이미 받고 있고
+릴리스마다 그 덕을 봤습니다. 아직 없는 것은 자기 미러의 숫자를 들고 하는 한
+줄입니다. "이슈 N개 넣었고, 예전에 M초 걸리던 게 이렇게 됐다" 정도면 되고,
+느려졌다거나 틀렸다는 한 줄이면 더 좋습니다. 0.21의 성공 조건은 그 문장
+하나로 걸어 두었습니다. 생기면 바꿔 쓰지 않고 그대로 인용할 겁니다.
+
+[GitHub 이슈](https://github.com/midagedev/gadak/issues)로 주시면 백로그에
+미러하고, 커밋의 `GDK-nnn` 키는 [공개 백로그](https://gadak.dev/backlog/)로
+이어집니다. 공개 이슈에 실제 이슈 데이터나 토큰을 붙이지 마세요. 사이트
+URL도요. 버그 리포트에 필요한 건 Jira 배포 유형(Cloud) · gadak 커밋 · 실행한
+명령입니다. 코드로 오시려면 [`CONTRIBUTING.md`](.github/CONTRIBUTING.md)와
+[`docs/project/GOOD_FIRST_ISSUES.md`](docs/project/GOOD_FIRST_ISSUES.md), 다음
+기능이 왜 그것들인지는 [`docs/project/THEORY.md`](docs/project/THEORY.md)(영문).
 
 ## 문서
 
-- [`CHANGELOG.ko.md`](CHANGELOG.ko.md) — 무엇이 나왔는지
-- [`docs/INSTALL.md`](docs/INSTALL.md) · [`docs/DESKTOP.md`](docs/DESKTOP.md) — 설치, 첫 실행, 데스크톱 앱
-- [`docs/SHOWCASE.md`](docs/SHOWCASE.md) — 창, 런처, 그리고 둘을 움직이는 에이전트의 녹화본
-- [`docs/MIRROR.md`](docs/MIRROR.md) · [`docs/MCP.md`](docs/MCP.md) · [`docs/AGENT_SETUP.md`](docs/AGENT_SETUP.md) — SQL, CLI, REST, MCP, 호스트별 설정
-- [`docs/RECIPES.md`](docs/RECIPES.md) · [`docs/DASHBOARDS.md`](docs/DASHBOARDS.md) — JQL이 못 묻는 질문을 SQL로, 에이전트가 만드는 대시보드
-- [`SECURITY.md`](SECURITY.md) · [`docs/FAQ.md`](docs/FAQ.md) · [`MAINTENANCE.md`](docs/MAINTENANCE.md) — 위협 모델, 사이트 부하, 누가 유지하는가
-- [`docs/README.md`](docs/README.md) — 나머지 문서
-
-## 누가 만드나
-
-지금은 한 사람이 만듭니다. 그 사실을 저울에 올리되, 반대편도 함께 올려
-주세요. 미러는 내 Jira의 버려도 되는 캐시이고, 0.x가 약속하는 것은
-[data-model.md](specs/000-product/data-model.md)의 세 가지(`issues_full`과
-RECIPES 쿼리들, `gadak sql`의 stdout, `gadak views open --keys -`)뿐이며,
-라이선스는 Apache-2.0이고, 파일은 무엇으로든 읽히는 평범한 SQLite입니다.
-어려운 질문은 [`docs/FAQ.md`](docs/FAQ.md)에 모아 두었습니다. 믿지 않아도
-되는 것들은 항목마다 확인 명령과 함께 [`PROMISES.md`](docs/PROMISES.md)에
-있습니다.
-
-## 기여와 피드백
-
-[`CONTRIBUTING.md`](.github/CONTRIBUTING.md)를 보고,
-[`docs/project/GOOD_FIRST_ISSUES.md`](docs/project/GOOD_FIRST_ISSUES.md)에서
-시작하세요. 다음 기능이 왜 그것들인지는 출처와 함께
-[`docs/project/THEORY.md`](docs/project/THEORY.md)(영문)에 있습니다. 버그 리포트에는 Jira 배포 유형(Cloud), gadak 커밋, 실행한 명령이
-필요합니다. 실제 이슈 데이터, 토큰, 사이트 URL은 공개 이슈에 절대 붙여 넣지
-마세요. 커밋의 `GDK-nnn` 키는 [공개 백로그](https://gadak.dev/backlog/)로
-이어집니다. 등록은 [GitHub 이슈](https://github.com/midagedev/gadak/issues)로
-하면 메인테이너가 백로그로 미러합니다. 에이전트와 함께 gadak을 쓰다 걸리는 게
-있다면, 무엇을 물었고 에이전트가 무엇을 했는지 적어 이슈를 열어 주세요.
-
-## 라이선스
-
-Apache-2.0. `LICENSE`와 `NOTICE`를 보세요.
+- [`CHANGELOG.ko.md`](CHANGELOG.ko.md) · 무엇이 나왔는지
+- [`docs/INSTALL.md`](docs/INSTALL.md) · [`docs/DESKTOP.md`](docs/DESKTOP.md) · 설치와 데스크톱 앱
+- [`docs/SHOWCASE.md`](docs/SHOWCASE.md) · 에이전트가 만든 대시보드·런처 녹화
+- [`docs/MIRROR.md`](docs/MIRROR.md) · [`docs/MCP.md`](docs/MCP.md) · [`docs/AGENT_SETUP.md`](docs/AGENT_SETUP.md) · SQL, CLI, REST, MCP, 호스트별 한 번 붙이기
+- [`docs/RECIPES.md`](docs/RECIPES.md) · [`docs/DASHBOARDS.md`](docs/DASHBOARDS.md) · JQL이 못 묻는 질문
+- [`SECURITY.md`](SECURITY.md) · [`docs/FAQ.md`](docs/FAQ.md) · [`docs/MAINTENANCE.md`](docs/MAINTENANCE.md) · 위협 모델과 누가 유지하는가
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) · [`docs/EXTENDING.md`](docs/EXTENDING.md) · 동작 원리, 포크 없이 내 것으로
+- [`docs/README.md`](docs/README.md) · 나머지 문서

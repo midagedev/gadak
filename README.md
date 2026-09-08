@@ -13,23 +13,23 @@
 
 <p align="center"><sub>English · <a href="README.ko.md">한국어</a> · <a href="README.ja.md">日本語</a></sub></p>
 
-A local SQLite file of your Jira — so "which epic is stuck?" is one query, not an unaskable one.
+A local SQLite file of your Jira, so "which epic is stuck?" is one query.
 
-gadak mirrors Jira *and* Confluence — issues, comments, history, wiki pages —
+gadak mirrors Jira *and* Confluence (issues, comments, history, wiki pages)
 into one SQLite file on your machine, indexed together and searchable with no
 network. Triage it in the [desktop app](docs/DESKTOP.md) or a browser tab, or
 let a coding agent ask in plain SQL and point the same window at the answer.
 One binary, no gadak account.
 
 **The mirror is a cache you can throw away.** If this project stops tomorrow,
-you delete a directory and have lost nothing: Jira stays the source of truth.
+you delete a directory and have lost nothing. Jira stays the source of truth.
 
 <p align="center">
   <a href="https://gadak.dev/demo/"><b>▶&nbsp; Open the live demo</b></a>
-  &nbsp;—&nbsp; 534 issues, in your browser, right now.
+  &nbsp;·&nbsp; 534 issues, in your browser, right now.
   <br>
   <a href="CHANGELOG.md">Changelog</a>
-  &nbsp;—&nbsp; what shipped.
+  &nbsp;·&nbsp; what shipped.
 </p>
 
 ## Install
@@ -40,7 +40,7 @@ macOS app, CLI included:
 brew install --cask midagedev/tap/gadak
 ```
 
-CLI only — the same UI in a browser tab via `gadak serve`:
+CLI only. The same UI opens in a browser tab via `gadak serve`:
 
 ```bash
 brew install midagedev/tap/gadak-cli
@@ -57,26 +57,24 @@ A Jira site needs one [API token](https://id.atlassian.com/manage-profile/securi
 it covers Jira and Confluence on the same site. **You pick what it mirrors**:
 `--projects` for Jira, `--spaces` for the wiki, which stays off until you name
 them. No Atlassian account? `gadak init --local` starts a workspace on the
-built-in tracker, and `gadak --workspace <new> migrate --from <old>` later carries a
-synced mirror onto it — or into a Linear team with `--to linear`.
+built-in tracker. Later, `gadak --workspace <new> migrate --from <old>` carries a
+synced mirror onto it, or into a Linear team with `--to linear`.
 
-**Windows:** the desktop app is on the [Microsoft Store](https://apps.microsoft.com/detail/9NZW91TXH36G) — the
-Store signs it, so neither SmartScreen nor Smart App Control objects, and a
+**Windows:** the desktop app is on the [Microsoft Store](https://apps.microsoft.com/detail/9NZW91TXH36G).
+The Store signs it, so neither SmartScreen nor Smart App Control objects, and a
 Store install puts the `gadak` command on `PATH` as well (since 0.20.2). For
 the CLI without the Store, take `gadak_<version>_windows_amd64.zip` (or
 `arm64`) from the
 [latest release](https://github.com/midagedev/gadak/releases/latest), unzip,
 put `gadak.exe` on `PATH`. The release's desktop zip
-(`Gadak-<version>-windows-x64.zip`) stays unsigned — a SmartScreen block is a
-missing signature, not a virus finding ([why](docs/WINDOWS-SIGNING.md)); if it
-blocks, install from the Store, and do not turn Smart App Control off.
+(`Gadak-<version>-windows-x64.zip`) stays unsigned, and a SmartScreen block
+there is a missing signature, not a virus finding ([why](docs/WINDOWS-SIGNING.md)).
+If it blocks, install from the Store, and do not turn Smart App Control off.
 
-The window is in English, Korean or Japanese — it follows the browser or OS
-language, and Settings switches it.
-
-The signed dmg, the Linux tarball, pairing a second machine
-(`gadak --workspace laptop init --pairing-code-stdin`), Docker, upgrades:
-[`docs/INSTALL.md`](docs/INSTALL.md).
+The window follows the browser or OS language (English, Korean or Japanese;
+Settings switches it). The signed dmg, the Linux tarball, pairing a second
+machine (`gadak --workspace laptop init --pairing-code-stdin`), Docker,
+upgrades: [`docs/INSTALL.md`](docs/INSTALL.md).
 
 ## The point
 
@@ -85,8 +83,8 @@ gadak sql "select epic_key, count(*) from issues_full where resolved_at is null
            and epic_key <> '' group by epic_key order by 2 desc"
 ```
 
-JQL has no `GROUP BY`. "Which epic is actually stuck?" is not a hard question —
-it is an unaskable one, until the data is a file. [`docs/RECIPES.md`](docs/RECIPES.md)
+JQL has no `GROUP BY`, so "which epic is actually stuck?" has no JQL form.
+Once the data is a file it is the query above. [`docs/RECIPES.md`](docs/RECIPES.md)
 has the rest, and [Datasette Lite runs this query on the demo snapshot in your
 browser](<https://lite.datasette.io/?url=https%3A%2F%2Fraw.githubusercontent.com%2Fmidagedev%2Fgadak%2Fmain%2Fexamples%2Fdemo.db#/demo?sql=select+epic_key%2C+count(*)+from+issues_full+where+resolved_at+is+null+and+epic_key+%3C%3E+''+group+by+epic_key+order+by+2+desc>)
 with nothing installed.
@@ -102,10 +100,10 @@ startup included):
 | **Open issues per epic (`GROUP BY`)** | 4,761 ms — 8 API pages, aggregated client-side | 22 ms — one query | **214×** |
 | A count over the change history | not expressible — ≈ 28 min of crawling | 14 ms | — |
 
-Past a page size, JQL answers stop being slow and start being unaskable: the
-API hands you rows, never the aggregate. The method, the re-measurement
-history, and the rows where gadak loses — the first full sync, the watch tick
-on a quiet site, one sync interval of staleness — are in
+Past a page size the API hands you rows and leaves the aggregate to you. That
+is what the 8 pages in the fourth row cost. The method, the re-measurement history,
+and the rows where gadak loses (the first full sync, the watch tick on a quiet
+site, one sync interval of staleness) are in
 [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md).
 
 <details>
@@ -131,7 +129,7 @@ gadak skill install
 ```
 
 Schema and query patterns, no extra process. That installs for Claude Code;
-name another host to install the same file there — `gadak skill install codex`,
+name another host to install the same file there: `gadak skill install codex`,
 and the same for cursor, gemini, opencode and grok. For hosts without a shell
 (Claude Desktop), the same mirror is an MCP server:
 
@@ -142,26 +140,23 @@ gadak mcp install claude
 <p align="center">
   <img src="docs/media/terminal-hero.gif" alt="gadak's own terminal pane under the list: gadak claim NMA-140 moves the row to In Progress and the shell's tab takes the key; claude starts in that shell, one prompt turns the list into Dana Whitfield's recently moved issues, and a second prompt saves and opens a label-ratio dashboard in the same window" width="900">
   <br>
-  <sub>The shell is in the window (⌘K → Terminal, or Ctrl+`). <code>gadak claim</code> binds it to the issue — the tab is named by the key — and a live Claude Code session started in it drives the board beside it: one sentence becomes the list, the next one paints a dashboard. Nothing but the two prompts is scripted; the stretches where the agent is working are time-lapsed. The Korean and Japanese READMEs carry the same take recorded in their own language — UI, tracker and prompts. Recorded from <a href="e2e/demo/terminal-claude-demo.spec.ts">e2e/demo/terminal-claude-demo.spec.ts</a> via <a href="e2e/demo/record-terminal-claude.sh">record-terminal-claude.sh</a>.</sub>
+  <sub>The shell is in the window (⌘K → Terminal, or Ctrl+`). <code>gadak claim</code> binds it to the issue (the tab is named by the key), and a live Claude Code session started in it drives the board beside it: one sentence becomes the list, the next one paints a dashboard. Nothing but the two prompts is scripted; the stretches where the agent is working are time-lapsed. The Korean and Japanese READMEs carry the same take recorded in their own language, UI, tracker and prompts included. Recorded from <a href="e2e/demo/terminal-claude-demo.spec.ts">e2e/demo/terminal-claude-demo.spec.ts</a> via <a href="e2e/demo/record-terminal-claude.sh">record-terminal-claude.sh</a>.</sub>
 </p>
 
 Two rules carry most of the value. Filter on `status_category` and
-`priority_rank`, never on a display name — Jira translates those per account,
+`priority_rank` rather than a display name: Jira translates those per account,
 so `priority = High` is silently zero rows on a Korean-language site. And SQL
-answers while the window presents: `gadak sql --no-header "…" | gadak views
+answers while the window presents. `gadak sql --no-header "…" | gadak views
 open --keys -` puts an agent's answer on your screen, and `gadak views open
---jql '…'` lands pasted JQL as chips. Writes — `create`, `edit`, `comment`,
-`transition`, `claim`, `link`, and the wiki's `page` verbs — go through the
+--jql '…'` lands pasted JQL as chips. Writes (`create`, `edit`, `comment`,
+`transition`, `claim`, `link`, and the wiki's `page` verbs) go through the
 origin before the mirror refreshes, and every agent write carries the agent's
 name.
 
-What agents have built on it — dashboards, a team theme, a launcher, a live
-MCP session — is a gallery of recordings: [`docs/SHOWCASE.md`](docs/SHOWCASE.md).
-
 **An agent that reads your mirror sends what it reads to whatever model it
 talks to.** gadak itself sends nothing ([`SECURITY.md`](SECURITY.md)); scope
-the mirror to what the agent should see. Where gadak *does* touch the network —
-sync, writes, pairing — [`docs/NETWORK.md`](docs/NETWORK.md) walks every
+the mirror to what the agent should see. Where gadak *does* touch the network
+(sync, writes, pairing), [`docs/NETWORK.md`](docs/NETWORK.md) walks every
 connection and its off switch.
 
 ## What's covered
@@ -169,45 +164,45 @@ connection and its off switch.
 Three origins, one set of verbs: Atlassian Cloud, Linear (a `"linear"` block
 in the workspace config and `gadak sync --source linear`), and the built-in
 tracker that travels with the app. Reads, writes, hierarchy, wiki, attachments,
-history and the board layout work on all three; what each origin refuses, with
+history and the board layout work on all three. What each origin refuses, with
 the code citation behind every cell, is one table:
 [`docs/SUPPORT_MATRIX.md`](docs/SUPPORT_MATRIX.md). Three things appear on no
-origin at all: sprints as a UI, Jira dashboards, and Jira's notification inbox
-— those stay in Jira.
+origin at all and stay in Jira: sprints as a UI, Jira dashboards, and Jira's
+notification inbox.
 
 ## The rest
 
-**Good fit / bad fit.** Daily search latency, an agent over tracker *and* wiki,
-offline reads — yes. Sprint planning, admin, a page editor in the UI, or a
-minute of staleness — stay in Jira. [`docs/CONCEPT.md`](docs/CONCEPT.md#good-fit-bad-fit).
+**Good fit / bad fit.** Yes to daily search latency, an agent over tracker
+*and* wiki, and offline reads. Sprint planning, admin, a page editor in the UI,
+or a minute of staleness that matters: keep those in Jira.
+[`docs/CONCEPT.md`](docs/CONCEPT.md#good-fit-bad-fit).
 
 **How it works.** One binary, one SQLite file; incremental sync plus a
 reconcile pass. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Why not an
 extension or Forge app: [`docs/decisions/0003-local-process.md`](docs/decisions/0003-local-process.md).
+Config, enrichments and SQL are the places to make it yours without forking:
+[`docs/EXTENDING.md`](docs/EXTENDING.md).
 
 **How it compares.** jira-cli talks to the live API per command. Rovo MCP
-searches both sources too, but it is hosted: no aggregate, no offline, and
-every call spends tokens. [`docs/FAQ.md`](docs/FAQ.md#how-it-compares).
-
-**Making it yours.** Config, enrichments, SQL — two axes, no forking:
-[`docs/EXTENDING.md`](docs/EXTENDING.md).
+searches both sources too, but it is hosted, so there is no aggregate and no
+offline read, and every call spends tokens. [`docs/FAQ.md`](docs/FAQ.md#how-it-compares).
 
 ## Documentation
 
-- [`CHANGELOG.md`](CHANGELOG.md) — what shipped
-- [`docs/INSTALL.md`](docs/INSTALL.md) · [`docs/DESKTOP.md`](docs/DESKTOP.md) — install, first run, the desktop app
-- [`docs/SHOWCASE.md`](docs/SHOWCASE.md) — the window, the launcher, and agents driving both, on camera
-- [`docs/MIRROR.md`](docs/MIRROR.md) · [`docs/MCP.md`](docs/MCP.md) · [`docs/AGENT_SETUP.md`](docs/AGENT_SETUP.md) — SQL, CLI, REST, MCP, one paste per host
-- [`docs/RECIPES.md`](docs/RECIPES.md) · [`docs/DASHBOARDS.md`](docs/DASHBOARDS.md) — questions JQL cannot ask, as SQL; agent-authored dashboards
-- [`SECURITY.md`](SECURITY.md) · [`docs/FAQ.md`](docs/FAQ.md) · [`MAINTENANCE.md`](docs/MAINTENANCE.md) — threat model, site load, who maintains this
-- [`docs/README.md`](docs/README.md) — the rest of the docs
+- [`CHANGELOG.md`](CHANGELOG.md): what shipped
+- [`docs/INSTALL.md`](docs/INSTALL.md) · [`docs/DESKTOP.md`](docs/DESKTOP.md): install, first run, the desktop app
+- [`docs/SHOWCASE.md`](docs/SHOWCASE.md): the window, the launcher, and agents driving both, on camera
+- [`docs/MIRROR.md`](docs/MIRROR.md) · [`docs/MCP.md`](docs/MCP.md) · [`docs/AGENT_SETUP.md`](docs/AGENT_SETUP.md): SQL, CLI, REST, MCP, one paste per host
+- [`docs/RECIPES.md`](docs/RECIPES.md) · [`docs/DASHBOARDS.md`](docs/DASHBOARDS.md): questions JQL cannot ask, as SQL; agent-authored dashboards
+- [`SECURITY.md`](SECURITY.md) · [`docs/FAQ.md`](docs/FAQ.md) · [`MAINTENANCE.md`](docs/MAINTENANCE.md): threat model, site load, who maintains this
+- [`docs/README.md`](docs/README.md): the rest of the docs
 
 ## Who makes this
 
-One person, currently. Weigh that — and the other side: the mirror is a
-disposable cache of your own Jira, the 0.x contract is the three promises
-in [data-model.md](specs/000-product/data-model.md) (`issues_full` and the
-RECIPES queries, `gadak sql` stdout, and `gadak views open --keys -`), the
+One person, currently. Weigh that against what does not depend on the person:
+the mirror is a disposable cache of your own Jira, the 0.x contract is the three
+promises in [data-model.md](specs/000-product/data-model.md) (`issues_full` and
+the RECIPES queries, `gadak sql` stdout, and `gadak views open --keys -`), the
 license is Apache-2.0, and the file is plain SQLite. Hard questions:
 [`docs/FAQ.md`](docs/FAQ.md). What you do not have to take on trust, each with
 the command that checks it: [`PROMISES.md`](docs/PROMISES.md).
