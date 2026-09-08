@@ -1555,7 +1555,7 @@ HTTP·sync·에이전트 계약을 담았습니다.
 [GDK-1501]: https://gadak.dev/backlog/#/?ks=GDK-1501
 [GDK-1508]: https://gadak.dev/backlog/#/?ks=GDK-1508
 [GDK-1537]: https://gadak.dev/backlog/#/?ks=GDK-1537
-[GDK-1635]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-1635
-[GDK-1640]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-1640
+[GDK-1635]: https://gadak.dev/backlog/#/?ks=GDK-1635
+[GDK-1640]: https://gadak.dev/backlog/#/?ks=GDK-1640
 [GDK-1617]: https://gadak.dev/backlog/#/?ks=GDK-1617
 [GDK-1626]: https://gadak.dev/backlog/#/?ks=GDK-1626
