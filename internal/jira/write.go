@@ -1,14 +1,16 @@
 package jira
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
 	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"net/url"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -446,22 +448,54 @@ func (c *Client) SearchUsers(ctx context.Context, query string) ([]User, error) 
 //
 // ponytail: buffers the whole file in memory. Fine for the screenshots this is
 // for; stream with io.Pipe if someone starts attaching video.
+// attachmentPartHeader is CreateFormFile's header with a real
+// Content-Type. An extension with no known type keeps the generic one,
+// which is the honest answer rather than a guess.
+func attachmentPartHeader(filename string) textproto.MIMEHeader {
+	ct := mime.TypeByExtension(strings.ToLower(filepath.Ext(filename)))
+	if ct == "" {
+		ct = "application/octet-stream"
+	}
+	h := make(textproto.MIMEHeader)
+	h.Set("Content-Disposition",
+		fmt.Sprintf(`form-data; name="file"; filename="%s"`, escapeQuotes(filename)))
+	h.Set("Content-Type", ct)
+	return h
+}
+
+// escapeQuotes is mime/multipart's own, which it does not export.
+var escapeQuotes = strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace
+
 func (c *Client) Upload(ctx context.Context, key, filename string, file io.Reader) ([]Attachment, error) {
-	var buf bytes.Buffer
-	mw := multipart.NewWriter(&buf)
-	part, err := mw.CreateFormFile("file", filename)
-	if err != nil {
-		return nil, err
-	}
-	if _, err := io.Copy(part, file); err != nil {
-		return nil, err
-	}
-	if err := mw.Close(); err != nil {
-		return nil, err
-	}
+	// Build the multipart body into a pipe rather than a buffer: an
+	// attachment can be hundreds of megabytes (measured: a real
+	// workspace's largest is 884 MiB), and buffering it whole was a
+	// ceiling on `gadak attach` that had nothing to do with the origin's
+	// own limit (GDK-1617).
+	pr, pw := io.Pipe()
+	mw := multipart.NewWriter(pw)
+	go func() {
+		// Declare the type from the filename. CreateFormFile hardcodes
+		// application/octet-stream, and an origin that keeps what it is
+		// told — gadak's own tracker does, and it holds the only copy —
+		// then stores every screenshot and every video as a generic
+		// download: `is_image` and `is_video` are false, so the app shows
+		// a file row instead of a thumbnail and a player, forever
+		// (GDK-1617, measured: `gadak attach` of a .png and an .mp4).
+		part, err := mw.CreatePart(attachmentPartHeader(filename))
+		if err != nil {
+			pw.CloseWithError(err)
+			return
+		}
+		if _, err := io.Copy(part, file); err != nil {
+			pw.CloseWithError(err)
+			return
+		}
+		pw.CloseWithError(mw.Close())
+	}()
 
 	p := fmt.Sprintf("%s/issue/%s/attachments", apiPath, url.PathEscape(key))
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+p, &buf)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+p, pr)
 	if err != nil {
 		return nil, err
 	}

@@ -9,7 +9,7 @@ re-read after it lands.
 Every cell carries a footnote pointing at the code that makes it true — a
 `path:line` in this repository, or a line in the Built-in origin's
 compatibility inventory (module
-`github.com/midagedev/issuetap@v0.0.0-20260908020949-36f2416c54d3`, cited
+`github.com/midagedev/issuetap@v0.0.0-20260908083721-0d34fcd95793`, cited
 below as `issuetap/docs/COMPATIBILITY.md`). A Built-in cell is never "same
 as Jira": it means the Jira REST verb exists and the Built-in origin
 implements the route.
@@ -58,7 +58,7 @@ Markers:
 | **Write** · custom-field edit | ✅[^35] | —[^72] | ◐[^37] |
 | **Write** · issue type edit (`edit --type`) | ✅[^73] | —[^74] | ✅[^75] |
 | **Write** · parent set / clear | ✅[^76] | —[^77] | ✅[^78] |
-| **Write** · attachment upload | ✅[^79] | ✅[^80] | ◐[^113] |
+| **Write** · attachment upload | ✅[^79] | ✅[^80] | ✅[^113] |
 | **Write** · link / unlink issues | ✅[^81] | —[^18] | ✅[^82] |
 | **Write** · wiki write — page create / edit / comment | ✅[^83] | —[^45] | ✅[^84] |
 | **Write** · `claim` | ◐[^85] | —[^86] | ✅[^87] |
@@ -105,16 +105,19 @@ Markers:
     bodies are Linear markdown.
 
 [^11]: Serve proxies `cfg.Site + /rest/api/3/attachment/content/{id}`
-    (`internal/server/attachment.go:279`).
+    (`internal/server/attachment.go:314`).
 
 [^12]: Serve fetches `uploads.linear.app` with the workspace's Linear API key
-    (`internal/server/attachment.go:268`).
+    (`internal/server/attachment.go:379`).
 
-[^13]: The origin serves the bytes (`issuetap/docs/COMPATIBILITY.md:76`) and
-    serve reads them through `origin.Client` like every other origin
-    (`internal/server/attachment.go:288`). Until GDK-1613 the proxy
-    concatenated `cfg.Site`, which a Built-in workspace does not have — every
-    view answered 502 on both transports, in-process and paired.
+[^13]: The origin serves the bytes from disk with `Accept-Ranges` and an
+    `ETag` (`issuetap/docs/COMPATIBILITY.md:76`) and serve streams them
+    through `origin.Client`, passing `Range` on and relaying 206
+    (`internal/server/attachment.go:453`) — so seeking in a video works on
+    the path that does not go through the byte cache (GDK-1617). Until
+    GDK-1613 the proxy concatenated `cfg.Site`, which a Built-in workspace
+    does not have — every view answered 502 on both transports, in-process
+    and paired.
 
 [^14]: Changelog events (`internal/jira/client.go:206`) feed
     `status_changed_at` and `reopen_count`, and since v43 `started_at` /
@@ -358,7 +361,13 @@ Markers:
 [^78]: Same `fields.parent`, with hierarchy validation and honest 400s
     (`issuetap/docs/COMPATIBILITY.md:75`).
 
-[^79]: `POST /issue/{key}/attachments` multipart (`internal/jira/write.go:449`).
+[^79]: `POST /issue/{key}/attachments` multipart (`internal/jira/write.go:497`),
+    streamed through a pipe rather than buffered. The part declares its type
+    from the filename (`internal/jira/write.go:454`): Cloud sniffs
+    server-side, but an origin
+    that keeps what it is told stored every screenshot as
+    `application/octet-stream` and the app then had no thumbnail to show
+    (GDK-1617).
 
 [^80]: URL-first: reserve storage, PUT the bytes, confirm
     (`internal/origin/linearwriter.go:366`).
@@ -502,9 +511,12 @@ this table from the code instead of maintaining it by hand is GDK-1301.
     get` wrote the bytes `gadak attach` had uploaded. The branch is on the
     mirrored row's source, never a fallback (`cmd/gadak/attach_get.go:136`).
 
-[^113]: Same multipart route as Jira ([^79]), with a size ceiling: the origin
-    buffers the whole body because it keeps bytes as a BLOB, so anything over
-    8 MiB is refused with a 413 naming the limit, and `gadak attach` exits
-    non-zero with that sentence. Until GDK-1614 it was truncated instead —
-    stored as its first 8 MiB and reported as success. Exactly 8 MiB still
-    round-trips (measured, hashes equal).
+[^113]: Same multipart route as Jira ([^79]), streamed end to end: the CLI
+    builds the multipart body through a pipe (`internal/jira/write.go:448`)
+    and the origin writes it straight to a content-addressed file
+    (`issuetap` `internal/store/store.go` `AddAttachmentStream`). The cap is
+    settings, not a constant — `gadak config set attachmentMaxMB`, default
+    1 GiB (GDK-1617) — and over it is a 413 naming the limit, with
+    `gadak attach` exiting non-zero on that sentence. Until GDK-1614 an
+    oversize upload was truncated instead: stored as its first 8 MiB and
+    reported as success.

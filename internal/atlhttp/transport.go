@@ -149,3 +149,64 @@ func rejectAbsolutePath(path string) error {
 
 // Snippet trims and truncates a response body for error messages.
 func Snippet(b []byte) string { return httppolicy.Snippet(b) }
+
+// Stream is DoRaw for a response nobody wants in memory: it returns the live
+// *http.Response with its Body unread, so the caller can copy it straight to
+// a client or a file. The caller closes the Body.
+//
+// It exists because DoRaw reads through io.LimitReader(res.Body,
+// httppolicy.MaxBody) — right for a JSON document, wrong for attachment
+// bytes, where the cap that used to be 64 MiB is now the origin's
+// configurable upload limit and a real workspace's largest measured file is
+// 884 MiB (GDK-1617).
+//
+// Only transport failures retry. A response that has already begun cannot be
+// replayed without reading it, which is the thing this function exists not
+// to do; hdr carries request headers the caller needs passed through (Range,
+// If-None-Match), and every status, including non-2xx, comes back as a
+// response with err == nil.
+func Stream(ctx context.Context, cfg Config, method, path string, hdr http.Header) (*http.Response, error) {
+	fullURL, err := resolveURL(cfg.Base, cfg.ErrPrefix, path)
+	if err != nil {
+		return nil, err
+	}
+	// http.Client.Timeout covers reading the body, not just getting the
+	// response — so the client's 60 s budget became a ceiling on transfer
+	// size the moment bodies could be a gigabyte: the connection dies
+	// mid-body under an already-sent Content-Length, which is a short file
+	// nobody was told about. Streaming has no whole-exchange deadline; the
+	// caller's context is the deadline, which for a served request is the
+	// browser going away and for the CLI is the user pressing ^C.
+	hc := cfg.HTTP
+	if hc != nil && hc.Timeout != 0 {
+		cp := *hc
+		cp.Timeout = 0
+		hc = &cp
+	}
+	for attempt := 0; ; attempt++ {
+		req, err := http.NewRequestWithContext(ctx, method, fullURL, nil)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Authorization", cfg.Auth)
+		for k, vs := range hdr {
+			for _, v := range vs {
+				req.Header.Add(k, v)
+			}
+		}
+		res, err := hc.Do(req)
+		cfg.Usage.NoteRequest()
+		if err != nil {
+			if attempt < cfg.Retries-1 {
+				if werr := httppolicy.Wait(ctx, cfg.Backoff, attempt, "", cfg.Usage); werr != nil {
+					return nil, werr
+				}
+				cfg.Usage.NoteRetry()
+				continue
+			}
+			return nil, fmt.Errorf("%s %s: %w", method, path, err)
+		}
+		cfg.Usage.NoteStatus(res.StatusCode)
+		return res, nil
+	}
+}

@@ -178,16 +178,32 @@ func webConfig(cfg *config.Config) webConfigDoc {
 // runtimeInfo is read-only instance facts for the settings UI. Never carry
 // secrets (token, email) — only paths and mirror bookkeeping.
 type runtimeInfo struct {
-	Profile       string  `json:"profile"`
-	DBPath        string  `json:"dbPath"`
-	DBSizeBytes   int64   `json:"dbSizeBytes"`
-	DBSizeHuman   string  `json:"dbSizeHuman"`
-	DBModifiedAt  *string `json:"dbModifiedAt,omitempty"`
-	ConfigPath    string  `json:"configPath"`
-	IssueCount    int     `json:"issueCount"`
-	CommentCount  int     `json:"commentCount"`
-	SchemaVersion int     `json:"schemaVersion"`
-	Watermark     string  `json:"watermark,omitempty"`
+	Profile      string  `json:"profile"`
+	DBPath       string  `json:"dbPath"`
+	DBSizeBytes  int64   `json:"dbSizeBytes"`
+	DBSizeHuman  string  `json:"dbSizeHuman"`
+	DBModifiedAt *string `json:"dbModifiedAt,omitempty"`
+	// Origin is the built-in tracker's own storage on this machine: the
+	// persist database and the attachment bytes directory beside it. The
+	// mirror above is a cache the next sync rebuilds; these two are the
+	// record, and the attachments are usually the larger of the two by an
+	// order of magnitude. Reporting only the mirror's size meant the number
+	// on this panel had nothing to do with what the workspace costs on disk
+	// (GDK-1617). Empty on a connected workspace, which has neither.
+	OriginPath           string `json:"originPath,omitempty"`
+	OriginSizeBytes      int64  `json:"originSizeBytes,omitempty"`
+	OriginSizeHuman      string `json:"originSizeHuman,omitempty"`
+	AttachmentsPath      string `json:"attachmentsPath,omitempty"`
+	AttachmentsBytes     int64  `json:"attachmentsBytes,omitempty"`
+	AttachmentsHuman     string `json:"attachmentsHuman,omitempty"`
+	AttachmentsFileCount int    `json:"attachmentsFileCount,omitempty"`
+	AttachmentCount      int    `json:"attachmentCount,omitempty"`
+	AttachmentsOldestAt  string `json:"attachmentsOldestAt,omitempty"`
+	ConfigPath           string `json:"configPath"`
+	IssueCount           int    `json:"issueCount"`
+	CommentCount         int    `json:"commentCount"`
+	SchemaVersion        int    `json:"schemaVersion"`
+	Watermark            string `json:"watermark,omitempty"`
 	// SyncVersion is sync_state.version — the mirror generation clients poll.
 	SyncVersion    int64   `json:"syncVersion"`
 	LastFullSyncAt *string `json:"lastFullSyncAt,omitempty"`
@@ -612,6 +628,31 @@ func (s *server) runtimeInfo(ctx context.Context) *runtimeInfo {
 			info.DBSizeHuman = "—"
 		}
 	}
+	if cfg := s.config(); cfg != nil && cfg.OriginType() == config.OriginGadak {
+		// The persist path is this machine's only when the origin is in
+		// this process; a paired workspace's files are on the home machine.
+		if cfg.Transport() == config.TransportLocal {
+			if _, persist := origin.Describe(cfg); persist != "" {
+				info.OriginPath = persist
+				if st, err := os.Stat(persist); err == nil {
+					info.OriginSizeBytes = st.Size()
+					info.OriginSizeHuman = humanBytes(st.Size())
+				}
+				info.AttachmentsPath = filepath.Join(filepath.Dir(persist), "blobs")
+			}
+		}
+		// The totals come from the origin, not from a directory walk. The
+		// origin owns the bytes and can count them in one query, and it is
+		// the only party that can answer at all when it is on another
+		// machine — walking silently reported zero there (GDK-1617).
+		if st, err := s.originAttachmentStorage(ctx); err == nil {
+			info.AttachmentsBytes = st.Bytes
+			info.AttachmentsHuman = humanBytes(st.Bytes)
+			info.AttachmentsFileCount = st.Files
+			info.AttachmentCount = st.Attachments
+			info.AttachmentsOldestAt = st.OldestAt
+		}
+	}
 	if s.db != nil {
 		// Aggregates, not a full IssueLites materialization: counts never
 		// needed the rows (GDK-610). CommentCount is issue comments only —
@@ -653,6 +694,44 @@ func uiOrEmpty(u *config.UIConfig) *config.UIConfig {
 		return &config.UIConfig{}
 	}
 	return u
+}
+
+// originStorage is GET /api/storage's `attachments` object. A local type,
+// not an import: this is a wire shape, and a paired workspace's origin is
+// a separate process that may be a different build.
+type originStorage struct {
+	Attachments int    `json:"attachments"`
+	Files       int    `json:"files"`
+	Bytes       int64  `json:"bytes"`
+	LargestSize int64  `json:"largestSize"`
+	OldestAt    string `json:"oldestAt"`
+	NewestAt    string `json:"newestAt"`
+}
+
+// originAttachmentStorage asks the built-in origin what its attachments
+// cost. One aggregate query over the origin's own metadata table, reached
+// through origin.Client — so the same code answers for the in-process
+// origin and for a paired home serve, which is the case a local directory
+// walk cannot see at all.
+func (s *server) originAttachmentStorage(ctx context.Context) (originStorage, error) {
+	var out struct {
+		Attachments originStorage `json:"attachments"`
+	}
+	c, err := origin.Client(s.config())
+	if err != nil {
+		return out.Attachments, err
+	}
+	status, body, err := c.Raw(ctx, http.MethodGet, "/api/storage", nil, false)
+	if err != nil {
+		return out.Attachments, err
+	}
+	if status != http.StatusOK {
+		return out.Attachments, fmt.Errorf("origin storage: HTTP %d", status)
+	}
+	if err := json.Unmarshal(body, &out); err != nil {
+		return out.Attachments, err
+	}
+	return out.Attachments, nil
 }
 
 func humanBytes(n int64) string {

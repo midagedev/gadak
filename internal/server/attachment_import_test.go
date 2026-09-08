@@ -82,7 +82,7 @@ func TestImportManifestServesFromCacheWithoutUpstream(t *testing.T) {
 		id    = "10021"
 		body  = "IMPORTED-PNG"
 	)
-	cache, err := attachcache.New(t.TempDir(), 0)
+	cache, err := attachcache.New(t.TempDir(), 0, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +131,7 @@ func TestImportManifestEmptySiteKeepsLegacyKey(t *testing.T) {
 		id    = "10021"
 		body  = "DEMO-PNG"
 	)
-	cache, err := attachcache.New(t.TempDir(), 0)
+	cache, err := attachcache.New(t.TempDir(), 0, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,7 +157,7 @@ func TestImportManifestEmptySiteKeepsLegacyKey(t *testing.T) {
 }
 
 func TestImportManifestSkipsIDMissingFromMirror(t *testing.T) {
-	cache, err := attachcache.New(t.TempDir(), 0)
+	cache, err := attachcache.New(t.TempDir(), 0, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -188,7 +188,7 @@ func TestImportManifestRejectsForeignIssueKey(t *testing.T) {
 		id    = "10021"
 		body  = "OWNED-PNG"
 	)
-	cache, err := attachcache.New(t.TempDir(), 0)
+	cache, err := attachcache.New(t.TempDir(), 0, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -220,7 +220,7 @@ func TestImportManifestRejectsForeignIssueKey(t *testing.T) {
 }
 
 func TestAttachmentMissReasonDistinguishesScopeMismatch(t *testing.T) {
-	cache, err := attachcache.New(t.TempDir(), 0)
+	cache, err := attachcache.New(t.TempDir(), 0, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

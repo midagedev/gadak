@@ -17,6 +17,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -29,9 +30,12 @@ import (
 // few hundred megabytes holds a working set of thousands.
 const defaultMaxBytes int64 = 512 << 20
 
-// maxEntryBytes skips files too large to be worth caching for a UI that only
-// renders images, PDFs, and short clips inline.
-const maxEntryBytes int64 = 64 << 20
+// defaultMaxEntryBytes skips files too large to be worth caching for a UI
+// that only renders images, PDFs, and short clips inline. It is a default,
+// not a ceiling: an origin's own upload cap is configurable now, and a
+// workspace whose largest file is 884 MiB should be able to say so
+// (GDK-1617).
+const defaultMaxEntryBytes int64 = 64 << 20
 
 // Meta is the sidecar recorded next to each cached file. Content-Type has to
 // survive a restart, and guessing it back from bytes is worse than storing it.
@@ -70,6 +74,7 @@ func Key(site, profile, issue, id string) string {
 type Cache struct {
 	dir      string
 	maxBytes int64
+	maxEntry int64
 
 	mu     sync.Mutex
 	flight map[string]*fill
@@ -84,17 +89,28 @@ type fill struct {
 }
 
 // New opens (and creates) a cache directory. maxBytes <= 0 means defaultMaxBytes.
-func New(dir string, maxBytes int64) (*Cache, error) {
+// New opens the cache. maxBytes bounds the directory, maxEntry the largest
+// single file it will keep; either 0 takes the package default.
+func New(dir string, maxBytes, maxEntry int64) (*Cache, error) {
 	if dir == "" {
 		return nil, errors.New("attachcache: empty directory")
 	}
 	if maxBytes <= 0 {
 		maxBytes = defaultMaxBytes
 	}
+	switch {
+	case maxEntry < 0:
+		// Negative means the user turned the ceiling off — the same shape
+		// the origin's own upload cap uses. MaxInt64 rather than a branch
+		// at each of the three places the limit is applied.
+		maxEntry = math.MaxInt64
+	case maxEntry == 0:
+		maxEntry = defaultMaxEntryBytes
+	}
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
 	}
-	return &Cache{dir: dir, maxBytes: maxBytes, flight: map[string]*fill{}}, nil
+	return &Cache{dir: dir, maxBytes: maxBytes, maxEntry: maxEntry, flight: map[string]*fill{}}, nil
 }
 
 // Dir is the directory the cache owns.
@@ -186,7 +202,7 @@ func (c *Cache) fill(id string, fetch func() (io.ReadCloser, Meta, error)) error
 		return err
 	}
 	defer body.Close()
-	if meta.Size > maxEntryBytes {
+	if meta.Size > c.maxEntry {
 		return errTooLarge
 	}
 
@@ -206,11 +222,11 @@ func (c *Cache) fill(id string, fetch func() (io.ReadCloser, Meta, error)) error
 		os.Remove(tmpName)
 	}()
 
-	written, err := io.Copy(tmp, io.LimitReader(body, maxEntryBytes+1))
+	written, err := io.Copy(tmp, io.LimitReader(body, c.maxEntry+1))
 	if err != nil {
 		return err
 	}
-	if written > maxEntryBytes {
+	if written > c.maxEntry {
 		return errTooLarge
 	}
 	if err := tmp.Close(); err != nil {

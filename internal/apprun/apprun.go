@@ -160,7 +160,7 @@ func newHandler(db *store.DB, cfg *config.Config) *server.Handler {
 	if dir, err := config.AttachmentDir(); err != nil {
 		log.Printf("warning: attachment cache disabled: %v", err)
 		return server.New(db, cfg)
-	} else if cache, err := attachcache.New(dir, int64(cfg.AttachmentCacheMB)<<20); err != nil {
+	} else if cache, err := attachcache.New(dir, int64(cfg.AttachmentCacheMB)<<20, int64(cfg.AttachmentMaxMB)<<20); err != nil {
 		log.Printf("warning: attachment cache disabled: %v", err)
 		return server.New(db, cfg)
 	} else {

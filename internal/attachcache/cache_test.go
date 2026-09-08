@@ -19,7 +19,7 @@ func fetcher(body string, ct string) func() (io.ReadCloser, Meta, error) {
 }
 
 func TestFillThenGet(t *testing.T) {
-	c, err := New(t.TempDir(), 0)
+	c, err := New(t.TempDir(), 0, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +45,7 @@ func TestFillThenGet(t *testing.T) {
 
 // A miss on the same id from several renders at once must fetch once.
 func TestFillIsSingleFlight(t *testing.T) {
-	c, err := New(t.TempDir(), 0)
+	c, err := New(t.TempDir(), 0, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +90,7 @@ func TestFillIsSingleFlight(t *testing.T) {
 // A hostile id must not write outside the cache directory.
 func TestIdCannotEscapeDirectory(t *testing.T) {
 	dir := t.TempDir()
-	c, err := New(dir, 0)
+	c, err := New(dir, 0, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +114,7 @@ func TestIdCannotEscapeDirectory(t *testing.T) {
 
 func TestEvictsLeastRecentlyUsedOverBudget(t *testing.T) {
 	// Budget fits two of the three 40-byte payloads.
-	c, err := New(t.TempDir(), 100)
+	c, err := New(t.TempDir(), 100, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,13 +134,13 @@ func TestEvictsLeastRecentlyUsedOverBudget(t *testing.T) {
 }
 
 func TestOversizedEntryIsRejectedNotTruncated(t *testing.T) {
-	c, err := New(t.TempDir(), 0)
+	c, err := New(t.TempDir(), 0, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
 	huge := func() (io.ReadCloser, Meta, error) {
 		// Declares a size past the per-file limit.
-		return io.NopCloser(bytes.NewReader([]byte("x"))), Meta{ContentType: "video/mp4", Size: maxEntryBytes + 1}, nil
+		return io.NopCloser(bytes.NewReader([]byte("x"))), Meta{ContentType: "video/mp4", Size: defaultMaxEntryBytes + 1}, nil
 	}
 	err = c.Fill("big", huge)
 	if !TooLarge(err) {
@@ -152,7 +152,7 @@ func TestOversizedEntryIsRejectedNotTruncated(t *testing.T) {
 }
 
 func TestKeySeparatesSiteAndIssue(t *testing.T) {
-	c, err := New(t.TempDir(), 0)
+	c, err := New(t.TempDir(), 0, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -174,7 +174,7 @@ func TestKeySeparatesSiteAndIssue(t *testing.T) {
 }
 
 func TestImportManifestUsesKeyAndDoesNotWriteRawID(t *testing.T) {
-	c, err := New(t.TempDir(), 0)
+	c, err := New(t.TempDir(), 0, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -206,7 +206,7 @@ func TestImportManifestUsesKeyAndDoesNotWriteRawID(t *testing.T) {
 }
 
 func TestFetchFailureLeavesNoEntry(t *testing.T) {
-	c, err := New(t.TempDir(), 0)
+	c, err := New(t.TempDir(), 0, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -227,7 +227,7 @@ func TestFetchFailureLeavesNoEntry(t *testing.T) {
 // fresh errors.New here sent every errors.Is branch (auth, too-large) in
 // the server to default (GDK-1237). FAIL-first: red on the pre-fix Fill.
 func TestWaiterSeesTheOwnersTypedError(t *testing.T) {
-	c, err := New(t.TempDir(), 0)
+	c, err := New(t.TempDir(), 0, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

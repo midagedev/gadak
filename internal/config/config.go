@@ -169,9 +169,17 @@ type Config struct {
 	QaDashboardURL string             `json:"qaDashboardUrl,omitempty"`
 
 	StaleThresholdHours int `json:"staleThresholdHours,omitempty"` // 0 = the client default (72)
+
 	// AttachmentCacheMB caps the on-disk attachment byte cache. 0 = package
 	// default (512 MB); a negative value is treated as 0.
 	AttachmentCacheMB int `json:"attachmentCacheMB,omitempty"`
+	// AttachmentMaxMB caps one upload to a built-in origin, and the largest
+	// file the byte cache will keep. 0 = the defaults; negative = no cap
+	// at all, for someone who knows their own disk. A hard-coded
+	// ceiling was wrong in both directions — too low for a workspace whose
+	// largest file is 884 MiB, too high for a machine someone else can
+	// reach over a tailnet — so it is settings, not a constant (GDK-1617).
+	AttachmentMaxMB int `json:"attachmentMaxMB,omitempty"`
 
 	// Sync periods in seconds. 0 means use DefaultSyncIntervalSec /
 	// DefaultReconcileIntervalSec. Watch re-reads config on each cycle when

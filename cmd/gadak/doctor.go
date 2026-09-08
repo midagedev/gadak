@@ -137,9 +137,16 @@ type doctorWorkspace struct {
 	Transport    string `json:"transport"`
 	HasSiteToken bool   `json:"has_site_token"`
 	Persist      string `json:"persist"`
-	LocalIssues  int    `json:"local_issues"`
-	Inconsistent bool   `json:"inconsistent"`
-	Frozen       bool   `json:"frozen"`
+	// PreUpgradeCopy is the copy the attachment migration left behind
+	// (`<persist>.pre-v2.bak`). It is the only way back to a gadak older
+	// than the migration, and it is a second full copy of the database —
+	// both reasons to say it is there rather than let it be found by a
+	// disk-usage tool (GDK-1617).
+	PreUpgradeCopy      string `json:"pre_upgrade_copy,omitempty"`
+	PreUpgradeCopyBytes int64  `json:"pre_upgrade_copy_bytes,omitempty"`
+	LocalIssues         int    `json:"local_issues"`
+	Inconsistent        bool   `json:"inconsistent"`
+	Frozen              bool   `json:"frozen"`
 }
 
 // doctorSkill answers "is my agent's skill current?" without the user having
@@ -379,6 +386,12 @@ func collectDoctor() doctorReport {
 			LocalIssues:  n,
 			Inconsistent: cfg.HasBuiltInOrigin() && hasTok,
 			Frozen:       cfg.SyncFrozen(),
+		}
+		if persist != "" {
+			if fi, err := os.Stat(persist + ".pre-v2.bak"); err == nil {
+				rep.Workspace.PreUpgradeCopy = tildeHome(persist + ".pre-v2.bak")
+				rep.Workspace.PreUpgradeCopyBytes = fi.Size()
+			}
 		}
 	}
 
@@ -1260,6 +1273,10 @@ func formatDoctorWorkspace(w doctorWorkspace) string {
 	}
 	s := fmt.Sprintf("kind=%s site_token=%s persist=%s issues=%d frozen=%s",
 		w.Kind, tok, persist, w.LocalIssues, frozen)
+	if w.PreUpgradeCopy != "" {
+		s += fmt.Sprintf("\n  pre-upgrade copy %s (%d MiB) — the way back to a gadak older than the attachment migration; delete it once you are staying",
+			w.PreUpgradeCopy, w.PreUpgradeCopyBytes>>20)
+	}
 	if w.Inconsistent {
 		s += " inconsistent"
 	}

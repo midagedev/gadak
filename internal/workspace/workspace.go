@@ -290,7 +290,7 @@ func (r *Registry) construct(name string) (*Entry, error) {
 	}
 	var cache *attachcache.Cache
 	if dir, err := config.AttachmentDirFor(name); err == nil {
-		if c, err := attachcache.New(dir, int64(cfg.AttachmentCacheMB)<<20); err == nil {
+		if c, err := attachcache.New(dir, int64(cfg.AttachmentCacheMB)<<20, int64(cfg.AttachmentMaxMB)<<20); err == nil {
 			cache = c
 		} else {
 			log.Printf("workspace %s: attachment cache disabled: %v", name, err)

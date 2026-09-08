@@ -302,3 +302,11 @@ func (c *Client) Fields(ctx context.Context) ([]FieldInfo, error) {
 	}
 	return list, nil
 }
+
+// Stream is Raw for bytes: the response body is handed back unread so an
+// attachment never has to fit in memory. The caller closes it. See
+// atlhttp.Stream — hdr passes Range and conditional headers through, and a
+// non-2xx status comes back as a response, not an error.
+func (c *Client) Stream(ctx context.Context, method, path string, hdr http.Header) (*http.Response, error) {
+	return atlhttp.Stream(ctx, c.transport(), method, path, hdr)
+}

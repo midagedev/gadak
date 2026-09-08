@@ -156,15 +156,24 @@ func openAttachment(ctx context.Context, cfg *config.Config, db *store.DB, key s
 	if err != nil {
 		return nil, err
 	}
-	status, buf, err := c.Raw(ctx, http.MethodGet,
-		"/rest/api/3/attachment/content/"+url.PathEscape(att.ExternalID), nil, false)
+	// Stream, not Raw. Raw reads through a 64 MiB io.LimitReader and
+	// returns the prefix with no error — measured: a 200 MiB attachment
+	// downloaded as exactly 67,108,864 bytes, a different hash, and exit 0
+	// (GDK-1617). The bytes on the origin were intact; the CLI truncated
+	// them on the way out, which is the same silent-loss shape GDK-1614
+	// fixed on the way in. Streaming also means the file never has to fit
+	// in memory: the same download peaked at 526 MB RSS before this.
+	res, err := c.Stream(ctx, http.MethodGet,
+		"/rest/api/3/attachment/content/"+url.PathEscape(att.ExternalID), nil)
 	if err != nil {
 		return nil, err
 	}
-	if status < 200 || status >= 300 {
-		return nil, fmt.Errorf("attachment %s: HTTP %d: %s", att.ExternalID, status, httpStatusDetail(status, buf))
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		buf, _ := io.ReadAll(io.LimitReader(res.Body, 8<<10))
+		res.Body.Close()
+		return nil, fmt.Errorf("attachment %s: HTTP %d: %s", att.ExternalID, res.StatusCode, httpStatusDetail(res.StatusCode, buf))
 	}
-	return io.NopCloser(strings.NewReader(string(buf))), nil
+	return res.Body, nil
 }
 
 // attachDest resolves --out into a destination. "" is the filename in the

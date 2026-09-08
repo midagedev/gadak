@@ -7,6 +7,16 @@ import { en, ja, ko, type MessageKey } from '../web/src/lib/i18n/catalog'
 import { LOCALES, type Locale } from '../web/src/lib/i18n/types'
 
 const E2E_DIR = dirname(fileURLToPath(import.meta.url))
+
+/** This suite's directory, for a spec that needs a path beside it. */
+export function e2eDir(): string {
+  return E2E_DIR
+}
+
+/** The worktree root — the cwd a spawned gadak needs for `--static dist/app`. */
+export function repoRoot(): string {
+  return worktreeRoot()
+}
 const DEFAULT_E2E_PORT = '7877'
 const HARDCODED_E2E_HOST = '127.0.0.1:7877'
 
