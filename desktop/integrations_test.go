@@ -60,16 +60,17 @@ func TestIntegrationsGETOrderAndDetect(t *testing.T) {
 	// every agentskills.io host reads is worth offering before any particular
 	// host is installed.
 	items := get()
-	want := []string{"command-line-tool", "raycast", "skill-agents", "mcp-claude"}
+	want := []string{"command-line-tool", "raycast", "skill-agents", "mcp-claude", "mcp-claude-desktop"}
 	wantCmd := map[string]string{
-		"command-line-tool": "gadak install-cli",
-		"raycast":           "gadak raycast install",
-		"skill-agents":      "gadak skill install agents",
-		"skill-claude":      "gadak skill install claude",
-		"mcp-claude":        "gadak mcp install claude",
+		"command-line-tool":  "gadak install-cli",
+		"raycast":            "gadak raycast install",
+		"skill-agents":       "gadak skill install agents",
+		"skill-claude":       "gadak skill install claude",
+		"mcp-claude":         "gadak mcp install claude",
+		"mcp-claude-desktop": "gadak mcp install claude-desktop",
 	}
 	if runtime.GOOS == "windows" {
-		want = []string{"command-line-tool", "skill-agents", "mcp-claude"}
+		want = []string{"command-line-tool", "skill-agents", "mcp-claude", "mcp-claude-desktop"}
 	}
 	if got := idsOf(items); !reflect.DeepEqual(got, want) {
 		t.Fatalf("ids=%v want %v", got, want)
@@ -131,9 +132,9 @@ func TestIntegrationsGETOrderAndDetect(t *testing.T) {
 
 	items = get()
 	rows = byID(items)
-	wantAfter := []string{"command-line-tool", "raycast", "skill-claude", "skill-agents", "mcp-claude"}
+	wantAfter := []string{"command-line-tool", "raycast", "skill-claude", "skill-agents", "mcp-claude", "mcp-claude-desktop"}
 	if runtime.GOOS == "windows" {
-		wantAfter = []string{"command-line-tool", "skill-claude", "skill-agents", "mcp-claude"}
+		wantAfter = []string{"command-line-tool", "skill-claude", "skill-agents", "mcp-claude", "mcp-claude-desktop"}
 	}
 	if got := idsOf(items); !reflect.DeepEqual(got, wantAfter) {
 		t.Fatalf("after touch: ids=%v want %v", got, wantAfter)
@@ -223,14 +224,16 @@ func TestIntegrationsPOSTPerHostArgv(t *testing.T) {
 	t.Setenv("GADAK_DESKTOP_CLI", script)
 
 	for id, want := range map[string]string{
-		"skill":          "args: skill install claude", // legacy alias
-		"skill-claude":   "args: skill install claude",
-		"skill-codex":    "args: skill install codex",
-		"skill-agents":   "args: skill install agents",
-		"skill-cursor":   "args: skill install cursor",
-		"skill-gemini":   "args: skill install gemini",
-		"skill-opencode": "args: skill install opencode",
-		"skill-grok":     "args: skill install grok",
+		"skill":              "args: skill install claude", // legacy alias
+		"skill-claude":       "args: skill install claude",
+		"skill-codex":        "args: skill install codex",
+		"skill-agents":       "args: skill install agents",
+		"skill-cursor":       "args: skill install cursor",
+		"skill-gemini":       "args: skill install gemini",
+		"skill-opencode":     "args: skill install opencode",
+		"skill-grok":         "args: skill install grok",
+		"mcp-claude":         "args: mcp install claude",
+		"mcp-claude-desktop": "args: mcp install claude-desktop",
 	} {
 		rec := httptest.NewRecorder()
 		integrationsMux().ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/desktop/integrations/"+id+"/install", nil))

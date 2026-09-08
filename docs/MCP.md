@@ -79,24 +79,55 @@ gadak --workspace demo mcp install claude
 
 | Flag | Effect |
 | --- | --- |
-| `--dry-run` | print the command (claude) or config without registering |
+| `--dry-run` | print the command (claude), the merged config (claude-desktop), or the config without registering |
 
-Other clients never exec — they only print (`raycast` prints form values; see
-[Raycast](#raycast) below):
+Besides claude, one client writes (claude-desktop), and the rest only print (`raycast` prints form values; see [Raycast](#raycast) below):
 
-| Client | Command | What it prints |
+| Client | Command | What it does |
 | --- | --- | --- |
-| cursor | `gadak mcp install cursor` | Cursor MCP config to paste (`.cursor/mcp.json`) |
-| codex | `gadak mcp install codex` | Codex MCP config to paste (`~/.codex/config.toml`) — but Codex loads skills, so `gadak skill install codex` is usually the better route |
-| raycast | `gadak mcp install raycast` | values to fill into Raycast's Install New Server form |
-| json | `gadak mcp install json` | `mcpServers` JSON snippet only |
+| claude | `gadak mcp install claude` | Claude Code: runs `claude mcp add` (registers with Claude Code's own config) |
+| claude-desktop | `gadak mcp install claude-desktop` | Claude Desktop: merges the gadak entry into `claude_desktop_config.json` |
+| cursor | `gadak mcp install cursor` | prints Cursor MCP config to paste (`.cursor/mcp.json`) |
+| codex | `gadak mcp install codex` | prints Codex MCP config to paste (`~/.codex/config.toml`) — but Codex loads skills, so `gadak skill install codex` is usually the better route |
+| raycast | `gadak mcp install raycast` | prints values to fill into Raycast's Install New Server form |
+| json | `gadak mcp install json` | prints a `mcpServers` JSON snippet only |
 
 With no client, `gadak mcp install` lists those clients.
 
 ## Claude Desktop
 
-Add a server entry to the Claude Desktop MCP config (path varies by OS; on macOS
-it is typically `~/Library/Application Support/Claude/claude_desktop_config.json`):
+Claude Desktop is a different app from Claude Code, with a different config —
+and no shell, so nothing can run the CLI for it. The install verb writes the
+file itself:
+
+```bash
+gadak mcp install claude-desktop
+```
+
+This merges a `gadak` entry into Claude Desktop's `claude_desktop_config.json`,
+keeping the file's other keys and servers untouched. The entry pins this
+workspace and this binary's absolute path, same as `claude` does for Claude
+Code. The file's location by OS:
+
+| OS | Path |
+| --- | --- |
+| macOS | `~/Library/Application Support/Claude/claude_desktop_config.json` |
+| Windows | `%APPDATA%\Claude\claude_desktop_config.json` |
+| Linux | `$XDG_CONFIG_HOME/Claude/claude_desktop_config.json`, else `~/.config/Claude/claude_desktop_config.json` |
+
+If the file is missing it is created (`{}` plus the entry); if it holds
+something that is not a JSON object, gadak refuses and leaves the file
+untouched. An unchanged entry prints `already registered` and exits 0. Restart
+Claude Desktop to load a change — it reads the file at startup. `--dry-run`
+prints the merged config without writing.
+
+To pin a named workspace:
+
+```bash
+gadak --workspace demo mcp install claude-desktop
+```
+
+The entry it writes:
 
 ```json
 {
@@ -109,7 +140,9 @@ it is typically `~/Library/Application Support/Claude/claude_desktop_config.json
 }
 ```
 
-### Named workspace
+If you would rather edit the file by hand, that is the shape — under a named
+workspace, `"args": ["--workspace", "demo", "mcp"]` (a second registration can
+also use a different server name, which the install verb never does):
 
 ```json
 {
@@ -139,7 +172,9 @@ it is typically `~/Library/Application Support/Claude/claude_desktop_config.json
 ```
 
 If `gadak` is not on the absolute `PATH` that the desktop app inherits, use the
-full path to the binary in `"command"`.
+full path to the binary in `"command"` (the install verb always writes the full
+path). `gadak mcp install claude-desktop` does not set `env` — a custom
+`GADAK_HOME` is a hand edit on top of the entry it writes.
 
 ### Other clients
 

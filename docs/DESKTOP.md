@@ -61,7 +61,7 @@ Linux, a copy on Windows, where symlinks need elevation. If the install
 directory is not already on your PATH, the app
 copies a one-line shell snippet to the clipboard so you can paste it into
 your shell rc. When it succeeds, the next step is `gadak skill install`
-(Claude Code). For shell-less hosts like Claude Desktop: `gadak mcp install claude`.
+(Claude Code). For Claude Desktop: `gadak mcp install claude-desktop`.
 
 **2. From a terminal (same result).** If you already have a shell open:
 
@@ -80,10 +80,10 @@ For a coding agent that has a shell (Claude Code):
 gadak skill install
 ```
 
-For hosts without a shell (Claude Desktop):
+For Claude Desktop (no shell — the command writes its config):
 
 ```bash
-gadak mcp install claude
+gadak mcp install claude-desktop
 ```
 
 **3. Manual link (last resort):**

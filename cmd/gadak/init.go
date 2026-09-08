@@ -650,7 +650,7 @@ func printInitNextSteps(kind string) {
 next:
   gadak create "first ticket"   file an issue in this workspace
   gadak serve                   read it in the browser
-  gadak skill install           let a coding agent use it (shell-less hosts: gadak mcp install claude)
+  gadak skill install           let a coding agent use it (Claude Desktop: gadak mcp install claude-desktop)
 `)
 		return
 	}
@@ -658,7 +658,7 @@ next:
 next:
   gadak sync                    fill the mirror (a few minutes on a first run)
   gadak serve                   read it in the browser
-  gadak mcp install claude      let your coding agent query it (also: cursor, codex)
+  gadak mcp install claude      let your coding agent query it (also: claude-desktop, cursor, codex)
 
 docs/AGENT_SETUP.md has one paste per agent; docs/RECIPES.md has the questions
 JQL cannot ask.

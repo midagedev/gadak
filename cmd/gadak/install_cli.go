@@ -79,7 +79,7 @@ func installCLI(w io.Writer, source, dir string, force, printOnly bool, pathEnv,
 // installCLISkillNext is the line printed when auto-install did not run
 // because ~/.claude is absent (or failed). Verified: installCLI success
 // paths used this exact string before GDK-93.
-const installCLISkillNext = "next: gadak skill install   (Claude Code; for shell-less hosts like Claude Desktop use: gadak mcp install claude)\n"
+const installCLISkillNext = "next: gadak skill install   (Claude Code; Claude Desktop: gadak mcp install claude-desktop)\n"
 
 func printInstallCLISkillFollowup(w io.Writer, skill string) {
 	switch skill {

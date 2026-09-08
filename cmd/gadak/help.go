@@ -892,6 +892,7 @@ var helps = map[string]cmdHelp{
 			"gadak mcp --no-sync",
 			"gadak --workspace demo mcp",
 			"gadak mcp install claude",
+			"gadak mcp install claude-desktop",
 			"gadak --workspace demo mcp install claude --dry-run",
 			"gadak mcp install json",
 		},

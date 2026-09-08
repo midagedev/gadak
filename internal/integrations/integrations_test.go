@@ -95,8 +95,9 @@ func TestListOrderAndDetectFlip(t *testing.T) {
 	mkConfigDir(t, home, ".claude")
 
 	items := listFor("darwin")
-	// cli, raycast, skill-claude, skill-agents (always), mcp-claude.
-	want := []string{idCommandLineTool, idRaycast, "skill-claude", "skill-agents", idMCPClaude}
+	// cli, raycast, skill-claude, skill-agents (always), mcp-claude,
+	// mcp-claude-desktop.
+	want := []string{idCommandLineTool, idRaycast, "skill-claude", "skill-agents", idMCPClaude, idMCPClaudeDesktop}
 	if got := ids(items); !reflect.DeepEqual(got, want) {
 		t.Fatalf("ids=%v want %v", got, want)
 	}
@@ -184,11 +185,11 @@ func TestSkillRowsFollowConfigDirs(t *testing.T) {
 	fakeSkillEnv(t, home)
 	mkConfigDir(t, home, ".codex")
 
-	want := []string{idCommandLineTool, idRaycast, "skill-codex", "skill-agents", idMCPClaude}
+	want := []string{idCommandLineTool, idRaycast, "skill-codex", "skill-agents", idMCPClaude, idMCPClaudeDesktop}
 	if got := ids(listFor("darwin")); !reflect.DeepEqual(got, want) {
 		t.Fatalf("only ~/.codex: ids=%v want %v", got, want)
 	}
-	wantWin := []string{idCommandLineTool, "skill-codex", "skill-agents", idMCPClaude}
+	wantWin := []string{idCommandLineTool, "skill-codex", "skill-agents", idMCPClaude, idMCPClaudeDesktop}
 	if got := ids(listFor("windows")); !reflect.DeepEqual(got, wantWin) {
 		t.Fatalf("windows: ids=%v want %v", got, wantWin)
 	}
@@ -201,7 +202,7 @@ func TestSkillRowsFollowConfigDirs(t *testing.T) {
 	for _, c := range skillinstall.Clients() {
 		wantAll = append(wantAll, skillRowID(c.Name))
 	}
-	wantAll = append(wantAll, idMCPClaude)
+	wantAll = append(wantAll, idMCPClaude, idMCPClaudeDesktop)
 	if got := ids(listFor("darwin")); !reflect.DeepEqual(got, wantAll) {
 		t.Fatalf("all hosts: ids=%v want %v", got, wantAll)
 	}
@@ -308,8 +309,110 @@ func TestInstallArgs(t *testing.T) {
 	if !ok || len(args) != 1 || args[0] != "install-cli" {
 		t.Fatalf("cli args=%v ok=%v want [install-cli]", args, ok)
 	}
+	// Two Claude rows, two verbs: the Code row execs the claude CLI, the
+	// Desktop row writes the config file itself.
+	args, ok = InstallArgs(idMCPClaude)
+	if !ok || strings.Join(args, " ") != "mcp install claude" {
+		t.Fatalf("mcp-claude args=%v ok=%v", args, ok)
+	}
+	args, ok = InstallArgs(idMCPClaudeDesktop)
+	if !ok || strings.Join(args, " ") != "mcp install claude-desktop" {
+		t.Fatalf("mcp-claude-desktop args=%v ok=%v", args, ok)
+	}
 	if _, ok := InstallArgs("nope"); ok {
 		t.Fatal("unknown id must be false")
+	}
+}
+
+// Two Claude rows, each truthful: mcp-claude is Claude Code (the claude CLI
+// is the registrar), mcp-claude-desktop is Claude Desktop (the config file on
+// disk). Before GDK-1633 one row carried both names and matched neither.
+func TestMCPClaudeRowsTitlesAndCommands(t *testing.T) {
+	stubNoClaude(t)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	fakeSkillEnv(t, home)
+
+	got := ids(listFor("darwin"))
+	if got[len(got)-2] != idMCPClaude || got[len(got)-1] != idMCPClaudeDesktop {
+		t.Fatalf("the desktop row must sit right after the code row: %v", got)
+	}
+	code := itemByID(t, listFor("darwin"), idMCPClaude)
+	if code.Title != "Claude Code MCP" || code.Command != "gadak mcp install claude" {
+		t.Fatalf("code row: title=%q command=%q", code.Title, code.Command)
+	}
+	// The missing-claude branch carries the same title — the card never goes
+	// back to calling the CLI row "Claude Desktop".
+	if code.Prerequisite == nil || code.Prerequisite.OK || code.Prerequisite.Message != "claude CLI is not on PATH" {
+		t.Fatalf("code prerequisite: %+v", code.Prerequisite)
+	}
+	desktop := itemByID(t, listFor("darwin"), idMCPClaudeDesktop)
+	if desktop.Title != "Claude Desktop MCP" || desktop.Command != "gadak mcp install claude-desktop" {
+		t.Fatalf("desktop row: title=%q command=%q", desktop.Title, desktop.Command)
+	}
+}
+
+// The desktop row reads claude_desktop_config.json only. States: no app
+// directory (prerequisite fails naming it), directory without config (not
+// installed), config without gadak (false), config with gadak (true), and an
+// unparsable config (unknown, detail says unreadable).
+func TestMCPClaudeDesktopRowPerState(t *testing.T) {
+	stubNoClaude(t)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	fakeSkillEnv(t, home)
+	row := func() Item { return itemByID(t, listFor("darwin"), idMCPClaudeDesktop) }
+
+	cfgDir := filepath.Join(home, "Library", "Application Support", "Claude")
+	cfg := filepath.Join(cfgDir, "claude_desktop_config.json")
+
+	item := row()
+	if item.Prerequisite == nil || item.Prerequisite.OK {
+		t.Fatalf("no app dir: prerequisite=%+v", item.Prerequisite)
+	}
+	if !strings.Contains(item.Prerequisite.Message, "~/Library/Application Support/Claude") {
+		t.Fatalf("prerequisite must name the missing dir: %q", item.Prerequisite.Message)
+	}
+	if item.Installed == nil || *item.Installed {
+		t.Fatalf("no app dir: installed=%v want false", item.Installed)
+	}
+
+	if err := os.MkdirAll(cfgDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	item = row()
+	if item.Prerequisite == nil || !item.Prerequisite.OK {
+		t.Fatalf("app dir present: prerequisite=%+v", item.Prerequisite)
+	}
+	if item.Installed == nil || *item.Installed {
+		t.Fatalf("no config: installed=%v want false", item.Installed)
+	}
+	if item.Detail != clitool.TildeHome(cfg) {
+		t.Fatalf("detail=%q want %q", item.Detail, clitool.TildeHome(cfg))
+	}
+
+	if err := os.WriteFile(cfg, []byte(`{"mcpServers": {"other": {"command": "x"}}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if item = row(); item.Installed == nil || *item.Installed {
+		t.Fatalf("other server only: installed=%v want false", item.Installed)
+	}
+
+	if err := os.WriteFile(cfg, []byte(`{"mcpServers": {"gadak": {"command": "gadak", "args": ["mcp"]}}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if item = row(); item.Installed == nil || !*item.Installed {
+		t.Fatalf("registered: installed=%v want true", item.Installed)
+	}
+
+	if err := os.WriteFile(cfg, []byte(`{"mcpServers": {`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if item = row(); item.Installed != nil {
+		t.Fatalf("unparsable: installed=%v want nil", item.Installed)
+	}
+	if item.Detail != "unreadable: "+clitool.TildeHome(cfg) {
+		t.Fatalf("detail=%q", item.Detail)
 	}
 }
 
@@ -642,7 +745,7 @@ func TestListForWindowsOmitsRaycast(t *testing.T) {
 			t.Fatalf("windows catalog must not include raycast: %+v", it)
 		}
 	}
-	want := []string{idCommandLineTool, "skill-claude", "skill-agents", idMCPClaude}
+	want := []string{idCommandLineTool, "skill-claude", "skill-agents", idMCPClaude, idMCPClaudeDesktop}
 	if len(ids) != len(want) {
 		t.Fatalf("windows ids=%v want %v", ids, want)
 	}
@@ -659,8 +762,8 @@ func TestListForDarwinKeepsRaycast(t *testing.T) {
 	fakeSkillEnv(t, home)
 	mkConfigDir(t, home, ".claude")
 	items := listFor("darwin")
-	if len(items) != 5 {
-		t.Fatalf("darwin len=%d want 5: %v", len(items), ids(items))
+	if len(items) != 6 {
+		t.Fatalf("darwin len=%d want 6: %v", len(items), ids(items))
 	}
 	if items[1].ID != idRaycast {
 		t.Fatalf("darwin order %v", ids(items))

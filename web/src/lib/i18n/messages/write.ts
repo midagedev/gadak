@@ -744,7 +744,7 @@ export const write = {
     ja: 'Claude Code — スキーマとクエリを教えるスキルをインストールします。サーバーは不要で、質問が必要になったときだけ読み込みます。',
   },
   'onboarding.agentMcpCaption': {
-    en: 'Or register an MCP server — the way in for a shell-less host (Claude Desktop). claude registers itself; cursor and codex print config to paste:',
+    en: 'Or register an MCP server. claude registers with Claude Code; claude-desktop writes Claude Desktop\'s config; cursor and codex print config to paste:',
     ko: '또는 MCP 서버로 등록 — 셸이 없는 호스트(Claude Desktop)를 위한 경로입니다. claude는 등록까지 대신 하고, cursor·codex는 붙여넣을 설정을 출력합니다:',
     ja: 'または MCP サーバーを登録 — シェルのないホスト（Claude Desktop）向けです。claude は自分で登録し、cursor と codex は貼り付ける設定を出力します:',
   },

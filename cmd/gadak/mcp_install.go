@@ -4,22 +4,32 @@ package main
 // profile baked into the command so hosts that do not inherit shell env cannot
 // silently attach to the default mirror.
 //
-// claude: exec `claude mcp add` (PATH lookup; dry-run prints only).
+// claude: exec `claude mcp add` (PATH lookup; dry-run prints only) — Claude Code.
+// claude-desktop: merge the gadak entry into Claude Desktop's config file.
 // cursor / codex / json: print paste-ready config (no exec).
 // raycast: print form values — Raycast has no config file to paste into.
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"slices"
 	"strings"
 
+	"github.com/midagedev/gadak/internal/clitool"
 	"github.com/midagedev/gadak/internal/config"
 )
 
 // execLookPath is exec.LookPath; tests inject a failure for the missing-binary path.
 var execLookPath = exec.LookPath
+
+// claudeDesktopConfigPath resolves Claude Desktop's config file. clitool owns
+// the path (the desktop Integrations row reads the same one); a package var so
+// tests can point it at a throwaway home.
+var claudeDesktopConfigPath = clitool.ClaudeDesktopConfigPath
 
 // mcpServerArgs is the argv tail for the gadak process that hosts MCP:
 // optional --profile <name>, then "mcp". Empty profile means default (omit flag).
@@ -146,23 +156,27 @@ Usage:
   gadak [--workspace <name>] mcp install <client> [--dry-run]
 
 Clients:
-  claude   run ` + "`claude mcp add`" + ` with this binary and profile baked in
-  cursor   print Cursor MCP config to paste (.cursor/mcp.json)
-  codex    print Codex MCP config to paste (~/.codex/config.toml)
-  raycast  print the values to fill into Raycast's Install New Server form
-  json     print mcpServers JSON snippet only
+  claude         run ` + "`claude mcp add`" + ` for Claude Code with this binary and profile baked in
+  claude-desktop merge the gadak entry into Claude Desktop's claude_desktop_config.json
+  cursor         print Cursor MCP config to paste (.cursor/mcp.json)
+  codex          print Codex MCP config to paste (~/.codex/config.toml)
+  raycast        print the values to fill into Raycast's Install New Server form
+  json           print mcpServers JSON snippet only
 
 Options:
-  --dry-run   print the command (claude) or config without registering
+  --dry-run   print the command (claude), the merged config (claude-desktop),
+              or the config to paste without registering
 
 For Claude Code, prefer ` + "`gadak skill install`" + ` — the skill carries the schema
-and query patterns MCP tools cannot. MCP is the path for hosts without a
-shell (Claude Desktop) and for clients the skill command does not support
-yet (cursor, codex, raycast).
+and query patterns MCP tools cannot. claude is Claude Code's MCP registration;
+claude-desktop is the path for Claude Desktop, which has no shell to run the
+CLI from; cursor, codex and raycast print config to paste.
 
 Examples:
   gadak mcp install claude
   gadak mcp install claude --dry-run
+  gadak mcp install claude-desktop
+  gadak --workspace demo mcp install claude-desktop --dry-run
   gadak --workspace demo mcp install claude
   gadak --workspace demo mcp install json
   gadak mcp install cursor
@@ -208,6 +222,8 @@ func cmdMCPInstall(args []string) error {
 	switch client {
 	case "claude":
 		return mcpInstallClaude(exe, profile, dryRun)
+	case "claude-desktop":
+		return mcpInstallClaudeDesktop(exe, profile, dryRun)
 	case "cursor":
 		fmt.Print(formatMCPInstallCursor(exe, profile))
 		return nil
@@ -221,7 +237,7 @@ func cmdMCPInstall(args []string) error {
 		fmt.Print(formatMCPInstallJSON(exe, profile))
 		return nil
 	default:
-		return fmt.Errorf("unknown client %q — supported: claude, cursor, codex, raycast, json\nrun \"gadak mcp install --help\" for examples", client)
+		return fmt.Errorf("unknown client %q — supported: claude, claude-desktop, cursor, codex, raycast, json\nrun \"gadak mcp install --help\" for examples", client)
 	}
 }
 
@@ -256,6 +272,157 @@ func mcpInstallClaude(exe, profile string, dryRun bool) error {
 			return fmt.Errorf("claude mcp add failed: %w\nmanual: %s", err, line)
 		}
 		return fmt.Errorf("claude mcp add failed: %w", err)
+	}
+	return nil
+}
+
+// mcpInstallClaudeDesktop registers gadak with Claude Desktop by merging a
+// gadak entry into claude_desktop_config.json. The file belongs to Claude
+// Desktop: every other top-level key and every other server entry is carried
+// over as raw JSON untouched, a file that is not a JSON object is refused
+// without a write, and the write itself is atomic.
+func mcpInstallClaudeDesktop(exe, profile string, dryRun bool) error {
+	path, err := claudeDesktopConfigPath()
+	if err != nil {
+		return err
+	}
+	entry := mcpServerEntry{Command: exe, Args: mcpServerArgs(profile)}
+	doc, existed, same, err := claudeDesktopMergeDoc(path, entry)
+	if err != nil {
+		return err
+	}
+	if dryRun {
+		fmt.Println(path)
+		fmt.Print(string(doc))
+		return nil
+	}
+	if same {
+		fmt.Fprintf(os.Stderr, "gadak: already registered in %s — nothing to do\n", path)
+		return nil
+	}
+	if err := writeClaudeDesktopConfig(path, doc); err != nil {
+		return err
+	}
+	verb := "registered"
+	if existed {
+		verb = "updated"
+	}
+	fmt.Printf("%s gadak in %s — restart Claude Desktop to load it\n", verb, path)
+	return nil
+}
+
+// claudeDesktopMergeDoc reads path (a missing file starts from an empty
+// object) and returns the document a write would place there, whether a
+// gadak entry was already present with different values (existed), and
+// whether one with the same command and args is there (same — nothing to do).
+func claudeDesktopMergeDoc(path string, entry mcpServerEntry) (doc []byte, existed, same bool, err error) {
+	top := map[string]json.RawMessage{}
+	raw, readErr := os.ReadFile(path)
+	switch {
+	case readErr == nil:
+		top, err = claudeDesktopParseTop(raw, path)
+		if err != nil {
+			return nil, false, false, err
+		}
+	case os.IsNotExist(readErr):
+		// No file yet: start from {}.
+	default:
+		return nil, false, false, fmt.Errorf("read %s: %w", path, readErr)
+	}
+	servers := map[string]json.RawMessage{}
+	if prev, ok := top["mcpServers"]; ok {
+		servers, err = claudeDesktopParseServers(prev, path)
+		if err != nil {
+			return nil, false, false, err
+		}
+	}
+	entryRaw, err := json.Marshal(entry)
+	if err != nil {
+		return nil, false, false, fmt.Errorf("encode gadak entry: %w", err)
+	}
+	if prev, ok := servers["gadak"]; ok {
+		existed = true
+		var prevEntry mcpServerEntry
+		if json.Unmarshal(prev, &prevEntry) == nil &&
+			prevEntry.Command == entry.Command && slices.Equal(prevEntry.Args, entry.Args) {
+			same = true
+		}
+	}
+	servers["gadak"] = entryRaw
+	serversRaw, err := json.Marshal(servers)
+	if err != nil {
+		return nil, false, false, fmt.Errorf("encode mcpServers: %w", err)
+	}
+	top["mcpServers"] = serversRaw
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	// No HTML escaping: this is the user's file, and a less-than sign inside
+	// some other server's argument must not be rewritten as an escape sequence.
+	enc.SetEscapeHTML(false)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(top); err != nil {
+		return nil, false, false, fmt.Errorf("encode %s: %w", path, err)
+	}
+	return buf.Bytes(), existed, same, nil
+}
+
+// claudeDesktopParseTop parses the top level of claude_desktop_config.json as
+// a JSON object. Anything else — a parse error, an array, a scalar, null —
+// refuses; the error names the path and says the file was left untouched.
+func claudeDesktopParseTop(raw []byte, path string) (map[string]json.RawMessage, error) {
+	var top map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &top); err != nil {
+		return nil, fmt.Errorf("%s is not a JSON object (%v) — the file was left untouched; fix or remove it by hand and re-run", path, err)
+	}
+	if top == nil {
+		// Literal null unmarshals into a nil map without an error.
+		return nil, fmt.Errorf("%s is not a JSON object (null) — the file was left untouched; fix or remove it by hand and re-run", path)
+	}
+	return top, nil
+}
+
+// claudeDesktopParseServers is claudeDesktopParseTop for the mcpServers
+// value: present but not an object (an array, a scalar, null) refuses the
+// same way.
+func claudeDesktopParseServers(raw json.RawMessage, path string) (map[string]json.RawMessage, error) {
+	var servers map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &servers); err != nil {
+		return nil, fmt.Errorf("%s: mcpServers is not an object (%v) — the file was left untouched; fix or remove it by hand and re-run", path, err)
+	}
+	if servers == nil {
+		return nil, fmt.Errorf("%s: mcpServers is not an object (null) — the file was left untouched; fix or remove it by hand and re-run", path)
+	}
+	return servers, nil
+}
+
+// writeClaudeDesktopConfig writes doc to path atomically — a temp file in the
+// same directory, 0o600, then rename over the target — so a partial write can
+// never leave Claude Desktop without its config. The parent directory is
+// created 0o700 when missing.
+func writeClaudeDesktopConfig(path string, doc []byte) error {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return fmt.Errorf("create %s: %w", dir, err)
+	}
+	tmp, err := os.CreateTemp(dir, ".claude-desktop-config-*.tmp")
+	if err != nil {
+		return fmt.Errorf("stage write to %s: %w", dir, err)
+	}
+	tmpName := tmp.Name()
+	defer os.Remove(tmpName) // no-op once renamed
+	if _, err := tmp.Write(doc); err != nil {
+		tmp.Close()
+		return fmt.Errorf("write %s: %w", tmpName, err)
+	}
+	if err := tmp.Chmod(0o600); err != nil {
+		tmp.Close()
+		return fmt.Errorf("chmod %s: %w", tmpName, err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("close %s: %w", tmpName, err)
+	}
+	if err := os.Rename(tmpName, path); err != nil {
+		return fmt.Errorf("replace %s: %w", path, err)
 	}
 	return nil
 }

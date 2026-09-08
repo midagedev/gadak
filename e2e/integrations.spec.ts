@@ -52,11 +52,22 @@ const ITEMS = {
     },
     {
       id: 'mcp-claude',
-      title: 'Claude Desktop MCP',
+      title: 'Claude Code MCP',
       installed: null,
       detail: '',
       command: 'gadak mcp install claude',
-      prerequisite: { ok: false, message: 'Claude Desktop is not installed.' },
+      prerequisite: { ok: false, message: 'claude CLI is not on PATH' },
+    },
+    {
+      id: 'mcp-claude-desktop',
+      title: 'Claude Desktop MCP',
+      installed: false,
+      detail: '~/Library/Application Support/Claude/claude_desktop_config.json',
+      command: 'gadak mcp install claude-desktop',
+      prerequisite: {
+        ok: false,
+        message: 'Claude Desktop is not installed (no ~/Library/Application Support/Claude)',
+      },
     },
   ],
 }
@@ -130,6 +141,10 @@ test.describe('integrations tab in the app', () => {
       'data-state',
       'unknown',
     )
+    await expect(page.getByTestId('integration-status-mcp-claude-desktop')).toHaveAttribute(
+      'data-state',
+      'not-installed',
+    )
 
     // The command is on screen, not behind the button.
     await expect(tab.getByText('gadak raycast install')).toBeVisible()
@@ -144,11 +159,23 @@ test.describe('integrations tab in the app', () => {
     )
 
     // An unmet prerequisite says why and disables the button rather than
-    // letting the click fail in a log.
+    // letting the click fail in a log. Both MCP rows carry one — the claude row
+    // wants the claude CLI, the claude-desktop row wants the app's config dir.
     await expect(page.getByTestId('integration-prereq-mcp-claude')).toContainText(
-      'Claude Desktop is not installed.',
+      'claude CLI is not on PATH',
     )
     await expect(page.getByTestId('integration-install-mcp-claude')).toBeDisabled()
+    await expect(page.getByTestId('integration-prereq-mcp-claude-desktop')).toContainText(
+      'Claude Desktop is not installed',
+    )
+    await expect(page.getByTestId('integration-install-mcp-claude-desktop')).toBeDisabled()
+
+    // The claude-desktop row says where it would write, so the person can
+    // recognise the file on their own machine.
+    await expect(tab.getByText('gadak mcp install claude-desktop')).toBeVisible()
+    await expect(
+      tab.getByText('~/Library/Application Support/Claude/claude_desktop_config.json'),
+    ).toBeVisible()
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })

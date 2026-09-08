@@ -43,7 +43,7 @@ func TestInstallCLINewSymlink(t *testing.T) {
 	if !strings.Contains(out, "installed:") {
 		t.Errorf("expected installed: line, got:\n%s", out)
 	}
-	if !strings.Contains(out, "next: gadak skill install   (Claude Code; for shell-less hosts like Claude Desktop use: gadak mcp install claude)") {
+	if !strings.Contains(out, "next: gadak skill install   (Claude Code; Claude Desktop: gadak mcp install claude-desktop)") {
 		t.Errorf("expected next-step line, got:\n%s", out)
 	}
 }
@@ -86,7 +86,7 @@ func TestInstallCLIAlreadySameTarget(t *testing.T) {
 	if !strings.Contains(out, "already installed") {
 		t.Errorf("expected already installed, got:\n%s", out)
 	}
-	if !strings.Contains(out, "next: gadak skill install   (Claude Code; for shell-less hosts like Claude Desktop use: gadak mcp install claude)") {
+	if !strings.Contains(out, "next: gadak skill install   (Claude Code; Claude Desktop: gadak mcp install claude-desktop)") {
 		t.Errorf("expected next-step line, got:\n%s", out)
 	}
 	// Still points at source.
@@ -471,7 +471,7 @@ func TestInstallCLISkillSkippedWithoutClaudeDirKeepsNextStep(t *testing.T) {
 		t.Fatalf("must not create SKILL.md when ~/.claude is absent: %v", err)
 	}
 	out := buf.String()
-	if !strings.Contains(out, "next: gadak skill install   (Claude Code; for shell-less hosts like Claude Desktop use: gadak mcp install claude)") {
+	if !strings.Contains(out, "next: gadak skill install   (Claude Code; Claude Desktop: gadak mcp install claude-desktop)") {
 		t.Fatalf("skipped (no ~/.claude) must keep the next-step line, got:\n%s", out)
 	}
 }

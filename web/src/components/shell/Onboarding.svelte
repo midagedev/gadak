@@ -63,7 +63,12 @@
   // shell to run the CLI from.
   const SKILL_COMMAND = 'gadak skill install'
   const CLAUDE_COMMAND = 'gadak mcp install claude'
-  const MCP_COMMANDS = [CLAUDE_COMMAND, 'gadak mcp install cursor', 'gadak mcp install codex']
+  const MCP_COMMANDS = [
+    CLAUDE_COMMAND,
+    'gadak mcp install claude-desktop',
+    'gadak mcp install cursor',
+    'gadak mcp install codex',
+  ]
 
   const INPUT =
     'h-control w-full rounded-md border border-border-strong bg-bg-base px-2.5 text-body text-text-primary outline-none placeholder:text-text-muted focus:border-accent'

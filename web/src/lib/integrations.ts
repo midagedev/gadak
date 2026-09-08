@@ -98,7 +98,8 @@ function normalizePrerequisite(v: unknown): IntegrationPrerequisite | null {
  * `GET /desktop/integrations` body → items, in the order the server sent them.
  *
  * The order is the server's (command-line-tool, then raycast when the host
- * offers it, one row per skill host it can find, mcp-claude): it is the
+ * offers it, one row per skill host it can find, mcp-claude,
+ * mcp-claude-desktop): it is the
  * reading order of the setup, so the UI must not re-sort it. Only macOS
  * offers raycast, and a skill host the machine does not have gets no row at
  * all — so the list is not the same length twice. Anything unusable is

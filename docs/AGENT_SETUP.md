@@ -153,10 +153,11 @@ tool surface. Two install paths:
 | What you get | One folder of docs, loaded only when relevant | A stdio server + always-on tool schemas in context |
 | Cost | Cheap on context; agent runs `gadak sql` / `gadak issue` itself | Tool definitions occupy context every turn |
 
-If the agent has a shell, `gadak skill install <client>` is the path. MCP
-(`gadak mcp install claude`) is for hosts without a shell (Claude Desktop).
-They do not conflict — the skill teaches SQL/CLI; MCP is a separate
-read-only tool surface — but a shell agent does not need MCP.
+If the agent has a shell, `gadak skill install <client>` is the path. MCP is
+for hosts without a shell: `gadak mcp install claude-desktop` registers with
+Claude Desktop, and `gadak mcp install claude` with Claude Code. They do not
+conflict — the skill teaches SQL/CLI; MCP is a separate read-only tool
+surface — but a shell agent does not need MCP.
 
 ## The skill (preferred when the agent has a shell)
 
@@ -256,28 +257,43 @@ copy updates with the binary.
 ## MCP (for hosts without a shell)
 
 Shortest path — pins the **current** workspace into the registration so the host
-cannot silently attach to the default mirror:
+cannot silently attach to the default mirror. The client names the app it
+registers with:
+
+```bash
+gadak mcp install claude-desktop
+```
+
+for Claude Desktop, and
 
 ```bash
 gadak mcp install claude
 ```
 
+for Claude Code.
+
+`claude` runs `claude mcp add` (Claude Code's own config). `claude-desktop`
+writes the config Claude Desktop actually reads — it merges a `gadak` entry
+into `claude_desktop_config.json` itself, because Claude Desktop has no shell
+to run the CLI from. Restart Claude Desktop after installing; it reads the
+file at startup.
+
 To pin a named workspace:
 
 ```bash
-gadak --workspace demo mcp install claude
+gadak --workspace demo mcp install claude-desktop
 ```
 
-That runs the same registration the manual line below does (absolute binary
-path + optional `--workspace`; `--profile` is an alias). Other clients print
-rather than register:
+The other clients print rather than register:
 
-| Client | Command | What it prints |
+| Client | Command | What it does |
 | --- | --- | --- |
-| cursor | `gadak mcp install cursor` | Cursor MCP config to paste (`.cursor/mcp.json`) |
-| codex | `gadak mcp install codex` | Codex MCP config to paste (`~/.codex/config.toml`) |
-| raycast | `gadak mcp install raycast` | values to fill into Raycast's Install New Server form |
-| json | `gadak mcp install json` | `mcpServers` JSON snippet only |
+| claude | `gadak mcp install claude` | runs `claude mcp add` (Claude Code) |
+| claude-desktop | `gadak mcp install claude-desktop` | merges the entry into Claude Desktop's `claude_desktop_config.json` |
+| cursor | `gadak mcp install cursor` | prints Cursor MCP config to paste (`.cursor/mcp.json`) |
+| codex | `gadak mcp install codex` | prints Codex MCP config to paste (`~/.codex/config.toml`) |
+| raycast | `gadak mcp install raycast` | prints values to fill into Raycast's Install New Server form |
+| json | `gadak mcp install json` | prints a `mcpServers` JSON snippet only |
 
 Raycast has no MCP config file to paste into, and its AI/MCP features may
 require a paid plan.

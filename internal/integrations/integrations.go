@@ -5,6 +5,7 @@
 package integrations
 
 import (
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -20,11 +21,13 @@ import (
 )
 
 // IDs are part of the GET/POST contract. Order of List is fixed:
-// command-line-tool, raycast (darwin only), one row per skill host, mcp-claude.
+// command-line-tool, raycast (darwin only), one row per skill host,
+// mcp-claude, mcp-claude-desktop.
 const (
-	idCommandLineTool = "command-line-tool"
-	idRaycast         = "raycast"
-	idMCPClaude       = "mcp-claude"
+	idCommandLineTool  = "command-line-tool"
+	idRaycast          = "raycast"
+	idMCPClaude        = "mcp-claude"
+	idMCPClaudeDesktop = "mcp-claude-desktop"
 
 	// idSkill is the single skill row gadak listed before GDK-1513. List no
 	// longer emits it — there is a row per host now, `skill-<client>` — but the
@@ -104,9 +107,9 @@ type Item struct {
 }
 
 // List returns the catalog rows for this host's GOOS, in contract order:
-// command-line-tool, raycast (darwin only), the skill rows, mcp-claude.
-// Non-macOS hosts omit raycast — Raycast does not exist there, and a row
-// whose Install button can run would lie (GDK-244, GDK-354).
+// command-line-tool, raycast (darwin only), the skill rows, mcp-claude,
+// mcp-claude-desktop. Non-macOS hosts omit raycast — Raycast does not exist
+// there, and a row whose Install button can run would lie (GDK-244, GDK-354).
 func List() []Item {
 	return listFor(runtime.GOOS)
 }
@@ -119,7 +122,7 @@ func listFor(goos string) []Item {
 		items = append(items, raycastItem())
 	}
 	items = append(items, skillItems()...)
-	return append(items, mcpClaudeItem())
+	return append(items, mcpClaudeItem(), mcpClaudeDesktopItem())
 }
 
 // raycastOffered is the single owner of "does this OS get a Raycast row".
@@ -152,6 +155,8 @@ func InstallArgsFor(id, goos string) ([]string, bool) {
 		return skillInstallArgs(skillinstall.DefaultClient), true
 	case idMCPClaude:
 		return []string{"mcp", "install", "claude"}, true
+	case idMCPClaudeDesktop:
+		return []string{"mcp", "install", "claude-desktop"}, true
 	default:
 		if name, found := strings.CutPrefix(id, skillIDPrefix); found {
 			if client, known := skillinstall.Lookup(name); known {
@@ -290,6 +295,9 @@ func skillStatusWord(installStatus string) string {
 	return installStatus
 }
 
+// mcpClaudeItem is Claude Code's MCP row. Everything in it is Claude Code:
+// `gadak mcp install claude` execs the claude CLI, which writes Claude Code's
+// own config — never Claude Desktop's. The shell-less host is the row below.
 func mcpClaudeItem() Item {
 	prereq := &Prerequisite{}
 	path, err := lookPath("claude")
@@ -297,7 +305,7 @@ func mcpClaudeItem() Item {
 		prereq.Message = "claude CLI is not on PATH"
 		return Item{
 			ID:           idMCPClaude,
-			Title:        "Claude Desktop MCP",
+			Title:        "Claude Code MCP",
 			Installed:    nil,
 			Detail:       "claude CLI not found",
 			Command:      "gadak mcp install claude",
@@ -316,12 +324,83 @@ func mcpClaudeItem() Item {
 	}
 	return Item{
 		ID:           idMCPClaude,
-		Title:        "Claude Desktop MCP",
+		Title:        "Claude Code MCP",
 		Installed:    installed,
 		Detail:       detail,
 		Command:      "gadak mcp install claude",
 		Prerequisite: prereq,
 	}
+}
+
+// mcpClaudeDesktopItem is Claude Desktop's row — a different app and a
+// different config file from Claude Code. Claude Desktop has no shell and no
+// claude binary, so `gadak mcp install claude-desktop` merges the entry into
+// claude_desktop_config.json itself. The row only reads that file; the
+// install verb is the writer, exactly as for every other row.
+func mcpClaudeDesktopItem() Item {
+	item := Item{
+		ID:      idMCPClaudeDesktop,
+		Title:   "Claude Desktop MCP",
+		Command: "gadak mcp install claude-desktop",
+	}
+	path, err := clitool.ClaudeDesktopConfigPath()
+	if err != nil {
+		// No resolvable home/APPDATA: nothing to inspect. Unknown, and the
+		// command reports the same failure in its own words.
+		item.Installed = nil
+		item.Detail = "unknown (" + err.Error() + ")"
+		item.Prerequisite = &Prerequisite{OK: false, Message: err.Error()}
+		return item
+	}
+	prereq := &Prerequisite{}
+	if dirExists(filepath.Dir(path)) {
+		// The app has run at least once — the config directory exists.
+		prereq.OK = true
+	} else {
+		prereq.Message = "Claude Desktop is not installed (no " + clitool.TildeHome(filepath.Dir(path)) + ")"
+	}
+	item.Prerequisite = prereq
+	item.Detail = clitool.TildeHome(path)
+	raw, readErr := os.ReadFile(path)
+	if readErr != nil {
+		if os.IsNotExist(readErr) {
+			// The app has run (its directory exists) but no config yet.
+			item.Installed = boolPtr(false)
+		} else {
+			// Unreadable for another reason (permissions, a directory where
+			// the file should be): the same unknown as an unparsable file.
+			item.Installed = nil
+			item.Detail = "unreadable: " + clitool.TildeHome(path)
+		}
+		return item
+	}
+	item.Installed = claudeDesktopInstalled(raw)
+	if item.Installed == nil {
+		// Unparsable body: the same unknown as an unreadable file.
+		item.Detail = "unreadable: " + clitool.TildeHome(path)
+	}
+	return item
+}
+
+// claudeDesktopInstalled reads a claude_desktop_config.json body: true when it
+// parses as an object naming a gadak server, false when absent from the map
+// (including an mcpServers that is not an object), and unknown (nil) when the
+// body is not parsable. A file the row does not own never errors the row.
+func claudeDesktopInstalled(raw []byte) *bool {
+	var top map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &top); err != nil || top == nil {
+		return nil
+	}
+	serversRaw, ok := top["mcpServers"]
+	if !ok {
+		return boolPtr(false)
+	}
+	var servers map[string]json.RawMessage
+	if err := json.Unmarshal(serversRaw, &servers); err != nil || servers == nil {
+		return boolPtr(false)
+	}
+	_, ok = servers["gadak"]
+	return boolPtr(ok)
 }
 
 // raycastExtDir is clitool.RaycastExtDir (same path the CLI install writes).

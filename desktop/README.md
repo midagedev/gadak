@@ -82,7 +82,8 @@ Put the CLI on your PATH:
 sudo ln -sf "/Applications/Gadak.app/Contents/Resources/bin/gadak" /usr/local/bin/gadak
 ```
 
-Then `gadak mcp install claude` (and friends) work from a desktop-only install.
+Then `gadak mcp install claude` / `claude-desktop` (and friends) work from a
+desktop-only install.
 
 The Linux AppDir includes the same two binaries under `usr/bin/`
 (`gadak-desktop` and `gadak`). `AppRun` prepends that directory to `PATH` for

@@ -256,6 +256,7 @@ test.describe('first-run onboarding', () => {
     await expect(page.getByText(en['sync.busy'])).toHaveCount(0)
     await assertOnboardingChromeQuiet(page, { wizardEscape: false })
     await expect(page.getByTestId('onboarding-cmd-claude')).toContainText('gadak mcp install claude')
+    await expect(wizard.getByText('gadak mcp install claude-desktop')).toBeVisible()
     await expect(wizard.getByText('gadak mcp install cursor')).toBeVisible()
     await expect(wizard.getByText('gadak mcp install codex')).toBeVisible()
     await expect(wizard.getByRole('link', { name: 'Agent setup' })).toBeVisible()
