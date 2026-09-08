@@ -1,26 +1,87 @@
 # Changelog
 
-<sub><a href="CHANGELOG.md">English</a> · 한국어 — 영문이 원본이며, 번역은 영문과 함께 갱신됩니다(마지막 동기화 2026-09-08).</sub>
+<sub><a href="CHANGELOG.md">English</a> · 한국어. 영문판을 옮긴 것이고, 영문과 함께 갱신합니다(마지막 동기화 2026-09-09).</sub>
 
 ## Unreleased
 
-- **내장 트래커의 스프린트.** gadak이 함께 들고 다니는 트래커가 Jira Software의
-  Agile 표면을 그대로 냅니다. 보드, 스프린트, 이슈의 스프린트 필드, JQL의
-  `openSprints()` 계열. 그래서 Atlassian 계정이 전혀 없는 워크스페이스에서도,
-  페어링한 워크스페이스에서도 `gadak sprint`가 그대로 됩니다. 스프린트를 닫으면
-  끝나지 않은 이슈가 백로그로 쓸려 나갑니다. Jira와 같습니다. ([GDK-1666])
-- **보드가 스프린트를 압니다.** 스프린트가 있는 워크스페이스에는 레이아웃 스위치 옆에
-  범위가 생깁니다. 진행 중인 스프린트(이름으로), 백로그, 전체. 이것은 다른 필터와
-  같은 필터입니다. URL이 들고, 뒤로가기가 되돌리고, 저장된 뷰가 기억하며,
-  `gadak views open --jql 'sprint in openSprints()'`가 같은 보드에 내려앉습니다.
-  필터 바에는 스프린트(이름) 축과 스프린트 상태 축이 생기고, 상세 패널이 스프린트를
-  보여 주며, 백로그를 뜻하는 `sprint is EMPTY`는 `sprint_state=none`으로 뷰 문법을
-  왕복합니다. 데모 픽스처는 범위가 보일 수 있게 스프린트 셋을 파생해 실어 둡니다.
-  ([GDK-1656])
-- **주간 회고에 화면이 생겼습니다.** `gadak retro`의 문서는 오지 않은 표면을 위해
-  서빙되고 있었습니다. 이제 팔레트의 *주간 회고*가 차분한
-  표를 엽니다. 주마다 한 열, 지표마다 한 행, 정의는 그 아래에. 이슈를 품은 셀은
-  그 목록으로 가는 문입니다. 4주, 8주, 12주. ([GDK-1660])
+**셀프호스트 Jira가 origin 종류가 되고, 스프린트가 개체가 됐습니다.**
+
+- **Jira Server / Data Center가 origin 종류가 됐습니다.** `gadak init --site
+  <베이스 URL> --server`로 셀프호스트 Jira 워크스페이스를 만듭니다. 이메일
+  없이 Personal Access Token 하나면 되고, 베이스 URL에 컨텍스트 경로가 붙어도
+  됩니다. init이 사이트에 어느 Jira인지 물어(`/rest/api/2/serverInfo`)
+  선언과 다르면 거절합니다. Server가 Cloud의 `/rest/api/3`에 무엇을 답하는지는
+  그 API의 존재 여부를 말해주지 않습니다. 실측에서 같은 라우트가 어느
+  자격증명으로 물었느냐에 따라 404·401·302로 갈렸습니다. 이 확인이 없으면
+  없는 API가 틀린 토큰으로 읽힙니다. 그 첫 변경은 축만 세웠습니다.
+  읽기·쓰기는 아직 Cloud REST 모양이었고, 이 릴리스의 나머지가 그 자리를
+  채웁니다. ([GDK-1635], [GDK-1640])
+- **Jira Server 워크스페이스가 sync 됩니다.** REST 방언이 패키지 상수가 아니라
+  클라이언트의 것이 됐습니다. Cloud와 빌트인 트래커는 v3를 그대로 쓰고 Server
+  origin은 v2를 받으며, 버전 번호만으로 안 되는 엔드포인트(생성 메타데이터,
+  JQL 검색, 근사 개수, 첨부 미디어 경로)는 각자의 모양으로 답하거나 이름을
+  붙여 거절합니다. 실제 Jira Server 11.3.11로 실측했습니다: `gadak sync`가
+  미러를 채웁니다. 설명은 wiki markup으로 오고 담당자에 accountId가 없으며
+  첨부 바이트는 아직 닿지 않습니다. 다음이 그 셋입니다. ([GDK-1636])
+- **Jira Server의 wiki markup을 있는 그대로.** 본문에 방언이 생겼습니다.
+  Cloud가 ADF를 보내는 자리에 Server는 wiki markup을 보내는데, gadak은
+  그것을 markdown으로 읽고 ADF 객체로 돌려보내고 있었습니다. Server
+  워크스페이스에서 `gadak create -m`을 치면 설명 자리에 ADF JSON이
+  들어갔습니다. 이제 양방향으로 원문을 그대로 나릅니다. 친 글자가 바이트
+  단위로 그대로 저장되고, 저장된 글자가 그대로 편집기에 열립니다. 변환이
+  없으면 손실도 없어서, 본문을 잠그지 않고 편집 가능한 채로 뒀습니다.
+  ([GDK-1637])
+- **Jira Server 워크스페이스의 담당자.** Cloud는 사용자를 accountId로 키하고
+  이메일을 숨기는 일이 많은데, Server는 name으로 키하고 이메일을 그대로
+  보냅니다. 이제 origin이 보낸 쪽 id를 저장하므로 양쪽 모두 `assignee_id`가
+  채워지고, `gadak assign`과 사용자 검색도 각 방언의 인자를 씁니다.
+  ([GDK-1638])
+- **Jira Server 워크스페이스의 첨부 파일.** Server에는 `/attachment/content`
+  라우트가 없습니다. 첨부마다 주소를 알려주고 바이트는 거기서만 주므로, 캐시가
+  그 주소를 보관하고 CLI와 앱이 그리로 요청합니다. 요청 전에 주소를 사이트
+  상대 경로로 줄이는데, 그것이 자격증명을 이 워크스페이스의 사이트 밖으로
+  내보내지 않는 방법입니다. 다른 곳을 가리키는 첨부 URL은 따라가지 않고
+  거절합니다. Jira Server 11.3.11 실측: `gadak attach get`이 원본과 해시가
+  같은 바이트를 돌려주고, 앱 프록시가 `Range`에 206을 답해 영상 탐색도
+  동작합니다. ([GDK-1639])
+- **Jira Server 워크스페이스의 스프린트.** Server는 스프린트 필드를 자기
+  빈의 Java `toString`으로 보냅니다. `Sprint@4ffcc813[…,id=1,name=Sprint
+  1,…,state=ACTIVE,…]`. Cloud는 객체를 보냅니다. 그래서 스프린트에 들어 있는
+  이슈도 `sprint_id`·`sprint_name`·`sprint_state`가 전부 빈 채로 미러에
+  들어왔습니다. 이제 두 형태를 다 읽고, `ACTIVE`는 질의가 쓰라고 배운
+  `active`로 맞춥니다. 에픽도 같은 사정입니다. Server는 `fields.parent`가
+  아니라 Epic Link 필드에 담고, 그것이 이제 이슈의 부모입니다. `/filter/my`도
+  Server에는 없어서 동기화마다 404였습니다. Server 워크스페이스는
+  `/filter/favourite`를 묻습니다. ([GDK-1650], [GDK-1651], [GDK-1652])
+- **Jira Server 워크스페이스의 에픽.** Server는 이슈 유형에 계층 레벨을
+  싣지 않습니다. 그래서 에픽이 스토리와 같은 레벨로 들어왔고 `epic_key`가
+  생길 수 없었습니다. 이제 "표준 이슈를 자식으로 둔 유형"에서 에픽을
+  유도합니다. 요청이 늘지 않고, 표시명 "Epic"이라는 낱말에 기대지도 않습니다.
+  ([GDK-1658])
+- **origin이 조용히 버린 쓰기를 성공으로 찍지 않습니다.** Jira Server는 일반
+  이슈의 `parent`에 204를 주고 아무것도 바꾸지 않습니다. 거기서 그 필드는
+  하위 작업의 것이고, 에픽은 Epic Link 커스텀 필드입니다. `edit --parent`(와
+  웹의 부모 편집)는 Server에서 Epic Link를 보내고, Jira Software가 없는
+  Server에서는 이름을 대고 거절합니다. 그리고 모든 `edit`는 다시 읽은 행을
+  요청한 값과 대조한 뒤에 찍습니다. 쓰기 전후가 같은 필드는 확인이 아니라
+  "버려졌다"로 보고합니다. ([GDK-1645])
+- **로그인 페이지를 응답으로 착각하지 않습니다.** 모든 REST 호출은 JSON을
+  요청하고 Go는 리다이렉트를 따라가므로, 요청을 로그인 페이지로 튕기는
+  origin은 그 페이지의 HTML을 200으로 돌려줬습니다. `gadak api`는 그걸
+  그대로 출력했고, JSON 호출은 `invalid character '<'`로 실패했습니다. 증상의
+  이름이지 원인의 이름이 아닙니다. JSON을 요청한 자리에 온 2xx HTML은 이제
+  이름을 붙여 거절하고, 오류 페이지는 상태코드와 본문을 그대로 둡니다.
+  `gadak attach get`에도 같은 사각지대가 있었습니다. 상태코드만 봐서는 origin이
+  자기 로그인 페이지를 200으로 주는 것을 볼 수 없습니다. 실측에서 HTML
+  257,592 바이트를 `.png`로 저장하고 exit 0을 냈습니다. 이제 받은 것의 종류와
+  미러가 기록한 종류를 대조해, 어긋나면 아무것도 쓰지 않습니다. `.html` 첨부는
+  그대로 받아지고, Cloud가 정상적으로 보내는 첨부 리다이렉트는 계속
+  따라갑니다. ([GDK-1648], [GDK-1644])
+- **빈 201은 웹 페이지가 아닙니다.** Jira Server는 `POST /issueLink`에 201과
+  `text/html`, 그리고 빈 본문으로 답합니다. 로그인 페이지를 거절하는 가드가
+  상태코드와 헤더로 판정하다 이것을 페이지로 오판해서, 만들어진 링크가 실패로
+  보고됐습니다. 이제 가드는 모든 경우가 동의하는 한 가지, 본문이 있는지만
+  묻습니다. 본문 없는 성공은 Content-Type이 무엇이든 통과합니다. ([GDK-1662])
 - **Jira Data Center의 레이트 리밋 예산을 벽에 부딪히기 전에 읽습니다.** DC는
   응답마다 토큰 버킷 상태를 헤더로 알려주는데, gadak은 429를 맞은 뒤에만
   반응했습니다. 이제 Server 클라이언트는 예산이 바닥에 가까우면 알려준 간격만큼
@@ -36,31 +97,6 @@
   보드→프로젝트 매핑이 비어 있고, 개발 패널의 거절 문장이 아직 Cloud를 말합니다.
   README와 로드맵, 제품 스펙에서 "검증하지 않아 주장하지 않는다"가 빠졌습니다.
   ([GDK-1634], [GDK-1641])
-- **닫힌 스프린트의 완료 이슈가 계속 "active"로 남던 것.** 스프린트를 닫으면
-  미완료 이슈만 밖으로 옮겨지므로, 완료된 이슈는 아무것도 바뀌지 않고 증분
-  동기화도 다시 읽지 않았습니다. 그 행들의 `sprint_state`는 영원히 "active"였고,
-  활성 스프린트를 묻는 모든 쿼리가 지난 스프린트의 완료 작업을 함께 셌습니다.
-  이제 스프린트 상태의 주인은 `sprints` 표 하나입니다. 이슈 행은 매 틱마다
-  거기서 `sprint_state`를 끌어오고, 보드·스프린트 목록은 조용한 틱에도
-  읽습니다. 스프린트의 상태 변화는 이슈 워터마크에 보이지 않기 때문입니다.
-  ([GDK-1661])
-- **빈 201은 웹 페이지가 아닙니다.** Jira Server는 `POST /issueLink`에 201과
-  `text/html`, 그리고 빈 본문으로 답합니다. 로그인 페이지를 거절하는 가드가
-  상태코드와 헤더로 판정하다 이것을 페이지로 오판해서, 만들어진 링크가 실패로
-  보고됐습니다. 이제 가드는 모든 경우가 동의하는 한 가지, 본문이 있는지만
-  묻습니다. 본문 없는 성공은 Content-Type이 무엇이든 통과합니다. ([GDK-1662])
-- **origin이 조용히 버린 쓰기를 성공으로 찍지 않습니다.** Jira Server는 일반
-  이슈의 `parent`에 204를 주고 아무것도 바꾸지 않습니다. 거기서 그 필드는
-  하위 작업의 것이고, 에픽은 Epic Link 커스텀 필드입니다. `edit --parent`(와
-  웹의 부모 편집)는 Server에서 Epic Link를 보내고, Jira Software가 없는
-  Server에서는 이름을 대고 거절합니다. 그리고 모든 `edit`는 다시 읽은 행을
-  요청한 값과 대조한 뒤에 찍습니다. 쓰기 전후가 같은 필드는 확인이 아니라
-  "버려졌다"로 보고합니다. ([GDK-1645])
-- **스프린트 필터가 정반대 집합을 물었습니다.** 스프린트 상태가 무엇이든 JQL
-  `openSprints()`로 컴파일됐습니다. 이 함수는 활성 스프린트만 고릅니다(활성
-  하나·미래 하나를 놓고 Jira 11.3.11에서 실측). 그래서 닫힌 스프린트로 거른
-  저장된 뷰가 열린 스프린트를 묻고 있었습니다. 이제 상태마다 자기 함수를 내고
-  파서가 셋을 다 읽으므로, 필터가 왕복 중에 사라지지 않습니다. ([GDK-1216])
 - **스프린트가 이슈에 붙은 문자열 셋이 아니라 개체가 됐습니다.** 지금까지
   스프린트는 이슈마다 투영된 `sprint_id`·`sprint_name`·`sprint_state`로만
   존재했습니다. 이슈가 하나도 없는 스프린트는 아예 없는 것이었고, 목표도
@@ -72,11 +108,36 @@
   것을 그대로 믿지 않습니다. 스프린트는 Jira Software의 것이라, Linear와 내장
   워크스페이스는 비슷한 개념을 끌어다 쓰지 않고 없다고 답합니다.
   ([GDK-1653], [GDK-1654], [GDK-1655], [GDK-1657])
-- **Jira Server 워크스페이스의 에픽.** Server는 이슈 유형에 계층 레벨을
-  싣지 않습니다. 그래서 에픽이 스토리와 같은 레벨로 들어왔고 `epic_key`가
-  생길 수 없었습니다. 이제 "표준 이슈를 자식으로 둔 유형"에서 에픽을
-  유도합니다. 요청이 늘지 않고, 표시명 "Epic"이라는 낱말에 기대지도 않습니다.
-  ([GDK-1658])
+- **내장 트래커의 스프린트.** gadak이 함께 들고 다니는 트래커가 Jira Software의
+  Agile 표면을 그대로 냅니다. 보드, 스프린트, 이슈의 스프린트 필드, JQL의
+  `openSprints()` 계열. 그래서 Atlassian 계정이 전혀 없는 워크스페이스에서도,
+  페어링한 워크스페이스에서도 `gadak sprint`가 그대로 됩니다. 스프린트를 닫으면
+  끝나지 않은 이슈가 백로그로 쓸려 나갑니다. Jira와 같습니다. ([GDK-1666])
+- **닫힌 스프린트의 완료 이슈가 계속 "active"로 남던 것.** 스프린트를 닫으면
+  미완료 이슈만 밖으로 옮겨지므로, 완료된 이슈는 아무것도 바뀌지 않고 증분
+  동기화도 다시 읽지 않았습니다. 그 행들의 `sprint_state`는 영원히 "active"였고,
+  활성 스프린트를 묻는 모든 쿼리가 지난 스프린트의 완료 작업을 함께 셌습니다.
+  이제 스프린트 상태의 주인은 `sprints` 표 하나입니다. 이슈 행은 매 틱마다
+  거기서 `sprint_state`를 끌어오고, 보드·스프린트 목록은 조용한 틱에도
+  읽습니다. 스프린트의 상태 변화는 이슈 워터마크에 보이지 않기 때문입니다.
+  ([GDK-1661])
+- **스프린트 필터가 정반대 집합을 물었습니다.** 스프린트 상태가 무엇이든 JQL
+  `openSprints()`로 컴파일됐습니다. 이 함수는 활성 스프린트만 고릅니다(활성
+  하나·미래 하나를 놓고 Jira 11.3.11에서 실측). 그래서 닫힌 스프린트로 거른
+  저장된 뷰가 열린 스프린트를 묻고 있었습니다. 이제 상태마다 자기 함수를 내고
+  파서가 셋을 다 읽으므로, 필터가 왕복 중에 사라지지 않습니다. ([GDK-1216])
+- **보드가 스프린트를 압니다.** 스프린트가 있는 워크스페이스에는 레이아웃 스위치 옆에
+  범위가 생깁니다. 진행 중인 스프린트(이름으로), 백로그, 전체. 이것은 다른 필터와
+  같은 필터입니다. URL이 들고, 뒤로가기가 되돌리고, 저장된 뷰가 기억하며,
+  `gadak views open --jql 'sprint in openSprints()'`가 같은 보드에 내려앉습니다.
+  필터 바에는 스프린트(이름) 축과 스프린트 상태 축이 생기고, 상세 패널이 스프린트를
+  보여 주며, 백로그를 뜻하는 `sprint is EMPTY`는 `sprint_state=none`으로 뷰 문법을
+  왕복합니다. 데모 픽스처는 범위가 보일 수 있게 스프린트 셋을 파생해 실어 둡니다.
+  ([GDK-1656])
+- **주간 회고에 화면이 생겼습니다.** `gadak retro`의 문서는 오지 않은 표면을 위해
+  서빙되고 있었습니다. 이제 팔레트의 *주간 회고*가 차분한
+  표를 엽니다. 주마다 한 열, 지표마다 한 행, 정의는 그 아래에. 이슈를 품은 셀은
+  그 목록으로 가는 문입니다. 4주, 8주, 12주. ([GDK-1660])
 - **actor 꼬리말이 켜져 있으면 선택 기능이 사라졌습니다.** 에이전트 서명을
   코멘트에 붙이는 래퍼가 writer를 임베드하는데, 임베드된 인터페이스는 자기가
   선언한 메서드만 승격합니다. 그래서 버전, 이슈 링크, 생성 필드 목록, 미디어
@@ -90,55 +151,36 @@
   편집은 게시와 같은 것을 보냅니다. Cloud에는 ADF, Jira Server 워크스페이스에는
   wiki markup 문자열. 에이전트 서명 줄은 편집을 거쳐도 남고, 두 번 붙지 않습니다.
   ([GDK-1647])
-- **Jira Server 워크스페이스의 스프린트.** Server는 스프린트 필드를 자기
-  빈의 Java `toString`으로 보낸다 — `Sprint@4ffcc813[…,id=1,name=Sprint
-  1,…,state=ACTIVE,…]`. Cloud는 객체를 보낸다. 그래서 스프린트에 들어 있는
-  이슈도 `sprint_id`·`sprint_name`·`sprint_state`가 전부 빈 채로 미러에
-  들어왔다. 이제 두 형태를 다 읽고, `ACTIVE`는 질의가 쓰라고 배운
-  `active`로 맞춘다. 에픽도 같은 사정이다 — Server는 `fields.parent`가
-  아니라 Epic Link 필드에 담고, 그것이 이제 이슈의 부모다. `/filter/my`도
-  Server에는 없어서 동기화마다 404였다. Server 워크스페이스는
-  `/filter/favourite`를 묻는다. ([GDK-1650], [GDK-1651], [GDK-1652])
-- **로그인 페이지를 응답으로 착각하지 않습니다.** 모든 REST 호출은 JSON을
-  요청하고 Go는 리다이렉트를 따라가므로, 요청을 로그인 페이지로 튕기는
-  origin은 그 페이지의 HTML을 200으로 돌려줬습니다 — `gadak api`는 그걸
-  그대로 출력했고, JSON 호출은 `invalid character '<'`로 실패했습니다. 증상의
-  이름이지 원인의 이름이 아닙니다. JSON을 요청한 자리에 온 2xx HTML은 이제
-  이름을 붙여 거절합니다. 오류 페이지는 상태코드와 본문을 그대로 두고, Cloud가
-  정상적으로 보내는 첨부 리다이렉트는 계속 따라갑니다. ([GDK-1648])
-- **Jira Server의 wiki markup을 있는 그대로.** 본문에 방언이 생겼습니다.
-  Cloud가 ADF를 보내는 자리에 Server는 wiki markup을 보내는데, gadak은
-  그것을 markdown으로 읽고 ADF 객체로 돌려보내고 있었습니다 — Server
-  워크스페이스에서 `gadak create -m`을 치면 설명 자리에 ADF JSON이
-  들어갔습니다. 이제 양방향으로 원문을 그대로 나릅니다. 친 글자가 바이트
-  단위로 그대로 저장되고, 저장된 글자가 그대로 편집기에 열립니다. 변환이
-  없으면 손실도 없어서, 본문을 잠그지 않고 편집 가능한 채로 뒀습니다.
-  ([GDK-1637])
-- **Jira Server 워크스페이스의 첨부 파일.** Server에는 `/attachment/content`
-  라우트가 없습니다. 첨부마다 주소를 알려주고 바이트는 거기서만 주므로, 캐시가
-  그 주소를 보관하고 CLI와 앱이 그리로 요청합니다. 요청 전에 주소를 사이트
-  상대 경로로 줄이는데, 그것이 자격증명을 이 워크스페이스의 사이트 밖으로
-  내보내지 않는 방법입니다 — 다른 곳을 가리키는 첨부 URL은 따라가지 않고
-  거절합니다. Jira Server 11.3.11 실측: `gadak attach get`이 원본과 해시가
-  같은 바이트를 돌려주고, 앱 프록시가 `Range`에 206을 답해 영상 탐색도
-  동작합니다. ([GDK-1639])
-- **Jira Server 워크스페이스의 담당자.** Cloud는 사용자를 accountId로 키하고
-  이메일을 숨기는 일이 많은데, Server는 name으로 키하고 이메일을 그대로
-  보냅니다. 이제 origin이 보낸 쪽 id를 저장하므로 양쪽 모두 `assignee_id`가
-  채워지고, `gadak assign`과 사용자 검색도 각 방언의 인자를 씁니다.
-  ([GDK-1638])
-- **파일이 아닌 다운로드는 거절합니다.** `gadak attach get`은 상태코드만
-  봤는데, origin이 자기 로그인 페이지를 200으로 주는 것은 상태코드로 볼 수
-  없습니다 — 실측에서 HTML 257,592 바이트를 `.png`로 저장하고 exit 0을
-  냈습니다. 이제 받은 것의 종류와 미러가 기록한 종류를 대조해, 어긋나면
-  아무것도 쓰지 않습니다. `.html` 첨부는 그대로 받아집니다. ([GDK-1644])
-- **Jira Server 워크스페이스가 sync 됩니다.** REST 방언이 패키지 상수가 아니라
-  클라이언트의 것이 됐습니다. Cloud와 빌트인 트래커는 v3를 그대로 쓰고 Server
-  origin은 v2를 받으며, 버전 번호만으로 안 되는 엔드포인트 — 생성 메타데이터,
-  JQL 검색, 근사 개수, 첨부 미디어 경로 — 는 각자의 모양으로 답하거나 이름을
-  붙여 거절합니다. 실제 Jira Server 11.3.11로 실측했습니다: `gadak sync`가
-  미러를 채웁니다. 설명은 wiki markup으로 오고 담당자에 accountId가 없으며
-  첨부 바이트는 아직 닿지 않습니다 — 다음 셋입니다. ([GDK-1636])
+- **실제 크기의 첨부파일.** origin이 gadak 자체 트래커인 워크스페이스에서
+  첨부 바이트가 데이터베이스 안이 아니라 옆 디렉터리에, 내용마다 파일 하나로
+  저장됩니다. 업로드는 흘려 넣고 다운로드는 흘려 내보내니 통째로 메모리에
+  담기는 자리가 사라졌고, CLI(`gadak attach`, `gadak attach get`)도 앱도
+  origin에서 브라우저까지 전 구간이 `Range`를 답하므로 영상 탐색이
+  동작합니다. 업로드 상한은 상수가 아니라 설정입니다:
+  `gadak config set attachmentMaxMB <n>`, 기본값 1 GiB(고정 32 MiB에서).
+  이 빌드로 빌트인 워크스페이스를 열면 바이트가 한 번 밖으로 옮겨지고, 옮기기
+  전 사본이 `issuetap.db.pre-v2.bak`으로 옆에 남습니다. 그 작업은 serve가 떠
+  있어도 안전하고, 두 프로세스가 동시에 닿아도 한 번만 실행되며, 사용자가 할
+  일은 없습니다. ([GDK-1617])
+- **스크린샷이 다시 스크린샷으로 보입니다.** `gadak attach`가 모든 업로드를
+  `application/octet-stream`으로 선언하고 있었습니다. `multipart.CreateFormFile`
+  의 고정 기본값입니다. 들은 대로 저장하는 origin에서는 PNG도 MP4도 같은
+  범용 타입으로 남아, 앱이 썸네일과 플레이어 대신 파일 한 줄을 보여 줬습니다.
+  이제 타입은 파일명에서 옵니다.
+- **`gadak backup`이 아카이브가 됩니다.** 지금까지는 SQLite 파일 하나였고,
+  첨부가 디렉터리로 나가면 그건 첨부가 통째로 빠진 백업이 됩니다. 그렇다고 말해 주는
+  것도 없었습니다. 이제 출력은 둘 다 담은 `.tar`이고, 데이터베이스가
+  참조하는 바이트가 디스크에 없으면 아카이브를 쓰지 않고 거절합니다. 복원은
+  `docs/runbooks/backup-restore.md`. ([GDK-1277])
+- **gadak이 자기 업데이트를 찾지 않습니다.** 전에는 끄지 않는 한 하루 한 번
+  GitHub에 새 릴리스가 있는지 물었습니다. 사용자가 부탁한 적 없는 유일한
+  외부 연결이었고, 그 하나 때문에 정문이 하고 싶은 말, 즉 gadak이 말을 거는
+  곳은 회사 트래커뿐이라는 말이 각주 하나만큼 거짓이었습니다. 그 조회를
+  없앴습니다. 배경 검사도, `updateCheck` 설정도, 사이드바 배너도 없습니다.
+  밖으로 나가는 곳은 여섯에서 다섯으로 줄었고 `docs/PROMISES.md`는 열두
+  항목에서 열한 항목이 됐습니다. 올리는 방법은 원래 그대로 `brew upgrade`,
+  새 dmg, 새 zip이고, 설정 → 동기화에는 플랫폼별 명령이 그대로 있습니다.
+  ([GDK-1626])
 - **`gadak mcp install claude-desktop`가 Claude Desktop에 등록합니다. 그리고
   `gadak mcp install claude`는 이제 자기가 무엇인지 말합니다.** 모든 앞문이
   "셸 없는 호스트(Claude Desktop)에는 `gadak mcp install claude`" 라고
@@ -168,60 +210,20 @@
   것으로 끝납니다. README 셋도 같은 순서를 따릅니다. 다음 재작성이 같은 것을
   다시 발견하지 않도록 규칙은 `docs/project/FACT_LEDGER.md` §16에 있습니다.
   ([GDK-1601], [GDK-1622])
-- **gadak이 자기 업데이트를 찾지 않습니다.** 전에는 끄지 않는 한 하루 한 번
-  GitHub에 새 릴리스가 있는지 물었습니다. 사용자가 부탁한 적 없는 유일한
-  외부 연결이었고, 그 하나 때문에 정문이 하고 싶은 말 — gadak이 말을 거는
-  곳은 회사 트래커뿐이다 — 이 각주 하나만큼 거짓이었습니다. 그 조회를
-  없앴습니다. 배경 검사도, `updateCheck` 설정도, 사이드바 배너도 없습니다.
-  밖으로 나가는 곳은 여섯에서 다섯으로 줄었고 `docs/PROMISES.md`는 열두
-  항목에서 열한 항목이 됐습니다. 올리는 방법은 원래 그대로 — `brew upgrade`,
-  새 dmg, 새 zip — 이고 설정 → 동기화에는 플랫폼별 명령이 그대로 있습니다.
-  ([GDK-1626])
-- **Jira Server / Data Center가 origin 종류가 됐습니다.** `gadak init --site
-  <베이스 URL> --server`로 셀프호스트 Jira 워크스페이스를 만듭니다 — 이메일
-  없이 Personal Access Token 하나, 베이스 URL에 컨텍스트 경로가 붙어도
-  됩니다. init이 사이트에 어느 Jira 인지 물어(`/rest/api/2/serverInfo`)
-  선언과 다르면 거절합니다. Server가 Cloud의 `/rest/api/3`에 무엇을 답하는지는
-  그 API의 존재 여부를 말해주지 않습니다 — 실측에서 같은 라우트가 어느
-  자격증명으로 물었느냐에 따라 404·401·302로 갈렸습니다. 이 확인이 없으면
-  없는 API가 틀린 토큰으로 읽힙니다. 이번엔 축만 세웠습니다. 읽기·쓰기는 아직 Cloud REST 모양이라
-  Server 워크스페이스는 아직 쓸 수 없습니다. ([GDK-1635], [GDK-1640])
-- **실제 크기의 첨부파일.** origin이 gadak 자체 트래커인 워크스페이스에서
-  첨부 바이트가 데이터베이스 안이 아니라 옆 디렉터리에, 내용마다 파일 하나로
-  저장됩니다. 업로드는 흘려 넣고 다운로드는 흘려 내보내니 통째로 메모리에
-  담기는 자리가 사라졌고 — CLI(`gadak attach`, `gadak attach get`)도 앱도 —
-  origin에서 브라우저까지 전 구간이 `Range`를 답하므로 영상 탐색이
-  동작합니다. 업로드 상한은 상수가 아니라 설정입니다:
-  `gadak config set attachmentMaxMB <n>`, 기본값 1 GiB(고정 32 MiB에서).
-  ([GDK-1617])
-- **persist의 첫 마이그레이션.** 이 빌드로 빌트인 워크스페이스를 열면 첨부
-  바이트가 한 번 밖으로 옮겨지고, 옮기기 전 사본이 `issuetap.db.pre-v2.bak`
-  으로 옆에 남습니다. serve가 떠 있어도 안전하고, 두 프로세스가 동시에
-  닿아도 한 번만 실행됩니다. 사용자가 할 일은 없습니다.
-- **스크린샷이 다시 스크린샷으로 보입니다.** `gadak attach`가 모든 업로드를
-  `application/octet-stream`으로 선언하고 있었습니다 — `multipart.CreateFormFile`
-  의 고정 기본값입니다. 들은 대로 저장하는 origin 에서는 PNG도 MP4도 같은
-  범용 타입으로 남아, 앱이 썸네일과 플레이어 대신 파일 한 줄을 보여 줬습니다.
-  이제 타입은 파일명에서 옵니다.
-- **`gadak backup`이 아카이브가 됩니다.** 지금까지는 SQLite 파일 하나였고,
-  첨부가 디렉터리로 나가면 그건 첨부가 통째로 빠진 백업이 됩니다 — 그렇다고
-  말해 주는 것도 없이. 이제 출력은 둘 다 담은 `.tar`이고, 데이터베이스가
-  참조하는 바이트가 디스크에 없으면 아카이브를 쓰지 않고 거절합니다. 복원은
-  `docs/runbooks/backup-restore.md`. ([GDK-1277])
 
 ## v0.21.0 — 2026-09-08
 
 **자리를 비운 사이 무슨 일이 있었는지 미러가 말해 줍니다.** 상태 변경·코멘트·
-열어본 기록은 이미 미러에 있으니, 0.21은 돌아와서 묻는 질문 — 뭐가 바뀌었나,
-이건 얼마나 묵었나, 이번 주는 빨라졌나 — 에 그 데이터로 답합니다. 숫자 옆에
+열어본 기록은 이미 미러에 있으니, 0.21은 돌아와서 묻는 질문에 그 데이터로 답합니다. 뭐가 바뀌었나,
+이건 얼마나 묵었나, 이번 주는 빨라졌나. 숫자 옆에
 정의가 붙고, 판단하는 문장은 없습니다. 전부 미러를 읽기만 하며, 새로 밖으로
 나가는 것은 없습니다.
 
-- **`gadak retro`** — 주간 회고. 세션 수, 복귀까지 걸린 시간, 진행 중인
+- **`gadak retro`.** 주간 회고. 세션 수, 복귀까지 걸린 시간, 진행 중인
   일이 얼마나 오래됐는지, 무엇이 닫히고 얼마나 걸렸는지, 그리고 *불일치*
   (마지막 코멘트는 끝났다는데 상태는 아닌 이슈). 모든 행에 정의가 같이
   찍히고, `--open`은 그 칸 뒤의 이슈들을 앱에 띄웁니다.
-- **마지막으로 본 뒤로.** 리스트가 흐린 한 줄로 열립니다 — *바뀐 이슈 7 ·
+- **마지막으로 본 뒤로.** 리스트가 흐린 한 줄로 열립니다: *바뀐 이슈 7 ·
   그중 내 것 2*. 상세 패널은 그 이슈를 마지막으로 연 뒤 무엇이 움직였는지
   말합니다. 기준은 내 이전 세션입니다.
 - **내 팀의 숫자로 잰 나이.** 정체 표시의 기준은 워크스페이스의 최근 90일
@@ -229,7 +231,7 @@
   칩에 마우스를 올리면 팀의 p85가 보이며, 열린 상태 아래 끝났다는 코멘트가
   있으면 *완료로 이동*을 조용히 제안합니다.
 - **내장 뷰 다섯 개** ([GDK-1493]): 내 이슈, 맡긴 이슈, 전체 미해결, 미할당
-  신규, 재오픈 이슈. Aging·Epics·Stale 등은 사이드바에서 빠졌습니다 —
+  신규, 재오픈 이슈. Aging·Epics·Stale 등은 사이드바에서 빠졌습니다.
   *뷰로 저장* 한 번이면 돌아옵니다.
 - **에이전트가 쓴 것은 그렇다고 적습니다.** CLI에서 Jira Cloud·Linear에 쓴
   코멘트·전환·이슈 끝에 *— via gadak · 이름*이 붙어, 사람의 자격증명을 빌린
@@ -604,8 +606,8 @@ UI가 안내하는 것과 같은 쓰기 표면을 지나갑니다 ([GDK-1235]). 
 누르면 열립니다. 이슈와 같은 창에 있는 진짜 셸이라, 거기서 코딩 에이전트를
 띄우고 그 옆에서 보드가 움직이는 것을 볼 수 있습니다. 웹 탭, macOS 앱,
 페어링한 폰 모두 같은 터미널입니다. 한글 조합은 커서 자리에 붙습니다.
-캔버스 위에서는 저절로 되는 일이 아닙니다. **Beta**로 나갑니다. 쓸 만하되,
-거친 구석은 숨기기보다 표시하는 쪽을 택했습니다 ([GDK-862], [GDK-864],
+캔버스 위에서는 저절로 되는 일이 아닙니다. **Beta**로 나갑니다. 쓸 만하고,
+거친 구석은 이름을 붙여 적어 뒀습니다 ([GDK-862], [GDK-864],
 [GDK-865], [GDK-892], [GDK-895], [GDK-956]).
 
 **셸만 열고 그 외에는 아무것도 열지 않는 토큰.** `gadak pairing mint --scope
@@ -1108,11 +1110,10 @@ gadak에서 열고, `gadak open`은 Jira로 나갑니다. 셸이 없는 호스�
 **위키 스코프가 진짜가 됐습니다.** Confluence 스페이스마다 자기 워터마크를
 갖고, 새로 고른 스페이스는 전체를 채우며, 스코프를 떠난 스페이스는 제거됩니다.
 
-**사람은 이메일이 아니라 account id로 맞춥니다.** 사람 필터가 내 사이트가
-이메일 주소를 보여주는지에 더 이상 기대지 않습니다. JQL·저장된 뷰·필터·
-멤버 디렉터리 전반에서 그렇습니다 (#1, @elppaaa 감사합니다).
-
-**macOS 창을 드래그할 수 있습니다** (#2, @wafe 감사합니다).
+**바깥에서 온 수정 둘.** 사람을 이메일이 아니라 account id로 맞춥니다.
+사람 필터가 내 사이트가 이메일 주소를 보여주는지에 더 이상 기대지 않습니다.
+JQL·저장된 뷰·필터·멤버 디렉터리 전반에서 그렇습니다 (#1, @elppaaa
+감사합니다). 그리고 macOS 창을 드래그할 수 있습니다 (#2, @wafe 감사합니다).
 
 **작은 것들.** 코멘트만 바뀐 위키 편집도 미러에 도달하고, 변하지 않은 페이지는
 버전을 올리지 않으며, 삭제된 이슈는 단일 항목 sync로 묘비가 세워집니다. 모르는
@@ -1154,16 +1155,16 @@ Atlassian REST 탈출구이고, 낯선 호스트에서는 거절됩니다.
 사람과 시각 기초의 릴리스입니다. ⌘K에 이름을 치면 사람이 열리고, 모든 검색
 히트가 왜 맞았는지 말하며, 크롬이 타입 스케일 하나와 오브 하나에 앉습니다.
 
-- 사람 축: ⌘K에 이름을 치면 사람 패널이 열립니다. 이 버전은 웹만입니다.
-- 검색이 왜 맞았는지 말하고, 맞은 필드의 스니펫을 보여 줍니다.
-- 페이지 목록 발췌: 모든 페이지의 한 줄 본문 미리보기.
+- 사람 축: ⌘K에 이름을 치면 사람 패널이 열립니다. 이 버전은 웹만이고, 데모에
+  사람이 둘 이상 있습니다.
+- 검색이 왜 맞았는지 말하고, 맞은 필드의 스니펫을 보여 줍니다. 목록의 모든
+  페이지에는 한 줄 본문 미리보기가 붙습니다.
 - 시각 기초: 진짜 타입 스케일, 6.2:1의 뮤트 텍스트, 모노크롬 아이콘 패밀리
   하나, 빨강이 의미에 예약된 아바타 팔레트.
 - 어디서나 오브 하나: 워드마크의 구가 x-height에 앉고, 모든 아이콘이 같은
-  그림에서 파생됩니다. 초승달 로고는 은퇴합니다.
-- 색만이 아니라 기하: 두 단계 높이 그리드, 중첩을 따르는 코너 반지름, 구조로
-  핀된 상세 패널 헤더, 한 작성자의 연속 코멘트가 헤더 하나 아래 그룹.
-- 데모에 사람이 둘 이상 있습니다.
+  그림에서 파생되며, 초승달 로고는 은퇴합니다. 기하도 같이 맞췄습니다: 두
+  단계 높이 그리드, 중첩을 따르는 코너 반지름, 구조로 핀된 상세 패널 헤더,
+  한 작성자의 연속 코멘트가 헤더 하나 아래 그룹.
 
 ## v0.8.0 — 2026-08-06
 
@@ -1180,30 +1181,29 @@ README가 라이브 데모로 시작합니다.
 
 - `gadak mcp install <client>`가 현재 프로필과 절대 바이너리 경로를 MCP 호스트
   등록에 핀합니다.
-- 로컬 API의 브라우저 가드: 크로스 오리진 쓰기와 DNS-rebinding 읽기를
-  거절합니다.
-- 스페이스 이름, 문서 UX 파도(내가 본 / 최근 갱신 / 작성자별), 에픽 기본 뷰.
-- 미러 파일 권한이 열릴 때 `0600` / `0700`으로 조여집니다.
-- 얼굴: 한 번도 없던 워드마크, 로고, favicon.
-- 데모가 영어를 말합니다 (CJK 검색을 위해 한국어 내러티브 페이지는 남습니다).
-- `docs/FAQ.md`가 어려운 질문에 영수증으로 답합니다.
+- 로컬 API가 열린 프록시이기를 멈춥니다: 크로스 오리진 쓰기와 DNS-rebinding
+  읽기를 거절하고, 미러 파일 권한은 열릴 때 `0600` / `0700`으로 조여집니다.
 - 리졸버가 루프백으로 매핑하면 `serve`가 `http://gadak.localhost`를 열고, 바쁜
   listen 포트는 실행 중인 gadak에 넘기거나 빈 포트로 폴백합니다.
+- 스페이스 이름, 문서 UX 파도(내가 본 / 최근 갱신 / 작성자별), 에픽 기본 뷰.
 - 키보드 트리아지, 신선도 칩, 웜부트 캐시, 이슈 1만 개 픽스처에 대한 인터랙션
   성능 게이트.
 - 실제 사이트용으로 단단해진 Confluence sync.
+- 얼굴: 한 번도 없던 워드마크, 로고, favicon. 데모가 영어를 말하고(CJK 검색을
+  위해 한국어 내러티브 페이지는 남습니다), `docs/FAQ.md`가 어려운 질문에
+  영수증으로 답합니다.
 
 ## v0.6.0 — 2026-08-06
 
 위키 릴리스입니다. Confluence 페이지가 items 뼈대에 합류하고, 웹 UI와 TUI에
 나타나며, 이슈가 정직한 에픽 계층을 얻습니다.
 
-- Confluence 페이지 라벨: fetch 때 모아져 페이지가 나타나는 모든 곳에 보입니다.
-- 에픽 계층: 파생 `epic_key`(가장 가까운 level-1 조상) 덕분에 서브태스크가
-  스토리가 아니라 에픽 아래 묶입니다.
 - Confluence 페이지 미러: items 뼈대의 두 번째 소스. 웹 UI의 문서와 TUI 문서
-  내비게이터 (`D`).
-- 웹 UI의 에픽 계층: 그룹 라벨, 행 칩, 브레드크럼, 롤업.
+  내비게이터 (`D`). 페이지 라벨은 fetch 때 모아져 페이지가 나타나는 모든 곳에
+  보입니다.
+- 에픽 계층: 파생 `epic_key`(가장 가까운 level-1 조상) 덕분에 서브태스크가
+  스토리가 아니라 에픽 아래 묶입니다. 웹 UI에서는 그룹 라벨, 행 칩,
+  브레드크럼, 롤업이 됩니다.
 - 폰이 짜인 컬럼이 아니라 데스크톱 레이아웃을 렌더합니다.
 
 ## v0.5.0 — 2026-08-05
@@ -1221,10 +1221,10 @@ README가 라이브 데모로 시작합니다.
 
 ## v0.3.0 — 2026-08-05
 
-- 필드 자동 발견: 첫 full sync가 커스텀 필드를 스스로 발견하고 설정합니다.
-- 발견한 필드의 필터 축, multi-select 에디터 포함.
-- sync 진행 줄이 진짜 총량을 들고, 프로젝트는 sync에서 선택입니다.
-- 사이드바 타임스탬프 뒤의 sync 히스토리.
+- 필드 자동 발견: 첫 full sync가 커스텀 필드를 스스로 발견하고 설정하며,
+  필터 축은 그렇게 발견한 필드에서 옵니다. multi-select 에디터도 포함합니다.
+- sync 진행 줄이 진짜 총량을 들고, 프로젝트는 sync에서 선택이며, sync
+  히스토리는 사이드바 타임스탬프 뒤에 있습니다.
 
 ## v0.2.1 — 2026-08-05
 
@@ -1237,45 +1237,34 @@ README가 라이브 데모로 시작합니다.
 팀 설정 공유, 설치 없는 호스티드 데모, 개인 워치 피드, 그리고 저장 스키마와
 HTTP·sync·에이전트 계약을 담았습니다.
 
-- 팀 설정 공유: `gadak team export` / `import`가 팀이 합의하는 뷰, 필드 맵,
-  그룹 규칙, 임계값을 쓰고, 자격증명은 절대 다니지 않으며, 자격증명 키를 담은
-  파일은 import에서 거절됩니다.
-- 레이트 리밋 가시성: 우리 자신의 호출량. `gadak status`와 설정 런타임 패널에
-  보이고, 횟수가 0이면 숨습니다.
-- `gadak fields`가 실제로 채워진 커스텀 필드가 무엇인지 보고합니다.
-- `gadak snapshot`이 나눌 수 있는 사본을 짓습니다. `--spread`는 이슈의 내부
-  순서를 보존한 채 창에 걸쳐 타임스탬프를 다시 말하고, `--scale`은 이슈를 새
-  키에 복제하고, `--now`는 시계를 핀하며, 게시 전에 자격증명 스캔이 돕니다.
-- 명령별 도움, FlagSet에서 생성되어 어긋날 수 없습니다.
-- TUI 패리티: 피드 포커스 탭, 저장된 뷰의 sort/dir/group_by, `priority_rank`로
-  키하는 우선순위 정렬.
-- 즐겨찾기가 미러에 살아서 `gadak sql`과 에이전트가 볼 수 있고, 호스티드
-  데모는 로컬 저장소로 폴백합니다.
-- `presence` 클라이언트 스택이 사라집니다.
-- 설치 없는 호스티드 데모: 데모 전용 서비스 워커가 서빙하는 정적 스냅샷입니다.
-  바이너리도 계정도 필요 없습니다.
-- 리텐션 루프: 자격증명이 있으면 `gadak serve`가 기본으로 sync watch 루프를
-  시작하고, `gadak install-service`가 launchd 에이전트나 systemd user unit을
-  쓰며, 새 개인 피드 이벤트에 OS 데스크톱 알림이 하나 뜰 수 있습니다.
-- 개인 워치 피드, 질의 때 미러에서 30일 창으로 계산됩니다.
-- 데모 Jira seeder가 Python에서 Go로 옮겨지고, 웹 애플리케이션이 내부 배포에서
-  이 저장소로 추출됩니다.
-- 내장 뷰가 모든 Jira 사이트에서 같은 의미인 축으로 키하고, resolution과
-  재오픈 감지가 로컬라이즈된 이름이 아니라 상태 *카테고리*로 키합니다.
-- `gadak serve`가 빌드된 UI를 서빙하고, `--allow-remote` 없이 루프백이 아닌
-  주소에 바인드하는 것을 거절합니다.
-- 저장 스키마와 HTTP·sync·에이전트 계약, 그리고 WAL, FTS5, 파생 필드 계산기를
-  갖춘 SQLite 구현.
+**기초.** 저장 스키마와 HTTP·sync·에이전트 계약, 그리고 WAL, FTS5, 파생 필드
+계산기를 갖춘 SQLite 구현. `gadak serve`가 빌드된 UI를 서빙하고,
+`--allow-remote` 없이 루프백이 아닌 주소에 바인드하는 것을 거절합니다. 내장
+뷰는 모든 Jira 사이트에서 같은 의미인 축으로 키하고, resolution과 재오픈
+감지는 로컬라이즈된 이름이 아니라 상태 *카테고리*로 키합니다.
 
-[GDK-1216]: https://gadak.dev/backlog/#/?ks=GDK-1216
-[GDK-1653]: https://gadak.dev/backlog/#/?ks=GDK-1653
-[GDK-1654]: https://gadak.dev/backlog/#/?ks=GDK-1654
-[GDK-1655]: https://gadak.dev/backlog/#/?ks=GDK-1655
-[GDK-1657]: https://gadak.dev/backlog/#/?ks=GDK-1657
-[GDK-1658]: https://gadak.dev/backlog/#/?ks=GDK-1658
-[GDK-1650]: https://gadak.dev/backlog/#/?ks=GDK-1650
-[GDK-1651]: https://gadak.dev/backlog/#/?ks=GDK-1651
-[GDK-1652]: https://gadak.dev/backlog/#/?ks=GDK-1652
+**설치할 것이 없는 데모.** 데모 전용 서비스 워커가 서빙하는 정적
+스냅샷입니다. 바이너리도 계정도 필요 없습니다.
+
+**사이트를 따라가기.** 자격증명이 있으면 `gadak serve`가 기본으로 sync watch
+루프를 시작하고, `gadak install-service`가 launchd 에이전트나 systemd user
+unit을 쓰며, 새 개인 피드 이벤트에 OS 데스크톱 알림이 하나 뜰 수 있습니다.
+개인 워치 피드는 질의 때 미러에서 30일 창으로 계산됩니다. gadak 자신의
+호출량은 `gadak status`와 설정 런타임 패널에 보이고, 횟수가 0이면 숨습니다.
+
+**워크스페이스를 남에게 건네기.** `gadak team export` / `import`가 팀이
+합의하는 뷰, 필드 맵, 그룹 규칙, 임계값을 쓰고, 자격증명은 절대 다니지
+않으며, 자격증명 키를 담은 파일은 import에서 거절됩니다. `gadak snapshot`은
+나눌 수 있는 사본을 짓습니다: `--spread`는 이슈의 내부 순서를 보존한 채 창에
+걸쳐 타임스탬프를 다시 말하고, `--scale`은 이슈를 새 키에 복제하고, `--now`는
+시계를 핀하며, 게시 전에 자격증명 스캔이 돕니다.
+
+**명령줄.** `gadak fields`가 실제로 채워진 커스텀 필드가 무엇인지 보고합니다.
+명령별 도움은 FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
+살아서 `gadak sql`과 에이전트가 볼 수 있고, 호스티드 데모는 로컬 저장소로
+폴백합니다. TUI 패리티: 피드 포커스 탭, 저장된 뷰의 sort/dir/group_by,
+`priority_rank`로 키하는 우선순위 정렬.
+
 [GDK-19]: https://gadak.dev/backlog/#/?ks=GDK-19
 [GDK-23]: https://gadak.dev/backlog/#/?ks=GDK-23
 [GDK-24]: https://gadak.dev/backlog/#/?ks=GDK-24
@@ -1347,10 +1336,10 @@ HTTP·sync·에이전트 계약을 담았습니다.
 [GDK-190]: https://gadak.dev/backlog/#/?ks=GDK-190
 [GDK-191]: https://gadak.dev/backlog/#/?ks=GDK-191
 [GDK-193]: https://gadak.dev/backlog/#/?ks=GDK-193
+[GDK-202]: https://gadak.dev/backlog/#/?ks=GDK-202
 [GDK-208]: https://gadak.dev/backlog/#/?ks=GDK-208
 [GDK-209]: https://gadak.dev/backlog/#/?ks=GDK-209
 [GDK-211]: https://gadak.dev/backlog/#/?ks=GDK-211
-[GDK-1380]: https://gadak.dev/backlog/#/?ks=GDK-1380
 [GDK-213]: https://gadak.dev/backlog/#/?ks=GDK-213
 [GDK-214]: https://gadak.dev/backlog/#/?ks=GDK-214
 [GDK-215]: https://gadak.dev/backlog/#/?ks=GDK-215
@@ -1476,6 +1465,7 @@ HTTP·sync·에이전트 계약을 담았습니다.
 [GDK-591]: https://gadak.dev/backlog/#/?ks=GDK-591
 [GDK-592]: https://gadak.dev/backlog/#/?ks=GDK-592
 [GDK-593]: https://gadak.dev/backlog/#/?ks=GDK-593
+[GDK-594]: https://gadak.dev/backlog/#/?ks=GDK-594
 [GDK-597]: https://gadak.dev/backlog/#/?ks=GDK-597
 [GDK-598]: https://gadak.dev/backlog/#/?ks=GDK-598
 [GDK-599]: https://gadak.dev/backlog/#/?ks=GDK-599
@@ -1491,14 +1481,13 @@ HTTP·sync·에이전트 계약을 담았습니다.
 [GDK-676]: https://gadak.dev/backlog/#/?ks=GDK-676
 [GDK-677]: https://gadak.dev/backlog/#/?ks=GDK-677
 [GDK-678]: https://gadak.dev/backlog/#/?ks=GDK-678
+[GDK-700]: https://gadak.dev/backlog/#/?ks=GDK-700
 [GDK-711]: https://gadak.dev/backlog/#/?ks=GDK-711
+[GDK-737]: https://gadak.dev/backlog/#/?ks=GDK-737
 [GDK-738]: https://gadak.dev/backlog/#/?ks=GDK-738
 [GDK-739]: https://gadak.dev/backlog/#/?ks=GDK-739
 [GDK-740]: https://gadak.dev/backlog/#/?ks=GDK-740
-[GDK-737]: https://gadak.dev/backlog/#/?ks=GDK-737
-[GDK-700]: https://gadak.dev/backlog/#/?ks=GDK-700
-[GDK-771]: https://gadak.dev/backlog/#/?ks=GDK-771
-[GDK-202]: https://gadak.dev/backlog/#/?ks=GDK-202
+[GDK-741]: https://gadak.dev/backlog/#/?ks=GDK-741
 [GDK-747]: https://gadak.dev/backlog/#/?ks=GDK-747
 [GDK-748]: https://gadak.dev/backlog/#/?ks=GDK-748
 [GDK-749]: https://gadak.dev/backlog/#/?ks=GDK-749
@@ -1512,36 +1501,38 @@ HTTP·sync·에이전트 계약을 담았습니다.
 [GDK-758]: https://gadak.dev/backlog/#/?ks=GDK-758
 [GDK-766]: https://gadak.dev/backlog/#/?ks=GDK-766
 [GDK-770]: https://gadak.dev/backlog/#/?ks=GDK-770
+[GDK-771]: https://gadak.dev/backlog/#/?ks=GDK-771
+[GDK-781]: https://gadak.dev/backlog/#/?ks=GDK-781
+[GDK-782]: https://gadak.dev/backlog/#/?ks=GDK-782
 [GDK-785]: https://gadak.dev/backlog/#/?ks=GDK-785
 [GDK-786]: https://gadak.dev/backlog/#/?ks=GDK-786
 [GDK-787]: https://gadak.dev/backlog/#/?ks=GDK-787
 [GDK-791]: https://gadak.dev/backlog/#/?ks=GDK-791
-[GDK-781]: https://gadak.dev/backlog/#/?ks=GDK-781
-[GDK-782]: https://gadak.dev/backlog/#/?ks=GDK-782
 [GDK-792]: https://gadak.dev/backlog/#/?ks=GDK-792
 [GDK-793]: https://gadak.dev/backlog/#/?ks=GDK-793
-[GDK-808]: https://gadak.dev/backlog/#/?ks=GDK-808
+[GDK-796]: https://gadak.dev/backlog/#/?ks=GDK-796
 [GDK-797]: https://gadak.dev/backlog/#/?ks=GDK-797
 [GDK-798]: https://gadak.dev/backlog/#/?ks=GDK-798
-[GDK-800]: https://gadak.dev/backlog/#/?ks=GDK-800
-[GDK-594]: https://gadak.dev/backlog/#/?ks=GDK-594
-[GDK-809]: https://gadak.dev/backlog/#/?ks=GDK-809
-[GDK-810]: https://gadak.dev/backlog/#/?ks=GDK-810
-[GDK-796]: https://gadak.dev/backlog/#/?ks=GDK-796
 [GDK-799]: https://gadak.dev/backlog/#/?ks=GDK-799
+[GDK-800]: https://gadak.dev/backlog/#/?ks=GDK-800
 [GDK-801]: https://gadak.dev/backlog/#/?ks=GDK-801
 [GDK-802]: https://gadak.dev/backlog/#/?ks=GDK-802
-[GDK-837]: https://gadak.dev/backlog/#/?ks=GDK-837
-[GDK-824]: https://gadak.dev/backlog/#/?ks=GDK-824
+[GDK-805]: https://gadak.dev/backlog/#/?ks=GDK-805
+[GDK-808]: https://gadak.dev/backlog/#/?ks=GDK-808
+[GDK-809]: https://gadak.dev/backlog/#/?ks=GDK-809
+[GDK-810]: https://gadak.dev/backlog/#/?ks=GDK-810
 [GDK-814]: https://gadak.dev/backlog/#/?ks=GDK-814
 [GDK-815]: https://gadak.dev/backlog/#/?ks=GDK-815
 [GDK-816]: https://gadak.dev/backlog/#/?ks=GDK-816
 [GDK-817]: https://gadak.dev/backlog/#/?ks=GDK-817
 [GDK-821]: https://gadak.dev/backlog/#/?ks=GDK-821
+[GDK-824]: https://gadak.dev/backlog/#/?ks=GDK-824
 [GDK-827]: https://gadak.dev/backlog/#/?ks=GDK-827
 [GDK-828]: https://gadak.dev/backlog/#/?ks=GDK-828
 [GDK-829]: https://gadak.dev/backlog/#/?ks=GDK-829
 [GDK-831]: https://gadak.dev/backlog/#/?ks=GDK-831
+[GDK-835]: https://gadak.dev/backlog/#/?ks=GDK-835
+[GDK-837]: https://gadak.dev/backlog/#/?ks=GDK-837
 [GDK-842]: https://gadak.dev/backlog/#/?ks=GDK-842
 [GDK-849]: https://gadak.dev/backlog/#/?ks=GDK-849
 [GDK-850]: https://gadak.dev/backlog/#/?ks=GDK-850
@@ -1551,93 +1542,101 @@ HTTP·sync·에이전트 계약을 담았습니다.
 [GDK-856]: https://gadak.dev/backlog/#/?ks=GDK-856
 [GDK-857]: https://gadak.dev/backlog/#/?ks=GDK-857
 [GDK-858]: https://gadak.dev/backlog/#/?ks=GDK-858
-[GDK-862]: https://gadak.dev/backlog/#/?ks=GDK-862
-[GDK-863]: https://gadak.dev/backlog/#/?ks=GDK-863
-[GDK-883]: https://gadak.dev/backlog/#/?ks=GDK-883
-[GDK-864]: https://gadak.dev/backlog/#/?ks=GDK-864
-[GDK-835]: https://gadak.dev/backlog/#/?ks=GDK-835
-[GDK-892]: https://gadak.dev/backlog/#/?ks=GDK-892
-[GDK-895]: https://gadak.dev/backlog/#/?ks=GDK-895
-[GDK-865]: https://gadak.dev/backlog/#/?ks=GDK-865
-[GDK-805]: https://gadak.dev/backlog/#/?ks=GDK-805
-[GDK-964]: https://gadak.dev/backlog/#/?ks=GDK-964
-[GDK-956]: https://gadak.dev/backlog/#/?ks=GDK-956
-[GDK-950]: https://gadak.dev/backlog/#/?ks=GDK-950
-[GDK-960]: https://gadak.dev/backlog/#/?ks=GDK-960
-[GDK-981]: https://gadak.dev/backlog/#/?ks=GDK-981
-[GDK-944]: https://gadak.dev/backlog/#/?ks=GDK-944
-[GDK-967]: https://gadak.dev/backlog/#/?ks=GDK-967
-[GDK-968]: https://gadak.dev/backlog/#/?ks=GDK-968
-[GDK-971]: https://gadak.dev/backlog/#/?ks=GDK-971
-[GDK-975]: https://gadak.dev/backlog/#/?ks=GDK-975
-[GDK-980]: https://gadak.dev/backlog/#/?ks=GDK-980
-[GDK-963]: https://gadak.dev/backlog/#/?ks=GDK-963
-[GDK-741]: https://gadak.dev/backlog/#/?ks=GDK-741
-[GDK-946]: https://gadak.dev/backlog/#/?ks=GDK-946
-[GDK-947]: https://gadak.dev/backlog/#/?ks=GDK-947
 [GDK-859]: https://gadak.dev/backlog/#/?ks=GDK-859
 [GDK-860]: https://gadak.dev/backlog/#/?ks=GDK-860
+[GDK-862]: https://gadak.dev/backlog/#/?ks=GDK-862
+[GDK-863]: https://gadak.dev/backlog/#/?ks=GDK-863
+[GDK-864]: https://gadak.dev/backlog/#/?ks=GDK-864
+[GDK-865]: https://gadak.dev/backlog/#/?ks=GDK-865
+[GDK-867]: https://gadak.dev/backlog/#/?ks=GDK-867
+[GDK-870]: https://gadak.dev/backlog/#/?ks=GDK-870
+[GDK-871]: https://gadak.dev/backlog/#/?ks=GDK-871
+[GDK-879]: https://gadak.dev/backlog/#/?ks=GDK-879
 [GDK-880]: https://gadak.dev/backlog/#/?ks=GDK-880
+[GDK-883]: https://gadak.dev/backlog/#/?ks=GDK-883
 [GDK-884]: https://gadak.dev/backlog/#/?ks=GDK-884
 [GDK-885]: https://gadak.dev/backlog/#/?ks=GDK-885
 [GDK-886]: https://gadak.dev/backlog/#/?ks=GDK-886
 [GDK-887]: https://gadak.dev/backlog/#/?ks=GDK-887
 [GDK-888]: https://gadak.dev/backlog/#/?ks=GDK-888
+[GDK-892]: https://gadak.dev/backlog/#/?ks=GDK-892
+[GDK-895]: https://gadak.dev/backlog/#/?ks=GDK-895
+[GDK-899]: https://gadak.dev/backlog/#/?ks=GDK-899
 [GDK-905]: https://gadak.dev/backlog/#/?ks=GDK-905
 [GDK-906]: https://gadak.dev/backlog/#/?ks=GDK-906
 [GDK-907]: https://gadak.dev/backlog/#/?ks=GDK-907
 [GDK-908]: https://gadak.dev/backlog/#/?ks=GDK-908
 [GDK-910]: https://gadak.dev/backlog/#/?ks=GDK-910
-[GDK-867]: https://gadak.dev/backlog/#/?ks=GDK-867
-[GDK-870]: https://gadak.dev/backlog/#/?ks=GDK-870
-[GDK-879]: https://gadak.dev/backlog/#/?ks=GDK-879
+[GDK-944]: https://gadak.dev/backlog/#/?ks=GDK-944
+[GDK-946]: https://gadak.dev/backlog/#/?ks=GDK-946
+[GDK-947]: https://gadak.dev/backlog/#/?ks=GDK-947
+[GDK-950]: https://gadak.dev/backlog/#/?ks=GDK-950
+[GDK-956]: https://gadak.dev/backlog/#/?ks=GDK-956
+[GDK-960]: https://gadak.dev/backlog/#/?ks=GDK-960
+[GDK-963]: https://gadak.dev/backlog/#/?ks=GDK-963
+[GDK-964]: https://gadak.dev/backlog/#/?ks=GDK-964
+[GDK-967]: https://gadak.dev/backlog/#/?ks=GDK-967
+[GDK-968]: https://gadak.dev/backlog/#/?ks=GDK-968
+[GDK-971]: https://gadak.dev/backlog/#/?ks=GDK-971
+[GDK-974]: https://gadak.dev/backlog/#/?ks=GDK-974
+[GDK-975]: https://gadak.dev/backlog/#/?ks=GDK-975
+[GDK-980]: https://gadak.dev/backlog/#/?ks=GDK-980
+[GDK-981]: https://gadak.dev/backlog/#/?ks=GDK-981
+[GDK-992]: https://gadak.dev/backlog/#/?ks=GDK-992
+[GDK-996]: https://gadak.dev/backlog/#/?ks=GDK-996
+[GDK-1001]: https://gadak.dev/backlog/#/?ks=GDK-1001
+[GDK-1024]: https://gadak.dev/backlog/#/?ks=GDK-1024
+[GDK-1030]: https://gadak.dev/backlog/#/?ks=GDK-1030
+[GDK-1032]: https://gadak.dev/backlog/#/?ks=GDK-1032
+[GDK-1047]: https://gadak.dev/backlog/#/?ks=GDK-1047
+[GDK-1051]: https://gadak.dev/backlog/#/?ks=GDK-1051
+[GDK-1074]: https://gadak.dev/backlog/#/?ks=GDK-1074
+[GDK-1075]: https://gadak.dev/backlog/#/?ks=GDK-1075
+[GDK-1096]: https://gadak.dev/backlog/#/?ks=GDK-1096
+[GDK-1097]: https://gadak.dev/backlog/#/?ks=GDK-1097
+[GDK-1098]: https://gadak.dev/backlog/#/?ks=GDK-1098
+[GDK-1122]: https://gadak.dev/backlog/#/?ks=GDK-1122
+[GDK-1128]: https://gadak.dev/backlog/#/?ks=GDK-1128
+[GDK-1149]: https://gadak.dev/backlog/#/?ks=GDK-1149
+[GDK-1158]: https://gadak.dev/backlog/#/?ks=GDK-1158
+[GDK-1172]: https://gadak.dev/backlog/#/?ks=GDK-1172
+[GDK-1174]: https://gadak.dev/backlog/#/?ks=GDK-1174
 [GDK-1175]: https://gadak.dev/backlog/#/?ks=GDK-1175
 [GDK-1176]: https://gadak.dev/backlog/#/?ks=GDK-1176
-[GDK-1190]: https://gadak.dev/backlog/#/?ks=GDK-1190
-[GDK-1248]: https://gadak.dev/backlog/#/?ks=GDK-1248
-[GDK-1024]: https://gadak.dev/backlog/#/?ks=GDK-1024
-[GDK-1158]: https://gadak.dev/backlog/#/?ks=GDK-1158
-[GDK-1196]: https://gadak.dev/backlog/#/?ks=GDK-1196
-[GDK-1197]: https://gadak.dev/backlog/#/?ks=GDK-1197
-[GDK-1194]: https://gadak.dev/backlog/#/?ks=GDK-1194
-[GDK-1199]: https://gadak.dev/backlog/#/?ks=GDK-1199
-[GDK-1200]: https://gadak.dev/backlog/#/?ks=GDK-1200
-[GDK-1250]: https://gadak.dev/backlog/#/?ks=GDK-1250
-[GDK-1251]: https://gadak.dev/backlog/#/?ks=GDK-1251
-[GDK-1097]: https://gadak.dev/backlog/#/?ks=GDK-1097
-[GDK-1096]: https://gadak.dev/backlog/#/?ks=GDK-1096
-[GDK-1098]: https://gadak.dev/backlog/#/?ks=GDK-1098
-[GDK-1051]: https://gadak.dev/backlog/#/?ks=GDK-1051
-[GDK-871]: https://gadak.dev/backlog/#/?ks=GDK-871
-[GDK-899]: https://gadak.dev/backlog/#/?ks=GDK-899
-[GDK-992]: https://gadak.dev/backlog/#/?ks=GDK-992
-[GDK-1030]: https://gadak.dev/backlog/#/?ks=GDK-1030
-[GDK-1205]: https://gadak.dev/backlog/#/?ks=GDK-1205
-[GDK-1001]: https://gadak.dev/backlog/#/?ks=GDK-1001
-[GDK-1234]: https://gadak.dev/backlog/#/?ks=GDK-1234
-[GDK-1233]: https://gadak.dev/backlog/#/?ks=GDK-1233
-[GDK-1244]: https://gadak.dev/backlog/#/?ks=GDK-1244
-[GDK-1243]: https://gadak.dev/backlog/#/?ks=GDK-1243
-[GDK-1235]: https://gadak.dev/backlog/#/?ks=GDK-1235
-[GDK-1075]: https://gadak.dev/backlog/#/?ks=GDK-1075
-[GDK-1074]: https://gadak.dev/backlog/#/?ks=GDK-1074
-[GDK-1047]: https://gadak.dev/backlog/#/?ks=GDK-1047
-[GDK-1246]: https://gadak.dev/backlog/#/?ks=GDK-1246
-[GDK-1122]: https://gadak.dev/backlog/#/?ks=GDK-1122
-[GDK-996]: https://gadak.dev/backlog/#/?ks=GDK-996
-[GDK-1128]: https://gadak.dev/backlog/#/?ks=GDK-1128
-[GDK-1204]: https://gadak.dev/backlog/#/?ks=GDK-1204
-[GDK-974]: https://gadak.dev/backlog/#/?ks=GDK-974
-[GDK-1174]: https://gadak.dev/backlog/#/?ks=GDK-1174
 [GDK-1180]: https://gadak.dev/backlog/#/?ks=GDK-1180
 [GDK-1182]: https://gadak.dev/backlog/#/?ks=GDK-1182
+[GDK-1186]: https://gadak.dev/backlog/#/?ks=GDK-1186
+[GDK-1190]: https://gadak.dev/backlog/#/?ks=GDK-1190
+[GDK-1192]: https://gadak.dev/backlog/#/?ks=GDK-1192
+[GDK-1194]: https://gadak.dev/backlog/#/?ks=GDK-1194
+[GDK-1195]: https://gadak.dev/backlog/#/?ks=GDK-1195
+[GDK-1196]: https://gadak.dev/backlog/#/?ks=GDK-1196
+[GDK-1197]: https://gadak.dev/backlog/#/?ks=GDK-1197
+[GDK-1199]: https://gadak.dev/backlog/#/?ks=GDK-1199
+[GDK-1200]: https://gadak.dev/backlog/#/?ks=GDK-1200
+[GDK-1204]: https://gadak.dev/backlog/#/?ks=GDK-1204
+[GDK-1205]: https://gadak.dev/backlog/#/?ks=GDK-1205
+[GDK-1216]: https://gadak.dev/backlog/#/?ks=GDK-1216
+[GDK-1233]: https://gadak.dev/backlog/#/?ks=GDK-1233
+[GDK-1234]: https://gadak.dev/backlog/#/?ks=GDK-1234
+[GDK-1235]: https://gadak.dev/backlog/#/?ks=GDK-1235
+[GDK-1243]: https://gadak.dev/backlog/#/?ks=GDK-1243
+[GDK-1244]: https://gadak.dev/backlog/#/?ks=GDK-1244
+[GDK-1246]: https://gadak.dev/backlog/#/?ks=GDK-1246
+[GDK-1248]: https://gadak.dev/backlog/#/?ks=GDK-1248
+[GDK-1250]: https://gadak.dev/backlog/#/?ks=GDK-1250
+[GDK-1251]: https://gadak.dev/backlog/#/?ks=GDK-1251
 [GDK-1256]: https://gadak.dev/backlog/#/?ks=GDK-1256
 [GDK-1258]: https://gadak.dev/backlog/#/?ks=GDK-1258
+[GDK-1259]: https://gadak.dev/backlog/#/?ks=GDK-1259
 [GDK-1264]: https://gadak.dev/backlog/#/?ks=GDK-1264
+[GDK-1265]: https://gadak.dev/backlog/#/?ks=GDK-1265
+[GDK-1266]: https://gadak.dev/backlog/#/?ks=GDK-1266
 [GDK-1269]: https://gadak.dev/backlog/#/?ks=GDK-1269
 [GDK-1270]: https://gadak.dev/backlog/#/?ks=GDK-1270
-[GDK-1032]: https://gadak.dev/backlog/#/?ks=GDK-1032
 [GDK-1275]: https://gadak.dev/backlog/#/?ks=GDK-1275
+[GDK-1276]: https://gadak.dev/backlog/#/?ks=GDK-1276
+[GDK-1277]: https://gadak.dev/backlog/#/?ks=GDK-1277
 [GDK-1278]: https://gadak.dev/backlog/#/?ks=GDK-1278
 [GDK-1279]: https://gadak.dev/backlog/#/?ks=GDK-1279
 [GDK-1280]: https://gadak.dev/backlog/#/?ks=GDK-1280
@@ -1645,21 +1644,23 @@ HTTP·sync·에이전트 계약을 담았습니다.
 [GDK-1282]: https://gadak.dev/backlog/#/?ks=GDK-1282
 [GDK-1283]: https://gadak.dev/backlog/#/?ks=GDK-1283
 [GDK-1284]: https://gadak.dev/backlog/#/?ks=GDK-1284
-[GDK-1149]: https://gadak.dev/backlog/#/?ks=GDK-1149
-[GDK-1265]: https://gadak.dev/backlog/#/?ks=GDK-1265
-[GDK-1266]: https://gadak.dev/backlog/#/?ks=GDK-1266
-[GDK-1276]: https://gadak.dev/backlog/#/?ks=GDK-1276
-[GDK-1277]: https://gadak.dev/backlog/#/?ks=GDK-1277
 [GDK-1285]: https://gadak.dev/backlog/#/?ks=GDK-1285
 [GDK-1286]: https://gadak.dev/backlog/#/?ks=GDK-1286
 [GDK-1287]: https://gadak.dev/backlog/#/?ks=GDK-1287
 [GDK-1288]: https://gadak.dev/backlog/#/?ks=GDK-1288
+[GDK-1289]: https://gadak.dev/backlog/#/?ks=GDK-1289
 [GDK-1290]: https://gadak.dev/backlog/#/?ks=GDK-1290
 [GDK-1291]: https://gadak.dev/backlog/#/?ks=GDK-1291
 [GDK-1294]: https://gadak.dev/backlog/#/?ks=GDK-1294
+[GDK-1295]: https://gadak.dev/backlog/#/?ks=GDK-1295
 [GDK-1296]: https://gadak.dev/backlog/#/?ks=GDK-1296
+[GDK-1297]: https://gadak.dev/backlog/#/?ks=GDK-1297
+[GDK-1299]: https://gadak.dev/backlog/#/?ks=GDK-1299
 [GDK-1300]: https://gadak.dev/backlog/#/?ks=GDK-1300
 [GDK-1302]: https://gadak.dev/backlog/#/?ks=GDK-1302
+[GDK-1305]: https://gadak.dev/backlog/#/?ks=GDK-1305
+[GDK-1306]: https://gadak.dev/backlog/#/?ks=GDK-1306
+[GDK-1307]: https://gadak.dev/backlog/#/?ks=GDK-1307
 [GDK-1308]: https://gadak.dev/backlog/#/?ks=GDK-1308
 [GDK-1309]: https://gadak.dev/backlog/#/?ks=GDK-1309
 [GDK-1311]: https://gadak.dev/backlog/#/?ks=GDK-1311
@@ -1679,23 +1680,26 @@ HTTP·sync·에이전트 계약을 담았습니다.
 [GDK-1343]: https://gadak.dev/backlog/#/?ks=GDK-1343
 [GDK-1344]: https://gadak.dev/backlog/#/?ks=GDK-1344
 [GDK-1345]: https://gadak.dev/backlog/#/?ks=GDK-1345
+[GDK-1347]: https://gadak.dev/backlog/#/?ks=GDK-1347
 [GDK-1348]: https://gadak.dev/backlog/#/?ks=GDK-1348
+[GDK-1351]: https://gadak.dev/backlog/#/?ks=GDK-1351
 [GDK-1352]: https://gadak.dev/backlog/#/?ks=GDK-1352
 [GDK-1353]: https://gadak.dev/backlog/#/?ks=GDK-1353
 [GDK-1354]: https://gadak.dev/backlog/#/?ks=GDK-1354
 [GDK-1355]: https://gadak.dev/backlog/#/?ks=GDK-1355
+[GDK-1356]: https://gadak.dev/backlog/#/?ks=GDK-1356
 [GDK-1357]: https://gadak.dev/backlog/#/?ks=GDK-1357
 [GDK-1358]: https://gadak.dev/backlog/#/?ks=GDK-1358
 [GDK-1359]: https://gadak.dev/backlog/#/?ks=GDK-1359
 [GDK-1360]: https://gadak.dev/backlog/#/?ks=GDK-1360
 [GDK-1361]: https://gadak.dev/backlog/#/?ks=GDK-1361
 [GDK-1362]: https://gadak.dev/backlog/#/?ks=GDK-1362
+[GDK-1380]: https://gadak.dev/backlog/#/?ks=GDK-1380
 [GDK-1382]: https://gadak.dev/backlog/#/?ks=GDK-1382
 [GDK-1383]: https://gadak.dev/backlog/#/?ks=GDK-1383
 [GDK-1384]: https://gadak.dev/backlog/#/?ks=GDK-1384
-[GDK-1386]: https://gadak.dev/backlog/#/?ks=GDK-1386
 [GDK-1385]: https://gadak.dev/backlog/#/?ks=GDK-1385
-[GDK-1195]: https://gadak.dev/backlog/#/?ks=GDK-1195
+[GDK-1386]: https://gadak.dev/backlog/#/?ks=GDK-1386
 [GDK-1387]: https://gadak.dev/backlog/#/?ks=GDK-1387
 [GDK-1388]: https://gadak.dev/backlog/#/?ks=GDK-1388
 [GDK-1390]: https://gadak.dev/backlog/#/?ks=GDK-1390
@@ -1703,22 +1707,8 @@ HTTP·sync·에이전트 계약을 담았습니다.
 [GDK-1394]: https://gadak.dev/backlog/#/?ks=GDK-1394
 [GDK-1395]: https://gadak.dev/backlog/#/?ks=GDK-1395
 [GDK-1396]: https://gadak.dev/backlog/#/?ks=GDK-1396
-[GDK-1347]: https://gadak.dev/backlog/#/?ks=GDK-1347
-[GDK-1259]: https://gadak.dev/backlog/#/?ks=GDK-1259
-[GDK-1351]: https://gadak.dev/backlog/#/?ks=GDK-1351
 [GDK-1398]: https://gadak.dev/backlog/#/?ks=GDK-1398
-[GDK-1192]: https://gadak.dev/backlog/#/?ks=GDK-1192
-[GDK-1299]: https://gadak.dev/backlog/#/?ks=GDK-1299
-[GDK-1172]: https://gadak.dev/backlog/#/?ks=GDK-1172
-[GDK-1289]: https://gadak.dev/backlog/#/?ks=GDK-1289
 [GDK-1399]: https://gadak.dev/backlog/#/?ks=GDK-1399
-[GDK-1297]: https://gadak.dev/backlog/#/?ks=GDK-1297
-[GDK-1307]: https://gadak.dev/backlog/#/?ks=GDK-1307
-[GDK-1305]: https://gadak.dev/backlog/#/?ks=GDK-1305
-[GDK-1306]: https://gadak.dev/backlog/#/?ks=GDK-1306
-[GDK-1295]: https://gadak.dev/backlog/#/?ks=GDK-1295
-[GDK-1186]: https://gadak.dev/backlog/#/?ks=GDK-1186
-[GDK-1356]: https://gadak.dev/backlog/#/?ks=GDK-1356
 [GDK-1400]: https://gadak.dev/backlog/#/?ks=GDK-1400
 [GDK-1401]: https://gadak.dev/backlog/#/?ks=GDK-1401
 [GDK-1491]: https://gadak.dev/backlog/#/?ks=GDK-1491
@@ -1729,26 +1719,34 @@ HTTP·sync·에이전트 계약을 담았습니다.
 [GDK-1501]: https://gadak.dev/backlog/#/?ks=GDK-1501
 [GDK-1508]: https://gadak.dev/backlog/#/?ks=GDK-1508
 [GDK-1537]: https://gadak.dev/backlog/#/?ks=GDK-1537
-[GDK-1635]: https://gadak.dev/backlog/#/?ks=GDK-1635
-[GDK-1640]: https://gadak.dev/backlog/#/?ks=GDK-1640
-[GDK-1636]: https://gadak.dev/backlog/#/?ks=GDK-1636
-[GDK-1638]: https://gadak.dev/backlog/#/?ks=GDK-1638
-[GDK-1644]: https://gadak.dev/backlog/#/?ks=GDK-1644
-[GDK-1639]: https://gadak.dev/backlog/#/?ks=GDK-1639
-[GDK-1637]: https://gadak.dev/backlog/#/?ks=GDK-1637
-[GDK-1647]: https://gadak.dev/backlog/#/?ks=GDK-1647
-[GDK-1648]: https://gadak.dev/backlog/#/?ks=GDK-1648
+[GDK-1601]: https://gadak.dev/backlog/#/?ks=GDK-1601
 [GDK-1617]: https://gadak.dev/backlog/#/?ks=GDK-1617
+[GDK-1622]: https://gadak.dev/backlog/#/?ks=GDK-1622
 [GDK-1626]: https://gadak.dev/backlog/#/?ks=GDK-1626
 [GDK-1633]: https://gadak.dev/backlog/#/?ks=GDK-1633
-[GDK-1601]: https://gadak.dev/backlog/#/?ks=GDK-1601
-[GDK-1622]: https://gadak.dev/backlog/#/?ks=GDK-1622
 [GDK-1634]: https://gadak.dev/backlog/#/?ks=GDK-1634
+[GDK-1635]: https://gadak.dev/backlog/#/?ks=GDK-1635
+[GDK-1636]: https://gadak.dev/backlog/#/?ks=GDK-1636
+[GDK-1637]: https://gadak.dev/backlog/#/?ks=GDK-1637
+[GDK-1638]: https://gadak.dev/backlog/#/?ks=GDK-1638
+[GDK-1639]: https://gadak.dev/backlog/#/?ks=GDK-1639
+[GDK-1640]: https://gadak.dev/backlog/#/?ks=GDK-1640
 [GDK-1641]: https://gadak.dev/backlog/#/?ks=GDK-1641
+[GDK-1644]: https://gadak.dev/backlog/#/?ks=GDK-1644
 [GDK-1645]: https://gadak.dev/backlog/#/?ks=GDK-1645
 [GDK-1646]: https://gadak.dev/backlog/#/?ks=GDK-1646
+[GDK-1647]: https://gadak.dev/backlog/#/?ks=GDK-1647
+[GDK-1648]: https://gadak.dev/backlog/#/?ks=GDK-1648
+[GDK-1650]: https://gadak.dev/backlog/#/?ks=GDK-1650
+[GDK-1651]: https://gadak.dev/backlog/#/?ks=GDK-1651
+[GDK-1652]: https://gadak.dev/backlog/#/?ks=GDK-1652
+[GDK-1653]: https://gadak.dev/backlog/#/?ks=GDK-1653
+[GDK-1654]: https://gadak.dev/backlog/#/?ks=GDK-1654
+[GDK-1655]: https://gadak.dev/backlog/#/?ks=GDK-1655
 [GDK-1656]: https://gadak.dev/backlog/#/?ks=GDK-1656
+[GDK-1657]: https://gadak.dev/backlog/#/?ks=GDK-1657
+[GDK-1658]: https://gadak.dev/backlog/#/?ks=GDK-1658
 [GDK-1660]: https://gadak.dev/backlog/#/?ks=GDK-1660
 [GDK-1661]: https://gadak.dev/backlog/#/?ks=GDK-1661
-[GDK-1666]: https://gadak.dev/backlog/#/?ks=GDK-1666
 [GDK-1662]: https://gadak.dev/backlog/#/?ks=GDK-1662
+[GDK-1666]: https://gadak.dev/backlog/#/?ks=GDK-1666
