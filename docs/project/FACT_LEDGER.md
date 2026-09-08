@@ -169,6 +169,12 @@ table).
 **Three things appear on no origin at all**: sprints as a UI, Jira dashboards,
 and Jira's notification inbox. Those stay in Jira.
 
+**The Atlassian origin is Cloud.** Jira Server and Data Center are untested and
+therefore unclaimed (`docs/PAIN_POINTS.md:59`, `docs/project/ROADMAP.md:347`).
+Every edition must say so where it tells the reader to connect — an on-prem
+reader who finds out by failing is a lost reader, and in Japan the Data Center
+share makes this the first question (review round 2026-09-08).
+
 ## 10. Good fit / bad fit (an edition may compress, not contradict)
 
 - Yes: daily search latency, an agent over tracker *and* wiki, offline reads.
@@ -199,7 +205,16 @@ and Jira's notification inbox. Those stay in Jira.
   the origin did not accept fails then and there.
 - `SECURITY.md` cites **file paths**, not `path:line`. An edition must not
   claim line-level citations.
-- **Credentials never reach SQLite, a log, or a snapshot.**
+- **Credentials never reach SQLite, a log, or a snapshot.** The API token
+  lives in `~/.gadak/config.json`, written atomically with mode `0600`, and is
+  sent only as the `Authorization` header to the reader's own site
+  (`SECURITY.md`, "The credential").
+- **Do not write "the only network calls are the ones you configured."** It
+  contradicts the list above: the version check is on unless turned off
+  (`internal/config/config.go` `UpdateCheckEnabled` returns true when the key
+  is absent), so a fresh install makes one call the reader did not configure.
+  An edition that compresses the six destinations must name the version check
+  and its off switch (review round 2026-09-08 found this on two landings).
 - The 0.x contract is **three promises**, not the whole schema:
   `issues_full` + the RECIPES queries, `gadak sql` stdout format, and
   `gadak views open --keys -` semantics
@@ -246,6 +261,12 @@ at their own take — keep it that way and describe what that take shows in
 that language.
 
 `web-demo.gif` is English-only and shared by all three.
+
+**The "20,000 issues" in the flagship clip's caption** is the recording's
+corpus, not a benchmark: `e2e/demo/scale-demo.spec.ts` records against
+`examples/demo.db` scaled by `gadak snapshot --scale 20000`. It is one screen
+above the benchmark's real 3,296-issue site, so a caption that prints it must
+make clear it is the recording's mirror — or leave the number out.
 
 The **site landing** serves the same per-locale takes: `site/src/i18n.ts`
 `MEDIA_LOCALES` lists `terminal-hero.mp4` and its poster for ko and ja (since

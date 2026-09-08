@@ -154,7 +154,7 @@ export const strings: Record<Locale, Strings> = {
     speed: {
       label: 'Fast is a measurement, not an adjective',
       heading: 'The same question, asked two ways',
-      note: 'Measured 2026-08-26 against a live Atlassian Cloud site (a real work project, 3,296 issues), not a synthetic fixture. gadak numbers include full CLI process startup. Method, re-measurement history, and the honest where-gadak-loses table:',
+      note: 'Measured 2026-08-26 against a live Atlassian Cloud site (a real work project, 3,296 issues), not a synthetic fixture. gadak numbers include full CLI process startup. Method, re-measurement history, and the rows where gadak loses:',
       rows: [
         { what: 'Simple filter, 100 issues', value: '583 ms', alt: '19 ms', ratio: '31×' },
         { what: 'One issue + full changelog', value: '710 ms', alt: '28 ms', ratio: '25×' },
@@ -183,7 +183,7 @@ export const strings: Record<Locale, Strings> = {
       mcpLead: 'For MCP clients without a shell (Claude Desktop):',
       setupLink: 'Pasteable setup blocks for every tool → docs/AGENT_SETUP.md',
       driveCaption:
-        'A live Claude Code session in that same pane: a Korean sentence becomes the list, the next one saves and opens a dashboard — the agent and the board it moves, in one window.',
+        'A live Claude Code session in that same pane: one sentence becomes the list, the next one saves and opens a dashboard, and the board beside it moves as the agent works.',
       showcaseLink: 'More recordings — dashboards, a team theme, a launcher, a live MCP session → docs/SHOWCASE.md',
     },
     origin: {
@@ -192,7 +192,7 @@ export const strings: Record<Locale, Strings> = {
       points: [
         'Writes pass through to Jira first; the mirror refreshes after the origin accepts.',
         'The mirror is disposable — delete it and re-sync to rebuild it from the origin.',
-        'No telemetry. The only network calls are the ones you configured.',
+        'No telemetry, no analytics, no gadak account. gadak talks to your Jira site, plus one anonymous version check a day that you can switch off.',
         'Credentials never reach SQLite, a log, or a snapshot.',
       ],
     },
@@ -213,7 +213,7 @@ export const strings: Record<Locale, Strings> = {
       cliOnly: 'CLI only:',
       windowsBefore: 'On Windows, the desktop app is on the',
       windowsAfter: '.',
-      firstRun: 'Connect to your team\'s Jira (asks for site, email, token, projects):',
+      firstRun: 'Connect to your team\'s Jira Cloud site — it asks for the site, your email, a token and the projects. Server and Data Center are untested:',
     },
     // The landing's locale-varying fragments (MediaSlot labels, the
     // all-platforms link) — kept here so the component holds no copy.
@@ -292,7 +292,7 @@ export const strings: Record<Locale, Strings> = {
       mcpLead: '셸이 없는 MCP 클라이언트(Claude Desktop)에는:',
       setupLink: '도구별로 붙여 넣을 설정 블록 → docs/AGENT_SETUP.md',
       driveCaption:
-        '같은 창 안의 실제 Claude Code 세션입니다. 한국어 한 문장이 리스트가 되고, 다음 문장이 대시보드를 저장해 엽니다. 에이전트와 에이전트가 움직이는 보드가 한 창에 있습니다.',
+        '같은 창 안의 실제 Claude Code 세션입니다. 한국어 한 문장이 리스트가 되고, 다음 문장이 대시보드를 저장해 엽니다. 에이전트가 움직이는 보드를 같은 창에서 봅니다.',
       showcaseLink: '녹화본 더 보기: 대시보드, 팀 테마, 런처, 라이브 MCP 세션 → docs/SHOWCASE.md',
     },
     origin: {
@@ -301,7 +301,7 @@ export const strings: Record<Locale, Strings> = {
       points: [
         '쓰기는 먼저 Jira로 가고, Jira가 받아들인 뒤에야 캐시가 갱신됩니다.',
         '캐시는 이 컴퓨터 안의 SQLite 파일 하나입니다. 지워도 되고, 다시 동기화하면 그대로 다시 만들어집니다.',
-        '텔레메트리는 없습니다. 밖으로 나가는 요청은 직접 설정한 것뿐입니다.',
+        '텔레메트리는 없습니다. 밖으로 나가는 요청은 회사 Jira, 그리고 하루 한 번 익명 버전 확인뿐입니다. 버전 확인은 끌 수 있습니다.',
         '자격 증명은 캐시에도, 로그에도, 스냅샷에도 남지 않습니다.',
       ],
     },
@@ -332,7 +332,7 @@ export const strings: Record<Locale, Strings> = {
       cliOnly: 'CLI만:',
       windowsBefore: 'Windows 데스크톱 앱은',
       windowsAfter: '에 있습니다.',
-      firstRun: '회사 Jira에 연결합니다. 사이트, 이메일, 토큰, 프로젝트를 차례로 묻습니다:',
+      firstRun: '회사 Jira에 연결합니다. 사이트, 이메일, 토큰, 프로젝트를 차례로 묻습니다. 연결되는 건 Atlassian Cloud이고, Server와 Data Center는 아직 검증 전입니다:',
     },
     landing: {
       flagshipSlot: '플래그십 · 이슈 2만 건',
@@ -378,9 +378,9 @@ export const strings: Record<Locale, Strings> = {
       },
     },
     speed: {
-      label: '速さは形容詞ではなく、測った数字',
+      label: '速さは、測った数字で示す',
       heading: '同じ質問を、2つの経路で',
-      note: '2026-08-26に、本番のAtlassian Cloudサイト（実際の業務プロジェクト、課題3,296件）で計測。合成データではありません。gadakの数字にはCLIプロセスの起動時間を含みます。計測方法、再計測の履歴、そしてgadakが負ける場面を正直に並べた表はこちら:',
+      note: '2026-08-26に、本番のAtlassian Cloudサイト（実際の業務プロジェクト、課題3,296件）で計測。合成データではありません。gadakの数字にはCLIプロセスの起動時間を含みます。計測方法と再計測の履歴、gadak が負ける場面をまとめた表はこちら:',
       rows: [
         { what: '単純なフィルタ、課題100件', value: '583 ms', alt: '19 ms', ratio: '31×' },
         { what: '課題1件 + 変更履歴すべて', value: '710 ms', alt: '28 ms', ratio: '25×' },
@@ -409,14 +409,14 @@ export const strings: Record<Locale, Strings> = {
       mcpLead: 'シェルのないMCPクライアント（Claude Desktop）には:',
       setupLink: 'ツールごとに貼るだけの設定ブロック → docs/AGENT_SETUP.md',
       driveCaption:
-        '同じペインで動くClaude Codeのライブセッション。韓国語の一文がそのまま一覧になり、次の一文で保存してダッシュボードを開きます。エージェントと、それが動かすボードが、1つの窓の中に。',
+        '同じペインで動く Claude Code のライブセッション。日本語の一文がそのまま一覧になり、次の一文で保存してダッシュボードを開きます。エージェントと、その動かすボードが、同じ窓の中にあります。',
       showcaseLink: 'ほかの録画 — ダッシュボード、チームのテーマ、ランチャー、MCPのライブセッション → docs/SHOWCASE.md',
     },
     origin: {
       label: '導入前に確認したいこと',
       heading: '外に出る通信は、自分で設定したものだけ',
       points: [
-        'テレメトリはありません。gadakから出る通信は、自分のAtlassianサイトと、自分で有効にしたものだけです。一覧と切り方はSECURITY.mdにあります。',
+        'テレメトリはありません。gadak が出す通信は、自分の Atlassian サイトと、1 日 1 回までの匿名バージョン確認 (設定でオフにできます) だけです。ほかの通信先は、自分でそのコマンドを打ったときにしか発生しません。',
         'APIトークンは ~/.gadak/config.json にモード0600で置かれ、自分のサイトへのAuthorizationヘッダーにしか使われません。ログにも、キャッシュにも、スナップショットにも入りません。',
         'キャッシュの実体は、この端末の中のSQLiteファイル1つです。いつ消しても構いません。もう一度同期すれば、そのまま作り直せます。',
         '書き込みは先にJiraへ通します。Jiraが受け付けてから、キャッシュが更新されます。届かなかった書き込みをキャッシュに溜めることはありません。',

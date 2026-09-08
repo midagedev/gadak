@@ -239,7 +239,8 @@ gadak mcp install claude
 
 ## 対応しているトラッカー
 
-接続先 (origin) は 3 つで、動詞は 1 組です。
+接続先は 3 つで、動詞は 1 組です。対応している Jira は Cloud です。Server /
+Data Center は検証していないため、対応対象にしていません。
 
 - Atlassian Cloud
 - Linear (ワークスペース設定の `"linear"` ブロックと `gadak sync --source linear`)

@@ -163,8 +163,9 @@ connection and its off switch.
 
 Three origins, one set of verbs: Atlassian Cloud, Linear (a `"linear"` block
 in the workspace config and `gadak sync --source linear`), and the built-in
-tracker that travels with the app. Reads, writes, hierarchy, wiki, attachments,
-history and the board layout work on all three. What each origin refuses, with
+tracker that travels with the app. The Atlassian side is Cloud; Jira Server and
+Data Center are untested, so they are not claimed. Reads, writes, hierarchy,
+wiki, attachments, history and the board layout work on all three. What each origin refuses, with
 the code citation behind every cell, is one table:
 [`docs/SUPPORT_MATRIX.md`](docs/SUPPORT_MATRIX.md). Three things appear on no
 origin at all and stay in Jira: sprints as a UI, Jira dashboards, and Jira's

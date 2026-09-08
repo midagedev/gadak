@@ -83,7 +83,9 @@ gadak init && gadak sync && gadak serve
 [`docs/MIRROR.md`](docs/MIRROR.md).
 
 필요한 건 Jira [API 토큰](https://id.atlassian.com/manage-profile/security/api-tokens)
-하나이고, 같은 사이트의 Confluence도 그 토큰으로 갑니다. 범위는 직접
+하나이고, 같은 사이트의 Confluence도 그 토큰 하나로 씁니다. 연결되는 건
+Atlassian Cloud입니다. Server와 Data Center는 아직 검증 전이라 된다고 하지
+않습니다. 범위는 직접
 정합니다. `--projects`로 Jira를, `--spaces`로 위키를 좁히고, 스페이스를
 지정하기 전까지 위키는 꺼져 있습니다. Atlassian 계정이 없으면
 `gadak init --local`이 내장 트래커로 시작하고, 나중에
