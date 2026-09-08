@@ -217,6 +217,23 @@ the GitHub release is published — bump them with
 `contrib/aur/gadak-bin/update.sh <tag>`, not by editing the version
 alone.
 
+**Order, measured on v0.20.0, v0.20.2 and v0.21.0.** The commit the tag
+points at carries no pins. Check 6 fails while README says the new minor
+and the latest tag is still the old one, check 29 fails the other way
+round once the tag exists and the manifests still say the old patch, and
+the machine-local pre-push hook runs doc-checks whenever an outgoing
+commit adds a GDK key — so a pins commit cannot leave before the release
+and a manifests commit cannot leave before checksums.txt. The sequence
+that stays green at every step: (1) land the last content commit, tag it,
+push branch then tag; (2) wait for Release and Desktop release; (3) run
+the two update scripts, then `contrib/aur/gadak-bin/verify.sh` — it needs
+a docker daemon (`orb start` on this machine) and is what regenerates
+`.SRCINFO`, since makepkg is not on a mac; (4) bump README (en+ko) and
+`Last tagged:`, run `tools/doc-checks.sh` and `contrib/scoop/verify.sh`,
+and commit all six files as `release: <tag> manifests and state`. A push
+during (4) cancels the previous commit's CI run (concurrency group), so
+the tagged commit's verdict is the manifests commit's run.
+
 In-repo pins to bump:
 
 - `README.md` — status line, **minor** only (`v0.16.1` → `0.16`)
