@@ -22,8 +22,9 @@ hard-won 목록)와 `AGENTS.md`(스키마·쿼리)가 원본이다.
   GDK-380/381/382)는 origin.Wiki를 통과한다: connected는 Confluence REST,
   gadak origin 은 issuetap 의 Confluence API(미러 직접 쓰기가 아니다).
 - **아웃바운드 없음.** 텔레메트리 금지. 나가는 요청은 사용자가 설정한
-  origin(Atlassian 사이트·Linear: api.linear.app/uploads.linear.app), GitHub
-  릴리스 버전 체크(설정으로 끔), 페어링한 home serve, loopback뿐
+  origin(Atlassian 사이트·Linear: api.linear.app/uploads.linear.app), 페어링한
+  home serve, 사용자가 직접 실행한 `gh`·라이브러리 다운로드, loopback뿐
+  (업데이트 체크는 GDK-1626으로 제거됐다 — 부재를 카피로 되살리지 않는다)
   (`SECURITY.md`가 정본).
 - **계정·서버·포트 강제 없음.** loopback 단일 사용자 모델 (`docs/decisions/0003`).
 

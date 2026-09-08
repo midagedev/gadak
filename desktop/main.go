@@ -40,9 +40,9 @@ import (
 )
 
 // appVersion is stamped by desktop/build-app.sh (-X main.appVersion). The
-// default ("dev") keeps local builds identifiable. StartUpdateCheck compares
-// server.Version, which cmd/gadak assigns from its own ldflags; without the
-// same assignment here the sidebar banner stays silent (Version is 0.0.0-dev).
+// default ("dev") keeps local builds identifiable. It is assigned into
+// server.Version below, the same way cmd/gadak assigns it from its own
+// ldflags, so `gadak version` and the About box agree.
 var appVersion = "dev"
 
 func main() {

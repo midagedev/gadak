@@ -2,8 +2,7 @@
 
 gadak's answer to "what does this tool do with my network" is short: **mirror
 reads do not use the network, writes go to the origin you configured, and the
-only scheduled outbound besides sync is an optional anonymous version
-check.** This page walks that answer end to end — what connects where and
+only scheduled outbound is sync.** This page walks that answer end to end — what connects where and
 when, how the mirror stays fresh without an agent managing it, and how to put
 the network to work on purpose when several machines or a whole team share
 one workspace.
@@ -40,10 +39,14 @@ grep that proves it stays complete:
 
 | Destination | When | Carries | Off switch |
 | --- | --- | --- | --- |
-| **Your tracker** — the Atlassian site, Linear, or a paired home serve you configured | sync, write-through, and on-demand attachment fetch | to Atlassian and Linear's GraphQL: your API token; to Linear's signed upload PUT: no token, only Linear's signed headers; to a paired home serve: that device's bearer token. Never to any other host — cross-host redirects drop the Authorization header | remove the source; an unpaired built-in-tracker workspace has no remote at all |
+| **Your Atlassian site** | sync (every `syncIntervalSec`, default 60 s, while `serve` or `sync --watch` runs; hourly reconcile), write-through, and on-demand attachment fetch | your API token in the `Authorization` header. Never to any other host — cross-host redirects drop it | remove the credential; `serve --no-sync` stops the loop |
+| **Linear** — when a workspace has a Linear source | sync and write-through to `api.linear.app`; attachment uploads as a signed PUT to the `uploadUrl` Linear returns | to GraphQL: your API key; to the signed PUT: no key, only Linear's signed headers | remove the `"linear"` block |
+| **A paired home serve** you set up yourself | when the workspace was bound with `gadak init --pairing-code` | that device's bearer token, to the endpoint the pairing offer named | `gadak workspaces rm` the paired workspace |
 | **`gh` (your own CLI)** | only when you run `gadak dev scan` | whatever `gh` is already configured to send — gadak execs it, it does not call GitHub itself | don't run `dev scan` |
+| **A library download** you asked for | only when you run `gadak dashboards lib add <url>` | one GET to the exact URL you typed (https only, ≤ 3 redirects, ≤ 50 MiB, sha384-pinned) | don't run `lib add` |
 
-That table is exhaustive. There is no telemetry, no crash reporting, no
+That table is exhaustive, and it is the same five destinations
+[`SECURITY.md`](../SECURITY.md#data-flow) pins. There is no telemetry, no crash reporting, no
 gadak-operated server, no account, and nothing that phones home on install,
 on error, or on schedule. On the built-in tracker the gadak process itself
 opens no outbound connections — the one thing that can still reach out is

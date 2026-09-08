@@ -131,8 +131,8 @@ Don't take our word for it — the claim is one grep:
 ```bash
 grep -rn 'http.NewRequest\|http.Get\|http.Post' --include='*.go' internal/ cmd/ desktop/
 # every hit is your Atlassian site, Linear (api.linear.app / signed upload PUT),
-# a pairing home serve, the GitHub Releases check, the one-shot `dashboards
-# lib add` download to the URL you typed, or gadak talking to itself
+# a pairing home serve, the one-shot `dashboards lib add` download to the
+# URL you typed, or gadak talking to itself
 # on loopback (port probe, health check, cache warming). `gh` is exec, not
 # net/http.
 ```

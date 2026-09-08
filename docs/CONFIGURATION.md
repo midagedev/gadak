@@ -17,8 +17,8 @@ A running `gadak serve` also mounts every sibling workspace under
 switcher when more than one exists. `GET /api/v1/workspaces` lists them
 (name, site, projects — never credentials). HTTP mounts are lazy; **every
 credentialed workspace gets a watch loop at boot** (same as the desktop
-app). OS notifications and the update check stay on the workspace `serve`
-was started with (the primary one).
+app). OS notifications stay on the workspace `serve` was started with (the
+primary one).
 
 Most day-to-day keys are editable from the web **Settings** dialog
 (`GET` / `PUT /api/v1/issues/settings/`) and from `gadak config`. Credentials
