@@ -159,7 +159,7 @@ export const strings: Record<Locale, Strings> = {
     nav: { demo: 'Live demo', changelog: 'Changelog', install: 'Install', github: 'GitHub' },
     copy: { label: 'Copy', copied: 'Copied' },
     ogImageAlt:
-      'gadak — Query your Jira backlog with SQL. Selected Jira Cloud projects and Confluence spaces, mirrored into SQLite on your machine.',
+      'gadak. Query your Jira backlog with SQL. Selected Jira Cloud projects and Confluence spaces, mirrored into SQLite on your machine.',
     langName: 'English',
     langBanner: {
       offer: 'This page is also available in English.',
@@ -167,15 +167,17 @@ export const strings: Record<Locale, Strings> = {
       dismiss: 'Dismiss',
     },
     // The HN reader: what it is, the query they can run right now, the
-    // measurement, the daily search, the agent, the objection they were about
-    // to type, what to check before connecting work data, install, status,
-    // and a way to say what happened.
-    layout: ['hero', 'query', 'speed', 'search', 'agent', 'compare', 'connect', 'install', 'status', 'ask'],
+    // measurement, the agent, the objection they were about to type, what to
+    // check before connecting work data, install, status, and a way to say
+    // what happened. No `search` section: daily search is table stakes for
+    // this reader, the hero recording already shows it, and its one useful
+    // claim now sits in the lede and the agent section (GDK-1623).
+    layout: ['hero', 'query', 'speed', 'agent', 'compare', 'connect', 'install', 'status', 'ask'],
     hero: {
       eyebrow: 'gadak',
       heading: TAGLINE.en.heading,
       lede:
-        'gadak mirrors the Jira Cloud projects and Confluence spaces you choose into one SQLite file on your machine. Search it with no network, query it with SQL, and give a coding agent the same file. The desktop app, the browser tab and the CLI read the same data. Writes go to Jira first; the file is a cache you can delete.',
+        'gadak mirrors the Jira Cloud projects and Confluence spaces you choose into one SQLite file on your machine. Issue titles, bodies, comments and wiki pages land in one search index, and searching it opens no connection. SQL over the same file answers the counts JQL cannot express. The desktop app, the browser tab, the CLI and a coding agent read that file; writes go to Jira first, and the file is a cache you can delete.',
       videoCaption:
         'Recording: search over a 20,000-issue mirror built from the demo snapshot. Screen capture, not an animation.',
       doors: {
@@ -188,7 +190,7 @@ export const strings: Record<Locale, Strings> = {
     query: {
       label: 'Count unresolved issues by epic',
       heading: 'JQL has no GROUP BY.',
-      lead: 'Past one page of results the API hands you rows and leaves the counting to you. Once the data is a file, the question is one query:',
+      lead: 'The REST API returns issues a page at a time, and no totals. Once the data is a local file, the count is one query:',
       datasetteLabel: 'Run this query on the demo snapshot in your browser (Datasette Lite, nothing installed) →',
       result:
         'On a live Cloud site with 3,296 issues (2026-08-26, medians): 4,761 ms over 8 API pages aggregated client-side, against 22 ms for this query.',
@@ -196,7 +198,7 @@ export const strings: Record<Locale, Strings> = {
     speed: {
       label: 'Local reads compared with the Jira REST API',
       heading: 'The same questions, measured',
-      note: 'Measured 2026-08-26 against a live Atlassian Cloud site (a real work project, 3,296 issues). Medians; gadak numbers include full CLI process startup. The epic count took 8 API pages aggregated client-side against one query here; the history count has no native aggregate and takes about 28 minutes to crawl and count client-side; the rate-limit row is about reads, which stay local. A first full sync of that site took 10.6 minutes, and the mirror trails Jira by one sync interval. Method, re-measurements, and the rows where gadak loses: ',
+      note: 'Measured 2026-08-26 against a live Atlassian Cloud site: a real work project, 3,296 issues. Medians. The gadak numbers include full CLI process startup. In this measurement the epic count took 8 API pages, aggregated client-side, against one query on the mirror. The history count has no native aggregate; crawling and counting it client-side takes about 28 minutes. The rate-limit row is about reads, which stay local. A first full sync of that site took 10.6 minutes, and the mirror trails Jira by one sync interval. Method, re-measurements, and the rows where gadak loses: ',
       rows: [
         { what: 'Simple filter, 100 issues', value: '583 ms', alt: '19 ms', ratio: '31×' },
         { what: 'One issue + full changelog', value: '710 ms', alt: '28 ms', ratio: '25×' },
@@ -208,6 +210,9 @@ export const strings: Record<Locale, Strings> = {
       colRest: 'Jira REST API',
       colGadak: 'gadak',
     },
+    // en does not list `search` in its layout (see the comment on `layout`),
+    // so these strings render only if that changes. ko and ja keep the
+    // section and carry their own.
     ux: {
       label: 'Search',
       search: {
@@ -217,14 +222,14 @@ export const strings: Record<Locale, Strings> = {
       },
     },
     agent: {
-      label: 'For the people building with agents',
+      label: 'Coding agents on the same mirror',
       heading: 'Use the CLI from your coding agent',
       body:
-        'The CLI is the agent interface: create, claim, transition, and SQL over the mirror, while you watch the same board. Writes go through Jira first, and an agent’s comments and the issues it creates carry its name. An agent that reads your mirror sends what it reads to whatever model it talks to; scope the mirror to what the agent should see.',
+        'You and your agent read the same file. The CLI is the agent interface: create, claim, transition, and SQL over the mirror, while the board in front of you updates. Writes go through Jira first, and an agent’s comments and the issues it creates carry its name. An agent that reads your mirror sends what it reads to whatever model it talks to; scope the mirror to what the agent should see.',
       setupLink: 'One paste per host → docs/AGENT_SETUP.md',
       driveCaption:
         'A Claude Code session in gadak’s own terminal pane filters the issue list, then saves and opens a dashboard in the same window. Time-lapsed while the agent works.',
-      showcaseLink: 'More recordings — dashboards, a team theme, a launcher, a live MCP session → docs/SHOWCASE.md',
+      showcaseLink: 'More recordings: dashboards, a team theme, a launcher, a live MCP session → docs/SHOWCASE.md',
       setup: {
         skillLead: 'Install the skill for Claude Code:',
         mcpLead: 'For Claude Desktop, register the MCP server:',
@@ -246,7 +251,7 @@ export const strings: Record<Locale, Strings> = {
         { what: 'Freshness', a: 'Atlassian’s hosted data', b: 'the last synced state, one interval behind' },
         { what: 'Local setup', a: 'none', b: 'a local binary and an initial sync' },
       ],
-      note: 'jira-cli, Linear and Jira’s own UI, compared the same way:',
+      note: 'The same comparison for jira-cli, Linear and Jira’s own UI:',
       noteLink: 'docs/FAQ.md#how-it-compares',
     },
     connect: {
@@ -259,7 +264,7 @@ export const strings: Record<Locale, Strings> = {
         'Credentials never reach SQLite, a log, or a snapshot.',
         'No telemetry, no analytics, no gadak account. The only connections gadak opens are the ones you configured; the complete list is in SECURITY.md.',
         'Writes go to Jira first and the mirror refreshes after Jira accepts. A write Jira did not accept fails then and there; nothing is queued locally.',
-        'A few reads still ask Jira: viewing an attachment, and the CLI verbs that fetch editable fields or pass a request through.',
+        'Four reads still open a connection: viewing an attachment, <code>gadak issue --editmeta</code>, <code>gadak fields</code>, and <code>gadak api</code>.',
         'An agent that reads the mirror sends what it reads to whatever model it talks to. gadak itself sends nothing. Scope the mirror to what the agent should see.',
       ],
       links: [
@@ -271,7 +276,7 @@ export const strings: Record<Locale, Strings> = {
       heading: 'Changelog',
       lede:
         'Every release, in the words of the person who shipped it. Issue keys link into the ' +
-        'public backlog, so a line here can be read all the way back to what asked for it.',
+        'public backlog, so a line here leads to the issue that asked for it.',
       source: 'Rendered from CHANGELOG.md in the repository.',
       jumpLabel: 'Jump to a version',
       // Renders only on locales whose changelog falls back to the English
@@ -282,7 +287,7 @@ export const strings: Record<Locale, Strings> = {
       label: 'Install and first sync',
       heading: 'Install',
       macosApp: 'The desktop app, CLI included:',
-      cliOnly: 'CLI only:',
+      cliOnly: 'CLI only, on macOS or Linux. The same UI opens in a browser tab via gadak serve:',
       windowsBefore: 'On Windows, the desktop app is on the',
       windowsAfter: '.',
       firstRun:
@@ -295,10 +300,11 @@ export const strings: Record<Locale, Strings> = {
         'Status: 0.21, still 0.x. Sync, reads, write-through, desktop, web, CLI and MCP are verified against a live site.',
         'One maintainer, currently. Apache-2.0. The mirror is ordinary SQLite, and the 0.x contract is three promises: <code>issues_full</code> and the RECIPES queries, <code>gadak sql</code> stdout, and <code>gadak views open --keys -</code>.',
         'Keep sprint planning, administration, page editing in a UI, and anything that cannot tolerate a sync interval of delay in Jira.',
-        'Three origins, one set of verbs: Atlassian Cloud, Linear, and the built-in tracker. What each one refuses is one table.',
+        'Three origins, one set of verbs: Atlassian Cloud, Linear, and the built-in tracker. What each one refuses is in one table.',
       ],
       links: [
         { href: `${DOCS}docs/SUPPORT_MATRIX.md`, label: 'What each origin supports' },
+        { href: `${DOCS}README.md#alternatives-and-prior-work`, label: 'Earlier projects in this area' },
         { href: `${DOCS}docs/FAQ.md`, label: 'Hard questions' },
         { href: `${DOCS}docs/MAINTENANCE.md`, label: 'Who maintains this' },
         { href: GITHUB, label: 'Source' },
@@ -308,12 +314,12 @@ export const strings: Record<Locale, Strings> = {
       label: 'Report what happened',
       heading: 'If you used it on your own project, say so',
       body:
-        'Tell us what question gadak answered, and whether you used it again. If it was slow or gave a wrong answer, that is the report to send. GitHub issues reach the maintainer directly.',
+        'Tell us what question gadak answered, and whether you used it again.',
       caution: 'Keep real issue data, tokens, and site URLs out of public reports.',
       links: [{ href: `${GITHUB}/issues`, label: 'Open a GitHub issue' }],
     },
     // The landing's locale-varying fragments (MediaSlot labels, the
-    // all-platforms link) — kept here so the component holds no copy.
+    // all-platforms link), kept here so the component holds no copy.
     landing: {
       flagshipSlot: 'recording · 20k mirror',
       searchSlot: 'search',
@@ -323,7 +329,7 @@ export const strings: Record<Locale, Strings> = {
     footer: {
       builtBy: 'Built by',
       whereBytes: 'Where the bytes go',
-      nameNote: 'gadak is Korean for a strand — a thread drawn from a tangle.',
+      nameNote: 'gadak is Korean for a strand, a thread drawn from a tangle.',
     },
   },
   ko: {

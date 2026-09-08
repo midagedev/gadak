@@ -16,15 +16,15 @@ const store = 'https://apps.microsoft.com/detail/9NZW91TXH36G'
   <p class="lede">
     Pick your platform, run one line, then <a href="#first-run">first run</a>. Connecting to an
     Atlassian site needs one
-    <a href="https://id.atlassian.com/manage-profile/security/api-tokens">API token</a> (it covers
-    Jira and Confluence on the same site) — the built-in tracker needs no account at all.
+    <a href="https://id.atlassian.com/manage-profile/security/api-tokens">API token</a>, which
+    covers Jira and Confluence on the same site. The built-in tracker needs no account at all.
   </p>
 
   <h2 id="macos">macOS</h2>
   <p>The desktop app, CLI included:</p>
   <Snippet code="brew install --cask midagedev/tap/gadak" copyLabel="Copy" copiedLabel="Copied" />
   <p>
-    CLI only — same UI in a browser tab via <code>gadak serve</code>:
+    CLI only. The same UI opens in a browser tab via <code>gadak serve</code>:
   </p>
   <Snippet code="brew install midagedev/tap/gadak-cli" copyLabel="Copy" copiedLabel="Copied" />
   <p class="note">
@@ -50,9 +50,10 @@ const store = 'https://apps.microsoft.com/detail/9NZW91TXH36G'
     <code>gadak.exe</code> on <code>PATH</code>.
   </p>
   <p class="note">
-    The release's desktop zip (<code>Gadak-&lt;version&gt;-windows-x64.zip</code>) is unsigned — if
-    SmartScreen or Smart App Control blocks it, that is the missing signature, not a virus finding;
-    install from the Store instead. Details and how to check the sha256:
+    The release's desktop zip (<code>Gadak-&lt;version&gt;-windows-x64.zip</code>) is unsigned. If
+    SmartScreen or Smart App Control blocks it, that is the missing signature, not a virus finding.
+    Install from the Store instead, and do not turn Smart App Control off. Details and how to check
+    the sha256:
     <a href="https://github.com/midagedev/gadak/blob/main/docs/WINDOWS-SIGNING.md"
       >WINDOWS-SIGNING.md</a
     >.
@@ -73,7 +74,7 @@ gadak serve`}
     copiedLabel="Copied"
   />
   <p class="note">
-    Either way, <code>gadak serve</code> prints the address — open
+    Either way, <code>gadak serve</code> prints the address. Open
     <code>http://gadak.localhost:7777</code> and you should see your issues. That is the whole
     verification.
   </p>
@@ -84,12 +85,12 @@ gadak serve`}
 
   <h2 id="scope">What it mirrors</h2>
   <p>
-    You choose, and nothing pulls a whole site down because you installed it. The Confluence wiki
-    is <strong>off until you ask for it</strong>, and when you do you name the spaces:
+    You choose the scope, and nothing pulls a whole site down by default. The Confluence wiki is
+    <strong>off until you ask for it</strong>, and when you do you name the spaces:
   </p>
   <Snippet code="gadak init --spaces ENG,PROD" copyLabel="Copy" copiedLabel="Copied" />
   <p class="note">
-    Jira narrows the same way — <code>--projects ENG,PROD</code>, blank means every project the
+    Jira narrows the same way: <code>--projects ENG,PROD</code>, and blank means every project the
     account can see. Both are also a picker in Settings → Sources, so a scope you set now is one
     you can widen later without re-running anything.
   </p>

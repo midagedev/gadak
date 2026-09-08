@@ -79,7 +79,8 @@ macOS app, CLI included:
 brew install --cask midagedev/tap/gadak
 ```
 
-CLI only. The same UI opens in a browser tab via `gadak serve`:
+CLI only, on macOS or Linux. The same UI opens in a browser tab via
+`gadak serve`:
 
 ```bash
 brew install midagedev/tap/gadak-cli
@@ -160,9 +161,9 @@ gadak skill install
 That copies one `SKILL.md` for Claude Code and starts no process; the agent
 runs short-lived `gadak` commands. Name another host to install the same file
 there: `gadak skill install codex`, and the same for `agents`, `cursor`,
-`gemini`, `opencode` and `grok`. For Claude Desktop, which has no shell, the
-same mirror is an MCP server (`gadak mcp install claude` is the Claude Code
-registration instead):
+`gemini`, `opencode` and `grok`. For Claude Desktop, which has no shell,
+register the same mirror as an MCP server (`gadak mcp install claude` is the
+Claude Code registration; Claude Desktop never sees it):
 
 ```bash
 gadak mcp install claude-desktop
@@ -250,14 +251,17 @@ to take on trust, each with the command that checks it:
 If you used gadak on your own project, open a
 [GitHub issue](https://github.com/midagedev/gadak/issues) and say what question
 it answered and whether you used it again. Reports of everyday use are welcome
-before any contribution. Using it with an agent? Open an issue with a sanitized
-description of the question and what the agent did. Never paste real issue
-data, tokens, or site URLs into a public issue. Bug reports need your Jira
-deployment type (Cloud), the gadak commit, and the command you ran. The
-maintainer mirrors issues to the [public backlog](https://gadak.dev/backlog/),
-where commit `GDK-nnn` keys resolve. To contribute:
-[`CONTRIBUTING.md`](.github/CONTRIBUTING.md) and
-[`docs/project/GOOD_FIRST_ISSUES.md`](docs/project/GOOD_FIRST_ISSUES.md); why
+before any contribution. Using it with an agent? Send a sanitized description
+of the question and what the agent did. Never paste real issue data, tokens,
+or site URLs into a public issue.
+
+A bug report needs your Jira deployment type (Cloud), the gadak commit, and
+the command you ran. The maintainer mirrors issues to the
+[public backlog](https://gadak.dev/backlog/), where commit `GDK-nnn` keys
+resolve.
+
+To contribute: [`CONTRIBUTING.md`](.github/CONTRIBUTING.md) and
+[`docs/project/GOOD_FIRST_ISSUES.md`](docs/project/GOOD_FIRST_ISSUES.md). Why
 the next features are the ones they are, with sources:
 [`docs/project/THEORY.md`](docs/project/THEORY.md).
 
