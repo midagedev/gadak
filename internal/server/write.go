@@ -1377,7 +1377,10 @@ func writeUserCatalog(w http.ResponseWriter, users []jira.User) {
 	out := make([]map[string]any, 0, len(users))
 	for _, u := range users {
 		row := map[string]any{
-			"account_id": u.AccountID, "display_name": u.DisplayName, "email": u.Email,
+			// The REST field name is the wire contract; the value is the
+			// origin's own user axis — accountId on Cloud, the username on
+			// Server (GDK-1638).
+			"account_id": u.ID(), "display_name": u.DisplayName, "email": u.Email,
 			"avatar_url": u.Avatar(), "active": u.Active,
 		}
 		// The bot axis (GDK-590), so a picker can de-emphasize bots without

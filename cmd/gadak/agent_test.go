@@ -1745,6 +1745,49 @@ func TestResolveAccountLinearUUIDWhenSearchMisses(t *testing.T) {
 	}
 }
 
+// GDK-1638: a Jira Server origin keys users by name — search hits carry no
+// accountId, name is the username — and gadak assign must resolve to that
+// name on all three readings (email, exact id, single hit), with the
+// ambiguous-name refusal unchanged.
+func TestResolveAccountServerUserKeysByName(t *testing.T) {
+	saveResolveAccountConfig(t, nil)
+	serverRow := func(name, display string) jira.User {
+		return jira.User{Key: name, Name: name, DisplayName: display,
+			Email: name + "@server.example", Active: true}
+	}
+	stub := &searchUsersStub{users: []jira.User{serverRow("dkim", "Dana Kim")}}
+	id, err := resolveAccount(context.Background(), stub, "dkim@server.example", "jira")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id != "dkim" {
+		t.Fatalf("email hit id = %q, want the username dkim", id)
+	}
+
+	// The exact username among several hits, mirroring the accountId
+	// exact-match rule on Cloud.
+	stub = &searchUsersStub{users: []jira.User{serverRow("dkim", "Dana Kim"), serverRow("skim", "Sam Kim")}}
+	id, err = resolveAccount(context.Background(), stub, "skim", "jira")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id != "skim" {
+		t.Fatalf("username exact-match id = %q, want skim", id)
+	}
+
+	// A single hit still resolves even when nothing else matches, and two
+	// hits under one display name still refuse naming both.
+	stub = &searchUsersStub{users: []jira.User{serverRow("dkim", "Dana Kim")}}
+	if id, err = resolveAccount(context.Background(), stub, "Dana Kim", "jira"); err != nil || id != "dkim" {
+		t.Fatalf("single hit = %q, %v; want dkim", id, err)
+	}
+	stub = &searchUsersStub{users: []jira.User{serverRow("dkim", "Dana Kim"), serverRow("skim", "Dana Kim")}}
+	_, err = resolveAccount(context.Background(), stub, "Dana Kim", "jira")
+	if err == nil || !strings.Contains(err.Error(), "matches 2 users") {
+		t.Fatalf("ambiguous Server names must refuse with the candidates named, got %v", err)
+	}
+}
+
 func TestAssignJoinsTrailingWords(t *testing.T) {
 	f := newFakeJira(t)
 	mirror(t, f.URL)

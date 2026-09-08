@@ -137,10 +137,10 @@ func cloudFallback(ctx context.Context, o Origin, cfg *config.Config, req Reques
 		return Result{}, err
 	}
 	inProgress := statuscat.Category(st.StatusCategory.Key) == categoryInProgress
-	if inProgress && holder != nil && holder.AccountID != "" && holder.AccountID != me.AccountID && !req.TakeOver {
+	if inProgress && holder != nil && holder.ID() != "" && holder.ID() != me.ID() && !req.TakeOver {
 		name := holder.DisplayName
 		if name == "" {
-			name = holder.AccountID
+			name = holder.ID()
 		}
 		return Result{}, &TakenError{Key: req.Key, Holder: name}
 	}
@@ -153,8 +153,8 @@ func cloudFallback(ctx context.Context, o Origin, cfg *config.Config, req Reques
 			return Result{}, err
 		}
 	}
-	if holder == nil || holder.AccountID != me.AccountID {
-		if err := o.SetAssignee(ctx, req.Key, me.AccountID); err != nil {
+	if holder == nil || holder.ID() != me.ID() {
+		if err := o.SetAssignee(ctx, req.Key, me.ID()); err != nil {
 			return Result{}, err
 		}
 	}
@@ -167,7 +167,7 @@ func cloudFallback(ctx context.Context, o Origin, cfg *config.Config, req Reques
 	who = coalesceUser(who, me)
 	return Result{
 		Key:            req.Key,
-		AssigneeID:     who.AccountID,
+		AssigneeID:     who.ID(),
 		Assignee:       who.DisplayName,
 		StatusID:       st.ID,
 		Status:         st.Name,
@@ -206,7 +206,7 @@ func resolveExplicitTransition(ctx context.Context, o Origin, key, want string) 
 func fromOrigin(res jira.ClaimResult, atomic bool) Result {
 	return Result{
 		Key:            res.Key,
-		AssigneeID:     res.Assignee.AccountID,
+		AssigneeID:     res.Assignee.ID(),
 		Assignee:       res.Assignee.DisplayName,
 		StatusID:       res.Status.ID,
 		Status:         res.Status.Name,
@@ -220,7 +220,7 @@ func fromOrigin(res jira.ClaimResult, atomic bool) Result {
 // back without an assignee (sites that drop it on transition): the write
 // above set it to me, so me is what the answer says.
 func coalesceUser(who *jira.User, me jira.User) *jira.User {
-	if who != nil && who.AccountID != "" {
+	if who != nil && who.ID() != "" {
 		return who
 	}
 	return &me

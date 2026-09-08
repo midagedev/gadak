@@ -1686,7 +1686,7 @@ func resolveCommentMentions(ctx context.Context, c origin.Writer, body string) (
 				seenResolved[token] = true
 				name := users[0].DisplayName
 				if name == "" {
-					name = users[0].AccountID
+					name = users[0].ID()
 				}
 				resolved = append(resolved, resolvedMention{token: token, name: name})
 			}
@@ -1719,8 +1719,8 @@ func resolveMentionSite(ctx context.Context, c origin.Writer, cache map[string][
 			return "", "", nil, err
 		}
 		hits = plausibleMentionHits(hits, cand)
-		if len(hits) == 1 && hits[0].AccountID != "" {
-			return cand, hits[0].AccountID, hits, nil
+		if len(hits) == 1 && hits[0].ID() != "" {
+			return cand, hits[0].ID(), hits, nil
 		}
 		// Two hits mean this name is short of one person; a longer name may
 		// still resolve. Keep the shortest ambiguity to report if none does.
@@ -1801,7 +1801,7 @@ func ambiguousMention(token string, users []jira.User) error {
 	for _, u := range users {
 		name := u.DisplayName
 		if name == "" {
-			name = u.AccountID
+			name = u.ID()
 		}
 		names = append(names, name)
 	}
@@ -2691,18 +2691,18 @@ func resolveAccount(ctx context.Context, c origin.Writer, who, source string) (s
 	}
 	for _, u := range users {
 		if strings.EqualFold(u.Email, who) {
-			return u.AccountID, nil
+			return u.ID(), nil
 		}
 	}
 	for _, u := range users {
-		if u.AccountID == who {
-			return u.AccountID, nil
+		if u.ID() == who {
+			return u.ID(), nil
 		}
 	}
 	// A site that hides emails answers with no email to match on, so a single hit
 	// is taken at its word and an ambiguous one is refused rather than guessed.
 	if len(users) == 1 {
-		return users[0].AccountID, nil
+		return users[0].ID(), nil
 	}
 	if len(users) == 0 {
 		// Linear SearchUsers is name/email contains; a UUID from the

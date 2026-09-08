@@ -51,3 +51,49 @@ func TestIsBotAccountType(t *testing.T) {
 		}
 	}
 }
+
+// TestUserIDAnswersTheOriginsUserAxis (GDK-1638): the two deployments key
+// users differently. A Server user object carries no accountId key at all
+// — name and key are both the username, and the email is present rather
+// than hidden (measured on a live Server 11.3.11). A Cloud user object
+// carries accountId and no name. ID is the single accessor for "the id
+// this origin keys users by"; surfaces stop reading AccountID directly.
+func TestUserIDAnswersTheOriginsUserAxis(t *testing.T) {
+	// The measured Server payload (GDK-1638 spec), verbatim in shape.
+	var server User
+	if err := json.Unmarshal([]byte(`{
+		"self": "https://server.example/jira/rest/api/2/user?username=dkim",
+		"key": "dkim", "name": "dkim",
+		"emailAddress": "dkim@server.example",
+		"displayName": "Dana Kim", "active": true
+	}`), &server); err != nil {
+		t.Fatal(err)
+	}
+	if server.AccountID != "" {
+		t.Errorf("Server payload must not mint an accountId: %+v", server)
+	}
+	if server.Name != "dkim" || server.Key != "dkim" || server.Email != "dkim@server.example" {
+		t.Errorf("Server decode = %+v", server)
+	}
+	if got := server.ID(); got != "dkim" {
+		t.Errorf("Server ID() = %q, want the username dkim", got)
+	}
+	// Cloud: accountId present, no name key.
+	var cloud User
+	if err := json.Unmarshal([]byte(
+		`{"accountId":"5b10a2844c20165700ede21g","displayName":"Sam","accountType":"atlassian"}`), &cloud); err != nil {
+		t.Fatal(err)
+	}
+	if got := cloud.ID(); got != "5b10a2844c20165700ede21g" {
+		t.Errorf("Cloud ID() = %q, want the accountId", got)
+	}
+	// ID never falls back to a display name: a payload carrying only a
+	// display name answers empty, so callers refuse rather than key on it.
+	var nobody User
+	if err := json.Unmarshal([]byte(`{"displayName":"Some Display"}`), &nobody); err != nil {
+		t.Fatal(err)
+	}
+	if got := nobody.ID(); got != "" {
+		t.Errorf("ID() = %q, want empty — a display name is not a user id", got)
+	}
+}

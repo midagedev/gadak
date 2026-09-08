@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 )
@@ -300,5 +302,105 @@ func TestAttachmentFilenameCarriesAPIBase(t *testing.T) {
 	}
 	if path != "/rest/api/3/attachment/101" {
 		t.Errorf("path = %s, want /rest/api/3/attachment/101", path)
+	}
+}
+
+// TestServerUserSearchSendsUsernameParam pins the user-search parameter per
+// dialect (GDK-1638): Server's /user/search reads username=, and the query=
+// Cloud uses is not an error there — it is a silent empty list, so the two
+// must never be tried in sequence. The Cloud client keeps query=.
+func TestServerUserSearchSendsUsernameParam(t *testing.T) {
+	const serverPayload = `[{"self":"https://s.example/jira/rest/api/2/user?username=dkim","key":"dkim","name":"dkim","emailAddress":"dkim@s.example","displayName":"Dana Kim","active":true}]`
+	for _, tc := range []struct {
+		name      string
+		server    bool
+		wantParam string
+	}{
+		{"server", true, "username"},
+		{"cloud", false, "query"},
+	} {
+		var gotPath string
+		var gotQuery url.Values
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			gotPath, gotQuery = r.URL.Path, r.URL.Query()
+			w.Write([]byte(serverPayload))
+		}))
+		t.Cleanup(srv.Close)
+		var c *Client
+		if tc.server {
+			c = NewServer(srv.URL, "pat-token")
+		} else {
+			c = New(srv.URL, "a@b.c", "tok")
+		}
+		c.Retries, c.Backoff = 1, 0
+		users, err := c.SearchUsers(context.Background(), "dkim")
+		if err != nil {
+			t.Fatalf("%s: %v", tc.name, err)
+		}
+		if gotPath != c.apiBase+"/user/search" {
+			t.Errorf("%s: path = %s", tc.name, gotPath)
+		}
+		if got := gotQuery.Get(tc.wantParam); got != "dkim" {
+			t.Errorf("%s: %s = %q, want dkim", tc.name, tc.wantParam, got)
+		}
+		other := "query"
+		if tc.wantParam == "query" {
+			other = "username"
+		}
+		if gotQuery.Get(other) != "" {
+			t.Errorf("%s: %s must not be sent — the dialect branches once, no fallback", tc.name, other)
+		}
+		if len(users) != 1 || users[0].Name != "dkim" || users[0].Key != "dkim" || users[0].ID() != "dkim" {
+			t.Errorf("%s: users = %+v, want the Server user keyed by name", tc.name, users)
+		}
+	}
+}
+
+// TestServerSetAssigneeSendsNameField pins the assignee PUT body per dialect
+// (GDK-1638): Server takes {"name": …} where Cloud takes {"accountId": …},
+// and unassign is the dialect's own key set to null — sending Cloud's null
+// key to Server would leave the assignee untouched, not cleared.
+func TestServerSetAssigneeSendsNameField(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		server   bool
+		id       string
+		assign   string
+		unassign string
+	}{
+		{"server", true, "dkim", `{"name":"dkim"}`, `{"name":null}`},
+		{"cloud", false, "5b10a284", `{"accountId":"5b10a284"}`, `{"accountId":null}`},
+	} {
+		var bodies []string
+		var reqs []string
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			b, err := io.ReadAll(r.Body)
+			if err != nil {
+				t.Errorf("%s: read body: %v", tc.name, err)
+			}
+			bodies = append(bodies, string(b))
+			reqs = append(reqs, r.Method+" "+r.URL.Path)
+		}))
+		t.Cleanup(srv.Close)
+		var c *Client
+		if tc.server {
+			c = NewServer(srv.URL, "pat-token")
+		} else {
+			c = New(srv.URL, "a@b.c", "tok")
+		}
+		c.Retries, c.Backoff = 1, 0
+		if err := c.SetAssignee(context.Background(), "NMB-1", tc.id); err != nil {
+			t.Fatalf("%s: assign: %v", tc.name, err)
+		}
+		if err := c.SetAssignee(context.Background(), "NMB-1", ""); err != nil {
+			t.Fatalf("%s: unassign: %v", tc.name, err)
+		}
+		wantReq := "PUT " + c.apiBase + "/issue/NMB-1/assignee"
+		if reqs[0] != wantReq || reqs[1] != wantReq {
+			t.Errorf("%s: requests = %v, want two %s", tc.name, reqs, wantReq)
+		}
+		if bodies[0] != tc.assign || bodies[1] != tc.unassign {
+			t.Errorf("%s: bodies = %v, want %q then %q", tc.name, bodies, tc.assign, tc.unassign)
+		}
 	}
 }
