@@ -7,7 +7,7 @@ import (
 )
 
 func TestPresentLinearMarkdownRendersAsBlocks(t *testing.T) {
-	p := Present(nil, "## Repro\n\n- one\n- two")
+	p := Present(nil, "## Repro\n\n- one\n- two", DialectMarkdown)
 	if p.Source != "## Repro\n\n- one\n- two" {
 		t.Fatalf("source must be the markdown as stored: %q", p.Source)
 	}
@@ -22,7 +22,7 @@ func TestPresentLinearMarkdownRendersAsBlocks(t *testing.T) {
 func TestPresentSimpleADFIsReadAsMarkdown(t *testing.T) {
 	// One text node with the newlines inside — the migrated shape (GDK-1382).
 	wall := json.RawMessage(`{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"## Symptom\n\nfirst\n\n- a\n- b"}]}]}`)
-	p := Present(wall, "## Symptom\n\nfirst\n\n- a\n- b")
+	p := Present(wall, "## Symptom\n\nfirst\n\n- a\n- b", DialectMarkdown)
 	if k := kinds(p.Display); !strings.Contains(k, "heading") || !strings.Contains(k, "bulletList") {
 		t.Fatalf("the wall must come back as blocks:\n%s", k)
 	}
@@ -36,7 +36,7 @@ func TestPresentSimpleADFIsReadAsMarkdown(t *testing.T) {
 
 func TestPresentRichADFIsDisplayedAsIsAndNamesLoss(t *testing.T) {
 	rich := json.RawMessage(`{"type":"doc","version":1,"content":[{"type":"panel","attrs":{"panelType":"info"},"content":[{"type":"paragraph","content":[{"type":"text","text":"note","marks":[{"type":"strong"}]}]}]}]}`)
-	p := Present(rich, "note")
+	p := Present(rich, "note", DialectMarkdown)
 	if string(p.Display) != string(rich) {
 		t.Fatalf("rich ADF must be displayed verbatim")
 	}
@@ -52,7 +52,7 @@ func TestPresentRichADFIsDisplayedAsIsAndNamesLoss(t *testing.T) {
 
 func TestPresentEmpty(t *testing.T) {
 	for _, raw := range []json.RawMessage{nil, json.RawMessage("null"), json.RawMessage(`""`)} {
-		p := Present(raw, "")
+		p := Present(raw, "", DialectMarkdown)
 		if p.Display != nil || p.Source != "" || p.Loss != nil {
 			t.Fatalf("empty body presents empty: %+v", p)
 		}

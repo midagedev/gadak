@@ -19,6 +19,7 @@ import (
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/retro"
 	"github.com/midagedev/gadak/internal/store"
 )
@@ -553,7 +554,11 @@ func MergedPRLinks(devLinks []store.DevLink, attachments []store.DetailAttachmen
 
 func (s *server) handleDetail(w http.ResponseWriter, r *http.Request) {
 	key := r.PathValue("key")
-	d, err := s.db.Detail(r.Context(), key)
+	// The body dialect is the workspace's origin type (GDK-1637): wiki
+	// markup carried verbatim on a Jira Server origin, markdown everywhere
+	// else. The store takes it as a parameter — it must not import config.
+	dialect := origin.BodyDialect(s.config())
+	d, err := s.db.DetailWithDialect(r.Context(), key, dialect)
 	if errors.Is(err, store.ErrNotFound) {
 		fail(w, http.StatusNotFound, "not_found")
 		return
@@ -587,7 +592,7 @@ func (s *server) handleDetail(w http.ResponseWriter, r *http.Request) {
 		Now:        time.Now(),
 	})
 
-	desc := adf.Present(d.DescriptionADF, d.DescriptionText)
+	desc := adf.Present(d.DescriptionADF, d.DescriptionText, dialect)
 	if desc.Loss == nil {
 		desc.Loss = []string{}
 	}
@@ -684,7 +689,7 @@ func (s *server) handleDetail(w http.ResponseWriter, r *http.Request) {
 			AuthorAccountID:   nilIfEmpty(c.AuthorID),
 			AuthorAccountType: nilIfEmpty(view.accountTypeByAccount[c.AuthorID]),
 			Body:              c.Body, // the client's fallback when the ADF will not render
-			RawBody:           rawOrNull(adf.Present(c.BodyADF, c.Body).Display),
+			RawBody:           rawOrNull(adf.Present(c.BodyADF, c.Body, dialect).Display),
 			CreatedAt:         nilIfEmpty(c.CreatedAt),
 		})
 	}
@@ -785,10 +790,12 @@ func (s *server) handlePageDetailKey(w http.ResponseWriter, r *http.Request, key
 		return
 	}
 	// The same derivation as issue bodies (GDK-1385): a page written as
-	// typed text renders as the markdown it is.
-	d.BodyADF = rawOrNull(adf.Present(d.BodyADF, d.BodyText).Display)
+	// typed text renders as the markdown it is. Pages are Confluence /
+	// built-in wiki, so always the markdown dialect — the issue origin's
+	// dialect (GDK-1637) does not reach them.
+	d.BodyADF = rawOrNull(adf.Present(d.BodyADF, d.BodyText, adf.DialectMarkdown).Display)
 	for i := range d.Comments {
-		d.Comments[i].BodyADF = rawOrNull(adf.Present(d.Comments[i].BodyADF, d.Comments[i].BodyText).Display)
+		d.Comments[i].BodyADF = rawOrNull(adf.Present(d.Comments[i].BodyADF, d.Comments[i].BodyText, adf.DialectMarkdown).Display)
 	}
 	writeJSON(w, http.StatusOK, d)
 }
@@ -816,6 +823,14 @@ func (s *server) handlePreview(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&body); err != nil {
 		fail(w, http.StatusBadRequest, "invalid_body")
+		return
+	}
+	// A wiki-markup draft previews the way its save stores it (GDK-1637):
+	// the verbatim codeBlock Present shows, never a markdown parse of
+	// markup that is not markdown — and none of the placeholder machinery
+	// a base would resolve, which a verbatim carry has no use for.
+	if origin.BodyDialect(s.config()) == adf.DialectWiki {
+		writeJSON(w, http.StatusOK, map[string]any{"adf": adf.Present(nil, body.Text, adf.DialectWiki).Display})
 		return
 	}
 	if len(body.Base) > 0 && string(body.Base) != "null" {

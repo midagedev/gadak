@@ -604,7 +604,7 @@ func (s *server) handleComment(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, "invalid_body")
 		return
 	}
-	if err := adf.RefusePlaceholders(body.Text); err != nil {
+	if err := origin.RefuseBodyPlaceholders(s.config(), body.Text); err != nil {
 		failMsg(w, http.StatusConflict, "placeholder", err.Error())
 		return
 	}
@@ -651,7 +651,9 @@ func (s *server) handleComment(w http.ResponseWriter, r *http.Request) {
 			}
 			media = append(media, jira.Media{ID: mediaID, Filename: filename})
 		}
-		created, err := c.AddComment(ctx, key, jira.DocWithMedia(body.Text, mentions, media), visibility, body.Internal)
+		created, err := c.AddComment(ctx, key,
+			origin.BodyValue(s.config(), body.Text, jira.DocWithMedia(body.Text, mentions, media)),
+			visibility, body.Internal)
 		if err != nil {
 			return nil, err
 		}
@@ -921,11 +923,18 @@ var errFormatLoss = errors.New("format_loss")
 // current body's preserved nodes back in place. dropped names the ones the
 // text no longer references ("panel #1").
 func descriptionFromMarkdown(ctx context.Context, cfg *config.Config, src, key, text string, force bool) (json.RawMessage, []string, error) {
+	// A Jira Server body is wiki markup carried verbatim (GDK-1637): the
+	// save sends the typed characters as a string, and the placeholder
+	// machinery below — markers, preserved nodes, the origin read they
+	// need — has nothing to do on an origin whose bodies lose nothing.
+	if origin.BodyDialect(cfg) == adf.DialectWiki {
+		return origin.BodyValue(cfg, text, nil), nil, nil
+	}
 	if src == "linear" {
 		if adf.HasPlaceholders(text) {
 			return nil, nil, &adf.PlaceholderError{Msg: "a Linear body has no preserved nodes to put behind a placeholder — drop the markers"}
 		}
-		return jira.Doc(text, nil), nil, nil
+		return origin.BodyValue(cfg, text, jira.Doc(text, nil)), nil, nil
 	}
 	cur, found, err := origin.CurrentDescription(ctx, cfg, key)
 	if err != nil {
@@ -935,13 +944,13 @@ func descriptionFromMarkdown(ctx context.Context, cfg *config.Config, src, key, 
 		if adf.HasPlaceholders(text) {
 			return nil, nil, &adf.PlaceholderError{Msg: "the current description has no preserved nodes — drop the markers"}
 		}
-		return jira.Doc(text, nil), nil, nil
+		return origin.BodyValue(cfg, text, jira.Doc(text, nil)), nil, nil
 	}
 	if !adf.HasPlaceholders(text) {
 		if !force {
 			return nil, nil, errFormatLoss
 		}
-		return jira.Doc(text, nil), nil, nil
+		return origin.BodyValue(cfg, text, jira.Doc(text, nil)), nil, nil
 	}
 	doc, kept, err := adf.FromMarkdownWith(text, cur)
 	if err != nil {
@@ -1148,7 +1157,7 @@ func (s *server) handleCreate(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, "invalid_body")
 		return
 	}
-	if err := adf.RefusePlaceholders(p.DescriptionText); err != nil {
+	if err := origin.RefuseBodyPlaceholders(s.config(), p.DescriptionText); err != nil {
 		failMsg(w, http.StatusConflict, "placeholder", err.Error())
 		return
 	}
@@ -1228,7 +1237,10 @@ func (s *server) handleCreate(w http.ResponseWriter, r *http.Request) {
 	// Optional fields are omitted, never sent as "". Empty string is "no
 	// value" (resolve / skip), not "set this field to empty".
 	if strings.TrimSpace(p.DescriptionText) != "" {
-		fields["description"] = jira.Doc(p.DescriptionText, nil)
+		// The body value is the origin's (GDK-1637): ADF doc here, the raw
+		// string on a Jira Server origin whose description field is wiki
+		// markup carried verbatim.
+		fields["description"] = origin.BodyValue(cfg, p.DescriptionText, jira.Doc(p.DescriptionText, nil))
 	}
 	if id := deref(p.AssigneeAccountID); id != "" {
 		fields["assignee"] = map[string]string{"accountId": id}
