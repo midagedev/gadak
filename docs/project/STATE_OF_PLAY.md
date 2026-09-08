@@ -4,8 +4,23 @@
 "what the docs describe" and "what actually exists right now", written so a fresh
 session can start work without re-deriving anything.
 
-Last updated: 2026-09-06 — main at v0.20.2, **the patch where the Windows
-app is on the Microsoft Store**: the Store-signed package (product
+Last updated: 2026-09-08 — main at v0.21.0, **the release where the mirror
+tells you what happened while you were away**: `gadak retro` prints a
+weekly retrospective with its definitions beside the numbers, the list
+opens on a "since you were last here" line and an issue on a resume card,
+age and staleness are measured against the workspace's own cycle times
+instead of a fixed day count, five built-in views ship in two stances,
+agent writes on Jira Cloud and Linear carry a "via gadak" trailer, the
+skill installs on seven agent hosts, the site and the type speak Japanese,
+the phone is on TestFlight, and every landing clip is recorded in en, ko
+and ja over a mirror translated into that language. A second release audit
+ran before the tag (GDK-1563): six read-only axes, 28 findings fixed in
+seven parallel rounds — one Esc closes one surface (an ordered claim stack
+owns the key), menus never wait on the origin in silence, `reporter = …`
+JQL no longer answers zero rows, wails is a pure upstream pin again, and
+captures, tree walks, the JSON envelope and the jql binding each have one
+owner. On top of **the patch where the Windows
+app is on the Microsoft Store** (0.20.2): the Store-signed package (product
 9NZW91TXH36G, certified 2026-09-05; the Store has served the 0.20.2
 package since 2026-09-06, `winget` finds it under the msstore source, and a
 Store install on the verification box put `gadak` on `PATH`) is the Windows
@@ -116,7 +131,7 @@ notify-only (banner + brew/dmg), and releases deliberately ship no
 rebuilt around `query` with error echoes, the three pipe contracts written
 down (`issues_full` + RECIPES, `gadak sql` stdout, `views open --keys -`),
 personal-row export/import, brew renamed so `gadak` is the app cask, and the
-first live benchmark (`docs/BENCHMARKS.md`). Last tagged: v0.20.2.
+first live benchmark (`docs/BENCHMARKS.md`). Last tagged: v0.21.0.
 
 ## In one paragraph
 

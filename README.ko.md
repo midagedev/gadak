@@ -120,7 +120,7 @@ CLI 기동 시간을 포함합니다:
 
 </details>
 
-> **상태: 0.20, 아직 0.x입니다.** 동기화, 읽기 API, 쓰기 통과(write-through),
+> **상태: 0.21, 아직 0.x입니다.** 동기화, 읽기 API, 쓰기 통과(write-through),
 > 데스크톱, 웹, CLI, MCP가 실제 사이트에 대해 검증되어 있습니다.
 > [`CHANGELOG.ko.md`](CHANGELOG.ko.md).
 
