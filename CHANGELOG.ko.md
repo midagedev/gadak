@@ -4,6 +4,14 @@
 
 ## Unreleased
 
+- **Jira Server 워크스페이스의 첨부 파일.** Server 에는 `/attachment/content`
+  라우트가 없습니다. 첨부마다 주소를 알려주고 바이트는 거기서만 주므로, 캐시가
+  그 주소를 보관하고 CLI 와 앱이 그리로 요청합니다. 요청 전에 주소를 사이트
+  상대 경로로 줄이는데, 그것이 자격증명을 이 워크스페이스의 사이트 밖으로
+  내보내지 않는 방법입니다 — 다른 곳을 가리키는 첨부 URL 은 따라가지 않고
+  거절합니다. Jira Server 11.3.11 실측: `gadak attach get` 이 원본과 해시가
+  같은 바이트를 돌려주고, 앱 프록시가 `Range` 에 206 을 답해 영상 탐색도
+  동작합니다. ([GDK-1639])
 - **Jira Server 워크스페이스의 담당자.** Cloud 는 사용자를 accountId 로 키하고
   이메일을 숨기는 일이 많은데, Server 는 name 으로 키하고 이메일을 그대로
   보냅니다. 이제 origin 이 보낸 쪽 id 를 저장하므로 양쪽 모두 `assignee_id` 가
@@ -1577,5 +1585,6 @@ HTTP·sync·에이전트 계약을 담았습니다.
 [GDK-1636]: https://gadak.dev/backlog/#/?ks=GDK-1636
 [GDK-1638]: https://gadak.dev/backlog/#/?ks=GDK-1638
 [GDK-1644]: https://gadak.dev/backlog/#/?ks=GDK-1644
+[GDK-1639]: https://gadak.dev/backlog/#/?ks=GDK-1639
 [GDK-1617]: https://gadak.dev/backlog/#/?ks=GDK-1617
 [GDK-1626]: https://gadak.dev/backlog/#/?ks=GDK-1626

@@ -103,6 +103,12 @@ type Attachment struct {
 	Size     int64  `json:"size"`
 	Author   User   `json:"author"`
 	Created  string `json:"created"`
+	// Content is the absolute URL of the bytes, as the origin states it.
+	// Cloud and the built-in tracker also serve /attachment/content/{id},
+	// so nothing reads this there; Jira Server has no such route and this
+	// is the only address of the file (GDK-1639). Measured shape on
+	// 11.3.11: <base>/secure/attachment/{id}/{filename}.
+	Content string `json:"content"`
 }
 
 type IssueLink struct {

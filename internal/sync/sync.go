@@ -1185,6 +1185,11 @@ func build(ctx context.Context, c *jira.Client, cfg *config.Config, iss jira.Iss
 			Author:     at.Author.DisplayName,
 			AuthorID:   at.Author.ID(),
 			CreatedAt:  jira.ISOTime(at.Created),
+			// Only where the origin has no /attachment/content route:
+			// on Cloud and the built-in tracker the proxy builds that
+			// path from the id, and storing a second address for the
+			// same bytes would be two things to keep true (GDK-1639).
+			URL: serverContentURL(cfg, at),
 		})
 	}
 	for _, h := range histories {
@@ -1678,4 +1683,17 @@ func DevLinksFromPRs(prs []jira.DevPR) store.DevLinksUpdate {
 		})
 	}
 	return store.DevLinksUpdate{Links: out}
+}
+
+// serverContentURL is the attachment's own content URL on a Jira Server
+// origin, and empty everywhere else (GDK-1639). Server does not serve
+// /attachment/content/{id}, so the address the origin stated is the only
+// one there is; Cloud and the built-in tracker do serve it, and there the
+// mirror deliberately holds no URL — store.Attachment.URL is documented as
+// "when the source does not share Jira's shape".
+func serverContentURL(cfg *config.Config, at jira.Attachment) string {
+	if cfg.OriginType() != config.OriginJiraServer {
+		return ""
+	}
+	return at.Content
 }

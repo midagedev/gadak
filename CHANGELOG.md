@@ -4,6 +4,15 @@
 
 ## Unreleased
 
+- **Attachments on a Jira Server workspace.** Server has no
+  `/attachment/content` route: it states each attachment's address and serves
+  the bytes nowhere else, so the mirror keeps that URL and both the CLI and
+  the app ask for it. The address is reduced to a site-relative path first,
+  which is what keeps the credential on the workspace's own site — an
+  attachment URL pointing anywhere else is refused rather than fetched.
+  Measured against Jira Server 11.3.11: `gadak attach get` returns the
+  original bytes hash-for-hash, and the app's proxy answers `Range` with 206,
+  so seeking in a video works there too. ([GDK-1639])
 - **Assignees on a Jira Server workspace.** Cloud keys users by accountId and
   often hides the email; Server keys them by name and sends the email plainly.
   gadak now stores whichever id the origin sent, so `assignee_id` fills on
@@ -1636,5 +1645,6 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-1636]: https://gadak.dev/backlog/#/?ks=GDK-1636
 [GDK-1638]: https://gadak.dev/backlog/#/?ks=GDK-1638
 [GDK-1644]: https://gadak.dev/backlog/#/?ks=GDK-1644
+[GDK-1639]: https://gadak.dev/backlog/#/?ks=GDK-1639
 [GDK-1617]: https://gadak.dev/backlog/#/?ks=GDK-1617
 [GDK-1626]: https://gadak.dev/backlog/#/?ks=GDK-1626

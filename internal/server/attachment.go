@@ -325,6 +325,15 @@ func (s *server) fetchAttachment(ctx context.Context, cfg *config.Config, issueK
 	if cfg.OriginType() == config.OriginGadak {
 		return s.fetchBuiltInAttachment(ctx, cfg, id, hdr)
 	}
+	// Jira Server states the bytes' address and serves them nowhere else,
+	// so the stored URL is the request — reduced to a site-relative path,
+	// which is what keeps the credential on this workspace's site
+	// (GDK-1639). It goes through origin.Client for the same reason the
+	// built-in path does: that client already holds the right credential
+	// shape, and Server's is a bearer, not the basic auth below.
+	if cfg.OriginType() == config.OriginJiraServer {
+		return s.fetchServerAttachment(ctx, cfg, contentURL, hdr)
+	}
 	target := strings.TrimRight(cfg.Site, "/") + "/rest/api/3/attachment/content/" + url.PathEscape(id)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
 	if err != nil {
@@ -470,6 +479,26 @@ func inlineSafe(contentType string) bool {
 // that its bytes live on disk rather than in a BLOB (GDK-1617), and the
 // origin labels them properly and answers Range — so hdr is passed through
 // and the response is handed back exactly as it came, 206 included.
+// fetchServerAttachment streams a Jira Server attachment from the URL the
+// origin stated (GDK-1639). hdr is passed through: the measured instance
+// answers Range on this route, so seeking in a video works the same way it
+// does on the other origins.
+func (s *server) fetchServerAttachment(ctx context.Context, cfg *config.Config, contentURL string, hdr http.Header) (*http.Response, error) {
+	c, err := origin.Client(cfg)
+	if err != nil {
+		return nil, err
+	}
+	path, err := origin.SiteRelative(c.BaseURL(), contentURL)
+	if err != nil {
+		return nil, err
+	}
+	res, err := c.Stream(ctx, http.MethodGet, path, hdr)
+	if err != nil {
+		return nil, err
+	}
+	return mapAttachmentStatus(res, false)
+}
+
 func (s *server) fetchBuiltInAttachment(ctx context.Context, cfg *config.Config, id string, hdr http.Header) (*http.Response, error) {
 	c, err := origin.Client(cfg)
 	if err != nil {

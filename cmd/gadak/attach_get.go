@@ -164,8 +164,18 @@ func openAttachment(ctx context.Context, cfg *config.Config, db *store.DB, key s
 	// them on the way out, which is the same silent-loss shape GDK-1614
 	// fixed on the way in. Streaming also means the file never has to fit
 	// in memory: the same download peaked at 526 MB RSS before this.
-	res, err := c.Stream(ctx, http.MethodGet,
-		"/rest/api/3/attachment/content/"+url.PathEscape(att.ExternalID), nil)
+	// Jira Server has no /attachment/content route: the bytes live at the
+	// URL the origin stated, which sync recorded (GDK-1639). Reducing it to
+	// a site-relative path is what keeps the Authorization header on this
+	// workspace's site.
+	path := "/rest/api/3/attachment/content/" + url.PathEscape(att.ExternalID)
+	if cfg.OriginType() == config.OriginJiraServer {
+		path, err = origin.SiteRelative(c.BaseURL(), contentURL)
+		if err != nil {
+			return nil, err
+		}
+	}
+	res, err := c.Stream(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		return nil, err
 	}
