@@ -26,6 +26,11 @@ storage and type, attribution, MCP clients, read exceptions, deletions).
   know the name is the Korean word 가닥, a strand pulled out of a tangle, and
   it named nothing the reader has. The new one gives the metaphor an object.
   It is positioning, not a promise that every answer is in the cache.
+  It lives in **five** places, not the four an earlier count claimed: line 12
+  of each README, this entry, and `tools/hosted-demo/build.mjs` — which sets
+  it as the hosted demo's `<title>`, its OG/Twitter titles, and a visible
+  line under the wordmark. The brand round of 2026-09-08 missed that file;
+  a later change to the line must grep, not count.
 - **The name may be explained once, in one sentence, and never above the first
   useful example** — the landing footer and the READMEs' maintainer section are
   the places. English: "gadak is Korean for a strand — a thread drawn from a

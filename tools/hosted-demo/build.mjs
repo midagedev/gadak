@@ -235,14 +235,14 @@ if (titled === indexHtml) {
 const socialMeta = `
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="gadak">
-    <meta property="og:title" content="gadak — Follow the thread.">
+    <meta property="og:title" content="gadak — Find the thread in your backlog.">
     <meta property="og:description" content="Jira and Confluence in one local SQLite file — search it, query it, point your agent at it. This is the live demo.">
     <meta property="og:url" content="${siteOrigin}/demo/">
     <meta property="og:image" content="${siteOrigin}/og.png">
     <meta property="og:image:width" content="1280">
     <meta property="og:image:height" content="640">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="gadak — Follow the thread.">
+    <meta name="twitter:title" content="gadak — Find the thread in your backlog.">
     <meta name="twitter:description" content="Jira and Confluence in one local SQLite file — search it, query it, point your agent at it. This is the live demo.">`
 if (!titled.includes('</title>')) {
   console.error('hosted-demo: could not inject social meta — the </title> tag is missing')
@@ -404,18 +404,18 @@ function landingHtml() {
     <link rel="icon" type="image/png" sizes="32x32" href="${withSlash}icon-32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="${withSlash}icon-16.png" />
     <link rel="apple-touch-icon" href="${withSlash}apple-touch-icon.png" />
-    <title>gadak — Follow the thread.</title>
+    <title>gadak — Find the thread in your backlog.</title>
     <meta name="description" content="Jira and Confluence in one local SQLite file. Search it, query it in SQL, point your coding agent at it. Reads never touch the network." />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="gadak" />
-    <meta property="og:title" content="gadak — Follow the thread." />
+    <meta property="og:title" content="gadak — Find the thread in your backlog." />
     <meta property="og:description" content="Jira and Confluence in one local SQLite file. Search it, query it in SQL, point your coding agent at it." />
     <meta property="og:url" content="${siteOrigin}/" />
     <meta property="og:image" content="${siteOrigin}/og.png" />
     <meta property="og:image:width" content="1280" />
     <meta property="og:image:height" content="640" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="gadak — Follow the thread." />
+    <meta name="twitter:title" content="gadak — Find the thread in your backlog." />
     <meta name="twitter:description" content="Jira and Confluence in one local SQLite file. Search it, query it in SQL, point your coding agent at it." />
     <style>
       :root {
@@ -515,7 +515,7 @@ function landingHtml() {
   <body>
     <main>
       <h1 class="mark">gadak</h1>
-      <p class="tagline">Follow the thread.</p>
+      <p class="tagline">Find the thread in your backlog.</p>
 
       <p class="lede">
         Your Jira and Confluence, mirrored into one local SQLite file. Search it,
