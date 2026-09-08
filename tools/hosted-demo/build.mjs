@@ -232,18 +232,26 @@ if (titled === indexHtml) {
   console.error('hosted-demo: could not retitle index.html — the <title> tag changed shape')
   process.exit(1)
 }
+// The demo is a crawlable URL with a real audience, so it gets the same head
+// a landing page has: a description, a canonical, and the card. The wording
+// is the en tagline body (site/src/tagline.js) plus what this page is.
+const demoDescription =
+  'The live demo of gadak: the real UI over a 534-issue sample mirror. Selected Jira Cloud projects and Confluence spaces, mirrored into SQLite on your machine — search it and query it with SQL, nothing to install.'
 const socialMeta = `
+    <meta name="description" content="${demoDescription}">
+    <link rel="canonical" href="${siteOrigin}/demo/">
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="gadak">
-    <meta property="og:title" content="gadak — Find the thread in your backlog.">
-    <meta property="og:description" content="Jira and Confluence in one local SQLite file — search it, query it, point your agent at it. This is the live demo.">
+    <meta property="og:title" content="gadak — live demo">
+    <meta property="og:description" content="${demoDescription}">
     <meta property="og:url" content="${siteOrigin}/demo/">
     <meta property="og:image" content="${siteOrigin}/og.png">
     <meta property="og:image:width" content="1280">
     <meta property="og:image:height" content="640">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="gadak — Find the thread in your backlog.">
-    <meta name="twitter:description" content="Jira and Confluence in one local SQLite file — search it, query it, point your agent at it. This is the live demo.">`
+    <meta name="twitter:site" content="@midagedev">
+    <meta name="twitter:title" content="gadak — live demo">
+    <meta name="twitter:description" content="${demoDescription}">`
 if (!titled.includes('</title>')) {
   console.error('hosted-demo: could not inject social meta — the </title> tag is missing')
   process.exit(1)
@@ -317,7 +325,31 @@ if (existsSync(join(backlogSnapshot, 'bootstrap.json'))) {
     console.error('hosted-demo: could not retitle backlog index.html')
     process.exit(1)
   }
-  writeFileSync(backlogIndex, backlogTitled)
+  // Same treatment as the demo: this URL is crawled and shared (every
+  // GDK-nnn link in the changelog lands here), so it says what it is.
+  const backlogDescription =
+    "gadak's own backlog, served by gadak: every GDK issue behind the changelog, read-only, in the same UI the demo runs."
+  const backlogMeta = `
+    <meta name="description" content="${backlogDescription}">
+    <link rel="canonical" href="${siteOrigin}/backlog/">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="gadak">
+    <meta property="og:title" content="gadak — public backlog">
+    <meta property="og:description" content="${backlogDescription}">
+    <meta property="og:url" content="${siteOrigin}/backlog/">
+    <meta property="og:image" content="${siteOrigin}/og.png">
+    <meta property="og:image:width" content="1280">
+    <meta property="og:image:height" content="640">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:site" content="@midagedev">
+    <meta name="twitter:title" content="gadak — public backlog">
+    <meta name="twitter:description" content="${backlogDescription}">`
+  const backlogWithMeta = backlogTitled.replace('</title>', `</title>${backlogMeta}`)
+  if (backlogWithMeta === backlogTitled) {
+    console.error('hosted-demo: could not inject backlog meta — the </title> tag is missing')
+    process.exit(1)
+  }
+  writeFileSync(backlogIndex, backlogWithMeta)
   // About popover links these relative to the base path.
   copyFileSync(mp4Src, join(backlogOut, 'web-demo.mp4'))
   copyFileSync(ogSrc, join(backlogOut, 'og.png'))
@@ -405,18 +437,19 @@ function landingHtml() {
     <link rel="icon" type="image/png" sizes="16x16" href="${withSlash}icon-16.png" />
     <link rel="apple-touch-icon" href="${withSlash}apple-touch-icon.png" />
     <title>gadak — Find the thread in your backlog.</title>
-    <meta name="description" content="Jira and Confluence in one local SQLite file. Search it, query it in SQL, point your coding agent at it. Reads never touch the network." />
+    <meta name="description" content="Selected Jira Cloud projects and Confluence spaces, mirrored into SQLite on your machine. Search with no network, query with SQL, and hand a coding agent the same file." />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="gadak" />
     <meta property="og:title" content="gadak — Find the thread in your backlog." />
-    <meta property="og:description" content="Jira and Confluence in one local SQLite file. Search it, query it in SQL, point your coding agent at it." />
+    <meta property="og:description" content="Selected Jira Cloud projects and Confluence spaces, mirrored into SQLite on your machine. Search with no network, query with SQL." />
     <meta property="og:url" content="${siteOrigin}/" />
     <meta property="og:image" content="${siteOrigin}/og.png" />
     <meta property="og:image:width" content="1280" />
     <meta property="og:image:height" content="640" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="gadak — Find the thread in your backlog." />
-    <meta name="twitter:description" content="Jira and Confluence in one local SQLite file. Search it, query it in SQL, point your coding agent at it." />
+    <meta name="twitter:site" content="@midagedev" />
+    <meta name="twitter:description" content="Selected Jira Cloud projects and Confluence spaces, mirrored into SQLite on your machine. Search with no network, query with SQL." />
     <style>
       :root {
         --bg: #f4efe4;

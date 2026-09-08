@@ -111,12 +111,12 @@ if ! command -v sqlite3 >/dev/null; then
 fi
 n="$(sqlite3 examples/demo.db "select count(*) from issues")"
 [[ "$n" =~ ^[0-9]+$ ]] || fail "sqlite3 did not return a count (got ${n@Q})"
-for f in README.md docs/INSTALL.md; do
+for f in README.md docs/INSTALL.md site/public/llms.txt; do
   if ! grep -q "${n} issues" "$f"; then
     fail "$f does not mention ${n} issues (demo.db count)"
   fi
 done
-ok "README.md and docs/INSTALL.md say ${n} issues"
+ok "README.md, docs/INSTALL.md and site/public/llms.txt say ${n} issues"
 
 # ── 4. Hosted demo is live; no "enables GitHub Pages" leftover ───────────
 if grep -n "enables GitHub Pages" docs/project/STATE_OF_PLAY.md; then
@@ -149,7 +149,7 @@ if [[ -z "$tag" ]]; then
   ok "no tag reachable — version guard skipped"
 else
   minor="${tag#v}"; minor="${minor%.*}"   # v0.14.0 → 0.14
-  for f in README.md README.ko.md README.ja.md; do
+  for f in README.md README.ko.md README.ja.md site/public/llms.txt; do
     if ! grep -qE "(Status|상태|状態): ${minor}(,|、| )" "$f"; then
       fail "$f status line does not say ${minor} (latest tag ${tag})"
     fi
@@ -2334,5 +2334,31 @@ if git rev-parse --verify -q "HEAD^" >/dev/null 2>&1; then
 else
   echo "note: the ci-status fixture test is skipped — shallow checkout has no HEAD^, and its parent look-back cases (7-8) need real history. Full run locally or with fetch-depth: 0."
 fi
+
+# ── 45. llms.txt carries the front door's contract strings (GDK-1659) ────────
+# site/public/llms.txt is the page an agent reads instead of the landing, and
+# nothing asserted it: on 2026-09-09 it was fourteen days behind the READMEs —
+# no Windows Store line, the Claude Desktop command GDK-1633 retired, and
+# "source of truth" twice. Checks 3 and 6 now read it too (demo count,
+# version); this one pins the install commands and the facts the review rounds
+# found wrong most often. FAIL-first 2026-09-09: the pre-rewrite file had
+# neither `gadak mcp install claude-desktop` nor the Store URL.
+llms=site/public/llms.txt
+for want in \
+  'brew install --cask midagedev/tap/gadak' \
+  'brew install midagedev/tap/gadak-cli' \
+  'gadak init && gadak sync && gadak serve' \
+  'http://gadak.localhost:7777' \
+  'gadak mcp install claude-desktop' \
+  'https://apps.microsoft.com/detail/9NZW91TXH36G' \
+  'https://gadak.dev/ko/' \
+  'https://gadak.dev/ja/' \
+  'docs/project/FACT_LEDGER.md'; do
+  if ! grep -qF -- "$want" "$llms"; then
+    fail "$llms is missing the contract string: $want"
+  fi
+done
+ok "site/public/llms.txt carries the install commands, both MCP hosts, the Store URL and the ko/ja pages"
+
 
 echo "doc-checks: all passed"

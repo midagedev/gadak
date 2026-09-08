@@ -1,34 +1,75 @@
 # gadak
 
-> Your team's Jira — and its Confluence wiki — mirrored into one local SQLite
-> file. Reads are local SQL and land in milliseconds; writes go through Jira,
-> which stays the source of truth. Built agent-first: a CLI, an MCP server,
-> and a documented schema agents query directly. No outbound telemetry.
+> gadak caches the Jira Cloud projects and Confluence spaces a person chooses
+> into one SQLite file on their own machine — issues, comments, change history
+> and wiki pages, indexed together. Reads are local: search and issue views
+> open no connection. Writes go to Jira first and the cache refreshes after
+> Jira accepts. A desktop app, a browser tab (`gadak serve`), a CLI and a
+> coding agent all read the same file. No telemetry, and no gadak account.
+> Status: 0.21, still 0.x. Apache-2.0, one maintainer.
 
-For an agent working with a human's Jira: install gadak, run `gadak sync`,
-then read the mirror with `gadak sql` (or the MCP tools). The promised query
-surface is the `issues_full` view plus the recipes in AGENTS.md. Keep status,
-priority and issue type off display names — use `status_category`,
-`priority_rank`, `issue_type_id`.
+## For an agent working on someone's tracker
+
+Install gadak, run `gadak sync`, then read the cache with `gadak sql` or the
+MCP tools. Two rules carry most of the value:
+
+1. **Never filter on a display name.** Jira translates status, priority and
+   issue-type names per account, so `status = 'In Progress'` or
+   `priority = High` returns zero rows on a Korean- or Japanese-language site,
+   with no error. Use `status_category` (`new` | `inprogress` | `done`),
+   `status_id`, `priority_rank` and `issue_type_id`.
+2. **SQL answers; the window presents.** `gadak sql --no-header "…" | gadak
+   views open --keys -` puts a result on screen, and
+   `gadak views open --jql '…'` lands pasted JQL as filter chips.
+
+The promised query surface is the `issues_full` view plus the recipes in
+AGENTS.md. `gadak skill install` writes a SKILL.md for Claude Code and starts
+no process; `codex`, `agents`, `cursor`, `gemini`, `opencode` and `grok` take
+the same file. An agent that reads the cache sends what it reads to whatever
+model it talks to — gadak itself sends nothing.
 
 ## Docs
 
-- [README](https://github.com/midagedev/gadak/blob/main/README.md): what it is, quick start
-- [Agent setup](https://github.com/midagedev/gadak/blob/main/docs/AGENT_SETUP.md): `gadak skill install` for shell agents, `gadak mcp install` for MCP clients
-- [Schema & query recipes](https://github.com/midagedev/gadak/blob/main/AGENTS.md): `issues_full`, the query contract, worked SQL examples
-- [Concept](https://github.com/midagedev/gadak/blob/main/docs/CONCEPT.md): mirror-is-a-cache model, what persists where
-- [Benchmarks](https://github.com/midagedev/gadak/blob/main/docs/BENCHMARKS.md): method and measurements against Jira REST
-- [Install](https://github.com/midagedev/gadak/blob/main/docs/INSTALL.md): all platforms
-- [Security](https://github.com/midagedev/gadak/blob/main/SECURITY.md): exactly where bytes go
+- [README](https://github.com/midagedev/gadak/blob/main/README.md): what it is, and the first run
+- [Agent setup](https://github.com/midagedev/gadak/blob/main/docs/AGENT_SETUP.md): one paste per host
+- [Schema and query recipes](https://github.com/midagedev/gadak/blob/main/AGENTS.md): `issues_full`, the query contract, worked SQL
+- [Concept](https://github.com/midagedev/gadak/blob/main/docs/CONCEPT.md): the cache model, and what it is a bad fit for
+- [Support matrix](https://github.com/midagedev/gadak/blob/main/docs/SUPPORT_MATRIX.md): Jira, Linear and the built-in tracker, cell by cell
+- [Benchmarks](https://github.com/midagedev/gadak/blob/main/docs/BENCHMARKS.md): method, measurements, and the rows where gadak loses
+- [Install](https://github.com/midagedev/gadak/blob/main/docs/INSTALL.md): every platform
+- [Security](https://github.com/midagedev/gadak/blob/main/SECURITY.md): every outbound destination and its condition
+- [Fact ledger](https://github.com/midagedev/gadak/blob/main/docs/project/FACT_LEDGER.md): what every front door must carry, and what this file is written from
 
 ## Try
 
-- [Live demo](https://gadak.dev/demo/): the real UI over a scrubbed 534-issue sample mirror
+- [Live demo](https://gadak.dev/demo/): the real UI over a scrubbed 534 issues sample, nothing installed
+- [Korean landing](https://gadak.dev/ko/) · [Japanese landing](https://gadak.dev/ja/): parallel editions, not translations
 - [Changelog](https://gadak.dev/changelog/): every release, with issue keys linking into the backlog
 - [Public backlog](https://gadak.dev/backlog/): gadak's own issues, served by gadak
-- [Source](https://github.com/midagedev/gadak): Go + Svelte, Apache-2.0
+- [Source](https://github.com/midagedev/gadak): Go and Svelte, Apache-2.0
 
 ## Install
 
-- macOS app (CLI included): `brew install --cask midagedev/tap/gadak`
+- macOS app, CLI included: `brew install --cask midagedev/tap/gadak`
 - CLI only (macOS, Linux): `brew install midagedev/tap/gadak-cli`
+- Windows app: the [Microsoft Store](https://apps.microsoft.com/detail/9NZW91TXH36G) listing, which signs it and puts `gadak` on `PATH`
+- First run: `gadak init && gadak sync && gadak serve`, which prints `http://gadak.localhost:7777`
+- Pick the scope up front: `gadak init --projects ENG,PROD --spaces ENG`. The wiki stays off until spaces are named.
+- No Atlassian account: `gadak init --local` starts a workspace on the built-in tracker.
+
+## Connecting an MCP client
+
+Two commands, and they are not interchangeable:
+
+- `gadak mcp install claude-desktop` writes the entry Claude Desktop reads. This is the line for hosts without a shell.
+- `gadak mcp install claude` registers with Claude *Code* (it runs `claude mcp add`). Claude Desktop never sees it.
+
+`gadak_search`'s primary argument is `query` (aliases `text`, `q`).
+
+## Measured
+
+2026-08-26, against a live Atlassian Cloud site with 3,296 issues. Medians;
+gadak figures include CLI process startup. Free-text search 543 ms → 41 ms.
+Open issues per epic (`GROUP BY`) 4,761 ms over 8 API pages aggregated
+client-side → 22 ms in one query. The first full sync of that site took
+10.6 minutes, and the cache trails Jira by one sync interval.

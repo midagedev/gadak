@@ -33,9 +33,29 @@ const doorsByKey = {
   demo: { href: '/demo/', title: t.hero.doors.demoTitle, sub: t.hero.doors.demoSub },
 }
 const heroDoors = (t.heroDoorOrder ?? ['install', 'demo']).map((k) => doorsByKey[k])
+// Structured data for the one page a search result shows. The changelog page
+// carries its own (with the release list); the landing says what the software
+// is, in this locale, and where to get it (GDK-1659). No softwareVersion here:
+// the tagged version is asserted on the READMEs by doc-checks, and a second
+// hand-kept copy would drift.
+const site = 'https://gadak.dev'
+const jsonLd = JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareApplication',
+  name: 'gadak',
+  description: t.description,
+  applicationCategory: 'DeveloperApplication',
+  operatingSystem: 'macOS, Linux, Windows',
+  inLanguage: lang,
+  url: `${site}${pathFor(lang, '/')}`,
+  downloadUrl: `${site}${installHref}`,
+  sameAs: 'https://github.com/midagedev/gadak',
+  license: 'https://www.apache.org/licenses/LICENSE-2.0',
+  offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+})
 ---
 
-<Base lang={lang} title={t.title} description={t.description}>
+<Base lang={lang} title={t.title} description={t.description} jsonLd={jsonLd}>
   {
     layout.map((section) => (
       <>

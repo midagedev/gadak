@@ -356,6 +356,25 @@ share makes this the first question (review round 2026-09-08).
 The Korean edition links `CHANGELOG.ko.md`. The Japanese changelog is
 published in English — say so where it is linked.
 
+## 14b. The machine-facing surface (GDK-1659, 2026-09-09)
+
+- `site/public/llms.txt` is the page an agent reads instead of the landing. It
+  is written from this ledger, and `tools/doc-checks.sh` reads it the way it
+  reads the READMEs: check 3 (the demo count), check 6 (the tagged minor
+  version), and check 45 (the install commands, **both** MCP commands, the
+  Store URL, the ko/ja landings, and a pointer back to this file). A fact that
+  changes here changes there.
+- Every page carries `twitter:site` / `twitter:creator` `@midagedev`.
+- The three landings emit `SoftwareApplication` JSON-LD with the locale's own
+  `inLanguage`, `url` and `downloadUrl`; the changelog page emits its own with
+  the release list. No `softwareVersion` on the landings — the tagged version
+  is asserted on the READMEs, and a second hand-kept copy would drift.
+- `/demo/` and `/backlog/` are crawlable app URLs and carry a description, a
+  canonical and a card, injected by `tools/hosted-demo/build.mjs`. `/privacy/`
+  stays out of the sitemap on purpose (GDK-1380).
+- The GitHub repo's homepage field is `https://gadak.dev` (it pointed at the
+  old Pages URL until 2026-09-09).
+
 ## 15. Media assets
 
 `docs/media/` **does** carry locale recordings for the README heroes:

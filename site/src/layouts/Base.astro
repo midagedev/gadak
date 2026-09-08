@@ -56,6 +56,8 @@ const switchHref = (l: Locale) => (noAltLang ? pathFor(l, '/') : pathFor(l, enPa
     <meta property="og:image:height" content="640" />
     <meta property="og:image:alt" content={t.ogImageAlt} />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@midagedev" />
+    <meta name="twitter:creator" content="@midagedev" />
     {/* Canonical on the page's own URL. Without it the same document is
         reachable at more than one address (trailing slash, query, the
         preview host) and search engines pick a winner for us. */}
