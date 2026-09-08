@@ -484,8 +484,19 @@ type Detail struct {
 }
 
 // Detail assembles one issue. An unknown key returns ErrNotFound so the
-// handler can answer 404 without importing database/sql.
+// handler can answer 404 without importing database/sql. Bodies present as
+// the markdown dialect — the pre-GDK-1637 shape; callers that hold the
+// workspace config say which dialect with DetailWithDialect.
 func (db *DB) Detail(ctx context.Context, key string) (*Detail, error) {
+	return db.DetailWithDialect(ctx, key, adf.DialectMarkdown)
+}
+
+// DetailWithDialect is Detail with the body dialect chosen by the caller —
+// the one holding the workspace config (GDK-1637): DialectWiki on a Jira
+// Server origin, whose bodies are wiki markup carried verbatim. The mirror
+// layer never derives the dialect itself; internal/store does not import
+// internal/config.
+func (db *DB) DetailWithDialect(ctx context.Context, key string, dialect adf.Dialect) (*Detail, error) {
 	var itemID string
 	var descADF *string
 	var customJSON string
@@ -515,7 +526,7 @@ func (db *DB) Detail(ctx context.Context, key string) (*Detail, error) {
 		Created: createdAt,
 	}
 	_ = json.Unmarshal([]byte(customJSON), &d.Custom)
-	d.DescriptionMD = adf.Present(d.DescriptionADF, d.DescriptionText).Source
+	d.DescriptionMD = adf.Present(d.DescriptionADF, d.DescriptionText, dialect).Source
 
 	if err := each(ctx, db.sql, `
 		SELECT id, COALESCE(external_id,''), COALESCE(author,''), COALESCE(author_id,''),
@@ -531,7 +542,7 @@ func (db *DB) Detail(ctx context.Context, key string) (*Detail, error) {
 				return err
 			}
 			c.BodyADF = rawOrNull(body)
-			c.BodyMD = adf.Present(c.BodyADF, c.Body).Source
+			c.BodyMD = adf.Present(c.BodyADF, c.Body, dialect).Source
 			c.JsdPublic = jsdPublicFromSQL(jsd)
 			d.Comments = append(d.Comments, c)
 			return nil
@@ -1001,7 +1012,9 @@ func (db *DB) PageDetail(ctx context.Context, key string) (*PageDetail, error) {
 	d.Labels = parseArray(&labels)
 	d.BodyADF = rawOrNull(bodyADF)
 	d.BodyText = adf.PlainText(d.BodyADF)
-	d.BodyMD = adf.Present(d.BodyADF, d.BodyText).Source
+	// Pages are Confluence / built-in wiki — ADF bodies, always the markdown
+	// dialect, whatever the issue origin of this workspace is (GDK-1637).
+	d.BodyMD = adf.Present(d.BodyADF, d.BodyText, adf.DialectMarkdown).Source
 	d.Comments = []PageComment{}
 	if err := each(ctx, db.sql, `
 		SELECT COALESCE(author, ''), COALESCE(created_at, ''),

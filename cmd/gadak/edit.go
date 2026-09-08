@@ -671,9 +671,14 @@ func fixVersionUpdateOps(ctx context.Context, c origin.Writer, issueKey string, 
 // callers skip this entirely; so do Linear keys: a Linear description is
 // plain text end to end (linearWriter flattens ADF on the way in), and a Jira
 // description GET there would need an Atlassian credential a Linear-only
-// workspace does not have.
+// workspace does not have. A Jira Server workspace skips it for the same
+// reason (GDK-1637): its descriptions are verbatim strings, and replacing
+// the typed characters destroys nothing.
 func guardDescriptionReplace(ctx context.Context, cfg *config.Config, src, key string, clearing bool) error {
 	if src == "linear" {
+		return nil
+	}
+	if origin.BodyDialect(cfg) == adf.DialectWiki {
 		return nil
 	}
 	cur, found, err := origin.CurrentDescription(ctx, cfg, key)
@@ -699,15 +704,24 @@ func guardDescriptionReplace(ctx context.Context, cfg *config.Config, src, key s
 		key, strings.Join(loss, ", "), key)
 }
 
-// descriptionFromMarkdown builds the ADF an `edit -m` sends (GDK-1396). The
+// descriptionFromMarkdown builds the body an `edit -m` sends (GDK-1396). The
 // body's preserved nodes — what `gadak issue` printed as placeholders — are
 // read from the origin now and put back where the markers stand; a draft
 // that carries none of them while the body has some is the plain replace
 // GDK-1001 refuses (guardDescriptionReplace ran already unless forcePlain).
 // Deleted markers delete their nodes, and stderr says which. --force-plain
 // and Linear skip the origin read: a marker in that text has nothing behind
-// it and is refused rather than written as text.
+// it and is refused rather than written as text. A Jira Server origin is
+// verbatim end to end (GDK-1637): the typed characters are the body, so
+// none of that machinery runs there.
 func descriptionFromMarkdown(ctx context.Context, cfg *config.Config, src, key, body string, forcePlain bool) (json.RawMessage, error) {
+	// A Jira Server body is wiki markup carried verbatim (GDK-1637): the send
+	// is the typed characters as a string, and the placeholder machinery —
+	// markers, preserved nodes, the origin read they need — has nothing to do
+	// on an origin whose bodies lose nothing.
+	if origin.BodyDialect(cfg) == adf.DialectWiki {
+		return origin.BodyValue(cfg, body, nil), nil
+	}
 	if src == "linear" || forcePlain {
 		if adf.HasPlaceholders(body) {
 			if src == "linear" {
@@ -715,7 +729,7 @@ func descriptionFromMarkdown(ctx context.Context, cfg *config.Config, src, key, 
 			}
 			return nil, fmt.Errorf("edit %s: the text carries placeholders; --force-plain replaces the body without reading it, so drop the flag to keep them (or drop the markers)", key)
 		}
-		return jira.Doc(body, nil), nil
+		return origin.BodyValue(cfg, body, jira.Doc(body, nil)), nil
 	}
 	cur, found, err := origin.CurrentDescription(ctx, cfg, key)
 	if err != nil {
@@ -725,7 +739,7 @@ func descriptionFromMarkdown(ctx context.Context, cfg *config.Config, src, key, 
 		if adf.HasPlaceholders(body) {
 			return nil, fmt.Errorf("edit %s: the text carries placeholders but the current description has no preserved nodes — drop the markers", key)
 		}
-		return jira.Doc(body, nil), nil
+		return origin.BodyValue(cfg, body, jira.Doc(body, nil)), nil
 	}
 	doc, dropped, err := adf.FromMarkdownWith(body, cur)
 	if err != nil {

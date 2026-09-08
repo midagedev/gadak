@@ -81,6 +81,15 @@ func newFakeJira(t *testing.T) *fakeJira {
 
 func (f *fakeJira) route(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/rest/api/3")
+	// A Jira Server origin speaks API v2 (GDK-1635), whose classic /search
+	// (GDK-1636) is this fake's /search/jql handler with startAt paging —
+	// the answer shapes it serves are version-agnostic.
+	if strings.HasPrefix(r.URL.Path, "/rest/api/2") {
+		path = strings.TrimPrefix(r.URL.Path, "/rest/api/2")
+		if path == "/search" {
+			path = "/search/jql"
+		}
+	}
 	tag := r.Method + " " + path
 	f.calls = append(f.calls, tag)
 	if body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20)); err == nil && len(body) > 0 && json.Valid(body) {
