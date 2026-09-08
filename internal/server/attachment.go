@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 	"github.com/midagedev/gadak/internal/attachcache"
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/linear"
+	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/store"
 )
 
@@ -277,6 +279,15 @@ func (s *server) fetchAttachment(ctx context.Context, cfg *config.Config, issueK
 		}
 		return fetchStoredURL(ctx, contentURL, key)
 	}
+	// A built-in origin has no site — in-process because the origin is this
+	// process, paired because the endpoint lives in remote-origin.json — so
+	// concatenating cfg.Site produced a relative URL and every view answered
+	// 502 (GDK-1613). origin.Client is the seam that answers on all of them;
+	// the streaming path below stays for a connected site, where the bytes
+	// really are remote and can be large.
+	if cfg.OriginType() == config.OriginGadak {
+		return s.fetchBuiltInAttachment(ctx, cfg, id)
+	}
 	target := strings.TrimRight(cfg.Site, "/") + "/rest/api/3/attachment/content/" + url.PathEscape(id)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
 	if err != nil {
@@ -398,4 +409,40 @@ func inlineSafe(contentType string) bool {
 	}
 	return strings.HasPrefix(mime, "image/") || strings.HasPrefix(mime, "video/") ||
 		strings.HasPrefix(mime, "audio/") || mime == "application/pdf"
+}
+
+// fetchBuiltInAttachment reads bytes from gadak's own tracker through
+// origin.Client, which resolves to the in-process origin or the paired home
+// serve without this file knowing which. The answer is buffered rather than
+// streamed: in-process the bytes are already local, and a paired serve is
+// one hop away — the size ceiling that matters is the cache's, and
+// attachcache.TooLarge still applies to what the caller does with this.
+func (s *server) fetchBuiltInAttachment(ctx context.Context, cfg *config.Config, id string) (*http.Response, error) {
+	c, err := origin.Client(cfg)
+	if err != nil {
+		return nil, err
+	}
+	status, body, err := c.Raw(ctx, http.MethodGet,
+		"/rest/api/3/attachment/content/"+url.PathEscape(id), nil, false)
+	if err != nil {
+		return nil, err
+	}
+	switch {
+	case status == http.StatusUnauthorized, status == http.StatusForbidden:
+		return nil, errAttachmentAuth
+	case status == http.StatusNotFound:
+		return nil, errAttachmentMissing
+	case status < 200 || status >= 300:
+		return nil, fmt.Errorf("attachment %s: HTTP %d", id, status)
+	}
+	res := &http.Response{
+		StatusCode:    http.StatusOK,
+		Header:        http.Header{},
+		Body:          io.NopCloser(bytes.NewReader(body)),
+		ContentLength: int64(len(body)),
+	}
+	// The origin does not label these; the renderer sniffs, and the mirror
+	// row carries the mime the origin recorded at upload.
+	res.Header.Set("Content-Type", "application/octet-stream")
+	return res, nil
 }

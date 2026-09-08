@@ -28,7 +28,7 @@ Markers:
 | **Read** · SQL (`gadak sql`, `issues_full` + RECIPES) | ✅[^5] | ✅[^6] | ✅[^5] |
 | **Read** · `--jql` / pasted Jira URL | ✅[^7] | ✅[^8] | ✅[^7] |
 | **Read** · comments | ✅[^9] | ✅[^10] | ✅[^9] |
-| **Read** · attachment bytes | ✅[^11] | ✅[^12] | ◐[^13] |
+| **Read** · attachment bytes | ✅[^11] | ✅[^12] | ✅[^13] |
 | **Read** · attachment download (`gadak attach get`) | ✅[^110] | ✅[^111] | ✅[^112] |
 | **Read** · history → `status_changed_at`, `reopen_count`, `started_at` / `cycle_hours` (time-in-status computed, never stored) | ✅[^14] | ◐[^15] | ✅[^16] |
 | **Read** · issue links | ✅[^17] | ✅[^106] | ✅[^19] |
@@ -110,11 +110,11 @@ Markers:
 [^12]: Serve fetches `uploads.linear.app` with the workspace's Linear API key
     (`internal/server/attachment.go:268`).
 
-[^13]: The origin serves the bytes (`issuetap/docs/COMPATIBILITY.md:76`), but
-    serve's proxy builds a site URL a Built-in workspace does not have — on a
-    cold cache the proxy fails (`internal/server/attachment.go:279` with an
-    empty `cfg.Site`; measured 502). The CLI row below is the unaffected
-    path: it goes through `origin.Client`, which every origin type answers.
+[^13]: The origin serves the bytes (`issuetap/docs/COMPATIBILITY.md:76`) and
+    serve reads them through `origin.Client` like every other origin
+    (`internal/server/attachment.go:288`). Until GDK-1613 the proxy
+    concatenated `cfg.Site`, which a Built-in workspace does not have — every
+    view answered 502 on both transports, in-process and paired.
 
 [^14]: Changelog events (`internal/jira/client.go:206`) feed
     `status_changed_at` and `reopen_count`, and since v43 `started_at` /

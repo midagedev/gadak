@@ -29,6 +29,13 @@ func TestOriginRESTConnectedIs404(t *testing.T) {
 }
 
 func builtInServer(t *testing.T) (*Handler, *config.Config) {
+	h, cfg, _ := builtInServerDB(t)
+	return h, cfg
+}
+
+// builtInServerDB is builtInServer plus the mirror handle, for tests that
+// seed rows the handler reads (GDK-1613).
+func builtInServerDB(t *testing.T) (*Handler, *config.Config, *store.DB) {
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
@@ -58,7 +65,7 @@ func builtInServer(t *testing.T) (*Handler, *config.Config) {
 		_ = h.Close()
 		_ = db.Close()
 	})
-	return h, cfg
+	return h, cfg, db
 }
 
 func TestOriginRESTBuiltInPassesThrough(t *testing.T) {
