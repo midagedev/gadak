@@ -25,6 +25,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -399,8 +400,20 @@ limit 1 offset ((85 * (select count(*) from cycles) + 99) / 100 - 1)`
 	if !ok {
 		t.Fatalf("current bucket wip age p85 is null in JSON: %v", last)
 	}
-	if fmt.Sprintf("%.1f", gotWip) != fmt.Sprintf("%.1f", handWip.Float64) {
-		t.Fatalf("wip age p85: retro %.1f, RECIPES hand SQL %.1f", gotWip, handWip.Float64)
+	// Agreement to within half a tenth of a day, not equality of the
+	// rounded strings. Both sides compute the same quantity from the same
+	// pinned instant, but through different float paths — Go's arithmetic
+	// and SQLite's julianday() — so a p85 age sitting on an x.x5 boundary
+	// rounds to different tenths while the values agree to nine decimals.
+	// The demo fixture ages every day, so that boundary is crossed on some
+	// dates and not others: pinning the clock (above) removed the skew but
+	// not the boundary. Twice red on commits that could not have caused it
+	// — CI run 34172962018 on 52c28d35, a docs-only commit, and CI run
+	// 34225385207 on 0e9519b2, which changed only Jira REST paths.
+	// Tolerance is the contract the doc actually states; string equality
+	// was a proxy for it that fails only at rounding boundaries (GDK-1642).
+	if math.Abs(gotWip-handWip.Float64) >= 0.05 {
+		t.Fatalf("wip age p85: retro %.4f, RECIPES hand SQL %.4f", gotWip, handWip.Float64)
 	}
 }
 
