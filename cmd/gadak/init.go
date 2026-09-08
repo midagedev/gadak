@@ -163,6 +163,13 @@ func cmdInit(args []string) error {
 	// Defined only so a mistaken `--token secret` gets a clear error instead of
 	// "flag provided but not defined"; the value must never be accepted (ps/history).
 	tokenFlag := fs.String("token", "", "not accepted; use GADAK_TOKEN, --token-file, or --token-stdin")
+	// Jira Server / Data Center (GDK-1635/1640): a base URL that may carry a
+	// context path, and a Personal Access Token instead of email + API token.
+	// Explicit rather than sniffed — a workspace that silently decided which
+	// Jira it was talking to is the "quietly points at another tracker" class
+	// of defect. init still verifies the choice against serverInfo and refuses
+	// a mismatch.
+	serverFlag := fs.Bool("server", false, "the site is Jira Server / Data Center: authenticate with a Personal Access Token, no email")
 	jsonOut := fs.Bool("json", false, "emit one JSON object on success")
 	// The origin is the built-in tracker, running in this process — the
 	// transport axis's local (GDK-1278).
@@ -361,7 +368,8 @@ func cmdInit(args []string) error {
 		if site == "" {
 			missing = append(missing, "site")
 		}
-		if email == "" {
+		if email == "" && !*serverFlag {
+			// --server authenticates with a PAT alone; there is no email.
 			missing = append(missing, "email")
 		}
 		if token == "" {
@@ -434,14 +442,35 @@ func cmdInit(args []string) error {
 		}
 	}
 
-	if !cfg.HasCredential() {
+	if *serverFlag {
+		cfg.Kind = config.OriginJiraServer
+		cfg.Email = ""
+	}
+	if cfg.OriginType() == config.OriginJiraServer {
+		if cfg.Site == "" || cfg.Token == "" {
+			return fmt.Errorf("--server needs a base URL and a personal access token\n%s", config.ErrNotConfigured.Error())
+		}
+	} else if !cfg.HasCredential() {
 		return fmt.Errorf("site, email, and token are all required\n%s", config.ErrNotConfigured.Error())
 	}
 	// Same verification as the server credential / onboarding endpoints (jira /myself).
 	// Auth rejection is fatal. A transport / site error is a warning: save the
 	// credential without identity fields so offline init still works (I6).
 	name := ""
-	me, err := origin.Connected(cfg.Site, cfg.Email, cfg.Token).Myself(context.Background())
+	client := origin.Connected(cfg.Site, cfg.Email, cfg.Token)
+	if cfg.OriginType() == config.OriginJiraServer {
+		client = origin.ConnectedServer(cfg.Site, cfg.Token)
+	}
+	// Verify the deployment the user declared against what the origin says.
+	// A mismatch is fatal: every REST path in the process branches on this
+	// value, so saving a wrong one produces 401s that read as a bad token.
+	// An unreachable origin is not a mismatch — that is the offline case the
+	// /myself check below already tolerates.
+	if got, derr := probeDeployment(context.Background(), cfg); derr == nil && got != cfg.OriginType() {
+		return fmt.Errorf("this site is %s, but the workspace was created as %s — %s",
+			got, cfg.OriginType(), deploymentHint(got))
+	}
+	me, err := client.Myself(context.Background())
 	if err != nil {
 		if errors.Is(err, jira.ErrAuth) {
 			// Restore the pre-jira.Myself hint: org API keys are a common mistake.
@@ -652,4 +681,42 @@ func builtInAuthorName(cfg *config.Config) string {
 		return ""
 	}
 	return strings.TrimSpace(me.DisplayName)
+}
+
+// deploymentHint names the flag that would have matched what serverInfo
+// reported, so the error says what to do rather than only what is wrong.
+func deploymentHint(got string) string {
+	if got == config.OriginJiraServer {
+		return "re-run init with --server"
+	}
+	return "re-run init without --server"
+}
+
+// probeDeployment asks the origin which Jira it is, trying every credential
+// shape the typed secret could be (GDK-1635).
+//
+// One shape is not enough. A mismatched deployment makes the configured
+// shape fail authentication — a Cloud-shaped Basic email:token is rejected
+// by Server — so asking only the configured way lets the mismatch hide
+// behind the 401 it caused, which is the misdiagnosis this whole axis
+// exists to prevent. The anonymous attempt is last and often refused:
+// a Server instance need not grant anonymous browse.
+//
+// This is diagnosis, not routing. Nothing here decides which client the
+// workspace uses; it only decides what the error message may claim.
+func probeDeployment(ctx context.Context, cfg *config.Config) (string, error) {
+	attempts := []*jira.Client{
+		origin.ConnectedServer(cfg.Site, cfg.Token),
+		origin.Connected(cfg.Site, cfg.Email, cfg.Token),
+		jira.NewAnonymous(cfg.Site),
+	}
+	var lastErr error
+	for _, c := range attempts {
+		got, err := c.Deployment(ctx)
+		if err == nil {
+			return got, nil
+		}
+		lastErr = err
+	}
+	return "", lastErr
 }

@@ -61,8 +61,8 @@ type Product struct {
 // site settings but never reach the database, a log, or a snapshot; the file
 // is written 0600.
 type Config struct {
-	// Kind names the origin's type: OriginJira, OriginLinear, or
-	// OriginGadak (GDK-1279). Read it through OriginType(), which also
+	// Kind names the origin's type: OriginJira, OriginJiraServer,
+	// OriginLinear, or OriginGadak (GDK-1279, GDK-1635). Read it through OriginType(), which also
 	// understands the values this field carried before that split —
 	// "standalone" (now OriginGadak), and empty or "connected" (a
 	// Jira-family site, derived from the credential). Those keep being
@@ -274,7 +274,26 @@ const (
 	OriginJira   = "jira"
 	OriginLinear = "linear"
 	OriginGadak  = "gadak" // gadak's own tracker (issuetap), in-process or behind a serve
+
+	// OriginJiraServer is Jira Server / Data Center (GDK-1635). It is a
+	// type of its own rather than a flag on OriginJira because the two
+	// share a name and little else: REST v2 with no v3, wiki-markup
+	// strings where Cloud sends ADF, users keyed by name instead of
+	// accountId, attachment bytes under /secure/attachment, and a
+	// Personal Access Token where Cloud takes email + API token. A
+	// boolean would scatter `if server` across every one of those; a
+	// separate type makes each branch a decision someone wrote down.
+	OriginJiraServer = "jira-server"
 )
+
+// JiraFamily reports whether an origin type speaks a Jira REST API at all
+// — Cloud or Server. Use it only where the two genuinely agree (browse
+// URLs, "is there an Atlassian credential"); anywhere the shapes differ,
+// branch on the type itself, because that is the difference this split
+// exists to keep visible.
+func JiraFamily(originType string) bool {
+	return originType == OriginJira || originType == OriginJiraServer
+}
 
 // Transports — how that origin is reached (GDK-1278). The axis is whether
 // the call goes in-process or over the serve API, not how far away the
@@ -992,8 +1011,9 @@ func (c *Config) isPaired() bool {
 	return err == nil && rem != nil
 }
 
-// OriginType is OriginJira, OriginLinear, or OriginGadak — which tracker
-// this workspace writes through (GDK-1278).
+// OriginType is OriginJira, OriginJiraServer, OriginLinear, or
+// OriginGadak — which tracker this workspace writes through (GDK-1278,
+// GDK-1635).
 //
 // A paired workspace is OriginGadak: the origin it talks to is a gadak
 // serve. Whether that serve in turn mirrors Jira is the home machine's
@@ -1006,7 +1026,7 @@ func (c *Config) OriginType() string {
 	switch c.Kind {
 	case OriginGadak, KindStandalone:
 		return OriginGadak
-	case OriginJira, OriginLinear:
+	case OriginJira, OriginLinear, OriginJiraServer:
 		return c.Kind
 	}
 	// Empty or "connected": the pre-split vocabulary, so the credential

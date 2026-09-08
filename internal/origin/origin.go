@@ -136,10 +136,24 @@ func Client(cfg *config.Config) (*jira.Client, error) {
 	if cfg.HasBuiltInOrigin() {
 		return builtInClient(cfg)
 	}
+	if cfg.OriginType() == config.OriginJiraServer {
+		// Server / Data Center: base URL + PAT, no email (GDK-1640).
+		if cfg.Site == "" || cfg.Token == "" {
+			return nil, errNeedCredential
+		}
+		return jira.NewServer(cfg.Site, cfg.Token), nil
+	}
 	if cfg.Site == "" || cfg.Email == "" || cfg.Token == "" {
 		return nil, errNeedCredential
 	}
 	return Connected(cfg.Site, cfg.Email, cfg.Token), nil
+}
+
+// ConnectedServer builds a client for an explicit Server base URL and PAT —
+// the Connected sibling for the deployment that has no email (GDK-1640).
+// Same role: verifying a credential the user just typed.
+func ConnectedServer(base, token string) *jira.Client {
+	return jira.NewServer(base, token)
 }
 
 // PairedStatus is the single owner of "is this workspace paired with a

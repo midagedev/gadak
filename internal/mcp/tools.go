@@ -125,7 +125,7 @@ several (same document shape, wrapped as {"issues":[…], "missing"?:[…]}).
 Use when you need the whole conversation around a key.`
 
 const toolStatusDescription = `Return mirror freshness: watermark, version, last_error, last_full_sync_at,
-schema_version, row counts (issues, comments), origin_type (jira|linear|gadak)
+schema_version, row counts (issues, comments), origin_type (jira|jira-server|linear|gadak)
 and transport (local|remote), the older workspace kind (connected|standalone)
 with its origin, and frozen (sync is paused when true). A paired workspace is
 origin_type gadak over transport remote — kind still calls it connected — plus

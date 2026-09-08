@@ -2772,9 +2772,11 @@ func cmdOpen(args []string) error {
 			return fmt.Errorf("%s has no Linear page stored yet — run `gadak sync`", key)
 		}
 		return openIssueURL(u)
-	case config.OriginJira:
+	case config.OriginJira, config.OriginJiraServer:
 		// `open` is the escape hatch to Jira: the mirror may lag a key that
 		// exists on the site, so a missing key still opens the browse URL.
+		// Cloud and Server agree on /browse/KEY — one of the few places
+		// they do, so this branch is shared on purpose.
 		if cfg.Site == "" {
 			return fmt.Errorf("this workspace has no Jira site to browse — use `gadak views open %s` (or `gadak serve`)", key)
 		}

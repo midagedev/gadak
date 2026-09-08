@@ -13,7 +13,14 @@
   항목에서 열한 항목이 됐습니다. 올리는 방법은 원래 그대로 — `brew upgrade`,
   새 dmg, 새 zip — 이고 설정 → 동기화에는 플랫폼별 명령이 그대로 있습니다.
   ([GDK-1626])
-
+- **Jira Server / Data Center 가 origin 종류가 됐습니다.** `gadak init --site
+  <베이스 URL> --server` 로 셀프호스트 Jira 워크스페이스를 만듭니다 — 이메일
+  없이 Personal Access Token 하나, 베이스 URL 에 컨텍스트 경로가 붙어도
+  됩니다. init 이 사이트에 어느 Jira 인지 물어(`/rest/api/2/serverInfo`)
+  선언과 다르면 거절합니다. Server 는 Cloud 의 `/rest/api/3` 에 404 가 아니라
+  401 을 답하기 때문입니다 — 이 확인이 없으면 없는 API 가 틀린 토큰으로
+  읽힙니다. 이번엔 축만 세웠습니다. 읽기·쓰기는 아직 Cloud REST 모양이라
+  Server 워크스페이스는 아직 쓸 수 없습니다. ([GDK-1635], [GDK-1640])
 - **실제 크기의 첨부파일.** origin 이 gadak 자체 트래커인 워크스페이스에서
   첨부 바이트가 데이터베이스 안이 아니라 옆 디렉터리에, 내용마다 파일 하나로
   저장됩니다. 업로드는 흘려 넣고 다운로드는 흘려 내보내니 통째로 메모리에
@@ -1548,5 +1555,7 @@ HTTP·sync·에이전트 계약을 담았습니다.
 [GDK-1501]: https://gadak.dev/backlog/#/?ks=GDK-1501
 [GDK-1508]: https://gadak.dev/backlog/#/?ks=GDK-1508
 [GDK-1537]: https://gadak.dev/backlog/#/?ks=GDK-1537
+[GDK-1635]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-1635
+[GDK-1640]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-1640
 [GDK-1617]: https://gadak.dev/backlog/#/?ks=GDK-1617
 [GDK-1626]: https://gadak.dev/backlog/#/?ks=GDK-1626

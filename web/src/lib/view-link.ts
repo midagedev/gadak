@@ -15,7 +15,7 @@
 import { emitJql } from './api'
 import { config, isDesktop, isHostedDemo, jiraFilterUrl, profileName, workspaceName } from './config'
 import type { ViewConfig } from './view-config'
-import { ORIGIN_JIRA } from './workspace'
+import { isJiraFamily } from './workspace'
 
 export interface ViewLink {
   text: string
@@ -46,7 +46,7 @@ export async function buildViewLink(cfg: ViewConfig, email?: string | null): Pro
   const params = viewHashParams()
   const app = isDesktop() ? gadakViewLink(params) : `${gadakViewLink(params)}\n${httpViewLink(params)}`
   // The hosted demo has no server to emit JQL (every non-GET is a 501).
-  if (config().originType !== ORIGIN_JIRA || isHostedDemo()) return { text: app, origin: false, omitted: [] }
+  if (!isJiraFamily(config().originType) || isHostedDemo()) return { text: app, origin: false, omitted: [] }
   try {
     const res = await emitJql(cfg.filters, cfg.display, email)
     const url = jiraFilterUrl('', res.jql)

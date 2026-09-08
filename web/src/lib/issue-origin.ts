@@ -19,7 +19,7 @@
  */
 
 import { config, jiraBrowseUrl } from './config'
-import { ORIGIN_JIRA, ORIGIN_LINEAR } from './workspace'
+import { ORIGIN_JIRA, ORIGIN_JIRA_SERVER, ORIGIN_LINEAR } from './workspace'
 import { issues } from '../stores/issues.svelte'
 
 const ABSOLUTE_HTTP = /^https?:\/\//i
@@ -27,7 +27,9 @@ const ABSOLUTE_HTTP = /^https?:\/\//i
 /** Origin page for `issueKey`, or null when this origin has none for it. */
 export function issueOriginUrl(issueKey: string): string | null {
   switch (config().originType) {
+    // Cloud and Server agree on /browse/KEY.
     case ORIGIN_JIRA:
+    case ORIGIN_JIRA_SERVER:
       return jiraBrowseUrl(issueKey)
     case ORIGIN_LINEAR: {
       const stored = issues.pool.get(issueKey)?.url?.trim() ?? ''

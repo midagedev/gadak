@@ -13,7 +13,15 @@
   to five, and `docs/PROMISES.md` is eleven claims rather than twelve.
   Upgrading is what it always was — `brew upgrade`, a new dmg, a newer zip —
   and Settings → Sync still shows the command for your platform. ([GDK-1626])
-
+- **Jira Server / Data Center is an origin type now.** `gadak init --site
+  <base-url> --server` creates a workspace against a self-hosted Jira with a
+  Personal Access Token — no email, and the base URL may carry a context path.
+  init asks the site which Jira it is (`/rest/api/2/serverInfo`) and refuses a
+  workspace whose declared deployment does not match, because a Server
+  instance answers Cloud's `/rest/api/3` with 401 rather than 404: without
+  that check, a missing API reads as a bad token. This lands the axis only —
+  reads and writes still speak the Cloud REST shape, so a Server workspace is
+  not usable yet. ([GDK-1635], [GDK-1640])
 - **Attachments the size of real ones.** On a workspace whose origin is
   gadak's own tracker, attachment bytes now live in a directory beside the
   database rather than inside it, one content-addressed file each. Uploads
@@ -1604,5 +1612,7 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-1501]: https://gadak.dev/backlog/#/?ks=GDK-1501
 [GDK-1508]: https://gadak.dev/backlog/#/?ks=GDK-1508
 [GDK-1537]: https://gadak.dev/backlog/#/?ks=GDK-1537
+[GDK-1635]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-1635
+[GDK-1640]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-1640
 [GDK-1617]: https://gadak.dev/backlog/#/?ks=GDK-1617
 [GDK-1626]: https://gadak.dev/backlog/#/?ks=GDK-1626

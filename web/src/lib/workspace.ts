@@ -28,20 +28,32 @@ export type WorkspaceKind =
  * server; neither is ever inferred here.
  */
 export const ORIGIN_JIRA = 'jira'
+/**
+ * Jira Server / Data Center (GDK-1635). A type of its own, not a flag on
+ * ORIGIN_JIRA: the two share a name and little else. Where they genuinely
+ * agree — browse URLs — use isJiraFamily(); everywhere else branch on the
+ * type, because that is the difference the split exists to keep visible.
+ */
+export const ORIGIN_JIRA_SERVER = 'jira-server'
 export const ORIGIN_LINEAR = 'linear'
 export const ORIGIN_GADAK = 'gadak'
 export type OriginType =
   | typeof ORIGIN_JIRA
+  | typeof ORIGIN_JIRA_SERVER
   | typeof ORIGIN_LINEAR
   | typeof ORIGIN_GADAK
   | ''
+
+export function isJiraFamily(t: OriginType): boolean {
+  return t === ORIGIN_JIRA || t === ORIGIN_JIRA_SERVER
+}
 
 export const TRANSPORT_LOCAL = 'local'
 export const TRANSPORT_REMOTE = 'remote'
 export type Transport = typeof TRANSPORT_LOCAL | typeof TRANSPORT_REMOTE | ''
 
 export function parseOriginType(raw: unknown): OriginType {
-  if (raw === ORIGIN_JIRA || raw === ORIGIN_LINEAR || raw === ORIGIN_GADAK) {
+  if (raw === ORIGIN_JIRA || raw === ORIGIN_JIRA_SERVER || raw === ORIGIN_LINEAR || raw === ORIGIN_GADAK) {
     return raw
   }
   return ''

@@ -65,7 +65,9 @@ func DoRaw(ctx context.Context, cfg Config, method, path string, payload []byte,
 		if err != nil {
 			return 0, nil, err
 		}
-		req.Header.Set("Authorization", cfg.Auth)
+		if cfg.Auth != "" {
+			req.Header.Set("Authorization", cfg.Auth)
+		}
 		req.Header.Set("Accept", "application/json")
 		if hasBody {
 			req.Header.Set("Content-Type", "application/json")
@@ -188,7 +190,9 @@ func Stream(ctx context.Context, cfg Config, method, path string, hdr http.Heade
 		if err != nil {
 			return nil, err
 		}
-		req.Header.Set("Authorization", cfg.Auth)
+		if cfg.Auth != "" {
+			req.Header.Set("Authorization", cfg.Auth)
+		}
 		for k, vs := range hdr {
 			for _, v := range vs {
 				req.Header.Add(k, v)

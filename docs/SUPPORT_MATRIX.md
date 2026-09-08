@@ -14,6 +14,14 @@ below as `issuetap/docs/COMPATIBILITY.md`). A Built-in cell is never "same
 as Jira": it means the Jira REST verb exists and the Built-in origin
 implements the route.
 
+Jira **Server / Data Center** is a fourth origin type as of GDK-1635
+(`gadak init --server`, a base URL and a Personal Access Token). It has no
+column yet, and that absence is the honest state: the workspace can be
+created and its deployment is verified against `/rest/api/2/serverInfo`, but
+the REST paths, the ADF-vs-wiki-markup split, the user-identifier axis and
+the attachment routes are still open (GDK-1636 through GDK-1639). A column
+goes in when its cells are measured against a running instance, not before.
+
 Markers:
 
 - ✅ — works

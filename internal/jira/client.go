@@ -88,6 +88,42 @@ func New(site, email, token string) *Client {
 	}
 }
 
+// NewServer builds a Client for a Jira Server / Data Center base URL using a
+// Personal Access Token (GDK-1640). Server has no Atlassian API token and no
+// email in the credential: the PAT goes in the Authorization header as a
+// bearer, and there is nothing to pair it with.
+//
+// base may carry a context path ("http://host:2990/jira") — Server is
+// commonly deployed under one, and atlhttp concatenates the site-relative
+// path onto it.
+func NewServer(base, token string) *Client {
+	return &Client{
+		base:                strings.TrimRight(base, "/"),
+		auth:                "Bearer " + token,
+		HTTP:                &http.Client{Timeout: httppolicy.DefaultTimeout},
+		Retries:             DefaultRetries,
+		Backoff:             DefaultBackoff,
+		nameCreatedVersions: DefaultCreatesVersionsByName,
+	}
+}
+
+// NewAnonymous builds a credential-less Client. It exists for the one
+// question that must be answerable before a credential is known to be
+// good: which Jira this is (GDK-1635). Both deployments serve
+// /rest/api/2/serverInfo to anonymous callers, and without this an
+// authentication failure hides the deployment mismatch that caused it.
+//
+// Use it for nothing else: every other route needs auth, and a 401 from
+// one of them says nothing about the credential the user typed.
+func NewAnonymous(base string) *Client {
+	return &Client{
+		base:    strings.TrimRight(base, "/"),
+		HTTP:    &http.Client{Timeout: httppolicy.DefaultTimeout},
+		Retries: DefaultRetries,
+		Backoff: DefaultBackoff,
+	}
+}
+
 // BaseURL is the site origin, used to build deep links.
 func (c *Client) BaseURL() string { return c.base }
 
