@@ -20,6 +20,12 @@ type User struct {
 	AccountID   string `json:"accountId"`
 	DisplayName string `json:"displayName"`
 	Email       string `json:"emailAddress"`
+	// Name and Key are the Jira Server / Data Center user axis (GDK-1638):
+	// a Server user object carries both and both hold the username — there
+	// is no accountId key at all in that payload (measured on a live Server
+	// 11.3.11). Cloud sends neither.
+	Name string `json:"name"`
+	Key  string `json:"key"`
 	// AccountType is the bot axis (GDK-590): built-in issuetap mints
 	// "agent" for the accounts behind X-Issuetap-Actor, Cloud sends "app"
 	// for Connect accounts and "atlassian"/"customer" for humans. Judge it
@@ -39,6 +45,19 @@ func IsBotAccountType(t string) bool { return t == "agent" || t == "app" }
 
 // Avatar is the 48px avatar, or empty when Jira sent none.
 func (u User) Avatar() string { return u.AvatarURLs["48x48"] }
+
+// ID answers "the id this origin keys users by" (GDK-1638): Cloud always
+// sends accountId and never name; Server never sends accountId and keys the
+// user by name. Field presence is therefore the dialect — accountId when set,
+// else the Server username, and never a display name. Wire decisions that
+// must branch on the deployment itself (the /user/search parameter, the
+// assignee PUT body) stay in the Client, keyed on serverDialect().
+func (u User) ID() string {
+	if u.AccountID != "" {
+		return u.AccountID
+	}
+	return u.Name
+}
 
 // Status carries the category because every piece of logic keys on it: names
 // come back in the account's display language (contracts/sync.md, "Localization

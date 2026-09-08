@@ -275,11 +275,18 @@ func (c *Client) AddComment(ctx context.Context, key string, adf json.RawMessage
 
 // SetAssignee assigns or, with an empty id, unassigns. Jira distinguishes "no
 // assignee" (null) from "default assignee" (-1); the UI only ever asks for the
-// former.
-func (c *Client) SetAssignee(ctx context.Context, key, accountID string) error {
-	body := map[string]any{"accountId": nil}
-	if accountID != "" {
-		body["accountId"] = accountID
+// former. The body key is the deployment's own user axis (GDK-1638): Cloud
+// reads accountId, Server reads name — and the null that unassigns must sit
+// under the same key the deployment reads, or Server leaves the assignee
+// untouched.
+func (c *Client) SetAssignee(ctx context.Context, key, id string) error {
+	k := "accountId"
+	if c.serverDialect() {
+		k = "name"
+	}
+	body := map[string]any{k: nil}
+	if id != "" {
+		body[k] = id
 	}
 	return c.write(ctx, http.MethodPut, fmt.Sprintf("%s/issue/%s/assignee", c.apiBase, url.PathEscape(key)), body, nil)
 }
@@ -500,10 +507,17 @@ func (c *Client) CreateFields(ctx context.Context, projectIDOrKey, issueTypeID s
 }
 
 // SearchUsers backs the assignee picker. Jira's own endpoint decides what
-// matches; there is no local user table to search.
+// matches; there is no local user table to search. The parameter is the
+// deployment's own (GDK-1638): Server reads username= and answers query=
+// with a silent empty list, so the dialect branches once here — never a
+// fallback from one parameter to the other.
 func (c *Client) SearchUsers(ctx context.Context, query string) ([]User, error) {
 	var out []User
-	p := fmt.Sprintf("%s/user/search?query=%s&maxResults=20", c.apiBase, url.QueryEscape(query))
+	param := "query"
+	if c.serverDialect() {
+		param = "username"
+	}
+	p := fmt.Sprintf("%s/user/search?%s=%s&maxResults=20", c.apiBase, param, url.QueryEscape(query))
 	return out, c.do(ctx, http.MethodGet, p, nil, &out)
 }
 

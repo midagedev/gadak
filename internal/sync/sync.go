@@ -1091,7 +1091,7 @@ func build(ctx context.Context, c *jira.Client, cfg *config.Config, iss jira.Iss
 		UpdatedAt:  jira.ISOTime(f.Updated),
 	}
 	if author != nil {
-		item.Author, item.AuthorID = author.DisplayName, author.AccountID
+		item.Author, item.AuthorID = author.DisplayName, author.ID()
 	}
 
 	projectKey := f.Project.Key
@@ -1121,10 +1121,10 @@ func build(ctx context.Context, c *jira.Client, cfg *config.Config, iss jira.Iss
 		issue.PriorityID = f.Priority.ID
 	}
 	if f.Assignee != nil {
-		issue.Assignee, issue.AssigneeID, issue.AssigneeEmail = f.Assignee.DisplayName, f.Assignee.AccountID, f.Assignee.Email
+		issue.Assignee, issue.AssigneeID, issue.AssigneeEmail = f.Assignee.DisplayName, f.Assignee.ID(), f.Assignee.Email
 	}
 	if f.Reporter != nil {
-		issue.Reporter, issue.ReporterID, issue.ReporterEmail = f.Reporter.DisplayName, f.Reporter.AccountID, f.Reporter.Email
+		issue.Reporter, issue.ReporterID, issue.ReporterEmail = f.Reporter.DisplayName, f.Reporter.ID(), f.Reporter.Email
 	}
 	if f.Parent != nil {
 		issue.ParentKey = f.Parent.Key
@@ -1162,7 +1162,7 @@ func build(ctx context.Context, c *jira.Client, cfg *config.Config, iss jira.Iss
 			ID:         itemNS(cfg) + ":" + cm.ID,
 			ExternalID: cm.ID,
 			Author:     cm.Author.DisplayName,
-			AuthorID:   cm.Author.AccountID,
+			AuthorID:   cm.Author.ID(),
 			BodyADF:    cm.Body,
 			BodyText:   adf.PlainText(cm.Body),
 			CreatedAt:  jira.ISOTime(cm.Created),
@@ -1183,7 +1183,7 @@ func build(ctx context.Context, c *jira.Client, cfg *config.Config, iss jira.Iss
 			MimeType:   at.MimeType,
 			Size:       at.Size,
 			Author:     at.Author.DisplayName,
-			AuthorID:   at.Author.AccountID,
+			AuthorID:   at.Author.ID(),
 			CreatedAt:  jira.ISOTime(at.Created),
 		})
 	}
@@ -1194,7 +1194,7 @@ func build(ctx context.Context, c *jira.Client, cfg *config.Config, iss jira.Iss
 				ID:        fmt.Sprintf("%s:%s:%d", itemNS(cfg), h.ID, i),
 				At:        jira.ISOTime(h.Created),
 				Author:    h.Author.DisplayName,
-				AuthorID:  h.Author.AccountID,
+				AuthorID:  h.Author.ID(),
 				Field:     field,
 				FromValue: it.FromString,
 				FromID:    it.From,
@@ -1227,10 +1227,10 @@ func usersForRecord(f jira.Fields, comments []jira.Comment, histories []jira.His
 	var out []store.UserAccount
 	seen := map[string]int{}
 	add := func(u *jira.User) {
-		if u == nil || u.AccountID == "" {
+		if u == nil || u.ID() == "" {
 			return
 		}
-		if i, ok := seen[u.AccountID]; ok {
+		if i, ok := seen[u.ID()]; ok {
 			cur := &out[i]
 			if cur.Name == "" {
 				cur.Name = u.DisplayName
@@ -1243,9 +1243,9 @@ func usersForRecord(f jira.Fields, comments []jira.Comment, histories []jira.His
 			}
 			return
 		}
-		seen[u.AccountID] = len(out)
+		seen[u.ID()] = len(out)
 		out = append(out, store.UserAccount{
-			AccountID:   u.AccountID,
+			AccountID:   u.ID(),
 			Name:        u.DisplayName,
 			Email:       u.Email,
 			AccountType: u.AccountType,
