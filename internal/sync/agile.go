@@ -3,6 +3,7 @@ package sync
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/jira"
@@ -48,7 +49,12 @@ func importAgile(ctx context.Context, c *jira.Client, db *store.DB, opts Options
 			}
 			sprints = append(sprints, store.SprintRow{
 				ID: s.ID, BoardID: board, Name: s.Name, Goal: s.Goal,
-				State:       s.State,
+				// Lowercase so the two sprint_state owners agree by
+				// construction: pickSprint lowercases the issue-side
+				// projection, and the ReplaceAgile derive copies this
+				// column onto the issue rows (GDK-1661). Measured wire is
+				// lowercase on both Jiras; this removes the assumption.
+				State:       strings.ToLower(strings.TrimSpace(s.State)),
 				StartAt:     s.StartDate,
 				EndAt:       s.EndDate,
 				CompleteAt:  s.CompleteDate,
@@ -69,7 +75,9 @@ func importAgile(ctx context.Context, c *jira.Client, db *store.DB, opts Options
 // issue, so the pass that follows it would otherwise be a quiet tick that
 // skips the agile listing and leaves the mirror stating the old state —
 // gadak reporting what it wrote instead of what the origin now holds
-// (GDK-1655, the GDK-1192 rule).
+// (GDK-1655, the GDK-1192 rule). The sprint_state derive inside
+// ReplaceAgile is the same call, so `gadak sprint start|close` heals the
+// issue rows here too — there is no second code path (GDK-1661).
 func RefreshAgile(ctx context.Context, cfg *config.Config, db *store.DB) error {
 	c, err := origin.Client(cfg)
 	if err != nil {

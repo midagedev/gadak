@@ -1677,6 +1677,15 @@ func mapKeys(m map[string]bool) []string {
 // ReplaceAgile writes the board and sprint listing for a source, wholesale:
 // what the origin no longer lists is gone from the mirror. Both are cheap
 // full listings, so there is no incremental path to drift from (GDK-1654).
+//
+// It also re-derives every issue row's sprint_state from the sprint rows it
+// just wrote (GDK-1661): the denormalized column is projected from the issue
+// payload, and closing a sprint moves no `updated` on the done issues that
+// stay in it, so the issue pass can never refresh it — the sprint listing is
+// the only observation path the state change has. A correlated subquery, not
+// UPDATE … FROM: the driver's SQLite version is not pinned. An issue whose
+// sprint_id has no sprints row (a board list the credential cannot read) is
+// untouched — the projected value stays as the answer.
 func (db *DB) ReplaceAgile(ctx context.Context, sourceID string, boards []BoardRow, sprints []SprintRow) error {
 	if sourceID == "" {
 		return nil
@@ -1708,6 +1717,28 @@ func (db *DB) ReplaceAgile(ctx context.Context, sourceID string, boards []BoardR
 			); err != nil {
 				return fmt.Errorf("sprint %d: %w", s.ID, err)
 			}
+		}
+		// The same transaction, so a reader never sees the new sprint rows
+		// with the old issue columns. items carries the source: issues_raw
+		// predates the multi-source split and never got a source_id column,
+		// so matching the source through it is what keeps this source's
+		// sprint ids from touching another source's issue rows that happen
+		// to hold the same sprint_id. sprint_id IS NOT NULL lets the partial
+		// issues_sprint index (v30) enumerate candidates instead of walking
+		// the whole table — this runs on every tick.
+		if _, err := tx.Exec(`
+			UPDATE issues_raw SET sprint_state = (
+				SELECT s.state FROM sprints s
+				WHERE s.source_id = ? AND s.id = issues_raw.sprint_id
+			)
+			WHERE sprint_id IS NOT NULL AND EXISTS (
+				SELECT 1 FROM sprints s
+				JOIN items it ON it.id = issues_raw.item_id AND it.source_id = s.source_id
+				WHERE s.source_id = ? AND s.id = issues_raw.sprint_id
+			)`,
+			sourceID, sourceID,
+		); err != nil {
+			return fmt.Errorf("sprint_state derive: %w", err)
 		}
 		return nil
 	})

@@ -914,9 +914,9 @@ func TestIncrementalRerunIsANoOp(t *testing.T) {
 	}
 	// The quiet tick's whole request budget: sprint-field resolve, the search
 	// pages (3 issues at pageSize 2 → 2 pages), the divergence probe's
-	// approximate-count, and the filter import. A new per-tick request must
-	// show up here and be argued for, not drift in (status/priority catalogs
-	// used to be two more).
+	// approximate-count, the filter import, and the agile board listing. A
+	// new per-tick request must show up here and be argued for, not drift in
+	// (status/priority catalogs used to be two more).
 	//
 	// Re-pinned 4 → 5 on 2026-09-07 for GDK-1400, and this is the argument.
 	// The fifth request is one approximate-count over `project in (…)`,
@@ -927,9 +927,19 @@ func TestIncrementalRerunIsANoOp(t *testing.T) {
 	// every tick reporting success. GDK-1075 removed a per-tick count for
 	// budget; that count is exactly the signal it traded away. An escalation
 	// costs the key scan the hourly reconcile would have paid anyway.
-	// Equality, not a ceiling: a sixth request must still fail here.
-	if got := site.hits - hitsBefore; got != 5 {
-		t.Errorf("quiet incremental tick spent %d requests, want 5", got)
+	//
+	// Re-pinned 5 → 6 on 2026-09-09 for GDK-1661: the sixth request is the
+	// agile board listing, which now runs on every tick instead of only
+	// changed ones. A sprint's state change moves no `updated` on the done
+	// issues that stay in the sprint, so the issue watermark cannot see it —
+	// this listing is the only observation path that change has, and without
+	// it both the sprints row and every issue row's sprint_state went stale
+	// the moment a sprint closed. On this fake (no Jira Software) the board
+	// request 404s and the cost is exactly one; a Software site adds the
+	// per-board sprint listings.
+	// Equality, not a ceiling: a seventh request must still fail here.
+	if got := site.hits - hitsBefore; got != 6 {
+		t.Errorf("quiet incremental tick spent %d requests, want 6", got)
 	}
 	after, _ := db.SyncState(context.Background(), SourceID)
 	if after.Version != before.Version {

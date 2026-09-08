@@ -4,6 +4,15 @@
 
 ## Unreleased
 
+- **A closed sprint no longer leaves its done issues reading "active".**
+  Closing a sprint moves only the unfinished issues out, so the finished ones
+  never change and an incremental sync never re-read them; their
+  `sprint_state` stayed "active" for good, and every active-sprint query
+  counted last sprint's finished work. The `sprints` table is now the one
+  owner of a sprint's state: each issue row derives its `sprint_state` from
+  it on every tick, and the board and sprint listing runs on quiet ticks too,
+  because a sprint changing state is invisible to the issue watermark.
+  ([GDK-1661])
 - **An empty 201 is not a web page.** Jira Server answers `POST /issueLink`
   with 201, `text/html` and no body; the guard that refuses a login page
   keyed on status codes and a header and refused it, so a link that had been
@@ -1777,4 +1786,5 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-1601]: https://gadak.dev/backlog/#/?ks=GDK-1601
 [GDK-1622]: https://gadak.dev/backlog/#/?ks=GDK-1622
 [GDK-1645]: https://gadak.dev/backlog/#/?ks=GDK-1645
+[GDK-1661]: https://gadak.dev/backlog/#/?ks=GDK-1661
 [GDK-1662]: https://gadak.dev/backlog/#/?ks=GDK-1662

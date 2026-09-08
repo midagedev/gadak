@@ -4,6 +4,14 @@
 
 ## Unreleased
 
+- **닫힌 스프린트의 완료 이슈가 계속 "active"로 남던 것.** 스프린트를 닫으면
+  미완료 이슈만 밖으로 옮겨지므로, 완료된 이슈는 아무것도 바뀌지 않고 증분
+  동기화도 다시 읽지 않았습니다. 그 행들의 `sprint_state`는 영원히 "active"였고,
+  활성 스프린트를 묻는 모든 쿼리가 지난 스프린트의 완료 작업을 함께 셌습니다.
+  이제 스프린트 상태의 주인은 `sprints` 표 하나입니다. 이슈 행은 매 틱마다
+  거기서 `sprint_state`를 끌어오고, 보드·스프린트 목록은 조용한 틱에도
+  읽습니다. 스프린트의 상태 변화는 이슈 워터마크에 보이지 않기 때문입니다.
+  ([GDK-1661])
 - **빈 201은 웹 페이지가 아닙니다.** Jira Server는 `POST /issueLink`에 201과
   `text/html`, 그리고 빈 본문으로 답합니다. 로그인 페이지를 거절하는 가드가
   상태코드와 헤더로 판정하다 이것을 페이지로 오판해서, 만들어진 링크가 실패로
@@ -1704,4 +1712,5 @@ HTTP·sync·에이전트 계약을 담았습니다.
 [GDK-1601]: https://gadak.dev/backlog/#/?ks=GDK-1601
 [GDK-1622]: https://gadak.dev/backlog/#/?ks=GDK-1622
 [GDK-1645]: https://gadak.dev/backlog/#/?ks=GDK-1645
+[GDK-1661]: https://gadak.dev/backlog/#/?ks=GDK-1661
 [GDK-1662]: https://gadak.dev/backlog/#/?ks=GDK-1662

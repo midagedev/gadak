@@ -522,12 +522,14 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 
 	// Owned + starred filters. Failure must not undo the issue pass.
 	importFilters(ctx, c, cfg, db, opts)
-	// Boards and sprints are two cheap listings, but a quiet incremental tick
-	// must stay quiet — a tick that changed nothing cannot have changed a
-	// sprint either (GDK-1654).
-	if res.Full || opts.Reconcile || res.Changed > 0 {
-		importAgile(ctx, c, db, opts)
-	}
+	// Boards and sprints on every tick, quiet ones included (GDK-1661
+	// retired the Full/Reconcile/Changed gate GDK-1654 set): a sprint state
+	// change is invisible to the issue watermark — closing a sprint moves no
+	// `updated` on the done issues that stay in it — so the agile listing is
+	// the only observation path that change has. The quiet tick's price is
+	// one board request on a site without Jira Software (ErrNoAgile stays
+	// silent) and the board + sprint listings on one with it.
+	importAgile(ctx, c, db, opts)
 	// The pass that just refreshed the mirror is the one place the config↔
 	// mirror rename signature (GDK-973) is observable in passing.
 	warnProjectScopeMismatch(ctx, cfg, db, opts)

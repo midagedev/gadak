@@ -216,7 +216,11 @@ Markers:
     per site (`internal/sync/sprint.go:18`, `:75`); a site without it syncs
     empty. Cloud sends an object array, Server the Java `toString` of its own
     bean — both are read, and the state is lowercased so `active` means the
-    same thing on either (`internal/sync/sprint.go:191`, GDK-1650).
+    same thing on either (`internal/sync/sprint.go:191`, GDK-1650). The
+    state on an issue row is re-derived from the `sprints` table on every
+    tick (`internal/store/write.go:1730`, GDK-1661): a sprint closing moves
+    no `updated` on the done issues that stay in it, so the projection
+    alone went stale.
 
 [^33]: Linear has no sprint concept in gadak's mapping
     (`internal/linear/MAPPING.md`).
