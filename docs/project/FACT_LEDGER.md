@@ -327,6 +327,10 @@ share makes this the first question (review round 2026-09-08).
 
 - File a **GitHub issue**: `https://github.com/midagedev/gadak/issues`. The
   maintainer mirrors it to the backlog.
+- **Email `midagedev@gmail.com`** for anything that should not be public — a use
+  report that names the company, a security concern. Every edition lists it
+  beside the issue link (user decision 2026-09-09); the Korean edition also
+  lists X `@midagedev`.
 - Commit `GDK-nnn` keys resolve on the public backlog
   `https://gadak.dev/backlog/`.
 - **Never paste real issue data, tokens, or site URLs into a public issue.**

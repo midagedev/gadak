@@ -249,8 +249,9 @@ to take on trust, each with the command that checks it:
 ## Feedback and contributing
 
 If you used gadak on your own project, open a
-[GitHub issue](https://github.com/midagedev/gadak/issues) and say what question
-it answered and whether you used it again. Reports of everyday use are welcome
+[GitHub issue](https://github.com/midagedev/gadak/issues) or email
+[midagedev@gmail.com](mailto:midagedev@gmail.com) and say what question it
+answered and whether you used it again. Reports of everyday use are welcome
 before any contribution. Using it with an agent? Send a sanitized description
 of the question and what the agent did. Never paste real issue data, tokens,
 or site URLs into a public issue.

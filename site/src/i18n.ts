@@ -323,7 +323,10 @@ export const strings: Record<Locale, Strings> = {
       body:
         'Tell us what question gadak answered, and whether you used it again.',
       caution: 'Keep real issue data, tokens, and site URLs out of public reports.',
-      links: [{ href: `${GITHUB}/issues`, label: 'Open a GitHub issue' }],
+      links: [
+        { href: `${GITHUB}/issues`, label: 'Open a GitHub issue' },
+        { href: 'mailto:midagedev@gmail.com', label: 'Email midagedev@gmail.com' },
+      ],
     },
     // The landing's locale-varying fragments (MediaSlot labels, the
     // all-platforms link), kept here so the component holds no copy.
@@ -469,6 +472,7 @@ export const strings: Record<Locale, Strings> = {
       links: [
         { href: `${GITHUB}/issues`, label: 'GitHub 이슈로' },
         { href: 'https://x.com/midagedev', label: 'X @midagedev 멘션으로' },
+        { href: 'mailto:midagedev@gmail.com', label: '메일 midagedev@gmail.com' },
       ],
     },
     landing: {
@@ -620,7 +624,10 @@ export const strings: Record<Locale, Strings> = {
       body:
         '検索や集計で試した結果、困った点、導入を見送った理由も GitHub issue で教えてください。どんな質問に gadak で答えたか、その後も使ったかが分かると助かります。遅かった、間違っていたという場合も、そのまま書いてください。',
       caution: '実際の課題データ、API トークン、サイト URL は載せないでください。',
-      links: [{ href: `${GITHUB}/issues`, label: 'GitHub issue を開く' }],
+      links: [
+        { href: `${GITHUB}/issues`, label: 'GitHub issue を開く' },
+        { href: 'mailto:midagedev@gmail.com', label: 'メール midagedev@gmail.com' },
+      ],
     },
     landing: {
       flagshipSlot: '録画 · 課題 2 万件',

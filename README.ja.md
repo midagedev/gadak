@@ -288,7 +288,7 @@ Atlassian Cloud、Linear、アプリに同梱の内蔵トラッカーを、共�
 ## 試用結果とバグ報告
 
 検索や集計で試した結果、困った点、導入を見送った理由も [GitHub issue](https://github.com/midagedev/gadak/issues)
-で教えてください。どんな質問に gadak で答えたか、その後も使ったかが分かると助かります。
+か、メール [midagedev@gmail.com](mailto:midagedev@gmail.com) で教えてください。どんな質問に gadak で答えたか、その後も使ったかが分かると助かります。
 メンテナーが[公開バックログ](https://gadak.dev/backlog/)へ写し、コミットメッセージの `GDK-nnn` は
 そこで開けます。バグ報告には次の 3 つを入れてください。
 

@@ -195,8 +195,9 @@ open --keys -`의 의미. 항목별 확인 명령은 [`docs/PROMISES.md`](docs/P
 텔레메트리가 없어서 누가 쓰는지 저는 모릅니다. 써 보셨다면 어떤 일에 썼고
 어땠는지 알려 주세요. 불편했거나 결과가 틀렸다면 그 이야기도요. 이슈 수는
 공개해도 괜찮을 때만 적어 주세요.
-[GitHub 이슈](https://github.com/midagedev/gadak/issues)나 X
-[@midagedev](https://x.com/midagedev) 멘션, 어느 쪽이든 됩니다.
+[GitHub 이슈](https://github.com/midagedev/gadak/issues), X
+[@midagedev](https://x.com/midagedev) 멘션, 메일
+[midagedev@gmail.com](mailto:midagedev@gmail.com), 어느 쪽이든 됩니다.
 
 공개된 곳에는 실제 이슈 데이터나 토큰, 사이트 URL을 붙이지 마세요. 에이전트와
 쓰다 걸린 일은 무엇을 물었고 에이전트가 무엇을 했는지만, 민감한 내용을 빼고 적어
