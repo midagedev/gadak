@@ -41,6 +41,7 @@ package origin
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"strings"
 	"testing"
@@ -110,6 +111,28 @@ func (w *recordingWriter) Upload(ctx context.Context, key, filename string, file
 // row; a bare recordingWriter is the miss row.
 type recordingWriterWithFaces struct {
 	recordingWriter
+}
+
+// recordingWriterWithEditor adds the CommentEditor face (GDK-1647), for the
+// forwarding hit row: it records the edit the wrapper routed and the delete
+// id the wrapper reached.
+type recordingWriterWithEditor struct {
+	recordingWriter
+	editKey   string
+	editID    string
+	editBody  json.RawMessage
+	deletedID string
+	deleteOK  bool
+}
+
+func (w *recordingWriterWithEditor) UpdateComment(ctx context.Context, key, id string, body json.RawMessage) (Comment, error) {
+	w.editKey, w.editID, w.editBody = key, id, body
+	return Comment{ID: id, Body: body}, nil
+}
+
+func (w *recordingWriterWithEditor) DeleteComment(ctx context.Context, key, id string) error {
+	w.deletedID, w.deleteOK = id, true
+	return nil
 }
 
 func (w *recordingWriterWithFaces) CreateFields(ctx context.Context, projectIDOrKey, issueTypeID string) ([]CreateFieldMeta, error) {
@@ -360,6 +383,106 @@ func TestActorTrailerForwardsFaces(t *testing.T) {
 	}
 	if _, err := cfMiss.CreateFields(ctx, "NMB", "10001"); err == nil || !strings.Contains(err.Error(), "create-time field metadata") {
 		t.Fatalf("miss sentence changed: %v", err)
+	}
+}
+
+// The CommentEditor face must survive the trailer wrapper (GDK-1647). The
+// wrapper always satisfies the face (its own forwarders); the wrapped writer
+// may or may not — the verb call then surfaces the same ErrNoCommentEdit a
+// bare assertion miss returned, never a silent no-op.
+func TestActorTrailerForwardsCommentEditor(t *testing.T) {
+	t.Setenv("GADAK_ACTOR", "claude:test|Claude Test")
+	ctx := context.Background()
+
+	// Hit: the edit routes through the wrapper with the trailer stamped, and
+	// the delete reaches the wrapped writer untouched.
+	inner := &recordingWriterWithEditor{}
+	hit := WithActorTrailer(inner, &config.Config{Kind: config.OriginLinear})
+	ed, err := AsCommentEditor(hit)
+	if err != nil {
+		t.Fatalf("CommentEditor lost through the wrapper: %v", err)
+	}
+	updated, err := ed.UpdateComment(ctx, "FIX-1", "c-77", adf.FromMarkdown("corrected repro"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if inner.editKey != "FIX-1" || inner.editID != "c-77" {
+		t.Fatalf("edit routed to %s/%s, want FIX-1/c-77", inner.editKey, inner.editID)
+	}
+	if last, n := lastParagraphText(t, inner.editBody); last != testTrailer || n != 2 {
+		t.Fatalf("edited body last paragraph = %q (of %d), want the trailer as exactly the second paragraph", last, n)
+	}
+	if updated.ID != "c-77" {
+		t.Fatalf("updated comment id = %q, want c-77 (the origin's echo)", updated.ID)
+	}
+	if err := ed.DeleteComment(ctx, "FIX-1", "c-77"); err != nil {
+		t.Fatal(err)
+	}
+	if !inner.deleteOK || inner.deletedID != "c-77" {
+		t.Fatal("delete did not reach the wrapped writer")
+	}
+
+	// Miss: a writer without the face keeps the refusal sentence — it now
+	// surfaces from the verb call (the wrapper satisfies the face to forward
+	// it), the same shape the other faces accept.
+	miss := WithActorTrailer(&recordingWriter{}, &config.Config{Kind: config.OriginLinear})
+	edMiss, err := AsCommentEditor(miss)
+	if err != nil {
+		t.Fatalf("assertion itself now fails: %v", err)
+	}
+	if _, err := edMiss.UpdateComment(ctx, "FIX-1", "c-77", adf.FromMarkdown("x")); err == nil || !errors.Is(err, ErrNoCommentEdit) {
+		t.Fatalf("update miss sentence changed: %v", err)
+	}
+	if err := edMiss.DeleteComment(ctx, "FIX-1", "c-77"); err == nil || !errors.Is(err, ErrNoCommentEdit) {
+		t.Fatalf("delete miss sentence changed: %v", err)
+	}
+}
+
+// An edit must not append a second trailer (GDK-1647): re-editing a body
+// that already ends in this actor's trailer sends it byte-identical — a
+// body never grows one trailer per edit.
+func TestActorTrailerEditIsIdempotent(t *testing.T) {
+	t.Setenv("GADAK_ACTOR", "claude:test|Claude Test")
+	ctx := context.Background()
+	inner := &recordingWriterWithEditor{}
+	w := WithActorTrailer(inner, &config.Config{Kind: config.OriginLinear})
+	ed, err := AsCommentEditor(w)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// First edit: a fresh body gains the trailer once.
+	if _, err := ed.UpdateComment(ctx, "FIX-1", "c-77", adf.FromMarkdown("corrected repro")); err != nil {
+		t.Fatal(err)
+	}
+	once := inner.editBody
+	// Second edit: the body the origin echoes back (trailer already the
+	// last paragraph) goes out byte-identical.
+	if _, err := ed.UpdateComment(ctx, "FIX-1", "c-77", once); err != nil {
+		t.Fatal(err)
+	}
+	if string(once) != string(inner.editBody) {
+		t.Fatalf("re-edit grew the trailer:\nsent  %s\nagain %s", once, inner.editBody)
+	}
+	if last, n := lastParagraphText(t, inner.editBody); last != testTrailer || n != 2 {
+		t.Fatalf("last paragraph = %q (of %d), want the trailer exactly once", last, n)
+	}
+}
+
+// The jira shape inherits the forwarders through embedding (GDK-1647): a
+// wrapped jiraWriter answers the face, and the call delegates to the client
+// rather than a stub — a dead endpoint errors, never a zero-success.
+func TestJiraTrailerShapeInheritsCommentEditor(t *testing.T) {
+	t.Setenv("GADAK_ACTOR", "claude:test|Claude Test")
+	ctx := context.Background()
+	c := jira.New("https://x.example.com", "a@b.c", "tok")
+	c.Retries, c.Backoff = 0, 0 // the assertion is about routing, not retry policy
+	wrapped := WithActorTrailer(newJiraWriter(c), &config.Config{Site: "https://x.example.com"})
+	ed, ok := wrapped.(CommentEditor)
+	if !ok {
+		t.Fatal("wrapped jira-family writer lost CommentEditor — comment edit/rm would refuse on every Jira workspace with a resolved actor")
+	}
+	if _, err := ed.UpdateComment(ctx, "NMB-1", "91653", adf.FromMarkdown("x")); err == nil {
+		t.Fatal("UpdateComment against a dead endpoint must error, not succeed")
 	}
 }
 

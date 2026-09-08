@@ -239,6 +239,49 @@ func (c *Client) CreateCommentAt(ctx context.Context, issueID, body, createdAt s
 	return res.CommentCreate.Comment, nil
 }
 
+// UpdateComment edits one comment by id and returns it with the full
+// read-path field set; body is markdown, the same format Comment.body
+// carries (never ADF — the CreateComment rule, and an edit sends what a
+// post sends). id is the comment UUID, not an issue key (GDK-1647).
+func (c *Client) UpdateComment(ctx context.Context, id, body string) (Comment, error) {
+	if id == "" {
+		return Comment{}, errors.New("linear: id is required")
+	}
+	input := map[string]any{"body": body}
+	var res struct {
+		CommentUpdate struct {
+			Success bool    `json:"success"`
+			Comment Comment `json:"comment"`
+		} `json:"commentUpdate"`
+	}
+	if err := c.gqlWrite(ctx, mutCommentUpdate, map[string]any{"id": id, "input": input}, &res); err != nil {
+		return Comment{}, err
+	}
+	if !res.CommentUpdate.Success {
+		return Comment{}, fmt.Errorf("POST /graphql: linear: commentUpdate returned success=false")
+	}
+	return res.CommentUpdate.Comment, nil
+}
+
+// DeleteComment removes one comment by id (GDK-1647).
+func (c *Client) DeleteComment(ctx context.Context, id string) error {
+	if id == "" {
+		return errors.New("linear: id is required")
+	}
+	var res struct {
+		CommentDelete struct {
+			Success bool `json:"success"`
+		} `json:"commentDelete"`
+	}
+	if err := c.gqlWrite(ctx, mutCommentDelete, map[string]any{"id": id}, &res); err != nil {
+		return err
+	}
+	if !res.CommentDelete.Success {
+		return fmt.Errorf("POST /graphql: linear: commentDelete returned success=false")
+	}
+	return nil
+}
+
 // validatePriority rejects anything off Linear's 0-4 scale before it leaves
 // the process — a Jira-style rank or a 1-based slip is a caller bug, and a
 // named error beats a server round-trip. If Linear ever widens the scale,

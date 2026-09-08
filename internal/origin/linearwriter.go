@@ -99,6 +99,33 @@ func (w *linearWriter) AddComment(ctx context.Context, key string, body json.Raw
 	return commentFromLinear(cm, body), nil
 }
 
+// UpdateComment edits one comment (GDK-1647). The GraphQL mutation is
+// id-scoped, but the key is resolved first anyway: every Linear verb
+// resolves the key the user typed, so an unknown key is refused as an
+// unknown key here rather than surfacing as Linear's "comment not found" —
+// and the CLI's mirror-refresh tail needs the issue the comment lives on.
+// body is markdown (adf.Markdown, the same identity AddComment applies):
+// an edit sends what a post sends.
+func (w *linearWriter) UpdateComment(ctx context.Context, key, id string, body json.RawMessage) (Comment, error) {
+	if _, err := w.resolve(ctx, key); err != nil {
+		return Comment{}, err
+	}
+	cm, err := w.c.UpdateComment(ctx, id, adf.Markdown(body))
+	if err != nil {
+		return Comment{}, err
+	}
+	return commentFromLinear(cm, body), nil
+}
+
+// DeleteComment removes one comment (GDK-1647). The key is resolved for the
+// same reason UpdateComment resolves it.
+func (w *linearWriter) DeleteComment(ctx context.Context, key, id string) error {
+	if _, err := w.resolve(ctx, key); err != nil {
+		return err
+	}
+	return w.c.DeleteComment(ctx, id)
+}
+
 func (w *linearWriter) SetAssignee(ctx context.Context, key, accountID string) error {
 	iss, err := w.resolve(ctx, key)
 	if err != nil {

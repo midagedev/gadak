@@ -273,6 +273,25 @@ func (c *Client) AddComment(ctx context.Context, key string, adf json.RawMessage
 	return out, c.write(ctx, http.MethodPost, fmt.Sprintf("%s/issue/%s/comment", c.apiBase, url.PathEscape(key)), body, &out)
 }
 
+// UpdateComment replaces a comment's body: PUT /issue/{key}/comment/{id},
+// the edit-side sibling of AddComment (GDK-1647). body is what a post
+// sends — an ADF document on Cloud and the built-in tracker, the wiki
+// markup string on a Jira Server origin (GDK-1637); this client does not
+// convert either way, the caller routes through origin.BodyValue. 200 with
+// the stored comment is success.
+func (c *Client) UpdateComment(ctx context.Context, key, id string, body json.RawMessage) (Comment, error) {
+	var out Comment
+	p := fmt.Sprintf("%s/issue/%s/comment/%s", c.apiBase, url.PathEscape(key), url.PathEscape(id))
+	return out, c.write(ctx, http.MethodPut, p, map[string]any{"body": body}, &out)
+}
+
+// DeleteComment is DELETE /issue/{key}/comment/{id}. 204 with an empty body
+// is success; an unknown or already-removed id is a 404.
+func (c *Client) DeleteComment(ctx context.Context, key, id string) error {
+	p := fmt.Sprintf("%s/issue/%s/comment/%s", c.apiBase, url.PathEscape(key), url.PathEscape(id))
+	return c.write(ctx, http.MethodDelete, p, nil, nil)
+}
+
 // SetAssignee assigns or, with an empty id, unassigns. Jira distinguishes "no
 // assignee" (null) from "default assignee" (-1); the UI only ever asks for the
 // former. The body key is the deployment's own user axis (GDK-1638): Cloud

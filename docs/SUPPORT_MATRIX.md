@@ -61,6 +61,7 @@ Markers:
 | **Read** · view link — toolbar / palette "Copy link to this view" | ✅[^103] | ◐[^104] | ◐[^105] |
 | **Write** · create issue | ✅[^50] | ◐[^51] | ✅[^52] |
 | **Write** · comment — visibility / internal | ✅[^53] | ◐[^54] | ✅[^55] |
+| **Write** · comment edit / delete (`comment edit` / `comment rm`) | ✅[^114] | ✅[^115] | ✅[^116] |
 | **Write** · transition — screen fields | ✅[^56] | ◐[^57] | ✅[^58] |
 | **Write** · assign / unassign | ✅[^59] | ✅[^60] | ✅[^61] |
 | **Write** · label edits | ✅[^62] | —[^63] | ✅[^64] |
@@ -554,3 +555,23 @@ this table from the code instead of maintaining it by hand is GDK-1301.
     `gadak attach` exiting non-zero on that sentence. Until GDK-1614 an
     oversize upload was truncated instead: stored as its first 8 MiB and
     reported as success.
+
+[^114]: `PUT` / `DELETE /rest/api/3/issue/{key}/comment/{id}`
+    (`internal/jira/write.go:282`, `:290`); an edit sends what a post sends,
+    so a Jira Server origin's edit carries the wiki-markup string the post
+    path already sends (`internal/origin/body.go:28`). The CLI verb is
+    `gadak comment edit|rm` (`cmd/gadak/agent.go:2048`), and an edited body
+    carries the actor trailer with the same idempotence a post has
+    (`internal/origin/trailer.go:258`).
+
+[^115]: `commentUpdate` / `commentDelete` over GraphQL
+    (`internal/linear/write.go:246`, `:267`,
+    `internal/origin/linearwriter.go:109`); the body is markdown, the same
+    dialect `comment` posts in.
+
+[^116]: The built-in tracker answers the same two routes since issuetap
+    `17ce397` (`issuetap/internal/api/jira.go:893` `putComment`, `:919`
+    `deleteComment`; pinned in `go.mod`). Measured 2026-09-09 on a fresh
+    `gadak init --local` workspace: `gadak comment edit STD-2
+    standalone-jira:90001 -m …` replaced the body and `gadak comment rm … --yes`
+    removed it, both with the mirror's own namespaced id.

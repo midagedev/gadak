@@ -118,6 +118,7 @@ var _ VersionCatalog = (*jiraWriter)(nil)
 var _ IssueLinker = (*jiraWriter)(nil)
 var _ CreateFieldCatalog = (*jiraWriter)(nil)
 var _ MediaRef = (*jiraWriter)(nil)
+var _ CommentEditor = (*jiraWriter)(nil)
 
 func (w *jiraWriter) MoveToSprint(ctx context.Context, sprintID int64, keys []string) error {
 	return w.Client.MoveToSprint(ctx, sprintID, keys)

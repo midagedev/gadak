@@ -252,6 +252,33 @@ func (w *actorTrailerWriter) DeleteRemoteLink(ctx context.Context, key, id strin
 	return ErrNoRemoteLinks
 }
 
+// UpdateComment is stamped with the trailer, the same contract as
+// AddComment (GDK-1647): an edit is an agent-authored write, and the
+// attribution a trailer-carrying comment provides must survive an edit that
+// replaces the body — otherwise `comment edit` would strip the marker from
+// a comment `comment` just posted. What an edit does with the trailer,
+// stated once: it appends exactly this actor's line, and appendActorTrailer
+// is idempotent — when the body's last paragraph already is this trailer
+// (re-editing a body that carries it), the input goes out untouched, so a
+// body never grows one trailer per edit. A body that is not a doc (the
+// Jira Server wiki-markup string) is returned unchanged, the same
+// no-trailer answer a Server post gets.
+func (w *actorTrailerWriter) UpdateComment(ctx context.Context, key, id string, body json.RawMessage) (Comment, error) {
+	if v, ok := w.Writer.(CommentEditor); ok {
+		return v.UpdateComment(ctx, key, id, appendActorTrailer(body, w.trailer))
+	}
+	return Comment{}, ErrNoCommentEdit
+}
+
+// DeleteComment forwards with no body to stamp — deleting carries no
+// attribution the origin does not already hold.
+func (w *actorTrailerWriter) DeleteComment(ctx context.Context, key, id string) error {
+	if v, ok := w.Writer.(CommentEditor); ok {
+		return v.DeleteComment(ctx, key, id)
+	}
+	return ErrNoCommentEdit
+}
+
 // jiraActorTrailerWriter is the Jira-family shape: the base wrapper plus the
 // verbs that live on *jira.Client outside every origin interface — Claim,
 // Myself, IssueStatus. Those three are reached by ad-hoc type assertions

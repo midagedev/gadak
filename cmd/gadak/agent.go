@@ -1565,9 +1565,11 @@ const commentBodyCols = 60
 // commentAddedLine is the text success line for the one write whose effect
 // the refreshed TSV row cannot show: a comment. `gadak page comment` already
 // prints this shape (`comment <id> added`); the excerpt is what tells a
-// caller with no session which text landed (GDK-1019). Empty when extra is
-// not a comment write — every other verb keeps its summary row. The body is
-// the origin's echo (postComment's extra), not the text that was sent.
+// caller with no session which text landed (GDK-1019). edited/deleted are
+// the `comment edit` / `comment rm` verbs (GDK-1647) — rm prints no excerpt
+// because there is no body left to quote. Empty when extra is not a comment
+// write — every other verb keeps its summary row. The body is the origin's
+// echo (postComment's extra), not the text that was sent.
 func commentAddedLine(key string, extra map[string]any) string {
 	m, ok := extra["comment"].(map[string]any)
 	if !ok {
@@ -1575,7 +1577,14 @@ func commentAddedLine(key string, extra map[string]any) string {
 	}
 	id, _ := m["comment_id"].(string)
 	body, _ := m["body"].(string)
-	return fmt.Sprintf("%s\tcomment %s added: %q", key, id, clip(body, commentBodyCols))
+	switch {
+	case m["deleted"] == true:
+		return fmt.Sprintf("%s\tcomment %s deleted", key, id)
+	case m["edited"] == true:
+		return fmt.Sprintf("%s\tcomment %s edited: %q", key, id, clip(body, commentBodyCols))
+	default:
+		return fmt.Sprintf("%s\tcomment %s added: %q", key, id, clip(body, commentBodyCols))
+	}
 }
 
 // writeAppliedMirrorStaleMessage is the one author of the CLI warning for a
@@ -1940,6 +1949,18 @@ func wordEndOffsets(s string, n int) []int {
 }
 
 func cmdComment(args []string) error {
+	// Subverbs dispatch on the first raw positional, before the comment flag
+	// set parses anything: `comment rm` owns --yes, which the plain-comment
+	// set would reject as unknown (recipes/page precedent). A key always
+	// carries a dash ("NMB-140"), so no key can collide with a subverb.
+	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+		switch args[0] {
+		case "edit":
+			return cmdCommentEdit(args[1:])
+		case "rm":
+			return cmdCommentRm(args[1:])
+		}
+	}
 	fs := newFlagSet("comment")
 	text := fs.String("m", "", "comment body; `-` reads it from stdin")
 	adfFile := fs.String("adf-file", "", "comment body as an ADF JSON document file, sent to the origin as it is; exclusive with -m and positional text")
@@ -2011,11 +2032,139 @@ func cmdComment(args []string) error {
 	})
 }
 
-const commentUsage = "usage: gadak comment <KEY> [<text> | -m <text|-> | --adf-file F] [--visibility role=NAME|group=NAME] [--internal] [--json] | --batch -"
+const commentUsage = "usage: gadak comment <KEY> [<text> | -m <text|-> | --adf-file F] [--visibility role=NAME|group=NAME] [--internal] [--json] | --batch -\n" +
+	"       gadak comment edit <KEY> <ID> [-m <text|-> | --adf-file F] [--json]\n" +
+	"       gadak comment rm <KEY> <ID> --yes [--json]"
+
+const commentEditUsage = "usage: gadak comment edit <KEY> <ID> [-m <text|-> | --adf-file F] [--json]"
+
+const commentRmUsage = "usage: gadak comment rm <KEY> <ID> --yes [--json]"
+
+// cmdCommentEdit is `gadak comment edit <KEY> <ID>` (GDK-1647): replace a
+// comment's body through the origin. The body arrives exactly the way
+// `comment` takes one — -m, -m -, --adf-file, and the same empty-body
+// refusal — through the post's own reader (commentBodyDoc), not a second
+// one; an edit sends what a post sends.
+func cmdCommentEdit(args []string) error {
+	fs := newFlagSet("comment")
+	text := fs.String("m", "", "comment body; `-` reads it from stdin")
+	adfFile := fs.String("adf-file", "", "comment body as an ADF JSON document file, sent to the origin as it is; exclusive with -m")
+	asJSON := fs.Bool("json", false, "emit JSON")
+	if wantsHelp(args) {
+		fmt.Fprint(os.Stdout, formatHelp("comment", fs))
+		return nil
+	}
+	pos, err := parseAround(fs, args)
+	if err != nil {
+		return err
+	}
+	if len(pos) != 2 {
+		return usageError("comment", commentEditUsage)
+	}
+	key := normalizeKey(pos[0])
+	id := commentOriginID(pos[1])
+	if id == "" {
+		return usageError("comment", commentEditUsage)
+	}
+	body := *text
+	if *adfFile != "" {
+		// The file is the whole body (GDK-1395); text beside it is a second
+		// body — refuse rather than pick.
+		if body != "" {
+			return usageError("comment", "usage: gadak comment edit: --adf-file is exclusive with -m — the file is the whole body")
+		}
+		doc, err := readADFFile(*adfFile)
+		if err != nil {
+			return fmt.Errorf("comment %s: %w", key, err)
+		}
+		return mutate(key, *asJSON, func(ctx context.Context, c origin.Writer, _ string) (map[string]any, error) {
+			return editCommentDoc(ctx, c, key, id, doc)
+		})
+	}
+	if body == "-" {
+		buf, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			return err
+		}
+		body = string(buf)
+	}
+	if strings.TrimSpace(body) == "" {
+		return errors.New("empty comment — pass -m <text>, or -m - to read stdin, or --adf-file F")
+	}
+	return mutate(key, *asJSON, func(ctx context.Context, c origin.Writer, _ string) (map[string]any, error) {
+		return editComment(ctx, c, key, id, body)
+	})
+}
+
+// cmdCommentRm is `gadak comment rm <KEY> <ID> --yes` (GDK-1647). --yes is
+// required: a delete is not recoverable — there is no trash, and on the
+// built-in tracker the comment leaves the persist file, which is the record.
+func cmdCommentRm(args []string) error {
+	fs := newFlagSet("comment")
+	yes := fs.Bool("yes", false, "delete the comment — without it, rm explains and refuses")
+	asJSON := fs.Bool("json", false, "emit JSON")
+	if wantsHelp(args) {
+		fmt.Fprint(os.Stdout, formatHelp("comment", fs))
+		return nil
+	}
+	pos, err := parseAround(fs, args)
+	if err != nil {
+		return err
+	}
+	if len(pos) != 2 {
+		return usageError("comment", commentRmUsage)
+	}
+	if !*yes {
+		return usageError("comment", "comment rm deletes the comment at the origin — that is not recoverable, and on the built-in tracker it leaves the persist file (no trash); re-run with --yes to delete")
+	}
+	key := normalizeKey(pos[0])
+	id := commentOriginID(pos[1])
+	if id == "" {
+		return usageError("comment", commentRmUsage)
+	}
+	return mutate(key, *asJSON, func(ctx context.Context, c origin.Writer, _ string) (map[string]any, error) {
+		ed, err := origin.AsCommentEditor(c)
+		if err != nil {
+			return nil, err
+		}
+		if err := ed.DeleteComment(ctx, key, id); err != nil {
+			return nil, err
+		}
+		return map[string]any{"comment": map[string]any{
+			"comment_id": id,
+			"deleted":    true,
+		}}, nil
+	})
+}
+
+// commentOriginID accepts what a read hands out: `gadak sql` returns the
+// mirror's namespaced comment id (`jira:91653`, `standalone-jira:7`,
+// `linear:<uuid>`), while `gadak issue` prints the origin's own (`91653`).
+// The namespace prefixes carry no colon, so stripping at the first colon
+// admits both spellings (GDK-1647).
+func commentOriginID(id string) string {
+	id = strings.TrimSpace(id)
+	if i := strings.IndexByte(id, ':'); i >= 0 {
+		return id[i+1:]
+	}
+	return id
+}
 
 var commentBatchFields = []string{"key", "body", "internal", "visibility"}
 
 func postComment(ctx context.Context, c origin.Writer, key, body string, vis *jira.CommentVisibility, internal bool) (map[string]any, error) {
+	doc, err := commentBodyDoc(ctx, c, key, body)
+	if err != nil {
+		return nil, err
+	}
+	return postCommentDoc(ctx, c, key, doc, vis, internal)
+}
+
+// commentBodyDoc is the comment body reader post and edit share (GDK-1647):
+// placeholder refusal, the mention pass, then the origin's body dialect —
+// a document everywhere but Jira Server, where the typed characters ride
+// verbatim (GDK-1637). An edit sends what a post sends.
+func commentBodyDoc(ctx context.Context, c origin.Writer, key, body string) (json.RawMessage, error) {
 	// The origin decides what a comment body is: a document, or the typed
 	// characters (GDK-1637). A config that will not load leaves both the
 	// refusal and the value on the markdown default, which is what every
@@ -2034,7 +2183,7 @@ func postComment(ctx context.Context, c origin.Writer, key, body string, vis *ji
 	// (GDK-1637). The mention pass above still runs — it resolves names
 	// for the notice, and jira.Doc's mention nodes simply have nowhere to
 	// go on an origin whose comment field is text.
-	return postCommentDoc(ctx, c, key, origin.BodyValue(cfg, body, jira.Doc(body, mentions)), vis, internal)
+	return origin.BodyValue(cfg, body, jira.Doc(body, mentions)), nil
 }
 
 // postCommentDoc posts a finished ADF document — postComment's tail, and the
@@ -2049,6 +2198,38 @@ func postCommentDoc(ctx context.Context, c origin.Writer, key string, doc json.R
 		"comment_id": created.ID,
 		"author":     created.Author.DisplayName,
 		"body":       adf.PlainText(created.Body),
+	}}, nil
+}
+
+// editComment is postComment's edit twin (GDK-1647): same body reader, then
+// UpdateComment through the CommentEditor face. The unsupported-origin
+// refusal (ErrNoCommentEdit) surfaces from AsCommentEditor unchanged, the
+// same way `gadak link` surfaces ErrNoIssueLinks.
+func editComment(ctx context.Context, c origin.Writer, key, id, body string) (map[string]any, error) {
+	doc, err := commentBodyDoc(ctx, c, key, body)
+	if err != nil {
+		return nil, err
+	}
+	return editCommentDoc(ctx, c, key, id, doc)
+}
+
+// editCommentDoc sends a finished ADF document — editComment's tail, and the
+// whole of --adf-file, where no mention pass runs because the document
+// already says what it says (the postCommentDoc split, mirrored).
+func editCommentDoc(ctx context.Context, c origin.Writer, key, id string, doc json.RawMessage) (map[string]any, error) {
+	ed, err := origin.AsCommentEditor(c)
+	if err != nil {
+		return nil, err
+	}
+	updated, err := ed.UpdateComment(ctx, key, id, doc)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"comment": map[string]any{
+		"comment_id": updated.ID,
+		"author":     updated.Author.DisplayName,
+		"body":       adf.PlainText(updated.Body),
+		"edited":     true,
 	}}, nil
 }
 

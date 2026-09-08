@@ -29,6 +29,14 @@
   인터페이스가 선언한 메서드만 승격시킨다. 그래서 버전·이슈 링크·생성 필드
   목록·미디어 참조·스프린트가 전부 "이 origin 이 뭘 할 수 있나" 를 묻는
   코드에 안 보였다. 이제 래퍼 너머를 본다. ([GDK-1655])
+- **코멘트를 고치고 지울 수 있습니다.** `gadak comment edit <KEY> <ID> -m
+  "…"`가 본문을 바꾸고, `gadak comment rm <KEY> <ID> --yes`가 지웁니다. Jira,
+  Linear, 내장 트래커 모두에서요. 지금까지는 잘못 쓴 코멘트 뒤에 코멘트를 하나
+  더 붙이는 것밖에 없었습니다. id는 읽기가 준 그대로 넣으면 됩니다. `gadak
+  sql`은 캐시의 `jira:91653`을, `gadak issue`는 `91653`을 찍는데 둘 다 받습니다.
+  편집은 게시와 같은 것을 보냅니다. Cloud에는 ADF, Jira Server 워크스페이스에는
+  wiki markup 문자열. 에이전트 서명 줄은 편집을 거쳐도 남고, 두 번 붙지 않습니다.
+  ([GDK-1647])
 - **Jira Server 워크스페이스의 스프린트.** Server 는 스프린트 필드를 자기
   빈의 Java `toString` 으로 보낸다 — `Sprint@4ffcc813[…,id=1,name=Sprint
   1,…,state=ACTIVE,…]`. Cloud 는 객체를 보낸다. 그래서 스프린트에 들어 있는
@@ -1675,6 +1683,7 @@ HTTP·sync·에이전트 계약을 담았습니다.
 [GDK-1644]: https://gadak.dev/backlog/#/?ks=GDK-1644
 [GDK-1639]: https://gadak.dev/backlog/#/?ks=GDK-1639
 [GDK-1637]: https://gadak.dev/backlog/#/?ks=GDK-1637
+[GDK-1647]: https://gadak.dev/backlog/#/?ks=GDK-1647
 [GDK-1648]: https://gadak.dev/backlog/#/?ks=GDK-1648
 [GDK-1617]: https://gadak.dev/backlog/#/?ks=GDK-1617
 [GDK-1626]: https://gadak.dev/backlog/#/?ks=GDK-1626

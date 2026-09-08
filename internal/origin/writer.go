@@ -72,6 +72,19 @@ type IssueLinker interface {
 	DeleteIssueLink(ctx context.Context, id string) error
 }
 
+// CommentEditor is PUT/DELETE /rest/api/3/issue/{key}/comment/{id} — the
+// edit-side sibling of Writer.AddComment (GDK-1647). body is what a post
+// sends (the caller routes through BodyValue), so an edit and a create on
+// the same origin speak the same dialect. Jira Cloud, Jira Server and the
+// built-in tracker implement it via jiraWriter; Linear over GraphQL. A
+// wrapper that hides the face (the actor trailer) forwards it in trailer.go
+// — without the forwarder every workspace with a resolved actor would read
+// as "this origin cannot do that" while the unit tests stayed green.
+type CommentEditor interface {
+	UpdateComment(ctx context.Context, key, id string, body json.RawMessage) (Comment, error)
+	DeleteComment(ctx context.Context, key, id string) error
+}
+
 // CreateFieldCatalog is what this project+type requires and accepts at create
 // time — the create-side sibling of EditMeta (GDK-254). An origin that
 // cannot answer is missing the face; callers degrade, they do not block.
@@ -102,6 +115,10 @@ var (
 	ErrNoCreateFields   = unsupported("linear: create-time field metadata is not supported on this origin")
 	ErrNoMediaRef       = unsupported("linear: inline comment media is not supported; the file is attached to the issue")
 	ErrNoRemoteLinks    = unsupported("this origin does not support remote issue links — they need a built-in or paired workspace")
+	// ErrNoCommentEdit is origin-neutral: both origins this tree ships
+	// implement the face, so the miss is a wrapper that does not forward it
+	// or a future origin — the sentence must not blame Linear or Jira.
+	ErrNoCommentEdit = unsupported("this origin does not support comment edit or delete")
 )
 
 // unsupportedError is a capability refusal whose Error() is the origin's
@@ -230,6 +247,15 @@ func AsIssueLinker(w Writer) (IssueLinker, error) {
 	return v, nil
 }
 
+// AsCommentEditor returns w as CommentEditor, or ErrNoCommentEdit.
+func AsCommentEditor(w Writer) (CommentEditor, error) {
+	v, ok := w.(CommentEditor)
+	if !ok {
+		return nil, ErrNoCommentEdit
+	}
+	return v, nil
+}
+
 // AsCreateFieldCatalog returns w as CreateFieldCatalog, or ErrNoCreateFields.
 func AsCreateFieldCatalog(w Writer) (CreateFieldCatalog, error) {
 	v, ok := capability[CreateFieldCatalog](w)
@@ -256,6 +282,7 @@ var _ VersionCatalog = (*jira.Client)(nil)
 var _ IssueLinker = (*jira.Client)(nil)
 var _ CreateFieldCatalog = (*jira.Client)(nil)
 var _ MediaRef = (*jira.Client)(nil)
+var _ CommentEditor = (*jira.Client)(nil)
 
 // ResolveCreateSource picks the origin a create files to — the create-side
 // sibling of WriterFor's per-key routing. A project the mirror already

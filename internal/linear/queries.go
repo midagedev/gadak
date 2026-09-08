@@ -291,6 +291,26 @@ var mutCommentCreate = `mutation CommentCreate($input: CommentCreateInput!) {
   }
 }`
 
+// mutCommentUpdate edits one comment by id; body is markdown, the same
+// format Comment.body carries on the read path. id is String! — the same
+// scalar mutIssueUpdate binds, which is this package's sibling convention,
+// not GraphQL's ID (GDK-1647).
+var mutCommentUpdate = `mutation CommentUpdate($id: String!, $input: CommentUpdateInput!) {
+  commentUpdate(id: $id, input: $input) {
+    success
+    comment {` + commentSelection + `
+    }
+  }
+}`
+
+// mutCommentDelete removes one comment by id. The payload carries success
+// only — there is no comment left to return.
+var mutCommentDelete = `mutation CommentDelete($id: String!) {
+  commentDelete(id: $id) {
+    success
+  }
+}`
+
 // mutFileUpload reserves workspace storage for one file: a signed PUT URL
 // plus the headers that PUT must carry verbatim, and the stable assetUrl
 // the bytes will live at (measured live 2026-08-20).

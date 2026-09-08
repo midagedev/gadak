@@ -86,6 +86,16 @@ type fakeJira struct {
 	// deletedLinks records every DELETE /issueLink/{id}, in order (GDK-1205).
 	deletedLinks []string
 
+	// refreshComments, when set, is a raw JSON array of jira.Comment objects
+	// the /search/jql re-read returns inline as fields.comment — the shape a
+	// real Jira hands back — so a write-through test can assert which
+	// comments the mirror holds after the refresh (GDK-1647).
+	refreshComments string
+
+	// deletedComments records every DELETE /issue/{key}/comment/{id}, in
+	// order (GDK-1647).
+	deletedComments []string
+
 	// claim support (additive; GDK-591 — existing write tests never hit
 	// these paths). Atlassian Cloud has no claim route, so the default is
 	// the 404 that flips the CLI onto its two-call fallback.
@@ -156,7 +166,7 @@ func (f *fakeJira) route(w http.ResponseWriter, r *http.Request) {
 			"status":{"id":"10001","name":"완료","statusCategory":{"key":"done"}},
 			"project":{"key":"NMB"},"issuetype":{"id":"10004","name":"Bug"},
 			"assignee":{"accountId":"acc-hc","displayName":"Dana Whitfield"},
-			"created":"2026-07-01T00:00:00.000+0900","updated":"2026-08-04T12:00:00.000+0900"
+			"created":"2026-07-01T00:00:00.000+0900","updated":"2026-08-04T12:00:00.000+0900"` + f.commentField() + `
 		}}],"isLast":true}`))
 	case strings.HasSuffix(path, "/transitions") && r.Method == http.MethodGet:
 		if f.transitionsJSON != "" {
@@ -170,6 +180,24 @@ func (f *fakeJira) route(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"id":"c-99","author":{"displayName":"Dana Whitfield"},
 			"body":{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"checked"}]}]},
 			"created":"2026-08-04T12:00:00.000+0900"}`))
+	case commentPathID(path) != "" && r.Method == http.MethodPut:
+		// Comment edit (GDK-1647): echo the comment back the way Jira does,
+		// same id and the body as sent.
+		id := commentPathID(path)
+		body := json.RawMessage(`{"type":"doc","version":1,"content":[]}`)
+		if raw, ok := f.bodies[tag]; ok {
+			var req struct {
+				Body json.RawMessage `json:"body"`
+			}
+			if err := json.Unmarshal([]byte(raw), &req); err == nil && len(req.Body) > 0 {
+				body = req.Body
+			}
+		}
+		_, _ = w.Write([]byte(`{"id":"` + id + `","author":{"displayName":"Dana Whitfield"},
+			"body":` + string(body) + `,"updated":"2026-08-05T09:00:00.000+0900"}`))
+	case commentPathID(path) != "" && r.Method == http.MethodDelete:
+		f.deletedComments = append(f.deletedComments, commentPathID(path))
+		w.WriteHeader(http.StatusNoContent)
 	case strings.HasPrefix(path, "/attachment/content/") && r.Method == http.MethodGet:
 		// GDK-1610: `attach get` reads bytes over this path on every
 		// Jira-shaped origin. The id is the tail; unknown ids 404.
@@ -251,6 +279,35 @@ func (f *fakeJira) route(w http.ResponseWriter, r *http.Request) {
 		// transitions POST and assignee PUT answer 204, like Jira.
 		w.WriteHeader(http.StatusNoContent)
 	}
+}
+
+// commentPathID returns the comment id of /issue/{key}/comment/{id}, or ""
+// for anything else — the guard the comment edit/delete routes switch on.
+func commentPathID(path string) string {
+	rest, ok := strings.CutPrefix(path, "/issue/")
+	if !ok {
+		return ""
+	}
+	_, id, ok := strings.Cut(rest, "/comment/")
+	if !ok || id == "" || strings.Contains(id, "/") {
+		return ""
+	}
+	return id
+}
+
+// commentField is the inline fields.comment block the /search/jql re-read
+// carries when refreshComments is set: the comments verbatim plus the totals
+// a real Jira states, so the sync path never falls back to a follow-up fetch.
+func (f *fakeJira) commentField() string {
+	if f.refreshComments == "" {
+		return ""
+	}
+	var cs []jira.Comment
+	if err := json.Unmarshal([]byte(f.refreshComments), &cs); err != nil {
+		f.t.Fatalf("refreshComments fixture: %v", err)
+	}
+	return fmt.Sprintf(`,"comment":{"comments":%s,"total":%d,"maxResults":%d,"startAt":0}`,
+		f.refreshComments, len(cs), len(cs))
 }
 
 func (f *fakeJira) handleCreateIssue(w http.ResponseWriter) {
@@ -1955,6 +2012,139 @@ func TestCommentConfirmationSurvivesMirrorStale(t *testing.T) {
 	}
 	if !strings.HasPrefix(stdout, "NMB-1\tcomment c-99 added: ") {
 		t.Fatalf("stdout missing the confirmation line: %q", stdout)
+	}
+}
+
+// `comment edit` sends the body the post path builds — the same ADF reader,
+// the same empty-body refusal — over PUT, and prints the edited line with the
+// origin's echo (GDK-1647). FAIL-first: pre-change, `edit` parsed as the key
+// positional and the PUT route did not exist.
+func TestCommentEditSendsADFAndPrintsConfirmation(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+
+	out, err := capture(t, func() error {
+		return cmdComment([]string{"edit", "NMB-1", "jira:c-1", "-m", "corrected repro"})
+	})
+	if err != nil {
+		t.Fatalf("comment edit: %v", err)
+	}
+	body := f.bodies["PUT /issue/NMB-1/comment/c-1"]
+	if !strings.Contains(body, `"type":"doc"`) || !strings.Contains(body, "corrected repro") {
+		t.Fatalf("sent %s", body)
+	}
+	if got, want := strings.TrimSpace(out), "NMB-1\tcomment c-1 edited: \"corrected repro\""; got != want {
+		t.Fatalf("stdout %q, want %q", got, want)
+	}
+
+	// The bare id a `gadak issue` read hands out reaches the same route —
+	// the namespace prefix is stripped, not required.
+	if _, err := capture(t, func() error {
+		return cmdComment([]string{"edit", "NMB-1", "91653", "-m", "second edit"})
+	}); err != nil {
+		t.Fatalf("bare id edit: %v", err)
+	}
+	if body := f.bodies["PUT /issue/NMB-1/comment/91653"]; !strings.Contains(body, "second edit") {
+		t.Fatalf("bare id not accepted — sent %s", body)
+	}
+
+	// Empty body: the post's own refusal, before any request.
+	before := len(f.calls)
+	if _, err := capture(t, func() error { return cmdComment([]string{"edit", "NMB-1", "c-1", "-m", "  "}) }); err == nil {
+		t.Error("an empty edit must not reach Jira")
+	}
+	for _, c := range f.calls[before:] {
+		if strings.HasPrefix(c, "PUT /issue/NMB-1/comment/") {
+			t.Errorf("empty edit reached the origin: %s", c)
+		}
+	}
+
+	// --json carries the edit marker beside the echoed body.
+	js, err := capture(t, func() error {
+		return cmdComment([]string{"edit", "NMB-1", "c-1", "-m", "json edit", "--json"})
+	})
+	if err != nil {
+		t.Fatalf("comment edit --json: %v", err)
+	}
+	var res struct {
+		Comment struct {
+			CommentID string `json:"comment_id"`
+			Edited    bool   `json:"edited"`
+			Body      string `json:"body"`
+		} `json:"comment"`
+	}
+	if err := json.Unmarshal([]byte(js), &res); err != nil {
+		t.Fatalf("decode %s: %v", js, err)
+	}
+	if res.Comment.CommentID != "c-1" || !res.Comment.Edited || res.Comment.Body != "json edit" {
+		t.Fatalf("response %+v", res)
+	}
+}
+
+// `comment rm` refuses without --yes, says why (a delete is not recoverable;
+// on the built-in tracker it leaves the persist file), and never calls the
+// origin (GDK-1647).
+func TestCommentRmWithoutYesRefuses(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+
+	_, err := capture(t, func() error { return cmdComment([]string{"rm", "NMB-1", "jira:c-1"}) })
+	if err == nil || !strings.Contains(err.Error(), "not recoverable") || !strings.Contains(err.Error(), "--yes") {
+		t.Fatalf("rm without --yes: err = %v", err)
+	}
+	if len(f.deletedComments) != 0 {
+		t.Fatalf("refusal must stay local; deleted %v", f.deletedComments)
+	}
+}
+
+// The delete lands at the origin AND leaves the mirror (GDK-1647): the
+// write-through tail re-reads the issue, and a comment the origin no longer
+// lists is gone from the mirror — not merely absent from the printed line.
+func TestCommentRmDeletesFromOriginAndMirror(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	// The re-read lists c-2 only: c-1 is gone at the origin.
+	f.refreshComments = `[{"id":"c-2","author":{"displayName":"Marco Reyes"},
+		"body":{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"still here"}]}]},
+		"created":"2026-07-02T00:00:00.000+0900","updated":"2026-07-02T00:00:00.000+0900"}]`
+
+	out, err := capture(t, func() error {
+		return cmdComment([]string{"rm", "NMB-1", "jira:c-1", "--yes"})
+	})
+	if err != nil {
+		t.Fatalf("comment rm: %v", err)
+	}
+	if got, want := strings.TrimSpace(out), "NMB-1\tcomment c-1 deleted"; got != want {
+		t.Fatalf("stdout %q, want %q", got, want)
+	}
+	if len(f.deletedComments) != 1 || f.deletedComments[0] != "c-1" {
+		t.Fatalf("deleted %v, want [c-1]", f.deletedComments)
+	}
+	issue, err := capture(t, func() error { return cmdIssue([]string{"NMB-1"}) })
+	if err != nil {
+		t.Fatalf("issue after rm: %v", err)
+	}
+	if strings.Contains(issue, "reproduced against the sandbox") {
+		t.Fatalf("deleted comment still in the mirror:\n%s", issue)
+	}
+	if !strings.Contains(issue, "still here") {
+		t.Fatalf("surviving comment missing from the mirror:\n%s", issue)
+	}
+}
+
+// An origin without the CommentEditor face surfaces ErrNoCommentEdit's own
+// sentence from both verbs — the same surfacing `gadak link` gives
+// ErrNoIssueLinks (GDK-1647).
+func TestCommentEditRmUnsupportedOriginSentence(t *testing.T) {
+	stub := &searchUsersStub{}
+	ctx := context.Background()
+	if _, err := editCommentDoc(ctx, stub, "NMB-1", "c-1", adf.FromMarkdown("x")); err == nil ||
+		!strings.Contains(err.Error(), origin.ErrNoCommentEdit.Error()) {
+		t.Fatalf("edit: err = %v, want ErrNoCommentEdit's sentence", err)
+	}
+	if _, err := origin.AsCommentEditor(stub); err == nil ||
+		!strings.Contains(err.Error(), origin.ErrNoCommentEdit.Error()) {
+		t.Fatalf("rm path's assertion: err = %v, want ErrNoCommentEdit's sentence", err)
 	}
 }
 

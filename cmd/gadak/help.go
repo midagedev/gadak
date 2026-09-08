@@ -610,15 +610,28 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak recipes", "gadak sql", "gadak views"},
 	},
 	"comment": {
-		summary: "add a comment (@Name resolves to a site user; ambiguous names are refused)",
+		summary: "add a comment (@Name resolves to a site user; ambiguous names are refused), edit one, or delete one — ids come from `gadak sql` (`jira:91653`) or `gadak issue` (`91653`); both work",
 		usage: "gadak [--workspace <name>] comment <KEY> [<text> | -m <text|->]\n" +
-			"[--visibility role=NAME|group=NAME] [--internal] [--json] | --batch -",
+			"[--visibility role=NAME|group=NAME] [--internal] [--json] | --batch -\n" +
+			"| comment edit <KEY> <ID> [-m <text|-> | --adf-file F] [--json]\n" +
+			"| comment rm <KEY> <ID> --yes [--json]",
+		options: []helpOption{
+			{name: "m", desc: "comment body; `-` reads it from stdin"},
+			{name: "adf-file", desc: "comment body as an ADF JSON document file, sent to the origin as it is; exclusive with -m"},
+			{name: "visibility", desc: "restrict to role=NAME or group=NAME (once)"},
+			{name: "internal", desc: "post as a JSM internal comment"},
+			{name: "json", desc: "emit JSON"},
+			{name: "batch", desc: "JSON lines from stdin (`-` only); each object needs key and body"},
+			{name: "yes", desc: "with rm: delete — without it, rm explains and refuses (a delete is not recoverable)"},
+		},
 		examples: []string{
 			"gadak comment NMB-140 Reproduced on staging.",
 			"gadak comment NMB-140 -m \"Reproduced on staging.\"",
 			"gadak comment NMB-140 -m \"thanks @Dana\"",
 			"gadak comment NMB-140 -m -          # body from stdin",
 			"gadak comment NMB-140 -m \"done\" --json",
+			"gadak comment edit NMB-140 91653 -m \"corrected repro\"",
+			"gadak comment rm NMB-140 jira:91653 --yes   # mirror id and bare id both work",
 			`printf '%s\n' '{"key":"NMB-140","body":"reproduced"}' | gadak comment --batch -`,
 		},
 		seeAlso: []string{"gadak transition", "gadak assign", "gadak issue"},

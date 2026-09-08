@@ -329,6 +329,102 @@ func TestCreateCommentSendsInputAndReturnsComment(t *testing.T) {
 	}
 }
 
+// GDK-1647: commentUpdate sends the comment id beside the input (unlike
+// commentCreate, whose id rides inside the input) and returns the origin's
+// comment with the full field set.
+func TestUpdateCommentSendsIdAndBodyAndReturnsComment(t *testing.T) {
+	var query string
+	var vars struct {
+		ID    string `json:"id"`
+		Input struct {
+			Body string `json:"body"`
+		} `json:"input"`
+	}
+	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Query     string          `json:"query"`
+			Variables json.RawMessage `json:"variables"`
+		}
+		decode(t, r, &body)
+		query = body.Query
+		if err := json.Unmarshal(body.Variables, &vars); err != nil {
+			t.Fatalf("variables: %v", err)
+		}
+		writeFixture(w, t, "comment_update.json")
+	}))
+	comment, err := c.UpdateComment(context.Background(), "00000000-0000-4000-8000-000000000016", "An edited fixture comment in markdown shape.")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(query, "mutation CommentUpdate") {
+		t.Errorf("query = %q…, want the CommentUpdate mutation document", query[:40])
+	}
+	if vars.ID != "00000000-0000-4000-8000-000000000016" {
+		t.Errorf("variables.id = %q, want the comment id the caller passed", vars.ID)
+	}
+	if vars.Input.Body != "An edited fixture comment in markdown shape." {
+		t.Errorf("variables.input.body = %q", vars.Input.Body)
+	}
+	if comment.ID != "00000000-0000-4000-8000-000000000016" || comment.Body != "An edited fixture comment in markdown shape." {
+		t.Errorf("comment = %+v, want the fixture comment", comment)
+	}
+	if comment.UpdatedAt != "2026-09-09T11:20:00.000Z" {
+		t.Errorf("comment.UpdatedAt = %q, want the fixture's new stamp — an edit's whole point is the new timestamp", comment.UpdatedAt)
+	}
+	if comment.User == nil || comment.User.ID != "00000000-0000-4000-8000-000000000011" {
+		t.Errorf("comment.User = %+v, want the viewer-shaped author", comment.User)
+	}
+}
+
+// GDK-1647: commentDelete sends only the id; a 200 with success=true is the
+// whole answer — there is no payload to decode.
+func TestDeleteCommentSendsIdAndSucceeds(t *testing.T) {
+	var query string
+	var vars struct {
+		ID string `json:"id"`
+	}
+	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Query     string          `json:"query"`
+			Variables json.RawMessage `json:"variables"`
+		}
+		decode(t, r, &body)
+		query = body.Query
+		if err := json.Unmarshal(body.Variables, &vars); err != nil {
+			t.Fatalf("variables: %v", err)
+		}
+		writeFixture(w, t, "comment_delete.json")
+	}))
+	if err := c.DeleteComment(context.Background(), "00000000-0000-4000-8000-000000000016"); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(query, "mutation CommentDelete") {
+		t.Errorf("query = %q…, want the CommentDelete mutation document", query[:40])
+	}
+	if vars.ID != "00000000-0000-4000-8000-000000000016" {
+		t.Errorf("variables.id = %q", vars.ID)
+	}
+}
+
+// GDK-1647: the comment-edit verbs validate the id before any request, the
+// same guard UpdateIssue and CreateIssue keep.
+func TestCommentEditDeleteValidateIDBeforeSending(t *testing.T) {
+	calls := 0
+	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		w.WriteHeader(http.StatusBadRequest)
+	}))
+	if _, err := c.UpdateComment(context.Background(), "", "b"); err == nil || !strings.Contains(err.Error(), "id") {
+		t.Errorf("UpdateComment empty id: err = %v, want it to name id", err)
+	}
+	if err := c.DeleteComment(context.Background(), ""); err == nil || !strings.Contains(err.Error(), "id") {
+		t.Errorf("DeleteComment empty id: err = %v, want it to name id", err)
+	}
+	if calls != 0 {
+		t.Errorf("validation must fail before any HTTP call, got %d calls", calls)
+	}
+}
+
 // Linear mutations answer success=false for application-level rejections that
 // do not take the GraphQL errors array. Every verb must turn that into an
 // error, or a rejected write would read as a silent no-op.
@@ -348,6 +444,13 @@ func TestMutationSuccessFalseIsAnError(t *testing.T) {
 		{"commentCreate", func(c *Client) error {
 			_, err := c.CreateComment(context.Background(), "i", "b")
 			return err
+		}},
+		{"commentUpdate", func(c *Client) error {
+			_, err := c.UpdateComment(context.Background(), "i", "b")
+			return err
+		}},
+		{"commentDelete", func(c *Client) error {
+			return c.DeleteComment(context.Background(), "i")
 		}},
 	}
 	for _, v := range verbs {

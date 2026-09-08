@@ -18,6 +18,8 @@ fixture to exercise (the field shape itself was verified live).
 | `issue_create.json` | — hand-built (GDK-360) | `issueCreate` success + returned issue parse |
 | `issue_update.json` | — hand-built (GDK-360) | `issueUpdate` success + updated issue parse |
 | `comment_create.json` | — hand-built (GDK-360) | `commentCreate` success + comment parse |
+| `comment_update.json` | — hand-built (GDK-1647) | `commentUpdate` success + updated comment parse |
+| `comment_delete.json` | — hand-built (GDK-1647) | `commentDelete` success |
 | `relation_create.json` | — hand-built (GDK-1265) | `issueRelationCreate` success |
 | `label_create.json` | — hand-built (GDK-1265) | `issueLabelCreate` success + label parse |
 | `labels.json` | — hand-built (GDK-1265) | `issueLabels` catalog page |

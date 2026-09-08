@@ -20,11 +20,15 @@ import (
 // linearRec records which GraphQL documents the adapter sent so a refuse
 // case can prove the mutation never left the process.
 type linearRec struct {
-	queries  []string
-	creates  int
-	updates  int
-	comments int
-	lastVars json.RawMessage
+	queries       []string
+	creates       int
+	updates       int
+	comments      int
+	commentEdits  int
+	commentDels   int
+	lastVars      json.RawMessage
+	lastEditVars  json.RawMessage
+	lastDeleteVar json.RawMessage
 }
 
 func linearTestdata(t *testing.T, name string) []byte {
@@ -78,6 +82,17 @@ func linearGQL(t *testing.T, rec *linearRec) http.Handler {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
 		case strings.Contains(body.Query, "query Issue("):
+			// The fixture issue is FIX-1; any other identifier resolves to
+			// null so an unknown key fails the resolve exactly as it does
+			// against api.linear.app.
+			var vars struct {
+				ID string `json:"id"`
+			}
+			_ = json.Unmarshal(body.Variables, &vars)
+			if vars.ID != "FIX-1" {
+				_, _ = w.Write([]byte(`{"data":{"issue":null}}`))
+				return
+			}
 			_, _ = w.Write(issue)
 		case strings.Contains(body.Query, "query WorkflowStates"):
 			_, _ = w.Write(linearTestdata(t, "workflowstates.json"))
@@ -94,6 +109,14 @@ func linearGQL(t *testing.T, rec *linearRec) http.Handler {
 		case strings.Contains(body.Query, "mutation CommentCreate"):
 			rec.comments++
 			_, _ = w.Write(linearTestdata(t, "comment_create.json"))
+		case strings.Contains(body.Query, "mutation CommentUpdate"):
+			rec.commentEdits++
+			rec.lastEditVars = body.Variables
+			_, _ = w.Write(linearTestdata(t, "comment_update.json"))
+		case strings.Contains(body.Query, "mutation CommentDelete"):
+			rec.commentDels++
+			rec.lastDeleteVar = body.Variables
+			_, _ = w.Write(linearTestdata(t, "comment_delete.json"))
 		default:
 			t.Errorf("unexpected graphql document: %s", truncate(body.Query, 80))
 			w.WriteHeader(http.StatusInternalServerError)
@@ -436,6 +459,102 @@ func TestAddCommentRefusesVisibilityAndInternal(t *testing.T) {
 	}
 	if rec.comments != 0 {
 		t.Errorf("refuse must stay local; comments=%d", rec.comments)
+	}
+}
+
+// GDK-1647: comment edit over GraphQL resolves the key first (the sequence
+// is query Issue, then the mutation — the same resolve every Linear verb
+// runs), sends the body as markdown exactly like a post, and returns the
+// origin's comment with the caller's document as the body. FAIL-first on
+// the pre-change source: linearWriter had no UpdateComment, so
+// AsCommentEditor refused with ErrNoCommentEdit.
+func TestUpdateCommentResolvesKeyAndSendsMarkdown(t *testing.T) {
+	w, rec := testLinearWriter(t)
+	src := "corrected **repro** steps"
+	doc := adf.FromMarkdown(src)
+	got, err := w.UpdateComment(context.Background(), "FIX-1", "00000000-0000-4000-8000-000000000016", doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rec.commentEdits != 1 {
+		t.Fatalf("commentUpdate calls = %d, want 1", rec.commentEdits)
+	}
+	if n := len(rec.queries); n != 2 || !strings.Contains(rec.queries[0], "query Issue(") || !strings.Contains(rec.queries[1], "mutation CommentUpdate") {
+		t.Fatalf("document sequence = %q, want the key resolve then the mutation", rec.queries)
+	}
+	var vars struct {
+		ID    string `json:"id"`
+		Input struct {
+			Body string `json:"body"`
+		} `json:"input"`
+	}
+	if err := json.Unmarshal(rec.lastEditVars, &vars); err != nil {
+		t.Fatalf("comment update variables: %v: %s", err, rec.lastEditVars)
+	}
+	if vars.ID != "00000000-0000-4000-8000-000000000016" {
+		t.Errorf("update id = %q, want the comment id the caller passed", vars.ID)
+	}
+	if vars.Input.Body != src {
+		t.Errorf("update body on the wire:\n%q\nwant the typed markdown\n%q", vars.Input.Body, src)
+	}
+	if got.ID != "00000000-0000-4000-8000-000000000016" {
+		t.Errorf("returned comment id = %q, want the origin's echo", got.ID)
+	}
+	if string(got.Body) != string(doc) {
+		t.Errorf("returned body = %s, want the caller's document", got.Body)
+	}
+}
+
+// GDK-1647: comment delete is the same resolve-then-mutation, and only the
+// id rides the variables. FAIL-first as above — no DeleteComment existed.
+func TestDeleteCommentResolvesKeyThenDeletes(t *testing.T) {
+	w, rec := testLinearWriter(t)
+	if err := w.DeleteComment(context.Background(), "FIX-1", "00000000-0000-4000-8000-000000000016"); err != nil {
+		t.Fatal(err)
+	}
+	if rec.commentDels != 1 {
+		t.Fatalf("commentDelete calls = %d, want 1", rec.commentDels)
+	}
+	if n := len(rec.queries); n != 2 || !strings.Contains(rec.queries[0], "query Issue(") || !strings.Contains(rec.queries[1], "mutation CommentDelete") {
+		t.Fatalf("document sequence = %q, want the key resolve then the mutation", rec.queries)
+	}
+	var vars struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(rec.lastDeleteVar, &vars); err != nil {
+		t.Fatalf("comment delete variables: %v: %s", err, rec.lastDeleteVar)
+	}
+	if vars.ID != "00000000-0000-4000-8000-000000000016" {
+		t.Errorf("delete id = %q", vars.ID)
+	}
+}
+
+// GDK-1647: an unknown key is refused as an unknown key — before any
+// mutation leaves the process — so the caller's mistake is named by the
+// resolve, not by Linear's "comment not found".
+func TestCommentEditDeleteUnknownKeyRefusesBeforeMutation(t *testing.T) {
+	w, rec := testLinearWriter(t)
+	if _, err := w.UpdateComment(context.Background(), "NOPE-9", "00000000-0000-4000-8000-000000000016", adf.FromMarkdown("x")); err == nil {
+		t.Fatal("unknown key was accepted on edit")
+	}
+	if err := w.DeleteComment(context.Background(), "NOPE-9", "00000000-0000-4000-8000-000000000016"); err == nil {
+		t.Fatal("unknown key was accepted on delete")
+	}
+	if rec.commentEdits != 0 || rec.commentDels != 0 {
+		t.Fatalf("a failed resolve must not send mutations; edits=%d deletes=%d", rec.commentEdits, rec.commentDels)
+	}
+}
+
+// GDK-1647: the face is real on linearWriter — AsCommentEditor succeeds, and
+// the four absent faces stay absent (the enumeration test keeps their list).
+func TestLinearWriterIsCommentEditor(t *testing.T) {
+	w, _ := testLinearWriter(t)
+	ed, err := AsCommentEditor(w)
+	if err != nil {
+		t.Fatalf("linearWriter must answer AsCommentEditor: %v", err)
+	}
+	if _, ok := ed.(*linearWriter); !ok {
+		t.Fatalf("AsCommentEditor returned %T, want *linearWriter", ed)
 	}
 }
 

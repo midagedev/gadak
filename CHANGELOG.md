@@ -33,6 +33,15 @@
   declares — so versions, issue links, create-field catalogs, media refs and
   sprints were all invisible to the code that asks an origin what it can do.
   The question now looks through the wrapper. ([GDK-1655])
+- **A comment can be edited or deleted.** `gadak comment edit <KEY> <ID> -m
+  "…"` replaces a comment's body and `gadak comment rm <KEY> <ID> --yes`
+  removes it, on Jira, Linear and the built-in tracker. Until now a wrong
+  comment could only be followed by another one. The id is whatever a read
+  handed you: `gadak sql` prints the mirror's `jira:91653`, `gadak issue`
+  prints `91653`, and both are accepted. An edit sends what a post sends —
+  ADF on Cloud, the wiki-markup string on a Jira Server workspace — and an
+  agent's actor trailer survives the edit without being appended a second
+  time. ([GDK-1647])
 - **Sprints on a Jira Server workspace.** Server carries the sprint field as
   the Java `toString` of its own bean — `Sprint@4ffcc813[…,id=1,name=Sprint
   1,…,state=ACTIVE,…]` — where Cloud sends an object, so every issue in a
@@ -1746,6 +1755,7 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-1644]: https://gadak.dev/backlog/#/?ks=GDK-1644
 [GDK-1639]: https://gadak.dev/backlog/#/?ks=GDK-1639
 [GDK-1637]: https://gadak.dev/backlog/#/?ks=GDK-1637
+[GDK-1647]: https://gadak.dev/backlog/#/?ks=GDK-1647
 [GDK-1648]: https://gadak.dev/backlog/#/?ks=GDK-1648
 [GDK-1617]: https://gadak.dev/backlog/#/?ks=GDK-1617
 [GDK-1626]: https://gadak.dev/backlog/#/?ks=GDK-1626
