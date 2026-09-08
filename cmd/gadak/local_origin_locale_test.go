@@ -2,7 +2,7 @@ package main
 
 // GDK-597: a local-origin workspace speaks the user's language, and display
 // names are never keys. This pins the whole chain at the CLI level — config
-// locale → embedded origin (Cloud fidelity: priority names English) →
+// locale → embedded origin (status, type and priority names all in it) →
 // locale-triggered mirror rebuild → queries keyed by status_category.
 
 import (
@@ -111,7 +111,8 @@ func TestLocalOriginLocaleRebuildRoundtrip(t *testing.T) {
 
 	// The rebuild is what re-fetches the English-era row: query BOTH keys by
 	// status_category — the stable id, never the display name — and expect
-	// Korean statuses with English priority names (Cloud fidelity). Per row:
+	// Korean statuses and Korean priority names (GDK-1596: until 2026-09-08
+	// issuetap's embedded role pinned priorities to English). Per row:
 	// the English-era issue's `updated` is behind the watermark, so a pass
 	// that skips unchanged rows would leave it in English — a mixed mirror.
 	sqlOut, err = capture(t, func() error {
@@ -136,8 +137,8 @@ func TestLocalOriginLocaleRebuildRoundtrip(t *testing.T) {
 		if cols[0] != "해야 할 일" {
 			t.Fatalf("%s status %q, want Korean — row not rewritten by the rebuild:\n%s", key, cols[0], sqlOut)
 		}
-		if cols[1] != "Medium" {
-			t.Fatalf("%s priority %q, want English (Cloud fidelity):\n%s", key, cols[1], sqlOut)
+		if cols[1] != "보통" {
+			t.Fatalf("%s priority %q, want Korean — priority names follow the locale like statuses (GDK-1596):\n%s", key, cols[1], sqlOut)
 		}
 	}
 

@@ -9,7 +9,7 @@ re-read after it lands.
 Every cell carries a footnote pointing at the code that makes it true — a
 `path:line` in this repository, or a line in the Built-in origin's
 compatibility inventory (module
-`github.com/midagedev/issuetap@v0.0.0-20260903043728-916803b7b457`, cited
+`github.com/midagedev/issuetap@v0.0.0-20260908020949-36f2416c54d3`, cited
 below as `issuetap/docs/COMPATIBILITY.md`). A Built-in cell is never "same
 as Jira": it means the Jira REST verb exists and the Built-in origin
 implements the route.

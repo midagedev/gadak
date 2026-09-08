@@ -264,11 +264,12 @@ while (( take <= MAX_TAKES )); do
   # chips. The knob is the workspace's own (GDK-597), and `sync` notices the
   # change and rebuilds ("locale changed en → ko: rebuilding the mirror").
   #
-  # Two things stay English on purpose and are not a miss here: priority
-  # names (Highest…Lowest — gadak keeps them English like a live ko Cloud
-  # site) and the two board statuses issuetap leaves untranslated in every
-  # locale (`Backlog`, `Selected for Development`). Both are the origin
-  # modelling Jira, not the take leaking its recorder's language.
+  # Priority names follow the locale as well since GDK-1596 (the ko take's
+  # `우선순위 Medium` was the measured miss; issuetap's embedded role had
+  # pinned them to English). The two board statuses issuetap leaves
+  # untranslated in every locale (`Backlog`, `Selected for Development`)
+  # still stay English — that is the origin modelling Jira, not the take
+  # leaking its recorder's language.
   if [[ "$LOCALE" != "en" ]]; then
     echo "record-terminal-claude: workspace $WS locale → $LOCALE (display names follow it)"
     GADAK_HOME="$GADAK_HOME_DIR" "$BIN" --workspace "$WS" config set locale "$LOCALE" >>"$OUT/migrate-${take}.log" 2>&1
