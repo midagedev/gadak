@@ -30,6 +30,12 @@ const retroDefaultSince = "14d"
 // of the table by its row.
 var retroOpenMetrics = []string{"closed", "in-progress", "mismatch", "cycle"}
 
+// retroNow is the one clock a retro run reads. A test pins it so that a
+// hand query it compares against can bind the same instant instead of
+// asking SQLite for a second "now" — two readings of now round to
+// different tenths at an x.x5 day boundary (GDK-1594, CI 2026-09-08).
+var retroNow = time.Now
+
 // retroBucketKeys is the key set behind one cell.
 func retroBucketKeys(b retro.Bucket, metric string) []string {
 	switch metric {
@@ -130,7 +136,7 @@ func cmdRetro(args []string) error {
 		fmt.Fprintf(os.Stderr, "warning: could not read the workspace config; resume counts any author on visited issues: %v\n", cfgErr)
 		me = store.FeedIdentity{}
 	}
-	rep, err := retro.Compute(context.Background(), db, me, since, time.Now(), retro.Options{SessionGap: sessionGap})
+	rep, err := retro.Compute(context.Background(), db, me, since, retroNow(), retro.Options{SessionGap: sessionGap})
 	if err != nil {
 		return err
 	}

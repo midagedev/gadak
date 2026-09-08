@@ -268,6 +268,17 @@ func TestRetroClosedAndWipMatchHandSQL(t *testing.T) {
 	sqlDemoHome(t)
 	retroSeedCatalog(t)
 
+	// One clock for both sides. retro reads retroNow(); the wip-age hand
+	// query below binds the same instant. With julianday('now') on the SQL
+	// side the two readings were milliseconds apart, and whenever the p85
+	// age sat within that gap of an x.x5 day boundary round(days, 1) landed
+	// on different tenths — FAIL-first is CI run 34172962018 on 52c28d35
+	// ("retro 79.5, RECIPES hand SQL 79.4"), a docs-only commit (GDK-1594).
+	// Millisecond truncation because ISOMilli is what SQLite gets to parse.
+	fixedNow := time.Now().UTC().Truncate(time.Millisecond)
+	retroNow = func() time.Time { return fixedNow }
+	t.Cleanup(func() { retroNow = time.Now })
+
 	// The hand queries of docs/RECIPES.md ## Retro, kept character for
 	// character beside the retro implementation that must agree with them.
 	const handClosedSQL = `select count(distinct c.item_id) as closed
@@ -283,8 +294,10 @@ where c.field = 'status'
   and c.at >= ?
   and c.at <  ?
   and prev.status_id is null`
+	// RECIPES.md says julianday('now'); the test binds the pinned instant in
+	// its place, which is the only difference from the doc's text.
 	const handWipSQL = `with ages as (
-  select julianday('now') - julianday(status_changed_at) as days
+  select julianday(?) - julianday(status_changed_at) as days
   from issues_full
   where status_category = 'inprogress'
 )
@@ -378,7 +391,7 @@ limit 1 offset ((85 * (select count(*) from cycles) + 99) / 100 - 1)`
 	}
 	// Current week wip age p85 against the hand query, one decimal.
 	var handWip sql.NullFloat64
-	if err := db.QueryRow(handWipSQL).Scan(&handWip); err != nil || !handWip.Valid {
+	if err := db.QueryRow(handWipSQL, fixedNow.Format(config.ISOMilli)).Scan(&handWip); err != nil || !handWip.Valid {
 		t.Fatalf("hand wip query: %v valid=%v", err, handWip.Valid)
 	}
 	last := buckets[len(buckets)-1]
