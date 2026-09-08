@@ -1,7 +1,9 @@
 # Install
 
-A Jira workspace needs one [API token](https://id.atlassian.com/manage-profile/security/api-tokens)
-(it covers Jira and Confluence on the same site). A workspace on the built-in tracker
+A Jira workspace connects to **Atlassian Cloud** and needs one
+[API token](https://id.atlassian.com/manage-profile/security/api-tokens) — a user
+token created with no scopes; it covers Jira and Confluence on the same site.
+Jira Server and Data Center are untested and not claimed. A workspace on the built-in tracker
 needs no Atlassian account at all. Pick an install under [The ways in](#the-ways-in),
 then [First run](#first-run).
 

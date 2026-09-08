@@ -9,27 +9,36 @@
  * which is exactly how `og.png` came to ship an English tagline to every
  * Japanese and Korean reader for as long as it did (GDK-1501).
  *
+ * Each heading names the job, not a feeling: the 2026-09-08 review round
+ * (GDK-1632) found "Same Jira. No waiting." told a reader arriving from a
+ * search result or a reshared link nothing about what the tool is, and
+ * promised no waiting for operations that still wait on sync. The three
+ * headings differ on purpose — the editions are parallel, not translated —
+ * and each says what its reader came looking for. "Follow the thread." stays
+ * the brand line; it does not have to explain the product.
+ *
  * `proof` is the row of three claims along the bottom of the card. It exists
  * only for `en` on purpose: nobody has authored the Korean or Japanese
  * wording, and the renderer omits the row rather than setting an English
  * strip under a Japanese headline. Add a `proof` array to a locale and the
- * row appears there on the next `make brand` — no renderer change.
+ * row appears there on the next `make brand` — no renderer change. Every
+ * claim in it is a ledger fact (docs/project/FACT_LEDGER.md §6, §8).
  *
  * @typedef {{ heading: string, body: string, proof?: string[] }} TaglineCopy
  * @type {Record<'en' | 'ko' | 'ja', TaglineCopy>}
  */
 export const TAGLINE = {
   en: {
-    heading: 'Same Jira. No waiting.',
-    body: 'Your team’s Jira — and its Confluence wiki — mirrored into one local SQLite file.',
-    proof: ['17 ms reads', 'GROUP BY in one query', 'agents speak SQL to it'],
+    heading: 'Query your Jira backlog with SQL.',
+    body: 'Selected Jira Cloud projects and Confluence spaces, mirrored into SQLite on your machine.',
+    proof: ['GROUP BY in 22 ms', 'search with no network', 'an MCP server for your agent'],
   },
   ko: {
-    heading: '같은 Jira, 기다림 없이.',
-    body: '팀의 Jira와 Confluence 위키를 통째로 캐시합니다.',
+    heading: '묵은 Jira 이슈를 Claude Code로 찾아봅니다.',
+    body: '필요한 Jira 프로젝트와 Confluence 스페이스를 골라 캐시합니다.',
   },
   ja: {
-    heading: '同じJira。待ち時間なし。',
-    body: 'チームのJiraとConfluenceのWikiを、まるごとキャッシュ。',
+    heading: 'Jira の課題を SQL で集計する。',
+    body: '指定した範囲の Jira と Confluence をキャッシュし、まとめて検索できます。',
   },
 }

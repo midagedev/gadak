@@ -60,7 +60,10 @@ const store = 'https://apps.microsoft.com/detail/9NZW91TXH36G'
   </p>
 
   <h2 id="first-run">처음 실행</h2>
-  <p>회사 Jira에 연결합니다 (사이트, 이메일, 토큰, 프로젝트를 차례로 묻습니다):</p>
+  <p>
+    회사 Jira Cloud 사이트에 연결합니다. 사이트, 이메일, API 토큰, 캐시할 프로젝트를 차례로 묻습니다.
+    Server와 Data Center는 검증 전이라 된다고 하지 않습니다:
+  </p>
   <Snippet
     code={`gadak init && gadak sync && gadak serve`}
     copyLabel="복사"
@@ -95,10 +98,10 @@ gadak serve`}
   </p>
 
   <h2 id="agents">에이전트 연결</h2>
-  <p>같은 캐시를 코딩 에이전트에게 넘기려면:</p>
+  <p>Claude Code용 스킬을 설치합니다:</p>
   <Snippet code="gadak skill install" copyLabel="복사" copiedLabel="복사됨" />
-  <p>셸이 없는 MCP 클라이언트(Claude Desktop)에는:</p>
-  <Snippet code="claude mcp add gadak -- gadak mcp" copyLabel="복사" copiedLabel="복사됨" />
+  <p>Claude Desktop에는 MCP 서버를 등록합니다:</p>
+  <Snippet code="gadak mcp install claude-desktop" copyLabel="복사" copiedLabel="복사됨" />
   <p class="note">
     연결한 뒤 에이전트가 할 수 있는 일:
     <a href="https://github.com/midagedev/gadak/blob/main/docs/AGENT_SETUP.md">AGENT_SETUP.md</a>.

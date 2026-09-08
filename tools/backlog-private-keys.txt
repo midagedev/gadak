@@ -8,3 +8,4 @@
 #
 # Format: GDK-nnn<tab or space>reason
 # # comments and blank lines ignored.
+GDK-1632	front-door review originals (six full editorial reports) — kept off the public backlog on purpose; cited from FACT_LEDGER §16, tagline.js and Landing.astro as the round that set the rules

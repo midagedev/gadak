@@ -47,6 +47,40 @@
   a live Jira Server 11.3.11: `gadak sync` fills the mirror. Descriptions
   arrive as wiki markup, assignees carry no accountId, and attachment bytes
   are not reachable yet — those are the next three. ([GDK-1636])
+- **`gadak mcp install claude-desktop` registers with Claude Desktop — and
+  `gadak mcp install claude` now says what it is.** Every front door taught
+  "for hosts without a shell (Claude Desktop): `gadak mcp install claude`",
+  and that command runs Claude *Code*'s `claude mcp add`, which Claude Desktop
+  never reads; a Desktop user who followed it registered nothing, or was told
+  `claude` was not on `PATH`. The new client merges a `gadak` entry into
+  `claude_desktop_config.json` (macOS, Windows and Linux paths; other servers
+  and keys in the file are preserved byte for byte; an unparsable file is
+  refused, not overwritten; `--dry-run` prints what it would write). The
+  Integrations card that called itself "Claude Desktop MCP" while probing the
+  `claude` CLI is now two cards, one per host, and the onboarding wizard,
+  `gadak init`'s next-steps block, the CLI help, the README and the site all
+  name the right command. Three independent editorial reviews of the front
+  door found this one; the fix is in the product rather than the copy so it
+  cannot drift back. ([GDK-1633])
+- **The front door says what gadak is before it says how fast it is.** The
+  landing heading in every language is a job, not a slogan — "Query your Jira
+  backlog with SQL." — and the canonical `GROUP BY`, runnable in the browser
+  on the demo snapshot, sits under it. The trust section stopped being a
+  verdict ("why this is safe to try") and became the facts a reader needs
+  *before* handing over a token: Jira Cloud only, `--projects`/`--spaces` with
+  the wiki off until named, one SQLite file that needs a first full sync
+  (10.6 minutes on the benchmark site) and then trails Jira by one interval
+  (60 s by default, with an hourly reconcile that drops issues you can no
+  longer see), where the token lives, that a rejected write fails rather than
+  queues, which four reads still ask Jira, and that an agent forwards what it
+  reads to its model. The Rovo comparison lost its staged concession and
+  gained the real one (a local binary and an initial sync); "8 API pages" is
+  labelled as this measurement's number, not a law of JQL; the attribution
+  claim shrank to what the code does (comments and created issues carry the
+  agent's name; nothing about pull requests); every edition ends by asking
+  what happened when you used it and what to keep out of a public report.
+  The READMEs follow the same order. `docs/project/FACT_LEDGER.md` §16 carries
+  the rules so the next rewrite does not rediscover them. ([GDK-1601], [GDK-1622])
 - **gadak no longer looks for its own updates.** It used to ask GitHub once a
   day whether a newer release existed, unless you turned that off. That was
   the one outbound connection nobody had asked for, and it made the sentence
@@ -1667,3 +1701,6 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-1648]: https://gadak.dev/backlog/#/?ks=GDK-1648
 [GDK-1617]: https://gadak.dev/backlog/#/?ks=GDK-1617
 [GDK-1626]: https://gadak.dev/backlog/#/?ks=GDK-1626
+[GDK-1633]: https://gadak.dev/backlog/#/?ks=GDK-1633
+[GDK-1601]: https://gadak.dev/backlog/#/?ks=GDK-1601
+[GDK-1622]: https://gadak.dev/backlog/#/?ks=GDK-1622

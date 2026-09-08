@@ -44,6 +44,35 @@
   붙여 거절합니다. 실제 Jira Server 11.3.11 로 실측했습니다: `gadak sync` 가
   미러를 채웁니다. 설명은 wiki markup 으로 오고 담당자에 accountId 가 없으며
   첨부 바이트는 아직 닿지 않습니다 — 다음 셋입니다. ([GDK-1636])
+- **`gadak mcp install claude-desktop` 가 Claude Desktop 에 등록합니다. 그리고
+  `gadak mcp install claude` 는 이제 자기가 무엇인지 말합니다.** 모든 앞문이
+  "셸 없는 호스트(Claude Desktop)에는 `gadak mcp install claude`" 라고
+  가르쳤는데, 그 명령은 Claude *Code* 의 `claude mcp add` 를 실행하는
+  것이라 Claude Desktop 은 읽지 않습니다. 따라 한 Desktop 사용자는 아무것도
+  등록되지 않거나 `claude` 가 `PATH` 에 없다는 말을 들었습니다. 새 클라이언트는
+  `claude_desktop_config.json` 에 `gadak` 항목을 합쳐 넣습니다(macOS·Windows·
+  Linux 경로, 파일 안의 다른 서버와 키는 바이트 그대로 보존, 해석되지 않는
+  파일은 덮어쓰지 않고 거절, `--dry-run` 은 쓸 내용만 출력). `claude` CLI 를
+  찔러 보면서 "Claude Desktop MCP" 라고 적혀 있던 통합 카드는 호스트별로
+  둘이 됐고, 온보딩 마법사, `gadak init` 의 다음 단계, CLI 도움말, README,
+  사이트가 전부 맞는 명령을 가리킵니다. 독립된 감수 세 편이 같이 잡은
+  결함이고, 다시 어긋나지 못하게 카피가 아니라 제품에서 고쳤습니다. ([GDK-1633])
+- **앞문이 빠르다는 말보다 무엇인지를 먼저 말합니다.** 세 언어의 랜딩 제목이
+  구호가 아니라 하는 일이 됐고, 브라우저에서 바로 돌려 볼 수 있는 `GROUP BY`
+  쿼리가 그 아래 놓였습니다. "안심하고 써도 되는 이유" 같은 판정문이던 절은
+  토큰을 건네기 *전에* 알아야 할 사실로 바뀌었습니다: Atlassian Cloud 만
+  지원, `--projects`/`--spaces` 로 범위를 고르고 위키는 지정 전까지 꺼져 있음,
+  SQLite 파일 하나에 첫 전체 동기화가 필요하고(측정 사이트에서 10.6 분) 그
+  뒤로는 동기화 주기(기본 60 초, 한 시간마다 더 볼 수 없게 된 이슈를 지우는
+  대조 포함)만큼 늦음, 토큰이 어디 있는지, 거절된 쓰기는 쌓이지 않고 실패함,
+  여전히 Jira 에 묻는 읽기 넷, 에이전트는 읽은 것을 자기 모델로 보냄. Rovo
+  비교표는 연출된 양보 행 대신 실제 비용(로컬 바이너리와 첫 동기화)을
+  얻었고, "API 8 페이지" 는 JQL 의 법칙이 아니라 이번 측정의 숫자로 표기되고,
+  귀속 주장은 코드가 하는 만큼으로 줄었으며(댓글과 만든 이슈에 에이전트 이름,
+  PR 은 없음), 모든 판본이 써 보고 어땠는지 묻는 절과 공개 이슈에 붙이지 말
+  것으로 끝납니다. README 셋도 같은 순서를 따릅니다. 다음 재작성이 같은 것을
+  다시 발견하지 않도록 규칙은 `docs/project/FACT_LEDGER.md` §16 에 있습니다.
+  ([GDK-1601], [GDK-1622])
 - **gadak 이 자기 업데이트를 찾지 않습니다.** 전에는 끄지 않는 한 하루 한 번
   GitHub 에 새 릴리스가 있는지 물었습니다. 사용자가 부탁한 적 없는 유일한
   외부 연결이었고, 그 하나 때문에 정문이 하고 싶은 말 — gadak 이 말을 거는
@@ -1606,3 +1635,6 @@ HTTP·sync·에이전트 계약을 담았습니다.
 [GDK-1648]: https://gadak.dev/backlog/#/?ks=GDK-1648
 [GDK-1617]: https://gadak.dev/backlog/#/?ks=GDK-1617
 [GDK-1626]: https://gadak.dev/backlog/#/?ks=GDK-1626
+[GDK-1633]: https://gadak.dev/backlog/#/?ks=GDK-1633
+[GDK-1601]: https://gadak.dev/backlog/#/?ks=GDK-1601
+[GDK-1622]: https://gadak.dev/backlog/#/?ks=GDK-1622

@@ -8,9 +8,15 @@ interface Props {
   copiedLabel: string
 }
 const { code, copyLabel, copiedLabel } = Astro.props
+// A one-line command has room for the button beside it (pre reserves the
+// padding). A multi-line block scrolls horizontally instead of wrapping, so a
+// long first line runs *under* the button — measured on the SQL block, which
+// occluded the tail of `resolved_at is null` at 1280 (vision round
+// 2026-09-08). Those get the phone treatment: the button on its own row.
+const multiline = code.includes('\n')
 ---
 
-<div class="snippet">
+<div class:list={['snippet', { multiline }]}>
   <pre><code>{code}</code></pre>
   <button
     type="button"
@@ -96,6 +102,10 @@ const { code, copyLabel, copiedLabel } = Astro.props
   }
   .copy.done {
     color: var(--accent);
+  }
+  .multiline pre {
+    padding-right: 1.25rem;
+    padding-top: 2.4rem;
   }
   @media (max-width: 40rem) {
     pre {

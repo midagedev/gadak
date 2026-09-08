@@ -7,8 +7,37 @@ import { TAGLINE } from './tagline.js'
 export const LOCALES = ['en', 'ko', 'ja'] as const
 export type Locale = (typeof LOCALES)[number]
 
-/** One landing section. Each locale lists the sections it shows, in its own order (`layout`). */
-export type Section = 'hero' | 'compare' | 'speed' | 'search' | 'agent' | 'origin' | 'install' | 'ask'
+/**
+ * One landing section. Each locale lists the sections it shows, in its own
+ * order (`layout`). The set is the shape the 2026-09-08 review round
+ * (GDK-1632) settled on: say what it is (hero), prove it before asking for a
+ * token (query, speed, search, agent), put every fact a reader needs before
+ * connecting work data in one place (connect), then install, then where the
+ * project stands (status), then ask what happened (ask). `compare` is the
+ * one en-only section — the objection an HN reader will type.
+ */
+export type Section =
+  | 'hero'
+  | 'query'
+  | 'speed'
+  | 'search'
+  | 'agent'
+  | 'compare'
+  | 'connect'
+  | 'install'
+  | 'status'
+  | 'ask'
+
+/**
+ * The canonical query and the link that runs it on the demo snapshot in the
+ * browser. Both are contract strings (docs/project/FACT_LEDGER.md §7): the SQL
+ * is what the README prints, and the Datasette Lite URL carries that same SQL
+ * URL-encoded — change one and the other is a lie.
+ */
+export const CANONICAL_SQL = `gadak sql "select epic_key, count(*) from issues_full where resolved_at is null
+           and epic_key <> '' group by epic_key order by 2 desc"`
+export const DATASETTE_DEMO_URL =
+  "https://lite.datasette.io/?url=https%3A%2F%2Fraw.githubusercontent.com%2Fmidagedev%2Fgadak%2Fmain%2Fexamples%2Fdemo.db#/demo?sql=select+epic_key%2C+count(*)+from+issues_full+where+resolved_at+is+null+and+epic_key+%3C%3E+''+group+by+epic_key+order+by+2+desc"
 
 /**
  * The strings one locale carries. The three locales are parallel editions,
@@ -34,16 +63,13 @@ export interface Strings {
     videoCaption: string
     doors: { installTitle: string; installSub: string; demoTitle: string; demoSub: string }
   }
-  /** en only: the question every HN/Reddit thread opens with, answered before it is asked. */
-  compare?: {
+  /** The runnable proof: the canonical GROUP BY and Datasette Lite on the demo snapshot. */
+  query?: {
     label: string
     heading: string
-    body: string
-    colA: string
-    colB: string
-    rows: ReadonlyArray<{ what: string; a: string; b: string }>
-    note: string
-    noteLink: string
+    lead: string
+    datasetteLabel: string
+    result: string
   }
   speed: {
     label: string
@@ -58,24 +84,28 @@ export interface Strings {
     label: string
     heading: string
     body: string
-    skillLead: string
-    mcpLead: string
     setupLink: string
     driveCaption: string
     showcaseLink: string
+    /** The skill + MCP commands, when this locale keeps them in the agent section (ko moves them under install). */
+    setup?: { skillLead: string; mcpLead: string }
   }
-  origin: {
-    label: string
-    heading: string
-    points: readonly string[]
-    /** Optional pointer under the list (ja links SECURITY.md here). */
-    link?: { href: string; label: string }
-  }
-  /** ko only: the one sentence the maintainer is asking for. */
-  ask?: {
+  /** en only: the official hosted server, compared on capability and operating cost. */
+  compare?: {
     label: string
     heading: string
     body: string
+    colA: string
+    colB: string
+    rows: ReadonlyArray<{ what: string; a: string; b: string }>
+    note: string
+    noteLink: string
+  }
+  /** Before connecting work data: which Jira, how much is copied, where it lives, what leaves the machine. */
+  connect: {
+    label: string
+    heading: string
+    points: readonly string[]
     links: ReadonlyArray<{ href: string; label: string }>
   }
   changelog: {
@@ -86,114 +116,154 @@ export interface Strings {
     fallbackNote: string
   }
   install: {
+    label: string
     heading: string
     macosApp: string
     cliOnly: string
     windowsBefore: string
     windowsAfter: string
     firstRun: string
+    /** The skill + MCP commands, when this locale places them after the first run (ko). */
+    setup?: { skillLead: string; mcpLead: string }
+  }
+  /** Where the project stands: 0.x, one maintainer, license, what stays in Jira. */
+  status: {
+    label: string
+    heading: string
+    points: readonly string[]
+    links: ReadonlyArray<{ href: string; label: string }>
+  }
+  /** The closing ask — what happened when you used it — and what must stay out of a public report. */
+  ask: {
+    label: string
+    heading: string
+    body: string
+    caution: string
+    links: ReadonlyArray<{ href: string; label: string }>
   }
   landing: { flagshipSlot: string; searchSlot: string; agentSlot: string; allPlatforms: string }
   footer: { builtBy: string; whereBytes: string }
 }
 
 const GITHUB = 'https://github.com/midagedev/gadak'
+const DOCS = `${GITHUB}/blob/main/`
 
 export const strings: Record<Locale, Strings> = {
   en: {
     htmlLang: 'en',
     ogLocale: 'en_US',
-    title: 'gadak — Same Jira. No waiting.',
+    title: 'gadak — Query your Jira backlog with SQL',
     description:
-      'Query Jira with SQL, search it offline, and hand your coding agent a local MCP server. gadak mirrors Jira and Confluence into one SQLite file on your machine. Reads never touch the network.',
+      'gadak mirrors the Jira Cloud projects and Confluence spaces you choose into SQLite on your machine. Search with no network, query with SQL, and hand a coding agent the same file through a skill or an MCP server.',
     nav: { demo: 'Live demo', changelog: 'Changelog', install: 'Install', github: 'GitHub' },
     copy: { label: 'Copy', copied: 'Copied' },
     ogImageAlt:
-      'gadak — Same Jira. No waiting. Your team’s Jira and its Confluence wiki, mirrored into one local SQLite file.',
+      'gadak — Query your Jira backlog with SQL. Selected Jira Cloud projects and Confluence spaces, mirrored into SQLite on your machine.',
     langName: 'English',
     langBanner: {
       offer: 'This page is also available in English.',
       cta: 'View in English →',
       dismiss: 'Dismiss',
     },
-    // The HN reader decides in this order: the pain, the objection they were
-    // about to type, the measurement, the daily loop, the agent, trust, install.
-    layout: ['hero', 'compare', 'speed', 'search', 'agent', 'origin', 'install'],
+    // The HN reader: what it is, the query they can run right now, the
+    // measurement, the daily search, the agent, the objection they were about
+    // to type, what to check before connecting work data, install, status,
+    // and a way to say what happened.
+    layout: ['hero', 'query', 'speed', 'search', 'agent', 'compare', 'connect', 'install', 'status', 'ask'],
     hero: {
       eyebrow: 'gadak',
       heading: TAGLINE.en.heading,
       lede:
-        'JQL has no GROUP BY. Past one page of results the API hands you rows and leaves the counting to you. gadak keeps your Jira and Confluence in one SQLite file on your machine, so the question is one query and the answer is milliseconds. Offline search, real SQL, an MCP server for your agent. Jira stays the source of truth; the file is a cache.',
-      videoCaption: 'A 20,000-issue mirror. Search as fast as you can type. Recorded, not animated.',
+        'gadak mirrors the Jira Cloud projects and Confluence spaces you choose into one SQLite file on your machine. Search it with no network, query it with SQL, and give a coding agent the same file. The desktop app, the browser tab and the CLI read the same data. Writes go to Jira first; the file is a cache you can delete.',
+      videoCaption:
+        'Recording: search over a 20,000-issue mirror built from the demo snapshot. Screen capture, not an animation.',
       doors: {
         installTitle: 'Install',
-        installSub: 'Homebrew on macOS, the Microsoft Store on Windows, a CLI for Linux.',
+        installSub: 'Homebrew on macOS, the Microsoft Store on Windows, a CLI for Linux that opens the same UI in a browser tab.',
         demoTitle: 'Live demo',
         demoSub: '534 issues in your browser. No install, no account.',
       },
     },
-    compare: {
-      label: 'The first question in every thread',
-      heading: 'Why not the official Atlassian MCP server?',
-      body:
-        'Use it when the agent has to act on Jira right now. It is hosted by Atlassian, searches Jira and Confluence together, and needs nothing installed. The difference is what happens after the search. A hosted server answers one question per round trip, cannot aggregate, and does not work offline. gadak is the other half: the same data as a file on your disk, so a count over the whole backlog, a join across the change history, or a search on a plane is one query.',
-      colA: 'Rovo MCP (hosted)',
-      colB: 'gadak (local file)',
-      rows: [
-        { what: 'Where the query runs', a: 'Atlassian’s cloud', b: 'your disk' },
-        { what: 'Open issues per epic', a: 'no such tool', b: 'one GROUP BY, 22 ms' },
-        { what: 'Search across 20,000 issues', a: 'one round trip per question', b: 'milliseconds, offline' },
-        { what: 'Confluence in the same index', a: 'yes', b: 'yes' },
-        { what: 'Writes: comment, transition, assign', a: 'yes', b: 'yes, through Jira first' },
-        { what: 'Freshness', a: 'live', b: 'one sync interval behind' },
-        { what: 'Acting on Jira in real time', a: 'the right tool', b: 'not what this is for' },
-      ],
-      note: 'jira-cli, Linear and Jira’s own UI, compared the same way:',
-      noteLink: 'docs/FAQ.md#how-it-compares',
+    query: {
+      label: 'Count unresolved issues by epic',
+      heading: 'JQL has no GROUP BY.',
+      lead: 'Past one page of results the API hands you rows and leaves the counting to you. Once the data is a file, the question is one query:',
+      datasetteLabel: 'Run this query on the demo snapshot in your browser (Datasette Lite, nothing installed) →',
+      result:
+        'On a live Cloud site with 3,296 issues (2026-08-26, medians): 4,761 ms over 8 API pages aggregated client-side, against 22 ms for this query.',
     },
     speed: {
-      label: 'Fast is a measurement, not an adjective',
-      heading: 'The same question, asked two ways',
-      note: 'Measured 2026-08-26 against a live Atlassian Cloud site (a real work project, 3,296 issues), not a synthetic fixture. gadak numbers include full CLI process startup. Method, re-measurement history, and the rows where gadak loses:',
+      label: 'Local reads compared with the Jira REST API',
+      heading: 'The same questions, measured',
+      note: 'Measured 2026-08-26 against a live Atlassian Cloud site (a real work project, 3,296 issues). Medians; gadak numbers include full CLI process startup. A first full sync of that site took 10.6 minutes, and the mirror trails Jira by one sync interval. Method, re-measurements, and the rows where gadak loses: ',
       rows: [
-        { what: 'Simple filter, 100 issues', value: '583 ms', alt: '19 ms', ratio: '31×' },
-        { what: 'One issue + full changelog', value: '710 ms', alt: '28 ms', ratio: '25×' },
-        { what: 'Free-text search', value: '543 ms', alt: '41 ms', ratio: '13×' },
-        { what: 'Open issues per epic (GROUP BY)', value: '4,761 ms — 8 API pages', alt: '22 ms — one query', ratio: '214×' },
-        { what: 'A count over the change history', value: 'not expressible', alt: '14 ms', ratio: '—' },
-        { what: 'Rate limit', value: '429 + Retry-After', alt: 'none — your disk', ratio: '—' },
+        { what: 'Simple filter, 100 issues', value: '583 ms', alt: '19 ms', ratio: '31×' },
+        { what: 'One issue + full changelog', value: '710 ms', alt: '28 ms', ratio: '25×' },
+        { what: 'Free-text search', value: '543 ms', alt: '41 ms', ratio: '13×' },
+        { what: 'Open issues per epic (GROUP BY)', value: '4,761 ms — 8 API pages', alt: '22 ms — one query', ratio: '214×' },
+        { what: 'A count over the change history', value: 'no native aggregate; ≈ 28 min of crawling', alt: '14 ms', ratio: '—' },
+        { what: 'Rate limit on mirror reads', value: '429 + Retry-After', alt: 'none; reads stay local', ratio: '—' },
       ],
       colRest: 'Jira REST API',
       colGadak: 'gadak',
     },
     ux: {
-      label: 'The daily loop',
+      label: 'Search',
       search: {
         heading: 'Search that keeps up with typing',
         body:
-          'One palette over everything — titles, bodies, comments, even the wiki. Prefix matches land locally before you finish the word; full-text lands right behind them. No spinner, no round trip.',
+          'Issue titles, bodies, comments and wiki pages in one search, read from the local mirror. Results land before you finish the word; nothing waits on a round trip.',
       },
     },
     agent: {
       label: 'For the people building with agents',
-      heading: 'One vocabulary between you and the agent',
+      heading: 'Use the CLI from your coding agent',
       body:
-        'The CLI doubles as the agent interface: create, claim, transition — verbs an agent can run while you watch the same board. An MCP server covers clients without a shell. Writes go through to the origin; reads come off the local mirror. And every agent write is attributed: its comments and linked PRs carry the bot’s name in the same thread your team reads.',
-      skillLead: 'Hand the same mirror to your coding agent:',
-      mcpLead: 'For MCP clients without a shell (Claude Desktop):',
-      setupLink: 'Pasteable setup blocks for every tool → docs/AGENT_SETUP.md',
+        'The CLI is the agent interface: create, claim, transition, and SQL over the mirror, while you watch the same board. Writes go through Jira first, and an agent’s comments and the issues it creates carry its name. An agent that reads your mirror sends what it reads to whatever model it talks to; scope the mirror to what the agent should see.',
+      setupLink: 'One paste per host → docs/AGENT_SETUP.md',
       driveCaption:
-        'A live Claude Code session in that same pane: one sentence becomes the list, the next one saves and opens a dashboard, and the board beside it moves as the agent works.',
+        'A Claude Code session in gadak’s own terminal pane filters the issue list, then saves and opens a dashboard in the same window. Time-lapsed while the agent works.',
       showcaseLink: 'More recordings — dashboards, a team theme, a launcher, a live MCP session → docs/SHOWCASE.md',
+      setup: {
+        skillLead: 'Install the skill for Claude Code:',
+        mcpLead: 'For Claude Desktop, register the MCP server:',
+      },
     },
-    origin: {
-      label: 'Why this is safe to try',
-      heading: 'Jira stays the source of truth',
+    compare: {
+      label: 'Compared with the official Atlassian MCP server',
+      heading: 'Why not Rovo MCP?',
+      body:
+        'Rovo MCP is hosted by Atlassian and needs no local MCP server installation. It searches Jira and Confluence and has write tools, but no native aggregation tool and no offline reads. gadak runs SQL against a synchronized local mirror, so a count over the whole backlog or a join across the change history is one query. The costs are a local binary, an initial sync, and reads that trail Jira by one sync interval.',
+      colA: 'Rovo MCP (hosted)',
+      colB: 'gadak (local mirror)',
+      rows: [
+        { what: 'Where the query runs', a: 'Atlassian’s cloud', b: 'your machine, in SQLite' },
+        { what: 'Open issues per epic', a: 'no native aggregation tool', b: 'one GROUP BY; 22 ms on 3,296 issues (2026-08-26)' },
+        { what: 'Network required for search', a: 'yes', b: 'no, once the selected data is synced' },
+        { what: 'Searches Jira and Confluence', a: 'yes', b: 'yes, for the spaces you select' },
+        { what: 'Writes: comment, transition, assign', a: 'yes', b: 'yes, through Jira first' },
+        { what: 'Freshness', a: 'Atlassian’s hosted data', b: 'the last synced state, one interval behind' },
+        { what: 'Local setup', a: 'none', b: 'a local binary and an initial sync' },
+      ],
+      note: 'jira-cli, Linear and Jira’s own UI, compared the same way:',
+      noteLink: 'docs/FAQ.md#how-it-compares',
+    },
+    connect: {
+      label: 'Before you connect work data',
+      heading: 'What gets copied, where it lives, and what leaves your machine',
       points: [
-        'Writes pass through to Jira first; the mirror refreshes after the origin accepts.',
-        'The mirror is disposable — delete it and re-sync to rebuild it from the origin.',
-        'No telemetry, no analytics, no gadak account. gadak talks to your Jira site and to nothing else.',
+        'gadak connects to Jira Cloud with one API token; it covers Jira and Confluence on the same site. Server and Data Center are untested and not claimed.',
+        'You choose the scope: <code>--projects</code> for Jira, <code>--spaces</code> for the wiki. The wiki stays off until you name spaces.',
+        'The mirror is one SQLite file on your machine. It needs a first full sync, trails Jira by one sync interval, and can be deleted and rebuilt at any time.',
         'Credentials never reach SQLite, a log, or a snapshot.',
+        'No telemetry, no analytics, no gadak account. The only connections gadak opens are the ones you configured; the complete list is in SECURITY.md.',
+        'Writes go to Jira first and the mirror refreshes after Jira accepts. A write Jira did not accept fails then and there; nothing is queued locally.',
+        'A few reads still ask Jira: viewing an attachment, and the CLI verbs that fetch editable fields or pass a request through.',
+        'An agent that reads the mirror sends what it reads to whatever model it talks to. gadak itself sends nothing. Scope the mirror to what the agent should see.',
+      ],
+      links: [
+        { href: `${DOCS}SECURITY.md`, label: 'Every outbound destination and its condition → SECURITY.md' },
+        { href: `${DOCS}docs/NETWORK.md`, label: 'Every connection and its off switch → docs/NETWORK.md' },
       ],
     },
     changelog: {
@@ -208,17 +278,43 @@ export const strings: Record<Locale, Strings> = {
       fallbackNote: 'This changelog is published in English.',
     },
     install: {
+      label: 'Install and first sync',
       heading: 'Install',
       macosApp: 'The desktop app, CLI included:',
       cliOnly: 'CLI only:',
       windowsBefore: 'On Windows, the desktop app is on the',
       windowsAfter: '.',
-      firstRun: 'Connect to your team\'s Jira Cloud site — it asks for the site, your email, a token and the projects. Server and Data Center are untested:',
+      firstRun:
+        'Connect to your team’s Jira Cloud site. It asks for the site, your email, an API token and the projects to mirror; add --spaces to include the wiki:',
+    },
+    status: {
+      label: 'Where the project stands',
+      heading: 'Status and limits',
+      points: [
+        'Status: 0.21, still 0.x. Sync, reads, write-through, desktop, web, CLI and MCP are verified against a live site.',
+        'One maintainer, currently. Apache-2.0. The mirror is ordinary SQLite, and the 0.x contract is three promises: <code>issues_full</code> and the RECIPES queries, <code>gadak sql</code> stdout, and <code>gadak views open --keys -</code>.',
+        'Keep sprint planning, administration, page editing in a UI, and anything that cannot tolerate a sync interval of delay in Jira.',
+        'Three origins, one set of verbs: Atlassian Cloud, Linear, and the built-in tracker. What each one refuses is one table.',
+      ],
+      links: [
+        { href: `${DOCS}docs/SUPPORT_MATRIX.md`, label: 'What each origin supports' },
+        { href: `${DOCS}docs/FAQ.md`, label: 'Hard questions' },
+        { href: `${DOCS}docs/MAINTENANCE.md`, label: 'Who maintains this' },
+        { href: GITHUB, label: 'Source' },
+      ],
+    },
+    ask: {
+      label: 'Report what happened',
+      heading: 'If you used it on your own project, say so',
+      body:
+        'Tell us what question gadak answered, and whether you used it again. A report that it was slow or wrong is as useful as one that it worked. GitHub issues reach the maintainer directly.',
+      caution: 'Keep real issue data, tokens, and site URLs out of public reports.',
+      links: [{ href: `${GITHUB}/issues`, label: 'Open a GitHub issue' }],
     },
     // The landing's locale-varying fragments (MediaSlot labels, the
     // all-platforms link) — kept here so the component holds no copy.
     landing: {
-      flagshipSlot: 'flagship · 20k mirror',
+      flagshipSlot: 'recording · 20k mirror',
       searchSlot: 'search',
       agentSlot: 'agent in the window',
       allPlatforms: 'All platforms →',
@@ -231,88 +327,81 @@ export const strings: Record<Locale, Strings> = {
   ko: {
     htmlLang: 'ko',
     ogLocale: 'ko_KR',
-    title: 'gadak — 같은 Jira, 기다림 없이.',
+    title: 'gadak — 묵은 Jira 이슈를 Claude Code로 찾아봅니다',
     description:
-      '지라를 쓰기 싫은데 써야 하는 사람을 위한 앱입니다. Jira와 Confluence를 통째로 캐시해서 검색은 밀리초 안에 끝나고, 읽기는 네트워크를 타지 않습니다. 코딩 에이전트에게 그대로 넘길 수 있습니다.',
+      '필요한 Jira 프로젝트와 Confluence 스페이스를 골라 캐시하고, 검색과 이슈 조회에 씁니다. 사람이 직접 찾아도 되고 Claude Code에 스킬로 넘겨도 됩니다. 텔레메트리는 없습니다.',
     nav: { demo: '라이브 데모', changelog: '체인지로그', install: '설치', github: 'GitHub' },
     copy: { label: '복사', copied: '복사됨' },
-    ogImageAlt: 'gadak — 같은 Jira, 기다림 없이. 팀의 Jira와 Confluence 위키를 통째로 캐시합니다.',
+    ogImageAlt: 'gadak — 묵은 Jira 이슈를 Claude Code로 찾아봅니다. 필요한 Jira 프로젝트와 Confluence 스페이스를 골라 캐시합니다.',
     langName: '한국어',
     langBanner: {
       offer: '이 페이지는 한국어로도 볼 수 있습니다.',
       cta: '한국어로 보기 →',
       dismiss: '닫기',
     },
-    // 트위터에서 온 독자: 왜 만들었나 → 숫자 → 매일 쓰는 장면 → 에이전트 →
-    // 안심 → 설치, 그리고 마지막에 한 줄 부탁. 비교표는 없다 — 이 독자는
-    // 공식 MCP와 비교하러 오지 않는다.
-    layout: ['hero', 'speed', 'search', 'agent', 'origin', 'install', 'ask'],
+    // 트위터에서 온 독자: 무엇을 만들었고 왜 → 무엇을 찾아볼 수 있는지(검색,
+    // Claude Code) → 잰 값 → 연결 전에 확인할 것 → 설치(동기화 뒤에 스킬·MCP
+    // 명령) → 지금 상태 → 한 줄 부탁. 비교표는 없다 — 이 독자는 공식 MCP와
+    // 비교하러 오지 않는다.
+    layout: ['hero', 'search', 'agent', 'speed', 'connect', 'install', 'status', 'ask'],
     hero: {
       eyebrow: 'gadak',
       heading: TAGLINE.ko.heading,
       lede:
-        '지라를 쓰기 싫은데 어쩔 수 없이 써야 해서 만들었습니다. 회사 Jira를 Confluence 위키까지 통째로 캐시해 두고, 검색과 읽기는 캐시에서 끝냅니다. 그래서 스피너가 없습니다. 쓰기는 Jira로 갑니다.',
-      videoCaption: '이슈 2만 건에서 타이핑하는 속도로 검색합니다. 실제 화면 녹화입니다.',
+        '지라를 쓰기 싫은데 어쩔 수 없이 써야 해서 만들었습니다. 묵은 이슈들을 클로드로 뒤지다가 한참 걸리고 결국 rate limit에 걸려 중단된 적이 있는데, 그때 만들기 시작했습니다. 필요한 Jira 프로젝트와 Confluence 스페이스를 골라 캐시하고, 검색과 이슈 조회에는 캐시를 씁니다. 사람이 직접 찾아도 되고, Claude Code에 넘겨도 됩니다.',
+      videoCaption: '검색 녹화입니다. 데모 데이터를 이슈 2만 건으로 늘린 캐시에서 타이핑하는 속도로 찾습니다. 실제 화면 녹화입니다.',
       doors: {
         installTitle: '설치',
-        installSub: 'macOS는 Homebrew, Windows는 Microsoft Store, Linux는 CLI.',
+        installSub: 'macOS 앱은 Homebrew, Windows 앱은 Microsoft Store. Linux는 CLI를 설치하고 gadak serve로 브라우저에서 씁니다.',
         demoTitle: '라이브 데모',
-        demoSub: '이슈 534건을 브라우저에서 바로. 설치도 계정도 없습니다.',
+        demoSub: '이슈 534건을 브라우저에서 바로 봅니다. 설치도 계정도 없습니다.',
       },
     },
     speed: {
-      label: '빠르다는 말 대신 숫자로',
-      heading: '같은 질문을 두 가지 방법으로',
-      note: '2026-08-26에 실제 Atlassian Cloud 사이트(실제 업무 프로젝트, 이슈 3,296건)에서 잰 값입니다. 합성 데이터가 아닙니다. gadak 쪽 수치에는 CLI 프로세스 시작 시간까지 들어 있습니다. 측정 방법과 재측정 이력, gadak이 더 느린 경우까지 정리한 표:',
+      label: 'REST API와 캐시 조회 시간',
+      heading: '같은 질문, 잰 값',
+      note: '2026-08-26에 실제 Atlassian Cloud 업무 프로젝트(이슈 3,296건)에서 잰 중앙값입니다. 에픽별 열린 이슈는 REST API 쪽에서 8페이지를 받아 집계한 값이고, gadak 쪽은 쿼리 한 번에 CLI 프로세스 기동까지 포함한 시간입니다. 첫 전체 동기화는 그 사이트에서 10.6분 걸렸고, 캐시에는 동기화 주기만큼 지연이 있습니다. 측정 방법과 재측정 이력, 나머지 행: ',
       rows: [
-        { what: '단순 필터, 100건', value: '583 ms', alt: '19 ms', ratio: '31×' },
-        { what: '이슈 1건 + 체인지로그 전체', value: '710 ms', alt: '28 ms', ratio: '25×' },
-        { what: '전문 검색', value: '543 ms', alt: '41 ms', ratio: '13×' },
-        { what: '에픽별 열린 이슈 (GROUP BY)', value: '4,761 ms, API 호출 8페이지', alt: '22 ms, 쿼리 한 번', ratio: '214×' },
-        { what: '변경 이력 집계', value: 'JQL로는 표현 불가', alt: '14 ms', ratio: '—' },
-        { what: '요청 제한', value: '429 + Retry-After', alt: '없음', ratio: '—' },
+        { what: '텍스트 검색', value: '543 ms', alt: '41 ms', ratio: '13×' },
+        { what: '에픽별 열린 이슈 (GROUP BY)', value: '4,761 ms', alt: '22 ms', ratio: '214×' },
       ],
       colRest: 'Jira REST API',
       colGadak: 'gadak',
     },
     ux: {
-      label: '매일 반복하는 일',
+      label: '검색',
       search: {
         heading: '타이핑을 따라오는 검색',
         body:
-          '제목, 본문, 코멘트, 위키까지 한 팔레트에서 찾습니다. 단어를 다 치기 전에 결과가 뜹니다. 스피너도 서버 왕복도 없습니다.',
+          '이슈 제목과 본문, 댓글, 위키 문서를 한곳에서 검색합니다. 단어를 다 치기 전에 결과가 뜹니다. 검색은 캐시에서 하니 서버를 기다리지 않습니다.',
       },
     },
     agent: {
-      label: '에이전트와 함께 일하는 사람에게',
-      heading: '사람과 에이전트가 같은 명령을 씁니다',
+      label: 'Claude Code와 함께 쓰는 사람에게',
+      heading: 'Claude Code가 같은 캐시를 읽습니다',
       body:
-        'CLI가 그대로 에이전트 인터페이스입니다. 에이전트가 create, claim, transition을 실행하면 같은 보드가 눈앞에서 바뀝니다. 셸이 없는 클라이언트는 MCP 서버로 붙습니다. 읽기는 캐시에서, 쓰기는 Jira를 거쳐서. 에이전트가 쓴 것에는 에이전트 이름이 남아서, 팀이 읽는 스레드에 그대로 보입니다.',
-      skillLead: '같은 캐시를 코딩 에이전트에게 넘기려면:',
-      mcpLead: '셸이 없는 MCP 클라이언트(Claude Desktop)에는:',
-      setupLink: '도구별로 붙여 넣을 설정 블록 → docs/AGENT_SETUP.md',
+        '스킬 하나를 설치하면 Claude Code가 gadak CLI로 이슈를 찾고, 만들고, 옮깁니다. 필터는 status_category와 priority_rank로 걸어야 합니다. Jira가 계정 언어마다 표시 이름을 번역해서 priority = High는 한국어 계정에서 소리 없이 0행입니다. 에이전트가 남긴 댓글과 만든 이슈에는 에이전트 이름이 붙습니다. 캐시를 읽는 에이전트는 읽은 것을 자기 모델로 보내니, 에이전트가 봐도 되는 프로젝트와 스페이스만 캐시하세요.',
+      setupLink: '도구별 연결 설정 → docs/AGENT_SETUP.md',
       driveCaption:
-        '같은 창 안의 실제 Claude Code 세션입니다. 한국어 한 문장이 리스트가 되고, 다음 문장이 대시보드를 저장해 엽니다. 에이전트가 움직이는 보드를 같은 창에서 봅니다.',
-      showcaseLink: '녹화본 더 보기: 대시보드, 팀 테마, 런처, 라이브 MCP 세션 → docs/SHOWCASE.md',
+        'gadak 앱 안의 터미널에서 Claude Code로 이슈 목록을 바꾸고 라벨 비율 대시보드를 저장해 여는 한국어 세션입니다. 에이전트가 일하는 구간은 빨리 감았습니다.',
+      showcaseLink: '녹화본 더 보기: 대시보드, 팀 테마, 런처, MCP 세션 → docs/SHOWCASE.md',
     },
-    origin: {
-      label: '안심하고 써도 되는 이유',
-      heading: '캐시일 뿐입니다',
+    connect: {
+      label: '연결하기 전에 확인할 것',
+      heading: '무엇을 복사하고, 어디에 두고, 무엇이 밖으로 나가는지',
       points: [
-        '쓰기는 먼저 Jira로 가고, Jira가 받아들인 뒤에야 캐시가 갱신됩니다.',
-        '캐시는 이 컴퓨터 안의 SQLite 파일 하나입니다. 지워도 되고, 다시 동기화하면 그대로 다시 만들어집니다.',
-        '텔레메트리는 없습니다. 밖으로 나가는 요청은 회사 Jira뿐입니다.',
+        '연결되는 Jira는 Atlassian Cloud입니다. API 토큰 하나로 같은 사이트의 Jira와 Confluence에 연결합니다. Server와 Data Center는 검증 전이라 된다고 하지 않습니다.',
+        '범위는 직접 정합니다. <code>--projects</code>로 Jira 프로젝트를, <code>--spaces</code>로 위키 스페이스를 고르고, 스페이스를 지정하기 전에는 위키를 동기화하지 않습니다.',
+        '캐시는 이 컴퓨터 안의 SQLite 파일 하나입니다. 처음 한 번 전체 동기화가 필요하고, 그 뒤로는 동기화 주기만큼 늦습니다. 지워도 되고, 다시 동기화하면 그대로 만들어집니다.',
         '자격 증명은 캐시에도, 로그에도, 스냅샷에도 남지 않습니다.',
+        '텔레메트리는 없습니다. gadak이 여는 연결은 직접 설정한 것뿐이고, 전체 목록은 SECURITY.md에 있습니다.',
+        '쓰기는 먼저 Jira로 가고, Jira가 받아들인 뒤에 캐시가 갱신됩니다. Jira가 받지 않은 쓰기는 그 자리에서 실패하고, 캐시에 쌓아 두지 않습니다.',
+        '첨부파일 보기와 편집 가능 필드 조회 같은 몇 가지 읽기는 여전히 Jira에 묻습니다.',
+        '캐시를 읽는 에이전트는 읽은 것을 자기 모델로 보냅니다. gadak 자신은 아무것도 보내지 않습니다.',
       ],
-    },
-    ask: {
-      label: '한 줄 남겨 주세요',
-      heading: '써 보셨으면 한 줄만',
-      body:
-        '텔레메트리가 없어서 누가 쓰는지 저는 숫자로 모릅니다. 버그 제보와 UI 지적은 릴리스마다 덕을 봤습니다. 아직 없는 건 "이슈 N개 넣었더니 이렇게 됐다" 같은 한 줄입니다. 느려졌다거나 틀렸다는 쪽이면 더 좋습니다.',
       links: [
-        { href: `${GITHUB}/issues`, label: 'GitHub 이슈로' },
-        { href: 'https://x.com/midagedev', label: 'X @midagedev 멘션으로' },
+        { href: `${DOCS}SECURITY.md`, label: '밖으로 나가는 연결 전체와 그 조건 → SECURITY.md' },
+        { href: `${DOCS}docs/NETWORK.md`, label: '연결마다 끄는 방법 → docs/NETWORK.md' },
       ],
     },
     changelog: {
@@ -327,15 +416,48 @@ export const strings: Record<Locale, Strings> = {
       fallbackNote: 'This changelog is published in English.',
     },
     install: {
+      label: '설치와 첫 동기화',
       heading: '설치',
       macosApp: '데스크톱 앱, CLI 포함:',
       cliOnly: 'CLI만:',
       windowsBefore: 'Windows 데스크톱 앱은',
       windowsAfter: '에 있습니다.',
-      firstRun: '회사 Jira에 연결합니다. 사이트, 이메일, 토큰, 프로젝트를 차례로 묻습니다. 연결되는 건 Atlassian Cloud이고, Server와 Data Center는 아직 검증 전입니다:',
+      firstRun:
+        '회사 Jira Cloud 사이트에 연결합니다. 사이트, 이메일, API 토큰, 캐시할 프로젝트를 차례로 묻습니다. 위키까지 캐시하려면 --spaces를 붙입니다:',
+      setup: {
+        skillLead: '동기화가 끝났으면 Claude Code용 스킬을 설치합니다:',
+        mcpLead: 'Claude Desktop에는 MCP 서버를 등록합니다:',
+      },
+    },
+    status: {
+      label: '지금 상태',
+      heading: '상태와 지원 범위',
+      points: [
+        '상태: 0.21, 아직 0.x입니다. 동기화, 읽기 API, Jira를 먼저 거치는 쓰기, 데스크톱·웹·CLI·MCP를 실제 사이트에서 확인했습니다.',
+        '지금은 한 사람이 만듭니다. 라이선스는 Apache-2.0이고, 0.x에서 호환성을 유지하는 것은 셋입니다: <code>issues_full</code>과 RECIPES 쿼리, <code>gadak sql</code>의 stdout 형식, <code>gadak views open --keys -</code>의 의미.',
+        '스프린트 계획, Jira 대시보드와 알림함, 관리 작업, 1분의 지연도 안 되는 일은 Jira에서 계속 합니다.',
+        'Atlassian Cloud, Linear, 내장 트래커에서 같은 명령을 씁니다. 서비스별 지원 범위는 표 하나에 있습니다.',
+      ],
+      links: [
+        { href: `${DOCS}docs/SUPPORT_MATRIX.md`, label: '서비스별 지원 범위' },
+        { href: `${DOCS}docs/FAQ.md`, label: '자주 묻는 질문' },
+        { href: `${DOCS}CHANGELOG.ko.md`, label: '무엇이 나왔는지' },
+        { href: GITHUB, label: 'GitHub' },
+      ],
+    },
+    ask: {
+      label: '사용 경험 남기기',
+      heading: '한 줄 남겨 주세요',
+      body:
+        '텔레메트리가 없어서 누가 쓰는지 저는 숫자로 모릅니다. 써 보셨다면 어떤 일을 해 봤고 어땠는지 알려 주세요. 이슈 수는 공개해도 괜찮을 때만 적어 주세요. 불편했던 점이나 틀린 결과도 남겨 주세요.',
+      caution: '공개된 곳에는 실제 이슈 데이터나 토큰, 사이트 URL을 붙이지 마세요.',
+      links: [
+        { href: `${GITHUB}/issues`, label: 'GitHub 이슈로' },
+        { href: 'https://x.com/midagedev', label: 'X @midagedev 멘션으로' },
+      ],
     },
     landing: {
-      flagshipSlot: '플래그십 · 이슈 2만 건',
+      flagshipSlot: '검색 녹화 · 이슈 2만 건',
       searchSlot: '검색',
       agentSlot: '창 안의 에이전트',
       allPlatforms: '모든 플랫폼 →',
@@ -348,104 +470,141 @@ export const strings: Record<Locale, Strings> = {
   ja: {
     htmlLang: 'ja',
     ogLocale: 'ja_JP',
-    title: 'gadak — 同じJira。待ち時間なし。',
+    title: 'gadak — Jira の課題を SQL で集計する',
     description:
-      'JQLにGROUP BYはありません。gadakはJiraとConfluenceをまるごとキャッシュし、SQLで集計し、ミリ秒で全文検索します。コーディングエージェントにはMCPで渡せます。テレメトリはありません。',
+      'gadak は、指定した範囲の Jira と Confluence をキャッシュするツールです。課題・コメント・変更履歴・wiki ページをまとめて検索でき、SQL で集計できます。テレメトリはありません。',
     nav: { demo: 'ライブデモ', changelog: '変更履歴', install: 'インストール', github: 'GitHub' },
     copy: { label: 'コピー', copied: 'コピーしました' },
     ogImageAlt:
-      'gadak — 同じJira。待ち時間なし。チームのJiraとConfluenceのWikiを、まるごとキャッシュします。',
+      'gadak — Jira の課題を SQL で集計する。指定した範囲の Jira と Confluence をキャッシュし、まとめて検索できます。',
     langName: '日本語',
     langBanner: {
       offer: 'このページは日本語でも読めます。',
       cta: '日本語で表示 →',
       dismiss: '閉じる',
     },
-    // Qiita・Zenn の検索から来る読者: 問題 → 数字 → 導入前に確認したいこと
-    // (この市場では購買条件) → エージェント → 検索 → インストール。
-    layout: ['hero', 'speed', 'origin', 'agent', 'search', 'install'],
+    // Qiita・Zenn の検索から来る読者: 何をする道具か → いま試せる SQL → 計測値
+    // → 検索 → 導入前に確認したいこと（この市場では購買条件）→ インストール
+    // → エージェント → 対応範囲と開発状況 → 試した結果を教えてください。
+    layout: ['hero', 'query', 'speed', 'search', 'connect', 'install', 'agent', 'status', 'ask'],
     hero: {
       eyebrow: 'gadak',
       heading: TAGLINE.ja.heading,
       lede:
-        'JQLにGROUP BYはありません。「未完了の課題が多いエピックはどれか」を数えるには、APIを8ページめくって自分で集計することになります。実測で4,761 ms。gadakはJiraとConfluenceをまるごとキャッシュしておくので、同じ答えがSQL 1本、22 msで返ります。検索はミリ秒、読み取りはネットワークに出ません。書き込みはJiraへ通します。',
-      videoCaption: '課題2万件のキャッシュ。打つ速さのまま検索が返ります。録画で、アニメーションではありません。',
+        'gadak は、指定した範囲の Jira と Confluence をキャッシュするツールです。課題・コメント・変更履歴・wiki ページをまとめて検索でき、SQL で集計できます。デスクトップアプリ、ブラウザー、CLI から使えます。対応しているのは Jira Cloud です。',
+      videoCaption: '検索の録画です。デモのスナップショットを課題 2 万件に増やしたキャッシュを検索していて、文字を打つ速さに結果が追いつきます。',
       doors: {
         installTitle: 'インストール',
-        installSub: 'macOSはHomebrew、WindowsはMicrosoft Store、LinuxはCLI。',
+        installSub: 'macOS は Homebrew、Windows は Microsoft Store から入れます。Linux は CLI を入れて、gadak serve でブラウザーから使います。',
         demoTitle: 'ライブデモ',
-        demoSub: 'ブラウザの中に534件の課題。インストールもアカウントも不要。',
+        demoSub: 'ブラウザーの中で 534 件の課題をそのまま開けます。インストールもアカウントも要りません。',
       },
     },
+    query: {
+      label: 'エピックごとの未完了件数を数える',
+      heading: 'JQL に GROUP BY はありません。',
+      lead: 'ページサイズを超えると、API が返すのは行だけで、集計は自分で書くことになります。キャッシュがあれば、同じ答えを SQL 1 本で出せます:',
+      datasetteLabel: 'デモデータでこの SQL を試す（Datasette Lite、インストール不要）→',
+      result:
+        '2026-08-26 に課題 3,296 件のサイトで計測したところ、REST API の結果を 8 ページ取得して集計する処理は 4,761 ms、同期済みのキャッシュに対する gadak の SQL は 22 ms でした。数値は中央値で、gadak 側は CLI の起動時間を含みます。',
+    },
     speed: {
-      label: '速さは、測った数字で示す',
-      heading: '同じ質問を、2つの経路で',
-      note: '2026-08-26に、本番のAtlassian Cloudサイト（実際の業務プロジェクト、課題3,296件）で計測。合成データではありません。gadakの数字にはCLIプロセスの起動時間を含みます。計測方法と再計測の履歴、gadak が負ける場面をまとめた表はこちら:',
+      label: '計測条件と制約',
+      heading: 'REST API とキャッシュの応答時間',
+      note: '2026-08-26 に、実際に業務で使っている Atlassian Cloud のサイト（課題 3,296 件）で計測した中央値です。エピックごとの未完了件数は、REST API 側が 8 ページを取得して集計した値、gadak 側はクエリ 1 本の値です。gadak 側は CLI プロセスの起動時間を含みます。同じサイトの初回フル同期には 10.6 分かかり、キャッシュは同期間隔 1 回ぶん遅れます。計測方法と再計測の履歴、gadak が遅くなる条件は次にまとめています: ',
       rows: [
-        { what: '単純なフィルタ、課題100件', value: '583 ms', alt: '19 ms', ratio: '31×' },
-        { what: '課題1件 + 変更履歴すべて', value: '710 ms', alt: '28 ms', ratio: '25×' },
-        { what: '全文検索', value: '543 ms', alt: '41 ms', ratio: '13×' },
-        { what: 'エピック別の未完了（GROUP BY）', value: '4,761 ms — APIページ8回', alt: '22 ms — クエリ1回', ratio: '214×' },
-        { what: '変更履歴を数える', value: '表現できない', alt: '14 ms', ratio: '—' },
-        { what: 'レート制限', value: '429 + Retry-After', alt: 'なし', ratio: '—' },
+        { what: '全文検索', value: '543 ms', alt: '41 ms', ratio: '13×' },
+        { what: 'エピックごとの未完了件数（GROUP BY）', value: '4,761 ms', alt: '22 ms', ratio: '214×' },
       ],
       colRest: 'Jira REST API',
       colGadak: 'gadak',
     },
     ux: {
-      label: '毎日のループ',
+      label: '課題と wiki をまとめて検索する',
       search: {
         heading: '入力に追いつく検索',
         body:
-          'タイトル、本文、コメント、Wikiまで、パレット1つで横断します。前方一致は単語を打ち終える前に返り、全文一致がそのすぐ後に続きます。スピナーも往復もありません。',
+          '課題のタイトル・本文・コメントと wiki ページを、まとめて全文検索できます。検索はキャッシュの中だけで行うので、単語を打ち終える前に結果が返り、通信を待つ時間もありません。',
       },
     },
     agent: {
-      label: 'エージェントと一緒に作る人へ',
-      heading: 'あなたとエージェントの語彙を1つに',
+      label: 'コーディングエージェントから使う',
+      heading: 'エージェントから課題を操作する',
       body:
-        'CLIはそのままエージェントのインターフェースです。作成、担当、遷移。エージェントが実行する動詞を、あなたは同じボードで見ています。シェルのないクライアントにはMCPサーバーがあります。書き込みはJiraへ通し、読み取りはキャッシュから。そしてエージェントの書き込みには必ず名前が付きます。コメントも紐づけたPRも、チームが読むそのスレッドにボットの名前で残ります。',
-      skillLead: '同じキャッシュをコーディングエージェントに渡す:',
-      mcpLead: 'シェルのないMCPクライアント（Claude Desktop）には:',
-      setupLink: 'ツールごとに貼るだけの設定ブロック → docs/AGENT_SETUP.md',
+        'エージェントが CLI で課題を検索したり、作成したり、ステータスを変更したりすると、その結果を同じボードで確認できます。書き込みは先に Jira へ届き、エージェントが書いたコメントと作成した課題には、そのエージェントの名前が付きます。フィルターは status_category と priority_rank にかけ、表示名にはかけないでください。表示名はアカウントの言語ごとに翻訳されるので、priority = High は韓国語のアカウントではエラーも出ないまま 0 行になります。',
+      setupLink: 'ホストごとの設定 → docs/AGENT_SETUP.md',
       driveCaption:
-        '同じペインで動く Claude Code のライブセッション。日本語の一文がそのまま一覧になり、次の一文で保存してダッシュボードを開きます。エージェントと、その動かすボードが、同じ窓の中にあります。',
-      showcaseLink: 'ほかの録画 — ダッシュボード、チームのテーマ、ランチャー、MCPのライブセッション → docs/SHOWCASE.md',
+        '画面もプロンプトも日本語で収録した、Claude Code のライブセッションです。gadak のターミナルペインで動かしていて、1 文目で課題の一覧が変わり、2 文目で同じウィンドウにダッシュボードが開きます。エージェントが作業している区間は早送りです。',
+      showcaseLink: 'ほかの録画: ダッシュボード、チームのテーマ、ランチャー、MCP のライブセッション → docs/SHOWCASE.md',
+      setup: {
+        skillLead: 'Claude Code にスキルを入れます:',
+        mcpLead: 'Claude Desktop には MCP サーバーを登録します:',
+      },
     },
-    origin: {
+    connect: {
       label: '導入前に確認したいこと',
-      heading: '外に出る通信は、自分で設定したものだけ',
+      heading: '何を写し、どこに置き、何が外に出るのか',
       points: [
-        'テレメトリはありません。gadak が出す通信は、自分の Atlassian サイトだけです。ほかの通信先は、自分でそのコマンドを打ったときにしか発生しません。',
-        'APIトークンは ~/.gadak/config.json にモード0600で置かれ、自分のサイトへのAuthorizationヘッダーにしか使われません。ログにも、キャッシュにも、スナップショットにも入りません。',
-        'キャッシュの実体は、この端末の中のSQLiteファイル1つです。いつ消しても構いません。もう一度同期すれば、そのまま作り直せます。',
-        '書き込みは先にJiraへ通します。Jiraが受け付けてから、キャッシュが更新されます。届かなかった書き込みをキャッシュに溜めることはありません。',
-        'キャッシュを読むエージェントは、読んだ内容をそのエージェントのモデルへ送ります。gadak自身は何も送りません。見せてよいプロジェクトとスペースだけをキャッシュしてください。',
-        '対応しているのはJira Cloudです。Server / Data Centerは未検証なので、対応をうたっていません。',
-        'アカウント登録もgadakのサーバーもありません。個人の端末1台で完結します。',
+        '対応しているのは Jira Cloud です。API トークン 1 つで、同じサイトの Jira と Confluence の両方に接続します。Server / Data Center は検証していないため、対応対象にはしていません。',
+        '写す範囲は自分で決めます。Jira は <code>--projects</code>、wiki は <code>--spaces</code> で絞ります。スペースを指定するまで wiki は同期されません。',
+        'キャッシュの実体は、使っているマシンの中の SQLite ファイル 1 つです。使い始める前に初回のフル同期が必要で、その後の読み取りは直近の同期時点の内容になります。ディレクトリごと消しても失うものはなく、もう一度同期すれば作り直せます。',
+        'API トークンは、キャッシュ・ログ・スナップショットのどこにも書き込まれません。',
+        'テレメトリも、解析も、gadak のアカウントもありません。gadak が開く接続は、自分で設定したものだけです。外に出る通信の一覧とその条件は SECURITY.md にまとめています。',
+        '書き込みは先に Jira へ届き、Jira が受け付けてからキャッシュが更新されます。届かなかった書き込みはその場で失敗として返り、キャッシュに溜まることはありません。',
+        '同期済みの課題や wiki ページは、キャッシュだけを読みます。例外は接続先に訊く必要がある操作で、添付ファイルの表示、編集できる項目の問い合わせ、素通しのリクエストがそれにあたります。',
+        'コーディングエージェントにキャッシュを読ませると、読んだ内容はそのエージェントの背後にあるモデルへ送られます。gadak 自体は何も送りません。エージェントに見せてよいプロジェクトとスペースだけを写してください。',
       ],
-      link: { href: `${GITHUB}/blob/main/SECURITY.md`, label: 'SECURITY.md — 通信先の一覧と、それぞれの切り方 →' },
+      links: [
+        { href: `${DOCS}SECURITY.md`, label: '外に出る通信の一覧と条件 → SECURITY.md' },
+        { href: `${DOCS}docs/NETWORK.md`, label: '各接続を無効にする方法 → docs/NETWORK.md' },
+      ],
     },
     changelog: {
       heading: '変更履歴',
       lede:
-        'すべてのリリースを、出荷した本人の言葉で。課題キーは公開バックログにリンクしているので、ここの一行から、それを求めた課題までさかのぼれます。',
-      source: 'リポジトリのCHANGELOG.mdから描画しています。',
+        'リリースの内容は、出した本人が書いています。課題キーは公開バックログにリンクしているので、ここの 1 行から、それを求めた課題までさかのぼれます。',
+      source: 'リポジトリの CHANGELOG.md から描画しています。',
       jumpLabel: 'バージョンへ移動',
       // Not a placeholder like the rest: this one already renders (the ja
       // page reads the English changelog), so the sentence is real copy.
       fallbackNote: 'この変更履歴は英語で公開しています。',
     },
     install: {
+      label: 'インストールと初回同期',
       heading: 'インストール',
-      macosApp: 'デスクトップアプリ（CLI同梱）:',
-      cliOnly: 'CLIのみ:',
-      windowsBefore: 'Windowsでは、デスクトップアプリは',
-      windowsAfter: 'にあります。',
-      firstRun: 'チームのJiraに接続します（サイト、メール、トークン、プロジェクトを聞かれます）:',
+      macosApp: 'デスクトップアプリ（CLI 同梱）:',
+      cliOnly: 'CLI のみ:',
+      windowsBefore: 'Windows のデスクトップアプリは',
+      windowsAfter: 'からインストールできます。',
+      firstRun:
+        'チームの Jira Cloud サイトに接続します。サイト、メールアドレス、API トークン、写すプロジェクトを順に聞かれます。wiki も同期するなら --spaces を付けます:',
+    },
+    status: {
+      label: '開発状況',
+      heading: '対応範囲と開発状況',
+      points: [
+        '状態: 0.21、まだ 0.x です。同期、読み取り API、書き込み、デスクトップアプリ、ウェブ、CLI、MCP は、実際のサイトで検証しています。',
+        'メンテナーは現在 1 人です。ライセンスは Apache-2.0 で、0.x の間に互換性を約束しているのは、<code>issues_full</code> と RECIPES のクエリ、<code>gadak sql</code> の標準出力の形式、<code>gadak views open --keys -</code> の意味の 3 つです。',
+        'スプリント計画、管理作業、アプリの画面でのページ編集、1 分の遅れが問題になる作業は、Jira 側で続けてください。',
+        'Atlassian Cloud、Linear、内蔵トラッカーを共通のコマンドで操作できます。接続先ごとの対応状況は 1 枚の表にまとめています。',
+      ],
+      links: [
+        { href: `${DOCS}docs/SUPPORT_MATRIX.md`, label: '接続先ごとの対応状況' },
+        { href: `${DOCS}docs/FAQ.md`, label: 'よくある質問' },
+        { href: `${DOCS}docs/MAINTENANCE.md`, label: '保守の方針' },
+        { href: GITHUB, label: 'GitHub' },
+      ],
+    },
+    ask: {
+      label: 'フィードバック',
+      heading: '試した結果を教えてください',
+      body:
+        '検索や集計で試した結果、困った点、導入を見送った理由も GitHub issue で教えてください。どんな質問に gadak で答えたか、その後も使ったかが分かると助かります。遅かった、間違っていたという報告も、うまく動いた報告と同じくらい役に立ちます。',
+      caution: '実際の課題データ、API トークン、サイト URL は載せないでください。',
+      links: [{ href: `${GITHUB}/issues`, label: 'GitHub issue を開く' }],
     },
     landing: {
-      flagshipSlot: 'フラッグシップ · 課題2万件',
+      flagshipSlot: '録画 · 課題 2 万件',
       searchSlot: '検索',
       agentSlot: '窓の中のエージェント',
       allPlatforms: 'すべてのプラットフォーム →',

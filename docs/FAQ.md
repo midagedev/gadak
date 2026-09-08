@@ -114,11 +114,14 @@ not on that list.
   and same writes, with `origin/issuetap.db` as the record.
 - **Atlassian's Rovo MCP server** gives agents official, hosted access to the
   same data — worth using if it fits, and for "find me the page about X" it
-  often does: it searches Jira and Confluence together. The architectural
-  difference is what happens after the search. A network MCP cannot aggregate
-  or work offline, every call costs tokens and rate budget, and it answers only
-  the questions its tools anticipated — there is no `GROUP BY`. A local SQLite
-  file has none of those limits, and derived history (reopen counts and
-  reasons, honest epic ancestry) exists only in the mirror.
+  often does: it searches Jira and Confluence together and has write tools,
+  with no local MCP server to install. What it does not have is a native
+  aggregation tool or an offline read: it answers the questions its tools
+  anticipated, and there is no `GROUP BY`. gadak runs SQL against a
+  synchronized local mirror, so a count over the whole backlog or a join
+  across the change history is one query, and derived history (reopen counts
+  and reasons, epic ancestry) exists only in the mirror. The costs on gadak's
+  side are a local binary, an initial sync, and reads that trail Jira by one
+  sync interval.
 - **Jira's own UI** stays the source of record and the place for boards,
   sprints, and admin. gadak does not replace it; it replaces waiting on it.

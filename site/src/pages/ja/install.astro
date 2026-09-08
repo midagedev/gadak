@@ -81,10 +81,10 @@ gadak serve`}
   </p>
 
   <h2 id="agents">エージェントへ</h2>
-  <p>{t.agent.skillLead}</p>
+  <p>{t.agent.setup!.skillLead}</p>
   <Snippet code="gadak skill install" copyLabel={copyLabel} copiedLabel={copiedLabel} />
-  <p>{t.agent.mcpLead}</p>
-  <Snippet code="claude mcp add gadak -- gadak mcp" copyLabel={copyLabel} copiedLabel={copiedLabel} />
+  <p>{t.agent.setup!.mcpLead}</p>
+  <Snippet code="gadak mcp install claude-desktop" copyLabel={copyLabel} copiedLabel={copiedLabel} />
   <p class="note">
     そこからエージェントができること:
     <a href="https://github.com/midagedev/gadak/blob/main/docs/AGENT_SETUP.md">AGENT_SETUP.md</a>。

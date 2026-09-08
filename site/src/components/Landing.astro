@@ -4,7 +4,7 @@ import Door from '../components/Door.astro'
 import Thread from '../components/Thread.astro'
 import MediaSlot from '../components/MediaSlot.astro'
 import Snippet from '../components/Snippet.astro'
-import { strings, pathFor, mediaFor, type Locale } from '../i18n'
+import { strings, pathFor, mediaFor, CANONICAL_SQL, DATASETTE_DEMO_URL, type Locale } from '../i18n'
 
 interface Props {
   lang: Locale
@@ -17,12 +17,13 @@ const installHref = pathFor(lang, '/install/')
 const storeHref = 'https://apps.microsoft.com/detail/9NZW91TXH36G'
 const docs = 'https://github.com/midagedev/gadak/blob/main/'
 // The sections and their order come from this locale's `layout` (i18n.ts):
-// the three landings are parallel editions, not translations, so en opens
-// with the objection an HN reader was about to type, ja puts the trust
-// section before the agent one, and ko closes on the sentence the
-// maintainer is asking for. One screen per idea still holds (user call
-// 2026-09-05); a locale that has nothing to say in a section leaves it out
-// of its layout rather than filling it.
+// the three landings are parallel editions, not translations. The 2026-09-08
+// review round (GDK-1632) set the shape every edition now follows — say what
+// the tool is, prove it before asking for a token, put the facts a reader
+// needs *before connecting work data* in one place, and end by asking what
+// happened — while each locale keeps its own order inside that. A locale
+// that has nothing to say in a section leaves it out of its layout rather
+// than filling it.
 const layout = t.layout
 ---
 
@@ -54,36 +55,21 @@ const layout = t.layout
           </section>
         )}
 
-        {section === 'compare' && t.compare && (
+        {section === 'query' && t.query && (
           <>
-            <Thread label={t.compare.label} />
-            {/* The objection every thread opens with, answered before it is
-                asked — and answered honestly: the last row is the one gadak
-                loses, on purpose. A table that wins every row reads as
-                marketing and gets taken apart. */}
-            <section class="speed compare">
-              <h2>{t.compare.heading}</h2>
-              <p>{t.compare.body}</p>
-              <table>
-                <thead>
-                  <tr>
-                    <th></th>
-                    <th>{t.compare.colA}</th>
-                    <th>{t.compare.colB}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {t.compare.rows.map((row) => (
-                    <tr>
-                      <td class="what">{row.what}</td>
-                      <td class="rest">{row.a}</td>
-                      <td class="gadak">{row.b}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <Thread label={t.query.label} />
+            {/* The one claim a reader can test before installing anything: the
+                canonical GROUP BY, and Datasette Lite running it on the demo
+                snapshot in the browser. The SQL and the link are contract
+                strings (FACT_LEDGER §7) and come from i18n.ts, not from copy. */}
+            <section class="query">
+              <h2>{t.query.heading}</h2>
+              <p>{t.query.lead}</p>
+              <Snippet code={CANONICAL_SQL} copyLabel={copyLabel} copiedLabel={copiedLabel} />
               <p class="note">
-                {t.compare.note} <a href={`${docs}${t.compare.noteLink}`}>{t.compare.noteLink}</a>
+                <a href={DATASETTE_DEMO_URL}>{t.query.datasetteLabel}</a>
+                <br />
+                {t.query.result}
               </p>
             </section>
           </>
@@ -92,8 +78,6 @@ const layout = t.layout
         {section === 'speed' && (
           <>
             <Thread label={t.speed.label} />
-            {/* The video says "fast"; the table says how much, against the
-                thing people wait on today. Same question, two runtimes. */}
             <section class="speed">
               <h2>{t.speed.heading}</h2>
               <table>
@@ -127,7 +111,6 @@ const layout = t.layout
         {section === 'search' && (
           <>
             <Thread label={t.ux.label} />
-            {/* One exhibit for the daily loop: search is the one everybody hits. */}
             <section class="exhibit">
               <div class="text">
                 <h2>{t.ux.search.heading}</h2>
@@ -159,10 +142,18 @@ const layout = t.layout
                 />
                 <figcaption>{t.agent.driveCaption}</figcaption>
               </figure>
-              <p>{t.agent.skillLead}</p>
-              <Snippet code="gadak skill install" copyLabel={copyLabel} copiedLabel={copiedLabel} />
-              <p>{t.agent.mcpLead}</p>
-              <Snippet code="claude mcp add gadak -- gadak mcp" copyLabel={copyLabel} copiedLabel={copiedLabel} />
+              {/* The setup commands sit here only when this locale has not
+                  moved them under Install (ko does: a reader who has not
+                  installed gadak yet should not be handed the connect
+                  command first — review round 2026-09-08). */}
+              {t.agent.setup && (
+                <>
+                  <p>{t.agent.setup.skillLead}</p>
+                  <Snippet code="gadak skill install" copyLabel={copyLabel} copiedLabel={copiedLabel} />
+                  <p>{t.agent.setup.mcpLead}</p>
+                  <Snippet code="gadak mcp install claude-desktop" copyLabel={copyLabel} copiedLabel={copiedLabel} />
+                </>
+              )}
               <p class="note">
                 <a href={`${docs}docs/AGENT_SETUP.md`}>{t.agent.setupLink}</a>
                 <br />
@@ -172,26 +163,69 @@ const layout = t.layout
           </>
         )}
 
-        {section === 'origin' && (
+        {section === 'compare' && t.compare && (
           <>
-            <Thread label={t.origin.label} />
-            <section class="origin">
-              <h2>{t.origin.heading}</h2>
+            <Thread label={t.compare.label} />
+            {/* en only. Capability and operating differences against the
+                official hosted server, after the product has been shown —
+                not a scoreboard. The row gadak loses is a real cost (a local
+                binary and an initial sync), not a staged concession. */}
+            <section class="speed compare">
+              <h2>{t.compare.heading}</h2>
+              <p>{t.compare.body}</p>
+              <table>
+                <thead>
+                  <tr>
+                    <th></th>
+                    <th>{t.compare.colA}</th>
+                    <th>{t.compare.colB}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {t.compare.rows.map((row) => (
+                    <tr>
+                      <td class="what">{row.what}</td>
+                      <td class="rest">{row.a}</td>
+                      <td class="gadak">{row.b}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p class="note">
+                {t.compare.note} <a href={`${docs}${t.compare.noteLink}`}>{t.compare.noteLink}</a>
+              </p>
+            </section>
+          </>
+        )}
+
+        {section === 'connect' && (
+          <>
+            <Thread label={t.connect.label} />
+            {/* The facts a reader needs before handing over a token, in one
+                place: which Jira, how much gets copied, what stays local and
+                how fresh it is, where the token goes, what leaves the machine,
+                what a write does, what changes with an agent. Each line is a
+                checkable claim (FACT_LEDGER §11); none is a verdict. */}
+            <section class="connect">
+              <h2>{t.connect.heading}</h2>
               <ul>
-                {t.origin.points.map((point) => <li>{point}</li>)}
+                {t.connect.points.map((point) => <li set:html={point} />)}
               </ul>
-              {t.origin.link && (
-                <p class="note">
-                  <a href={t.origin.link.href}>{t.origin.link.label}</a>
-                </p>
-              )}
+              <p class="note">
+                {t.connect.links.map((l, i) => (
+                  <>
+                    {i > 0 && <br />}
+                    <a href={l.href}>{l.label}</a>
+                  </>
+                ))}
+              </p>
             </section>
           </>
         )}
 
         {section === 'install' && (
           <>
-            <Thread />
+            <Thread label={t.install.label} />
             <section class="install">
               <h2>{t.install.heading}</h2>
               <p>{t.install.macosApp}</p>
@@ -201,19 +235,52 @@ const layout = t.layout
               <p>{t.install.windowsBefore} <a href={storeHref}>Microsoft Store</a>{t.install.windowsAfter}</p>
               <p>{t.install.firstRun}</p>
               <Snippet code="gadak init && gadak sync && gadak serve" copyLabel={copyLabel} copiedLabel={copiedLabel} />
+              {t.install.setup && (
+                <>
+                  <p>{t.install.setup.skillLead}</p>
+                  <Snippet code="gadak skill install" copyLabel={copyLabel} copiedLabel={copiedLabel} />
+                  <p>{t.install.setup.mcpLead}</p>
+                  <Snippet code="gadak mcp install claude-desktop" copyLabel={copyLabel} copiedLabel={copiedLabel} />
+                </>
+              )}
               <p class="note"><a href={installHref}>{t.landing.allPlatforms}</a></p>
             </section>
           </>
         )}
 
-        {section === 'ask' && t.ask && (
+        {section === 'status' && (
+          <>
+            <Thread label={t.status.label} />
+            {/* What the project is today — 0.x, one maintainer, the license,
+                the work that stays in Jira — and where to read on. A first-time
+                reader should not have to search the repository for this. */}
+            <section class="status">
+              <h2>{t.status.heading}</h2>
+              <ul>
+                {t.status.points.map((point) => <li set:html={point} />)}
+              </ul>
+              <p class="note">
+                {t.status.links.map((l, i) => (
+                  <>
+                    {i > 0 && ' · '}
+                    <a href={l.href}>{l.label}</a>
+                  </>
+                ))}
+              </p>
+            </section>
+          </>
+        )}
+
+        {section === 'ask' && (
           <>
             <Thread label={t.ask.label} />
-            {/* ko only: no telemetry means the only retention signal is a
-                human sentence, so the page ends by asking for one. */}
+            {/* No telemetry means the only retention signal is a human
+                sentence, so every edition ends by asking for one — and says
+                what must stay out of a public report. */}
             <section class="ask">
               <h2>{t.ask.heading}</h2>
               <p>{t.ask.body}</p>
+              <p class="caution">{t.ask.caution}</p>
               <p class="note">
                 {t.ask.links.map((l, i) => (
                   <>
@@ -247,7 +314,8 @@ const layout = t.layout
     letter-spacing: -0.02em;
     line-height: 1.12;
     margin: 0 0 1.1rem;
-    max-width: 22ch;
+    max-width: 24ch;
+    text-wrap: balance;
   }
   .lede {
     font-size: 1.0625rem;
@@ -298,6 +366,9 @@ const layout = t.layout
     font-family: var(--font-mono);
     white-space: nowrap;
   }
+  .speed:not(.compare) td.what {
+    width: 38%;
+  }
   .speed td.what {
     text-align: left;
     font-family: var(--font-sans);
@@ -341,10 +412,15 @@ const layout = t.layout
       padding-right: 0.6rem;
     }
   }
-  .speed .note {
+  .speed .note,
+  .query .note {
     font-size: 0.875rem;
     color: var(--ink-3);
     margin: 0.9rem 0 0;
+    line-height: 1.8;
+  }
+  .query .note {
+    margin-top: 0;
   }
   /* The comparison table: same skeleton as the measurement table, but its
      cells are words, not numbers — so they wrap and set in the sans face,
@@ -369,11 +445,17 @@ const layout = t.layout
     color: var(--ink-2);
   }
   .ask .note,
-  .origin .note {
+  .connect .note,
+  .status .note {
     font-size: 0.875rem;
     color: var(--ink-3);
     margin: 0.9rem 0 0;
     line-height: 1.8;
+  }
+  .ask .caution {
+    font-size: 0.9375rem;
+    color: var(--ink-2);
+    margin: 0;
   }
 
   .exhibit {
@@ -425,12 +507,16 @@ const layout = t.layout
     line-height: 1.8;
   }
 
-  .origin ul {
+  /* The two fact lists — before connecting, and status — share one shape:
+     a hairline per item and a short stitch instead of a bullet. */
+  .connect ul,
+  .status ul {
     margin: 0;
     padding: 0;
     list-style: none;
   }
-  .origin li {
+  .connect li,
+  .status li {
     text-wrap: pretty;
     padding: 0.55rem 0 0.55rem 1.1rem;
     border-bottom: 1px solid var(--border);
@@ -438,7 +524,15 @@ const layout = t.layout
     position: relative;
     color: var(--ink-2);
   }
-  .origin li::before {
+  .connect code,
+  .status code {
+    font-family: var(--font-mono);
+    font-size: 0.875em;
+    white-space: nowrap;
+    color: var(--ink);
+  }
+  .connect li::before,
+  .status li::before {
     content: '';
     position: absolute;
     left: 0;

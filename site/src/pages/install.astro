@@ -59,7 +59,10 @@ const store = 'https://apps.microsoft.com/detail/9NZW91TXH36G'
   </p>
 
   <h2 id="first-run">First run</h2>
-  <p>Connect to your team's Jira (asks for site, email, token, projects):</p>
+  <p>
+    Connect to your team's Jira Cloud site. It asks for the site, your email, an API token and the
+    projects to mirror. Server and Data Center are untested and not claimed:
+  </p>
   <Snippet code={`gadak init && gadak sync && gadak serve`} copyLabel="Copy" copiedLabel="Copied" />
   <p>Or start on the built-in tracker, with no account at all:</p>
   <Snippet
@@ -92,10 +95,10 @@ gadak serve`}
   </p>
 
   <h2 id="agents">For agents</h2>
-  <p>Hand the same mirror to your coding agent:</p>
+  <p>Install the skill for Claude Code:</p>
   <Snippet code="gadak skill install" copyLabel="Copy" copiedLabel="Copied" />
-  <p>For MCP clients without a shell (Claude Desktop):</p>
-  <Snippet code="claude mcp add gadak -- gadak mcp" copyLabel="Copy" copiedLabel="Copied" />
+  <p>For Claude Desktop, register the MCP server:</p>
+  <Snippet code="gadak mcp install claude-desktop" copyLabel="Copy" copiedLabel="Copied" />
   <p class="note">
     What the agent can do from there:
     <a href="https://github.com/midagedev/gadak/blob/main/docs/AGENT_SETUP.md">AGENT_SETUP.md</a>.
