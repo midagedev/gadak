@@ -253,14 +253,13 @@ to take on trust, each with the command that checks it:
 
 If you used gadak on your own project, open a
 [GitHub issue](https://github.com/midagedev/gadak/issues) or email
-[midagedev@gmail.com](mailto:midagedev@gmail.com) and say what question it
-answered and whether you used it again. Reports of everyday use are welcome
-before any contribution. Using it with an agent? Send a sanitized description
-of the question and what the agent did. Never paste real issue data, tokens,
-or site URLs into a public issue.
+[midagedev@gmail.com](mailto:midagedev@gmail.com): what question did it
+answer, and did you go back to it? Reports of everyday use are welcome before
+any contribution.
 
-A bug report needs your Jira deployment type (Cloud), the gadak commit, and
-the command you ran. The maintainer mirrors issues to the
+Keep real issue data, tokens, and site URLs out of a public issue. A bug
+report needs your Jira deployment type (Cloud or Server), the gadak commit,
+and the command you ran. The maintainer mirrors issues to the
 [public backlog](https://gadak.dev/backlog/), where commit `GDK-nnn` keys
 resolve.
 

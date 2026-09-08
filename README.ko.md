@@ -195,19 +195,15 @@ open --keys -`의 의미. 항목별 확인 명령은 [`docs/PROMISES.md`](docs/P
 
 ## 한 줄 남겨 주세요
 
-텔레메트리가 없어서 누가 쓰는지 저는 모릅니다. 써 보셨다면 어떤 일에 썼고
-어땠는지 알려 주세요. 불편했거나 결과가 틀렸다면 그 이야기도요. 이슈 수는
-공개해도 괜찮을 때만 적어 주세요.
+텔레메트리가 없어서 누가 쓰는지 저는 모릅니다. 어디에 썼는지, 그 뒤로도 쓰고
+있는지 알려 주세요. 잘 안 됐거나 결과가 틀렸다면 그 이야기가 더 반갑습니다.
 [GitHub 이슈](https://github.com/midagedev/gadak/issues), X
 [@midagedev](https://x.com/midagedev) 멘션, 메일
 [midagedev@gmail.com](mailto:midagedev@gmail.com), 어느 쪽이든 됩니다.
 
-공개된 곳에는 실제 이슈 데이터나 토큰, 사이트 URL을 붙이지 마세요. 에이전트와
-쓰다 걸린 일은 무엇을 물었고 에이전트가 무엇을 했는지만, 민감한 내용을 빼고 적어
-주세요.
-
-버그 리포트에는 Jira 배포 유형(Cloud), gadak 커밋, 실행한 명령이 있어야 합니다.
-GitHub 이슈는 백로그에도 옮겨 두고, 커밋의 `GDK-nnn` 키는
+공개된 곳에는 실제 이슈 내용과 토큰, 사이트 주소를 빼고 적어 주세요. 버그
+리포트에는 Jira 배포 유형(Cloud인지 Server인지), gadak 커밋, 실행한 명령이
+있으면 됩니다. GitHub 이슈는 백로그에도 옮겨 두고, 커밋의 `GDK-nnn` 키는
 [공개 백로그](https://gadak.dev/backlog/)로 이어집니다. 코드로 오시려면
 [`CONTRIBUTING.md`](.github/CONTRIBUTING.md)와
 [`docs/project/GOOD_FIRST_ISSUES.md`](docs/project/GOOD_FIRST_ISSUES.md).

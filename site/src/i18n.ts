@@ -264,15 +264,17 @@ export const strings: Record<Locale, Strings> = {
     connect: {
       label: 'Before you connect work data',
       heading: 'What gets copied, where it lives, and what leaves your machine',
+      // Six questions, in the order a reader asks them, each with its own
+      // lead-in so the block can be scanned rather than read (FACT_LEDGER
+      // §11 and §16). Each line is a checkable claim; none is a verdict.
       points: [
-        'gadak connects to Jira Cloud with one API token; it covers Jira and Confluence on the same site. Server and Data Center are untested and not claimed.',
-        'You choose the scope: <code>--projects</code> for Jira, <code>--spaces</code> for the wiki. The wiki stays off until you name spaces.',
-        'The mirror is one SQLite file on your machine. It needs a first full sync, trails Jira by one sync interval, and can be deleted and rebuilt at any time.',
-        'Credentials never reach SQLite, a log, or a snapshot.',
-        'No telemetry, no analytics, no gadak account. The only connections gadak opens are the ones you configured; the complete list is in SECURITY.md.',
-        'Writes go to Jira first and the mirror refreshes after Jira accepts. A write Jira did not accept fails then and there; nothing is queued locally.',
-        'Four reads still open a connection: viewing an attachment, <code>gadak issue --editmeta</code>, <code>gadak fields</code>, and <code>gadak api</code>.',
-        'An agent that reads the mirror sends what it reads to whatever model it talks to. gadak itself sends nothing. Scope the mirror to what the agent should see.',
+        '<strong>Which Jira.</strong> Atlassian Cloud with an API token, or Jira Server / Data Center with <code>gadak init --server</code> and a personal access token. One Cloud token covers Jira and Confluence on the same site; Confluence Server has no client, so a Server workspace mirrors issues only.',
+        '<strong>How much is copied.</strong> The projects you name with <code>--projects</code>, as your account already sees them. The wiki stays off until you name spaces with <code>--spaces</code>.',
+        '<strong>What stays here, and how fresh.</strong> One SQLite file on your machine. A first full sync, then one sync interval behind Jira. Delete it and sync again; nothing is lost.',
+        '<strong>What leaves this machine.</strong> No telemetry, no analytics, no gadak account. gadak opens only the connections you configured, and reads come out of the file. Four verbs still ask the origin: viewing an attachment, <code>gadak issue --editmeta</code>, <code>gadak fields</code> and <code>gadak api</code>.',
+        '<strong>Where the token is.</strong> <code>~/.gadak/config.json</code>, mode <code>0600</code>, sent only to your own site. It never reaches SQLite, a log, or a snapshot.',
+        '<strong>What a write does.</strong> It goes to Jira first, and the cache refreshes after Jira accepts. A write Jira rejects fails then and there; nothing is queued locally.',
+        '<strong>What changes with an agent.</strong> An agent that reads the cache sends what it reads to its own model. gadak sends nothing. Scope the cache to what the agent should see.',
       ],
       links: [
         { href: `${DOCS}SECURITY.md`, label: 'Every outbound destination and its condition → SECURITY.md' },
@@ -307,7 +309,7 @@ export const strings: Record<Locale, Strings> = {
         'Status: 0.21, still 0.x. Sync, reads, write-through, desktop, web, CLI and MCP are verified against a live site.',
         'One maintainer, currently. Apache-2.0. The mirror is ordinary SQLite: if gadak went away tomorrow, the file opens in any SQLite client and your issues are still in it.',
         'Keep sprint planning, administration, page editing in a UI, and anything that cannot tolerate a sync interval of delay in Jira.',
-        'Three origins, one set of verbs: Atlassian Cloud, Linear, and the built-in tracker. What each one refuses is in one table.',
+        'Four origins, one set of verbs: Atlassian Cloud, Jira Server / Data Center, Linear, and the built-in tracker. What each one refuses is in one table, measured cell by cell.',
       ],
       links: [
         { href: `${DOCS}docs/SUPPORT_MATRIX.md`, label: 'What each origin supports' },
@@ -320,8 +322,7 @@ export const strings: Record<Locale, Strings> = {
     ask: {
       label: 'Report what happened',
       heading: 'If you used it on your own project, say so',
-      body:
-        'Tell us what question gadak answered, and whether you used it again.',
+      body: 'What question did gadak answer, and did you go back to it?',
       caution: 'Keep real issue data, tokens, and site URLs out of public reports.',
       links: [
         { href: `${GITHUB}/issues`, label: 'Open a GitHub issue' },
@@ -409,15 +410,16 @@ export const strings: Record<Locale, Strings> = {
     connect: {
       label: '연결하기 전에',
       heading: '회사 데이터를 두고 쓰는 도구라서, 먼저 알아야 할 것',
+      // 읽는 사람이 묻는 순서대로 일곱 줄. 줄마다 앞에 무엇에 대한
+      // 답인지를 달아서, 읽지 않고 훑을 수 있게 했습니다(원장 §11·§16).
       points: [
-        '연결되는 Jira는 Atlassian Cloud입니다. API 토큰 하나로 같은 사이트의 Jira와 Confluence에 붙습니다. Server와 Data Center는 아직 확인하지 않아서, 된다고 말하지 않습니다.',
-        '가져올 범위는 직접 정합니다. <code>--projects</code>로 Jira 프로젝트를, <code>--spaces</code>로 위키 스페이스를 고릅니다. 스페이스를 지정하기 전에는 위키를 가져오지 않습니다.',
-        '캐시는 이 컴퓨터 안의 SQLite 파일 하나입니다. 처음 한 번은 전체 동기화가 필요하고, 그 뒤로는 동기화 주기만큼 늦습니다. 지워도 되고, 다시 동기화하면 그대로 돌아옵니다.',
-        'API 토큰은 캐시에도, 로그에도, 스냅샷에도 남지 않습니다.',
-        '텔레메트리는 없습니다. gadak이 연결하는 곳은 직접 설정한 곳뿐이고, 전체 목록은 SECURITY.md에 있습니다.',
-        '쓰기는 Jira로 먼저 갑니다. Jira가 받아들이면 캐시를 갱신하고, 거절하면 그 자리에서 실패합니다. 캐시에 쌓아 두고 나중에 보내는 일은 없습니다.',
-        '첨부파일 보기와 편집 가능 필드 조회처럼 몇 가지 읽기는 Jira에 직접 묻습니다.',
-        '캐시를 읽는 에이전트는 읽은 내용을 자기 모델로 보냅니다. gadak 자신은 아무 데도 보내지 않습니다.',
+        '<strong>어느 Jira인가.</strong> Atlassian Cloud는 API 토큰으로, Jira Server와 Data Center는 <code>gadak init --server</code>와 개인 액세스 토큰으로 붙습니다. Cloud는 토큰 하나로 같은 사이트의 Jira와 Confluence를 함께 가져오고, Confluence Server는 아직 클라이언트가 없어서 Server 워크스페이스는 이슈만 가져옵니다.',
+        '<strong>얼마나 가져오나.</strong> <code>--projects</code>로 고른 프로젝트만, 내 계정이 이미 볼 수 있는 만큼만 가져옵니다. <code>--spaces</code>로 스페이스를 지정하기 전에는 위키를 건드리지 않습니다.',
+        '<strong>어디에 남나.</strong> 이 컴퓨터 안의 SQLite 파일 하나입니다. 처음 한 번은 전체 동기화가 필요하고, 그 뒤로는 동기화 주기만큼 늦습니다. 지워도 되고, 다시 동기화하면 그대로 돌아옵니다.',
+        '<strong>밖으로 나가는 것.</strong> 텔레메트리도, 분석 도구도, gadak 계정도 없습니다. 직접 설정한 곳에만 연결하고, 읽기는 그 파일에서 합니다. Jira에 직접 묻는 것은 네 가지뿐입니다. 첨부파일 보기, <code>gadak issue --editmeta</code>, <code>gadak fields</code>, <code>gadak api</code>.',
+        '<strong>토큰은 어디에.</strong> <code>~/.gadak/config.json</code>에 <code>0600</code>으로 두고, 내 사이트에만 보냅니다. 캐시에도, 로그에도, 스냅샷에도 남지 않습니다.',
+        '<strong>쓰기는 어떻게.</strong> Jira로 먼저 갑니다. Jira가 받아들이면 캐시를 갱신하고, 거절하면 그 자리에서 실패합니다. 캐시에 쌓아 두고 나중에 보내는 일은 없습니다.',
+        '<strong>에이전트를 붙이면.</strong> 캐시를 읽은 에이전트는 읽은 내용을 자기 모델로 보냅니다. gadak 자신은 아무 데도 보내지 않습니다. 에이전트에게 보여도 되는 범위만 가져오세요.',
       ],
       links: [
         { href: `${DOCS}SECURITY.md`, label: '밖으로 나가는 연결 전체와 그 조건 → SECURITY.md' },
@@ -454,7 +456,7 @@ export const strings: Record<Locale, Strings> = {
         '버전 0.21, 아직 0.x입니다. 동기화, 읽기 API, Jira를 먼저 거치는 쓰기, 데스크톱·웹·CLI·MCP를 실제 사이트에서 확인했습니다.',
         '캐시는 평범한 SQLite 파일입니다. gadak이 내일 사라져도 그 파일은 아무 SQLite 클라이언트에서나 열리고, 이슈는 그대로 들어 있습니다.',
         '스프린트 계획, Jira 대시보드와 알림, 관리자 작업, 1분의 지연도 안 되는 일은 Jira에서 계속 합니다.',
-        'Atlassian Cloud, Linear, 내장 트래커에서 같은 명령을 씁니다. 서비스별로 되는 것과 안 되는 것은 표 하나에 정리해 두었습니다.',
+        'Atlassian Cloud, Jira Server와 Data Center, Linear, 내장 트래커에서 같은 명령을 씁니다. 서비스별로 되는 것과 안 되는 것은 셀마다 직접 실행해서 표 하나에 적어 두었습니다.',
       ],
       links: [
         { href: `${DOCS}docs/SUPPORT_MATRIX.md`, label: '서비스별 지원 범위' },
@@ -466,9 +468,8 @@ export const strings: Record<Locale, Strings> = {
     ask: {
       label: '써 보셨다면',
       heading: '한 줄 남겨 주세요',
-      body:
-        '텔레메트리가 없어서 누가 쓰는지 저는 모릅니다. 써 보셨다면 어떤 일에 썼고 어땠는지 한 줄 알려 주세요. 불편했거나 결과가 틀렸다면 그 이야기도요. 이슈 수는 공개해도 괜찮을 때만 적어 주세요.',
-      caution: '공개된 곳에는 실제 이슈 데이터나 토큰, 사이트 URL을 붙이지 마세요.',
+      body: '텔레메트리가 없어서 누가 쓰는지 저는 모릅니다. 어디에 썼는지, 그 뒤로도 쓰고 있는지 한 줄만 알려 주세요.',
+      caution: '공개된 곳에는 실제 이슈 내용과 토큰, 사이트 주소를 빼고 적어 주세요.',
       links: [
         { href: `${GITHUB}/issues`, label: 'GitHub 이슈로' },
         { href: 'https://x.com/midagedev', label: 'X @midagedev 멘션으로' },
@@ -567,15 +568,16 @@ export const strings: Record<Locale, Strings> = {
     connect: {
       label: '導入前に確認したいこと',
       heading: '何を写し、どこに置き、何が外に出るのか',
+      // 読む人が知りたい順に 7 行。行の頭に何の答えかを置いて、読まずに
+      // 目で追えるようにしています（ファクト台帳 §11・§16）。
       points: [
-        '対応しているのは Jira Cloud です。API トークン 1 つで、同じサイトの Jira と Confluence の両方に接続します。Server / Data Center は検証していないため、対応対象にはしていません。',
-        '写す範囲は自分で決めます。Jira は <code>--projects</code>、wiki は <code>--spaces</code> で絞ります。スペースを指定するまで wiki は同期されません。',
-        'キャッシュの実体は、使っているマシンの中の SQLite ファイル 1 つです。使い始める前に初回のフル同期が必要で、その後の読み取りは直近の同期時点の内容になります。ディレクトリごと消しても失うものはなく、もう一度同期すれば作り直せます。',
-        'API トークンの置き場所は <code>~/.gadak/config.json</code> で、パスはどの OS でも同じです。パーミッション 0600 で書き込まれ、送られる先は自分のサイトへの <code>Authorization</code> ヘッダーだけです。キャッシュ・ログ・スナップショットのどこにも書き込まれません。',
-        'テレメトリも、解析も、gadak のアカウントもありません。外に出る通信は、自分で設定した接続先と、自分で実行したコマンドのぶんだけです。一覧とその条件は SECURITY.md にまとめています。',
-        '書き込みは先に Jira へ届き、Jira が受け付けてからキャッシュが更新されます。届かなかった書き込みはその場で失敗として返り、キャッシュに溜まることはありません。',
-        '同期済みの課題や wiki ページを開くときは、キャッシュだけを読みます。例外は接続先に訊く必要がある操作で、添付ファイルの表示、編集できる項目の問い合わせ、素通しのリクエストがそれにあたります。',
-        'コーディングエージェントにキャッシュを読ませると、読んだ内容はそのエージェントの背後にあるモデルへ送られます。gadak 自体が課題データを外部のモデルへ送ることはありません。エージェントに見せてよいプロジェクトとスペースだけを写してください。',
+        '<strong>接続先。</strong> Atlassian Cloud は API トークンで、Jira Server / Data Center は <code>gadak init --server</code> と個人アクセストークンで接続します。Cloud はトークン 1 つで同じサイトの Jira と Confluence の両方を写します。Confluence Server はクライアントがないため、Server のワークスペースが写すのは課題だけです。',
+        '<strong>写す範囲。</strong> <code>--projects</code> で挙げたプロジェクトを、自分のアカウントで見えるぶんだけ写します。<code>--spaces</code> でスペースを指定するまで wiki には触れません。',
+        '<strong>置き場所と新しさ。</strong> 使っているマシンの中の SQLite ファイル 1 つです。初回はフル同期が要り、その後の読み取りは直近の同期時点の内容になります。消しても失うものはなく、もう一度同期すれば元に戻ります。',
+        '<strong>外に出るもの。</strong> テレメトリも、解析も、gadak のアカウントもありません。接続するのは自分で設定した先だけで、読み取りはそのファイルから行います。接続先に訊くのは 4 つだけです。添付ファイルの表示、<code>gadak issue --editmeta</code>、<code>gadak fields</code>、<code>gadak api</code>。',
+        '<strong>トークンの置き場所。</strong> <code>~/.gadak/config.json</code> にパーミッション <code>0600</code> で置き、送る先は自分のサイトだけです。キャッシュにもログにもスナップショットにも書き込まれません。',
+        '<strong>書き込みの流れ。</strong> 先に Jira へ届き、Jira が受け付けてからキャッシュが更新されます。届かなかった書き込みはその場で失敗として返り、キャッシュに溜まることはありません。',
+        '<strong>エージェントを使うとき。</strong> キャッシュを読んだエージェントは、読んだ内容を自分のモデルへ送ります。gadak 自体はどこにも送りません。エージェントに見せてよい範囲だけを写してください。',
       ],
       links: [
         { href: `${DOCS}SECURITY.md`, label: '外に出る通信の一覧と条件 → SECURITY.md' },
@@ -610,7 +612,7 @@ export const strings: Record<Locale, Strings> = {
         '状態: 0.21、まだ 0.x です。同期、読み取り API、書き込み、デスクトップアプリ、ウェブ、CLI、MCP は、実際のサイトで検証しています。',
         'メンテナーは現在 1 人で、ライセンスは Apache-2.0 です。キャッシュはただの SQLite ファイルなので、gadak がなくなっても、どの SQLite クライアントからでも開けます。',
         'スプリント計画、管理作業、アプリの画面でのページ編集、1 分の遅れが問題になる作業は、Jira 側で続けてください。',
-        'Atlassian Cloud、Linear、内蔵トラッカーを共通のコマンドで操作できます。接続先ごとの対応状況は 1 枚の表にまとめています。',
+        'Atlassian Cloud、Jira Server / Data Center、Linear、内蔵トラッカーを共通のコマンドで操作できます。接続先ごとの対応状況は、セルごとに実際に実行して 1 枚の表にまとめています。',
       ],
       links: [
         { href: `${DOCS}docs/SUPPORT_MATRIX.md`, label: '接続先ごとの対応状況' },
@@ -622,8 +624,7 @@ export const strings: Record<Locale, Strings> = {
     ask: {
       label: 'フィードバック',
       heading: '試した結果を教えてください',
-      body:
-        '検索や集計で試した結果、困った点、導入を見送った理由も GitHub issue で教えてください。どんな質問に gadak で答えたか、その後も使ったかが分かると助かります。遅かった、間違っていたという場合も、そのまま書いてください。',
+      body: '何に使って、その後も使っているかを教えてください。うまくいかなかった話や、導入を見送った理由も歓迎します。',
       caution: '実際の課題データ、API トークン、サイト URL は載せないでください。',
       links: [
         { href: `${GITHUB}/issues`, label: 'GitHub issue を開く' },

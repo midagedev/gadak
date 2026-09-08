@@ -435,14 +435,18 @@ landing (`site/src/i18n.ts`) and all three READMEs.
   Datasette Lite link sit on the landing, not only in the README, wherever
   the edition leads with SQL.
 - **One "before you connect work data" block**, in this order of the reader's
-  questions: which Jira (Cloud), how much is copied (`--projects`/`--spaces`,
-  wiki off), what stays local and how fresh (one SQLite file, first sync, one
-  interval behind), where the token is and is not, what leaves the machine
-  (no telemetry; only what you configured; the full list in `SECURITY.md`),
-  what a write does (origin first; a rejected write fails, nothing queued),
-  what changes with an agent (it sends what it reads to its model). Heading
-  it as a verdict — "Why this is safe to try", "안심하고 써도 되는 이유" — is
-  banned: the reader makes that call.
+  questions: which Jira (Cloud with an API token, Server/DC with
+  `init --server` and a PAT), how much is copied (`--projects`/`--spaces`,
+  wiki off), what stays here and how fresh (one SQLite file, first sync, one
+  interval behind), what leaves the machine (no telemetry; only what you
+  configured; the four origin-asking verbs; the full list in `SECURITY.md`),
+  where the token is and is not, what a write does (origin first; a rejected
+  write fails, nothing queued), what changes with an agent (it sends what it
+  reads to its model). **Each line leads with what it answers, in bold**
+  (2026-09-09): eight undifferentiated paragraphs read as a wall, and the
+  block exists to be scanned by someone deciding whether to hand over a
+  token. Heading it as a verdict — "Why this is safe to try",
+  "안심하고 써도 되는 이유" — is banned: the reader makes that call.
 - **No framing devices.** "The first question in every thread", "Fast is a
   measurement, not an adjective", "the honest where-gadak-loses table", "One
   vocabulary between you and the agent", "half the reason gadak exists", "SQL
@@ -455,7 +459,11 @@ landing (`site/src/i18n.ts`) and all three READMEs.
   initial sync — not a staged concession. Cite the 22 ms with its corpus and
   date wherever it appears.
 - **Every edition ends by asking what happened** (§13 wording) and says what
-  must stay out of a public report.
+  must stay out of a public report — in **two sentences and one caution line**
+  (2026-09-09). What was cut: telling the reader to withhold an issue count
+  (it asks them to self-censor a harmless number), the separate
+  what-to-send-about-an-agent paragraph, and the numbered bug-report list on
+  the landings. The deployment type in a bug report is now "Cloud or Server".
 - **Every edition carries status where a first-time reader finds it**: 0.21
   / 0.x, one maintainer, Apache-2.0, and the work that stays in Jira. The
   three-promise compatibility contract is README material, not landing

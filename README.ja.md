@@ -290,18 +290,14 @@ Atlassian Cloud、Jira Server / Data Center、Linear、アプリに同梱の内�
 
 ## 試用結果とバグ報告
 
-検索や集計で試した結果、困った点、導入を見送った理由も [GitHub issue](https://github.com/midagedev/gadak/issues)
-か、メール [midagedev@gmail.com](mailto:midagedev@gmail.com) で教えてください。どんな質問に gadak で答えたか、その後も使ったかが分かると助かります。
-メンテナーが[公開バックログ](https://gadak.dev/backlog/)へ写し、コミットメッセージの `GDK-nnn` は
-そこで開けます。バグ報告には次の 3 つを入れてください。
+何に使って、その後も使っているかを [GitHub issue](https://github.com/midagedev/gadak/issues)
+か、メール [midagedev@gmail.com](mailto:midagedev@gmail.com) で教えてください。うまくいかなかった話や、
+導入を見送った理由も歓迎します。メンテナーが[公開バックログ](https://gadak.dev/backlog/)へ写し、
+コミットメッセージの `GDK-nnn` はそこで開けます。
 
-1. Jira のデプロイ種別 (Cloud)
-2. gadak のコミット
-3. 実行したコマンド
-
-公開の issue には、実際の課題データを貼らないでください。API トークンとサイトの URL も同じです。
-エージェント利用時の問題は、それらを除いたうえで、質問の要旨と、期待した動作、実際の動作を
-書いてください。コードで参加するなら [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md) と
+公開の issue には、実際の課題データ、API トークン、サイトの URL を載せないでください。バグ報告には
+Jira のデプロイ種別 (Cloud か Server か)、gadak のコミット、実行したコマンドの 3 つがあれば十分です。
+コードで参加するなら [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md) と
 [docs/project/GOOD_FIRST_ISSUES.md](docs/project/GOOD_FIRST_ISSUES.md) から。次に作る機能が
 なぜそれなのかは、出典付きで [docs/project/THEORY.md](docs/project/THEORY.md) にあります。
 
