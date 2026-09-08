@@ -4,6 +4,11 @@
 
 ## Unreleased
 
+- **내장 트래커의 스프린트.** gadak이 함께 들고 다니는 트래커가 Jira Software의
+  Agile 표면을 그대로 냅니다. 보드, 스프린트, 이슈의 스프린트 필드, JQL의
+  `openSprints()` 계열. 그래서 Atlassian 계정이 전혀 없는 워크스페이스에서도,
+  페어링한 워크스페이스에서도 `gadak sprint`가 그대로 됩니다. 스프린트를 닫으면
+  끝나지 않은 이슈가 백로그로 쓸려 나갑니다. Jira와 같습니다. ([GDK-1666])
 - **보드가 스프린트를 압니다.** 스프린트가 있는 워크스페이스에는 레이아웃 스위치 옆에
   범위가 생깁니다. 진행 중인 스프린트(이름으로), 백로그, 전체. 이것은 다른 필터와
   같은 필터입니다. URL이 들고, 뒤로가기가 되돌리고, 저장된 뷰가 기억하며,
@@ -1745,4 +1750,5 @@ HTTP·sync·에이전트 계약을 담았습니다.
 [GDK-1656]: https://gadak.dev/backlog/#/?ks=GDK-1656
 [GDK-1660]: https://gadak.dev/backlog/#/?ks=GDK-1660
 [GDK-1661]: https://gadak.dev/backlog/#/?ks=GDK-1661
+[GDK-1666]: https://gadak.dev/backlog/#/?ks=GDK-1666
 [GDK-1662]: https://gadak.dev/backlog/#/?ks=GDK-1662

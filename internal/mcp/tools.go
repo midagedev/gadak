@@ -46,11 +46,12 @@ Schema essentials:
   ancestor — group/aggregate on this), hierarchy_level (1=epic, 0=standard,
   -1=sub-task), reopen_count (times an issue left done and came back; 0 is normal,
   >0 is the signal), reopened_at, status_changed_at, resolved_at, comment_count.
-- sprints / boards: Jira Software's, as rows of their own — sprints has id,
-  board_id, name, goal, state (lowercase active|future|closed), start_at, end_at,
-  complete_at, activated_at. A sprint with no issues is here and nowhere else;
-  the issues columns cannot answer "when does this sprint end". Absent on a
-  Linear or built-in workspace, and on a Jira site without Jira Software.
+- sprints / boards: rows of their own — sprints has id, board_id, name, goal,
+  state (lowercase active|future|closed), start_at, end_at, complete_at,
+  activated_at. A sprint with no issues is here and nowhere else; the issues
+  columns cannot answer "when does this sprint end". Filled on Jira with Jira
+  Software (Cloud or Server) and on the built-in tracker; empty on a Linear
+  workspace and on a Jira site without Jira Software.
 - issues_full: VIEW of issues plus summary (the item title) and description_text
   (items.body_text, flattened plain text) — prefer it whenever the answer needs
   a human-readable title or the description as text, no join required.

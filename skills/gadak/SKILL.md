@@ -938,8 +938,9 @@ gadak sprint start 14 --days 7
 gadak sprint close 14
 ```
 
-These are Jira Software's. A Linear or built-in workspace refuses them by
-name rather than reaching for a nearest concept.
+They work on Jira (Cloud and Server, where Jira Software is installed) and
+on the built-in tracker, which serves the same Agile surface. A Linear
+workspace refuses them by name rather than reaching for a nearest concept.
 
 ```bash
 gadak api GET /rest/api/3/issue/NMB-140/watchers

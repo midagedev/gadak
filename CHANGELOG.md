@@ -4,6 +4,12 @@
 
 ## Unreleased
 
+- **Sprints on the built-in tracker.** The tracker gadak carries now serves
+  Jira Software's own Agile surface — boards, sprints, the sprint field on
+  the issue, and JQL's `openSprints()` family — so `gadak sprint` works on a
+  workspace with no Atlassian account at all, and on a paired one. Closing a
+  sprint sweeps its unfinished issues to the backlog, the way Jira does.
+  ([GDK-1666])
 - **The board knows about sprints.** A workspace with sprints gets a scope
   beside the layout switch — the active sprint by name, the backlog, or all —
   and it is a filter like any other: the URL carries it, the back button
@@ -1823,4 +1829,5 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-1656]: https://gadak.dev/backlog/#/?ks=GDK-1656
 [GDK-1660]: https://gadak.dev/backlog/#/?ks=GDK-1660
 [GDK-1661]: https://gadak.dev/backlog/#/?ks=GDK-1661
+[GDK-1666]: https://gadak.dev/backlog/#/?ks=GDK-1666
 [GDK-1662]: https://gadak.dev/backlog/#/?ks=GDK-1662

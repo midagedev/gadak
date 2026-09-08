@@ -53,9 +53,9 @@ Markers:
 | **Read** · labels | ✅[^25] | ✅[^25] | ✅[^26] | ✅[^25] |
 | **Read** · components | ✅[^25] | ✅[^25] | —[^27] | ✅[^28] |
 | **Read** · fix versions + `versions` catalog | ✅[^29] | ✅[^29] | —[^30] | ✅[^31] |
-| **Read** · sprints (columns `sprint_id`/`sprint_name`/`sprint_state`) | ✅[^32] | ✅[^32] | —[^33] | —[^34] |
-| **Read** · boards + sprints as rows (`boards`, `sprints`, `gadak sprint list`) | ✅[^135] | ◐[^122] | —[^33] | —[^34] |
-| **Write** · sprint — add / remove / create / start / close | ✅[^136] | ✅[^123] | —[^33] | —[^34] |
+| **Read** · sprints (columns `sprint_id`/`sprint_name`/`sprint_state`) | ✅[^32] | ✅[^32] | —[^33] | ✅[^139] |
+| **Read** · boards + sprints as rows (`boards`, `sprints`, `gadak sprint list`) | ✅[^135] | ◐[^122] | —[^33] | ✅[^139] |
+| **Write** · sprint — add / remove / create / start / close | ✅[^136] | ✅[^123] | —[^33] | ✅[^140] |
 | **Read** · custom fields (`fields --apply`) | ✅[^35] | ✅[^124] | —[^36] | ◐[^37] |
 | **Read** · issue type | ✅[^38] | ✅[^38] | —[^39] | ✅[^40] |
 | **Read** · hierarchy — `parent_key` / `epic_key` | ✅[^41] | ✅[^125] | ◐[^42] | ✅[^43] |
@@ -85,7 +85,7 @@ Markers:
 | **Write** · `migrate --to` (destination) | —[^94] | —[^94] | ◐[^94] | ✅[^95] |
 | **Surface** · agent surfaces — skill / MCP / SQL | ✅[^96] | ✅[^96] | ✅[^96] | ✅[^96] |
 | **Surface** · board layout (0.19) | ✅[^97] | ✅[^97] | ✅[^97] | ✅[^97] |
-| **Surface** · board sprint scope + Sprint axes (0.22) | ✅[^138] | ✅[^138] | —[^33] | —[^34] |
+| **Surface** · board sprint scope + Sprint axes (0.22) | ✅[^138] | ✅[^138] | —[^33] | ✅[^138] |
 | **Surface** · `views open --keys -` | ✅[^98] | ✅[^98] | ✅[^98] | ✅[^98] |
 | **Surface** · watch feed + OS alerts | ✅[^99] | ✅[^134] | ◐[^100] | ✅[^99] |
 | **Surface** · in-process origin (no network to the tracker) | —[^101] | —[^101] | —[^101] | ✅[^102] |
@@ -625,6 +625,18 @@ Markers:
     GDK-1656). The control appears only when the mirror has a sprint row
     (`GET /api/v1/issues/sprints/`), so an origin without sprints never
     shows it — which is what the two refusal cells mean today.
+[^139]: The built-in tracker serves the same Agile surface — one scrum
+    board per project, created lazily — plus `customfield_10020` in Cloud's
+    object-array shape and JQL's three sprint functions, so gadak reads it
+    through exactly the code path Jira uses (issuetap
+    `internal/api/agile.go`, `docs/decisions/0002-agile-api-surface.md`,
+    GDK-1666). Measured end to end on a standalone workspace: create, add,
+    start, `sprint in openSprints()`, close.
+
+[^140]: Same routes as footnote 136 against the in-process origin. Closing
+    a sprint sweeps its unfinished issues to the backlog, the way Jira's
+    own close does — measured: two issues in, `sprint close 1`, both rows
+    back to no sprint.
 
 ## How this file is maintained
 
