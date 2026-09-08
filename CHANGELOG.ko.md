@@ -4,6 +4,13 @@
 
 ## Unreleased
 
+- **Jira Server 워크스페이스가 sync 됩니다.** REST 방언이 패키지 상수가 아니라
+  클라이언트의 것이 됐습니다. Cloud 와 빌트인 트래커는 v3 를 그대로 쓰고 Server
+  origin 은 v2 를 받으며, 버전 번호만으로 안 되는 엔드포인트 — 생성 메타데이터,
+  JQL 검색, 근사 개수, 첨부 미디어 경로 — 는 각자의 모양으로 답하거나 이름을
+  붙여 거절합니다. 실제 Jira Server 11.3.11 로 실측했습니다: `gadak sync` 가
+  미러를 채웁니다. 설명은 wiki markup 으로 오고 담당자에 accountId 가 없으며
+  첨부 바이트는 아직 닿지 않습니다 — 다음 셋입니다. ([GDK-1636])
 - **gadak 이 자기 업데이트를 찾지 않습니다.** 전에는 끄지 않는 한 하루 한 번
   GitHub 에 새 릴리스가 있는지 물었습니다. 사용자가 부탁한 적 없는 유일한
   외부 연결이었고, 그 하나 때문에 정문이 하고 싶은 말 — gadak 이 말을 거는
@@ -1557,5 +1564,6 @@ HTTP·sync·에이전트 계약을 담았습니다.
 [GDK-1537]: https://gadak.dev/backlog/#/?ks=GDK-1537
 [GDK-1635]: https://gadak.dev/backlog/#/?ks=GDK-1635
 [GDK-1640]: https://gadak.dev/backlog/#/?ks=GDK-1640
+[GDK-1636]: https://gadak.dev/backlog/#/?ks=GDK-1636
 [GDK-1617]: https://gadak.dev/backlog/#/?ks=GDK-1617
 [GDK-1626]: https://gadak.dev/backlog/#/?ks=GDK-1626

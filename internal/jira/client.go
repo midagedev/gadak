@@ -230,7 +230,14 @@ func (c *Client) Search(ctx context.Context, jql string, fields []string, withCh
 	for startAt := 0; ; {
 		body := map[string]any{"jql": jql, "maxResults": 100, "fields": fields}
 		if withChangelog {
-			body["expand"] = "changelog"
+			// v2 types SearchRequestBean.expand as a list; v3 takes the
+			// comma-separated string. Sending Cloud's shape to Server is a
+			// 400 naming ArrayList (measured on 11.3.11).
+			if c.serverDialect() {
+				body["expand"] = []string{"changelog"}
+			} else {
+				body["expand"] = "changelog"
+			}
 		}
 		if c.serverDialect() {
 			body["startAt"] = startAt

@@ -1073,6 +1073,11 @@ func (c *Config) HasAtlassianCredential() bool {
 	if c.HasBuiltInOrigin() {
 		return true
 	}
+	if c.OriginType() == OriginJiraServer {
+		// Server authenticates with a base URL and a Personal Access
+		// Token; there is no email to require (GDK-1640).
+		return c.Site != "" && c.Token != ""
+	}
 	if c.Site != "" && c.Email != "" && c.Token != "" {
 		return true
 	}

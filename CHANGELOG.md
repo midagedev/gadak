@@ -4,6 +4,14 @@
 
 ## Unreleased
 
+- **A Jira Server workspace syncs.** The REST dialect is the client's now,
+  not a package constant: Cloud and the built-in tracker keep v3, a Server
+  origin gets v2, and the endpoints that differ by more than a version number
+  — create metadata, JQL search, the approximate count, the attachment media
+  route — each answer in their own shape or refuse by name. Measured against
+  a live Jira Server 11.3.11: `gadak sync` fills the mirror. Descriptions
+  arrive as wiki markup, assignees carry no accountId, and attachment bytes
+  are not reachable yet — those are the next three. ([GDK-1636])
 - **gadak no longer looks for its own updates.** It used to ask GitHub once a
   day whether a newer release existed, unless you turned that off. That was
   the one outbound connection nobody had asked for, and it made the sentence
@@ -1614,5 +1622,6 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-1537]: https://gadak.dev/backlog/#/?ks=GDK-1537
 [GDK-1635]: https://gadak.dev/backlog/#/?ks=GDK-1635
 [GDK-1640]: https://gadak.dev/backlog/#/?ks=GDK-1640
+[GDK-1636]: https://gadak.dev/backlog/#/?ks=GDK-1636
 [GDK-1617]: https://gadak.dev/backlog/#/?ks=GDK-1617
 [GDK-1626]: https://gadak.dev/backlog/#/?ks=GDK-1626
