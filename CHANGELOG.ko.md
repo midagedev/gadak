@@ -4,6 +4,15 @@
 
 ## Unreleased
 
+- **Jira Server 워크스페이스의 스프린트.** Server 는 스프린트 필드를 자기
+  빈의 Java `toString` 으로 보낸다 — `Sprint@4ffcc813[…,id=1,name=Sprint
+  1,…,state=ACTIVE,…]`. Cloud 는 객체를 보낸다. 그래서 스프린트에 들어 있는
+  이슈도 `sprint_id`·`sprint_name`·`sprint_state` 가 전부 빈 채로 미러에
+  들어왔다. 이제 두 형태를 다 읽고, `ACTIVE` 는 질의가 쓰라고 배운
+  `active` 로 맞춘다. 에픽도 같은 사정이다 — Server 는 `fields.parent` 가
+  아니라 Epic Link 필드에 담고, 그것이 이제 이슈의 부모다. `/filter/my` 도
+  Server 에는 없어서 동기화마다 404 였다. Server 워크스페이스는
+  `/filter/favourite` 를 묻는다. ([GDK-1650], [GDK-1651], [GDK-1652])
 - **로그인 페이지를 응답으로 착각하지 않습니다.** 모든 REST 호출은 JSON 을
   요청하고 Go 는 리다이렉트를 따라가므로, 요청을 로그인 페이지로 튕기는
   origin 은 그 페이지의 HTML 을 200 으로 돌려줬습니다 — `gadak api` 는 그걸
@@ -1172,6 +1181,9 @@ HTTP·sync·에이전트 계약을 담았습니다.
 - 저장 스키마와 HTTP·sync·에이전트 계약, 그리고 WAL, FTS5, 파생 필드 계산기를
   갖춘 SQLite 구현.
 
+[GDK-1650]: https://gadak.dev/backlog/#/?ks=GDK-1650
+[GDK-1651]: https://gadak.dev/backlog/#/?ks=GDK-1651
+[GDK-1652]: https://gadak.dev/backlog/#/?ks=GDK-1652
 [GDK-19]: https://gadak.dev/backlog/#/?ks=GDK-19
 [GDK-23]: https://gadak.dev/backlog/#/?ks=GDK-23
 [GDK-24]: https://gadak.dev/backlog/#/?ks=GDK-24

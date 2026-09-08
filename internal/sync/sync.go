@@ -283,8 +283,8 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 	if opts.Reconcile {
 		opts.sprintField.reset()
 	}
-	sprintFieldID := opts.sprintField.resolve(ctx, c, opts)
-	fieldIDs := appendSprintField(fieldList(cfg, res.Full), sprintFieldID)
+	agile := opts.sprintField.resolve(ctx, c, opts)
+	fieldIDs := appendSprintField(fieldList(cfg, res.Full), agile)
 	var maxUTC, maxRaw string
 	// pageBase / unitDenom drive per-Search progress lines. unitDenom < 0 means
 	// the approximate count failed and the line has no denominator.
@@ -347,7 +347,7 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 					cats[id] = statuscat.Category(iss.Fields.Status.StatusCategory.Key)
 				}
 			}
-			r, err := build(ctx, c, cfg, iss, sprintFieldID)
+			r, err := build(ctx, c, cfg, iss, agile)
 			if err != nil {
 				return err
 			}
@@ -1043,7 +1043,7 @@ var devStatusSkips atomic.Int64
 
 // build maps one Jira issue onto the store's record, fetching the children the
 // search response truncated.
-func build(ctx context.Context, c *jira.Client, cfg *config.Config, iss jira.Issue, sprintFieldID string) (store.IssueRecord, error) {
+func build(ctx context.Context, c *jira.Client, cfg *config.Config, iss jira.Issue, agile agileFields) (store.IssueRecord, error) {
 	f := iss.Fields
 
 	comments := f.Comment.Comments
@@ -1147,7 +1147,7 @@ func build(ctx context.Context, c *jira.Client, cfg *config.Config, iss jira.Iss
 		issue.SecurityLevelID = f.Security.ID
 		issue.SecurityLevel = f.Security.Name
 	}
-	applySprint(&issue, iss.Extra, sprintFieldID)
+	applySprint(&issue, iss.Extra, agile)
 
 	rec := store.IssueRecord{Item: item, Issue: issue}
 	if shouldFetchDevLinks(cfg, c) {

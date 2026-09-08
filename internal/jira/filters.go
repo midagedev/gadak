@@ -28,12 +28,19 @@ type filterJSON struct {
 }
 
 // MyFilters returns filters the user owns, plus visible favourites when
-// includeFavourites is honoured (Cloud's GET /filter/my).
+// includeFavourites is honoured (Cloud's GET /filter/my). Server has no
+// /filter/my at all — it answers 404 — and its nearest route is
+// /filter/favourite, which returns the starred ones only (GDK-1652).
 func (c *Client) MyFilters(ctx context.Context) ([]SavedFilter, error) {
 	q := url.Values{}
-	q.Set("includeFavourites", "true")
 	q.Set("expand", "jql,owner,favourite")
-	path := c.apiBase + "/filter/my?" + q.Encode()
+	route := "/filter/my"
+	if c.serverDialect() {
+		route = "/filter/favourite"
+	} else {
+		q.Set("includeFavourites", "true")
+	}
+	path := c.apiBase + route + "?" + q.Encode()
 	var raw json.RawMessage
 	if err := c.do(ctx, http.MethodGet, path, nil, &raw); err != nil {
 		return nil, err

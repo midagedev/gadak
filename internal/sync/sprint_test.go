@@ -85,10 +85,10 @@ func TestFindGhSprintField(t *testing.T) {
 		{ID: "customfield_10020"},
 	}
 	catalog[0].Schema.Custom = "com.pyxis.greenhopper.jira:gh-sprint"
-	if got := findGhSprintField(catalog); got != "customfield_10020" {
+	if got := findGhSprintField(catalog); got.sprint != "customfield_10020" {
 		t.Fatalf("got %q", got)
 	}
-	if got := findGhSprintField(nil); got != "" {
+	if got := findGhSprintField(nil); got.sprint != "" {
 		t.Fatalf("empty catalog %q", got)
 	}
 }
@@ -286,15 +286,15 @@ func splitCSV(s string) []string {
 }
 
 func TestAppendSprintField(t *testing.T) {
-	got := appendSprintField([]string{"summary", "status"}, "customfield_10020")
+	got := appendSprintField([]string{"summary", "status"}, agileFields{sprint: "customfield_10020"})
 	if len(got) != 3 || got[2] != "customfield_10020" {
 		t.Fatalf("%v", got)
 	}
-	all := appendSprintField([]string{"*all"}, "customfield_10020")
+	all := appendSprintField([]string{"*all"}, agileFields{sprint: "customfield_10020"})
 	if len(all) != 1 || all[0] != "*all" {
 		t.Fatalf("*all %v", all)
 	}
-	dup := appendSprintField([]string{"summary", "customfield_10020"}, "customfield_10020")
+	dup := appendSprintField([]string{"summary", "customfield_10020"}, agileFields{sprint: "customfield_10020"})
 	if len(dup) != 2 {
 		t.Fatalf("dup %v", dup)
 	}

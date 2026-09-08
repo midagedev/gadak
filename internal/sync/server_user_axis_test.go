@@ -78,7 +78,7 @@ func TestServerSyncKeysUsersByName(t *testing.T) {
 			_, _ = w.Write([]byte(`[{"id":"2","name":"High"}]`))
 		case "/rest/api/2/issueLinkType":
 			_, _ = w.Write([]byte(`{"issueLinkTypes":[]}`))
-		case "/rest/api/2/filter/my":
+		case "/rest/api/2/filter/favourite": // Server has no /filter/my (GDK-1652)
 			_, _ = w.Write([]byte(`[]`))
 		case "/rest/api/2/field":
 			// The lazy sprint-field catalog lookup reads the full field

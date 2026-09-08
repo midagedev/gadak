@@ -75,9 +75,9 @@ func SyncIssue(ctx context.Context, cfg *config.Config, db *store.DB, key string
 	if opts.sprintField == nil {
 		opts.sprintField = &sprintFieldCache{}
 	}
-	sprintFieldID := opts.sprintField.resolve(ctx, c, opts)
+	agile := opts.sprintField.resolve(ctx, c, opts)
 	found := false
-	err = c.Search(ctx, fmt.Sprintf("key = %q", key), appendSprintField(fieldList(cfg, false), sprintFieldID), true, func(issues []jira.Issue) error {
+	err = c.Search(ctx, fmt.Sprintf("key = %q", key), appendSprintField(fieldList(cfg, false), agile), true, func(issues []jira.Issue) error {
 		// Force rewrites the row even when `updated` looks unchanged. That is the
 		// point: the rewrite is what moves synced_at and bumps sync_state.version,
 		// so the client's next delta carries the row and its ETag no longer matches.
@@ -88,7 +88,7 @@ func SyncIssue(ctx context.Context, cfg *config.Config, db *store.DB, key string
 					cats[id] = statuscat.Category(iss.Fields.Status.StatusCategory.Key)
 				}
 			}
-			r, err := build(ctx, c, cfg, iss, sprintFieldID)
+			r, err := build(ctx, c, cfg, iss, agile)
 			if err != nil {
 				return err
 			}

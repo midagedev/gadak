@@ -4,6 +4,16 @@
 
 ## Unreleased
 
+- **Sprints on a Jira Server workspace.** Server carries the sprint field as
+  the Java `toString` of its own bean — `Sprint@4ffcc813[…,id=1,name=Sprint
+  1,…,state=ACTIVE,…]` — where Cloud sends an object, so every issue in a
+  sprint reached the mirror with `sprint_id`, `sprint_name` and
+  `sprint_state` blank. Both shapes are now read, and `ACTIVE` is normalised
+  to the `active` that queries are told to ask for. An issue's epic arrives
+  the same way: Server keys it in the Epic Link field rather than
+  `fields.parent`, and that is now the issue's parent. Server also has no
+  `/filter/my` — it answered 404 on every sync — so a Server workspace asks
+  `/filter/favourite` instead. ([GDK-1650], [GDK-1651], [GDK-1652])
 - **A login page is no longer mistaken for an answer.** Every REST call asks
   for JSON, and Go follows redirects, so an origin that bounces a request to
   its login page returned that page's HTML at 200 — `gadak api` printed it,
@@ -1238,6 +1248,9 @@ and the storage schema plus the HTTP, sync and agent contracts.
 - The storage schema, plus HTTP, sync and agent contracts, and the SQLite
   implementation with WAL, FTS5, and the derived-field calculator.
 
+[GDK-1650]: https://gadak.dev/backlog/#/?ks=GDK-1650
+[GDK-1651]: https://gadak.dev/backlog/#/?ks=GDK-1651
+[GDK-1652]: https://gadak.dev/backlog/#/?ks=GDK-1652
 [GDK-19]: https://gadak.dev/backlog/#/?ks=GDK-19
 [GDK-23]: https://gadak.dev/backlog/#/?ks=GDK-23
 [GDK-24]: https://gadak.dev/backlog/#/?ks=GDK-24
