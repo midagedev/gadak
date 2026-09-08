@@ -4,6 +4,16 @@
 
 ## Unreleased
 
+- **Jira Server / Data Center 열이 생겼고, 그 열의 셀은 전부 실행해서 얻었습니다.**
+  `docs/SUPPORT_MATRIX.md`는 이제 Jira Cloud, Jira Server, Linear, Built-in 넷을
+  읽습니다. Server 셀은 Jira Software 11.3.11 Data Center 랩에서 나왔습니다.
+  `tools/jira-server-lab/seed.sh`가 행마다 필요한 데이터를 심고,
+  `tools/jira-server-lab/measure.sh`가 행마다 명령 하나를 돌려 출력을 남깁니다.
+  인스턴스를 띄우는 방법은 런북에 있습니다. 두 행은 정직한 거절입니다. 위키는
+  Confluence Server 클라이언트가 없기 때문입니다. 두 행은 한계를 달고 있습니다.
+  보드→프로젝트 매핑이 비어 있고, 개발 패널의 거절 문장이 아직 Cloud를 말합니다.
+  README와 로드맵, 제품 스펙에서 "검증하지 않아 주장하지 않는다"가 빠졌습니다.
+  ([GDK-1634], [GDK-1641])
 - **닫힌 스프린트의 완료 이슈가 계속 "active"로 남던 것.** 스프린트를 닫으면
   미완료 이슈만 밖으로 옮겨지므로, 완료된 이슈는 아무것도 바뀌지 않고 증분
   동기화도 다시 읽지 않았습니다. 그 행들의 `sprint_state`는 영원히 "active"였고,
@@ -1711,6 +1721,8 @@ HTTP·sync·에이전트 계약을 담았습니다.
 [GDK-1633]: https://gadak.dev/backlog/#/?ks=GDK-1633
 [GDK-1601]: https://gadak.dev/backlog/#/?ks=GDK-1601
 [GDK-1622]: https://gadak.dev/backlog/#/?ks=GDK-1622
+[GDK-1634]: https://gadak.dev/backlog/#/?ks=GDK-1634
+[GDK-1641]: https://gadak.dev/backlog/#/?ks=GDK-1641
 [GDK-1645]: https://gadak.dev/backlog/#/?ks=GDK-1645
 [GDK-1661]: https://gadak.dev/backlog/#/?ks=GDK-1661
 [GDK-1662]: https://gadak.dev/backlog/#/?ks=GDK-1662

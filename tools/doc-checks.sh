@@ -2010,9 +2010,11 @@ ok "MCP tool description enums name values the Go source emits"
 # Class: a support matrix is a map a reader plans around, and it is the
 # single owner of the origin table — the READMEs summarize and link. This
 # check pins only the structure: the file exists, the first table row is
-# the three-origin header, every data row carries exactly three cells of
-# ✅/◐/— each with a footnote marker, every used marker has a definition,
-# and both READMEs link here instead of carrying a second table. Whether a
+# the four-origin header (Jira Cloud, Jira Server, Linear, Built-in — the
+# Server column landed 2026-09-09 with GDK-1634), every data row carries
+# exactly four cells of ✅/◐/— each with a footnote marker, every used
+# marker has exactly one definition, and both READMEs link here instead of
+# carrying a second table. Whether a
 # cell still tells the truth is review's job — the doc's own "How this
 # file is maintained" section names the files whose commits must update
 # it; generating cells from refusal code instead of review is GDK-1301.
@@ -2042,7 +2044,7 @@ if not doc.exists():
 text = doc.read_text()
 lines = text.splitlines()
 
-HEADER = "| Capability | Jira | Linear | Built-in |"
+HEADER = "| Capability | Jira Cloud | Jira Server | Linear | Built-in |"
 header_at = None
 for i, l in enumerate(lines):
     s = l.strip()
@@ -2066,8 +2068,8 @@ for i in range(header_at + 1, len(lines)):
         continue  # separator row
     rows += 1
     cells = [c.strip() for c in s.strip("|").split("|")]
-    if len(cells) != 4:
-        print(f"line {i+1}: {len(cells)} cells, want 4 (capability + 3 origins)")
+    if len(cells) != 5:
+        print(f"line {i+1}: {len(cells)} cells, want 5 (capability + 4 origins)")
         continue
     for j, c in enumerate(cells[1:], 2):
         m = MARKER.match(c)
@@ -2078,9 +2080,16 @@ for i in range(header_at + 1, len(lines)):
 if rows == 0:
     print("docs/SUPPORT_MATRIX.md: the table has no data rows")
 
-defined = set(re.findall(r"^\[\^([0-9]+)\]:", text, re.M))
+defined_list = re.findall(r"^\[\^([0-9]+)\]:", text, re.M)
+defined = set(defined_list)
 for n in sorted(used - defined, key=int):
     print(f"footnote [^{n}] is used in a cell but never defined")
+# Defined twice is worse than undefined: the renderer picks one and the cell
+# points at the wrong origin's sentence. FAIL-first 2026-09-09: [^106] and
+# [^107] were each defined twice (Linear links / link-type catalog, then the
+# sprint rows added on top of them the day before) and this check was green.
+for n in sorted({x for x in defined_list if defined_list.count(x) > 1}, key=int):
+    print(f"footnote [^{n}] is defined {defined_list.count(n)} times")
 
 for f in ("README.md", "README.ko.md", "README.ja.md"):
     body = Path(f).read_text()

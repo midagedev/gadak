@@ -4,6 +4,17 @@
 
 ## Unreleased
 
+- **Jira Server / Data Center has its own column, and every cell in it was
+  run.** `docs/SUPPORT_MATRIX.md` now reads Jira Cloud, Jira Server, Linear,
+  Built-in. The Server cells come from a Jira Software 11.3.11 Data Center
+  lab: `tools/jira-server-lab/seed.sh` plants the data every row needs and
+  `tools/jira-server-lab/measure.sh` runs one command per row and keeps the
+  output; the runbook says how to bring the instance up. Two rows are honest
+  refusals — the wiki, because there is no Confluence Server client — and
+  two carry a limit: the board→project mapping is empty there, and the
+  development panel's refusal still speaks of Cloud. The READMEs, the
+  roadmap and the product spec drop "untested, therefore unclaimed".
+  ([GDK-1634], [GDK-1641])
 - **A closed sprint no longer leaves its done issues reading "active".**
   Closing a sprint moves only the unfinished issues out, so the finished ones
   never change and an incremental sync never re-read them; their
@@ -1785,6 +1796,8 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-1633]: https://gadak.dev/backlog/#/?ks=GDK-1633
 [GDK-1601]: https://gadak.dev/backlog/#/?ks=GDK-1601
 [GDK-1622]: https://gadak.dev/backlog/#/?ks=GDK-1622
+[GDK-1634]: https://gadak.dev/backlog/#/?ks=GDK-1634
+[GDK-1641]: https://gadak.dev/backlog/#/?ks=GDK-1641
 [GDK-1645]: https://gadak.dev/backlog/#/?ks=GDK-1645
 [GDK-1661]: https://gadak.dev/backlog/#/?ks=GDK-1661
 [GDK-1662]: https://gadak.dev/backlog/#/?ks=GDK-1662

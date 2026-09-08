@@ -97,7 +97,8 @@ A site needs one [API token](https://id.atlassian.com/manage-profile/security/ap
 a user token created with no scopes; it covers Jira and Confluence on the same
 site, and the mirror sees what your account sees. **You pick what it mirrors**:
 `--projects` for Jira, `--spaces` for the wiki, which stays off until you name
-spaces. Jira Server and Data Center are untested, so they are not claimed.
+spaces. Jira Server and Data Center connect with `gadak init --server` and a
+Personal Access Token; the wiki stays off there (no Confluence Server client).
 
 ```bash
 gadak init --projects ENG,PROD --spaces ENG
@@ -192,10 +193,12 @@ to.** gadak itself sends nothing. Scope the mirror to what the agent should see.
 
 ## Origins and limits
 
-Three origins, one set of verbs: Atlassian Cloud, Linear (a `"linear"` block
-in the workspace config and `gadak sync --source linear`), and the built-in
-tracker that travels with the app. Reads, writes, hierarchy, wiki, attachments,
-history and the board layout work on all three. What each origin refuses, with
+Four origins, one set of verbs: Atlassian Cloud, Jira Server / Data Center
+(`gadak init --server` and a Personal Access Token), Linear (a `"linear"`
+block in the workspace config and `gadak sync --source linear`), and the
+built-in tracker that travels with the app. Reads, writes, hierarchy,
+attachments, history and the board layout work on all four; the wiki on the
+three that have one. What each origin refuses, with
 the code citation behind every cell:
 [`docs/SUPPORT_MATRIX.md`](docs/SUPPORT_MATRIX.md). Three things appear on no
 origin at all and stay in Jira: sprints as a UI, Jira dashboards, and Jira's

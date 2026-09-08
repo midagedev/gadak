@@ -344,8 +344,11 @@ deliberately not now (see the arrival stance in **Next**).
 - **Bidirectional sync engines** (PowerSync, Electric, Zero). Wrong shape: they
   assume a remote server with a Postgres upstream, and writes here cannot leave
   the browser directly anyway. See `decisions/0004-browser-sqlite.md`.
-- **Jira Server / Data Center.** Not until someone with an instance can test it.
-  Guessing at DC behavior is worse than declining to support it.
+- **Jira Server / Data Center — done as of 0.22** (GDK-1634): the "not until
+  someone with an instance can test it" clause fell when the Atlassian Plugin
+  SDK and Docker gave us an instance of our own; the column in
+  `docs/SUPPORT_MATRIX.md` is measured, not read. Confluence Server stays out
+  (GDK-1664).
 - **Multi-user or hosted deployment.** Contradicts the security model, which is
   "one user, loopback only, no auth".
 - **Boards, sprint planning UI, reports.** Jira's own UI does these. We contain

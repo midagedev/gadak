@@ -78,9 +78,11 @@ gadak が負ける行もあります。最初のフル同期には時間がか�
 
 ### 接続先は Jira Cloud です
 
-対応している Jira は Cloud です。Server / Data Center は検証していないため、対応対象に
-していません。必要なのは Jira サイトの API トークン 1 つで、同じサイトの Jira と Confluence の
-両方に使えます。トークンはそのアカウントと同じ権限で動き、gadak が権限を足すことはありません。
+Jira Cloud と、Jira Server / Data Center の両方に対応しています。Cloud で必要なのは
+Jira サイトの API トークン 1 つで、同じサイトの Jira と Confluence の両方に使えます。
+Server / Data Center は `gadak init --server` と Personal Access Token で接続します
+(11.x では基本認証が既定で無効です)。Confluence Server のクライアントはないため、
+そちらでは wiki は使えません。トークンはそのアカウントと同じ権限で動き、gadak が権限を足すことはありません。
 キャッシュに入るのは、そのアカウントに見えるものだけです。
 
 ### 写す範囲は自分で決めます
@@ -175,7 +177,7 @@ SmartScreen に止められた場合、それは署名がないという意味�
 
 ### Jira Cloud に接続する
 
-対応は Jira Cloud です (Server / Data Center は未検証)。[API トークン](https://id.atlassian.com/manage-profile/security/api-tokens)
+Cloud は [API トークン](https://id.atlassian.com/manage-profile/security/api-tokens)
 を用意し、接続して同期し、`gadak serve` が表示するアドレス (`http://gadak.localhost:7777`) を開きます:
 
 ```bash
@@ -248,9 +250,10 @@ gadak mcp install claude-desktop
 
 ## その他の接続先と移行
 
-Atlassian Cloud、Linear、アプリに同梱の内蔵トラッカーを、共通のコマンドで操作できます。読み取り、
-書き込み、階層、wiki、添付、履歴、ボードのレイアウトは 3 つすべてで動き、接続先ごとに拒まれる
-操作は、セルごとにコードの参照を付けた [docs/SUPPORT_MATRIX.md](docs/SUPPORT_MATRIX.md) にあります。
+Atlassian Cloud、Jira Server / Data Center、Linear、アプリに同梱の内蔵トラッカーを、共通の
+コマンドで操作できます。読み取り、書き込み、階層、添付、履歴、ボードのレイアウトは 4 つすべてで
+動き (wiki は Confluence Cloud と内蔵 wiki)、接続先ごとに拒まれる操作は、セルごとにコードの
+参照を付けた [docs/SUPPORT_MATRIX.md](docs/SUPPORT_MATRIX.md) にあります。
 
 - **Linear**: ワークスペース設定の `"linear"` ブロックと `gadak sync --source linear`。
 - **Atlassian のアカウントがない場合**: `gadak init --local` で内蔵トラッカーのワークスペースが作られます。

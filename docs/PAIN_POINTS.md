@@ -56,7 +56,8 @@ synced — including cached attachments — renders with no network at all.
   administration.
 - Velocity dashboards — the complaint behind them ("optimizing for Jira") is
   cultural, and a dashboard feeds it. gadak stays a triage tool on purpose.
-- Jira Server / Data Center — untested, therefore unclaimed.
+- Confluence Server / Data Center — no client (GDK-1664). Jira Server / Data
+  Center itself is a measured origin since 0.22.
 
 ## Competitive note
 

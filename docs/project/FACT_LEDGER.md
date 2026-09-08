@@ -241,25 +241,31 @@ gadak sql "select epic_key, count(*) from issues_full where resolved_at is null
 
 ## 9. Origins covered
 
-Three origins, one set of verbs:
+Four origins, one set of verbs:
 
 - **Atlassian Cloud**
+- **Jira Server / Data Center** (`gadak init --server`, a base URL and a
+  Personal Access Token)
 - **Linear** (a `"linear"` block in the workspace config, `gadak sync --source linear`)
 - **the built-in tracker** that travels with the app
 
-Reads, writes, hierarchy, wiki, attachments, history and the board layout work
-on all three. What each origin refuses, with a code citation per cell:
-`docs/SUPPORT_MATRIX.md` (every edition links it; neither README restates the
-table).
+Reads, writes, hierarchy, attachments, history and the board layout work on
+all four; wiki on the three that have a Confluence Cloud or built-in wiki
+(Confluence Server has no client). What each origin refuses, with a code
+citation per cell: `docs/SUPPORT_MATRIX.md` (every edition links it; neither
+README restates the table).
 
 **Three things appear on no origin at all**: sprints as a UI, Jira dashboards,
 and Jira's notification inbox. Those stay in Jira.
 
-**The Atlassian origin is Cloud.** Jira Server and Data Center are untested and
-therefore unclaimed (`docs/PAIN_POINTS.md:59`, `docs/project/ROADMAP.md:347`).
-Every edition must say so where it tells the reader to connect — an on-prem
-reader who finds out by failing is a lost reader, and in Japan the Data Center
-share makes this the first question (review round 2026-09-08).
+**Jira Server / Data Center is measured, not assumed** (GDK-1634, 2026-09-09):
+every matrix row was run against a Jira Software 11.3.11 Data Center lab
+instance (`docs/runbooks/jira-server-lab.md`, `tools/jira-server-lab/`). The
+connect step is `gadak init --server` with a Personal Access Token — basic
+auth is off by default on 11.x. Every edition says so where it tells the
+reader to connect, because in Japan the Data Center share makes this the
+first question (review round 2026-09-08). Confluence Server has no client
+(GDK-1664): a Server workspace has no wiki.
 
 ## 10. Good fit / bad fit (an edition may compress, not contradict)
 

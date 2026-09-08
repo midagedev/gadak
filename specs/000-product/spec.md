@@ -58,8 +58,10 @@ disposable.
 - Offline writes, write queues, and conflict resolution.
 - Sources other than Jira Cloud. The schema stays source-neutral, but no second
   connector ships in v0.1.
-- Jira Server / Data Center. Cloud only until someone with a DC instance can
-  test it.
+- Jira Server / Data Center as a *tested product*: it is a supported origin
+  since 0.22 (`gadak init --server`, measured against a Jira Software 11.3.11
+  Data Center lab — `docs/SUPPORT_MATRIX.md`), but no customer instance has
+  been seen; Confluence Server has no client.
 - Multi-user deployment. One machine, one user, no authorization model beyond
   binding to loopback.
 

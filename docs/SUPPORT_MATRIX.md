@@ -14,17 +14,20 @@ below as `issuetap/docs/COMPATIBILITY.md`). A Built-in cell is never "same
 as Jira": it means the Jira REST verb exists and the Built-in origin
 implements the route.
 
-Jira **Server / Data Center** is a fourth origin type as of GDK-1635
-(`gadak init --server`, a base URL and a Personal Access Token). It still has
-no column, and that absence is narrower than it was: read and write both
-work end to end against a running Jira Software 11.3.11 Data Center
-instance — REST v2 paths, wiki markup carried byte for byte, users keyed by
-name, attachments under `/secure/attachment`, sprints, boards and the epic
-link. What is not yet done is measuring every one of the rows below on that
-instance, one at a time, which is what a column is. Until then the Jira
-column means Atlassian Cloud, and the Server-specific findings are in the
-CHANGELOG and in `docs/runbooks/jira-server-lab.md`, which is how to bring
-an instance up.
+Jira **Server / Data Center** is the fourth origin type (`gadak init
+--server`, a base URL and a Personal Access Token; GDK-1635). Its column was
+measured row by row on a Jira Software 11.3.11 Data Center instance seeded
+for exactly that: `tools/jira-server-lab/seed.sh` plants the data every row
+needs (an epic with epic links, a sub-task, components, versions, a blocking
+link, a remote link, an attachment, a role-restricted comment, a worklog,
+transitions through done and a reopen, three sprints in the three states,
+and hundreds of plain issues for the rate-limit run), and
+`tools/jira-server-lab/measure.sh` runs one command per row and keeps the
+output; `docs/runbooks/jira-server-lab.md` brings the instance up. Where a
+Server cell shares a footnote with the Cloud one, the code path is the same
+and the measurement said so; a Server-only footnote names the dialect
+difference and the commit that closed it. Confluence Server has no client
+here (GDK-1664), so the two wiki rows are refusals.
 
 Markers:
 
@@ -33,58 +36,58 @@ Markers:
 - — — not on this origin; gadak refuses with a sentence rather than
   half-applying
 
-| Capability | Jira | Linear | Built-in |
-| --- | --- | --- | --- |
-| **Read** · issue sync | ✅[^1] | ✅[^2] | ✅[^3] |
-| **Read** · full-text search (`gadak search`) | ✅[^4] | ✅[^4] | ✅[^4] |
-| **Read** · SQL (`gadak sql`, `issues_full` + RECIPES) | ✅[^5] | ✅[^6] | ✅[^5] |
-| **Read** · `--jql` / pasted Jira URL | ✅[^7] | ✅[^8] | ✅[^7] |
-| **Read** · comments | ✅[^9] | ✅[^10] | ✅[^9] |
-| **Read** · attachment bytes | ✅[^11] | ✅[^12] | ✅[^13] |
-| **Read** · attachment download (`gadak attach get`) | ✅[^110] | ✅[^111] | ✅[^112] |
-| **Read** · history → `status_changed_at`, `reopen_count`, `started_at` / `cycle_hours` (time-in-status computed, never stored) | ✅[^14] | ◐[^15] | ✅[^16] |
-| **Read** · issue links | ✅[^17] | ✅[^106] | ✅[^19] |
-| **Read** · `gadak ready` / `open_blockers` — blocking-link catalog | ✅[^107] | ✅[^108] | ✅[^109] |
-| **Read** · remote issue links / cross-workspace refs (`ref`) | —[^20] | —[^20] | ◐[^21] |
-| **Read** · development-panel links (`dev`) | ◐[^22] | —[^23] | ✅[^24] |
-| **Read** · labels | ✅[^25] | ✅[^26] | ✅[^25] |
-| **Read** · components | ✅[^25] | —[^27] | ✅[^28] |
-| **Read** · fix versions + `versions` catalog | ✅[^29] | —[^30] | ✅[^31] |
-| **Read** · sprints (columns `sprint_id`/`sprint_name`/`sprint_state`) | ✅[^32] | —[^33] | —[^34] |
-| **Read** · boards + sprints as rows (`boards`, `sprints`, `gadak sprint list`) | ✅[^106] | —[^33] | —[^34] |
-| **Write** · sprint — add / remove / create / start / close | ✅[^107] | —[^33] | —[^34] |
-| **Read** · custom fields (`fields --apply`) | ✅[^35] | —[^36] | ◐[^37] |
-| **Read** · issue type | ✅[^38] | —[^39] | ✅[^40] |
-| **Read** · hierarchy — `parent_key` / `epic_key` | ✅[^41] | ◐[^42] | ✅[^43] |
-| **Read** · wiki pages | ✅[^44] | —[^45] | ✅[^46] |
-| **Read** · origin web URL — `gadak open`, web key anchor, copy link | ✅[^47] | ✅[^48] | ◐[^49] |
-| **Read** · view link — toolbar / palette "Copy link to this view" | ✅[^103] | ◐[^104] | ◐[^105] |
-| **Write** · create issue | ✅[^50] | ◐[^51] | ✅[^52] |
-| **Write** · comment — visibility / internal | ✅[^53] | ◐[^54] | ✅[^55] |
-| **Write** · comment edit / delete (`comment edit` / `comment rm`) | ✅[^114] | ✅[^115] | ✅[^116] |
-| **Write** · transition — screen fields | ✅[^56] | ◐[^57] | ✅[^58] |
-| **Write** · assign / unassign | ✅[^59] | ✅[^60] | ✅[^61] |
-| **Write** · label edits | ✅[^62] | —[^63] | ✅[^64] |
-| **Write** · component edits | ✅[^62] | —[^63] | ✅[^65] |
-| **Write** · priority edit | ✅[^62] | ✅[^66] | ✅[^64] |
-| **Write** · due date — set | ✅[^67] | ✅[^67] | ✅[^67] |
-| **Write** · due date — clear | ✅[^68] | —[^69] | ✅[^68] |
-| **Write** · summary / description edit | ✅[^70] | ◐[^71] | ✅[^70] |
-| **Write** · custom-field edit | ✅[^35] | —[^72] | ◐[^37] |
-| **Write** · issue type edit (`edit --type`) | ✅[^73] | —[^74] | ✅[^75] |
-| **Write** · parent set / clear | ✅[^76] | —[^77] | ✅[^78] |
-| **Write** · attachment upload | ✅[^79] | ✅[^80] | ✅[^113] |
-| **Write** · link / unlink issues | ✅[^81] | —[^18] | ✅[^82] |
-| **Write** · wiki write — page create / edit / comment | ✅[^83] | —[^45] | ✅[^84] |
-| **Write** · `claim` | ◐[^85] | —[^86] | ✅[^87] |
-| **Write** · worklog (`gadak api --write`) | ✅[^88] | —[^89] | —[^90] |
-| **Write** · `migrate --from` (source) | ✅[^91] | ◐[^92] | ✅[^93] |
-| **Write** · `migrate --to` (destination) | —[^94] | ◐[^94] | ✅[^95] |
-| **Surface** · agent surfaces — skill / MCP / SQL | ✅[^96] | ✅[^96] | ✅[^96] |
-| **Surface** · board layout (0.19) | ✅[^97] | ✅[^97] | ✅[^97] |
-| **Surface** · `views open --keys -` | ✅[^98] | ✅[^98] | ✅[^98] |
-| **Surface** · watch feed + OS alerts | ✅[^99] | ◐[^100] | ✅[^99] |
-| **Surface** · in-process origin (no network to the tracker) | —[^101] | —[^101] | ✅[^102] |
+| Capability | Jira Cloud | Jira Server | Linear | Built-in |
+| --- | --- | --- | --- | --- |
+| **Read** · issue sync | ✅[^1] | ✅[^117] | ✅[^2] | ✅[^3] |
+| **Read** · full-text search (`gadak search`) | ✅[^4] | ✅[^4] | ✅[^4] | ✅[^4] |
+| **Read** · SQL (`gadak sql`, `issues_full` + RECIPES) | ✅[^5] | ✅[^5] | ✅[^6] | ✅[^5] |
+| **Read** · `--jql` / pasted Jira URL | ✅[^7] | ✅[^7] | ✅[^8] | ✅[^7] |
+| **Read** · comments | ✅[^9] | ✅[^118] | ✅[^10] | ✅[^9] |
+| **Read** · attachment bytes | ✅[^11] | ✅[^119] | ✅[^12] | ✅[^13] |
+| **Read** · attachment download (`gadak attach get`) | ✅[^110] | ✅[^119] | ✅[^111] | ✅[^112] |
+| **Read** · history → `status_changed_at`, `reopen_count`, `started_at` / `cycle_hours` (time-in-status computed, never stored) | ✅[^14] | ✅[^120] | ◐[^15] | ✅[^16] |
+| **Read** · issue links | ✅[^17] | ✅[^17] | ✅[^106] | ✅[^19] |
+| **Read** · `gadak ready` / `open_blockers` — blocking-link catalog | ✅[^107] | ✅[^107] | ✅[^108] | ✅[^109] |
+| **Read** · remote issue links / cross-workspace refs (`ref`) | —[^20] | —[^20] | —[^20] | ◐[^21] |
+| **Read** · development-panel links (`dev`) | ◐[^22] | ◐[^121] | —[^23] | ✅[^24] |
+| **Read** · labels | ✅[^25] | ✅[^25] | ✅[^26] | ✅[^25] |
+| **Read** · components | ✅[^25] | ✅[^25] | —[^27] | ✅[^28] |
+| **Read** · fix versions + `versions` catalog | ✅[^29] | ✅[^29] | —[^30] | ✅[^31] |
+| **Read** · sprints (columns `sprint_id`/`sprint_name`/`sprint_state`) | ✅[^32] | ✅[^32] | —[^33] | —[^34] |
+| **Read** · boards + sprints as rows (`boards`, `sprints`, `gadak sprint list`) | ✅[^135] | ◐[^122] | —[^33] | —[^34] |
+| **Write** · sprint — add / remove / create / start / close | ✅[^136] | ✅[^123] | —[^33] | —[^34] |
+| **Read** · custom fields (`fields --apply`) | ✅[^35] | ✅[^124] | —[^36] | ◐[^37] |
+| **Read** · issue type | ✅[^38] | ✅[^38] | —[^39] | ✅[^40] |
+| **Read** · hierarchy — `parent_key` / `epic_key` | ✅[^41] | ✅[^125] | ◐[^42] | ✅[^43] |
+| **Read** · wiki pages | ✅[^44] | —[^126] | —[^45] | ✅[^46] |
+| **Read** · origin web URL — `gadak open`, web key anchor, copy link | ✅[^47] | ✅[^47] | ✅[^48] | ◐[^49] |
+| **Read** · view link — toolbar / palette "Copy link to this view" | ✅[^103] | ✅[^103] | ◐[^104] | ◐[^105] |
+| **Write** · create issue | ✅[^50] | ✅[^127] | ◐[^51] | ✅[^52] |
+| **Write** · comment — visibility / internal | ✅[^53] | ✅[^128] | ◐[^54] | ✅[^55] |
+| **Write** · comment edit / delete (`comment edit` / `comment rm`) | ✅[^114] | ✅[^137] | ✅[^115] | ✅[^116] |
+| **Write** · transition — screen fields | ✅[^56] | ✅[^129] | ◐[^57] | ✅[^58] |
+| **Write** · assign / unassign | ✅[^59] | ✅[^130] | ✅[^60] | ✅[^61] |
+| **Write** · label edits | ✅[^62] | ✅[^62] | —[^63] | ✅[^64] |
+| **Write** · component edits | ✅[^62] | ✅[^62] | —[^63] | ✅[^65] |
+| **Write** · priority edit | ✅[^62] | ✅[^62] | ✅[^66] | ✅[^64] |
+| **Write** · due date — set | ✅[^67] | ✅[^67] | ✅[^67] | ✅[^67] |
+| **Write** · due date — clear | ✅[^68] | ✅[^68] | —[^69] | ✅[^68] |
+| **Write** · summary / description edit | ✅[^70] | ✅[^131] | ◐[^71] | ✅[^70] |
+| **Write** · custom-field edit | ✅[^35] | ✅[^124] | —[^72] | ◐[^37] |
+| **Write** · issue type edit (`edit --type`) | ✅[^73] | ✅[^73] | —[^74] | ✅[^75] |
+| **Write** · parent set / clear | ✅[^76] | ✅[^76] | —[^77] | ✅[^78] |
+| **Write** · attachment upload | ✅[^79] | ✅[^119] | ✅[^80] | ✅[^113] |
+| **Write** · link / unlink issues | ✅[^81] | ✅[^132] | —[^18] | ✅[^82] |
+| **Write** · wiki write — page create / edit / comment | ✅[^83] | —[^126] | —[^45] | ✅[^84] |
+| **Write** · `claim` | ◐[^85] | ◐[^133] | —[^86] | ✅[^87] |
+| **Write** · worklog (`gadak api --write`) | ✅[^88] | ✅[^88] | —[^89] | —[^90] |
+| **Write** · `migrate --from` (source) | ✅[^91] | ✅[^91] | ◐[^92] | ✅[^93] |
+| **Write** · `migrate --to` (destination) | —[^94] | —[^94] | ◐[^94] | ✅[^95] |
+| **Surface** · agent surfaces — skill / MCP / SQL | ✅[^96] | ✅[^96] | ✅[^96] | ✅[^96] |
+| **Surface** · board layout (0.19) | ✅[^97] | ✅[^97] | ✅[^97] | ✅[^97] |
+| **Surface** · `views open --keys -` | ✅[^98] | ✅[^98] | ✅[^98] | ✅[^98] |
+| **Surface** · watch feed + OS alerts | ✅[^99] | ✅[^134] | ◐[^100] | ✅[^99] |
+| **Surface** · in-process origin (no network to the tracker) | —[^101] | —[^101] | —[^101] | ✅[^102] |
 
 [^1]: Atlassian Cloud REST (`internal/jira/client.go:165`), mirrored by the
     Jira-family sync pass (`internal/sync/run.go:50`, `internal/sync/sync.go:153`).
@@ -228,13 +231,13 @@ Markers:
 [^34]: The origin's issue model has no sprint field — the editable set
     carries none (`issuetap/docs/COMPATIBILITY.md:72`).
 
-[^106]: `/rest/agile/1.0/board` and `/board/{id}/sprint`, which answer the same
+[^135]: `/rest/agile/1.0/board` and `/board/{id}/sprint`, which answer the same
     shape on Cloud and Server — measured on Jira Software 11.3.11 DC
     (`internal/jira/agile.go:14`, `internal/sync/agile.go:16`, GDK-1654). A
     site without Jira Software has no Agile API and syncs no boards; that is
     silent, not an error.
 
-[^107]: `gadak sprint` (`cmd/gadak/sprint.go:32`) over
+[^136]: `gadak sprint` (`cmd/gadak/sprint.go:32`) over
     `POST /rest/agile/1.0/sprint/{id}/issue`, `/backlog/issue`, `/sprint` and
     `/sprint/{id}` (`internal/jira/agile.go:118`, GDK-1655). Every state
     change re-reads the sprint listing and the issues that were in it, so the
@@ -498,10 +501,124 @@ Markers:
 [^102]: Embedded in the same process (`internal/origin/transport.go:102`), or
     one hop to a paired serve (`:108`).
 
+[^117]: Server keeps REST v2 only (a v3 route answers 401, not 404) and the
+    classic `POST /search` paged by `startAt`/`total`
+    (`internal/jira/client.go:228`, GDK-1636); `expand` is a list there, a
+    string on Cloud (`internal/jira/client.go:249`). Users key by `name`,
+    not `accountId` (GDK-1638); the credential is a PAT Bearer, because
+    basic auth is off by default on 11.x (GDK-1640). Measured: 409 issues in
+    one 3 s full sync, then quiet incremental ticks.
+
+[^118]: v2 comment bodies are wiki-markup strings and land in `body_text`
+    as-is; the visibility block is read into `comments.visibility_type` /
+    `visibility_value` (`internal/sync/sync.go:1189`). Measured: a comment
+    restricted to the Administrators role mirrors as `role` /
+    `Administrators`.
+
+[^119]: Attachment bytes live under `/secure/attachment/{id}/{filename}` on
+    Server, not `/rest/api/3/attachment/content` (`internal/jira/types.go:110`);
+    `gadak attach get` streamed a 50-byte seed file back byte for byte.
+    Uploads carry `X-Atlassian-Token: no-check` or Server answers 403
+    (`internal/jira/write.go:613`).
+
+[^120]: The changelog arrives through the v2 `expand` list and feeds the same
+    derivations. Measured: an issue moved To Do → In Progress → Done → To Do
+    reads `reopen_count` 1, `started_at` set, and the Done → To Do row in
+    `changelog`; Server's own Done transition sets the resolution by
+    post-function, so `cycle_hours` fills when the issue is done.
+
+[^121]: The same opt-in (`devStatus`); Server has the dev-status API and the
+    sync ran clean with it on (no dev tool is connected to the lab, so 0
+    rows). The refusal `gadak dev link` prints there still speaks of Jira
+    Cloud's GitHub app — GDK-1663.
+
+[^122]: Boards and sprints list the same way (footnote 135), but Server's
+    board listing carries no `location`, so `boards.project_key` is empty
+    there — the board→project mapping needs `/board/{id}/project` or a
+    per-project listing (GDK-1665). Sprints themselves are complete: three
+    seeded states read back as `closed` / `active` / `future`.
+
+[^123]: `gadak sprint create <board> <name>`, `add`, `remove` measured on
+    the lab (issue row follows: `future` after add, empty after remove);
+    `start` and `close` measured the day before on the same instance
+    (`sprint start 3` → the issue reads `active`; `sprint close 2` →
+    `closed`). Same routes as footnote 136; the write returns 201/204 with
+    an empty `text/html` body, which the page guard now lets through
+    (GDK-1662).
+
+[^124]: `gadak fields --apply` mapped Sprint, Story Points and the three Epic
+    fields from the Server catalog; `story_points` read back 3/5/2/8 and
+    `edit --field story_points=13` landed on a Story. Server honours field
+    contexts: the same edit on a Task is refused as "not editable" because
+    Story Points is not in that type's context — Jira's answer, passed
+    through.
+
+[^125]: Server publishes no `hierarchyLevel` on issue types; sub-tasks come
+    from the `subtask` flag (`internal/sync/sync.go:1152`) and epics are
+    derived from who has a standard child (`internal/store/write.go:1754`,
+    GDK-1658). A standard issue's epic is the Epic Link custom field, read
+    into `parent_key` / `epic_key` (GDK-1651). Measured: epic → story →
+    sub-task reads levels 1 / 0 / −1 with both keys filled.
+
+[^126]: There is no Confluence Server / Data Center client — the wiki client
+    speaks Confluence Cloud's API and a Server wiki is a separate site with
+    v1 REST (GDK-1664). `gadak page create` on a Server workspace refuses,
+    today with the wrong sentence ("site, email and token are required";
+    GDK-1663).
+
+[^127]: `gadak create` through the per-project createmeta route
+    (`internal/jira/write.go:444`, GDK-1636); the description goes out as
+    wiki markup and comes back byte for byte (`internal/jira/write.go:279`,
+    GDK-1637). An Epic needs Epic Name (`gh-epic-label`) or Server answers
+    400 — the lab seed sets it. Measured: a Bug with priority, label and a
+    formatted body created and re-read.
+
+[^128]: `--visibility role=NAME` measured (a comment only Administrators can
+    read mirrors with that visibility). `--internal` is a Service Management
+    property and there is no JSM on the lab, so it is not measured on
+    Server.
+
+[^129]: `gadak transition KEY` lists the transitions; `done` / `new` moved
+    an issue there and back, and Server's Done transition set Resolution by
+    post-function. A field the transition screen does not carry
+    (`--resolution` on the scrum template's Done) is Server's own 400,
+    passed through unchanged — the same as Cloud; a screen carrying one was
+    not configured on the lab.
+
+[^130]: Server's assignee body is `{"name": …}` (`internal/jira/write.go:304`,
+    GDK-1638); `gadak assign KEY dana` and `assign KEY -` measured, the row
+    reading the username as `assignee_id`.
+
+[^131]: The description round-trips as wiki markup (`h2.` / `*` lists came
+    back as typed; GDK-1637); summary edits are the same v2 PUT. After any
+    edit the re-read row is compared with what was asked before it is
+    printed (GDK-1645).
+
+[^132]: Same routes as Cloud; Server answers the link POST with 201 and an
+    empty `text/html` body, which the page guard refused until GDK-1662
+    (`internal/atlhttp/transport.go:237`). Measured after the fix: link,
+    `links` rows on both issues, unlink.
+
+[^133]: Same two-call fallback as Cloud (footnote 85) and the same warning
+    sentence; measured on the lab: assignee plus the in-progress
+    transition, `atomic: false`.
+
+[^134]: The Server workspace's issue source is `jira`, the same source id
+    the notifier keys on (`internal/sync/run.go:59`), and the feed is
+    computed from the mirror. The sync loop was exercised on the lab (a
+    comment made through the API arrived on the next tick); the OS alert
+    itself was not fired on Server.
+
+[^137]: The same `PUT` / `DELETE …/comment/{id}` on the v2 base; measured:
+    `comment edit` re-read the new text, `comment rm --yes` removed the
+    row.
+
 ## How this file is maintained
 
 This file is the single owner of the matrix — the READMEs summarize it and
-link here. A commit that touches `internal/origin/writer.go`,
+link here. The Jira Server column is re-measured with
+`tools/jira-server-lab/seed.sh --reset` and `tools/jira-server-lab/measure.sh`
+against the lab instance the runbook describes. A commit that touches `internal/origin/writer.go`,
 `internal/origin/linearwriter.go`, `internal/linear/`, `internal/sync/`, or
 bumps the issuetap dependency updates this file in the same commit: a
 refusal added or removed there is a cell changed here. Structural drift — a

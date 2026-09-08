@@ -37,8 +37,9 @@ Code에는 스킬 하나로 넘깁니다. 바이너리 하나로 돌고, gadak �
   [API 토큰](https://id.atlassian.com/manage-profile/security/api-tokens)
   하나로 같은 사이트의 Jira와 Confluence에 붙습니다. 토큰은 스코프 없이 만든
   사용자 토큰(`ATATT…`)이어야 합니다. 스코프가 붙은 토큰이나 admin.atlassian.com의
-  조직 키(`ATCTT…`)로는 사이트에 로그인할 수 없습니다. Server와 Data Center는
-  아직 확인하지 않아서 된다고 말하지 않습니다.
+  조직 키(`ATCTT…`)로는 사이트에 로그인할 수 없습니다. Jira Server와 Data
+  Center는 `gadak init --server`에 Personal Access Token 하나로 붙습니다.
+  위키는 거기서는 꺼져 있습니다(Confluence Server 클라이언트가 없습니다).
 - **가져올 범위는 직접 정합니다.** `--projects`로 Jira 프로젝트를, `--spaces`로
   위키 스페이스를 고릅니다. 스페이스를 지정하기 전에는 위키를 가져오지 않습니다.
 - **캐시는 이 컴퓨터 안의 SQLite 파일 하나입니다.** 처음 한 번은 전체 동기화가
@@ -164,9 +165,11 @@ gadak 쪽은 CLI 프로세스가 뜨는 시간까지 넣은 값입니다.
 
 ## 지원 범위와 다른 사용 방식
 
-Atlassian Cloud, Linear, 내장 트래커에서 같은 명령을 씁니다. Linear 동기화는
-`gadak sync --source linear`입니다. 읽기, 쓰기, 계층, 위키, 첨부, 이력, 보드
-배치가 셋 다에서 되고, 서비스별로 무엇을 거절하는지는 셀마다 코드를 인용한
+Atlassian Cloud, Jira Server/Data Center, Linear, 내장 트래커에서 같은 명령을
+씁니다. Server는 `gadak init --server`에 PAT 하나이고, Linear 동기화는
+`gadak sync --source linear`입니다. 읽기, 쓰기, 계층, 첨부, 이력, 보드 배치가
+넷 다에서 되고(위키는 Confluence Cloud와 내장 위키에서), 서비스별로 무엇을
+거절하는지는 셀마다 코드를 인용한
 [`docs/SUPPORT_MATRIX.md`](docs/SUPPORT_MATRIX.md)에 있습니다.
 
 어느 서비스에도 없는 것이 셋 있습니다. 화면으로서의 스프린트, Jira 대시보드, Jira
