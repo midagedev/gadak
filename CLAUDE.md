@@ -201,6 +201,13 @@ hard-won 목록)와 `AGENTS.md`(스키마·쿼리)가 원본이다.
   않는다** (사용자 지시 2026-08-26 "묻지말고 푸시해도 괜찮아") — 게이트가
   전부 초록이면 그대로 올리고 `tools/ci-status.sh`로 확인한다. 승인이
   여전히 필요한 것은 **태그·릴리스 게시**와 공개 스토어 제출이다.
+- **`~/repo/issuetap` 도 같은 권한이다** (사용자 지시 2026-09-09 "이수탭도
+  편하게 작업해"). gadak origin 을 고치는 일은 gadak 작업의 일부이고, 그
+  레포의 게이트(`go vet` · `go test ./...` · `scripts/secretscan.sh` ·
+  건드린 파일의 `gofmt`)가 초록이면 묻지 않고 main 에 올린다. 커밋 신원은
+  `~/repo` 아래라 midagedev 로 자동이지만, 공개 푸시 전에 한 번 확인한다
+  (`git log -1 --format='%ae'`). 그 뒤 gadak 의 `go.mod` 핀을 올리는 것은
+  **별개 커밋**이다 — 핀 범프는 `desktop/go.mod` 까지 게이트다.
 - brew: `gadak` = **macOS 앱 cask**(CLI 포함, v0.14부터 tap에 게시),
   `gadak-cli` = CLI formula(리눅스 포함). 문서의 설치 명령은 태그와 동시
   교체.
