@@ -1420,7 +1420,7 @@ def keynum(k):
 
 fails = []
 parsed = {}
-for path in ("CHANGELOG.md", "CHANGELOG.ko.md"):
+for path in ("CHANGELOG.md", "CHANGELOG.ko.md", "CHANGELOG.ja.md"):
     got = parse(path)
     if got is None:
         raise SystemExit(0)
@@ -1452,29 +1452,34 @@ for path in ("CHANGELOG.md", "CHANGELOG.ko.md"):
             % (path, line, text.strip())
         )
 
+# The three files are one history in three languages (not parallel editions,
+# which is what the READMEs are): same releases, in the same order, citing the
+# same keys. ja joined on 2026-09-09 — before that its site page rendered the
+# English file and said so.
 en_titles = [t for t, _, _ in parsed["CHANGELOG.md"]["sections"]]
-ko_titles = [t for t, _, _ in parsed["CHANGELOG.ko.md"]["sections"]]
-if en_titles != ko_titles:
-    fails.append(
-        "section headings differ between CHANGELOG.md and CHANGELOG.ko.md: %s vs %s"
-        % (en_titles, ko_titles)
-    )
-else:
-    en_map = {t: k for t, k, _ in parsed["CHANGELOG.md"]["sections"]}
-    ko_map = {t: k for t, k, _ in parsed["CHANGELOG.ko.md"]["sections"]}
+en_map = {t: k for t, k, _ in parsed["CHANGELOG.md"]["sections"]}
+for lang, path in (("ko", "CHANGELOG.ko.md"), ("ja", "CHANGELOG.ja.md")):
+    titles = [t for t, _, _ in parsed[path]["sections"]]
+    if en_titles != titles:
+        fails.append(
+            "section headings differ between CHANGELOG.md and %s: %s vs %s"
+            % (path, en_titles, titles)
+        )
+        continue
+    other = {t: k for t, k, _ in parsed[path]["sections"]}
     for title in en_titles:
-        e, k = en_map[title], ko_map[title]
+        e, k = en_map[title], other[title]
         if e == k:
             continue
         only_en = ", ".join(sorted(e - k, key=keynum))
-        only_ko = ", ".join(sorted(k - e, key=keynum))
+        only_other = ", ".join(sorted(k - e, key=keynum))
         bits = []
         if only_en:
             bits.append("en-only " + only_en)
-        if only_ko:
-            bits.append("ko-only " + only_ko)
+        if only_other:
+            bits.append("%s-only %s" % (lang, only_other))
         fails.append(
-            "section %r: en/ko key sets differ (%s)" % (title, "; ".join(bits))
+            "section %r: en/%s key sets differ (%s)" % (title, lang, "; ".join(bits))
         )
 
 if fails:
@@ -1484,7 +1489,7 @@ CHANGELOGKEYSPY
 if [[ -n "$changelog_keys" ]]; then
   fail "CHANGELOG key/tail contract broken:"$'\n'"$changelog_keys"
 fi
-ok "CHANGELOG.md and CHANGELOG.ko.md cite the same keys per section; every citation has a gadak.dev tail"
+ok "CHANGELOG.md, .ko.md and .ja.md cite the same keys per section; every citation has a gadak.dev tail"
 
 # ── 28. Docs do not teach leftover fieldMap / editableFields as current ──
 # Class: compatibility path whose old *editing* surface no longer exists.

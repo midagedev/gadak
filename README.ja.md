@@ -274,7 +274,7 @@ Atlassian Cloud、Jira Server / Data Center、Linear、アプリに同梱の内�
 ## 互換性とメンテナンス
 
 同期、読み取り API、書き込み、デスクトップアプリ、ウェブ、CLI、MCP は、実際のサイトで検証
-しています。変更履歴は [CHANGELOG.md](CHANGELOG.md) にあり、英語で公開しています。
+しています。変更履歴は [CHANGELOG.ja.md](CHANGELOG.ja.md) にあります。
 
 0.x の間に互換性を約束している範囲は、次の 3 つです。大もとの定義は
 [specs/000-product/data-model.md](specs/000-product/data-model.md) にあります。
@@ -307,7 +307,7 @@ Atlassian Cloud、Jira Server / Data Center、Linear、アプリに同梱の内�
 
 ## ドキュメント
 
-- [CHANGELOG.md](CHANGELOG.md): 何が出たか。英語で公開しています
+- [CHANGELOG.ja.md](CHANGELOG.ja.md): 何が出たか
 - [docs/INSTALL.md](docs/INSTALL.md) · [docs/DESKTOP.md](docs/DESKTOP.md): インストール、初回起動、デスクトップアプリ
 - [docs/MIRROR.md](docs/MIRROR.md) · [docs/MCP.md](docs/MCP.md) · [docs/AGENT_SETUP.md](docs/AGENT_SETUP.md): SQL、CLI、REST、MCP と、ホスト別の設定
 - [docs/RECIPES.md](docs/RECIPES.md) · [docs/DASHBOARDS.md](docs/DASHBOARDS.md): JQL では書けない質問の SQL と、エージェントが書いたダッシュボード

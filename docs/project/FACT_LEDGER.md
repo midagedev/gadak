@@ -371,8 +371,12 @@ first question (review round 2026-09-08). Confluence Server has no client
 `docs/README.md` · `docs/ARCHITECTURE.md` · `docs/EXTENDING.md` ·
 `docs/BENCHMARKS.md` · `docs/SUPPORT_MATRIX.md` · `docs/WINDOWS-SIGNING.md`
 
-The Korean edition links `CHANGELOG.ko.md`. The Japanese changelog is
-published in English — say so where it is linked.
+The Korean edition links `CHANGELOG.ko.md` and the Japanese one
+`CHANGELOG.ja.md`, which exists since 2026-09-09; no edition now links a
+changelog in a language other than its own. The three changelog files are one
+history in three languages — not parallel editions like the READMEs — and
+`tools/doc-checks.sh` check 27 holds them to the same release headings, in the
+same order, citing the same keys per release.
 
 ## 14b. The machine-facing surface (GDK-1659, 2026-09-09)
 

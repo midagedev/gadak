@@ -586,10 +586,11 @@ export const strings: Record<Locale, Strings> = {
       heading: '変更履歴',
       lede:
         'リリースの内容は、出した本人が書いています。課題キーは公開バックログにリンクしているので、ここの 1 行から、それを求めた課題までさかのぼれます。',
-      source: 'リポジトリの CHANGELOG.md から描画しています。',
+      source: 'リポジトリの CHANGELOG.ja.md から描画しています。英語版を訳したものです。',
       jumpLabel: 'バージョンへ移動',
-      // Not a placeholder like the rest: this one already renders (the ja
-      // page reads the English changelog), so the sentence is real copy.
+      // Back to a placeholder: ja got its own CHANGELOG.ja.md on 2026-09-09,
+      // so changelogIsFallback('ja') is false and this no longer renders. It
+      // stays translated for a locale that arrives without its own file.
       fallbackNote: 'この変更履歴は英語で公開しています。',
     },
     install: {
