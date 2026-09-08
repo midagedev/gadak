@@ -12,7 +12,7 @@ import (
 	"github.com/midagedev/gadak/internal/store"
 )
 
-const attachUsage = "usage: gadak attach <KEY> <file>... [--json]"
+const attachUsage = "usage: gadak attach <KEY> <file>... [--json] | gadak attach get <KEY> <filename|id> [--out DIR]"
 
 // attachedFile is the JSON/extra row emitAfterWrite carries as "attached".
 type attachedFile struct {
@@ -41,6 +41,14 @@ func (e *attachPartialError) Error() string {
 func (e *attachPartialError) Unwrap() error { return e.err }
 
 func cmdAttach(args []string) error {
+	// Reading is a subcommand of the same verb, routed before this
+	// command's flags parse — `get`'s flags (--out, --force) are unknown
+	// here and would die as mistyped flags before any subcommand check ran.
+	// The precedent is workspace_cmd.go's `rm`. No issue key is "get", so
+	// `attach KEY file...` is untouched.
+	if len(args) > 0 && args[0] == "get" {
+		return cmdAttachGet(args[1:])
+	}
 	fs := newFlagSet("attach")
 	asJSON := fs.Bool("json", false, "emit JSON")
 	if wantsHelp(args) {

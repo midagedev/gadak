@@ -51,6 +51,8 @@ type fakeJira struct {
 	// attach support (additive; existing write tests never hit these paths)
 	uploads       []recordedUpload
 	failNthAttach int // 1-based; 0 = never fail
+	// attachmentBytes is what GET /attachment/content/<id> answers (GDK-1610).
+	attachmentBytes map[string]string
 
 	// lang selects localized catalog names the way internal/sync/sync_test.go
 	// statusesJSON does. Priority ids stay stable; names follow the account
@@ -103,7 +105,8 @@ type recordedUpload struct {
 }
 
 func newFakeJira(t *testing.T) *fakeJira {
-	f := &fakeJira{t: t, bodies: map[string]string{}, created: map[string]createdIssue{}, nextCreateN: 42}
+	f := &fakeJira{t: t, bodies: map[string]string{}, created: map[string]createdIssue{},
+		attachmentBytes: map[string]string{}, nextCreateN: 42}
 	f.Server = httptest.NewServer(http.HandlerFunc(f.route))
 	t.Cleanup(f.Close)
 	return f
@@ -167,6 +170,17 @@ func (f *fakeJira) route(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"id":"c-99","author":{"displayName":"Dana Whitfield"},
 			"body":{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"checked"}]}]},
 			"created":"2026-08-04T12:00:00.000+0900"}`))
+	case strings.HasPrefix(path, "/attachment/content/") && r.Method == http.MethodGet:
+		// GDK-1610: `attach get` reads bytes over this path on every
+		// Jira-shaped origin. The id is the tail; unknown ids 404.
+		id := strings.TrimPrefix(path, "/attachment/content/")
+		blob, ok := f.attachmentBytes[id]
+		if !ok {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "application/octet-stream")
+		_, _ = w.Write([]byte(blob))
 	case path == "/myself" && r.Method == http.MethodGet:
 		_, _ = w.Write([]byte(`{"accountId":"acc-me","displayName":"Agent Me","emailAddress":"agent@example.com"}`))
 	case strings.HasSuffix(path, "/claim") && r.Method == http.MethodPost:

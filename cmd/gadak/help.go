@@ -641,13 +641,21 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak attach", "gadak edit", "gadak comment", "gadak transition", "gadak assign", "gadak issue"},
 	},
 	"attach": {
-		summary: "attach files",
-		usage:   "gadak [--workspace <name>] attach <KEY> <file>... [--json]",
+		summary: "attach files to an issue, or get one back (`attach get`)",
+		usage: "gadak [--workspace <name>] attach <KEY> <file>... [--json]\n" +
+			"gadak [--workspace <name>] attach get <KEY> <filename|id> [--out DIR|FILE|-] [--force] [--json]",
 		examples: []string{
 			"gadak attach NMB-140 ./screenshot.png",
 			"gadak attach NMB-140 ./trace.log ./out.mp4 --json",
+			"gadak attach get NMB-140 screenshot.png              # writes ./screenshot.png",
+			"gadak attach get NMB-140 screenshot.png --out /tmp   # into a directory",
+			"gadak attach get NMB-140 59899 --out - | file -      # by id, to stdout",
 		},
-		seeAlso: []string{"gadak create", "gadak edit", "gadak issue"},
+		options: []helpOption{
+			{name: "out", desc: "with get: a directory (keeps the filename), a file path, or - for stdout; default: the filename, here"},
+			{name: "force", desc: "with get: overwrite an existing file"},
+		},
+		seeAlso: []string{"gadak issue", "gadak create", "gadak edit"},
 	},
 	"edit": {
 		summary: "edit summary, description, labels, components, fix versions, issue type, priority, parent, due date, or a configured custom field",

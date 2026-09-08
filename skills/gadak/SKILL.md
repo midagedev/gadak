@@ -607,6 +607,7 @@ gadak claim NMB-140 --take-over                # replace the current holder
 gadak create Batch worker drops the last page --project NMB --type Bug -m "repro on staging" --parent NMB-1
 gadak create Severity required --project NMB --type Task --field severity=High
 gadak attach NMB-140 screenshot.png trace.log
+gadak attach get NMB-140 trace.log             # the read half: bytes to ./trace.log. `gadak issue KEY` lists the names; --out takes a directory, a path, or - for stdout. Works on every origin — do not parse issues.raw for an id and hand-build a REST path for `gadak api`.
 gadak edit NMB-140 --summary "…" --label +regression --label -needs-triage --priority High --parent none
 gadak edit NMB-140 --type Task                # name, localized name, or id — same resolver as create --type
 gadak edit NMB-140 -m "## Repro\n\n- step one"  # markdown replaces the body; a text with no placeholders over a body that has panels/media/mentions refuses without --force-plain

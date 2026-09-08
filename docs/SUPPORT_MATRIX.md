@@ -29,6 +29,7 @@ Markers:
 | **Read** · `--jql` / pasted Jira URL | ✅[^7] | ✅[^8] | ✅[^7] |
 | **Read** · comments | ✅[^9] | ✅[^10] | ✅[^9] |
 | **Read** · attachment bytes | ✅[^11] | ✅[^12] | ◐[^13] |
+| **Read** · attachment download (`gadak attach get`) | ✅[^110] | ✅[^111] | ✅[^112] |
 | **Read** · history → `status_changed_at`, `reopen_count`, `started_at` / `cycle_hours` (time-in-status computed, never stored) | ✅[^14] | ◐[^15] | ✅[^16] |
 | **Read** · issue links | ✅[^17] | ✅[^106] | ✅[^19] |
 | **Read** · `gadak ready` / `open_blockers` — blocking-link catalog | ✅[^107] | ✅[^108] | ✅[^109] |
@@ -112,9 +113,8 @@ Markers:
 [^13]: The origin serves the bytes (`issuetap/docs/COMPATIBILITY.md:76`), but
     serve's proxy builds a site URL a Built-in workspace does not have — on a
     cold cache the proxy fails (`internal/server/attachment.go:279` with an
-    empty `cfg.Site`; measured 502). `gadak api GET
-    /rest/api/3/attachment/content/{id}` still returns the bytes — the same
-    route the migrate export uses (`cmd/gadak/migrate.go:105`).
+    empty `cfg.Site`; measured 502). The CLI row below is the unaffected
+    path: it goes through `origin.Client`, which every origin type answers.
 
 [^14]: Changelog events (`internal/jira/client.go:206`) feed
     `status_changed_at` and `reopen_count`, and since v43 `started_at` /
@@ -484,3 +484,20 @@ this table from the code instead of maintaining it by hand is GDK-1301.
 [^109]: The origin serves a link-type catalog
     (`issuetap/docs/COMPATIBILITY.md:59`); the column and the verb are the
     Jira path (`internal/store/flow.go:156`).
+
+[^110]: `gadak attach get` resolves the name or id in the mirror, then reads
+    `GET /rest/api/3/attachment/content/{id}` through `origin.Client`
+    (`cmd/gadak/attach_get.go:159`). Membership is the mirror query, so an id
+    belonging to another issue is not found rather than fetched
+    (`cmd/gadak/attach_get.go:96`).
+
+[^111]: The Linear branch fetches the stored `uploads.linear.app` URL with the
+    workspace's API key (`cmd/gadak/attach_get.go:149` →
+    `internal/linear/download.go:50`). A stored URL on any other host is
+    refused before the request leaves the process (GDK-560,
+    `internal/linear/download.go:26`).
+
+[^112]: The in-process Built-in origin answers the same content route, so the
+    verb needs no site: measured on a `gadak init --local` workspace, `attach
+    get` wrote the bytes `gadak attach` had uploaded. The branch is on the
+    mirrored row's source, never a fallback (`cmd/gadak/attach_get.go:136`).

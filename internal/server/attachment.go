@@ -13,6 +13,7 @@ import (
 
 	"github.com/midagedev/gadak/internal/attachcache"
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/linear"
 	"github.com/midagedev/gadak/internal/store"
 )
 
@@ -292,23 +293,12 @@ func (s *server) fetchAttachment(ctx context.Context, cfg *config.Config, issueK
 	return mapAttachmentStatus(res, false)
 }
 
-// linearUploadsHost is the only Linear storage hostname allowed to receive
-// the API key on a download GET. Subdomains and port variants are not this
-// host; http is not this scheme.
-const linearUploadsHost = "uploads.linear.app"
+// isLinearUploadsURL is internal/linear's rule (GDK-1610: the CLI download
+// needs the same one, so the host and the test live in that package). The
+// alias stays because this file's redirect policy and the test read it.
+func isLinearUploadsURL(target string) bool { return linear.IsUploadsURL(target) }
 
-// isLinearUploadsURL reports whether target is an https URL whose host is
-// exactly uploads.linear.app (no subdomain, no port). Linear documents that
-// file downloads from this host accept the API key in Authorization. That is
-// a different path from the upload PUT to a signed URL, which must not carry
-// the key (internal/linear/write.go UploadFile).
-func isLinearUploadsURL(target string) bool {
-	u, err := url.Parse(target)
-	if err != nil {
-		return false
-	}
-	return u.Scheme == "https" && u.Host == linearUploadsHost
-}
+const linearUploadsHost = linear.UploadsHost
 
 // proxyCheckRedirect is proxyClient's redirect policy. Linear downloads
 // start on uploads.linear.app (GDK-560); a hop off that host is refused so
