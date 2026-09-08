@@ -1584,3 +1584,59 @@ func each(ctx context.Context, db *sql.DB, query string, scan func(*sql.Rows) er
 	}
 	return rows.Err()
 }
+
+// SprintRowWithCount is one sprint plus how many mirrored issues sit in it.
+type SprintRowWithCount struct {
+	ID         int64  `json:"id"`
+	BoardID    int64  `json:"board_id"`
+	Name       string `json:"name"`
+	Goal       string `json:"goal"`
+	State      string `json:"state"`
+	StartAt    string `json:"start_at,omitempty"`
+	EndAt      string `json:"end_at,omitempty"`
+	IssueCount int    `json:"issue_count"`
+}
+
+// Sprints lists the mirror's sprints, active first, then future, then closed
+// — the order a person reads a sprint list in (GDK-1654). Ordering is by the
+// stored lowercase state, never a display name.
+func (db *DB) Sprints(ctx context.Context) ([]SprintRowWithCount, error) {
+	rows, err := db.sql.QueryContext(ctx, `
+		SELECT s.id, COALESCE(s.board_id, 0), s.name, s.goal, s.state,
+		       COALESCE(s.start_at, ''), COALESCE(s.end_at, ''),
+		       (SELECT COUNT(*) FROM issues_raw i WHERE i.sprint_id = s.id)
+		FROM sprints s
+		ORDER BY CASE s.state WHEN 'active' THEN 0 WHEN 'future' THEN 1 ELSE 2 END,
+		         s.start_at DESC, s.id DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []SprintRowWithCount{}
+	for rows.Next() {
+		var s SprintRowWithCount
+		if err := rows.Scan(&s.ID, &s.BoardID, &s.Name, &s.Goal, &s.State, &s.StartAt, &s.EndAt, &s.IssueCount); err != nil {
+			return nil, err
+		}
+		out = append(out, s)
+	}
+	return out, rows.Err()
+}
+
+// KeysInSprint lists the mirrored issue keys in one sprint.
+func (db *DB) KeysInSprint(ctx context.Context, sprintID int64) ([]string, error) {
+	rows, err := db.sql.QueryContext(ctx, `SELECT key FROM issues_raw WHERE sprint_id = ? ORDER BY key`, sprintID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []string{}
+	for rows.Next() {
+		var k string
+		if err := rows.Scan(&k); err != nil {
+			return nil, err
+		}
+		out = append(out, k)
+	}
+	return out, rows.Err()
+}

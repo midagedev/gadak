@@ -240,6 +240,13 @@ func runSource(
 		// sync covers anything a page-scoped walk could miss (the v11
 		// migration SQL is the other remaining full sweep). Confluence
 		// has no issues.epic_key.
+		// Server states no hierarchyLevel, so the epic end of the walk is
+		// derived here, before it runs (GDK-1658).
+		if cfg != nil && cfg.OriginType() == config.OriginJiraServer {
+			if err = db.MarkEpicParents(ctx, SourceID); err != nil {
+				return res, err
+			}
+		}
 		if err = db.RecomputeEpicKeys(ctx); err != nil {
 			return res, err
 		}

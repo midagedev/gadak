@@ -217,7 +217,10 @@ flattened), and every projection column in one relation; the intuitive
 `issues_full` is the same view under its older name, and on an older
 mirror it is the one that has `summary`). Sprint is three columns there
 (`sprint_id`, `sprint_name`, `sprint_state` — filter on id or state,
-never the name). `versions` is the project catalog; join it on
+never the name) **and** a `sprints` table of its own (id, board_id, name,
+goal, state, start_at, end_at, complete_at), with `boards` beside it —
+join on `sprint_id = sprints.id`. A sprint holding no issues exists only
+in that table, and so do its goal and its dates. `versions` is the project catalog; join it on
 `fix_version_ids` (same-order ids next to the name array `fix_versions`).
 `pages` is
 the Confluence projection. `comments`, `attachments`, `changelog`, `links`,
@@ -923,7 +926,20 @@ status). `gadak issue KEY --json` includes it; SQL joins `dev_links` on
 Watchers, worklogs, user search, and anything else sync does not
 project are reachable through the origin with `gadak api`. Sprints *are*
 projected (`issues.sprint_id`, `sprint_name`, `sprint_state`); filter on
-`sprint_id` or `sprint_state='active'`, never on `sprint_name`.
+`sprint_id` or `sprint_state='active'`, never on `sprint_name`. The
+`sprints` and `boards` tables carry the rest, and `gadak sprint` writes:
+
+```bash
+gadak sprint list                      # active first, with issue counts
+gadak sprint add 12 NMB-140 NMB-141    # into sprint 12
+gadak sprint remove NMB-140            # back to the backlog
+gadak sprint create 3 "Sprint 14" --goal "ship the uploader"
+gadak sprint start 14 --days 7
+gadak sprint close 14
+```
+
+These are Jira Software's. A Linear or built-in workspace refuses them by
+name rather than reaching for a nearest concept.
 
 ```bash
 gadak api GET /rest/api/3/issue/NMB-140/watchers

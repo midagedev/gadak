@@ -522,6 +522,12 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 
 	// Owned + starred filters. Failure must not undo the issue pass.
 	importFilters(ctx, c, cfg, db, opts)
+	// Boards and sprints are two cheap listings, but a quiet incremental tick
+	// must stay quiet — a tick that changed nothing cannot have changed a
+	// sprint either (GDK-1654).
+	if res.Full || opts.Reconcile || res.Changed > 0 {
+		importAgile(ctx, c, db, opts)
+	}
 	// The pass that just refreshed the mirror is the one place the config↔
 	// mirror rename signature (GDK-973) is observable in passing.
 	warnProjectScopeMismatch(ctx, cfg, db, opts)
@@ -1133,10 +1139,19 @@ func build(ctx context.Context, c *jira.Client, cfg *config.Config, iss jira.Iss
 	// the raw fields map (source-neutral once stored as HierarchyLevel).
 	if raw, ok := iss.Extra["issuetype"]; ok {
 		var it struct {
-			HierarchyLevel int `json:"hierarchyLevel"`
+			HierarchyLevel int  `json:"hierarchyLevel"`
+			Subtask        bool `json:"subtask"`
 		}
 		if err := json.Unmarshal(raw, &it); err == nil {
 			issue.HierarchyLevel = it.HierarchyLevel
+			// Server publishes no hierarchyLevel at all (GDK-1658), so every
+			// issue would sit at 0 and epic_key could never be derived. The
+			// subtask flag is there on both Jiras and is the only level it
+			// states; the epic end is settled after the pass, in SQL, from
+			// who is a non-subtask's parent.
+			if it.Subtask && issue.HierarchyLevel == 0 {
+				issue.HierarchyLevel = -1
+			}
 		}
 	}
 	if f.Resolution != nil {

@@ -1673,3 +1673,74 @@ func mapKeys(m map[string]bool) []string {
 	}
 	return out
 }
+
+// ReplaceAgile writes the board and sprint listing for a source, wholesale:
+// what the origin no longer lists is gone from the mirror. Both are cheap
+// full listings, so there is no incremental path to drift from (GDK-1654).
+func (db *DB) ReplaceAgile(ctx context.Context, sourceID string, boards []BoardRow, sprints []SprintRow) error {
+	if sourceID == "" {
+		return nil
+	}
+	return db.write(ctx, func(tx *sql.Tx) error {
+		if _, err := tx.Exec(`DELETE FROM sprints WHERE source_id = ?`, sourceID); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`DELETE FROM boards WHERE source_id = ?`, sourceID); err != nil {
+			return err
+		}
+		for _, b := range boards {
+			if _, err := tx.Exec(`INSERT INTO boards (source_id, id, name, type, project_key) VALUES (?,?,?,?,?)`,
+				sourceID, b.ID, b.Name, b.Type, b.ProjectKey); err != nil {
+				return fmt.Errorf("board %d: %w", b.ID, err)
+			}
+		}
+		for _, s := range sprints {
+			var board any
+			if s.BoardID != 0 {
+				board = s.BoardID
+			}
+			if _, err := tx.Exec(`
+				INSERT INTO sprints (source_id, id, board_id, name, goal, state, start_at, end_at, complete_at, activated_at)
+				VALUES (?,?,?,?,?,?,?,?,?,?)
+				ON CONFLICT(source_id, id) DO NOTHING`,
+				sourceID, s.ID, board, s.Name, s.Goal, s.State,
+				nullIfEmpty(s.StartAt), nullIfEmpty(s.EndAt), nullIfEmpty(s.CompleteAt), nullIfEmpty(s.ActivatedAt),
+			); err != nil {
+				return fmt.Errorf("sprint %d: %w", s.ID, err)
+			}
+		}
+		return nil
+	})
+}
+
+// MarkEpicParents raises to hierarchy_level 1 every issue that is the parent
+// of a standard (non-subtask) issue. It exists for Jira Server, which does
+// not publish hierarchyLevel on issue types, so an epic arrives at level 0
+// and the epic_key walk finds nothing (GDK-1658). Deriving it from who has
+// a standard child needs no extra request and no display name — and an epic
+// with no children is exactly the case where epic_key answers nothing
+// anyway. Levels the origin did state are never lowered.
+func (db *DB) MarkEpicParents(ctx context.Context, sourceID string) error {
+	if sourceID == "" {
+		return nil
+	}
+	return db.write(ctx, func(tx *sql.Tx) error {
+		_, err := tx.Exec(`
+			UPDATE issues_raw SET hierarchy_level = 1
+			WHERE hierarchy_level = 0 AND key IN (
+				SELECT c.parent_key FROM issues_raw c
+				WHERE c.parent_key IS NOT NULL AND c.parent_key != ''
+				  AND c.hierarchy_level = 0
+			)`)
+		return err
+	})
+}
+
+// nullIfEmpty stores "" as SQL NULL, so an absent date reads as absent
+// rather than as an empty string that date functions silently accept.
+func nullIfEmpty(s string) any {
+	if s == "" {
+		return nil
+	}
+	return s
+}

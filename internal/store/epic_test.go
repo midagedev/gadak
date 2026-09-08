@@ -132,13 +132,6 @@ func TestEpicKeyMigrationBackfill(t *testing.T) {
 	check("OR-1", 0, "")      // no parent
 }
 
-func nullIfEmpty(s string) any {
-	if s == "" {
-		return nil
-	}
-	return s
-}
-
 // TestEpicKeyDerivationOnUpsert covers write-path recompute: story→epic,
 // subtask two-hop, no-epic NULL, reverse batch order, and IssueLite split.
 func TestEpicKeyDerivationOnUpsert(t *testing.T) {

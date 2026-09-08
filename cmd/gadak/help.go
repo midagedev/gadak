@@ -834,6 +834,19 @@ var helps = map[string]cmdHelp{
 		},
 		seeAlso: []string{"gadak claim", "gadak comment", "gadak transition", "gadak issue"},
 	},
+	"sprint": {
+		summary: "boards and sprints — list them, move issues in and out, open, start and close one (Jira Software only)",
+		usage:   "gadak [--workspace <name>] sprint list|add|remove|create|start|close [...]",
+		examples: []string{
+			"gadak sprint list",
+			"gadak sprint add 12 NMB-140 NMB-141    # into sprint 12",
+			"gadak sprint remove NMB-140            # back to the backlog",
+			"gadak sprint create 3 \"Sprint 14\" --goal \"ship the uploader\"",
+			"gadak sprint start 14 --days 7",
+			"gadak sprint close 14",
+		},
+		seeAlso: []string{"gadak sql", "gadak issue", "gadak views open"},
+	},
 	"claim": {
 		summary: "take an issue as yours — assignee plus the in-progress transition in one step (an issue not in progress is moved there); refuses (exit 75) while another actor holds it",
 		usage:   "gadak [--workspace <name>] claim <KEY> [--take-over] [--json]",

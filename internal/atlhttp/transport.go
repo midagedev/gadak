@@ -238,6 +238,12 @@ func refuseHTML(res *http.Response) error {
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
 		return nil
 	}
+	// A bodyless success carries whatever Content-Type the server likes —
+	// Jira answers 204 with text/html — and there is no page in it to
+	// mistake for an answer (GDK-1655, found by `gadak sprint add`).
+	if res.StatusCode == http.StatusNoContent || res.StatusCode == http.StatusResetContent || res.ContentLength == 0 {
+		return nil
+	}
 	ct, _, err := mime.ParseMediaType(res.Header.Get("Content-Type"))
 	if err != nil || ct != "text/html" {
 		return nil

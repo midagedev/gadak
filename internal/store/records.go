@@ -322,3 +322,25 @@ type Batch struct {
 	// bumping sync_state.version.
 	Force bool
 }
+
+// BoardRow is one Jira Software board in the mirror (GDK-1654).
+type BoardRow struct {
+	ID         int64
+	Name       string
+	Type       string
+	ProjectKey string
+}
+
+// SprintRow is one sprint. state is lowercase active|future|closed — the
+// value queries are told to ask for, never a display name.
+type SprintRow struct {
+	ID          int64
+	BoardID     int64
+	Name        string
+	Goal        string
+	State       string
+	StartAt     string
+	EndAt       string
+	CompleteAt  string
+	ActivatedAt string
+}

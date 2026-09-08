@@ -3,7 +3,7 @@ package store
 // migrations are applied in order and the index+1 is the schema version. A
 // released migration is never edited; a schema change is a new entry at the end
 // plus a documented row in specs/000-product/data-model.md.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39, schemaV40, schemaV41, schemaV42, schemaV43, schemaV44}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39, schemaV40, schemaV41, schemaV42, schemaV43, schemaV44, schemaV45}
 
 // itemsFTSCreate is the canonical items_fts DDL, spliced into schemaV1 so a
 // fresh database is born matching it (GDK-444: an inline copy in V1 lagged at
@@ -931,4 +931,43 @@ ALTER TABLE sync_state ADD COLUMN reconcile_at TEXT;
 ALTER TABLE sync_state ADD COLUMN reconcile_upstream_keys INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE sync_state ADD COLUMN reconcile_missing_fetched INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE sync_state ADD COLUMN reconcile_gone_deleted INTEGER NOT NULL DEFAULT 0;
+`
+
+// schemaV45 (GDK-1654) makes sprints and boards rows of their own. Until
+// now a sprint was three denormalized columns on issues, projected from the
+// gh-sprint custom field, so a sprint with no issues did not exist, and its
+// goal and dates existed nowhere. The Agile REST API is the origin for both
+// and — measured on Jira Server 11.3.11 against Cloud — answers the same
+// shape on either Jira, which is what lets one sync fill these.
+//
+// state is the lowercase active|future|closed the queries are told to ask
+// for, never a display name. The issues columns stay: sprint_id is the join,
+// and sprint_name / sprint_state remain the answer for a mirror whose board
+// list could not be read.
+const schemaV45 = `
+CREATE TABLE boards (
+  source_id  TEXT NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
+  id         INTEGER NOT NULL,
+  name       TEXT NOT NULL DEFAULT '',
+  type       TEXT NOT NULL DEFAULT '',
+  project_key TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY (source_id, id)
+);
+
+CREATE TABLE sprints (
+  source_id    TEXT NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
+  id           INTEGER NOT NULL,
+  board_id     INTEGER,
+  name         TEXT NOT NULL DEFAULT '',
+  goal         TEXT NOT NULL DEFAULT '',
+  state        TEXT NOT NULL DEFAULT '',
+  start_at     TEXT,
+  end_at       TEXT,
+  complete_at  TEXT,
+  activated_at TEXT,
+  PRIMARY KEY (source_id, id)
+);
+
+CREATE INDEX sprints_board ON sprints(source_id, board_id);
+CREATE INDEX sprints_state ON sprints(source_id, state);
 `

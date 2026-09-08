@@ -15,12 +15,16 @@ as Jira": it means the Jira REST verb exists and the Built-in origin
 implements the route.
 
 Jira **Server / Data Center** is a fourth origin type as of GDK-1635
-(`gadak init --server`, a base URL and a Personal Access Token). It has no
-column yet, and that absence is the honest state: the workspace can be
-created and its deployment is verified against `/rest/api/2/serverInfo`, but
-the REST paths, the ADF-vs-wiki-markup split, the user-identifier axis and
-the attachment routes are still open (GDK-1636 through GDK-1639). A column
-goes in when its cells are measured against a running instance, not before.
+(`gadak init --server`, a base URL and a Personal Access Token). It still has
+no column, and that absence is narrower than it was: read and write both
+work end to end against a running Jira Software 11.3.11 Data Center
+instance — REST v2 paths, wiki markup carried byte for byte, users keyed by
+name, attachments under `/secure/attachment`, sprints, boards and the epic
+link. What is not yet done is measuring every one of the rows below on that
+instance, one at a time, which is what a column is. Until then the Jira
+column means Atlassian Cloud, and the Server-specific findings are in the
+CHANGELOG and in `docs/runbooks/jira-server-lab.md`, which is how to bring
+an instance up.
 
 Markers:
 
@@ -47,6 +51,8 @@ Markers:
 | **Read** · components | ✅[^25] | —[^27] | ✅[^28] |
 | **Read** · fix versions + `versions` catalog | ✅[^29] | —[^30] | ✅[^31] |
 | **Read** · sprints (columns `sprint_id`/`sprint_name`/`sprint_state`) | ✅[^32] | —[^33] | —[^34] |
+| **Read** · boards + sprints as rows (`boards`, `sprints`, `gadak sprint list`) | ✅[^106] | —[^33] | —[^34] |
+| **Write** · sprint — add / remove / create / start / close | ✅[^107] | —[^33] | —[^34] |
 | **Read** · custom fields (`fields --apply`) | ✅[^35] | —[^36] | ◐[^37] |
 | **Read** · issue type | ✅[^38] | —[^39] | ✅[^40] |
 | **Read** · hierarchy — `parent_key` / `epic_key` | ✅[^41] | ◐[^42] | ✅[^43] |
@@ -206,15 +212,28 @@ Markers:
     `internal/origin/writer.go:51`).
 
 [^32]: The sprint columns come from the Jira Software sprint field, discovered
-    per site (`internal/sync/sprint.go:18`, `:58`); a site without it syncs
-    empty. No origin gets sprint *verbs* — moving an issue between sprints or
-    editing a sprint happens in Jira.
+    per site (`internal/sync/sprint.go:18`, `:75`); a site without it syncs
+    empty. Cloud sends an object array, Server the Java `toString` of its own
+    bean — both are read, and the state is lowercased so `active` means the
+    same thing on either (`internal/sync/sprint.go:191`, GDK-1650).
 
 [^33]: Linear has no sprint concept in gadak's mapping
     (`internal/linear/MAPPING.md`).
 
 [^34]: The origin's issue model has no sprint field — the editable set
     carries none (`issuetap/docs/COMPATIBILITY.md:72`).
+
+[^106]: `/rest/agile/1.0/board` and `/board/{id}/sprint`, which answer the same
+    shape on Cloud and Server — measured on Jira Software 11.3.11 DC
+    (`internal/jira/agile.go:14`, `internal/sync/agile.go:16`, GDK-1654). A
+    site without Jira Software has no Agile API and syncs no boards; that is
+    silent, not an error.
+
+[^107]: `gadak sprint` (`cmd/gadak/sprint.go:32`) over
+    `POST /rest/agile/1.0/sprint/{id}/issue`, `/backlog/issue`, `/sprint` and
+    `/sprint/{id}` (`internal/jira/agile.go:118`, GDK-1655). Every state
+    change re-reads the sprint listing and the issues that were in it, so the
+    mirror states what the origin holds rather than what gadak sent.
 
 [^35]: `GET /field` catalog (`internal/jira/client.go:311`); editable kinds
     `text`, `number`, `date`, `option`, `user`, `multi_option` /

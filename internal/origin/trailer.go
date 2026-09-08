@@ -104,6 +104,14 @@ type actorTrailerWriter struct {
 	trailer string
 }
 
+// Unwrap hands back the writer underneath. The As* capability family
+// type-asserts on the Writer it is given, and an embedded interface does not
+// promote methods the interface does not declare — so without this every
+// optional capability (versions, issue links, create fields, media refs,
+// sprints) silently disappeared the moment the actor trailer was on
+// (GDK-1655, found by `gadak sprint add` refusing on a Jira Software site).
+func (w *actorTrailerWriter) Unwrap() Writer { return w.Writer }
+
 func (w *actorTrailerWriter) AddComment(ctx context.Context, key string, body json.RawMessage, visibility *CommentVisibility, internal bool) (Comment, error) {
 	return w.Writer.AddComment(ctx, key, appendActorTrailer(body, w.trailer), visibility, internal)
 }

@@ -4,6 +4,26 @@
 
 ## Unreleased
 
+- **스프린트가 이제 이슈에 붙은 문자열 셋이 아니라 개체다.** 지금까지
+  스프린트는 이슈마다 투영된 `sprint_id`·`sprint_name`·`sprint_state` 로만
+  존재했다. 그래서 이슈가 하나도 없는 스프린트는 아예 없는 것이었고, 목표도
+  기간도 소속 보드도 어디에도 없었다. 미러에 `sprints`·`boards` 테이블이
+  생겼고, Agile API 에서 채운다 — Cloud 와 Server 가 같은 형태로 답하는
+  유일한 표면이다. `gadak sprint list` 가 그것을 읽고,
+  `gadak sprint add`·`remove`·`create`·`start`·`close` 가 origin 을 통과해
+  쓴다. 상태를 바꿀 때마다 스프린트와 그 안에 있던 이슈를 다시 읽는다 —
+  보낸 것을 믿지 않는다. 스프린트는 Jira Software 의 것이라, Linear·내장
+  워크스페이스는 비슷한 개념을 끌어다 쓰지 않고 없다고 말한다.
+  ([GDK-1653], [GDK-1654], [GDK-1655], [GDK-1657])
+- **Jira Server 워크스페이스의 에픽.** Server 는 이슈 유형에 계층 레벨을
+  싣지 않는다. 그래서 에픽이 스토리와 같은 레벨로 들어왔고 `epic_key` 가
+  생길 수 없었다. 이제 "표준 이슈를 자식으로 둔 쪽"에서 유도한다 — 추가
+  요청이 없고, 표시명인 "Epic" 이라는 낱말에 기대지도 않는다. ([GDK-1658])
+- **actor 꼬리말이 켜져 있으면 선택적 기능이 사라지던 것.** 에이전트 서명을
+  코멘트에 붙이는 래퍼가 writer 를 임베드하는데, 임베드된 인터페이스는 그
+  인터페이스가 선언한 메서드만 승격시킨다. 그래서 버전·이슈 링크·생성 필드
+  목록·미디어 참조·스프린트가 전부 "이 origin 이 뭘 할 수 있나" 를 묻는
+  코드에 안 보였다. 이제 래퍼 너머를 본다. ([GDK-1655])
 - **Jira Server 워크스페이스의 스프린트.** Server 는 스프린트 필드를 자기
   빈의 Java `toString` 으로 보낸다 — `Sprint@4ffcc813[…,id=1,name=Sprint
   1,…,state=ACTIVE,…]`. Cloud 는 객체를 보낸다. 그래서 스프린트에 들어 있는
@@ -1181,6 +1201,11 @@ HTTP·sync·에이전트 계약을 담았습니다.
 - 저장 스키마와 HTTP·sync·에이전트 계약, 그리고 WAL, FTS5, 파생 필드 계산기를
   갖춘 SQLite 구현.
 
+[GDK-1653]: https://gadak.dev/backlog/#/?ks=GDK-1653
+[GDK-1654]: https://gadak.dev/backlog/#/?ks=GDK-1654
+[GDK-1655]: https://gadak.dev/backlog/#/?ks=GDK-1655
+[GDK-1657]: https://gadak.dev/backlog/#/?ks=GDK-1657
+[GDK-1658]: https://gadak.dev/backlog/#/?ks=GDK-1658
 [GDK-1650]: https://gadak.dev/backlog/#/?ks=GDK-1650
 [GDK-1651]: https://gadak.dev/backlog/#/?ks=GDK-1651
 [GDK-1652]: https://gadak.dev/backlog/#/?ks=GDK-1652

@@ -175,6 +175,10 @@ func (f *fakeSite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		w.Write([]byte(`[]`))
+	case strings.HasPrefix(r.URL.Path, "/rest/agile/1.0/"):
+		// A site with no Jira Software answers 404 here; the fakes model that
+		// unless a test wants boards (GDK-1654).
+		http.Error(w, `{"errorMessages":["no agile"]}`, http.StatusNotFound)
 	default:
 		f.t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
 		http.Error(w, "no", http.StatusNotFound)

@@ -86,6 +86,9 @@ func TestServerSyncKeysUsersByName(t *testing.T) {
 			_, _ = w.Write([]byte(`[]`))
 		case "/rest/api/2/project/NMB/versions":
 			_, _ = w.Write([]byte(`[]`))
+		case "/rest/agile/1.0/board":
+			// A site with no Jira Software answers 404 here (GDK-1654).
+			http.Error(w, `{"errorMessages":["no agile"]}`, http.StatusNotFound)
 		default:
 			t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
 			http.Error(w, "no", http.StatusNotFound)

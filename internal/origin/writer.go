@@ -134,7 +134,7 @@ var ErrNoIssueTypes = unsupported("linear: this origin has no issue types")
 
 // AsVersionCatalog returns w as VersionCatalog, or ErrNoVersionCatalog.
 func AsVersionCatalog(w Writer) (VersionCatalog, error) {
-	v, ok := w.(VersionCatalog)
+	v, ok := capability[VersionCatalog](w)
 	if !ok {
 		return nil, ErrNoVersionCatalog
 	}
@@ -223,7 +223,7 @@ func clientTransport(w any) (http.RoundTripper, bool) {
 
 // AsIssueLinker returns w as IssueLinker, or ErrNoIssueLinks.
 func AsIssueLinker(w Writer) (IssueLinker, error) {
-	v, ok := w.(IssueLinker)
+	v, ok := capability[IssueLinker](w)
 	if !ok {
 		return nil, ErrNoIssueLinks
 	}
@@ -232,7 +232,7 @@ func AsIssueLinker(w Writer) (IssueLinker, error) {
 
 // AsCreateFieldCatalog returns w as CreateFieldCatalog, or ErrNoCreateFields.
 func AsCreateFieldCatalog(w Writer) (CreateFieldCatalog, error) {
-	v, ok := w.(CreateFieldCatalog)
+	v, ok := capability[CreateFieldCatalog](w)
 	if !ok {
 		return nil, ErrNoCreateFields
 	}
@@ -241,7 +241,7 @@ func AsCreateFieldCatalog(w Writer) (CreateFieldCatalog, error) {
 
 // AsMediaRef returns w as MediaRef, or ErrNoMediaRef.
 func AsMediaRef(w Writer) (MediaRef, error) {
-	v, ok := w.(MediaRef)
+	v, ok := capability[MediaRef](w)
 	if !ok {
 		return nil, ErrNoMediaRef
 	}
@@ -296,4 +296,52 @@ func WriterFor(cfg *config.Config, source string) (Writer, error) {
 		return nil, err
 	}
 	return newJiraWriter(c), nil
+}
+
+// SprintBoard is Jira Software's boards and sprints (GDK-1655). Only a Jira
+// origin has it: Linear's nearest concept is a cycle, which is not the same
+// object and is not reached by these calls, and the built-in tracker has no
+// sprints at all. There is no fallback — a workspace on either says so.
+type SprintBoard interface {
+	MoveToSprint(ctx context.Context, sprintID int64, keys []string) error
+	MoveToBacklog(ctx context.Context, keys []string) error
+	CreateSprint(ctx context.Context, boardID int64, name, goal string) (Sprint, error)
+	UpdateSprint(ctx context.Context, sprintID int64, fields map[string]any) (Sprint, error)
+}
+
+// Sprint is one sprint as the origin states it back after a write.
+type Sprint struct {
+	ID    int64
+	Name  string
+	State string
+}
+
+// ErrNoSprints is the refusal for an origin with no sprints.
+var ErrNoSprints = unsupported("this origin has no sprints — sprints are Jira Software's, and this workspace's origin is not a Jira site with it")
+
+// AsSprintBoard returns w as SprintBoard, or ErrNoSprints.
+func AsSprintBoard(w Writer) (SprintBoard, error) {
+	v, ok := capability[SprintBoard](w)
+	if !ok {
+		return nil, ErrNoSprints
+	}
+	return v, nil
+}
+
+// capability asserts T on w, then on whatever w wraps. Decorators around a
+// Writer (the actor trailer) embed the interface, which promotes only the
+// methods Writer declares — every optional capability underneath is
+// invisible to a plain type assertion (GDK-1655).
+func capability[T any](w Writer) (T, bool) {
+	for {
+		if v, ok := w.(T); ok {
+			return v, true
+		}
+		u, ok := w.(interface{ Unwrap() Writer })
+		if !ok {
+			var zero T
+			return zero, false
+		}
+		w = u.Unwrap()
+	}
 }

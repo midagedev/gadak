@@ -4,6 +4,29 @@
 
 ## Unreleased
 
+- **Sprints are objects now, not three strings on an issue.** A sprint used
+  to exist only as `sprint_id` / `sprint_name` / `sprint_state` projected onto
+  each issue, so a sprint holding no issues did not exist at all, and its
+  goal, its dates and the board it belongs to existed nowhere. The mirror has
+  `sprints` and `boards` tables, filled from the Agile API — the one surface
+  where Atlassian Cloud and Server answer the same shape. `gadak sprint list`
+  reads them; `gadak sprint add`, `remove`, `create`, `start` and `close`
+  write through the origin, and every state change re-reads the sprint and
+  the issues that were in it rather than trusting what was sent. Sprints are
+  Jira Software's: a Linear or built-in workspace refuses these by name
+  instead of reaching for a nearest concept. ([GDK-1653], [GDK-1654],
+  [GDK-1655], [GDK-1657])
+- **Epics on a Jira Server workspace.** Server publishes no hierarchy level on
+  its issue types, so an epic arrived at the same level as a story and
+  `epic_key` could never be derived. It is derived instead from who has a
+  standard child — no extra request, and no keying on the word "Epic", which
+  is a display name. ([GDK-1658])
+- **An optional capability no longer disappears when the actor trailer is
+  on.** The wrapper that appends an agent's signature to comments embeds the
+  writer, and an embedded interface promotes only the methods that interface
+  declares — so versions, issue links, create-field catalogs, media refs and
+  sprints were all invisible to the code that asks an origin what it can do.
+  The question now looks through the wrapper. ([GDK-1655])
 - **Sprints on a Jira Server workspace.** Server carries the sprint field as
   the Java `toString` of its own bean — `Sprint@4ffcc813[…,id=1,name=Sprint
   1,…,state=ACTIVE,…]` — where Cloud sends an object, so every issue in a
@@ -1248,6 +1271,11 @@ and the storage schema plus the HTTP, sync and agent contracts.
 - The storage schema, plus HTTP, sync and agent contracts, and the SQLite
   implementation with WAL, FTS5, and the derived-field calculator.
 
+[GDK-1653]: https://gadak.dev/backlog/#/?ks=GDK-1653
+[GDK-1654]: https://gadak.dev/backlog/#/?ks=GDK-1654
+[GDK-1655]: https://gadak.dev/backlog/#/?ks=GDK-1655
+[GDK-1657]: https://gadak.dev/backlog/#/?ks=GDK-1657
+[GDK-1658]: https://gadak.dev/backlog/#/?ks=GDK-1658
 [GDK-1650]: https://gadak.dev/backlog/#/?ks=GDK-1650
 [GDK-1651]: https://gadak.dev/backlog/#/?ks=GDK-1651
 [GDK-1652]: https://gadak.dev/backlog/#/?ks=GDK-1652
