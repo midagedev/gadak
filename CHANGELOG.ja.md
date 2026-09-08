@@ -120,6 +120,13 @@
   課題を読み直します。スプリントは Jira Software のものなので、Linear や内蔵
   ワークスペースは名指しで断ります。 ([GDK-1653], [GDK-1654], [GDK-1655],
   [GDK-1657])
+- **内蔵トラッカーのスプリント。** gadak が同梱するトラッカーが、Jira Software
+  の Agile 表面をそのまま出すようになりました。ボード、スプリント、課題の
+  スプリント項目、JQL の `openSprints()` 系です。そのため、Atlassian アカウントの
+  ないワークスペースでも、ペアリングしたワークスペースでも `gadak sprint` が
+  使えます。スプリントを閉じると、未完了の課題は Jira と同じようにバックログへ
+  移ります。 ([GDK-1666])
+
 - **閉じたスプリントの完了課題が「active」のまま残ることは、もうありません。**
   スプリントを閉じると、外に移されるのは未完了の課題だけです。完了した課題は
   何も変わらないため、増分同期が読み直すこともなく、その行の `sprint_state` は
@@ -1838,3 +1845,4 @@ TUI に出るようになり、課題には正直なエピック階層が付き�
 [GDK-1660]: https://gadak.dev/backlog/#/?ks=GDK-1660
 [GDK-1661]: https://gadak.dev/backlog/#/?ks=GDK-1661
 [GDK-1662]: https://gadak.dev/backlog/#/?ks=GDK-1662
+[GDK-1666]: https://gadak.dev/backlog/#/?ks=GDK-1666
