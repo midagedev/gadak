@@ -53,6 +53,15 @@ func ClaudeDesktopConfigPathFor(goos, home, appdata, xdg string) (string, error)
 // function decides which error, so a Windows process without a home still
 // resolves through APPDATA.
 func ClaudeDesktopConfigPath() (string, error) {
+	return ClaudeDesktopConfigPathOn(runtime.GOOS)
+}
+
+// ClaudeDesktopConfigPathOn is ClaudeDesktopConfigPath for an explicit GOOS:
+// the environment lookups stay this process's, the branch is the caller's.
+// A catalogue that describes one OS (integrations.listFor) needs exactly
+// this — without it, the row calls ClaudeDesktopConfigPath and answers for
+// the host no matter which GOOS was asked for.
+func ClaudeDesktopConfigPathOn(goos string) (string, error) {
 	home, _ := os.UserHomeDir()
-	return ClaudeDesktopConfigPathFor(runtime.GOOS, home, os.Getenv("APPDATA"), os.Getenv("XDG_CONFIG_HOME"))
+	return ClaudeDesktopConfigPathFor(goos, home, os.Getenv("APPDATA"), os.Getenv("XDG_CONFIG_HOME"))
 }

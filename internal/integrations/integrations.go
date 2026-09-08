@@ -122,7 +122,7 @@ func listFor(goos string) []Item {
 		items = append(items, raycastItem())
 	}
 	items = append(items, skillItems()...)
-	return append(items, mcpClaudeItem(), mcpClaudeDesktopItem())
+	return append(items, mcpClaudeItem(), mcpClaudeDesktopItem(goos))
 }
 
 // raycastOffered is the single owner of "does this OS get a Raycast row".
@@ -337,13 +337,16 @@ func mcpClaudeItem() Item {
 // claude binary, so `gadak mcp install claude-desktop` merges the entry into
 // claude_desktop_config.json itself. The row only reads that file; the
 // install verb is the writer, exactly as for every other row.
-func mcpClaudeDesktopItem() Item {
+//
+// goos comes from listFor rather than runtime: the config path is per-OS, so
+// a row built for a GOOS that is not the host's must describe that GOOS.
+func mcpClaudeDesktopItem(goos string) Item {
 	item := Item{
 		ID:      idMCPClaudeDesktop,
 		Title:   "Claude Desktop MCP",
 		Command: "gadak mcp install claude-desktop",
 	}
-	path, err := clitool.ClaudeDesktopConfigPath()
+	path, err := clitool.ClaudeDesktopConfigPathOn(goos)
 	if err != nil {
 		// No resolvable home/APPDATA: nothing to inspect. Unknown, and the
 		// command reports the same failure in its own words.

@@ -352,6 +352,37 @@ func TestMCPClaudeRowsTitlesAndCommands(t *testing.T) {
 	}
 }
 
+// listFor(goos) promises a catalogue for that GOOS, and the Claude Desktop
+// row is the one whose content is a per-OS path — so it is the row that can
+// silently answer for the host instead. It did: the row resolved its path
+// through runtime.GOOS while the test asked for darwin, which passed on a
+// Mac and failed on Linux CI with a ~/.config/Claude path (2026-09-08).
+// This asserts all three branches on any host, so a row that reaches for the
+// process's own GOOS fails wherever it is run.
+func TestMCPClaudeDesktopRowFollowsGOOS(t *testing.T) {
+	stubNoClaude(t)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	appdata := filepath.Join(home, "AppData", "Roaming")
+	t.Setenv("APPDATA", appdata)
+	t.Setenv("XDG_CONFIG_HOME", "")
+	fakeSkillEnv(t, home)
+
+	for _, goos := range []string{"darwin", "linux", "windows"} {
+		want, err := clitool.ClaudeDesktopConfigPathFor(goos, home, appdata, "")
+		if err != nil {
+			t.Fatalf("%s: want path: %v", goos, err)
+		}
+		item := itemByID(t, listFor(goos), idMCPClaudeDesktop)
+		if item.Detail != clitool.TildeHome(want) {
+			t.Errorf("listFor(%q) desktop row detail=%q want %q", goos, item.Detail, clitool.TildeHome(want))
+		}
+		if item.Prerequisite == nil || !strings.Contains(item.Prerequisite.Message, clitool.TildeHome(filepath.Dir(want))) {
+			t.Errorf("listFor(%q) prerequisite must name %q: %+v", goos, clitool.TildeHome(filepath.Dir(want)), item.Prerequisite)
+		}
+	}
+}
+
 // The desktop row reads claude_desktop_config.json only. States: no app
 // directory (prerequisite fails naming it), directory without config (not
 // installed), config without gadak (false), config with gadak (true), and an
@@ -371,7 +402,11 @@ func TestMCPClaudeDesktopRowPerState(t *testing.T) {
 		t.Fatalf("no app dir: prerequisite=%+v", item.Prerequisite)
 	}
 	if !strings.Contains(item.Prerequisite.Message, "~/Library/Application Support/Claude") {
-		t.Fatalf("prerequisite must name the missing dir: %q", item.Prerequisite.Message)
+		// Naming the GOOS matters: when this row answered for the host
+		// instead of the requested OS, the bare message read as a path
+		// format problem rather than "listFor(darwin) returned a Linux
+		// path", which is what it was.
+		t.Fatalf("listFor(%q) prerequisite must name the missing dir: %q", "darwin", item.Prerequisite.Message)
 	}
 	if item.Installed == nil || *item.Installed {
 		t.Fatalf("no app dir: installed=%v want false", item.Installed)
