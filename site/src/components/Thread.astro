@@ -19,6 +19,12 @@ const { label } = Astro.props
     gap: 0.75rem;
     margin: 3.5rem 0;
   }
+  /* Without a label the stitch meets the hairline directly — the gap is
+     there to hold the label's text, and an empty gap read as a broken line
+     (vision round 2026-09-08, all three landings above the install section). */
+  .thread:not(:has(.label)) {
+    gap: 0;
+  }
   .stitch {
     width: 2.25rem;
     height: 1px;

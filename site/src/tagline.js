@@ -26,10 +26,10 @@ export const TAGLINE = {
   },
   ko: {
     heading: '같은 Jira, 기다림 없이.',
-    body: '팀의 Jira와 Confluence 위키를 로컬 SQLite 파일 하나에 미러링합니다.',
+    body: '팀의 Jira와 Confluence 위키를 통째로 캐시합니다.',
   },
   ja: {
     heading: '同じJira。待ち時間なし。',
-    body: 'チームのJiraとConfluenceのWikiを、ローカルのSQLiteファイル1つにミラー。',
+    body: 'チームのJiraとConfluenceのWikiを、まるごとキャッシュ。',
   },
 }

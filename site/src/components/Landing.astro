@@ -15,141 +15,219 @@ const copyLabel = t.copy.label
 const copiedLabel = t.copy.copied
 const installHref = pathFor(lang, '/install/')
 const storeHref = 'https://apps.microsoft.com/detail/9NZW91TXH36G'
+const docs = 'https://github.com/midagedev/gadak/blob/main/'
+// The sections and their order come from this locale's `layout` (i18n.ts):
+// the three landings are parallel editions, not translations, so en opens
+// with the objection an HN reader was about to type, ja puts the trust
+// section before the agent one, and ko closes on the sentence the
+// maintainer is asking for. One screen per idea still holds (user call
+// 2026-09-05); a locale that has nothing to say in a section leaves it out
+// of its layout rather than filling it.
+const layout = t.layout
 ---
 
 <Base lang={lang} title={t.title} description={t.description}>
-  {/* Five sections, in the order a reader decides: the promise and one
-      recording, the measurement, one exhibit of the daily loop, the agent
-      surface with one recording, then trust and install. Everything else
-      that used to be here is a gallery now — docs/SHOWCASE.md — so the
-      landing stays one screen per idea (user call 2026-09-05). */}
-  <section class="hero">
-    <p class="eyebrow">{t.hero.eyebrow}</p>
-    <h1>{t.hero.heading}</h1>
-    <p class="lede">{t.hero.lede}</p>
-    <div class="doors">
-      <Door primary href={installHref} title={t.hero.doors.installTitle} sub={t.hero.doors.installSub} />
-      <Door href="/demo/" title={t.hero.doors.demoTitle} sub={t.hero.doors.demoSub} />
-    </div>
-    <figure class="flagship">
-      {/* Every clip on this page carries localized UI in its pixels — the
-          agent one further down included, since its ko and ja takes are one
-          language end to end — so each asks mediaFor for this locale's cut
-          and falls back to the English take until that cut is recorded
-          (MEDIA_LOCALES in i18n.ts). */}
-      <MediaSlot
-        slot={t.landing.flagshipSlot}
-        src={mediaFor(lang, '/media/scale.mp4')}
-        poster={mediaFor(lang, '/media/scale-poster.png')}
-        autoplay
-      />
-      <figcaption>{t.hero.videoCaption}</figcaption>
-    </figure>
-  </section>
+  {
+    layout.map((section) => (
+      <>
+        {section === 'hero' && (
+          <section class="hero">
+            <p class="eyebrow">{t.hero.eyebrow}</p>
+            <h1>{t.hero.heading}</h1>
+            <p class="lede">{t.hero.lede}</p>
+            <div class="doors">
+              <Door primary href={installHref} title={t.hero.doors.installTitle} sub={t.hero.doors.installSub} />
+              <Door href="/demo/" title={t.hero.doors.demoTitle} sub={t.hero.doors.demoSub} />
+            </div>
+            <figure class="flagship">
+              {/* Every clip on this page carries localized UI in its pixels, so
+                  each asks mediaFor for this locale's cut and falls back to the
+                  English take until that cut is recorded (MEDIA_LOCALES). */}
+              <MediaSlot
+                slot={t.landing.flagshipSlot}
+                src={mediaFor(lang, '/media/scale.mp4')}
+                poster={mediaFor(lang, '/media/scale-poster.png')}
+                autoplay
+              />
+              <figcaption>{t.hero.videoCaption}</figcaption>
+            </figure>
+          </section>
+        )}
 
-  <Thread label={t.speed.label} />
+        {section === 'compare' && t.compare && (
+          <>
+            <Thread label={t.compare.label} />
+            {/* The objection every thread opens with, answered before it is
+                asked — and answered honestly: the last row is the one gadak
+                loses, on purpose. A table that wins every row reads as
+                marketing and gets taken apart. */}
+            <section class="speed compare">
+              <h2>{t.compare.heading}</h2>
+              <p>{t.compare.body}</p>
+              <table>
+                <thead>
+                  <tr>
+                    <th></th>
+                    <th>{t.compare.colA}</th>
+                    <th>{t.compare.colB}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {t.compare.rows.map((row) => (
+                    <tr>
+                      <td class="what">{row.what}</td>
+                      <td class="rest">{row.a}</td>
+                      <td class="gadak">{row.b}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p class="note">
+                {t.compare.note} <a href={`${docs}${t.compare.noteLink}`}>{t.compare.noteLink}</a>
+              </p>
+            </section>
+          </>
+        )}
 
-  {/* The video says "fast"; the table says how much, against the thing
-      people wait on today. Same question, two runtimes. */}
-  <section class="speed">
-    <h2>{t.speed.heading}</h2>
-    <table>
-      <thead>
-        <tr>
-          <th></th>
-          <th>{t.speed.colRest}</th>
-          <th>{t.speed.colGadak}</th>
-          <th aria-hidden="true"></th>
-        </tr>
-      </thead>
-      <tbody>
-        {
-          t.speed.rows.map((row) => (
-            <tr>
-              <td class="what">{row.what}</td>
-              <td class="rest">{row.value}</td>
-              <td class="gadak">{row.alt}</td>
-              <td class="ratio">{row.ratio}</td>
-            </tr>
-          ))
-        }
-      </tbody>
-    </table>
-    <p class="note">
-      {t.speed.note}
-      <a href="https://github.com/midagedev/gadak/blob/main/docs/BENCHMARKS.md">docs/BENCHMARKS.md</a>.
-    </p>
-  </section>
+        {section === 'speed' && (
+          <>
+            <Thread label={t.speed.label} />
+            {/* The video says "fast"; the table says how much, against the
+                thing people wait on today. Same question, two runtimes. */}
+            <section class="speed">
+              <h2>{t.speed.heading}</h2>
+              <table>
+                <thead>
+                  <tr>
+                    <th></th>
+                    <th>{t.speed.colRest}</th>
+                    <th>{t.speed.colGadak}</th>
+                    <th aria-hidden="true"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {t.speed.rows.map((row) => (
+                    <tr>
+                      <td class="what">{row.what}</td>
+                      <td class="rest">{row.value}</td>
+                      <td class="gadak">{row.alt}</td>
+                      <td class="ratio">{row.ratio}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p class="note">
+                {t.speed.note}
+                <a href={`${docs}docs/BENCHMARKS.md`}>docs/BENCHMARKS.md</a>.
+              </p>
+            </section>
+          </>
+        )}
 
-  <Thread label={t.ux.label} />
+        {section === 'search' && (
+          <>
+            <Thread label={t.ux.label} />
+            {/* One exhibit for the daily loop: search is the one everybody hits. */}
+            <section class="exhibit">
+              <div class="text">
+                <h2>{t.ux.search.heading}</h2>
+                <p>{t.ux.search.body}</p>
+              </div>
+              <MediaSlot
+                slot={t.landing.searchSlot}
+                src={mediaFor(lang, '/media/search.mp4')}
+                poster={mediaFor(lang, '/media/search-poster.png')}
+              />
+            </section>
+          </>
+        )}
 
-  {/* One exhibit for the daily loop: search is the one everybody hits. */}
-  <section class="exhibit">
-    <div class="text">
-      <h2>{t.ux.search.heading}</h2>
-      <p>{t.ux.search.body}</p>
-    </div>
-    <MediaSlot
-      slot={t.landing.searchSlot}
-      src={mediaFor(lang, '/media/search.mp4')}
-      poster={mediaFor(lang, '/media/search-poster.png')}
-    />
-  </section>
+        {section === 'agent' && (
+          <>
+            <Thread label={t.agent.label} />
+            <section class="agent">
+              <h2>{t.agent.heading}</h2>
+              <p>{t.agent.body}</p>
+              <figure class="media-pair">
+                {/* Claude Code in gadak's own pane, and the board it moves is
+                    the one above it. 16:10, full column width. Each locale's
+                    take is one language end to end (MEDIA_LOCALES). */}
+                <MediaSlot
+                  slot={t.landing.agentSlot}
+                  src={mediaFor(lang, '/media/terminal-hero.mp4')}
+                  poster={mediaFor(lang, '/media/terminal-hero-poster.png')}
+                />
+                <figcaption>{t.agent.driveCaption}</figcaption>
+              </figure>
+              <p>{t.agent.skillLead}</p>
+              <Snippet code="gadak skill install" copyLabel={copyLabel} copiedLabel={copiedLabel} />
+              <p>{t.agent.mcpLead}</p>
+              <Snippet code="claude mcp add gadak -- gadak mcp" copyLabel={copyLabel} copiedLabel={copiedLabel} />
+              <p class="note">
+                <a href={`${docs}docs/AGENT_SETUP.md`}>{t.agent.setupLink}</a>
+                <br />
+                <a href={`${docs}docs/SHOWCASE.md`}>{t.agent.showcaseLink}</a>
+              </p>
+            </section>
+          </>
+        )}
 
-  <Thread label={t.agent.label} />
+        {section === 'origin' && (
+          <>
+            <Thread label={t.origin.label} />
+            <section class="origin">
+              <h2>{t.origin.heading}</h2>
+              <ul>
+                {t.origin.points.map((point) => <li>{point}</li>)}
+              </ul>
+              {t.origin.link && (
+                <p class="note">
+                  <a href={t.origin.link.href}>{t.origin.link.label}</a>
+                </p>
+              )}
+            </section>
+          </>
+        )}
 
-  <section class="agent">
-    <h2>{t.agent.heading}</h2>
-    <p>{t.agent.body}</p>
-    <figure class="media-pair">
-      {/* The window itself: Claude Code in gadak's own pane, and the board
-          it moves is the one above it. 16:10, full column width.
+        {section === 'install' && (
+          <>
+            <Thread />
+            <section class="install">
+              <h2>{t.install.heading}</h2>
+              <p>{t.install.macosApp}</p>
+              <Snippet code="brew install --cask midagedev/tap/gadak" copyLabel={copyLabel} copiedLabel={copiedLabel} />
+              <p>{t.install.cliOnly}</p>
+              <Snippet code="brew install midagedev/tap/gadak-cli" copyLabel={copyLabel} copiedLabel={copiedLabel} />
+              <p>{t.install.windowsBefore} <a href={storeHref}>Microsoft Store</a>{t.install.windowsAfter}</p>
+              <p>{t.install.firstRun}</p>
+              <Snippet code="gadak init && gadak sync && gadak serve" copyLabel={copyLabel} copiedLabel={copiedLabel} />
+              <p class="note"><a href={installHref}>{t.landing.allPlatforms}</a></p>
+            </section>
+          </>
+        )}
 
-          Localized like the two clips above since 2026-09-07: each locale's
-          take is one language end to end — chrome, mirror and the prompts
-          typed into the pane — so this asks mediaFor for this locale's cut
-          and falls back to the English take until it is recorded
-          (MEDIA_LOCALES in i18n.ts). */}
-      <MediaSlot
-        slot={t.landing.agentSlot}
-        src={mediaFor(lang, '/media/terminal-hero.mp4')}
-        poster={mediaFor(lang, '/media/terminal-hero-poster.png')}
-      />
-      <figcaption>{t.agent.driveCaption}</figcaption>
-    </figure>
-    <p>{t.agent.skillLead}</p>
-    <Snippet code="gadak skill install" copyLabel={copyLabel} copiedLabel={copiedLabel} />
-    <p>{t.agent.mcpLead}</p>
-    <Snippet code="claude mcp add gadak -- gadak mcp" copyLabel={copyLabel} copiedLabel={copiedLabel} />
-    <p class="note">
-      <a href="https://github.com/midagedev/gadak/blob/main/docs/AGENT_SETUP.md">{t.agent.setupLink}</a>
-      <br />
-      <a href="https://github.com/midagedev/gadak/blob/main/docs/SHOWCASE.md">{t.agent.showcaseLink}</a>
-    </p>
-  </section>
-
-  <Thread label={t.origin.label} />
-
-  <section class="origin">
-    <h2>{t.origin.heading}</h2>
-    <ul>
-      {t.origin.points.map((point) => <li>{point}</li>)}
-    </ul>
-  </section>
-
-  <Thread />
-
-  <section class="install">
-    <h2>{t.install.heading}</h2>
-    <p>{t.install.macosApp}</p>
-    <Snippet code="brew install --cask midagedev/tap/gadak" copyLabel={copyLabel} copiedLabel={copiedLabel} />
-    <p>{t.install.cliOnly}</p>
-    <Snippet code="brew install midagedev/tap/gadak-cli" copyLabel={copyLabel} copiedLabel={copiedLabel} />
-    <p>{t.install.windowsBefore} <a href={storeHref}>Microsoft Store</a>{t.install.windowsAfter}</p>
-    <p>{t.install.firstRun}</p>
-    <Snippet code="gadak init && gadak sync && gadak serve" copyLabel={copyLabel} copiedLabel={copiedLabel} />
-    <p class="note"><a href={installHref}>{t.landing.allPlatforms}</a></p>
-  </section>
+        {section === 'ask' && t.ask && (
+          <>
+            <Thread label={t.ask.label} />
+            {/* ko only: no telemetry means the only retention signal is a
+                human sentence, so the page ends by asking for one. */}
+            <section class="ask">
+              <h2>{t.ask.heading}</h2>
+              <p>{t.ask.body}</p>
+              <p class="note">
+                {t.ask.links.map((l, i) => (
+                  <>
+                    {i > 0 && ' · '}
+                    <a href={l.href}>{l.label}</a>
+                  </>
+                ))}
+              </p>
+            </section>
+          </>
+        )}
+      </>
+    ))
+  }
 </Base>
 
 <style>
@@ -268,6 +346,35 @@ const storeHref = 'https://apps.microsoft.com/detail/9NZW91TXH36G'
     color: var(--ink-3);
     margin: 0.9rem 0 0;
   }
+  /* The comparison table: same skeleton as the measurement table, but its
+     cells are words, not numbers — so they wrap and set in the sans face,
+     and the two value columns share the width evenly. */
+  .compare td.rest,
+  .compare td.gadak {
+    font-family: var(--font-sans);
+    white-space: normal;
+    text-wrap: pretty;
+    text-align: left;
+    width: 32%;
+    padding-right: 0.75rem;
+  }
+  .compare th {
+    text-align: left;
+  }
+  .compare td.gadak {
+    font-weight: 600;
+  }
+  .compare > p {
+    margin: 0 0 1.25rem;
+    color: var(--ink-2);
+  }
+  .ask .note,
+  .origin .note {
+    font-size: 0.875rem;
+    color: var(--ink-3);
+    margin: 0.9rem 0 0;
+    line-height: 1.8;
+  }
 
   .exhibit {
     display: grid;
@@ -324,6 +431,7 @@ const storeHref = 'https://apps.microsoft.com/detail/9NZW91TXH36G'
     list-style: none;
   }
   .origin li {
+    text-wrap: pretty;
     padding: 0.55rem 0 0.55rem 1.1rem;
     border-bottom: 1px solid var(--border);
     font-size: 0.9375rem;

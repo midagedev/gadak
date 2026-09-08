@@ -247,7 +247,9 @@ that language.
 
 `web-demo.gif` is English-only and shared by all three.
 
-The **site landing** is the gap: `site/src/i18n.ts` `MEDIA_LOCALES` does not
-register the agent clip, so `/ko/` and `/ja/` show the English recording while
-the caption says a Korean sentence drives it (GDK-1607). That is a site
-defect, not a README one.
+The **site landing** serves the same per-locale takes: `site/src/i18n.ts`
+`MEDIA_LOCALES` lists `terminal-hero.mp4` and its poster for ko and ja (since
+2026-09-07), and the built `/ko/` and `/ja/` pages reference
+`terminal-hero.ko.mp4` / `terminal-hero.ja.mp4`. GDK-1607 was filed on the
+opposite claim without checking the built page and was closed as invalid on
+2026-09-08 — verify against `site/dist` before re-filing.
