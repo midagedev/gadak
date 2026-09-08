@@ -1,4 +1,5 @@
 import { renderMarkdown } from './changelog'
+import { LOCALES, type Locale } from '../i18n'
 
 /**
  * The site's essays: long-form writing that lives at durable URLs instead
@@ -28,10 +29,14 @@ import { renderMarkdown } from './changelog'
  * the line; keys cited here must already be on the public backlog, or
  * tools/doc-checks.sh fails the build on a dangling reference.)
  *
- * Essays are English-only canonical: no ko mirror exists, so their pages
- * pass noAltLang to the layout and the sitemap claims no alternates for
- * them. Adding an essay is dropping a file in the directory — the loader is
- * the registration, and a malformed file fails the build loudly.
+ * Translations sit beside the original as <slug>.<lang>.md (ko, ja). The
+ * English file is canonical and owns the slug; a translation is the same
+ * essay in another locale, served at /<lang>/essays/<slug>/. An essay with
+ * no translation stays en-only: its page passes noAltLang to the layout and
+ * the sitemap claims no alternates for it — an hreflang that 404s is worse
+ * than none. Adding an essay is dropping a file in the directory — the
+ * loader is the registration, and a malformed file fails the build loudly;
+ * a translation whose slug has no English original fails the same way.
  */
 
 /**
@@ -56,10 +61,12 @@ export interface Essay {
   /** ISO date, printed as-is (the changelog prints ISO dates too). */
   date: string
   description: string
-  /** 'en' unless the file says otherwise. Recorded in JSON-LD only. */
-  lang: string
+  /** The locale this text is in — the file's suffix, 'en' for the original. */
+  lang: Locale
   /** Body, already rendered. */
   html: string
+  /** Locales this essay exists in, en first — the layout's alternates. */
+  locales: Locale[]
 }
 
 function parseFrontmatter(
@@ -89,31 +96,90 @@ function parseFrontmatter(
   return { fields, body: lines.slice(end + 1).join('\n').trim() }
 }
 
-async function loadEssay(path: string, raw: string): Promise<Essay> {
-  const slug = path.split('/').pop()!.replace(/\.md$/, '')
-  const { fields, body } = parseFrontmatter(raw, slug)
+/** '<slug>.md' → en; '<slug>.<lang>.md' → that lang. Anything else is a build error. */
+function splitName(path: string): { slug: string; lang: Locale } {
+  const name = path.split('/').pop()!.replace(/\.md$/, '')
+  const dot = name.lastIndexOf('.')
+  if (dot === -1) return { slug: name, lang: 'en' }
+  const lang = name.slice(dot + 1)
+  if (!(LOCALES as readonly string[]).includes(lang) || lang === 'en') {
+    throw new Error(`essay ${name}: suffix '.${lang}' is not a translation locale (${LOCALES.filter((l) => l !== 'en').join(', ')})`)
+  }
+  return { slug: name.slice(0, dot), lang: lang as Locale }
+}
+
+async function loadEssay(path: string, raw: string): Promise<Omit<Essay, 'locales'>> {
+  const { slug, lang } = splitName(path)
+  const { fields, body } = parseFrontmatter(raw, `${slug}.${lang}`)
   for (const key of ['title', 'date', 'description']) {
     if (!fields[key]) throw new Error(`essay ${slug}: frontmatter is missing '${key}'`)
   }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(fields.date)) {
     throw new Error(`essay ${slug}: date must be ISO YYYY-MM-DD, got '${fields.date}'`)
   }
+  if (fields.lang && fields.lang !== lang) {
+    throw new Error(`essay ${slug}.${lang}: frontmatter says lang '${fields.lang}' but the file name says '${lang}'`)
+  }
   return {
     slug,
     title: fields.title,
     date: fields.date,
     description: fields.description,
-    lang: fields.lang || 'en',
+    lang,
     html: await renderMarkdown(body),
   }
 }
 
-/** All essays, newest first — the index reads top-down like the changelog. */
-export async function listEssays(): Promise<Essay[]> {
-  const essays = await Promise.all(
-    Object.entries(FILES).map(([path, raw]) => loadEssay(path, raw)),
-  )
-  return essays.sort((a, b) =>
-    a.date === b.date ? a.slug.localeCompare(b.slug) : b.date.localeCompare(a.date),
-  )
+let all: Promise<Essay[]> | undefined
+
+async function loadAll(): Promise<Essay[]> {
+  const loaded = await Promise.all(Object.entries(FILES).map(([path, raw]) => loadEssay(path, raw)))
+  const bySlug = new Map<string, Locale[]>()
+  for (const e of loaded) bySlug.set(e.slug, [...(bySlug.get(e.slug) ?? []), e.lang])
+  for (const [slug, langs] of bySlug) {
+    if (!langs.includes('en')) {
+      throw new Error(`essay ${slug}: a translation exists (${langs.join(', ')}) but no English original ${slug}.md`)
+    }
+  }
+  return loaded.map((e) => ({
+    ...e,
+    locales: LOCALES.filter((l) => bySlug.get(e.slug)!.includes(l)),
+  }))
+}
+
+/**
+ * The essays in one locale, newest first — the index reads top-down like
+ * the changelog. The en list is every essay; a translated locale's list is
+ * only the essays that exist in it, so a locale index never links a page
+ * that would render in another language.
+ */
+export async function listEssays(lang: Locale = 'en'): Promise<Essay[]> {
+  all ??= loadAll()
+  return (await all)
+    .filter((e) => e.lang === lang)
+    .sort((a, b) => (a.date === b.date ? a.slug.localeCompare(b.slug) : b.date.localeCompare(a.date)))
+}
+
+/**
+ * The index rows for one locale: every essay, in that locale's copy when
+ * one exists and the English original otherwise, so a reader of the ko or
+ * ja index sees the whole shelf — the en-only rows link to /essays/<slug>/
+ * and the page marks them as English (`fallback`). Newest first.
+ */
+export async function essayIndex(lang: Locale): Promise<Array<Essay & { fallback: boolean }>> {
+  all ??= loadAll()
+  const loaded = await all
+  const slugs = [...new Set(loaded.map((e) => e.slug))]
+  return slugs
+    .map((slug) => {
+      const own = loaded.find((e) => e.slug === slug && e.lang === lang)
+      const en = loaded.find((e) => e.slug === slug && e.lang === 'en')!
+      return { ...(own ?? en), fallback: !own }
+    })
+    .sort((a, b) => (a.date === b.date ? a.slug.localeCompare(b.slug) : b.date.localeCompare(a.date)))
+}
+
+/** The essay a locale's landing points at: the newest one written in it. */
+export async function latestEssay(lang: Locale): Promise<Essay | undefined> {
+  return (await listEssays(lang))[0]
 }

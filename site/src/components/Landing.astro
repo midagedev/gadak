@@ -5,6 +5,7 @@ import Thread from '../components/Thread.astro'
 import MediaSlot from '../components/MediaSlot.astro'
 import Snippet from '../components/Snippet.astro'
 import { strings, pathFor, mediaFor, type Locale } from '../i18n'
+import { latestEssay } from '../lib/essays'
 
 interface Props {
   lang: Locale
@@ -15,6 +16,10 @@ const copyLabel = t.copy.label
 const copiedLabel = t.copy.copied
 const installHref = pathFor(lang, '/install/')
 const storeHref = 'https://apps.microsoft.com/detail/9NZW91TXH36G'
+// The newest essay written in this locale, if any — the pointer below the
+// trust section. A locale with no essay of its own renders no pointer
+// rather than an English one under a Korean or Japanese page.
+const essay = await latestEssay(lang)
 ---
 
 <Base lang={lang} title={t.title} description={t.description}>
@@ -136,6 +141,27 @@ const storeHref = 'https://apps.microsoft.com/detail/9NZW91TXH36G'
       {t.origin.points.map((point) => <li>{point}</li>)}
     </ul>
   </section>
+
+  {
+    essay && (
+      <>
+        <Thread label={t.landing.essayLabel} />
+        {/* One essay, not a shelf: the argument behind the newest release,
+            in this locale's own words. The five-section rule (user call
+            2026-09-05) stays — this is a pointer, the size of a door, not a
+            sixth idea with its own exhibit. Title and description are the
+            essay's frontmatter, so the landing never carries a second copy. */}
+        <section class="essay">
+          <a class="essay-card" href={pathFor(lang, `/essays/${essay.slug}/`)}>
+            <span class="essay-date">{essay.date}</span>
+            <span class="essay-title">{essay.title}</span>
+            <span class="essay-desc">{essay.description}</span>
+            <span class="essay-read">{t.landing.readEssay}</span>
+          </a>
+        </section>
+      </>
+    )
+  }
 
   <Thread />
 
@@ -338,5 +364,50 @@ const storeHref = 'https://apps.microsoft.com/detail/9NZW91TXH36G'
     width: 0.55rem;
     height: 1px;
     background: var(--accent);
+  }
+
+  /* The essay pointer is a door with a paragraph in it — same panel, border
+     and hover as Door.astro, so it reads as one more of the site's doors
+     rather than a new component. */
+  .essay-card {
+    display: grid;
+    gap: 0.35rem;
+    padding: 1.15rem 1.35rem;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: inherit;
+    text-decoration: none;
+    transition:
+      border-color 120ms ease,
+      background 120ms ease;
+  }
+  .essay-card:hover {
+    background: var(--elevated);
+    border-color: var(--border-strong);
+  }
+  .essay-date {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    letter-spacing: 0.04em;
+    color: var(--ink-3);
+  }
+  .essay-title {
+    font-weight: 620;
+    font-size: 1.125rem;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+  .essay-desc {
+    color: var(--ink-2);
+    font-size: 0.9375rem;
+    line-height: 1.6;
+    max-width: 62ch;
+  }
+  .essay-read {
+    margin-top: 0.35rem;
+    color: var(--accent);
+    font-weight: 600;
+    font-size: 0.9375rem;
   }
 </style>

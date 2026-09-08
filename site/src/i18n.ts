@@ -108,6 +108,21 @@ export const strings = {
       searchSlot: 'search',
       agentSlot: 'agent in the window',
       allPlatforms: 'All platforms →',
+      // The essay pointer under the trust section: the newest essay written
+      // in this locale (src/lib/essays.ts latestEssay). Label and link only —
+      // the title and description come off the essay's own frontmatter.
+      essayLabel: 'From the essays',
+      readEssay: 'Read the essay →',
+    },
+    essays: {
+      title: 'Essays — gadak',
+      heading: 'Essays',
+      lede:
+        'The decisions and measurements behind gadak, in the words of the person who shipped ' +
+        'them — each essay canonical at its own URL.',
+      // Marks an index row whose essay has no copy in this locale (never
+      // rendered on en, where every essay is the original).
+      inEnglish: 'English',
     },
     footer: {
       builtBy: 'Built by',
@@ -211,6 +226,16 @@ export const strings = {
       searchSlot: '검색',
       agentSlot: '창 안의 에이전트',
       allPlatforms: '모든 플랫폼 →',
+      essayLabel: '에세이에서',
+      readEssay: '글 읽기 →',
+    },
+    essays: {
+      title: '에세이 — gadak',
+      heading: '에세이',
+      lede:
+        'gadak 뒤에 있는 결정과 측정을, 직접 내보낸 사람의 말로 씁니다. ' +
+        '글마다 자기 URL이 있습니다.',
+      inEnglish: '영문',
     },
     footer: {
       builtBy: '만든 사람',
@@ -314,6 +339,16 @@ export const strings = {
       searchSlot: '検索',
       agentSlot: '窓の中のエージェント',
       allPlatforms: 'すべてのプラットフォーム →',
+      essayLabel: 'エッセイから',
+      readEssay: 'エッセイを読む →',
+    },
+    essays: {
+      title: 'エッセイ — gadak',
+      heading: 'エッセイ',
+      lede:
+        'gadakの背後にある判断と計測を、出荷した本人の言葉で。' +
+        'それぞれのエッセイが自分のURLを持ちます。',
+      inEnglish: '英語',
     },
     footer: {
       builtBy: '作者:',

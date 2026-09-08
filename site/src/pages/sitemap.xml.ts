@@ -19,8 +19,9 @@ import { LOCALES, pathFor } from '../i18n'
  *
  * Each locale entry carries every locale as alternates, which is what
  * stops the mirrored pages from competing with each other for the same
- * query. Essays are en-only canonical and claim no alternates — an
- * hreflang that 404s would be worse than none.
+ * query. An essay claims exactly the locales it is written in
+ * (Essay.locales) — an hreflang that 404s would be worse than none, so an
+ * untranslated essay claims none.
  */
 const SITE = 'https://gadak.dev'
 
@@ -35,6 +36,7 @@ const PAGES: Array<{ en: string; priority: string }> = [
   { en: '/', priority: '1.0' },
   { en: '/install/', priority: '0.8' },
   { en: '/changelog/', priority: '0.7' },
+  { en: '/essays/', priority: '0.6' },
 ]
 
 function urlEntry(loc: string, alternates: Array<{ lang: string; href: string }>, priority: string) {
@@ -55,7 +57,18 @@ function urlEntry(loc: string, alternates: Array<{ lang: string; href: string }>
 }
 
 export const GET: APIRoute = async () => {
-  const essays = await listEssays()
+  // One row per (essay, locale it exists in); alternates are that essay's
+  // own locales, plus x-default on the English original.
+  const essays = (await listEssays('en')).flatMap((e) => {
+    const alternates =
+      e.locales.length > 1
+        ? [
+            ...e.locales.map((l) => ({ lang: l, href: pathFor(l, `/essays/${e.slug}/`) })),
+            { lang: 'x-default', href: `/essays/${e.slug}/` },
+          ]
+        : []
+    return e.locales.map((l) => ({ loc: pathFor(l, `/essays/${e.slug}/`), alternates }))
+  })
   const body = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
         xmlns:xhtml="http://www.w3.org/1999/xhtml">
@@ -67,8 +80,7 @@ ${[
     ]
     return LOCALES.map((l) => urlEntry(pathFor(l, p.en), alternates, p.priority))
   }),
-  urlEntry('/essays/', [], '0.6'),
-  ...essays.map((e) => urlEntry(`/essays/${e.slug}/`, [], '0.5')),
+  ...essays.map((e) => urlEntry(e.loc, e.alternates, '0.5')),
 ].join('\n')}
 </urlset>
 `
