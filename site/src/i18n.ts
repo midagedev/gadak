@@ -350,8 +350,8 @@ export const strings: Record<Locale, Strings> = {
       eyebrow: 'gadak',
       heading: TAGLINE.ko.heading,
       lede:
-        '지라를 쓰기 싫은데 어쩔 수 없이 써야 해서 만들었습니다. 묵은 이슈들을 클로드로 뒤지다가 한참 걸리고 결국 rate limit에 걸려 중단된 적이 있는데, 그때 만들기 시작했습니다. 필요한 Jira 프로젝트와 Confluence 스페이스를 골라 캐시하고, 검색과 이슈 조회에는 캐시를 씁니다. 사람이 직접 찾아도 되고, Claude Code에 넘겨도 됩니다.',
-      videoCaption: '검색 녹화입니다. 데모 데이터를 이슈 2만 건으로 늘린 캐시에서 타이핑하는 속도로 찾습니다. 실제 화면 녹화입니다.',
+        '지라를 쓰기 싫은데 어쩔 수 없이 써야 해서 만들었습니다. 묵은 이슈들을 클로드로 뒤지다가 한참 걸리고 결국 rate limit에 걸려 중단된 적이 있는데, 그때 시작했습니다. 필요한 Jira 프로젝트와 Confluence 스페이스를 골라 캐시하고, 검색과 이슈 조회에는 캐시를 씁니다. 사람이 직접 찾아도 되고, Claude Code에 넘겨도 됩니다.',
+      videoCaption: '데모 데이터를 이슈 2만 건으로 늘린 캐시에서 검색하는 실제 화면 녹화입니다. 타이핑하는 속도로 결과가 따라옵니다.',
       doors: {
         installTitle: '설치',
         installSub: 'macOS 앱은 Homebrew, Windows 앱은 Microsoft Store. Linux는 CLI를 설치하고 gadak serve로 브라우저에서 씁니다.',
@@ -361,8 +361,8 @@ export const strings: Record<Locale, Strings> = {
     },
     speed: {
       label: 'REST API와 캐시 조회 시간',
-      heading: '같은 질문, 잰 값',
-      note: '2026-08-26에 실제 Atlassian Cloud 업무 프로젝트(이슈 3,296건)에서 잰 중앙값입니다. 에픽별 열린 이슈는 REST API 쪽에서 8페이지를 받아 집계한 값이고, gadak 쪽은 쿼리 한 번에 CLI 프로세스 기동까지 포함한 시간입니다. 첫 전체 동기화는 그 사이트에서 10.6분 걸렸고, 캐시에는 동기화 주기만큼 지연이 있습니다. 측정 방법과 재측정 이력, 나머지 행: ',
+      heading: '같은 질문을 두 곳에 물었습니다',
+      note: '2026-08-26에 실제 Atlassian Cloud 업무 프로젝트(이슈 3,296건)에서 잰 중앙값입니다. 에픽별 열린 이슈는 REST API 쪽에서 8페이지를 받아 집계한 값이고, gadak 쪽은 쿼리 한 번이며 CLI 프로세스가 뜨는 시간까지 포함했습니다. 첫 전체 동기화는 그 사이트에서 10.6분 걸렸고, 캐시에는 동기화 주기만큼 지연이 있습니다. 측정 방법과 재측정 이력, 나머지 행: ',
       rows: [
         { what: '텍스트 검색', value: '543 ms', alt: '41 ms', ratio: '13×' },
         { what: '에픽별 열린 이슈 (GROUP BY)', value: '4,761 ms', alt: '22 ms', ratio: '214×' },
@@ -382,7 +382,7 @@ export const strings: Record<Locale, Strings> = {
       label: 'Claude Code와 함께 쓰는 사람에게',
       heading: 'Claude Code가 같은 캐시를 읽습니다',
       body:
-        '스킬 하나를 설치하면 Claude Code가 gadak CLI로 이슈를 찾고, 만들고, 옮깁니다. 필터는 status_category와 priority_rank로 걸어야 합니다. Jira가 계정 언어마다 표시 이름을 번역해서 priority = High는 한국어 계정에서 소리 없이 0행입니다. 에이전트가 남긴 댓글과 만든 이슈에는 에이전트 이름이 붙습니다. 캐시를 읽는 에이전트는 읽은 것을 자기 모델로 보내니, 에이전트가 봐도 되는 프로젝트와 스페이스만 캐시하세요.',
+        '스킬 하나를 설치하면 Claude Code가 gadak CLI로 이슈를 찾고, 만들고, 상태를 옮깁니다. 스킬에는 한국어 계정에서 에이전트가 자주 걸리는 함정도 들어 있습니다. Jira가 상태와 우선순위 이름을 계정 언어로 번역하기 때문에, 영어 이름으로 물으면 오류 없이 빈 결과가 돌아오고 에이전트는 그걸 "그런 이슈는 없다"로 읽습니다. 에이전트가 남긴 댓글과 만든 이슈에는 에이전트 이름이 붙습니다. 에이전트는 읽은 내용을 자기 모델로 보내니, 캐시할 범위는 그 점을 감안해 고르세요.',
       setupLink: '도구별 연결 설정 → docs/AGENT_SETUP.md',
       driveCaption:
         'gadak 앱 안의 터미널에서 Claude Code로 이슈 목록을 바꾸고 라벨 비율 대시보드를 저장해 여는 한국어 세션입니다. 에이전트가 일하는 구간은 빨리 감았습니다.',
@@ -392,7 +392,7 @@ export const strings: Record<Locale, Strings> = {
       label: '연결하기 전에 확인할 것',
       heading: '무엇을 복사하고, 어디에 두고, 무엇이 밖으로 나가는지',
       points: [
-        '연결되는 Jira는 Atlassian Cloud입니다. API 토큰 하나로 같은 사이트의 Jira와 Confluence에 연결합니다. Server와 Data Center는 검증 전이라 된다고 하지 않습니다.',
+        '연결되는 Jira는 Atlassian Cloud입니다. API 토큰 하나로 같은 사이트의 Jira와 Confluence에 연결합니다. Server와 Data Center는 아직 확인하지 않아서, 된다고 말하지 않겠습니다.',
         '범위는 직접 정합니다. <code>--projects</code>로 Jira 프로젝트를, <code>--spaces</code>로 위키 스페이스를 고르고, 스페이스를 지정하기 전에는 위키를 동기화하지 않습니다.',
         '캐시는 이 컴퓨터 안의 SQLite 파일 하나입니다. 처음 한 번 전체 동기화가 필요하고, 그 뒤로는 동기화 주기만큼 늦습니다. 지워도 되고, 다시 동기화하면 그대로 만들어집니다.',
         '자격 증명은 캐시에도, 로그에도, 스냅샷에도 남지 않습니다.',
@@ -409,9 +409,9 @@ export const strings: Record<Locale, Strings> = {
     changelog: {
       heading: '체인지로그',
       lede:
-        '릴리스마다 직접 내보낸 사람이 자기 말로 씁니다. 이슈 키는 공개 백로그로 이어져서, ' +
+        '릴리스마다 만든 사람이 직접 씁니다. 이슈 키는 공개 백로그로 이어져서, ' +
         '여기 한 줄에서 그 일을 요청한 이슈까지 거슬러 읽을 수 있습니다.',
-      source: '저장소의 CHANGELOG.ko.md를 그대로 렌더링합니다. 영문판이 원본입니다.',
+      source: '저장소의 CHANGELOG.ko.md를 그대로 보여 줍니다. 영문판이 원본입니다.',
       jumpLabel: '버전으로 이동',
       // Renders only on locales whose changelog falls back to the English
       // file (changelogIsFallback) — never here.
@@ -435,9 +435,9 @@ export const strings: Record<Locale, Strings> = {
       label: '지금 상태',
       heading: '상태와 지원 범위',
       points: [
-        '상태: 0.21, 아직 0.x입니다. 동기화, 읽기 API, Jira를 먼저 거치는 쓰기, 데스크톱·웹·CLI·MCP를 실제 사이트에서 확인했습니다.',
-        '지금은 한 사람이 만듭니다. 라이선스는 Apache-2.0이고, 0.x에서 호환성을 유지하는 것은 셋입니다: <code>issues_full</code>과 RECIPES 쿼리, <code>gadak sql</code>의 stdout 형식, <code>gadak views open --keys -</code>의 의미.',
-        '스프린트 계획, Jira 대시보드와 알림함, 관리 작업, 1분의 지연도 안 되는 일은 Jira에서 계속 합니다.',
+        '0.21, 아직 0.x입니다. 동기화, 읽기 API, Jira를 먼저 거치는 쓰기, 데스크톱·웹·CLI·MCP를 실제 사이트에서 확인했습니다.',
+        '만드는 사람은 지금 한 명이고, 라이선스는 Apache-2.0입니다. 0.x에서 호환성을 지키는 것은 셋입니다: <code>issues_full</code>과 RECIPES 쿼리, <code>gadak sql</code>의 stdout 형식, <code>gadak views open --keys -</code>의 의미.',
+        '스프린트 계획, Jira 대시보드와 알림함, 관리 작업, 1분도 늦으면 안 되는 일은 Jira에서 계속 합니다.',
         'Atlassian Cloud, Linear, 내장 트래커에서 같은 명령을 씁니다. 서비스별 지원 범위는 표 하나에 있습니다.',
       ],
       links: [
@@ -451,7 +451,7 @@ export const strings: Record<Locale, Strings> = {
       label: '사용 경험 남기기',
       heading: '한 줄 남겨 주세요',
       body:
-        '텔레메트리가 없어서 누가 쓰는지 저는 숫자로 모릅니다. 써 보셨다면 어떤 일을 해 봤고 어땠는지 알려 주세요. 이슈 수는 공개해도 괜찮을 때만 적어 주세요. 불편했던 점이나 틀린 결과도 남겨 주세요.',
+        '텔레메트리가 없으니 누가 쓰는지 저는 알 수 없습니다. 그래서 한 줄이 궁금합니다. 어떤 일에 써 봤고 어땠는지, 불편했거나 결과가 틀렸다면 그 이야기가 더 좋습니다. 이슈 수는 공개해도 괜찮을 때만 적어 주세요.',
       caution: '공개된 곳에는 실제 이슈 데이터나 토큰, 사이트 URL을 붙이지 마세요.',
       links: [
         { href: `${GITHUB}/issues`, label: 'GitHub 이슈로' },
@@ -534,7 +534,7 @@ export const strings: Record<Locale, Strings> = {
       label: 'コーディングエージェントから使う',
       heading: 'エージェントから課題を操作する',
       body:
-        'エージェントが CLI で課題を検索したり、作成したり、ステータスを変更したりすると、その結果を同じボードで確認できます。書き込みは先に Jira へ届き、エージェントが書いたコメントと作成した課題には、そのエージェントの名前が付きます。フィルターは status_category と priority_rank にかけ、表示名にはかけないでください。表示名はアカウントの言語ごとに翻訳されるので、priority = High は韓国語のアカウントではエラーも出ないまま 0 行になります。',
+        'スキルを 1 つ入れると、Claude Code が gadak の CLI で課題を検索し、作成し、ステータスを変更します。その結果は同じボードで確認できます。スキルには、エージェントが日本語のアカウントでよく引っかかる落とし穴も書いてあります。Jira はステータスや優先度の表示名をアカウントの言語ごとに翻訳するので、英語の名前で問い合わせるとエラーも出ないまま結果が空になり、エージェントはそれを「該当する課題はない」と読みます。エージェントが書いたコメントと作成した課題には、そのエージェントの名前が付きます。',
       setupLink: 'ホストごとの設定 → docs/AGENT_SETUP.md',
       driveCaption:
         '画面もプロンプトも日本語で収録した、Claude Code のライブセッションです。gadak のターミナルペインで動かしていて、1 文目で課題の一覧が変わり、2 文目で同じウィンドウにダッシュボードが開きます。エージェントが作業している区間は早送りです。',
