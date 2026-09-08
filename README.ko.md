@@ -18,12 +18,11 @@
 rate limit에 걸려 중단된 적이 있는데, 그때 만들기 시작했습니다. 크롬에 지라
 탭이 잔뜩 쌓여 피곤해지는 것도 겸사겸사 없애고 싶었고요.
 
-gadak은 Jira와 Confluence의 이슈·코멘트·히스토리·위키 페이지를 전부 이
-컴퓨터의 SQLite 파일 하나에 받아 두고, 읽기는 그 파일만 봅니다. 네트워크를
-타지 않습니다. 데스크톱 앱, `gadak serve`가 여는 브라우저 탭, CLI, 셸 없는
-호스트용 MCP가 같은 파일을 봅니다. 바이너리 하나, gadak 계정 없음. 원본은
-계속 Jira에 있으니 파일은 지워도 되고, 쓰기는 Jira가 먼저 받은 뒤 파일이 따라
-갱신됩니다.
+gadak은 Jira와 Confluence를 통째로 캐시합니다. 이슈·코멘트·히스토리·위키
+페이지 전부요. 읽기는 캐시만 보고, 빠른 이유는 그게 다입니다. 데스크톱 앱,
+`gadak serve`가 여는 브라우저 탭, CLI, 셸 없는 호스트용 MCP가 같은 캐시를
+봅니다. 바이너리 하나, gadak 계정 없음. 쓰기는 Jira가 먼저 받은 뒤 캐시가
+따라 갱신됩니다.
 
 ## 먼저 눌러 보기
 
@@ -31,7 +30,7 @@ gadak은 Jira와 Confluence의 이슈·코멘트·히스토리·위키 페이지
 계정도 없이 브라우저에서 열립니다.
 
 JQL에는 `GROUP BY`가 없어서 "어느 에픽에 열린 이슈가 몰려 있나"는 API로
-8페이지를 받아 클라이언트에서 세야 합니다. 파일이 되면 이렇게 됩니다:
+8페이지를 받아 클라이언트에서 세야 합니다. gadak에서는 이렇게 됩니다:
 
 ```bash
 gadak sql "select epic_key, count(*) from issues_full where resolved_at is null
@@ -53,7 +52,7 @@ gadak 쪽은 CLI 프로세스 기동까지 포함한 시간입니다.
 | 이슈 하나 + 전체 히스토리 | 710 ms | 28 ms | 25× |
 | 에픽별 열린 이슈 (`GROUP BY`) | 4,761 ms | 22 ms | 214× |
 | 변경 이력을 걸치는 집계 | JQL로 표현 불가, 순회하면 약 28분 | 14 ms | |
-| 요청 제한 | 429 + Retry-After | 없음, 내 디스크니까 | |
+| 요청 제한 | 429 + Retry-After | 없음 | |
 
 gadak이 지는 행도 있습니다. 첫 전체 동기화가 그렇고, 동기화 주기만큼은 늘
 낡아 있습니다. 측정 방법과 그 행들은
@@ -78,6 +77,10 @@ brew install midagedev/tap/gadak-cli
 ```bash
 gadak init && gadak sync && gadak serve
 ```
+
+`gadak sync`가 만드는 캐시는 이 컴퓨터 안의 SQLite 파일 하나입니다. 지워도
+되고, 다음 sync가 다시 채웁니다. 안에 무엇이 어떻게 들어 있는지는
+[`docs/MIRROR.md`](docs/MIRROR.md).
 
 필요한 건 Jira [API 토큰](https://id.atlassian.com/manage-profile/security/api-tokens)
 하나이고, 같은 사이트의 Confluence도 그 토큰으로 갑니다. 범위는 직접
@@ -125,16 +128,16 @@ install codex`처럼 이름을 붙이면 cursor·gemini·opencode·grok에도 �
 내려놓습니다.
 
 쓰기(`create`, `edit`, `comment`, `transition`, `claim`, `link`, 위키 `page`)는
-Jira를 거친 뒤 로컬 파일이 갱신되고, 에이전트가 쓴 것에는 에이전트 이름이
-남습니다. 이 파일을 읽는 에이전트는 읽은 것을 자기 모델로 보냅니다. gadak 자신은
+Jira를 거친 뒤 캐시가 갱신되고, 에이전트가 쓴 것에는 에이전트 이름이
+남습니다. 캐시를 읽는 에이전트는 읽은 것을 자기 모델로 보냅니다. gadak 자신은
 아무것도 보내지 않으니([`SECURITY.md`](SECURITY.md)) 에이전트가 봐도 되는
-프로젝트와 스페이스만 받아 두세요. 연결 하나하나와 끄는 스위치는
-[`docs/NETWORK.md`](docs/NETWORK.md), 레퍼런스는
+프로젝트와 스페이스만 캐시하세요. 연결 하나하나와 끄는 스위치는
+[`docs/NETWORK.md`](docs/NETWORK.md), SQL 레퍼런스는
 [`docs/MIRROR.md`](docs/MIRROR.md).
 
 ## 만들지 않기로 한 것
 
-0.21부터 이미 받아 둔 히스토리로 "자리를 비운 사이 뭐가 바뀌었나"를
+0.21부터 캐시에 이미 있는 히스토리로 "자리를 비운 사이 뭐가 바뀌었나"를
 계산합니다. 그 신호마다 원하지 않는 기능이 한 걸음 거리에 있었습니다.
 
 - **점수 없음.** `gadak retro`는 이번 주 닫힌 이슈 수와 사이클 타임을 찍지만
@@ -143,8 +146,7 @@ Jira를 거친 뒤 로컬 파일이 갱신되고, 에이전트가 쓴 것에는 
   기다립니다. 할 말이 없는 아침에는 뜨지 않습니다.
 - **고정 SLA 없음.** 정체 기준은 최근 90일간 팀이 완료한 이슈의 사이클 타임
   p85입니다. 완료가 11건이 되기 전까지만 72시간으로 물러납니다.
-- **밖으로 나가는 것 없음.** retro도 학습된 기준도 디스크의 파일 두 개에서
-  계산됩니다. 보낼 계정 자체가 없습니다.
+- **밖으로 나가는 것 없음.** retro도 학습된 기준도 캐시에서 계산됩니다. 보낼 계정 자체가 없습니다.
 
 어느 origin에도 없는 것이 셋 있습니다. UI로서의 스프린트, Jira 대시보드, Jira
 알림함. 스프린트 계획이나 1분의 지연도 안 되는 일과 함께 Jira에 남깁니다.
@@ -158,7 +160,7 @@ origin은 Atlassian Cloud, Linear(`gadak sync --source linear`), 내장 트래�
 CLI, MCP가 실제 사이트에서 검증돼 있습니다. 지금은 한 사람이 만듭니다. 0.x가
 약속하는 것은 [data-model.md](specs/000-product/data-model.md)의 셋뿐입니다.
 `issues_full`과 RECIPES 쿼리, `gadak sql`의 stdout 형식, `gadak views open
---keys -`의 의미. 자격증명은 SQLite·로그·스냅샷 어디에도 들어가지 않습니다.
+--keys -`의 의미. 자격증명은 캐시·로그·스냅샷 어디에도 들어가지 않습니다.
 믿지 않아도 되는 것은 항목마다 확인 명령과 함께
 [`docs/PROMISES.md`](docs/PROMISES.md)에, 무엇이 나왔는지는
 [`CHANGELOG.ko.md`](CHANGELOG.ko.md)에. 라이선스는 Apache-2.0.

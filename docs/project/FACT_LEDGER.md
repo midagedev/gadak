@@ -31,7 +31,9 @@ Last verified against the tree: 2026-09-08 (v0.21.0).
 - Three surfaces on the same mirror: **desktop app**, **browser tab via
   `gadak serve`**, **CLI**. Plus **MCP** for shell-less hosts.
 - **The mirror is a cache you can throw away.** Delete the directory and
-  nothing is lost — **Jira stays the source of truth.**
+  nothing is lost — **Jira stays the source of truth.** An edition may let
+  the word *cache* carry both halves; it does not have to say "source of
+  truth" in words, and should not repeat it (user decision 2026-09-08).
 - Writes pass through to the origin first; the mirror refreshes after the
   origin accepts.
 - UI language: English, Korean or Japanese, following browser/OS, switchable
