@@ -206,7 +206,7 @@ fi
   fi
 } | sort -u | while IFS= read -r f; do
   case "$f" in
-    examples/demo.db|*.png|*.jpg|*.jpeg|*.gif|*.webp|*.ico|*.woff|*.woff2|*.ttf|*.eot)
+    examples/demo.db|*.png|*.jpg|*.jpeg|*.gif|*.webp|*.ico|*.woff|*.woff2|*.ttf|*.eot|*.mp4|*.webm|*.zip|*.gz|*.tgz)
       continue
       ;;
   esac
@@ -226,21 +226,26 @@ else
   echo "==> no word list (set GADAK_SCAN_WORDS or .scan-wordlist) — word check skipped"
 fi
 
+# -I on every grep below: a binary that the case above did not name is
+# skipped, not matched byte-wise. Without it BSD grep printed "Binary file X
+# matches" on stdout (a hit) while GNU grep >= 3.5 prints it on stderr
+# (discarded) — the same bytes passed CI and failed the lead's machine
+# (GDK-1595: four bytes of an h264 stream matched a wordlist entry).
 if [[ -s "$text_list" ]]; then
   # shellcheck disable=SC2046
-  grep -nHE "$PAT_TOKEN|$PAT_LINEAR|$PAT_TAILNET_CGNAT" -- $(cat "$text_list") 2>/dev/null >>"$hits_file" || true
+  grep -nIHE "$PAT_TOKEN|$PAT_LINEAR|$PAT_TAILNET_CGNAT" -- $(cat "$text_list") 2>/dev/null >>"$hits_file" || true
   # shellcheck disable=SC2046
-  grep -nHE "$PAT_TAILNET_HOST" -- $(cat "$text_list") 2>/dev/null \
+  grep -nIHE "$PAT_TAILNET_HOST" -- $(cat "$text_list") 2>/dev/null \
       | filter_real_tailnets >>"$hits_file" || true
   if [[ -n "$PAT_COMPANY" ]]; then
     # shellcheck disable=SC2046
-    grep -niHE "$PAT_COMPANY" -- $(cat "$text_list") 2>/dev/null >>"$hits_file" || true
+    grep -niIHE "$PAT_COMPANY" -- $(cat "$text_list") 2>/dev/null >>"$hits_file" || true
   fi
   # shellcheck disable=SC2046
-  grep -niHE "$PAT_HOST" -- $(cat "$text_list") 2>/dev/null \
+  grep -niIHE "$PAT_HOST" -- $(cat "$text_list") 2>/dev/null \
       | filter_disallowed_hosts >>"$hits_file" || true
   # shellcheck disable=SC2046
-  grep -nHE "$PAT_HOMEPATH" -- $(cat "$text_list") 2>/dev/null \
+  grep -nIHE "$PAT_HOMEPATH" -- $(cat "$text_list") 2>/dev/null \
       | filter_real_home_paths >>"$hits_file" || true
 fi
 
