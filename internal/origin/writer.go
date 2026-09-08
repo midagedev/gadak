@@ -325,10 +325,13 @@ func WriterFor(cfg *config.Config, source string) (Writer, error) {
 	return newJiraWriter(c), nil
 }
 
-// SprintBoard is Jira Software's boards and sprints (GDK-1655). Only a Jira
-// origin has it: Linear's nearest concept is a cycle, which is not the same
-// object and is not reached by these calls, and the built-in tracker has no
-// sprints at all. There is no fallback — a workspace on either says so.
+// SprintBoard is the sprint surface of the write path (GDK-1655). A Jira
+// origin answers it from Jira Software's boards and sprints; a Linear origin
+// from its cycles — one board per team, the cycle ids derived into the
+// sprint integer space (GDK-1667). What Linear cannot carry is the state
+// verb: a cycle begins and ends by its dates, so UpdateSprint's "state" key
+// refuses (ErrLinearCycleByDates) instead of guessing. The built-in tracker
+// has no sprints at all; there is no fallback — a workspace on it says so.
 type SprintBoard interface {
 	MoveToSprint(ctx context.Context, sprintID int64, keys []string) error
 	MoveToBacklog(ctx context.Context, keys []string) error
@@ -344,7 +347,13 @@ type Sprint struct {
 }
 
 // ErrNoSprints is the refusal for an origin with no sprints.
-var ErrNoSprints = unsupported("this origin has no sprints — sprints are Jira Software's, and this workspace's origin is not a Jira site with it")
+var ErrNoSprints = unsupported("this origin has no sprints — sprints are Jira Software's and Linear's cycles, and this workspace's origin is neither")
+
+// ErrLinearCycleByDates is the refusal for starting or closing a sprint on a
+// Linear origin: a cycle has no state to flip — it begins and ends by its
+// dates, so the edit belongs in Linear's cycle settings (or the date fields,
+// which UpdateSprint does carry).
+var ErrLinearCycleByDates = unsupported("Linear cycles start and end by their dates — edit the cycle's dates in Linear; gadak does not start or close them")
 
 // AsSprintBoard returns w as SprintBoard, or ErrNoSprints.
 func AsSprintBoard(w Writer) (SprintBoard, error) {

@@ -114,15 +114,22 @@
   Atlassian Cloud and Server answer the same shape. `gadak sprint list` reads
   them. `gadak sprint add`, `remove`, `create`, `start` and `close` write
   through the origin, and every state change re-reads the sprint and the
-  issues that were in it rather than trusting what was sent. Sprints are Jira
-  Software's, so a Linear or built-in workspace refuses these by name.
-  ([GDK-1653], [GDK-1654], [GDK-1655], [GDK-1657])
+  issues that were in it rather than trusting what was sent. That first
+  change was Jira Software's alone; the two entries below open it to the
+  other two origins. ([GDK-1653], [GDK-1654], [GDK-1655], [GDK-1657])
 - **Sprints on the built-in tracker.** The tracker gadak carries now serves
   Jira Software's own Agile surface: boards, sprints, the sprint field on
   the issue, and JQL's `openSprints()` family. So `gadak sprint` works on a
   workspace with no Atlassian account at all, and on a paired one. Closing a
   sprint sweeps its unfinished issues to the backlog, the way Jira does.
   ([GDK-1666])
+- **Linear's cycles are sprints.** A Linear workspace now fills the same
+  three sprint columns every other origin does, and lists its cycles as
+  `sprints` rows with one board per team, so the board's sprint scope, the
+  Sprint axes and `gadak sprint list` work there too. `sprint add`,
+  `remove` and `create` write through to Linear. `start` and `close` refuse
+  by name: a cycle begins and ends by its dates, so the place to move one is
+  the cycle's dates. ([GDK-1667])
 - **A closed sprint no longer leaves its done issues reading "active".**
   Closing a sprint moves only the unfinished issues out, so the finished ones
   never change and an incremental sync never re-read them; their
@@ -1823,3 +1830,4 @@ saved-view sort/dir/group_by, and priority sorting keyed on `priority_rank`.
 [GDK-1661]: https://gadak.dev/backlog/#/?ks=GDK-1661
 [GDK-1662]: https://gadak.dev/backlog/#/?ks=GDK-1662
 [GDK-1666]: https://gadak.dev/backlog/#/?ks=GDK-1666
+[GDK-1667]: https://gadak.dev/backlog/#/?ks=GDK-1667

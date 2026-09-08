@@ -26,9 +26,12 @@ type linearRec struct {
 	comments      int
 	commentEdits  int
 	commentDels   int
+	cycleCreates  int
+	cycleUpdates  int
 	lastVars      json.RawMessage
 	lastEditVars  json.RawMessage
 	lastDeleteVar json.RawMessage
+	lastCycleVars json.RawMessage
 }
 
 func linearTestdata(t *testing.T, name string) []byte {
@@ -98,6 +101,23 @@ func linearGQL(t *testing.T, rec *linearRec) http.Handler {
 			_, _ = w.Write(linearTestdata(t, "workflowstates.json"))
 		case strings.Contains(body.Query, "query Teams"):
 			_, _ = w.Write(linearTestdata(t, "teams.json"))
+		case strings.Contains(body.Query, "query TeamCycles"):
+			// Cycles exist only on the fixture team (teams.json's
+			// 00000000-0000-4000-8000-000000000003); any other team id
+			// answers an empty listing, which is what a scoped workspace
+			// naming a team it cannot see gets.
+			var vars struct {
+				Team string `json:"team"`
+			}
+			_ = json.Unmarshal(body.Variables, &vars)
+			if vars.Team != "00000000-0000-4000-8000-000000000003" {
+				_, _ = w.Write([]byte(`{"data":{"team":{"cycles":{"pageInfo":{"hasNextPage":false},"nodes":[]}}}}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{"data":{"team":{"cycles":{"pageInfo":{"hasNextPage":false},"nodes":[` +
+				`{"id":"00000000-0000-4000-8000-0000000000c1","number":12,"name":"Cycle 12","description":"the goal","startsAt":"2026-08-01T00:00:00.000Z","endsAt":"2026-09-15T00:00:00.000Z","completedAt":null},` +
+				`{"id":"00000000-0000-4000-8000-0000000000c0","number":11,"name":"Cycle 11","description":"","startsAt":"2026-07-01T00:00:00.000Z","endsAt":"2026-08-01T00:00:00.000Z","completedAt":"2026-08-01T00:00:00.000Z"}` +
+				`]}}}}`))
 		case strings.Contains(body.Query, "query Users"):
 			_, _ = w.Write([]byte(`{"data":{"users":{"nodes":[{"id":"lin-u1","name":"Dana","displayName":"Dana","email":"dana@example.com"}]}}}`))
 		case strings.Contains(body.Query, "mutation IssueCreate"):
@@ -117,6 +137,14 @@ func linearGQL(t *testing.T, rec *linearRec) http.Handler {
 			rec.commentDels++
 			rec.lastDeleteVar = body.Variables
 			_, _ = w.Write(linearTestdata(t, "comment_delete.json"))
+		case strings.Contains(body.Query, "mutation CycleCreate"):
+			rec.cycleCreates++
+			rec.lastCycleVars = body.Variables
+			_, _ = w.Write([]byte(`{"data":{"cycleCreate":{"success":true,"cycle":{"id":"00000000-0000-4000-8000-0000000000c2","number":13,"name":"Cycle 13","description":"the goal","startsAt":"2030-01-13T00:00:00.000Z","endsAt":"2030-01-27T00:00:00.000Z","completedAt":null}}}}`))
+		case strings.Contains(body.Query, "mutation CycleUpdate"):
+			rec.cycleUpdates++
+			rec.lastCycleVars = body.Variables
+			_, _ = w.Write([]byte(`{"data":{"cycleUpdate":{"success":true,"cycle":{"id":"00000000-0000-4000-8000-0000000000c1","number":12,"name":"Cycle 12","description":"the goal","startsAt":"2026-08-01T00:00:00.000Z","endsAt":"2026-09-15T00:00:00.000Z","completedAt":null}}}}`))
 		default:
 			t.Errorf("unexpected graphql document: %s", truncate(body.Query, 80))
 			w.WriteHeader(http.StatusInternalServerError)

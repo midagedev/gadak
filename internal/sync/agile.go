@@ -3,7 +3,9 @@ package sync
 import (
 	"context"
 	"errors"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/jira"
@@ -54,7 +56,10 @@ func importAgile(ctx context.Context, c *jira.Client, db *store.DB, opts Options
 				// projection, and the ReplaceAgile derive copies this
 				// column onto the issue rows (GDK-1661). Measured wire is
 				// lowercase on both Jiras; this removes the assumption.
-				State:       strings.ToLower(strings.TrimSpace(s.State)),
+				State: strings.ToLower(strings.TrimSpace(s.State)),
+				// The origin's own id verbatim (v46): on Jira the integer
+				// already is the id, stored as its string.
+				ExternalID:  strconv.FormatInt(s.ID, 10),
 				StartAt:     s.StartDate,
 				EndAt:       s.EndDate,
 				CompleteAt:  s.CompleteDate,
@@ -78,7 +83,19 @@ func importAgile(ctx context.Context, c *jira.Client, db *store.DB, opts Options
 // (GDK-1655, the GDK-1192 rule). The sprint_state derive inside
 // ReplaceAgile is the same call, so `gadak sprint start|close` heals the
 // issue rows here too — there is no second code path (GDK-1661).
-func RefreshAgile(ctx context.Context, cfg *config.Config, db *store.DB) error {
+//
+// src routes the re-read the way refreshIssue routes an issue re-read
+// (GDK-1667): a Linear workspace re-lists cycles, not the Jira Agile API.
+// The verb is not forked; the refresh is.
+func RefreshAgile(ctx context.Context, cfg *config.Config, db *store.DB, src string) error {
+	if src == LinearSourceID {
+		c, err := origin.Linear(cfg)
+		if err != nil {
+			return err
+		}
+		importLinearCycles(ctx, c, cfg, db, Options{}, time.Now().UTC())
+		return nil
+	}
 	c, err := origin.Client(cfg)
 	if err != nil {
 		return err

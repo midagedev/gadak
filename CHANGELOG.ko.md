@@ -105,14 +105,20 @@
   표면입니다. `gadak sprint list`가 그것을 읽고,
   `gadak sprint add`·`remove`·`create`·`start`·`close`가 origin을 통과해
   씁니다. 상태를 바꿀 때마다 스프린트와 그 안의 이슈를 다시 읽습니다. 보낸
-  것을 그대로 믿지 않습니다. 스프린트는 Jira Software의 것이라, Linear와 내장
-  워크스페이스는 비슷한 개념을 끌어다 쓰지 않고 없다고 답합니다.
+  것을 그대로 믿지 않습니다. 여기까지는 Jira Software의 것이었고, 아래 두 항목이
+  나머지 두 origin에 그것을 엽니다.
   ([GDK-1653], [GDK-1654], [GDK-1655], [GDK-1657])
 - **내장 트래커의 스프린트.** gadak이 함께 들고 다니는 트래커가 Jira Software의
   Agile 표면을 그대로 냅니다. 보드, 스프린트, 이슈의 스프린트 필드, JQL의
   `openSprints()` 계열. 그래서 Atlassian 계정이 전혀 없는 워크스페이스에서도,
   페어링한 워크스페이스에서도 `gadak sprint`가 그대로 됩니다. 스프린트를 닫으면
   끝나지 않은 이슈가 백로그로 쓸려 나갑니다. Jira와 같습니다. ([GDK-1666])
+- **Linear의 사이클이 스프린트입니다.** Linear 워크스페이스도 다른 origin과 같은
+  세 스프린트 컬럼을 채우고, 팀마다 보드 한 줄로 사이클을 `sprints` 행에 싣습니다.
+  그래서 보드의 스프린트 범위도, 스프린트 축도, `gadak sprint list`도 거기서
+  됩니다. `sprint add`·`remove`·`create`는 Linear로 써 나갑니다.
+  `start`·`close`는 이름을 대고 거절합니다. 사이클은 날짜가 시작과 끝의 주인이라,
+  옮기려면 사이클의 날짜를 고칩니다. ([GDK-1667])
 - **닫힌 스프린트의 완료 이슈가 계속 "active"로 남던 것.** 스프린트를 닫으면
   미완료 이슈만 밖으로 옮겨지므로, 완료된 이슈는 아무것도 바뀌지 않고 증분
   동기화도 다시 읽지 않았습니다. 그 행들의 `sprint_state`는 영원히 "active"였고,
@@ -1750,3 +1756,4 @@ unit을 쓰며, 새 개인 피드 이벤트에 OS 데스크톱 알림이 하나 
 [GDK-1661]: https://gadak.dev/backlog/#/?ks=GDK-1661
 [GDK-1662]: https://gadak.dev/backlog/#/?ks=GDK-1662
 [GDK-1666]: https://gadak.dev/backlog/#/?ks=GDK-1666
+[GDK-1667]: https://gadak.dev/backlog/#/?ks=GDK-1667

@@ -175,9 +175,10 @@ func deriveSprints(tx *sql.Tx, now time.Time) error {
 				activated = stamp(start)
 			}
 			if _, err := tx.Exec(`
-				INSERT INTO sprints (source_id, id, board_id, name, goal, state, start_at, end_at, complete_at, activated_at)
-				VALUES (?,?,?,?,?,?,?,?,?,?)`,
-				source, s.n, boardID, s.name, "", state, stamp(start), stamp(end), complete, activated); err != nil {
+				INSERT INTO sprints (source_id, id, board_id, name, goal, state, start_at, end_at, complete_at, activated_at, external_id)
+				VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+				source, s.n, boardID, s.name, "", state, stamp(start), stamp(end), complete, activated,
+				strconv.Itoa(s.n)); err != nil {
 				return err
 			}
 			if _, err := tx.Exec(`

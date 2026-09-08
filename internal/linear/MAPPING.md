@@ -170,17 +170,53 @@ fills the next time its Linear `updated_at` moves (any upstream edit), on a
 write-through from gadak, or on a mirror rebuild — the mirror holds no raw
 stamps to backfill from.
 
-### `parent_key` / `epic_key` ← `Issue.parent`; Project/Cycle ← **unmapped**
+### `parent_key` / `epic_key` ← `Issue.parent`; Project ← **unmapped**; Cycle → the sprint columns (GDK-1667)
 
 - `Issue.parent { id, identifier }` → `parent_key`, same semantic (direct
   parent). True mapping, no caveat.
 - `epic_key` stays NULL: gadak defines it as the
   hierarchy-level-1 ancestor, which is a Jira-ism. Treating a Linear parent
   as an epic is a false mapping whenever a team nests sub-tasks.
-- `Project` and `Cycle` have **no Jira counterpart and no gadak column.**
-  Forcing them into epic would be the classic false mapping. They survive
-  only in `raw` if the sync stores it; exposing them is a product decision
-  with a schema change attached (lead's), not a connector decision.
+- `Project` has **no Jira counterpart and no gadak column.** Forcing it into
+  epic would be the classic false mapping. It survives only in `raw` if the
+  sync stores it; exposing it is a product decision with a schema change
+  attached (lead's), not a connector decision.
+- `Cycle` is Linear's sprint, and it maps whole (GDK-1667). The issue side
+  reads `Issue.cycle { id number name startsAt endsAt completedAt }` into
+  `sprint_id` / `sprint_name` / `sprint_state`; the listing side walks each
+  in-scope team's cycles every tick into `sprints`, with one `boards` row
+  per team (`type = 'cycles'`, `project_key` = the team key). A cycle the
+  listing does not carry — another team's cycle on an in-scope issue —
+  keeps its issue-side projection and gets no `sprints` row: honest
+  absence, the same rule as a Jira board the credential cannot read.
+- **Ids.** Linear's cycle and team ids are UUIDs; the mirror's sprint space
+  is INTEGER. One derive, `linear.SprintID`: FNV-1a 64 of the UUID string,
+  top bit cleared (signed SQLite INTEGER), 0 → 1. Boards use the same
+  derive on the team UUID. The UUID itself lands verbatim in
+  `sprints.external_id` (schemaV46), so the write path walks the integer
+  back to the UUID by listing cycles and matching the same derive —
+  `findCycle` in `internal/origin/linearwriter.go` is the one place the two
+  meet again.
+- **State comes from the dates, not a field** — Linear has none. `linear.
+  CycleState(startsAt, endsAt, completedAt, now)`: `completedAt` set or
+  `endsAt ≤ now` → `closed`; `startsAt ≤ now` → `active`; else `future`.
+  One clock per pass (`runLinearPass` reads `time.Now().UTC()` once), so an
+  issue row and the `sprints` rows it was derived beside cannot disagree.
+  The listing runs on every tick for the same reason the Jira agile
+  listing does (GDK-1661): completing a cycle moves no issue `updatedAt`,
+  so this listing is the only observation path the state change has.
+- **Name.** The cycle's name, or Linear's own fallback for unnamed cycles
+  (`"Cycle <number>"`) — the label the Linear UI shows, so the issue
+  projection and the `sprints` row agree.
+- **Write** (`SprintBoard` on `linearWriter`): `sprint add/remove` send
+  `issueUpdate` with `cycleId` (the UUID) / `cycleId: null` (explicit
+  un-membership — omitted means unchanged); `sprint create` sends
+  `cycleCreate` with the Jira-start default dates (startsAt = next UTC
+  midnight after now, endsAt = +14 days — Linear requires the window on the
+  wire); `UpdateSprint` maps name/goal → the cycle's name/description and
+  startDate/endDate → its window, though no CLI verb reaches it yet.
+  `sprint start|close` refuse (`ErrLinearCycleByDates`): a cycle begins and
+  ends by its dates, so the edit belongs in Linear.
 
 ### `links` ← `Issue.relations` / `Issue.inverseRelations` (GDK-1299)
 
@@ -335,4 +371,5 @@ name으로 키하지 않는다.**
 | `created_at` | `IssueCreateInput.createdAt` | 서버가 무시하면 1회 경고 |
 | 설명 | 평문 + 푸터 `gadak-migrate: <KEY>` | 멱등성 키: 재실행 전 팀 이슈를 훑어 일치 건은 건너뜀 |
 | 첨부 | `attachmentCreate(url)` — 소스 URL 또는 Jira `…/attachment/content/<id>` | 바이트 업로드 없음 |
-| changelog·위키 페이지·dev links·custom·sprint | **이전 불가** | Linear 에 쓰기 API 없음 — 보고서 "not migrated" |
+| changelog·위키 페이지·dev links·custom | **이전 불가** | Linear 에 쓰기 API 없음 — 보고서 "not migrated" |
+| sprint | **이전 불가** | 쓰기 API 는 있다(GDK-1667) — `migrate` 가 부르지 않을 뿐. 보고서 "not migrated" |

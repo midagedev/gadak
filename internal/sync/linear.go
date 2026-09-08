@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sort"
 	"strconv"
+	"time"
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/linear"
@@ -91,6 +92,11 @@ func runLinearPass(ctx context.Context, c *linear.Client, cfg *config.Config, db
 			state.ScopeHash, scope)
 	}
 
+	// One clock per pass: the cycle→sprint state rule reads now (GDK-1667),
+	// and reading it in more than one place could straddle a date boundary
+	// mid-pass and split one listing into two states.
+	now := time.Now().UTC()
+
 	var maxUTC string // Linear stamps are ISO-8601 UTC ms: lexicographic max is chronological
 	unknownTypes := map[string]int{}
 	var commentsTruncated, labelsTruncated, attachmentsTruncated, relationsTruncated int
@@ -144,7 +150,7 @@ func runLinearPass(ctx context.Context, c *linear.Client, cfg *config.Config, db
 				groups[gk] = g
 				order = append(order, gk)
 			}
-			g.recs = append(g.recs, buildLinearRecord(iss, cat))
+			g.recs = append(g.recs, buildLinearRecord(iss, cat, now))
 		}
 		for _, gk := range order {
 			g := groups[gk]
@@ -253,7 +259,75 @@ func runLinearPass(ctx context.Context, c *linear.Client, cfg *config.Config, db
 			opts.logf("linear reconcile: tally not stored: %v", rerr)
 		}
 	}
+
+	// Boards and cycles on every tick, quiet ones included — the Linear
+	// counterpart of the importAgile rule (GDK-1661): completing a cycle
+	// moves no issue updatedAt, so the cycle listing is the only observation
+	// path a cycle state change has.
+	importLinearCycles(ctx, c, cfg, db, opts, now)
 	return nil
+}
+
+// importLinearCycles fills the boards and sprints tables from Linear's teams
+// and their cycles (GDK-1667) — the counterpart of importAgile, and like it
+// run on every tick: a cycle completing is invisible to the issue watermark,
+// so the listing is the only observation path that change has. One board per
+// in-scope team (typed "cycles"), one sprint per cycle; ids derived from the
+// UUIDs (linear.SprintID), the UUID itself in external_id, state from the
+// dates at the pass's clock. A listing failure leaves the previous rows —
+// a Teams or cycle-list 500 must not undo the issue pass that preceded it.
+func importLinearCycles(ctx context.Context, c *linear.Client, cfg *config.Config, db *store.DB, opts Options, now time.Time) {
+	teams, err := c.Teams(ctx)
+	if err != nil {
+		opts.logf("cycles: skipped (%v)", err)
+		return
+	}
+	inScope := map[string]bool{}
+	for _, id := range cfg.Linear.TeamIDs {
+		inScope[id] = true
+	}
+	boards := make([]store.BoardRow, 0, len(teams))
+	sprints := make([]store.SprintRow, 0, 4*len(teams))
+	for _, t := range teams {
+		if len(inScope) > 0 && !inScope[t.ID] {
+			continue
+		}
+		boards = append(boards, store.BoardRow{
+			ID: linear.SprintID(t.ID), Name: t.Name, Type: "cycles", ProjectKey: t.Key,
+		})
+		cycles, err := c.TeamCycles(ctx, t.ID)
+		if err != nil {
+			opts.logf("cycles: team %s skipped (%v)", t.Key, err)
+			continue
+		}
+		for _, cy := range cycles {
+			sprints = append(sprints, store.SprintRow{
+				ID: linear.SprintID(cy.ID), BoardID: linear.SprintID(t.ID),
+				Name: cycleDisplayName(cy.Name, cy.Number), Goal: cy.Description,
+				State:   linear.CycleState(cy.StartsAt, cy.EndsAt, cy.CompletedAt, now),
+				StartAt: cy.StartsAt, EndAt: cy.EndsAt, CompleteAt: cy.CompletedAt,
+				ExternalID: cy.ID,
+			})
+		}
+	}
+	if err := db.ReplaceAgile(ctx, LinearSourceID, boards, sprints); err != nil {
+		opts.logf("cycles: store failed (%v)", err)
+		return
+	}
+	if len(boards) > 0 {
+		opts.logf("cycles: %d boards, %d sprints", len(boards), len(sprints))
+	}
+}
+
+// cycleDisplayName is the cycle's name or Linear's own fallback for unnamed
+// cycles ("Cycle <number>") — the same label the Linear UI shows, so the
+// issue projection and the sprints row agree on what an unnamed cycle is
+// called.
+func cycleDisplayName(name string, number int) string {
+	if name != "" {
+		return name
+	}
+	return "Cycle " + strconv.Itoa(number)
 }
 
 // buildLinearRecord maps one Linear issue onto the store's source-neutral
@@ -265,7 +339,10 @@ func runLinearPass(ctx context.Context, c *linear.Client, cfg *config.Config, db
 // changelog is supplied, so status_changed_at / reopen_count / reopened_at
 // derive to NULL/0, while started_at / resolved_at / cycle_hours fill from
 // the issue's own stamps as Derive hints (NoHistory is what consults them).
-func buildLinearRecord(iss linear.Issue, cat string) store.IssueRecord {
+// The cycle, when the issue sits in one, is the sprint projection
+// (GDK-1667): sprint_id derived from the cycle UUID, sprint_state from the
+// cycle's dates at the pass's single clock.
+func buildLinearRecord(iss linear.Issue, cat string, now time.Time) store.IssueRecord {
 	item := store.Item{
 		ID:         LinearSourceID + ":" + iss.ID,
 		SourceID:   LinearSourceID,
@@ -310,6 +387,12 @@ func buildLinearRecord(iss linear.Issue, cat string) store.IssueRecord {
 	}
 	if iss.Parent != nil {
 		issue.ParentKey = iss.Parent.Identifier
+	}
+	if iss.Cycle != nil {
+		id := linear.SprintID(iss.Cycle.ID)
+		issue.SprintID = &id
+		issue.SprintName = cycleDisplayName(iss.Cycle.Name, iss.Cycle.Number)
+		issue.SprintState = linear.CycleState(iss.Cycle.StartsAt, iss.Cycle.EndsAt, iss.Cycle.CompletedAt, now)
 	}
 
 	rec := store.IssueRecord{Item: item, Issue: issue}
@@ -462,7 +545,7 @@ func SyncLinearIssue(ctx context.Context, db *store.DB, c *linear.Client, key st
 		Priorities: linearRankList(iss.Priority, iss.PriorityLabel),
 		LinkTypes:  linearLinkTypeCatalog,
 		NoHistory:  true,
-		Records:    []store.IssueRecord{buildLinearRecord(iss, cat)},
+		Records:    []store.IssueRecord{buildLinearRecord(iss, cat, time.Now().UTC())},
 		Force:      true,
 	}
 	if iss.State.ID != "" {

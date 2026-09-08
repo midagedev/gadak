@@ -24,9 +24,11 @@ const sprintUsage = `usage: gadak sprint <subcommand>
   gadak sprint start <sprint-id>          start it (default 14 days)
   gadak sprint close <sprint-id>          complete it
 
-Sprints are Jira Software's. A workspace whose origin is Linear or the
-built-in tracker has none, and these subcommands say so rather than
-guessing at a nearest concept.`
+On a Jira origin these are Jira Software sprints. On a Linear origin they
+are cycles — one board per team, and start/close refuse: a cycle begins and
+ends by its dates, so edit the cycle's dates in Linear instead. The built-in
+tracker serves the same Agile surface as Jira (GDK-1666), so every verb here
+works there too.`
 
 func cmdSprint(args []string) error {
 	if wantsHelp(args) || len(args) == 0 {
@@ -107,7 +109,7 @@ func sprintAdd(args []string) error {
 			return err
 		}
 		fmt.Fprintf(os.Stdout, "%s\tmoved to sprint %d\n", strings.Join(keys, ","), id)
-		if err := syncer.RefreshAgile(ctx, cfg, db); err != nil {
+		if err := syncer.RefreshAgile(ctx, cfg, db, src); err != nil {
 			return err
 		}
 		return refreshKeys(ctx, cfg, db, keys, src)
@@ -128,7 +130,7 @@ func sprintRemove(args []string) error {
 			return err
 		}
 		fmt.Fprintf(os.Stdout, "%s\tmoved to the backlog\n", strings.Join(keys, ","))
-		if err := syncer.RefreshAgile(ctx, cfg, db); err != nil {
+		if err := syncer.RefreshAgile(ctx, cfg, db, src); err != nil {
 			return err
 		}
 		return refreshKeys(ctx, cfg, db, keys, src)
@@ -160,7 +162,7 @@ func sprintCreate(args []string) error {
 			return err
 		}
 		fmt.Fprintf(os.Stdout, "%d\t%s\t%s\n", s.ID, s.State, s.Name)
-		return syncer.RefreshAgile(ctx, cfg, db)
+		return syncer.RefreshAgile(ctx, cfg, db, src)
 	})
 }
 
@@ -198,7 +200,7 @@ func sprintSetState(args []string, state string) error {
 			return err
 		}
 		fmt.Fprintf(os.Stdout, "%d\t%s\t%s\n", s.ID, s.State, s.Name)
-		if err := syncer.RefreshAgile(ctx, cfg, db); err != nil {
+		if err := syncer.RefreshAgile(ctx, cfg, db, src); err != nil {
 			return err
 		}
 		return refreshKeys(ctx, cfg, db, keys, src)

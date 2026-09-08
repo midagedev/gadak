@@ -3,7 +3,7 @@ package store
 // migrations are applied in order and the index+1 is the schema version. A
 // released migration is never edited; a schema change is a new entry at the end
 // plus a documented row in specs/000-product/data-model.md.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39, schemaV40, schemaV41, schemaV42, schemaV43, schemaV44, schemaV45}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39, schemaV40, schemaV41, schemaV42, schemaV43, schemaV44, schemaV45, schemaV46}
 
 // itemsFTSCreate is the canonical items_fts DDL, spliced into schemaV1 so a
 // fresh database is born matching it (GDK-444: an inline copy in V1 lagged at
@@ -970,4 +970,19 @@ CREATE TABLE sprints (
 
 CREATE INDEX sprints_board ON sprints(source_id, board_id);
 CREATE INDEX sprints_state ON sprints(source_id, state);
+`
+
+// schemaV46 (GDK-1667) adds sprints.external_id — the origin's own sprint id
+// verbatim. Jira has it from the start (the integer id was already it);
+// Linear's cycle ids are UUIDs, which the integer column cannot hold, and
+// the mirror derives the stored integer from the UUID (linear.SprintID) —
+// the verbatim id is what the write path resolves back to a cycle by, and
+// what makes the derive reproducible from origin data alone. The default is
+// the empty string, so the ALTER is one statement on an existing mirror; the
+// index serves the
+// external-id → row lookup the write adapter does not need per key but the
+// by-external-id debugging query does.
+const schemaV46 = `
+ALTER TABLE sprints ADD COLUMN external_id TEXT NOT NULL DEFAULT '';
+CREATE INDEX sprints_external ON sprints(source_id, external_id);
 `

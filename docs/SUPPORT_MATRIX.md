@@ -53,9 +53,9 @@ Markers:
 | **Read** · labels | ✅[^25] | ✅[^25] | ✅[^26] | ✅[^25] |
 | **Read** · components | ✅[^25] | ✅[^25] | —[^27] | ✅[^28] |
 | **Read** · fix versions + `versions` catalog | ✅[^29] | ✅[^29] | —[^30] | ✅[^31] |
-| **Read** · sprints (columns `sprint_id`/`sprint_name`/`sprint_state`) | ✅[^32] | ✅[^32] | —[^33] | ✅[^139] |
-| **Read** · boards + sprints as rows (`boards`, `sprints`, `gadak sprint list`) | ✅[^135] | ◐[^122] | —[^33] | ✅[^139] |
-| **Write** · sprint — add / remove / create / start / close | ✅[^136] | ✅[^123] | —[^33] | ✅[^140] |
+| **Read** · sprints (columns `sprint_id`/`sprint_name`/`sprint_state`) | ✅[^32] | ✅[^32] | ✅[^33] | ✅[^139] |
+| **Read** · boards + sprints as rows (`boards`, `sprints`, `gadak sprint list`) | ✅[^135] | ◐[^122] | ✅[^141] | ✅[^139] |
+| **Write** · sprint — add / remove / create / start / close | ✅[^136] | ✅[^123] | ◐[^142] | ✅[^140] |
 | **Read** · custom fields (`fields --apply`) | ✅[^35] | ✅[^124] | —[^36] | ◐[^37] |
 | **Read** · issue type | ✅[^38] | ✅[^38] | —[^39] | ✅[^40] |
 | **Read** · hierarchy — `parent_key` / `epic_key` | ✅[^41] | ✅[^125] | ◐[^42] | ✅[^43] |
@@ -85,7 +85,7 @@ Markers:
 | **Write** · `migrate --to` (destination) | —[^94] | —[^94] | ◐[^94] | ✅[^95] |
 | **Surface** · agent surfaces — skill / MCP / SQL | ✅[^96] | ✅[^96] | ✅[^96] | ✅[^96] |
 | **Surface** · board layout (0.19) | ✅[^97] | ✅[^97] | ✅[^97] | ✅[^97] |
-| **Surface** · board sprint scope + Sprint axes (0.22) | ✅[^138] | ✅[^138] | —[^33] | ✅[^138] |
+| **Surface** · board sprint scope + Sprint axes (0.22) | ✅[^138] | ✅[^138] | ✅[^138] | ✅[^138] |
 | **Surface** · `views open --keys -` | ✅[^98] | ✅[^98] | ✅[^98] | ✅[^98] |
 | **Surface** · watch feed + OS alerts | ✅[^99] | ✅[^134] | ◐[^100] | ✅[^99] |
 | **Surface** · in-process origin (no network to the tracker) | —[^101] | —[^101] | —[^101] | ✅[^102] |
@@ -107,8 +107,10 @@ Markers:
     queries never touch the origin.
 
 [^6]: Same schema, but columns Linear does not map (issue type, components,
-    fix versions, sprint, `epic_key`, custom fields) read empty/NULL
-    (`internal/sync/linear.go:218`, `internal/linear/MAPPING.md`).
+    fix versions, custom fields) read empty/NULL
+    (`internal/sync/linear.go:218`, `internal/linear/MAPPING.md`). The sprint
+    columns are mapped from Cycle (footnote 33); `epic_key` is the parent
+    chain only — Linear Projects stay unmapped.
 
 [^7]: The documented JQL subset (`docs/decisions/0007-jql-subset.md`),
     evaluated in-memory over mirror rows (`cmd/gadak/agent.go:1336`) — the
@@ -226,8 +228,15 @@ Markers:
     no `updated` on the done issues that stay in it, so the projection
     alone went stale.
 
-[^33]: Linear has no sprint concept in gadak's mapping
-    (`internal/linear/MAPPING.md`).
+[^33]: Linear's Cycle is the sprint, and it maps whole (GDK-1667).
+    `Issue.cycle { id number name startsAt endsAt completedAt }` fills the
+    three columns (`internal/sync/linear.go:267`); the state is derived from
+    the dates rather than stored — `completedAt` set or `endsAt` past is
+    `closed`, a window containing now is `active`, a future `startsAt` is
+    `future` (`internal/linear/client.go:640`). Cycle UUIDs become the
+    mirror's INTEGER sprint space through one FNV-1a derive
+    (`internal/linear/client.go:623`), with the UUID kept in
+    `sprints.external_id` (schemaV46) so a write can walk it back.
 
 [^34]: The origin's issue model has no sprint field — the editable set
     carries none (`issuetap/docs/COMPATIBILITY.md:72`).
@@ -625,6 +634,21 @@ Markers:
     GDK-1656). The control appears only when the mirror has a sprint row
     (`GET /api/v1/issues/sprints/`), so an origin without sprints never
     shows it — which is what the two refusal cells mean today.
+[^141]: One `boards` row per in-scope team (`type = 'cycles'`, `project_key`
+    = the team key) and every one of that team's cycles as a `sprints` row,
+    walked each tick (`internal/sync/linear.go:279`, `importLinearCycles`). A
+    cycle the listing does not carry — another team's cycle on an in-scope
+    issue — keeps its issue-side projection and gets no `sprints` row.
+
+[^142]: `sprint add` / `remove` / `create` go through `issueUpdate` and
+    `cycleCreate` (`internal/origin/linearwriter.go:511` onward); `remove`
+    sends `cycleId: null` because an omitted field means unchanged. **`start`
+    and `close` refuse** (`internal/origin/writer.go:356`,
+    `ErrLinearCycleByDates`): a Linear cycle begins and ends by its
+    dates, so the place to move one is the cycle's dates, not a state verb.
+    The writer's `UpdateSprint` maps name/goal and the window onto
+    `cycleUpdate`; no CLI verb reaches it yet.
+
 [^139]: The built-in tracker serves the same Agile surface — one scrum
     board per project, created lazily — plus `customfield_10020` in Cloud's
     object-array shape and JQL's three sprint functions, so gadak reads it

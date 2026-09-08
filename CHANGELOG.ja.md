@@ -117,8 +117,8 @@
   Cloud と Server が同じ形で答える、唯一の表面です。`gadak sprint list` がそれを
   読みます。`gadak sprint add`、`remove`、`create`、`start`、`close` は origin を
   通して書き、状態が変わるたびに、送った内容を信用せず、スプリントとそこにあった
-  課題を読み直します。スプリントは Jira Software のものなので、Linear や内蔵
-  ワークスペースは名指しで断ります。 ([GDK-1653], [GDK-1654], [GDK-1655],
+  課題を読み直します。ここまでは Jira Software のものでしたが、下のふたつの項目が
+  残りのふたつの origin にそれを開きます。 ([GDK-1653], [GDK-1654], [GDK-1655],
   [GDK-1657])
 - **内蔵トラッカーのスプリント。** gadak が同梱するトラッカーが、Jira Software
   の Agile 表面をそのまま出すようになりました。ボード、スプリント、課題の
@@ -127,6 +127,13 @@
   使えます。スプリントを閉じると、未完了の課題は Jira と同じようにバックログへ
   移ります。 ([GDK-1666])
 
+- **Linear のサイクルが、スプリントになりました。** Linear ワークスペースも、
+  ほかの origin と同じ三つのスプリント項目を埋めるようになり、チームごとに
+  ボードひとつを置いて、そのサイクルを `sprints` の行として並べます。ボードの
+  スプリント範囲も、スプリントの軸も、`gadak sprint list` も、そこで使えます。
+  `sprint add`・`remove`・`create` は Linear へ書き抜けます。`start` と `close`
+  は名指しで断ります。サイクルの始まりと終わりを決めるのは日付なので、動かす
+  場所はサイクルの日付です。 ([GDK-1667])
 - **閉じたスプリントの完了課題が「active」のまま残ることは、もうありません。**
   スプリントを閉じると、外に移されるのは未完了の課題だけです。完了した課題は
   何も変わらないため、増分同期が読み直すこともなく、その行の `sprint_state` は
@@ -1846,3 +1853,4 @@ TUI に出るようになり、課題には正直なエピック階層が付き�
 [GDK-1661]: https://gadak.dev/backlog/#/?ks=GDK-1661
 [GDK-1662]: https://gadak.dev/backlog/#/?ks=GDK-1662
 [GDK-1666]: https://gadak.dev/backlog/#/?ks=GDK-1666
+[GDK-1667]: https://gadak.dev/backlog/#/?ks=GDK-1667

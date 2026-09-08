@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"slices"
 	"strconv"
+	"time"
 
 	"github.com/midagedev/gadak/internal/adf"
 	"github.com/midagedev/gadak/internal/config"
@@ -23,9 +24,15 @@ import (
 // negotiation stays EditMeta/CreateMeta — what this origin cannot edit is
 // simply absent there. Optional faces (VersionCatalog, IssueLinker,
 // CreateFieldCatalog, MediaRef) are not implemented; callers type-assert
-// and surface the matching ErrNo* (GDK-641).
+// and surface the matching ErrNo* (GDK-641). The SprintBoard face is
+// implemented (GDK-1667): cycles are Linear's sprints.
 type linearWriter struct {
 	c *linear.Client
+	// teams is the configured Linear scope (cfg.Linear.TeamIDs) — the same
+	// teams the mirror's boards and sprints rows came from, so a sprint verb
+	// resolves ids against the listing the mirror was built with. Empty
+	// means every team the credential can see.
+	teams []string
 }
 
 // linearPriorityNames indexes Linear's fixed 0-4 scale. Index = wire value.
@@ -36,7 +43,11 @@ func newLinearWriter(cfg *config.Config) (*linearWriter, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &linearWriter{c: c}, nil
+	w := &linearWriter{c: c}
+	if cfg != nil && cfg.Linear != nil {
+		w.teams = cfg.Linear.TeamIDs
+	}
+	return w, nil
 }
 
 // resolve turns a user-typed key ("MID-5") into the issue, which carries the
@@ -497,4 +508,213 @@ func attachmentFromLinear(id, filename, mime string, size int64) Attachment {
 	return Attachment{ID: id, Filename: filename, MimeType: mime, Size: size}
 }
 
+// ── SprintBoard: cycles as sprints (GDK-1667) ──────────────────────────────
+//
+// The mirror stores one board per team and one sprint per cycle, ids derived
+// from the UUIDs (linear.SprintID), so every verb here walks the integer back
+// to the UUID by listing the in-scope teams' cycles and matching the same
+// derive. The UUID itself is what goes on the wire — ids only, the same
+// discipline the issue verbs follow.
+
+// scopeTeams lists the teams a sprint verb may touch: the configured ones
+// when the workspace is scoped, everything the credential sees otherwise —
+// the same scope importLinearCycles built the boards rows under.
+func (w *linearWriter) scopeTeams(ctx context.Context) ([]linear.Team, error) {
+	teams, err := w.c.Teams(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if len(w.teams) == 0 {
+		return teams, nil
+	}
+	want := map[string]bool{}
+	for _, id := range w.teams {
+		want[id] = true
+	}
+	out := make([]linear.Team, 0, len(teams))
+	for _, t := range teams {
+		if want[t.ID] {
+			out = append(out, t)
+		}
+	}
+	return out, nil
+}
+
+// findCycle resolves a sprint id back to its cycle — the one place the
+// derived integer and the cycle UUID meet again after the mirror stored one
+// and dropped the other.
+func (w *linearWriter) findCycle(ctx context.Context, sprintID int64) (linear.Cycle, error) {
+	teams, err := w.scopeTeams(ctx)
+	if err != nil {
+		return linear.Cycle{}, err
+	}
+	for _, t := range teams {
+		cycles, err := w.c.TeamCycles(ctx, t.ID)
+		if err != nil {
+			return linear.Cycle{}, err
+		}
+		for _, cy := range cycles {
+			if linear.SprintID(cy.ID) == sprintID {
+				return cy, nil
+			}
+		}
+	}
+	return linear.Cycle{}, fmt.Errorf("linear: no cycle with sprint id %d in this workspace's teams", sprintID)
+}
+
+// sprintFromCycle is the origin.Sprint a write states back — the same derive
+// and the same date rule the mirror's rows carry, so the verb's echo and the
+// refresh that follows cannot disagree.
+func sprintFromCycle(cy linear.Cycle, now time.Time) Sprint {
+	return Sprint{
+		ID:    linear.SprintID(cy.ID),
+		Name:  cy.Name,
+		State: linear.CycleState(cy.StartsAt, cy.EndsAt, cy.CompletedAt, now),
+	}
+}
+
+// linearTime formats an instant the way Linear serializes a DateTime (and
+// the way the mirror stores cycle stamps) — ISO-8601 UTC with milliseconds.
+func linearTime(t time.Time) string {
+	return t.UTC().Format("2006-01-02T15:04:05.000Z")
+}
+
+// nextUTCMidnight is the first UTC midnight strictly after t.
+func nextUTCMidnight(t time.Time) time.Time {
+	return t.UTC().Truncate(24 * time.Hour).Add(24 * time.Hour)
+}
+
+// MoveToSprint puts issues into a cycle: resolve the sprint id to the cycle
+// UUID once, then one issueUpdate per key carrying cycleId.
+func (w *linearWriter) MoveToSprint(ctx context.Context, sprintID int64, keys []string) error {
+	cy, err := w.findCycle(ctx, sprintID)
+	if err != nil {
+		return err
+	}
+	for _, key := range keys {
+		iss, err := w.resolve(ctx, key)
+		if err != nil {
+			return err
+		}
+		if _, err := w.c.UpdateIssue(ctx, iss.ID, linear.IssueUpdate{CycleID: &cy.ID}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// MoveToBacklog takes issues out of whatever cycle they are in: cycleId
+// null, the explicit un-membership (write.go's ClearCycle), not an omitted
+// field — omitted is unchanged.
+func (w *linearWriter) MoveToBacklog(ctx context.Context, keys []string) error {
+	for _, key := range keys {
+		iss, err := w.resolve(ctx, key)
+		if err != nil {
+			return err
+		}
+		if _, err := w.c.UpdateIssue(ctx, iss.ID, linear.IssueUpdate{ClearCycle: true}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// CreateSprint files a cycle on the team whose derived board id boardID is.
+// Linear's cycle window is required on the wire, so the verb supplies the
+// default: startsAt is the next UTC midnight after now, endsAt 14 days on —
+// the same default `gadak sprint start` documents for Jira.
+func (w *linearWriter) CreateSprint(ctx context.Context, boardID int64, name, goal string) (Sprint, error) {
+	teams, err := w.scopeTeams(ctx)
+	if err != nil {
+		return Sprint{}, err
+	}
+	var team *linear.Team
+	for i := range teams {
+		if linear.SprintID(teams[i].ID) == boardID {
+			team = &teams[i]
+			break
+		}
+	}
+	if team == nil {
+		return Sprint{}, fmt.Errorf("linear: no team with board id %d in this workspace's teams", boardID)
+	}
+	now := time.Now().UTC()
+	startsAt := nextUTCMidnight(now)
+	cy, err := w.c.CreateCycle(ctx, linear.CycleCreate{
+		TeamID:      team.ID,
+		Name:        name,
+		Description: goal,
+		StartsAt:    linearTime(startsAt),
+		EndsAt:      linearTime(startsAt.Add(14 * 24 * time.Hour)),
+	})
+	if err != nil {
+		return Sprint{}, err
+	}
+	return sprintFromCycle(cy, now), nil
+}
+
+// UpdateSprint edits a cycle: name/goal map to the cycle's name/description,
+// startDate/endDate to its date window. A "state" key refuses
+// (ErrLinearCycleByDates) before anything else in the map is applied — a
+// cycle has no state to set, and a mixed map must not half-apply.
+func (w *linearWriter) UpdateSprint(ctx context.Context, sprintID int64, fields map[string]any) (Sprint, error) {
+	var upd linear.CycleUpdate
+	for name, v := range fields {
+		switch name {
+		case "name":
+			s, err := stringField("name", v)
+			if err != nil {
+				return Sprint{}, err
+			}
+			upd.Name = &s
+		case "goal":
+			s, err := stringField("goal", v)
+			if err != nil {
+				return Sprint{}, err
+			}
+			upd.Description = &s
+		case "startDate", "endDate":
+			stamp, err := sprintDateStamp(name, v)
+			if err != nil {
+				return Sprint{}, err
+			}
+			if name == "startDate" {
+				upd.StartsAt = &stamp
+			} else {
+				upd.EndsAt = &stamp
+			}
+		case "state":
+			return Sprint{}, ErrLinearCycleByDates
+		default:
+			return Sprint{}, unsupportedf("linear: sprint field %q", name)
+		}
+	}
+	cy, err := w.findCycle(ctx, sprintID)
+	if err != nil {
+		return Sprint{}, err
+	}
+	cy, err = w.c.UpdateCycle(ctx, cy.ID, upd)
+	if err != nil {
+		return Sprint{}, err
+	}
+	return sprintFromCycle(cy, time.Now().UTC()), nil
+}
+
+// sprintDateStamp converts a sprint-verb date into Linear's DateTime format.
+// The sprint CLI sends Jira's "2006-01-02T15:04:05.000-0700"; RFC3339 is
+// accepted too. Same instant, re-expressed in UTC.
+func sprintDateStamp(field string, v any) (string, error) {
+	s, ok := v.(string)
+	if !ok {
+		return "", fmt.Errorf("linear: field %q wants string, got %T", field, v)
+	}
+	for _, layout := range []string{"2006-01-02T15:04:05.000-0700", time.RFC3339} {
+		if t, err := time.Parse(layout, s); err == nil {
+			return linearTime(t), nil
+		}
+	}
+	return "", fmt.Errorf("linear: field %q value %q is not a timestamp", field, s)
+}
+
 var _ Writer = (*linearWriter)(nil)
+var _ SprintBoard = (*linearWriter)(nil)

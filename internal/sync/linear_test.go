@@ -319,6 +319,7 @@ func TestRunLinearIncrementalUsesWatermark(t *testing.T) {
 	var gte string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
+			Query     string `json:"query"`
 			Variables struct {
 				Filter struct {
 					UpdatedAt struct {
@@ -328,7 +329,11 @@ func TestRunLinearIncrementalUsesWatermark(t *testing.T) {
 			} `json:"variables"`
 		}
 		_ = json.NewDecoder(r.Body).Decode(&req)
-		gte = req.Variables.Filter.UpdatedAt.Gte
+		// Only the issues listing carries the filter — the cycles listing the
+		// pass also makes (GDK-1667) must not overwrite what this test reads.
+		if strings.Contains(req.Query, "query Issues(") {
+			gte = req.Variables.Filter.UpdatedAt.Gte
+		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"data":{"issues":{"pageInfo":{"hasNextPage":false,"endCursor":null},"nodes":[]}}}`))
 	}))

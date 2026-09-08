@@ -81,6 +81,16 @@ type IssueUpdate struct {
 	DueDate *string
 	// ParentID: a pointer to an issue UUID nests under it; nil is unchanged.
 	ParentID *string
+	// CycleID: a pointer to a cycle UUID moves the issue into that cycle
+	// (the sprint add verb); nil leaves the cycle unchanged. A pointer to
+	// the empty string is an error, not a clear — clearing is ClearCycle, so
+	// an accidental "" cannot silently send cycleId: null and drop the issue
+	// to the backlog.
+	CycleID *string
+	// ClearCycle sends cycleId: null — the explicit un-membership the sprint
+	// remove verb wants (backlog = no cycle). Mutually exclusive with
+	// CycleID; the client rejects the combination before the wire.
+	ClearCycle bool
 }
 
 // CreateIssue files one issue and returns it with the full read-path field
@@ -185,6 +195,18 @@ func (c *Client) UpdateIssue(ctx context.Context, id string, in IssueUpdate) (Is
 	}
 	if in.ParentID != nil {
 		input["parentId"] = *in.ParentID
+	}
+	switch {
+	case in.CycleID != nil && in.ClearCycle:
+		return Issue{}, errors.New("linear: CycleID and ClearCycle are mutually exclusive")
+	case in.CycleID != nil:
+		if *in.CycleID == "" {
+			return Issue{}, errors.New("linear: CycleID is the cycle UUID; to remove the issue from its cycle use ClearCycle")
+		}
+		input["cycleId"] = *in.CycleID
+	case in.ClearCycle:
+		// The explicit null: the issue leaves whatever cycle it was in.
+		input["cycleId"] = nil
 	}
 
 	var res struct {
@@ -384,4 +406,120 @@ func (c *Client) CreateAttachment(ctx context.Context, issueID, url, title strin
 		return Attachment{}, fmt.Errorf("POST /graphql: linear: attachmentCreate returned success=false")
 	}
 	return res.AttachmentCreate.Attachment, nil
+}
+
+// CycleCreate is the input to CreateCycle — the sprint-create verb's Linear
+// shape (GDK-1667). TeamID, Name, StartsAt and EndsAt are always sent: a
+// Linear cycle is its date window, and the origin's own UI never files one
+// without both ends.
+type CycleCreate struct {
+	TeamID      string
+	Name        string
+	Description string
+	StartsAt    string
+	EndsAt      string
+}
+
+// CycleUpdate is the patch for UpdateCycle. Nil fields are omitted —
+// unchanged; the three-way distinction is the same one IssueUpdate encodes,
+// minus the fields a cycle does not have (no state: see mutCycleUpdate).
+type CycleUpdate struct {
+	Name        *string
+	Description *string
+	StartsAt    *string
+	EndsAt      *string
+}
+
+// CreateCycle files one cycle on a team and returns it with the full listing
+// field set, so the caller can commit the sprints row without a refetch.
+func (c *Client) CreateCycle(ctx context.Context, in CycleCreate) (Cycle, error) {
+	if in.TeamID == "" {
+		return Cycle{}, errors.New("linear: teamId is required")
+	}
+	if in.Name == "" {
+		return Cycle{}, errors.New("linear: name is required")
+	}
+	input := map[string]any{
+		"teamId": in.TeamID,
+		"name":   in.Name,
+	}
+	if in.Description != "" {
+		input["description"] = in.Description
+	}
+	if in.StartsAt != "" {
+		if err := validateStamp(in.StartsAt); err != nil {
+			return Cycle{}, err
+		}
+		input["startsAt"] = in.StartsAt
+	}
+	if in.EndsAt != "" {
+		if err := validateStamp(in.EndsAt); err != nil {
+			return Cycle{}, err
+		}
+		input["endsAt"] = in.EndsAt
+	}
+	var res struct {
+		CycleCreate struct {
+			Success bool  `json:"success"`
+			Cycle   Cycle `json:"cycle"`
+		} `json:"cycleCreate"`
+	}
+	if err := c.gqlWrite(ctx, mutCycleCreate, map[string]any{"input": input}, &res); err != nil {
+		return Cycle{}, err
+	}
+	if !res.CycleCreate.Success {
+		return Cycle{}, fmt.Errorf("POST /graphql: linear: cycleCreate returned success=false")
+	}
+	return res.CycleCreate.Cycle, nil
+}
+
+// UpdateCycle patches one cycle by id and returns it with the full listing
+// field set. Dates arrive as the ISO-8601 stamps the listing carries.
+func (c *Client) UpdateCycle(ctx context.Context, id string, in CycleUpdate) (Cycle, error) {
+	if id == "" {
+		return Cycle{}, errors.New("linear: id is required")
+	}
+	input := map[string]any{}
+	if in.Name != nil {
+		input["name"] = *in.Name
+	}
+	if in.Description != nil {
+		input["description"] = *in.Description
+	}
+	if in.StartsAt != nil {
+		if err := validateStamp(*in.StartsAt); err != nil {
+			return Cycle{}, err
+		}
+		input["startsAt"] = *in.StartsAt
+	}
+	if in.EndsAt != nil {
+		if err := validateStamp(*in.EndsAt); err != nil {
+			return Cycle{}, err
+		}
+		input["endsAt"] = *in.EndsAt
+	}
+	var res struct {
+		CycleUpdate struct {
+			Success bool  `json:"success"`
+			Cycle   Cycle `json:"cycle"`
+		} `json:"cycleUpdate"`
+	}
+	if err := c.gqlWrite(ctx, mutCycleUpdate, map[string]any{"id": id, "input": input}, &res); err != nil {
+		return Cycle{}, err
+	}
+	if !res.CycleUpdate.Success {
+		return Cycle{}, fmt.Errorf("POST /graphql: linear: cycleUpdate returned success=false")
+	}
+	return res.CycleUpdate.Cycle, nil
+}
+
+// validateStamp enforces the wire format of a Linear DateTime on a cycle's
+// date fields: ISO-8601 with an offset (RFC3339) — "2026-08-01T00:00:00.000Z"
+// is what the listing returns, and RFC3339 parsing accepts the fractional
+// seconds even when the sender omits them.
+func validateStamp(s string) error {
+	if _, err := time.Parse(time.RFC3339, s); err != nil {
+		return fmt.Errorf("linear: timestamp %q is not ISO-8601 (RFC3339)", s)
+	}
+	return nil
 }

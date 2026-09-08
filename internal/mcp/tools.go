@@ -48,10 +48,11 @@ Schema essentials:
   >0 is the signal), reopened_at, status_changed_at, resolved_at, comment_count.
 - sprints / boards: rows of their own — sprints has id, board_id, name, goal,
   state (lowercase active|future|closed), start_at, end_at, complete_at,
-  activated_at. A sprint with no issues is here and nowhere else; the issues
-  columns cannot answer "when does this sprint end". Filled on Jira with Jira
-  Software (Cloud or Server) and on the built-in tracker; empty on a Linear
-  workspace and on a Jira site without Jira Software.
+  activated_at, external_id (the origin's own id). A sprint with no issues is
+  here and nowhere else; the issues columns cannot answer "when does this
+  sprint end". Filled on Jira with Jira Software (Cloud or Server), on the
+  built-in tracker, and on Linear (a cycle is a sprint, a team is a board);
+  empty on a Jira site without Jira Software.
 - issues_full: VIEW of issues plus summary (the item title) and description_text
   (items.body_text, flattened plain text) — prefer it whenever the answer needs
   a human-readable title or the description as text, no join required.

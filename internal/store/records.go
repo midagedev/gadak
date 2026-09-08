@@ -66,9 +66,11 @@ type Issue struct {
 	Resolution      string
 	ResolutionID    string
 	// SprintID/SprintName/SprintState are the one sprint projected from the
-	// origin's sprint array (active > future > closed, then larger id). Nil /
-	// empty when the site has no sprint field, the array is empty, or an
-	// element was not an object. Linear leaves them unset.
+	// origin's sprint payload — Jira's sprint array (active > future >
+	// closed, then larger id), Linear's single cycle membership (the id
+	// derived from the cycle UUID, the state from its dates; GDK-1667). Nil /
+	// empty when Jira's site has no sprint field, the array is empty, an
+	// element was not an object, or the Linear issue is in no cycle.
 	SprintID    *int64
 	SprintName  string
 	SprintState string
@@ -323,7 +325,8 @@ type Batch struct {
 	Force bool
 }
 
-// BoardRow is one Jira Software board in the mirror (GDK-1654).
+// BoardRow is one board in the mirror (GDK-1654) — a Jira Software board or,
+// on a Linear source, one row per team, typed "cycles" (GDK-1667).
 type BoardRow struct {
 	ID         int64
 	Name       string
@@ -343,4 +346,9 @@ type SprintRow struct {
 	EndAt       string
 	CompleteAt  string
 	ActivatedAt string
+	// ExternalID is the origin's own sprint id verbatim (v46, GDK-1667):
+	// Jira's integer as a string, Linear's cycle UUID. The integer ID above
+	// is derived on Linear (linear.SprintID); this column is the wire truth
+	// the write path resolves back to.
+	ExternalID string
 }

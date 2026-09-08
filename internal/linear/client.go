@@ -24,6 +24,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"io"
 	"net/http"
 	"strings"
@@ -154,6 +155,35 @@ func (c *Client) Teams(ctx context.Context) ([]Team, error) {
 			return out, nil
 		}
 		after = page.Teams.PageInfo.EndCursor
+	}
+}
+
+// TeamCycles lists one team's cycles — the sprint listing of the Linear
+// sprint mapping (GDK-1667). An unknown or invisible team answers null and
+// reads as zero cycles: a scoped workspace naming a team the credential
+// cannot see mirrors no boards for it, the same honest absence the issue
+// pass produces.
+func (c *Client) TeamCycles(ctx context.Context, teamID string) ([]Cycle, error) {
+	out := []Cycle{}
+	after := ""
+	for {
+		vars := map[string]any{"team": teamID}
+		if after != "" {
+			vars["after"] = after
+		}
+		var page struct {
+			Team struct {
+				Cycles CycleConn `json:"cycles"`
+			} `json:"team"`
+		}
+		if err := c.gql(ctx, queryTeamCycles, vars, &page); err != nil {
+			return nil, err
+		}
+		out = append(out, page.Team.Cycles.Nodes...)
+		if !page.Team.Cycles.PageInfo.HasNextPage || page.Team.Cycles.PageInfo.EndCursor == "" {
+			return out, nil
+		}
+		after = page.Team.Cycles.PageInfo.EndCursor
 	}
 }
 
@@ -577,6 +607,47 @@ func LooksLikeID(s string) bool {
 		}
 	}
 	return true
+}
+
+// SprintID derives the integer the mirror stores for a Linear cycle (and for
+// the one-board-per-team boards row, from the team UUID): FNV-1a 64 of the
+// UUID string, top bit cleared so it fits SQLite's signed INTEGER, 0 mapped
+// to 1 so the id is never zero (0 would read as "no cycle"). One owner by
+// design — sync builds the sprints/boards rows and the issue's sprint_id from
+// it, and the write adapter resolves a sprint id back to a cycle by the same
+// derive, so the two directions cannot drift. The UUID itself stays in
+// sprints.external_id; the mirror never stores origin data it cannot
+// rebuild, and the derived integer is presentation of the id, not a second
+// identity. A collision with another UUID's derive is a 63-bit hash clash
+// and is not defended against — a workspace would need ~3×10⁹ cycles.
+func SprintID(uuid string) int64 {
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(uuid))
+	id := int64(h.Sum64() &^ (1 << 63))
+	if id == 0 {
+		return 1
+	}
+	return id
+}
+
+// CycleState is the sprint_state of a cycle at instant now — the single owner
+// of the date rule, used by the issue projection and the sprints listing
+// alike so the two agree by construction. A cycle has no state field on the
+// wire: completedAt set, or endsAt at or before now, means closed; else
+// startsAt at or before now means active; else future. Unparseable stamps
+// read as absent — the same honest-absence rule MAPPING.md applies
+// everywhere, never a guess that flips a state.
+func CycleState(startsAt, endsAt, completedAt string, now time.Time) string {
+	if completedAt != "" {
+		return "closed"
+	}
+	if end, err := time.Parse(time.RFC3339, endsAt); err == nil && !now.Before(end) {
+		return "closed"
+	}
+	if start, err := time.Parse(time.RFC3339, startsAt); err == nil && !now.Before(start) {
+		return "active"
+	}
+	return "future"
 }
 
 // Users searches workspace members by name for assignee pickers. An empty

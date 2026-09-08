@@ -133,6 +133,16 @@ func TestSprintStateDoesNotGoStaleOnQuietTick(t *testing.T) {
 	if state != "active" {
 		t.Fatalf("after the full sync sprints.state = %q, want active", state)
 	}
+	// v46: external_id carries the origin's own id verbatim. On Jira the
+	// integer already is the id — stored as its decimal string, so the
+	// column the Linear cycle UUID fills has a Jira answer too.
+	var ext string
+	if err := db.DB.QueryRow(`SELECT external_id FROM sprints WHERE source_id = ? AND id = 1`, SourceID).Scan(&ext); err != nil {
+		t.Fatalf("sprints row external_id: %v", err)
+	}
+	if ext != "1" {
+		t.Errorf("sprints.external_id = %q, want \"1\" — the origin's own id verbatim", ext)
+	}
 
 	// The origin closes sprint 1. No issue's `updated` moves — the done
 	// issue stays exactly where it was — so the next tick is quiet.

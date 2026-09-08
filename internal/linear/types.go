@@ -22,6 +22,39 @@ type Team struct {
 	Private bool   `json:"private"`
 }
 
+// Cycle is a team's date-bounded iteration — the Linear object gadak maps
+// onto sprints (GDK-1667). A cycle has no state field of its own: it is
+// future until startsAt, active between startsAt and endsAt, and closed once
+// completedAt is set or endsAt has passed (CycleState is that rule's single
+// owner). Timestamps are Linear's verbatim ISO-8601 UTC strings, the same
+// format Issue's stamps carry.
+type Cycle struct {
+	ID          string `json:"id"`
+	Number      int    `json:"number"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	StartsAt    string `json:"startsAt"`
+	EndsAt      string `json:"endsAt"`
+	CompletedAt string `json:"completedAt"`
+}
+
+// CycleRef is the cycle embedded on an issue — the fields a membership needs.
+// The listing and mutation payloads answer the fuller Cycle.
+type CycleRef struct {
+	ID          string `json:"id"`
+	Number      int    `json:"number"`
+	Name        string `json:"name"`
+	StartsAt    string `json:"startsAt"`
+	EndsAt      string `json:"endsAt"`
+	CompletedAt string `json:"completedAt"`
+}
+
+// CycleConn is the cycles connection on a team.
+type CycleConn struct {
+	PageInfo PageInfo `json:"pageInfo"`
+	Nodes    []Cycle  `json:"nodes"`
+}
+
 // WorkflowState is one status in a team's workflow. Type is the stable axis:
 // name is display-only and can be anything ("In Progress", "진행 중", a custom
 // "In Review"); logic must key on Type or ID, never on Name — the same
@@ -138,6 +171,10 @@ type Issue struct {
 	Creator  *User      `json:"creator"`
 	Labels   LabelConn  `json:"labels"`
 	Parent   *ParentRef `json:"parent"`
+	// Cycle is the cycle the issue sits in; nil is the backlog (GDK-1667,
+	// MAPPING.md "cycle → sprint"). CycleRef, not Cycle: membership does not
+	// need the description.
+	Cycle *CycleRef `json:"cycle"`
 
 	// Comments is the first inline page (CommentsPageSize). A page with
 	// PageInfo.HasNextPage means the issue has more comments than that and

@@ -926,6 +926,29 @@ test.describe('sync status at rest', () => {
     // GDK-460: the two used to share one sentence and two click meanings.
     // Freshness (verdict · age) is the chip. The sidebar row is the
     // sync-history entry point and is labeled as itself.
+    // The chip's verdict is a function of the mirror's age, and the fixture's
+    // age is a function of when `make demo-fixture` last ran — so on a
+    // schemaVNN commit (regenerate, then run the gates) the fixture reads
+    // *fresh* and `sync.settledOk` has no separator to find. Measured
+    // 2026-09-09: "Synced 8m ago" (GDK-1670). Stale is the state this test is
+    // about, so say so instead of inheriting it from a file's mtime; the real
+    // response is patched rather than fabricated, so every other field stays
+    // the server's (freshness.spec.ts owns the tone cases).
+    const stale = async (route: import('@playwright/test').Route) => {
+      const res = await route.fetch()
+      const body = await res.json()
+      if (body.sync_health) {
+        body.sync_health.overall = 'warning'
+        body.sync_health.sources = (body.sync_health.sources ?? []).map((s: { status: string }) => ({
+          ...s,
+          status: 'stale',
+        }))
+      }
+      await route.fulfill({ response: res, json: body })
+    }
+    await page.route(`${apiURL('/api/v1/issues/')}bootstrap/**`, stale)
+    await page.route(`${apiURL('/api/v1/issues/')}delta/**`, stale)
+
     await gotoApp(page)
 
     const row = page.getByTestId('sidebar-sync-now')

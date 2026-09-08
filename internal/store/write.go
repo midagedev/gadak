@@ -1709,11 +1709,12 @@ func (db *DB) ReplaceAgile(ctx context.Context, sourceID string, boards []BoardR
 				board = s.BoardID
 			}
 			if _, err := tx.Exec(`
-				INSERT INTO sprints (source_id, id, board_id, name, goal, state, start_at, end_at, complete_at, activated_at)
-				VALUES (?,?,?,?,?,?,?,?,?,?)
+				INSERT INTO sprints (source_id, id, board_id, name, goal, state, start_at, end_at, complete_at, activated_at, external_id)
+				VALUES (?,?,?,?,?,?,?,?,?,?,?)
 				ON CONFLICT(source_id, id) DO NOTHING`,
 				sourceID, s.ID, board, s.Name, s.Goal, s.State,
 				nullIfEmpty(s.StartAt), nullIfEmpty(s.EndAt), nullIfEmpty(s.CompleteAt), nullIfEmpty(s.ActivatedAt),
+				s.ExternalID,
 			); err != nil {
 				return fmt.Errorf("sprint %d: %w", s.ID, err)
 			}

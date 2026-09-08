@@ -49,6 +49,36 @@ const queryTeams = `query Teams($after: String) {
   }
 }`
 
+// queryTeamCycles lists one team's cycles — the sprint listing of the Linear
+// sprint mapping (GDK-1667). The `team(id:)` root returns null for an unknown
+// or invisible team, which the client reports as zero cycles. first: 250 is
+// the package's max page size; a team with more cycles than that pages on.
+const queryTeamCycles = `query TeamCycles($team: String!, $after: String) {
+  team(id: $team) {
+    cycles(first: 250, after: $after) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      nodes {` + cycleSelection + `
+      }
+    }
+  }
+}`
+
+// cycleSelection is the cycle node of the listings and the cycle mutations —
+// the description (the sprint goal) is a listing fact, so it is requested
+// everywhere a whole cycle comes back. Issue.cycle requests the leaner ref
+// inline in issueSelection.
+const cycleSelection = `
+        id
+        number
+        name
+        description
+        startsAt
+        endsAt
+        completedAt`
+
 // queryWorkflowStates lists one team's status catalog. Filter shape verified
 // live: workflowStates(filter: {team: {id: {eq: "<uuid>"}}}) returns exactly
 // that team's states.
@@ -178,6 +208,14 @@ var issueSelection = `
         id
         identifier
       }
+      cycle {
+        id
+        number
+        name
+        startsAt
+        endsAt
+        completedAt
+      }
       comments(first: ` + strconv.Itoa(CommentsPageSize) + `) {
         pageInfo {
           hasNextPage
@@ -277,6 +315,29 @@ var mutIssueUpdate = `mutation IssueUpdate($id: String!, $input: IssueUpdateInpu
   issueUpdate(id: $id, input: $input) {
     success
     issue {` + issueSelection + `
+    }
+  }
+}`
+
+// mutCycleCreate files one cycle on a team. teamId and name are the fields
+// gadak's sprint create supplies; startsAt/endsAt are required by Linear's
+// own cycle UI convention and the adapter computes them (write.go).
+var mutCycleCreate = `mutation CycleCreate($input: CycleCreateInput!) {
+  cycleCreate(input: $input) {
+    success
+    cycle {` + cycleSelection + `
+    }
+  }
+}`
+
+// mutCycleUpdate patches one cycle by id — the rename and date edits of the
+// sprint verbs. CycleUpdateInput has no state field: a cycle starts and ends
+// by its dates, which is exactly why the sprint start/close verbs refuse on
+// Linear instead of mapping onto this mutation.
+var mutCycleUpdate = `mutation CycleUpdate($id: String!, $input: CycleUpdateInput!) {
+  cycleUpdate(id: $id, input: $input) {
+    success
+    cycle {` + cycleSelection + `
     }
   }
 }`
