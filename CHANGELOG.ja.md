@@ -61,6 +61,15 @@
   が導き出せませんでした。今は「標準の課題を子に持つタイプ」からエピックを判定
   します。リクエストは増えず、表示名である「Epic」という語にも依存しません。
   ([GDK-1658])
+- **origin が黙って捨てた書き込みを、成功として表示しなくなりました。** Jira
+  Server は標準の課題の `parent` に 204 を返し、何も変えません。そこでは
+  `parent` はサブタスクの項目で、エピックは Epic Link というカスタムフィールド
+  だからです。`edit --parent`（とウェブの親編集）は、Server では Epic Link を
+  送ります。Jira Software の入っていない Server では、名指しで断ります。そして
+  すべての `edit` が、書き込んだあとに読み直した行を、要求した値と突き合わせて
+  から表示します。前後で同じままの項目は、確認できたのではなく捨てられたものと
+  して報告します。 ([GDK-1645])
+
 - **ログインページを答えと取り違えることは、もうありません。** すべての REST
   呼び出しは JSON を要求しますが、Go はリダイレクトをたどります。そのため、
   リクエストをログインページに飛ばす origin は、そのページの HTML を 200 で返して
@@ -74,6 +83,32 @@
   突き合わせ、食い違えば何も書きません。`.html` の添付は今までどおりダウンロード
   でき、ダウンロードは、Cloud が正当に返すリダイレクトを今もたどります。
   ([GDK-1648], [GDK-1644])
+- **本文のない 201 は、ウェブページではありません。** Jira Server は `POST
+  /issueLink` に、201 と `text/html`、そして空の本文で答えます。ログインページを
+  拒否するガードがステータスコードとヘッダーで判定していたため、作成できていた
+  リンクが失敗として報告されていました。今は、どの場合でも一致するひとつの点、
+  本文があるかどうかだけを見ます。本文のない成功は、Content-Type が何であっても
+  通ります。 ([GDK-1662])
+
+- **Jira Data Center のレート制限は、壁に当たる前に読みます。** DC は応答ごとに
+  トークンバケットの残りをヘッダーで知らせますが、gadak は 429 を受け取ってから
+  しか反応していませんでした。Server クライアントは、残りが少ないときに知らされた
+  間隔だけ待つようになり、429 自身の Retry-After も引き続き守ります。待つのは
+  二度ではなく一度です。Cloud はこの種のヘッダーを出さないので、Cloud への
+  リクエストは変わりません。 ([GDK-1646])
+
+- **Jira Server / Data Center の列ができ、その列のセルはすべて実行して埋めま
+  した。** `docs/SUPPORT_MATRIX.md` は Jira Cloud、Jira Server、Linear、Built-in
+  の 4 つを並べます。Server のセルは、Jira Software 11.3.11 の Data Center ラボ
+  で得たものです。`tools/jira-server-lab/seed.sh` が行ごとに必要なデータを用意
+  し、`tools/jira-server-lab/measure.sh` が行ごとにコマンドを 1 つ実行して、その
+  出力を残します。インスタンスの立ち上げ方はランブックにあります。2 行は正直な
+  非対応です。Confluence Server のクライアントがないため、wiki がそれにあたりま
+  す。もう 2 行には限界が付いています。ボードとプロジェクトの対応が空であること
+  と、開発パネルの断り文がまだ Cloud のことを述べていることです。README とロード
+  マップ、製品仕様からは「検証していないので対応対象にしない」が外れました。
+  ([GDK-1634], [GDK-1641])
+
 - **スプリントが、キャッシュの中の対象になりました。** これまでスプリントは、
   課題ごとに投影された `sprint_id` / `sprint_name` / `sprint_state` としてしか
   存在しませんでした。課題がひとつも入っていないスプリントはそもそも存在せず、
@@ -85,6 +120,16 @@
   課題を読み直します。スプリントは Jira Software のものなので、Linear や内蔵
   ワークスペースは名指しで断ります。 ([GDK-1653], [GDK-1654], [GDK-1655],
   [GDK-1657])
+- **閉じたスプリントの完了課題が「active」のまま残ることは、もうありません。**
+  スプリントを閉じると、外に移されるのは未完了の課題だけです。完了した課題は
+  何も変わらないため、増分同期が読み直すこともなく、その行の `sprint_state` は
+  ずっと「active」のままでした。そのせいで、アクティブなスプリントを尋ねる
+  クエリはどれも、前のスプリントの完了分まで数えていました。スプリントの状態を
+  持つのは `sprints` テーブルひとつになりました。課題の行はティックごとにそこ
+  から `sprint_state` を取り、ボードとスプリントの一覧は、変化のないティックでも
+  読みます。スプリントの状態変化は、課題のウォーターマークには現れないから
+  です。 ([GDK-1661])
+
 - **スプリントのフィルターが、正反対の集合を問い合わせることはなくなりました。**
   スプリントの状態は、どれを選んでも JQL の `openSprints()` にコンパイルされて
   いました。この関数が選ぶのはアクティブなスプリントだけです (アクティブな
@@ -1293,15 +1338,6 @@ TUI に出るようになり、課題には正直なエピック階層が付き�
 タブ、保存したビューの sort / dir / group_by、そして `priority_rank` をキーに
 した優先度の並べ替えです。
 
-[GDK-1216]: https://gadak.dev/backlog/#/?ks=GDK-1216
-[GDK-1653]: https://gadak.dev/backlog/#/?ks=GDK-1653
-[GDK-1654]: https://gadak.dev/backlog/#/?ks=GDK-1654
-[GDK-1655]: https://gadak.dev/backlog/#/?ks=GDK-1655
-[GDK-1657]: https://gadak.dev/backlog/#/?ks=GDK-1657
-[GDK-1658]: https://gadak.dev/backlog/#/?ks=GDK-1658
-[GDK-1650]: https://gadak.dev/backlog/#/?ks=GDK-1650
-[GDK-1651]: https://gadak.dev/backlog/#/?ks=GDK-1651
-[GDK-1652]: https://gadak.dev/backlog/#/?ks=GDK-1652
 [GDK-19]: https://gadak.dev/backlog/#/?ks=GDK-19
 [GDK-23]: https://gadak.dev/backlog/#/?ks=GDK-23
 [GDK-24]: https://gadak.dev/backlog/#/?ks=GDK-24
@@ -1373,10 +1409,10 @@ TUI に出るようになり、課題には正直なエピック階層が付き�
 [GDK-190]: https://gadak.dev/backlog/#/?ks=GDK-190
 [GDK-191]: https://gadak.dev/backlog/#/?ks=GDK-191
 [GDK-193]: https://gadak.dev/backlog/#/?ks=GDK-193
+[GDK-202]: https://gadak.dev/backlog/#/?ks=GDK-202
 [GDK-208]: https://gadak.dev/backlog/#/?ks=GDK-208
 [GDK-209]: https://gadak.dev/backlog/#/?ks=GDK-209
 [GDK-211]: https://gadak.dev/backlog/#/?ks=GDK-211
-[GDK-1380]: https://gadak.dev/backlog/#/?ks=GDK-1380
 [GDK-213]: https://gadak.dev/backlog/#/?ks=GDK-213
 [GDK-214]: https://gadak.dev/backlog/#/?ks=GDK-214
 [GDK-215]: https://gadak.dev/backlog/#/?ks=GDK-215
@@ -1502,6 +1538,7 @@ TUI に出るようになり、課題には正直なエピック階層が付き�
 [GDK-591]: https://gadak.dev/backlog/#/?ks=GDK-591
 [GDK-592]: https://gadak.dev/backlog/#/?ks=GDK-592
 [GDK-593]: https://gadak.dev/backlog/#/?ks=GDK-593
+[GDK-594]: https://gadak.dev/backlog/#/?ks=GDK-594
 [GDK-597]: https://gadak.dev/backlog/#/?ks=GDK-597
 [GDK-598]: https://gadak.dev/backlog/#/?ks=GDK-598
 [GDK-599]: https://gadak.dev/backlog/#/?ks=GDK-599
@@ -1517,14 +1554,13 @@ TUI に出るようになり、課題には正直なエピック階層が付き�
 [GDK-676]: https://gadak.dev/backlog/#/?ks=GDK-676
 [GDK-677]: https://gadak.dev/backlog/#/?ks=GDK-677
 [GDK-678]: https://gadak.dev/backlog/#/?ks=GDK-678
+[GDK-700]: https://gadak.dev/backlog/#/?ks=GDK-700
 [GDK-711]: https://gadak.dev/backlog/#/?ks=GDK-711
+[GDK-737]: https://gadak.dev/backlog/#/?ks=GDK-737
 [GDK-738]: https://gadak.dev/backlog/#/?ks=GDK-738
 [GDK-739]: https://gadak.dev/backlog/#/?ks=GDK-739
 [GDK-740]: https://gadak.dev/backlog/#/?ks=GDK-740
-[GDK-737]: https://gadak.dev/backlog/#/?ks=GDK-737
-[GDK-700]: https://gadak.dev/backlog/#/?ks=GDK-700
-[GDK-771]: https://gadak.dev/backlog/#/?ks=GDK-771
-[GDK-202]: https://gadak.dev/backlog/#/?ks=GDK-202
+[GDK-741]: https://gadak.dev/backlog/#/?ks=GDK-741
 [GDK-747]: https://gadak.dev/backlog/#/?ks=GDK-747
 [GDK-748]: https://gadak.dev/backlog/#/?ks=GDK-748
 [GDK-749]: https://gadak.dev/backlog/#/?ks=GDK-749
@@ -1538,36 +1574,38 @@ TUI に出るようになり、課題には正直なエピック階層が付き�
 [GDK-758]: https://gadak.dev/backlog/#/?ks=GDK-758
 [GDK-766]: https://gadak.dev/backlog/#/?ks=GDK-766
 [GDK-770]: https://gadak.dev/backlog/#/?ks=GDK-770
+[GDK-771]: https://gadak.dev/backlog/#/?ks=GDK-771
+[GDK-781]: https://gadak.dev/backlog/#/?ks=GDK-781
+[GDK-782]: https://gadak.dev/backlog/#/?ks=GDK-782
 [GDK-785]: https://gadak.dev/backlog/#/?ks=GDK-785
 [GDK-786]: https://gadak.dev/backlog/#/?ks=GDK-786
 [GDK-787]: https://gadak.dev/backlog/#/?ks=GDK-787
 [GDK-791]: https://gadak.dev/backlog/#/?ks=GDK-791
-[GDK-781]: https://gadak.dev/backlog/#/?ks=GDK-781
-[GDK-782]: https://gadak.dev/backlog/#/?ks=GDK-782
 [GDK-792]: https://gadak.dev/backlog/#/?ks=GDK-792
 [GDK-793]: https://gadak.dev/backlog/#/?ks=GDK-793
-[GDK-808]: https://gadak.dev/backlog/#/?ks=GDK-808
+[GDK-796]: https://gadak.dev/backlog/#/?ks=GDK-796
 [GDK-797]: https://gadak.dev/backlog/#/?ks=GDK-797
 [GDK-798]: https://gadak.dev/backlog/#/?ks=GDK-798
-[GDK-800]: https://gadak.dev/backlog/#/?ks=GDK-800
-[GDK-594]: https://gadak.dev/backlog/#/?ks=GDK-594
-[GDK-809]: https://gadak.dev/backlog/#/?ks=GDK-809
-[GDK-810]: https://gadak.dev/backlog/#/?ks=GDK-810
-[GDK-796]: https://gadak.dev/backlog/#/?ks=GDK-796
 [GDK-799]: https://gadak.dev/backlog/#/?ks=GDK-799
+[GDK-800]: https://gadak.dev/backlog/#/?ks=GDK-800
 [GDK-801]: https://gadak.dev/backlog/#/?ks=GDK-801
 [GDK-802]: https://gadak.dev/backlog/#/?ks=GDK-802
-[GDK-837]: https://gadak.dev/backlog/#/?ks=GDK-837
-[GDK-824]: https://gadak.dev/backlog/#/?ks=GDK-824
+[GDK-805]: https://gadak.dev/backlog/#/?ks=GDK-805
+[GDK-808]: https://gadak.dev/backlog/#/?ks=GDK-808
+[GDK-809]: https://gadak.dev/backlog/#/?ks=GDK-809
+[GDK-810]: https://gadak.dev/backlog/#/?ks=GDK-810
 [GDK-814]: https://gadak.dev/backlog/#/?ks=GDK-814
 [GDK-815]: https://gadak.dev/backlog/#/?ks=GDK-815
 [GDK-816]: https://gadak.dev/backlog/#/?ks=GDK-816
 [GDK-817]: https://gadak.dev/backlog/#/?ks=GDK-817
 [GDK-821]: https://gadak.dev/backlog/#/?ks=GDK-821
+[GDK-824]: https://gadak.dev/backlog/#/?ks=GDK-824
 [GDK-827]: https://gadak.dev/backlog/#/?ks=GDK-827
 [GDK-828]: https://gadak.dev/backlog/#/?ks=GDK-828
 [GDK-829]: https://gadak.dev/backlog/#/?ks=GDK-829
 [GDK-831]: https://gadak.dev/backlog/#/?ks=GDK-831
+[GDK-835]: https://gadak.dev/backlog/#/?ks=GDK-835
+[GDK-837]: https://gadak.dev/backlog/#/?ks=GDK-837
 [GDK-842]: https://gadak.dev/backlog/#/?ks=GDK-842
 [GDK-849]: https://gadak.dev/backlog/#/?ks=GDK-849
 [GDK-850]: https://gadak.dev/backlog/#/?ks=GDK-850
@@ -1577,93 +1615,101 @@ TUI に出るようになり、課題には正直なエピック階層が付き�
 [GDK-856]: https://gadak.dev/backlog/#/?ks=GDK-856
 [GDK-857]: https://gadak.dev/backlog/#/?ks=GDK-857
 [GDK-858]: https://gadak.dev/backlog/#/?ks=GDK-858
-[GDK-862]: https://gadak.dev/backlog/#/?ks=GDK-862
-[GDK-863]: https://gadak.dev/backlog/#/?ks=GDK-863
-[GDK-883]: https://gadak.dev/backlog/#/?ks=GDK-883
-[GDK-864]: https://gadak.dev/backlog/#/?ks=GDK-864
-[GDK-835]: https://gadak.dev/backlog/#/?ks=GDK-835
-[GDK-892]: https://gadak.dev/backlog/#/?ks=GDK-892
-[GDK-895]: https://gadak.dev/backlog/#/?ks=GDK-895
-[GDK-865]: https://gadak.dev/backlog/#/?ks=GDK-865
-[GDK-805]: https://gadak.dev/backlog/#/?ks=GDK-805
-[GDK-964]: https://gadak.dev/backlog/#/?ks=GDK-964
-[GDK-956]: https://gadak.dev/backlog/#/?ks=GDK-956
-[GDK-950]: https://gadak.dev/backlog/#/?ks=GDK-950
-[GDK-960]: https://gadak.dev/backlog/#/?ks=GDK-960
-[GDK-981]: https://gadak.dev/backlog/#/?ks=GDK-981
-[GDK-944]: https://gadak.dev/backlog/#/?ks=GDK-944
-[GDK-967]: https://gadak.dev/backlog/#/?ks=GDK-967
-[GDK-968]: https://gadak.dev/backlog/#/?ks=GDK-968
-[GDK-971]: https://gadak.dev/backlog/#/?ks=GDK-971
-[GDK-975]: https://gadak.dev/backlog/#/?ks=GDK-975
-[GDK-980]: https://gadak.dev/backlog/#/?ks=GDK-980
-[GDK-963]: https://gadak.dev/backlog/#/?ks=GDK-963
-[GDK-741]: https://gadak.dev/backlog/#/?ks=GDK-741
-[GDK-946]: https://gadak.dev/backlog/#/?ks=GDK-946
-[GDK-947]: https://gadak.dev/backlog/#/?ks=GDK-947
 [GDK-859]: https://gadak.dev/backlog/#/?ks=GDK-859
 [GDK-860]: https://gadak.dev/backlog/#/?ks=GDK-860
+[GDK-862]: https://gadak.dev/backlog/#/?ks=GDK-862
+[GDK-863]: https://gadak.dev/backlog/#/?ks=GDK-863
+[GDK-864]: https://gadak.dev/backlog/#/?ks=GDK-864
+[GDK-865]: https://gadak.dev/backlog/#/?ks=GDK-865
+[GDK-867]: https://gadak.dev/backlog/#/?ks=GDK-867
+[GDK-870]: https://gadak.dev/backlog/#/?ks=GDK-870
+[GDK-871]: https://gadak.dev/backlog/#/?ks=GDK-871
+[GDK-879]: https://gadak.dev/backlog/#/?ks=GDK-879
 [GDK-880]: https://gadak.dev/backlog/#/?ks=GDK-880
+[GDK-883]: https://gadak.dev/backlog/#/?ks=GDK-883
 [GDK-884]: https://gadak.dev/backlog/#/?ks=GDK-884
 [GDK-885]: https://gadak.dev/backlog/#/?ks=GDK-885
 [GDK-886]: https://gadak.dev/backlog/#/?ks=GDK-886
 [GDK-887]: https://gadak.dev/backlog/#/?ks=GDK-887
 [GDK-888]: https://gadak.dev/backlog/#/?ks=GDK-888
+[GDK-892]: https://gadak.dev/backlog/#/?ks=GDK-892
+[GDK-895]: https://gadak.dev/backlog/#/?ks=GDK-895
+[GDK-899]: https://gadak.dev/backlog/#/?ks=GDK-899
 [GDK-905]: https://gadak.dev/backlog/#/?ks=GDK-905
 [GDK-906]: https://gadak.dev/backlog/#/?ks=GDK-906
 [GDK-907]: https://gadak.dev/backlog/#/?ks=GDK-907
 [GDK-908]: https://gadak.dev/backlog/#/?ks=GDK-908
 [GDK-910]: https://gadak.dev/backlog/#/?ks=GDK-910
-[GDK-867]: https://gadak.dev/backlog/#/?ks=GDK-867
-[GDK-870]: https://gadak.dev/backlog/#/?ks=GDK-870
-[GDK-879]: https://gadak.dev/backlog/#/?ks=GDK-879
+[GDK-944]: https://gadak.dev/backlog/#/?ks=GDK-944
+[GDK-946]: https://gadak.dev/backlog/#/?ks=GDK-946
+[GDK-947]: https://gadak.dev/backlog/#/?ks=GDK-947
+[GDK-950]: https://gadak.dev/backlog/#/?ks=GDK-950
+[GDK-956]: https://gadak.dev/backlog/#/?ks=GDK-956
+[GDK-960]: https://gadak.dev/backlog/#/?ks=GDK-960
+[GDK-963]: https://gadak.dev/backlog/#/?ks=GDK-963
+[GDK-964]: https://gadak.dev/backlog/#/?ks=GDK-964
+[GDK-967]: https://gadak.dev/backlog/#/?ks=GDK-967
+[GDK-968]: https://gadak.dev/backlog/#/?ks=GDK-968
+[GDK-971]: https://gadak.dev/backlog/#/?ks=GDK-971
+[GDK-974]: https://gadak.dev/backlog/#/?ks=GDK-974
+[GDK-975]: https://gadak.dev/backlog/#/?ks=GDK-975
+[GDK-980]: https://gadak.dev/backlog/#/?ks=GDK-980
+[GDK-981]: https://gadak.dev/backlog/#/?ks=GDK-981
+[GDK-992]: https://gadak.dev/backlog/#/?ks=GDK-992
+[GDK-996]: https://gadak.dev/backlog/#/?ks=GDK-996
+[GDK-1001]: https://gadak.dev/backlog/#/?ks=GDK-1001
+[GDK-1024]: https://gadak.dev/backlog/#/?ks=GDK-1024
+[GDK-1030]: https://gadak.dev/backlog/#/?ks=GDK-1030
+[GDK-1032]: https://gadak.dev/backlog/#/?ks=GDK-1032
+[GDK-1047]: https://gadak.dev/backlog/#/?ks=GDK-1047
+[GDK-1051]: https://gadak.dev/backlog/#/?ks=GDK-1051
+[GDK-1074]: https://gadak.dev/backlog/#/?ks=GDK-1074
+[GDK-1075]: https://gadak.dev/backlog/#/?ks=GDK-1075
+[GDK-1096]: https://gadak.dev/backlog/#/?ks=GDK-1096
+[GDK-1097]: https://gadak.dev/backlog/#/?ks=GDK-1097
+[GDK-1098]: https://gadak.dev/backlog/#/?ks=GDK-1098
+[GDK-1122]: https://gadak.dev/backlog/#/?ks=GDK-1122
+[GDK-1128]: https://gadak.dev/backlog/#/?ks=GDK-1128
+[GDK-1149]: https://gadak.dev/backlog/#/?ks=GDK-1149
+[GDK-1158]: https://gadak.dev/backlog/#/?ks=GDK-1158
+[GDK-1172]: https://gadak.dev/backlog/#/?ks=GDK-1172
+[GDK-1174]: https://gadak.dev/backlog/#/?ks=GDK-1174
 [GDK-1175]: https://gadak.dev/backlog/#/?ks=GDK-1175
 [GDK-1176]: https://gadak.dev/backlog/#/?ks=GDK-1176
-[GDK-1190]: https://gadak.dev/backlog/#/?ks=GDK-1190
-[GDK-1248]: https://gadak.dev/backlog/#/?ks=GDK-1248
-[GDK-1024]: https://gadak.dev/backlog/#/?ks=GDK-1024
-[GDK-1158]: https://gadak.dev/backlog/#/?ks=GDK-1158
-[GDK-1196]: https://gadak.dev/backlog/#/?ks=GDK-1196
-[GDK-1197]: https://gadak.dev/backlog/#/?ks=GDK-1197
-[GDK-1194]: https://gadak.dev/backlog/#/?ks=GDK-1194
-[GDK-1199]: https://gadak.dev/backlog/#/?ks=GDK-1199
-[GDK-1200]: https://gadak.dev/backlog/#/?ks=GDK-1200
-[GDK-1250]: https://gadak.dev/backlog/#/?ks=GDK-1250
-[GDK-1251]: https://gadak.dev/backlog/#/?ks=GDK-1251
-[GDK-1097]: https://gadak.dev/backlog/#/?ks=GDK-1097
-[GDK-1096]: https://gadak.dev/backlog/#/?ks=GDK-1096
-[GDK-1098]: https://gadak.dev/backlog/#/?ks=GDK-1098
-[GDK-1051]: https://gadak.dev/backlog/#/?ks=GDK-1051
-[GDK-871]: https://gadak.dev/backlog/#/?ks=GDK-871
-[GDK-899]: https://gadak.dev/backlog/#/?ks=GDK-899
-[GDK-992]: https://gadak.dev/backlog/#/?ks=GDK-992
-[GDK-1030]: https://gadak.dev/backlog/#/?ks=GDK-1030
-[GDK-1205]: https://gadak.dev/backlog/#/?ks=GDK-1205
-[GDK-1001]: https://gadak.dev/backlog/#/?ks=GDK-1001
-[GDK-1234]: https://gadak.dev/backlog/#/?ks=GDK-1234
-[GDK-1233]: https://gadak.dev/backlog/#/?ks=GDK-1233
-[GDK-1244]: https://gadak.dev/backlog/#/?ks=GDK-1244
-[GDK-1243]: https://gadak.dev/backlog/#/?ks=GDK-1243
-[GDK-1235]: https://gadak.dev/backlog/#/?ks=GDK-1235
-[GDK-1075]: https://gadak.dev/backlog/#/?ks=GDK-1075
-[GDK-1074]: https://gadak.dev/backlog/#/?ks=GDK-1074
-[GDK-1047]: https://gadak.dev/backlog/#/?ks=GDK-1047
-[GDK-1246]: https://gadak.dev/backlog/#/?ks=GDK-1246
-[GDK-1122]: https://gadak.dev/backlog/#/?ks=GDK-1122
-[GDK-996]: https://gadak.dev/backlog/#/?ks=GDK-996
-[GDK-1128]: https://gadak.dev/backlog/#/?ks=GDK-1128
-[GDK-1204]: https://gadak.dev/backlog/#/?ks=GDK-1204
-[GDK-974]: https://gadak.dev/backlog/#/?ks=GDK-974
-[GDK-1174]: https://gadak.dev/backlog/#/?ks=GDK-1174
 [GDK-1180]: https://gadak.dev/backlog/#/?ks=GDK-1180
 [GDK-1182]: https://gadak.dev/backlog/#/?ks=GDK-1182
+[GDK-1186]: https://gadak.dev/backlog/#/?ks=GDK-1186
+[GDK-1190]: https://gadak.dev/backlog/#/?ks=GDK-1190
+[GDK-1192]: https://gadak.dev/backlog/#/?ks=GDK-1192
+[GDK-1194]: https://gadak.dev/backlog/#/?ks=GDK-1194
+[GDK-1195]: https://gadak.dev/backlog/#/?ks=GDK-1195
+[GDK-1196]: https://gadak.dev/backlog/#/?ks=GDK-1196
+[GDK-1197]: https://gadak.dev/backlog/#/?ks=GDK-1197
+[GDK-1199]: https://gadak.dev/backlog/#/?ks=GDK-1199
+[GDK-1200]: https://gadak.dev/backlog/#/?ks=GDK-1200
+[GDK-1204]: https://gadak.dev/backlog/#/?ks=GDK-1204
+[GDK-1205]: https://gadak.dev/backlog/#/?ks=GDK-1205
+[GDK-1216]: https://gadak.dev/backlog/#/?ks=GDK-1216
+[GDK-1233]: https://gadak.dev/backlog/#/?ks=GDK-1233
+[GDK-1234]: https://gadak.dev/backlog/#/?ks=GDK-1234
+[GDK-1235]: https://gadak.dev/backlog/#/?ks=GDK-1235
+[GDK-1243]: https://gadak.dev/backlog/#/?ks=GDK-1243
+[GDK-1244]: https://gadak.dev/backlog/#/?ks=GDK-1244
+[GDK-1246]: https://gadak.dev/backlog/#/?ks=GDK-1246
+[GDK-1248]: https://gadak.dev/backlog/#/?ks=GDK-1248
+[GDK-1250]: https://gadak.dev/backlog/#/?ks=GDK-1250
+[GDK-1251]: https://gadak.dev/backlog/#/?ks=GDK-1251
 [GDK-1256]: https://gadak.dev/backlog/#/?ks=GDK-1256
 [GDK-1258]: https://gadak.dev/backlog/#/?ks=GDK-1258
+[GDK-1259]: https://gadak.dev/backlog/#/?ks=GDK-1259
 [GDK-1264]: https://gadak.dev/backlog/#/?ks=GDK-1264
+[GDK-1265]: https://gadak.dev/backlog/#/?ks=GDK-1265
+[GDK-1266]: https://gadak.dev/backlog/#/?ks=GDK-1266
 [GDK-1269]: https://gadak.dev/backlog/#/?ks=GDK-1269
 [GDK-1270]: https://gadak.dev/backlog/#/?ks=GDK-1270
-[GDK-1032]: https://gadak.dev/backlog/#/?ks=GDK-1032
 [GDK-1275]: https://gadak.dev/backlog/#/?ks=GDK-1275
+[GDK-1276]: https://gadak.dev/backlog/#/?ks=GDK-1276
+[GDK-1277]: https://gadak.dev/backlog/#/?ks=GDK-1277
 [GDK-1278]: https://gadak.dev/backlog/#/?ks=GDK-1278
 [GDK-1279]: https://gadak.dev/backlog/#/?ks=GDK-1279
 [GDK-1280]: https://gadak.dev/backlog/#/?ks=GDK-1280
@@ -1671,21 +1717,23 @@ TUI に出るようになり、課題には正直なエピック階層が付き�
 [GDK-1282]: https://gadak.dev/backlog/#/?ks=GDK-1282
 [GDK-1283]: https://gadak.dev/backlog/#/?ks=GDK-1283
 [GDK-1284]: https://gadak.dev/backlog/#/?ks=GDK-1284
-[GDK-1149]: https://gadak.dev/backlog/#/?ks=GDK-1149
-[GDK-1265]: https://gadak.dev/backlog/#/?ks=GDK-1265
-[GDK-1266]: https://gadak.dev/backlog/#/?ks=GDK-1266
-[GDK-1276]: https://gadak.dev/backlog/#/?ks=GDK-1276
-[GDK-1277]: https://gadak.dev/backlog/#/?ks=GDK-1277
 [GDK-1285]: https://gadak.dev/backlog/#/?ks=GDK-1285
 [GDK-1286]: https://gadak.dev/backlog/#/?ks=GDK-1286
 [GDK-1287]: https://gadak.dev/backlog/#/?ks=GDK-1287
 [GDK-1288]: https://gadak.dev/backlog/#/?ks=GDK-1288
+[GDK-1289]: https://gadak.dev/backlog/#/?ks=GDK-1289
 [GDK-1290]: https://gadak.dev/backlog/#/?ks=GDK-1290
 [GDK-1291]: https://gadak.dev/backlog/#/?ks=GDK-1291
 [GDK-1294]: https://gadak.dev/backlog/#/?ks=GDK-1294
+[GDK-1295]: https://gadak.dev/backlog/#/?ks=GDK-1295
 [GDK-1296]: https://gadak.dev/backlog/#/?ks=GDK-1296
+[GDK-1297]: https://gadak.dev/backlog/#/?ks=GDK-1297
+[GDK-1299]: https://gadak.dev/backlog/#/?ks=GDK-1299
 [GDK-1300]: https://gadak.dev/backlog/#/?ks=GDK-1300
 [GDK-1302]: https://gadak.dev/backlog/#/?ks=GDK-1302
+[GDK-1305]: https://gadak.dev/backlog/#/?ks=GDK-1305
+[GDK-1306]: https://gadak.dev/backlog/#/?ks=GDK-1306
+[GDK-1307]: https://gadak.dev/backlog/#/?ks=GDK-1307
 [GDK-1308]: https://gadak.dev/backlog/#/?ks=GDK-1308
 [GDK-1309]: https://gadak.dev/backlog/#/?ks=GDK-1309
 [GDK-1311]: https://gadak.dev/backlog/#/?ks=GDK-1311
@@ -1705,23 +1753,26 @@ TUI に出るようになり、課題には正直なエピック階層が付き�
 [GDK-1343]: https://gadak.dev/backlog/#/?ks=GDK-1343
 [GDK-1344]: https://gadak.dev/backlog/#/?ks=GDK-1344
 [GDK-1345]: https://gadak.dev/backlog/#/?ks=GDK-1345
+[GDK-1347]: https://gadak.dev/backlog/#/?ks=GDK-1347
 [GDK-1348]: https://gadak.dev/backlog/#/?ks=GDK-1348
+[GDK-1351]: https://gadak.dev/backlog/#/?ks=GDK-1351
 [GDK-1352]: https://gadak.dev/backlog/#/?ks=GDK-1352
 [GDK-1353]: https://gadak.dev/backlog/#/?ks=GDK-1353
 [GDK-1354]: https://gadak.dev/backlog/#/?ks=GDK-1354
 [GDK-1355]: https://gadak.dev/backlog/#/?ks=GDK-1355
+[GDK-1356]: https://gadak.dev/backlog/#/?ks=GDK-1356
 [GDK-1357]: https://gadak.dev/backlog/#/?ks=GDK-1357
 [GDK-1358]: https://gadak.dev/backlog/#/?ks=GDK-1358
 [GDK-1359]: https://gadak.dev/backlog/#/?ks=GDK-1359
 [GDK-1360]: https://gadak.dev/backlog/#/?ks=GDK-1360
 [GDK-1361]: https://gadak.dev/backlog/#/?ks=GDK-1361
 [GDK-1362]: https://gadak.dev/backlog/#/?ks=GDK-1362
+[GDK-1380]: https://gadak.dev/backlog/#/?ks=GDK-1380
 [GDK-1382]: https://gadak.dev/backlog/#/?ks=GDK-1382
 [GDK-1383]: https://gadak.dev/backlog/#/?ks=GDK-1383
 [GDK-1384]: https://gadak.dev/backlog/#/?ks=GDK-1384
-[GDK-1386]: https://gadak.dev/backlog/#/?ks=GDK-1386
 [GDK-1385]: https://gadak.dev/backlog/#/?ks=GDK-1385
-[GDK-1195]: https://gadak.dev/backlog/#/?ks=GDK-1195
+[GDK-1386]: https://gadak.dev/backlog/#/?ks=GDK-1386
 [GDK-1387]: https://gadak.dev/backlog/#/?ks=GDK-1387
 [GDK-1388]: https://gadak.dev/backlog/#/?ks=GDK-1388
 [GDK-1390]: https://gadak.dev/backlog/#/?ks=GDK-1390
@@ -1729,22 +1780,8 @@ TUI に出るようになり、課題には正直なエピック階層が付き�
 [GDK-1394]: https://gadak.dev/backlog/#/?ks=GDK-1394
 [GDK-1395]: https://gadak.dev/backlog/#/?ks=GDK-1395
 [GDK-1396]: https://gadak.dev/backlog/#/?ks=GDK-1396
-[GDK-1347]: https://gadak.dev/backlog/#/?ks=GDK-1347
-[GDK-1259]: https://gadak.dev/backlog/#/?ks=GDK-1259
-[GDK-1351]: https://gadak.dev/backlog/#/?ks=GDK-1351
 [GDK-1398]: https://gadak.dev/backlog/#/?ks=GDK-1398
-[GDK-1192]: https://gadak.dev/backlog/#/?ks=GDK-1192
-[GDK-1299]: https://gadak.dev/backlog/#/?ks=GDK-1299
-[GDK-1172]: https://gadak.dev/backlog/#/?ks=GDK-1172
-[GDK-1289]: https://gadak.dev/backlog/#/?ks=GDK-1289
 [GDK-1399]: https://gadak.dev/backlog/#/?ks=GDK-1399
-[GDK-1297]: https://gadak.dev/backlog/#/?ks=GDK-1297
-[GDK-1307]: https://gadak.dev/backlog/#/?ks=GDK-1307
-[GDK-1305]: https://gadak.dev/backlog/#/?ks=GDK-1305
-[GDK-1306]: https://gadak.dev/backlog/#/?ks=GDK-1306
-[GDK-1295]: https://gadak.dev/backlog/#/?ks=GDK-1295
-[GDK-1186]: https://gadak.dev/backlog/#/?ks=GDK-1186
-[GDK-1356]: https://gadak.dev/backlog/#/?ks=GDK-1356
 [GDK-1400]: https://gadak.dev/backlog/#/?ks=GDK-1400
 [GDK-1401]: https://gadak.dev/backlog/#/?ks=GDK-1401
 [GDK-1491]: https://gadak.dev/backlog/#/?ks=GDK-1491
@@ -1755,17 +1792,31 @@ TUI に出るようになり、課題には正直なエピック階層が付き�
 [GDK-1501]: https://gadak.dev/backlog/#/?ks=GDK-1501
 [GDK-1508]: https://gadak.dev/backlog/#/?ks=GDK-1508
 [GDK-1537]: https://gadak.dev/backlog/#/?ks=GDK-1537
-[GDK-1635]: https://gadak.dev/backlog/#/?ks=GDK-1635
-[GDK-1640]: https://gadak.dev/backlog/#/?ks=GDK-1640
-[GDK-1636]: https://gadak.dev/backlog/#/?ks=GDK-1636
-[GDK-1638]: https://gadak.dev/backlog/#/?ks=GDK-1638
-[GDK-1644]: https://gadak.dev/backlog/#/?ks=GDK-1644
-[GDK-1639]: https://gadak.dev/backlog/#/?ks=GDK-1639
-[GDK-1637]: https://gadak.dev/backlog/#/?ks=GDK-1637
-[GDK-1647]: https://gadak.dev/backlog/#/?ks=GDK-1647
-[GDK-1648]: https://gadak.dev/backlog/#/?ks=GDK-1648
+[GDK-1601]: https://gadak.dev/backlog/#/?ks=GDK-1601
 [GDK-1617]: https://gadak.dev/backlog/#/?ks=GDK-1617
+[GDK-1622]: https://gadak.dev/backlog/#/?ks=GDK-1622
 [GDK-1626]: https://gadak.dev/backlog/#/?ks=GDK-1626
 [GDK-1633]: https://gadak.dev/backlog/#/?ks=GDK-1633
-[GDK-1601]: https://gadak.dev/backlog/#/?ks=GDK-1601
-[GDK-1622]: https://gadak.dev/backlog/#/?ks=GDK-1622
+[GDK-1634]: https://gadak.dev/backlog/#/?ks=GDK-1634
+[GDK-1635]: https://gadak.dev/backlog/#/?ks=GDK-1635
+[GDK-1636]: https://gadak.dev/backlog/#/?ks=GDK-1636
+[GDK-1637]: https://gadak.dev/backlog/#/?ks=GDK-1637
+[GDK-1638]: https://gadak.dev/backlog/#/?ks=GDK-1638
+[GDK-1639]: https://gadak.dev/backlog/#/?ks=GDK-1639
+[GDK-1640]: https://gadak.dev/backlog/#/?ks=GDK-1640
+[GDK-1641]: https://gadak.dev/backlog/#/?ks=GDK-1641
+[GDK-1644]: https://gadak.dev/backlog/#/?ks=GDK-1644
+[GDK-1645]: https://gadak.dev/backlog/#/?ks=GDK-1645
+[GDK-1646]: https://gadak.dev/backlog/#/?ks=GDK-1646
+[GDK-1647]: https://gadak.dev/backlog/#/?ks=GDK-1647
+[GDK-1648]: https://gadak.dev/backlog/#/?ks=GDK-1648
+[GDK-1650]: https://gadak.dev/backlog/#/?ks=GDK-1650
+[GDK-1651]: https://gadak.dev/backlog/#/?ks=GDK-1651
+[GDK-1652]: https://gadak.dev/backlog/#/?ks=GDK-1652
+[GDK-1653]: https://gadak.dev/backlog/#/?ks=GDK-1653
+[GDK-1654]: https://gadak.dev/backlog/#/?ks=GDK-1654
+[GDK-1655]: https://gadak.dev/backlog/#/?ks=GDK-1655
+[GDK-1657]: https://gadak.dev/backlog/#/?ks=GDK-1657
+[GDK-1658]: https://gadak.dev/backlog/#/?ks=GDK-1658
+[GDK-1661]: https://gadak.dev/backlog/#/?ks=GDK-1661
+[GDK-1662]: https://gadak.dev/backlog/#/?ks=GDK-1662
