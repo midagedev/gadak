@@ -117,8 +117,8 @@ func Emit(f Filter, d Display, opts EmitOpts) (string, []string) {
 	if len(f.SprintIDs) > 0 {
 		parts = append(parts, inClause("sprint", f.SprintIDs))
 	}
-	if len(f.SprintState) > 0 {
-		parts = append(parts, "sprint in openSprints()")
+	if c := sprintStateClause(f.SprintState); c != "" {
+		parts = append(parts, c)
 	}
 	parts = append(parts, dateClause("created", f.CreatedFrom, f.CreatedTo)...)
 	parts = append(parts, dateClause("updated", f.UpdatedFrom, f.UpdatedTo)...)
@@ -268,4 +268,37 @@ func isReserved(s string) bool {
 		return true
 	}
 	return false
+}
+
+// sprintStateClause maps the mirror's sprint states onto JQL's sprint
+// functions. openSprints() is active only — measured on Jira 11.3.11 with
+// one active and one future sprint: openSprints() returned the active one's
+// issue and futureSprints() the other's (GDK-1216). Emitting openSprints()
+// for every value, as this did, meant a `closed` filter asked for exactly
+// the opposite set. A value with no function is refused by emitting nothing
+// rather than by guessing.
+func sprintStateClause(states []string) string {
+	fn := map[string]string{
+		"active": "openSprints()",
+		"future": "futureSprints()",
+		"closed": "closedSprints()",
+	}
+	seen := map[string]bool{}
+	var clauses []string
+	for _, st := range states {
+		f, ok := fn[strings.ToLower(strings.TrimSpace(st))]
+		if !ok || seen[f] {
+			continue
+		}
+		seen[f] = true
+		clauses = append(clauses, "sprint in "+f)
+	}
+	switch len(clauses) {
+	case 0:
+		return ""
+	case 1:
+		return clauses[0]
+	default:
+		return "(" + strings.Join(clauses, " OR ") + ")"
+	}
 }

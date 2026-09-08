@@ -4,6 +4,12 @@
 
 ## Unreleased
 
+- **A sprint filter no longer asks for the opposite set.** Every sprint state
+  compiled to JQL's `openSprints()`, which — measured on Jira 11.3.11 with one
+  active sprint and one future one — selects the active sprint alone. A saved
+  view filtered on closed sprints therefore asked for open ones. Each state
+  now emits its own function, and the parser reads all three back, so a filter
+  survives the round trip instead of vanishing. ([GDK-1216])
 - **Sprints are objects now, not three strings on an issue.** A sprint used
   to exist only as `sprint_id` / `sprint_name` / `sprint_state` projected onto
   each issue, so a sprint holding no issues did not exist at all, and its
@@ -1271,6 +1277,7 @@ and the storage schema plus the HTTP, sync and agent contracts.
 - The storage schema, plus HTTP, sync and agent contracts, and the SQLite
   implementation with WAL, FTS5, and the derived-field calculator.
 
+[GDK-1216]: https://gadak.dev/backlog/#/?ks=GDK-1216
 [GDK-1653]: https://gadak.dev/backlog/#/?ks=GDK-1653
 [GDK-1654]: https://gadak.dev/backlog/#/?ks=GDK-1654
 [GDK-1655]: https://gadak.dev/backlog/#/?ks=GDK-1655

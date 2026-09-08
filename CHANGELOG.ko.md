@@ -4,6 +4,11 @@
 
 ## Unreleased
 
+- **스프린트 필터가 정반대 집합을 묻던 것.** 스프린트 상태가 무엇이든 JQL
+  `openSprints()` 로 컴파일됐다. 그 함수는 — 활성 하나·미래 하나를 놓고 Jira
+  11.3.11 에서 실측한 결과 — 활성 스프린트만 고른다. 그래서 닫힌 스프린트로
+  거른 저장된 뷰가 열린 것을 물었다. 이제 상태마다 자기 함수를 내고, 파서가
+  셋을 다 읽는다 — 필터가 왕복에서 사라지지 않는다. ([GDK-1216])
 - **스프린트가 이제 이슈에 붙은 문자열 셋이 아니라 개체다.** 지금까지
   스프린트는 이슈마다 투영된 `sprint_id`·`sprint_name`·`sprint_state` 로만
   존재했다. 그래서 이슈가 하나도 없는 스프린트는 아예 없는 것이었고, 목표도
@@ -1201,6 +1206,7 @@ HTTP·sync·에이전트 계약을 담았습니다.
 - 저장 스키마와 HTTP·sync·에이전트 계약, 그리고 WAL, FTS5, 파생 필드 계산기를
   갖춘 SQLite 구현.
 
+[GDK-1216]: https://gadak.dev/backlog/#/?ks=GDK-1216
 [GDK-1653]: https://gadak.dev/backlog/#/?ks=GDK-1653
 [GDK-1654]: https://gadak.dev/backlog/#/?ks=GDK-1654
 [GDK-1655]: https://gadak.dev/backlog/#/?ks=GDK-1655

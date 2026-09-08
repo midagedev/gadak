@@ -702,10 +702,14 @@ func TestSprintEqualsAndInAndOpenSprints(t *testing.T) {
 	}
 }
 
+// closedSprints() and futureSprints() left this list when emit.go started
+// writing them (GDK-1216): a filter gadak emits and cannot read back is a
+// filter that vanishes on the next round trip, which
+// TestSprintStateRoundTrips below is the FAIL-first for. Sprint by display
+// name and `!=` stay unsupported — those are not derivable.
 func TestSprintNameAndClosedStayUnsupported(t *testing.T) {
 	for _, q := range []string{
 		`sprint = "Sprint 41"`,
-		`sprint in closedSprints()`,
 		`sprint != 12`,
 	} {
 		res := Parse(q, fixedOpts())
@@ -1227,5 +1231,27 @@ func TestEmitSourceProjectAndNotBothOmitted(t *testing.T) {
 	}
 	if strings.Join(omitted, ",") != "source_project,source_project_not" {
 		t.Fatalf("omitted %v", omitted)
+	}
+}
+
+// TestSprintStateRoundTrips: emit then parse must give back the same states.
+// Before GDK-1216 this lost `closed` and `future` entirely — emit wrote the
+// function, the parser refused it, and the filter came back empty.
+func TestSprintStateRoundTrips(t *testing.T) {
+	for _, states := range [][]string{{"active"}, {"future"}, {"closed"}, {"active", "future"}} {
+		q, _ := Emit(Filter{SprintState: states}, Display{}, EmitOpts{})
+		res := Parse(q, fixedOpts())
+		if res.Error != "" {
+			t.Fatalf("%v emitted %q which does not parse: %s", states, q, res.Message)
+		}
+		got := res.Filters.SprintState
+		if len(got) != len(states) {
+			t.Fatalf("%v emitted %q, parsed back as %v", states, q, got)
+		}
+		for _, want := range states {
+			if !containsFold(got, want) {
+				t.Fatalf("%v emitted %q, parsed back as %v (missing %s)", states, q, got, want)
+			}
+		}
 	}
 }

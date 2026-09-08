@@ -626,11 +626,16 @@ func (c *compiler) compileSprint(cl *clause) {
 		return
 	}
 	var ids []string
-	open := false
+	var states []string
 	for _, v := range cl.values {
 		if v.kind == valFunc {
-			if strings.EqualFold(v.funcName, "openSprints") && len(v.args) == 0 && cl.op == opIn {
-				open = true
+			// The three sprint functions, measured on Jira 11.3.11:
+			// openSprints() is active only, future and closed have their own
+			// (GDK-1216). emit.go writes all three; refusing to read two of
+			// them made a round trip through gadak lose the filter.
+			st := sprintFuncState(v.funcName)
+			if st != "" && len(v.args) == 0 && cl.op == opIn {
+				states = append(states, st)
 				continue
 			}
 			c.skip(cl.render() + " (not in the subset)")
@@ -646,12 +651,12 @@ func (c *compiler) compileSprint(cl *clause) {
 		}
 		ids = append(ids, s)
 	}
-	if open && len(ids) > 0 {
+	if len(states) > 0 && len(ids) > 0 {
 		c.skip(cl.render() + " (not in the subset)")
 		return
 	}
-	if open {
-		c.f.SprintState = mergeUnique(c.f.SprintState, []string{"active"})
+	if len(states) > 0 {
+		c.f.SprintState = mergeUnique(c.f.SprintState, states)
 		c.mark("sprint")
 		return
 	}
@@ -901,4 +906,18 @@ func mergeUniqueUpper(dst, src []string) []string {
 		dst = append(dst, k)
 	}
 	return dst
+}
+
+// sprintFuncState names the sprint state each JQL sprint function selects,
+// or "" for anything else.
+func sprintFuncState(name string) string {
+	switch {
+	case strings.EqualFold(name, "openSprints"):
+		return "active"
+	case strings.EqualFold(name, "futureSprints"):
+		return "future"
+	case strings.EqualFold(name, "closedSprints"):
+		return "closed"
+	}
+	return ""
 }
