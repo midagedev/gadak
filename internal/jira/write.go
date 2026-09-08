@@ -313,6 +313,9 @@ func (c *Client) SetAssignee(ctx context.Context, key, id string) error {
 // UpdateFields sets raw field values. The caller is responsible for the shape
 // each field id expects, which EditMeta describes.
 func (c *Client) UpdateFields(ctx context.Context, key string, fields map[string]any) error {
+	if err := c.serverParent(ctx, fields, func() (bool, error) { return c.isSubtask(ctx, key) }); err != nil {
+		return err
+	}
 	body := map[string]any{"fields": fields}
 	return c.write(ctx, http.MethodPut, fmt.Sprintf("%s/issue/%s", c.apiBase, url.PathEscape(key)), body, nil)
 }
@@ -320,6 +323,9 @@ func (c *Client) UpdateFields(ctx context.Context, key string, fields map[string
 // EditIssue PUTs /issue/{key} with fields and/or update. Either map may be
 // empty; empty maps are omitted so a labels-only edit is {"update":…} only.
 func (c *Client) EditIssue(ctx context.Context, key string, fields, update map[string]any) error {
+	if err := c.serverParent(ctx, fields, func() (bool, error) { return c.isSubtask(ctx, key) }); err != nil {
+		return err
+	}
 	body := map[string]any{}
 	if len(fields) > 0 {
 		body["fields"] = fields
@@ -360,6 +366,9 @@ func (c *Client) EditMeta(ctx context.Context, key string) (map[string]FieldMeta
 func (c *Client) CreateIssue(ctx context.Context, fields map[string]any) (string, error) {
 	var out struct {
 		Key string `json:"key"`
+	}
+	if err := c.serverParent(ctx, fields, func() (bool, error) { return c.isSubtaskType(ctx, fields) }); err != nil {
+		return "", err
 	}
 	return out.Key, c.write(ctx, http.MethodPost, c.apiBase+"/issue", map[string]any{"fields": fields}, &out)
 }

@@ -404,3 +404,105 @@ func TestServerSetAssigneeSendsNameField(t *testing.T) {
 		}
 	}
 }
+
+// GDK-1645: Jira Server keys a standard issue's epic in the Epic Link custom
+// field; fields.parent there is a sub-task's, and for a standard issue the
+// origin answers 204 and drops it (measured). The client rewrites parent
+// into the Epic Link field for a non-sub-task — create, edit and the web's
+// parent editor all pass through the same three methods.
+func TestServerParentBecomesEpicLinkForStandardIssue(t *testing.T) {
+	var put map[string]any
+	c := serverTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/rest/api/2/field":
+			w.Write([]byte(`[{"id":"summary","name":"Summary","schema":{"type":"string"}},
+				{"id":"customfield_10100","name":"Epic Link","custom":true,"schema":{"type":"any","custom":"com.pyxis.greenhopper.jira:gh-epic-link"}}]`))
+		case r.Method == http.MethodGet && r.URL.Path == "/rest/api/2/issue/SCR-3":
+			w.Write([]byte(`{"key":"SCR-3","fields":{"issuetype":{"id":"10001","subtask":false}}}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/rest/api/2/issue/SCR-9":
+			w.Write([]byte(`{"key":"SCR-9","fields":{"issuetype":{"id":"10003","subtask":true}}}`))
+		case r.Method == http.MethodPut && strings.HasPrefix(r.URL.Path, "/rest/api/2/issue/"):
+			put = nil
+			json.NewDecoder(r.Body).Decode(&put)
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+			http.Error(w, "no", http.StatusNotFound)
+		}
+	}))
+	ctx := context.Background()
+	if err := c.EditIssue(ctx, "SCR-3", map[string]any{"parent": map[string]string{"key": "SCR-7"}}, nil); err != nil {
+		t.Fatal(err)
+	}
+	f, _ := put["fields"].(map[string]any)
+	if _, has := f["parent"]; has {
+		t.Errorf("a standard issue's PUT still carries fields.parent: %v — Server drops that silently", f)
+	}
+	if got := f["customfield_10100"]; got != "SCR-7" {
+		t.Errorf("Epic Link field = %v, want the epic key string SCR-7", got)
+	}
+	// Clearing goes to the same field as null.
+	if err := c.UpdateFields(ctx, "SCR-3", map[string]any{"parent": nil}); err != nil {
+		t.Fatal(err)
+	}
+	f, _ = put["fields"].(map[string]any)
+	if v, has := f["customfield_10100"]; !has || v != nil {
+		t.Errorf("clear: fields = %v, want customfield_10100 null", f)
+	}
+	// A sub-task keeps fields.parent — that is the one place Server honours it.
+	if err := c.EditIssue(ctx, "SCR-9", map[string]any{"parent": map[string]string{"key": "SCR-3"}}, nil); err != nil {
+		t.Fatal(err)
+	}
+	f, _ = put["fields"].(map[string]any)
+	if p, _ := f["parent"].(map[string]any); p["key"] != "SCR-3" {
+		t.Errorf("sub-task PUT fields = %v, want parent.key SCR-3 kept", f)
+	}
+	if _, has := f["customfield_10100"]; has {
+		t.Errorf("sub-task PUT must not touch the Epic Link field: %v", f)
+	}
+}
+
+// A Server without Jira Software has no Epic Link field; a standard issue's
+// parent is refused before any PUT, instead of the 204-and-nothing.
+func TestServerParentRefusedWithoutEpicLinkField(t *testing.T) {
+	c := serverTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/rest/api/2/field":
+			w.Write([]byte(`[{"id":"summary","name":"Summary","schema":{"type":"string"}}]`))
+		case r.Method == http.MethodGet && r.URL.Path == "/rest/api/2/issue/DCT-2":
+			w.Write([]byte(`{"key":"DCT-2","fields":{"issuetype":{"id":"10001","subtask":false}}}`))
+		default:
+			t.Errorf("unexpected %s %s — the refusal must come before the PUT", r.Method, r.URL.Path)
+			http.Error(w, "no", http.StatusNotFound)
+		}
+	}))
+	err := c.EditIssue(context.Background(), "DCT-2", map[string]any{"parent": map[string]string{"key": "DCT-1"}}, nil)
+	if !errors.Is(err, ErrNoEpicLinkField) {
+		t.Fatalf("err = %v, want ErrNoEpicLinkField", err)
+	}
+}
+
+// Cloud is untouched: parent goes out as parent, and no catalog or issue
+// lookup is spent deciding.
+func TestCloudParentIsNotRewritten(t *testing.T) {
+	var put map[string]any
+	var gets int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			gets++
+		}
+		put = nil
+		json.NewDecoder(r.Body).Decode(&put)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(srv.Close)
+	c := New(srv.URL, "a@b.c", "tok")
+	c.Retries, c.Backoff = 1, 0
+	if err := c.EditIssue(context.Background(), "NMB-1", map[string]any{"parent": map[string]string{"key": "NMB-9"}}, nil); err != nil {
+		t.Fatal(err)
+	}
+	f, _ := put["fields"].(map[string]any)
+	if p, _ := f["parent"].(map[string]any); p["key"] != "NMB-9" || gets != 0 {
+		t.Errorf("Cloud PUT fields = %v (gets=%d), want parent.key NMB-9 and no lookups", f, gets)
+	}
+}

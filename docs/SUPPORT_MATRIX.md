@@ -387,8 +387,15 @@ Markers:
 [^75]: `issuetype` with allowed values (`issuetap/docs/COMPATIBILITY.md:72`).
 
 [^76]: `create --parent` / `edit --parent KEY|none` → `fields.parent`
-    (`cmd/gadak/create.go:528`, `cmd/gadak/edit.go:305`). Jira has no
+    (`cmd/gadak/create.go:538`, `cmd/gadak/edit.go:357`). Jira has no
     dedicated REST parent route — the edit fields path is the only road.
+    Jira Server keys only a sub-task's parent there; a standard issue's
+    epic is the Epic Link custom field, and a `parent` sent for one is
+    answered 204 and dropped (measured on 11.3.11). The client rewrites it
+    at the dialect (`internal/jira/epiclink.go:95`), refusing by name on a
+    Server with no Epic Link field. After any edit the refreshed row is
+    compared with what was asked before it is printed as success
+    (`cmd/gadak/edit_verify.go:19`, GDK-1645).
 
 [^77]: Refused on create (`cmd/gadak/create.go:377`) and on edit
     (`internal/origin/linearwriter.go:190`).

@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/midagedev/gadak/internal/atlhttp"
@@ -63,6 +64,13 @@ type Client struct {
 	// usage is process-local call volume; see Usage / TakeUsage. Never blocks
 	// a request on instrumentation failure (counters are atomic).
 	usage atlhttp.Meter
+
+	// epicLinkID is the Server Epic Link field id, resolved once from the
+	// field catalog by epicLinkField (GDK-1645); loaded is true after one
+	// successful lookup, including "the site has none".
+	epicLinkMu     sync.Mutex
+	epicLinkID     string
+	epicLinkLoaded bool
 
 	// nameCreatedVersions is true when this origin mints a project version
 	// from a fixVersions add {"name": token} (issuetap). Cloud Jira rejects

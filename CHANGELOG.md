@@ -4,6 +4,14 @@
 
 ## Unreleased
 
+- **A write the origin quietly dropped is no longer printed as success.**
+  Jira Server answers a standard issue's `parent` with 204 and changes
+  nothing — that field belongs to sub-tasks there, and an epic is the Epic
+  Link custom field. `edit --parent` (and the web's parent editor) now send
+  the Epic Link on Server, refuse by name on a Server with no Jira Software,
+  and every `edit` compares the re-read row with what it asked before
+  printing it: a field that reads the same before and after is reported as
+  dropped, not confirmed. ([GDK-1645])
 - **A sprint filter no longer asks for the opposite set.** Every sprint state
   compiled to JQL's `openSprints()`, which — measured on Jira 11.3.11 with one
   active sprint and one future one — selects the active sprint alone. A saved
@@ -1762,3 +1770,4 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-1633]: https://gadak.dev/backlog/#/?ks=GDK-1633
 [GDK-1601]: https://gadak.dev/backlog/#/?ks=GDK-1601
 [GDK-1622]: https://gadak.dev/backlog/#/?ks=GDK-1622
+[GDK-1645]: https://gadak.dev/backlog/#/?ks=GDK-1645

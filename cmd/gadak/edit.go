@@ -159,7 +159,16 @@ func cmdEdit(args []string) error {
 	// project against the mirror before resolving createmeta; the tail is
 	// mutate's, unchanged.
 	return withKeyWriteSession(key, func(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src string) error {
+		pre := lookupOne(db, key)
 		if err := applyEditChange(ctx, cfg, db, c, src, ch); err != nil {
+			return err
+		}
+		// The re-read is the write's evidence (GDK-1645): compare before
+		// printing it, so a field the origin dropped is an error, not a row.
+		if err := syncer.RefreshIssue(ctx, cfg, db, key, src); err != nil {
+			return emitWriteAppliedMirrorStale(db, key, *asJSON, nil, err)
+		}
+		if err := verifyEditLanded(pre, lookupOne(db, key), ch); err != nil {
 			return err
 		}
 		return emitAfterWrite(ctx, cfg, db, src, key, *asJSON, nil)
@@ -452,11 +461,15 @@ func runEditBatch(asJSON bool, base editChange) error {
 		}
 		var wrote bool
 		err = withKeyWriteSession(key, func(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src string) error {
+			pre := lookupOne(db, key)
 			if err := applyEditChange(ctx, cfg, db, c, src, ch); err != nil {
 				return err
 			}
 			wrote = true
-			return syncer.RefreshIssue(ctx, cfg, db, key, src)
+			if err := syncer.RefreshIssue(ctx, cfg, db, key, src); err != nil {
+				return err
+			}
+			return verifyEditLanded(pre, lookupOne(db, key), ch)
 		})
 		if err != nil {
 			return batchErr(key, wrote, err)

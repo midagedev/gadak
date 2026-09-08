@@ -18,10 +18,11 @@ import (
 // sprint field. The field id itself is per-site and must come from GET /field.
 const ghSprintCustom = "com.pyxis.greenhopper.jira:gh-sprint"
 
-// ghEpicLinkCustom is the same story for the epic parent. On Cloud the
-// hierarchy is fields.parent; on Server a standard issue's epic lives only
-// in this field, so without it epic_key stays empty (GDK-1651).
-const ghEpicLinkCustom = "com.pyxis.greenhopper.jira:gh-epic-link"
+// The epic parent is the same story (GDK-1651): on Cloud the hierarchy is
+// fields.parent; on Server a standard issue's epic lives only in the Epic
+// Link field, so without it epic_key stays empty. jira.GhEpicLinkCustom is
+// the one owner of that key — the write side rewrites parent into the same
+// field (GDK-1645).
 
 // agileFields are the per-site custom field ids gadak needs from Jira
 // Software. Either may be empty on a site without Jira Software.
@@ -95,7 +96,7 @@ func findGhSprintField(catalog []jira.FieldInfo) agileFields {
 			if f.sprint == "" {
 				f.sprint = fi.ID
 			}
-		case strings.HasSuffix(fi.Schema.Custom, ghEpicLinkCustom):
+		case strings.HasSuffix(fi.Schema.Custom, jira.GhEpicLinkCustom):
 			if f.epicLink == "" {
 				f.epicLink = fi.ID
 			}

@@ -100,10 +100,72 @@ type fakeJira struct {
 	// these paths). Atlassian Cloud has no claim route, so the default is
 	// the 404 that flips the CLI onto its two-call fallback.
 	claimStatus int // 0 = 404, "no route on this origin", like Cloud
+	// edits are the scalar fields of the last PUT /issue/NMB-1 (recordEdit).
+	edits map[string]json.RawMessage
 	// issueStatusJSON overrides GET /issue/{key}?fields=status,assignee —
 	// the fallback's read. Empty keeps NMB-1 in progress, held by Dana
 	// (acc-hc), matching the mirror fixture.
 	issueStatusJSON string
+}
+
+// recordEdit keeps the scalar fields of a PUT /issue/NMB-1 so the re-read
+// shows them: the fake honours writes the way Jira does, because the CLI
+// now compares the refreshed row against what it asked (GDK-1645) and a
+// fixture that never moves reads as an origin that dropped the write.
+// Summary, priority, parent and duedate — the fields verifyEditLanded reads.
+func (f *fakeJira) recordEdit(body []byte) {
+	var put struct {
+		Fields map[string]json.RawMessage `json:"fields"`
+	}
+	if json.Unmarshal(body, &put) != nil {
+		return
+	}
+	if f.edits == nil {
+		f.edits = map[string]json.RawMessage{}
+	}
+	for _, k := range []string{"summary", "priority", "parent", "duedate"} {
+		if v, ok := put.Fields[k]; ok {
+			f.edits[k] = v
+		}
+	}
+}
+
+// nmb1Summary is NMB-1's summary on re-read: the last PUT's when there was
+// one, the fixture's otherwise.
+func (f *fakeJira) nmb1Summary() string {
+	if v, ok := f.edits["summary"]; ok {
+		return string(v)
+	}
+	return `"batch worker drops the last page"`
+}
+
+// nmb1Edits renders the other recorded edits as leading JSON members of
+// NMB-1's fields object; the fixture after them never restates these keys.
+func (f *fakeJira) nmb1Edits() string {
+	var sb strings.Builder
+	for k, v := range f.edits {
+		if k == "summary" {
+			continue
+		}
+		if k == "priority" {
+			// The PUT carries {"id":N}; the re-read names it from the catalog.
+			var p struct {
+				ID string `json:"id"`
+			}
+			_ = json.Unmarshal(v, &p)
+			var cat []struct{ ID, Name string }
+			_ = json.Unmarshal(f.prioritiesJSON(), &cat)
+			name := p.ID
+			for _, c := range cat {
+				if c.ID == p.ID {
+					name = c.Name
+				}
+			}
+			v, _ = json.Marshal(map[string]string{"id": p.ID, "name": name})
+		}
+		sb.WriteString(fmt.Sprintf("%q:%s,", k, v))
+	}
+	return sb.String()
 }
 
 // recordedUpload is one multipart POST /issue/{key}/attachments the fake saw.
@@ -129,6 +191,9 @@ func (f *fakeJira) route(w http.ResponseWriter, r *http.Request) {
 	body, _ := io.ReadAll(io.LimitReader(r.Body, 1<<20))
 	if len(body) > 0 {
 		f.bodies[tag] = string(body)
+	}
+	if r.Method == http.MethodPut && path == "/issue/NMB-1" {
+		f.recordEdit(body)
 	}
 	if r.Header.Get("Authorization") == "" {
 		f.t.Errorf("%s: no Authorization header", tag)
@@ -161,8 +226,8 @@ func (f *fakeJira) route(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		_, _ = w.Write([]byte(`{"issues":[{"id":"1001","key":"NMB-1","fields":{
-			"summary":"batch worker drops the last page",
+		_, _ = w.Write([]byte(`{"issues":[{"id":"1001","key":"NMB-1","fields":{` + f.nmb1Edits() + `
+			"summary":` + f.nmb1Summary() + `,
 			"status":{"id":"10001","name":"완료","statusCategory":{"key":"done"}},
 			"project":{"key":"NMB"},"issuetype":{"id":"10004","name":"Bug"},
 			"assignee":{"accountId":"acc-hc","displayName":"Dana Whitfield"},

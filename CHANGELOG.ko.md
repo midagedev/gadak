@@ -4,6 +4,13 @@
 
 ## Unreleased
 
+- **origin이 조용히 버린 쓰기를 성공으로 찍지 않습니다.** Jira Server는 일반
+  이슈의 `parent`에 204를 주고 아무것도 바꾸지 않습니다. 거기서 그 필드는
+  하위 작업의 것이고, 에픽은 Epic Link 커스텀 필드입니다. `edit --parent`(와
+  웹의 부모 편집)는 Server에서 Epic Link를 보내고, Jira Software가 없는
+  Server에서는 이름을 대고 거절합니다. 그리고 모든 `edit`는 다시 읽은 행을
+  요청한 값과 대조한 뒤에 찍습니다. 쓰기 전후가 같은 필드는 확인이 아니라
+  "버려졌다"로 보고합니다. ([GDK-1645])
 - **스프린트 필터가 정반대 집합을 물었습니다.** 스프린트 상태가 무엇이든 JQL
   `openSprints()`로 컴파일됐습니다. 이 함수는 활성 스프린트만 고릅니다(활성
   하나·미래 하나를 놓고 Jira 11.3.11에서 실측). 그래서 닫힌 스프린트로 거른
@@ -1691,3 +1698,4 @@ HTTP·sync·에이전트 계약을 담았습니다.
 [GDK-1633]: https://gadak.dev/backlog/#/?ks=GDK-1633
 [GDK-1601]: https://gadak.dev/backlog/#/?ks=GDK-1601
 [GDK-1622]: https://gadak.dev/backlog/#/?ks=GDK-1622
+[GDK-1645]: https://gadak.dev/backlog/#/?ks=GDK-1645
