@@ -11,43 +11,43 @@ const copiedLabel = t.copy.copied
 
 <Base
   lang="ja"
-  title="インストール — gadak"
-  description="gadakのインストール: macOSはHomebrewでアプリとCLI、LinuxはHomebrewかリリースのtarball、WindowsはMicrosoft Storeかリリースのzip。初回起動とエージェント接続まで。"
+  title="インストール｜gadak"
+  description="gadak のインストール。macOS は Homebrew でアプリと CLI、Linux は Homebrew かリリースの tarball、Windows は Microsoft Store かリリースの zip。初回起動とエージェントの設定まで。"
 >
   <h1>{t.install.heading}</h1>
   <p class="lede">
-    プラットフォームに合う一行を実行して、<a href="#first-run">初回起動</a>へ進んでください。Atlassianサイトに接続するのに必要なのは
-    <a href="https://id.atlassian.com/manage-profile/security/api-tokens">APIトークン</a>1つです（同じサイトのJiraとConfluenceに共通で使えます）。内蔵トラッカーならアカウント自体が要りません。
+    プラットフォームに合う一行を実行して、<a href="#first-run">初回起動</a>へ進んでください。Atlassian サイトに接続するのに必要なのは
+    <a href="https://id.atlassian.com/manage-profile/security/api-tokens">API トークン</a> 1 つで、同じサイトの Jira と Confluence の両方に使えます。対応しているのは Jira Cloud です。Server / Data Center は検証していないため、対応対象にしていません。内蔵トラッカーならアカウント自体が要りません。
   </p>
 
   <h2 id="macos">macOS</h2>
   <p>{t.install.macosApp}</p>
   <Snippet code="brew install --cask midagedev/tap/gadak" copyLabel={copyLabel} copiedLabel={copiedLabel} />
   <p>
-    CLIのみ。<code>gadak serve</code> でブラウザのタブに同じUIが出ます:
+    CLI のみ。<code>gadak serve</code> を実行すると、ブラウザーのタブに同じ UI が出ます:
   </p>
   <Snippet code="brew install midagedev/tap/gadak-cli" copyLabel={copyLabel} copiedLabel={copiedLabel} />
   <p class="note">
-    Homebrewがない場合は、<a href={releases}>最新リリース</a>に署名・公証済みの
+    Homebrew がない場合は、<a href={releases}>最新リリース</a>に署名・公証済みの
     <code>Gadak-&lt;version&gt;-arm64.dmg</code> があります。
   </p>
 
   <h2 id="linux">Linux</h2>
   <Snippet code="brew install midagedev/tap/gadak-cli" copyLabel={copyLabel} copiedLabel={copiedLabel} />
   <p class="note">
-    Homebrewを使わない場合は、<a href={releases}>最新リリース</a>から自分のアーキテクチャのtarballを取り、<code>gadak</code> を <code>PATH</code> に置いてください。
+    Homebrew を使わない場合は、<a href={releases}>最新リリース</a>から自分のアーキテクチャの tarball を取り、<code>gadak</code> を <code>PATH</code> に置いてください。
   </p>
 
   <h2 id="windows">Windows</h2>
   <p>
-    デスクトップアプリは <a href={store}>Microsoft Store</a> にあります。Storeが署名するので、SmartScreenにもSmart App Controlにも止められず、更新もStore経由で届きます。
+    デスクトップアプリは <a href={store}>Microsoft Store</a> にあります。Store 側で署名されるので、SmartScreen も Smart App Control も警告を出さず、更新も Store 経由で届きます。<code>gadak</code> コマンドも <code>PATH</code> に入ります (0.20.2 以降)。
   </p>
   <p>
-    CLIは<a href={releases}>最新リリース</a>から <code>gadak_&lt;version&gt;_windows_amd64.zip</code>（または
-    <code>windows_arm64</code>）をダウンロードして展開し、<code>gadak.exe</code> を <code>PATH</code> に置いてください。
+    CLI は<a href={releases}>最新リリース</a>から <code>gadak_&lt;version&gt;_windows_amd64.zip</code>（Arm なら
+    <code>gadak_&lt;version&gt;_windows_arm64.zip</code>）をダウンロードして展開し、<code>gadak.exe</code> を <code>PATH</code> に置いてください。
   </p>
   <p class="note">
-    リリースのデスクトップzip（<code>Gadak-&lt;version&gt;-windows-x64.zip</code>）は未署名です。SmartScreenやSmart App Controlに止められたら、それは署名がないためで、ウイルス検出ではありません。その場合はStoreからインストールしてください。詳細とsha256の確認方法:
+    リリースのデスクトップ zip（<code>Gadak-&lt;version&gt;-windows-x64.zip</code>）には署名がありません。SmartScreen や Smart App Control に止められた場合、それは署名がないという意味で、ウイルスが見つかったという意味ではありません。止められたら Store から入れ直してください。Smart App Control をオフにする必要はなく、オフにしないでください。詳細と sha256 の確認方法:
     <a href="https://github.com/midagedev/gadak/blob/main/docs/WINDOWS-SIGNING.md"
       >WINDOWS-SIGNING.md</a
     >。
@@ -68,16 +68,16 @@ gadak serve`}
     どちらの場合も <code>gadak serve</code> がアドレスを表示します。<code>http://gadak.localhost:7777</code> を開いて課題が見えれば、確認はそれで終わりです。
   </p>
   <p class="note">
-    UIは英語、韓国語、日本語です。ブラウザの言語に従い、設定から切り替えられます。
+    画面の表示言語は日本語・英語・韓国語で、ブラウザーか OS の設定に従い、設定画面で切り替えられます。
   </p>
 
   <h2 id="scope">何をキャッシュするか</h2>
   <p>
-    決めるのはあなたです。インストールしただけでサイト全体が落ちてくることはありません。ConfluenceのWikiは<strong>頼むまでオフ</strong>で、頼むときはスペースを名指しします:
+    範囲は自分で決められます。インストールしただけでサイト全体が落ちてくることはありません。Confluence の wiki は<strong>スペースを指定するまで同期されません</strong>:
   </p>
-  <Snippet code="gadak init --spaces ENG,PROD" copyLabel={copyLabel} copiedLabel={copiedLabel} />
+  <Snippet code="gadak init --projects ENG,PROD --spaces ENG" copyLabel={copyLabel} copiedLabel={copiedLabel} />
   <p class="note">
-    Jiraも同じ形で絞れます。<code>--projects ENG,PROD</code>、空欄ならアカウントが見えるすべてのプロジェクトです。どちらも「設定 → ソース」にピッカーがあるので、いま狭く設定した範囲を、後から何も再実行せずに広げられます。
+    <code>--projects</code> を指定しなければ、アカウントに見えるすべてのプロジェクトが対象です。どちらも「設定 → ソース」にピッカーがあるので、いま狭く設定した範囲を、後から何も再実行せずに広げられます。
   </p>
 
   <h2 id="agents">エージェントへ</h2>

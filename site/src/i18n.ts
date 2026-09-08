@@ -144,6 +144,13 @@ export interface Strings {
   landing: { flagshipSlot: string; searchSlot: string; agentSlot: string; allPlatforms: string }
   /** `nameNote` is the one sentence the name gets, and the only place it is explained (fact ledger §1). */
   footer: { builtBy: string; whereBytes: string; nameNote: string }
+  /**
+   * Which hero door comes first, and which one is the primary button.
+   * Default (omitted) is install then demo. `ja` reverses it: a Japanese
+   * corporate machine often cannot run `brew`, so the browser demo is the
+   * only trial that reader has (GDK-1623).
+   */
+  heroDoorOrder?: readonly ('install' | 'demo')[]
 }
 
 const GITHUB = 'https://github.com/midagedev/gadak'
@@ -479,13 +486,13 @@ export const strings: Record<Locale, Strings> = {
   ja: {
     htmlLang: 'ja',
     ogLocale: 'ja_JP',
-    title: 'gadak — Jira の課題を SQL で集計する',
+    title: 'gadak｜Jira の課題を SQL で集計する',
     description:
       'gadak は、指定した範囲の Jira と Confluence をキャッシュするツールです。課題・コメント・変更履歴・wiki ページをまとめて検索でき、SQL で集計できます。テレメトリはありません。',
     nav: { demo: 'ライブデモ', changelog: '変更履歴', install: 'インストール', github: 'GitHub' },
     copy: { label: 'コピー', copied: 'コピーしました' },
     ogImageAlt:
-      'gadak — Jira の課題を SQL で集計する。指定した範囲の Jira と Confluence をキャッシュし、まとめて検索できます。',
+      'gadak｜Jira の課題を SQL で集計する。指定した範囲の Jira と Confluence をキャッシュし、まとめて検索できます。',
     langName: '日本語',
     langBanner: {
       offer: 'このページは日本語でも読めます。',
@@ -496,11 +503,14 @@ export const strings: Record<Locale, Strings> = {
     // → 検索 → 導入前に確認したいこと（この市場では購買条件）→ インストール
     // → エージェント → 対応範囲と開発状況 → 試した結果を教えてください。
     layout: ['hero', 'query', 'speed', 'search', 'connect', 'install', 'agent', 'status', 'ask'],
+    // 会社の PC は brew を止められていることが多く、ブラウザーで試すのが唯一の
+    // 入口になる読者がいる。だからデモのカードを先に置く (GDK-1623)。
+    heroDoorOrder: ['demo', 'install'],
     hero: {
       eyebrow: 'gadak',
       heading: TAGLINE.ja.heading,
       lede:
-        'gadak は、指定した範囲の Jira と Confluence をキャッシュするツールです。課題・コメント・変更履歴・wiki ページをまとめて検索でき、SQL で集計できます。デスクトップアプリ、ブラウザー、CLI から使えます。対応しているのは Jira Cloud です。',
+        'gadak は、指定した範囲の Jira と Confluence をキャッシュするツールです。課題・コメント・変更履歴・wiki ページをまとめて検索でき、SQL で集計できます。デスクトップアプリ、ブラウザー、CLI から使えて、画面は日本語表示に対応しています。接続できるのは Jira Cloud です。',
       videoCaption: '検索の録画です。デモのスナップショットを課題 2 万件に増やしたキャッシュを検索していて、文字を打つ速さに結果が追いつきます。',
       doors: {
         installTitle: 'インストール',
@@ -520,7 +530,7 @@ export const strings: Record<Locale, Strings> = {
     speed: {
       label: '計測条件と制約',
       heading: 'REST API とキャッシュの応答時間',
-      note: '2026-08-26 に、実際に業務で使っている Atlassian Cloud のサイト（課題 3,296 件）で計測した中央値です。エピックごとの未完了件数は、REST API 側が 8 ページを取得して集計した値、gadak 側はクエリ 1 本の値です。gadak 側は CLI プロセスの起動時間を含みます。同じサイトの初回フル同期には 10.6 分かかり、キャッシュは同期間隔 1 回ぶん遅れます。計測方法と再計測の履歴、gadak が遅くなる条件は次にまとめています: ',
+      note: '上と同じ、2026-08-26 の計測です。エピックごとの未完了件数は、REST API 側が 8 ページを取得して集計した値、gadak 側はクエリ 1 本の値です。gadak が負ける行もあります。このサイトの初回フル同期には 10.6 分かかり、キャッシュは同期間隔 1 回ぶん遅れます。計測方法と再計測の履歴は次にまとめています: ',
       rows: [
         { what: '全文検索', value: '543 ms', alt: '41 ms', ratio: '13×' },
         { what: 'エピックごとの未完了件数（GROUP BY）', value: '4,761 ms', alt: '22 ms', ratio: '214×' },
@@ -540,7 +550,7 @@ export const strings: Record<Locale, Strings> = {
       label: 'コーディングエージェントから使う',
       heading: 'エージェントから課題を操作する',
       body:
-        'スキルを 1 つ入れると、Claude Code が gadak の CLI で課題を検索し、作成し、ステータスを変更します。その結果は同じボードで確認できます。スキルには、エージェントが日本語のアカウントでよく引っかかる落とし穴も書いてあります。Jira はステータスや優先度の表示名をアカウントの言語ごとに翻訳するので、英語の名前で問い合わせるとエラーも出ないまま結果が空になり、エージェントはそれを「該当する課題はない」と読みます。エージェントが書いたコメントと作成した課題には、そのエージェントの名前が付きます。',
+        'スキルを 1 つ入れると、Claude Code が gadak の CLI で課題を検索し、作成し、ステータスを変更します。その結果は同じボードで確認できます。スキルには、日本語のアカウントで引っかかりやすい落とし穴も書いてあります。ステータスと優先度の表示名は、Jira がアカウントの言語ごとに翻訳するので、英語の名前で問い合わせるとエラーも出ないまま 0 行が返り、エージェントはそれを「該当する課題はない」と読みます。エージェントが書いたコメントと作成した課題には、そのエージェントの名前が付きます。',
       setupLink: 'ホストごとの設定 → docs/AGENT_SETUP.md',
       driveCaption:
         '画面もプロンプトも日本語で収録した、Claude Code のライブセッションです。gadak のターミナルペインで動かしていて、1 文目で課題の一覧が変わり、2 文目で同じウィンドウにダッシュボードが開きます。エージェントが作業している区間は早送りです。',
@@ -557,11 +567,11 @@ export const strings: Record<Locale, Strings> = {
         '対応しているのは Jira Cloud です。API トークン 1 つで、同じサイトの Jira と Confluence の両方に接続します。Server / Data Center は検証していないため、対応対象にはしていません。',
         '写す範囲は自分で決めます。Jira は <code>--projects</code>、wiki は <code>--spaces</code> で絞ります。スペースを指定するまで wiki は同期されません。',
         'キャッシュの実体は、使っているマシンの中の SQLite ファイル 1 つです。使い始める前に初回のフル同期が必要で、その後の読み取りは直近の同期時点の内容になります。ディレクトリごと消しても失うものはなく、もう一度同期すれば作り直せます。',
-        'API トークンは、キャッシュ・ログ・スナップショットのどこにも書き込まれません。',
-        'テレメトリも、解析も、gadak のアカウントもありません。gadak が開く接続は、自分で設定したものだけです。外に出る通信の一覧とその条件は SECURITY.md にまとめています。',
+        'API トークンの置き場所は <code>~/.gadak/config.json</code> で、パスはどの OS でも同じです。パーミッション 0600 で書き込まれ、送られる先は自分のサイトへの <code>Authorization</code> ヘッダーだけです。キャッシュ・ログ・スナップショットのどこにも書き込まれません。',
+        'テレメトリも、解析も、gadak のアカウントもありません。外に出る通信は、自分で設定した接続先と、自分で実行したコマンドのぶんだけです。一覧とその条件は SECURITY.md にまとめています。',
         '書き込みは先に Jira へ届き、Jira が受け付けてからキャッシュが更新されます。届かなかった書き込みはその場で失敗として返り、キャッシュに溜まることはありません。',
-        '同期済みの課題や wiki ページは、キャッシュだけを読みます。例外は接続先に訊く必要がある操作で、添付ファイルの表示、編集できる項目の問い合わせ、素通しのリクエストがそれにあたります。',
-        'コーディングエージェントにキャッシュを読ませると、読んだ内容はそのエージェントの背後にあるモデルへ送られます。gadak 自体は何も送りません。エージェントに見せてよいプロジェクトとスペースだけを写してください。',
+        '同期済みの課題や wiki ページを開くときは、キャッシュだけを読みます。例外は接続先に訊く必要がある操作で、添付ファイルの表示、編集できる項目の問い合わせ、素通しのリクエストがそれにあたります。',
+        'コーディングエージェントにキャッシュを読ませると、読んだ内容はそのエージェントの背後にあるモデルへ送られます。gadak 自体が課題データを外部のモデルへ送ることはありません。エージェントに見せてよいプロジェクトとスペースだけを写してください。',
       ],
       links: [
         { href: `${DOCS}SECURITY.md`, label: '外に出る通信の一覧と条件 → SECURITY.md' },
@@ -615,7 +625,7 @@ export const strings: Record<Locale, Strings> = {
     landing: {
       flagshipSlot: '録画 · 課題 2 万件',
       searchSlot: '検索',
-      agentSlot: '窓の中のエージェント',
+      agentSlot: 'ウィンドウの中のエージェント',
       allPlatforms: 'すべてのプラットフォーム →',
     },
     footer: {

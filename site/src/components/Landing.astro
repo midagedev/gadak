@@ -25,6 +25,14 @@ const docs = 'https://github.com/midagedev/gadak/blob/main/'
 // that has nothing to say in a section leaves it out of its layout rather
 // than filling it.
 const layout = t.layout
+// The two hero doors in this locale's order, first one primary. Only `ja`
+// sets heroDoorOrder today (its reader's machine may block brew, so the
+// browser demo leads); every other locale gets install-then-demo.
+const doorsByKey = {
+  install: { href: installHref, title: t.hero.doors.installTitle, sub: t.hero.doors.installSub },
+  demo: { href: '/demo/', title: t.hero.doors.demoTitle, sub: t.hero.doors.demoSub },
+}
+const heroDoors = (t.heroDoorOrder ?? ['install', 'demo']).map((k) => doorsByKey[k])
 ---
 
 <Base lang={lang} title={t.title} description={t.description}>
@@ -37,8 +45,9 @@ const layout = t.layout
             <h1>{t.hero.heading}</h1>
             <p class="lede">{t.hero.lede}</p>
             <div class="doors">
-              <Door primary href={installHref} title={t.hero.doors.installTitle} sub={t.hero.doors.installSub} />
-              <Door href="/demo/" title={t.hero.doors.demoTitle} sub={t.hero.doors.demoSub} />
+              {heroDoors.map((d, i) => (
+                <Door primary={i === 0} href={d.href} title={d.title} sub={d.sub} />
+              ))}
             </div>
             <figure class="flagship">
               {/* Every clip on this page carries localized UI in its pixels, so
