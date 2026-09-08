@@ -4,6 +4,16 @@
 
 ## Unreleased
 
+- **Jira Server 워크스페이스의 담당자.** Cloud 는 사용자를 accountId 로 키하고
+  이메일을 숨기는 일이 많은데, Server 는 name 으로 키하고 이메일을 그대로
+  보냅니다. 이제 origin 이 보낸 쪽 id 를 저장하므로 양쪽 모두 `assignee_id` 가
+  채워지고, `gadak assign` 과 사용자 검색도 각 방언의 인자를 씁니다.
+  ([GDK-1638])
+- **파일이 아닌 다운로드는 거절합니다.** `gadak attach get` 은 상태코드만
+  봤는데, origin 이 자기 로그인 페이지를 200 으로 주는 것은 상태코드로 볼 수
+  없습니다 — 실측에서 HTML 257,592 바이트를 `.png` 로 저장하고 exit 0 을
+  냈습니다. 이제 받은 것의 종류와 미러가 기록한 종류를 대조해, 어긋나면
+  아무것도 쓰지 않습니다. `.html` 첨부는 그대로 받아집니다. ([GDK-1644])
 - **Jira Server 워크스페이스가 sync 됩니다.** REST 방언이 패키지 상수가 아니라
   클라이언트의 것이 됐습니다. Cloud 와 빌트인 트래커는 v3 를 그대로 쓰고 Server
   origin 은 v2 를 받으며, 버전 번호만으로 안 되는 엔드포인트 — 생성 메타데이터,
@@ -1565,5 +1575,7 @@ HTTP·sync·에이전트 계약을 담았습니다.
 [GDK-1635]: https://gadak.dev/backlog/#/?ks=GDK-1635
 [GDK-1640]: https://gadak.dev/backlog/#/?ks=GDK-1640
 [GDK-1636]: https://gadak.dev/backlog/#/?ks=GDK-1636
+[GDK-1638]: https://gadak.dev/backlog/#/?ks=GDK-1638
+[GDK-1644]: https://gadak.dev/backlog/#/?ks=GDK-1644
 [GDK-1617]: https://gadak.dev/backlog/#/?ks=GDK-1617
 [GDK-1626]: https://gadak.dev/backlog/#/?ks=GDK-1626

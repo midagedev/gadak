@@ -4,6 +4,17 @@
 
 ## Unreleased
 
+- **Assignees on a Jira Server workspace.** Cloud keys users by accountId and
+  often hides the email; Server keys them by name and sends the email plainly.
+  gadak now stores whichever id the origin sent, so `assignee_id` fills on
+  both, and `gadak assign` and user search speak each dialect's own
+  parameter. ([GDK-1638])
+- **A download that is not the file is refused.** `gadak attach get` checked
+  the status code, and a status code cannot see an origin answering with its
+  own login page at 200 — measured, it wrote 257,592 bytes of HTML as a
+  `.png` and exited 0. It now compares what was served against the type the
+  mirror recorded and writes nothing when they disagree. An `.html`
+  attachment still downloads. ([GDK-1644])
 - **A Jira Server workspace syncs.** The REST dialect is the client's now,
   not a package constant: Cloud and the built-in tracker keep v3, a Server
   origin gets v2, and the endpoints that differ by more than a version number
@@ -1623,5 +1634,7 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-1635]: https://gadak.dev/backlog/#/?ks=GDK-1635
 [GDK-1640]: https://gadak.dev/backlog/#/?ks=GDK-1640
 [GDK-1636]: https://gadak.dev/backlog/#/?ks=GDK-1636
+[GDK-1638]: https://gadak.dev/backlog/#/?ks=GDK-1638
+[GDK-1644]: https://gadak.dev/backlog/#/?ks=GDK-1644
 [GDK-1617]: https://gadak.dev/backlog/#/?ks=GDK-1617
 [GDK-1626]: https://gadak.dev/backlog/#/?ks=GDK-1626
