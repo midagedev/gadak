@@ -4,6 +4,13 @@
 
 ## Unreleased
 
+- **로그인 페이지를 응답으로 착각하지 않습니다.** 모든 REST 호출은 JSON 을
+  요청하고 Go 는 리다이렉트를 따라가므로, 요청을 로그인 페이지로 튕기는
+  origin 은 그 페이지의 HTML 을 200 으로 돌려줬습니다 — `gadak api` 는 그걸
+  그대로 출력했고, JSON 호출은 `invalid character '<'` 로 실패했습니다. 증상의
+  이름이지 원인의 이름이 아닙니다. JSON 을 요청한 자리에 온 2xx HTML 은 이제
+  이름을 붙여 거절합니다. 오류 페이지는 상태코드와 본문을 그대로 두고, Cloud 가
+  정상적으로 보내는 첨부 리다이렉트는 계속 따라갑니다. ([GDK-1648])
 - **Jira Server 의 wiki markup 을 있는 그대로.** 본문에 방언이 생겼습니다.
   Cloud 가 ADF 를 보내는 자리에 Server 는 wiki markup 을 보내는데, gadak 은
   그것을 markdown 으로 읽고 ADF 객체로 돌려보내고 있었습니다 — Server
@@ -50,9 +57,10 @@
   <베이스 URL> --server` 로 셀프호스트 Jira 워크스페이스를 만듭니다 — 이메일
   없이 Personal Access Token 하나, 베이스 URL 에 컨텍스트 경로가 붙어도
   됩니다. init 이 사이트에 어느 Jira 인지 물어(`/rest/api/2/serverInfo`)
-  선언과 다르면 거절합니다. Server 는 Cloud 의 `/rest/api/3` 에 404 가 아니라
-  401 을 답하기 때문입니다 — 이 확인이 없으면 없는 API 가 틀린 토큰으로
-  읽힙니다. 이번엔 축만 세웠습니다. 읽기·쓰기는 아직 Cloud REST 모양이라
+  선언과 다르면 거절합니다. Server 가 Cloud 의 `/rest/api/3` 에 무엇을 답하는지는
+  그 API 의 존재 여부를 말해주지 않습니다 — 실측에서 같은 라우트가 어느
+  자격증명으로 물었느냐에 따라 404·401·302 로 갈렸습니다. 이 확인이 없으면
+  없는 API 가 틀린 토큰으로 읽힙니다. 이번엔 축만 세웠습니다. 읽기·쓰기는 아직 Cloud REST 모양이라
   Server 워크스페이스는 아직 쓸 수 없습니다. ([GDK-1635], [GDK-1640])
 - **실제 크기의 첨부파일.** origin 이 gadak 자체 트래커인 워크스페이스에서
   첨부 바이트가 데이터베이스 안이 아니라 옆 디렉터리에, 내용마다 파일 하나로
@@ -1595,5 +1603,6 @@ HTTP·sync·에이전트 계약을 담았습니다.
 [GDK-1644]: https://gadak.dev/backlog/#/?ks=GDK-1644
 [GDK-1639]: https://gadak.dev/backlog/#/?ks=GDK-1639
 [GDK-1637]: https://gadak.dev/backlog/#/?ks=GDK-1637
+[GDK-1648]: https://gadak.dev/backlog/#/?ks=GDK-1648
 [GDK-1617]: https://gadak.dev/backlog/#/?ks=GDK-1617
 [GDK-1626]: https://gadak.dev/backlog/#/?ks=GDK-1626

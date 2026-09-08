@@ -463,7 +463,7 @@ func cmdInit(args []string) error {
 	}
 	// Verify the deployment the user declared against what the origin says.
 	// A mismatch is fatal: every REST path in the process branches on this
-	// value, so saving a wrong one produces 401s that read as a bad token.
+	// value, so saving a wrong one produces failures that read as a bad token.
 	// An unreachable origin is not a mismatch — that is the offline case the
 	// /myself check below already tolerates.
 	if got, derr := probeDeployment(context.Background(), cfg); derr == nil && got != cfg.OriginType() {

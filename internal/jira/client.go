@@ -25,7 +25,11 @@ import (
 // The two REST dialects this package speaks. Which one a Client uses is
 // decided by its constructor, not by a package constant: Cloud and the
 // built-in tracker serve v3, Jira Server / Data Center serves v2 and has no
-// v3 at all — it answers a v3 route with 401, not 404 (GDK-1636).
+// v3 at all, and what it answers a v3 route with depends on the
+// credential: measured on 11.3.11, the same route gave 404 to a valid
+// basic login, 401 to a Cloud-shaped one, and 302 to a bearer PAT or to
+// no credential at all. None of those means "no such API" on its own
+// (GDK-1636).
 const (
 	apiV3 = "/rest/api/3"
 	apiV2 = "/rest/api/2"

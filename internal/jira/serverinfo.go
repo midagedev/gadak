@@ -22,11 +22,12 @@ type serverInfo struct {
 //
 // The answer comes from serverInfo's own deploymentType field, never from
 // probing whether /rest/api/3 exists: a Server instance answers that route
-// with 401, so a status-code probe reads a missing API as a bad credential.
+// with 401 or 404 or 302 depending on the credential, so a status-code
+// probe reads a missing API as whatever the credential happened to make it.
 //
 // An unrecognized deploymentType is an error, not a default. Guessing Cloud
 // here would send v3 requests to something that cannot answer them, and the
-// resulting 401s would be reported as an authentication problem.
+// resulting failures would be reported as an authentication problem.
 func (c *Client) Deployment(ctx context.Context) (string, error) {
 	var info serverInfo
 	if err := c.do(ctx, "GET", "/rest/api/2/serverInfo", nil, &info); err != nil {

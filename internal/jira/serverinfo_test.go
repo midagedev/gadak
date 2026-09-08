@@ -14,9 +14,12 @@ func deploymentServer(t *testing.T, body string) *httptest.Server {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/rest/api/2/serverInfo" {
-			// A Server instance answers an absent v3 route with 401, not
-			// 404 (measured on Jira 11.3.11) — the trap this axis exists
-			// to keep out of the credential error path.
+			// What a Server instance answers an absent v3 route with
+			// depends on the credential — measured on 11.3.11: 404 to a
+			// valid basic login, 401 to a Cloud-shaped one, 302 to a
+			// bearer PAT or to none. 401 stands in for the whole set
+			// here: the point is that the status says nothing about
+			// whether the route exists.
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}

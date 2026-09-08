@@ -13,8 +13,10 @@ package atlhttp
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"net/url"
 	"strings"
@@ -97,6 +99,9 @@ func DoRaw(ctx context.Context, cfg Config, method, path string, payload []byte,
 		}
 		if res.StatusCode >= 200 && res.StatusCode < 300 && readErr != nil {
 			return 0, nil, fmt.Errorf("%s %s: %w", method, path, readErr)
+		}
+		if err := refuseHTML(res); err != nil {
+			return 0, nil, fmt.Errorf("%s %s: %w", method, path, err)
 		}
 		return res.StatusCode, data, nil
 	}
@@ -213,4 +218,29 @@ func Stream(ctx context.Context, cfg Config, method, path string, hdr http.Heade
 		cfg.Usage.NoteStatus(res.StatusCode)
 		return res, nil
 	}
+}
+
+// ErrNotAPI is a response that is a web page rather than an API answer
+// (GDK-1648). Every call through DoRaw asks for JSON; a 2xx of HTML means
+// the request was answered by something else — in the measured case a
+// login page, reached because Go follows redirects and Jira Server sends a
+// 302 to /login.jsp for a route the credential cannot reach.
+//
+// Without this the page's bytes are the API's answer: `gadak api` printed
+// the login page's HTML, and a JSON decode failed with "invalid character
+// '<'", which names the symptom and not the cause.
+var ErrNotAPI = errors.New("the origin answered with a web page, not the API — the request was probably redirected to a login page; check the credential and the base URL")
+
+// refuseHTML rejects a successful response whose body is a web page. Only
+// 2xx: an origin is free to render an error page for a 4xx or 5xx, and the
+// status already says what happened there.
+func refuseHTML(res *http.Response) error {
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		return nil
+	}
+	ct, _, err := mime.ParseMediaType(res.Header.Get("Content-Type"))
+	if err != nil || ct != "text/html" {
+		return nil
+	}
+	return ErrNotAPI
 }

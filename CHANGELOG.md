@@ -4,6 +4,13 @@
 
 ## Unreleased
 
+- **A login page is no longer mistaken for an answer.** Every REST call asks
+  for JSON, and Go follows redirects, so an origin that bounces a request to
+  its login page returned that page's HTML at 200 — `gadak api` printed it,
+  and JSON calls failed with `invalid character '<'`, which names the symptom
+  and not the cause. A 2xx of HTML where JSON was asked for is now refused by
+  name. Error pages keep their status and their body, and attachment
+  downloads still follow the redirect Cloud legitimately sends. ([GDK-1648])
 - **Wiki markup on a Jira Server workspace, carried as it is.** A body now
   has a dialect. Server sends wiki markup where Cloud sends ADF, and gadak
   had been reading it as markdown and writing it back as an ADF object — a
@@ -54,8 +61,10 @@
   Personal Access Token — no email, and the base URL may carry a context path.
   init asks the site which Jira it is (`/rest/api/2/serverInfo`) and refuses a
   workspace whose declared deployment does not match, because a Server
-  instance answers Cloud's `/rest/api/3` with 401 rather than 404: without
-  that check, a missing API reads as a bad token. This lands the axis only —
+  instance's answer to Cloud's `/rest/api/3` says nothing about whether that
+  API exists — measured, the same route gave 404, 401 and 302 depending only
+  on which credential asked — so without that check a missing API reads as a
+  bad token. This lands the axis only —
   reads and writes still speak the Cloud REST shape, so a Server workspace is
   not usable yet. ([GDK-1635], [GDK-1640])
 - **Attachments the size of real ones.** On a workspace whose origin is
@@ -1655,5 +1664,6 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-1644]: https://gadak.dev/backlog/#/?ks=GDK-1644
 [GDK-1639]: https://gadak.dev/backlog/#/?ks=GDK-1639
 [GDK-1637]: https://gadak.dev/backlog/#/?ks=GDK-1637
+[GDK-1648]: https://gadak.dev/backlog/#/?ks=GDK-1648
 [GDK-1617]: https://gadak.dev/backlog/#/?ks=GDK-1617
 [GDK-1626]: https://gadak.dev/backlog/#/?ks=GDK-1626
