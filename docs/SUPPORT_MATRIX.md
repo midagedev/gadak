@@ -58,7 +58,7 @@ Markers:
 | **Write** · custom-field edit | ✅[^35] | —[^72] | ◐[^37] |
 | **Write** · issue type edit (`edit --type`) | ✅[^73] | —[^74] | ✅[^75] |
 | **Write** · parent set / clear | ✅[^76] | —[^77] | ✅[^78] |
-| **Write** · attachment upload | ✅[^79] | ✅[^80] | ✅[^79] |
+| **Write** · attachment upload | ✅[^79] | ✅[^80] | ◐[^113] |
 | **Write** · link / unlink issues | ✅[^81] | —[^18] | ✅[^82] |
 | **Write** · wiki write — page create / edit / comment | ✅[^83] | —[^45] | ✅[^84] |
 | **Write** · `claim` | ◐[^85] | —[^86] | ✅[^87] |
@@ -501,3 +501,10 @@ this table from the code instead of maintaining it by hand is GDK-1301.
     verb needs no site: measured on a `gadak init --local` workspace, `attach
     get` wrote the bytes `gadak attach` had uploaded. The branch is on the
     mirrored row's source, never a fallback (`cmd/gadak/attach_get.go:136`).
+
+[^113]: Same multipart route as Jira ([^79]), with a size ceiling: the origin
+    buffers the whole body because it keeps bytes as a BLOB, so anything over
+    8 MiB is refused with a 413 naming the limit, and `gadak attach` exits
+    non-zero with that sentence. Until GDK-1614 it was truncated instead —
+    stored as its first 8 MiB and reported as success. Exactly 8 MiB still
+    round-trips (measured, hashes equal).
