@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"net/url"
 	"os"
@@ -173,7 +174,37 @@ func openAttachment(ctx context.Context, cfg *config.Config, db *store.DB, key s
 		res.Body.Close()
 		return nil, fmt.Errorf("attachment %s: HTTP %d: %s", att.ExternalID, res.StatusCode, httpStatusDetail(res.StatusCode, buf))
 	}
+	if err := refuseErrorPage(att, res.Header.Get("Content-Type")); err != nil {
+		res.Body.Close()
+		return nil, err
+	}
 	return res.Body, nil
+}
+
+// refuseErrorPage rejects a 200 that is an HTML page where the mirror says
+// the attachment is something else (GDK-1644).
+//
+// A status check is not enough: an origin that does not serve this route can
+// answer the request with its own login or dashboard page, at 200, and the
+// bytes then get written to the destination file under the attachment's
+// name. Measured against Jira Server 11.3.11, which has no
+// /attachment/content route: `gadak attach get … --out x.png` wrote 257,592
+// bytes of HTML as x.png and exited 0.
+//
+// The comparison is against the mirror's own mime type rather than a blanket
+// "HTML is not a file": .html is a perfectly ordinary thing to attach, and
+// refusing those would trade a silent wrong file for a refused right one.
+func refuseErrorPage(att store.DetailAttachment, contentType string) error {
+	served, _, err := mime.ParseMediaType(contentType)
+	if err != nil || served != "text/html" {
+		return nil
+	}
+	recorded, _, err := mime.ParseMediaType(att.MimeType)
+	if err == nil && recorded == "text/html" {
+		return nil
+	}
+	return fmt.Errorf("attachment %s (%s): the origin answered with an HTML page, not the file — its type is %q here. Nothing was written",
+		att.ExternalID, att.Filename, att.MimeType)
 }
 
 // attachDest resolves --out into a destination. "" is the filename in the
