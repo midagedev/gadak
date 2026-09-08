@@ -134,10 +134,10 @@ export const strings = {
     ogLocale: 'ko_KR',
     title: 'gadak — 같은 Jira, 기다림 없이.',
     description:
-      '회사에서 쓰는 Jira의 이슈와 Confluence 위키를 로컬 SQLite 파일 하나에 미러링합니다. 이슈 2만 건에서도 검색은 밀리초 안에 끝나고, 읽기는 네트워크를 타지 않습니다.',
+      '회사에서 쓰는 Jira의 이슈와 Confluence 위키를 로컬 SQLite 파일 하나에 통째로 받아 둡니다. 이슈 2만 건에서도 검색은 밀리초 안에 끝나고, 읽기는 네트워크를 타지 않습니다.',
     nav: { demo: '라이브 데모', changelog: '체인지로그', essays: '에세이', install: '설치', github: 'GitHub' },
     copy: { label: '복사', copied: '복사됨' },
-    ogImageAlt: 'gadak — 같은 Jira, 기다림 없이. 팀의 Jira와 Confluence 위키를 로컬 SQLite 파일 하나에 미러링합니다.',
+    ogImageAlt: 'gadak — 같은 Jira, 기다림 없이. 팀의 Jira와 Confluence 위키를 로컬 SQLite 파일 하나에 받아 둡니다.',
     langName: '한국어',
     langBanner: {
       offer: '이 페이지는 한국어로도 볼 수 있습니다.',
@@ -148,8 +148,8 @@ export const strings = {
       eyebrow: 'gadak',
       heading: TAGLINE.ko.heading,
       lede:
-        '회사에서 이미 쓰는 Jira를 Confluence 위키까지 이 컴퓨터의 SQLite 파일 하나에 미러링합니다. 검색은 밀리초 안에 끝나고, 히스토리는 문서처럼 읽히고, 로딩 스피너는 보이지 않습니다. 원본은 여전히 Jira입니다. 기다리는 시간만 사라집니다.',
-      videoCaption: '이슈 2만 건 미러에서 타이핑하는 속도로 검색합니다. 애니메이션이 아니라 실제 화면을 녹화한 것입니다.',
+        '회사에서 이미 쓰는 Jira를 Confluence 위키까지 이 컴퓨터의 SQLite 파일 하나에 통째로 받아 둡니다. 검색은 밀리초 안에 끝나고, 히스토리는 문서처럼 읽히고, 로딩 스피너는 보이지 않습니다. 원본은 여전히 Jira입니다. 기다리는 시간만 사라집니다.',
+      videoCaption: '이슈 2만 건을 받아 둔 파일에서 타이핑하는 속도로 검색합니다. 애니메이션이 아니라 실제 화면을 녹화한 것입니다.',
       doors: {
         installTitle: '설치',
         installSub: 'macOS는 Homebrew, Windows는 Microsoft Store, Linux는 CLI.',
@@ -184,8 +184,8 @@ export const strings = {
       label: '에이전트와 함께 일하는 사람에게',
       heading: '사람과 에이전트가 같은 말을 씁니다',
       body:
-        'CLI가 그대로 에이전트 인터페이스입니다. create, claim, transition 같은 동사를 에이전트가 실행하면 같은 보드가 눈앞에서 바뀝니다. 셸이 없는 클라이언트는 MCP 서버가 맡습니다. 쓰기는 원본 Jira를 거치고, 읽기는 로컬 미러에서 처리합니다. 에이전트가 쓴 것에는 이름이 남습니다. 코멘트와 연결된 PR에 봇 이름이 붙어서, 팀이 읽는 그 스레드에 그대로 보입니다.',
-      skillLead: '같은 미러를 코딩 에이전트에게 넘기려면:',
+        'CLI가 그대로 에이전트 인터페이스입니다. create, claim, transition 같은 동사를 에이전트가 실행하면 같은 보드가 눈앞에서 바뀝니다. 셸이 없는 클라이언트는 MCP 서버가 맡습니다. 쓰기는 원본 Jira를 거치고, 읽기는 로컬 파일에서 처리합니다. 에이전트가 쓴 것에는 이름이 남습니다. 코멘트와 연결된 PR에 봇 이름이 붙어서, 팀이 읽는 그 스레드에 그대로 보입니다.',
+      skillLead: '같은 파일을 코딩 에이전트에게 넘기려면:',
       mcpLead: '셸이 없는 MCP 클라이언트(Claude Desktop)에는:',
       setupLink: '도구별로 붙여 넣을 설정 블록 → docs/AGENT_SETUP.md',
       driveCaption:
@@ -196,8 +196,8 @@ export const strings = {
       label: '안심하고 쓸 수 있는 이유',
       heading: '원본은 여전히 Jira입니다',
       points: [
-        '쓰기는 먼저 Jira로 가고, Jira가 받아들인 뒤에야 미러가 갱신됩니다.',
-        '미러는 버려도 되는 캐시입니다. 지우고 다시 동기화하면 원본에서 그대로 다시 만들어집니다.',
+        '쓰기는 먼저 Jira로 가고, Jira가 받아들인 뒤에야 로컬 파일이 갱신됩니다.',
+        '로컬 파일은 지워도 됩니다. 다시 동기화하면 Jira에서 그대로 다시 만들어집니다.',
         '텔레메트리는 없습니다. 밖으로 나가는 요청은 직접 설정한 것뿐입니다.',
         '자격 증명은 SQLite 파일에도, 로그에도, 스냅샷에도 남지 않습니다.',
       ],
@@ -222,7 +222,7 @@ export const strings = {
       firstRun: '회사 Jira에 연결합니다 (사이트, 이메일, 토큰, 프로젝트를 차례로 묻습니다):',
     },
     landing: {
-      flagshipSlot: '플래그십 · 2만 건 미러',
+      flagshipSlot: '플래그십 · 이슈 2만 건',
       searchSlot: '검색',
       agentSlot: '창 안의 에이전트',
       allPlatforms: '모든 플랫폼 →',
