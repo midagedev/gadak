@@ -318,10 +318,22 @@ first question (review round 2026-09-08). Confluence Server has no client
 - The 0.x contract is **three promises**, not the whole schema:
   `issues_full` + the RECIPES queries, `gadak sql` stdout format, and
   `gadak views open --keys -` semantics
-  (`specs/000-product/data-model.md`).
+  (`specs/000-product/data-model.md`). **The READMEs name the three; the
+  landings do not** (user decision 2026-09-09): three code spans of query
+  surface is a fact for someone deciding to build on gadak, and noise to
+  someone deciding whether to try it. A landing says the cache is ordinary
+  SQLite and what that means if gadak went away, and links the docs.
 - What a reader does not have to take on trust, each with the command that
   checks it: `docs/PROMISES.md` — **eleven** items since GDK-1626 (an edition
-  that prints the count prints eleven, or leaves the count out).
+  that prints the count prints eleven, or leaves the count out). Since
+  2026-09-09 the file is ordered by the reader's question, not by when a claim
+  was added: *What leaves this machine* (telemetry, the five destinations, a
+  snapshot that cannot carry a token), then *What you can take away* (the
+  mirror and the built-in origin as ordinary SQLite, deleting `gadak.db`),
+  then *What can reach gadak* (loopback, the browser guard, read-only agent
+  paths, terminal token scope, the terminal's in-memory scrollback). The first
+  three decide whether a reader can install it at work; the last two are
+  internals and sit last. `tools/check-promises.sh` runs every block.
 
 ## 12. Demo
 
@@ -441,8 +453,9 @@ landing (`site/src/i18n.ts`) and all three READMEs.
 - **Every edition ends by asking what happened** (§13 wording) and says what
   must stay out of a public report.
 - **Every edition carries status where a first-time reader finds it**: 0.21
-  / 0.x, one maintainer, Apache-2.0, the three promises, and the work that
-  stays in Jira.
+  / 0.x, one maintainer, Apache-2.0, and the work that stays in Jira. The
+  three-promise compatibility contract is README material, not landing
+  material (§11).
 - **README order**: definition and status → the query → install → before
   connecting (or the security block) → agents → origins and limits → status →
   feedback → docs → license. Migration, the built-in tracker and pairing are
