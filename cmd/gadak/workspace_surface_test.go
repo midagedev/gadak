@@ -48,7 +48,7 @@ func TestWriteVerbHelpFirstLinesAreTheVerb(t *testing.T) {
 	}
 }
 
-func TestInitHelpNamesLocalOrigin(t *testing.T) {
+func TestInitHelpNamesBuiltIn(t *testing.T) {
 	// GDK-1281 renamed the flag to --local; --standalone still works but is
 	// deliberately absent from the help, so only one name is taught.
 	if !strings.Contains(helps["init"].usage, "--local") {
@@ -78,7 +78,7 @@ func TestInitHelpNamesLocalOrigin(t *testing.T) {
 	}
 }
 
-func TestServeHelpSyncsLocalOriginWithoutCredential(t *testing.T) {
+func TestServeHelpSyncsBuiltInWithoutCredential(t *testing.T) {
 	// The contract is that serve syncs a workspace with no credential at
 	// all — a gadak origin needs none. GDK-1281 stopped naming that case
 	// "standalone", so the assertion names the case instead of the word.
@@ -119,7 +119,7 @@ func TestStatusJSONIncludesWorkspaceKind(t *testing.T) {
 	config.SetProfile("")
 	t.Cleanup(func() { config.SetProfile("") })
 
-	cfg := &config.Config{Kind: config.KindLocalOrigin}
+	cfg := &config.Config{Kind: config.KindStandalone}
 	if err := cfg.Save(); err != nil {
 		t.Fatal(err)
 	}
@@ -134,8 +134,8 @@ func TestStatusJSONIncludesWorkspaceKind(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &doc); err != nil {
 		t.Fatalf("decode %q: %v", out, err)
 	}
-	if doc.Kind != config.KindLocalOrigin {
-		t.Fatalf("kind = %q, want local-origin; body %s", doc.Kind, out)
+	if doc.Kind != config.KindStandalone {
+		t.Fatalf("kind = %q, want built-in; body %s", doc.Kind, out)
 	}
 
 	cfg.Kind = config.KindConnected
@@ -166,7 +166,7 @@ func TestProfilesJSONIncludesWorkspaceKind(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	def.Kind = config.KindLocalOrigin
+	def.Kind = config.KindStandalone
 	if err := def.Save(); err != nil {
 		t.Fatal(err)
 	}
@@ -193,15 +193,15 @@ func TestProfilesJSONIncludesWorkspaceKind(t *testing.T) {
 	for _, p := range inv.Profiles {
 		byName[p.Name] = p.Kind
 	}
-	if byName["default"] != config.KindLocalOrigin {
-		t.Errorf("default kind = %q, want local-origin", byName["default"])
+	if byName["default"] != config.KindStandalone {
+		t.Errorf("default kind = %q, want built-in", byName["default"])
 	}
 	if byName["work"] != config.KindConnected {
 		t.Errorf("work kind = %q, want connected", byName["work"])
 	}
 }
 
-func TestInitLocalOriginJSONPersistAndFillsMirror(t *testing.T) {
+func TestInitBuiltInJSONPersistAndFillsMirror(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
 	t.Setenv("HOME", home)
@@ -226,7 +226,7 @@ func TestInitLocalOriginJSONPersistAndFillsMirror(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &doc); err != nil {
 		t.Fatalf("init json: %v\n%s", err, out)
 	}
-	if doc.Kind != config.KindLocalOrigin {
+	if doc.Kind != config.KindStandalone {
 		t.Fatalf("kind %q", doc.Kind)
 	}
 	wantPersist := origin.PersistPath(home)
@@ -241,17 +241,17 @@ func TestInitLocalOriginJSONPersistAndFillsMirror(t *testing.T) {
 	}
 
 	created, stderr, err := captureBoth(t, func() error {
-		return cmdCreate([]string{"after local-origin init"})
+		return cmdCreate([]string{"after built-in init"})
 	})
 	if err != nil {
 		t.Fatalf("create: %v\n%s", err, created)
 	}
 	if strings.Contains(stderr, "never finished a sync") {
-		t.Fatalf("local-origin init must fill the mirror so create is not stale: stderr %q", stderr)
+		t.Fatalf("built-in init must fill the mirror so create is not stale: stderr %q", stderr)
 	}
 }
 
-func TestInitLocalOriginHumanPersistAndNextSteps(t *testing.T) {
+func TestInitBuiltInHumanPersistAndNextSteps(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
 	t.Setenv("HOME", home)
@@ -276,34 +276,34 @@ func TestInitLocalOriginHumanPersistAndNextSteps(t *testing.T) {
 		t.Fatalf("human init must say the persist file is the original:\n%s", out)
 	}
 	if strings.Contains(out, "a few minutes") {
-		t.Fatalf("local-origin next-steps still claims a few minutes:\n%s", out)
+		t.Fatalf("built-in next-steps still claims a few minutes:\n%s", out)
 	}
 	if strings.Contains(out, "this account") {
-		t.Fatalf("local-origin init still uses a Jira-account sentence:\n%s", out)
+		t.Fatalf("built-in init still uses a Jira-account sentence:\n%s", out)
 	}
 	// GDK-465: skill-first next; sync already filled the mirror; MCP is secondary.
 	next := out
 	if i := strings.Index(out, "next:"); i >= 0 {
 		next = out[i:]
 	} else {
-		t.Fatalf("local-origin init missing next:\n%s", out)
+		t.Fatalf("built-in init missing next:\n%s", out)
 	}
 	if !strings.Contains(next, "gadak create") {
-		t.Fatalf("local-origin next missing create:\n%s", out)
+		t.Fatalf("built-in next missing create:\n%s", out)
 	}
 	if !strings.Contains(next, "gadak serve") {
-		t.Fatalf("local-origin next missing serve:\n%s", out)
+		t.Fatalf("built-in next missing serve:\n%s", out)
 	}
 	if !strings.Contains(next, "gadak skill install") {
-		t.Fatalf("local-origin next missing skill install:\n%s", out)
+		t.Fatalf("built-in next missing skill install:\n%s", out)
 	}
 	if strings.Contains(next, "gadak sync") {
-		t.Fatalf("local-origin next still tells you to sync a filled mirror:\n%s", out)
+		t.Fatalf("built-in next still tells you to sync a filled mirror:\n%s", out)
 	}
 	// GDK-482: name the default author. No CLI verb changes it (measured:
 	// config list has no display-name path; issuetap seeds the fixture user).
 	if !strings.Contains(out, "authored as") {
-		t.Fatalf("local-origin init must name the default author:\n%s", out)
+		t.Fatalf("built-in init must name the default author:\n%s", out)
 	}
 	reporter, err := capture(t, func() error {
 		return cmdSQL([]string{"--no-header", "select reporter from issues_full where reporter is not null and reporter != '' limit 1"})
@@ -312,10 +312,10 @@ func TestInitLocalOriginHumanPersistAndNextSteps(t *testing.T) {
 		t.Fatalf("sql reporter: %v\n%s", err, reporter)
 	}
 	if name := strings.TrimSpace(reporter); name != "" && !strings.Contains(out, name) {
-		t.Fatalf("local-origin init must name default author %q:\n%s", name, out)
+		t.Fatalf("built-in init must name default author %q:\n%s", name, out)
 	}
 
-	// GDK-465: re-init of an already-local-origin home is one line.
+	// GDK-465: re-init of an already-built-in home is one line.
 	again, err := capture(t, func() error {
 		return cmdInit([]string{"--local"})
 	})
@@ -335,10 +335,10 @@ func TestInitLocalOriginHumanPersistAndNextSteps(t *testing.T) {
 	}
 }
 
-// TestLocalOriginSyncCopyOmitsAccount is GDK-464: a workspace with no Jira
+// TestBuiltInSyncCopyOmitsAccount is GDK-464: a workspace with no Jira
 // account must not talk about "this account", Jira filters, or custom-field
 // discovery tips.
-func TestLocalOriginSyncCopyOmitsAccount(t *testing.T) {
+func TestBuiltInSyncCopyOmitsAccount(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
 	t.Setenv("HOME", home)
@@ -367,7 +367,7 @@ func TestLocalOriginSyncCopyOmitsAccount(t *testing.T) {
 	combined := logs.String() + stdout
 	for _, needle := range []string{"this account", "from Jira", "auto-configure custom fields"} {
 		if strings.Contains(combined, needle) {
-			t.Errorf("local-origin sync still has %q:\n%s", needle, combined)
+			t.Errorf("built-in sync still has %q:\n%s", needle, combined)
 		}
 	}
 }

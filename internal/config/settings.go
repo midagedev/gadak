@@ -846,7 +846,7 @@ func buildSettings() []Setting {
 		{
 			Path: "actor",
 			Root: "actor",
-			Description: "workspace-default acting identity for writes to a local-origin/paired origin " +
+			Description: "workspace-default acting identity for writes to a built-in/paired origin " +
 				"(GDK-586): {\"slug\", \"name\"}; env GADAK_ACTOR wins over it and Claude Code is " +
 				"auto-detected when neither is set (never sent to a connected Cloud site)",
 			Get: func(c *Config) any {
@@ -915,7 +915,7 @@ func buildSettings() []Setting {
 		{
 			Path: "locale",
 			Root: "locale",
-			Description: "display-name language of a local-origin workspace's origin: \"\", en, ko, ja, de " +
+			Description: "display-name language of a built-in workspace's origin: \"\", en, ko, ja, de " +
 				"(empty = English). Status / issue-type / field names and agent aliases follow it; " +
 				"priority names stay English, like a live Cloud site (GDK-597). Changing it rebuilds " +
 				"the mirror on the next sync — display names are cached. A connected workspace " +
@@ -1111,7 +1111,7 @@ func buildSettings() []Setting {
 		{
 			Path:        "memory.space",
 			Root:        "memory",
-			Description: "space key the memory verbs own (empty = local-origin's seeded space; connected refuses until set; the sync joins it into scope even outside confluence.spaces, so a full sync keeps its pages)",
+			Description: "space key the memory verbs own (empty = built-in's seeded space; connected refuses until set; the sync joins it into scope even outside confluence.spaces, so a full sync keeps its pages)",
 			Get: func(c *Config) any {
 				if c.Memory == nil {
 					return ""

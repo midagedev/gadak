@@ -134,16 +134,16 @@ func cmdStatus(args []string) error {
 	}
 	// The resolved actor (GDK-586): the one place an agent can check that
 	// its identity was recognized (env > config > Claude Code detection)
-	// before writing to a local-origin or paired origin. Absent when the
+	// before writing to a built-in or paired origin. Absent when the
 	// ladder resolves nothing — writes then use the origin's default user.
 	if actor, ok := config.ResolveActor(cfg); ok {
 		st["actor"] = actor
 	}
 	// The origin's language (GDK-597), next to the actor row — the two things
 	// an agent reads to know who it writes as and what the origin will call
-	// things back. Local-origin only: a connected workspace's language is the
+	// things back. Built-in only: a connected workspace's language is the
 	// Atlassian account's, not ours.
-	if cfg != nil && cfg.HasLocalOrigin() {
+	if cfg != nil && cfg.HasBuiltInOrigin() {
 		st["locale"] = cfg.EffectiveLocale()
 	}
 	st["custom_fields"] = cfg.CustomFieldsStatus()

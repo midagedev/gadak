@@ -8,8 +8,8 @@ package origin
 //
 // | Contract | Test |
 // | --- | --- |
-// | a local-origin comment/transition is authored by the actor slug as an agent account | TestLocalOriginWriteAttributesToActor |
-// | no actor resolved → the seed user authors, byte-identical to before | TestLocalOriginWriteWithoutActorKeepsSeedUser |
+// | a built-in comment/transition is authored by the actor slug as an agent account | TestBuiltInWriteAttributesToActor |
+// | no actor resolved → the seed user authors, byte-identical to before | TestBuiltInWriteWithoutActorKeepsSeedUser |
 // | a connected client never carries the header, GADAK_ACTOR set or not | TestConnectedClientNeverCarriesActor |
 // | the serve-routing transport stamps the same headers | TestServeTransportCarriesActor |
 
@@ -27,11 +27,11 @@ import (
 	"github.com/midagedev/gadak/internal/jira"
 )
 
-// localOriginActorWorkspace is origin_test.go's local-origin fixture shape,
+// builtInActorWorkspace is origin_test.go's built-in fixture shape,
 // with the ambient actor environment pinned so the ladder's outcome is the
 // test's, not the invoking agent's (go test under Claude Code inherits
 // CLAUDECODE=1; CI does not).
-func localOriginActorWorkspace(t *testing.T) *config.Config {
+func builtInActorWorkspace(t *testing.T) *config.Config {
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
@@ -44,7 +44,7 @@ func localOriginActorWorkspace(t *testing.T) *config.Config {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg.Kind = config.KindLocalOrigin
+	cfg.Kind = config.KindStandalone
 	if err := cfg.Save(); err != nil {
 		t.Fatal(err)
 	}
@@ -82,10 +82,10 @@ func actorAuthorOf(t *testing.T, c *jira.Client, key string) map[string]any {
 	return page.Comments[len(page.Comments)-1].Author
 }
 
-func TestLocalOriginWriteAttributesToActor(t *testing.T) {
+func TestBuiltInWriteAttributesToActor(t *testing.T) {
 	t.Setenv("GADAK_ACTOR", "claude:354bff2b|Claude (build 1)")
 	t.Setenv("CLAUDECODE", "") // env wins, but keep the ladder single-rung
-	cfg := localOriginActorWorkspace(t)
+	cfg := builtInActorWorkspace(t)
 
 	c, err := Client(cfg)
 	if err != nil {
@@ -152,12 +152,12 @@ func TestLocalOriginWriteAttributesToActor(t *testing.T) {
 	}
 }
 
-func TestLocalOriginWriteWithoutActorKeepsSeedUser(t *testing.T) {
+func TestBuiltInWriteWithoutActorKeepsSeedUser(t *testing.T) {
 	// Pin the whole ladder off: no env, no config, no Claude Code marker.
 	// This is the byte-identical disabled path — the seed user authors.
 	t.Setenv("GADAK_ACTOR", "")
 	t.Setenv("CLAUDECODE", "")
-	cfg := localOriginActorWorkspace(t)
+	cfg := builtInActorWorkspace(t)
 
 	c, err := Client(cfg)
 	if err != nil {

@@ -433,11 +433,11 @@ func TestSyncProgressLeavesATransportFailureUnclassified(t *testing.T) {
 
 /* ── step 1, the other front door: POST onboarding/standalone ── */
 
-// localOriginEmptyEnv is what `gadak serve` on a fresh GADAK_HOME looks like
+// builtInEmptyEnv is what `gadak serve` on a fresh GADAK_HOME looks like
 // to the API: a server with no credential and no projects. The mirror is the
 // fixture store the handler was built on — the seed fills it through that
 // same handle, which is the assertion surface for "the fill ran here".
-func localOriginEmptyEnv(t *testing.T) (*store.DB, http.Handler, string) {
+func builtInEmptyEnv(t *testing.T) (*store.DB, http.Handler, string) {
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
@@ -447,8 +447,8 @@ func localOriginEmptyEnv(t *testing.T) (*store.DB, http.Handler, string) {
 	return db, New(db, cfg), home
 }
 
-func TestLocalOriginInitSeedsWorkspaceAndServesItImmediately(t *testing.T) {
-	db, h, home := localOriginEmptyEnv(t)
+func TestBuiltInInitSeedsWorkspaceAndServesItImmediately(t *testing.T) {
+	db, h, home := builtInEmptyEnv(t)
 
 	rec := send(t, h, http.MethodPost, apiBase+"onboarding/standalone/", `{}`)
 	if rec.Code != http.StatusOK {
@@ -462,10 +462,10 @@ func TestLocalOriginInitSeedsWorkspaceAndServesItImmediately(t *testing.T) {
 		t.Fatalf("decode: %v", err)
 	}
 	if doc.WorkspaceKind != "standalone" || doc.DefaultProject != "STD" {
-		t.Fatalf("doc = %+v, want local-origin/STD", doc)
+		t.Fatalf("doc = %+v, want built-in/STD", doc)
 	}
 
-	// The saved config is the CLI verb's contract: kind localOrigin, no site
+	// The saved config is the CLI verb's contract: kind builtIn, no site
 	// trace, default project and the default issue type the origin offered.
 	saved := savedConfig(t, home)
 	if saved["kind"] != "standalone" {
@@ -498,7 +498,7 @@ func TestLocalOriginInitSeedsWorkspaceAndServesItImmediately(t *testing.T) {
 	}
 
 	// Same process, no restart: the swapped config already answers as a
-	// local-origin workspace — the write gate is open and the lazy origin
+	// built-in workspace — the write gate is open and the lazy origin
 	// serves the seeded project to the composer.
 	cred := get(t, h, apiBase+"credential/", nil)
 	if cred.Code != http.StatusOK {
@@ -509,7 +509,7 @@ func TestLocalOriginInitSeedsWorkspaceAndServesItImmediately(t *testing.T) {
 		t.Fatalf("decode credential: %v", err)
 	}
 	if !credDoc.Configured {
-		t.Fatal("credential not configured after the local-origin seed")
+		t.Fatal("credential not configured after the built-in seed")
 	}
 	meta := get(t, h, apiBase+"create-meta/", nil)
 	if meta.Code != http.StatusOK {
@@ -534,7 +534,7 @@ func TestLocalOriginInitSeedsWorkspaceAndServesItImmediately(t *testing.T) {
 	}
 }
 
-func TestLocalOriginInitRefusesConnectedWorkspace(t *testing.T) {
+func TestBuiltInInitRefusesConnectedWorkspace(t *testing.T) {
 	f, h, _ := onboarding(t)
 	connect(t, h, f)
 
@@ -557,8 +557,8 @@ func TestLocalOriginInitRefusesConnectedWorkspace(t *testing.T) {
 	}
 }
 
-func TestLocalOriginInitIsIdempotentOnLocalOriginWorkspace(t *testing.T) {
-	_, h, _ := localOriginConnectEnv(t, 0)
+func TestBuiltInInitIsIdempotentOnBuiltInWorkspace(t *testing.T) {
+	_, h, _ := builtInConnectEnv(t, 0)
 
 	for i := 0; i < 2; i++ {
 		rec := send(t, h, http.MethodPost, apiBase+"onboarding/standalone/", `{}`)
@@ -573,7 +573,7 @@ func TestLocalOriginInitIsIdempotentOnLocalOriginWorkspace(t *testing.T) {
 			t.Fatalf("POST %d decode: %v", i+1, err)
 		}
 		if doc.WorkspaceKind != "standalone" || doc.DefaultProject != "STD" {
-			t.Fatalf("POST %d doc = %+v, want local-origin/STD", i+1, doc)
+			t.Fatalf("POST %d doc = %+v, want built-in/STD", i+1, doc)
 		}
 	}
 }
@@ -626,11 +626,11 @@ func kickSyncFastTransport(s *server, cfg *config.Config, full bool) bool {
 	return true
 }
 
-// localOriginConnectEnv is a local-origin workspace whose in-process server is
+// builtInConnectEnv is a built-in workspace whose in-process server is
 // ready for PUT onboarding/connect/. issueCount seeds gadak.db under
 // GADAK_HOME (the path LocalData counts) — the fixture DB used by the
 // handler is a different file and is not what the replace guard reads.
-func localOriginConnectEnv(t *testing.T, issueCount int) (*onboardJira, http.Handler, string) {
+func builtInConnectEnv(t *testing.T, issueCount int) (*onboardJira, http.Handler, string) {
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
@@ -638,7 +638,7 @@ func localOriginConnectEnv(t *testing.T, issueCount int) (*onboardJira, http.Han
 	db, cfg := fixture(t)
 	cfg.Site, cfg.Email, cfg.Token = "", "", ""
 	cfg.Projects = nil
-	cfg.Kind = config.KindLocalOrigin
+	cfg.Kind = config.KindStandalone
 	if err := cfg.Save(); err != nil {
 		t.Fatal(err)
 	}
@@ -681,9 +681,9 @@ func seedLocalMirrorIssues(t *testing.T, n int) {
 	}
 }
 
-func TestConnectRefusesLocalOriginWithLocalData(t *testing.T) {
+func TestConnectRefusesBuiltInWithLocalData(t *testing.T) {
 	const secret = "tok-must-not-land-on-disk"
-	f, h, home := localOriginConnectEnv(t, 2)
+	f, h, home := builtInConnectEnv(t, 2)
 
 	rec := send(t, h, http.MethodPut, apiBase+"onboarding/connect/",
 		`{"site":"`+f.URL+`","jira_email":"hc@example.com","api_token":"`+secret+`"}`)
@@ -724,16 +724,16 @@ func TestConnectRefusesLocalOriginWithLocalData(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !cfg.HasLocalOrigin() {
-		t.Fatal("refused connect must leave the workspace local-origin")
+	if !cfg.HasBuiltInOrigin() {
+		t.Fatal("refused connect must leave the workspace built-in")
 	}
 	if cfg.Token != "" {
 		t.Fatal("refused connect must not store a token")
 	}
 }
 
-func TestConnectReplaceLocalOriginClearsKind(t *testing.T) {
-	f, h, home := localOriginConnectEnv(t, 2)
+func TestConnectReplaceBuiltInClearsKind(t *testing.T) {
+	f, h, home := builtInConnectEnv(t, 2)
 
 	rec := send(t, h, http.MethodPut, apiBase+"onboarding/connect/",
 		`{"site":"`+f.URL+`","jira_email":"hc@example.com","api_token":"tok","replace_standalone":true}`)
@@ -747,8 +747,8 @@ func TestConnectReplaceLocalOriginClearsKind(t *testing.T) {
 	if cfg.Kind != "" {
 		t.Fatalf("Kind = %q, want empty", cfg.Kind)
 	}
-	if cfg.HasLocalOrigin() {
-		t.Fatal("replace_standalone must leave HasLocalOrigin false")
+	if cfg.HasBuiltInOrigin() {
+		t.Fatal("replace_standalone must leave HasBuiltInOrigin false")
 	}
 	saved := savedConfig(t, home)
 	if saved["token"] != "tok" {
@@ -756,13 +756,13 @@ func TestConnectReplaceLocalOriginClearsKind(t *testing.T) {
 	}
 }
 
-func TestConnectEmptyLocalOriginClearsKind(t *testing.T) {
-	f, h, _ := localOriginConnectEnv(t, 0)
+func TestConnectEmptyBuiltInClearsKind(t *testing.T) {
+	f, h, _ := builtInConnectEnv(t, 0)
 
 	rec := send(t, h, http.MethodPut, apiBase+"onboarding/connect/",
 		`{"site":"`+f.URL+`","jira_email":"hc@example.com","api_token":"tok"}`)
 	if rec.Code != http.StatusOK {
-		t.Fatalf("empty local-origin should connect: %d %s", rec.Code, rec.Body.String())
+		t.Fatalf("empty built-in should connect: %d %s", rec.Code, rec.Body.String())
 	}
 	cfg, err := config.Load()
 	if err != nil {
@@ -771,24 +771,24 @@ func TestConnectEmptyLocalOriginClearsKind(t *testing.T) {
 	if cfg.Kind != "" {
 		t.Fatalf("Kind = %q, want empty", cfg.Kind)
 	}
-	if cfg.HasLocalOrigin() {
-		t.Fatal("empty local-origin connect must leave HasLocalOrigin false")
+	if cfg.HasBuiltInOrigin() {
+		t.Fatal("empty built-in connect must leave HasBuiltInOrigin false")
 	}
 }
 
-// TestConnectReplaceLocalOriginDropsWatchesFavoritesAndLOC is GDK-416/418:
+// TestConnectReplaceBuiltInDropsWatchesFavoritesAndLOC is GDK-416/418:
 // HTTP conversion must run the same cleanup as CLI init (mirror drop,
 // which takes watches/favorites, and the seeded LOC space).
 //
-// FAIL-first: handleConnect only ClearLocalOrigin + Save.
-func TestConnectReplaceLocalOriginDropsWatchesFavoritesAndLOC(t *testing.T) {
+// FAIL-first: handleConnect only ClearBuiltIn + Save.
+func TestConnectReplaceBuiltInDropsWatchesFavoritesAndLOC(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
 	f := newOnboardJira(t)
 	db, cfg := fixture(t)
 	cfg.Site, cfg.Email, cfg.Token = "", "", ""
 	cfg.Projects = nil
-	cfg.Kind = config.KindLocalOrigin
+	cfg.Kind = config.KindStandalone
 	cfg.Confluence = origin.DefaultConfluenceConfig()
 	if err := cfg.Save(); err != nil {
 		t.Fatal(err)
@@ -829,8 +829,8 @@ func TestConnectReplaceLocalOriginDropsWatchesFavoritesAndLOC(t *testing.T) {
 	if saved.Confluence != nil {
 		t.Fatalf("seeded LOC survived HTTP convert: %+v", saved.Confluence)
 	}
-	if saved.HasLocalOrigin() {
-		t.Fatal("replace_standalone must leave HasLocalOrigin false")
+	if saved.HasBuiltInOrigin() {
+		t.Fatal("replace_standalone must leave HasBuiltInOrigin false")
 	}
 }
 

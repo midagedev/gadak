@@ -1,8 +1,8 @@
 package main
 
 // gadak list / gadak ready. The default-list tests ride examples/demo.db
-// (sqlDemoHome); the ready tests ride a real local-origin workspace the same
-// way TestLocalOriginCreateSyncSQL does — init --standalone, create through
+// (sqlDemoHome); the ready tests ride a real built-in workspace the same
+// way TestBuiltInCreateSyncSQL does — init --standalone, create through
 // the origin, link, transition — because ready's blocker filter resolves
 // the link type against that origin's catalog, which is the path the
 // product actually takes.
@@ -174,9 +174,9 @@ func TestListRejectsBadArgs(t *testing.T) {
 	}
 }
 
-// localOriginHome is the TestLocalOriginCreateSyncSQL pattern: a throwaway
-// GADAK_HOME with a real local-origin workspace behind it.
-func localOriginHome(t *testing.T) {
+// builtInHome is the TestBuiltInCreateSyncSQL pattern: a throwaway
+// GADAK_HOME with a real built-in workspace behind it.
+func builtInHome(t *testing.T) {
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
@@ -192,10 +192,10 @@ func localOriginHome(t *testing.T) {
 	}
 }
 
-// createLocalOrigin creates one issue through the local-origin origin and
+// createBuiltIn creates one issue through the built-in origin and
 // returns its key. create refreshes the mirror, so the key is readable
 // immediately after.
-func createLocalOrigin(t *testing.T, summary string) string {
+func createBuiltIn(t *testing.T, summary string) string {
 	t.Helper()
 	out, err := capture(t, func() error { return cmdCreate([]string{summary}) })
 	if err != nil {
@@ -205,9 +205,9 @@ func createLocalOrigin(t *testing.T, summary string) string {
 }
 
 func TestReadyDropsBlockedIssueAndRecovers(t *testing.T) {
-	localOriginHome(t)
-	blocker := createLocalOrigin(t, "the blocker")
-	blocked := createLocalOrigin(t, "the blocked one")
+	builtInHome(t)
+	blocker := createBuiltIn(t, "the blocker")
+	blocked := createBuiltIn(t, "the blocked one")
 	if _, err := capture(t, func() error {
 		return cmdLink([]string{blocker, blocked, "--type", "blocks"})
 	}); err != nil {
@@ -250,8 +250,8 @@ func TestReadyDropsBlockedIssueAndRecovers(t *testing.T) {
 }
 
 func TestListReadyFlagMatchesReadyAlias(t *testing.T) {
-	localOriginHome(t)
-	createLocalOrigin(t, "unblocked either way")
+	builtInHome(t)
+	createBuiltIn(t, "unblocked either way")
 	byFlag, _, err := captureBoth(t, func() error { return cmdList([]string{"--ready"}) })
 	if err != nil {
 		t.Fatalf("list --ready: %v\n%s", err, byFlag)
@@ -397,11 +397,11 @@ func queryKeys(t *testing.T, db *store.DB, ctx context.Context, q string) []stri
 	return out
 }
 
-// next/pick on a fresh local-origin workspace: rows, not an error, with the
+// next/pick on a fresh built-in workspace: rows, not an error, with the
 // notice on stderr. This is the completion criterion for the fallback.
-func TestPickOnFreshLocalOriginReturnsRows(t *testing.T) {
-	localOriginHome(t)
-	key := createLocalOrigin(t, "pick fodder")
+func TestPickOnFreshBuiltInReturnsRows(t *testing.T) {
+	builtInHome(t)
+	key := createBuiltIn(t, "pick fodder")
 	stdout, stderr, err := captureBoth(t, func() error { return cmdNext(nil) })
 	if err != nil {
 		t.Fatalf("pick on a fresh workspace must answer: %v", err)

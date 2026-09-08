@@ -71,7 +71,7 @@ describe('knownProjectKeys (GDK-1177)', () => {
     expect([...knownProjectKeys(['NMB'], [{ issue_key: 'STD-1' }])]).toEqual(['NMB'])
   })
 
-  it('falls back to the pool key prefixes when projects is unset (localOrigin)', () => {
+  it('falls back to the pool key prefixes when projects is unset (builtIn)', () => {
     const keys = knownProjectKeys(undefined, [
       { issue_key: 'STD-1' },
       { issue_key: 'STD-2' },

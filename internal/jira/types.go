@@ -20,7 +20,7 @@ type User struct {
 	AccountID   string `json:"accountId"`
 	DisplayName string `json:"displayName"`
 	Email       string `json:"emailAddress"`
-	// AccountType is the bot axis (GDK-590): local-origin issuetap mints
+	// AccountType is the bot axis (GDK-590): built-in issuetap mints
 	// "agent" for the accounts behind X-Issuetap-Actor, Cloud sends "app"
 	// for Connect accounts and "atlassian"/"customer" for humans. Judge it
 	// only through IsBotAccountType.
@@ -31,7 +31,7 @@ type User struct {
 	Active     bool              `json:"active"`
 }
 
-// IsBotAccountType is the one bot judgement (GDK-590): "agent" (localOrigin
+// IsBotAccountType is the one bot judgement (GDK-590): "agent" (builtIn
 // actor accounts) and "app" (Cloud Connect accounts) are bots, everything
 // else — "atlassian", "customer", "" — is a human or unknown. Web, CLI and
 // MCP all call this; nothing re-derives it from display names.

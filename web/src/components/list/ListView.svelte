@@ -31,7 +31,7 @@
   import Onboarding from '../shell/Onboarding.svelte'
   import FreshnessChip from '../shell/FreshnessChip.svelte'
   import { config, isDesktop } from '../../lib/config'
-  import { isLocalOrigin } from '../../lib/workspace'
+  import { isBuiltIn } from '../../lib/workspace'
   import { write } from '../../stores/write.svelte'
   import { onboarding } from '../../stores/onboarding.svelte'
   import { runSyncNow } from '../../lib/sync-now'
@@ -235,7 +235,7 @@
     {#if visibleCount === 0 || needsOnboarding}
       {#if needsOnboarding}
         <Onboarding onOpenSettings={() => onOpenSettings?.()} />
-      {:else if issues.pool.size === 0 && !hasActiveQueryOrFilter && isLocalOrigin(config())}
+      {:else if issues.pool.size === 0 && !hasActiveQueryOrFilter && isBuiltIn(config())}
         <!-- A built-in tracker has nothing to sync from; its first issue is
              written, not fetched (GDK-1342). -->
         <EmptyState

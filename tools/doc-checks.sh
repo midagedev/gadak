@@ -1970,14 +1970,14 @@ ok "write handlers do not call s.client() (TestWriteHandlersDoNotCallClient)"
 # script are green whatever it claims. GDK-1278's vocabulary rename walked
 # straight into that — a `\bstandalone\b` sweep rewrote the enum inside
 # `toolStatusDescription`, so the description advertised
-# `kind: connected|localOrigin` while the server kept sending `standalone`.
+# `kind: connected|builtIn` while the server kept sending `standalone`.
 # Every other contract string the sweep ate was caught by a gate; this one
 # was caught by a human re-reading the diff.
 #
 # The rule: each `(a|b|c)` enum in a description must be spelled somewhere
 # in the non-test Go source as a quoted literal. That is what separates a
 # real value from an invented one — `"standalone"` appears 25 times,
-# `"localOrigin"` zero.
+# `"builtIn"` zero.
 mcp_enum_drift=$(python3 - <<'MCPPY'
 import re, subprocess
 from pathlib import Path

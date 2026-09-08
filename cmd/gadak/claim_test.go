@@ -12,13 +12,13 @@ import (
 	"github.com/midagedev/gadak/internal/origin"
 )
 
-// TestClaimLocalOriginTwoActors is the GDK-591 round-trip on a local-origin
+// TestClaimBuiltInTwoActors is the GDK-591 round-trip on a built-in
 // workspace, against the real embedded origin: actor A claims, actor B's
 // claim is refused with a distinguishable exit code and A's display name,
 // B takes over only when asking for it, A finishes the issue, and
 // `gadak issue` then shows the wait/progress spans computed from the
 // changelog. No network, no real site.
-func TestClaimLocalOriginTwoActors(t *testing.T) {
+func TestClaimBuiltInTwoActors(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
 	t.Setenv("HOME", home)

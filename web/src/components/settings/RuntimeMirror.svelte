@@ -11,12 +11,12 @@
   import { t } from '../../lib/i18n'
   import { copyText } from '../../lib/copy-text'
   import { config, surface } from '../../lib/config'
-  import { isLocalOrigin, STANDALONE_INIT_COMMAND } from '../../lib/workspace'
+  import { isBuiltIn, STANDALONE_INIT_COMMAND } from '../../lib/workspace'
   import type { SettingsRuntime } from '../../lib/api'
   import { COPY_BTN } from './controls'
 
   const onDesktop = surface() === 'desktop'
-  const localOrigin = isLocalOrigin(config())
+  const builtIn = isBuiltIn(config())
 
   let { runtime }: { runtime: SettingsRuntime } = $props()
 
@@ -54,7 +54,7 @@
     <dd class="min-w-0">
       <div class="flex min-w-0 flex-wrap items-center gap-1.5">
         <span class="font-mono text-text-primary">{runtime.profile}</span>
-        {#if localOrigin}
+        {#if builtIn}
           <!-- Same status-pill classes as IntegrationsTab's install-state chip.
                data-kind carries the stored kind value ("standalone"), not the
                GDK-1278 vocabulary — it is a DOM contract e2e reads. -->
@@ -62,10 +62,10 @@
             class="inline-flex items-center gap-1.5 rounded-full border border-border-subtle px-1.5 py-0.5 text-micro text-text-secondary"
             data-testid="workspace-kind"
             data-kind="standalone"
-            title={t('settings.workspaceLocalOriginHint')}
-            aria-label={t('settings.workspaceLocalOriginHint')}
+            title={t('settings.workspaceBuiltInHint')}
+            aria-label={t('settings.workspaceBuiltInHint')}
           >
-            {t('settings.workspaceLocalOrigin')}
+            {t('settings.workspaceBuiltIn')}
           </span>
         {/if}
       </div>
@@ -160,24 +160,24 @@
     <dt class="text-text-muted">{t('settings.runtimeVersion')}</dt>
     <dd class="font-mono text-text-primary">{runtime.gadakVersion}</dd>
 
-    <dt class="text-text-muted">{t('settings.localOriginHow')}</dt>
+    <dt class="text-text-muted">{t('settings.builtInHow')}</dt>
     <dd class="min-w-0">
       <div class="flex flex-wrap items-center gap-1.5">
         <code
           class="break-all font-mono text-text-primary"
-          data-testid="local-origin-init-command"
+          data-testid="built-in-init-command"
         >{STANDALONE_INIT_COMMAND}</code>
         <button
           type="button"
           class={COPY_BTN}
-          data-testid="local-origin-init-copy"
-          onclick={() => copyValue('local-origin-init', STANDALONE_INIT_COMMAND)}
+          data-testid="built-in-init-copy"
+          onclick={() => copyValue('built-in-init', STANDALONE_INIT_COMMAND)}
         >
-          {copiedKey === 'local-origin-init' ? t('settings.copied') : t('settings.copy')}
+          {copiedKey === 'built-in-init' ? t('settings.copied') : t('settings.copy')}
         </button>
       </div>
-      <div class="mt-0.5 text-text-muted">{t('settings.workspaceLocalOriginHint')}</div>
-      <div class="mt-0.5 text-text-muted">{t('settings.localOriginCommandHint')}</div>
+      <div class="mt-0.5 text-text-muted">{t('settings.workspaceBuiltInHint')}</div>
+      <div class="mt-0.5 text-text-muted">{t('settings.builtInCommandHint')}</div>
     </dd>
   </dl>
 </section>

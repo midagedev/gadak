@@ -132,7 +132,7 @@ func TestInitJSONDefaultProfileAndEmptyProjects(t *testing.T) {
 	}
 }
 
-func TestDoctorLocalOriginHasSiteTokenNotHasCredential(t *testing.T) {
+func TestDoctorBuiltInHasSiteTokenNotHasCredential(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
 	t.Setenv("HOME", home)
@@ -161,18 +161,18 @@ func TestDoctorLocalOriginHasSiteTokenNotHasCredential(t *testing.T) {
 	if err := json.Unmarshal([]byte(raw), &doc); err != nil {
 		t.Fatalf("json: %v\n%s", err, raw)
 	}
-	if doc.Workspace.Kind != config.KindLocalOrigin {
+	if doc.Workspace.Kind != config.KindStandalone {
 		t.Fatalf("kind %q", doc.Workspace.Kind)
 	}
 	if doc.Workspace.HasSiteToken {
-		t.Fatal("local-origin with no site token must report has_site_token=false")
+		t.Fatal("built-in with no site token must report has_site_token=false")
 	}
 	cfg, err := config.Load()
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !cfg.HasCredential() {
-		t.Fatal("config.HasCredential must stay true for local-origin")
+		t.Fatal("config.HasCredential must stay true for built-in")
 	}
 }
 
@@ -187,10 +187,10 @@ func TestServeStartHintsUnconfigured(t *testing.T) {
 	if !found {
 		t.Fatalf("unconfigured serve must print ErrNotConfigured, got %q", lines)
 	}
-	st := serveStartHints(&config.Config{Kind: config.KindLocalOrigin})
+	st := serveStartHints(&config.Config{Kind: config.KindStandalone})
 	for _, line := range st {
 		if line == config.ErrNotConfigured.Error() {
-			t.Fatalf("local-origin must not print init hint: %q", st)
+			t.Fatalf("built-in must not print init hint: %q", st)
 		}
 	}
 }
@@ -283,7 +283,7 @@ func TestCmdServeStaleLockFileDoesNotBusy(t *testing.T) {
 	}
 }
 
-func TestCreateLocalOriginUnknownProjectListsAvailable(t *testing.T) {
+func TestCreateBuiltInUnknownProjectListsAvailable(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
 	t.Setenv("HOME", home)

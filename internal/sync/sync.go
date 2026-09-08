@@ -184,17 +184,17 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 	// *all so raw carries every custom value for auto-configuration.
 	discoveryMode := len(cfg.Fields) == 0 && len(cfg.FieldMap) == 0
 
-	// Upgrade path for GDK-241: local-origin mirrors written before the id
+	// Upgrade path for GDK-241: built-in mirrors written before the id
 	// namespace existed hold `jira:N` rows whose keys the pass is about to
-	// re-insert as `local-origin-jira:N` — same (source_id, key), different id,
+	// re-insert as `standalone-jira:N` — same (source_id, key), different id,
 	// which the UNIQUE(source_id, key) index rejects. The mirror is a
 	// disposable cache: drop the legacy rows and let this pass re-mirror them
 	// under the new namespace. No tombstones — the keys come right back.
-	if cfg.HasLocalOrigin() {
+	if cfg.HasBuiltInOrigin() {
 		if n, err := db.PurgeIssueIDsOutsideNamespace(ctx, SourceID, itemNS(cfg)); err != nil {
 			return record(ctx, cfg, db, SourceID, err)
 		} else if n > 0 {
-			opts.logf("purged %d pre-namespace local-origin rows (GDK-241)", n)
+			opts.logf("purged %d pre-namespace built-in rows (GDK-241)", n)
 		}
 	}
 
@@ -203,7 +203,7 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 	// mutation would leave untouched rows in the old language (a mixed
 	// mirror). The mirror is a disposable cache; the origin is the record,
 	// so the fix is a full refetch, never a name rewrite on this side.
-	// Local-origin only: a connected workspace's language is the Atlassian
+	// Built-in only: a connected workspace's language is the Atlassian
 	// account's, not this setting. A NULL marker (pre-v35 mirror) reads as
 	// "" — same effective value as "en", so upgrading does not rebuild.
 	// Scope change (GDK-1400): the incremental floor is one watermark per
@@ -225,7 +225,7 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 
 	syncedLocale := ""
 	localeRebuild := false
-	if cfg.HasLocalOrigin() {
+	if cfg.HasBuiltInOrigin() {
 		syncedLocale = cfg.EffectiveLocale()
 		stored := state.Locale
 		if stored == "" {
@@ -435,7 +435,7 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 	} else {
 		jql := incrementalJQL(cfg.Projects, state.Watermark)
 		beginSearch("incremental: "+scopeLabel(cfg)+" — changes since "+sinceLabel(state.Watermark), "", false)
-		if discoveryMode && !cfg.HasLocalOrigin() {
+		if discoveryMode && !cfg.HasBuiltInOrigin() {
 			opts.logf("tip: run `gadak sync --full` once to auto-configure custom fields")
 		}
 		if err := c.Search(ctx, jql, fieldIDs, true, page); err != nil {
@@ -1001,13 +1001,17 @@ func keyBatches(keys []string) [][]string {
 	return out
 }
 
-// sourceNS is the id-namespace prefix for one connector. Local-origin
+// sourceNS is the id-namespace prefix for one connector. Built-in
 // (issuetap) numeric ids overlap the numbers a real Atlassian site uses, so
 // mirrored rows get a distinct prefix; source_id stays the connector slug
 // (ids are opaque, never parsed back).
 func sourceNS(cfg *config.Config, sourceID string) string {
-	if cfg != nil && cfg.HasLocalOrigin() {
-		return "local-origin-" + sourceID
+	if cfg != nil && cfg.HasBuiltInOrigin() {
+		// "standalone-" is stored data, not vocabulary. GDK-1278's rename
+		// swallowed it (26aaae84) and every test was renamed alongside, so
+		// nothing went red — the mirror is a cache and re-namespaced itself
+		// on the next sync. Pinned by TestSourceNSIsStandalone.
+		return "standalone-" + sourceID
 	}
 	return sourceID
 }
@@ -1506,10 +1510,10 @@ func reconcileJQL(projects []string) string {
 }
 
 // scopeLabel is the human scope fragment on sync start lines.
-// GDK-464: kind=local-origin has no account — name the seeded project, never
-// "this account". cfg.HasLocalOrigin() is the only discriminator.
+// GDK-464: kind=built-in has no account — name the seeded project, never
+// "this account". cfg.HasBuiltInOrigin() is the only discriminator.
 func scopeLabel(cfg *config.Config) string {
-	if cfg != nil && cfg.HasLocalOrigin() {
+	if cfg != nil && cfg.HasBuiltInOrigin() {
 		if len(cfg.Projects) > 0 {
 			return strings.Join(cfg.Projects, ", ")
 		}
@@ -1577,14 +1581,14 @@ func jqlTime(watermark string) string {
 }
 
 // shouldFetchDevLinks reports whether this pass should ask the origin for
-// development-panel links. Cloud is opt-in (cfg.DevStatus). Local-origin and
-// paired-to-local-origin (embedded / serve-passthrough issuetap) always fetch
+// development-panel links. Cloud is opt-in (cfg.DevStatus). Built-in and
+// paired-to-built-in (embedded / serve-passthrough issuetap) always fetch
 // — the panel is local and the flag must not drain it (GDK-536).
 func shouldFetchDevLinks(cfg *config.Config, c *jira.Client) bool {
 	if cfg != nil && cfg.DevStatus {
 		return true
 	}
-	if cfg != nil && cfg.HasLocalOrigin() {
+	if cfg != nil && cfg.HasBuiltInOrigin() {
 		return true
 	}
 	if c != nil && c.HTTP != nil {
@@ -1597,7 +1601,7 @@ func shouldFetchDevLinks(cfg *config.Config, c *jira.Client) bool {
 }
 
 // remoteLinksFor reads one issue's remote links (GDK-1032). Only from an
-// issuetap-backed origin (localOrigin / paired), where the call is
+// issuetap-backed origin (builtIn / paired), where the call is
 // in-process or one hop over the tailnet: on Atlassian Cloud it would be a
 // second per-issue GET on every sync, and gadak does not write remote links
 // there. nil leaves existing rows (the DevLinks contract); a fetch error is

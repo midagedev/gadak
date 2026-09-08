@@ -7,7 +7,7 @@
 // One owner so the surfaces cannot drift. The guard that motivates the
 // extraction is ensureHomeRoutingToken: once one device token exists the
 // serve gate takes Bearer only — no loopback bypass — so a mint that skips
-// the home routing token locks the local-origin home out of its own
+// the home routing token locks the built-in home out of its own
 // passthrough. The CLI carried that guard; before this package the desktop
 // would have had to copy it, and a copy is where a guard goes missing.
 //
@@ -157,7 +157,7 @@ const (
 
 // Dir is the profile directory the token store lives in. Pairing protects
 // both gated surfaces of a home serve — the origin passthrough
-// (localOrigin, GDK-433) and the mirror REST a phone companion reads
+// (builtIn, GDK-433) and the mirror REST a phone companion reads
 // (GDK-797) — so both workspace kinds may mint; what stays closed for a
 // connected workspace is the passthrough itself (origin_rest.go 404s it).
 // A workspace that is itself paired away cannot mint: its home is another
@@ -192,7 +192,7 @@ func PairedLine(cfg *config.Config, rem *pairing.Remote) string {
 }
 
 // MintDevice is the device-mint flow: validate, resolve the endpoint,
-// mint the scoped token, encode the offer, and — for a local-origin home —
+// mint the scoped token, encode the offer, and — for a built-in home —
 // keep the _home routing token valid. Callers pre-validate their own input
 // surface (flags, form fields); this function re-validates because it is
 // the structural owner, not a trusted callee.
@@ -375,12 +375,12 @@ func resolveDeviceEndpoint(cfg *config.Config, endpoint string) (string, bool, e
 // the plaintext exists exactly once, in the caller output, or the minted
 // token would be stranded unrecoverable.
 func finishMint(res MintResult, dir string, cfg *config.Config, ep string, now time.Time) (MintResult, error) {
-	// The _home routing token is a local-origin home concern: its local
+	// The _home routing token is a built-in home concern: its local
 	// writes ride the passthrough this serve fronts. A connected
 	// workspace writes go straight to its site, and the routing file
 	// (remote-origin.json) would make origin.pairedRemote read this
 	// workspace as paired with its own serve — never written here.
-	if cfg.HasLocalOrigin() {
+	if cfg.HasBuiltInOrigin() {
 		action, err := ensureHomeRoutingToken(dir, cfg, ep, now)
 		res.HomeRouting = action
 		if err != nil {
@@ -393,7 +393,7 @@ func finishMint(res MintResult, dir string, cfg *config.Config, ep string, now t
 // ensureHomeRoutingToken is the single owner of "_home is valid". Once one
 // token exists the gate takes Bearer only — no loopback bypass — and the
 // home machine writes route through the same passthrough (GDK-333 single
-// persist owner). Local-origin excludes the file from the paired-remote
+// persist owner). Built-in excludes the file from the paired-remote
 // branch (origin.pairedRemote), so here it only ever carries the routing
 // token localRoutingToken reads.
 //
@@ -438,13 +438,13 @@ func ensureHomeRoutingToken(dir string, cfg *config.Config, mintEndpoint string,
 }
 
 // MintHome is `pairing mint --label _home`: routing-token rotation, not a
-// device offer. No offer is produced. Local-origin only — a connected
+// device offer. No offer is produced. Built-in only — a connected
 // workspace writes go straight to its site, and the routing file here
 // would make origin.pairedRemote read this workspace as paired with its
 // own serve.
 func MintHome(dir string, cfg *config.Config, endpoint string, now time.Time) (pairing.Meta, error) {
-	if !cfg.HasLocalOrigin() {
-		return pairing.Meta{}, errors.New("_home is a local-origin workspace's routing token — this workspace's writes go to its site directly, and a routing file here would misread this workspace as paired")
+	if !cfg.HasBuiltInOrigin() {
+		return pairing.Meta{}, errors.New("_home is a built-in workspace's routing token — this workspace's writes go to its site directly, and a routing file here would misread this workspace as paired")
 	}
 	ep, err := resolveHomeEndpoint(cfg, dir, endpoint)
 	if err != nil {

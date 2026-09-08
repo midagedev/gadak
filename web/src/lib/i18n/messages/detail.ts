@@ -272,7 +272,7 @@ export const detail = {
   },
   // Toast copy rule: a single-sentence toast carries no trailing period
   // (`filter.saveServerFailed` in list.ts is the standard); hints and
-  // local-origin sentences keep theirs. (GDK-1226)
+  // built-in sentences keep theirs. (GDK-1226)
   'clipboard.copyFailed': {
     en: 'Could not copy — the clipboard refused the write.',
     ko: '복사하지 못했습니다 — 클립보드가 쓰기를 거부했습니다.',

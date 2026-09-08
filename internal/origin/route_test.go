@@ -12,7 +12,7 @@ import (
 	"github.com/midagedev/gadak/internal/origin"
 )
 
-func localOriginHome(t *testing.T) (*config.Config, string) {
+func builtInHome(t *testing.T) (*config.Config, string) {
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
@@ -26,7 +26,7 @@ func localOriginHome(t *testing.T) (*config.Config, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg.Kind = config.KindLocalOrigin
+	cfg.Kind = config.KindStandalone
 	if err := cfg.Save(); err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +68,7 @@ func writeStaleAdvertise(t *testing.T, dir string) string {
 // leftover serve-origin.json from a previous version is not an error and
 // does not route Client onto HTTP.
 func TestStaleServeOriginJSONIsIgnored(t *testing.T) {
-	cfg, home := localOriginHome(t)
+	cfg, home := builtInHome(t)
 	p := writeStaleAdvertise(t, home)
 
 	c, err := origin.Client(cfg)
@@ -84,7 +84,7 @@ func TestStaleServeOriginJSONIsIgnored(t *testing.T) {
 }
 
 func TestClientSecondSessionSeesWrite(t *testing.T) {
-	cfg, _ := localOriginHome(t)
+	cfg, _ := builtInHome(t)
 	a, err := origin.Client(cfg)
 	if err != nil {
 		t.Fatal(err)
@@ -114,13 +114,13 @@ func TestClientSecondSessionSeesWrite(t *testing.T) {
 }
 
 func TestMountedWorkspaceIgnoresStaleAdvertise(t *testing.T) {
-	_, _ = localOriginHome(t)
+	_, _ = builtInHome(t)
 
 	jt, err := config.LoadFor("jt")
 	if err != nil {
 		t.Fatal(err)
 	}
-	jt.Kind = config.KindLocalOrigin
+	jt.Kind = config.KindStandalone
 	if err := jt.Save(); err != nil {
 		t.Fatal(err)
 	}
@@ -147,7 +147,7 @@ func TestMountedWorkspaceIgnoresStaleAdvertise(t *testing.T) {
 }
 
 func TestForgetLiveThenClientEmbedsAcrossGC(t *testing.T) {
-	cfg, _ := localOriginHome(t)
+	cfg, _ := builtInHome(t)
 	if _, err := origin.Client(cfg); err != nil {
 		t.Fatal(err)
 	}
@@ -165,7 +165,7 @@ func TestForgetLiveThenClientEmbedsAcrossGC(t *testing.T) {
 }
 
 func TestSetInProcessReusesLiveSession(t *testing.T) {
-	cfg, _ := localOriginHome(t)
+	cfg, _ := builtInHome(t)
 	if _, err := origin.Client(cfg); err != nil {
 		t.Fatal(err)
 	}
@@ -186,7 +186,7 @@ func TestSetInProcessReusesLiveSession(t *testing.T) {
 }
 
 func TestOwnerStatusEmbeddedIgnoresStaleFile(t *testing.T) {
-	cfg, home := localOriginHome(t)
+	cfg, home := builtInHome(t)
 	if got := origin.OwnerStatus(cfg); got != "embedded (no live serve)" {
 		t.Fatalf("no file: %q", got)
 	}

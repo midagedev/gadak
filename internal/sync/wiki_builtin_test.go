@@ -12,11 +12,11 @@ import (
 	"github.com/midagedev/gadak/internal/origin"
 )
 
-// localOriginWikiCfg is a local-origin workspace under GADAK_HOME, isolated
+// builtInWikiCfg is a built-in workspace under GADAK_HOME, isolated
 // from the user's profile. Pattern follows internal/origin/wiki_test.go
-// localOriginHome (that helper is not exported; this package has no prior
-// local-origin origin helper).
-func localOriginWikiCfg(t *testing.T, withConfluence bool) *config.Config {
+// builtInHome (that helper is not exported; this package has no prior
+// built-in origin helper).
+func builtInWikiCfg(t *testing.T, withConfluence bool) *config.Config {
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
@@ -30,7 +30,7 @@ func localOriginWikiCfg(t *testing.T, withConfluence bool) *config.Config {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg.Kind = config.KindLocalOrigin
+	cfg.Kind = config.KindStandalone
 	if withConfluence {
 		cfg.Confluence = origin.DefaultConfluenceConfig()
 	}
@@ -63,16 +63,16 @@ func wikiADF(text string) string {
 	return string(b)
 }
 
-// TestLocalOriginWikiPagesLandInMirror is the GDK-267 evidence: a page created
+// TestBuiltInWikiPagesLandInMirror is the GDK-267 evidence: a page created
 // on the in-process origin is visible in the SQLite mirror after RunConfluence.
 // No network — GADAK_HOME is a temp dir.
-func TestLocalOriginWikiPagesLandInMirror(t *testing.T) {
-	cfg := localOriginWikiCfg(t, true)
+func TestBuiltInWikiPagesLandInMirror(t *testing.T) {
+	cfg := builtInWikiCfg(t, true)
 	w, err := origin.Wiki(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
-	created, err := w.CreatePage(context.Background(), origin.DefaultSpaceKey, "Local-origin wiki note", wikiADF("hello from local-origin wiki"), "")
+	created, err := w.CreatePage(context.Background(), origin.DefaultSpaceKey, "Built-in wiki note", wikiADF("hello from built-in wiki"), "")
 	if err != nil {
 		t.Fatalf("CreatePage: %v", err)
 	}
@@ -93,7 +93,7 @@ func TestLocalOriginWikiPagesLandInMirror(t *testing.T) {
 	if err != nil || d == nil {
 		t.Fatalf("PageDetail(%s): %v %#v", created.ID, err, d)
 	}
-	if d.Title != "Local-origin wiki note" {
+	if d.Title != "Built-in wiki note" {
 		t.Errorf("title %q", d.Title)
 	}
 	if d.SpaceKey != origin.DefaultSpaceKey {
@@ -109,11 +109,11 @@ func TestLocalOriginWikiPagesLandInMirror(t *testing.T) {
 	}
 }
 
-// TestLocalOriginWikiPassOffWhenConfluenceNil is the existing-workspace case:
+// TestBuiltInWikiPassOffWhenConfluenceNil is the existing-workspace case:
 // cfg.Confluence == nil keeps RunConfluence from mirroring, even though
 // origin.Wiki still returns a client. No config migration this round.
-func TestLocalOriginWikiPassOffWhenConfluenceNil(t *testing.T) {
-	cfg := localOriginWikiCfg(t, false)
+func TestBuiltInWikiPassOffWhenConfluenceNil(t *testing.T) {
+	cfg := builtInWikiCfg(t, false)
 	if cfg.Confluence != nil {
 		t.Fatal("precondition: Confluence must be nil")
 	}
@@ -157,7 +157,7 @@ func TestWikiAcquisitionFailureSkipsPass(t *testing.T) {
 	})
 
 	cfg := &config.Config{
-		Kind:       config.KindLocalOrigin,
+		Kind:       config.KindStandalone,
 		Confluence: origin.DefaultConfluenceConfig(),
 	}
 	var logs []string

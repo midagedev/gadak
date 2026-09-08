@@ -54,7 +54,7 @@ selected space has far fewer pages than it should, this is the case.
 A workspace whose origin was replaced — `gadak migrate` seeding a new
 built-in tracker, or a pairing built before v0.20.0 — can keep a
 `confluence.spaces` list from the origin it no longer talks to. The classic
-residue is the local-origin default `["LOC"]`. Every pass then takes the
+residue is the built-in tracker's default `["LOC"]`. Every pass then takes the
 explicit path, the lookup 404s, and the mirror stays at zero pages while the
 sync reports success — 81 runs in a row on the host this was measured on.
 

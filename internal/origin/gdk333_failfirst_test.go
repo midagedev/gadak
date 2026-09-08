@@ -11,13 +11,13 @@ import (
 )
 
 // TestGDK333FailFirstTwoSessionsInvisible is the F′ stage 1 seam: two
-// constructLocalOrigin sessions on the same persist path share writes
+// constructBuiltIn sessions on the same persist path share writes
 // through WAL. The persist lock is gone (GDK-936). FAIL-first (lock
 // no-op, 2026-08-26): the previous busy assertion went red because the
 // second construct succeeded, and B already saw A's issue.
 func TestGDK333FailFirstTwoSessionsInvisible(t *testing.T) {
 	persist := filepath.Join(t.TempDir(), filepath.FromSlash(PersistRel))
-	a, err := constructLocalOrigin(persist, nil, config.ResolvedActor{}, "en")
+	a, err := constructBuiltIn(persist, nil, config.ResolvedActor{}, "en")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,9 +36,9 @@ func TestGDK333FailFirstTwoSessionsInvisible(t *testing.T) {
 		t.Fatalf("key %q", key)
 	}
 
-	b, err := constructLocalOrigin(persist, nil, config.ResolvedActor{}, "en")
+	b, err := constructBuiltIn(persist, nil, config.ResolvedActor{}, "en")
 	if err != nil {
-		t.Fatalf("second constructLocalOrigin: %v", err)
+		t.Fatalf("second constructBuiltIn: %v", err)
 	}
 	t.Cleanup(func() { closeSession(b) })
 	if !searchKey(t, b.client, key) {

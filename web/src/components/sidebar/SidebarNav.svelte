@@ -32,7 +32,7 @@
     originWritable,
     workspaceName,
   } from '../../lib/config'
-  import { isLocalOrigin, STANDALONE_INIT_COMMAND } from '../../lib/workspace'
+  import { isBuiltIn, STANDALONE_INIT_COMMAND } from '../../lib/workspace'
   import { mirrorLabel } from '../../lib/mirror-status'
   import { docsEmptyClickAction, docsEmptyGlyph } from '../../lib/docs-empty'
   import { docsEmpty } from '../../stores/docs-empty.svelte'
@@ -297,7 +297,7 @@
   let switcherOpen = $state(false)
   function closeSwitcher() {
     switcherOpen = false
-    localOriginHowOpen = false
+    builtInHowOpen = false
   }
   function onSwitcherEsc(e: KeyboardEvent) {
     if (!isEscapeKey(e) || !switcherOpen) return
@@ -314,8 +314,8 @@
   // tracker" flips the workspace kind under it. `config()` is a plain
   // variable, so the epoch is the only reactive dep that sees the flip
   // (GDK-1342; same trick as onboarding.reason).
-  const localOrigin = $derived((onboarding.configEpoch, isLocalOrigin(config())))
-  let localOriginHowOpen = $state(false)
+  const builtIn = $derived((onboarding.configEpoch, isBuiltIn(config())))
+  let builtInHowOpen = $state(false)
 
   /* ── Docs (mirrored wiki pages) ── */
   //  The nav carries two entries only — the document view, and a collapsed
@@ -465,14 +465,14 @@
         onclick={() => (switcherOpen ? closeSwitcher() : (switcherOpen = true))}
       >
         <span class="min-w-0 flex-none truncate font-medium text-text-primary">{currentWorkspace}</span>
-        {#if localOrigin}
+        {#if builtIn}
           <span
             class="flex-none rounded-sm bg-bg-elevated px-1 text-micro text-text-secondary"
             data-testid="workspace-kind"
             data-kind="standalone"
-            title={t('settings.workspaceLocalOriginHint')}
+            title={t('settings.workspaceBuiltInHint')}
           >
-            {t('settings.workspaceLocalOrigin')}
+            {t('settings.workspaceBuiltIn')}
           </span>
         {:else if currentHost}
           <span class="min-w-0 flex-1 truncate text-micro text-text-muted">{currentHost}</span>
@@ -530,26 +530,26 @@
               <Icon name="plus" size={13} class="flex-none text-text-muted" />
               <span class="min-w-0 flex-1 truncate">{t('sidebar.workspaceNew')}</span>
             </button>
-            {#if !onboarding.needsOnboarding && !localOrigin}
+            {#if !onboarding.needsOnboarding && !builtIn}
               <!-- GDK-1122: the how-to-create affordance is for connected
-                   workspaces; offering it inside a local-origin one advertises
+                   workspaces; offering it inside a built-in one advertises
                    leaving the origin this workspace is bound to. -->
               <button
                 type="button"
                 role="menuitem"
                 class="flex h-7 w-full items-center gap-2 rounded-md px-2 text-left text-body text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
-                data-testid="local-origin-create"
-                aria-expanded={localOriginHowOpen}
-                onclick={() => (localOriginHowOpen = !localOriginHowOpen)}
+                data-testid="built-in-create"
+                aria-expanded={builtInHowOpen}
+                onclick={() => (builtInHowOpen = !builtInHowOpen)}
               >
                 <Icon name="terminal" size={13} class="flex-none text-text-muted" />
-                <span class="min-w-0 flex-1 truncate">{t('settings.localOriginHow')}</span>
+                <span class="min-w-0 flex-1 truncate">{t('settings.builtInHow')}</span>
               </button>
-              {#if localOriginHowOpen}
+              {#if builtInHowOpen}
                 <div class="px-2 pb-1.5 pt-0.5">
                   <code class="break-all font-mono text-micro text-text-primary">{STANDALONE_INIT_COMMAND}</code>
-                  <div class="mt-0.5 text-micro text-text-muted">{t('settings.workspaceLocalOriginHint')}</div>
-                  <div class="mt-0.5 text-micro text-text-muted">{t('settings.localOriginCommandHint')}</div>
+                  <div class="mt-0.5 text-micro text-text-muted">{t('settings.workspaceBuiltInHint')}</div>
+                  <div class="mt-0.5 text-micro text-text-muted">{t('settings.builtInCommandHint')}</div>
                 </div>
               {/if}
             {/if}
@@ -726,7 +726,7 @@
     {#if !onboarding.needsOnboarding}
       <!-- A built-in tracker without an identity has no "mine": the section
            would only carry the sentence explaining its own absence (GDK-1342). -->
-      {#if !(localOrigin && !me.identified)}
+      {#if !(builtIn && !me.identified)}
         <MyIssuesNav />
       {/if}
       <FavoritesNav />
@@ -1071,7 +1071,7 @@
     {:else if !onboarding.needsOnboarding && me.authChecked && !originWritable()}
       <!-- GDK-1148: the CTA is only for an origin that cannot answer a write
            (originWritable, the server's own HasAtlassianCredential). A
-           local-origin or paired workspace is anonymous AND fully writable —
+           built-in or paired workspace is anonymous AND fully writable —
            me.identified cannot tell those apart, so this branch must not. -->
       <button
         type="button"

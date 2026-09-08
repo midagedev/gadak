@@ -910,7 +910,7 @@ status). `gadak issue KEY --json` includes it; SQL joins `dev_links` on
 `item_id`.
 
 - **built-in tracker:** `gadak dev link KEY --pr <url>` records a PR through the
-  local origin; `gadak dev scan` execs `gh pr list` and links matches
+  built-in origin; `gadak dev scan` execs `gh pr list` and links matches
   (`cmd/gadak/dev.go`). Both refuse on a Jira workspace.
 - **Jira Cloud:** do not run `dev link` / `dev scan`. `gadak config set
   devStatus true` to *mirror* Jira's development panel into `dev_links` (read).

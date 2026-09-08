@@ -3,7 +3,7 @@ import { attachConsoleErrors, forceLocale, gotoApp, openServerSettings, searchIn
 import { en } from '../web/src/lib/i18n/en'
 
 /**
- * Track D: a local-origin workspace must show its kind indicator; a connected
+ * Track D: a built-in workspace must show its kind indicator; a connected
  * one must not. Key off data-testid + the served kind — not a locale string
  * or a platform command.
  *
@@ -41,7 +41,7 @@ async function serveWorkspaceKind(
   })
 }
 
-test.describe('local-origin workspace indicator', () => {
+test.describe('built-in workspace indicator', () => {
   /*
    * GDK-1313: the built-in tracker has no origin page, so nothing may
    * advertise "Open in Built-in" — the palette row, the `o` shortcut's help
@@ -80,7 +80,7 @@ test.describe('local-origin workspace indicator', () => {
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 
-  test('local-origin workspace shows its indicator; connected does not', async ({ page }) => {
+  test('built-in workspace shows its indicator; connected does not', async ({ page }) => {
     await serveWorkspaceKind(page, 'standalone')
     await gotoApp(page)
     await openServerSettings(page)
@@ -96,7 +96,7 @@ test.describe('local-origin workspace indicator', () => {
     // The hint's data-loss claim (GDK-1286 wording): the backup target is the
     // tracker data file, not gadak.db.
     await expect(indicator).toHaveAttribute('aria-label', /not gadak\.db/)
-    await expect(page.getByTestId('local-origin-init-command')).toHaveText(STANDALONE_INIT_COMMAND)
+    await expect(page.getByTestId('built-in-init-command')).toHaveText(STANDALONE_INIT_COMMAND)
 
     // The served document is the source of truth — the chip must match it,
     // not a client-side guess from an empty site URL.
@@ -114,13 +114,13 @@ test.describe('local-origin workspace indicator', () => {
     await gotoApp(page)
     await openServerSettings(page)
 
-    await page.getByTestId('local-origin-init-copy').click()
+    await page.getByTestId('built-in-init-copy').click()
     await expect.poll(async () => page.evaluate(() => navigator.clipboard.readText())).toBe(
       STANDALONE_INIT_COMMAND,
     )
   })
 
-  test('connected workspace does not show the local-origin indicator', async ({ page }) => {
+  test('connected workspace does not show the built-in indicator', async ({ page }) => {
     await serveWorkspaceKind(page, 'connected')
     await gotoApp(page)
     await openServerSettings(page)
@@ -143,7 +143,7 @@ test.describe('local-origin workspace indicator', () => {
     await openServerSettings(page)
 
     await expect(page.getByTestId('workspace-kind')).toHaveCount(0)
-    await expect(page.getByTestId('local-origin-init-command')).toHaveText(STANDALONE_INIT_COMMAND)
+    await expect(page.getByTestId('built-in-init-command')).toHaveText(STANDALONE_INIT_COMMAND)
   })
 
   test('sidebar create control reveals the init command', async ({ page }) => {
@@ -152,18 +152,18 @@ test.describe('local-origin workspace indicator', () => {
 
     // GDK-1335: the create affordance lives in the workspace switcher's menu.
     await page.getByTestId('workspace-switcher').click()
-    const create = page.getByTestId('local-origin-create')
+    const create = page.getByTestId('built-in-create')
     await expect(create).toBeVisible()
     await create.click()
     await expect(page.getByText(STANDALONE_INIT_COMMAND, { exact: true })).toBeVisible()
   })
 
-  // GDK-1122: a workspace that already IS local-origin must not be offered
+  // GDK-1122: a workspace that already IS built-in must not be offered
   // another one, and its personal section must not send a no-account reader
-  // to the Jira credential dialog. The real local-origin serve answers auth/me
+  // to the Jira credential dialog. The real built-in serve answers auth/me
   // with {email:null} (handleMe: no credential, 200 — not an auth failure),
   // so that anonymous branch is the one under test here.
-  test('local-origin workspace offers no create control and no credentials CTA', async ({
+  test('built-in workspace offers no create control and no credentials CTA', async ({
     page,
   }) => {
     await page.route('**/api/v1/auth/me/**', (route) =>
@@ -172,17 +172,17 @@ test.describe('local-origin workspace indicator', () => {
     await serveWorkspaceKind(page, 'standalone')
     await gotoApp(page)
 
-    // Already local-origin: the "create a local-origin workspace" affordance is
+    // Already built-in: the "create a built-in workspace" affordance is
     // absent from the switcher's menu, not merely unhelpful.
     await page.getByTestId('workspace-switcher').click()
     await expect(page.getByTestId('workspace-menu')).toBeVisible()
-    await expect(page.getByTestId('local-origin-create')).toHaveCount(0)
+    await expect(page.getByTestId('built-in-create')).toHaveCount(0)
     await page.keyboard.press('Escape')
 
     // MY ISSUES: a built-in tracker without an identity has no "mine", so the
     // section is not rendered at all (GDK-1342) — neither the credential CTA
     // nor the sentence that used to explain the section's own emptiness.
-    await expect(page.getByTestId('my-issues-local-origin-note')).toHaveCount(0)
+    await expect(page.getByTestId('my-issues-built-in-note')).toHaveCount(0)
     await expect(page.getByText('My issues', { exact: true })).toHaveCount(0)
     await expect(page.getByRole('button', { name: /Set credentials to see/ })).toHaveCount(0)
   })
@@ -195,12 +195,12 @@ test.describe('local-origin workspace indicator', () => {
    *
    * The predicate is the served originWritable (config.HasAtlassianCredential),
    * never me.identified: auth/me answers from cfg.Email, which is empty on a
-   * local-origin and on a paired workspace even though both write fine — the
+   * built-in and on a paired workspace even though both write fine — the
    * same trap GDK-1090 closed for the link-types catalog, restated for copy.
    * auth/me is stubbed anonymous so the branch that used to render the CTA is
    * the one under test.
    */
-  test('local-origin workspace: footer CTA and credential placeholders are gone', async ({ page }) => {
+  test('built-in workspace: footer CTA and credential placeholders are gone', async ({ page }) => {
     await page.route('**/api/v1/auth/me/**', (route) =>
       route.fulfill({ status: 200, json: { email: null } }),
     )
@@ -208,7 +208,7 @@ test.describe('local-origin workspace indicator', () => {
     await gotoApp(page)
 
     // Footer: the Set credentials button is absent, not disabled — a
-    // local-origin has no credential to set and no dialog that could help.
+    // built-in has no credential to set and no dialog that could help.
     await expect(
       page.getByRole('button', { name: en['common.setCredentials'], exact: true }),
     ).toHaveCount(0)
@@ -235,7 +235,7 @@ test.describe('local-origin workspace indicator', () => {
     )
 
     // Sync tab: the personal-token dialog edits a site credential (email +
-    // API token). A local-origin has none, so the entry point is absent.
+    // API token). A built-in has none, so the entry point is absent.
     await openServerSettings(page)
     await expect(
       page.getByRole('dialog', { name: 'Settings' }).getByRole('button', {

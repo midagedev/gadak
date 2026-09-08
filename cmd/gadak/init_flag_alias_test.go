@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-func TestInitLocalOriginFlagStillWorksAsAlias(t *testing.T) {
+func TestInitBuiltInFlagStillWorksAsAlias(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
 	t.Setenv("HOME", home)

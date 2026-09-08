@@ -17,7 +17,7 @@ import (
 var legacyYAMLBody = []byte(`projects:
   - id: "10000"
     key: STD
-    name: Local-origin
+    name: Built-in
     type: software
     style: classic
 spaces:
@@ -30,7 +30,7 @@ issues:
     summary: from legacy yaml
 `)
 
-func localOriginCfg(t *testing.T, home string) *config.Config {
+func builtInCfg(t *testing.T, home string) *config.Config {
 	t.Helper()
 	t.Setenv("GADAK_HOME", home)
 	config.SetProfile("")
@@ -42,7 +42,7 @@ func localOriginCfg(t *testing.T, home string) *config.Config {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg.Kind = config.KindLocalOrigin
+	cfg.Kind = config.KindStandalone
 	if err := cfg.Save(); err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +74,7 @@ func TestIssuetapPinRefusesYAMLPersistPath(t *testing.T) {
 // issuetap.db, issue survives Close+reopen, yaml bytes are unchanged.
 func TestLegacyYAMLSeedsSQLitePersist(t *testing.T) {
 	home := t.TempDir()
-	cfg := localOriginCfg(t, home)
+	cfg := builtInCfg(t, home)
 
 	yamlPath := LegacyYAMLPath(home)
 	if err := os.MkdirAll(filepath.Dir(yamlPath), 0o700); err != nil {
@@ -129,11 +129,11 @@ func TestLegacyYAMLSeedsSQLitePersist(t *testing.T) {
 	}
 }
 
-// TestNewLocalOriginHomeCreatesDBNotYAML: a fresh local-origin origin writes
+// TestNewBuiltInHomeCreatesDBNotYAML: a fresh built-in origin writes
 // issuetap.db and does not create issuetap.yaml.
-func TestNewLocalOriginHomeCreatesDBNotYAML(t *testing.T) {
+func TestNewBuiltInHomeCreatesDBNotYAML(t *testing.T) {
 	home := t.TempDir()
-	cfg := localOriginCfg(t, home)
+	cfg := builtInCfg(t, home)
 	c, err := Client(cfg)
 	if err != nil {
 		t.Fatal(err)
@@ -165,7 +165,7 @@ func TestNewLocalOriginHomeCreatesDBNotYAML(t *testing.T) {
 // sibling yaml is not applied.
 func TestExistingSQLiteIgnoresLegacyYAML(t *testing.T) {
 	home := t.TempDir()
-	cfg := localOriginCfg(t, home)
+	cfg := builtInCfg(t, home)
 	c, err := Client(cfg)
 	if err != nil {
 		t.Fatal(err)

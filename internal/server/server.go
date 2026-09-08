@@ -122,9 +122,9 @@ type server struct {
 	jobsCancel context.CancelFunc
 	jobsWG     sync.WaitGroup
 
-	// originH is the local-origin issuetap handler this process already
+	// originH is the built-in issuetap handler this process already
 	// holds. Lazy: first /api/v1/origin/ request constructs it via
-	// origin.LocalOriginHandler. Tests pin it to keep a session alive
+	// origin.BuiltInHandler. Tests pin it to keep a session alive
 	// after origin.live is evicted (cross-process simulation).
 	//
 	// A mutex, not a sync.Once. The slot has to be *replaceable*: the
@@ -313,7 +313,7 @@ func newServer(db *store.DB, cfg *config.Config, cache *attachcache.Cache, profi
 	// First-run onboarding (onboarding.go). These literal patterns are more
 	// specific than the `{key}/{action}/` pair above, so ServeMux prefers them.
 	mux.HandleFunc("PUT "+apiBase+"onboarding/connect/{$}", s.handleConnect)
-	mux.HandleFunc("POST "+apiBase+"onboarding/standalone/{$}", s.handleLocalOriginInit)
+	mux.HandleFunc("POST "+apiBase+"onboarding/standalone/{$}", s.handleBuiltInInit)
 	mux.HandleFunc("GET "+apiBase+"projects/available/{$}", s.handleAvailableProjects)
 	mux.HandleFunc("POST "+apiBase+"sync/{$}", s.handleStartSync)
 	mux.HandleFunc("GET "+apiBase+"sync/progress/{$}", s.handleSyncProgress)
@@ -342,7 +342,7 @@ func newServer(db *store.DB, cfg *config.Config, cache *attachcache.Cache, profi
 	mux.HandleFunc("PUT "+apiBase+"pages/{id}/edit/{$}", s.handlePageEdit)
 	mux.HandleFunc("POST "+apiBase+"pages/{id}/comment/{$}", s.handlePageComment)
 	mux.HandleFunc("POST "+apiBase+"pages/{$}", s.handlePageCreate)
-	// Origin passthrough: CLI writes on a local-origin workspace go through
+	// Origin passthrough: CLI writes on a built-in workspace go through
 	// the live serve's issuetap so persist has one owner (GDK-333).
 	mux.Handle(origin.RESTPrefix+"/", http.HandlerFunc(s.handleOriginREST))
 	// The terminal (GDK-862): PTY sessions and their WebSocket. Outside

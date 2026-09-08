@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { attachConsoleErrors, forceLocale } from './helpers'
 
 /*
- * GDK-247: connecting a Jira site onto a local-origin workspace that holds
+ * GDK-247: connecting a Jira site onto a built-in workspace that holds
  * locally originated issues must be refused until the user opts in.
  * The demo server is a connected fixture, so the empty first-run state and
  * the 409 are both route-mocked — no request reaches Jira or mutates config.
@@ -52,7 +52,7 @@ async function mockFirstRun(page: Page): Promise<void> {
   )
 }
 
-test.describe('local-origin onboarding origin guard', () => {
+test.describe('built-in onboarding origin guard', () => {
   test('409 standalone_data_present is shown; replace requires a second confirm', async ({
     page,
   }) => {
@@ -92,13 +92,13 @@ test.describe('local-origin onboarding origin guard', () => {
     await wizard.locator('input[name="token"]').fill('super-secret-token')
     await wizard.getByRole('button', { name: 'Connect', exact: true }).click()
 
-    const block = page.getByTestId('onboarding-local-origin-block')
+    const block = page.getByTestId('onboarding-built-in-block')
     await expect(block).toBeVisible()
     // GDK-1281: the sentence now says where the issues came from rather
     // than naming a workspace kind. The count and its subject are what this
     // assertion is about, and both are still here.
     await expect(block).toContainText('3 issues or documents that originated here')
-    await expect(page.getByTestId('onboarding-local-origin-persist')).toContainText(PERSIST)
+    await expect(page.getByTestId('onboarding-built-in-persist')).toContainText(PERSIST)
     await expect(block).toContainText('separate workspace')
     expect(connectBodies).toHaveLength(1)
     expect(connectBodies[0].replace_standalone).toBeUndefined()

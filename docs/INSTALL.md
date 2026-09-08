@@ -297,7 +297,7 @@ running (include the `-wal`/`-shm` sidecars), or
 `sqlite3 origin/issuetap.db ".backup dest.db"`. `gadak backup` does the same in one
 step while serve keeps running (`docs/runbooks/backup-restore.md`). It seeds project `STD` and wiki
 space `LOC`, and records a default issue type so `gadak create` takes only a
-summary (`cmd/gadak/init.go` `initLocalOrigin`). The SQLite file `gadak.db` is
+summary (`cmd/gadak/init.go` `initBuiltIn`). The SQLite file `gadak.db` is
 still a cache. The first `gadak sync` against that origin finishes in 0s
 (measured; the origin is already local). Local CLI writes embed the same
 SQLite file (WAL); a leftover `serve-origin.json` from an older install is

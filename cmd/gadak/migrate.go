@@ -22,7 +22,7 @@ import (
 const migrateUsage = "usage: gadak --workspace <new name> migrate --from <workspace> [--projects A,B] [--spaces X,Y] [--skip-attachments] [--json]\n" +
 	"       gadak --workspace <linear workspace> migrate --from <workspace> --to linear --team <KEY> [--projects A,B] [--limit N] [--dry-run] [--json]"
 
-// cmdMigrate exports a workspace's mirror into a brand-new local-origin
+// cmdMigrate exports a workspace's mirror into a brand-new built-in
 // workspace (GDK-1264): mirror → issuetap fixture YAML → one-shot seed →
 // first fill → verification report. The source is only read — its mirror,
 // plus one origin round-trip per attachment for the bytes. The target must
@@ -60,7 +60,7 @@ func cmdMigrate(args []string) error {
 		return usageError("migrate", migrateUsage)
 	}
 	if target == "" || target == "default" {
-		return fmt.Errorf("migrate creates a new local-origin workspace — name it: gadak --workspace <new name> migrate --from %s", *from)
+		return fmt.Errorf("migrate creates a new built-in workspace — name it: gadak --workspace <new name> migrate --from %s", *from)
 	}
 	if target == *from {
 		return fmt.Errorf("--from %s names the target workspace itself; migrate exports into a different, new workspace", *from)
@@ -143,20 +143,20 @@ func cmdMigrate(args []string) error {
 	}
 
 	// The YAML is in place before the first origin.Client call inside
-	// SeedLocalOrigin, so issuetap's one-shot legacy seed picks it up —
+	// SeedBuiltIn, so issuetap's one-shot legacy seed picks it up —
 	// reversed, the workspace would silently seed the default STD project.
 	tcfg, err := config.LoadFor(target)
 	if err != nil {
 		return err
 	}
 	// GDK-1484: the migrated workspace's wiki scope comes from this export,
-	// never from the local-origin default. An export with no wiki page hands
+	// never from the built-in default. An export with no wiki page hands
 	// over an empty list — "every space this origin has" — because the LOC
 	// key the default would leave behind belongs to the source origin and is
 	// not in the one this import just seeded: the pass would 404 it and
 	// mirror zero pages on every run, silently before GDK-1484.
 	wiki := &config.ConfluenceConfig{Spaces: stats.Spaces}
-	fillErr, err := originbind.SeedLocalOrigin(tcfg, strings.Join(stats.Projects, ","), wiki,
+	fillErr, err := originbind.SeedBuiltIn(tcfg, strings.Join(stats.Projects, ","), wiki,
 		func() (*store.DB, func() error, error) {
 			p, err := config.DBPathFor(target)
 			if err != nil {
@@ -312,7 +312,7 @@ func splitCSV(s string) []string {
 }
 
 func printMigrateReport(w *os.File, target, from string, st *migrate.Stats, verify []migrate.VerifyRow) {
-	fmt.Fprintf(w, "migrated %s → local-origin workspace %q\n", from, target)
+	fmt.Fprintf(w, "migrated %s → built-in workspace %q\n", from, target)
 	fmt.Fprintf(w, "projects: %s", strings.Join(st.Projects, ", "))
 	if len(st.Spaces) > 0 {
 		fmt.Fprintf(w, "  spaces: %s", strings.Join(st.Spaces, ", "))

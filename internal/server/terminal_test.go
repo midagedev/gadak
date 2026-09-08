@@ -62,16 +62,16 @@ func termClient(host string) *http.Client {
 // termServer is the API behind a real listener.
 func termServer(t *testing.T) (*httptest.Server, *Handler, string) {
 	t.Helper()
-	h, cfg := localOriginServer(t)
+	h, cfg := builtInServer(t)
 	srv := httptest.NewServer(h)
 	t.Cleanup(srv.Close)
 	return srv, h, cfg.Directory()
 }
 
-// termWorkspaceServer is termServer's local-origin dance bound to a named
+// termWorkspaceServer is termServer's built-in dance bound to a named
 // profile: the handler is NewWorkspace, so s.profile is the name a
 // /w/<name>/ window would show (GDK-995). The config/store steps copy
-// localOriginServer (origin_rest_test.go) because that helper hardcodes the
+// builtInServer (origin_rest_test.go) because that helper hardcodes the
 // root constructor New; the guards (SetProfile reset, origin.Close) come
 // along with them.
 func termWorkspaceServer(t *testing.T, profile string) *httptest.Server {
@@ -87,7 +87,7 @@ func termWorkspaceServer(t *testing.T, profile string) *httptest.Server {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg.Kind = config.KindLocalOrigin
+	cfg.Kind = config.KindStandalone
 	if err := cfg.Save(); err != nil {
 		t.Fatal(err)
 	}

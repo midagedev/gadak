@@ -90,7 +90,7 @@ export function openContainedUrl(url: string): void {
 
 /**
  * Same destination as the header escape-hatch links. Empty/missing URL is a
- * no-op — local-origin and any other site-less workspace have nothing to open.
+ * no-op — built-in and any other site-less workspace have nothing to open.
  */
 export function openOriginUrl(url: string | null | undefined): boolean {
   const href = (url ?? '').trim()

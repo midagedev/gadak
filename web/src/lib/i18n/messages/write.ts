@@ -800,46 +800,46 @@ export const write = {
   },
   // GDK-247: PUT onboarding/connect/ 409 standalone_data_present. Facts match
   // cmd/gadak/init.go's ReplaceRefusedError sentence (via workspace.RefuseReplace).
-  'onboarding.localOriginBlocked': {
+  'onboarding.builtInBlocked': {
     en: 'This workspace holds {n} issues or documents that originated here, in the built-in tracker. They exist only here — no Jira site has a copy. Converting this workspace deletes them from this local copy.',
     ko: '이 워크스페이스에는 내장 트래커에서 만들어진 이슈 또는 문서가 {n}개 있습니다. 여기에만 존재하며 어떤 Jira 사이트에도 사본이 없습니다. 이 워크스페이스를 전환하면 이 로컬 사본에서 그것들이 삭제됩니다.',
     ja: 'このワークスペースには内蔵トラッカーで作られた課題またはドキュメントが {n}件あります。ここにしか存在せず、どの Jira サイトにもコピーはありません。このワークスペースを変換すると、それらはこのローカルコピーから削除されます。',
   },
-  'onboarding.localOriginPersist': {
+  'onboarding.builtInPersist': {
     en: 'Tracker data file: {path}',
     ko: '트래커 데이터 파일: {path}',
     ja: 'トラッカーのデータファイル: {path}',
   },
-  'onboarding.localOriginOtherWorkspace': {
+  'onboarding.builtInOtherWorkspace': {
     en: 'Connect the site in a separate workspace: gadak --workspace <name> init (list workspaces with gadak workspaces).',
     ko: '사이트는 별도 워크스페이스에 연결하세요: gadak --workspace <name> init (워크스페이스 목록은 gadak workspaces).',
     ja: 'サイトは別のワークスペースで接続してください: gadak --workspace <name> init（一覧は gadak workspaces）。',
   },
-  'onboarding.localOriginReplaceConfirm': {
+  'onboarding.builtInReplaceConfirm': {
     en: 'Replace this workspace anyway. Converting deletes these issues or documents from this local copy.',
     ko: '그래도 이 워크스페이스를 교체합니다. 전환하면 이 로컬 사본에서 이 이슈 또는 문서들이 즉시 삭제됩니다.',
     ja: 'それでもこのワークスペースを置き換えます。変換するとこれらの課題またはドキュメントはこのローカルコピーから削除されます。',
   },
-  'onboarding.localOriginReplace': {
+  'onboarding.builtInReplace': {
     en: 'Replace and connect',
     ko: '교체하고 연결',
     ja: '置き換えて接続',
   },
   // GDK-377: the no-tracker front door on step 1. POST onboarding/standalone
   // seeds the same workspace `gadak init --local` makes.
-  'onboarding.localOriginIntro': {
+  'onboarding.builtInIntro': {
     en: 'No account? The built-in tracker keeps issues on this machine — one click, and you start here.',
     ko: '계정이 없나요? 내장 트래커가 이 머신에 이슈를 보관합니다 — 클릭 한 번으로 여기서 시작합니다.',
     ja: 'アカウント不要 — 内蔵トラッカーが課題をこのマシンに保持します。クリックひとつでここから始められます。',
   },
-  'onboarding.localOriginStart': {
+  'onboarding.builtInStart': {
     en: 'Start with the built-in tracker',
     ko: '내장 트래커로 시작',
     ja: '内蔵トラッカーで始める',
   },
   // 409 workspace_connected: the server names the same fact handleConnect's
   // refusals do — origin switch is a new workspace, not a settings edit.
-  'onboarding.localOriginConnected': {
+  'onboarding.builtInConnected': {
     en: 'This workspace is already connected to a Jira site. Switching to another tracker means starting a new workspace — the CLI does that: gadak --workspace <name> init --local.',
     ko: '이 워크스페이스는 이미 Jira 사이트에 연결되어 있습니다. 다른 트래커로 바꾸는 것은 새 워크스페이스를 시작하는 일입니다 — CLI로 할 수 있습니다: gadak --workspace <name> init --local.',
     ja: 'このワークスペースはすでに Jira サイトに接続されています。別のトラッカーへの切り替えは新しいワークスペースを作ることです — CLI で行えます: gadak --workspace <name> init --local。',
@@ -892,7 +892,7 @@ export const write = {
     ko: '설정 → 워크스페이스 열기',
     ja: '設定 → ワークスペースを開く',
   },
-  'onboarding.errLocalOrigin': {
+  'onboarding.errBuiltIn': {
     en: 'Could not start the workspace: {message}',
     ko: '워크스페이스를 시작하지 못했습니다: {message}',
     ja: 'ワークスペースを開始できませんでした: {message}',

@@ -67,7 +67,7 @@ function demoAssetUrl(path: string): string | null {
  */
 function demoSynthetic(path: string): Response {
   if (path === 'auth/me/') {
-    // Local-origin-shape identity: no email, no account — the PairingTab's
+    // Built-in-shape identity: no email, no account — the PairingTab's
     // "no identity" copy and the Mine scope degrade exactly as they do
     // against a credential-less serve.
     return jsonResponse({ email: null, account_id: null, name: null })

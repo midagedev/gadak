@@ -1806,21 +1806,33 @@ func TestSyncRenameWarningNeedsBothSides(t *testing.T) {
 	}
 }
 
-func TestScopeLabelLocalOriginOmitsAccount(t *testing.T) {
+func TestScopeLabelBuiltInOmitsAccount(t *testing.T) {
 	// GDK-464
 	connected := scopeLabel(&config.Config{})
 	if connected != "every project this account can see" {
 		t.Fatalf("connected empty projects = %q", connected)
 	}
-	st := scopeLabel(&config.Config{Kind: config.KindLocalOrigin, DefaultProject: origin.DefaultProjectKey})
+	st := scopeLabel(&config.Config{Kind: config.KindStandalone, DefaultProject: origin.DefaultProjectKey})
 	if strings.Contains(st, "this account") {
-		t.Fatalf("local-origin still mentions an account: %q", st)
+		t.Fatalf("built-in still mentions an account: %q", st)
 	}
 	if st != origin.DefaultProjectKey {
-		t.Fatalf("local-origin empty projects = %q, want %s", st, origin.DefaultProjectKey)
+		t.Fatalf("built-in empty projects = %q, want %s", st, origin.DefaultProjectKey)
 	}
-	named := scopeLabel(&config.Config{Kind: config.KindLocalOrigin, Projects: []string{"IDEA", "STD"}})
+	named := scopeLabel(&config.Config{Kind: config.KindStandalone, Projects: []string{"IDEA", "STD"}})
 	if named != "IDEA, STD" {
-		t.Fatalf("local-origin with projects = %q", named)
+		t.Fatalf("built-in with projects = %q", named)
+	}
+}
+
+// GDK-1608: the mirror id namespace is stored data, not vocabulary. A rename
+// moved it once with every test renamed alongside, so this pins the literal.
+func TestSourceNSIsStandalone(t *testing.T) {
+	cfg := &config.Config{Kind: config.KindStandalone}
+	if got := sourceNS(cfg, SourceID); got != "standalone-"+SourceID {
+		t.Fatalf("sourceNS = %q, want %q", got, "standalone-"+SourceID)
+	}
+	if got := sourceNS(&config.Config{}, SourceID); got != SourceID {
+		t.Fatalf("connected sourceNS = %q, want %q", got, SourceID)
 	}
 }

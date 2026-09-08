@@ -1,15 +1,15 @@
 /*
- * Workspace origin kind — single owner for "is this local-origin?".
+ * Workspace origin kind — single owner for "is this built-in?".
  *
  * The server sends workspaceKind on config.json (origin.Describe). Surfaces
- * must ask here; they must not infer local-origin from an empty jiraBaseUrl
+ * must ask here; they must not infer built-in from an empty jiraBaseUrl
  * (hosted demo and older documents also have no site) and must not scatter
  * `=== 'standalone'` comparisons.
  *
- * Creating a local-origin workspace has two doors: the onboarding wizard's
+ * Creating a built-in workspace has two doors: the onboarding wizard's
  * "Start with no tracker" button (POST onboarding/standalone, GDK-377) and
  * the CLI verb below. Both seed the same workspace through the shared core
- * (internal/originbind.SeedLocalOrigin). The sidebar and settings hints still
+ * (internal/originbind.SeedBuiltIn). The sidebar and settings hints still
  * show the command form — it is the one that names the workspace.
  */
 
@@ -65,10 +65,10 @@ export function parseWorkspaceKind(raw: unknown): WorkspaceKind {
 }
 
 /**
- * True only when the server said localOrigin. Unknown and connected are false.
+ * True only when the server said builtIn. Unknown and connected are false.
  * `jiraBaseUrl` is ignored on purpose — an empty site is not this kind.
  */
-export function isLocalOrigin(cfg: unknown): boolean {
+export function isBuiltIn(cfg: unknown): boolean {
   if (!cfg || typeof cfg !== 'object') return false
   return (
     parseWorkspaceKind((cfg as { workspaceKind?: unknown }).workspaceKind) ===

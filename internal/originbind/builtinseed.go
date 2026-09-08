@@ -34,24 +34,24 @@ func ParseProjectKeys(s string) []string {
 	return out
 }
 
-// MirrorOpener hands SeedLocalOrigin a mirror store and the release that must
+// MirrorOpener hands SeedBuiltIn a mirror store and the release that must
 // run after the fill. The CLI opens a fresh store and closes it; a serve
 // process passes its already-open store back with a no-op release — that
 // handle lives as long as the process does and must not be closed under a
 // running server.
 type MirrorOpener func() (db *store.DB, release func() error, err error)
 
-// SeedLocalOrigin turns cfg into a local-origin workspace: it mutates and saves
+// SeedBuiltIn turns cfg into a built-in workspace: it mutates and saves
 // the config, resolves and records the default issue type, and fills the
 // mirror so the next command is not "stale, run sync".
 //
-// Already-local-origin is not detected here — callers need it before the call
-// (the CLI prints a one-line idempotent path); compute cfg.HasLocalOrigin()
+// Already-built-in is not detected here — callers need it before the call
+// (the CLI prints a one-line idempotent path); compute cfg.HasBuiltInOrigin()
 // first if you need it.
 //
 // A fill that fails does not fail the seed: the workspace exists, its persist
 // file is written, and writes already work. That contract moved here from
-// initLocalOrigin — returning a fatal error would break
+// initBuiltIn — returning a fatal error would break
 // `init --standalone --json && gadak create …` over something the next
 // `gadak sync` fixes. The fill failure comes back as fillErr instead; the
 // caller decides how to surface it (CLI: stderr warning; serve: log line).
@@ -67,8 +67,8 @@ type MirrorOpener func() (db *store.DB, release func() error, err error)
 // workspace: LOC belongs to the origin the export came from, and the new
 // origin does not have it, so the wiki pass would 404 that one key and mirror
 // zero pages on every run (GDK-1484).
-func SeedLocalOrigin(cfg *config.Config, projectsCSV string, wiki *config.ConfluenceConfig, openMirror MirrorOpener) (fillErr error, err error) {
-	cfg.Kind = config.KindLocalOrigin
+func SeedBuiltIn(cfg *config.Config, projectsCSV string, wiki *config.ConfluenceConfig, openMirror MirrorOpener) (fillErr error, err error) {
+	cfg.Kind = config.KindStandalone
 	cfg.Site = ""
 	cfg.Email = ""
 	cfg.Token = ""
@@ -101,7 +101,7 @@ func SeedLocalOrigin(cfg *config.Config, projectsCSV string, wiki *config.Conflu
 	// the origin we just created (in-process, no network) and record the
 	// answer, so the pick lives in config.json where it can be read and
 	// changed rather than being guessed per create.
-	typeID, typeName, err := localOriginDefaultType(cfg)
+	typeID, typeName, err := builtInDefaultType(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -112,11 +112,11 @@ func SeedLocalOrigin(cfg *config.Config, projectsCSV string, wiki *config.Conflu
 			return nil, err
 		}
 	}
-	fillErr = fillLocalOriginMirror(cfg, openMirror)
+	fillErr = fillBuiltInMirror(cfg, openMirror)
 	return fillErr, nil
 }
 
-// localOriginDefaultType picks the issue type new issues get when create is
+// builtInDefaultType picks the issue type new issues get when create is
 // given only a summary. "Task" is preferred by name; otherwise the first type
 // the origin offers. An origin.Client failure is an init failure — the
 // origin we just declared is unusable (GDK-345). Returning "", "", nil
@@ -126,7 +126,7 @@ func SeedLocalOrigin(cfg *config.Config, projectsCSV string, wiki *config.Conflu
 // Unlike a headless per-create fallback (deliberately absent, see
 // internal/create), this pick is written to config.json and printed, so the
 // person can see what they got and change it.
-func localOriginDefaultType(cfg *config.Config) (id, name string, err error) {
+func builtInDefaultType(cfg *config.Config) (id, name string, err error) {
 	c, err := origin.Client(cfg)
 	if err != nil {
 		return "", "", err
@@ -149,10 +149,10 @@ func localOriginDefaultType(cfg *config.Config) (id, name string, err error) {
 	return types[0].ID, types[0].Name, nil
 }
 
-// fillLocalOriginMirror runs the same one-shot Jira+Confluence sync `gadak
+// fillBuiltInMirror runs the same one-shot Jira+Confluence sync `gadak
 // sync` would, without printing. That stamps sync_state.synced_at so
 // warnIfStale does not fire on the next command.
-func fillLocalOriginMirror(cfg *config.Config, openMirror MirrorOpener) error {
+func fillBuiltInMirror(cfg *config.Config, openMirror MirrorOpener) error {
 	db, release, err := openMirror()
 	if err != nil {
 		return err

@@ -246,13 +246,13 @@ func main() {
 		closer, _ := applog.Install(dir)
 		defer closer()
 	}
-	// origin.Close checkpoints a local-origin issuetap PersistPath (WAL).
+	// origin.Close checkpoints a built-in issuetap PersistPath (WAL).
 	// Writes commit before ACK; Close is not a debounce flush. os.Exit
 	// below skips defers, so Close is also called on the error path. A
 	// checkpoint failure must not exit 0 alongside a success line (GDK-342).
 	defer func() {
 		if err := origin.Close(); err != nil {
-			fmt.Fprintf(os.Stderr, "gadak: local-origin persist flush on exit: %v\n", err)
+			fmt.Fprintf(os.Stderr, "gadak: built-in persist flush on exit: %v\n", err)
 			os.Exit(1)
 		}
 	}()
@@ -302,7 +302,7 @@ func main() {
 	if err := run(args[1:]); err != nil {
 		fmt.Fprintf(os.Stderr, "gadak: %v\n", err)
 		if cerr := origin.Close(); cerr != nil {
-			fmt.Fprintf(os.Stderr, "gadak: local-origin persist flush on exit: %v\n", cerr)
+			fmt.Fprintf(os.Stderr, "gadak: built-in persist flush on exit: %v\n", cerr)
 		}
 		os.Exit(exitStatus(err))
 	}

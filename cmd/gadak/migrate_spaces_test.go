@@ -9,7 +9,7 @@ import (
 
 // TestMigrateWithoutWikiPagesDoesNotInheritTheLocalDefaultSpace is the
 // GDK-1484 seed half: `gadak migrate` builds a brand-new origin from the
-// export, so the local-origin default space key (LOC) is per-origin state
+// export, so the built-in default space key (LOC) is per-origin state
 // from a workspace that no longer exists. An import carrying no wiki page
 // used to leave confluence.spaces = ["LOC"] behind; the sync then took the
 // explicit path, 404'd that key on every pass and mirrored zero pages

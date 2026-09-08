@@ -2,7 +2,7 @@
   /* How often the mirror refreshes, and how old is "stale". */
   import { onMount } from 'svelte'
   import { t } from '../../lib/i18n'
-  import { config, isLocalOriginWorkspace, surface } from '../../lib/config'
+  import { config, isBuiltInWorkspace, surface } from '../../lib/config'
   import { copyText } from '../../lib/copy-text'
   import { upgradeCta } from '../../lib/upgrade-cta'
   import { issues } from '../../stores/issues.svelte'
@@ -178,7 +178,7 @@
     </span>
   </label>
   <!-- GDK-1148: the dialog behind this button edits a SITE credential —
-       email + API token. A local-origin workspace has none to edit (it writes
+       email + API token. A built-in workspace has none to edit (it writes
        through its in-process origin), so the entry point advertises a
        concept that does not exist there.
 
@@ -190,7 +190,7 @@
        client cannot yet tell paired from connected. GDK-1152 is where that
        gap closes; widening this branch by guessing is what put a regression
        here in the first place. -->
-  {#if !isLocalOriginWorkspace()}
+  {#if !isBuiltInWorkspace()}
   <div class="border-t border-border-subtle pt-3">
     <button
       type="button"

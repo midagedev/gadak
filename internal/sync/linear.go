@@ -13,7 +13,7 @@ import (
 )
 
 // LinearSourceID is the slug the Linear connector owns in sources / sync_state.
-// Mirrored item ids are "linear:<uuid>" — no local-origin namespace variant:
+// Mirrored item ids are "linear:<uuid>" — no built-in namespace variant:
 // issuetap has no Linear surface, and Linear ids are uuids that cannot collide
 // with anything numeric (the GDK-241 rationale does not apply).
 const LinearSourceID = "linear"

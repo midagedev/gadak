@@ -84,7 +84,7 @@ type Config struct {
 	Frozen bool `json:"frozen,omitempty"`
 
 	// The credential and what it connects to. Token is never copied out of this file.
-	// A local-origin workspace leaves these empty.
+	// A built-in workspace leaves these empty.
 	Site     string   `json:"site,omitempty"` // https://your-site.atlassian.net
 	Email    string   `json:"email,omitempty"`
 	Token    string   `json:"token,omitempty"`
@@ -94,11 +94,11 @@ type Config struct {
 	// fetches each changed issue's dev-status (pull requests) from the origin
 	// into dev_links. Off by default on a connected Cloud workspace — that
 	// path calls Jira's internal /rest/dev-status API (Atlassian marks it
-	// unstable) and adds per-issue requests. Local-origin / issuetap always
+	// unstable) and adds per-issue requests. Built-in / issuetap always
 	// fetches regardless of this flag (GDK-536): the panel is local.
 	DevStatus bool `json:"devStatus,omitempty"`
 
-	// Locale is the display-name language of a local-origin workspace's
+	// Locale is the display-name language of a built-in workspace's
 	// origin ("" | en | ko | ja | de; "" and "en" are both English,
 	// GDK-597). It rides EmbeddedConfig into the embedded issuetap, so
 	// status / issue-type / field-catalog names — and the agent alias
@@ -219,7 +219,7 @@ type Config struct {
 	// Memory is the agent-memory pointer: the wiki space `memory add`
 	// writes to and `memory search` scopes to. Memory is pages — there is
 	// no second write path — so this is a space key, not a new store. Nil
-	// means "not chosen": local-origin falls back to its seeded space at the
+	// means "not chosen": built-in falls back to its seeded space at the
 	// verb, connected refuses rather than guess a team-visible space (the
 	// fallback sentence lives in cmd; the seeded key belongs to origin,
 	// which config cannot import without a cycle).
@@ -261,8 +261,8 @@ type Config struct {
 // OriginType() and Transport(); these constants remain because they are
 // still on disk and still on the JSON surface.
 const (
-	KindConnected   = "connected"
-	KindLocalOrigin = "standalone"
+	KindConnected  = "connected"
+	KindStandalone = "standalone"
 )
 
 // Origin types — which tracker this workspace's origin is (GDK-1278). The
@@ -968,11 +968,14 @@ func (c *Config) ProfileName() string {
 	return c.profile
 }
 
-// HasLocalOrigin reports a workspace whose origin is the in-process issuetap
-// snapshot, not a Jira site. Both the old stored value and the new one
-// mean that.
-func (c *Config) HasLocalOrigin() bool {
-	return c != nil && (c.Kind == KindLocalOrigin || c.Kind == OriginGadak)
+// HasBuiltInOrigin reports a workspace whose stored kind says its origin is
+// gadak's own tracker (issuetap), not a Jira site. It tests origin type
+// only — never transport. A paired workspace's origin is also that tracker,
+// but it leaves Kind empty, so this returns false for it; when the question
+// is "which tracker", ask OriginType(), and for "in-process" ask
+// Transport() == TransportLocal.
+func (c *Config) HasBuiltInOrigin() bool {
+	return c != nil && (c.Kind == KindStandalone || c.Kind == OriginGadak)
 }
 
 // isPaired reports a workspace bound to another machine's serve. The
@@ -998,7 +1001,7 @@ func (c *Config) OriginType() string {
 		return OriginJira
 	}
 	switch c.Kind {
-	case OriginGadak, KindLocalOrigin:
+	case OriginGadak, KindStandalone:
 		return OriginGadak
 	case OriginJira, OriginLinear:
 		return c.Kind
@@ -1026,17 +1029,17 @@ func (c *Config) Transport() string {
 	return TransportRemote
 }
 
-// WorkspaceKind is KindLocalOrigin or KindConnected. Empty/unknown Kind is
+// WorkspaceKind is KindStandalone or KindConnected. Empty/unknown Kind is
 // connected so an existing config.json is unchanged.
 func (c *Config) WorkspaceKind() string {
-	if c.HasLocalOrigin() {
-		return KindLocalOrigin
+	if c.HasBuiltInOrigin() {
+		return KindStandalone
 	}
 	return KindConnected
 }
 
 // HasAtlassianCredential reports whether Jira-family origin writes are
-// possible: localOrigin, site+email+token, or a pairing remote-origin.json.
+// possible: builtIn, site+email+token, or a pairing remote-origin.json.
 // Linear's key is a different origin and is not counted here — callers that
 // mean "can I talk to Jira / Confluence / issuetap" use this, not
 // HasCredential.
@@ -1044,7 +1047,7 @@ func (c *Config) HasAtlassianCredential() bool {
 	if c == nil {
 		return false
 	}
-	if c.HasLocalOrigin() {
+	if c.HasBuiltInOrigin() {
 		return true
 	}
 	if c.Site != "" && c.Email != "" && c.Token != "" {
@@ -1067,7 +1070,7 @@ func (c *Config) HasLinearCredential() bool {
 }
 
 // HasCredential reports whether writes and the attachment proxy are possible.
-// A local-origin workspace has no site token; writes still go through the
+// A built-in workspace has no site token; writes still go through the
 // in-process origin, so it reports true. A connected workspace still
 // requires site+email+token — that gate is not weakened. A Linear API key
 // also counts: Linear writes are possible, so the workspace is configured.
@@ -1078,13 +1081,13 @@ func (c *Config) HasCredential() bool {
 }
 
 // HasOrigin reports whether this profile names a workspace at all — a
-// local-origin kind, any Atlassian credential field (a partial site/email/
+// built-in kind, any Atlassian credential field (a partial site/email/
 // token counts: that is a real workspace whose credential is incomplete,
 // not a missing workspace), a Linear key, or a pairing remote. It is the
 // empty-home gate write verbs fold onto (GDK-943): !HasOrigin answers
 // ErrNotConfigured, while a workspace that merely lacks its credential
 // keeps the verb's connected dialect (origin's errNeedCredential and the
-// local-origin-only refusals). HasCredential stays the "can I write"
+// built-in-only refusals). HasCredential stays the "can I write"
 // question; this is the "is there anything to write to" question.
 func (c *Config) HasOrigin() bool {
 	if c == nil {
@@ -1097,7 +1100,7 @@ func (c *Config) HasOrigin() bool {
 }
 
 // SyncFrozen is the only question the sync gate asks. Deliberately separate
-// from HasCredential: a local-origin workspace has a credential by definition
+// from HasCredential: a built-in workspace has a credential by definition
 // (see HasCredential), and writes must keep working here.
 func (c *Config) SyncFrozen() bool { return c != nil && c.Frozen }
 
@@ -1175,7 +1178,7 @@ func (c *Config) EffectiveTerminalAppearance() string {
 }
 
 // EffectiveLocale is the origin's display-name language (GDK-597). Empty
-// on disk means English. Only a local-origin workspace consumes it; see
+// on disk means English. Only a built-in workspace consumes it; see
 // Locale.
 func (c *Config) EffectiveLocale() string {
 	if c == nil || c.Locale == "" {
@@ -1185,7 +1188,7 @@ func (c *Config) EffectiveLocale() string {
 }
 
 // MemorySpace is the configured agent-memory space key, trimmed; empty when
-// unset. The local-origin fallback does not live here — the seeded key belongs
+// unset. The built-in fallback does not live here — the seeded key belongs
 // to internal/origin, which imports this package, so the verbs resolve it
 // (cmd/gadak/memory.go memorySpace).
 func (c *Config) MemorySpace() string {

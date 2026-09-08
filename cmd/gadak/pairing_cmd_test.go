@@ -28,7 +28,7 @@ import (
 // verify-before-save contract of `init --pairing-code` (⑥), and the
 // explicit refusal of unknown offer versions (⑦).
 
-// pairingHome stands up a temp GADAK_HOME with a local-origin workspace —
+// pairingHome stands up a temp GADAK_HOME with a built-in workspace —
 // the shape `gadak pairing` operates on — and returns its profile dir.
 func pairingHome(t *testing.T) string {
 	t.Helper()
@@ -41,7 +41,7 @@ func pairingHome(t *testing.T) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg.Kind = config.KindLocalOrigin
+	cfg.Kind = config.KindStandalone
 	if err := cfg.Save(); err != nil {
 		t.Fatal(err)
 	}
@@ -200,7 +200,7 @@ func TestPairingMintNeedsEndpointOrLiveServe(t *testing.T) {
 // An unconfigured home still refuses — pairing needs an origin to protect.
 // (Was TestPairingRefusesConnectedWorkspace; since GDK-798 a *configured*
 // connected workspace may mint, so the refusal that remains is
-// "not configured", not "not local-origin".)
+// "not configured", not "not built-in".)
 func TestPairingMintNeedsConfiguredWorkspace(t *testing.T) {
 	clearCredentialEnv(t)
 	t.Setenv("GADAK_HOME", t.TempDir())
@@ -238,7 +238,7 @@ func connectedHome(t *testing.T) *config.Config {
 
 // GDK-798: a connected workspace can mint. The phone is not a second
 // gadak workspace — it is a REST client of this home's mirror — so the
-// local-origin-only refusal is gone. What stays closed is the origin
+// built-in-only refusal is gone. What stays closed is the origin
 // passthrough itself (404 on connected, origin_rest.go).
 func TestPairingMintServeScopeOnConnectedWorkspace(t *testing.T) {
 	cfg := connectedHome(t)
@@ -343,7 +343,7 @@ func TestPairingMintScopeFlagValidates(t *testing.T) {
 	}
 }
 
-// `--label _home` rotates the routing token a local-origin home's own writes
+// `--label _home` rotates the routing token a built-in home's own writes
 // present. A connected workspace has no such token — its writes go
 // straight to the site — and minting one would write remote-origin.json
 // and poison PairedStatus, so it is refused, naming why.
@@ -352,8 +352,8 @@ func TestPairingMintHomeRefusedOnConnected(t *testing.T) {
 	_, _, err := captureErr(t, func() error {
 		return cmdPairing([]string{"mint", "--label", "_home", "--endpoint", "http://127.0.0.1:9"})
 	})
-	if err == nil || !strings.Contains(err.Error(), "local-origin") {
-		t.Fatalf("connected _home mint must be refused naming local-origin routing, got %v", err)
+	if err == nil || !strings.Contains(err.Error(), "built-in") {
+		t.Fatalf("connected _home mint must be refused naming built-in routing, got %v", err)
 	}
 	if rem, rerr := pairing.LoadRemote(configDirOrFatal(t)); rerr != nil || rem != nil {
 		t.Fatalf("refused _home mint still wrote a routing credential: %+v (%v)", rem, rerr)
@@ -403,7 +403,7 @@ func TestInitPairingCodeVerifiesBeforeSave(t *testing.T) {
 		t.Fatalf("config after pair = %+v", cfg)
 	}
 	// GDK-1276: pairing turns the wiki mirror on, scoped to every global
-	// space the home origin lists — the paired twin of the block local-origin
+	// space the home origin lists — the paired twin of the block built-in
 	// init seeds. Without it the wiki pass reports "not configured" forever.
 	if cfg.Confluence == nil || len(cfg.Confluence.Spaces) != 0 {
 		t.Fatalf("config after pair: confluence = %+v, want an empty (all global spaces) block", cfg.Confluence)
@@ -493,7 +493,7 @@ func TestInitPairingCodeRefusesProfilesWithAnOrigin(t *testing.T) {
 	offer := mustOffer(t, pairing.Offer{
 		V: pairing.OfferV1, Endpoint: srv.URL, Token: "pair-token-1", Label: "laptop",
 	})
-	pairingHome(t) // local-origin workspace already owns this profile
+	pairingHome(t) // built-in workspace already owns this profile
 
 	_, _, err := captureErr(t, func() error {
 		return cmdInit([]string{"--pairing-code", offer})
@@ -653,7 +653,7 @@ func TestPairingListOnPairedAnswersSelfStatus(t *testing.T) {
 	if !strings.Contains(out, "as Home User") {
 		t.Fatalf("list missing TokenOwner: %q", out)
 	}
-	if strings.Contains(out, "pairing is for local-origin") {
+	if strings.Contains(out, "pairing is for built-in") {
 		t.Fatalf("paired list still used the connected-workspace refusal: %q", out)
 	}
 }
@@ -710,7 +710,7 @@ func TestPairingMintRevokeOnPairedRefusedWithSelfStatus(t *testing.T) {
 	if !strings.Contains(msg, `this workspace is paired with "laptop"`) {
 		t.Fatalf("mint refusal missing self-status: %v", err)
 	}
-	if strings.Contains(msg, "pairing is for local-origin workspaces") {
+	if strings.Contains(msg, "pairing is for built-in workspaces") {
 		t.Fatalf("paired mint used the connected-workspace refusal: %v", err)
 	}
 

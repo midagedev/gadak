@@ -1049,7 +1049,7 @@ func TestCreateIssue(t *testing.T) {
 // this test pins REST to the same answer the CLI pre-check gives.
 func TestCreateIssueEmptyProjectsAllows(t *testing.T) {
 	f, h, cfg := writable(t)
-	cfg.Projects = nil // the CLI-created local-origin home shape
+	cfg.Projects = nil // the CLI-created built-in home shape
 
 	rec := send(t, h, http.MethodPost, apiBase+"create/",
 		`{"project_key":"NMB","issue_type":"10004","summary":"no local scope"}`)
@@ -2453,8 +2453,8 @@ func TestRESTParentRejectionUnrelated400HasNoHint(t *testing.T) {
 	}
 }
 
-func TestLocalOriginOriginSecondSessionWrites(t *testing.T) {
-	h, cfg := localOriginServer(t)
+func TestBuiltInOriginSecondSessionWrites(t *testing.T) {
+	h, cfg := builtInServer(t)
 	if _, err := origin.Client(cfg); err != nil {
 		t.Fatal(err)
 	}
@@ -2465,7 +2465,7 @@ func TestLocalOriginOriginSecondSessionWrites(t *testing.T) {
 		t.Fatalf("second session 409 after lock removal: %s", rec.Body.String())
 	}
 	if rec.Code != http.StatusOK && rec.Code != http.StatusCreated {
-		// NMB-1 may not exist on a fresh local-origin origin; the point is
+		// NMB-1 may not exist on a fresh built-in origin; the point is
 		// the mapper did not answer workspace_busy or credential_required.
 		var body struct {
 			Error string `json:"error"`
@@ -2477,16 +2477,16 @@ func TestLocalOriginOriginSecondSessionWrites(t *testing.T) {
 	}
 }
 
-// TestLocalOriginOriginPersistFailureIsNotCredentialRequired: a broken
+// TestBuiltInOriginPersistFailureIsNotCredentialRequired: a broken
 // persist path used to 409 credential_required. It is a 5xx with the
 // original error, not a missing token.
 //
 // FAIL-first (2026-08-20, pre-fix): body error was credential_required.
-func TestLocalOriginOriginPersistFailureIsNotCredentialRequired(t *testing.T) {
-	h, cfg := localOriginServer(t)
+func TestBuiltInOriginPersistFailureIsNotCredentialRequired(t *testing.T) {
+	h, cfg := builtInServer(t)
 	persist := origin.PersistPath(cfg.Directory())
 	if persist == "" {
-		t.Fatal("local-origin fixture has no persist path")
+		t.Fatal("built-in fixture has no persist path")
 	}
 	if err := os.MkdirAll(filepath.Dir(persist), 0o700); err != nil {
 		t.Fatal(err)
@@ -2502,7 +2502,7 @@ func TestLocalOriginOriginPersistFailureIsNotCredentialRequired(t *testing.T) {
 	}
 	got := decode[map[string]string](t, rec)["error"]
 	if got == "credential_required" {
-		t.Fatal("local-origin persist failure disguised as credential_required")
+		t.Fatal("built-in persist failure disguised as credential_required")
 	}
 }
 

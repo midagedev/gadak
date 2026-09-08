@@ -11,7 +11,7 @@
  */
 
 import {
-  isLocalOrigin,
+  isBuiltIn,
   ORIGIN_GADAK,
   ORIGIN_LINEAR,
   parseOriginType,
@@ -25,7 +25,7 @@ import type { UiTokenDoc } from './user-tokens'
 import { t } from './i18n'
 
 export {
-  isLocalOrigin,
+  isBuiltIn,
   parseOriginType,
   parseTransport,
   parseWorkspaceKind,
@@ -140,14 +140,14 @@ export interface GadakConfig {
   transport: Transport
   /**
    * True when the server can reach the Jira-family origin — a site
-   * credential, a local-origin workspace, or a pairing remote. It mirrors
+   * credential, a built-in workspace, or a pairing remote. It mirrors
    * `config.HasAtlassianCredential`, which is the same bool every write path
    * 409s on, so a surface that decides whether to send an origin request at
    * all agrees with the server instead of guessing (GDK-1090). Absent
    * (static export, hosted demo) is false — correct there.
    *
    * Not `me.identified`: that reads auth/me's email, which is empty on a
-   * local-origin and on a paired workspace even though both write fine.
+   * built-in and on a paired workspace even though both write fine.
    */
   originWritable: boolean
   features: GadakFeatures
@@ -166,9 +166,9 @@ export interface GadakConfig {
   configVersion?: string
 }
 
-/** True only when the server said localOrigin. Unknown and connected are false. */
-export function isLocalOriginWorkspace(): boolean {
-  return isLocalOrigin(current)
+/** True only when the server said builtIn. Unknown and connected are false. */
+export function isBuiltInWorkspace(): boolean {
+  return isBuiltIn(current)
 }
 
 /**
@@ -341,7 +341,7 @@ export function originTrackerName(): string {
     case ORIGIN_LINEAR:
       return 'Linear'
     case ORIGIN_GADAK:
-      return t('settings.workspaceLocalOrigin')
+      return t('settings.workspaceBuiltIn')
     default:
       return 'Jira'
   }

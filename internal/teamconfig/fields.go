@@ -55,7 +55,7 @@ var neverExportConfigFields = []string{
 	"DefaultProject",
 	"DefaultIssueTypeID",
 	"DefaultIssueType",
-	// Workspace kind is per-machine: local-origin origin is this profile's
+	// Workspace kind is per-machine: built-in origin is this profile's
 	// issuetap snapshot, not a team setting.
 	"Kind",
 	// Frozen is a per-workspace safety latch (GDK-181): a scrubbed fixture
@@ -82,7 +82,7 @@ var neverExportConfigFields = []string{
 	// retro.sessionGap). A reading habit is per-person, like Notify — not a
 	// team threshold the way StaleThresholdHours is.
 	"Retro",
-	// Locale names the language of this profile's local-origin origin snapshot
+	// Locale names the language of this profile's built-in origin snapshot
 	// (GDK-597) — the same per-machine character as Kind: the origin the
 	// setting describes is not part of a team file, and language is the
 	// importer's own preference. A connected workspace ignores it anyway.

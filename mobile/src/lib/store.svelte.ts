@@ -472,7 +472,7 @@ export async function sync(): Promise<void> {
       const me = await request<Me>('auth/me/')
       app.me = me.body
     } catch {
-      // Identity is optional (localOrigin serves have none); the list falls back.
+      // Identity is optional (builtIn serves have none); the list falls back.
     }
     try {
       // The names the scope picker wears. Read-only: the phone consumes the

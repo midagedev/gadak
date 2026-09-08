@@ -1,6 +1,6 @@
 package origin
 
-// The open marker answers one question and only one: is this local-origin
+// The open marker answers one question and only one: is this built-in
 // workspace open in some other process right now?
 //
 // That question used to be answered by a side effect. Before GDK-936 a
@@ -17,7 +17,7 @@ package origin
 // lock:
 //
 //	Nothing waits on it and nothing is refused a write because of it. The
-//	only caller is the local-origin→connected conversion, which is a
+//	only caller is the built-in→connected conversion, which is a
 //	destructive migration rather than concurrent access — a workspace is
 //	bound to one origin (see CLAUDE.md), so changing it under a live holder
 //	is the "quietly points at a different tracker" defect.

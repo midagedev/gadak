@@ -4,10 +4,10 @@ import { attachConsoleErrors, forceLocale } from './helpers'
 
 /*
  * GDK-377: the no-tracker front door. One click under the credential form
- * seeds a local-origin workspace and lands on the first-issue composer — the
+ * seeds a built-in workspace and lands on the first-issue composer — the
  * whole first session with no terminal and no token. The demo server is a
  * connected fixture, so both the empty first-run state and the seeded state
- * are route-mocked: config.json flips to workspaceKind local-origin only after
+ * are route-mocked: config.json flips to workspaceKind built-in only after
  * POST onboarding/standalone answers, which is what the real handler swaps
  * in. No request reaches Jira and nothing mutates the fixture's config.
  */
@@ -94,12 +94,12 @@ interface Flow {
   seeded: boolean
   /** True once the composer submitted — flips the mocked mirror. */
   created: boolean
-  localOriginBody: Record<string, unknown> | null
+  builtInBody: Record<string, unknown> | null
   createBody: Record<string, unknown> | null
 }
 
 async function mockNoTracker(page: Page): Promise<Flow> {
-  const flow: Flow = { seeded: false, created: false, localOriginBody: null, createBody: null }
+  const flow: Flow = { seeded: false, created: false, builtInBody: null, createBody: null }
 
   // config.json is the boot document AND the post-seed refetch: the same
   // route answers both, statefully, the way the real config file changes.
@@ -129,7 +129,7 @@ async function mockNoTracker(page: Page): Promise<Flow> {
 
   await page.route(`${API}onboarding/standalone/`, async (route) => {
     if (route.request().method() !== 'POST') return route.continue()
-    flow.localOriginBody = route.request().postDataJSON() as Record<string, unknown>
+    flow.builtInBody = route.request().postDataJSON() as Record<string, unknown>
     flow.seeded = true
     await route.fulfill({ json: SEED_RESPONSE })
   })
@@ -148,7 +148,7 @@ async function mockNoTracker(page: Page): Promise<Flow> {
   )
 
   // meta/write: empty at boot (no credential); the seeded project after —
-  // this is the refetch startLocalOrigin does, without which the composer
+  // this is the refetch startBuiltIn does, without which the composer
   // would open on the boot-cached empty answer.
   await page.route(`${API}meta/write/`, (route) =>
     route.fulfill({
@@ -213,19 +213,19 @@ test.describe('no-tracker onboarding (GDK-377)', () => {
     await expect(chooser.getByRole('radio')).toHaveCount(3)
     await expect(chooser.getByRole('radio', { checked: true })).toHaveCount(0)
     await expect(page.getByTestId('onboarding-connect')).toHaveCount(0)
-    await expect(page.getByTestId('onboarding-local-origin')).toHaveCount(0)
+    await expect(page.getByTestId('onboarding-built-in')).toHaveCount(0)
     await page.getByTestId('onboarding-source-builtin').click()
-    const door = page.getByTestId('onboarding-local-origin')
+    const door = page.getByTestId('onboarding-built-in')
     await expect(door).toBeVisible()
     await expect(page.getByTestId('onboarding-connect')).toHaveCount(0)
-    await expect(door.getByRole('button', { name: en['onboarding.localOriginStart'] })).toBeVisible()
+    await expect(door.getByRole('button', { name: en['onboarding.builtInStart'] })).toBeVisible()
 
-    await door.getByRole('button', { name: en['onboarding.localOriginStart'] }).click()
+    await door.getByRole('button', { name: en['onboarding.builtInStart'] }).click()
 
     // The verb fired, and the wizard left — not for step 2, for good: the
-    // workspace kind flipped, so the gate's local-origin clause took over.
+    // workspace kind flipped, so the gate's built-in clause took over.
     await expect
-      .poll(() => flow.localOriginBody)
+      .poll(() => flow.builtInBody)
       .toEqual({})
     await expect(wizard).toBeHidden({ timeout: 10_000 })
 
@@ -277,12 +277,12 @@ test.describe('no-tracker onboarding (GDK-377)', () => {
     await expect(wizard).toBeVisible({ timeout: 30_000 })
 
     await page.getByTestId('onboarding-source-builtin').click()
-    await page.getByTestId('onboarding-start-local-origin').click()
+    await page.getByTestId('onboarding-start-built-in').click()
 
     const err = page.getByTestId('onboarding-error')
     await expect(err).toContainText('already connected to a Jira site')
     // The wizard is still step 1 — this path neither converts nor exits.
-    await expect(page.getByTestId('onboarding-local-origin')).toBeVisible()
+    await expect(page.getByTestId('onboarding-built-in')).toBeVisible()
     await expect(page.getByTestId('new-issue-dialog')).toHaveCount(0)
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])

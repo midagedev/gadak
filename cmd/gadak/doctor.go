@@ -107,11 +107,11 @@ type doctorLogs struct {
 // doctorWorkspace is the one-line consistency view: kind, whether a site
 // token is stored (never the token itself), the origin persist path, and
 // how many locally originated issues LocalData counts. Inconsistent is
-// local-origin-with-a-token — a site token on a local-origin workspace is
+// built-in-with-a-token — a site token on a built-in workspace is
 // unused and contradicts Kind (GDK-247).
 //
 // HasSiteToken is site-token presence, not config.HasCredential (GDK-470).
-// Local-origin writes work with no site token; this field stays false there.
+// Built-in writes work with no site token; this field stays false there.
 // doctorCustomFields is the mapping-visibility object (GDK-522). mapped is
 // the configured alias count; applied_at is when `gadak fields --apply` last
 // succeeded. usage_rows and raw_has_custom need the mirror (0 / false when
@@ -346,7 +346,7 @@ func collectDoctor() doctorReport {
 		}
 		kind, src := origin.Describe(cfg)
 		rep.WorkspaceKind = kind
-		if kind == config.KindLocalOrigin {
+		if kind == config.KindStandalone {
 			// Persist path is the origin; tilde so the account username
 			// does not appear (same rule as mirror_path).
 			rep.Origin = tildeHome(src)
@@ -377,7 +377,7 @@ func collectDoctor() doctorReport {
 			HasSiteToken: hasTok,
 			Persist:      tildeHome(persist),
 			LocalIssues:  n,
-			Inconsistent: cfg.HasLocalOrigin() && hasTok,
+			Inconsistent: cfg.HasBuiltInOrigin() && hasTok,
 			Frozen:       cfg.SyncFrozen(),
 		}
 	}
@@ -1367,7 +1367,7 @@ func errorKind(code int, raw string) string {
 // scope (GDK-1484): configured space keys the spaces catalog does not hold.
 // The pass writes a catalog row only for a key the origin resolved, so a
 // configured key with no row is one the origin does not have — the shape a
-// local-origin default (LOC) takes after `gadak migrate` or a pairing builds
+// built-in default (LOC) takes after `gadak migrate` or a pairing builds
 // a new origin under the old config. No network call: doctor stays offline
 // and fast, and the mirror already carries the answer. Which keys those are
 // never enters doctor output; `gadak status` names them.

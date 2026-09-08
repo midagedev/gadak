@@ -4,7 +4,7 @@ import { en } from '../web/src/lib/i18n/en'
 
 /**
  * Overlay the served config document for this page — the same mock pattern
- * local-origin.spec.ts owns (serveWorkspaceKind). Kept local because
+ * built-in.spec.ts owns (serveWorkspaceKind). Kept local because
  * helpers.ts is not this round's to edit.
  */
 async function serveConfigOverride(page: Page, extra: Record<string, unknown>): Promise<void> {

@@ -14,10 +14,10 @@ import (
 //     TestUnlinkInwardDescriptionMatchesInwardElement
 //  3. no matching element → error naming the phrase; nothing DELETEd
 //     TestUnlinkNoMatchDeletesNothing
-//  4. local-origin: link then unlink through the in-process issuetap removes
+//  4. built-in: link then unlink through the in-process issuetap removes
 //     both projections from the mirror — the cross-repo pin for the
 //     synthetic id contract
-//     TestUnlinkLocalOriginRemovesBothProjections
+//     TestUnlinkBuiltInRemovesBothProjections
 
 const unlinkLinksJSON = `{"fields":{
 	"status":{"id":"3","name":"진행 중","statusCategory":{"key":"indeterminate"}},
@@ -76,10 +76,10 @@ func TestUnlinkNoMatchDeletesNothing(t *testing.T) {
 	}
 }
 
-func TestUnlinkLocalOriginRemovesBothProjections(t *testing.T) {
-	localOriginHome(t)
-	a := createLocalOrigin(t, "unlink a")
-	b := createLocalOrigin(t, "unlink b")
+func TestUnlinkBuiltInRemovesBothProjections(t *testing.T) {
+	builtInHome(t)
+	a := createBuiltIn(t, "unlink a")
+	b := createBuiltIn(t, "unlink b")
 	if _, err := capture(t, func() error {
 		return cmdLink([]string{a, b, "--type", "blocks"})
 	}); err != nil {

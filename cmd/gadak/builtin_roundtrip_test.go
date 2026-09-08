@@ -11,10 +11,10 @@ import (
 	"github.com/midagedev/gadak/internal/origin"
 )
 
-// TestLocalOriginCreateSyncSQL is the plumbing round-trip: init --standalone,
+// TestBuiltInCreateSyncSQL is the plumbing round-trip: init --standalone,
 // create an issue through the origin (issuetap), sync into the SQLite
 // mirror, read it back with gadak sql. No network, no real site.
-func TestLocalOriginCreateSyncSQL(t *testing.T) {
+func TestBuiltInCreateSyncSQL(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
 	t.Setenv("HOME", home)
@@ -38,7 +38,7 @@ func TestLocalOriginCreateSyncSQL(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &initJSON); err != nil {
 		t.Fatalf("init json: %v\n%s", err, out)
 	}
-	if initJSON.Kind != config.KindLocalOrigin {
+	if initJSON.Kind != config.KindStandalone {
 		t.Fatalf("kind %q", initJSON.Kind)
 	}
 
@@ -46,16 +46,16 @@ func TestLocalOriginCreateSyncSQL(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !cfg.HasLocalOrigin() {
-		t.Fatal("loaded config is not local-origin")
+	if !cfg.HasBuiltInOrigin() {
+		t.Fatal("loaded config is not built-in")
 	}
 	if cfg.Site != "" || cfg.Email != "" || cfg.Token != "" {
-		t.Fatalf("local-origin leaked credential fields: site=%q email=%q token_set=%t", cfg.Site, cfg.Email, cfg.Token != "")
+		t.Fatalf("built-in leaked credential fields: site=%q email=%q token_set=%t", cfg.Site, cfg.Email, cfg.Token != "")
 	}
 
 	// The seeded project offers several issue types, so without a recorded
 	// default `create <summary>` would demand --type on every call — the one
-	// thing a local-origin workspace exists to make cheap. init resolves it
+	// thing a built-in workspace exists to make cheap. init resolves it
 	// from the origin's createmeta and writes it here.
 	if cfg.DefaultProject == "" || cfg.DefaultIssueTypeID == "" {
 		t.Fatalf("init did not record create defaults: project=%q typeID=%q", cfg.DefaultProject, cfg.DefaultIssueTypeID)
@@ -63,7 +63,7 @@ func TestLocalOriginCreateSyncSQL(t *testing.T) {
 
 	// Summary only: no --project, no --type.
 	created, err := capture(t, func() error {
-		return cmdCreate([]string{"local-origin roundtrip"})
+		return cmdCreate([]string{"built-in roundtrip"})
 	})
 	if err != nil {
 		t.Fatalf("create: %v\n%s", err, created)
@@ -84,7 +84,7 @@ func TestLocalOriginCreateSyncSQL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sql: %v\n%s", err, sqlOut)
 	}
-	if !strings.Contains(sqlOut, key) || !strings.Contains(sqlOut, "local-origin roundtrip") {
+	if !strings.Contains(sqlOut, key) || !strings.Contains(sqlOut, "built-in roundtrip") {
 		t.Fatalf("mirror missing created issue:\n%s", sqlOut)
 	}
 
@@ -103,7 +103,7 @@ func TestLocalOriginCreateSyncSQL(t *testing.T) {
 		t.Fatalf("doctor: %v\n%s", err, doc)
 	}
 	if !strings.Contains(doc, "workspace_kind:") || !strings.Contains(doc, "standalone") {
-		t.Fatalf("doctor missing local-origin kind:\n%s", doc)
+		t.Fatalf("doctor missing built-in kind:\n%s", doc)
 	}
 	if !strings.Contains(doc, "origin:") {
 		t.Fatalf("doctor missing origin:\n%s", doc)
@@ -118,7 +118,7 @@ func TestLocalOriginCreateSyncSQL(t *testing.T) {
 	}
 }
 
-func TestInitLocalOriginRejectsCredentialFlags(t *testing.T) {
+func TestInitBuiltInRejectsCredentialFlags(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
 	clearCredentialEnv(t)
@@ -136,7 +136,7 @@ func TestInitLocalOriginRejectsCredentialFlags(t *testing.T) {
 	}
 }
 
-func TestInitWithoutLocalOriginUnchanged(t *testing.T) {
+func TestInitWithoutBuiltInUnchanged(t *testing.T) {
 	// Connected init still requires site/email/token when stdin is not a TTY.
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)

@@ -6,7 +6,7 @@ The origin is a Jira site, or — with no
 Atlassian account — an in-process tracker (`gadak init --local`), or
 another machine's `gadak serve` bound with `gadak init --pairing-code-stdin`.
 Reads never touch the network. Writes go to the origin (the Jira site on a Jira
-workspace, the local origin on the built-in tracker, the home serve on a paired one)
+workspace, the built-in tracker, the home serve on a paired one)
 and re-read the issue into the mirror afterwards. Kind lives on
 `gadak doctor --json` (`workspace.origin_type` is `gadak`, `jira` or `linear`
 and `workspace.transport` is `local` or `remote`; a paired
@@ -212,7 +212,7 @@ Pipe keys from (9) into the running UI: `gadak sql --no-header "select key from 
 Rules that come with the file:
 
 - **Never write to the database.** Writes go through the origin (the Jira site on a
-  Jira workspace, the local origin on the built-in tracker); a row written
+  Jira workspace, the built-in tracker); a row written
   directly is destroyed by the next sync. There is no exception for "just a
   label".
 - **Do not depend on `issues.raw`.** It is an escape hatch shaped by Jira's API,

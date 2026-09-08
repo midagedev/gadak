@@ -10,8 +10,8 @@ import (
 	"github.com/midagedev/gadak/internal/store"
 )
 
-func TestLocalOriginSyncFetchesDevLinksWithFlagOff(t *testing.T) {
-	// GDK-536: local-origin (issuetap) always fetches, even when DevStatus is off.
+func TestBuiltInSyncFetchesDevLinksWithFlagOff(t *testing.T) {
+	// GDK-536: built-in (issuetap) always fetches, even when DevStatus is off.
 	site := newSite(t, "en")
 	site.devPRs = map[string][]jira.DevPR{
 		"10001": {{ID: "pr-9", URL: "https://github.com/o/r/pull/9", Name: "from-origin", Status: jira.DevPROpen}},
@@ -19,14 +19,14 @@ func TestLocalOriginSyncFetchesDevLinksWithFlagOff(t *testing.T) {
 	client := site.start()
 	db := newMirror(t)
 	cfg := testConfig()
-	cfg.Kind = config.KindLocalOrigin
+	cfg.Kind = config.KindStandalone
 	cfg.DevStatus = false
 
 	if _, err := Run(context.Background(), cfg, db.DB, Options{Full: true, Client: client}); err != nil {
 		t.Fatal(err)
 	}
 	if site.devStatusHits == 0 {
-		t.Fatal("local-origin sync with DevStatus=false never fetched dev-status")
+		t.Fatal("built-in sync with DevStatus=false never fetched dev-status")
 	}
 	d, err := db.DB.Detail(context.Background(), "NMB-1")
 	if err != nil {
@@ -50,7 +50,7 @@ func TestDevStatusFetchErrorPreservesRows(t *testing.T) {
 	}
 	seed := store.IssueRecord{
 		Item: store.Item{
-			// local-origin namespaces item ids (itemNS) — seed the id sync
+			// built-in namespaces item ids (itemNS) — seed the id sync
 			// will actually rewrite, or the test proves nothing about the
 			// rewrite path.
 			ID: "jira:10001", SourceID: SourceID, Kind: "issue", ExternalID: "10001",
@@ -101,7 +101,7 @@ func TestDevStatusSuccessfulEmptyDrains(t *testing.T) {
 	}
 	seed := store.IssueRecord{
 		Item: store.Item{
-			// local-origin namespaces item ids (itemNS) — seed the id sync
+			// built-in namespaces item ids (itemNS) — seed the id sync
 			// will actually rewrite, or the test proves nothing about the
 			// rewrite path.
 			ID: "jira:10001", SourceID: SourceID, Kind: "issue", ExternalID: "10001",
@@ -150,7 +150,7 @@ func TestSyncStoresDevLinkAuthorActorBranch(t *testing.T) {
 	client := site.start()
 	db := newMirror(t)
 	cfg := testConfig()
-	cfg.Kind = config.KindLocalOrigin
+	cfg.Kind = config.KindStandalone
 
 	if _, err := Run(context.Background(), cfg, db.DB, Options{Full: true, Client: client}); err != nil {
 		t.Fatal(err)
@@ -196,7 +196,7 @@ func TestSyncKeepsDeploymentRowsThroughPRRewrite(t *testing.T) {
 	client := site.start()
 	db := newMirror(t)
 	cfg := testConfig()
-	cfg.Kind = config.KindLocalOrigin
+	cfg.Kind = config.KindStandalone
 	ctx := context.Background()
 
 	if err := db.UpsertSource(ctx, store.Source{ID: SourceID, Kind: "jira"}); err != nil {
@@ -204,10 +204,10 @@ func TestSyncKeepsDeploymentRowsThroughPRRewrite(t *testing.T) {
 	}
 	seed := store.IssueRecord{
 		Item: store.Item{
-			// local-origin namespaces item ids (itemNS) — seed the id sync
+			// built-in namespaces item ids (itemNS) — seed the id sync
 			// will actually rewrite, or the test proves nothing about the
 			// rewrite path.
-			ID: "local-origin-jira:10001", SourceID: SourceID, Kind: "issue", ExternalID: "10001",
+			ID: "standalone-jira:10001", SourceID: SourceID, Kind: "issue", ExternalID: "10001",
 			Key: "NMB-1", Title: "seeded", CreatedAt: "2026-07-01T00:00:00.000Z",
 			UpdatedAt: "2026-08-01T00:00:00.000Z",
 		},

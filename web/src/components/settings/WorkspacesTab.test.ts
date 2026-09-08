@@ -71,7 +71,7 @@ describe('GDK-1096 listWorkspaces refuses where getWorkspaces collapses', () => 
 })
 
 describe('GDK-1096 createWorkspace', () => {
-  test('POSTs the A1 body: name + kind localOrigin, projects only when given', async () => {
+  test('POSTs the A1 body: name + kind builtIn, projects only when given', async () => {
     const fetchMock = vi.fn(async () => jsonResponse(201, { name: 'side', kind: 'standalone', persist: '/x' }))
     vi.stubGlobal('fetch', fetchMock)
     await createWorkspace('side')
@@ -121,7 +121,7 @@ describe('GDK-1096 removeWorkspace — probe vs commit', () => {
   })
 
   test('the needs_destroy_origin detail survives verbatim, newlines included', async () => {
-    const detail = 'refusing: "side" is a local-origin workspace\n  persist: /somewhere/side/origin.sqlite\n  to remove it anyway: …'
+    const detail = 'refusing: "side" is a built-in workspace\n  persist: /somewhere/side/origin.sqlite\n  to remove it anyway: …'
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => jsonResponse(400, { error: 'needs_destroy_origin', detail })),
@@ -191,7 +191,7 @@ describe('GDK-1096 WorkspacesTab render contract', () => {
     expect(src).toMatch(/\{#each advisories as line\}/)
   })
 
-  test('a local-origin persist commit is gated on the only-copy checkbox', () => {
+  test('a built-in persist commit is gated on the only-copy checkbox', () => {
     expect(src).toMatch(/workspaces-destroy-origin/)
     expect(src).toMatch(/confirm\.refusal === 'needs_destroy_origin' && !confirm\.destroyOrigin/)
   })
@@ -228,15 +228,15 @@ describe('GDK-1096 WorkspacesTab render contract', () => {
 describe('GDK-1099 WorkspacesTab pairing render contract', () => {
   const src = readFileSync(WORKSPACES_TAB, 'utf8')
 
-  test('the create area is a two-mode switch, localOrigin first', () => {
+  test('the create area is a two-mode switch, builtIn first', () => {
     // A boolean, not a kind literal: the form mode is not the server-owned
     // workspace kind, and workspace.test.ts (GDK-237) keeps 'standalone'
     // comparisons out of components altogether.
     expect(src).toMatch(/let pairingMode = \$state\(false\)/)
-    expect(src).not.toMatch(/['"]local-origin['"]|WORKSPACE_KIND_STANDALONE/)
-    expect(src).toMatch(/workspaces-mode-local-origin/)
+    expect(src).not.toMatch(/['"]built-in['"]|WORKSPACE_KIND_STANDALONE/)
+    expect(src).toMatch(/workspaces-mode-built-in/)
     expect(src).toMatch(/workspaces-mode-paired/)
-    // The local-origin form keeps its own testids inside its branch — the
+    // The built-in form keeps its own testids inside its branch — the
     // pre-pairing selectors still resolve.
     expect(src).toMatch(/workspaces-form/)
     expect(src).toMatch(/workspaces-create-button/)
@@ -309,7 +309,7 @@ describe('GDK-1096 workspaces copy is complete in every locale', () => {
     'settings.workspacesProjectsLabel',
     'settings.workspacesCreate',
     'settings.workspacesCreateFailed',
-    'settings.workspacesModeLocalOrigin',
+    'settings.workspacesModeBuiltIn',
     'settings.workspacesModePaired',
     'settings.workspacesOfferLabel',
     'settings.workspacesPairHint',

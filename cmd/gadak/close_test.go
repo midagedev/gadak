@@ -80,14 +80,14 @@ func TestCloseExtraArgIsUsage(t *testing.T) {
 	}
 }
 
-// TestCloseLocalOriginRoundtrip is the GDK-500 origin check: close posts
+// TestCloseBuiltInRoundtrip is the GDK-500 origin check: close posts
 // transition+comment in one write, and a second close on an already-done
 // issue is exit 0 / changed:false with no extra comment.
 // GDK-1347: a Built-in workspace has resolutions (issuetap keeps the Cloud
 // catalog), so `close --resolution Duplicate` must land, not bounce off a
 // Jira screen 400 — the seeded workflow declares resolution on the done
 // transition's screen.
-func TestCloseLocalOriginAcceptsResolution(t *testing.T) {
+func TestCloseBuiltInAcceptsResolution(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
 	t.Setenv("HOME", home)
@@ -132,7 +132,7 @@ func TestTransitionScreen400IsRewordedOnlyForBuiltinOrigin(t *testing.T) {
 	screen := &jira.APIError{Status: 400, Errors: map[string]string{
 		"resolution": "Field 'resolution' cannot be set. It is not on the appropriate screen, or unknown.",
 	}}
-	builtin := &config.Config{Kind: config.KindLocalOrigin}
+	builtin := &config.Config{Kind: config.KindStandalone}
 	got := formatTransitionError(screen, builtin)
 	if got == nil || !strings.Contains(got.Error(), "built-in workflow has no resolution field") || !errors.Is(got, screen) {
 		t.Fatalf("built-in origin: %v", got)
@@ -146,7 +146,7 @@ func TestTransitionScreen400IsRewordedOnlyForBuiltinOrigin(t *testing.T) {
 	}
 }
 
-func TestCloseLocalOriginRoundtrip(t *testing.T) {
+func TestCloseBuiltInRoundtrip(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
 	t.Setenv("HOME", home)

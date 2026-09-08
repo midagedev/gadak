@@ -33,7 +33,7 @@ func TestPairedWikiPagesLandInMirror(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	home.Kind = config.KindLocalOrigin
+	home.Kind = config.KindStandalone
 	home.Confluence = origin.DefaultConfluenceConfig()
 	if err := home.Save(); err != nil {
 		t.Fatal(err)
@@ -47,7 +47,7 @@ func TestPairedWikiPagesLandInMirror(t *testing.T) {
 		t.Fatalf("CreatePage: %v", err)
 	}
 
-	h, err := origin.LocalOriginHandler(home)
+	h, err := origin.BuiltInHandler(home)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1074,20 +1074,20 @@ func TestSQLUnknownProfileDoesNotCreate(t *testing.T) {
 	}
 }
 
-// TestInitConvertingEmptyLocalOriginDropsSeededSpace guards the half of "a
+// TestInitConvertingEmptyBuiltInDropsSeededSpace guards the half of "a
 // workspace is bound to one origin" that the --replace-local flag does not
-// cover. An *empty* local-origin workspace is deliberately allowed to convert
-// without that flag (refuseLocalOriginReplace returns nil at n==0), so a guard
+// cover. An *empty* built-in workspace is deliberately allowed to convert
+// without that flag (refuseBuiltInReplace returns nil at n==0), so a guard
 // keyed on the flag leaves the seeded issuetap space (LOC) in the config of a
 // now-connected workspace — and the wiki pass then asks a real Atlassian site
 // for a space that only ever existed in the in-process origin.
-func TestInitConvertingEmptyLocalOriginDropsSeededSpace(t *testing.T) {
+func TestInitConvertingEmptyBuiltInDropsSeededSpace(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
 	clearCredentialEnv(t)
 	config.SetProfile("")
 	// origin keeps live in-process sessions in a process-global map, and a
-	// local-origin init opens one. Left behind, its debounced snapshot flush
+	// built-in init opens one. Left behind, its debounced snapshot flush
 	// targets a TempDir that has already been removed, and the *next* test in
 	// this package to call origin.Close() is the one that fails.
 	t.Cleanup(func() { _ = origin.Close() })
@@ -1096,7 +1096,7 @@ func TestInitConvertingEmptyLocalOriginDropsSeededSpace(t *testing.T) {
 		if _, err := capture(t, func() error {
 			return cmdInit([]string{"--local", "--json"})
 		}); err != nil {
-			t.Fatalf("local-origin init: %v", err)
+			t.Fatalf("built-in init: %v", err)
 		}
 	})
 	seeded, err := config.Load()
@@ -1104,7 +1104,7 @@ func TestInitConvertingEmptyLocalOriginDropsSeededSpace(t *testing.T) {
 		t.Fatal(err)
 	}
 	if seeded.Confluence == nil || len(seeded.Confluence.Spaces) == 0 {
-		t.Fatalf("local-origin init should seed a wiki space, got %+v", seeded.Confluence)
+		t.Fatalf("built-in init should seed a wiki space, got %+v", seeded.Confluence)
 	}
 
 	// No --replace-local: the workspace holds no locally originated
@@ -1126,20 +1126,20 @@ func TestInitConvertingEmptyLocalOriginDropsSeededSpace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.HasLocalOrigin() {
-		t.Fatalf("converted workspace still reports local-origin: kind=%q", cfg.Kind)
+	if cfg.HasBuiltInOrigin() {
+		t.Fatalf("converted workspace still reports built-in: kind=%q", cfg.Kind)
 	}
 	if cfg.Confluence != nil {
-		t.Fatalf("seeded local-origin space survived the conversion: %+v", cfg.Confluence)
+		t.Fatalf("seeded built-in space survived the conversion: %+v", cfg.Confluence)
 	}
 }
 
-// TestInitLocalOriginFailsWhenOriginClientFails: origin.Client errors used
-// to be swallowed by localOriginDefaultType, so `init --standalone` printed
+// TestInitBuiltInFailsWhenOriginClientFails: origin.Client errors used
+// to be swallowed by builtInDefaultType, so `init --standalone` printed
 // success against an unusable origin (GDK-345).
 //
 // FAIL-first (2026-08-20, pre-fix): cmdInit returned nil.
-func TestInitLocalOriginFailsWhenOriginClientFails(t *testing.T) {
+func TestInitBuiltInFailsWhenOriginClientFails(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
 	t.Setenv("HOME", home)
@@ -1150,7 +1150,7 @@ func TestInitLocalOriginFailsWhenOriginClientFails(t *testing.T) {
 		config.SetProfile("")
 	})
 
-	cfg := &config.Config{Kind: config.KindLocalOrigin, Frozen: true}
+	cfg := &config.Config{Kind: config.KindStandalone, Frozen: true}
 	if err := cfg.Save(); err != nil {
 		t.Fatal(err)
 	}
@@ -1177,7 +1177,7 @@ func initJSONSkill(t *testing.T, out string) (skill string, doc map[string]any) 
 	return skill, doc
 }
 
-func runLocalOriginInitJSON(t *testing.T) string {
+func runBuiltInInitJSON(t *testing.T) string {
 	t.Helper()
 	clearCredentialEnv(t)
 	config.SetProfile("")
@@ -1194,13 +1194,13 @@ func runLocalOriginInitJSON(t *testing.T) string {
 	return out
 }
 
-// TestInitLocalOriginAutoInstallsSkillWhenClaudeDirExists — GDK-93.
+// TestInitBuiltInAutoInstallsSkillWhenClaudeDirExists — GDK-93.
 // FAIL-first (2026-08-21, pre-fix): init succeeded, ~/.claude existed,
 // SKILL.md was not created, --json had no "skill" field.
-func TestInitLocalOriginAutoInstallsSkillWhenClaudeDirExists(t *testing.T) {
+func TestInitBuiltInAutoInstallsSkillWhenClaudeDirExists(t *testing.T) {
 	home := isolateHomeWithClaude(t)
 	t.Setenv("GADAK_HOME", home)
-	out := runLocalOriginInitJSON(t)
+	out := runBuiltInInitJSON(t)
 	skill, _ := initJSONSkill(t, out)
 	if skill != "installed" {
 		t.Fatalf("skill = %q, want installed; out=%s", skill, out)
@@ -1214,10 +1214,10 @@ func TestInitLocalOriginAutoInstallsSkillWhenClaudeDirExists(t *testing.T) {
 	}
 }
 
-func TestInitLocalOriginSkillSkippedWithoutClaudeDir(t *testing.T) {
+func TestInitBuiltInSkillSkippedWithoutClaudeDir(t *testing.T) {
 	home := isolateHome(t)
 	t.Setenv("GADAK_HOME", home)
-	out := runLocalOriginInitJSON(t)
+	out := runBuiltInInitJSON(t)
 	skill, _ := initJSONSkill(t, out)
 	if skill != "skipped" {
 		t.Fatalf("skill = %q, want skipped; out=%s", skill, out)
@@ -1227,11 +1227,11 @@ func TestInitLocalOriginSkillSkippedWithoutClaudeDir(t *testing.T) {
 	}
 }
 
-// TestInitLocalOriginSkillConflictPreservesFile stamps the release version:
+// TestInitBuiltInSkillConflictPreservesFile stamps the release version:
 // the destination already holds a file, and only a release build gets as far
 // as the conflict refusal (GDK-1539). The dev-build path stops one step
-// earlier and is covered by TestInitLocalOriginDevBuildLeavesInstalledSkillAlone.
-func TestInitLocalOriginSkillConflictPreservesFile(t *testing.T) {
+// earlier and is covered by TestInitBuiltInDevBuildLeavesInstalledSkillAlone.
+func TestInitBuiltInSkillConflictPreservesFile(t *testing.T) {
 	releaseVersionForTest(t)
 	home := isolateHomeWithClaude(t)
 	t.Setenv("GADAK_HOME", home)
@@ -1273,7 +1273,7 @@ func TestInitLocalOriginSkillConflictPreservesFile(t *testing.T) {
 	}
 }
 
-func TestInitLocalOriginHumanSkillInstalledLine(t *testing.T) {
+func TestInitBuiltInHumanSkillInstalledLine(t *testing.T) {
 	releaseVersionForTest(t)
 	home := isolateHomeWithClaude(t)
 	t.Setenv("GADAK_HOME", home)
@@ -1297,14 +1297,14 @@ func TestInitLocalOriginHumanSkillInstalledLine(t *testing.T) {
 	}
 }
 
-// TestInitLocalOriginDevBuildLeavesInstalledSkillAlone is GDK-1539's measured
+// TestInitBuiltInDevBuildLeavesInstalledSkillAlone is GDK-1539's measured
 // symptom, driven through the verb that produced it. `gadak init --local` in a
 // scratch profile replaced a planted, gadak-written copy in the real HOME with
 // the working tree's SKILL.md — and unlike the daily sync (GDK-1531) this path
 // has no rate limit, so it did it again on every init. The test binary carries
 // the dev version, which is the whole point: this is what a checkout build now
 // does.
-func TestInitLocalOriginDevBuildLeavesInstalledSkillAlone(t *testing.T) {
+func TestInitBuiltInDevBuildLeavesInstalledSkillAlone(t *testing.T) {
 	if !skillinstall.IsDevBuild(version) {
 		t.Fatalf("the test binary should carry the dev version, got %q", version)
 	}
@@ -1407,7 +1407,7 @@ func TestInitPairedAutoInstallsSkillWhenClaudeDirExists(t *testing.T) {
 // every team space the home origin lists. The block must also be present:
 // its absence is the wiki off switch, and a paired workspace that mirrored
 // issues while reporting its wiki as not configured is what GDK-1276 fixed.
-// Neither may regress into the local-origin default (LOC), which belongs to
+// Neither may regress into the built-in default (LOC), which belongs to
 // an origin this workspace does not own.
 func TestInitPairedWritesWikiScopeForTheHomeOrigin(t *testing.T) {
 	home := t.TempDir()

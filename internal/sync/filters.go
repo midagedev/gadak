@@ -38,7 +38,7 @@ func importFilters(ctx context.Context, c *jira.Client, cfg *config.Config, db *
 		opts.logf("filters: store failed (%v)", err)
 		return
 	}
-	if cfg == nil || !cfg.HasLocalOrigin() {
+	if cfg == nil || !cfg.HasBuiltInOrigin() {
 		opts.logf("filters: %d from Jira", len(out))
 	}
 }

@@ -39,7 +39,7 @@ func parseServeOpts(args []string) (serveOpts, error) {
 	static := fs.String("static", "", "serve the web UI from this directory instead of the embedded copy")
 	allowRemote := fs.Bool("allow-remote", false,
 		"permit binding a non-loopback address (the mirror has no auth; do not expose it)")
-	// Sync starts by default when HasCredential is true (localOrigin, or a
+	// Sync starts by default when HasCredential is true (builtIn, or a
 	// connected workspace with site+email+token). --no-sync opts out
 	// (demo / e2e fixtures).
 	noSync := fs.Bool("no-sync", false, "do not run the incremental sync loop")
@@ -196,13 +196,13 @@ func serveStartHints(cfg *config.Config) []string {
 }
 
 // serveScopeLog is the listen-time project-scope line. Empty means print
-// nothing. GDK-464: local-origin has no account — name the seeded project
-// instead of "this account can see". cfg.HasLocalOrigin() is the only branch.
+// nothing. GDK-464: built-in has no account — name the seeded project
+// instead of "this account can see". cfg.HasBuiltInOrigin() is the only branch.
 func serveScopeLog(cfg *config.Config) string {
 	if cfg == nil || !cfg.HasCredential() {
 		return ""
 	}
-	if cfg.HasLocalOrigin() {
+	if cfg.HasBuiltInOrigin() {
 		if len(cfg.Projects) != 0 {
 			return ""
 		}

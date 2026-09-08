@@ -7,7 +7,7 @@
    * and its "Reported by me" row in the second (GDK-1493): the open half of
    * that question is the Handed off view, and the feed screen keeps its
    * reporter focus as a toggle. Unread count = API result count.
-   * Without identity: local-origin and the demo say why the rows are absent
+   * Without identity: built-in and the demo say why the rows are absent
    * (GDK-1122 — neither can configure one); a connected workspace prompts to
    * set credentials.
    */
@@ -15,7 +15,7 @@
   import { me } from '../../stores/me.svelte'
   import { write } from '../../stores/write.svelte'
   import { feature } from '../../lib/config'
-  import { isHostedDemo, isLocalOriginWorkspace } from '../../lib/config'
+  import { isHostedDemo, isBuiltInWorkspace } from '../../lib/config'
   import { cappedCount } from '../../lib/format'
   import Icon from '../ui/Icon.svelte'
 
@@ -51,15 +51,15 @@
   </div>
 {:else if !me.identified}
   <div class="mb-2">
-    {#if isLocalOriginWorkspace()}
-      <!-- GDK-1122: a local-origin workspace has no credential and no identity to
+    {#if isBuiltInWorkspace()}
+      <!-- GDK-1122: a built-in workspace has no credential and no identity to
            configure — the seeded origin is the machine's own tracker (see
            lib/workspace.ts), and writes are attributed to the process actor, not
            to a reader. A credentials CTA here would send this workspace's only
            audience to a dialog that cannot help, so the anonymous branch says
            why the rows are absent instead. -->
-      <p class="px-3 py-1.5 text-micro text-text-muted" data-testid="my-issues-local-origin-note">
-        {t('personal.localOriginNoIdentity')}
+      <p class="px-3 py-1.5 text-micro text-text-muted" data-testid="my-issues-built-in-note">
+        {t('personal.builtInNoIdentity')}
       </p>
     {:else if isHostedDemo()}
       <!-- The feed rows need a Jira identity, which the demo has no way to

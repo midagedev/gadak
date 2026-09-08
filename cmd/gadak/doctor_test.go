@@ -762,14 +762,14 @@ func TestDoctorReportsSkillLastAutoCheck(t *testing.T) {
 	}
 }
 
-func TestDoctorReportsLocalOriginWithCredential(t *testing.T) {
+func TestDoctorReportsBuiltInWithCredential(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
 	t.Setenv("HOME", home)
 	config.SetProfile("")
 
 	const planted = "NOT-A-REAL-TOKEN-doctor-inconsistent"
-	cfg := &config.Config{Kind: config.KindLocalOrigin, Token: planted}
+	cfg := &config.Config{Kind: config.KindStandalone, Token: planted}
 	if err := cfg.Save(); err != nil {
 		t.Fatal(err)
 	}
@@ -791,7 +791,7 @@ func TestDoctorReportsLocalOriginWithCredential(t *testing.T) {
 		t.Errorf("workspace line missing site_token=yes: %q", got)
 	}
 	if !strings.Contains(got, "inconsistent") {
-		t.Errorf("local-origin-with-token must say inconsistent: %q", got)
+		t.Errorf("built-in-with-token must say inconsistent: %q", got)
 	}
 
 	raw, err := capture(t, func() error { return cmdDoctor([]string{"--json"}) })
@@ -805,7 +805,7 @@ func TestDoctorReportsLocalOriginWithCredential(t *testing.T) {
 	if err := json.Unmarshal([]byte(raw), &rep); err != nil {
 		t.Fatalf("invalid JSON: %v\n%s", err, raw)
 	}
-	if !rep.Workspace.Inconsistent || !rep.Workspace.HasSiteToken || rep.Workspace.Kind != config.KindLocalOrigin {
+	if !rep.Workspace.Inconsistent || !rep.Workspace.HasSiteToken || rep.Workspace.Kind != config.KindStandalone {
 		t.Fatalf("json workspace = %+v", rep.Workspace)
 	}
 }
@@ -817,7 +817,7 @@ func TestDoctorOriginOwnerEmbedded(t *testing.T) {
 	config.SetProfile("")
 	t.Cleanup(func() { config.SetProfile("") })
 
-	cfg := &config.Config{Kind: config.KindLocalOrigin}
+	cfg := &config.Config{Kind: config.KindStandalone}
 	if err := cfg.Save(); err != nil {
 		t.Fatal(err)
 	}
@@ -839,7 +839,7 @@ func TestDoctorOriginOwnerIgnoresStaleAdvertise(t *testing.T) {
 	config.SetProfile("")
 	t.Cleanup(func() { config.SetProfile("") })
 
-	cfg := &config.Config{Kind: config.KindLocalOrigin}
+	cfg := &config.Config{Kind: config.KindStandalone}
 	if err := cfg.Save(); err != nil {
 		t.Fatal(err)
 	}
@@ -1264,7 +1264,7 @@ func TestDoctorConfluenceSpacesNotOnOrigin(t *testing.T) {
 	}
 	cfg := &config.Config{
 		Site: "https://example.atlassian.net", Email: "someone@example.com", Token: "token",
-		// The stale local-origin default that survived a change of origin.
+		// The stale built-in default that survived a change of origin.
 		Confluence: &config.ConfluenceConfig{Spaces: []string{"LOCSTALE"}},
 	}
 	if err := cfg.Save(); err != nil {

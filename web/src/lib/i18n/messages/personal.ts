@@ -42,9 +42,9 @@ export const personal = {
     ko: '개인 피드는 Jira 신원이 필요해 데모에서는 표시되지 않습니다',
     ja: '個人フィードには Jira の身元が必要で、デモでは利用できません',
   },
-  /* GDK-1122: local-origin has no credential to offer a dialog for, so this
+  /* GDK-1122: built-in has no credential to offer a dialog for, so this
      note replaces the needCredentials CTA there. */
-  'personal.localOriginNoIdentity': {
+  'personal.builtInNoIdentity': {
     en: 'The personal feed needs an identity — this workspace runs without an account',
     ko: '개인 피드는 신원이 필요해 계정 없이 쓰는 워크스페이스에서는 표시되지 않습니다',
     ja: '個人フィードには身元が必要で、アカウントなしで使うワークスペースでは利用できません',

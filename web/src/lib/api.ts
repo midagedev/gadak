@@ -68,12 +68,12 @@ export class ApiError extends Error {
 }
 
 /** 409 standalone_data_present from PUT onboarding/connect/. */
-export class LocalOriginDataPresentError extends ApiError {
+export class BuiltInDataPresentError extends ApiError {
   issues: number
   persist: string
   constructor(status: number, issues: number, persist: string) {
     super(status, 'standalone_data_present', 'standalone_data_present')
-    this.name = 'LocalOriginDataPresentError'
+    this.name = 'BuiltInDataPresentError'
     this.issues = issues
     this.persist = persist
   }
@@ -703,12 +703,12 @@ export async function connectJira(
   jiraEmail: string,
   apiToken: string,
   tokenExpiresAt?: string,
-  opts?: { replaceLocalOrigin?: boolean },
+  opts?: { replaceBuiltIn?: boolean },
 ): Promise<JiraCredential> {
   const body: Record<string, unknown> = { site, jira_email: jiraEmail, api_token: apiToken }
   const expires = tokenExpiresAt?.trim()
   if (expires) body.token_expires_at = expires
-  if (opts?.replaceLocalOrigin) body.replace_standalone = true
+  if (opts?.replaceBuiltIn) body.replace_standalone = true
   const res = await raw('onboarding/connect/', {
     method: 'PUT',
     headers: JSON_HEADERS,
@@ -735,7 +735,7 @@ export async function connectJira(
       /* No body / non-JSON — keep default message */
     }
     if (res.status === 409 && code === 'standalone_data_present') {
-      throw new LocalOriginDataPresentError(res.status, issues, persist)
+      throw new BuiltInDataPresentError(res.status, issues, persist)
     }
     throw new ApiError(res.status, message, code)
   }
@@ -743,19 +743,19 @@ export async function connectJira(
 }
 
 /** What POST onboarding/standalone answers: the seeded workspace facts. */
-export type LocalOriginInit = {
+export type BuiltInInit = {
   workspace_kind: 'standalone'
   default_project: string
 }
 
 /**
- * Seed a local-origin workspace — the GUI twin of `gadak init --local`
+ * Seed a built-in workspace — the GUI twin of `gadak init --local`
  * (GDK-377). Body is `{}`: the server seeds the default STD project and the
  * LOC wiki space. 409 workspace_connected when this workspace already has an
- * origin; a workspace that is already local-origin answers 200 idempotently.
+ * origin; a workspace that is already built-in answers 200 idempotently.
  */
-export function createLocalOriginWorkspace(): Promise<LocalOriginInit> {
-  return jsonW<LocalOriginInit>('onboarding/standalone/', {
+export function createBuiltInWorkspace(): Promise<BuiltInInit> {
+  return jsonW<BuiltInInit>('onboarding/standalone/', {
     method: 'POST',
     headers: JSON_HEADERS,
     body: JSON.stringify({}),
@@ -1293,7 +1293,7 @@ export class WorkspaceManageError extends Error {
 export interface CreatedWorkspace {
   name: string
   kind: string
-  /** Absolute path of the new local-origin persist — informational. */
+  /** Absolute path of the new built-in persist — informational. */
   persist: string
 }
 
@@ -1336,7 +1336,7 @@ export async function listWorkspaces(): Promise<WorkspaceInfo[]> {
 }
 
 /**
- * Create a local-origin workspace. `projects` is a CSV the server parses;
+ * Create a built-in workspace. `projects` is a CSV the server parses;
  * empty mirrors every project. The paired flow is pairWorkspace's —
  * connected still needs the credential flow and stays off this API.
  */
@@ -1389,7 +1389,7 @@ export async function pairWorkspace(name: string, offer: string): Promise<Paired
  * answers 400 with the refusal whose detail explains what removal means for
  * this workspace (needs_destroy_origin carries the persist path) — that
  * wording is the confirmation dialog's body. `yes: true` commits, and
- * `destroyOrigin: true` additionally destroys a local-origin persist (the
+ * `destroyOrigin: true` additionally destroys a built-in persist (the
  * only copy of that tracker).
  */
 export async function removeWorkspace(

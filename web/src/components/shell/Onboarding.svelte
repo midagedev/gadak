@@ -105,31 +105,31 @@
   let connecting = $state(false)
   let connectError = $state<string | null>(null)
   let owner = $state('')
-  let localOriginBlock = $state<{ issues: number; persist: string } | null>(null)
-  let replaceLocalOrigin = $state(false)
+  let builtInBlock = $state<{ issues: number; persist: string } | null>(null)
+  let replaceBuiltIn = $state(false)
 
   async function connect(event: SubmitEvent): Promise<void> {
     event.preventDefault()
     // Second request only after an explicit confirm — never auto-retry the 409.
-    if (localOriginBlock && !replaceLocalOrigin) return
+    if (builtInBlock && !replaceBuiltIn) return
     connecting = true
     connectError = null
     try {
       const cred = await api.connectJira(site.trim(), email.trim(), token, tokenExpires, {
-        replaceLocalOrigin,
+        replaceBuiltIn,
       })
       owner = cred.display_name || cred.jira_email
       // The credential is the identity, so the rest of the app has to re-read it.
       await me.refreshIdentity()
       token = '' // no reason to keep it in a live component
-      localOriginBlock = null
-      replaceLocalOrigin = false
+      builtInBlock = null
+      replaceBuiltIn = false
       step = 2
       void loadProjects()
     } catch (e) {
-      if (e instanceof api.LocalOriginDataPresentError) {
-        localOriginBlock = { issues: e.issues, persist: e.persist }
-        replaceLocalOrigin = false
+      if (e instanceof api.BuiltInDataPresentError) {
+        builtInBlock = { issues: e.issues, persist: e.persist }
+        replaceBuiltIn = false
         connectError = null
       } else {
         connectError = connectMessage(e)
@@ -157,7 +157,7 @@
     if (code === 'site_required') return t('onboarding.errSite')
     if (code === 'email_and_token_required') return t('onboarding.errFields')
     if (code === 'invalid_token_expires') return t('onboarding.errExpires')
-    if (code === 'standalone_data_present') return t('onboarding.localOriginBlocked', { n: 0 })
+    if (code === 'standalone_data_present') return t('onboarding.builtInBlocked', { n: 0 })
     return t('onboarding.errConnect', { message: reason(e) })
   }
 
@@ -174,25 +174,25 @@
   }
 
   /* ── 1. the other front door: no tracker (GDK-377) ── */
-  let localOriginStarting = $state(false)
-  let localOriginError = $state<string | null>(null)
+  let builtInStarting = $state(false)
+  let builtInError = $state<string | null>(null)
 
   /**
    * One click to a workspace with no Jira site at all. The verb is shared
-   * with the CLI (originbind.SeedLocalOrigin), so what lands here is exactly
+   * with the CLI (originbind.SeedBuiltIn), so what lands here is exactly
    * what `gadak init --local` seeds: STD project, default type, LOC
    * wiki space. The wizard does not continue to step 2 — there is nothing to
    * pick or sync. Instead the workspace kind flips, the gate clears (the
-   * local-origin clause — the pool stays empty), and the composer opens so
+   * built-in clause — the pool stays empty), and the composer opens so
    * the first action this person takes is filing their first issue, not
    * reading an empty list.
    */
-  async function startLocalOrigin(): Promise<void> {
-    localOriginStarting = true
-    localOriginError = null
+  async function startBuiltIn(): Promise<void> {
+    builtInStarting = true
+    builtInError = null
     try {
-      await api.createLocalOriginWorkspace()
-      // config.json now says localOrigin. This unmounts the wizard mid-await;
+      await api.createBuiltInWorkspace()
+      // config.json now says builtIn. This unmounts the wizard mid-await;
       // every call after this line is on global stores, which survive it.
       await loadConfig()
       // The gate's config reads are not reactive on their own — poke it so
@@ -207,17 +207,17 @@
       void issues.refresh()
       write.openNewIssue()
     } catch (e) {
-      localOriginError = localOriginMessage(e)
+      builtInError = builtInMessage(e)
     } finally {
-      localOriginStarting = false
+      builtInStarting = false
     }
   }
 
   /** A connected workspace is not this path's problem to solve — say which door to use. */
-  function localOriginMessage(e: unknown): string {
+  function builtInMessage(e: unknown): string {
     const code = e instanceof ApiError ? e.code : null
-    if (code === 'workspace_connected') return t('onboarding.localOriginConnected')
-    return t('onboarding.errLocalOrigin', { message: reason(e) })
+    if (code === 'workspace_connected') return t('onboarding.builtInConnected')
+    return t('onboarding.errBuiltIn', { message: reason(e) })
   }
 
   /* ── 2. projects ── */
@@ -475,23 +475,23 @@
           <span class="text-micro text-text-muted">{t('onboarding.tokenExpiresHint')}</span>
         </label>
 
-        {#if localOriginBlock}
-          <div class="flex flex-col gap-2" role="alert" data-testid="onboarding-local-origin-block">
+        {#if builtInBlock}
+          <div class="flex flex-col gap-2" role="alert" data-testid="onboarding-built-in-block">
             <p class="text-body text-status-reopen">
-              {t('onboarding.localOriginBlocked', { n: localOriginBlock.issues })}
+              {t('onboarding.builtInBlocked', { n: builtInBlock.issues })}
             </p>
-            <p class="font-mono text-micro text-text-secondary" data-testid="onboarding-local-origin-persist">
-              {t('onboarding.localOriginPersist', { path: localOriginBlock.persist })}
+            <p class="font-mono text-micro text-text-secondary" data-testid="onboarding-built-in-persist">
+              {t('onboarding.builtInPersist', { path: builtInBlock.persist })}
             </p>
-            <p class="text-micro text-text-secondary">{t('onboarding.localOriginOtherWorkspace')}</p>
+            <p class="text-micro text-text-secondary">{t('onboarding.builtInOtherWorkspace')}</p>
             <label class="flex items-start gap-2 text-body text-text-secondary">
               <input
                 type="checkbox"
                 class="mt-0.5 accent-accent"
                 data-testid="onboarding-replace-local"
-                bind:checked={replaceLocalOrigin}
+                bind:checked={replaceBuiltIn}
               />
-              <span>{t('onboarding.localOriginReplaceConfirm')}</span>
+              <span>{t('onboarding.builtInReplaceConfirm')}</span>
             </label>
           </div>
         {/if}
@@ -515,12 +515,12 @@
           <button
             class={PRIMARY}
             type="submit"
-            disabled={connecting || (!!localOriginBlock && !replaceLocalOrigin)}
+            disabled={connecting || (!!builtInBlock && !replaceBuiltIn)}
           >
             {connecting
               ? t('common.verifying')
-              : localOriginBlock
-                ? t('onboarding.localOriginReplace')
+              : builtInBlock
+                ? t('onboarding.builtInReplace')
                 : t('onboarding.connect')}
           </button>
           <button class={GHOST} type="button" onclick={onOpenSettings}>{t('onboarding.openSettings')}</button>
@@ -528,23 +528,23 @@
       </form>
       {:else if source === 'builtin'}
       <!-- The built-in door. Success never reaches step 2: the workspace
-           kind flips and the composer opens (startLocalOrigin). -->
-      <div class="mt-4 flex flex-col gap-2" data-testid="onboarding-local-origin">
-        <p class="text-body text-text-secondary">{t('onboarding.localOriginIntro')}</p>
-        {#if localOriginError}
+           kind flips and the composer opens (startBuiltIn). -->
+      <div class="mt-4 flex flex-col gap-2" data-testid="onboarding-built-in">
+        <p class="text-body text-text-secondary">{t('onboarding.builtInIntro')}</p>
+        {#if builtInError}
           <p class="mt-2 text-body text-status-reopen" role="alert" data-testid="onboarding-error">
-            {localOriginError}
+            {builtInError}
           </p>
         {/if}
         <div>
           <button
             class={PRIMARY}
             type="button"
-            data-testid="onboarding-start-local-origin"
-            disabled={localOriginStarting}
-            onclick={() => void startLocalOrigin()}
+            data-testid="onboarding-start-built-in"
+            disabled={builtInStarting}
+            onclick={() => void startBuiltIn()}
           >
-            {t('onboarding.localOriginStart')}
+            {t('onboarding.builtInStart')}
           </button>
         </div>
       </div>

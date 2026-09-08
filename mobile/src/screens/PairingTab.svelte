@@ -392,7 +392,7 @@
           <p class="line">
             <span class="quiet"
               >{t('pairing.noIdentityLocal', {
-                tracker: t('settings.workspaceLocalOrigin'),
+                tracker: t('settings.workspaceBuiltIn'),
                 issues: t('doc.issues'),
                 view: t('view.allOpen.name'),
               })}</span

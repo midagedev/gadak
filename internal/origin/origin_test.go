@@ -23,7 +23,7 @@ func TestConnectedMatchesJiraNew(t *testing.T) {
 
 // TestCreatesVersionsByName is GDK-678: the mint-by-name capability lives on
 // the origin client, not on workspace.kind. Connected Cloud is false;
-// issuetap (localOrigin Client via transportJira) is true.
+// issuetap (builtIn Client via transportJira) is true.
 func TestCreatesVersionsByName(t *testing.T) {
 	connected := Connected("https://example.atlassian.net/", "a@b.c", "tok")
 	if CreatesVersionsByName(connected) {
@@ -42,7 +42,7 @@ func TestCreatesVersionsByName(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg.Kind = config.KindLocalOrigin
+	cfg.Kind = config.KindStandalone
 	if err := cfg.Save(); err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +56,7 @@ func TestCreatesVersionsByName(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !CreatesVersionsByName(c) {
-		t.Fatal("local-origin issuetap CreatesVersionsByName = false, want true")
+		t.Fatal("built-in issuetap CreatesVersionsByName = false, want true")
 	}
 }
 
@@ -101,7 +101,7 @@ func TestPairedStatusReadsRemoteOrigin(t *testing.T) {
 		t.Fatalf("paired: %+v (%v)", rem, err)
 	}
 
-	cfg.Kind = config.KindLocalOrigin
+	cfg.Kind = config.KindStandalone
 	if err := cfg.Save(); err != nil {
 		t.Fatal(err)
 	}
@@ -111,11 +111,11 @@ func TestPairedStatusReadsRemoteOrigin(t *testing.T) {
 	}
 	rem, err = PairedStatus(cfg)
 	if err != nil || rem != nil {
-		t.Fatalf("local-origin home routing is not a paired origin: %+v (%v)", rem, err)
+		t.Fatalf("built-in home routing is not a paired origin: %+v (%v)", rem, err)
 	}
 }
 
-func TestDescribeConnectedAndLocalOrigin(t *testing.T) {
+func TestDescribeConnectedAndBuiltIn(t *testing.T) {
 	kind, src := Describe(nil)
 	if kind != config.KindConnected || src != "jira" {
 		t.Fatalf("nil: %q %q", kind, src)
@@ -134,7 +134,7 @@ func TestDescribeConnectedAndLocalOrigin(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg.Kind = config.KindLocalOrigin
+	cfg.Kind = config.KindStandalone
 	if err := cfg.Save(); err != nil {
 		t.Fatal(err)
 	}
@@ -144,7 +144,7 @@ func TestDescribeConnectedAndLocalOrigin(t *testing.T) {
 		t.Fatal(err)
 	}
 	kind, src = Describe(cfg)
-	if kind != config.KindLocalOrigin {
+	if kind != config.KindStandalone {
 		t.Fatalf("kind %q", kind)
 	}
 	want := PersistPath(home)
@@ -153,7 +153,7 @@ func TestDescribeConnectedAndLocalOrigin(t *testing.T) {
 	}
 }
 
-func TestLocalOriginClientCreateAndPersist(t *testing.T) {
+func TestBuiltInClientCreateAndPersist(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
 	config.SetProfile("")
@@ -166,7 +166,7 @@ func TestLocalOriginClientCreateAndPersist(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg.Kind = config.KindLocalOrigin
+	cfg.Kind = config.KindStandalone
 	if err := cfg.Save(); err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +180,7 @@ func TestLocalOriginClientCreateAndPersist(t *testing.T) {
 		t.Fatal(err)
 	}
 	if c.BaseURL() != "" {
-		t.Fatalf("local-origin BaseURL = %q, want empty (no fake https origin)", c.BaseURL())
+		t.Fatalf("built-in BaseURL = %q, want empty (no fake https origin)", c.BaseURL())
 	}
 
 	ctx := context.Background()
@@ -230,7 +230,7 @@ func TestLocalOriginClientCreateAndPersist(t *testing.T) {
 		t.Fatal(err)
 	}
 	if c2 != c3 {
-		t.Fatal("Client should reuse the live local-origin session")
+		t.Fatal("Client should reuse the live built-in session")
 	}
 
 	// Confirm the persist path is under the workspace directory, nowhere else.
@@ -239,9 +239,9 @@ func TestLocalOriginClientCreateAndPersist(t *testing.T) {
 	}
 }
 
-// TestLocalOriginCreateMetaCarriesSubtaskAndHierarchyLevel is GDK-329:
+// TestBuiltInCreateMetaCarriesSubtaskAndHierarchyLevel is GDK-329:
 // issuetap already sends both fields; CreateMeta must keep them.
-func TestLocalOriginCreateMetaCarriesSubtaskAndHierarchyLevel(t *testing.T) {
+func TestBuiltInCreateMetaCarriesSubtaskAndHierarchyLevel(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
 	config.SetProfile("")
@@ -254,7 +254,7 @@ func TestLocalOriginCreateMetaCarriesSubtaskAndHierarchyLevel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg.Kind = config.KindLocalOrigin
+	cfg.Kind = config.KindStandalone
 	if err := cfg.Save(); err != nil {
 		t.Fatal(err)
 	}
@@ -272,10 +272,10 @@ func TestLocalOriginCreateMetaCarriesSubtaskAndHierarchyLevel(t *testing.T) {
 		t.Fatalf("CreateMeta: %v", err)
 	}
 	if len(projects) == 0 {
-		t.Fatal("local-origin createmeta returned no projects")
+		t.Fatal("built-in createmeta returned no projects")
 	}
 	if raw, err := json.Marshal(projects[0].IssueTypes); err == nil {
-		t.Logf("local-origin CreateMeta issuetypes JSON: %s", raw)
+		t.Logf("built-in CreateMeta issuetypes JSON: %s", raw)
 	}
 	var sawSubtask, sawEpic, sawStandard bool
 	for _, p := range projects {
@@ -291,7 +291,7 @@ func TestLocalOriginCreateMetaCarriesSubtaskAndHierarchyLevel(t *testing.T) {
 		}
 	}
 	if !sawSubtask || !sawEpic || !sawStandard {
-		t.Fatalf("local-origin createmeta types missing hierarchy: subtask=%t epic=%t standard=%t projects=%+v",
+		t.Fatalf("built-in createmeta types missing hierarchy: subtask=%t epic=%t standard=%t projects=%+v",
 			sawSubtask, sawEpic, sawStandard, projects)
 	}
 }

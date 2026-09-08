@@ -21,7 +21,7 @@ func TestOriginTypeAndTransportFromStoredKinds(t *testing.T) {
 		// The pre-split vocabulary. These values are on real disks.
 		{"legacy empty kind, jira site", Config{Site: "https://x.atlassian.net", Email: "a@b.c", Token: "t"}, OriginJira, TransportRemote},
 		{"legacy connected", Config{Kind: KindConnected, Site: "https://x.atlassian.net", Email: "a@b.c", Token: "t"}, OriginJira, TransportRemote},
-		{"legacy local-origin", Config{Kind: KindLocalOrigin}, OriginGadak, TransportLocal},
+		{"legacy built-in", Config{Kind: KindStandalone}, OriginGadak, TransportLocal},
 		// Linear only when no Atlassian site is configured — the same
 		// precedence origin.Client applies.
 		{"linear key, no site", Config{Linear: &LinearConfig{APIKey: "lin_x"}}, OriginLinear, TransportRemote},
@@ -80,7 +80,7 @@ func TestPairedWorkspaceIsGadakOverRemote(t *testing.T) {
 	}
 	// Same origin type as an in-process issuetap — the transport is the
 	// only thing that differs, which is exactly the point of the split.
-	local := Config{Kind: KindLocalOrigin}
+	local := Config{Kind: KindStandalone}
 	if local.OriginType() != c.OriginType() {
 		t.Errorf("paired and in-process disagree on origin type: %q vs %q", c.OriginType(), local.OriginType())
 	}
@@ -89,19 +89,19 @@ func TestPairedWorkspaceIsGadakOverRemote(t *testing.T) {
 	}
 }
 
-// HasLocalOrigin gates writes all over the tree; it must accept the new
+// HasBuiltInOrigin gates writes all over the tree; it must accept the new
 // stored value or a migrated config silently loses its origin.
-func TestIsLocalOriginAcceptsBothStoredValues(t *testing.T) {
-	for _, kind := range []string{KindLocalOrigin, OriginGadak} {
+func TestIsBuiltInAcceptsBothStoredValues(t *testing.T) {
+	for _, kind := range []string{KindStandalone, OriginGadak} {
 		c := Config{Kind: kind}
-		if !c.HasLocalOrigin() {
-			t.Errorf("Kind %q: HasLocalOrigin() = false", kind)
+		if !c.HasBuiltInOrigin() {
+			t.Errorf("Kind %q: HasBuiltInOrigin() = false", kind)
 		}
 	}
 	for _, kind := range []string{"", KindConnected, OriginJira, OriginLinear} {
 		c := Config{Kind: kind}
-		if c.HasLocalOrigin() {
-			t.Errorf("Kind %q: HasLocalOrigin() = true", kind)
+		if c.HasBuiltInOrigin() {
+			t.Errorf("Kind %q: HasBuiltInOrigin() = true", kind)
 		}
 	}
 }

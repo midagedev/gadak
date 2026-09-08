@@ -30,7 +30,7 @@ export function docsEmptyState(input: {
   indexLoadFailed: boolean
   confluenceRuns: DocsEmptyRun[] | null
   /** The workspace's origin is gadak's own tracker (GDK-1342). */
-  localOrigin?: boolean
+  builtIn?: boolean
 }): DocsEmptyState {
   // First question, before "is it configured": does this deployment have a
   // docs server to configure at all. A static snapshot is not "off" — there
@@ -38,7 +38,7 @@ export function docsEmptyState(input: {
   if (!input.hasDocsServer) return 'unavailable'
   // A built-in tracker has a wiki of its own; "turn on Confluence" and
   // "change the space selection" are both the wrong errand for it.
-  if (input.localOrigin) return 'local-empty'
+  if (input.builtIn) return 'local-empty'
   if (!input.confluenceEnabled) return 'off'
   // Only while the mirror is fetching *documents*. An issue pass is the sync
   // row's business, not this section's — that split is what made one mirror

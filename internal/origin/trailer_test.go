@@ -181,7 +181,7 @@ func TestWithActorTrailerWrapDecision(t *testing.T) {
 
 	// Built-in origin (local or paired): the header already carries the
 	// actor — no trailer, same writer.
-	for _, kind := range []string{config.OriginGadak, config.KindLocalOrigin} {
+	for _, kind := range []string{config.OriginGadak, config.KindStandalone} {
 		cfg := &config.Config{Kind: kind}
 		if got := WithActorTrailer(inner, cfg); got != Writer(inner) {
 			t.Fatalf("origin kind %q: writer was wrapped (%T)", kind, got)

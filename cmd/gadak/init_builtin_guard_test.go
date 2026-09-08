@@ -16,10 +16,10 @@ import (
 	"github.com/midagedev/gadak/internal/serveaddr"
 )
 
-// seedLocalOriginWithIssue is a local-origin workspace that already holds a
+// seedBuiltInWithIssue is a built-in workspace that already holds a
 // locally originated issue (write-through into the mirror). GADAK_HOME is
 // the temp dir; the caller must not point at a real profile.
-func seedLocalOriginWithIssue(t *testing.T) string {
+func seedBuiltInWithIssue(t *testing.T) string {
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
@@ -48,11 +48,11 @@ func seedLocalOriginWithIssue(t *testing.T) string {
 	return home
 }
 
-// TestInitConnectedRefusesLocalOriginWithData is the GDK-238 recurrence
-// layer: a connected init over a local-origin workspace that holds locally
+// TestInitConnectedRefusesBuiltInWithData is the GDK-238 recurrence
+// layer: a connected init over a built-in workspace that holds locally
 // originated issues must not succeed silently.
-func TestInitConnectedRefusesLocalOriginWithData(t *testing.T) {
-	home := seedLocalOriginWithIssue(t)
+func TestInitConnectedRefusesBuiltInWithData(t *testing.T) {
+	home := seedBuiltInWithIssue(t)
 	srv := myselfServer(t)
 	withClosedStdin(t, func() {
 		_, err := capture(t, func() error {
@@ -63,7 +63,7 @@ func TestInitConnectedRefusesLocalOriginWithData(t *testing.T) {
 			})
 		})
 		if err == nil {
-			t.Fatal("connected init over a local-origin workspace with local issues must not succeed silently")
+			t.Fatal("connected init over a built-in workspace with local issues must not succeed silently")
 		}
 		if !strings.Contains(err.Error(), "only here") {
 			t.Fatalf("refusal must say local issues exist only here, got: %v", err)
@@ -83,16 +83,16 @@ func TestInitConnectedRefusesLocalOriginWithData(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !cfg.HasLocalOrigin() {
-		t.Fatalf("kind after refused init = %q, want local-origin", cfg.WorkspaceKind())
+	if !cfg.HasBuiltInOrigin() {
+		t.Fatalf("kind after refused init = %q, want built-in", cfg.WorkspaceKind())
 	}
 	if cfg.Site != "" || cfg.Token != "" {
 		t.Fatalf("refused init must not write a site credential: site=%q token_set=%t", cfg.Site, cfg.Token != "")
 	}
 }
 
-func TestInitConnectedJSONRefusesLocalOriginWithData(t *testing.T) {
-	home := seedLocalOriginWithIssue(t)
+func TestInitConnectedJSONRefusesBuiltInWithData(t *testing.T) {
+	home := seedBuiltInWithIssue(t)
 	srv := myselfServer(t)
 	var out string
 	withClosedStdin(t, func() {
@@ -106,7 +106,7 @@ func TestInitConnectedJSONRefusesLocalOriginWithData(t *testing.T) {
 			})
 		})
 		if err == nil {
-			t.Fatal("connected init --json over local-origin data must not succeed silently")
+			t.Fatal("connected init --json over built-in data must not succeed silently")
 		}
 	})
 	var doc map[string]any
@@ -126,7 +126,7 @@ func TestInitConnectedJSONRefusesLocalOriginWithData(t *testing.T) {
 	}
 }
 
-func TestInitConnectedEmptyLocalOriginSucceeds(t *testing.T) {
+func TestInitConnectedEmptyBuiltInSucceeds(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
 	t.Setenv("HOME", home)
@@ -150,23 +150,23 @@ func TestInitConnectedEmptyLocalOriginSucceeds(t *testing.T) {
 				"--token-file", writeTokenFile(t, home, "id-token"),
 			})
 		}); err != nil {
-			t.Fatalf("empty local-origin → connected must succeed: %v", err)
+			t.Fatalf("empty built-in → connected must succeed: %v", err)
 		}
 	})
 	cfg, err := config.Load()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.HasLocalOrigin() {
-		t.Fatal("empty local-origin connect must clear Kind")
+	if cfg.HasBuiltInOrigin() {
+		t.Fatal("empty built-in connect must clear Kind")
 	}
 	if cfg.Site != srv.URL {
 		t.Fatalf("site = %q, want %s", cfg.Site, srv.URL)
 	}
 }
 
-func TestInitReplaceLocalOriginOptIn(t *testing.T) {
-	home := seedLocalOriginWithIssue(t)
+func TestInitReplaceBuiltInOptIn(t *testing.T) {
+	home := seedBuiltInWithIssue(t)
 	srv := myselfServer(t)
 	withClosedStdin(t, func() {
 		if _, err := capture(t, func() error {
@@ -184,7 +184,7 @@ func TestInitReplaceLocalOriginOptIn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.HasLocalOrigin() {
+	if cfg.HasBuiltInOrigin() {
 		t.Fatal("--replace-local must clear Kind")
 	}
 	// Persist file is the origin; the flag does not delete it.
@@ -194,7 +194,7 @@ func TestInitReplaceLocalOriginOptIn(t *testing.T) {
 }
 
 func TestInitConnectedRefusesPersistOnlyData(t *testing.T) {
-	home := seedLocalOriginWithIssue(t)
+	home := seedBuiltInWithIssue(t)
 	dbPath, err := config.DBPath()
 	if err != nil {
 		t.Fatal(err)
@@ -215,19 +215,19 @@ func TestInitConnectedRefusesPersistOnlyData(t *testing.T) {
 			})
 		})
 		if err == nil {
-			t.Fatal("persist-only local-origin data must still refuse a connected init")
+			t.Fatal("persist-only built-in data must still refuse a connected init")
 		}
 	})
 	cfg, err := config.Load()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !cfg.HasLocalOrigin() {
+	if !cfg.HasBuiltInOrigin() {
 		t.Fatalf("kind after persist-only refuse = %q", cfg.WorkspaceKind())
 	}
 }
 
-func TestInitReplaceLocalOriginRejectedWithLocalOrigin(t *testing.T) {
+func TestInitReplaceBuiltInRejectedWithBuiltIn(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
 	clearCredentialEnv(t)
@@ -273,10 +273,10 @@ func occupyLiveServe(t *testing.T, profile string) {
 	}
 }
 
-// TestInitReplaceLocalOriginRefusesWhenServeLive is GDK-415: converting
+// TestInitReplaceBuiltInRefusesWhenServeLive is GDK-415: converting
 // while a serve has the workspace open must not proceed.
-func TestInitReplaceLocalOriginRefusesWhenServeLive(t *testing.T) {
-	home := seedLocalOriginWithIssue(t)
+func TestInitReplaceBuiltInRefusesWhenServeLive(t *testing.T) {
+	home := seedBuiltInWithIssue(t)
 	occupyLiveServe(t, config.Profile())
 	srv := myselfServer(t)
 	withClosedStdin(t, func() {
@@ -302,8 +302,8 @@ func TestInitReplaceLocalOriginRefusesWhenServeLive(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !cfg.HasLocalOrigin() {
-		t.Fatal("refused conversion must leave the workspace local-origin")
+	if !cfg.HasBuiltInOrigin() {
+		t.Fatal("refused conversion must leave the workspace built-in")
 	}
 }
 
@@ -319,7 +319,7 @@ func writeForeignOpenMark(t *testing.T, home string) string {
 	return p
 }
 
-// TestInitReplaceLocalOriginRefusesWhenAppHoldsIt is GDK-971, and it is the
+// TestInitReplaceBuiltInRefusesWhenAppHoldsIt is GDK-971, and it is the
 // half of GDK-415 that serveaddr discovery cannot cover: Gadak.app opens no
 // port, so nothing on the network says it is holding the workspace. Before
 // GDK-936 the persist lock answered this by accident; the open marker
@@ -328,8 +328,8 @@ func writeForeignOpenMark(t *testing.T, home string) string {
 // FAIL-first: on the tree that deleted the lock and had no marker yet, this
 // test fails — RefuseIfOpen returns nil and the conversion proceeds under a
 // live holder.
-func TestInitReplaceLocalOriginRefusesWhenAppHoldsIt(t *testing.T) {
-	home := seedLocalOriginWithIssue(t)
+func TestInitReplaceBuiltInRefusesWhenAppHoldsIt(t *testing.T) {
+	home := seedBuiltInWithIssue(t)
 	writeForeignOpenMark(t, home)
 	srv := myselfServer(t)
 	withClosedStdin(t, func() {
@@ -356,16 +356,16 @@ func TestInitReplaceLocalOriginRefusesWhenAppHoldsIt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !cfg.HasLocalOrigin() {
-		t.Fatal("refused conversion must leave the workspace local-origin")
+	if !cfg.HasBuiltInOrigin() {
+		t.Fatal("refused conversion must leave the workspace built-in")
 	}
 }
 
 // A marker left by a process that died must never block conversion: the
 // kernel released the old flock on exit, and nothing releases this file.
 // Forever-refusing after one crash would be worse than not checking.
-func TestInitReplaceLocalOriginIgnoresDeadHolder(t *testing.T) {
-	home := seedLocalOriginWithIssue(t)
+func TestInitReplaceBuiltInIgnoresDeadHolder(t *testing.T) {
+	home := seedBuiltInWithIssue(t)
 	p := origin.PersistPath(home) + ".open"
 	// A PID that cannot be running: the kernel's own maximum plus one.
 	if err := os.WriteFile(p, []byte(`{"pid":4194305,"startedAt":"2020-01-01T00:00:00Z"}`), 0o600); err != nil {
@@ -383,8 +383,8 @@ func TestInitReplaceLocalOriginIgnoresDeadHolder(t *testing.T) {
 	}
 }
 
-func TestInitReplaceLocalOriginIgnoresStaleAdvertise(t *testing.T) {
-	home := seedLocalOriginWithIssue(t)
+func TestInitReplaceBuiltInIgnoresStaleAdvertise(t *testing.T) {
+	home := seedBuiltInWithIssue(t)
 	if err := os.WriteFile(filepath.Join(home, "serve-origin.json"),
 		[]byte(`{"addr":"127.0.0.1:1","pid":1,"startedAt":"2020-01-01T00:00:00Z"}`), 0o600); err != nil {
 		t.Fatal(err)
@@ -398,11 +398,11 @@ func TestInitReplaceLocalOriginIgnoresStaleAdvertise(t *testing.T) {
 	}
 }
 
-// TestInitLocalOriginProjectsSeedsOrigin is GDK-390: --projects keys must
+// TestInitBuiltInProjectsSeedsOrigin is GDK-390: --projects keys must
 // land in the origin persist fixture, so create --project IDEA works.
 //
-// FAIL-first: defaultLocalOriginFixture only names STD.
-func TestInitLocalOriginProjectsSeedsOrigin(t *testing.T) {
+// FAIL-first: defaultBuiltInFixture only names STD.
+func TestInitBuiltInProjectsSeedsOrigin(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
 	t.Setenv("HOME", home)
@@ -449,11 +449,11 @@ func TestInitLocalOriginProjectsSeedsOrigin(t *testing.T) {
 	}
 }
 
-// TestCreateLocalOriginUnknownProjectDoesNotAssumeCredential is GDK-390's
-// create-error wording: local-origin has no site credential.
+// TestCreateBuiltInUnknownProjectDoesNotAssumeCredential is GDK-390's
+// create-error wording: built-in has no site credential.
 //
 // FAIL-first: MetaFor always says "this credential cannot create issues".
-func TestCreateLocalOriginUnknownProjectDoesNotAssumeCredential(t *testing.T) {
+func TestCreateBuiltInUnknownProjectDoesNotAssumeCredential(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("GADAK_HOME", home)
 	t.Setenv("HOME", home)
@@ -472,10 +472,10 @@ func TestCreateLocalOriginUnknownProjectDoesNotAssumeCredential(t *testing.T) {
 		return cmdCreate([]string{"--project", "NOSUCH", "--type", "Task", "nowhere"})
 	})
 	if err == nil {
-		t.Fatal("create in a missing local-origin project must fail")
+		t.Fatal("create in a missing built-in project must fail")
 	}
 	if strings.Contains(err.Error(), "credential") {
-		t.Fatalf("local-origin must not assume a credential: %v", err)
+		t.Fatalf("built-in must not assume a credential: %v", err)
 	}
 	if !strings.Contains(err.Error(), "does not exist in this workspace") {
 		t.Fatalf("want project-does-not-exist wording, got: %v", err)

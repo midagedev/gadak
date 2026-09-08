@@ -606,11 +606,11 @@ func TestWorkspaceKindDefaultConnected(t *testing.T) {
 	if (&Config{Kind: "anything-else"}).WorkspaceKind() != KindConnected {
 		t.Fatal("unknown Kind must be connected (no local, no migration)")
 	}
-	if (&Config{Kind: KindLocalOrigin}).WorkspaceKind() != KindLocalOrigin {
-		t.Fatal("local-origin Kind")
+	if (&Config{Kind: KindStandalone}).WorkspaceKind() != KindStandalone {
+		t.Fatal("built-in Kind")
 	}
-	if (&Config{}).HasLocalOrigin() {
-		t.Fatal("empty must not be local-origin")
+	if (&Config{}).HasBuiltInOrigin() {
+		t.Fatal("empty must not be built-in")
 	}
 }
 
@@ -654,8 +654,8 @@ func TestSyncFrozenDoesNotChangeHasCredential(t *testing.T) {
 	if !c.SyncFrozen() {
 		t.Fatal("connected+frozen")
 	}
-	if !(&Config{Kind: KindLocalOrigin, Frozen: true}).HasCredential() {
-		t.Fatal("local-origin Frozen must still report writes possible")
+	if !(&Config{Kind: KindStandalone, Frozen: true}).HasCredential() {
+		t.Fatal("built-in Frozen must still report writes possible")
 	}
 }
 
@@ -699,7 +699,7 @@ func TestFrozenJSONRoundTrip(t *testing.T) {
 	}
 }
 
-func TestHasCredentialLocalOriginVsConnected(t *testing.T) {
+func TestHasCredentialBuiltInVsConnected(t *testing.T) {
 	if (*Config)(nil).HasCredential() {
 		t.Fatal("nil config")
 	}
@@ -713,9 +713,9 @@ func TestHasCredentialLocalOriginVsConnected(t *testing.T) {
 	if !(&Config{Site: "https://x.atlassian.net", Email: "a@b.c", Token: "t"}).HasCredential() {
 		t.Fatal("connected with site/email/token")
 	}
-	// Local-origin has no site/email/token and must still allow writes.
-	if !(&Config{Kind: KindLocalOrigin}).HasCredential() {
-		t.Fatal("local-origin must report writes possible")
+	// Built-in has no site/email/token and must still allow writes.
+	if !(&Config{Kind: KindStandalone}).HasCredential() {
+		t.Fatal("built-in must report writes possible")
 	}
 }
 
@@ -736,8 +736,8 @@ func TestHasCredentialLinear(t *testing.T) {
 	if c.HasAtlassianCredential() {
 		t.Fatal("a Linear key must not count as an Atlassian credential")
 	}
-	if !(&Config{Kind: KindLocalOrigin}).HasAtlassianCredential() {
-		t.Fatal("local-origin is an Atlassian-family origin")
+	if !(&Config{Kind: KindStandalone}).HasAtlassianCredential() {
+		t.Fatal("built-in is an Atlassian-family origin")
 	}
 }
 
@@ -756,14 +756,14 @@ func TestKindRoundTripNoMigrationOfExisting(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Kind != "" || cfg.HasLocalOrigin() || cfg.WorkspaceKind() != KindConnected {
+	if cfg.Kind != "" || cfg.HasBuiltInOrigin() || cfg.WorkspaceKind() != KindConnected {
 		t.Fatalf("legacy config mutated: kind=%q", cfg.Kind)
 	}
 	if cfg.Site != "https://old.example" {
 		t.Fatalf("site %q", cfg.Site)
 	}
 
-	cfg.Kind = KindLocalOrigin
+	cfg.Kind = KindStandalone
 	cfg.Site, cfg.Email, cfg.Token = "", "", ""
 	if err := cfg.Save(); err != nil {
 		t.Fatal(err)
@@ -772,8 +772,8 @@ func TestKindRoundTripNoMigrationOfExisting(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !again.HasLocalOrigin() {
-		t.Fatal("local-origin did not persist")
+	if !again.HasBuiltInOrigin() {
+		t.Fatal("built-in did not persist")
 	}
 	if again.Directory() != home {
 		t.Fatalf("Directory %q", again.Directory())
@@ -1081,7 +1081,7 @@ func TestStoredDefaultMissingDoesNotFallBack(t *testing.T) {
 
 // GDK-1034: ProjectMirrored is the single owner of the empty-list semantics
 // both write surfaces (REST gate, CLI pre-check) delegate to. Empty is "no
-// explicit scope" — the local-origin home shape (gadak init --standalone
+// explicit scope" — the built-in home shape (gadak init --standalone
 // leaves projects null) and paired workspaces (GDK-467) — never a deny-all.
 func TestProjectMirrored(t *testing.T) {
 	var nilCfg *Config
@@ -1092,7 +1092,7 @@ func TestProjectMirrored(t *testing.T) {
 		want bool
 	}{
 		{"nil receiver allows", nilCfg, "NMB", true},
-		{"empty list allows (localOrigin home shape)", &Config{}, "NMB", true},
+		{"empty list allows (builtIn home shape)", &Config{}, "NMB", true},
 		{"listed allows", &Config{Projects: []string{"NMB", "NMA"}}, "NMB", true},
 		{"unlisted refuses", &Config{Projects: []string{"NMB", "NMA"}}, "ZZZ", false},
 	}
@@ -1107,7 +1107,7 @@ func TestProjectMirrored(t *testing.T) {
 // profile name a workspace at all", not "can I write". The empty Config is
 // the only false — a partial site/email/token is a real workspace whose
 // credential is incomplete (its refusals stay the connected dialects), and
-// localOrigin, a Linear key, or a full triple are origins.
+// builtIn, a Linear key, or a full triple are origins.
 func TestHasOrigin(t *testing.T) {
 	cases := []struct {
 		name string
@@ -1119,7 +1119,7 @@ func TestHasOrigin(t *testing.T) {
 		{"site only", &Config{Site: "https://conf.example.com"}, true},
 		{"email only", &Config{Email: "u@example.com"}, true},
 		{"token only", &Config{Token: "t"}, true},
-		{"local-origin kind", &Config{Kind: KindLocalOrigin}, true},
+		{"built-in kind", &Config{Kind: KindStandalone}, true},
 		{"full atlassian triple", &Config{Site: "https://conf.example.com", Email: "u@example.com", Token: "t"}, true},
 		{"linear key", &Config{Linear: &LinearConfig{APIKey: "lin_api"}}, true},
 	}

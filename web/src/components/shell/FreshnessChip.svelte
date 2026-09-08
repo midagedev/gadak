@@ -13,7 +13,7 @@
   import { onMount } from 'svelte'
   import { issues } from '../../stores/issues.svelte'
   import { t, relativeTime, absTime } from '../../lib/i18n'
-  import { config, isHostedDemo, isLocalOrigin, originTrackerName } from '../../lib/config'
+  import { config, isHostedDemo, isBuiltIn, originTrackerName } from '../../lib/config'
   import { mirrorLabel } from '../../lib/mirror-status'
   import { subscribeWallClock } from '../../lib/clock.svelte'
 
@@ -70,7 +70,7 @@
     const line =
       level === 'stale'
         ? t('freshness.titleStale', { when })
-        : isLocalOrigin(config())
+        : isBuiltIn(config())
           ? t('freshness.titleFreshLocal', { when })
           : t('freshness.titleFresh', { when, tracker: originTrackerName() })
     const abs = absTime(syncedAt)

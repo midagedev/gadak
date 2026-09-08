@@ -1261,7 +1261,7 @@ func TestConfluenceChunkBoundarySplits(t *testing.T) {
 }
 
 // TestConfluenceIncrementalSingleSpaceCQL: a single-member chunk keeps the
-// legacy space="KEY" form (older issuetap servers — local-origin wikis in
+// legacy space="KEY" form (older issuetap servers — built-in wikis in
 // released binaries, paired home serves — parse only that form), and a
 // backfill space still gets its own floor-less full pass with no
 // comments-only CQL.
@@ -2066,7 +2066,7 @@ func TestConfluenceMemorySpaceJoinsFromListing(t *testing.T) {
 
 // TestConfluenceEveryConfiguredSpaceMissingIsNotSilentSuccess is the GDK-1484
 // regression: a workspace whose confluence.spaces still names a space the
-// origin does not have (the local-origin default LOC surviving a `gadak
+// origin does not have (the built-in default LOC surviving a `gadak
 // migrate` or a pairing) mirrored zero pages and reported success — 81 syncs
 // in a row on the measured host. Every configured key failing its lookup is a
 // configuration fault no further sync can repair, so the pass must fail, name

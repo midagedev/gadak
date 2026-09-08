@@ -371,17 +371,17 @@ export const settings = {
     ko: '신원 없음 — 이 serve는 {tracker} 트래커라서 {issues}가 {view}로 열립니다.',
     ja: 'アイデンティティなし — この serve は{tracker}トラッカーなので、{issues}は{view}で開きます。',
   },
-  'settings.workspaceLocalOrigin': {
+  'settings.workspaceBuiltIn': {
     en: 'Built-in',
     ko: '내장',
     ja: '内蔵',
   },
-  'settings.workspaceLocalOriginHint': {
+  'settings.workspaceBuiltInHint': {
     en: "Your issues live in the built-in tracker, running here. Their only copy is this computer's tracker data file, not gadak.db — back that file up.",
     ko: '이슈는 여기서 도는 내장 트래커에 있습니다. 유일한 사본은 이 컴퓨터의 트래커 데이터 파일이며, 백업 대상은 gadak.db가 아니라 그 파일입니다.',
     ja: '課題はここで動いている内蔵トラッカーにあります。唯一のコピーはこのコンピュータのトラッカーデータファイルであり、gadak.db ではありません — そのファイルをバックアップしてください。',
   },
-  'settings.localOriginHow': {
+  'settings.builtInHow': {
     en: 'Create a built-in tracker workspace',
     ko: '내장 트래커 워크스페이스 만들기',
     ja: '内蔵トラッカーのワークスペースを作る',
@@ -1012,7 +1012,7 @@ export const settings = {
     ko: '워크스페이스 생성',
     ja: 'ワークスペースを作成',
   },
-  'settings.workspacesModeLocalOrigin': {
+  'settings.workspacesModeBuiltIn': {
     en: 'New, built-in tracker',
     ko: '새 워크스페이스 (내장 트래커)',
     ja: '新規（内蔵トラッカー）',
@@ -1330,7 +1330,7 @@ export const settings = {
     ko: '日本語',
     ja: '日本語',
   },
-  'settings.localOriginCommandHint': {
+  'settings.builtInCommandHint': {
     en: '<name> is the workspace name you choose.',
     ko: '<name>은 직접 정하는 워크스페이스 이름입니다.',
     ja: '<name> は自分で決めるワークスペース名です。',

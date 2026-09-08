@@ -34,11 +34,11 @@ const maxProjects = 500
 /* ── step 1: connect ── */
 
 type connectDoc struct {
-	Site               string `json:"site"`
-	JiraEmail          string `json:"jira_email"`
-	APIToken           string `json:"api_token"`
-	TokenExpiresAt     string `json:"token_expires_at"`
-	ReplaceLocalOrigin bool   `json:"replace_standalone"`
+	Site           string `json:"site"`
+	JiraEmail      string `json:"jira_email"`
+	APIToken       string `json:"api_token"`
+	TokenExpiresAt string `json:"token_expires_at"`
+	ReplaceBuiltIn bool   `json:"replace_standalone"`
 }
 
 // handleConnect verifies the credential against Jira /myself before storing it,
@@ -60,9 +60,9 @@ func (s *server) handleConnect(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, "email_and_token_required")
 		return
 	}
-	// Refuse before /myself: a local-origin workspace that holds local issues
+	// Refuse before /myself: a built-in workspace that holds local issues
 	// must not send the pasted token anywhere, and must not write it to disk.
-	if err := originbind.RefuseReplace(s.config(), in.ReplaceLocalOrigin); err != nil {
+	if err := originbind.RefuseReplace(s.config(), in.ReplaceBuiltIn); err != nil {
 		var refused *originbind.ReplaceRefusedError
 		if errors.As(err, &refused) {
 			writeJSON(w, http.StatusConflict, map[string]any{
@@ -95,7 +95,7 @@ func (s *server) handleConnect(w http.ResponseWriter, r *http.Request) {
 		failJira(w, r, s.config(), err)
 		return
 	}
-	wasLocalOrigin := s.config().HasLocalOrigin()
+	wasBuiltIn := s.config().HasBuiltInOrigin()
 	next := *s.config()
 	next.Site, next.Email, next.Token = site, email, token
 	next.TokenOwner, next.TokenVerifiedAt = me.DisplayName, store.Now()
@@ -104,9 +104,9 @@ func (s *server) handleConnect(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, "invalid_token_expires")
 		return
 	}
-	originbind.ClearLocalOrigin(&next)
-	if wasLocalOrigin {
-		reset, err := originbind.DropLocalOriginProjection(&next, s.db)
+	originbind.ClearBuiltIn(&next)
+	if wasBuiltIn {
+		reset, err := originbind.DropBuiltInProjection(&next, s.db)
 		if err != nil {
 			serverError(w, r, err)
 			return
@@ -169,33 +169,33 @@ func normalizeSite(raw string) string {
 
 /* ── step 1, the other front door: no tracker ── */
 
-// localOriginInitDoc is the POST onboarding/standalone body. `{}` seeds the
+// builtInInitDoc is the POST onboarding/standalone body. `{}` seeds the
 // default STD project; "projects" narrows the mirror to the given keys,
 // parsed by the same function the CLI flag uses (originbind.ParseProjectKeys).
-type localOriginInitDoc struct {
+type builtInInitDoc struct {
 	Projects string `json:"projects"`
 }
 
-// handleLocalOriginInit is the GUI equivalent of `gadak init --standalone`:
+// handleBuiltInInit is the GUI equivalent of `gadak init --standalone`:
 // one click on an empty home seeds the STD project, the default issue type
 // and the LOC wiki space, then serves the result — the seeding core is
-// shared (originbind.SeedLocalOrigin), so the CLI and this verb cannot
+// shared (originbind.SeedBuiltIn), so the CLI and this verb cannot
 // diverge. The response is minimal on purpose: the client refetches
 // config.json, which already carries workspace_kind and projects.
 //
 // A credentialed workspace is refused (409): a workspace is bound to one
 // origin, and switching origin is a new workspace, not a settings edit. The
 // CLI verb stays the explicit conversion path. A workspace that is already
-// local-origin is idempotent (CLI precedent: "already local-origin"), so a
+// built-in is idempotent (CLI precedent: "already built-in"), so a
 // retried click after a lost response is safe.
-func (s *server) handleLocalOriginInit(w http.ResponseWriter, r *http.Request) {
-	var in localOriginInitDoc
+func (s *server) handleBuiltInInit(w http.ResponseWriter, r *http.Request) {
+	var in builtInInitDoc
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		fail(w, http.StatusBadRequest, "invalid_body")
 		return
 	}
 	cur := s.config()
-	if !cur.HasLocalOrigin() && cur.HasCredential() {
+	if !cur.HasBuiltInOrigin() && cur.HasCredential() {
 		writeJSON(w, http.StatusConflict, map[string]string{
 			"error": "workspace_connected",
 			"site":  cur.Site,
@@ -213,7 +213,7 @@ func (s *server) handleLocalOriginInit(w http.ResponseWriter, r *http.Request) {
 	sess := func() (*store.DB, func() error, error) {
 		return s.db, func() error { return nil }, nil
 	}
-	fillErr, err := originbind.SeedLocalOrigin(&next, in.Projects, nil, sess)
+	fillErr, err := originbind.SeedBuiltIn(&next, in.Projects, nil, sess)
 	if err != nil {
 		serverError(w, r, err)
 		return
@@ -222,8 +222,8 @@ func (s *server) handleLocalOriginInit(w http.ResponseWriter, r *http.Request) {
 		// Warning-class, the contract that moved with the core: the
 		// workspace exists and writes already work; the next sync fills
 		// what this pass could not. No token can appear in fillErr —
-		// local-origin origin errors never carry one.
-		log.Printf("onboarding local-origin: could not fill the mirror yet: %v", fillErr)
+		// built-in origin errors never carry one.
+		log.Printf("onboarding built-in: could not fill the mirror yet: %v", fillErr)
 	}
 	// The default body {} leaves Projects empty (CLI parity). That is no
 	// longer a write blocker: the REST create gate and the CLI pre-check
@@ -244,7 +244,7 @@ func (s *server) handleLocalOriginInit(w http.ResponseWriter, r *http.Request) {
 	s.gen.Add(1)
 	s.fireSyncStarterIfNeeded(hadCredential)
 	writeJSON(w, http.StatusOK, map[string]string{
-		"workspace_kind":  config.KindLocalOrigin,
+		"workspace_kind":  config.KindStandalone,
 		"default_project": next.DefaultProject,
 	})
 }

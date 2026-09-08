@@ -43,10 +43,10 @@ func TestServedConfigCarriesBothAxes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg.Kind = config.KindLocalOrigin
+	cfg.Kind = config.KindStandalone
 	kind, origin, transport := settingsAxes(t, cfg)
-	if kind != config.KindLocalOrigin {
-		t.Errorf("in-process: workspaceKind = %q, want %q", kind, config.KindLocalOrigin)
+	if kind != config.KindStandalone {
+		t.Errorf("in-process: workspaceKind = %q, want %q", kind, config.KindStandalone)
 	}
 	if origin != config.OriginGadak || transport != config.TransportLocal {
 		t.Errorf("in-process: originType/transport = %q/%q, want %q/%q",

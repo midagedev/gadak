@@ -455,7 +455,7 @@ func initPaired(cfg *config.Config, code string, fromStdin bool, jsonOut bool) e
 	// A workspace is bound to one origin: pairing creates a NEW remote
 	// workspace. A profile that is already paired is refused by
 	// refuseIfPairedOrigin in cmdInit, before this function runs.
-	if cfg.HasLocalOrigin() || cfg.Site != "" || cfg.Email != "" || cfg.Token != "" {
+	if cfg.HasBuiltInOrigin() || cfg.Site != "" || cfg.Email != "" || cfg.Token != "" {
 		return errors.New("this workspace already owns an origin; pair into a fresh workspace: gadak --workspace <name> init --pairing-code …")
 	}
 	// A v2 offer carries one token per scope; a workspace binds with the
@@ -523,7 +523,7 @@ JQL cannot ask.
 // remote gadak serve — init cannot rebind it". Every init path (bare,
 // --standalone, site flags, --pairing-code) comes through here.
 //
-// Local-origin is excluded: the home machine stores its routing token in the
+// Built-in is excluded: the home machine stores its routing token in the
 // same remote-origin.json file (origin.pairedRemote documents the same
 // split). LoadRemote returning a credential is therefore not sufficient on
 // its own to mean "paired origin".

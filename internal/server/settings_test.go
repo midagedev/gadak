@@ -18,8 +18,8 @@ import (
 )
 
 // TestSettingsSpacesOriginSentinelIsNotCredentialRequired keeps the
-// failOriginClient mapper-shape pin from GDK-419: a local-origin origin
-// failure answers its own 409 code, never credential_required — local-origin
+// failOriginClient mapper-shape pin from GDK-419: a built-in origin
+// failure answers its own 409 code, never credential_required — built-in
 // has no token, so the token dialog would be a lie. The injected sentinel
 // is ErrWorkspaceFrozen now: ErrWorkspaceBusy went with the persist lock
 // it described (GDK-936, removed GDK-985), and frozen is the live sentinel
@@ -705,13 +705,13 @@ func TestWebConfigProfileName(t *testing.T) {
 func TestWebConfigWorkspaceKindFromDescribe(t *testing.T) {
 	// The document must carry origin.Describe's kind, not a guess from Site.
 	// An empty-site connected config is still connected — that is the
-	// hosted-demo / older-document case the UI must not call localOrigin.
+	// hosted-demo / older-document case the UI must not call builtIn.
 	cases := []*config.Config{
 		nil,
 		{},
 		{Site: "https://x.example"},
-		{Kind: config.KindLocalOrigin},
-		{Kind: config.KindLocalOrigin, Site: "https://should-be-ignored.example"},
+		{Kind: config.KindStandalone},
+		{Kind: config.KindStandalone, Site: "https://should-be-ignored.example"},
 	}
 	for i, cfg := range cases {
 		doc, err := WebConfig(cfg)
@@ -734,8 +734,8 @@ func TestWebConfigOriginWritableMirrorsHasAtlassianCredential(t *testing.T) {
 	// this bool, so it must be the same predicate the write paths 409 on —
 	// config.HasAtlassianCredential, not identity and not a non-empty Site.
 	//
-	// The two rows that matter are local-origin and site-without-token: a
-	// local-origin workspace writes fine while auth/me answers no email, and a
+	// The two rows that matter are built-in and site-without-token: a
+	// built-in workspace writes fine while auth/me answers no email, and a
 	// site with no token has an identity-looking config that cannot write.
 	// Gating the client on identity gets both backwards.
 	cases := []struct {
@@ -751,7 +751,7 @@ func TestWebConfigOriginWritableMirrorsHasAtlassianCredential(t *testing.T) {
 			&config.Config{Site: "https://x.example", Email: "a@b.example", Token: "t"},
 			true,
 		},
-		{"standalone", &config.Config{Kind: config.KindLocalOrigin}, true},
+		{"standalone", &config.Config{Kind: config.KindStandalone}, true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
