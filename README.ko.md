@@ -13,29 +13,24 @@
 
 <p align="center"><sub><a href="README.md">English</a> · 한국어 · <a href="README.ja.md">日本語</a></sub></p>
 
-지라를 쓰기 싫은데 어쩔 수 없이 써야 되는 분들을 위한 앱입니다. 저도
-당사자인데, 지라 자체는 좋아합니다. 외부와 단절된 이슈 카드 안에 혼자 고요히
-작업하는 걸 싫어할 사람은 흔치 않을 겁니다. 다만 크롬에 지라 탭이 잔뜩 쌓여
-피곤해지는 일도 겸사겸사 해소하고 싶었습니다. 컨셉은 처음부터 한 줄입니다.
-로컬 사본으로 빠르게 쓰는 지라, 에이전트에서 읽기는 그냥 SQLite 파일로, 암것도
-수집해 가지 않음.
+지라를 쓰기 싫은데 어쩔 수 없이 써야 하는 분들을 위한 앱입니다. 지라 자체를
+나쁘게 보지는 않습니다. 다만 크롬에 지라 탭이 잔뜩 쌓여 피곤해지는 일은
+없애고 싶었습니다.
 
 gadak은 Jira와 Confluence(이슈·코멘트·히스토리·위키 페이지)를 이 컴퓨터의
 SQLite 파일 하나로 미러링하고, 읽기는 네트워크를 타지 않습니다. 데스크톱 앱,
-`gadak serve`가 여는 브라우저 탭, CLI, 셸 없는 호스트용 MCP 네 표면이 같은
-파일을 봅니다. 바이너리 하나, gadak 계정 없음. **미러는 버려도 되는
-캐시입니다.** 디렉터리를 지워도 잃는 게 없고 원본은 여전히 Jira입니다. 쓰기는
-origin이 먼저 받은 뒤 미러가 따라 갱신됩니다.
+`gadak serve`가 여는 브라우저 탭, CLI, 셸 없는 호스트용 MCP가 같은 파일을
+봅니다. 바이너리 하나, gadak 계정 없음. **미러는 버려도 되는 캐시입니다.**
+디렉터리를 지워도 잃는 게 없고 원본은 여전히 Jira입니다. 쓰기는 origin이 먼저
+받은 뒤 미러가 따라 갱신됩니다.
 
 ## 먼저 눌러 보기
 
 [라이브 데모](https://gadak.dev/demo/)에 이슈 534개가 들어 있습니다. 설치도
-계정도 없이 브라우저에서 열리니, 트윗에서 본 주장을 확인하는 데는 이쪽이
-빠릅니다.
+계정도 없이 브라우저에서 열립니다.
 
-주장의 핵심은 쿼리 한 줄입니다. JQL에는 `GROUP BY`가 없어서 "어느 에픽에 열린
-이슈가 몰려 있나"는 API로 8페이지를 받아 클라이언트에서 세야 합니다. 파일이
-되면 이렇게 됩니다:
+JQL에는 `GROUP BY`가 없어서 "어느 에픽에 열린 이슈가 몰려 있나"는 API로
+8페이지를 받아 클라이언트에서 세야 합니다. 파일이 되면 이렇게 됩니다:
 
 ```bash
 gadak sql "select epic_key, count(*) from issues_full where resolved_at is null
@@ -59,7 +54,8 @@ gadak 쪽은 CLI 프로세스 기동까지 포함한 시간입니다.
 | 변경 이력을 걸치는 집계 | JQL로 표현 불가, 순회하면 약 28분 | 14 ms | |
 
 gadak이 지는 행도 있습니다. 첫 전체 동기화가 그렇고, 동기화 주기만큼은 늘
-낡아 있습니다. 측정 방법과 그 행들은 [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md).
+낡아 있습니다. 측정 방법과 그 행들은
+[`docs/BENCHMARKS.md`](docs/BENCHMARKS.md).
 
 ## 설치
 
@@ -116,18 +112,15 @@ gadak skill install
 
 Claude Code에 스킬 하나로 들어가고, 별도 프로세스는 없습니다. `gadak skill
 install codex`처럼 이름을 붙이면 cursor·gemini·opencode·grok에도 같은 파일이
-들어갑니다. 셸이 없는 Claude Desktop에서는 MCP 서버가 됩니다:
+들어갑니다. 셸이 없는 Claude Desktop에서는 `gadak mcp install claude`로 MCP
+서버가 됩니다.
 
-```bash
-gadak mcp install claude
-```
-
-규칙 둘이 가치의 대부분입니다. 첫째, 필터는 `status_category`와
-`priority_rank`로 겁니다. Jira가 계정 언어마다 표시 이름을 번역해서
-`priority = High`는 한국어 계정에서 소리 없이 0행입니다. 둘째, SQL이 답하고
-창이 보여 줍니다. `gadak sql --no-header "…" | gadak views open --keys -`가
-에이전트의 답을 제 화면에 띄우고, `gadak views open --jql '…'`은 붙여 넣은
-JQL을 칩으로 내려놓습니다.
+규칙 둘이 가치의 대부분입니다. 필터는 `status_category`와 `priority_rank`로
+겁니다. Jira가 계정 언어마다 표시 이름을 번역해서 `priority = High`는 한국어
+계정에서 소리 없이 0행입니다. 그리고 SQL이 답하고 창이 보여 줍니다.
+`gadak sql --no-header "…" | gadak views open --keys -`가 에이전트의 답을 제
+화면에 띄우고, `gadak views open --jql '…'`은 붙여 넣은 JQL을 칩으로
+내려놓습니다.
 
 쓰기(`create`, `edit`, `comment`, `transition`, `claim`, `link`, 위키 `page`)는
 origin을 거친 뒤 미러가 갱신되고, 에이전트가 쓴 것에는 에이전트 이름이
@@ -140,35 +133,22 @@ origin을 거친 뒤 미러가 갱신되고, 에이전트가 쓴 것에는 에�
 ## 만들지 않기로 한 것
 
 0.21부터 미러가 이미 갖고 있던 히스토리로 "자리를 비운 사이 뭐가 바뀌었나"를
-계산합니다. 그 신호 하나하나가 원하지 않는 기능에서 한 걸음 거리였습니다.
+계산합니다. 그 신호마다 원하지 않는 기능이 한 걸음 거리에 있었습니다.
 
 - **점수 없음.** `gadak retro`는 이번 주 닫힌 이슈 수와 사이클 타임을 찍지만
-  사람별 열이 없고 순위를 매기지 않습니다. 문장의 주어는 늘 이슈입니다.
-- **알림 없음.** 세션 줄, 재개 카드, 나이 표시, *완료로 이동* 버튼은 다음에
-  시선이 갈 자리에서 기다립니다. 할 말이 없는 아침에는 세션 줄이 뜨지
-  않습니다.
+  사람별 열이 없고 순위를 매기지 않습니다.
+- **알림 없음.** 세션 줄, 재개 카드, 나이 표시는 다음에 시선이 갈 자리에서
+  기다립니다. 할 말이 없는 아침에는 뜨지 않습니다.
 - **고정 SLA 없음.** 정체 기준은 최근 90일간 팀이 완료한 이슈의 사이클 타임
-  p85입니다. 완료가 11건이 되기 전까지만 72시간으로 물러나고, 설정 화면이 그
-  사실을 적어 둡니다.
+  p85입니다. 완료가 11건이 되기 전까지만 72시간으로 물러납니다.
 - **밖으로 나가는 것 없음.** retro도 학습된 기준도 디스크의 파일 두 개에서
   계산됩니다. 보낼 계정 자체가 없습니다.
 
 어느 origin에도 없는 것이 셋 있습니다. UI로서의 스프린트, Jira 대시보드, Jira
-알림함. 그 일은 Jira에 남기고, 스프린트 계획이나 1분의 지연도 안 되는 일도
-마찬가지입니다. origin은 Atlassian Cloud, Linear(`gadak sync --source
-linear`), 내장 트래커 셋이고 동사는 한 벌입니다. 각 origin이 무엇을
-거절하는지는 셀마다 코드를 인용한
-[`docs/SUPPORT_MATRIX.md`](docs/SUPPORT_MATRIX.md)에 있습니다.
-
-## 틀렸던 것 하나
-
-완료어 판정의 첫 판은 부분 문자열 매칭이었습니다. "abandoned" 안의 "done",
-"미완료" 안의 "완료"를 잡아서, 아직 안 끝났다고 말하는 코멘트를 정확히
-가리켰습니다. 신호가 거꾸로 나간 겁니다. 수정은 가드였습니다. 영어 단어는
-홀로 서야 하고, CJK 완료어 앞뒤에 부정이 붙으면 안 되고, 인용문과 코드
-펜스는 벗겨 내고, 마지막 상태 변경보다 새로운 코멘트만 셉니다. 테스트 표가
-옛 규칙에서 먼저 실패한 뒤 새 규칙에서 통과했고, retro의 그 행은 정의 안에
-*휴리스틱*이라고 적어 두었습니다.
+알림함. 스프린트 계획이나 1분의 지연도 안 되는 일과 함께 Jira에 남깁니다.
+origin은 Atlassian Cloud, Linear(`gadak sync --source linear`), 내장 트래커
+셋이고 동사는 한 벌입니다. 각 origin이 무엇을 거절하는지는 셀마다 코드를
+인용한 [`docs/SUPPORT_MATRIX.md`](docs/SUPPORT_MATRIX.md)에 있습니다.
 
 ## 상태
 
@@ -179,25 +159,21 @@ CLI, MCP가 실제 사이트에서 검증돼 있습니다. 지금은 한 사람�
 --keys -`의 의미. 자격증명은 SQLite·로그·스냅샷 어디에도 들어가지 않습니다.
 믿지 않아도 되는 것은 항목마다 확인 명령과 함께
 [`docs/PROMISES.md`](docs/PROMISES.md)에, 무엇이 나왔는지는
-[`CHANGELOG.ko.md`](CHANGELOG.ko.md)에. 라이선스는 Apache-2.0(`LICENSE`,
-`NOTICE`). 조금씩 쓸만해지고 있습니다.
+[`CHANGELOG.ko.md`](CHANGELOG.ko.md)에. 라이선스는 Apache-2.0.
 
 ## 한 줄 남겨 주세요
 
-gadak에는 텔레메트리가 없습니다. 그래서 누가 쓰는지, 계속 쓰는지를 저는
-숫자로 알 수 없고 앞으로도 그렇습니다. 버그 제보와 UI 지적은 이미 받고 있고
-릴리스마다 그 덕을 봤습니다. 아직 없는 것은 자기 미러의 숫자를 들고 하는 한
-줄입니다. "이슈 N개 넣었고, 예전에 M초 걸리던 게 이렇게 됐다" 정도면 되고,
-느려졌다거나 틀렸다는 한 줄이면 더 좋습니다. 0.21의 성공 조건은 그 문장
-하나로 걸어 두었습니다. 생기면 바꿔 쓰지 않고 그대로 인용할 겁니다.
+gadak에는 텔레메트리가 없어서 누가 쓰는지 저는 숫자로 알 수 없습니다. 버그
+제보와 UI 지적은 받고 있고 릴리스마다 그 덕을 봤습니다. 아직 없는 것은 자기
+미러의 숫자를 들고 하는 한 줄입니다. "이슈 N개 넣었더니 이렇게 됐다" 정도면
+되고, 느려졌다거나 틀렸다는 쪽이면 더 좋습니다.
 
 [GitHub 이슈](https://github.com/midagedev/gadak/issues)로 주시면 백로그에
 미러하고, 커밋의 `GDK-nnn` 키는 [공개 백로그](https://gadak.dev/backlog/)로
-이어집니다. 공개 이슈에 실제 이슈 데이터나 토큰을 붙이지 마세요. 사이트
-URL도요. 버그 리포트에 필요한 건 Jira 배포 유형(Cloud) · gadak 커밋 · 실행한
+이어집니다. 공개 이슈에 실제 이슈 데이터나 토큰, 사이트 URL은 붙이지 마세요.
+버그 리포트에 필요한 건 Jira 배포 유형(Cloud) · gadak 커밋 · 실행한
 명령입니다. 코드로 오시려면 [`CONTRIBUTING.md`](.github/CONTRIBUTING.md)와
-[`docs/project/GOOD_FIRST_ISSUES.md`](docs/project/GOOD_FIRST_ISSUES.md), 다음
-기능이 왜 그것들인지는 [`docs/project/THEORY.md`](docs/project/THEORY.md)(영문).
+[`docs/project/GOOD_FIRST_ISSUES.md`](docs/project/GOOD_FIRST_ISSUES.md).
 
 ## 문서
 
@@ -208,4 +184,5 @@ URL도요. 버그 리포트에 필요한 건 Jira 배포 유형(Cloud) · gadak 
 - [`docs/RECIPES.md`](docs/RECIPES.md) · [`docs/DASHBOARDS.md`](docs/DASHBOARDS.md) · JQL이 못 묻는 질문
 - [`SECURITY.md`](SECURITY.md) · [`docs/FAQ.md`](docs/FAQ.md) · [`docs/MAINTENANCE.md`](docs/MAINTENANCE.md) · 위협 모델과 누가 유지하는가
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) · [`docs/EXTENDING.md`](docs/EXTENDING.md) · 동작 원리, 포크 없이 내 것으로
+- [`docs/project/THEORY.md`](docs/project/THEORY.md) · 다음 기능이 왜 그것들인지(영문)
 - [`docs/README.md`](docs/README.md) · 나머지 문서
