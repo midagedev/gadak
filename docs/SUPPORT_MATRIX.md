@@ -105,7 +105,14 @@ Markers:
     bodies are Linear markdown.
 
 [^11]: Serve proxies `cfg.Site + /rest/api/3/attachment/content/{id}`
-    (`internal/server/attachment.go:314`).
+    (`internal/server/attachment.go:314`), passing the browser's `Range`
+    through and relaying 206. Measured against a live Cloud site: the media
+    target advertises `Accept-Ranges: bytes` and answers `bytes=100-199`
+    with 206 and the right slice, on an image and on a 33 MB QuickTime
+    alike — so seeking works here too. It sends no `ETag`, so a conditional
+    request never becomes a 304 on this origin; gadak forwards
+    `If-None-Match` anyway, which is what the Built-in origin needs
+    ([^13]).
 
 [^12]: Serve fetches `uploads.linear.app` with the workspace's Linear API key
     (`internal/server/attachment.go:379`).
