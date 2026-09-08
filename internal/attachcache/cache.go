@@ -119,6 +119,17 @@ func (c *Cache) Dir() string { return c.dir }
 // path derives a filename from the cache key by hashing it. The key is
 // attachcache.Key(site, profile, issue, id). Hashing keeps a hostile key
 // from escaping the directory.
+// Tag is an opaque, stable identity for a cache key — the same hash the
+// filename uses. A caller that needs a validator wants this, not the key
+// itself: the key is `<site>\x1f<profile>\x1f<issue>\x1f<id>`, and putting
+// that in an ETag published the Atlassian hostname and the workspace name
+// in an HTTP response header, which a paired serve hands to anything on
+// the tailnet that can reach it (GDK-1621).
+func Tag(key string) string {
+	sum := sha256.Sum256([]byte(key))
+	return hex.EncodeToString(sum[:])[:32]
+}
+
 func (c *Cache) path(id string) string {
 	sum := sha256.Sum256([]byte(id))
 	name := hex.EncodeToString(sum[:])

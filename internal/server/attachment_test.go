@@ -568,3 +568,26 @@ func TestCachedSvgIsForcedToDownload(t *testing.T) {
 		t.Fatalf("X-Content-Type-Options = %q", got)
 	}
 }
+
+// GDK-1621: the cache key was the ETag, and the key is
+// `<site>\x1f<profile>\x1f<issue>\x1f<id>` — so every cached attachment
+// response published the Atlassian hostname and the workspace name in an
+// HTTP header. Measured in a browser against a real workspace. A paired
+// serve hands those headers to anything on the tailnet that can reach it,
+// and an ETag is an opaque identity: it does not need to say what it is
+// made of.
+func TestCachedAttachmentETagCarriesNoSiteOrWorkspace(t *testing.T) {
+	key := attachcache.Key("https://nimbus.example.com", "work", "NMB-1", "42")
+	tag := attachcache.Tag(key)
+	for _, leak := range []string{"nimbus.example.com", "work", "NMB-1", "\x1f"} {
+		if strings.Contains(tag, leak) {
+			t.Errorf("the tag still carries %q: %s", leak, tag)
+		}
+	}
+	if tag == "" || tag == attachcache.Tag(key+"x") {
+		t.Errorf("the tag is not a stable, distinguishing identity: %q", tag)
+	}
+	if attachcache.Tag(key) != tag {
+		t.Error("the tag is not stable across calls, so a browser can never revalidate")
+	}
+}

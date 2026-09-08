@@ -83,3 +83,8 @@ __pycache__/
 
 # Phone e2e captures for vision rounds (mobile/e2e/a1-captures.spec.ts) — artifacts, not sources.
 mobile/e2e/.shots/
+
+# Browser-MCP page snapshots. Driving the app against a real workspace writes
+# the site hostname and the operator email into these — scripts/scan-internal.sh
+# caught exactly that (GDK-1621 measurement round).
+.playwright-mcp/

@@ -176,7 +176,11 @@ func (s *server) serveCached(w http.ResponseWriter, r *http.Request, id string) 
 	// The bytes behind an attachment id never change, so the browser may keep
 	// them for as long as it likes. This is what makes a second view instant.
 	w.Header().Set("Cache-Control", "private, max-age=31536000, immutable")
-	w.Header().Set("ETag", fmt.Sprintf("%q", "att-"+id))
+	// The cache key, not the tag, used to be the ETag — so every response
+	// carried the site hostname and the workspace name (GDK-1621). An
+	// ETag is an opaque identity; it does not need to say what it is made
+	// of.
+	w.Header().Set("ETag", fmt.Sprintf("%q", "att-"+attachcache.Tag(id)))
 	setAttachmentGuards(w, meta.ContentType)
 	http.ServeContent(w, r, "", time.Time{}, f)
 	return true
