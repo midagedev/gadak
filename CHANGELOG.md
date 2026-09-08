@@ -4,6 +4,12 @@
 
 ## Unreleased
 
+- **An empty 201 is not a web page.** Jira Server answers `POST /issueLink`
+  with 201, `text/html` and no body; the guard that refuses a login page
+  keyed on status codes and a header and refused it, so a link that had been
+  created was reported as a failure. The guard now asks the one question
+  every case agrees on — is there a body — and an empty success passes
+  whatever its Content-Type. ([GDK-1662])
 - **A write the origin quietly dropped is no longer printed as success.**
   Jira Server answers a standard issue's `parent` with 204 and changes
   nothing — that field belongs to sub-tasks there, and an epic is the Epic
@@ -1771,3 +1777,4 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-1601]: https://gadak.dev/backlog/#/?ks=GDK-1601
 [GDK-1622]: https://gadak.dev/backlog/#/?ks=GDK-1622
 [GDK-1645]: https://gadak.dev/backlog/#/?ks=GDK-1645
+[GDK-1662]: https://gadak.dev/backlog/#/?ks=GDK-1662

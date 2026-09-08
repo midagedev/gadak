@@ -100,7 +100,7 @@ func DoRaw(ctx context.Context, cfg Config, method, path string, payload []byte,
 		if res.StatusCode >= 200 && res.StatusCode < 300 && readErr != nil {
 			return 0, nil, fmt.Errorf("%s %s: %w", method, path, readErr)
 		}
-		if err := refuseHTML(res); err != nil {
+		if err := refuseHTML(res, data); err != nil {
 			return 0, nil, fmt.Errorf("%s %s: %w", method, path, err)
 		}
 		return res.StatusCode, data, nil
@@ -234,14 +234,18 @@ var ErrNotAPI = errors.New("the origin answered with a web page, not the API —
 // refuseHTML rejects a successful response whose body is a web page. Only
 // 2xx: an origin is free to render an error page for a 4xx or 5xx, and the
 // status already says what happened there.
-func refuseHTML(res *http.Response) error {
+func refuseHTML(res *http.Response, body []byte) error {
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
 		return nil
 	}
-	// A bodyless success carries whatever Content-Type the server likes —
-	// Jira answers 204 with text/html — and there is no page in it to
-	// mistake for an answer (GDK-1655, found by `gadak sprint add`).
-	if res.StatusCode == http.StatusNoContent || res.StatusCode == http.StatusResetContent || res.ContentLength == 0 {
+	// A page is a body. A bodyless success carries whatever Content-Type
+	// the server likes — Jira Server answers 204 (sprint add) and 201
+	// (issueLink) with text/html and nothing after the headers — and there
+	// is no page in it to mistake for an answer. The status and
+	// Content-Length heuristics this used to key on missed the 201
+	// (GDK-1655, GDK-1662, both found against a live Server); the body
+	// itself is the one thing every case agrees on.
+	if len(bytes.TrimSpace(body)) == 0 {
 		return nil
 	}
 	ct, _, err := mime.ParseMediaType(res.Header.Get("Content-Type"))

@@ -4,6 +4,11 @@
 
 ## Unreleased
 
+- **빈 201은 웹 페이지가 아닙니다.** Jira Server는 `POST /issueLink`에 201과
+  `text/html`, 그리고 빈 본문으로 답합니다. 로그인 페이지를 거절하는 가드가
+  상태코드와 헤더로 판정하다 이것을 페이지로 오판해서, 만들어진 링크가 실패로
+  보고됐습니다. 이제 가드는 모든 경우가 동의하는 한 가지, 본문이 있는지만
+  묻습니다. 본문 없는 성공은 Content-Type이 무엇이든 통과합니다. ([GDK-1662])
 - **origin이 조용히 버린 쓰기를 성공으로 찍지 않습니다.** Jira Server는 일반
   이슈의 `parent`에 204를 주고 아무것도 바꾸지 않습니다. 거기서 그 필드는
   하위 작업의 것이고, 에픽은 Epic Link 커스텀 필드입니다. `edit --parent`(와
@@ -1699,3 +1704,4 @@ HTTP·sync·에이전트 계약을 담았습니다.
 [GDK-1601]: https://gadak.dev/backlog/#/?ks=GDK-1601
 [GDK-1622]: https://gadak.dev/backlog/#/?ks=GDK-1622
 [GDK-1645]: https://gadak.dev/backlog/#/?ks=GDK-1645
+[GDK-1662]: https://gadak.dev/backlog/#/?ks=GDK-1662

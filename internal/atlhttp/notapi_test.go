@@ -48,3 +48,23 @@ func TestAnHTMLErrorPageKeepsItsStatus(t *testing.T) {
 		t.Fatalf("status %d, %d body bytes — the origin's own explanation was lost", code, len(body))
 	}
 }
+
+// A bodyless success is not a page, whatever its Content-Type (GDK-1655,
+// GDK-1662). Jira Server answers `POST /issueLink` with 201, text/html and
+// an empty body — measured on 11.3.11, where the link was created and the
+// CLI then reported "the origin answered with a web page". The guard keys
+// on the body, not on the status or a Content-Length header.
+func TestAnEmptyHTMLSuccessIsNotAPage(t *testing.T) {
+	for _, code := range []int{http.StatusOK, http.StatusCreated, http.StatusNoContent} {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "text/html;charset=UTF-8")
+			w.WriteHeader(code)
+		}))
+		cfg := Config{Base: srv.URL, HTTP: srv.Client(), Retries: 1, ErrPrefix: "jira"}
+		got, _, err := DoRaw(context.Background(), cfg, http.MethodPost, "/rest/api/2/issueLink", []byte(`{}`), true, true)
+		srv.Close()
+		if err != nil || got != code {
+			t.Errorf("status %d with an empty text/html body: code %d err %v — want the status back and no error", code, got, err)
+		}
+	}
+}
