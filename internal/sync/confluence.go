@@ -97,11 +97,14 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 	// page id namespace existed hold `confluence:N` rows whose keys the pass
 	// is about to re-insert as `standalone-confluence:N` — same (source_id,
 	// key), different id, which UNIQUE(source_id, key) rejects.
+	// A purge deletes rows the per-space watermarks would then skip
+	// (GDK-1609) — same wiring as the issue side.
 	if cfg.HasBuiltInOrigin() {
 		if n, err := db.PurgePageIDsOutsideNamespace(ctx, ConfluenceSourceID, pageNS(cfg)); err != nil {
 			return record(ctx, cfg, db, ConfluenceSourceID, err)
 		} else if n > 0 {
-			opts.logf("purged %d pre-namespace built-in pages (GDK-344)", n)
+			res.Full = true
+			opts.logf("purged %d pre-namespace built-in pages: one full pass — the watermarks hide what was just deleted (GDK-344, GDK-1609)", n)
 		}
 	}
 

@@ -190,11 +190,17 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 	// which the UNIQUE(source_id, key) index rejects. The mirror is a
 	// disposable cache: drop the legacy rows and let this pass re-mirror them
 	// under the new namespace. No tombstones — the keys come right back.
+	//
+	// The purge deletes; an incremental pass then asks only for what changed
+	// since the watermark, so every purged issue older than it would simply
+	// be gone (GDK-1609). Deleting rows forces a full pass, exactly as a
+	// locale change and a scope change below do.
 	if cfg.HasBuiltInOrigin() {
 		if n, err := db.PurgeIssueIDsOutsideNamespace(ctx, SourceID, itemNS(cfg)); err != nil {
 			return record(ctx, cfg, db, SourceID, err)
 		} else if n > 0 {
-			opts.logf("purged %d pre-namespace built-in rows (GDK-241)", n)
+			res.Full = true
+			opts.logf("purged %d pre-namespace built-in rows: one full pass — the watermark hides what was just deleted (GDK-241, GDK-1609)", n)
 		}
 	}
 

@@ -1836,3 +1836,61 @@ func TestSourceNSIsStandalone(t *testing.T) {
 		t.Fatalf("connected sourceNS = %q, want %q", got, SourceID)
 	}
 }
+
+// GDK-1609: the id-namespace purge and the incremental watermark are two
+// halves of an upgrade, and only one of them was wired. The purge drops
+// every row outside the current namespace; a watermark-incremental pass
+// then asks the origin only for what changed since the last run, so a
+// built-in workspace that upgraded across a namespace change came out with
+// a mirror holding whatever had moved lately and nothing else — until
+// someone thought to run `gadak sync --full`. The pass succeeds and says
+// nothing.
+//
+// Deleting rows is exactly what the locale rebuild and a scope change
+// already force a full pass for. The assertion is on res.Full rather than
+// on a row count because the fake site answers every search with its whole
+// fixture — it cannot show the shortfall a real origin would.
+func TestNamespacePurgeForcesAFullPass(t *testing.T) {
+	site := newSite(t, "en")
+	client := site.start()
+	db := newMirror(t)
+	cfg := testConfig()
+	cfg.Kind = config.KindStandalone
+	ctx := context.Background()
+
+	if err := db.UpsertSource(ctx, store.Source{ID: SourceID, Kind: "jira"}); err != nil {
+		t.Fatal(err)
+	}
+	// A mirror written under the previous namespace: what a v0.20.x
+	// built-in workspace holds.
+	seed := store.IssueRecord{
+		Item: store.Item{
+			ID: "local-origin-jira:10001", SourceID: SourceID, Kind: "issue", ExternalID: "10001",
+			Key: "NMB-1", Title: "seeded", CreatedAt: "2026-07-01T00:00:00.000Z",
+			UpdatedAt: "2026-08-01T00:00:00.000Z",
+		},
+		Issue: store.Issue{
+			ProjectKey: "NMB", IssueType: "Bug", IssueTypeID: "10004",
+			Status: "To Do", StatusID: "1", StatusCategory: "new",
+		},
+	}
+	if _, err := db.UpsertIssues(ctx, store.Batch{
+		Categories: map[string]string{"1": "new", "3": "inprogress", "5": "done"},
+		Records:    []store.IssueRecord{seed},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// A watermark past that issue's own `updated` — the ordinary state of a
+	// workspace that has been syncing.
+	if err := db.RecordSync(ctx, SourceID, store.SyncResult{Watermark: "2026-09-01T00:00:00.000Z"}); err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := Run(ctx, cfg, db.DB, Options{Client: client})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.Full {
+		t.Fatal("a pass that purged rows outside the id namespace ran incremental — every purged issue the watermark hides is gone from the mirror with no error")
+	}
+}
