@@ -331,38 +331,40 @@ export const strings: Record<Locale, Strings> = {
     ogLocale: 'ko_KR',
     title: 'gadak — 묵은 Jira 이슈를 Claude Code로 찾아봅니다',
     description:
-      '필요한 Jira 프로젝트와 Confluence 스페이스를 골라 캐시하고, 검색과 이슈 조회에 씁니다. 사람이 직접 찾아도 되고 Claude Code에 스킬로 넘겨도 됩니다. 텔레메트리는 없습니다.',
+      '필요한 Jira 프로젝트와 Confluence 스페이스만 골라 이 컴퓨터에 캐시합니다. 검색과 이슈 조회는 캐시에서 하고, Claude Code에는 스킬 하나로 넘깁니다. 텔레메트리는 없습니다.',
     nav: { demo: '라이브 데모', changelog: '체인지로그', install: '설치', github: 'GitHub' },
     copy: { label: '복사', copied: '복사됨' },
-    ogImageAlt: 'gadak — 묵은 Jira 이슈를 Claude Code로 찾아봅니다. 필요한 Jira 프로젝트와 Confluence 스페이스를 골라 캐시합니다.',
+    ogImageAlt: 'gadak — 묵은 Jira 이슈를 Claude Code로 찾아봅니다. 필요한 Jira 프로젝트와 Confluence 스페이스만 골라 캐시합니다.',
     langName: '한국어',
     langBanner: {
       offer: '이 페이지는 한국어로도 볼 수 있습니다.',
       cta: '한국어로 보기 →',
       dismiss: '닫기',
     },
-    // 트위터에서 온 독자: 무엇을 만들었고 왜 → 무엇을 찾아볼 수 있는지(검색,
-    // Claude Code) → 잰 값 → 연결 전에 확인할 것 → 설치(동기화 뒤에 스킬·MCP
-    // 명령) → 지금 상태 → 한 줄 부탁. 비교표는 없다 — 이 독자는 공식 MCP와
-    // 비교하러 오지 않는다.
+    // 트위터에서 온 독자. 무엇을 왜 만들었는지(1인칭) → 무엇을 찾아볼 수
+    // 있는지(검색, Claude Code) → 잰 값 → 회사 데이터를 두고 쓰는 도구라서
+    // 먼저 알아야 할 것 → 설치(동기화 뒤에 스킬·MCP) → 어디까지 왔는지 →
+    // 한 줄 부탁. 비교표는 없다. 이 독자는 공식 MCP와 비교하러 오지 않는다.
+    // 절 이름은 이 독자에게 맞춰 따로 지었다. 다른 두 판본과 절 대 절로
+    // 맞추지 않는다(GDK-1623).
     layout: ['hero', 'search', 'agent', 'speed', 'connect', 'install', 'status', 'ask'],
     hero: {
       eyebrow: 'gadak',
       heading: TAGLINE.ko.heading,
       lede:
-        '지라를 쓰기 싫은데 어쩔 수 없이 써야 해서 만들었습니다. 묵은 이슈들을 클로드로 뒤지다가 한참 걸리고 결국 rate limit에 걸려 중단된 적이 있는데, 그때 시작했습니다. 필요한 Jira 프로젝트와 Confluence 스페이스를 골라 캐시하고, 검색과 이슈 조회에는 캐시를 씁니다. 사람이 직접 찾아도 되고, Claude Code에 넘겨도 됩니다.',
-      videoCaption: '데모 데이터를 이슈 2만 건으로 늘린 캐시에서 검색하는 실제 화면 녹화입니다. 타이핑하는 속도로 결과가 따라옵니다.',
+        '지라를 쓰기 싫은데 어쩔 수 없이 써야 해서 만들었습니다. 묵은 이슈들을 클로드로 뒤지다가 한참 걸리고 결국 rate limit에 걸려 중단된 적이 있는데, 그때 시작했습니다. 크롬에 지라 탭이 잔뜩 쌓여 피곤해지는 것도 겸사겸사 없애고 싶었고요. 필요한 Jira 프로젝트와 Confluence 스페이스만 골라 캐시해 두고, 검색과 이슈 조회는 거기서 합니다. 직접 찾아도 되고, Claude Code에 맡겨도 됩니다.',
+      videoCaption: '검색 녹화입니다. 데모 데이터를 이슈 2만 건으로 늘린 캐시에서 찍었고, 글자를 치는 대로 결과가 바뀝니다.',
       doors: {
         installTitle: '설치',
-        installSub: 'macOS 앱은 Homebrew, Windows 앱은 Microsoft Store. Linux는 CLI를 설치하고 gadak serve로 브라우저에서 씁니다.',
+        installSub: 'macOS 앱은 Homebrew로, Windows 앱은 Microsoft Store에서. Linux는 CLI를 설치하고 gadak serve로 브라우저에서 씁니다.',
         demoTitle: '라이브 데모',
-        demoSub: '이슈 534건을 브라우저에서 바로 봅니다. 설치도 계정도 없습니다.',
+        demoSub: '이슈 534건이 들어 있는 데모를 브라우저에서 바로 엽니다. 설치도 계정도 필요 없습니다.',
       },
     },
     speed: {
-      label: 'REST API와 캐시 조회 시간',
-      heading: '같은 질문을 두 곳에 물었습니다',
-      note: '2026-08-26에 실제 Atlassian Cloud 업무 프로젝트(이슈 3,296건)에서 잰 중앙값입니다. 에픽별 열린 이슈는 REST API 쪽에서 8페이지를 받아 집계한 값이고, gadak 쪽은 쿼리 한 번이며 CLI 프로세스가 뜨는 시간까지 포함했습니다. 첫 전체 동기화는 그 사이트에서 10.6분 걸렸고, 캐시에는 동기화 주기만큼 지연이 있습니다. 측정 방법과 재측정 이력, 나머지 행: ',
+      label: '잰 값',
+      heading: 'Jira API에 물을 때와 캐시에 물을 때',
+      note: '2026-08-26에 실제 Atlassian Cloud 업무 프로젝트(이슈 3,296건)에서 잰 중앙값입니다. 에픽별 열린 이슈는 REST API 쪽이 응답 8페이지를 받아 합산한 값이고, gadak 쪽은 쿼리 한 번에 CLI 프로세스가 뜨는 시간까지 넣은 값입니다. 첫 전체 동기화는 그 사이트에서 10.6분 걸렸고, 그 뒤로 캐시는 동기화 주기만큼 늦습니다. 측정 방법과 나머지 행: ',
       rows: [
         { what: '텍스트 검색', value: '543 ms', alt: '41 ms', ratio: '13×' },
         { what: '에픽별 열린 이슈 (GROUP BY)', value: '4,761 ms', alt: '22 ms', ratio: '214×' },
@@ -373,33 +375,33 @@ export const strings: Record<Locale, Strings> = {
     ux: {
       label: '검색',
       search: {
-        heading: '타이핑을 따라오는 검색',
+        heading: '이슈, 댓글, 위키를 한 검색창에서',
         body:
-          '이슈 제목과 본문, 댓글, 위키 문서를 한곳에서 검색합니다. 단어를 다 치기 전에 결과가 뜹니다. 검색은 캐시에서 하니 서버를 기다리지 않습니다.',
+          '이슈 제목과 본문, 댓글, 위키 문서를 한 검색창에서 찾습니다. 단어를 다 치기 전에 결과가 나옵니다. 캐시에서 찾기 때문에 서버 응답을 기다리지 않습니다.',
       },
     },
     agent: {
-      label: 'Claude Code와 함께 쓰는 사람에게',
-      heading: 'Claude Code가 같은 캐시를 읽습니다',
+      label: 'Claude Code에 맡기기',
+      heading: '스킬 하나면 Claude Code가 같은 캐시를 읽습니다',
       body:
-        '스킬 하나를 설치하면 Claude Code가 gadak CLI로 이슈를 찾고, 만들고, 상태를 옮깁니다. 스킬에는 한국어 계정에서 에이전트가 자주 걸리는 함정도 들어 있습니다. Jira가 상태와 우선순위 이름을 계정 언어로 번역하기 때문에, 영어 이름으로 물으면 오류 없이 빈 결과가 돌아오고 에이전트는 그걸 "그런 이슈는 없다"로 읽습니다. 에이전트가 남긴 댓글과 만든 이슈에는 에이전트 이름이 붙습니다. 에이전트는 읽은 내용을 자기 모델로 보내니, 캐시할 범위는 그 점을 감안해 고르세요.',
-      setupLink: '도구별 연결 설정 → docs/AGENT_SETUP.md',
+        '스킬을 설치하면 Claude Code가 gadak CLI로 이슈를 찾고, 만들고, 상태를 옮깁니다. 스킬에는 한국어 계정에서 에이전트가 자주 빠지는 함정도 적어 두었습니다. Jira는 상태와 우선순위 이름을 계정 언어로 번역합니다. 그래서 영어 이름으로 물으면 오류 없이 빈 결과가 돌아오고, 에이전트는 그걸 "그런 이슈는 없다"로 읽습니다. 에이전트가 남긴 댓글과 만든 이슈에는 에이전트 이름이 붙습니다. 에이전트는 읽은 내용을 자기 모델로 보냅니다. 캐시 범위는 그걸 감안해 정하세요.',
+      setupLink: '도구별 연결 방법 → docs/AGENT_SETUP.md',
       driveCaption:
-        'gadak 앱 안의 터미널에서 Claude Code로 이슈 목록을 바꾸고 라벨 비율 대시보드를 저장해 여는 한국어 세션입니다. 에이전트가 일하는 구간은 빨리 감았습니다.',
-      showcaseLink: '녹화본 더 보기: 대시보드, 팀 테마, 런처, MCP 세션 → docs/SHOWCASE.md',
+        'gadak 앱 안의 터미널에서 Claude Code에 한국어로 부탁해 이슈 목록을 바꾸고, 라벨 비율 대시보드를 저장해 여는 장면입니다. 에이전트가 일하는 구간은 빨리 감았습니다.',
+      showcaseLink: '녹화 더 보기: 대시보드, 팀 테마, 런처, MCP 세션 → docs/SHOWCASE.md',
     },
     connect: {
-      label: '연결하기 전에 확인할 것',
-      heading: '무엇을 복사하고, 어디에 두고, 무엇이 밖으로 나가는지',
+      label: '연결하기 전에',
+      heading: '회사 데이터를 두고 쓰는 도구라서, 먼저 알아야 할 것',
       points: [
-        '연결되는 Jira는 Atlassian Cloud입니다. API 토큰 하나로 같은 사이트의 Jira와 Confluence에 연결합니다. Server와 Data Center는 아직 확인하지 않아서, 된다고 말하지 않겠습니다.',
-        '범위는 직접 정합니다. <code>--projects</code>로 Jira 프로젝트를, <code>--spaces</code>로 위키 스페이스를 고르고, 스페이스를 지정하기 전에는 위키를 동기화하지 않습니다.',
-        '캐시는 이 컴퓨터 안의 SQLite 파일 하나입니다. 처음 한 번 전체 동기화가 필요하고, 그 뒤로는 동기화 주기만큼 늦습니다. 지워도 되고, 다시 동기화하면 그대로 만들어집니다.',
-        '자격 증명은 캐시에도, 로그에도, 스냅샷에도 남지 않습니다.',
-        '텔레메트리는 없습니다. gadak이 여는 연결은 직접 설정한 것뿐이고, 전체 목록은 SECURITY.md에 있습니다.',
-        '쓰기는 먼저 Jira로 가고, Jira가 받아들인 뒤에 캐시가 갱신됩니다. Jira가 받지 않은 쓰기는 그 자리에서 실패하고, 캐시에 쌓아 두지 않습니다.',
-        '첨부파일 보기와 편집 가능 필드 조회 같은 몇 가지 읽기는 여전히 Jira에 묻습니다.',
-        '캐시를 읽는 에이전트는 읽은 것을 자기 모델로 보냅니다. gadak 자신은 아무것도 보내지 않습니다.',
+        '연결되는 Jira는 Atlassian Cloud입니다. API 토큰 하나로 같은 사이트의 Jira와 Confluence에 붙습니다. Server와 Data Center는 아직 확인하지 않아서, 된다고 말하지 않습니다.',
+        '가져올 범위는 직접 정합니다. <code>--projects</code>로 Jira 프로젝트를, <code>--spaces</code>로 위키 스페이스를 고릅니다. 스페이스를 지정하기 전에는 위키를 가져오지 않습니다.',
+        '캐시는 이 컴퓨터 안의 SQLite 파일 하나입니다. 처음 한 번은 전체 동기화가 필요하고, 그 뒤로는 동기화 주기만큼 늦습니다. 지워도 되고, 다시 동기화하면 그대로 돌아옵니다.',
+        'API 토큰은 캐시에도, 로그에도, 스냅샷에도 남지 않습니다.',
+        '텔레메트리는 없습니다. gadak이 연결하는 곳은 직접 설정한 곳뿐이고, 전체 목록은 SECURITY.md에 있습니다.',
+        '쓰기는 Jira로 먼저 갑니다. Jira가 받아들이면 캐시를 갱신하고, 거절하면 그 자리에서 실패합니다. 캐시에 쌓아 두고 나중에 보내는 일은 없습니다.',
+        '첨부파일 보기와 편집 가능 필드 조회처럼 몇 가지 읽기는 Jira에 직접 묻습니다.',
+        '캐시를 읽는 에이전트는 읽은 내용을 자기 모델로 보냅니다. gadak 자신은 아무 데도 보내지 않습니다.',
       ],
       links: [
         { href: `${DOCS}SECURITY.md`, label: '밖으로 나가는 연결 전체와 그 조건 → SECURITY.md' },
@@ -408,37 +410,35 @@ export const strings: Record<Locale, Strings> = {
     },
     changelog: {
       heading: '체인지로그',
-      lede:
-        '릴리스마다 만든 사람이 직접 씁니다. 이슈 키는 공개 백로그로 이어져서, ' +
-        '여기 한 줄에서 그 일을 요청한 이슈까지 거슬러 읽을 수 있습니다.',
-      source: '저장소의 CHANGELOG.ko.md를 그대로 보여 줍니다. 영문판이 원본입니다.',
+      lede: '릴리스마다 만든 사람이 직접 씁니다. 이슈 키를 누르면 공개 백로그의 그 이슈로 갑니다.',
+      source: '저장소의 CHANGELOG.ko.md를 그대로 보여 줍니다. 영문 CHANGELOG.md를 한국어로 옮긴 것입니다.',
       jumpLabel: '버전으로 이동',
       // Renders only on locales whose changelog falls back to the English
       // file (changelogIsFallback) — never here.
       fallbackNote: 'This changelog is published in English.',
     },
     install: {
-      label: '설치와 첫 동기화',
-      heading: '설치',
-      macosApp: '데스크톱 앱, CLI 포함:',
+      label: '설치',
+      heading: '설치와 첫 동기화',
+      macosApp: '데스크톱 앱(CLI 포함):',
       cliOnly: 'CLI만:',
       windowsBefore: 'Windows 데스크톱 앱은',
       windowsAfter: '에 있습니다.',
       firstRun:
-        '회사 Jira Cloud 사이트에 연결합니다. 사이트, 이메일, API 토큰, 캐시할 프로젝트를 차례로 묻습니다. 위키까지 캐시하려면 --spaces를 붙입니다:',
+        '회사 Jira Cloud에 연결합니다. 사이트 주소, 이메일, API 토큰, 캐시할 프로젝트를 차례로 묻습니다. 위키까지 캐시하려면 --spaces를 붙입니다:',
       setup: {
-        skillLead: '동기화가 끝났으면 Claude Code용 스킬을 설치합니다:',
+        skillLead: '동기화가 끝나면 Claude Code용 스킬을 설치합니다:',
         mcpLead: 'Claude Desktop에는 MCP 서버를 등록합니다:',
       },
     },
     status: {
-      label: '지금 상태',
-      heading: '상태와 지원 범위',
+      label: '어디까지 왔는지',
+      heading: '0.21, 만드는 사람 한 명, Apache-2.0',
       points: [
-        '0.21, 아직 0.x입니다. 동기화, 읽기 API, Jira를 먼저 거치는 쓰기, 데스크톱·웹·CLI·MCP를 실제 사이트에서 확인했습니다.',
-        '만드는 사람은 지금 한 명이고, 라이선스는 Apache-2.0입니다. 0.x에서 호환성을 지키는 것은 셋입니다: <code>issues_full</code>과 RECIPES 쿼리, <code>gadak sql</code>의 stdout 형식, <code>gadak views open --keys -</code>의 의미.',
-        '스프린트 계획, Jira 대시보드와 알림함, 관리 작업, 1분도 늦으면 안 되는 일은 Jira에서 계속 합니다.',
-        'Atlassian Cloud, Linear, 내장 트래커에서 같은 명령을 씁니다. 서비스별 지원 범위는 표 하나에 있습니다.',
+        '버전 0.21, 아직 0.x입니다. 동기화, 읽기 API, Jira를 먼저 거치는 쓰기, 데스크톱·웹·CLI·MCP를 실제 사이트에서 확인했습니다.',
+        '0.x에서 바꾸지 않기로 약속한 것은 셋입니다. <code>issues_full</code>과 RECIPES 쿼리, <code>gadak sql</code>의 출력 형식, <code>gadak views open --keys -</code>의 의미.',
+        '스프린트 계획, Jira 대시보드와 알림, 관리자 작업, 1분의 지연도 안 되는 일은 Jira에서 계속 합니다.',
+        'Atlassian Cloud, Linear, 내장 트래커에서 같은 명령을 씁니다. 서비스별로 되는 것과 안 되는 것은 표 하나에 정리해 두었습니다.',
       ],
       links: [
         { href: `${DOCS}docs/SUPPORT_MATRIX.md`, label: '서비스별 지원 범위' },
@@ -448,10 +448,10 @@ export const strings: Record<Locale, Strings> = {
       ],
     },
     ask: {
-      label: '사용 경험 남기기',
+      label: '써 보셨다면',
       heading: '한 줄 남겨 주세요',
       body:
-        '텔레메트리가 없으니 누가 쓰는지 저는 알 수 없습니다. 그래서 한 줄이 궁금합니다. 어떤 일에 써 봤고 어땠는지, 불편했거나 결과가 틀렸다면 그 이야기가 더 좋습니다. 이슈 수는 공개해도 괜찮을 때만 적어 주세요.',
+        '텔레메트리가 없어서 누가 쓰는지 저는 모릅니다. 써 보셨다면 어떤 일에 썼고 어땠는지 한 줄 알려 주세요. 불편했거나 결과가 틀렸다면 그 이야기도요. 이슈 수는 공개해도 괜찮을 때만 적어 주세요.',
       caution: '공개된 곳에는 실제 이슈 데이터나 토큰, 사이트 URL을 붙이지 마세요.',
       links: [
         { href: `${GITHUB}/issues`, label: 'GitHub 이슈로' },
@@ -461,13 +461,13 @@ export const strings: Record<Locale, Strings> = {
     landing: {
       flagshipSlot: '검색 녹화 · 이슈 2만 건',
       searchSlot: '검색',
-      agentSlot: '창 안의 에이전트',
-      allPlatforms: '모든 플랫폼 →',
+      agentSlot: '앱 안의 Claude Code',
+      allPlatforms: '다른 플랫폼 →',
     },
     footer: {
       builtBy: '만든 사람',
       whereBytes: '데이터가 어디로 가는지',
-      nameNote: "이름은 얽힌 실에서 한 줄기를 뜻하는 '가닥'에서 따왔습니다.",
+      nameNote: "이름은 엉킨 실에서 뽑아낸 한 줄기, '가닥'에서 왔습니다.",
     },
   },
   ja: {
