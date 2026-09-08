@@ -11,7 +11,7 @@ interface Props {
   /** JSON-LD, already stringified by the page. Emitted verbatim in <head>. */
   jsonLd?: string
   /**
-   * This page has no mirror in the other locales (an essay without translations).
+   * This page has no mirror in the other locales (a page without translations).
    * The head then claims no hreflang alternates — an alternate that 404s is
    * worse than none — no language banner is rendered (the page is not
    * offered in any other locale), and the header switcher links to each
@@ -113,10 +113,6 @@ const switchHref = (l: Locale) => (noAltLang ? pathFor(l, '/') : pathFor(l, enPa
               that the thing is alive, and sending that traffic away spends it
               somewhere else. */}
           <a href={pathFor(lang, '/changelog/')}>{t.nav.changelog}</a>
-          {/* Each locale has an essays index of its own since 0.21: the
-              shelf is the same, the rows link to that locale's copy where
-              one exists and mark the rest as English. */}
-          <a href={pathFor(lang, '/essays/')}>{t.nav.essays}</a>
           <a href={pathFor(lang, '/install/')}>{t.nav.install}</a>
           <a href="https://github.com/midagedev/gadak">{t.nav.github}</a>
           {others.map((l) => (

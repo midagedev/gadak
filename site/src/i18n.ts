@@ -14,7 +14,7 @@ export const strings = {
     title: 'gadak — Same Jira. No waiting.',
     description:
       'The Jira your company already runs — issues and the Confluence wiki — mirrored into one local SQLite file. Search lands in milliseconds on 20,000 issues. Reads never touch the network.',
-    nav: { demo: 'Live demo', changelog: 'Changelog', essays: 'Essays', install: 'Install', github: 'GitHub' },
+    nav: { demo: 'Live demo', changelog: 'Changelog', install: 'Install', github: 'GitHub' },
     copy: { label: 'Copy', copied: 'Copied' },
     ogImageAlt:
       'gadak — Same Jira. No waiting. Your team’s Jira and its Confluence wiki, mirrored into one local SQLite file.',
@@ -108,21 +108,6 @@ export const strings = {
       searchSlot: 'search',
       agentSlot: 'agent in the window',
       allPlatforms: 'All platforms →',
-      // The essay pointer under the trust section: the newest essay written
-      // in this locale (src/lib/essays.ts latestEssay). Label and link only —
-      // the title and description come off the essay's own frontmatter.
-      essayLabel: 'From the essays',
-      readEssay: 'Read the essay →',
-    },
-    essays: {
-      title: 'Essays — gadak',
-      heading: 'Essays',
-      lede:
-        'The decisions and measurements behind gadak, in the words of the person who shipped ' +
-        'them — each essay canonical at its own URL.',
-      // Marks an index row whose essay has no copy in this locale (never
-      // rendered on en, where every essay is the original).
-      inEnglish: 'English',
     },
     footer: {
       builtBy: 'Built by',
@@ -134,10 +119,10 @@ export const strings = {
     ogLocale: 'ko_KR',
     title: 'gadak — 같은 Jira, 기다림 없이.',
     description:
-      '회사에서 쓰는 Jira의 이슈와 Confluence 위키를 로컬 SQLite 파일 하나에 통째로 받아 둡니다. 이슈 2만 건에서도 검색은 밀리초 안에 끝나고, 읽기는 네트워크를 타지 않습니다.',
-    nav: { demo: '라이브 데모', changelog: '체인지로그', essays: '에세이', install: '설치', github: 'GitHub' },
+      '회사에서 쓰는 Jira의 이슈와 Confluence 위키를 통째로 캐시합니다. 이슈 2만 건에서도 검색은 밀리초 안에 끝나고, 읽기는 네트워크를 타지 않습니다.',
+    nav: { demo: '라이브 데모', changelog: '체인지로그', install: '설치', github: 'GitHub' },
     copy: { label: '복사', copied: '복사됨' },
-    ogImageAlt: 'gadak — 같은 Jira, 기다림 없이. 팀의 Jira와 Confluence 위키를 로컬 SQLite 파일 하나에 받아 둡니다.',
+    ogImageAlt: 'gadak — 같은 Jira, 기다림 없이. 팀의 Jira와 Confluence 위키를 통째로 캐시합니다.',
     langName: '한국어',
     langBanner: {
       offer: '이 페이지는 한국어로도 볼 수 있습니다.',
@@ -148,8 +133,8 @@ export const strings = {
       eyebrow: 'gadak',
       heading: TAGLINE.ko.heading,
       lede:
-        '회사에서 이미 쓰는 Jira를 Confluence 위키까지 이 컴퓨터의 SQLite 파일 하나에 통째로 받아 둡니다. 검색은 밀리초 안에 끝나고, 히스토리는 문서처럼 읽히고, 로딩 스피너는 보이지 않습니다. 원본은 여전히 Jira입니다. 기다리는 시간만 사라집니다.',
-      videoCaption: '이슈 2만 건을 받아 둔 파일에서 타이핑하는 속도로 검색합니다. 애니메이션이 아니라 실제 화면을 녹화한 것입니다.',
+        '회사에서 이미 쓰는 Jira를 Confluence 위키까지 통째로 캐시합니다. 검색은 밀리초 안에 끝나고, 히스토리는 문서처럼 읽히고, 로딩 스피너는 보이지 않습니다. Jira에는 손대지 않습니다. 기다리는 시간만 사라집니다.',
+      videoCaption: '이슈 2만 건짜리 캐시에서 타이핑하는 속도로 검색합니다. 애니메이션이 아니라 실제 화면을 녹화한 것입니다.',
       doors: {
         installTitle: '설치',
         installSub: 'macOS는 Homebrew, Windows는 Microsoft Store, Linux는 CLI.',
@@ -167,7 +152,7 @@ export const strings = {
         { what: '전문 검색', value: '543 ms', alt: '41 ms', ratio: '13×' },
         { what: '에픽별 열린 이슈 (GROUP BY)', value: '4,761 ms, API 호출 8페이지', alt: '22 ms, 쿼리 한 번', ratio: '214×' },
         { what: '변경 이력 집계', value: 'JQL로는 표현 불가', alt: '14 ms', ratio: '—' },
-        { what: '요청 제한', value: '429 + Retry-After', alt: '없음, 내 디스크니까', ratio: '—' },
+        { what: '요청 제한', value: '429 + Retry-After', alt: '없음', ratio: '—' },
       ],
       colRest: 'Jira REST API',
       colGadak: 'gadak',
@@ -184,8 +169,8 @@ export const strings = {
       label: '에이전트와 함께 일하는 사람에게',
       heading: '사람과 에이전트가 같은 말을 씁니다',
       body:
-        'CLI가 그대로 에이전트 인터페이스입니다. create, claim, transition 같은 동사를 에이전트가 실행하면 같은 보드가 눈앞에서 바뀝니다. 셸이 없는 클라이언트는 MCP 서버가 맡습니다. 쓰기는 원본 Jira를 거치고, 읽기는 로컬 파일에서 처리합니다. 에이전트가 쓴 것에는 이름이 남습니다. 코멘트와 연결된 PR에 봇 이름이 붙어서, 팀이 읽는 그 스레드에 그대로 보입니다.',
-      skillLead: '같은 파일을 코딩 에이전트에게 넘기려면:',
+        'CLI가 그대로 에이전트 인터페이스입니다. create, claim, transition 같은 동사를 에이전트가 실행하면 같은 보드가 눈앞에서 바뀝니다. 셸이 없는 클라이언트는 MCP 서버가 맡습니다. 쓰기는 Jira를 거치고, 읽기는 캐시에서 처리합니다. 에이전트가 쓴 것에는 이름이 남습니다. 코멘트와 연결된 PR에 봇 이름이 붙어서, 팀이 읽는 그 스레드에 그대로 보입니다.',
+      skillLead: '같은 캐시를 코딩 에이전트에게 넘기려면:',
       mcpLead: '셸이 없는 MCP 클라이언트(Claude Desktop)에는:',
       setupLink: '도구별로 붙여 넣을 설정 블록 → docs/AGENT_SETUP.md',
       driveCaption:
@@ -194,12 +179,12 @@ export const strings = {
     },
     origin: {
       label: '안심하고 쓸 수 있는 이유',
-      heading: '원본은 여전히 Jira입니다',
+      heading: '캐시일 뿐입니다',
       points: [
-        '쓰기는 먼저 Jira로 가고, Jira가 받아들인 뒤에야 로컬 파일이 갱신됩니다.',
-        '로컬 파일은 지워도 됩니다. 다시 동기화하면 Jira에서 그대로 다시 만들어집니다.',
+        '쓰기는 먼저 Jira로 가고, Jira가 받아들인 뒤에야 캐시가 갱신됩니다.',
+        '캐시는 이 컴퓨터 안의 SQLite 파일 하나입니다. 지워도 되고, 다시 동기화하면 그대로 다시 만들어집니다.',
         '텔레메트리는 없습니다. 밖으로 나가는 요청은 직접 설정한 것뿐입니다.',
-        '자격 증명은 SQLite 파일에도, 로그에도, 스냅샷에도 남지 않습니다.',
+        '자격 증명은 캐시에도, 로그에도, 스냅샷에도 남지 않습니다.',
       ],
     },
     changelog: {
@@ -226,16 +211,6 @@ export const strings = {
       searchSlot: '검색',
       agentSlot: '창 안의 에이전트',
       allPlatforms: '모든 플랫폼 →',
-      essayLabel: '에세이에서',
-      readEssay: '글 읽기 →',
-    },
-    essays: {
-      title: '에세이 — gadak',
-      heading: '에세이',
-      lede:
-        'gadak 뒤에 있는 결정과 측정을, 직접 내보낸 사람의 말로 씁니다. ' +
-        '글마다 자기 URL이 있습니다.',
-      inEnglish: '영문',
     },
     footer: {
       builtBy: '만든 사람',
@@ -247,11 +222,11 @@ export const strings = {
     ogLocale: 'ja_JP',
     title: 'gadak — 同じJira。待ち時間なし。',
     description:
-      '会社で使っているそのJira（課題とConfluenceのWiki）を、ローカルのSQLiteファイル1つにミラーします。2万件の課題でも検索はミリ秒で返り、読み取りはネットワークに触れません。',
-    nav: { demo: 'ライブデモ', changelog: '変更履歴', essays: 'エッセイ', install: 'インストール', github: 'GitHub' },
+      '会社で使っているそのJira（課題とConfluenceのWiki）を、まるごとキャッシュします。2万件の課題でも検索はミリ秒で返り、読み取りはネットワークに触れません。',
+    nav: { demo: 'ライブデモ', changelog: '変更履歴', install: 'インストール', github: 'GitHub' },
     copy: { label: 'コピー', copied: 'コピーしました' },
     ogImageAlt:
-      'gadak — 同じJira。待ち時間なし。チームのJiraとConfluenceのWikiを、ローカルのSQLiteファイル1つにミラー。',
+      'gadak — 同じJira。待ち時間なし。チームのJiraとConfluenceのWikiを、まるごとキャッシュします。',
     langName: '日本語',
     langBanner: {
       offer: 'このページは日本語でも読めます。',
@@ -262,8 +237,8 @@ export const strings = {
       eyebrow: 'gadak',
       heading: TAGLINE.ja.heading,
       lede:
-        'チームのJiraとそのConfluence Wikiを、この端末のSQLiteファイル1つにミラーします。検索はミリ秒で返り、履歴は文書のように読め、ページが回り続けることはありません。正本はJiraのまま。ただ、待たなくなるだけです。',
-      videoCaption: '2万件の課題のミラー。打つ速さのまま検索が返ります。録画です。アニメーションではありません。',
+        'チームのJiraとそのConfluence Wikiを、まるごとキャッシュします。検索はミリ秒で返り、履歴は文書のように読め、ページが回り続けることはありません。Jiraには手を加えません。待たなくなるだけです。',
+      videoCaption: '課題2万件のキャッシュ。打つ速さのまま検索が返ります。録画です。アニメーションではありません。',
       doors: {
         installTitle: 'インストール',
         installSub: 'macOSはHomebrew、WindowsはMicrosoft Store、LinuxはCLI。',
@@ -281,7 +256,7 @@ export const strings = {
         { what: '全文検索', value: '543 ms', alt: '41 ms', ratio: '13×' },
         { what: 'エピック別の未完了（GROUP BY）', value: '4,761 ms — APIページ8回', alt: '22 ms — クエリ1回', ratio: '214×' },
         { what: '変更履歴を数える', value: '表現できない', alt: '14 ms', ratio: '—' },
-        { what: 'レート制限', value: '429 + Retry-After', alt: 'なし — 自分のディスク', ratio: '—' },
+        { what: 'レート制限', value: '429 + Retry-After', alt: 'なし', ratio: '—' },
       ],
       colRest: 'Jira REST API',
       colGadak: 'gadak',
@@ -298,8 +273,8 @@ export const strings = {
       label: 'エージェントと一緒に作る人へ',
       heading: 'あなたとエージェントの語彙を1つに',
       body:
-        'CLIはそのままエージェントのインターフェースです。作成、担当、遷移。エージェントが実行する動詞を、あなたは同じボードで見ています。シェルのないクライアントにはMCPサーバーがあります。書き込みは正本へ通し、読み取りはローカルのミラーから。そしてエージェントの書き込みには必ず名前が付きます。コメントも紐づけたPRも、チームが読むそのスレッドにボットの名前で残ります。',
-      skillLead: '同じミラーをコーディングエージェントに渡す:',
+        'CLIはそのままエージェントのインターフェースです。作成、担当、遷移。エージェントが実行する動詞を、あなたは同じボードで見ています。シェルのないクライアントにはMCPサーバーがあります。書き込みはJiraへ通し、読み取りはキャッシュから。そしてエージェントの書き込みには必ず名前が付きます。コメントも紐づけたPRも、チームが読むそのスレッドにボットの名前で残ります。',
+      skillLead: '同じキャッシュをコーディングエージェントに渡す:',
       mcpLead: 'シェルのないMCPクライアント（Claude Desktop）には:',
       setupLink: 'ツールごとに貼るだけの設定ブロック → docs/AGENT_SETUP.md',
       driveCaption:
@@ -308,12 +283,12 @@ export const strings = {
     },
     origin: {
       label: '安心して試せる理由',
-      heading: '正本はJiraのまま',
+      heading: 'ただのキャッシュです',
       points: [
-        '書き込みは先にJiraへ通します。正本が受け付けてから、ミラーが更新されます。',
-        'ミラーは捨てられます。削除して再同期すれば、正本から作り直せます。',
+        '書き込みは先にJiraへ通します。Jiraが受け付けてから、キャッシュが更新されます。',
+        'キャッシュの実体は、この端末の中のSQLiteファイル1つです。いつ消しても構いません。もう一度同期すれば、そのまま作り直せます。',
         'テレメトリはありません。ネットワークに出るのは、あなたが設定した通信だけです。',
-        '認証情報はSQLiteにも、ログにも、スナップショットにも入りません。',
+        '認証情報はキャッシュにも、ログにも、スナップショットにも入りません。',
       ],
     },
     changelog: {
@@ -335,20 +310,10 @@ export const strings = {
       firstRun: 'チームのJiraに接続します（サイト、メール、トークン、プロジェクトを聞かれます）:',
     },
     landing: {
-      flagshipSlot: 'フラッグシップ · 2万件のミラー',
+      flagshipSlot: 'フラッグシップ · 課題2万件',
       searchSlot: '検索',
       agentSlot: '窓の中のエージェント',
       allPlatforms: 'すべてのプラットフォーム →',
-      essayLabel: 'エッセイから',
-      readEssay: 'エッセイを読む →',
-    },
-    essays: {
-      title: 'エッセイ — gadak',
-      heading: 'エッセイ',
-      lede:
-        'gadakの背後にある判断と計測を、出荷した本人の言葉で。' +
-        'それぞれのエッセイが自分のURLを持ちます。',
-      inEnglish: '英語',
     },
     footer: {
       builtBy: '作者:',
@@ -425,7 +390,7 @@ export function mediaFor(lang: Locale, path: string): string {
   return `${path.slice(0, dot)}.${lang}${path.slice(dot)}`
 }
 
-// Matches a locale prefix only as a full first segment, so /essays/ or a
+// Matches a locale prefix only as a full first segment, so /changelog/ or a
 // hypothetical /kotlin/ page is never stripped.
 const NON_DEFAULT_PREFIX = new RegExp(`^/(?:${LOCALES.filter((l) => l !== 'en').join('|')})(?=/|$)`)
 

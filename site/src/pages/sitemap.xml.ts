@@ -1,6 +1,5 @@
 import type { APIRoute } from 'astro'
 
-import { listEssays } from '../lib/essays'
 import { LOCALES, pathFor } from '../i18n'
 
 /**
@@ -13,15 +12,9 @@ import { LOCALES, pathFor } from '../i18n'
  * build (tools/hosted-demo/build.mjs), and a hash-routed app has exactly one
  * URL to offer anyway.
  *
- * The essays are the one exception, enumerated from their source directory
- * (src/lib/essays.ts): the .md file is itself the registration, so a
- * discovery pass here would be a second copy of the same list.
- *
  * Each locale entry carries every locale as alternates, which is what
  * stops the mirrored pages from competing with each other for the same
- * query. An essay claims exactly the locales it is written in
- * (Essay.locales) — an hreflang that 404s would be worse than none, so an
- * untranslated essay claims none.
+ * query.
  */
 const SITE = 'https://gadak.dev'
 
@@ -36,7 +29,6 @@ const PAGES: Array<{ en: string; priority: string }> = [
   { en: '/', priority: '1.0' },
   { en: '/install/', priority: '0.8' },
   { en: '/changelog/', priority: '0.7' },
-  { en: '/essays/', priority: '0.6' },
 ]
 
 function urlEntry(loc: string, alternates: Array<{ lang: string; href: string }>, priority: string) {
@@ -44,7 +36,7 @@ function urlEntry(loc: string, alternates: Array<{ lang: string; href: string }>
     .map((a) => `    <xhtml:link rel="alternate" hreflang="${a.lang}" href="${SITE}${a.href}"/>`)
     .join('\n')
   // Line list rather than a template literal so an entry with no alternates
-  // (the essays) drops the links line instead of leaving a blank one.
+  // drops the links line instead of leaving a blank one.
   return [
     '  <url>',
     `    <loc>${SITE}${loc}</loc>`,
@@ -57,18 +49,6 @@ function urlEntry(loc: string, alternates: Array<{ lang: string; href: string }>
 }
 
 export const GET: APIRoute = async () => {
-  // One row per (essay, locale it exists in); alternates are that essay's
-  // own locales, plus x-default on the English original.
-  const essays = (await listEssays('en')).flatMap((e) => {
-    const alternates =
-      e.locales.length > 1
-        ? [
-            ...e.locales.map((l) => ({ lang: l, href: pathFor(l, `/essays/${e.slug}/`) })),
-            { lang: 'x-default', href: `/essays/${e.slug}/` },
-          ]
-        : []
-    return e.locales.map((l) => ({ loc: pathFor(l, `/essays/${e.slug}/`), alternates }))
-  })
   const body = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
         xmlns:xhtml="http://www.w3.org/1999/xhtml">
@@ -80,7 +60,6 @@ ${[
     ]
     return LOCALES.map((l) => urlEntry(pathFor(l, p.en), alternates, p.priority))
   }),
-  ...essays.map((e) => urlEntry(e.loc, e.alternates, '0.5')),
 ].join('\n')}
 </urlset>
 `

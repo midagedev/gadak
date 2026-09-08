@@ -69,8 +69,7 @@ function readReleases(html: string): Release[] {
 }
 
 /**
- * Render markdown with the site's one processor. The changelog and the
- * essays (src/lib/essays.ts) both go through this call, so heading ids,
+ * Render markdown with the site's one processor, so heading ids,
  * smartypants, and link syntax behave identically everywhere this site
  * serves prose. A handful of calls per build; the processor is created
  * per call because that is the supported shape for ad-hoc rendering.
