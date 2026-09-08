@@ -1,9 +1,9 @@
 package jira
 
-// Remote issue links (GDK-1032): Cloud's
-// /rest/api/3/issue/{key}/remotelink. Both origins gadak points this at —
-// Atlassian Cloud and issuetap — speak the same shape; gadak only ever
-// writes them on issuetap-backed origins (builtIn / paired), where a
+// Remote issue links (GDK-1032): /issue/{key}/remotelink under the client's
+// REST base. Every origin gadak points this at — Atlassian Cloud, Jira
+// Server, and issuetap — serves the same shape; gadak only ever writes them
+// on issuetap-backed origins (builtIn / paired), where a
 // gadak://<workspace>/<KEY> URL points one workspace's issue at another's.
 
 import (
@@ -50,7 +50,7 @@ func rawID(raw json.RawMessage) string {
 // RemoteLinks lists key's remote issue links.
 func (c *Client) RemoteLinks(ctx context.Context, key string) ([]RemoteLink, error) {
 	var wire []remoteLinkWire
-	if err := c.do(ctx, "GET", apiPath+"/issue/"+url.PathEscape(key)+"/remotelink", nil, &wire); err != nil {
+	if err := c.do(ctx, "GET", c.apiBase+"/issue/"+url.PathEscape(key)+"/remotelink", nil, &wire); err != nil {
 		return nil, err
 	}
 	out := make([]RemoteLink, 0, len(wire))
@@ -79,12 +79,12 @@ func (c *Client) SetRemoteLink(ctx context.Context, key string, rl RemoteLink) e
 	if rl.Relationship != "" {
 		body["relationship"] = rl.Relationship
 	}
-	return c.write(ctx, "POST", apiPath+"/issue/"+url.PathEscape(key)+"/remotelink", body, nil)
+	return c.write(ctx, "POST", c.apiBase+"/issue/"+url.PathEscape(key)+"/remotelink", body, nil)
 }
 
 // DeleteRemoteLink removes one remote link by id.
 func (c *Client) DeleteRemoteLink(ctx context.Context, key, id string) error {
-	path := apiPath + "/issue/" + url.PathEscape(key) + "/remotelink/" + url.PathEscape(id)
+	path := c.apiBase + "/issue/" + url.PathEscape(key) + "/remotelink/" + url.PathEscape(id)
 	status, data, err := c.Raw(ctx, "DELETE", path, nil, true)
 	if err != nil {
 		return err
