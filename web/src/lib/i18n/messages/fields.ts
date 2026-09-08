@@ -81,6 +81,42 @@ export const fields = {
     ko: '수정 버전',
     ja: '修正バージョン',
   },
+  // The two sprint axes (GDK-1656) and the detail panel's read-only row.
+  'field.sprint': {
+    en: 'Sprint',
+    ko: '스프린트',
+    ja: 'スプリント',
+  },
+  'field.sprint_ids': {
+    en: 'Sprint',
+    ko: '스프린트',
+    ja: 'スプリント',
+  },
+  'field.sprint_state': {
+    en: 'Sprint state',
+    ko: '스프린트 상태',
+    ja: 'スプリントの状態',
+  },
+  'sprint.active': {
+    en: 'Active sprint',
+    ko: '진행 중인 스프린트',
+    ja: '進行中のスプリント',
+  },
+  'sprint.future': {
+    en: 'Future sprint',
+    ko: '예정된 스프린트',
+    ja: '今後のスプリント',
+  },
+  'sprint.closed': {
+    en: 'Closed sprint',
+    ko: '닫힌 스프린트',
+    ja: '完了したスプリント',
+  },
+  'sprint.none': {
+    en: 'No sprint',
+    ko: '스프린트 없음',
+    ja: 'スプリントなし',
+  },
   'field.environment': {
     en: 'Environment',
     ko: '발생 환경',

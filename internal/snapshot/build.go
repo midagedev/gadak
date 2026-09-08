@@ -157,6 +157,17 @@ func buildInto(tmp string, opts Options) (rotationStats, error) {
 		return rot, err
 	}
 
+	// Boards and sprints ride along like link_types; a fixture whose source
+	// never had any can ask for a derived set (GDK-1656).
+	if err := copyAgile(src, tx); err != nil {
+		return rot, err
+	}
+	if opts.DeriveSprints {
+		if err := deriveSprints(tx, opts.Now); err != nil {
+			return rot, fmt.Errorf("derive sprints: %w", err)
+		}
+	}
+
 	// Documents: kind=page items + pages projection + their comments.
 	// No scale/clone (scale is an issue-volume tool); timestamps kept as source.
 	pages, err := loadPages(src)

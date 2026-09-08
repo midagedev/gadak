@@ -4,6 +4,18 @@
 
 ## Unreleased
 
+- **보드가 스프린트를 압니다.** 스프린트가 있는 워크스페이스에는 레이아웃 스위치 옆에
+  범위가 생깁니다. 진행 중인 스프린트(이름으로), 백로그, 전체. 이것은 다른 필터와
+  같은 필터입니다. URL이 들고, 뒤로가기가 되돌리고, 저장된 뷰가 기억하며,
+  `gadak views open --jql 'sprint in openSprints()'`가 같은 보드에 내려앉습니다.
+  필터 바에는 스프린트(이름) 축과 스프린트 상태 축이 생기고, 상세 패널이 스프린트를
+  보여 주며, 백로그를 뜻하는 `sprint is EMPTY`는 `sprint_state=none`으로 뷰 문법을
+  왕복합니다. 데모 픽스처는 범위가 보일 수 있게 스프린트 셋을 파생해 실어 둡니다.
+  ([GDK-1656])
+- **주간 회고에 화면이 생겼습니다.** `gadak retro`의 문서는 오지 않은 표면을 위해
+  서빙되고 있었습니다. 이제 팔레트의 *주간 회고*가 차분한
+  표를 엽니다. 주마다 한 열, 지표마다 한 행, 정의는 그 아래에. 이슈를 품은 셀은
+  그 목록으로 가는 문입니다. 4주, 8주, 12주. ([GDK-1660])
 - **Jira Data Center의 레이트 리밋 예산을 벽에 부딪히기 전에 읽습니다.** DC는
   응답마다 토큰 버킷 상태를 헤더로 알려주는데, gadak은 429를 맞은 뒤에만
   반응했습니다. 이제 Server 클라이언트는 예산이 바닥에 가까우면 알려준 간격만큼
@@ -1730,5 +1742,7 @@ HTTP·sync·에이전트 계약을 담았습니다.
 [GDK-1641]: https://gadak.dev/backlog/#/?ks=GDK-1641
 [GDK-1645]: https://gadak.dev/backlog/#/?ks=GDK-1645
 [GDK-1646]: https://gadak.dev/backlog/#/?ks=GDK-1646
+[GDK-1656]: https://gadak.dev/backlog/#/?ks=GDK-1656
+[GDK-1660]: https://gadak.dev/backlog/#/?ks=GDK-1660
 [GDK-1661]: https://gadak.dev/backlog/#/?ks=GDK-1661
 [GDK-1662]: https://gadak.dev/backlog/#/?ks=GDK-1662

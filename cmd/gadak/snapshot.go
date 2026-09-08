@@ -24,6 +24,7 @@ func cmdSnapshot(args []string) error {
 	seed := fs.Int64("seed", 1, "reserved for --scale determinism")
 	nowArg := fs.String("now", "", "pin the clock to an RFC3339 timestamp for reproducible builds")
 	force := fs.Bool("force", false, "overwrite out.db if it already exists")
+	deriveSprints := fs.Bool("derive-sprints", false, "invent sprints from fix versions named 'Sprint N' when the source has none (demo fixture)")
 	if wantsHelp(args) {
 		fmt.Fprint(os.Stdout, formatHelp("snapshot", fs))
 		return nil
@@ -71,6 +72,8 @@ func cmdSnapshot(args []string) error {
 		Seed:   *seed,
 		Force:  *force,
 		Now:    now,
+
+		DeriveSprints: *deriveSprints,
 	})
 	if err != nil {
 		return err

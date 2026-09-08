@@ -117,6 +117,13 @@
         values: issue.fix_versions ?? [],
         edit: 'version_array',
       },
+      // Sprint reads only (GDK-1656): moving an issue is `gadak sprint add`,
+      // a write with its own re-read; the panel shows where the issue sits.
+      {
+        key: 'sprint',
+        label: fieldLabel('sprint'),
+        values: issue.sprint_name ? [issue.sprint_name] : [],
+      },
       {
         key: 'duedate',
         label: fieldLabel('due'),

@@ -30,6 +30,7 @@ export type ColumnView =
   | { view: 'docs' }
   | { view: 'space'; key: string }
   | { view: 'history' }
+  | { view: 'retro' }
   | { view: 'dashboard'; id: string }
   | { view: 'feed'; focus: FeedFocus }
 

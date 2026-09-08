@@ -39,6 +39,11 @@ export interface ViewFilters {
   issue_type: string[]
   components: string[]
   fix_versions: string[]
+  /** Sprint ids (as strings — the URL and JQL carry them that way) and
+   *  sprint states; `none` in `sprint_state` is the backlog, issues in no
+   *  sprint (jql.SprintStateNone). Mirrors jql.Filter (GDK-1656). */
+  sprint_ids: string[]
+  sprint_state: string[]
   qa_run: string[]
   qa_suite: string[]
   qa_impact: string[]
@@ -65,6 +70,8 @@ export interface ViewFilters {
   issue_type_not: string[]
   components_not: string[]
   fix_versions_not: string[]
+  sprint_ids_not: string[]
+  sprint_state_not: string[]
   qa_run_not: string[]
   qa_suite_not: string[]
   qa_impact_not: string[]
@@ -292,6 +299,8 @@ export const MULTI_FIELDS = [
   'issue_type',
   'components',
   'fix_versions',
+  'sprint_ids',
+  'sprint_state',
   'qa_run',
   'qa_suite',
   'qa_impact',
@@ -425,6 +434,8 @@ export function emptyFilters(): ViewFilters {
     issue_type: [],
     components: [],
     fix_versions: [],
+    sprint_ids: [],
+    sprint_state: [],
     qa_run: [],
     qa_suite: [],
     qa_impact: [],
@@ -445,6 +456,8 @@ export function emptyFilters(): ViewFilters {
     issue_type_not: [],
     components_not: [],
     fix_versions_not: [],
+    sprint_ids_not: [],
+    sprint_state_not: [],
     qa_run_not: [],
     qa_suite_not: [],
     qa_impact_not: [],
@@ -598,6 +611,10 @@ const MULTI_KEY = {
   issue_type: 'ty',
   components: 'co',
   fix_versions: 'fx',
+  // The two sprint axes: the same keys internal/jql/hash.go writes (sid/sst),
+  // so a view link made by the CLI opens here as the same view.
+  sprint_ids: 'sid',
+  sprint_state: 'sst',
   qa_run: 'qr',
   qa_suite: 'qs',
   qa_impact: 'qi',

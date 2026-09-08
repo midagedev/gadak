@@ -4,6 +4,20 @@
 
 ## Unreleased
 
+- **The board knows about sprints.** A workspace with sprints gets a scope
+  beside the layout switch — the active sprint by name, the backlog, or all —
+  and it is a filter like any other: the URL carries it, the back button
+  undoes it, a saved view keeps it, and `gadak views open --jql 'sprint in
+  openSprints()'` lands on the same board. The filter bar gains a Sprint axis
+  (by name) and a Sprint state axis, the detail panel shows the sprint, and
+  `sprint is EMPTY` — the backlog — now round-trips through the view grammar
+  as `sprint_state=none`. The demo fixture carries three derived sprints so
+  the scope has something to show. ([GDK-1656])
+- **The weekly retro has a screen.** `gadak retro`'s document was served for
+  a surface that never came. It is here now: the
+  palette's *Weekly retro* opens a calm table — one column per week, one row
+  per metric with its definition underneath — and a cell that holds issues
+  is a door onto that list. Four, eight or twelve weeks. ([GDK-1660])
 - **Jira Data Center's rate-limit budget is read before the wall, not after.**
   DC states its token bucket on every response; gadak used to react only to a
   429. The Server client now waits out the stated interval when the budget is
@@ -1806,5 +1820,7 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-1641]: https://gadak.dev/backlog/#/?ks=GDK-1641
 [GDK-1645]: https://gadak.dev/backlog/#/?ks=GDK-1645
 [GDK-1646]: https://gadak.dev/backlog/#/?ks=GDK-1646
+[GDK-1656]: https://gadak.dev/backlog/#/?ks=GDK-1656
+[GDK-1660]: https://gadak.dev/backlog/#/?ks=GDK-1660
 [GDK-1661]: https://gadak.dev/backlog/#/?ks=GDK-1661
 [GDK-1662]: https://gadak.dev/backlog/#/?ks=GDK-1662

@@ -52,6 +52,7 @@ export const PLACE_PARAM_KEYS = [
   'docs',
   'dview',
   'hist',
+  'retro',
   'feed',
   'settings',
   'dash',

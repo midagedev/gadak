@@ -18,6 +18,7 @@
   import SearchBox from './SearchBox.svelte'
   import FilterBar from './FilterBar.svelte'
   import ViewSettingsMenu from './ViewSettingsMenu.svelte'
+  import SprintScope from '../board/SprintScope.svelte'
   import CopyViewLink from './CopyViewLink.svelte'
     import BulkBar from './BulkBar.svelte'
   import BreakdownBar from './BreakdownBar.svelte'
@@ -121,6 +122,9 @@
           <FilterBar />
         </div>
         <div class="desktop-no-drag"><ViewSettingsMenu /></div>
+        {#if filters.display.layout === 'board'}
+          <div class="desktop-no-drag"><SprintScope /></div>
+        {/if}
         <div class="desktop-no-drag"><CopyViewLink /></div>
         <!-- The count is a label, not a control: it stays a grab surface. -->
         <div class="ml-auto flex items-center gap-2">
@@ -135,6 +139,9 @@
           <FilterBar />
         </div>
         <ViewSettingsMenu />
+        {#if filters.display.layout === 'board'}
+          <SprintScope />
+        {/if}
         <CopyViewLink />
         <div class="ml-auto flex items-center gap-2">
           <FreshnessChip />

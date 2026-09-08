@@ -84,6 +84,7 @@ export interface KeyContext {
    */
   keyFromTerminalHost: boolean
   historyView: boolean
+  retroView: boolean
   docsOpen: boolean
   listActive: boolean
   cursorKey: string | null
@@ -126,6 +127,7 @@ export type KeyCommand =
   | { type: 'clear-selection' }
   | { type: 'close-docs' }
   | { type: 'close-history' }
+  | { type: 'close-retro' }
   | { type: 'close-dashboard' }
   | { type: 'close-feed' }
   | { type: 'close-terminal-overlay' }
@@ -163,6 +165,7 @@ export function keyContext(over: Partial<KeyContext> = {}): KeyContext {
     terminalOverlayOpen: false,
     keyFromTerminalHost: false,
     historyView: false,
+    retroView: false,
     docsOpen: false,
     listActive: false,
     cursorKey: null,
@@ -189,9 +192,11 @@ export function narrowFieldTestId(ctx: {
   feedBlocksNarrow: boolean
   dashboardOpen: boolean
   historyView: boolean
+  /** Optional: the retro has no narrow field, like a dashboard. */
+  retroView?: boolean
   docsOpen: boolean
 }): string | null {
-  if (ctx.feedBlocksNarrow || ctx.dashboardOpen) return null
+  if (ctx.feedBlocksNarrow || ctx.dashboardOpen || ctx.retroView) return null
   if (ctx.historyView) return NARROW_FIELD_TESTID.history
   if (ctx.docsOpen) return NARROW_FIELD_TESTID.docs
   return NARROW_FIELD_TESTID.issues
@@ -218,6 +223,7 @@ export type KeyScope =
   | 'overlay-feed'
   | 'overlay-dashboard'
   | 'overlay-history'
+  | 'overlay-retro'
   | 'overlay-docs'
 
 export interface Chord {
@@ -683,6 +689,22 @@ export const COMMANDS: readonly CommandDef[] = [
     dispatch: () => ({ type: 'close-history' }),
   },
   {
+    id: 'close-retro',
+    scope: 'overlay-retro',
+    chords: [{ key: 'Escape' }],
+    when: (ctx) =>
+      escFreeOfBrowseMenu(ctx) &&
+      !ctx.bulkActive &&
+      !ctx.detailOpen &&
+      !ctx.pageSelected &&
+      !ctx.personSelected &&
+      !ctx.terminalOverlayOpen &&
+      !ctx.feedBlocksNarrow &&
+      !ctx.dashboardOpen &&
+      ctx.retroView,
+    dispatch: () => ({ type: 'close-retro' }),
+  },
+  {
     id: 'close-docs',
     scope: 'overlay-docs',
     chords: [{ key: 'Escape' }],
@@ -696,6 +718,7 @@ export const COMMANDS: readonly CommandDef[] = [
       !ctx.feedBlocksNarrow &&
       !ctx.dashboardOpen &&
       !ctx.historyView &&
+      !ctx.retroView &&
       ctx.docsOpen,
     dispatch: () => ({ type: 'close-docs' }),
     help: { group: 'columnViews', kbd: 'Esc', labelKey: 'shortcuts.closeColumnView', sort: 20 },
@@ -911,6 +934,17 @@ export const COMMANDS: readonly CommandDef[] = [
       kind: 'always',
       sort: 120,
       labelKey: 'palette.actionHistory',
+    },
+  },
+  {
+    id: 'a:retro',
+    chords: [],
+    palette: {
+      id: 'a:retro',
+      kind: 'always',
+      sort: 125,
+      testid: 'palette-action-retro',
+      labelKey: 'palette.openRetro',
     },
   },
   {

@@ -639,6 +639,9 @@ import type { SettingsTab } from '../../lib/settings-tabs'
           // column, feed included, is released by the same move.
           pages.openHistory()
         },
+        openRetro: () => {
+          pages.openRetro()
+        },
         openDocs: () => {
           if (pages.docsView && pages.spaceView === null) return
           pages.openDocs()

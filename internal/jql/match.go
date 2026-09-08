@@ -92,7 +92,13 @@ func matchIn(it Issue, f Filter, z calendar.Zone) bool {
 	if len(f.SprintIDs) > 0 && !containsFold(f.SprintIDs, it.SprintID) {
 		return false
 	}
-	if len(f.SprintState) > 0 && !containsFold(f.SprintState, it.SprintState) {
+	if len(f.SprintIDsNot) > 0 && containsFold(f.SprintIDsNot, it.SprintID) {
+		return false
+	}
+	if len(f.SprintState) > 0 && !matchesSprintState(f.SprintState, it.SprintState) {
+		return false
+	}
+	if len(f.SprintStateNot) > 0 && matchesSprintState(f.SprintStateNot, it.SprintState) {
 		return false
 	}
 	if (f.CreatedFrom != nil || f.CreatedTo != nil) && !inRange(it.CreatedAt, calendar.Instant, f.CreatedFrom, f.CreatedTo, z) {
@@ -196,4 +202,17 @@ func anyContains(selected, values []string) bool {
 
 func eqFold(a, b string) bool {
 	return strings.EqualFold(strings.TrimSpace(a), strings.TrimSpace(b))
+}
+
+// SprintStateNone is the sprint_state value that selects issues in no sprint
+// at all — the backlog. It is a filter vocabulary word, not a stored state:
+// the row's column is empty there, and JQL spells it `sprint is EMPTY`
+// (GDK-1656, the board's backlog scope).
+const SprintStateNone = "none"
+
+func matchesSprintState(want []string, got string) bool {
+	if got == "" {
+		return containsFold(want, SprintStateNone)
+	}
+	return containsFold(want, got)
 }

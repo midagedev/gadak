@@ -33,7 +33,7 @@ theme-check:
 # this target does not claim to land "the current schema" by itself.
 # `bash scripts/demo-schema.sh` prints the stamp + row counts.
 demo-fixture:
-	go run ./cmd/gadak snapshot examples/demo.db.new --from examples/demo.db --spread 90d --seed 1
+	go run ./cmd/gadak snapshot examples/demo.db.new --from examples/demo.db --spread 90d --seed 1 --derive-sprints
 	# The committed fixture is opened raw by Datasette Lite (GDK-101): the
 	# scrub re-checks fictional values and rebuilds items_fts without
 	# contentless_delete. Skipping it is exactly how a regen went red on CI

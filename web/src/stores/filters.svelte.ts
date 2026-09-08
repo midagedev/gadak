@@ -807,6 +807,16 @@ export function filterIssues(
     if (!matchesSelected(f.fix_versions, it.fix_versions)) continue
     if ((f.fix_versions_not ?? []).length && it.fix_versions.some((v) => f.fix_versions_not.includes(v)))
       continue
+    // Sprint (GDK-1656): ids compare as strings, and `none` selects the
+    // backlog — a row in no sprint — the same rule as jql.matchesSprintState.
+    {
+      const sid = it.sprint_id != null ? String(it.sprint_id) : ''
+      const sst = it.sprint_state || 'none'
+      if ((f.sprint_ids ?? []).length && !f.sprint_ids.includes(sid)) continue
+      if ((f.sprint_ids_not ?? []).length && f.sprint_ids_not.includes(sid)) continue
+      if ((f.sprint_state ?? []).length && !f.sprint_state.includes(sst)) continue
+      if ((f.sprint_state_not ?? []).length && f.sprint_state_not.includes(sst)) continue
+    }
     if (!matchesDynamicFields(f.fields, it)) continue
     if (
       f.qa_run.length &&
@@ -1249,6 +1259,23 @@ function FIELD_LABEL(field: string): string {
   return fieldLabel(field)
 }
 
+/** Sprint state facet labels (GDK-1656); `none` is the backlog. Unknown
+ *  states (an origin's own word) show as themselves. */
+export function SPRINT_STATE_LABEL(value: string): string {
+  switch (value) {
+    case 'active':
+      return t('sprint.active')
+    case 'future':
+      return t('sprint.future')
+    case 'closed':
+      return t('sprint.closed')
+    case 'none':
+      return t('sprint.none')
+    default:
+      return value
+  }
+}
+
 function CATEGORY_LABEL(value: string): string {
   if (value === 'new' || value === 'inprogress' || value === 'done') return categoryLabel(value)
   return value
@@ -1284,6 +1311,11 @@ function buildChips(
     if (field === 'priority') return all.find((it) => it.priority_id === value)?.priority ?? value
     if (field === 'issue_type')
       return all.find((it) => it.issue_type_id === value)?.issue_type ?? value
+    // Sprint (GDK-1656): the id resolves to the sprint's name the same way,
+    // and a state is one of four words — `none` being the backlog.
+    if (field === 'sprint_ids')
+      return all.find((it) => String(it.sprint_id ?? '') === value)?.sprint_name ?? value
+    if (field === 'sprint_state') return SPRINT_STATE_LABEL(value)
     return value
   }
   for (const field of MULTI_FIELDS) {
@@ -1357,6 +1389,7 @@ function buildFacets(
   const statusLabels = new Map<string, string>()
   const typeLabels = new Map<string, string>()
   const priorityLabels = new Map<string, string>()
+  const sprintLabels = new Map<string, string>()
 
   for (const it of all) {
     bump(counters.status_category, effectiveCategory(it))
@@ -1394,6 +1427,13 @@ function buildFacets(
     }
     for (const value of it.components) bump(counters.components, value)
     for (const value of it.fix_versions) bump(counters.fix_versions, value)
+    if (it.sprint_id != null) {
+      const sid = String(it.sprint_id)
+      bump(counters.sprint_ids, sid)
+      if (!sprintLabels.has(sid)) sprintLabels.set(sid, it.sprint_name || sid)
+    }
+    // Every row has a sprint state for the facet: the backlog is `none`.
+    bump(counters.sprint_state, it.sprint_state || 'none')
     for (const run of it.qa_runs ?? []) bump(counters.qa_run, run.key)
     for (const suite of it.qa_suites ?? []) bump(counters.qa_suite, suite.key)
     if (it.qa_impact_state) bump(counters.qa_impact, it.qa_impact_state)
@@ -1426,7 +1466,9 @@ function buildFacets(
             ? typeLabels.get(value)
             : field === 'priority'
               ? priorityLabels.get(value)
-              : undefined
+              : field === 'sprint_ids'
+                ? sprintLabels.get(value)
+                : undefined
       return { value, count, label: personLabel ?? named ?? facetLabel(field, value, all, members) }
     })
     values.sort((a, b) => b.count - a.count || (a.label < b.label ? -1 : 1))
@@ -1442,6 +1484,7 @@ function facetLabel(
   members: Map<string, Member>,
 ): string {
   if (field === 'status_category') return CATEGORY_LABEL(value)
+  if (field === 'sprint_state') return SPRINT_STATE_LABEL(value)
   if (field === 'actor') {
     // Value is an account id; the member directory is what turns it into a
     // name — the same resolution avatars use, so the two never disagree.

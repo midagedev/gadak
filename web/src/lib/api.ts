@@ -30,6 +30,7 @@ import type {
   PagesResponse,
   SavedView,
   HistoryPage,
+  RetroDoc,
   HistoryVisitKind,
   SearchEvent,
   SearchResponse,
@@ -268,6 +269,11 @@ export async function getVisited(
   }
 }
 
+/** The mirror's sprints, active → future → closed, with issue counts (GDK-1656). */
+export function getSprints(): Promise<import('./types').SprintsResponse> {
+  return json<import('./types').SprintsResponse>('sprints/')
+}
+
 export function getHistory(opts?: {
   kind?: string
   limit?: number
@@ -279,6 +285,13 @@ export function getHistory(opts?: {
   if (opts?.cursor) q.set('cursor', opts.cursor)
   const qs = q.toString()
   return json<HistoryPage>(qs ? `history/?${qs}` : 'history/')
+}
+
+/** The weekly retro document — the same compute as `gadak retro`, served
+ *  under the issues base (GDK-1660). `since` is the CLI's window
+ *  grammar ("4w", "14d"); the endpoint's own default is four weeks. */
+export function getRetro(since = '4w'): Promise<RetroDoc> {
+  return json<RetroDoc>(`retro/?since=${encodeURIComponent(since)}`)
 }
 
 /** JQL / Jira-URL → ViewFilters. Unsupported clauses are listed, never dropped. */

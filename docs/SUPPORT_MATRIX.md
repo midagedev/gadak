@@ -85,6 +85,7 @@ Markers:
 | **Write** · `migrate --to` (destination) | —[^94] | —[^94] | ◐[^94] | ✅[^95] |
 | **Surface** · agent surfaces — skill / MCP / SQL | ✅[^96] | ✅[^96] | ✅[^96] | ✅[^96] |
 | **Surface** · board layout (0.19) | ✅[^97] | ✅[^97] | ✅[^97] | ✅[^97] |
+| **Surface** · board sprint scope + Sprint axes (0.22) | ✅[^138] | ✅[^138] | —[^33] | —[^34] |
 | **Surface** · `views open --keys -` | ✅[^98] | ✅[^98] | ✅[^98] | ✅[^98] |
 | **Surface** · watch feed + OS alerts | ✅[^99] | ✅[^134] | ◐[^100] | ✅[^99] |
 | **Surface** · in-process origin (no network to the tracker) | —[^101] | —[^101] | —[^101] | ✅[^102] |
@@ -616,6 +617,14 @@ Markers:
 [^137]: The same `PUT` / `DELETE …/comment/{id}` on the v2 base; measured:
     `comment edit` re-read the new text, `comment rm --yes` removed the
     row.
+[^138]: The board's Active sprint · Backlog · All is a filter on
+    `sprint_state` (`web/src/components/board/SprintScope.svelte`), so it is
+    in the URL, in saved views and in `views open --jql`; the filter bar's
+    Sprint and Sprint state axes read the same columns, and `sprint is
+    EMPTY` round-trips as `sprint_state=none` (`internal/jql/match.go`,
+    GDK-1656). The control appears only when the mirror has a sprint row
+    (`GET /api/v1/issues/sprints/`), so an origin without sprints never
+    shows it — which is what the two refusal cells mean today.
 
 ## How this file is maintained
 

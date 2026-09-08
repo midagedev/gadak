@@ -126,6 +126,11 @@ class PagesStore {
   get historyView(): boolean {
     return column.is('history')
   }
+  /** The weekly retro owns the main column (GDK-1660). Same union member
+   *  discipline as historyView. */
+  get retroView(): boolean {
+    return column.is('retro')
+  }
   /** Which axis the document view is showing. */
   docsTab = $state<DocsTab>(loadDocsTab())
   /** Author group the By-author tab should scroll to once, set by an arrival
@@ -395,7 +400,7 @@ class PagesStore {
    *  — a screen cannot own the column while reading "not open" (GDK-815
    *  was that hole: a getter that forgot a member). */
   get open(): boolean {
-    return column.is('docs') || column.is('space') || column.is('history')
+    return column.is('docs') || column.is('space') || column.is('history') || column.is('retro')
   }
 
   /** The tabbed view takes the column. Deliberately bare: boot `docs=1` and
@@ -448,6 +453,17 @@ class PagesStore {
 
   closeHistory(): void {
     if (this.historyView) column.show({ view: 'list' })
+  }
+
+  openRetro(): void {
+    this.spaceTree = false
+    this.docsLabel = null
+    this.focusAuthor = null
+    column.show({ view: 'retro' })
+  }
+
+  closeRetro(): void {
+    if (this.retroView) column.show({ view: 'list' })
   }
 
   /** Narrow every document screen to one label, or clear it (null). */

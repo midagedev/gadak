@@ -189,6 +189,9 @@ describe('registry matches previous keymap contracts', () => {
       'close-feed',
       'close-dashboard',
       'close-history',
+      // GDK-1660: the weekly retro is a column view like history; its Esc
+      // sits between history and docs, same when-chain shape.
+      'close-retro',
       'close-docs',
     ])
   })

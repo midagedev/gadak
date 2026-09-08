@@ -1644,6 +1644,11 @@ export const settings = {
     ko: '히스토리 열기',
     ja: '履歴を開く',
   },
+  'palette.openRetro': {
+    en: 'Weekly retro',
+    ko: '주간 회고',
+    ja: '週次ふりかえり',
+  },
   'palette.actionDocs': {
     en: 'Open documents',
     ko: '문서 열기',

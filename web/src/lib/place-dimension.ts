@@ -30,6 +30,7 @@ export const PLACE_DIMENSION = {
   dash: 'column',
   docs: 'column',
   hist: 'column',
+  retro: 'column',
   space: 'column',
   feed: 'column',
   issue: 'panel',
@@ -68,6 +69,7 @@ export const COLUMN_PARAM = {
   dash: 'dash',
   docs: 'docs',
   hist: 'hist',
+  retro: 'retro',
   space: 'space',
   feed: 'feed',
 } as const satisfies { readonly [K in ColumnParamKey]: K }
@@ -96,7 +98,7 @@ export function placeDimension(key: string): PlaceDimension {
 /**
  * What an `open` hash does to the main column.
  *
- *  1. `column` — names a column param (`dash`, `docs`, `hist`, `space`,
+ *  1. `column` — names a column param (`dash`, `docs`, `hist`, `retro`, `space`,
  *     `feed`) → that view takes the column.
  *  2. `panel` — names *only* panel params (`issue`, `doc`, `person`) → the
  *     column is untouched; only the panel opens.

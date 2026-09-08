@@ -144,11 +144,13 @@ export interface GlobalKeyHost {
   }
   pages: {
     historyView: boolean
+    retroView: boolean
     open: boolean
     selectedKey: string | null
     clear: () => void
     closeDocs: () => void
     closeHistory: () => void
+    closeRetro: () => void
   }
   person: { selectedEmail: string | null; clear: () => void }
   bulk: { active: boolean; clear: () => void; toggle: (key: string) => void }
@@ -184,6 +186,7 @@ function contextFromEvent(e: KeyboardEvent, host: GlobalKeyHost): KeyContext {
     terminalOverlayOpen: host.terminalOverlayOpen,
     keyFromTerminalHost: fromTerminalHost(e.target),
     historyView: host.pages.historyView,
+    retroView: host.pages.retroView,
     docsOpen: host.pages.open,
     listActive: host.triage.listActive,
     cursorKey: host.triage.cursorKey,
@@ -329,6 +332,10 @@ function dispatchKeyCommand(e: KeyboardEvent, cmd: KeyCommand, host: GlobalKeyHo
     case 'close-history':
       e.preventDefault()
       host.pages.closeHistory()
+      return
+    case 'close-retro':
+      e.preventDefault()
+      host.pages.closeRetro()
       return
     case 'close-dashboard':
       e.preventDefault()

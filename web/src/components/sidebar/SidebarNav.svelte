@@ -115,6 +115,7 @@
   const mainColumnIsList = $derived(
     !(feature('feed') && me.feedOpen) &&
       !pages.historyView &&
+      !pages.retroView &&
       !pages.docsView &&
       dashboards.openId === null,
   )

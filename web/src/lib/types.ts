@@ -78,6 +78,15 @@ export interface IssueLite {
   components: string[]
 
   team_group: string | null
+  /** The issue's sprint as the mirror projects it (GDK-518): the id and name
+   *  of the sprint it sits in and that sprint's state, lowercase
+   *  `active|future|closed`; null when the issue is in no sprint or the
+   *  origin has none. Older caches omit them. The state is re-derived from
+   *  the `sprints` table on every tick (GDK-1661), so it is current even when
+   *  the issue itself did not change. */
+  sprint_id?: number | null
+  sprint_name?: string | null
+  sprint_state?: string | null
   /** Nearest epic (hierarchy level 1) ancestor, derived server-side. Null when none. */
   epic_key: string | null
   /** Direct parent issue, which is the epic only when the parent happens to be one. */
@@ -527,6 +536,38 @@ export interface HistoryPage {
   next_cursor?: string
 }
 
+/* ── Weekly retro (GDK-1660) ── */
+
+/** One ISO week of the retro, keys verbatim from internal/retro/retro.go
+ *  BucketJSON — the row names the CLI table prints, spaces included. */
+export interface RetroBucket {
+  from: string
+  to: string
+  partial: boolean
+  sessions: number
+  'resume (median)': number | null
+  'wip age p85': number | null
+  'wip age max': number | null
+  'in progress': number | null
+  closed: number | null
+  'cycle p50': number | null
+  'cycle p85': number | null
+  mismatch: number
+  keys: {
+    closed: string[]
+    'in progress': string[]
+    mismatch: string[]
+    cycle: string[]
+    keys_truncated?: boolean
+  }
+}
+
+export interface RetroDoc {
+  buckets: RetroBucket[]
+  /** Definition sentence per metric row name, the footer `gadak retro` prints. */
+  definitions: Record<string, string>
+}
+
 /* ── Mirrored wiki pages (docs) ── */
 
 /** One mirrored wiki page, without body. Sidebar rows and search hits use this. */
@@ -941,4 +982,21 @@ export interface CacheMeta {
   sync_health?: SyncHealth
   field_specs?: FieldSpec[] // Discovered custom fields (absent in older caches)
   field_usage?: Record<string, Record<string, number>>
+}
+
+/** One sprint as the mirror holds it — `GET /api/v1/issues/sprints/`
+ *  (GDK-1656), the same rows `gadak sprint list` prints: active first, then
+ *  future, then closed. `state` is lowercase; dates are RFC3339 or absent. */
+export interface SprintRow {
+  id: number
+  board_id: number
+  name: string
+  goal: string
+  state: 'active' | 'future' | 'closed' | string
+  start_at?: string
+  end_at?: string
+  issues: number
+}
+export interface SprintsResponse {
+  sprints: SprintRow[]
 }

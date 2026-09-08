@@ -19,7 +19,7 @@ func TestSprintStateEmitsItsOwnFunction(t *testing.T) {
 		{[]string{"nonsense"}, ""},
 		{nil, ""},
 	} {
-		if got := sprintStateClause(tc.states); got != tc.want {
+		if got := sprintStateClause(tc.states, false); got != tc.want {
 			t.Errorf("%v: got %q, want %q", tc.states, got, tc.want)
 		}
 	}

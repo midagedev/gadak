@@ -31,6 +31,11 @@ const READ_PATH: { name: string; file: string; comment: string }[] = [
     comment: 'GET history/ is a local.db read',
   },
   {
+    name: 'retro',
+    file: join(WEB_SRC, 'components/retro/RetroView.svelte'),
+    comment: 'GET retro/ computes over the mirror and local.db; sibling column of history (GDK-1660)',
+  },
+  {
     name: 'feed',
     file: join(WEB_SRC, 'components/personal/PersonalFeed.svelte'),
     comment: 'GET feed/ is a local mirror read; sibling column of history',

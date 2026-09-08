@@ -214,3 +214,19 @@ func newID() string {
 	}
 	return hex.EncodeToString(b)
 }
+
+// handleSprints lists the mirror's sprints — active first, then future, then
+// closed — with the count of issues in each (store.Sprints). The list is what
+// `gadak sprint list` prints; the web's board scope and Sprint axis are its
+// other two readers (GDK-1656). Empty on an origin with no sprints.
+func (s *server) handleSprints(w http.ResponseWriter, r *http.Request) {
+	list, err := s.db.Sprints(r.Context())
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
+	if list == nil {
+		list = []store.SprintRowWithCount{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"sprints": list})
+}

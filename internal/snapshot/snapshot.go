@@ -24,6 +24,10 @@ type Options struct {
 	Seed   int64         // reserved for determinism; algorithm itself is seed-stable
 	Force  bool
 	Now    time.Time
+	// DeriveSprints invents a sprint history from fix versions named
+	// "Sprint N" (the demo fixture's convention) when the source has no
+	// sprints of its own — see deriveSprints (GDK-1656).
+	DeriveSprints bool
 }
 
 // Result is the human-readable summary of a successful Build.

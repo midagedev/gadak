@@ -117,7 +117,13 @@ func Emit(f Filter, d Display, opts EmitOpts) (string, []string) {
 	if len(f.SprintIDs) > 0 {
 		parts = append(parts, inClause("sprint", f.SprintIDs))
 	}
-	if c := sprintStateClause(f.SprintState); c != "" {
+	if len(f.SprintIDsNot) > 0 {
+		parts = append(parts, notInClause("sprint", f.SprintIDsNot))
+	}
+	if c := sprintStateClause(f.SprintState, false); c != "" {
+		parts = append(parts, c)
+	}
+	if c := sprintStateClause(f.SprintStateNot, true); c != "" {
 		parts = append(parts, c)
 	}
 	parts = append(parts, dateClause("created", f.CreatedFrom, f.CreatedTo)...)
@@ -277,21 +283,36 @@ func isReserved(s string) bool {
 // for every value, as this did, meant a `closed` filter asked for exactly
 // the opposite set. A value with no function is refused by emitting nothing
 // rather than by guessing.
-func sprintStateClause(states []string) string {
+func sprintStateClause(states []string, negate bool) string {
 	fn := map[string]string{
 		"active": "openSprints()",
 		"future": "futureSprints()",
 		"closed": "closedSprints()",
 	}
+	in, empty, join := "sprint in ", "sprint is EMPTY", " OR "
+	if negate {
+		// The twin: every excluded state is a NOT IN, ANDed — the same shape
+		// the other negation axes emit.
+		in, empty, join = "sprint not in ", "sprint is not EMPTY", " AND "
+	}
 	seen := map[string]bool{}
 	var clauses []string
 	for _, st := range states {
-		f, ok := fn[strings.ToLower(strings.TrimSpace(st))]
+		st = strings.ToLower(strings.TrimSpace(st))
+		if st == SprintStateNone {
+			// The backlog: no sprint at all (GDK-1656).
+			if !seen[st] {
+				seen[st] = true
+				clauses = append(clauses, empty)
+			}
+			continue
+		}
+		f, ok := fn[st]
 		if !ok || seen[f] {
 			continue
 		}
 		seen[f] = true
-		clauses = append(clauses, "sprint in "+f)
+		clauses = append(clauses, in+f)
 	}
 	switch len(clauses) {
 	case 0:
@@ -299,6 +320,6 @@ func sprintStateClause(states []string) string {
 	case 1:
 		return clauses[0]
 	default:
-		return "(" + strings.Join(clauses, " OR ") + ")"
+		return "(" + strings.Join(clauses, join) + ")"
 	}
 }

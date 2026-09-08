@@ -19,6 +19,7 @@
   import { bulk } from './stores/bulk.svelte'
   import { triage } from './stores/triage.svelte'
   import { dashboards } from './stores/dashboards.svelte'
+  import { sprints } from './stores/sprints.svelte'
   import { pushHash, router } from './lib/router.svelte'
   import { bindParam, bindParams } from './lib/url-sync.svelte'
   import { createGlobalKeyHandler } from './lib/keymap.svelte'
@@ -64,6 +65,7 @@
   import DashboardView from './components/dashboard/DashboardView.svelte'
   import SpaceDocsView from './components/docs/SpaceDocsView.svelte'
   import HistoryView from './components/history/HistoryView.svelte'
+  import RetroView from './components/retro/RetroView.svelte'
   import NewIssueDialog from './components/write/NewIssueDialog.svelte'
   import QuickComment from './components/write/QuickComment.svelte'
   import JiraKeySettings from './components/write/JiraKeySettings.svelte'
@@ -149,6 +151,8 @@
     pages.openDocs()
   } else if (router.params.get(COLUMN_PARAM.hist) === '1') {
     pages.openHistory()
+  } else if (router.params.get(COLUMN_PARAM.retro) === '1') {
+    pages.openRetro()
   } else if (initialDocKey) {
     /*
      * A link to a page with nothing behind it lands on the document screen, not
@@ -212,6 +216,14 @@
     }
   }
 
+  // Sprints move with the mirror, not with the issues on screen: a sprint
+  // closed by `gadak sprint close` changes no issue this tab holds, so the
+  // list is re-read whenever a sync advances the mirror (GDK-1656).
+  $effect(() => {
+    void issues.lastSync
+    void sprints.load()
+  })
+
   onMount(() => {
     const unbindPalette = bindPaletteOpener(() => {
       paletteOpen = true
@@ -223,6 +235,7 @@
     void issues.init()
     void me.init()
     void pages.init() // Sidebar DOCS section; hides itself when the mirror has none
+    void sprints.load() // Board sprint scope + Sprint axis; empty list hides the scope
     dashboards.init() // Sidebar dashboards section; empty list hides it
     void adoptRunningSync() // A sync the server started (settings write, CLI) is still ours to show
     void write.loadWriteMeta() // Prefetch write meta (parallel with issues.init)
@@ -597,7 +610,7 @@
   // inside a space, so a pass that saw them one at a time would be reading a
   // half-applied screen.
   bindParams({
-    params: ['space', 'docs', 'dview', 'hist'],
+    params: ['space', 'docs', 'dview', 'hist', 'retro'],
     read: () => ({
       space: pages.spaceView,
       docs: pages.docsView ? '1' : null,
@@ -605,8 +618,9 @@
       // an address carrying `dview` alone would say nothing.
       dview: pages.spaceView && pages.spaceTree ? 'tree' : null,
       hist: pages.historyView ? '1' : null,
+      retro: pages.retroView ? '1' : null,
     }),
-    write: ({ space, docs, dview, hist }) => {
+    write: ({ space, docs, dview, hist, retro }) => {
       // One address, one column: each branch is a show onto the union, so
       // the URL can never stack two screens (GDK-821) — the direct-flag
       // writes this used to make are the writes the union took over.
@@ -617,6 +631,8 @@
         pages.openDocs()
       } else if (hist === '1') {
         pages.openHistory()
+      } else if (retro === '1') {
+        pages.openRetro()
       } else {
         pages.closeDocs()
       }
@@ -856,6 +872,8 @@
           <DashboardView />
         {:else if pages.historyView}
           <HistoryView />
+        {:else if pages.retroView}
+          <RetroView />
         {:else if pages.spaceView !== null}
           <SpaceDocsView space={pages.spaceView} />
         {:else if pages.docsView}

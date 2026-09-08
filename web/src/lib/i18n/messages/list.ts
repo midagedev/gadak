@@ -678,6 +678,37 @@ export const list = {
     ko: '보드',
     ja: 'ボード',
   },
+  // The board's sprint scope (GDK-1656).
+  'board.scopeLabel': {
+    en: 'Sprint scope',
+    ko: '스프린트 범위',
+    ja: 'スプリントの範囲',
+  },
+  'board.scopeActive': {
+    en: 'Active sprint',
+    ko: '진행 중 스프린트',
+    ja: '進行中のスプリント',
+  },
+  'board.scopeBacklog': {
+    en: 'Backlog',
+    ko: '백로그',
+    ja: 'バックログ',
+  },
+  'board.scopeBacklogHint': {
+    en: 'Issues in no sprint',
+    ko: '어느 스프린트에도 없는 이슈',
+    ja: 'どのスプリントにも入っていない課題',
+  },
+  'board.scopeAll': {
+    en: 'All',
+    ko: '전체',
+    ja: 'すべて',
+  },
+  'board.scopeEnds': {
+    en: 'ends {date}',
+    ko: '{date} 종료',
+    ja: '{date} に終了',
+  },
   'board.columnEmpty': {
     en: 'Nothing here',
     ko: '비어 있음',

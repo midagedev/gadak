@@ -706,11 +706,13 @@ func TestSprintEqualsAndInAndOpenSprints(t *testing.T) {
 // writing them (GDK-1216): a filter gadak emits and cannot read back is a
 // filter that vanishes on the next round trip, which
 // TestSprintStateRoundTrips below is the FAIL-first for. Sprint by display
-// name and `!=` stay unsupported — those are not derivable.
+// name stays unsupported — not derivable. (`sprint != 12` left this list on
+// 2026-09-09 with GDK-1656: the web gives every visible multi axis a
+// negation twin, so `!=` / `not in` now land on sprint_ids_not —
+// TestSprintNegationTwinsRoundTrip is that contract.)
 func TestSprintNameAndClosedStayUnsupported(t *testing.T) {
 	for _, q := range []string{
 		`sprint = "Sprint 41"`,
-		`sprint != 12`,
 	} {
 		res := Parse(q, fixedOpts())
 		if len(res.Unsupported) == 0 {
@@ -1253,5 +1255,70 @@ func TestSprintStateRoundTrips(t *testing.T) {
 				t.Fatalf("%v emitted %q, parsed back as %v (missing %s)", states, q, got, want)
 			}
 		}
+	}
+}
+
+// GDK-1656: the board's backlog scope is "issues in no sprint". The filter
+// word is sprint_state=none (the row's column is empty there), JQL spells it
+// `sprint is EMPTY`, and the two round-trip. FAIL-first on the unmodified
+// tree: Match treated "none" as a state no row carries (0 rows), Emit dropped
+// it, and Parse refused `sprint is EMPTY` as not in the subset.
+func TestSprintStateNoneIsTheBacklog(t *testing.T) {
+	f := Filter{SprintState: []string{SprintStateNone}}
+	inSprint := Issue{Key: "NMB-1", SprintID: "7", SprintState: "active"}
+	noSprint := Issue{Key: "NMB-2"}
+	if Match(inSprint, f) {
+		t.Error("none matched an issue that is in a sprint")
+	}
+	if !Match(noSprint, f) {
+		t.Error("none did not match an issue in no sprint")
+	}
+	both := Filter{SprintState: []string{SprintStateNone, "active"}}
+	if !Match(inSprint, both) || !Match(noSprint, both) {
+		t.Error("none OR active must select both")
+	}
+	emitted, omitted := Emit(f, Display{}, EmitOpts{})
+	if emitted != "sprint is EMPTY" || len(omitted) != 0 {
+		t.Errorf("emit = %q (omitted %v), want sprint is EMPTY", emitted, omitted)
+	}
+	back := Parse(emitted, fixedOpts())
+	if len(back.Unsupported) != 0 || len(back.Filters.SprintState) != 1 || back.Filters.SprintState[0] != SprintStateNone {
+		t.Errorf("parse(%q) = %+v / unsupported %v, want sprint_state [none]", emitted, back.Filters.SprintState, back.Unsupported)
+	}
+	if e, _ := Emit(both, Display{}, EmitOpts{}); e != "(sprint is EMPTY OR sprint in openSprints())" {
+		t.Errorf("emit both = %q", e)
+	}
+}
+
+// The sprint axes' negation twins (the web gives every visible multi axis a
+// ⊘ — GDK-771 — so the JSON contract carries them too): `sprint not in`,
+// `sprint not in openSprints()`, `sprint is not EMPTY` each round-trip.
+func TestSprintNegationTwinsRoundTrip(t *testing.T) {
+	for _, tc := range []struct{ jql, wantIDs, wantStates string }{
+		{`sprint not in ("12", "13")`, "12,13", ""},
+		{"sprint not in openSprints()", "", "active"},
+		{"sprint is not EMPTY", "", "none"},
+	} {
+		res := Parse(tc.jql, fixedOpts())
+		if len(res.Unsupported) != 0 {
+			t.Fatalf("%s: unsupported %v", tc.jql, res.Unsupported)
+		}
+		if got := strings.Join(res.Filters.SprintIDsNot, ","); got != tc.wantIDs {
+			t.Errorf("%s: sprint_ids_not = %q, want %q", tc.jql, got, tc.wantIDs)
+		}
+		if got := strings.Join(res.Filters.SprintStateNot, ","); got != tc.wantStates {
+			t.Errorf("%s: sprint_state_not = %q, want %q", tc.jql, got, tc.wantStates)
+		}
+		emitted, _ := Emit(res.Filters, Display{}, EmitOpts{})
+		if emitted != tc.jql {
+			t.Errorf("emit(parse(%q)) = %q", tc.jql, emitted)
+		}
+	}
+	f := Filter{SprintStateNot: []string{"active"}}
+	if Match(Issue{Key: "NMB-1", SprintState: "active"}, f) || !Match(Issue{Key: "NMB-2"}, f) {
+		t.Error("sprint_state_not=active must drop active rows and keep the rest")
+	}
+	if h := Hash(Filter{SprintIDsNot: []string{"7"}, SprintStateNot: []string{"none"}}, Display{}); !strings.Contains(h, "sidn=7") || !strings.Contains(h, "sstn=none") {
+		t.Errorf("hash %q", h)
 	}
 }

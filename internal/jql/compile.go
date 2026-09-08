@@ -621,7 +621,21 @@ func (c *compiler) compileParent(cl *clause) {
 }
 
 func (c *compiler) compileSprint(cl *clause) {
-	if cl.op != opEq && cl.op != opIn {
+	// The backlog — issues in no sprint (GDK-1656). The filter word is
+	// SprintStateNone; emit writes it back as this clause, and the twin
+	// (`is not EMPTY`) lands on the negation axis.
+	if cl.op == opIsEmpty {
+		c.f.SprintState = mergeUnique(c.f.SprintState, []string{SprintStateNone})
+		c.mark("sprint")
+		return
+	}
+	if cl.op == opIsNotEmpty {
+		c.f.SprintStateNot = mergeUnique(c.f.SprintStateNot, []string{SprintStateNone})
+		c.mark("sprint")
+		return
+	}
+	neg := cl.op == opNotIn || cl.op == opNeq
+	if cl.op != opEq && cl.op != opIn && !neg {
 		c.skip(cl.render() + " (not in the subset)")
 		return
 	}
@@ -634,7 +648,7 @@ func (c *compiler) compileSprint(cl *clause) {
 			// (GDK-1216). emit.go writes all three; refusing to read two of
 			// them made a round trip through gadak lose the filter.
 			st := sprintFuncState(v.funcName)
-			if st != "" && len(v.args) == 0 && cl.op == opIn {
+			if st != "" && len(v.args) == 0 && (cl.op == opIn || cl.op == opNotIn) {
 				states = append(states, st)
 				continue
 			}
@@ -656,12 +670,21 @@ func (c *compiler) compileSprint(cl *clause) {
 		return
 	}
 	if len(states) > 0 {
-		c.f.SprintState = mergeUnique(c.f.SprintState, states)
+		if neg {
+			c.f.SprintStateNot = mergeUnique(c.f.SprintStateNot, states)
+		} else {
+			c.f.SprintState = mergeUnique(c.f.SprintState, states)
+		}
 		c.mark("sprint")
 		return
 	}
 	if len(ids) == 0 {
 		c.skip(cl.render() + " (not in the subset)")
+		return
+	}
+	if neg {
+		c.f.SprintIDsNot = mergeUnique(c.f.SprintIDsNot, ids)
+		c.mark("sprint")
 		return
 	}
 	if c.seenIncludeAND["sprint"] {

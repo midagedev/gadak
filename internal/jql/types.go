@@ -42,7 +42,9 @@ type Filter struct {
 	Keys              []string            `json:"keys"`
 	Parent            []string            `json:"parent"`
 	SprintIDs         []string            `json:"sprint_ids"`
+	SprintIDsNot      []string            `json:"sprint_ids_not"`
 	SprintState       []string            `json:"sprint_state"`
+	SprintStateNot    []string            `json:"sprint_state_not"`
 	Fields            map[string][]string `json:"fields"`
 	Reopened          bool                `json:"reopened"`
 	Unassigned        bool                `json:"unassigned"`
