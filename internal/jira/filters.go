@@ -33,7 +33,7 @@ func (c *Client) MyFilters(ctx context.Context) ([]SavedFilter, error) {
 	q := url.Values{}
 	q.Set("includeFavourites", "true")
 	q.Set("expand", "jql,owner,favourite")
-	path := apiPath + "/filter/my?" + q.Encode()
+	path := c.apiBase + "/filter/my?" + q.Encode()
 	var raw json.RawMessage
 	if err := c.do(ctx, http.MethodGet, path, nil, &raw); err != nil {
 		return nil, err

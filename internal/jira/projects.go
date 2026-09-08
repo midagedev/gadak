@@ -29,7 +29,7 @@ func (c *Client) Projects(ctx context.Context, limit int) (list []Project, trunc
 			IsLast bool      `json:"isLast"`
 			Total  int       `json:"total"`
 		}
-		p := fmt.Sprintf("%s/project/search?startAt=%d&maxResults=50&orderBy=key", apiPath, startAt)
+		p := fmt.Sprintf("%s/project/search?startAt=%d&maxResults=50&orderBy=key", c.apiBase, startAt)
 		if err := c.do(ctx, http.MethodGet, p, nil, &page); err != nil {
 			return nil, false, err
 		}

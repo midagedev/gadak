@@ -1,5 +1,7 @@
-// Package jira is the Atlassian Cloud REST client: read paths plus
-// user-initiated writes.
+// Package jira is the Jira REST client for every origin that speaks the Jira
+// REST shape: Atlassian Cloud (v3), Jira Server / Data Center (v2, GDK-1636),
+// and the built-in tracker, which implements the Cloud v3 shape and is driven
+// through the same client. Read paths plus user-initiated writes.
 //
 // The token lives only in the Authorization header. It is never put in an error,
 // a log line or a URL (constitution article 8), which is why transport reports
@@ -20,7 +22,14 @@ import (
 	"github.com/midagedev/gadak/internal/statuscat"
 )
 
-const apiPath = "/rest/api/3"
+// The two REST dialects this package speaks. Which one a Client uses is
+// decided by its constructor, not by a package constant: Cloud and the
+// built-in tracker serve v3, Jira Server / Data Center serves v2 and has no
+// v3 at all — it answers a v3 route with 401, not 404 (GDK-1636).
+const (
+	apiV3 = "/rest/api/3"
+	apiV2 = "/rest/api/2"
+)
 
 // ErrAuth is the Jira-named rejected credential. It unwraps to
 // atlhttp.ErrAuth so Watch detects it without a per-source branch.
@@ -28,13 +37,18 @@ const apiPath = "/rest/api/3"
 // Callers keep using errors.Is(err, jira.ErrAuth).
 var ErrAuth = atlhttp.Auth("jira")
 
-// Client talks to one Atlassian Cloud site over REST. The credential is held
+// Client talks to one Jira REST origin over HTTP. The credential is held
 // only as an Authorization header value; it is never copied into an error, a
 // log line, or a URL. Retries and Backoff apply to reads; writes use a
 // narrower policy (see write).
 type Client struct {
 	base string
 	auth string
+	// apiBase is the REST path prefix this origin serves: apiV3 for Cloud
+	// and the built-in tracker, apiV2 for Jira Server / Data Center
+	// (GDK-1636). The endpoints whose v2 shape differs by more than the
+	// version number branch on serverDialect, inside this package, once.
+	apiBase string
 
 	HTTP *http.Client
 	// Retries is the total number of attempts per request; Backoff is the first
@@ -81,6 +95,7 @@ func New(site, email, token string) *Client {
 	return &Client{
 		base:                strings.TrimRight(site, "/"),
 		auth:                "Basic " + base64.StdEncoding.EncodeToString([]byte(email+":"+token)),
+		apiBase:             apiV3,
 		HTTP:                &http.Client{Timeout: httppolicy.DefaultTimeout},
 		Retries:             DefaultRetries,
 		Backoff:             DefaultBackoff,
@@ -100,6 +115,7 @@ func NewServer(base, token string) *Client {
 	return &Client{
 		base:                strings.TrimRight(base, "/"),
 		auth:                "Bearer " + token,
+		apiBase:             apiV2,
 		HTTP:                &http.Client{Timeout: httppolicy.DefaultTimeout},
 		Retries:             DefaultRetries,
 		Backoff:             DefaultBackoff,
@@ -118,11 +134,19 @@ func NewServer(base, token string) *Client {
 func NewAnonymous(base string) *Client {
 	return &Client{
 		base:    strings.TrimRight(base, "/"),
+		apiBase: apiV3,
 		HTTP:    &http.Client{Timeout: httppolicy.DefaultTimeout},
 		Retries: DefaultRetries,
 		Backoff: DefaultBackoff,
 	}
 }
+
+// serverDialect reports whether this client speaks Jira Server / Data
+// Center REST, where several endpoints differ by more than the version
+// number (GDK-1636). Derived from apiBase rather than kept as a second
+// flag: only NewServer builds a v2 client, so the prefix is the dialect —
+// and the branch stays at path construction instead of leaking to callers.
+func (c *Client) serverDialect() bool { return c.apiBase == apiV2 }
 
 // BaseURL is the site origin, used to build deep links.
 func (c *Client) BaseURL() string { return c.base }
@@ -180,29 +204,54 @@ type searchPage struct {
 	Issues        []Issue `json:"issues"`
 	NextPageToken string  `json:"nextPageToken"`
 	IsLast        bool    `json:"isLast"`
+	// Total is Server's pagination field: its POST /search carries no
+	// nextPageToken, so the walk advances by startAt until it reaches the
+	// total (GDK-1636).
+	Total int `json:"total"`
+}
+
+// searchPath is the JQL search route. Cloud (and the built-in tracker, which
+// implements the Cloud shape) serves /search/jql; Jira Server has only the
+// classic /search (GDK-1636).
+func (c *Client) searchPath() string {
+	if c.serverDialect() {
+		return c.apiBase + "/search"
+	}
+	return c.apiBase + "/search/jql"
 }
 
 // Search pages a JQL query and calls fn once per page, which is what lets sync
 // commit page by page. Pagination is by nextPageToken: the legacy startAt search
-// is deprecated and drifts under concurrent writes.
+// is deprecated and drifts under concurrent writes. Server is the exception
+// (GDK-1636): it never adopted tokens, so its pages walk by startAt/total with
+// the same body.
 func (c *Client) Search(ctx context.Context, jql string, fields []string, withChangelog bool, fn func([]Issue) error) error {
 	token := ""
-	for {
+	for startAt := 0; ; {
 		body := map[string]any{"jql": jql, "maxResults": 100, "fields": fields}
 		if withChangelog {
 			body["expand"] = "changelog"
 		}
-		if token != "" {
+		if c.serverDialect() {
+			body["startAt"] = startAt
+		} else if token != "" {
 			body["nextPageToken"] = token
 		}
 		var page searchPage
-		if err := c.do(ctx, http.MethodPost, apiPath+"/search/jql", body, &page); err != nil {
+		if err := c.do(ctx, http.MethodPost, c.searchPath(), body, &page); err != nil {
 			return err
 		}
 		if len(page.Issues) > 0 {
 			if err := fn(page.Issues); err != nil {
 				return err
 			}
+		}
+		if c.serverDialect() {
+			startAt += len(page.Issues)
+			if len(page.Issues) == 0 || startAt >= page.Total {
+				return nil
+			}
+			continue
 		}
 		token = page.NextPageToken
 		if token == "" || page.IsLast {
@@ -214,11 +263,24 @@ func (c *Client) Search(ctx context.Context, jql string, fields []string, withCh
 // Count returns Jira's approximate issue count for a JQL. It exists only to give
 // progress output a denominator, so a failure is not the caller's problem:
 // callers treat any error as "unknown" and keep going.
+//
+// Server has no approximate-count route (GDK-1636); its dialect reads the
+// total of a zero-row /search instead. That is the Server answer, not a
+// retry against another version.
 func (c *Client) Count(ctx context.Context, jql string) (int, error) {
+	if c.serverDialect() {
+		var page struct {
+			Total int `json:"total"`
+		}
+		if err := c.do(ctx, http.MethodPost, c.apiBase+"/search", map[string]any{"jql": jql, "maxResults": 0}, &page); err != nil {
+			return 0, err
+		}
+		return page.Total, nil
+	}
 	var out struct {
 		Count int `json:"count"`
 	}
-	if err := c.do(ctx, http.MethodPost, apiPath+"/search/approximate-count", map[string]any{"jql": jql}, &out); err != nil {
+	if err := c.do(ctx, http.MethodPost, c.apiBase+"/search/approximate-count", map[string]any{"jql": jql}, &out); err != nil {
 		return 0, err
 	}
 	return out.Count, nil
@@ -234,7 +296,7 @@ func (c *Client) Changelog(ctx context.Context, key string) ([]History, error) {
 			Total  int       `json:"total"`
 			IsLast bool      `json:"isLast"`
 		}
-		p := fmt.Sprintf("%s/issue/%s/changelog?startAt=%d&maxResults=100", apiPath, url.PathEscape(key), startAt)
+		p := fmt.Sprintf("%s/issue/%s/changelog?startAt=%d&maxResults=100", c.apiBase, url.PathEscape(key), startAt)
 		if err := c.do(ctx, http.MethodGet, p, nil, &page); err != nil {
 			return nil, err
 		}
@@ -252,7 +314,7 @@ func (c *Client) Comments(ctx context.Context, key string) ([]Comment, error) {
 	out := []Comment{}
 	for startAt := 0; ; {
 		var page CommentPage
-		p := fmt.Sprintf("%s/issue/%s/comment?startAt=%d&maxResults=100", apiPath, url.PathEscape(key), startAt)
+		p := fmt.Sprintf("%s/issue/%s/comment?startAt=%d&maxResults=100", c.apiBase, url.PathEscape(key), startAt)
 		if err := c.do(ctx, http.MethodGet, p, nil, &page); err != nil {
 			return nil, err
 		}
@@ -275,7 +337,7 @@ func (c *Client) IssueStatus(ctx context.Context, key string) (Status, *User, er
 			Assignee *User  `json:"assignee"`
 		} `json:"fields"`
 	}
-	p := fmt.Sprintf("%s/issue/%s?fields=status,assignee", apiPath, url.PathEscape(key))
+	p := fmt.Sprintf("%s/issue/%s?fields=status,assignee", c.apiBase, url.PathEscape(key))
 	if err := c.do(ctx, http.MethodGet, p, nil, &out); err != nil {
 		return Status{}, nil, err
 	}
@@ -286,7 +348,7 @@ func (c *Client) IssueStatus(ctx context.Context, key string) (Status, *User, er
 // the derived-field rules need, because a changelog entry carries ids only.
 func (c *Client) Statuses(ctx context.Context) (map[string]string, error) {
 	var list []Status
-	if err := c.do(ctx, http.MethodGet, apiPath+"/status", nil, &list); err != nil {
+	if err := c.do(ctx, http.MethodGet, c.apiBase+"/status", nil, &list); err != nil {
 		return nil, err
 	}
 	out := make(map[string]string, len(list))
@@ -300,7 +362,7 @@ func (c *Client) Statuses(ctx context.Context) (map[string]string, error) {
 // the account language; writes should send the id.
 func (c *Client) PriorityCatalog(ctx context.Context) ([]NamedID, error) {
 	var list []NamedID
-	return list, c.do(ctx, http.MethodGet, apiPath+"/priority", nil, &list)
+	return list, c.do(ctx, http.MethodGet, c.apiBase+"/priority", nil, &list)
 }
 
 // Priorities returns the site's priority names, most urgent first, which is the
@@ -317,7 +379,7 @@ func (c *Client) Priorities(ctx context.Context) ([]string, error) {
 	return out, nil
 }
 
-// FieldInfo is one row from GET /rest/api/3/field — the site-wide field catalog.
+// FieldInfo is one row from GET /field — the site-wide field catalog.
 // Distinct from FieldMeta (editmeta for one issue); do not reuse that type here.
 type FieldInfo struct {
 	ID     string `json:"id"`
@@ -333,7 +395,7 @@ type FieldInfo struct {
 // Fields returns every system and custom field the site exposes to this user.
 func (c *Client) Fields(ctx context.Context) ([]FieldInfo, error) {
 	var list []FieldInfo
-	if err := c.do(ctx, http.MethodGet, apiPath+"/field", nil, &list); err != nil {
+	if err := c.do(ctx, http.MethodGet, c.apiBase+"/field", nil, &list); err != nil {
 		return nil, err
 	}
 	return list, nil

@@ -3,6 +3,7 @@ package jira
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -75,7 +76,7 @@ func apiError(method, path string, code int, status string, body []byte) error {
 // `PUT credential/` makes before storing a token.
 func (c *Client) Myself(ctx context.Context) (User, error) {
 	var u User
-	return u, c.do(ctx, http.MethodGet, apiPath+"/myself", nil, &u)
+	return u, c.do(ctx, http.MethodGet, c.apiBase+"/myself", nil, &u)
 }
 
 // TransitionField is the subset of a transition screen field the write path
@@ -107,7 +108,7 @@ func (c *Client) Transitions(ctx context.Context, key string) ([]Transition, err
 	var out struct {
 		Transitions []Transition `json:"transitions"`
 	}
-	p := fmt.Sprintf("%s/issue/%s/transitions?expand=transitions.fields", apiPath, url.PathEscape(key))
+	p := fmt.Sprintf("%s/issue/%s/transitions?expand=transitions.fields", c.apiBase, url.PathEscape(key))
 	return out.Transitions, c.do(ctx, http.MethodGet, p, nil, &out)
 }
 
@@ -127,7 +128,7 @@ func (c *Client) Transition(ctx context.Context, key, transitionID string, field
 			},
 		}
 	}
-	return c.write(ctx, http.MethodPost, fmt.Sprintf("%s/issue/%s/transitions", apiPath, url.PathEscape(key)), body, nil)
+	return c.write(ctx, http.MethodPost, fmt.Sprintf("%s/issue/%s/transitions", c.apiBase, url.PathEscape(key)), body, nil)
 }
 
 // ClaimResult is the answer from POST /issue/{key}/claim: who holds the
@@ -156,19 +157,19 @@ func (c *Client) Claim(ctx context.Context, key, transitionID string, takeOver b
 		TransitionID string `json:"transitionId"`
 		TakeOver     bool   `json:"takeOver"`
 	}{transitionID, takeOver}
-	p := fmt.Sprintf("%s/issue/%s/claim", apiPath, url.PathEscape(key))
+	p := fmt.Sprintf("%s/issue/%s/claim", c.apiBase, url.PathEscape(key))
 	err := c.write(ctx, http.MethodPost, p, body, &out)
 	return out, err
 }
 
-// Resolutions is GET /rest/api/3/resolution — the site catalog. Names are in
+// Resolutions is GET /resolution — the site catalog. Names are in
 // the account language; writes should send the id.
 func (c *Client) Resolutions(ctx context.Context) ([]NamedID, error) {
 	var list []NamedID
-	return list, c.do(ctx, http.MethodGet, apiPath+"/resolution", nil, &list)
+	return list, c.do(ctx, http.MethodGet, c.apiBase+"/resolution", nil, &list)
 }
 
-// Version is one row of GET /rest/api/3/project/{key}/versions. Writes send
+// Version is one row of GET /project/{key}/versions. Writes send
 // the id: names can be renamed on the site.
 type Version struct {
 	ID          string `json:"id"`
@@ -178,11 +179,11 @@ type Version struct {
 	ReleaseDate string `json:"releaseDate"`
 }
 
-// ProjectVersions is GET /rest/api/3/project/{key}/versions — the project's
+// ProjectVersions is GET /project/{key}/versions — the project's
 // version catalog. Names can be renamed; writes should send the id.
 func (c *Client) ProjectVersions(ctx context.Context, projectKey string) ([]Version, error) {
 	var list []Version
-	p := fmt.Sprintf("%s/project/%s/versions", apiPath, url.PathEscape(projectKey))
+	p := fmt.Sprintf("%s/project/%s/versions", c.apiBase, url.PathEscape(projectKey))
 	return list, c.do(ctx, http.MethodGet, p, nil, &list)
 }
 
@@ -201,7 +202,7 @@ func (c *Client) EnableNameCreatedVersions() {
 	c.nameCreatedVersions = true
 }
 
-// IssueLinkType is one row of GET /rest/api/3/issueLinkType. Names and
+// IssueLinkType is one row of GET /issueLinkType. Names and
 // inward/outward descriptions can be renamed and localized; writes send the id.
 type IssueLinkType struct {
 	ID      string `json:"id"`
@@ -210,15 +211,15 @@ type IssueLinkType struct {
 	Outward string `json:"outward"`
 }
 
-// IssueLinkTypes is GET /rest/api/3/issueLinkType — the site catalog.
+// IssueLinkTypes is GET /issueLinkType — the site catalog.
 func (c *Client) IssueLinkTypes(ctx context.Context) ([]IssueLinkType, error) {
 	var out struct {
 		IssueLinkTypes []IssueLinkType `json:"issueLinkTypes"`
 	}
-	return out.IssueLinkTypes, c.do(ctx, http.MethodGet, apiPath+"/issueLinkType", nil, &out)
+	return out.IssueLinkTypes, c.do(ctx, http.MethodGet, c.apiBase+"/issueLinkType", nil, &out)
 }
 
-// LinkIssues is POST /rest/api/3/issueLink. On an issue response, the issue
+// LinkIssues is POST /issueLink. On an issue response, the issue
 // at outwardIssue displays the type's inward description; inwardIssue displays
 // the outward description. 201/200 with an empty body is success.
 func (c *Client) LinkIssues(ctx context.Context, typeID, outwardKey, inwardKey string) error {
@@ -227,7 +228,7 @@ func (c *Client) LinkIssues(ctx context.Context, typeID, outwardKey, inwardKey s
 		"outwardIssue": map[string]string{"key": outwardKey},
 		"inwardIssue":  map[string]string{"key": inwardKey},
 	}
-	return c.write(ctx, http.MethodPost, apiPath+"/issueLink", body, nil)
+	return c.write(ctx, http.MethodPost, c.apiBase+"/issueLink", body, nil)
 }
 
 // IssueLinks is GET /issue/{key}?fields=issuelinks — the live projection,
@@ -239,14 +240,14 @@ func (c *Client) IssueLinks(ctx context.Context, key string) ([]IssueLink, error
 			IssueLinks []IssueLink `json:"issuelinks"`
 		} `json:"fields"`
 	}
-	err := c.do(ctx, http.MethodGet, apiPath+"/issue/"+url.PathEscape(key)+"?fields=issuelinks", nil, &out)
+	err := c.do(ctx, http.MethodGet, c.apiBase+"/issue/"+url.PathEscape(key)+"?fields=issuelinks", nil, &out)
 	return out.Fields.IssueLinks, err
 }
 
 // DeleteIssueLink is DELETE /issueLink/{id}. 204 with an empty body is
 // success; an unknown or already-removed id is a 404.
 func (c *Client) DeleteIssueLink(ctx context.Context, id string) error {
-	return c.write(ctx, http.MethodDelete, apiPath+"/issueLink/"+url.PathEscape(id), nil, nil)
+	return c.write(ctx, http.MethodDelete, c.apiBase+"/issueLink/"+url.PathEscape(id), nil, nil)
 }
 
 // AddComment posts an ADF body (not plain text). Mentions must already be
@@ -269,7 +270,7 @@ func (c *Client) AddComment(ctx context.Context, key string, adf json.RawMessage
 			},
 		}
 	}
-	return out, c.write(ctx, http.MethodPost, fmt.Sprintf("%s/issue/%s/comment", apiPath, url.PathEscape(key)), body, &out)
+	return out, c.write(ctx, http.MethodPost, fmt.Sprintf("%s/issue/%s/comment", c.apiBase, url.PathEscape(key)), body, &out)
 }
 
 // SetAssignee assigns or, with an empty id, unassigns. Jira distinguishes "no
@@ -280,14 +281,14 @@ func (c *Client) SetAssignee(ctx context.Context, key, accountID string) error {
 	if accountID != "" {
 		body["accountId"] = accountID
 	}
-	return c.write(ctx, http.MethodPut, fmt.Sprintf("%s/issue/%s/assignee", apiPath, url.PathEscape(key)), body, nil)
+	return c.write(ctx, http.MethodPut, fmt.Sprintf("%s/issue/%s/assignee", c.apiBase, url.PathEscape(key)), body, nil)
 }
 
 // UpdateFields sets raw field values. The caller is responsible for the shape
 // each field id expects, which EditMeta describes.
 func (c *Client) UpdateFields(ctx context.Context, key string, fields map[string]any) error {
 	body := map[string]any{"fields": fields}
-	return c.write(ctx, http.MethodPut, fmt.Sprintf("%s/issue/%s", apiPath, url.PathEscape(key)), body, nil)
+	return c.write(ctx, http.MethodPut, fmt.Sprintf("%s/issue/%s", c.apiBase, url.PathEscape(key)), body, nil)
 }
 
 // EditIssue PUTs /issue/{key} with fields and/or update. Either map may be
@@ -300,7 +301,7 @@ func (c *Client) EditIssue(ctx context.Context, key string, fields, update map[s
 	if len(update) > 0 {
 		body["update"] = update
 	}
-	return c.write(ctx, http.MethodPut, fmt.Sprintf("%s/issue/%s", apiPath, url.PathEscape(key)), body, nil)
+	return c.write(ctx, http.MethodPut, fmt.Sprintf("%s/issue/%s", c.apiBase, url.PathEscape(key)), body, nil)
 }
 
 // FieldMeta is one editable field as Jira describes it: what it accepts and, for
@@ -325,7 +326,7 @@ func (c *Client) EditMeta(ctx context.Context, key string) (map[string]FieldMeta
 	var out struct {
 		Fields map[string]FieldMeta `json:"fields"`
 	}
-	p := fmt.Sprintf("%s/issue/%s/editmeta", apiPath, url.PathEscape(key))
+	p := fmt.Sprintf("%s/issue/%s/editmeta", c.apiBase, url.PathEscape(key))
 	return out.Fields, c.do(ctx, http.MethodGet, p, nil, &out)
 }
 
@@ -334,7 +335,7 @@ func (c *Client) CreateIssue(ctx context.Context, fields map[string]any) (string
 	var out struct {
 		Key string `json:"key"`
 	}
-	return out.Key, c.write(ctx, http.MethodPost, apiPath+"/issue", map[string]any{"fields": fields}, &out)
+	return out.Key, c.write(ctx, http.MethodPost, c.apiBase+"/issue", map[string]any{"fields": fields}, &out)
 }
 
 // CreateMetaIssueType is one creatable issue type. Distinct from NamedID:
@@ -376,17 +377,73 @@ func (p CreateMetaProject) NamedTypes() []NamedID {
 	return out
 }
 
+// ErrServerCreateMetaScope is the named refusal when a Jira Server / Data
+// Center client is asked for create metadata without a project scope
+// (GDK-1636): the bulk createmeta Cloud serves is gone there, and the
+// per-project route has nothing to ask without a key. A Cloud client with
+// no scope still gets the site-wide list.
+var ErrServerCreateMetaScope = errors.New("jira: Jira Server lists create metadata per project only — configure this workspace's projects")
+
 // CreateMeta lists what can be created. Restricted to the configured projects:
 // the site-wide answer is large and most of it is unreachable from this UI.
 func (c *Client) CreateMeta(ctx context.Context, projects []string) ([]CreateMetaProject, error) {
+	if c.serverDialect() {
+		return c.createMetaServer(ctx, projects)
+	}
 	var out struct {
 		Projects []CreateMetaProject `json:"projects"`
 	}
-	p := apiPath + "/issue/createmeta"
+	p := c.apiBase + "/issue/createmeta"
 	if len(projects) > 0 {
 		p += "?projectKeys=" + url.QueryEscape(strings.Join(projects, ","))
 	}
 	return out.Projects, c.do(ctx, http.MethodGet, p, nil, &out)
+}
+
+// createMetaServer is Server's createmeta (GDK-1636): the bulk route is gone,
+// so each configured project is asked on its own
+// /issue/createmeta/{projectIdOrKey}/issuetypes route and the pages are
+// flattened into the same []CreateMetaProject every caller consumes. The
+// route returns no project name — Key is the identity callers key on, and
+// inventing a name here would be a display value the origin never sent.
+func (c *Client) createMetaServer(ctx context.Context, projects []string) ([]CreateMetaProject, error) {
+	if len(projects) == 0 {
+		return nil, ErrServerCreateMetaScope
+	}
+	out := make([]CreateMetaProject, 0, len(projects))
+	for _, key := range projects {
+		types, err := c.createMetaIssueTypes(ctx, key)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, CreateMetaProject{Key: key, IssueTypes: types})
+	}
+	return out, nil
+}
+
+// createMetaIssueTypes pages one project's creatable issue types out of
+// Server's values envelope ({maxResults,startAt,total,isLast,values}).
+func (c *Client) createMetaIssueTypes(ctx context.Context, project string) ([]CreateMetaIssueType, error) {
+	out := []CreateMetaIssueType{}
+	for startAt := 0; ; {
+		var page struct {
+			MaxResults int                   `json:"maxResults"`
+			StartAt    int                   `json:"startAt"`
+			Total      int                   `json:"total"`
+			IsLast     bool                  `json:"isLast"`
+			Values     []CreateMetaIssueType `json:"values"`
+		}
+		p := fmt.Sprintf("%s/issue/createmeta/%s/issuetypes?startAt=%d&maxResults=100",
+			c.apiBase, url.PathEscape(project), startAt)
+		if err := c.do(ctx, http.MethodGet, p, nil, &page); err != nil {
+			return nil, err
+		}
+		out = append(out, page.Values...)
+		startAt += len(page.Values)
+		if len(page.Values) == 0 || page.IsLast || startAt >= page.Total {
+			return out, nil
+		}
+	}
 }
 
 // CreateFieldMeta is one field Jira lists at create time. Distinct from
@@ -412,24 +469,31 @@ type CreateFieldMeta struct {
 
 // CreateFields pages GET /issue/createmeta/{project}/issuetypes/{type}.
 // The expand=projects.issuetypes.fields form is the discarded path; this is
-// the current Cloud list (fields[], startAt/maxResults/total).
+// the current Cloud list (fields[], startAt/maxResults/total). Server serves
+// the same route with the v2 createmeta family's values envelope (GDK-1636);
+// the row shape inside it is the fieldId list Cloud returns.
 func (c *Client) CreateFields(ctx context.Context, projectIDOrKey, issueTypeID string) ([]CreateFieldMeta, error) {
 	out := []CreateFieldMeta{}
 	for startAt := 0; ; {
 		var page struct {
 			Fields     []CreateFieldMeta `json:"fields"`
+			Values     []CreateFieldMeta `json:"values"`
 			Total      int               `json:"total"`
 			MaxResults int               `json:"maxResults"`
 			StartAt    int               `json:"startAt"`
 		}
 		p := fmt.Sprintf("%s/issue/createmeta/%s/issuetypes/%s?startAt=%d&maxResults=50",
-			apiPath, url.PathEscape(projectIDOrKey), url.PathEscape(issueTypeID), startAt)
+			c.apiBase, url.PathEscape(projectIDOrKey), url.PathEscape(issueTypeID), startAt)
 		if err := c.do(ctx, http.MethodGet, p, nil, &page); err != nil {
 			return nil, err
 		}
-		out = append(out, page.Fields...)
-		startAt += len(page.Fields)
-		if len(page.Fields) == 0 || startAt >= page.Total {
+		rows := page.Fields
+		if c.serverDialect() {
+			rows = page.Values
+		}
+		out = append(out, rows...)
+		startAt += len(rows)
+		if len(rows) == 0 || startAt >= page.Total {
 			return out, nil
 		}
 	}
@@ -439,7 +503,7 @@ func (c *Client) CreateFields(ctx context.Context, projectIDOrKey, issueTypeID s
 // matches; there is no local user table to search.
 func (c *Client) SearchUsers(ctx context.Context, query string) ([]User, error) {
 	var out []User
-	p := fmt.Sprintf("%s/user/search?query=%s&maxResults=20", apiPath, url.QueryEscape(query))
+	p := fmt.Sprintf("%s/user/search?query=%s&maxResults=20", c.apiBase, url.QueryEscape(query))
 	return out, c.do(ctx, http.MethodGet, p, nil, &out)
 }
 
@@ -494,7 +558,7 @@ func (c *Client) Upload(ctx context.Context, key, filename string, file io.Reade
 		pw.CloseWithError(mw.Close())
 	}()
 
-	p := fmt.Sprintf("%s/issue/%s/attachments", apiPath, url.PathEscape(key))
+	p := fmt.Sprintf("%s/issue/%s/attachments", c.apiBase, url.PathEscape(key))
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+p, pr)
 	if err != nil {
 		return nil, err
@@ -529,6 +593,13 @@ func (c *Client) Upload(ctx context.Context, key, filename string, file io.Reade
 // `/file/<uuid>/binary` (or `/file/<uuid>/artifact/...`).
 var mediaIDPattern = regexp.MustCompile(`/file/([0-9a-fA-F-]{36})`)
 
+// ErrServerNoMediaRef is the named refusal when a Jira Server / Data Center
+// client is asked for an attachment's media id (GDK-1636): the Cloud route
+// this resolves — /attachment/content/{id} redirecting to a pre-signed
+// media URL — has no Server counterpart, and asking a base that does not
+// serve the route can only produce an error, never a media id.
+var ErrServerNoMediaRef = errors.New("jira: Jira Server has no attachment media route (Cloud only)")
+
 // MediaRef resolves an attachment id to both the media UUID Jira needs in an ADF
 // node and the filename our own renderer matches on (`alt`), which is what makes
 // an inline image resolve without persisting the UUID anywhere.
@@ -542,8 +613,11 @@ func (c *Client) MediaRef(ctx context.Context, attachmentID string) (mediaID, fi
 }
 
 func (c *Client) mediaRef(ctx context.Context, attachmentID string) (string, string, error) {
+	if c.serverDialect() {
+		return "", "", ErrServerNoMediaRef
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		c.base+apiPath+"/attachment/content/"+url.PathEscape(attachmentID), nil)
+		c.base+c.apiBase+"/attachment/content/"+url.PathEscape(attachmentID), nil)
 	if err != nil {
 		return "", "", err
 	}
@@ -593,12 +667,14 @@ func filenameFromMediaURL(raw string) string {
 }
 
 // attachmentFilename is the documented metadata call, used only when the media
-// URL did not name the file.
+// URL did not name the file. The path carries the API base now — born without
+// one, it requested <site>/attachment/{id}, which no Jira deployment serves,
+// so the fallback could only ever fail (GDK-1636).
 func (c *Client) attachmentFilename(ctx context.Context, attachmentID string) (string, error) {
 	var meta struct {
 		Filename string `json:"filename"`
 	}
-	if err := c.do(ctx, http.MethodGet, "/attachment/"+url.PathEscape(attachmentID), nil, &meta); err != nil {
+	if err := c.do(ctx, http.MethodGet, c.apiBase+"/attachment/"+url.PathEscape(attachmentID), nil, &meta); err != nil {
 		return "", err
 	}
 	return meta.Filename, nil
