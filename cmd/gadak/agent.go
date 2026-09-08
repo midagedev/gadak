@@ -2016,7 +2016,12 @@ const commentUsage = "usage: gadak comment <KEY> [<text> | -m <text|-> | --adf-f
 var commentBatchFields = []string{"key", "body", "internal", "visibility"}
 
 func postComment(ctx context.Context, c origin.Writer, key, body string, vis *jira.CommentVisibility, internal bool) (map[string]any, error) {
-	if err := adf.RefusePlaceholders(body); err != nil {
+	// The origin decides what a comment body is: a document, or the typed
+	// characters (GDK-1637). A config that will not load leaves both the
+	// refusal and the value on the markdown default, which is what every
+	// origin but Jira Server wants and what this path did before.
+	cfg, _ := config.Load()
+	if err := origin.RefuseBodyPlaceholders(cfg, body); err != nil {
 		return nil, fmt.Errorf("comment %s: %w", key, err)
 	}
 	mentions, resolved, unresolved, err := resolveCommentMentions(ctx, c, body)
@@ -2025,7 +2030,11 @@ func postComment(ctx context.Context, c origin.Writer, key, body string, vis *ji
 	}
 	noticeResolvedMentions(resolved)
 	warnUnresolvedMentions(unresolved)
-	return postCommentDoc(ctx, c, key, jira.Doc(body, mentions), vis, internal)
+	// A Jira Server comment is a wiki-markup string, not a document
+	// (GDK-1637). The mention pass above still runs — it resolves names
+	// for the notice, and jira.Doc's mention nodes simply have nowhere to
+	// go on an origin whose comment field is text.
+	return postCommentDoc(ctx, c, key, origin.BodyValue(cfg, body, jira.Doc(body, mentions)), vis, internal)
 }
 
 // postCommentDoc posts a finished ADF document — postComment's tail, and the

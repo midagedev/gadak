@@ -4,6 +4,14 @@
 
 ## Unreleased
 
+- **Jira Server 의 wiki markup 을 있는 그대로.** 본문에 방언이 생겼습니다.
+  Cloud 가 ADF 를 보내는 자리에 Server 는 wiki markup 을 보내는데, gadak 은
+  그것을 markdown 으로 읽고 ADF 객체로 돌려보내고 있었습니다 — Server
+  워크스페이스에서 `gadak create -m` 을 치면 설명 자리에 ADF JSON 이
+  들어갔습니다. 이제 양방향으로 원문을 그대로 나릅니다. 친 글자가 바이트
+  단위로 그대로 저장되고, 저장된 글자가 그대로 편집기에 열립니다. 변환이
+  없으면 손실도 없어서, 본문을 잠그지 않고 편집 가능한 채로 뒀습니다.
+  ([GDK-1637])
 - **Jira Server 워크스페이스의 첨부 파일.** Server 에는 `/attachment/content`
   라우트가 없습니다. 첨부마다 주소를 알려주고 바이트는 거기서만 주므로, 캐시가
   그 주소를 보관하고 CLI 와 앱이 그리로 요청합니다. 요청 전에 주소를 사이트
@@ -1586,5 +1594,6 @@ HTTP·sync·에이전트 계약을 담았습니다.
 [GDK-1638]: https://gadak.dev/backlog/#/?ks=GDK-1638
 [GDK-1644]: https://gadak.dev/backlog/#/?ks=GDK-1644
 [GDK-1639]: https://gadak.dev/backlog/#/?ks=GDK-1639
+[GDK-1637]: https://gadak.dev/backlog/#/?ks=GDK-1637
 [GDK-1617]: https://gadak.dev/backlog/#/?ks=GDK-1617
 [GDK-1626]: https://gadak.dev/backlog/#/?ks=GDK-1626

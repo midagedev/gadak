@@ -4,6 +4,14 @@
 
 ## Unreleased
 
+- **Wiki markup on a Jira Server workspace, carried as it is.** A body now
+  has a dialect. Server sends wiki markup where Cloud sends ADF, and gadak
+  had been reading it as markdown and writing it back as an ADF object — a
+  `gadak create -m` against a Server origin put ADF JSON in the description
+  field. The text is now carried verbatim in both directions: what you type
+  is what the origin stores, byte for byte, and what it stores is what the
+  editor opens. No conversion is no loss, which is why the body stays
+  editable rather than locked. ([GDK-1637])
 - **Attachments on a Jira Server workspace.** Server has no
   `/attachment/content` route: it states each attachment's address and serves
   the bytes nowhere else, so the mirror keeps that URL and both the CLI and
@@ -1646,5 +1654,6 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-1638]: https://gadak.dev/backlog/#/?ks=GDK-1638
 [GDK-1644]: https://gadak.dev/backlog/#/?ks=GDK-1644
 [GDK-1639]: https://gadak.dev/backlog/#/?ks=GDK-1639
+[GDK-1637]: https://gadak.dev/backlog/#/?ks=GDK-1637
 [GDK-1617]: https://gadak.dev/backlog/#/?ks=GDK-1617
 [GDK-1626]: https://gadak.dev/backlog/#/?ks=GDK-1626
