@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 )
 
 // The Jira Server / Data Center dialect (GDK-1636). NewServer builds the
@@ -504,5 +505,127 @@ func TestCloudParentIsNotRewritten(t *testing.T) {
 	f, _ := put["fields"].(map[string]any)
 	if p, _ := f["parent"].(map[string]any); p["key"] != "NMB-9" || gets != 0 {
 		t.Errorf("Cloud PUT fields = %v (gets=%d), want parent.key NMB-9 and no lookups", f, gets)
+	}
+}
+
+// GDK-1646: Jira Data Center states its token-bucket budget on every
+// authenticated response, so the Server client spaces its requests before
+// the 429 instead of after it — one Wait before every attempt, one Observe
+// after every response, asserted through an injected Sleep (no real
+// waiting). The per-header contract is pinned in internal/httppolicy; this
+// test pins the wiring: only NewServer carries a budget. On the unmodified
+// tree it does not compile (Client had no budget), which is its FAIL — the
+// Cloud path must keep no budget at all. The live FAIL-first — a real 429
+// from a DC with a low limit — is the lead's, measured against the lab
+// instance.
+func TestServerRateBudgetSleepsFromHeaders(t *testing.T) {
+	// dcHeaders is the budget DC states, parameterised by what the bucket
+	// holds at that moment; limit is always the full bucket so the sleep's
+	// optimistic refill can be observed through the next Wait.
+	dcHeaders := func(remaining, retryAfter string) http.Header {
+		return http.Header{
+			"X-RateLimit-Limit":            []string{"100"},
+			"X-RateLimit-Remaining":        []string{remaining},
+			"X-RateLimit-Interval-Seconds": []string{"7"},
+			"X-RateLimit-FillRate":         []string{"10"},
+			"Retry-After":                  []string{retryAfter},
+		}
+	}
+	for _, tc := range []struct {
+		name   string
+		server bool
+		// budgetStates is what each successive response states; when nil
+		// the responses carry no rate-limit headers at all.
+		budgetStates []http.Header
+		want         []time.Duration
+	}{
+		{
+			name: "interval when retry-after is zero",
+			// Response 1 leaves 1 token (Reserve is 2): the next request
+			// sleeps the 7s refill interval; response 2 then states a
+			// refilled bucket and request 3 goes straight out.
+			server:       true,
+			budgetStates: []http.Header{dcHeaders("1", "0"), dcHeaders("100", "0"), dcHeaders("100", "0")},
+			want:         []time.Duration{7 * time.Second},
+		},
+		{
+			name:         "retry-after names the sleep",
+			server:       true,
+			budgetStates: []http.Header{dcHeaders("0", "3"), dcHeaders("100", "0")},
+			want:         []time.Duration{3 * time.Second},
+		},
+		{
+			name:         "ample remaining never sleeps",
+			server:       true,
+			budgetStates: []http.Header{dcHeaders("50", "0"), dcHeaders("50", "0")},
+			want:         nil,
+		},
+		{
+			name:   "headers absent never sleeps",
+			server: true,
+			want:   nil,
+		},
+		{
+			// Cloud publishes none of these headers; even an origin that
+			// sent them must not make a Cloud client sleep — its budget is
+			// nil, so the request path is the pre-GDK-1646 one byte for
+			// byte.
+			name:         "cloud never sleeps, even against the headers",
+			server:       false,
+			budgetStates: []http.Header{dcHeaders("0", "9"), dcHeaders("0", "9"), dcHeaders("0", "9")},
+			want:         nil,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			reqs := 0
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				i := reqs
+				reqs++
+				if i < len(tc.budgetStates) {
+					for k, vs := range tc.budgetStates[i] {
+						w.Header()[k] = vs
+					}
+				}
+				w.Write([]byte(`[]`))
+			}))
+			t.Cleanup(srv.Close)
+			var c *Client
+			if tc.server {
+				c = NewServer(srv.URL, "pat-token")
+			} else {
+				c = New(srv.URL, "a@b.c", "tok")
+			}
+			c.Retries, c.Backoff = 1, 0
+			var slept []time.Duration
+			if c.budget != nil {
+				c.budget.Sleep = func(_ context.Context, d time.Duration) error {
+					slept = append(slept, d)
+					return nil
+				}
+			}
+			n := len(tc.budgetStates)
+			if n == 0 {
+				n = 2
+			}
+			for i := 0; i < n; i++ {
+				if _, err := c.Statuses(context.Background()); err != nil {
+					t.Fatalf("%s: request %d: %v", tc.name, i+1, err)
+				}
+			}
+			if !tc.server && c.budget != nil {
+				t.Errorf("%s: a Cloud client carries a budget", tc.name)
+			}
+			if len(slept) != len(tc.want) {
+				t.Fatalf("%s: slept %v, want %v", tc.name, slept, tc.want)
+			}
+			for i := range slept {
+				if slept[i] != tc.want[i] {
+					t.Fatalf("%s: slept %v, want %v", tc.name, slept, tc.want)
+				}
+			}
+			if reqs != n {
+				t.Errorf("%s: requests = %d, want %d", tc.name, reqs, n)
+			}
+		})
 	}
 }

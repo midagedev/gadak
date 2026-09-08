@@ -65,6 +65,13 @@ type Client struct {
 	// a request on instrumentation failure (counters are atomic).
 	usage atlhttp.Meter
 
+	// budget spaces requests proactively from Jira Data Center's
+	// X-RateLimit-* budget headers (GDK-1646). Only NewServer allocates
+	// one — the headers are a DC feature; Cloud publishes none and the
+	// built-in tracker never rate-limits — so every other constructor
+	// leaves it nil and its request path is unchanged byte for byte.
+	budget *httppolicy.RateBudget
+
 	// epicLinkID is the Server Epic Link field id, resolved once from the
 	// field catalog by epicLinkField (GDK-1645); loaded is true after one
 	// successful lookup, including "the site has none".
@@ -124,7 +131,7 @@ func New(site, email, token string) *Client {
 // commonly deployed under one, and atlhttp concatenates the site-relative
 // path onto it.
 func NewServer(base, token string) *Client {
-	return &Client{
+	c := &Client{
 		base:                strings.TrimRight(base, "/"),
 		auth:                "Bearer " + token,
 		apiBase:             apiV2,
@@ -133,6 +140,11 @@ func NewServer(base, token string) *Client {
 		Backoff:             DefaultBackoff,
 		nameCreatedVersions: DefaultCreatesVersionsByName,
 	}
+	// The one constructor that throttles proactively (GDK-1646): DC states
+	// its token bucket on every authenticated response, and the meter is
+	// the client's own so budget waits show up in Usage like retry waits.
+	c.budget = &httppolicy.RateBudget{Meter: &c.usage}
+	return c
 }
 
 // NewAnonymous builds a credential-less Client. It exists for the one
@@ -172,6 +184,7 @@ func (c *Client) transport() atlhttp.Config {
 		Backoff:   c.Backoff,
 		ErrPrefix: "jira",
 		Usage:     &c.usage,
+		Budget:    c.budget,
 	}
 }
 

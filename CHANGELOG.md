@@ -4,6 +4,12 @@
 
 ## Unreleased
 
+- **Jira Data Center's rate-limit budget is read before the wall, not after.**
+  DC states its token bucket on every response; gadak used to react only to a
+  429. The Server client now waits out the stated interval when the budget is
+  nearly spent, and a 429's own Retry-After is still honoured — once, not
+  twice. Cloud publishes no such headers and its requests are unchanged.
+  ([GDK-1646])
 - **Jira Server / Data Center has its own column, and every cell in it was
   run.** `docs/SUPPORT_MATRIX.md` now reads Jira Cloud, Jira Server, Linear,
   Built-in. The Server cells come from a Jira Software 11.3.11 Data Center
@@ -1799,5 +1805,6 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-1634]: https://gadak.dev/backlog/#/?ks=GDK-1634
 [GDK-1641]: https://gadak.dev/backlog/#/?ks=GDK-1641
 [GDK-1645]: https://gadak.dev/backlog/#/?ks=GDK-1645
+[GDK-1646]: https://gadak.dev/backlog/#/?ks=GDK-1646
 [GDK-1661]: https://gadak.dev/backlog/#/?ks=GDK-1661
 [GDK-1662]: https://gadak.dev/backlog/#/?ks=GDK-1662

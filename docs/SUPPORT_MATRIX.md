@@ -507,7 +507,11 @@ Markers:
     string on Cloud (`internal/jira/client.go:249`). Users key by `name`,
     not `accountId` (GDK-1638); the credential is a PAT Bearer, because
     basic auth is off by default on 11.x (GDK-1640). Measured: 409 issues in
-    one 3 s full sync, then quiet incremental ticks.
+    one 3 s full sync, then quiet incremental ticks. Data Center states its
+    rate-limit budget on every response (`X-RateLimit-*`); the Server client
+    spaces requests from it before a 429 (`internal/httppolicy/ratebudget.go`,
+    `internal/jira/client.go:147`, GDK-1646) — Cloud publishes no such headers
+    and its path is untouched.
 
 [^118]: v2 comment bodies are wiki-markup strings and land in `body_text`
     as-is; the visibility block is read into `comments.visibility_type` /

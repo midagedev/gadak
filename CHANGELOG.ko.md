@@ -4,6 +4,11 @@
 
 ## Unreleased
 
+- **Jira Data Center의 레이트 리밋 예산을 벽에 부딪히기 전에 읽습니다.** DC는
+  응답마다 토큰 버킷 상태를 헤더로 알려주는데, gadak은 429를 맞은 뒤에만
+  반응했습니다. 이제 Server 클라이언트는 예산이 바닥에 가까우면 알려준 간격만큼
+  기다리고, 429의 Retry-After도 그대로 지킵니다. 두 번이 아니라 한 번입니다.
+  Cloud에는 이런 헤더가 없어 요청이 바뀌지 않습니다. ([GDK-1646])
 - **Jira Server / Data Center 열이 생겼고, 그 열의 셀은 전부 실행해서 얻었습니다.**
   `docs/SUPPORT_MATRIX.md`는 이제 Jira Cloud, Jira Server, Linear, Built-in 넷을
   읽습니다. Server 셀은 Jira Software 11.3.11 Data Center 랩에서 나왔습니다.
@@ -1724,5 +1729,6 @@ HTTP·sync·에이전트 계약을 담았습니다.
 [GDK-1634]: https://gadak.dev/backlog/#/?ks=GDK-1634
 [GDK-1641]: https://gadak.dev/backlog/#/?ks=GDK-1641
 [GDK-1645]: https://gadak.dev/backlog/#/?ks=GDK-1645
+[GDK-1646]: https://gadak.dev/backlog/#/?ks=GDK-1646
 [GDK-1661]: https://gadak.dev/backlog/#/?ks=GDK-1661
 [GDK-1662]: https://gadak.dev/backlog/#/?ks=GDK-1662

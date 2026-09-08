@@ -42,6 +42,12 @@ type Config struct {
 	ErrPrefix string
 	// Usage, when non-nil, records every attempt that left the process.
 	Usage *Meter
+	// Budget, when non-nil, spaces requests proactively from the origin's
+	// stated rate limit (Jira Data Center's X-RateLimit-* headers, GDK-1646):
+	// one Wait before every attempt, one Observe after every response. Nil
+	// (Cloud, Linear, the built-in tracker) is disabled — those paths are
+	// unchanged byte for byte.
+	Budget *httppolicy.RateBudget
 }
 
 // DoRaw is the single HTTP path for JSON call helpers and Raw: retries,
@@ -63,6 +69,15 @@ func DoRaw(ctx context.Context, cfg Config, method, path string, payload []byte,
 		retries = httppolicy.IsRetryableWrite
 	}
 	for attempt := 0; ; attempt++ {
+		// The proactive half of rate limiting (GDK-1646): wait while the
+		// origin's stated budget is in the red, before the attempt is spent.
+		// First attempt only — a retry has just slept the 429's Retry-After
+		// below, and sleeping it twice is not caution, it is a doubled wait.
+		if cfg.Budget != nil && attempt == 0 {
+			if err := cfg.Budget.Wait(ctx); err != nil {
+				return 0, nil, err
+			}
+		}
 		req, err := http.NewRequestWithContext(ctx, method, fullURL, bytes.NewReader(payload))
 		if err != nil {
 			return 0, nil, err
@@ -90,6 +105,11 @@ func DoRaw(ctx context.Context, cfg Config, method, path string, payload []byte,
 		data, readErr := io.ReadAll(io.LimitReader(res.Body, httppolicy.MaxBody))
 		res.Body.Close()
 		cfg.Usage.NoteStatus(res.StatusCode)
+		// Every response states the budget — any status, including the 429
+		// about to be retried, so the next attempt's Wait sees it first.
+		if cfg.Budget != nil {
+			cfg.Budget.Observe(res.Header)
+		}
 		if retries(res.StatusCode) && attempt < cfg.Retries-1 {
 			if werr := httppolicy.Wait(ctx, cfg.Backoff, attempt, res.Header.Get("Retry-After"), cfg.Usage); werr != nil {
 				return 0, nil, werr
