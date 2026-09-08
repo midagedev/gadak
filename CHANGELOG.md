@@ -4,30 +4,95 @@
 
 ## Unreleased
 
-- **Sprints on the built-in tracker.** The tracker gadak carries now serves
-  Jira Software's own Agile surface — boards, sprints, the sprint field on
-  the issue, and JQL's `openSprints()` family — so `gadak sprint` works on a
-  workspace with no Atlassian account at all, and on a paired one. Closing a
-  sprint sweeps its unfinished issues to the backlog, the way Jira does.
-  ([GDK-1666])
-- **The board knows about sprints.** A workspace with sprints gets a scope
-  beside the layout switch — the active sprint by name, the backlog, or all —
-  and it is a filter like any other: the URL carries it, the back button
-  undoes it, a saved view keeps it, and `gadak views open --jql 'sprint in
-  openSprints()'` lands on the same board. The filter bar gains a Sprint axis
-  (by name) and a Sprint state axis, the detail panel shows the sprint, and
-  `sprint is EMPTY` — the backlog — now round-trips through the view grammar
-  as `sprint_state=none`. The demo fixture carries three derived sprints so
-  the scope has something to show. ([GDK-1656])
-- **The weekly retro has a screen.** `gadak retro`'s document was served for
-  a surface that never came. It is here now: the
-  palette's *Weekly retro* opens a calm table — one column per week, one row
-  per metric with its definition underneath — and a cell that holds issues
-  is a door onto that list. Four, eight or twelve weeks. ([GDK-1660])
+**A self-hosted Jira is an origin type, and a sprint is an object.**
+
+- **Jira Server / Data Center is an origin type now.** `gadak init --site
+  <base-url> --server` creates a workspace against a self-hosted Jira with a
+  Personal Access Token. There is no email, and the base URL may carry a
+  context path. init asks the site which Jira it is (`/rest/api/2/serverInfo`)
+  and refuses a workspace whose declared deployment does not match, because a
+  Server instance's answer to Cloud's `/rest/api/3` says nothing about whether
+  that API exists: measured, the same route gave 404, 401 and 302 depending
+  only on which credential asked, so without that check a missing API reads as
+  a bad token. That first change landed the axis alone: reads and writes
+  still spoke the Cloud REST shape. The rest of this release fills that in.
+  ([GDK-1635], [GDK-1640])
+- **A Jira Server workspace syncs.** The REST dialect belongs to the client
+  now rather than to a package constant: Cloud and the built-in tracker keep
+  v3, a Server origin gets v2, and the endpoints that differ by more than a
+  version number (create metadata, JQL search, the approximate count, the
+  attachment media route) each answer in their own shape or refuse by name.
+  Measured against a live Jira Server 11.3.11: `gadak sync` fills the mirror.
+  Descriptions arrive as wiki markup, assignees carry no accountId, and
+  attachment bytes are not reachable yet. Those are the next three.
+  ([GDK-1636])
+- **Wiki markup on a Jira Server workspace, carried as it is.** A body now
+  has a dialect. Server sends wiki markup where Cloud sends ADF, and gadak
+  had been reading it as markdown and writing it back as an ADF object, so a
+  `gadak create -m` against a Server origin put ADF JSON in the description
+  field. The text is now carried verbatim in both directions: what you type
+  is what the origin stores, byte for byte, and what it stores is what the
+  editor opens. Nothing is converted, so nothing is lost and the body stays
+  editable. ([GDK-1637])
+- **Assignees on a Jira Server workspace.** Cloud keys users by accountId and
+  often hides the email; Server keys them by name and sends the email plainly.
+  gadak now stores whichever id the origin sent, so `assignee_id` fills on
+  both, and `gadak assign` and user search speak each dialect's own
+  parameter. ([GDK-1638])
+- **Attachments on a Jira Server workspace.** Server has no
+  `/attachment/content` route: it states each attachment's address and serves
+  the bytes nowhere else, so the mirror keeps that URL and both the CLI and
+  the app ask for it. The address is reduced to a site-relative path first,
+  which is what keeps the credential on the workspace's own site: an
+  attachment URL pointing anywhere else is refused rather than fetched.
+  Measured against Jira Server 11.3.11: `gadak attach get` returns the
+  original bytes hash-for-hash, and the app's proxy answers `Range` with 206,
+  so seeking in a video works there too. ([GDK-1639])
+- **Sprints on a Jira Server workspace.** Server carries the sprint field as
+  the Java `toString` of its own bean, `Sprint@4ffcc813[…,id=1,name=Sprint
+  1,…,state=ACTIVE,…]`, where Cloud sends an object, so every issue in a
+  sprint reached the mirror with `sprint_id`, `sprint_name` and
+  `sprint_state` blank. Both shapes are now read, and `ACTIVE` is normalised
+  to the `active` that queries are told to ask for. An issue's epic arrives
+  the same way: Server keys it in the Epic Link field rather than
+  `fields.parent`, and that is now the issue's parent. Server also has no
+  `/filter/my`. It answered 404 on every sync, so a Server workspace asks
+  `/filter/favourite` instead. ([GDK-1650], [GDK-1651], [GDK-1652])
+- **Epics on a Jira Server workspace.** Server publishes no hierarchy level on
+  its issue types, so an epic arrived at the same level as a story and
+  `epic_key` could never be derived. It is derived instead from who has a
+  standard child. That costs no extra request, and it does not key on the
+  word "Epic", which is a display name. ([GDK-1658])
+- **A write the origin quietly dropped is no longer printed as success.**
+  Jira Server answers a standard issue's `parent` with 204 and changes
+  nothing. That field belongs to sub-tasks there, and an epic is the Epic
+  Link custom field. `edit --parent` (and the web's parent editor) now send
+  the Epic Link on Server, refuse by name on a Server with no Jira Software,
+  and every `edit` compares the re-read row with what it asked before
+  printing it: a field that reads the same before and after is reported as
+  dropped, not confirmed. ([GDK-1645])
+- **A login page is no longer mistaken for an answer.** Every REST call asks
+  for JSON, and Go follows redirects, so an origin that bounces a request to
+  its login page answered 200 with that page's HTML. `gadak api` printed the
+  page, and JSON calls failed with `invalid character '<'`, which names the
+  symptom and not the cause. A 2xx of HTML where JSON was asked for is now
+  refused by name, and error pages keep their status and their body.
+  `gadak attach get` had the same blind spot, because a status code cannot
+  see a login page at 200: measured, it wrote 257,592 bytes of HTML as a
+  `.png` and exited 0. It now compares what was served against the type the
+  mirror recorded and writes nothing when they disagree. An `.html`
+  attachment still downloads, and a download still follows the redirect Cloud
+  legitimately sends. ([GDK-1648], [GDK-1644])
+- **An empty 201 is not a web page.** Jira Server answers `POST /issueLink`
+  with 201, `text/html` and no body; the guard that refuses a login page
+  keyed on status codes and a header and refused it, so a link that had been
+  created was reported as a failure. The guard now asks the one question
+  every case agrees on (is there a body) and an empty success passes
+  whatever its Content-Type. ([GDK-1662])
 - **Jira Data Center's rate-limit budget is read before the wall, not after.**
   DC states its token bucket on every response; gadak used to react only to a
   429. The Server client now waits out the stated interval when the budget is
-  nearly spent, and a 429's own Retry-After is still honoured — once, not
+  nearly spent, and a 429's own Retry-After is still honoured once, not
   twice. Cloud publishes no such headers and its requests are unchanged.
   ([GDK-1646])
 - **Jira Server / Data Center has its own column, and every cell in it was
@@ -36,11 +101,28 @@
   lab: `tools/jira-server-lab/seed.sh` plants the data every row needs and
   `tools/jira-server-lab/measure.sh` runs one command per row and keeps the
   output; the runbook says how to bring the instance up. Two rows are honest
-  refusals — the wiki, because there is no Confluence Server client — and
-  two carry a limit: the board→project mapping is empty there, and the
+  refusals: the wiki, because there is no Confluence Server client. Two
+  carry a limit: the board→project mapping is empty there, and the
   development panel's refusal still speaks of Cloud. The READMEs, the
   roadmap and the product spec drop "untested, therefore unclaimed".
   ([GDK-1634], [GDK-1641])
+- **Sprints are objects in the mirror.** A sprint used to exist only as
+  `sprint_id` / `sprint_name` / `sprint_state` projected onto each issue, so
+  a sprint holding no issues did not exist at all, and its goal, its dates
+  and the board it belongs to existed nowhere. The mirror has `sprints` and
+  `boards` tables, filled from the Agile API, which is the one surface where
+  Atlassian Cloud and Server answer the same shape. `gadak sprint list` reads
+  them. `gadak sprint add`, `remove`, `create`, `start` and `close` write
+  through the origin, and every state change re-reads the sprint and the
+  issues that were in it rather than trusting what was sent. Sprints are Jira
+  Software's, so a Linear or built-in workspace refuses these by name.
+  ([GDK-1653], [GDK-1654], [GDK-1655], [GDK-1657])
+- **Sprints on the built-in tracker.** The tracker gadak carries now serves
+  Jira Software's own Agile surface: boards, sprints, the sprint field on
+  the issue, and JQL's `openSprints()` family. So `gadak sprint` works on a
+  workspace with no Atlassian account at all, and on a paired one. Closing a
+  sprint sweeps its unfinished issues to the backlog, the way Jira does.
+  ([GDK-1666])
 - **A closed sprint no longer leaves its done issues reading "active".**
   Closing a sprint moves only the unfinished issues out, so the finished ones
   never change and an incremental sync never re-read them; their
@@ -50,112 +132,74 @@
   it on every tick, and the board and sprint listing runs on quiet ticks too,
   because a sprint changing state is invisible to the issue watermark.
   ([GDK-1661])
-- **An empty 201 is not a web page.** Jira Server answers `POST /issueLink`
-  with 201, `text/html` and no body; the guard that refuses a login page
-  keyed on status codes and a header and refused it, so a link that had been
-  created was reported as a failure. The guard now asks the one question
-  every case agrees on — is there a body — and an empty success passes
-  whatever its Content-Type. ([GDK-1662])
-- **A write the origin quietly dropped is no longer printed as success.**
-  Jira Server answers a standard issue's `parent` with 204 and changes
-  nothing — that field belongs to sub-tasks there, and an epic is the Epic
-  Link custom field. `edit --parent` (and the web's parent editor) now send
-  the Epic Link on Server, refuse by name on a Server with no Jira Software,
-  and every `edit` compares the re-read row with what it asked before
-  printing it: a field that reads the same before and after is reported as
-  dropped, not confirmed. ([GDK-1645])
 - **A sprint filter no longer asks for the opposite set.** Every sprint state
-  compiled to JQL's `openSprints()`, which — measured on Jira 11.3.11 with one
-  active sprint and one future one — selects the active sprint alone. A saved
-  view filtered on closed sprints therefore asked for open ones. Each state
-  now emits its own function, and the parser reads all three back, so a filter
-  survives the round trip instead of vanishing. ([GDK-1216])
-- **Sprints are objects now, not three strings on an issue.** A sprint used
-  to exist only as `sprint_id` / `sprint_name` / `sprint_state` projected onto
-  each issue, so a sprint holding no issues did not exist at all, and its
-  goal, its dates and the board it belongs to existed nowhere. The mirror has
-  `sprints` and `boards` tables, filled from the Agile API — the one surface
-  where Atlassian Cloud and Server answer the same shape. `gadak sprint list`
-  reads them; `gadak sprint add`, `remove`, `create`, `start` and `close`
-  write through the origin, and every state change re-reads the sprint and
-  the issues that were in it rather than trusting what was sent. Sprints are
-  Jira Software's: a Linear or built-in workspace refuses these by name
-  instead of reaching for a nearest concept. ([GDK-1653], [GDK-1654],
-  [GDK-1655], [GDK-1657])
-- **Epics on a Jira Server workspace.** Server publishes no hierarchy level on
-  its issue types, so an epic arrived at the same level as a story and
-  `epic_key` could never be derived. It is derived instead from who has a
-  standard child — no extra request, and no keying on the word "Epic", which
-  is a display name. ([GDK-1658])
+  compiled to JQL's `openSprints()`, which selects the active sprint alone
+  (measured on Jira 11.3.11 with one active sprint and one future one). A
+  saved view filtered on closed sprints therefore asked for open ones. Each
+  state now emits its own function, and the parser reads all three back, so a
+  filter survives the round trip. ([GDK-1216])
+- **The board knows about sprints.** A workspace with sprints gets a scope
+  beside the layout switch (the active sprint by name, the backlog, or all),
+  and it is a filter like any other: the URL carries it, the back button
+  undoes it, a saved view keeps it, and `gadak views open --jql 'sprint in
+  openSprints()'` lands on the same board. The filter bar gains a Sprint axis
+  (by name) and a Sprint state axis, the detail panel shows the sprint, and
+  `sprint is EMPTY`, the backlog, now round-trips through the view grammar
+  as `sprint_state=none`. The demo fixture carries three derived sprints so
+  the scope has something to show. ([GDK-1656])
+- **The weekly retro has a screen.** `gadak retro`'s document was served for
+  a surface that never came. It is here now: the
+  palette's *Weekly retro* opens a calm table: one column per week, one row
+  per metric with its definition underneath. A cell that holds issues
+  is a door onto that list. Four, eight or twelve weeks. ([GDK-1660])
 - **An optional capability no longer disappears when the actor trailer is
   on.** The wrapper that appends an agent's signature to comments embeds the
   writer, and an embedded interface promotes only the methods that interface
-  declares — so versions, issue links, create-field catalogs, media refs and
+  declares, so versions, issue links, create-field catalogs, media refs and
   sprints were all invisible to the code that asks an origin what it can do.
-  The question now looks through the wrapper. ([GDK-1655])
+  The capability check now looks through the wrapper. ([GDK-1655])
 - **A comment can be edited or deleted.** `gadak comment edit <KEY> <ID> -m
   "…"` replaces a comment's body and `gadak comment rm <KEY> <ID> --yes`
   removes it, on Jira, Linear and the built-in tracker. Until now a wrong
   comment could only be followed by another one. The id is whatever a read
   handed you: `gadak sql` prints the mirror's `jira:91653`, `gadak issue`
-  prints `91653`, and both are accepted. An edit sends what a post sends —
-  ADF on Cloud, the wiki-markup string on a Jira Server workspace — and an
-  agent's actor trailer survives the edit without being appended a second
-  time. ([GDK-1647])
-- **Sprints on a Jira Server workspace.** Server carries the sprint field as
-  the Java `toString` of its own bean — `Sprint@4ffcc813[…,id=1,name=Sprint
-  1,…,state=ACTIVE,…]` — where Cloud sends an object, so every issue in a
-  sprint reached the mirror with `sprint_id`, `sprint_name` and
-  `sprint_state` blank. Both shapes are now read, and `ACTIVE` is normalised
-  to the `active` that queries are told to ask for. An issue's epic arrives
-  the same way: Server keys it in the Epic Link field rather than
-  `fields.parent`, and that is now the issue's parent. Server also has no
-  `/filter/my` — it answered 404 on every sync — so a Server workspace asks
-  `/filter/favourite` instead. ([GDK-1650], [GDK-1651], [GDK-1652])
-- **A login page is no longer mistaken for an answer.** Every REST call asks
-  for JSON, and Go follows redirects, so an origin that bounces a request to
-  its login page returned that page's HTML at 200 — `gadak api` printed it,
-  and JSON calls failed with `invalid character '<'`, which names the symptom
-  and not the cause. A 2xx of HTML where JSON was asked for is now refused by
-  name. Error pages keep their status and their body, and attachment
-  downloads still follow the redirect Cloud legitimately sends. ([GDK-1648])
-- **Wiki markup on a Jira Server workspace, carried as it is.** A body now
-  has a dialect. Server sends wiki markup where Cloud sends ADF, and gadak
-  had been reading it as markdown and writing it back as an ADF object — a
-  `gadak create -m` against a Server origin put ADF JSON in the description
-  field. The text is now carried verbatim in both directions: what you type
-  is what the origin stores, byte for byte, and what it stores is what the
-  editor opens. No conversion is no loss, which is why the body stays
-  editable rather than locked. ([GDK-1637])
-- **Attachments on a Jira Server workspace.** Server has no
-  `/attachment/content` route: it states each attachment's address and serves
-  the bytes nowhere else, so the mirror keeps that URL and both the CLI and
-  the app ask for it. The address is reduced to a site-relative path first,
-  which is what keeps the credential on the workspace's own site — an
-  attachment URL pointing anywhere else is refused rather than fetched.
-  Measured against Jira Server 11.3.11: `gadak attach get` returns the
-  original bytes hash-for-hash, and the app's proxy answers `Range` with 206,
-  so seeking in a video works there too. ([GDK-1639])
-- **Assignees on a Jira Server workspace.** Cloud keys users by accountId and
-  often hides the email; Server keys them by name and sends the email plainly.
-  gadak now stores whichever id the origin sent, so `assignee_id` fills on
-  both, and `gadak assign` and user search speak each dialect's own
-  parameter. ([GDK-1638])
-- **A download that is not the file is refused.** `gadak attach get` checked
-  the status code, and a status code cannot see an origin answering with its
-  own login page at 200 — measured, it wrote 257,592 bytes of HTML as a
-  `.png` and exited 0. It now compares what was served against the type the
-  mirror recorded and writes nothing when they disagree. An `.html`
-  attachment still downloads. ([GDK-1644])
-- **A Jira Server workspace syncs.** The REST dialect is the client's now,
-  not a package constant: Cloud and the built-in tracker keep v3, a Server
-  origin gets v2, and the endpoints that differ by more than a version number
-  — create metadata, JQL search, the approximate count, the attachment media
-  route — each answer in their own shape or refuse by name. Measured against
-  a live Jira Server 11.3.11: `gadak sync` fills the mirror. Descriptions
-  arrive as wiki markup, assignees carry no accountId, and attachment bytes
-  are not reachable yet — those are the next three. ([GDK-1636])
-- **`gadak mcp install claude-desktop` registers with Claude Desktop — and
+  prints `91653`, and both are accepted. An edit sends what a post sends:
+  ADF on Cloud, the wiki-markup string on a Jira Server workspace. An agent's
+  actor trailer survives the edit without being appended a second time.
+  ([GDK-1647])
+- **Attachments the size of real ones.** On a workspace whose origin is
+  gadak's own tracker, attachment bytes now live in a directory beside the
+  database rather than inside it, one content-addressed file each. Uploads
+  stream in and downloads stream out, so nothing is buffered whole any more,
+  on the CLI (`gadak attach`, `gadak attach get`) or in the app. Seeking in a
+  video works, because the whole path from the origin to the browser answers
+  `Range` now. The upload cap is settings rather than a constant:
+  `gadak config set attachmentMaxMB <n>`, default 1 GiB, up from a
+  hard-coded 32 MiB. Opening a built-in workspace with this build moves the
+  bytes out once and keeps the pre-migration copy beside it as
+  `issuetap.db.pre-v2.bak`; that pass is safe to run with a serve up, two
+  processes reaching it at once migrate it once, and nothing is asked of you.
+  ([GDK-1617])
+- **Screenshots look like screenshots again.** `gadak attach` declared every
+  upload as `application/octet-stream`, the hardcoded default of
+  `multipart.CreateFormFile`, so an origin that keeps what it is told stored a
+  PNG and an MP4 under the same generic type, and the app showed a file row
+  instead of a thumbnail and a player. The type now comes from the filename.
+- **`gadak backup` is an archive now.** It was one SQLite file; attachment
+  bytes moving to a directory would have made that a backup with every
+  attachment missing and nothing saying so. The output is a `.tar` holding
+  both, and it refuses to write one if the database references bytes that are
+  not on disk. `docs/runbooks/backup-restore.md` has the restore. ([GDK-1277])
+- **gadak no longer looks for its own updates.** It used to ask GitHub once a
+  day whether a newer release existed, unless you turned that off. That was
+  the one outbound connection nobody had asked for, and it left the claim on
+  the front door, that gadak talks to your tracker and to nothing else,
+  false by one footnote. The lookup is gone: no background check, no
+  `updateCheck` setting, no sidebar banner. Outbound destinations go from six
+  to five, and `docs/PROMISES.md` is eleven claims rather than twelve.
+  Upgrading is what it always was: `brew upgrade`, a new dmg, a newer zip.
+  Settings → Sync still shows the command for your platform. ([GDK-1626])
+- **`gadak mcp install claude-desktop` registers with Claude Desktop, and
   `gadak mcp install claude` now says what it is.** Every front door taught
   "for hosts without a shell (Claude Desktop): `gadak mcp install claude`",
   and that command runs Claude *Code*'s `claude mcp add`, which Claude Desktop
@@ -167,88 +211,41 @@
   Integrations card that called itself "Claude Desktop MCP" while probing the
   `claude` CLI is now two cards, one per host, and the onboarding wizard,
   `gadak init`'s next-steps block, the CLI help, the README and the site all
-  name the right command. Three independent editorial reviews of the front
-  door found this one; the fix is in the product rather than the copy so it
-  cannot drift back. ([GDK-1633])
+  name the right command. ([GDK-1633])
 - **The front door says what gadak is before it says how fast it is.** The
-  landing heading in every language is a job, not a slogan — "Query your Jira
-  backlog with SQL." — and the canonical `GROUP BY`, runnable in the browser
-  on the demo snapshot, sits under it. The trust section stopped being a
-  verdict ("why this is safe to try") and became the facts a reader needs
-  *before* handing over a token: Jira Cloud only, `--projects`/`--spaces` with
-  the wiki off until named, one SQLite file that needs a first full sync
-  (10.6 minutes on the benchmark site) and then trails Jira by one interval
-  (60 s by default, with an hourly reconcile that drops issues you can no
-  longer see), where the token lives, that a rejected write fails rather than
-  queues, which four reads still ask Jira, and that an agent forwards what it
-  reads to its model. The Rovo comparison lost its staged concession and
-  gained the real one (a local binary and an initial sync); "8 API pages" is
-  labelled as this measurement's number, not a law of JQL; the attribution
-  claim shrank to what the code does (comments and created issues carry the
-  agent's name; nothing about pull requests); every edition ends by asking
-  what happened when you used it and what to keep out of a public report.
-  The READMEs follow the same order. `docs/project/FACT_LEDGER.md` §16 carries
-  the rules so the next rewrite does not rediscover them. ([GDK-1601], [GDK-1622])
-- **gadak no longer looks for its own updates.** It used to ask GitHub once a
-  day whether a newer release existed, unless you turned that off. That was
-  the one outbound connection nobody had asked for, and it made the sentence
-  the front door wanted to say — gadak talks to your tracker and to nothing
-  else — false by one footnote. The lookup is gone: no background check, no
-  `updateCheck` setting, no sidebar banner. Outbound destinations go from six
-  to five, and `docs/PROMISES.md` is eleven claims rather than twelve.
-  Upgrading is what it always was — `brew upgrade`, a new dmg, a newer zip —
-  and Settings → Sync still shows the command for your platform. ([GDK-1626])
-- **Jira Server / Data Center is an origin type now.** `gadak init --site
-  <base-url> --server` creates a workspace against a self-hosted Jira with a
-  Personal Access Token — no email, and the base URL may carry a context path.
-  init asks the site which Jira it is (`/rest/api/2/serverInfo`) and refuses a
-  workspace whose declared deployment does not match, because a Server
-  instance's answer to Cloud's `/rest/api/3` says nothing about whether that
-  API exists — measured, the same route gave 404, 401 and 302 depending only
-  on which credential asked — so without that check a missing API reads as a
-  bad token. This lands the axis only —
-  reads and writes still speak the Cloud REST shape, so a Server workspace is
-  not usable yet. ([GDK-1635], [GDK-1640])
-- **Attachments the size of real ones.** On a workspace whose origin is
-  gadak's own tracker, attachment bytes now live in a directory beside the
-  database rather than inside it, one content-addressed file each. Uploads
-  stream in and downloads stream out, so nothing is buffered whole any more
-  — on the CLI (`gadak attach`, `gadak attach get`) or in the app — and
-  seeking in a video works, because the whole path from the origin to the
-  browser answers `Range` now. The upload cap is settings rather than a
-  constant: `gadak config set attachmentMaxMB <n>`, default 1 GiB, up from a
-  hard-coded 32 MiB. ([GDK-1617])
-- **The first persist migration.** Opening a built-in workspace with this
-  build moves its attachment bytes out of the database once, and keeps the
-  pre-migration copy beside it as `issuetap.db.pre-v2.bak`. It is safe to run
-  with a serve up, and two processes reaching it at once migrate it once.
-  Nothing is asked of you.
-- **Screenshots look like screenshots again.** `gadak attach` declared every
-  upload as `application/octet-stream` — `multipart.CreateFormFile`'s
-  hardcoded default — so an origin that keeps what it is told stored a PNG
-  and an MP4 under the same generic type, and the app showed a file row
-  instead of a thumbnail and a player. The type now comes from the filename.
-- **`gadak backup` is an archive now.** It was one SQLite file; attachment
-  bytes moving to a directory would have made that a backup with every
-  attachment missing and nothing saying so. The output is a `.tar` holding
-  both, and it refuses to write one if the database references bytes that are
-  not on disk. `docs/runbooks/backup-restore.md` has the restore. ([GDK-1277])
+  landing heading in every language is a job rather than a slogan: "Query
+  your Jira backlog with SQL." The canonical `GROUP BY`, runnable in the
+  browser on the demo snapshot, sits under it. The trust section stopped
+  being a verdict ("why this is safe to try") and became the facts a reader
+  needs *before* handing over a token: Jira Cloud only,
+  `--projects`/`--spaces` with the wiki off until named, one SQLite file that
+  needs a first full sync (10.6 minutes on the benchmark site) and then
+  trails Jira by one interval (60 s by default, with an hourly reconcile that
+  drops issues you can no longer see), where the token lives, that a rejected
+  write fails rather than queues, which four reads still ask Jira, and that an
+  agent forwards what it reads to its model. The Rovo comparison gained the
+  real concession, a local binary and an initial sync; "8 API pages" is
+  labelled as this measurement's number rather than a law of JQL; and the
+  attribution claim shrank to what the code does, which is that comments and
+  created issues carry the agent's name, and nothing about pull requests. The
+  READMEs follow the same order, and `docs/project/FACT_LEDGER.md` §16 carries
+  the rules. ([GDK-1601], [GDK-1622])
 
 ## v0.21.0 — 2026-09-08
 
-**The mirror tells you what happened while you were away.** Every status
-change, comment and visit is already in the mirror, so 0.21 answers the
-questions you ask on coming back — what changed, how long has this sat, did
-we get faster — from that data, in numbers with their definition beside
-them. Everything here is read-only over the mirror. Nothing new leaves the
+**What happened while you were away, answered from the mirror.** Every
+status change, comment and visit is already there, so 0.21 answers the
+questions you ask on coming back (what changed, how long has this sat, did we
+get faster) from that data, in numbers with their definition beside them.
+Everything here is read-only over the mirror. Nothing new leaves the
 machine.
 
-- **`gadak retro`** — a weekly retrospective: sessions, resume time, how old
-  the work in progress is, what closed and how long it took, and *mismatch*
-  (the newest comment says done, the status does not). Every row prints its
-  definition; `--open` puts the issues behind a cell on the app.
-- **Since you were last here.** The list opens with one dim line — *7 changed
-  · 2 of them yours* — and the detail panel says what moved on that issue
+- **`gadak retro`** gives a weekly retrospective: sessions, resume time, how
+  old the work in progress is, what closed and how long it took, and
+  *mismatch* (the newest comment says done, the status does not). Every row
+  prints its definition, and `--open` puts the issues behind a cell on the app.
+- **Since you were last here.** The list opens with one dim line, *7 changed
+  · 2 of them yours*, and the detail panel says what moved on that issue
   since you last opened it. The boundary is your own previous session.
 - **Age from your own numbers.** The stale mark learns its threshold from the
   workspace's last 90 days of cycle times; `list`, `ready` and `next` carry
@@ -256,7 +253,7 @@ machine.
   comment under an open status offers *Move to done*.
 - **Five built-in views** ([GDK-1493]): My issues, Handed off, All open,
   Unassigned new, Reopened. Aging, Epics, Stale and the rest leave the
-  sidebar — they are one *Save as view* away.
+  sidebar, one *Save as view* away.
 - **Agent writes say so.** A comment, transition or issue written from the
   CLI against Jira Cloud or Linear ends with *— via gadak · Name*, so a team
   can tell an agent's write from the person whose credential it used.
@@ -264,7 +261,7 @@ machine.
 - **The skill installs on seven hosts** ([GDK-1508]): `gadak skill install
   --client codex|agents|cursor|gemini|opencode|grok` beside `claude`.
 - **Japanese**: the site reads at `/ja/`, the app picks Japanese type under
-  `:lang(ja)`, and every landing clip — including the live-Claude hero — is
+  `:lang(ja)`, and every landing clip, including the live-Claude hero, is
   recorded in en, ko and ja over a mirror in that language ([GDK-1500],
   [GDK-1501]).
 - **Phone (TestFlight)**: descriptions, comments and wiki pages render like the
@@ -285,29 +282,29 @@ last here* line no longer vanishes on a quiet morning ([GDK-1537]).
 **The Windows app is on the Microsoft Store, and a fix round.**
 
 - Windows: the desktop app is on the
-  [Microsoft Store](https://apps.microsoft.com/detail/9NZW91TXH36G) — the
+  [Microsoft Store](https://apps.microsoft.com/detail/9NZW91TXH36G). The
   Store signs it, so neither SmartScreen nor Smart App Control objects, and
   every install guide leads with it ([GDK-1380]). `gadak-desktop.exe` is a
   GUI-subsystem image at last: no console window beside the app (every zip
   since 0.16 and the first Store package had one), and the pack refuses to
   ship one again. The Store package declares an app-execution alias, so a
   Store install puts `gadak` on `PATH`, and ja-JP as a third language.
-- Linear: relations are mirrored as `links` — blocks, duplicate, related —
-  so the linked-issues panel and the blockers recipes work on a Linear
-  workspace ([GDK-1299]).
+- Linear: relations are mirrored as `links` (blocks, duplicate, related), so
+  the linked-issues panel and the blockers recipes work on a Linear workspace
+  ([GDK-1299]).
 - Terminal: an issue key printed under the resting pointer is clickable at
   once, not after the mouse moves ([GDK-1172]).
 - `wiki`, `wiki.enabled` and `wiki.spaces` are aliases of the `confluence.*`
   config paths, and `config get`/`set` says where the value lives
   ([GDK-1289]).
-- List: one field, one name — the breakdown axes read the same labels as the
-  filter and the columns ([GDK-1399]); the link-type catalog is fetched once
-  per workspace, so a linked issue's direction phrase no longer flashes its
+- List: one field, one name, so the breakdown axes read the same labels as
+  the filter and the columns ([GDK-1399]); the link-type catalog is fetched
+  once per workspace, so a linked issue's direction phrase no longer flashes its
   bare type name on every open ([GDK-1297]).
 - Fixes: a Confluence page-version write that fails degrades the mirror
   instead of killing the wiki pass ([GDK-1307]); the transition refusal for
   a number that is both a transition id and a status id names the two forms
-  that cannot collide ([GDK-1305]); two CI flakes — the pairing mint test
+  that cannot collide ([GDK-1305]); and two CI flakes, the pairing mint test
   and the create-dialog e2e ([GDK-1306], [GDK-1295]).
 - Docs: the window speaks English, Korean and Japanese, and the READMEs and
   install pages now say so.
@@ -317,7 +314,7 @@ last here* line no longer vanishes on a quiet morning ([GDK-1537]).
 **Bodies are markdown, and a formatted one survives the round trip.**
 
 - Markdown in, ADF out. `create -m`, `edit -m`, `comment`, the page verbs and
-  the web editors take markdown — headings, lists, code, tables, links — and
+  the web editors take markdown (headings, lists, code, tables, links) and
   store what Jira or the Built-in tracker holds
   ([decision 0012](docs/decisions/0012-markdown-is-the-editing-source.md),
   [GDK-1384], [GDK-1383]). The detail renders every body as markdown, so the
@@ -325,14 +322,14 @@ last here* line no longer vanishes on a quiet morning ([GDK-1537]).
   again, and the editor has Write / Preview ([GDK-1385]). Linear gets the
   same formatting on the wire ([GDK-1386]).
 - Lossless edit of a formatted body. `gadak issue` prints the markdown
-  ([GDK-1394]) with a placeholder for each node markdown cannot say — a
-  panel, a mention, an image, a coloured run — and `edit -m -` puts every
+  ([GDK-1394]) with a placeholder for each node markdown cannot say (a
+  panel, a mention, an image, a coloured run), and `edit -m -` puts every
   node back where its marker stands; delete a marker and that node goes, and
   the write says so; a stale marker is refused ([GDK-1396]). `edit --adf-file`
   and `comment --adf-file` send an ADF document as it is ([GDK-1395]).
   `migrate --from` carries bodies as ADF, not flattened text ([GDK-1382]).
 - List toolbar: one view-settings menu for layout, sort, columns and "save
-  as view" — the board and columns buttons used to share a glyph
+  as view", where the board and columns buttons used to share a glyph
   ([GDK-1391]). The status breakdown axis is "Status", second, on every
   origin ([GDK-1390]).
 - Terminal: a shell is "shell 3", not eight hex digits; rename it with F2 or
@@ -344,24 +341,25 @@ last here* line no longer vanishes on a quiet morning ([GDK-1537]).
   ([GDK-1347]); `edit --batch` takes `label` / `component` / `fix_version`
   ([GDK-1259]); avatar initials skip punctuation ([GDK-1351]); placeholder
   markers quoted in code are text ([GDK-1398]); a terminal resize the kernel
-  did not take is re-issued until it holds — the CI flake ([GDK-1192]).
+  did not take is re-issued until it holds, which was the CI flake
+  ([GDK-1192]).
 
 ## v0.20.0 — 2026-09-03
 
 **The shell is in the window, and it is the issue's shell.** The terminal
-dock is a band across the whole window now — one horizontal seam under the
+dock is a band across the whole window now: one horizontal seam under the
 sidebar, the list and a docked detail alike, a quarter of the height by
 default, every column of the width ([GDK-1352]). The session roster is a
 column on its left, as wide as the sidebar above it, so the window keeps
 reading as navigation on the left and content on the right ([GDK-1355]).
-And the dock has an appearance of its own: dark under every app theme,
-because xterm's sixteen are a dark-ground palette and nine of them fell
-under 3.0:1 on paper; `follow` if you want it in the app's colours, and a
-**Settings → Terminal** tab for that, the font, scrollback and the cursor
-([GDK-1357]). The light palette declares its own sixteen — brick, moss,
-ochre, indigo, plum, teal, readable greys for the two whites — as tokens
-like any other, overridable through `ui.tokens.colors` ([GDK-1358]); the
-block cursor is ink on its ground rather than a fill ([GDK-1359]); and the
+The dock has an appearance of its own, dark under every app theme, because
+xterm's sixteen are a dark-ground palette and nine of them fell under 3.0:1
+on paper. Set `follow` if you want it in the app's colours; a
+**Settings → Terminal** tab covers that, the font, scrollback and the cursor
+([GDK-1357]). The light palette declares its own sixteen (brick, moss,
+ochre, indigo, plum, teal, readable greys for the two whites) as tokens
+like any other, overridable through `ui.tokens.colors` ([GDK-1358]). The
+block cursor is ink on its ground rather than a fill ([GDK-1359]), and the
 pane paints its ground under the last row too ([GDK-1354]).
 
 `gadak claim` typed in that pane binds the shell to the issue, and the
@@ -369,13 +367,13 @@ roster tab is named by the key. The README and the landing show exactly
 that now, in gadak's own pane: the paper-terminal composites are retired
 ([GDK-1353]).
 
-**A pass over the surface.** The sidebar is a return path, not a table of
-contents — a workspace row on top, quiet sections, one footer row
+**A pass over the surface.** The sidebar is a return path rather than a
+table of contents: a workspace row on top, quiet sections, one footer row
 ([GDK-1335]). The list toolbar is one row until you narrow the view, rows
 are 36px, the stale age is a number rather than a box, and the palette has
-one door ([GDK-1336]). Every column screen — Documents, spaces, History,
-dashboards, the feed — shares one header band ([GDK-1339]). The detail is
-one property list under a chip row that keeps only what changes
+one entry point ([GDK-1336]). Every column screen (Documents, spaces,
+History, dashboards, the feed) shares one header band ([GDK-1339]). The
+detail is one property list under a chip row that keeps only what changes
 ([GDK-1337]), its prose has a type scale and a wide-reading toggle
 ([GDK-1311]), and the board's recent actors are faces ([GDK-1338]).
 Every control reacts and nothing takes longer than 160ms; hover is a wash
@@ -391,11 +389,11 @@ preselected, says what gadak is before it asks for anything, and on the
 built-in tracker the empty list invites the first issue instead of
 promising a sync ([GDK-1342], [GDK-1345], [GDK-1286], [GDK-1287]).
 
-**Back works everywhere — the first inbound round, all of it shipped.**
+**Back works everywhere, and the first inbound round shipped in full.**
 @woojing brought five reports (discussion #80, issue #85), and every one
 is in this release. Thank you.
-Every place change goes through history — a linked issue, a person, a view,
-a query — so the browser's back button does what it says ([GDK-1296]). The
+Every place change goes through history (a linked issue, a person, a view,
+a query), so the browser's back button does what it says ([GDK-1296]). The
 detail's copy link pastes the origin's page first ([GDK-1290]); the settings
 dialog keeps one width across tabs ([GDK-1291]); a dock click on a
 fullscreen window stays fullscreen ([GDK-1294]); and a `gadak://` link
@@ -418,10 +416,10 @@ tracker is named once across the CLI and the docs ([GDK-1285],
 **Fixed.** `edit -m -` refuses an empty stdin instead of clearing the
 description ([GDK-1360]). `migrate` onto the built-in tracker kept every
 status name and lost every status category on a mirror whose
-`status_catalog` had never been filled — Done and In Progress arrived as
+`status_catalog` had never been filled: Done and In Progress arrived as
 open issues, and `claim` had no in-progress state to land on
 ([GDK-1361]). A write typed into a named workspace's pane no longer opens
-with `warning: workspace: … (from GADAK_WORKSPACE)` — the serve set that
+with `warning: workspace: … (from GADAK_WORKSPACE)`. The serve had set that
 variable to name the window's own workspace ([GDK-1362]). The freshness
 chip names the origin's tracker, not Jira ([GDK-1325]); the phone's pairing
 tab says Built-in ([GDK-1321]). Three defects the pre-tag audit found are
@@ -435,12 +433,12 @@ maps a team whose only done state is canceled ([GDK-1312], [GDK-1313],
 **Two words for two questions.** A workspace answered "what kind are you?"
 with one word, and that word was carrying two facts at once: which tracker
 the origin is, and whether it runs here. A paired workspace made the seam
-visible — it reported `connected`, a word that reads as someone else's
+visible: it reported `connected`, a word that reads as someone else's
 tracker, while its origin was gadak's own tracker one machine away, and the
-only way to tell was a separate pairing object. So the field is two now:
+only way to tell was a separate pairing object. So the field is two now.
 `origin_type` is `jira`, `linear` or `gadak`, and `transport` is `local`
 (in this process) or `remote` (across a serve API). No new vocabulary was
-invented — `sources` already keyed on those tracker names ([GDK-1278],
+invented, because `sources` already keyed on those tracker names ([GDK-1278],
 [GDK-1279], [GDK-1280]).
 
 `gadak status --json`, `doctor --json`, `workspaces --json`, the served
@@ -449,10 +447,10 @@ means what it meant, because the skill, the phone and the desktop shell all
 read it; it is simply the coarser field now.
 
 The flag that creates such a workspace follows: **`gadak init --local`**.
-`--standalone` keeps working — a flag already sitting in someone's script
-is a contract — but it is translated rather than registered as an alias, so
-the help teaches one name instead of two ([GDK-1281]). The word is gone
-from the app's copy, the docs, the skill an agent reads, and the source
+`--standalone` keeps working, because a flag already sitting in someone's
+script is a contract. It is translated rather than registered as an alias,
+though, so the help teaches one name instead of two ([GDK-1281]). The word
+is gone from the app's copy, the docs, the skill an agent reads, and the source
 itself: identifiers, filenames, test names ([GDK-1283], [GDK-1282]). Four
 places keep the old spelling on purpose, because they are wire contracts
 rather than vocabulary: the stored `kind` value, the `standalone_data_present`
@@ -460,15 +458,15 @@ error code, the `replace_standalone` request field, and the
 `onboarding/standalone/` route.
 
 **Fixed.** `migrate` warned and carried on when it could not read the
-source's attachment bytes, and everything downstream reported success —
+source's attachment bytes, and everything downstream reported success,
 including the count table, which reads `attachments 26 26` because it counts
 rows and bytes are what went missing. Since the procedure for leaving a
 tracker is *freeze the source, then migrate*, that was the ordinary path,
 not an edge case. It refuses before exporting now, naming both ways forward
 ([GDK-1275]). A workspace migrated out of a localized site arrived with two
-issue types rendering as "Epic" and two statuses as "In Progress" — the
-seeded defaults standing beside the migrated catalog under ids the display
-overlay maps to the same word — which left `--type Epic` with no answer at
+issue types rendering as "Epic" and two statuses as "In Progress": the
+seeded defaults stood beside the migrated catalog under ids the display
+overlay maps to the same word. That left `--type Epic` with no answer at
 all ([GDK-1284]).
 
 ## v0.19.2 — 2026-09-01
@@ -477,7 +475,7 @@ all ([GDK-1284]).
 <old>` exports a synced workspace's mirror into a brand-new standalone
 workspace: issues, comments, the full changelog, links, attachment bytes,
 and wiki pages, ending with a source-vs-migrated count table that includes
-the derived columns — reopen counts and epic keys have to re-derive from the
+the derived columns. Reopen counts and epic keys have to re-derive from the
 migrated history, so equality there is the real proof. Losses are reported
 rather than silent: bodies migrate as plain text and the report says how
 many code blocks, media nodes and tables that flattened; links and parents
@@ -485,25 +483,23 @@ outside the migrated set are counted as dropped. Measured on this project's
 own backlog: 1,268 issues, 3,811 history rows, 26 of 26 attachments, every
 row equal ([GDK-1264]).
 
-Two hard-won details came out of that first full export. The seed document
-ships as JSON, because YAML's emitter writes block scalars its own parser
-rejects on real tracker text — a value that starts with newlines, nested
-deep enough, fails to load back ([GDK-1269]); the embedded tracker now
-proves its own snapshots by parsing them before they leave. And a
-keep-chomped block at the end of a document stores its trailing newlines as
-value bytes, so the loader stopped trimming what it parses.
+That first full export moved the seed document to JSON: YAML's emitter
+writes block scalars its own parser rejects on real tracker text, where a
+value that starts with newlines, nested deep enough, fails to load back
+([GDK-1269]). The embedded tracker now proves its own snapshots by parsing
+them before they leave.
 
 **An issue can point at an issue in another workspace.** `gadak ref STD-1
 work/NMA-9` records a pointer, stored as a Jira remote issue link on your
-own origin — nothing is written to the workspace you point at, so a personal
-note about a team ticket stays personal. What makes it worth having is the
-other half: `gadak ref STD-1 --list`, and the issue's References section in
+own origin. Nothing is written to the workspace you point at, so a personal
+note about a team ticket stays personal. The other half is what makes it
+worth having: `gadak ref STD-1 --list`, and the issue's References section in
 the app, show the target's **current** status, assignee and summary, read
 out of that workspace's own mirror on this machine. No network call, no
-second tab. A target this machine does not mirror still lists — it says so
-instead of pretending ([GDK-1032]).
+second tab. A target this machine does not mirror still lists, and the row
+says so ([GDK-1032]).
 
-**The app finally admits you can make a workspace.** Creating, pairing and
+**The app now says you can make a workspace.** Creating, pairing and
 removing workspaces has lived in Settings → Workspaces since 0.19, but the
 sidebar's workspace section only appeared once you already had two, so the
 main surface never said the feature existed. It now shows with one workspace
@@ -517,10 +513,10 @@ day after 0.19.0 shipped.
 **`SELECT key, summary, status FROM issues` just works now.** The mirror's
 most common agent miss was structural: the intuitive name held a narrow
 internal table while the answer lived on `issues_full`. The names now match
-the intent — `issues` is the full view (title and description included),
+the intent: `issues` is the full view (title and description included),
 `issues_full` stays as a compatibility alias, and the physical table steps
 back to an internal name ([GDK-1258]). A `SELECT *` on `issues` therefore
-carries two more columns than before. And when a query does name a column
+carries two more columns than before. When a query does name a column
 that lives elsewhere, the error says where: `column "summary" exists on
 issues — query issues`, instead of the silence that used to cost three
 guesses ([GDK-974]).
@@ -528,8 +524,8 @@ guesses ([GDK-974]).
 **`gadak claim` survives a board with two in-progress lanes.** On a
 workflow where two transitions land in progress, every bare claim used to
 refuse with both candidates named and no way to pick one. `--transition
-<id|name>` chooses the lane — on the atomic route and the Cloud fallback
-alike, and a destination outside in-progress is refused, because claim is
+<id|name>` chooses the lane, on the atomic route and the Cloud fallback
+alike. A destination outside in-progress is refused, because claim is
 not a general transition ([GDK-1174]). The claim's other half got faster
 too: the terminal strip now renames the session on the tick the write
 landed, instead of waiting out its own two-second poll ([GDK-1182]).
@@ -541,27 +537,28 @@ different issues. The counters now live in the working copy itself, one
 atomic allocation per id, with no persist format change ([GDK-1180]).
 
 Also: the AUR verify script's scratch directory moves inside the repo,
-where Docker Desktop can actually mount it — a green container run that
-left no `.SRCINFO` on the host now fails loudly instead ([GDK-1256]).
+where Docker Desktop can actually mount it. A green container run that
+left no `.SRCINFO` on the host now fails loudly ([GDK-1256]).
 
 ## v0.19.0 — 2026-09-01
 
-The release where the issues stand up as a board, and the terminal takes
+The release where the issues become a board, and the terminal takes
 its Beta mark off.
 
 **The board.** The list you already filter is now also a board: one toggle
-lays the same issues across columns — same filters, same thirteen grouping
-axes, same search. Dragging a card is a real transition, with a menu when
-more than one status matches; a move made anywhere else — another window,
-an agent's `gadak transition` — flies across the board with a landing ring,
-because on this screen the movement is the only evidence it happened. The
-three status columns are always all three: "Done is empty" is an answer,
-not a missing column ([GDK-1175], [GDK-1176], [GDK-1190]). And a view can
-say it is a board: saved in board layout it reopens as one — from the app,
-and from the CLI: `gadak views save "Sprint board" --jql '…' --layout
+lays the same issues across columns, with the same filters, the same
+thirteen grouping axes and the same search. Dragging a card is a real
+transition, with a menu when more than one status matches. A move made
+anywhere else, in another window or from an agent's `gadak transition`,
+flies across the board with a landing ring, because on this screen the
+movement is the only evidence it happened. The three status columns are
+always all three: "Done is empty" is an answer, not a missing column
+([GDK-1175], [GDK-1176], [GDK-1190]). A view can say it is a board: saved in
+board layout it reopens as one, from the app and from the CLI: `gadak views
+save "Sprint board" --jql '…' --layout
 board`, with `views open` carrying the layout in the deeplink ([GDK-1248]).
 
-**The terminal takes its Beta mark off** ([GDK-1024]) — and its sessions
+**The terminal takes its Beta mark off** ([GDK-1024]), and its sessions
 belong to issues. `gadak claim` in a pane's shell binds that session to the
 issue, and the tab wears the issue key ([GDK-1158]). A command in an
 issue's body gets a ▶ that places it at that issue's shell prompt; the
@@ -581,8 +578,8 @@ terminal scrolls under a finger ([GDK-1097], [GDK-1096], [GDK-1098],
 [GDK-1051], [GDK-871], [GDK-899]).
 
 **The CLI learned the verbs sessions actually type.** `gadak list`, `next`,
-`show`, `done`, `recent`, `pick` — measured against what blind sessions
-reached for — plus `memory add`/`memory search` for agent notes,
+`show`, `done`, `recent` and `pick`, measured against what blind sessions
+reached for, plus `memory add`/`memory search` for agent notes,
 `edit --type` to refile a misfiled issue, `unlink` (the reverse verb `link`
 never had), and `workspaces rm`. A write confirms itself, and `edit -m`
 refuses to silently flatten a formatted description ([GDK-992], [GDK-1030],
@@ -595,8 +592,8 @@ stage-then-rename owner, so two saves can no longer torch each other
 ([GDK-1233], [GDK-1244]). A desktop boot that fails before the window opens
 says so in a dialog instead of exiting silently ([GDK-1243]), and Linear
 assignee edits go through the same write surface the UI advertises
-([GDK-1235]). And `gadak link` now points the link the way Jira will
-display it — the outward and inward ends were swapped, on the CLI and
+([GDK-1235]). `gadak link` now points the link the way Jira will
+display it; the outward and inward ends were swapped, on the CLI and
 REST both ([GDK-1204]; #79, thanks @wafe).
 
 **Sync got faster on quiet mirrors.** Jira incremental answers
@@ -611,7 +608,7 @@ standalone workspace stops offering a Jira credential dialog that cannot
 help it ([GDK-1122]); and the installed agent skill follows the binary,
 once a day ([GDK-996]).
 
-A full-codebase audit ran before this tag — parent [GDK-1128].
+A full-codebase audit ran before this tag (parent [GDK-1128]).
 
 ## v0.18.1 — 2026-08-26
 
@@ -620,20 +617,20 @@ same day 0.18.0 shipped it.
 
 **Closing a terminal closes everything it started.** A shell puts a
 background job in its own process group, so closing a session used to leave
-`sleep 999 &` — or a forgotten agent — running forever. The close now walks
-every process on the session's terminal, once, while the walk can still be
-trusted; a measured Linux failure where a second walk found *another*
-session's shell is why it is once ([GDK-950]).
+`sleep 999 &`, or a forgotten agent, running forever. The close now walks
+every process on the session's terminal once, while the walk can still be
+trusted. It walks once because in a measured Linux failure a second walk
+found *another* session's shell ([GDK-950]).
 
-**`gadak views open` reaches every open window** — the CLI's focus used to
+**`gadak views open` reaches every open window.** The CLI's focus used to
 be consumed by whichever window polled first, and the window you were
-looking at stayed put. And two `views open` in the same second no longer
+looking at stayed put. Two `views open` in the same second no longer
 lose the second one: the payload is deduped on what it says, not just when
 it was written ([GDK-960], [GDK-981]).
 
-**The terminal pane says why it cannot open** — no PTY on Windows, a token
-without the terminal scope, a network drop — in words, with a retry, on the
-web and on the phone from the same source ([GDK-944]).
+**The terminal pane says why it cannot open**: no PTY on Windows, a token
+without the terminal scope, a network drop. It says so in words, with a
+retry, on the web and on the phone from the same source ([GDK-944]).
 
 **gadak keeps a log file, and doctor hands it to you.** A Finder-launched
 app used to discard every diagnostic line; now `gadak doctor` names the file
@@ -646,28 +643,28 @@ CLI exit path that used to leave a stale "open" marker behind clears it
 ([GDK-971]); the hosted demo's mirror is published as a file you can
 download and open in your own gadak ([GDK-975]); and the benchmark tables
 were re-measured on a quiet machine, on the corpus the demo actually ships.
-A release audit of this delta ran before the tag — parent [GDK-980].
+A release audit of this delta ran before the tag (parent [GDK-980]).
 
 ## v0.18.0 — 2026-08-26
 
 **A terminal, inside gadak.** ⌘K → Terminal, or `Ctrl+\``. It is a real
-shell in the same window as your issues — so you can run a coding agent
+shell in the same window as your issues, so you can run a coding agent
 there and watch it move the board next to it. Same terminal in the web tab,
-in the macOS app, and on a paired phone. Korean composition lands on the cursor, where a
-terminal canvas does not make that automatic. It ships **Beta** — useful, and
-we would rather name the rough edges than hide them ([GDK-862], [GDK-864],
+in the macOS app, and on a paired phone. Korean composition lands on the
+cursor, where a terminal canvas does not make that automatic. It ships as
+**Beta**: useful, with rough edges named ([GDK-862], [GDK-864],
 [GDK-865], [GDK-892], [GDK-895], [GDK-956]).
 
 **A token that opens a shell and nothing else.** `gadak pairing mint --scope
 terminal` is the only kind that opens one; a `serve` or `origin` token opens
-none — though a `serve` token now reaches the whole mirror REST, not a
+none, though a `serve` token now reaches the whole mirror REST rather than a
 13-path allowlist. Revoke a terminal token and the shells it opened close
 within seconds, and are told why. Loopback still needs no token at all
 ([GDK-863], [GDK-883]).
 
 **The phone app is something you can use.** Issues in your own saved views,
 wiki pages beside them, search that shows page hits, an issue detail that
-lands on the thread, and notifications only for what is actually yours —
+lands on the thread, and notifications only for what is actually yours:
 assigned, mentioned, reopened. It reaches the terminal too, over a second
 token, and unpairing forgets that shell too. Internal TestFlight builds ship
 in one command ([GDK-805], [GDK-867], [GDK-870], [GDK-879], [GDK-884],
@@ -680,13 +677,13 @@ once on every localised site and make you look up the type id. Names, ids,
 clear error rather than a guess ([GDK-741]).
 
 **The wiki's scope is stated before you install.** It was always opt-in and
-always per-space — `gadak init --spaces ENG,PROD`, or Settings → Sources —
+always per-space (`gadak init --spaces ENG,PROD`, or Settings → Sources),
 but nothing said so until you had already installed and run a sync. Someone
 told us they had not tried gadak because a whole Confluence looked like too
 much to mirror. It never was ([GDK-964]).
 
 **The changelog you are reading is on the site now**, in both languages,
-rendered from the repository rather than copied — plus the search-engine
+rendered from the repository rather than copied, plus the search-engine
 basics the site never had: canonical links, a sitemap, and structured data
 for the releases.
 
@@ -702,18 +699,18 @@ installed beside it ([GDK-963]).
 ## v0.17.3 — 2026-08-25
 
 **The phone stopped being a skeleton.** A paired iPhone reads your mirror
-over its own `serve` pairing scope — a one-way door, so that token cannot
-ride the origin passthrough and an origin token cannot dump the mirror — and
+over its own `serve` pairing scope, a one-way door: that token cannot ride
+the origin passthrough, and an origin token cannot dump the mirror.
 `pairing mint` works on a connected workspace. On the phone: a quiet queue as
 the first screen with real status names, pairing that proves the connection
 it claims and explains each failure, search that answers before you type
 (recent searches, your saved views as chips), an issue detail whose comment
 draft survives a failed send, and notifications only for assigned, mentioned
-and reopened — silent while you are looking at the app ([GDK-796], [GDK-797],
+and reopened, silent while you are looking at the app ([GDK-796], [GDK-797],
 [GDK-798], [GDK-799], [GDK-800], [GDK-801], [GDK-802], [GDK-837]).
 
 **Spacing, layout and type are yours too, not just colour.** `ui.tokens`
-grew three more axes, and setting one no longer risks the rest — each is a
+grew three more axes, and setting one no longer risks the rest: each is a
 key-wise merge, so a bad write leaves the config untouched. One token is a
 path of its own: `gadak config set ui.tokens.type.terminal 15px`, no JSON and
 no quoting, with an unknown name refused rather than stored as a typo. `gadak
@@ -723,14 +720,14 @@ range, and what it has to move together with ([GDK-842], [GDK-849],
 
 **Your look is yours: validation warns and saves instead of refusing.**
 Contrast, colour distance, deuteranopia and the token relations all still run
-and still tell you what you are about to get — but only what the machine
-genuinely cannot honour is rejected. The warnings carry the next move, not
-just the diagnosis: a contrast line names the palettes that fail and where to
-fix them, a type line prints the whole ladder that has to move together. The
-way out of any look is always one CLI line ([GDK-856], [GDK-857], [GDK-858]).
+and still tell you what you are about to get, but only what the machine
+genuinely cannot honour is rejected. The warnings carry the next move as well
+as the diagnosis: a contrast line names the palettes that fail and where to
+fix them, a type line prints the whole ladder that has to move together. Any
+look can be undone with one CLI line ([GDK-856], [GDK-857], [GDK-858]).
 
 **A dashboard link can open an issue.** A wall can now navigate the app to
-any of its own routes — an issue, a saved view, a filtered list, a search —
+any of its own routes (an issue, a saved view, a filtered list, a search),
 and an external link opens a new tab instead of replacing the wall
 ([GDK-854]).
 
@@ -740,12 +737,12 @@ and an external link opens a new tab instead of replacing the wall
 queries, saved like a view and rendered full-tab in the running web UI. The
 host runs the SQL (or JQL) and hands the rows in; the page itself never
 reaches the network. Saving re-renders an open tab in about a second, and new
-mirror data re-pushes on its own. Charts work offline — uPlot ships inside
+mirror data re-pushes on its own. Charts work offline: uPlot ships inside
 gadak, so there is no CDN and no loosened policy ([GDK-781], [GDK-782],
 [GDK-792], [GDK-793]).
 
-**And any chart library you want, downloaded once.** `gadak dashboards lib
-add <url>` fetches a library, pins its hash, and serves it locally — re-hashed
+**Any chart library you want, downloaded once.** `gadak dashboards lib
+add <url>` fetches a library, pins its hash, and serves it locally, re-hashed
 on every request, so a file tampered with after the fact fails closed instead
 of running. Dashboards name the libraries they use; ones that do not are
 unaffected. three.js stopped shipping inside the binary and became the
@@ -765,8 +762,8 @@ migration time, which had been answering quietly and wrong ([GDK-824]).
 **The staleness warning names which source is stale.** `mirror last synced
 154h ago` came from the oldest row across every source, so one quiet
 Confluence space made the whole mirror read as six days old while `status`
-showed a watermark ten minutes back — two screens, opposite stories, no way
-to tell which to believe. It now names the source and prints the same
+showed a watermark ten minutes back: two screens, opposite stories, and no
+way to tell which to believe. It now names the source and prints the same
 timestamp `status` does ([GDK-810]).
 
 **A page id you read is a page id you can write to.** Search prints it, the
@@ -791,9 +788,9 @@ cannot drift apart ([GDK-814]).
 
 ## v0.17.1 — 2026-08-24
 
-The patch where the mirror learned to share. A day of using gadak on a
-20,000-issue mirror found every way two gadak processes could end up waiting
-on one file.
+The patch about sharing the mirror between processes. A day of using gadak
+on a 20,000-issue mirror found every way two gadak processes could end up
+waiting on one file.
 
 **A standalone workspace keeps its record in SQLite.** The embedded tracker
 writes to `origin/issuetap.db`, one transaction per write, instead of
@@ -803,10 +800,10 @@ stop the app and copy it, or use `sqlite3 .backup` while it runs ([GDK-202]).
 
 **"Database is busy" tells you who is holding it.** A write that reached
 Jira no longer fails just because the local re-read collided with another
-process, and a genuine refusal names the neighbour — another app, a `serve`,
-a CLI — instead of an error code. `gadak doctor` lists them. Browsing history
+process, and a genuine refusal names the neighbour (another app, a `serve`,
+a CLI) instead of an error code. `gadak doctor` lists them. Browsing history
 took its own connection, so reading no longer queues behind a sync, and an
-agent's reads wait politely rather than failing instantly ([GDK-740],
+agent's reads wait for the file rather than failing instantly ([GDK-740],
 [GDK-753], [GDK-754], [GDK-757], [GDK-755]).
 
 **Faster where it was slowest, measured at 20k issues.** `gadak issue KEY`
@@ -824,14 +821,14 @@ three: a chip that would not hide, row columns cut mid-character, and a
 minimum width that disagreed with the layout it was supposed to describe. A
 CI check keeps all three closed ([GDK-758], [GDK-766]).
 
-**On gadak.dev:** a Korean browser is offered the Korean page — a suggestion,
-never a redirect, and it remembers your answer ([GDK-770]). Plus `llms.txt`
+**On gadak.dev:** a Korean browser is offered the Korean page: a suggestion,
+never a redirect, and the answer is remembered ([GDK-770]). Plus `llms.txt`
 for agents reading the site, and landing media that shows the product at
 readable scale instead of full-screen video ([GDK-751], [GDK-752]).
 
 ## v0.17.0 — 2026-08-23
 
-The cycle where an agent's writes grew up. An issue shows the code that
+The cycle that filled in an agent's writes. An issue shows the code that
 implements it, the write verbs learned what a coding agent actually sends,
 and a workspace stopped being something you re-select on every command.
 
@@ -858,12 +855,12 @@ A rejected parent lists the epics you could have picked ([GDK-254],
 **A write that reached Jira counts as a success** even if the local re-read
 right afterwards did not ([GDK-740]). Bulk reads take many keys, or `--keys
 -`, with nothing silently dropped ([GDK-328], [GDK-425]). `gadak claim KEY`
-takes an issue in one move, and `gadak issue` shows how long the work sat —
+takes an issue in one move, and `gadak issue` shows how long the work sat:
 `wait 3d · progress 5h` ([GDK-591]).
 
 **Writes carry who made them.** `GADAK_ACTOR` names the agent, and the web
-marks bot work with a badge, so a machine's edit is not indistinguishable
-from yours. A standalone workspace speaks your language, and a restricted
+marks bot work with a badge, so a machine's edit can be told apart from
+yours. A standalone workspace speaks your language, and a restricted
 issue looks different from a public one ([GDK-519], [GDK-586], [GDK-588],
 [GDK-590], [GDK-593], [GDK-597]).
 
@@ -897,20 +894,20 @@ full Japanese catalog ([GDK-83], [GDK-86], [GDK-121], [GDK-129], [GDK-130],
 [GDK-316], [GDK-437], [GDK-604], [GDK-613], [GDK-617], [GDK-626], [GDK-737],
 [GDK-738], [GDK-739]).
 
-**Desktop.** A second launch raises the window you have instead of starting a
-rival. On Windows: `gadak://` links work, `install-cli` speaks Windows, and
-the app stops claiming it notified you when it did not ([GDK-349],
+**Desktop.** A second launch raises the window you have instead of starting
+a second one. On Windows: `gadak://` links work, `install-cli` speaks
+Windows, and the app stops claiming it notified you when it did not ([GDK-349],
 [GDK-350], [GDK-351], [GDK-353], [GDK-658], [GDK-700]).
 
 **Network, audited.** An empty host counts as a non-loopback bind, so `serve`
 demands `--allow-remote` for it like any other exposure ([GDK-542]). Linear's
-rate limit is a retry rather than a death, and a Linear-only workspace is a
+rate limit is retried rather than fatal, and a Linear-only workspace is a
 configured workspace ([GDK-263], [GDK-654]). The Web Push client is gone: it
 called endpoints the server answers 404 to, and vendor push services are
 outbound traffic this project does not make ([GDK-711]).
 
-**gadak's own backlog is public**, at gadak.dev, with a front door and a demo
-beside it — and a page explaining that Windows warning ([GDK-211],
+**gadak's own backlog is public**, at gadak.dev, with a front door, a demo
+beside it, and a page explaining that Windows warning ([GDK-211],
 [GDK-389], [GDK-676]).
 
 ## v0.16.1 — 2026-08-20
@@ -920,34 +917,34 @@ The release that finishes what 0.16 started.
 **Linear is a third tracker, and gadak writes to it.** A `"linear"` block in
 your workspace config and `gadak sync --source linear` mirror issues,
 comments, labels and attachments. Writes route by whichever origin owns the
-row, and what Linear cannot do yet refuses honestly instead of half-applying.
+row. What Linear cannot do yet is refused outright rather than half-applied.
 Jira, standalone and Linear all answer the same write verbs ([GDK-263],
 [GDK-359], [GDK-360], [GDK-361]).
 
-**The wiki stops being read-only.** Create a page, edit its title or body,
-comment on it — all through the origin, from the CLI or the REST API
+**The wiki stops being read-only.** You can create a page, edit its title or
+body, and comment on it, all through the origin, from the CLI or the REST API
 ([GDK-344], [GDK-380], [GDK-381], [GDK-382]).
 
-**Two gadak processes stop fighting over a standalone workspace.** The
+**Two gadak processes can no longer both write a standalone workspace.** The
 desktop app advertises its origin the way `serve` does, so an app and a CLI
 cannot both hold the record file. An acknowledged write is on disk before you
-get the answer, and a write that could not be persisted fails instead of
-pretending. A standalone failure no longer reports itself as a missing
+get the answer, and a write that could not be persisted returns an error
+instead of success. A standalone failure no longer reports itself as a missing
 credential, and converting a workspace says what conversion actually does to
 your local-only issues ([GDK-241], [GDK-333], [GDK-340], [GDK-342],
 [GDK-343], [GDK-345], [GDK-346], [GDK-347], [GDK-348]).
 
-**Agents learn that standalone exists.** The embedded skill knows the word,
-the CLI says which origin it means, and `transition` names each target's
-`status_id` — and accepts the one the read path just handed out, which is the
-loop an agent kept failing on. `issues_full` gained `description_text`, and a
+**Agents learn that standalone exists.** The embedded skill knows the word, and
+the CLI says which origin it means. `transition` names each target's
+`status_id` and accepts the one the read path just handed out; that round trip
+is where agents kept failing. `issues_full` gained `description_text`, and a
 standalone `init` fills the mirror so nothing starts empty ([GDK-239],
 [GDK-312], [GDK-313], [GDK-363], [GDK-364], [GDK-365], [GDK-366], [GDK-367],
 [GDK-368], [GDK-371], [GDK-376]).
 
-**Docs that stop contradicting the product.** The install page admits
-standalone exists, the FAQ stops telling you to `rm -rf ~/.gadak`, the
-network gets its own page, and export/import finally has a paragraph
+**Docs that match the product.** The install page covers standalone, the FAQ
+no longer tells you to `rm -rf ~/.gadak`, the network has its own page, and
+export/import finally has a paragraph
 ([GDK-271], [GDK-372], [GDK-373], [GDK-374], [GDK-375], [GDK-601]).
 
 ## v0.16.0 — 2026-08-19
@@ -958,7 +955,7 @@ actually triage by.
 
 **A workspace without an Atlassian account.** Standalone: the origin is a
 minimal tracker that runs inside gadak and travels with it. The mirror is
-still a disposable cache and every write still goes through the origin — the
+still a disposable cache, and every write still goes through the origin. The
 only change is who the origin is. A workspace is bound to one origin, so
 connecting a credential cannot quietly repoint it somewhere else. Standalone
 wikis write through the same path ([GDK-183], [GDK-237], [GDK-238],
@@ -979,14 +976,14 @@ is editable comes from the issue's own metadata rather than a fixed list, so
 your site's custom fields are included ([GDK-82], [GDK-223], [GDK-249],
 [GDK-250], [GDK-251], [GDK-322], [GDK-323], [GDK-331], [GDK-332]).
 
-**The palette can file an issue** from whatever you just typed, required
-fields with obvious answers stop being questions, and posting a comment
-finally tells you it landed ([GDK-217], [GDK-218], [GDK-300], [GDK-301],
+**The palette can file an issue** from whatever you just typed. Required
+fields with obvious answers are no longer asked, and posting a comment now
+confirms that it was posted ([GDK-217], [GDK-218], [GDK-300], [GDK-301],
 [GDK-302]).
 
 **A non-English Jira stops silently returning nothing.** Status, priority and
-issue type key on ids and categories everywhere instead of display names —
-`status = 'In Progress'` is zero rows on a Korean account, and that class of
+issue type key on ids and categories everywhere instead of display names.
+`status = 'In Progress'` returns zero rows on a Korean account; that class of
 quiet wrong answer is closed ([GDK-161], [GDK-248], [GDK-272], [GDK-275]).
 Korean mid-compound search works too ([GDK-259]).
 
@@ -995,31 +992,31 @@ the right thing for your platform, and renders the notes in the app. It never
 updates itself ([GDK-213], [GDK-214], [GDK-215], [GDK-216]).
 
 **Smaller things.** A cold open no longer serialises everyone behind it, a
-contended write waits instead of dying instantly, and a background sync stops
-outliving the server that started it ([GDK-270], [GDK-282], [GDK-305]). The
-hosted demo opens on the product, and feedback channels live in Settings and
-the macOS Help menu ([GDK-335], [GDK-336]). A read-only Linear client landed
-as groundwork, deliberately not wired to workspaces yet — that is 0.16.1
-([GDK-258], [GDK-261], [GDK-263], [GDK-274]).
+contended write waits instead of failing immediately, and a background sync
+stops outliving the server that started it ([GDK-270], [GDK-282], [GDK-305]).
+The hosted demo opens on the product, and feedback channels live in Settings
+and the macOS Help menu ([GDK-335], [GDK-336]). A read-only Linear client
+landed as groundwork, deliberately not wired to workspaces yet. That is
+0.16.1 ([GDK-258], [GDK-261], [GDK-263], [GDK-274]).
 
 ## v0.15.2 — 2026-08-17
 
-The release where settings stop being a screen.
+The release that makes every setting reachable from the CLI.
 
 **Every field the settings dialog edits is also a CLI verb.** `gadak config
 list | get | set` and the settings API go through one table, so they cannot
-disagree — which means an agent can set up a workspace end to end. Themes live
-in the workspace config file, so picking one in the UI and setting it from a
-terminal are the same act ([GDK-190], [GDK-193]).
+disagree. An agent can now set up a workspace end to end. Themes live in the
+workspace config file, so picking one in the UI and setting it from a terminal
+do the same thing ([GDK-190], [GDK-193]).
 
-**Three darks, and one of them is yours.** `dark` is a neutral-cool charcoal,
-`ink` is a new blue-black, and `ember` keeps the previous warm dark exactly as
-it was ([GDK-190]).
+**Three dark themes.** `dark` is a neutral-cool charcoal, `ink` is a new
+blue-black, and `ember` keeps the previous warm dark exactly as it was
+([GDK-190]).
 
 **Smaller things.** A bare number finds that issue in any project, on every
 search surface ([GDK-186]). The settings dialog stops repeating its mirror
-block above every tab ([GDK-188]). Menus stopped installing things behind
-your back — Settings → Integrations does that, and says what is already
+block above every tab ([GDK-188]). Menus no longer install things without
+asking. Settings → Integrations does that, and lists what is already
 installed ([GDK-189], [GDK-191]).
 
 ## v0.15.1 — 2026-08-17
@@ -1035,13 +1032,14 @@ installed ([GDK-189], [GDK-191]).
 ## v0.15.0 — 2026-08-17
 
 The release that opens gadak outward. A view or an issue is a link any app
-can hand over, search is fast enough to sit under someone else's keystroke,
-and there is a dark theme built to the same standard as the light one.
+can hand over, search is fast enough for another app to query on every
+keystroke, and there is a dark theme built to the same standard as the light
+one.
 
-**A piece of gadak travels as a link.** `gadak://` deep links, with every
-place in the app addressable — and gadak produces the links it consumes: a
-copy-link action in the UI, `gadak issue KEY --link` on the CLI ([GDK-119],
-[GDK-124], [GDK-163], [GDK-164]).
+**Any part of gadak can be handed over as a link.** `gadak://` deep links,
+with every place in the app addressable. gadak also produces the links it
+consumes: a copy-link action in the UI, and `gadak issue KEY --link` on the
+CLI ([GDK-119], [GDK-124], [GDK-163], [GDK-164]).
 
 **Search fast enough to drive another app's UI.** Typing an issue key finds
 that issue; on a 20,000-issue mirror the worst case went from 1.6s to 110ms.
@@ -1051,8 +1049,8 @@ That is what makes a launcher extension feel local ([GDK-117], [GDK-166],
 **An issue can name its parent.** `gadak create --parent` and `gadak edit
 --parent` write the sub-issue relationship through Jira ([GDK-19], [GDK-86]).
 
-**A dark theme, done properly.** Warm ground, ink foregrounds, the same paper
-metaphor as light, and no flash on first paint. Both palettes clear the same
+**A dark theme.** Warm ground, ink foregrounds, the same paper metaphor as
+light, and no flash on first paint. Both palettes clear the same
 measured floors: status colours stay distinguishable in normal and
 colour-blind vision, and success and failure are never told by colour alone
 ([GDK-154], [GDK-156], [GDK-157], [GDK-158], [GDK-159], [GDK-162],
@@ -1063,25 +1061,25 @@ scan, the last row stops being cut in half, Esc closes what you are looking
 at, and a panel that covers the list says so ([GDK-128], [GDK-131],
 [GDK-132], [GDK-133]).
 
-**Korean typing stopped fighting the search box.** A half-composed syllable is
-not a query, and chosung matching is gone product-wide — it was matching
-things you did not mean ([GDK-168], [GDK-169]).
+**Korean input works in the search box.** A half-composed syllable is not a
+query, and chosung matching is gone product-wide, because it matched things
+you did not mean ([GDK-168], [GDK-169]).
 
-**Honesty at the edges.** The hosted demo stops advertising verbs it cannot
-answer ([GDK-52]). A read-only home is a warning, not a refusal to start
+**The edges.** The hosted demo stops advertising verbs it cannot answer
+([GDK-52]). A read-only home is a warning, not a refusal to start
 ([GDK-149], [GDK-173]). Copy means copied, an attachment is fetched at most
 once, and the desktop app stops loading its runtime twice ([GDK-150],
 [GDK-177], [GDK-178]).
 
 ## v0.14.2 — 2026-08-16
 
-The release about the first ten minutes, and the day your token dies. Nothing
-here is a new capability so much as an existing one that finally tells you
-what it is doing.
+The release about the first ten minutes, and about the day your token
+expires. Nothing here is a new capability. Each item is an existing one that
+now reports what it is doing.
 
-**Every token trap is named before you paste, not after the 401** — and a
-rejected token is recoverable without having to write anything first
-([GDK-68], [GDK-69], [GDK-98]). Expiry is warned about before the sync dies
+**Every token trap is named before you paste, not after the 401 arrives.**
+A rejected token is recoverable without having to write anything first
+([GDK-68], [GDK-69], [GDK-98]). Expiry is warned about before the sync fails
 ([GDK-67]).
 
 **Picking no projects is a choice, not an unfinished form** ([GDK-99]).
@@ -1089,7 +1087,7 @@ rejected token is recoverable without having to write anything first
 **`gadak skill install` treats an upgrade as an upgrade**, and the embedded
 skill knows the verbs the CLI actually has ([GDK-91], [GDK-92]).
 
-**A quiet wiki costs almost nothing to sync** — a tick over an unchanged
+**A quiet wiki costs almost nothing to sync.** A tick over an unchanged
 Confluence reads zero page bodies ([GDK-113]).
 
 **`gadak issue <KEY> --derive` shows where the derived columns came from**
@@ -1106,8 +1104,8 @@ One day of using gadak on gadak's own backlog, shipped as it landed.
 
 **The first CLI write verbs:** `gadak create`, `gadak attach`, `gadak edit`.
 
-**The macOS app is notify-only.** The in-app self-updater — never exercised,
-never earned — is gone, and this release deliberately ships no desktop zip
+**The macOS app is notify-only.** The in-app self-updater, which was never
+exercised, is gone, and this release deliberately ships no desktop zip
 ([GDK-58], [GDK-61]).
 
 **The hosted demo works where people actually tap it:** inside in-app
@@ -1132,8 +1130,9 @@ and a response over the size cap sheds the oldest comments and says
 **Three things are a promise you can build on:** `issues_full` plus the
 RECIPES queries, `gadak sql` stdout, and `views open --keys -`.
 
-**`gadak export` / `gadak import` round-trip what you would actually miss** —
-saved views, watches, favourites — carrying no credentials and no site URL.
+**`gadak export` / `gadak import` round-trip what you would actually miss:**
+saved views, watches, favourites. The file carries no credentials and no site
+URL.
 
 **Numbers, with the rows where gadak loses.** Measured against a live
 2,853-issue Cloud project: 42× on a simple filter, 162× on an epic
@@ -1153,9 +1152,9 @@ document in one index, ignoring the filter chips on the list. The box above
 the list keeps its old job: narrow what is already there.
 
 **History is a file beside the mirror.** Issues, documents and searches on
-one timeline in `~/.gadak/local.db` — so throwing away the mirror does not
-throw that away, and an agent can join what you visited to what you have in
-a single `gadak sql`.
+one timeline in `~/.gadak/local.db`. Throwing away the mirror does not throw
+that away, and an agent can join what you visited to what you have in a single
+`gadak sql`.
 
 **The window follows the agent.** An arbitrary set of issue keys is a
 first-class view, so `gadak views open --keys -` puts an agent's answer on
@@ -1168,21 +1167,19 @@ unsupported subset is listed rather than silently dropped. Your Jira saved
 filters show up in the sidebar, and `gadak views` lists, shows, opens and
 saves them.
 
-**Wiki scope became real.** Each Confluence space carries its own watermark,
+**Wiki scope is per space.** Each Confluence space carries its own watermark,
 a newly selected space backfills in full, and a space that leaves the scope
 is removed.
 
-**People are matched by account id, not by email.** Person filters no longer
-depend on your site making email addresses visible (#1, thanks @elppaaa) —
-across JQL, saved views, filters and the member directory.
-
-**The macOS window can be dragged** (#2, thanks @wafe).
+**Two fixes came from outside.** People are matched by account id rather than
+by email, so person filters no longer depend on your site making email
+addresses visible, across JQL, saved views, filters and the member directory
+(#1, thanks @elppaaa). The macOS window can be dragged (#2, thanks @wafe).
 
 **Smaller things.** Comment-only wiki edits reach the mirror, an unchanged
 page stops bumping its version, and a deleted issue is tombstoned by a
 single-item sync. An unknown `--profile` errors with the real list. A failed
-mirror re-read after an upload returns the documented error instead of
-pretending.
+mirror re-read after an upload returns the documented error.
 
 ## v0.12.0 — 2026-08-13
 
@@ -1192,20 +1189,20 @@ ink, one 쪽빛 thread.
 **Paper, not a dark dashboard.** The mark is 가 drawn as two strokes. The
 crystal-ball dashboard and the TUI are gone.
 
-**Renamed to gadak** — binary, home directory (`~/.gadak`), environment
+**Renamed to gadak:** binary, home directory (`~/.gadak`), environment
 prefix (`GADAK_*`), MCP tools, module path and desktop bundle id. An existing
 `~/.scry` tree is renamed on first launch, and `SCRY_*` is still read
 wherever the `GADAK_*` equivalent is unset.
 
-**Labels and priority became things you change.** Labels stay visible on the
-list, edit on the issue, and apply to a selection from the bulk bar (`l`,
-beside `s` and `a`). Priority writes by id from the site's own catalog. The
+**Labels and priority are editable.** Labels stay visible on the list, edit
+on the issue, and apply to a selection from the bulk bar (`l`, beside `s` and
+`a`). Priority writes by id from the site's own catalog. The
 title is editable.
 
 **Workspaces work in the desktop app**, and every workspace with a credential
 gets its own sync loop.
 
-**Document lists stopped freezing on a large mirror** — 4,433 ms to 68 ms on
+**Document lists stopped freezing on a large mirror:** 4,433 ms to 68 ms on
 a 10,000-page window.
 
 **Smaller things.** The native title bar is gone; window controls moved into
@@ -1221,23 +1218,22 @@ The people-and-visual-foundation release. A name in ⌘K opens a person, every
 search hit says why it matched, and the chrome finally sits on one type
 scale and one orb.
 
-- The people axis: type a name in ⌘K and a person panel opens — web-only
-  this version.
-- Search says why it matched, with a snippet of the field that hit.
-- Page list excerpt: a one-line body preview on every page.
+- The people axis: type a name in ⌘K and a person panel opens (web-only this
+  version), and the demo has more than one person in it.
+- Search says why it matched, with a snippet of the field that hit; every
+  page in the list carries a one-line body preview.
 - A visual foundation: a real type scale, muted text at 6.2:1, one
   monochrome icon family, and an avatar palette where red stays reserved for
   meaning.
-- One orb everywhere: the wordmark's sphere sits on the x-height, and every
-  icon derives from that same drawing; the crescent logo retires.
-- Geometry, not just color: a two-step height grid, corner radius that
-  follows nesting, pinned detail-panel headers, and consecutive comments by
-  one author grouped under a single header.
-- The demo has more than one person in it.
+- One orb everywhere: the wordmark's sphere sits on the x-height, every icon
+  derives from that same drawing, and the crescent logo is retired. The
+  geometry matches: a two-step height grid, corner radius that follows
+  nesting, pinned detail-panel headers, and consecutive comments by one
+  author grouped under a single header.
 
 ## v0.8.0 — 2026-08-06
 
-- Gadak.app — the macOS desktop app: the web UI in its own signed, notarized
+- Gadak.app, the macOS desktop app: the web UI in its own signed, notarized
   window, with no local server at all; a second launch focuses the running
   window, and the bundle carries the CLI.
 - Sync starts after in-app onboarding, without a restart.
@@ -1250,33 +1246,31 @@ stops being an open proxy, and the README leads with the live demo.
 
 - `gadak mcp install <client>` pins the current profile and absolute binary
   path into an MCP host registration.
-- Browser guard on the local API: reject cross-origin writes and
-  DNS-rebinding reads.
-- Space names, a docs UX wave (Viewed / Updated / By author), and an epics
-  built-in view.
-- Mirror file permissions tighten to `0600` / `0700` on open.
-- A face: wordmark, logo, and a favicon the app never had.
-- The demo speaks English (Korean narrative pages remain for CJK search).
-- `docs/FAQ.md` answers the hard questions with receipts.
+- The local API stops being an open proxy: cross-origin writes and
+  DNS-rebinding reads are rejected, and mirror file permissions tighten to
+  `0600` / `0700` on open.
 - `serve` opens `http://gadak.localhost` when the resolver maps it; a busy
   listen port hands off to a running gadak or falls back to a free port.
+- Space names, a docs UX wave (Viewed / Updated / By author), and an epics
+  built-in view.
 - Keyboard triage, a freshness chip, a warm-boot cache, and an interaction
   performance gate against a 10k-issue fixture.
 - Confluence sync hardened for real sites.
+- A face: wordmark, logo, and a favicon the app never had. The demo speaks
+  English (Korean narrative pages remain for CJK search), and `docs/FAQ.md`
+  answers the hard questions with evidence.
 
 ## v0.6.0 — 2026-08-06
 
 The wiki release. Confluence pages join the items spine, show up in the web
 UI and the TUI, and issues grow an honest epic hierarchy.
 
-- Confluence page labels, collected on fetch and shown everywhere pages
-  appear.
-- Epic hierarchy: a derived `epic_key` — the nearest level-1 ancestor — so a
-  sub-task groups under its epic rather than its story.
-- Confluence page mirror: second source on the items spine, with docs in the
-  web UI and a TUI docs navigator (`D`).
-- Epic hierarchy in the web UI: group labels, row chips, breadcrumb, and
-  rollup.
+- Confluence page mirror: a second source on the items spine, with docs in
+  the web UI and a TUI docs navigator (`D`). Page labels are collected on
+  fetch and shown everywhere pages appear.
+- Epic hierarchy: a derived `epic_key` (the nearest level-1 ancestor), so a
+  sub-task groups under its epic rather than its story. In the web UI it
+  becomes group labels, row chips, breadcrumb, and rollup.
 - Phones render the desktop layout instead of a squeezed column.
 
 ## v0.5.0 — 2026-08-05
@@ -1296,10 +1290,10 @@ UI and the TUI, and issues grow an honest epic hierarchy.
 ## v0.3.0 — 2026-08-05
 
 - Field auto-discovery: the first full sync discovers and configures custom
-  fields itself.
-- Filter axes from discovered fields, including multi-select editors.
-- Sync progress carries a real total; projects are optional on sync.
-- Sync history behind the sidebar timestamp.
+  fields itself, and the filter axes come from what it found, including
+  multi-select editors.
+- Sync progress carries a real total, projects are optional on sync, and
+  sync history sits behind the sidebar timestamp.
 
 ## v0.2.1 — 2026-08-05
 
@@ -1312,49 +1306,38 @@ UI and the TUI, and issues grow an honest epic hierarchy.
 Team config sharing, a zero-install hosted demo, a personal watch feed,
 and the storage schema plus the HTTP, sync and agent contracts.
 
-- Team config sharing: `gadak team export` / `import` writes the views,
-  field map, group rules and thresholds a team agrees on; credentials never
-  travel, and a file containing credential keys is refused on import.
-- Rate-limit visibility: our own call volume, shown in `gadak status` and
-  the settings runtime panel, hidden while the count is zero.
-- `gadak fields` reports which custom fields are actually populated.
-- `gadak snapshot` builds a shareable copy; `--spread` restates timestamps
-  across a window while preserving every issue's internal ordering, `--scale`
-  clones issues onto new keys, `--now` pins the clock, and a credential scan
-  runs before the file is published.
-- Per-command help, generated from the FlagSet so it cannot drift.
-- TUI parity: feed focus tabs, saved-view sort/dir/group_by, and priority
-  sorting keyed on `priority_rank`.
-- Favorites live in the mirror, so `gadak sql` and agents can see them; the
-  hosted demo falls back to local storage.
-- The `presence` client stack is gone.
-- Zero-install hosted demo: a static snapshot served by a demo-only service
-  worker — no binary, no account.
-- Retention loop: `gadak serve` starts the sync watch loop by default when a
-  credential is configured; `gadak install-service` writes a launchd agent or
-  systemd user unit; one OS desktop notification may fire for new personal
-  feed events.
-- Personal watch feed, computed from the mirror at query time over a 30-day
-  window.
-- The demo Jira seeder moved from Python to Go; the web application was
-  extracted from an internal deployment into this repository.
-- Built-in views key on axes that mean the same thing on every Jira site;
-  resolution and reopen detection key on status *category*, not a localized
-  name.
-- `gadak serve` serves the built UI and refuses a non-loopback bind without
-  `--allow-remote`.
-- The storage schema, plus HTTP, sync and agent contracts, and the SQLite
-  implementation with WAL, FTS5, and the derived-field calculator.
+**The foundation.** The storage schema, plus HTTP, sync and agent contracts,
+and the SQLite implementation with WAL, FTS5, and the derived-field
+calculator. `gadak serve` serves the built UI and refuses a non-loopback bind
+without `--allow-remote`. Built-in views key on axes that mean the same thing
+on every Jira site: resolution and reopen detection key on status *category*,
+not a localized name.
 
-[GDK-1216]: https://gadak.dev/backlog/#/?ks=GDK-1216
-[GDK-1653]: https://gadak.dev/backlog/#/?ks=GDK-1653
-[GDK-1654]: https://gadak.dev/backlog/#/?ks=GDK-1654
-[GDK-1655]: https://gadak.dev/backlog/#/?ks=GDK-1655
-[GDK-1657]: https://gadak.dev/backlog/#/?ks=GDK-1657
-[GDK-1658]: https://gadak.dev/backlog/#/?ks=GDK-1658
-[GDK-1650]: https://gadak.dev/backlog/#/?ks=GDK-1650
-[GDK-1651]: https://gadak.dev/backlog/#/?ks=GDK-1651
-[GDK-1652]: https://gadak.dev/backlog/#/?ks=GDK-1652
+**A demo with nothing to install.** A static snapshot served by a demo-only
+service worker: no binary, no account.
+
+**Keeping up with the site.** `gadak serve` starts the sync watch loop by
+default when a credential is configured, and `gadak install-service` writes a
+launchd agent or systemd user unit; one OS desktop notification may fire for
+new personal feed events. The personal watch feed is computed from the mirror
+at query time over a 30-day window. gadak's own call volume shows in
+`gadak status` and the settings runtime panel, hidden while the count is
+zero.
+
+**Handing a workspace to someone else.** `gadak team export` / `import`
+writes the views, field map, group rules and thresholds a team agrees on;
+credentials never travel, and a file containing credential keys is refused on
+import. `gadak snapshot` builds a shareable copy: `--spread` restates
+timestamps across a window while preserving every issue's internal ordering,
+`--scale` clones issues onto new keys, `--now` pins the clock, and a
+credential scan runs before the file is published.
+
+**The command line.** `gadak fields` reports which custom fields are actually
+populated. Per-command help is generated from the FlagSet, so it cannot
+drift. Favorites live in the mirror, so `gadak sql` and agents can see them;
+the hosted demo falls back to local storage. TUI parity: feed focus tabs,
+saved-view sort/dir/group_by, and priority sorting keyed on `priority_rank`.
+
 [GDK-19]: https://gadak.dev/backlog/#/?ks=GDK-19
 [GDK-23]: https://gadak.dev/backlog/#/?ks=GDK-23
 [GDK-24]: https://gadak.dev/backlog/#/?ks=GDK-24
@@ -1426,10 +1409,10 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-190]: https://gadak.dev/backlog/#/?ks=GDK-190
 [GDK-191]: https://gadak.dev/backlog/#/?ks=GDK-191
 [GDK-193]: https://gadak.dev/backlog/#/?ks=GDK-193
+[GDK-202]: https://gadak.dev/backlog/#/?ks=GDK-202
 [GDK-208]: https://gadak.dev/backlog/#/?ks=GDK-208
 [GDK-209]: https://gadak.dev/backlog/#/?ks=GDK-209
 [GDK-211]: https://gadak.dev/backlog/#/?ks=GDK-211
-[GDK-1380]: https://gadak.dev/backlog/#/?ks=GDK-1380
 [GDK-213]: https://gadak.dev/backlog/#/?ks=GDK-213
 [GDK-214]: https://gadak.dev/backlog/#/?ks=GDK-214
 [GDK-215]: https://gadak.dev/backlog/#/?ks=GDK-215
@@ -1555,6 +1538,7 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-591]: https://gadak.dev/backlog/#/?ks=GDK-591
 [GDK-592]: https://gadak.dev/backlog/#/?ks=GDK-592
 [GDK-593]: https://gadak.dev/backlog/#/?ks=GDK-593
+[GDK-594]: https://gadak.dev/backlog/#/?ks=GDK-594
 [GDK-597]: https://gadak.dev/backlog/#/?ks=GDK-597
 [GDK-598]: https://gadak.dev/backlog/#/?ks=GDK-598
 [GDK-599]: https://gadak.dev/backlog/#/?ks=GDK-599
@@ -1570,14 +1554,13 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-676]: https://gadak.dev/backlog/#/?ks=GDK-676
 [GDK-677]: https://gadak.dev/backlog/#/?ks=GDK-677
 [GDK-678]: https://gadak.dev/backlog/#/?ks=GDK-678
+[GDK-700]: https://gadak.dev/backlog/#/?ks=GDK-700
 [GDK-711]: https://gadak.dev/backlog/#/?ks=GDK-711
+[GDK-737]: https://gadak.dev/backlog/#/?ks=GDK-737
 [GDK-738]: https://gadak.dev/backlog/#/?ks=GDK-738
 [GDK-739]: https://gadak.dev/backlog/#/?ks=GDK-739
 [GDK-740]: https://gadak.dev/backlog/#/?ks=GDK-740
-[GDK-737]: https://gadak.dev/backlog/#/?ks=GDK-737
-[GDK-700]: https://gadak.dev/backlog/#/?ks=GDK-700
-[GDK-771]: https://gadak.dev/backlog/#/?ks=GDK-771
-[GDK-202]: https://gadak.dev/backlog/#/?ks=GDK-202
+[GDK-741]: https://gadak.dev/backlog/#/?ks=GDK-741
 [GDK-747]: https://gadak.dev/backlog/#/?ks=GDK-747
 [GDK-748]: https://gadak.dev/backlog/#/?ks=GDK-748
 [GDK-749]: https://gadak.dev/backlog/#/?ks=GDK-749
@@ -1591,36 +1574,38 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-758]: https://gadak.dev/backlog/#/?ks=GDK-758
 [GDK-766]: https://gadak.dev/backlog/#/?ks=GDK-766
 [GDK-770]: https://gadak.dev/backlog/#/?ks=GDK-770
+[GDK-771]: https://gadak.dev/backlog/#/?ks=GDK-771
+[GDK-781]: https://gadak.dev/backlog/#/?ks=GDK-781
+[GDK-782]: https://gadak.dev/backlog/#/?ks=GDK-782
 [GDK-785]: https://gadak.dev/backlog/#/?ks=GDK-785
 [GDK-786]: https://gadak.dev/backlog/#/?ks=GDK-786
 [GDK-787]: https://gadak.dev/backlog/#/?ks=GDK-787
 [GDK-791]: https://gadak.dev/backlog/#/?ks=GDK-791
-[GDK-781]: https://gadak.dev/backlog/#/?ks=GDK-781
-[GDK-782]: https://gadak.dev/backlog/#/?ks=GDK-782
 [GDK-792]: https://gadak.dev/backlog/#/?ks=GDK-792
 [GDK-793]: https://gadak.dev/backlog/#/?ks=GDK-793
-[GDK-808]: https://gadak.dev/backlog/#/?ks=GDK-808
+[GDK-796]: https://gadak.dev/backlog/#/?ks=GDK-796
 [GDK-797]: https://gadak.dev/backlog/#/?ks=GDK-797
 [GDK-798]: https://gadak.dev/backlog/#/?ks=GDK-798
-[GDK-800]: https://gadak.dev/backlog/#/?ks=GDK-800
-[GDK-594]: https://gadak.dev/backlog/#/?ks=GDK-594
-[GDK-809]: https://gadak.dev/backlog/#/?ks=GDK-809
-[GDK-810]: https://gadak.dev/backlog/#/?ks=GDK-810
-[GDK-796]: https://gadak.dev/backlog/#/?ks=GDK-796
 [GDK-799]: https://gadak.dev/backlog/#/?ks=GDK-799
+[GDK-800]: https://gadak.dev/backlog/#/?ks=GDK-800
 [GDK-801]: https://gadak.dev/backlog/#/?ks=GDK-801
 [GDK-802]: https://gadak.dev/backlog/#/?ks=GDK-802
-[GDK-837]: https://gadak.dev/backlog/#/?ks=GDK-837
-[GDK-824]: https://gadak.dev/backlog/#/?ks=GDK-824
+[GDK-805]: https://gadak.dev/backlog/#/?ks=GDK-805
+[GDK-808]: https://gadak.dev/backlog/#/?ks=GDK-808
+[GDK-809]: https://gadak.dev/backlog/#/?ks=GDK-809
+[GDK-810]: https://gadak.dev/backlog/#/?ks=GDK-810
 [GDK-814]: https://gadak.dev/backlog/#/?ks=GDK-814
 [GDK-815]: https://gadak.dev/backlog/#/?ks=GDK-815
 [GDK-816]: https://gadak.dev/backlog/#/?ks=GDK-816
 [GDK-817]: https://gadak.dev/backlog/#/?ks=GDK-817
 [GDK-821]: https://gadak.dev/backlog/#/?ks=GDK-821
+[GDK-824]: https://gadak.dev/backlog/#/?ks=GDK-824
 [GDK-827]: https://gadak.dev/backlog/#/?ks=GDK-827
 [GDK-828]: https://gadak.dev/backlog/#/?ks=GDK-828
 [GDK-829]: https://gadak.dev/backlog/#/?ks=GDK-829
 [GDK-831]: https://gadak.dev/backlog/#/?ks=GDK-831
+[GDK-835]: https://gadak.dev/backlog/#/?ks=GDK-835
+[GDK-837]: https://gadak.dev/backlog/#/?ks=GDK-837
 [GDK-842]: https://gadak.dev/backlog/#/?ks=GDK-842
 [GDK-849]: https://gadak.dev/backlog/#/?ks=GDK-849
 [GDK-850]: https://gadak.dev/backlog/#/?ks=GDK-850
@@ -1630,93 +1615,101 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-856]: https://gadak.dev/backlog/#/?ks=GDK-856
 [GDK-857]: https://gadak.dev/backlog/#/?ks=GDK-857
 [GDK-858]: https://gadak.dev/backlog/#/?ks=GDK-858
-[GDK-862]: https://gadak.dev/backlog/#/?ks=GDK-862
-[GDK-863]: https://gadak.dev/backlog/#/?ks=GDK-863
-[GDK-883]: https://gadak.dev/backlog/#/?ks=GDK-883
-[GDK-864]: https://gadak.dev/backlog/#/?ks=GDK-864
-[GDK-835]: https://gadak.dev/backlog/#/?ks=GDK-835
-[GDK-892]: https://gadak.dev/backlog/#/?ks=GDK-892
-[GDK-895]: https://gadak.dev/backlog/#/?ks=GDK-895
-[GDK-865]: https://gadak.dev/backlog/#/?ks=GDK-865
-[GDK-805]: https://gadak.dev/backlog/#/?ks=GDK-805
-[GDK-964]: https://gadak.dev/backlog/#/?ks=GDK-964
-[GDK-956]: https://gadak.dev/backlog/#/?ks=GDK-956
-[GDK-950]: https://gadak.dev/backlog/#/?ks=GDK-950
-[GDK-960]: https://gadak.dev/backlog/#/?ks=GDK-960
-[GDK-981]: https://gadak.dev/backlog/#/?ks=GDK-981
-[GDK-944]: https://gadak.dev/backlog/#/?ks=GDK-944
-[GDK-967]: https://gadak.dev/backlog/#/?ks=GDK-967
-[GDK-968]: https://gadak.dev/backlog/#/?ks=GDK-968
-[GDK-971]: https://gadak.dev/backlog/#/?ks=GDK-971
-[GDK-975]: https://gadak.dev/backlog/#/?ks=GDK-975
-[GDK-980]: https://gadak.dev/backlog/#/?ks=GDK-980
-[GDK-963]: https://gadak.dev/backlog/#/?ks=GDK-963
-[GDK-741]: https://gadak.dev/backlog/#/?ks=GDK-741
-[GDK-946]: https://gadak.dev/backlog/#/?ks=GDK-946
-[GDK-947]: https://gadak.dev/backlog/#/?ks=GDK-947
 [GDK-859]: https://gadak.dev/backlog/#/?ks=GDK-859
 [GDK-860]: https://gadak.dev/backlog/#/?ks=GDK-860
+[GDK-862]: https://gadak.dev/backlog/#/?ks=GDK-862
+[GDK-863]: https://gadak.dev/backlog/#/?ks=GDK-863
+[GDK-864]: https://gadak.dev/backlog/#/?ks=GDK-864
+[GDK-865]: https://gadak.dev/backlog/#/?ks=GDK-865
+[GDK-867]: https://gadak.dev/backlog/#/?ks=GDK-867
+[GDK-870]: https://gadak.dev/backlog/#/?ks=GDK-870
+[GDK-871]: https://gadak.dev/backlog/#/?ks=GDK-871
+[GDK-879]: https://gadak.dev/backlog/#/?ks=GDK-879
 [GDK-880]: https://gadak.dev/backlog/#/?ks=GDK-880
+[GDK-883]: https://gadak.dev/backlog/#/?ks=GDK-883
 [GDK-884]: https://gadak.dev/backlog/#/?ks=GDK-884
 [GDK-885]: https://gadak.dev/backlog/#/?ks=GDK-885
 [GDK-886]: https://gadak.dev/backlog/#/?ks=GDK-886
 [GDK-887]: https://gadak.dev/backlog/#/?ks=GDK-887
 [GDK-888]: https://gadak.dev/backlog/#/?ks=GDK-888
+[GDK-892]: https://gadak.dev/backlog/#/?ks=GDK-892
+[GDK-895]: https://gadak.dev/backlog/#/?ks=GDK-895
+[GDK-899]: https://gadak.dev/backlog/#/?ks=GDK-899
 [GDK-905]: https://gadak.dev/backlog/#/?ks=GDK-905
 [GDK-906]: https://gadak.dev/backlog/#/?ks=GDK-906
 [GDK-907]: https://gadak.dev/backlog/#/?ks=GDK-907
 [GDK-908]: https://gadak.dev/backlog/#/?ks=GDK-908
 [GDK-910]: https://gadak.dev/backlog/#/?ks=GDK-910
-[GDK-867]: https://gadak.dev/backlog/#/?ks=GDK-867
-[GDK-870]: https://gadak.dev/backlog/#/?ks=GDK-870
-[GDK-879]: https://gadak.dev/backlog/#/?ks=GDK-879
+[GDK-944]: https://gadak.dev/backlog/#/?ks=GDK-944
+[GDK-946]: https://gadak.dev/backlog/#/?ks=GDK-946
+[GDK-947]: https://gadak.dev/backlog/#/?ks=GDK-947
+[GDK-950]: https://gadak.dev/backlog/#/?ks=GDK-950
+[GDK-956]: https://gadak.dev/backlog/#/?ks=GDK-956
+[GDK-960]: https://gadak.dev/backlog/#/?ks=GDK-960
+[GDK-963]: https://gadak.dev/backlog/#/?ks=GDK-963
+[GDK-964]: https://gadak.dev/backlog/#/?ks=GDK-964
+[GDK-967]: https://gadak.dev/backlog/#/?ks=GDK-967
+[GDK-968]: https://gadak.dev/backlog/#/?ks=GDK-968
+[GDK-971]: https://gadak.dev/backlog/#/?ks=GDK-971
+[GDK-974]: https://gadak.dev/backlog/#/?ks=GDK-974
+[GDK-975]: https://gadak.dev/backlog/#/?ks=GDK-975
+[GDK-980]: https://gadak.dev/backlog/#/?ks=GDK-980
+[GDK-981]: https://gadak.dev/backlog/#/?ks=GDK-981
+[GDK-992]: https://gadak.dev/backlog/#/?ks=GDK-992
+[GDK-996]: https://gadak.dev/backlog/#/?ks=GDK-996
+[GDK-1001]: https://gadak.dev/backlog/#/?ks=GDK-1001
+[GDK-1024]: https://gadak.dev/backlog/#/?ks=GDK-1024
+[GDK-1030]: https://gadak.dev/backlog/#/?ks=GDK-1030
+[GDK-1032]: https://gadak.dev/backlog/#/?ks=GDK-1032
+[GDK-1047]: https://gadak.dev/backlog/#/?ks=GDK-1047
+[GDK-1051]: https://gadak.dev/backlog/#/?ks=GDK-1051
+[GDK-1074]: https://gadak.dev/backlog/#/?ks=GDK-1074
+[GDK-1075]: https://gadak.dev/backlog/#/?ks=GDK-1075
+[GDK-1096]: https://gadak.dev/backlog/#/?ks=GDK-1096
+[GDK-1097]: https://gadak.dev/backlog/#/?ks=GDK-1097
+[GDK-1098]: https://gadak.dev/backlog/#/?ks=GDK-1098
+[GDK-1122]: https://gadak.dev/backlog/#/?ks=GDK-1122
+[GDK-1128]: https://gadak.dev/backlog/#/?ks=GDK-1128
+[GDK-1149]: https://gadak.dev/backlog/#/?ks=GDK-1149
+[GDK-1158]: https://gadak.dev/backlog/#/?ks=GDK-1158
+[GDK-1172]: https://gadak.dev/backlog/#/?ks=GDK-1172
+[GDK-1174]: https://gadak.dev/backlog/#/?ks=GDK-1174
 [GDK-1175]: https://gadak.dev/backlog/#/?ks=GDK-1175
 [GDK-1176]: https://gadak.dev/backlog/#/?ks=GDK-1176
-[GDK-1190]: https://gadak.dev/backlog/#/?ks=GDK-1190
-[GDK-1248]: https://gadak.dev/backlog/#/?ks=GDK-1248
-[GDK-1024]: https://gadak.dev/backlog/#/?ks=GDK-1024
-[GDK-1158]: https://gadak.dev/backlog/#/?ks=GDK-1158
-[GDK-1196]: https://gadak.dev/backlog/#/?ks=GDK-1196
-[GDK-1197]: https://gadak.dev/backlog/#/?ks=GDK-1197
-[GDK-1194]: https://gadak.dev/backlog/#/?ks=GDK-1194
-[GDK-1199]: https://gadak.dev/backlog/#/?ks=GDK-1199
-[GDK-1200]: https://gadak.dev/backlog/#/?ks=GDK-1200
-[GDK-1250]: https://gadak.dev/backlog/#/?ks=GDK-1250
-[GDK-1251]: https://gadak.dev/backlog/#/?ks=GDK-1251
-[GDK-1097]: https://gadak.dev/backlog/#/?ks=GDK-1097
-[GDK-1096]: https://gadak.dev/backlog/#/?ks=GDK-1096
-[GDK-1098]: https://gadak.dev/backlog/#/?ks=GDK-1098
-[GDK-1051]: https://gadak.dev/backlog/#/?ks=GDK-1051
-[GDK-871]: https://gadak.dev/backlog/#/?ks=GDK-871
-[GDK-899]: https://gadak.dev/backlog/#/?ks=GDK-899
-[GDK-992]: https://gadak.dev/backlog/#/?ks=GDK-992
-[GDK-1030]: https://gadak.dev/backlog/#/?ks=GDK-1030
-[GDK-1205]: https://gadak.dev/backlog/#/?ks=GDK-1205
-[GDK-1001]: https://gadak.dev/backlog/#/?ks=GDK-1001
-[GDK-1234]: https://gadak.dev/backlog/#/?ks=GDK-1234
-[GDK-1233]: https://gadak.dev/backlog/#/?ks=GDK-1233
-[GDK-1244]: https://gadak.dev/backlog/#/?ks=GDK-1244
-[GDK-1243]: https://gadak.dev/backlog/#/?ks=GDK-1243
-[GDK-1235]: https://gadak.dev/backlog/#/?ks=GDK-1235
-[GDK-1075]: https://gadak.dev/backlog/#/?ks=GDK-1075
-[GDK-1074]: https://gadak.dev/backlog/#/?ks=GDK-1074
-[GDK-1047]: https://gadak.dev/backlog/#/?ks=GDK-1047
-[GDK-1246]: https://gadak.dev/backlog/#/?ks=GDK-1246
-[GDK-1122]: https://gadak.dev/backlog/#/?ks=GDK-1122
-[GDK-996]: https://gadak.dev/backlog/#/?ks=GDK-996
-[GDK-1128]: https://gadak.dev/backlog/#/?ks=GDK-1128
-[GDK-1204]: https://gadak.dev/backlog/#/?ks=GDK-1204
-[GDK-974]: https://gadak.dev/backlog/#/?ks=GDK-974
-[GDK-1174]: https://gadak.dev/backlog/#/?ks=GDK-1174
 [GDK-1180]: https://gadak.dev/backlog/#/?ks=GDK-1180
 [GDK-1182]: https://gadak.dev/backlog/#/?ks=GDK-1182
+[GDK-1186]: https://gadak.dev/backlog/#/?ks=GDK-1186
+[GDK-1190]: https://gadak.dev/backlog/#/?ks=GDK-1190
+[GDK-1192]: https://gadak.dev/backlog/#/?ks=GDK-1192
+[GDK-1194]: https://gadak.dev/backlog/#/?ks=GDK-1194
+[GDK-1195]: https://gadak.dev/backlog/#/?ks=GDK-1195
+[GDK-1196]: https://gadak.dev/backlog/#/?ks=GDK-1196
+[GDK-1197]: https://gadak.dev/backlog/#/?ks=GDK-1197
+[GDK-1199]: https://gadak.dev/backlog/#/?ks=GDK-1199
+[GDK-1200]: https://gadak.dev/backlog/#/?ks=GDK-1200
+[GDK-1204]: https://gadak.dev/backlog/#/?ks=GDK-1204
+[GDK-1205]: https://gadak.dev/backlog/#/?ks=GDK-1205
+[GDK-1216]: https://gadak.dev/backlog/#/?ks=GDK-1216
+[GDK-1233]: https://gadak.dev/backlog/#/?ks=GDK-1233
+[GDK-1234]: https://gadak.dev/backlog/#/?ks=GDK-1234
+[GDK-1235]: https://gadak.dev/backlog/#/?ks=GDK-1235
+[GDK-1243]: https://gadak.dev/backlog/#/?ks=GDK-1243
+[GDK-1244]: https://gadak.dev/backlog/#/?ks=GDK-1244
+[GDK-1246]: https://gadak.dev/backlog/#/?ks=GDK-1246
+[GDK-1248]: https://gadak.dev/backlog/#/?ks=GDK-1248
+[GDK-1250]: https://gadak.dev/backlog/#/?ks=GDK-1250
+[GDK-1251]: https://gadak.dev/backlog/#/?ks=GDK-1251
 [GDK-1256]: https://gadak.dev/backlog/#/?ks=GDK-1256
 [GDK-1258]: https://gadak.dev/backlog/#/?ks=GDK-1258
+[GDK-1259]: https://gadak.dev/backlog/#/?ks=GDK-1259
 [GDK-1264]: https://gadak.dev/backlog/#/?ks=GDK-1264
+[GDK-1265]: https://gadak.dev/backlog/#/?ks=GDK-1265
+[GDK-1266]: https://gadak.dev/backlog/#/?ks=GDK-1266
 [GDK-1269]: https://gadak.dev/backlog/#/?ks=GDK-1269
 [GDK-1270]: https://gadak.dev/backlog/#/?ks=GDK-1270
-[GDK-1032]: https://gadak.dev/backlog/#/?ks=GDK-1032
 [GDK-1275]: https://gadak.dev/backlog/#/?ks=GDK-1275
+[GDK-1276]: https://gadak.dev/backlog/#/?ks=GDK-1276
+[GDK-1277]: https://gadak.dev/backlog/#/?ks=GDK-1277
 [GDK-1278]: https://gadak.dev/backlog/#/?ks=GDK-1278
 [GDK-1279]: https://gadak.dev/backlog/#/?ks=GDK-1279
 [GDK-1280]: https://gadak.dev/backlog/#/?ks=GDK-1280
@@ -1724,21 +1717,23 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-1282]: https://gadak.dev/backlog/#/?ks=GDK-1282
 [GDK-1283]: https://gadak.dev/backlog/#/?ks=GDK-1283
 [GDK-1284]: https://gadak.dev/backlog/#/?ks=GDK-1284
-[GDK-1149]: https://gadak.dev/backlog/#/?ks=GDK-1149
-[GDK-1265]: https://gadak.dev/backlog/#/?ks=GDK-1265
-[GDK-1266]: https://gadak.dev/backlog/#/?ks=GDK-1266
-[GDK-1276]: https://gadak.dev/backlog/#/?ks=GDK-1276
-[GDK-1277]: https://gadak.dev/backlog/#/?ks=GDK-1277
 [GDK-1285]: https://gadak.dev/backlog/#/?ks=GDK-1285
 [GDK-1286]: https://gadak.dev/backlog/#/?ks=GDK-1286
 [GDK-1287]: https://gadak.dev/backlog/#/?ks=GDK-1287
 [GDK-1288]: https://gadak.dev/backlog/#/?ks=GDK-1288
+[GDK-1289]: https://gadak.dev/backlog/#/?ks=GDK-1289
 [GDK-1290]: https://gadak.dev/backlog/#/?ks=GDK-1290
 [GDK-1291]: https://gadak.dev/backlog/#/?ks=GDK-1291
 [GDK-1294]: https://gadak.dev/backlog/#/?ks=GDK-1294
+[GDK-1295]: https://gadak.dev/backlog/#/?ks=GDK-1295
 [GDK-1296]: https://gadak.dev/backlog/#/?ks=GDK-1296
+[GDK-1297]: https://gadak.dev/backlog/#/?ks=GDK-1297
+[GDK-1299]: https://gadak.dev/backlog/#/?ks=GDK-1299
 [GDK-1300]: https://gadak.dev/backlog/#/?ks=GDK-1300
 [GDK-1302]: https://gadak.dev/backlog/#/?ks=GDK-1302
+[GDK-1305]: https://gadak.dev/backlog/#/?ks=GDK-1305
+[GDK-1306]: https://gadak.dev/backlog/#/?ks=GDK-1306
+[GDK-1307]: https://gadak.dev/backlog/#/?ks=GDK-1307
 [GDK-1308]: https://gadak.dev/backlog/#/?ks=GDK-1308
 [GDK-1309]: https://gadak.dev/backlog/#/?ks=GDK-1309
 [GDK-1311]: https://gadak.dev/backlog/#/?ks=GDK-1311
@@ -1758,23 +1753,26 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-1343]: https://gadak.dev/backlog/#/?ks=GDK-1343
 [GDK-1344]: https://gadak.dev/backlog/#/?ks=GDK-1344
 [GDK-1345]: https://gadak.dev/backlog/#/?ks=GDK-1345
+[GDK-1347]: https://gadak.dev/backlog/#/?ks=GDK-1347
 [GDK-1348]: https://gadak.dev/backlog/#/?ks=GDK-1348
+[GDK-1351]: https://gadak.dev/backlog/#/?ks=GDK-1351
 [GDK-1352]: https://gadak.dev/backlog/#/?ks=GDK-1352
 [GDK-1353]: https://gadak.dev/backlog/#/?ks=GDK-1353
 [GDK-1354]: https://gadak.dev/backlog/#/?ks=GDK-1354
 [GDK-1355]: https://gadak.dev/backlog/#/?ks=GDK-1355
+[GDK-1356]: https://gadak.dev/backlog/#/?ks=GDK-1356
 [GDK-1357]: https://gadak.dev/backlog/#/?ks=GDK-1357
 [GDK-1358]: https://gadak.dev/backlog/#/?ks=GDK-1358
 [GDK-1359]: https://gadak.dev/backlog/#/?ks=GDK-1359
 [GDK-1360]: https://gadak.dev/backlog/#/?ks=GDK-1360
 [GDK-1361]: https://gadak.dev/backlog/#/?ks=GDK-1361
 [GDK-1362]: https://gadak.dev/backlog/#/?ks=GDK-1362
+[GDK-1380]: https://gadak.dev/backlog/#/?ks=GDK-1380
 [GDK-1382]: https://gadak.dev/backlog/#/?ks=GDK-1382
 [GDK-1383]: https://gadak.dev/backlog/#/?ks=GDK-1383
 [GDK-1384]: https://gadak.dev/backlog/#/?ks=GDK-1384
-[GDK-1386]: https://gadak.dev/backlog/#/?ks=GDK-1386
 [GDK-1385]: https://gadak.dev/backlog/#/?ks=GDK-1385
-[GDK-1195]: https://gadak.dev/backlog/#/?ks=GDK-1195
+[GDK-1386]: https://gadak.dev/backlog/#/?ks=GDK-1386
 [GDK-1387]: https://gadak.dev/backlog/#/?ks=GDK-1387
 [GDK-1388]: https://gadak.dev/backlog/#/?ks=GDK-1388
 [GDK-1390]: https://gadak.dev/backlog/#/?ks=GDK-1390
@@ -1782,22 +1780,8 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-1394]: https://gadak.dev/backlog/#/?ks=GDK-1394
 [GDK-1395]: https://gadak.dev/backlog/#/?ks=GDK-1395
 [GDK-1396]: https://gadak.dev/backlog/#/?ks=GDK-1396
-[GDK-1347]: https://gadak.dev/backlog/#/?ks=GDK-1347
-[GDK-1259]: https://gadak.dev/backlog/#/?ks=GDK-1259
-[GDK-1351]: https://gadak.dev/backlog/#/?ks=GDK-1351
 [GDK-1398]: https://gadak.dev/backlog/#/?ks=GDK-1398
-[GDK-1192]: https://gadak.dev/backlog/#/?ks=GDK-1192
-[GDK-1299]: https://gadak.dev/backlog/#/?ks=GDK-1299
-[GDK-1172]: https://gadak.dev/backlog/#/?ks=GDK-1172
-[GDK-1289]: https://gadak.dev/backlog/#/?ks=GDK-1289
 [GDK-1399]: https://gadak.dev/backlog/#/?ks=GDK-1399
-[GDK-1297]: https://gadak.dev/backlog/#/?ks=GDK-1297
-[GDK-1307]: https://gadak.dev/backlog/#/?ks=GDK-1307
-[GDK-1305]: https://gadak.dev/backlog/#/?ks=GDK-1305
-[GDK-1306]: https://gadak.dev/backlog/#/?ks=GDK-1306
-[GDK-1295]: https://gadak.dev/backlog/#/?ks=GDK-1295
-[GDK-1186]: https://gadak.dev/backlog/#/?ks=GDK-1186
-[GDK-1356]: https://gadak.dev/backlog/#/?ks=GDK-1356
 [GDK-1400]: https://gadak.dev/backlog/#/?ks=GDK-1400
 [GDK-1401]: https://gadak.dev/backlog/#/?ks=GDK-1401
 [GDK-1491]: https://gadak.dev/backlog/#/?ks=GDK-1491
@@ -1808,26 +1792,34 @@ and the storage schema plus the HTTP, sync and agent contracts.
 [GDK-1501]: https://gadak.dev/backlog/#/?ks=GDK-1501
 [GDK-1508]: https://gadak.dev/backlog/#/?ks=GDK-1508
 [GDK-1537]: https://gadak.dev/backlog/#/?ks=GDK-1537
-[GDK-1635]: https://gadak.dev/backlog/#/?ks=GDK-1635
-[GDK-1640]: https://gadak.dev/backlog/#/?ks=GDK-1640
-[GDK-1636]: https://gadak.dev/backlog/#/?ks=GDK-1636
-[GDK-1638]: https://gadak.dev/backlog/#/?ks=GDK-1638
-[GDK-1644]: https://gadak.dev/backlog/#/?ks=GDK-1644
-[GDK-1639]: https://gadak.dev/backlog/#/?ks=GDK-1639
-[GDK-1637]: https://gadak.dev/backlog/#/?ks=GDK-1637
-[GDK-1647]: https://gadak.dev/backlog/#/?ks=GDK-1647
-[GDK-1648]: https://gadak.dev/backlog/#/?ks=GDK-1648
+[GDK-1601]: https://gadak.dev/backlog/#/?ks=GDK-1601
 [GDK-1617]: https://gadak.dev/backlog/#/?ks=GDK-1617
+[GDK-1622]: https://gadak.dev/backlog/#/?ks=GDK-1622
 [GDK-1626]: https://gadak.dev/backlog/#/?ks=GDK-1626
 [GDK-1633]: https://gadak.dev/backlog/#/?ks=GDK-1633
-[GDK-1601]: https://gadak.dev/backlog/#/?ks=GDK-1601
-[GDK-1622]: https://gadak.dev/backlog/#/?ks=GDK-1622
 [GDK-1634]: https://gadak.dev/backlog/#/?ks=GDK-1634
+[GDK-1635]: https://gadak.dev/backlog/#/?ks=GDK-1635
+[GDK-1636]: https://gadak.dev/backlog/#/?ks=GDK-1636
+[GDK-1637]: https://gadak.dev/backlog/#/?ks=GDK-1637
+[GDK-1638]: https://gadak.dev/backlog/#/?ks=GDK-1638
+[GDK-1639]: https://gadak.dev/backlog/#/?ks=GDK-1639
+[GDK-1640]: https://gadak.dev/backlog/#/?ks=GDK-1640
 [GDK-1641]: https://gadak.dev/backlog/#/?ks=GDK-1641
+[GDK-1644]: https://gadak.dev/backlog/#/?ks=GDK-1644
 [GDK-1645]: https://gadak.dev/backlog/#/?ks=GDK-1645
 [GDK-1646]: https://gadak.dev/backlog/#/?ks=GDK-1646
+[GDK-1647]: https://gadak.dev/backlog/#/?ks=GDK-1647
+[GDK-1648]: https://gadak.dev/backlog/#/?ks=GDK-1648
+[GDK-1650]: https://gadak.dev/backlog/#/?ks=GDK-1650
+[GDK-1651]: https://gadak.dev/backlog/#/?ks=GDK-1651
+[GDK-1652]: https://gadak.dev/backlog/#/?ks=GDK-1652
+[GDK-1653]: https://gadak.dev/backlog/#/?ks=GDK-1653
+[GDK-1654]: https://gadak.dev/backlog/#/?ks=GDK-1654
+[GDK-1655]: https://gadak.dev/backlog/#/?ks=GDK-1655
 [GDK-1656]: https://gadak.dev/backlog/#/?ks=GDK-1656
+[GDK-1657]: https://gadak.dev/backlog/#/?ks=GDK-1657
+[GDK-1658]: https://gadak.dev/backlog/#/?ks=GDK-1658
 [GDK-1660]: https://gadak.dev/backlog/#/?ks=GDK-1660
 [GDK-1661]: https://gadak.dev/backlog/#/?ks=GDK-1661
-[GDK-1666]: https://gadak.dev/backlog/#/?ks=GDK-1666
 [GDK-1662]: https://gadak.dev/backlog/#/?ks=GDK-1662
+[GDK-1666]: https://gadak.dev/backlog/#/?ks=GDK-1666
