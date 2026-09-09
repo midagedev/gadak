@@ -679,6 +679,15 @@ export const list = {
     ja: 'ボード',
   },
   // The board's sprint scope (GDK-1656).
+  // scopeAxis is the visible label, scopeLabel the fuller aria one. "Scope",
+  // not "Sprint": the three segments are three slices of the board, only one
+  // of which is a sprint, and the axis word must not collide with the active
+  // sprint's own name — on this fixture "Sprint Sprint 42" (GDK-1682).
+  'board.scopeAxis': {
+    en: 'Scope',
+    ko: '범위',
+    ja: '範囲',
+  },
   'board.scopeLabel': {
     en: 'Sprint scope',
     ko: '스프린트 범위',

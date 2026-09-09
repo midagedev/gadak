@@ -65,9 +65,12 @@
       fixture's active sprint happens to be called "Sprint 42"; on a Linear
       origin the same row is "Cycle 1  Backlog  All", where nothing says sprint
       at all. `board.scopeLabel` existed already but reached the aria-label only.
+      The word is "Scope", not "Sprint": these are three slices of the board and
+      only one of them is a sprint, and an axis word that repeats the active
+      sprint's name reads as a stutter ("Sprint Sprint 42" on the demo mirror).
     -->
     <span class="mr-1 select-none text-micro font-medium text-text-muted" aria-hidden="true"
-      >{t('field.sprint')}</span
+      >{t('board.scopeAxis')}</span
     >
     {#each SEGMENTS as seg (seg.key)}
       <button
