@@ -96,13 +96,30 @@ test.describe('sprint + retro hero', () => {
     await expect(view).toBeVisible()
     await expect(view).toContainText(T['retro.title'])
     await expect(page.getByTestId('retro-summary')).toBeVisible()
-    await expect(page.getByTestId('retro-table')).toBeVisible()
-    await expect(page.getByTestId('retro-sparkline').first()).toBeVisible()
+    // The report is materials now (GDK-1724): a sentence, then the aging
+    // bars against their p85 line, then what happened and what closed. The
+    // complete table is folded at the foot, so it is opened for beat 3.
+    await expect(page.getByTestId('retro-sentence')).toBeVisible()
+    await expect(page.getByTestId('retro-aging-chart')).toBeVisible()
     await beat(page, 1600)
+    // A slow scroll down the materials, then back to the top for the cut.
+    const scroller = view.locator('.overflow-auto').first()
+    for (let i = 1; i <= 6; i++) {
+      await scroller.evaluate((el, y) => el.scrollTo({ top: y }), i * 140)
+      await beat(page, 220)
+    }
+    await beat(page, 900)
+    await scroller.evaluate((el) => el.scrollTo({ top: 0 }))
+    await beat(page, 400)
 
-    // Beat 3 — the same report cut by sprint: two named columns, the
-    // running one marked, the summary retitled to the sprint.
+    // Beat 3 — the same report cut by sprint: the summary retitled to the
+    // sprint, then the folded table opened: two named columns, the running
+    // one marked.
     await page.getByTestId('retro-range').filter({ hasText: T['retro.bySprint'] }).click()
+    await expect(page.getByTestId('retro-summary-title')).toContainText(T['retro.thisSprint'])
+    await beat(page, 900)
+    await page.getByTestId('retro-table-toggle').click()
+    await expect(page.getByTestId('retro-table')).toBeVisible()
     await expect(page.getByTestId('retro-week')).toHaveCount(2)
     await expect(page.getByTestId('retro-week').last()).toContainText(T['retro.thisSprint'])
     await expect(page.getByTestId('retro-summary-title')).toContainText(T['retro.thisSprint'])
