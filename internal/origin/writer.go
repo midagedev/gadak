@@ -355,6 +355,14 @@ var ErrNoSprints = unsupported("this origin has no sprints — sprints are Jira 
 // which UpdateSprint does carry).
 var ErrLinearCycleByDates = unsupported("Linear cycles start and end by their dates — edit the cycle's dates in Linear; gadak does not start or close them")
 
+// ErrLinearCycleCadence is what Linear's own refusal of cycleCreate is
+// translated into (GDK-1678). Measured on a workspace with cycles switched
+// on: the mutation is in the schema and the server answers "Cycle creation
+// is not supported." — cycles come from the team's cadence setting, not from
+// a call. The origin's sentence is kept in the wrapped error; this one says
+// what to do instead.
+var ErrLinearCycleCadence = unsupported("Linear generates its cycles from the team's cadence — set the cadence in the team's settings; gadak does not file one")
+
 // AsSprintBoard returns w as SprintBoard, or ErrNoSprints.
 func AsSprintBoard(w Writer) (SprintBoard, error) {
 	v, ok := capability[SprintBoard](w)

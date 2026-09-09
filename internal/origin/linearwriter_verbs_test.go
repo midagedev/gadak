@@ -32,6 +32,11 @@ type linearRec struct {
 	lastEditVars  json.RawMessage
 	lastDeleteVar json.RawMessage
 	lastCycleVars json.RawMessage
+
+	// cycleCreateErr, when set, makes the CycleCreate branch answer a
+	// GraphQL error envelope carrying this message — the shape Linear
+	// actually sends for cycleCreate (GDK-1678).
+	cycleCreateErr string
 }
 
 func linearTestdata(t *testing.T, name string) []byte {
@@ -140,6 +145,10 @@ func linearGQL(t *testing.T, rec *linearRec) http.Handler {
 		case strings.Contains(body.Query, "mutation CycleCreate"):
 			rec.cycleCreates++
 			rec.lastCycleVars = body.Variables
+			if rec.cycleCreateErr != "" {
+				_, _ = fmt.Fprintf(w, `{"errors":[{"message":%q}]}`, rec.cycleCreateErr)
+				return
+			}
 			_, _ = w.Write([]byte(`{"data":{"cycleCreate":{"success":true,"cycle":{"id":"00000000-0000-4000-8000-0000000000c2","number":13,"name":"Cycle 13","description":"the goal","startsAt":"2030-01-13T00:00:00.000Z","endsAt":"2030-01-27T00:00:00.000Z","completedAt":null}}}}`))
 		case strings.Contains(body.Query, "mutation CycleUpdate"):
 			rec.cycleUpdates++

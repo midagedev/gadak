@@ -247,3 +247,31 @@ func stringOrEmpty(v any) string {
 	s, _ := v.(string)
 	return s
 }
+
+// GDK-1678, measured on a real Linear workspace with cycles switched on for
+// the team: `cycleCreate` is in the schema and the server refuses it —
+// "Cycle creation is not supported." Cycles come from the team's cadence
+// setting, so there is nothing to file. Before this, that string reached the
+// user as the raw GraphQL error the transport printed, which names Linear's
+// mutation rather than what to do; start and close had a sentence and create
+// did not. The origin's own words stay in the wrapped error.
+func TestLinearCreateSprintTranslatesTheCadenceRefusal(t *testing.T) {
+	w, rec := testLinearWriter(t)
+	rec.cycleCreateErr = "Cycle creation is not supported."
+	_, err := w.CreateSprint(context.Background(), fnvSprintID(linearFixtureTeam), "Cycle 13", "")
+	if !errors.Is(err, ErrLinearCycleCadence) {
+		t.Fatalf("err = %v, want ErrLinearCycleCadence", err)
+	}
+	if !strings.Contains(err.Error(), "cadence") {
+		t.Errorf("err = %q, want it to name the cadence setting", err)
+	}
+	if !strings.Contains(err.Error(), "Cycle creation is not supported") {
+		t.Errorf("err = %q, want the origin's own sentence kept", err)
+	}
+	// A refusal that is not this one still comes back as itself.
+	rec.cycleCreateErr = "Team not found."
+	_, err = w.CreateSprint(context.Background(), fnvSprintID(linearFixtureTeam), "Cycle 13", "")
+	if errors.Is(err, ErrLinearCycleCadence) {
+		t.Errorf("err = %v, want an unrelated refusal to stay unrelated", err)
+	}
+}

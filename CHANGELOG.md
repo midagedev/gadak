@@ -126,10 +126,13 @@
 - **Linear's cycles are sprints.** A Linear workspace now fills the same
   three sprint columns every other origin does, and lists its cycles as
   `sprints` rows with one board per team, so the board's sprint scope, the
-  Sprint axes and `gadak sprint list` work there too. `sprint add`,
-  `remove` and `create` write through to Linear. `start` and `close` refuse
-  by name: a cycle begins and ends by its dates, so the place to move one is
-  the cycle's dates. ([GDK-1667])
+  Sprint axes and `gadak sprint list` work there too. `sprint add` and
+  `remove` write through to Linear, measured against a live team: an add
+  fills the issue's sprint columns and a remove empties them. Three verbs
+  refuse by name instead of guessing — `start` and `close`, because a cycle
+  begins and ends by its dates, and `create`, because Linear generates its
+  cycles from the team's cadence and says so.
+  ([GDK-1667], [GDK-1678])
 - **A closed sprint no longer leaves its done issues reading "active".**
   Closing a sprint moves only the unfinished issues out, so the finished ones
   never change and an incremental sync never re-read them; their
@@ -1831,3 +1834,4 @@ saved-view sort/dir/group_by, and priority sorting keyed on `priority_rank`.
 [GDK-1662]: https://gadak.dev/backlog/#/?ks=GDK-1662
 [GDK-1666]: https://gadak.dev/backlog/#/?ks=GDK-1666
 [GDK-1667]: https://gadak.dev/backlog/#/?ks=GDK-1667
+[GDK-1678]: https://gadak.dev/backlog/#/?ks=GDK-1678

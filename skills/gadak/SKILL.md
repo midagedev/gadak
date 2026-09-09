@@ -940,8 +940,10 @@ gadak sprint close 14
 
 They work on Jira (Cloud and Server, where Jira Software is installed), on
 the built-in tracker, which serves the same Agile surface, and on Linear,
-where a cycle is a sprint and a team is a board — there `start` and `close`
-refuse by name, because a cycle begins and ends by its dates.
+where a cycle is a sprint and a team is a board — there `list`, `add` and
+`remove` work, and `create`, `start` and `close` refuse by name: a cycle
+begins and ends by its dates, and Linear makes them from the team's cadence
+rather than on request.
 
 ```bash
 gadak api GET /rest/api/3/issue/NMB-140/watchers

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/midagedev/gadak/internal/adf"
@@ -623,6 +624,13 @@ func (w *linearWriter) MoveToBacklog(ctx context.Context, keys []string) error {
 // Linear's cycle window is required on the wire, so the verb supplies the
 // default: startsAt is the next UTC midnight after now, endsAt 14 days on —
 // the same default `gadak sprint start` documents for Jira.
+//
+// Linear answers this "Cycle creation is not supported." on every workspace
+// measured so far, cycles enabled or not (GDK-1678) — cycles come from the
+// team's cadence. The call is still made rather than refused up front,
+// because one workspace is not the whole origin; what changes is that the
+// refusal comes back as a sentence naming the cadence instead of a raw
+// GraphQL string.
 func (w *linearWriter) CreateSprint(ctx context.Context, boardID int64, name, goal string) (Sprint, error) {
 	teams, err := w.scopeTeams(ctx)
 	if err != nil {
@@ -648,6 +656,9 @@ func (w *linearWriter) CreateSprint(ctx context.Context, boardID int64, name, go
 		EndsAt:      linearTime(startsAt.Add(14 * 24 * time.Hour)),
 	})
 	if err != nil {
+		if strings.Contains(err.Error(), "Cycle creation is not supported") {
+			return Sprint{}, fmt.Errorf("%w (%v)", ErrLinearCycleCadence, err)
+		}
 		return Sprint{}, err
 	}
 	return sprintFromCycle(cy, now), nil

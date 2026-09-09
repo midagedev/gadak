@@ -210,13 +210,17 @@ stamps to backfill from.
   projection and the `sprints` row agree.
 - **Write** (`SprintBoard` on `linearWriter`): `sprint add/remove` send
   `issueUpdate` with `cycleId` (the UUID) / `cycleId: null` (explicit
-  un-membership — omitted means unchanged); `sprint create` sends
-  `cycleCreate` with the Jira-start default dates (startsAt = next UTC
-  midnight after now, endsAt = +14 days — Linear requires the window on the
-  wire); `UpdateSprint` maps name/goal → the cycle's name/description and
-  startDate/endDate → its window, though no CLI verb reaches it yet.
-  `sprint start|close` refuse (`ErrLinearCycleByDates`): a cycle begins and
-  ends by its dates, so the edit belongs in Linear.
+  un-membership — omitted means unchanged); `UpdateSprint` maps name/goal →
+  the cycle's name/description and startDate/endDate → its window, though no
+  CLI verb reaches it yet. `sprint start|close` refuse
+  (`ErrLinearCycleByDates`): a cycle begins and ends by its dates, so the
+  edit belongs in Linear. `sprint create` sends `cycleCreate` with the
+  Jira-start default dates (startsAt = next UTC midnight after now, endsAt =
+  +14 days — Linear requires the window on the wire), and Linear refuses it:
+  "Cycle creation is not supported." on a team with cycles switched on
+  (GDK-1678). Cycles come from the team's cadence, so the call is kept —
+  one workspace is not the whole origin — and that one message is translated
+  into `ErrLinearCycleCadence`, which names the cadence setting.
 
 ### `links` ← `Issue.relations` / `Issue.inverseRelations` (GDK-1299)
 

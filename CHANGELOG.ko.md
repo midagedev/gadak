@@ -116,9 +116,11 @@
 - **Linear의 사이클이 스프린트입니다.** Linear 워크스페이스도 다른 origin과 같은
   세 스프린트 컬럼을 채우고, 팀마다 보드 한 줄로 사이클을 `sprints` 행에 싣습니다.
   그래서 보드의 스프린트 범위도, 스프린트 축도, `gadak sprint list`도 거기서
-  됩니다. `sprint add`·`remove`·`create`는 Linear로 써 나갑니다.
-  `start`·`close`는 이름을 대고 거절합니다. 사이클은 날짜가 시작과 끝의 주인이라,
-  옮기려면 사이클의 날짜를 고칩니다. ([GDK-1667])
+  됩니다. `sprint add`·`remove`는 Linear로 써 나갑니다. 실제 팀에서 재 봤습니다.
+  넣으면 이슈의 스프린트 컬럼이 차고, 빼면 비워집니다. 세 동사는 넘겨짚지 않고
+  이름을 대고 거절합니다. `start`·`close`는 사이클의 시작과 끝을 정하는 것이
+  날짜여서, `create`는 Linear가 팀의 주기 설정에서 사이클을 만들기 때문입니다.
+  ([GDK-1667], [GDK-1678])
 - **닫힌 스프린트의 완료 이슈가 계속 "active"로 남던 것.** 스프린트를 닫으면
   미완료 이슈만 밖으로 옮겨지므로, 완료된 이슈는 아무것도 바뀌지 않고 증분
   동기화도 다시 읽지 않았습니다. 그 행들의 `sprint_state`는 영원히 "active"였고,
@@ -1757,3 +1759,4 @@ unit을 쓰며, 새 개인 피드 이벤트에 OS 데스크톱 알림이 하나 
 [GDK-1662]: https://gadak.dev/backlog/#/?ks=GDK-1662
 [GDK-1666]: https://gadak.dev/backlog/#/?ks=GDK-1666
 [GDK-1667]: https://gadak.dev/backlog/#/?ks=GDK-1667
+[GDK-1678]: https://gadak.dev/backlog/#/?ks=GDK-1678

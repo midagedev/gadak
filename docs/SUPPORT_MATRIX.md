@@ -640,14 +640,19 @@ Markers:
     cycle the listing does not carry — another team's cycle on an in-scope
     issue — keeps its issue-side projection and gets no `sprints` row.
 
-[^142]: `sprint add` / `remove` / `create` go through `issueUpdate` and
-    `cycleCreate` (`internal/origin/linearwriter.go:511` onward); `remove`
-    sends `cycleId: null` because an omitted field means unchanged. **`start`
-    and `close` refuse** (`internal/origin/writer.go:356`,
-    `ErrLinearCycleByDates`): a Linear cycle begins and ends by its
-    dates, so the place to move one is the cycle's dates, not a state verb.
-    The writer's `UpdateSprint` maps name/goal and the window onto
-    `cycleUpdate`; no CLI verb reaches it yet.
+[^142]: `sprint add` / `remove` go through `issueUpdate`
+    (`internal/origin/linearwriter.go:511` onward); `remove` sends
+    `cycleId: null` because an omitted field means unchanged. Measured on a
+    live Linear team with cycles switched on: an add fills the issue's three
+    sprint columns and the `sprints` row's count, a remove empties them
+    again, and `sprint in futureSprints()` finds the issue in between.
+    **Three verbs refuse by name.** `start` and `close`
+    (`internal/origin/writer.go:356`): a cycle begins and ends by its dates,
+    so the place to move one is the cycle's dates. `create`
+    (`internal/origin/writer.go:364`, GDK-1678): Linear answers `cycleCreate`
+    with "Cycle creation is not supported." — cycles come from the team's
+    cadence setting. The writer's `UpdateSprint` maps name/goal and the
+    window onto `cycleUpdate`; no CLI verb reaches it yet.
 
 [^139]: The built-in tracker serves the same Agile surface — one scrum
     board per project, created lazily — plus `customfield_10020` in Cloud's
