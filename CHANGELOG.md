@@ -6,268 +6,196 @@
 
 **A self-hosted Jira is an origin type.** `gadak init --site <base-url>
 --server` creates a workspace against a self-hosted Jira with a Personal
-Access Token. There is no email, and the base URL may carry a context path.
-init asks the site which Jira it is (`/rest/api/2/serverInfo`) and refuses a
-workspace whose declared deployment does not match, because a Server
-instance's answer to Cloud's `/rest/api/3` says nothing about whether that
-API exists: measured, the same route gave 404, 401 and 302 depending only on
-which credential asked, so without that check a missing API reads as a bad
-token. The REST dialect belongs to the client now rather than to a package
-constant: Cloud and the built-in tracker keep v3, a Server origin gets v2,
-and the endpoints that differ by more than a version number (create
-metadata, JQL search, the approximate count, the attachment media route)
-each answer in their own shape or refuse by name. Measured against a live
-Jira Server 11.3.11, `gadak sync` fills the mirror. ([GDK-1635],
-[GDK-1640], [GDK-1636])
-
-Then the shapes underneath it. A body has a dialect now: Server sends wiki
-markup where Cloud sends ADF, and gadak had been reading it as markdown and
-writing it back as an ADF object, so a `gadak create -m` against a Server
-origin put ADF JSON in the description field. The text is carried verbatim
-in both directions, so what you type is what the origin stores, byte for
-byte, and what it stores is what the editor opens ([GDK-1637]). Cloud keys
-users by accountId and often hides the email; Server keys them by name and
-sends the email plainly, so gadak stores whichever id the origin sent,
-`assignee_id` fills on both, and `gadak assign` and user search speak each
-dialect's own parameter ([GDK-1638]). Server has no `/attachment/content`
-route: it states each attachment's address and serves the bytes nowhere
-else, so the mirror keeps that URL and both the CLI and the app ask for it.
-The address is reduced to a site-relative path first, which is what keeps
-the credential on the workspace's own site: an attachment URL pointing
-anywhere else is refused rather than fetched. Measured against Jira Server
-11.3.11, `gadak attach get` returns the original bytes hash-for-hash, and
-the app's proxy answers `Range` with 206, so seeking in a video works there
-too ([GDK-1639]). Server carries the sprint field as the Java `toString` of
-its own bean, `Sprint@4ffcc813[…,id=1,name=Sprint
-1,…,state=ACTIVE,…]`, where Cloud sends an object, so every issue in a sprint reached the mirror
-with `sprint_id`, `sprint_name` and `sprint_state` blank. Both shapes are
-read now, and `ACTIVE` is normalised to the `active` that queries are told
-to ask for. An issue's epic arrives the same way: Server keys it in the Epic
-Link field rather than `fields.parent`, and that is now the issue's parent.
-Server also has no `/filter/my`. It answered 404 on every sync, so a Server
-workspace asks `/filter/favourite` instead ([GDK-1650], [GDK-1651],
-[GDK-1652]). Server publishes no hierarchy level on its issue types either,
-so an epic arrived at the same level as a story and `epic_key` could never
-be derived. It is derived instead from who has a standard child. That costs
-no extra request, and it does not key on the word "Epic", which is a display
-name ([GDK-1658]).
-
-A write the origin quietly dropped is no longer printed as success. Jira
-Server answers a standard issue's `parent` with 204 and changes nothing.
-That field belongs to sub-tasks there, and an epic is the Epic Link custom
-field. `edit --parent` (and the web's parent editor) now send the Epic Link
-on Server, refuse by name on a Server with no Jira Software, and every
-`edit` compares the re-read row with what it asked before printing it: a
-field that reads the same before and after is reported as dropped
-([GDK-1645]). A login page is no longer mistaken for an answer either. Every
-REST call asks for JSON, and Go follows redirects, so an origin that bounces
-a request to its login page answered 200 with that page's HTML. `gadak api`
-printed the page, and JSON calls failed with `invalid character '<'`, which
-names the symptom and not the cause. A 2xx of HTML where JSON was asked for
-is now refused by name, and error pages keep their status and their body.
-`gadak attach get` had the same blind spot, because a status code cannot
-see a login page at 200: measured, it wrote 257,592 bytes of HTML as a
-`.png` and exited 0. It now compares what was served against the type the
-mirror recorded and writes nothing when they disagree. An `.html`
-attachment still downloads, and a download still follows the redirect Cloud
-legitimately sends ([GDK-1648], [GDK-1644]). An empty 201 is not a web page,
-though: Jira Server answers `POST /issueLink` with 201, `text/html` and no
-body, and the guard that refuses a login page keyed on status codes and a
-header and refused it, so a link that had been created was reported as a
-failure. The guard now asks the one question every case agrees on (is there
-a body) and an empty success passes whatever its Content-Type ([GDK-1662]).
-Jira Data Center's rate-limit budget is read before the wall, not after: DC
-states its token bucket on every response, and gadak used to react only to a
-429. The Server client now waits out the stated interval when the budget is
-nearly spent, and a 429's own Retry-After is still honoured once, not twice.
-Cloud publishes no such headers and its requests are unchanged ([GDK-1646]).
-`docs/SUPPORT_MATRIX.md` now reads Jira Cloud, Jira Server, Linear,
-Built-in, and every cell in the new column was run: `tools/jira-server-lab/seed.sh`
-plants the data every row needs and `tools/jira-server-lab/measure.sh` runs
-one command per row and keeps the output, against a Jira Software 11.3.11
-Data Center lab the runbook says how to bring up. Two rows are honest
-refusals: the wiki, because there is no Confluence Server client. Two carry
-a limit: the board→project mapping is empty there, and the development
-panel's refusal still speaks of Cloud. The READMEs, the roadmap and the
-product spec drop "untested, therefore unclaimed" ([GDK-1634], [GDK-1641]).
+Access Token: no email, and the base URL may carry a context path. init asks
+the site which Jira it is (`/rest/api/2/serverInfo`) and refuses a workspace
+whose declared deployment does not match, because a Server instance's answer
+to Cloud's `/rest/api/3` says nothing about whether that API exists — measured,
+the same route gave 404, 401 and 302 depending only on which credential
+asked. The REST dialect belongs to the client: Cloud and the built-in tracker
+keep v3, a Server origin gets v2, and the endpoints that differ by more than
+a version (create metadata, JQL search, the approximate count, the attachment
+media route) answer in their own shape or refuse by name. Measured against a
+live Jira Server 11.3.11, `gadak sync` fills the mirror ([GDK-1635],
+[GDK-1640], [GDK-1636]). Under it, every shape Server sends differently is
+read as Server sends it: wiki markup where Cloud sends ADF, carried verbatim
+both ways so a `gadak create -m` no longer stores ADF JSON in a Server
+description ([GDK-1637]); users keyed by name with a plain email where Cloud
+keys by accountId, so `assignee_id` fills on both and `gadak assign` and user
+search speak each dialect's parameter ([GDK-1638]); attachments that live only
+at the address Server states, with no `/attachment/content` route — the mirror
+keeps that URL reduced to a site-relative path, an address on any other site
+is refused rather than fetched, `gadak attach get` returns the original bytes
+hash-for-hash on Jira Server 11.3.11, and the app's proxy answers `Range`
+with 206 ([GDK-1639]); the
+sprint field as the Java `toString` of a bean, `Sprint@4ffcc813[…,id=1,name=Sprint 1,…,state=ACTIVE,…]`, where
+Cloud sends an object, so `sprint_id`, `sprint_name` and `sprint_state` are
+no longer blank on Server and `ACTIVE`
+becomes the `active` queries ask for; the epic in the Epic Link field rather
+than `fields.parent`; `/filter/favourite` where `/filter/my` answered 404 on
+every sync ([GDK-1650], [GDK-1651], [GDK-1652]); and, with no hierarchy level
+on Server's issue types, `epic_key` derived from which type has a standard
+child — no extra request, and no keying on the display name "Epic"
+([GDK-1658]). Writes stopped trusting a polite origin. Server answers a
+standard issue's `parent` with 204 and changes nothing, so `edit --parent`
+(and the web's parent editor) send the Epic Link there, refuse by name on a
+Server without Jira Software, and every `edit` compares the re-read row with
+what it asked: a field that reads the same before and after is reported as
+dropped ([GDK-1645]). A login page is no longer mistaken for an answer — Go
+follows redirects, so an origin bouncing to its login page answered 200 with
+HTML, `gadak api` printed it, a status code cannot see a login page at 200: JSON calls failed with `invalid character '<'`; a 2xx of HTML where JSON was asked for is refused by name, error pages
+keep their status and body, and `gadak attach get`, which had written 257,592
+bytes of HTML as a `.png` and exited 0. It now compares what was served against
+the type the mirror recorded (an `.html` attachment still downloads, and
+Cloud's legitimate redirect is still followed) ([GDK-1648], [GDK-1644]). The
+guard keys on the one question every case agrees on — is there a body — so
+Server's answer to `POST /issueLink` with 201, `text/html` and no body,
+which the old guard refused as a login page, is the 201 it always was
+([GDK-1662]). Data Center's rate-limit budget is read before the wall instead of after a
+429. The
+Server client waits out the interval DC states on every response when the
+bucket is nearly spent, honours a 429's Retry-After once, and leaves Cloud's
+requests unchanged ([GDK-1646]). `docs/SUPPORT_MATRIX.md` reads Jira Cloud,
+Jira Server, Linear, Built-in, and every cell in the new column was run:
+`tools/jira-server-lab/seed.sh` plants the data each row needs and
+`tools/jira-server-lab/measure.sh` runs one command per row against a Jira
+Software 11.3.11 Data Center lab the runbook brings up. Two rows are honest
+refusals (the wiki: no Confluence Server client), two carry a limit (the
+board→project mapping is empty there, and the development panel's refusal
+still speaks of Cloud), and the READMEs, the roadmap and the product spec
+drop "untested, therefore unclaimed" ([GDK-1634], [GDK-1641]).
 
 **A sprint is an object.** A sprint used to exist only as `sprint_id` /
-`sprint_name` / `sprint_state` projected onto each issue, so a sprint
-holding no issues did not exist at all, and its goal, its dates and the
-board it belongs to existed nowhere. The mirror has `sprints` and `boards`
-tables, filled from the Agile API, which is the one surface where Atlassian
-Cloud and Server answer the same shape. `gadak sprint list` reads them.
-`gadak sprint add`, `remove`, `create`, `start` and `close` write through
-the origin, and every state change re-reads the sprint and the issues that
-were in it rather than trusting what was sent. Sprints are Jira Software's,
-so a Linear or built-in workspace refuses these by name ([GDK-1653],
-[GDK-1654], [GDK-1655], [GDK-1657]). The tracker gadak carries now serves
-Jira Software's own Agile surface as well: boards, sprints, the sprint field
-on the issue, and JQL's `openSprints()` family. So `gadak sprint` works on a
-workspace with no Atlassian account at all, and on a paired one. Closing a
-sprint sweeps its unfinished issues to the backlog, the way Jira does
-([GDK-1666]).
-
-A closed sprint no longer leaves its done issues reading "active". Closing a
-sprint moves only the unfinished issues out, so the finished ones never
-changed and an incremental sync never re-read them; their `sprint_state`
-stayed "active" for good, and every active-sprint query counted last
-sprint's finished work. The `sprints` table is now the one owner of a
-sprint's state: each issue row derives its `sprint_state` from it on every
-tick, and the board and sprint listing runs on quiet ticks too, because a
-sprint changing state is invisible to the issue watermark ([GDK-1661]). A
-sprint filter no longer asks for the opposite set either. Every sprint state
-compiled to JQL's `openSprints()`, which selects the active sprint alone
-(measured on Jira 11.3.11 with one active sprint and one future one), so a
-saved view filtered on closed sprints asked for open ones. Each state now
-emits its own function, and the parser reads all three back, so a filter
-survives the round trip ([GDK-1216]). And the board knows about sprints: a
-workspace with sprints gets a scope beside the layout switch (the active
-sprint by name, the backlog, or all), and it is a filter like any other. The
-URL carries it, the back button undoes it, a saved view keeps it, and `gadak
-views open --jql 'sprint in openSprints()'` lands on the same board. The
-filter bar gains a Sprint axis (by name) and a Sprint state axis, the detail
-panel shows the sprint, and `sprint is EMPTY`, the backlog, now round-trips
-through the view grammar as `sprint_state=none`. The demo fixture carries
-three derived sprints so the scope has something to show ([GDK-1656]). The
-scope names its own axis, too: it shipped as three bare words beside controls
-that all name theirs, and read as sprints only because the demo's active
-sprint is called "Sprint 42" — on a Linear origin the same row is "Cycle 1 ·
-Backlog · All" ([GDK-1682]).
-
-Linear's cycles are sprints as well. A Linear workspace now fills the same
-  three sprint columns every other origin does, and lists its cycles as
-  `sprints` rows with one board per team, so the board's sprint scope, the
-  Sprint axes and `gadak sprint list` work there too. `sprint add` and
-  `remove` write through to Linear, measured against a live team: an add
-  fills the issue's sprint columns and a remove empties them. Three verbs
-  refuse by name instead of guessing: `start` and `close`, because a cycle
-  begins and ends by its dates, and `create`, because Linear generates its
-  cycles from the team's cadence and says so.
-  ([GDK-1667], [GDK-1678])
-
-The history behind all of that was already in the mirror and unreachable.
-Jira records every sprint move in the changelog, and on one measured site
-those rows were the second most common thing in the table, behind status and
-ahead of links — but the sprint field is a custom field, so they arrived
-under whatever number that site assigned it and `where field = 'sprint'`
-answered nothing anywhere. Sync normalises the field using the id it already
-discovers, and three columns follow: `carryover_count` says how many times an
-issue was carried past a sprint boundary, `first_sprint_id` and
-`first_sprint_at` say which sprint it first entered and when, so "what was
-added after this sprint began" is a join against `sprints.start_at`. Jira's
-growing membership list and the built-in tracker's single-id move read the
-same way; an origin with no changelog reads NULL rather than 0, because never
-carried and cannot be read are different answers. An existing mirror is
-recognised without a re-sync ([GDK-1694]). The sprint's goal is readable too
-— `gadak sprint list` carries it, and the board's scope names it beside the
-end date — after being stored and shown nowhere since sprints became rows
-([GDK-1695]). And the retro can be cut by sprint instead of by ISO week,
-which is the unit a team actually retrospects on: `gadak retro --by-sprint`,
-or a fourth segment on the screen's range control, one named column per
-sprint with the running one marked, on every origin that has sprints
-([GDK-1693]).
+`sprint_name` / `sprint_state` on each issue, so an empty sprint did not
+exist and its goal, dates and board existed nowhere. The mirror has `sprints`
+and `boards` tables from the Agile API — the one surface where Cloud and
+Server answer the same shape — and `gadak sprint list` reads them (a Linear
+workspace lists its cycles there too, so `gadak sprint list` works on every
+origin with sprints);
+`gadak sprint add`, `remove`, `create`, `start` and `close` write through the
+origin and re-read the sprint and its issues rather than trusting what was
+sent; a Linear or built-in workspace refuses them by name ([GDK-1653],
+[GDK-1654], [GDK-1655], [GDK-1657]). The tracker gadak carries serves Jira
+Software's own Agile surface too — boards, sprints, the sprint field, JQL's
+`openSprints()` family — so `gadak sprint` works with no Atlassian account
+and on a paired workspace, and closing a sprint sweeps its unfinished issues
+to the backlog the way Jira does ([GDK-1666]). The `sprints` table is the one
+owner of a sprint's state: each issue derives `sprint_state` from it on every
+tick and the listing runs on quiet ticks too, so a closed sprint's finished
+issues — never re-read by an incremental sync, their `sprint_state` frozen —
+no longer read "active" forever and inflate every active-sprint query
+([GDK-1661]); each sprint state compiles to its own JQL function instead of
+all three becoming `openSprints()` (measured on Jira 11.3.11 with one active
+sprint and one future one), and the parser reads all three back ([GDK-1216]).
+The board knows about sprints: a scope beside the layout switch (the active
+sprint by name, the backlog, or all) that the URL carries, the back button
+undoes and a saved view keeps; `gadak views open --jql 'sprint in
+openSprints()'` lands on the same board; the filter bar gains a Sprint axis
+and a Sprint state axis, the detail panel shows the sprint, and `sprint is EMPTY` round-trips as `sprint_state=none`; the demo fixture carries three
+derived sprints so the scope has something to show ([GDK-1656]). The scope
+names its axis — it read as sprints only because the demo's active sprint is
+called "Sprint 42"; on a Linear origin the same row is "Cycle 1 · Backlog ·
+All" ([GDK-1682]). Linear's cycles are sprints as well: a Linear workspace
+fills the same three columns, lists its cycles as `sprints` rows with one
+board per team, and `sprint add` / `remove` write through (measured against
+a live team), while `start`, `close` and `create` refuse by name because a
+cycle begins and ends by its dates and Linear generates them from the team's
+cadence ([GDK-1667], [GDK-1678]). The history was already in the mirror and
+unreachable: Jira records every sprint move in the changelog — on one
+measured site the second most common row, behind status and ahead of links —
+under whatever custom-field number the site assigned, so `where field = 'sprint'` answered nothing. Sync normalises the field with the id it already
+discovers, and three columns follow: `carryover_count`, `first_sprint_id`
+and `first_sprint_at`, so "what was added after this sprint began" is a join
+against `sprints.start_at`; an origin with no changelog reads NULL rather
+than 0, and an existing mirror is recognised without a re-sync ([GDK-1694]).
+The sprint's goal is readable — `gadak sprint list` carries it and the
+board's scope names it beside the end date ([GDK-1695]) — and the retro can
+be cut by sprint instead of by ISO week, `gadak retro --by-sprint` or a
+fourth segment on the range control, one column per sprint with the running
+one marked, on every origin that has sprints ([GDK-1693]).
 
 **Elsewhere: a retro screen, comments you can take back, attachments the
-size of real ones, and one fewer outbound call.** `gadak retro`'s document
-was served for a surface that never came. It is here now: the palette's
-*Weekly retro* opens a calm table, one column per week, one row per metric
-with its definition underneath. A cell that holds issues is a door onto that
-list. Four, eight or twelve weeks ([GDK-1660]). It says why a cell is empty,
-which the CLI has always done and the screen did not: a mirror with no
-`status_catalog` cannot resolve which statuses mean done, so `closed` has
-nothing to say, and the reason was computed, sitting in the payload, and
-unread. It travels as its own list now and prints under the table where the
-CLI prints it, including on a cold mirror, which used to answer "No sessions
-in this range" and blame sessions for a missing table. The metric definitions
-stopped being cut off mid-condition on a page that was mostly empty, and
-stopped naming a file in this repository ([GDK-1679], [GDK-1681]). The demo
-mirror has a status catalog at last — it is a sync artifact, so no snapshot
-ever wrote one and the shipped fixture had zero rows, which is why the retro
-screen had a dash where every week's closed count belongs on the one mirror
-most people open. Derived from the statuses the snapshot's own issues carry,
-it gives `closed`, `in progress` and both wip-age rows a value in every week
-([GDK-1680]). The definitions read in the reader's own language now, not the CLI footer's English standing under translated row labels, and the session gap they name is the one the report actually ran with ([GDK-1692]). A day-valued cell that held less than a day used to print `0.0d`, which is what no data looks like; days, hours and minutes come from one formatter both the table and the screen call, so work closed in four hours says so ([GDK-1683]). One stamp behind all of that pointed at nothing:
-`status_changed_at` is derived from the changelog, and the backfill computed
-it and then wrote only its three neighbours, so in a snapshot — column copied,
-changelog re-timed — it drifted onto an instant no transition happened
-([GDK-1684]). An optional capability no
-longer disappears when the actor trailer is on: the wrapper that appends an
-agent's signature to comments embeds the writer, and an embedded interface
-promotes only the methods that interface declares, so versions, issue links,
-create-field catalogs, media refs and sprints were all invisible to the code
-that asks an origin what it can do. The capability check now looks through
-the wrapper ([GDK-1655]). `gadak comment edit <KEY> <ID> -m
-"…"` replaces a comment's body and `gadak comment rm <KEY> <ID> --yes`
-removes it, on Jira, Linear and the built-in tracker. Until now a wrong comment could only be
-followed by another one. The id is whatever a read handed you: `gadak sql`
-prints the mirror's `jira:91653`, `gadak issue` prints `91653`, and both are
-accepted. An edit sends what a post sends: ADF on Cloud, the wiki-markup
-string on a Jira Server workspace. An agent's actor trailer survives the
-edit without being appended a second time ([GDK-1647]).
-
-On a workspace whose origin is gadak's own tracker, attachment bytes now
-live in a directory beside the database rather than inside it, one
-content-addressed file each. Uploads stream in and downloads stream out, so
-nothing is buffered whole any more, on the CLI (`gadak attach`,
-`gadak attach get`) or in the app. Seeking in a video works, because the whole path
-from the origin to the browser answers `Range` now. The upload cap is
-settings rather than a constant: `gadak config set attachmentMaxMB <n>`,
-default 1 GiB, up from a hard-coded 32 MiB. Opening a built-in workspace
-with this build moves the bytes out once and keeps the pre-migration copy
-beside it as `issuetap.db.pre-v2.bak`; that pass is safe to run with a serve
-up, two processes reaching it at once migrate it once, and nothing is asked
-of you ([GDK-1617]). Screenshots look like screenshots again: `gadak attach`
-declared every upload as `application/octet-stream`, the hardcoded default
-of `multipart.CreateFormFile`, so an origin that keeps what it is told
-stored a PNG and an MP4 under the same generic type, and the app showed a
-file row instead of a thumbnail and a player. The type now comes from the
-filename. `gadak backup` is an archive to match. It was one SQLite file, and
-attachment bytes moving to a directory would have made that a backup with
-every attachment missing and nothing saying so, so the output is a `.tar`
-holding both, and it refuses to write one if the database references bytes
-that are not on disk. `docs/runbooks/backup-restore.md` has the restore
-([GDK-1277]).
-
-gadak no longer looks for its own updates. It used to ask GitHub once a day
-whether a newer release existed, unless you turned that off. That was the
-one outbound connection nobody had asked for, and it left the claim on the
-front door, that gadak talks to your tracker and to nothing else, false by
-one footnote. The lookup is gone: no background check, no `updateCheck`
-setting, no sidebar banner. Outbound destinations go from six to five, and
-`docs/PROMISES.md` is eleven claims rather than twelve. Upgrading is what it
-always was: `brew upgrade`, a new dmg, a newer zip. Settings → Sync still
-shows the command for your platform ([GDK-1626]).
-`gadak mcp install claude-desktop` registers with Claude Desktop, and
-`gadak mcp install claude` now says what it is. Every front door taught "for hosts without a
-shell (Claude Desktop): `gadak mcp install claude`", and that command runs
-Claude *Code*'s `claude mcp add`, which Claude Desktop never reads; a
-Desktop user who followed it registered nothing, or was told `claude` was
-not on `PATH`. The new client merges a `gadak` entry into
-`claude_desktop_config.json` (macOS, Windows and Linux paths; other servers
-and keys in the file are preserved byte for byte; an unparsable file is
-refused, not overwritten; `--dry-run` prints what it would write). The
-Integrations card that called itself "Claude Desktop MCP" while probing the
-`claude` CLI is now two cards, one per host, and the onboarding wizard,
-`gadak init`'s next-steps block, the CLI help, the README and the site all
-name the right command ([GDK-1633]). And the front door says what gadak is
-before it says how fast it is. The landing heading in every language is a
-job rather than a slogan: "Query your Jira backlog with SQL." The canonical
-`GROUP BY`, runnable in the browser on the demo snapshot, sits under it. The
-trust section stopped being a verdict ("why this is safe to try") and became
-the facts a reader needs *before* handing over a token: Jira Cloud only,
-`--projects`/`--spaces` with the wiki off until named, one SQLite file that
-needs a first full sync (10.6 minutes on the benchmark site) and then trails
-Jira by one interval (60 s by default, with an hourly reconcile that drops
-issues you can no longer see), where the token lives, that a rejected write
-fails rather than queues, which four reads still ask Jira, and that an agent
-forwards what it reads to its model. The Rovo comparison gained the real
-concession, a local binary and an initial sync; "8 API pages" is labelled as
-this measurement's number rather than a law of JQL; and the attribution
-claim shrank to what the code does, which is that comments and created
-issues carry the agent's name, and nothing about pull requests. The READMEs
-follow the same order, and `docs/project/FACT_LEDGER.md` §16 carries the
-rules ([GDK-1601], [GDK-1622]). And a sync pass now ends by saying what it spent: one stderr line with requests by kind (search pages, per-issue overflow fetches, page bodies, comment and version listings) and the wall time waiting on each, and `gadak api --headers` prints every response header, so the first full sync's cost is visible per endpoint family ([GDK-1672]). The Confluence pass then spends less of it: page bodies, comment listings and version history are fetched through a bounded worker pool (`gadak sync --concurrency`, default 4, at most 8; 1 is the old one-at-a-time pass) while the mirror still commits through one serial writer in listing order, a 429 halves the width for the rest of the pass, and the pass summary names `concurrency=<width>/<min>` with any throttle count ([GDK-1673]). And the first run no longer waits for that sync: the documented path is `gadak init && gadak serve`, the window opens while the first sync fills the mirror newest-issues-first, a band above the list says `Recent issues first · 1,200 / 3,514 · wiki next`, and the fact behind it lives in the mirror rather than in one process — `gadak status --json` carries `first_sync`, every read verb prints one `first sync in progress` line on stderr while it is true, and the agent skill says to work with what has landed ([GDK-1677]). And a dev build no longer decides a schema bump for a file the installed release still reads: a `0.0.0-dev` binary refuses to migrate a mirror forward, the error names both versions and both ways out (`GADAK_DEV_MIGRATE=1`, or a copy of the profile), and the backlog snapshot script syncs a `sqlite3 .backup` copy under a scratch home instead of the workspace file itself ([GDK-1687]).
+size of real ones, and one fewer outbound call.** `gadak retro`'s document was served for a surface that never came; the
+palette's *Weekly retro* opens a calm table, one column per week, one row per metric with its
+definition underneath; a cell that holds issues is a door onto that list;
+four, eight or twelve weeks ([GDK-1660]). It says why a cell is empty (a
+mirror with no `status_catalog` cannot say what `closed` means, and the
+reason now travels with the payload and prints under the table, including on
+a cold mirror), the definitions are no longer cut off or naming a repository
+file ([GDK-1679], [GDK-1681]), the demo mirror has a status catalog derived
+from its own issues so `closed`, `in progress` and both wip-age rows have a
+value ([GDK-1680]), the definitions read in the reader's language and name
+the session gap the report ran with ([GDK-1692]), a cell under a day says
+hours or minutes instead of `0.0d` ([GDK-1683]), and `status_changed_at` no
+longer drifts in a snapshot onto an instant no transition happened
+([GDK-1684]). An optional capability no longer disappears when the actor
+trailer is on: the wrapper that signs an agent's comments embeds the writer,
+and an embedded interface promotes only what it declares, so versions, issue
+links, create-field catalogs, media refs and sprints were invisible to the
+capability check, which now looks through the wrapper ([GDK-1655]).
+`gadak comment edit <KEY> <ID> -m "…"` replaces a comment's body and
+`gadak comment rm <KEY> <ID> --yes` removes it, on Jira, Linear and the
+built-in tracker; the id is whatever a read handed you (`gadak sql` prints
+`jira:91653`, `gadak issue` prints `91653`, both accepted), an edit sends
+what a post sends, and the actor trailer survives it without doubling
+([GDK-1647]). On the built-in tracker, attachment bytes live in a directory
+beside the database, one content-addressed file each, streaming both ways
+(`gadak attach`, `gadak attach get`, and the app, where `Range` makes video
+seeking work); the upload cap is `gadak config set attachmentMaxMB <n>`,
+default 1 GiB, up from a hard-coded 32 MiB; opening a built-in workspace
+with this build moves the bytes out once, keeps `issuetap.db.pre-v2.bak`
+beside it, and is safe with a serve up ([GDK-1617]). `gadak attach` uploads carry the type
+their filename says instead of `multipart.CreateFormFile`'s
+`application/octet-stream`, so an origin that keeps what it is told no longer stores a PNG and an MP4
+under one generic type and a screenshot is a thumbnail again, and
+`gadak backup` is a `.tar` of the database and the bytes that refuses to
+write one with attachments missing — `docs/runbooks/backup-restore.md` has
+the restore ([GDK-1277]). gadak no longer asks GitHub once a day whether a
+newer release exists: no background check, no `updateCheck` setting, no
+sidebar banner; outbound destinations go from six to five and
+`docs/PROMISES.md` is eleven claims rather than twelve; upgrading is
+`brew upgrade`, a new dmg, a newer zip, and Settings → Sync still shows the
+command ([GDK-1626]). `gadak mcp install claude-desktop` registers with
+Claude Desktop by merging a `gadak` entry into `claude_desktop_config.json`
+(macOS, Windows and Linux paths; other entries kept byte for byte; an
+unparsable file refused; `--dry-run` prints the write), and
+`gadak mcp install claude` says what it is — the command every front door
+had taught as "for hosts without a shell (Claude Desktop):
+`gadak mcp install claude`" runs Claude *Code*'s `claude mcp add`, which
+Desktop never reads, so a Desktop user registered nothing or was told
+`claude` was not on `PATH`; the
+Integrations card that probed the `claude` CLI is two cards, one per host, and the wizard, `gadak init`'s
+next-steps, the help, the README and the site name the right command
+([GDK-1633]). The front door says what gadak is before it says how fast it
+is: the landing heading in every language is a job, "Query your Jira backlog
+with SQL.", the canonical `GROUP BY` runs in the browser under it, and the
+trust section became the facts a reader needs before handing over a token —
+Jira Cloud only, `--projects`/`--spaces` with the wiki off until named, one
+SQLite file that needs a first full sync (10.6 minutes on the benchmark
+site) and then trails Jira by one interval (60 s by default, with an hourly
+reconcile), where the token lives, that a rejected write fails rather than
+queues, which four reads still ask Jira, and that an agent forwards what it
+reads to its model; "8 API pages" is labelled as this measurement's number,
+the attribution claim shrank to what the code does, and the READMEs follow
+the same order under `docs/project/FACT_LEDGER.md` §16 ([GDK-1601],
+[GDK-1622]). Then that first sync got cheaper and stopped being waited on. A
+pass ends with one stderr line of requests by kind and the wall time on
+each, and `gadak api --headers` prints every response header ([GDK-1672]);
+the Confluence pass fetches page bodies, comments and versions through a
+bounded pool (`gadak sync --concurrency`, default 4, at most 8; 1 is the old
+serial pass) while one writer commits in listing order, a 429 halves the
+width, and the summary names `concurrency=<width>/<min>` ([GDK-1673]); the
+documented first run is `gadak init && gadak serve`, the window opens while
+the sync fills the mirror newest-first under a band that reads
+`Recent issues first · 1,200 / 3,514 · wiki next`, `gadak status --json` carries
+`first_sync`, every read verb prints one `first sync in progress` line on
+stderr while it is true, and the skill says to work with what has landed
+([GDK-1677]). And a dev build stopped deciding for the installed release: a
+`0.0.0-dev` binary refuses to migrate a mirror forward, naming both versions
+and both ways out (`GADAK_DEV_MIGRATE=1`, or a copy of the profile), the
+backlog snapshot script syncs a `sqlite3 .backup` copy under a scratch home
+([GDK-1687]), and with `GADAK_HOME` unset a dev build lives in `~/.gadak-dev`
+while the release keeps `~/.gadak`, which `gadak doctor` prints as `home`
+with the reason ([GDK-1697]).
 
 ## v0.21.0 — 2026-09-08
 
@@ -1784,6 +1712,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-1673]: https://gadak.dev/backlog/#/?ks=GDK-1673
 [GDK-1677]: https://gadak.dev/backlog/#/?ks=GDK-1677
 [GDK-1687]: https://gadak.dev/backlog/#/?ks=GDK-1687
+[GDK-1697]: https://gadak.dev/backlog/#/?ks=GDK-1697
 [GDK-1678]: https://gadak.dev/backlog/#/?ks=GDK-1678
 [GDK-1692]: https://gadak.dev/backlog/#/?ks=GDK-1692
 [GDK-1693]: https://gadak.dev/backlog/#/?ks=GDK-1693
