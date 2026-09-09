@@ -34,7 +34,14 @@
     const a = sprints.active
     if (a.length !== 1) return t('board.scopeActive')
     const s = a[0]
-    return s.end_at ? `${s.name} · ${t('board.scopeEnds', { date: absTime(s.end_at) })}` : s.name
+    // Name, then when it ends, then what it is for. The goal has been in the
+    // mirror since sprints became rows and no surface read it (GDK-1695);
+    // this is the one place a person is already hovering to ask about the
+    // sprint. Omitted when the sprint has none, rather than an empty line.
+    const parts = [s.name]
+    if (s.end_at) parts.push(t('board.scopeEnds', { date: absTime(s.end_at) }))
+    if (s.goal) parts.push(s.goal)
+    return parts.join(' · ')
   })
 
   function set(scope: Scope) {

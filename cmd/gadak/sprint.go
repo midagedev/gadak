@@ -17,7 +17,7 @@ import (
 
 const sprintUsage = `usage: gadak sprint <subcommand>
 
-  gadak sprint list                       sprints in the mirror, active first
+  gadak sprint list                       sprints in the mirror, active first (id, state, board, issues, name, goal)
   gadak sprint add <sprint-id> <KEY>...   put issues into a sprint
   gadak sprint remove <KEY>...            take issues back to the backlog
   gadak sprint create <board-id> <name>   open a future sprint
@@ -79,9 +79,13 @@ func sprintList(args []string) error {
 			fmt.Fprintln(os.Stdout, "no sprints in the mirror — run `gadak sync`, or this origin has none")
 			return nil
 		}
-		fmt.Fprintln(os.Stdout, "id\tstate\tboard\tissues\tname")
+		// goal last, and always present: the origin has carried it since
+		// sprints became rows and nothing ever showed it (GDK-1695). It is a
+		// sentence, so it goes at the end where a long one cannot push the
+		// columns around; empty is the honest cell for a sprint with no goal.
+		fmt.Fprintln(os.Stdout, "id\tstate\tboard\tissues\tname\tgoal")
 		for _, s := range rows {
-			fmt.Fprintf(os.Stdout, "%d\t%s\t%d\t%d\t%s\n", s.ID, s.State, s.BoardID, s.IssueCount, s.Name)
+			fmt.Fprintf(os.Stdout, "%d\t%s\t%d\t%d\t%s\t%s\n", s.ID, s.State, s.BoardID, s.IssueCount, s.Name, s.Goal)
 		}
 		return nil
 	}

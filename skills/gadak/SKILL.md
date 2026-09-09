@@ -953,7 +953,7 @@ projected (`issues.sprint_id`, `sprint_name`, `sprint_state`); filter on
 `sprints` and `boards` tables carry the rest, and `gadak sprint` writes:
 
 ```bash
-gadak sprint list                      # active first, with issue counts
+gadak sprint list                      # active first, with issue counts and the sprint goal
 gadak sprint add 12 NMB-140 NMB-141    # into sprint 12
 gadak sprint remove NMB-140            # back to the backlog
 gadak sprint create 3 "Sprint 14" --goal "ship the uploader"
