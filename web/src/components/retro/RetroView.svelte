@@ -21,6 +21,21 @@
    * one click away, and one hover away, because a number without its
    * definition is the thing this view refuses to show.
    *
+   * GDK-1721..1726 turned the report into materials. The research behind
+   * that round named what a person actually retrospects on — a timeline, a
+   * delta, a surprise, and what was decided last time — and this screen had
+   * only the second. So the numbers now open with a sentence, and under it
+   * sit the decisions from last time, the age of everything still in
+   * progress, the shape of the window's events with its surprises named,
+   * what closed and what each one cost, and the two counts that come from
+   * reading history rather than the mirror. The table is still complete and
+   * still here; it is folded at the bottom, because a complete table is
+   * where you check a number, not where you start.
+   *
+   * Every one of those sections draws nothing when its field is absent. The
+   * server that fills them ships alongside this, and the one before it sends
+   * the report this view has always rendered.
+   *
    * GDK-1713 gives the sprint cut its board. Several boards with sprints is a
    * 409, not a failure: sprint windows from two boards overlap, so a merged
    * column set would be neither team's cadence. The server hands over the
@@ -32,6 +47,13 @@
   import EmptyState from '../list/EmptyState.svelte'
   import Sparkline from './Sparkline.svelte'
   import RetroSummary from './RetroSummary.svelte'
+  import RetroSection from './RetroSection.svelte'
+  import RetroSentence from './RetroSentence.svelte'
+  import RetroActions from './RetroActions.svelte'
+  import RetroAging from './RetroAging.svelte'
+  import RetroEvents from './RetroEvents.svelte'
+  import RetroClosed from './RetroClosed.svelte'
+  import RetroSeen from './RetroSeen.svelte'
   import { t, locale } from '../../lib/i18n'
   import { ApiError, getBoards, getRetro } from '../../lib/api'
   import type { BoardRow, RetroBucket } from '../../lib/types'
@@ -41,7 +63,8 @@
   import { createSkeletonGrace } from '../../lib/skeleton-grace.svelte'
   import { createResource } from '../../lib/resource.svelte'
   import { sprints } from '../../stores/sprints.svelte'
-  import { METRIC_SPECS, TONE_CLASS, deltaOf, formatValue, type MetricSpec } from './metrics'
+  import { METRIC_SPECS, TONE_CLASS, deltaOf, formatDays, formatValue, type MetricSpec } from './metrics'
+  import { hasMaterials, setCount } from './materials'
 
   // Three windows, plus the sprint cut when this workspace has sprints
   // (GDK-1693). Sprint is not a fourth window — it is a different bucket
@@ -59,6 +82,13 @@
 
   const DEFS_KEY = 'gadak.retro.definitions'
   const BOARD_KEY = 'gadak.retro.board'
+  /** Whether the complete table at the foot is unfolded. */
+  const TABLE_KEY = 'gadak.retro.table'
+  /** Set the first time this view is rendered. Its absence is what makes the
+   *  aging paragraph open once for somebody who has never seen this screen
+   *  (THEORY.md G3: speak at the boundary), and its presence is what stops
+   *  it speaking every week afterwards. */
+  const SEEN_KEY = 'gadak.retro.seen'
 
   function readLocal(key: string): string | null {
     try {
@@ -85,6 +115,15 @@
   // and remembered, because whichever way a person reads this table is how
   // they read it every week.
   let showDefs = $state(readLocal(DEFS_KEY) === '1')
+  // The table folded away (GDK-1724). Its own key rather than the
+  // definitions': a person who wants the sentences is not the same person
+  // who wants the grid, and the round that folded the grid would otherwise
+  // have silently reopened it for everyone who had opened the definitions.
+  let showTable = $state(readLocal(TABLE_KEY) === '1')
+  const firstVisit = readLocal(SEEN_KEY) !== '1'
+  $effect(() => {
+    writeLocal(SEEN_KEY, '1')
+  })
 
   // The shared resource rune: key change → reload, stale answers dropped.
   // The board is part of the key, so picking one is a reload.
@@ -200,6 +239,96 @@
     return p >= 0 ? p : buckets.length - 1
   })
 
+  /*
+   * The bucket every section below speaks for — the same one the summary
+   * strip names. One current bucket, not one per section: a screen where
+   * the sentence is about this week and the timeline about last one is a
+   * screen nobody can read.
+   */
+  const cur = $derived<RetroBucket | undefined>(buckets[currentIndex])
+  // Whether this server fills the materials at all. Absent on the release
+  // before this one, and then the whole half is gone rather than drawn empty.
+  const materials = $derived(hasMaterials(cur))
+  const aging = $derived(doc?.aging)
+  const actions = $derived(doc?.actions ?? [])
+  const sprintCut = $derived(doc?.bucket_noun === 'sprint')
+
+  function surpriseKeys(kind: string): string[] {
+    return (cur?.surprises ?? []).filter((x) => x.kind === kind).map((x) => x.key)
+  }
+
+  /*
+   * The opening sentence's four values (GDK-1724).
+   *
+   * `age` prefers the aging list's own oldest item, because that is a single
+   * issue the click can land on; the `wip age max` column is the same number
+   * with only the in-progress set behind it, and is the fallback when the
+   * server sent no aging block.
+   */
+  type SentenceValue = { text: string; keys: string[]; onOpen: () => void }
+  const sentenceValues = $derived.by<Record<string, SentenceValue>>(() => {
+    const none: Record<string, SentenceValue> = {}
+    if (!cur) return none
+    const reopened = surpriseKeys('reopened')
+    const added = surpriseKeys('added_after_start')
+    const oldest = aging?.items?.length
+      ? [...aging.items].sort((a, b) => b.days - a.days)[0]
+      : null
+    const ageKeys = oldest ? [oldest.key] : cur.keys['in progress']
+    const ageText = oldest ? formatDays(oldest.days) : formatValue(cur['wip age max'], 'days')
+    const out: Record<string, SentenceValue> = {
+      closed: { text: formatValue(cur.closed, 'count'), keys: cur.keys.closed, onOpen: () => open(cur.keys.closed) },
+      unplanned: {
+        text: String(setCount(cur.unplanned)),
+        keys: cur.unplanned?.keys ?? [],
+        onOpen: () => open(cur.unplanned?.keys ?? []),
+      },
+      reopened: { text: String(reopened.length), keys: reopened, onOpen: () => open(reopened) },
+      age: { text: ageText, keys: ageKeys, onOpen: () => open(ageKeys) },
+      added: { text: String(added.length), keys: added, onOpen: () => open(added) },
+    }
+    return out
+  })
+
+  /*
+   * The three lines each section unfolds (GDK-1726). Written out rather than
+   * built from a template literal so every key is a literal the catalog test
+   * can see — a `t(`retro.explain.${id}.what`)` is invisible to it, and an
+   * explanation nobody translated is exactly what this screen must not grow.
+   */
+  const EXPLAIN: Record<string, { what: string; why: string; how: string }> = $derived({
+    actions: {
+      what: t('retro.explain.actions.what'),
+      why: t('retro.explain.actions.why'),
+      how: t('retro.explain.actions.how'),
+    },
+    aging: {
+      what: t('retro.explain.aging.what'),
+      why: t('retro.explain.aging.why'),
+      how: t('retro.explain.aging.how'),
+    },
+    events: {
+      what: t('retro.explain.events.what'),
+      why: t('retro.explain.events.why'),
+      how: t('retro.explain.events.how'),
+    },
+    closed: {
+      what: t('retro.explain.closed.what'),
+      why: t('retro.explain.closed.why'),
+      how: t('retro.explain.closed.how'),
+    },
+    seen: {
+      what: t('retro.explain.seen.what'),
+      why: t('retro.explain.seen.why'),
+      how: t('retro.explain.seen.how'),
+    },
+    table: {
+      what: t('retro.explain.table.what'),
+      why: t('retro.explain.table.why'),
+      how: t('retro.explain.table.how'),
+    },
+  })
+
   function weekLabel(b: RetroBucket): string {
     const from = new Date(b.from)
     // `to` is exclusive; the header names the last day the week holds.
@@ -240,6 +369,11 @@
   function toggleDefs(): void {
     showDefs = !showDefs
     writeLocal(DEFS_KEY, showDefs ? '1' : '0')
+  }
+
+  function toggleTable(): void {
+    showTable = !showTable
+    writeLocal(TABLE_KEY, showTable ? '1' : '0')
   }
 
   function pickBoard(e: Event): void {
@@ -332,7 +466,11 @@
   {:else if doc && empty}
     <EmptyState icon="" title={t('retro.empty')} />
   {:else if doc}
+    <!-- 880px: the sentence and the explanations are prose, and prose set to
+         a 2000px window is not read. The table inside the fold keeps its own
+         horizontal scroller rather than widening this. -->
     <div class="min-h-0 flex-1 overflow-auto px-3 py-3">
+      <div class="max-w-[880px]">
       {#if buckets.length && currentIndex >= 0}
         <RetroSummary
           bucket={buckets[currentIndex]}
@@ -341,6 +479,121 @@
           labels={LABEL}
         />
       {/if}
+
+      {#if cur && materials}
+        <RetroSentence values={sentenceValues} sprint={sprintCut} />
+      {/if}
+
+      <!--
+        The materials (GDK-1721..1725). Rules, not cards: the six readings
+        below are one document about one bucket, and six bordered boxes would
+        have said the opposite. Each one draws only when its own field
+        arrived, so an older server still renders the report it always did.
+      -->
+      <div class="flex flex-col gap-4">
+        {#if actions.length}
+          <RetroSection
+            id="actions"
+            title={t('retro.actions.title')}
+            what={EXPLAIN.actions.what}
+            why={EXPLAIN.actions.why}
+            how={EXPLAIN.actions.how}
+            open={showDefs}
+          >
+            <RetroActions {actions} labels={LABEL} onOpen={open} />
+          </RetroSection>
+        {:else if doc.actions && firstVisit}
+          <!-- Once, to whoever has not seen this screen before: the section
+               is empty because nothing carries the label yet, which is a
+               thing to do rather than a thing that is broken. -->
+          <p class="text-micro text-text-muted" data-testid="retro-actions-hint">{t('retro.actions.hint')}</p>
+        {/if}
+
+        {#if aging}
+          <RetroSection
+            id="aging"
+            title={t('retro.aging.title')}
+            what={EXPLAIN.aging.what}
+            why={EXPLAIN.aging.why}
+            how={EXPLAIN.aging.how}
+            open={showDefs || firstVisit}
+          >
+            <RetroAging {aging} onOpen={open} />
+          </RetroSection>
+        {/if}
+
+        {#if cur && (cur.events || cur.surprises)}
+          <RetroSection
+            id="events"
+            title={t('retro.events.title')}
+            what={EXPLAIN.events.what}
+            why={EXPLAIN.events.why}
+            how={EXPLAIN.events.how}
+            open={showDefs}
+          >
+            <RetroEvents bucket={cur} onOpen={open} />
+          </RetroSection>
+        {/if}
+
+        {#if cur && (cur.closed_by_type || cur.closed_by_epic || cur.cycle_points || cur.unplanned)}
+          <RetroSection
+            id="closed"
+            title={t('retro.closed.title')}
+            what={EXPLAIN.closed.what}
+            why={EXPLAIN.closed.why}
+            how={EXPLAIN.closed.how}
+            open={showDefs}
+          >
+            <RetroClosed bucket={cur} onOpen={open} />
+          </RetroSection>
+        {/if}
+
+        {#if cur && (cur.seen_not_moved || cur.moved_not_seen)}
+          <RetroSection
+            id="seen"
+            title={t('retro.seen.title')}
+            what={EXPLAIN.seen.what}
+            why={EXPLAIN.seen.why}
+            how={EXPLAIN.seen.how}
+            open={showDefs}
+          >
+            <RetroSeen bucket={cur} onOpen={open} />
+          </RetroSection>
+        {/if}
+
+        <!--
+          And the report the CLI prints, complete, at the foot. Folded by
+          default (GDK-1724): eight rows against twelve columns is where a
+          reader checks one number, not where one starts. The fold is
+          remembered, because whichever way a person reads this is how they
+          read it every week.
+        -->
+        <RetroSection
+          id="table"
+          title={t('retro.table.title')}
+          what={EXPLAIN.table.what}
+          why={EXPLAIN.table.why}
+          how={EXPLAIN.table.how}
+          open={showDefs}
+        >
+          {#snippet trailing()}
+            <button
+              type="button"
+              class="flex h-control-sm items-center rounded px-2 text-micro font-medium text-text-muted hover:bg-bg-hover hover:text-text-secondary"
+              aria-expanded={showTable}
+              data-testid="retro-table-toggle"
+              onclick={toggleTable}
+            >
+              <Icon name={showTable ? 'chevron-left' : 'chevron-right'} size={12} class="mr-1" />
+              {showTable ? t('retro.table.hide') : t('retro.table.show')}
+            </button>
+          {/snippet}
+          {#if showTable}
+            <!-- The grid keeps its own scroller: the column is 880px wide
+                 and a twelve-week table is not, and a page that scrolls
+                 sideways to reach a sentence is the failure this fold is
+                 for. -->
+            <div class="overflow-x-auto">
       <!--
         `w-max` alone, not `w-max min-w-full` (GDK-1706). With many columns
         the two agree and the row scrolls; with few, `min-w-full` won and
@@ -446,6 +699,10 @@
           {/each}
         </tbody>
       </table>
+            </div>
+          {/if}
+        </RetroSection>
+      </div>
       {#if notes.length}
         <dl class="mt-4 max-w-[720px] border-t border-border-subtle pt-3 text-micro leading-snug text-text-muted" data-testid="retro-notes">
           {#each notes as n (n.name)}
@@ -456,6 +713,7 @@
           {/each}
         </dl>
       {/if}
+      </div>
     </div>
   {/if}
 </section>

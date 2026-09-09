@@ -568,6 +568,78 @@ export interface RetroBucket {
     cycle: string[]
     keys_truncated?: boolean
   }
+  /*
+   * The retro materials (GDK-1721..1725). Every one of these is optional and
+   * every reader draws nothing when it is absent: the columns above are what
+   * an older server sends, and a view that assumed the new shape would render
+   * a broken half-screen against it rather than the report it used to.
+   */
+  /** What happened inside the bucket, at asc (GDK-1722). */
+  events?: RetroEvent[]
+  /** The bucket's exceptions — what a person would actually talk about. */
+  surprises?: RetroSurprise[]
+  /** The bucket's closures cut by issue type, count desc (GDK-1723). */
+  closed_by_type?: RetroClosedGroup[]
+  /** The same closures cut by epic. `epic_key` is "" for the issues under none. */
+  closed_by_epic?: RetroClosedGroup[]
+  /** Opened and closed inside the same bucket. */
+  unplanned?: RetroKeySet
+  /** One point per resolved issue — the sample behind cycle p50/p85. */
+  cycle_points?: RetroCyclePoint[]
+  /** Issues this person opened in the bucket that no changelog row moved. */
+  seen_not_moved?: RetroKeySet
+  /** …and the other way: moved in the bucket, never opened. */
+  moved_not_seen?: RetroKeySet
+}
+
+/** A kind of thing that happened to an issue inside a bucket (GDK-1722). */
+export type RetroEventKind =
+  | 'created'
+  | 'started'
+  | 'resolved'
+  | 'reopened'
+  | 'sprint_in'
+  | 'sprint_out'
+  | 'comment'
+
+export interface RetroEvent {
+  at: string
+  key: string
+  kind: RetroEventKind
+  /** Free text the kind decides — the comment's author, for one. */
+  detail?: string
+}
+
+/** The four shapes a bucket can surprise you with. */
+export type RetroSurpriseKind = 'reopened' | 'reversal' | 'added_after_start' | 'carried'
+
+export interface RetroSurprise {
+  kind: RetroSurpriseKind
+  key: string
+  detail?: string
+}
+
+/** A cut of the bucket's closures — by type or by epic. */
+export interface RetroClosedGroup {
+  issue_type_id?: string
+  issue_type?: string
+  epic_key?: string
+  title?: string
+  count: number
+  keys: string[]
+}
+
+/** A count that is a door: the number, and the issues behind it. */
+export interface RetroKeySet {
+  count?: number
+  keys: string[]
+}
+
+/** One resolved issue on the cycle-time scatter. */
+export interface RetroCyclePoint {
+  key: string
+  resolved_at: string
+  days: number
 }
 
 export interface RetroDoc {
@@ -594,6 +666,43 @@ export interface RetroDoc {
    * writes. Absent on an older server, where it is always a week.
    */
   bucket_noun?: string
+  /**
+   * Age of everything in progress right now (GDK-1721). Not a bucket column:
+   * cycle time is what finished work cost and can no longer be changed, and
+   * this is the only figure on the report a person can still act on.
+   * Absent on an older server.
+   */
+  aging?: RetroAging
+  /** Issues labelled `retro-action` — what was decided last time, with the
+   *  metric each one named then and now (GDK-1453). Absent on an older
+   *  server; empty when nobody has labelled anything. */
+  actions?: RetroAction[]
+}
+
+export interface RetroAging {
+  /** Nearest-rank p85 of the ages below, or null when nothing is in progress. */
+  p85_days: number | null
+  items: RetroAgingItem[]
+}
+
+export interface RetroAgingItem {
+  key: string
+  days: number
+  summary?: string
+  issue_type_id?: string
+}
+
+/** One decision from a previous retro, and what the metric it named has done
+ *  since (GDK-1453). `metric` is the retro row name — "wip age max" — or "". */
+export interface RetroAction {
+  key: string
+  summary: string
+  status_category: string
+  created_at: string
+  resolved_at?: string | null
+  metric?: string
+  then?: number | null
+  now?: number | null
 }
 
 /** One mirrored board. `has_sprints` is the retro's own predicate — a sprint

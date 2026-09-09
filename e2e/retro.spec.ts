@@ -1,5 +1,19 @@
 import { test, expect } from '@playwright/test'
+import type { Page } from '@playwright/test'
 import { attachConsoleErrors, gotoApp } from './helpers'
+
+/**
+ * Unfold the complete table.
+ *
+ * GDK-1724 moved it to the foot of the report and folded it: the sections
+ * above are the first read and the grid is where a number gets checked. The
+ * specs below were written when it was the whole screen, so they open it
+ * first — the assertions about what is *in* it are unchanged.
+ */
+async function openTable(page: Page): Promise<void> {
+  await page.getByTestId('retro-table-toggle').click()
+  await expect(page.getByTestId('retro-table')).toBeVisible()
+}
 
 /*
  * Weekly retro as a column view (GDK-1660). What a fresh e2e home yields is
@@ -25,11 +39,13 @@ test.describe('weekly retro view', () => {
     const view = page.getByTestId('retro-view')
     await expect(view).toBeVisible()
     await expect(view.getByText('Weekly retro').first()).toBeVisible()
+    // The column headers live inside the fold now, so the table is opened
+    // before they are counted (GDK-1724).
+    await openTable(page)
     // "4w" is four whole ISO weeks plus the partial current one (measured on
     // the e2e serve: five buckets, the last with partial=true).
     await expect(page.getByTestId('retro-week')).toHaveCount(5)
     await expect(page.getByTestId('retro-week').last()).toContainText('this week')
-    await expect(page.getByTestId('retro-table')).toBeVisible()
     expect(page.url()).toContain('retro=1')
 
     // GDK-1712: the summary strip names the bucket still filling and reads
@@ -57,6 +73,7 @@ test.describe('weekly retro view', () => {
     await gotoApp(page)
     await page.goto('/#/?retro=1')
     await expect(page.getByTestId('retro-view')).toBeVisible()
+    await openTable(page)
     const cells = page.getByTestId('retro-cell')
     // The demo mirror has issues in progress and closed inside four weeks
     // (measured on the fixture's spread), so at least one door exists.
@@ -93,6 +110,9 @@ test.describe('weekly retro view', () => {
     await expect(notes).toBeVisible()
     await expect(notes).toContainText('status_catalog')
     await expect(notes).toContainText('a sync fills the table')
+    // The reason stands outside the fold: it is the answer to "why is the
+    // table empty", and a reader who has to open the table to find it has
+    // already concluded the feature is broken (GDK-1679).
   })
 
   /*
@@ -134,7 +154,7 @@ test.describe('weekly retro view', () => {
     await page.goto('/#/?retro=1')
 
     await expect(page.getByTestId('retro-notes')).toContainText('a sync fills the table')
-    await expect(page.getByTestId('retro-table')).toBeVisible()
+    await openTable(page)
   })
 })
 
@@ -154,6 +174,7 @@ test.describe('retro by sprint', () => {
     await gotoApp(page)
     await page.goto('/#/?retro=1')
     await expect(page.getByTestId('retro-view')).toBeVisible()
+    await openTable(page)
     await expect(page.getByTestId('retro-week')).toHaveCount(5)
     // GDK-1712: the definitions are folded away by default — eight
     // paragraphs standing between the reader and the numbers is what forced
@@ -255,8 +276,10 @@ test.describe('retro board picker', () => {
     await expect(picker.locator('option[value="7"]')).toHaveText('Platform board')
     await picker.selectOption('7')
 
-    // Choosing one asks again with the board named, and the table returns.
-    await expect(page.getByTestId('retro-table')).toBeVisible()
+    // Choosing one asks again with the board named, and the report returns —
+    // the summary strip, since the table is folded (GDK-1724).
+    await expect(page.getByTestId('retro-summary')).toBeVisible()
+    await openTable(page)
     expect(asked.some((u) => u.includes('board=7'))).toBe(true)
   })
 })
@@ -286,7 +309,8 @@ test.describe('retro trend marks', () => {
     })
     await gotoApp(page)
     await page.goto('/#/?retro=1')
-    await expect(page.getByTestId('retro-table')).toBeVisible()
+    await expect(page.getByTestId('retro-view')).toBeVisible()
+    await openTable(page)
 
     // The row's own line, one per metric that has two or more values. Named
     // rather than counted: how many of the eight the fixture fills is the

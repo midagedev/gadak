@@ -1018,4 +1018,146 @@ export const detail = {
     ko: '이 워크스페이스에는 스프린트가 없습니다',
     ja: 'このワークスペースにスプリントはありません',
   },
+  /*
+   * GDK-1721..1726: the retro as materials rather than a table.
+   *
+   * The sentence, the sections that draw what happened, and the paragraph
+   * that says how to read each one. The three-line explanations are written
+   * per locale rather than translated clause for clause — an explanation
+   * that reads like a translation is one nobody finishes.
+   */
+  'retro.sentence': {
+    en: 'Closed {closed} ({unplanned} unplanned), reopened {reopened}, oldest in progress {age}.',
+    ko: '닫힌 것 {closed}(계획 외 {unplanned}), 되돌아온 것 {reopened}, 가장 오래된 진행 중 {age}.',
+    ja: '完了 {closed}（計画外 {unplanned}）、戻ってきたもの {reopened}、最も古い進行中 {age}。',
+  },
+  'retro.sentenceSprint': {
+    en: 'Closed {closed} ({unplanned} unplanned), reopened {reopened}, oldest in progress {age}, added after sprint start {added}.',
+    ko: '닫힌 것 {closed}(계획 외 {unplanned}), 되돌아온 것 {reopened}, 가장 오래된 진행 중 {age}, 스프린트 시작 후 들어온 것 {added}.',
+    ja: '完了 {closed}（計画外 {unplanned}）、戻ってきたもの {reopened}、最も古い進行中 {age}、スプリント開始後に入ったもの {added}。',
+  },
+  'retro.actions.title': { en: 'Decided last time', ko: '지난번에 정한 것', ja: '前回決めたこと' },
+  'retro.actions.hint': {
+    en: 'Issues labelled retro-action stand here, with the number they named then and now.',
+    ko: 'retro-action 라벨을 단 이슈가 여기 섭니다. 그때 가리킨 수와 지금 수가 함께 보입니다.',
+    ja: 'retro-action ラベルを付けた課題がここに並びます。そのとき指した数と今の数が並びます。',
+  },
+  'retro.actions.thenNow': { en: 'then {then} → now {now}', ko: '그때 {then} → 지금 {now}', ja: 'そのとき {then} → 今 {now}' },
+  'retro.aging.title': { en: 'Aging work in progress', ko: '진행 중인 일의 나이', ja: '進行中の仕事の古さ' },
+  'retro.aging.more': { en: '{n} more', ko: '{n}개 더', ja: 'ほか {n} 件' },
+  'retro.aging.empty': { en: 'Nothing in progress.', ko: '진행 중인 것이 없습니다.', ja: '進行中のものはありません。' },
+  'retro.events.title': { en: 'What happened', ko: '이 구간에 있었던 일', ja: 'この区間に起きたこと' },
+  'retro.events.day': { en: '{date} · {n}', ko: '{date} · {n}건', ja: '{date} · {n} 件' },
+  'retro.events.none': { en: 'Nothing recorded in this window.', ko: '이 구간에는 기록이 없습니다.', ja: 'この区間には記録がありません。' },
+  'retro.surprises.title': { en: 'Surprises', ko: '놀라운 것', ja: '意外だったこと' },
+  'retro.surprise.reopened': { en: 'came back', ko: '되돌아왔다', ja: '戻ってきた' },
+  'retro.surprise.reversal': { en: 'went back and forth', ko: '상태를 오갔다', ja: 'ステータスを行き来した' },
+  'retro.surprise.added_after_start': { en: 'joined after the start', ko: '시작한 뒤 들어왔다', ja: '開始後に入ってきた' },
+  'retro.surprise.carried': { en: 'carried over', ko: '넘어왔다', ja: '持ち越された' },
+  'retro.closed.title': { en: 'What closed', ko: '닫힌 것', ja: '完了したもの' },
+  'retro.closed.byType': { en: 'By type', ko: '유형별', ja: '種類別' },
+  'retro.closed.byEpic': { en: 'By epic', ko: '에픽별', ja: 'エピック別' },
+  'retro.closed.noEpic': { en: '(no epic)', ko: '(에픽 없음)', ja: '(エピックなし)' },
+  'retro.closed.unplanned': { en: 'Unplanned {n}', ko: '계획 외 {n}', ja: '計画外 {n}' },
+  'retro.closed.cycle': { en: 'Cycle time of each', ko: '하나하나의 사이클 타임', ja: '一件ごとのサイクルタイム' },
+  'retro.closed.clipped': { en: '{n} above the top', ko: '위쪽 밖 {n}개', ja: '上端の外に {n} 件' },
+  'retro.closed.none': { en: 'Nothing closed in this window.', ko: '이 구간에 닫힌 것이 없습니다.', ja: 'この区間に完了したものはありません。' },
+  'retro.seen.title': { en: 'Seen and moved', ko: '본 것과 움직인 것', ja: '見たものと動いたもの' },
+  'retro.seen.notMoved': { en: 'Opened, never moved {n}', ko: '열었지만 안 움직인 것 {n}', ja: '開いたが動かなかったもの {n}' },
+  'retro.moved.notSeen': { en: 'Moved, never opened {n}', ko: '움직였지만 안 본 것 {n}', ja: '動いたが見ていないもの {n}' },
+  'retro.table.title': { en: 'Every number', ko: '숫자 표 전체', ja: '数値表のすべて' },
+  'retro.table.show': { en: 'Show', ko: '펼치기', ja: '開く' },
+  'retro.table.hide': { en: 'Hide', ko: '접기', ja: '畳む' },
+  // The three lines each section unfolds when the definitions are on: what
+  // it is, why a retro looks at it, how to read it.
+  'retro.explain.aging.what': {
+    en: 'How many days each in-progress issue has stood where it is. One bar is one issue.',
+    ko: '진행 중인 이슈가 지금 상태에 머문 날수입니다. 막대 하나가 이슈 하나입니다.',
+    ja: '進行中の課題が今の状態にとどまっている日数です。棒ひとつが課題ひとつです。',
+  },
+  'retro.explain.aging.why': {
+    en: 'Cycle time is what finished work already cost. Age is the one figure you can still change.',
+    ko: '끝난 일의 사이클 타임은 뒤늦은 지표이고, 나이는 아직 손댈 수 있는 유일한 앞선 지표입니다.',
+    ja: '終わった仕事のサイクルタイムは後追いの指標です。古さは今からまだ動かせる唯一の指標です。',
+  },
+  'retro.explain.aging.how': {
+    en: 'The bars past the p85 line are next week\u2019s first look. If the line itself drifts right, flow has slowed.',
+    ko: 'p85 선을 넘은 막대가 다음 주에 먼저 볼 것입니다. 선 자체가 오른쪽으로 밀리면 흐름이 느려진 것입니다.',
+    ja: 'p85 の線を越えた棒が来週まず見るものです。線そのものが右へ動いたなら、流れが遅くなっています。',
+  },
+  'retro.explain.events.what': {
+    en: 'One column per day, as tall as the day was busy. Starts and finishes take the status colours; everything else is grey.',
+    ko: '하루가 한 칸이고, 칸 높이가 그날의 사건 수입니다. 시작과 완료는 상태 색을 쓰고 나머지는 회색입니다.',
+    ja: '1 日が 1 本で、高さがその日の件数です。開始と完了はステータスの色、ほかは灰色です。',
+  },
+  'retro.explain.events.why': {
+    en: 'Totals hide rhythm. A week where everything landed on the last day counts the same as a steady one.',
+    ko: '합계는 리듬을 지웁니다. 마지막 날에 다 몰린 주와 고르게 흘러간 주는 숫자가 같습니다.',
+    ja: '合計はリズムを消します。最終日にすべてが集まった週も、平らに流れた週も、数字は同じです。',
+  },
+  'retro.explain.events.how': {
+    en: 'Look for the gaps and the spike. The surprises below are the same window, named.',
+    ko: '빈 자리와 솟은 자리를 봅니다. 아래 목록은 같은 구간을 이름으로 적은 것입니다.',
+    ja: '空いた場所と跳ねた場所を見ます。下の一覧は同じ区間を名前で書いたものです。',
+  },
+  'retro.explain.closed.what': {
+    en: 'The bucket\u2019s closures cut by type and by epic, and the cycle time of each one as a dot.',
+    ko: '이 구간에 닫힌 것을 유형별·에픽별로 나눈 것, 그리고 하나하나의 사이클 타임을 점으로 찍은 것입니다.',
+    ja: 'この区間に完了したものを種類別・エピック別に分けたもの、そして一件ごとのサイクルタイムを点で置いたものです。',
+  },
+  'retro.explain.closed.why': {
+    en: 'p50 and p85 are two numbers standing for a shape. The shape is what tells you whether the tail is one issue or a habit.',
+    ko: 'p50 과 p85 는 분포를 대신하는 두 숫자입니다. 꼬리가 이슈 하나인지 습관인지는 분포를 봐야 압니다.',
+    ja: 'p50 と p85 は分布を代表する 2 つの数字です。尾がひとつの課題なのか癖なのかは、分布を見ないと分かりません。',
+  },
+  'retro.explain.closed.how': {
+    en: 'Dots bunched under p50 with a few far above is a healthy week with an outlier. A flat spread is not.',
+    ko: '점이 p50 아래 모이고 몇 개만 위로 튀면 이상치가 있는 건강한 구간입니다. 고르게 퍼져 있으면 아닙니다.',
+    ja: '点が p50 の下に集まり、いくつかだけ上へ跳ねているなら、外れ値のある健全な区間です。平らに散っていればそうではありません。',
+  },
+  'retro.explain.seen.what': {
+    en: 'Two counts from your own reading history against the bucket\u2019s changelog.',
+    ko: '내가 읽은 기록과 이 구간의 변경 이력을 맞대어 센 두 숫자입니다.',
+    ja: '自分が読んだ記録とこの区間の変更履歴を突き合わせて数えた 2 つの数字です。',
+  },
+  'retro.explain.seen.why': {
+    en: 'Attention and movement come apart quietly. Both directions are worth a sentence in a retro.',
+    ko: '주의와 움직임은 조용히 어긋납니다. 어느 쪽이든 회고에서 한 문장 값은 합니다.',
+    ja: '注意と動きは静かにずれます。どちらの向きも、ふりかえりで一言の価値があります。',
+  },
+  'retro.explain.seen.how': {
+    en: 'Opened but never moved is where the week went. Moved but never opened is what moved without you.',
+    ko: '열었지만 안 움직인 것에 그 주가 갔습니다. 움직였지만 안 본 것은 나 없이 움직인 것입니다.',
+    ja: '開いたのに動かなかったものに、その週が消えています。動いたのに見ていないものは、自分抜きで動いたものです。',
+  },
+  'retro.explain.actions.what': {
+    en: 'Issues labelled retro-action, with the metric each one named, then and now.',
+    ko: 'retro-action 라벨이 붙은 이슈와, 그 이슈가 가리킨 지표의 그때 값과 지금 값입니다.',
+    ja: 'retro-action ラベルの付いた課題と、その課題が指した指標の当時の値と今の値です。',
+  },
+  'retro.explain.actions.why': {
+    en: 'A retro that never reads its last one is a meeting, not a loop.',
+    ko: '지난 회고를 다시 읽지 않는 회고는 고리가 아니라 회의일 뿐입니다.',
+    ja: '前回を読み返さないふりかえりは、ループではなく会議です。',
+  },
+  'retro.explain.actions.how': {
+    en: 'A decision whose number has not moved is either the wrong decision or one nobody did.',
+    ko: '수가 그대로인 결정은 잘못 고른 결정이거나 아무도 하지 않은 결정입니다.',
+    ja: '数字が動いていない決定は、選び方を誤ったか、誰もやらなかったかのどちらかです。',
+  },
+  'retro.explain.table.what': {
+    en: 'Every metric against every bucket — the report the CLI prints.',
+    ko: '모든 지표를 모든 구간에 대해 적은 표입니다. CLI 가 찍는 그 보고서입니다.',
+    ja: 'すべての指標をすべての区間について並べた表です。CLI が出力する報告そのものです。',
+  },
+  'retro.explain.table.why': {
+    en: 'The sections above are readings of these numbers. This is where you check one.',
+    ko: '위의 섹션들은 이 숫자를 읽은 것입니다. 하나를 확인하고 싶을 때 여기를 엽니다.',
+    ja: '上の各節はこの数字を読んだものです。ひとつを確かめたいときにここを開きます。',
+  },
+  'retro.explain.table.how': {
+    en: 'Folded by default, because eight rows against twelve columns is not a first read.',
+    ko: '기본은 접힘입니다. 여덟 행에 열두 열은 처음 읽을 것이 아니기 때문입니다.',
+    ja: '既定では畳んであります。8 行 × 12 列は、最初に読むものではないからです。',
+  },
 } as const satisfies Record<string, Message>
