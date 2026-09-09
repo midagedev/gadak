@@ -125,7 +125,10 @@ func logAttachmentImport(prefix string, stats attachcache.ImportStats) {
 
 // freshenDemoClock stamps the throwaway demo copy as just-synced.
 func freshenDemoClock(dbPath string) error {
-	db, err := store.Open(dbPath)
+	// dbPath is the temp-home copy cmdDemo wrote a moment above, never the
+	// committed fixture and never a user workspace file, so the dev-lockout
+	// policy does not apply: an explicit MigrateForward migrates the copy freely.
+	db, err := store.OpenWith(dbPath, store.OpenOptions{ForwardMigration: store.MigrateForward})
 	if err != nil {
 		return err
 	}

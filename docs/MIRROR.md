@@ -13,6 +13,15 @@ and `workspace.transport` is `local` or `remote`; a paired
 workspace is `connected` plus a `pairing` object on `gadak status --json`). If
 `gadak status --json` includes `kind`, you may use that.
 
+One file, two binaries: an installed release and a `0.0.0-dev` build from a
+checkout can share a mirror, and the dev build will not migrate it forward —
+it refuses, naming both schema versions and both ways out in the error
+(`SchemaForwardRefusedError`). That refusal is what keeps the installed
+release working. To migrate anyway, set `GADAK_DEV_MIGRATE=1`; to experiment
+without deciding for the release, work on a copy of the profile directory as
+the error's one-liner shows. Release builds migrate on open as they always
+did.
+
 Four layers. Use the lowest one that answers the question:
 
 | Layer | Use it for | Needs |

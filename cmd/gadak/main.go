@@ -24,6 +24,7 @@ import (
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/server"
+	"github.com/midagedev/gadak/internal/skillinstall"
 	"github.com/midagedev/gadak/internal/store"
 )
 
@@ -37,7 +38,24 @@ func openStore() (*store.DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	return store.Open(path)
+	return store.OpenWith(path, storeOpenOptions())
+}
+
+// storeOpenOptions is the dev-lockout open policy every cmd/gadak call site on
+// a user workspace mirror passes: a dev build refuses to migrate a
+// release-written mirror forward (store.SchemaForwardRefusedError names both
+// ways out; the GADAK_DEV_MIGRATE override is read in store, one owner). A
+// release build migrates as it always did — an installed upgrade must keep
+// working with no prompt. The dev-build decision itself has one owner,
+// skillinstall.IsDevBuild. main installs this as store's process default, so
+// plain store.Open carries it too; call sites on files the command itself
+// created in a temp dir opt out with an explicit MigrateForward and say so.
+func storeOpenOptions() store.OpenOptions {
+	policy := store.MigrateForward
+	if skillinstall.IsDevBuild(version) {
+		policy = store.RefuseForward
+	}
+	return store.OpenOptions{ForwardMigration: policy, BuildVersion: version}
 }
 
 // profileCreateOK is the command whitelist that may mint a named profile
@@ -241,6 +259,9 @@ Workspaces keep separate credentials and mirrors (e.g. work and demo):
 
 func main() {
 	log.SetFlags(0)
+	// Installed first: every store.Open below — the workspace registry serve
+	// builds, the MCP server, originbind — inherits the dev-lockout policy.
+	store.SetDefaultOpenOptions(storeOpenOptions())
 	apprun.SelectWorkspace()
 	if dir, err := config.DirFor(""); err != nil {
 		fmt.Fprintf(os.Stderr, "gadak: logs: %v\n", err)

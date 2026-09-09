@@ -435,7 +435,9 @@ func collectDoctor() doctorReport {
 	}
 	rep.MirrorHolders = listMirrorHolders(path)
 
-	db, err := store.Open(path)
+	// The user's workspace mirror: the dev-lockout policy applies — a dev build
+	// must not migrate a release-written file just because doctor looked.
+	db, err := store.OpenWith(path, storeOpenOptions())
 	if err != nil {
 		// doctor is what someone runs when the mirror has stopped opening, so
 		// "open failed" is the one answer it must not give for a cause it can
@@ -445,6 +447,14 @@ func collectDoctor() doctorReport {
 			rep.Mirror.Status = "schema_too_new"
 			rep.Mirror.Detail = fmt.Sprintf("written by a newer gadak; this build reads up to %d — run the newer gadak, or set the file aside and re-sync", tooNew.Supported)
 			rep.SchemaVersion = &tooNew.Have
+			rep.Migrations = "none applied"
+			return rep
+		}
+		var refused *store.SchemaForwardRefusedError
+		if errors.As(err, &refused) {
+			rep.Mirror.Status = "schema_forward_refused"
+			rep.Mirror.Detail = fmt.Sprintf("dev build refusing to migrate schema %d to %d — set GADAK_DEV_MIGRATE=1 to migrate anyway, or work on a copy", refused.Have, refused.Head)
+			rep.SchemaVersion = &refused.Have
 			rep.Migrations = "none applied"
 			return rep
 		}

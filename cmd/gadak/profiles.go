@@ -140,7 +140,10 @@ func inspectProfile(name, activeDisplay string) profileEntry {
 	}
 	e.hasMirror = true
 
-	db, err := store.Open(dbPath)
+	// Another workspace's mirror is a user file: the dev-lockout policy applies.
+	// A refusal (dev build, release-written mirror) lands in the same
+	// "will not open" branch — counts zero, not a migration.
+	db, err := store.OpenWith(dbPath, storeOpenOptions())
 	if err != nil {
 		// File exists but will not open; leave counts at zero for JSON and
 		// treat as no usable mirror for text (hasMirror false).

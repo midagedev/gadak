@@ -43,15 +43,19 @@ var envSuffixes = map[string]struct{}{
 // cmd/gadak/agent.go's claim reflection (GADAK_TERMINAL_SESSION,
 // GDK-1158 — published by internal/term into every pane shell, so without
 // this entry warnUnknownGADAK would call every pane's own claim a ghost),
-// and cmd/gadak/workspace_cmd.go's pane check (GADAK_TERMINAL, the flag
+// cmd/gadak/workspace_cmd.go's pane check (GADAK_TERMINAL, the flag
 // internal/term sets beside it — GDK-1362 silences the env-workspace
-// warning inside a pane). Check 18 covers these too.
+// warning inside a pane), and internal/store/store.go's dev-build
+// migration override (GADAK_DEV_MIGRATE, dev-lockout — the way out of
+// SchemaForwardRefusedError; read at the open boundary so every caller of
+// OpenWith inherits it). Check 18 covers these too.
 var envLiterals = map[string]struct{}{
 	"GADAK_NO_OPEN":          {},
 	"GADAK_DESKTOP_CLI":      {},
 	"GADAK_ACTOR":            {},
 	"GADAK_TERMINAL":         {},
 	"GADAK_TERMINAL_SESSION": {},
+	"GADAK_DEV_MIGRATE":      {},
 }
 
 // envHarness are names this repository's own harness exports into the

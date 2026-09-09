@@ -98,21 +98,84 @@ MIRROR="${1:-$HOME/.gadak/profiles/gdk/gadak.db}"
 
 [ -f "$MIRROR" ] || { echo "mirror not found: $MIRROR" >&2; exit 1; }
 
+# The scratch-copy step below needs sqlite3's online .backup: a plain cp of a
+# live SQLite file with a -wal sidecar can carry torn bytes (a measured
+# incident in this repo). No cp fallback — a torn snapshot is worse than a
+# clear failure naming the fix.
+command -v sqlite3 >/dev/null 2>&1 || {
+  echo "sqlite3 not found — the mirror copy step needs it (brew install sqlite)" >&2
+  exit 1
+}
+
 go build -trimpath -o bin/gadak ./cmd/gadak
+
+STAGE=""
+SCRATCH_HOME=""
+cleanup() {
+  # [ -z ] || rm, not [ -n ] && rm: a false guard as the trap's last
+  # statement would return 1 and clobber the script's exit status (set -e
+  # runs the EXIT trap with errexit). Here rm failing must still fail.
+  [ -z "$STAGE" ] || rm -rf "$STAGE"
+  [ -z "$SCRATCH_HOME" ] || rm -rf "$SCRATCH_HOME"
+}
+trap cleanup EXIT
 
 # GDK-600: a regen is a full rewrite of the published state, so it must run
 # on a fresh mirror — a parallel session's label writes landed in Jira but a
 # stale local mirror silently dropped them from the public page. Only the
 # default mirror can be synced here (a custom path has no profile mapping).
+#
+# dev-lockout: bin/gadak is a dev build of this checkout, and opening the user's
+# real mirror is exactly what moved it 44→46 and locked the installed release
+# out of the workspace. The sync runs on a scratch copy under its own
+# GADAK_HOME — the user's file is never opened by bin/gadak — and the
+# user_version assertion below fails loudly if that ever regresses.
 if [ "$MIRROR" = "$HOME/.gadak/profiles/gdk/gadak.db" ]; then
-  bin/gadak --workspace gdk sync --if-stale 1m
+  USER_VERSION_BEFORE="$(sqlite3 "$MIRROR" 'PRAGMA user_version')"
+  SCRATCH_HOME="$(mktemp -d "${TMPDIR:-/tmp}/gadak-backlog-home-XXXXXX")"
+  SCRATCH_PROFILE="$SCRATCH_HOME/profiles/gdk"
+  mkdir -p "$SCRATCH_PROFILE"
+  sqlite3 "$MIRROR" ".backup '$SCRATCH_PROFILE/gadak.db'" || {
+    echo "sqlite3 .backup failed for $MIRROR" >&2
+    exit 1
+  }
+  if [ -f "$HOME/.gadak/profiles/gdk/local.db" ]; then
+    sqlite3 "$HOME/.gadak/profiles/gdk/local.db" ".backup '$SCRATCH_PROFILE/local.db'" || {
+      echo "sqlite3 .backup failed for local.db" >&2
+      exit 1
+    }
+  fi
+  # Everything else in the profile dir travels by plain cp — config.json (the
+  # workspace's origin settings), pairing/origin files, subdirs. The two
+  # SQLite files above are the only ones a live -wal can tear; the -wal/-shm
+  # sidecars themselves are snapshot artifacts, not inputs, and stay behind.
+  for f in "$HOME/.gadak/profiles/gdk"/*; do
+    [ -e "$f" ] || continue
+    case "$(basename "$f")" in
+      gadak.db|gadak.db-wal|gadak.db-shm|local.db|local.db-wal|local.db-shm) continue ;;
+    esac
+    cp -Rp "$f" "$SCRATCH_PROFILE/"
+  done
+  # A named profile is self-contained (config.DirFor: profiles/<name> holds
+  # its own config.json and mirror), so --workspace gdk under the scratch
+  # GADAK_HOME needs nothing from the root home. GADAK_DEV_MIGRATE=1 lets the
+  # dev build migrate the scratch copy when it is behind this checkout.
+  GADAK_HOME="$SCRATCH_HOME" GADAK_DEV_MIGRATE=1 \
+    bin/gadak --workspace gdk sync --if-stale 1m
+  USER_VERSION_AFTER="$(sqlite3 "$MIRROR" 'PRAGMA user_version')"
+  if [ "$USER_VERSION_BEFORE" != "$USER_VERSION_AFTER" ]; then
+    echo "FAIL: the user's mirror moved $USER_VERSION_BEFORE→$USER_VERSION_AFTER during a regen —" >&2
+    echo "  bin/gadak must never open it (dev-lockout); find what touched $MIRROR." >&2
+    exit 1
+  fi
+  MIRROR="$SCRATCH_PROFILE/gadak.db"
 else
   echo "warning: custom mirror path — freshness is the caller's job (no sync run)" >&2
+  echo "warning: bin/gadak is a dev build; if the file is behind this checkout's schema," >&2
+  echo "  export-static will refuse it — set GADAK_DEV_MIGRATE=1 when the file is a copy you own" >&2
 fi
 
 STAGE="$(mktemp -d "${TMPDIR:-/tmp}/gadak-backlog-XXXXXX")"
-cleanup_stage() { rm -rf "$STAGE"; }
-trap cleanup_stage EXIT
 
 bin/gadak export-static \
   --db "$MIRROR" \

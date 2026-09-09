@@ -141,7 +141,10 @@ func cmdExportStatic(args []string) error {
 		return err
 	}
 
-	db, err := store.Open(workDB)
+	// workDB is the throwaway copy made above, never the --db file itself,
+	// so the dev-lockout policy does not apply: an explicit MigrateForward migrates
+	// the copy freely (a snapshot fixture older than this build is the normal case).
+	db, err := store.OpenWith(workDB, store.OpenOptions{ForwardMigration: store.MigrateForward})
 	if err != nil {
 		return err
 	}

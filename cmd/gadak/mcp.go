@@ -119,7 +119,10 @@ func startMCPSyncLoop(ctx context.Context, wg *sync.WaitGroup, path string, noSy
 	if _, err := os.Stat(path); err != nil {
 		return nil
 	}
-	db, err := store.Open(path)
+	// The pinned workspace's mirror is a user file: same dev-lockout policy as
+	// openStore. A refusal logs the sync loop off with the error's own
+	// instructions rather than migrating the file.
+	db, err := store.OpenWith(path, storeOpenOptions())
 	if err != nil {
 		mcp.Logf("sync loop off — open mirror: %v", err)
 		return nil

@@ -178,6 +178,11 @@ func cmdMigrate(args []string) error {
 			if err != nil {
 				return nil, nil, err
 			}
+			// The target is a workspace this command just minted (a
+			// pre-existing one was refused above), so its mirror is a
+			// brand-new file the command owns: plain Open may create and
+			// migrate it freely (the dev-lockout policy is for
+			// release-written mirrors).
 			db, err := store.Open(p)
 			if err != nil {
 				return nil, nil, err

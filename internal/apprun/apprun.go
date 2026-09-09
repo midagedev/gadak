@@ -23,6 +23,7 @@ import (
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/server"
+	"github.com/midagedev/gadak/internal/skillinstall"
 	"github.com/midagedev/gadak/internal/store"
 	"github.com/midagedev/gadak/internal/workspace"
 )
@@ -108,6 +109,10 @@ func (rt *Runtime) boot(opts Options) error {
 		note("version")
 		rt.stage("apprun: version stamped")
 	}
+	// Desktop boot: the workspace registry opens every workspace through
+	// plain store.Open, so the dev-lockout policy must be the process default
+	// before the first one (GDK-1687). Same rule as openDB below.
+	store.SetDefaultOpenOptions(storeOpenOptionsFor(opts.Version))
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -150,7 +155,22 @@ func openDB(opts Options) (*store.DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	return store.Open(path)
+	// The fallback is the desktop main's path (serve passes openStore above,
+	// which carries cmd/gadak's own policy). Same dev-lockout rule: a dev build
+	// refuses to migrate a release-written mirror forward. The dev-build
+	// decision stays in skillinstall — store must not own it — and the
+	// version to ask about is the one stamped into this boot (opts.Version).
+	return store.OpenWith(path, storeOpenOptionsFor(opts.Version))
+}
+
+// storeOpenOptionsFor is the dev-lockout policy for a boot stamped with
+// version: a dev build refuses to migrate a release-written mirror forward.
+func storeOpenOptionsFor(version string) store.OpenOptions {
+	policy := store.MigrateForward
+	if skillinstall.IsDevBuild(version) {
+		policy = store.RefuseForward
+	}
+	return store.OpenOptions{ForwardMigration: policy, BuildVersion: version}
 }
 
 // newHandler is the attach-cache + server.New seam both mains copied.

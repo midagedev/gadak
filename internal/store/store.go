@@ -16,6 +16,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -59,6 +60,86 @@ func (e *SchemaTooNewError) Error() string {
 		e.Path, e.Have, e.Supported, e.Path, e.Path)
 }
 
+// ForwardMigration says whether an open may move a mirror's schema forward.
+// It is a parameter at the open boundary because the decision has one owner
+// outside this package: the caller knows whether this binary is a release or
+// a checkout build (skillinstall.IsDevBuild), and store must not import that
+// knowledge (dev-lockout, GDK-1687).
+type ForwardMigration int
+
+const (
+	// MigrateForward migrates a mirror behind this build up to head. Release
+	// builds pass this: an installed upgrade must keep working with no prompt.
+	MigrateForward ForwardMigration = iota
+	// RefuseForward refuses the open of a behind mirror with
+	// SchemaForwardRefusedError — reading a v44 file with v47 code is not
+	// safe either. A dev build passes this so one `gadak status` from a
+	// checkout cannot lock the installed release out of the workspace
+	// (the 2026-09-09 incident: 44→46, 11,880 issues, full re-sync to
+	// recover).
+	RefuseForward
+)
+
+// String names the policy in test failures and logs.
+func (f ForwardMigration) String() string {
+	switch f {
+	case MigrateForward:
+		return "MigrateForward"
+	case RefuseForward:
+		return "RefuseForward"
+	}
+	return "ForwardMigration(" + strconv.Itoa(int(f)) + ")"
+}
+
+// OpenOptions is the open policy plus the facts the policy's errors print.
+type OpenOptions struct {
+	// ForwardMigration defaults to MigrateForward (the zero value), so
+	// OpenOptions{} behaves exactly like Open.
+	ForwardMigration ForwardMigration
+
+	// BuildVersion is the caller's version string; it lands in
+	// SchemaForwardRefusedError so the error says which build refused.
+	BuildVersion string
+}
+
+// SchemaForwardRefusedError means this open refused to migrate a mirror
+// forward because the binary is a dev build and the mirror may still belong
+// to an installed release (dev-lockout). Migrating anyway would leave the file
+// at a schema the release rejects with SchemaTooNewError — the lockout the
+// refusal exists to prevent. Recognise it with errors.As.
+type SchemaForwardRefusedError struct {
+	Path         string // the mirror file
+	Have         int    // schema version found in the file
+	Head         int    // schema version this build would migrate to
+	BuildVersion string // the dev build's own version string
+}
+
+func (e *SchemaForwardRefusedError) Error() string {
+	bv := e.BuildVersion
+	if bv == "" {
+		bv = "unversioned"
+	}
+	return fmt.Sprintf("%s: this is a dev build (%s); the mirror is at schema %d, this build writes %d. "+
+		"Migrating it forward would lock the installed release out of this workspace. "+
+		"Either set GADAK_DEV_MIGRATE=1 and re-run to migrate it anyway, or work on a copy: %s",
+		e.Path, bv, e.Have, e.Head, e.copyHint())
+}
+
+// copyHint is the "work on a copy" recipe, derived from the mirror's layout
+// so it stays true without naming files that may not exist: a named profile
+// is self-contained under profiles/<name> (its config.json travels with the
+// directory), and the root profile's directory is itself a whole GADAK_HOME.
+// The copy is still behind, so the recipe carries the same override once —
+// after it, the copy is at head and opens without it.
+func (e *SchemaForwardRefusedError) copyHint() string {
+	dir := filepath.Dir(e.Path)
+	if filepath.Base(filepath.Dir(dir)) == "profiles" {
+		name := filepath.Base(dir)
+		return fmt.Sprintf("cp -R %s %s-dev && GADAK_DEV_MIGRATE=1 gadak --workspace %s-dev status", dir, dir, name)
+	}
+	return fmt.Sprintf("cp -R %s %s-dev && GADAK_HOME=%s-dev GADAK_DEV_MIGRATE=1 gadak status", dir, dir, dir)
+}
+
 // DB is a handle on the mirror. Safe for concurrent use; writes are serialized.
 type DB struct {
 	sql           *sql.DB
@@ -82,6 +163,38 @@ func Now() string { return time.Now().UTC().Format(config.ISOMilli) }
 // any -wal/-shm sidecars are set to 0600. Chmod failures are logged and
 // ignored so unsupported filesystems (or Windows) still work.
 func Open(path string) (*DB, error) {
+	return OpenWith(path, DefaultOpenOptions())
+}
+
+// defaultOpen is the process-wide policy Open applies. The zero value is
+// MigrateForward, so tests and tools that never set it get today's
+// behaviour; a binary's main sets it once at boot (GDK-1687, dev-lockout) so
+// every Open caller that cannot see the version — the workspace registry,
+// the MCP server, originbind — inherits the dev-build refusal instead of
+// each one needing the enum threaded through.
+var (
+	defaultOpenMu sync.RWMutex
+	defaultOpen   OpenOptions
+)
+
+// SetDefaultOpenOptions installs the policy Open applies from now on.
+// Call it once, at boot, before any workspace is opened.
+func SetDefaultOpenOptions(opts OpenOptions) {
+	defaultOpenMu.Lock()
+	defer defaultOpenMu.Unlock()
+	defaultOpen = opts
+}
+
+// DefaultOpenOptions is the policy Open currently applies.
+func DefaultOpenOptions() OpenOptions {
+	defaultOpenMu.RLock()
+	defer defaultOpenMu.RUnlock()
+	return defaultOpen
+}
+
+// OpenWith is Open with an explicit open policy. Everything else — directory
+// and file modes, local.db handling, the too-new refusal — is exactly Open's.
+func OpenWith(path string, opts OpenOptions) (*DB, error) {
 	if dir := filepath.Dir(path); dir != "" && dir != "." {
 		if err := fsperm.EnsurePrivateDir(dir); err != nil {
 			if errors.Is(err, fsperm.ErrChmod) {
@@ -103,6 +216,10 @@ func Open(path string) (*DB, error) {
 		log.Printf("store: local.db: %v", err)
 	}
 	db := &DB{sql: sqlDB, path: path}
+	if err := db.enforceForwardPolicy(opts); err != nil {
+		sqlDB.Close()
+		return nil, err
+	}
 	if err := db.migrate(); err != nil {
 		sqlDB.Close()
 		return nil, err
@@ -159,6 +276,46 @@ func (db *DB) Query(query string, args ...any) (*sql.Rows, error) {
 
 // SchemaVersion is the migration level this binary applied.
 func (db *DB) SchemaVersion() int { return db.schemaVersion }
+
+// enforceForwardPolicy is the dev-lockout gate, applied before migrate(): under
+// RefuseForward, a mirror behind this build is not migrated but refused —
+// one open from a dev checkout must not decide a schema bump for a file an
+// installed release still reads. Two exceptions keep dev builds usable: a
+// brand-new file never belonged to a release (created at head, as Open
+// always did), and GADAK_DEV_MIGRATE=1 is the explicit operator override,
+// logged so the migration leaves a trail on stderr.
+func (db *DB) enforceForwardPolicy(opts OpenOptions) error {
+	if opts.ForwardMigration != RefuseForward {
+		return nil
+	}
+	ctx := context.Background()
+	var have int
+	if err := db.sql.QueryRowContext(ctx, "PRAGMA user_version").Scan(&have); err != nil {
+		return err
+	}
+	head := len(migrations)
+	if have >= head {
+		// Up to date, or ahead — migrate() owns the too-new error unchanged.
+		return nil
+	}
+	if have == 0 && db.emptyMirror(ctx) {
+		return nil
+	}
+	if os.Getenv("GADAK_DEV_MIGRATE") != "1" {
+		return &SchemaForwardRefusedError{Path: db.path, Have: have, Head: head, BuildVersion: opts.BuildVersion}
+	}
+	log.Printf("store: migrating %s %d→%d under GADAK_DEV_MIGRATE", db.path, have, head)
+	return nil
+}
+
+// emptyMirror reports whether the file holds no tables at all — the shape
+// only a brand-new (or never-migrated) mirror has. user_version 0 with
+// tables present is ambiguous provenance, not a fresh file.
+func (db *DB) emptyMirror(ctx context.Context) bool {
+	var n int
+	return db.sql.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM sqlite_master WHERE type = 'table'").Scan(&n) == nil && n == 0
+}
 
 func (db *DB) migrate() error {
 	ctx := context.Background()
