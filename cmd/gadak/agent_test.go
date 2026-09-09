@@ -583,18 +583,33 @@ func builtInMirror(t *testing.T) *config.Config {
 
 // capture runs a command with stdout redirected, which is the only way to assert
 // on what a CLI actually printed.
+//
+// The reader runs concurrently with the command, which is not a style choice:
+// a pipe holds one buffer (64 KiB on this platform), and a command that
+// prints more than that blocks in write() forever while the only reader waits
+// for it to return. Draining after the fact worked until a document outgrew
+// the buffer — `gadak retro --json` on the demo fixture did, and the test hit
+// the ten-minute panic instead of an assertion (2026-09-09). Every caller of
+// this helper had the same latent deadlock, so it is closed here rather than
+// at the one call site that happened to trip it.
 func capture(t *testing.T, fn func() error) (string, error) {
 	t.Helper()
 	r, w, err := os.Pipe()
 	if err != nil {
 		t.Fatal(err)
 	}
+	done := make(chan []byte, 1)
+	go func() {
+		out, _ := io.ReadAll(r)
+		done <- out
+	}()
 	saved := os.Stdout
 	os.Stdout = w
 	cmdErr := fn()
 	os.Stdout = saved
 	_ = w.Close()
-	out, _ := io.ReadAll(r)
+	out := <-done
+	_ = r.Close()
 	return string(out), cmdErr
 }
 

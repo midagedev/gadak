@@ -218,6 +218,31 @@ type Bucket struct {
 	InProgressKeys []string
 	MismatchKeys   []string
 	CycleKeys      []string
+
+	// closedItems and cycleItems are the item ids behind ClosedKeys and
+	// CycleKeys, kept in lockstep with them. The materials below decompose
+	// exactly these samples — a second query for "the closures" could
+	// disagree with the row above it, and then the parts would not sum to
+	// the whole (materials.go).
+	closedItems []string
+	cycleItems  []string
+
+	// SprintID is the sprint this bucket is, under --by-sprint. Zero for
+	// week columns, and the two sprint-only surprises (added_after_start,
+	// carried) need it to tell this sprint's arrivals from any other's.
+	SprintID int64
+
+	// The materials: what happened in the bucket, rather than how much.
+	// Every one of them is computed by materials.go from the samples above.
+	Events          []Event
+	EventsTruncated bool
+	Surprises       []Surprise
+	ClosedByType    []TypeCount
+	ClosedByEpic    []EpicCount
+	Unplanned       KeyCount
+	CyclePoints     []CyclePoint
+	SeenNotMoved    KeySet
+	MovedNotSeen    KeySet
 }
 
 // Label is the bucket's column title and the name --open reports:
@@ -326,6 +351,16 @@ type Report struct {
 	// sentence — "at week end", "during the week" — and would otherwise
 	// describe a unit the table is not using.
 	BySprint bool
+
+	// Aging is the whole in-progress tail measured at now, and Actions the
+	// retro-action issues: both report-level, because neither question is
+	// asked of a window that has closed (materials.go).
+	Aging   Aging
+	Actions []Action
+	// VisitsEmpty says no issue reads were recorded in the window, which is
+	// why seen_not_moved and moved_not_seen are empty everywhere. Notes
+	// carries the sentence.
+	VisitsEmpty bool
 }
 
 // BucketNoun is what one column is, in the definitions' own words.
@@ -594,6 +629,7 @@ func Compute(ctx context.Context, db *sql.DB, me store.FeedIdentity, since time.
 			b.Closed = &n
 			for item := range closed {
 				b.ClosedKeys = append(b.ClosedKeys, itemByID[item].key)
+				b.closedItems = append(b.closedItems, item)
 			}
 		}
 
@@ -612,6 +648,7 @@ func Compute(ctx context.Context, db *sql.DB, me store.FeedIdentity, since time.
 				}
 				cycles = append(cycles, ci.hours/24)
 				b.CycleKeys = append(b.CycleKeys, itemByID[item].key)
+				b.cycleItems = append(b.cycleItems, item)
 			}
 			if len(cycles) > 0 {
 				if m, ok := median(cycles); ok {
@@ -646,6 +683,21 @@ func Compute(ctx context.Context, db *sql.DB, me store.FeedIdentity, since time.
 		sort.Strings(b.InProgressKeys)
 		sort.Strings(b.MismatchKeys)
 		sort.Strings(b.CycleKeys)
+	}
+
+	// The materials: the second half of the document, computed from the
+	// samples above rather than from a second pass at the same questions.
+	if err := computeMaterials(ctx, db, &rep, materialsInput{
+		itemByID:     itemByID,
+		issCycle:     issCycle,
+		cat:          cat,
+		statusByItem: statusByItem,
+		comments:     comments,
+		writes:       writes,
+		visits:       visits,
+		now:          now,
+	}); err != nil {
+		return rep, err
 	}
 	return rep, nil
 }
@@ -1237,6 +1289,7 @@ func (r Report) Definitions() [][2]string {
 		[2]string{"mismatch", "comments claiming the work is finished on issues not done now (heuristic: a done-word standing on its own, negations and quoted text excluded; only comments newer than the issue's last status change count)"},
 		[2]string{"change", fmt.Sprintf("percentage for resume, wip age and cycle rows, signed count for the rest; n/a when the previous %s has no value", b)},
 	)
+	defs = append(defs, r.materialDefinitions()...)
 	defs = append(defs, r.Notes()...)
 	return defs
 }
@@ -1255,6 +1308,9 @@ func (r Report) Notes() [][2]string {
 	}
 	if r.CycleUnavailable {
 		out = append(out, [2]string{"cycle", "mirror predates cycle_hours — run gadak sync to migrate"})
+	}
+	if r.VisitsEmpty {
+		out = append(out, [2]string{"visits", "no issue reads recorded in this window — seen_not_moved and moved_not_seen are empty everywhere, because without a record of what was opened neither question has an answer"})
 	}
 	return out
 }
@@ -1433,6 +1489,19 @@ type BucketJSON struct {
 	CycleP85   *float64   `json:"cycle p85"`
 	Mismatch   int        `json:"mismatch"`
 	Keys       BucketKeys `json:"keys"`
+
+	// The materials (materials.go): what happened in the bucket. Every
+	// array is present, empty rather than null, so a renderer can iterate
+	// without a nil check.
+	Events          []Event      `json:"events"`
+	EventsTruncated bool         `json:"events_truncated,omitempty"`
+	Surprises       []Surprise   `json:"surprises"`
+	ClosedByType    []TypeCount  `json:"closed_by_type"`
+	ClosedByEpic    []EpicCount  `json:"closed_by_epic"`
+	Unplanned       KeyCount     `json:"unplanned"`
+	CyclePoints     []CyclePoint `json:"cycle_points"`
+	SeenNotMoved    KeySet       `json:"seen_not_moved"`
+	MovedNotSeen    KeySet       `json:"moved_not_seen"`
 }
 
 // Doc is the JSON document: buckets plus the same definitions
@@ -1457,6 +1526,10 @@ type Doc struct {
 	// hardcoding "30m" into a translation is wrong the moment someone passes
 	// --session-gap (GDK-1692).
 	SessionGap string `json:"session_gap"`
+	// Aging is the in-progress tail measured at now and Actions the
+	// retro-action issues — report-level, not per bucket (materials.go).
+	Aging   Aging    `json:"aging"`
+	Actions []Action `json:"actions"`
 }
 
 // DocNote is one entry of Doc.Notes.
@@ -1525,6 +1598,14 @@ func (r Report) JSON() Doc {
 		Definitions: map[string]string{},
 		SessionGap:  formatGap(gap),
 		BucketNoun:  r.BucketNoun(),
+		Aging:       r.Aging,
+		Actions:     r.Actions,
+	}
+	if out.Actions == nil {
+		out.Actions = []Action{}
+	}
+	if out.Aging.Items == nil {
+		out.Aging.Items = []AgingItem{}
 	}
 	for _, d := range r.Definitions() {
 		out.Definitions[d[0]] = d[1]
@@ -1542,7 +1623,20 @@ func (r Report) JSON() Doc {
 			InProgress: ptrOrNil(b.InProg),
 			Closed:     ptrOrNil(b.Closed),
 			Mismatch:   b.Mismatch,
+
+			Events:          orEmpty(b.Events),
+			EventsTruncated: b.EventsTruncated,
+			Surprises:       orEmpty(b.Surprises),
+			ClosedByType:    orEmpty(b.ClosedByType),
+			ClosedByEpic:    orEmpty(b.ClosedByEpic),
+			Unplanned:       b.Unplanned,
+			CyclePoints:     orEmpty(b.CyclePoints),
+			SeenNotMoved:    b.SeenNotMoved,
+			MovedNotSeen:    b.MovedNotSeen,
 		}
+		j.Unplanned.Keys, _ = capKeys(j.Unplanned.Keys)
+		j.SeenNotMoved.Keys, _ = capKeys(j.SeenNotMoved.Keys)
+		j.MovedNotSeen.Keys, _ = capKeys(j.MovedNotSeen.Keys)
 		var truncated bool
 		j.Keys.Closed, truncated = capKeys(b.ClosedKeys)
 		j.Keys.InProgress, _ = capKeys(b.InProgressKeys)
@@ -1576,6 +1670,16 @@ func (r Report) JSON() Doc {
 		out.Buckets = append(out.Buckets, j)
 	}
 	return out
+}
+
+// orEmpty renders a nil slice as an empty array: every material array is
+// present in the document, so a renderer iterates without a nil check and a
+// missing key never means "not computed".
+func orEmpty[T any](s []T) []T {
+	if s == nil {
+		return []T{}
+	}
+	return s
 }
 
 func ptrOrNil(p *int) *int {
@@ -1656,7 +1760,7 @@ func SprintBuckets(ctx context.Context, db *sql.DB, now time.Time, boardID int64
 	}
 
 	rows, err := db.QueryContext(ctx, `
-		SELECT COALESCE(name,''), start_at, COALESCE(end_at,'')
+		SELECT id, COALESCE(name,''), start_at, COALESCE(end_at,'')
 		FROM sprints
 		WHERE board_id = ? AND start_at IS NOT NULL AND start_at != ''
 		ORDER BY start_at, id`, boardID)
@@ -1665,8 +1769,9 @@ func SprintBuckets(ctx context.Context, db *sql.DB, now time.Time, boardID int64
 	}
 	var out []Bucket
 	for rows.Next() {
+		var id int64
 		var name, startAt, endAt string
-		if err := rows.Scan(&name, &startAt, &endAt); err != nil {
+		if err := rows.Scan(&id, &name, &startAt, &endAt); err != nil {
 			rows.Close()
 			return nil, err
 		}
@@ -1678,7 +1783,7 @@ func SprintBuckets(ctx context.Context, db *sql.DB, now time.Time, boardID int64
 		if !ok {
 			end = now
 		}
-		out = append(out, Bucket{From: start, To: end, Name: name})
+		out = append(out, Bucket{From: start, To: end, Name: name, SprintID: id})
 	}
 	rows.Close()
 	if err := rows.Err(); err != nil {

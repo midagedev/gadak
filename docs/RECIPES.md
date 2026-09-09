@@ -604,6 +604,71 @@ On the shipped snapshot the samples are all sub-minute synthetic spans, so
 the percentile rounds to 0.0d here; the sample count moves whenever the
 fixture is regenerated, and the sample rule is the part worth checking.
 
+**The three material lists under the table, by hand.** `gadak retro` prints
+`aging`, `surprises` and `closed by type` below the nine rows, and
+`gadak retro --json` carries all of them plus the rest of the materials. These
+three are the ones a hand query answers without a changelog walk.
+
+`aging` — everything in progress right now, oldest first, with the same
+fallback the report uses when the mirror never recorded a status change:
+
+```sql
+select key, summary, issue_type_id,
+       round(julianday('now')
+             - julianday(coalesce(nullif(status_changed_at, ''), updated_at)), 1) as days
+from issues_full
+where status_category = 'inprogress'
+  and coalesce(nullif(status_changed_at, ''), updated_at) is not null
+order by days desc
+```
+
+`unplanned` — work that both arrived and closed inside one week, the part of
+`closed` that was not on the board when the week opened. Same UTC bounds as
+the `closed` recipe above:
+
+```sql
+select distinct i.key, i.summary
+from changelog c
+join items it on it.id = c.item_id
+join issues_full i on i.item_id = c.item_id
+join status_catalog done
+  on done.source_id = it.source_id and done.status_id = c.to_id
+ and done.category = 'done'
+left join status_catalog prev
+  on prev.source_id = it.source_id and prev.status_id = c.from_id
+ and prev.category = 'done'
+where c.field = 'status'
+  and prev.status_id is null
+  and c.at        >= '2026-08-23T15:00:00.000Z'
+  and c.at        <  '2026-08-30T15:00:00.000Z'
+  and i.created_at >= '2026-08-23T15:00:00.000Z'
+  and i.created_at <  '2026-08-30T15:00:00.000Z'
+order by i.key
+```
+
+`surprises` — the reopened half: a done status left during the week, with the
+reason the sync derived. (The report's other kinds — four or more status
+moves in one week, and the two sprint-only ones — need the changelog grouped
+per issue, which is the walk `retro` does.)
+
+```sql
+select i.key, i.summary, c.at, i.reopen_reason
+from changelog c
+join items it on it.id = c.item_id
+join issues_full i on i.item_id = c.item_id
+join status_catalog was
+  on was.source_id = it.source_id and was.status_id = c.from_id
+ and was.category = 'done'
+left join status_catalog now
+  on now.source_id = it.source_id and now.status_id = c.to_id
+ and now.category = 'done'
+where c.field = 'status'
+  and now.status_id is null
+  and c.at >= '2026-08-23T15:00:00.000Z'
+  and c.at <  '2026-08-30T15:00:00.000Z'
+order by c.at
+```
+
 All three equal the `gadak retro --json` numbers on `examples/demo.db` —
 the first two once `status_catalog` is seeded (the shipped fixture carries
 none — a sync fills it), the cycle row without any seeding because it reads

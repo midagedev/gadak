@@ -113,6 +113,21 @@ scripting, `--session-gap 45m` moves the read-gap that splits sessions (5m to
 in the running app (with `--json`, prints the keys only; `--open cycle`
 follows a week's cycle samples).
 
+Under the table `gadak retro` prints three material sections — the whole
+in-progress tail oldest first with its p85 line, the bucket's surprises
+(reopened work, issues that churned through four or more statuses, and under
+sprint columns work added after the sprint started or carried in), and the
+closures grouped by issue type — and closes with a one-sentence summary of the
+last column. `--explain` adds a paragraph under each section saying what it
+is, why it is there and how to read it. `--json` carries all of that plus the
+parts the table has no room for: the ordered event list per bucket, closures
+by epic, the unplanned subset, one row per cycle sample, and the issues you
+opened that nothing touched beside the ones that moved while you never looked.
+Issues labelled `retro-action` come back under `actions`, and one whose
+description opens with `metric: <row name>` carries that row's value when the
+action was written beside its value now. `--open` follows any of these to the
+issues: `aging`, `unplanned`, `surprises`, `seen-not-moved`, `moved-not-seen`.
+
 `gadak retro --by-sprint` cuts the same report by sprint window instead of
 by ISO week — one column per sprint, named, with the running one marked — on
 any origin that has sprints (Jira Software, Linear cycles, the built-in

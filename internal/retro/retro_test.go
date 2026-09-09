@@ -947,7 +947,7 @@ func TestDefinitionsNameTheBucket(t *testing.T) {
 	} {
 		r := Report{BySprint: c.bySprint}
 		for _, d := range r.Definitions() {
-			if strings.Contains(d[1], c.absent) {
+			if strings.Contains(stripWireKinds(d[1]), c.absent) {
 				t.Errorf("bySprint=%v: definition %q says %q: %s", c.bySprint, d[0], c.absent, d[1])
 			}
 		}
@@ -1001,4 +1001,26 @@ func sprintFixture(t *testing.T, rows []sprintFix) *sql.DB {
 		}
 	}
 	return db
+}
+
+// stripWireKinds removes the JSON enum values from a definition before the
+// bucket-noun scan above reads it (2026-09-09, materials.go landing).
+//
+// The rule this test protects is that the footer's prose must name the unit
+// the table is actually cut by — "at week end" beside columns headed
+// "Sprint 42" describes a table that is not there. An enum value the
+// document emits verbatim is not that prose: the events list carries the
+// kinds sprint_in and sprint_out under week columns too, because work moves
+// between sprints during a week, and a reader who sees "sprint_in" in the
+// payload needs the footer to name it.
+//
+// The narrowing is exactly these tokens and nothing else — the prose around
+// them is still scanned, so a definition that said "joined the sprint after
+// it began" under week columns is still red (measured: it was, which is why
+// the surprises definition is conditional on BySprint).
+func stripWireKinds(s string) string {
+	for _, kind := range []string{"sprint_in", "sprint_out"} {
+		s = strings.ReplaceAll(s, kind, "")
+	}
+	return s
 }

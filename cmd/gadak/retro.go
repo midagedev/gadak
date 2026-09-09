@@ -14,6 +14,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"sort"
 	"time"
 
 	"github.com/midagedev/gadak/internal/config"
@@ -21,7 +22,7 @@ import (
 	"github.com/midagedev/gadak/internal/store"
 )
 
-const retroUsageLine = "usage: gadak retro [--since 14d|<N>d|<N>w | --by-sprint [--board <id>]] [--session-gap " + config.DefaultRetroSessionGap + "] [--json] [--open closed|in-progress|mismatch|cycle [--week N]] [--no-open]"
+const retroUsageLine = "usage: gadak retro [--since 14d|<N>d|<N>w | --by-sprint [--board <id>]] [--session-gap " + config.DefaultRetroSessionGap + "] [--json] [--explain] [--open closed|in-progress|mismatch|cycle|aging|unplanned|surprises|seen-not-moved|moved-not-seen [--week N]] [--no-open]"
 
 // retroDefaultSince is two ISO weeks, enough for a "this week against last
 // week" read without paging.
@@ -29,7 +30,17 @@ const retroDefaultSince = "14d"
 
 // retroOpenMetrics are the --open values, in help order. Each names a cell
 // of the table by its row.
-var retroOpenMetrics = []string{"closed", "in-progress", "mismatch", "cycle"}
+//
+// The last five name the material lists under the table rather than a cell
+// of it (materials.go). `aging` is the one that is not per bucket — it is
+// measured at now — so --week does not apply to it and saying so is better
+// than quietly ignoring the flag.
+var retroOpenMetrics = []string{"closed", "in-progress", "mismatch", "cycle",
+	"aging", "unplanned", "surprises", "seen-not-moved", "moved-not-seen"}
+
+// retroReportMetrics are the --open values answered by the report rather
+// than by one bucket.
+var retroReportMetrics = []string{"aging"}
 
 // retroNow is the one clock a retro run reads. A test pins it so that a
 // hand query it compares against can bind the same instant instead of
@@ -48,8 +59,46 @@ func retroBucketKeys(b retro.Bucket, metric string) []string {
 		return b.MismatchKeys
 	case "cycle":
 		return b.CycleKeys
+	case "unplanned":
+		return b.Unplanned.Keys
+	case "surprises":
+		keys := make([]string, 0, len(b.Surprises))
+		seen := map[string]bool{}
+		for _, s := range b.Surprises {
+			if !seen[s.Key] {
+				seen[s.Key] = true
+				keys = append(keys, s.Key)
+			}
+		}
+		sort.Strings(keys)
+		return keys
+	case "seen-not-moved":
+		return b.SeenNotMoved.Keys
+	case "moved-not-seen":
+		return b.MovedNotSeen.Keys
 	}
 	return nil
+}
+
+// retroReportKeys is the key set behind a report-level --open name: aging is
+// measured at now, not inside a bucket, so it has no week.
+func retroReportKeys(rep retro.Report, metric string) ([]string, bool) {
+	report := false
+	for _, m := range retroReportMetrics {
+		if m == metric {
+			report = true
+			break
+		}
+	}
+	if !report {
+		return nil, false
+	}
+	keys := make([]string, 0, len(rep.Aging.Items))
+	for _, it := range rep.Aging.Items {
+		keys = append(keys, it.Key)
+	}
+	sort.Strings(keys)
+	return keys, true
 }
 
 func cmdRetro(args []string) error {
@@ -59,7 +108,8 @@ func cmdRetro(args []string) error {
 	bySprintFlag := fs.Bool("by-sprint", false, "one column per sprint instead of per ISO week — the unit a scrum team actually retrospects on")
 	boardFlag := fs.Int64("board", 0, "with --by-sprint: which board's sprints are the columns (only needed when more than one board has sprints)")
 	asJSON := fs.Bool("json", false, "emit the same numbers as one JSON document")
-	openFlag := fs.String("open", "", "open the issues behind one cell in the running app: closed|in-progress|mismatch|cycle")
+	explainFlag := fs.Bool("explain", false, "print a paragraph under each section below the table: what it is, why it is here, how to read it")
+	openFlag := fs.String("open", "", "open the issues behind one cell or list in the running app: "+joinRetroMetrics())
 	weekFlag := fs.Int("week", 0, "which week --open reads: 0 = the current partial week, 1 = the last full week")
 	noOpenFlag := fs.Bool("no-open", false, "with --open: write the hash only; do not open a window")
 	if wantsHelp(args) {
@@ -118,6 +168,9 @@ func cmdRetro(args []string) error {
 			weekSet = true
 		}
 	})
+	if *explainFlag && *asJSON {
+		return usageError("retro", "--explain writes the sections under the table; --json already carries the definitions")
+	}
 	if *openFlag == "" {
 		if weekSet {
 			return usageError("retro", "--week only applies to --open")
@@ -172,7 +225,28 @@ func cmdRetro(args []string) error {
 			return json.NewEncoder(os.Stdout).Encode(rep.JSON())
 		}
 		fmt.Print(rep.Table())
+		fmt.Print(rep.Sections(*explainFlag))
 		return nil
+	}
+
+	// A report-level list has no week: --open aging reads now, so a --week
+	// beside it is a request the report cannot honour, said rather than
+	// dropped.
+	if keys, ok := retroReportKeys(rep, *openFlag); ok {
+		if weekSet {
+			return usageError("retro", fmt.Sprintf("--open %s is measured now, not per %s; drop --week", *openFlag, rep.BucketNoun()))
+		}
+		if len(keys) == 0 {
+			fmt.Fprintf(os.Stderr, "retro: %s has no issues\n", *openFlag)
+			return nil
+		}
+		if *asJSON {
+			return json.NewEncoder(os.Stdout).Encode(struct {
+				Metric string   `json:"metric"`
+				Keys   []string `json:"keys"`
+			}{Metric: *openFlag, Keys: keys})
+		}
+		return openKeysView(keys, "", *noOpenFlag, false)
 	}
 
 	// --open: week 0 is the current partial bucket, 1 the last full week.

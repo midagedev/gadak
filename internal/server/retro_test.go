@@ -326,3 +326,133 @@ func TestBoardsEndpoint(t *testing.T) {
 		t.Errorf("board 9 type = %q, want kanban", body.Boards[1].Type)
 	}
 }
+
+// TestRetroEndpointCarriesTheMaterials — the web surface reads this document
+// and nothing else, so every field of the materials contract has to survive
+// the encoder: present, and an array where the renderer iterates rather than
+// a null it would have to guard. FAIL-first: before internal/retro/materials.go
+// none of these keys existed and the decode below found them absent.
+func TestRetroEndpointCarriesTheMaterials(t *testing.T) {
+	db, cfg := fixture(t)
+	h := New(db, cfg)
+
+	rec := get(t, h, apiBase+"retro/?since=4w", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("%d %s", rec.Code, rec.Body.String())
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(rec.Body.Bytes(), &raw); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	for _, top := range []string{"aging", "actions"} {
+		v, ok := raw[top]
+		if !ok {
+			t.Fatalf("the document has no %q", top)
+		}
+		if string(v) == "null" {
+			t.Errorf("%q is null", top)
+		}
+	}
+	var aging struct {
+		P85   *float64 `json:"p85_days"`
+		Items []struct {
+			Key         string  `json:"key"`
+			Days        float64 `json:"days"`
+			Summary     string  `json:"summary"`
+			IssueTypeID string  `json:"issue_type_id"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(raw["aging"], &aging); err != nil {
+		t.Fatalf("aging: %v", err)
+	}
+	if aging.Items == nil {
+		t.Error("aging.items must be an array")
+	}
+	for i := 1; i < len(aging.Items); i++ {
+		if aging.Items[i-1].Days < aging.Items[i].Days {
+			t.Fatalf("aging is not oldest-first at %d", i)
+		}
+	}
+	if len(aging.Items) > 0 && aging.P85 == nil {
+		t.Error("p85_days must exist when the tail is non-empty")
+	}
+	var actions []struct {
+		Key    string `json:"key"`
+		Metric string `json:"metric"`
+	}
+	if err := json.Unmarshal(raw["actions"], &actions); err != nil {
+		t.Fatalf("actions: %v", err)
+	}
+
+	var buckets []map[string]json.RawMessage
+	if err := json.Unmarshal(raw["buckets"], &buckets); err != nil {
+		t.Fatalf("buckets: %v", err)
+	}
+	if len(buckets) == 0 {
+		t.Fatal("no buckets")
+	}
+	for bi, b := range buckets {
+		for _, field := range []string{"events", "surprises", "closed_by_type",
+			"closed_by_epic", "cycle_points"} {
+			v, ok := b[field]
+			if !ok {
+				t.Errorf("bucket %d has no %q", bi, field)
+				continue
+			}
+			if string(v) == "null" {
+				t.Errorf("bucket %d %q is null, want []", bi, field)
+			}
+		}
+		for _, field := range []string{"unplanned", "seen_not_moved", "moved_not_seen"} {
+			v, ok := b[field]
+			if !ok {
+				t.Errorf("bucket %d has no %q", bi, field)
+				continue
+			}
+			var obj struct {
+				Keys []string `json:"keys"`
+			}
+			if err := json.Unmarshal(v, &obj); err != nil {
+				t.Errorf("bucket %d %q: %v", bi, field, err)
+				continue
+			}
+			if obj.Keys == nil {
+				t.Errorf("bucket %d %q.keys is null, want []", bi, field)
+			}
+		}
+		// closed_by_type partitions the closed row above it.
+		var closed *int
+		var byType []struct {
+			Count int `json:"count"`
+		}
+		_ = json.Unmarshal(b["closed"], &closed)
+		if err := json.Unmarshal(b["closed_by_type"], &byType); err != nil {
+			t.Errorf("bucket %d closed_by_type: %v", bi, err)
+			continue
+		}
+		if closed != nil {
+			sum := 0
+			for _, tc := range byType {
+				sum += tc.Count
+			}
+			if sum != *closed {
+				t.Errorf("bucket %d: closed_by_type sums to %d, closed is %d", bi, sum, *closed)
+			}
+		}
+	}
+	// The definitions name the new rows too, so a reader of the document has
+	// the rule beside every list.
+	var defs struct {
+		Definitions map[string]string `json:"definitions"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &defs); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"aging", "events", "surprises", "closed_by_type",
+		"closed_by_epic", "unplanned", "cycle_points", "seen_not_moved",
+		"moved_not_seen", "actions"} {
+		if defs.Definitions[name] == "" {
+			t.Errorf("no definition for %q in the document", name)
+		}
+	}
+}

@@ -164,12 +164,21 @@ func TestRetroDemoDBTableAndJSONAgree(t *testing.T) {
 			t.Fatalf("bucket from %s is a %s, want Monday", from, ts.Weekday())
 		}
 	}
-	// JSON bucket shape: from/to/partial + the nine rows + the keys object.
+	// JSON bucket shape: from/to/partial + the nine rows + the keys object,
+	// and the eight material lists beside them (internal/retro/materials.go).
+	// The count is asserted so a field added on one surface and forgotten on
+	// the other is caught here rather than by the web reading a null.
 	first := jsonBuckets[0]
-	if len(first) != 13 {
-		t.Fatalf("bucket object has %d keys, want 13: %v", len(first), first)
+	materialKeys := []string{"events", "surprises", "closed_by_type", "closed_by_epic",
+		"unplanned", "cycle_points", "seen_not_moved", "moved_not_seen"}
+	// events_truncated is omitempty: present only on a bucket past the cap,
+	// which the demo fixture is not, so it is dropped before the count rather
+	// than making this assertion depend on how busy the fixture is.
+	delete(first, "events_truncated")
+	if want := 13 + len(materialKeys); len(first) != want {
+		t.Fatalf("bucket object has %d keys, want %d: %v", len(first), want, first)
 	}
-	for _, name := range append([]string{"from", "to", "partial", "keys"}, retroRows...) {
+	for _, name := range append(append([]string{"from", "to", "partial", "keys"}, retroRows...), materialKeys...) {
 		if _, ok := first[name]; !ok {
 			t.Fatalf("bucket object lacks key %q: %v", name, first)
 		}
@@ -759,5 +768,136 @@ func TestRetroSessionGapConfigDefault(t *testing.T) {
 	_, err := capture(t, func() error { return cmdRetro([]string{}) })
 	if err == nil || !strings.Contains(err.Error(), "retro.sessionGap") {
 		t.Fatalf("bad stored gap must error naming the config key: %v", err)
+	}
+}
+
+// TestRetroSectionsUnderTheTable — the CLI's half of the materials: the three
+// text sections, the --explain paragraphs, and the summary line every run
+// ends on. FAIL-first: against the pre-materials source the table ended at
+// the definitions footer and none of these strings were printed.
+func TestRetroSectionsUnderTheTable(t *testing.T) {
+	sqlDemoHome(t)
+
+	plain := retroTable(t, []string{})
+	// The sections come after the definitions footer, so the table grid the
+	// agreement test parses is untouched.
+	defIdx := strings.Index(plain, "\ndefinitions:\n")
+	if defIdx < 0 {
+		t.Fatalf("no definitions footer:\n%s", plain)
+	}
+	for _, head := range []string{"\naging:\n", "\nsurprises:\n", "\nclosed by type:\n"} {
+		i := strings.Index(plain, head)
+		if i < 0 {
+			t.Fatalf("no %q section:\n%s", strings.TrimSpace(head), plain)
+		}
+		if i < defIdx {
+			t.Errorf("%q sits above the definitions footer; the grid must stay first", strings.TrimSpace(head))
+		}
+	}
+	// The last line is the one-sentence summary, not a section heading.
+	lines := strings.Split(strings.TrimRight(plain, "\n"), "\n")
+	last := lines[len(lines)-1]
+	if !strings.Contains(last, "closed ") && !strings.Contains(last, "nothing moved") {
+		t.Errorf("last line is not the summary sentence: %q", last)
+	}
+	if strings.HasSuffix(last, ":") {
+		t.Errorf("last line is a heading, not a sentence: %q", last)
+	}
+
+	// --explain adds a paragraph under each heading and changes nothing else.
+	explained := retroTable(t, []string{"--explain"})
+	for _, want := range []string{"What: every issue in progress right now",
+		"Why: a retrospective that only reads the totals",
+		"How to read: the groups sum to the closed row above"} {
+		if !strings.Contains(explained, want) {
+			t.Errorf("--explain does not print %q", want)
+		}
+	}
+	if len(explained) <= len(plain) {
+		t.Error("--explain printed no more than the plain run")
+	}
+	// Every line of the plain run still appears, in order: --explain adds,
+	// it does not rewrite.
+	rest := explained
+	for _, l := range strings.Split(strings.TrimRight(plain, "\n"), "\n") {
+		i := strings.Index(rest, l)
+		if i < 0 {
+			t.Fatalf("--explain dropped a line of the plain run: %q", l)
+		}
+		rest = rest[i+len(l):]
+	}
+
+	// --explain and --json choose two different outputs; asking for both is
+	// a usage error rather than a silently ignored flag.
+	if _, err := capture(t, func() error { return cmdRetro([]string{"--explain", "--json"}) }); err == nil ||
+		!strings.Contains(err.Error(), "--explain writes the sections") {
+		t.Errorf("--explain --json: %v", err)
+	}
+}
+
+// TestRetroOpenMaterialLists — the five new --open names reach their key
+// sets, and the one that is not per bucket says so instead of ignoring
+// --week. FAIL-first: the names were rejected by the value validator.
+func TestRetroOpenMaterialLists(t *testing.T) {
+	sqlDemoHome(t)
+
+	for _, metric := range []string{"unplanned", "surprises", "seen-not-moved", "moved-not-seen"} {
+		out, err := capture(t, func() error {
+			return cmdRetro([]string{"--open", metric, "--week", "1", "--json"})
+		})
+		if err != nil {
+			t.Fatalf("--open %s: %v\n%s", metric, err, out)
+		}
+		// An empty list writes a stderr line and prints nothing, which is the
+		// existing behaviour for an empty cell; a non-empty one is a keys
+		// document naming the metric.
+		if strings.TrimSpace(out) == "" {
+			continue
+		}
+		var doc struct {
+			Metric string   `json:"metric"`
+			Keys   []string `json:"keys"`
+		}
+		if err := json.Unmarshal([]byte(out), &doc); err != nil {
+			t.Fatalf("--open %s: %v\n%s", metric, err, out)
+		}
+		if doc.Metric != metric || len(doc.Keys) == 0 {
+			t.Errorf("--open %s document = %+v", metric, doc)
+		}
+	}
+
+	// aging is measured at now, so it has no week and carries no week field.
+	out, err := capture(t, func() error { return cmdRetro([]string{"--open", "aging", "--json"}) })
+	if err != nil {
+		t.Fatalf("--open aging: %v\n%s", err, out)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal([]byte(out), &doc); err != nil {
+		t.Fatalf("--open aging: %v\n%s", err, out)
+	}
+	if doc["metric"] != "aging" {
+		t.Errorf("--open aging document = %v", doc)
+	}
+	if _, ok := doc["week"]; ok {
+		t.Error("--open aging must not carry a week: it is measured at now")
+	}
+	if keys, _ := doc["keys"].([]any); len(keys) == 0 {
+		t.Error("--open aging returned no keys on a fixture with work in progress")
+	}
+	// --week beside it is refused rather than dropped.
+	if _, err := capture(t, func() error {
+		return cmdRetro([]string{"--open", "aging", "--week", "1", "--json"})
+	}); err == nil || !strings.Contains(err.Error(), "is measured now") {
+		t.Errorf("--open aging --week: %v", err)
+	}
+	// The value validator names every accepted list.
+	_, err = capture(t, func() error { return cmdRetro([]string{"--open", "bogus"}) })
+	if err == nil {
+		t.Fatal("--open bogus was accepted")
+	}
+	for _, name := range []string{"aging", "unplanned", "surprises", "seen-not-moved", "moved-not-seen"} {
+		if !strings.Contains(err.Error(), name) {
+			t.Errorf("the --open error does not name %q: %v", name, err)
+		}
 	}
 }

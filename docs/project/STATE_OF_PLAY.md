@@ -6,7 +6,10 @@ session can start work without re-deriving anything.
 
 Last updated: 2026-09-08 — main at v0.21.0, **the release where the mirror
 tells you what happened while you were away**: `gadak retro` prints a
-weekly retrospective with its definitions beside the numbers, the list
+weekly retrospective with its definitions beside the numbers — and, since
+the retrospective materials landed, the in-progress tail, the bucket's
+surprises and the closures by type under it, with `--explain` saying how to
+read each one — the list
 opens on a "since you were last here" line and an issue on a resume card,
 age and staleness are measured against the workspace's own cycle times
 instead of a fixed day count, five built-in views ship in two stances,
