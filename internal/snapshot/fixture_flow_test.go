@@ -316,3 +316,156 @@ func TestDemoLocalDBCarriesBrowsingHistory(t *testing.T) {
 		}
 	}
 }
+
+// GDK-1739: the flow the fixture showed was two products at once — 144 issues
+// in progress whose average age was 51 days and climbing 7 days a week, beside
+// a closed set whose cycle p50 was 1.1 days. Both came from the same place:
+// applySpread placed every issue's created_at evenly across the window with no
+// regard for the state it ended in, so an issue still in progress had entered
+// progress long ago, while a closed one's In Progress → Done gap was a single
+// exponential draw inside a five-day lifetime. And 110 of the 166 closed
+// issues carried no In Progress transition at all (GDK-1730 measured 121 on an
+// earlier build), so cycle time had only 56 samples to speak from.
+//
+// These four assertions are the contract the placement is now written to.
+// They read the shipped file for the same reason the suite above does: the
+// defect only exists in the round trip.
+
+func percentileOf(sorted []float64, p float64) float64 {
+	if len(sorted) == 0 {
+		return 0
+	}
+	i := int(math.Round(p * float64(len(sorted)-1)))
+	return sorted[i]
+}
+
+func scanFloats(t *testing.T, db *sql.DB, query string) []float64 {
+	t.Helper()
+	rows, err := db.Query(query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var out []float64
+	for rows.Next() {
+		var v float64
+		if err := rows.Scan(&v); err != nil {
+			t.Fatal(err)
+		}
+		out = append(out, v)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	sort.Float64s(out)
+	return out
+}
+
+// Contract 1 — work in progress is days old, not months. A couple of stale
+// ones stay: the aging chart exists to show them.
+func TestDemoFixtureWIPAgeIsDays(t *testing.T) {
+	db := fixtureDB(t)
+	ages := scanFloats(t, db, `
+		SELECT (julianday('now') - julianday(started_at))
+		FROM issues_raw
+		WHERE status_category = 'inprogress' AND started_at IS NOT NULL AND started_at != ''`)
+	if len(ages) < 50 {
+		t.Fatalf("in-progress sample = %d, want ≥50", len(ages))
+	}
+	p50, p85, max := percentileOf(ages, 0.50), percentileOf(ages, 0.85), ages[len(ages)-1]
+	t.Logf("wip age days n=%d p50=%.1f p85=%.1f max=%.1f", len(ages), p50, p85, max)
+	if p50 < 3 || p50 > 10 {
+		t.Errorf("wip age p50 = %.1fd, want 3–10d", p50)
+	}
+	if p85 > 30 {
+		t.Errorf("wip age p85 = %.1fd, want ≤30d", p85)
+	}
+	if max > 60 {
+		t.Errorf("oldest wip = %.1fd, want ≤60d", max)
+	}
+}
+
+// Contract 2 — a closed issue took days of work, not an afternoon.
+func TestDemoFixtureCycleBandIsDays(t *testing.T) {
+	db := fixtureDB(t)
+	cycles := scanFloats(t, db, `
+		SELECT cycle_hours / 24.0 FROM issues_raw
+		WHERE status_category = 'done' AND cycle_hours IS NOT NULL`)
+	if len(cycles) < 100 {
+		t.Fatalf("cycle sample = %d, want ≥100", len(cycles))
+	}
+	p50, p85 := percentileOf(cycles, 0.50), percentileOf(cycles, 0.85)
+	t.Logf("cycle days n=%d p50=%.1f p85=%.1f max=%.1f", len(cycles), p50, p85, cycles[len(cycles)-1])
+	if p50 < 3 || p50 > 8 {
+		t.Errorf("cycle p50 = %.1fd, want 3–8d", p50)
+	}
+	if p85 < 10 || p85 > 25 {
+		t.Errorf("cycle p85 = %.1fd, want 10–25d", p85)
+	}
+}
+
+// Contract 3 — a closed issue was worked on before it closed. The measure is
+// started_at (the first transition into an in-progress category, resolved
+// through status_catalog) against resolved_at, never a display name.
+func TestDemoFixtureClosedIssuesPassedThroughProgress(t *testing.T) {
+	db := fixtureDB(t)
+	var total, through int
+	if err := db.QueryRow(`
+		SELECT COUNT(*),
+		       SUM(CASE WHEN started_at IS NOT NULL AND started_at != ''
+		                 AND resolved_at IS NOT NULL AND started_at < resolved_at
+		                THEN 1 ELSE 0 END)
+		FROM issues_raw WHERE status_category = 'done'`).Scan(&total, &through); err != nil {
+		t.Fatal(err)
+	}
+	if total == 0 {
+		t.Fatal("no done issues in the fixture")
+	}
+	ratio := float64(through) / float64(total)
+	t.Logf("closed through In Progress: %d/%d = %.0f%%", through, total, ratio*100)
+	if ratio < 0.70 {
+		t.Errorf("only %.0f%% of closed issues passed through In Progress, want ≥70%%", ratio*100)
+	}
+}
+
+// Contract 4 — the weekly closed rate keeps the shape it had. Widening cycle
+// time moves a resolution earlier or later; it must not empty a week or pile
+// a quarter's worth into one.
+func TestDemoFixtureWeeklyClosedRateHolds(t *testing.T) {
+	db := fixtureDB(t)
+	rows, err := db.Query(`
+		SELECT strftime('%Y-%W', resolved_at), COUNT(*)
+		FROM issues_raw WHERE status_category = 'done' AND resolved_at IS NOT NULL
+		GROUP BY 1 ORDER BY 1`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var counts []int
+	total := 0
+	for rows.Next() {
+		var wk string
+		var n int
+		if err := rows.Scan(&wk, &n); err != nil {
+			t.Fatal(err)
+		}
+		counts = append(counts, n)
+		total += n
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("closed per week weeks=%d total=%d counts=%v", len(counts), total, counts)
+	if len(counts) < 12 {
+		t.Errorf("closures land in %d weeks, want ≥12 across a 90-day window", len(counts))
+	}
+	sort.Ints(counts)
+	mid := counts[len(counts)/2]
+	hi := counts[len(counts)-1]
+	if mid < 10 || mid > 30 {
+		t.Errorf("median weekly closed = %d, want 10–30", mid)
+	}
+	if hi > 3*mid {
+		t.Errorf("busiest week %d is more than 3× the median %d", hi, mid)
+	}
+}

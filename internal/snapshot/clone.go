@@ -2,6 +2,7 @@ package snapshot
 
 import (
 	"fmt"
+	"maps"
 	"sort"
 	"strconv"
 	"strings"
@@ -262,11 +263,206 @@ func rankOrder(rank int) int {
 	return rank
 }
 
+// statusCategories is status_id → category, read off the source's own issue
+// rows. The snapshot's own status_catalog is derived from exactly this pair
+// (deriveStatusCatalog), and it is the only legitimate way to ask what a
+// changelog transition means: `to_value = 'In Progress'` is silently zero rows
+// on a localized site (project CLAUDE.md).
+func statusCategories(planned []plannedIssue) map[string]string {
+	out := map[string]string{}
+	for i := range planned {
+		id := asString(planned[i].src.issueCols["status_id"])
+		cat := asString(planned[i].src.issueCols["status_category"])
+		if id != "" && cat != "" {
+			out[id] = cat
+		}
+	}
+	return out
+}
+
+// statusFlow is where the two beats that define flow sit in one issue's
+// changelog: the first transition into an in-progress category (started_at,
+// and so the left edge of both WIP age and cycle time), the first and the last
+// into done (the one to precede with a synthetic start, and resolved_at). All
+// are -1 when the history has none.
+type statusFlow struct {
+	firstIP, firstDone, lastDone int
+}
+
+// flowOf picks by timestamp, not by slice position: loadTableMaps orders the
+// changelog by row id for determinism, which on a mirrored history is not the
+// order the transitions happened in. Reading "the last done row" off the slice
+// would have hung resolved_at on whichever Done row sorted last by id.
+// store.Derive resolves the same beats by sorting on At, and these two must
+// agree — it is Derive that writes the published columns.
+//
+// A row with no readable stamp is skipped, which is also what Derive does.
+func flowOf(rows []map[string]any, cats map[string]string) statusFlow {
+	f := statusFlow{firstIP: -1, firstDone: -1, lastDone: -1}
+	var ipAt, firstDoneAt, lastDoneAt time.Time
+	for i, row := range rows {
+		if asString(row["field"]) != "status" {
+			continue
+		}
+		at, ok := parseTime(asString(row["at"]))
+		if !ok {
+			continue
+		}
+		switch cats[asString(row["to_id"])] {
+		case "inprogress":
+			if f.firstIP < 0 || at.Before(ipAt) {
+				f.firstIP, ipAt = i, at
+			}
+		case "done":
+			if f.firstDone < 0 || at.Before(firstDoneAt) {
+				f.firstDone, firstDoneAt = i, at
+			}
+			if f.lastDone < 0 || at.After(lastDoneAt) {
+				f.lastDone, lastDoneAt = i, at
+			}
+		}
+	}
+	return f
+}
+
+// inProgressStatus is the in-progress status a source uses, with its display
+// name: the id carried by the most of that source's in-progress issues. Ties
+// break on the id so the pick is a pure function of the source.
+func inProgressStatus(planned []plannedIssue) map[string][2]string {
+	type tally struct {
+		count int
+		name  string
+	}
+	per := map[string]map[string]*tally{}
+	for i := range planned {
+		p := &planned[i]
+		if asString(p.src.issueCols["status_category"]) != "inprogress" {
+			continue
+		}
+		id := asString(p.src.issueCols["status_id"])
+		if id == "" {
+			continue
+		}
+		src := asString(p.src.itemCols["source_id"])
+		if per[src] == nil {
+			per[src] = map[string]*tally{}
+		}
+		t := per[src][id]
+		if t == nil {
+			t = &tally{name: asString(p.src.issueCols["status"])}
+			per[src][id] = t
+		}
+		t.count++
+	}
+	out := map[string][2]string{}
+	for src, ids := range per {
+		best, bestT := "", (*tally)(nil)
+		keys := make([]string, 0, len(ids))
+		for id := range ids {
+			keys = append(keys, id)
+		}
+		sort.Strings(keys)
+		for _, id := range keys {
+			if bestT == nil || ids[id].count > bestT.count {
+				best, bestT = id, ids[id]
+			}
+		}
+		if bestT != nil {
+			out[src] = [2]string{best, bestT.name}
+		}
+	}
+	return out
+}
+
+// ensureStartTransitions gives every closed issue an In Progress transition to
+// have taken time over (GDK-1739).
+//
+// 110 of the shipped fixture's 166 closed issues went straight to Done in the
+// changelog — the seed never wrote the middle of the story — so started_at and
+// cycle_hours were NULL on two thirds of the closed set and the cycle-time
+// scatter drew 56 dots. No re-timing can fix that: the row does not exist. So
+// one is written, immediately before the first Done transition, carrying the
+// from-status the Done row used to carry; the Done row is re-pointed at it, so
+// the chain still reads Backlog → In Progress → Done.
+//
+// This is idempotent by construction rather than by a marker: on the next
+// regeneration the issue *has* an in-progress transition, so flowOf finds it
+// and nothing is added. The row rides the `synth:` id namespace so a reader
+// can tell it apart, and it is only written under --spread, the path that is
+// already synthesizing this fixture's history.
+func ensureStartTransitions(planned []plannedIssue, ch children, cats map[string]string) {
+	ip := inProgressStatus(planned)
+	done := map[string]bool{}
+	for i := range planned {
+		p := &planned[i]
+		srcID := p.src.itemID
+		if done[srcID] {
+			continue
+		}
+		done[srcID] = true
+		if asString(p.src.issueCols["status_category"]) != "done" {
+			continue
+		}
+		pair, ok := ip[asString(p.src.itemCols["source_id"])]
+		if !ok {
+			continue
+		}
+		rows := ch.changelogBy[srcID]
+		f := flowOf(rows, cats)
+		if f.firstIP >= 0 || f.lastDone < 0 {
+			continue
+		}
+		// The *first* Done transition is the one to precede — on a Done → Done
+		// history it is not the one resolved_at reads.
+		firstDone := f.firstDone
+		at, okT := parseTime(asString(rows[firstDone]["at"]))
+		if !okT {
+			continue
+		}
+		// A source instant of its own, so it becomes its own beat. Only the
+		// order matters — placement redraws every gap.
+		taken := map[time.Time]bool{}
+		for _, row := range rows {
+			if t, ok := parseTime(asString(row["at"])); ok {
+				taken[t] = true
+			}
+		}
+		start := at.Add(-time.Second)
+		for taken[start] {
+			start = start.Add(-time.Second)
+		}
+		row := maps.Clone(rows[firstDone])
+		row["id"] = "synth:start"
+		row["at"] = formatTime(start)
+		row["to_id"] = pair[0]
+		row["to_value"] = pair[1]
+		// The Done row now leaves In Progress rather than the backlog.
+		rows[firstDone]["from_id"] = pair[0]
+		rows[firstDone]["from_value"] = pair[1]
+		// Oldest-first is what flowOf and newHistory read, and insertIssueBundle
+		// walks the same slice, so the row is spliced in place rather than
+		// appended.
+		grown := make([]map[string]any, 0, len(rows)+1)
+		grown = append(grown, rows[:firstDone]...)
+		grown = append(grown, row)
+		grown = append(grown, rows[firstDone:]...)
+		ch.changelogBy[srcID] = grown
+	}
+}
+
 func applySpread(planned []plannedIssue, window time.Duration, now time.Time, seed int64, ch children) {
 	if window <= 0 || len(planned) == 0 {
 		return
 	}
 	start := now.Add(-window)
+	cats := statusCategories(planned)
+	ensureStartTransitions(planned, ch, cats)
+
+	// How far before the window an issue's created_at may be pulled to give a
+	// closed issue room for a full cycle. The window is a presentation choice
+	// — 90 days of *activity* — and an issue worked for five weeks was opened
+	// before it. Bounded so nothing lands in a different year than the data.
+	floor := start.Add(-time.Duration((cycleMaxHours + pickupMaxHours) * float64(time.Hour)))
 
 	// Collect original created times for the first occurrence of each source
 	// (clones share their source's relative placement index by sequence order).
@@ -335,12 +531,27 @@ func applySpread(planned []plannedIssue, window time.Duration, now time.Time, se
 		}
 		dstUpdated := dstCreated.Add(dur)
 
+		h := newHistory(p, ch, seed)
+		// State-aware anchoring (GDK-1739). The default spread above is the
+		// provisional pass: it chooses the resolution instant a closed issue
+		// keeps, so the weekly closed rate is not moved by giving the issue a
+		// cycle time.
+		var anchors map[int]time.Time
+		if !h.empty() {
+			times := h.place(dstCreated, dstUpdated, nil)
+			dstCreated, dstUpdated, anchors = shapeFlow(p, h, times, cats, ch, now, floor, seed, dstCreated, dstUpdated)
+		}
+
 		p.useMap = true
 		p.srcLo, p.srcHi = srcCreated, srcUpdated
 		p.dstLo, p.dstHi = dstCreated, dstUpdated
 		p.zeroSpan = !srcUpdated.After(srcCreated)
 
-		p.events = placeEvents(p, ch, seed)
+		if h.empty() {
+			p.events = h.emit(nil)
+		} else {
+			p.events = h.emit(h.place(dstCreated, dstUpdated, anchors))
+		}
 
 		p.createdAt = formatTime(dstCreated)
 		p.updatedAt = formatTime(dstUpdated)
@@ -348,7 +559,10 @@ func applySpread(planned []plannedIssue, window time.Duration, now time.Time, se
 		p.itemUpdatedAt = p.updatedAt
 		p.itemSyncedAt = formatTime(now)
 
-		// Remap issue-level optional timestamps.
+		// Remap issue-level optional timestamps. status_changed_at,
+		// resolved_at and reopened_at are re-derived from the placed changelog
+		// by store.BackfillFlow before the snapshot is published (GDK-1684,
+		// GDK-1720), so these are a floor, not the published value.
 		if v, ok := p.src.issueCols["status_changed_at"].(string); ok && v != "" {
 			p.statusChangedAt = mapOrEven(v, p, 0, 1)
 		}
@@ -362,6 +576,95 @@ func applySpread(planned []plannedIssue, window time.Duration, now time.Time, se
 			p.assigneeChangedAt = mapOrEven(v, p, 0, 1)
 		}
 	}
+}
+
+// pullBack is created_at against the instant work started on the issue. The
+// even placement over the window is kept whenever it already sits before the
+// start — an issue opened ten weeks ago and picked up yesterday is the normal
+// case, and rewriting its created_at would flatten the age distribution the
+// backlog view reads. It is pulled back only when the even placement lands
+// after the start, by an exponential wait: the time the issue sat before
+// someone took it. floor bounds how far outside the window that may reach.
+func pullBack(even, start time.Time, u float64, floor time.Time) time.Time {
+	created := even
+	if want := start.Add(-expDur(u, pickupMeanHours, pickupMaxHours)); created.After(want) {
+		created = want
+	}
+	if created.Before(floor) {
+		created = floor
+	}
+	return created
+}
+
+// shapeFlow turns the provisional placement into the state-aware one: it
+// returns the issue's created_at, its last-event instant, and the beats that
+// must be pinned. See the file comment in lifetime.go for why each state is
+// shaped the way it is.
+func shapeFlow(p *plannedIssue, h history, times []time.Time, cats map[string]string,
+	ch children, now, floor time.Time, seed int64, dstLo, dstHi time.Time,
+) (time.Time, time.Time, map[int]time.Time) {
+	f := flowOf(ch.changelogBy[p.src.itemID], cats)
+	category := asString(p.src.issueCols["status_category"])
+	noise := func(salt string) float64 { return issueNoise(seed, p.src.itemID, p.cloneSeq, salt) }
+
+	beat := func(row int) int {
+		if row < 0 || row >= len(h.chBeat) {
+			return -1
+		}
+		return h.chBeat[row]
+	}
+	last := len(h.beats) - 1
+
+	switch category {
+	case "inprogress":
+		gIP := beat(f.firstIP)
+		if gIP < 0 {
+			return dstLo, dstHi, nil
+		}
+		age := logNormalDur(noise("wipage"), wipAgeMedianHours, wipAgeSigma, wipAgeMaxHours)
+		tIP := now.Add(-age)
+		created := pullBack(dstLo, tIP, noise("pickup"), floor)
+		if !tIP.After(created.Add(minBeatGap)) {
+			tIP = created.Add(minBeatGap)
+		}
+		if gIP == last {
+			return created, tIP, nil
+		}
+		// Whatever the issue did after it started — comments, a reassignment —
+		// happened between then and now, not all at once at either end.
+		tail := now.Sub(tIP)
+		hi := tIP.Add(time.Duration((0.15 + 0.7*noise("tail")) * float64(tail)))
+		if !hi.After(tIP.Add(minBeatGap)) {
+			hi = tIP.Add(minBeatGap)
+		}
+		return created, hi, map[int]time.Time{gIP: tIP}
+
+	case "done":
+		gIP, gDone := beat(f.firstIP), beat(f.lastDone)
+		if gIP < 0 || gDone < 0 || gIP >= gDone {
+			return dstLo, dstHi, nil
+		}
+		tDone := times[gDone]
+		cycle := logNormalDur(noise("cycle"), cycleMedianHours, cycleSigma, cycleMaxHours)
+		tIP := tDone.Add(-cycle)
+		created := pullBack(dstLo, tIP, noise("pickup"), floor)
+		if !tIP.After(created.Add(minBeatGap)) {
+			tIP = created.Add(minBeatGap)
+		}
+		if !tDone.After(tIP.Add(minBeatGap)) {
+			tDone = tIP.Add(minBeatGap)
+		}
+		hi := dstHi
+		if gDone == last || !hi.After(tDone) {
+			hi = tDone
+		}
+		anchors := map[int]time.Time{gIP: tIP}
+		if gDone != last {
+			anchors[gDone] = tDone
+		}
+		return created, hi, anchors
+	}
+	return dstLo, dstHi, nil
 }
 
 func mapOrEven(s string, p *plannedIssue, idx, total int) string {

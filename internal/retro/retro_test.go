@@ -349,12 +349,21 @@ func injectChange(t *testing.T, dir string, at time.Time, item, authorID string)
 }
 
 // pickItem returns a real fixture issue item id and its key.
+// pickItem returns an issue whose own history is quiet for the anchor
+// windows the tests inject into: no changelog row in the last five days.
+// The premise used to be "the whole snapshot is older than four days",
+// which stopped being true when GDK-1739 gave the fixture's in-progress
+// issues a recent start and recent activity (that is the point of that
+// change — a live WIP has moved lately). Choosing the item by the data
+// keeps the premise true by construction instead of by luck of the fixture.
 func pickItem(t *testing.T, db *sql.DB) (item, key string) {
 	t.Helper()
+	quietSince := time.Now().Add(-5 * 24 * time.Hour).UTC().Format(time.RFC3339)
 	if err := db.QueryRow(`SELECT it.id, it.key FROM items it
 		JOIN issues i ON i.item_id = it.id
 		WHERE it.kind = 'issue' AND COALESCE(it.key,'') <> ''
-		ORDER BY it.key LIMIT 1`).Scan(&item, &key); err != nil {
+		  AND NOT EXISTS (SELECT 1 FROM changelog c WHERE c.item_id = it.id AND c.at >= ?)
+		ORDER BY it.key LIMIT 1`, quietSince).Scan(&item, &key); err != nil {
 		t.Fatalf("pick item: %v", err)
 	}
 	return item, key
@@ -384,8 +393,9 @@ func computePinned(t *testing.T, db *sql.DB, me store.FeedIdentity, since time.D
 }
 
 func TestRetroSessionsResumeOnFixture(t *testing.T) {
-	// Anchor: 4 days back is after every write the demo snapshot carries, so
-	// the only visits and writes inside the windows below are the injected ones.
+	// Anchor: 4 days back. pickItem guarantees the chosen issue has no write
+	// of its own after five days back, so the only visits and writes inside
+	// the windows below are the injected ones.
 	now := time.Now().Truncate(time.Second)
 	a0 := now.Add(-4 * 24 * time.Hour)
 

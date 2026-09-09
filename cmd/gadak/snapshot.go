@@ -95,6 +95,11 @@ func cmdSnapshot(args []string) error {
 	}
 	fmt.Printf("snapshot %s: %d issues, %d comments, %d changelog%s (%s)\n",
 		res.Path, res.Issues, res.Comments, res.Changelog, extra, formatBytes(res.Bytes))
+	// GDK-1739: how work moves through the file that was just written. Printed
+	// unconditionally rather than behind a flag — the fixture shipped for weeks
+	// with two-month-old WIP beside a one-day cycle time, and nothing in the
+	// pipeline said so out loud.
+	fmt.Println(res.Flow.String())
 	return nil
 }
 
