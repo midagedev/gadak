@@ -45,10 +45,20 @@ describe('GDK-1704 QaImpact case timestamps follow the active locale', () => {
   test("C2 the case timestamp reads in the reader's locale (en/ko/ja)", () => {
     // Local-constructor fixture (14:30 on the local Aug 12): the wall
     // clock — and therefore the output — is timezone-independent.
+    //
+    // The assertion is the date *shape* per locale, never ICU's rendered
+    // spelling: CI's Node carries a different CLDR than a dev machine's
+    // (measured 2026-09-09 — the same Node 20 line printed '오후 02:30'
+    // locally and 'PM 02:30' on the runner), so a pinned Korean day-period
+    // string is a flake, not a contract. What the round must guarantee is
+    // that the reader's locale reaches Intl at all.
     const at = new Date(2026, 7, 12, 14, 30)
     expect(qaStamp(at, 'en')).toBe('8/12, 02:30 PM')
-    expect(qaStamp(at, 'ko')).toBe('8. 12. 오후 02:30')
+    // ko separates the numbers with periods; ja does not, and neither
+    // renders the en form.
+    expect(qaStamp(at, 'ko')).toMatch(/^8\. 12\./)
     expect(qaStamp(at, 'ja')).toBe('8/12 14:30')
+    expect(new Set([qaStamp(at, 'en'), qaStamp(at, 'ko'), qaStamp(at, 'ja')]).size).toBe(3)
   })
 
   test('C3 the runtime default resolves to a supported locale', () => {

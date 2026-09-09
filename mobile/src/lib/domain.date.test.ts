@@ -62,8 +62,12 @@ describe('GDK-1704 locale date labels', () => {
   })
 
   it('C4 offerExpiry formats the locale’s short date and guards junk', () => {
-    expect(offerExpiry(SEP9, 'ko')).toBe('2026년 9월 9일')
-    expect(offerExpiry(SEP9, 'ja')).toBe('2026年9月9日')
+    // Year-month-day in the locale's own order and marks. Numerals are
+    // pinned; the marks are matched loosely because CI's CLDR is not the
+    // dev machine's (see QaImpact.date.test.ts C2).
+    expect(offerExpiry(SEP9, 'ko')).toMatch(/^2026\D+9\D+9\D*$/)
+    expect(offerExpiry(SEP9, 'ja')).toMatch(/^2026\D+9\D+9\D*$/)
+    expect(offerExpiry(SEP9, 'ko')).not.toBe(offerExpiry(SEP9, 'en'))
     expect(offerExpiry('')).toBe('')
     expect(offerExpiry('not-a-date')).toBe('')
   })
