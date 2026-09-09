@@ -48,7 +48,10 @@ const (
 // exactly the incident this closes.
 func IsDevBuild(version string) bool {
 	v := strings.TrimSpace(version)
-	return v == "" || v == DevVersion
+	// "dev" is desktop/main.go's unstamped default (build-app.sh stamps
+	// -X main.appVersion on a cut release); without it a local desktop build
+	// counted as a release and skipped every dev-build rule (GDK-1697).
+	return v == "" || v == DevVersion || v == "dev"
 }
 
 // SourceFor is the receipt word for a version string.

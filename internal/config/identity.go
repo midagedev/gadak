@@ -13,6 +13,10 @@ const (
 	Name = "gadak"
 	// DirName is the directory under $HOME that holds the default profile.
 	DirName = ".gadak"
+	// DevDirName is the home a dev build uses instead of DirName when
+	// GADAK_HOME is unset (GDK-1697): a checkout build and the installed
+	// release never share workspace files by accident. SetDevBuild flips it.
+	DevDirName = ".gadak-dev"
 	// DBFile is the SQLite filename inside a profile directory.
 	DBFile = "gadak.db"
 	// EnvPrefix is prepended to HOME, PROFILE, WORKSPACE, TOKEN, SITE, EMAIL, PROJECTS.

@@ -111,7 +111,10 @@ func (rt *Runtime) boot(opts Options) error {
 	}
 	// Desktop boot: the workspace registry opens every workspace through
 	// plain store.Open, so the dev-lockout policy must be the process default
-	// before the first one (GDK-1687). Same rule as openDB below.
+	// before the first one (GDK-1687). Same rule as openDB below. The dev
+	// home (GDK-1697) is set here too for a main that skipped it; desktop's
+	// main sets it first because it resolves the log dir before Open.
+	config.SetDevBuild(skillinstall.IsDevBuild(opts.Version))
 	store.SetDefaultOpenOptions(storeOpenOptionsFor(opts.Version))
 
 	cfg, err := config.Load()

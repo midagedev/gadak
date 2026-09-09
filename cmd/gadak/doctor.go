@@ -43,7 +43,12 @@ type doctorReport struct {
 	WorkspaceKind   string `json:"workspace_kind"`
 	Origin          string `json:"origin"`
 	OriginOwner     string `json:"origin_owner,omitempty"`
-	MirrorPath      string `json:"mirror_path"`
+	// Home is the directory the default profile lives in, and HomeReason says
+	// why it is that one when it is not ~/.gadak: "dev build" (GDK-1697) or
+	// "GADAK_HOME".
+	Home       string `json:"home"`
+	HomeReason string `json:"home_reason,omitempty"`
+	MirrorPath string `json:"mirror_path"`
 	// HomeLeftover is the abandoned legacy home (~/.scry) when it still exists
 	// beside ~/.gadak. The stderr warning fires once per machine (GDK-1072);
 	// this is the standing report.
@@ -329,6 +334,17 @@ func collectDoctor() doctorReport {
 		},
 	}
 
+	if home, err := config.HomeRoot(); err == nil {
+		rep.Home = tildeHome(home)
+		switch {
+		case config.Env("HOME") != "":
+			rep.HomeReason = "GADAK_HOME"
+		case config.DevHome():
+			rep.HomeReason = "dev build"
+		}
+	} else {
+		rep.Home = "unknown"
+	}
 	if path, err := config.DBPath(); err == nil {
 		rep.MirrorPath = tildeHome(path)
 	} else {
@@ -969,6 +985,11 @@ func formatDoctorText(r doctorReport) string {
 		line("origin owner", r.OriginOwner)
 	}
 	line("workspace", formatDoctorWorkspace(r.Workspace))
+	if r.HomeReason != "" {
+		line("home", r.Home+" ("+r.HomeReason+")")
+	} else {
+		line("home", r.Home)
+	}
 	line("mirror_path", r.MirrorPath)
 	if r.HomeLeftover != "" {
 		line("home_leftover", r.HomeLeftover+" (ignored legacy home — delete it, or move anything you still need into the active home)")
