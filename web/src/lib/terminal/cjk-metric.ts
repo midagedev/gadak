@@ -220,17 +220,65 @@ export function pickCjkMetricFace(
   return best
 }
 
+/*
+ * The four styles one corrected family has to answer for (GDK-1743).
+ *
+ * A `@font-face` that declares no `font-weight`/`font-style` is a regular
+ * face, and on WebKit a bold request does not resolve to it — the run falls
+ * through to the raw system face, draws at that face's own advance, and
+ * xterm pulls the difference back with letterSpacing. Measured on WebKit
+ * 2026-09-10, which is the engine the desktop app and the phone run:
+ * -0.427px per syllable on every bold and bold-italic Hangul run, against
+ * 0.0104px at regular weight. Chromium resolves the same request to the
+ * corrected face and reads 0.0104px in all four styles, which is why the
+ * defect had a platform and no gate — every measurement this module was
+ * ever built on came from a regular-weight Chromium row.
+ *
+ * So the same face is declared four times, once per style, and the
+ * descriptors are the whole fix: they are what makes a bold request land on
+ * the corrected face instead of past it.
+ *
+ * The factor stays one factor. Correcting each style by its own
+ * canvas-measured advance was tried first and made WebKit worse — a
+ * synthesised bold measures ~2.7% wider on a canvas than it renders through
+ * `@font-face`, so the per-style factor overshot and turned -0.427px into
+ * +0.448px (measured the same day). The canvas is a faithful proxy for the
+ * face's own advance and not for the synthesis on top of it.
+ */
+export const CJK_METRIC_STYLES = [
+  { weight: '400', style: 'normal' },
+  { weight: '700', style: 'normal' },
+  { weight: '400', style: 'italic' },
+  { weight: '700', style: 'italic' },
+] as const
+
 /** One @font-face rule, as text. `sources` are quoted for `local()`. */
 export function cjkMetricFaceCss(
   family: string,
   sources: readonly string[],
   adjustPct: number,
   unicodeRange: string,
+  descriptors?: { weight: string; style: string },
 ): string {
   const src = sources.map((s) => `local('${s}')`).join(', ')
+  // Without these the rule answers regular requests only, and a bold cell
+  // resolves past the correction to the raw face (GDK-1743).
+  const d = descriptors ? `font-weight:${descriptors.weight};font-style:${descriptors.style};` : ''
   return (
-    `@font-face{font-family:'${family}';src:${src};` +
+    `@font-face{font-family:'${family}';src:${src};${d}` +
     `unicode-range:${unicodeRange};size-adjust:${adjustPct}%;}`
+  )
+}
+
+/** The whole family: the same corrected face declared for all four styles. */
+export function cjkMetricFamilyCss(
+  family: string,
+  sources: readonly string[],
+  adjustPct: number,
+  unicodeRange: string,
+): string[] {
+  return CJK_METRIC_STYLES.map((d) =>
+    cjkMetricFaceCss(family, sources, adjustPct, unicodeRange, d),
   )
 }
 
@@ -257,7 +305,6 @@ export type AdvanceMeasure = (family: string, text: string) => number
  *  face, so the only way to know a face is present is that its advance
  *  differs from this one's. */
 const ABSENT_FAMILY = "'__gadak_absent_family__'"
-
 
 /** A canvas-backed AdvanceMeasure, or null where there is no canvas (node,
  *  jsdom). Measures at 100px and divides, so the result is a ratio and the
@@ -309,7 +356,7 @@ export function installCjkMetricFaces(opts: {
     const s = CJK_METRIC_SCRIPTS[script]
     const face = pickCjkMetricFace(s.candidates, latin, s.probe, measure, opts.maxAdjust)
     if (!face) continue
-    rules.push(cjkMetricFaceCss(s.family, face.sources, face.adjustPct, cjkMetricUnicodeRange(script)))
+    rules.push(...cjkMetricFamilyCss(s.family, face.sources, face.adjustPct, cjkMetricUnicodeRange(script)))
     families.push(s.family)
     chosen[script] = `${face.label} @ ${face.adjustPct}%`
   }

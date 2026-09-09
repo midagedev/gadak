@@ -98,6 +98,29 @@ const MAX_OVER_LATIN = Number(process.env.CJK_MAX_OVER_LATIN ?? 8.0)
 // padding itself. Zero within a rounding hair; 0.05px is a tenth of the
 // smallest padding this defect has ever produced.
 const MAX_SPAN_PAD = Number(process.env.CJK_MAX_SPAN_PAD ?? 0.05)
+/*
+ * Why per-span advance is printed and not asserted (GDK-1743, 2026-09-10).
+ *
+ * The standing hypothesis for the two spaced-out lines was that they had
+ * missed the adjusted @font-face — a bold or italic run falling through to
+ * the raw system face, drawing at its own narrow advance. If that happened,
+ * letterSpacing would read 0 over a visibly short run and this tool's exact
+ * axis would be blind to it. So the run's own advance looked like the
+ * missing contract.
+ *
+ * It is not one, because xterm does not leave the advance free. Measured by
+ * intervention on 2026-09-10: with U+AC00-D7AF deliberately removed from
+ * the Hangul range — the most complete way a span can miss the correction —
+ * every Hangul run still measured 15.664px per glyph against a 15.667px
+ * cell pair, and letterSpacing went to 4.41667px instead. xterm sizes the
+ * span to the cells it owns and pads whatever is left; the padding is
+ * therefore the whole signal, and an advance assertion could never go red.
+ * Asserting it would be a target dressed as a contract.
+ *
+ * It is still printed, per style and per wrap half, because it is what
+ * makes the letterSpacing number legible: 4.41667px of padding on a
+ * 15.667px pair is a third of the run.
+ */
 /** Every codepoint xterm lays across two cells — the whole padded surface.
  *  Kept in step with CJK_METRIC_UNICODE_RANGE in
  *  web/src/lib/terminal/cjk-metric.ts. */
@@ -116,6 +139,18 @@ const WIDE_RE =
  * this round, and no font trick closes it; a face with uniform CJK advances
  * would, which is the bundling question left to the lead. Asserting it here
  * would make the gate a target instead of a contract.
+ *
+ * Addendum 2026-09-10 (GDK-1743, GDK-1736): on this machine the residual is
+ * zero, because Apple SD Gothic Neo is not the face that gets picked.
+ * pickCjkMetricFace takes the *least* correction, which is AppleGothic, and
+ * AppleGothic advances 、。，．「」 at 1.0em — exactly its 가. So does
+ * Hiragino Sans for its kana. The factor that lands a syllable on two cells
+ * lands the punctuation there too, and the styles pane measures 0.01px of
+ * padding across 「완료」，. The air a reader still sees after 、 is that
+ * glyph's own side bearing, which is how 、 is drawn in a fullwidth box, not
+ * a cell the renderer left unfilled. The paragraph above stays because the
+ * limit it describes is real and returns the moment the pick changes — it
+ * is a property of the face, not of the code.
  */
 const ASSERT_RE =
   /[\u1100-\u11FF\u3040-\u30FF\u3130-\u318F\u31F0-\u31FF\u3400-\u4DBF\u4E00-\u9FFF\uA960-\uA97F\uAC00-\uD7AF\uF900-\uFAFF]/
@@ -140,6 +175,44 @@ const ROWS = [
 ]
 const CJK_ROWS = [0, 1]
 const LATIN_ROWS = [2]
+
+/*
+ * The second pane: the same syllables under every attribute a TUI actually
+ * emits, plus a line long enough to wrap (GDK-1743).
+ *
+ * Kept apart from ROWS on purpose. ROWS carries the pixel thresholds, which
+ * were derived from three specific populations (see the header) and stay
+ * comparable only while the sample does; and a wrapping line renders as two
+ * inked bands, which would break the row-to-role mapping that mode asserts.
+ * This pane is measured on the exact axes instead — per-span letterSpacing
+ * and per-span advance — which need no threshold derivation at all.
+ *
+ * The attributes are the ones the report named: the echoed user prompt and
+ * the continuation half of a wrapped bullet were the two lines a vision
+ * pass called spaced-out, and dim/bold/italic were the standing hypothesis
+ * for why. Every style is here so the answer is measured rather than
+ * argued, and so a later @font-face that forgets `font-weight` is caught by
+ * a gate instead of by an eye on a poster.
+ */
+const STYLE_ROWS = [
+  ['normal', '\u001b[0m라벨별 비율 대시보드'],
+  ['bold', '\u001b[1m라벨별 비율 대시보드\u001b[0m'],
+  ['dim', '\u001b[2m라벨별 비율 대시보드\u001b[0m'],
+  ['italic', '\u001b[3m라벨별 비율 대시보드\u001b[0m'],
+  ['bold-italic', '\u001b[1;3m라벨별 비율 대시보드\u001b[0m'],
+  // The echoed prompt: xterm draws an inverse run as its own spans over a
+  // painted background, which is also what blinds the --png band mode.
+  ['inverse (echoed prompt)', '\u001b[7m라벨별 비율\u001b[0m'],
+  ['kana bold', '\u001b[1mラベル別の比率\u001b[0m'],
+  // Wider than STYLE_COLS, so xterm wraps it and the continuation half is
+  // re-sliced into fresh spans — the second hypothesis, measured.
+  // Fullwidth punctuation: the ja half of the report (GDK-1736). Measured,
+  // not asserted — see styleFindings.
+  ['punctuation ko', '라벨 분포가 확인됐습니다、 만들었습니다。 「완료」，'],
+  ['punctuation ja', 'ラベル分布、確認しました。「完了」，'],
+  ['wrapped', '이슈 라벨별 비율을 백분율로 보여주는 대시보드를 지금 만들어줘 라벨은 여러 개 가질 수 있어'],
+]
+const STYLE_COLS = 36
 
 // ── Candidate faces (--advances) ───────────────────────────────────────────
 // The 1:2 question, answered by measurement rather than by reputation. A
@@ -198,10 +271,63 @@ function measureBand(data, w, h, th) {
     if (on && s < 0) s = y
     if (!on && s >= 0) { if (y - s >= 5) bands.push([s, y - 1]); s = -1 }
   }
-  const lines = []
+  // Two blind spots this band mode had until GDK-1743, both of which
+  // reported PASS on the exact lines a vision pass had called out.
+  //
+  // (1) A row the terminal painted a background on — an echoed prompt drawn
+  //     inverse — is ink from end to end when "ink" means "unlike the
+  //     frame's background". Its extent came back as the full crop width
+  //     with zero voids, which scores 0% and looks perfect. So each band
+  //     gets its own background: the most common luminance *inside that
+  //     band*, which is the painted bar on an inverse row and the terminal
+  //     background everywhere else.
+  //
+  // (2) Consecutive text lines merge into one band whenever no row between
+  //     them is completely blank, and the merged column profile is the OR
+  //     of both lines — a void in one is filled by the other. On the poster
+  //     the two halves of a wrapped bullet merged exactly this way. A band
+  //     taller than 1.6x the median is therefore cut into median-height
+  //     slices rather than measured whole.
+  const bandH = bands.map(([a, b]) => b - a + 1).sort((a, b) => a - b)
+  const medH = bandH.length ? bandH[Math.floor(bandH.length / 2)] : 0
+  const split = []
   for (const [y0, y1] of bands) {
+    const hgt = y1 - y0 + 1
+    const n = medH > 0 && hgt > medH * 1.6 ? Math.round(hgt / medH) : 1
+    if (n <= 1) { split.push([y0, y1, false]); continue }
+    // Cut at the thinnest row near each nominal boundary rather than at the
+    // boundary itself: two lines that merged did so because their ink
+    // touches, and the seam is where it touches least. An arithmetic cut
+    // lands mid-glyph and moves ink from one line onto the other.
+    const step = hgt / n
+    const cuts = [y0]
+    for (let i = 1; i < n; i++) {
+      const at = y0 + Math.round(i * step)
+      const span = Math.max(1, Math.round(step * 0.25))
+      let best = at
+      for (let y = Math.max(y0 + 1, at - span); y <= Math.min(y1, at + span); y++) {
+        if (rowInk[y] < rowInk[best]) best = y
+      }
+      cuts.push(best)
+    }
+    cuts.push(y1 + 1)
+    for (let i = 0; i < n; i++) split.push([cuts[i], cuts[i + 1] - 1, true])
+  }
+  const lines = []
+  for (const [y0, y1, wasSplit] of split) {
+    // This band's own background, so a painted row is measured against its
+    // paint rather than against the frame.
+    const bh = new Map()
+    for (let y = y0; y <= y1; y++) {
+      for (let x = 0; x < w; x++) {
+        const k = Math.round(lum((y * w + x) * 4) / 4) * 4
+        bh.set(k, (bh.get(k) ?? 0) + 1)
+      }
+    }
+    const bandBg = [...bh.entries()].sort((a, b) => b[1] - a[1])[0][0]
+    const bink = (x, y) => Math.abs(lum((y * w + x) * 4) - bandBg) > th
     const prof = []
-    for (let x = 0; x < w; x++) { let n = 0; for (let y = y0; y <= y1; y++) if (ink(x, y)) n++; prof.push(n) }
+    for (let x = 0; x < w; x++) { let n = 0; for (let y = y0; y <= y1; y++) if (bink(x, y)) n++; prof.push(n) }
     const first = prof.findIndex((v) => v > 0)
     const last = prof.length - 1 - [...prof].reverse().findIndex((v) => v > 0)
     if (first < 0 || last <= first) continue
@@ -225,7 +351,7 @@ function measureBand(data, w, h, th) {
       const r = acc / den
       if (r > peak.r) peak = { k, r }
     }
-    lines.push({ y0, y1, first, last, extent: last - first + 1, voids, period: peak.k, periodR: peak.r })
+    lines.push({ y0, y1, bandBg, wasSplit, first, last, extent: last - first + 1, voids, period: peak.k, periodR: peak.r })
   }
   return { bg, lines }
 }
@@ -270,6 +396,63 @@ function spanPadFindings(spans) {
     }
   }
   return { findings, noted }
+}
+
+/*
+ * The styles pane, judged on the two exact axes.
+ *
+ * `rows` is what the page handed back: one entry per inked terminal row,
+ * each a list of {t, ls, w} spans. `labels` maps a row onto the style that
+ * wrote it — a wrapping line owns more than one row, so the mapping is
+ * carried, not computed.
+ *
+ * Only spans whose every codepoint is wide are judged. A mixed span would
+ * make the expected advance a sum over two cell widths, and xterm does not
+ * produce one here; asserting a span the renderer never emits would be
+ * measuring the harness.
+ */
+function styleFindings(rows, labels, cell) {
+  const findings = []
+  const table = []
+  const noted = []
+  const want = cell * 2
+  for (const [i, row] of rows.entries()) {
+    const label = labels[i] ?? `row${i}`
+    for (const sp of row) {
+      const chars = [...(sp.t ?? '')]
+      if (!chars.length || !chars.every((c) => WIDE_RE.test(c))) continue
+      const pad = sp.ls ? parseFloat(sp.ls) : 0
+      const per = sp.w / chars.length
+      const off = per - want
+      /*
+       * Punctuation is measured and printed, never asserted — the same
+       * limit the band mode records. `size-adjust` is one uniform factor
+       * and a face's punctuation need not share its syllables' advance.
+       *
+       * On the faces this actually picks it does: measured 2026-09-10,
+       * AppleGothic and Hiragino Sans both advance 、。，．「」 at 1.0em,
+       * exactly their 가/あ, so the factor that lands a syllable on two
+       * cells lands the punctuation there too and the padding reads 0.
+       * (GDK-1736's 1.66px residual was measured against Apple SD Gothic
+       * Neo, which loses the pick to AppleGothic because it needs more
+       * correction.) The visible air after 、 is then the glyph's own side
+       * bearing — 、 draws in the lower-left of its fullwidth box by
+       * design — and not a cell the renderer failed to fill.
+       */
+      if (!chars.some((c) => ASSERT_RE.test(c))) {
+        noted.push({ label, t: sp.t, n: chars.length, ls: pad, per, off })
+        continue
+      }
+      table.push({ label, t: sp.t, n: chars.length, ls: pad, per, off })
+      if (Math.abs(pad) > MAX_SPAN_PAD) {
+        findings.push(
+          `${label} ${JSON.stringify(sp.t.slice(0, 10))}: xterm padded the cell by ${pad}px ` +
+            `(|pad| > ${MAX_SPAN_PAD}) — the glyph does not fill its two cells`,
+        )
+      }
+    }
+  }
+  return { findings, table, noted }
 }
 
 function verdict(cjk, latin, spanFindings = []) {
@@ -400,8 +583,27 @@ async function modePng(browser) {
   const scored = raw.lines.map((l) => scoreLine(l, cell, TH))
   console.log(`\n   all ${scored.length} text lines in the band (index: y-range  period  midVoidRatio):`)
   scored.forEach((l, i) =>
-    console.log(`     [${i}] y=${l.y0}-${l.y1}  period ${l.period}  ${l.midVoidRatio}%`),
+    console.log(
+      `     [${i}] y=${l.y0}-${l.y1}  period ${l.period}  ${l.midVoidRatio}%` +
+        `${l.wasSplit ? '  (cut out of a merged band)' : ''}` +
+        `${l.bandBg !== raw.bg ? `  (own background ${l.bandBg})` : ''}`,
+    ),
   )
+  // A line the period rule recognised as neither is judged by nothing. That
+  // silence is what a report about one specific line runs into, so name
+  // them: the wrapped continuation on the poster classifies as neither
+  // (period 23 against a 15.66px cell pair), and before GDK-1743 it was
+  // simply absent from the verdict rather than reported as unjudged.
+  const unclassified = scored
+    .map((_, i) => i)
+    .filter((i) => !cjkIdx.includes(i) && !latinIdx.includes(i))
+  if (unclassified.length) {
+    console.log(
+      `   not judged: ${unclassified.map((i) => `[${i}] y=${scored[i].y0}-${scored[i].y1} ` +
+        `period ${scored[i].period} ${scored[i].midVoidRatio}%`).join(', ')}` +
+        `\n     — the period rule matched neither role. Give --cjk/--latin to judge them.`,
+    )
+  }
   const v = report(
     `${path.relative(ROOT, path.resolve(file))} crop ${crop.join(',')}`,
     cjkIdx.map((i) => scored[i]).filter(Boolean),
@@ -447,6 +649,100 @@ function bundleProtocol() {
     target: 'es2020',
   })
   return r.outputFiles[0].text
+}
+
+/*
+ * The styles pane: one terminal, one screenshot, the two exact axes.
+ *
+ * Rendered as its own page rather than as extra ROWS because it wraps on
+ * purpose and the band mode maps rows onto roles by index.
+ */
+async function renderStylesPane(browser, { stack, lang, XTERM_JS, XTERM_CSS, PROTOCOL }) {
+  const written = STYLE_ROWS.map(([, text]) => text)
+  const html =
+    `<!DOCTYPE html><html lang="${lang}"><head><meta charset="utf-8"><style>${XTERM_CSS}\n` +
+    'html,body{margin:0;padding:0;background:#111}#t{width:420px;height:280px}\n' +
+    `</style></head><body><div id="t"></div>\n<script>${XTERM_JS}</script>\n` +
+    `<script>${PROTOCOL}</script>\n<script>\n` +
+    `const STACK = ${JSON.stringify(stack)};\n` +
+    `const APPLY = ${JSON.stringify(applyFix)};\n` +
+    `const ROWS = ${JSON.stringify(written)};\n` +
+    `const used = APPLY ? GadakProtocol.installCjkMetricFaces({ stack: STACK }) : STACK;\n` +
+    `const term = new Terminal({ fontFamily: used, fontSize: 13, allowTransparency: false,\n` +
+    `  theme: { background: '#111111', foreground: '#e6e0d4' }, cols: ${STYLE_COLS}, rows: ${written.length + 4} });\n` +
+    `term.open(document.getElementById('t'));\nterm.write(ROWS.join('\\r\\n'));\n` +
+    `window.__diag = () => {\n` +
+    `  const d = term._core._renderService.dimensions;\n` +
+    `  const rows = [...document.querySelectorAll('.xterm-rows > div')]\n` +
+    `    .map(r => [...r.children]\n` +
+    `      .filter(s => s.textContent && s.textContent.trim())\n` +
+    `      .map(s => ({ t: s.textContent, ls: s.style.letterSpacing || '',\n` +
+    `                   w: s.getBoundingClientRect().width })))\n` +
+    `    .filter(r => r.length);\n` +
+    `  return { cell: d.css.cell, rows };\n` +
+    `};\n` +
+    `requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(() => { window.__ready = 1 }, 200)));\n` +
+    '</script></body></html>'
+
+  const page = await browser.newPage({ viewport: { width: 460, height: 300 }, deviceScaleFactor: 2 })
+  await page.setContent(html, { waitUntil: 'load' })
+  await page.waitForFunction('window.__ready')
+  const diag = await page.evaluate(() => window.__diag())
+  const shot = path.join(OUT, `styles-${engineName}-${applyFix ? 'fix' : 'nofix'}.png`)
+  await page.locator('#t').screenshot({ path: shot })
+  await page.close()
+
+  // Rows come back in written order; the wrapped entry is the only one that
+  // owns more than one, and it is the last, so anything past the written
+  // count belongs to it. Assert that rather than assume it — a sample that
+  // wrapped where it was not meant to would silently relabel every row.
+  const labels = []
+  for (const [label] of STYLE_ROWS) labels.push(label)
+  const extra = diag.rows.length - written.length
+  if (extra < 0) {
+    console.error(
+      `cjk-cell-fit: styles pane wrote ${written.length} lines but only ${diag.rows.length} inked — ` +
+        `the sample did not render as written, so the style labels cannot be trusted.`,
+    )
+    process.exit(3)
+  }
+  for (let i = 0; i < extra; i++) labels.push(`${STYLE_ROWS.at(-1)[0]} (continuation ${i + 1})`)
+  if (extra === 0) {
+    console.error(
+      `cjk-cell-fit: the wrapped sample did not wrap at ${STYLE_COLS} cols — ` +
+        `the continuation half is what this pane exists to measure.`,
+    )
+    process.exit(3)
+  }
+
+  const { findings, table, noted } = styleFindings(diag.rows, labels, diag.cell.width)
+  console.log(`\n── styles & wrap ${engineName} ${applyFix ? '(GDK-1597 applied)' : '(--no-fix)'} ─────────`)
+  console.log(`   shot: ${path.relative(ROOT, shot)}`)
+  console.log(`   two cells = ${(diag.cell.width * 2).toFixed(3)}px   asserted: |letterSpacing| <= ${MAX_SPAN_PAD}px`)
+  console.log('   advance/glyph is printed, not asserted — xterm sizes the span to its cells either way.')
+  console.log('   style                        run          n   letterSpacing   advance/glyph   off')
+  for (const r of table) {
+    console.log(
+      `   ${r.label.padEnd(28)} ${JSON.stringify(r.t.slice(0, 6)).padEnd(12)} ${String(r.n).padStart(2)} ` +
+        `${r.ls.toFixed(5).padStart(14)} ${r.per.toFixed(3).padStart(15)} ${r.off.toFixed(3).padStart(7)}`,
+    )
+  }
+  if (noted.length) {
+    console.log('   measured, not asserted (punctuation and compatibility forms):')
+    for (const r of noted) {
+      console.log(
+        `   ${r.label.padEnd(28)} ${JSON.stringify(r.t.slice(0, 6)).padEnd(12)} ${String(r.n).padStart(2)} ` +
+          `${r.ls.toFixed(5).padStart(14)} ${r.per.toFixed(3).padStart(15)} ${r.off.toFixed(3).padStart(7)}`,
+      )
+    }
+  }
+  if (!findings.length) {
+    console.log('   PASS — every style and both wrap halves fill their two cells.')
+  } else {
+    console.log('   FAIL — a style or a wrap half is not on the grid:')
+    for (const f of findings) console.log(`     ${f}`)
+  }
+  return { shot, cell: diag.cell.width, table, findings, pass: findings.length === 0 }
 }
 
 async function modeRender(browser) {
@@ -547,7 +843,16 @@ async function modeRender(browser) {
     )
     results.push({ mode: 'render', engine: engineName, applyFix, shot, cell, diag, lines: scored, verdict: v })
   }
-  return results[0]
+  const styles = await renderStylesPane(browser, { stack, lang, XTERM_JS, XTERM_CSS, PROTOCOL })
+  const out = results[0]
+  out.styles = styles
+  // One verdict for the run: the band axis and the styles axis both gate.
+  out.verdict = {
+    ...out.verdict,
+    findings: [...out.verdict.findings, ...styles.findings],
+    pass: out.verdict.pass && styles.pass,
+  }
+  return out
 }
 
 // ── main ───────────────────────────────────────────────────────────────────

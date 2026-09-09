@@ -557,6 +557,117 @@ test.describe('terminal shots', () => {
     await expect(page.getByTestId('terminal-pane')).toHaveAttribute('data-overlay', 'true')
   })
 
+  /*
+   * What these pixels actually are.
+   *
+   * A commit hash alone is a claim the captures cannot keep: a round shoots
+   * from the working tree, and a working tree with edits in it is not that
+   * commit. A judge reading a MANIFEST has no other way to know, and a
+   * verdict on pixels that were never the named source is the expensive
+   * failure here. Name the dirt.
+   */
+  function captureSource(): string {
+    const hash = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
+    const dirty = execFileSync('git', ['status', '--porcelain'], { encoding: 'utf8' }).trim()
+    return dirty ? `${hash} + uncommitted edits (${dirty.split('\n').length} files)` : hash
+  }
+
+  /*
+   * The CJK cell fit, in the real pane (GDK-1743).
+   *
+   * Capture-only, like the shots above: it exists so a vision round can be
+   * given the three line shapes a report has ever been filed against —
+   * rather than a synthetic pane, which is all tools/cjk-cell-fit.mjs can
+   * build. The shapes are the echoed prompt line (the shell repeats what
+   * was typed, and the TUI draws that run over a painted background), the
+   * continuation half of a line long enough to wrap, and a sentence that
+   * breaks on fullwidth punctuation. GDK-1743 reported the first two as
+   * spaced-out on docs/media/terminal-hero-poster.ko.png and GDK-1736 the
+   * third; both were measured back to the grid on 2026-09-10, and the point
+   * of shooting them here is that the next report can be answered from the
+   * product rather than from a poster.
+   */
+  const CJK_SAMPLE = {
+    ko: {
+      echo: '이슈 라벨별 비율을 백분율로 보여주는 대시보드 만들어서 열어줘',
+      wrap: '라벨별 이슈 건수와 백분율을 바 차트로 보여주며 이슈 하나가 라벨을 여러 개 가질 수 있어 비율 합은 100%를 넘을 수 있습니다',
+      punct: '라벨 분포가 확인됐습니다、 백분율 바 차트를 만들었습니다。 「완료」됐습니다，',
+    },
+    ja: {
+      echo: 'ラベル別の比率をパーセントで見せるダッシュボードを作って開いて',
+      wrap: 'ラベル別のイシュー件数と百分率をバーチャートで表示し、イシュー一つが複数のラベルを持てるため比率の合計は100%を超えることがあります',
+      punct: 'ラベル分布を確認しました、バーチャートを作成しました。「完了」しました，',
+    },
+  } as const
+
+  for (const lang of ['ko', 'ja'] as const) {
+    test(`capture CJK cell fit, ${lang}, light and dark`, async ({ page }) => {
+      test.skip(!process.env.TERMINAL_SHOT_DIR, 'capture-only; set TERMINAL_SHOT_DIR to run')
+      test.setTimeout(120_000)
+      mkdirSync(SHOT_DIR, { recursive: true })
+      const s = CJK_SAMPLE[lang]
+
+      const write = async () => {
+        // Typed, not printf-ed: the echo of the typed line is one of the
+        // three shapes, and it only exists if the shell echoes real input.
+        await typeLine(page, `echo "${s.echo}"`)
+        await expect.poll(async () => readTerm(page)).toContain(s.echo.slice(0, 6))
+        await typeLine(page, `echo "${s.wrap}"`)
+        await typeLine(page, `echo "${s.punct}"`)
+        await expect.poll(async () => readTerm(page)).toContain(s.punct.slice(0, 6))
+      }
+
+      for (const theme of ['light', 'dark'] as const) {
+        const errors = attachConsoleErrors(page)
+        await forceLocale(page, lang)
+        await page.goto('/')
+        await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 30_000 })
+        await page.evaluate((t) => {
+          document.documentElement.setAttribute('data-theme', t)
+        }, theme)
+        await openPane(page)
+        await write()
+        await page.screenshot({
+          path: join(SHOT_DIR, `cjk-${lang}-${theme}.png`),
+          fullPage: false,
+        })
+        expect(appConsoleErrors(errors)).toEqual([])
+        await drainTerminalSessions(page)
+      }
+
+      writeFileSync(
+        join(SHOT_DIR, `MANIFEST-cjk-${lang}.md`),
+        [
+          `# terminal CJK cell fit, ${lang} (GDK-1743)`,
+          '',
+          `- source: \`${captureSource()}\``,
+          '- viewport: 1440×900, deviceScaleFactor 2',
+          '',
+          'Each shot carries the three line shapes a report has been filed against:',
+          '',
+          '| shape | what to look at |',
+          '| --- | --- |',
+          '| echoed prompt | the shell repeating the typed line, drawn over a painted run |',
+          '| wrapped continuation | the second half of the long line, re-sliced into fresh spans |',
+          '| fullwidth punctuation | 、 。 「 」 ， and the air around them |',
+          '',
+          'Judge the pitch *within* a word. Korean and Japanese put many one-',
+          'and two-syllable words on a line, and the word spaces between them',
+          'read as glyph spacing at a glance — that misreading is what GDK-1743',
+          'was filed as. `node tools/cjk-cell-fit.mjs` measures the same lines',
+          'exactly, and the syllable pitch is the number to argue with.',
+          '',
+          `| file | theme |`,
+          '| --- | --- |',
+          `| \`cjk-${lang}-light.png\` | light |`,
+          `| \`cjk-${lang}-dark.png\` | dark |`,
+          '',
+        ].join('\n'),
+        'utf8',
+      )
+    })
+  }
+
   test('capture split, exited, overlay, dark', async ({ page }) => {
     // Capture-only (v0.21 release audit, capture-hygiene finding): it writes
     // four PNGs + MANIFEST nobody in CI consumes. It runs when a vision round
@@ -564,16 +675,7 @@ test.describe('terminal shots', () => {
     test.skip(!process.env.TERMINAL_SHOT_DIR, 'capture-only; set TERMINAL_SHOT_DIR to run')
     test.setTimeout(90_000)
     mkdirSync(SHOT_DIR, { recursive: true })
-    const hash = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
-    /*
-     * A commit hash alone is a claim the captures cannot keep: a round shoots
-     * from the working tree, and a working tree with edits in it is not that
-     * commit. A judge reading MANIFEST.md has no other way to know, and a
-     * verdict on pixels that were never the named source is the expensive
-     * failure here. Name the dirt.
-     */
-    const dirty = execFileSync('git', ['status', '--porcelain'], { encoding: 'utf8' }).trim()
-    const source = dirty ? `${hash} + uncommitted edits (${dirty.split('\n').length} files)` : hash
+    const source = captureSource()
 
     const shoot = async (name: string) => {
       await page.screenshot({

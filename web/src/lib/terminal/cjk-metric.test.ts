@@ -101,6 +101,51 @@ describe('CJK_METRIC_UNICODE_RANGE', () => {
   })
 })
 
+/** Does a `unicode-range` cover this character? Parses the declaration the
+ *  way the browser reads it, so the test asserts coverage rather than the
+ *  presence of a particular block name — a range rewritten into different
+ *  blocks still has to answer the same questions. */
+function covers(range: string, ch: string): boolean {
+  const cp = ch.codePointAt(0)!
+  return range.split(',').some((part) => {
+    const m = /^U\+([0-9A-Fa-f]+)(?:-([0-9A-Fa-f]+))?$/.exec(part.trim())
+    if (!m) return false
+    const lo = parseInt(m[1], 16)
+    const hi = m[2] ? parseInt(m[2], 16) : lo
+    return cp >= lo && cp <= hi
+  })
+}
+
+describe('fullwidth punctuation (GDK-1743)', () => {
+  // The punctuation a CJK sentence actually ends and breaks on. It is laid
+  // across two cells like a syllable, so it has to be drawn by the same
+  // adjusted face; left out of the range it would fall to the raw system
+  // face and sit narrow inside its pair, which is the "space after 。"
+  // a Japanese vision pass reported. Asserted per character rather than by
+  // block name so that rewriting the range cannot quietly drop one.
+  const PUNCT = ['\u3001', '\u3002', '\uFF0C', '\uFF0E', '\u300C', '\u300D']
+
+  it('gives both scripts the same adjusted face for it', () => {
+    for (const script of ['hangul', 'kana'] as const) {
+      const range = cjkMetricUnicodeRange(script)
+      for (const ch of PUNCT) {
+        expect(covers(range, ch), `${script} must cover U+${ch.codePointAt(0)!.toString(16).toUpperCase()}`).toBe(true)
+      }
+    }
+  })
+
+  it('still leaves the box-drawing block alone (GDK-1043)', () => {
+    // The same range decides both, so the punctuation claim above is only
+    // safe next to this one: widening to reach 。 must not reach ─ or █.
+    for (const script of ['hangul', 'kana'] as const) {
+      const range = cjkMetricUnicodeRange(script)
+      for (const ch of ['\u2500', '\u253C', '\u257F', '\u2580', '\u2588', '\u259F']) {
+        expect(covers(range, ch), `${script} must not cover U+${ch.codePointAt(0)!.toString(16).toUpperCase()}`).toBe(false)
+      }
+    }
+  })
+})
+
 describe('CJK_METRIC_SCRIPTS', () => {
   it('names every face twice, PostScript name first', () => {
     // Chromium's local() matches only the PostScript/full name; WebKit
@@ -178,6 +223,9 @@ describe('pickCjkMetricFace', () => {
 describe('cjkMetricFaceCss', () => {
   it('writes one local()-only @font-face — no network', () => {
     const css = cjkMetricFaceCss('Test Face', ['A-Regular', 'A'], 139.202, 'U+AC00-D7AF')
+    // No descriptors asked for, none written — the caller that wants a
+    // whole family asks cjkMetricFamilyCss for it.
+    expect(css).not.toContain('font-weight')
     expect(css).toContain("font-family:'Test Face'")
     expect(css).toContain("src:local('A-Regular'), local('A')")
     expect(css).toContain('size-adjust:139.202%')
@@ -258,9 +306,34 @@ describe('installCjkMetricFaces', () => {
     // is the least-correction pick for their script.
     expect(css).toContain("src:local('AppleGothic')")
     expect(css).toContain("local('HiraginoSans-W3')")
-    expect(css.match(/size-adjust:120\.41%/g)).toHaveLength(2)
+    // Four rules per family, one per style (GDK-1743): eight in all.
+    expect(css.match(/size-adjust:120\.41%/g)).toHaveLength(8)
     expect(css).not.toContain('139.202')
     expect(css).not.toMatch(/url\(|https?:/)
+  })
+
+  it('declares each family for all four styles (GDK-1743)', () => {
+    // Without a font-weight descriptor a rule answers regular requests
+    // only, and WebKit resolved a bold cell past the correction to the raw
+    // face — measured -0.427px of xterm padding per syllable where regular
+    // read 0.0104px. The four descriptors are the fix; the factor is one
+    // factor, because a synthesised bold measures wider on a canvas than it
+    // renders, and correcting per style overshot to +0.448px.
+    const doc = fakeDoc('ko-KR')
+    installCjkMetricFaces({ stack: STACK, doc, measure })
+    const css = doc.getElementById('gadak-cjk-metric-faces')!.textContent!
+    for (const family of ['Gadak Terminal Hangul', 'Gadak Terminal Kana']) {
+      const rules = css.split('@font-face').filter((r) => r.includes(`'${family}'`))
+      expect(rules, `${family} needs one rule per style`).toHaveLength(4)
+      const seen = rules
+        .map((r) => `${/font-weight:(\d+)/.exec(r)?.[1]}/${/font-style:(\w+)/.exec(r)?.[1]}`)
+        .sort()
+      expect(seen).toEqual(['400/italic', '400/normal', '700/italic', '700/normal'])
+      // One factor across the four — a per-style factor was measured and
+      // rejected, so a rule that disagrees is a regression, not a refinement.
+      const pcts = new Set(rules.map((r) => /size-adjust:([\d.]+)%/.exec(r)?.[1]))
+      expect(pcts.size).toBe(1)
+    }
   })
 
   it('follows the document language for the shared Han block', () => {
@@ -280,7 +353,7 @@ describe('installCjkMetricFaces', () => {
     expect(doc.appended).toHaveLength(1)
     expect(
       doc.getElementById('gadak-cjk-metric-faces')!.textContent!.match(/@font-face/g),
-    ).toHaveLength(2)
+    ).toHaveLength(8) // two families x four styles, written once (GDK-1743)
   })
 
   it('hands back the stack untouched when no CJK face is installed', () => {
