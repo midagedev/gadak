@@ -24,6 +24,7 @@
   import BreakdownBar from './BreakdownBar.svelte'
   import SessionStrip from './SessionStrip.svelte'
   import IssueList from './IssueList.svelte'
+  import FirstSyncBand from './FirstSyncBand.svelte'
     import BoardView from '../board/BoardView.svelte'
   import IssueRow from './IssueRow.svelte'
   import MatchLine from './MatchLine.svelte'
@@ -237,11 +238,24 @@
     </SearchSection>
   {/if}
 
+  <!-- First-sync band: directly above the rows, below the toolbar (GDK-1677).
+       Hidden while onboarding for the same reason the toolbar is — the wizard
+       owns the pane, and a band under it would narrate a sync the wizard is
+       already speaking for. -->
+  {#if !needsOnboarding}
+    <FirstSyncBand />
+  {/if}
+
   <!-- List / empty state -->
   <div class="min-h-0 flex-1">
     {#if visibleCount === 0 || needsOnboarding}
       {#if needsOnboarding}
         <Onboarding onOpenSettings={() => onOpenSettings?.()} />
+      {:else if issues.firstSync && issues.pool.size === 0}
+        <!-- GDK-1677: a first sync is filling an empty pool — the band above
+             is the sentence. Any empty state here would say "no issues" about
+             issues that are arriving, which is exactly the misread the band
+             exists to prevent. -->
       {:else if issues.pool.size === 0 && !hasActiveQueryOrFilter && isBuiltIn(config())}
         <!-- A built-in tracker has nothing to sync from; its first issue is
              written, not fetched (GDK-1342). -->

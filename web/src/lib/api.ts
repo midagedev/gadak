@@ -708,6 +708,25 @@ export interface SyncProgress {
     changed: number
     started_at: string
   }
+  /**
+   * A first sync filling an empty mirror (GDK-1677) — the list commits
+   * pages newest-first while it runs, so the screen needs to say "arriving"
+   * or a partial list reads as the whole project. Present only while that
+   * first sync is running; a later full re-sync of a filled mirror does not
+   * carry it. Absent means "no first sync" — older servers never send the
+   * field, and the UI must read that as "no band", never as "finished".
+   */
+  first_sync?: {
+    in_progress: boolean
+    /** issues | documents — which source the counts below describe. */
+    phase: string
+    fetched: number
+    /** Absent → no denominator ("1,200 so far"). */
+    total?: number
+    /** Confluence is configured and has not started ("wiki next"). */
+    wiki_pending?: boolean
+    started_at: string
+  }
 }
 
 /** Verify site+email+token via /myself, then store. Failures distinguished by ApiError.code. */

@@ -115,6 +115,17 @@ class IssuesStore {
     fetched: 0,
   })
 
+  /**
+   * A first sync filling an empty mirror, landed by the same progress poll
+   * as mirrorActivity (GDK-1677). The band above the list rows is its only
+   * reader. Null whenever the server does not send first_sync — absent
+   * means "no first sync" (older server, or the mirror was never empty),
+   * and a value already held is cleared by the first answer without the
+   * field, so the band disappears the poll after the sync ends. Inspectable
+   * from the console like mirrorActivity.
+   */
+  firstSync = $state<NonNullable<api.SyncProgress['first_sync']> | null>(null)
+
   /** True when anything is fetching: this tab's pull, or the background loop. */
   get mirrorBusy(): boolean {
     return this.mirrorSyncing || this.mirrorActivity.running
@@ -444,7 +455,14 @@ class IssuesStore {
       let busy = false
       if (document.visibilityState === 'visible') {
         try {
-          const a = (await api.getSyncProgress()).activity
+          const progress = await api.getSyncProgress()
+          // Absent must clear a held value, not just never set one: the band
+          // disappears the poll after first_sync stops arriving (GDK-1677).
+          // in_progress:false is treated the same way — the field is only
+          // promised while a first sync runs.
+          const first = progress.first_sync
+          this.firstSync = first && first.in_progress ? first : null
+          const a = progress.activity
           if (a) {
             const ended = this.mirrorActivity.running && !a.running
             const startedMs = Date.parse(a.started_at)
@@ -465,9 +483,14 @@ class IssuesStore {
             if (a.source === 'documents' || ended) this.#mirrorBatch?.()
           }
         } catch {
-          /* progress is advisory: a failure here must not surface anywhere */
+          /* progress is advisory: a failed poll keeps the last answer — a
+           * first sync does not stop being in flight because one poll 404'd. */
         }
       }
+      // A first sync is the other thing worth the busy cadence: its band's
+      // count is the difference between a long sync and a hung one, exactly
+      // like activity's (GDK-1677).
+      if (this.firstSync) busy = true
       this.#activityTimer = setTimeout(tick, busy ? ACTIVITY_BUSY_MS : ACTIVITY_IDLE_MS)
     }
     this.#activityTimer = setTimeout(tick, 0)

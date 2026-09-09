@@ -584,6 +584,35 @@ export const shell = {
     ko: 'API 토큰 만료됨',
     ja: 'API token の期限切れ',
   },
+  /* ── First-sync band (GDK-1677): one line while a first sync fills an
+     empty mirror. Counts arrive pre-formatted (formatNumber); the wiki-next
+     tail is its own key so a mirror without a configured wiki drops it
+     without a fourth sentence per row. ── */
+  'firstSync.issues': {
+    en: 'Recent issues first · {fetched} / {total}',
+    ko: '최근 이슈부터 채우는 중 · {fetched} / {total}',
+    ja: '新しい課題から取得中 · {fetched} / {total}',
+  },
+  'firstSync.issuesNoTotal': {
+    en: 'Recent issues first · {fetched} so far',
+    ko: '최근 이슈부터 채우는 중 · 지금까지 {fetched}',
+    ja: '新しい課題から取得中 · これまで {fetched}',
+  },
+  'firstSync.documents': {
+    en: 'Issues done · wiki {fetched} / {total}',
+    ko: '이슈 완료 · 위키 {fetched} / {total}',
+    ja: '課題は完了 · Wiki {fetched} / {total}',
+  },
+  'firstSync.documentsNoTotal': {
+    en: 'Issues done · wiki {fetched} so far',
+    ko: '이슈 완료 · 위키 지금까지 {fetched}',
+    ja: '課題は完了 · Wiki これまで {fetched}',
+  },
+  'firstSync.wikiNext': {
+    en: 'wiki next',
+    ko: '다음은 위키',
+    ja: '次は Wiki',
+  },
   /* ── Builtin views ── */
   'view.myWork.name': {
     en: 'My issues',
