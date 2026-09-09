@@ -3388,6 +3388,9 @@
   "catalog:component:SDK": "SDK",
   "catalog:component:Triage": "분류",
   "catalog:component:Webhooks": "웹훅",
-  "catalog:component:Workers": "워커"
+  "catalog:component:Workers": "워커",
+  "catalog:sprint:41": "스프린트 41",
+  "catalog:sprint:42": "스프린트 42",
+  "catalog:sprint:43": "스프린트 43"
  }
 }

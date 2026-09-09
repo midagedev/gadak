@@ -3388,6 +3388,9 @@
   "catalog:component:SDK": "SDK",
   "catalog:component:Triage": "トリアージ",
   "catalog:component:Webhooks": "Webhook",
-  "catalog:component:Workers": "ワーカー"
+  "catalog:component:Workers": "ワーカー",
+  "catalog:sprint:41": "スプリント 41",
+  "catalog:sprint:42": "スプリント 42",
+  "catalog:sprint:43": "スプリント 43"
  }
 }

@@ -153,6 +153,12 @@ def main() -> int:
             con.execute("UPDATE issues_raw SET priority = ? WHERE priority = ?", (v, p[2]))
         elif p[1] == "type":
             con.execute("UPDATE issues_raw SET issue_type = ? WHERE issue_type_id = ?", (v, p[2]))
+        elif p[1] == "sprint":
+            # Two copies of one name: the sprints row the board's scope reads
+            # and the projection on the issue (GDK-1686). Both, or the frame
+            # disagrees with itself.
+            con.execute("UPDATE sprints SET name = ? WHERE id = ?", (v, p[2]))
+            con.execute("UPDATE issues_raw SET sprint_name = ? WHERE sprint_id = ?", (v, p[2]))
     comp = {k.split(":", 2)[2]: v for k, v in tr.items() if k.startswith("catalog:component:")}
     if comp:
         for item_id, cj in con.execute("SELECT item_id, components FROM issues_raw WHERE components IS NOT NULL AND components != '[]'").fetchall():

@@ -15,6 +15,7 @@ way applies without any English-string matching:
   catalog:priority:<name>              issues_raw.priority display name (the fixture has no priority ids)
   catalog:type:<issue_type_id>         issues_raw.issue_type display name
   catalog:component:<name>             a components[] entry
+  catalog:sprint:<sprint_id>           sprints.name (and the issues_raw.sprint_name copy)
 
 Text nodes are the unit because ADF marks (links, code) split a sentence into
 nodes; a translator sees the nodes of one document together, in order, so the
@@ -67,6 +68,12 @@ def extract(db: Path) -> dict:
         s[f"catalog:priority:{name}"] = name
     for tid, name in con.execute("SELECT DISTINCT issue_type_id, issue_type FROM issues_raw WHERE issue_type_id != '' ORDER BY 1"):
         s[f"catalog:type:{tid}"] = name
+    # Sprint names live in two places and neither was translated, so a ko
+    # frame read "범위 Sprint 42 백로그 전체" (GDK-1686). Keyed by the sprint
+    # id, never the name: the name is the display string being replaced.
+    for sid, name in con.execute(
+        "SELECT id, name FROM sprints WHERE name IS NOT NULL AND name != '' ORDER BY 1"):
+        s[f"catalog:sprint:{sid}"] = name
     comps = set()
     for (c,) in con.execute("SELECT components FROM issues_raw WHERE components IS NOT NULL"):
         for name in json.loads(c or "[]"): comps.add(name)
