@@ -19,6 +19,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/midagedev/gadak/internal/atomicfile"
 	"github.com/midagedev/gadak/internal/fsperm"
@@ -540,9 +541,31 @@ func ReloadWorkspaceFromEnv() {
 	workspaceEnvName = ""
 }
 
-// homeRoot is GADAK_HOME, else SCRY_HOME, else ~/.gadak. An existing ~/.scry
-// directory is renamed to ~/.gadak on first use so a pre-rename install keeps
-// its mirror. Shared by DirFor and Profiles.
+// devBuild is set once at boot by each main (SetDevBuild) from
+// skillinstall.IsDevBuild — config must not own the version. Off by default,
+// so tests and tools that never call it keep ~/.gadak.
+var devBuild atomic.Bool
+
+// SetDevBuild tells config whether this binary is a checkout build. A dev
+// build's default home is ~/.gadak-dev (DevDirName), not ~/.gadak, so the
+// installed release and the checkout never open the same workspace files
+// unless GADAK_HOME says so explicitly (GDK-1697; the in-place forward
+// migration of GDK-1687 was the incident). Call it before the first
+// homeRoot — in practice the first line of main.
+func SetDevBuild(dev bool) { devBuild.Store(dev) }
+
+// DevHome reports whether the default home is the dev one (SetDevBuild was
+// called with true and GADAK_HOME is unset). doctor prints it.
+func DevHome() bool { return devBuild.Load() && Env("HOME") == "" }
+
+// HomeRoot is the directory the default profile lives in: GADAK_HOME, else
+// ~/.gadak-dev for a dev build, else ~/.gadak.
+func HomeRoot() (string, error) { return homeRoot() }
+
+// homeRoot is GADAK_HOME, else SCRY_HOME, else ~/.gadak-dev on a dev build,
+// else ~/.gadak. An existing ~/.scry directory is renamed to ~/.gadak on
+// first use so a pre-rename install keeps its mirror — the dev home has no
+// legacy to migrate and skips that. Shared by DirFor and Profiles.
 func homeRoot() (string, error) {
 	if base := Env("HOME"); base != "" {
 		return base, nil
@@ -550,6 +573,9 @@ func homeRoot() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
+	}
+	if devBuild.Load() {
+		return filepath.Join(home, DevDirName), nil
 	}
 	next := filepath.Join(home, DirName)
 	prev := filepath.Join(home, LegacyDirName)

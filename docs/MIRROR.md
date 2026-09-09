@@ -20,7 +20,10 @@ it refuses, naming both schema versions and both ways out in the error
 release working. To migrate anyway, set `GADAK_DEV_MIGRATE=1`; to experiment
 without deciding for the release, work on a copy of the profile directory as
 the error's one-liner shows. Release builds migrate on open as they always
-did.
+did. Sharing is the exception now, not the default: with `GADAK_HOME` unset
+a dev build lives in `~/.gadak-dev`, the release in `~/.gadak`, and
+`gadak doctor` prints `home` with the reason (`dev build` or `GADAK_HOME`).
+Point a dev build at the real home only on purpose, with `GADAK_HOME`.
 
 Four layers. Use the lowest one that answers the question:
 

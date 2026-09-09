@@ -15,8 +15,9 @@ func TestIsDevBuild(t *testing.T) {
 	}{
 		{DevVersion, true},
 		{" 0.0.0-dev\n", true},
-		{"", true},   // no build information at all is not trustworthy
-		{"  ", true}, // ditto
+		{"", true},    // no build information at all is not trustworthy
+		{"  ", true},  // ditto
+		{"dev", true}, // desktop/main.go's unstamped appVersion (GDK-1697)
 		{"0.20.2", false},
 		{"1.0.0-rc.1", false},
 		{"v0.19.3", false},

@@ -35,6 +35,7 @@ import (
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/integrations"
 	"github.com/midagedev/gadak/internal/server"
+	"github.com/midagedev/gadak/internal/skillinstall"
 	gadaksync "github.com/midagedev/gadak/internal/sync"
 	"github.com/midagedev/gadak/internal/workspace"
 )
@@ -49,6 +50,9 @@ func main() {
 	// Importing internal/config no longer selects a workspace (GDK-644);
 	// each main reads GADAK_WORKSPACE/GADAK_PROFILE/SCRY_PROFILE itself —
 	// this is what makes `GADAK_PROFILE=work open -a Gadak` work.
+	// A local build lives in ~/.gadak-dev unless GADAK_HOME says otherwise
+	// (GDK-1697); decided before the log dir below resolves a path.
+	config.SetDevBuild(skillinstall.IsDevBuild(appVersion))
 	apprun.SelectWorkspace()
 	if dir, err := config.DirFor(""); err != nil {
 		fmt.Fprintf(os.Stderr, "gadak: logs: %v\n", err)

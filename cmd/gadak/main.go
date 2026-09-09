@@ -259,7 +259,10 @@ Workspaces keep separate credentials and mirrors (e.g. work and demo):
 
 func main() {
 	log.SetFlags(0)
-	// Installed first: every store.Open below — the workspace registry serve
+	// A checkout build lives in ~/.gadak-dev unless GADAK_HOME says
+	// otherwise (GDK-1697) — before anything resolves a path.
+	config.SetDevBuild(skillinstall.IsDevBuild(version))
+	// Installed next: every store.Open below — the workspace registry serve
 	// builds, the MCP server, originbind — inherits the dev-lockout policy.
 	store.SetDefaultOpenOptions(storeOpenOptions())
 	apprun.SelectWorkspace()
