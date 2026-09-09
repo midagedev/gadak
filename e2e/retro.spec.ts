@@ -58,4 +58,55 @@ test.describe('weekly retro view', () => {
     await expect.poll(() => page.url()).toContain('ks=')
     expect(metric).toBeTruthy()
   })
+  /*
+   * GDK-1679: the report knows why a cell is empty and the CLI has always
+   * printed it; this view showed the dashes and dropped the sentence, so a
+   * mirror with no status_catalog read as a broken feature. Now that the demo
+   * fixture derives a catalog the real server never sends a note, so the note
+   * is stubbed — this is the FAIL-first for the half that was actually broken.
+   */
+  test('a report that names a missing table prints that reason under the table', async ({ page }) => {
+    const NOTE =
+      'empty — weeks before the current one show no value for wip age p85, wip age max and in progress, and closed shows none everywhere; a sync fills the table'
+    await page.route('**/api/v1/issues/retro/**', async (route) => {
+      const res = await route.fetch()
+      const body = await res.json()
+      body.notes = [{ name: 'status_catalog', text: NOTE }]
+      await route.fulfill({ response: res, json: body })
+    })
+    await gotoApp(page)
+    await page.goto('/#/?retro=1')
+    await expect(page.getByTestId('retro-view')).toBeVisible()
+
+    const notes = page.getByTestId('retro-notes')
+    await expect(notes).toBeVisible()
+    await expect(notes).toContainText('status_catalog')
+    await expect(notes).toContainText('a sync fills the table')
+  })
+
+  /*
+   * And the empty state must not swallow it: a cold mirror has no sessions,
+   * no closures and nothing in progress, which is exactly when the reason
+   * matters most. "No sessions in this range" there blames sessions for a
+   * missing table (GDK-1679).
+   */
+  test('an empty report with a reason shows the reason, not the empty copy', async ({ page }) => {
+    await page.route('**/api/v1/issues/retro/**', async (route) => {
+      const res = await route.fetch()
+      const body = await res.json()
+      body.buckets = body.buckets.map((b: Record<string, unknown>) => ({
+        ...b,
+        sessions: 0,
+        closed: null,
+        'in progress': null,
+      }))
+      body.notes = [{ name: 'status_catalog', text: 'empty — a sync fills the table' }]
+      await route.fulfill({ response: res, json: body })
+    })
+    await gotoApp(page)
+    await page.goto('/#/?retro=1')
+
+    await expect(page.getByTestId('retro-notes')).toContainText('a sync fills the table')
+    await expect(page.getByTestId('retro-table')).toBeVisible()
+  })
 })

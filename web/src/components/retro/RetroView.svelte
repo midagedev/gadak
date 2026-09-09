@@ -60,7 +60,16 @@
   ]
 
   const buckets = $derived(doc?.buckets ?? [])
-  const empty = $derived(buckets.every((b) => b.sessions === 0 && !b.closed && !b['in progress']))
+  // The report's own empty-cell reasons, printed under the table the way the
+  // CLI prints them under its own (GDK-1679).
+  const notes = $derived(doc?.notes ?? [])
+  // A report that carries a note is never "empty": the note is the answer.
+  // Without this, a cold mirror — no status_catalog, no visits — got
+  // "No sessions in this range", which blames sessions for a missing table
+  // and hides the one sentence that says what to do (GDK-1679).
+  const empty = $derived(
+    notes.length === 0 && buckets.every((b) => b.sessions === 0 && !b.closed && !b['in progress']),
+  )
 
   function weekLabel(b: RetroBucket): string {
     const from = new Date(b.from)
@@ -148,7 +157,7 @@
                 title={doc.definitions[m.key] ?? ''}
               >
                 <div class="text-body text-text-primary">{m.label}</div>
-                <div class="mt-0.5 line-clamp-2 text-micro leading-snug text-text-muted">{doc.definitions[m.key] ?? ''}</div>
+                <div class="mt-0.5 text-micro leading-snug text-text-muted">{doc.definitions[m.key] ?? ''}</div>
               </th>
               {#each buckets as b (b.from)}
                 {@const keys = keysOf(b, m)}
@@ -174,6 +183,16 @@
           {/each}
         </tbody>
       </table>
+      {#if notes.length}
+        <dl class="mt-4 max-w-[720px] border-t border-border-subtle pt-3 text-micro leading-snug text-text-muted" data-testid="retro-notes">
+          {#each notes as n (n.name)}
+            <div class="mt-1 first:mt-0">
+              <dt class="inline font-medium text-text-secondary">{n.name}</dt>
+              <dd class="inline">: {n.text}</dd>
+            </div>
+          {/each}
+        </dl>
+      {/if}
     </div>
   {/if}
 </section>

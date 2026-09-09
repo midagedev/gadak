@@ -1136,3 +1136,54 @@ func TestInsertRowNotNullDefaults(t *testing.T) {
 		}
 	}
 }
+
+// GDK-1680: status_catalog is a sync artifact, so nothing in the snapshot
+// pipeline ever wrote it and the committed fixture shipped with zero rows.
+// `gadak retro` resolves changelog status ids through that table, so on the
+// demo fixture `closed` was a dash in every week and `in progress` and the
+// wip-age rows had a value only for the current one — the retro screen showed
+// nothing true about the only mirror most people ever open. The catalog is now
+// derived from the statuses the destination's own issues carry.
+func TestSnapshotDerivesStatusCatalog(t *testing.T) {
+	src := seedSource(t, seedOpts{})
+	out := filepath.Join(t.TempDir(), "snap.db")
+	if _, err := Build(Options{From: src, Out: out, Seed: 1, Now: time.Date(2026, 8, 5, 12, 0, 0, 0, time.UTC)}); err != nil {
+		t.Fatal(err)
+	}
+	dstDB := openRO(t, out)
+	defer dstDB.Close()
+
+	// Every (status_id, category) an issue holds is in the catalog, keyed the
+	// way retro reads it: by the item's source, never by display name.
+	rows, err := dstDB.Query(`
+		SELECT DISTINCT it.source_id, i.status_id, i.status_category
+		FROM issues_raw i JOIN items it ON it.id = i.item_id
+		WHERE i.status_id != '' AND i.status_category != ''`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	seen := 0
+	for rows.Next() {
+		var source, id, cat string
+		if err := rows.Scan(&source, &id, &cat); err != nil {
+			t.Fatal(err)
+		}
+		seen++
+		var got string
+		if err := dstDB.QueryRow(
+			`SELECT category FROM status_catalog WHERE source_id = ? AND status_id = ?`, source, id,
+		).Scan(&got); err != nil {
+			t.Fatalf("status_catalog has no row for %s/%s (category %s): %v", source, id, cat, err)
+		}
+		if got != cat {
+			t.Errorf("status_catalog[%s/%s] = %q, want the issues row's %q", source, id, got, cat)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if seen == 0 {
+		t.Fatal("the seed carries no status ids — this test would pass vacuously")
+	}
+}

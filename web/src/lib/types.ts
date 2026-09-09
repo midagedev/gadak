@@ -566,6 +566,14 @@ export interface RetroDoc {
   buckets: RetroBucket[]
   /** Definition sentence per metric row name, the footer `gadak retro` prints. */
   definitions: Record<string, string>
+  /**
+   * Why cells are empty, in the report's own order (GDK-1679). `definitions`
+   * carries these too, but keyed by a name that is not a metric row — so a
+   * table that looks a definition up per row drops them, which is how a
+   * mirror with no `status_catalog` rendered as a wall of dashes with the
+   * reason sitting unread in the payload. Absent on an older server.
+   */
+  notes?: { name: string; text: string }[]
 }
 
 /* ── Mirrored wiki pages (docs) ── */

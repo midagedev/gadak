@@ -202,3 +202,30 @@ func sortedKeys[V any](m map[string]V) []string {
 	sort.Strings(out)
 	return out
 }
+
+// deriveStatusCatalog fills status_catalog from the statuses the destination's
+// own issues carry (GDK-1680).
+//
+// The table is a sync artifact — a real mirror gets it from the origin's
+// /status route — so nothing in a snapshot pipeline ever wrote it, and the
+// committed fixture shipped with zero rows. That is not cosmetic: `gadak
+// retro` resolves changelog status ids through this table, so on the demo
+// fixture `closed` was a dash in every week and `in progress` and the wip-age
+// rows had a value only for the current one. The retro screen — a headline
+// surface — showed nothing true about the only mirror most people ever see.
+//
+// Every fact needed is already on the rows: `issues` carries `status_id` next
+// to `status_category` for each status in use, and the fixture's changelog
+// only ever names those same ids (measured on examples/demo.db: four ids in
+// `issues`, the same four in `changelog.from_id`/`to_id`). So the catalog is
+// derived rather than invented. A status that no issue currently holds would
+// be missing, which is the honest limit of deriving: it cannot know about one
+// that left no trace.
+func deriveStatusCatalog(tx *sql.Tx) error {
+	_, err := tx.Exec(`
+		INSERT OR IGNORE INTO status_catalog (source_id, status_id, category)
+		SELECT DISTINCT it.source_id, i.status_id, i.status_category
+		FROM issues_raw i JOIN items it ON it.id = i.item_id
+		WHERE i.status_id != '' AND i.status_category != ''`)
+	return err
+}

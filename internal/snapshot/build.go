@@ -168,6 +168,14 @@ func buildInto(tmp string, opts Options) (rotationStats, error) {
 		}
 	}
 
+	// status_catalog is a sync artifact no snapshot ever carried, and retro
+	// resolves the changelog through it — see deriveStatusCatalog (GDK-1680).
+	// Unconditional: a snapshot with issues always has the statuses to derive
+	// it from, and an empty table is never the right answer.
+	if err := deriveStatusCatalog(tx); err != nil {
+		return rot, fmt.Errorf("derive status catalog: %w", err)
+	}
+
 	// Documents: kind=page items + pages projection + their comments.
 	// No scale/clone (scale is an issue-volume tool); timestamps kept as source.
 	pages, err := loadPages(src)

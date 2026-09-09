@@ -1180,18 +1180,33 @@ func (r Report) Definitions() [][2]string {
 		[2]string{"wip age max", "the oldest in-progress issue at week end, in days"},
 		[2]string{"in progress", "issues in progress at week end"},
 		[2]string{"closed", "issues that entered a done status during the week (status ids resolved through status_catalog)"},
-		[2]string{"cycle p50", "median of cycle_hours — first entry into progress to the latest done entry (DERIVE.md) — in days, over issues resolved during the week that are done now and were never reopened (reopen_count = 0)"},
-		[2]string{"cycle p85", "nearest-rank 85th percentile of cycle_hours — first entry into progress to the latest done entry (DERIVE.md) — in days, over issues resolved during the week that are done now and were never reopened (reopen_count = 0)"},
+		[2]string{"cycle p50", "median of cycle_hours — first entry into progress to the latest done entry — in days, over issues resolved during the week that are done now and were never reopened (reopen_count = 0)"},
+		[2]string{"cycle p85", "nearest-rank 85th percentile of cycle_hours — first entry into progress to the latest done entry — in days, over issues resolved during the week that are done now and were never reopened (reopen_count = 0)"},
 		[2]string{"mismatch", "comments claiming the work is finished on issues not done now (heuristic: a done-word standing on its own, negations and quoted text excluded; only comments newer than the issue's last status change count)"},
 		[2]string{"change", "percentage for resume, wip age and cycle rows, signed count for the rest; n/a when the previous week has no value"},
 	)
-	if r.CatalogEmpty {
-		defs = append(defs, [2]string{"status_catalog", "empty — weeks before the current one show no value for wip age p85, wip age max and in progress, and closed shows none everywhere; a sync fills the table"})
-	}
-	if r.CycleUnavailable {
-		defs = append(defs, [2]string{"cycle", "mirror predates cycle_hours — run gadak sync to migrate"})
+	for _, n := range r.Notes() {
+		defs = append(defs, n)
 	}
 	return defs
+}
+
+// Notes is the subset of Definitions that explains why cells are empty
+// rather than what a metric counts (GDK-1679). Definitions carries them too,
+// so the CLI footer is unchanged — but a surface that renders one definition
+// per metric row has nowhere to put a line whose name is not a row, and the
+// web dropped both of these on the floor: a table of dashes with the reason
+// already computed and already in the payload. This is the list a reader
+// needs beside the table, in the order the report decides them.
+func (r Report) Notes() [][2]string {
+	var out [][2]string
+	if r.CatalogEmpty {
+		out = append(out, [2]string{"status_catalog", "empty — weeks before the current one show no value for wip age p85, wip age max and in progress, and closed shows none everywhere; a sync fills the table"})
+	}
+	if r.CycleUnavailable {
+		out = append(out, [2]string{"cycle", "mirror predates cycle_hours — run gadak sync to migrate"})
+	}
+	return out
 }
 
 // changePct is the change cell for resume and wip age p85.
@@ -1371,6 +1386,18 @@ type BucketJSON struct {
 type Doc struct {
 	Buckets     []BucketJSON      `json:"buckets"`
 	Definitions map[string]string `json:"definitions"`
+	// Notes is Definitions' empty-cell half, kept as an ordered array: a
+	// map cannot say which entries are reasons rather than metric
+	// definitions, and the renderer needs exactly that (GDK-1679). Each
+	// entry is the name and the sentence, the same pair the CLI footer
+	// prints. Empty when nothing is missing.
+	Notes []DocNote `json:"notes"`
+}
+
+// DocNote is one entry of Doc.Notes.
+type DocNote struct {
+	Name string `json:"name"`
+	Text string `json:"text"`
 }
 
 // capKeys caps one key array at MaxJSONKeys.
@@ -1410,6 +1437,9 @@ func (r Report) JSON() Doc {
 	}
 	for _, d := range r.Definitions() {
 		out.Definitions[d[0]] = d[1]
+	}
+	for _, n := range r.Notes() {
+		out.Notes = append(out.Notes, DocNote{Name: n[0], Text: n[1]})
 	}
 	for _, b := range r.Buckets {
 		j := BucketJSON{

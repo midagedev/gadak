@@ -129,7 +129,11 @@ views open --jql 'sprint in openSprints()'` lands on the same board. The
 filter bar gains a Sprint axis (by name) and a Sprint state axis, the detail
 panel shows the sprint, and `sprint is EMPTY`, the backlog, now round-trips
 through the view grammar as `sprint_state=none`. The demo fixture carries
-three derived sprints so the scope has something to show ([GDK-1656]).
+three derived sprints so the scope has something to show ([GDK-1656]). The
+scope names its own axis, too: it shipped as three bare words beside controls
+that all name theirs, and read as sprints only because the demo's active
+sprint is called "Sprint 42" — on a Linear origin the same row is "Cycle 1 ·
+Backlog · All" ([GDK-1682]).
 
 Linear's cycles are sprints as well. A Linear workspace now fills the same
   three sprint columns every other origin does, and lists its cycles as
@@ -147,7 +151,25 @@ size of real ones, and one fewer outbound call.** `gadak retro`'s document
 was served for a surface that never came. It is here now: the palette's
 *Weekly retro* opens a calm table, one column per week, one row per metric
 with its definition underneath. A cell that holds issues is a door onto that
-list. Four, eight or twelve weeks ([GDK-1660]). An optional capability no
+list. Four, eight or twelve weeks ([GDK-1660]). It says why a cell is empty,
+which the CLI has always done and the screen did not: a mirror with no
+`status_catalog` cannot resolve which statuses mean done, so `closed` has
+nothing to say, and the reason was computed, sitting in the payload, and
+unread. It travels as its own list now and prints under the table where the
+CLI prints it, including on a cold mirror, which used to answer "No sessions
+in this range" and blame sessions for a missing table. The metric definitions
+stopped being cut off mid-condition on a page that was mostly empty, and
+stopped naming a file in this repository ([GDK-1679], [GDK-1681]). The demo
+mirror has a status catalog at last — it is a sync artifact, so no snapshot
+ever wrote one and the shipped fixture had zero rows, which is why the retro
+screen had a dash where every week's closed count belongs on the one mirror
+most people open. Derived from the statuses the snapshot's own issues carry,
+it gives `closed`, `in progress` and both wip-age rows a value in every week
+([GDK-1680]). One stamp behind all of that pointed at nothing:
+`status_changed_at` is derived from the changelog, and the backfill computed
+it and then wrote only its three neighbours, so in a snapshot — column copied,
+changelog re-timed — it drifted onto an instant no transition happened
+([GDK-1684]). An optional capability no
 longer disappears when the actor trailer is on: the wrapper that appends an
 agent's signature to comments embeds the writer, and an embedded interface
 promotes only the methods that interface declares, so versions, issue links,
@@ -1730,6 +1752,11 @@ priority sorting keyed on `priority_rank`.
 [GDK-1662]: https://gadak.dev/backlog/#/?ks=GDK-1662
 [GDK-1666]: https://gadak.dev/backlog/#/?ks=GDK-1666
 [GDK-1667]: https://gadak.dev/backlog/#/?ks=GDK-1667
+[GDK-1679]: https://gadak.dev/backlog/#/?ks=GDK-1679
+[GDK-1680]: https://gadak.dev/backlog/#/?ks=GDK-1680
+[GDK-1681]: https://gadak.dev/backlog/#/?ks=GDK-1681
+[GDK-1682]: https://gadak.dev/backlog/#/?ks=GDK-1682
+[GDK-1684]: https://gadak.dev/backlog/#/?ks=GDK-1684
 [GDK-1672]: https://gadak.dev/backlog/#/?ks=GDK-1672
 [GDK-1673]: https://gadak.dev/backlog/#/?ks=GDK-1673
 [GDK-1678]: https://gadak.dev/backlog/#/?ks=GDK-1678

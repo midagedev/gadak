@@ -789,3 +789,55 @@ func TestTableAndJSONRoundDaysTheSameWay(t *testing.T) {
 		}
 	}
 }
+
+// GDK-1679: the report knows why cells are empty, and until now only the CLI
+// footer said so. Definitions carries those lines keyed by a name that is not
+// a metric row, so a table rendering one definition per row dropped them —
+// the web showed a wall of dashes with the reason already computed and
+// already in the payload. Notes is that half as its own ordered list, and
+// JSON carries it.
+func TestNotesCarryTheEmptyCellReasons(t *testing.T) {
+	quiet := Report{}
+	if len(quiet.Notes()) != 0 {
+		t.Errorf("a report with nothing missing has notes %v, want none", quiet.Notes())
+	}
+	if len(quiet.JSON().Notes) != 0 {
+		t.Errorf("JSON notes = %v, want none", quiet.JSON().Notes)
+	}
+
+	r := Report{CatalogEmpty: true, CycleUnavailable: true}
+	notes := r.Notes()
+	if len(notes) != 2 {
+		t.Fatalf("notes = %v, want the catalog and cycle lines", notes)
+	}
+	if notes[0][0] != "status_catalog" || notes[1][0] != "cycle" {
+		t.Errorf("note names = %q/%q, want status_catalog then cycle", notes[0][0], notes[1][0])
+	}
+	// Same strings the CLI footer prints: Definitions must still carry them,
+	// so the two surfaces cannot drift into two wordings of one fact.
+	defs := map[string]string{}
+	for _, d := range r.Definitions() {
+		defs[d[0]] = d[1]
+	}
+	for _, n := range notes {
+		if defs[n[0]] != n[1] {
+			t.Errorf("definitions[%q] = %q, want the note's own %q", n[0], defs[n[0]], n[1])
+		}
+	}
+	doc := r.JSON().Notes
+	if len(doc) != 2 || doc[0].Name != "status_catalog" || doc[0].Text != notes[0][1] {
+		t.Errorf("JSON notes = %+v, want the same pairs", doc)
+	}
+}
+
+// The definitions a person reads should not send them to a file in this
+// repository (GDK-1681). Column and table names stay: they are the query
+// surface `gadak sql` exposes, and naming them is how a reader re-derives a
+// cell. A repo path is not that.
+func TestDefinitionsNameNoRepoFile(t *testing.T) {
+	for _, d := range (Report{CatalogEmpty: true, CycleUnavailable: true}).Definitions() {
+		if strings.Contains(d[1], ".md") {
+			t.Errorf("definition %q names a repository file: %q", d[0], d[1])
+		}
+	}
+}

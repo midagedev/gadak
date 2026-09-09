@@ -53,11 +53,22 @@
 
 {#if sprints.any}
   <div
-    class="inline-flex h-control-sm items-center gap-0.5 rounded-md border border-border-subtle p-0.5"
+    class="inline-flex h-control-sm items-center gap-0.5 rounded-md border border-border-subtle p-0.5 pl-2"
     role="group"
     aria-label={t('board.scopeLabel')}
     data-testid="sprint-scope"
   >
+    <!--
+      The axis, said out loud (GDK-1682). Every other control on this toolbar
+      names its own — "Breakdown Progress", "+ Filter", the sort — and this one
+      shipped as three bare words. It read as a sprint control only because the
+      fixture's active sprint happens to be called "Sprint 42"; on a Linear
+      origin the same row is "Cycle 1  Backlog  All", where nothing says sprint
+      at all. `board.scopeLabel` existed already but reached the aria-label only.
+    -->
+    <span class="mr-1 select-none text-micro font-medium text-text-muted" aria-hidden="true"
+      >{t('field.sprint')}</span
+    >
     {#each SEGMENTS as seg (seg.key)}
       <button
         type="button"
@@ -70,7 +81,7 @@
         title={seg.title()}
         onclick={() => set(seg.key)}
       >
-        <span class="max-w-[160px] truncate">{seg.label()}</span>
+        <span class="max-w-[120px] truncate">{seg.label()}</span>
       </button>
     {/each}
   </div>
