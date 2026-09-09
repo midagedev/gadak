@@ -89,3 +89,4 @@ mobile/e2e/.shots/
 # caught exactly that (GDK-1621 measurement round).
 .playwright-mcp/
 e2e/demo/test-results-sprint/
+e2e/demo/test-results-retro/

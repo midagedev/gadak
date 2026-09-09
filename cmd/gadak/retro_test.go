@@ -208,16 +208,17 @@ func TestRetroDemoDBTableAndJSONAgree(t *testing.T) {
 			!ok && resumeCell != "—" {
 			t.Fatalf("bucket %d resume: table %q vs JSON %v", bi, resumeCell, b["resume (median)"])
 		}
-		if v, ok := num("wip age p85"); ok && cell("wip age p85") != fmt.Sprintf("%.1fd", v) ||
+		if v, ok := num("wip age p85"); ok && cell("wip age p85") != retro.FormatDays(v) ||
 			!ok && cell("wip age p85") != "—" {
 			t.Fatalf("bucket %d wip: table %q vs JSON %v", bi, cell("wip age p85"), b["wip age p85"])
 		}
-		// wip age max and the cycle pair print the same %.1fd shape as p85.
+		// wip age max and the cycle pair print through the same formatter
+		// as p85 — days, or hours/minutes under a day (GDK-1683).
 		// FAIL-first (2026-09-07): before the rows existed the table lacked
 		// them and this loop indexed a nil row.
 		for _, row := range []string{"wip age max", "cycle p50", "cycle p85"} {
 			c := cell(row)
-			if v, ok := num(row); ok && c != fmt.Sprintf("%.1fd", v) || !ok && c != "—" {
+			if v, ok := num(row); ok && c != retro.FormatDays(v) || !ok && c != "—" {
 				t.Fatalf("bucket %d %s: table %q vs JSON %v", bi, row, c, b[row])
 			}
 		}

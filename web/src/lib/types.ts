@@ -574,6 +574,12 @@ export interface RetroDoc {
    * reason sitting unread in the payload. Absent on an older server.
    */
   notes?: { name: string; text: string }[]
+  /**
+   * The split gap the report ran with, trimmed ("30m", "1h30m"). The view
+   * writes its own translated definitions (GDK-1692) and this is the one
+   * value inside them that is not a constant. Absent on an older server.
+   */
+  session_gap?: string
 }
 
 /* ── Mirrored wiki pages (docs) ── */

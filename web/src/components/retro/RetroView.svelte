@@ -44,20 +44,30 @@
     /** JSON row name (also the definitions key). */
     key: keyof RetroBucket
     label: string
+    /**
+     * The sentence under the label. Written here, not read out of
+     * `doc.definitions` — that object is `internal/retro`'s CLI footer and
+     * is English on every locale, so the row labels translated and their
+     * definitions did not (GDK-1692).
+     */
+    def: string
     unit: 'count' | 'seconds' | 'days'
     /** Which key array opens the cell, if any. */
     keys?: 'closed' | 'in progress' | 'mismatch' | 'cycle'
   }
-  const METRICS: Metric[] = [
-    { key: 'sessions', label: t('retro.sessions'), unit: 'count' },
-    { key: 'resume (median)', label: t('retro.resume'), unit: 'seconds' },
-    { key: 'closed', label: t('retro.closed'), unit: 'count', keys: 'closed' },
-    { key: 'cycle p50', label: t('retro.cycleP50'), unit: 'days', keys: 'cycle' },
-    { key: 'cycle p85', label: t('retro.cycleP85'), unit: 'days', keys: 'cycle' },
-    { key: 'in progress', label: t('retro.inProgress'), unit: 'count', keys: 'in progress' },
-    { key: 'wip age max', label: t('retro.wipAge'), unit: 'days' },
-    { key: 'mismatch', label: t('retro.mismatch'), unit: 'count', keys: 'mismatch' },
-  ]
+  // The split gap the report ran with, as the report states it — never a
+  // literal in the translation, because --session-gap moves it.
+  const gap = $derived(doc?.session_gap ?? '30m')
+  const METRICS: Metric[] = $derived([
+    { key: 'sessions', label: t('retro.sessions'), def: t('retro.def.sessions', { gap }), unit: 'count' },
+    { key: 'resume (median)', label: t('retro.resume'), def: t('retro.def.resume'), unit: 'seconds' },
+    { key: 'closed', label: t('retro.closed'), def: t('retro.def.closed'), unit: 'count', keys: 'closed' },
+    { key: 'cycle p50', label: t('retro.cycleP50'), def: t('retro.def.cycleP50'), unit: 'days', keys: 'cycle' },
+    { key: 'cycle p85', label: t('retro.cycleP85'), def: t('retro.def.cycleP85'), unit: 'days', keys: 'cycle' },
+    { key: 'in progress', label: t('retro.inProgress'), def: t('retro.def.inProgress'), unit: 'count', keys: 'in progress' },
+    { key: 'wip age max', label: t('retro.wipAge'), def: t('retro.def.wipAge'), unit: 'days' },
+    { key: 'mismatch', label: t('retro.mismatch'), def: t('retro.def.mismatch'), unit: 'count', keys: 'mismatch' },
+  ])
 
   const buckets = $derived(doc?.buckets ?? [])
   // The report's own empty-cell reasons, printed under the table the way the
@@ -91,7 +101,14 @@
       return `${(v / 3600).toFixed(1)}h`
     }
     // days: the JSON is already rounded the way the CLI table prints it.
-    return `${v.toFixed(1)}d`
+    // Days alone swallow anything faster than a day — a team closing in
+    // four hours read "0.0d" — so the ladder steps down the same way
+    // `retro.FormatDays` does on the CLI side (GDK-1683). Keep the two in
+    // step: they are the same number on two surfaces.
+    if (v >= 1) return `${v.toFixed(1)}d`
+    const h = v * 24
+    if (h >= 1) return `${h.toFixed(1)}h`
+    return `${Math.round(h * 60)}m`
   }
 
   function keysOf(b: RetroBucket, m: Metric): string[] {
@@ -154,10 +171,10 @@
             <tr class="border-t border-border-subtle">
               <th
                 class="sticky left-0 z-10 max-w-[260px] bg-bg-base py-2 pr-6 text-left align-top font-normal"
-                title={doc.definitions[m.key] ?? ''}
+                title={m.def}
               >
                 <div class="text-body text-text-primary">{m.label}</div>
-                <div class="mt-0.5 text-micro leading-snug text-text-muted">{doc.definitions[m.key] ?? ''}</div>
+                <div class="mt-0.5 text-micro leading-snug text-text-muted">{m.def}</div>
               </th>
               {#each buckets as b (b.from)}
                 {@const keys = keysOf(b, m)}

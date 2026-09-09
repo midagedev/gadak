@@ -771,7 +771,7 @@ func TestTableAndJSONRoundDaysTheSameWay(t *testing.T) {
 		{"cycle p50", doc.Buckets[0].CycleP50},
 		{"cycle p85", doc.Buckets[0].CycleP85},
 	} {
-		want := fmt.Sprintf("%.1fd", *row.json)
+		want := FormatDays(*row.json)
 		var line string
 		for _, l := range strings.Split(table, "\n") {
 			if l == "definitions:" {
@@ -838,6 +838,28 @@ func TestDefinitionsNameNoRepoFile(t *testing.T) {
 	for _, d := range (Report{CatalogEmpty: true, CycleUnavailable: true}).Definitions() {
 		if strings.Contains(d[1], ".md") {
 			t.Errorf("definition %q names a repository file: %q", d[0], d[1])
+		}
+	}
+}
+
+// TestFormatDaysKeepsSubDayValues — days alone print "0.0d" for anything
+// faster than about an hour and a half, which reads as "no data". The demo
+// fixture had seven of eight cycle cells at 0.0d with real values behind
+// them (GDK-1683). FAIL-first: red on the old `%.1fd`-only cell.
+func TestFormatDaysKeepsSubDayValues(t *testing.T) {
+	for _, c := range []struct {
+		days float64
+		want string
+	}{
+		{89.6499, "89.7d"}, // roundDays first: 89.65, and %.1f of that rounds up
+		{1, "1.0d"},
+		{0.5, "12.0h"},
+		{4.0 / 24, "4.0h"},
+		{30.0 / (24 * 60), "30m"},
+		{0, "0m"},
+	} {
+		if got := FormatDays(c.days); got != c.want {
+			t.Errorf("FormatDays(%v) = %q, want %q", c.days, got, c.want)
 		}
 	}
 }

@@ -1392,6 +1392,13 @@ type Doc struct {
 	// entry is the name and the sentence, the same pair the CLI footer
 	// prints. Empty when nothing is missing.
 	Notes []DocNote `json:"notes"`
+	// SessionGap is the split gap the report ran with, trimmed the way the
+	// footer prints it ("30m", "1h30m"). The definitions strings are English
+	// and stay that way — they are the CLI's footer — but a surface that
+	// writes its own translated definitions still needs this one value, and
+	// hardcoding "30m" into a translation is wrong the moment someone passes
+	// --session-gap (GDK-1692).
+	SessionGap string `json:"session_gap"`
 }
 
 // DocNote is one entry of Doc.Notes.
@@ -1421,19 +1428,44 @@ func capKeys(keys []string) ([]string, bool) {
 // 2026-09-07). Three decimals stay: the JSON contract is unchanged.
 func roundDays(v float64) float64 { return math.Round(v*1000) / 1000 }
 
+// FormatDays prints a day-valued metric the way both surfaces show it.
+//
+// Days alone swallow anything faster than a day: a team that closes work in
+// four hours read a cycle time of "0.0d", which says "no data" to every
+// reader (GDK-1683, measured on the demo fixture where seven of eight cells
+// were 0.0d). The ladder steps down the same way FormatSeconds does — a
+// value under a day prints in hours, under an hour in minutes — so the
+// number survives. JSON is unchanged: it carries days, rounded by roundDays,
+// and this is the one place that turns a day count into a cell.
+func FormatDays(v float64) string {
+	d := roundDays(v)
+	if d >= 1 {
+		return fmt.Sprintf("%.1fd", d)
+	}
+	if h := d * 24; h >= 1 {
+		return fmt.Sprintf("%.1fh", h)
+	}
+	return fmt.Sprintf("%dm", int(math.Round(d*24*60)))
+}
+
 // daysCell prints a day-valued metric the way JSON rounds it, or a dash.
 func daysCell(p *float64) string {
 	if p == nil {
 		return "—"
 	}
-	return fmt.Sprintf("%.1fd", roundDays(*p))
+	return FormatDays(*p)
 }
 
 func (r Report) JSON() Doc {
 	round := roundDays
+	gap := r.SessionGap
+	if gap <= 0 {
+		gap = SessionGap
+	}
 	out := Doc{
 		Buckets:     make([]BucketJSON, 0, len(r.Buckets)),
 		Definitions: map[string]string{},
+		SessionGap:  formatGap(gap),
 	}
 	for _, d := range r.Definitions() {
 		out.Definitions[d[0]] = d[1]

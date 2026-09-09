@@ -1,5 +1,5 @@
 .PHONY: build test vet typecheck theme-check bench scan docker plugins-test \
-	media media-web media-search media-agent media-groupby media-scale media-sprint media-mcp media-prep media-deps \
+	media media-web media-search media-agent media-groupby media-scale media-sprint media-retro media-mcp media-prep media-deps \
 	media-fixture brand \
 	hosted-demo hosted-demo-test
 
@@ -202,6 +202,18 @@ media-sprint: media-deps media-fixture
 	GADAK_MEDIA=1 GADAK_SEED_DB="$(MEDIA_FIXTURE_DB)" \
 		./node_modules/.bin/playwright test --config e2e/demo/sprint.config.ts
 	bash e2e/demo/export-sprint.sh
+
+# The 0.22 release cut's second half: the weekly report opened from the
+# palette, the range widened, and a number clicked — the issues behind it
+# stand on the list as a keys view. Not in `make media`, same reason as
+# media-sprint.
+media-retro: media-deps media-fixture
+	@mkdir -p $(MEDIA_DIR)
+	@echo "media-retro: recording the weekly retro (locale $${GADAK_MEDIA_LOCALE:-en})…"
+	rm -rf e2e/demo/test-results-retro
+	GADAK_MEDIA=1 GADAK_SEED_DB="$(MEDIA_FIXTURE_DB)" \
+		./node_modules/.bin/playwright test --config e2e/demo/retro.config.ts
+	bash e2e/demo/export-retro.sh
 
 media-agent: media-deps
 	@mkdir -p $(MEDIA_DIR)
