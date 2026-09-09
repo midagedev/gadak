@@ -221,7 +221,8 @@ func (c *Client) IssueLinkTypes(ctx context.Context) ([]IssueLinkType, error) {
 
 // LinkIssues is POST /issueLink. On an issue response, the issue
 // at outwardIssue displays the type's inward description; inwardIssue displays
-// the outward description. 201/200 with an empty body is success.
+// the outward description — measured, with the evidence in
+// origin.ResolveLinkType (GDK-1599). 201/200 with an empty body is success.
 func (c *Client) LinkIssues(ctx context.Context, typeID, outwardKey, inwardKey string) error {
 	body := map[string]any{
 		"type":         map[string]string{"id": typeID},

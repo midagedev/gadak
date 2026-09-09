@@ -28,6 +28,18 @@ type linkTypeHit struct {
 // reports inwardDescription. The caller assigns POST issue ends because Jira's
 // issue response displays type.inward for outwardIssue and type.outward for
 // inwardIssue.
+//
+// That last sentence is the whole direction contract, and it is measured, not
+// read (GDK-1599, on a live Cloud site 2026-09-09): one issue's payload
+// carried `outwardIssue: <other>` for type Blocks (inward "is blocked by",
+// outward "blocks"), and the other issue's own changelog recorded Jira's
+// words for the same link — "This work item is blocked by <the first>". So
+// the issue whose element names the counterpart under outwardIssue is the one
+// that blocks: it is the link's inward end, and it displays the outward
+// phrase. internal/server/link.go and jira.Client.LinkIssues restate this;
+// this comment is where the evidence lives. The measurement also settled that
+// the built-in origin agrees — issuetap 69037e6 corrected its projection, and
+// its conformance round-trip is green against the pinned version.
 func ResolveLinkType(token string, catalog []jira.IssueLinkType) (lt jira.IssueLinkType, inwardDescription bool, err error) {
 	token = strings.TrimSpace(token)
 	if token == "" {

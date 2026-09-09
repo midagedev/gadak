@@ -96,8 +96,9 @@ func (s *server) handleLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Jira displays type.outward when A is inwardIssue and type.inward when A
-	// is outwardIssue. Put A on the end that makes the requested token the
-	// phrase displayed on A.
+	// is outwardIssue (measured — origin.ResolveLinkType carries the evidence,
+	// GDK-1599). Put A on the end that makes the requested token the phrase
+	// displayed on A.
 	outward, inward := b, a
 	if inwardDescription {
 		outward, inward = a, b
